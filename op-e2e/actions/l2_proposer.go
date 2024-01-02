@@ -28,6 +28,7 @@ import (
 type ProposerCfg struct {
 	OutputOracleAddr       common.Address
 	DisputeGameFactoryAddr *common.Address
+	ProposalInterval       time.Duration
 	ProposerKey            *ecdsa.PrivateKey
 	AllowNonFinalized      bool
 }
@@ -66,6 +67,7 @@ func NewL2Proposer(t Testing, log log.Logger, cfg *ProposerCfg, l1 *ethclient.Cl
 	proposerConfig := proposer.ProposerConfig{
 		PollInterval:           time.Second,
 		NetworkTimeout:         time.Second,
+		ProposalInterval:       cfg.ProposalInterval,
 		L2OutputOracleAddr:     cfg.OutputOracleAddr,
 		DisputeGameFactoryAddr: cfg.DisputeGameFactoryAddr,
 		AllowNonFinalized:      cfg.AllowNonFinalized,

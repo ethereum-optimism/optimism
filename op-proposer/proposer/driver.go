@@ -152,7 +152,7 @@ func (l *L2OutputSubmitter) StartL2OutputSubmitting() error {
 	defer l.mutex.Unlock()
 
 	if l.running {
-		return errors.New("Proposer is already running")
+		return errors.New("proposer is already running")
 	}
 	l.running = true
 
@@ -193,30 +193,50 @@ func (l *L2OutputSubmitter) StopL2OutputSubmitting() error {
 // FetchNextOutputInfo gets the block number of the next proposal.
 // It returns: the next block number, if the proposal should be made, error
 func (l *L2OutputSubmitter) FetchNextOutputInfo(ctx context.Context) (*eth.OutputResponse, bool, error) {
+	if l.l2ooContract == nil {
+		return nil, false, fmt.Errorf("L2OutputOracle contract not set, cannot fetch next output info")
+	}
+
 	cCtx, cancel := context.WithTimeout(ctx, l.Cfg.NetworkTimeout)
 	defer cancel()
 	callOpts := &bind.CallOpts{
 		From:    l.Txmgr.From(),
 		Context: cCtx,
 	}
-	// TODO: Redefine submission interval for fault proof output submissions.
 	nextCheckpointBlock, err := l.l2ooContract.NextBlockNumber(callOpts)
 	if err != nil {
 		l.Log.Error("proposer unable to get next block number", "err", err)
 		return nil, false, err
 	}
 	// Fetch the current L2 heads
-	cCtx, cancel = context.WithTimeout(ctx, l.Cfg.NetworkTimeout)
+	currentBlockNumber, err := l.FetchCurrentBlockNumber(ctx)
+	if err != nil {
+		return nil, false, err
+	}
+
+	// Ensure that we do not submit a block in the future
+	if currentBlockNumber.Cmp(nextCheckpointBlock) < 0 {
+		l.Log.Debug("proposer submission interval has not elapsed", "currentBlockNumber", currentBlockNumber, "nextBlockNumber", nextCheckpointBlock)
+		return nil, false, nil
+	}
+
+	return l.fetchOutput(ctx, nextCheckpointBlock)
+}
+
+// FetchCurrentBlockNumber gets the current block number from the [L2OutputSubmitter]'s [RollupClient]. If the `AllowNonFinalized` configuration
+// option is set, it will return the safe head block number, and if not, it will return the finalized head block number.
+func (l *L2OutputSubmitter) FetchCurrentBlockNumber(ctx context.Context) (*big.Int, error) {
+	cCtx, cancel := context.WithTimeout(ctx, l.Cfg.NetworkTimeout)
 	defer cancel()
 	rollupClient, err := l.RollupProvider.RollupClient(cCtx)
 	if err != nil {
 		l.Log.Error("proposer unable to get rollup client", "err", err)
-		return nil, false, err
+		return nil, err
 	}
 	status, err := rollupClient.SyncStatus(cCtx)
 	if err != nil {
 		l.Log.Error("proposer unable to get sync status", "err", err)
-		return nil, false, err
+		return nil, err
 	}
 
 	// Use either the finalized or safe head depending on the config. Finalized head is default & safer.
@@ -226,13 +246,7 @@ func (l *L2OutputSubmitter) FetchNextOutputInfo(ctx context.Context) (*eth.Outpu
 	} else {
 		currentBlockNumber = new(big.Int).SetUint64(status.FinalizedL2.Number)
 	}
-	// Ensure that we do not submit a block in the future
-	if currentBlockNumber.Cmp(nextCheckpointBlock) < 0 {
-		l.Log.Debug("proposer submission interval has not elapsed", "currentBlockNumber", currentBlockNumber, "nextBlockNumber", nextCheckpointBlock)
-		return nil, false, nil
-	}
-
-	return l.fetchOutput(ctx, nextCheckpointBlock)
+	return currentBlockNumber, nil
 }
 
 func (l *L2OutputSubmitter) fetchOutput(ctx context.Context, block *big.Int) (*eth.OutputResponse, bool, error) {
@@ -259,7 +273,7 @@ func (l *L2OutputSubmitter) fetchOutput(ctx context.Context, block *big.Int) (*e
 	}
 
 	// Always propose if it's part of the Finalized L2 chain. Or if allowed, if it's part of the safe L2 chain.
-	if !(output.BlockRef.Number <= output.Status.FinalizedL2.Number || (l.Cfg.AllowNonFinalized && output.BlockRef.Number <= output.Status.SafeL2.Number)) {
+	if output.BlockRef.Number > output.Status.FinalizedL2.Number && (!l.Cfg.AllowNonFinalized || output.BlockRef.Number > output.Status.SafeL2.Number) {
 		l.Log.Debug("not proposing yet, L2 block is not ready for proposal",
 			"l2_proposal", output.BlockRef,
 			"l2_safe", output.Status.SafeL2,
@@ -315,7 +329,6 @@ func (l *L2OutputSubmitter) waitForL1Head(ctx context.Context, blockNum uint64) 
 			if err != nil {
 				return err
 			}
-			break
 		case <-l.done:
 			return fmt.Errorf("L2OutputSubmitter is done()")
 		}
@@ -376,33 +389,56 @@ func (l *L2OutputSubmitter) loop() {
 
 	ctx := l.ctx
 
-	ticker := time.NewTicker(l.Cfg.PollInterval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ticker.C:
-			output, shouldPropose, err := l.FetchNextOutputInfo(ctx)
-			if err != nil {
-				break
-			}
-			if !shouldPropose {
-				break
-			}
-			cCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
-			if err := l.sendTransaction(cCtx, output); err != nil {
-				l.Log.Error("Failed to send proposal transaction",
-					"err", err,
-					"l1blocknum", output.Status.CurrentL1.Number,
-					"l1blockhash", output.Status.CurrentL1.Hash,
-					"l1head", output.Status.HeadL1.Number)
-				cancel()
-				break
-			}
-			l.Metr.RecordL2BlocksProposed(output.BlockRef)
-			cancel()
+	if l.dgfContract == nil {
+		ticker := time.NewTicker(l.Cfg.PollInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				output, shouldPropose, err := l.FetchNextOutputInfo(ctx)
+				if err != nil || !shouldPropose {
+					break
+				}
 
-		case <-l.done:
-			return
+				l.proposeOutput(ctx, output)
+			case <-l.done:
+				return
+			}
+		}
+	} else {
+		ticker := time.NewTicker(l.Cfg.ProposalInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				blockNumber, err := l.FetchCurrentBlockNumber(ctx)
+				if err != nil {
+					break
+				}
+
+				output, shouldPropose, err := l.fetchOutput(ctx, blockNumber)
+				if err != nil || !shouldPropose {
+					break
+				}
+
+				l.proposeOutput(ctx, output)
+			case <-l.done:
+				return
+			}
 		}
 	}
+}
+
+func (l *L2OutputSubmitter) proposeOutput(ctx context.Context, output *eth.OutputResponse) {
+	cCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
+	if err := l.sendTransaction(cCtx, output); err != nil {
+		l.Log.Error("Failed to send proposal transaction",
+			"err", err,
+			"l1blocknum", output.Status.CurrentL1.Number,
+			"l1blockhash", output.Status.CurrentL1.Hash,
+			"l1head", output.Status.HeadL1.Number)
+		cancel()
+	}
+	l.Metr.RecordL2BlocksProposed(output.BlockRef)
+	cancel()
 }

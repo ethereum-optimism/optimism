@@ -49,6 +49,9 @@ type CLIConfig struct {
 
 	// DGFAddress is the DisputeGameFactory contract address.
 	DGFAddress string
+
+	// ProposalInterval is the delay between submitting L2 output proposals when the DGFAddress is set.
+	ProposalInterval time.Duration
 }
 
 func (c *CLIConfig) Check() error {
@@ -64,9 +67,17 @@ func (c *CLIConfig) Check() error {
 	if err := c.TxMgrConfig.Check(); err != nil {
 		return err
 	}
+
 	if c.DGFAddress != "" && c.L2OOAddress != "" {
 		return fmt.Errorf("both the `DisputeGameFactory` and `L2OutputOracle` addresses were provided")
 	}
+	if c.DGFAddress != "" && c.ProposalInterval == 0 {
+		return fmt.Errorf("the `DisputeGameFactory` address was provided but the `ProposalInterval` was not set")
+	}
+	if c.ProposalInterval != 0 && c.DGFAddress == "" {
+		return fmt.Errorf("the `ProposalInterval` was provided but the `DisputeGameFactory` address was not set")
+	}
+
 	return nil
 }
 
@@ -85,6 +96,7 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 		LogConfig:         oplog.ReadCLIConfig(ctx),
 		MetricsConfig:     opmetrics.ReadCLIConfig(ctx),
 		PprofConfig:       oppprof.ReadCLIConfig(ctx),
-		DGFAddress:        ctx.String(flags.DisputeGameFactoryAddress.Name),
+		DGFAddress:        ctx.String(flags.DisputeGameFactoryAddressFlag.Name),
+		ProposalInterval:  ctx.Duration(flags.ProposalIntervalFlag.Name),
 	}
 }

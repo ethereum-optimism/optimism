@@ -33,6 +33,9 @@ type ProposerConfig struct {
 	PollInterval   time.Duration
 	NetworkTimeout time.Duration
 
+	// How frequently to post L2 outputs when the DisputeGameFactory is configured
+	ProposalInterval time.Duration
+
 	L2OutputOracleAddr     common.Address
 	DisputeGameFactoryAddr *common.Address
 
@@ -104,7 +107,10 @@ func (ps *ProposerService) initFromCLIConfig(ctx context.Context, version string
 		return fmt.Errorf("failed to init L2ooAddress: %w", err)
 	}
 	if err := ps.initDGFAddress(cfg); err != nil {
-		return fmt.Errorf("failed to init L2ooAddress: %w", err)
+		return fmt.Errorf("failed to init DGF address: %w", err)
+	}
+	if err := ps.initProposalInterval(cfg); err != nil {
+		return fmt.Errorf("failed to init ProposalInterval: %w", err)
 	}
 	if err := ps.initDriver(); err != nil {
 		return fmt.Errorf("failed to init Driver: %w", err)
@@ -212,6 +218,11 @@ func (ps *ProposerService) initDGFAddress(cfg *CLIConfig) error {
 		return nil
 	}
 	ps.DisputeGameFactoryAddr = &l2ooAddress
+	return nil
+}
+
+func (ps *ProposerService) initProposalInterval(cfg *CLIConfig) error {
+	ps.ProposalInterval = cfg.ProposalInterval
 	return nil
 }
 
