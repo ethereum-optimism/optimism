@@ -12,8 +12,8 @@
     "sourceCodeHash": "0x0c2f8fdc6130397f84d5867000110ef5ee864946cbc159f9b78665c29333b4f7"
   },
   "src/L1/L1CrossDomainMessenger.sol": {
-    "initCodeHash": "0x2e30441e86771fb65dac0dd021fa5bab8b6b4b224386594b76cc2bfc5146832f",
-    "sourceCodeHash": "0x508ac7c5628d226f5e3ec6593f6c28aab969f70223c678eb0e870155d24b1da4"
+    "initCodeHash": "0x3c6e220b920562afbd3d57948d062b7acc16c74463755095c634060e243e29b6",
+    "sourceCodeHash": "0x593fd60e1a60d955a5526777bea40c3e48a5c07ac7c7da66ce46cd346a152cd6"
   },
   "src/L1/L1ERC721Bridge.sol": {
     "initCodeHash": "0xca27bfb4742b3b44e9adb6018b0917ae3392e67e5f8242ab24828dd37245af16",
@@ -60,8 +60,8 @@
     "sourceCodeHash": "0x3a94f273937d8908fb37dd2c495a6a0b9c3941fe68ccea51723f84eb343ba225"
   },
   "src/L2/L2CrossDomainMessenger.sol": {
-    "initCodeHash": "0x83c8e1eb0dca6061998a14f561f02952350b8bbf56542b7229e611de0338a6b1",
-    "sourceCodeHash": "0x167f90f8b75e6ae2d5326d5245384d1ec9dd28222e78388b9e9b11aea8da7348"
+    "initCodeHash": "0x77d6705a81f41eaea30b165aa5f20948000c2b013c5fcc45ba7985d9c947b308",
+    "sourceCodeHash": "0x233e2358a738323b513f06e49945fc47a67b9bd4a2f01c5cf30e88611c8d1be9"
   },
   "src/L2/L2ERC721Bridge.sol": {
     "initCodeHash": "0x3b7357a0972db8cde39f6583d87291fc64ef424737498cf6927f8fcb3d7e368d",
