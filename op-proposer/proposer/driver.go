@@ -449,14 +449,15 @@ func (l *L2OutputSubmitter) loopDGF(ctx context.Context) {
 
 func (l *L2OutputSubmitter) proposeOutput(ctx context.Context, output *eth.OutputResponse) {
 	cCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
+	defer cancel()
+
 	if err := l.sendTransaction(cCtx, output); err != nil {
 		l.Log.Error("Failed to send proposal transaction",
 			"err", err,
 			"l1blocknum", output.Status.CurrentL1.Number,
 			"l1blockhash", output.Status.CurrentL1.Hash,
 			"l1head", output.Status.HeadL1.Number)
-		cancel()
+		return
 	}
 	l.Metr.RecordL2BlocksProposed(output.BlockRef)
-	cancel()
 }
