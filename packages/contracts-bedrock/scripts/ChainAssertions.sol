@@ -159,12 +159,12 @@ library ChainAssertions {
         console.log("Running chain assertions on the OptimismMintableERC20Factory");
         OptimismMintableERC20Factory factory = OptimismMintableERC20Factory(_contracts.OptimismMintableERC20Factory);
 
-        if (!_isProxy) {
-            require(factory.BRIDGE() == address(0));
-            require(factory.bridge() == address(0));
-        } else {
+        if (_isProxy) {
             require(factory.BRIDGE() == _contracts.L1StandardBridge);
             require(factory.bridge() == _contracts.L1StandardBridge);
+        } else {
+            require(factory.BRIDGE() == address(0));
+            require(factory.bridge() == address(0));
         }
     }
 
