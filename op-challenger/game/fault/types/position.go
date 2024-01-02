@@ -28,11 +28,7 @@ func NewPosition(depth int, indexAtDepth *big.Int) Position {
 // NewPositionFromGIndex creates a new Position given a generalized index,
 // numbered like the following:
 //
-//			 1
-//		    /  \
-//	      2     3
-//		 / \   / \
-//		4   5 6   7
+// NewPositionFromGIndex creates a new Position given a generalized index.
 //
 // See ../../../../specs/fault-dispute-game.md#game-tree
 func NewPositionFromGIndex(x *big.Int) Position {
