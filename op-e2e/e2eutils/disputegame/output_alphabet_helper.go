@@ -8,7 +8,6 @@ import (
 
 type OutputAlphabetGameHelper struct {
 	OutputGameHelper
-	claimedAlphabet string
 }
 
 func (g *OutputAlphabetGameHelper) StartChallenger(
@@ -18,7 +17,7 @@ func (g *OutputAlphabetGameHelper) StartChallenger(
 	options ...challenger.Option,
 ) *challenger.Helper {
 	opts := []challenger.Option{
-		challenger.WithOutputAlphabet(g.claimedAlphabet, g.system.RollupEndpoint(l2Node)),
+		challenger.WithAlphabet(g.system.RollupEndpoint(l2Node)),
 		challenger.WithFactoryAddress(g.factoryAddr),
 		challenger.WithGameAddress(g.addr),
 	}

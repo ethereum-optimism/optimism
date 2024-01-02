@@ -14,7 +14,7 @@ type OutputHonestHelper struct {
 	t            *testing.T
 	require      *require.Assertions
 	game         *OutputGameHelper
-	contract     *contracts.OutputBisectionGameContract
+	contract     *contracts.FaultDisputeGameContract
 	correctTrace types.TraceAccessor
 }
 

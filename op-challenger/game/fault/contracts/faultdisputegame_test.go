@@ -20,39 +20,34 @@ func TestFaultDisputeGameContract_CommonTests(t *testing.T) {
 	})
 }
 
-func TestGetProposals(t *testing.T) {
-	stubRpc, game := setupFaultDisputeGameTest(t)
-	agreedIndex := big.NewInt(5)
-	agreedBlockNum := big.NewInt(6)
-	agreedRoot := common.Hash{0xaa}
-	disputedIndex := big.NewInt(7)
-	disputedBlockNum := big.NewInt(8)
-	disputedRoot := common.Hash{0xdd}
-	agreed := contractProposal{
-		Index:         agreedIndex,
-		L2BlockNumber: agreedBlockNum,
-		OutputRoot:    agreedRoot,
-	}
-	disputed := contractProposal{
-		Index:         disputedIndex,
-		L2BlockNumber: disputedBlockNum,
-		OutputRoot:    disputedRoot,
-	}
-	expectedAgreed := Proposal{
-		L2BlockNumber: agreed.L2BlockNumber,
-		OutputRoot:    agreed.OutputRoot,
-	}
-	expectedDisputed := Proposal{
-		L2BlockNumber: disputed.L2BlockNumber,
-		OutputRoot:    disputed.OutputRoot,
-	}
-	stubRpc.SetResponse(fdgAddr, methodProposals, batching.BlockLatest, []interface{}{}, []interface{}{
-		agreed, disputed,
-	})
-	actualAgreed, actualDisputed, err := game.GetProposals(context.Background())
+func TestGetBlockRange(t *testing.T) {
+	stubRpc, contract := setupFaultDisputeGameTest(t)
+	expectedStart := uint64(65)
+	expectedEnd := uint64(102)
+	stubRpc.SetResponse(fdgAddr, methodGenesisBlockNumber, batching.BlockLatest, nil, []interface{}{new(big.Int).SetUint64(expectedStart)})
+	stubRpc.SetResponse(fdgAddr, methodL2BlockNumber, batching.BlockLatest, nil, []interface{}{new(big.Int).SetUint64(expectedEnd)})
+	start, end, err := contract.GetBlockRange(context.Background())
 	require.NoError(t, err)
-	require.Equal(t, expectedAgreed, actualAgreed)
-	require.Equal(t, expectedDisputed, actualDisputed)
+	require.Equal(t, expectedStart, start)
+	require.Equal(t, expectedEnd, end)
+}
+
+func TestGetSplitDepth(t *testing.T) {
+	stubRpc, contract := setupFaultDisputeGameTest(t)
+	expectedSplitDepth := uint64(15)
+	stubRpc.SetResponse(fdgAddr, methodSplitDepth, batching.BlockLatest, nil, []interface{}{new(big.Int).SetUint64(expectedSplitDepth)})
+	splitDepth, err := contract.GetSplitDepth(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, expectedSplitDepth, splitDepth)
+}
+
+func TestGetGenesisOutputRoot(t *testing.T) {
+	stubRpc, contract := setupFaultDisputeGameTest(t)
+	expectedOutputRoot := common.HexToHash("0x1234")
+	stubRpc.SetResponse(fdgAddr, methodGenesisOutputRoot, batching.BlockLatest, nil, []interface{}{expectedOutputRoot})
+	genesisOutputRoot, err := contract.GetGenesisOutputRoot(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, expectedOutputRoot, genesisOutputRoot)
 }
 
 func TestFaultDisputeGame_UpdateOracleTx(t *testing.T) {
@@ -67,7 +62,7 @@ func TestFaultDisputeGame_UpdateOracleTx(t *testing.T) {
 		claimIdx := uint64(6)
 		stubRpc.SetResponse(fdgAddr, methodAddLocalData, batching.BlockLatest, []interface{}{
 			data.GetIdent(),
-			faultTypes.NoLocalContext,
+			new(big.Int).SetUint64(claimIdx),
 			new(big.Int).SetUint64(uint64(data.OracleOffset)),
 		}, nil)
 		tx, err := game.UpdateOracleTx(context.Background(), claimIdx, data)
@@ -84,7 +79,7 @@ func TestFaultDisputeGame_UpdateOracleTx(t *testing.T) {
 			OracleOffset: 16,
 		}
 		claimIdx := uint64(6)
-		stubRpc.SetResponse(fdgAddr, methodVMV0, batching.BlockLatest, nil, []interface{}{vmAddr})
+		stubRpc.SetResponse(fdgAddr, methodVM, batching.BlockLatest, nil, []interface{}{vmAddr})
 		stubRpc.SetResponse(vmAddr, methodOracle, batching.BlockLatest, nil, []interface{}{oracleAddr})
 		stubRpc.SetResponse(oracleAddr, methodLoadKeccak256PreimagePart, batching.BlockLatest, []interface{}{
 			new(big.Int).SetUint64(uint64(data.OracleOffset)),
