@@ -26,7 +26,7 @@ import (
 )
 
 type ProposerCfg struct {
-	OutputOracleAddr       common.Address
+	OutputOracleAddr       *common.Address
 	DisputeGameFactoryAddr *common.Address
 	ProposalInterval       time.Duration
 	DisputeGameType        uint8
@@ -85,9 +85,13 @@ func NewL2Proposer(t Testing, log log.Logger, cfg *ProposerCfg, l1 *ethclient.Cl
 		RollupProvider: rollupProvider,
 	}
 
+	if cfg.OutputOracleAddr == nil {
+		panic("L2OutputOracle address must be set in op-e2e test harness. The DisputeGameFactory is not yet supported.")
+	}
+
 	dr, err := proposer.NewL2OutputSubmitter(driverSetup)
 	require.NoError(t, err)
-	contract, err := bindings.NewL2OutputOracleCaller(cfg.OutputOracleAddr, l1)
+	contract, err := bindings.NewL2OutputOracleCaller(*cfg.OutputOracleAddr, l1)
 	require.NoError(t, err)
 
 	address := crypto.PubkeyToAddress(cfg.ProposerKey.PublicKey)
@@ -102,7 +106,7 @@ func NewL2Proposer(t Testing, log log.Logger, cfg *ProposerCfg, l1 *ethclient.Cl
 		contract:     contract,
 		address:      address,
 		privKey:      cfg.ProposerKey,
-		contractAddr: cfg.OutputOracleAddr,
+		contractAddr: *cfg.OutputOracleAddr,
 	}
 }
 

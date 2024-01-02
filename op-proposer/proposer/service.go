@@ -36,7 +36,7 @@ type ProposerConfig struct {
 	// How frequently to post L2 outputs when the DisputeGameFactory is configured
 	ProposalInterval time.Duration
 
-	L2OutputOracleAddr     common.Address
+	L2OutputOracleAddr     *common.Address
 	DisputeGameFactoryAddr *common.Address
 	DisputeGameType        uint8
 
@@ -206,7 +206,7 @@ func (ps *ProposerService) initL2ooAddress(cfg *CLIConfig) error {
 	if err != nil {
 		return nil
 	}
-	ps.L2OutputOracleAddr = l2ooAddress
+	ps.L2OutputOracleAddr = &l2ooAddress
 	return nil
 }
 

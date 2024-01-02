@@ -111,8 +111,8 @@ func NewL2OutputSubmitter(setup DriverSetup) (*L2OutputSubmitter, error) {
 			dgfContract: dgfCaller,
 			dgfABI:      parsed,
 		}, nil
-	} else {
-		l2ooContract, err := bindings.NewL2OutputOracleCaller(setup.Cfg.L2OutputOracleAddr, setup.L1Client)
+	} else if setup.Cfg.L2OutputOracleAddr != nil {
+		l2ooContract, err := bindings.NewL2OutputOracleCaller(*setup.Cfg.L2OutputOracleAddr, setup.L1Client)
 		if err != nil {
 			cancel()
 			return nil, fmt.Errorf("failed to create L2OO at address %s: %w", setup.Cfg.L2OutputOracleAddr, err)
@@ -142,6 +142,8 @@ func NewL2OutputSubmitter(setup DriverSetup) (*L2OutputSubmitter, error) {
 			l2ooContract: l2ooContract,
 			l2ooABI:      parsed,
 		}, nil
+	} else {
+		return nil, errors.New("Neither the `L2OutputOracle` nor `DisputeGameFactory` addresses were provided")
 	}
 }
 
@@ -364,7 +366,7 @@ func (l *L2OutputSubmitter) sendTransaction(ctx context.Context, output *eth.Out
 		}
 		receipt, err = l.Txmgr.Send(ctx, txmgr.TxCandidate{
 			TxData:   data,
-			To:       &l.Cfg.L2OutputOracleAddr,
+			To:       l.Cfg.L2OutputOracleAddr,
 			GasLimit: 0,
 		})
 		if err != nil {
