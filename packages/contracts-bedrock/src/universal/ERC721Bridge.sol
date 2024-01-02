@@ -66,6 +66,7 @@ abstract contract ERC721Bridge is Initializable {
     /// @param _otherBridge Address of the ERC721 bridge on the other network.
     // solhint-disable-next-line func-name-mixedcase
     function __ERC721Bridge_init(CrossDomainMessenger _messenger, address _otherBridge) internal onlyInitializing {
+        require(_otherBridge != address(0), "ERC721Bridge: other bridge cannot be address(0)");
         messenger = _messenger;
         otherBridge = _otherBridge;
     }
