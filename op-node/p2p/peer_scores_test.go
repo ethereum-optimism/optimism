@@ -1,4 +1,4 @@
-package p2p
+package p2p_test
 
 import (
 	"context"
@@ -8,15 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-
-	//nolint:all
-	"github.com/libp2p/go-libp2p/p2p/host/peerstore/pstoreds"
-
-	p2pMocks "github.com/ethereum-optimism/optimism/op-node/p2p/mocks"
-	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
-	"github.com/ethereum-optimism/optimism/op-service/clock"
-	testlog "github.com/ethereum-optimism/optimism/op-service/testlog"
 	log "github.com/ethereum/go-ethereum/log"
 	ds "github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/sync"
@@ -26,11 +17,20 @@ import (
 	peer "github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	bhost "github.com/libp2p/go-libp2p/p2p/host/blank"
-	tswarm "github.com/libp2p/go-libp2p/p2p/net/swarm/testing"
 
+	//nolint:all
+	"github.com/libp2p/go-libp2p/p2p/host/peerstore/pstoreds"
+	tswarm "github.com/libp2p/go-libp2p/p2p/net/swarm/testing"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+
+	p2p "github.com/ethereum-optimism/optimism/op-node/p2p"
+	p2pMocks "github.com/ethereum-optimism/optimism/op-node/p2p/mocks"
+	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
+	testlog "github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
 // PeerScoresTestSuite tests peer parameterization.
@@ -86,7 +86,7 @@ func getNetHosts(testSuite *PeerScoresTestSuite, ctx context.Context, n int) []h
 
 type discriminatingAppScorer struct {
 	badPeer peer.ID
-	NoopApplicationScorer
+	p2p.NoopApplicationScorer
 }
 
 func (d *discriminatingAppScorer) ApplicationScore(id peer.ID) float64 {
@@ -112,11 +112,11 @@ func newGossipSubs(testSuite *PeerScoresTestSuite, ctx context.Context, hosts []
 		extPeerStore, err := store.NewExtendedPeerstore(context.Background(), logger, clock.SystemClock, peerStore, dataStore, 1*time.Hour)
 		require.NoError(testSuite.T(), err)
 
-		scorer := NewScorer(
+		scorer := p2p.NewScorer(
 			&rollup.Config{L2ChainID: big.NewInt(123)},
 			extPeerStore, testSuite.mockMetricer, &discriminatingAppScorer{badPeer: hosts[0].ID()}, logger)
-		opts = append(opts, ConfigurePeerScoring(&Config{
-			ScoringParams: &ScoringParams{
+		opts = append(opts, p2p.ConfigurePeerScoring(&p2p.Config{
+			ScoringParams: &p2p.ScoringParams{
 				PeerScoring: pubsub.PeerScoreParams{
 					AppSpecificWeight: 1,
 					DecayInterval:     time.Second,

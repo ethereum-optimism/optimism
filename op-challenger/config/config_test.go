@@ -13,7 +13,6 @@ import (
 var (
 	validL1EthRpc              = "http://localhost:8545"
 	validGameFactoryAddress    = common.Address{0x23}
-	validAlphabetTrace         = "abcdefgh"
 	validCannonBin             = "./bin/cannon"
 	validCannonOpProgramBin    = "./bin/op-program"
 	validCannonNetwork         = "mainnet"
@@ -25,19 +24,14 @@ var (
 
 func validConfig(traceType TraceType) Config {
 	cfg := NewConfig(validGameFactoryAddress, validL1EthRpc, validDatadir, traceType)
-	switch traceType {
-	case TraceTypeAlphabet:
-		cfg.AlphabetTrace = validAlphabetTrace
-	case TraceTypeCannon, TraceTypeOutputCannon:
+	if traceType == TraceTypeCannon {
 		cfg.CannonBin = validCannonBin
 		cfg.CannonServer = validCannonOpProgramBin
 		cfg.CannonAbsolutePreState = validCannonAbsolutPreState
 		cfg.CannonL2 = validCannonL2
 		cfg.CannonNetwork = validCannonNetwork
 	}
-	if traceType == TraceTypeOutputCannon || traceType == TraceTypeOutputAlphabet {
-		cfg.RollupRpc = validRollupRpc
-	}
+	cfg.RollupRpc = validRollupRpc
 	return cfg
 }
 
@@ -75,18 +69,6 @@ func TestGameFactoryAddressRequired(t *testing.T) {
 func TestGameAllowlistNotRequired(t *testing.T) {
 	config := validConfig(TraceTypeCannon)
 	config.GameAllowlist = []common.Address{}
-	require.NoError(t, config.Check())
-}
-
-func TestAlphabetTraceRequired(t *testing.T) {
-	config := validConfig(TraceTypeAlphabet)
-	config.AlphabetTrace = ""
-	require.ErrorIs(t, config.Check(), ErrMissingAlphabetTrace)
-}
-
-func TestAlphabetTraceNotRequiredForOutputAlphabet(t *testing.T) {
-	config := validConfig(TraceTypeOutputAlphabet)
-	config.AlphabetTrace = ""
 	require.NoError(t, config.Check())
 }
 
@@ -134,14 +116,14 @@ func TestHttpPollInterval(t *testing.T) {
 	})
 }
 
-func TestRollupRpcRequired_OutputCannon(t *testing.T) {
-	config := validConfig(TraceTypeOutputCannon)
+func TestRollupRpcRequired_Cannon(t *testing.T) {
+	config := validConfig(TraceTypeCannon)
 	config.RollupRpc = ""
 	require.ErrorIs(t, config.Check(), ErrMissingRollupRpc)
 }
 
-func TestRollupRpcRequired_OutputAlphabet(t *testing.T) {
-	config := validConfig(TraceTypeOutputAlphabet)
+func TestRollupRpcRequired_Alphabet(t *testing.T) {
+	config := validConfig(TraceTypeAlphabet)
 	config.RollupRpc = ""
 	require.ErrorIs(t, config.Check(), ErrMissingRollupRpc)
 }
@@ -208,21 +190,15 @@ func TestNetworkMustBeValid(t *testing.T) {
 
 func TestRequireConfigForMultipleTraceTypes(t *testing.T) {
 	cfg := validConfig(TraceTypeCannon)
-	cfg.TraceTypes = []TraceType{TraceTypeCannon, TraceTypeAlphabet, TraceTypeOutputCannon}
+	cfg.TraceTypes = []TraceType{TraceTypeCannon, TraceTypeAlphabet}
 	// Set all required options and check its valid
 	cfg.RollupRpc = validRollupRpc
-	cfg.AlphabetTrace = validAlphabetTrace
 	require.NoError(t, cfg.Check())
 
 	// Require cannon specific args
 	cfg.CannonL2 = ""
 	require.ErrorIs(t, cfg.Check(), ErrMissingCannonL2)
 	cfg.CannonL2 = validCannonL2
-
-	// Require alphabet specific args
-	cfg.AlphabetTrace = ""
-	require.ErrorIs(t, cfg.Check(), ErrMissingAlphabetTrace)
-	cfg.AlphabetTrace = validAlphabetTrace
 
 	// Require output cannon specific args
 	cfg.RollupRpc = ""

@@ -93,7 +93,7 @@ func TestGindexPositionConversions(t *testing.T) {
 	}
 }
 
-type testNodeInfo struct {
+var treeNodes = []struct {
 	GIndex       *big.Int
 	Depth        int
 	MaxDepth     int
@@ -101,9 +101,7 @@ type testNodeInfo struct {
 	TraceIndex   *big.Int
 	AttackGIndex *big.Int // 0 indicates attack is not possible from this node
 	DefendGIndex *big.Int // 0 indicates defend is not possible from this node
-}
-
-var treeNodes = []testNodeInfo{
+}{
 	{GIndex: bi(1), Depth: 0, MaxDepth: 4, IndexAtDepth: bi(0), TraceIndex: bi(15), AttackGIndex: bi(2)},
 
 	{GIndex: bi(2), Depth: 1, MaxDepth: 4, IndexAtDepth: bi(0), TraceIndex: bi(7), AttackGIndex: bi(4), DefendGIndex: bi(6)},
