@@ -806,7 +806,6 @@ contract Deploy is Deployer {
         address l1ERC721BridgeProxy = mustGetAddress("L1ERC721BridgeProxy");
         address l1ERC721Bridge = mustGetAddress("L1ERC721Bridge");
         address l1CrossDomainMessengerProxy = mustGetAddress("L1CrossDomainMessengerProxy");
-        address l2ERC721Bridge = mustGetAddress("L2ERC721Bridge");
         address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
 
         _upgradeAndCallViaSafe({
@@ -816,7 +815,7 @@ contract Deploy is Deployer {
                 L1ERC721Bridge.initialize,
                 (
                     L1CrossDomainMessenger(payable(l1CrossDomainMessengerProxy)),
-                    l2ERC721Bridge,
+                    Predeploys.L2_ERC721_BRIDGE,
                     SuperchainConfig(superchainConfigProxy)
                 )
                 )
