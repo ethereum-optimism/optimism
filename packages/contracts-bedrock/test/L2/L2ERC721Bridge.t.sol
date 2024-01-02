@@ -8,6 +8,7 @@ import { Bridge_Initializer } from "test/setup/Bridge_Initializer.sol";
 import { ERC721 } from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
 import { OptimismMintableERC721 } from "src/universal/OptimismMintableERC721.sol";
+import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 
 // Target contract
 import { L2ERC721Bridge } from "src/L2/L2ERC721Bridge.sol";
@@ -77,6 +78,19 @@ contract L2ERC721Bridge_Test is Bridge_Initializer {
         assertEq(address(l2ERC721Bridge.OTHER_BRIDGE()), address(l1ERC721Bridge));
         assertEq(address(l2ERC721Bridge.messenger()), address(l2CrossDomainMessenger));
         assertEq(address(l2ERC721Bridge.otherBridge()), address(l1ERC721Bridge));
+    }
+
+    /// @dev Tests that the implementation contract cannot be initialized twice.
+    function test_initializeImpl_alreadyInitialized_reverts() external {
+        L2ERC721Bridge impl = L2ERC721Bridge(deploy.mustGetAddress("L2ERC721Bridge"));
+        vm.expectRevert("Initializable: contract is already initialized");
+        impl.initialize({ _messenger: CrossDomainMessenger(address(0)), _otherBridge: address(0) });
+    }
+
+    /// @dev Tests that the proxy cannot be initialized twice.
+    function test_initializeProxy_alreadyInitialized_reverts() external {
+        vm.expectRevert("Initializable: contract is already initialized");
+        l2ERC721Bridge.initialize({ _messenger: CrossDomainMessenger(address(0)), _otherBridge: address(0) });
     }
 
     /// @dev Ensures that the L2ERC721Bridge is always not paused. The pausability
