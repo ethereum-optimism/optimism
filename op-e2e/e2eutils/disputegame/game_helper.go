@@ -33,7 +33,7 @@ func (g *FaultGameHelper) Addr() common.Address {
 }
 
 func (g *FaultGameHelper) GameDuration(ctx context.Context) time.Duration {
-	duration, err := g.game.GAMEDURATION(&bind.CallOpts{Context: ctx})
+	duration, err := g.game.GameDuration(&bind.CallOpts{Context: ctx})
 	g.require.NoError(err, "failed to get game duration")
 	return time.Duration(duration) * time.Second
 }
@@ -59,7 +59,7 @@ func (g *FaultGameHelper) WaitForClaimCount(ctx context.Context, count int64) {
 }
 
 func (g *FaultGameHelper) MaxDepth(ctx context.Context) int64 {
-	depth, err := g.game.MAXGAMEDEPTH(&bind.CallOpts{Context: ctx})
+	depth, err := g.game.MaxGameDepth(&bind.CallOpts{Context: ctx})
 	g.require.NoError(err, "Failed to load game depth")
 	return depth.Int64()
 }
@@ -293,6 +293,7 @@ func (g *FaultGameHelper) ChallengeRootClaim(ctx context.Context, performMove fu
 func (g *FaultGameHelper) WaitForNewClaim(ctx context.Context, checkPoint int64) (int64, error) {
 	return g.waitForNewClaim(ctx, checkPoint, defaultTimeout)
 }
+
 func (g *FaultGameHelper) waitForNewClaim(ctx context.Context, checkPoint int64, timeout time.Duration) (int64, error) {
 	timedCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()

@@ -25,7 +25,7 @@ type OutputGameHelper struct {
 	require               *require.Assertions
 	client                *ethclient.Client
 	opts                  *bind.TransactOpts
-	game                  *bindings.OutputBisectionGame
+	game                  *bindings.FaultDisputeGame
 	factoryAddr           common.Address
 	addr                  common.Address
 	correctOutputProvider *outputs.OutputTraceProvider

@@ -20,12 +20,19 @@ import { LibPosition } from "../src/dispute/lib/LibPosition.sol";
  */
 contract FaultDisputeGameViz is Script, FaultDisputeGame_Init {
     /// @dev The root claim of the game.
-    Claim internal constant ROOT_CLAIM = Claim.wrap(bytes32(uint256(10)));
+    Claim internal constant ROOT_CLAIM = Claim.wrap(bytes32(uint256(1)));
     /// @dev The absolute prestate of the trace.
-    Claim internal constant ABSOLUTE_PRESTATE = Claim.wrap(bytes32(uint256(0)));
+    Claim internal constant ABSOLUTE_PRESTATE = Claim.wrap(bytes32((uint256(3) << 248) | uint256(0)));
 
     function setUp() public override {
-        super.init(ROOT_CLAIM, ABSOLUTE_PRESTATE);
+        super.setUp();
+        super.init({
+            rootClaim: ROOT_CLAIM,
+            absolutePrestate: ABSOLUTE_PRESTATE,
+            l2BlockNumber: 0x10,
+            genesisBlockNumber: 0,
+            genesisOutputRoot: Hash.wrap(bytes32(0))
+        });
     }
 
     /**

@@ -87,25 +87,25 @@
     "initCodeHash": "0x0da844fb4dd22f252ff631524f01f45edf43bca7558fe45f71d711b79af01742",
     "sourceCodeHash": "0x1afb1d392e8f6a58ff86ea7f648e0d1756d4ba8d0d964279d58a390deaa53b7e"
   },
-  "src/dispute/BlockOracle.sol": {
-    "initCodeHash": "0x183ce41fb2842c9853f08955ddd91e345126028fad64e07ed14f593cbf9c88bc",
-    "sourceCodeHash": "0xabbfe0def64318b467e098bb518100a4cbf7ad4e803d13fbb187f25df35de8dd"
-  },
   "src/dispute/DisputeGameFactory.sol": {
     "initCodeHash": "0x84a15994d275bea8a96af83a46849e74eb573aa579db86350b6fe358bd61ec57",
     "sourceCodeHash": "0x64290a5d8138c46d2ecd308e3ef62ba04663049cce8a271b9a686ddd2e630391"
   },
   "src/dispute/FaultDisputeGame.sol": {
-    "initCodeHash": "0x77ae981180b9c2fc9cf33b7862551f74368e8889f68c2f535f46730d1272eba3",
-    "sourceCodeHash": "0xa995b54dce03ddf5c9c47451bd7181996b91398ad66b54ab0b8cbf582863a33e"
+    "initCodeHash": "0xbd89fd5227cf5c52309cbaa24175351491180f6ff5b7a40a542bfc0e80d6ec00",
+    "sourceCodeHash": "0xbf39a67d44f5bcdaf65b202c393c538a87903a172056f4fb548645120f38d88c"
   },
-  "src/dispute/OutputBisectionGame.sol": {
-    "initCodeHash": "0x10596ff55c460324b6b442fe19d7f849e6dd8202c9b4514ca979ca02be339060",
-    "sourceCodeHash": "0xe0fada6499eb1a24a4e1ccce50568f0b10617dec0fc8af189bff2c9ab4c320ce"
+  "src/legacy/BlockOracle.sol": {
+    "initCodeHash": "0x183ce41fb2842c9853f08955ddd91e345126028fad64e07ed14f593cbf9c88bc",
+    "sourceCodeHash": "0xabbfe0def64318b467e098bb518100a4cbf7ad4e803d13fbb187f25df35de8dd"
   },
   "src/legacy/DeployerWhitelist.sol": {
     "initCodeHash": "0x8de80fb23b26dd9d849f6328e56ea7c173cd9e9ce1f05c9beea559d1720deb3d",
     "sourceCodeHash": "0xb518a9f56136a910f2450098b4823c9982f93883fe4a9ef6f6b0a89355965d38"
+  },
+  "src/legacy/FaultDisputeGame.sol": {
+    "initCodeHash": "0xbd89fd5227cf5c52309cbaa24175351491180f6ff5b7a40a542bfc0e80d6ec00",
+    "sourceCodeHash": "0xdc119ac6d4766e6ee88fcaff31f7ef3b8f5ac79055bc426dd3c6872f3df0eb30"
   },
   "src/legacy/L1BlockNumber.sol": {
     "initCodeHash": "0xd586c4f93caf1753e53fcdc05eb547c1f3a69afda2904ae9f9d851b73e1c9c1d",

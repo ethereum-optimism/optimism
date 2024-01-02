@@ -84,26 +84,7 @@ error ClaimAboveSplit();
 error InvalidSplitDepth();
 
 ////////////////////////////////////////////////////////////////
-//              `AttestationDisputeGame` Errors               //
-////////////////////////////////////////////////////////////////
-
-/// @notice Thrown when an invalid signature is submitted to `challenge`.
-error InvalidSignature();
-
-/// @notice Thrown when a signature that has already been used to support the
-///         `rootClaim` is submitted to `challenge`.
-error AlreadyChallenged();
-
-////////////////////////////////////////////////////////////////
-//                      `Ownable` Errors                      //
-////////////////////////////////////////////////////////////////
-
-/// @notice Thrown when a function that is protected by the `onlyOwner` modifier
-///          is called from an account other than the owner.
-error NotOwner();
-
-////////////////////////////////////////////////////////////////
-//                    `BlockOracle` Errors                    //
+//               `BlockOracle` Errors (Legacy)                //
 ////////////////////////////////////////////////////////////////
 
 /// @notice Thrown when a block that is out of the range of the `BLOCKHASH` opcode

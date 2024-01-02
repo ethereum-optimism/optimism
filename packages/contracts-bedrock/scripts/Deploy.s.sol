@@ -30,10 +30,8 @@ import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
 import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
-import { OutputBisectionGame } from "src/dispute/OutputBisectionGame.sol";
 import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
 import { MIPS } from "src/cannon/MIPS.sol";
-import { BlockOracle } from "src/dispute/BlockOracle.sol";
 import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
 import { ProtocolVersions, ProtocolVersion } from "src/L1/ProtocolVersions.sol";
 import { StorageSetter } from "src/universal/StorageSetter.sol";
@@ -43,7 +41,6 @@ import { Chains } from "scripts/Chains.sol";
 import { IBigStepper } from "src/dispute/interfaces/IBigStepper.sol";
 import { IPreimageOracle } from "src/cannon/interfaces/IPreimageOracle.sol";
 import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
-import { AlphabetVM2 } from "test/mocks/AlphabetVM2.sol";
 import "src/libraries/DisputeTypes.sol";
 import { ChainAssertions } from "scripts/ChainAssertions.sol";
 import { Types } from "scripts/Types.sol";
@@ -290,9 +287,6 @@ contract Deploy is Deployer {
         deployImplementations();
         initializeImplementations();
 
-        setCannonOutputBisectionGameImplementation();
-        setAlphabetOutputBisectionGameImplementation();
-
         setAlphabetFaultGameImplementation();
         setCannonFaultGameImplementation();
 
@@ -326,7 +320,6 @@ contract Deploy is Deployer {
         deployL1StandardBridge();
         deployL1ERC721Bridge();
         deployDisputeGameFactory();
-        deployBlockOracle();
         deployPreimageOracle();
         deployMips();
     }
@@ -567,16 +560,6 @@ contract Deploy is Deployer {
         console.log("DisputeGameFactory deployed at %s", address(factory));
 
         addr_ = address(factory);
-    }
-
-    /// @notice Deploy the BlockOracle
-    function deployBlockOracle() public onlyDevnet broadcast returns (address addr_) {
-        console.log("Deploying BlockOracle implementation");
-        BlockOracle oracle = new BlockOracle{ salt: _implSalt() }();
-        save("BlockOracle", address(oracle));
-        console.log("BlockOracle deployed at %s", address(oracle));
-
-        addr_ = address(oracle);
     }
 
     /// @notice Deploy the ProtocolVersions
@@ -1019,35 +1002,6 @@ contract Deploy is Deployer {
             _gameType: GameTypes.CANNON,
             _absolutePrestate: loadMipsAbsolutePrestate(),
             _faultVm: IBigStepper(mustGetAddress("Mips")),
-            _maxGameDepth: 30 // Hard code depth for legacy game to keep e2e tests fast
-         });
-    }
-
-    /// @notice Sets the implementation for the `OUTPUT_CANNON` game type in the `DisputeGameFactory`
-    function setCannonOutputBisectionGameImplementation() public onlyDevnet broadcast {
-        console.log("Setting Cannon OutputBisectionGame implementation");
-        DisputeGameFactory factory = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
-
-        _setFaultGameImplementation({
-            _factory: factory,
-            _gameType: GameTypes.OUTPUT_CANNON,
-            _absolutePrestate: loadMipsAbsolutePrestate(),
-            _faultVm: IBigStepper(mustGetAddress("Mips")),
-            _maxGameDepth: cfg.faultGameMaxDepth()
-        });
-    }
-
-    /// @notice Sets the implementation for the `OUTPUT_ALPHABET` game type in the `DisputeGameFactory`
-    function setAlphabetOutputBisectionGameImplementation() public onlyDevnet broadcast {
-        console.log("Setting Alphabet OutputBisectionGame implementation");
-        DisputeGameFactory factory = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
-
-        Claim outputAbsolutePrestate = Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()));
-        _setFaultGameImplementation({
-            _factory: factory,
-            _gameType: GameTypes.OUTPUT_ALPHABET,
-            _absolutePrestate: outputAbsolutePrestate,
-            _faultVm: IBigStepper(new AlphabetVM2(outputAbsolutePrestate)),
             _maxGameDepth: cfg.faultGameMaxDepth()
         });
     }
@@ -1057,15 +1011,14 @@ contract Deploy is Deployer {
         console.log("Setting Alphabet FaultDisputeGame implementation");
         DisputeGameFactory factory = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
 
-        // Set the Alphabet FaultDisputeGame implementation in the factory.
-        Claim alphabetAbsolutePrestate = Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()));
+        Claim outputAbsolutePrestate = Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()));
         _setFaultGameImplementation({
             _factory: factory,
             _gameType: GameTypes.ALPHABET,
-            _absolutePrestate: alphabetAbsolutePrestate,
-            _faultVm: IBigStepper(new AlphabetVM(alphabetAbsolutePrestate)),
-            _maxGameDepth: 4 // The max game depth of the alphabet game is always 4.
-         });
+            _absolutePrestate: outputAbsolutePrestate,
+            _faultVm: IBigStepper(new AlphabetVM(outputAbsolutePrestate)),
+            _maxGameDepth: cfg.faultGameMaxDepth()
+        });
     }
 
     /// @notice Sets the implementation for the given fault game type in the `DisputeGameFactory`.
@@ -1086,49 +1039,24 @@ contract Deploy is Deployer {
             return;
         }
 
-        string memory deployed;
-        if (
-            GameType.unwrap(_gameType) == GameType.unwrap(GameTypes.OUTPUT_ALPHABET)
-                || GameType.unwrap(_gameType) == GameType.unwrap(GameTypes.OUTPUT_CANNON)
-        ) {
-            deployed = "OutputBisectionGame";
-            _factory.setImplementation(
-                _gameType,
-                new OutputBisectionGame({
-                    _gameType: _gameType,
-                    _absolutePrestate: _absolutePrestate,
-                    _genesisBlockNumber: cfg.outputBisectionGameGenesisBlock(),
-                    _genesisOutputRoot: Hash.wrap(cfg.outputBisectionGameGenesisOutputRoot()),
-                    _maxGameDepth: _maxGameDepth,
-                    _splitDepth: cfg.outputBisectionGameSplitDepth(),
-                    _gameDuration: Duration.wrap(uint64(cfg.faultGameMaxDuration())),
-                    _vm: _faultVm
-                })
-            );
-        } else {
-            deployed = "FaultDisputeGame";
-            _factory.setImplementation(
-                _gameType,
-                new FaultDisputeGame({
-                    _gameType: _gameType,
-                    _absolutePrestate: _absolutePrestate,
-                    _maxGameDepth: _maxGameDepth,
-                    _gameDuration: Duration.wrap(uint64(cfg.faultGameMaxDuration())),
-                    _vm: _faultVm,
-                    _l2oo: L2OutputOracle(mustGetAddress("L2OutputOracleProxy")),
-                    _blockOracle: BlockOracle(mustGetAddress("BlockOracle"))
-                })
-            );
-        }
+        _factory.setImplementation(
+            _gameType,
+            new FaultDisputeGame({
+                _gameType: _gameType,
+                _absolutePrestate: _absolutePrestate,
+                _genesisBlockNumber: cfg.faultGameGenesisBlock(),
+                _genesisOutputRoot: Hash.wrap(cfg.faultGameGenesisOutputRoot()),
+                _maxGameDepth: _maxGameDepth,
+                _splitDepth: cfg.faultGameSplitDepth(),
+                _gameDuration: Duration.wrap(uint64(cfg.faultGameMaxDuration())),
+                _vm: _faultVm
+            })
+        );
 
         uint8 rawGameType = GameType.unwrap(_gameType);
         string memory gameTypeString;
         if (rawGameType == GameType.unwrap(GameTypes.CANNON)) {
             gameTypeString = "Cannon";
-        } else if (rawGameType == GameType.unwrap(GameTypes.OUTPUT_CANNON)) {
-            gameTypeString = "OutputBisectionCannon";
-        } else if (rawGameType == GameType.unwrap(GameTypes.OUTPUT_ALPHABET)) {
-            gameTypeString = "OutputBisectionAlphabet";
         } else if (rawGameType == GameType.unwrap(GameTypes.ALPHABET)) {
             gameTypeString = "Alphabet";
         } else {
@@ -1136,8 +1064,7 @@ contract Deploy is Deployer {
         }
 
         console.log(
-            "DisputeGameFactoryProxy: set `%s` implementation (Backend: %s | GameType: %s)",
-            deployed,
+            "DisputeGameFactoryProxy: set `FaultDisputeGame` implementation (Backend: %s | GameType: %s)",
             gameTypeString,
             vm.toString(rawGameType)
         );

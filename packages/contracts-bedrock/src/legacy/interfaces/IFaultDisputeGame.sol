@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.15;
 
-import { IDisputeGame } from "./IDisputeGame.sol";
+import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
 
 import "src/libraries/DisputeTypes.sol";
 
-/// @title IOutputBisectionGame
+/// @title ILegacyFaultDisputeGame
 /// @notice The interface for a fault proof backed dispute game.
-interface IOutputBisectionGame is IDisputeGame {
+interface ILegacyFaultDisputeGame is IDisputeGame {
     /// @notice The `ClaimData` struct represents the data associated with a Claim.
     /// @dev TODO(clabby): Add bond ID information.
     struct ClaimData {
@@ -16,6 +16,27 @@ interface IOutputBisectionGame is IDisputeGame {
         Claim claim;
         Position position;
         Clock clock;
+    }
+
+    /// @notice The `OutputProposal` struct contains information about an output proposal in
+    ///         the `L2OutputOracle` at a given index.
+    struct OutputProposal {
+        uint128 index;
+        uint128 l2BlockNumber;
+        Hash outputRoot;
+    }
+
+    /// @notice A container for two consecutive `OutputProposal`s, used to store the starting
+    ///         and disputed output proposals for a given dispute game. The starting output
+    ///         proposal will be used to determine where the off chain agents should begin
+    ///         running their fault proof program, and the disputed output proposal will be
+    ///         fed into the program and treated as disputed state. The program's exit code
+    ///         expresses its opinion on the validity of the state transition from the starting,
+    ///         trusted output proposal to the disputed output proposal, and ultimately resolves
+    ///         the dispute.
+    struct OutputProposals {
+        OutputProposal starting;
+        OutputProposal disputed;
     }
 
     /// @notice Emitted when a new claim is added to the DAG by `claimant`
@@ -49,9 +70,9 @@ interface IOutputBisectionGame is IDisputeGame {
 
     /// @notice Posts the requested local data to the VM's `PreimageOralce`.
     /// @param _ident The local identifier of the data to post.
-    /// @param _execLeafIdx The index of the leaf claim in an execution subgame that requires the local data for a step.
+    /// @param _localContext The local context for the `PreimageOracle` key.
     /// @param _partOffset The offset of the data to post.
-    function addLocalData(uint256 _ident, uint256 _execLeafIdx, uint256 _partOffset) external;
+    function addLocalData(uint256 _ident, bytes32 _localContext, uint256 _partOffset) external;
 
     /// @notice Resolves the subgame rooted at the given claim index.
     /// @dev This function must be called bottom-up in the DAG
@@ -61,9 +82,15 @@ interface IOutputBisectionGame is IDisputeGame {
     /// @param _claimIndex The index of the subgame root claim to resolve.
     function resolveClaim(uint256 _claimIndex) external payable;
 
-    /// @notice A block hash on the L1 that contains the disputed output root.
+    /// @notice An L1 block hash that contains the disputed output root, fetched from the
+    ///         `BlockOracle` and verified by referencing the timestamp associated with the
+    ///         first L2 Output Proposal in the `L2OutputOracle` that contains the disputed
+    ///         L2 block number.
     function l1Head() external view returns (Hash l1Head_);
 
     /// @notice The l2BlockNumber of the disputed output root in the `L2OutputOracle`.
     function l2BlockNumber() external view returns (uint256 l2BlockNumber_);
+
+    /// @notice The l1BlockNumber that Cannon was ran from to generate the root claim.
+    function l1BlockNumber() external view returns (uint256 l1BlockNumber_);
 }

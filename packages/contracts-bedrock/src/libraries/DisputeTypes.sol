@@ -82,13 +82,6 @@ library GameTypes {
     /// @dev A dispute game type the uses the cannon vm.
     GameType internal constant CANNON = GameType.wrap(0);
 
-    /// @dev A dispute game type that performs output bisection and then uses the cannon vm.
-    GameType internal constant OUTPUT_CANNON = GameType.wrap(1);
-
-    /// @notice A dispute game type that performs output bisection and then uses an alphabet vm.
-    ///         Not intended for production use.
-    GameType internal constant OUTPUT_ALPHABET = GameType.wrap(254);
-
     /// @notice A dispute game type that uses an alphabet vm.
     ///         Not intended for production use.
     GameType internal constant ALPHABET = GameType.wrap(255);
