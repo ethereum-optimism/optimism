@@ -182,7 +182,7 @@ func (b *BridgeProcessor) onL2Data(latestL2Header *types.Header) (errs error) {
 		}
 
 		// Finalized L2 Events (on L1)
-		if b.LastFinalizedL1Header == nil || b.LastFinalizedL1Header.Timestamp < latestL2Header.Time {
+		if b.LastL2Header != nil && (b.LastFinalizedL1Header == nil || b.LastFinalizedL1Header.Timestamp < latestL2Header.Time) {
 			if err := b.processFinalizedL1Events(latestL2Header); err != nil {
 				errs = errors.Join(errs, fmt.Errorf("failed processing finalized l1 events: %w", err))
 			}
