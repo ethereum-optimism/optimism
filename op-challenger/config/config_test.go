@@ -27,7 +27,7 @@ func validConfig(traceType TraceType) Config {
 	cfg := NewConfig(validGameFactoryAddress, validL1EthRpc, validDatadir, traceType)
 	switch traceType {
 	case TraceTypeAlphabet:
-		cfg.AlphabetTrace = validAlphabetTrace
+		// noop - kept for an exhaustive switch
 	case TraceTypeCannon:
 		cfg.CannonBin = validCannonBin
 		cfg.CannonServer = validCannonOpProgramBin
@@ -74,18 +74,6 @@ func TestGameAllowlistNotRequired(t *testing.T) {
 	config := validConfig(TraceTypeCannon)
 	config.GameAllowlist = []common.Address{}
 	require.NoError(t, config.Check())
-}
-
-func TestAlphabetTraceRequired(t *testing.T) {
-	config := validConfig(TraceTypeAlphabet)
-	config.AlphabetTrace = ""
-	require.ErrorIs(t, config.Check(), ErrMissingAlphabetTrace)
-}
-
-func TestAlphabetTraceRequiredForAlphabet(t *testing.T) {
-	config := validConfig(TraceTypeAlphabet)
-	config.AlphabetTrace = ""
-	require.Error(t, config.Check(), "Alphabet trace required for alphabet trace type")
 }
 
 func TestCannonBinRequired(t *testing.T) {
@@ -209,18 +197,12 @@ func TestRequireConfigForMultipleTraceTypes(t *testing.T) {
 	cfg.TraceTypes = []TraceType{TraceTypeCannon, TraceTypeAlphabet}
 	// Set all required options and check its valid
 	cfg.RollupRpc = validRollupRpc
-	cfg.AlphabetTrace = validAlphabetTrace
 	require.NoError(t, cfg.Check())
 
 	// Require cannon specific args
 	cfg.CannonL2 = ""
 	require.ErrorIs(t, cfg.Check(), ErrMissingCannonL2)
 	cfg.CannonL2 = validCannonL2
-
-	// Require alphabet specific args
-	cfg.AlphabetTrace = ""
-	require.ErrorIs(t, cfg.Check(), ErrMissingAlphabetTrace)
-	cfg.AlphabetTrace = validAlphabetTrace
 
 	// Require output cannon specific args
 	cfg.RollupRpc = ""

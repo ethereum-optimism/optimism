@@ -23,7 +23,6 @@ var (
 	ErrMissingCannonBin              = errors.New("missing cannon bin")
 	ErrMissingCannonServer           = errors.New("missing cannon server")
 	ErrMissingCannonAbsolutePreState = errors.New("missing cannon absolute pre-state")
-	ErrMissingAlphabetTrace          = errors.New("missing alphabet trace")
 	ErrMissingL1EthRPC               = errors.New("missing l1 eth rpc url")
 	ErrMissingGameFactoryAddress     = errors.New("missing game factory address")
 	ErrMissingCannonSnapshotFreq     = errors.New("missing cannon snapshot freq")
@@ -108,9 +107,6 @@ type Config struct {
 	PollInterval       time.Duration    // Polling interval for latest-block subscription when using an HTTP RPC provider
 
 	TraceTypes []TraceType // Type of traces supported
-
-	// Specific to the alphabet trace provider
-	AlphabetTrace string // String for the AlphabetTraceProvider
 
 	// Specific to the output cannon trace type
 	RollupRpc string
@@ -217,9 +213,6 @@ func (c Config) Check() error {
 		if c.CannonInfoFreq == 0 {
 			return ErrMissingCannonInfoFreq
 		}
-	}
-	if c.TraceTypeEnabled(TraceTypeAlphabet) && c.AlphabetTrace == "" {
-		return ErrMissingAlphabetTrace
 	}
 	if err := c.TxMgrConfig.Check(); err != nil {
 		return err

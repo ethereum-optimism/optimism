@@ -73,11 +73,6 @@ var (
 		Usage:   "HTTP provider URL for the rollup node",
 		EnvVars: prefixEnvVars("ROLLUP_RPC"),
 	}
-	AlphabetFlag = &cli.StringFlag{
-		Name:    "alphabet",
-		Usage:   "Correct Alphabet Trace (alphabet trace type only)",
-		EnvVars: prefixEnvVars("ALPHABET"),
-	}
 	CannonNetworkFlag = &cli.StringFlag{
 		Name: "cannon-network",
 		Usage: fmt.Sprintf(
@@ -149,7 +144,6 @@ var optionalFlags = []cli.Flag{
 	MaxConcurrencyFlag,
 	HTTPPollInterval,
 	RollupRpcFlag,
-	AlphabetFlag,
 	GameAllowlistFlag,
 	CannonNetworkFlag,
 	CannonRollupConfigFlag,
@@ -283,7 +277,6 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 		MaxConcurrency:         maxConcurrency,
 		PollInterval:           ctx.Duration(HTTPPollInterval.Name),
 		RollupRpc:              ctx.String(RollupRpcFlag.Name),
-		AlphabetTrace:          ctx.String(AlphabetFlag.Name),
 		CannonNetwork:          ctx.String(CannonNetworkFlag.Name),
 		CannonRollupConfigPath: ctx.String(CannonRollupConfigFlag.Name),
 		CannonL2GenesisPath:    ctx.String(CannonL2GenesisFlag.Name),

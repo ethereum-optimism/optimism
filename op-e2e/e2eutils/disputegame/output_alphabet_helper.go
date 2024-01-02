@@ -18,7 +18,7 @@ func (g *OutputAlphabetGameHelper) StartChallenger(
 	options ...challenger.Option,
 ) *challenger.Helper {
 	opts := []challenger.Option{
-		challenger.WithAlphabet(g.claimedAlphabet, g.system.RollupEndpoint(l2Node)),
+		challenger.WithAlphabet(g.system.RollupEndpoint(l2Node)),
 		challenger.WithFactoryAddress(g.factoryAddr),
 		challenger.WithGameAddress(g.addr),
 	}

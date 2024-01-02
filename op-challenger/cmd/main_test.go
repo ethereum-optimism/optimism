@@ -50,7 +50,6 @@ func TestDefaultCLIOptionsMatchDefaultConfig(t *testing.T) {
 	cfg := configForArgs(t, addRequiredArgs(config.TraceTypeAlphabet))
 	defaultCfg := config.NewConfig(common.HexToAddress(gameFactoryAddressValue), l1EthRpc, datadir, config.TraceTypeAlphabet)
 	// Add in the extra CLI options required when using alphabet trace type
-	defaultCfg.AlphabetTrace = alphabetTrace
 	defaultCfg.RollupRpc = rollupRpc
 	require.Equal(t, defaultCfg, cfg)
 }
@@ -59,7 +58,6 @@ func TestDefaultConfigIsValid(t *testing.T) {
 	cfg := config.NewConfig(common.HexToAddress(gameFactoryAddressValue), l1EthRpc, datadir, config.TraceTypeAlphabet)
 	// Add in options that are required based on the specific trace type
 	// To avoid needing to specify unused options, these aren't included in the params for NewConfig
-	cfg.AlphabetTrace = alphabetTrace
 	cfg.RollupRpc = rollupRpc
 	require.NoError(t, cfg.Check())
 }
@@ -98,7 +96,7 @@ func TestTraceType(t *testing.T) {
 func TestMultipleTraceTypes(t *testing.T) {
 	t.Run("WithAllOptions", func(t *testing.T) {
 		argsMap := requiredArgs(config.TraceTypeCannon)
-		addRequiredAlphabetArgs(argsMap)
+		addRequiredOutputArgs(argsMap)
 		args := toArgList(argsMap)
 		// Add extra trace types (cannon is already specified)
 		args = append(args,
@@ -108,7 +106,7 @@ func TestMultipleTraceTypes(t *testing.T) {
 	})
 	t.Run("WithSomeOptions", func(t *testing.T) {
 		argsMap := requiredArgs(config.TraceTypeCannon)
-		addRequiredAlphabetArgs(argsMap)
+		addRequiredOutputArgs(argsMap)
 		args := toArgList(argsMap)
 		// Add extra trace types (cannon is already specified)
 		args = append(args,
@@ -461,14 +459,9 @@ func requiredArgs(traceType config.TraceType) map[string]string {
 	case config.TraceTypeCannon:
 		addRequiredCannonArgs(args)
 	case config.TraceTypeAlphabet:
-		addRequiredAlphabetArgs(args)
+		addRequiredOutputArgs(args)
 	}
 	return args
-}
-
-func addRequiredAlphabetArgs(args map[string]string) {
-	args["--alphabet"] = alphabetTrace
-	addRequiredOutputArgs(args)
 }
 
 func addRequiredCannonArgs(args map[string]string) {

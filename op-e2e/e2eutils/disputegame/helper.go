@@ -60,8 +60,6 @@ func (s Status) String() string {
 	}
 }
 
-var CorrectAlphabet = "abcdefghijklmnop"
-
 type DisputeSystem interface {
 	NodeEndpoint(name string) string
 	NodeClient(name string) *ethclient.Client

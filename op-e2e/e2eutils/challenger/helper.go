@@ -101,11 +101,10 @@ func WithCannon(
 	}
 }
 
-func WithAlphabet(alphabet string, rollupEndpoint string) Option {
+func WithAlphabet(rollupEndpoint string) Option {
 	return func(c *config.Config) {
 		c.TraceTypes = append(c.TraceTypes, config.TraceTypeAlphabet)
 		c.RollupRpc = rollupEndpoint
-		c.AlphabetTrace = alphabet
 	}
 }
 
