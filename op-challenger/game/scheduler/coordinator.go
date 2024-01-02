@@ -24,9 +24,10 @@ type CoordinatorMetricer interface {
 }
 
 type gameState struct {
-	player   GamePlayer
-	inflight bool
-	status   types.GameStatus
+	player                GamePlayer
+	inflight              bool
+	lastProcessedBlockNum uint64
+	status                types.GameStatus
 }
 
 // coordinator manages the set of current games, queues games to be played (on separate worker threads) and
@@ -45,10 +46,8 @@ type coordinator struct {
 	states       map[common.Address]*gameState
 	disk         DiskManager
 
-	// blockUpdates maps a block number to the number of jobs that should be scheduled
-	// for that block. This helps us keep track of in-flight jobs and the highest block
-	// that the challenger has fully acted upon (all jobs are complete).
-	blockUpdates map[uint64]uint64
+	// lastScheduledBlockNum is the highest block number that the coordinator has seen and scheduled jobs.
+	lastScheduledBlockNum uint64
 }
 
 // schedule takes the current list of games to attempt to progress, filters out games that have previous
@@ -63,6 +62,7 @@ func (c *coordinator) schedule(ctx context.Context, games []types.GameMetadata, 
 			return candidate.Proxy == addr
 		}) {
 			delete(c.states, addr)
+			continue
 		}
 	}
 
@@ -97,12 +97,18 @@ func (c *coordinator) schedule(ctx context.Context, games []types.GameMetadata, 
 	}
 	c.m.RecordGamesStatus(gamesInProgress, gamesDefenderWon, gamesChallengerWon)
 
+	lowestProcessedBlockNum := blockNumber
+	for _, state := range c.states {
+		lowestProcessedBlockNum = min(lowestProcessedBlockNum, state.lastProcessedBlockNum)
+	}
+	c.lastScheduledBlockNum = blockNumber
+	c.m.RecordActedL1Block(lowestProcessedBlockNum)
+
 	// Finally, enqueue the jobs
 	for _, j := range jobs {
 		if err := c.enqueueJob(ctx, j); err != nil {
 			errs = append(errs, fmt.Errorf("failed to enqueue job for game %v: %w", j.addr, err))
 		}
-		c.blockUpdates[j.block]++
 	}
 	return errors.Join(errs...)
 }
@@ -112,7 +118,9 @@ func (c *coordinator) schedule(ctx context.Context, games []types.GameMetadata, 
 func (c *coordinator) createJob(ctx context.Context, game types.GameMetadata, blockNumber uint64) (*job, error) {
 	state, ok := c.states[game.Proxy]
 	if !ok {
-		state = &gameState{}
+		// This is the first time we're seeing this game, so its last processed block
+		// is the last block the coordinator processed (it didn't exist yet).
+		state = &gameState{lastProcessedBlockNum: c.lastScheduledBlockNum}
 		c.states[game.Proxy] = state
 	}
 	if state.inflight {
@@ -161,13 +169,9 @@ func (c *coordinator) processResult(j job) error {
 	}
 	state.inflight = false
 	state.status = j.status
+	state.lastProcessedBlockNum = j.block
 	c.deleteResolvedGameFiles()
 	c.m.RecordGameUpdateCompleted()
-	c.blockUpdates[j.block]--
-	if c.blockUpdates[j.block] == 0 {
-		delete(c.blockUpdates, j.block)
-		c.m.RecordActedL1Block(j.block)
-	}
 	return nil
 }
 
@@ -192,6 +196,5 @@ func newCoordinator(logger log.Logger, m CoordinatorMetricer, jobQueue chan<- jo
 		createPlayer: createPlayer,
 		disk:         disk,
 		states:       make(map[common.Address]*gameState),
-		blockUpdates: make(map[uint64]uint64),
 	}
 }
