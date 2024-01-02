@@ -89,16 +89,16 @@ library ChainAssertions {
         require(messenger.OTHER_MESSENGER() == Predeploys.L2_CROSS_DOMAIN_MESSENGER);
         require(messenger.otherMessenger() == Predeploys.L2_CROSS_DOMAIN_MESSENGER);
 
-        if (!_isProxy) {
-            require(address(messenger.PORTAL()) == address(0));
-            require(address(messenger.portal()) == address(0));
-            require(address(messenger.superchainConfig()) == address(0));
-        } else {
+        if (_isProxy) {
             require(address(messenger.PORTAL()) == _contracts.OptimismPortal);
             require(address(messenger.portal()) == _contracts.OptimismPortal);
             require(address(messenger.superchainConfig()) == _contracts.SuperchainConfig);
             bytes32 xdmSenderSlot = _vm.load(address(messenger), bytes32(uint256(204)));
             require(address(uint160(uint256(xdmSenderSlot))) == Constants.DEFAULT_L2_SENDER);
+        } else {
+            require(address(messenger.PORTAL()) == address(0));
+            require(address(messenger.portal()) == address(0));
+            require(address(messenger.superchainConfig()) == address(0));
         }
     }
 
