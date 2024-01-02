@@ -1003,7 +1003,7 @@ contract Deploy is Deployer {
             _absolutePrestate: loadMipsAbsolutePrestate(),
             _faultVm: IBigStepper(mustGetAddress("Mips")),
             _maxGameDepth: cfg.faultGameMaxDepth()
-         });
+        });
     }
 
     /// @notice Sets the implementation for the `ALPHABET` game type in the `DisputeGameFactory`
