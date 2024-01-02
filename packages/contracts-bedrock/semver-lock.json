@@ -93,7 +93,7 @@
   },
   "src/dispute/FaultDisputeGame.sol": {
     "initCodeHash": "0xbd89fd5227cf5c52309cbaa24175351491180f6ff5b7a40a542bfc0e80d6ec00",
-    "sourceCodeHash": "0x29932f1bdaf16f0995a530e64ceca0a746f1764d1846763a1d6a10a2de267be3"
+    "sourceCodeHash": "0xbf39a67d44f5bcdaf65b202c393c538a87903a172056f4fb548645120f38d88c"
   },
   "src/legacy/BlockOracle.sol": {
     "initCodeHash": "0x183ce41fb2842c9853f08955ddd91e345126028fad64e07ed14f593cbf9c88bc",

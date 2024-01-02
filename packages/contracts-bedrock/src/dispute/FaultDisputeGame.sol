@@ -257,7 +257,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         Clock nextClock = LibClock.wrap(nextDuration, Timestamp.wrap(uint64(block.timestamp)));
 
         // INVARIANT: There cannot be multiple identical claims with identical moves on the same challengeIndex. Multiple
-        // claims at the same position may dispute the same challengeIndex. However, they must have different values.
+        //            claims at the same position may dispute the same challengeIndex. However, they must have different
+        //            values.
         ClaimHash claimHash = _claim.hashClaimPos(nextPosition, _challengeIndex);
         if (claims[claimHash]) revert ClaimAlreadyExists();
         claims[claimHash] = true;
