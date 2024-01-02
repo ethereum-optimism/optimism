@@ -61,5 +61,12 @@
     "offset": 0,
     "slot": "6",
     "type": "bool"
+  },
+  {
+    "bytes": "1",
+    "label": "initialized",
+    "offset": 1,
+    "slot": "6",
+    "type": "bool"
   }
 ]

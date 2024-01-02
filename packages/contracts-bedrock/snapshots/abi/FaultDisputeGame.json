@@ -524,6 +524,11 @@
   },
   {
     "inputs": [],
+    "name": "AlreadyInitialized",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "CannotDefendRootClaim",
     "type": "error"
   },

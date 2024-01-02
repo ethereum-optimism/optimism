@@ -24,6 +24,9 @@ error UnexpectedRootClaim(Claim rootClaim);
 //                 `FaultDisputeGame` Errors                  //
 ////////////////////////////////////////////////////////////////
 
+/// @notice Thrown when a dispute game has already been initialized.
+error AlreadyInitialized();
+
 /// @notice Thrown when a supplied bond is too low to cover the
 ///         cost of the next possible counter claim.
 error BondTooLow();
