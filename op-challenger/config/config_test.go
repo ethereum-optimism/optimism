@@ -24,10 +24,7 @@ var (
 
 func validConfig(traceType TraceType) Config {
 	cfg := NewConfig(validGameFactoryAddress, validL1EthRpc, validDatadir, traceType)
-	switch traceType {
-	case TraceTypeAlphabet:
-		// noop - kept for an exhaustive switch
-	case TraceTypeCannon:
+	if traceType == TraceTypeCannon {
 		cfg.CannonBin = validCannonBin
 		cfg.CannonServer = validCannonOpProgramBin
 		cfg.CannonAbsolutePreState = validCannonAbsolutPreState
