@@ -86,7 +86,7 @@ func NewL2Proposer(t Testing, log log.Logger, cfg *ProposerCfg, l1 *ethclient.Cl
 	}
 
 	if cfg.OutputOracleAddr == nil {
-		panic("L2OutputOracle address must be set in op-e2e test harness. The DisputeGameFactory is not yet supported.")
+		panic("L2OutputOracle address must be set in op-e2e test harness. The DisputeGameFactory is not yet supported as a proposal destination.")
 	}
 
 	dr, err := proposer.NewL2OutputSubmitter(driverSetup)
