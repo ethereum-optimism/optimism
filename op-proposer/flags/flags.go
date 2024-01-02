@@ -60,6 +60,12 @@ var (
 		Usage:   "Interval between submitting L2 output proposals when the DGFAddress is set",
 		EnvVars: prefixEnvVars("PROPOSAL_INTERVAL"),
 	}
+	DisputeGameTypeFlag = &cli.UintFlag{
+		Name:    "dg-type",
+		Usage:   "Dispute game type to create via the configured DisputeGameFactory",
+		Value:   0,
+		EnvVars: prefixEnvVars("DG_TYPE"),
+	}
 	// Legacy Flags
 	L2OutputHDPathFlag = txmgr.L2OutputHDPathFlag
 )
@@ -76,6 +82,7 @@ var optionalFlags = []cli.Flag{
 	L2OutputHDPathFlag,
 	DisputeGameFactoryAddressFlag,
 	ProposalIntervalFlag,
+	DisputeGameTypeFlag,
 }
 
 func init() {

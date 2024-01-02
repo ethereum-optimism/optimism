@@ -52,6 +52,9 @@ type CLIConfig struct {
 
 	// ProposalInterval is the delay between submitting L2 output proposals when the DGFAddress is set.
 	ProposalInterval time.Duration
+
+	// DisputeGameType is the type of dispute game to create when submitting an output proposal.
+	DisputeGameType uint8
 }
 
 func (c *CLIConfig) Check() error {
@@ -98,5 +101,6 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 		PprofConfig:       oppprof.ReadCLIConfig(ctx),
 		DGFAddress:        ctx.String(flags.DisputeGameFactoryAddressFlag.Name),
 		ProposalInterval:  ctx.Duration(flags.ProposalIntervalFlag.Name),
+		DisputeGameType:   uint8(ctx.Uint(flags.DisputeGameTypeFlag.Name)),
 	}
 }

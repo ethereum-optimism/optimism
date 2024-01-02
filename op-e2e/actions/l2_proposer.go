@@ -29,6 +29,7 @@ type ProposerCfg struct {
 	OutputOracleAddr       common.Address
 	DisputeGameFactoryAddr *common.Address
 	ProposalInterval       time.Duration
+	DisputeGameType        uint8
 	ProposerKey            *ecdsa.PrivateKey
 	AllowNonFinalized      bool
 }
@@ -70,6 +71,7 @@ func NewL2Proposer(t Testing, log log.Logger, cfg *ProposerCfg, l1 *ethclient.Cl
 		ProposalInterval:       cfg.ProposalInterval,
 		L2OutputOracleAddr:     cfg.OutputOracleAddr,
 		DisputeGameFactoryAddr: cfg.DisputeGameFactoryAddr,
+		DisputeGameType:        cfg.DisputeGameType,
 		AllowNonFinalized:      cfg.AllowNonFinalized,
 	}
 	rollupProvider, err := dial.NewStaticL2RollupProviderFromExistingRollup(rollupCl)

@@ -38,6 +38,7 @@ type ProposerConfig struct {
 
 	L2OutputOracleAddr     common.Address
 	DisputeGameFactoryAddr *common.Address
+	DisputeGameType        uint8
 
 	// AllowNonFinalized enables the proposal of safe, but non-finalized L2 blocks.
 	// The L1 block-hash embedded in the proposal TX is checked and should ensure the proposal
@@ -106,11 +107,8 @@ func (ps *ProposerService) initFromCLIConfig(ctx context.Context, version string
 	if err := ps.initL2ooAddress(cfg); err != nil {
 		return fmt.Errorf("failed to init L2ooAddress: %w", err)
 	}
-	if err := ps.initDGFAddress(cfg); err != nil {
-		return fmt.Errorf("failed to init DGF address: %w", err)
-	}
-	if err := ps.initProposalInterval(cfg); err != nil {
-		return fmt.Errorf("failed to init ProposalInterval: %w", err)
+	if err := ps.initDGF(cfg); err != nil {
+		return fmt.Errorf("failed to init DGF: %w", err)
 	}
 	if err := ps.initDriver(); err != nil {
 		return fmt.Errorf("failed to init Driver: %w", err)
@@ -212,17 +210,14 @@ func (ps *ProposerService) initL2ooAddress(cfg *CLIConfig) error {
 	return nil
 }
 
-func (ps *ProposerService) initDGFAddress(cfg *CLIConfig) error {
+func (ps *ProposerService) initDGF(cfg *CLIConfig) error {
 	l2ooAddress, err := opservice.ParseAddress(cfg.DGFAddress)
 	if err != nil {
 		return nil
 	}
 	ps.DisputeGameFactoryAddr = &l2ooAddress
-	return nil
-}
-
-func (ps *ProposerService) initProposalInterval(cfg *CLIConfig) error {
 	ps.ProposalInterval = cfg.ProposalInterval
+	ps.DisputeGameType = cfg.DisputeGameType
 	return nil
 }
 

@@ -113,7 +113,7 @@ func TestManualABIPacking(t *testing.T) {
 
 	output = testutils.RandomOutputResponse(rng)
 
-	txData, err = proposeL2OutputDGFTxData(dgfAbi, output)
+	txData, err = proposeL2OutputDGFTxData(dgfAbi, uint8(0), output)
 	require.NoError(t, err)
 
 	opts.GasLimit = 100_000

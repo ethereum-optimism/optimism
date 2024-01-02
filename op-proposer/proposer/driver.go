@@ -94,7 +94,7 @@ func NewL2OutputSubmitter(setup DriverSetup) (*L2OutputSubmitter, error) {
 			cancel()
 			return nil, err
 		}
-		log.Info("Connected to DisputeGameFactory", "address", setup.Cfg.L2OutputOracleAddr, "version", version)
+		log.Info("Connected to DisputeGameFactory", "address", setup.Cfg.DisputeGameFactoryAddr, "version", version)
 
 		parsed, err := bindings.DisputeGameFactoryMetaData.GetAbi()
 		if err != nil {
@@ -300,12 +300,12 @@ func proposeL2OutputTxData(abi *abi.ABI, output *eth.OutputResponse) ([]byte, er
 }
 
 func (l *L2OutputSubmitter) ProposeL2OutputDGFTxData(output *eth.OutputResponse) ([]byte, error) {
-	return proposeL2OutputDGFTxData(l.dgfABI, output)
+	return proposeL2OutputDGFTxData(l.dgfABI, l.Cfg.DisputeGameType, output)
 }
 
 // proposeL2OutputDGFTxData creates the transaction data for the DisputeGameFactory's `create` function
-func proposeL2OutputDGFTxData(abi *abi.ABI, output *eth.OutputResponse) ([]byte, error) {
-	return abi.Pack("create", uint8(0), output.OutputRoot, math.U256Bytes(new(big.Int).SetUint64(output.BlockRef.Number)))
+func proposeL2OutputDGFTxData(abi *abi.ABI, gameType uint8, output *eth.OutputResponse) ([]byte, error) {
+	return abi.Pack("create", gameType, output.OutputRoot, math.U256Bytes(new(big.Int).SetUint64(output.BlockRef.Number)))
 }
 
 // We wait until l1head advances beyond blocknum. This is used to make sure proposal tx won't
