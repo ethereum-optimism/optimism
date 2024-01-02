@@ -13,7 +13,6 @@ import (
 var (
 	validL1EthRpc              = "http://localhost:8545"
 	validGameFactoryAddress    = common.Address{0x23}
-	validAlphabetTrace         = "abcdefgh"
 	validCannonBin             = "./bin/cannon"
 	validCannonOpProgramBin    = "./bin/op-program"
 	validCannonNetwork         = "mainnet"

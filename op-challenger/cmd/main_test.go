@@ -28,7 +28,6 @@ var (
 	datadir                 = "./test_data"
 	cannonL2                = "http://example.com:9545"
 	rollupRpc               = "http://example.com:8555"
-	alphabetTrace           = "abcdefghijz"
 )
 
 func TestLogLevel(t *testing.T) {

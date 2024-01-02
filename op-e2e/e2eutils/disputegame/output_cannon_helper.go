@@ -50,7 +50,7 @@ func (g *OutputCannonGameHelper) CreateHonestActor(ctx context.Context, l2Node s
 	logger := testlog.Logger(g.t, log.LvlInfo).New("role", "HonestHelper", "game", g.addr)
 	l2Client := g.system.NodeClient(l2Node)
 	caller := batching.NewMultiCaller(g.system.NodeClient("l1").Client(), batching.DefaultBatchSize)
-	contract, err := contracts.NewOutputBisectionGameContract(g.addr, caller)
+	contract, err := contracts.NewFaultDisputeGameContract(g.addr, caller)
 	g.require.NoError(err, "Failed to create game contact")
 
 	prestateBlock, poststateBlock, err := contract.GetBlockRange(ctx)

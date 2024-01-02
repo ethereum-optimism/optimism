@@ -205,7 +205,6 @@ func (h *FactoryHelper) StartOutputAlphabetGame(ctx context.Context, l2Node stri
 			correctOutputProvider: provider,
 			system:                h.system,
 		},
-		claimedAlphabet: claimedAlphabet,
 	}
 }
 

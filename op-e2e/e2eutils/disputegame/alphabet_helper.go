@@ -9,7 +9,6 @@ import (
 
 type AlphabetGameHelper struct {
 	FaultGameHelper
-	claimedAlphabet string
 }
 
 func (g *AlphabetGameHelper) StartChallenger(ctx context.Context, l1Endpoint string, name string, options ...challenger.Option) *challenger.Helper {

@@ -8,7 +8,6 @@ import (
 
 type OutputAlphabetGameHelper struct {
 	OutputGameHelper
-	claimedAlphabet string
 }
 
 func (g *OutputAlphabetGameHelper) StartChallenger(

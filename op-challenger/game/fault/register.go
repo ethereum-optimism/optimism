@@ -68,7 +68,7 @@ func registerAlphabet(
 	caller *batching.MultiCaller,
 ) {
 	playerCreator := func(game types.GameMetadata, dir string) (scheduler.GamePlayer, error) {
-		contract, err := contracts.NewOutputBisectionGameContract(game.Proxy, caller)
+		contract, err := contracts.NewFaultDisputeGameContract(game.Proxy, caller)
 		if err != nil {
 			return nil, err
 		}
@@ -107,7 +107,7 @@ func registerCannon(
 	l2Client cannon.L2HeaderSource,
 ) {
 	playerCreator := func(game types.GameMetadata, dir string) (scheduler.GamePlayer, error) {
-		contract, err := contracts.NewOutputBisectionGameContract(game.Proxy, caller)
+		contract, err := contracts.NewFaultDisputeGameContract(game.Proxy, caller)
 		if err != nil {
 			return nil, err
 		}

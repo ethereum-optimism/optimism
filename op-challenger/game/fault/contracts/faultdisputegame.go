@@ -19,17 +19,17 @@ var (
 	methodL2BlockNumber      = "l2BlockNumber"
 )
 
-type OutputBisectionGameContract struct {
+type FaultDisputeGameContract struct {
 	disputeGameContract
 }
 
-func NewOutputBisectionGameContract(addr common.Address, caller *batching.MultiCaller) (*OutputBisectionGameContract, error) {
+func NewFaultDisputeGameContract(addr common.Address, caller *batching.MultiCaller) (*FaultDisputeGameContract, error) {
 	contractAbi, err := bindings.FaultDisputeGameMetaData.GetAbi()
 	if err != nil {
-		return nil, fmt.Errorf("failed to load output bisection game ABI: %w", err)
+		return nil, fmt.Errorf("failed to load fault dispute game ABI: %w", err)
 	}
 
-	return &OutputBisectionGameContract{
+	return &FaultDisputeGameContract{
 		disputeGameContract: disputeGameContract{
 			multiCaller: caller,
 			contract:    batching.NewBoundContract(contractAbi, addr),
@@ -39,7 +39,7 @@ func NewOutputBisectionGameContract(addr common.Address, caller *batching.MultiC
 
 // GetBlockRange returns the block numbers of the absolute pre-state block (typically genesis or the bedrock activation block)
 // and the post-state block (that the proposed output root is for).
-func (c *OutputBisectionGameContract) GetBlockRange(ctx context.Context) (prestateBlock uint64, poststateBlock uint64, retErr error) {
+func (c *FaultDisputeGameContract) GetBlockRange(ctx context.Context) (prestateBlock uint64, poststateBlock uint64, retErr error) {
 	results, err := c.multiCaller.Call(ctx, batching.BlockLatest,
 		c.contract.Call(methodGenesisBlockNumber),
 		c.contract.Call(methodL2BlockNumber))
@@ -56,7 +56,7 @@ func (c *OutputBisectionGameContract) GetBlockRange(ctx context.Context) (presta
 	return
 }
 
-func (c *OutputBisectionGameContract) GetGenesisOutputRoot(ctx context.Context) (common.Hash, error) {
+func (c *FaultDisputeGameContract) GetGenesisOutputRoot(ctx context.Context) (common.Hash, error) {
 	genesisOutputRoot, err := c.multiCaller.SingleCall(ctx, batching.BlockLatest, c.contract.Call(methodGenesisOutputRoot))
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("failed to retrieve genesis output root: %w", err)
@@ -64,7 +64,7 @@ func (c *OutputBisectionGameContract) GetGenesisOutputRoot(ctx context.Context) 
 	return genesisOutputRoot.GetHash(0), nil
 }
 
-func (c *OutputBisectionGameContract) GetSplitDepth(ctx context.Context) (uint64, error) {
+func (c *FaultDisputeGameContract) GetSplitDepth(ctx context.Context) (uint64, error) {
 	splitDepth, err := c.multiCaller.SingleCall(ctx, batching.BlockLatest, c.contract.Call(methodSplitDepth))
 	if err != nil {
 		return 0, fmt.Errorf("failed to retrieve split depth: %w", err)
@@ -72,14 +72,14 @@ func (c *OutputBisectionGameContract) GetSplitDepth(ctx context.Context) (uint64
 	return splitDepth.GetBigInt(0).Uint64(), nil
 }
 
-func (f *OutputBisectionGameContract) UpdateOracleTx(ctx context.Context, claimIdx uint64, data *types.PreimageOracleData) (txmgr.TxCandidate, error) {
+func (f *FaultDisputeGameContract) UpdateOracleTx(ctx context.Context, claimIdx uint64, data *types.PreimageOracleData) (txmgr.TxCandidate, error) {
 	if data.IsLocal {
 		return f.addLocalDataTx(claimIdx, data)
 	}
 	return f.addGlobalDataTx(ctx, data)
 }
 
-func (f *OutputBisectionGameContract) addLocalDataTx(claimIdx uint64, data *types.PreimageOracleData) (txmgr.TxCandidate, error) {
+func (f *FaultDisputeGameContract) addLocalDataTx(claimIdx uint64, data *types.PreimageOracleData) (txmgr.TxCandidate, error) {
 	call := f.contract.Call(
 		methodAddLocalData,
 		data.GetIdent(),
@@ -89,7 +89,7 @@ func (f *OutputBisectionGameContract) addLocalDataTx(claimIdx uint64, data *type
 	return call.ToTxCandidate()
 }
 
-func (f *OutputBisectionGameContract) addGlobalDataTx(ctx context.Context, data *types.PreimageOracleData) (txmgr.TxCandidate, error) {
+func (f *FaultDisputeGameContract) addGlobalDataTx(ctx context.Context, data *types.PreimageOracleData) (txmgr.TxCandidate, error) {
 	vm, err := f.vm(ctx)
 	if err != nil {
 		return txmgr.TxCandidate{}, err
