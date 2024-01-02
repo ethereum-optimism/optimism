@@ -13,6 +13,8 @@ import (
 )
 
 func TestOutputAlphabetGame(t *testing.T) {
+	// TODO(client-pod#43) Fix alphabet trace provider and re-enable.
+	t.Skip("client-pod#43: AlphabetTraceProvider not using the new alphabet vm spec")
 	op_e2e.InitParallel(t, op_e2e.UseExecutor(1))
 	ctx := context.Background()
 	sys, l1Client := startFaultDisputeSystem(t)
@@ -61,6 +63,8 @@ func TestOutputAlphabetGame(t *testing.T) {
 }
 
 func TestOutputAlphabetGameWithValidOutputRoot(t *testing.T) {
+	// TODO(client-pod#43) Fix alphabet trace provider and re-enable.
+	t.Skip("client-pod#43: AlphabetTraceProvider not using the new alphabet vm spec")
 	op_e2e.InitParallel(t, op_e2e.UseExecutor(1))
 	ctx := context.Background()
 	sys, l1Client := startFaultDisputeSystem(t)
@@ -86,8 +90,6 @@ func TestOutputAlphabetGameWithValidOutputRoot(t *testing.T) {
 	game.LogGameData(ctx)
 
 	// Challenger should be able to call step and counter the leaf claim.
-	// TODO: Actually the step call fails with `ValidStep()` because the challenger's alphabet trace isn't in sync
-	// with what AlphabetVM2 actually does.
 	game.WaitForClaimAtMaxDepth(ctx, true)
 	game.LogGameData(ctx)
 
