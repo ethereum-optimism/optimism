@@ -1017,8 +1017,7 @@ contract Deploy is Deployer {
             _gameType: GameTypes.ALPHABET,
             _absolutePrestate: outputAbsolutePrestate,
             _faultVm: IBigStepper(new AlphabetVM(outputAbsolutePrestate)),
-            // The max depth for the alphabet trace is always 4. Add 1 because split depth is fully inclusive.
-            _maxGameDepth: cfg.faultGameSplitDepth() + 4 + 1
+            _maxGameDepth: cfg.faultGameMaxDepth()
         });
     }
 
