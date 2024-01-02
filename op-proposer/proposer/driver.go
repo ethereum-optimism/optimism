@@ -80,71 +80,80 @@ type L2OutputSubmitter struct {
 func NewL2OutputSubmitter(setup DriverSetup) (*L2OutputSubmitter, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	if setup.Cfg.DisputeGameFactoryAddr != nil {
-		dgfCaller, err := bindings.NewDisputeGameFactoryCaller(*setup.Cfg.DisputeGameFactoryAddr, setup.L1Client)
-		if err != nil {
-			cancel()
-			return nil, fmt.Errorf("failed to create DGF at address %s: %w", setup.Cfg.DisputeGameFactoryAddr, err)
-		}
-
-		cCtx, cCancel := context.WithTimeout(ctx, setup.Cfg.NetworkTimeout)
-		defer cCancel()
-		version, err := dgfCaller.Version(&bind.CallOpts{Context: cCtx})
-		if err != nil {
-			cancel()
-			return nil, err
-		}
-		log.Info("Connected to DisputeGameFactory", "address", setup.Cfg.DisputeGameFactoryAddr, "version", version)
-
-		parsed, err := bindings.DisputeGameFactoryMetaData.GetAbi()
-		if err != nil {
-			cancel()
-			return nil, err
-		}
-
-		return &L2OutputSubmitter{
-			DriverSetup: setup,
-			done:        make(chan struct{}),
-			ctx:         ctx,
-			cancel:      cancel,
-
-			dgfContract: dgfCaller,
-			dgfABI:      parsed,
-		}, nil
-	} else if setup.Cfg.L2OutputOracleAddr != nil {
-		l2ooContract, err := bindings.NewL2OutputOracleCaller(*setup.Cfg.L2OutputOracleAddr, setup.L1Client)
-		if err != nil {
-			cancel()
-			return nil, fmt.Errorf("failed to create L2OO at address %s: %w", setup.Cfg.L2OutputOracleAddr, err)
-		}
-
-		cCtx, cCancel := context.WithTimeout(ctx, setup.Cfg.NetworkTimeout)
-		defer cCancel()
-		version, err := l2ooContract.Version(&bind.CallOpts{Context: cCtx})
-		if err != nil {
-			cancel()
-			return nil, err
-		}
-		log.Info("Connected to L2OutputOracle", "address", setup.Cfg.L2OutputOracleAddr, "version", version)
-
-		parsed, err := bindings.L2OutputOracleMetaData.GetAbi()
-		if err != nil {
-			cancel()
-			return nil, err
-		}
-
-		return &L2OutputSubmitter{
-			DriverSetup: setup,
-			done:        make(chan struct{}),
-			ctx:         ctx,
-			cancel:      cancel,
-
-			l2ooContract: l2ooContract,
-			l2ooABI:      parsed,
-		}, nil
+	if setup.Cfg.L2OutputOracleAddr != nil {
+		return newL2OOSubmitter(ctx, cancel, setup)
+	} else if setup.Cfg.DisputeGameFactoryAddr != nil {
+		return newDGFSubmitter(ctx, cancel, setup)
 	} else {
-		return nil, errors.New("Neither the `L2OutputOracle` nor `DisputeGameFactory` addresses were provided")
+		cancel()
+		return nil, errors.New("neither the `L2OutputOracle` nor `DisputeGameFactory` addresses were provided")
 	}
+}
+
+func newL2OOSubmitter(ctx context.Context, cancel context.CancelFunc, setup DriverSetup) (*L2OutputSubmitter, error) {
+	l2ooContract, err := bindings.NewL2OutputOracleCaller(*setup.Cfg.L2OutputOracleAddr, setup.L1Client)
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("failed to create L2OO at address %s: %w", setup.Cfg.L2OutputOracleAddr, err)
+	}
+
+	cCtx, cCancel := context.WithTimeout(ctx, setup.Cfg.NetworkTimeout)
+	defer cCancel()
+	version, err := l2ooContract.Version(&bind.CallOpts{Context: cCtx})
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+	log.Info("Connected to L2OutputOracle", "address", setup.Cfg.L2OutputOracleAddr, "version", version)
+
+	parsed, err := bindings.L2OutputOracleMetaData.GetAbi()
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+
+	return &L2OutputSubmitter{
+		DriverSetup: setup,
+		done:        make(chan struct{}),
+		ctx:         ctx,
+		cancel:      cancel,
+
+		l2ooContract: l2ooContract,
+		l2ooABI:      parsed,
+	}, nil
+}
+
+func newDGFSubmitter(ctx context.Context, cancel context.CancelFunc, setup DriverSetup) (*L2OutputSubmitter, error) {
+	dgfCaller, err := bindings.NewDisputeGameFactoryCaller(*setup.Cfg.DisputeGameFactoryAddr, setup.L1Client)
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("failed to create DGF at address %s: %w", setup.Cfg.DisputeGameFactoryAddr, err)
+	}
+
+	cCtx, cCancel := context.WithTimeout(ctx, setup.Cfg.NetworkTimeout)
+	defer cCancel()
+	version, err := dgfCaller.Version(&bind.CallOpts{Context: cCtx})
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+	log.Info("Connected to DisputeGameFactory", "address", setup.Cfg.DisputeGameFactoryAddr, "version", version)
+
+	parsed, err := bindings.DisputeGameFactoryMetaData.GetAbi()
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+
+	return &L2OutputSubmitter{
+		DriverSetup: setup,
+		done:        make(chan struct{}),
+		ctx:         ctx,
+		cancel:      cancel,
+
+		dgfContract: dgfCaller,
+		dgfABI:      parsed,
+	}, nil
 }
 
 func (l *L2OutputSubmitter) StartL2OutputSubmitting() error {
@@ -388,45 +397,52 @@ func (l *L2OutputSubmitter) sendTransaction(ctx context.Context, output *eth.Out
 // loop is responsible for creating & submitting the next outputs
 func (l *L2OutputSubmitter) loop() {
 	defer l.wg.Done()
-
 	ctx := l.ctx
 
 	if l.dgfContract == nil {
-		ticker := time.NewTicker(l.Cfg.PollInterval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ticker.C:
-				output, shouldPropose, err := l.FetchNextOutputInfo(ctx)
-				if err != nil || !shouldPropose {
-					break
-				}
-
-				l.proposeOutput(ctx, output)
-			case <-l.done:
-				return
-			}
-		}
+		l.loopL2OO(ctx)
 	} else {
-		ticker := time.NewTicker(l.Cfg.ProposalInterval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ticker.C:
-				blockNumber, err := l.FetchCurrentBlockNumber(ctx)
-				if err != nil {
-					break
-				}
+		l.loopDGF(ctx)
+	}
+}
 
-				output, shouldPropose, err := l.fetchOutput(ctx, blockNumber)
-				if err != nil || !shouldPropose {
-					break
-				}
-
-				l.proposeOutput(ctx, output)
-			case <-l.done:
-				return
+func (l *L2OutputSubmitter) loopL2OO(ctx context.Context) {
+	ticker := time.NewTicker(l.Cfg.PollInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			output, shouldPropose, err := l.FetchNextOutputInfo(ctx)
+			if err != nil || !shouldPropose {
+				break
 			}
+
+			l.proposeOutput(ctx, output)
+		case <-l.done:
+			return
+		}
+	}
+}
+
+func (l *L2OutputSubmitter) loopDGF(ctx context.Context) {
+	ticker := time.NewTicker(l.Cfg.ProposalInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			blockNumber, err := l.FetchCurrentBlockNumber(ctx)
+			if err != nil {
+				break
+			}
+
+			output, shouldPropose, err := l.fetchOutput(ctx, blockNumber)
+			if err != nil || !shouldPropose {
+				break
+			}
+
+			l.proposeOutput(ctx, output)
+		case <-l.done:
+			return
 		}
 	}
 }
