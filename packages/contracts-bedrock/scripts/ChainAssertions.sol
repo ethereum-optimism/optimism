@@ -107,18 +107,18 @@ library ChainAssertions {
         console.log("Running chain assertions on the L1StandardBridge");
         L1StandardBridge bridge = L1StandardBridge(payable(_contracts.L1StandardBridge));
 
-        if (!_isProxy) {
-            require(address(bridge.MESSENGER()) == address(0));
-            require(address(bridge.messenger()) == address(0));
-            require(address(bridge.OTHER_BRIDGE()) == Predeploys.L2_STANDARD_BRIDGE);
-            require(address(bridge.otherBridge()) == Predeploys.L2_STANDARD_BRIDGE);
-            require(address(bridge.superchainConfig()) == address(0));
-        } else {
+        if (_isProxy) {
             require(address(bridge.MESSENGER()) == _contracts.L1CrossDomainMessenger);
             require(address(bridge.messenger()) == _contracts.L1CrossDomainMessenger);
             require(address(bridge.OTHER_BRIDGE()) == Predeploys.L2_STANDARD_BRIDGE);
             require(address(bridge.otherBridge()) == Predeploys.L2_STANDARD_BRIDGE);
             require(address(bridge.superchainConfig()) == _contracts.SuperchainConfig);
+        } else {
+            require(address(bridge.MESSENGER()) == address(0));
+            require(address(bridge.messenger()) == address(0));
+            require(address(bridge.OTHER_BRIDGE()) == Predeploys.L2_STANDARD_BRIDGE);
+            require(address(bridge.otherBridge()) == Predeploys.L2_STANDARD_BRIDGE);
+            require(address(bridge.superchainConfig()) == address(0));
         }
     }
 
