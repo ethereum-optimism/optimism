@@ -684,6 +684,18 @@ func checkOptimismMintableERC20Factory(addr common.Address, client *ethclient.Cl
 	}
 	log.Info("OptimismMintableERC20Factory", "bridge", bridge.Hex())
 
+	initialized, err := getInitialized("OptimismMintableERC20Factory", addr, client)
+	if err != nil {
+		return err
+	}
+	log.Info("OptimismMintableERC20Factory", "_initialized", initialized)
+
+	initializing, err := getInitializing("OptimismMintableERC20Factory", addr, client)
+	if err != nil {
+		return err
+	}
+	log.Info("OptimismMintableERC20Factory", "_initializing", initializing)
+
 	version, err := contract.Version(&bind.CallOpts{})
 	if err != nil {
 		return err
