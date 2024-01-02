@@ -211,11 +211,11 @@ func (ps *ProposerService) initL2ooAddress(cfg *CLIConfig) error {
 }
 
 func (ps *ProposerService) initDGF(cfg *CLIConfig) error {
-	l2ooAddress, err := opservice.ParseAddress(cfg.DGFAddress)
+	dgfAddress, err := opservice.ParseAddress(cfg.DGFAddress)
 	if err != nil {
 		return nil
 	}
-	ps.DisputeGameFactoryAddr = &l2ooAddress
+	ps.DisputeGameFactoryAddr = &dgfAddress
 	ps.ProposalInterval = cfg.ProposalInterval
 	ps.DisputeGameType = cfg.DisputeGameType
 	return nil
