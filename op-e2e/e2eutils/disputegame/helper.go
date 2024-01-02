@@ -35,8 +35,6 @@ const (
 	alphabetGameDepth       = 4
 )
 
-var lastAlphabetTraceIndex = big.NewInt(1<<alphabetGameDepth - 1)
-
 type Status uint8
 
 const (
