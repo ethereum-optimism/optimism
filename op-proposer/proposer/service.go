@@ -91,6 +91,9 @@ func (ps *ProposerService) initFromCLIConfig(ctx context.Context, version string
 	ps.NetworkTimeout = cfg.TxMgrConfig.NetworkTimeout
 	ps.AllowNonFinalized = cfg.AllowNonFinalized
 
+	ps.initL2ooAddress(cfg)
+	ps.initDGF(cfg)
+
 	if err := ps.initRPCClients(ctx, cfg); err != nil {
 		return err
 	}
@@ -103,12 +106,6 @@ func (ps *ProposerService) initFromCLIConfig(ctx context.Context, version string
 	}
 	if err := ps.initPProf(cfg); err != nil {
 		return fmt.Errorf("failed to start pprof server: %w", err)
-	}
-	if err := ps.initL2ooAddress(cfg); err != nil {
-		return fmt.Errorf("failed to init L2ooAddress: %w", err)
-	}
-	if err := ps.initDGF(cfg); err != nil {
-		return fmt.Errorf("failed to init DGF: %w", err)
 	}
 	if err := ps.initDriver(); err != nil {
 		return fmt.Errorf("failed to init Driver: %w", err)
@@ -201,24 +198,24 @@ func (ps *ProposerService) initMetricsServer(cfg *CLIConfig) error {
 	return nil
 }
 
-func (ps *ProposerService) initL2ooAddress(cfg *CLIConfig) error {
+func (ps *ProposerService) initL2ooAddress(cfg *CLIConfig) {
 	l2ooAddress, err := opservice.ParseAddress(cfg.L2OOAddress)
 	if err != nil {
-		return err
+		// Return no error & set no L2OO related configuration fields.
+		return
 	}
 	ps.L2OutputOracleAddr = &l2ooAddress
-	return nil
 }
 
-func (ps *ProposerService) initDGF(cfg *CLIConfig) error {
+func (ps *ProposerService) initDGF(cfg *CLIConfig) {
 	dgfAddress, err := opservice.ParseAddress(cfg.DGFAddress)
 	if err != nil {
-		return err
+		// Return no error & set no DGF related configuration fields.
+		return
 	}
 	ps.DisputeGameFactoryAddr = &dgfAddress
 	ps.ProposalInterval = cfg.ProposalInterval
 	ps.DisputeGameType = cfg.DisputeGameType
-	return nil
 }
 
 func (ps *ProposerService) initDriver() error {
