@@ -24,6 +24,44 @@ contract OptimismMintableTokenFactory_Test is Bridge_Initializer {
         assertEq(address(impl.bridge()), address(0));
     }
 
+    /// @dev Tests that the proxy is initialized correctly.
+    function test_initialize_succeeds() external {
+        assertEq(address(l1OptimismMintableERC20Factory.BRIDGE()), address(l1StandardBridge));
+        assertEq(address(l1OptimismMintableERC20Factory.bridge()), address(l1StandardBridge));
+    }
+
+    /// @dev Tests that the proxy cannot be initialized twice.
+    function test_initialize_cannotInitProxy_reverts() external {
+        vm.expectRevert("Initializable: contract is already initialized");
+        l1OptimismMintableERC20Factory.initialize(address(0));
+    }
+
+    /// @dev Tests that the implementation cannot be initialized twice.
+    function test_initialize_cannotInitImpl_reverts() external {
+        address impl = deploy.mustGetAddress("OptimismMintableERC20Factory");
+        vm.expectRevert("Initializable: contract is already initialized");
+        OptimismMintableERC20Factory(impl).initialize(address(0));
+    }
+
+    function test_upgrading_succeeds() external {
+        Proxy proxy = Proxy(deploy.mustGetAddress("OptimismMintableERC20FactoryProxy"));
+        // Check an unused slot before upgrading.
+        bytes32 slot21Before = vm.load(address(l1OptimismMintableERC20Factory), bytes32(uint256(21)));
+        assertEq(bytes32(0), slot21Before);
+
+        NextImpl nextImpl = new NextImpl();
+        vm.startPrank(EIP1967Helper.getAdmin(address(proxy)));
+        // Reviewer note: the NextImpl() still uses reinitializer. If we want to remove that, we'll need to use a
+        //   two step upgrade with the Storage lib.
+        proxy.upgradeToAndCall(address(nextImpl), abi.encodeWithSelector(NextImpl.initialize.selector, 2));
+        assertEq(proxy.implementation(), address(nextImpl));
+
+        // Verify that the NextImpl contract initialized its values according as expected
+        bytes32 slot21After = vm.load(address(l1OptimismMintableERC20Factory), bytes32(uint256(21)));
+        bytes32 slot21Expected = NextImpl(address(l1OptimismMintableERC20Factory)).slot21Init();
+        assertEq(slot21Expected, slot21After);
+    }
+
     function test_createStandardL2Token_succeeds() external {
         address remote = address(4);
 
@@ -94,46 +132,5 @@ contract OptimismMintableTokenFactory_Test is Bridge_Initializer {
             abi.encodePacked(bytes1(0xff), address(l2OptimismMintableERC20Factory), salt, keccak256(bytecode))
         );
         return address(uint160(uint256(hash)));
-    }
-}
-
-contract OptimismMintableTokenFactoryUpgradeable_Test is Bridge_Initializer {
-    /// @dev Tests that the proxy is initialized correctly.
-    function test_params_initValuesOnProxy_succeeds() external {
-        assertEq(address(l1OptimismMintableERC20Factory.BRIDGE()), address(l1StandardBridge));
-        assertEq(address(l1OptimismMintableERC20Factory.bridge()), address(l1StandardBridge));
-    }
-
-    /// @dev Tests that the proxy cannot be initialized twice.
-    function test_initialize_cannotInitProxy_reverts() external {
-        vm.expectRevert("Initializable: contract is already initialized");
-        l1OptimismMintableERC20Factory.initialize(address(0));
-    }
-
-    /// @dev Tests that the implementation cannot be initialized twice.
-    function test_initialize_cannotInitImpl_reverts() external {
-        address impl = deploy.mustGetAddress("OptimismMintableERC20Factory");
-        vm.expectRevert("Initializable: contract is already initialized");
-        OptimismMintableERC20Factory(impl).initialize(address(0));
-    }
-
-    /// @dev Tests that the proxy can be successfully upgraded.
-    function test_upgrading_succeeds() external {
-        Proxy proxy = Proxy(deploy.mustGetAddress("OptimismMintableERC20FactoryProxy"));
-        // Check an unused slot before upgrading.
-        bytes32 slot21Before = vm.load(address(l1OptimismMintableERC20Factory), bytes32(uint256(21)));
-        assertEq(bytes32(0), slot21Before);
-
-        NextImpl nextImpl = new NextImpl();
-        vm.startPrank(EIP1967Helper.getAdmin(address(proxy)));
-        // Reviewer note: the NextImpl() still uses reinitializer. If we want to remove that, we'll need to use a
-        //   two step upgrade with the Storage lib.
-        proxy.upgradeToAndCall(address(nextImpl), abi.encodeWithSelector(NextImpl.initialize.selector, 2));
-        assertEq(proxy.implementation(), address(nextImpl));
-
-        // Verify that the NextImpl contract initialized its values according as expected
-        bytes32 slot21After = vm.load(address(l1OptimismMintableERC20Factory), bytes32(uint256(21)));
-        bytes32 slot21Expected = NextImpl(address(l1OptimismMintableERC20Factory)).slot21Init();
-        assertEq(slot21Expected, slot21After);
     }
 }
