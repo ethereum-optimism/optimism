@@ -54,17 +54,20 @@ var (
 		Name:    "dgf-address",
 		Usage:   "Address of the DisputeGameFactory contract",
 		EnvVars: prefixEnvVars("DGF_ADDRESS"),
+		Hidden:  true,
 	}
 	ProposalIntervalFlag = &cli.DurationFlag{
 		Name:    "proposal-interval",
 		Usage:   "Interval between submitting L2 output proposals when the DGFAddress is set",
 		EnvVars: prefixEnvVars("PROPOSAL_INTERVAL"),
+		Hidden:  true,
 	}
 	DisputeGameTypeFlag = &cli.UintFlag{
 		Name:    "dg-type",
 		Usage:   "Dispute game type to create via the configured DisputeGameFactory",
 		Value:   0,
 		EnvVars: prefixEnvVars("DG_TYPE"),
+		Hidden:  true,
 	}
 	// Legacy Flags
 	L2OutputHDPathFlag = txmgr.L2OutputHDPathFlag
