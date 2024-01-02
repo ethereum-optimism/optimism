@@ -11,9 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/alphabet"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
-	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/l2oo"
@@ -36,8 +34,6 @@ const (
 	alphabetGameType  uint8 = 255
 	alphabetGameDepth       = 4
 )
-
-var lastAlphabetTraceIndex = big.NewInt(1<<alphabetGameDepth - 1)
 
 type Status uint8
 
@@ -159,7 +155,14 @@ func (h *FactoryHelper) StartOutputCannonGame(ctx context.Context, l2Node string
 	}
 }
 
-func (h *FactoryHelper) StartOutputAlphabetGame(ctx context.Context, l2Node string, l2BlockNumber uint64, claimedAlphabet string) *OutputAlphabetGameHelper {
+func (h *FactoryHelper) StartOutputAlphabetGameWithCorrectRoot(ctx context.Context, l2Node string, l2BlockNumber uint64) *OutputAlphabetGameHelper {
+	h.waitForBlockToBeSafe(l2Node, l2BlockNumber)
+	output, err := h.system.RollupClient(l2Node).OutputAtBlock(ctx, l2BlockNumber)
+	h.require.NoErrorf(err, "Failed to get output at block %v", l2BlockNumber)
+	return h.StartOutputAlphabetGame(ctx, l2Node, l2BlockNumber, common.Hash(output.OutputRoot))
+}
+
+func (h *FactoryHelper) StartOutputAlphabetGame(ctx context.Context, l2Node string, l2BlockNumber uint64, rootClaim common.Hash) *OutputAlphabetGameHelper {
 	logger := testlog.Logger(h.t, log.LvlInfo).New("role", "OutputAlphabetGameHelper")
 	rollupClient := h.system.RollupClient(l2Node)
 
@@ -168,10 +171,6 @@ func (h *FactoryHelper) StartOutputAlphabetGame(ctx context.Context, l2Node stri
 	ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
 	defer cancel()
 
-	trace := alphabet.NewTraceProvider(claimedAlphabet, alphabetGameDepth)
-	pos := faultTypes.NewPosition(alphabetGameDepth, lastAlphabetTraceIndex)
-	rootClaim, err := trace.Get(ctx, pos)
-	h.require.NoError(err, "get root claim")
 	tx, err := transactions.PadGasEstimate(h.opts, 2, func(opts *bind.TransactOpts) (*types.Transaction, error) {
 		return h.factory.Create(opts, alphabetGameType, rootClaim, extraData)
 	})

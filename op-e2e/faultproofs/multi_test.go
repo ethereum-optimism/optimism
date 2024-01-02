@@ -20,7 +20,7 @@ func TestMultipleGameTypes(t *testing.T) {
 	gameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
 
 	game1 := gameFactory.StartOutputCannonGame(ctx, "sequencer", 1, common.Hash{0x01, 0xaa})
-	game2 := gameFactory.StartOutputAlphabetGame(ctx, "sequencer", 1, "xyzabc")
+	game2 := gameFactory.StartOutputAlphabetGame(ctx, "sequencer", 1, common.Hash{0xbb})
 	latestClaim1 := game1.DisputeLastBlock(ctx)
 	latestClaim2 := game2.DisputeLastBlock(ctx)
 
