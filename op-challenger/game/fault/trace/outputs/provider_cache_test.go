@@ -26,7 +26,7 @@ func TestProviderCache(t *testing.T) {
 	depth := types.Depth(6)
 	var createdProvider types.TraceProvider
 	creator := func(ctx context.Context, localContext common.Hash, depth types.Depth, agreed contracts.Proposal, claimed contracts.Proposal) (types.TraceProvider, error) {
-		createdProvider = alphabet.NewTraceProvider("abcdef", depth)
+		createdProvider = alphabet.NewTraceProvider(big.NewInt(0), depth)
 		return createdProvider, nil
 	}
 	localContext1 := common.Hash{0xdd}

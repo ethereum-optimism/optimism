@@ -2,6 +2,7 @@ package disputegame
 
 import (
 	"context"
+	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/alphabet"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
@@ -31,7 +32,7 @@ func (g *AlphabetGameHelper) CreateHonestActor(alphabetTrace string, depth types
 		t:            g.t,
 		require:      g.require,
 		game:         &g.FaultGameHelper,
-		correctTrace: alphabet.NewTraceProvider(alphabetTrace, depth),
+		correctTrace: alphabet.NewTraceProvider(big.NewInt(0), depth),
 	}
 }
 

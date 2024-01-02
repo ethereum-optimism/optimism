@@ -2,22 +2,23 @@ package test
 
 import (
 	"context"
+	"math/big"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/alphabet"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 )
 
-func NewAlphabetWithProofProvider(t *testing.T, maxDepth types.Depth, oracleError error) *alphabetWithProofProvider {
+func NewAlphabetWithProofProvider(t *testing.T, startingL2BlockNumber *big.Int, maxDepth types.Depth, oracleError error) *alphabetWithProofProvider {
 	return &alphabetWithProofProvider{
-		alphabet.NewTraceProvider("abcdefghijklmnopqrstuvwxyz", maxDepth),
+		alphabet.NewTraceProvider(startingL2BlockNumber, maxDepth),
 		maxDepth,
 		oracleError,
 	}
 }
 
-func NewAlphabetClaimBuilder(t *testing.T, maxDepth types.Depth) *ClaimBuilder {
-	alphabetProvider := NewAlphabetWithProofProvider(t, maxDepth, nil)
+func NewAlphabetClaimBuilder(t *testing.T, startingL2BlockNumber *big.Int, maxDepth types.Depth) *ClaimBuilder {
+	alphabetProvider := NewAlphabetWithProofProvider(t, startingL2BlockNumber, maxDepth, nil)
 	return NewClaimBuilder(t, maxDepth, alphabetProvider)
 }
 
