@@ -127,6 +127,10 @@ func (s *l2VerifierBackend) SequencerActive(ctx context.Context) (bool, error) {
 	return false, nil
 }
 
+func (s *l2VerifierBackend) OnUnsafeL2Payload(ctx context.Context, payload *eth.ExecutionPayload) error {
+	return nil
+}
+
 func (s *L2Verifier) L2Finalized() eth.L2BlockRef {
 	return s.derivation.Finalized()
 }
