@@ -21,10 +21,10 @@
     "type": "address"
   },
   {
-    "bytes": "1536",
+    "bytes": "1568",
     "label": "__gap",
     "offset": 0,
     "slot": "1",
-    "type": "uint256[48]"
+    "type": "uint256[49]"
   }
 ]
