@@ -61,13 +61,43 @@ contract L1ERC721Bridge_Test is Bridge_Initializer {
         localToken.approve(address(l1ERC721Bridge), tokenId);
     }
 
-    /// @dev Tests that the constructor sets the correct values.
-    function test_constructor_succeeds() public {
-        assertEq(address(l1ERC721Bridge.MESSENGER()), address(l1CrossDomainMessenger));
-        assertEq(address(l1ERC721Bridge.OTHER_BRIDGE()), Predeploys.L2_ERC721_BRIDGE);
-        assertEq(address(l1ERC721Bridge.messenger()), address(l1CrossDomainMessenger));
-        assertEq(address(l1ERC721Bridge.otherBridge()), Predeploys.L2_ERC721_BRIDGE);
-        assertEq(address(l1ERC721Bridge.superchainConfig()), address(superchainConfig));
+    /// @dev Tests that the impl is created with the correct values.
+    function test_constructor_succeeds() external {
+        L1ERC721Bridge impl = L1ERC721Bridge(deploy.mustGetAddress("L1ERC721Bridge"));
+        assertEq(address(impl.MESSENGER()), address(0));
+        assertEq(address(impl.OTHER_BRIDGE()), Predeploys.L2_ERC721_BRIDGE);
+        assertEq(address(impl.messenger()), address(0));
+        assertEq(address(impl.otherBridge()), Predeploys.L2_ERC721_BRIDGE);
+        assertEq(address(impl.superchainConfig()), address(0));
+    }
+
+    /// @dev Tests that the proxy is initialized with the correct values.
+    function test_initialize_succeeds() public {
+        assertEq(address(l2ERC721Bridge.MESSENGER()), address(l2CrossDomainMessenger));
+        assertEq(address(l2ERC721Bridge.OTHER_BRIDGE()), address(l1ERC721Bridge));
+        assertEq(address(l2ERC721Bridge.messenger()), address(l2CrossDomainMessenger));
+        assertEq(address(l2ERC721Bridge.otherBridge()), address(l1ERC721Bridge));
+    }
+
+    /// @dev Tests that the implementation contract cannot be initialized twice.
+    function test_initializeImpl_alreadyInitialized_reverts() external {
+        L1ERC721Bridge impl = L1ERC721Bridge(deploy.mustGetAddress("L1ERC721Bridge"));
+        vm.expectRevert("Initializable: contract is already initialized");
+        impl.initialize({
+            _messenger: CrossDomainMessenger(address(0)),
+            _otherBridge: Predeploys.L2_ERC721_BRIDGE,
+            _superchainConfig: SuperchainConfig(address(0))
+        });
+    }
+
+    /// @dev Tests that the proxy cannot be initialized twice.
+    function test_initializeProxy_alreadyInitialized_reverts() external {
+        vm.expectRevert("Initializable: contract is already initialized");
+        l1ERC721Bridge.initialize({
+            _messenger: CrossDomainMessenger(address(0)),
+            _otherBridge: Predeploys.L2_ERC721_BRIDGE,
+            _superchainConfig: SuperchainConfig(address(0))
+        });
     }
 
     /// @dev Tests that the ERC721 can be bridged successfully.
