@@ -19,7 +19,7 @@ func TestOutputAlphabetGame(t *testing.T) {
 	t.Cleanup(sys.Close)
 
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
-	game := disputeGameFactory.StartOutputAlphabetGame(ctx, "sequencer", 3, "abcdexyz")
+	game := disputeGameFactory.StartOutputAlphabetGame(ctx, "sequencer", 3, common.Hash{0xff})
 	game.LogGameData(ctx)
 
 	opts := challenger.WithPrivKey(sys.Cfg.Secrets.Alice)
@@ -58,4 +58,40 @@ func TestOutputAlphabetGame(t *testing.T) {
 	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
 	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 	game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
+}
+
+func TestOutputAlphabetGameWithValidOutputRoot(t *testing.T) {
+	op_e2e.InitParallel(t, op_e2e.UseExecutor(1))
+	ctx := context.Background()
+	sys, l1Client := startFaultDisputeSystem(t)
+	t.Cleanup(sys.Close)
+
+	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
+	game := disputeGameFactory.StartOutputAlphabetGameWithCorrectRoot(ctx, "sequencer", 2)
+	correctTrace := game.CreateHonestActor(ctx, "sequencer")
+	game.LogGameData(ctx)
+	claim := game.DisputeLastBlock(ctx)
+	// Invalid root claim of the alphabet game
+	claim = claim.Attack(ctx, common.Hash{0x01})
+
+	opts := challenger.WithPrivKey(sys.Cfg.Secrets.Alice)
+	game.StartChallenger(ctx, "sequencer", "Challenger", opts)
+
+	for !claim.IsMaxDepth(ctx) {
+		claim = claim.WaitForCounterClaim(ctx)
+		game.LogGameData(ctx)
+		// Dishonest actor always attacks with the correct trace
+		claim = correctTrace.AttackClaim(ctx, claim)
+	}
+	game.LogGameData(ctx)
+
+	// Challenger should be able to call step and counter the leaf claim.
+	// TODO: Actually the step call fails with `ValidStep()` because the challenger's alphabet trace isn't in sync
+	// with what AlphabetVM2 actually does.
+	game.WaitForClaimAtMaxDepth(ctx, true)
+	game.LogGameData(ctx)
+
+	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
+	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
+	game.WaitForGameStatus(ctx, disputegame.StatusDefenderWins)
 }

@@ -58,17 +58,30 @@ func (g *OutputGameHelper) GenesisBlockNum(ctx context.Context) uint64 {
 // through to the split depth and the claims are setup such that the last block in the game range is the block
 // to execute cannon on. ie the first block the honest and dishonest actors disagree about is the l2 block of the game.
 func (g *OutputGameHelper) DisputeLastBlock(ctx context.Context) *ClaimHelper {
-	rootClaim := g.GetClaimValue(ctx, 0)
+	dishonestValue := g.GetClaimValue(ctx, 0)
+	correctRootClaim := g.correctOutputRoot(ctx, types.NewPositionFromGIndex(big.NewInt(1)))
+	rootIsValid := dishonestValue == correctRootClaim
+	if rootIsValid {
+		// Ensure that the dishonest actor is actually posting invalid roots.
+		// Otherwise, the honest challenger will defend our counter and ruin everything.
+		dishonestValue = common.Hash{0xff, 0xff, 0xff}
+	}
 	disputeBlockNum := g.L2BlockNum(ctx)
 	pos := types.NewPositionFromGIndex(big.NewInt(1))
 	getClaimValue := func(parentClaim *ClaimHelper, claimPos types.Position) common.Hash {
 		claimBlockNum, err := g.correctOutputProvider.BlockNumber(claimPos)
 		g.require.NoError(err, "failed to calculate claim block number")
-		// Use the correct output root for the challenger and incorrect for the defender
-		if parentClaim.AgreesWithOutputRoot() || claimBlockNum < disputeBlockNum {
+		if claimBlockNum < disputeBlockNum {
+			// Use the correct output root for all claims prior to the dispute block number
+			// This pushes the game to dispute the last block in the range
 			return g.correctOutputRoot(ctx, claimPos)
+		}
+		if rootIsValid == parentClaim.AgreesWithOutputRoot() {
+			// We are responding to a parent claim that agrees with a valid root, so we're being dishonest
+			return dishonestValue
 		} else {
-			return rootClaim
+			// Otherwise we must be the honest actor so use the correct root
+			return g.correctOutputRoot(ctx, claimPos)
 		}
 	}
 
