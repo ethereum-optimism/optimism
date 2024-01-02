@@ -566,6 +566,34 @@ func checkL2ERC721Bridge(addr common.Address, client *ethclient.Client) error {
 	if err != nil {
 		return err
 	}
+
+	initialized, err := getInitialized("L2ERC721Bridge", addr, client)
+	if err != nil {
+		return err
+	}
+	log.Info("L2ERC721Bridge", "_initialized", initialized)
+	if initialized.Uint64() != 1 {
+		return fmt.Errorf("%w: %s", errInvalidInitialized, initialized)
+	}
+
+	abi, err := bindings.L2ERC721BridgeMetaData.GetAbi()
+	if err != nil {
+		return err
+	}
+	calldata, err := abi.Pack("initialize", messenger, otherBridge)
+	if err != nil {
+		return err
+	}
+	if err := checkAlreadyInitialized(addr, calldata, client); err != nil {
+		return err
+	}
+
+	initializing, err := getInitializing("L2ERC721Bridge", addr, client)
+	if err != nil {
+		return err
+	}
+	log.Info("L2ERC721Bridge", "_initializing", initializing)
+
 	log.Info("L2ERC721Bridge version", "version", version)
 	return nil
 }
