@@ -13,7 +13,7 @@
   },
   "src/L1/L1CrossDomainMessenger.sol": {
     "initCodeHash": "0x02234365bb3709103d03ff6e1777672034d1be9765a1861c94f40fd7b4e24dc8",
-    "sourceCodeHash": "0xb55a2a7e6a0a6dd31e1f6d00f179bcfe698e38d3a045afacdb073bf8103f9e05"
+    "sourceCodeHash": "0xcc5ea9ebaa66eace303e9397131183be5fc5a9a4d9961e2c0dc87b29bfbe7548"
   },
   "src/L1/L1ERC721Bridge.sol": {
     "initCodeHash": "0xca27bfb4742b3b44e9adb6018b0917ae3392e67e5f8242ab24828dd37245af16",
