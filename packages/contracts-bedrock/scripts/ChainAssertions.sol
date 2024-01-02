@@ -199,13 +199,7 @@ library ChainAssertions {
             console.log("Guardian has no code: %s", guardian);
         }
 
-        if (!_isProxy) {
-            require(address(portal.L2_ORACLE()) == address(0));
-            require(address(portal.l2Oracle()) == address(0));
-            require(address(portal.SYSTEM_CONFIG()) == address(0));
-            require(address(portal.systemConfig()) == address(0));
-            require(address(portal.superchainConfig()) == address(0));
-        } else {
+        if (_isProxy) {
             require(address(portal.L2_ORACLE()) == _contracts.L2OutputOracle);
             require(address(portal.l2Oracle()) == _contracts.L2OutputOracle);
             require(address(portal.SYSTEM_CONFIG()) == _contracts.SystemConfig);
@@ -215,6 +209,12 @@ library ChainAssertions {
             require(portal.guardian() == _cfg.superchainConfigGuardian());
             require(address(portal.superchainConfig()) == address(_contracts.SuperchainConfig));
             require(portal.paused() == SuperchainConfig(_contracts.SuperchainConfig).paused());
+        } else {
+            require(address(portal.L2_ORACLE()) == address(0));
+            require(address(portal.l2Oracle()) == address(0));
+            require(address(portal.SYSTEM_CONFIG()) == address(0));
+            require(address(portal.systemConfig()) == address(0));
+            require(address(portal.superchainConfig()) == address(0));
         }
     }
 
