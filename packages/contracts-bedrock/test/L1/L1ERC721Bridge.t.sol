@@ -65,18 +65,19 @@ contract L1ERC721Bridge_Test is Bridge_Initializer {
     function test_constructor_succeeds() external {
         L1ERC721Bridge impl = L1ERC721Bridge(deploy.mustGetAddress("L1ERC721Bridge"));
         assertEq(address(impl.MESSENGER()), address(0));
-        assertEq(address(impl.OTHER_BRIDGE()), Predeploys.L2_ERC721_BRIDGE);
         assertEq(address(impl.messenger()), address(0));
+        assertEq(address(impl.OTHER_BRIDGE()), Predeploys.L2_ERC721_BRIDGE);
         assertEq(address(impl.otherBridge()), Predeploys.L2_ERC721_BRIDGE);
         assertEq(address(impl.superchainConfig()), address(0));
     }
 
     /// @dev Tests that the proxy is initialized with the correct values.
     function test_initialize_succeeds() public {
-        assertEq(address(l2ERC721Bridge.MESSENGER()), address(l2CrossDomainMessenger));
-        assertEq(address(l2ERC721Bridge.OTHER_BRIDGE()), address(l1ERC721Bridge));
-        assertEq(address(l2ERC721Bridge.messenger()), address(l2CrossDomainMessenger));
-        assertEq(address(l2ERC721Bridge.otherBridge()), address(l1ERC721Bridge));
+        assertEq(address(l1ERC721Bridge.MESSENGER()), address(l1CrossDomainMessenger));
+        assertEq(address(l1ERC721Bridge.messenger()), address(l1CrossDomainMessenger));
+        assertEq(address(l1ERC721Bridge.OTHER_BRIDGE()), Predeploys.L2_ERC721_BRIDGE);
+        assertEq(address(l1ERC721Bridge.otherBridge()), Predeploys.L2_ERC721_BRIDGE);
+        assertEq(address(l1ERC721Bridge.superchainConfig()), address(superchainConfig));
     }
 
     /// @dev Tests that the implementation contract cannot be initialized twice.
