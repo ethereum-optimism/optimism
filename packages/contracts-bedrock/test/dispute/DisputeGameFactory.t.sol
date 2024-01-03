@@ -38,7 +38,14 @@ contract DisputeGameFactory_Init is CommonTest {
 contract DisputeGameFactory_Create_Test is DisputeGameFactory_Init {
     /// @dev Tests that the `create` function succeeds when creating a new dispute game
     ///      with a `GameType` that has an implementation set.
-    function testFuzz_create_succeeds(uint8 gameType, Claim rootClaim, bytes calldata extraData, uint256 _value) public {
+    function testFuzz_create_succeeds(
+        uint8 gameType,
+        Claim rootClaim,
+        bytes calldata extraData,
+        uint256 _value
+    )
+        public
+    {
         // Ensure that the `gameType` is within the bounds of the `GameType` enum's possible values.
         GameType gt = GameType.wrap(uint8(bound(gameType, 0, 2)));
         // Ensure the rootClaim has a VMStatus that disagrees with the validity.
@@ -50,6 +57,8 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_Init {
             factory.setImplementation(lgt, IDisputeGame(address(fakeClone)));
             factory.setInitBond(lgt, _value);
         }
+
+        vm.deal(address(this), _value);
 
         vm.expectEmit(false, true, true, false);
         emit DisputeGameCreated(address(0), gt, rootClaim);
@@ -229,7 +238,7 @@ contract DisputeGameFactory_TransferOwnership_Test is DisputeGameFactory_Init {
 
 /// @dev A fake clone used for testing the `DisputeGameFactory` contract's `create` function.
 contract FakeClone {
-    function initialize() external {
+    function initialize() external payable {
         // noop
     }
 }
