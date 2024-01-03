@@ -25,12 +25,7 @@ func NewPosition(depth int, indexAtDepth *big.Int) Position {
 	}
 }
 
-// NewPositionFromGIndex creates a new Position given a generalized index,
-// numbered like the following:
-//
 // NewPositionFromGIndex creates a new Position given a generalized index.
-//
-// See ../../../../specs/fault-dispute-game.md#game-tree
 func NewPositionFromGIndex(x *big.Int) Position {
 	depth := bigMSB(x)
 	withoutMSB := new(big.Int).Not(new(big.Int).Lsh(big.NewInt(1), uint(depth)))
