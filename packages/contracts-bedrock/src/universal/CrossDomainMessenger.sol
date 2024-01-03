@@ -135,9 +135,9 @@ abstract contract CrossDomainMessenger is
     ///         successfully executed on the first attempt.
     mapping(bytes32 => bool) public failedMessages;
 
-    /// @notice Address of the paired CrossDomainMessenger contract on the other chain.
+    /// @notice CrossDomainMessenger contract on the other chain.
     /// @custom:network-specific
-    address public otherMessenger;
+    CrossDomainMessenger public otherMessenger;
 
     /// @notice Reserve extra slots in the storage layout for future upgrades.
     ///         A gap size of 43 was chosen here, so that the first slot used in a child contract
@@ -179,7 +179,7 @@ abstract contract CrossDomainMessenger is
         // guarantee the property that the call to the target contract will always have at least
         // the minimum gas limit specified by the user.
         _sendMessage({
-            _to: otherMessenger,
+            _to: address(otherMessenger),
             _gasLimit: baseGas(_message, _minGasLimit),
             _value: msg.value,
             _data: abi.encodeWithSelector(
@@ -318,9 +318,9 @@ abstract contract CrossDomainMessenger is
 
     /// @notice Retrieves the address of the paired CrossDomainMessenger contract on the other chain
     ///         Public getter is legacy and will be removed in the future. Use `otherMessenger()` instead.
-    /// @return Address of the paired CrossDomainMessenger contract on the other chain.
+    /// @return CrossDomainMessenger contract on the other chain.
     /// @custom:legacy
-    function OTHER_MESSENGER() public view returns (address) {
+    function OTHER_MESSENGER() public view returns (CrossDomainMessenger) {
         return otherMessenger;
     }
 
@@ -359,9 +359,9 @@ abstract contract CrossDomainMessenger is
     }
 
     /// @notice Initializer.
-    /// @param _otherMessenger Address of the paired CrossDomainMessenger contract on the other chain.
+    /// @param _otherMessenger CrossDomainMessenger contract on the other chain.
     // solhint-disable-next-line func-name-mixedcase
-    function __CrossDomainMessenger_init(address _otherMessenger) internal onlyInitializing {
+    function __CrossDomainMessenger_init(CrossDomainMessenger _otherMessenger) internal onlyInitializing {
         // We only want to set the xDomainMsgSender to the default value if it hasn't been initialized yet,
         // meaning that this is a fresh contract deployment.
         // This prevents resetting the xDomainMsgSender to the default value during an upgrade, which would enable

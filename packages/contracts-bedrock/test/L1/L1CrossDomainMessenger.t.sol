@@ -29,8 +29,8 @@ contract L1CrossDomainMessenger_Test is Bridge_Initializer {
         assertEq(address(l1CrossDomainMessenger.superchainConfig()), address(superchainConfig));
         assertEq(address(l1CrossDomainMessenger.PORTAL()), address(optimismPortal));
         assertEq(address(l1CrossDomainMessenger.portal()), address(optimismPortal));
-        assertEq(l1CrossDomainMessenger.OTHER_MESSENGER(), Predeploys.L2_CROSS_DOMAIN_MESSENGER);
-        assertEq(l1CrossDomainMessenger.otherMessenger(), Predeploys.L2_CROSS_DOMAIN_MESSENGER);
+        assertEq(address(l1CrossDomainMessenger.OTHER_MESSENGER()), Predeploys.L2_CROSS_DOMAIN_MESSENGER);
+        assertEq(address(l1CrossDomainMessenger.otherMessenger()), Predeploys.L2_CROSS_DOMAIN_MESSENGER);
     }
 
     /// @dev Tests that the impl is initialized correctly.
@@ -39,8 +39,8 @@ contract L1CrossDomainMessenger_Test is Bridge_Initializer {
         assertEq(address(impl.superchainConfig()), address(0));
         assertEq(address(impl.PORTAL()), address(0));
         assertEq(address(impl.portal()), address(0));
-        assertEq(impl.OTHER_MESSENGER(), Predeploys.L2_CROSS_DOMAIN_MESSENGER);
-        assertEq(impl.otherMessenger(), Predeploys.L2_CROSS_DOMAIN_MESSENGER);
+        assertEq(address(impl.OTHER_MESSENGER()), Predeploys.L2_CROSS_DOMAIN_MESSENGER);
+        assertEq(address(impl.otherMessenger()), Predeploys.L2_CROSS_DOMAIN_MESSENGER);
     }
 
     /// @dev Tests that the proxy cannot be initialized twice.
