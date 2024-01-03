@@ -58,6 +58,10 @@ func (h *OutputHonestHelper) Defend(ctx context.Context, claimIdx int64) {
 	h.game.Defend(ctx, claimIdx, value)
 }
 
+func (h *OutputHonestHelper) StepClaimFails(ctx context.Context, claim *ClaimHelper, isAttack bool) {
+	h.StepFails(ctx, claim.index, isAttack)
+}
+
 func (h *OutputHonestHelper) StepFails(ctx context.Context, claimIdx int64, isAttack bool) {
 	// Ensure the claim exists
 	h.game.WaitForClaimCount(ctx, claimIdx+1)
