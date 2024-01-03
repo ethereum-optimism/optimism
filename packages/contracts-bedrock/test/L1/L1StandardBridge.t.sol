@@ -159,7 +159,6 @@ contract L1StandardBridge_Initialize_TestFail is Bridge_Initializer {
         vm.expectRevert("Initializable: contract is already initialized");
         l1StandardBridge.initialize({
             _messenger: CrossDomainMessenger(address(0)),
-            _otherBridge: StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE)),
             _superchainConfig: SuperchainConfig(address(0))
         });
     }
@@ -168,11 +167,7 @@ contract L1StandardBridge_Initialize_TestFail is Bridge_Initializer {
     function test_initializeImpl_alreadyInitialized_reverts() external {
         L1StandardBridge impl = L1StandardBridge(deploy.mustGetAddress("L1StandardBridge"));
         vm.expectRevert("Initializable: contract is already initialized");
-        impl.initialize({
-            _messenger: CrossDomainMessenger(address(0)),
-            _otherBridge: StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE)),
-            _superchainConfig: SuperchainConfig(address(0))
-        });
+        impl.initialize({ _messenger: CrossDomainMessenger(address(0)), _superchainConfig: SuperchainConfig(address(0)) });
     }
 }
 

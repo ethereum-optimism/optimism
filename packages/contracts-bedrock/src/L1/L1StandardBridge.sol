@@ -78,27 +78,18 @@ contract L1StandardBridge is StandardBridge, ISemver {
 
     /// @notice Constructs the L1StandardBridge contract.
     constructor() StandardBridge() {
-        initialize({
-            _messenger: CrossDomainMessenger(address(0)),
-            _otherBridge: StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE)),
-            _superchainConfig: SuperchainConfig(address(0))
-        });
+        initialize({ _messenger: CrossDomainMessenger(address(0)), _superchainConfig: SuperchainConfig(address(0)) });
     }
 
     /// @notice Initializer.
     /// @param _messenger        Contract for the CrossDomainMessenger on this network.
-    /// @param _otherBridge      Contract for the StandardBridge on the other network.
     /// @param _superchainConfig Contract for the SuperchainConfig on this network.
-    function initialize(
-        CrossDomainMessenger _messenger,
-        StandardBridge _otherBridge,
-        SuperchainConfig _superchainConfig
-    )
-        public
-        initializer
-    {
+    function initialize(CrossDomainMessenger _messenger, SuperchainConfig _superchainConfig) public initializer {
         superchainConfig = _superchainConfig;
-        __StandardBridge_init({ _messenger: _messenger, _otherBridge: _otherBridge });
+        __StandardBridge_init({
+            _messenger: _messenger,
+            _otherBridge: StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE))
+        });
     }
 
     /// @inheritdoc StandardBridge

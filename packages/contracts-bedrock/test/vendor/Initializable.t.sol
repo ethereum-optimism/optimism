@@ -192,9 +192,7 @@ contract Initializer_Test is Bridge_Initializer {
         contracts.push(
             InitializeableContract({
                 target: address(l1StandardBridge),
-                initCalldata: abi.encodeCall(
-                    l1StandardBridge.initialize, (l1CrossDomainMessenger, l2StandardBridge, superchainConfig)
-                    ),
+                initCalldata: abi.encodeCall(l1StandardBridge.initialize, (l1CrossDomainMessenger, superchainConfig)),
                 initializedSlotVal: deploy.loadInitializedSlot("L1StandardBridgeProxy")
             })
         );
