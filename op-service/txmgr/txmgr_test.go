@@ -1299,6 +1299,9 @@ func TestClose(t *testing.T) {
 
 	sendingSignal := make(chan struct{})
 
+	// Ensure the manager is not closed
+	require.False(t, h.mgr.closed.Load())
+
 	// sendTx will fail until it is called a retry-number of times
 	called := 0
 	const retries = 4
@@ -1331,6 +1334,8 @@ func TestClose(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, retries, called)
 	called = 0
+	// Ensure the manager is *still* not closed
+	require.False(t, h.mgr.closed.Load())
 
 	// on the second call, we close the manager while the tx is in progress by consuming the sending signal
 	go func() {
@@ -1376,15 +1381,16 @@ func TestCloseWaitingForConfirmation(t *testing.T) {
 	}
 	h.backend.setTxSender(sendTx)
 
-	// when the sending of the tx is complete, the manager will be closed
-	// the manager should wait for the tx to be confirmed before fully closing
+	// this goroutine will close the manager when the tx sending is complete
+	// the transaction is not yet confirmed, so the manager will wait for confirmation
 	go func() {
 		<-sendDone
 		h.mgr.Close()
 		close(closeDone)
 	}()
 
-	// when the manager is closed, a new block is mined to advance confirmations for the TX
+	// this goroutine will complete confirmation of the tx when the manager is closed
+	// by forcing this to happen after close, we are able to observe a closing manager waiting for confirmation
 	go func() {
 		<-closeDone
 		h.backend.mine(nil, nil)
