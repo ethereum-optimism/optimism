@@ -86,8 +86,8 @@ library ChainAssertions {
         console.log("Running chain assertions on the L1CrossDomainMessenger");
         L1CrossDomainMessenger messenger = L1CrossDomainMessenger(_contracts.L1CrossDomainMessenger);
 
-        require(messenger.OTHER_MESSENGER() == Predeploys.L2_CROSS_DOMAIN_MESSENGER);
-        require(messenger.otherMessenger() == Predeploys.L2_CROSS_DOMAIN_MESSENGER);
+        require(address(messenger.OTHER_MESSENGER()) == Predeploys.L2_CROSS_DOMAIN_MESSENGER);
+        require(address(messenger.otherMessenger()) == Predeploys.L2_CROSS_DOMAIN_MESSENGER);
 
         if (_isProxy) {
             require(address(messenger.PORTAL()) == _contracts.OptimismPortal);

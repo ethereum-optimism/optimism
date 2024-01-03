@@ -26,15 +26,15 @@ contract L2CrossDomainMessenger is CrossDomainMessenger, ISemver {
 
     /// @notice Initializer.
     /// @param _l1CrossDomainMessenger Address of the L1CrossDomainMessenger contract on the other network.
-    function initialize(address _l1CrossDomainMessenger) public initializer {
+    function initialize(CrossDomainMessenger _l1CrossDomainMessenger) public initializer {
         __CrossDomainMessenger_init({ _otherMessenger: _l1CrossDomainMessenger });
     }
 
     /// @notice Getter for the remote messenger.
     ///         Public getter is legacy and will be removed in the future. Use `otherMessenger()` instead.
-    /// @return Address of the L1CrossDomainMessenger contract.
+    /// @return L1CrossDomainMessenger contract.
     /// @custom:legacy
-    function l1CrossDomainMessenger() public view returns (address) {
+    function l1CrossDomainMessenger() public view returns (CrossDomainMessenger) {
         return otherMessenger;
     }
 
@@ -47,7 +47,7 @@ contract L2CrossDomainMessenger is CrossDomainMessenger, ISemver {
 
     /// @inheritdoc CrossDomainMessenger
     function _isOtherMessenger() internal view override returns (bool) {
-        return AddressAliasHelper.undoL1ToL2Alias(msg.sender) == otherMessenger;
+        return AddressAliasHelper.undoL1ToL2Alias(msg.sender) == address(otherMessenger);
     }
 
     /// @inheritdoc CrossDomainMessenger
