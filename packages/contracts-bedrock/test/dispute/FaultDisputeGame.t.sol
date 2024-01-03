@@ -527,15 +527,21 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
 
     /// @dev Static unit test asserting that resolve reverts when attempting to resolve a subgame multiple times
     function test_resolve_claimAlreadyResolved_reverts() public {
+        vm.deal(address(this), 1 ether);
+
         Claim claim = _dummyClaim();
-        gameProxy.attack(0, claim);
+        gameProxy.attack{ value: 1 ether }(0, claim);
         gameProxy.attack(1, claim);
 
         vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
 
+        assertEq(address(this).balance, 0);
         gameProxy.resolveClaim(1);
+        assertEq(address(this).balance, 1 ether);
+
         vm.expectRevert(ClaimAlreadyResolved.selector);
         gameProxy.resolveClaim(1);
+        assertEq(address(this).balance, 1 ether);
     }
 
     /// @dev Static unit test asserting that resolve reverts when attempting to resolve a subgame at max depth
@@ -545,12 +551,18 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
             gameProxy.attack(i, claim);
         }
 
+        vm.deal(address(this), 100 ether);
         claim = _changeClaimStatus(claim, VMStatuses.PANIC);
         for (uint256 i = gameProxy.claimDataLen() - 1; i < gameProxy.maxGameDepth(); i++) {
-            gameProxy.attack(i, claim);
+            gameProxy.attack{ value: 1 ether }(i, claim);
         }
 
         vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
+
+        // Resolve to claim bond
+        uint256 balanceBefore = address(this).balance;
+        gameProxy.resolveClaim(8);
+        assertEq(address(this).balance, balanceBefore + 1 ether);
 
         vm.expectRevert(ClaimAlreadyResolved.selector);
         gameProxy.resolveClaim(8);

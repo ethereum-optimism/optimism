@@ -78,8 +78,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     bool internal initialized;
 
     /// @notice Semantic version.
-    /// @custom:semver 0.0.22
-    string public constant version = "0.0.22";
+    /// @custom:semver 0.0.23
+    string public constant version = "0.0.23";
 
     /// @param _gameType The type ID of the game.
     /// @param _absolutePrestate The absolute prestate of the instruction trace.
@@ -387,14 +387,19 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         uint256 challengeIndicesLen = challengeIndices.length;
 
         // INVARIANT: Cannot resolve subgames twice
-        // Uncontested claims are resolved implicitly unless they are the root claim
-        if ((_claimIndex == 0 && subgameAtRootResolved) || (challengeIndicesLen == 0 && _claimIndex != 0)) {
+        if (_claimIndex == 0 && subgameAtRootResolved) {
             revert ClaimAlreadyResolved();
+        }
+
+        // Uncontested claims are resolved implicitly unless they are the root claim. Pay out the bond to the claimant
+        // and return early.
+        if (challengeIndicesLen == 0 && _claimIndex != 0) {
+            _payBond(parent.claimant, parent);
+            return;
         }
 
         // Assume parent is honest until proven otherwise
         address countered = address(0);
-
         for (uint256 i = 0; i < challengeIndicesLen; ++i) {
             uint256 challengeIndex = challengeIndices[i];
 
@@ -410,13 +415,9 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
             }
         }
 
-        if (countered != address(0)) {
-            // If the parent was successfully countered, pay out the parent's bond to the challenger.
-            payable(countered).transfer(parent.bond);
-        } else {
-            // If the parent was not successfully countered, pay out the parent's bond to the claimant.
-            payable(parent.claimant).transfer(parent.bond);
-        }
+        // If the parent was not successfully countered, pay out the parent's bond to the claimant.
+        // If the parent was successfully countered, pay out the parent's bond to the challenger.
+        _payBond(countered == address(0) ? parent.claimant : countered, parent);
 
         // Once a subgame is resolved, we percolate the result up the DAG so subsequent calls to
         // resolveClaim will not need to traverse this subgame.
@@ -568,6 +569,20 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     ////////////////////////////////////////////////////////////////
     //                          HELPERS                           //
     ////////////////////////////////////////////////////////////////
+
+    /// @notice Pays out the bond of a claim to a given recipient.
+    /// @param _recipient The recipient of the bond.
+    /// @param _bonded The claim to pay out the bond of.
+    /// @return success_ Whether or not the transfer was successful.
+    function _payBond(address _recipient, ClaimData storage _bonded) internal returns (bool success_) {
+        // Set all bits in the bond value to indicate that the bond has been paid out.
+        uint256 bond = _bonded.bond;
+        if (bond == type(uint128).max) revert ClaimAlreadyResolved();
+        _bonded.bond = type(uint128).max;
+
+        // Pay out the bond to the recipient.
+        (success_,) = address(_recipient).call{ value: bond }(hex"");
+    }
 
     /// @notice Verifies the integrity of an execution bisection subgame's root claim. Reverts if the claim
     ///         is invalid.
