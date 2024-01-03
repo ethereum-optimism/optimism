@@ -23,7 +23,6 @@ import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
  * @title Boba Token (BOBA)
  *
  */
-
 contract BOBA is Context, ERC20, ERC20Burnable, ERC20Permit, ERC20Votes, ERC20VotesComp {
     /// @notice Maximum possible number of tokens
     // slither-disable-next-line too-many-digits

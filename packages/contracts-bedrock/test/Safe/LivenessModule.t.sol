@@ -326,6 +326,7 @@ contract LivenessModule_RemoveOwnersFuzz_Test is LivenessModule_TestInit {
         Correct, // Correctly removes the owners and transfers to the shutDown owner
         DoesNotTransferToFallbackOwner, // Removes all but one owner, and does not transfer to the shutDown owner
         DoesNotRemoveAllOwners // Leaves more than one owner when below minOwners
+
     }
 
     /// @dev This contract inherits the storage layout from the LivenessModule_TestInit contract, but we
