@@ -66,8 +66,8 @@ contract L1ERC721Bridge_Test is Bridge_Initializer {
         L1ERC721Bridge impl = L1ERC721Bridge(deploy.mustGetAddress("L1ERC721Bridge"));
         assertEq(address(impl.MESSENGER()), address(0));
         assertEq(address(impl.messenger()), address(0));
-        assertEq(address(impl.OTHER_BRIDGE()), Predeploys.L2_ERC721_BRIDGE);
-        assertEq(address(impl.otherBridge()), Predeploys.L2_ERC721_BRIDGE);
+        assertEq(address(impl.OTHER_BRIDGE()), address(0));
+        assertEq(address(impl.otherBridge()), address(0));
         assertEq(address(impl.superchainConfig()), address(0));
     }
 
@@ -80,33 +80,11 @@ contract L1ERC721Bridge_Test is Bridge_Initializer {
         assertEq(address(l1ERC721Bridge.superchainConfig()), address(superchainConfig));
     }
 
-    /// @dev Tests that initialize reverts if the bridge points to the zero address.
-    function test_initialize_invalidBridge_reverts() external {
-        // Reset the initialized field in the 0th storage slot so that initialize can be called again.
-        vm.store(address(l1ERC721Bridge), bytes32(uint256(0)), bytes32(uint256(0)));
-        vm.expectRevert("ERC721Bridge: other bridge cannot be address(0)");
-        l1ERC721Bridge.initialize({
-            _messenger: CrossDomainMessenger(address(0)),
-            _otherBridge: address(0),
-            _superchainConfig: SuperchainConfig(address(0))
-        });
-    }
-
     /// @dev Tests that the implementation contract cannot be initialized twice.
     function test_initializeImpl_alreadyInitialized_reverts() external {
         L1ERC721Bridge impl = L1ERC721Bridge(deploy.mustGetAddress("L1ERC721Bridge"));
         vm.expectRevert("Initializable: contract is already initialized");
         impl.initialize({
-            _messenger: CrossDomainMessenger(address(0)),
-            _otherBridge: Predeploys.L2_ERC721_BRIDGE,
-            _superchainConfig: SuperchainConfig(address(0))
-        });
-    }
-
-    /// @dev Tests that the proxy cannot be initialized twice.
-    function test_initializeProxy_alreadyInitialized_reverts() external {
-        vm.expectRevert("Initializable: contract is already initialized");
-        l1ERC721Bridge.initialize({
             _messenger: CrossDomainMessenger(address(0)),
             _otherBridge: Predeploys.L2_ERC721_BRIDGE,
             _superchainConfig: SuperchainConfig(address(0))
