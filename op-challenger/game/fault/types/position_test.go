@@ -86,7 +86,8 @@ func TestGindexPositionConversions(t *testing.T) {
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("convert gindex=%s to Position", test.gindex.String()), func(t *testing.T) {
 			positionActual := NewPositionFromGIndex(test.gindex)
-			require.Truef(t, test.expectedPosition.Equal(positionActual), "expected position=%s, got=%s", test.expectedPosition, positionActual)
+			require.EqualValuesf(t, test.expectedPosition.Depth(), positionActual.Depth(), "expected depth=%s, got=%s", test.expectedPosition.Depth(), positionActual.Depth())
+			require.Zerof(t, test.expectedPosition.IndexAtDepth().Cmp(positionActual.IndexAtDepth()), "expected indexAtDepth=%s, got=%s", test.expectedPosition.IndexAtDepth(), positionActual.IndexAtDepth())
 			gindex := positionActual.ToGIndex()
 			require.Truef(t, gindex.Cmp(test.gindex) == 0, "expected gindex=%s, got=%s", test.gindex.String(), gindex.String())
 		})

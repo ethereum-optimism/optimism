@@ -38,10 +38,6 @@ func NewPositionFromGIndex(x *big.Int) Position {
 	return NewPosition(depth, indexAtDepth)
 }
 
-func (p Position) Equal(other Position) bool {
-	return p.Depth() == other.Depth() && p.IndexAtDepth().Cmp(other.IndexAtDepth()) == 0
-}
-
 func (p Position) String() string {
 	return fmt.Sprintf("Position(depth: %v, indexAtDepth: %v)", p.depth, p.indexAtDepth)
 }
