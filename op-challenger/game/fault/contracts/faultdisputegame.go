@@ -128,6 +128,7 @@ func (f *FaultDisputeGameContract) addGlobalDataTx(ctx context.Context, data *ty
 	}
 	return oracle.AddGlobalDataTx(data)
 }
+
 func (f *FaultDisputeGameContract) GetGameDuration(ctx context.Context) (uint64, error) {
 	result, err := f.multiCaller.SingleCall(ctx, batching.BlockLatest, f.contract.Call(methodGameDuration))
 	if err != nil {
@@ -269,16 +270,20 @@ func (f *FaultDisputeGameContract) resolveCall() *batching.ContractCall {
 
 func (f *FaultDisputeGameContract) decodeClaim(result *batching.CallResult, contractIndex int) types.Claim {
 	parentIndex := result.GetUint32(0)
-	countered := result.GetBool(1)
-	claim := result.GetHash(2)
-	position := result.GetBigInt(3)
-	clock := result.GetBigInt(4)
+	counteredBy := result.GetAddress(1)
+	claimant := result.GetAddress(2)
+	bond := result.GetBigInt(3)
+	claim := result.GetHash(4)
+	position := result.GetBigInt(5)
+	clock := result.GetBigInt(6)
 	return types.Claim{
 		ClaimData: types.ClaimData{
 			Value:    claim,
 			Position: types.NewPositionFromGIndex(position),
+			Bond:     bond,
 		},
-		Countered:           countered,
+		CounteredBy:         counteredBy,
+		Claimant:            claimant,
 		Clock:               clock.Uint64(),
 		ContractIndex:       contractIndex,
 		ParentContractIndex: int(parentIndex),
