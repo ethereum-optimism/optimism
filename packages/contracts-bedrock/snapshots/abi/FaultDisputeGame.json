@@ -100,19 +100,6 @@
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "bondManager",
-    "outputs": [
-      {
-        "internalType": "contract IBondManager",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
     "inputs": [
       {
         "internalType": "uint256",

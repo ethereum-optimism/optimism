@@ -4,7 +4,6 @@ pragma solidity ^0.8.15;
 import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
 import { IFaultDisputeGame } from "src/dispute/interfaces/IFaultDisputeGame.sol";
 import { IInitializable } from "src/dispute/interfaces/IInitializable.sol";
-import { IBondManager } from "src/dispute/interfaces/IBondManager.sol";
 import { IBigStepper, IPreimageOracle } from "src/dispute/interfaces/IBigStepper.sol";
 
 import { Clone } from "src/libraries/Clone.sol";
@@ -60,9 +59,6 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     /// @inheritdoc IDisputeGame
     GameStatus public status;
 
-    /// @inheritdoc IDisputeGame
-    IBondManager public bondManager;
-
     /// @inheritdoc IFaultDisputeGame
     Hash public l1Head;
 
@@ -82,8 +78,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     bool internal initialized;
 
     /// @notice Semantic version.
-    /// @custom:semver 0.0.21
-    string public constant version = "0.0.21";
+    /// @custom:semver 0.0.22
+    string public constant version = "0.0.22";
 
     /// @param _gameType The type ID of the game.
     /// @param _absolutePrestate The absolute prestate of the instruction trace.

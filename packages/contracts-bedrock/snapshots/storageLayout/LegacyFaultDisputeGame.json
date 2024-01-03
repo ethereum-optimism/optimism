@@ -14,13 +14,6 @@
     "type": "enum GameStatus"
   },
   {
-    "bytes": "20",
-    "label": "bondManager",
-    "offset": 9,
-    "slot": "0",
-    "type": "contract IBondManager"
-  },
-  {
     "bytes": "32",
     "label": "l1Head",
     "offset": 0,
