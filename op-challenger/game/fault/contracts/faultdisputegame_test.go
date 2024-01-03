@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	batchingTest "github.com/ethereum-optimism/optimism/op-service/sources/batching/test"
@@ -34,8 +35,8 @@ func TestGetBlockRange(t *testing.T) {
 
 func TestGetSplitDepth(t *testing.T) {
 	stubRpc, contract := setupFaultDisputeGameTest(t)
-	expectedSplitDepth := uint64(15)
-	stubRpc.SetResponse(fdgAddr, methodSplitDepth, batching.BlockLatest, nil, []interface{}{new(big.Int).SetUint64(expectedSplitDepth)})
+	expectedSplitDepth := types.Depth(15)
+	stubRpc.SetResponse(fdgAddr, methodSplitDepth, batching.BlockLatest, nil, []interface{}{new(big.Int).SetUint64(uint64(expectedSplitDepth))})
 	splitDepth, err := contract.GetSplitDepth(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, expectedSplitDepth, splitDepth)
