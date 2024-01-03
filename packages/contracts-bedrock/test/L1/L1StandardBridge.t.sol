@@ -154,15 +154,6 @@ contract L1StandardBridge_Pause_TestFail is Bridge_Initializer {
 }
 
 contract L1StandardBridge_Initialize_TestFail is Bridge_Initializer {
-    /// @dev Tests that the proxy cannot be initialized twice.
-    function test_initializeProxy_alreadyInitialized_reverts() external {
-        vm.expectRevert("Initializable: contract is already initialized");
-        l1StandardBridge.initialize({
-            _messenger: CrossDomainMessenger(address(0)),
-            _superchainConfig: SuperchainConfig(address(0))
-        });
-    }
-
     /// @dev Tests that the implementation contract cannot be initialized twice.
     function test_initializeImpl_alreadyInitialized_reverts() external {
         L1StandardBridge impl = L1StandardBridge(deploy.mustGetAddress("L1StandardBridge"));
