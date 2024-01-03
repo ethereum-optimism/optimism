@@ -580,7 +580,7 @@ func checkL2ERC721Bridge(addr common.Address, client *ethclient.Client) error {
 	if err != nil {
 		return err
 	}
-	calldata, err := abi.Pack("initialize", messenger, otherBridge)
+	calldata, err := abi.Pack("initialize", otherBridge)
 	if err != nil {
 		return err
 	}
