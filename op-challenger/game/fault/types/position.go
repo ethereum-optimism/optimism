@@ -12,6 +12,9 @@ var (
 	ErrPositionDepthTooSmall = errors.New("position depth is too small")
 )
 
+// Depth is the depth of a position in a game tree where the root level has
+// depth 0, the root's children have depth 1, their children have depth 2, and
+// so on.
 type Depth uint64
 
 // Position is a golang wrapper around the dispute game Position type.
