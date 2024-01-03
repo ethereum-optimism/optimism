@@ -129,8 +129,6 @@ importers:
         specifier: ^1.0.1
         version: 1.0.1(@types/node@20.10.4)(jsdom@23.0.1)
 
-  op-exporter: {}
-
   packages/chain-mon:
     dependencies:
       '@eth-optimism/common-ts':

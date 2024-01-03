@@ -27,7 +27,6 @@ Go modules which are not yet versioned:
 
 ```text
 ./indexer          (changesets)
-./op-exporter      (changesets)
 ./proxyd           (changesets)
 ```
 
