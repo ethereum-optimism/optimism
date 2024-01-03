@@ -1,10 +1,9 @@
 import { DeployFunction } from 'hardhat-deploy/dist/types'
-import { constants } from 'ethers'
 
 import {
   assertContractVariable,
   deploy,
-  getContractFromArtifact
+  getContractFromArtifact,
 } from '../scripts/deploy-utils'
 
 const deployFn: DeployFunction = async (hre) => {
@@ -17,7 +16,11 @@ const deployFn: DeployFunction = async (hre) => {
     name: 'L1CrossDomainMessenger',
     args: [optimismPortalProxy.address],
     postDeployAction: async (contract) => {
-      await assertContractVariable(contract, 'PORTAL', optimismPortalProxy.address)
+      await assertContractVariable(
+        contract,
+        'PORTAL',
+        optimismPortalProxy.address
+      )
     },
   })
 }

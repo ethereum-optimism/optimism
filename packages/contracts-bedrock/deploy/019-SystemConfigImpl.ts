@@ -28,10 +28,10 @@ const deployFn: DeployFunction = async (hre) => {
         maxResourceLimit: 20_000_000,
         elasticityMultiplier: 10,
         baseFeeMaxChangeDenominator: 8,
-        minimumBaseFee: minimumBaseFee,
+        minimumBaseFee,
         systemTxMaxGas: 1_000_000,
         maximumBaseFee: ethers.BigNumber.from('2').pow(128).sub(1),
-      }
+      },
     ],
     postDeployAction: async (contract) => {
       await assertContractVariable(

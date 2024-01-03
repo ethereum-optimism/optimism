@@ -48,24 +48,16 @@ const deployFn: DeployFunction = async (hre) => {
       )
       await assertContractVariable(
         contract,
-       'PROPOSER',
-        hre.deployConfig.l2OutputOracleProposer,
+        'PROPOSER',
+        hre.deployConfig.l2OutputOracleProposer
       )
       await assertContractVariable(
         contract,
         'CHALLENGER',
-        hre.deployConfig.l2OutputOracleChallenger,
+        hre.deployConfig.l2OutputOracleChallenger
       )
-      await assertContractVariable(
-        contract,
-        'startingBlockNumber',
-        0
-      )
-      await assertContractVariable(
-        contract,
-        'startingTimestamp',
-        0
-      )
+      await assertContractVariable(contract, 'startingBlockNumber', 0)
+      await assertContractVariable(contract, 'startingTimestamp', 0)
     },
   })
 }
