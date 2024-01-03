@@ -99,7 +99,8 @@ func TestOutputCannon_PublishCannonRootClaim(t *testing.T) {
 }
 
 func TestOutputCannonDisputeGame(t *testing.T) {
-	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(outputCannonTestExecutor))
+	executor := uint64(1) // Different executor to the other tests to help balance things better
+	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(executor))
 
 	tests := []struct {
 		name             string
@@ -112,7 +113,7 @@ func TestOutputCannonDisputeGame(t *testing.T) {
 	for _, test := range tests {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
-			op_e2e.InitParallel(t, op_e2e.UseExecutor(outputCannonTestExecutor))
+			op_e2e.InitParallel(t, op_e2e.UseExecutor(executor))
 
 			ctx := context.Background()
 			sys, l1Client := startFaultDisputeSystem(t)
@@ -149,7 +150,8 @@ func TestOutputCannonDisputeGame(t *testing.T) {
 }
 
 func TestOutputCannonDefendStep(t *testing.T) {
-	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(outputCannonTestExecutor))
+	executor := uint64(1) // Different executor to the other tests to help balance things better
+	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(executor))
 
 	ctx := context.Background()
 	sys, l1Client := startFaultDisputeSystem(t)
@@ -185,7 +187,8 @@ func TestOutputCannonDefendStep(t *testing.T) {
 }
 
 func TestOutputCannonProposedOutputRootValid(t *testing.T) {
-	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(outputCannonTestExecutor))
+	executor := uint64(1) // Different executor to the other tests to help balance things better
+	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(executor))
 	// honestStepsFail attempts to perform both an attack and defend step using the correct trace.
 	honestStepsFail := func(ctx context.Context, game *disputegame.OutputCannonGameHelper, correctTrace *disputegame.OutputHonestHelper, parentClaimIdx int64) {
 		// Attack step should fail
@@ -242,7 +245,7 @@ func TestOutputCannonProposedOutputRootValid(t *testing.T) {
 	for _, test := range tests {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
-			op_e2e.InitParallel(t, op_e2e.UseExecutor(0))
+			op_e2e.InitParallel(t, op_e2e.UseExecutor(executor))
 
 			ctx := context.Background()
 			sys, l1Client := startFaultDisputeSystem(t)
