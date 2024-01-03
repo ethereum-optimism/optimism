@@ -19,9 +19,8 @@ contract L2CrossDomainMessenger is CrossDomainMessenger, ISemver {
     string public constant version = "1.9.0";
 
     /// @notice Constructs the L2CrossDomainMessenger contract.
-    /// @param _l1CrossDomainMessenger Address of the L1CrossDomainMessenger contract on the other network.
-    constructor(address _l1CrossDomainMessenger) CrossDomainMessenger() {
-        initialize({ _l1CrossDomainMessenger: _l1CrossDomainMessenger });
+    constructor() CrossDomainMessenger() {
+        initialize({ _l1CrossDomainMessenger: CrossDomainMessenger(address(0)) });
     }
 
     /// @notice Initializer.
