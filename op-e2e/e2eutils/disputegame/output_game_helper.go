@@ -147,6 +147,7 @@ func (g *OutputGameHelper) WaitForClaimCount(ctx context.Context, count int64) {
 type ContractClaim struct {
 	ParentIndex uint32
 	Countered   bool
+	Bond        *big.Int
 	Claim       [32]byte
 	Position    *big.Int
 	Clock       *big.Int

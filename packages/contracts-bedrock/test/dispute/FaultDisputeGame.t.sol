@@ -202,7 +202,8 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     /// @dev Tests that the game is initialized with the correct data.
     function test_initialize_correctData_succeeds() public {
         // Assert that the root claim is initialized correctly.
-        (uint32 parentIndex, bool countered, uint128 bond, Claim claim, Position position, Clock clock) = gameProxy.claimData(0);
+        (uint32 parentIndex, bool countered, uint128 bond, Claim claim, Position position, Clock clock) =
+            gameProxy.claimData(0);
         assertEq(parentIndex, type(uint32).max);
         assertEq(countered, false);
         assertEq(bond, 0);
@@ -364,7 +365,8 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         gameProxy.attack(0, counter);
 
         // Grab the claim data of the attack.
-        (uint32 parentIndex, bool countered, uint128 bond, Claim claim, Position position, Clock clock) = gameProxy.claimData(1);
+        (uint32 parentIndex, bool countered, uint128 bond, Claim claim, Position position, Clock clock) =
+            gameProxy.claimData(1);
 
         // Assert correctness of the attack claim's data.
         assertEq(parentIndex, 0);
