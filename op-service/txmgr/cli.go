@@ -4,18 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"math/big"
 	"time"
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	opsigner "github.com/ethereum-optimism/optimism/op-service/signer"
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/urfave/cli/v2"
 )
 
@@ -310,17 +308,17 @@ func NewConfig(cfg CLIConfig, l log.Logger) (Config, error) {
 		return Config{}, fmt.Errorf("could not init signer: %w", err)
 	}
 
-	feeLimitThreshold, err := gweiToWei(cfg.FeeLimitThresholdGwei)
+	feeLimitThreshold, err := eth.GweiToWei(cfg.FeeLimitThresholdGwei)
 	if err != nil {
 		return Config{}, fmt.Errorf("invalid fee limit threshold: %w", err)
 	}
 
-	minBasefee, err := gweiToWei(cfg.MinBasefeeGwei)
+	minBasefee, err := eth.GweiToWei(cfg.MinBasefeeGwei)
 	if err != nil {
 		return Config{}, fmt.Errorf("invalid min basefee: %w", err)
 	}
 
-	minTipCap, err := gweiToWei(cfg.MinTipCapGwei)
+	minTipCap, err := eth.GweiToWei(cfg.MinTipCapGwei)
 	if err != nil {
 		return Config{}, fmt.Errorf("invalid min tip cap: %w", err)
 	}
@@ -437,22 +435,4 @@ func (m Config) Check() error {
 		return errors.New("must provide the ChainID")
 	}
 	return nil
-}
-
-func gweiToWei(gwei float64) (*big.Int, error) {
-	if math.IsNaN(gwei) || math.IsInf(gwei, 0) {
-		return nil, fmt.Errorf("invalid gwei value: %v", gwei)
-	}
-
-	// convert float GWei value into integer Wei value
-	wei, _ := new(big.Float).Mul(
-		big.NewFloat(gwei),
-		big.NewFloat(params.GWei)).
-		Int(nil)
-
-	if wei.Cmp(abi.MaxUint256) == 1 {
-		return nil, errors.New("gwei value larger than max uint256")
-	}
-
-	return wei, nil
 }
