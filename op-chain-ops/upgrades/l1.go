@@ -442,7 +442,7 @@ func OptimismMintableERC20Factory(batch *safe.Batch, implementations superchain.
 		}
 	}
 
-	OptimismMintableERC20FactoryABI, err := bindings.OptimismMintableERC20FactoryMetaData.GetAbi()
+	optimismMintableERC20FactoryABI, err := bindings.OptimismMintableERC20FactoryMetaData.GetAbi()
 	if err != nil {
 		return err
 	}
@@ -451,17 +451,17 @@ func OptimismMintableERC20Factory(batch *safe.Batch, implementations superchain.
 	if config != nil {
 		bridge = common.HexToAddress(list.L1StandardBridgeProxy.String())
 	} else {
-		OptimismMintableERC20Factory, err := bindings.NewOptimismMintableERC20FactoryCaller(common.HexToAddress(list.OptimismMintableERC20FactoryProxy.String()), backend)
+		optimismMintableERC20Factory, err := bindings.NewOptimismMintableERC20FactoryCaller(common.HexToAddress(list.OptimismMintableERC20FactoryProxy.String()), backend)
 		if err != nil {
 			return err
 		}
-		bridge, err = OptimismMintableERC20Factory.Bridge(&bind.CallOpts{})
+		bridge, err = optimismMintableERC20Factory.Bridge(&bind.CallOpts{})
 		if err != nil {
 			return err
 		}
 	}
 
-	calldata, err := OptimismMintableERC20FactoryABI.Pack("initialize", bridge)
+	calldata, err := optimismMintableERC20FactoryABI.Pack("initialize", bridge)
 	if err != nil {
 		return err
 	}
