@@ -4,7 +4,6 @@ pragma solidity ^0.8.15;
 import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
 import { IFaultDisputeGame } from "src/dispute/interfaces/IFaultDisputeGame.sol";
 import { IInitializable } from "src/dispute/interfaces/IInitializable.sol";
-import { IBondManager } from "src/dispute/interfaces/IBondManager.sol";
 import { IBigStepper, IPreimageOracle } from "src/dispute/interfaces/IBigStepper.sol";
 
 import { Clone } from "src/libraries/Clone.sol";
@@ -59,9 +58,6 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
 
     /// @inheritdoc IDisputeGame
     GameStatus public status;
-
-    /// @inheritdoc IDisputeGame
-    IBondManager public bondManager;
 
     /// @inheritdoc IFaultDisputeGame
     Hash public l1Head;
