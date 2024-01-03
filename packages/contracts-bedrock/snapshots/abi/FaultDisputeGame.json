@@ -278,9 +278,9 @@
   {
     "inputs": [
       {
-        "internalType": "enum BondKind",
-        "name": "_moveKind",
-        "type": "uint8"
+        "internalType": "Position",
+        "name": "_position",
+        "type": "uint128"
       }
     ],
     "name": "getRequiredBond",

@@ -98,8 +98,8 @@ func (c *FaultDisputeGameContract) GetSplitDepth(ctx context.Context) (types.Dep
 	return types.Depth(splitDepth.GetBigInt(0).Uint64()), nil
 }
 
-func (c *FaultDisputeGameContract) GetRequiredBond(ctx context.Context, bondKind uint8) (*big.Int, error) {
-	bond, err := c.multiCaller.SingleCall(ctx, batching.BlockLatest, c.contract.Call(methodRequiredBond, bondKind))
+func (c *FaultDisputeGameContract) GetRequiredBond(ctx context.Context, position *big.Int) (*big.Int, error) {
+	bond, err := c.multiCaller.SingleCall(ctx, batching.BlockLatest, c.contract.Call(methodRequiredBond, position))
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve required bond: %w", err)
 	}

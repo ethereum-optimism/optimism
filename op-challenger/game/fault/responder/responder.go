@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
@@ -24,7 +23,7 @@ type GameContract interface {
 	DefendTx(parentContractIndex uint64, pivot common.Hash) (txmgr.TxCandidate, error)
 	StepTx(claimIdx uint64, isAttack bool, stateData []byte, proof []byte) (txmgr.TxCandidate, error)
 	UpdateOracleTx(ctx context.Context, claimIdx uint64, data *types.PreimageOracleData) (txmgr.TxCandidate, error)
-	GetRequiredBond(ctx context.Context, bondKind uint8) (*big.Int, error)
+	GetRequiredBond(ctx context.Context, position *big.Int) (*big.Int, error)
 }
 
 // FaultResponder implements the [Responder] interface to send onchain transactions.
@@ -101,16 +100,8 @@ func (r *FaultResponder) PerformAction(ctx context.Context, action types.Action)
 			candidate, err = r.contract.DefendTx(uint64(action.ParentIdx), action.Value)
 		}
 
-		var bondKind uint8
-		switch nextMoveDepth := action.ParentPosition.Depth() + 1; {
-		case nextMoveDepth == int(r.gameDepth):
-			bondKind = contracts.BondKindStep
-		case nextMoveDepth > int(r.splitDepth):
-			bondKind = contracts.BondKindExecution
-		default:
-			bondKind = contracts.BondKindOutput
-		}
-		bondValue, err := r.contract.GetRequiredBond(ctx, bondKind)
+		// We can use a generic attack here, the bond calculation only focuses on the depth of the move position
+		bondValue, err := r.contract.GetRequiredBond(ctx, action.ParentPosition.Attack().ToGIndex())
 		if err != nil {
 			return err
 		}

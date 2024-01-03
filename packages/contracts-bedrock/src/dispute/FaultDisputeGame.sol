@@ -233,15 +233,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         }
 
         // INVARIANT: The `msg.value` must be sufficient to cover the required bond.
-        BondKind moveKind;
-        if (nextPositionDepth == MAX_GAME_DEPTH) {
-            moveKind = BondKind.STEP;
-        } else if (nextPositionDepth > SPLIT_DEPTH) {
-            moveKind = BondKind.EXECUTION_BISECTION;
-        } else {
-            moveKind = BondKind.OUTPUT_BISECTION;
-        }
-        if (getRequiredBond(moveKind) > msg.value) revert InsufficientBond();
+        if (getRequiredBond(nextPosition) > msg.value) revert InsufficientBond();
 
         // Fetch the grandparent clock, if it exists.
         // The grandparent clock should always exist unless the parent is the root claim.
@@ -486,7 +478,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         }
 
         // INVARIANT: The `msg.value` must be sufficient to cover the required bond.
-        if (getRequiredBond(BondKind.OUTPUT_BISECTION) > msg.value) revert InsufficientBond();
+        if (getRequiredBond(ROOT_POSITION) > msg.value) revert InsufficientBond();
 
         // Set the root claim
         claimData.push(
@@ -516,11 +508,11 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     }
 
     /// @notice Returns the required bond for a given move kind.
-    /// @param _moveKind The kind of move that is requiring a bond.
+    /// @param _position The position of the bonded interaction.
     /// @return requiredBond_ The required ETH bond for the given move, in wei.
-    function getRequiredBond(BondKind _moveKind) public pure returns (uint256 requiredBond_) {
+    function getRequiredBond(Position _position) public pure returns (uint256 requiredBond_) {
         // TODO
-        _moveKind;
+        _position;
         requiredBond_ = 0;
     }
 

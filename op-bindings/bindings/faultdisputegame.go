@@ -564,12 +564,12 @@ func (_FaultDisputeGame *FaultDisputeGameCallerSession) GenesisOutputRoot() ([32
 	return _FaultDisputeGame.Contract.GenesisOutputRoot(&_FaultDisputeGame.CallOpts)
 }
 
-// GetRequiredBond is a free data retrieval call binding the contract method 0xbbea7138.
+// GetRequiredBond is a free data retrieval call binding the contract method 0xc395e1ca.
 //
-// Solidity: function getRequiredBond(uint8 _moveKind) pure returns(uint256 requiredBond_)
-func (_FaultDisputeGame *FaultDisputeGameCaller) GetRequiredBond(opts *bind.CallOpts, _moveKind uint8) (*big.Int, error) {
+// Solidity: function getRequiredBond(uint128 _position) pure returns(uint256 requiredBond_)
+func (_FaultDisputeGame *FaultDisputeGameCaller) GetRequiredBond(opts *bind.CallOpts, _position *big.Int) (*big.Int, error) {
 	var out []interface{}
-	err := _FaultDisputeGame.contract.Call(opts, &out, "getRequiredBond", _moveKind)
+	err := _FaultDisputeGame.contract.Call(opts, &out, "getRequiredBond", _position)
 
 	if err != nil {
 		return *new(*big.Int), err
@@ -581,18 +581,18 @@ func (_FaultDisputeGame *FaultDisputeGameCaller) GetRequiredBond(opts *bind.Call
 
 }
 
-// GetRequiredBond is a free data retrieval call binding the contract method 0xbbea7138.
+// GetRequiredBond is a free data retrieval call binding the contract method 0xc395e1ca.
 //
-// Solidity: function getRequiredBond(uint8 _moveKind) pure returns(uint256 requiredBond_)
-func (_FaultDisputeGame *FaultDisputeGameSession) GetRequiredBond(_moveKind uint8) (*big.Int, error) {
-	return _FaultDisputeGame.Contract.GetRequiredBond(&_FaultDisputeGame.CallOpts, _moveKind)
+// Solidity: function getRequiredBond(uint128 _position) pure returns(uint256 requiredBond_)
+func (_FaultDisputeGame *FaultDisputeGameSession) GetRequiredBond(_position *big.Int) (*big.Int, error) {
+	return _FaultDisputeGame.Contract.GetRequiredBond(&_FaultDisputeGame.CallOpts, _position)
 }
 
-// GetRequiredBond is a free data retrieval call binding the contract method 0xbbea7138.
+// GetRequiredBond is a free data retrieval call binding the contract method 0xc395e1ca.
 //
-// Solidity: function getRequiredBond(uint8 _moveKind) pure returns(uint256 requiredBond_)
-func (_FaultDisputeGame *FaultDisputeGameCallerSession) GetRequiredBond(_moveKind uint8) (*big.Int, error) {
-	return _FaultDisputeGame.Contract.GetRequiredBond(&_FaultDisputeGame.CallOpts, _moveKind)
+// Solidity: function getRequiredBond(uint128 _position) pure returns(uint256 requiredBond_)
+func (_FaultDisputeGame *FaultDisputeGameCallerSession) GetRequiredBond(_position *big.Int) (*big.Int, error) {
+	return _FaultDisputeGame.Contract.GetRequiredBond(&_FaultDisputeGame.CallOpts, _position)
 }
 
 // L1Head is a free data retrieval call binding the contract method 0x6361506d.

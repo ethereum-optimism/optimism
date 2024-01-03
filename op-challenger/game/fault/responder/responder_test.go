@@ -291,6 +291,6 @@ func (m *mockContract) UpdateOracleTx(_ context.Context, claimIdx uint64, data *
 	return txmgr.TxCandidate{TxData: ([]byte)("updateOracle")}, nil
 }
 
-func (m *mockContract) GetRequiredBond(_ context.Context, bondKind uint8) (*big.Int, error) {
+func (m *mockContract) GetRequiredBond(_ context.Context, position *big.Int) (*big.Int, error) {
 	return big.NewInt(5), nil
 }

@@ -217,15 +217,7 @@ contract HonestGameSolver is GameSolver {
     {
         bool isAttack = _direction == Direction.Attack;
 
-        BondKind kind;
-        if (_movePos.depth() == MAX_DEPTH) {
-            kind = BondKind.STEP;
-        } else if (_movePos.depth() > SPLIT_DEPTH) {
-            kind = BondKind.EXECUTION_BISECTION;
-        } else {
-            kind = BondKind.OUTPUT_BISECTION;
-        }
-        uint256 bond = GAME.getRequiredBond(kind);
+        uint256 bond = GAME.getRequiredBond(_movePos);
 
         move_ = Move({
             kind: isAttack ? MoveKind.Attack : MoveKind.Defend,

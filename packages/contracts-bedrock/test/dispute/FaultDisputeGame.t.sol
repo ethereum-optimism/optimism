@@ -169,7 +169,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
 
     /// @dev Tests that the proxy receives ETH from the dispute game factory.
     function test_initialize_receivesETH_succeeds(uint128 _value) public {
-        _value = uint128(bound(_value, gameProxy.getRequiredBond(BondKind.OUTPUT_BISECTION), type(uint128).max));
+        _value = uint128(bound(_value, gameProxy.getRequiredBond(Position.wrap(1)), type(uint128).max));
         vm.deal(address(this), _value);
 
         assertEq(address(gameProxy).balance, 0);
