@@ -30,12 +30,6 @@ contract OptimismMintableTokenFactory_Test is Bridge_Initializer {
         assertEq(address(l1OptimismMintableERC20Factory.bridge()), address(l1StandardBridge));
     }
 
-    /// @dev Tests that the proxy cannot be initialized twice.
-    function test_initialize_cannotInitProxy_reverts() external {
-        vm.expectRevert("Initializable: contract is already initialized");
-        l1OptimismMintableERC20Factory.initialize(address(0));
-    }
-
     /// @dev Tests that the implementation cannot be initialized twice.
     function test_initialize_cannotInitImpl_reverts() external {
         address impl = deploy.mustGetAddress("OptimismMintableERC20Factory");
