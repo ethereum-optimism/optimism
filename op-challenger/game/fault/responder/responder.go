@@ -23,7 +23,7 @@ type GameContract interface {
 	DefendTx(parentContractIndex uint64, pivot common.Hash) (txmgr.TxCandidate, error)
 	StepTx(claimIdx uint64, isAttack bool, stateData []byte, proof []byte) (txmgr.TxCandidate, error)
 	UpdateOracleTx(ctx context.Context, claimIdx uint64, data *types.PreimageOracleData) (txmgr.TxCandidate, error)
-	GetRequiredBond(ctx context.Context, position *big.Int) (*big.Int, error)
+	GetRequiredBond(ctx context.Context, position types.Position) (*big.Int, error)
 }
 
 // FaultResponder implements the [Responder] interface to send onchain transactions.
@@ -101,7 +101,7 @@ func (r *FaultResponder) PerformAction(ctx context.Context, action types.Action)
 		}
 
 		// We can use a generic attack here, the bond calculation only focuses on the depth of the move position
-		bondValue, err := r.contract.GetRequiredBond(ctx, action.ParentPosition.Attack().ToGIndex())
+		bondValue, err := r.contract.GetRequiredBond(ctx, action.ParentPosition.Attack())
 		if err != nil {
 			return err
 		}

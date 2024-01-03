@@ -217,6 +217,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         ) = gameProxy.claimData(0);
         assertEq(parentIndex, type(uint32).max);
         assertEq(counteredBy, address(0));
+        assertEq(claimant, DEFAULT_SENDER);
         assertEq(bond, 0);
         assertEq(claim.raw(), ROOT_CLAIM.raw());
         assertEq(position.raw(), 1);
