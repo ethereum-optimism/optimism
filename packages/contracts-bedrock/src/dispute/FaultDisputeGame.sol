@@ -192,7 +192,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
 
         // Set the parent claim as countered. We do not need to append a new claim to the game;
         // instead, we can just set the existing parent as countered.
-        parent.countered = true;
+        parent.counteredBy = msg.sender;
     }
 
     /// @notice Generic move function, used for both `attack` and `defend` moves.
@@ -272,7 +272,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         // Create the new claim.
         claimData.push(
             ClaimData({
-                countered: false,
+                counteredBy: address(0),
                 parentIndex: uint32(_challengeIndex),
                 bond: uint128(msg.value),
                 claim: _claim,
@@ -282,7 +282,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         );
 
         // Set the parent claim as countered.
-        claimData[_challengeIndex].countered = true;
+        claimData[_challengeIndex].counteredBy = msg.sender;
 
         // Update the subgame rooted at the parent claim.
         subgames[_challengeIndex].push(claimData.length - 1);
@@ -362,7 +362,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         if (!subgameAtRootResolved) revert OutOfOrderResolution();
 
         // Update the global game status; The dispute has concluded.
-        status_ = claimData[0].countered ? GameStatus.CHALLENGER_WINS : GameStatus.DEFENDER_WINS;
+        status_ = claimData[0].counteredBy == address(0) ? GameStatus.DEFENDER_WINS : GameStatus.CHALLENGER_WINS;
         resolvedAt = Timestamp.wrap(uint64(block.timestamp));
 
         emit Resolved(status = status_);
@@ -392,7 +392,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         }
 
         // Assume parent is honest until proven otherwise
-        bool countered = false;
+        address countered = address(0);
 
         for (uint256 i = 0; i < challengeIndicesLen; ++i) {
             uint256 challengeIndex = challengeIndices[i];
@@ -403,15 +403,15 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
             ClaimData storage claim = claimData[challengeIndex];
 
             // Ignore false claims
-            if (!claim.countered) {
-                countered = true;
+            if (claim.counteredBy == address(0)) {
+                countered = msg.sender;
                 break;
             }
         }
 
         // Once a subgame is resolved, we percolate the result up the DAG so subsequent calls to
         // resolveClaim will not need to traverse this subgame.
-        parent.countered = countered;
+        parent.counteredBy = countered;
 
         // Resolved subgames have no entries
         delete subgames[_claimIndex];
@@ -484,7 +484,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         claimData.push(
             ClaimData({
                 parentIndex: type(uint32).max,
-                countered: false,
+                counteredBy: address(0),
                 bond: uint128(msg.value),
                 claim: rootClaim(),
                 position: ROOT_POSITION,

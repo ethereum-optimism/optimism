@@ -274,11 +274,11 @@ contract HonestGameSolver is GameSolver {
     ///      `claimData` array.
     function getClaimData(uint256 _claimIndex) internal view returns (IFaultDisputeGame.ClaimData memory claimData_) {
         // thanks, solc
-        (uint32 parentIndex, bool countered, uint128 bond, Claim claim, Position position, Clock clock) =
+        (uint32 parentIndex, address countered, uint128 bond, Claim claim, Position position, Clock clock) =
             GAME.claimData(_claimIndex);
         claimData_ = IFaultDisputeGame.ClaimData({
             parentIndex: parentIndex,
-            countered: countered,
+            counteredBy: countered,
             bond: bond,
             claim: claim,
             position: position,

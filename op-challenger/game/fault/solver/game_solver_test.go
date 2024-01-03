@@ -93,8 +93,8 @@ func TestCalculateNextActions(t *testing.T) {
 			test.setupGame(builder)
 			game := builder.Game
 			for i, claim := range game.Claims() {
-				t.Logf("Claim %v: Pos: %v TraceIdx: %v ParentIdx: %v, Countered: %v, Value: %v",
-					i, claim.Position.ToGIndex(), claim.Position.TraceIndex(maxDepth), claim.ParentContractIndex, claim.Countered, claim.Value)
+				t.Logf("Claim %v: Pos: %v TraceIdx: %v ParentIdx: %v, CounteredBy: %v, Value: %v",
+					i, claim.Position.ToGIndex(), claim.Position.TraceIndex(maxDepth), claim.ParentContractIndex, claim.CounteredBy, claim.Value)
 			}
 
 			solver := NewGameSolver(maxDepth, trace.NewSimpleTraceAccessor(claimBuilder.CorrectTraceProvider()))

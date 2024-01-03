@@ -180,7 +180,7 @@ func (f *disputeGameContract) resolveCall() *batching.ContractCall {
 
 func (f *disputeGameContract) decodeClaim(result *batching.CallResult, contractIndex int) types.Claim {
 	parentIndex := result.GetUint32(0)
-	countered := result.GetBool(1)
+	countered := result.GetAddress(1)
 	bond := result.GetBigInt(2)
 	claim := result.GetHash(3)
 	position := result.GetBigInt(4)
@@ -191,7 +191,7 @@ func (f *disputeGameContract) decodeClaim(result *batching.CallResult, contractI
 			Bond:     bond,
 			Position: types.NewPositionFromGIndex(position),
 		},
-		Countered:           countered,
+		CounteredBy:         countered,
 		Clock:               clock.Uint64(),
 		ContractIndex:       contractIndex,
 		ParentContractIndex: int(parentIndex),

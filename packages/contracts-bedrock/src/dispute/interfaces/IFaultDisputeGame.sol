@@ -11,7 +11,7 @@ interface IFaultDisputeGame is IDisputeGame {
     /// @notice The `ClaimData` struct represents the data associated with a Claim.
     struct ClaimData {
         uint32 parentIndex;
-        bool countered;
+        address counteredBy;
         uint128 bond;
         Claim claim;
         Position position;

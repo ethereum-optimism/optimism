@@ -115,9 +115,9 @@
         "type": "uint32"
       },
       {
-        "internalType": "bool",
-        "name": "countered",
-        "type": "bool"
+        "internalType": "address",
+        "name": "counteredBy",
+        "type": "address"
       },
       {
         "internalType": "uint128",
