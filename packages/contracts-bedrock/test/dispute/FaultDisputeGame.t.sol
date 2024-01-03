@@ -89,14 +89,20 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
 contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     /// @dev The root claim of the game.
     Claim internal constant ROOT_CLAIM = Claim.wrap(bytes32((uint256(1) << 248) | uint256(10)));
+
+    /// @dev The preimage of the absolute prestate claim
+    bytes internal absolutePrestateData;
     /// @dev The absolute prestate of the trace.
-    Claim internal constant ABSOLUTE_PRESTATE = Claim.wrap(bytes32((uint256(3) << 248) | uint256(0)));
+    Claim internal absolutePrestate;
 
     function setUp() public override {
+        absolutePrestateData = abi.encode(0);
+        absolutePrestate = _changeClaimStatus(Claim.wrap(keccak256(absolutePrestateData)), VMStatuses.UNFINISHED);
+
         super.setUp();
         super.init({
             rootClaim: ROOT_CLAIM,
-            absolutePrestate: ABSOLUTE_PRESTATE,
+            absolutePrestate: absolutePrestate,
             l2BlockNumber: 0x10,
             genesisBlockNumber: 0,
             genesisOutputRoot: Hash.wrap(bytes32(0))
@@ -110,7 +116,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     /// @dev Tests that the constructor of the `FaultDisputeGame` reverts when the `_splitDepth`
     ///      parameter is greater than or equal to the `MAX_GAME_DEPTH`
     function test_constructor_wrongArgs_reverts(uint256 _splitDepth) public {
-        AlphabetVM alphabetVM = new AlphabetVM(ABSOLUTE_PRESTATE);
+        AlphabetVM alphabetVM = new AlphabetVM(absolutePrestate);
 
         // Test that the constructor reverts when the `_splitDepth` parameter is greater than or equal
         // to the `MAX_GAME_DEPTH` parameter.
@@ -118,7 +124,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         vm.expectRevert(InvalidSplitDepth.selector);
         new FaultDisputeGame({
             _gameType: GAME_TYPE,
-            _absolutePrestate: ABSOLUTE_PRESTATE,
+            _absolutePrestate: absolutePrestate,
             _genesisBlockNumber: 0,
             _genesisOutputRoot: Hash.wrap(bytes32(0)),
             _maxGameDepth: 2 ** 3,
@@ -577,6 +583,46 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
 
         vm.expectRevert(OutOfOrderResolution.selector);
         gameProxy.resolveClaim(0);
+    }
+
+    /// @dev Static unit test asserting that resolve pays out bonds on step, output bisection, and execution trace
+    /// moves.
+    function test_resolve_bondPayouts_succeeds() public {
+        // Give the test contract some ether
+        vm.deal(address(this), 100 ether);
+
+        // Make claims all the way down the tree.
+        gameProxy.attack{ value: 1 ether }(0, _dummyClaim());
+        gameProxy.attack{ value: 1 ether }(1, _dummyClaim());
+        gameProxy.attack{ value: 1 ether }(2, _dummyClaim());
+        gameProxy.attack{ value: 1 ether }(3, _dummyClaim());
+        gameProxy.attack{ value: 1 ether }(4, _changeClaimStatus(_dummyClaim(), VMStatuses.PANIC));
+        gameProxy.attack{ value: 1 ether }(5, _dummyClaim());
+        gameProxy.attack{ value: 1 ether }(6, _dummyClaim());
+        gameProxy.attack{ value: 1 ether }(7, _dummyClaim());
+        gameProxy.addLocalData(LocalPreimageKey.STARTING_L2_BLOCK_NUMBER, 8, 0);
+        gameProxy.step(8, true, absolutePrestateData, hex"");
+
+        // Ensure that the step successfully countered the leaf claim.
+        (, address counteredBy,,,,,) = gameProxy.claimData(8);
+        assertEq(counteredBy, address(this));
+
+        // Ensure we bonded the correct amounts
+        uint256 bonded = (gameProxy.claimDataLen() - 1) * 1 ether;
+        assertEq(address(this).balance, 100 ether - bonded);
+        assertEq(address(gameProxy).balance, bonded);
+
+        // Resolve all claims
+        vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
+        for (uint256 i = gameProxy.claimDataLen(); i > 0; i--) {
+            (bool success,) = address(gameProxy).call(abi.encodeCall(gameProxy.resolveClaim, (i - 1)));
+            success;
+        }
+        gameProxy.resolve();
+
+        // Ensure that bonds were paid out correctly.
+        assertEq(address(this).balance, 100 ether);
+        assertEq(address(gameProxy).balance, 0);
     }
 
     /// @dev Tests that adding local data with an out of bounds identifier reverts.
