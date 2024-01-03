@@ -2,16 +2,21 @@ package op_e2e
 
 import (
 	"context"
+	"math/big"
+	"math/rand"
 	"testing"
 	"time"
+
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/stretchr/testify/require"
+	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
 
 func TestStopStartSequencer(t *testing.T) {
@@ -170,6 +175,54 @@ func TestLoadSequencerStateOnStarted_Started(t *testing.T) {
 	err = rollupClient.StartSequencer(ctx, common.Hash{})
 	require.ErrorContains(t, err, "sequencer already running")
 	assertPersistedSequencerState(t, stateFile, node.StateStarted)
+}
+
+func TestPostUnsafePayload(t *testing.T) {
+	InitParallel(t)
+	ctx := context.Background()
+
+	cfg := DefaultSystemConfig(t)
+	cfg.Nodes["verifier"].RPC.EnableAdmin = true
+
+	sys, err := cfg.Start(t)
+	require.NoError(t, err)
+	err = sys.BatchSubmitter.Stop(ctx)
+	require.NoError(t, err)
+	defer sys.Close()
+
+	l2Seq := sys.Clients["sequencer"]
+	l2Ver := sys.Clients["verifier"]
+	rollupRPCClient, err := rpc.DialContext(ctx, sys.RollupNodes["verifier"].HTTPEndpoint())
+	require.Nil(t, err)
+	rollupClient := sources.NewRollupClient(client.NewBaseRPCClient(rollupRPCClient))
+
+	time.Sleep(time.Duration(cfg.DeployConfig.L2BlockTime+1) * time.Second)
+	seqBlock, err := l2Seq.BlockByNumber(ctx, nil)
+	require.NoError(t, err)
+	require.Greater(t, seqBlock.Number().Uint64(), uint64(0), "Sequencer should have advanced at least one block")
+	verBlock, err := l2Ver.BlockByNumber(ctx, nil)
+	require.NoError(t, err)
+	require.Equal(t, uint64(0), verBlock.NumberU64(), "Verifier should not have advanced any blocks since p2p & batcher is not enabled")
+
+	blockNumberOne, err := l2Seq.BlockByNumber(ctx, big.NewInt(1))
+	require.NoError(t, err)
+	payload, err := eth.BlockAsPayload(blockNumberOne, sys.RollupConfig.CanyonTime)
+	require.NoError(t, err)
+	err = rollupClient.PostUnsafePayload(ctx, payload)
+	require.NoError(t, err)
+
+	ss, err := rollupClient.SyncStatus(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, uint64(1), ss.UnsafeL2.Number)
+
+	// Test validation
+	blockNumberTwo, err := l2Seq.BlockByNumber(ctx, big.NewInt(2))
+	require.NoError(t, err)
+	payload, err = eth.BlockAsPayload(blockNumberTwo, sys.RollupConfig.CanyonTime)
+	require.NoError(t, err)
+	payload.BlockHash = testutils.RandomHash(rand.New(rand.NewSource(1)))
+	err = rollupClient.PostUnsafePayload(ctx, payload)
+	require.ErrorContains(t, err, "payload has bad block hash")
 }
 
 func assertPersistedSequencerState(t *testing.T, stateFile string, expected node.RunningState) {
