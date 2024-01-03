@@ -203,7 +203,15 @@ func (b *mockBackend) CallContract(ctx context.Context, call ethereum.CallMsg, b
 }
 
 func (b *mockBackend) HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error) {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
+	num := big.NewInt(int64(b.blockHeight))
+	if number != nil {
+		num.Set(number)
+	}
 	return &types.Header{
+		Number:  num,
 		BaseFee: b.g.basefee(),
 	}, nil
 }
@@ -696,6 +704,7 @@ func TestManagerErrsOnZeroConfs(t *testing.T) {
 // inner loop of WaitMined properly handles this case.
 type failingBackend struct {
 	returnSuccessBlockNumber bool
+	returnSuccessHeader      bool
 	returnSuccessReceipt     bool
 	baseFee, gasTip          *big.Int
 }
@@ -727,8 +736,14 @@ func (b *failingBackend) TransactionReceipt(
 	}, nil
 }
 
-func (b *failingBackend) HeaderByNumber(_ context.Context, _ *big.Int) (*types.Header, error) {
+func (b *failingBackend) HeaderByNumber(ctx context.Context, _ *big.Int) (*types.Header, error) {
+	if !b.returnSuccessHeader {
+		b.returnSuccessHeader = true
+		return nil, errRpcFailure
+	}
+
 	return &types.Header{
+		Number:  big.NewInt(1),
 		BaseFee: b.baseFee,
 	}, nil
 }
@@ -800,8 +815,9 @@ func TestWaitMinedReturnsReceiptAfterFailure(t *testing.T) {
 
 func doGasPriceIncrease(t *testing.T, txTipCap, txFeeCap, newTip, newBaseFee int64) (*types.Transaction, *types.Transaction) {
 	borkedBackend := failingBackend{
-		gasTip:  big.NewInt(newTip),
-		baseFee: big.NewInt(newBaseFee),
+		gasTip:              big.NewInt(newTip),
+		baseFee:             big.NewInt(newBaseFee),
+		returnSuccessHeader: true,
 	}
 
 	mgr := &SimpleTxManager{
@@ -933,8 +949,9 @@ func testIncreaseGasPriceLimit(t *testing.T, lt gasPriceLimitTest) {
 	borkedTip := int64(10)
 	borkedFee := int64(45)
 	borkedBackend := failingBackend{
-		gasTip:  big.NewInt(borkedTip),
-		baseFee: big.NewInt(borkedFee),
+		gasTip:              big.NewInt(borkedTip),
+		baseFee:             big.NewInt(borkedFee),
+		returnSuccessHeader: true,
 	}
 
 	mgr := &SimpleTxManager{

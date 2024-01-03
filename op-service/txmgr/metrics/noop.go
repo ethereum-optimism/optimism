@@ -1,6 +1,10 @@
 package metrics
 
-import "github.com/ethereum/go-ethereum/core/types"
+import (
+	"math/big"
+
+	"github.com/ethereum/go-ethereum/core/types"
+)
 
 type NoopTxMetrics struct{}
 
@@ -10,4 +14,6 @@ func (*NoopTxMetrics) RecordGasBumpCount(int)            {}
 func (*NoopTxMetrics) RecordTxConfirmationLatency(int64) {}
 func (*NoopTxMetrics) TxConfirmed(*types.Receipt)        {}
 func (*NoopTxMetrics) TxPublished(string)                {}
+func (*NoopTxMetrics) RecordBasefee(*big.Int)            {}
+func (*NoopTxMetrics) RecordTipCap(*big.Int)             {}
 func (*NoopTxMetrics) RPCError()                         {}
