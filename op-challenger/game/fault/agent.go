@@ -119,7 +119,7 @@ func (a *Agent) tryResolveClaims(ctx context.Context) error {
 
 	var resolvableClaims []int64
 	for _, claim := range claims {
-		a.log.Debug("checking if claim is resolvable", "claimIdx", claim.ContractIndex)
+		a.log.Trace("Checking if claim is resolvable", "claimIdx", claim.ContractIndex)
 		if err := a.responder.CallResolveClaim(ctx, uint64(claim.ContractIndex)); err == nil {
 			a.log.Info("Resolving claim", "claimIdx", claim.ContractIndex)
 			resolvableClaims = append(resolvableClaims, int64(claim.ContractIndex))
