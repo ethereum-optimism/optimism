@@ -283,11 +283,6 @@
   {
     "inputs": [
       {
-        "internalType": "contract CrossDomainMessenger",
-        "name": "_messenger",
-        "type": "address"
-      },
-      {
         "internalType": "contract StandardBridge",
         "name": "_otherBridge",
         "type": "address"
