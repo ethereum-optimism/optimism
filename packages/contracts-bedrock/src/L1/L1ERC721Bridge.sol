@@ -30,7 +30,7 @@ contract L1ERC721Bridge is ERC721Bridge, ISemver {
     constructor() ERC721Bridge() {
         initialize({
             _messenger: CrossDomainMessenger(address(0)),
-            _otherBridge: Predeploys.L2_ERC721_BRIDGE,
+            _otherBridge: address(0),
             _superchainConfig: SuperchainConfig(address(0))
         });
     }
@@ -48,7 +48,7 @@ contract L1ERC721Bridge is ERC721Bridge, ISemver {
         initializer
     {
         superchainConfig = _superchainConfig;
-        __ERC721Bridge_init(_messenger, _otherBridge);
+        __ERC721Bridge_init({ _messenger: _messenger, _otherBridge: _otherBridge });
     }
 
     /// @inheritdoc ERC721Bridge
@@ -92,7 +92,7 @@ contract L1ERC721Bridge is ERC721Bridge, ISemver {
 
         // When a withdrawal is finalized on L1, the L1 Bridge transfers the NFT to the
         // withdrawer.
-        IERC721(_localToken).safeTransferFrom(address(this), _to, _tokenId);
+        IERC721(_localToken).safeTransferFrom({ from: address(this), to: _to, tokenId: _tokenId });
 
         // slither-disable-next-line reentrancy-events
         emit ERC721BridgeFinalized(_localToken, _remoteToken, _from, _to, _tokenId, _extraData);
@@ -120,10 +120,10 @@ contract L1ERC721Bridge is ERC721Bridge, ISemver {
 
         // Lock token into bridge
         deposits[_localToken][_remoteToken][_tokenId] = true;
-        IERC721(_localToken).transferFrom(_from, address(this), _tokenId);
+        IERC721(_localToken).transferFrom({ from: _from, to: address(this), tokenId: _tokenId });
 
         // Send calldata into L2
-        messenger.sendMessage(otherBridge, message, _minGasLimit);
+        messenger.sendMessage({ _target: otherBridge, _message: message, _minGasLimit: _minGasLimit });
         emit ERC721BridgeInitiated(_localToken, _remoteToken, _from, _to, _tokenId, _extraData);
     }
 }
