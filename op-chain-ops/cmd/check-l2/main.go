@@ -36,6 +36,9 @@ var (
 	// errAlreadyInitialized represents a revert from when a contract is already initialized.
 	// This error is used to assert with `eth_call` on contracts that are `Initializable`
 	errAlreadyInitialized = errors.New("Initializable: contract is already initialized")
+	// errInvalidInitializing represents when the initializing value is not set to the expected value.
+	// This is an assertion on `_initializing`. We do not care about the value of `_initialized`.
+	errInvalidInitializing = errors.New("invalid initializing value")
 )
 
 // Default script for checking that L2 has been configured correctly. This should be extended in the future
@@ -689,12 +692,18 @@ func checkOptimismMintableERC20Factory(addr common.Address, client *ethclient.Cl
 		return err
 	}
 	log.Info("OptimismMintableERC20Factory", "_initialized", initialized)
+	if initialized.Uint64() != 1 {
+		return fmt.Errorf("%w: %s", errInvalidInitialized, initialized)
+	}
 
 	initializing, err := getInitializing("OptimismMintableERC20Factory", addr, client)
 	if err != nil {
 		return err
 	}
 	log.Info("OptimismMintableERC20Factory", "_initializing", initializing)
+	if initializing {
+		return fmt.Errorf("%w: %t", errInvalidInitializing, initializing)
+	}
 
 	version, err := contract.Version(&bind.CallOpts{})
 	if err != nil {
