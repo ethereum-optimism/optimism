@@ -31,9 +31,11 @@ contract FaultDisputeGame_Solvency_Invariant is FaultDisputeGame_Init {
         vm.startPrank(address(actor));
     }
 
+    /// @custom:invariant FaultDisputeGame always returns all ETH on total resolution
+    ///
+    /// The FaultDisputeGame contract should always return all ETH in the contract to the correct recipients upon
+    /// resolution of all outstanding claims. There may never be any ETH left in the contract after a full resolution.
     function invariant_faultDisputeGame_solvency() public {
-        if (gameProxy.claimDataLen() < 2) return;
-
         vm.warp(block.timestamp + 7 days + 1 seconds);
 
         (,,, uint256 rootBond,,,) = gameProxy.claimData(0);
