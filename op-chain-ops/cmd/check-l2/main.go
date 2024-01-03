@@ -277,16 +277,6 @@ func checkPredeployConfig(client *ethclient.Client, name string) error {
 				return fmt.Errorf("EAS: %w", err)
 			}
 
-		case predeploys.BobaTuringCreditAddr:
-			if err := checkBobaTuringCredit(p, client); err != nil {
-				return err
-			}
-
-		case predeploys.BobaHCHelperAddr:
-			if err := checkBobaHCHelper(p, client); err != nil {
-				return err
-			}
-
 		case predeploys.BobaL2Addr:
 			if err := checkBobaL2(p, client); err != nil {
 				return err
@@ -863,30 +853,6 @@ func checkEAS(addr common.Address, client *ethclient.Client) error {
 	return nil
 }
 
-func checkBobaTuringCredit(addr common.Address, client *ethclient.Client) error {
-	contract, err := bindings.NewBobaTuringCredit(addr, client)
-	if err != nil {
-		return err
-	}
-	owner, err := contract.Owner(&bind.CallOpts{})
-	if err != nil {
-		return err
-	}
-	if owner == (common.Address{}) {
-		return fmt.Errorf("BobaTuringCredit owner should not be set to address(0)")
-	}
-	log.Info("BobaTuringCredit", "owner", owner.Hex())
-	turingToken, err := contract.TuringToken(&bind.CallOpts{})
-	if err != nil {
-		return err
-	}
-	if turingToken == (common.Address{}) {
-		return fmt.Errorf("BobaTuringCredit turingToken should not be set to address(0)")
-	}
-	log.Info("BobaTuringCredit", "turingToken", turingToken.Hex())
-	return nil
-}
-
 func checkBobaL2(addr common.Address, client *ethclient.Client) error {
 	contract, err := bindings.NewL2GovernanceERC20(addr, client)
 	if err != nil {
@@ -929,22 +895,6 @@ func checkBobaL2(addr common.Address, client *ethclient.Client) error {
 	}
 	log.Info("BobaL2", "decimals", decimals)
 
-	return nil
-}
-
-func checkBobaHCHelper(addr common.Address, client *ethclient.Client) error {
-	contract, err := bindings.NewBobaHCHelper(addr, client)
-	if err != nil {
-		return err
-	}
-	owner, err := contract.Owner(&bind.CallOpts{})
-	if err != nil {
-		return err
-	}
-	if owner == (common.Address{}) {
-		return fmt.Errorf("BobaHCHelper owner should not be set to address(0)")
-	}
-	log.Info("BobaHCHelper", "owner", owner.Hex())
 	return nil
 }
 

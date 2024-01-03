@@ -6,7 +6,6 @@ import (
 
 	"github.com/bobanetwork/v3-anchorage/boba-bindings/bindings"
 	"github.com/bobanetwork/v3-anchorage/boba-bindings/predeploys"
-	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/ether"
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/immutables"
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/state"
 	"github.com/ledgerwatch/erigon-lib/common"
@@ -41,12 +40,6 @@ var (
 		},
 	}
 
-	// BobaUntouchablePredeploys are addresses in the predeploy namespace
-	// that should be removed the old proxy slot and append to the new proxy slot
-	BobaUntouchablePredeploys = map[common.Address]bool{
-		predeploys.BobaTuringCreditAddr: true,
-	}
-
 	// FrozenStoragePredeploys represents the set of predeploys that
 	// will not have their storage wiped during the migration process.
 	// It is very explicitly set in its own mapping to ensure that
@@ -62,17 +55,6 @@ var (
 		predeploys.BobaL2Addr: true,
 	}
 )
-
-// Retrieve all turing credit storage from the legacy predeploy
-func RetrieveLegacyTuringCredit(g *types.Genesis) map[common.Hash]common.Hash {
-	storage := make(map[common.Hash]common.Hash)
-	for k, v := range g.Alloc[predeploys.BobaLegacyTuringCreditAddr].Storage {
-		storage[k] = v
-	}
-	delete(storage, ether.BobaLegacyProxyImplementationSlot)
-	delete(storage, ether.BobaLegacyProxyOwnerSlot)
-	return storage
-}
 
 // SetL2Proxies will set each of the proxies in the state. It requires
 // a Proxy and ProxyAdmin deployment present so that the Proxy bytecode
@@ -92,13 +74,6 @@ func WipePredeployStorage(g *types.Genesis) error {
 
 		if FrozenStoragePredeploys[*addr] {
 			log.Trace("skipping wiping of storage", "name", name, "address", *addr)
-			continue
-		}
-
-		if BobaUntouchablePredeploys[*addr] {
-			log.Info("Wiping of storage for Boba legacy proxy slots", "name", name, "address", *addr)
-			delete(g.Alloc[*addr].Storage, ether.BobaLegacyProxyOwnerSlot)
-			delete(g.Alloc[*addr].Storage, ether.BobaLegacyProxyImplementationSlot)
 			continue
 		}
 
