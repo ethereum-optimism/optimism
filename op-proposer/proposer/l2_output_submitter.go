@@ -15,7 +15,7 @@ import (
 // Main is the entrypoint into the L2OutputSubmitter.
 // This method returns a cliapp.LifecycleAction, to create an op-service CLI-lifecycle-managed L2Output-submitter
 func Main(version string) cliapp.LifecycleAction {
-	return func(cliCtx *cli.Context, closeApp context.CancelCauseFunc) (cliapp.Lifecycle, error) {
+	return func(cliCtx *cli.Context, _ context.CancelCauseFunc) (cliapp.Lifecycle, error) {
 		if err := flags.CheckRequired(cliCtx); err != nil {
 			return nil, err
 		}

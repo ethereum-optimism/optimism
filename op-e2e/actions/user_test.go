@@ -72,7 +72,7 @@ func runCrossLayerUserTest(gt *testing.T, test hardforkScheduledTest) {
 		BatcherKey:  dp.Secrets.Batcher,
 	}, seq.RollupClient(), miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
 	proposer := NewL2Proposer(t, log, &ProposerCfg{
-		OutputOracleAddr:  sd.DeploymentsL1.L2OutputOracleProxy,
+		OutputOracleAddr:  &sd.DeploymentsL1.L2OutputOracleProxy,
 		ProposerKey:       dp.Secrets.Proposer,
 		AllowNonFinalized: true,
 	}, miner.EthClient(), seq.RollupClient())
