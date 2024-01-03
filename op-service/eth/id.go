@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 )
 
 type BlockID struct {
@@ -19,6 +20,14 @@ func (id BlockID) String() string {
 // output during logging.
 func (id BlockID) TerminalString() string {
 	return fmt.Sprintf("%s:%d", id.Hash.TerminalString(), id.Number)
+}
+
+func ReceiptBlockID(r *types.Receipt) BlockID {
+	return BlockID{Number: r.BlockNumber.Uint64(), Hash: r.BlockHash}
+}
+
+func HeaderBlockID(h *types.Header) BlockID {
+	return BlockID{Number: h.Number.Uint64(), Hash: h.Hash()}
 }
 
 type L2BlockRef struct {
