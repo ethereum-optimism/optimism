@@ -38,7 +38,7 @@ contract DisputeGameFactory_Init is CommonTest {
 contract DisputeGameFactory_Create_Test is DisputeGameFactory_Init {
     /// @dev Tests that the `create` function succeeds when creating a new dispute game
     ///      with a `GameType` that has an implementation set.
-    function testFuzz_create_succeeds(uint8 gameType, Claim rootClaim, bytes calldata extraData) public {
+    function testFuzz_create_succeeds(uint8 gameType, Claim rootClaim, bytes calldata extraData, uint256 _value) public {
         // Ensure that the `gameType` is within the bounds of the `GameType` enum's possible values.
         GameType gt = GameType.wrap(uint8(bound(gameType, 0, 2)));
         // Ensure the rootClaim has a VMStatus that disagrees with the validity.
@@ -46,12 +46,14 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_Init {
 
         // Set all three implementations to the same `FakeClone` contract.
         for (uint8 i; i < 3; i++) {
-            factory.setImplementation(GameType.wrap(i), IDisputeGame(address(fakeClone)));
+            GameType lgt = GameType.wrap(i);
+            factory.setImplementation(lgt, IDisputeGame(address(fakeClone)));
+            factory.setInitBond(lgt, _value);
         }
 
         vm.expectEmit(false, true, true, false);
         emit DisputeGameCreated(address(0), gt, rootClaim);
-        IDisputeGame proxy = factory.create(gt, rootClaim, extraData);
+        IDisputeGame proxy = factory.create{ value: _value }(gt, rootClaim, extraData);
 
         (IDisputeGame game, Timestamp timestamp) = factory.games(gt, rootClaim, extraData);
 
@@ -63,10 +65,19 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_Init {
         (, Timestamp timestamp2, IDisputeGame game2) = factory.gameAtIndex(0);
         assertEq(address(game2), address(proxy));
         assertEq(Timestamp.unwrap(timestamp2), block.timestamp);
+
+        // Ensure that the game proxy received the bonded ETH.
+        assertEq(address(proxy).balance, _value);
     }
 
     /// @dev Tests that the `create` function reverts when creating a new dispute game with an insufficient bond.
-    function testFuzz_create_insufficientBond_reverts(uint8 gameType, Claim rootClaim, bytes calldata extraData) public {
+    function testFuzz_create_insufficientBond_reverts(
+        uint8 gameType,
+        Claim rootClaim,
+        bytes calldata extraData
+    )
+        public
+    {
         // Ensure that the `gameType` is within the bounds of the `GameType` enum's possible values.
         GameType gt = GameType.wrap(uint8(bound(gameType, 0, 2)));
         // Ensure the rootClaim has a VMStatus that disagrees with the validity.
