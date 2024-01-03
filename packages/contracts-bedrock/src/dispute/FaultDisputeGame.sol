@@ -457,6 +457,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         //
         // Implicit assumptions:
         // - The `gameStatus` state variable defaults to 0, which is `GameStatus.IN_PROGRESS`
+        // - The dispute game factory will enforce the required bond to initialize the game.
         //
         // Explicit checks:
         // - The game must not have already been initialized.
@@ -481,9 +482,6 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
                 revert(0x1C, 0x04)
             }
         }
-
-        // INVARIANT: The `msg.value` must be sufficient to cover the required bond.
-        if (getRequiredBond(ROOT_POSITION) > msg.value) revert InsufficientBond();
 
         // Set the root claim
         claimData.push(
