@@ -94,52 +94,6 @@ func TestGindexPositionConversions(t *testing.T) {
 	}
 }
 
-var treeNodes = []struct {
-	GIndex       *big.Int
-	Depth        int
-	MaxDepth     int
-	IndexAtDepth *big.Int
-	TraceIndex   *big.Int
-}{
-	{GIndex: bi(1), Depth: 0, MaxDepth: 4, IndexAtDepth: bi(0), TraceIndex: bi(15)},
-
-	{GIndex: bi(2), Depth: 1, MaxDepth: 4, IndexAtDepth: bi(0), TraceIndex: bi(7)},
-	{GIndex: bi(3), Depth: 1, MaxDepth: 4, IndexAtDepth: bi(1), TraceIndex: bi(15)},
-
-	{GIndex: bi(4), Depth: 2, MaxDepth: 4, IndexAtDepth: bi(0), TraceIndex: bi(3)},
-	{GIndex: bi(5), Depth: 2, MaxDepth: 4, IndexAtDepth: bi(1), TraceIndex: bi(7)},
-	{GIndex: bi(6), Depth: 2, MaxDepth: 4, IndexAtDepth: bi(2), TraceIndex: bi(11)},
-	{GIndex: bi(7), Depth: 2, MaxDepth: 4, IndexAtDepth: bi(3), TraceIndex: bi(15)},
-
-	{GIndex: bi(8), Depth: 3, MaxDepth: 4, IndexAtDepth: bi(0), TraceIndex: bi(1)},
-	{GIndex: bi(9), Depth: 3, MaxDepth: 4, IndexAtDepth: bi(1), TraceIndex: bi(3)},
-	{GIndex: bi(10), Depth: 3, MaxDepth: 4, IndexAtDepth: bi(2), TraceIndex: bi(5)},
-	{GIndex: bi(11), Depth: 3, MaxDepth: 4, IndexAtDepth: bi(3), TraceIndex: bi(7)},
-	{GIndex: bi(12), Depth: 3, MaxDepth: 4, IndexAtDepth: bi(4), TraceIndex: bi(9)},
-	{GIndex: bi(13), Depth: 3, MaxDepth: 4, IndexAtDepth: bi(5), TraceIndex: bi(11)},
-	{GIndex: bi(14), Depth: 3, MaxDepth: 4, IndexAtDepth: bi(6), TraceIndex: bi(13)},
-	{GIndex: bi(15), Depth: 3, MaxDepth: 4, IndexAtDepth: bi(7), TraceIndex: bi(15)},
-
-	{GIndex: bi(16), Depth: 4, MaxDepth: 4, IndexAtDepth: bi(0), TraceIndex: bi(0)},
-	{GIndex: bi(17), Depth: 4, MaxDepth: 4, IndexAtDepth: bi(1), TraceIndex: bi(1)},
-	{GIndex: bi(18), Depth: 4, MaxDepth: 4, IndexAtDepth: bi(2), TraceIndex: bi(2)},
-	{GIndex: bi(19), Depth: 4, MaxDepth: 4, IndexAtDepth: bi(3), TraceIndex: bi(3)},
-	{GIndex: bi(20), Depth: 4, MaxDepth: 4, IndexAtDepth: bi(4), TraceIndex: bi(4)},
-	{GIndex: bi(21), Depth: 4, MaxDepth: 4, IndexAtDepth: bi(5), TraceIndex: bi(5)},
-	{GIndex: bi(22), Depth: 4, MaxDepth: 4, IndexAtDepth: bi(6), TraceIndex: bi(6)},
-	{GIndex: bi(23), Depth: 4, MaxDepth: 4, IndexAtDepth: bi(7), TraceIndex: bi(7)},
-	{GIndex: bi(24), Depth: 4, MaxDepth: 4, IndexAtDepth: bi(8), TraceIndex: bi(8)},
-	{GIndex: bi(25), Depth: 4, MaxDepth: 4, IndexAtDepth: bi(9), TraceIndex: bi(9)},
-	{GIndex: bi(26), Depth: 4, MaxDepth: 4, IndexAtDepth: bi(10), TraceIndex: bi(10)},
-	{GIndex: bi(27), Depth: 4, MaxDepth: 4, IndexAtDepth: bi(11), TraceIndex: bi(11)},
-	{GIndex: bi(28), Depth: 4, MaxDepth: 4, IndexAtDepth: bi(12), TraceIndex: bi(12)},
-	{GIndex: bi(29), Depth: 4, MaxDepth: 4, IndexAtDepth: bi(13), TraceIndex: bi(13)},
-	{GIndex: bi(30), Depth: 4, MaxDepth: 4, IndexAtDepth: bi(14), TraceIndex: bi(14)},
-	{GIndex: bi(31), Depth: 4, MaxDepth: 4, IndexAtDepth: bi(15), TraceIndex: bi(15)},
-
-	{GIndex: bi(0).Mul(bi(math.MaxInt64), bi(2)), Depth: 63, MaxDepth: 64, IndexAtDepth: bi(9223372036854775806), TraceIndex: bi(0).Sub(bi(0).Mul(bi(math.MaxInt64), bi(2)), bi(1))},
-}
-
 func TestTraceIndexOfRootWithLargeDepth(t *testing.T) {
 	traceIdx := new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 100), big.NewInt(1))
 	pos := NewPositionFromGIndex(big.NewInt(1))
@@ -147,12 +101,54 @@ func TestTraceIndexOfRootWithLargeDepth(t *testing.T) {
 	require.Equal(t, traceIdx, actual)
 }
 
-// TestTraceIndex creates the position & then tests the trace index function on the treeNodesMaxDepth4 data
+// TestTraceIndex creates the position & then tests the trace index function.
 func TestTraceIndex(t *testing.T) {
-	for _, test := range treeNodes {
-		pos := NewPosition(test.Depth, test.IndexAtDepth)
-		result := pos.TraceIndex(test.MaxDepth)
-		require.Equal(t, test.TraceIndex, result)
+	tests := []struct {
+		depth              int
+		indexAtDepth       *big.Int
+		maxDepth           int
+		traceIndexExpected *big.Int
+	}{
+		{depth: 0, indexAtDepth: bi(0), maxDepth: 4, traceIndexExpected: bi(15)},
+
+		{depth: 1, indexAtDepth: bi(0), maxDepth: 4, traceIndexExpected: bi(7)},
+		{depth: 1, indexAtDepth: bi(1), maxDepth: 4, traceIndexExpected: bi(15)},
+
+		{depth: 2, indexAtDepth: bi(0), maxDepth: 4, traceIndexExpected: bi(3)},
+		{depth: 2, indexAtDepth: bi(1), maxDepth: 4, traceIndexExpected: bi(7)},
+		{depth: 2, indexAtDepth: bi(2), maxDepth: 4, traceIndexExpected: bi(11)},
+		{depth: 2, indexAtDepth: bi(3), maxDepth: 4, traceIndexExpected: bi(15)},
+
+		{depth: 3, indexAtDepth: bi(0), maxDepth: 4, traceIndexExpected: bi(1)},
+		{depth: 3, indexAtDepth: bi(1), maxDepth: 4, traceIndexExpected: bi(3)},
+		{depth: 3, indexAtDepth: bi(2), maxDepth: 4, traceIndexExpected: bi(5)},
+		{depth: 3, indexAtDepth: bi(3), maxDepth: 4, traceIndexExpected: bi(7)},
+		{depth: 3, indexAtDepth: bi(4), maxDepth: 4, traceIndexExpected: bi(9)},
+		{depth: 3, indexAtDepth: bi(5), maxDepth: 4, traceIndexExpected: bi(11)},
+		{depth: 3, indexAtDepth: bi(6), maxDepth: 4, traceIndexExpected: bi(13)},
+		{depth: 3, indexAtDepth: bi(7), maxDepth: 4, traceIndexExpected: bi(15)},
+
+		{depth: 4, indexAtDepth: bi(0), maxDepth: 4, traceIndexExpected: bi(0)},
+		{depth: 4, indexAtDepth: bi(1), maxDepth: 4, traceIndexExpected: bi(1)},
+		{depth: 4, indexAtDepth: bi(2), maxDepth: 4, traceIndexExpected: bi(2)},
+		{depth: 4, indexAtDepth: bi(3), maxDepth: 4, traceIndexExpected: bi(3)},
+		{depth: 4, indexAtDepth: bi(4), maxDepth: 4, traceIndexExpected: bi(4)},
+		{depth: 4, indexAtDepth: bi(5), maxDepth: 4, traceIndexExpected: bi(5)},
+		{depth: 4, indexAtDepth: bi(6), maxDepth: 4, traceIndexExpected: bi(6)},
+		{depth: 4, indexAtDepth: bi(7), maxDepth: 4, traceIndexExpected: bi(7)},
+		{depth: 4, indexAtDepth: bi(8), maxDepth: 4, traceIndexExpected: bi(8)},
+		{depth: 4, indexAtDepth: bi(9), maxDepth: 4, traceIndexExpected: bi(9)},
+		{depth: 4, indexAtDepth: bi(10), maxDepth: 4, traceIndexExpected: bi(10)},
+		{depth: 4, indexAtDepth: bi(11), maxDepth: 4, traceIndexExpected: bi(11)},
+		{depth: 4, indexAtDepth: bi(12), maxDepth: 4, traceIndexExpected: bi(12)},
+		{depth: 4, indexAtDepth: bi(13), maxDepth: 4, traceIndexExpected: bi(13)},
+		{depth: 4, indexAtDepth: bi(14), maxDepth: 4, traceIndexExpected: bi(14)},
+		{depth: 4, indexAtDepth: bi(15), maxDepth: 4, traceIndexExpected: bi(15)},
+
+		{depth: 63, indexAtDepth: bi(9223372036854775806), maxDepth: 64, traceIndexExpected: bi(0).Sub(bi(0).Mul(bi(math.MaxInt64), bi(2)), bi(1))},
+	}
+	for _, test := range tests {
+		require.Equal(t, test.traceIndexExpected, NewPosition(test.depth, test.indexAtDepth).TraceIndex(test.maxDepth))
 	}
 }
 
