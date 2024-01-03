@@ -70,6 +70,35 @@ func TestOutputCannonGame(t *testing.T) {
 	game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
 }
 
+func TestOutputCannon_ChallengeAllZeroClaim(t *testing.T) {
+	// The dishonest actor always posts claims with all zeros.
+	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(outputCannonTestExecutor))
+	ctx := context.Background()
+	sys, l1Client := startFaultDisputeSystem(t)
+	t.Cleanup(sys.Close)
+
+	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
+	game := disputeGameFactory.StartOutputCannonGame(ctx, "sequencer", 3, common.Hash{})
+	game.LogGameData(ctx)
+
+	claim := game.DisputeLastBlock(ctx)
+	game.StartChallenger(ctx, "sequencer", "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
+
+	game.DefendClaim(ctx, claim, func(parent *disputegame.ClaimHelper) *disputegame.ClaimHelper {
+		if parent.IsBottomGameRoot(ctx) {
+			return parent.Attack(ctx, common.Hash{})
+		}
+		return parent.Defend(ctx, common.Hash{})
+	})
+
+	game.LogGameData(ctx)
+
+	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
+	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
+	game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
+	game.LogGameData(ctx)
+}
+
 func TestOutputCannon_PublishCannonRootClaim(t *testing.T) {
 	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(outputCannonTestExecutor))
 	tests := []struct {
