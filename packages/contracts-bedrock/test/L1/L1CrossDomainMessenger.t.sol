@@ -48,8 +48,7 @@ contract L1CrossDomainMessenger_Test is Bridge_Initializer {
         vm.expectRevert("Initializable: contract is already initialized");
         l1CrossDomainMessenger.initialize({
             _superchainConfig: SuperchainConfig(address(0)),
-            _portal: OptimismPortal(payable(address(0))),
-            _l2CrossDomainMessenger: Predeploys.L2_CROSS_DOMAIN_MESSENGER
+            _portal: OptimismPortal(payable(address(0)))
         });
     }
 
@@ -57,11 +56,7 @@ contract L1CrossDomainMessenger_Test is Bridge_Initializer {
     function test_initialize_cannotInitImpl_reverts() external {
         L1CrossDomainMessenger impl = L1CrossDomainMessenger(deploy.mustGetAddress("L1CrossDomainMessenger"));
         vm.expectRevert("Initializable: contract is already initialized");
-        impl.initialize({
-            _superchainConfig: SuperchainConfig(address(0)),
-            _portal: OptimismPortal(payable(address(0))),
-            _l2CrossDomainMessenger: Predeploys.L2_CROSS_DOMAIN_MESSENGER
-        });
+        impl.initialize({ _superchainConfig: SuperchainConfig(address(0)), _portal: OptimismPortal(payable(address(0))) });
     }
 
     /// @dev Tests that the version can be decoded from the message nonce.

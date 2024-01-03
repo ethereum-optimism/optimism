@@ -35,7 +35,7 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
     function initialize(SuperchainConfig _superchainConfig, OptimismPortal _portal) public initializer {
         superchainConfig = _superchainConfig;
         portal = _portal;
-        __CrossDomainMessenger_init({ _otherMessenger: Predeploys.L2_CROSS_DOMAIN_MESSENGER });
+        __CrossDomainMessenger_init({ _otherMessenger: CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER) });
     }
 
     /// @notice Getter function for the OptimismPortal contract on this chain.
