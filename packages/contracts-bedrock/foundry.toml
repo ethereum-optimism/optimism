@@ -57,6 +57,10 @@ ignore = ['src/vendor/WETH9.sol']
 deny_warnings = true
 fuzz = { runs = 512 }
 
+[profile.ci.invariant]
+runs = 256
+depth = 32
+
 ################################################################
 #                         PROFILE: LITE                        #
 ################################################################
