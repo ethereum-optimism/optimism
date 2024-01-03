@@ -35,5 +35,4 @@ cleanup(){
   --private-key "$MALLORY_KEY" \
   --num-confirmations 1 \
   --metrics.enabled --metrics.port=7305 \
-  --pprof.enabled --pprof.port=6065 \
-  --agree-with-proposed-output=false
+  --pprof.enabled --pprof.port=6065

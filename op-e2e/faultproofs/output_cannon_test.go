@@ -123,18 +123,19 @@ func TestOutputCannonDisputeGame(t *testing.T) {
 			require.NotNil(t, game)
 			game.LogGameData(ctx)
 
-			game.DisputeLastBlock(ctx)
+			outputClaim := game.DisputeLastBlock(ctx)
 			splitDepth := game.SplitDepth(ctx)
 
 			game.StartChallenger(ctx, "sequencer", "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
 
-			game.DefendRootClaim(
+			game.DefendClaim(
 				ctx,
-				func(parentClaimIdx int64) {
-					if parentClaimIdx+1 == splitDepth+test.defendClaimDepth {
-						game.Defend(ctx, parentClaimIdx, common.Hash{byte(parentClaimIdx)})
+				outputClaim,
+				func(claim *disputegame.ClaimHelper) *disputegame.ClaimHelper {
+					if claim.Depth()+1 == splitDepth+test.defendClaimDepth {
+						return claim.Defend(ctx, common.Hash{byte(claim.Depth())})
 					} else {
-						game.Attack(ctx, parentClaimIdx, common.Hash{byte(parentClaimIdx)})
+						return claim.Attack(ctx, common.Hash{byte(claim.Depth())})
 					}
 				})
 
@@ -157,21 +158,21 @@ func TestOutputCannonDefendStep(t *testing.T) {
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
 	game := disputeGameFactory.StartOutputCannonGame(ctx, "sequencer", 1, common.Hash{0x01, 0xaa})
 	require.NotNil(t, game)
-	game.DisputeLastBlock(ctx)
+	outputRootClaim := game.DisputeLastBlock(ctx)
 	game.LogGameData(ctx)
 
 	game.StartChallenger(ctx, "sequencer", "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
 
 	correctTrace := game.CreateHonestActor(ctx, "sequencer", challenger.WithPrivKey(sys.Cfg.Secrets.Mallory))
 
-	splitDepth := game.SplitDepth(ctx)
-	game.DefendRootClaim(ctx, func(parentClaimIdx int64) {
+	maxDepth := game.MaxDepth(ctx)
+	game.DefendClaim(ctx, outputRootClaim, func(claim *disputegame.ClaimHelper) *disputegame.ClaimHelper {
 		// Post invalid claims for most steps to get down into the early part of the trace
-		if parentClaimIdx < splitDepth+27 {
-			game.Attack(ctx, parentClaimIdx, common.Hash{byte(parentClaimIdx)})
+		if claim.Depth() < maxDepth-3 {
+			return claim.Attack(ctx, common.Hash{0xaa})
 		} else {
 			// Post our own counter but using the correct hash in low levels to force a defense step
-			correctTrace.Attack(ctx, parentClaimIdx)
+			return correctTrace.AttackClaim(ctx, claim)
 		}
 	})
 
@@ -198,7 +199,7 @@ func TestOutputCannonProposedOutputRootValid(t *testing.T) {
 
 		// performMove is called to respond to each claim posted by the honest op-challenger.
 		// It should either attack or defend the claim at parentClaimIdx
-		performMove func(ctx context.Context, game *disputegame.OutputCannonGameHelper, correctTrace *disputegame.OutputHonestHelper, parentClaimIdx int64)
+		performMove func(ctx context.Context, game *disputegame.OutputCannonGameHelper, correctTrace *disputegame.OutputHonestHelper, claim *disputegame.ClaimHelper) *disputegame.ClaimHelper
 
 		// performStep is called once the maximum game depth is reached. It should perform a step to counter the
 		// claim at parentClaimIdx. Since the proposed output root is invalid, the step call should always revert.
@@ -206,38 +207,33 @@ func TestOutputCannonProposedOutputRootValid(t *testing.T) {
 	}{
 		{
 			name: "AttackWithCorrectTrace",
-			performMove: func(ctx context.Context, game *disputegame.OutputCannonGameHelper, correctTrace *disputegame.OutputHonestHelper, parentClaimIdx int64) {
+			performMove: func(ctx context.Context, game *disputegame.OutputCannonGameHelper, correctTrace *disputegame.OutputHonestHelper, claim *disputegame.ClaimHelper) *disputegame.ClaimHelper {
 				// Attack everything but oddly using the correct hash.
 				// Except the root of the cannon game must have an invalid VM status code.
-				splitDepth := game.SplitDepth(ctx)
-				if splitDepth == parentClaimIdx {
+				if claim.IsOutputRootLeaf(ctx) {
 					// TODO(client-pod#262): Verify that an attack with a valid status code is rejected
-					game.Attack(ctx, parentClaimIdx, common.Hash{0x01})
-					return
+					return claim.Attack(ctx, common.Hash{0x01})
 				}
-				correctTrace.Attack(ctx, parentClaimIdx)
+				return correctTrace.AttackClaim(ctx, claim)
 			},
 			performStep: honestStepsFail,
 		},
 		{
 			name: "DefendWithCorrectTrace",
-			performMove: func(ctx context.Context, game *disputegame.OutputCannonGameHelper, correctTrace *disputegame.OutputHonestHelper, parentClaimIdx int64) {
-				splitDepth := game.SplitDepth(ctx)
+			performMove: func(ctx context.Context, game *disputegame.OutputCannonGameHelper, correctTrace *disputegame.OutputHonestHelper, claim *disputegame.ClaimHelper) *disputegame.ClaimHelper {
 				// Can only attack the root claim or the first cannon claim
-				if parentClaimIdx == 0 {
-					correctTrace.Attack(ctx, parentClaimIdx)
-					return
+				if claim.IsRootClaim() {
+					return correctTrace.AttackClaim(ctx, claim)
 				}
 				// The root of the cannon game must have an invalid VM status code
 				// Attacking ensure we're running the cannon trace between two different blocks
 				// instead of being in the trace extension of the output root bisection
-				if splitDepth == parentClaimIdx {
+				if claim.IsOutputRootLeaf(ctx) {
 					// TODO(client-pod#262): Verify that an attack with a valid status code is rejected
-					game.Attack(ctx, parentClaimIdx, common.Hash{0x01})
-					return
+					return claim.Attack(ctx, common.Hash{0x01})
 				}
 				// Otherwise, defend everything using the correct hash.
-				correctTrace.Defend(ctx, parentClaimIdx)
+				return correctTrace.DefendClaim(ctx, claim)
 			},
 			performStep: honestStepsFail,
 		},
@@ -259,9 +255,10 @@ func TestOutputCannonProposedOutputRootValid(t *testing.T) {
 			game.StartChallenger(ctx, "sequencer", "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
 
 			// Now maliciously play the game and it should be impossible to win
-			game.ChallengeRootClaim(ctx,
-				func(parentClaimIdx int64) {
-					test.performMove(ctx, game, correctTrace, parentClaimIdx)
+			game.ChallengeClaim(ctx,
+				game.RootClaim(ctx),
+				func(claim *disputegame.ClaimHelper) *disputegame.ClaimHelper {
+					return test.performMove(ctx, game, correctTrace, claim)
 				},
 				func(parentClaimIdx int64) {
 					test.performStep(ctx, game, correctTrace, parentClaimIdx)
@@ -291,52 +288,48 @@ func TestOutputCannonPoisonedPostState(t *testing.T) {
 	correctTrace := game.CreateHonestActor(ctx, "sequencer", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
 
 	// Honest first attack at "honest" level
-	correctTrace.Attack(ctx, 0)
+	claim := correctTrace.AttackClaim(ctx, game.RootClaim(ctx))
 
 	// Honest defense at "dishonest" level
-	correctTrace.Defend(ctx, 1)
+	claim = correctTrace.DefendClaim(ctx, claim)
 
 	// Dishonest attack at "honest" level - honest move would be to ignore
-	game.Attack(ctx, 2, common.Hash{0x03, 0xaa})
+	claimToIgnore1 := claim.Attack(ctx, common.Hash{0x03, 0xaa})
 
 	// Honest attack at "dishonest" level - honest move would be to ignore
-	correctTrace.Attack(ctx, 3)
+	claimToIgnore2 := correctTrace.AttackClaim(ctx, claimToIgnore1)
 	game.LogGameData(ctx)
 
 	// Start the honest challenger
 	game.StartChallenger(ctx, "sequencer", "Honest", challenger.WithPrivKey(sys.Cfg.Secrets.Bob))
 
 	// Start dishonest challenger that posts correct claims
-	// It participates in the subgame root the honest claim index 4
-	claimCount := int64(5)
-	depth := game.MaxDepth(ctx)
-	splitDepth := game.SplitDepth(ctx)
 	for {
 		game.LogGameData(ctx)
-		claimCount++
 		// Wait for the challenger to counter
-		game.WaitForClaimCount(ctx, claimCount)
+		// Note that we need to ignore claimToIgnore1 which already counters this...
+		claim = claim.WaitForCounterClaim(ctx, claimToIgnore1)
 
 		// Respond with our own move
-		if claimCount == splitDepth+4 {
+		if claim.IsBottomGameRoot(ctx) {
 			// Root of the cannon game must have the right VM status code (so it can't be honest).
 			// Note this occurs when there are splitDepth + 4 claims because there are multiple forks in this game.
-			game.Attack(ctx, claimCount-1, common.Hash{0x01})
+			claim = claim.Attack(ctx, common.Hash{0x01})
 		} else {
-			correctTrace.Defend(ctx, claimCount-1)
+			claim = correctTrace.DefendClaim(ctx, claim)
 		}
-		claimCount++
-		game.WaitForClaimCount(ctx, claimCount)
 
 		// Defender moves last. If we're at max depth, then we're done
-		pos := game.GetClaimPosition(ctx, claimCount-1)
-		if int64(pos.Depth()) == depth {
+		if claim.IsMaxDepth(ctx) {
 			break
 		}
 	}
 
-	// Wait for the challenger to drive the subgame at 4 to the leaf node, which should be countered
-	game.WaitForClaimAtMaxDepth(ctx, true)
+	// Wait for the challenger to call step
+	claim.WaitForCountered(ctx)
+	// Verify that the challenger didn't challenge our poisoned claims
+	claimToIgnore1.RequireOnlyCounteredBy(ctx, claimToIgnore2)
+	claimToIgnore2.RequireOnlyCounteredBy(ctx /* nothing */)
 
 	// Time travel past when the game will be resolvable.
 	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))

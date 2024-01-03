@@ -33,7 +33,7 @@ func (g *FaultGameHelper) Addr() common.Address {
 }
 
 func (g *FaultGameHelper) GameDuration(ctx context.Context) time.Duration {
-	duration, err := g.game.GAMEDURATION(&bind.CallOpts{Context: ctx})
+	duration, err := g.game.GameDuration(&bind.CallOpts{Context: ctx})
 	g.require.NoError(err, "failed to get game duration")
 	return time.Duration(duration) * time.Second
 }
@@ -59,7 +59,7 @@ func (g *FaultGameHelper) WaitForClaimCount(ctx context.Context, count int64) {
 }
 
 func (g *FaultGameHelper) MaxDepth(ctx context.Context) int64 {
-	depth, err := g.game.MAXGAMEDEPTH(&bind.CallOpts{Context: ctx})
+	depth, err := g.game.MaxGameDepth(&bind.CallOpts{Context: ctx})
 	g.require.NoError(err, "Failed to load game depth")
 	return depth.Int64()
 }
@@ -246,7 +246,7 @@ func (g *FaultGameHelper) WaitForInactivity(ctx context.Context, numInactiveBloc
 // DefendRootClaim uses the supplied Mover to perform moves in an attempt to defend the root claim.
 // It is assumed that the output root being disputed is valid and that an honest op-challenger is already running.
 // When the game has reached the maximum depth it waits for the honest challenger to counter the leaf claim with step.
-func (g *FaultGameHelper) DefendRootClaim(ctx context.Context, performMove Mover) {
+func (g *FaultGameHelper) DefendRootClaim(ctx context.Context, performMove func(parentClaimIdx int64)) {
 	maxDepth := g.MaxDepth(ctx)
 	for claimCount := int64(1); claimCount < maxDepth; {
 		g.LogGameData(ctx)
@@ -268,7 +268,7 @@ func (g *FaultGameHelper) DefendRootClaim(ctx context.Context, performMove Mover
 // It is assumed that the output root being disputed is invalid and that an honest op-challenger is already running.
 // When the game has reached the maximum depth it calls the Stepper to attempt to counter the leaf claim.
 // Since the output root is invalid, it should not be possible for the Stepper to call step successfully.
-func (g *FaultGameHelper) ChallengeRootClaim(ctx context.Context, performMove Mover, attemptStep Stepper) {
+func (g *FaultGameHelper) ChallengeRootClaim(ctx context.Context, performMove func(parentClaimIdx int64), attemptStep Stepper) {
 	maxDepth := g.MaxDepth(ctx)
 	for claimCount := int64(1); claimCount < maxDepth; {
 		g.LogGameData(ctx)
@@ -293,6 +293,7 @@ func (g *FaultGameHelper) ChallengeRootClaim(ctx context.Context, performMove Mo
 func (g *FaultGameHelper) WaitForNewClaim(ctx context.Context, checkPoint int64) (int64, error) {
 	return g.waitForNewClaim(ctx, checkPoint, defaultTimeout)
 }
+
 func (g *FaultGameHelper) waitForNewClaim(ctx context.Context, checkPoint int64, timeout time.Duration) (int64, error) {
 	timedCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()

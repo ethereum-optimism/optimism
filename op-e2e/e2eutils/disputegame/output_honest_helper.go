@@ -14,8 +14,18 @@ type OutputHonestHelper struct {
 	t            *testing.T
 	require      *require.Assertions
 	game         *OutputGameHelper
-	contract     *contracts.OutputBisectionGameContract
+	contract     *contracts.FaultDisputeGameContract
 	correctTrace types.TraceAccessor
+}
+
+func (h *OutputHonestHelper) AttackClaim(ctx context.Context, claim *ClaimHelper) *ClaimHelper {
+	h.Attack(ctx, claim.index)
+	return claim.WaitForCounterClaim(ctx)
+}
+
+func (h *OutputHonestHelper) DefendClaim(ctx context.Context, claim *ClaimHelper) *ClaimHelper {
+	h.Defend(ctx, claim.index)
+	return claim.WaitForCounterClaim(ctx)
 }
 
 func (h *OutputHonestHelper) Attack(ctx context.Context, claimIdx int64) {
