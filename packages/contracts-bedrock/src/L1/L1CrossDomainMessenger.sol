@@ -26,28 +26,16 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
 
     /// @notice Constructs the L1CrossDomainMessenger contract.
     constructor() CrossDomainMessenger() {
-        initialize({
-            _superchainConfig: SuperchainConfig(address(0)),
-            _portal: OptimismPortal(payable(address(0))),
-            _l2CrossDomainMessenger: Predeploys.L2_CROSS_DOMAIN_MESSENGER
-        });
+        initialize({ _superchainConfig: SuperchainConfig(address(0)), _portal: OptimismPortal(payable(address(0))) });
     }
 
     /// @notice Initializes the contract.
     /// @param _superchainConfig Contract of the SuperchainConfig contract on this network.
     /// @param _portal Contract of the OptimismPortal contract on this network.
-    /// @param _l2CrossDomainMessenger Address of the L2CrossDomainMessenger contract on the other network.
-    function initialize(
-        SuperchainConfig _superchainConfig,
-        OptimismPortal _portal,
-        address _l2CrossDomainMessenger
-    )
-        public
-        initializer
-    {
+    function initialize(SuperchainConfig _superchainConfig, OptimismPortal _portal) public initializer {
         superchainConfig = _superchainConfig;
         portal = _portal;
-        __CrossDomainMessenger_init({ _otherMessenger: _l2CrossDomainMessenger });
+        __CrossDomainMessenger_init({ _otherMessenger: Predeploys.L2_CROSS_DOMAIN_MESSENGER });
     }
 
     /// @notice Getter function for the OptimismPortal contract on this chain.
