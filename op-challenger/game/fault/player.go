@@ -77,9 +77,8 @@ func NewGamePlayer(
 
 	splitDepth, err := loader.GetSplitDepth(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch the game depth: %w", err)
+		return nil, fmt.Errorf("failed to fetch the split depth: %w", err)
 	}
-
 	accessor, err := creator(ctx, logger, gameDepth, dir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create trace accessor: %w", err)
