@@ -594,9 +594,21 @@ func (m *SimpleTxManager) suggestGasPriceCaps(ctx context.Context) (*big.Int, *b
 	} else if head.BaseFee == nil {
 		return nil, nil, errors.New("txmgr does not support pre-london blocks that do not have a basefee")
 	}
-	m.metr.RecordBasefee(head.BaseFee)
+	basefee := head.BaseFee
+	m.metr.RecordBasefee(basefee)
 	m.metr.RecordTipCap(tip)
-	return tip, head.BaseFee, nil
+
+	// Enforce minimum basefee and tip cap
+	if minTipCap := m.cfg.MinTipCap; minTipCap != nil && tip.Cmp(minTipCap) == -1 {
+		m.l.Debug("Enforcing min tip cap", "minTipCap", m.cfg.MinTipCap, "origTipCap", tip)
+		tip = new(big.Int).Set(m.cfg.MinTipCap)
+	}
+	if minBasefee := m.cfg.MinBasefee; minBasefee != nil && basefee.Cmp(minBasefee) == -1 {
+		m.l.Debug("Enforcing min basefee", "minBasefee", m.cfg.MinBasefee, "origBasefee", basefee)
+		basefee = new(big.Int).Set(m.cfg.MinBasefee)
+	}
+
+	return tip, basefee, nil
 }
 
 func (m *SimpleTxManager) checkLimits(tip, basefee, bumpedTip, bumpedFee *big.Int) error {
