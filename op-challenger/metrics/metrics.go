@@ -2,7 +2,6 @@ package metrics
 
 import (
 	"io"
-	"sync"
 
 	"github.com/ethereum-optimism/optimism/op-service/sources/caching"
 	"github.com/ethereum/go-ethereum/common"
@@ -60,9 +59,7 @@ type Metrics struct {
 
 	executors prometheus.GaugeVec
 
-	bnMutex                   sync.Mutex
-	highestActedL1BlockNumber uint64
-	highestActedL1Block       prometheus.Gauge
+	highestActedL1Block prometheus.Gauge
 
 	moves prometheus.Counter
 	steps prometheus.Counter
@@ -208,12 +205,7 @@ func (m *Metrics) RecordGamesStatus(inProgress, defenderWon, challengerWon int) 
 }
 
 func (m *Metrics) RecordActedL1Block(n uint64) {
-	m.bnMutex.Lock()
-	defer m.bnMutex.Unlock()
-	if m.highestActedL1BlockNumber < n {
-		m.highestActedL1BlockNumber = n
-		m.highestActedL1Block.Set(float64(n))
-	}
+	m.highestActedL1Block.Set(float64(n))
 }
 
 func (m *Metrics) RecordGameUpdateScheduled() {

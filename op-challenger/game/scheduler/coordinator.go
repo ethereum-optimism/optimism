@@ -62,7 +62,6 @@ func (c *coordinator) schedule(ctx context.Context, games []types.GameMetadata, 
 			return candidate.Proxy == addr
 		}) {
 			delete(c.states, addr)
-			continue
 		}
 	}
 
