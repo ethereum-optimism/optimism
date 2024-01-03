@@ -234,10 +234,11 @@ func (_FaultDisputeGame *FaultDisputeGameCallerSession) AbsolutePrestate() ([32]
 
 // ClaimData is a free data retrieval call binding the contract method 0xc6f0308c.
 //
-// Solidity: function claimData(uint256 ) view returns(uint32 parentIndex, address counteredBy, uint128 bond, bytes32 claim, uint128 position, uint128 clock)
+// Solidity: function claimData(uint256 ) view returns(uint32 parentIndex, address counteredBy, address claimant, uint128 bond, bytes32 claim, uint128 position, uint128 clock)
 func (_FaultDisputeGame *FaultDisputeGameCaller) ClaimData(opts *bind.CallOpts, arg0 *big.Int) (struct {
 	ParentIndex uint32
 	CounteredBy common.Address
+	Claimant    common.Address
 	Bond        *big.Int
 	Claim       [32]byte
 	Position    *big.Int
@@ -249,6 +250,7 @@ func (_FaultDisputeGame *FaultDisputeGameCaller) ClaimData(opts *bind.CallOpts, 
 	outstruct := new(struct {
 		ParentIndex uint32
 		CounteredBy common.Address
+		Claimant    common.Address
 		Bond        *big.Int
 		Claim       [32]byte
 		Position    *big.Int
@@ -260,10 +262,11 @@ func (_FaultDisputeGame *FaultDisputeGameCaller) ClaimData(opts *bind.CallOpts, 
 
 	outstruct.ParentIndex = *abi.ConvertType(out[0], new(uint32)).(*uint32)
 	outstruct.CounteredBy = *abi.ConvertType(out[1], new(common.Address)).(*common.Address)
-	outstruct.Bond = *abi.ConvertType(out[2], new(*big.Int)).(**big.Int)
-	outstruct.Claim = *abi.ConvertType(out[3], new([32]byte)).(*[32]byte)
-	outstruct.Position = *abi.ConvertType(out[4], new(*big.Int)).(**big.Int)
-	outstruct.Clock = *abi.ConvertType(out[5], new(*big.Int)).(**big.Int)
+	outstruct.Claimant = *abi.ConvertType(out[2], new(common.Address)).(*common.Address)
+	outstruct.Bond = *abi.ConvertType(out[3], new(*big.Int)).(**big.Int)
+	outstruct.Claim = *abi.ConvertType(out[4], new([32]byte)).(*[32]byte)
+	outstruct.Position = *abi.ConvertType(out[5], new(*big.Int)).(**big.Int)
+	outstruct.Clock = *abi.ConvertType(out[6], new(*big.Int)).(**big.Int)
 
 	return *outstruct, err
 
@@ -271,10 +274,11 @@ func (_FaultDisputeGame *FaultDisputeGameCaller) ClaimData(opts *bind.CallOpts, 
 
 // ClaimData is a free data retrieval call binding the contract method 0xc6f0308c.
 //
-// Solidity: function claimData(uint256 ) view returns(uint32 parentIndex, address counteredBy, uint128 bond, bytes32 claim, uint128 position, uint128 clock)
+// Solidity: function claimData(uint256 ) view returns(uint32 parentIndex, address counteredBy, address claimant, uint128 bond, bytes32 claim, uint128 position, uint128 clock)
 func (_FaultDisputeGame *FaultDisputeGameSession) ClaimData(arg0 *big.Int) (struct {
 	ParentIndex uint32
 	CounteredBy common.Address
+	Claimant    common.Address
 	Bond        *big.Int
 	Claim       [32]byte
 	Position    *big.Int
@@ -285,10 +289,11 @@ func (_FaultDisputeGame *FaultDisputeGameSession) ClaimData(arg0 *big.Int) (stru
 
 // ClaimData is a free data retrieval call binding the contract method 0xc6f0308c.
 //
-// Solidity: function claimData(uint256 ) view returns(uint32 parentIndex, address counteredBy, uint128 bond, bytes32 claim, uint128 position, uint128 clock)
+// Solidity: function claimData(uint256 ) view returns(uint32 parentIndex, address counteredBy, address claimant, uint128 bond, bytes32 claim, uint128 position, uint128 clock)
 func (_FaultDisputeGame *FaultDisputeGameCallerSession) ClaimData(arg0 *big.Int) (struct {
 	ParentIndex uint32
 	CounteredBy common.Address
+	Claimant    common.Address
 	Bond        *big.Int
 	Claim       [32]byte
 	Position    *big.Int

@@ -12,6 +12,7 @@ interface IFaultDisputeGame is IDisputeGame {
     struct ClaimData {
         uint32 parentIndex;
         address counteredBy;
+        address claimant;
         uint128 bond;
         Claim claim;
         Position position;

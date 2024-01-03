@@ -272,8 +272,9 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         // Create the new claim.
         claimData.push(
             ClaimData({
-                counteredBy: address(0),
                 parentIndex: uint32(_challengeIndex),
+                counteredBy: address(0),
+                claimant: msg.sender,
                 bond: uint128(msg.value),
                 claim: _claim,
                 position: nextPosition,
@@ -409,6 +410,14 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
             }
         }
 
+        if (countered != address(0)) {
+            // If the parent was successfully countered, pay out the parent's bond to the challenger.
+            payable(countered).transfer(parent.bond);
+        } else {
+            // If the parent was not successfully countered, pay out the parent's bond to the claimant.
+            payable(parent.claimant).transfer(parent.bond);
+        }
+
         // Once a subgame is resolved, we percolate the result up the DAG so subsequent calls to
         // resolveClaim will not need to traverse this subgame.
         parent.counteredBy = countered;
@@ -485,6 +494,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
             ClaimData({
                 parentIndex: type(uint32).max,
                 counteredBy: address(0),
+                claimant: tx.origin,
                 bond: uint128(msg.value),
                 claim: rootClaim(),
                 position: ROOT_POSITION,

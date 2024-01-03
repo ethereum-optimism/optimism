@@ -120,6 +120,11 @@
         "type": "address"
       },
       {
+        "internalType": "address",
+        "name": "claimant",
+        "type": "address"
+      },
+      {
         "internalType": "uint128",
         "name": "bond",
         "type": "uint128"

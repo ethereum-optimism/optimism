@@ -274,11 +274,19 @@ contract HonestGameSolver is GameSolver {
     ///      `claimData` array.
     function getClaimData(uint256 _claimIndex) internal view returns (IFaultDisputeGame.ClaimData memory claimData_) {
         // thanks, solc
-        (uint32 parentIndex, address countered, uint128 bond, Claim claim, Position position, Clock clock) =
-            GAME.claimData(_claimIndex);
+        (
+            uint32 parentIndex,
+            address countered,
+            address claimant,
+            uint128 bond,
+            Claim claim,
+            Position position,
+            Clock clock
+        ) = GAME.claimData(_claimIndex);
         claimData_ = IFaultDisputeGame.ClaimData({
             parentIndex: parentIndex,
             counteredBy: countered,
+            claimant: claimant,
             bond: bond,
             claim: claim,
             position: position,
@@ -403,4 +411,8 @@ contract HonestDisputeActor is DisputeActor {
             }
         }
     }
+
+    fallback() external payable { }
+
+    receive() external payable { }
 }

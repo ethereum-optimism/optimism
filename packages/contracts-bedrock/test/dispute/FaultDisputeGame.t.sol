@@ -80,6 +80,10 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
         // Label the proxy
         vm.label(address(gameProxy), "FaultDisputeGame_Clone");
     }
+
+    fallback() external payable { }
+
+    receive() external payable { }
 }
 
 contract FaultDisputeGame_Test is FaultDisputeGame_Init {
@@ -202,10 +206,17 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     /// @dev Tests that the game is initialized with the correct data.
     function test_initialize_correctData_succeeds() public {
         // Assert that the root claim is initialized correctly.
-        (uint32 parentIndex, address countered, uint128 bond, Claim claim, Position position, Clock clock) =
-            gameProxy.claimData(0);
+        (
+            uint32 parentIndex,
+            address counteredBy,
+            address claimant,
+            uint128 bond,
+            Claim claim,
+            Position position,
+            Clock clock
+        ) = gameProxy.claimData(0);
         assertEq(parentIndex, type(uint32).max);
-        assertEq(countered, address(0));
+        assertEq(counteredBy, address(0));
         assertEq(bond, 0);
         assertEq(claim.raw(), ROOT_CLAIM.raw());
         assertEq(position.raw(), 1);
@@ -294,19 +305,19 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
 
     /// @notice Static unit test for the correctness of the chess clock incrementation.
     function test_move_clockCorrectness_succeeds() public {
-        (,,,,, Clock clock) = gameProxy.claimData(0);
+        (,,,,,, Clock clock) = gameProxy.claimData(0);
         assertEq(clock.raw(), LibClock.wrap(Duration.wrap(0), Timestamp.wrap(uint64(block.timestamp))).raw());
 
         Claim claim = _dummyClaim();
 
         vm.warp(block.timestamp + 15);
         gameProxy.attack(0, claim);
-        (,,,,, clock) = gameProxy.claimData(1);
+        (,,,,,, clock) = gameProxy.claimData(1);
         assertEq(clock.raw(), LibClock.wrap(Duration.wrap(15), Timestamp.wrap(uint64(block.timestamp))).raw());
 
         vm.warp(block.timestamp + 10);
         gameProxy.attack(1, claim);
-        (,,,,, clock) = gameProxy.claimData(2);
+        (,,,,,, clock) = gameProxy.claimData(2);
         assertEq(clock.raw(), LibClock.wrap(Duration.wrap(10), Timestamp.wrap(uint64(block.timestamp))).raw());
 
         // We are at the split depth, so we need to set the status byte of the claim
@@ -315,12 +326,12 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
 
         vm.warp(block.timestamp + 10);
         gameProxy.attack(2, claim);
-        (,,,,, clock) = gameProxy.claimData(3);
+        (,,,,,, clock) = gameProxy.claimData(3);
         assertEq(clock.raw(), LibClock.wrap(Duration.wrap(25), Timestamp.wrap(uint64(block.timestamp))).raw());
 
         vm.warp(block.timestamp + 10);
         gameProxy.attack(3, claim);
-        (,,,,, clock) = gameProxy.claimData(4);
+        (,,,,,, clock) = gameProxy.claimData(4);
         assertEq(clock.raw(), LibClock.wrap(Duration.wrap(20), Timestamp.wrap(uint64(block.timestamp))).raw());
     }
 
@@ -365,23 +376,32 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         gameProxy.attack(0, counter);
 
         // Grab the claim data of the attack.
-        (uint32 parentIndex, address countered, uint128 bond, Claim claim, Position position, Clock clock) =
-            gameProxy.claimData(1);
+        (
+            uint32 parentIndex,
+            address counteredBy,
+            address claimant,
+            uint128 bond,
+            Claim claim,
+            Position position,
+            Clock clock
+        ) = gameProxy.claimData(1);
 
         // Assert correctness of the attack claim's data.
         assertEq(parentIndex, 0);
-        assertEq(countered, address(0));
+        assertEq(counteredBy, address(0));
+        assertEq(claimant, address(this));
         assertEq(bond, 0);
         assertEq(claim.raw(), counter.raw());
         assertEq(position.raw(), Position.wrap(1).move(true).raw());
         assertEq(clock.raw(), LibClock.wrap(Duration.wrap(5), Timestamp.wrap(uint64(block.timestamp))).raw());
 
         // Grab the claim data of the parent.
-        (parentIndex, countered, bond, claim, position, clock) = gameProxy.claimData(0);
+        (parentIndex, counteredBy, claimant, bond, claim, position, clock) = gameProxy.claimData(0);
 
         // Assert correctness of the parent claim's data.
         assertEq(parentIndex, type(uint32).max);
-        assertEq(countered, address(this));
+        assertEq(counteredBy, address(this));
+        assertEq(claimant, DEFAULT_SENDER);
         assertEq(bond, 0);
         assertEq(claim.raw(), ROOT_CLAIM.raw());
         assertEq(position.raw(), 1);
