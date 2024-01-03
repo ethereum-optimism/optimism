@@ -84,11 +84,11 @@ func (f *FakeBeacon) Start(addr string) error {
 
 		query := r.URL.Query()
 		rawIndices := query["indices"]
-		indices := make([]int, 0, len(bundle.Blobs))
+		indices := make([]uint64, 0, len(bundle.Blobs))
 		if len(rawIndices) == 0 {
 			// request is for all blobs
 			for i := range bundle.Blobs {
-				indices = append(indices, i)
+				indices = append(indices, uint64(i))
 			}
 		} else {
 			for _, raw := range rawIndices {
@@ -98,7 +98,7 @@ func (f *FakeBeacon) Start(addr string) error {
 					w.WriteHeader(http.StatusBadRequest)
 					return
 				}
-				indices = append(indices, int(ix))
+				indices = append(indices, ix)
 			}
 		}
 
@@ -107,7 +107,7 @@ func (f *FakeBeacon) Start(addr string) error {
 		binary.LittleEndian.PutUint64(mockBeaconBlockRoot[32-8:], slot)
 		sidecars := make([]*eth.BlobSidecar, len(indices))
 		for i, ix := range indices {
-			if ix < 0 || ix >= len(bundle.Blobs) {
+			if ix >= uint64(len(bundle.Blobs)) {
 				f.log.Error("blob index from request is out of range", "url", r.URL)
 				w.WriteHeader(http.StatusBadRequest)
 				return
