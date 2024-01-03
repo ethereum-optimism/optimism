@@ -25,14 +25,16 @@ contract L2ERC721Bridge is ERC721Bridge, ISemver {
 
     /// @notice Constructs the L2ERC721Bridge contract.
     constructor(address _otherBridge) ERC721Bridge() {
-        initialize({ _messenger: CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER), _otherBridge: _otherBridge });
+        initialize({ _otherBridge: _otherBridge });
     }
 
     /// @notice Initializes the contract.
-    /// @param _messenger   Contract of the CrossDomainMessenger on this network.
     /// @param _otherBridge Address of the ERC721 bridge on the other network.
-    function initialize(CrossDomainMessenger _messenger, address _otherBridge) public initializer {
-        __ERC721Bridge_init(_messenger, _otherBridge);
+    function initialize(address _otherBridge) public initializer {
+        __ERC721Bridge_init({
+            _messenger: CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER),
+            _otherBridge: _otherBridge
+        });
     }
 
     /// @notice Completes an ERC721 bridge from the other domain and sends the ERC721 token to the
@@ -115,7 +117,7 @@ contract L2ERC721Bridge is ERC721Bridge, ISemver {
 
         // Send message to L1 bridge
         // slither-disable-next-line reentrancy-events
-        messenger.sendMessage(otherBridge, message, _minGasLimit);
+        messenger.sendMessage({ _target: otherBridge, _message: message, _minGasLimit: _minGasLimit });
 
         // slither-disable-next-line reentrancy-events
         emit ERC721BridgeInitiated(_localToken, remoteToken, _from, _to, _tokenId, _extraData);
