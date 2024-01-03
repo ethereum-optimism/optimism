@@ -684,102 +684,6 @@
     "filename_relative": "src/universal/Proxy.sol"
   },
   {
-    "id": "574efbeca53c81e42e08184eeed2138dd615e78ba64270f3978b4a962f26f079",
-    "impact": "Medium",
-    "confidence": "High",
-    "check": "locked-ether",
-    "description": "Contract locking ether found:\n\tContract LegacyFaultDisputeGame (src/legacy/FaultDisputeGame.sol#26-559) has payable functions:\n\t - ILegacyFaultDisputeGame.attack(uint256,Claim) (src/legacy/interfaces/IFaultDisputeGame.sol#51)\n\t - ILegacyFaultDisputeGame.defend(uint256,Claim) (src/legacy/interfaces/IFaultDisputeGame.sol#56)\n\t - ILegacyFaultDisputeGame.resolveClaim(uint256) (src/legacy/interfaces/IFaultDisputeGame.sol#83)\n\t - LegacyFaultDisputeGame.move(uint256,Claim,bool) (src/legacy/FaultDisputeGame.sol#192-270)\n\t - LegacyFaultDisputeGame.attack(uint256,Claim) (src/legacy/FaultDisputeGame.sol#273-275)\n\t - LegacyFaultDisputeGame.defend(uint256,Claim) (src/legacy/FaultDisputeGame.sol#278-280)\n\t - LegacyFaultDisputeGame.resolveClaim(uint256) (src/legacy/FaultDisputeGame.sol#374-424)\n\tBut does not have a function to withdraw the ether\n",
-    "type": "contract",
-    "name": "LegacyFaultDisputeGame",
-    "start": 1234,
-    "length": 24996,
-    "filename_relative": "src/legacy/FaultDisputeGame.sol"
-  },
-  {
-    "id": "574efbeca53c81e42e08184eeed2138dd615e78ba64270f3978b4a962f26f079",
-    "impact": "Medium",
-    "confidence": "High",
-    "check": "locked-ether",
-    "description": "Contract locking ether found:\n\tContract LegacyFaultDisputeGame (src/legacy/FaultDisputeGame.sol#26-559) has payable functions:\n\t - ILegacyFaultDisputeGame.attack(uint256,Claim) (src/legacy/interfaces/IFaultDisputeGame.sol#51)\n\t - ILegacyFaultDisputeGame.defend(uint256,Claim) (src/legacy/interfaces/IFaultDisputeGame.sol#56)\n\t - ILegacyFaultDisputeGame.resolveClaim(uint256) (src/legacy/interfaces/IFaultDisputeGame.sol#83)\n\t - LegacyFaultDisputeGame.move(uint256,Claim,bool) (src/legacy/FaultDisputeGame.sol#192-270)\n\t - LegacyFaultDisputeGame.attack(uint256,Claim) (src/legacy/FaultDisputeGame.sol#273-275)\n\t - LegacyFaultDisputeGame.defend(uint256,Claim) (src/legacy/FaultDisputeGame.sol#278-280)\n\t - LegacyFaultDisputeGame.resolveClaim(uint256) (src/legacy/FaultDisputeGame.sol#374-424)\n\tBut does not have a function to withdraw the ether\n",
-    "type": "function",
-    "name": "attack",
-    "start": 2214,
-    "length": 69,
-    "filename_relative": "src/legacy/interfaces/IFaultDisputeGame.sol"
-  },
-  {
-    "id": "574efbeca53c81e42e08184eeed2138dd615e78ba64270f3978b4a962f26f079",
-    "impact": "Medium",
-    "confidence": "High",
-    "check": "locked-ether",
-    "description": "Contract locking ether found:\n\tContract LegacyFaultDisputeGame (src/legacy/FaultDisputeGame.sol#26-559) has payable functions:\n\t - ILegacyFaultDisputeGame.attack(uint256,Claim) (src/legacy/interfaces/IFaultDisputeGame.sol#51)\n\t - ILegacyFaultDisputeGame.defend(uint256,Claim) (src/legacy/interfaces/IFaultDisputeGame.sol#56)\n\t - ILegacyFaultDisputeGame.resolveClaim(uint256) (src/legacy/interfaces/IFaultDisputeGame.sol#83)\n\t - LegacyFaultDisputeGame.move(uint256,Claim,bool) (src/legacy/FaultDisputeGame.sol#192-270)\n\t - LegacyFaultDisputeGame.attack(uint256,Claim) (src/legacy/FaultDisputeGame.sol#273-275)\n\t - LegacyFaultDisputeGame.defend(uint256,Claim) (src/legacy/FaultDisputeGame.sol#278-280)\n\t - LegacyFaultDisputeGame.resolveClaim(uint256) (src/legacy/FaultDisputeGame.sol#374-424)\n\tBut does not have a function to withdraw the ether\n",
-    "type": "function",
-    "name": "defend",
-    "start": 2487,
-    "length": 69,
-    "filename_relative": "src/legacy/interfaces/IFaultDisputeGame.sol"
-  },
-  {
-    "id": "574efbeca53c81e42e08184eeed2138dd615e78ba64270f3978b4a962f26f079",
-    "impact": "Medium",
-    "confidence": "High",
-    "check": "locked-ether",
-    "description": "Contract locking ether found:\n\tContract LegacyFaultDisputeGame (src/legacy/FaultDisputeGame.sol#26-559) has payable functions:\n\t - ILegacyFaultDisputeGame.attack(uint256,Claim) (src/legacy/interfaces/IFaultDisputeGame.sol#51)\n\t - ILegacyFaultDisputeGame.defend(uint256,Claim) (src/legacy/interfaces/IFaultDisputeGame.sol#56)\n\t - ILegacyFaultDisputeGame.resolveClaim(uint256) (src/legacy/interfaces/IFaultDisputeGame.sol#83)\n\t - LegacyFaultDisputeGame.move(uint256,Claim,bool) (src/legacy/FaultDisputeGame.sol#192-270)\n\t - LegacyFaultDisputeGame.attack(uint256,Claim) (src/legacy/FaultDisputeGame.sol#273-275)\n\t - LegacyFaultDisputeGame.defend(uint256,Claim) (src/legacy/FaultDisputeGame.sol#278-280)\n\t - LegacyFaultDisputeGame.resolveClaim(uint256) (src/legacy/FaultDisputeGame.sol#374-424)\n\tBut does not have a function to withdraw the ether\n",
-    "type": "function",
-    "name": "resolveClaim",
-    "start": 4461,
-    "length": 60,
-    "filename_relative": "src/legacy/interfaces/IFaultDisputeGame.sol"
-  },
-  {
-    "id": "574efbeca53c81e42e08184eeed2138dd615e78ba64270f3978b4a962f26f079",
-    "impact": "Medium",
-    "confidence": "High",
-    "check": "locked-ether",
-    "description": "Contract locking ether found:\n\tContract LegacyFaultDisputeGame (src/legacy/FaultDisputeGame.sol#26-559) has payable functions:\n\t - ILegacyFaultDisputeGame.attack(uint256,Claim) (src/legacy/interfaces/IFaultDisputeGame.sol#51)\n\t - ILegacyFaultDisputeGame.defend(uint256,Claim) (src/legacy/interfaces/IFaultDisputeGame.sol#56)\n\t - ILegacyFaultDisputeGame.resolveClaim(uint256) (src/legacy/interfaces/IFaultDisputeGame.sol#83)\n\t - LegacyFaultDisputeGame.move(uint256,Claim,bool) (src/legacy/FaultDisputeGame.sol#192-270)\n\t - LegacyFaultDisputeGame.attack(uint256,Claim) (src/legacy/FaultDisputeGame.sol#273-275)\n\t - LegacyFaultDisputeGame.defend(uint256,Claim) (src/legacy/FaultDisputeGame.sol#278-280)\n\t - LegacyFaultDisputeGame.resolveClaim(uint256) (src/legacy/FaultDisputeGame.sol#374-424)\n\tBut does not have a function to withdraw the ether\n",
-    "type": "function",
-    "name": "move",
-    "start": 9192,
-    "length": 3953,
-    "filename_relative": "src/legacy/FaultDisputeGame.sol"
-  },
-  {
-    "id": "574efbeca53c81e42e08184eeed2138dd615e78ba64270f3978b4a962f26f079",
-    "impact": "Medium",
-    "confidence": "High",
-    "check": "locked-ether",
-    "description": "Contract locking ether found:\n\tContract LegacyFaultDisputeGame (src/legacy/FaultDisputeGame.sol#26-559) has payable functions:\n\t - ILegacyFaultDisputeGame.attack(uint256,Claim) (src/legacy/interfaces/IFaultDisputeGame.sol#51)\n\t - ILegacyFaultDisputeGame.defend(uint256,Claim) (src/legacy/interfaces/IFaultDisputeGame.sol#56)\n\t - ILegacyFaultDisputeGame.resolveClaim(uint256) (src/legacy/interfaces/IFaultDisputeGame.sol#83)\n\t - LegacyFaultDisputeGame.move(uint256,Claim,bool) (src/legacy/FaultDisputeGame.sol#192-270)\n\t - LegacyFaultDisputeGame.attack(uint256,Claim) (src/legacy/FaultDisputeGame.sol#273-275)\n\t - LegacyFaultDisputeGame.defend(uint256,Claim) (src/legacy/FaultDisputeGame.sol#278-280)\n\t - LegacyFaultDisputeGame.resolveClaim(uint256) (src/legacy/FaultDisputeGame.sol#374-424)\n\tBut does not have a function to withdraw the ether\n",
-    "type": "function",
-    "name": "attack",
-    "start": 13195,
-    "length": 118,
-    "filename_relative": "src/legacy/FaultDisputeGame.sol"
-  },
-  {
-    "id": "574efbeca53c81e42e08184eeed2138dd615e78ba64270f3978b4a962f26f079",
-    "impact": "Medium",
-    "confidence": "High",
-    "check": "locked-ether",
-    "description": "Contract locking ether found:\n\tContract LegacyFaultDisputeGame (src/legacy/FaultDisputeGame.sol#26-559) has payable functions:\n\t - ILegacyFaultDisputeGame.attack(uint256,Claim) (src/legacy/interfaces/IFaultDisputeGame.sol#51)\n\t - ILegacyFaultDisputeGame.defend(uint256,Claim) (src/legacy/interfaces/IFaultDisputeGame.sol#56)\n\t - ILegacyFaultDisputeGame.resolveClaim(uint256) (src/legacy/interfaces/IFaultDisputeGame.sol#83)\n\t - LegacyFaultDisputeGame.move(uint256,Claim,bool) (src/legacy/FaultDisputeGame.sol#192-270)\n\t - LegacyFaultDisputeGame.attack(uint256,Claim) (src/legacy/FaultDisputeGame.sol#273-275)\n\t - LegacyFaultDisputeGame.defend(uint256,Claim) (src/legacy/FaultDisputeGame.sol#278-280)\n\t - LegacyFaultDisputeGame.resolveClaim(uint256) (src/legacy/FaultDisputeGame.sol#374-424)\n\tBut does not have a function to withdraw the ether\n",
-    "type": "function",
-    "name": "defend",
-    "start": 13363,
-    "length": 119,
-    "filename_relative": "src/legacy/FaultDisputeGame.sol"
-  },
-  {
-    "id": "574efbeca53c81e42e08184eeed2138dd615e78ba64270f3978b4a962f26f079",
-    "impact": "Medium",
-    "confidence": "High",
-    "check": "locked-ether",
-    "description": "Contract locking ether found:\n\tContract LegacyFaultDisputeGame (src/legacy/FaultDisputeGame.sol#26-559) has payable functions:\n\t - ILegacyFaultDisputeGame.attack(uint256,Claim) (src/legacy/interfaces/IFaultDisputeGame.sol#51)\n\t - ILegacyFaultDisputeGame.defend(uint256,Claim) (src/legacy/interfaces/IFaultDisputeGame.sol#56)\n\t - ILegacyFaultDisputeGame.resolveClaim(uint256) (src/legacy/interfaces/IFaultDisputeGame.sol#83)\n\t - LegacyFaultDisputeGame.move(uint256,Claim,bool) (src/legacy/FaultDisputeGame.sol#192-270)\n\t - LegacyFaultDisputeGame.attack(uint256,Claim) (src/legacy/FaultDisputeGame.sol#273-275)\n\t - LegacyFaultDisputeGame.defend(uint256,Claim) (src/legacy/FaultDisputeGame.sol#278-280)\n\t - LegacyFaultDisputeGame.resolveClaim(uint256) (src/legacy/FaultDisputeGame.sol#374-424)\n\tBut does not have a function to withdraw the ether\n",
-    "type": "function",
-    "name": "resolveClaim",
-    "start": 17330,
-    "length": 2033,
-    "filename_relative": "src/legacy/FaultDisputeGame.sol"
-  },
-  {
     "id": "89460308ae3bd86a612657eb7bfe28221ced6a7a7fe723ec2a19149bfc819cb5",
     "impact": "Medium",
     "confidence": "High",
@@ -1056,42 +960,6 @@
     "filename_relative": "src/EAS/resolver/SchemaResolver.sol"
   },
   {
-    "id": "02c295f90e42732f4b43ba4b3368c636e999d79a4751c1771896a7e9062f24fe",
-    "impact": "Medium",
-    "confidence": "Medium",
-    "check": "reentrancy-no-eth",
-    "description": "Reentrancy in LegacyFaultDisputeGame.step(uint256,bool,bytes,bytes) (src/legacy/FaultDisputeGame.sol#123-186):\n\tExternal calls:\n\t- validStep = VM.step(_stateData,_proof,0) == Claim.unwrap(postState.claim) (src/legacy/FaultDisputeGame.sol#179)\n\tState variables written after the call(s):\n\t- parent.countered = true (src/legacy/FaultDisputeGame.sol#185)\n\tLegacyFaultDisputeGame.claimData (src/legacy/FaultDisputeGame.sol#70) can be used in cross function reentrancies:\n\t- LegacyFaultDisputeGame.claimData (src/legacy/FaultDisputeGame.sol#70)\n\t- LegacyFaultDisputeGame.claimDataLen() (src/legacy/FaultDisputeGame.sol#534-536)\n\t- LegacyFaultDisputeGame.findTraceAncestor(Position,uint256) (src/legacy/FaultDisputeGame.sol#548-558)\n\t- LegacyFaultDisputeGame.initialize() (src/legacy/FaultDisputeGame.sol#450-531)\n\t- LegacyFaultDisputeGame.move(uint256,Claim,bool) (src/legacy/FaultDisputeGame.sol#192-270)\n\t- LegacyFaultDisputeGame.resolve() (src/legacy/FaultDisputeGame.sol#362-371)\n\t- LegacyFaultDisputeGame.resolveClaim(uint256) (src/legacy/FaultDisputeGame.sol#374-424)\n\t- LegacyFaultDisputeGame.step(uint256,bool,bytes,bytes) (src/legacy/FaultDisputeGame.sol#123-186)\n",
-    "type": "function",
-    "name": "step",
-    "start": 5202,
-    "length": 3685,
-    "filename_relative": "src/legacy/FaultDisputeGame.sol"
-  },
-  {
-    "id": "02c295f90e42732f4b43ba4b3368c636e999d79a4751c1771896a7e9062f24fe",
-    "impact": "Medium",
-    "confidence": "Medium",
-    "check": "reentrancy-no-eth",
-    "description": "Reentrancy in LegacyFaultDisputeGame.step(uint256,bool,bytes,bytes) (src/legacy/FaultDisputeGame.sol#123-186):\n\tExternal calls:\n\t- validStep = VM.step(_stateData,_proof,0) == Claim.unwrap(postState.claim) (src/legacy/FaultDisputeGame.sol#179)\n\tState variables written after the call(s):\n\t- parent.countered = true (src/legacy/FaultDisputeGame.sol#185)\n\tLegacyFaultDisputeGame.claimData (src/legacy/FaultDisputeGame.sol#70) can be used in cross function reentrancies:\n\t- LegacyFaultDisputeGame.claimData (src/legacy/FaultDisputeGame.sol#70)\n\t- LegacyFaultDisputeGame.claimDataLen() (src/legacy/FaultDisputeGame.sol#534-536)\n\t- LegacyFaultDisputeGame.findTraceAncestor(Position,uint256) (src/legacy/FaultDisputeGame.sol#548-558)\n\t- LegacyFaultDisputeGame.initialize() (src/legacy/FaultDisputeGame.sol#450-531)\n\t- LegacyFaultDisputeGame.move(uint256,Claim,bool) (src/legacy/FaultDisputeGame.sol#192-270)\n\t- LegacyFaultDisputeGame.resolve() (src/legacy/FaultDisputeGame.sol#362-371)\n\t- LegacyFaultDisputeGame.resolveClaim(uint256) (src/legacy/FaultDisputeGame.sol#374-424)\n\t- LegacyFaultDisputeGame.step(uint256,bool,bytes,bytes) (src/legacy/FaultDisputeGame.sol#123-186)\n",
-    "type": "node",
-    "name": "validStep = VM.step(_stateData,_proof,0) == Claim.unwrap(postState.claim)",
-    "start": 8448,
-    "length": 80,
-    "filename_relative": "src/legacy/FaultDisputeGame.sol"
-  },
-  {
-    "id": "02c295f90e42732f4b43ba4b3368c636e999d79a4751c1771896a7e9062f24fe",
-    "impact": "Medium",
-    "confidence": "Medium",
-    "check": "reentrancy-no-eth",
-    "description": "Reentrancy in LegacyFaultDisputeGame.step(uint256,bool,bytes,bytes) (src/legacy/FaultDisputeGame.sol#123-186):\n\tExternal calls:\n\t- validStep = VM.step(_stateData,_proof,0) == Claim.unwrap(postState.claim) (src/legacy/FaultDisputeGame.sol#179)\n\tState variables written after the call(s):\n\t- parent.countered = true (src/legacy/FaultDisputeGame.sol#185)\n\tLegacyFaultDisputeGame.claimData (src/legacy/FaultDisputeGame.sol#70) can be used in cross function reentrancies:\n\t- LegacyFaultDisputeGame.claimData (src/legacy/FaultDisputeGame.sol#70)\n\t- LegacyFaultDisputeGame.claimDataLen() (src/legacy/FaultDisputeGame.sol#534-536)\n\t- LegacyFaultDisputeGame.findTraceAncestor(Position,uint256) (src/legacy/FaultDisputeGame.sol#548-558)\n\t- LegacyFaultDisputeGame.initialize() (src/legacy/FaultDisputeGame.sol#450-531)\n\t- LegacyFaultDisputeGame.move(uint256,Claim,bool) (src/legacy/FaultDisputeGame.sol#192-270)\n\t- LegacyFaultDisputeGame.resolve() (src/legacy/FaultDisputeGame.sol#362-371)\n\t- LegacyFaultDisputeGame.resolveClaim(uint256) (src/legacy/FaultDisputeGame.sol#374-424)\n\t- LegacyFaultDisputeGame.step(uint256,bool,bytes,bytes) (src/legacy/FaultDisputeGame.sol#123-186)\n",
-    "type": "node",
-    "name": "parent.countered = true",
-    "start": 8857,
-    "length": 23,
-    "filename_relative": "src/legacy/FaultDisputeGame.sol"
-  },
-  {
     "id": "1349b68c3b08ecdf27782bd74d9fecadf1739eef738171cbbba403c77a29f424",
     "impact": "Medium",
     "confidence": "Medium",
@@ -1294,18 +1162,6 @@
     "start": 11722,
     "length": 22,
     "filename_relative": "src/dispute/FaultDisputeGame.sol"
-  },
-  {
-    "id": "2a84ddcc045ebc504f7f95046a892a3a6f19683987f1607a97ba6d09a2e13c45",
-    "impact": "Medium",
-    "confidence": "Medium",
-    "check": "uninitialized-local",
-    "description": "LegacyFaultDisputeGame.move(uint256,Claim,bool).grandparentClock (src/legacy/FaultDisputeGame.sol#217) is a local variable never initialized\n",
-    "type": "variable",
-    "name": "grandparentClock",
-    "start": 10786,
-    "length": 22,
-    "filename_relative": "src/legacy/FaultDisputeGame.sol"
   },
   {
     "id": "8c229f5475784b2e9526e30d55b066e479489bca4b07c4f062b42b5b70100794",

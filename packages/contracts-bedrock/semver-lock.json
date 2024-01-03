@@ -95,17 +95,9 @@
     "initCodeHash": "0x86328a03426488472fea8ff7eca00e46c6601d5d0adab9f07ee1bc5f98605d48",
     "sourceCodeHash": "0x52dd7c52bbb57fa0bdf80cc1993a5e3fc4ff6638cec13eeba59a4a17ac0570f0"
   },
-  "src/legacy/BlockOracle.sol": {
-    "initCodeHash": "0x183ce41fb2842c9853f08955ddd91e345126028fad64e07ed14f593cbf9c88bc",
-    "sourceCodeHash": "0xabbfe0def64318b467e098bb518100a4cbf7ad4e803d13fbb187f25df35de8dd"
-  },
   "src/legacy/DeployerWhitelist.sol": {
     "initCodeHash": "0x8de80fb23b26dd9d849f6328e56ea7c173cd9e9ce1f05c9beea559d1720deb3d",
     "sourceCodeHash": "0xb518a9f56136a910f2450098b4823c9982f93883fe4a9ef6f6b0a89355965d38"
-  },
-  "src/legacy/FaultDisputeGame.sol": {
-    "initCodeHash": "0x86328a03426488472fea8ff7eca00e46c6601d5d0adab9f07ee1bc5f98605d48",
-    "sourceCodeHash": "0x16c1020857324372169e66c57c1927c19f7763bbaa69dc9c51ae4750d9e6c7a4"
   },
   "src/legacy/L1BlockNumber.sol": {
     "initCodeHash": "0xd586c4f93caf1753e53fcdc05eb547c1f3a69afda2904ae9f9d851b73e1c9c1d",
