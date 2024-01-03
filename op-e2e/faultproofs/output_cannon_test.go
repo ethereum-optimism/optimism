@@ -439,3 +439,63 @@ func TestDisputeOutputRootBeyondProposedBlock_InvalidOutputRoot(t *testing.T) {
 	game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
 	game.LogGameData(ctx)
 }
+
+func TestDisputeOutputRoot_ChangeClaimedOutputRoot(t *testing.T) {
+	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(outputCannonTestExecutor))
+
+	ctx := context.Background()
+	sys, l1Client := startFaultDisputeSystem(t)
+	t.Cleanup(sys.Close)
+
+	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
+	// Root claim is dishonest
+	game := disputeGameFactory.StartOutputCannonGame(ctx, "sequencer", 1, common.Hash{0xaa})
+	correctTrace := game.CreateHonestActor(ctx, "sequencer", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
+
+	// Start the honest challenger
+	game.StartChallenger(ctx, "sequencer", "Honest", challenger.WithPrivKey(sys.Cfg.Secrets.Bob))
+
+	claim := game.RootClaim(ctx)
+	// Wait for the honest challenger to counter the root
+	claim = claim.WaitForCounterClaim(ctx)
+
+	// Then attack every claim until the leaf of output root bisection
+	for {
+		claim = claim.Attack(ctx, common.Hash{0xbb})
+		claim = claim.WaitForCounterClaim(ctx)
+		if claim.Depth() == game.SplitDepth(ctx)-1 {
+			// Post the correct output root as the leaf.
+			// This is for block 1 which is what the original output root was for too
+			claim = correctTrace.AttackClaim(ctx, claim)
+			// Challenger should post the first cannon trace
+			claim = claim.WaitForCounterClaim(ctx)
+			break
+		}
+	}
+
+	game.LogGameData(ctx)
+
+	// Now defend with the correct trace
+	for !claim.IsMaxDepth(ctx) {
+		game.LogGameData(ctx)
+		if claim.IsBottomGameRoot(ctx) {
+			claim = correctTrace.AttackClaim(ctx, claim)
+		} else {
+			claim = correctTrace.DefendClaim(ctx, claim)
+		}
+		if !claim.IsMaxDepth(ctx) {
+			// Have to attack the root of the cannon trace
+			claim = claim.WaitForCounterClaim(ctx)
+		}
+	}
+
+	// Wait for our final claim to be countered by the challenger calling step
+	claim.WaitForCountered(ctx)
+
+	// Time travel past when the game will be resolvable.
+	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
+	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
+
+	game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
+	game.LogGameData(ctx)
+}
