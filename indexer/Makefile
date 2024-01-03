@@ -8,6 +8,9 @@ LDFLAGS := -ldflags "$(LDFLAGSSTRING)"
 indexer:
 	env GO111MODULE=on go build -v $(LDFLAGS) ./cmd/indexer
 
+up:
+	docker-compose up --build
+
 clean:
 	rm indexer
 

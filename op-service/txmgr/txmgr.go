@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
 )
@@ -141,6 +142,14 @@ func (m *SimpleTxManager) BlockNumber(ctx context.Context) (uint64, error) {
 
 func (m *SimpleTxManager) Close() {
 	m.backend.Close()
+}
+
+func (m *SimpleTxManager) txLogger(tx *types.Transaction, logGas bool) log.Logger {
+	fields := []any{"tx", tx.Hash(), "nonce", tx.Nonce()}
+	if logGas {
+		fields = append(fields, "gasTipCap", tx.GasTipCap(), "gasFeeCap", tx.GasFeeCap(), "gasLimit", tx.Gas())
+	}
+	return m.l.New(fields)
 }
 
 // TxCandidate is a transaction candidate that can be submitted to ask the
@@ -327,7 +336,7 @@ func (m *SimpleTxManager) sendTx(ctx context.Context, tx *types.Transaction) (*t
 			}
 			// If we see lots of unrecoverable errors (and no pending transactions) abort sending the transaction.
 			if sendState.ShouldAbortImmediately() {
-				m.l.Warn("Aborting transaction submission")
+				m.txLogger(tx, false).Warn("Aborting transaction submission")
 				return nil, errors.New("aborted transaction sending")
 			}
 			tx = publishAndWait(tx, true)
@@ -347,10 +356,7 @@ func (m *SimpleTxManager) sendTx(ctx context.Context, tx *types.Transaction) (*t
 // it will bump the fees and retry.
 // Returns the latest fee bumped tx, and a boolean indicating whether the tx was sent or not
 func (m *SimpleTxManager) publishTx(ctx context.Context, tx *types.Transaction, sendState *SendState, bumpFeesImmediately bool) (*types.Transaction, bool) {
-	updateLogFields := func(tx *types.Transaction) log.Logger {
-		return m.l.New("hash", tx.Hash(), "nonce", tx.Nonce(), "gasTipCap", tx.GasTipCap(), "gasFeeCap", tx.GasFeeCap())
-	}
-	l := updateLogFields(tx)
+	l := m.txLogger(tx, true)
 
 	l.Info("Publishing transaction")
 
@@ -364,7 +370,7 @@ func (m *SimpleTxManager) publishTx(ctx context.Context, tx *types.Transaction, 
 			}
 			tx = newTx
 			sendState.bumpCount++
-			l = updateLogFields(tx)
+			l = m.txLogger(tx, true)
 		}
 		bumpFeesImmediately = true // bump fees next loop
 
@@ -423,7 +429,7 @@ func (m *SimpleTxManager) waitForTx(ctx context.Context, tx *types.Transaction, 
 	receipt, err := m.waitMined(ctx, tx, sendState)
 	if err != nil {
 		// this will happen if the tx was successfully replaced by a tx with bumped fees
-		log.Info("Transaction receipt not found", "err", err)
+		m.txLogger(tx, true).Info("Transaction receipt not found", "err", err)
 		return
 	}
 	select {
@@ -457,15 +463,15 @@ func (m *SimpleTxManager) queryReceipt(ctx context.Context, txHash common.Hash, 
 	receipt, err := m.backend.TransactionReceipt(ctx, txHash)
 	if errors.Is(err, ethereum.NotFound) {
 		sendState.TxNotMined(txHash)
-		m.l.Trace("Transaction not yet mined", "hash", txHash)
+		m.l.Trace("Transaction not yet mined", "tx", txHash)
 		return nil
 	} else if err != nil {
 		m.metr.RPCError()
-		m.l.Info("Receipt retrieval failed", "hash", txHash, "err", err)
+		m.l.Info("Receipt retrieval failed", "tx", txHash, "err", err)
 		return nil
 	} else if receipt == nil {
 		m.metr.RPCError()
-		m.l.Warn("Receipt and error are both nil", "hash", txHash)
+		m.l.Warn("Receipt and error are both nil", "tx", txHash)
 		return nil
 	}
 
@@ -473,14 +479,17 @@ func (m *SimpleTxManager) queryReceipt(ctx context.Context, txHash common.Hash, 
 	sendState.TxMined(txHash)
 
 	txHeight := receipt.BlockNumber.Uint64()
-	tipHeight, err := m.backend.BlockNumber(ctx)
+	tip, err := m.backend.HeaderByNumber(ctx, nil)
 	if err != nil {
-		m.l.Error("Unable to fetch block number", "err", err)
+		m.metr.RPCError()
+		m.l.Error("Unable to fetch tip", "err", err)
 		return nil
 	}
 
-	m.l.Debug("Transaction mined, checking confirmations", "hash", txHash, "txHeight", txHeight,
-		"tipHeight", tipHeight, "numConfirmations", m.cfg.NumConfirmations)
+	m.metr.RecordBasefee(tip.BaseFee)
+	m.l.Debug("Transaction mined, checking confirmations", "tx", txHash,
+		"block", eth.ReceiptBlockID(receipt), "tip", eth.HeaderBlockID(tip),
+		"numConfirmations", m.cfg.NumConfirmations)
 
 	// The transaction is considered confirmed when
 	// txHeight+numConfirmations-1 <= tipHeight. Note that the -1 is
@@ -489,14 +498,17 @@ func (m *SimpleTxManager) queryReceipt(ctx context.Context, txHash common.Hash, 
 	// transaction should be confirmed when txHeight is equal to
 	// tipHeight. The equation is rewritten in this form to avoid
 	// underflows.
+	tipHeight := tip.Number.Uint64()
 	if txHeight+m.cfg.NumConfirmations <= tipHeight+1 {
-		m.l.Info("Transaction confirmed", "hash", txHash)
+		m.l.Info("Transaction confirmed", "tx", txHash,
+			"block", eth.ReceiptBlockID(receipt),
+			"effectiveGasPrice", receipt.EffectiveGasPrice)
 		return receipt
 	}
 
 	// Safe to subtract since we know the LHS above is greater.
 	confsRemaining := (txHeight + m.cfg.NumConfirmations) - (tipHeight + 1)
-	m.l.Debug("Transaction not yet confirmed", "hash", txHash, "confsRemaining", confsRemaining)
+	m.l.Debug("Transaction not yet confirmed", "tx", txHash, "confsRemaining", confsRemaining)
 	return nil
 }
 
@@ -506,10 +518,10 @@ func (m *SimpleTxManager) queryReceipt(ctx context.Context, txHash common.Hash, 
 // doesn't linger in the mempool. Finally to avoid runaway price increases, fees are capped at a
 // `feeLimitMultiplier` multiple of the suggested values.
 func (m *SimpleTxManager) increaseGasPrice(ctx context.Context, tx *types.Transaction) (*types.Transaction, error) {
-	m.l.Info("bumping gas price for tx", "hash", tx.Hash(), "gasTipCap", tx.GasTipCap(), "gasFeeCap", tx.GasFeeCap(), "gaslimit", tx.Gas())
+	m.txLogger(tx, true).Info("bumping gas price for transaction")
 	tip, basefee, err := m.suggestGasPriceCaps(ctx)
 	if err != nil {
-		m.l.Warn("failed to get suggested gas tip and basefee", "err", err)
+		m.txLogger(tx, false).Warn("failed to get suggested gas tip and basefee", "err", err)
 		return nil, err
 	}
 	bumpedTip, bumpedFee := updateFees(tx.GasTipCap(), tx.GasFeeCap(), tip, basefee, m.l)
@@ -542,12 +554,12 @@ func (m *SimpleTxManager) increaseGasPrice(ctx context.Context, tx *types.Transa
 		// original tx can get included in a block just before the above call. In this case the
 		// error is due to the tx reverting with message "block number must be equal to next
 		// expected block number"
-		m.l.Warn("failed to re-estimate gas", "err", err, "gaslimit", tx.Gas(),
+		m.l.Warn("failed to re-estimate gas", "err", err, "tx", tx.Hash(), "gaslimit", tx.Gas(),
 			"gasFeeCap", bumpedFee, "gasTipCap", bumpedTip)
 		return nil, err
 	}
 	if tx.Gas() != gas {
-		m.l.Info("re-estimated gas differs", "oldgas", tx.Gas(), "newgas", gas,
+		m.l.Info("re-estimated gas differs", "tx", tx.Hash(), "oldgas", tx.Gas(), "newgas", gas,
 			"gasFeeCap", bumpedFee, "gasTipCap", bumpedTip)
 	}
 	rawTx.Gas = gas
@@ -556,7 +568,7 @@ func (m *SimpleTxManager) increaseGasPrice(ctx context.Context, tx *types.Transa
 	defer cancel()
 	newTx, err := m.cfg.Signer(ctx, m.cfg.From, types.NewTx(rawTx))
 	if err != nil {
-		m.l.Warn("failed to sign new transaction", "err", err)
+		m.l.Warn("failed to sign new transaction", "err", err, "tx", tx.Hash())
 		return tx, nil
 	}
 	return newTx, nil
@@ -582,6 +594,8 @@ func (m *SimpleTxManager) suggestGasPriceCaps(ctx context.Context) (*big.Int, *b
 	} else if head.BaseFee == nil {
 		return nil, nil, errors.New("txmgr does not support pre-london blocks that do not have a basefee")
 	}
+	m.metr.RecordBasefee(head.BaseFee)
+	m.metr.RecordTipCap(tip)
 	return tip, head.BaseFee, nil
 }
 

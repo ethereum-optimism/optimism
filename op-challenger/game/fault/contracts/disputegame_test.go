@@ -49,7 +49,7 @@ func runCommonDisputeGameTests(t *testing.T, setup disputeGameSetupFunc) {
 func runSimpleGettersTest(t *testing.T, setup disputeGameSetupFunc) {
 	tests := []struct {
 		methodAlias string
-		method      func(game *disputeGameContract) string
+		method      string
 		args        []interface{}
 		result      interface{}
 		expected    interface{} // Defaults to expecting the same as result
@@ -57,7 +57,7 @@ func runSimpleGettersTest(t *testing.T, setup disputeGameSetupFunc) {
 	}{
 		{
 			methodAlias: "status",
-			method:      func(game *disputeGameContract) string { return methodStatus },
+			method:      methodStatus,
 			result:      types.GameStatusChallengerWon,
 			call: func(game *disputeGameContract) (any, error) {
 				return game.GetStatus(context.Background())
@@ -65,50 +65,32 @@ func runSimpleGettersTest(t *testing.T, setup disputeGameSetupFunc) {
 		},
 		{
 			methodAlias: "gameDuration",
-			method: func(game *disputeGameContract) string {
-				if game.version == 1 {
-					return methodGameDurationV1
-				} else {
-					return methodGameDurationV0
-				}
-			},
-			result: uint64(5566),
+			method:      methodGameDuration,
+			result:      uint64(5566),
 			call: func(game *disputeGameContract) (any, error) {
 				return game.GetGameDuration(context.Background())
 			},
 		},
 		{
 			methodAlias: "maxGameDepth",
-			method: func(game *disputeGameContract) string {
-				if game.version == 1 {
-					return methodMaxGameDepthV1
-				} else {
-					return methodMaxGameDepthV0
-				}
-			},
-			result:   big.NewInt(128),
-			expected: uint64(128),
+			method:      methodMaxGameDepth,
+			result:      big.NewInt(128),
+			expected:    uint64(128),
 			call: func(game *disputeGameContract) (any, error) {
 				return game.GetMaxGameDepth(context.Background())
 			},
 		},
 		{
 			methodAlias: "absolutePrestate",
-			method: func(game *disputeGameContract) string {
-				if game.version == 1 {
-					return methodAbsolutePrestateV1
-				} else {
-					return methodAbsolutePrestateV0
-				}
-			},
-			result: common.Hash{0xab},
+			method:      methodAbsolutePrestate,
+			result:      common.Hash{0xab},
 			call: func(game *disputeGameContract) (any, error) {
 				return game.GetAbsolutePrestateHash(context.Background())
 			},
 		},
 		{
 			methodAlias: "claimCount",
-			method:      func(game *disputeGameContract) string { return methodClaimCount },
+			method:      methodClaimCount,
 			result:      big.NewInt(9876),
 			expected:    uint64(9876),
 			call: func(game *disputeGameContract) (any, error) {
@@ -117,7 +99,7 @@ func runSimpleGettersTest(t *testing.T, setup disputeGameSetupFunc) {
 		},
 		{
 			methodAlias: "l1Head",
-			method:      func(game *disputeGameContract) string { return methodL1Head },
+			method:      methodL1Head,
 			result:      common.Hash{0xdd, 0xbb},
 			call: func(game *disputeGameContract) (any, error) {
 				return game.GetL1Head(context.Background())
@@ -125,7 +107,7 @@ func runSimpleGettersTest(t *testing.T, setup disputeGameSetupFunc) {
 		},
 		{
 			methodAlias: "resolve",
-			method:      func(game *disputeGameContract) string { return methodResolve },
+			method:      methodResolve,
 			result:      types.GameStatusInProgress,
 			call: func(game *disputeGameContract) (any, error) {
 				return game.CallResolve(context.Background())
@@ -136,7 +118,7 @@ func runSimpleGettersTest(t *testing.T, setup disputeGameSetupFunc) {
 		test := test
 		t.Run(test.methodAlias, func(t *testing.T) {
 			stubRpc, game := setup(t)
-			stubRpc.SetResponse(fdgAddr, test.method(game), batching.BlockLatest, nil, []interface{}{test.result})
+			stubRpc.SetResponse(fdgAddr, test.method, batching.BlockLatest, nil, []interface{}{test.result})
 			status, err := test.call(game)
 			require.NoError(t, err)
 			expected := test.expected

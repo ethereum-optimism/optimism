@@ -161,11 +161,6 @@ func (l1Etl *L1ETL) handleBatch(batch *ETLBatch) error {
 		}
 	}
 
-	if len(l1BlockHeaders) == 0 {
-		batch.Logger.Info("no l1 blocks with logs in batch")
-		return nil
-	}
-
 	l1ContractEvents := make([]database.L1ContractEvent, len(batch.Logs))
 	for i := range batch.Logs {
 		timestamp := batch.HeaderMap[batch.Logs[i].BlockHash].Time
@@ -176,6 +171,10 @@ func (l1Etl *L1ETL) handleBatch(batch *ETLBatch) error {
 	// Continually try to persist this batch. If it fails after 10 attempts, we simply error out
 	retryStrategy := &retry.ExponentialStrategy{Min: 1000, Max: 20_000, MaxJitter: 250}
 	if _, err := retry.Do[interface{}](l1Etl.resourceCtx, 10, retryStrategy, func() (interface{}, error) {
+		if len(l1BlockHeaders) == 0 {
+			return nil, nil // skip
+		}
+
 		if err := l1Etl.db.Transaction(func(tx *database.DB) error {
 			if err := tx.Blocks.StoreL1BlockHeaders(l1BlockHeaders); err != nil {
 				return err
@@ -190,17 +189,23 @@ func (l1Etl *L1ETL) handleBatch(batch *ETLBatch) error {
 			return nil, fmt.Errorf("unable to persist batch: %w", err)
 		}
 
-		l1Etl.ETL.metrics.RecordIndexedHeaders(len(l1BlockHeaders))
-		l1Etl.ETL.metrics.RecordIndexedLatestHeight(l1BlockHeaders[len(l1BlockHeaders)-1].Number)
-
 		// a-ok!
 		return nil, nil
 	}); err != nil {
 		return err
 	}
 
-	batch.Logger.Info("indexed batch")
+	if len(l1BlockHeaders) == 0 {
+		batch.Logger.Info("skipped batch. no logs found")
+	} else {
+		batch.Logger.Info("indexed batch")
+	}
+
+	// Since not every L1 block is indexed, we still want our metrics to cover L1 blocks
+	// that have been observed so that a false stall alert isn't triggered on low activity
 	l1Etl.LatestHeader = &batch.Headers[len(batch.Headers)-1]
+	l1Etl.ETL.metrics.RecordIndexedHeaders(len(l1BlockHeaders))
+	l1Etl.ETL.metrics.RecordEtlLatestHeight(l1Etl.LatestHeader.Number)
 
 	// Notify Listeners
 	l1Etl.mu.Lock()

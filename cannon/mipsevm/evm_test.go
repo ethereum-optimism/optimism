@@ -223,13 +223,12 @@ func TestEVMSingleStep(t *testing.T) {
 	var tracer vm.EVMLogger
 	//tracer = SourceMapTracer(t, contracts, addrs)
 
-	type testInput struct {
+	cases := []struct {
 		name   string
 		pc     uint32
 		nextPC uint32
 		insn   uint32
-	}
-	cases := []testInput{
+	}{
 		{"j MSB set target", 0, 4, 0x0A_00_00_02},                         // j 0x02_00_00_02
 		{"j non-zero PC region", 0x10000000, 0x10000004, 0x08_00_00_02},   // j 0x2
 		{"jal MSB set target", 0, 4, 0x0E_00_00_02},                       // jal 0x02_00_00_02
@@ -264,12 +263,11 @@ func TestEVMFault(t *testing.T) {
 	env, evmState := NewEVMEnv(contracts, addrs)
 	env.Config.Tracer = tracer
 
-	type testInput struct {
+	cases := []struct {
 		name   string
 		nextPC uint32
 		insn   uint32
-	}
-	cases := []testInput{
+	}{
 		{"illegal instruction", 0, 0xFF_FF_FF_FF},
 		{"branch in delay-slot", 8, 0x11_02_00_03},
 		{"jump in delay-slot", 8, 0x0c_00_00_0c},

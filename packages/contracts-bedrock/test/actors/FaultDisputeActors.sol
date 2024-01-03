@@ -3,19 +3,19 @@ pragma solidity ^0.8.15;
 
 import { CommonBase } from "forge-std/Base.sol";
 
-import { OutputBisectionGame } from "src/dispute/OutputBisectionGame.sol";
-import { IOutputBisectionGame } from "src/dispute/interfaces/IOutputBisectionGame.sol";
+import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
+import { IFaultDisputeGame } from "src/dispute/interfaces/IFaultDisputeGame.sol";
 
 import "src/libraries/DisputeTypes.sol";
 
 /// @title GameSolver
 /// @notice The `GameSolver` contract is a contract that can produce an array of available
-///         moves for a given `OutputBisectionGame` contract, from the eyes of an honest
+///         moves for a given `FaultDisputeGame` contract, from the eyes of an honest
 ///         actor. The `GameSolver` does not implement functionality for acting on the `Move`s
 ///         it suggests.
 abstract contract GameSolver is CommonBase {
-    /// @notice The `OutputBisectionGame` proxy that the `GameSolver` will be solving.
-    OutputBisectionGame public immutable GAME;
+    /// @notice The `FaultDisputeGame` proxy that the `GameSolver` will be solving.
+    FaultDisputeGame public immutable GAME;
     /// @notice The split depth of the game
     uint256 internal immutable SPLIT_DEPTH;
     /// @notice The max depth of the game
@@ -37,7 +37,7 @@ abstract contract GameSolver is CommonBase {
     ///         `GAME` contract.
     bool public agreeWithRoot;
 
-    /// @notice The `MoveKind` enum represents a kind of interaction with the `OutputBisectionGame` contract.
+    /// @notice The `MoveKind` enum represents a kind of interaction with the `FaultDisputeGame` contract.
     enum MoveKind {
         Attack,
         Defend,
@@ -47,14 +47,14 @@ abstract contract GameSolver is CommonBase {
 
     /// @notice The `Move` struct represents a move in the game, and contains information
     ///         about the kind of move, the sender of the move, and the calldata to be sent
-    ///         to the `OutputBisectionGame` contract by a consumer of this contract.
+    ///         to the `FaultDisputeGame` contract by a consumer of this contract.
     struct Move {
         MoveKind kind;
         bytes data;
     }
 
     constructor(
-        OutputBisectionGame _gameProxy,
+        FaultDisputeGame _gameProxy,
         uint256[] memory _l2Outputs,
         bytes memory _trace,
         bytes memory _preStateData
@@ -70,13 +70,13 @@ abstract contract GameSolver is CommonBase {
     }
 
     /// @notice Returns an array of `Move`s that can be taken from the perspective of an honest
-    ///         actor in the `OutputBisectionGame` contract.
+    ///         actor in the `FaultDisputeGame` contract.
     function solveGame() external virtual returns (Move[] memory moves_);
 }
 
 /// @title HonestGameSolver
 /// @notice The `HonestGameSolver` is an implementation of `GameSolver` which responds accordingly depending
-///         on the state of the `OutputBisectionGame` contract in relation to their local opinion of the correct
+///         on the state of the `FaultDisputeGame` contract in relation to their local opinion of the correct
 ///         order of output roots and the execution trace between each block `n` -> `n + 1` state transition.
 contract HonestGameSolver is GameSolver {
     /// @notice The `Direction` enum represents the direction of a proposed move in the game,
@@ -88,7 +88,7 @@ contract HonestGameSolver is GameSolver {
     }
 
     constructor(
-        OutputBisectionGame _gameProxy,
+        FaultDisputeGame _gameProxy,
         uint256[] memory _l2Outputs,
         bytes memory _trace,
         bytes memory _preStateData
@@ -105,7 +105,7 @@ contract HonestGameSolver is GameSolver {
     ////////////////////////////////////////////////////////////////
 
     /// @notice Returns an array of `Move`s that can be taken from the perspective of an honest
-    ///         actor in the `OutputBisectionGame` contract.
+    ///         actor in the `FaultDisputeGame` contract.
     function solveGame() external override returns (Move[] memory moves_) {
         uint256 numClaims = GAME.claimDataLen();
 
@@ -116,7 +116,7 @@ contract HonestGameSolver is GameSolver {
         uint256 numMoves = 0;
         for (uint256 i = processedBuf; i < numClaims; i++) {
             // Grab the observed claim.
-            IOutputBisectionGame.ClaimData memory observed = getClaimData(i);
+            IFaultDisputeGame.ClaimData memory observed = getClaimData(i);
 
             // Determine the direction of the next move to be taken.
             (Direction moveDirection, Position movePos) = determineDirection(observed);
@@ -149,7 +149,7 @@ contract HonestGameSolver is GameSolver {
     ////////////////////////////////////////////////////////////////
 
     /// @dev Helper function to determine the direction of the next move to be taken.
-    function determineDirection(IOutputBisectionGame.ClaimData memory _claimData)
+    function determineDirection(IFaultDisputeGame.ClaimData memory _claimData)
         internal
         view
         returns (Direction direction_, Position movePos_)
@@ -217,7 +217,7 @@ contract HonestGameSolver is GameSolver {
         bool isAttack = _direction == Direction.Attack;
         move_ = Move({
             kind: isAttack ? MoveKind.Attack : MoveKind.Defend,
-            data: abi.encodeCall(OutputBisectionGame.move, (_challengeIndex, claimAt(_movePos), isAttack))
+            data: abi.encodeCall(FaultDisputeGame.move, (_challengeIndex, claimAt(_movePos), isAttack))
         });
     }
 
@@ -256,7 +256,7 @@ contract HonestGameSolver is GameSolver {
 
         move_ = Move({
             kind: MoveKind.Step,
-            data: abi.encodeCall(OutputBisectionGame.step, (_challengeIndex, isAttack, preStateTrace, hex""))
+            data: abi.encodeCall(FaultDisputeGame.step, (_challengeIndex, isAttack, preStateTrace, hex""))
         });
     }
 
@@ -266,14 +266,10 @@ contract HonestGameSolver is GameSolver {
 
     /// @dev Helper function to get the `ClaimData` struct at a given index in the `GAME` contract's
     ///      `claimData` array.
-    function getClaimData(uint256 _claimIndex)
-        internal
-        view
-        returns (IOutputBisectionGame.ClaimData memory claimData_)
-    {
+    function getClaimData(uint256 _claimIndex) internal view returns (IFaultDisputeGame.ClaimData memory claimData_) {
         // thanks, solc
         (uint32 parentIndex, bool countered, Claim claim, Position position, Clock clock) = GAME.claimData(_claimIndex);
-        claimData_ = IOutputBisectionGame.ClaimData({
+        claimData_ = IFaultDisputeGame.ClaimData({
             parentIndex: parentIndex,
             countered: countered,
             claim: claim,
@@ -353,10 +349,10 @@ abstract contract DisputeActor {
 ///         that this actor *can* be dishonest if the trace is faulty, but it will always follow
 ///         the rules of the honest actor.
 contract HonestDisputeActor is DisputeActor {
-    OutputBisectionGame public immutable GAME;
+    FaultDisputeGame public immutable GAME;
 
     constructor(
-        OutputBisectionGame _gameProxy,
+        FaultDisputeGame _gameProxy,
         uint256[] memory _l2Outputs,
         bytes memory _trace,
         bytes memory _preStateData
@@ -378,7 +374,7 @@ contract HonestDisputeActor is DisputeActor {
             GameSolver.Move memory localMove = moves[i];
 
             // If the move is a step, we first need to add the starting L2 block number to the `PreimageOracle`
-            // via the `OutputBisectionGame` contract.
+            // via the `FaultDisputeGame` contract.
             // TODO: This is leaky. Could be another move kind.
             if (localMove.kind == GameSolver.MoveKind.Step) {
                 bytes memory moveData = localMove.data;

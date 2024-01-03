@@ -24,6 +24,9 @@ error UnexpectedRootClaim(Claim rootClaim);
 //                 `FaultDisputeGame` Errors                  //
 ////////////////////////////////////////////////////////////////
 
+/// @notice Thrown when a dispute game has already been initialized.
+error AlreadyInitialized();
+
 /// @notice Thrown when a supplied bond is too low to cover the
 ///         cost of the next possible counter claim.
 error BondTooLow();
@@ -82,33 +85,3 @@ error ClaimAboveSplit();
 /// @notice Thrown on deployment if the split depth is greater than or equal to the max
 ///         depth of the game.
 error InvalidSplitDepth();
-
-////////////////////////////////////////////////////////////////
-//              `AttestationDisputeGame` Errors               //
-////////////////////////////////////////////////////////////////
-
-/// @notice Thrown when an invalid signature is submitted to `challenge`.
-error InvalidSignature();
-
-/// @notice Thrown when a signature that has already been used to support the
-///         `rootClaim` is submitted to `challenge`.
-error AlreadyChallenged();
-
-////////////////////////////////////////////////////////////////
-//                      `Ownable` Errors                      //
-////////////////////////////////////////////////////////////////
-
-/// @notice Thrown when a function that is protected by the `onlyOwner` modifier
-///          is called from an account other than the owner.
-error NotOwner();
-
-////////////////////////////////////////////////////////////////
-//                    `BlockOracle` Errors                    //
-////////////////////////////////////////////////////////////////
-
-/// @notice Thrown when a block that is out of the range of the `BLOCKHASH` opcode
-///         is attempted to be loaded.
-error BlockNumberOOB();
-
-/// @notice Thrown when a block hash is attempted to be loaded that has not been stored.
-error BlockHashNotPresent();
