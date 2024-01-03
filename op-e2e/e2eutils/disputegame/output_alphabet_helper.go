@@ -42,7 +42,7 @@ func (g *OutputAlphabetGameHelper) CreateHonestActor(ctx context.Context, l2Node
 	g.require.NoError(err, "Failed to create game contact")
 	prestateBlock, poststateBlock, err := contract.GetBlockRange(ctx)
 	g.require.NoError(err, "Get block range")
-	splitDepth := uint64(g.SplitDepth(ctx))
+	splitDepth := g.SplitDepth(ctx)
 	rollupClient := g.system.RollupClient(l2Node)
 	prestateProvider := outputs.NewPrestateProvider(ctx, logger, rollupClient, prestateBlock)
 	correctTrace, err := outputs.NewOutputAlphabetTraceAccessor(logger, metrics.NoopMetrics, prestateProvider, rollupClient, splitDepth, prestateBlock, poststateBlock)
