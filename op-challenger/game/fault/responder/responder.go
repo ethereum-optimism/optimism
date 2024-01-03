@@ -3,7 +3,9 @@ package responder
 import (
 	"context"
 	"fmt"
+	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
@@ -22,6 +24,7 @@ type GameContract interface {
 	DefendTx(parentContractIndex uint64, pivot common.Hash) (txmgr.TxCandidate, error)
 	StepTx(claimIdx uint64, isAttack bool, stateData []byte, proof []byte) (txmgr.TxCandidate, error)
 	UpdateOracleTx(ctx context.Context, claimIdx uint64, data *types.PreimageOracleData) (txmgr.TxCandidate, error)
+	GetRequiredBond(ctx context.Context, bondKind uint8) (*big.Int, error)
 }
 
 // FaultResponder implements the [Responder] interface to send onchain transactions.
@@ -30,14 +33,19 @@ type FaultResponder struct {
 
 	txMgr    txmgr.TxManager
 	contract GameContract
+
+	gameDepth  uint64
+	splitDepth uint64
 }
 
 // NewFaultResponder returns a new [FaultResponder].
-func NewFaultResponder(logger log.Logger, txMgr txmgr.TxManager, contract GameContract) (*FaultResponder, error) {
+func NewFaultResponder(logger log.Logger, txMgr txmgr.TxManager, contract GameContract, gameDepth, splitDepth uint64) (*FaultResponder, error) {
 	return &FaultResponder{
-		log:      logger,
-		txMgr:    txMgr,
-		contract: contract,
+		log:        logger,
+		txMgr:      txMgr,
+		contract:   contract,
+		gameDepth:  gameDepth,
+		splitDepth: splitDepth,
 	}, nil
 }
 
@@ -92,6 +100,21 @@ func (r *FaultResponder) PerformAction(ctx context.Context, action types.Action)
 		} else {
 			candidate, err = r.contract.DefendTx(uint64(action.ParentIdx), action.Value)
 		}
+
+		var bondKind uint8
+		switch nextMoveDepth := action.ParentPosition.Depth() + 1; {
+		case nextMoveDepth == int(r.gameDepth):
+			bondKind = contracts.BondKindStep
+		case nextMoveDepth > int(r.splitDepth):
+			bondKind = contracts.BondKindExecution
+		default:
+			bondKind = contracts.BondKindOutput
+		}
+		bondValue, err := r.contract.GetRequiredBond(ctx, bondKind)
+		if err != nil {
+			return err
+		}
+		candidate.Value = bondValue
 	case types.ActionTypeStep:
 		candidate, err = r.contract.StepTx(uint64(action.ParentIdx), action.IsAttack, action.PreState, action.ProofData)
 	}

@@ -120,6 +120,11 @@
         "type": "bool"
       },
       {
+        "internalType": "uint128",
+        "name": "bond",
+        "type": "uint128"
+      },
+      {
         "internalType": "Claim",
         "name": "claim",
         "type": "bytes32"
@@ -271,10 +276,29 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "enum BondKind",
+        "name": "_moveKind",
+        "type": "uint8"
+      }
+    ],
+    "name": "getRequiredBond",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "requiredBond_",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "initialize",
     "outputs": [],
-    "stateMutability": "nonpayable",
+    "stateMutability": "payable",
     "type": "function"
   },
   {
@@ -442,7 +466,7 @@
     ],
     "name": "step",
     "outputs": [],
-    "stateMutability": "nonpayable",
+    "stateMutability": "payable",
     "type": "function"
   },
   {
@@ -552,6 +576,11 @@
   {
     "inputs": [],
     "name": "GameNotInProgress",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InsufficientBond",
     "type": "error"
   },
   {

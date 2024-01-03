@@ -234,10 +234,11 @@ func (_FaultDisputeGame *FaultDisputeGameCallerSession) AbsolutePrestate() ([32]
 
 // ClaimData is a free data retrieval call binding the contract method 0xc6f0308c.
 //
-// Solidity: function claimData(uint256 ) view returns(uint32 parentIndex, bool countered, bytes32 claim, uint128 position, uint128 clock)
+// Solidity: function claimData(uint256 ) view returns(uint32 parentIndex, bool countered, uint128 bond, bytes32 claim, uint128 position, uint128 clock)
 func (_FaultDisputeGame *FaultDisputeGameCaller) ClaimData(opts *bind.CallOpts, arg0 *big.Int) (struct {
 	ParentIndex uint32
 	Countered   bool
+	Bond        *big.Int
 	Claim       [32]byte
 	Position    *big.Int
 	Clock       *big.Int
@@ -248,6 +249,7 @@ func (_FaultDisputeGame *FaultDisputeGameCaller) ClaimData(opts *bind.CallOpts, 
 	outstruct := new(struct {
 		ParentIndex uint32
 		Countered   bool
+		Bond        *big.Int
 		Claim       [32]byte
 		Position    *big.Int
 		Clock       *big.Int
@@ -258,9 +260,10 @@ func (_FaultDisputeGame *FaultDisputeGameCaller) ClaimData(opts *bind.CallOpts, 
 
 	outstruct.ParentIndex = *abi.ConvertType(out[0], new(uint32)).(*uint32)
 	outstruct.Countered = *abi.ConvertType(out[1], new(bool)).(*bool)
-	outstruct.Claim = *abi.ConvertType(out[2], new([32]byte)).(*[32]byte)
-	outstruct.Position = *abi.ConvertType(out[3], new(*big.Int)).(**big.Int)
-	outstruct.Clock = *abi.ConvertType(out[4], new(*big.Int)).(**big.Int)
+	outstruct.Bond = *abi.ConvertType(out[2], new(*big.Int)).(**big.Int)
+	outstruct.Claim = *abi.ConvertType(out[3], new([32]byte)).(*[32]byte)
+	outstruct.Position = *abi.ConvertType(out[4], new(*big.Int)).(**big.Int)
+	outstruct.Clock = *abi.ConvertType(out[5], new(*big.Int)).(**big.Int)
 
 	return *outstruct, err
 
@@ -268,10 +271,11 @@ func (_FaultDisputeGame *FaultDisputeGameCaller) ClaimData(opts *bind.CallOpts, 
 
 // ClaimData is a free data retrieval call binding the contract method 0xc6f0308c.
 //
-// Solidity: function claimData(uint256 ) view returns(uint32 parentIndex, bool countered, bytes32 claim, uint128 position, uint128 clock)
+// Solidity: function claimData(uint256 ) view returns(uint32 parentIndex, bool countered, uint128 bond, bytes32 claim, uint128 position, uint128 clock)
 func (_FaultDisputeGame *FaultDisputeGameSession) ClaimData(arg0 *big.Int) (struct {
 	ParentIndex uint32
 	Countered   bool
+	Bond        *big.Int
 	Claim       [32]byte
 	Position    *big.Int
 	Clock       *big.Int
@@ -281,10 +285,11 @@ func (_FaultDisputeGame *FaultDisputeGameSession) ClaimData(arg0 *big.Int) (stru
 
 // ClaimData is a free data retrieval call binding the contract method 0xc6f0308c.
 //
-// Solidity: function claimData(uint256 ) view returns(uint32 parentIndex, bool countered, bytes32 claim, uint128 position, uint128 clock)
+// Solidity: function claimData(uint256 ) view returns(uint32 parentIndex, bool countered, uint128 bond, bytes32 claim, uint128 position, uint128 clock)
 func (_FaultDisputeGame *FaultDisputeGameCallerSession) ClaimData(arg0 *big.Int) (struct {
 	ParentIndex uint32
 	Countered   bool
+	Bond        *big.Int
 	Claim       [32]byte
 	Position    *big.Int
 	Clock       *big.Int
@@ -557,6 +562,37 @@ func (_FaultDisputeGame *FaultDisputeGameSession) GenesisOutputRoot() ([32]byte,
 // Solidity: function genesisOutputRoot() view returns(bytes32 genesisOutputRoot_)
 func (_FaultDisputeGame *FaultDisputeGameCallerSession) GenesisOutputRoot() ([32]byte, error) {
 	return _FaultDisputeGame.Contract.GenesisOutputRoot(&_FaultDisputeGame.CallOpts)
+}
+
+// GetRequiredBond is a free data retrieval call binding the contract method 0xbbea7138.
+//
+// Solidity: function getRequiredBond(uint8 _moveKind) pure returns(uint256 requiredBond_)
+func (_FaultDisputeGame *FaultDisputeGameCaller) GetRequiredBond(opts *bind.CallOpts, _moveKind uint8) (*big.Int, error) {
+	var out []interface{}
+	err := _FaultDisputeGame.contract.Call(opts, &out, "getRequiredBond", _moveKind)
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
+}
+
+// GetRequiredBond is a free data retrieval call binding the contract method 0xbbea7138.
+//
+// Solidity: function getRequiredBond(uint8 _moveKind) pure returns(uint256 requiredBond_)
+func (_FaultDisputeGame *FaultDisputeGameSession) GetRequiredBond(_moveKind uint8) (*big.Int, error) {
+	return _FaultDisputeGame.Contract.GetRequiredBond(&_FaultDisputeGame.CallOpts, _moveKind)
+}
+
+// GetRequiredBond is a free data retrieval call binding the contract method 0xbbea7138.
+//
+// Solidity: function getRequiredBond(uint8 _moveKind) pure returns(uint256 requiredBond_)
+func (_FaultDisputeGame *FaultDisputeGameCallerSession) GetRequiredBond(_moveKind uint8) (*big.Int, error) {
+	return _FaultDisputeGame.Contract.GetRequiredBond(&_FaultDisputeGame.CallOpts, _moveKind)
 }
 
 // L1Head is a free data retrieval call binding the contract method 0x6361506d.
@@ -903,21 +939,21 @@ func (_FaultDisputeGame *FaultDisputeGameTransactorSession) Defend(_parentIndex 
 
 // Initialize is a paid mutator transaction binding the contract method 0x8129fc1c.
 //
-// Solidity: function initialize() returns()
+// Solidity: function initialize() payable returns()
 func (_FaultDisputeGame *FaultDisputeGameTransactor) Initialize(opts *bind.TransactOpts) (*types.Transaction, error) {
 	return _FaultDisputeGame.contract.Transact(opts, "initialize")
 }
 
 // Initialize is a paid mutator transaction binding the contract method 0x8129fc1c.
 //
-// Solidity: function initialize() returns()
+// Solidity: function initialize() payable returns()
 func (_FaultDisputeGame *FaultDisputeGameSession) Initialize() (*types.Transaction, error) {
 	return _FaultDisputeGame.Contract.Initialize(&_FaultDisputeGame.TransactOpts)
 }
 
 // Initialize is a paid mutator transaction binding the contract method 0x8129fc1c.
 //
-// Solidity: function initialize() returns()
+// Solidity: function initialize() payable returns()
 func (_FaultDisputeGame *FaultDisputeGameTransactorSession) Initialize() (*types.Transaction, error) {
 	return _FaultDisputeGame.Contract.Initialize(&_FaultDisputeGame.TransactOpts)
 }
@@ -987,21 +1023,21 @@ func (_FaultDisputeGame *FaultDisputeGameTransactorSession) ResolveClaim(_claimI
 
 // Step is a paid mutator transaction binding the contract method 0xd8cc1a3c.
 //
-// Solidity: function step(uint256 _claimIndex, bool _isAttack, bytes _stateData, bytes _proof) returns()
+// Solidity: function step(uint256 _claimIndex, bool _isAttack, bytes _stateData, bytes _proof) payable returns()
 func (_FaultDisputeGame *FaultDisputeGameTransactor) Step(opts *bind.TransactOpts, _claimIndex *big.Int, _isAttack bool, _stateData []byte, _proof []byte) (*types.Transaction, error) {
 	return _FaultDisputeGame.contract.Transact(opts, "step", _claimIndex, _isAttack, _stateData, _proof)
 }
 
 // Step is a paid mutator transaction binding the contract method 0xd8cc1a3c.
 //
-// Solidity: function step(uint256 _claimIndex, bool _isAttack, bytes _stateData, bytes _proof) returns()
+// Solidity: function step(uint256 _claimIndex, bool _isAttack, bytes _stateData, bytes _proof) payable returns()
 func (_FaultDisputeGame *FaultDisputeGameSession) Step(_claimIndex *big.Int, _isAttack bool, _stateData []byte, _proof []byte) (*types.Transaction, error) {
 	return _FaultDisputeGame.Contract.Step(&_FaultDisputeGame.TransactOpts, _claimIndex, _isAttack, _stateData, _proof)
 }
 
 // Step is a paid mutator transaction binding the contract method 0xd8cc1a3c.
 //
-// Solidity: function step(uint256 _claimIndex, bool _isAttack, bytes _stateData, bytes _proof) returns()
+// Solidity: function step(uint256 _claimIndex, bool _isAttack, bytes _stateData, bytes _proof) payable returns()
 func (_FaultDisputeGame *FaultDisputeGameTransactorSession) Step(_claimIndex *big.Int, _isAttack bool, _stateData []byte, _proof []byte) (*types.Transaction, error) {
 	return _FaultDisputeGame.Contract.Step(&_FaultDisputeGame.TransactOpts, _claimIndex, _isAttack, _stateData, _proof)
 }

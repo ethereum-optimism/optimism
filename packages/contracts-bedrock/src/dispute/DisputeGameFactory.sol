@@ -87,6 +87,7 @@ contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, ISemver 
         bytes calldata _extraData
     )
         external
+        payable
         returns (IDisputeGame proxy_)
     {
         // Grab the implementation contract for the given `GameType`.
@@ -97,7 +98,7 @@ contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, ISemver 
 
         // Clone the implementation contract and initialize it with the given parameters.
         proxy_ = IDisputeGame(address(impl).clone(abi.encodePacked(_rootClaim, _extraData)));
-        proxy_.initialize();
+        proxy_.initialize{ value: msg.value }();
 
         // Compute the unique identifier for the dispute game.
         Hash uuid = getGameUUID(_gameType, _rootClaim, _extraData);

@@ -90,6 +90,17 @@ enum GameStatus
     DEFENDER_WINS
 }
 
+/// @notice Kinds of bondable interactions in the dispute game.
+enum BondKind
+// Output Bisection
+{
+    OUTPUT_BISECTION,
+    // Execution Bisection
+    EXECUTION_BISECTION,
+    // Step
+    STEP
+}
+
 /// @title GameTypes
 /// @notice A library that defines the IDs of games that can be played.
 library GameTypes {

@@ -32,6 +32,13 @@ var (
 	methodGenesisOutputRoot  = "genesisOutputRoot"
 	methodSplitDepth         = "splitDepth"
 	methodL2BlockNumber      = "l2BlockNumber"
+	methodRequiredBond       = "getRequiredBond"
+)
+
+const (
+	BondKindOutput uint8 = iota
+	BondKindExecution
+	BondKindStep
 )
 
 type FaultDisputeGameContract struct {
@@ -89,6 +96,14 @@ func (c *FaultDisputeGameContract) GetSplitDepth(ctx context.Context) (types.Dep
 		return 0, fmt.Errorf("failed to retrieve split depth: %w", err)
 	}
 	return types.Depth(splitDepth.GetBigInt(0).Uint64()), nil
+}
+
+func (c *FaultDisputeGameContract) GetRequiredBond(ctx context.Context, bondKind uint8) (*big.Int, error) {
+	bond, err := c.multiCaller.SingleCall(ctx, batching.BlockLatest, c.contract.Call(methodRequiredBond, bondKind))
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve required bond: %w", err)
+	}
+	return bond.GetBigInt(0), nil
 }
 
 func (f *FaultDisputeGameContract) UpdateOracleTx(ctx context.Context, claimIdx uint64, data *types.PreimageOracleData) (txmgr.TxCandidate, error) {

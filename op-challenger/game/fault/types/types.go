@@ -89,6 +89,7 @@ type TraceProvider interface {
 // ClaimData is the core of a claim. It must be unique inside a specific game.
 type ClaimData struct {
 	Value common.Hash
+	Bond  *big.Int
 	Position
 }
 

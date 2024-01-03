@@ -118,7 +118,15 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     ////////////////////////////////////////////////////////////////
 
     /// @inheritdoc IFaultDisputeGame
-    function step(uint256 _claimIndex, bool _isAttack, bytes calldata _stateData, bytes calldata _proof) external {
+    function step(
+        uint256 _claimIndex,
+        bool _isAttack,
+        bytes calldata _stateData,
+        bytes calldata _proof
+    )
+        external
+        payable
+    {
         // INVARIANT: Steps cannot be made unless the game is currently in progress.
         if (status != GameStatus.IN_PROGRESS) revert GameNotInProgress();
 
@@ -224,6 +232,17 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
             _verifyExecBisectionRoot(_claim, _challengeIndex, parentPos, _isAttack);
         }
 
+        // INVARIANT: The `msg.value` must be sufficient to cover the required bond.
+        BondKind moveKind;
+        if (nextPositionDepth == MAX_GAME_DEPTH) {
+            moveKind = BondKind.STEP;
+        } else if (nextPositionDepth > SPLIT_DEPTH) {
+            moveKind = BondKind.EXECUTION_BISECTION;
+        } else {
+            moveKind = BondKind.OUTPUT_BISECTION;
+        }
+        if (getRequiredBond(moveKind) > msg.value) revert InsufficientBond();
+
         // Fetch the grandparent clock, if it exists.
         // The grandparent clock should always exist unless the parent is the root claim.
         Clock grandparentClock;
@@ -261,11 +280,12 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         // Create the new claim.
         claimData.push(
             ClaimData({
+                countered: false,
                 parentIndex: uint32(_challengeIndex),
+                bond: uint128(msg.value),
                 claim: _claim,
                 position: nextPosition,
-                clock: nextClock,
-                countered: false
+                clock: nextClock
             })
         );
 
@@ -434,7 +454,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     ////////////////////////////////////////////////////////////////
 
     /// @inheritdoc IInitializable
-    function initialize() external {
+    function initialize() external payable {
         // SAFETY: Any revert in this function will bubble up to the DisputeGameFactory and
         // prevent the game from being created.
         //
@@ -465,14 +485,18 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
             }
         }
 
+        // INVARIANT: The `msg.value` must be sufficient to cover the required bond.
+        if (getRequiredBond(BondKind.OUTPUT_BISECTION) > msg.value) revert InsufficientBond();
+
         // Set the root claim
         claimData.push(
             ClaimData({
                 parentIndex: type(uint32).max,
+                countered: false,
+                bond: uint128(msg.value),
                 claim: rootClaim(),
                 position: ROOT_POSITION,
-                clock: LibClock.wrap(Duration.wrap(0), Timestamp.wrap(uint64(block.timestamp))),
-                countered: false
+                clock: LibClock.wrap(Duration.wrap(0), Timestamp.wrap(uint64(block.timestamp)))
             })
         );
 
@@ -489,6 +513,15 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     /// @notice Returns the length of the `claimData` array.
     function claimDataLen() external view returns (uint256 len_) {
         len_ = claimData.length;
+    }
+
+    /// @notice Returns the required bond for a given move kind.
+    /// @param _moveKind The kind of move that is requiring a bond.
+    /// @return requiredBond_ The required ETH bond for the given move, in wei.
+    function getRequiredBond(BondKind _moveKind) public pure returns (uint256 requiredBond_) {
+        // TODO
+        _moveKind;
+        requiredBond_ = 0;
     }
 
     ////////////////////////////////////////////////////////////////

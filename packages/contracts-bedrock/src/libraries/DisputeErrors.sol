@@ -27,9 +27,8 @@ error UnexpectedRootClaim(Claim rootClaim);
 /// @notice Thrown when a dispute game has already been initialized.
 error AlreadyInitialized();
 
-/// @notice Thrown when a supplied bond is too low to cover the
-///         cost of the next possible counter claim.
-error BondTooLow();
+/// @notice Thrown when a supplied bond is too low to cover the cost of the interaction.
+error InsufficientBond();
 
 /// @notice Thrown when the `extraData` passed to the CWIA proxy is too long for the `FaultDisputeGame`.
 error ExtraDataTooLong();

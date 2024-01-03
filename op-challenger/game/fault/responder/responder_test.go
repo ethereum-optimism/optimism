@@ -3,6 +3,7 @@ package responder
 import (
 	"context"
 	"errors"
+	"math/big"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
@@ -199,7 +200,7 @@ func newTestFaultResponder(t *testing.T) (*FaultResponder, *mockTxManager, *mock
 	log := testlog.Logger(t, log.LvlError)
 	mockTxMgr := &mockTxManager{}
 	contract := &mockContract{}
-	responder, err := NewFaultResponder(log, mockTxMgr, contract)
+	responder, err := NewFaultResponder(log, mockTxMgr, contract, 8, 4)
 	require.NoError(t, err)
 	return responder, mockTxMgr, contract
 }
@@ -288,4 +289,8 @@ func (m *mockContract) UpdateOracleTx(_ context.Context, claimIdx uint64, data *
 	m.updateOracleClaimIdx = claimIdx
 	m.updateOracleArgs = data
 	return txmgr.TxCandidate{TxData: ([]byte)("updateOracle")}, nil
+}
+
+func (m *mockContract) GetRequiredBond(_ context.Context, bondKind uint8) (*big.Int, error) {
+	return big.NewInt(5), nil
 }
