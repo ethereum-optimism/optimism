@@ -303,12 +303,12 @@ func asBottomTraceProvider(t *testing.T, actual types.TraceProvider) *bottomTrac
 }
 
 func setupAlphabetSplitSelector(t *testing.T) (*alphabet.AlphabetTraceProvider, trace.ProviderSelector, *test.GameBuilder) {
-	top := alphabet.NewTraceProvider(big.NewInt(0), splitDepth)
+	top := alphabet.NewTraceProvider(big.NewInt(0), splitDepth, splitDepth)
 	bottomCreator := func(ctx context.Context, depth types.Depth, pre types.Claim, post types.Claim) (types.TraceProvider, error) {
 		return &bottomTraceProvider{
 			pre:                   pre,
 			post:                  post,
-			AlphabetTraceProvider: alphabet.NewTraceProvider(big.NewInt(0), depth),
+			AlphabetTraceProvider: alphabet.NewTraceProvider(big.NewInt(0), depth, depth),
 		}, nil
 	}
 	selector := NewSplitProviderSelector(top, splitDepth, bottomCreator)

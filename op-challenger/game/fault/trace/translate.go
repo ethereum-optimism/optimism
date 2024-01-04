@@ -3,6 +3,7 @@ package trace
 import (
 	"context"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/alphabet"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -35,6 +36,11 @@ func (p *TranslatingProvider) Get(ctx context.Context, pos types.Position) (comm
 }
 
 func (p *TranslatingProvider) GetStepData(ctx context.Context, pos types.Position) (prestate []byte, proofData []byte, preimageData *types.PreimageOracleData, err error) {
+	// If the trace provider is the alphabet provider, do not make the position relative
+	// as the alphabet provider does not support relative positions.
+	if _, ok := p.provider.(*alphabet.AlphabetTraceProvider); ok {
+		return p.provider.GetStepData(ctx, pos)
+	}
 	relativePos, err := pos.RelativeToAncestorAtDepth(p.rootDepth)
 	if err != nil {
 		return nil, nil, nil, err

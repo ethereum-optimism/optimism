@@ -24,7 +24,7 @@ func NewOutputAlphabetTraceAccessor(
 ) (*trace.Accessor, error) {
 	outputProvider := NewTraceProviderFromInputs(logger, prestateProvider, rollupClient, splitDepth, prestateBlock, poststateBlock)
 	alphabetCreator := func(ctx context.Context, localContext common.Hash, depth types.Depth, agreed contracts.Proposal, claimed contracts.Proposal) (types.TraceProvider, error) {
-		provider := alphabet.NewTraceProvider(agreed.L2BlockNumber, depth)
+		provider := alphabet.NewTraceProvider(agreed.L2BlockNumber, depth, depth+splitDepth+1)
 		return provider, nil
 	}
 	cache := NewProviderCache(m, "output_alphabet_provider", alphabetCreator)

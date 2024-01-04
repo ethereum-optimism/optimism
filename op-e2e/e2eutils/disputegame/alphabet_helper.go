@@ -32,7 +32,7 @@ func (g *AlphabetGameHelper) CreateHonestActor(alphabetTrace string, depth types
 		t:            g.t,
 		require:      g.require,
 		game:         &g.FaultGameHelper,
-		correctTrace: alphabet.NewTraceProvider(big.NewInt(0), depth),
+		correctTrace: alphabet.NewTraceProvider(big.NewInt(0), depth, depth),
 	}
 }
 

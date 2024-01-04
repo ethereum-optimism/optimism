@@ -29,27 +29,29 @@ type AlphabetTraceProvider struct {
 	AlphabetPrestateProvider
 	startingBlockNumber *big.Int
 	depth               types.Depth
+	global              types.Depth
 	maxLen              uint64
 }
 
 // NewTraceProvider returns a new [AlphabetProvider].
-func NewTraceProvider(startingBlockNumber *big.Int, depth types.Depth) *AlphabetTraceProvider {
+func NewTraceProvider(startingBlockNumber *big.Int, depth types.Depth, global types.Depth) *AlphabetTraceProvider {
 	return &AlphabetTraceProvider{
 		startingBlockNumber: startingBlockNumber,
 		depth:               depth,
-		maxLen:              1 << depth,
+		global:              global,
+		maxLen:              1 << global,
 	}
 }
 
 func (ap *AlphabetTraceProvider) GetStepData(ctx context.Context, i types.Position) ([]byte, []byte, *types.PreimageOracleData, error) {
-	traceIndex := i.TraceIndex(ap.depth)
+	traceIndex := i.TraceIndex(ap.global)
 	key := preimage.LocalIndexKey(L2ClaimBlockNumberLocalIndex).PreimageKey()
 	preimageData := types.NewPreimageOracleData(key[:], ap.startingBlockNumber.Bytes(), 0)
 	if traceIndex.Cmp(common.Big0) == 0 {
 		return absolutePrestate, []byte{}, preimageData, nil
 	}
 	// We want the pre-state which is the value prior to the one requested
-	prestateTraceIndex := traceIndex.Sub(traceIndex, big.NewInt(1))
+	prestateTraceIndex := new(big.Int).Sub(traceIndex, big.NewInt(1))
 	// The index cannot be larger than the maximum index as computed by the depth.
 	if prestateTraceIndex.Cmp(big.NewInt(int64(ap.maxLen))) >= 0 {
 		return nil, nil, nil, fmt.Errorf("%w traceIndex: %v max: %v pos: %v", ErrIndexTooLarge, prestateTraceIndex, ap.maxLen, i)

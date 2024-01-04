@@ -11,7 +11,7 @@ import (
 
 func NewAlphabetWithProofProvider(t *testing.T, startingL2BlockNumber *big.Int, maxDepth types.Depth, oracleError error) *alphabetWithProofProvider {
 	return &alphabetWithProofProvider{
-		alphabet.NewTraceProvider(startingL2BlockNumber, maxDepth),
+		alphabet.NewTraceProvider(startingL2BlockNumber, maxDepth, maxDepth),
 		maxDepth,
 		oracleError,
 	}
