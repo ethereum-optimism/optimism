@@ -1118,7 +1118,7 @@ In all blocks following the Ecotone hardfork activation, the L1 Attributes Trans
 for backwards compatibility but it MUST never be called after the Ecotone hardfork activation.
 The values used in the first call to `setL1BlockValuesEcotone` are described in the [SystemConfig Spec].
 
-[System Config Spec]: system_config.md#ecotone-activation
+[SystemConfig Spec]: system_config.md#ecotone-activation
 
 ##### L1Block Deployment
 
