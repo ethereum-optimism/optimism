@@ -1,5 +1,11 @@
 # @eth-optimism/sdk
 
+## 3.1.7
+
+### Patch Changes
+
+- [#8836](https://github.com/ethereum-optimism/optimism/pull/8836) [`6ec80fd19`](https://github.com/ethereum-optimism/optimism/commit/6ec80fd19d9155b17a0873672fb095d323f6e8fb) Thanks [@smartcontracts](https://github.com/smartcontracts)! - Fixes a bug in l1 gas cost estimation.
+
 ## 3.1.6
 
 ### Patch Changes
