@@ -2,6 +2,7 @@ package alphabet
 
 import (
 	"context"
+	"math/big"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
@@ -10,6 +11,7 @@ import (
 )
 
 var absolutePrestate = common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000060")
+var absolutePrestateInt = new(big.Int).SetBytes(absolutePrestate)
 
 var _ types.PrestateProvider = (*AlphabetPrestateProvider)(nil)
 

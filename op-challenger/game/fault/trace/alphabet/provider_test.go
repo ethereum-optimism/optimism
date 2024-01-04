@@ -13,15 +13,44 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func alphabetClaim(index *big.Int, letter string) common.Hash {
-	return alphabetStateHash(BuildAlphabetPreimage(index, letter))
+func alphabetClaim(index *big.Int, claim *big.Int) common.Hash {
+	return alphabetStateHash(BuildAlphabetPreimage(index, claim))
+}
+
+func TestAlphabetProvider_Step(t *testing.T) {
+	depth := types.Depth(2)
+	startingL2BlockNumber := big.NewInt(1)
+
+	ap := NewTraceProvider(startingL2BlockNumber, depth)
+
+	// Start at the absolute prestate as the stateData
+	claim := BuildAlphabetPreimage(big.NewInt(0), absolutePrestateInt)
+	claim = ap.step(claim)
+	startingTraceIndex := new(big.Int).Lsh(startingL2BlockNumber, 4)
+	startingClaim := new(big.Int).Add(absolutePrestateInt, startingTraceIndex)
+	require.Equal(t, BuildAlphabetPreimage(startingTraceIndex, startingClaim), claim)
+
+	// Step again, which should increment both the claim and trace index by 1
+	claim = ap.step(claim)
+	nextTraceIndex := new(big.Int).Add(startingTraceIndex, big.NewInt(1))
+	nextClaim := new(big.Int).Add(startingClaim, big.NewInt(1))
+	require.Equal(t, BuildAlphabetPreimage(nextTraceIndex, nextClaim), claim)
+
+	// Step again, which should increment both the claim and trace index by 1
+	claim = ap.step(claim)
+	nextTraceIndex = new(big.Int).Add(nextTraceIndex, big.NewInt(1))
+	nextClaim = new(big.Int).Add(nextClaim, big.NewInt(1))
+	require.Equal(t, BuildAlphabetPreimage(nextTraceIndex, nextClaim), claim)
 }
 
 // TestAlphabetProvider_Get_ClaimsByTraceIndex tests the [fault.AlphabetProvider] Get function.
 func TestAlphabetProvider_Get_ClaimsByTraceIndex(t *testing.T) {
 	// Create a new alphabet provider.
 	depth := types.Depth(3)
-	canonicalProvider := NewTraceProvider("abcdefgh", depth)
+	startingL2BlockNumber := big.NewInt(1)
+	sbn := new(big.Int).Lsh(startingL2BlockNumber, 4)
+	startingTraceIndex := new(big.Int).Add(absolutePrestateInt, sbn)
+	canonicalProvider := NewTraceProvider(startingL2BlockNumber, depth)
 
 	// Build a list of traces.
 	traces := []struct {
@@ -30,15 +59,15 @@ func TestAlphabetProvider_Get_ClaimsByTraceIndex(t *testing.T) {
 	}{
 		{
 			types.NewPosition(depth, big.NewInt(7)),
-			alphabetClaim(big.NewInt(7), "h"),
+			alphabetClaim(new(big.Int).Add(sbn, big.NewInt(6)), new(big.Int).Add(startingTraceIndex, big.NewInt(6))),
 		},
 		{
 			types.NewPosition(depth, big.NewInt(3)),
-			alphabetClaim(big.NewInt(3), "d"),
+			alphabetClaim(new(big.Int).Add(sbn, big.NewInt(2)), new(big.Int).Add(startingTraceIndex, big.NewInt(2))),
 		},
 		{
 			types.NewPosition(depth, big.NewInt(5)),
-			alphabetClaim(big.NewInt(5), "f"),
+			alphabetClaim(new(big.Int).Add(sbn, big.NewInt(4)), new(big.Int).Add(startingTraceIndex, big.NewInt(4))),
 		},
 	}
 
@@ -54,15 +83,16 @@ func TestAlphabetProvider_Get_ClaimsByTraceIndex(t *testing.T) {
 // returns the correct pre-image for a index.
 func TestGetStepData_Succeeds(t *testing.T) {
 	depth := types.Depth(2)
-	ap := NewTraceProvider("abc", depth)
-	expected := BuildAlphabetPreimage(big.NewInt(0), "a")
+	startingL2BlockNumber := big.NewInt(1)
+	ap := NewTraceProvider(startingL2BlockNumber, depth)
+	expected := BuildAlphabetPreimage(big.NewInt(0), absolutePrestateInt)
 	pos := types.NewPosition(depth, big.NewInt(1))
 	retrieved, proof, data, err := ap.GetStepData(context.Background(), pos)
 	require.NoError(t, err)
 	require.Equal(t, expected, retrieved)
 	require.Empty(t, proof)
 	key := preimage.LocalIndexKey(L2ClaimBlockNumberLocalIndex).PreimageKey()
-	expectedLocalContextData := types.NewPreimageOracleData(key[:], nil, 0)
+	expectedLocalContextData := types.NewPreimageOracleData(key[:], startingL2BlockNumber.Bytes(), 0)
 	require.Equal(t, expectedLocalContextData, data)
 }
 
@@ -70,7 +100,8 @@ func TestGetStepData_Succeeds(t *testing.T) {
 // function errors if the index is too large.
 func TestGetStepData_TooLargeIndex_Fails(t *testing.T) {
 	depth := types.Depth(2)
-	ap := NewTraceProvider("abc", depth)
+	startingL2BlockNumber := big.NewInt(1)
+	ap := NewTraceProvider(startingL2BlockNumber, depth)
 	pos := types.NewPosition(depth, big.NewInt(5))
 	_, _, _, err := ap.GetStepData(context.Background(), pos)
 	require.ErrorIs(t, err, ErrIndexTooLarge)
@@ -79,11 +110,12 @@ func TestGetStepData_TooLargeIndex_Fails(t *testing.T) {
 // TestGet_Succeeds tests the Get function.
 func TestGet_Succeeds(t *testing.T) {
 	depth := types.Depth(2)
-	ap := NewTraceProvider("abc", depth)
+	startingL2BlockNumber := big.NewInt(1)
+	ap := NewTraceProvider(startingL2BlockNumber, depth)
 	pos := types.NewPosition(depth, big.NewInt(0))
 	claim, err := ap.Get(context.Background(), pos)
 	require.NoError(t, err)
-	expected := alphabetClaim(big.NewInt(0), "a")
+	expected := alphabetClaim(big.NewInt(0), absolutePrestateInt)
 	require.Equal(t, expected, claim)
 }
 
@@ -91,7 +123,8 @@ func TestGet_Succeeds(t *testing.T) {
 // greater than the number of indices: 2^depth - 1.
 func TestGet_IndexTooLarge(t *testing.T) {
 	depth := types.Depth(2)
-	ap := NewTraceProvider("abc", depth)
+	startingL2BlockNumber := big.NewInt(1)
+	ap := NewTraceProvider(startingL2BlockNumber, depth)
 	pos := types.NewPosition(depth, big.NewInt(4))
 	_, err := ap.Get(context.Background(), pos)
 	require.ErrorIs(t, err, ErrIndexTooLarge)
@@ -99,7 +132,8 @@ func TestGet_IndexTooLarge(t *testing.T) {
 
 func TestGet_DepthTooLarge(t *testing.T) {
 	depth := types.Depth(2)
-	ap := NewTraceProvider("abc", depth)
+	startingL2BlockNumber := big.NewInt(1)
+	ap := NewTraceProvider(startingL2BlockNumber, depth)
 	pos := types.NewPosition(depth+1, big.NewInt(0))
 	_, err := ap.Get(context.Background(), pos)
 	require.ErrorIs(t, err, ErrIndexTooLarge)
@@ -109,10 +143,13 @@ func TestGet_DepthTooLarge(t *testing.T) {
 // than the trace, but smaller than the maximum depth.
 func TestGet_Extends(t *testing.T) {
 	depth := types.Depth(2)
-	ap := NewTraceProvider("abc", depth)
+	startingL2BlockNumber := big.NewInt(1)
+	sbn := new(big.Int).Lsh(startingL2BlockNumber, 4)
+	startingTraceIndex := new(big.Int).Add(absolutePrestateInt, sbn)
+	ap := NewTraceProvider(startingL2BlockNumber, depth)
 	pos := types.NewPosition(depth, big.NewInt(3))
 	claim, err := ap.Get(context.Background(), pos)
 	require.NoError(t, err)
-	expected := alphabetClaim(big.NewInt(2), "c")
+	expected := alphabetClaim(new(big.Int).Add(sbn, big.NewInt(2)), new(big.Int).Add(startingTraceIndex, big.NewInt(2)))
 	require.Equal(t, expected, claim)
 }
