@@ -126,6 +126,8 @@ and apply the event-based changes as the stage traverses to the next L1 block.
 
 ### Constants
 
+The initial fee paramaters for the Ecotone hardfork are noted in the following table.
+
 | `l1BasefeeScalar` | `l1BlobBasefeeScalar` |
 |---------------------------------------------------|---|
 | Value of `scalar` at Ecotone activation block - 1 | 0 |
@@ -135,6 +137,11 @@ migrate the current value of the `scalar` to the `l1BasefeeScalar` and set the
 `l1BlobBasefeeScalar` value to 0. The `SystemConfig` contract MUST set these values
 as the initial values to guarantee the L2's view of the `SystemConfig` remains
 consistent.
+
+Any `ConfigUpdate` events for the Ecotone fee parameters before MAY be parsed or
+MAY be ignored by the derivation pipeline. Since the values are overwritten on
+the hardfork activation block and are not consumed until the hardfork activation block
+height + 1 , there is no functional difference between the two approaches.
 
 Chain operators can modify the `l1BasefeeScalar` and `l1BlobBasefeeScalar` after
 the Ecotone hardfork activation by calling the `SystemConfig` contract.
