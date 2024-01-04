@@ -17,7 +17,6 @@ func alphabetClaim(index *big.Int, claim *big.Int) common.Hash {
 	return alphabetStateHash(BuildAlphabetPreimage(index, claim))
 }
 
-// TestAlphabetProvider_Get_ClaimsByTraceIndex tests the [fault.AlphabetProvider] Get function.
 func TestAlphabetProvider_Get_ClaimsByTraceIndex(t *testing.T) {
 	// Create a new alphabet provider.
 	depth := types.Depth(3)
@@ -31,15 +30,15 @@ func TestAlphabetProvider_Get_ClaimsByTraceIndex(t *testing.T) {
 	}{
 		{
 			types.NewPosition(depth, big.NewInt(7)),
-			alphabetClaim(big.NewInt(7), new(big.Int).Add(absolutePrestateHash.Big(), big.NewInt(7))),
+			alphabetClaim(big.NewInt(7), new(big.Int).Add(absolutePrestateInt, big.NewInt(7))),
 		},
 		{
 			types.NewPosition(depth, big.NewInt(3)),
-			alphabetClaim(big.NewInt(3), new(big.Int).Add(absolutePrestateHash.Big(), big.NewInt(3))),
+			alphabetClaim(big.NewInt(3), new(big.Int).Add(absolutePrestateInt, big.NewInt(3))),
 		},
 		{
 			types.NewPosition(depth, big.NewInt(5)),
-			alphabetClaim(big.NewInt(5), new(big.Int).Add(absolutePrestateHash.Big(), big.NewInt(5))),
+			alphabetClaim(big.NewInt(5), new(big.Int).Add(absolutePrestateInt, big.NewInt(5))),
 		},
 	}
 
@@ -57,7 +56,7 @@ func TestGetStepData_Succeeds(t *testing.T) {
 	depth := types.Depth(2)
 	startingL2BlockNumber := big.NewInt(1)
 	ap := NewTraceProvider(startingL2BlockNumber, depth, depth)
-	expected := BuildAlphabetPreimage(big.NewInt(0), absolutePrestateHash.Big())
+	expected := BuildAlphabetPreimage(big.NewInt(0), absolutePrestateInt)
 	pos := types.NewPosition(depth, big.NewInt(1))
 	retrieved, proof, data, err := ap.GetStepData(context.Background(), pos)
 	require.NoError(t, err)
@@ -120,6 +119,6 @@ func TestGet_Extends(t *testing.T) {
 	pos := types.NewPosition(depth, big.NewInt(3))
 	claim, err := ap.Get(context.Background(), pos)
 	require.NoError(t, err)
-	expected := alphabetClaim(big.NewInt(3), new(big.Int).Add(absolutePrestateHash.Big(), big.NewInt(3)))
+	expected := alphabetClaim(big.NewInt(3), new(big.Int).Add(absolutePrestateInt, big.NewInt(3)))
 	require.Equal(t, expected, claim)
 }
