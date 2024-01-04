@@ -629,6 +629,47 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         assertEq(address(gameProxy).balance, 0);
     }
 
+    /// @dev Static unit test asserting that credit may not be drained past allowance through reentrancy.
+    function test_claimCredit_claimAlreadyResolved_reverts() public {
+        ClaimCreditReenter reenter = new ClaimCreditReenter(gameProxy);
+        vm.startPrank(address(reenter));
+
+        // Give the test contract some ether to bond.
+        vm.deal(address(reenter), 1 ether);
+        // Give the game proxy 1 extra ether, unregistered.
+        vm.deal(address(gameProxy), 1 ether);
+
+        // Perform a bonded move.
+        Claim claim = _dummyClaim();
+        gameProxy.attack{ value: 1 ether }(0, claim);
+        gameProxy.attack(1, claim);
+
+        // Warp past the finalization period
+        vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
+
+        // Ensure that we bonded all the test contract's ETH
+        assertEq(address(reenter).balance, 0);
+        // Ensure the game proxy has 2 ETH, 1 from bonding and 1 unregistered.
+        assertEq(address(gameProxy).balance, 2 ether);
+
+        // Resolve the claim at gindex 1 and claim the reenter contract's credit.
+        gameProxy.resolveClaim(1);
+
+        // Ensure that the game registered the `reenter` contract's credit.
+        assertEq(gameProxy.credit(address(reenter)), 1 ether);
+
+        // Initiate the reentrant credit claim.
+        reenter.claimCredit(address(reenter));
+
+        // The reenter contract should have performed 5 calls to `claimCredit`, but only received the 1 ETH bonded. The
+        // unregistered ETH should still exist in the game proxy.
+        assertEq(reenter.numCalls(), 5);
+        assertEq(address(reenter).balance, 1 ether);
+        assertEq(address(gameProxy).balance, 1 ether);
+
+        vm.stopPrank();
+    }
+
     /// @dev Tests that adding local data with an out of bounds identifier reverts.
     function testFuzz_addLocalData_oob_reverts(uint256 _ident) public {
         // Get a claim below the split depth so that we can add local data for an execution trace subgame.
@@ -1280,6 +1321,27 @@ contract FaultDispute_1v1_Actors_Test is FaultDisputeGame_Init {
             success;
         }
         gameProxy.resolve();
+    }
+}
+
+contract ClaimCreditReenter {
+    FaultDisputeGame internal immutable GAME;
+    uint256 public numCalls;
+
+    constructor(FaultDisputeGame _gameProxy) {
+        GAME = _gameProxy;
+    }
+
+    function claimCredit(address _recipient) public {
+        numCalls += 1;
+        GAME.claimCredit(_recipient);
+    }
+
+    receive() external payable {
+        if (numCalls == 5) {
+            return;
+        }
+        claimCredit(address(this));
     }
 }
 
