@@ -257,7 +257,7 @@ func (g *OutputGameHelper) WaitForClaimAtMaxDepth(ctx context.Context, countered
 		fmt.Sprintf("Could not find claim depth %v with countered=%v", maxDepth, countered),
 		func(_ int64, claim ContractClaim) bool {
 			pos := types.NewPositionFromGIndex(claim.Position)
-			return int64(pos.Depth()) == maxDepth && (claim.CounteredBy != common.BigToAddress(big.NewInt(0))) == countered
+			return int64(pos.Depth()) == maxDepth && (claim.CounteredBy != common.Address{}) == countered
 		})
 }
 
@@ -266,7 +266,7 @@ func (g *OutputGameHelper) WaitForAllClaimsCountered(ctx context.Context) {
 		ctx,
 		"Did not find all claims countered",
 		func(claim ContractClaim) bool {
-			return claim.CounteredBy == common.BigToAddress(big.NewInt(0))
+			return claim.CounteredBy == common.Address{}
 		})
 }
 

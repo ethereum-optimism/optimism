@@ -200,7 +200,7 @@ func newTestFaultResponder(t *testing.T) (*FaultResponder, *mockTxManager, *mock
 	log := testlog.Logger(t, log.LvlError)
 	mockTxMgr := &mockTxManager{}
 	contract := &mockContract{}
-	responder, err := NewFaultResponder(log, mockTxMgr, contract, 8, 4)
+	responder, err := NewFaultResponder(log, mockTxMgr, contract)
 	require.NoError(t, err)
 	return responder, mockTxMgr, contract
 }

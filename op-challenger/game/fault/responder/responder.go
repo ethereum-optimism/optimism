@@ -32,19 +32,14 @@ type FaultResponder struct {
 
 	txMgr    txmgr.TxManager
 	contract GameContract
-
-	gameDepth  uint64
-	splitDepth uint64
 }
 
 // NewFaultResponder returns a new [FaultResponder].
-func NewFaultResponder(logger log.Logger, txMgr txmgr.TxManager, contract GameContract, gameDepth, splitDepth uint64) (*FaultResponder, error) {
+func NewFaultResponder(logger log.Logger, txMgr txmgr.TxManager, contract GameContract) (*FaultResponder, error) {
 	return &FaultResponder{
-		log:        logger,
-		txMgr:      txMgr,
-		contract:   contract,
-		gameDepth:  gameDepth,
-		splitDepth: splitDepth,
+		log:      logger,
+		txMgr:    txMgr,
+		contract: contract,
 	}, nil
 }
 
@@ -94,14 +89,16 @@ func (r *FaultResponder) PerformAction(ctx context.Context, action types.Action)
 	var err error
 	switch action.Type {
 	case types.ActionTypeMove:
+		var movePos types.Position
 		if action.IsAttack {
+			movePos = action.ParentPosition.Attack()
 			candidate, err = r.contract.AttackTx(uint64(action.ParentIdx), action.Value)
 		} else {
+			movePos = action.ParentPosition.Defend()
 			candidate, err = r.contract.DefendTx(uint64(action.ParentIdx), action.Value)
 		}
 
-		// We can use a generic attack here, the bond calculation only focuses on the depth of the move position
-		bondValue, err := r.contract.GetRequiredBond(ctx, action.ParentPosition.Attack())
+		bondValue, err := r.contract.GetRequiredBond(ctx, movePos)
 		if err != nil {
 			return err
 		}

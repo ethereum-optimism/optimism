@@ -3,7 +3,6 @@ package disputegame
 import (
 	"context"
 	"fmt"
-	"math/big"
 	"slices"
 	"time"
 
@@ -80,7 +79,7 @@ func (c *ClaimHelper) WaitForCountered(ctx context.Context) {
 	defer cancel()
 	err := wait.For(timedCtx, time.Second, func() (bool, error) {
 		latestData := c.game.getClaim(ctx, c.index)
-		return latestData.CounteredBy != common.BigToAddress(big.NewInt(0)), nil
+		return latestData.CounteredBy != common.Address{}, nil
 	})
 	if err != nil { // Avoid waiting time capturing game data when there's no error
 		c.require.NoErrorf(err, "Claim %v was not countered\n%v", c.index, c.game.gameData(ctx))
