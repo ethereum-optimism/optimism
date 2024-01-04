@@ -31,15 +31,15 @@ func TestAlphabetProvider_Get_ClaimsByTraceIndex(t *testing.T) {
 	}{
 		{
 			types.NewPosition(depth, big.NewInt(7)),
-			alphabetClaim(big.NewInt(7), big.NewInt(7)),
+			alphabetClaim(big.NewInt(7), new(big.Int).Add(absolutePrestateHash.Big(), big.NewInt(7))),
 		},
 		{
 			types.NewPosition(depth, big.NewInt(3)),
-			alphabetClaim(big.NewInt(3), big.NewInt(3)),
+			alphabetClaim(big.NewInt(3), new(big.Int).Add(absolutePrestateHash.Big(), big.NewInt(3))),
 		},
 		{
 			types.NewPosition(depth, big.NewInt(5)),
-			alphabetClaim(big.NewInt(5), big.NewInt(5)),
+			alphabetClaim(big.NewInt(5), new(big.Int).Add(absolutePrestateHash.Big(), big.NewInt(5))),
 		},
 	}
 
@@ -57,7 +57,7 @@ func TestGetStepData_Succeeds(t *testing.T) {
 	depth := types.Depth(2)
 	startingL2BlockNumber := big.NewInt(1)
 	ap := NewTraceProvider(startingL2BlockNumber, depth)
-	expected := BuildAlphabetPreimage(big.NewInt(0), big.NewInt(0))
+	expected := BuildAlphabetPreimage(big.NewInt(0), absolutePrestateHash.Big())
 	pos := types.NewPosition(depth, big.NewInt(1))
 	retrieved, proof, data, err := ap.GetStepData(context.Background(), pos)
 	require.NoError(t, err)
@@ -87,7 +87,7 @@ func TestGet_Succeeds(t *testing.T) {
 	pos := types.NewPosition(depth, big.NewInt(0))
 	claim, err := ap.Get(context.Background(), pos)
 	require.NoError(t, err)
-	expected := alphabetClaim(big.NewInt(0), big.NewInt(0))
+	expected := alphabetClaim(big.NewInt(0), absolutePrestateHash.Big())
 	require.Equal(t, expected, claim)
 }
 
@@ -120,6 +120,6 @@ func TestGet_Extends(t *testing.T) {
 	pos := types.NewPosition(depth, big.NewInt(3))
 	claim, err := ap.Get(context.Background(), pos)
 	require.NoError(t, err)
-	expected := alphabetClaim(big.NewInt(3), big.NewInt(3))
+	expected := alphabetClaim(big.NewInt(3), new(big.Int).Add(absolutePrestateHash.Big(), big.NewInt(3)))
 	require.Equal(t, expected, claim)
 }
