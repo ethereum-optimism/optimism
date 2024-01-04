@@ -2,6 +2,7 @@ package eth
 
 import (
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"reflect"
 
@@ -15,8 +16,15 @@ const (
 	BlobSize        = 4096 * 32
 	MaxBlobDataSize = (4*31+3)*1024 - 4
 	EncodingVersion = 0
-	FieldSize       = 4 * 32   // size of a field composed of 4 field elements in bytes
-	FieldCapacity   = 31*4 + 3 // # of bytes that can be encoded in 4 field elements
+	VersionOffset   = 1    // offset of the version byte in the blob encoding
+	Rounds          = 1024 // number of encode/decode rounds
+)
+
+var (
+	ErrBlobInvalidFieldElement    = errors.New("invalid field element")
+	ErrBlobInvalidEncodingVersion = errors.New("invalid encoding version")
+	ErrBlobInvalidLength          = errors.New("invalid length for blob")
+	ErrBlobInputTooLarge          = errors.New("too much data to encode in one blob")
 )
 
 type Blob [BlobSize]byte
@@ -71,210 +79,198 @@ func VerifyBlobProof(blob *Blob, commitment kzg4844.Commitment, proof kzg4844.Pr
 }
 
 // FromData encodes the given input data into this blob. The encoding scheme is as follows:
-// It reads 31 bytes and then 1 byte for three times and then 31 bytes of data from the input.
-// For all the 31 bytes of data, they are encoded into [1:32] bytes of each field element.
-// For the extra 3 bytes read from the input, they are encoded into the 1 bytes of data on the top of each field element.
-// So for each field (4 field elements), 3 bytes are encoded into 4 bytes where the highest order bit is set to 0
-// This process is repeated until all data is encoded.
-// For the first field, [1:5] bytes of the first field element will be used to encode the version and the length of the data.
+//
+// In each round we perform 7 reads of input of lengths (31,1,31,1,31,1,31) bytes respectively for
+// a total of 127 bytes. This data is encoded into the next 4 field elements of the output by
+// placing each of the 4x31 byte chunks into bytes [1:32] of its respective field element. The
+// three single byte chunks (24 bits) are split into 4x6-bit chunks, each of which is written into
+// the top most byte of its respective field element, leaving the top 2 bits of each field element
+// empty to avoid modulus overflow.  This process is repeated for up to 1024 rounds until all data
+// is encoded.
+//
+// For only the very first output field, bytes [1:5] are used to encode the version and the length
+// of the data.
 func (b *Blob) FromData(data Data) error {
 	if len(data) > MaxBlobDataSize {
-		return fmt.Errorf("data is too large for blob. len=%v", len(data))
+		return fmt.Errorf("%w: len=%v", ErrBlobInputTooLarge, data)
 	}
 	b.Clear()
 
 	// first field element encodes the version and the length of the data in [1:5]
-	b[1] = EncodingVersion
+	b[VersionOffset] = EncodingVersion
 
-	// encode the length as big-endian uint24 into [2:5] bytes of the first field element
-	if len(data) < 1<<24 {
-		// Zero out any trailing data in the buffer if any
-		b[2] = byte((len(data) >> 16) & 0xFF) // Most significant byte
-		b[3] = byte((len(data) >> 8) & 0xFF)
-		b[4] = byte(len(data) & 0xFF) // Least significant byte
-	} else {
-		return fmt.Errorf("Error: length_rollup_data is too large")
-	}
+	// Encode the length as big-endian uint24 into [2:5] bytes of the first field element.
+	// The length check above ensures we can always fit the length value into only 3 bytes.
+	ilen := uint32(len(data))
+	b[2] = byte(ilen >> 16)
+	b[3] = byte(ilen >> 8)
+	b[4] = byte(ilen)
 
-	offset := 0
-	var buffer []byte
-
-	// encode the first 27 + 1 bytes of data into remaining bytes of first field element
-	buffer, offset = read(0, 27, data)
-	x, offset := read(offset, 1, data)
+	// round 0 is special cased here since we can only encode the first (31-5)+1=27 bytes of input
+	// into the first field element due to version/length encoding already occupying the first 5
+	// bytes.
+	ipos := 0 // current position of the input data from where we are reading
+	buffer, ipos := read(ipos, 27, data)
+	x, ipos := read(ipos, 1, data)
 	encodedByte := x[0] & 0b0011_1111
-	b.write([]byte{encodedByte}, 0)
+	b[0] = encodedByte
 	b.write(buffer, 5)
-	pointer := 32 // manually set the pointer to the next field element
+	opos := 32 // current position of the blob where we are writing
 
-	clearBuffer(buffer)
-	buffer, offset = read(offset, 31, data)
-	y, offset := read(offset, 1, data)
+	buffer, ipos = read(ipos, 31, data)
+	y, ipos := read(ipos, 1, data)
 
 	encodedByte = (y[0] & 0b0000_1111) | ((x[0] & 0b1100_0000) >> 2)
-	pointer = b.write([]byte{encodedByte}, pointer)
-	pointer = b.write(buffer, pointer)
+	opos = b.writeByteAndBuffer(opos, encodedByte, buffer)
 
-	clearBuffer(buffer)
-	buffer, offset = read(offset, 31, data)
-	z, offset := read(offset, 1, data)
+	buffer, ipos = read(ipos, 31, data)
+	z, ipos := read(ipos, 1, data)
 	encodedByte = z[0] & 0b0011_1111
-	pointer = b.write([]byte{encodedByte}, pointer)
-	pointer = b.write(buffer, pointer)
+	opos = b.writeByteAndBuffer(opos, encodedByte, buffer)
 
-	clearBuffer(buffer)
-	buffer, offset = read(offset, 31, data)
+	buffer, ipos = read(ipos, 31, data)
 	encodedByte = ((z[0] & 0b1100_0000) >> 2) | ((y[0] & 0b1111_0000) >> 4)
-	pointer = b.write([]byte{encodedByte}, pointer)
-	pointer = b.write(buffer, pointer)
+	opos = b.writeByteAndBuffer(opos, encodedByte, buffer)
 
-	if offset == len(data) {
-		return nil
-	}
-
-	for fieldNumber := 1; fieldNumber < 1024; fieldNumber++ {
-		clearBuffer(buffer)
-		buffer, offset = read(offset, 31, data)
-		x, offset = read(offset, 1, data)
+	for round := 1; round < Rounds && ipos < len(data); round++ {
+		buffer, ipos = read(ipos, 31, data)
+		x, ipos = read(ipos, 1, data)
 		encodedByte = x[0] & 0b0011_1111
-		pointer = b.write([]byte{encodedByte}, pointer)
-		pointer = b.write(buffer, pointer)
+		opos = b.writeByteAndBuffer(opos, encodedByte, buffer)
 
-		clearBuffer(buffer)
-		buffer, offset = read(offset, 31, data)
-		y, offset = read(offset, 1, data)
+		buffer, ipos = read(ipos, 31, data)
+		y, ipos = read(ipos, 1, data)
 		encodedByte = (y[0] & 0b0000_1111) | ((x[0] & 0b1100_0000) >> 2)
-		pointer = b.write([]byte{encodedByte}, pointer)
-		pointer = b.write(buffer, pointer)
+		opos = b.writeByteAndBuffer(opos, encodedByte, buffer)
 
-		clearBuffer(buffer)
-		buffer, offset = read(offset, 31, data)
-		z, offset = read(offset, 1, data)
+		buffer, ipos = read(ipos, 31, data)
+		z, ipos = read(ipos, 1, data)
 		encodedByte = z[0] & 0b0011_1111
-		pointer = b.write([]byte{encodedByte}, pointer)
-		pointer = b.write(buffer, pointer)
+		opos = b.writeByteAndBuffer(opos, encodedByte, buffer)
 
-		clearBuffer(buffer)
-		buffer, offset = read(offset, 31, data)
+		buffer, ipos = read(ipos, 31, data)
 		encodedByte = ((z[0] & 0b1100_0000) >> 2) | ((y[0] & 0b1111_0000) >> 4)
-		pointer = b.write([]byte{encodedByte}, pointer)
-		pointer = b.write(buffer, pointer)
-
-		if offset >= len(data) {
-			return nil
-		}
+		opos = b.writeByteAndBuffer(opos, encodedByte, buffer)
 	}
 
-	if offset < len(data) {
-		return fmt.Errorf("failed to fit all data into blob. bytes remaining: %v", len(data)-offset)
+	if ipos < len(data) {
+		return fmt.Errorf("failed to fit all data into blob. bytes remaining: %v", len(data)-ipos)
 	}
 
 	return nil
 }
 
+// read reads up to numBytes of input from the data starting at the given offset, and returns an
+// updated offset of max(offset+numBytes, len(data)).  It always returns a byte array of length
+// exactly numBytes, even if there wasn't enough data to read. In the short-read case, any trailing
+// bytes are zero padded.
 func read(offset int, numBytes int, data []byte) ([]byte, int) {
+	byteArray := make([]byte, numBytes)
 	if offset >= len(data) {
-		// If the offset is at or beyond the end of data, return a new byte array of numBytes length
-		return make([]byte, numBytes), len(data)
+		return byteArray, len(data)
 	}
 
-	// Calculate the actual number of bytes to read, which may be less than numBytes
-	// if the offset is near the end of data
 	actualNumBytes := numBytes
+	// actual number of bytes to read may be less than numBytes if we are near the end of the input
 	if offset+numBytes > len(data) {
 		actualNumBytes = len(data) - offset
 	}
 
-	// Create a new byte array and copy the data from the original slice
-	byteArray := make([]byte, actualNumBytes)
 	copy(byteArray, data[offset:offset+actualNumBytes])
 
 	return byteArray, offset + actualNumBytes
 }
 
-func (b *Blob) write(buffer []byte, pointer int) int {
-	copy(b[pointer:], buffer)
-	return pointer + len(buffer)
+func (b *Blob) writeByteAndBuffer(opos int, encodedByte byte, buffer []byte) int {
+	b[opos] = encodedByte
+	opos = b.write(buffer, opos+1)
+	return opos
+}
+
+func (b *Blob) write(buffer []byte, opos int) int {
+	copy(b[opos:], buffer)
+	return opos + len(buffer)
 }
 
 // ToData decodes the blob into raw byte data. See FromData above for details on the encoding
-// format.
+// format. If error is returned it will be one of InvalidFieldElementError,
+// InvalidEncodingVersionError and InvalidLengthError.
 func (b *Blob) ToData() (Data, error) {
-	data := make(Data, BlobSize)
-	firstField := b[:FieldSize]
-
 	// check the version
-	if firstField[1] != EncodingVersion {
-		return nil, fmt.Errorf("invalid blob, expected version %d, got %d", EncodingVersion, firstField[0])
+	if b[VersionOffset] != EncodingVersion {
+		return nil, fmt.Errorf(
+			"%w: expected version %d, got %d", ErrBlobInvalidEncodingVersion, EncodingVersion, b[VersionOffset])
 	}
 
-	// decode the 3-byte length prefix into 4-byte integer
-	var dataLen int32
-
-	// Assuming b[2], b[3], and b[4] contain the encoded length in big-endian format
-	dataLen = int32(b[2]) << 16 // Shift the most significant byte 16 bits to the left
-	dataLen |= int32(b[3]) << 8 // Shift the next byte 8 bits to the left and OR it with the current length
-	dataLen |= int32(b[4])      // OR the least significant byte with the current length
-
-	if dataLen > (int32)(len(data)) {
-		return nil, fmt.Errorf("invalid blob, length prefix out of range: %d", dataLen)
+	// decode the 3-byte big-endian length value into a 4-byte integer
+	outputLen := uint32(b[2])<<16 | uint32(b[3])<<8 | uint32(b[4])
+	if outputLen > MaxBlobDataSize {
+		return nil, fmt.Errorf("%w: got %d", ErrBlobInvalidLength, outputLen)
 	}
 
-	// copy the first 27 bytes of the first field element into the output
-	copy(data[0:27], firstField[5:])
+	// round 0 is special cased to copy only the remaining 27 bytes of the first field element into
+	// the output due to version/length encoding already occupying its first 5 bytes.
+	output := make(Data, MaxBlobDataSize)
+	copy(output[0:27], b[5:])
 
-	encodedByte := make([]byte, 4)
-	encodedByte[0] = firstField[0]
-	// copy the remaining 31*3 bytes of the first field into the output
+	// now process remaining 3 field elements to complete round 0
+	opos := 28 // current position into output buffer
+	ipos := 32 // current position into the input blob
+	var err error
+	encodedByte := make([]byte, 4) // buffer for the 4 6-bit chunks
+	encodedByte[0] = b[0]
 	for i := 1; i < 4; i++ {
-		// check that the highest order bit of the first byte of each field element is not set
-		if firstField[i*32]&(1<<7) != 0 {
-			return nil, fmt.Errorf("invalid blob, field element %d has highest order bit set", i)
+		encodedByte[i] = b[ipos]
+		if opos, ipos, err = b.decodeFieldElement(opos, ipos, encodedByte, output); err != nil {
+			return nil, err
 		}
-		encodedByte[i] = firstField[i*32]
-		copy(data[27+31*(i-1)+i:], b[i*32+1:i*32+32])
 	}
+	opos = reassembleBytes(opos, encodedByte, output)
 
+	// in each remaining round we decode 4 field elements (128 bytes) of the input into 127 bytes
+	// of output
+	for i := 1; i < Rounds && opos < int(outputLen); i++ {
+		for j := 0; j < 4; j++ {
+			// save the first byte of each field element for later re-assembly
+			encodedByte[j] = b[ipos]
+			if opos, ipos, err = b.decodeFieldElement(opos, ipos, encodedByte, output); err != nil {
+				return nil, err
+			}
+		}
+		opos = reassembleBytes(opos, encodedByte, output)
+	}
+	output = output[:outputLen]
+	return output, nil
+}
+
+// decodeFieldElement decodes the next input field element by writing its lower 31 bytes into its
+// appropriate place in the output and checking the high order byte is valid. Returns an
+// InvalidFieldElementError if a field element is seen with either of its two high order bits set.
+func (b *Blob) decodeFieldElement(opos, ipos int, encodedByte []byte, output []byte) (int, int, error) {
+	// two highest order bits of the first byte of each field element should always be 0
+	if b[ipos]&(0xC0) != 0 {
+		return 0, 0, fmt.Errorf("%w: field element: %d", ErrBlobInvalidFieldElement, ipos)
+	}
+	copy(output[opos:], b[ipos+1:ipos+32])
+	return opos + 32, ipos + 32, nil
+}
+
+// reassembleBytes takes the 4x6-bit chunks from encodedByte, reassembles them into 3 bytes of
+// output, and places them in their appropriate output positions.
+func reassembleBytes(opos int, encodedByte []byte, output []byte) int {
+	opos-- // account for fact that we don't output a 128th byte
 	x := (encodedByte[0] & 0b0011_1111) | ((encodedByte[1] & 0b0011_0000) << 2)
 	y := (encodedByte[1] & 0b0000_1111) | ((encodedByte[3] & 0b0000_1111) << 4)
 	z := (encodedByte[2] & 0b0011_1111) | ((encodedByte[3] & 0b0011_0000) << 2)
-	data[27] = x
-	data[27+31+1] = y
-	data[27+31*2+2] = z
-
-	// for loop to decode 128 bytes of data at a time from the next 4 field elements
-	for i := 1; i < 1024; i++ {
-		encodedByte := make([]byte, 4)
-		for j := 0; j < 4; j++ {
-			// check that the highest order bit of the first byte of each field element is not set
-			if b[i*FieldSize+j*32]&(1<<7) != 0 {
-				return nil, fmt.Errorf("invalid blob, field element %d has highest order bit set", i)
-			}
-			// record the first byte of each field element
-			encodedByte[j] = b[i*FieldSize+j*32]
-			// -4 because of 1 byte of version and 3 bytes of length prefix
-			copy(data[FieldCapacity*i+j*31-4+j:FieldCapacity*i+(j+1)*31-4+j], b[i*FieldSize+j*32+1:])
-		}
-		x := (encodedByte[0] & 0b0011_1111) | ((encodedByte[1] & 0b0011_0000) << 2)
-		y := (encodedByte[1] & 0b0000_1111) | ((encodedByte[3] & 0b0000_1111) << 4)
-		z := (encodedByte[2] & 0b0011_1111) | ((encodedByte[3] & 0b0011_0000) << 2)
-		// copy the decoded data into the output
-		data[FieldCapacity*i+27] = x
-		data[FieldCapacity*i+27+31*1+1] = y
-		data[FieldCapacity*i+27+31*2+2] = z
-	}
-	data = data[:dataLen]
-	return data, nil
+	// put the re-assembled bytes in their appropriate output locations
+	output[opos-32] = z
+	output[opos-(32*2)] = y
+	output[opos-(32*3)] = x
+	return opos
 }
 
 func (b *Blob) Clear() {
 	for i := 0; i < BlobSize; i++ {
 		b[i] = 0
-	}
-}
-
-func clearBuffer(buffer []byte) {
-	for i := 0; i < len(buffer); i++ {
-		buffer[i] = 0
 	}
 }

@@ -1,8 +1,10 @@
 package eth
 
 import (
-	"fmt"
+	"math/rand"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestBlobEncodeDecode(t *testing.T) {
@@ -20,16 +22,11 @@ func TestBlobEncodeDecode(t *testing.T) {
 	var b Blob
 	for _, c := range cases {
 		data := Data(c)
-		if err := b.FromData(data); err != nil {
-			t.Fatalf("failed to encode bytes: %v", err)
-		}
+		err := b.FromData(data)
+		require.NoError(t, err)
 		decoded, err := b.ToData()
-		if err != nil {
-			t.Fatalf("failed to decode blob: %v", err)
-		}
-		if string(decoded) != c {
-			t.Errorf("decoded != input. got: %v, want: %v", decoded, Data(c))
-		}
+		require.NoError(t, err)
+		require.Equal(t, c, string(decoded))
 	}
 }
 
@@ -39,82 +36,55 @@ func TestSmallBlobEncoding(t *testing.T) {
 	data[127] = 0xFF
 
 	var b Blob
-	if err := b.FromData(data); err != nil {
-		t.Fatalf("failed to encode bytes: %v", err)
-	}
+	err := b.FromData(data)
+	require.NoError(t, err)
 
 	decoded, err := b.ToData()
-	if err != nil {
-		t.Fatalf("failed to decode blob: %v", err)
-	}
-	fmt.Println("original data: ", data)
-	fmt.Println("decoded data: ", decoded)
-	if string(decoded) != string(data) {
-		t.Errorf("decoded blob != small blob input")
-	}
+	require.NoError(t, err)
+	require.Equal(t, data, decoded)
 
 	// only 10 bytes of data
 	data[9] = 0xFF
-	if err := b.FromData(data); err != nil {
-		t.Fatalf("failed to encode bytes: %v", err)
-	}
+	err = b.FromData(data)
+	require.NoError(t, err)
 	decoded, err = b.ToData()
-	if err != nil {
-		t.Fatalf("failed to decode blob: %v", err)
-	}
-	fmt.Println("original data: ", data)
-	fmt.Println("decoded data: ", decoded)
-	if string(decoded) != string(data) {
-		t.Errorf("decoded blob != small blob input")
-	}
+	require.NoError(t, err)
+	require.Equal(t, data, decoded)
 
 	// no 3 bytes of extra data left to encode after the first 4 field elements
 	data = Data(make([]byte, 27+31*3))
 	data[27+31*3-1] = 0xFF
-	if err := b.FromData(data); err != nil {
-		t.Fatalf("failed to encode bytes: %v", err)
-	}
+	err = b.FromData(data)
+	require.NoError(t, err)
 	decoded, err = b.ToData()
-	if err != nil {
-		t.Fatalf("failed to decode blob: %v", err)
-	}
-	fmt.Println("original data: ", data)
-	fmt.Println("decoded data: ", decoded)
-	if string(decoded) != string(data) {
-		t.Errorf("decoded blob != small blob input")
-	}
+	require.NoError(t, err)
+	require.Equal(t, data, decoded)
 }
 
 func TestBigBlobEncoding(t *testing.T) {
+	r := rand.New(rand.NewSource(99))
 	bigData := Data(make([]byte, MaxBlobDataSize))
-	bigData[MaxBlobDataSize-1] = 0xFF
+	for i := range bigData {
+		bigData[i] = byte(r.Intn(256))
+	}
 	var b Blob
 	// test the maximum size of data that can be encoded
-	if err := b.FromData(bigData); err != nil {
-		t.Fatalf("failed to encode bytes: %v", err)
-	}
+	err := b.FromData(bigData)
+	require.NoError(t, err)
 	decoded, err := b.ToData()
-	if err != nil {
-		t.Fatalf("failed to decode blob: %v", err)
-	}
-	if string(decoded) != string(bigData) {
-		t.Errorf("decoded blob != big blob input")
-	}
+	require.NoError(t, err)
+	require.Equal(t, bigData, decoded)
 
-	// chop off 1 byte of data at a time for 10 times
-	for i := 1; i < 11; i++ {
-		// test the chopped off data
+	// perform encode/decode test on progressively smaller inputs to exercise boundary conditions
+	// pertaining to length of the input data
+	for i := 1; i < 256; i++ {
 		tempBigData := bigData[i:]
-		if err := b.FromData(tempBigData); err != nil {
-			t.Fatalf("failed to encode bytes: %v", err)
-		}
+		err := b.FromData(tempBigData)
+		require.NoError(t, err)
 		decoded, err := b.ToData()
-		if err != nil {
-			t.Fatalf("failed to decode blob: %v", err)
-		}
-		if string(decoded) != string(tempBigData) {
-			t.Errorf("decoded blob != big blob input")
-		}
+		require.NoError(t, err)
+		require.Equal(t, len(tempBigData), len(decoded))
+		require.Equal(t, tempBigData, decoded)
 	}
 }
 
@@ -125,22 +95,19 @@ func TestInvalidBlobDecoding(t *testing.T) {
 		t.Fatalf("failed to encode bytes: %v", err)
 	}
 
-	b[32] = 0x80 //field elements should never have their highest order bit set
-	if _, err := b.ToData(); err == nil {
-		t.Errorf("expected error, got none")
-	}
+	b[32] = 0x80 // field elements should never have their highest order bit set
+	_, err := b.ToData()
+	require.ErrorIs(t, err, ErrBlobInvalidFieldElement)
+	b[32] = 0x0
 
-	b[1] = 0x01 // wrong version of encoding
-	if _, err := b.ToData(); err == nil {
-		t.Errorf("expected error, got none")
-	}
+	b[VersionOffset] = 0x01 // invalid encoding version
+	_, err = b.ToData()
+	require.ErrorIs(t, err, ErrBlobInvalidEncodingVersion)
+	b[VersionOffset] = EncodingVersion
 
-	b[0] = 0x00
-	b[32] = 0x00
-	b[4] = 0xFF // encode an invalid (much too long) length prefix
-	if _, err := b.ToData(); err == nil {
-		t.Errorf("expected error, got none")
-	}
+	b[2] = 0xFF // encode an invalid (much too long) length prefix
+	_, err = b.ToData()
+	require.ErrorIs(t, err, ErrBlobInvalidLength)
 }
 
 func TestTooLongDataEncoding(t *testing.T) {
@@ -149,7 +116,21 @@ func TestTooLongDataEncoding(t *testing.T) {
 	data := Data(make([]byte, BlobSize))
 	var b Blob
 	err := b.FromData(data)
-	if err == nil {
-		t.Errorf("expected error, got none")
-	}
+	require.ErrorIs(t, err, ErrBlobInputTooLarge)
 }
+
+func FuzzEncodeDecodeBlob(f *testing.F) {
+	var b Blob
+	f.Fuzz(func(t *testing.T, d []byte) {
+		b.Clear()
+		data := Data(d)
+		err := b.FromData(data)
+		require.NoError(t, err)
+		decoded, err := b.ToData()
+		require.NoError(t, err)
+		require.Equal(t, data, decoded)
+	})
+}
+
+// TODO(optimism#8872): Create test vectors to implement one-way tests confirming that specific inputs yield
+// desired outputs.
