@@ -111,7 +111,7 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "L1ERC721Bridge", _sel: _getSel("version()") });
         _addSpec({ _name: "L1ERC721Bridge", _sel: _getSel("superchainConfig()") });
         _addSpec({ _name: "L1ERC721Bridge", _sel: _getSel("paused()") });
-        _addSpec({ _name: "L1ERC721Bridge", _sel: _getSel("initialize(address,address,address)") });
+        _addSpec({ _name: "L1ERC721Bridge", _sel: _getSel("initialize(address,address)") });
 
         // L1StandardBridge
         _addSpec({ _name: "L1StandardBridge", _sel: _getSel("MESSENGER()") });
