@@ -60,7 +60,7 @@ func (m *FakeEngineControl) avgTxsPerBlock() float64 {
 	return float64(m.totalTxs) / float64(m.totalBuiltBlocks)
 }
 
-func (m *FakeEngineControl) StartPayload(ctx context.Context, parent eth.L2BlockRef, attrs *eth.PayloadAttributes, updateSafe bool) (errType derive.BlockInsertionErrType, err error) {
+func (m *FakeEngineControl) StartPayload(ctx context.Context, parent eth.L2BlockRef, attrs *derive.AttributesWithParent, updateSafe bool) (errType derive.BlockInsertionErrType, err error) {
 	if m.err != nil {
 		return m.errTyp, m.err
 	}
@@ -68,7 +68,7 @@ func (m *FakeEngineControl) StartPayload(ctx context.Context, parent eth.L2Block
 	_, _ = crand.Read(m.buildingID[:])
 	m.buildingOnto = parent
 	m.buildingSafe = updateSafe
-	m.buildingAttrs = attrs
+	m.buildingAttrs = attrs.Attributes()
 	m.buildingStart = m.timeNow()
 	return derive.BlockInsertOK, nil
 }
