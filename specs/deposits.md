@@ -279,8 +279,9 @@ type. The overall calldata layout is as follows:
 | l1BlockHash       | bytes32     | 100-131        | 4       |
 | batcherHash       | bytes32     | 132-163        | 5       |
 
-Total calldata length must be exactly 164 bytes, implying the sixth and final segment is only
-partially filled.
+Total calldata length MUST be exactly 164 bytes, implying the sixth and final segment is only
+partially filled. This helps to slow database growth as every L2 block includes a L1 Attributes
+deposit transaction.
 
 ## Special Accounts on L2
 
@@ -356,9 +357,10 @@ The version is incremented to `1.2.0` and several new storage slots are used for
 - `blobBasefeeScalar` (`uint256`): The scalar value applied to the L1 blob base fee portion of the L1 cost.
 - `basefeeScalar` (`uint256`): The scalar value applied to the L1 base fee portion of the L1 cost.
 
-Additionally, the `setL1BlockValues` function is deprecated and replaced with `setL1BlockValuesEcotone`.
-`setL1BlockValuesEcotone` uses packed encoding for its parameters, which is described in
-[L1 Attributes Deposited Transaction Calldata](#l1-attributes-deposited-transaction-calldata)
+Additionally, the `setL1BlockValues` function is deprecated and MUST never be called after the Ecotone hardfork
+activation. The `setL1BlockValuesEcotone` MUST be called after the Ecotone hardfork activation.
+`setL1BlockValuesEcotone` uses a tightly packed encoding for its parameters, which is described in
+[L1 Attributes Deposited Transaction Calldata](#l1-attributes-deposited-transaction-calldata).
 
 ## User-Deposited Transactions
 
