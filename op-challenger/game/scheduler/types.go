@@ -20,6 +20,7 @@ type DiskManager interface {
 }
 
 type job struct {
+	block  uint64
 	addr   common.Address
 	player GamePlayer
 	status types.GameStatus

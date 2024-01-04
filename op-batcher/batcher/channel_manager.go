@@ -241,7 +241,7 @@ func (s *channelManager) processBlocks() error {
 		} else if err != nil {
 			return fmt.Errorf("adding block[%d] to channel builder: %w", i, err)
 		}
-		s.log.Debug("Added block to channel", "id", s.currentChannel.ID(), "block", block)
+		s.log.Debug("Added block to channel", "id", s.currentChannel.ID(), "block", eth.ToBlockID(block))
 
 		blocksAdded += 1
 		latestL2ref = l2BlockRefFromBlockAndL1Info(block, l1info)
@@ -359,7 +359,7 @@ func (s *channelManager) Close() error {
 	// Any pending state can be proactively cleared if there are no submitted transactions
 	for _, ch := range s.channelQueue {
 		if ch.NoneSubmitted() {
-			s.log.Info("Channel has no past or pending submission - dropping", "id", ch.ID(), "")
+			s.log.Info("Channel has no past or pending submission - dropping", "id", ch.ID())
 			s.removePendingChannel(ch)
 		} else {
 			s.log.Info("Channel is in-flight and will need to be submitted after close", "id", ch.ID(), "confirmed", len(ch.confirmedTransactions), "pending", len(ch.pendingTransactions))

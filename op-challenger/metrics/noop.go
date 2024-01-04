@@ -26,6 +26,8 @@ func (*NoopMetricsImpl) RecordUp()                 {}
 func (*NoopMetricsImpl) RecordGameMove() {}
 func (*NoopMetricsImpl) RecordGameStep() {}
 
+func (*NoopMetricsImpl) RecordActedL1Block(_ uint64) {}
+
 func (*NoopMetricsImpl) RecordCannonExecutionTime(t float64) {}
 
 func (*NoopMetricsImpl) RecordGamesStatus(inProgress, defenderWon, challengerWon int) {}

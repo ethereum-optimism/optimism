@@ -10,7 +10,7 @@ import (
 )
 
 type TxReceipt[T any] struct {
-	// ID can be used to identify unique tx receipts within the recept channel
+	// ID can be used to identify unique tx receipts within the receipt channel
 	ID T
 	// Receipt result from the transaction send
 	Receipt *types.Receipt
@@ -28,6 +28,8 @@ type Queue[T any] struct {
 }
 
 // NewQueue creates a new transaction sending Queue, with the following parameters:
+//   - ctx: runtime context of the queue. If canceled, all ongoing send processes are canceled.
+//   - txMgt: transaction managre to use for transaction sending
 //   - maxPending: max number of pending txs at once (0 == no limit)
 func NewQueue[T any](ctx context.Context, txMgr TxManager, maxPending uint64) *Queue[T] {
 	if maxPending > math.MaxInt {

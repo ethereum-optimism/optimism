@@ -26,16 +26,20 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-var (
-	ErrAlreadyStopped = errors.New("already stopped")
-)
+var ErrAlreadyStopped = errors.New("already stopped")
 
 type ProposerConfig struct {
 	// How frequently to poll L2 for new finalized outputs
 	PollInterval   time.Duration
 	NetworkTimeout time.Duration
 
-	L2OutputOracleAddr common.Address
+	// How frequently to post L2 outputs when the DisputeGameFactory is configured
+	ProposalInterval time.Duration
+
+	L2OutputOracleAddr     *common.Address
+	DisputeGameFactoryAddr *common.Address
+	DisputeGameType        uint8
+
 	// AllowNonFinalized enables the proposal of safe, but non-finalized L2 blocks.
 	// The L1 block-hash embedded in the proposal TX is checked and should ensure the proposal
 	// is never valid on an alternative L1 chain that would produce different L2 data.
@@ -87,6 +91,9 @@ func (ps *ProposerService) initFromCLIConfig(ctx context.Context, version string
 	ps.NetworkTimeout = cfg.TxMgrConfig.NetworkTimeout
 	ps.AllowNonFinalized = cfg.AllowNonFinalized
 
+	ps.initL2ooAddress(cfg)
+	ps.initDGF(cfg)
+
 	if err := ps.initRPCClients(ctx, cfg); err != nil {
 		return err
 	}
@@ -99,9 +106,6 @@ func (ps *ProposerService) initFromCLIConfig(ctx context.Context, version string
 	}
 	if err := ps.initPProf(cfg); err != nil {
 		return fmt.Errorf("failed to start pprof server: %w", err)
-	}
-	if err := ps.initL2ooAddress(cfg); err != nil {
-		return fmt.Errorf("failed to init L2ooAddress: %w", err)
 	}
 	if err := ps.initDriver(); err != nil {
 		return fmt.Errorf("failed to init Driver: %w", err)
@@ -194,13 +198,24 @@ func (ps *ProposerService) initMetricsServer(cfg *CLIConfig) error {
 	return nil
 }
 
-func (ps *ProposerService) initL2ooAddress(cfg *CLIConfig) error {
+func (ps *ProposerService) initL2ooAddress(cfg *CLIConfig) {
 	l2ooAddress, err := opservice.ParseAddress(cfg.L2OOAddress)
 	if err != nil {
-		return nil
+		// Return no error & set no L2OO related configuration fields.
+		return
 	}
-	ps.L2OutputOracleAddr = l2ooAddress
-	return nil
+	ps.L2OutputOracleAddr = &l2ooAddress
+}
+
+func (ps *ProposerService) initDGF(cfg *CLIConfig) {
+	dgfAddress, err := opservice.ParseAddress(cfg.DGFAddress)
+	if err != nil {
+		// Return no error & set no DGF related configuration fields.
+		return
+	}
+	ps.DisputeGameFactoryAddr = &dgfAddress
+	ps.ProposalInterval = cfg.ProposalInterval
+	ps.DisputeGameType = cfg.DisputeGameType
 }
 
 func (ps *ProposerService) initDriver() error {
