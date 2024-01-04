@@ -5,6 +5,8 @@ import (
 )
 
 // Consensus defines the consensus interface for leadership election.
+//
+//go:generate mockery --name Consensus --output mocks/ --with-expecter=true
 type Consensus interface {
 	// AddVoter adds a voting member into the cluster, voter is elegible to become leader.
 	AddVoter(id, addr string) error
