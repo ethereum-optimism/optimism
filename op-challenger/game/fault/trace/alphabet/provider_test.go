@@ -87,7 +87,7 @@ func TestGet_Succeeds(t *testing.T) {
 	pos := types.NewPosition(depth, big.NewInt(0))
 	claim, err := ap.Get(context.Background(), pos)
 	require.NoError(t, err)
-	expected := alphabetClaim(big.NewInt(0), absolutePrestateHash.Big())
+	expected := alphabetClaim(big.NewInt(0), absolutePrestateInt)
 	require.Equal(t, expected, claim)
 }
 
