@@ -1,6 +1,7 @@
 package alphabet
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -41,24 +42,37 @@ func NewTraceProvider(startingBlockNumber *big.Int, depth types.Depth) *Alphabet
 	}
 }
 
-func (ap *AlphabetTraceProvider) GetStepData(ctx context.Context, i types.Position) ([]byte, []byte, *types.PreimageOracleData, error) {
-	traceIndex := i.TraceIndex(ap.depth)
+func (ap *AlphabetTraceProvider) GetStepData(ctx context.Context, pos types.Position) ([]byte, []byte, *types.PreimageOracleData, error) {
+	posIndex := pos.TraceIndex(ap.depth)
 	key := preimage.LocalIndexKey(L2ClaimBlockNumberLocalIndex).PreimageKey()
 	preimageData := types.NewPreimageOracleData(key[:], ap.startingBlockNumber.Bytes(), 0)
-	if traceIndex.Cmp(common.Big0) == 0 {
+	if posIndex.Cmp(common.Big0) == 0 {
 		return absolutePrestate, []byte{}, preimageData, nil
 	}
-	// We want the pre-state which is the value prior to the one requested
-	prestateTraceIndex := traceIndex.Sub(traceIndex, big.NewInt(1))
-	// The index cannot be larger than the maximum index as computed by the depth.
-	if prestateTraceIndex.Cmp(big.NewInt(int64(ap.maxLen))) >= 0 {
-		return nil, nil, nil, fmt.Errorf("%w traceIndex: %v max: %v pos: %v", ErrIndexTooLarge, prestateTraceIndex, ap.maxLen, i)
+	prestateTraceIndex := posIndex.Sub(posIndex, big.NewInt(1))
+	if prestateTraceIndex.Cmp(new(big.Int).SetUint64(ap.maxLen)) >= 0 {
+		return nil, nil, nil, fmt.Errorf("%w depth: %v index: %v max: %v", ErrIndexTooLarge, ap.depth, posIndex, ap.maxLen)
 	}
-	initialTraceIndex := new(big.Int).Lsh(ap.startingBlockNumber, 4)
-	initialClaim := new(big.Int).Add(absolutePrestateInt, initialTraceIndex)
-	newTraceIndex := new(big.Int).Add(initialTraceIndex, prestateTraceIndex)
-	newClaim := new(big.Int).Add(initialClaim, prestateTraceIndex)
-	return BuildAlphabetPreimage(newTraceIndex, newClaim), []byte{}, preimageData, nil
+	claim := BuildAlphabetPreimage(big.NewInt(0), absolutePrestateInt)
+	for i := big.NewInt(0); i.Cmp(posIndex) < 0; i = i.Add(i, big.NewInt(1)) {
+		claim = ap.step(claim)
+	}
+	return claim, []byte{}, preimageData, nil
+}
+
+// step accepts the trace index and claim and returns the stepped trace index and claim.
+func (ap *AlphabetTraceProvider) step(stateData []byte) []byte {
+	// Decode the stateData into the trace index and claim
+	traceIndex := new(big.Int).SetBytes(stateData[:32])
+	claim := stateData[32:]
+	if bytes.Equal(claim, absolutePrestate) {
+		initTraceIndex := new(big.Int).Lsh(ap.startingBlockNumber, 4)
+		initClaim := new(big.Int).Add(absolutePrestateInt, initTraceIndex)
+		return BuildAlphabetPreimage(initTraceIndex, initClaim)
+	}
+	stepTraceIndex := new(big.Int).Add(traceIndex, big.NewInt(1))
+	stepClaim := new(big.Int).Add(new(big.Int).SetBytes(claim), big.NewInt(1))
+	return BuildAlphabetPreimage(stepTraceIndex, stepClaim)
 }
 
 // Get returns the claim value at the given index in the trace.
@@ -78,7 +92,7 @@ func (ap *AlphabetTraceProvider) Get(ctx context.Context, i types.Position) (com
 
 // BuildAlphabetPreimage constructs the claim bytes for the index and claim.
 func BuildAlphabetPreimage(i *big.Int, blockNumber *big.Int) []byte {
-	return append(i.FillBytes(make([]byte, 32)), blockNumber.Bytes()...)
+	return append(i.FillBytes(make([]byte, 32)), blockNumber.FillBytes(make([]byte, 32))...)
 }
 
 func alphabetStateHash(state []byte) common.Hash {

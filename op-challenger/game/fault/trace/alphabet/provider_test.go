@@ -17,6 +17,32 @@ func alphabetClaim(index *big.Int, claim *big.Int) common.Hash {
 	return alphabetStateHash(BuildAlphabetPreimage(index, claim))
 }
 
+func TestAlphabetProvider_Step(t *testing.T) {
+	depth := types.Depth(2)
+	startingL2BlockNumber := big.NewInt(1)
+
+	ap := NewTraceProvider(startingL2BlockNumber, depth)
+
+	// Start at the absolute prestate as the stateData
+	claim := BuildAlphabetPreimage(big.NewInt(0), absolutePrestateInt)
+	claim = ap.step(claim)
+	startingTraceIndex := new(big.Int).Lsh(startingL2BlockNumber, 4)
+	startingClaim := new(big.Int).Add(absolutePrestateInt, startingTraceIndex)
+	require.Equal(t, BuildAlphabetPreimage(startingTraceIndex, startingClaim), claim)
+
+	// Step again, which should increment both the claim and trace index by 1
+	claim = ap.step(claim)
+	nextTraceIndex := new(big.Int).Add(startingTraceIndex, big.NewInt(1))
+	nextClaim := new(big.Int).Add(startingClaim, big.NewInt(1))
+	require.Equal(t, BuildAlphabetPreimage(nextTraceIndex, nextClaim), claim)
+
+	// Step again, which should increment both the claim and trace index by 1
+	claim = ap.step(claim)
+	nextTraceIndex = new(big.Int).Add(nextTraceIndex, big.NewInt(1))
+	nextClaim = new(big.Int).Add(nextClaim, big.NewInt(1))
+	require.Equal(t, BuildAlphabetPreimage(nextTraceIndex, nextClaim), claim)
+}
+
 // TestAlphabetProvider_Get_ClaimsByTraceIndex tests the [fault.AlphabetProvider] Get function.
 func TestAlphabetProvider_Get_ClaimsByTraceIndex(t *testing.T) {
 	// Create a new alphabet provider.
@@ -33,15 +59,15 @@ func TestAlphabetProvider_Get_ClaimsByTraceIndex(t *testing.T) {
 	}{
 		{
 			types.NewPosition(depth, big.NewInt(7)),
-			alphabetClaim(new(big.Int).Add(sbn, big.NewInt(7)), new(big.Int).Add(startingTraceIndex, big.NewInt(7))),
+			alphabetClaim(new(big.Int).Add(sbn, big.NewInt(6)), new(big.Int).Add(startingTraceIndex, big.NewInt(6))),
 		},
 		{
 			types.NewPosition(depth, big.NewInt(3)),
-			alphabetClaim(new(big.Int).Add(sbn, big.NewInt(3)), new(big.Int).Add(startingTraceIndex, big.NewInt(3))),
+			alphabetClaim(new(big.Int).Add(sbn, big.NewInt(2)), new(big.Int).Add(startingTraceIndex, big.NewInt(2))),
 		},
 		{
 			types.NewPosition(depth, big.NewInt(5)),
-			alphabetClaim(new(big.Int).Add(sbn, big.NewInt(5)), new(big.Int).Add(startingTraceIndex, big.NewInt(5))),
+			alphabetClaim(new(big.Int).Add(sbn, big.NewInt(4)), new(big.Int).Add(startingTraceIndex, big.NewInt(4))),
 		},
 	}
 
@@ -58,10 +84,8 @@ func TestAlphabetProvider_Get_ClaimsByTraceIndex(t *testing.T) {
 func TestGetStepData_Succeeds(t *testing.T) {
 	depth := types.Depth(2)
 	startingL2BlockNumber := big.NewInt(1)
-	sbn := new(big.Int).Lsh(startingL2BlockNumber, 4)
-	startingTraceIndex := new(big.Int).Add(absolutePrestateInt, sbn)
 	ap := NewTraceProvider(startingL2BlockNumber, depth)
-	expected := BuildAlphabetPreimage(sbn, startingTraceIndex)
+	expected := BuildAlphabetPreimage(big.NewInt(0), absolutePrestateInt)
 	pos := types.NewPosition(depth, big.NewInt(1))
 	retrieved, proof, data, err := ap.GetStepData(context.Background(), pos)
 	require.NoError(t, err)
@@ -87,13 +111,11 @@ func TestGetStepData_TooLargeIndex_Fails(t *testing.T) {
 func TestGet_Succeeds(t *testing.T) {
 	depth := types.Depth(2)
 	startingL2BlockNumber := big.NewInt(1)
-	sbn := new(big.Int).Lsh(startingL2BlockNumber, 4)
-	startingTraceIndex := new(big.Int).Add(absolutePrestateInt, sbn)
 	ap := NewTraceProvider(startingL2BlockNumber, depth)
 	pos := types.NewPosition(depth, big.NewInt(0))
 	claim, err := ap.Get(context.Background(), pos)
 	require.NoError(t, err)
-	expected := alphabetClaim(sbn, startingTraceIndex)
+	expected := alphabetClaim(big.NewInt(0), absolutePrestateInt)
 	require.Equal(t, expected, claim)
 }
 
@@ -128,6 +150,6 @@ func TestGet_Extends(t *testing.T) {
 	pos := types.NewPosition(depth, big.NewInt(3))
 	claim, err := ap.Get(context.Background(), pos)
 	require.NoError(t, err)
-	expected := alphabetClaim(new(big.Int).Add(sbn, big.NewInt(3)), new(big.Int).Add(startingTraceIndex, big.NewInt(3)))
+	expected := alphabetClaim(new(big.Int).Add(sbn, big.NewInt(2)), new(big.Int).Add(startingTraceIndex, big.NewInt(2)))
 	require.Equal(t, expected, claim)
 }
