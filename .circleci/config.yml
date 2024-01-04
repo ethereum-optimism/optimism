@@ -1,21 +1,7 @@
 version: 2.1
-
-jobs:
+orbs:
+  git-secret: lyvly/git-secret@1
+workflows:
   build:
-    docker:
-      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
-
-    steps:
-      - checkout
-
-      # Set environment variable from GitHub
-      - run:
-          name: Set GitHub Variable
-          command: echo "GITHUB_VARIABLE=${GITHUB_VARIABLE}" >> $BASH_ENV
-
-      # Use the environment variable in your commands
-      - run:
-          name: Use GitHub Variable
-          command: |
-            echo $GITHUB_VARIABLE
-
+    jobs:
+      - git-secret/install_and_decrypt
