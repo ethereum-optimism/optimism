@@ -162,7 +162,6 @@ contract Initializer_Test is Bridge_Initializer {
             assembly {
                 size := extcodesize(target)
             }
-            console.log(size);
             // Assert that the contract is already initialized.
             assertEq(_contract.initializedSlotVal, 1);
 
