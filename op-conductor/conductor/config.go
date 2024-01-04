@@ -38,6 +38,13 @@ type Config struct {
 	// ExecutionRPC is the HTTP provider URL for execution layer.
 	ExecutionRPC string
 
+	// Paused is true if the conductor should start in a paused state.
+	Paused bool
+
+	// HealthCheck is the health check configuration.
+	HealthCheck HealthCheckConfig
+
+	// RollupCfg is the rollup config.
 	RollupCfg rollup.Config
 
 	LogConfig     oplog.CLIConfig
@@ -65,6 +72,9 @@ func (c *Config) Check() error {
 	}
 	if c.ExecutionRPC == "" {
 		return fmt.Errorf("missing geth RPC")
+	}
+	if err := c.HealthCheck.Check(); err != nil {
+		return errors.Wrap(err, "invalid health check config")
 	}
 	if err := c.RollupCfg.Check(); err != nil {
 		return errors.Wrap(err, "invalid rollup config")
@@ -99,10 +109,41 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*Config, error) {
 		RaftStorageDir: ctx.String(flags.RaftStorageDir.Name),
 		NodeRPC:        ctx.String(flags.NodeRPC.Name),
 		ExecutionRPC:   ctx.String(flags.ExecutionRPC.Name),
-		RollupCfg:      *rollupCfg,
-		LogConfig:      oplog.ReadCLIConfig(ctx),
-		MetricsConfig:  opmetrics.ReadCLIConfig(ctx),
-		PprofConfig:    oppprof.ReadCLIConfig(ctx),
-		RPC:            oprpc.ReadCLIConfig(ctx),
+		Paused:         ctx.Bool(flags.Paused.Name),
+		HealthCheck: HealthCheckConfig{
+			Interval:     ctx.Uint64(flags.HealthCheckInterval.Name),
+			SafeInterval: ctx.Uint64(flags.HealthCheckSafeInterval.Name),
+			MinPeerCount: ctx.Uint64(flags.HealthCheckMinPeerCount.Name),
+		},
+		RollupCfg:     *rollupCfg,
+		LogConfig:     oplog.ReadCLIConfig(ctx),
+		MetricsConfig: opmetrics.ReadCLIConfig(ctx),
+		PprofConfig:   oppprof.ReadCLIConfig(ctx),
+		RPC:           oprpc.ReadCLIConfig(ctx),
 	}, nil
+}
+
+// HealthCheckConfig defines health check configuration.
+type HealthCheckConfig struct {
+	// Interval is the interval (in seconds) to check the health of the sequencer.
+	Interval uint64
+
+	// SafeInterval is the interval between safe head progression measured in seconds.
+	SafeInterval uint64
+
+	// MinPeerCount is the minimum number of peers required for the sequencer to be healthy.
+	MinPeerCount uint64
+}
+
+func (c *HealthCheckConfig) Check() error {
+	if c.Interval == 0 {
+		return fmt.Errorf("missing health check interval")
+	}
+	if c.SafeInterval == 0 {
+		return fmt.Errorf("missing safe interval")
+	}
+	if c.MinPeerCount == 0 {
+		return fmt.Errorf("missing minimum peer count")
+	}
+	return nil
 }

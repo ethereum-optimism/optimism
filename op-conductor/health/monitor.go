@@ -13,6 +13,8 @@ import (
 )
 
 // HealthMonitor defines the interface for monitoring the health of the sequencer.
+//
+//go:generate mockery --name HealthMonitor --output mocks/ --with-expecter=true
 type HealthMonitor interface {
 	// Subscribe returns a channel that will be notified for every health check.
 	Subscribe() <-chan bool
