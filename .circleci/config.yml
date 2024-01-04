@@ -3,7 +3,7 @@ version: 2.1
 jobs:
   build:
     docker:
-      - image: your-docker-image
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
 
     steps:
       - checkout
@@ -18,3 +18,4 @@ jobs:
           name: Use GitHub Variable
           command: |
             echo $GITHUB_VARIABLE
+
