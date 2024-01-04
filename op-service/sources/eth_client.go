@@ -327,6 +327,8 @@ func (s *EthClient) FetchReceipts(ctx context.Context, blockHash common.Hash) (e
 		if err := validateReceipts(block, info.ReceiptHash(), txHashes, receipts); err != nil {
 			return info, nil, fmt.Errorf("invalid receipts: %w", err)
 		}
+	} else if len(txHashes) != len(receipts) {
+		return info, nil, fmt.Errorf("unexpected number of receipts, expected: %d, got: %d", len(txHashes), len(receipts))
 	}
 
 	return info, receipts, nil

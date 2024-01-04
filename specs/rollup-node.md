@@ -63,7 +63,7 @@ byte hash corresponding to the [L2 output root](./proposals.md#l2-output-commitm
 
 ### Output Method API
 
-The input and return types here are as defined by the [engine API specs][engine-structures]).
+The input and return types here are as defined by the [engine API specs][engine-structures].
 
 [engine-structures]: https://github.com/ethereum/execution-apis/blob/main/src/engine/paris.md#structures
 

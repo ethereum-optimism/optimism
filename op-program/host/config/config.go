@@ -85,9 +85,6 @@ func (c *Config) Check() error {
 	if c.L2OutputRoot == (common.Hash{}) {
 		return ErrInvalidL2OutputRoot
 	}
-	if c.L2Claim == (common.Hash{}) {
-		return ErrInvalidL2Claim
-	}
 	if c.L2ClaimBlockNumber == 0 {
 		return ErrInvalidL2ClaimBlock
 	}
@@ -151,9 +148,13 @@ func NewConfigFromCLI(log log.Logger, ctx *cli.Context) (*Config, error) {
 	if l2OutputRoot == (common.Hash{}) {
 		return nil, ErrInvalidL2OutputRoot
 	}
-	l2Claim := common.HexToHash(ctx.String(flags.L2Claim.Name))
-	if l2Claim == (common.Hash{}) {
-		return nil, ErrInvalidL2Claim
+	strClaim := ctx.String(flags.L2Claim.Name)
+	l2Claim := common.HexToHash(strClaim)
+	// Require a valid hash, with the zero hash explicitly allowed.
+	if l2Claim == (common.Hash{}) &&
+		strClaim != "0x0000000000000000000000000000000000000000000000000000000000000000" &&
+		strClaim != "0000000000000000000000000000000000000000000000000000000000000000" {
+		return nil, fmt.Errorf("%w: %v", ErrInvalidL2Claim, strClaim)
 	}
 	l2ClaimBlockNum := ctx.Uint64(flags.L2BlockNumber.Name)
 	l1Head := common.HexToHash(ctx.String(flags.L1Head.Name))

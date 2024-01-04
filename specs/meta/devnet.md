@@ -33,7 +33,7 @@ The devnet comes with a pre-funded account you can use as a faucet:
 - Private key: `ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80`
 
 The faucet account exists on both L1 and L2. To deposit onto L2 from L1, you can use the `deposit` hardhat task.
-Run the following from the `packags/contracts` directory:
+Run the following from the `packages/contracts` directory:
 
 ```bash
 npx hardhat deposit --amount-eth <amount in eth> --to <address>

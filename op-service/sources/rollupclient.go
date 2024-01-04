@@ -60,6 +60,10 @@ func (r *RollupClient) SequencerActive(ctx context.Context) (bool, error) {
 	return result, err
 }
 
+func (r *RollupClient) PostUnsafePayload(ctx context.Context, payload *eth.ExecutionPayload) error {
+	return r.rpc.CallContext(ctx, nil, "admin_postUnsafePayload", payload)
+}
+
 func (r *RollupClient) SetLogLevel(ctx context.Context, lvl log.Lvl) error {
 	return r.rpc.CallContext(ctx, nil, "admin_setLogLevel", lvl.String())
 }

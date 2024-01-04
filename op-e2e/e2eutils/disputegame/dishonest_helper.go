@@ -77,7 +77,7 @@ func (d *DishonestHelper) ExhaustDishonestClaims(ctx context.Context, rootClaim 
 		// honest level, invalid defense
 
 		pos := types.NewPositionFromGIndex(claimData.Position)
-		if int64(pos.Depth()) == depth {
+		if pos.Depth() == depth {
 			return
 		}
 
@@ -86,12 +86,12 @@ func (d *DishonestHelper) ExhaustDishonestClaims(ctx context.Context, rootClaim 
 		agreeWithLevel := d.defender == (pos.Depth()%2 == 0)
 		if !agreeWithLevel {
 			d.AttackCorrect(ctx, claimIndex)
-			if claimIndex != 0 && int64(pos.Depth()) != splitDepth+1 {
+			if claimIndex != 0 && pos.Depth() != splitDepth+1 {
 				d.DefendCorrect(ctx, claimIndex)
 			}
 		}
 		d.Attack(ctx, claimIndex)
-		if claimIndex != 0 && int64(pos.Depth()) != splitDepth+1 {
+		if claimIndex != 0 && pos.Depth() != splitDepth+1 {
 			d.Defend(ctx, claimIndex)
 		}
 	}

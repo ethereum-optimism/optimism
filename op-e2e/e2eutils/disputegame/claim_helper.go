@@ -42,26 +42,26 @@ func (c *ClaimHelper) IsRootClaim() bool {
 
 func (c *ClaimHelper) IsOutputRoot(ctx context.Context) bool {
 	splitDepth := c.game.SplitDepth(ctx)
-	return int64(c.position.Depth()) <= splitDepth
+	return c.position.Depth() <= splitDepth
 }
 
 func (c *ClaimHelper) IsOutputRootLeaf(ctx context.Context) bool {
 	splitDepth := c.game.SplitDepth(ctx)
-	return int64(c.position.Depth()) == splitDepth
+	return c.position.Depth() == splitDepth
 }
 
 func (c *ClaimHelper) IsBottomGameRoot(ctx context.Context) bool {
 	splitDepth := c.game.SplitDepth(ctx)
-	return int64(c.position.Depth()) == splitDepth+1
+	return c.position.Depth() == splitDepth+1
 }
 
 func (c *ClaimHelper) IsMaxDepth(ctx context.Context) bool {
 	maxDepth := c.game.MaxDepth(ctx)
-	return int64(c.position.Depth()) == maxDepth
+	return c.position.Depth() == maxDepth
 }
 
-func (c *ClaimHelper) Depth() int64 {
-	return int64(c.position.Depth())
+func (c *ClaimHelper) Depth() types.Depth {
+	return c.position.Depth()
 }
 
 // WaitForCounterClaim waits for the claim to be countered by another claim being posted.

@@ -56,7 +56,7 @@ func (g *OutputCannonGameHelper) CreateHonestActor(ctx context.Context, l2Node s
 	prestateBlock, poststateBlock, err := contract.GetBlockRange(ctx)
 	g.require.NoError(err, "Failed to load block range")
 	dir := filepath.Join(cfg.Datadir, "honest")
-	splitDepth := uint64(g.SplitDepth(ctx))
+	splitDepth := g.SplitDepth(ctx)
 	rollupClient := g.system.RollupClient(l2Node)
 	prestateProvider := outputs.NewPrestateProvider(ctx, logger, rollupClient, prestateBlock)
 	accessor, err := outputs.NewOutputCannonTraceAccessor(

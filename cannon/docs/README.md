@@ -12,7 +12,7 @@ to reproduce the same instruction onchain as offchain.
 This is an onchain implementation of big-endian 32-bit MIPS instruction execution.
 This covers MIPS III, R3000, as required by the `mips` Go compiler/runtime target.
 
-The systemcall instruction is implemented to simulate a minimal subset of the Linux kernel,
+The syscall instruction is implemented to simulate a minimal subset of the Linux kernel,
 just enough to serve the needs of a basic Go program:
 allocate memory, read/write to certain file-descriptors, and exit.
 
@@ -30,7 +30,7 @@ The difference is that it has access to the full memory, and pre-image oracle.
 And as it executes each step, it can optionally produce the witness data for the step, to repeat it onchain.
 
 The Cannon CLI is used to load a program into an initial state,
-transition it N steps quickly without witness generation, and 1 step while producing a witness.
+transition it to N steps quickly without witness generation, and 1 step while producing a witness.
 
 `mipsevm` is instrumented for proof generation and handles delay-slots by isolating each individual instruction
 and tracking `nextPC` to emulate the delayed `PC` changes after delay-slot execution.
@@ -90,7 +90,7 @@ where the write is over the same memory as was last read.
 The memory access is specifically:
 - instruction (4 byte) read at `PC`
 - load or syscall mem read, always aligned 4 bytes, read at any `addr`
-- store or syscall mem write, always aligned 4 bytes, at ths same `addr`
+- store or syscall mem write, always aligned 4 bytes, at the same `addr`
 
 Writing only once, at the last read leaf, also means that the leaf can be safely updated and the same proof-data
 that was used to verify the read, can be used to reconstruct the new `memRoot` of the memory tree,

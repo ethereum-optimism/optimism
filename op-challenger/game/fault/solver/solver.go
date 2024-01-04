@@ -18,11 +18,11 @@ var (
 // claimSolver uses a [TraceProvider] to determine the moves to make in a dispute game.
 type claimSolver struct {
 	trace     types.TraceAccessor
-	gameDepth int
+	gameDepth types.Depth
 }
 
 // newClaimSolver creates a new [claimSolver] using the provided [TraceProvider].
-func newClaimSolver(gameDepth int, trace types.TraceAccessor) *claimSolver {
+func newClaimSolver(gameDepth types.Depth, trace types.TraceAccessor) *claimSolver {
 	return &claimSolver{
 		trace,
 		gameDepth,

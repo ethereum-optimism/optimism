@@ -225,10 +225,6 @@ interface IDisputeGame is IInitializable {
     /// @return extraData_ Any extra data supplied to the dispute game contract by the creator.
     function extraData() external pure returns (bytes memory extraData_);
 
-    /// @notice Returns the address of the `BondManager` used.
-    /// @return bondManager_ The address of the `BondManager` used.
-    function bondManager() external view returns (IBondManager bondManager_);
-
     /// @notice If all necessary information has been gathered, this function should mark the game
     ///         status as either `CHALLENGER_WINS` or `DEFENDER_WINS` and return the status of
     ///         the resolved game. It is at this stage that the bonds should be awarded to the

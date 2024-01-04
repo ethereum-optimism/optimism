@@ -46,7 +46,7 @@ type CannonTraceProvider struct {
 	dir          string
 	prestate     string
 	generator    ProofGenerator
-	gameDepth    uint64
+	gameDepth    types.Depth
 	localContext common.Hash
 
 	// lastStep stores the last step in the actual trace if known. 0 indicates unknown.
@@ -54,7 +54,7 @@ type CannonTraceProvider struct {
 	lastStep uint64
 }
 
-func NewTraceProvider(logger log.Logger, m CannonMetricer, cfg *config.Config, localContext common.Hash, localInputs LocalGameInputs, dir string, gameDepth uint64) *CannonTraceProvider {
+func NewTraceProvider(logger log.Logger, m CannonMetricer, cfg *config.Config, localContext common.Hash, localInputs LocalGameInputs, dir string, gameDepth types.Depth) *CannonTraceProvider {
 	return &CannonTraceProvider{
 		logger:       logger,
 		dir:          dir,
@@ -65,12 +65,12 @@ func NewTraceProvider(logger log.Logger, m CannonMetricer, cfg *config.Config, l
 	}
 }
 
-func (p *CannonTraceProvider) SetMaxDepth(gameDepth uint64) {
+func (p *CannonTraceProvider) SetMaxDepth(gameDepth types.Depth) {
 	p.gameDepth = gameDepth
 }
 
 func (p *CannonTraceProvider) Get(ctx context.Context, pos types.Position) (common.Hash, error) {
-	traceIndex := pos.TraceIndex(int(p.gameDepth))
+	traceIndex := pos.TraceIndex(p.gameDepth)
 	if !traceIndex.IsUint64() {
 		return common.Hash{}, errors.New("trace index out of bounds")
 	}
@@ -87,7 +87,7 @@ func (p *CannonTraceProvider) Get(ctx context.Context, pos types.Position) (comm
 }
 
 func (p *CannonTraceProvider) GetStepData(ctx context.Context, pos types.Position) ([]byte, []byte, *types.PreimageOracleData, error) {
-	traceIndex := pos.TraceIndex(int(p.gameDepth))
+	traceIndex := pos.TraceIndex(p.gameDepth)
 	if !traceIndex.IsUint64() {
 		return nil, nil, nil, errors.New("trace index out of bounds")
 	}

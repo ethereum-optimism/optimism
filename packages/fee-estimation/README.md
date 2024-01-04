@@ -56,7 +56,7 @@ const fees = await estimateFees({
   */
   functionName: 'burn',
   abi: optimistABI,
-  args: [tokenid],
+  args: [tokenId],
   account: optimistOwnerAddress,
   to: '0x2335022c740d17c2837f9C884Bfe4fFdbf0A95D5',
 })

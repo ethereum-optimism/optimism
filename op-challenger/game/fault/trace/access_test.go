@@ -14,8 +14,8 @@ import (
 
 func TestAccessor_UsesSelector(t *testing.T) {
 	ctx := context.Background()
-	depth := uint64(4)
-	provider1 := test.NewAlphabetWithProofProvider(t, int(depth), nil)
+	depth := types.Depth(4)
+	provider1 := test.NewAlphabetWithProofProvider(t, depth, nil)
 	provider2 := alphabet.NewTraceProvider("qrstuv", depth)
 	claim := types.Claim{}
 	game := types.NewGameState([]types.Claim{claim}, depth)

@@ -85,14 +85,3 @@ error ClaimAboveSplit();
 /// @notice Thrown on deployment if the split depth is greater than or equal to the max
 ///         depth of the game.
 error InvalidSplitDepth();
-
-////////////////////////////////////////////////////////////////
-//               `BlockOracle` Errors (Legacy)                //
-////////////////////////////////////////////////////////////////
-
-/// @notice Thrown when a block that is out of the range of the `BLOCKHASH` opcode
-///         is attempted to be loaded.
-error BlockNumberOOB();
-
-/// @notice Thrown when a block hash is attempted to be loaded that has not been stored.
-error BlockHashNotPresent();

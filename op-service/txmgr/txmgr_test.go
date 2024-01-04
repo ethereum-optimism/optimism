@@ -203,7 +203,15 @@ func (b *mockBackend) CallContract(ctx context.Context, call ethereum.CallMsg, b
 }
 
 func (b *mockBackend) HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error) {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
+	num := big.NewInt(int64(b.blockHeight))
+	if number != nil {
+		num.Set(number)
+	}
 	return &types.Header{
+		Number:  num,
 		BaseFee: b.g.basefee(),
 	}, nil
 }
@@ -696,6 +704,7 @@ func TestManagerErrsOnZeroConfs(t *testing.T) {
 // inner loop of WaitMined properly handles this case.
 type failingBackend struct {
 	returnSuccessBlockNumber bool
+	returnSuccessHeader      bool
 	returnSuccessReceipt     bool
 	baseFee, gasTip          *big.Int
 }
@@ -727,8 +736,14 @@ func (b *failingBackend) TransactionReceipt(
 	}, nil
 }
 
-func (b *failingBackend) HeaderByNumber(_ context.Context, _ *big.Int) (*types.Header, error) {
+func (b *failingBackend) HeaderByNumber(ctx context.Context, _ *big.Int) (*types.Header, error) {
+	if !b.returnSuccessHeader {
+		b.returnSuccessHeader = true
+		return nil, errRpcFailure
+	}
+
 	return &types.Header{
+		Number:  big.NewInt(1),
 		BaseFee: b.baseFee,
 	}, nil
 }
@@ -800,8 +815,9 @@ func TestWaitMinedReturnsReceiptAfterFailure(t *testing.T) {
 
 func doGasPriceIncrease(t *testing.T, txTipCap, txFeeCap, newTip, newBaseFee int64) (*types.Transaction, *types.Transaction) {
 	borkedBackend := failingBackend{
-		gasTip:  big.NewInt(newTip),
-		baseFee: big.NewInt(newBaseFee),
+		gasTip:              big.NewInt(newTip),
+		baseFee:             big.NewInt(newBaseFee),
+		returnSuccessHeader: true,
 	}
 
 	mgr := &SimpleTxManager{
@@ -855,7 +871,7 @@ func TestIncreaseGasPrice(t *testing.T) {
 			},
 		},
 		{
-			name: "enforces min bump on only tip incrase",
+			name: "enforces min bump on only tip increase",
 			run: func(t *testing.T) {
 				tx, newTx := doGasPriceIncrease(t, 100, 1000, 101, 440)
 				require.True(t, newTx.GasFeeCap().Cmp(tx.GasFeeCap()) > 0, "new tx fee cap must be larger")
@@ -863,7 +879,7 @@ func TestIncreaseGasPrice(t *testing.T) {
 			},
 		},
 		{
-			name: "enforces min bump on only basefee incrase",
+			name: "enforces min bump on only basefee increase",
 			run: func(t *testing.T) {
 				tx, newTx := doGasPriceIncrease(t, 100, 1000, 99, 460)
 				require.True(t, newTx.GasFeeCap().Cmp(tx.GasFeeCap()) > 0, "new tx fee cap must be larger")
@@ -933,8 +949,9 @@ func testIncreaseGasPriceLimit(t *testing.T, lt gasPriceLimitTest) {
 	borkedTip := int64(10)
 	borkedFee := int64(45)
 	borkedBackend := failingBackend{
-		gasTip:  big.NewInt(borkedTip),
-		baseFee: big.NewInt(borkedFee),
+		gasTip:              big.NewInt(borkedTip),
+		baseFee:             big.NewInt(borkedFee),
+		returnSuccessHeader: true,
 	}
 
 	mgr := &SimpleTxManager{
@@ -1035,4 +1052,71 @@ func TestNonceReset(t *testing.T) {
 
 	// internal nonce tracking should be reset every 3rd tx
 	require.Equal(t, []uint64{0, 0, 1, 2, 0, 1, 2, 0}, nonces)
+}
+
+func TestMinFees(t *testing.T) {
+	for _, tt := range []struct {
+		desc             string
+		minBasefee       *big.Int
+		minTipCap        *big.Int
+		expectMinBasefee bool
+		expectMinTipCap  bool
+	}{
+		{
+			desc: "no-mins",
+		},
+		{
+			desc:             "high-min-basefee",
+			minBasefee:       big.NewInt(10_000_000),
+			expectMinBasefee: true,
+		},
+		{
+			desc:            "high-min-tipcap",
+			minTipCap:       big.NewInt(1_000_000),
+			expectMinTipCap: true,
+		},
+		{
+			desc:             "high-mins",
+			minBasefee:       big.NewInt(10_000_000),
+			minTipCap:        big.NewInt(1_000_000),
+			expectMinBasefee: true,
+			expectMinTipCap:  true,
+		},
+		{
+			desc:       "low-min-basefee",
+			minBasefee: big.NewInt(1),
+		},
+		{
+			desc:      "low-min-tipcap",
+			minTipCap: big.NewInt(1),
+		},
+		{
+			desc:       "low-mins",
+			minBasefee: big.NewInt(1),
+			minTipCap:  big.NewInt(1),
+		},
+	} {
+		t.Run(tt.desc, func(t *testing.T) {
+			require := require.New(t)
+			conf := configWithNumConfs(1)
+			conf.MinBasefee = tt.minBasefee
+			conf.MinTipCap = tt.minTipCap
+			h := newTestHarnessWithConfig(t, conf)
+
+			tip, basefee, err := h.mgr.suggestGasPriceCaps(context.TODO())
+			require.NoError(err)
+
+			if tt.expectMinBasefee {
+				require.Equal(tt.minBasefee, basefee, "expect suggested basefee to equal MinBasefee")
+			} else {
+				require.Equal(h.gasPricer.baseBaseFee, basefee, "expect suggested basefee to equal mock basefee")
+			}
+
+			if tt.expectMinTipCap {
+				require.Equal(tt.minTipCap, tip, "expect suggested tip to equal MinTipCap")
+			} else {
+				require.Equal(h.gasPricer.baseGasTipFee, tip, "expect suggested tip to equal mock tip")
+			}
+		})
+	}
 }

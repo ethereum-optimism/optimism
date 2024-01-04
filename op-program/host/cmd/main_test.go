@@ -239,6 +239,16 @@ func TestL2Claim(t *testing.T) {
 	t.Run("Invalid", func(t *testing.T) {
 		verifyArgsInvalid(t, config.ErrInvalidL2Claim.Error(), replaceRequiredArg("--l2.claim", "something"))
 	})
+
+	t.Run("Allows all zero without prefix", func(t *testing.T) {
+		cfg := configForArgs(t, replaceRequiredArg("--l2.claim", "0000000000000000000000000000000000000000000000000000000000000000"))
+		require.EqualValues(t, common.Hash{}, cfg.L2Claim)
+	})
+
+	t.Run("Allows all zero with prefix", func(t *testing.T) {
+		cfg := configForArgs(t, replaceRequiredArg("--l2.claim", "0x0000000000000000000000000000000000000000000000000000000000000000"))
+		require.EqualValues(t, common.Hash{}, cfg.L2Claim)
+	})
 }
 
 func TestL2BlockNumber(t *testing.T) {

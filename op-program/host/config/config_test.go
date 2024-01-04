@@ -65,11 +65,11 @@ func TestL2OutputRootRequired(t *testing.T) {
 	require.ErrorIs(t, err, ErrInvalidL2OutputRoot)
 }
 
-func TestL2ClaimRequired(t *testing.T) {
+// The L2 claim may be provided by a dishonest actor so we must treat 0x00...00 as a real value.
+func TestL2ClaimMayBeDefaultValue(t *testing.T) {
 	config := validConfig()
 	config.L2Claim = common.Hash{}
-	err := config.Check()
-	require.ErrorIs(t, err, ErrInvalidL2Claim)
+	require.NoError(t, config.Check())
 }
 
 func TestL2ClaimBlockNumberRequired(t *testing.T) {

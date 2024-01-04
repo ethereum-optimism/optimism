@@ -28,6 +28,8 @@ type Metricer interface {
 	// Record cache metrics
 	caching.Metrics
 
+	RecordActedL1Block(n uint64)
+
 	RecordGameStep()
 	RecordGameMove()
 	RecordCannonExecutionTime(t float64)
@@ -56,6 +58,8 @@ type Metrics struct {
 	up   prometheus.Gauge
 
 	executors prometheus.GaugeVec
+
+	highestActedL1Block prometheus.Gauge
 
 	moves prometheus.Counter
 	steps prometheus.Counter
@@ -125,6 +129,11 @@ func NewMetrics() *Metrics {
 		}, []string{
 			"status",
 		}),
+		highestActedL1Block: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "highest_acted_l1_block",
+			Help:      "Highest L1 block acted on by the challenger",
+		}),
 		inflightGames: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: Namespace,
 			Name:      "inflight_games",
@@ -193,6 +202,10 @@ func (m *Metrics) RecordGamesStatus(inProgress, defenderWon, challengerWon int) 
 	m.trackedGames.WithLabelValues("in_progress").Set(float64(inProgress))
 	m.trackedGames.WithLabelValues("defender_won").Set(float64(defenderWon))
 	m.trackedGames.WithLabelValues("challenger_won").Set(float64(challengerWon))
+}
+
+func (m *Metrics) RecordActedL1Block(n uint64) {
+	m.highestActedL1Block.Set(float64(n))
 }
 
 func (m *Metrics) RecordGameUpdateScheduled() {

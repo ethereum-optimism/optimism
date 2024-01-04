@@ -36,10 +36,10 @@ func (g *OutputGameHelper) Addr() common.Address {
 	return g.addr
 }
 
-func (g *OutputGameHelper) SplitDepth(ctx context.Context) int64 {
+func (g *OutputGameHelper) SplitDepth(ctx context.Context) types.Depth {
 	splitDepth, err := g.game.SplitDepth(&bind.CallOpts{Context: ctx})
 	g.require.NoError(err, "failed to load split depth")
-	return splitDepth.Int64()
+	return types.Depth(splitDepth.Uint64())
 }
 
 func (g *OutputGameHelper) L2BlockNum(ctx context.Context) uint64 {
@@ -152,10 +152,10 @@ type ContractClaim struct {
 	Clock       *big.Int
 }
 
-func (g *OutputGameHelper) MaxDepth(ctx context.Context) int64 {
+func (g *OutputGameHelper) MaxDepth(ctx context.Context) types.Depth {
 	depth, err := g.game.MaxGameDepth(&bind.CallOpts{Context: ctx})
 	g.require.NoError(err, "Failed to load game depth")
-	return depth.Int64()
+	return types.Depth(depth.Uint64())
 }
 
 func (g *OutputGameHelper) waitForClaim(ctx context.Context, errorMsg string, predicate func(claimIdx int64, claim ContractClaim) bool) (int64, ContractClaim) {
@@ -238,7 +238,7 @@ func (g *OutputGameHelper) getClaim(ctx context.Context, claimIdx int64) Contrac
 	return claimData
 }
 
-func (g *OutputGameHelper) WaitForClaimAtDepth(ctx context.Context, depth int) {
+func (g *OutputGameHelper) WaitForClaimAtDepth(ctx context.Context, depth types.Depth) {
 	g.waitForClaim(
 		ctx,
 		fmt.Sprintf("Could not find claim depth %v", depth),
@@ -255,7 +255,7 @@ func (g *OutputGameHelper) WaitForClaimAtMaxDepth(ctx context.Context, countered
 		fmt.Sprintf("Could not find claim depth %v with countered=%v", maxDepth, countered),
 		func(_ int64, claim ContractClaim) bool {
 			pos := types.NewPositionFromGIndex(claim.Position)
-			return int64(pos.Depth()) == maxDepth && claim.Countered == countered
+			return pos.Depth() == maxDepth && claim.Countered == countered
 		})
 }
 
@@ -459,8 +459,8 @@ func (g *OutputGameHelper) ResolveClaim(ctx context.Context, claimIdx int64) {
 
 func (g *OutputGameHelper) gameData(ctx context.Context) string {
 	opts := &bind.CallOpts{Context: ctx}
-	maxDepth := int(g.MaxDepth(ctx))
-	splitDepth := int(g.SplitDepth(ctx))
+	maxDepth := g.MaxDepth(ctx)
+	splitDepth := g.SplitDepth(ctx)
 	claimCount, err := g.game.ClaimDataLen(opts)
 	info := fmt.Sprintf("Claim count: %v\n", claimCount)
 	g.require.NoError(err, "Fetching claim count")
