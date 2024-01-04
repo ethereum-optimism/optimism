@@ -7,6 +7,7 @@ import { L2ERC721Bridge } from "src/L2/L2ERC721Bridge.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
+import { StandardBridge } from "src/universal/StandardBridge.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 
@@ -28,27 +29,18 @@ contract L1ERC721Bridge is ERC721Bridge, ISemver {
 
     /// @notice Constructs the L1ERC721Bridge contract.
     constructor() ERC721Bridge() {
-        initialize({
-            _messenger: CrossDomainMessenger(address(0)),
-            _otherBridge: address(0),
-            _superchainConfig: SuperchainConfig(address(0))
-        });
+        initialize({ _messenger: CrossDomainMessenger(address(0)), _superchainConfig: SuperchainConfig(address(0)) });
     }
 
     /// @notice Initializes the contract.
     /// @param _messenger   Contract of the CrossDomainMessenger on this network.
-    /// @param _otherBridge Address of the ERC721 bridge on the other network.
     /// @param _superchainConfig Contract of the SuperchainConfig contract on this network.
-    function initialize(
-        CrossDomainMessenger _messenger,
-        address _otherBridge,
-        SuperchainConfig _superchainConfig
-    )
-        public
-        initializer
-    {
+    function initialize(CrossDomainMessenger _messenger, SuperchainConfig _superchainConfig) public initializer {
         superchainConfig = _superchainConfig;
-        __ERC721Bridge_init({ _messenger: _messenger, _otherBridge: _otherBridge });
+        __ERC721Bridge_init({
+            _messenger: _messenger,
+            _otherBridge: StandardBridge(payable(Predeploys.L2_ERC721_BRIDGE))
+        });
     }
 
     /// @inheritdoc ERC721Bridge
@@ -123,7 +115,7 @@ contract L1ERC721Bridge is ERC721Bridge, ISemver {
         IERC721(_localToken).transferFrom({ from: _from, to: address(this), tokenId: _tokenId });
 
         // Send calldata into L2
-        messenger.sendMessage({ _target: otherBridge, _message: message, _minGasLimit: _minGasLimit });
+        messenger.sendMessage({ _target: address(otherBridge), _message: message, _minGasLimit: _minGasLimit });
         emit ERC721BridgeInitiated(_localToken, _remoteToken, _from, _to, _tokenId, _extraData);
     }
 }

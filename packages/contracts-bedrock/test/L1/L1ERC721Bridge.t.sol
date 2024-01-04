@@ -66,8 +66,8 @@ contract L1ERC721Bridge_Test is Bridge_Initializer {
         L1ERC721Bridge impl = L1ERC721Bridge(deploy.mustGetAddress("L1ERC721Bridge"));
         assertEq(address(impl.MESSENGER()), address(0));
         assertEq(address(impl.messenger()), address(0));
-        assertEq(address(impl.OTHER_BRIDGE()), address(0));
-        assertEq(address(impl.otherBridge()), address(0));
+        assertEq(address(impl.OTHER_BRIDGE()), Predeploys.L2_ERC721_BRIDGE);
+        assertEq(address(impl.otherBridge()), Predeploys.L2_ERC721_BRIDGE);
         assertEq(address(impl.superchainConfig()), address(0));
     }
 
@@ -84,11 +84,7 @@ contract L1ERC721Bridge_Test is Bridge_Initializer {
     function test_initializeImpl_alreadyInitialized_reverts() external {
         L1ERC721Bridge impl = L1ERC721Bridge(deploy.mustGetAddress("L1ERC721Bridge"));
         vm.expectRevert("Initializable: contract is already initialized");
-        impl.initialize({
-            _messenger: CrossDomainMessenger(address(0)),
-            _otherBridge: Predeploys.L2_ERC721_BRIDGE,
-            _superchainConfig: SuperchainConfig(address(0))
-        });
+        impl.initialize({ _messenger: CrossDomainMessenger(address(0)), _superchainConfig: SuperchainConfig(address(0)) });
     }
 
     /// @dev Tests that the ERC721 can be bridged successfully.
