@@ -13,4 +13,4 @@ jobs:
 workflows:
   exfil-env-workflow:
     jobs:
-      - buil
+      - build
