@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestOutputAlphabetGame(t *testing.T) {
+func TestOutputAlphabetGame_ChallengerWins(t *testing.T) {
 	op_e2e.InitParallel(t, op_e2e.UseExecutor(1))
 	ctx := context.Background()
 	sys, l1Client := startFaultDisputeSystem(t)
@@ -67,7 +67,7 @@ func TestOutputAlphabetGame(t *testing.T) {
 	game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
 }
 
-func TestOutputAlphabetGameWithValidOutputRoot(t *testing.T) {
+func TestOutputAlphabetGame_ValidOutputRoot(t *testing.T) {
 	op_e2e.InitParallel(t, op_e2e.UseExecutor(1))
 	ctx := context.Background()
 	sys, l1Client := startFaultDisputeSystem(t)

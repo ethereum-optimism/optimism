@@ -54,8 +54,11 @@ func (ap *AlphabetTraceProvider) GetStepData(ctx context.Context, i types.Positi
 	if prestateTraceIndex.Cmp(big.NewInt(int64(ap.maxLen))) >= 0 {
 		return nil, nil, nil, fmt.Errorf("%w traceIndex: %v max: %v pos: %v", ErrIndexTooLarge, prestateTraceIndex, ap.maxLen, i)
 	}
-	claim := new(big.Int).Add(absolutePrestateInt, prestateTraceIndex)
-	return BuildAlphabetPreimage(prestateTraceIndex, claim), []byte{}, preimageData, nil
+	initialTraceIndex := new(big.Int).Lsh(ap.startingBlockNumber, 4)
+	initialClaim := new(big.Int).Add(absolutePrestateInt, initialTraceIndex)
+	newTraceIndex := new(big.Int).Add(initialTraceIndex, prestateTraceIndex)
+	newClaim := new(big.Int).Add(initialClaim, prestateTraceIndex)
+	return BuildAlphabetPreimage(newTraceIndex, newClaim), []byte{}, preimageData, nil
 }
 
 // Get returns the claim value at the given index in the trace.
