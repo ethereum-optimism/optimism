@@ -108,6 +108,34 @@ library Encoding {
         );
     }
 
+    /// @notice Encodes a cross domain message (interop version)
+    function encodeCrossDomainMessageV2(
+        uint256 _nonce,
+        bytes32 _source,
+        bytes32 _destination,
+        address _sender,
+        address _target,
+        uint256 _value,
+        uint256 _gasLimit,
+        bytes memory _data
+    )
+        internal
+        pure
+        returns (bytes memory)
+    {
+        return abi.encodeWithSignature(
+            "relayMessage(uint256,bytes32,bytes32,address,address,uint256,uint256,bytes)",
+            _nonce,
+            _source,
+            _destination,
+            _sender,
+            _target,
+            _value,
+            _gasLimit,
+            _data
+        );
+    }
+
     /// @notice Adds a version number into the first two bytes of a message nonce.
     /// @param _nonce   Message nonce to encode into.
     /// @param _version Version number to encode into the message nonce.
