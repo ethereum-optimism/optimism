@@ -127,12 +127,12 @@ func (f *FaultDisputeGameContract) GetGameDuration(ctx context.Context) (uint64,
 	return result.GetUint64(0), nil
 }
 
-func (f *FaultDisputeGameContract) GetMaxGameDepth(ctx context.Context) (uint64, error) {
+func (f *FaultDisputeGameContract) GetMaxGameDepth(ctx context.Context) (types.Depth, error) {
 	result, err := f.multiCaller.SingleCall(ctx, batching.BlockLatest, f.contract.Call(methodMaxGameDepth))
 	if err != nil {
 		return 0, fmt.Errorf("failed to fetch max game depth: %w", err)
 	}
-	return result.GetBigInt(0).Uint64(), nil
+	return types.Depth(result.GetBigInt(0).Uint64()), nil
 }
 
 func (f *FaultDisputeGameContract) GetAbsolutePrestateHash(ctx context.Context) (common.Hash, error) {
