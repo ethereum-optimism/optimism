@@ -43,8 +43,10 @@ func NewTraceProvider(startingBlockNumber *big.Int, depth types.Depth) *Alphabet
 
 func (ap *AlphabetTraceProvider) GetStepData(ctx context.Context, i types.Position) ([]byte, []byte, *types.PreimageOracleData, error) {
 	traceIndex := i.TraceIndex(ap.depth)
+	key := preimage.LocalIndexKey(L2ClaimBlockNumberLocalIndex).PreimageKey()
+	preimageData := types.NewPreimageOracleData(key[:], ap.startingBlockNumber.Bytes(), 0)
 	if traceIndex.Cmp(common.Big0) == 0 {
-		return absolutePrestate, []byte{}, nil, nil
+		return absolutePrestate, []byte{}, preimageData, nil
 	}
 	// We want the pre-state which is the value prior to the one requested
 	prestateTraceIndex := traceIndex.Sub(traceIndex, big.NewInt(1))
@@ -52,9 +54,8 @@ func (ap *AlphabetTraceProvider) GetStepData(ctx context.Context, i types.Positi
 	if prestateTraceIndex.Cmp(big.NewInt(int64(ap.maxLen))) >= 0 {
 		return nil, nil, nil, fmt.Errorf("%w traceIndex: %v max: %v pos: %v", ErrIndexTooLarge, prestateTraceIndex, ap.maxLen, i)
 	}
-	key := preimage.LocalIndexKey(L2ClaimBlockNumberLocalIndex).PreimageKey()
-	preimageData := types.NewPreimageOracleData(key[:], ap.startingBlockNumber.Bytes(), 0)
-	return BuildAlphabetPreimage(prestateTraceIndex, prestateTraceIndex), []byte{}, preimageData, nil
+	claim := new(big.Int).Add(absolutePrestateHash.Big(), prestateTraceIndex)
+	return BuildAlphabetPreimage(prestateTraceIndex, claim), []byte{}, preimageData, nil
 }
 
 // Get returns the claim value at the given index in the trace.

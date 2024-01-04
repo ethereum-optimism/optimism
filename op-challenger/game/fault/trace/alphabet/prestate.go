@@ -10,6 +10,7 @@ import (
 )
 
 var absolutePrestate = common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000060")
+var absolutePrestateHash = common.HexToHash("0000000000000000000000000000000000000000000000000000000000000060")
 
 var _ types.PrestateProvider = (*AlphabetPrestateProvider)(nil)
 
