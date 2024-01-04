@@ -122,8 +122,8 @@ func (s *OpConductorTestSuite) TestControlLoop1() {
 	s.NoError(err)
 	s.True(s.conductor.Paused())
 
-	// Make sure we could still handle health updates, this will block if we couldn't.
-	s.sendHealthUpdate(true)
+	// Send health update, make sure it can still be consumed.
+	s.healthUpdateCh <- true
 
 	// Resume
 	err = s.conductor.Resume(s.ctx)
@@ -174,20 +174,6 @@ func (s *OpConductorTestSuite) TestControlLoop3() {
 	err = s.conductor.Stop(s.ctx)
 	s.NoError(err)
 	s.True(s.conductor.Stopped())
-}
-
-func (s *OpConductorTestSuite) sendHealthUpdate(healthy bool) {
-	s.healthUpdateCh <- healthy
-	// There isn't a super clean way to wait for the health update to be processed other than adding an acknowledgement channel
-	// However that does bring unnecessary complexity into the code, so opt to sleep for a bit.
-	time.Sleep(100 * time.Millisecond)
-}
-
-func (s *OpConductorTestSuite) sendLeaderUpdate(leader bool) {
-	s.leaderUpdateCh <- leader
-	// There isn't a super clean way to wait for the health update to be processed other than adding an acknowledgement channel
-	// However that does bring unnecessary complexity into the code, so opt to sleep for a bit.
-	time.Sleep(100 * time.Millisecond)
 }
 
 func TestHealthMonitor(t *testing.T) {

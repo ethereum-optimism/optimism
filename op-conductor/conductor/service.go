@@ -39,7 +39,7 @@ func NewOpConductor(
 	version string,
 	ctrl client.SequencerControl,
 	cons consensus.Consensus,
-	hm health.HealthMonitor,
+	hmon health.HealthMonitor,
 ) (*OpConductor, error) {
 	if err := cfg.Check(); err != nil {
 		return nil, errors.Wrap(err, "invalid config")
@@ -56,10 +56,12 @@ func NewOpConductor(
 		actionCh:     make(chan struct{}, 1),
 		ctrl:         ctrl,
 		cons:         cons,
-		hm:           hm,
+		hmon:         hmon,
 	}
+	oc.actionFn = oc.action
+
 	// explicitly set all atomic.Bool values
-	oc.leader.Store(false)    // upon start, it should not be the leader unless specified otherwise by raft bootstrap, in that case, it'll be set to true after it became the leader.
+	oc.leader.Store(false)    // upon start, it should not be the leader unless specified otherwise by raft bootstrap, in that case, it'll receive a leadership update from consensus.
 	oc.healthy.Store(true)    // default to healthy unless reported otherwise by health monitor.
 	oc.seqActive.Store(false) // explicitly set to false by default, the real value will be reported after sequencer control initialization.
 	oc.paused.Store(cfg.Paused)
@@ -134,15 +136,11 @@ func (c *OpConductor) initConsensus(ctx context.Context) error {
 		return errors.Wrap(err, "failed to create raft consensus")
 	}
 	c.cons = cons
-	// if started in bootstrap mode, this current node will be the leader.
-	if c.cfg.RaftBootstrap {
-		c.leader.Store(true)
-	}
 	return nil
 }
 
 func (c *OpConductor) initHealthMonitor(ctx context.Context) error {
-	if c.hm != nil {
+	if c.hmon != nil {
 		return nil
 	}
 
@@ -158,7 +156,7 @@ func (c *OpConductor) initHealthMonitor(ctx context.Context) error {
 	}
 	p2p := opp2p.NewClient(pc)
 
-	c.hm = health.NewSequencerHealthMonitor(
+	c.hmon = health.NewSequencerHealthMonitor(
 		c.log,
 		c.cfg.HealthCheck.Interval,
 		c.cfg.HealthCheck.SafeInterval,
@@ -174,12 +172,11 @@ func (c *OpConductor) initHealthMonitor(ctx context.Context) error {
 // OpConductor represents a full conductor instance and its resources, it does:
 //  1. performs health checks on sequencer
 //  2. participate in consensus protocol for leader election
-//  3. and control sequencer state based on leader and sequencer health status.
+//  3. and control sequencer state based on leader, sequencer health and sequencer active status.
 //
 // OpConductor has three states:
 //  1. running: it is running normally, which executes control loop and participates in leader election.
-//  2. paused: control loop (sequencer start/stop) is paused, but it still participates in leader election.
-//     it is paused for disaster recovery situation
+//  2. paused: control loop (sequencer start/stop) is paused, but it still participates in leader election, and receives health updates.
 //  3. stopped: it is stopped, which means it is not participating in leader election and control loop. OpConductor cannot be started again from stopped mode.
 type OpConductor struct {
 	log     log.Logger
@@ -188,11 +185,13 @@ type OpConductor struct {
 
 	ctrl client.SequencerControl
 	cons consensus.Consensus
-	hm   health.HealthMonitor
+	hmon health.HealthMonitor
 
 	leader    atomic.Bool
 	healthy   atomic.Bool
 	seqActive atomic.Bool
+
+	actionFn func() // actionFn defines the action to be executed to bring the sequencer to the desired state.
 
 	wg             sync.WaitGroup
 	pauseCh        chan struct{}
@@ -212,7 +211,7 @@ var _ cliapp.Lifecycle = (*OpConductor)(nil)
 func (oc *OpConductor) Start(ctx context.Context) error {
 	oc.log.Info("starting OpConductor")
 
-	if err := oc.hm.Start(); err != nil {
+	if err := oc.hmon.Start(); err != nil {
 		return errors.Wrap(err, "failed to start health monitor")
 	}
 
@@ -235,7 +234,7 @@ func (oc *OpConductor) Stop(ctx context.Context) error {
 	oc.wg.Wait()
 
 	// stop health check
-	if err := oc.hm.Stop(); err != nil {
+	if err := oc.hmon.Stop(); err != nil {
 		result = multierror.Append(result, errors.Wrap(err, "failed to stop health monitor"))
 	}
 
@@ -260,10 +259,6 @@ func (oc *OpConductor) Stopped() bool {
 
 // Pause pauses the control loop of OpConductor, but still allows it to participate in leader election.
 func (oc *OpConductor) Pause(ctx context.Context) error {
-	if oc.Paused() {
-		return nil
-	}
-
 	select {
 	case oc.pauseCh <- struct{}{}:
 		<-oc.pauseDoneCh
@@ -275,10 +270,6 @@ func (oc *OpConductor) Pause(ctx context.Context) error {
 
 // Resume resumes the control loop of OpConductor.
 func (oc *OpConductor) Resume(ctx context.Context) error {
-	if !oc.Paused() {
-		return nil
-	}
-
 	select {
 	case oc.resumeCh <- struct{}{}:
 		<-oc.resumeDoneCh
@@ -295,7 +286,7 @@ func (oc *OpConductor) Paused() bool {
 
 func (oc *OpConductor) loop() {
 	defer oc.wg.Done()
-	healthUpdate := oc.hm.Subscribe()
+	healthUpdate := oc.hmon.Subscribe()
 	leaderUpdate := oc.cons.LeaderCh()
 
 	for {
@@ -318,7 +309,7 @@ func (oc *OpConductor) loop() {
 			return
 		// Handle control action last, so that when executing the action, we have the latest status and bring the sequencer to the desired state.
 		case <-oc.actionCh:
-			oc.action()
+			oc.actionFn()
 		}
 	}
 }
@@ -334,12 +325,22 @@ func (oc *OpConductor) queueAction() {
 
 // handleLeaderUpdate handles leadership update from consensus.
 func (oc *OpConductor) handleLeaderUpdate(leader bool) {
-	// TODO: (https://github.com/ethereum-optimism/protocol-quest/issues/47) implement
+	oc.log.Info("Leadership status changed", "server", oc.cons.ServerID(), "leader", leader)
+
+	oc.leader.Store(leader)
+	oc.queueAction()
 }
 
 // handleHealthUpdate handles health update from health monitor.
 func (oc *OpConductor) handleHealthUpdate(healthy bool) {
-	// TODO: (https://github.com/ethereum-optimism/protocol-quest/issues/47) implement
+	if !healthy {
+		oc.log.Error("Sequencer is unhealthy", "server", oc.cons.ServerID())
+	}
+
+	if healthy != oc.healthy.Load() {
+		oc.healthy.Store(healthy)
+		oc.queueAction()
+	}
 }
 
 // action tries to bring the sequencer to the desired state, a retry will be queued if any action failed.
