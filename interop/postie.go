@@ -126,7 +126,7 @@ func (p *Postie) OutboxStorageRoot(chainId uint64) common.Hash {
 func (p *Postie) tick(_ context.Context) {
 	p.log.Info("checking outboxes...")
 
-	// NOTE: There are some potential lifecycle isssues casued by the delay between
+	// NOTE: There are some potential lifecycle isssues caused by the delay between
 	// tx submission and inclusion that would cause repeated mail delivery. As long as
 	// the tick interval >> block time we're fine for the prototype
 	mail := []bindings.InboxEntry{}
@@ -157,7 +157,7 @@ func (p *Postie) tick(_ context.Context) {
 
 		p.log.Info("mail delivered", "tx_hash", tx.Hash().String())
 
-		// NOTE: Technically we should only be updating on succesful inclusion. We would
+		// NOTE: Technically we should only be updating on successful inclusion. We would
 		// ideally read from some on-chain events of updated roots. Since for the prototype
 		// inclusion should be guaranteed, this is fine
 		_, err = wait.ForReceiptOK(context.Background(), p.destionationChain, tx.Hash())

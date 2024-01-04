@@ -49,7 +49,7 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 
 	// NOTE: These two L2s will not settle on the same L1 local network which
 	// is fine for now because this prototype does not care about L1 state and
-	// L1 liquidity is still seperate per L2 chain.
+	// L1 liquidity is still separate per L2 chain.
 	interopAtGenesis := hexutil.Uint64(0)
 	opCfg.DeployConfig.L2GenesisInteropTimeOffset = &interopAtGenesis
 	opCfg.DeployConfig.SuperchainPostie = &opCfg.Secrets.Addresses().Alice
