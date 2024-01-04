@@ -3,7 +3,6 @@ package op_e2e
 import (
 	"context"
 	"math/big"
-	"math/rand"
 	"testing"
 	"time"
 
@@ -16,7 +15,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
-	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
 
 func TestStopStartSequencer(t *testing.T) {
@@ -183,26 +181,20 @@ func TestPostUnsafePayload(t *testing.T) {
 
 	cfg := DefaultSystemConfig(t)
 	cfg.Nodes["verifier"].RPC.EnableAdmin = true
+	cfg.DisableBatcher = true
 
 	sys, err := cfg.Start(t)
-	require.NoError(t, err)
-	err = sys.BatchSubmitter.Stop(ctx)
 	require.NoError(t, err)
 	defer sys.Close()
 
 	l2Seq := sys.Clients["sequencer"]
 	l2Ver := sys.Clients["verifier"]
-	rollupRPCClient, err := rpc.DialContext(ctx, sys.RollupNodes["verifier"].HTTPEndpoint())
-	require.Nil(t, err)
-	rollupClient := sources.NewRollupClient(client.NewBaseRPCClient(rollupRPCClient))
+	rollupClient := sys.RollupClient("verifier")
 
-	time.Sleep(time.Duration(cfg.DeployConfig.L2BlockTime+1) * time.Second)
-	seqBlock, err := l2Seq.BlockByNumber(ctx, nil)
-	require.NoError(t, err)
-	require.Greater(t, seqBlock.Number().Uint64(), uint64(0), "Sequencer should have advanced at least one block")
+	require.NoError(t, wait.ForBlock(ctx, l2Seq, 2), "Chain did not advance after starting sequencer")
 	verBlock, err := l2Ver.BlockByNumber(ctx, nil)
 	require.NoError(t, err)
-	require.Equal(t, uint64(0), verBlock.NumberU64(), "Verifier should not have advanced any blocks since p2p & batcher is not enabled")
+	require.Equal(t, uint64(0), verBlock.NumberU64(), "Verifier should not have advanced any blocks since p2p & batcher are not enabled")
 
 	blockNumberOne, err := l2Seq.BlockByNumber(ctx, big.NewInt(1))
 	require.NoError(t, err)
@@ -211,7 +203,7 @@ func TestPostUnsafePayload(t *testing.T) {
 	err = rollupClient.PostUnsafePayload(ctx, payload)
 	require.NoError(t, err)
 
-	ss, err := rollupClient.SyncStatus(context.Background())
+	ss, err := rollupClient.SyncStatus(ctx)
 	require.NoError(t, err)
 	require.Equal(t, uint64(1), ss.UnsafeL2.Number)
 
@@ -220,7 +212,7 @@ func TestPostUnsafePayload(t *testing.T) {
 	require.NoError(t, err)
 	payload, err = eth.BlockAsPayload(blockNumberTwo, sys.RollupConfig.CanyonTime)
 	require.NoError(t, err)
-	payload.BlockHash = testutils.RandomHash(rand.New(rand.NewSource(1)))
+	payload.BlockHash = common.Hash{0xaa}
 	err = rollupClient.PostUnsafePayload(ctx, payload)
 	require.ErrorContains(t, err, "payload has bad block hash")
 }
