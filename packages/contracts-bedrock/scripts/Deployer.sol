@@ -7,6 +7,7 @@ import { console2 as console } from "forge-std/console2.sol";
 import { Executables } from "scripts/Executables.sol";
 import { Chains } from "scripts/Chains.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
 /// @notice store the new deployment to be saved
 struct Deployment {
@@ -297,6 +298,11 @@ abstract contract Deployer is Script {
         return payable(addr);
     }
 
+    function getAddressImplementation(string memory _name) public view returns (address payable) {
+        address addr = getAddress(_name);
+        return EIP1967Helper.getImplementation(addr);
+    }
+
     /// @notice Returns a deployment that is suitable to be used to interact with contracts.
     /// @param _name The name of the deployment.
     /// @return The deployment.
@@ -561,12 +567,21 @@ abstract contract Deployer is Script {
     }
 
     /// @dev Returns the value of the internal `_initialized` storage slot for a given contract.
+    /// TODO:
+    ///  - update calls to this function so that _contractName includes Proxy suffix
+    ///  - trimmed name passed to `getInitializedSlot`
+    ///  - if has Proxy prefix, use getAddressImplementation with trimmed name
+    ///    else use mustGetAddress with trimmed name
+    ///  - delete second arg _isProxy
     function loadInitializedSlot(string memory _contractName, bool _isProxy) public returns (uint8 initialized_) {
         StorageSlot memory slot = getInitializedSlot(_contractName);
+        address addr;
         if (_isProxy) {
-            _contractName = string.concat(_contractName, "Proxy");
+            addr = getAddressImplementation(_contractName);
+        } else {
+            addr = mustGetAddress(_contractName);
         }
-        bytes32 slotVal = vm.load(mustGetAddress(_contractName), bytes32(vm.parseUint(slot.slot)));
+        bytes32 slotVal = vm.load(addr, bytes32(vm.parseUint(slot.slot)));
         initialized_ = uint8((uint256(slotVal) >> (slot.offset * 8)) & 0xFF);
     }
 
