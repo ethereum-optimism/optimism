@@ -11,6 +11,7 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 // Libraries
 import { Types } from "src/libraries/Types.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 // Target contract dependencies
 import { Proxy } from "src/universal/Proxy.sol";
@@ -37,7 +38,7 @@ contract OptimismPortal_Test is CommonTest {
         assertEq(address(opImpl.SYSTEM_CONFIG()), address(0));
         assertEq(address(opImpl.systemConfig()), address(0));
         assertEq(address(opImpl.superchainConfig()), address(0));
-        assertEq(opImpl.l2Sender(), 0x000000000000000000000000000000000000dEaD);
+        assertEq(opImpl.l2Sender(), Constants.DEFAULT_L2_SENDER);
     }
 
     /// @dev Tests that the initializer sets the correct values.
@@ -50,7 +51,7 @@ contract OptimismPortal_Test is CommonTest {
         assertEq(optimismPortal.GUARDIAN(), guardian);
         assertEq(optimismPortal.guardian(), guardian);
         assertEq(address(optimismPortal.superchainConfig()), address(superchainConfig));
-        assertEq(optimismPortal.l2Sender(), 0x000000000000000000000000000000000000dEaD);
+        assertEq(optimismPortal.l2Sender(), Constants.DEFAULT_L2_SENDER);
         assertEq(optimismPortal.paused(), false);
     }
 
