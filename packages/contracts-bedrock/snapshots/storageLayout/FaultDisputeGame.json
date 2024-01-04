@@ -36,30 +36,37 @@
   },
   {
     "bytes": "32",
-    "label": "claims",
+    "label": "credit",
     "offset": 0,
     "slot": "3",
+    "type": "mapping(address => uint256)"
+  },
+  {
+    "bytes": "32",
+    "label": "claims",
+    "offset": 0,
+    "slot": "4",
     "type": "mapping(ClaimHash => bool)"
   },
   {
     "bytes": "32",
     "label": "subgames",
     "offset": 0,
-    "slot": "4",
+    "slot": "5",
     "type": "mapping(uint256 => uint256[])"
   },
   {
     "bytes": "1",
     "label": "subgameAtRootResolved",
     "offset": 0,
-    "slot": "5",
+    "slot": "6",
     "type": "bool"
   },
   {
     "bytes": "1",
     "label": "initialized",
     "offset": 1,
-    "slot": "5",
+    "slot": "6",
     "type": "bool"
   }
 ]

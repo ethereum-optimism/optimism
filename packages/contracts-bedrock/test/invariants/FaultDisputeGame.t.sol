@@ -46,6 +46,9 @@ contract FaultDisputeGame_Solvency_Invariant is FaultDisputeGame_Init {
         }
         gameProxy.resolve();
 
+        gameProxy.claimCredit(address(this));
+        gameProxy.claimCredit(address(actor));
+
         if (gameProxy.status() == GameStatus.DEFENDER_WINS) {
             assertEq(address(this).balance, type(uint96).max);
             assertEq(address(actor).balance, actor.totalBonded() - rootBond);

@@ -65,6 +65,9 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     /// @notice An append-only array of all claims made during the dispute game.
     ClaimData[] public claimData;
 
+    /// @notice Credited balances for winning participants.
+    mapping(address => uint256) public credit;
+
     /// @notice An internal mapping to allow for constant-time lookups of existing claims.
     mapping(ClaimHash => bool) internal claims;
 
@@ -386,7 +389,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         // Uncontested claims are resolved implicitly unless they are the root claim. Pay out the bond to the claimant
         // and return early.
         if (challengeIndicesLen == 0 && _claimIndex != 0) {
-            _payBond(parent.claimant, parent);
+            _distributeBond(parent.claimant, parent);
             return;
         }
 
@@ -409,7 +412,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
 
         // If the parent was not successfully countered, pay out the parent's bond to the claimant.
         // If the parent was successfully countered, pay out the parent's bond to the challenger.
-        _payBond(countered == address(0) ? parent.claimant : countered, parent);
+        _distributeBond(countered == address(0) ? parent.claimant : countered, parent);
 
         // Once a subgame is resolved, we percolate the result up the DAG so subsequent calls to
         // resolveClaim will not need to traverse this subgame.
@@ -519,6 +522,18 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         requiredBond_ = 0;
     }
 
+    /// @notice Claim the credit belonging to the recipient address.
+    /// @param _recipient The owner and recipient of the credit.
+    function claimCredit(address _recipient) external {
+        // Remove the credit from the recipient prior to performing the external call.
+        uint256 recipientCredit = credit[_recipient];
+        credit[_recipient] = 0;
+
+        // Transfer the credit to the recipient.
+        (bool success,) = _recipient.call{ value: recipientCredit }(hex"");
+        if (!success) revert BondTransferFailed();
+    }
+
     ////////////////////////////////////////////////////////////////
     //                     IMMUTABLE GETTERS                      //
     ////////////////////////////////////////////////////////////////
@@ -565,15 +580,14 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     /// @notice Pays out the bond of a claim to a given recipient.
     /// @param _recipient The recipient of the bond.
     /// @param _bonded The claim to pay out the bond of.
-    /// @return success_ Whether or not the transfer was successful.
-    function _payBond(address _recipient, ClaimData storage _bonded) internal returns (bool success_) {
+    function _distributeBond(address _recipient, ClaimData storage _bonded) internal {
         // Set all bits in the bond value to indicate that the bond has been paid out.
         uint256 bond = _bonded.bond;
         if (bond == type(uint128).max) revert ClaimAlreadyResolved();
         _bonded.bond = type(uint128).max;
 
-        // Pay out the bond to the recipient.
-        (success_,) = address(_recipient).call{ value: bond }(hex"");
+        // Increase the recipient's credit.
+        credit[_recipient] += bond;
     }
 
     /// @notice Verifies the integrity of an execution bisection subgame's root claim. Reverts if the claim

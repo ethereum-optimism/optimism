@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum/go-ethereum/common"
@@ -52,7 +51,7 @@ func (s *GameSolver) CalculateNextActions(ctx context.Context, game types.Game) 
 }
 
 func (s *GameSolver) calculateStep(ctx context.Context, game types.Game, agreeWithRootClaim bool, claim types.Claim) (*types.Action, error) {
-	if claim.CounteredBy != common.BigToAddress(big.NewInt(0)) {
+	if claim.CounteredBy != (common.Address{}) {
 		return nil, nil
 	}
 	if game.AgreeWithClaimLevel(claim, agreeWithRootClaim) {

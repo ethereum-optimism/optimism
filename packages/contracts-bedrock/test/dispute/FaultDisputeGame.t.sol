@@ -543,6 +543,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
 
         assertEq(address(this).balance, 0);
         gameProxy.resolveClaim(1);
+        gameProxy.claimCredit(address(this));
         assertEq(address(this).balance, 1 ether);
 
         vm.expectRevert(ClaimAlreadyResolved.selector);
@@ -568,6 +569,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         // Resolve to claim bond
         uint256 balanceBefore = address(this).balance;
         gameProxy.resolveClaim(8);
+        gameProxy.claimCredit(address(this));
         assertEq(address(this).balance, balanceBefore + 1 ether);
 
         vm.expectRevert(ClaimAlreadyResolved.selector);
@@ -619,6 +621,8 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
             success;
         }
         gameProxy.resolve();
+
+        gameProxy.claimCredit(address(this));
 
         // Ensure that bonds were paid out correctly.
         assertEq(address(this).balance, 100 ether);

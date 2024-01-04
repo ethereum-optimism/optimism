@@ -30,6 +30,9 @@ error AlreadyInitialized();
 /// @notice Thrown when a supplied bond is too low to cover the cost of the interaction.
 error InsufficientBond();
 
+/// @notice Thrown when the transfer of credit to a recipient account reverts.
+error BondTransferFailed();
+
 /// @notice Thrown when the `extraData` passed to the CWIA proxy is too long for the `FaultDisputeGame`.
 error ExtraDataTooLong();
 
