@@ -12,11 +12,10 @@ jobs:
           command: |
             git config --global user.email "testing@oplabs.co"
             git config --global user.name "testing"
-
-            # Make changes to your files as needed
+            git checkout -b testing-coms
             echo "Updated content" > dummy.txt
-
             git add .
             git commit -m "Committing dummy"
+            git push origin testing-coms
 
-            git push --set-upstream origin feat/security-council
+
