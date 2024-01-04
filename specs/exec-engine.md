@@ -251,12 +251,12 @@ If not specified as rollup, a `STATUS_INVALID` is returned.
 
 ### `engine_newPayloadV2`
 
-[`engine_newPayloadV2`][engine_newPayloadV2] applies a pre-Ectone L2 block to the engine state.
+[`engine_newPayloadV2`][engine_newPayloadV2] applies a Bedrock/Canyon L2 block to the engine state.
 There are no modifications to this API.
 
 ### `engine_newPayloadV3`
 
-[`engine_newPayloadV3`][engine_newPayloadV3] applies a post-Ecotone L2 block to the engine state. There are no
+[`engine_newPayloadV3`][engine_newPayloadV3] applies an Ecotone L2 block to the engine state. There are no
 modifications to this API. The additional parameters should be set as follows:
 
 - `expectedBlobVersionedHashes` MUST be an empty array.
@@ -283,7 +283,7 @@ The [response][GetPayloadV3Response] is extended to:
 
 [GetPayloadV3Response]: (https://github.com/ethereum/execution-apis/blob/main/src/engine/cancun.md#response-2)
 
-Pre-Ecotone `parentBeaconBlockRoot` MUST be nil and post-Ecotone it MUST be set to the parentBeaconBlockRoot
+For Bedrock and Canyon `parentBeaconBlockRoot` MUST be nil and in Ecotone it MUST be set to the parentBeaconBlockRoot
 from the L1 Origin block of the L2 block.
 
 ### `engine_signalSuperchainV1`

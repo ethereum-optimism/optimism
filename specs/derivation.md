@@ -802,12 +802,12 @@ To interact with the engine, the [execution engine API][exec-engine] is used, wi
   instructs the engine to start building an execution payload if the payload attributes parameter is not `null`.
 - [`engine_getPayloadV3`] — retrieves a previously requested execution payload build.
 - `engine_newPayload`
-  - [`engine_newPayloadV2`] — executes a pre-Ecotone execution payload to create a block.
-  - [`engine_newPayloadV3`] — executes a post-Ectone execution payload to create a block.
+  - [`engine_newPayloadV2`] — executes a Bedrock or Canyon execution payload to create a block.
+  - [`engine_newPayloadV3`] — executes an Ecotone execution payload to create a block.
 
 The current version of `op-node` uses the `v3` Engine API RPC methods as well as `engine_newPayloadV2`.
 `engine_newPayloadV3` can only be called with an Ecotone execution payload. Both `engine_forkchoiceUpdatedV3` and
-`engine_getPayloadV3` are backwards compatible with pre-Ecotone payloads.
+`engine_getPayloadV3` are backwards compatible with Bedrock & Canyon payloads.
 
 Prior versions of `op-node` used `v2` and `v1` methods.
 
@@ -822,15 +822,18 @@ The execution payload is an object of type [`ExecutionPayloadV3`][eth-payload].
 
 The `ExecutionPayload` has the following requirements:
 
-- Pre-Canyon
+- Bedrock
   - The withdrawals field MUST be nil
-- Post-Canyon
-  - The withdrawals field MUST be non-nil
-  - The withdrawals field MUST be an empty list
-- Pre-Ecotone
   - The blob gas used field MUST be nil
   - The blob gas limit field MUST be nil
-- Post-Ecotone
+- Canyon
+  - The withdrawals field MUST be non-nil
+  - The withdrawals field MUST be an empty list
+  - The blob gas used field MUST be nil
+  - The blob gas limit field MUST be nil
+- Ecotone
+  - The withdrawals field MUST be non-nil
+  - The withdrawals field MUST be an empty list
   - The blob gas used field MUST be 0
   - The blob gas limit field MUST be 0
 
@@ -924,7 +927,8 @@ To process unsafe payloads, the payload must:
 
 The payload is then processed with a sequence of:
 
-- `engine_newPayloadV3`: process the payload. It does not become canonical yet. (pre-Ecotone payloads MUST use V2)
+- `engine_newPayloadV3`: process the payload. It does not become canonical yet. (Bedrock and Canyon
+payloads MUST use V2)
 - `engine_forkchoiceUpdatedV3`: make the payload the canonical unsafe L2 head, and keep the safe/finalized L2 heads.
 
 Engine API Error handling:
