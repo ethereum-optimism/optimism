@@ -7,12 +7,13 @@ import (
 
 	faulttest "github.com/ethereum-optimism/optimism/op-challenger/game/fault/test"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
 
 func TestCalculateNextActions(t *testing.T) {
-	maxDepth := 4
+	maxDepth := types.Depth(4)
 	claimBuilder := faulttest.NewAlphabetClaimBuilder(t, maxDepth)
 
 	tests := []struct {

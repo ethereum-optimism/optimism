@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame"
@@ -122,7 +123,7 @@ func TestOutputCannon_PublishCannonRootClaim(t *testing.T) {
 			game.StartChallenger(ctx, "sequencer", "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
 
 			splitDepth := game.SplitDepth(ctx)
-			game.WaitForClaimAtDepth(ctx, int(splitDepth)+1)
+			game.WaitForClaimAtDepth(ctx, splitDepth+1)
 		})
 	}
 }
@@ -133,7 +134,7 @@ func TestOutputCannonDisputeGame(t *testing.T) {
 
 	tests := []struct {
 		name             string
-		defendClaimDepth int64
+		defendClaimDepth types.Depth
 	}{
 		{"StepFirst", 0},
 		{"StepMiddle", 28},

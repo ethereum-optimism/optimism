@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame"
@@ -30,25 +31,25 @@ func TestOutputAlphabetGame(t *testing.T) {
 	game.LogGameData(ctx)
 	// Challenger should post an output root to counter claims down to the leaf level of the top game
 	splitDepth := game.SplitDepth(ctx)
-	for i := int64(1); i < splitDepth; i += 2 {
+	for i := int64(1); types.Depth(i) < splitDepth; i += 2 {
 		game.WaitForCorrectOutputRoot(ctx, i)
 		game.Attack(ctx, i, common.Hash{0xaa})
 		game.LogGameData(ctx)
 	}
 
 	// Wait for the challenger to post the first claim in the alphabet trace
-	game.WaitForClaimAtDepth(ctx, int(splitDepth+1))
+	game.WaitForClaimAtDepth(ctx, splitDepth+1)
 	game.LogGameData(ctx)
 
-	game.Attack(ctx, splitDepth+1, common.Hash{0x00, 0xcc})
+	game.Attack(ctx, int64(splitDepth)+1, common.Hash{0x00, 0xcc})
 	gameDepth := game.MaxDepth(ctx)
 	for i := splitDepth + 3; i < gameDepth; i += 2 {
 		// Wait for challenger to respond
-		game.WaitForClaimAtDepth(ctx, int(i))
+		game.WaitForClaimAtDepth(ctx, types.Depth(i))
 		game.LogGameData(ctx)
 
 		// Respond to push the game down to the max depth
-		game.Defend(ctx, i, common.Hash{0x00, 0xdd})
+		game.Defend(ctx, int64(i), common.Hash{0x00, 0xdd})
 		game.LogGameData(ctx)
 	}
 	game.LogGameData(ctx)

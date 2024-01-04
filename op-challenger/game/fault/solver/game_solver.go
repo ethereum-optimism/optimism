@@ -12,7 +12,7 @@ type GameSolver struct {
 	claimSolver *claimSolver
 }
 
-func NewGameSolver(gameDepth int, trace types.TraceAccessor) *GameSolver {
+func NewGameSolver(gameDepth types.Depth, trace types.TraceAccessor) *GameSolver {
 	return &GameSolver{
 		claimSolver: newClaimSolver(gameDepth, trace),
 	}
@@ -32,7 +32,7 @@ func (s *GameSolver) CalculateNextActions(ctx context.Context, game types.Game) 
 	for _, claim := range game.Claims() {
 		var action *types.Action
 		var err error
-		if uint64(claim.Depth()) == game.MaxDepth() {
+		if claim.Depth() == game.MaxDepth() {
 			action, err = s.calculateStep(ctx, game, agreeWithRootClaim, claim)
 		} else {
 			action, err = s.calculateMove(ctx, game, agreeWithRootClaim, claim)

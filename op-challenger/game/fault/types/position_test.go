@@ -18,7 +18,7 @@ func TestBigMSB(t *testing.T) {
 	require.True(t, ok)
 	tests := []struct {
 		input    *big.Int
-		expected int
+		expected Depth
 	}{
 		{bi(0), 0},
 		{bi(1), 0},
@@ -104,9 +104,9 @@ func TestTraceIndexOfRootWithLargeDepth(t *testing.T) {
 // TestTraceIndex creates the position & then tests the trace index function.
 func TestTraceIndex(t *testing.T) {
 	tests := []struct {
-		depth              int
+		depth              Depth
 		indexAtDepth       *big.Int
-		maxDepth           int
+		maxDepth           Depth
 		traceIndexExpected *big.Int
 	}{
 		{depth: 0, indexAtDepth: bi(0), maxDepth: 4, traceIndexExpected: bi(15)},
@@ -209,7 +209,7 @@ func TestRelativeToAncestorAtDepth(t *testing.T) {
 
 	tests := []struct {
 		gindex         int64
-		newRootDepth   uint64
+		newRootDepth   Depth
 		expectedGIndex int64
 	}{
 		{gindex: 5, newRootDepth: 1, expectedGIndex: 3},
@@ -304,7 +304,7 @@ func TestRelativeMoves(t *testing.T) {
 			expectedRelativePosition := test(NewPositionFromGIndex(big.NewInt(1)))
 			relative := NewPositionFromGIndex(big.NewInt(3))
 			start := test(relative)
-			relativePosition, err := start.RelativeToAncestorAtDepth(uint64(relative.Depth()))
+			relativePosition, err := start.RelativeToAncestorAtDepth(relative.Depth())
 			require.NoError(t, err)
 			require.Equal(t, expectedRelativePosition.ToGIndex(), relativePosition.ToGIndex())
 		})

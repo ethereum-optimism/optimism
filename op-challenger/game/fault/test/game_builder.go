@@ -16,7 +16,7 @@ type GameBuilder struct {
 func (c *ClaimBuilder) GameBuilder(rootCorrect bool) *GameBuilder {
 	return &GameBuilder{
 		builder: c,
-		Game:    types.NewGameState([]types.Claim{c.CreateRootClaim(rootCorrect)}, uint64(c.maxDepth)),
+		Game:    types.NewGameState([]types.Claim{c.CreateRootClaim(rootCorrect)}, c.maxDepth),
 	}
 }
 
@@ -43,7 +43,7 @@ func (g *GameBuilder) SeqFrom(claim types.Claim) *GameBuilderSeq {
 func (s *GameBuilderSeq) addClaimToGame(claim *types.Claim) {
 	claim.ContractIndex = len(s.gameBuilder.Game.Claims())
 	claims := append(s.gameBuilder.Game.Claims(), *claim)
-	s.gameBuilder.Game = types.NewGameState(claims, uint64(s.builder.maxDepth))
+	s.gameBuilder.Game = types.NewGameState(claims, s.builder.maxDepth)
 }
 
 func (s *GameBuilderSeq) AttackCorrect() *GameBuilderSeq {

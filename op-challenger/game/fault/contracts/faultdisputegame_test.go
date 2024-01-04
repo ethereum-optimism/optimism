@@ -50,7 +50,7 @@ func TestSimpleGetters(t *testing.T) {
 			methodAlias: "maxGameDepth",
 			method:      methodMaxGameDepth,
 			result:      big.NewInt(128),
-			expected:    uint64(128),
+			expected:    faultTypes.Depth(128),
 			call: func(game *FaultDisputeGameContract) (any, error) {
 				return game.GetMaxGameDepth(context.Background())
 			},
@@ -250,8 +250,8 @@ func TestGetBlockRange(t *testing.T) {
 
 func TestGetSplitDepth(t *testing.T) {
 	stubRpc, contract := setupFaultDisputeGameTest(t)
-	expectedSplitDepth := uint64(15)
-	stubRpc.SetResponse(fdgAddr, methodSplitDepth, batching.BlockLatest, nil, []interface{}{new(big.Int).SetUint64(expectedSplitDepth)})
+	expectedSplitDepth := faultTypes.Depth(15)
+	stubRpc.SetResponse(fdgAddr, methodSplitDepth, batching.BlockLatest, nil, []interface{}{new(big.Int).SetUint64(uint64(expectedSplitDepth))})
 	splitDepth, err := contract.GetSplitDepth(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, expectedSplitDepth, splitDepth)

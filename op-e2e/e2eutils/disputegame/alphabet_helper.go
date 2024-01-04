@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/alphabet"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 )
 
@@ -25,7 +26,7 @@ func (g *AlphabetGameHelper) StartChallenger(ctx context.Context, l1Endpoint str
 	return c
 }
 
-func (g *AlphabetGameHelper) CreateHonestActor(alphabetTrace string, depth uint64) *HonestHelper {
+func (g *AlphabetGameHelper) CreateHonestActor(alphabetTrace string, depth types.Depth) *HonestHelper {
 	return &HonestHelper{
 		t:            g.t,
 		require:      g.require,
@@ -34,6 +35,6 @@ func (g *AlphabetGameHelper) CreateHonestActor(alphabetTrace string, depth uint6
 	}
 }
 
-func (g *AlphabetGameHelper) CreateDishonestHelper(alphabetTrace string, depth uint64, defender bool) *DishonestHelper {
+func (g *AlphabetGameHelper) CreateDishonestHelper(alphabetTrace string, depth types.Depth, defender bool) *DishonestHelper {
 	return newDishonestHelper(&g.FaultGameHelper, g.CreateHonestActor(alphabetTrace, depth), defender)
 }

@@ -83,12 +83,12 @@ func (c *FaultDisputeGameContract) GetGenesisOutputRoot(ctx context.Context) (co
 	return genesisOutputRoot.GetHash(0), nil
 }
 
-func (c *FaultDisputeGameContract) GetSplitDepth(ctx context.Context) (uint64, error) {
+func (c *FaultDisputeGameContract) GetSplitDepth(ctx context.Context) (types.Depth, error) {
 	splitDepth, err := c.multiCaller.SingleCall(ctx, batching.BlockLatest, c.contract.Call(methodSplitDepth))
 	if err != nil {
 		return 0, fmt.Errorf("failed to retrieve split depth: %w", err)
 	}
-	return splitDepth.GetBigInt(0).Uint64(), nil
+	return types.Depth(splitDepth.GetBigInt(0).Uint64()), nil
 }
 
 func (f *FaultDisputeGameContract) UpdateOracleTx(ctx context.Context, claimIdx uint64, data *types.PreimageOracleData) (txmgr.TxCandidate, error) {
@@ -127,12 +127,12 @@ func (f *FaultDisputeGameContract) GetGameDuration(ctx context.Context) (uint64,
 	return result.GetUint64(0), nil
 }
 
-func (f *FaultDisputeGameContract) GetMaxGameDepth(ctx context.Context) (uint64, error) {
+func (f *FaultDisputeGameContract) GetMaxGameDepth(ctx context.Context) (types.Depth, error) {
 	result, err := f.multiCaller.SingleCall(ctx, batching.BlockLatest, f.contract.Call(methodMaxGameDepth))
 	if err != nil {
 		return 0, fmt.Errorf("failed to fetch max game depth: %w", err)
 	}
-	return result.GetBigInt(0).Uint64(), nil
+	return types.Depth(result.GetBigInt(0).Uint64()), nil
 }
 
 func (f *FaultDisputeGameContract) GetAbsolutePrestateHash(ctx context.Context) (common.Hash, error) {

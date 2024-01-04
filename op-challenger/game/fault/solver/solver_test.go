@@ -13,7 +13,7 @@ import (
 )
 
 func TestAttemptStep(t *testing.T) {
-	maxDepth := 3
+	maxDepth := types.Depth(3)
 	claimBuilder := faulttest.NewAlphabetClaimBuilder(t, maxDepth)
 
 	// Last accessible leaf is the second last trace index

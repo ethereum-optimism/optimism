@@ -83,7 +83,7 @@ func (h *OutputHonestHelper) StepFails(ctx context.Context, claimIdx int64, isAt
 func (h *OutputHonestHelper) loadState(ctx context.Context, claimIdx int64) (types.Game, types.Claim) {
 	claims, err := h.contract.GetAllClaims(ctx)
 	h.require.NoError(err, "Failed to load claims from game")
-	game := types.NewGameState(claims, uint64(h.game.MaxDepth(ctx)))
+	game := types.NewGameState(claims, h.game.MaxDepth(ctx))
 
 	claim := game.Claims()[claimIdx]
 	return game, claim

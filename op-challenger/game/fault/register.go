@@ -81,7 +81,7 @@ func registerAlphabet(
 		if err != nil {
 			return nil, err
 		}
-		creator := func(ctx context.Context, logger log.Logger, gameDepth uint64, dir string) (faultTypes.TraceAccessor, error) {
+		creator := func(ctx context.Context, logger log.Logger, gameDepth faultTypes.Depth, dir string) (faultTypes.TraceAccessor, error) {
 			accessor, err := outputs.NewOutputAlphabetTraceAccessor(logger, m, prestateProvider, rollupClient, splitDepth, prestateBlock, poststateBlock)
 			if err != nil {
 				return nil, err
@@ -116,7 +116,7 @@ func registerCannon(
 			return nil, err
 		}
 		prestateProvider := outputs.NewPrestateProvider(ctx, logger, rollupClient, prestateBlock)
-		creator := func(ctx context.Context, logger log.Logger, gameDepth uint64, dir string) (faultTypes.TraceAccessor, error) {
+		creator := func(ctx context.Context, logger log.Logger, gameDepth faultTypes.Depth, dir string) (faultTypes.TraceAccessor, error) {
 			splitDepth, err := contract.GetSplitDepth(ctx)
 			if err != nil {
 				return nil, fmt.Errorf("failed to load split depth: %w", err)

@@ -32,10 +32,10 @@ type OutputTraceProvider struct {
 	rollupClient   OutputRollupClient
 	prestateBlock  uint64
 	poststateBlock uint64
-	gameDepth      uint64
+	gameDepth      types.Depth
 }
 
-func NewTraceProvider(ctx context.Context, logger log.Logger, rollupRpc string, gameDepth, prestateBlock, poststateBlock uint64) (*OutputTraceProvider, error) {
+func NewTraceProvider(ctx context.Context, logger log.Logger, rollupRpc string, gameDepth types.Depth, prestateBlock, poststateBlock uint64) (*OutputTraceProvider, error) {
 	rollupClient, err := dial.DialRollupClientWithTimeout(ctx, dial.DefaultDialTimeout, logger, rollupRpc)
 	if err != nil {
 		return nil, err
@@ -44,7 +44,7 @@ func NewTraceProvider(ctx context.Context, logger log.Logger, rollupRpc string, 
 	return NewTraceProviderFromInputs(logger, prestateProvider, rollupClient, gameDepth, prestateBlock, poststateBlock), nil
 }
 
-func NewTraceProviderFromInputs(logger log.Logger, prestateProvider types.PrestateProvider, rollupClient OutputRollupClient, gameDepth, prestateBlock, poststateBlock uint64) *OutputTraceProvider {
+func NewTraceProviderFromInputs(logger log.Logger, prestateProvider types.PrestateProvider, rollupClient OutputRollupClient, gameDepth types.Depth, prestateBlock, poststateBlock uint64) *OutputTraceProvider {
 	return &OutputTraceProvider{
 		PrestateProvider: prestateProvider,
 		logger:           logger,
@@ -56,7 +56,7 @@ func NewTraceProviderFromInputs(logger log.Logger, prestateProvider types.Presta
 }
 
 func (o *OutputTraceProvider) BlockNumber(pos types.Position) (uint64, error) {
-	traceIndex := pos.TraceIndex(int(o.gameDepth))
+	traceIndex := pos.TraceIndex(o.gameDepth)
 	if !traceIndex.IsUint64() {
 		return 0, fmt.Errorf("%w: %v", ErrIndexTooBig, traceIndex)
 	}

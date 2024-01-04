@@ -13,12 +13,12 @@ import (
 // ClaimBuilder is a test utility to enable creating claims in a wide range of situations
 type ClaimBuilder struct {
 	require  *require.Assertions
-	maxDepth int
+	maxDepth types.Depth
 	correct  types.TraceProvider
 }
 
 // NewClaimBuilder creates a new [ClaimBuilder].
-func NewClaimBuilder(t *testing.T, maxDepth int, provider types.TraceProvider) *ClaimBuilder {
+func NewClaimBuilder(t *testing.T, maxDepth types.Depth, provider types.TraceProvider) *ClaimBuilder {
 	return &ClaimBuilder{
 		require:  require.New(t),
 		maxDepth: maxDepth,

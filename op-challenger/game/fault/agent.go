@@ -33,11 +33,11 @@ type Agent struct {
 	solver    *solver.GameSolver
 	loader    ClaimLoader
 	responder Responder
-	maxDepth  int
+	maxDepth  types.Depth
 	log       log.Logger
 }
 
-func NewAgent(m metrics.Metricer, loader ClaimLoader, maxDepth int, trace types.TraceAccessor, responder Responder, log log.Logger) *Agent {
+func NewAgent(m metrics.Metricer, loader ClaimLoader, maxDepth types.Depth, trace types.TraceAccessor, responder Responder, log log.Logger) *Agent {
 	return &Agent{
 		metrics:   m,
 		solver:    solver.NewGameSolver(maxDepth, trace),
@@ -169,6 +169,6 @@ func (a *Agent) newGameFromContracts(ctx context.Context) (types.Game, error) {
 	if len(claims) == 0 {
 		return nil, errors.New("no claims")
 	}
-	game := types.NewGameState(claims, uint64(a.maxDepth))
+	game := types.NewGameState(claims, a.maxDepth)
 	return game, nil
 }

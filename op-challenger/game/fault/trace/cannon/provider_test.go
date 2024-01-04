@@ -25,7 +25,7 @@ import (
 var testData embed.FS
 
 func PositionFromTraceIndex(provider *CannonTraceProvider, idx *big.Int) types.Position {
-	return types.NewPosition(int(provider.gameDepth), idx)
+	return types.NewPosition(provider.gameDepth, idx)
 }
 
 func TestGet(t *testing.T) {
