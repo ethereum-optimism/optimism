@@ -55,10 +55,10 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     uint64 public gasLimit;
 
     /// @notice The scalar value applied to the L1 base fee portion of the blob-capable L1 cost func
-	uint32 public basefeeScalar;
+    uint32 public basefeeScalar;
 
     /// @notice The scalar value applied to the L1 blob base fee portion of the blob-capable L1 cost func
-	uint32 public blobBasefeeScalar;
+    uint32 public blobBasefeeScalar;
 
     /// @notice The configuration for the deposit fee market.
     ///         Used by the OptimismPortal to meter the cost of buying L2 gas on L1.

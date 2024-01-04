@@ -100,12 +100,38 @@
   },
   {
     "inputs": [],
+    "name": "basefeeScalar",
+    "outputs": [
+      {
+        "internalType": "uint32",
+        "name": "",
+        "type": "uint32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "batcherHash",
     "outputs": [
       {
         "internalType": "bytes32",
         "name": "",
         "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "blobBasefeeScalar",
+    "outputs": [
+      {
+        "internalType": "uint32",
+        "name": "",
+        "type": "uint32"
       }
     ],
     "stateMutability": "view",
@@ -330,6 +356,24 @@
       }
     ],
     "name": "setGasConfig",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint32",
+        "name": "_basefeeScalar",
+        "type": "uint32"
+      },
+      {
+        "internalType": "uint32",
+        "name": "_blobBasefeeScalar",
+        "type": "uint32"
+      }
+    ],
+    "name": "setGasConfigEcotone",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
