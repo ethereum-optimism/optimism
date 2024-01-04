@@ -1100,7 +1100,7 @@ special transactions may be inserted as part of the derivation process.
 
 The Ecotone hardfork activation block, contains the following transactions in this order:
 
-- L1 Attributes Transaction, using the pre-Ecotone `setL1BlockValues`
+- L1 Attributes Transaction, using the Bedrock `setL1BlockValues`
 - User deposits from L1
 - Network Upgrade Transactions
   - L1Block deployment
@@ -1112,6 +1112,13 @@ The Ecotone hardfork activation block, contains the following transactions in th
 
 To not modify or interrupt the system behavior around gas computation, this block will not include any sequenced
 transactions by setting `noTxPool: true`.
+
+In all blocks following the Ecotone hardfork activation, the L1 Attributes Transaction MUST call
+`setL1BlockValuesEcotone`. The `L1Block` contract still contains the `setL1BlockValues` function
+for backwards compatibility but it MUST never be called after the Ecotone hardfork activation.
+The values used in the first call to `setL1BlockValuesEcotone` are described in the [SystemConfig Spec].
+
+[System Config Spec]: system_config.md#ecotone-activation
 
 ##### L1Block Deployment
 

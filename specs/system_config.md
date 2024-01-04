@@ -13,11 +13,15 @@
   - [`unsafeBlockSigner` (`address`)](#unsafeblocksigner-address)
 - [Writing the system config](#writing-the-system-config)
 - [Reading the system config](#reading-the-system-config)
+- [Ecotone Activation](#ecotone-activation)
+  - [Constants](#constants)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
 The `SystemConfig` is a contract on L1 that can emit rollup configuration changes as log events.
 The rollup [block derivation process](./derivation.md) picks up on these log events and applies the changes.
+The invariant must be held that the L2 view of the `SystemConfig` MUST always be consistent
+with the values set in the L1 contract.
 
 ## System config contents (version 0)
 
@@ -117,3 +121,20 @@ The contained log events are filtered and processed as follows:
 Note that individual derivation stages may be processing different L1 blocks,
 and should thus maintain individual system configuration copies,
 and apply the event-based changes as the stage traverses to the next L1 block.
+
+## Ecotone Activation
+
+### Constants
+
+| `l1BasefeeScalar` | `l1BlobBasefeeScalar` |
+|---------------------------------------------------|---|
+| Value of `scalar` at Ecotone activation block - 1 | 0 |
+
+On the Ecotone hardfork activation block, the L2 view of the `SystemConfig` should
+migrate the current value of the `scalar` to the `l1BasefeeScalar` and set the
+`l1BlobBasefeeScalar` value to 0. The `SystemConfig` contract MUST set these values
+as the initial values to guarantee the L2's view of the `SystemConfig` remains
+consistent.
+
+Chain operators can modify the `l1BasefeeScalar` and `l1BlobBasefeeScalar` after
+the Ecotone hardfork activation by calling the `SystemConfig` contract.
