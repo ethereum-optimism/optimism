@@ -53,6 +53,7 @@ and are adopted by several other blockchains, most notably the [L1 consensus lay
 - [Gossip Topics](#gossip-topics)
   - [`blocksv1`](#blocksv1)
   - [`blocksv2`](#blocksv2)
+  - [`blocksv3`](#blocksv3)
     - [Block encoding](#block-encoding)
     - [Block signatures](#block-signatures)
     - [Block validation](#block-validation)
@@ -248,7 +249,7 @@ The extended validator emits one of the following validation signals:
 
 ## Gossip Topics
 
-There are two topics for distributing blocks to other nodes faster than proxying through L1 would. These are:
+There are three topics for distributing blocks to other nodes faster than proxying through L1 would. These are:
 
 ### `blocksv1`
 
@@ -258,14 +259,23 @@ Pre-Canyon/Shanghai blocks are broadcast on `/optimism/<chainId>/0/blocks`.
 
 Post-Canyon/Shanghai blocks are broadcast on `/optimism/<chainId>/1/blocks`.
 
+### `blocksv3`
+
+Post-Ecotone blocks are broadcast on `/optimism/<chainId>/2/blocks`.
+
 #### Block encoding
 
 A block is structured as the concatenation of:
 
-- `signature`: A `secp256k1` signature, always 65 bytes, `r (uint256), s (uint256), y_parity (uint8)`
-- `payload`: A SSZ-encoded `ExecutionPayload`, always the remaining bytes.
+- V1 and V2 topics
+  - `signature`: A `secp256k1` signature, always 65 bytes, `r (uint256), s (uint256), y_parity (uint8)`
+  - `payload`: A SSZ-encoded `ExecutionPayload`, always the remaining bytes.
+- V3 topic
+  - `signature`: A `secp256k1` signature, always 65 bytes, `r (uint256), s (uint256), y_parity (uint8)`
+  - `parentBeaconBlockRoot`: L1 origin parent beacon block root, always 32 bytes
+  - `payload`: A SSZ-encoded `ExecutionPayload`, always the remaining bytes.
 
-The topic uses Snappy block-compression (i.e. no snappy frames):
+All topics use Snappy block-compression (i.e. no snappy frames):
 the above needs to be compressed after encoding, and decompressed before decoding.
 
 #### Block signatures
@@ -275,7 +285,7 @@ The `signature` is a `secp256k1` signature, and signs over a message:
 
 - `domain` is 32 bytes, reserved for message types and versioning info. All zero for this signature.
 - `chain_id` is a big-endian encoded `uint256`.
-- `payload_hash` is `keccak256(payload)`, where `payload` is the SSZ-encoded `ExecutionPayload`
+- `payload_hash` is `keccak256(payload)`, where `payload` is the remaining bytes of the payload.
 
 The `secp256k1` signature must have `y_parity = 1 or 0`, the `chain_id` is already signed over.
 
@@ -290,8 +300,13 @@ An [extended-validator] checks the incoming messages as follows, in order of ope
 - `[REJECT]` if the `payload.timestamp` is more than 5 seconds into the future
 - `[REJECT]` if the `block_hash` in the `payload` is not valid
 - `[REJECT]` if the block is on the V1 topic and has withdrawals
-- `[REJECT]` if the block is on the V2 topic and does not have withdrawals
-- `[REJECT]` if the block is on the V2 topic and has a non-zero amount of withdrawals
+- `[REJECT]` if the block is on a topic >= V2 and does not have withdrawals
+- `[REJECT]` if the block is on a topic >= V2 and has a non-zero amount of withdrawals
+- `[REJECT]` if the block is on a topic <= V2 and has a blob gas value set
+- `[REJECT]` if the block is on a topic <= V2 and has an excess blob gas value set
+- `[REJECT]` if the block is on a topic >= V3 and has a blob gas used value that is not zero
+- `[REJECT]` if the block is on a topic >= V3 and has an excess blob gas value that is not zero
+- `[REJECT]` if the block is on a topic >= V3 and the parent beacon block root is nil
 - `[REJECT]` if more than 5 different blocks have been seen with the same block height
 - `[IGNORE]` if the block has already been seen
 - `[REJECT]` if the signature by the sequencer is not valid
@@ -311,7 +326,7 @@ A node may apply the block to their local engine ahead of L1 availability, if it
 
 - The application of the block is reversible, in case of a conflict with delayed L1 information
 - The subsequent forkchoice-update ensures this block is recognized as "unsafe"
-  (see [`engine_forkchoiceUpdatedV2`](./exec-engine.md#engine_forkchoiceupdatedv2))
+  (see [`engine_forkchoiceUpdatedV3`](./exec-engine.md#engine_forkchoiceupdatedv3))
 
 ##### Block topic scoring parameters
 
