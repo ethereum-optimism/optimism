@@ -78,7 +78,7 @@ func (ap *AlphabetTraceProvider) Get(ctx context.Context, i types.Position) (com
 
 // BuildAlphabetPreimage constructs the claim bytes for the index and claim.
 func BuildAlphabetPreimage(i *big.Int, blockNumber *big.Int) []byte {
-	return append(i.FillBytes(make([]byte, 32)), blockNumber.Bytes()...)
+	return append(i.FillBytes(make([]byte, 32)), blockNumber.FillBytes(make([]byte, 32))...)
 }
 
 func alphabetStateHash(state []byte) common.Hash {
