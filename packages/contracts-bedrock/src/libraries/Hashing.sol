@@ -100,6 +100,26 @@ library Hashing {
         return keccak256(Encoding.encodeCrossDomainMessageV1(_nonce, _sender, _target, _value, _gasLimit, _data));
     }
 
+    /// @notice Hashes a cross domain message (interop version)
+    function hashCrossDomainMessageV2(
+        uint256 _nonce,
+        bytes32 _source,
+        bytes32 _destination,
+        address _sender,
+        address _target,
+        uint256 _value,
+        uint256 _gasLimit,
+        bytes memory _data
+    )
+        internal
+        pure
+        returns (bytes32)
+    {
+        return keccak256(
+            Encoding.encodeCrossDomainMessageV2(_nonce, _source, _destination, _sender, _target, _value, _gasLimit, _data)
+        );
+    }
+
     /// @notice Derives the withdrawal hash according to the encoding in the L2 Withdrawer contract
     /// @param _tx Withdrawal transaction to hash.
     /// @return Hashed withdrawal transaction.
@@ -120,5 +140,25 @@ library Hashing {
                 _outputRootProof.latestBlockhash
             )
         );
+    }
+
+    /// @notice Derives the message root of the given superchain message.
+    /// The derivation is structured, to enable more efficient proving of individual components.
+    /// The first byte of the output root
+    function superchainMessageRoot(Types.SuperchainMessage memory _msg) internal pure returns (bytes32) {
+        // Hash the data, so metadata of a message can be proven without providing the full calldata.
+        bytes32 dataHash = keccak256(_msg.data);
+        // Mix in the length, so we can tell how large the data is without revealing it all.
+        bytes32 dataNode = keccak256(abi.encode(dataHash, bytes32(uint256(_msg.data.length))));
+        // The general tx metadata.
+        bytes32 txMeta = keccak256(abi.encode(_msg.from, _msg.to, _msg.value, _msg.gasLimit));
+        // The full tx.
+        bytes32 txNode = keccak256(abi.encode(txMeta, dataNode));
+        // Combine the source and target chains.
+        bytes32 direction = keccak256(abi.encode(_msg.sourceChain, _msg.targetChain));
+        // And finally with the message direction.
+        bytes32 out = keccak256(abi.encode(direction, txNode));
+        // Mask out the first byte for a version byte, and set it to 1.
+        return bytes32((uint256(out) & ~(uint256(0xff << 248))) | uint256(1 << 248));
     }
 }
