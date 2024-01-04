@@ -22,7 +22,7 @@ Here is an example:
 
 ## API / Account
 We already have a GoldSky account. As of 18. Dec 23 following people have already access that you can reach out to for access:
-- Ino
+- Boyuan
 - Souradeep
 - Kevin
 
