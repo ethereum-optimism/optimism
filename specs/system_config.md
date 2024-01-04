@@ -134,9 +134,12 @@ The initial fee paramaters for the Ecotone hardfork are noted in the following t
 
 On the Ecotone hardfork activation block, the L2 view of the `SystemConfig` should
 migrate the current value of the `scalar` to the `l1BasefeeScalar` and set the
-`l1BlobBasefeeScalar` value to 0. The `SystemConfig` contract MUST set these values
-as the initial values to guarantee the L2's view of the `SystemConfig` remains
-consistent.
+`l1BlobBasefeeScalar` value to 0. The `scalar` is defined to be a `uint256` while
+the `l1BasefeeScalar` is defined to be a `uint32`, so any `scalar` value that is larger
+than `type(uint32).max` at time of conversion should be migrated as `type(uint32).max`.
+
+The `SystemConfig` contract MUST set these values as the initial values to guarantee
+the L2's view of the `SystemConfig` remains consistent.
 
 Any `ConfigUpdate` events for the Ecotone fee parameters before MAY be parsed or
 MAY be ignored by the derivation pipeline. Since the values are overwritten on
