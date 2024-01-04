@@ -1,11 +1,11 @@
 package alphabet
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"math/big"
-	"strings"
 
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 
@@ -28,38 +28,52 @@ var (
 // indices in the given trace.
 type AlphabetTraceProvider struct {
 	AlphabetPrestateProvider
-	state  []string
-	depth  types.Depth
-	maxLen uint64
+	startingBlockNumber *big.Int
+	depth               types.Depth
+	maxLen              uint64
 }
 
 // NewTraceProvider returns a new [AlphabetProvider].
-func NewTraceProvider(state string, depth types.Depth) *AlphabetTraceProvider {
+func NewTraceProvider(startingBlockNumber *big.Int, depth types.Depth) *AlphabetTraceProvider {
 	return &AlphabetTraceProvider{
-		state:  strings.Split(state, ""),
-		depth:  depth,
-		maxLen: uint64(1 << depth),
+		startingBlockNumber: startingBlockNumber,
+		depth:               depth,
+		maxLen:              1 << depth,
 	}
 }
 
-func (ap *AlphabetTraceProvider) GetStepData(ctx context.Context, i types.Position) ([]byte, []byte, *types.PreimageOracleData, error) {
-	traceIndex := i.TraceIndex(ap.depth)
-	if traceIndex.Cmp(common.Big0) == 0 {
-		return absolutePrestate, []byte{}, nil, nil
+func (ap *AlphabetTraceProvider) GetStepData(ctx context.Context, pos types.Position) ([]byte, []byte, *types.PreimageOracleData, error) {
+	posIndex := pos.TraceIndex(ap.depth)
+	key := preimage.LocalIndexKey(L2ClaimBlockNumberLocalIndex).PreimageKey()
+	preimageData := types.NewPreimageOracleData(key[:], ap.startingBlockNumber.Bytes(), 0)
+	if posIndex.Cmp(common.Big0) == 0 {
+		return absolutePrestate, []byte{}, preimageData, nil
 	}
 	// We want the pre-state which is the value prior to the one requested
-	traceIndex = traceIndex.Sub(traceIndex, big.NewInt(1))
-	// The index cannot be larger than the maximum index as computed by the depth.
-	if traceIndex.Cmp(big.NewInt(int64(ap.maxLen))) >= 0 {
-		return nil, nil, nil, fmt.Errorf("%w traceIndex: %v max: %v pos: %v", ErrIndexTooLarge, traceIndex, ap.maxLen, i)
+	prestateTraceIndex := posIndex.Sub(posIndex, big.NewInt(1))
+	if prestateTraceIndex.Cmp(new(big.Int).SetUint64(ap.maxLen)) >= 0 {
+		return nil, nil, nil, fmt.Errorf("%w depth: %v index: %v max: %v", ErrIndexTooLarge, ap.depth, posIndex, ap.maxLen)
 	}
-	// We extend the deepest hash to the maximum depth if the trace is not expansive.
-	if traceIndex.Cmp(big.NewInt(int64(len(ap.state)))) >= 0 {
-		return ap.GetStepData(ctx, types.NewPosition(ap.depth, big.NewInt(int64(len(ap.state)))))
+	claim := BuildAlphabetPreimage(big.NewInt(0), absolutePrestateInt)
+	for i := big.NewInt(0); i.Cmp(posIndex) < 0; i = i.Add(i, big.NewInt(1)) {
+		claim = ap.step(claim)
 	}
-	key := preimage.LocalIndexKey(L2ClaimBlockNumberLocalIndex).PreimageKey()
-	preimageData := types.NewPreimageOracleData(key[:], nil, 0)
-	return BuildAlphabetPreimage(traceIndex, ap.state[traceIndex.Uint64()]), []byte{}, preimageData, nil
+	return claim, []byte{}, preimageData, nil
+}
+
+// step accepts the trace index and claim and returns the stepped trace index and claim.
+func (ap *AlphabetTraceProvider) step(stateData []byte) []byte {
+	// Decode the stateData into the trace index and claim
+	traceIndex := new(big.Int).SetBytes(stateData[:32])
+	claim := stateData[32:]
+	if bytes.Equal(claim, absolutePrestate) {
+		initTraceIndex := new(big.Int).Lsh(ap.startingBlockNumber, 4)
+		initClaim := new(big.Int).Add(absolutePrestateInt, initTraceIndex)
+		return BuildAlphabetPreimage(initTraceIndex, initClaim)
+	}
+	stepTraceIndex := new(big.Int).Add(traceIndex, big.NewInt(1))
+	stepClaim := new(big.Int).Add(new(big.Int).SetBytes(claim), big.NewInt(1))
+	return BuildAlphabetPreimage(stepTraceIndex, stepClaim)
 }
 
 // Get returns the claim value at the given index in the trace.
@@ -77,20 +91,13 @@ func (ap *AlphabetTraceProvider) Get(ctx context.Context, i types.Position) (com
 	return alphabetStateHash(claimBytes), nil
 }
 
-// BuildAlphabetPreimage constructs the claim bytes for the index and state item.
-func BuildAlphabetPreimage(i *big.Int, letter string) []byte {
-	return append(i.FillBytes(make([]byte, 32)), LetterToBytes(letter)...)
+// BuildAlphabetPreimage constructs the claim bytes for the index and claim.
+func BuildAlphabetPreimage(i *big.Int, blockNumber *big.Int) []byte {
+	return append(i.FillBytes(make([]byte, 32)), blockNumber.FillBytes(make([]byte, 32))...)
 }
 
 func alphabetStateHash(state []byte) common.Hash {
 	h := crypto.Keccak256Hash(state)
 	h[0] = mipsevm.VMStatusInvalid
 	return h
-}
-
-// LetterToBytes converts a letter to a 32 byte array
-func LetterToBytes(letter string) []byte {
-	out := make([]byte, 32)
-	out[31] = byte(letter[0])
-	return out
 }

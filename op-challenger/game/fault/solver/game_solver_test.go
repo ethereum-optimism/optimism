@@ -3,6 +3,7 @@ package solver
 import (
 	"context"
 	"encoding/hex"
+	"math/big"
 	"testing"
 
 	faulttest "github.com/ethereum-optimism/optimism/op-challenger/game/fault/test"
@@ -14,7 +15,8 @@ import (
 
 func TestCalculateNextActions(t *testing.T) {
 	maxDepth := types.Depth(4)
-	claimBuilder := faulttest.NewAlphabetClaimBuilder(t, maxDepth)
+	startingL2BlockNumber := big.NewInt(0)
+	claimBuilder := faulttest.NewAlphabetClaimBuilder(t, startingL2BlockNumber, maxDepth)
 
 	tests := []struct {
 		name             string

@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame"
@@ -13,9 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestOutputAlphabetGame(t *testing.T) {
-	// TODO(client-pod#43) Fix alphabet trace provider and re-enable.
-	t.Skip("client-pod#43: AlphabetTraceProvider not using the new alphabet vm spec")
+func TestOutputAlphabetGame_ChallengerWins(t *testing.T) {
 	op_e2e.InitParallel(t, op_e2e.UseExecutor(1))
 	ctx := context.Background()
 	sys, l1Client := startFaultDisputeSystem(t)
@@ -27,35 +24,42 @@ func TestOutputAlphabetGame(t *testing.T) {
 
 	opts := challenger.WithPrivKey(sys.Cfg.Secrets.Alice)
 	game.StartChallenger(ctx, "sequencer", "Challenger", opts)
-
 	game.LogGameData(ctx)
+
 	// Challenger should post an output root to counter claims down to the leaf level of the top game
-	splitDepth := game.SplitDepth(ctx)
-	for i := int64(1); types.Depth(i) < splitDepth; i += 2 {
-		game.WaitForCorrectOutputRoot(ctx, i)
-		game.Attack(ctx, i, common.Hash{0xaa})
-		game.LogGameData(ctx)
+	claim := game.RootClaim(ctx)
+	for claim.IsOutputRoot(ctx) && !claim.IsOutputRootLeaf(ctx) {
+		if claim.AgreesWithOutputRoot() {
+			// If the latest claim agrees with the output root, expect the honest challenger to counter it
+			claim = claim.WaitForCounterClaim(ctx)
+			game.LogGameData(ctx)
+			claim.RequireCorrectOutputRoot(ctx)
+		} else {
+			// Otherwise we should counter
+			claim = claim.Attack(ctx, common.Hash{0xaa})
+			game.LogGameData(ctx)
+		}
 	}
 
-	// Wait for the challenger to post the first claim in the alphabet trace
-	game.WaitForClaimAtDepth(ctx, splitDepth+1)
+	// Wait for the challenger to post the first claim in the cannon trace
+	claim = claim.WaitForCounterClaim(ctx)
 	game.LogGameData(ctx)
 
-	game.Attack(ctx, int64(splitDepth)+1, common.Hash{0x00, 0xcc})
-	gameDepth := game.MaxDepth(ctx)
-	for i := splitDepth + 3; i < gameDepth; i += 2 {
-		// Wait for challenger to respond
-		game.WaitForClaimAtDepth(ctx, types.Depth(i))
-		game.LogGameData(ctx)
-
-		// Respond to push the game down to the max depth
-		game.Defend(ctx, int64(i), common.Hash{0x00, 0xdd})
-		game.LogGameData(ctx)
+	// Attack the root of the cannon trace subgame
+	claim = claim.Attack(ctx, common.Hash{0x00, 0xcc})
+	for !claim.IsMaxDepth(ctx) {
+		if claim.AgreesWithOutputRoot() {
+			// If the latest claim supports the output root, wait for the honest challenger to respond
+			claim = claim.WaitForCounterClaim(ctx)
+			game.LogGameData(ctx)
+		} else {
+			// Otherwise we need to counter the honest claim
+			claim = claim.Defend(ctx, common.Hash{0x00, 0xdd})
+			game.LogGameData(ctx)
+		}
 	}
-	game.LogGameData(ctx)
-
 	// Challenger should be able to call step and counter the leaf claim.
-	game.WaitForClaimAtMaxDepth(ctx, true)
+	claim.WaitForCountered(ctx)
 	game.LogGameData(ctx)
 
 	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
@@ -63,9 +67,7 @@ func TestOutputAlphabetGame(t *testing.T) {
 	game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
 }
 
-func TestOutputAlphabetGameWithValidOutputRoot(t *testing.T) {
-	// TODO(client-pod#43) Fix alphabet trace provider and re-enable.
-	t.Skip("client-pod#43: AlphabetTraceProvider not using the new alphabet vm spec")
+func TestOutputAlphabetGame_ValidOutputRoot(t *testing.T) {
 	op_e2e.InitParallel(t, op_e2e.UseExecutor(1))
 	ctx := context.Background()
 	sys, l1Client := startFaultDisputeSystem(t)
@@ -82,17 +84,14 @@ func TestOutputAlphabetGameWithValidOutputRoot(t *testing.T) {
 	opts := challenger.WithPrivKey(sys.Cfg.Secrets.Alice)
 	game.StartChallenger(ctx, "sequencer", "Challenger", opts)
 
+	claim = claim.WaitForCounterClaim(ctx)
+	game.LogGameData(ctx)
 	for !claim.IsMaxDepth(ctx) {
-		claim = claim.WaitForCounterClaim(ctx)
-		game.LogGameData(ctx)
 		// Dishonest actor always attacks with the correct trace
 		claim = correctTrace.AttackClaim(ctx, claim)
+		claim = claim.WaitForCounterClaim(ctx)
+		game.LogGameData(ctx)
 	}
-	game.LogGameData(ctx)
-
-	// Challenger should be able to call step and counter the leaf claim.
-	game.WaitForClaimAtMaxDepth(ctx, true)
-	game.LogGameData(ctx)
 
 	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
 	require.NoError(t, wait.ForNextBlock(ctx, l1Client))

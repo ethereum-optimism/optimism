@@ -3,6 +3,7 @@ package fault
 import (
 	"context"
 	"errors"
+	"math/big"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace"
@@ -57,7 +58,7 @@ func TestLoadClaimsWhenGameNotResolvable(t *testing.T) {
 	responder.callResolveErr = errors.New("game is not resolvable")
 	responder.callResolveClaimErr = errors.New("claim is not resolvable")
 	depth := types.Depth(4)
-	claimBuilder := test.NewClaimBuilder(t, depth, alphabet.NewTraceProvider("abcdefg", depth))
+	claimBuilder := test.NewClaimBuilder(t, depth, alphabet.NewTraceProvider(big.NewInt(0), depth))
 
 	claimLoader.claims = []types.Claim{
 		claimBuilder.CreateRootClaim(true),
@@ -74,7 +75,7 @@ func setupTestAgent(t *testing.T) (*Agent, *stubClaimLoader, *stubResponder) {
 	logger := testlog.Logger(t, log.LvlInfo)
 	claimLoader := &stubClaimLoader{}
 	depth := types.Depth(4)
-	provider := alphabet.NewTraceProvider("abcd", depth)
+	provider := alphabet.NewTraceProvider(big.NewInt(0), depth)
 	responder := &stubResponder{}
 	agent := NewAgent(metrics.NoopMetrics, claimLoader, depth, trace.NewSimpleTraceAccessor(provider), responder, logger)
 	return agent, claimLoader, responder
