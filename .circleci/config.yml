@@ -19,4 +19,4 @@ jobs:
             git add .
             git commit -m "Committing dummy"
 
-            git push origin feat/security-council
+            git push
