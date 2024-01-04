@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       bump:
-        description: 'How much to bump the version by'
+        description: 'How much to bump the version bys'
         required: true
         type: choice
         options:
