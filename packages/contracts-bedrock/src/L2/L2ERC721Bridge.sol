@@ -6,6 +6,7 @@ import { ERC165Checker } from "@openzeppelin/contracts/utils/introspection/ERC16
 import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
 import { IOptimismMintableERC721 } from "src/universal/IOptimismMintableERC721.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
+import { StandardBridge } from "src/universal/StandardBridge.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
@@ -24,16 +25,16 @@ contract L2ERC721Bridge is ERC721Bridge, ISemver {
     string public constant version = "1.7.0";
 
     /// @notice Constructs the L2ERC721Bridge contract.
-    constructor(address _otherBridge) ERC721Bridge() {
-        initialize({ _otherBridge: _otherBridge });
+    constructor() ERC721Bridge() {
+        initialize({ _l1ERC721Bridge: payable(address(0)) });
     }
 
     /// @notice Initializes the contract.
-    /// @param _otherBridge Address of the ERC721 bridge on the other network.
-    function initialize(address _otherBridge) public initializer {
+    /// @param _l1ERC721Bridge Address of the ERC721 bridge contract on the other network.
+    function initialize(address payable _l1ERC721Bridge) public initializer {
         __ERC721Bridge_init({
             _messenger: CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER),
-            _otherBridge: _otherBridge
+            _otherBridge: StandardBridge(_l1ERC721Bridge)
         });
     }
 
@@ -117,7 +118,7 @@ contract L2ERC721Bridge is ERC721Bridge, ISemver {
 
         // Send message to L1 bridge
         // slither-disable-next-line reentrancy-events
-        messenger.sendMessage({ _target: otherBridge, _message: message, _minGasLimit: _minGasLimit });
+        messenger.sendMessage({ _target: address(otherBridge), _message: message, _minGasLimit: _minGasLimit });
 
         // slither-disable-next-line reentrancy-events
         emit ERC721BridgeInitiated(_localToken, remoteToken, _from, _to, _tokenId, _extraData);

@@ -2,6 +2,7 @@
 pragma solidity 0.8.15;
 
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
+import { StandardBridge } from "src/universal/StandardBridge.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
@@ -13,9 +14,9 @@ abstract contract ERC721Bridge is Initializable {
     /// @custom:network-specific
     CrossDomainMessenger public messenger;
 
-    /// @notice Address of the bridge on the other network.
+    /// @notice Contract of the bridge on the other network.
     /// @custom:network-specific
-    address public otherBridge;
+    StandardBridge public otherBridge;
 
     /// @notice Reserve extra slots (to a total of 50) in the storage layout for future upgrades.
     uint256[47] private __gap;
@@ -55,7 +56,7 @@ abstract contract ERC721Bridge is Initializable {
     /// @notice Ensures that the caller is a cross-chain message from the other bridge.
     modifier onlyOtherBridge() {
         require(
-            msg.sender == address(messenger) && messenger.xDomainMessageSender() == otherBridge,
+            msg.sender == address(messenger) && messenger.xDomainMessageSender() == address(otherBridge),
             "ERC721Bridge: function can only be called from the other bridge"
         );
         _;
@@ -63,9 +64,15 @@ abstract contract ERC721Bridge is Initializable {
 
     /// @notice Initializer.
     /// @param _messenger   Contract of the CrossDomainMessenger on this network.
-    /// @param _otherBridge Address of the ERC721 bridge on the other network.
+    /// @param _otherBridge Contract of the ERC721 bridge on the other network.
     // solhint-disable-next-line func-name-mixedcase
-    function __ERC721Bridge_init(CrossDomainMessenger _messenger, address _otherBridge) internal onlyInitializing {
+    function __ERC721Bridge_init(
+        CrossDomainMessenger _messenger,
+        StandardBridge _otherBridge
+    )
+        internal
+        onlyInitializing
+    {
         messenger = _messenger;
         otherBridge = _otherBridge;
     }
@@ -80,9 +87,9 @@ abstract contract ERC721Bridge is Initializable {
 
     /// @notice Legacy getter for other bridge address.
     ///         Public getter is legacy and will be removed in the future. Use `otherBridge` instead.
-    /// @return Address of the bridge on the other network.
+    /// @return Contract of the bridge on the other network.
     /// @custom:legacy
-    function OTHER_BRIDGE() external view returns (address) {
+    function OTHER_BRIDGE() external view returns (StandardBridge) {
         return otherBridge;
     }
 
