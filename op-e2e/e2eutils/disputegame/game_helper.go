@@ -158,7 +158,7 @@ func (g *FaultGameHelper) WaitForClaimAtMaxDepth(ctx context.Context, countered 
 		fmt.Sprintf("Could not find claim depth %v with countered=%v", maxDepth, countered),
 		func(claim ContractClaim) bool {
 			pos := types.NewPositionFromGIndex(claim.Position)
-			return int64(pos.Depth()) == maxDepth && (claim.CounteredBy != common.Address{}) == countered
+			return pos.Depth() == maxDepth && (claim.CounteredBy != common.Address{}) == countered
 		})
 }
 
