@@ -35,7 +35,6 @@ contract BobaTuringCredit {
      *      Events      *
      *
      */
-
     event TransferOwnership(address oldOwner, address newOwner);
 
     event AddBalanceTo(address sender, uint256 balanceAmount, address helperContractAddress);
@@ -47,7 +46,6 @@ contract BobaTuringCredit {
      * Function Modifiers *
      *
      */
-
     modifier onlyNotInitialized() {
         require(address(turingToken) == address(0), "Contract has been initialized");
         _;
@@ -68,7 +66,6 @@ contract BobaTuringCredit {
      *    Constructor   *
      *
      */
-
     constructor(uint256 _turingPrice) {
         turingPrice = _turingPrice;
     }

@@ -1,5 +1,4 @@
 import { DeployFunction } from 'hardhat-deploy/dist/types'
-import { constants } from 'ethers'
 
 import {
   assertContractVariable,
@@ -17,7 +16,11 @@ const deployFn: DeployFunction = async (hre) => {
     name: 'OptimismMintableERC20Factory',
     args: [L1StandardBridgeProxy.address],
     postDeployAction: async (contract) => {
-      await assertContractVariable(contract, 'BRIDGE', L1StandardBridgeProxy.address)
+      await assertContractVariable(
+        contract,
+        'BRIDGE',
+        L1StandardBridgeProxy.address
+      )
     },
   })
 }

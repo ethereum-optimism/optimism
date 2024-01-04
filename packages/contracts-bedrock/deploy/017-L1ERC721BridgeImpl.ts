@@ -4,7 +4,7 @@ import { predeploys } from '../scripts'
 import {
   assertContractVariable,
   deploy,
-  getContractFromArtifact
+  getContractFromArtifact,
 } from '../scripts/deploy-utils'
 
 const deployFn: DeployFunction = async (hre) => {
@@ -17,7 +17,11 @@ const deployFn: DeployFunction = async (hre) => {
     name: 'L1ERC721Bridge',
     args: [L1CrossDomainMessengerProxy.address],
     postDeployAction: async (contract) => {
-      await assertContractVariable(contract, 'MESSENGER', L1CrossDomainMessengerProxy.address)
+      await assertContractVariable(
+        contract,
+        'MESSENGER',
+        L1CrossDomainMessengerProxy.address
+      )
       await assertContractVariable(
         contract,
         'OTHER_BRIDGE',

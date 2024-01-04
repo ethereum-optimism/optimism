@@ -1,0 +1,905 @@
+[
+  {
+    "inputs": [],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "inputs": [],
+    "name": "EXIT_1_NO_RETURN_STEP",
+    "outputs": [
+      {
+        "internalType": "uint8",
+        "name": "",
+        "type": "uint8"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "PROXY_TRANSFER_STEP",
+    "outputs": [
+      {
+        "internalType": "uint8",
+        "name": "",
+        "type": "uint8"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "config",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "contract AddressManager",
+            "name": "addressManager",
+            "type": "address"
+          },
+          {
+            "internalType": "contract ProxyAdmin",
+            "name": "proxyAdmin",
+            "type": "address"
+          },
+          {
+            "internalType": "contract SuperchainConfig",
+            "name": "superchainConfig",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "controller",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "finalOwner",
+            "type": "address"
+          }
+        ],
+        "internalType": "struct SystemDictator.GlobalConfig",
+        "name": "globalConfig",
+        "type": "tuple"
+      },
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "l2OutputOracleProxy",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "optimismPortalProxy",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "l1CrossDomainMessengerProxy",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "l1StandardBridgeProxy",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "optimismMintableERC20FactoryProxy",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "l1ERC721BridgeProxy",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "systemConfigProxy",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "protocolVersionsProxy",
+            "type": "address"
+          }
+        ],
+        "internalType": "struct SystemDictator.ProxyAddressConfig",
+        "name": "proxyAddressConfig",
+        "type": "tuple"
+      },
+      {
+        "components": [
+          {
+            "internalType": "contract L2OutputOracle",
+            "name": "l2OutputOracleImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "contract OptimismPortal",
+            "name": "optimismPortalImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "contract L1CrossDomainMessenger",
+            "name": "l1CrossDomainMessengerImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "contract L1StandardBridge",
+            "name": "l1StandardBridgeImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "contract OptimismMintableERC20Factory",
+            "name": "optimismMintableERC20FactoryImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "contract L1ERC721Bridge",
+            "name": "l1ERC721BridgeImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "contract PortalSender",
+            "name": "portalSenderImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "contract SystemConfig",
+            "name": "systemConfigImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "contract ProtocolVersions",
+            "name": "protocolVersionsImpl",
+            "type": "address"
+          }
+        ],
+        "internalType": "struct SystemDictator.ImplementationAddressConfig",
+        "name": "implementationAddressConfig",
+        "type": "tuple"
+      },
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "owner",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "overhead",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "scalar",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "batcherHash",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "uint64",
+            "name": "gasLimit",
+            "type": "uint64"
+          },
+          {
+            "internalType": "address",
+            "name": "unsafeBlockSigner",
+            "type": "address"
+          },
+          {
+            "components": [
+              {
+                "internalType": "uint32",
+                "name": "maxResourceLimit",
+                "type": "uint32"
+              },
+              {
+                "internalType": "uint8",
+                "name": "elasticityMultiplier",
+                "type": "uint8"
+              },
+              {
+                "internalType": "uint8",
+                "name": "baseFeeMaxChangeDenominator",
+                "type": "uint8"
+              },
+              {
+                "internalType": "uint32",
+                "name": "minimumBaseFee",
+                "type": "uint32"
+              },
+              {
+                "internalType": "uint32",
+                "name": "systemTxMaxGas",
+                "type": "uint32"
+              },
+              {
+                "internalType": "uint128",
+                "name": "maximumBaseFee",
+                "type": "uint128"
+              }
+            ],
+            "internalType": "struct ResourceMetering.ResourceConfig",
+            "name": "resourceConfig",
+            "type": "tuple"
+          },
+          {
+            "internalType": "uint256",
+            "name": "opnodeStartBlock",
+            "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "batchInbox",
+            "type": "address"
+          },
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "l1CrossDomainMessenger",
+                "type": "address"
+              },
+              {
+                "internalType": "address",
+                "name": "l1ERC721Bridge",
+                "type": "address"
+              },
+              {
+                "internalType": "address",
+                "name": "l1StandardBridge",
+                "type": "address"
+              },
+              {
+                "internalType": "address",
+                "name": "l2OutputOracle",
+                "type": "address"
+              },
+              {
+                "internalType": "address",
+                "name": "optimismPortal",
+                "type": "address"
+              },
+              {
+                "internalType": "address",
+                "name": "optimismMintableERC20Factory",
+                "type": "address"
+              }
+            ],
+            "internalType": "struct SystemConfig.Addresses",
+            "name": "systemConfigAddressConfig",
+            "type": "tuple"
+          }
+        ],
+        "internalType": "struct SystemDictator.SystemConfigConfig",
+        "name": "systemConfigConfig",
+        "type": "tuple"
+      },
+      {
+        "components": [
+          {
+            "internalType": "ProtocolVersion",
+            "name": "requiredProtocolVersion",
+            "type": "uint256"
+          },
+          {
+            "internalType": "ProtocolVersion",
+            "name": "recommendedProtocolVersion",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct SystemDictator.ProtocolVersionConfig",
+        "name": "protocolVersionConfig",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "currentStep",
+    "outputs": [
+      {
+        "internalType": "uint8",
+        "name": "",
+        "type": "uint8"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "dynamicConfigSet",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "exit1",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "exited",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "finalize",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "finalized",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "components": [
+              {
+                "internalType": "contract AddressManager",
+                "name": "addressManager",
+                "type": "address"
+              },
+              {
+                "internalType": "contract ProxyAdmin",
+                "name": "proxyAdmin",
+                "type": "address"
+              },
+              {
+                "internalType": "contract SuperchainConfig",
+                "name": "superchainConfig",
+                "type": "address"
+              },
+              {
+                "internalType": "address",
+                "name": "controller",
+                "type": "address"
+              },
+              {
+                "internalType": "address",
+                "name": "finalOwner",
+                "type": "address"
+              }
+            ],
+            "internalType": "struct SystemDictator.GlobalConfig",
+            "name": "globalConfig",
+            "type": "tuple"
+          },
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "l2OutputOracleProxy",
+                "type": "address"
+              },
+              {
+                "internalType": "address",
+                "name": "optimismPortalProxy",
+                "type": "address"
+              },
+              {
+                "internalType": "address",
+                "name": "l1CrossDomainMessengerProxy",
+                "type": "address"
+              },
+              {
+                "internalType": "address",
+                "name": "l1StandardBridgeProxy",
+                "type": "address"
+              },
+              {
+                "internalType": "address",
+                "name": "optimismMintableERC20FactoryProxy",
+                "type": "address"
+              },
+              {
+                "internalType": "address",
+                "name": "l1ERC721BridgeProxy",
+                "type": "address"
+              },
+              {
+                "internalType": "address",
+                "name": "systemConfigProxy",
+                "type": "address"
+              },
+              {
+                "internalType": "address",
+                "name": "protocolVersionsProxy",
+                "type": "address"
+              }
+            ],
+            "internalType": "struct SystemDictator.ProxyAddressConfig",
+            "name": "proxyAddressConfig",
+            "type": "tuple"
+          },
+          {
+            "components": [
+              {
+                "internalType": "contract L2OutputOracle",
+                "name": "l2OutputOracleImpl",
+                "type": "address"
+              },
+              {
+                "internalType": "contract OptimismPortal",
+                "name": "optimismPortalImpl",
+                "type": "address"
+              },
+              {
+                "internalType": "contract L1CrossDomainMessenger",
+                "name": "l1CrossDomainMessengerImpl",
+                "type": "address"
+              },
+              {
+                "internalType": "contract L1StandardBridge",
+                "name": "l1StandardBridgeImpl",
+                "type": "address"
+              },
+              {
+                "internalType": "contract OptimismMintableERC20Factory",
+                "name": "optimismMintableERC20FactoryImpl",
+                "type": "address"
+              },
+              {
+                "internalType": "contract L1ERC721Bridge",
+                "name": "l1ERC721BridgeImpl",
+                "type": "address"
+              },
+              {
+                "internalType": "contract PortalSender",
+                "name": "portalSenderImpl",
+                "type": "address"
+              },
+              {
+                "internalType": "contract SystemConfig",
+                "name": "systemConfigImpl",
+                "type": "address"
+              },
+              {
+                "internalType": "contract ProtocolVersions",
+                "name": "protocolVersionsImpl",
+                "type": "address"
+              }
+            ],
+            "internalType": "struct SystemDictator.ImplementationAddressConfig",
+            "name": "implementationAddressConfig",
+            "type": "tuple"
+          },
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "owner",
+                "type": "address"
+              },
+              {
+                "internalType": "uint256",
+                "name": "overhead",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "scalar",
+                "type": "uint256"
+              },
+              {
+                "internalType": "bytes32",
+                "name": "batcherHash",
+                "type": "bytes32"
+              },
+              {
+                "internalType": "uint64",
+                "name": "gasLimit",
+                "type": "uint64"
+              },
+              {
+                "internalType": "address",
+                "name": "unsafeBlockSigner",
+                "type": "address"
+              },
+              {
+                "components": [
+                  {
+                    "internalType": "uint32",
+                    "name": "maxResourceLimit",
+                    "type": "uint32"
+                  },
+                  {
+                    "internalType": "uint8",
+                    "name": "elasticityMultiplier",
+                    "type": "uint8"
+                  },
+                  {
+                    "internalType": "uint8",
+                    "name": "baseFeeMaxChangeDenominator",
+                    "type": "uint8"
+                  },
+                  {
+                    "internalType": "uint32",
+                    "name": "minimumBaseFee",
+                    "type": "uint32"
+                  },
+                  {
+                    "internalType": "uint32",
+                    "name": "systemTxMaxGas",
+                    "type": "uint32"
+                  },
+                  {
+                    "internalType": "uint128",
+                    "name": "maximumBaseFee",
+                    "type": "uint128"
+                  }
+                ],
+                "internalType": "struct ResourceMetering.ResourceConfig",
+                "name": "resourceConfig",
+                "type": "tuple"
+              },
+              {
+                "internalType": "uint256",
+                "name": "opnodeStartBlock",
+                "type": "uint256"
+              },
+              {
+                "internalType": "address",
+                "name": "batchInbox",
+                "type": "address"
+              },
+              {
+                "components": [
+                  {
+                    "internalType": "address",
+                    "name": "l1CrossDomainMessenger",
+                    "type": "address"
+                  },
+                  {
+                    "internalType": "address",
+                    "name": "l1ERC721Bridge",
+                    "type": "address"
+                  },
+                  {
+                    "internalType": "address",
+                    "name": "l1StandardBridge",
+                    "type": "address"
+                  },
+                  {
+                    "internalType": "address",
+                    "name": "l2OutputOracle",
+                    "type": "address"
+                  },
+                  {
+                    "internalType": "address",
+                    "name": "optimismPortal",
+                    "type": "address"
+                  },
+                  {
+                    "internalType": "address",
+                    "name": "optimismMintableERC20Factory",
+                    "type": "address"
+                  }
+                ],
+                "internalType": "struct SystemConfig.Addresses",
+                "name": "systemConfigAddressConfig",
+                "type": "tuple"
+              }
+            ],
+            "internalType": "struct SystemDictator.SystemConfigConfig",
+            "name": "systemConfigConfig",
+            "type": "tuple"
+          },
+          {
+            "components": [
+              {
+                "internalType": "ProtocolVersion",
+                "name": "requiredProtocolVersion",
+                "type": "uint256"
+              },
+              {
+                "internalType": "ProtocolVersion",
+                "name": "recommendedProtocolVersion",
+                "type": "uint256"
+              }
+            ],
+            "internalType": "struct SystemDictator.ProtocolVersionConfig",
+            "name": "protocolVersionConfig",
+            "type": "tuple"
+          }
+        ],
+        "internalType": "struct SystemDictator.DeployConfig",
+        "name": "_config",
+        "type": "tuple"
+      }
+    ],
+    "name": "initialize",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "l2OutputOracleDynamicConfig",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "l2OutputOracleStartingBlockNumber",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "l2OutputOracleStartingTimestamp",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "l2OutputOracleProposer",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "l2OutputOracleChallenger",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "oldL1CrossDomainMessenger",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "optimismPortalDynamicConfig",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "l2OutputOracle",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "portalGuardian",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "systemConfig",
+        "type": "address"
+      },
+      {
+        "internalType": "bool",
+        "name": "paused",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "owner",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "phase1",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "phase2",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "renounceOwnership",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "step1",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "step2",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "step3",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "step4",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "step5",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "newOwner",
+        "type": "address"
+      }
+    ],
+    "name": "transferOwnership",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "l2OutputOracleStartingBlockNumber",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "l2OutputOracleStartingTimestamp",
+            "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "l2OutputOracleProposer",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "l2OutputOracleChallenger",
+            "type": "address"
+          }
+        ],
+        "internalType": "struct SystemDictator.L2OutputOracleDynamicConfig",
+        "name": "_l2OutputOracleDynamicConfig",
+        "type": "tuple"
+      },
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "l2OutputOracle",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "portalGuardian",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "systemConfig",
+            "type": "address"
+          },
+          {
+            "internalType": "bool",
+            "name": "paused",
+            "type": "bool"
+          }
+        ],
+        "internalType": "struct SystemDictator.OptimismPortalDynamicConfig",
+        "name": "_optimismPortalDynamicConfig",
+        "type": "tuple"
+      }
+    ],
+    "name": "updateDynamicConfig",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint8",
+        "name": "version",
+        "type": "uint8"
+      }
+    ],
+    "name": "Initialized",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "previousOwner",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "newOwner",
+        "type": "address"
+      }
+    ],
+    "name": "OwnershipTransferred",
+    "type": "event"
+  }
+]

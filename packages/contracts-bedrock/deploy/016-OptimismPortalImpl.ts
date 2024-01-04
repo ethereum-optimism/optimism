@@ -5,7 +5,7 @@ import '@eth-optimism/hardhat-deploy-config'
 import {
   assertContractVariable,
   deploy,
-  getContractFromArtifact
+  getContractFromArtifact,
 } from '../scripts/deploy-utils'
 
 const deployFn: DeployFunction = async (hre) => {
@@ -42,13 +42,18 @@ const deployFn: DeployFunction = async (hre) => {
   await deploy({
     hre,
     name: 'OptimismPortal',
-    args: [
-      L2OutputOracleProxy.address,
-      systemConfigProxy.address,
-    ],
+    args: [L2OutputOracleProxy.address, systemConfigProxy.address],
     postDeployAction: async (contract) => {
-      await assertContractVariable(contract, 'L2_ORACLE',  L2OutputOracleProxy.address)
-      await assertContractVariable(contract, 'SYSTEM_CONFIG', systemConfigProxy.address)
+      await assertContractVariable(
+        contract,
+        'L2_ORACLE',
+        L2OutputOracleProxy.address
+      )
+      await assertContractVariable(
+        contract,
+        'SYSTEM_CONFIG',
+        systemConfigProxy.address
+      )
       await assertContractVariable(
         contract,
         'superchainConfig',
