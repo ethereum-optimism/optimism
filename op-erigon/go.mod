@@ -129,7 +129,7 @@ require (
 	github.com/klauspost/compress v1.16.7 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.5 // indirect
 	github.com/koron/go-ssdp v0.0.4 // indirect
-	github.com/ledgerwatch/erigon-snapshot v1.3.1-0.20231102060711-19219b948f46 // indirect
+	github.com/ledgerwatch/erigon-snapshot v1.3.1-0.20231106204511-f1e556dd5c50 // indirect
 	github.com/libp2p/go-buffer-pool v0.1.0 // indirect
 	github.com/libp2p/go-cidranger v1.1.0 // indirect
 	github.com/libp2p/go-flow-metrics v0.1.0 // indirect
@@ -266,10 +266,10 @@ require (
 	zombiezen.com/go/sqlite v0.13.1 // indirect
 )
 
-replace github.com/ledgerwatch/erigon-lib => github.com/bobanetwork/v3-erigon/erigon-lib v0.0.0-20231102145104-76835722716c
+replace github.com/ledgerwatch/erigon-lib => github.com/bobanetwork/v3-erigon/erigon-lib v0.0.0-20240104174234-6d7de16c3589
 
 replace github.com/tendermint/tendermint => github.com/bnb-chain/tendermint v0.31.12
 
 replace github.com/VictoriaMetrics/metrics => github.com/ledgerwatch/victoria-metrics v0.0.4
 
-replace github.com/ledgerwatch/erigon => github.com/bobanetwork/v3-erigon v1.9.7-0.20231102145104-76835722716c
+replace github.com/ledgerwatch/erigon => github.com/bobanetwork/v3-erigon v1.9.7-0.20240104174234-6d7de16c3589
