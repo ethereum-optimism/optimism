@@ -63,11 +63,11 @@
     "typescript": "^5.3.3",
     "vite": "^5.0.10",
     "vitest": "^1.0.1",
-    "wagmi": "^1.4.12"
+    "wagmi": "^2.0.1"
   },
   "peerDependencies": {
     "@wagmi/core": "^1.4.12",
-    "wagmi": "^1.4.12"
+    "wagmi": "^2.0.1"
   },
   "peerDependenciesMeta": {
     "wagmi": {
