@@ -16,7 +16,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/clients"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/safe"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/upgrades"
 
 	"github.com/ethereum-optimism/superchain-registry/superchain"
@@ -105,9 +104,6 @@ func entrypoint(ctx *cli.Context) error {
 		return int(i.ChainID) - int(j.ChainID)
 	})
 
-	// Create a batch of transactions
-	batch := safe.Batch{}
-
 	for _, chainConfig := range targets {
 		name, _ := toDeployConfigName(chainConfig)
 		config, err := genesis.NewDeployConfigWithNetwork(name, deployConfig)
@@ -168,45 +164,15 @@ func entrypoint(ctx *cli.Context) error {
 		log.Info("OptimismMintableERC20Factory", "version", versions.OptimismMintableERC20Factory, "address", addresses.OptimismMintableERC20FactoryProxy)
 		log.Info("OptimismPortal", "version", versions.OptimismPortal, "address", addresses.OptimismPortalProxy)
 		log.Info("SystemConfig", "version", versions.SystemConfig, "address", chainConfig.SystemConfigAddr)
-
-		implementations, ok := superchain.Implementations[l1ChainID.Uint64()]
-		if !ok {
-			return fmt.Errorf("no implementations for chain ID %d", l1ChainID.Uint64())
-		}
-
-		list, err := implementations.Resolve(superchain.SuperchainSemver)
-		if err != nil {
-			return err
-		}
-
-		log.Info("Upgrading to the following versions")
-		log.Info("L1CrossDomainMessenger", "version", list.L1CrossDomainMessenger.Version, "address", list.L1CrossDomainMessenger.Address)
-		log.Info("L1ERC721Bridge", "version", list.L1ERC721Bridge.Version, "address", list.L1ERC721Bridge.Address)
-		log.Info("L1StandardBridge", "version", list.L1StandardBridge.Version, "address", list.L1StandardBridge.Address)
-		log.Info("L2OutputOracle", "version", list.L2OutputOracle.Version, "address", list.L2OutputOracle.Address)
-		log.Info("OptimismMintableERC20Factory", "version", list.OptimismMintableERC20Factory.Version, "address", list.OptimismMintableERC20Factory.Address)
-		log.Info("OptimismPortal", "version", list.OptimismPortal.Version, "address", list.OptimismPortal.Address)
-		log.Info("SystemConfig", "version", list.SystemConfig.Version, "address", list.SystemConfig.Address)
-
-		// Ensure that the superchain registry information is correct by checking the
-		// actual versions based on what the registry says is true.
-		if err := upgrades.CheckL1(ctx.Context, &list, clients.L1Client); err != nil {
-			return fmt.Errorf("error checking L1: %w", err)
-		}
-
-		// Build the batch
-		if err := upgrades.L1(&batch, list, *addresses, config, chainConfig, clients.L1Client); err != nil {
-			return err
-		}
 	}
 
 	// Write the batch to disk or stdout
 	if outfile := ctx.Path("outfile"); outfile != "" {
-		if err := writeJSON(outfile, batch); err != nil {
+		if err := writeJSON(outfile, ""); err != nil {
 			return err
 		}
 	} else {
-		data, err := json.MarshalIndent(batch, "", "  ")
+		data, err := json.MarshalIndent("", "", "  ")
 		if err != nil {
 			return err
 		}
