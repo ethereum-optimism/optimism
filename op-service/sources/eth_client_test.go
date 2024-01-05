@@ -192,36 +192,31 @@ func TestEthClient_validateReceipts(t *testing.T) {
 		rs[2].Bloom[0] = 1
 		return rs
 	}
+	mutTruncate := func(rs types.Receipts) types.Receipts {
+		return rs[:len(rs)-1]
+	}
 
 	for _, tt := range []validateReceiptsTest{
 		{
-			desc: "no-trust-valid",
+			desc: "valid",
 		},
 		{
-			desc:        "no-trust-invalid-mut-bloom",
+			desc:        "invalid-mut-bloom",
 			mutReceipts: mutBloom,
-			expError:    "invalid receipts",
+			expError:    "invalid receipts: failed to fetch list of receipts: expected receipt root",
 		},
 		{
-			desc:     "trust-valid",
-			trustRPC: true,
-		},
-		{
-			desc:        "trust-invalid-mut-bloom",
-			trustRPC:    true,
-			mutReceipts: mutBloom, // should still pass if trusting rpc
-		},
-		{
-			desc:     "trust-invalid-truncated",
-			trustRPC: true,
-			mutReceipts: func(rs types.Receipts) types.Receipts {
-				// remove last receipt should invalidate even if trusting RPC
-				return rs[:len(rs)-1]
-			},
-			expError: "unexpected number of receipts",
+			desc:        "invalid-truncated",
+			mutReceipts: mutTruncate,
+			expError:    "invalid receipts: got 3 receipts but expected 4",
 		},
 	} {
-		t.Run(tt.desc, func(t *testing.T) {
+		t.Run("no-trust-"+tt.desc, func(t *testing.T) {
+			testEthClient_validateReceipts(t, tt)
+		})
+		// trusting the rpc should still lead to failed validation
+		tt.trustRPC = true
+		t.Run("trust-"+tt.desc, func(t *testing.T) {
 			testEthClient_validateReceipts(t, tt)
 		})
 	}
