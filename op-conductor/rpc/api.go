@@ -6,20 +6,23 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
+type ServerInfo struct {
+	ID   string `json:"id"`
+	Addr string `json:"addr"`
+}
+
 // API defines the interface for the op-conductor API.
 type API interface {
 	// Pause pauses op-conductor.
 	Pause(ctx context.Context) error
 	// Resume resumes op-conductor.
 	Resume(ctx context.Context) error
-	// Stop stops op-conductor.
-	Stop(ctx context.Context) error
 
 	// Consensus related APIs
 	// Leader returns true if the server is the leader.
-	Leader(ctx context.Context) bool
-	// LeaderWithID returns the current leader's server ID and address.
-	LeaderWithID(ctx context.Context) (string, string)
+	Leader(ctx context.Context) (bool, error)
+	// LeaderWithID returns the current leader's server info.
+	LeaderWithID(ctx context.Context) (*ServerInfo, error)
 	// AddServerAsVoter adds a server as a voter to the cluster.
 	AddServerAsVoter(ctx context.Context, id string, addr string) error
 	// AddServerAsNonvoter adds a server as a non-voter to the cluster. non-voter will not participate in leader election.
@@ -33,7 +36,7 @@ type API interface {
 
 	// APIs called by op-node
 	// Active returns true if op-conductor is active.
-	Active(ctx context.Context) bool
+	Active(ctx context.Context) (bool, error)
 	// CommitUnsafePayload commits a unsafe payload (lastest head) to the consensus layer.
 	CommitUnsafePayload(ctx context.Context, payload *eth.ExecutionPayload) error
 }

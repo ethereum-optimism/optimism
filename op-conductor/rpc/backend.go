@@ -28,8 +28,8 @@ func NewAPIBackend(log log.Logger, con *conductor.OpConductor) *APIBackend {
 var _ API = (*APIBackend)(nil)
 
 // Active implements API.
-func (api *APIBackend) Active(_ context.Context) bool {
-	return !api.con.Stopped() && !api.con.Paused()
+func (api *APIBackend) Active(_ context.Context) (bool, error) {
+	return !api.con.Stopped() && !api.con.Paused(), nil
 }
 
 // AddServerAsNonvoter implements API.
@@ -48,13 +48,17 @@ func (api *APIBackend) CommitUnsafePayload(ctx context.Context, payload *eth.Exe
 }
 
 // Leader implements API, returns true if current conductor is leader of the cluster.
-func (api *APIBackend) Leader(ctx context.Context) bool {
-	return api.con.Leader(ctx)
+func (api *APIBackend) Leader(ctx context.Context) (bool, error) {
+	return api.con.Leader(ctx), nil
 }
 
 // LeaderWithID implements API, returns the leader's server ID and address (not necessarily the current conductor).
-func (api *APIBackend) LeaderWithID(ctx context.Context) (string, string) {
-	return api.con.LeaderWithID(ctx)
+func (api *APIBackend) LeaderWithID(ctx context.Context) (*ServerInfo, error) {
+	id, addr := api.con.LeaderWithID(ctx)
+	return &ServerInfo{
+		ID:   id,
+		Addr: addr,
+	}, nil
 }
 
 // Pause implements API.
@@ -70,11 +74,6 @@ func (api *APIBackend) RemoveServer(ctx context.Context, id string) error {
 // Resume implements API.
 func (api *APIBackend) Resume(ctx context.Context) error {
 	return api.con.Resume(ctx)
-}
-
-// Stop implements API.
-func (api *APIBackend) Stop(ctx context.Context) error {
-	return api.con.Stop(ctx)
 }
 
 // TransferLeader implements API.
