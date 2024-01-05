@@ -4,7 +4,6 @@ pragma solidity 0.8.15;
 // Testing utilities
 import { Bridge_Initializer } from "test/setup/Bridge_Initializer.sol";
 import { Reverter, ConfigurableCaller } from "test/mocks/Callers.sol";
-import { console2 as console } from "forge-std/console2.sol";
 
 // Libraries
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
