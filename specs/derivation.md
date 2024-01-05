@@ -802,7 +802,7 @@ To interact with the engine, the [execution engine API][exec-engine] is used, wi
   instructs the engine to start building an execution payload if the payload attributes parameter is not `null`.
 - [`engine_getPayloadV3`] — retrieves a previously requested execution payload build.
 - `engine_newPayload`
-  - [`engine_newPayloadV2`] — executes a Bedrock or Canyon execution payload to create a block.
+  - [`engine_newPayloadV2`] — executes a Bedrock/Canyon/Delta execution payload to create a block.
   - [`engine_newPayloadV3`] — executes an Ecotone execution payload to create a block.
 
 The current version of `op-node` uses the `v3` Engine API RPC methods as well as `engine_newPayloadV2`.
