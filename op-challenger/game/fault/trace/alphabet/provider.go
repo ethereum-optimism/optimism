@@ -48,9 +48,7 @@ func (ap *AlphabetTraceProvider) GetStepData(ctx context.Context, pos types.Posi
 	if traceIndex.Cmp(common.Big0) == 0 {
 		return absolutePrestate, []byte{}, preimageData, nil
 	}
-	// We want the pre-state which is the value prior to the one requested
-	prestateTraceIndex := new(big.Int).Sub(traceIndex, big.NewInt(1))
-	if prestateTraceIndex.Cmp(new(big.Int).SetUint64(ap.maxLen)) >= 0 {
+	if traceIndex.Cmp(new(big.Int).SetUint64(ap.maxLen)) > 0 {
 		return nil, nil, nil, fmt.Errorf("%w depth: %v index: %v max: %v", ErrIndexTooLarge, ap.depth, traceIndex, ap.maxLen)
 	}
 	initialTraceIndex := new(big.Int).Lsh(ap.startingBlockNumber, 4)
