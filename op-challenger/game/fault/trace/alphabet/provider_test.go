@@ -80,62 +80,127 @@ func TestAlphabetProvider_Get_ClaimsByTraceIndex(t *testing.T) {
 	}
 }
 
-// TestGetPreimage_Succeeds tests the GetPreimage function
-// returns the correct pre-image for a index.
-func TestGetStepData_Succeeds(t *testing.T) {
+// TestAlphabetProvider_GetStepData tests the GetStepData function.
+func TestAlphabetProvider_GetStepData(t *testing.T) {
 	depth := types.Depth(2)
 	startingL2BlockNumber := big.NewInt(1)
 	ap := NewTraceProvider(startingL2BlockNumber, depth)
-	expected := absolutePrestate
-	pos := types.NewPosition(depth, big.NewInt(0))
-	retrieved, proof, data, err := ap.GetStepData(context.Background(), pos)
-	require.NoError(t, err)
-	require.Equal(t, expected, retrieved)
-	require.Empty(t, proof)
 	key := preimage.LocalIndexKey(L2ClaimBlockNumberLocalIndex).PreimageKey()
-	expectedLocalContextData := types.NewPreimageOracleData(key[:], startingL2BlockNumber.Bytes(), 0)
-	require.Equal(t, expectedLocalContextData, data)
+	expectedPreimageData := types.NewPreimageOracleData(key[:], startingL2BlockNumber.Bytes(), 0)
+
+	tests := []struct {
+		name                 string
+		indexAtDepth         *big.Int
+		expectedResult       []byte
+		expectedPreimageData *types.PreimageOracleData
+		expectedError        error
+	}{
+		{
+			name:                 "AbsolutePrestate",
+			indexAtDepth:         big.NewInt(0),
+			expectedResult:       absolutePrestate,
+			expectedPreimageData: expectedPreimageData,
+			expectedError:        nil,
+		},
+		{
+			name:                 "SecondStep",
+			indexAtDepth:         big.NewInt(1),
+			expectedResult:       BuildAlphabetPreimage(big.NewInt(17), big.NewInt(113)),
+			expectedPreimageData: expectedPreimageData,
+			expectedError:        nil,
+		},
+		{
+			name:                 "LastStep",
+			indexAtDepth:         big.NewInt(4),
+			expectedResult:       BuildAlphabetPreimage(big.NewInt(20), big.NewInt(116)),
+			expectedPreimageData: expectedPreimageData,
+			expectedError:        nil,
+		},
+		{
+			name:                 "IndexTooLarge",
+			indexAtDepth:         big.NewInt(5),
+			expectedResult:       nil,
+			expectedPreimageData: nil,
+			expectedError:        ErrIndexTooLarge,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+
+			result, proof, data, err := ap.GetStepData(context.Background(), types.NewPosition(depth, test.indexAtDepth))
+			require.Equal(t, test.expectedResult, result)
+			require.Empty(t, proof)
+			require.Equal(t, test.expectedPreimageData, data)
+			if test.expectedError != nil {
+				require.ErrorIs(t, err, test.expectedError)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }
 
-// TestGetPreimage_TooLargeIndex_Fails tests the GetPreimage
-// function errors if the index is too large.
-func TestGetStepData_TooLargeIndex_Fails(t *testing.T) {
-	depth := types.Depth(2)
-	startingL2BlockNumber := big.NewInt(1)
-	ap := NewTraceProvider(startingL2BlockNumber, depth)
-	pos := types.NewPosition(depth, big.NewInt(5))
-	_, _, _, err := ap.GetStepData(context.Background(), pos)
-	require.ErrorIs(t, err, ErrIndexTooLarge)
-}
+// TestAlphabetProvider_Get tests the Get function.
+func TestAlphabetProvider_Get(t *testing.T) {
+	tests := []struct {
+		name          string
+		depth         types.Depth
+		indexAtDepth  *big.Int
+		expectedClaim common.Hash
+		expectedError error
+	}{
+		{
+			name:          "AbsolutePrestate",
+			depth:         types.Depth(2),
+			indexAtDepth:  big.NewInt(0),
+			expectedClaim: alphabetClaim(big.NewInt(17), big.NewInt(113)),
+			expectedError: nil,
+		},
+		{
+			name:          "SecondStep",
+			depth:         types.Depth(2),
+			indexAtDepth:  big.NewInt(1),
+			expectedClaim: alphabetClaim(big.NewInt(18), big.NewInt(114)),
+			expectedError: nil,
+		},
+		{
+			name:          "LastStep",
+			depth:         types.Depth(2),
+			indexAtDepth:  big.NewInt(3),
+			expectedClaim: alphabetClaim(big.NewInt(20), big.NewInt(116)),
+			expectedError: nil,
+		},
+		{
+			name:          "IndexTooLarge",
+			depth:         types.Depth(2),
+			indexAtDepth:  big.NewInt(5),
+			expectedClaim: common.Hash{},
+			expectedError: ErrIndexTooLarge,
+		},
+		{
+			name:          "DepthTooLarge",
+			depth:         types.Depth(3),
+			indexAtDepth:  big.NewInt(0),
+			expectedClaim: common.Hash{},
+			expectedError: ErrIndexTooLarge,
+		},
+	}
 
-// TestGet_Succeeds tests the Get function.
-func TestGet_Succeeds(t *testing.T) {
-	depth := types.Depth(2)
-	startingL2BlockNumber := big.NewInt(1)
-	ap := NewTraceProvider(startingL2BlockNumber, depth)
-	pos := types.NewPosition(depth, big.NewInt(0))
-	claim, err := ap.Get(context.Background(), pos)
-	require.NoError(t, err)
-	expected := alphabetClaim(big.NewInt(17), big.NewInt(113))
-	require.Equal(t, expected, claim)
-}
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			startingL2BlockNumber := big.NewInt(1)
+			ap := NewTraceProvider(startingL2BlockNumber, types.Depth(2))
 
-// TestGet_IndexTooLarge tests the Get function with an index
-// greater than the number of indices: 2^depth - 1.
-func TestGet_IndexTooLarge(t *testing.T) {
-	depth := types.Depth(2)
-	startingL2BlockNumber := big.NewInt(1)
-	ap := NewTraceProvider(startingL2BlockNumber, depth)
-	pos := types.NewPosition(depth, big.NewInt(4))
-	_, err := ap.Get(context.Background(), pos)
-	require.ErrorIs(t, err, ErrIndexTooLarge)
-}
-
-func TestGet_DepthTooLarge(t *testing.T) {
-	depth := types.Depth(2)
-	startingL2BlockNumber := big.NewInt(1)
-	ap := NewTraceProvider(startingL2BlockNumber, depth)
-	pos := types.NewPosition(depth+1, big.NewInt(0))
-	_, err := ap.Get(context.Background(), pos)
-	require.ErrorIs(t, err, ErrIndexTooLarge)
+			result, err := ap.Get(context.Background(), types.NewPosition(test.depth, test.indexAtDepth))
+			require.Equal(t, test.expectedClaim, result)
+			if test.expectedError != nil {
+				require.ErrorIs(t, err, test.expectedError)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }

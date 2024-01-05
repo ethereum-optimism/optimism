@@ -24,8 +24,10 @@ var (
 	ErrIndexTooLarge = errors.New("index is larger than the maximum index")
 )
 
-// AlphabetTraceProvider is a [TraceProvider] that provides claims for specific
-// indices in the given trace.
+var _ types.TraceProvider = (*AlphabetTraceProvider)(nil)
+
+// AlphabetTraceProvider is a [TraceProvider] that monotonically increments
+// the starting l2 block number as the claim value.
 type AlphabetTraceProvider struct {
 	AlphabetPrestateProvider
 	startingBlockNumber *big.Int
@@ -93,8 +95,8 @@ func (ap *AlphabetTraceProvider) Get(ctx context.Context, i types.Position) (com
 }
 
 // BuildAlphabetPreimage constructs the claim bytes for the index and claim.
-func BuildAlphabetPreimage(i *big.Int, blockNumber *big.Int) []byte {
-	return append(i.FillBytes(make([]byte, 32)), blockNumber.FillBytes(make([]byte, 32))...)
+func BuildAlphabetPreimage(traceIndex *big.Int, claim *big.Int) []byte {
+	return append(traceIndex.FillBytes(make([]byte, 32)), claim.FillBytes(make([]byte, 32))...)
 }
 
 func alphabetStateHash(state []byte) common.Hash {
