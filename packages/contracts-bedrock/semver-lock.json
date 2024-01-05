@@ -88,12 +88,12 @@
     "sourceCodeHash": "0x1afb1d392e8f6a58ff86ea7f648e0d1756d4ba8d0d964279d58a390deaa53b7e"
   },
   "src/dispute/DisputeGameFactory.sol": {
-    "initCodeHash": "0x79ede9274590494d776c9e2ecdf006cb7106f97490841ea85b52fc8eb18cd7b9",
-    "sourceCodeHash": "0x6e3a697764840cd30ca4b3e514528b832ce80bb412ac958b5ec6b751a07d735f"
+    "initCodeHash": "0xf6ab546550f8d3d85e9bde748eeea21f7fb16db3d63b8312c04598ca64c1be16",
+    "sourceCodeHash": "0x01c757935c87dcf2faa7f16bcf29cfb29b90c671a874f983067614670147b11d"
   },
   "src/dispute/FaultDisputeGame.sol": {
-    "initCodeHash": "0xe3c50aa8ab4ba7a4b4b6d5752a3a3acc2ca0efccbc086df8e00f85d4d696ab15",
-    "sourceCodeHash": "0xbc5e4e6ec9d4438494cacd6ed284456b41a9b6e090fa4b39a59cf122c8c3667d"
+    "initCodeHash": "0x2f30aa96d5c4d126d93dfe15bbfc90e1bbd6bc6208bcc4a49e250790c2a0918d",
+    "sourceCodeHash": "0x315508f5b100dcb6b81077fb8d6999de425b47f0dfd0330ac1973ee4df166f4a"
   },
   "src/legacy/DeployerWhitelist.sol": {
     "initCodeHash": "0x8de80fb23b26dd9d849f6328e56ea7c173cd9e9ce1f05c9beea559d1720deb3d",

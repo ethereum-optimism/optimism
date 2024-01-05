@@ -310,8 +310,16 @@ func proposeL2OutputTxData(abi *abi.ABI, output *eth.OutputResponse) ([]byte, er
 		new(big.Int).SetUint64(output.Status.CurrentL1.Number))
 }
 
-func (l *L2OutputSubmitter) ProposeL2OutputDGFTxData(output *eth.OutputResponse) ([]byte, error) {
-	return proposeL2OutputDGFTxData(l.dgfABI, l.Cfg.DisputeGameType, output)
+func (l *L2OutputSubmitter) ProposeL2OutputDGFTxData(output *eth.OutputResponse) ([]byte, *big.Int, error) {
+	bond, err := l.dgfContract.InitBonds(&bind.CallOpts{}, l.Cfg.DisputeGameType)
+	if err != nil {
+		return nil, nil, err
+	}
+	data, err := proposeL2OutputDGFTxData(l.dgfABI, l.Cfg.DisputeGameType, output)
+	if err != nil {
+		return nil, nil, err
+	}
+	return data, bond, err
 }
 
 // proposeL2OutputDGFTxData creates the transaction data for the DisputeGameFactory's `create` function
@@ -356,7 +364,7 @@ func (l *L2OutputSubmitter) sendTransaction(ctx context.Context, output *eth.Out
 
 	var receipt *types.Receipt
 	if l.Cfg.DisputeGameFactoryAddr != nil {
-		data, err := l.ProposeL2OutputDGFTxData(output)
+		data, bond, err := l.ProposeL2OutputDGFTxData(output)
 		if err != nil {
 			return err
 		}
@@ -364,6 +372,7 @@ func (l *L2OutputSubmitter) sendTransaction(ctx context.Context, output *eth.Out
 			TxData:   data,
 			To:       l.Cfg.DisputeGameFactoryAddr,
 			GasLimit: 0,
+			Value:    bond,
 		})
 		if err != nil {
 			return err

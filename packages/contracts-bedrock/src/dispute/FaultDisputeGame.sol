@@ -81,8 +81,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     bool internal initialized;
 
     /// @notice Semantic version.
-    /// @custom:semver 0.0.23
-    string public constant version = "0.0.23";
+    /// @custom:semver 0.0.24
+    string public constant version = "0.0.24";
 
     /// @param _gameType The type ID of the game.
     /// @param _absolutePrestate The absolute prestate of the instruction trace.
@@ -457,6 +457,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         //
         // Implicit assumptions:
         // - The `gameStatus` state variable defaults to 0, which is `GameStatus.IN_PROGRESS`
+        // - The dispute game factory will enforce the required bond to initialize the game.
         //
         // Explicit checks:
         // - The game must not have already been initialized.
@@ -481,9 +482,6 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
                 revert(0x1C, 0x04)
             }
         }
-
-        // INVARIANT: The `msg.value` must be sufficient to cover the required bond.
-        if (getRequiredBond(ROOT_POSITION) > msg.value) revert InsufficientBond();
 
         // Set the root claim
         claimData.push(
