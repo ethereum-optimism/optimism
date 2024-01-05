@@ -21,6 +21,7 @@ func TestOutputAlphabetGame_ChallengerWins(t *testing.T) {
 
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
 	game := disputeGameFactory.StartOutputAlphabetGame(ctx, "sequencer", 3, common.Hash{0xff})
+	correctTrace := game.CreateHonestActor(ctx, "sequencer")
 	game.LogGameData(ctx)
 
 	opts := challenger.WithPrivKey(sys.Cfg.Secrets.Alice)
@@ -46,8 +47,8 @@ func TestOutputAlphabetGame_ChallengerWins(t *testing.T) {
 	claim = claim.WaitForCounterClaim(ctx)
 	game.LogGameData(ctx)
 
-	// Attack the root of the cannon trace subgame
-	claim = claim.Attack(ctx, common.Hash{0x00, 0xcc})
+	// Attack the root of the alphabet trace subgame
+	claim = correctTrace.AttackClaim(ctx, claim)
 	for !claim.IsMaxDepth(ctx) {
 		if claim.AgreesWithOutputRoot() {
 			// If the latest claim supports the output root, wait for the honest challenger to respond
@@ -55,7 +56,7 @@ func TestOutputAlphabetGame_ChallengerWins(t *testing.T) {
 			game.LogGameData(ctx)
 		} else {
 			// Otherwise we need to counter the honest claim
-			claim = claim.Defend(ctx, common.Hash{0x00, 0xdd})
+			claim = correctTrace.AttackClaim(ctx, claim)
 			game.LogGameData(ctx)
 		}
 	}
@@ -66,6 +67,7 @@ func TestOutputAlphabetGame_ChallengerWins(t *testing.T) {
 	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
 	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 	game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
+	game.LogGameData(ctx)
 }
 
 func TestOutputAlphabetGame_ValidOutputRoot(t *testing.T) {
