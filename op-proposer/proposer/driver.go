@@ -313,9 +313,12 @@ func proposeL2OutputTxData(abi *abi.ABI, output *eth.OutputResponse) ([]byte, er
 func (l *L2OutputSubmitter) ProposeL2OutputDGFTxData(output *eth.OutputResponse) ([]byte, *big.Int, error) {
 	bond, err := l.dgfContract.InitBonds(&bind.CallOpts{}, l.Cfg.DisputeGameType)
 	if err != nil {
-		return make([]byte, 0), nil, err
+		return nil, nil, err
 	}
 	data, err := proposeL2OutputDGFTxData(l.dgfABI, l.Cfg.DisputeGameType, output)
+	if err != nil {
+		return nil, nil, err
+	}
 	return data, bond, err
 }
 
