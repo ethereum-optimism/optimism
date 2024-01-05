@@ -20,6 +20,7 @@ import (
 	opp2p "github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	opclient "github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 )
 
@@ -293,6 +294,46 @@ func (oc *OpConductor) Resume(ctx context.Context) error {
 // Paused returns true if OpConductor is paused.
 func (oc *OpConductor) Paused() bool {
 	return oc.paused.Load()
+}
+
+// Leader returns true if OpConductor is the leader.
+func (oc *OpConductor) Leader(_ context.Context) bool {
+	return oc.cons.Leader()
+}
+
+// LeaderWithID returns the current leader's server ID and address.
+func (oc *OpConductor) LeaderWithID(_ context.Context) (string, string) {
+	return oc.cons.LeaderWithID()
+}
+
+// AddServerAsVoter adds a server as a voter to the cluster.
+func (oc *OpConductor) AddServerAsVoter(_ context.Context, id string, addr string) error {
+	return oc.cons.AddVoter(id, addr)
+}
+
+// AddServerAsNonvoter adds a server as a non-voter to the cluster. non-voter will not participate in leader election.
+func (oc *OpConductor) AddServerAsNonvoter(_ context.Context, id string, addr string) error {
+	return oc.cons.AddNonVoter(id, addr)
+}
+
+// RemoveServer removes a server from the cluster.
+func (oc *OpConductor) RemoveServer(_ context.Context, id string) error {
+	return oc.cons.RemoveServer(id)
+}
+
+// TransferLeader transfers leadership to another server.
+func (oc *OpConductor) TransferLeader(_ context.Context) error {
+	return oc.cons.TransferLeader()
+}
+
+// TransferLeaderToServer transfers leadership to a specific server.
+func (oc *OpConductor) TransferLeaderToServer(_ context.Context, id string, addr string) error {
+	return oc.cons.TransferLeaderTo(id, addr)
+}
+
+// CommitUnsafePayload commits a unsafe payload (lastest head) to the cluster FSM.
+func (oc *OpConductor) CommitUnsafePayload(_ context.Context, payload *eth.ExecutionPayload) error {
+	return oc.cons.CommitUnsafePayload(payload)
 }
 
 func (oc *OpConductor) loop() {

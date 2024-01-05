@@ -36,7 +36,7 @@ func TestCommitAndRead(t *testing.T) {
 	<-cons.LeaderCh()
 
 	// eth.BlockV1
-	payload := eth.ExecutionPayload{
+	payload := &eth.ExecutionPayload{
 		BlockNumber:  1,
 		Timestamp:    hexutil.Uint64(now - 20),
 		Transactions: []eth.Data{},
@@ -50,7 +50,7 @@ func TestCommitAndRead(t *testing.T) {
 	require.Equal(t, payload, unsafeHead)
 
 	// eth.BlockV2
-	payload = eth.ExecutionPayload{
+	payload = &eth.ExecutionPayload{
 		BlockNumber:  2,
 		Timestamp:    hexutil.Uint64(time.Now().Unix()),
 		Transactions: []eth.Data{},
