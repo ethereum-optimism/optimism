@@ -1,0 +1,194 @@
+
+type Initialized @entity(immutable: true) {
+  id: ID!
+  block_number: BigInt!
+  timestamp_: BigInt!
+  transactionHash_: String!
+  contractId_: String!
+
+  version: BigInt
+
+}
+
+type Paused @entity(immutable: true) {
+  id: ID!
+  block_number: BigInt!
+  timestamp_: BigInt!
+  transactionHash_: String!
+  contractId_: String!
+
+  account: String
+
+}
+
+type TransactionDeposited @entity(immutable: true) {
+  id: ID!
+  block_number: BigInt!
+  timestamp_: BigInt!
+  transactionHash_: String!
+  contractId_: String!
+
+  from: String
+  to: String
+  version: BigInt
+  opaqueData: String
+
+}
+
+type Unpaused @entity(immutable: true) {
+  id: ID!
+  block_number: BigInt!
+  timestamp_: BigInt!
+  transactionHash_: String!
+  contractId_: String!
+
+  account: String
+
+}
+
+type WithdrawalFinalized @entity(immutable: true) {
+  id: ID!
+  block_number: BigInt!
+  timestamp_: BigInt!
+  transactionHash_: String!
+  contractId_: String!
+
+  withdrawalHash: String
+  success: Boolean
+
+}
+
+type WithdrawalProven @entity(immutable: true) {
+  id: ID!
+  block_number: BigInt!
+  timestamp_: BigInt!
+  transactionHash_: String!
+  contractId_: String!
+
+  withdrawalHash: String
+  from: String
+  to: String
+
+}
+
+type DepositFinalized @entity(immutable: true) {
+  id: ID!
+  block_number: BigInt!
+  timestamp_: BigInt!
+  transactionHash_: String!
+  contractId_: String!
+
+  l1Token: String
+  l2Token: String
+  from: String
+  to: String
+  amount: BigInt
+  extraData: String
+
+}
+
+type ERC20BridgeFinalized @entity(immutable: true) {
+  id: ID!
+  block_number: BigInt!
+  timestamp_: BigInt!
+  transactionHash_: String!
+  contractId_: String!
+
+  localToken: String
+  remoteToken: String
+  from: String
+  to: String
+  amount: BigInt
+  extraData: String
+
+}
+
+type ERC20BridgeInitiated @entity(immutable: true) {
+  id: ID!
+  block_number: BigInt!
+  timestamp_: BigInt!
+  transactionHash_: String!
+  contractId_: String!
+
+  localToken: String
+  remoteToken: String
+  from: String
+  to: String
+  amount: BigInt
+  extraData: String
+
+}
+
+type ETHBridgeFinalized @entity(immutable: true) {
+  id: ID!
+  block_number: BigInt!
+  timestamp_: BigInt!
+  transactionHash_: String!
+  contractId_: String!
+
+  from: String
+  to: String
+  amount: BigInt
+  extraData: String
+
+}
+
+type ETHBridgeInitiated @entity(immutable: true) {
+  id: ID!
+  block_number: BigInt!
+  timestamp_: BigInt!
+  transactionHash_: String!
+  contractId_: String!
+
+  from: String
+  to: String
+  amount: BigInt
+  extraData: String
+
+}
+
+type WithdrawalInitiated @entity(immutable: true) {
+  id: ID!
+  block_number: BigInt!
+  timestamp_: BigInt!
+  transactionHash_: String!
+  contractId_: String!
+
+  l1Token: String
+  l2Token: String
+  from: String
+  to: String
+  amount: BigInt
+  extraData: String
+
+}
+
+type MessagePassed @entity(immutable: true) {
+  id: ID!
+  block_number: BigInt!
+  timestamp_: BigInt!
+  transactionHash_: String!
+  contractId_: String!
+
+  nonce: BigInt
+  sender: String
+  target: String
+  value: BigInt
+  gasLimit: BigInt
+  data: String
+  withdrawalHash: String
+
+}
+
+type WithdrawerBalanceBurnt @entity(immutable: true) {
+  id: ID!
+  block_number: BigInt!
+  timestamp_: BigInt!
+  transactionHash_: String!
+  contractId_: String!
+
+  amount: BigInt
+
+}
+
+

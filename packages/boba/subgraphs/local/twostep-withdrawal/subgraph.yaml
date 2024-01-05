@@ -1,0 +1,112 @@
+dataSources:
+  - kind: ethereum/contract
+    mapping:
+      abis:
+        - file: ./0.abi.json
+          name: L2StandardBridge
+      apiVersion: 0.0.6
+      entities:
+        - DepositFinalized
+        - ERC20BridgeFinalized
+        - ERC20BridgeInitiated
+        - ETHBridgeFinalized
+        - ETHBridgeInitiated
+        - Initialized
+        - WithdrawalInitiated
+      eventHandlers:
+        - event: >-
+            DepositFinalized(indexed address,indexed address,indexed
+            address,address,uint256,bytes)
+          handler: handleL2StandardBridge_DepositFinalized
+        - event: >-
+            ERC20BridgeFinalized(indexed address,indexed address,indexed
+            address,address,uint256,bytes)
+          handler: handleL2StandardBridge_ERC20BridgeFinalized
+        - event: >-
+            ERC20BridgeInitiated(indexed address,indexed address,indexed
+            address,address,uint256,bytes)
+          handler: handleL2StandardBridge_ERC20BridgeInitiated
+        - event: 'ETHBridgeFinalized(indexed address,indexed address,uint256,bytes)'
+          handler: handleL2StandardBridge_ETHBridgeFinalized
+        - event: 'ETHBridgeInitiated(indexed address,indexed address,uint256,bytes)'
+          handler: handleL2StandardBridge_ETHBridgeInitiated
+        - event: Initialized(uint8)
+          handler: handleL2StandardBridge_Initialized
+        - event: >-
+            WithdrawalInitiated(indexed address,indexed address,indexed
+            address,address,uint256,bytes)
+          handler: handleL2StandardBridge_WithdrawalInitiated
+      file: ./0.mapping.wasm
+      kind: ethereum/events
+      language: wasm/assemblyscript
+    name: L2StandardBridge0x4200000000000000000000000000000000000010
+    network: goerli
+    source:
+      abi: L2StandardBridge
+      address: '0x4200000000000000000000000000000000000010'
+      startBlock: 0
+  - kind: ethereum/contract
+    mapping:
+      abis:
+        - file: ./1.abi.json
+          name: L2ToL1MessagePasser
+      apiVersion: 0.0.6
+      entities:
+        - MessagePassed
+        - WithdrawerBalanceBurnt
+      eventHandlers:
+        - event: >-
+            MessagePassed(indexed uint256,indexed address,indexed
+            address,uint256,uint256,bytes,bytes32)
+          handler: handleL2ToL1MessagePasser_MessagePassed
+        - event: WithdrawerBalanceBurnt(indexed uint256)
+          handler: handleL2ToL1MessagePasser_WithdrawerBalanceBurnt
+      file: ./1.mapping.wasm
+      kind: ethereum/events
+      language: wasm/assemblyscript
+    name: L2ToL1MessagePasser0x4200000000000000000000000000000000000016
+    network: goerli
+    source:
+      abi: L2ToL1MessagePasser
+      address: '0x4200000000000000000000000000000000000016'
+      startBlock: 0
+  - kind: ethereum/contract
+    mapping:
+      abis:
+        - file: ./2.abi.json
+          name: OptimismPortal
+      apiVersion: 0.0.6
+      entities:
+        - Initialized
+        - Paused
+        - TransactionDeposited
+        - Unpaused
+        - WithdrawalFinalized
+        - WithdrawalProven
+      eventHandlers:
+        - event: Initialized(uint8)
+          handler: handleOptimismPortal_Initialized
+        - event: Paused(address)
+          handler: handleOptimismPortal_Paused
+        - event: >-
+            TransactionDeposited(indexed address,indexed address,indexed
+            uint256,bytes)
+          handler: handleOptimismPortal_TransactionDeposited
+        - event: Unpaused(address)
+          handler: handleOptimismPortal_Unpaused
+        - event: 'WithdrawalFinalized(indexed bytes32,bool)'
+          handler: handleOptimismPortal_WithdrawalFinalized
+        - event: 'WithdrawalProven(indexed bytes32,indexed address,indexed address)'
+          handler: handleOptimismPortal_WithdrawalProven
+      file: ./2.mapping.wasm
+      kind: ethereum/events
+      language: wasm/assemblyscript
+    name: OptimismPortal0x4200000000000000000000000000000000000016
+    network: goerli
+    source:
+      abi: OptimismPortal
+      address: '0x4200000000000000000000000000000000000016'
+      startBlock: 0
+schema:
+  file: ./schema.graphql
+specVersion: 0.0.4
