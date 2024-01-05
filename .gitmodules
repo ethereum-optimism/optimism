@@ -17,3 +17,6 @@
 	path = packages/contracts-bedrock/lib/safe-contracts
 	url = https://github.com/safe-global/safe-contracts
 	branch = v1.4.0
+[submodule "packages/contracts-bedrock/lib/lib-keccak"]
+	path = packages/contracts-bedrock/lib/lib-keccak
+	url = https://github.com/clabby/lib-keccak
