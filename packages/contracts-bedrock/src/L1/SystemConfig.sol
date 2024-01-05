@@ -17,14 +17,12 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @custom:value GAS_CONFIG           Represents an update to txn fee config on L2.
     /// @custom:value GAS_LIMIT            Represents an update to gas limit on L2.
     /// @custom:value UNSAFE_BLOCK_SIGNER  Represents an update to the signer key for unsafe
-    /// @custom:value GAS_CONFIG_ECOTONE   Represents an update to txn fee config on L2 after Ecotone upgrade.
     ///                                    block distrubution.
     enum UpdateType {
         BATCHER,
         GAS_CONFIG,
         GAS_LIMIT,
-        UNSAFE_BLOCK_SIGNER,
-        GAS_CONFIG_ECOTONE
+        UNSAFE_BLOCK_SIGNER
     }
 
     /// @notice Version identifier, used for upgrades.
@@ -54,12 +52,6 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @notice L2 block gas limit.
     uint64 public gasLimit;
 
-    /// @notice The scalar value applied to the L1 base fee portion of the blob-capable L1 cost func
-    uint32 public basefeeScalar;
-
-    /// @notice The scalar value applied to the L1 blob base fee portion of the blob-capable L1 cost func
-    uint32 public blobBasefeeScalar;
-
     /// @notice The configuration for the deposit fee market.
     ///         Used by the OptimismPortal to meter the cost of buying L2 gas on L1.
     ///         Set as internal with a getter so that the struct is returned instead of a tuple.
@@ -72,8 +64,8 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.12.0
-    string public constant version = "1.12.0";
+    /// @custom:semver 1.11.0
+    string public constant version = "1.11.0";
 
     /// @notice Constructs the SystemConfig contract. Cannot set
     ///         the owner to `address(0)` due to the Ownable contract's
@@ -132,7 +124,6 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         // These are set in ascending order of their UpdateTypes.
         _setBatcherHash(_batcherHash);
         _setGasConfig({ _overhead: _overhead, _scalar: _scalar });
-        _setGasConfigEcotone({ _basefeeScalar: uint32(_scalar), _blobBasefeeScalar: 0 });
         _setGasLimit(_gasLimit);
         _setUnsafeBlockSigner(_unsafeBlockSigner);
         _setResourceConfig(_config);
@@ -204,24 +195,6 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
 
         bytes memory data = abi.encode(_overhead, _scalar);
         emit ConfigUpdate(VERSION, UpdateType.GAS_CONFIG, data);
-    }
-
-    /// @notice Updates gas config as of the Ecotone upgrade. Can only be called by the owner.
-    /// @param _basefeeScalar     New basefeeScalar value.
-    /// @param _blobBasefeeScalar New blobBasefeeScalar value.
-    function setGasConfigEcotone(uint32 _basefeeScalar, uint32 _blobBasefeeScalar) external onlyOwner {
-        _setGasConfigEcotone(_basefeeScalar, _blobBasefeeScalar);
-    }
-
-    /// @notice Internal function for updating the fee scalars as of the Ecotone upgrade.
-    /// @param _basefeeScalar     New basefeeScalar value.
-    /// @param _blobBasefeeScalar New blobBasefeeScalar value.
-    function _setGasConfigEcotone(uint32 _basefeeScalar, uint32 _blobBasefeeScalar) internal {
-        basefeeScalar = _basefeeScalar;
-        blobBasefeeScalar = _blobBasefeeScalar;
-
-        bytes memory data = abi.encodePacked(_basefeeScalar, _blobBasefeeScalar);
-        emit ConfigUpdate(VERSION, UpdateType.GAS_CONFIG_ECOTONE, data);
     }
 
     /// @notice Updates the L2 gas limit. Can only be called by the owner.
