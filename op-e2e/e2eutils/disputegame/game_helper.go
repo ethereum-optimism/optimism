@@ -17,8 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const defaultTimeout = 5 * time.Minute
-
 type FaultGameHelper struct {
 	t           *testing.T
 	require     *require.Assertions
@@ -27,6 +25,7 @@ type FaultGameHelper struct {
 	game        *bindings.FaultDisputeGame
 	factoryAddr common.Address
 	addr        common.Address
+	system      DisputeSystem
 }
 
 func (g *FaultGameHelper) Addr() common.Address {
@@ -43,25 +42,20 @@ func (g *FaultGameHelper) GameDuration(ctx context.Context) time.Duration {
 // This does not check that the number of claims is exactly the specified count to avoid intermittent failures
 // where a challenger posts an additional claim before this method sees the number of claims it was waiting for.
 func (g *FaultGameHelper) WaitForClaimCount(ctx context.Context, count int64) {
-	ctx, cancel := context.WithTimeout(ctx, defaultTimeout)
+	timedCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
 	defer cancel()
-	err := wait.For(ctx, time.Second, func() (bool, error) {
-		actual, err := g.game.ClaimDataLen(&bind.CallOpts{Context: ctx})
+	err := wait.For(timedCtx, time.Second, func() (bool, error) {
+		actual, err := g.game.ClaimDataLen(&bind.CallOpts{Context: timedCtx})
 		if err != nil {
 			return false, err
 		}
 		g.t.Log("Waiting for claim count", "current", actual, "expected", count, "game", g.addr)
 		return actual.Cmp(big.NewInt(count)) >= 0, nil
 	})
-	g.require.NoErrorf(err, "Did not find expected claim count %v", count)
-}
-
-type ContractClaim struct {
-	ParentIndex uint32
-	Countered   bool
-	Claim       [32]byte
-	Position    *big.Int
-	Clock       *big.Int
+	if err != nil {
+		g.LogGameData(ctx)
+		g.require.NoErrorf(err, "Did not find expected claim count %v", count)
+	}
 }
 
 func (g *FaultGameHelper) MaxDepth(ctx context.Context) int64 {
@@ -249,12 +243,6 @@ func (g *FaultGameHelper) WaitForInactivity(ctx context.Context, numInactiveBloc
 	}
 }
 
-// Mover is a function that either attacks or defends the claim at parentClaimIdx
-type Mover func(parentClaimIdx int64)
-
-// Stepper is a function that attempts to perform a step against the claim at parentClaimIdx
-type Stepper func(parentClaimIdx int64)
-
 // DefendRootClaim uses the supplied Mover to perform moves in an attempt to defend the root claim.
 // It is assumed that the output root being disputed is valid and that an honest op-challenger is already running.
 // When the game has reached the maximum depth it waits for the honest challenger to counter the leaf claim with step.
@@ -332,10 +320,6 @@ func (g *FaultGameHelper) Defend(ctx context.Context, claimIdx int64, claim comm
 	g.require.NoError(err, "Defend transaction did not send")
 	_, err = wait.ForReceiptOK(ctx, g.client, tx.Hash())
 	g.require.NoError(err, "Defend transaction was not OK")
-}
-
-type ErrWithData interface {
-	ErrorData() interface{}
 }
 
 // StepFails attempts to call step and verifies that it fails with ValidStep()

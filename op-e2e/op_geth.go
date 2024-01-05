@@ -47,6 +47,7 @@ type OpGeth struct {
 	L1Head        eth.BlockInfo
 	L2Head        *eth.ExecutionPayload
 	sequenceNum   uint64
+	lgr           log.Logger
 }
 
 func NewOpGeth(t *testing.T, ctx context.Context, cfg *SystemConfig) (*OpGeth, error) {
@@ -117,11 +118,14 @@ func NewOpGeth(t *testing.T, ctx context.Context, cfg *SystemConfig) (*OpGeth, e
 		L2ChainConfig: l2Genesis.Config,
 		L1Head:        eth.BlockToInfo(l1Block),
 		L2Head:        genesisPayload,
+		lgr:           logger,
 	}, nil
 }
 
 func (d *OpGeth) Close() {
-	_ = d.node.Close()
+	if err := d.node.Close(); err != nil {
+		d.lgr.Error("error closing node", "err", err)
+	}
 	d.l2Engine.Close()
 	d.L2Client.Close()
 }

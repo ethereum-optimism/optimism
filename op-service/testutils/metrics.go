@@ -53,6 +53,9 @@ func (t *TestDerivationMetrics) RecordChannelTimedOut() {
 func (t *TestDerivationMetrics) RecordFrame() {
 }
 
+func (n *TestDerivationMetrics) RecordDerivedBatches(batchType string) {
+}
+
 type TestRPCMetrics struct{}
 
 func (n *TestRPCMetrics) RecordRPCServerRequest(method string) func() {

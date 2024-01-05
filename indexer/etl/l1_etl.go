@@ -21,6 +21,7 @@ import (
 
 type L1ETL struct {
 	ETL
+	LatestHeader *types.Header
 
 	// the batch handler may do work that we can interrupt on shutdown
 	resourceCtx    context.Context
@@ -30,8 +31,7 @@ type L1ETL struct {
 
 	db *database.DB
 
-	mu sync.Mutex
-
+	mu        sync.Mutex
 	listeners []chan interface{}
 }
 
@@ -101,7 +101,9 @@ func NewL1ETL(cfg Config, log log.Logger, db *database.DB, metrics Metricer, cli
 
 	resCtx, resCancel := context.WithCancel(context.Background())
 	return &L1ETL{
-		ETL:            etl,
+		ETL:          etl,
+		LatestHeader: fromHeader,
+
 		db:             db,
 		resourceCtx:    resCtx,
 		resourceCancel: resCancel,
@@ -123,32 +125,35 @@ func (l1Etl *L1ETL) Close() error {
 	if err := l1Etl.tasks.Wait(); err != nil {
 		result = errors.Join(result, fmt.Errorf("failed to await batch handler completion: %w", err))
 	}
+	// close listeners
+	for i := range l1Etl.listeners {
+		close(l1Etl.listeners[i])
+	}
 	return result
 }
 
 func (l1Etl *L1ETL) Start() error {
+	l1Etl.log.Info("starting etl...")
+
 	// start ETL batch producer
 	if err := l1Etl.ETL.Start(); err != nil {
 		return fmt.Errorf("failed to start internal ETL: %w", err)
 	}
 	// start ETL batch consumer
 	l1Etl.tasks.Go(func() error {
-		for {
-			// Index incoming batches (only L1 blocks that have an emitted log)
-			batch, ok := <-l1Etl.etlBatches
-			if !ok {
-				l1Etl.log.Info("No more batches, shutting down L1 batch handler")
-				return nil
-			}
+		for batch := range l1Etl.etlBatches {
 			if err := l1Etl.handleBatch(batch); err != nil {
 				return fmt.Errorf("failed to handle batch, stopping L2 ETL: %w", err)
 			}
 		}
+		l1Etl.log.Info("no more batches, shutting down batch handler")
+		return nil
 	})
 	return nil
 }
 
 func (l1Etl *L1ETL) handleBatch(batch *ETLBatch) error {
+	// Index incoming batches (only L1 blocks that have an emitted log)
 	l1BlockHeaders := make([]database.L1BlockHeader, 0, len(batch.Headers))
 	for i := range batch.Headers {
 		if _, ok := batch.HeadersWithLog[batch.Headers[i].Hash()]; ok {
@@ -195,9 +200,11 @@ func (l1Etl *L1ETL) handleBatch(batch *ETLBatch) error {
 	}
 
 	batch.Logger.Info("indexed batch")
+	l1Etl.LatestHeader = &batch.Headers[len(batch.Headers)-1]
 
 	// Notify Listeners
 	l1Etl.mu.Lock()
+	defer l1Etl.mu.Unlock()
 	for i := range l1Etl.listeners {
 		select {
 		case l1Etl.listeners[i] <- struct{}{}:
@@ -206,7 +213,7 @@ func (l1Etl *L1ETL) handleBatch(batch *ETLBatch) error {
 			// up the previous notif
 		}
 	}
-	l1Etl.mu.Unlock()
+
 	return nil
 }
 

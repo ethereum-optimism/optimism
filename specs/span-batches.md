@@ -9,6 +9,8 @@
 
 - [Introduction](#introduction)
 - [Span batch format](#span-batch-format)
+  - [Max span-batch size](#max-span-batch-size)
+  - [Future batch-format extension](#future-batch-format-extension)
 - [Span batch Activation Rule](#span-batch-activation-rule)
 - [Optimization Strategies](#optimization-strategies)
   - [Truncating information and storing only necessary data](#truncating-information-and-storing-only-necessary-data)
@@ -16,7 +18,7 @@
   - [`Chain ID` removal from initial specs](#chain-id-removal-from-initial-specs)
   - [Reorganization of constant length transaction fields](#reorganization-of-constant-length-transaction-fields)
   - [RLP encoding for only variable length fields](#rlp-encoding-for-only-variable-length-fields)
-  - [Store `y_parity` instead of `v`](#store-y_parity-instead-of-v)
+  - [Store `y_parity` and `protected_bit` instead of `v`](#store-y_parity-and-protected_bit-instead-of-v)
   - [Adjust `txs` Data Layout for Better Compression](#adjust-txs-data-layout-for-better-compression)
   - [`fee_recipients` Encoding Scheme](#fee_recipients-encoding-scheme)
 - [How derivation works with Span Batch?](#how-derivation-works-with-span-batch)
@@ -64,6 +66,8 @@ Span-batches address these inefficiencies, with a new batch format version.
 
 ## Span batch format
 
+[span-batch-format]: #span-batch-format
+
 Note that span-batches, unlike previous singular batches,
 encode *a range of consecutive* L2 blocks at the same time.
 
@@ -84,6 +88,9 @@ Notation:
 
 [protobuf spec]: https://protobuf.dev/programming-guides/encoding/#varints
 
+Standard bitlists, in the context of span-batches, are encoded as big-endian integers,
+left-padded with zeroes to the next multiple of 8 bits.
+
 Where:
 
 - `prefix = rel_timestamp ++ l1_origin_num ++ parent_check ++ l1_origin_check`
@@ -96,14 +103,15 @@ Where:
     The hash is truncated to 20 bytes for efficiency, i.e. `span_end.l1_origin.hash[:20]`.
 - `payload = block_count ++ origin_bits ++ block_tx_counts ++ txs`:
   - `block_count`: `uvarint` number of L2 blocks. This is at least 1, empty span batches are invalid.
-  - `origin_bits`: bitlist of `block_count` bits, right-padded to a multiple of 8 bits:
+  - `origin_bits`: standard bitlist of `block_count` bits:
     1 bit per L2 block, indicating if the L1 origin changed this L2 block.
   - `block_tx_counts`: for each block, a `uvarint` of `len(block.transactions)`.
   - `txs`: L2 transactions which is reorganized and encoded as below.
-- `txs = contract_creation_bits ++ y_parity_bits ++ tx_sigs ++ tx_tos ++ tx_datas ++ tx_nonces ++ tx_gases`
-  - `contract_creation_bits`: bit list of `sum(block_tx_counts)` bits, right-padded to a multiple of 8 bits,
+- `txs = contract_creation_bits ++ y_parity_bits ++
+        tx_sigs ++ tx_tos ++ tx_datas ++ tx_nonces ++ tx_gases ++ protected_bits`
+  - `contract_creation_bits`: standard bitlist of `sum(block_tx_counts)` bits:
     1 bit per L2 transactions, indicating if transaction is a contract creation transaction.
-  - `y_parity_bits`: bit list of `sum(block_tx_counts)` bits, right-padded to a multiple of 8 bits,
+  - `y_parity_bits`: standard bitlist of `sum(block_tx_counts)` bits:
     1 bit per L2 transactions, indicating the y parity value when recovering transaction sender address.
   - `tx_sigs`: concatenated list of transaction signatures
     - `r` is encoded as big-endian `uint256`
@@ -119,6 +127,28 @@ Where:
     - `legacy`: `gasLimit`
     - `1`: ([EIP-2930]): `gasLimit`
     - `2`: ([EIP-1559]): `gas_limit`
+  - `protected_bits`: standard bitlist of length of number of legacy transactions:
+    1 bit per L2 legacy transactions, indicating if transaction is protected([EIP-155]) or not.
+
+[EIP-2718]: https://eips.ethereum.org/EIPS/eip-2718
+[EIP-2930]: https://eips.ethereum.org/EIPS/eip-2930
+[EIP-1559]: https://eips.ethereum.org/EIPS/eip-1559
+[EIP-155]: https://eips.ethereum.org/EIPS/eip-155
+
+### Max span-batch size
+
+Total size of encoded span batch is limited to `MAX_SPAN_BATCH_SIZE` (currently 10,000,000 bytes,
+equal to `MAX_RLP_BYTES_PER_CHANNEL`). Therefore every field size of span batch will be implicitly limited to
+`MAX_SPAN_BATCH_SIZE` . There can be at least single span batch per channel, and channel size is limited
+to `MAX_RLP_BYTES_PER_CHANNEL` and you may think that there is already an implicit limit. However, having an explicit
+limit for span batch is helpful for several reasons. We may save computation costs by avoiding malicious input while
+decoding. For example, let's say bad batcher wrote span batch which `block_count = max.Uint64`. We may early return
+using the explicit limit, not trying to consume data until EOF is reached. We can also safely preallocate memory for
+decoding because we know the upper limit of memory usage.
+
+### Future batch-format extension
+
+This is an experimental extension of the span-batch format, and not activated with the Delta upgrade yet.
 
 Introduce version `2` to the [batch-format](./derivation.md#batch-format) table:
 
@@ -138,21 +168,6 @@ Where:
     - `fee_recipients_set`: concatenated list of unique L2 fee recipient address.
     - `fee_recipients_idxs`: for each block,
       `uvarint` number of index to decode fee recipients from `fee_recipients_set`.
-
-[EIP-2718]: https://eips.ethereum.org/EIPS/eip-2718
-
-[EIP-2930]: https://eips.ethereum.org/EIPS/eip-2930
-
-[EIP-1559]: https://eips.ethereum.org/EIPS/eip-1559
-
-Total size of encoded span batch is limited to `MAX_SPAN_BATCH_SIZE` (currently 10,000,000 bytes,
-equal to `MAX_RLP_BYTES_PER_CHANNEL`). Therefore every field size of span batch will be implicitly limited to
-`MAX_SPAN_BATCH_SIZE` . There can be at least single span batch per channel, and channel size is limited
-to `MAX_RLP_BYTES_PER_CHANNEL` and you may think that there is already an implicit limit. However, having an explicit
-limit for span batch is helpful for several reasons. We may save computation costs by avoiding malicious input while
-decoding. For example, lets say bad batcher wrote span batch which `block_count = max.Uint64`. We may early return using
-the explicit limit, not trying to consume data until EOF is reached. We can also safely preallocate memory for decoding
-because we know the upper limit of memory usage.
 
 ## Span batch Activation Rule
 
@@ -193,16 +208,18 @@ This adds more complexity, but organizes data for improved compression by groupi
 ### RLP encoding for only variable length fields
 
 Further size optimization can be done by packing variable length fields, such as `access_list`.
-However, doing this will introduce much more code complexity, comparing to benefiting by size reduction.
+However, doing this will introduce much more code complexity, compared to benefiting from size reduction.
 
 Our goal is to find the sweet spot on code complexity - span batch size tradeoff.
 I decided that using RLP for all variable length fields will be the best option,
 not risking codebase with gnarly custom encoding/decoding implementations.
 
-### Store `y_parity` instead of `v`
+### Store `y_parity` and `protected_bit` instead of `v`
 
-For legacy type transactions, `v = 2 * ChainID + y_parity`. For other types of transactions, `v = y_parity`.
-We may only store `y_parity`, which is single bit per L2 transaction.
+Only legacy type transactions can be optionally protected. If protected([EIP-155]), `v = 2 * ChainID + 35 + y_parity`.
+Else, `v = 27 + y_parity`. For other types of transactions, `v = y_parity`.
+We store `y_parity`, which is single bit per L2 transaction.
+We store `protected_bit`, which is single bit per L2 legacy type transactions to indicate that tx is protected.
 
 This optimization will benefit more when ratio between number of legacy type transactions over number of transactions
 excluding deposit tx is higher.
@@ -268,7 +285,13 @@ Span-batches share the same queue with v0 batches: batches are processed in L1 i
 A set of modified validation rules apply to the span-batches.
 
 Rules are enforced with the [contextual definitions](./derivation.md#batch-queue) as v0-batch validation:
-`batch`, `epoch`, `inclusion_block_number`, `next_timestamp`, `next_epoch`, `batch_origin`
+`epoch`, `inclusion_block_number`, `next_timestamp`
+
+Definitions:
+
+- `batch` as defined in the [Span batch format section][span-batch-format].
+- `prev_l2_block` is the L2 block from the current safe chain,
+  whose timestamp is at `span_start.timestamp - l2_block_time`
 
 Span-batch rules, in validation order:
 
@@ -279,10 +302,12 @@ Span-batch rules, in validation order:
     - If known, then define `batch_origin` as `next_epoch`
 - `batch_origin.timestamp < span_batch_upgrade_timestamp` -> `drop`:
   i.e. enforce the [span batch upgrade activation rule](#span-batch-activation-rule).
-- `batch.start_timestamp > next_timestamp` -> `future`: i.e. the batch must be ready to process.
-- `batch.start_timestamp < next_timestamp` -> `drop`: i.e. the batch must not be too old.
-- `batch.parent_check != safe_l2_head.hash[:20]` -> `drop`: i.e. the checked part of the parent hash must be equal
-  to the L2 safe head block hash.
+- `span_start.timestamp > next_timestamp` -> `future`: i.e. the batch must be ready to process,
+  but does not have to start exactly at the `next_timestamp`, since it can overlap with previously processed blocks,
+- `span_end.timestamp < next_timestamp` -> `drop`: i.e. the batch must have at least one new block to process.
+- If there's no `prev_l2_block` in the current safe chain -> `drop`: i.e. the timestamp must be aligned.
+- `batch.parent_check != prev_l2_block.hash[:20]` -> `drop`:
+  i.e. the checked part of the parent hash must be equal to the same part of the corresponding L2 block hash.
 - Sequencing-window checks:
   - Note: The sequencing window is enforced for the *batch as a whole*:
     if the batch was partially invalid instead, it would drop the oldest L2 blocks,
@@ -294,7 +319,7 @@ Span-batch rules, in validation order:
   - Rules:
     - `start_epoch_num + sequence_window_size < inclusion_block_number` -> `drop`:
       i.e. the batch must be included timely.
-    - `start_epoch_num > epoch.number + 1` -> `drop`:
+    - `start_epoch_num > prev_l2_block.l1_origin.number + 1` -> `drop`:
       i.e. the L1 origin cannot change by more than one L1 block per L2 block.
     - If `batch.l1_origin_check` does not match the canonical L1 chain at `end_epoch_num` -> `drop`:
       verify the batch is intended for this L1 chain.
@@ -302,9 +327,8 @@ Span-batch rules, in validation order:
         is past `inclusion_block_number` because of the following invariant.
       - Invariant: the epoch-num in the batch is always less than the inclusion block number,
         if and only if the L1 epoch hash is correct.
-    - `start_epoch_num < epoch.number` -> `drop`: must have been duplicate batch,
-      we may be past this L1 block in the safe L2 chain. If a span-batch overlaps with older information,
-      it is dropped, since partially valid span-batches are not accepted.
+    - `start_epoch_num < prev_l2_block.l1_origin.number` -> `drop`:
+      epoch number cannot be older than the origin of parent block
 - Max Sequencer time-drift checks:
   - Note: The max time-drift is enforced for the *batch as a whole*, to keep the possible output variants small.
   - Variables:
@@ -313,7 +337,7 @@ Span-batch rules, in validation order:
     - `next_epoch`: `block_input.origin`'s next L1 block.
       It may reach to the next origin outside the L1 origins of the span.
   - Rules:
-    - For each `block_input` that can be read from the span-batch:
+    - For each `block_input` whose timestamp is greater than `safe_head.timestamp`:
       - `block_input.timestamp < block_input.origin.time` -> `drop`: enforce the min L2 timestamp rule.
       - `block_input.timestamp > block_input.origin.time + max_sequencer_drift`: enforce the L2 timestamp drift rule,
         but with exceptions to preserve above min L2 timestamp invariant:
@@ -332,6 +356,16 @@ Span-batch rules, in validation order:
     that is invalid or derived by other means exclusively:
     - any transaction that is empty (zero length `tx_data`)
     - any [deposited transactions][g-deposit-tx-type] (identified by the transaction type prefix byte in `tx_data`)
+- Overlapped blocks checks:
+  - Note: If the span batch overlaps the current L2 safe chain, we must validate all overlapped blocks.
+  - Variables:
+    - `block_input`: an L2 block derived from the span-batch.
+    - `safe_block`: an L2 block from the current L2 safe chain, at same timestamp as `block_input`
+  - Rules:
+    - For each `block_input`, whose timestamp is less than `next_timestamp`:
+      - `block_input.l1_origin.number != safe_block.l1_origin.number` -> `drop`
+      - `block_input.transactions != safe_block.transactions` -> `drop`
+        - compare excluding deposit transactions
 
 Once validated, the batch-queue then emits a block-input for each of the blocks included in the span-batch.
 The next derivation stage is thus only aware of individual block inputs, similar to the previous V0 batch,

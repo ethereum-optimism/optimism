@@ -24,6 +24,8 @@
   "l1FeeVaultRecipient": "0x71bE63f3384f5fb98995898A86B02Fb2426c5788",
   "sequencerFeeVaultRecipient": "0x71bE63f3384f5fb98995898A86B02Fb2426c5788",
 
+  "proxyAdminOwner": "0x0000000000000000000000000000000000000222",
+
   "baseFeeVaultMinimumWithdrawalAmount": "0x8ac7230489e80000",
   "l1FeeVaultMinimumWithdrawalAmount": "0x8ac7230489e80000",
   "sequencerFeeVaultMinimumWithdrawalAmount": "0x8ac7230489e80000",
@@ -41,5 +43,8 @@
   "enableGovernance": true,
   "governanceTokenSymbol": "OP",
   "governanceTokenName": "Optimism",
-  "governanceTokenOwner": "0x0000000000000000000000000000000000000333"
+  "governanceTokenOwner": "0x0000000000000000000000000000000000000333",
+
+  "l2GenesisRegolithTimeOffset": "0x0",
+  "l2GenesisCanyonTimeOffset": "0x0"
 }

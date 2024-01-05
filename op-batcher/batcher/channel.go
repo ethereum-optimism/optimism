@@ -25,6 +25,13 @@ type channel struct {
 	pendingTransactions map[txID]txData
 	// Set of confirmed txID -> inclusion block. For determining if the channel is timed out
 	confirmedTransactions map[txID]eth.BlockID
+
+	// True if confirmed TX list is updated. Set to false after updated min/max inclusion blocks.
+	confirmedTxUpdated bool
+	// Inclusion block number of first confirmed TX
+	minInclusionBlock uint64
+	// Inclusion block number of last confirmed TX
+	maxInclusionBlock uint64
 }
 
 func newChannel(log log.Logger, metr metrics.Metricer, cfg ChannelConfig, rcfg *rollup.Config) (*channel, error) {
@@ -74,31 +81,30 @@ func (s *channel) TxConfirmed(id txID, inclusionBlock eth.BlockID) (bool, []*typ
 	}
 	delete(s.pendingTransactions, id)
 	s.confirmedTransactions[id] = inclusionBlock
+	s.confirmedTxUpdated = true
 	s.channelBuilder.FramePublished(inclusionBlock.Number)
 
 	// If this channel timed out, put the pending blocks back into the local saved blocks
 	// and then reset this state so it can try to build a new channel.
 	if s.isTimedOut() {
 		s.metr.RecordChannelTimedOut(s.ID())
-		s.log.Warn("Channel timed out", "id", s.ID())
+		s.log.Warn("Channel timed out", "id", s.ID(), "min_inclusion_block", s.minInclusionBlock, "max_inclusion_block", s.maxInclusionBlock)
 		return true, s.channelBuilder.Blocks()
 	}
 	// If we are done with this channel, record that.
 	if s.isFullySubmitted() {
 		s.metr.RecordChannelFullySubmitted(s.ID())
-		s.log.Info("Channel is fully submitted", "id", s.ID())
+		s.log.Info("Channel is fully submitted", "id", s.ID(), "min_inclusion_block", s.minInclusionBlock, "max_inclusion_block", s.maxInclusionBlock)
 		return true, nil
 	}
 
 	return false, nil
 }
 
-// pendingChannelIsTimedOut returns true if submitted channel has timed out.
-// A channel has timed out if the difference in L1 Inclusion blocks between
-// the first & last included block is greater than or equal to the channel timeout.
-func (s *channel) isTimedOut() bool {
-	if len(s.confirmedTransactions) == 0 {
-		return false
+// updateInclusionBlocks finds the first & last confirmed tx and saves its inclusion numbers
+func (s *channel) updateInclusionBlocks() {
+	if len(s.confirmedTransactions) == 0 || !s.confirmedTxUpdated {
+		return
 	}
 	// If there are confirmed transactions, find the first + last confirmed block numbers
 	min := uint64(math.MaxUint64)
@@ -111,11 +117,24 @@ func (s *channel) isTimedOut() bool {
 			max = inclusionBlock.Number
 		}
 	}
-	return max-min >= s.cfg.ChannelTimeout
+	s.minInclusionBlock = min
+	s.maxInclusionBlock = max
+	s.confirmedTxUpdated = false
+}
+
+// pendingChannelIsTimedOut returns true if submitted channel has timed out.
+// A channel has timed out if the difference in L1 Inclusion blocks between
+// the first & last included block is greater than or equal to the channel timeout.
+func (s *channel) isTimedOut() bool {
+	// Update min/max inclusion blocks for timeout check
+	s.updateInclusionBlocks()
+	return s.maxInclusionBlock-s.minInclusionBlock >= s.cfg.ChannelTimeout
 }
 
 // pendingChannelIsFullySubmitted returns true if the channel has been fully submitted.
 func (s *channel) isFullySubmitted() bool {
+	// Update min/max inclusion blocks for timeout check
+	s.updateInclusionBlocks()
 	return s.IsFull() && len(s.pendingTransactions)+s.PendingFrames() == 0
 }
 

@@ -29,6 +29,7 @@
   "proxyAdminOwner": "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720",
   "finalSystemOwner": "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720",
   "portalGuardian": "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720",
+  "superchainConfigGuardian": "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720",
   "finalizationPeriodSeconds": 2,
   "l2GenesisBlockGasLimit": "0x17D7840",
   "l2GenesisBlockBaseFeePerGas": "0x3b9aca00",

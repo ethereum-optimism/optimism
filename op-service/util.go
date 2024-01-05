@@ -32,6 +32,11 @@ func ValidateEnvVars(prefix string, flags []cli.Flag, log log.Logger) {
 	}
 }
 
+func FlagNameToEnvVarName(f string, prefix string) string {
+	f = strings.ReplaceAll(strings.ReplaceAll(strings.ToUpper(f), ".", "_"), "-", "_")
+	return fmt.Sprintf("%s_%s", prefix, f)
+}
+
 func cliFlagsToEnvVars(flags []cli.Flag) map[string]struct{} {
 	definedEnvVars := make(map[string]struct{})
 	for _, flag := range flags {
@@ -60,6 +65,15 @@ func validateEnvVars(prefix string, providedEnvVars []string, definedEnvVars map
 		}
 	}
 	return out
+}
+
+// WarnOnDeprecatedFlags iterates through the provided deprecatedFlags and logs a warning for each that is set.
+func WarnOnDeprecatedFlags(ctx *cli.Context, deprecatedFlags []cli.Flag, log log.Logger) {
+	for _, flag := range deprecatedFlags {
+		if ctx.IsSet(flag.Names()[0]) {
+			log.Warn("Found a deprecated flag which will be removed in a future version", "flag_name", flag.Names()[0])
+		}
+	}
 }
 
 // ParseAddress parses an ETH address from a hex string. This method will fail if

@@ -72,6 +72,14 @@ error OutOfOrderResolution();
 /// @notice Thrown when resolving a claim that has already been resolved.
 error ClaimAlreadyResolved();
 
+/// @notice Thrown when a parent output root is attempted to be found on a claim that is in
+///         the output root portion of the tree.
+error ClaimAboveSplit();
+
+/// @notice Thrown on deployment if the split depth is greater than or equal to the max
+///         depth of the game.
+error InvalidSplitDepth();
+
 ////////////////////////////////////////////////////////////////
 //              `AttestationDisputeGame` Errors               //
 ////////////////////////////////////////////////////////////////

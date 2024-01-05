@@ -1,16 +1,27 @@
 import { DeployFunction } from 'hardhat-deploy/dist/types'
-import { constants } from 'ethers'
 
 import { predeploys } from '../scripts'
-import { assertContractVariable, deploy } from '../scripts/deploy-utils'
+import {
+  assertContractVariable,
+  deploy,
+  getContractFromArtifact,
+} from '../scripts/deploy-utils'
 
 const deployFn: DeployFunction = async (hre) => {
+  const L1CrossDomainMessengerProxy = await getContractFromArtifact(
+    hre,
+    'Proxy__OVM_L1CrossDomainMessenger'
+  )
   await deploy({
     hre,
     name: 'L1StandardBridge',
-    args: [],
+    args: [L1CrossDomainMessengerProxy.address],
     postDeployAction: async (contract) => {
-      await assertContractVariable(contract, 'MESSENGER', constants.AddressZero)
+      await assertContractVariable(
+        contract,
+        'MESSENGER',
+        L1CrossDomainMessengerProxy.address
+      )
       await assertContractVariable(
         contract,
         'OTHER_BRIDGE',

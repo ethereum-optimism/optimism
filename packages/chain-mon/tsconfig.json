@@ -6,6 +6,7 @@
   },
   "include": [
     "package.json",
+    "src/abi/IGnosisSafe.0.8.19.json",
     "src/**/*"
   ]
 }

@@ -326,6 +326,12 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config, runCfg GossipRunti
 			return pubsub.ValidationReject
 		}
 
+		// [REJECT] if a V2 Block has non-empty withdrawals
+		if blockVersion == eth.BlockV2 && len(*payload.Withdrawals) != 0 {
+			log.Warn("payload is on v2 topic, but has non-empty withdrawals", "bad_hash", payload.BlockHash.String(), "withdrawal_count", len(*payload.Withdrawals))
+			return pubsub.ValidationReject
+		}
+
 		seen, ok := blockHeightLRU.Get(uint64(payload.BlockNumber))
 		if !ok {
 			seen = new(seenBlocks)
@@ -595,7 +601,6 @@ func MakeSubscriber(log log.Logger, msgHandler MessageHandler) TopicSubscriber {
 }
 
 func LogTopicEvents(ctx context.Context, log log.Logger, evHandler *pubsub.TopicEventHandler) {
-	defer evHandler.Cancel()
 	for {
 		ev, err := evHandler.NextPeerEvent(ctx)
 		if err != nil {

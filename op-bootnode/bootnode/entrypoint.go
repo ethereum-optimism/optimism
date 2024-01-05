@@ -61,7 +61,7 @@ func Main(cliCtx *cli.Context) error {
 		return fmt.Errorf("failed to load p2p config: %w", err)
 	}
 
-	p2pNode, err := p2p.NewNodeP2P(ctx, config, logger, p2pConfig, &gossipNoop{}, &l2Chain{}, &gossipConfig{}, m)
+	p2pNode, err := p2p.NewNodeP2P(ctx, config, logger, p2pConfig, &gossipNoop{}, &l2Chain{}, &gossipConfig{}, m, false)
 	if err != nil || p2pNode == nil {
 		return err
 	}

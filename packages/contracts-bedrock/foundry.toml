@@ -28,13 +28,18 @@ build_info_path = 'artifacts/build-info'
 ffi = true
 fs_permissions = [
   { access='read-write', path='./.resource-metering.csv' },
+  { access='read-write', path='./snapshots/' },
   { access='read-write', path='./deployments/' },
   { access='read', path='./deploy-config/' },
   { access='read', path='./periphery-deploy-config/' },
   { access='read', path='./broadcast/' },
   { access='read', path = './forge-artifacts/' },
   { access='write', path='./semver-lock.json' },
+  { access='read-write', path='./.testdata/' },
 ]
+libs = ["node_modules", "lib"]
+
+memory_limit = 43554432
 
 [fuzz]
 runs = 64
@@ -50,8 +55,9 @@ ignore = ['src/vendor/WETH9.sol']
 #                         PROFILE: CI                          #
 ################################################################
 
-[profile.ci.fuzz]
-runs = 512
+[profile.ci]
+deny_warnings = true
+fuzz = { runs = 512 }
 
 ################################################################
 #                         PROFILE: LITE                        #
@@ -59,3 +65,13 @@ runs = 512
 
 [profile.lite]
 optimizer = false
+
+################################################################
+#                         PROFILE: KONTROL                     #
+################################################################
+
+[profile.kontrol]
+src = 'src/L1'
+out = 'kout'
+test = 'test/kontrol'
+script = 'scripts-kontrol'

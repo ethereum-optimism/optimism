@@ -23,6 +23,7 @@ type MockBlockInfo struct {
 	InfoBaseFee     *big.Int
 	InfoReceiptRoot common.Hash
 	InfoGasUsed     uint64
+	InfoGasLimit    uint64
 	InfoHeaderRLP   []byte
 }
 
@@ -64,6 +65,10 @@ func (l *MockBlockInfo) ReceiptHash() common.Hash {
 
 func (l *MockBlockInfo) GasUsed() uint64 {
 	return l.InfoGasUsed
+}
+
+func (l *MockBlockInfo) GasLimit() uint64 {
+	return l.InfoGasLimit
 }
 
 func (l *MockBlockInfo) ID() eth.BlockID {

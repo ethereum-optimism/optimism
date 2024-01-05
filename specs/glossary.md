@@ -195,7 +195,7 @@ pre-confirm the transactions before the L1 confirms the data.
 
 A sequencer is either a [rollup node][rollup-node] ran in sequencer mode, or the operator of this rollup node.
 
-The sequencer is a priviledged actor, which receives L2 transactions from L2 users, creates L2 blocks using them, which
+The sequencer is a privileged actor, which receives L2 transactions from L2 users, creates L2 blocks using them, which
 it then submits to [data availability provider][avail-provider] (via a [batcher]). It also submits [output
 roots][l2-output] to L1.
 
@@ -455,7 +455,7 @@ batcher transaction.
 
 [batcher]: glossary.md#batcher
 
-A batcher is a software component (independant program) that is responsible to make channels available on a data
+A batcher is a software component (independent program) that is responsible to make channels available on a data
 availability provider. The batcher communicates with the rollup node in order to retrieve the channels. The channels are
 then made available using [batcher transactions][batcher-transaction].
 
@@ -483,7 +483,7 @@ The channel timeout is a duration (in L1 blocks) during which [channel frames][c
 
 The acceptable time range for the frames of a [channel][channel] is `[channel_id.timestamp, channel_id.timestamp +
 CHANNEL_TIMEOUT]`. The acceptable L1 block range for these frames are any L1 block whose timestamp falls inside this
-time range. (Note that `channel_id.timetamp` must be lower than the L1 block timestamp of any L1 block in which frames
+time range. (Note that `channel_id.timestamp` must be lower than the L1 block timestamp of any L1 block in which frames
 of the channel are seen, or else these frames are ignored.)
 
 The purpose of channel timeouts is dual:
@@ -492,7 +492,7 @@ The purpose of channel timeouts is dual:
   sent).
 - Bound the number of L1 blocks we have to look back in order to decode [sequencer batches][sequencer-batch] from
   channels. This is particularly relevant during L1 re-orgs, see the [Resetting Channel Buffering][reset-channel-buffer]
-  section of the L2 Chain Derivation specifiction for more information.
+  section of the L2 Chain Derivation specification for more information.
 
 [reset-channel-buffer]: derivation.md#resetting-channel-buffering
 
@@ -511,7 +511,7 @@ See the [L2 chain derivation specification][derivation-spec] for more details.
 
 ## L2 Derivation Inputs
 
-[deriv-inputs]: glossary.md#l2-chain-derivation-inputs
+[deriv-inputs]: glossary.md#l2-derivation-inputs
 
 This term refers to data that is found in L1 blocks and is read by the [rollup node][rollup-node] to construct [payload
 attributes][payload-attr].
@@ -564,7 +564,7 @@ The state of the L2 genesis block comprises:
     how native ETH balances were stored in the storage trie.
 - [Predeployed contracts][predeploy]
 
-The timestap of the L2 genesis block must be a multiple of the [block time][block-time] (i.e. a even number, since the
+The timestamp of the L2 genesis block must be a multiple of the [block time][block-time] (i.e. a even number, since the
 block time is 2 seconds).
 
 When updating the rollup protocol to a new version, we may perform a *squash fork*, a process that entails the creation
@@ -749,7 +749,7 @@ of even benign consensus issues.
 
 The L2 block time is 2 second, meaning there is an L2 block at every 2s [time slot][time-slot].
 
-Post-[merge], it could be said the that L1 block time is 12s as that is the L1 [time slot][time-slot]. However, in
+Post-[merge], it could be said that the L1 block time is 12s as that is the L1 [time slot][time-slot]. However, in
 reality the block time is variable as some time slots might be skipped.
 
 Pre-merge, the L1 block time is variable, though it is on average 13s.
@@ -797,7 +797,7 @@ In these specifications, "execution engine" always refer to the L2 execution eng
 [Solidity events]: https://docs.soliditylang.org/en/latest/contracts.html?highlight=events#events
 [nano-header]: https://github.com/norswap/nanoeth/blob/cc5d94a349c90627024f3cd629a2d830008fec72/src/com/norswap/nanoeth/blocks/BlockHeader.java#L22-L156
 [yellow]: https://ethereum.github.io/yellowpaper/paper.pdf
-[engine-api]: https://github.com/ethereum/execution-apis/blob/main/src/engine/paris.md#PayloadAttributesV1
+[engine-api]: https://github.com/ethereum/execution-apis/blob/main/src/engine/shanghai.md#PayloadAttributesV2
 [merge]: https://ethereum.org/en/eth2/merge/
 [mempool]: https://www.quicknode.com/guides/defi/how-to-access-ethereum-mempool
 [L1 consensus layer]: https://github.com/ethereum/consensus-specs/#readme

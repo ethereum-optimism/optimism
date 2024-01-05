@@ -4,6 +4,7 @@
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 **Table of Contents**
 
+- [1559 Parameters](#1559-parameters)
 - [Deposited transaction processing](#deposited-transaction-processing)
   - [Deposited transaction boundaries](#deposited-transaction-boundaries)
 - [Fees](#fees)
@@ -13,7 +14,7 @@
   - [L1-Cost fees (L1 Fee Vault)](#l1-cost-fees-l1-fee-vault)
 - [Engine API](#engine-api)
   - [`engine_forkchoiceUpdatedV2`](#engine_forkchoiceupdatedv2)
-    - [Extended PayloadAttributesV1](#extended-payloadattributesv1)
+    - [Extended PayloadAttributesV2](#extended-payloadattributesv2)
   - [`engine_newPayloadV2`](#engine_newpayloadv2)
   - [`engine_getPayloadV2`](#engine_getpayloadv2)
   - [`engine_signalSuperchainV1`](#engine_signalsuperchainv1)
@@ -25,6 +26,14 @@
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
 This document outlines the modifications, configuration and usage of a L1 execution engine for L2.
+
+## 1559 Parameters
+
+The execution engine must be able to take a per chain configuration which specifies the EIP-1559 Denominator
+and EIP-1559 elasticity. After Canyon it should also take a new value `EIP1559DenominatorCanyon` and use that as
+the denominator in the 1559 formula rather than the prior denominator.
+
+The formula for EIP-1559 is not otherwise modified.
 
 ## Deposited transaction processing
 
@@ -140,17 +149,18 @@ Within the rollup, the types of forkchoice updates translate as:
 - `finalizedBlockHash`: irreversible block hash, matches lower boundary of the dispute period.
 
 To support rollup functionality, one backwards-compatible change is introduced
-to [`engine_forkchoiceUpdatedV2`][engine_forkchoiceUpdatedV2]: the extended `PayloadAttributesV1`
+to [`engine_forkchoiceUpdatedV2`][engine_forkchoiceUpdatedV2]: the extended `PayloadAttributesV2`
 
-#### Extended PayloadAttributesV1
+#### Extended PayloadAttributesV2
 
-[`PayloadAttributesV1`][PayloadAttributesV1] is extended to:
+[`PayloadAttributesV2`][PayloadAttributesV2] is extended to:
 
 ```js
-PayloadAttributesV1: {
+PayloadAttributesV2: {
     timestamp: QUANTITY
     random: DATA (32 bytes)
     suggestedFeeRecipient: DATA (20 bytes)
+    withdrawals: array of WithdrawalV1
     transactions: array of DATA
     noTxPool: bool
     gasLimit: QUANTITY or null
@@ -163,7 +173,7 @@ to a JSON array.
 
 Each item of the `transactions` array is a byte list encoding a transaction: `TransactionType ||
 TransactionPayload` or `LegacyTransaction`, as defined in [EIP-2718][eip-2718].
-This is equivalent to the `transactions` field in [`ExecutionPayloadV1`][ExecutionPayloadV1]
+This is equivalent to the `transactions` field in [`ExecutionPayloadV2`][ExecutionPayloadV2]
 
 The `transactions` field is optional:
 
@@ -301,7 +311,7 @@ the operation within the engine is the exact same as with L1 (although with an E
 [eip-2718-transactions]: https://eips.ethereum.org/EIPS/eip-2718#transactions
 [exec-api-data]: https://github.com/ethereum/execution-apis/blob/769c53c94c4e487337ad0edea9ee0dce49c79bfa/src/engine/specification.md#structures
 [l1-api-spec]: https://github.com/ethereum/execution-apis/blob/769c53c94c4e487337ad0edea9ee0dce49c79bfa/src/engine/specification.md
-[PayloadAttributesV1]: https://github.com/ethereum/execution-apis/blob/769c53c94c4e487337ad0edea9ee0dce49c79bfa/src/engine/specification.md#PayloadAttributesV1
+[PayloadAttributesV2]: https://github.com/ethereum/execution-apis/blob/584905270d8ad665718058060267061ecfd79ca5/src/engine/shanghai.md#PayloadAttributesV2
 [ExecutionPayloadV1]: https://github.com/ethereum/execution-apis/blob/769c53c94c4e487337ad0edea9ee0dce49c79bfa/src/engine/specification.md#ExecutionPayloadV1
 [engine_forkchoiceUpdatedV2]: https://github.com/ethereum/execution-apis/blob/584905270d8ad665718058060267061ecfd79ca5/src/engine/shanghai.md#engine_forkchoiceupdatedv2
 [engine_newPayloadV2]: https://github.com/ethereum/execution-apis/blob/584905270d8ad665718058060267061ecfd79ca5/src/engine/shanghai.md#engine_newpayloadv2

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-ufm/pkg/metrics"
+	"github.com/ethereum/go-ethereum/common"
 
 	signer "github.com/ethereum-optimism/optimism/op-service/signer"
 	optls "github.com/ethereum-optimism/optimism/op-service/tls"

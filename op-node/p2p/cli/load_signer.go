@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/urfave/cli/v2"
@@ -19,7 +20,7 @@ func LoadSignerSetup(ctx *cli.Context) (p2p.SignerSetup, error) {
 	if key != "" {
 		// Mnemonics are bad because they leak *all* keys when they leak.
 		// Unencrypted keys from file are bad because they are easy to leak (and we are not checking file permissions).
-		priv, err := crypto.HexToECDSA(key)
+		priv, err := crypto.HexToECDSA(strings.TrimPrefix(key, "0x"))
 		if err != nil {
 			return nil, fmt.Errorf("failed to read batch submitter key: %w", err)
 		}

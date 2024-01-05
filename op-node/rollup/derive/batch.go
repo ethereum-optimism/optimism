@@ -26,7 +26,7 @@ var encodeBufferPool = sync.Pool{
 const (
 	// SingularBatchType is the first version of Batch format, representing a single L2 block.
 	SingularBatchType = 0
-	// SpanBatchType is the Batch version used after SpanBatch hard fork, representing a span of L2 blocks.
+	// SpanBatchType is the Batch version used after Delta hard fork, representing a span of L2 blocks.
 	SpanBatchType = 1
 )
 

@@ -9,6 +9,7 @@ import datetime
 import time
 import shutil
 import http.client
+import gzip
 from multiprocessing import Process, Queue
 import concurrent.futures
 from collections import namedtuple
@@ -130,7 +131,7 @@ def deploy_contracts(paths):
     run_command([
         'cast', 'send', '--from', account,
         '--rpc-url', 'http://127.0.0.1:8545',
-        '--unlocked', '--value', '1ether', '0x3fAB184622Dc19b6109349B94811493BF2a45362'
+        '--unlocked', '--value', '5ether', '0x3fAB184622Dc19b6109349B94811493BF2a45362'
     ], env={}, cwd=paths.contracts_bedrock_dir)
 
     # deploy the create2 deployer
@@ -143,7 +144,7 @@ def deploy_contracts(paths):
     run_command([
         'forge', 'script', fqn, '--sender', account,
         '--rpc-url', 'http://127.0.0.1:8545', '--broadcast',
-        '--unlocked'
+        '--unlocked', '--with-gas-price', '100000000000',
     ], env={}, cwd=paths.contracts_bedrock_dir)
 
     shutil.copy(paths.l1_deployments_path, paths.addresses_json_path)
@@ -165,9 +166,8 @@ def devnet_l1_genesis(paths):
     init_devnet_l1_deploy_config(paths)
 
     geth = subprocess.Popen([
-        'geth', '--dev', '--http', '--http.api', 'eth,debug',
-        '--verbosity', '4', '--gcmode', 'archive', '--dev.gaslimit', '30000000',
-        '--rpc.allow-unprotected-txs'
+        'anvil', '-a', '10', '--port', '8545', '--chain-id', '1337', '--disable-block-gas-limit',
+        '--gas-price', '0', '--base-fee', '1', '--block-time', '1'
     ])
 
     try:
@@ -178,10 +178,8 @@ def devnet_l1_genesis(paths):
         if err:
             raise Exception(f"Exception occurred in child process: {err}")
 
-        res = debug_dumpBlock('127.0.0.1:8545')
-        response = json.loads(res)
-        allocs = response['result']
-
+        res = anvil_dumpState('127.0.0.1:8545')
+        allocs = convert_anvil_dump(res)
         write_json(paths.allocs_path, allocs)
     finally:
         geth.terminate()
@@ -280,17 +278,38 @@ def eth_accounts(url):
     return data
 
 
-def debug_dumpBlock(url):
+def anvil_dumpState(url):
     log.info(f'Fetch debug_dumpBlock {url}')
     conn = http.client.HTTPConnection(url)
     headers = {'Content-type': 'application/json'}
-    body = '{"id":3, "jsonrpc":"2.0", "method": "debug_dumpBlock", "params":["latest"]}'
+    body = '{"id":3, "jsonrpc":"2.0", "method": "anvil_dumpState", "params":[]}'
     conn.request('POST', '/', body, headers)
-    response = conn.getresponse()
-    data = response.read().decode()
-    conn.close()
-    return data
+    data = conn.getresponse().read()
+    # Anvil returns a JSON-RPC response with a hex-encoded "result" field
+    result = json.loads(data.decode('utf-8'))['result']
+    result_bytes = bytes.fromhex(result[2:])
+    uncompressed = gzip.decompress(result_bytes).decode()
+    return json.loads(uncompressed)
 
+def convert_anvil_dump(dump):
+    accounts = dump['accounts']
+
+    for account in accounts.values():
+        bal = account['balance']
+        account['balance'] = str(int(bal, 16))
+
+        if 'storage' in account:
+            storage = account['storage']
+            storage_keys = list(storage.keys())
+            for key in storage_keys:
+                value = storage[key]
+                del storage[key]
+                storage[pad_hex(key)] = pad_hex(value)
+
+    return dump
+
+def pad_hex(input):
+    return '0x' + input.replace('0x', '').zfill(64)
 
 def wait_for_rpc_server(url):
     log.info(f'Waiting for RPC server at {url}')

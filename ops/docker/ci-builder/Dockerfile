@@ -2,15 +2,13 @@ FROM --platform=linux/amd64 debian:bullseye-slim as rust-build
 
 SHELL ["/bin/bash", "-c"]
 
-WORKDIR /opt
-
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && \
   apt-get install -y curl build-essential git clang lld curl
 
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs > rustup.sh && \
   chmod +x ./rustup.sh && \
-  ./rustup.sh -y
+  sh rustup.sh -y
 
 # Install nightly toolchain
 RUN source $HOME/.profile && rustup update nightly
@@ -21,16 +19,14 @@ RUN source $HOME/.profile && cargo install svm-rs
 # Only diff from upstream docker image is this clone instead
 # of COPY. We select a specific commit to use.
 COPY ./.foundryrc ./.foundryrc
-RUN git clone https://github.com/foundry-rs/foundry.git ./foundry \
-  && cd foundry && git checkout $(cat ../.foundryrc)
+COPY ./ops/scripts/install-foundry.sh ./install-foundry.sh
 
-WORKDIR /opt/foundry
+RUN curl -L https://foundry.paradigm.xyz | bash
+RUN source $HOME/.profile && ./install-foundry.sh
 
-RUN source $HOME/.profile && \
-  cargo build --release && \
-  strip /opt/foundry/target/release/forge && \
-  strip /opt/foundry/target/release/cast && \
-  strip /opt/foundry/target/release/anvil
+RUN strip /root/.foundry/bin/forge && \
+  strip /root/.foundry/bin/cast && \
+  strip /root/.foundry/bin/anvil
 
 FROM --platform=linux/amd64 ghcr.io/crytic/echidna/echidna:v2.0.4 as echidna-test
 
@@ -83,9 +79,9 @@ COPY --from=go-build /go/bin/geth /usr/local/bin/geth
 COPY --from=rust-build /root/.cargo/bin /root/.cargo/bin
 COPY --from=rust-build /root/.rustup /root/.rustup
 # copy tools
-COPY --from=rust-build /opt/foundry/target/release/forge /usr/local/bin/forge
-COPY --from=rust-build /opt/foundry/target/release/cast /usr/local/bin/cast
-COPY --from=rust-build /opt/foundry/target/release/anvil /usr/local/bin/anvil
+COPY --from=rust-build /root/.foundry/bin/forge /usr/local/bin/forge
+COPY --from=rust-build /root/.foundry/bin/cast /usr/local/bin/cast
+COPY --from=rust-build /root/.foundry/bin/anvil /usr/local/bin/anvil
 
 COPY --from=echidna-test /usr/local/bin/echidna-test /usr/local/bin/echidna-test
 
@@ -101,8 +97,11 @@ RUN /bin/sh -c set -eux; \
   mkdir -p /etc/apt/keyrings; \
   curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg; \
   echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_$NODE_MAJOR.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list; \
+  curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg; \
+  chmod a+r /etc/apt/keyrings/docker.gpg; \
+  echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null; \
   apt-get update; \
-  apt-get install -y nodejs; \
+  apt-get install -y nodejs docker-ce-cli; \
   ln -s /usr/local/go/bin/gofmt /usr/local/bin/gofmt; \
   npm i -g depcheck; \
   pip install slither-analyzer==$SLITHER_VERSION capstone pyelftools; \

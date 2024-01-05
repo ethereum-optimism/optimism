@@ -3,7 +3,6 @@ package derive
 import (
 	"bytes"
 	"crypto/rand"
-	"errors"
 	"fmt"
 	"io"
 
@@ -66,7 +65,7 @@ func (co *SpanChannelOut) Reset() error {
 // should be closed and a new one should be made.
 func (co *SpanChannelOut) AddBlock(block *types.Block) (uint64, error) {
 	if co.closed {
-		return 0, errors.New("already closed")
+		return 0, ErrChannelOutAlreadyClosed
 	}
 
 	batch, l1Info, err := BlockToSingularBatch(block)
@@ -91,7 +90,7 @@ func (co *SpanChannelOut) AddBlock(block *types.Block) (uint64, error) {
 // It makes we can only get frames once the channel is full or closed, in the case of SpanBatch.
 func (co *SpanChannelOut) AddSingularBatch(batch *SingularBatch, seqNum uint64) (uint64, error) {
 	if co.closed {
-		return 0, errors.New("already closed")
+		return 0, ErrChannelOutAlreadyClosed
 	}
 	if co.FullErr() != nil {
 		// channel is already full
@@ -186,7 +185,7 @@ func (co *SpanChannelOut) FullErr() error {
 
 func (co *SpanChannelOut) Close() error {
 	if co.closed {
-		return errors.New("already closed")
+		return ErrChannelOutAlreadyClosed
 	}
 	co.closed = true
 	if err := co.Flush(); err != nil {

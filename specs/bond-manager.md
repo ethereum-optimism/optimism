@@ -75,7 +75,7 @@ expensive to keep the settlement layer base fee this high.
 ### Variable Bond
 
 Better bond heuristics can be used to establish a bond price that accounts for
-the time-weighted gas price. One instance of this called _Varable Bonds_ use a
+the time-weighted gas price. One instance of this called _Variable Bonds_ use a
 separate oracle contract, `GasPriceFluctuationTracker`, that tracks gas fluctuations
 within a pre-determined bounds. This replaces the ideal solution of tracking
 challenge costs over all L1 blocks, but provides a reasonable bounds. The initial

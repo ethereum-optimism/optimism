@@ -12,22 +12,30 @@ type GameSolver struct {
 	claimSolver *claimSolver
 }
 
-func NewGameSolver(gameDepth int, trace types.TraceProvider) *GameSolver {
+func NewGameSolver(gameDepth int, trace types.TraceAccessor) *GameSolver {
 	return &GameSolver{
 		claimSolver: newClaimSolver(gameDepth, trace),
 	}
 }
 
+func (s *GameSolver) AgreeWithRootClaim(ctx context.Context, game types.Game) (bool, error) {
+	return s.claimSolver.agreeWithClaim(ctx, game, game.Claims()[0])
+}
+
 func (s *GameSolver) CalculateNextActions(ctx context.Context, game types.Game) ([]types.Action, error) {
+	agreeWithRootClaim, err := s.AgreeWithRootClaim(ctx, game)
+	if err != nil {
+		return nil, fmt.Errorf("failed to determine if root claim is correct: %w", err)
+	}
 	var errs []error
 	var actions []types.Action
 	for _, claim := range game.Claims() {
 		var action *types.Action
 		var err error
 		if uint64(claim.Depth()) == game.MaxDepth() {
-			action, err = s.calculateStep(ctx, game, claim)
+			action, err = s.calculateStep(ctx, game, agreeWithRootClaim, claim)
 		} else {
-			action, err = s.calculateMove(ctx, game, claim)
+			action, err = s.calculateMove(ctx, game, agreeWithRootClaim, claim)
 		}
 		if err != nil {
 			errs = append(errs, err)
@@ -41,11 +49,11 @@ func (s *GameSolver) CalculateNextActions(ctx context.Context, game types.Game) 
 	return actions, errors.Join(errs...)
 }
 
-func (s *GameSolver) calculateStep(ctx context.Context, game types.Game, claim types.Claim) (*types.Action, error) {
+func (s *GameSolver) calculateStep(ctx context.Context, game types.Game, agreeWithRootClaim bool, claim types.Claim) (*types.Action, error) {
 	if claim.Countered {
 		return nil, nil
 	}
-	if game.AgreeWithClaimLevel(claim) {
+	if game.AgreeWithClaimLevel(claim, agreeWithRootClaim) {
 		return nil, nil
 	}
 	step, err := s.claimSolver.AttemptStep(ctx, game, claim)
@@ -65,8 +73,8 @@ func (s *GameSolver) calculateStep(ctx context.Context, game types.Game, claim t
 	}, nil
 }
 
-func (s *GameSolver) calculateMove(ctx context.Context, game types.Game, claim types.Claim) (*types.Action, error) {
-	if game.AgreeWithClaimLevel(claim) {
+func (s *GameSolver) calculateMove(ctx context.Context, game types.Game, agreeWithRootClaim bool, claim types.Claim) (*types.Action, error) {
+	if game.AgreeWithClaimLevel(claim, agreeWithRootClaim) {
 		return nil, nil
 	}
 	move, err := s.claimSolver.NextMove(ctx, claim, game)

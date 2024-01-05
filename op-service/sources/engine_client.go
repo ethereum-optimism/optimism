@@ -51,20 +51,21 @@ func NewEngineClient(client client.RPC, log log.Logger, metrics caching.Metrics,
 // 2. `error` as eth.InputError: the forkchoice state or attributes are not valid.
 // 3. Other types of `error`: temporary RPC errors, like timeouts.
 func (s *EngineClient) ForkchoiceUpdate(ctx context.Context, fc *eth.ForkchoiceState, attributes *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
-	e := s.log.New("state", fc, "attr", attributes)
-	e.Trace("Sharing forkchoice-updated signal")
+	llog := s.log.New("state", fc)       // local logger
+	tlog := llog.New("attr", attributes) // trace logger
+	tlog.Trace("Sharing forkchoice-updated signal")
 	fcCtx, cancel := context.WithTimeout(ctx, time.Second*5)
 	defer cancel()
 	var result eth.ForkchoiceUpdatedResult
 	err := s.client.CallContext(fcCtx, &result, "engine_forkchoiceUpdatedV2", fc, attributes)
 	if err == nil {
-		e.Trace("Shared forkchoice-updated signal")
+		tlog.Trace("Shared forkchoice-updated signal")
 		if attributes != nil { // block building is optional, we only get a payload ID if we are building a block
-			e.Trace("Received payload id", "payloadId", result.PayloadID)
+			tlog.Trace("Received payload id", "payloadId", result.PayloadID)
 		}
 		return &result, nil
 	} else {
-		e.Warn("Failed to share forkchoice-updated signal", "err", err)
+		llog.Warn("Failed to share forkchoice-updated signal", "err", err)
 		if rpcErr, ok := err.(rpc.Error); ok {
 			code := eth.ErrorCode(rpcErr.ErrorCode())
 			switch code {

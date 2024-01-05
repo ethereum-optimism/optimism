@@ -8,14 +8,11 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
@@ -45,41 +42,26 @@ type ProofGenerator interface {
 }
 
 type CannonTraceProvider struct {
-	logger    log.Logger
-	dir       string
-	prestate  string
-	generator ProofGenerator
-	gameDepth uint64
+	logger       log.Logger
+	dir          string
+	prestate     string
+	generator    ProofGenerator
+	gameDepth    uint64
+	localContext common.Hash
 
 	// lastStep stores the last step in the actual trace if known. 0 indicates unknown.
 	// Cached as an optimisation to avoid repeatedly attempting to execute beyond the end of the trace.
 	lastStep uint64
 }
 
-func NewTraceProvider(ctx context.Context, logger log.Logger, m CannonMetricer, cfg *config.Config, l1Client bind.ContractCaller, dir string, gameAddr common.Address, gameDepth uint64) (*CannonTraceProvider, error) {
-	l2Client, err := ethclient.DialContext(ctx, cfg.CannonL2)
-	if err != nil {
-		return nil, fmt.Errorf("dial l2 client %v: %w", cfg.CannonL2, err)
-	}
-	defer l2Client.Close() // Not needed after fetching the inputs
-	gameCaller, err := bindings.NewFaultDisputeGameCaller(gameAddr, l1Client)
-	if err != nil {
-		return nil, fmt.Errorf("create caller for game %v: %w", gameAddr, err)
-	}
-	localInputs, err := fetchLocalInputs(ctx, gameAddr, gameCaller, l2Client)
-	if err != nil {
-		return nil, fmt.Errorf("fetch local game inputs: %w", err)
-	}
-	return NewTraceProviderFromInputs(logger, m, cfg, localInputs, dir, gameDepth), nil
-}
-
-func NewTraceProviderFromInputs(logger log.Logger, m CannonMetricer, cfg *config.Config, localInputs LocalGameInputs, dir string, gameDepth uint64) *CannonTraceProvider {
+func NewTraceProvider(logger log.Logger, m CannonMetricer, cfg *config.Config, localContext common.Hash, localInputs LocalGameInputs, dir string, gameDepth uint64) *CannonTraceProvider {
 	return &CannonTraceProvider{
-		logger:    logger,
-		dir:       dir,
-		prestate:  cfg.CannonAbsolutePreState,
-		generator: NewExecutor(logger, m, cfg, localInputs),
-		gameDepth: gameDepth,
+		logger:       logger,
+		dir:          dir,
+		prestate:     cfg.CannonAbsolutePreState,
+		generator:    NewExecutor(logger, m, cfg, localInputs),
+		gameDepth:    gameDepth,
+		localContext: localContext,
 	}
 }
 
@@ -123,8 +105,7 @@ func (p *CannonTraceProvider) GetStepData(ctx context.Context, pos types.Positio
 	}
 	var oracleData *types.PreimageOracleData
 	if len(proof.OracleKey) > 0 {
-		// TODO(client-pod#104): Replace the LocalContext `0` argument below with the correct local context.
-		oracleData = types.NewPreimageOracleData(0, proof.OracleKey, proof.OracleValue, proof.OracleOffset)
+		oracleData = types.NewPreimageOracleData(proof.OracleKey, proof.OracleValue, proof.OracleOffset)
 	}
 	return value, data, oracleData, nil
 }

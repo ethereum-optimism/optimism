@@ -59,10 +59,9 @@ func (etl *ETL) Start() error {
 	if etl.worker != nil {
 		return errors.New("already started")
 	}
-	etl.log.Info("starting etl...")
 	etl.worker = clock.NewLoopFn(clock.SystemClock, etl.tick, func() error {
+		etl.log.Info("shutting down batch producer")
 		close(etl.etlBatches) // can close the channel now, to signal to the consumer that we're done
-		etl.log.Info("stopped etl worker loop")
 		return nil
 	}, etl.loopInterval)
 	return nil
@@ -132,8 +131,8 @@ func (etl *ETL) processBatch(headers []types.Header) error {
 		batchLog.Warn("mismatch in FilterLog#ToBlock number", "queried_to_block_number", lastHeader.Number, "reported_to_block_number", logs.ToBlockHeader.Number)
 		return fmt.Errorf("mismatch in FilterLog#ToBlock number")
 	} else if logs.ToBlockHeader.Hash() != lastHeader.Hash() {
-		batchLog.Error("mismatch in FitlerLog#ToBlock block hash!!!", "queried_to_block_hash", lastHeader.Hash().String(), "reported_to_block_hash", logs.ToBlockHeader.Hash().String())
-		return fmt.Errorf("mismatch in FitlerLog#ToBlock block hash!!!")
+		batchLog.Error("mismatch in FilterLog#ToBlock block hash!!!", "queried_to_block_hash", lastHeader.Hash().String(), "reported_to_block_hash", logs.ToBlockHeader.Hash().String())
+		return fmt.Errorf("mismatch in FilterLog#ToBlock block hash!!!")
 	}
 
 	if len(logs.Logs) > 0 {

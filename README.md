@@ -15,8 +15,8 @@ In this repository, you'll find numerous core components of the OP Stack, the de
 
 ## Documentation
 
-- If you want to build on top of OP Mainnet, refer to the [Optimism Community Hub](https://community.optimism.io)
-- If you want to build your own OP Stack based blockchain, refer to the [OP Stack docs](https://stack.optimism.io)
+- If you want to build on top of OP Mainnet, refer to the [Optimism Documentation](https://docs.optimism.io)
+- If you want to build your own OP Stack based blockchain, refer to the [OP Stack Guide](https://docs.optimism.io/stack/getting-started)
 - If you want to contribute to the OP Stack, check out the [Protocol Specs](./specs)
 
 ## Community
@@ -29,20 +29,13 @@ Governance discussion can also be found on the [Optimism Governance Forum](https
 Read through [CONTRIBUTING.md](./CONTRIBUTING.md) for a general overview of the contributing process for this repository.
 Use the [Developer Quick Start](./CONTRIBUTING.md#development-quick-start) to get your development environment set up to start working on the Optimism Monorepo.
 Then check out the list of [Good First Issues](https://github.com/ethereum-optimism/optimism/contribute) to find something fun to work on!
+Typo fixes are welcome; however, please create a single commit with all of the typo fixes & batch as many fixes together in a PR as possible. Spammy PRs will be closed.
 
 ## Security Policy and Vulnerability Reporting
 
 Please refer to the canonical [Security Policy](https://github.com/ethereum-optimism/.github/blob/master/SECURITY.md) document for detailed information about how to report vulnerabilities in this codebase.
 Bounty hunters are encouraged to check out [the Optimism Immunefi bug bounty program](https://immunefi.com/bounty/optimism/).
 The Optimism Immunefi program offers up to $2,000,042 for in-scope critical vulnerabilities.
-
-## The Bedrock Upgrade
-
-OP Mainnet is currently preparing for [its next major upgrade, Bedrock](https://dev.optimism.io/introducing-optimism-bedrock/).
-You can find detailed specifications for the Bedrock upgrade within the [specs folder](./specs) in this repository.
-
-Please note that a significant number of packages and folders within this repository are part of the Bedrock upgrade and are NOT currently running in production.
-Refer to the Directory Structure section below to understand which packages are currently running in production and which are intended for use as part of the Bedrock upgrade.
 
 ## Directory Structure
 

@@ -30,13 +30,13 @@ abstract contract EIP1271Verifier is EIP712 {
     error InvalidNonce();
 
     // The hash of the data type used to relay calls to the attest function. It's the value of
-    // keccak256("Attest(bytes32 schema,address recipient,uint64 expirationTime,bool revocable,bytes32 refUID,bytes
-    // data,uint256 value,uint256 nonce,uint64 deadline)").
-    bytes32 private constant ATTEST_TYPEHASH = 0xf83bb2b0ede93a840239f7e701a54d9bc35f03701f51ae153d601c6947ff3d3f;
+    // keccak256("Attest(address attester,bytes32 schema,address recipient,uint64 expirationTime,bool revocable,bytes32
+    // refUID,bytes data,uint256 value,uint256 nonce,uint64 deadline)").
+    bytes32 private constant ATTEST_TYPEHASH = 0xfeb2925a02bae3dae48d424a0437a2b6ac939aa9230ddc55a1a76f065d988076;
 
     // The hash of the data type used to relay calls to the revoke function. It's the value of
-    // keccak256("Revoke(bytes32 schema,bytes32 uid,uint256 value,uint256 nonce,uint64 deadline)").
-    bytes32 private constant REVOKE_TYPEHASH = 0x2d4116d8c9824e4c316453e5c2843a1885580374159ce8768603c49085ef424c;
+    // keccak256("Revoke(address revoker,bytes32 schema,bytes32 uid,uint256 value,uint256 nonce,uint64 deadline)").
+    bytes32 private constant REVOKE_TYPEHASH = 0xb5d556f07587ec0f08cf386545cc4362c702a001650c2058002615ee5c9d1e75;
 
     // The user readable name of the signing domain.
     bytes32 private immutable _name;
@@ -116,6 +116,7 @@ abstract contract EIP1271Verifier is EIP712 {
             keccak256(
                 abi.encode(
                     ATTEST_TYPEHASH,
+                    request.attester,
                     request.schema,
                     data.recipient,
                     data.expirationTime,
@@ -150,7 +151,13 @@ abstract contract EIP1271Verifier is EIP712 {
         bytes32 hash = _hashTypedDataV4(
             keccak256(
                 abi.encode(
-                    REVOKE_TYPEHASH, request.schema, data.uid, data.value, _nonces[request.revoker]++, request.deadline
+                    REVOKE_TYPEHASH,
+                    request.revoker,
+                    request.schema,
+                    data.uid,
+                    data.value,
+                    _nonces[request.revoker]++,
+                    request.deadline
                 )
             )
         );

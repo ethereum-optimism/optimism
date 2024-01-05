@@ -43,5 +43,5 @@ func TestBuildL2DeveloperGenesis(t *testing.T) {
 		require.Equal(t, adminSlot, predeploys.ProxyAdminAddr.Hash())
 		require.Equal(t, account.Code, depB)
 	}
-	require.Equal(t, 2069, len(gen.Alloc))
+	require.Equal(t, 2067, len(gen.Alloc))
 }

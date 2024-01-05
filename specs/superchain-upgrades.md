@@ -32,6 +32,10 @@ chains following the same Superchain Target upgrade synchronously.
 - [OP-Stack Protocol versions](#op-stack-protocol-versions)
 - [Post-Bedrock Network upgrades](#post-bedrock-network-upgrades)
   - [Regolith](#regolith)
+- [Canyon](#canyon)
+- [Delta](#delta)
+- [Eclipse](#eclipse)
+- [Fjord](#fjord)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -100,7 +104,7 @@ The major/minor/patch versions should align with that of the upstream protocol t
 Users of the protocol can choose to implement custom support for the alternative `<build>`,
 but may work out of the box if the major features are consistent with that of the upstream protocol version.
 
-The 8 byte `<build>` identifier may be presented as string for human readability if the contents are alpha-numeric,
+The 8 byte `<build>` identifier may be presented as a string for human readability if the contents are alpha-numeric,
 including `-` and `.`, as outlined in the [Semver] format specs. Trailing `0` bytes can be used for padding.
 It may be presented as `0x`-prefixed hex string otherwise.
 
@@ -133,7 +137,7 @@ The `<pre-release>` `0`-value is reserved for non-prereleases, i.e. `v3.1.0` is 
 Node-software may support a pre-release, but must not activate any protocol changes without the user explicitly
 opting in through the means of a feature-flag or configuration change.
 
-A pre-release is not an official version, and meant for protocol developers to communicate an experimental changeset
+A pre-release is not an official version and is meant for protocol developers to communicate an experimental changeset
 before the changeset is reviewed by governance. Pre-releases are subject to change.
 
 ### Protocol Version Exposure
@@ -245,6 +249,9 @@ but the matching L1-origin information may not be present at the time of activat
   ([announcement](https://optimism.mirror.xyz/gQWKlrDqHzdKPsB1iUnI-cVN3v0NvsWnazK7ajlt1fI)).
 - `v3.0.0-1`: 2023 Jan 13th - Bedrock pre-release, deployed on OP-Goerli, and later Base-Goerli.
 - `v3.0.0`: 2023 Jun 6th - Bedrock, including the Regolith hardfork improvements, first deployed on OP-Mainnet.
+- `v4.0.0`: TBD - Canyon.
+  [Governance proposal](https://gov.optimism.io/t/final-upgrade-proposal-2-canyon-network-upgrade/7088).
+- `v5.0.0-1`: Delta - Experimental, devnet pre-release stage.
 
 ## Post-Bedrock Network upgrades
 
@@ -273,3 +280,38 @@ The [execution engine specification](./exec-engine.md) specifies the L1 cost fun
 
 The Regolith upgrade uses a *L2 block-timestamp* activation-rule, and is specified in both the
 rollup-node (`regolith_time`) and execution engine (`config.regolithTime`).
+
+## Canyon
+
+The Canyon upgrade contains the Shapella upgrade from L1 and some minor protocol fixes.
+
+- Shapella Upgrade
+  - [EIP-3651: Warm COINBASE](https://eips.ethereum.org/EIPS/eip-3651)
+  - [EIP-3855: PUSH0 instruction](https://eips.ethereum.org/EIPS/eip-3855)
+  - [EIP-3860: Limit and meter initcode](https://eips.ethereum.org/EIPS/eip-3860)
+  - [EIP-4895: Beacon chain push withdrawals as operations](https://eips.ethereum.org/EIPS/eip-4895)
+    - [Withdrawals are prohibited in P2P Blocks](./rollup-node-p2p.md#block-validation)
+    - [Withdrawals should be set to the empty array with Canyon](./derivation.md#building-individual-payload-attributes)
+  - [EIP-6049: Deprecate SELFDESTRUCT](https://eips.ethereum.org/EIPS/eip-6049)
+- [Modifies the EIP-1559 Denominator](./exec-engine.md#1559-parameters)
+- [Channel Ordering Fix](./derivation.md#reading)
+- [Adds the deposit nonce & deposit nonce version to the deposit receipt hash](./deposits.md#deposit-receipt)
+- [Deploys the create2Deployer to `0x13b0D85CcB8bf860b6b79AF3029fCA081AE9beF2`](./predeploys.md#create2deployer)
+
+The Canyon upgrade uses a *L2 block-timestamp* activation-rule, and is specified in both the
+rollup-node (`canyon_time`) and execution engine (`config.canyonTime`). Shanghai time in the
+execution engine should be set to the same time as the Canyon time.
+
+## Delta
+
+The Delta upgrade consists of a single consensus-layer feature: [Span Batches](./span-batches.md).
+
+The Delta upgrade uses a *L2 block-timestamp* activation-rule, and is specified only in the rollup-node (`delta_time`).
+
+## Eclipse
+
+Name of the next upgrade after Delta. Placeholder for development coordination.
+
+## Fjord
+
+Name of the next upgrade after Eclipse. Placeholder for development coordination.

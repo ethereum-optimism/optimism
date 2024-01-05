@@ -12,7 +12,7 @@ import (
 	"github.com/ethereum-optimism/superchain-registry/superchain"
 )
 
-var OPStackSupport = params.ProtocolVersionV0{Build: [8]byte{}, Major: 4, Minor: 0, Patch: 0, PreRelease: 1}.Encode()
+var OPStackSupport = params.ProtocolVersionV0{Build: [8]byte{}, Major: 5, Minor: 0, Patch: 0, PreRelease: 1}.Encode()
 
 const (
 	opMainnet   = 10
@@ -99,6 +99,9 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 		L2ChainID:              new(big.Int).SetUint64(chConfig.ChainID),
 		RegolithTime:           &regolithTime,
 		CanyonTime:             superChain.Config.CanyonTime,
+		DeltaTime:              superChain.Config.DeltaTime,
+		EclipseTime:            superChain.Config.EclipseTime,
+		FjordTime:              superChain.Config.FjordTime,
 		BatchInboxAddress:      common.Address(chConfig.BatchInboxAddr),
 		DepositContractAddress: depositContractAddress,
 		L1SystemConfigAddress:  common.Address(chConfig.SystemConfigAddr),
@@ -109,6 +112,10 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 	if chainID == labsDevnet || chainID == chaosnet {
 		cfg.ChannelTimeout = 120
 		cfg.MaxSequencerDrift = 1200
+	}
+	if chainID == pgnSepolia {
+		cfg.MaxSequencerDrift = 1000
+		cfg.SeqWindowSize = 7200
 	}
 	return cfg, nil
 }

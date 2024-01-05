@@ -78,6 +78,10 @@ func (h headerInfo) GasUsed() uint64 {
 	return h.Header.GasUsed
 }
 
+func (h headerInfo) GasLimit() uint64 {
+	return h.Header.GasLimit
+}
+
 func (h headerInfo) HeaderRLP() ([]byte, error) {
 	return rlp.EncodeToBytes(h.Header)
 }
@@ -103,7 +107,16 @@ type rpcHeader struct {
 	BaseFee *hexutil.Big `json:"baseFeePerGas"`
 
 	// WithdrawalsRoot was added by EIP-4895 and is ignored in legacy headers.
-	WithdrawalsRoot *common.Hash `json:"withdrawalsRoot"`
+	WithdrawalsRoot *common.Hash `json:"withdrawalsRoot,omitempty"`
+
+	// BlobGasUsed was added by EIP-4844 and is ignored in legacy headers.
+	BlobGasUsed *hexutil.Uint64 `json:"blobGasUsed,omitempty"`
+
+	// ExcessBlobGas was added by EIP-4844 and is ignored in legacy headers.
+	ExcessBlobGas *hexutil.Uint64 `json:"excessBlobGas,omitempty"`
+
+	// ParentBeaconRoot was added by EIP-4788 and is ignored in legacy headers.
+	ParentBeaconRoot *common.Hash `json:"parentBeaconBlockRoot,omitempty"`
 
 	// untrusted info included by RPC, may have to be checked
 	Hash common.Hash `json:"hash"`
@@ -156,6 +169,10 @@ func (hdr *rpcHeader) createGethHeader() *types.Header {
 		Nonce:           hdr.Nonce,
 		BaseFee:         (*big.Int)(hdr.BaseFee),
 		WithdrawalsHash: hdr.WithdrawalsRoot,
+		// Cancun
+		BlobGasUsed:      (*uint64)(hdr.BlobGasUsed),
+		ExcessBlobGas:    (*uint64)(hdr.ExcessBlobGas),
+		ParentBeaconRoot: hdr.ParentBeaconRoot,
 	}
 }
 
@@ -173,6 +190,13 @@ func (hdr *rpcHeader) Info(trustCache bool, mustBePostMerge bool) (eth.BlockInfo
 	return &headerInfo{hdr.Hash, hdr.createGethHeader()}, nil
 }
 
+func (hdr *rpcHeader) BlockID() eth.BlockID {
+	return eth.BlockID{
+		Hash:   hdr.Hash,
+		Number: uint64(hdr.Number),
+	}
+}
+
 type rpcBlock struct {
 	rpcHeader
 	Transactions []*types.Transaction `json:"transactions"`
@@ -185,7 +209,7 @@ func (block *rpcBlock) verify() error {
 	}
 	for i, tx := range block.Transactions {
 		if tx == nil {
-			return fmt.Errorf("block tx %d is null", i)
+			return fmt.Errorf("block tx %d is nil", i)
 		}
 	}
 	if computed := types.DeriveSha(types.Transactions(block.Transactions), trie.NewStackTrie(nil)); block.TxHash != computed {
@@ -294,5 +318,6 @@ func unusableMethod(err error) bool {
 	return strings.Contains(errText, "unsupported method") || // alchemy -32600 message
 		strings.Contains(errText, "unknown method") ||
 		strings.Contains(errText, "invalid param") ||
-		strings.Contains(errText, "is not available")
+		strings.Contains(errText, "is not available") ||
+		strings.Contains(errText, "rpc method is not whitelisted") // proxyd -32001 error code
 }

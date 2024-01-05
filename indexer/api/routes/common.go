@@ -7,9 +7,6 @@ import (
 
 const (
 	InternalServerError = "Internal server error"
-
-	// defaultPageLimit ... Default page limit for pagination
-	defaultPageLimit = 100
 )
 
 // jsonResponse ... Marshals and writes a JSON response provided arbitrary data

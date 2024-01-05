@@ -121,7 +121,7 @@ func ChannelManager_Clear(t *testing.T, batchType uint) {
 	m := NewChannelManager(log, metrics.NoopMetrics, ChannelConfig{
 		// Need to set the channel timeout here so we don't clear pending
 		// channels on confirmation. This would result in [TxConfirmed]
-		// clearing confirmed transactions, and reseting the pendingChannels map
+		// clearing confirmed transactions, and resetting the pendingChannels map
 		ChannelTimeout: 10,
 		// Have to set the max frame size here otherwise the channel builder would not
 		// be able to output any frames
@@ -261,7 +261,7 @@ func ChannelManagerCloseBeforeFirstUse(t *testing.T, batchType uint) {
 
 	a := derivetest.RandomL2BlockWithChainId(rng, 4, defaultTestRollupConfig.L2ChainID)
 
-	m.Close()
+	require.NoError(m.Close(), "Expected to close channel manager gracefully")
 
 	err := m.AddL2Block(a)
 	require.NoError(err, "Failed to add L2 block")
@@ -304,7 +304,7 @@ func ChannelManagerCloseNoPendingChannel(t *testing.T, batchType uint) {
 	_, err = m.TxData(eth.BlockID{})
 	require.ErrorIs(err, io.EOF, "Expected channel manager to EOF")
 
-	m.Close()
+	require.NoError(m.Close(), "Expected to close channel manager gracefully")
 
 	err = m.AddL2Block(b)
 	require.NoError(err, "Failed to add L2 block")
@@ -321,14 +321,14 @@ func ChannelManagerClosePendingChannel(t *testing.T, batchType uint) {
 	// The number of batch txs depends on compression of the random data, hence the static test RNG seed.
 	// Example of different RNG seed that creates less than 2 frames: 1698700588902821588
 	rng := rand.New(rand.NewSource(123))
-	log := testlog.Logger(t, log.LvlCrit)
+	log := testlog.Logger(t, log.LvlError)
 	m := NewChannelManager(log, metrics.NoopMetrics,
 		ChannelConfig{
-			MaxFrameSize:   10000,
-			ChannelTimeout: 1000,
+			MaxFrameSize:   10_000,
+			ChannelTimeout: 1_000,
 			CompressorConfig: compressor.Config{
 				TargetNumFrames:  1,
-				TargetFrameSize:  10000,
+				TargetFrameSize:  10_000,
 				ApproxComprRatio: 1.0,
 			},
 			BatchType: batchType,
@@ -339,32 +339,97 @@ func ChannelManagerClosePendingChannel(t *testing.T, batchType uint) {
 
 	numTx := 20 // Adjust number of txs to make 2 frames
 	a := derivetest.RandomL2BlockWithChainId(rng, numTx, defaultTestRollupConfig.L2ChainID)
-	b := derivetest.RandomL2BlockWithChainId(rng, 10, defaultTestRollupConfig.L2ChainID)
-	bHeader := b.Header()
-	bHeader.Number = new(big.Int).Add(a.Number(), big.NewInt(1))
-	bHeader.ParentHash = a.Hash()
-	b = b.WithSeal(bHeader)
 
 	err := m.AddL2Block(a)
 	require.NoError(err, "Failed to add L2 block")
 
 	txdata, err := m.TxData(eth.BlockID{})
 	require.NoError(err, "Expected channel manager to produce valid tx data")
+	log.Info("generated first tx data", "len", txdata.Len())
 
 	m.TxConfirmed(txdata.ID(), eth.BlockID{})
 
-	m.Close()
+	require.ErrorIs(m.Close(), ErrPendingAfterClose, "Expected channel manager to error on close because of pending tx data")
 
 	txdata, err = m.TxData(eth.BlockID{})
 	require.NoError(err, "Expected channel manager to produce tx data from remaining L2 block data")
+	log.Info("generated more tx data", "len", txdata.Len())
 
 	m.TxConfirmed(txdata.ID(), eth.BlockID{})
 
 	_, err = m.TxData(eth.BlockID{})
 	require.ErrorIs(err, io.EOF, "Expected channel manager to have no more tx data")
 
-	err = m.AddL2Block(b)
-	require.NoError(err, "Failed to add L2 block")
+	_, err = m.TxData(eth.BlockID{})
+	require.ErrorIs(err, io.EOF, "Expected closed channel manager to produce no more tx data")
+}
+
+// ChannelManager_Close_PartiallyPendingChannel ensures that the channel manager
+// can gracefully close with a pending channel, where a block is still waiting
+// inside the compressor to be flushed.
+//
+// This test runs only for singular batches on purpose.
+// The SpanChannelOut writes full span batches to the compressor for
+// every new block that's added, so NonCompressor cannot be used to
+// set up a scenario where data is only partially flushed.
+// Couldn't get the test to work even with modifying NonCompressor
+// to flush half-way through writing to the compressor...
+func TestChannelManager_Close_PartiallyPendingChannel(t *testing.T) {
+	require := require.New(t)
+	// The number of batch txs depends on compression of the random data, hence the static test RNG seed.
+	// Example of different RNG seed that creates less than 2 frames: 1698700588902821588
+	rng := rand.New(rand.NewSource(123))
+	log := testlog.Logger(t, log.LvlError)
+	const framesize = 2200
+	m := NewChannelManager(log, metrics.NoopMetrics,
+		ChannelConfig{
+			MaxFrameSize:   framesize,
+			ChannelTimeout: 1000,
+			CompressorConfig: compressor.Config{
+				TargetNumFrames:  100,
+				TargetFrameSize:  framesize,
+				ApproxComprRatio: 1.0,
+				Kind:             "none",
+			},
+		},
+		&defaultTestRollupConfig,
+	)
+	m.Clear()
+
+	numTx := 3 // Adjust number of txs to make 2 frames
+	a := derivetest.RandomL2BlockWithChainId(rng, numTx, defaultTestRollupConfig.L2ChainID)
+	b := derivetest.RandomL2BlockWithChainId(rng, numTx, defaultTestRollupConfig.L2ChainID)
+	bHeader := b.Header()
+	bHeader.Number = new(big.Int).Add(a.Number(), big.NewInt(1))
+	bHeader.ParentHash = a.Hash()
+	b = b.WithSeal(bHeader)
+
+	require.NoError(m.AddL2Block(a), "adding 1st L2 block")
+	require.NoError(m.AddL2Block(b), "adding 2nd L2 block")
+
+	// Inside TxData, the two blocks queued above are written to the compressor.
+	// The NonCompressor will flush the first, but not the second block, when
+	// adding the second block, setting up the test with a partially flushed
+	// compressor.
+	txdata, err := m.TxData(eth.BlockID{})
+	require.NoError(err, "Expected channel manager to produce valid tx data")
+	log.Info("generated first tx data", "len", txdata.Len())
+
+	m.TxConfirmed(txdata.ID(), eth.BlockID{})
+
+	// ensure no new ready data before closing
+	_, err = m.TxData(eth.BlockID{})
+	require.ErrorIs(err, io.EOF, "Expected unclosed channel manager to only return a single frame")
+
+	require.ErrorIs(m.Close(), ErrPendingAfterClose, "Expected channel manager to error on close because of pending tx data")
+	require.NotNil(m.currentChannel)
+	require.ErrorIs(m.currentChannel.FullErr(), ErrTerminated, "Expected current channel to be terminated by Close")
+
+	txdata, err = m.TxData(eth.BlockID{})
+	require.NoError(err, "Expected channel manager to produce tx data from remaining L2 block data")
+	log.Info("generated more tx data", "len", txdata.Len())
+
+	m.TxConfirmed(txdata.ID(), eth.BlockID{})
 
 	_, err = m.TxData(eth.BlockID{})
 	require.ErrorIs(err, io.EOF, "Expected closed channel manager to produce no more tx data")
@@ -408,7 +473,7 @@ func ChannelManagerCloseAllTxsFailed(t *testing.T, batchType uint) {
 
 	m.TxFailed(txdata.ID())
 
-	m.Close()
+	require.NoError(m.Close(), "Expected to close channel manager gracefully")
 
 	_, err = m.TxData(eth.BlockID{})
 	require.ErrorIs(err, io.EOF, "Expected closed channel manager to produce no more tx data")

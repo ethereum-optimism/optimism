@@ -57,6 +57,10 @@ RUN apt-get update && apt-get install -y \
   libudev-dev \
   --no-install-recommends
 
+COPY /ops/docker/oplabs.crt /usr/local/share/ca-certificates/oplabs.crt
+RUN chmod 644 /usr/local/share/ca-certificates/oplabs.crt \
+  && update-ca-certificates
+
 RUN npm install pnpm --global
 
 COPY --from=foundry /usr/local/bin/forge /usr/local/bin/forge
@@ -69,13 +73,15 @@ WORKDIR /opt/optimism
 COPY --from=manifests /tmp/manifests  ./
 COPY *.json ./
 
-RUN pnpm install --frozen-lockfile
+RUN pnpm install:ci
 
 COPY ./packages ./packages
 
 COPY .git/ ./.git
 COPY .gitmodules ./.gitmodules
 RUN git submodule update --init --recursive
+
+COPY --from=1password/op:2 /usr/local/bin/op /usr/local/bin/op
 
 RUN pnpm build
 
@@ -86,10 +92,6 @@ WORKDIR /opt/optimism/packages/chain-mon
 
 # TODO keeping the rest of these here for now because they are being used
 # but we should really delete them we only need one image
-FROM base as replica-mon
-WORKDIR /opt/optimism/packages/chain-mon
-CMD ["start:replica-mon"]
-
 FROM base as balance-mon
 WORKDIR /opt/optimism/packages/chain-mon
 CMD ["start:balance-mon"]
@@ -98,14 +100,26 @@ FROM base as drippie-mon
 WORKDIR /opt/optimism/packages/chain-mon
 CMD ["start:drippie-mon"]
 
-FROM base as wd-mon
+from base as fault-mon
 WORKDIR /opt/optimism/packages/chain-mon
-CMD ["start:wd-mon"]
+CMD ["start:fault-mon"]
+
+from base as multisig-mon
+WORKDIR /opt/optimism/packages/multisig-mon
+CMD ["start:multisig-mon"]
+
+FROM base as replica-mon
+WORKDIR /opt/optimism/packages/chain-mon
+CMD ["start:replica-mon"]
 
 FROM base as wallet-mon
 WORKDIR /opt/optimism/packages/chain-mon
 CMD ["start:wallet-mon"]
 
-from base as fault-mon
+FROM base as wd-mon
 WORKDIR /opt/optimism/packages/chain-mon
-CMD ["start:fault-mon"]
+CMD ["start:wd-mon"]
+
+FROM base as contracts-bedrock
+WORKDIR /opt/optimism/packages/contracts-bedrock
+CMD ["deploy"]

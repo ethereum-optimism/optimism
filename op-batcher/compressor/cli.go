@@ -38,7 +38,7 @@ func CLIFlags(envPrefix string) []cli.Flag {
 			Name:    KindFlagName,
 			Usage:   "The type of compressor. Valid options: " + strings.Join(KindKeys, ", "),
 			EnvVars: opservice.PrefixEnvVar(envPrefix, "COMPRESSOR"),
-			Value:   RatioKind,
+			Value:   ShadowKind,
 		},
 	}
 }

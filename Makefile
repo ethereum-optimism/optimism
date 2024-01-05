@@ -26,7 +26,7 @@ build-ts: submodules
 	if [ -n "$$NVM_DIR" ]; then \
 		. $$NVM_DIR/nvm.sh && nvm use; \
 	fi
-	pnpm install
+	pnpm install:ci
 	pnpm build
 .PHONY: build-ts
 
@@ -45,12 +45,17 @@ golang-docker:
 			op-node op-batcher op-proposer op-challenger
 .PHONY: golang-docker
 
+contracts-bedrock-docker:
+	IMAGE_TAGS=$$(git rev-parse HEAD),latest \
+	docker buildx bake \
+			--progress plain \
+			--load \
+			-f docker-bake.hcl \
+		  contracts-bedrock
+.PHONY: contracts-bedrock-docker
+
 submodules:
-	# CI will checkout submodules on its own (and fails on these commands)
-	if [ -z "$$GITHUB_ENV" ]; then \
-		git submodule init; \
-		git submodule update --recursive; \
-	fi
+	git submodule update --init --recursive
 .PHONY: submodules
 
 op-bindings:
@@ -116,7 +121,7 @@ nuke: clean devnet-clean
 	git clean -Xdf
 .PHONY: nuke
 
-pre-devnet:
+pre-devnet: submodules
 	@if ! [ -x "$(command -v geth)" ]; then \
 		make install-geth; \
 	fi
@@ -201,7 +206,7 @@ update-op-geth:
 
 bedrock-markdown-links:
 	docker run --init -it -v `pwd`:/input lycheeverse/lychee --verbose --no-progress --exclude-loopback \
-		--exclude twitter.com --exclude explorer.optimism.io --exclude linux-mips.org \
+		--exclude twitter.com --exclude explorer.optimism.io --exclude linux-mips.org --exclude vitalik.ca \
 		--exclude-mail /input/README.md "/input/specs/**/*.md"
 
 install-geth:

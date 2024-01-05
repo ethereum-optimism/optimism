@@ -29,26 +29,22 @@ type ClaimLoader interface {
 }
 
 type Agent struct {
-	metrics                 metrics.Metricer
-	solver                  *solver.GameSolver
-	loader                  ClaimLoader
-	responder               Responder
-	updater                 types.OracleUpdater
-	maxDepth                int
-	agreeWithProposedOutput bool
-	log                     log.Logger
+	metrics   metrics.Metricer
+	solver    *solver.GameSolver
+	loader    ClaimLoader
+	responder Responder
+	maxDepth  int
+	log       log.Logger
 }
 
-func NewAgent(m metrics.Metricer, loader ClaimLoader, maxDepth int, trace types.TraceProvider, responder Responder, updater types.OracleUpdater, agreeWithProposedOutput bool, log log.Logger) *Agent {
+func NewAgent(m metrics.Metricer, loader ClaimLoader, maxDepth int, trace types.TraceAccessor, responder Responder, log log.Logger) *Agent {
 	return &Agent{
-		metrics:                 m,
-		solver:                  solver.NewGameSolver(maxDepth, trace),
-		loader:                  loader,
-		responder:               responder,
-		updater:                 updater,
-		maxDepth:                maxDepth,
-		agreeWithProposedOutput: agreeWithProposedOutput,
-		log:                     log,
+		metrics:   m,
+		solver:    solver.NewGameSolver(maxDepth, trace),
+		loader:    loader,
+		responder: responder,
+		maxDepth:  maxDepth,
+		log:       log,
 	}
 }
 
@@ -77,13 +73,6 @@ func (a *Agent) Act(ctx context.Context) error {
 			log = log.New("value", action.Value)
 		}
 
-		if action.OracleData != nil {
-			a.log.Info("Updating oracle data", "oracleKey", action.OracleData.OracleKey, "oracleData", action.OracleData.OracleData)
-			if err := a.updater.UpdateOracle(ctx, action.OracleData); err != nil {
-				return fmt.Errorf("failed to load oracle data: %w", err)
-			}
-		}
-
 		switch action.Type {
 		case types.ActionTypeMove:
 			a.metrics.RecordGameMove()
@@ -99,19 +88,6 @@ func (a *Agent) Act(ctx context.Context) error {
 	return nil
 }
 
-// shouldResolve returns true if the agent should resolve the game.
-// This method will return false if the game is still in progress.
-func (a *Agent) shouldResolve(status gameTypes.GameStatus) bool {
-	expected := gameTypes.GameStatusDefenderWon
-	if a.agreeWithProposedOutput {
-		expected = gameTypes.GameStatusChallengerWon
-	}
-	if expected != status {
-		a.log.Warn("Game will be lost", "expected", expected, "actual", status)
-	}
-	return expected == status
-}
-
 // tryResolve resolves the game if it is in a winning state
 // Returns true if the game is resolvable (regardless of whether it was actually resolved)
 func (a *Agent) tryResolve(ctx context.Context) bool {
@@ -122,9 +98,6 @@ func (a *Agent) tryResolve(ctx context.Context) bool {
 	status, err := a.responder.CallResolve(ctx)
 	if err != nil || status == gameTypes.GameStatusInProgress {
 		return false
-	}
-	if !a.shouldResolve(status) {
-		return true
 	}
 	a.log.Info("Resolving game")
 	if err := a.responder.Resolve(ctx); err != nil {
@@ -196,6 +169,6 @@ func (a *Agent) newGameFromContracts(ctx context.Context) (types.Game, error) {
 	if len(claims) == 0 {
 		return nil, errors.New("no claims")
 	}
-	game := types.NewGameState(a.agreeWithProposedOutput, claims, uint64(a.maxDepth))
+	game := types.NewGameState(claims, uint64(a.maxDepth))
 	return game, nil
 }

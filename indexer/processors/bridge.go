@@ -6,7 +6,8 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum/go-ethereum/core/types"
+	"gorm.io/gorm"
+
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/indexer/bigint"
@@ -16,6 +17,8 @@ import (
 	"github.com/ethereum-optimism/optimism/indexer/processors/bridge"
 	"github.com/ethereum-optimism/optimism/op-service/tasks"
 )
+
+var blocksLimit = 10_000
 
 type BridgeProcessor struct {
 	log     log.Logger
@@ -27,13 +30,17 @@ type BridgeProcessor struct {
 	tasks          tasks.Group
 
 	l1Etl       *etl.L1ETL
+	l2Etl       *etl.L2ETL
 	chainConfig config.ChainConfig
 
-	LatestL1Header *types.Header
-	LatestL2Header *types.Header
+	LastL1Header *database.L1BlockHeader
+	LastL2Header *database.L2BlockHeader
+
+	LastFinalizedL1Header *database.L1BlockHeader
+	LastFinalizedL2Header *database.L2BlockHeader
 }
 
-func NewBridgeProcessor(log log.Logger, db *database.DB, metrics bridge.Metricer, l1Etl *etl.L1ETL,
+func NewBridgeProcessor(log log.Logger, db *database.DB, metrics bridge.Metricer, l1Etl *etl.L1ETL, l2Etl *etl.L2ETL,
 	chainConfig config.ChainConfig, shutdown context.CancelCauseFunc) (*BridgeProcessor, error) {
 	log = log.New("processor", "bridge")
 
@@ -46,35 +53,33 @@ func NewBridgeProcessor(log log.Logger, db *database.DB, metrics bridge.Metricer
 		return nil, err
 	}
 
-	var l1Header, l2Header *types.Header
-	if latestL1Header == nil && latestL2Header == nil {
-		log.Info("no indexed state, starting from rollup genesis")
-	} else {
-		l1Height, l2Height := bigint.Zero, bigint.Zero
-		if latestL1Header != nil {
-			l1Height = latestL1Header.Number
-			l1Header = latestL1Header.RLPHeader.Header()
-			metrics.RecordLatestIndexedL1Height(l1Height)
-		}
-		if latestL2Header != nil {
-			l2Height = latestL2Header.Number
-			l2Header = latestL2Header.RLPHeader.Header()
-			metrics.RecordLatestIndexedL2Height(l2Height)
-		}
-		log.Info("detected latest indexed bridge state", "l1_block_number", l1Height, "l2_block_number", l2Height)
+	latestFinalizedL1Header, err := db.BridgeTransactions.L1LatestFinalizedBlockHeader()
+	if err != nil {
+		return nil, err
 	}
+	latestFinalizedL2Header, err := db.BridgeTransactions.L2LatestFinalizedBlockHeader()
+	if err != nil {
+		return nil, err
+	}
+
+	log.Info("detected indexed bridge state",
+		"l1_block", latestL1Header, "l2_block", latestL2Header,
+		"finalized_l1_block", latestFinalizedL1Header, "finalized_l2_block", latestFinalizedL2Header)
 
 	resCtx, resCancel := context.WithCancel(context.Background())
 	return &BridgeProcessor{
-		log:            log,
-		db:             db,
-		metrics:        metrics,
-		l1Etl:          l1Etl,
-		resourceCtx:    resCtx,
-		resourceCancel: resCancel,
-		chainConfig:    chainConfig,
-		LatestL1Header: l1Header,
-		LatestL2Header: l2Header,
+		log:                   log,
+		db:                    db,
+		metrics:               metrics,
+		l1Etl:                 l1Etl,
+		l2Etl:                 l2Etl,
+		resourceCtx:           resCtx,
+		resourceCancel:        resCancel,
+		chainConfig:           chainConfig,
+		LastL1Header:          latestL1Header,
+		LastL2Header:          latestL2Header,
+		LastFinalizedL1Header: latestFinalizedL1Header,
+		LastFinalizedL2Header: latestFinalizedL2Header,
 		tasks: tasks.Group{HandleCrit: func(err error) {
 			shutdown(fmt.Errorf("critical error in bridge processor: %w", err))
 		}},
@@ -84,32 +89,25 @@ func NewBridgeProcessor(log log.Logger, db *database.DB, metrics bridge.Metricer
 func (b *BridgeProcessor) Start() error {
 	b.log.Info("starting bridge processor...")
 
-	// Fire off independently on startup to check for
-	// new data or if we've indexed new L1 data.
-	l1EtlUpdates := b.l1Etl.Notify()
-	startup := make(chan interface{}, 1)
-	startup <- nil
-
+	// start L1 worker
 	b.tasks.Go(func() error {
-		for {
-			select {
-			case <-b.resourceCtx.Done():
-				b.log.Info("stopping bridge processor")
-				return nil
-
-			// Tickers
-			case <-startup:
-			case <-l1EtlUpdates:
-			}
-
-			done := b.metrics.RecordInterval()
-			// TODO(8013): why log all the errors and return the same thing, if we just return the error, and log here?
-			err := b.run()
-			if err != nil {
-				b.log.Error("bridge processor error", "err", err)
-			}
-			done(err)
+		l1EtlUpdates := b.l1Etl.Notify()
+		for range l1EtlUpdates {
+			done := b.metrics.RecordL1Interval()
+			done(b.onL1Data())
 		}
+		b.log.Info("no more l1 etl updates. shutting down l1 task")
+		return nil
+	})
+	// start L2 worker
+	b.tasks.Go(func() error {
+		l2EtlUpdates := b.l2Etl.Notify()
+		for range l2EtlUpdates {
+			done := b.metrics.RecordL2Interval()
+			done(b.onL2Data())
+		}
+		b.log.Info("no more l2 etl updates. shutting down l2 task")
+		return nil
 	})
 	return nil
 }
@@ -121,154 +119,270 @@ func (b *BridgeProcessor) Close() error {
 	return b.tasks.Wait()
 }
 
-// Runs the processing loop. In order to ensure all seen bridge finalization events
-// can be correlated with bridge initiated events, we establish a shared marker between
-// L1 and L2 when processing events. The latest shared indexed time (epochs) between
-// L1 and L2 serves as this shared marker.
-func (b *BridgeProcessor) run() error {
-	// In the event where we have a large number of un-observed epochs, we cap the search
-	// of epochs by 10k. If this turns out to be a bottleneck, we can parallelize the processing
-	// of epochs to significantly speed up sync times.
-	maxEpochRange := uint64(10_000)
-	var lastEpoch *big.Int
-	if b.LatestL1Header != nil {
-		lastEpoch = b.LatestL1Header.Number
+// onL1Data will index new bridge events for the unvisited L1 state. As new L1 bridge events
+// are processed, bridge finalization events can be processed on L2 in this same window.
+func (b *BridgeProcessor) onL1Data() error {
+	latestL1Header := b.l1Etl.LatestHeader
+	b.log.Info("notified of new L1 state", "l1_etl_block_number", latestL1Header.Number)
+
+	var errs error
+	if err := b.processInitiatedL1Events(); err != nil {
+		b.log.Error("failed to process initiated L1 events", "err", err)
+		errs = errors.Join(errs, err)
 	}
 
-	latestEpoch, err := b.db.Blocks.LatestObservedEpoch(lastEpoch, maxEpochRange)
-	if err != nil {
-		return err
-	} else if latestEpoch == nil {
-		if b.LatestL1Header != nil || b.LatestL2Header != nil {
-			// Once we have some indexed state `latestEpoch != nil` as `LatestObservedEpoch` is inclusive in its search with the last provided epoch.
-			b.log.Error("bridge events indexed, but no observed epoch returned", "latest_bridge_l1_block_number", b.LatestL1Header.Number)
-			return errors.New("bridge events indexed, but no observed epoch returned")
+	// `LastFinalizedL2Header` and `LastL1Header` are mutated by the same routine and can
+	// safely be read without needing any sync primitives
+	if b.LastFinalizedL2Header == nil || b.LastFinalizedL2Header.Timestamp < b.LastL1Header.Timestamp {
+		if err := b.processFinalizedL2Events(); err != nil {
+			b.log.Error("failed to process finalized L2 events", "err", err)
+			errs = errors.Join(errs, err)
 		}
-		b.log.Warn("no observed epochs available. waiting...")
-		return nil
 	}
 
-	if b.LatestL1Header != nil && latestEpoch.L1BlockHeader.Hash == b.LatestL1Header.Hash() {
-		b.log.Warn("all available epochs indexed", "latest_bridge_l1_block_number", b.LatestL1Header.Number)
-		return nil
+	return errs
+}
+
+// onL2Data will index new bridge events for the unvisited L2 state. As new L2 bridge events
+// are processed, bridge finalization events can be processed on L1 in this same window.
+func (b *BridgeProcessor) onL2Data() error {
+	if b.l2Etl.LatestHeader.Number.Cmp(bigint.Zero) == 0 {
+		return nil // skip genesis
+	}
+	b.log.Info("notified of new L2 state", "l2_etl_block_number", b.l2Etl.LatestHeader.Number)
+
+	var errs error
+	if err := b.processInitiatedL2Events(); err != nil {
+		b.log.Error("failed to process initiated L2 events", "err", err)
+		errs = errors.Join(errs, err)
 	}
 
-	// Integrity Checks
-
-	genesisL1Height := big.NewInt(int64(b.chainConfig.L1StartingHeight))
-	if latestEpoch.L1BlockHeader.Number.Cmp(genesisL1Height) < 0 {
-		b.log.Error("L1 epoch less than starting L1 height observed", "l1_starting_number", genesisL1Height, "latest_epoch_number", latestEpoch.L1BlockHeader.Number)
-		return errors.New("L1 epoch less than starting L1 height observed")
-	}
-	if b.LatestL1Header != nil && latestEpoch.L1BlockHeader.Number.Cmp(b.LatestL1Header.Number) <= 0 {
-		b.log.Error("non-increasing l1 block height observed", "latest_bridge_l1_block_number", b.LatestL1Header.Number, "latest_epoch_l1_block_number", latestEpoch.L1BlockHeader.Number)
-		return errors.New("non-increasing l1 block height observed")
-	}
-	if b.LatestL2Header != nil && latestEpoch.L2BlockHeader.Number.Cmp(b.LatestL2Header.Number) <= 0 {
-		b.log.Error("non-increasing l2 block height observed", "latest_bridge_l2_block_number", b.LatestL2Header.Number, "latest_epoch_l2_block_number", latestEpoch.L2BlockHeader.Number)
-		return errors.New("non-increasing l2 block height observed")
+	// `LastFinalizedL1Header` and `LastL2Header` are mutated by the same routine and can
+	// safely be read without needing any sync primitives
+	if b.LastFinalizedL1Header == nil || b.LastFinalizedL1Header.Timestamp < b.LastL2Header.Timestamp {
+		if err := b.processFinalizedL1Events(); err != nil {
+			b.log.Error("failed to process finalized L1 events", "err", err)
+			errs = errors.Join(errs, err)
+		}
 	}
 
-	toL1Height, toL2Height := latestEpoch.L1BlockHeader.Number, latestEpoch.L2BlockHeader.Number
-	fromL1Height, fromL2Height := genesisL1Height, bigint.Zero
-	if b.LatestL1Header != nil {
-		fromL1Height = new(big.Int).Add(b.LatestL1Header.Number, bigint.One)
-	}
-	if b.LatestL2Header != nil {
-		fromL2Height = new(big.Int).Add(b.LatestL2Header.Number, bigint.One)
+	return errs
+}
+
+// Process Initiated Bridge Events
+
+func (b *BridgeProcessor) processInitiatedL1Events() error {
+	l1BridgeLog := b.log.New("bridge", "l1", "kind", "initiated")
+	lastL1BlockNumber := big.NewInt(int64(b.chainConfig.L1StartingHeight) - 1)
+	if b.LastL1Header != nil {
+		lastL1BlockNumber = b.LastL1Header.Number
 	}
 
-	l1BedrockStartingHeight := big.NewInt(int64(b.chainConfig.L1BedrockStartingHeight))
-	l2BedrockStartingHeight := big.NewInt(int64(b.chainConfig.L2BedrockStartingHeight))
+	// Latest unobserved L1 state bounded by `blockLimits` blocks. Since this process is driven on new L1 data,
+	// we always expect this query to return a new result
+	latestL1HeaderScope := func(db *gorm.DB) *gorm.DB {
+		newQuery := db.Session(&gorm.Session{NewDB: true}) // fresh subquery
+		headers := newQuery.Model(database.L1BlockHeader{}).Where("number > ?", lastL1BlockNumber)
+		return db.Where("number = (?)", newQuery.Table("(?) as block_numbers", headers.Order("number ASC").Limit(blocksLimit)).Select("MAX(number)"))
+	}
+	latestL1Header, err := b.db.Blocks.L1BlockHeaderWithScope(latestL1HeaderScope)
+	if err != nil {
+		return fmt.Errorf("failed to query new L1 state: %w", err)
+	} else if latestL1Header == nil {
+		return fmt.Errorf("no new L1 state found")
+	}
 
-	batchLog := b.log.New("epoch_start_number", fromL1Height, "epoch_end_number", toL1Height)
-	batchLog.Info("unobserved epochs", "latest_l1_block_number", fromL1Height, "latest_l2_block_number", fromL2Height)
+	fromL1Height, toL1Height := new(big.Int).Add(lastL1BlockNumber, bigint.One), latestL1Header.Number
 	if err := b.db.Transaction(func(tx *database.DB) error {
-		l1BridgeLog := b.log.New("bridge", "l1")
-		l2BridgeLog := b.log.New("bridge", "l2")
-
-		// FOR OP-MAINNET, OP-GOERLI ONLY! Specially handle the existence of pre-bedrock blocks
-		if l1BedrockStartingHeight.Cmp(fromL1Height) > 0 {
+		l1BedrockStartingHeight := big.NewInt(int64(b.chainConfig.L1BedrockStartingHeight))
+		if l1BedrockStartingHeight.Cmp(fromL1Height) > 0 { // OP Mainnet & OP Goerli Only.
 			legacyFromL1Height, legacyToL1Height := fromL1Height, toL1Height
-			legacyFromL2Height, legacyToL2Height := fromL2Height, toL2Height
 			if l1BedrockStartingHeight.Cmp(toL1Height) <= 0 {
 				legacyToL1Height = new(big.Int).Sub(l1BedrockStartingHeight, bigint.One)
-				legacyToL2Height = new(big.Int).Sub(l2BedrockStartingHeight, bigint.One)
 			}
 
-			l1BridgeLog = l1BridgeLog.New("mode", "legacy", "from_l1_block_number", legacyFromL1Height, "to_l1_block_number", legacyToL1Height)
-			l1BridgeLog.Info("scanning for bridge events")
-
-			l2BridgeLog = l2BridgeLog.New("mode", "legacy", "from_l2_block_number", legacyFromL2Height, "to_l2_block_number", legacyToL2Height)
-			l2BridgeLog.Info("scanning for bridge events")
-
-			// First, find all possible initiated bridge events
-			if err := bridge.LegacyL1ProcessInitiatedBridgeEvents(l1BridgeLog, tx, b.metrics, b.chainConfig.L1Contracts, legacyFromL1Height, legacyToL1Height); err != nil {
-				batchLog.Error("failed to index legacy l1 initiated bridge events", "err", err)
+			legacyBridgeLog := l1BridgeLog.New("mode", "legacy", "from_block_number", legacyFromL1Height, "to_block_number", legacyToL1Height)
+			legacyBridgeLog.Info("scanning for initiated bridge events")
+			if err := bridge.LegacyL1ProcessInitiatedBridgeEvents(legacyBridgeLog, tx, b.metrics, b.chainConfig.L1Contracts, legacyFromL1Height, legacyToL1Height); err != nil {
 				return err
+			} else if legacyToL1Height.Cmp(toL1Height) == 0 {
+				return nil // a-ok! Entire range was legacy blocks
 			}
-			if err := bridge.LegacyL2ProcessInitiatedBridgeEvents(l2BridgeLog, tx, b.metrics, b.chainConfig.L2Contracts, legacyFromL2Height, legacyToL2Height); err != nil {
-				batchLog.Error("failed to index legacy l2 initiated bridge events", "err", err)
-				return err
-			}
-
-			// Now that all initiated events have been indexed, it is ensured that all finalization can find their counterpart.
-			if err := bridge.LegacyL1ProcessFinalizedBridgeEvents(l1BridgeLog, tx, b.metrics, b.l1Etl.EthClient, b.chainConfig.L1Contracts, legacyFromL1Height, legacyToL1Height); err != nil {
-				batchLog.Error("failed to index legacy l1 finalized bridge events", "err", err)
-				return err
-			}
-			if err := bridge.LegacyL2ProcessFinalizedBridgeEvents(l2BridgeLog, tx, b.metrics, b.chainConfig.L2Contracts, legacyFromL2Height, legacyToL2Height); err != nil {
-				batchLog.Error("failed to index legacy l2l finalized bridge events", "err", err)
-				return err
-			}
-
-			if legacyToL1Height.Cmp(toL1Height) == 0 {
-				// a-ok! entire batch was legacy blocks
-				return nil
-			}
-
-			batchLog.Info("detected switch to bedrock", "l1_bedrock_starting_height", l1BedrockStartingHeight, "l2_bedrock_starting_height", l2BedrockStartingHeight)
+			legacyBridgeLog.Info("detected switch to bedrock", "bedrock_block_number", l1BedrockStartingHeight)
 			fromL1Height = l1BedrockStartingHeight
-			fromL2Height = l2BedrockStartingHeight
 		}
 
-		l1BridgeLog = l1BridgeLog.New("from_l1_block_number", fromL1Height, "to_l1_block_number", toL1Height)
-		l1BridgeLog.Info("scanning for bridge events")
-
-		l2BridgeLog = l2BridgeLog.New("from_l2_block_number", fromL2Height, "to_l2_block_number", toL2Height)
-		l2BridgeLog.Info("scanning for bridge events")
-
-		// First, find all possible initiated bridge events
-		if err := bridge.L1ProcessInitiatedBridgeEvents(l1BridgeLog, tx, b.metrics, b.chainConfig.L1Contracts, fromL1Height, toL1Height); err != nil {
-			batchLog.Error("failed to index l1 initiated bridge events", "err", err)
-			return err
-		}
-		if err := bridge.L2ProcessInitiatedBridgeEvents(l2BridgeLog, tx, b.metrics, b.chainConfig.L2Contracts, fromL2Height, toL2Height); err != nil {
-			batchLog.Error("failed to index l2 initiated bridge events", "err", err)
-			return err
-		}
-
-		// Now all finalization events can find their counterpart.
-		if err := bridge.L1ProcessFinalizedBridgeEvents(l1BridgeLog, tx, b.metrics, b.chainConfig.L1Contracts, fromL1Height, toL1Height); err != nil {
-			batchLog.Error("failed to index l1 finalized bridge events", "err", err)
-			return err
-		}
-		if err := bridge.L2ProcessFinalizedBridgeEvents(l2BridgeLog, tx, b.metrics, b.chainConfig.L2Contracts, fromL2Height, toL2Height); err != nil {
-			batchLog.Error("failed to index l2 finalized bridge events", "err", err)
-			return err
-		}
-
-		// a-ok
-		return nil
+		l1BridgeLog = l1BridgeLog.New("from_block_number", fromL1Height, "to_block_number", toL1Height)
+		l1BridgeLog.Info("scanning for initiated bridge events")
+		return bridge.L1ProcessInitiatedBridgeEvents(l1BridgeLog, tx, b.metrics, b.chainConfig.L1Contracts, fromL1Height, toL1Height)
 	}); err != nil {
 		return err
 	}
 
-	batchLog.Info("indexed bridge events", "latest_l1_block_number", toL1Height, "latest_l2_block_number", toL2Height)
-	b.LatestL1Header = latestEpoch.L1BlockHeader.RLPHeader.Header()
-	b.metrics.RecordLatestIndexedL1Height(b.LatestL1Header.Number)
+	b.LastL1Header = latestL1Header
+	b.metrics.RecordL1LatestHeight(latestL1Header.Number)
+	return nil
+}
 
-	b.LatestL2Header = latestEpoch.L2BlockHeader.RLPHeader.Header()
-	b.metrics.RecordLatestIndexedL2Height(b.LatestL2Header.Number)
+func (b *BridgeProcessor) processInitiatedL2Events() error {
+	l2BridgeLog := b.log.New("bridge", "l2", "kind", "initiated")
+	lastL2BlockNumber := bigint.Zero
+	if b.LastL2Header != nil {
+		lastL2BlockNumber = b.LastL2Header.Number
+	}
+
+	// Latest unobserved L2 state bounded by `blockLimits` blocks. Since this process is driven by new L2 data,
+	// we always expect this query to return a new result
+	latestL2HeaderScope := func(db *gorm.DB) *gorm.DB {
+		newQuery := db.Session(&gorm.Session{NewDB: true}) // fresh subquery
+		headers := newQuery.Model(database.L2BlockHeader{}).Where("number > ?", lastL2BlockNumber)
+		return db.Where("number = (?)", newQuery.Table("(?) as block_numbers", headers.Order("number ASC").Limit(blocksLimit)).Select("MAX(number)"))
+	}
+	latestL2Header, err := b.db.Blocks.L2BlockHeaderWithScope(latestL2HeaderScope)
+	if err != nil {
+		return fmt.Errorf("failed to query new L2 state: %w", err)
+	} else if latestL2Header == nil {
+		return fmt.Errorf("no new L2 state found")
+	}
+
+	fromL2Height, toL2Height := new(big.Int).Add(lastL2BlockNumber, bigint.One), latestL2Header.Number
+	if err := b.db.Transaction(func(tx *database.DB) error {
+		l2BedrockStartingHeight := big.NewInt(int64(b.chainConfig.L2BedrockStartingHeight))
+		if l2BedrockStartingHeight.Cmp(fromL2Height) > 0 { // OP Mainnet & OP Goerli Only
+			legacyFromL2Height, legacyToL2Height := fromL2Height, toL2Height
+			if l2BedrockStartingHeight.Cmp(toL2Height) <= 0 {
+				legacyToL2Height = new(big.Int).Sub(l2BedrockStartingHeight, bigint.One)
+			}
+
+			legacyBridgeLog := l2BridgeLog.New("mode", "legacy", "from_block_number", legacyFromL2Height, "to_block_number", legacyToL2Height)
+			legacyBridgeLog.Info("scanning for initiated bridge events")
+			if err := bridge.LegacyL2ProcessInitiatedBridgeEvents(legacyBridgeLog, tx, b.metrics, b.chainConfig.Preset, b.chainConfig.L2Contracts, legacyFromL2Height, legacyToL2Height); err != nil {
+				return err
+			} else if legacyToL2Height.Cmp(toL2Height) == 0 {
+				return nil // a-ok! Entire range was legacy blocks
+			}
+			legacyBridgeLog.Info("detected switch to bedrock")
+			fromL2Height = l2BedrockStartingHeight
+		}
+
+		l2BridgeLog = l2BridgeLog.New("from_block_number", fromL2Height, "to_block_number", toL2Height)
+		l2BridgeLog.Info("scanning for initiated bridge events")
+		return bridge.L2ProcessInitiatedBridgeEvents(l2BridgeLog, tx, b.metrics, b.chainConfig.L2Contracts, fromL2Height, toL2Height)
+	}); err != nil {
+		return err
+	}
+
+	b.LastL2Header = latestL2Header
+	b.metrics.RecordL2LatestHeight(latestL2Header.Number)
+	return nil
+}
+
+// Process Finalized Bridge Events
+
+func (b *BridgeProcessor) processFinalizedL1Events() error {
+	l1BridgeLog := b.log.New("bridge", "l1", "kind", "finalization")
+	lastFinalizedL1BlockNumber := big.NewInt(int64(b.chainConfig.L1StartingHeight) - 1)
+	if b.LastFinalizedL1Header != nil {
+		lastFinalizedL1BlockNumber = b.LastFinalizedL1Header.Number
+	}
+
+	// Latest unfinalized L1 state bounded by `blockLimit` blocks that have had L2 bridge events indexed. Since L1 data
+	// is indexed independently of L2, there may not be new L1 state to finalized
+	latestL1HeaderScope := func(db *gorm.DB) *gorm.DB {
+		newQuery := db.Session(&gorm.Session{NewDB: true}) // fresh subquery
+		headers := newQuery.Model(database.L1BlockHeader{}).Where("number > ? AND timestamp <= ?", lastFinalizedL1BlockNumber, b.LastL2Header.Timestamp)
+		return db.Where("number = (?)", newQuery.Table("(?) as block_numbers", headers.Order("number ASC").Limit(blocksLimit)).Select("MAX(number)"))
+	}
+	latestL1Header, err := b.db.Blocks.L1BlockHeaderWithScope(latestL1HeaderScope)
+	if err != nil {
+		return fmt.Errorf("failed to query for latest unfinalized L1 state: %w", err)
+	} else if latestL1Header == nil {
+		l1BridgeLog.Debug("no new l1 state to finalize", "last_finalized_block_number", lastFinalizedL1BlockNumber)
+		return nil
+	}
+
+	fromL1Height, toL1Height := new(big.Int).Add(lastFinalizedL1BlockNumber, bigint.One), latestL1Header.Number
+	if err := b.db.Transaction(func(tx *database.DB) error {
+		l1BedrockStartingHeight := big.NewInt(int64(b.chainConfig.L1BedrockStartingHeight))
+		if l1BedrockStartingHeight.Cmp(fromL1Height) > 0 {
+			legacyFromL1Height, legacyToL1Height := fromL1Height, toL1Height
+			if l1BedrockStartingHeight.Cmp(toL1Height) <= 0 {
+				legacyToL1Height = new(big.Int).Sub(l1BedrockStartingHeight, bigint.One)
+			}
+
+			legacyBridgeLog := l1BridgeLog.New("mode", "legacy", "from_block_number", legacyFromL1Height, "to_block_number", legacyToL1Height)
+			legacyBridgeLog.Info("scanning for finalized bridge events")
+			if err := bridge.LegacyL1ProcessFinalizedBridgeEvents(legacyBridgeLog, tx, b.metrics, b.chainConfig.L1Contracts, legacyFromL1Height, legacyToL1Height); err != nil {
+				return err
+			} else if legacyToL1Height.Cmp(toL1Height) == 0 {
+				return nil // a-ok! Entire range was legacy blocks
+			}
+			legacyBridgeLog.Info("detected switch to bedrock")
+			fromL1Height = l1BedrockStartingHeight
+		}
+
+		l1BridgeLog = l1BridgeLog.New("from_block_number", fromL1Height, "to_block_number", toL1Height)
+		l1BridgeLog.Info("scanning for finalized bridge events")
+		return bridge.L1ProcessFinalizedBridgeEvents(l1BridgeLog, tx, b.metrics, b.chainConfig.L1Contracts, fromL1Height, toL1Height)
+	}); err != nil {
+		return err
+	}
+
+	b.LastFinalizedL1Header = latestL1Header
+	b.metrics.RecordL1LatestFinalizedHeight(latestL1Header.Number)
+	return nil
+}
+
+func (b *BridgeProcessor) processFinalizedL2Events() error {
+	l2BridgeLog := b.log.New("bridge", "l2", "kind", "finalization")
+	lastFinalizedL2BlockNumber := bigint.Zero
+	if b.LastFinalizedL2Header != nil {
+		lastFinalizedL2BlockNumber = b.LastFinalizedL2Header.Number
+	}
+
+	// Latest unfinalized L2 state bounded by `blockLimit` blocks that have had L1 bridge events indexed. Since L2 data
+	// is indexed independently of L1, there may not be new L2 state to finalized
+	latestL2HeaderScope := func(db *gorm.DB) *gorm.DB {
+		newQuery := db.Session(&gorm.Session{NewDB: true}) // fresh subquery
+		headers := newQuery.Model(database.L2BlockHeader{}).Where("number > ? AND timestamp <= ?", lastFinalizedL2BlockNumber, b.LastL1Header.Timestamp)
+		return db.Where("number = (?)", newQuery.Table("(?) as block_numbers", headers.Order("number ASC").Limit(blocksLimit)).Select("MAX(number)"))
+	}
+	latestL2Header, err := b.db.Blocks.L2BlockHeaderWithScope(latestL2HeaderScope)
+	if err != nil {
+		return fmt.Errorf("failed to query for latest unfinalized L2 state: %w", err)
+	} else if latestL2Header == nil {
+		l2BridgeLog.Debug("no new l2 state to finalize", "last_finalized_block_number", lastFinalizedL2BlockNumber)
+		return nil
+	}
+
+	fromL2Height, toL2Height := new(big.Int).Add(lastFinalizedL2BlockNumber, bigint.One), latestL2Header.Number
+	if err := b.db.Transaction(func(tx *database.DB) error {
+		l2BedrockStartingHeight := big.NewInt(int64(b.chainConfig.L2BedrockStartingHeight))
+		if l2BedrockStartingHeight.Cmp(fromL2Height) > 0 {
+			legacyFromL2Height, legacyToL2Height := fromL2Height, toL2Height
+			if l2BedrockStartingHeight.Cmp(toL2Height) <= 0 {
+				legacyToL2Height = new(big.Int).Sub(l2BedrockStartingHeight, bigint.One)
+			}
+
+			legacyBridgeLog := l2BridgeLog.New("mode", "legacy", "from_block_number", legacyFromL2Height, "to_block_number", legacyToL2Height)
+			legacyBridgeLog.Info("scanning for finalized bridge events")
+			if err := bridge.LegacyL2ProcessFinalizedBridgeEvents(legacyBridgeLog, tx, b.metrics, b.chainConfig.L2Contracts, legacyFromL2Height, legacyToL2Height); err != nil {
+				return err
+			} else if legacyToL2Height.Cmp(toL2Height) == 0 {
+				return nil // a-ok! Entire range was legacy blocks
+			}
+			legacyBridgeLog.Info("detected switch to bedrock", "bedrock_block_number", l2BedrockStartingHeight)
+			fromL2Height = l2BedrockStartingHeight
+		}
+
+		l2BridgeLog = l2BridgeLog.New("from_block_number", fromL2Height, "to_block_number", toL2Height)
+		l2BridgeLog.Info("scanning for finalized bridge events")
+		return bridge.L2ProcessFinalizedBridgeEvents(l2BridgeLog, tx, b.metrics, b.chainConfig.L2Contracts, fromL2Height, toL2Height)
+	}); err != nil {
+		return err
+	}
+
+	b.LastFinalizedL2Header = latestL2Header
+	b.metrics.RecordL2LatestFinalizedHeight(latestL2Header.Number)
 	return nil
 }

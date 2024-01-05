@@ -20,6 +20,7 @@ type BlockInfo interface {
 	BaseFee() *big.Int
 	ReceiptHash() common.Hash
 	GasUsed() uint64
+	GasLimit() uint64
 
 	// HeaderRLP returns the RLP of the block header as per consensus rules
 	// Returns an error if the header RLP could not be written
@@ -98,6 +99,10 @@ func (h headerBlockInfo) ReceiptHash() common.Hash {
 
 func (h headerBlockInfo) GasUsed() uint64 {
 	return h.Header.GasUsed
+}
+
+func (h headerBlockInfo) GasLimit() uint64 {
+	return h.Header.GasLimit
 }
 
 func (h headerBlockInfo) HeaderRLP() ([]byte, error) {

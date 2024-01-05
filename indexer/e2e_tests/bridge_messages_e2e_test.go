@@ -43,7 +43,7 @@ func TestE2EBridgeL1CrossDomainMessenger(t *testing.T) {
 
 	// wait for processor catchup
 	require.NoError(t, wait.For(context.Background(), 500*time.Millisecond, func() (bool, error) {
-		l1Header := testSuite.Indexer.BridgeProcessor.LatestL1Header
+		l1Header := testSuite.Indexer.BridgeProcessor.LastL1Header
 		return l1Header != nil && l1Header.Number.Uint64() >= sentMsgReceipt.BlockNumber.Uint64(), nil
 	}))
 
@@ -66,7 +66,7 @@ func TestE2EBridgeL1CrossDomainMessenger(t *testing.T) {
 	require.Equal(t, aliceAddr, sentMessage.Tx.ToAddress)
 	require.ElementsMatch(t, calldata, sentMessage.Tx.Data)
 
-	// (2) Process RelayedMesssage on inclusion
+	// (2) Process RelayedMessage on inclusion
 	//   - We dont assert that `RelayedMessageEventGUID` is nil prior to inclusion since there isn't a
 	//   a straightforward way of pausing/resuming the processors at the right time. The codepath is the
 	//   same for L2->L1 messages which does check for this so we are still covered
@@ -77,7 +77,7 @@ func TestE2EBridgeL1CrossDomainMessenger(t *testing.T) {
 	l2DepositReceipt, err := wait.ForReceiptOK(context.Background(), testSuite.L2Client, transaction.L2TransactionHash)
 	require.NoError(t, err)
 	require.NoError(t, wait.For(context.Background(), 500*time.Millisecond, func() (bool, error) {
-		l2Header := testSuite.Indexer.BridgeProcessor.LatestL2Header
+		l2Header := testSuite.Indexer.BridgeProcessor.LastFinalizedL2Header
 		return l2Header != nil && l2Header.Number.Uint64() >= l2DepositReceipt.BlockNumber.Uint64(), nil
 	}))
 
@@ -130,7 +130,7 @@ func TestE2EBridgeL2CrossDomainMessenger(t *testing.T) {
 
 	// wait for processor catchup
 	require.NoError(t, wait.For(context.Background(), 500*time.Millisecond, func() (bool, error) {
-		l2Header := testSuite.Indexer.BridgeProcessor.LatestL2Header
+		l2Header := testSuite.Indexer.BridgeProcessor.LastL2Header
 		return l2Header != nil && l2Header.Number.Uint64() >= sentMsgReceipt.BlockNumber.Uint64(), nil
 	}))
 
@@ -155,11 +155,11 @@ func TestE2EBridgeL2CrossDomainMessenger(t *testing.T) {
 
 	// (2) Process RelayedMessage on withdrawal finalization
 	require.Nil(t, sentMessage.RelayedMessageEventGUID)
-	_, finalizedReceipt := op_e2e.ProveAndFinalizeWithdrawal(t, *testSuite.OpCfg, testSuite.L1Client, testSuite.OpSys.EthInstances["sequencer"], testSuite.OpCfg.Secrets.Alice, sentMsgReceipt)
+	_, finalizedReceipt := op_e2e.ProveAndFinalizeWithdrawal(t, *testSuite.OpCfg, testSuite.OpSys, "sequencer", testSuite.OpCfg.Secrets.Alice, sentMsgReceipt)
 
 	// wait for processor catchup
 	require.NoError(t, wait.For(context.Background(), 500*time.Millisecond, func() (bool, error) {
-		l1Header := testSuite.Indexer.BridgeProcessor.LatestL1Header
+		l1Header := testSuite.Indexer.BridgeProcessor.LastFinalizedL1Header
 		return l1Header != nil && l1Header.Number.Uint64() >= finalizedReceipt.BlockNumber.Uint64(), nil
 	}))
 

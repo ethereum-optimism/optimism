@@ -132,7 +132,7 @@ The default is to maintain a peer count with a tide-system based on active peer 
   except those that are marked as trusted or have a grace period.
 
 Peers will have a grace period for a configurable amount of time after joining.
-In emergency, when memory runs low, the node should start pruning more aggressively.
+In an emergency, when memory runs low, the node should start pruning more aggressively.
 
 Peer records can be persisted to disk to quickly reconnect with known peers after restarting the rollup node.
 
@@ -291,6 +291,7 @@ An [extended-validator] checks the incoming messages as follows, in order of ope
 - `[REJECT]` if the `block_hash` in the `payload` is not valid
 - `[REJECT]` if the block is on the V1 topic and has withdrawals
 - `[REJECT]` if the block is on the V2 topic and does not have withdrawals
+- `[REJECT]` if the block is on the V2 topic and has a non-zero amount of withdrawals
 - `[REJECT]` if more than 5 different blocks have been seen with the same block height
 - `[IGNORE]` if the block has already been seen
 - `[REJECT]` if the signature by the sequencer is not valid
@@ -397,7 +398,7 @@ A `res = 0` response should be verified to:
       override any previous chain, until the final L2 chain can be reproduced from L1 data.
 
 A `res > 0` response code should not be accepted. The result code is helpful for debugging,
-but the client should regard any error like any any other unanswered request, as the responding peer cannot be trusted.
+but the client should regard any error like any other unanswered request, as the responding peer cannot be trusted.
 
 ----
 

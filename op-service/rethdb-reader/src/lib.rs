@@ -8,8 +8,8 @@ mod receipts;
 /// Read the receipts for a blockhash from the RETH database directly.
 ///
 /// # Safety
-/// - All possible nil pointer dereferences are checked, and the function will return a
-///   failing [ReceiptsResult] if any are found.
+/// - All possible nil pointer dereferences are checked, and the function will return a failing
+///   [ReceiptsResult] if any are found.
 #[no_mangle]
 pub unsafe extern "C" fn rdb_read_receipts(
     block_hash: *const u8,

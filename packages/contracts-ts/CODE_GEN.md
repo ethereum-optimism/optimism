@@ -3,7 +3,7 @@
 Summary -
 
 - This package is generated from [contracts-bedrock](../contracts-bedrock/)
-- It's version is kept in sync with contracts bedrock via the [changeset config](../../.changeset/config.json) e.g. if contracts-bedrock is `4.2.0` this package will have the same version.
+- Its version is kept in sync with contracts bedrock via the [changeset config](../../.changeset/config.json) e.g. if contracts-bedrock is `4.2.0` this package will have the same version.
 
 ## Code gen instructions
 

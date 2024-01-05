@@ -33,10 +33,7 @@ func OpenCompressed(file string, flag int, perm os.FileMode) (io.WriteCloser, er
 	if err != nil {
 		return nil, err
 	}
-	if IsGzip(file) {
-		out = gzip.NewWriter(out)
-	}
-	return out, nil
+	return CompressByFileType(file, out), nil
 }
 
 // WriteCompressedJson writes the object to the specified file as a compressed json object
@@ -57,4 +54,11 @@ func WriteCompressedJson(file string, obj any) error {
 // Returns true when the file has a .gz extension.
 func IsGzip(path string) bool {
 	return strings.HasSuffix(path, ".gz")
+}
+
+func CompressByFileType(file string, out io.WriteCloser) io.WriteCloser {
+	if IsGzip(file) {
+		return gzip.NewWriter(out)
+	}
+	return out
 }

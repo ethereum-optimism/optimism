@@ -219,7 +219,8 @@ func TestSpanBatchPayload(t *testing.T) {
 	err = sb.decodePayload(r)
 	require.NoError(t, err)
 
-	sb.txs.recoverV(chainID)
+	err = sb.txs.recoverV(chainID)
+	require.NoError(t, err)
 
 	require.Equal(t, rawSpanBatch.spanBatchPayload, sb.spanBatchPayload)
 }
@@ -283,7 +284,8 @@ func TestSpanBatchTxs(t *testing.T) {
 	err = sb.decodeTxs(r)
 	require.NoError(t, err)
 
-	sb.txs.recoverV(chainID)
+	err = sb.txs.recoverV(chainID)
+	require.NoError(t, err)
 
 	require.Equal(t, rawSpanBatch.txs, sb.txs)
 }
@@ -302,7 +304,8 @@ func TestSpanBatchRoundTrip(t *testing.T) {
 	err = sb.decode(bytes.NewReader(result.Bytes()))
 	require.NoError(t, err)
 
-	sb.txs.recoverV(chainID)
+	err = sb.txs.recoverV(chainID)
+	require.NoError(t, err)
 
 	require.Equal(t, rawSpanBatch, &sb)
 }
@@ -328,18 +331,18 @@ func TestSpanBatchDerive(t *testing.T) {
 		require.NoError(t, err)
 
 		blockCount := len(singularBatches)
-		require.Equal(t, safeL2Head.Hash.Bytes()[:20], spanBatchDerived.parentCheck[:])
-		require.Equal(t, singularBatches[blockCount-1].Epoch().Hash.Bytes()[:20], spanBatchDerived.l1OriginCheck[:])
+		require.Equal(t, safeL2Head.Hash.Bytes()[:20], spanBatchDerived.ParentCheck[:])
+		require.Equal(t, singularBatches[blockCount-1].Epoch().Hash.Bytes()[:20], spanBatchDerived.L1OriginCheck[:])
 		require.Equal(t, len(singularBatches), int(rawSpanBatch.blockCount))
 
 		for i := 1; i < len(singularBatches); i++ {
-			require.Equal(t, spanBatchDerived.batches[i].Timestamp, spanBatchDerived.batches[i-1].Timestamp+l2BlockTime)
+			require.Equal(t, spanBatchDerived.Batches[i].Timestamp, spanBatchDerived.Batches[i-1].Timestamp+l2BlockTime)
 		}
 
 		for i := 0; i < len(singularBatches); i++ {
-			require.Equal(t, singularBatches[i].EpochNum, spanBatchDerived.batches[i].EpochNum)
-			require.Equal(t, singularBatches[i].Timestamp, spanBatchDerived.batches[i].Timestamp)
-			require.Equal(t, singularBatches[i].Transactions, spanBatchDerived.batches[i].Transactions)
+			require.Equal(t, singularBatches[i].EpochNum, spanBatchDerived.Batches[i].EpochNum)
+			require.Equal(t, singularBatches[i].Timestamp, spanBatchDerived.Batches[i].Timestamp)
+			require.Equal(t, singularBatches[i].Transactions, spanBatchDerived.Batches[i].Transactions)
 		}
 	}
 }
@@ -444,9 +447,10 @@ func TestSpanBatchToSingularBatch(t *testing.T) {
 
 func TestSpanBatchReadTxData(t *testing.T) {
 	cases := []spanBatchTxTest{
-		{"legacy tx", 32, testutils.RandomLegacyTx},
-		{"access list tx", 32, testutils.RandomAccessListTx},
-		{"dynamic fee tx", 32, testutils.RandomDynamicFeeTx},
+		{"unprotected legacy tx", 32, testutils.RandomLegacyTx, false},
+		{"legacy tx", 32, testutils.RandomLegacyTx, true},
+		{"access list tx", 32, testutils.RandomAccessListTx, true},
+		{"dynamic fee tx", 32, testutils.RandomDynamicFeeTx, true},
 	}
 
 	for i, testCase := range cases {
@@ -454,6 +458,9 @@ func TestSpanBatchReadTxData(t *testing.T) {
 			rng := rand.New(rand.NewSource(int64(0x109550 + i)))
 			chainID := new(big.Int).SetUint64(rng.Uint64())
 			signer := types.NewLondonSigner(chainID)
+			if !testCase.protected {
+				signer = types.HomesteadSigner{}
+			}
 
 			var rawTxs [][]byte
 			var txs []*types.Transaction
@@ -508,8 +515,8 @@ func TestSpanBatchBuilder(t *testing.T) {
 		for i := 0; i < len(singularBatches); i++ {
 			spanBatchBuilder.AppendSingularBatch(singularBatches[i], seqNum)
 			require.Equal(t, i+1, spanBatchBuilder.GetBlockCount())
-			require.Equal(t, singularBatches[0].ParentHash.Bytes()[:20], spanBatchBuilder.spanBatch.parentCheck[:])
-			require.Equal(t, singularBatches[i].EpochHash.Bytes()[:20], spanBatchBuilder.spanBatch.l1OriginCheck[:])
+			require.Equal(t, singularBatches[0].ParentHash.Bytes()[:20], spanBatchBuilder.spanBatch.ParentCheck[:])
+			require.Equal(t, singularBatches[i].EpochHash.Bytes()[:20], spanBatchBuilder.spanBatch.L1OriginCheck[:])
 		}
 
 		rawSpanBatch, err := spanBatchBuilder.GetRawSpanBatch()

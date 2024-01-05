@@ -223,7 +223,7 @@ func (ix *Indexer) initL2ETL(chainConfig config.ChainConfig) error {
 
 func (ix *Indexer) initBridgeProcessor(chainConfig config.ChainConfig) error {
 	bridgeProcessor, err := processors.NewBridgeProcessor(
-		ix.log, ix.DB, bridge.NewMetrics(ix.metricsRegistry), ix.L1ETL, chainConfig, ix.shutdown)
+		ix.log, ix.DB, bridge.NewMetrics(ix.metricsRegistry), ix.L1ETL, ix.L2ETL, chainConfig, ix.shutdown)
 	if err != nil {
 		return err
 	}

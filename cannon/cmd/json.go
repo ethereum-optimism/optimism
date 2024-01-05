@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path"
 
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 )
@@ -35,18 +34,16 @@ func writeJSON[X any](outputPath string, value X) error {
 	var out io.Writer
 	finish := func() error { return nil }
 	if outputPath != "-" {
-		// Write to a tmp file but reserve the file extension if present
-		tmpPath := outputPath + "-tmp" + path.Ext(outputPath)
-		f, err := ioutil.OpenCompressed(tmpPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0755)
+		f, err := ioutil.NewAtomicWriterCompressed(outputPath, 0755)
 		if err != nil {
 			return fmt.Errorf("failed to open output file: %w", err)
 		}
+		// Ensure we close the stream even if failures occur.
 		defer f.Close()
 		out = f
-		finish = func() error {
-			// Rename the file into place as atomically as the OS will allow
-			return os.Rename(tmpPath, outputPath)
-		}
+		// Closing the file causes it to be renamed to the final destination
+		// so make sure we handle any errors it returns
+		finish = f.Close
 	} else {
 		out = os.Stdout
 	}

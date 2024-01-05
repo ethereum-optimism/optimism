@@ -76,6 +76,13 @@ func (s *L1Miner) ActL1StartBlock(timeDelta uint64) Action {
 		if s.l1Cfg.Config.IsShanghai(header.Number, header.Time) {
 			header.WithdrawalsHash = &types.EmptyWithdrawalsHash
 		}
+		if s.l1Cfg.Config.IsCancun(header.Number, header.Time) {
+			var root common.Hash
+			var zero uint64
+			header.BlobGasUsed = &zero
+			header.ExcessBlobGas = &zero
+			header.ParentBeaconRoot = &root
+		}
 
 		s.l1Building = true
 		s.l1BuildingHeader = header

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
@@ -86,6 +87,17 @@ func toCallArg(msg ethereum.CallMsg) interface{} {
 	return arg
 }
 
+func (c *ContractCall) ToTxCandidate() (txmgr.TxCandidate, error) {
+	data, err := c.Pack()
+	if err != nil {
+		return txmgr.TxCandidate{}, fmt.Errorf("failed to pack arguments: %w", err)
+	}
+	return txmgr.TxCandidate{
+		TxData: data,
+		To:     &c.Addr,
+	}, nil
+}
+
 type CallResult struct {
 	out []interface{}
 }
@@ -116,4 +128,8 @@ func (c *CallResult) GetAddress(i int) common.Address {
 
 func (c *CallResult) GetBigInt(i int) *big.Int {
 	return *abi.ConvertType(c.out[i], new(*big.Int)).(**big.Int)
+}
+
+func (c *CallResult) GetStruct(i int, target interface{}) {
+	abi.ConvertType(c.out[i], target)
 }

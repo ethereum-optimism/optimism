@@ -86,26 +86,11 @@ To deploy the smart contracts on a local devnet, run `make devnet-up` in the mon
 
 ### Tools
 
-#### Layout Locking
+#### Validate Spacing
 
-We use a system called "layout locking" as a safety mechanism to prevent certain contract variables from being moved to different storage slots accidentally.
-To lock a contract variable, add it to the `layout-lock.json` file which has the following format:
+In order to make sure that we don't accidentally overwrite storage slots, contract storage layouts are checked to make sure spacing is correct.
 
-```json
-{
-  "MyContractName": {
-    "myVariableName": {
-      "slot": 1,
-      "offset": 0,
-      "length": 32
-    }
-  }
-}
-```
-
-With the above config, the `validate-spacers` script will check that we have a contract called `MyContractName`, that the contract has a variable named `myVariableName`, and that the variable is in the correct position as defined in the lock file.
-You should add things to the `layout-lock.json` file when you want those variables to **never** change.
-Layout locking should be used in combination with diffing the `.storage-layout` file in CI.
+This uses the `.storage-layout` file to check contract spacing. Run `pnpm validate-spacers` to check the spacing of all contracts.
 
 #### Gas Snapshots
 

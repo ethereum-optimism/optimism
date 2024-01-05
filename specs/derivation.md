@@ -24,6 +24,7 @@
 [g-sequencer-batch]: glossary.md#sequencer-batch
 [g-l2-genesis]: glossary.md#l2-genesis-block
 [g-l2-chain-inception]: glossary.md#L2-chain-inception
+[g-l2-genesis-block]: glossary.md#l2-genesis-block
 [g-batcher-transaction]: glossary.md#batcher-transaction
 [g-avail-provider]: glossary.md#data-availability-provider
 [g-batcher]: glossary.md#batcher
@@ -93,77 +94,84 @@
 > **Note** the following assumes a single sequencer and batcher. In the future, the design will be adapted to
 > accommodate multiple such entities.
 
-[L2 chain derivation][g-derivation] — deriving L2 [blocks][g-block] from L1 data — is one of the main responsibility of
-the [rollup node][g-rollup-node], both in validator mode, and in sequencer mode (where derivation acts as a sanity check
-on sequencing, and enables detecting L1 chain [re-organizations][g-reorg]).
+[L2 chain derivation][g-derivation] — deriving L2 [blocks][g-block] from L1 data — is one of the main responsibilities
+of the [rollup node][g-rollup-node], both in validator mode, and in sequencer mode (where derivation acts as a sanity
+check on sequencing, and enables detecting L1 chain [re-organizations][g-reorg]).
 
-The L2 chain is derived from the L1 chain. In particular, each L1 block is mapped to an L2 [sequencing
-epoch][g-sequencing-epoch] comprising multiple L2 blocks. The epoch number is defined to be equal to the corresponding
-L1 block number.
+The L2 chain is derived from the L1 chain. In particular, each L1 block following [L2 chain
+inception][g-l2-chain-inception] is mapped to a [sequencing epoch][g-sequencing-epoch] comprising
+at least one L2 block. Each L2 block belongs to exactly one epoch, and we call the corresponding L1
+block its [L1 origin][l1-origin]. The epoch's number equals that of its L1 origin block.
 
-To derive the L2 blocks in an epoch `E`, we need the following inputs:
+To derive the L2 blocks of epoch number `E`, we need the following inputs:
 
-- The L1 [sequencing window][g-sequencing-window] for epoch `E`: the L1 blocks in the range `[E, E + SWS)` where `SWS`
-  is the sequencing window size (note that this means that epochs are overlapping). In particular, we need:
-  - The [batcher transactions][g-batcher-transaction] included in the sequencing window. These allow us to
-      reconstruct [sequencer batches][g-sequencer-batch] containing the transactions to include in L2 blocks (each batch
-      contains a list of L2 blocks).
-    - Note that it is impossible to have a batcher transaction containing a batch relative to epoch `E` on L1 block
-        `E`, as the batch must contain the hash of L1 block `E`.
-  - The [deposits][g-deposits] made in L1 block `E` (in the form of events emitted by the [deposit
-      contract][g-deposit-contract]).
-  - The L1 block attributes from L1 block `E` (to derive the [L1 attributes deposited transaction][g-l1-attr-deposit]).
-- The state of the L2 chain after the last L2 block of epoch `E - 1`, or — if epoch `E - 1` does not exist — the
-  [L2 genesis state][g-l2-genesis].
-  - An epoch `E` does not exist if `E <= L2CI`, where `L2CI` is the [L2 chain inception][g-l2-chain-inception].
+- L1 blocks in the range `[E, E + SWS)`, called the [sequencing window][g-sequencing-window] of the epoch, and `SWS`
+  the sequencing window size. (Note that sequencing windows overlap.)
+- [Batcher transactions][g-batcher-transaction] from blocks in the sequencing window.
+  - These transactions allow us to reconstruct the epoch's [sequencer batches][g-sequencer-batch], each of
+    which will produce one L2 block. Note that:
+    - The L1 origin will never contain any data needed to construct sequencer batches since
+      each batch [must contain](#batch-format) the L1 origin hash.
+    - An epoch may have no sequencer batches.
+- [Deposits][g-deposits] made in the L1 origin (in the form of events emitted by the [deposit
+  contract][g-deposit-contract]).
+- L1 block attributes from the L1 origin (to derive the [L1 attributes deposited transaction][g-l1-attr-deposit]).
+- The state of the L2 chain after the last L2 block of the previous epoch, or the [L2 genesis state][g-l2-genesis]
+  if `E` is the first epoch.
 
-To derive the whole L2 chain from scratch, we simply start with the [L2 genesis state][g-l2-genesis], and the [L2 chain
-inception][g-l2-chain-inception] as first epoch, then process all sequencing windows in order. Refer to the
+To derive the whole L2 chain from scratch, we start with the [L2 genesis state][g-l2-genesis] and
+the [L2 genesis block] as the first L2 block. We then derive L2 blocks from each epoch in order,
+starting at the first L1 block following [L2 chain inception][g-l2-chain-inception]. Refer to the
 [Architecture section][architecture] for more information on how we implement this in practice.
-The L2 chain may contain pre-Bedrock history, but the L2 genesis here refers to the first Bedrock L2 block.
+The L2 chain may contain pre-Bedrock history, but the L2 genesis here refers to the Bedrock L2
+genesis block.
 
-Each epoch may contain a variable number of L2 blocks (one every `l2_block_time`, 2s on Optimism), at the discretion of
-[the sequencer][g-sequencer], but subject to the following constraints for each block:
+Each L2 `block` with origin `l1_origin` is subject to the following constraints (whose values are
+denominated in seconds):
 
-- `min_l2_timestamp <= block.timestamp <= max_l2_timestamp`, where
-  - all these values are denominated in seconds
-  - `min_l2_timestamp = l1_timestamp`
-    - This ensures that the L2 timestamp is not behind the L1 origin timestamp.
-  - `block.timestamp = prev_l2_timestamp + l2_block_time`
-    - `prev_l2_timestamp` is the timestamp of the last L2 block of the previous epoch
-    - `l2_block_time` is a configurable parameter of the time between L2 blocks (on Optimism, 2s)
-  - `max_l2_timestamp = max(l1_timestamp + max_sequencer_drift, min_l2_timestamp + l2_block_time)`
-    - `l1_timestamp` is the timestamp of the L1 block associated with the L2 block's epoch
-    - `max_sequencer_drift` is the most a sequencer is allowed to get ahead of L1
+- `block.timestamp = prev_l2_timestamp + l2_block_time`
+  - `prev_l2_timestamp` is the timestamp of the L2 block immediately preceding this one. If there
+    is no preceding block, then this is the genesis block, and its timestamp is explicitly
+    specified.
+  - `l2_block_time` is a configurable parameter of the time between L2 blocks (2s on Optimism).
 
-Put together, these constraints mean that there must be an L2 block every `l2_block_time` seconds, and that the
-timestamp for the first L2 block of an epoch must never fall behind the timestamp of the L1 block matching the epoch.
+- `l1_origin.timestamp <= block.timestamp <= max_l2_timestamp`, where
+  - `max_l2_timestamp = max(l1_origin.timestamp + max_sequencer_drift, prev_l2_timestamp + l2_block_time)`
+    - `max_sequencer_drift` is a configurable parameter that bounds how far the sequencer can get ahead of
+      the L1.
 
-Post-merge, Ethereum has a fixed [block time][g-block-time] of 12s (though some slots can be skipped). It is thus
-expected that with a 2-second L2 block time, most of the time, each epoch will contain `12/2 = 6` L2 blocks.
-The sequencer can however lengthen or shorten epochs (subject to above constraints).
-The rationale is to maintain liveness in case of either a skipped slot on L1, or a temporary loss of connection to L1 —
-which requires longer epochs.
-Shorter epochs are then required to avoid L2 timestamps drifting further and further ahead of L1.
+Finally, each epoch must have at least one L2 block.
 
-Note that `min_l2_timestamp + l2_block_time` ensures that a new L2 batch can always be processed, even if the
-`max_sequencer_drift` is exceeded. However, when exceeding the `max_sequencer_drift`, progression to the next L1 origin
-is enforced, with an exception to ensure the minimum timestamp bound (based on this next L1 origin) can be met in the
-next L2 batch, and `len(batch.transactions) == 0` continues to be enforced while the `max_sequencer_drift` is exceeded.
-See [Batch Queue] for more details.
+The first constraint means there must be an L2 block every `l2_block_time` seconds following L2
+chain inception.
+
+The second constraint ensures that an L2 block timestamp never precedes its L1 origin timestamp,
+and is never more than `max_sequencer_drift` ahead of it, except only in the unusual case where it
+might prohibit an L2 block from being produced every l2_block_time seconds. (Such cases might arise
+for example under a proof-of-work L1 that sees a period of rapid L1 block production.)  In either
+case, the sequencer enforces `len(batch.transactions) == 0` while `max_sequencer_drift` is
+exceeded. See [Batch Queue](#batch-queue) for more details.
+
+The final requirement that each epoch must have at least one L2 block ensures that all relevant
+information from the L1 (e.g. deposits) is represented in the L2, even if it has no sequencer
+batches.
+
+Post-merge, Ethereum has a fixed 12s [block time][g-block-time], though some slots can be
+skipped. Under a 2s L2 block time, we thus expect each epoch to typically contain `12/2 = 6` L2
+blocks. The sequencer will however produce bigger epochs in order to maintain liveness in case of
+either a skipped slot on the L1 or a temporary loss of connection to it. For the lost connection
+case, smaller epochs might be produced after the connection was restored to keep L2 timestamps from
+drifting further and further ahead.
 
 ## Eager Block Derivation
 
-In practice, it is often not necessary to wait for a full sequencing window of L1 blocks in order to start deriving the
-L2 blocks in an epoch. Indeed, as long as we are able to reconstruct sequential batches, we can start deriving the
-corresponding L2 blocks. We call this *eager block derivation*.
-
-However, in the very worst case, we can only reconstruct the batch for the first L2 block in the epoch by reading the
-last L1 block of the sequencing window. This happens when some data for that batch is included in the last L1 block of
-the window. In that case, not only can we not derive the first L2 block in the epoch, we also cannot derive any further
-L2 block in the epoch until then, as they need the state that results from applying the epoch's first L2 block.
-(Note that this only applies to *block* derivation. Batches can still be derived and tentatively queued,
-we just won't be able to create blocks from them.)
+Deriving an L2 block requires that we have constructed its sequencer batch and derived all L2
+blocks and state updates prior to it. This means we can typically derive the L2 blocks of an epoch
+*eagerly* without waiting on the full sequencing window. The full sequencing window is required
+before derivation only in the very worst case where some portion of the sequencer batch for the
+first block of the epoch appears in the very last L1 block of the window. Note that this only
+applies to *block* derivation. Sequencer batches can still be derived and tentatively queued
+without deriving blocks from them.
 
 ------------------------------------------------------------------------------------------------------------------------
 
@@ -694,9 +702,12 @@ equivalents. The `v2` methods are backwards compatible with `v1` payloads but su
 [`engine_getPayloadV2`]: exec-engine.md#engine_getpayloadv2
 [`engine_newPayloadV2`]: exec-engine.md#engine_newpayloadv2
 
-The execution payload is an object of type [`ExecutionPayloadV1`][eth-payload].
+The execution payload is an object of type [`ExecutionPayloadV2`][eth-payload].
 
-[eth-payload]: https://github.com/ethereum/execution-apis/blob/main/src/engine/paris.md#executionpayloadv1
+[eth-payload]: https://github.com/ethereum/execution-apis/blob/main/src/engine/shanghai.md#payloadattributesv2
+
+With V2 of the execution payload, before Canyon the withdrawals field is required to be nil. After Canyon the
+withdrawals field is required to be non-nil. The op-node should set the withdrawals field to be an empty list.
 
 #### Forkchoice synchronization
 
@@ -892,7 +903,7 @@ without dispute (fault proof challenge window), a name-collision with the proof-
 [deriving-payload-attr]: #deriving-payload-attributes
 
 For every L2 block derived from L1 data, we need to build [payload attributes][g-payload-attr],
-represented by an [expanded version][expanded-payload] of the [`PayloadAttributesV1`][eth-payload] object,
+represented by an [expanded version][expanded-payload] of the [`PayloadAttributesV2`][eth-payload] object,
 which includes additional `transactions` and `noTxPool` fields.
 
 This process happens during the payloads-attributes queue ran by a verifier node, as well as during block-production
@@ -912,7 +923,7 @@ This block is part of a [sequencing epoch][g-sequencing-epoch],
 whose number matches that of an L1 block (its *[L1 origin][g-l1-origin]*).
 This L1 block is used to derive L1 attributes and (for the first L2 block in the epoch) user deposits.
 
-Therefore, a [`PayloadAttributesV1`][expanded-payload] object must include the following transactions:
+Therefore, a [`PayloadAttributesV2`][expanded-payload] object must include the following transactions:
 
 - one or more [deposited transactions][g-deposited], of two kinds:
   - a single *[L1 attributes deposited transaction][g-l1-attr-deposit]*, derived from the L1 origin.
@@ -933,7 +944,7 @@ entries.
 
 [payload attributes]: #building-individual-payload-attributes
 
-After deriving the transactions list, the rollup node constructs a [`PayloadAttributesV1`][extended-attributes] as
+After deriving the transactions list, the rollup node constructs a [`PayloadAttributesV2`][extended-attributes] as
 follows:
 
 - `timestamp` is set to the batch's timestamp.
@@ -943,6 +954,7 @@ follows:
   encoded with [EIP-2718].
 - `noTxPool` is set to `true`, to use the exact above `transactions` list when constructing the block.
 - `gasLimit` is set to the current `gasLimit` value in the [system configuration][g-system-config] of this payload.
+- `withdrawals` is set to nil prior to Canyon and an empty array after Canyon
 
 [extended-attributes]: exec-engine.md#extended-payloadattributesv1
 [Fee Vaults]: exec-engine.md#fee-vaults

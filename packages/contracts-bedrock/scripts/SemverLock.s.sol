@@ -53,13 +53,12 @@ contract SemverLock is Script {
             // Parse the artifact to get the contract's initcode hash.
             bytes memory initCode = vm.getCode(string.concat(artifactsDir, "/", contractName, ".sol/", fileName));
 
-            // Serialize the source hash in JSON.
-            string memory j = vm.serializeBytes32(out, _files[i], keccak256(abi.encodePacked(fileContents, initCode)));
+            // Serialize the initcode hash + sourcecode hash in JSON.
+            vm.serializeBytes32(_files[i], "initCodeHash", keccak256(initCode));
+            string memory obj = vm.serializeBytes32(_files[i], "sourceCodeHash", keccak256(bytes(fileContents)));
 
-            // If this is the last file, set the output.
-            if (i == _files.length - 1) {
-                out = j;
-            }
+            // Serialize the map from the file name -> initcode hash + sourcecode hash in JSON.
+            out = vm.serializeString("", _files[i], obj);
         }
 
         // Write the semver lockfile.

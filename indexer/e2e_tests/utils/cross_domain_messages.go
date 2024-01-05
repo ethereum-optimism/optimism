@@ -4,12 +4,11 @@ import (
 	"errors"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/indexer/processors/contracts"
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
 )
 
 type CrossDomainMessengerSentMessage struct {
@@ -40,7 +39,17 @@ func ParseCrossDomainMessage(sentMessageReceipt *types.Receipt) (CrossDomainMess
 			if err != nil {
 				return CrossDomainMessengerSentMessage{}, err
 			}
-			msgHash, err := CrossDomainMessengerSentMessageHash(sentMessage, sentMessageExtension.Value)
+
+			msg := crossdomain.NewCrossDomainMessage(
+				sentMessage.MessageNonce,
+				sentMessage.Sender,
+				sentMessage.Target,
+				sentMessageExtension.Value,
+				sentMessage.GasLimit,
+				sentMessage.Message,
+			)
+
+			msgHash, err := msg.Hash()
 			if err != nil {
 				return CrossDomainMessengerSentMessage{}, err
 			}
@@ -50,18 +59,4 @@ func ParseCrossDomainMessage(sentMessageReceipt *types.Receipt) (CrossDomainMess
 	}
 
 	return CrossDomainMessengerSentMessage{}, errors.New("missing SentMessage receipts")
-}
-
-func CrossDomainMessengerSentMessageHash(sentMessage *bindings.CrossDomainMessengerSentMessage, value *big.Int) (common.Hash, error) {
-	abi, err := bindings.CrossDomainMessengerMetaData.GetAbi()
-	if err != nil {
-		return common.Hash{}, err
-	}
-
-	calldata, err := contracts.CrossDomainMessageCalldata(abi, sentMessage, value)
-	if err != nil {
-		return common.Hash{}, err
-	}
-
-	return crypto.Keccak256Hash(calldata), nil
 }

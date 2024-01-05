@@ -51,13 +51,6 @@ func TestBuildOptimism(t *testing.T) {
 			"_symbol":   "BOBA",
 			"_decimals": uint8(18),
 		},
-		"BobaTuringCredit": {
-			"owner":       common.HexToAddress("0x1234567890123456789012345678901234567890"),
-			"turingToken": common.HexToAddress("0x1234567890123456789012345678901234567890"),
-		},
-		"BobaHCHelper": {
-			"owner": common.HexToAddress("0x1234567890123456789012345678901234567890"),
-		},
 	}
 
 	results, err := immutables.BuildOptimism(config)
@@ -83,8 +76,6 @@ func TestBuildOptimism(t *testing.T) {
 		"EAS":                           true,
 		"SchemaRegistry":                true,
 		"BobaL2":                        true,
-		"BobaTuringCredit":              true,
-		"BobaHCHelper":                  true,
 	}
 
 	// Only the exact contracts that we care about are being

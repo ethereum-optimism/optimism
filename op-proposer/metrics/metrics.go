@@ -1,7 +1,7 @@
 package metrics
 
 import (
-	"context"
+	"io"
 
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -10,12 +10,14 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/httputil"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	txmetrics "github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
 )
 
 const Namespace = "op_proposer"
+
+// implements the Registry getter, for metrics HTTP server to hook into
+var _ opmetrics.RegistryMetricer = (*Metrics)(nil)
 
 type Metricer interface {
 	RecordInfo(version string)
@@ -26,6 +28,10 @@ type Metricer interface {
 
 	// Record Tx metrics
 	txmetrics.TxMetricer
+
+	opmetrics.RPCMetricer
+
+	StartBalanceMetrics(l log.Logger, client *ethclient.Client, account common.Address) io.Closer
 
 	RecordL2BlocksProposed(l2ref eth.L2BlockRef)
 }
@@ -78,18 +84,12 @@ func NewMetrics(procName string) *Metrics {
 	}
 }
 
-func (m *Metrics) Start(host string, port int) (*httputil.HTTPServer, error) {
-	return opmetrics.StartServer(m.registry, host, port)
+func (m *Metrics) Registry() *prometheus.Registry {
+	return m.registry
 }
 
-func (m *Metrics) StartBalanceMetrics(ctx context.Context,
-	l log.Logger, client *ethclient.Client, account common.Address) {
-	// TODO(7684): util was refactored to close, but ctx is still being used by caller for shutdown
-	balanceMetric := opmetrics.LaunchBalanceMetrics(l, m.registry, m.ns, client, account)
-	go func() {
-		<-ctx.Done()
-		_ = balanceMetric.Close()
-	}()
+func (m *Metrics) StartBalanceMetrics(l log.Logger, client *ethclient.Client, account common.Address) io.Closer {
+	return opmetrics.LaunchBalanceMetrics(l, m.registry, m.ns, client, account)
 }
 
 // RecordInfo sets a pseudo-metric that contains versioning and

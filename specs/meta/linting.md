@@ -14,7 +14,7 @@
 See
 
 - [markdownlint rule reference](https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md)
-- [exemple .markdownlint.json file](https://github.com/DavidAnson/markdownlint/blob/main/schema/.markdownlint.jsonc)
+- [example .markdownlint.json file](https://github.com/DavidAnson/markdownlint/blob/main/schema/.markdownlint.jsonc)
 
 Justification for linting rules in [.markdownlint.json](/.markdownlint.json):
 

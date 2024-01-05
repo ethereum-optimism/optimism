@@ -39,9 +39,10 @@ var (
 type TraceType string
 
 const (
-	TraceTypeAlphabet     TraceType = "alphabet"
-	TraceTypeCannon       TraceType = "cannon"
-	TraceTypeOutputCannon TraceType = "output_cannon"
+	TraceTypeAlphabet       TraceType = "alphabet"
+	TraceTypeCannon         TraceType = "cannon"
+	TraceTypeOutputCannon   TraceType = "output_cannon"
+	TraceTypeOutputAlphabet TraceType = "output_alphabet"
 
 	// Mainnet games
 	CannonFaultGameID = 0
@@ -50,7 +51,7 @@ const (
 	AlphabetFaultGameID = 255
 )
 
-var TraceTypes = []TraceType{TraceTypeAlphabet, TraceTypeCannon, TraceTypeOutputCannon}
+var TraceTypes = []TraceType{TraceTypeAlphabet, TraceTypeCannon, TraceTypeOutputCannon, TraceTypeOutputAlphabet}
 
 // GameIdToString maps game IDs to their string representation.
 var GameIdToString = map[uint8]string{
@@ -100,14 +101,13 @@ const (
 // This also contains config options for auxiliary services.
 // It is used to initialize the challenger.
 type Config struct {
-	L1EthRpc                string           // L1 RPC Url
-	GameFactoryAddress      common.Address   // Address of the dispute game factory
-	GameAllowlist           []common.Address // Allowlist of fault game addresses
-	GameWindow              time.Duration    // Maximum time duration to look for games to progress
-	AgreeWithProposedOutput bool             // Temporary config if we agree or disagree with the posted output
-	Datadir                 string           // Data Directory
-	MaxConcurrency          uint             // Maximum number of threads to use when progressing games
-	PollInterval            time.Duration    // Polling interval for latest-block subscription when using an HTTP RPC provider
+	L1EthRpc           string           // L1 RPC Url
+	GameFactoryAddress common.Address   // Address of the dispute game factory
+	GameAllowlist      []common.Address // Allowlist of fault game addresses
+	GameWindow         time.Duration    // Maximum time duration to look for games to progress
+	Datadir            string           // Data Directory
+	MaxConcurrency     uint             // Maximum number of threads to use when progressing games
+	PollInterval       time.Duration    // Polling interval for latest-block subscription when using an HTTP RPC provider
 
 	TraceTypes []TraceType // Type of traces supported
 
@@ -136,7 +136,6 @@ type Config struct {
 func NewConfig(
 	gameFactoryAddress common.Address,
 	l1EthRpc string,
-	agreeWithProposedOutput bool,
 	datadir string,
 	supportedTraceTypes ...TraceType,
 ) Config {
@@ -145,8 +144,6 @@ func NewConfig(
 		GameFactoryAddress: gameFactoryAddress,
 		MaxConcurrency:     uint(runtime.NumCPU()),
 		PollInterval:       DefaultPollInterval,
-
-		AgreeWithProposedOutput: agreeWithProposedOutput,
 
 		TraceTypes: supportedTraceTypes,
 
@@ -182,7 +179,7 @@ func (c Config) Check() error {
 	if c.MaxConcurrency == 0 {
 		return ErrMaxConcurrencyZero
 	}
-	if c.TraceTypeEnabled(TraceTypeOutputCannon) {
+	if c.TraceTypeEnabled(TraceTypeOutputCannon) || c.TraceTypeEnabled(TraceTypeOutputAlphabet) {
 		if c.RollupRpc == "" {
 			return ErrMissingRollupRpc
 		}

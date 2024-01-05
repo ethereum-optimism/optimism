@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
@@ -37,15 +38,14 @@ type RollupClient interface {
 
 // DriverSetup is the collection of input/output interfaces and configuration that the driver operates on.
 type DriverSetup struct {
-	Log          log.Logger
-	Metr         metrics.Metricer
-	RollupCfg    *rollup.Config
-	Cfg          BatcherConfig
-	Txmgr        txmgr.TxManager
-	L1Client     L1Client
-	L2Client     L2Client
-	RollupClient RollupClient
-	Channel      ChannelConfig
+	Log              log.Logger
+	Metr             metrics.Metricer
+	RollupConfig     *rollup.Config
+	Config           BatcherConfig
+	Txmgr            txmgr.TxManager
+	L1Client         L1Client
+	EndpointProvider dial.L2EndpointProvider
+	ChannelConfig    ChannelConfig
 }
 
 // BatchSubmitter encapsulates a service responsible for submitting L2 tx
@@ -74,7 +74,7 @@ type BatchSubmitter struct {
 func NewBatchSubmitter(setup DriverSetup) *BatchSubmitter {
 	return &BatchSubmitter{
 		DriverSetup: setup,
-		state:       NewChannelManager(setup.Log, setup.Metr, setup.Channel, setup.RollupCfg),
+		state:       NewChannelManager(setup.Log, setup.Metr, setup.ChannelConfig, setup.RollupConfig),
 	}
 }
 
@@ -171,7 +171,7 @@ func (l *BatchSubmitter) loadBlocksIntoState(ctx context.Context) error {
 		latestBlock = block
 	}
 
-	l2ref, err := derive.L2BlockToBlockRef(latestBlock, &l.RollupCfg.Genesis)
+	l2ref, err := derive.L2BlockToBlockRef(latestBlock, &l.RollupConfig.Genesis)
 	if err != nil {
 		l.Log.Warn("Invalid L2 block loaded into state", "err", err)
 		return err
@@ -183,9 +183,13 @@ func (l *BatchSubmitter) loadBlocksIntoState(ctx context.Context) error {
 
 // loadBlockIntoState fetches & stores a single block into `state`. It returns the block it loaded.
 func (l *BatchSubmitter) loadBlockIntoState(ctx context.Context, blockNumber uint64) (*types.Block, error) {
-	ctx, cancel := context.WithTimeout(ctx, l.Cfg.NetworkTimeout)
+	ctx, cancel := context.WithTimeout(ctx, l.Config.NetworkTimeout)
 	defer cancel()
-	block, err := l.L2Client.BlockByNumber(ctx, new(big.Int).SetUint64(blockNumber))
+	l2Client, err := l.EndpointProvider.EthClient(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("getting L2 client: %w", err)
+	}
+	block, err := l2Client.BlockByNumber(ctx, new(big.Int).SetUint64(blockNumber))
 	if err != nil {
 		return nil, fmt.Errorf("getting L2 block: %w", err)
 	}
@@ -201,9 +205,13 @@ func (l *BatchSubmitter) loadBlockIntoState(ctx context.Context, blockNumber uin
 // calculateL2BlockRangeToStore determines the range (start,end] that should be loaded into the local state.
 // It also takes care of initializing some local state (i.e. will modify l.lastStoredBlock in certain conditions)
 func (l *BatchSubmitter) calculateL2BlockRangeToStore(ctx context.Context) (eth.BlockID, eth.BlockID, error) {
-	ctx, cancel := context.WithTimeout(ctx, l.Cfg.NetworkTimeout)
+	ctx, cancel := context.WithTimeout(ctx, l.Config.NetworkTimeout)
 	defer cancel()
-	syncStatus, err := l.RollupClient.SyncStatus(ctx)
+	rollupClient, err := l.EndpointProvider.RollupClient(ctx)
+	if err != nil {
+		return eth.BlockID{}, eth.BlockID{}, fmt.Errorf("getting rollup client: %w", err)
+	}
+	syncStatus, err := rollupClient.SyncStatus(ctx)
 	// Ensure that we have the sync status
 	if err != nil {
 		return eth.BlockID{}, eth.BlockID{}, fmt.Errorf("failed to get sync status: %w", err)
@@ -244,11 +252,11 @@ func (l *BatchSubmitter) calculateL2BlockRangeToStore(ctx context.Context) (eth.
 func (l *BatchSubmitter) loop() {
 	defer l.wg.Done()
 
-	ticker := time.NewTicker(l.Cfg.PollInterval)
+	ticker := time.NewTicker(l.Config.PollInterval)
 	defer ticker.Stop()
 
 	receiptsCh := make(chan txmgr.TxReceipt[txData])
-	queue := txmgr.NewQueue[txData](l.killCtx, l.Txmgr, l.Cfg.MaxPendingTransactions)
+	queue := txmgr.NewQueue[txData](l.killCtx, l.Txmgr, l.Config.MaxPendingTransactions)
 
 	for {
 		select {
@@ -256,7 +264,11 @@ func (l *BatchSubmitter) loop() {
 			if err := l.loadBlocksIntoState(l.shutdownCtx); errors.Is(err, ErrReorg) {
 				err := l.state.Close()
 				if err != nil {
-					l.Log.Error("error closing the channel manager to handle a L2 reorg", "err", err)
+					if errors.Is(err, ErrPendingAfterClose) {
+						l.Log.Warn("Closed channel manager to handle L2 reorg with pending channel(s) remaining - submitting")
+					} else {
+						l.Log.Error("Error closing the channel manager to handle a L2 reorg", "err", err)
+					}
 				}
 				l.publishStateToL1(queue, receiptsCh, true)
 				l.state.Clear()
@@ -266,11 +278,18 @@ func (l *BatchSubmitter) loop() {
 		case r := <-receiptsCh:
 			l.handleReceipt(r)
 		case <-l.shutdownCtx.Done():
+			// This removes any never-submitted pending channels, so these do not have to be drained with transactions.
+			// Any remaining unfinished channel is terminated, so its data gets submitted.
 			err := l.state.Close()
 			if err != nil {
-				l.Log.Error("error closing the channel manager", "err", err)
+				if errors.Is(err, ErrPendingAfterClose) {
+					l.Log.Warn("Closed channel manager on shutdown with pending channel(s) remaining - submitting")
+				} else {
+					l.Log.Error("Error closing the channel manager on shutdown", "err", err)
+				}
 			}
 			l.publishStateToL1(queue, receiptsCh, true)
+			l.Log.Info("Finished publishing all remaining channel data")
 			return
 		}
 	}
@@ -347,7 +366,7 @@ func (l *BatchSubmitter) sendTransaction(txdata txData, queue *txmgr.Queue[txDat
 	}
 
 	candidate := txmgr.TxCandidate{
-		To:       &l.RollupCfg.BatchInboxAddress,
+		To:       &l.RollupConfig.BatchInboxAddress,
 		TxData:   data,
 		GasLimit: intrinsicGas,
 	}
@@ -387,7 +406,7 @@ func (l *BatchSubmitter) recordConfirmedTx(id txID, receipt *types.Receipt) {
 // l1Tip gets the current L1 tip as a L1BlockRef. The passed context is assumed
 // to be a lifetime context, so it is internally wrapped with a network timeout.
 func (l *BatchSubmitter) l1Tip(ctx context.Context) (eth.L1BlockRef, error) {
-	tctx, cancel := context.WithTimeout(ctx, l.Cfg.NetworkTimeout)
+	tctx, cancel := context.WithTimeout(ctx, l.Config.NetworkTimeout)
 	defer cancel()
 	head, err := l.L1Client.HeaderByNumber(tctx, nil)
 	if err != nil {

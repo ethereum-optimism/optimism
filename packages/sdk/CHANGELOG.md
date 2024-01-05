@@ -1,5 +1,17 @@
 # @eth-optimism/sdk
 
+## 3.1.6
+
+### Patch Changes
+
+- [#8212](https://github.com/ethereum-optimism/optimism/pull/8212) [`dd0e46986`](https://github.com/ethereum-optimism/optimism/commit/dd0e46986f19dcceb304fc48f2bd410685ecd179) Thanks [@smartcontracts](https://github.com/smartcontracts)! - Simplifies getMessageStatus to use an O(1) lookup instead of an event query
+
+## 3.1.5
+
+### Patch Changes
+
+- [#8155](https://github.com/ethereum-optimism/optimism/pull/8155) [`2534eabb5`](https://github.com/ethereum-optimism/optimism/commit/2534eabb50afe76f176407f83cc1f1c606e6de69) Thanks [@smartcontracts](https://github.com/smartcontracts)! - Fixed bug with tokenBridge checks throwing
+
 ## 3.1.4
 
 ### Patch Changes

@@ -132,7 +132,7 @@ func TestL2SequencerRPCDepositTx(t *testing.T) {
 	// Obtain our sequencer, verifier, and transactor keypair.
 	l2Seq := sys.Clients["sequencer"]
 	l2Verif := sys.Clients["verifier"]
-	txSigningKey := sys.cfg.Secrets.Alice
+	txSigningKey := sys.Cfg.Secrets.Alice
 	require.Nil(t, err)
 
 	// Create a deposit tx to send over RPC.
@@ -292,7 +292,7 @@ func TestMixedDepositValidity(t *testing.T) {
 	}
 
 	// Create our random provider
-	randomProvider := rand.New(rand.NewSource(time.Now().Unix()))
+	randomProvider := rand.New(rand.NewSource(1452))
 
 	// Now we create a number of deposits from each transactor
 	for i := 0; i < depositTxCount; i++ {

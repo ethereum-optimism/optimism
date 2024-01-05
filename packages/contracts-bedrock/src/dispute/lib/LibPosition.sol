@@ -2,6 +2,7 @@
 pragma solidity ^0.8.15;
 
 import "src/libraries/DisputeTypes.sol";
+import "src/libraries/DisputeErrors.sol";
 
 /// @title LibPosition
 /// @notice This library contains helper functions for working with the `Position` type.
@@ -133,6 +134,34 @@ library LibPosition {
             let a := shr(msb, _position)
             // Bound the ancestor to the minimum gindex, 1.
             ancestor_ := or(a, iszero(a))
+        }
+    }
+
+    /// @notice Gets the position of the highest ancestor of `_position` that commits to the same
+    ///         trace index, while still being below `_upperBoundExclusive`.
+    /// @param _position The position to get the highest ancestor of.
+    /// @param _upperBoundExclusive The exclusive upper depth bound, used to inform where to stop in order
+    ///                             to not escape a sub-tree.
+    /// @return ancestor_ The highest ancestor of `position` that commits to the same trace index.
+    function traceAncestorBounded(
+        Position _position,
+        uint256 _upperBoundExclusive
+    )
+        internal
+        pure
+        returns (Position ancestor_)
+    {
+        // This function only works for positions that are below the upper bound.
+        if (_position.depth() <= _upperBoundExclusive) revert ClaimAboveSplit();
+
+        // Grab the global trace ancestor.
+        ancestor_ = traceAncestor(_position);
+
+        // If the ancestor is above or at the upper bound, shift it to be below the upper bound.
+        // This should be a special case that only covers positions that commit to the final leaf
+        // in a sub-tree.
+        if (ancestor_.depth() <= _upperBoundExclusive) {
+            ancestor_ = ancestor_.rightIndex(_upperBoundExclusive + 1);
         }
     }
 

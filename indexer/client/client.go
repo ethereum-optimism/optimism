@@ -23,6 +23,7 @@ const (
 	healthz     = "get_health"
 	deposits    = "get_deposits"
 	withdrawals = "get_withdrawals"
+	sum         = "get_sum"
 )
 
 // Option ... Provides configuration through callback injection
@@ -124,7 +125,7 @@ func (c *Client) HealthCheck() error {
 
 // GetDepositsByAddress ... Gets a deposit response object provided an L1 address and cursor
 func (c *Client) GetDepositsByAddress(l1Address common.Address, cursor string) (*models.DepositResponse, error) {
-	var dResponse *models.DepositResponse
+	var response models.DepositResponse
 	url := c.cfg.BaseURL + api.DepositsPath + l1Address.String() + urlParams
 	endpoint := fmt.Sprintf(url, cursor, c.cfg.PaginationLimit)
 
@@ -133,11 +134,11 @@ func (c *Client) GetDepositsByAddress(l1Address common.Address, cursor string) (
 		return nil, err
 	}
 
-	if err := json.Unmarshal(resp, &dResponse); err != nil {
+	if err := json.Unmarshal(resp, &response); err != nil {
 		return nil, err
 	}
 
-	return dResponse, nil
+	return &response, nil
 }
 
 // GetAllDepositsByAddress ... Gets all deposits provided a L1 address
@@ -162,6 +163,25 @@ func (c *Client) GetAllDepositsByAddress(l1Address common.Address) ([]models.Dep
 
 	return deposits, nil
 
+}
+
+// GetSupplyAssessment ... Returns an assessment of the current supply
+// on both L1 and L2. This includes the individual sums of
+// (L1/L2) deposits and withdrawals
+func (c *Client) GetSupplyAssessment() (*models.BridgeSupplyView, error) {
+	url := c.cfg.BaseURL + api.SupplyPath
+
+	resp, err := c.doRecordRequest(sum, url)
+	if err != nil {
+		return nil, err
+	}
+
+	var bsv *models.BridgeSupplyView
+	if err := json.Unmarshal(resp, &bsv); err != nil {
+		return nil, err
+	}
+
+	return bsv, nil
 }
 
 // GetAllWithdrawalsByAddress ... Gets all withdrawals provided a L2 address
