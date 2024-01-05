@@ -27,9 +27,11 @@ deployments/hardhat
 deployments/getting-started
 deployments/*/.deploy
 deployments/1337
+deployments/devnetL1-2/
 
 # Devnet config which changes with each 'make devnet-up'
 deploy-config/devnetL1.json
+deploy-config/devnetL1-2.json
 
 # Getting Started guide deploy config
 deploy-config/getting-started.json
