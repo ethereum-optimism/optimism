@@ -831,6 +831,7 @@ The `ExecutionPayload` has the following requirements:
   - The withdrawals field MUST be an empty list
   - The blob gas used field MUST be nil
   - The blob gas limit field MUST be nil
+- Delta: exactly like Canyon
 - Ecotone
   - The withdrawals field MUST be non-nil
   - The withdrawals field MUST be an empty list
