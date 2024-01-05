@@ -111,7 +111,7 @@ func entrypoint(ctx *cli.Context) error {
 		}
 		// The L1Client is required
 		if clients.L1Client == nil {
-			return errors.New("Cannot create L1 client")
+			return errors.New("cannot create L1 client")
 		}
 
 		l1ChainID, err := clients.L1Client.ChainID(ctx.Context)
@@ -126,7 +126,7 @@ func entrypoint(ctx *cli.Context) error {
 				return fmt.Errorf("cannot fetch L2 chain ID: %w", err)
 			}
 			if chainConfig.ChainID != l2ChainID.Uint64() {
-				return fmt.Errorf("Mismatched chain IDs: %d != %d", chainConfig.ChainID, l2ChainID)
+				return fmt.Errorf("mismatched chain IDs: %d != %d", chainConfig.ChainID, l2ChainID)
 			}
 		}
 
