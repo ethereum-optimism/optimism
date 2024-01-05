@@ -21,6 +21,12 @@ import (
 	"github.com/ethereum-optimism/superchain-registry/superchain"
 )
 
+type ChainVersionCheck struct {
+	Name             string                      `yaml:"name"`
+	ChainID          uint64                      `yaml:"chain_id"`
+	ContractVersions superchain.ContractVersions `yaml:"contract_versions"`
+}
+
 func main() {
 	log.Root().SetHandler(log.StreamHandler(os.Stderr, log.TerminalFormat(isatty.IsTerminal(os.Stderr.Fd()))))
 
@@ -104,7 +110,7 @@ func entrypoint(ctx *cli.Context) error {
 		return int(i.ChainID) - int(j.ChainID)
 	})
 
-	versions := superchain.ContractVersions{}
+	output := []ChainVersionCheck{}
 
 	for _, chainConfig := range targets {
 		name, _ := toDeployConfigName(chainConfig)
@@ -154,27 +160,22 @@ func entrypoint(ctx *cli.Context) error {
 		if !ok {
 			return fmt.Errorf("no addresses for chain ID %d", chainConfig.ChainID)
 		}
-		versions, err = upgrades.GetContractVersions(ctx.Context, addresses, chainConfig, clients.L1Client)
+
+		versions, err := upgrades.GetContractVersions(ctx.Context, addresses, chainConfig, clients.L1Client)
 		if err != nil {
 			return fmt.Errorf("error getting contract versions: %w", err)
 		}
 
-		log.Info("L1CrossDomainMessenger", "version", versions.L1CrossDomainMessenger, "address", addresses.L1CrossDomainMessengerProxy)
-		log.Info("L1ERC721Bridge", "version", versions.L1ERC721Bridge, "address", addresses.L1ERC721BridgeProxy)
-		log.Info("L1StandardBridge", "version", versions.L1StandardBridge, "address", addresses.L1StandardBridgeProxy)
-		log.Info("L2OutputOracle", "version", versions.L2OutputOracle, "address", addresses.L2OutputOracleProxy)
-		log.Info("OptimismMintableERC20Factory", "version", versions.OptimismMintableERC20Factory, "address", addresses.OptimismMintableERC20FactoryProxy)
-		log.Info("OptimismPortal", "version", versions.OptimismPortal, "address", addresses.OptimismPortalProxy)
-		log.Info("SystemConfig", "version", versions.SystemConfig, "address", chainConfig.SystemConfigAddr)
+		output = append(output, ChainVersionCheck{Name: chainConfig.Name, ChainID: chainConfig.ChainID, ContractVersions: versions})
 	}
 
 	// Write contract versions to disk or stdout
 	if outfile := ctx.Path("outfile"); outfile != "" {
-		if err := writeJSON(outfile, versions); err != nil {
+		if err := writeJSON(outfile, output); err != nil {
 			return err
 		}
 	} else {
-		data, err := json.MarshalIndent(versions, "", "  ")
+		data, err := json.MarshalIndent(output, "", "  ")
 		if err != nil {
 			return err
 		}
