@@ -232,8 +232,12 @@ func (oc *OpConductor) Start(ctx context.Context) error {
 
 // Stop implements cliapp.Lifecycle.
 func (oc *OpConductor) Stop(ctx context.Context) error {
-	oc.log.Info("stopping OpConductor")
+	if oc.Stopped() {
+		oc.log.Info("OpConductor already stopped")
+		return nil
+	}
 
+	oc.log.Info("stopping OpConductor")
 	var result *multierror.Error
 
 	// close control loop
@@ -427,7 +431,7 @@ func (oc *OpConductor) transferLeader() error {
 func (oc *OpConductor) stopSequencer() error {
 	oc.log.Info("stopping sequencer", "server", oc.cons.ServerID(), "leader", oc.leader.Load(), "healthy", oc.healthy.Load(), "active", oc.seqActive.Load())
 
-	if _, err := oc.ctrl.StopSequencer(oc.shutdownCtx); err != nil {
+	if _, err := oc.ctrl.StopSequencer(context.Background()); err != nil {
 		return errors.Wrap(err, "failed to stop sequencer")
 	}
 	oc.seqActive.Store(false)
@@ -440,14 +444,14 @@ func (oc *OpConductor) startSequencer() error {
 	// When starting sequencer, we need to make sure that the current node has the latest unsafe head from the consensus protocol
 	// If not, then we wait for the unsafe head to catch up or gossip it to op-node manually from op-conductor.
 	unsafeInCons := oc.cons.LatestUnsafePayload()
-	unsafeInNode, err := oc.ctrl.LatestUnsafeBlock(oc.shutdownCtx)
+	unsafeInNode, err := oc.ctrl.LatestUnsafeBlock(context.Background())
 	if err != nil {
 		return errors.Wrap(err, "failed to get latest unsafe block from EL during startSequencer phase")
 	}
 
 	if unsafeInCons.BlockHash != unsafeInNode.Hash() {
 		oc.log.Warn(
-			"latest unsafe block in consensus is not the same as the one in node",
+			"latest unsafe block in consensus is not the same as the one in op-node",
 			"consensus_hash", unsafeInCons.BlockHash,
 			"consensus_block_num", unsafeInCons.BlockNumber,
 			"node_hash", unsafeInNode.Hash(),
@@ -463,7 +467,7 @@ func (oc *OpConductor) startSequencer() error {
 		return ErrUnsafeHeadMismarch // return error to allow retry
 	}
 
-	if err := oc.ctrl.StartSequencer(oc.shutdownCtx, unsafeInCons.BlockHash); err != nil {
+	if err := oc.ctrl.StartSequencer(context.Background(), unsafeInCons.BlockHash); err != nil {
 		return errors.Wrap(err, "failed to start sequencer")
 	}
 

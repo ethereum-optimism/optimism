@@ -29,7 +29,7 @@ func mockConfig(t *testing.T) Config {
 		ConsensusAddr:  "127.0.0.1",
 		ConsensusPort:  50050,
 		RaftServerID:   "SequencerA",
-		RaftStorageDir: "/tmpdir",
+		RaftStorageDir: "/tmp/raft",
 		RaftBootstrap:  false,
 		NodeRPC:        "http://node:8545",
 		ExecutionRPC:   "http://geth:8545",
@@ -131,7 +131,8 @@ func (s *OpConductorTestSuite) TearDownTest() {
 	s.True(s.conductor.Stopped())
 }
 
-// enableSynchronization wraps conductor actionFn with extra synchronization logic so that we could control the execution of actionFn and observe the internal state in between.
+// enableSynchronization wraps conductor actionFn with extra synchronization logic
+// so that we could control the execution of actionFn and observe the internal state transition in between.
 func (s *OpConductorTestSuite) enableSynchronization() {
 	s.conductor.actionFn = func() {
 		<-s.next
@@ -296,16 +297,66 @@ func (s *OpConductorTestSuite) TestScenario3() {
 	s.updateStatusAndExecuteAction(s.leaderUpdateCh, true)
 
 	// [leader, healthy, sequencing]
-	s.True(s.conductor.healthy.Load())
 	s.True(s.conductor.leader.Load())
+	s.True(s.conductor.healthy.Load())
 	s.True(s.conductor.seqActive.Load())
 	s.ctrl.AssertCalled(s.T(), "StartSequencer", mock.Anything, mock.Anything)
 	s.ctrl.AssertCalled(s.T(), "LatestUnsafeBlock", mock.Anything)
 }
 
+// This test setup is the same as Scenario 3, the difference is that scenario 3 is all happy case and in this test, we try to exhaust all the error cases.
+// [follower, healthy, not sequencing] -- become leader, unsafe head does not match, retry, eventually succeed --> [leader, healthy, sequencing]
+func (s *OpConductorTestSuite) TestScenario4() {
+	s.enableSynchronization()
+
+	// unsafe in consensus is 1 block ahead of unsafe in sequencer, we try to post the unsafe payload to sequencer and return error to allow retry
+	// this is normal because the latest unsafe (in consensus) might not arrive at sequencer through p2p yet
+	mockPayload := eth.ExecutionPayload{
+		BlockNumber: 2,
+		Timestamp:   hexutil.Uint64(time.Now().Unix()),
+		BlockHash:   [32]byte{1, 2, 3},
+	}
+	mockBlockInfo := &testutils.MockBlockInfo{
+		InfoNum:  1,
+		InfoHash: [32]byte{2, 3, 4},
+	}
+	s.cons.EXPECT().LatestUnsafePayload().Return(mockPayload).Times(1)
+	s.ctrl.EXPECT().LatestUnsafeBlock(mock.Anything).Return(mockBlockInfo, nil).Times(1)
+	s.ctrl.EXPECT().PostUnsafePayload(mock.Anything, mock.Anything).Return(nil).Times(1)
+
+	s.updateStatusAndExecuteAction(s.leaderUpdateCh, true)
+
+	// [leader, healthy, not sequencing]
+	s.True(s.conductor.leader.Load())
+	s.True(s.conductor.healthy.Load())
+	s.False(s.conductor.seqActive.Load())
+	s.ctrl.AssertNotCalled(s.T(), "StartSequencer", mock.Anything, mock.Anything)
+	s.ctrl.AssertNumberOfCalls(s.T(), "LatestUnsafeBlock", 1)
+	s.ctrl.AssertNumberOfCalls(s.T(), "PostUnsafePayload", 1)
+	s.cons.AssertNumberOfCalls(s.T(), "LatestUnsafePayload", 1)
+
+	// unsafe caught up, we try to start sequencer at specified block and succeeds
+	mockBlockInfo.InfoNum = 2
+	mockBlockInfo.InfoHash = [32]byte{1, 2, 3}
+	s.cons.EXPECT().LatestUnsafePayload().Return(mockPayload).Times(1)
+	s.ctrl.EXPECT().LatestUnsafeBlock(mock.Anything).Return(mockBlockInfo, nil).Times(1)
+	s.ctrl.EXPECT().StartSequencer(mock.Anything, mockBlockInfo.InfoHash).Return(nil).Times(1)
+
+	s.executeAction()
+
+	// [leader, healthy, sequencing]
+	s.True(s.conductor.leader.Load())
+	s.True(s.conductor.healthy.Load())
+	s.True(s.conductor.seqActive.Load())
+	s.ctrl.AssertNumberOfCalls(s.T(), "LatestUnsafeBlock", 2)
+	s.ctrl.AssertNumberOfCalls(s.T(), "PostUnsafePayload", 1)
+	s.ctrl.AssertNumberOfCalls(s.T(), "StartSequencer", 1)
+	s.cons.AssertNumberOfCalls(s.T(), "LatestUnsafePayload", 2)
+}
+
 // In this test, we have a follower that is healthy and not sequencing, we send a unhealthy update to it and expect it to stay as follower and not start sequencing.
 // [follower, healthy, not sequencing] -- become unhealthy --> [follower, not healthy, not sequencing]
-func (s *OpConductorTestSuite) TestScenario4() {
+func (s *OpConductorTestSuite) TestScenario5() {
 	s.enableSynchronization()
 
 	// set initial state
@@ -324,7 +375,7 @@ func (s *OpConductorTestSuite) TestScenario4() {
 
 // In this test, we have a leader that is healthy and sequencing, we send a leader update to it and expect it to stop sequencing.
 // [leader, healthy, sequencing] -- step down as leader --> [follower, healthy, not sequencing]
-func (s *OpConductorTestSuite) TestScenario5() {
+func (s *OpConductorTestSuite) TestScenario6() {
 	s.enableSynchronization()
 
 	// set initial state
@@ -347,7 +398,7 @@ func (s *OpConductorTestSuite) TestScenario5() {
 // In this test, we have a leader that is healthy and sequencing, we send a unhealthy update to it and expect it to stop sequencing and transfer leadership.
 // 1. [leader, healthy, sequencing] -- become unhealthy -->
 // 2. [leader, unhealthy, sequencing] -- stop sequencing, transfer leadership --> [follower, unhealthy, not sequencing]
-func (s *OpConductorTestSuite) TestScenario6() {
+func (s *OpConductorTestSuite) TestScenario7() {
 	s.enableSynchronization()
 
 	// set initial state
