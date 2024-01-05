@@ -77,15 +77,22 @@ type L2OutputSubmitter struct {
 }
 
 // NewL2OutputSubmitter creates a new L2 Output Submitter
-func NewL2OutputSubmitter(setup DriverSetup) (*L2OutputSubmitter, error) {
+func NewL2OutputSubmitter(setup DriverSetup) (_ *L2OutputSubmitter, err error) {
 	ctx, cancel := context.WithCancel(context.Background())
+	// The above context is long-lived, and passed to the `L2OutputSubmitter` instance. This context is closed by
+	// `StopL2OutputSubmitting`, but if this function returns an error or panics, we want to ensure that the context
+	// doesn't leak.
+	defer func() {
+		if err != nil || recover() != nil {
+			cancel()
+		}
+	}()
 
 	if setup.Cfg.L2OutputOracleAddr != nil {
 		return newL2OOSubmitter(ctx, cancel, setup)
 	} else if setup.Cfg.DisputeGameFactoryAddr != nil {
 		return newDGFSubmitter(ctx, cancel, setup)
 	} else {
-		cancel()
 		return nil, errors.New("neither the `L2OutputOracle` nor `DisputeGameFactory` addresses were provided")
 	}
 }
