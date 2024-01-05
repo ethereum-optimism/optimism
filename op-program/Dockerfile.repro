@@ -1,0 +1,19 @@
+FROM golang:1.21-bookworm as builder
+
+ARG BUILDOS
+ARG BUILDARCH
+ARG BUILDNAME
+ARG BUILDTARGET
+
+WORKDIR /app
+
+COPY ./ ./
+
+RUN go mod tidy
+
+WORKDIR /app/op-program
+
+RUN rm -rf bin
+RUN mkdir -p bin
+
+RUN env GO111MODULE=on GOOS=$BUILDOS GOARCH=$BUILDARCH CGO_ENABLED=0 go build -o ./bin/$BUILDNAME -trimpath -ldflags=-buildid= $BUILDTARGET

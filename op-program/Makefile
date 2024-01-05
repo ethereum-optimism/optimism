@@ -10,21 +10,58 @@ LDFLAGS := -ldflags "$(LDFLAGSSTRING)"
 
 COMPAT_DIR := temp/compat
 
-op-program: \
-	op-program-host \
-	op-program-client \
-	op-program-client-mips
+# ########################## #
+# Reproducible Docker Builds #
+# ########################## #
 
-op-program-host:
-	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) go build -v $(LDFLAGS) -o ./bin/op-program ./host/cmd/main.go
+build: \
+	op-program-reproducible-build \
+	op-program-client-reproducible-build \
+	op-program-client-mips-reproducible-build
 
-op-program-client:
-	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) go build -v $(LDFLAGS) -o ./bin/op-program-client ./client/cmd/main.go
+op-program-reproducible-build:
+	docker build -f Dockerfile.repro -t linux-binary-image --build-arg BUILDTARGET=./host/cmd/main.go --build-arg BUILDOS=linux --build-arg BUILDARCH=amd64 --build-arg BUILDNAME=op-program --no-cache ../
+	docker run --name linux-binary  linux-binary-image
+	mkdir -p ./bin/
+	docker cp linux-binary:/app/op-program/bin/op-program ./bin/op-program
+	docker rm linux-binary
+	docker image rm linux-binary-image
 
-op-program-client-mips:
-	env GO111MODULE=on GOOS=linux GOARCH=mips GOMIPS=softfloat go build -v $(LDFLAGS) -o ./bin/op-program-client.elf ./client/cmd/main.go
+op-program-client-reproducible-build:
+	docker build -f Dockerfile.repro -t linux-binary-image --build-arg BUILDTARGET=./client/cmd/main.go --build-arg BUILDOS=linux --build-arg BUILDARCH=amd64 --build-arg BUILDNAME=op-program-client --no-cache ../
+	docker run --name linux-binary  linux-binary-image
+	mkdir -p ./bin/
+	docker cp linux-binary:/app/op-program/bin/op-program-client ./bin/op-program-client
+	docker rm linux-binary
+	docker image rm linux-binary-image
+
+op-program-client-mips-reproducible-build:
+	docker build -f Dockerfile.repro -t linux-binary-image --build-arg BUILDTARGET=./client/cmd/main.go --build-arg BUILDOS=linux --build-arg BUILDARCH=mips --build-arg BUILDNAME=op-program-client-mips --no-cache ../
+	docker run --name linux-binary  linux-binary-image
+	mkdir -p ./bin/
+	docker cp linux-binary:/app/op-program/bin/op-program-client-mips ./bin/op-program-client.elf
+	docker rm linux-binary
+	docker image rm linux-binary-image
+
+# ############ #
+# Local Builds #
+# ############ #
+
+op-program-local: \
+	op-program-host-local \
+	op-program-client-local \
+	op-program-client-mips-local
+
+op-program-host-local:
+	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) CGO_ENABLED=0 go build -v $(LDFLAGS) -o ./bin/op-program ./host/cmd/main.go
+
+op-program-client-local:
+	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) CGO_ENABLED=0 go build -v $(LDFLAGS) -o ./bin/op-program-client ./client/cmd/main.go
+
+op-program-client-mips-local:
+	env GO111MODULE=on GOOS=linux GOARCH=mips GOMIPS=softfloat CGO_ENABLED=0 go build -v $(LDFLAGS) -o ./bin/op-program-client.elf ./client/cmd/main.go
 	# verify output with: readelf -h bin/op-program-client.elf
-	# result is mips32, big endian, R3000
+# 	# result is mips32, big endian, R3000
 
 clean:
 	rm -rf bin "$(COMPAT_DIR)"
@@ -49,7 +86,8 @@ run-goerli-verify: op-program-host op-program-client
 	./bin/op-program `cat "$(COMPAT_DIR)/goerli/args.txt"`
 
 .PHONY: \
-	op-program \
+	build \
+	op-program-local \
 	clean \
 	test \
 	lint
