@@ -124,7 +124,7 @@ func TestGetClaim(t *testing.T) {
 			Position: faultTypes.NewPositionFromGIndex(position),
 			Bond:     bond,
 		},
-		CounteredBy:         common.Address{0x01},
+		CounteredBy:         counteredBy,
 		Claimant:            claimant,
 		Clock:               1234,
 		ContractIndex:       int(idx.Uint64()),
