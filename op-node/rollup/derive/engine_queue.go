@@ -83,13 +83,11 @@ type LocalEngineControl interface {
 	NewPayload(ctx context.Context, payload *eth.ExecutionPayload) (*eth.PayloadStatusV1, error)
 
 	PendingSafeL2Head() eth.L2BlockRef
-	EngineSyncTarget() eth.L2BlockRef
 
 	SetUnsafeHead(eth.L2BlockRef)
 	SetSafeHead(eth.L2BlockRef)
 	SetFinalizedHead(eth.L2BlockRef)
 	SetPendingSafeL2Head(eth.L2BlockRef)
-	SetEngineSyncTarget(eth.L2BlockRef)
 }
 
 // Max memory used for buffering unsafe payloads
@@ -246,10 +244,6 @@ func (eq *EngineQueue) SafeL2Head() eth.L2BlockRef {
 
 func (eq *EngineQueue) PendingSafeL2Head() eth.L2BlockRef {
 	return eq.ec.PendingSafeL2Head()
-}
-
-func (eq *EngineQueue) EngineSyncTarget() eth.L2BlockRef {
-	return eq.ec.EngineSyncTarget()
 }
 
 // Determine if the engine is syncing to the target block
@@ -423,7 +417,6 @@ func (eq *EngineQueue) logSyncProgress(reason string) {
 		"l2_safe", eq.ec.SafeL2Head(),
 		"l2_safe_pending", eq.ec.PendingSafeL2Head(),
 		"l2_unsafe", eq.ec.UnsafeL2Head(),
-		"l2_engineSyncTarget", eq.ec.EngineSyncTarget(),
 		"l2_time", eq.ec.UnsafeL2Head().Time,
 		"l1_derived", eq.origin,
 	)
@@ -432,11 +425,11 @@ func (eq *EngineQueue) logSyncProgress(reason string) {
 // tryUpdateEngine attempts to update the engine with the current forkchoice state of the rollup node,
 // this is a no-op if the nodes already agree on the forkchoice state.
 func (eq *EngineQueue) tryUpdateEngine(ctx context.Context) error {
-	if eq.ec.UnsafeL2Head().Hash != eq.ec.EngineSyncTarget().Hash {
+	if eq.isEngineSyncing() {
 		eq.log.Warn("Attempting to update forkchoice state while engine is P2P syncing")
 	}
 	fc := eth.ForkchoiceState{
-		HeadBlockHash:      eq.ec.EngineSyncTarget().Hash,
+		HeadBlockHash:      eq.ec.UnsafeL2Head().Hash,
 		SafeBlockHash:      eq.ec.SafeL2Head().Hash,
 		FinalizedBlockHash: eq.ec.Finalized().Hash,
 	}
@@ -544,7 +537,6 @@ func (eq *EngineQueue) tryNextUnsafePayload(ctx context.Context) error {
 			first.ID(), first.ParentID(), eth.ForkchoiceUpdateErr(fcRes.PayloadStatus)))
 	}
 
-	eq.ec.SetEngineSyncTarget(ref)
 	// unsafeHead should be updated only if the payload status is VALID
 	if fcRes.PayloadStatus.Status == eth.ExecutionValid {
 		eq.ec.SetUnsafeHead(ref)
@@ -584,7 +576,6 @@ func (eq *EngineQueue) tryNextSafeAttributes(ctx context.Context) error {
 		// For some reason the unsafe head is behind the pending safe head. Log it, and correct it.
 		eq.log.Error("invalid sync state, unsafe head is behind pending safe head", "unsafe", eq.ec.UnsafeL2Head(), "pending_safe", eq.ec.PendingSafeL2Head())
 		eq.ec.SetUnsafeHead(eq.ec.PendingSafeL2Head())
-		eq.ec.SetEngineSyncTarget(eq.ec.PendingSafeL2Head())
 		return nil
 	}
 }
@@ -749,7 +740,6 @@ func (eq *EngineQueue) Reset(ctx context.Context, _ eth.L1BlockRef, _ eth.System
 	}
 	eq.log.Debug("Reset engine queue", "safeHead", safe, "unsafe", unsafe, "safe_timestamp", safe.Time, "unsafe_timestamp", unsafe.Time, "l1Origin", l1Origin)
 	eq.ec.SetUnsafeHead(unsafe)
-	eq.ec.SetEngineSyncTarget(unsafe)
 	eq.ec.SetSafeHead(safe)
 	eq.ec.SetPendingSafeL2Head(safe)
 	eq.ec.SetFinalizedHead(finalized)

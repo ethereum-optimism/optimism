@@ -1084,7 +1084,6 @@ func TestResetLoop(t *testing.T) {
 
 	eq := NewEngineQueue(logger, cfg, eng, metrics.NoopMetrics, prev, l1F, &sync.Config{})
 	eq.ec.SetUnsafeHead(refA2)
-	eq.ec.SetEngineSyncTarget(refA2)
 	eq.ec.SetSafeHead(refA1)
 	eq.ec.SetFinalizedHead(refA0)
 

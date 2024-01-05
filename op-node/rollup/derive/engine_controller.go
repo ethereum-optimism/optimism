@@ -26,7 +26,6 @@ type EngineController struct {
 	genesis *rollup.Genesis
 
 	// Block Head State
-	syncTarget      eth.L2BlockRef
 	unsafeHead      eth.L2BlockRef
 	pendingSafeHead eth.L2BlockRef
 	safeHead        eth.L2BlockRef
@@ -50,10 +49,6 @@ func NewEngineController(engine ExecEngine, log log.Logger, metrics Metrics, gen
 
 // State Getters
 
-func (e *EngineController) EngineSyncTarget() eth.L2BlockRef {
-	return e.syncTarget
-}
-
 func (e *EngineController) UnsafeL2Head() eth.L2BlockRef {
 	return e.unsafeHead
 }
@@ -75,16 +70,10 @@ func (e *EngineController) BuildingPayload() (eth.L2BlockRef, eth.PayloadID, boo
 }
 
 func (e *EngineController) IsEngineSyncing() bool {
-	return e.unsafeHead.Hash != e.syncTarget.Hash
+	return false
 }
 
 // Setters
-
-// SetEngineSyncTarget implements LocalEngineControl.
-func (e *EngineController) SetEngineSyncTarget(r eth.L2BlockRef) {
-	e.metrics.RecordL2Ref("l2_engineSyncTarget", r)
-	e.syncTarget = r
-}
 
 // SetFinalizedHead implements LocalEngineControl.
 func (e *EngineController) SetFinalizedHead(r eth.L2BlockRef) {
@@ -165,7 +154,6 @@ func (e *EngineController) ConfirmPayload(ctx context.Context) (out *eth.Executi
 	}
 
 	e.unsafeHead = ref
-	e.syncTarget = ref
 
 	e.metrics.RecordL2Ref("l2_unsafe", ref)
 	e.metrics.RecordL2Ref("l2_engineSyncTarget", ref)

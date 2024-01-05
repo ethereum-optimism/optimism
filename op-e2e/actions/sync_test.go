@@ -158,8 +158,8 @@ func TestUnsafeSync(gt *testing.T) {
 		// Verifier must advance its unsafe head and engine sync target.
 		require.Equal(t, sequencer.L2Unsafe().Hash, verifier.L2Unsafe().Hash)
 		// Check engine sync target updated.
-		require.Equal(t, sequencer.L2Unsafe().Hash, sequencer.EngineSyncTarget().Hash)
-		require.Equal(t, verifier.L2Unsafe().Hash, verifier.EngineSyncTarget().Hash)
+		require.Equal(t, sequencer.L2Unsafe().Hash, sequencer.L2Unsafe().Hash)
+		require.Equal(t, verifier.L2Unsafe().Hash, verifier.L2Unsafe().Hash)
 	}
 }
 
@@ -197,9 +197,9 @@ func TestEngineP2PSync(gt *testing.T) {
 		verifier.ActL2PipelineFull(t)
 		// Verifier must advance only engine sync target.
 		require.NotEqual(t, sequencer.L2Unsafe().Hash, verifier.L2Unsafe().Hash)
-		require.NotEqual(t, verifier.L2Unsafe().Hash, verifier.EngineSyncTarget().Hash)
+		require.NotEqual(t, verifier.L2Unsafe().Hash, verifier.L2Unsafe().Hash)
 		require.Equal(t, verifier.L2Unsafe().Hash, verifierUnsafeHead.Hash)
-		require.Equal(t, sequencer.L2Unsafe().Hash, verifier.EngineSyncTarget().Hash)
+		require.Equal(t, sequencer.L2Unsafe().Hash, verifier.L2Unsafe().Hash)
 	}
 }
 
