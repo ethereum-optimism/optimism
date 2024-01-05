@@ -54,4 +54,3 @@ boba-community/*/yarn.lock
 
 # local data
 packages/boba/subgraphs/local/data
-packages/boba/subgraphs/local/**/build

@@ -2,7 +2,7 @@ dataSources:
   - kind: ethereum/contract
     mapping:
       abis:
-        - file: ./build/L2StandardBridge/abis/0.abi.json
+        - file: ./build/abis/0.abi.json
           name: L2StandardBridge
       apiVersion: 0.0.6
       entities:
@@ -36,7 +36,7 @@ dataSources:
             WithdrawalInitiated(indexed address,indexed address,indexed
             address,address,uint256,bytes)
           handler: handleL2StandardBridge_WithdrawalInitiated
-      file: ./build/L2StandardBridge/0.mapping.wasm
+      file: ./build/0.mapping.wasm
       kind: ethereum/events
       language: wasm/assemblyscript
     name: L2StandardBridge
@@ -48,7 +48,7 @@ dataSources:
   - kind: ethereum/contract
     mapping:
       abis:
-        - file: ./build/L2ToL1MessagePasser/abis/1.abi.json
+        - file: ./build/abis/1.abi.json
           name: L2ToL1MessagePasser
       apiVersion: 0.0.6
       entities:
@@ -61,7 +61,7 @@ dataSources:
           handler: handleL2ToL1MessagePasser_MessagePassed
         - event: WithdrawerBalanceBurnt(indexed uint256)
           handler: handleL2ToL1MessagePasser_WithdrawerBalanceBurnt
-      file: ./build/L2ToL1MessagePasser/1.mapping.wasm
+      file: ./build/1.mapping.wasm
       kind: ethereum/events
       language: wasm/assemblyscript
     name: L2ToL1MessagePasser
@@ -73,7 +73,7 @@ dataSources:
   - kind: ethereum/contract
     mapping:
       abis:
-        - file: ./build/OptimismPortal/abis/2.abi.json
+        - file: ./build/abis/2.abi.json
           name: OptimismPortal
       apiVersion: 0.0.6
       entities:
@@ -98,7 +98,7 @@ dataSources:
           handler: handleOptimismPortal_WithdrawalFinalized
         - event: 'WithdrawalProven(indexed bytes32,indexed address,indexed address)'
           handler: handleOptimismPortal_WithdrawalProven
-      file: ./build/OptimismPortal/2.mapping.wasm
+      file: ./build/2.mapping.wasm
       kind: ethereum/events
       language: wasm/assemblyscript
     name: OptimismPortal
@@ -108,5 +108,5 @@ dataSources:
       address: '0x4200000000000000000000000000000000000016'
       startBlock: 0
 schema:
-  file: ./build/schema.graphql
+  file: ./schema.graphql
 specVersion: 0.0.4

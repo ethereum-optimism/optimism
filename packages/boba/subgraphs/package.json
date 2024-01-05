@@ -3,8 +3,5 @@
   "version": "0.1.0",
   "scripts": {
     "deploy:goldsky": "goldsky subgraph deploy light-bridge/v1 --from-abi ./subgraph.json"
-  },
-  "devDependencies": {
-    "@graphprotocol/graph-ts": "^0.32.0"
   }
 }
