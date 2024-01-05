@@ -145,6 +145,8 @@ Any `ConfigUpdate` events for the Ecotone fee parameters before MAY be parsed or
 MAY be ignored by the derivation pipeline. Since the values are overwritten on
 the hardfork activation block and are not consumed until the hardfork activation block
 height + 1 , there is no functional difference between the two approaches.
+The derivation pipeline MUST not halt on an observation of the `ConfigUpdate` event
+with the Ecotone Gas Params type.
 
 Chain operators can modify the `l1BasefeeScalar` and `l1BlobBasefeeScalar` after
 the Ecotone hardfork activation by calling the `SystemConfig` contract.
