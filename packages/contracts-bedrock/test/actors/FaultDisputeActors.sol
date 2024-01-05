@@ -51,6 +51,7 @@ abstract contract GameSolver is CommonBase {
     struct Move {
         MoveKind kind;
         bytes data;
+        uint256 value;
     }
 
     constructor(
@@ -215,8 +216,12 @@ contract HonestGameSolver is GameSolver {
         returns (Move memory move_)
     {
         bool isAttack = _direction == Direction.Attack;
+
+        uint256 bond = GAME.getRequiredBond(_movePos);
+
         move_ = Move({
             kind: isAttack ? MoveKind.Attack : MoveKind.Defend,
+            value: bond,
             data: abi.encodeCall(FaultDisputeGame.move, (_challengeIndex, claimAt(_movePos), isAttack))
         });
     }
@@ -256,6 +261,7 @@ contract HonestGameSolver is GameSolver {
 
         move_ = Move({
             kind: MoveKind.Step,
+            value: 0,
             data: abi.encodeCall(FaultDisputeGame.step, (_challengeIndex, isAttack, preStateTrace, hex""))
         });
     }
@@ -268,10 +274,20 @@ contract HonestGameSolver is GameSolver {
     ///      `claimData` array.
     function getClaimData(uint256 _claimIndex) internal view returns (IFaultDisputeGame.ClaimData memory claimData_) {
         // thanks, solc
-        (uint32 parentIndex, bool countered, Claim claim, Position position, Clock clock) = GAME.claimData(_claimIndex);
+        (
+            uint32 parentIndex,
+            address countered,
+            address claimant,
+            uint128 bond,
+            Claim claim,
+            Position position,
+            Clock clock
+        ) = GAME.claimData(_claimIndex);
         claimData_ = IFaultDisputeGame.ClaimData({
             parentIndex: parentIndex,
-            countered: countered,
+            counteredBy: countered,
+            claimant: claimant,
+            bond: bond,
             claim: claim,
             position: position,
             clock: clock
@@ -389,10 +405,14 @@ contract HonestDisputeActor is DisputeActor {
                 });
             }
 
-            (bool innerSuccess,) = address(GAME).call(localMove.data);
+            (bool innerSuccess,) = address(GAME).call{ value: localMove.value }(localMove.data);
             assembly {
                 success_ := and(success_, innerSuccess)
             }
         }
     }
+
+    fallback() external payable { }
+
+    receive() external payable { }
 }

@@ -146,7 +146,9 @@ func (g *OutputGameHelper) WaitForClaimCount(ctx context.Context, count int64) {
 
 type ContractClaim struct {
 	ParentIndex uint32
-	Countered   bool
+	CounteredBy common.Address
+	Claimant    common.Address
+	Bond        *big.Int
 	Claim       [32]byte
 	Position    *big.Int
 	Clock       *big.Int
@@ -255,7 +257,7 @@ func (g *OutputGameHelper) WaitForClaimAtMaxDepth(ctx context.Context, countered
 		fmt.Sprintf("Could not find claim depth %v with countered=%v", maxDepth, countered),
 		func(_ int64, claim ContractClaim) bool {
 			pos := types.NewPositionFromGIndex(claim.Position)
-			return pos.Depth() == maxDepth && claim.Countered == countered
+			return pos.Depth() == maxDepth && (claim.CounteredBy != common.Address{}) == countered
 		})
 }
 
@@ -264,7 +266,7 @@ func (g *OutputGameHelper) WaitForAllClaimsCountered(ctx context.Context) {
 		ctx,
 		"Did not find all claims countered",
 		func(claim ContractClaim) bool {
-			return !claim.Countered
+			return claim.CounteredBy == common.Address{}
 		})
 }
 
@@ -478,7 +480,7 @@ func (g *OutputGameHelper) gameData(ctx context.Context) string {
 			}
 		}
 		info = info + fmt.Sprintf("%v - Position: %v, Depth: %v, IndexAtDepth: %v Trace Index: %v, Value: %v, Countered: %v, ParentIndex: %v %v\n",
-			i, claim.Position.Int64(), pos.Depth(), pos.IndexAtDepth(), pos.TraceIndex(maxDepth), common.Hash(claim.Claim).Hex(), claim.Countered, claim.ParentIndex, extra)
+			i, claim.Position.Int64(), pos.Depth(), pos.IndexAtDepth(), pos.TraceIndex(maxDepth), common.Hash(claim.Claim).Hex(), claim.CounteredBy, claim.ParentIndex, extra)
 	}
 	l2BlockNum := g.L2BlockNum(ctx)
 	status, err := g.game.Status(opts)

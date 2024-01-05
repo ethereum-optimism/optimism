@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 type GameSolver struct {
@@ -50,7 +51,7 @@ func (s *GameSolver) CalculateNextActions(ctx context.Context, game types.Game) 
 }
 
 func (s *GameSolver) calculateStep(ctx context.Context, game types.Game, agreeWithRootClaim bool, claim types.Claim) (*types.Action, error) {
-	if claim.Countered {
+	if claim.CounteredBy != (common.Address{}) {
 		return nil, nil
 	}
 	if game.AgreeWithClaimLevel(claim, agreeWithRootClaim) {
@@ -64,12 +65,13 @@ func (s *GameSolver) calculateStep(ctx context.Context, game types.Game, agreeWi
 		return nil, err
 	}
 	return &types.Action{
-		Type:       types.ActionTypeStep,
-		ParentIdx:  step.LeafClaim.ContractIndex,
-		IsAttack:   step.IsAttack,
-		PreState:   step.PreState,
-		ProofData:  step.ProofData,
-		OracleData: step.OracleData,
+		Type:           types.ActionTypeStep,
+		ParentIdx:      step.LeafClaim.ContractIndex,
+		ParentPosition: step.LeafClaim.Position,
+		IsAttack:       step.IsAttack,
+		PreState:       step.PreState,
+		ProofData:      step.ProofData,
+		OracleData:     step.OracleData,
 	}, nil
 }
 
@@ -85,9 +87,10 @@ func (s *GameSolver) calculateMove(ctx context.Context, game types.Game, agreeWi
 		return nil, nil
 	}
 	return &types.Action{
-		Type:      types.ActionTypeMove,
-		IsAttack:  !game.DefendsParent(*move),
-		ParentIdx: move.ParentContractIndex,
-		Value:     move.Value,
+		Type:           types.ActionTypeMove,
+		IsAttack:       !game.DefendsParent(*move),
+		ParentIdx:      move.ParentContractIndex,
+		ParentPosition: claim.Position,
+		Value:          move.Value,
 	}, nil
 }

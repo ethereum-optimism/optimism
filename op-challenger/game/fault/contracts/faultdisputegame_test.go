@@ -109,19 +109,23 @@ func TestGetClaim(t *testing.T) {
 	stubRpc, game := setupFaultDisputeGameTest(t)
 	idx := big.NewInt(2)
 	parentIndex := uint32(1)
-	countered := true
+	counteredBy := common.Address{0x01}
+	claimant := common.Address{0x02}
+	bond := big.NewInt(5)
 	value := common.Hash{0xab}
 	position := big.NewInt(2)
 	clock := big.NewInt(1234)
-	stubRpc.SetResponse(fdgAddr, methodClaim, batching.BlockLatest, []interface{}{idx}, []interface{}{parentIndex, countered, value, position, clock})
+	stubRpc.SetResponse(fdgAddr, methodClaim, batching.BlockLatest, []interface{}{idx}, []interface{}{parentIndex, counteredBy, claimant, bond, value, position, clock})
 	status, err := game.GetClaim(context.Background(), idx.Uint64())
 	require.NoError(t, err)
 	require.Equal(t, faultTypes.Claim{
 		ClaimData: faultTypes.ClaimData{
 			Value:    value,
 			Position: faultTypes.NewPositionFromGIndex(position),
+			Bond:     bond,
 		},
-		Countered:           true,
+		CounteredBy:         counteredBy,
+		Claimant:            claimant,
 		Clock:               1234,
 		ContractIndex:       int(idx.Uint64()),
 		ParentContractIndex: 1,
@@ -134,8 +138,10 @@ func TestGetAllClaims(t *testing.T) {
 		ClaimData: faultTypes.ClaimData{
 			Value:    common.Hash{0xaa},
 			Position: faultTypes.NewPositionFromGIndex(big.NewInt(1)),
+			Bond:     big.NewInt(5),
 		},
-		Countered:           true,
+		CounteredBy:         common.Address{0x01},
+		Claimant:            common.Address{0x02},
 		Clock:               1234,
 		ContractIndex:       0,
 		ParentContractIndex: math.MaxUint32,
@@ -144,8 +150,10 @@ func TestGetAllClaims(t *testing.T) {
 		ClaimData: faultTypes.ClaimData{
 			Value:    common.Hash{0xab},
 			Position: faultTypes.NewPositionFromGIndex(big.NewInt(2)),
+			Bond:     big.NewInt(5),
 		},
-		Countered:           true,
+		CounteredBy:         common.Address{0x02},
+		Claimant:            common.Address{0x01},
 		Clock:               4455,
 		ContractIndex:       1,
 		ParentContractIndex: 0,
@@ -154,8 +162,9 @@ func TestGetAllClaims(t *testing.T) {
 		ClaimData: faultTypes.ClaimData{
 			Value:    common.Hash{0xbb},
 			Position: faultTypes.NewPositionFromGIndex(big.NewInt(6)),
+			Bond:     big.NewInt(5),
 		},
-		Countered:           false,
+		Claimant:            common.Address{0x02},
 		Clock:               7777,
 		ContractIndex:       2,
 		ParentContractIndex: 1,
@@ -229,7 +238,9 @@ func expectGetClaim(stubRpc *batchingTest.AbiBasedRpc, claim faultTypes.Claim) {
 		[]interface{}{big.NewInt(int64(claim.ContractIndex))},
 		[]interface{}{
 			uint32(claim.ParentContractIndex),
-			claim.Countered,
+			claim.CounteredBy,
+			claim.Claimant,
+			claim.Bond,
 			claim.Value,
 			claim.Position.ToGIndex(),
 			big.NewInt(int64(claim.Clock)),

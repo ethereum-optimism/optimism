@@ -9,10 +9,11 @@ import "src/libraries/DisputeTypes.sol";
 /// @notice The interface for a fault proof backed dispute game.
 interface IFaultDisputeGame is IDisputeGame {
     /// @notice The `ClaimData` struct represents the data associated with a Claim.
-    /// @dev TODO(clabby): Add bond ID information.
     struct ClaimData {
         uint32 parentIndex;
-        bool countered;
+        address counteredBy;
+        address claimant;
+        uint128 bond;
         Claim claim;
         Position position;
         Clock clock;

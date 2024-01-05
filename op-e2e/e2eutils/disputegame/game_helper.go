@@ -158,7 +158,7 @@ func (g *FaultGameHelper) WaitForClaimAtMaxDepth(ctx context.Context, countered 
 		fmt.Sprintf("Could not find claim depth %v with countered=%v", maxDepth, countered),
 		func(claim ContractClaim) bool {
 			pos := types.NewPositionFromGIndex(claim.Position)
-			return pos.Depth() == maxDepth && claim.Countered == countered
+			return pos.Depth() == maxDepth && (claim.CounteredBy != common.Address{}) == countered
 		})
 }
 
@@ -167,7 +167,7 @@ func (g *FaultGameHelper) WaitForAllClaimsCountered(ctx context.Context) {
 		ctx,
 		"Did not find all claims countered",
 		func(claim ContractClaim) bool {
-			return !claim.Countered
+			return claim.CounteredBy == common.Address{}
 		})
 }
 
@@ -352,7 +352,7 @@ func (g *FaultGameHelper) gameData(ctx context.Context) string {
 
 		pos := types.NewPositionFromGIndex(claim.Position)
 		info = info + fmt.Sprintf("%v - Position: %v, Depth: %v, IndexAtDepth: %v Trace Index: %v, Value: %v, Countered: %v, ParentIndex: %v\n",
-			i, claim.Position.Int64(), pos.Depth(), pos.IndexAtDepth(), pos.TraceIndex(maxDepth), common.Hash(claim.Claim).Hex(), claim.Countered, claim.ParentIndex)
+			i, claim.Position.Int64(), pos.Depth(), pos.IndexAtDepth(), pos.TraceIndex(maxDepth), common.Hash(claim.Claim).Hex(), claim.CounteredBy, claim.ParentIndex)
 	}
 	status, err := g.game.Status(opts)
 	g.require.NoError(err, "Load game status")

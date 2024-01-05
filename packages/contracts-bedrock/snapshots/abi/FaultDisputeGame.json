@@ -102,6 +102,19 @@
   {
     "inputs": [
       {
+        "internalType": "address",
+        "name": "_recipient",
+        "type": "address"
+      }
+    ],
+    "name": "claimCredit",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "uint256",
         "name": "",
         "type": "uint256"
@@ -115,9 +128,19 @@
         "type": "uint32"
       },
       {
-        "internalType": "bool",
-        "name": "countered",
-        "type": "bool"
+        "internalType": "address",
+        "name": "counteredBy",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "claimant",
+        "type": "address"
+      },
+      {
+        "internalType": "uint128",
+        "name": "bond",
+        "type": "uint128"
       },
       {
         "internalType": "Claim",
@@ -159,6 +182,25 @@
         "internalType": "Timestamp",
         "name": "",
         "type": "uint64"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "credit",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",
@@ -271,10 +313,29 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "Position",
+        "name": "_position",
+        "type": "uint128"
+      }
+    ],
+    "name": "getRequiredBond",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "requiredBond_",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "initialize",
     "outputs": [],
-    "stateMutability": "nonpayable",
+    "stateMutability": "payable",
     "type": "function"
   },
   {
@@ -516,6 +577,11 @@
   },
   {
     "inputs": [],
+    "name": "BondTransferFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "CannotDefendRootClaim",
     "type": "error"
   },
@@ -552,6 +618,11 @@
   {
     "inputs": [],
     "name": "GameNotInProgress",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InsufficientBond",
     "type": "error"
   },
   {

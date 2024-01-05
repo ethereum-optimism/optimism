@@ -3,6 +3,7 @@ package responder
 import (
 	"context"
 	"fmt"
+	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
@@ -22,6 +23,7 @@ type GameContract interface {
 	DefendTx(parentContractIndex uint64, pivot common.Hash) (txmgr.TxCandidate, error)
 	StepTx(claimIdx uint64, isAttack bool, stateData []byte, proof []byte) (txmgr.TxCandidate, error)
 	UpdateOracleTx(ctx context.Context, claimIdx uint64, data *types.PreimageOracleData) (txmgr.TxCandidate, error)
+	GetRequiredBond(ctx context.Context, position types.Position) (*big.Int, error)
 }
 
 // FaultResponder implements the [Responder] interface to send onchain transactions.
@@ -87,11 +89,20 @@ func (r *FaultResponder) PerformAction(ctx context.Context, action types.Action)
 	var err error
 	switch action.Type {
 	case types.ActionTypeMove:
+		var movePos types.Position
 		if action.IsAttack {
+			movePos = action.ParentPosition.Attack()
 			candidate, err = r.contract.AttackTx(uint64(action.ParentIdx), action.Value)
 		} else {
+			movePos = action.ParentPosition.Defend()
 			candidate, err = r.contract.DefendTx(uint64(action.ParentIdx), action.Value)
 		}
+
+		bondValue, err := r.contract.GetRequiredBond(ctx, movePos)
+		if err != nil {
+			return err
+		}
+		candidate.Value = bondValue
 	case types.ActionTypeStep:
 		candidate, err = r.contract.StepTx(uint64(action.ParentIdx), action.IsAttack, action.PreState, action.ProofData)
 	}

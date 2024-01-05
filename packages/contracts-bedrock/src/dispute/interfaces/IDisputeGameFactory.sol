@@ -71,6 +71,7 @@ interface IDisputeGameFactory {
         bytes calldata _extraData
     )
         external
+        payable
         returns (IDisputeGame proxy_);
 
     /// @notice Sets the implementation contract for a specific `GameType`.
