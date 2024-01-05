@@ -482,6 +482,24 @@ contract SystemDictator is OwnableUpgradeable {
             revert("SystemDictator: unexpected error initializing L1SB (no reason)");
         }
 
+        // Try to set superchainConfig on the L1StandardBridge, only fail if it's already been set.
+        // Try to initialize the L1StandardBridge, only fail if it's already been initialized.
+        try L1StandardBridge(payable(config.proxyAddressConfig.l1StandardBridgeProxy)).setSuperchainConfig(
+            SuperchainConfig(config.globalConfig.superchainConfig)
+        ) {
+            // L1StandardBridge is the one annoying edge case difference between existing
+            // networks and fresh networks because in existing networks it'll already be
+            // initialized but in fresh networks it won't be. Try/catch is the easiest and most
+            // consistent way to handle this because initialized() is not exposed publicly.
+        } catch Error(string memory reason) {
+            require(
+                keccak256(abi.encodePacked(reason)) == keccak256("SuperchainConfig already set"),
+                string.concat("SystemDictator: unexpected error setting superchainConfig L1SB: ", reason)
+            );
+        } catch {
+            revert("SystemDictator: unexpected error setting superchainConfig L1SB (no reason)");
+        }
+
         // Try to initialize the L1ERC721Bridge, only fail if it's already been initialized.
         try L1ERC721Bridge(payable(config.proxyAddressConfig.l1ERC721BridgeProxy)).initialize(
             SuperchainConfig(config.globalConfig.superchainConfig)
