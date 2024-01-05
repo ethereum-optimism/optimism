@@ -6,7 +6,7 @@ list of each chain's versions. It is assumed that the implementations
 that are being checked have already been deployed and their contract
 addresses exist inside of the `superchain-registry` repository. It is
 also assumed that the semantic version file in the `superchain-registry`
-has been updated. The tool will use output the semantic versioning to
+has been updated. The tool will output the semantic versioning to
 determine which contract versions are deployed.
 
 ### Configuration
