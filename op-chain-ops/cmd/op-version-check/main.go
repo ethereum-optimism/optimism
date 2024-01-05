@@ -31,8 +31,8 @@ func main() {
 	log.Root().SetHandler(log.StreamHandler(os.Stderr, log.TerminalFormat(isatty.IsTerminal(os.Stderr.Fd()))))
 
 	app := &cli.App{
-		Name:  "op-upgrade",
-		Usage: "Build transactions useful for upgrading the Superchain",
+		Name:  "op-version-check",
+		Usage: "Determine which contract versions are deployed for chains in a superchain",
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:    "l1-rpc-url",
@@ -42,16 +42,16 @@ func main() {
 			},
 			&cli.Uint64SliceFlag{
 				Name:  "chain-ids",
-				Usage: "L2 Chain IDs corresponding to chains to upgrade. Corresponds to all chains if empty",
+				Usage: "L2 Chain IDs corresponding to chains to check versions for. Corresponds to all chains if empty",
 			},
 			&cli.StringFlag{
 				Name:    "superchain-target",
-				Usage:   "The name of the superchain to upgrade",
+				Usage:   "The name of the superchain",
 				EnvVars: []string{"SUPERCHAIN_TARGET"},
 			},
 			&cli.PathFlag{
 				Name:     "deploy-config",
-				Usage:    "The path to the deploy config file",
+				Usage:    "The path to the deploy config directory",
 				Required: true,
 				EnvVars:  []string{"DEPLOY_CONFIG"},
 			},
@@ -65,7 +65,7 @@ func main() {
 	}
 
 	if err := app.Run(os.Args); err != nil {
-		log.Crit("error op-upgrade", "err", err)
+		log.Crit("error op-version-check", "err", err)
 	}
 }
 
@@ -93,7 +93,7 @@ func entrypoint(ctx *cli.Context) error {
 	chainIDs := ctx.Uint64Slice("chain-ids")
 	deployConfig := ctx.Path("deploy-config")
 
-	// If no chain IDs are specified, upgrade all chains
+	// If no chain IDs are specified, check all chains
 	if len(chainIDs) == 0 {
 		chainIDs = maps.Keys(superchain.OPChains)
 	}
