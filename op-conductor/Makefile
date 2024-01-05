@@ -20,7 +20,7 @@ generate-mocks:
 	go generate ./...
 
 .PHONY: \
-	clean \
 	op-conductor \
+	clean \
 	test \
 	generate-mocks
