@@ -104,6 +104,8 @@ func entrypoint(ctx *cli.Context) error {
 		return int(i.ChainID) - int(j.ChainID)
 	})
 
+	versions := superchain.ContractVersions{}
+
 	for _, chainConfig := range targets {
 		name, _ := toDeployConfigName(chainConfig)
 		config, err := genesis.NewDeployConfigWithNetwork(name, deployConfig)
@@ -152,7 +154,7 @@ func entrypoint(ctx *cli.Context) error {
 		if !ok {
 			return fmt.Errorf("no addresses for chain ID %d", chainConfig.ChainID)
 		}
-		versions, err := upgrades.GetContractVersions(ctx.Context, addresses, chainConfig, clients.L1Client)
+		versions, err = upgrades.GetContractVersions(ctx.Context, addresses, chainConfig, clients.L1Client)
 		if err != nil {
 			return fmt.Errorf("error getting contract versions: %w", err)
 		}
@@ -166,13 +168,13 @@ func entrypoint(ctx *cli.Context) error {
 		log.Info("SystemConfig", "version", versions.SystemConfig, "address", chainConfig.SystemConfigAddr)
 	}
 
-	// Write the batch to disk or stdout
+	// Write contract versions to disk or stdout
 	if outfile := ctx.Path("outfile"); outfile != "" {
-		if err := writeJSON(outfile, ""); err != nil {
+		if err := writeJSON(outfile, versions); err != nil {
 			return err
 		}
 	} else {
-		data, err := json.MarshalIndent("", "", "  ")
+		data, err := json.MarshalIndent(versions, "", "  ")
 		if err != nil {
 			return err
 		}
