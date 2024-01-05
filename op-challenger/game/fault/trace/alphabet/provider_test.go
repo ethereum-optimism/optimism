@@ -44,7 +44,7 @@ func TestAlphabetProvider_Prestate(t *testing.T) {
 	}
 }
 
-// TestAlphabetProvider_Get_ClaimsByTraceIndex tests the [fault.AlphabetProvider] Get function.
+// TestAlphabetProvider_Get_ClaimsByTraceIndex tests the Get function.
 func TestAlphabetProvider_Get_ClaimsByTraceIndex(t *testing.T) {
 	// Create a new alphabet provider.
 	depth := types.Depth(3)
