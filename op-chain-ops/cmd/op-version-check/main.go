@@ -15,7 +15,6 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/clients"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/upgrades"
 
 	"github.com/ethereum-optimism/superchain-registry/superchain"
@@ -48,12 +47,6 @@ func main() {
 				Name:    "superchain-target",
 				Usage:   "The name of the superchain",
 				EnvVars: []string{"SUPERCHAIN_TARGET"},
-			},
-			&cli.PathFlag{
-				Name:     "deploy-config",
-				Usage:    "The path to the deploy config directory",
-				Required: true,
-				EnvVars:  []string{"DEPLOY_CONFIG"},
 			},
 			&cli.PathFlag{
 				Name:    "outfile",
@@ -91,7 +84,6 @@ func entrypoint(ctx *cli.Context) error {
 	}
 
 	chainIDs := ctx.Uint64Slice("chain-ids")
-	deployConfig := ctx.Path("deploy-config")
 
 	// If no chain IDs are specified, check all chains
 	if len(chainIDs) == 0 {
@@ -113,19 +105,6 @@ func entrypoint(ctx *cli.Context) error {
 	output := []ChainVersionCheck{}
 
 	for _, chainConfig := range targets {
-		name, _ := toDeployConfigName(chainConfig)
-		config, err := genesis.NewDeployConfigWithNetwork(name, deployConfig)
-		if err != nil {
-			log.Warn("Cannot find deploy config for network", "name", chainConfig.Name, "deploy-config-name", name, "path", deployConfig, "err", err)
-		}
-
-		if config != nil {
-			log.Info("Checking deploy config validity", "name", chainConfig.Name)
-			if err := config.Check(); err != nil {
-				return fmt.Errorf("error checking deploy config: %w", err)
-			}
-		}
-
 		clients, err := clients.NewClients(ctx.String("l1-rpc-url"), chainConfig.PublicRPC)
 		if err != nil {
 			return fmt.Errorf("cannot create RPC clients: %w", err)
