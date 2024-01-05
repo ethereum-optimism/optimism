@@ -50,12 +50,13 @@ func (ap *AlphabetTraceProvider) GetStepData(ctx context.Context, pos types.Posi
 		return absolutePrestate, []byte{}, preimageData, nil
 	}
 	// We want the pre-state which is the value prior to the one requested
-	prestateTraceIndex := posIndex.Sub(posIndex, big.NewInt(1))
+	prestateTraceIndex := new(big.Int).Sub(posIndex, big.NewInt(1))
 	if prestateTraceIndex.Cmp(new(big.Int).SetUint64(ap.maxLen)) >= 0 {
 		return nil, nil, nil, fmt.Errorf("%w depth: %v index: %v max: %v", ErrIndexTooLarge, ap.depth, posIndex, ap.maxLen)
 	}
-	claim := BuildAlphabetPreimage(big.NewInt(0), absolutePrestateInt)
-	for i := big.NewInt(0); i.Cmp(posIndex) < 0; i = i.Add(i, big.NewInt(1)) {
+	// First step expands the absolute preimage to its full form. Weird but it's how AlphabetVM works.
+	claim := ap.step(absolutePrestate)
+	for i := big.NewInt(0); i.Cmp(prestateTraceIndex) <= 0; i = i.Add(i, big.NewInt(1)) {
 		claim = ap.step(claim)
 	}
 	return claim, []byte{}, preimageData, nil
@@ -66,7 +67,7 @@ func (ap *AlphabetTraceProvider) step(stateData []byte) []byte {
 	// Decode the stateData into the trace index and claim
 	traceIndex := new(big.Int).SetBytes(stateData[:32])
 	claim := stateData[32:]
-	if bytes.Equal(claim, absolutePrestate) {
+	if bytes.Equal(stateData, absolutePrestate) {
 		initTraceIndex := new(big.Int).Lsh(ap.startingBlockNumber, 4)
 		initClaim := new(big.Int).Add(absolutePrestateInt, initTraceIndex)
 		return BuildAlphabetPreimage(initTraceIndex, initClaim)
