@@ -1084,10 +1084,10 @@
     "impact": "Medium",
     "confidence": "Medium",
     "check": "uninitialized-local",
-    "description": "PreimageOracle.initLargeKeccak256Preimage(uint128,uint64).state (src/cannon/PreimageOracle.sol#130) is a local variable never initialized\n",
+    "description": "PreimageOracle.initLargeKeccak256Preimage(uint128,uint64).state (src/cannon/PreimageOracle.sol#129) is a local variable never initialized\n",
     "type": "variable",
     "name": "state",
-    "start": 5220,
+    "start": 5099,
     "length": 34,
     "filename_relative": "src/cannon/PreimageOracle.sol"
   },

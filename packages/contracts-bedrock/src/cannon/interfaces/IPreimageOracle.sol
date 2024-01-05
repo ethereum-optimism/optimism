@@ -47,4 +47,19 @@ interface IPreimageOracle {
     /// @param _partOffset The offset of the preimage to read.
     /// @param _preimage The preimage data.
     function loadKeccak256PreimagePart(uint256 _partOffset, bytes calldata _preimage) external;
+
+    /// @notice Resets the caller's large pre-image metadata in preparation for beginning the absorption of a new
+    ///         large keccak256 pre-image.
+    /// @param _offset The offset of the preimage part to load into the oracle during absorbtion of the preimage.
+    /// @param _claimedSize The claimed size of the preimage.
+    function initLargeKeccak256Preimage(uint128 _offset, uint64 _claimedSize) external;
+
+    /// @notice Absorbs a part of the caller's large keccak256 pre-image.
+    /// @param _data The pre-image segment to absorb.
+    /// @param _finalize Whether or not to finalize the absorbtion process. If true, the contract will pad the data
+    ///                  passed per the pad10*1 rule.
+    function absorbLargePreimagePart(bytes calldata _data, bool _finalize) external;
+
+    /// @notice Squeezes the caller's large keccak256 pre-image and persists the part into storage.
+    function squeezeLargePreimagePart() external;
 }
