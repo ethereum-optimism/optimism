@@ -1,3 +1,6 @@
+op-version-check:
+	go build -o ./bin/op-version-check ./cmd/op-version-check/main.go
+
 test:
 	go test ./...
 
