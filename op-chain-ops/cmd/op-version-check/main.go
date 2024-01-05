@@ -163,32 +163,6 @@ func entrypoint(ctx *cli.Context) error {
 	return nil
 }
 
-// toDeployConfigName is a temporary function that maps the chain config names
-// to deploy config names. This should be able to be removed in the future
-// with a canonical naming scheme. If an empty string is returned, then
-// it means that the chain is not supported yet.
-func toDeployConfigName(cfg *superchain.ChainConfig) (string, error) {
-	if cfg.Name == "OP-Sepolia" {
-		return "sepolia", nil
-	}
-	if cfg.Name == "OP-Goerli" {
-		return "goerli", nil
-	}
-	if cfg.Name == "PGN" {
-		return "pgn", nil
-	}
-	if cfg.Name == "Zora" {
-		return "zora", nil
-	}
-	if cfg.Name == "OP-Mainnet" {
-		return "mainnet", nil
-	}
-	if cfg.Name == "Zora Goerli" {
-		return "zora-goerli", nil
-	}
-	return "", fmt.Errorf("unsupported chain name %s", cfg.Name)
-}
-
 // toSuperchainName turns a base layer chain id into a superchain
 // network name.
 func toSuperchainName(chainID uint64) (string, error) {
