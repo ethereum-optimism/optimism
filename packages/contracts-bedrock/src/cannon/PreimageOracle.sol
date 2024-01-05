@@ -3,17 +3,31 @@ pragma solidity 0.8.15;
 
 import { IPreimageOracle } from "./interfaces/IPreimageOracle.sol";
 import { PreimageKeyLib } from "./PreimageKeyLib.sol";
+import { LibKeccak } from "@lib-keccak/LibKeccak.sol";
 import "./libraries/CannonErrors.sol";
 
 /// @title PreimageOracle
 /// @notice A contract for storing permissioned pre-images.
 contract PreimageOracle is IPreimageOracle {
+    /// @notice Metadata related to a large pre-image that is currently being absorbed.
+    struct LargePreimageMeta {
+        uint128 offset;
+        uint64 claimedSize;
+        uint64 size;
+        bytes32 preimagePart;
+    }
+
     /// @notice Mapping of pre-image keys to pre-image lengths.
     mapping(bytes32 => uint256) public preimageLengths;
     /// @notice Mapping of pre-image keys to pre-image parts.
     mapping(bytes32 => mapping(uint256 => bytes32)) public preimageParts;
     /// @notice Mapping of pre-image keys to pre-image part offsets.
     mapping(bytes32 => mapping(uint256 => bool)) public preimagePartOk;
+
+    /// @notice Mapping of addresses to large pre-image metadata.
+    mapping(address => LargePreimageMeta) public largePreimageMeta;
+    /// @notice Mapping of addresses to Keccak256 state matrices. Used to submit very large pre-images to the oracle.
+    mapping(address => uint64[25]) public stateMatrices;
 
     /// @inheritdoc IPreimageOracle
     function readPreimage(bytes32 _key, uint256 _offset) external view returns (bytes32 dat_, uint256 datLen_) {
@@ -105,5 +119,117 @@ contract PreimageOracle is IPreimageOracle {
         preimagePartOk[key][_partOffset] = true;
         preimageParts[key][_partOffset] = part;
         preimageLengths[key] = size;
+    }
+
+    /// @notice Resets the caller's large pre-image metadata in preparation for beginning the absorption of a new
+    ///         large keccak256 pre-image.
+    function initLargeKeccak256Preimage(uint128 _offset, uint64 _claimedSize) external {
+        largePreimageMeta[msg.sender] =
+            LargePreimageMeta({ offset: _offset, claimedSize: _claimedSize, size: 0, preimagePart: bytes32(0) });
+
+        LibKeccak.StateMatrix memory state;
+        stateMatrices[msg.sender] = state.state;
+    }
+
+    /// @notice Absorbs a part of the caller's large keccak256 pre-image.
+    function absorbLargePreimagePart(bytes calldata _data, bool _finalize) external {
+        // Revert if the input length is not a multiple of the block size and we're not finalizing the absorbtion.
+        bool isModBlockSize = _data.length % LibKeccak.BLOCK_SIZE_BYTES == 0;
+        if (!(isModBlockSize || _finalize)) revert InvalidInputLength();
+
+        // If we're finalizing the absorbtion, pad the final blocks of input data passed. Otherwise, we've been passed
+        // full block(s) as asserted above, and we copy the data into memory as-is.
+        // MAYBE: Just make `LibKeccak` accept a `bytes memory` rather than a `bytes calldata`?
+        bytes memory data;
+        if (_finalize) {
+            data = LibKeccak.pad(_data);
+        } else {
+            data = _data;
+        }
+
+        uint256 dataPtr;
+        assembly {
+            dataPtr := add(data, 0x20)
+        }
+
+        // Pull the state into memory for the absorbtion.
+        LibKeccak.StateMatrix memory state = LibKeccak.StateMatrix(stateMatrices[msg.sender]);
+
+        // Grab the number of bytes that have already been absorbed.
+        LargePreimageMeta storage preimageMeta = largePreimageMeta[msg.sender];
+        uint256 currentSize = preimageMeta.size;
+        uint256 offset = preimageMeta.offset;
+
+        if (offset < 8 && currentSize == 0) {
+            // In the case that the offset is less than 8, we need to assign the preimage part in a special way. The
+            // first 8 bytes of the preimage data stored in the oracle is the length of the preimage in the form of a
+            // big-endian uint64.
+            uint64 claimedSize = preimageMeta.claimedSize;
+            bytes32 preimagePart;
+            assembly {
+                mstore(0x00, shl(192, claimedSize))
+                mstore(0x08, mload(dataPtr))
+                preimagePart := mload(offset)
+            }
+            preimageMeta.preimagePart = preimagePart;
+        } else if (offset >= currentSize && offset < currentSize + _data.length) {
+            // If the preimage part is in the data we're about to absorb, persist the part to the caller's large
+            // preimaage metadata.
+            bytes32 preimagePart;
+            assembly {
+                preimagePart := mload(add(dataPtr, sub(offset, sub(currentSize, 1))))
+            }
+            preimageMeta.preimagePart = preimagePart;
+        }
+
+        // Absorb the data into the sponge.
+        bytes memory blockBuffer = new bytes(136);
+        for (uint256 i; i < _data.length; i += LibKeccak.BLOCK_SIZE_BYTES) {
+            // Pull the current block into the processing buffer.
+            assembly {
+                let blockPtr := add(dataPtr, i)
+                mstore(add(blockBuffer, 0x20), mload(blockPtr))
+                mstore(add(blockBuffer, 0x40), mload(add(blockPtr, 0x20)))
+                mstore(add(blockBuffer, 0x60), mload(add(blockPtr, 0x40)))
+                mstore(add(blockBuffer, 0x80), mload(add(blockPtr, 0x60)))
+                mstore(add(blockBuffer, 0xA0), and(mload(add(blockPtr, 0x80)), shl(192, 0xFFFFFFFFFFFFFFFF)))
+            }
+
+            LibKeccak.absorb(state, blockBuffer);
+            LibKeccak.permutation(state);
+        }
+
+        // Update the state and metadata.
+        stateMatrices[msg.sender] = state.state;
+        largePreimageMeta[msg.sender].size += uint64(_data.length);
+    }
+
+    /// @notice Squeezes the caller's large keccak256 pre-image and persists the part into storage.
+    function squeezeLargePreimagePart() external {
+        // Pull the state into memory for squeezing
+        LibKeccak.StateMatrix memory state = LibKeccak.StateMatrix(stateMatrices[msg.sender]);
+
+        // Grab the large preimage metadata.
+        LargePreimageMeta memory meta = largePreimageMeta[msg.sender];
+
+        // Revert if the part offset is out of bounds.
+        if (meta.offset > meta.size + 8) revert PartOffsetOOB();
+
+        // Revert if the final size is not equal to the claimed size.
+        if (meta.size != meta.claimedSize) revert InvalidClaimedSize();
+
+        // Squeeze the data out of the sponge.
+        bytes32 finalDigest = LibKeccak.squeeze(state);
+
+        // Compute the preimage key
+        bytes32 key;
+        assembly {
+            key := or(and(finalDigest, not(shl(248, 0xFF))), shl(248, 2))
+        }
+
+        // Store the final preimage part.
+        preimagePartOk[key][meta.offset] = true;
+        preimageParts[key][meta.offset] = meta.preimagePart;
+        preimageLengths[key] = meta.size;
     }
 }

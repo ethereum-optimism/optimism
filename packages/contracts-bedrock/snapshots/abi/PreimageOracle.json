@@ -2,6 +2,76 @@
   {
     "inputs": [
       {
+        "internalType": "bytes",
+        "name": "_data",
+        "type": "bytes"
+      },
+      {
+        "internalType": "bool",
+        "name": "_finalize",
+        "type": "bool"
+      }
+    ],
+    "name": "absorbLargePreimagePart",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint128",
+        "name": "_offset",
+        "type": "uint128"
+      },
+      {
+        "internalType": "uint64",
+        "name": "_claimedSize",
+        "type": "uint64"
+      }
+    ],
+    "name": "initLargeKeccak256Preimage",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "largePreimageMeta",
+    "outputs": [
+      {
+        "internalType": "uint128",
+        "name": "offset",
+        "type": "uint128"
+      },
+      {
+        "internalType": "uint64",
+        "name": "claimedSize",
+        "type": "uint64"
+      },
+      {
+        "internalType": "uint64",
+        "name": "size",
+        "type": "uint64"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "preimagePart",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "uint256",
         "name": "_partOffset",
         "type": "uint256"
@@ -151,6 +221,47 @@
     ],
     "stateMutability": "view",
     "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "squeezeLargePreimagePart",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "stateMatrices",
+    "outputs": [
+      {
+        "internalType": "uint64",
+        "name": "",
+        "type": "uint64"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidClaimedSize",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidInputLength",
+    "type": "error"
   },
   {
     "inputs": [],

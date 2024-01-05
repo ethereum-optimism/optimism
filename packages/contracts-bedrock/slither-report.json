@@ -1080,6 +1080,18 @@
     "filename_relative": "src/dispute/FaultDisputeGame.sol"
   },
   {
+    "id": "c73013d0762e672a682b7a0133b4c28a474d870f622bed69760debf925c8c5ba",
+    "impact": "Medium",
+    "confidence": "Medium",
+    "check": "uninitialized-local",
+    "description": "PreimageOracle.initLargeKeccak256Preimage(uint128,uint64).state (src/cannon/PreimageOracle.sol#130) is a local variable never initialized\n",
+    "type": "variable",
+    "name": "state",
+    "start": 5220,
+    "length": 34,
+    "filename_relative": "src/cannon/PreimageOracle.sol"
+  },
+  {
     "id": "9ad67b006fc175893dd26d35a020a52dd8524709d87cca61212ee0e147eb992b",
     "impact": "Medium",
     "confidence": "High",
