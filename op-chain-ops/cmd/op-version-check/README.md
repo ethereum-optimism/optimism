@@ -35,3 +35,14 @@ be read out of the directory as needed.
 
 The file that the versions should be written to. If omitted, the file
 will be written to stdout.
+
+#### Usage
+
+It can be built and run using the [Makefile](./Makefile) `op-version-check`
+target. Run `make op-version-check` to create a binary in [./bin/op-version-check](./bin/op-version-check)
+that can be executed, optionally providing the `--l1-rpc-url`, `--chain-ids`,
+`--superchain-target`, and `--outfile` flags.
+
+```sh
+./bin/op-version-check
+```
