@@ -496,7 +496,7 @@ contract Deploy is Deployer {
         contracts.L1CrossDomainMessenger = address(messenger);
         ChainAssertions.checkL1CrossDomainMessenger({ _contracts: contracts, _vm: vm, _isProxy: false });
 
-        require(loadInitializedSlot("L1CrossDomainMessenger", false) == 3, "L1CrossDomainMessenger is not initialized");
+        require(loadInitializedSlot("L1CrossDomainMessenger", false) == 1, "L1CrossDomainMessenger is not initialized");
 
         addr_ = address(messenger);
     }
@@ -898,7 +898,7 @@ contract Deploy is Deployer {
         ChainAssertions.checkL1CrossDomainMessenger({ _contracts: _proxies(), _vm: vm, _isProxy: true });
 
         require(
-            loadInitializedSlot("L1CrossDomainMessenger", true) == 3, "L1CrossDomainMessengerProxy is not initialized"
+            loadInitializedSlot("L1CrossDomainMessenger", true) == 1, "L1CrossDomainMessengerProxy is not initialized"
         );
     }
 

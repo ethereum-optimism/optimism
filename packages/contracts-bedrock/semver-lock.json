@@ -12,8 +12,8 @@
     "sourceCodeHash": "0x0c2f8fdc6130397f84d5867000110ef5ee864946cbc159f9b78665c29333b4f7"
   },
   "src/L1/L1CrossDomainMessenger.sol": {
-    "initCodeHash": "0x4310f48243713bfda6d65e301e639a088177892f5e522e22655d80d33abf5210",
-    "sourceCodeHash": "0x093de3f9b2d6bc005e07add6c93ed631f279f925b79867ae9464c1de3d70adbc"
+    "initCodeHash": "0xcbb1feb172f63373310534c8e4f896ca211c7839247816918a87e40a3c641f84",
+    "sourceCodeHash": "0xd7d4435f1b9f27d6d0fb9d89410ce389068083322f7360acc4864d702f5b981f"
   },
   "src/L1/L1ERC721Bridge.sol": {
     "initCodeHash": "0xca27bfb4742b3b44e9adb6018b0917ae3392e67e5f8242ab24828dd37245af16",

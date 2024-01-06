@@ -6,7 +6,6 @@ import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
-import { Constants } from "src/libraries/Constants.sol";
 
 /// @custom:proxied
 /// @title L1CrossDomainMessenger
@@ -35,9 +34,16 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
 
     /// @notice Initializes the contract.
     /// @param _superchainConfig Address of the SuperchainConfig contract on this network.
-    function initialize(SuperchainConfig _superchainConfig) public reinitializer(Constants.INITIALIZER) {
+    function initialize(SuperchainConfig _superchainConfig) public initializer {
         superchainConfig = _superchainConfig;
         __CrossDomainMessenger_init();
+    }
+
+    /// @notice It has already been initialized in existing networks, so we need to override the initializer
+    /// @param _superchainConfig Address of the SuperchainConfig contract on this network.
+    function setSuperchainConfig(SuperchainConfig _superchainConfig) external {
+        require(superchainConfig == SuperchainConfig(address(0)), "SuperchainConfig already set");
+        superchainConfig = _superchainConfig;
     }
 
     /// @notice Getter for the OptimismPortal address.

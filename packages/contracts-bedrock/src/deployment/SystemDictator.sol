@@ -434,6 +434,24 @@ contract SystemDictator is OwnableUpgradeable {
             revert("SystemDictator: unexpected error initializing L1XDM (no reason)");
         }
 
+        // Try to set superchainConfig on the L1CrossDomainMessenger, only fail if it's already been set.
+        // Try to initialize the L1CrossDomainMessenger, only fail if it's already been initialized.
+        try L1CrossDomainMessenger(config.proxyAddressConfig.l1CrossDomainMessengerProxy).setSuperchainConfig(
+            SuperchainConfig(config.globalConfig.superchainConfig)
+        ) {
+            // L1CrossDomainMessenger is the one annoying edge case difference between existing
+            // networks and fresh networks because in existing networks it'll already be
+            // initialized but in fresh networks it won't be. Try/catch is the easiest and most
+            // consistent way to handle this because initialized() is not exposed publicly.
+        } catch Error(string memory reason) {
+            require(
+                keccak256(abi.encodePacked(reason)) == keccak256("SuperchainConfig already set"),
+                string.concat("SystemDictator: unexpected error setting superchainConfig L1XDM: ", reason)
+            );
+        } catch {
+            revert("SystemDictator: unexpected error setting superchainConfig L1XDM (no reason)");
+        }
+
         // Transfer ETH from the L1StandardBridge to the OptimismPortal.
         config.globalConfig.proxyAdmin.upgradeAndCall(
             payable(config.proxyAddressConfig.l1StandardBridgeProxy),
