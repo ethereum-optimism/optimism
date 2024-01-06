@@ -112,11 +112,11 @@ func EcotoneNetworkUpgradeTransactions() ([]hexutil.Bytes, error) {
 	upgradeTxns = append(upgradeTxns, updateGasPriceOracleProxy)
 
 	deployEIP4788, err := types.NewTx(&types.DepositTx{
-		From: eip4788From,
-		// to is null
+		From:                eip4788From,
+		To:                  nil, // contract-deployment tx
 		Mint:                big.NewInt(0),
 		Value:               big.NewInt(0),
-		Gas:                 0x3d090,
+		Gas:                 0x3d090, // hex constant, as defined in EIP-4788
 		Data:                eip4788CreationData,
 		IsSystemTransaction: false,
 		SourceHash:          beaconRootsSource.SourceHash(),

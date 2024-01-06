@@ -46,6 +46,11 @@ func (dep *L1InfoDepositSource) SourceHash() common.Hash {
 	return crypto.Keccak256Hash(domainInput[:])
 }
 
+// UpgradeDepositSource implements the translation of upgrade-tx identity information to a deposit source-hash,
+// which makes the deposit uniquely identifiable.
+// System-upgrade transactions have their own domain for source-hashes,
+// to not conflict with user-deposits or deposited L1 information.
+// The intent identifies the upgrade-tx uniquely, in a human-readable way.
 type UpgradeDepositSource struct {
 	Intent string
 }

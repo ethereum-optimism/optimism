@@ -115,7 +115,7 @@ func setupEcotone(config *DeployConfig, db *state.MemoryStateDB) (*state.MemoryS
 	ecotoneTime := config.EcotoneTime(genesis.Timestamp)
 
 	if ecotoneTime != nil && *ecotoneTime <= genesis.Timestamp {
-		err := setupEcotoneContract(db)
+		err := setup4788Contract(db)
 		if err != nil {
 			return nil, err
 		}
