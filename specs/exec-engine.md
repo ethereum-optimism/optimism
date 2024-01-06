@@ -15,10 +15,13 @@
     - [Pre-Ecotone](#pre-ecotone)
     - [Ecotone L1-Cost fee changes (EIP-4844 DA)](#ecotone-l1-cost-fee-changes-eip-4844-da)
 - [Engine API](#engine-api)
+  - [`engine_forkchoiceUpdatedV2`](#engine_forkchoiceupdatedv2)
+    - [Extended PayloadAttributesV2](#extended-payloadattributesv2)
   - [`engine_forkchoiceUpdatedV3`](#engine_forkchoiceupdatedv3)
     - [Extended PayloadAttributesV3](#extended-payloadattributesv3)
   - [`engine_newPayloadV2`](#engine_newpayloadv2)
   - [`engine_newPayloadV3`](#engine_newpayloadv3)
+  - [`engine_getPayloadV2`](#engine_getpayloadv2)
   - [`engine_getPayloadV3`](#engine_getpayloadv3)
     - [Extended Response](#extended-response)
   - [`engine_signalSuperchainV1`](#engine_signalsuperchainv1)
@@ -180,12 +183,7 @@ ways:
 
 ## Engine API
 
-<!--
-*Note: the [Engine API][l1-api-spec] is in alpha, `v1.0.0-alpha.5`.
-There may be subtle tweaks, beta starts in a few weeks*
--->
-
-### `engine_forkchoiceUpdatedV3`
+### `engine_forkchoiceUpdatedV2`
 
 This updates which L2 blocks the engine considers to be canonical (`forkchoiceState` argument),
 and optionally initiates block production (`payloadAttributes` argument).
@@ -196,6 +194,61 @@ Within the rollup, the types of forkchoice updates translate as:
    Nodes may apply L2 blocks out of band ahead of time, and then reorg when L1 data conflicts.
 - `safeBlockHash`: block hash of the canonical chain, derived from L1 data, unlikely to reorg.
 - `finalizedBlockHash`: irreversible block hash, matches lower boundary of the dispute period.
+
+To support rollup functionality, one backwards-compatible change is introduced
+to [`engine_forkchoiceUpdatedV2`][engine_forkchoiceUpdatedV2]: the extended `PayloadAttributesV2`
+
+#### Extended PayloadAttributesV2
+
+[`PayloadAttributesV2`][PayloadAttributesV2] is extended to:
+
+```js
+PayloadAttributesV2: {
+    timestamp: QUANTITY
+    random: DATA (32 bytes)
+    suggestedFeeRecipient: DATA (20 bytes)
+    withdrawals: array of WithdrawalV1
+    transactions: array of DATA
+    noTxPool: bool
+    gasLimit: QUANTITY or null
+}
+```
+
+The type notation used here refers to the [HEX value encoding] used by the [Ethereum JSON-RPC API
+specification][JSON-RPC-API], as this structure will need to be sent over JSON-RPC. `array` refers
+to a JSON array.
+
+Each item of the `transactions` array is a byte list encoding a transaction: `TransactionType ||
+TransactionPayload` or `LegacyTransaction`, as defined in [EIP-2718][eip-2718].
+This is equivalent to the `transactions` field in [`ExecutionPayloadV2`][ExecutionPayloadV2]
+
+The `transactions` field is optional:
+
+- If empty or missing: no changes to engine behavior. The sequencers will (if enabled) build a block
+  by consuming transactions from the transaction pool.
+- If present and non-empty: the payload MUST be produced starting with this exact list of transactions.
+  The [rollup driver][rollup-driver] determines the transaction list based on deterministic L1 inputs.
+
+The `noTxPool` is optional as well, and extends the `transactions` meaning:
+
+- If `false`, the execution engine is free to pack additional transactions from external sources like the tx pool
+  into the payload, after any of the `transactions`. This is the default behavior a L1 node implements.
+- If `true`, the execution engine must not change anything about the given list of `transactions`.
+
+If the `transactions` field is present, the engine must execute the transactions in order and return `STATUS_INVALID`
+if there is an error processing the transactions. It must return `STATUS_VALID` if all of the transactions could
+be executed without error. **Note**: The state transition rules have been modified such that deposits will never fail
+so if `engine_forkchoiceUpdatedV2` returns `STATUS_INVALID` it is because a batched transaction is invalid.
+
+The `gasLimit` is optional w.r.t. compatibility with L1, but required when used as rollup.
+This field overrides the gas limit used during block-building.
+If not specified as rollup, a `STATUS_INVALID` is returned.
+
+[rollup-driver]: rollup-node.md
+
+### `engine_forkchoiceUpdatedV3`
+
+See [`engine_forkchoiceUpdatedV2`](#engine_forkchoiceUpdatedV2) for a description of the forkchoice updated method.
 
 To support rollup functionality, one backwards-compatible change is introduced
 to [`engine_forkchoiceUpdatedV3`][engine_forkchoiceUpdatedV3]: the extended `PayloadAttributesV3`
@@ -217,42 +270,16 @@ PayloadAttributesV3: {
 }
 ```
 
-The type notation used here refers to the [HEX value encoding] used by the [Ethereum JSON-RPC API
-specification][JSON-RPC-API], as this structure will need to be sent over JSON-RPC. `array` refers
-to a JSON array.
+The requirements of this object are the same as extended [`PayloadAttributesV2`][#extended-payloadattributesv2] with
+the addition of `parentBeaconBlockRoot` which is the parent beacon block root from the L1 origin block of the L2 block.
 
-Each item of the `transactions` array is a byte list encoding a transaction: `TransactionType ||
-TransactionPayload` or `LegacyTransaction`, as defined in [EIP-2718][eip-2718].
-This is equivalent to the `transactions` field in [`ExecutionPayloadV3`][ExecutionPayloadV3]
-
-The `transactions` field is optional:
-
-- If empty or missing: no changes to engine behavior. The sequencers will (if enabled) build a block
-  by consuming transactions from the transaction pool.
-- If present and non-empty: the payload MUST be produced starting with this exact list of transactions.
-  The [rollup driver][rollup-driver] determines the transaction list based on deterministic L1 inputs.
-
-The `noTxPool` is optional as well, and extends the `transactions` meaning:
-
-- If `false`, the execution engine is free to pack additional transactions from external sources like the tx pool
-  into the payload, after any of the `transactions`. This is the default behavior a L1 node implements.
-- If `true`, the execution engine must not change anything about the given list of `transactions`.
-
-If the `transactions` field is present, the engine must execute the transactions in order and return `STATUS_INVALID`
-if there is an error processing the transactions. It must return `STATUS_VALID` if all of the transactions could
-be executed without error. **Note**: The state transition rules have been modified such that deposits will never fail
-so if `engine_forkchoiceUpdatedV3` returns `STATUS_INVALID` it is because a batched transaction is invalid.
-
-The `gasLimit` is optional w.r.t. compatibility with L1, but required when used as rollup.
-This field overrides the gas limit used during block-building.
-If not specified as rollup, a `STATUS_INVALID` is returned.
-
-[rollup-driver]: rollup-node.md
+`parentBeaconBlockRoot` must be nil for Bedrock/Canyon/Delta payloads, but must be set to the L1
+origin `parentBeaconBlockRoot`.
 
 ### `engine_newPayloadV2`
 
-[`engine_newPayloadV2`][engine_newPayloadV2] applies a Bedrock/Canyon L2 block to the engine state.
-There are no modifications to this API.
+No modifications to [`engine_newPayloadV2`][engine_newPayloadV2].
+Applies a L2 block to the engine state.
 
 ### `engine_newPayloadV3`
 
@@ -261,6 +288,11 @@ modifications to this API. The additional parameters should be set as follows:
 
 - `expectedBlobVersionedHashes` MUST be an empty array.
 - `parentBeaconBlockRoot` MUST be the parent beacon block root from the L1 origin block of the L2 block.
+
+### `engine_getPayloadV2`
+
+No modifications to [`engine_getPayloadV2`][engine_getPayloadV2].
+Retrieves a payload by ID, prepared by `engine_forkchoiceUpdatedV2` when called with `payloadAttributes`.
 
 ### `engine_getPayloadV3`
 
@@ -361,9 +393,14 @@ as the engine implementation can sync state faster through methods like [snap-sy
 ### Happy-path sync
 
 1. The rollup node informs the engine of the L2 chain head, unconditionally (part of regular node operation):
-   - [`engine_newPayloadV3`][engine_newPayloadV3] is called with latest L2 block received from P2P.
-   - [`engine_forkchoiceUpdatedV3`][engine_forkchoiceUpdatedV3] is called with the current
-     `unsafe`/`safe`/`finalized` L2 block hashes.
+   - Bedrock / Canyon / Delta Payloads
+      - [`engine_newPayloadV2`][engine_newPayloadV2] is called with latest L2 block received from P2P.
+      - [`engine_forkchoiceUpdatedV2`][engine_forkchoiceUpdatedV2] is called with the current
+        `unsafe`/`safe`/`finalized` L2 block hashes.
+   - Ecotone Payloads
+      - [`engine_newPayloadV3`][engine_newPayloadV3] is called with latest L2 block received from P2P.
+      - [`engine_forkchoiceUpdatedV3`][engine_forkchoiceUpdatedV3] is called with the current
+        `unsafe`/`safe`/`finalized` L2 block hashes.
 2. The engine requests headers from peers, in reverse till the parent hash matches the local chain
 3. The engine catches up:
     a) A form of state sync is activated towards the finalized or head block hash
@@ -378,7 +415,7 @@ the operation within the engine is the exact same as with L1 (although with an E
 2. The rollup node maintains latest head from engine (poll `eth_getBlockByNumber` and/or maintain a header subscription)
 3. The rollup node activates sync if the engine is out of sync but not syncing through P2P (`eth_syncing`)
 4. The rollup node inserts blocks, derived from L1, one by one, potentially adapting to L1 reorg(s),
-   as outlined in the [rollup node spec] (`engine_forkchoiceUpdatedV3`, `engine_newPayloadV3`)
+   as outlined in the [rollup node spec].
 
 [rollup node spec]: rollup-node.md
 
@@ -421,11 +458,14 @@ For the Ecotone upgrade, this entails that:
 [eip-2718-transactions]: https://eips.ethereum.org/EIPS/eip-2718#transactions
 [exec-api-data]: https://github.com/ethereum/execution-apis/blob/769c53c94c4e487337ad0edea9ee0dce49c79bfa/src/engine/specification.md#structures
 [l1-api-spec]: https://github.com/ethereum/execution-apis/blob/769c53c94c4e487337ad0edea9ee0dce49c79bfa/src/engine/specification.md
-[PayloadAttributesV3]: https://github.com/ethereum/execution-apis/blob/a0d03086564ab1838b462befbc083f873dcf0c0f/src/engine/cancun.md#payloadattributesv3
-[ExecutionPayloadV3]: https://github.com/ethereum/execution-apis/blob/a0d03086564ab1838b462befbc083f873dcf0c0f/src/engine/cancun.md#executionpayloadv3
-[engine_forkchoiceUpdatedV3]: https://github.com/ethereum/execution-apis/blob/a0d03086564ab1838b462befbc083f873dcf0c0f/src/engine/cancun.md#engine_forkchoiceupdatedv3
+[PayloadAttributesV3]: https://github.com/ethereum/execution-apis/blob/cea7eeb642052f4c2e03449dc48296def4aafc24/src/engine/cancun.md#payloadattributesv3
+[PayloadAttributesV2]: https://github.com/ethereum/execution-apis/blob/584905270d8ad665718058060267061ecfd79ca5/src/engine/shanghai.md#PayloadAttributesV2
+[ExecutionPayloadV1]: https://github.com/ethereum/execution-apis/blob/769c53c94c4e487337ad0edea9ee0dce49c79bfa/src/engine/specification.md#ExecutionPayloadV1
+[engine_forkchoiceUpdatedV3]: https://github.com/ethereum/execution-apis/blob/cea7eeb642052f4c2e03449dc48296def4aafc24/src/engine/cancun.md#engine_forkchoiceupdatedv3
+[engine_forkchoiceUpdatedV2]: https://github.com/ethereum/execution-apis/blob/584905270d8ad665718058060267061ecfd79ca5/src/engine/shanghai.md#engine_forkchoiceupdatedv2
 [engine_newPayloadV2]: https://github.com/ethereum/execution-apis/blob/584905270d8ad665718058060267061ecfd79ca5/src/engine/shanghai.md#engine_newpayloadv2
-[engine_newPayloadV3]: https://github.com/ethereum/execution-apis/blob/a0d03086564ab1838b462befbc083f873dcf0c0f/src/engine/cancun.md#engine_newpayloadv3
+[engine_newPayloadV3]: https://github.com/ethereum/execution-apis/blob/cea7eeb642052f4c2e03449dc48296def4aafc24/src/engine/cancun.md#engine_newpayloadv3
+[engine_getPayloadV2]: https://github.com/ethereum/execution-apis/blob/584905270d8ad665718058060267061ecfd79ca5/src/engine/shanghai.md#engine_getpayloadv2
 [engine_getPayloadV3]: https://github.com/ethereum/execution-apis/blob/a0d03086564ab1838b462befbc083f873dcf0c0f/src/engine/cancun.md#engine_getpayloadv3
 [HEX value encoding]: https://eth.wiki/json-rpc/API#hex-value-encoding
 [JSON-RPC-API]: https://github.com/ethereum/execution-apis
