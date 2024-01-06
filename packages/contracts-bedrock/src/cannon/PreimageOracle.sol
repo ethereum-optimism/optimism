@@ -146,11 +146,6 @@ contract PreimageOracle is IPreimageOracle {
             data = _data;
         }
 
-        uint256 dataPtr;
-        assembly {
-            dataPtr := add(data, 0x20)
-        }
-
         // Pull the state into memory for the absorbtion.
         LibKeccak.StateMatrix memory state = LibKeccak.StateMatrix(stateMatrices[msg.sender]);
 
@@ -167,23 +162,28 @@ contract PreimageOracle is IPreimageOracle {
             bytes32 preimagePart;
             assembly {
                 mstore(0x00, shl(192, claimedSize))
-                mstore(0x08, mload(dataPtr))
+                mstore(0x08, calldataload(_data.offset))
                 preimagePart := mload(offset)
             }
             preimageMeta.preimagePart = preimagePart;
-        } else if (offset >= currentSize && offset < currentSize + _data.length) {
+        } else if ((offset = offset - 8) >= currentSize && offset < currentSize + _data.length) {
             // If the preimage part is in the data we're about to absorb, persist the part to the caller's large
             // preimaage metadata.
             bytes32 preimagePart;
             assembly {
-                preimagePart := mload(add(dataPtr, sub(offset, sub(currentSize, 1))))
+                preimagePart := calldataload(add(_data.offset, sub(offset, currentSize)))
             }
             preimageMeta.preimagePart = preimagePart;
         }
 
+        uint256 dataPtr;
+        assembly {
+            dataPtr := add(data, 0x20)
+        }
+
         // Absorb the data into the sponge.
         bytes memory blockBuffer = new bytes(136);
-        for (uint256 i; i < _data.length; i += LibKeccak.BLOCK_SIZE_BYTES) {
+        for (uint256 i; i < data.length;) {
             // Pull the current block into the processing buffer.
             assembly {
                 let blockPtr := add(dataPtr, i)
@@ -196,6 +196,10 @@ contract PreimageOracle is IPreimageOracle {
 
             LibKeccak.absorb(state, blockBuffer);
             LibKeccak.permutation(state);
+
+            unchecked {
+                i += LibKeccak.BLOCK_SIZE_BYTES;
+            }
         }
 
         // Update the state and metadata.
