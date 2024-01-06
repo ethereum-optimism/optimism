@@ -190,9 +190,9 @@ contract SystemDictator is OwnableUpgradeable {
      * @param _step Current step.
      */
     modifier step(uint8 _step) {
-        require(!finalized, "SystemDictator: already finalized");
-        require(!exited, "SystemDictator: already exited");
-        require(currentStep == _step, "SystemDictator: incorrect step");
+        require(!finalized, "Already finalized");
+        require(!exited, "Already exited");
+        require(currentStep == _step, "Incorrect step");
         _;
         currentStep++;
     }
@@ -389,7 +389,7 @@ contract SystemDictator is OwnableUpgradeable {
      */
     function step5() public onlyOwner step(5) {
         // Dynamic config must be set before we can initialize the L2OutputOracle.
-        require(dynamicConfigSet, "SystemDictator: dynamic oracle config is not yet initialized");
+        require(dynamicConfigSet, "Dynamic oracle config is not yet initialized");
 
         // Upgrade and initialize the L2OutputOracle.
         config.globalConfig.proxyAdmin.upgradeAndCall(
@@ -428,28 +428,10 @@ contract SystemDictator is OwnableUpgradeable {
         } catch Error(string memory reason) {
             require(
                 keccak256(abi.encodePacked(reason)) == keccak256("Initializable: contract is already initialized"),
-                string.concat("SystemDictator: unexpected error initializing L1XDM: ", reason)
+                string.concat("Unexpected error initializing L1XDM: ", reason)
             );
         } catch {
-            revert("SystemDictator: unexpected error initializing L1XDM (no reason)");
-        }
-
-        // Try to set superchainConfig on the L1CrossDomainMessenger, only fail if it's already been set.
-        // Try to initialize the L1CrossDomainMessenger, only fail if it's already been initialized.
-        try L1CrossDomainMessenger(config.proxyAddressConfig.l1CrossDomainMessengerProxy).setSuperchainConfig(
-            SuperchainConfig(config.globalConfig.superchainConfig)
-        ) {
-            // L1CrossDomainMessenger is the one annoying edge case difference between existing
-            // networks and fresh networks because in existing networks it'll already be
-            // initialized but in fresh networks it won't be. Try/catch is the easiest and most
-            // consistent way to handle this because initialized() is not exposed publicly.
-        } catch Error(string memory reason) {
-            require(
-                keccak256(abi.encodePacked(reason)) == keccak256("SuperchainConfig already set"),
-                string.concat("SystemDictator: unexpected error setting superchainConfig L1XDM: ", reason)
-            );
-        } catch {
-            revert("SystemDictator: unexpected error setting superchainConfig L1XDM (no reason)");
+            revert("Unexpected error initializing L1XDM (no reason)");
         }
 
         // Transfer ETH from the L1StandardBridge to the OptimismPortal.
@@ -494,10 +476,10 @@ contract SystemDictator is OwnableUpgradeable {
         } catch Error(string memory reason) {
             require(
                 keccak256(abi.encodePacked(reason)) == keccak256("Initializable: contract is already initialized"),
-                string.concat("SystemDictator: unexpected error initializing L1SB: ", reason)
+                string.concat("Unexpected error initializing L1SB: ", reason)
             );
         } catch {
-            revert("SystemDictator: unexpected error initializing L1SB (no reason)");
+            revert("Unexpected error initializing L1SB (no reason)");
         }
 
         // Try to set superchainConfig on the L1StandardBridge, only fail if it's already been set.
@@ -512,10 +494,10 @@ contract SystemDictator is OwnableUpgradeable {
         } catch Error(string memory reason) {
             require(
                 keccak256(abi.encodePacked(reason)) == keccak256("SuperchainConfig already set"),
-                string.concat("SystemDictator: unexpected error setting superchainConfig L1SB: ", reason)
+                string.concat("Unexpected error setting superchainConfig L1SB: ", reason)
             );
         } catch {
-            revert("SystemDictator: unexpected error setting superchainConfig L1SB (no reason)");
+            revert("Unexpected error setting superchainConfig L1SB (no reason)");
         }
 
         // Try to initialize the L1ERC721Bridge, only fail if it's already been initialized.
@@ -529,10 +511,10 @@ contract SystemDictator is OwnableUpgradeable {
         } catch Error(string memory reason) {
             require(
                 keccak256(abi.encodePacked(reason)) == keccak256("Initializable: contract is already initialized"),
-                string.concat("SystemDictator: unexpected error initializing L1ERC721Bridge: ", reason)
+                string.concat("Unexpected error initializing L1ERC721Bridge: ", reason)
             );
         } catch {
-            revert("SystemDictator: unexpected error initializing L1ERC721Bridge (no reason)");
+            revert("Unexpected error initializing L1ERC721Bridge (no reason)");
         }
 
         // Try to initialize the ProtocolVersions, only fail if it's already been initialized.
@@ -548,10 +530,10 @@ contract SystemDictator is OwnableUpgradeable {
         } catch Error(string memory reason) {
             require(
                 keccak256(abi.encodePacked(reason)) == keccak256("Initializable: contract is already initialized"),
-                string.concat("SystemDictator: unexpected error initializing ProtocolVersions: ", reason)
+                string.concat("Unexpected error initializing ProtocolVersions: ", reason)
             );
         } catch {
-            revert("SystemDictator: unexpected error initializing ProtocolVersions (no reason)");
+            revert("Unexpected error initializing ProtocolVersions (no reason)");
         }
 
         // Try to initialize the SuperchainConfig, only fail if it's already been initialized.
@@ -560,10 +542,10 @@ contract SystemDictator is OwnableUpgradeable {
         ) { } catch Error(string memory reason) {
             require(
                 keccak256(abi.encodePacked(reason)) == keccak256("Initializable: contract is already initialized"),
-                string.concat("SuperchainConfig: unexpected error initializing ProtocolVersions: ", reason)
+                string.concat("Unexpected error initializing ProtocolVersions: ", reason)
             );
         } catch {
-            revert("SuperchainConfig: unexpected error initializing SuperchainConfig (no reason)");
+            revert("Unexpected error initializing SuperchainConfig (no reason)");
         }
     }
 
@@ -617,7 +599,7 @@ contract SystemDictator is OwnableUpgradeable {
      * @notice First exit point, can only be called before step 3 is executed.
      */
     function exit1() external onlyOwner {
-        require(currentStep == EXIT_1_NO_RETURN_STEP, "SystemDictator: can only exit1 before step 3 is executed");
+        require(currentStep == EXIT_1_NO_RETURN_STEP, "can only exit1 before step 3 is executed");
 
         // Reset the L1CrossDomainMessenger to the old implementation.
         config.globalConfig.addressManager.setAddress("OVM_L1CrossDomainMessenger", oldL1CrossDomainMessenger);

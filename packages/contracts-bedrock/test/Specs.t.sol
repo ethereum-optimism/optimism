@@ -144,7 +144,6 @@ contract Specification_Test is CommonTest {
             _auth: false,
             _pausable: false
         });
-        _addSpec({ _name: "L1CrossDomainMessenger", _sel: _getSel("setSuperchainConfig(address)"), _auth: false, _pausable: false });
 
         // L1ERC721Bridge
         _addSpec({ _name: "L1ERC721Bridge", _sel: _getSel("MESSENGER()"), _auth: false, _pausable: false });
@@ -255,7 +254,12 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "L1StandardBridge", _sel: _getSel("paused()"), _auth: false, _pausable: false });
         _addSpec({ _name: "L1StandardBridge", _sel: _getSel("superchainConfig()"), _auth: false, _pausable: false });
         _addSpec({ _name: "L1StandardBridge", _sel: _getSel("version()"), _auth: false, _pausable: false });
-        _addSpec({ _name: "L1StandardBridge", _sel: _getSel("setSuperchainConfig(address)"), _auth: false, _pausable: false });
+        _addSpec({
+            _name: "L1StandardBridge",
+            _sel: _getSel("setSuperchainConfig(address)"),
+            _auth: false,
+            _pausable: false
+        });
 
         // L2OutputOracle
         _addSpec({ _name: "L2OutputOracle", _sel: _getSel("CHALLENGER()"), _auth: false, _pausable: false });

@@ -1294,10 +1294,41 @@ func ParseFinalizeETHWithdrawal(calldata []byte) (*FinalizeETHWithdrawalParams, 
 // Solidity: function initialize(address _superchainConfig) returns()
 
 // SetSuperchainConfigParams is an auto generated read-only Go binding of transcaction calldata params
+type SetSuperchainConfigParams struct {
+	Param__superchainConfig libcommon.Address
+}
 
 // Parse SetSuperchainConfig method from calldata of a transaction
 //
 // Solidity: function setSuperchainConfig(address _superchainConfig) returns()
+func ParseSetSuperchainConfig(calldata []byte) (*SetSuperchainConfigParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(L1StandardBridgeABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["setSuperchainConfig"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack setSuperchainConfig params data: %w", err)
+	}
+
+	var paramsResult = new(SetSuperchainConfigParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(libcommon.Address)).(*libcommon.Address)
+
+	return &SetSuperchainConfigParams{
+		Param__superchainConfig: out0,
+	}, nil
+}
 
 // Receive is a paid mutator transaction binding the contract receive function.
 //
