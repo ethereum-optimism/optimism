@@ -29,8 +29,8 @@ alphabet-actors:
 	./scripts/alphabet/charlie.sh 'charlie'
 
 .PHONY: \
-	clean \
 	op-challenger \
+	clean \
 	test \
 	visualize \
 	alphabet \

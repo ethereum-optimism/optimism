@@ -38,6 +38,4 @@ generate-mocks:
 	op-node \
 	clean \
 	test \
-	lint \
-	fuzz \
-	generate-mocks
+	fuzz

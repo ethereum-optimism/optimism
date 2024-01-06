@@ -25,15 +25,6 @@ To run op-program unit tests, from within the `op-program` directory run:
 make test
 ```
 
-## Lint
-
-To run the linter, from within the `op-program` directory run:
-```shell
-make lint
-```
-
-This requires having `golangci-lint` installed.
-
 ## Running
 
 From within the `op-program` directory, options can be reviewed with:
