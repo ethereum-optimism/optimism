@@ -17,10 +17,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-conductor/client"
 	"github.com/ethereum-optimism/optimism/op-conductor/consensus"
 	"github.com/ethereum-optimism/optimism/op-conductor/health"
+	conductorrpc "github.com/ethereum-optimism/optimism/op-conductor/rpc"
 	opp2p "github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	opclient "github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 )
 
@@ -93,6 +95,9 @@ func (c *OpConductor) init(ctx context.Context) error {
 	}
 	if err := c.initHealthMonitor(ctx); err != nil {
 		return errors.Wrap(err, "failed to initialize health monitor")
+	}
+	if err := c.initRPCServer(ctx); err != nil {
+		return errors.Wrap(err, "failed to initialize rpc server")
 	}
 	return nil
 }
@@ -175,6 +180,28 @@ func (c *OpConductor) initHealthMonitor(ctx context.Context) error {
 	return nil
 }
 
+func (oc *OpConductor) initRPCServer(ctx context.Context) error {
+	server := oprpc.NewServer(
+		oc.cfg.RPC.ListenAddr,
+		oc.cfg.RPC.ListenPort,
+		oc.version,
+		oprpc.WithLogger(oc.log),
+	)
+	api := conductorrpc.NewAPIBackend(oc.log, oc)
+	server.AddAPI(rpc.API{
+		Namespace: conductorrpc.RPCNamespace,
+		Version:   oc.version,
+		Service:   api,
+	})
+
+	oc.log.Info("starting JSON-RPC server")
+	if err := server.Start(); err != nil {
+		return errors.Wrap(err, "failed to start JSON-RPC server")
+	}
+	oc.rpcServer = server
+	return nil
+}
+
 // OpConductor represents a full conductor instance and its resources, it does:
 //  1. performs health checks on sequencer
 //  2. participate in consensus protocol for leader election
@@ -211,6 +238,8 @@ type OpConductor struct {
 	stopped        atomic.Bool
 	shutdownCtx    context.Context
 	shutdownCancel context.CancelFunc
+
+	rpcServer *oprpc.Server
 }
 
 var _ cliapp.Lifecycle = (*OpConductor)(nil)
@@ -244,6 +273,10 @@ func (oc *OpConductor) Stop(ctx context.Context) error {
 	// close control loop
 	oc.shutdownCancel()
 	oc.wg.Wait()
+
+	if err := oc.rpcServer.Stop(); err != nil {
+		result = multierror.Append(result, errors.Wrap(err, "failed to stop rpc server"))
+	}
 
 	// stop health check
 	if err := oc.hmon.Stop(); err != nil {

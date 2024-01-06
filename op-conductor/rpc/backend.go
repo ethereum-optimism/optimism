@@ -5,20 +5,35 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-conductor/conductor"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
+
+type conductor interface {
+	Pause(ctx context.Context) error
+	Resume(ctx context.Context) error
+	Paused() bool
+	Stopped() bool
+
+	Leader(ctx context.Context) bool
+	LeaderWithID(ctx context.Context) (string, string)
+	AddServerAsVoter(ctx context.Context, id string, addr string) error
+	AddServerAsNonvoter(ctx context.Context, id string, addr string) error
+	RemoveServer(ctx context.Context, id string) error
+	TransferLeader(ctx context.Context) error
+	TransferLeaderToServer(ctx context.Context, id string, addr string) error
+	CommitUnsafePayload(ctx context.Context, payload *eth.ExecutionPayload) error
+}
 
 // APIBackend is the backend implementation of the API.
 type APIBackend struct {
 	log log.Logger
-	con *conductor.OpConductor
+	con conductor
 
 	// TODO (https://github.com/ethereum-optimism/protocol-quest/issues/45) Add metrics tracer here
 }
 
 // NewAPIBackend creates a new APIBackend instance.
-func NewAPIBackend(log log.Logger, con *conductor.OpConductor) *APIBackend {
+func NewAPIBackend(log log.Logger, con conductor) *APIBackend {
 	return &APIBackend{
 		log: log,
 		con: con,
