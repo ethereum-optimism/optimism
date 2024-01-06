@@ -193,7 +193,7 @@ func TestQueue_Send(t *testing.T) {
 					return core.ErrNonceTooLow
 				}
 				txHash := tx.Hash()
-				backend.mine(&txHash, tx.GasFeeCap())
+				backend.mine(&txHash, tx.GasFeeCap(), nil)
 				return nil
 			}
 			backend.setTxSender(sendTx)
