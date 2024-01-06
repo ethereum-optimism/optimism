@@ -149,7 +149,7 @@ func (m *SimpleTxManager) txLogger(tx *types.Transaction, logGas bool) log.Logge
 	if logGas {
 		fields = append(fields, "gasTipCap", tx.GasTipCap(), "gasFeeCap", tx.GasFeeCap(), "gasLimit", tx.Gas())
 	}
-	return m.l.New(fields)
+	return m.l.New(fields...)
 }
 
 // TxCandidate is a transaction candidate that can be submitted to ask the
