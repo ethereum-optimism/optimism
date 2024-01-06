@@ -575,7 +575,6 @@ abstract contract Deployer is Script {
     }
 
     /// @dev Returns the value of the internal `_initialized` storage slot for a given contract.
-    function loadInitializedSlot(string memory _contractName, bool _isProxy) public returns (uint8 initialized_) {
         StorageSlot memory slot = getInitializedSlot(_contractName);
         address addr;
         if (_isProxy) {
