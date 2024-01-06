@@ -193,11 +193,6 @@ func (oc *OpConductor) initRPCServer(ctx context.Context) error {
 		Version:   oc.version,
 		Service:   api,
 	})
-
-	oc.log.Info("starting JSON-RPC server")
-	if err := server.Start(); err != nil {
-		return errors.Wrap(err, "failed to start JSON-RPC server")
-	}
 	oc.rpcServer = server
 	return nil
 }
@@ -250,6 +245,11 @@ func (oc *OpConductor) Start(ctx context.Context) error {
 
 	if err := oc.hmon.Start(); err != nil {
 		return errors.Wrap(err, "failed to start health monitor")
+	}
+
+	oc.log.Info("starting JSON-RPC server")
+	if err := oc.rpcServer.Start(); err != nil {
+		return errors.Wrap(err, "failed to start JSON-RPC server")
 	}
 
 	oc.shutdownCtx, oc.shutdownCancel = context.WithCancel(ctx)

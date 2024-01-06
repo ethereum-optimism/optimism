@@ -25,11 +25,11 @@ type conductor interface {
 }
 
 // APIBackend is the backend implementation of the API.
+// TODO: (https://github.com/ethereum-optimism/protocol-quest/issues/45) Add metrics tracer here.
+// TODO: (https://github.com/ethereum-optimism/protocol-quest/issues/44) add tests after e2e setup.
 type APIBackend struct {
 	log log.Logger
 	con conductor
-
-	// TODO (https://github.com/ethereum-optimism/protocol-quest/issues/45) Add metrics tracer here
 }
 
 // NewAPIBackend creates a new APIBackend instance.
