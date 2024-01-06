@@ -563,25 +563,36 @@ abstract contract Deployer is Script {
     }
 
     /// @dev Returns the value of the internal `_initialized` storage slot for a given contract.
-        StorageSlot memory slot = getInitializedSlot(_contractName);
+    function loadInitializedSlot(string memory _contractName) public returns (uint8 initialized_) {
+        uint256 contractNameLength = bytes(_contractName).length;
         address addr;
-        if (_isProxy) {
-            addr = getAddressImplementation(_contractName);
+        // Check if the contract name ends with `Proxy` and if so, get the implementation address
+        string memory suffix = _substring(_contractName, contractNameLength - 5, contractNameLength);
+        if (bytes(suffix).length == bytes("Proxy").length && keccak256(bytes(suffix)) == keccak256(bytes("Proxy"))) {
+            addr = EIP1967Helper.getImplementation(getAddress(_contractName));
+            _contractName = _substring(_contractName, 0, contractNameLength - 5);
+            // If the EIP1967 implementation address is 0, we try to get the implementation address from legacy
+            // AddressManager, which would work if the proxy is ResolvedDelegateProxy like L1CrossDomainMessengerProxy.
+            if (addr == address(0)) {
+                addr = AddressManager(mustGetAddress("AddressManager")).getAddress(string.concat("OVM_", _contractName));
+            }
         } else {
             addr = mustGetAddress(_contractName);
         }
+        StorageSlot memory slot = getInitializedSlot(_contractName);
         bytes32 slotVal = vm.load(addr, bytes32(vm.parseUint(slot.slot)));
         initialized_ = uint8((uint256(slotVal) >> (slot.offset * 8)) & 0xFF);
     }
 
-    function getAddressImplementation(string memory _contractName) public view returns (address impl) {
-        impl = EIP1967Helper.getImplementation(getAddress(string.concat(_contractName, "Proxy")));
-        if (impl == address(0)) {
-            impl = AddressManager(mustGetAddress("AddressManager")).getAddress(string.concat("OVM_", _contractName));
-        }
-    }
-
-    function substring(string memory str, uint256 startIndex, uint256 endIndex) public pure returns (string memory) {
+    function _substring(
+        string memory str,
+        uint256 startIndex,
+        uint256 endIndex
+    )
+        internal
+        pure
+        returns (string memory)
+    {
         bytes memory strBytes = bytes(str);
         bytes memory result = new bytes(endIndex - startIndex);
         for (uint256 i = startIndex; i < endIndex; i++) {
