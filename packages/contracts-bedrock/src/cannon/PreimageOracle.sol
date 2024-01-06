@@ -166,12 +166,20 @@ contract PreimageOracle is IPreimageOracle {
                 preimagePart := mload(offset)
             }
             preimageMeta.preimagePart = preimagePart;
-        } else if ((offset = offset - 8) >= currentSize && offset < currentSize + _data.length) {
+        } else if (offset >= 8 && (offset = offset - 8) >= currentSize && offset < currentSize + _data.length) {
+            uint256 relativeOffset = offset - currentSize;
+
+            // Revert if the full preimage part is not available in the data we're absorbing. The submitter must
+            // supply data that contains the full preimage part so that no partial preimage parts are stored in the
+            // oracle. Partial parts are *only* allowed at the tail end of the preimage, where no more data is available
+            // to be absorbed.
+            if (relativeOffset + 32 >= _data.length && !_finalize) revert PartOffsetOOB();
+
             // If the preimage part is in the data we're about to absorb, persist the part to the caller's large
             // preimaage metadata.
             bytes32 preimagePart;
             assembly {
-                preimagePart := calldataload(add(_data.offset, sub(offset, currentSize)))
+                preimagePart := calldataload(add(_data.offset, relativeOffset))
             }
             preimageMeta.preimagePart = preimagePart;
         }
