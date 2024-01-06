@@ -596,14 +596,15 @@ abstract contract Deployer is Script {
         initialized_ = uint8((uint256(slotVal) >> (slot.offset * 8)) & 0xFF);
     }
 
-    function getAddressImplementation(string memory _contractName) public view returns (address impl) {
-        impl = EIP1967Helper.getImplementation(getAddress(string.concat(_contractName, "Proxy")));
-        if (impl == address(0)) {
-            impl = AddressManager(mustGetAddress("AddressManager")).getAddress(string.concat("OVM_", _contractName));
-        }
-    }
-
-    function substring(string memory str, uint256 startIndex, uint256 endIndex) public pure returns (string memory) {
+    function _substring(
+        string memory str,
+        uint256 startIndex,
+        uint256 endIndex
+    )
+        internal
+        pure
+        returns (string memory)
+    {
         bytes memory strBytes = bytes(str);
         bytes memory result = new bytes(endIndex - startIndex);
         for (uint256 i = startIndex; i < endIndex; i++) {
