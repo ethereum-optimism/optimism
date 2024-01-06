@@ -7,6 +7,8 @@ import { console2 as console } from "forge-std/console2.sol";
 import { Executables } from "scripts/Executables.sol";
 import { Chains } from "scripts/Chains.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
+import { AddressManager } from "src/legacy/AddressManager.sol";
 
 /// @notice store the new deployment to be saved
 struct Deployment {
@@ -575,11 +577,30 @@ abstract contract Deployer is Script {
     /// @dev Returns the value of the internal `_initialized` storage slot for a given contract.
     function loadInitializedSlot(string memory _contractName, bool _isProxy) public returns (uint8 initialized_) {
         StorageSlot memory slot = getInitializedSlot(_contractName);
+        address addr;
         if (_isProxy) {
-            _contractName = string.concat(_contractName, "Proxy");
+            addr = getAddressImplementation(_contractName);
+        } else {
+            addr = mustGetAddress(_contractName);
         }
-        bytes32 slotVal = vm.load(mustGetAddress(_contractName), bytes32(vm.parseUint(slot.slot)));
+        bytes32 slotVal = vm.load(addr, bytes32(vm.parseUint(slot.slot)));
         initialized_ = uint8((uint256(slotVal) >> (slot.offset * 8)) & 0xFF);
+    }
+
+    function getAddressImplementation(string memory _contractName) public view returns (address impl) {
+        impl = EIP1967Helper.getImplementation(getAddress(string.concat(_contractName, "Proxy")));
+        if (impl == address(0)) {
+            impl = AddressManager(mustGetAddress("AddressManager")).getAddress(string.concat("OVM_", _contractName));
+        }
+    }
+
+    function substring(string memory str, uint256 startIndex, uint256 endIndex) public pure returns (string memory) {
+        bytes memory strBytes = bytes(str);
+        bytes memory result = new bytes(endIndex - startIndex);
+        for (uint256 i = startIndex; i < endIndex; i++) {
+            result[i - startIndex] = strBytes[i];
+        }
+        return string(result);
     }
 
     /// @notice Adds a deployment to the temp deployments file
