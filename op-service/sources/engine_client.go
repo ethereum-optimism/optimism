@@ -158,3 +158,15 @@ func (s *EngineClient) DiskSaveFileDataWithHash(ctx context.Context, hash common
 	err := s.client.CallContext(ctx, &result, "eth_diskSaveFileDataWithHash", hash)
 	return result, err
 }
+
+func (s *EngineClient) ChangeCurrentState(ctx context.Context, state uint64, blockNr rpc.BlockNumber) (bool, error) {
+	var result bool
+	err := s.client.CallContext(ctx, &result, "eth_changeCurrentState", state, blockNr)
+	return result, err
+}
+
+func (s *EngineClient) BatchFileDataByHashes(ctx context.Context, hashes rpc.TxHashes) (*rpc.Result, error) {
+	var result *rpc.Result
+	err := s.client.CallContext(ctx, &result, "eth_batchFileDataByHashes", hashes)
+	return result, err
+}

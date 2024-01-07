@@ -8,13 +8,14 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rpc"
 	"sync"
 	"time"
 )
 
-type DAHash struct {
-	hash  common.Hash
-	count uint64
+type DABlockInfo struct {
+	rpc.TxHashes
+	Height uint64
 }
 type DAManager struct {
 	log               log.Logger
@@ -22,8 +23,8 @@ type DAManager struct {
 	wg                sync.WaitGroup
 	shutdownCtx       context.Context
 	cancelShutdownCtx context.CancelFunc
-	hashCh            chan common.Hash
-	daHashes          map[common.Hash]uint8
+	hashCh            chan *DABlockInfo
+	daHashes          map[*DABlockInfo]uint8
 
 	TxMgr        *txmgr.SimpleTxManager
 	RollupConfig *rollup.Config
@@ -38,8 +39,8 @@ func NewDAManager(log log.Logger, rollup *rollup.Config, engine Engine, txmgr *t
 		TxMgr:        txmgr,
 		RollupConfig: rollup,
 		IsBroadcast:  isBroadcast,
-		hashCh:       make(chan common.Hash),
-		daHashes:     make(map[common.Hash]uint8),
+		hashCh:       make(chan *DABlockInfo),
+		daHashes:     make(map[*DABlockInfo]uint8),
 	}
 }
 
@@ -88,9 +89,13 @@ func (d *DAManager) Start() bool {
 	return true
 }
 
-func (d *DAManager) SendDaHash(hash common.Hash) bool {
+func (d *DAManager) SendDaHash(hash *DABlockInfo) bool {
 	d.hashCh <- hash
 	return true
+}
+
+func (d *DAManager) ChangeCurrentState(stats uint64, number uint64) {
+	d.engine.ChangeCurrentState(d.shutdownCtx, stats, rpc.BlockNumber(number))
 }
 
 func (d *DAManager) loop() {
@@ -119,19 +124,34 @@ func (d *DAManager) getDA() {
 	if len(d.daHashes) < 1 {
 		return
 	}
-	for hash, count := range d.daHashes {
+	for block, count := range d.daHashes {
 
-		data, err := d.engine.GetFileDataByHash(d.shutdownCtx, hash)
+		data, err := d.engine.BatchFileDataByHashes(d.shutdownCtx, block.TxHashes)
 		if err != nil {
-			log.Error("getDA", "hash", hash.Hex(), "err", err)
-			d.daHashes[hash] = count + 1
-			if count == 5 {
-				delete(d.daHashes, hash)
-			}
+			log.Error("getDA", "height", block.Height, "err", err)
 		} else {
-			d.engine.DiskSaveFileDataWithHash(d.shutdownCtx, hash)
-			log.Info("getDA true", "hash", hash.Hex(), "data", data)
-			delete(d.daHashes, hash)
+			filteredHashes := make([]common.Hash, 0)
+			for i, exists := range data.Flags {
+				hash := block.TxHashes.TxHashes[i]
+				if exists {
+					d.engine.DiskSaveFileDataWithHash(d.shutdownCtx, hash)
+
+				} else {
+					filteredHashes = append(filteredHashes, hash)
+				}
+			}
+			block.TxHashes.TxHashes = filteredHashes
+		}
+		d.daHashes[block] = count + 1
+		if count == 5 {
+			log.Info("block processed timeout", "helght", block.Height)
+			d.engine.ChangeCurrentState(d.shutdownCtx, 3, rpc.BlockNumber(block.Height))
+			delete(d.daHashes, block)
+		}
+		if len(block.TxHashes.TxHashes) == 0 {
+			log.Info("block processed", "helght", block.Height)
+			d.engine.ChangeCurrentState(d.shutdownCtx, 2, rpc.BlockNumber(block.Height))
+			delete(d.daHashes, block)
 		}
 	}
 }

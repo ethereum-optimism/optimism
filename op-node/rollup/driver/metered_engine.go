@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/rpc"
 	"time"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -110,4 +111,12 @@ func (m *MeteredEngine) GetFileDataByHash(ctx context.Context, hash common.Hash)
 
 func (m *MeteredEngine) DiskSaveFileDataWithHash(ctx context.Context, hash common.Hash) (bool, error) {
 	return m.inner.DiskSaveFileDataWithHash(ctx, hash)
+}
+
+func (m *MeteredEngine) ChangeCurrentState(ctx context.Context, state uint64, blockNr rpc.BlockNumber) (bool, error) {
+	return m.inner.ChangeCurrentState(ctx, state, blockNr)
+}
+
+func (m *MeteredEngine) BatchFileDataByHashes(ctx context.Context, hashes rpc.TxHashes) (*rpc.Result, error) {
+	return m.inner.BatchFileDataByHashes(ctx, hashes)
 }

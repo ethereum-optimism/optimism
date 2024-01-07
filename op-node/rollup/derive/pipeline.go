@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/rpc"
 	"io"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -219,6 +220,14 @@ func (dp *DerivationPipeline) GetFileDataByHash(ctx context.Context, hash common
 
 func (dp *DerivationPipeline) DiskSaveFileDataWithHash(ctx context.Context, hash common.Hash) (bool, error) {
 	return dp.eng.DiskSaveFileDataWithHash(ctx, hash)
+}
+
+func (dp *DerivationPipeline) ChangeCurrentState(ctx context.Context, state uint64, blockNr rpc.BlockNumber) (bool, error) {
+	return dp.eng.ChangeCurrentState(ctx, state, blockNr)
+}
+
+func (dp *DerivationPipeline) BatchFileDataByHashes(ctx context.Context, hashes rpc.TxHashes) (*rpc.Result, error) {
+	return dp.eng.BatchFileDataByHashes(ctx, hashes)
 }
 
 // Step tries to progress the buffer.

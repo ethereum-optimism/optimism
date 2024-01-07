@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/metrics"
 	txmetrics "github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/rpc"
 	"io"
 	"time"
 
@@ -56,6 +57,8 @@ type EngineDAState interface {
 	UploadFileDataByParams(ctx context.Context, index, length uint64, broadcaster, user common.Address, commitment, sign, data []byte, hash common.Hash) (bool, error)
 	GetFileDataByHash(ctx context.Context, hash common.Hash) (ethclient.RPCFileData, error)
 	DiskSaveFileDataWithHash(ctx context.Context, hash common.Hash) (bool, error)
+	ChangeCurrentState(ctx context.Context, state uint64, blockNr rpc.BlockNumber) (bool, error)
+	BatchFileDataByHashes(ctx context.Context, hashes rpc.TxHashes) (*rpc.Result, error)
 }
 
 type EngineDA interface {
@@ -891,4 +894,12 @@ func (eq *EngineQueue) SendDA(ctx context.Context, index, length uint64, broadca
 
 func (eq *EngineQueue) Broadcaster(ctx context.Context) (common.Address, error) {
 	return eq.daMgr.Broadcaster(ctx)
+}
+
+func (eq *EngineQueue) ChangeCurrentState(ctx context.Context, state uint64, blockNr rpc.BlockNumber) (bool, error) {
+	return eq.engine.ChangeCurrentState(ctx, state, blockNr)
+}
+
+func (eq *EngineQueue) BatchFileDataByHashes(ctx context.Context, hashes rpc.TxHashes) (*rpc.Result, error) {
+	return eq.engine.BatchFileDataByHashes(ctx, hashes)
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -53,6 +54,11 @@ func sanityCheckPayload(payload *eth.ExecutionPayload, daMgr *DAManager) error {
 		return fmt.Errorf("failed to find last deposit: %w", err)
 	}
 	// Ensure no deposits after last deposit
+	daBlosk := DABlockInfo{
+		TxHashes: rpc.TxHashes{},
+		Height:   uint64(payload.BlockNumber),
+	}
+
 	for i := lastDeposit + 1; i < len(payload.Transactions); i++ {
 		tx := payload.Transactions[i]
 		deposit, err := isDepositTx(tx)
@@ -62,8 +68,7 @@ func sanityCheckPayload(payload *eth.ExecutionPayload, daMgr *DAManager) error {
 			if err = submixTx.UnmarshalBinary(tx); err != nil {
 				return fmt.Errorf("failed to decode transaction idx %d: %w", i, err)
 			}
-			log.Info("daMgr", "tx", submixTx)
-			daMgr.SendDaHash(submixTx.SourceHash())
+			daBlosk.TxHashes.TxHashes = append(daBlosk.TxHashes.TxHashes, submixTx.SourceHash())
 		}
 		if err != nil {
 			return fmt.Errorf("failed to decode transaction idx %d: %w", i, err)
@@ -71,6 +76,12 @@ func sanityCheckPayload(payload *eth.ExecutionPayload, daMgr *DAManager) error {
 		if deposit {
 			return fmt.Errorf("deposit tx (%d) after other tx in l2 block with prev deposit at idx %d", i, lastDeposit)
 		}
+	}
+	if len(daBlosk.TxHashes.TxHashes) > 0 {
+		daMgr.ChangeCurrentState(0, uint64(payload.BlockNumber))
+		daMgr.SendDaHash(&daBlosk)
+	} else {
+		daMgr.ChangeCurrentState(1, uint64(payload.BlockNumber))
 	}
 	return nil
 }
