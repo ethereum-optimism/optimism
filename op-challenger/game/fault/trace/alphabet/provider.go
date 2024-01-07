@@ -1,7 +1,6 @@
 package alphabet
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -45,38 +44,20 @@ func NewTraceProvider(startingBlockNumber *big.Int, depth types.Depth) *Alphabet
 }
 
 func (ap *AlphabetTraceProvider) GetStepData(ctx context.Context, pos types.Position) ([]byte, []byte, *types.PreimageOracleData, error) {
-	posIndex := pos.TraceIndex(ap.depth)
+	traceIndex := pos.TraceIndex(ap.depth)
 	key := preimage.LocalIndexKey(L2ClaimBlockNumberLocalIndex).PreimageKey()
 	preimageData := types.NewPreimageOracleData(key[:], ap.startingBlockNumber.Bytes(), 0)
-	if posIndex.Cmp(common.Big0) == 0 {
+	if traceIndex.Cmp(common.Big0) == 0 {
 		return absolutePrestate, []byte{}, preimageData, nil
 	}
-	// We want the pre-state which is the value prior to the one requested
-	prestateTraceIndex := new(big.Int).Sub(posIndex, big.NewInt(1))
-	if prestateTraceIndex.Cmp(new(big.Int).SetUint64(ap.maxLen)) >= 0 {
-		return nil, nil, nil, fmt.Errorf("%w depth: %v index: %v max: %v", ErrIndexTooLarge, ap.depth, posIndex, ap.maxLen)
+	if traceIndex.Cmp(new(big.Int).SetUint64(ap.maxLen)) > 0 {
+		return nil, nil, nil, fmt.Errorf("%w depth: %v index: %v max: %v", ErrIndexTooLarge, ap.depth, traceIndex, ap.maxLen)
 	}
-	// First step expands the absolute preimage to its full form. Weird but it's how AlphabetVM works.
-	claim := ap.step(absolutePrestate)
-	for i := big.NewInt(0); i.Cmp(prestateTraceIndex) <= 0; i = i.Add(i, big.NewInt(1)) {
-		claim = ap.step(claim)
-	}
-	return claim, []byte{}, preimageData, nil
-}
-
-// step accepts the trace index and claim and returns the stepped trace index and claim.
-func (ap *AlphabetTraceProvider) step(stateData []byte) []byte {
-	// Decode the stateData into the trace index and claim
-	traceIndex := new(big.Int).SetBytes(stateData[:32])
-	claim := stateData[32:]
-	if bytes.Equal(stateData, absolutePrestate) {
-		initTraceIndex := new(big.Int).Lsh(ap.startingBlockNumber, 4)
-		initClaim := new(big.Int).Add(absolutePrestateInt, initTraceIndex)
-		return BuildAlphabetPreimage(initTraceIndex, initClaim)
-	}
-	stepTraceIndex := new(big.Int).Add(traceIndex, big.NewInt(1))
-	stepClaim := new(big.Int).Add(new(big.Int).SetBytes(claim), big.NewInt(1))
-	return BuildAlphabetPreimage(stepTraceIndex, stepClaim)
+	initialTraceIndex := new(big.Int).Lsh(ap.startingBlockNumber, 4)
+	initialClaim := new(big.Int).Add(absolutePrestateInt, initialTraceIndex)
+	newTraceIndex := new(big.Int).Add(initialTraceIndex, traceIndex)
+	newClaim := new(big.Int).Add(initialClaim, traceIndex)
+	return BuildAlphabetPreimage(newTraceIndex, newClaim), []byte{}, preimageData, nil
 }
 
 // Get returns the claim value at the given index in the trace.
