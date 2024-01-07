@@ -23,7 +23,7 @@ import { Constants } from "src/libraries/Constants.sol";
 contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     /// @notice Represents a proven withdrawal.
     /// @custom:field outputRoot    Root of the L2 output this was proven against.
-    /// @custom:field timestamp     Timestamp at whcih the withdrawal was proven.
+    /// @custom:field timestamp     Timestamp at which the withdrawal was proven.
     /// @custom:field l2OutputIndex Index of the output this was proven against.
     struct ProvenWithdrawal {
         bytes32 outputRoot;
