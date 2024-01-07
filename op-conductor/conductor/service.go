@@ -518,6 +518,9 @@ func (oc *OpConductor) startSequencer() error {
 	// When starting sequencer, we need to make sure that the current node has the latest unsafe head from the consensus protocol
 	// If not, then we wait for the unsafe head to catch up or gossip it to op-node manually from op-conductor.
 	unsafeInCons := oc.cons.LatestUnsafePayload()
+	if unsafeInCons == nil {
+		return errors.New("failed to get latest unsafe block from consensus")
+	}
 	unsafeInNode, err := oc.ctrl.LatestUnsafeBlock(context.Background())
 	if err != nil {
 		return errors.Wrap(err, "failed to get latest unsafe block from EL during startSequencer phase")
@@ -534,7 +537,7 @@ func (oc *OpConductor) startSequencer() error {
 
 		if uint64(unsafeInCons.BlockNumber)-unsafeInNode.NumberU64() == 1 {
 			// tries to post the unsafe head to op-node when head is only 1 block behind (most likely due to gossip delay)
-			if err = oc.ctrl.PostUnsafePayload(context.Background(), &unsafeInCons); err != nil {
+			if err = oc.ctrl.PostUnsafePayload(context.Background(), unsafeInCons); err != nil {
 				oc.log.Error("failed to post unsafe head payload to op-node", "err", err)
 			}
 		}
