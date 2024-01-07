@@ -75,10 +75,7 @@ contract FPACOPS is Deploy, StdAssertions {
         address dgfProxyAddr = mustGetAddress("DisputeGameFactoryProxy");
         DisputeGameFactory dgfProxy = DisputeGameFactory(dgfProxyAddr);
         assertEq(dgfProxy.owner(), proxyAdmin);
-
-        if (address(uint160(uint256(vm.load(dgfProxyAddr, Constants.PROXY_OWNER_ADDRESS)))) != proxyAdmin) {
-            revert("DisputeGameFactoryProxy owner is not the deployer");
-        }
+        assertEq(address(uint160(uint256(vm.load(dgfProxyAddr, Constants.PROXY_OWNER_ADDRESS)))), proxyAdmin);
 
         // Check the config elements.
         FaultDisputeGame gameImpl = FaultDisputeGame(address(dgfProxy.gameImpls(GameTypes.CANNON)));
