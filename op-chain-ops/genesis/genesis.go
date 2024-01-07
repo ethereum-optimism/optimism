@@ -65,6 +65,7 @@ func NewL2Genesis(config *DeployConfig, block *types.Block) (*core.Genesis, erro
 		CanyonTime:                    config.CanyonTime(block.Time()),
 		ShanghaiTime:                  config.CanyonTime(block.Time()),
 		CancunTime:                    config.EcotoneTime(block.Time()),
+		EcotoneTime:                   config.EcotoneTime(block.Time()),
 		InteropTime:                   config.InteropTime(block.Time()),
 		Optimism: &params.OptimismConfig{
 			EIP1559Denominator:       eip1559Denom,
@@ -154,6 +155,7 @@ func NewL1Genesis(config *DeployConfig) (*core.Genesis, error) {
 		chainConfig.TerminalTotalDifficulty = big.NewInt(0)
 		chainConfig.TerminalTotalDifficultyPassed = true
 		chainConfig.ShanghaiTime = u64ptr(0)
+		chainConfig.CancunTime = u64ptr(0)
 	}
 
 	gasLimit := config.L1GenesisBlockGasLimit

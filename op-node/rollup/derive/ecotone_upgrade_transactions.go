@@ -47,7 +47,7 @@ func EcotoneNetworkUpgradeTransactions() ([]hexutil.Bytes, error) {
 		From:                l1BlockDeployerAddress,
 		To:                  nil,
 		Value:               nil,
-		Gas:                 300_000,
+		Gas:                 350_000,
 		IsSystemTransaction: false,
 		Data:                common.FromHex(bindings.L1BlockMetaData.Bin),
 	}).MarshalBinary()
@@ -63,7 +63,7 @@ func EcotoneNetworkUpgradeTransactions() ([]hexutil.Bytes, error) {
 		From:                gasPriceOracleDeployerAddress,
 		To:                  nil,
 		Value:               nil,
-		Gas:                 500_000,
+		Gas:                 920_000,
 		IsSystemTransaction: false,
 		Data:                common.FromHex(bindings.GasPriceOracleMetaData.Bin),
 	}).MarshalBinary()

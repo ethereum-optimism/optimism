@@ -2,7 +2,6 @@ package genesis
 
 import (
 	"errors"
-	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -10,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/immutables"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/state"
 	"github.com/ethereum-optimism/optimism/op-service/eth"

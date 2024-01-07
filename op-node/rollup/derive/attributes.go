@@ -139,6 +139,14 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 		withdrawals = &types.Withdrawals{}
 	}
 
+	var parentBeaconRoot *common.Hash
+	if ba.rollupCfg.IsEcotone(nextL2Time) {
+		parentBeaconRoot = l1Info.ParentBeaconRoot()
+		if parentBeaconRoot == nil {
+			return nil, NewCriticalError(fmt.Errorf("cannot build Ecotone (L2 Dencun) block without L1 Dencun info, at L2 timestamp %d", nextL2Time))
+		}
+	}
+
 	return &eth.PayloadAttributes{
 		Timestamp:             hexutil.Uint64(nextL2Time),
 		PrevRandao:            eth.Bytes32(l1Info.MixDigest()),
@@ -147,6 +155,6 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 		NoTxPool:              true,
 		GasLimit:              (*eth.Uint64Quantity)(&sysConfig.GasLimit),
 		Withdrawals:           withdrawals,
-		ParentBeaconBlockRoot: l1Info.ParentBeaconRoot(),
+		ParentBeaconBlockRoot: parentBeaconRoot,
 	}, nil
 }

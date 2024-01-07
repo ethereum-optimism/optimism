@@ -2,31 +2,31 @@ package actions
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
-	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
-	offset := hexutil.Uint64(0)
+	genesisBlock := hexutil.Uint64(0)
 	ecotoneOffset := hexutil.Uint64(2)
-	dp.DeployConfig.L2GenesisCanyonTimeOffset = &offset
-	dp.DeployConfig.L2GenesisDeltaTimeOffset = &offset
+	dp.DeployConfig.L2GenesisCanyonTimeOffset = &genesisBlock
+	dp.DeployConfig.L2GenesisDeltaTimeOffset = &genesisBlock
 	dp.DeployConfig.L2GenesisEcotoneTimeOffset = &ecotoneOffset
 
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
@@ -54,15 +54,13 @@ func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 
 	transactions := latestBlock.Transactions()
 
-	// L1Block: setInfo + 2 deploys + 2 upgradeTo
-	require.Equal(t, 5, len(transactions))
+	// L1Block: setInfo + 2 deploys + 2 upgradeTo + 1 4788 deploy
+	require.Equal(t, 6, len(transactions))
 
 	// All transactions are successful
 	for i := 1; i < 5; i++ {
 		txn := transactions[i]
 		receipt, err := engine.EthClient().TransactionReceipt(context.Background(), txn.Hash())
-		fmt.Println("transaction", i, receipt.GasUsed)
-		fmt.Println("transaction", i, receipt.CumulativeGasUsed)
 		require.NoError(t, err)
 		require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status)
 	}
