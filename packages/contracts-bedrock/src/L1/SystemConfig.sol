@@ -18,7 +18,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @custom:value GAS_LIMIT            Represents an update to gas limit on L2.
     /// @custom:value UNSAFE_BLOCK_SIGNER  Represents an update to the signer key for unsafe
     /// @custom:value GAS_CONFIG_ECOTONE   Represents an update to txn fee config on L2 after Ecotone upgrade.
-    ///                                    block distrubution.
+    ///                                    block distribution.
     enum UpdateType {
         BATCHER,
         GAS_CONFIG,
