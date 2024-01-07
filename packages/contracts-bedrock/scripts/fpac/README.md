@@ -37,5 +37,5 @@ just upgrade-game-impl <chain-name> <dgf-proxy-address> <vm-address> [--broadcas
 *Description*: Updates the initialization bond for a given game type in the `DisputeGameFactory` that was deployed for the passed `chain-name`. All args after the `chain-name` are forwarded to `forge script`.
 
 ```sh
-just upgrade-game-impl <chain-name> <dgf-proxy-address> <game-type> <new-init-bond> [--broadcast]
+just update-init-bond <chain-name> <dgf-proxy-address> <game-type> <new-init-bond> [--broadcast]
 ```
