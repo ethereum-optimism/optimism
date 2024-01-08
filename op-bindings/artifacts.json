@@ -42,7 +42,9 @@
     "DelayedVetoable",
     "ISemver",
     "StorageSetter",
-    "SuperchainConfig"
+    "SuperchainConfig",
+    "CrossL2Inbox",
+    "CrossL2Outbox"
   ],
   "remote": [
     {
