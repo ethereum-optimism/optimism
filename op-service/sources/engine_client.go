@@ -153,9 +153,9 @@ func (s *EngineClient) GetFileDataByHash(ctx context.Context, hash common.Hash) 
 	return result, err
 }
 
-func (s *EngineClient) DiskSaveFileDataWithHash(ctx context.Context, hash common.Hash) (bool, error) {
+func (s *EngineClient) BatchSaveFileDataWithHashes(ctx context.Context, hashes rpc.TxHashes) (bool, error) {
 	var result bool
-	err := s.client.CallContext(ctx, &result, "eth_diskSaveFileDataWithHash", hash)
+	err := s.client.CallContext(ctx, &result, "eth_batchSaveFileDataWithHashes", hashes)
 	return result, err
 }
 

@@ -218,8 +218,8 @@ func (dp *DerivationPipeline) GetFileDataByHash(ctx context.Context, hash common
 	return dp.eng.GetFileDataByHash(ctx, hash)
 }
 
-func (dp *DerivationPipeline) DiskSaveFileDataWithHash(ctx context.Context, hash common.Hash) (bool, error) {
-	return dp.eng.DiskSaveFileDataWithHash(ctx, hash)
+func (dp *DerivationPipeline) BatchSaveFileDataWithHashes(ctx context.Context, hashes rpc.TxHashes) (bool, error) {
+	return dp.eng.BatchSaveFileDataWithHashes(ctx, hashes)
 }
 
 func (dp *DerivationPipeline) ChangeCurrentState(ctx context.Context, state uint64, blockNr rpc.BlockNumber) (bool, error) {

@@ -153,6 +153,8 @@ type DeployConfig struct {
 	// L1StandardBridgeProxy represents the address of the L1StandardBridgeProxy on L1 and is used
 	// as part of building the L2 genesis state.
 	L1StandardBridgeProxy common.Address `json:"l1StandardBridgeProxy"`
+
+	L1DomiconCommitmentProxy common.Address `json:"l1DomiconCommitment"`
 	// L1CrossDomainMessengerProxy represents the address of the L1CrossDomainMessengerProxy on L1 and is used
 	// as part of building the L2 genesis state.
 	L1CrossDomainMessengerProxy common.Address `json:"l1CrossDomainMessengerProxy"`
@@ -372,6 +374,9 @@ func (d *DeployConfig) CheckAddresses() error {
 	if d.L1StandardBridgeProxy == (common.Address{}) {
 		return fmt.Errorf("%w: L1StandardBridgeProxy cannot be address(0)", ErrInvalidDeployConfig)
 	}
+	if d.L1DomiconCommitmentProxy == (common.Address{}) {
+		return fmt.Errorf("%w: L1DomiconCommitmentProxy cannot be address(0)", ErrInvalidDeployConfig)
+	}
 	if d.L1CrossDomainMessengerProxy == (common.Address{}) {
 		return fmt.Errorf("%w: L1CrossDomainMessengerProxy cannot be address(0)", ErrInvalidDeployConfig)
 	}
@@ -390,6 +395,7 @@ func (d *DeployConfig) CheckAddresses() error {
 // SetDeployments will merge a Deployments into a DeployConfig.
 func (d *DeployConfig) SetDeployments(deployments *L1Deployments) {
 	d.L1StandardBridgeProxy = deployments.L1StandardBridgeProxy
+	d.L1DomiconCommitmentProxy = deployments.L1DomiconCommitmentProxy
 	d.L1CrossDomainMessengerProxy = deployments.L1CrossDomainMessengerProxy
 	d.L1ERC721BridgeProxy = deployments.L1ERC721BridgeProxy
 	d.SystemConfigProxy = deployments.SystemConfigProxy
@@ -405,6 +411,14 @@ func (d *DeployConfig) GetDeployedAddresses(hh *hardhat.Hardhat) error {
 			return fmt.Errorf("cannot find L1StandardBridgeProxy artifact: %w", err)
 		}
 		d.L1StandardBridgeProxy = l1StandardBridgeProxyDeployment.Address
+	}
+
+	if d.L1DomiconCommitmentProxy == (common.Address{}) {
+		l1DomiconCommitmentProxyDeployment, err := hh.GetDeployment("L1DomiconCommitmentProxy")
+		if err != nil {
+			return fmt.Errorf("cannot find L1StandardBridgeProxy artifact: %w", err)
+		}
+		d.L1DomiconCommitmentProxy = l1DomiconCommitmentProxyDeployment.Address
 	}
 
 	if d.L1CrossDomainMessengerProxy == (common.Address{}) {
@@ -514,7 +528,7 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHas
 		RegolithTime:           d.RegolithTime(l1StartBlock.Time()),
 		CanyonTime:             d.CanyonTime(l1StartBlock.Time()),
 		SpanBatchTime:          d.SpanBatchTime(l1StartBlock.Time()),
-		SubmitContractAddress:  d.L1StandardBridgeProxy,
+		SubmitContractAddress:  d.L1DomiconCommitmentProxy,
 	}, nil
 }
 
@@ -556,6 +570,8 @@ type L1Deployments struct {
 	L1ERC721BridgeProxy               common.Address `json:"L1ERC721BridgeProxy"`
 	L1StandardBridge                  common.Address `json:"L1StandardBridge"`
 	L1StandardBridgeProxy             common.Address `json:"L1StandardBridgeProxy"`
+	L1DomiconCommitment               common.Address `json:"L1DomiconCommitment"`
+	L1DomiconCommitmentProxy          common.Address `json:"L1DomiconCommitmentProxy"`
 	L2OutputOracle                    common.Address `json:"L2OutputOracle"`
 	L2OutputOracleProxy               common.Address `json:"L2OutputOracleProxy"`
 	OptimismMintableERC20Factory      common.Address `json:"OptimismMintableERC20Factory"`
@@ -665,6 +681,9 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (immutables.
 	if config.L1StandardBridgeProxy == (common.Address{}) {
 		return immutable, fmt.Errorf("L1StandardBridgeProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
 	}
+	if config.L1DomiconCommitmentProxy == (common.Address{}) {
+		return immutable, fmt.Errorf("L1DomiconCommitmentProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
+	}
 	if config.L1CrossDomainMessengerProxy == (common.Address{}) {
 		return immutable, fmt.Errorf("L1CrossDomainMessengerProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
 	}
@@ -683,6 +702,9 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (immutables.
 
 	immutable["L2StandardBridge"] = immutables.ImmutableValues{
 		"otherBridge": config.L1StandardBridgeProxy,
+	}
+	immutable["L2DomiconCommitment"] = immutables.ImmutableValues{
+		"otherBridge": config.L1DomiconCommitmentProxy,
 	}
 	immutable["L2CrossDomainMessenger"] = immutables.ImmutableValues{
 		"otherMessenger": config.L1CrossDomainMessengerProxy,

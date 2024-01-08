@@ -16,6 +16,7 @@ import (
 type DABlockInfo struct {
 	rpc.TxHashes
 	Height uint64
+	Hash   common.Hash
 }
 type DAManager struct {
 	log               log.Logger
@@ -48,12 +49,13 @@ func (d *DAManager) SendDA(ctx context.Context, index, length uint64, broadcaste
 	if !d.IsBroadcast {
 		return common.Hash{}, errors.New("broadcast node not started")
 	}
-	//d.log.Info("SendDA", "index", index, "length", length, "broadcaster", broadcaster.Hex(), "user", user.Hex(), "commitment", commitment, "sign", sign, "data", data)
+	d.log.Info("SendDA", "index", index, "length", length, "broadcaster", broadcaster.Hex(), "user", user.Hex(), "commitment", commitment, "sign", sign, "data", data)
 	if !verifySignature(index, length, broadcaster, user, commitment, sign) {
 		return common.Hash{}, errors.New("invalid public key")
 	}
-	input, err := submit.L1SubmitTxData(user, uint64(index), commitment, sign)
+	input, err := submit.L1SubmitTxData(index, length, user, sign, commitment)
 	if err != nil {
+		log.Info("L1SubmitTxData", "err", err)
 		return common.Hash{}, err
 	}
 	log.Info("L1SubmitTxData")
@@ -61,7 +63,7 @@ func (d *DAManager) SendDA(ctx context.Context, index, length uint64, broadcaste
 	tx, err := d.TxMgr.SendDA(ctx, txmgr.TxCandidate{
 		TxData:   input,
 		To:       &d.RollupConfig.SubmitContractAddress,
-		GasLimit: 0,
+		GasLimit: 800000,
 	})
 	log.Info("Send")
 
@@ -131,16 +133,19 @@ func (d *DAManager) getDA() {
 			log.Error("getDA", "height", block.Height, "err", err)
 		} else {
 			filteredHashes := make([]common.Hash, 0)
+			exHashes := make([]common.Hash, 0)
 			for i, exists := range data.Flags {
 				hash := block.TxHashes.TxHashes[i]
 				if exists {
-					d.engine.DiskSaveFileDataWithHash(d.shutdownCtx, hash)
-
+					exHashes = append(exHashes, hash)
 				} else {
 					filteredHashes = append(filteredHashes, hash)
 				}
 			}
 			block.TxHashes.TxHashes = filteredHashes
+			if len(exHashes) > 0 {
+				d.engine.BatchSaveFileDataWithHashes(d.shutdownCtx, rpc.TxHashes{TxHashes: exHashes, BlockHash: block.Hash, BlockNumber: rpc.BlockNumber(block.Height)})
+			}
 		}
 		d.daHashes[block] = count + 1
 		if count == 5 {

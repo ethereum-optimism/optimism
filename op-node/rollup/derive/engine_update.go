@@ -57,6 +57,7 @@ func sanityCheckPayload(payload *eth.ExecutionPayload, daMgr *DAManager) error {
 	daBlosk := DABlockInfo{
 		TxHashes: rpc.TxHashes{},
 		Height:   uint64(payload.BlockNumber),
+		Hash:     payload.BlockHash,
 	}
 
 	for i := lastDeposit + 1; i < len(payload.Transactions); i++ {

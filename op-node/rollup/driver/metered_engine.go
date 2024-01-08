@@ -109,8 +109,8 @@ func (m *MeteredEngine) GetFileDataByHash(ctx context.Context, hash common.Hash)
 	return m.inner.GetFileDataByHash(ctx, hash)
 }
 
-func (m *MeteredEngine) DiskSaveFileDataWithHash(ctx context.Context, hash common.Hash) (bool, error) {
-	return m.inner.DiskSaveFileDataWithHash(ctx, hash)
+func (m *MeteredEngine) BatchSaveFileDataWithHashes(ctx context.Context, hashes rpc.TxHashes) (bool, error) {
+	return m.inner.BatchSaveFileDataWithHashes(ctx, hashes)
 }
 
 func (m *MeteredEngine) ChangeCurrentState(ctx context.Context, state uint64, blockNr rpc.BlockNumber) (bool, error) {

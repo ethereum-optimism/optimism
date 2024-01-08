@@ -56,7 +56,7 @@ type EngineState interface {
 type EngineDAState interface {
 	UploadFileDataByParams(ctx context.Context, index, length uint64, broadcaster, user common.Address, commitment, sign, data []byte, hash common.Hash) (bool, error)
 	GetFileDataByHash(ctx context.Context, hash common.Hash) (ethclient.RPCFileData, error)
-	DiskSaveFileDataWithHash(ctx context.Context, hash common.Hash) (bool, error)
+	BatchSaveFileDataWithHashes(ctx context.Context, hashes rpc.TxHashes) (bool, error)
 	ChangeCurrentState(ctx context.Context, state uint64, blockNr rpc.BlockNumber) (bool, error)
 	BatchFileDataByHashes(ctx context.Context, hashes rpc.TxHashes) (*rpc.Result, error)
 }
@@ -884,8 +884,8 @@ func (eq *EngineQueue) GetFileDataByHash(ctx context.Context, hash common.Hash) 
 	return eq.engine.GetFileDataByHash(ctx, hash)
 }
 
-func (eq *EngineQueue) DiskSaveFileDataWithHash(ctx context.Context, hash common.Hash) (bool, error) {
-	return eq.engine.DiskSaveFileDataWithHash(ctx, hash)
+func (eq *EngineQueue) BatchSaveFileDataWithHashes(ctx context.Context, hashes rpc.TxHashes) (bool, error) {
+	return eq.engine.BatchSaveFileDataWithHashes(ctx, hashes)
 }
 
 func (eq *EngineQueue) SendDA(ctx context.Context, index, length uint64, broadcaster, user common.Address, commitment, sign, data []byte) (common.Hash, error) {
