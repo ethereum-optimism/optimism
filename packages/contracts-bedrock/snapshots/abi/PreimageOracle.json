@@ -2,6 +2,11 @@
   {
     "inputs": [
       {
+        "internalType": "uint256",
+        "name": "_contextKey",
+        "type": "uint256"
+      },
+      {
         "internalType": "bytes",
         "name": "_data",
         "type": "bytes"
@@ -19,6 +24,11 @@
   },
   {
     "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_contextKey",
+        "type": "uint256"
+      },
       {
         "internalType": "uint128",
         "name": "_offset",
@@ -41,6 +51,11 @@
         "internalType": "address",
         "name": "",
         "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
       }
     ],
     "name": "largePreimageMeta",
@@ -223,7 +238,13 @@
     "type": "function"
   },
   {
-    "inputs": [],
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_contextKey",
+        "type": "uint256"
+      }
+    ],
     "name": "squeezeLargePreimagePart",
     "outputs": [],
     "stateMutability": "nonpayable",
@@ -235,6 +256,11 @@
         "internalType": "address",
         "name": "",
         "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
       },
       {
         "internalType": "uint256",

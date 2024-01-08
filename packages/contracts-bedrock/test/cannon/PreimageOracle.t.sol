@@ -179,13 +179,13 @@ contract PreimageOracle_LargePreimage_Test is Test {
         }
 
         // Init absorbtion process.
-        oracle.initLargeKeccak256Preimage(0, uint64(data.length));
+        oracle.initLargeKeccak256Preimage(0, 0, uint64(data.length));
 
         // Absorb the preimage.
-        oracle.absorbLargePreimagePart(data, true);
+        oracle.absorbLargePreimagePart(0, data, true);
 
         // Squeeze the sponge.
-        oracle.squeezeLargePreimagePart();
+        oracle.squeezeLargePreimagePart(0);
 
         bytes32 key = PreimageKeyLib.keccak256PreimageKey(data);
         bytes32 expectedPart = bytes32(uint256(data.length << 192) | 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF);
@@ -194,6 +194,7 @@ contract PreimageOracle_LargePreimage_Test is Test {
         assertEq(oracle.preimageLengths(key), data.length);
         assertEq(oracle.preimageParts(key, 0), expectedPart);
     }
+
 
     /// @notice Tests that the PreimageOracle can absorb a large preimage in multiple segments and persist it correctly
     ///         when the offset is variable.
@@ -219,15 +220,15 @@ contract PreimageOracle_LargePreimage_Test is Test {
         }
 
         // Init absorbtion process.
-        oracle.initLargeKeccak256Preimage(uint128(_partOffset), uint64(fullData.length));
+        oracle.initLargeKeccak256Preimage(0, uint128(_partOffset), uint64(fullData.length));
 
         // Absorb the preimage in 3 separate segments.
-        oracle.absorbLargePreimagePart({ _data: data, _finalize: false });
-        oracle.absorbLargePreimagePart({ _data: data, _finalize: false });
-        oracle.absorbLargePreimagePart({ _data: data, _finalize: true });
+        oracle.absorbLargePreimagePart({ _contextKey: 0, _data: data, _finalize: false });
+        oracle.absorbLargePreimagePart({ _contextKey: 0, _data: data, _finalize: false });
+        oracle.absorbLargePreimagePart({ _contextKey: 0, _data: data, _finalize: true });
 
         // Squeeze the sponge.
-        oracle.squeezeLargePreimagePart();
+        oracle.squeezeLargePreimagePart(0);
 
         bytes32 key = PreimageKeyLib.keccak256PreimageKey(fullData);
         bytes32 expectedPart;
@@ -260,13 +261,13 @@ contract PreimageOracle_LargePreimage_Test is Test {
         }
 
         // Init absorbtion process.
-        oracle.initLargeKeccak256Preimage(100, 200);
+        oracle.initLargeKeccak256Preimage(0, 100, uint64(data.length));
 
         // Absorb the preimage.
-        oracle.absorbLargePreimagePart(data, true);
+        oracle.absorbLargePreimagePart(0, data, true);
 
         // Squeeze the sponge.
-        oracle.squeezeLargePreimagePart();
+        oracle.squeezeLargePreimagePart(0);
 
         bytes32 key = PreimageKeyLib.keccak256PreimageKey(data);
         bytes32 expectedPart = bytes32(type(uint256).max << 64 | 0xDDDDDDDDDDDDDDDD);
@@ -287,13 +288,13 @@ contract PreimageOracle_LargePreimage_Test is Test {
         }
 
         // Init absorbtion process.
-        oracle.initLargeKeccak256Preimage(143, uint64(data.length));
+        oracle.initLargeKeccak256Preimage(0, 143, uint64(data.length));
 
         // Absorb the preimage.
-        oracle.absorbLargePreimagePart(data, true);
+        oracle.absorbLargePreimagePart(0, data, true);
 
         // Squeeze the sponge.
-        oracle.squeezeLargePreimagePart();
+        oracle.squeezeLargePreimagePart(0);
 
         bytes32 key = PreimageKeyLib.keccak256PreimageKey(data);
         bytes32 expectedPart = bytes32(uint256(0xFF << 248));
@@ -314,13 +315,13 @@ contract PreimageOracle_LargePreimage_Test is Test {
         }
 
         // Init absorbtion process.
-        oracle.initLargeKeccak256Preimage(144, uint64(data.length));
+        oracle.initLargeKeccak256Preimage(0, 144, uint64(data.length));
 
         // Absorb the preimage.
-        oracle.absorbLargePreimagePart(data, true);
+        oracle.absorbLargePreimagePart(0, data, true);
 
         // Squeeze the sponge.
-        oracle.squeezeLargePreimagePart();
+        oracle.squeezeLargePreimagePart(0);
 
         bytes32 key = PreimageKeyLib.keccak256PreimageKey(data);
         bytes32 expectedPart = bytes32(uint256(0xFF << 248));
@@ -335,13 +336,13 @@ contract PreimageOracle_LargePreimage_Test is Test {
         _partOffset = bound(_partOffset, 0, _preimage.length + 8 - 1);
 
         // Init absorbtion process.
-        oracle.initLargeKeccak256Preimage(uint128(_partOffset), uint64(_preimage.length));
+        oracle.initLargeKeccak256Preimage(0, uint128(_partOffset), uint64(_preimage.length));
 
         // Absorb the preimage.
-        oracle.absorbLargePreimagePart(_preimage, true);
+        oracle.absorbLargePreimagePart(0, _preimage, true);
 
         // Squeeze the sponge.
-        oracle.squeezeLargePreimagePart();
+        oracle.squeezeLargePreimagePart(0);
 
         bytes32 key = PreimageKeyLib.keccak256PreimageKey(_preimage);
 
@@ -377,11 +378,11 @@ contract PreimageOracle_LargePreimage_Test is Test {
         _partOffset = bound(_partOffset, (data.length - 32) + 8, data.length + 8 - 1);
 
         // Init absorbtion process.
-        oracle.initLargeKeccak256Preimage(uint128(_partOffset), uint64(fullData.length));
+        oracle.initLargeKeccak256Preimage(0, uint128(_partOffset), uint64(fullData.length));
 
         // Absorb the preimage in 3 separate segments.
         vm.expectRevert(PartOffsetOOB.selector);
-        oracle.absorbLargePreimagePart(data, false);
+        oracle.absorbLargePreimagePart(0, data, false);
     }
 
     /// @notice Tests that the preimage oracle's `absorbLargePreimagePart` reverts when the input length is not a
@@ -389,7 +390,7 @@ contract PreimageOracle_LargePreimage_Test is Test {
     function test_absorbLargePreimagePart_invalidInputLength_reverts() public {
         // Absorb the preimage.
         vm.expectRevert(InvalidInputLength.selector);
-        oracle.absorbLargePreimagePart(hex"deadbeef", false);
+        oracle.absorbLargePreimagePart(0, hex"deadbeef", false);
     }
 
     /// @notice Tests that the preimage oracle's `squeezeLargePreimagePart` function reverts when the offset is
@@ -398,14 +399,14 @@ contract PreimageOracle_LargePreimage_Test is Test {
         bytes memory data = new bytes(200);
 
         // Init absorbtion process.
-        oracle.initLargeKeccak256Preimage(500, uint64(data.length));
+        oracle.initLargeKeccak256Preimage(0, 500, uint64(data.length));
 
         // Absorb the preimage.
-        oracle.absorbLargePreimagePart(data, true);
+        oracle.absorbLargePreimagePart(0, data, true);
 
         // Squeeze the sponge.
         vm.expectRevert(PartOffsetOOB.selector);
-        oracle.squeezeLargePreimagePart();
+        oracle.squeezeLargePreimagePart(0);
     }
 
     /// @notice Tests that the preimage oracle's `squeezeLargePreimagePart` reverts when the final preimage size is not
@@ -414,13 +415,13 @@ contract PreimageOracle_LargePreimage_Test is Test {
         bytes memory data = new bytes(200);
 
         // Init absorbtion process.
-        oracle.initLargeKeccak256Preimage(0, 201);
+        oracle.initLargeKeccak256Preimage(0, 0, 201);
 
         // Absorb the preimage.
-        oracle.absorbLargePreimagePart(data, true);
+        oracle.absorbLargePreimagePart(0, data, true);
 
         // Squeeze the sponge.
         vm.expectRevert(InvalidClaimedSize.selector);
-        oracle.squeezeLargePreimagePart();
+        oracle.squeezeLargePreimagePart(0);
     }
 }

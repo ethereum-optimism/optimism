@@ -25,13 +25,13 @@
     "label": "largePreimageMeta",
     "offset": 0,
     "slot": "3",
-    "type": "mapping(address => struct PreimageOracle.LargePreimageMeta)"
+    "type": "mapping(address => mapping(uint256 => struct PreimageOracle.LargePreimageMeta))"
   },
   {
     "bytes": "32",
     "label": "stateMatrices",
     "offset": 0,
     "slot": "4",
-    "type": "mapping(address => uint64[25])"
+    "type": "mapping(address => mapping(uint256 => uint64[25]))"
   }
 ]

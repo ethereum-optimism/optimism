@@ -24,10 +24,10 @@ contract PreimageOracle is IPreimageOracle {
     /// @notice Mapping of pre-image keys to pre-image part offsets.
     mapping(bytes32 => mapping(uint256 => bool)) public preimagePartOk;
 
-    /// @notice Mapping of addresses to large pre-image metadata.
-    mapping(address => LargePreimageMeta) public largePreimageMeta;
-    /// @notice Mapping of addresses to Keccak256 state matrices. Used to submit very large pre-images to the oracle.
-    mapping(address => uint64[25]) public stateMatrices;
+    /// @notice Mapping of addresses to UUIDs to large pre-image metadata.
+    mapping(address => mapping(uint256 => LargePreimageMeta)) public largePreimageMeta;
+    /// @notice Mapping of addresses to UUIDs to Keccak256 state matrices. Used to submit very large pre-images to the oracle.
+    mapping(address => mapping(uint256 => uint64[25])) public stateMatrices;
 
     /// @inheritdoc IPreimageOracle
     function readPreimage(bytes32 _key, uint256 _offset) external view returns (bytes32 dat_, uint256 datLen_) {
@@ -122,16 +122,16 @@ contract PreimageOracle is IPreimageOracle {
     }
 
     /// @inheritdoc IPreimageOracle
-    function initLargeKeccak256Preimage(uint128 _offset, uint64 _claimedSize) external {
-        largePreimageMeta[msg.sender] =
+    function initLargeKeccak256Preimage(uint256 _contextKey, uint128 _offset, uint64 _claimedSize) external {
+        largePreimageMeta[msg.sender][_contextKey] =
             LargePreimageMeta({ offset: _offset, claimedSize: _claimedSize, size: 0, preimagePart: bytes32(0) });
 
         LibKeccak.StateMatrix memory state;
-        stateMatrices[msg.sender] = state.state;
+        stateMatrices[msg.sender][_contextKey] = state.state;
     }
 
     /// @inheritdoc IPreimageOracle
-    function absorbLargePreimagePart(bytes calldata _data, bool _finalize) external {
+    function absorbLargePreimagePart(uint256 _contextKey, bytes calldata _data, bool _finalize) external {
         // Revert if the input length is not a multiple of the block size and we're not finalizing the absorbtion.
         bool isModBlockSize = _data.length % LibKeccak.BLOCK_SIZE_BYTES == 0;
         if (!(isModBlockSize || _finalize)) revert InvalidInputLength();
@@ -147,10 +147,10 @@ contract PreimageOracle is IPreimageOracle {
         }
 
         // Pull the state into memory for the absorbtion.
-        LibKeccak.StateMatrix memory state = LibKeccak.StateMatrix(stateMatrices[msg.sender]);
+        LibKeccak.StateMatrix memory state = LibKeccak.StateMatrix(stateMatrices[msg.sender][_contextKey]);
 
         // Grab the number of bytes that have already been absorbed.
-        LargePreimageMeta storage preimageMeta = largePreimageMeta[msg.sender];
+        LargePreimageMeta storage preimageMeta = largePreimageMeta[msg.sender][_contextKey];
         uint256 currentSize = preimageMeta.size;
         uint256 offset = preimageMeta.offset;
 
@@ -211,17 +211,17 @@ contract PreimageOracle is IPreimageOracle {
         }
 
         // Update the state and metadata.
-        stateMatrices[msg.sender] = state.state;
-        largePreimageMeta[msg.sender].size += uint64(_data.length);
+        stateMatrices[msg.sender][_contextKey] = state.state;
+        largePreimageMeta[msg.sender][_contextKey].size += uint64(_data.length);
     }
 
     /// @inheritdoc IPreimageOracle
-    function squeezeLargePreimagePart() external {
+    function squeezeLargePreimagePart(uint256 _contextKey) external {
         // Pull the state into memory for squeezing
-        LibKeccak.StateMatrix memory state = LibKeccak.StateMatrix(stateMatrices[msg.sender]);
+        LibKeccak.StateMatrix memory state = LibKeccak.StateMatrix(stateMatrices[msg.sender][_contextKey]);
 
         // Grab the large preimage metadata.
-        LargePreimageMeta memory meta = largePreimageMeta[msg.sender];
+        LargePreimageMeta memory meta = largePreimageMeta[msg.sender][_contextKey];
 
         // Revert if the part offset is out of bounds.
         if (meta.offset > meta.size + 8) revert PartOffsetOOB();

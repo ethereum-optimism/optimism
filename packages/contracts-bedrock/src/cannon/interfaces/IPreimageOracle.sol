@@ -50,16 +50,19 @@ interface IPreimageOracle {
 
     /// @notice Resets the caller's large pre-image metadata in preparation for beginning the absorption of a new
     ///         large keccak256 pre-image.
+    /// @param _contextKey The contextKey of the large preimage absorbtion.
     /// @param _offset The offset of the preimage part to load into the oracle during absorbtion of the preimage.
     /// @param _claimedSize The claimed size of the preimage.
-    function initLargeKeccak256Preimage(uint128 _offset, uint64 _claimedSize) external;
+    function initLargeKeccak256Preimage(uint256 _contextKey, uint128 _offset, uint64 _claimedSize) external;
 
     /// @notice Absorbs a part of the caller's large keccak256 pre-image.
+    /// @param _contextKey The contextKey of the large preimage absorbtion.
     /// @param _data The pre-image segment to absorb.
     /// @param _finalize Whether or not to finalize the absorbtion process. If true, the contract will pad the data
     ///                  passed per the pad10*1 rule.
-    function absorbLargePreimagePart(bytes calldata _data, bool _finalize) external;
+    function absorbLargePreimagePart(uint256 _contextKey, bytes calldata _data, bool _finalize) external;
 
     /// @notice Squeezes the caller's large keccak256 pre-image and persists the part into storage.
-    function squeezeLargePreimagePart() external;
+    /// @param _contextKey The contextKey of the large preimage absorbtion.
+    function squeezeLargePreimagePart(uint256 _contextKey) external;
 }
