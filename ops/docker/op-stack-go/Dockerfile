@@ -49,9 +49,10 @@ ARG TARGETOS TARGETARCH
 
 RUN --mount=type=cache,target=/root/.cache/go-build cd cannon && make cannon  \
     GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$CANNON_VERSION"
-# note: we only build the host, that's all the user needs. No Go MIPS cross-build in docker
 RUN --mount=type=cache,target=/root/.cache/go-build cd op-program && make op-program-host  \
     GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_PROGRAM_VERSION"
+RUN --mount=type=cache,target=/root/.cache/go-build cd op-program && make op-program-client-mips  \
+    GOOS=linux GOARCH=mips GOMIPS=softfloat GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_PROGRAM_VERSION"
 
 RUN --mount=type=cache,target=/root/.cache/go-build cd op-heartbeat && make op-heartbeat  \
     GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_HEARTBEAT_VERSION"
@@ -74,6 +75,7 @@ FROM alpine:3.18
 
 COPY --from=builder /app/cannon/bin/cannon /usr/local/bin/
 COPY --from=builder /app/op-program/bin/op-program /usr/local/bin/
+COPY --from=builder /app/op-program/bin/op-program-client.elf /usr/local/bin/
 
 COPY --from=builder /app/op-heartbeat/bin/op-heartbeat /usr/local/bin/
 COPY --from=builder /app/op-wheel/bin/op-wheel /usr/local/bin/
