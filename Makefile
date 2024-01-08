@@ -26,6 +26,7 @@ build-ts: submodules
 
 ci-builder:
 	docker build -t ci-builder -f ops/docker/ci-builder/Dockerfile .
+.PHONY: ci-builder
 
 golang-docker:
 	# We don't use a buildx builder here, and just load directly into regular docker, for convenience.
@@ -92,6 +93,7 @@ cannon-prestate: op-program cannon
 	./cannon/bin/cannon load-elf --path op-program/bin/op-program-client.elf --out op-program/bin/prestate.json --meta op-program/bin/meta.json
 	./cannon/bin/cannon run --proof-at '=0' --stop-at '=1' --input op-program/bin/prestate.json --meta op-program/bin/meta.json --proof-fmt 'op-program/bin/%d.json' --output ""
 	mv op-program/bin/0.json op-program/bin/prestate-proof.json
+.PHONY: cannon-prestate
 
 mod-tidy:
 	# Below GOPRIVATE line allows mod-tidy to be run immediately after
@@ -146,10 +148,11 @@ devnet-clean:
 
 devnet-allocs: pre-devnet
 	PYTHONPATH=./bedrock-devnet $(PYTHON) ./bedrock-devnet/main.py --monorepo-dir=. --allocs
+.PHONY: devnet-allocs
 
 devnet-logs:
 	@(cd ./ops-bedrock && docker compose logs -f)
-	.PHONY: devnet-logs
+.PHONY: devnet-logs
 
 test-unit:
 	make -C ./op-node test
@@ -173,6 +176,7 @@ semgrep:
 clean-node-modules:
 	rm -rf node_modules
 	rm -rf packages/**/node_modules
+.PHONY: clean-node-modules
 
 tag-bedrock-go-modules:
 	./ops/scripts/tag-bedrock-go-modules.sh $(BEDROCK_TAGS_REMOTE) $(VERSION)
@@ -186,6 +190,7 @@ bedrock-markdown-links:
 	docker run --init -it -v `pwd`:/input lycheeverse/lychee --verbose --no-progress --exclude-loopback \
 		--exclude twitter.com --exclude explorer.optimism.io --exclude linux-mips.org --exclude vitalik.ca \
 		--exclude-mail /input/README.md "/input/specs/**/*.md"
+.PHONY: bedrock-markdown-links
 
 install-geth:
 	./ops/scripts/geth-version-checker.sh && \
