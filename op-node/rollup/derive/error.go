@@ -14,6 +14,12 @@ var (
 
 	// EngineELSyncing implies that the execution engine is currently in progress of syncing.
 	EngineELSyncing = errors.New("engine is performing EL sync")
+
+	// Sentinel errors, use these to get the severity of errors by calling
+	// errors.Is(err, ErrTemporary) for example.
+	ErrTemporary = NewTemporaryError(nil)
+	ErrReset     = NewResetError(nil)
+	ErrCritical  = NewCriticalError(nil)
 )
 
 // Level is the severity level of the error.
@@ -97,9 +103,3 @@ func NewResetError(err error) error {
 func NewCriticalError(err error) error {
 	return NewError(err, LevelCritical)
 }
-
-// Sentinel errors, use these to get the severity of errors by calling
-// errors.Is(err, ErrTemporary) for example.
-var ErrTemporary = NewTemporaryError(nil)
-var ErrReset = NewResetError(nil)
-var ErrCritical = NewCriticalError(nil)
