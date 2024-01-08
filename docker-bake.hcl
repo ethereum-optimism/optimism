@@ -132,6 +132,19 @@ target "op-program" {
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-program:${tag}"]
 }
 
+target "op-program-mips" {
+  dockerfile = "Dockerfile.mips"
+  context = "./op-program"
+  args = {
+    OP_STACK_GO_BUILDER = "op-stack-go"
+  }
+  contexts = {
+    op-stack-go: "target:op-stack-go"
+  }
+  platforms = ["linux/mips32be"]
+  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-program-mips:${tag}"]
+}
+
 target "op-ufm" {
   dockerfile = "./op-ufm/Dockerfile"
   context = "./"
