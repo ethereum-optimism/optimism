@@ -96,100 +96,99 @@ func (b *Blob) FromData(data Data) error {
 	}
 	b.Clear()
 
-	// first field element encodes the version and the length of the data in [1:5]
-	b[VersionOffset] = EncodingVersion
+	readOffset := 0
 
-	// Encode the length as big-endian uint24 into [2:5] bytes of the first field element.
-	// The length check above ensures we can always fit the length value into only 3 bytes.
-	ilen := uint32(len(data))
-	b[2] = byte(ilen >> 16)
-	b[3] = byte(ilen >> 8)
-	b[4] = byte(ilen)
-
-	// round 0 is special cased here since we can only encode the first (31-5)+1=27 bytes of input
-	// into the first field element due to version/length encoding already occupying the first 5
-	// bytes.
-	ipos := 0 // current position of the input data from where we are reading
-	buffer, ipos := read(ipos, 27, data)
-	x, ipos := read(ipos, 1, data)
-	encodedByte := x[0] & 0b0011_1111
-	b[0] = encodedByte
-	b.write(buffer, 5)
-	opos := 32 // current position of the blob where we are writing
-
-	buffer, ipos = read(ipos, 31, data)
-	y, ipos := read(ipos, 1, data)
-
-	encodedByte = (y[0] & 0b0000_1111) | ((x[0] & 0b1100_0000) >> 2)
-	opos = b.writeByteAndBuffer(opos, encodedByte, buffer)
-
-	buffer, ipos = read(ipos, 31, data)
-	z, ipos := read(ipos, 1, data)
-	encodedByte = z[0] & 0b0011_1111
-	opos = b.writeByteAndBuffer(opos, encodedByte, buffer)
-
-	buffer, ipos = read(ipos, 31, data)
-	encodedByte = ((z[0] & 0b1100_0000) >> 2) | ((y[0] & 0b1111_0000) >> 4)
-	opos = b.writeByteAndBuffer(opos, encodedByte, buffer)
-
-	for round := 1; round < Rounds && ipos < len(data); round++ {
-		buffer, ipos = read(ipos, 31, data)
-		x, ipos = read(ipos, 1, data)
-		encodedByte = x[0] & 0b0011_1111
-		opos = b.writeByteAndBuffer(opos, encodedByte, buffer)
-
-		buffer, ipos = read(ipos, 31, data)
-		y, ipos = read(ipos, 1, data)
-		encodedByte = (y[0] & 0b0000_1111) | ((x[0] & 0b1100_0000) >> 2)
-		opos = b.writeByteAndBuffer(opos, encodedByte, buffer)
-
-		buffer, ipos = read(ipos, 31, data)
-		z, ipos = read(ipos, 1, data)
-		encodedByte = z[0] & 0b0011_1111
-		opos = b.writeByteAndBuffer(opos, encodedByte, buffer)
-
-		buffer, ipos = read(ipos, 31, data)
-		encodedByte = ((z[0] & 0b1100_0000) >> 2) | ((y[0] & 0b1111_0000) >> 4)
-		opos = b.writeByteAndBuffer(opos, encodedByte, buffer)
+	// read 1 byte of input, 0 if there is no input left
+	read1 := func() byte {
+		if readOffset >= len(data) {
+			return 0
+		}
+		out := data[readOffset]
+		readOffset += 1
+		return out
 	}
 
-	if ipos < len(data) {
-		return fmt.Errorf("failed to fit all data into blob. bytes remaining: %v", len(data)-ipos)
+	writeOffset := 0
+	var buf31 [31]byte
+	var zero31 [31]byte
+
+	// Read up to 31 bytes of input (left-aligned), into buf31.
+	read31 := func() {
+		if readOffset >= len(data) {
+			copy(buf31[:], zero31[:])
+			return
+		}
+		n := copy(buf31[:], data[readOffset:]) // copy as much data as we can
+		copy(buf31[n:], zero31[:])             // pad with zeroes (since there might not be enough data)
+		readOffset += n
+	}
+	// Write a byte, updates the write-offset.
+	// Asserts that the write-offset matches encoding-algorithm expectations.
+	// Asserts that the value is 6 bits.
+	write1 := func(v byte) {
+		if writeOffset%32 != 0 {
+			panic(fmt.Errorf("blob encoding: invalid byte write offset: %d", writeOffset))
+		}
+		if v&0b1100_0000 != 0 {
+			panic(fmt.Errorf("blob encoding: invalid 6 bit value: 0b%b", v))
+		}
+		b[writeOffset] = v
+		writeOffset += 1
+	}
+	// Write buf31 to the blob, updates the write-offset.
+	// Asserts that the write-offset matches encoding-algorithm expectations.
+	write31 := func() {
+		if writeOffset%32 != 1 {
+			panic(fmt.Errorf("blob encoding: invalid bytes31 write offset: %d", writeOffset))
+		}
+		copy(b[writeOffset:], buf31[:])
+		writeOffset += 31
 	}
 
+	for round := 0; round < Rounds && readOffset < len(data); round++ {
+		// The first field element encodes the version and the length of the data in [1:5].
+		// This is a manual substitute for read31(), preparing the buf31.
+		if round == 0 {
+			buf31[0] = EncodingVersion
+			// Encode the length as big-endian uint24.
+			// The length check at the start above ensures we can always fit the length value into only 3 bytes.
+			ilen := uint32(len(data))
+			buf31[1] = byte(ilen >> 16)
+			buf31[2] = byte(ilen >> 8)
+			buf31[3] = byte(ilen)
+
+			readOffset += copy(buf31[4:], data[:])
+		} else {
+			read31()
+		}
+
+		x := read1()
+		A := x & 0b0011_1111
+		write1(A)
+		write31()
+
+		read31()
+		y := read1()
+		B := (y & 0b0000_1111) | ((x & 0b1100_0000) >> 2)
+		write1(B)
+		write31()
+
+		read31()
+		z := read1()
+		C := z & 0b0011_1111
+		write1(C)
+		write31()
+
+		read31()
+		D := ((z & 0b1100_0000) >> 2) | ((y & 0b1111_0000) >> 4)
+		write1(D)
+		write31()
+	}
+
+	if readOffset < len(data) {
+		panic(fmt.Errorf("expected to fit data but failed, read offset: %d, data: %d", readOffset, len(data)))
+	}
 	return nil
-}
-
-// read reads up to numBytes of input from the data starting at the given offset, and returns an
-// updated offset of max(offset+numBytes, len(data)).  It always returns a byte array of length
-// exactly numBytes, even if there wasn't enough data to read. In the short-read case, any trailing
-// bytes are zero padded.
-func read(offset int, numBytes int, data []byte) ([]byte, int) {
-	byteArray := make([]byte, numBytes)
-	if offset >= len(data) {
-		return byteArray, len(data)
-	}
-
-	actualNumBytes := numBytes
-	// actual number of bytes to read may be less than numBytes if we are near the end of the input
-	if offset+numBytes > len(data) {
-		actualNumBytes = len(data) - offset
-	}
-
-	copy(byteArray, data[offset:offset+actualNumBytes])
-
-	return byteArray, offset + actualNumBytes
-}
-
-func (b *Blob) writeByteAndBuffer(opos int, encodedByte byte, buffer []byte) int {
-	b[opos] = encodedByte
-	opos = b.write(buffer, opos+1)
-	return opos
-}
-
-func (b *Blob) write(buffer []byte, opos int) int {
-	copy(b[opos:], buffer)
-	return opos + len(buffer)
 }
 
 // ToData decodes the blob into raw byte data. See FromData above for details on the encoding
@@ -220,8 +219,8 @@ func (b *Blob) ToData() (Data, error) {
 	encodedByte := make([]byte, 4) // buffer for the 4 6-bit chunks
 	encodedByte[0] = b[0]
 	for i := 1; i < 4; i++ {
-		encodedByte[i] = b[ipos]
-		if opos, ipos, err = b.decodeFieldElement(opos, ipos, encodedByte, output); err != nil {
+		encodedByte[i], opos, ipos, err = b.decodeFieldElement(opos, ipos, output)
+		if err != nil {
 			return nil, err
 		}
 	}
@@ -232,8 +231,8 @@ func (b *Blob) ToData() (Data, error) {
 	for i := 1; i < Rounds && opos < int(outputLen); i++ {
 		for j := 0; j < 4; j++ {
 			// save the first byte of each field element for later re-assembly
-			encodedByte[j] = b[ipos]
-			if opos, ipos, err = b.decodeFieldElement(opos, ipos, encodedByte, output); err != nil {
+			encodedByte[j], opos, ipos, err = b.decodeFieldElement(opos, ipos, output)
+			if err != nil {
 				return nil, err
 			}
 		}
@@ -246,13 +245,13 @@ func (b *Blob) ToData() (Data, error) {
 // decodeFieldElement decodes the next input field element by writing its lower 31 bytes into its
 // appropriate place in the output and checking the high order byte is valid. Returns an
 // InvalidFieldElementError if a field element is seen with either of its two high order bits set.
-func (b *Blob) decodeFieldElement(opos, ipos int, encodedByte []byte, output []byte) (int, int, error) {
+func (b *Blob) decodeFieldElement(opos, ipos int, output []byte) (byte, int, int, error) {
 	// two highest order bits of the first byte of each field element should always be 0
-	if b[ipos]&(0xC0) != 0 {
-		return 0, 0, fmt.Errorf("%w: field element: %d", ErrBlobInvalidFieldElement, ipos)
+	if b[ipos]&0b1100_0000 != 0 {
+		return 0, 0, 0, fmt.Errorf("%w: field element: %d", ErrBlobInvalidFieldElement, ipos)
 	}
 	copy(output[opos:], b[ipos+1:ipos+32])
-	return opos + 32, ipos + 32, nil
+	return b[ipos], opos + 32, ipos + 32, nil
 }
 
 // reassembleBytes takes the 4x6-bit chunks from encodedByte, reassembles them into 3 bytes of
