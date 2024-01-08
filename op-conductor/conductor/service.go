@@ -329,6 +329,13 @@ func (oc *OpConductor) Paused() bool {
 	return oc.paused.Load()
 }
 
+func (oc *OpConductor) HTTPEndpoint() string {
+	if oc.rpcServer == nil {
+		return ""
+	}
+	return fmt.Sprintf("http://%s", oc.rpcServer.Endpoint())
+}
+
 // Leader returns true if OpConductor is the leader.
 func (oc *OpConductor) Leader(_ context.Context) bool {
 	return oc.cons.Leader()

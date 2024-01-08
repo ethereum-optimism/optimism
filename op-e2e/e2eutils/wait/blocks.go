@@ -6,9 +6,10 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/ethereum/go-ethereum/core/types"
+
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
-	"github.com/ethereum/go-ethereum/core/types"
 )
 
 // BlockCaller is a subset of the [ethclient.Client] interface
@@ -20,20 +21,36 @@ type BlockCaller interface {
 
 func ForBlock(ctx context.Context, client BlockCaller, n uint64) error {
 	for {
-		if ctx.Done() != nil {
+		select {
+		case <-ctx.Done():
 			return ctx.Err()
+		default:
+			height, err := client.BlockNumber(ctx)
+			if err != nil {
+				return err
+			}
+			if height < n {
+				time.Sleep(500 * time.Millisecond)
+				continue
+			}
+			return nil
 		}
-		height, err := client.BlockNumber(ctx)
-		if err != nil {
-			return err
-		}
-		if height < n {
-			time.Sleep(500 * time.Millisecond)
-			continue
-		}
-		break
 	}
-	return nil
+	// for {
+	// 	if ctx.Done() != nil {
+	// 		return ctx.Err()
+	// 	}
+	// 	height, err := client.BlockNumber(ctx)
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// 	if height < n {
+	// 		time.Sleep(500 * time.Millisecond)
+	// 		continue
+	// 	}
+	// 	break
+	// }
+	// return nil
 }
 
 func ForBlockWithTimestamp(ctx context.Context, client BlockCaller, target uint64) error {
