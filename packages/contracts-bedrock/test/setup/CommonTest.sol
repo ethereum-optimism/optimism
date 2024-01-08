@@ -48,14 +48,12 @@ contract CommonTest is Setup, Test, Events {
         uint256 _value,
         uint64 _gasLimit,
         bool _isCreation,
-        bytes memory _data,
-        bytes32 _unionBefore,
-        bytes32 _unionAfter
+        bytes memory _data
     )
         internal
     {
         emit TransactionDeposited(
-            _from, _to, 0, abi.encodePacked(_mint, _value, _gasLimit, _isCreation, _data), _unionBefore, _unionAfter
+            _from, _to, 0, abi.encodePacked(_mint, _value, _gasLimit, _isCreation, _data)
         );
     }
 

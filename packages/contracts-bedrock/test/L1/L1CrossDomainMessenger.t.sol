@@ -72,10 +72,12 @@ contract L1CrossDomainMessenger_Test is Bridge_Initializer {
             0,
             l1CrossDomainMessenger.baseGas(hex"ff", 100),
             false,
-            callData,
-            unionBefore,
-            unionAfter
+            callData
         );
+
+        // OptimismPortal emits a HashUnionUpdated event on `depositTransaction` call
+        vm.expectEmit(address(optimismPortal));
+        emit HashUnionUpdated(unionBefore, unionAfter);
 
         // SentMessage event
         vm.expectEmit(address(l1CrossDomainMessenger));

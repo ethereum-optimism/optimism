@@ -250,8 +250,12 @@ contract PreBridgeETH is Bridge_Initializer {
         // OptimismPortal emits a TransactionDeposited event on `depositTransaction` call
         vm.expectEmit(address(optimismPortal));
         emit TransactionDeposited(
-            l1MessengerAliased, address(l2CrossDomainMessenger), version, opaqueData, unionBefore, unionAfter
+            l1MessengerAliased, address(l2CrossDomainMessenger), version, opaqueData
         );
+
+        // OptimismPortal emits a HashUnionUpdated event on `depositTransaction` call
+        vm.expectEmit(address(optimismPortal));
+        emit HashUnionUpdated(unionBefore, unionAfter);
 
         // SentMessage event emitted by the CrossDomainMessenger
         vm.expectEmit(address(l1CrossDomainMessenger));
@@ -381,8 +385,12 @@ contract PreBridgeETHTo is Bridge_Initializer {
         // OptimismPortal emits a TransactionDeposited event on `depositTransaction` call
         vm.expectEmit(address(optimismPortal));
         emit TransactionDeposited(
-            l1MessengerAliased, address(l2CrossDomainMessenger), version, opaqueData, unionBefore, unionAfter
+            l1MessengerAliased, address(l2CrossDomainMessenger), version, opaqueData
         );
+
+        // OptimismPortal emits a HashUnionUpdated event on `depositTransaction` call
+        vm.expectEmit(address(optimismPortal));
+        emit HashUnionUpdated(unionBefore, unionAfter);
 
         // SentMessage event emitted by the CrossDomainMessenger
         vm.expectEmit(address(l1CrossDomainMessenger));
@@ -512,8 +520,12 @@ contract L1StandardBridge_DepositERC20_Test is Bridge_Initializer {
         // OptimismPortal emits a TransactionDeposited event on `depositTransaction` call
         vm.expectEmit(address(optimismPortal));
         emit TransactionDeposited(
-            l1MessengerAliased, address(l2CrossDomainMessenger), version, opaqueData, unionBefore, unionAfter
+            l1MessengerAliased, address(l2CrossDomainMessenger), version, opaqueData
         );
+
+        // OptimismPortal emits a HashUnionUpdated event on `depositTransaction` call
+        vm.expectEmit(address(optimismPortal));
+        emit HashUnionUpdated(unionBefore, unionAfter);
 
         // SentMessage event emitted by the CrossDomainMessenger
         vm.expectEmit(address(l1CrossDomainMessenger));
@@ -599,8 +611,12 @@ contract L1StandardBridge_DepositERC20To_Test is Bridge_Initializer {
         // OptimismPortal emits a TransactionDeposited event on `depositTransaction` call
         vm.expectEmit(address(optimismPortal));
         emit TransactionDeposited(
-            l1MessengerAliased, address(l2CrossDomainMessenger), version, opaqueData, unionBefore, unionAfter
+            l1MessengerAliased, address(l2CrossDomainMessenger), version, opaqueData
         );
+
+        // OptimismPortal emits a HashUnionUpdated event on `depositTransaction` call
+        vm.expectEmit(address(optimismPortal));
+        emit HashUnionUpdated(unionBefore, unionAfter);
 
         // SentMessage event emitted by the CrossDomainMessenger
         vm.expectEmit(address(l1CrossDomainMessenger));

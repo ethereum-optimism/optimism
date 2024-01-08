@@ -124,10 +124,12 @@ contract OptimismPortal_Test is CommonTest {
             _mint: _value,
             _gasLimit: 100_000,
             _isCreation: false,
-            _data: hex"",
-            _unionBefore: unionBefore,
-            _unionAfter: unionAfter
+            _data: hex""
         });
+
+        // OptimismPortal emits a HashUnionUpdated event on `depositTransaction` call
+        vm.expectEmit(address(optimismPortal));
+        emit HashUnionUpdated(unionBefore, unionAfter);
 
         // give alice money and send as an eoa
         vm.deal(alice, _value);
@@ -236,10 +238,12 @@ contract OptimismPortal_Test is CommonTest {
             _mint: _mint,
             _gasLimit: _gasLimit,
             _isCreation: _isCreation,
-            _data: _data,
-            _unionBefore: unionBefore,
-            _unionAfter: unionAfter
+            _data: _data
         });
+
+        // OptimismPortal emits a HashUnionUpdated event on `depositTransaction` call
+        vm.expectEmit(address(optimismPortal));
+        emit HashUnionUpdated(unionBefore, unionAfter);
 
         vm.deal(depositor, _mint);
         vm.prank(depositor, depositor);
@@ -294,10 +298,12 @@ contract OptimismPortal_Test is CommonTest {
             _mint: _mint,
             _gasLimit: _gasLimit,
             _isCreation: _isCreation,
-            _data: _data,
-            _unionBefore: unionBefore,
-            _unionAfter: unionAfter
+            _data: _data
         });
+
+        // OptimismPortal emits a HashUnionUpdated event on `depositTransaction` call
+        vm.expectEmit(address(optimismPortal));
+        emit HashUnionUpdated(unionBefore, unionAfter);
 
         vm.deal(address(this), _mint);
         vm.prank(address(this));
