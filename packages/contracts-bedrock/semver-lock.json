@@ -48,12 +48,12 @@
     "sourceCodeHash": "0xd787bd2a192ba5025fa0a8de2363af66a8de20de226e411bdb576adb64636cd0"
   },
   "src/L2/GasPriceOracle.sol": {
-    "initCodeHash": "0x6e235d82993606ca4d19b523096678b3cb13bad7a140567dd4f42de2cf0a2b8e",
-    "sourceCodeHash": "0x6dd53c5d8164eb2c96c3e210d0b667a24daa674056c9b75ac1f93433b7e737fa"
+    "initCodeHash": "0xc980e2ca81850ca4f72fd207e8f8a4e5eebe966393c03e3ecc21c5e87a55aa05",
+    "sourceCodeHash": "0x9eea8b1f68dd6a244323d58aaef24a3938e166575c71b3665a804dd4f32060de"
   },
   "src/L2/L1Block.sol": {
-    "initCodeHash": "0x280927b73942e7d00c6170b15c0b1e087da0be3adf5a63a59d3a71ad64b33685",
-    "sourceCodeHash": "0x50e1aae72b91da2d288bbd0b7ffb693b13bd375962d9c1ac0d8b47a913520fd9"
+    "initCodeHash": "0xecdd18698880762e6c9561d271a447e64fdad03f25d144580fb0ebb39bfb7148",
+    "sourceCodeHash": "0x271b6c80593bca95dfcd3543116bed541d8177f0751bbded611680b64a81818a"
   },
   "src/L2/L1FeeVault.sol": {
     "initCodeHash": "0x2744d34573be83206d1b75d049d18a7bb37f9058e68c0803e5008c46b0dc2474",
