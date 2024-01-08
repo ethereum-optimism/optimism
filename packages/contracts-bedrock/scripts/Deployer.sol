@@ -9,6 +9,7 @@ import { Chains } from "scripts/Chains.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { AddressManager } from "src/legacy/AddressManager.sol";
+import { LibString } from "solady/utils/LibString.sol";
 
 /// @notice store the new deployment to be saved
 struct Deployment {
@@ -564,41 +565,23 @@ abstract contract Deployer is Script {
 
     /// @dev Returns the value of the internal `_initialized` storage slot for a given contract.
     function loadInitializedSlot(string memory _contractName) public returns (uint8 initialized_) {
-        uint256 contractNameLength = bytes(_contractName).length;
-        address addr;
-        // Check if the contract name ends with `Proxy` and if so, get the implementation address
-        string memory suffix = _substring(_contractName, contractNameLength - 5, contractNameLength);
-        if (bytes(suffix).length == bytes("Proxy").length && keccak256(bytes(suffix)) == keccak256(bytes("Proxy"))) {
-            addr = EIP1967Helper.getImplementation(getAddress(_contractName));
-            _contractName = _substring(_contractName, 0, contractNameLength - 5);
+        address contractAddress;
+        // Check if the contract name ends with `Proxy` and, if so, get the implementation address
+        if (LibString.endsWith(_contractName, "Proxy")) {
+            contractAddress = EIP1967Helper.getImplementation(getAddress(_contractName));
+            _contractName = LibString.slice(_contractName, 0, bytes(_contractName).length - 5);
             // If the EIP1967 implementation address is 0, we try to get the implementation address from legacy
             // AddressManager, which would work if the proxy is ResolvedDelegateProxy like L1CrossDomainMessengerProxy.
-            if (addr == address(0)) {
-                addr = AddressManager(mustGetAddress("AddressManager")).getAddress(string.concat("OVM_", _contractName));
+            if (contractAddress == address(0)) {
+                contractAddress =
+                    AddressManager(mustGetAddress("AddressManager")).getAddress(LibString.concat("OVM_", _contractName));
             }
         } else {
-            addr = mustGetAddress(_contractName);
+            contractAddress = mustGetAddress(_contractName);
         }
         StorageSlot memory slot = getInitializedSlot(_contractName);
-        bytes32 slotVal = vm.load(addr, bytes32(vm.parseUint(slot.slot)));
+        bytes32 slotVal = vm.load(contractAddress, bytes32(vm.parseUint(slot.slot)));
         initialized_ = uint8((uint256(slotVal) >> (slot.offset * 8)) & 0xFF);
-    }
-
-    function _substring(
-        string memory str,
-        uint256 startIndex,
-        uint256 endIndex
-    )
-        internal
-        pure
-        returns (string memory)
-    {
-        bytes memory strBytes = bytes(str);
-        bytes memory result = new bytes(endIndex - startIndex);
-        for (uint256 i = startIndex; i < endIndex; i++) {
-            result[i - startIndex] = strBytes[i];
-        }
-        return string(result);
     }
 
     /// @notice Adds a deployment to the temp deployments file
