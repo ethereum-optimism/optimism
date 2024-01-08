@@ -49,6 +49,7 @@ var (
 		Name:    "trace-type",
 		Usage:   "The trace types to support. Valid options: " + openum.EnumString(config.TraceTypes),
 		EnvVars: prefixEnvVars("TRACE_TYPE"),
+		Value:   cli.NewStringSlice(config.TraceTypeCannon.String()),
 	}
 	DatadirFlag = &cli.StringFlag{
 		Name:    "datadir",
@@ -135,12 +136,12 @@ var (
 var requiredFlags = []cli.Flag{
 	L1EthRpcFlag,
 	FactoryAddressFlag,
-	TraceTypeFlag,
 	DatadirFlag,
 }
 
 // optionalFlags is a list of unchecked cli flags
 var optionalFlags = []cli.Flag{
+	TraceTypeFlag,
 	MaxConcurrencyFlag,
 	HTTPPollInterval,
 	RollupRpcFlag,
