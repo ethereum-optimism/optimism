@@ -61,5 +61,12 @@
     "offset": 1,
     "slot": "53",
     "type": "contract SuperchainConfig"
+  },
+  {
+    "bytes": "32",
+    "label": "depositHashUnion",
+    "offset": 0,
+    "slot": "54",
+    "type": "bytes32"
   }
 ]

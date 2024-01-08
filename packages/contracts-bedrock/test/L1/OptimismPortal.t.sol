@@ -103,6 +103,19 @@ contract OptimismPortal_Test is CommonTest {
 
     /// @dev Tests that `receive` successdully deposits ETH.
     function testFuzz_receive_succeeds(uint256 _value) external {
+        bytes32 unionBefore = optimismPortal.depositHashUnion();
+        bytes32 unionAfter = computeDepositHashUnion({
+            _unionBefore: unionBefore,
+            _from: alice,
+            _to: alice,
+            _depositVersion: 0,
+            _mint: _value,
+            _value: _value,
+            _gasLimit: 100_000,
+            _isCreation: false,
+            _data: hex""
+        });
+
         vm.expectEmit(address(optimismPortal));
         emitTransactionDeposited({
             _from: alice,
@@ -111,7 +124,9 @@ contract OptimismPortal_Test is CommonTest {
             _mint: _value,
             _gasLimit: 100_000,
             _isCreation: false,
-            _data: hex""
+            _data: hex"",
+            _unionBefore: unionBefore,
+            _unionAfter: unionAfter
         });
 
         // give alice money and send as an eoa
@@ -199,6 +214,19 @@ contract OptimismPortal_Test is CommonTest {
         );
         if (_isCreation) _to = address(0);
 
+        bytes32 unionBefore = optimismPortal.depositHashUnion();
+        bytes32 unionAfter = computeDepositHashUnion({
+            _unionBefore: unionBefore,
+            _from: depositor,
+            _to: _to,
+            _depositVersion: 0,
+            _mint: _mint,
+            _value: _value,
+            _gasLimit: _gasLimit,
+            _isCreation: _isCreation,
+            _data: _data
+        });
+
         // EOA emulation
         vm.expectEmit(address(optimismPortal));
         emitTransactionDeposited({
@@ -208,7 +236,9 @@ contract OptimismPortal_Test is CommonTest {
             _mint: _mint,
             _gasLimit: _gasLimit,
             _isCreation: _isCreation,
-            _data: _data
+            _data: _data,
+            _unionBefore: unionBefore,
+            _unionAfter: unionAfter
         });
 
         vm.deal(depositor, _mint);
@@ -243,6 +273,19 @@ contract OptimismPortal_Test is CommonTest {
         );
         if (_isCreation) _to = address(0);
 
+        bytes32 unionBefore = optimismPortal.depositHashUnion();
+        bytes32 unionAfter = computeDepositHashUnion({
+            _unionBefore: unionBefore,
+            _from: AddressAliasHelper.applyL1ToL2Alias(address(this)),
+            _to: _to,
+            _depositVersion: 0,
+            _mint: _mint,
+            _value: _value,
+            _gasLimit: _gasLimit,
+            _isCreation: _isCreation,
+            _data: _data
+        });
+
         vm.expectEmit(address(optimismPortal));
         emitTransactionDeposited({
             _from: AddressAliasHelper.applyL1ToL2Alias(address(this)),
@@ -251,7 +294,9 @@ contract OptimismPortal_Test is CommonTest {
             _mint: _mint,
             _gasLimit: _gasLimit,
             _isCreation: _isCreation,
-            _data: _data
+            _data: _data,
+            _unionBefore: unionBefore,
+            _unionAfter: unionAfter
         });
 
         vm.deal(address(this), _mint);

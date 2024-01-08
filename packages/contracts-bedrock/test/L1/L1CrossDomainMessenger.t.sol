@@ -47,6 +47,22 @@ contract L1CrossDomainMessenger_Test is Bridge_Initializer {
             )
         );
 
+        bytes memory callData =
+            Encoding.encodeCrossDomainMessage(l1CrossDomainMessenger.messageNonce(), alice, recipient, 0, 100, hex"ff");
+
+        bytes32 unionBefore = optimismPortal.depositHashUnion();
+        bytes32 unionAfter = computeDepositHashUnion({
+            _unionBefore: unionBefore,
+            _from: AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger)),
+            _to: Predeploys.L2_CROSS_DOMAIN_MESSENGER,
+            _depositVersion: 0,
+            _mint: 0,
+            _value: 0,
+            _gasLimit: l1CrossDomainMessenger.baseGas(hex"ff", 100),
+            _isCreation: false,
+            _data: callData
+        });
+
         // TransactionDeposited event
         vm.expectEmit(address(optimismPortal));
         emitTransactionDeposited(
@@ -56,7 +72,9 @@ contract L1CrossDomainMessenger_Test is Bridge_Initializer {
             0,
             l1CrossDomainMessenger.baseGas(hex"ff", 100),
             false,
-            Encoding.encodeCrossDomainMessage(l1CrossDomainMessenger.messageNonce(), alice, recipient, 0, 100, hex"ff")
+            callData,
+            unionBefore,
+            unionAfter
         );
 
         // SentMessage event

@@ -66,6 +66,9 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     /// @notice The address of the Superchain Config contract.
     SuperchainConfig public superchainConfig;
 
+    /// @notice The hash union of all deposits.
+    bytes32 public depositHashUnion;
+
     /// @notice Emitted when a transaction is deposited from L1 to L2.
     ///         The parameters of this event are read by the rollup node and used to derive deposit
     ///         transactions on L2.
@@ -73,7 +76,16 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     /// @param to         Address that the deposit transaction is directed to.
     /// @param version    Version of this deposit transaction event.
     /// @param opaqueData ABI encoded deposit data to be parsed off-chain.
-    event TransactionDeposited(address indexed from, address indexed to, uint256 indexed version, bytes opaqueData);
+    /// @param unionBefore The global deposit hash union value before this deposit.
+    /// @param unionAfter The global deposit hash union value after this deposit.
+    event TransactionDeposited(
+        address indexed from,
+        address indexed to,
+        uint256 indexed version,
+        bytes opaqueData,
+        bytes32 unionBefore,
+        bytes32 unionAfter
+    );
 
     /// @notice Emitted when a withdrawal transaction is proven.
     /// @param withdrawalHash Hash of the withdrawal transaction.
@@ -93,8 +105,8 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 2.4.0
-    string public constant version = "2.4.0";
+    /// @custom:semver 2.5.0
+    string public constant version = "2.5.0";
 
     /// @notice Constructs the OptimismPortal contract.
     /// @param _l2Oracle Address of the L2OutputOracle contract.
@@ -111,6 +123,9 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         superchainConfig = _superchainConfig;
         if (l2Sender == address(0)) {
             l2Sender = Constants.DEFAULT_L2_SENDER;
+        }
+        if (depositHashUnion == bytes32(0)) {
+            depositHashUnion = keccak256(abi.encode("DEPOSIT_HASH_UNION_INIT"));
         }
         __ResourceMetering_init();
     }
@@ -395,9 +410,17 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         // without breaking the current interface.
         bytes memory opaqueData = abi.encodePacked(msg.value, _value, _gasLimit, _isCreation, _data);
 
+        // Compute the updated global hash union of deposit data and cache the previous value on the stack for
+        // event emission.
+        bytes32 unionBefore = depositHashUnion;
+        bytes32 unionAfter = keccak256(abi.encode(unionBefore, from, _to, DEPOSIT_VERSION, opaqueData));
+
         // Emit a TransactionDeposited event so that the rollup node can derive a deposit
         // transaction for this deposit.
-        emit TransactionDeposited(from, _to, DEPOSIT_VERSION, opaqueData);
+        emit TransactionDeposited(from, _to, DEPOSIT_VERSION, opaqueData, unionBefore, unionAfter);
+
+        // Persist the updated global hash union of deposit data.
+        depositHashUnion = unionAfter;
     }
 
     /// @notice Determine if a given output is finalized.

@@ -48,11 +48,41 @@ contract CommonTest is Setup, Test, Events {
         uint256 _value,
         uint64 _gasLimit,
         bool _isCreation,
-        bytes memory _data
+        bytes memory _data,
+        bytes32 _unionBefore,
+        bytes32 _unionAfter
     )
         internal
     {
-        emit TransactionDeposited(_from, _to, 0, abi.encodePacked(_mint, _value, _gasLimit, _isCreation, _data));
+        emit TransactionDeposited(
+            _from, _to, 0, abi.encodePacked(_mint, _value, _gasLimit, _isCreation, _data), _unionBefore, _unionAfter
+        );
+    }
+
+    function computeDepositHashUnion(
+        bytes32 _unionBefore,
+        address _from,
+        address _to,
+        uint256 _depositVersion,
+        uint256 _mint,
+        uint256 _value,
+        uint64 _gasLimit,
+        bool _isCreation,
+        bytes memory _data
+    )
+        internal
+        pure
+        returns (bytes32 unionAfter_)
+    {
+        return keccak256(
+            abi.encode(
+                _unionBefore,
+                _from,
+                _to,
+                _depositVersion,
+                abi.encodePacked(_mint, _value, _gasLimit, _isCreation, _data)
+            )
+        );
     }
 
     // @dev Advance the evm's time to meet the L2OutputOracle's requirements for proposeL2Output

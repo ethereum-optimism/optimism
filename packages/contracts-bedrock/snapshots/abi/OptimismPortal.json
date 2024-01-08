@@ -59,6 +59,19 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "depositHashUnion",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "address",
@@ -477,6 +490,18 @@
         "internalType": "bytes",
         "name": "opaqueData",
         "type": "bytes"
+      },
+      {
+        "indexed": false,
+        "internalType": "bytes32",
+        "name": "unionBefore",
+        "type": "bytes32"
+      },
+      {
+        "indexed": false,
+        "internalType": "bytes32",
+        "name": "unionAfter",
+        "type": "bytes32"
       }
     ],
     "name": "TransactionDeposited",
