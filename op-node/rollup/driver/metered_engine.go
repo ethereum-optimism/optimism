@@ -54,7 +54,7 @@ func (m *MeteredEngine) SafeL2Head() eth.L2BlockRef {
 	return m.inner.SafeL2Head()
 }
 
-func (m *MeteredEngine) StartPayload(ctx context.Context, parent eth.L2BlockRef, attrs *eth.PayloadAttributes, updateSafe bool) (errType derive.BlockInsertionErrType, err error) {
+func (m *MeteredEngine) StartPayload(ctx context.Context, parent eth.L2BlockRef, attrs *derive.AttributesWithParent, updateSafe bool) (errType derive.BlockInsertionErrType, err error) {
 	m.buildingStartTime = time.Now()
 	errType, err = m.inner.StartPayload(ctx, parent, attrs, updateSafe)
 	if err != nil {
