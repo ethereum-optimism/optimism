@@ -8,7 +8,7 @@ import { Executables } from "scripts/Executables.sol";
 import { Chains } from "scripts/Chains.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
-import { AddressManager } from "src/legacy/AddressManager.sol";
+import { IAddressManager } from "scripts/interfaces/IAddressManager.sol";
 import { LibString } from "solady/utils/LibString.sol";
 
 /// @notice store the new deployment to be saved
@@ -585,8 +585,9 @@ abstract contract Deployer is Script {
             // If the EIP1967 implementation address is 0, we try to get the implementation address from legacy
             // AddressManager, which would work if the proxy is ResolvedDelegateProxy like L1CrossDomainMessengerProxy.
             if (contractAddress == address(0)) {
-                contractAddress =
-                    AddressManager(mustGetAddress("AddressManager")).getAddress(LibString.concat("OVM_", _contractName));
+                contractAddress = IAddressManager(mustGetAddress("AddressManager")).getAddress(
+                    LibString.concat("OVM_", _contractName)
+                );
             }
         } else {
             contractAddress = mustGetAddress(_contractName);
