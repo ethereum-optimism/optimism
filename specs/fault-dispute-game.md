@@ -245,7 +245,7 @@ The FDG will assert that an existing claim commits to the state data provided by
 
 Certain steps (VM state transitions) require external data to be available by the `PreimageOracle`.
 To ensure a successful state transition, players should provide this data in advance.
-The FDG provides the following interface to manage data loaded to the `PreimageOracle`:
+The FDG provides the following interface to manage local data loaded to the `PreimageOracle`:
 
 ```solidity
 /// @notice Posts the requested local data to the VM's `PreimageOralce`.
@@ -255,12 +255,54 @@ The FDG provides the following interface to manage data loaded to the `PreimageO
 function addLocalData(uint256 _ident, uint256 _execLeafIdx, uint256 _partOffset) external;
 ```
 
-The `addLocalData` function loads parts of a pre-image to VM's `PreimageOracle`. Players use this to ensure pre-image
-parts are available to the VM during a step. Because there are multiple sets of local preimage keys that belong to the
-`FaultDisputeGame` contract due to the ability for players to bisect to any block $n \rarrow n + 1$ state transition
-since the configured genesis, the `_execLeafIdx` parameter enables a search for the starting / disputed outputs to be
-performed such that the contract can write to and reference unique local keys in the `PreimageOracle` for each of these
-$n \rarrow n + 1$ transitions.
+The `addLocalData` function loads local data into the VM's `PreimageOracle`. This data consists of bootstrap data for
+the program. There are multiple sets of local preimage keys that belong to the `FaultDisputeGame` contract due to the
+ability for players to bisect to any block $n \rarrow n + 1$ state transition since the configured genesis, the
+`_execLeafIdx` parameter enables a search for the starting / disputed outputs to be performed such that the contract
+can write to and reference unique local keys in the `PreimageOracle` for each of these $n \rarrow n + 1$ transitions.
+
+| Identifier | Description                                            |
+| ---------- | ------------------------------------------------------ |
+| `0`        | Parent L1 head hash at the time of the proposal        |
+| `1`        | Starting output root hash (commits to block # `n`)     |
+| `2`        | Disputed output root hash (commits to block # `n + 1`) |
+| `3`        | Starting L2 block number (block # `n`)                 |
+| `4`        | Chain ID                                               |
+
+For global `keccak256` preimages, there are two routes for players to submit:
+1. Small preimages atomically.
+2. Large preimages via streaming.
+
+Global `keccak256` preimages are non-context specific and can be submitted directly to the `PreimageOracle` via the
+`loadKeccak256PreimagePart` function, which takes the part offset as well as the full preimage. In the event that the
+preimage is too large to be submitted through calldata in a single block, challengers must resort to the streaming option.
+
+**Preimage Streaming Steps**
+
+To stream data into the `PreimageOracle`, several functions will need to be consulted:
+
+```solidity
+/// @notice Resets the caller's large pre-image metadata in preparation for beginning the absorption of a new
+///         large keccak256 pre-image.
+/// @param _offset The offset of the preimage part to load into the oracle during absorbtion of the preimage.
+/// @param _claimedSize The claimed size of the preimage.
+function initLargeKeccak256Preimage(uint128 _offset, uint64 _claimedSize) external;
+
+/// @notice Absorbs a part of the caller's large keccak256 pre-image.
+/// @param _data The pre-image segment to absorb.
+/// @param _finalize Whether or not to finalize the absorbtion process. If true, the contract will pad the data
+///                  passed per the pad10*1 rule.
+function absorbLargePreimagePart(bytes calldata _data, bool _finalize) external;
+
+/// @notice Squeezes the caller's large keccak256 pre-image and persists the part into storage.
+function squeezeLargePreimagePart() external;
+```
+
+1. Prepare the preimage. The submitter will need the full size of the preimage and the part offset that they'd like to store (both in bytes).
+1. Call `PreimageOracle.initLargeKeccak256Preimage(offset, preimageSize)`. This will reset the caller's state matrix in the `PreimageOracle` and initialize the metadata for the absorbtion process.
+1. Split the preimage up into however many segments you'd like. Each segment must be a multiple of the `keccak256` block size (`1088` bits, `136` bytes), unless it is the final segment. Note that for the segment that contains the preimage part, it **must** be submitted contiguously. The preimage part cannot span multiple segments.
+1. Once you have the segments, call `PreimageOracle.absorbLargePreimagePart({ _data: segment, _finalize: false })` for every segment, in-order, until the last segment. For the last segment, call `PreimageOracle.absorbLargePreimagePart({ _data: segment, _finalize: true })`. Switching `_finalize` to true will instruct the contract to pad the final block in accordance with the keccak permutation padding rules ([pad10*1](https://keccak.team/keccak_bits_and_bytes.html)).
+1. Once all segments have been submitted to the `PreimageOracle`, call `PreimageOracle.squeezeLargePreimagePart()`. This will squeeze the state matrix that absorbed all of the inputs in step 3 to produce the final digest, and persist the relevent preimage information (part, length) in the `PreimageOracle`.
 
 ### Team Dynamics
 
