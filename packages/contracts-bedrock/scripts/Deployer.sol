@@ -585,9 +585,8 @@ abstract contract Deployer is Script {
             // If the EIP1967 implementation address is 0, we try to get the implementation address from legacy
             // AddressManager, which would work if the proxy is ResolvedDelegateProxy like L1CrossDomainMessengerProxy.
             if (contractAddress == address(0)) {
-                contractAddress = IAddressManager(mustGetAddress("AddressManager")).getAddress(
-                    LibString.concat("OVM_", _contractName)
-                );
+                contractAddress =
+                    IAddressManager(mustGetAddress("AddressManager")).getAddress(string.concat("OVM_", _contractName));
             }
         } else {
             contractAddress = mustGetAddress(_contractName);
