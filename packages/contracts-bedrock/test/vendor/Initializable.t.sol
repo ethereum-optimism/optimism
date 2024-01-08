@@ -258,13 +258,15 @@ contract Initializer_Test is Bridge_Initializer {
     }
 
     /// @dev Returns the number of contracts that are `Initializable` in `src/L1` and `src/L2`.
+    ///      For L1 contracts, implementations are considered in addition to proxies
     function _getNumInitializable() internal returns (uint256 numContracts_) {
         string[] memory command = new string[](3);
         command[0] = Executables.bash;
         command[1] = "-c";
+        // Start by getting L1 contracts
         command[2] = string.concat(
             Executables.find,
-            " src/L1 src/L2 -type f -exec basename {} \\;",
+            " src/L1 -type f -exec basename {} \\;",
             " | ",
             Executables.sed,
             " 's/\\.[^.]*$//'",
@@ -272,10 +274,47 @@ contract Initializer_Test is Bridge_Initializer {
             Executables.jq,
             " -R -s 'split(\"\n\")[:-1]'"
         );
-        string[] memory contractNames = abi.decode(vm.parseJson(string(vm.ffi(command))), (string[]));
+        string[] memory l1ContractNames = abi.decode(vm.parseJson(string(vm.ffi(command))), (string[]));
 
-        for (uint256 i; i < contractNames.length; i++) {
-            string memory contractName = contractNames[i];
+        for (uint256 i; i < l1ContractNames.length; i++) {
+            string memory contractName = l1ContractNames[i];
+            string memory contractAbi = deploy.getAbi(contractName);
+
+            // Query the contract's ABI for an `initialize()` function.
+            command[2] = string.concat(
+                Executables.echo,
+                " '",
+                contractAbi,
+                "'",
+                " | ",
+                Executables.jq,
+                " '.[] | select(.name == \"initialize\" and .type == \"function\")'"
+            );
+            bytes memory res = vm.ffi(command);
+
+            // If the contract has an `initialize()` function, the resulting query will be non-empty.
+            // In this case, increment the number of `Initializable` contracts.
+            if (res.length > 0) {
+                // Count Proxy + Impl
+                numContracts_ += 2;
+            }
+        }
+
+        // Then get L2 contracts
+        command[2] = string.concat(
+            Executables.find,
+            " src/L2 -type f -exec basename {} \\;",
+            " | ",
+            Executables.sed,
+            " 's/\\.[^.]*$//'",
+            " | ",
+            Executables.jq,
+            " -R -s 'split(\"\n\")[:-1]'"
+        );
+        string[] memory l2ContractNames = abi.decode(vm.parseJson(string(vm.ffi(command))), (string[]));
+
+        for (uint256 i; i < l2ContractNames.length; i++) {
+            string memory contractName = l2ContractNames[i];
             string memory contractAbi = deploy.getAbi(contractName);
 
             // Query the contract's ABI for an `initialize()` function.
