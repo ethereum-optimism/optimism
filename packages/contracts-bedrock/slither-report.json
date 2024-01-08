@@ -988,11 +988,11 @@
     "impact": "Medium",
     "confidence": "Medium",
     "check": "tx-origin",
-    "description": "CrossDomainMessenger.relayMessage(uint256,address,address,uint256,uint256,bytes) (src/universal/CrossDomainMessenger.sol#211-306) uses tx.origin for authorization: tx.origin == Constants.ESTIMATION_ADDRESS (src/universal/CrossDomainMessenger.sol#279)\n",
+    "description": "CrossDomainMessenger.relayMessage(uint256,address,address,uint256,uint256,bytes) (src/universal/CrossDomainMessenger.sol#211-309) uses tx.origin for authorization: tx.origin == Constants.ESTIMATION_ADDRESS (src/universal/CrossDomainMessenger.sol#279)\n",
     "type": "function",
     "name": "relayMessage",
     "start": 10427,
-    "length": 4822,
+    "length": 5066,
     "filename_relative": "src/universal/CrossDomainMessenger.sol"
   },
   {
@@ -1000,7 +1000,7 @@
     "impact": "Medium",
     "confidence": "Medium",
     "check": "tx-origin",
-    "description": "CrossDomainMessenger.relayMessage(uint256,address,address,uint256,uint256,bytes) (src/universal/CrossDomainMessenger.sol#211-306) uses tx.origin for authorization: tx.origin == Constants.ESTIMATION_ADDRESS (src/universal/CrossDomainMessenger.sol#279)\n",
+    "description": "CrossDomainMessenger.relayMessage(uint256,address,address,uint256,uint256,bytes) (src/universal/CrossDomainMessenger.sol#211-309) uses tx.origin for authorization: tx.origin == Constants.ESTIMATION_ADDRESS (src/universal/CrossDomainMessenger.sol#279)\n",
     "type": "node",
     "name": "tx.origin == Constants.ESTIMATION_ADDRESS",
     "start": 14024,
@@ -1008,52 +1008,52 @@
     "filename_relative": "src/universal/CrossDomainMessenger.sol"
   },
   {
-    "id": "37ae06d1257a210b94d7ebd3a411a5e657e4fe6e09bdcb5405f76bcf5b2e6496",
+    "id": "9499bea1e26f68282279d9bf87f2ba9c95d500ba55be2f97dd49060d65abc6e7",
     "impact": "Medium",
     "confidence": "Medium",
     "check": "tx-origin",
-    "description": "CrossDomainMessenger.relayMessage(uint256,address,address,uint256,uint256,bytes) (src/universal/CrossDomainMessenger.sol#211-306) uses tx.origin for authorization: tx.origin == Constants.ESTIMATION_ADDRESS (src/universal/CrossDomainMessenger.sol#302)\n",
-    "type": "function",
-    "name": "relayMessage",
-    "start": 10427,
-    "length": 4822,
-    "filename_relative": "src/universal/CrossDomainMessenger.sol"
-  },
-  {
-    "id": "37ae06d1257a210b94d7ebd3a411a5e657e4fe6e09bdcb5405f76bcf5b2e6496",
-    "impact": "Medium",
-    "confidence": "Medium",
-    "check": "tx-origin",
-    "description": "CrossDomainMessenger.relayMessage(uint256,address,address,uint256,uint256,bytes) (src/universal/CrossDomainMessenger.sol#211-306) uses tx.origin for authorization: tx.origin == Constants.ESTIMATION_ADDRESS (src/universal/CrossDomainMessenger.sol#302)\n",
-    "type": "node",
-    "name": "tx.origin == Constants.ESTIMATION_ADDRESS",
-    "start": 15102,
-    "length": 41,
-    "filename_relative": "src/universal/CrossDomainMessenger.sol"
-  },
-  {
-    "id": "6b52fad833e1120044d0d5364441efdf7e7d9f3988885eaeb83816ee433b43ea",
-    "impact": "Medium",
-    "confidence": "Medium",
-    "check": "tx-origin",
-    "description": "OptimismPortal.finalizeWithdrawalTransaction(Types.WithdrawalTransaction) (src/L1/OptimismPortal.sol#264-347) uses tx.origin for authorization: success == false && tx.origin == Constants.ESTIMATION_ADDRESS (src/L1/OptimismPortal.sol#344)\n",
+    "description": "OptimismPortal.finalizeWithdrawalTransaction(Types.WithdrawalTransaction) (src/L1/OptimismPortal.sol#266-349) uses tx.origin for authorization: success == false && tx.origin == Constants.ESTIMATION_ADDRESS (src/L1/OptimismPortal.sol#346)\n",
     "type": "function",
     "name": "finalizeWithdrawalTransaction",
-    "start": 12831,
+    "start": 12883,
     "length": 4841,
     "filename_relative": "src/L1/OptimismPortal.sol"
   },
   {
-    "id": "6b52fad833e1120044d0d5364441efdf7e7d9f3988885eaeb83816ee433b43ea",
+    "id": "9499bea1e26f68282279d9bf87f2ba9c95d500ba55be2f97dd49060d65abc6e7",
     "impact": "Medium",
     "confidence": "Medium",
     "check": "tx-origin",
-    "description": "OptimismPortal.finalizeWithdrawalTransaction(Types.WithdrawalTransaction) (src/L1/OptimismPortal.sol#264-347) uses tx.origin for authorization: success == false && tx.origin == Constants.ESTIMATION_ADDRESS (src/L1/OptimismPortal.sol#344)\n",
+    "description": "OptimismPortal.finalizeWithdrawalTransaction(Types.WithdrawalTransaction) (src/L1/OptimismPortal.sol#266-349) uses tx.origin for authorization: success == false && tx.origin == Constants.ESTIMATION_ADDRESS (src/L1/OptimismPortal.sol#346)\n",
     "type": "node",
     "name": "success == false && tx.origin == Constants.ESTIMATION_ADDRESS",
-    "start": 17535,
+    "start": 17587,
     "length": 61,
     "filename_relative": "src/L1/OptimismPortal.sol"
+  },
+  {
+    "id": "f7b7d4d0074e80e507ea26652acb709faeec1b04e7710e3d561444e6052229eb",
+    "impact": "Medium",
+    "confidence": "Medium",
+    "check": "tx-origin",
+    "description": "CrossDomainMessenger.relayMessage(uint256,address,address,uint256,uint256,bytes) (src/universal/CrossDomainMessenger.sol#211-309) uses tx.origin for authorization: tx.origin == Constants.ESTIMATION_ADDRESS (src/universal/CrossDomainMessenger.sol#305)\n",
+    "type": "function",
+    "name": "relayMessage",
+    "start": 10427,
+    "length": 5066,
+    "filename_relative": "src/universal/CrossDomainMessenger.sol"
+  },
+  {
+    "id": "f7b7d4d0074e80e507ea26652acb709faeec1b04e7710e3d561444e6052229eb",
+    "impact": "Medium",
+    "confidence": "Medium",
+    "check": "tx-origin",
+    "description": "CrossDomainMessenger.relayMessage(uint256,address,address,uint256,uint256,bytes) (src/universal/CrossDomainMessenger.sol#211-309) uses tx.origin for authorization: tx.origin == Constants.ESTIMATION_ADDRESS (src/universal/CrossDomainMessenger.sol#305)\n",
+    "type": "node",
+    "name": "tx.origin == Constants.ESTIMATION_ADDRESS",
+    "start": 15346,
+    "length": 41,
+    "filename_relative": "src/universal/CrossDomainMessenger.sol"
   },
   {
     "id": "0369380fef18a61639eac6a12773df792e9969e7bb20eddde54ccf3a263a0987",
@@ -1078,6 +1078,42 @@
     "start": 32115,
     "length": 20,
     "filename_relative": "src/dispute/FaultDisputeGame.sol"
+  },
+  {
+    "id": "251668d2d92d4034a249cc32c68668cf824fe41d8b21c9a3ead976e6c03bdaf4",
+    "impact": "Medium",
+    "confidence": "High",
+    "check": "write-after-write",
+    "description": "OptimismPortal.l2Sender (src/L1/OptimismPortal.sol#53) is written in both\n\tl2Sender = _tx.sender (src/L1/OptimismPortal.sol#325)\n\tl2Sender = Constants.DEFAULT_L2_SENDER (src/L1/OptimismPortal.sol#337)\n",
+    "type": "variable",
+    "name": "l2Sender",
+    "start": 2603,
+    "length": 23,
+    "filename_relative": "src/L1/OptimismPortal.sol"
+  },
+  {
+    "id": "251668d2d92d4034a249cc32c68668cf824fe41d8b21c9a3ead976e6c03bdaf4",
+    "impact": "Medium",
+    "confidence": "High",
+    "check": "write-after-write",
+    "description": "OptimismPortal.l2Sender (src/L1/OptimismPortal.sol#53) is written in both\n\tl2Sender = _tx.sender (src/L1/OptimismPortal.sol#325)\n\tl2Sender = Constants.DEFAULT_L2_SENDER (src/L1/OptimismPortal.sol#337)\n",
+    "type": "node",
+    "name": "l2Sender = _tx.sender",
+    "start": 16288,
+    "length": 21,
+    "filename_relative": "src/L1/OptimismPortal.sol"
+  },
+  {
+    "id": "251668d2d92d4034a249cc32c68668cf824fe41d8b21c9a3ead976e6c03bdaf4",
+    "impact": "Medium",
+    "confidence": "High",
+    "check": "write-after-write",
+    "description": "OptimismPortal.l2Sender (src/L1/OptimismPortal.sol#53) is written in both\n\tl2Sender = _tx.sender (src/L1/OptimismPortal.sol#325)\n\tl2Sender = Constants.DEFAULT_L2_SENDER (src/L1/OptimismPortal.sol#337)\n",
+    "type": "node",
+    "name": "l2Sender = Constants.DEFAULT_L2_SENDER",
+    "start": 17082,
+    "length": 38,
+    "filename_relative": "src/L1/OptimismPortal.sol"
   },
   {
     "id": "9ad67b006fc175893dd26d35a020a52dd8524709d87cca61212ee0e147eb992b",
@@ -1114,41 +1150,5 @@
     "start": 14329,
     "length": 46,
     "filename_relative": "src/universal/CrossDomainMessenger.sol"
-  },
-  {
-    "id": "aba76c5478a36b00ed8b66577c0cd1d3186109cf82c1767ce230c6fe72315c04",
-    "impact": "Medium",
-    "confidence": "High",
-    "check": "write-after-write",
-    "description": "OptimismPortal.l2Sender (src/L1/OptimismPortal.sol#53) is written in both\n\tl2Sender = _tx.sender (src/L1/OptimismPortal.sol#323)\n\tl2Sender = Constants.DEFAULT_L2_SENDER (src/L1/OptimismPortal.sol#335)\n",
-    "type": "variable",
-    "name": "l2Sender",
-    "start": 2603,
-    "length": 23,
-    "filename_relative": "src/L1/OptimismPortal.sol"
-  },
-  {
-    "id": "aba76c5478a36b00ed8b66577c0cd1d3186109cf82c1767ce230c6fe72315c04",
-    "impact": "Medium",
-    "confidence": "High",
-    "check": "write-after-write",
-    "description": "OptimismPortal.l2Sender (src/L1/OptimismPortal.sol#53) is written in both\n\tl2Sender = _tx.sender (src/L1/OptimismPortal.sol#323)\n\tl2Sender = Constants.DEFAULT_L2_SENDER (src/L1/OptimismPortal.sol#335)\n",
-    "type": "node",
-    "name": "l2Sender = _tx.sender",
-    "start": 16236,
-    "length": 21,
-    "filename_relative": "src/L1/OptimismPortal.sol"
-  },
-  {
-    "id": "aba76c5478a36b00ed8b66577c0cd1d3186109cf82c1767ce230c6fe72315c04",
-    "impact": "Medium",
-    "confidence": "High",
-    "check": "write-after-write",
-    "description": "OptimismPortal.l2Sender (src/L1/OptimismPortal.sol#53) is written in both\n\tl2Sender = _tx.sender (src/L1/OptimismPortal.sol#323)\n\tl2Sender = Constants.DEFAULT_L2_SENDER (src/L1/OptimismPortal.sol#335)\n",
-    "type": "node",
-    "name": "l2Sender = Constants.DEFAULT_L2_SENDER",
-    "start": 17030,
-    "length": 38,
-    "filename_relative": "src/L1/OptimismPortal.sol"
   }
 ]
