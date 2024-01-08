@@ -24,19 +24,4 @@ var ParamsByChainID = map[int]*Params{
 	2888: {
 		new(big.Int),
 	},
-	// Bobabeam
-	1294: {
-		new(big.Int),
-	},
-	// Bobaopera
-	301: {
-		new(big.Int),
-	},
-}
-
-var CustomLegacyETHSlotCheck = map[int]bool{
-	// Custom slot check for Bobabeam
-	1294: true,
-	// Custom slot check for Bobaopera
-	301: true,
 }
