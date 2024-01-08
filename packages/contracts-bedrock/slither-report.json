@@ -988,11 +988,11 @@
     "impact": "Medium",
     "confidence": "Medium",
     "check": "tx-origin",
-    "description": "CrossDomainMessenger.relayMessage(uint256,address,address,uint256,uint256,bytes) (src/universal/CrossDomainMessenger.sol#211-312) uses tx.origin for authorization: tx.origin == Constants.ESTIMATION_ADDRESS (src/universal/CrossDomainMessenger.sol#279)\n",
+    "description": "CrossDomainMessenger.relayMessage(uint256,address,address,uint256,uint256,bytes) (src/universal/CrossDomainMessenger.sol#211-309) uses tx.origin for authorization: tx.origin == Constants.ESTIMATION_ADDRESS (src/universal/CrossDomainMessenger.sol#279)\n",
     "type": "function",
     "name": "relayMessage",
     "start": 10427,
-    "length": 5186,
+    "length": 5066,
     "filename_relative": "src/universal/CrossDomainMessenger.sol"
   },
   {
@@ -1000,34 +1000,10 @@
     "impact": "Medium",
     "confidence": "Medium",
     "check": "tx-origin",
-    "description": "CrossDomainMessenger.relayMessage(uint256,address,address,uint256,uint256,bytes) (src/universal/CrossDomainMessenger.sol#211-312) uses tx.origin for authorization: tx.origin == Constants.ESTIMATION_ADDRESS (src/universal/CrossDomainMessenger.sol#279)\n",
+    "description": "CrossDomainMessenger.relayMessage(uint256,address,address,uint256,uint256,bytes) (src/universal/CrossDomainMessenger.sol#211-309) uses tx.origin for authorization: tx.origin == Constants.ESTIMATION_ADDRESS (src/universal/CrossDomainMessenger.sol#279)\n",
     "type": "node",
     "name": "tx.origin == Constants.ESTIMATION_ADDRESS",
     "start": 14024,
-    "length": 41,
-    "filename_relative": "src/universal/CrossDomainMessenger.sol"
-  },
-  {
-    "id": "297b0097a00d63b07fb57d6fc3cdb2b458872995f0927a8c7622feaf21ef9d42",
-    "impact": "Medium",
-    "confidence": "Medium",
-    "check": "tx-origin",
-    "description": "CrossDomainMessenger.relayMessage(uint256,address,address,uint256,uint256,bytes) (src/universal/CrossDomainMessenger.sol#211-312) uses tx.origin for authorization: tx.origin == Constants.ESTIMATION_ADDRESS (src/universal/CrossDomainMessenger.sol#308)\n",
-    "type": "function",
-    "name": "relayMessage",
-    "start": 10427,
-    "length": 5186,
-    "filename_relative": "src/universal/CrossDomainMessenger.sol"
-  },
-  {
-    "id": "297b0097a00d63b07fb57d6fc3cdb2b458872995f0927a8c7622feaf21ef9d42",
-    "impact": "Medium",
-    "confidence": "Medium",
-    "check": "tx-origin",
-    "description": "CrossDomainMessenger.relayMessage(uint256,address,address,uint256,uint256,bytes) (src/universal/CrossDomainMessenger.sol#211-312) uses tx.origin for authorization: tx.origin == Constants.ESTIMATION_ADDRESS (src/universal/CrossDomainMessenger.sol#308)\n",
-    "type": "node",
-    "name": "tx.origin == Constants.ESTIMATION_ADDRESS",
-    "start": 15466,
     "length": 41,
     "filename_relative": "src/universal/CrossDomainMessenger.sol"
   },
@@ -1054,6 +1030,30 @@
     "start": 17587,
     "length": 61,
     "filename_relative": "src/L1/OptimismPortal.sol"
+  },
+  {
+    "id": "f7b7d4d0074e80e507ea26652acb709faeec1b04e7710e3d561444e6052229eb",
+    "impact": "Medium",
+    "confidence": "Medium",
+    "check": "tx-origin",
+    "description": "CrossDomainMessenger.relayMessage(uint256,address,address,uint256,uint256,bytes) (src/universal/CrossDomainMessenger.sol#211-309) uses tx.origin for authorization: tx.origin == Constants.ESTIMATION_ADDRESS (src/universal/CrossDomainMessenger.sol#305)\n",
+    "type": "function",
+    "name": "relayMessage",
+    "start": 10427,
+    "length": 5066,
+    "filename_relative": "src/universal/CrossDomainMessenger.sol"
+  },
+  {
+    "id": "f7b7d4d0074e80e507ea26652acb709faeec1b04e7710e3d561444e6052229eb",
+    "impact": "Medium",
+    "confidence": "Medium",
+    "check": "tx-origin",
+    "description": "CrossDomainMessenger.relayMessage(uint256,address,address,uint256,uint256,bytes) (src/universal/CrossDomainMessenger.sol#211-309) uses tx.origin for authorization: tx.origin == Constants.ESTIMATION_ADDRESS (src/universal/CrossDomainMessenger.sol#305)\n",
+    "type": "node",
+    "name": "tx.origin == Constants.ESTIMATION_ADDRESS",
+    "start": 15346,
+    "length": 41,
+    "filename_relative": "src/universal/CrossDomainMessenger.sol"
   },
   {
     "id": "0369380fef18a61639eac6a12773df792e9969e7bb20eddde54ccf3a263a0987",
