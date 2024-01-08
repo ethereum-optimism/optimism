@@ -76,12 +76,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     /// @param to         Address that the deposit transaction is directed to.
     /// @param version    Version of this deposit transaction event.
     /// @param opaqueData ABI encoded deposit data to be parsed off-chain.
-    event TransactionDeposited(
-        address indexed from,
-        address indexed to,
-        uint256 indexed version,
-        bytes opaqueData
-    );
+    event TransactionDeposited(address indexed from, address indexed to, uint256 indexed version, bytes opaqueData);
 
     /// @notice Emitted when the deposit hash union is updated.
     /// @param unionBefore The global deposit hash union value before this deposit.

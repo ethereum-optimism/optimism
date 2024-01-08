@@ -249,9 +249,7 @@ contract PreBridgeETH is Bridge_Initializer {
 
         // OptimismPortal emits a TransactionDeposited event on `depositTransaction` call
         vm.expectEmit(address(optimismPortal));
-        emit TransactionDeposited(
-            l1MessengerAliased, address(l2CrossDomainMessenger), version, opaqueData
-        );
+        emit TransactionDeposited(l1MessengerAliased, address(l2CrossDomainMessenger), version, opaqueData);
 
         // OptimismPortal emits a HashUnionUpdated event on `depositTransaction` call
         vm.expectEmit(address(optimismPortal));
@@ -384,9 +382,7 @@ contract PreBridgeETHTo is Bridge_Initializer {
 
         // OptimismPortal emits a TransactionDeposited event on `depositTransaction` call
         vm.expectEmit(address(optimismPortal));
-        emit TransactionDeposited(
-            l1MessengerAliased, address(l2CrossDomainMessenger), version, opaqueData
-        );
+        emit TransactionDeposited(l1MessengerAliased, address(l2CrossDomainMessenger), version, opaqueData);
 
         // OptimismPortal emits a HashUnionUpdated event on `depositTransaction` call
         vm.expectEmit(address(optimismPortal));
@@ -519,9 +515,7 @@ contract L1StandardBridge_DepositERC20_Test is Bridge_Initializer {
 
         // OptimismPortal emits a TransactionDeposited event on `depositTransaction` call
         vm.expectEmit(address(optimismPortal));
-        emit TransactionDeposited(
-            l1MessengerAliased, address(l2CrossDomainMessenger), version, opaqueData
-        );
+        emit TransactionDeposited(l1MessengerAliased, address(l2CrossDomainMessenger), version, opaqueData);
 
         // OptimismPortal emits a HashUnionUpdated event on `depositTransaction` call
         vm.expectEmit(address(optimismPortal));
@@ -610,9 +604,7 @@ contract L1StandardBridge_DepositERC20To_Test is Bridge_Initializer {
 
         // OptimismPortal emits a TransactionDeposited event on `depositTransaction` call
         vm.expectEmit(address(optimismPortal));
-        emit TransactionDeposited(
-            l1MessengerAliased, address(l2CrossDomainMessenger), version, opaqueData
-        );
+        emit TransactionDeposited(l1MessengerAliased, address(l2CrossDomainMessenger), version, opaqueData);
 
         // OptimismPortal emits a HashUnionUpdated event on `depositTransaction` call
         vm.expectEmit(address(optimismPortal));
