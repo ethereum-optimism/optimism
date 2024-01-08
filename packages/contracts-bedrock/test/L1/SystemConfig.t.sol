@@ -51,8 +51,6 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
         assertEq(systemConfig.batcherHash(), batcherHash);
         assertEq(systemConfig.gasLimit(), gasLimit);
         assertEq(systemConfig.unsafeBlockSigner(), unsafeBlockSigner);
-        assertEq(systemConfig.basefeeScalar(), scalar);
-        assertEq(systemConfig.blobBasefeeScalar(), 0);
         // Depends on `initialize` being called with defaults
         ResourceMetering.ResourceConfig memory rcfg = Constants.DEFAULT_RESOURCE_CONFIG();
         ResourceMetering.ResourceConfig memory actual = systemConfig.resourceConfig();
@@ -109,12 +107,6 @@ contract SystemConfig_Setters_TestFail is SystemConfig_Init {
     function test_setGasConfig_notOwner_reverts() external {
         vm.expectRevert("Ownable: caller is not the owner");
         systemConfig.setGasConfig(0, 0);
-    }
-
-    /// @dev Tests that `setGasConfigEcotone` reverts if the caller is not the owner.
-    function test_setGasConfigEcotone_notOwner_reverts() external {
-        vm.expectRevert("Ownable: caller is not the owner");
-        systemConfig.setGasConfigEcotone(0, 0);
     }
 
     /// @dev Tests that `setGasLimit` reverts if the caller is not the owner.
@@ -222,19 +214,6 @@ contract SystemConfig_Setters_Test is SystemConfig_Init {
         systemConfig.setGasConfig(newOverhead, newScalar);
         assertEq(systemConfig.overhead(), newOverhead);
         assertEq(systemConfig.scalar(), newScalar);
-    }
-
-    /// @dev Tests that `setGasConfigEcotone` updates the gas limit successfully.
-    function testFuzz_setGasConfigEcotone_succeeds(uint32 basefeeScalar, uint32 blobBasefeeScalar) external {
-        vm.expectEmit(address(systemConfig));
-        emit ConfigUpdate(
-            0, SystemConfig.UpdateType.GAS_CONFIG_ECOTONE, abi.encodePacked(basefeeScalar, blobBasefeeScalar)
-        );
-
-        vm.prank(systemConfig.owner());
-        systemConfig.setGasConfigEcotone(basefeeScalar, blobBasefeeScalar);
-        assertEq(systemConfig.basefeeScalar(), basefeeScalar);
-        assertEq(systemConfig.blobBasefeeScalar(), blobBasefeeScalar);
     }
 
     /// @dev Tests that `setGasLimit` updates the gas limit successfully.
