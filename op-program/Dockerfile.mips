@@ -1,6 +1,15 @@
 ARG OP_STACK_GO_BUILDER=us-docker.pkg.dev/oplabs-tools-artifacts/images/op-stack-go:latest
 FROM $OP_STACK_GO_BUILDER as builder
 
-COPY --from=builder /usr/local/bin/op-program /usr/local/bin/op-program
+COPY --from=builder /usr/local/bin/cannon /usr/local/bin/cannon
+COPY --from=builder /usr/local/bin/op-program-client.elf /usr/local/bin/op-program-client.elf
+COPY --from=builder /usr/local/bin/meta.json /usr/local/bin/meta.json
 
-CMD ["op-program"]
+RUN cannon load-elf --path /usr/local/bin/op-program-client.elf --out /usr/local/bin/prestate.json --meta /usr/local/bin/meta.json
+
+
+CMD ["cannon"]
+
+	./cannon/bin/
+	./cannon/bin/cannon run --proof-at '=0' --stop-at '=1' --input op-program/bin/prestate.json --meta op-program/bin/meta.json --proof-fmt 'op-program/bin/%d.json' --output ""
+	mv op-program/bin/0.json op-program/bin/prestate-proof.json
