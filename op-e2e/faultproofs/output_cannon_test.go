@@ -261,7 +261,6 @@ func TestOutputCannonProposedOutputRootValid(t *testing.T) {
 				// Attacking ensure we're running the cannon trace between two different blocks
 				// instead of being in the trace extension of the output root bisection
 				if claim.IsOutputRootLeaf(ctx) {
-					// TODO(client-pod#262): Verify that an attack with a valid status code is rejected
 					return claim.Attack(ctx, common.Hash{0x01})
 				}
 				// Otherwise, defend everything using the correct hash.
