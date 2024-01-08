@@ -244,7 +244,6 @@ func TestOutputCannonProposedOutputRootValid(t *testing.T) {
 				// Attack everything but oddly using the correct hash.
 				// Except the root of the cannon game must have an invalid VM status code.
 				if claim.IsOutputRootLeaf(ctx) {
-					// TODO(client-pod#262): Verify that an attack with a valid status code is rejected
 					return claim.Attack(ctx, common.Hash{0x01})
 				}
 				return correctTrace.AttackClaim(ctx, claim)
