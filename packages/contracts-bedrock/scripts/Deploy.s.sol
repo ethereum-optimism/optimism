@@ -19,6 +19,8 @@ import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
 import { AddressManager } from "src/legacy/AddressManager.sol";
 import { Proxy } from "src/universal/Proxy.sol";
 import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
+import { L1DomiconCommitment } from "src/L1/L1DomiconCommitment.sol";
+import { L1DomiconNode } from "src/L1/L1DomiconNode.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 import { L1ChugSplashProxy } from "src/legacy/L1ChugSplashProxy.sol";
 import { ResolvedDelegateProxy } from "src/legacy/ResolvedDelegateProxy.sol";
@@ -45,6 +47,7 @@ import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
 import "src/libraries/DisputeTypes.sol";
 import { ChainAssertions } from "scripts/ChainAssertions.sol";
 import { Types } from "scripts/Types.sol";
+import "../src/L1/L1DomiconNode.sol";
 
 /// @title Deploy
 /// @notice Script used to deploy a bedrock system. The entire system is deployed within the `run` function.
@@ -82,6 +85,8 @@ contract Deploy is Deployer {
         initializeDisputeGameFactory();
         initializeSystemConfig();
         initializeL1StandardBridge();
+        initializeL1DomiconCommitment();
+        initializeL1DomiconNode();
         initializeL1ERC721Bridge();
         initializeOptimismMintableERC20Factory();
         initializeL1CrossDomainMessenger();
@@ -138,6 +143,8 @@ contract Deploy is Deployer {
         deployL2OutputOracleProxy();
         deploySystemConfigProxy();
         deployL1StandardBridgeProxy();
+        deployL1DomiconCommitmentProxy();
+        deployL1DomiconNodeProxy();
         deployL1CrossDomainMessengerProxy();
         deployOptimismMintableERC20FactoryProxy();
         deployL1ERC721BridgeProxy();
@@ -155,6 +162,8 @@ contract Deploy is Deployer {
         deployOptimismMintableERC20Factory();
         deploySystemConfig();
         deployL1StandardBridge();
+        deployL1DomiconCommitment();
+        deployL1DomiconNode();
         deployL1ERC721Bridge();
         deployDisputeGameFactory();
         deployBlockOracle();
@@ -236,6 +245,32 @@ contract Deploy is Deployer {
 
         save("L1StandardBridgeProxy", address(proxy));
         console.log("L1StandardBridgeProxy deployed at %s", address(proxy));
+        addr_ = address(proxy);
+    }
+
+    /// @notice Deploy the L1DomiconCommitmentProxy
+    function deployL1DomiconCommitmentProxy() public broadcast returns (address addr_) {
+        address proxyAdmin = mustGetAddress("ProxyAdmin");
+        L1ChugSplashProxy proxy = new L1ChugSplashProxy(proxyAdmin);
+
+        address admin = address(uint160(uint256(vm.load(address(proxy), OWNER_KEY))));
+        require(admin == proxyAdmin);
+
+        save("L1DomiconCommitmentProxy", address(proxy));
+        console.log("L1DomiconCommitmentProxy deployed at %s", address(proxy));
+        addr_ = address(proxy);
+    }
+
+    /// @notice Deploy the L1DomiconNodeProxy
+    function deployL1DomiconNodeProxy() public broadcast returns (address addr_) {
+        address proxyAdmin = mustGetAddress("ProxyAdmin");
+        L1ChugSplashProxy proxy = new L1ChugSplashProxy(proxyAdmin);
+
+        address admin = address(uint160(uint256(vm.load(address(proxy), OWNER_KEY))));
+        require(admin == proxyAdmin);
+
+        save("L1DomiconNodeProxy", address(proxy));
+        console.log("L1DomiconNodeProxy deployed at %s", address(proxy));
         addr_ = address(proxy);
     }
 
@@ -506,6 +541,8 @@ contract Deploy is Deployer {
 
         require(config.l1ERC721Bridge() == address(0));
         require(config.l1StandardBridge() == address(0));
+        require(config.L1DomiconCommitment() == address(0));
+        require(config.L1DomiconNode()==address(0));
         require(config.l2OutputOracle() == address(0));
         require(config.optimismPortal() == address(0));
         require(config.l1CrossDomainMessenger() == address(0));
@@ -531,6 +568,36 @@ contract Deploy is Deployer {
         console.log("L1StandardBridge deployed at %s", address(bridge));
 
         addr_ = address(bridge);
+    }
+
+    /// @notice Deploy the L1DomiconCommitment
+    function deployL1DomiconCommitment() public broadcast returns (address addr_) {
+        L1DomiconCommitment commitment = new L1DomiconCommitment{ salt: implSalt() }();
+
+        require(address(commitment.MESSENGER()) == address(0));
+        require(address(commitment.messenger()) == address(0));
+        require(address(commitment.OTHER_COMMITMENT()) == Predeploys.L2_DOMICON_COMMITMENT);
+        require(address(commitment.otherCommitment()) == Predeploys.L2_DOMICON_COMMITMENT);
+
+        save("L1DomiconCommitment", address(commitment));
+        console.log("L1DomiconCommitment deployed at %s", address(commitment));
+
+        addr_ = address(commitment);
+    }
+
+    /// @notice Deploy the L1DomiconNode
+    function deployL1DomiconNode() public broadcast returns (address addr_) {
+        L1DomiconNode node = new L1DomiconNode{ salt: implSalt() }();
+
+        require(address(node.MESSENGER()) == address(0));
+        require(address(node.messenger()) == address(0));
+        require(address(node.OTHER_DOMICON_NODE()) == Predeploys.L2_DOMICON_NODE);
+        require(address(node.otherDomiconNode()) == Predeploys.L2_DOMICON_NODE);
+
+        save("L1DomiconNode", address(node));
+        console.log("L1DomiconNode deployed at %s", address(node));
+
+        addr_ = address(node);
     }
 
     /// @notice Deploy the L1ERC721Bridge
@@ -632,6 +699,8 @@ contract Deploy is Deployer {
                         l1CrossDomainMessenger: mustGetAddress("L1CrossDomainMessengerProxy"),
                         l1ERC721Bridge: mustGetAddress("L1ERC721BridgeProxy"),
                         l1StandardBridge: mustGetAddress("L1StandardBridgeProxy"),
+                        l1DomiconCommitment: mustGetAddress("L1DomiconCommitmentProxy"),
+                        l1DomiconNode: mustGetAddress("L1DomiconNodeProxy"),
                         l2OutputOracle: mustGetAddress("L2OutputOracleProxy"),
                         optimismPortal: mustGetAddress("OptimismPortalProxy"),
                         optimismMintableERC20Factory: mustGetAddress("OptimismMintableERC20FactoryProxy")
@@ -675,6 +744,66 @@ contract Deploy is Deployer {
         console.log("L1StandardBridge version: %s", version);
 
         ChainAssertions.checkL1StandardBridge(_proxies(), vm);
+    }
+
+    /// @notice Initialize the L1DomiconCommitment
+    function initializeL1DomiconCommitment() public broadcast {
+        ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
+        address l1DomiconCommitmentProxy = mustGetAddress("L1DomiconCommitmentProxy");
+        address l1DomiconCommitment = mustGetAddress("L1DomiconCommitment");
+        address l1CrossDomainMessengerProxy = mustGetAddress("L1CrossDomainMessengerProxy");
+
+        uint256 proxyType = uint256(proxyAdmin.proxyType(l1DomiconCommitmentProxy));
+        if (proxyType != uint256(ProxyAdmin.ProxyType.CHUGSPLASH)) {
+            _callViaSafe({
+                _target: address(proxyAdmin),
+                _data: abi.encodeCall(ProxyAdmin.setProxyType, (l1DomiconCommitmentProxy, ProxyAdmin.ProxyType.CHUGSPLASH))
+            });
+        }
+        require(uint256(proxyAdmin.proxyType(l1DomiconCommitmentProxy)) == uint256(ProxyAdmin.ProxyType.CHUGSPLASH));
+
+        _upgradeAndCallViaSafe({
+            _proxy: payable(l1DomiconCommitmentProxy),
+            _implementation: l1DomiconCommitment,
+            _innerCallData: abi.encodeCall(
+                L1DomiconCommitment.initialize, (L1CrossDomainMessenger(l1CrossDomainMessengerProxy))
+            )
+        });
+
+        string memory version = L1DomiconCommitment(payable(l1DomiconCommitmentProxy)).version();
+        console.log("l1DomiconCommitment version: %s", version);
+
+        ChainAssertions.checkL1DomiconCommitment(_proxies(), vm);
+    }
+
+    /// @notice Initialize the L1DomiconNode
+    function initializeL1DomiconNode() public broadcast {
+        ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
+        address l1DomiconNodeProxy = mustGetAddress("L1DomiconNodeProxy");
+        address l1DomiconNode = mustGetAddress("L1DomiconNode");
+        address l1CrossDomainMessengerProxy = mustGetAddress("L1CrossDomainMessengerProxy");
+
+        uint256 proxyType = uint256(proxyAdmin.proxyType(l1DomiconNodeProxy));
+        if (proxyType != uint256(ProxyAdmin.ProxyType.CHUGSPLASH)) {
+            _callViaSafe({
+                _target: address(proxyAdmin),
+                _data: abi.encodeCall(ProxyAdmin.setProxyType, (l1DomiconNodeProxy, ProxyAdmin.ProxyType.CHUGSPLASH))
+            });
+        }
+        require(uint256(proxyAdmin.proxyType(l1DomiconNodeProxy)) == uint256(ProxyAdmin.ProxyType.CHUGSPLASH));
+
+        _upgradeAndCallViaSafe({
+            _proxy: payable(l1DomiconNodeProxy),
+            _implementation: l1DomiconNode,
+            _innerCallData: abi.encodeCall(
+                L1DomiconNode.initialize, (L1CrossDomainMessenger(l1CrossDomainMessengerProxy))
+            )
+        });
+
+        string memory version = L1DomiconNode(payable(l1DomiconNodeProxy)).version();
+        console.log("l1DomiconNode version: %s", version);
+
+        ChainAssertions.checkL1DomiconNode(_proxies(), vm);
     }
 
     /// @notice Initialize the L1ERC721Bridge
@@ -965,6 +1094,8 @@ contract Deploy is Deployer {
         proxies_ = Types.ContractSet({
             L1CrossDomainMessenger: mustGetAddress("L1CrossDomainMessengerProxy"),
             L1StandardBridge: mustGetAddress("L1StandardBridgeProxy"),
+            L1DomiconCommitment: mustGetAddress("L1DomiconCommitmentProxy"),
+            L1DomiconNode: mustGetAddress("L1DomiconNodeProxy"),
             L2OutputOracle: mustGetAddress("L2OutputOracleProxy"),
             OptimismMintableERC20Factory: mustGetAddress("OptimismMintableERC20FactoryProxy"),
             OptimismPortal: mustGetAddress("OptimismPortalProxy"),

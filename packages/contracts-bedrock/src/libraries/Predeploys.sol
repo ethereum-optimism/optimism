@@ -13,6 +13,12 @@ library Predeploys {
     /// @notice Address of the L2StandardBridge predeploy.
     address internal constant L2_STANDARD_BRIDGE = 0x4200000000000000000000000000000000000010;
 
+    /// @notice Address of the L2DomiconCommitment predeploy.
+    address internal constant L2_DOMICON_COMMITMENT = 0x4200000000000000000000000000000000000022;
+
+    /// @notice Address of the L2DomiconNode predeploy.
+    address internal constant L2_DOMICON_NODE = 0x4200000000000000000000000000000000000023;
+
     /// @notice Address of the L2ERC721Bridge predeploy.
     address internal constant L2_ERC721_BRIDGE = 0x4200000000000000000000000000000000000014;
 

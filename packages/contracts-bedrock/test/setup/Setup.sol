@@ -25,6 +25,8 @@ import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
 import { ProtocolVersions } from "src/L1/ProtocolVersions.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
+import { L1DomiconCommitment } from "src/L1/L1DomiconCommitment.sol";
+import { L1DomiconNode } from "src/L1/L1DomiconNode.sol";
 import { AddressManager } from "src/legacy/AddressManager.sol";
 import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
@@ -39,6 +41,8 @@ contract Setup is Deploy {
     L2OutputOracle l2OutputOracle;
     SystemConfig systemConfig;
     L1StandardBridge l1StandardBridge;
+    L1DomiconCommitment l1DomiconCommitment;
+    L1DomiconNode l1DomiconNode;
     L1CrossDomainMessenger l1CrossDomainMessenger;
     AddressManager addressManager;
     L1ERC721Bridge l1ERC721Bridge;

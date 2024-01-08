@@ -104,6 +104,8 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
                         l1CrossDomainMessenger: address(l1CrossDomainMessenger),
                         l1ERC721Bridge: address(l1ERC721Bridge),
                         l1StandardBridge: address(l1StandardBridge),
+                        l1DomiconCommitment: address(l1DomiconCommitment),
+                        l1DomiconNode:address(l1DomiconNode),
                         l2OutputOracle: address(l2OutputOracle),
                         optimismPortal: address(optimismPortal),
                         optimismMintableERC20Factory: optimismMintableERC20Factory
@@ -143,6 +145,8 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
                         l1CrossDomainMessenger: address(l1CrossDomainMessenger),
                         l1ERC721Bridge: address(l1ERC721Bridge),
                         l1StandardBridge: address(l1StandardBridge),
+                        l1DomiconCommitment: address(l1DomiconCommitment),
+                        l1DomiconNode:address(l1DomiconNode),
                         l2OutputOracle: address(l2OutputOracle),
                         optimismPortal: address(optimismPortal),
                         optimismMintableERC20Factory: optimismMintableERC20Factory
@@ -195,6 +199,8 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
                         l1CrossDomainMessenger: address(l1CrossDomainMessenger),
                         l1ERC721Bridge: address(l1ERC721Bridge),
                         l1StandardBridge: address(l1StandardBridge),
+                        l1DomiconCommitment: address(l1DomiconCommitment),
+                        l1DomiconNode:address(l1DomiconNode),
                         l2OutputOracle: address(l2OutputOracle),
                         optimismPortal: address(optimismPortal),
                         optimismMintableERC20Factory: optimismMintableERC20Factory
@@ -238,6 +244,8 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Init {
                         l1CrossDomainMessenger: address(0),
                         l1ERC721Bridge: address(0),
                         l1StandardBridge: address(0),
+                        l1DomiconCommitment: address(0),
+                        l1DomiconNode:address(0),
                         l2OutputOracle: address(0),
                         optimismPortal: address(0),
                         optimismMintableERC20Factory: address(0)

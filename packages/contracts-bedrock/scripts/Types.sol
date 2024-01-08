@@ -6,6 +6,8 @@ library Types {
     struct ContractSet {
         address L1CrossDomainMessenger;
         address L1StandardBridge;
+        address L1DomiconCommitment;
+        address L1DomiconNode;
         address L2OutputOracle;
         address OptimismMintableERC20Factory;
         address OptimismPortal;

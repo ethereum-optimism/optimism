@@ -31,6 +31,8 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         address l1CrossDomainMessenger;
         address l1ERC721Bridge;
         address l1StandardBridge;
+        address l1DomiconCommitment;
+        address l1DomiconNode;
         address l2OutputOracle;
         address optimismPortal;
         address optimismMintableERC20Factory;
@@ -58,6 +60,12 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
 
     /// @notice Storage slot that the L1StandardBridge address is stored at.
     bytes32 public constant L1_STANDARD_BRIDGE_SLOT = bytes32(uint256(keccak256("systemconfig.l1standardbridge")) - 1);
+
+    /// @notice Storage slot that the L1DomiconCommitment address is stored at.
+    bytes32 public constant L1_DOMICON_COMMITMENT_SLOT = bytes32(uint256(keccak256("systemconfig.l1domiconcommitment")) - 1);
+
+    /// @notice Storage slot that the L1DomiconNode address is stored at.
+    bytes32 public constant L1_DOMICON_NODE_SLOT = bytes32(uint256(keccak256("systemconfig.l1domiconnode")) - 1);
 
     /// @notice Storage slot that the L2OutputOracle address is stored at.
     bytes32 public constant L2_OUTPUT_ORACLE_SLOT = bytes32(uint256(keccak256("systemconfig.l2outputoracle")) - 1);
@@ -129,6 +137,8 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
                 l1CrossDomainMessenger: address(0),
                 l1ERC721Bridge: address(0),
                 l1StandardBridge: address(0),
+                l1DomiconCommitment: address(0),
+                l1DomiconNode:address(0),
                 l2OutputOracle: address(0),
                 optimismPortal: address(0),
                 optimismMintableERC20Factory: address(0)
@@ -180,6 +190,8 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         Storage.setAddress(L1_CROSS_DOMAIN_MESSENGER_SLOT, _addresses.l1CrossDomainMessenger);
         Storage.setAddress(L1_ERC_721_BRIDGE_SLOT, _addresses.l1ERC721Bridge);
         Storage.setAddress(L1_STANDARD_BRIDGE_SLOT, _addresses.l1StandardBridge);
+        Storage.setAddress(L1_DOMICON_COMMITMENT_SLOT, _addresses.l1DomiconCommitment);
+        Storage.setAddress(L1_DOMICON_NODE_SLOT, _addresses.l1DomiconNode);
         Storage.setAddress(L2_OUTPUT_ORACLE_SLOT, _addresses.l2OutputOracle);
         Storage.setAddress(OPTIMISM_PORTAL_SLOT, _addresses.optimismPortal);
         Storage.setAddress(OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT, _addresses.optimismMintableERC20Factory);
@@ -222,6 +234,16 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @notice Getter for the L1StandardBridge address.
     function l1StandardBridge() external view returns (address addr_) {
         addr_ = Storage.getAddress(L1_STANDARD_BRIDGE_SLOT);
+    }
+
+    /// @notice Getter for the L1DomiconCommitment address.
+    function L1DomiconCommitment() external view returns (address addr_) {
+        addr_ = Storage.getAddress(L1_DOMICON_COMMITMENT_SLOT);
+    }
+
+    /// @notice Getter for the L1DomiconNode address.
+    function L1DomiconNode() external view returns (address addr_) {
+        addr_ = Storage.getAddress(L1_DOMICON_NODE_SLOT);
     }
 
     /// @notice Getter for the L2OutputOracle address.

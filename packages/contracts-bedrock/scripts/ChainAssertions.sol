@@ -7,6 +7,8 @@ import { DeployConfig } from "scripts/DeployConfig.s.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
+import { L1DomiconCommitment } from "src/L1/L1DomiconCommitment.sol";
+import { L1DomiconNode } from "src/L1/L1DomiconNode.sol";
 import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
 import { ProtocolVersion, ProtocolVersions } from "src/L1/ProtocolVersions.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
@@ -81,6 +83,32 @@ library ChainAssertions {
         // Ensures that the legacy slot is modified correctly. This will fail
         // during predeployment simulation on OP Mainnet if there is a bug.
         bytes32 slot0 = vm.load(address(bridge), bytes32(uint256(0)));
+        require(slot0 == bytes32(uint256(Constants.INITIALIZER)));
+    }
+
+    /// @notice Asserts that the L1DomiconCommitment is setup correctly
+    function checkL1DomiconCommitment(Types.ContractSet memory proxies, Vm vm) internal view {
+        L1DomiconCommitment commitment = L1DomiconCommitment(payable(proxies.L1DomiconCommitment));
+        require(address(commitment.MESSENGER()) == proxies.L1CrossDomainMessenger);
+        require(address(commitment.messenger()) == proxies.L1CrossDomainMessenger);
+        require(address(commitment.OTHER_COMMITMENT()) == Predeploys.L2_DOMICON_COMMITMENT);
+        require(address(commitment.otherCommitment()) == Predeploys.L2_DOMICON_COMMITMENT);
+        // Ensures that the legacy slot is modified correctly. This will fail
+        // during predeployment simulation on OP Mainnet if there is a bug.
+        bytes32 slot0 = vm.load(address(commitment), bytes32(uint256(0)));
+        require(slot0 == bytes32(uint256(Constants.INITIALIZER)));
+    }
+
+    /// @notice Asserts that the L1DomiconNode is setup correctly
+    function checkL1DomiconNode(Types.ContractSet memory proxies, Vm vm) internal view {
+        L1DomiconNode node = L1DomiconNode(payable(proxies.L1DomiconNode));
+        require(address(node.MESSENGER()) == proxies.L1CrossDomainMessenger);
+        require(address(node.messenger()) == proxies.L1CrossDomainMessenger);
+        require(address(node.OTHER_DOMICON_NODE()) == Predeploys.L2_DOMICON_NODE);
+        require(address(node.otherDomiconNode()) == Predeploys.L2_DOMICON_NODE);
+        // Ensures that the legacy slot is modified correctly. This will fail
+        // during predeployment simulation on OP Mainnet if there is a bug.
+        bytes32 slot0 = vm.load(address(node), bytes32(uint256(0)));
         require(slot0 == bytes32(uint256(Constants.INITIALIZER)));
     }
 
