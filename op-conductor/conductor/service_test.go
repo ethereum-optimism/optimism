@@ -275,7 +275,7 @@ func (s *OpConductorTestSuite) TestScenario2() {
 func (s *OpConductorTestSuite) TestScenario3() {
 	s.enableSynchronization()
 
-	mockPayload := eth.ExecutionPayload{
+	mockPayload := &eth.ExecutionPayload{
 		BlockNumber: 1,
 		Timestamp:   hexutil.Uint64(time.Now().Unix()),
 		BlockHash:   [32]byte{1, 2, 3},
@@ -311,7 +311,7 @@ func (s *OpConductorTestSuite) TestScenario4() {
 
 	// unsafe in consensus is 1 block ahead of unsafe in sequencer, we try to post the unsafe payload to sequencer and return error to allow retry
 	// this is normal because the latest unsafe (in consensus) might not arrive at sequencer through p2p yet
-	mockPayload := eth.ExecutionPayload{
+	mockPayload := &eth.ExecutionPayload{
 		BlockNumber: 2,
 		Timestamp:   hexutil.Uint64(time.Now().Unix()),
 		BlockHash:   [32]byte{1, 2, 3},
