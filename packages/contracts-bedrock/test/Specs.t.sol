@@ -217,6 +217,7 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "OptimismPortal", _sel: _getSel("superchainConfig()") });
         _addSpec({ _name: "OptimismPortal", _sel: _getSel("systemConfig()") });
         _addSpec({ _name: "OptimismPortal", _sel: _getSel("version()") });
+        _addSpec({ _name: "OptimismPortal", _sel: _getSel("depositHashUnion()") });
 
         // ProtocolVersions
         _addSpec({ _name: "ProtocolVersions", _sel: _getSel("RECOMMENDED_SLOT()") });
