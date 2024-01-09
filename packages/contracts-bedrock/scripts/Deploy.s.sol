@@ -287,8 +287,8 @@ contract Deploy is Deployer {
         deployImplementations();
         initializeImplementations();
 
-        setAlphabetFaultGameImplementation();
-        setCannonFaultGameImplementation();
+        setAlphabetFaultGameImplementation({ _allowUpgrade: false });
+        setCannonFaultGameImplementation({ _allowUpgrade: false });
 
         transferDisputeGameFactoryOwnership();
     }
@@ -553,7 +553,7 @@ contract Deploy is Deployer {
     }
 
     /// @notice Deploy the DisputeGameFactory
-    function deployDisputeGameFactory() public onlyDevnet broadcast returns (address addr_) {
+    function deployDisputeGameFactory() public onlyTestnetOrDevnet broadcast returns (address addr_) {
         console.log("Deploying DisputeGameFactory implementation");
         DisputeGameFactory factory = new DisputeGameFactory{ salt: _implSalt() }();
         save("DisputeGameFactory", address(factory));
@@ -582,7 +582,7 @@ contract Deploy is Deployer {
     }
 
     /// @notice Deploy the PreimageOracle
-    function deployPreimageOracle() public onlyDevnet broadcast returns (address addr_) {
+    function deployPreimageOracle() public onlyTestnetOrDevnet broadcast returns (address addr_) {
         console.log("Deploying PreimageOracle implementation");
         PreimageOracle preimageOracle = new PreimageOracle{ salt: _implSalt() }();
         save("PreimageOracle", address(preimageOracle));
@@ -592,7 +592,7 @@ contract Deploy is Deployer {
     }
 
     /// @notice Deploy Mips
-    function deployMips() public onlyDevnet broadcast returns (address addr_) {
+    function deployMips() public onlyTestnetOrDevnet broadcast returns (address addr_) {
         console.log("Deploying Mips implementation");
         MIPS mips = new MIPS{ salt: _implSalt() }(IPreimageOracle(mustGetAddress("PreimageOracle")));
         save("Mips", address(mips));
@@ -704,7 +704,7 @@ contract Deploy is Deployer {
     }
 
     /// @notice Initialize the DisputeGameFactory
-    function initializeDisputeGameFactory() public onlyDevnet broadcast {
+    function initializeDisputeGameFactory() public onlyTestnetOrDevnet broadcast {
         console.log("Upgrading and initializing DisputeGameFactory proxy");
         address disputeGameFactoryProxy = mustGetAddress("DisputeGameFactoryProxy");
         address disputeGameFactory = mustGetAddress("DisputeGameFactory");
@@ -952,7 +952,7 @@ contract Deploy is Deployer {
     }
 
     /// @notice Transfer ownership of the DisputeGameFactory contract to the final system owner
-    function transferDisputeGameFactoryOwnership() public onlyDevnet broadcast {
+    function transferDisputeGameFactoryOwnership() public onlyTestnetOrDevnet broadcast {
         console.log("Transferring DisputeGameFactory ownership to Safe");
         DisputeGameFactory disputeGameFactory = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
         address owner = disputeGameFactory.owner();
@@ -985,14 +985,14 @@ contract Deploy is Deployer {
             );
         } else {
             console.log(
-                "[Cannon Dispute Game] Using absolute prestate from config: %s", cfg.faultGameAbsolutePrestate()
+                "[Cannon Dispute Game] Using absolute prestate from config: %x", cfg.faultGameAbsolutePrestate()
             );
             mipsAbsolutePrestate_ = Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()));
         }
     }
 
     /// @notice Sets the implementation for the `FAULT` game type in the `DisputeGameFactory`
-    function setCannonFaultGameImplementation() public onlyDevnet broadcast {
+    function setCannonFaultGameImplementation(bool _allowUpgrade) public onlyTestnetOrDevnet broadcast {
         console.log("Setting Cannon FaultDisputeGame implementation");
         DisputeGameFactory factory = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
 
@@ -1002,12 +1002,13 @@ contract Deploy is Deployer {
             _gameType: GameTypes.CANNON,
             _absolutePrestate: loadMipsAbsolutePrestate(),
             _faultVm: IBigStepper(mustGetAddress("Mips")),
-            _maxGameDepth: cfg.faultGameMaxDepth()
+            _maxGameDepth: cfg.faultGameMaxDepth(),
+            _allowUpgrade: _allowUpgrade
         });
     }
 
     /// @notice Sets the implementation for the `ALPHABET` game type in the `DisputeGameFactory`
-    function setAlphabetFaultGameImplementation() public onlyDevnet broadcast {
+    function setAlphabetFaultGameImplementation(bool _allowUpgrade) public onlyDevnet broadcast {
         console.log("Setting Alphabet FaultDisputeGame implementation");
         DisputeGameFactory factory = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
 
@@ -1018,7 +1019,8 @@ contract Deploy is Deployer {
             _absolutePrestate: outputAbsolutePrestate,
             _faultVm: IBigStepper(new AlphabetVM(outputAbsolutePrestate)),
             // The max depth for the alphabet trace is always 3. Add 1 because split depth is fully inclusive.
-            _maxGameDepth: cfg.faultGameSplitDepth() + 3 + 1
+            _maxGameDepth: cfg.faultGameSplitDepth() + 3 + 1,
+            _allowUpgrade: _allowUpgrade
         });
     }
 
@@ -1028,11 +1030,12 @@ contract Deploy is Deployer {
         GameType _gameType,
         Claim _absolutePrestate,
         IBigStepper _faultVm,
-        uint256 _maxGameDepth
+        uint256 _maxGameDepth,
+        bool _allowUpgrade
     )
         internal
     {
-        if (address(_factory.gameImpls(_gameType)) != address(0)) {
+        if (address(_factory.gameImpls(_gameType)) != address(0) && !_allowUpgrade) {
             console.log(
                 "[WARN] DisputeGameFactoryProxy: `FaultDisputeGame` implementation already set for game type: %s",
                 vm.toString(GameType.unwrap(_gameType))

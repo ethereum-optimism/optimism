@@ -327,6 +327,18 @@ abstract contract Deployer is Script {
         _writeTemp(_name, _deployed);
     }
 
+    /// @notice Stubs a deployment retrieved through `get`.
+    /// @param _name The name of the deployment.
+    /// @param _addr The mock address of the deployment.
+    function prankDeployment(string memory _name, address _addr) public {
+        if (bytes(_name).length == 0) {
+            revert InvalidDeployment("EmptyName");
+        }
+
+        Deployment memory deployment = Deployment({ name: _name, addr: payable(_addr) });
+        _namedDeployments[_name] = deployment;
+    }
+
     /// @notice Reads the temp deployments from disk that were generated
     ///         by the deploy script.
     /// @return An array of deployments.
