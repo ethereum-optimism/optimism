@@ -50,6 +50,7 @@ contract DeployConfig is Script {
     uint256 public faultGameAbsolutePrestate;
     uint256 public faultGameGenesisBlock;
     bytes32 public faultGameGenesisOutputRoot;
+    uint256 public faultGameGenesisTimestamp;
     uint256 public faultGameMaxDepth;
     uint256 public faultGameSplitDepth;
     uint256 public faultGameMaxDuration;
@@ -110,6 +111,7 @@ contract DeployConfig is Script {
             faultGameMaxDuration = stdJson.readUint(_json, "$.faultGameMaxDuration");
             faultGameGenesisBlock = stdJson.readUint(_json, "$.faultGameGenesisBlock");
             faultGameGenesisOutputRoot = stdJson.readBytes32(_json, "$.faultGameGenesisOutputRoot");
+            faultGameGenesisTimestamp = stdJson.readUint(_json, "$.faultGameGenesisTimestamp");
         }
     }
 

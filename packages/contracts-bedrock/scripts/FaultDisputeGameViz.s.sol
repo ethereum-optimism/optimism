@@ -28,7 +28,6 @@ contract FaultDisputeGameViz is Script, FaultDisputeGame_Init {
         super.init({
             rootClaim: ROOT_CLAIM,
             absolutePrestate: ABSOLUTE_PRESTATE,
-            l2BlockNumber: 0x10,
             genesisBlockNumber: 0,
             genesisOutputRoot: Hash.wrap(bytes32(0))
         });

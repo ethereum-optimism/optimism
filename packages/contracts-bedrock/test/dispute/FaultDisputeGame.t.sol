@@ -37,7 +37,6 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
     function init(
         Claim rootClaim,
         Claim absolutePrestate,
-        uint256 l2BlockNumber,
         uint256 genesisBlockNumber,
         Hash genesisOutputRoot
     )
@@ -45,9 +44,6 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
     {
         // Set the time to a realistic date.
         vm.warp(1690906994);
-
-        // Set the extra data for the game creation
-        extraData = abi.encode(l2BlockNumber);
 
         AlphabetVM _vm = new AlphabetVM(absolutePrestate);
 
@@ -57,6 +53,7 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
             _absolutePrestate: absolutePrestate,
             _genesisBlockNumber: genesisBlockNumber,
             _genesisOutputRoot: genesisOutputRoot,
+            _genesisTimestamp: Timestamp.wrap(uint64(block.timestamp)),
             _maxGameDepth: 2 ** 3,
             _splitDepth: 2 ** 2,
             _gameDuration: Duration.wrap(7 days),
@@ -64,7 +61,12 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
         });
         // Register the game implementation with the factory.
         factory.setImplementation(GAME_TYPE, gameImpl);
+
+        // Warp ahead 2 days.
+        vm.warp(block.timestamp + 2 days);
+
         // Create a new game.
+        extraData = abi.encode(_getExpectedL2Head(block.timestamp - 2 days));
         gameProxy = FaultDisputeGame(address(factory.create(GAME_TYPE, rootClaim, extraData)));
 
         // Check immutables
@@ -79,6 +81,11 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
 
         // Label the proxy
         vm.label(address(gameProxy), "FaultDisputeGame_Clone");
+    }
+
+    /// @notice Gets the expected L2 head block number based on the game proxy's genesis timestamp.
+    function _getExpectedL2Head(uint256 _genesisTimestamp) public view returns (uint256 expectedL2Head_) {
+        expectedL2Head_ = (block.timestamp - _genesisTimestamp) / 2;
     }
 
     fallback() external payable { }
@@ -103,7 +110,6 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         super.init({
             rootClaim: ROOT_CLAIM,
             absolutePrestate: absolutePrestate,
-            l2BlockNumber: 0x10,
             genesisBlockNumber: 0,
             genesisOutputRoot: Hash.wrap(bytes32(0))
         });
@@ -127,6 +133,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
             _absolutePrestate: absolutePrestate,
             _genesisBlockNumber: 0,
             _genesisOutputRoot: Hash.wrap(bytes32(0)),
+            _genesisTimestamp: Timestamp.wrap(uint64(block.timestamp)),
             _maxGameDepth: 2 ** 3,
             _splitDepth: _splitDepth,
             _gameDuration: Duration.wrap(7 days),
@@ -174,7 +181,34 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
 
         Claim claim = _dummyClaim();
         vm.expectRevert(abi.encodeWithSelector(UnexpectedRootClaim.selector, claim));
-        gameProxy = FaultDisputeGame(address(factory.create(GAME_TYPE, claim, abi.encode(_blockNumber))));
+        factory.create(GAME_TYPE, claim, abi.encode(_blockNumber));
+    }
+
+    /// @dev Tests that the game cannot be initialized with an output root that commits to an L2 block number that is
+    ///      more than one day old.
+    function testFuzz_initialize_cannotProposeMoreThanOneDayOld_reverts(uint256 _blockNumber) public {
+        // Compute the expected L2 head block number.
+        uint256 expectedL2HeadBlock = _getExpectedL2Head(gameProxy.genesisTimestamp().raw());
+
+        // Bound the block number to be at least one day before the current expected L2 head.
+        _blockNumber = bound(_blockNumber, 0, expectedL2HeadBlock - 43_200 - 1);
+
+        Claim claim = _dummyClaim();
+        vm.expectRevert(abi.encodeWithSelector(UnexpectedRootClaim.selector, claim));
+        factory.create(GAME_TYPE, claim, abi.encode(_blockNumber));
+    }
+
+    /// @dev Tests that the game can always be initialized if it claims an output root that commits to an L2 block
+    ///      within 1 day of the current L2 head.
+    function testFuzz_initialize_withinOneDayOld_succeeds(uint256 _blockNumber) public {
+        // Compute the expected L2 head block number.
+        uint256 expectedL2HeadBlock = _getExpectedL2Head(gameProxy.genesisTimestamp().raw());
+
+        // Bound the block number to be at least one day before the current expected L2 head.
+        _blockNumber = bound(_blockNumber, expectedL2HeadBlock - 43_200, expectedL2HeadBlock);
+
+        Claim claim = _dummyClaim();
+        factory.create(GAME_TYPE, claim, abi.encode(_blockNumber));
     }
 
     /// @dev Tests that the proxy receives ETH from the dispute game factory.
@@ -1259,7 +1293,6 @@ contract FaultDispute_1v1_Actors_Test is FaultDisputeGame_Init {
         super.init({
             rootClaim: rootClaim,
             absolutePrestate: absolutePrestateExec,
-            l2BlockNumber: _rootClaim,
             genesisBlockNumber: 0,
             genesisOutputRoot: Hash.wrap(bytes32(0))
         });

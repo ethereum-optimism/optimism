@@ -44,11 +44,17 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     /// @notice The genesis output root
     Hash internal immutable GENESIS_OUTPUT_ROOT;
 
+    /// @notice The genesis block timestamp
+    Timestamp internal immutable GENESIS_TIMESTAMP;
+
     /// @notice The game type ID
     GameType internal immutable GAME_TYPE;
 
     /// @notice The global root claim's position is always at gindex 1.
     Position internal constant ROOT_POSITION = Position.wrap(1);
+
+    /// @notice The number of L2 blocks per day, assuming a constant 2 second block time.
+    uint256 internal constant L2_BLOCKS_PER_DAY = 43_200;
 
     /// @notice The starting timestamp of the game
     Timestamp public createdAt;
@@ -88,6 +94,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     /// @param _absolutePrestate The absolute prestate of the instruction trace.
     /// @param _genesisBlockNumber The block number of the genesis block.
     /// @param _genesisOutputRoot The output root of the genesis block.
+    /// @param _genesisTimestamp The timestamp of the genesis block.
     /// @param _maxGameDepth The maximum depth of bisection.
     /// @param _splitDepth The final depth of the output bisection portion of the game.
     /// @param _gameDuration The duration of the game.
@@ -97,6 +104,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         GameType _gameType,
         Claim _absolutePrestate,
         uint256 _genesisBlockNumber,
+        Timestamp _genesisTimestamp,
         Hash _genesisOutputRoot,
         uint256 _maxGameDepth,
         uint256 _splitDepth,
@@ -110,6 +118,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         ABSOLUTE_PRESTATE = _absolutePrestate;
         GENESIS_BLOCK_NUMBER = _genesisBlockNumber;
         GENESIS_OUTPUT_ROOT = _genesisOutputRoot;
+        GENESIS_TIMESTAMP = _genesisTimestamp;
         MAX_GAME_DEPTH = _maxGameDepth;
         SPLIT_DEPTH = _splitDepth;
         GAME_DURATION = _gameDuration;
@@ -461,14 +470,16 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         //
         // Explicit checks:
         // - The game must not have already been initialized.
-        // - An output root cannot be proposed at or before the genesis block.
+        // - An output root that is more than 1 day old cannot be proposed.
 
         // INVARIANT: The game must not have already been initialized.
         if (initialized) revert AlreadyInitialized();
 
-        // Do not allow the game to be initialized if the root claim corresponds to a block at or before the
-        // configured genesis block number.
-        if (l2BlockNumber() <= GENESIS_BLOCK_NUMBER) revert UnexpectedRootClaim(rootClaim());
+        // Do not allow the game to be initialized if the root claim corresponds to an L2 block that is more than
+        // 1 day old. Note that this check prevents output roots from being disputed until a chain has been live for
+        // at least 1 day.
+        uint256 expectedL2HeadNumber = (block.timestamp - GENESIS_TIMESTAMP.raw()) / 2;
+        if (l2BlockNumber() < expectedL2HeadNumber - L2_BLOCKS_PER_DAY) revert UnexpectedRootClaim(rootClaim());
 
         // Revert if the calldata size is too large, which signals that the `extraData` contains more than expected.
         // This is to prevent adding extra bytes to the `extraData` that result in a different game UUID in the factory,
@@ -569,6 +580,11 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     /// @notice Returns the genesis output root.
     function genesisOutputRoot() external view returns (Hash genesisOutputRoot_) {
         genesisOutputRoot_ = GENESIS_OUTPUT_ROOT;
+    }
+
+    /// @notice Returns the genesis timestamp.
+    function genesisTimestamp() external view returns (Timestamp genesisTimestamp_) {
+        genesisTimestamp_ = GENESIS_TIMESTAMP;
     }
 
     ////////////////////////////////////////////////////////////////

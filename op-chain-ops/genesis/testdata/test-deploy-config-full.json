@@ -70,6 +70,7 @@
   "faultGameMaxDuration": 604800,
   "faultGameGenesisBlock": 0,
   "faultGameGenesisOutputRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
+  "faultGameGenesisTimestamp": 0,
   "faultGameSplitDepth": 0,
   "systemConfigStartBlock": 0,
   "requiredProtocolVersion": "0x0000000000000000000000000000000000000000000000000000000000000000",

@@ -17,6 +17,11 @@
         "type": "uint256"
       },
       {
+        "internalType": "Timestamp",
+        "name": "_genesisTimestamp",
+        "type": "uint64"
+      },
+      {
         "internalType": "Hash",
         "name": "_genesisOutputRoot",
         "type": "bytes32"
@@ -307,6 +312,19 @@
         "internalType": "Hash",
         "name": "genesisOutputRoot_",
         "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "genesisTimestamp",
+    "outputs": [
+      {
+        "internalType": "Timestamp",
+        "name": "genesisTimestamp_",
+        "type": "uint64"
       }
     ],
     "stateMutability": "view",
