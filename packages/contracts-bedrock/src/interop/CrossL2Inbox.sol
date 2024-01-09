@@ -96,14 +96,13 @@ contract CrossL2Inbox is ISemver {
         crossL2Sender = _msg.from;
         messageSourceChain = _msg.sourceChain;
 
+        // Consume message & Execute
+        delete unconsumedMessages[messageRoot];
         bool success = SafeCall.callWithMinGas(_msg.to, _msg.gasLimit, _msg.value, _msg.data);
 
         // Reset message origination info
         crossL2Sender = Constants.DEFAULT_L2_SENDER;
         messageSourceChain = bytes32(0);
-
-        // Delete message
-        delete unconsumedMessages[messageRoot];
 
         emit CrossL2MessageRelayed(messageRoot, success);
     }
