@@ -300,8 +300,8 @@ An [extended-validator] checks the incoming messages as follows, in order of ope
 - `[REJECT]` if the `payload.timestamp` is more than 5 seconds into the future
 - `[REJECT]` if the `block_hash` in the `payload` is not valid
 - `[REJECT]` if the block is on the V1 topic and has withdrawals
-- `[REJECT]` if the block is on a topic >= V2 and does not have withdrawals
-- `[REJECT]` if the block is on a topic >= V2 and has a non-zero amount of withdrawals
+- `[REJECT]` if the block is on the V1 topic and has a withdrawals list
+- `[REJECT]` if the block is on a topic >= V2 and does not have an empty withdrawals list
 - `[REJECT]` if the block is on a topic <= V2 and has a blob gas-used value set
 - `[REJECT]` if the block is on a topic <= V2 and has an excess blob gas value set
 - `[REJECT]` if the block is on a topic >= V3 and has a blob gas-used value that is not zero
