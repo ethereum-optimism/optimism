@@ -295,7 +295,7 @@ func (n *OpNode) initRuntimeConfig(ctx context.Context, cfg *Config) error {
 
 func (n *OpNode) initL1BeaconAPI(ctx context.Context, cfg *Config) error {
 	if cfg.Beacon == nil {
-		n.log.Error("No beacon endpoint configured. Configuration is mandatory for the Ecotone upgrade")
+		n.log.Warn("No beacon endpoint configured. Configuration is mandatory for the Ecotone upgrade")
 		return nil
 	}
 	httpClient, err := cfg.Beacon.Setup(ctx, n.log)

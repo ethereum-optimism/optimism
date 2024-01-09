@@ -21,6 +21,12 @@ func prefixEnvVars(name string) []string {
 	return opservice.PrefixEnvVar(EnvVarPrefix, name)
 }
 
+const (
+	// data availability types
+	CalldataType = "calldata"
+	BlobsType    = "blobs"
+)
+
 var (
 	// Required flags
 	L1EthRpcFlag = &cli.StringFlag{
@@ -82,6 +88,12 @@ var (
 		Value:   0,
 		EnvVars: prefixEnvVars("BATCH_TYPE"),
 	}
+	DataAvailabilityTypeFlag = &cli.StringFlag{
+		Name:    "data-availability-type",
+		Usage:   "The data availability type to use for submitting batches to the L1, e.g. blobs or calldata.",
+		Value:   CalldataType,
+		EnvVars: prefixEnvVars("DATA_AVAILABILITY_TYPE"),
+	}
 	// Legacy Flags
 	SequencerHDPathFlag = txmgr.SequencerHDPathFlag
 )
@@ -101,6 +113,7 @@ var optionalFlags = []cli.Flag{
 	StoppedFlag,
 	SequencerHDPathFlag,
 	BatchTypeFlag,
+	DataAvailabilityTypeFlag,
 }
 
 func init() {

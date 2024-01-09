@@ -40,6 +40,7 @@ import (
 
 	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
 	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
+	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
@@ -774,8 +775,9 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 			Level:  log.LvlInfo,
 			Format: oplog.FormatText,
 		},
-		Stopped:   sys.Cfg.DisableBatcher, // Batch submitter may be enabled later
-		BatchType: batchType,
+		Stopped:              sys.Cfg.DisableBatcher, // Batch submitter may be enabled later
+		BatchType:            batchType,
+		DataAvailabilityType: batcherFlags.CalldataType,
 	}
 	// Batch Submitter
 	batcher, err := bss.BatcherServiceFromCLIConfig(context.Background(), "0.0.1", batcherCLIConfig, sys.Cfg.Loggers["batcher"])

@@ -15,11 +15,13 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-batcher/rpc"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
@@ -35,6 +37,9 @@ type BatcherConfig struct {
 	NetworkTimeout         time.Duration
 	PollInterval           time.Duration
 	MaxPendingTransactions uint64
+
+	// UseBlobs is true if the batcher should use blobs instead of calldata for posting blobs
+	UseBlobs bool
 }
 
 // BatcherService represents a full batch-submitter instance and its resources,
@@ -89,7 +94,6 @@ func (bs *BatcherService) initFromCLIConfig(ctx context.Context, version string,
 	bs.PollInterval = cfg.PollInterval
 	bs.MaxPendingTransactions = cfg.MaxPendingTransactions
 	bs.NetworkTimeout = cfg.TxMgrConfig.NetworkTimeout
-
 	if err := bs.initRPCClients(ctx, cfg); err != nil {
 		return err
 	}
@@ -180,10 +184,22 @@ func (bs *BatcherService) initChannelConfig(cfg *CLIConfig) error {
 		ChannelTimeout:     bs.RollupConfig.ChannelTimeout,
 		MaxChannelDuration: cfg.MaxChannelDuration,
 		SubSafetyMargin:    cfg.SubSafetyMargin,
-		MaxFrameSize:       cfg.MaxL1TxSize - 1, // subtract 1 byte for version
 		CompressorConfig:   cfg.CompressorConfig.Config(),
 		BatchType:          cfg.BatchType,
 	}
+
+	switch cfg.DataAvailabilityType {
+	case flags.BlobsType:
+		bs.ChannelConfig.MaxFrameSize = eth.MaxBlobDataSize
+		bs.UseBlobs = true
+	case flags.CalldataType:
+		bs.ChannelConfig.MaxFrameSize = cfg.MaxL1TxSize
+		bs.UseBlobs = false
+	default:
+		return fmt.Errorf("unknown data availability type: %v", cfg.DataAvailabilityType)
+	}
+	bs.ChannelConfig.MaxFrameSize-- // subtract 1 byte for version
+
 	if err := bs.ChannelConfig.Check(); err != nil {
 		return fmt.Errorf("invalid channel configuration: %w", err)
 	}
