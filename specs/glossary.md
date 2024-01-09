@@ -4,6 +4,7 @@
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 **Table of Contents**
 
+- [Glossary](#glossary)
 - [General Terms](#general-terms)
   - [Layer 1 (L1)](#layer-1-l1)
   - [Layer 2 (L2)](#layer-2-l2)
@@ -510,7 +511,10 @@ The purpose of channel timeouts is dual:
 
 [proposer]: glossary.md#proposer
 
-The proposer's role is to construct and submit output roots, which are commitments to the L2's state, to the L2OutputOracle contract on L1 (the settlement layer). To do this, the proposer periodically queries the rollup node for the latest output root derived from the latest finalized L1 block. It then takes the output root and submits it to the L2OutputOracle contract on the settlement layer (L1).
+The proposer's role is to construct and submit output roots, which are commitments to the L2's state, to the
+L2OutputOracle contract on L1 (the settlement layer). To do this, the proposer periodically queries the rollup node for
+the latest output root derived from the latest finalized L1 block. It then takes the output root and submits it to the
+L2OutputOracle contract on the settlement layer (L1).
 
 ------------------------------------------------------------------------------------------------------------------------
 
