@@ -61,7 +61,7 @@
     "name": "OTHER_MESSENGER",
     "outputs": [
       {
-        "internalType": "address",
+        "internalType": "contract CrossDomainMessenger",
         "name": "",
         "type": "address"
       }
@@ -185,13 +185,8 @@
         "type": "address"
       },
       {
-        "internalType": "address payable",
+        "internalType": "contract OptimismPortal",
         "name": "_portal",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_l2CrossDomainMessenger",
         "type": "address"
       }
     ],
@@ -218,7 +213,7 @@
     "name": "otherMessenger",
     "outputs": [
       {
-        "internalType": "address",
+        "internalType": "contract CrossDomainMessenger",
         "name": "",
         "type": "address"
       }
@@ -244,7 +239,7 @@
     "name": "portal",
     "outputs": [
       {
-        "internalType": "address payable",
+        "internalType": "contract OptimismPortal",
         "name": "",
         "type": "address"
       }
