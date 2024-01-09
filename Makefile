@@ -91,6 +91,10 @@ cannon:
 .PHONY: cannon
 
 cannon-prestate: op-program cannon
+	if ! docker buildx inspect | grep -m 1 'Name' | awk  '{print $$2}' | grep -q 'buildx-build'; then \
+		echo "Creating buildx-build builder"; \
+		DOCKER_BUILDKIT=1 docker buildx create --driver=docker-container --name=buildx-build --bootstrap --use; \
+	fi
 	DOCKER_BUILDKIT=1 DOCKER_OUTPUT_DESTINATION="" docker buildx bake --set op-program-mips.output=op-program/bin/ --progress plain -f docker-bake.hcl op-program-mips
 .PHONY: cannon-prestate
 
