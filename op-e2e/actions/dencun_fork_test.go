@@ -17,7 +17,7 @@ func TestDencunL1Fork(gt *testing.T) {
 	offset := uint64(24)
 	dp.DeployConfig.L1CancunTimeOffset = &offset
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
-	log := testlog.Logger(t, log.LvlDebug)
+	log := testlog.Logger(t, log.LevelDebug)
 	_, _, miner, sequencer, _, verifier, _, batcher := setupReorgTestActors(t, dp, sd, log)
 
 	l1Head := miner.l1Chain.CurrentBlock()
@@ -60,7 +60,7 @@ func TestDencunL1ForkAtGenesis(gt *testing.T) {
 	offset := uint64(0)
 	dp.DeployConfig.L1CancunTimeOffset = &offset
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
-	log := testlog.Logger(t, log.LvlDebug)
+	log := testlog.Logger(t, log.LevelDebug)
 	_, _, miner, sequencer, _, verifier, _, batcher := setupReorgTestActors(t, dp, sd, log)
 
 	l1Head := miner.l1Chain.CurrentBlock()

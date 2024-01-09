@@ -21,7 +21,7 @@ import (
 // is no conf depth to stop the origin selection so block `b` should
 // be the next L1 origin
 func TestOriginSelectorAdvances(t *testing.T) {
-	log := testlog.Logger(t, log.LvlCrit)
+	log := testlog.Logger(t, log.LevelCrit)
 	cfg := &rollup.Config{
 		MaxSequencerDrift: 500,
 		BlockTime:         2,
@@ -62,7 +62,7 @@ func TestOriginSelectorAdvances(t *testing.T) {
 // but it should select block `a` because the L2 block time must be ahead
 // of the the timestamp of it's L1 origin.
 func TestOriginSelectorRespectsOriginTiming(t *testing.T) {
-	log := testlog.Logger(t, log.LvlCrit)
+	log := testlog.Logger(t, log.LevelCrit)
 	cfg := &rollup.Config{
 		MaxSequencerDrift: 500,
 		BlockTime:         2,
@@ -102,7 +102,7 @@ func TestOriginSelectorRespectsOriginTiming(t *testing.T) {
 // as the origin, however block `b` is the L1 Head & the sequencer
 // needs to wait until that block is confirmed enough before advancing.
 func TestOriginSelectorRespectsConfDepth(t *testing.T) {
-	log := testlog.Logger(t, log.LvlCrit)
+	log := testlog.Logger(t, log.LevelCrit)
 	cfg := &rollup.Config{
 		MaxSequencerDrift: 500,
 		BlockTime:         2,
@@ -145,7 +145,7 @@ func TestOriginSelectorRespectsConfDepth(t *testing.T) {
 // This is because 29 (next L2 time) > 20 (origin) + 8 (seq drift) => invalid block.
 // We maintain confirmation distance, even though we would shift to the next origin if we could.
 func TestOriginSelectorStrictConfDepth(t *testing.T) {
-	log := testlog.Logger(t, log.LvlCrit)
+	log := testlog.Logger(t, log.LevelCrit)
 	cfg := &rollup.Config{
 		MaxSequencerDrift: 8,
 		BlockTime:         2,
@@ -183,7 +183,7 @@ func TestOriginSelectorStrictConfDepth(t *testing.T) {
 // drift, the origin should remain on block `a` because the next origin's
 // time is greater than the next L2 time.
 func TestOriginSelectorSeqDriftRespectsNextOriginTime(t *testing.T) {
-	log := testlog.Logger(t, log.LvlCrit)
+	log := testlog.Logger(t, log.LevelCrit)
 	cfg := &rollup.Config{
 		MaxSequencerDrift: 8,
 		BlockTime:         2,
@@ -225,7 +225,7 @@ func TestOriginSelectorSeqDriftRespectsNextOriginTime(t *testing.T) {
 // Due to a conf depth of 2, block `b` is not immediately visible,
 // and the origin selection should fail until it is visible, by waiting for block `c`.
 func TestOriginSelectorHandlesLateL1Blocks(t *testing.T) {
-	log := testlog.Logger(t, log.LvlCrit)
+	log := testlog.Logger(t, log.LevelCrit)
 	cfg := &rollup.Config{
 		MaxSequencerDrift: 8,
 		BlockTime:         2,

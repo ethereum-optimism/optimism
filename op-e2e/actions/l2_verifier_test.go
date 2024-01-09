@@ -38,7 +38,7 @@ func TestL2Verifier_SequenceWindow(gt *testing.T) {
 	}
 	dp := e2eutils.MakeDeployParams(t, p)
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
-	log := testlog.Logger(t, log.LvlDebug)
+	log := testlog.Logger(t, log.LevelDebug)
 	miner, engine, verifier := setupVerifierOnlyTest(t, sd, log)
 	miner.ActL1SetFeeRecipient(common.Address{'A'})
 

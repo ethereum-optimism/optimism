@@ -197,7 +197,7 @@ func TestPerformAction(t *testing.T) {
 }
 
 func newTestFaultResponder(t *testing.T) (*FaultResponder, *mockTxManager, *mockContract) {
-	log := testlog.Logger(t, log.LvlError)
+	log := testlog.Logger(t, log.LevelError)
 	mockTxMgr := &mockTxManager{}
 	contract := &mockContract{}
 	responder, err := NewFaultResponder(log, mockTxMgr, contract)

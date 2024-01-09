@@ -313,7 +313,7 @@ type testHelper struct {
 }
 
 func newTestHelper(t *testing.T, createBackend func(t *testing.T) engineapi.EngineBackend) *testHelper {
-	logger := testlog.Logger(t, log.LvlDebug)
+	logger := testlog.Logger(t, log.LevelDebug)
 	ctx := context.Background()
 	backend := createBackend(t)
 	api := engineapi.NewL2EngineAPI(logger, backend)

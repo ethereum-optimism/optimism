@@ -81,7 +81,12 @@ func (ch *Cheater) Close() error {
 func openStorageTrie(s *state.StateDB, addr common.Address) (state.Trie, error) {
 	stateRoot := s.IntermediateRoot(true)
 	storageRoot := s.GetStorageRoot(addr)
-	return s.Database().OpenStorageTrie(stateRoot, addr, storageRoot)
+	storageTrie, err := s.Database().OpenTrie(storageRoot)
+	if err != nil {
+		return nil, fmt.Errorf("opening storage trie: %w", err)
+	}
+	// TODO(Seb) confirm
+	return s.Database().OpenStorageTrie(stateRoot, addr, storageRoot, storageTrie)
 }
 
 type HeadFn func(header *types.Header, headState *state.StateDB) error

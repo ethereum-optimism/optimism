@@ -14,7 +14,7 @@ import (
 )
 
 func TestSchedulerProcessesGames(t *testing.T) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	ctx := context.Background()
 	createPlayer := func(g types.GameMetadata, dir string) (GamePlayer, error) {
 		return &test.StubGamePlayer{}, nil
@@ -43,7 +43,7 @@ func TestSchedulerProcessesGames(t *testing.T) {
 }
 
 func TestReturnBusyWhenScheduleQueueFull(t *testing.T) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	createPlayer := func(game types.GameMetadata, dir string) (GamePlayer, error) {
 		return &test.StubGamePlayer{}, nil
 	}

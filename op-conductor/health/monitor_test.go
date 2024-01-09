@@ -37,7 +37,7 @@ type HealthMonitorTestSuite struct {
 }
 
 func (s *HealthMonitorTestSuite) SetupSuite() {
-	s.log = testlog.Logger(s.T(), log.LvlInfo)
+	s.log = testlog.Logger(s.T(), log.LevelInfo)
 	s.rc = &testutils.MockRollupClient{}
 	s.pc = &p2pMocks.API{}
 	s.interval = 1

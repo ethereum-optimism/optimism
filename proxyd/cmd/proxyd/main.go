@@ -9,9 +9,12 @@ import (
 	"strconv"
 	"syscall"
 
-	"github.com/BurntSushi/toml"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/proxyd"
+
+	"github.com/BurntSushi/toml"
 	"github.com/ethereum/go-ethereum/log"
+	"golang.org/x/exp/slog"
 )
 
 var (
@@ -23,12 +26,8 @@ var (
 func main() {
 	// Set up logger with a default INFO level in case we fail to parse flags.
 	// Otherwise the final critical log won't show what the parsing error was.
-	log.Root().SetHandler(
-		log.LvlFilterHandler(
-			log.LvlInfo,
-			log.StreamHandler(os.Stdout, log.JSONFormat()),
-		),
-	)
+	slog.SetDefault(slog.New(slog.NewJSONHandler(
+		os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})))
 
 	log.Info("starting proxyd", "version", GitVersion, "commit", GitCommit, "date", GitDate)
 
@@ -42,19 +41,15 @@ func main() {
 	}
 
 	// update log level from config
-	logLevel, err := log.LvlFromString(config.Server.LogLevel)
+	logLevel, err := oplog.LevelFromString(config.Server.LogLevel)
 	if err != nil {
-		logLevel = log.LvlInfo
+		logLevel = log.LevelInfo
 		if config.Server.LogLevel != "" {
 			log.Warn("invalid server.log_level set: " + config.Server.LogLevel)
 		}
 	}
-	log.Root().SetHandler(
-		log.LvlFilterHandler(
-			logLevel,
-			log.StreamHandler(os.Stdout, log.JSONFormat()),
-		),
-	)
+	oplog.SetGlobalLogHandler(slog.NewJSONHandler(
+		os.Stdout, &slog.HandlerOptions{Level: logLevel}))
 
 	if config.Server.EnablePprof {
 		log.Info("starting pprof", "addr", "0.0.0.0", "port", "6060")

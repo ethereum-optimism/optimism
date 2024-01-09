@@ -72,7 +72,7 @@ func main() {
 
 func setupLogger(c *cli.Context) log.Logger {
 	logger := oplog.NewLogger(oplog.AppOut(c), oplog.ReadCLIConfig(c))
-	oplog.SetGlobalLogHandler(logger.GetHandler())
+	oplog.SetGlobalLogHandler(logger.Handler())
 	return logger
 }
 

@@ -20,7 +20,9 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	ophttp "github.com/ethereum-optimism/optimism/op-service/httputil"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum/log"
+	"golang.org/x/exp/slog"
 )
 
 var (
@@ -94,9 +96,8 @@ var embeddedAssets embed.FS
 func main() {
 	flag.Parse()
 
-	log.Root().SetHandler(
-		log.LvlFilterHandler(log.LvlDebug, log.StreamHandler(os.Stdout, log.TerminalFormat(true))),
-	)
+	oplog.SetGlobalLogHandler(
+		log.NewTerminalHandlerWithLevel(os.Stdout, slog.LevelDebug, true))
 
 	if *snapshot == "" {
 		log.Crit("missing required -snapshot flag")

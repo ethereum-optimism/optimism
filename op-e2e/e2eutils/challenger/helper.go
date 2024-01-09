@@ -110,7 +110,7 @@ func WithAlphabet(rollupEndpoint string) Option {
 }
 
 func NewChallenger(t *testing.T, ctx context.Context, l1Endpoint string, name string, options ...Option) *Helper {
-	log := testlog.Logger(t, log.LvlDebug).New("role", name)
+	log := testlog.Logger(t, log.LevelDebug).New("role", name)
 	log.Info("Creating challenger", "l1", l1Endpoint)
 	cfg := NewChallengerConfig(t, l1Endpoint, options...)
 	chl, err := challenger.Main(ctx, log, cfg)

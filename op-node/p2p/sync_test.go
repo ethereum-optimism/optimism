@@ -100,7 +100,7 @@ func setupSyncTestData(length uint64) (*rollup.Config, *syncTestData) {
 func TestSinglePeerSync(t *testing.T) {
 	t.Parallel() // Takes a while, but can run in parallel
 
-	log := testlog.Logger(t, log.LvlError)
+	log := testlog.Logger(t, log.LevelError)
 
 	cfg, payloads := setupSyncTestData(25)
 
@@ -160,7 +160,7 @@ func TestSinglePeerSync(t *testing.T) {
 func TestMultiPeerSync(t *testing.T) {
 	t.Parallel() // Takes a while, but can run in parallel
 
-	log := testlog.Logger(t, log.LvlDebug)
+	log := testlog.Logger(t, log.LevelDebug)
 
 	cfg, payloads := setupSyncTestData(100)
 
@@ -291,7 +291,7 @@ func TestMultiPeerSync(t *testing.T) {
 
 func TestNetworkNotifyAddPeerAndRemovePeer(t *testing.T) {
 	t.Parallel()
-	log := testlog.Logger(t, log.LvlDebug)
+	log := testlog.Logger(t, log.LevelDebug)
 
 	cfg, _ := setupSyncTestData(25)
 

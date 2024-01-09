@@ -42,7 +42,7 @@ func (f *fakeAttributesQueue) NextAttributes(_ context.Context, safeHead eth.L2B
 var _ NextAttributesProvider = (*fakeAttributesQueue)(nil)
 
 func TestEngineQueue_Finalize(t *testing.T) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 
 	rng := rand.New(rand.NewSource(1234))
 
@@ -277,7 +277,7 @@ func TestEngineQueue_Finalize(t *testing.T) {
 }
 
 func TestEngineQueue_ResetWhenUnsafeOriginNotCanonical(t *testing.T) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 
 	rng := rand.New(rand.NewSource(1234))
 
@@ -517,7 +517,7 @@ func TestEngineQueue_ResetWhenUnsafeOriginNotCanonical(t *testing.T) {
 }
 
 func TestVerifyNewL1Origin(t *testing.T) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 
 	rng := rand.New(rand.NewSource(1234))
 
@@ -848,7 +848,7 @@ func TestVerifyNewL1Origin(t *testing.T) {
 }
 
 func TestBlockBuildingRace(t *testing.T) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	eng := &testutils.MockEngine{}
 
 	rng := rand.New(rand.NewSource(1234))
@@ -1011,7 +1011,7 @@ func TestBlockBuildingRace(t *testing.T) {
 }
 
 func TestResetLoop(t *testing.T) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	eng := &testutils.MockEngine{}
 	l1F := &testutils.MockL1Source{}
 
@@ -1118,7 +1118,7 @@ func TestResetLoop(t *testing.T) {
 }
 
 func TestEngineQueue_StepPopOlderUnsafe(t *testing.T) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	eng := &testutils.MockEngine{}
 	l1F := &testutils.MockL1Source{}
 

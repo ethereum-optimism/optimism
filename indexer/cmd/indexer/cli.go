@@ -34,7 +34,7 @@ var (
 
 func runIndexer(ctx *cli.Context, shutdown context.CancelCauseFunc) (cliapp.Lifecycle, error) {
 	log := oplog.NewLogger(oplog.AppOut(ctx), oplog.ReadCLIConfig(ctx)).New("role", "indexer")
-	oplog.SetGlobalLogHandler(log.GetHandler())
+	oplog.SetGlobalLogHandler(log.Handler())
 	log.Info("running indexer...")
 
 	cfg, err := config.LoadConfig(log, ctx.String(ConfigFlag.Name))
@@ -48,7 +48,7 @@ func runIndexer(ctx *cli.Context, shutdown context.CancelCauseFunc) (cliapp.Life
 
 func runApi(ctx *cli.Context, _ context.CancelCauseFunc) (cliapp.Lifecycle, error) {
 	log := oplog.NewLogger(oplog.AppOut(ctx), oplog.ReadCLIConfig(ctx)).New("role", "api")
-	oplog.SetGlobalLogHandler(log.GetHandler())
+	oplog.SetGlobalLogHandler(log.Handler())
 	log.Info("running api...")
 
 	cfg, err := config.LoadConfig(log, ctx.String(ConfigFlag.Name))
@@ -71,7 +71,7 @@ func runMigrations(ctx *cli.Context) error {
 	ctx.Context = opio.CancelOnInterrupt(ctx.Context)
 
 	log := oplog.NewLogger(oplog.AppOut(ctx), oplog.ReadCLIConfig(ctx)).New("role", "migrations")
-	oplog.SetGlobalLogHandler(log.GetHandler())
+	oplog.SetGlobalLogHandler(log.Handler())
 	log.Info("running migrations...")
 
 	cfg, err := config.LoadConfig(log, ctx.String(ConfigFlag.Name))

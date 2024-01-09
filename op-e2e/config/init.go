@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/log"
+	"golang.org/x/exp/slog"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-e2e/external"
@@ -63,26 +64,29 @@ func init() {
 	flag.StringVar(&l1DeploymentsPath, "l1-deployments", defaultL1DeploymentsPath, "")
 	flag.StringVar(&deployConfigPath, "deploy-config", defaultDeployConfigPath, "")
 	flag.StringVar(&externalL2, "externalL2", "", "Enable tests with external L2")
-	flag.IntVar(&EthNodeVerbosity, "ethLogVerbosity", int(log.LvlInfo), "The level of verbosity to use for the eth node logs")
+	flag.IntVar(&EthNodeVerbosity, "ethLogVerbosity", int(log.LevelInfo), "The level of verbosity to use for the eth node logs")
 	testing.Init() // Register test flags before parsing
 	flag.Parse()
 
 	// Setup global logger
-	lvl := log.Lvl(EthNodeVerbosity)
-	if lvl < log.LvlCrit {
-		log.Root().SetHandler(log.DiscardHandler())
-	} else if lvl > log.LvlTrace { // clip to trace level
-		lvl = log.LvlTrace
+	lvl := slog.Level(EthNodeVerbosity)
+	var handler slog.Handler
+	if lvl > log.LevelCrit {
+		handler = log.DiscardHandler()
+	} else {
+		if lvl < log.LevelTrace { // clip to trace level
+			lvl = log.LevelTrace
+		}
+		// We cannot attach a testlog logger,
+		// because the global logger is shared between different independent parallel tests.
+		// Tests that write to a testlogger of another finished test fail.
+		handler = oplog.NewLogHandler(os.Stdout, oplog.CLIConfig{
+			Level:  lvl,
+			Color:  false, // some CI logs do not handle colors well
+			Format: oplog.FormatTerminal,
+		})
 	}
-	// We cannot attach a testlog logger,
-	// because the global logger is shared between different independent parallel tests.
-	// Tests that write to a testlogger of another finished test fail.
-	h := oplog.NewLogHandler(os.Stdout, oplog.CLIConfig{
-		Level:  lvl,
-		Color:  false, // some CI logs do not handle colors well
-		Format: oplog.FormatTerminal,
-	})
-	oplog.SetGlobalLogHandler(h)
+	oplog.SetGlobalLogHandler(handler)
 
 	if err := allExist(l1AllocsPath, l1DeploymentsPath, deployConfigPath); err != nil {
 		return

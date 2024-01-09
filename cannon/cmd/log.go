@@ -4,13 +4,9 @@ import (
 	"io"
 
 	"github.com/ethereum/go-ethereum/log"
+	"golang.org/x/exp/slog"
 )
 
-func Logger(w io.Writer, lvl log.Lvl) log.Logger {
-	h := log.StreamHandler(w, log.LogfmtFormat())
-	h = log.SyncHandler(h)
-	h = log.LvlFilterHandler(lvl, h)
-	l := log.New()
-	l.SetHandler(h)
-	return l
+func Logger(w io.Writer, lvl slog.Level) log.Logger {
+	return log.NewLogger(log.LogfmtHandlerWithLevel(w, lvl))
 }

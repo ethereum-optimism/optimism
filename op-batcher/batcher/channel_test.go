@@ -18,7 +18,7 @@ import (
 // correctly identifies when a pending channel is timed out.
 func TestChannelTimeout(t *testing.T) {
 	// Create a new channel manager with a ChannelTimeout
-	log := testlog.Logger(t, log.LvlCrit)
+	log := testlog.Logger(t, log.LevelCrit)
 	m := NewChannelManager(log, metrics.NoopMetrics, ChannelConfig{
 		ChannelTimeout: 100,
 	}, &rollup.Config{})
@@ -64,7 +64,7 @@ func TestChannelTimeout(t *testing.T) {
 
 // TestChannelNextTxData checks the nextTxData function.
 func TestChannelNextTxData(t *testing.T) {
-	log := testlog.Logger(t, log.LvlCrit)
+	log := testlog.Logger(t, log.LevelCrit)
 	m := NewChannelManager(log, metrics.NoopMetrics, ChannelConfig{}, &rollup.Config{})
 	m.Clear()
 
@@ -108,7 +108,7 @@ func TestChannelNextTxData(t *testing.T) {
 // TestChannelTxConfirmed checks the [ChannelManager.TxConfirmed] function.
 func TestChannelTxConfirmed(t *testing.T) {
 	// Create a channel manager
-	log := testlog.Logger(t, log.LvlCrit)
+	log := testlog.Logger(t, log.LevelCrit)
 	m := NewChannelManager(log, metrics.NoopMetrics, ChannelConfig{
 		// Need to set the channel timeout here so we don't clear pending
 		// channels on confirmation. This would result in [TxConfirmed]
@@ -162,7 +162,7 @@ func TestChannelTxConfirmed(t *testing.T) {
 // TestChannelTxFailed checks the [ChannelManager.TxFailed] function.
 func TestChannelTxFailed(t *testing.T) {
 	// Create a channel manager
-	log := testlog.Logger(t, log.LvlCrit)
+	log := testlog.Logger(t, log.LevelCrit)
 	m := NewChannelManager(log, metrics.NoopMetrics, ChannelConfig{}, &rollup.Config{})
 	m.Clear()
 

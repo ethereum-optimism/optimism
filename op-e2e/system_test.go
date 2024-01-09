@@ -222,7 +222,7 @@ func TestSystemE2E(t *testing.T) {
 }
 
 func runE2ESystemTest(t *testing.T, sys *System) {
-	log := testlog.Logger(t, log.LvlInfo)
+	log := testlog.Logger(t, log.LevelInfo)
 	log.Info("genesis", "l2", sys.RollupConfig.Genesis.L2, "l1", sys.RollupConfig.Genesis.L1, "l2_time", sys.RollupConfig.Genesis.L2Time)
 
 	l1Client := sys.Clients["l1"]
@@ -305,7 +305,7 @@ func TestConfirmationDepth(t *testing.T) {
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
-	log := testlog.Logger(t, log.LvlInfo)
+	log := testlog.Logger(t, log.LevelInfo)
 	log.Info("genesis", "l2", sys.RollupConfig.Genesis.L2, "l1", sys.RollupConfig.Genesis.L1, "l2_time", sys.RollupConfig.Genesis.L2Time)
 
 	l1Client := sys.Clients["l1"]
@@ -363,7 +363,7 @@ func TestPendingGasLimit(t *testing.T) {
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
-	log := testlog.Logger(t, log.LvlInfo)
+	log := testlog.Logger(t, log.LevelInfo)
 	log.Info("genesis", "l2", sys.RollupConfig.Genesis.L2, "l1", sys.RollupConfig.Genesis.L1, "l2_time", sys.RollupConfig.Genesis.L2Time)
 
 	l2Verif := sys.Clients["verifier"]
@@ -628,8 +628,8 @@ func TestSystemP2PAltSync(t *testing.T) {
 		},
 		L1EpochPollInterval: time.Second * 4,
 	}
-	cfg.Loggers["alice"] = testlog.Logger(t, log.LvlInfo).New("role", "alice")
-	cfg.Loggers["bob"] = testlog.Logger(t, log.LvlInfo).New("role", "bob")
+	cfg.Loggers["alice"] = testlog.Logger(t, log.LevelInfo).New("role", "alice")
+	cfg.Loggers["bob"] = testlog.Logger(t, log.LevelInfo).New("role", "bob")
 
 	// connect the nodes
 	cfg.P2PTopology = map[string][]string{
@@ -672,9 +672,8 @@ func TestSystemP2PAltSync(t *testing.T) {
 	time.Sleep(time.Second * 10)
 
 	// set up our syncer node, connect it to alice/bob
-	cfg.Loggers["syncer"] = testlog.Logger(t, log.LvlInfo).New("role", "syncer")
-	snapLog := log.New()
-	snapLog.SetHandler(log.DiscardHandler())
+	cfg.Loggers["syncer"] = testlog.Logger(t, log.LevelInfo).New("role", "syncer")
+	snapLog := log.NewLogger(log.DiscardHandler())
 
 	// Create a peer, and hook up alice and bob
 	h, err := sys.newMockNetPeer()
@@ -768,8 +767,8 @@ func TestSystemDenseTopology(t *testing.T) {
 		},
 		L1EpochPollInterval: time.Second * 4,
 	}
-	cfg.Loggers["verifier2"] = testlog.Logger(t, log.LvlInfo).New("role", "verifier")
-	cfg.Loggers["verifier3"] = testlog.Logger(t, log.LvlInfo).New("role", "verifier")
+	cfg.Loggers["verifier2"] = testlog.Logger(t, log.LevelInfo).New("role", "verifier")
+	cfg.Loggers["verifier3"] = testlog.Logger(t, log.LevelInfo).New("role", "verifier")
 
 	// connect the nodes
 	cfg.P2PTopology = map[string][]string{
