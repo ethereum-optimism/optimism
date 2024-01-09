@@ -16,6 +16,7 @@ import (
 
 	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
 	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
+	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
 	con "github.com/ethereum-optimism/optimism/op-conductor/conductor"
 	conrpc "github.com/ethereum-optimism/optimism/op-conductor/rpc"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
@@ -216,8 +217,9 @@ func setupBatcher(t *testing.T, sys *System) {
 			Level:  log.LvlInfo,
 			Format: oplog.FormatText,
 		},
-		Stopped:   false,
-		BatchType: batchType,
+		Stopped:              false,
+		BatchType:            batchType,
+		DataAvailabilityType: batcherFlags.CalldataType,
 	}
 
 	batcher, err := bss.BatcherServiceFromCLIConfig(context.Background(), "0.0.1", batcherCLIConfig, sys.Cfg.Loggers["batcher"])
