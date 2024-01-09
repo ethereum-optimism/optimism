@@ -295,7 +295,12 @@ jobs:
 
             # Create the easily reproducible absolute prestate
             # todo(client-pod#442): validate the prestate hash?
-            make cannon-prestate
+            DOCKER_OUTPUT_DESTINATION="" \
+            docker buildx bake \
+            --set op-program-mips.output=op-program/bin/ \
+            --progress plain \
+            -f docker-bake.hcl \
+            op-program-mips
 
           no_output_timeout: 45m
       - when:
