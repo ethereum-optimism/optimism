@@ -308,7 +308,7 @@ All other default `"remote"` contract have some variation of the above execution
 
 #### Contracts that Don't Make Good Predeploys
 
-Not every contract can be added as a predeploy, and some contract's have nuances that make them potentially dangerous or troublesome to predeploy. Some examples of contracts that wouldn't make good predeploys:
+Not every contract can be added as a predeploy, and some contracts have nuances that make them potentially dangerous or troublesome to predeploy. Below are some examples of contracts that wouldn't make good predeploys. This is not a comprehensive list, so make sure to use judgment for each contract added as a predeploy.
 
 - Contracts that haven't been audited or stood the test of time
   - Once a contract is predeployed and a network is started, if a vulnerability is discovered for the contract and there is no way to disable the contract using some variable, the only option to "disable" the vulnerable contract is to either A. remove it from the L2 genesis and restart the L2 network B. Hardfork the network to remove/replace the predeploy or C. Warn users not to use the vulnerable predeploy
