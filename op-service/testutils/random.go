@@ -329,7 +329,6 @@ func RandomOutputResponse(rng *rand.Rand) *eth.OutputResponse {
 			SafeL2:             RandomL2BlockRef(rng),
 			FinalizedL2:        RandomL2BlockRef(rng),
 			PendingSafeL2:      RandomL2BlockRef(rng),
-			EngineSyncTarget:   RandomL2BlockRef(rng),
 		},
 	}
 }

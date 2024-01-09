@@ -491,7 +491,6 @@ func TestEngineQueue_ResetWhenUnsafeOriginNotCanonical(t *testing.T) {
 	require.Equal(t, refA1, eq.Finalized(), "A1 is recognized as finalized before we run any steps")
 
 	// First step after reset will do a fork choice update
-	require.True(t, eq.needForkchoiceUpdate)
 	eng.ExpectForkchoiceUpdate(&eth.ForkchoiceState{
 		HeadBlockHash:      eq.ec.UnsafeL2Head().Hash,
 		SafeBlockHash:      eq.ec.SafeL2Head().Hash,
@@ -822,7 +821,6 @@ func TestVerifyNewL1Origin(t *testing.T) {
 			require.Equal(t, refA1, eq.Finalized(), "A1 is recognized as finalized before we run any steps")
 
 			// First step after reset will do a fork choice update
-			require.True(t, eq.needForkchoiceUpdate)
 			eng.ExpectForkchoiceUpdate(&eth.ForkchoiceState{
 				HeadBlockHash:      eq.ec.UnsafeL2Head().Hash,
 				SafeBlockHash:      eq.ec.SafeL2Head().Hash,
@@ -1084,12 +1082,19 @@ func TestResetLoop(t *testing.T) {
 
 	eq := NewEngineQueue(logger, cfg, eng, metrics.NoopMetrics, prev, l1F, &sync.Config{})
 	eq.ec.SetUnsafeHead(refA2)
-	eq.ec.SetEngineSyncTarget(refA2)
 	eq.ec.SetSafeHead(refA1)
 	eq.ec.SetFinalizedHead(refA0)
 
 	// Queue up the safe attributes
+	// Expect a FCU after during the first step
+	preFc := &eth.ForkchoiceState{
+		HeadBlockHash:      refA2.Hash,
+		SafeBlockHash:      refA1.Hash,
+		FinalizedBlockHash: refA0.Hash,
+	}
+	eng.ExpectForkchoiceUpdate(preFc, nil, nil, nil)
 	require.Nil(t, eq.safeAttributes)
+	require.ErrorIs(t, eq.Step(context.Background()), nil)
 	require.ErrorIs(t, eq.Step(context.Background()), NotEnoughData)
 	require.NotNil(t, eq.safeAttributes)
 
@@ -1097,12 +1102,12 @@ func TestResetLoop(t *testing.T) {
 	require.ErrorIs(t, eq.Reset(context.Background(), eth.L1BlockRef{}, eth.SystemConfig{}), io.EOF)
 
 	// Expect a FCU after the reset
-	preFc := &eth.ForkchoiceState{
+	postFc := &eth.ForkchoiceState{
 		HeadBlockHash:      refA2.Hash,
 		SafeBlockHash:      refA0.Hash,
 		FinalizedBlockHash: refA0.Hash,
 	}
-	eng.ExpectForkchoiceUpdate(preFc, nil, nil, nil)
+	eng.ExpectForkchoiceUpdate(postFc, nil, nil, nil)
 	require.NoError(t, eq.Step(context.Background()), "clean forkchoice state after reset")
 
 	// Crux of the test. Should be in a valid state after the reset.
@@ -1187,8 +1192,17 @@ func TestEngineQueue_StepPopOlderUnsafe(t *testing.T) {
 
 	eq.AddUnsafePayload(payloadA1)
 
-	err := eq.Step(context.Background())
-	require.NoError(t, err)
+	// First Step calls FCU
+	preFc := &eth.ForkchoiceState{
+		HeadBlockHash:      refA2.Hash,
+		SafeBlockHash:      refA0.Hash,
+		FinalizedBlockHash: refA0.Hash,
+	}
+	eng.ExpectForkchoiceUpdate(preFc, nil, nil, nil)
+	require.NoError(t, eq.Step(context.Background()))
+
+	// Second Step pops the unsafe payload
+	require.NoError(t, eq.Step(context.Background()))
 
 	require.Nil(t, eq.unsafePayloads.Peek(), "should pop the unsafe payload because it is too old")
 	fmt.Println(eq.unsafePayloads.Peek())
