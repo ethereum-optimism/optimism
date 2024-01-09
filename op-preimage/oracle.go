@@ -19,6 +19,8 @@ func NewOracleClient(rw io.ReadWriter) *OracleClient {
 
 var _ Oracle = (*OracleClient)(nil)
 
+var ErrPreimageRead = fmt.Errorf("pre-image length read error")
+
 func (o *OracleClient) Get(key Key) []byte {
 	h := key.PreimageKey()
 	if _, err := o.rw.Write(h[:]); err != nil {
@@ -27,7 +29,7 @@ func (o *OracleClient) Get(key Key) []byte {
 
 	var length uint64
 	if err := binary.Read(o.rw, binary.BigEndian, &length); err != nil {
-		panic(fmt.Errorf("failed to read pre-image length of key %s (%T) from pre-image oracle: %w", key, key, err))
+		panic(fmt.Errorf("%s: key %s (%T) from pre-image oracle: %w", ErrPreimageRead.Error(), key, key, err))
 	}
 	payload := make([]byte, length)
 	if _, err := io.ReadFull(o.rw, payload); err != nil {

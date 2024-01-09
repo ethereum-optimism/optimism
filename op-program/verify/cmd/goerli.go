@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"math/big"
 	"os"
 	"os/exec"
@@ -12,6 +14,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	oppreimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -38,7 +41,7 @@ func main() {
 	goerliOutputAddress := common.HexToAddress("0xE6Dfba0953616Bacab0c9A8ecb3a9BBa77FC15c0")
 	err := Run(l1RpcUrl, l1RpcKind, l2RpcUrl, goerliOutputAddress, dataDir)
 	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "Failed: %v\n", err.Error())
+		_, _ = fmt.Fprintf(os.Stderr, "Failed: %v\n. Check the latest offline run (if it exists) for pre-image read errors to determine whether it was flaky\n", err.Error())
 		os.Exit(1)
 	}
 }
@@ -133,24 +136,47 @@ func Run(l1RpcUrl string, l1RpcKind string, l2RpcUrl string, l2OracleAddr common
 	}
 	fmt.Printf("Configuration: %s\n", argsStr)
 	fmt.Println("Running in online mode")
-	err = runFaultProofProgram(ctx, append(args, "--l1", l1RpcUrl, "--l2", l2RpcUrl, "--l1.rpckind", l1RpcKind))
+	err = runFaultProofProgram(ctx, append(args, "--l1", l1RpcUrl, "--l2", l2RpcUrl, "--l1.rpckind", l1RpcKind), nil)
 	if err != nil {
 		return fmt.Errorf("online mode failed: %w", err)
 	}
 
 	fmt.Println("Running in offline mode")
-	err = runFaultProofProgram(ctx, args)
+	err = runOfflineFaultProofProgram(ctx, args)
 	if err != nil {
 		return fmt.Errorf("offline mode failed: %w", err)
 	}
 	return nil
 }
 
-func runFaultProofProgram(ctx context.Context, args []string) error {
+const NUM_RETRIES = 5
+
+// runOfflineFaultProofProgram retries a FPP run several times if it fails due to flaky non-deterministic execution.
+func runOfflineFaultProofProgram(ctx context.Context, args []string) error {
+	var stderr bytes.Buffer
+	for i := 0; i < NUM_RETRIES; i++ {
+		stderr.Reset()
+		err := runFaultProofProgram(ctx, args, &stderr)
+		if err == nil {
+			return nil
+		}
+		if !strings.Contains(stderr.String(), oppreimage.ErrPreimageRead.Error()) {
+			return err
+		}
+		fmt.Printf("Fault proof program failed due to a missing pre-image: %v. Retrying...\n", err)
+	}
+	return fmt.Errorf("Exhausted retries of fault proof program: %v", stderr.String())
+}
+
+func runFaultProofProgram(ctx context.Context, args []string, additionalErr io.Writer) error {
 	ctx, cancel := context.WithTimeout(ctx, 60*time.Minute)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "./bin/op-program", args...)
 	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	if additionalErr == nil {
+		cmd.Stderr = io.MultiWriter(os.Stderr)
+	} else {
+		cmd.Stderr = io.MultiWriter(os.Stderr, additionalErr)
+	}
 	return cmd.Run()
 }
