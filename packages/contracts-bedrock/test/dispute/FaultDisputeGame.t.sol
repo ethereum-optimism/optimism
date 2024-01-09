@@ -217,7 +217,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         vm.deal(address(this), _value);
 
         assertEq(address(gameProxy).balance, 0);
-        gameProxy = FaultDisputeGame(address(factory.create{ value: _value }(GAME_TYPE, ROOT_CLAIM, abi.encode(1))));
+        gameProxy = FaultDisputeGame(address(factory.create{ value: _value }(GAME_TYPE, ROOT_CLAIM, abi.encode(_getExpectedL2Head(gameProxy.genesisTimestamp().raw()) - 1))));
         assertEq(address(gameProxy).balance, _value);
     }
 
@@ -233,9 +233,9 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         bytes memory _extraData = new bytes(_extraDataLen);
 
         // Assign the first 32 bytes in `extraData` to a valid L2 block number passed genesis.
-        uint256 genesisBlockNumber = gameProxy.genesisBlockNumber();
+        uint256 l2Head = _getExpectedL2Head(gameProxy.genesisTimestamp().raw());
         assembly {
-            mstore(add(_extraData, 0x20), add(genesisBlockNumber, 1))
+            mstore(add(_extraData, 0x20), l2Head)
         }
 
         Claim claim = _dummyClaim();

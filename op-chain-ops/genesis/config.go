@@ -217,7 +217,7 @@ type DeployConfig struct {
 	// FaultGameGenesisOutputRoot is the output root for the genesis block.
 	FaultGameGenesisOutputRoot common.Hash `json:"faultGameGenesisOutputRoot"`
 	// FaultGameGenesisTimestamp is the timestamp for the genesis block.
-	FaultGameGenesisTimestamp common.Hash `json:"faultGameGenesisTimestamp"`
+	FaultGameGenesisTimestamp uint64 `json:"faultGameGenesisTimestamp"`
 	// FaultGameSplitDepth is the depth at which the fault dispute game splits from output roots to execution trace claims.
 	FaultGameSplitDepth uint64 `json:"faultGameSplitDepth"`
 	// FundDevAccounts configures whether or not to fund the dev accounts. Should only be used
