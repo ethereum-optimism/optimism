@@ -563,22 +563,25 @@ func OptimismPortal(batch *safe.Batch, implementations superchain.Implementation
 		return err
 	}
 
-	var l2OutputOracle, systemConfig common.Address
+	optimismPortal, err := bindings.NewOptimismPortalCaller(common.HexToAddress(list.OptimismPortalProxy.String()), backend)
+	if err != nil {
+		return err
+	}
+	l2OutputOracle, err := optimismPortal.L2Oracle(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	systemConfig, err := optimismPortal.SystemConfig(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+
 	if config != nil {
-		l2OutputOracle = common.HexToAddress(list.L2OutputOracleProxy.String())
-		systemConfig = common.HexToAddress(chainConfig.SystemConfigAddr.String())
-	} else {
-		optimismPortal, err := bindings.NewOptimismPortalCaller(common.HexToAddress(list.OptimismPortalProxy.String()), backend)
-		if err != nil {
-			return err
+		if l2OutputOracle != common.HexToAddress(list.L2OutputOracleProxy.String()) {
+			return fmt.Errorf("upgrading OptimismPortal: L2OutputOracle address doesn't match config")
 		}
-		l2OutputOracle, err = optimismPortal.L2Oracle(&bind.CallOpts{})
-		if err != nil {
-			return err
-		}
-		systemConfig, err = optimismPortal.SystemConfig(&bind.CallOpts{})
-		if err != nil {
-			return err
+		if systemConfig != config.SystemConfigProxy {
+			return fmt.Errorf("upgrading OptimismPortal: SystemConfig address doesn't match config")
 		}
 	}
 
