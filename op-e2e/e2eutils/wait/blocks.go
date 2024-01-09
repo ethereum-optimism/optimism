@@ -72,6 +72,18 @@ func ForProcessingFullBatch(ctx context.Context, rollupCl *sources.RollupClient)
 	return err
 }
 
+func ForUnsafeBlock(ctx context.Context, rollupCl *sources.RollupClient, n uint64) error {
+	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	defer cancel()
+
+	_, err := AndGet(ctx, time.Second, func() (*eth.SyncStatus, error) {
+		return rollupCl.SyncStatus(ctx)
+	}, func(syncStatus *eth.SyncStatus) bool {
+		return syncStatus.UnsafeL2.Number >= n
+	})
+	return err
+}
+
 func ForNextSafeBlock(ctx context.Context, client BlockCaller) error {
 	safeBlockNumber := big.NewInt(rpc.SafeBlockNumber.Int64())
 	current, err := client.BlockByNumber(ctx, safeBlockNumber)
