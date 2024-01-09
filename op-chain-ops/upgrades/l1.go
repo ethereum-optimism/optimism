@@ -257,22 +257,27 @@ func L1StandardBridge(batch *safe.Batch, implementations superchain.Implementati
 		return err
 	}
 
-	var messenger, otherBridge common.Address
+	l1StandardBridge, err := bindings.NewL1StandardBridgeCaller(common.HexToAddress(list.L1StandardBridgeProxy.String()), backend)
+	if err != nil {
+		return err
+	}
+
+	messenger, err := l1StandardBridge.Messenger(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+
+	otherBridge, err := l1StandardBridge.OtherBridge(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+
 	if config != nil {
-		messenger = common.HexToAddress(list.L1CrossDomainMessengerProxy.String())
-		otherBridge = predeploys.L2StandardBridgeAddr
-	} else {
-		l1StandardBridge, err := bindings.NewL1StandardBridgeCaller(common.HexToAddress(list.L1StandardBridgeProxy.String()), backend)
-		if err != nil {
-			return err
+		if messenger != config.L1CrossDomainMessengerProxy {
+			return fmt.Errorf("upgrading L1StandardBridge: Messenger address doesn't match config")
 		}
-		messenger, err = l1StandardBridge.Messenger(&bind.CallOpts{})
-		if err != nil {
-			return err
-		}
-		otherBridge, err = l1StandardBridge.OtherBridge(&bind.CallOpts{})
-		if err != nil {
-			return err
+		if otherBridge != predeploys.L2StandardBridgeAddr {
+			return fmt.Errorf("upgrading L1StandardBridge: OtherBridge address doesn't match config")
 		}
 	}
 
