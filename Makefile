@@ -90,7 +90,7 @@ cannon:
 	make -C ./cannon cannon
 .PHONY: cannon
 
-cannon-prestate:
+cannon-prestate: op-program cannon
 	DOCKER_BUILDKIT=1 DOCKER_OUTPUT_DESTINATION="" docker buildx bake --set op-program-mips.output=op-program/bin/ --progress plain -f docker-bake.hcl op-program-mips
 .PHONY: cannon-prestate
 
