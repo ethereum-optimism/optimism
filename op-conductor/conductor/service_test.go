@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/hashicorp/go-multierror"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 
@@ -510,6 +511,14 @@ func (s *OpConductorTestSuite) TestFailureAndRetry2() {
 	s.False(s.conductor.seqActive.Load())
 	s.ctrl.AssertNumberOfCalls(s.T(), "StopSequencer", 2)
 	s.cons.AssertNumberOfCalls(s.T(), "TransferLeader", 1)
+}
+
+func (s *OpConductorTestSuite) TestHandleInitError() {
+	// This will cause an error in the init function, which should cause the conductor to stop successfully without issues.
+	_, err := New(s.ctx, &s.cfg, s.log, s.version)
+	_, ok := err.(*multierror.Error)
+	// error should not be a multierror, this means that init failed, but Stop() succeeded, which is what we expect.
+	s.False(ok)
 }
 
 func TestHealthMonitor(t *testing.T) {
