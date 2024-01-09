@@ -323,11 +323,11 @@ abstract contract StandardBridge is Initializable {
         // contracts may override this function in order to emit legacy events as well.
         _emitETHBridgeInitiated(_from, _to, _amount, _extraData);
 
-        messenger.sendMessage{ value: _amount }(
-            address(otherBridge),
-            abi.encodeWithSelector(this.finalizeBridgeETH.selector, _from, _to, _amount, _extraData),
-            _minGasLimit
-        );
+        messenger.sendMessage{ value: _amount }({
+            _target: address(otherBridge),
+            _message: abi.encodeWithSelector(this.finalizeBridgeETH.selector, _from, _to, _amount, _extraData),
+            _minGasLimit: _minGasLimit
+        });
     }
 
     /// @notice Sends ERC20 tokens to a receiver's address on the other chain.
@@ -366,9 +366,9 @@ abstract contract StandardBridge is Initializable {
         // contracts may override this function in order to emit legacy events as well.
         _emitERC20BridgeInitiated(_localToken, _remoteToken, _from, _to, _amount, _extraData);
 
-        messenger.sendMessage(
-            address(otherBridge),
-            abi.encodeWithSelector(
+        messenger.sendMessage({
+            _target: address(otherBridge),
+            _message: abi.encodeWithSelector(
                 this.finalizeBridgeERC20.selector,
                 // Because this call will be executed on the remote chain, we reverse the order of
                 // the remote and local token addresses relative to their order in the
@@ -379,9 +379,9 @@ abstract contract StandardBridge is Initializable {
                 _to,
                 _amount,
                 _extraData
-            ),
-            _minGasLimit
-        );
+                ),
+            _minGasLimit: _minGasLimit
+        });
     }
 
     /// @notice Checks if a given address is an OptimismMintableERC20. Not perfect, but good enough.
