@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -133,6 +134,11 @@ func NewChallengerConfig(t *testing.T, l1Endpoint string, options ...Option) *co
 	if cfg.MaxConcurrency > 4 {
 		// Limit concurrency to something more reasonable when there are also multiple tests executing in parallel
 		cfg.MaxConcurrency = 4
+	}
+	cfg.MetricsConfig = metrics.CLIConfig{
+		Enabled:    true,
+		ListenAddr: "127.0.0.1",
+		ListenPort: 0, // Find any available port (avoids conflicts)
 	}
 	for _, option := range options {
 		option(&cfg)

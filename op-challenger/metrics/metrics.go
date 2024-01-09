@@ -45,6 +45,9 @@ type Metricer interface {
 	DecIdleExecutors()
 }
 
+// Metrics implementation must implement RegistryMetricer to allow the metrics server to work.
+var _ opmetrics.RegistryMetricer = (*Metrics)(nil)
+
 type Metrics struct {
 	ns       string
 	registry *prometheus.Registry
@@ -68,6 +71,10 @@ type Metrics struct {
 
 	trackedGames  prometheus.GaugeVec
 	inflightGames prometheus.Gauge
+}
+
+func (m *Metrics) Registry() *prometheus.Registry {
+	return m.registry
 }
 
 var _ Metricer = (*Metrics)(nil)
