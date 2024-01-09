@@ -75,6 +75,7 @@ FROM alpine:3.18
 
 COPY --from=builder /app/cannon/bin/cannon /usr/local/bin/
 COPY --from=builder /app/op-program/bin/op-program /usr/local/bin/
+COPY --from=builder /app/op-program/bin/op-program-client.elf /usr/local/bin/
 
 COPY --from=builder /app/op-heartbeat/bin/op-heartbeat /usr/local/bin/
 COPY --from=builder /app/op-wheel/bin/op-wheel /usr/local/bin/

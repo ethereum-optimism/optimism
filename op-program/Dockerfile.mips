@@ -1,15 +1,18 @@
 ARG OP_STACK_GO_BUILDER=us-docker.pkg.dev/oplabs-tools-artifacts/images/op-stack-go:latest
 FROM $OP_STACK_GO_BUILDER as builder
 
-COPY --from=builder /usr/local/bin/cannon /usr/local/bin/cannon
-COPY --from=builder /usr/local/bin/op-program-client.elf /usr/local/bin/op-program-client.elf
-COPY --from=builder /usr/local/bin/meta.json /usr/local/bin/meta.json
+# Run the op-program-client.elf binary directly through cannon's load-elf subcommand.
+RUN cannon load-elf --path /usr/local/bin/op-program-client.elf --out /usr/local/bin/prestate.json --meta ""
 
-RUN cannon load-elf --path /usr/local/bin/op-program-client.elf --out /usr/local/bin/prestate.json --meta /usr/local/bin/meta.json
+# Generate the prestate proof.
+RUN cannon run --proof-at '=0' --stop-at '=1' --input /usr/local/bin/prestate.json --meta "" --proof-fmt '/usr/local/bin/%d.json' --output ""
+RUN mv /usr/local/bin/0.json /usr/local/bin/prestate-proof.json
 
-
-CMD ["cannon"]
-
-	./cannon/bin/
-	./cannon/bin/cannon run --proof-at '=0' --stop-at '=1' --input op-program/bin/prestate.json --meta op-program/bin/meta.json --proof-fmt 'op-program/bin/%d.json' --output ""
-	mv op-program/bin/0.json op-program/bin/prestate-proof.json
+# Export the prestate.json file to the specified output location.
+# The output location can be overridden by setting the target's output.
+# e.g. `docker buildx bake --set op-program-mips.output=.`
+# Additionally, writing files to host requires buildkit to be enabled.
+# e.g. `BUILDKIT=1 docker build ...`
+FROM scratch AS export-stage
+COPY --from=builder /usr/local/bin/prestate.json .
+COPY --from=builder /usr/local/bin/prestate-proof.json .
