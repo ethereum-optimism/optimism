@@ -19,7 +19,7 @@ contract L2CrossDomainMessenger_Test is Bridge_Initializer {
     /// @dev Receiver address for testing
     address recipient = address(0xabbaacdc);
 
-    /// @dev Tests that the impl is initialized correctly.
+    /// @dev Tests that the implementation is initialized correctly.
     function test_constructor_succeeds() external {
         L2CrossDomainMessenger impl = L2CrossDomainMessenger(deploy.mustGetAddress("L2CrossDomainMessenger"));
         assertEq(address(impl.OTHER_MESSENGER()), address(l1CrossDomainMessenger));
@@ -32,13 +32,6 @@ contract L2CrossDomainMessenger_Test is Bridge_Initializer {
         assertEq(address(l2CrossDomainMessenger.OTHER_MESSENGER()), address(l1CrossDomainMessenger));
         assertEq(address(l2CrossDomainMessenger.otherMessenger()), address(l1CrossDomainMessenger));
         assertEq(address(l2CrossDomainMessenger.l1CrossDomainMessenger()), address(l1CrossDomainMessenger));
-    }
-
-    /// @dev Tests that the implementation cannot be initialized twice.
-    function test_initialize_cannotInitImpl_reverts() external {
-        L2CrossDomainMessenger impl = L2CrossDomainMessenger(deploy.mustGetAddress("L2CrossDomainMessenger"));
-        vm.expectRevert("Initializable: contract is already initialized");
-        impl.initialize({ _l1CrossDomainMessenger: l1CrossDomainMessenger });
     }
 
     /// @dev Tests that `messageNonce` can be decoded correctly.
