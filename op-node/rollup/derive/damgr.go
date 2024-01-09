@@ -49,7 +49,6 @@ func (d *DAManager) SendDA(ctx context.Context, index, length uint64, broadcaste
 	if !d.IsBroadcast {
 		return common.Hash{}, errors.New("broadcast node not started")
 	}
-	d.log.Info("SendDA", "index", index, "length", length, "broadcaster", broadcaster.Hex(), "user", user.Hex(), "commitment", commitment, "sign", sign, "data", data)
 	if !verifySignature(index, length, broadcaster, user, commitment, sign) {
 		return common.Hash{}, errors.New("invalid public key")
 	}
@@ -63,9 +62,8 @@ func (d *DAManager) SendDA(ctx context.Context, index, length uint64, broadcaste
 	tx, err := d.TxMgr.SendDA(ctx, txmgr.TxCandidate{
 		TxData:   input,
 		To:       &d.RollupConfig.SubmitContractAddress,
-		GasLimit: 800000,
+		GasLimit: 0,
 	})
-	log.Info("Send")
 
 	if err != nil {
 		return common.Hash{}, err

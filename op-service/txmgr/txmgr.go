@@ -192,12 +192,13 @@ func (m *SimpleTxManager) send(ctx context.Context, candidate TxCandidate) (*typ
 // NOTE: Otherwise, the [SimpleTxManager] will query the specified backend for an estimate.
 func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*types.Transaction, error) {
 	gasTipCap, basefee, err := m.suggestGasPriceCaps(ctx)
+	log.Info("craftTx", "gasTipCap", gasTipCap, "basefee", basefee)
 	if err != nil {
 		m.metr.RPCError()
 		return nil, fmt.Errorf("failed to get gas price info: %w", err)
 	}
 	gasFeeCap := calcGasFeeCap(basefee, gasTipCap)
-
+	log.Info("craftTx", "gasFeeCap", gasFeeCap)
 	rawTx := &types.DynamicFeeTx{
 		ChainID:   m.chainID,
 		To:        candidate.To,
@@ -206,8 +207,6 @@ func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*
 		Data:      candidate.TxData,
 		Value:     candidate.Value,
 	}
-
-	m.l.Info("Creating tx", "to", rawTx.To, "from", m.cfg.From)
 
 	// If the gas limit is set, we can use that as the gas
 	if candidate.GasLimit != 0 {
@@ -227,6 +226,7 @@ func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*
 		}
 		rawTx.Gas = gas * 2
 	}
+	m.l.Info("Creating tx", "gas", rawTx.Gas)
 
 	return m.signWithNextNonce(ctx, rawTx)
 }
