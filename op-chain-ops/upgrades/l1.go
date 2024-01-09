@@ -106,22 +106,26 @@ func L1CrossDomainMessenger(batch *safe.Batch, implementations superchain.Implem
 		return err
 	}
 
-	var optimismPortal, otherMessenger common.Address
+	l1CrossDomainMessenger, err := bindings.NewL1CrossDomainMessengerCaller(common.HexToAddress(list.L1CrossDomainMessengerProxy.String()), backend)
+	if err != nil {
+		return err
+	}
+	optimismPortal, err := l1CrossDomainMessenger.Portal(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	otherMessenger, err := l1CrossDomainMessenger.OtherMessenger(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+
 	if config != nil {
-		optimismPortal = common.HexToAddress(list.OptimismPortalProxy.String())
-		otherMessenger = predeploys.L2CrossDomainMessengerAddr
-	} else {
-		l1CrossDomainMessenger, err := bindings.NewL1CrossDomainMessengerCaller(common.HexToAddress(list.L1CrossDomainMessengerProxy.String()), backend)
-		if err != nil {
-			return err
+		if optimismPortal != config.OptimismPortalProxy {
+			return fmt.Errorf("upgrading L1CrossDomainMessenger: Portal address doesn't match config")
 		}
-		optimismPortal, err = l1CrossDomainMessenger.Portal(&bind.CallOpts{})
-		if err != nil {
-			return err
-		}
-		otherMessenger, err = l1CrossDomainMessenger.OtherMessenger(&bind.CallOpts{})
-		if err != nil {
-			return err
+
+		if otherMessenger != predeploys.L2CrossDomainMessengerAddr {
+			return fmt.Errorf("upgrading L1CrossDomainMessenger: OtherMessenger address doesn't match config")
 		}
 	}
 
