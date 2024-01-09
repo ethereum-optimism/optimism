@@ -302,7 +302,7 @@ An [extended-validator] checks the incoming messages as follows, in order of ope
 - `[REJECT]` if the block is on the V1 topic and has withdrawals
 - `[REJECT]` if the block is on a topic >= V2 and does not have withdrawals
 - `[REJECT]` if the block is on a topic >= V2 and has a non-zero amount of withdrawals
-- `[REJECT]` if the block is on a topic <= V2 and has a blob gas value set
+- `[REJECT]` if the block is on a topic <= V2 and has a blob gas-used value set
 - `[REJECT]` if the block is on a topic <= V2 and has an excess blob gas value set
 - `[REJECT]` if the block is on a topic >= V3 and has a blob gas used value that is not zero
 - `[REJECT]` if the block is on a topic >= V3 and has an excess blob gas value that is not zero
