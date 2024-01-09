@@ -2,10 +2,10 @@
 
 set -e
 
-# Grab the `.foundryrc` commit hash.
-SHA=$(cat ./.foundryrc)
+# Grab the foundry commit hash.
+SHA=$(cat versions.json | jq -r '.foundry')
 
-# Check if there is a nightly tag corresponding to the `.foundryrc` commit hash
+# Check if there is a nightly tag corresponding to the commit hash
 TAG="nightly-$SHA"
 
 # If the foundry repository exists and a branch is checked out, we need to abort

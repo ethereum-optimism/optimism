@@ -1,7 +1,4 @@
 *
-!/.foundryrc
-!/.abigenrc
-!/.gethrc
 !/.nvmrc
-!/.slitherrc
+!/versions.json
 !/ops/scripts/install-foundry.sh
