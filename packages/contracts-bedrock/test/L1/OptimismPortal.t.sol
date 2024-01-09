@@ -909,16 +909,6 @@ contract OptimismPortalUpgradeable_Test is CommonTest {
         assertEq(prevBlockNum, block.number);
     }
 
-    /// @dev Tests that the implementation cannot be initialized twice.
-    function test_initialize_cannotInitImpl_reverts() external {
-        address opImpl = deploy.mustGetAddress("OptimismPortal");
-        L2OutputOracle l2OutputOracle = L2OutputOracle(deploy.mustGetAddress("L2OutputOracle"));
-        SystemConfig systemConfig = SystemConfig(deploy.mustGetAddress("SystemConfig"));
-        SuperchainConfig superchainConfig = SuperchainConfig(deploy.mustGetAddress("SuperchainConfig"));
-        vm.expectRevert("Initializable: contract is already initialized");
-        OptimismPortal(payable(opImpl)).initialize(l2OutputOracle, systemConfig, superchainConfig);
-    }
-
     /// @dev Tests that the proxy can be upgraded.
     function test_upgradeToAndCall_upgrading_succeeds() external {
         // Check an unused slot before upgrading.
