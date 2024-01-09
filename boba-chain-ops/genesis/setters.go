@@ -92,20 +92,6 @@ func WipePredeployStorage(g *types.Genesis) error {
 	return nil
 }
 
-// WipeBobaLegacyPredeploy will wipe all information of the legacy L2 predeploy contracts
-// that are no longer needed as the implementation contracts
-func WipeBobaLegacyProxyImplementation(g *types.Genesis) error {
-	for name, addr := range predeploys.LegacyBobaProxyImplementation {
-		if addr == nil {
-			return fmt.Errorf("nil address in predeploys mapping for %s", name)
-		}
-
-		log.Info("wiping boba legacy contract", "name", name, "address", *addr)
-		g.Alloc[*addr] = types.GenesisAccount{}
-	}
-	return nil
-}
-
 func setProxies(g *types.Genesis, proxyAdminAddr common.Address, namespace *big.Int, count uint64) error {
 	depBytecode, err := bindings.GetDeployedBytecode("Proxy")
 	if err != nil {

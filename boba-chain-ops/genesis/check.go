@@ -8,10 +8,8 @@ import (
 	"fmt"
 	"math/big"
 	"math/rand"
-	"reflect"
 	"sync"
 
-	"github.com/bobanetwork/v3-anchorage/boba-bindings/bindings"
 	"github.com/bobanetwork/v3-anchorage/boba-bindings/predeploys"
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/chain"
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/crossdomain"
@@ -24,7 +22,6 @@ import (
 	"github.com/ledgerwatch/erigon/core/rawdb"
 	erigonstate "github.com/ledgerwatch/erigon/core/state"
 	"github.com/ledgerwatch/erigon/core/types"
-	"github.com/ledgerwatch/erigon/crypto"
 	"github.com/ledgerwatch/log/v3"
 )
 
@@ -88,16 +85,12 @@ var (
 		predeploys.L2StandardBridgeAddr: {
 			// Slot 0x00 (0) is a combination of spacer_0_0_20, _initialized, and _initializing
 			libcommon.Hash{}: libcommon.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000002"),
-			// L2CrossDomainMessengerAddr
-			libcommon.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000003"): libcommon.HexToHash("0x0000000000000000000000004200000000000000000000000000000000000007"),
 			// EIP-1967 storage slots
 			AdminSlot:          libcommon.HexToHash("0x0000000000000000000000004200000000000000000000000000000000000018"),
 			ImplementationSlot: libcommon.HexToHash("0x000000000000000000000000c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d30010"),
 		},
 		predeploys.SequencerFeeVaultAddr: eip1967Slots(predeploys.SequencerFeeVaultAddr),
 		predeploys.OptimismMintableERC20FactoryAddr: {
-			// Slot 0x00 (0) is a combination of spacer_0_0_20, _initialized, and _initializing
-			libcommon.Hash{}: libcommon.HexToHash("0x0000000000000000000042000000000000000000000000000000000000100002"),
 			// EIP-1967 storage slots
 			AdminSlot:          libcommon.HexToHash("0x0000000000000000000000004200000000000000000000000000000000000018"),
 			ImplementationSlot: libcommon.HexToHash("0x000000000000000000000000c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d30012"),
@@ -105,8 +98,7 @@ var (
 		predeploys.L1BlockNumberAddr:  eip1967Slots(predeploys.L1BlockNumberAddr),
 		predeploys.GasPriceOracleAddr: eip1967Slots(predeploys.GasPriceOracleAddr),
 		predeploys.L2ERC721BridgeAddr: {
-			// Slot 0x00 (0) is a combination of spacer_0_0_20, _initialized, and _initializing
-			libcommon.Hash{}: libcommon.HexToHash("0x0000000000000000000042000000000000000000000000000000000000070002"),
+			libcommon.Hash{}: libcommon.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000002"),
 			// EIP-1967 storage slots
 			AdminSlot:          libcommon.HexToHash("0x0000000000000000000000004200000000000000000000000000000000000018"),
 			ImplementationSlot: libcommon.HexToHash("0x000000000000000000000000c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d30014"),
@@ -199,11 +191,6 @@ func PostCheckMigratedDB(
 		return err
 	}
 
-	if err := PostCheckBobaLegacyProxyImplementation(tx); err != nil {
-		return err
-	}
-	log.Info("checked boba legacy proxy implementation")
-
 	if err := PostCheckPredeployStorage(tx, finalSystemOwner, proxyAdminOwner); err != nil {
 		return err
 	}
@@ -234,45 +221,6 @@ func PostCheckMigratedDB(
 	}
 	log.Info("checked withdrawals")
 
-	return nil
-}
-
-// PostCheckBobaLegacyProxyImplementation will check that the legacy proxy implementation
-// contracts are replaced by the proxy contract and storage are wiped out except the admin slot.
-func PostCheckBobaLegacyProxyImplementation(tx kv.Tx) error {
-	for name, addr := range predeploys.LegacyBobaProxyImplementation {
-		proxyByteCode, err := bindings.GetDeployedBytecode("Proxy")
-		if err != nil {
-			return fmt.Errorf("failed to get proxy bytecode: %w", err)
-		}
-		hash := crypto.Keccak256Hash(proxyByteCode)
-		codeHash, err := state.GetContractCodeHash(tx, *addr)
-		if err != nil {
-			return fmt.Errorf("failed to read code hash from database: %w", err)
-		}
-		if *codeHash != hash {
-			return fmt.Errorf("expected code hash for %s to be %x, but got %x", name, hash, codeHash)
-		}
-		code, err := state.GetContractCode(tx, *addr)
-		if err != nil {
-			return fmt.Errorf("failed to read code from database: %w", err)
-		}
-		if *code != libcommon.BytesToHash(proxyByteCode) {
-			return fmt.Errorf("expected code for %s to be %x, but got %x", name, proxyByteCode, code)
-		}
-		expectedStorage := eip1967Slots(predeploys.EASAddr)
-		actualStorage := make(map[libcommon.Hash]libcommon.Hash)
-		if err := state.ForEachStorage(tx, *addr, func(key, val libcommon.Hash) bool {
-			actualStorage[key] = val
-			return true
-		}); err != nil {
-			return fmt.Errorf("failed to read storage from database: %w", err)
-		}
-		if !reflect.DeepEqual(expectedStorage, actualStorage) {
-			return fmt.Errorf("expected storage for %s to be %v, but got %v", name, expectedStorage, actualStorage)
-		}
-		log.Info("boba legacy proxy implementation", "name", name, "address", addr)
-	}
 	return nil
 }
 

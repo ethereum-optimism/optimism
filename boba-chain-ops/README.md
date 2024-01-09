@@ -133,18 +133,17 @@ Before the migration, we need these following files
 
 ### Contracts
 
-To reduce upgrade time, we can deploy the L1 contracts first, without updating the implementation contracts or setting the L2 start time. We will copy and paste the deployment files from the `boba repo` to the `v3-anchorage` repo. For example, we will copy and paste the [deployment files](https://github.com/bobanetwork/boba/tree/develop/packages/contracts/deployments/mainnet) of Mainnet to [contracts-bedrock](https://github.com/bobanetwork/v3-anchorage/tree/develop/packages/contracts-bedrock/deployments) in the `v3-anchorage` repo.
+#### Copy Deployment Files
 
-> The names of the deployment files for `Proxy__L1StandardBridge` and `Proxy__L1CrossDomainMessenger` must be `Proxy__OVM_L1CrossDomainMessenger.json` and `Proxy__OVM_L1StandardBridge.json`. Therefore, the deployment process can skip these two contracts.
+To reduce upgrade time, we can deploy the L1 contracts first, without updating the implementation contracts or setting the L2 start time. We will copy and paste the deployment files from the `boba repo` to the `v3-anchorage` repo. For example, we will copy and paste the [deployment files](https://github.com/bobanetwork/boba/tree/develop/packages/contracts/deployments/mainnet) of three contracts `Lib_AddressManager`, `Proxy__L1CrossDomainMessenger` and `Proxy__L1StandardBridge` to [contracts-bedrock](https://github.com/bobanetwork/v3-anchorage/tree/develop/packages/contracts-bedrock/deployments) in the `v3-anchorage` repo.
 
-The new network settings should be added to [hardhat.config.ts](https://github.com/bobanetwork/v3-anchorage/blob/develop/packages/contracts-bedrock/hardhat.config.ts) and the configuration file should be added to the [deploy-config](https://github.com/bobanetwork/v3-anchorage/tree/develop/packages/contracts-bedrock/deploy-config) folder. Besides the configuration file, another `.ts` file is required to export the settings. For example,
+The names of the deployment files for `Proxy__L1StandardBridge` and `Proxy__L1CrossDomainMessenger` must be changed to `Proxy__OVM_L1CrossDomainMessenger.json` and `Proxy__OVM_L1StandardBridge.json`. Therefore, the deployment process can skip these two contracts.
 
-```ts
-import { DeployConfig } from '../scripts/deploy-config'
-import config from './boba-local.json'
+**!! DON'T COPY OTHER DEPLOYMENT FILES TO THE FOLDER !!**
 
-export default config satisfies DeployConfig
-```
+#### Add Network Configuration
+
+The new network settings should be added to [hardhat.config.ts](https://github.com/bobanetwork/v3-anchorage/blob/develop/packages/contracts-bedrock/hardhat.config.ts) and the configuration file should be added to the [deploy-config](https://github.com/bobanetwork/v3-anchorage/tree/develop/packages/contracts-bedrock/deploy-config) folder.
 
 To avoid the upgrade, delete the [022-SystemDictatorSteps-1.ts](https://github.com/bobanetwork/v3-anchorage/blob/develop/packages/contracts-bedrock/deploy/022-SystemDictatorSteps-1.ts) and [022-SystemDictatorSteps-2.ts](https://github.com/bobanetwork/v3-anchorage/blob/develop/packages/contracts-bedrock/deploy/023-SystemDictatorSteps-2.ts) and run
 
@@ -152,31 +151,26 @@ To avoid the upgrade, delete the [022-SystemDictatorSteps-1.ts](https://github.c
 yarn deploy:hardhat --network boba-mainnet
 ```
 
+In this process, we won't update the implementation contracts and initialize it. We will run the initialization after getting the actual `l1StartingBlockTag`, `l2OutputOracleStartingBlockNumber` and `l2OutputOracleStartingTimestamp` for the production.
+
 ### Erigon
 
-Before generating the database, we need to add the genesis block information to the [v3-erigon-lib](https://github.com/bobanetwork/v3-erigon-lib/blob/boba-bedrock-hardfork/chain/chain_config.go) so that the first block can match the legacy chain. For example,
+Before generating the database, we need to add the genesis block information to the [v3-erigon](https://github.com/bobanetwork/v3-erigon/blob/bedrock-migration/erigon-lib/chain/chain_config.go) so that the first block can match the legacy chain. For example,
 
 ```go
 BobaGoerliChainId = big.NewInt(2888)
-BobaGoerliBedrockBlock = big.NewInt(40500)
 BobaGoerliGenesisGasLimit = 11000000
 BobaGoerliGenesisCoinbase = "0x0000000000000000000000000000000000000000"
 BobaGoerliGenesisExtraData = "000000000000000000000000000000000000000000000000000000000000000000000398232e2064f896018496b4b44b3d62751f0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
 BobaGoerliGenesisRoot = "0x36c808dc3bb586c14bebde3ca630a4d49a1fdad0b01d7e58f96f2fcd1aa0003d"
 ```
 
-> The `BobaGoerliBedrockBlock` can be any number that is larger than the final block number of the legacy chain.
-
 A genesis file is needed when we generate the database. An example is
 
 ```json
 {
   "config": {
-    ////////////////////////
-    /// EXAMPLE CHAIN ID ///
-    ////////////////////////
-    "chainId": 911,
-    ////////////////////////
+    "chainId": CHAIN_ID,
     "homesteadBlock": 0,
     "eip150Block": 0,
     "eip150Hash": "0x0000000000000000000000000000000000000000000000000000000000000000",
@@ -187,23 +181,23 @@ A genesis file is needed when we generate the database. An example is
     "petersburgBlock": 0,
     "istanbulBlock": 0,
     "muirGlacierBlock": 0,
-    "berlinBlock": 0,
-    "londonBlock": 0,
-    "arrowGlacierBlock": 0,
-    "grayGlacierBlock": 0,
-    "mergeNetsplitBlock": 0,
-    "bedrockBlock": 1000,
+    "berlinBlock": BEDROCK_BLOCK, // This can be any block number, but it must be larger than the actual transition block so that we can continuously insert the legacy blocks until the transition block is reached.
+    "londonBlock": BEDROCK_BLOCK, // This can be any block number, but it must be larger than the actual transition block so that we can continuously insert the legacy blocks until the transition block is reached.
+    "arrowGlacierBlock": BEDROCK_BLOCK, // This can be any block number, but it must be larger than the actual transition block so that we can continuously insert the legacy blocks until the transition block is reached.
+    "grayGlacierBlock": BEDROCK_BLOCK, // This can be any block number, but it must be larger than the actual transition block so that we can continuously insert the legacy blocks until the transition block is reached.
+    "mergeNetsplitBlock": BEDROCK_BLOCK, // This can be any block number, but it must be larger than the actual transition block so that we can continuously insert the legacy blocks until the transition block is reached.
+    "bedrockBlock": BEDROCK_BLOCK, // This can be any block number, but it must be larger than the actual transition block so that we can continuously insert the legacy blocks until the transition block is reached.
     "terminalTotalDifficulty": 0,
     "terminalTotalDifficultyPassed": true,
     "optimism": {
-      "eip1559Elasticity": 2,
-      "eip1559Denominator": 8
+      "eip1559Elasticity": 6,
+      "eip1559Denominator": 50
     }
   },
   "nonce": "0x0",
   "timestamp": "0x0",
   "extraData": "0x",
-  "gasLimit": "0xA7D8C0",
+  "gasLimit": "0xA7D8C0", // This must be 11,000,000 to match the legacy blocks
   "difficulty": "0x0",
   "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
   "coinbase": "0x4200000000000000000000000000000000000011",
@@ -211,13 +205,11 @@ A genesis file is needed when we generate the database. An example is
   "number": "0x0",
   "gasUsed": "0x0",
   "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
-  "baseFeePerGas": "0x3b9aca00"
+  "baseFeePerGas": "0x1"
 }
 ```
 
-> The `bedrockBlock` can be any number that is larger than the final block number of the legacy chain. We will overwrite the configuration when we create the transition block.
->
-> The `alloc` must be **EMPTY**.
+**!! THE `alloc` MUST BE EMPTY !!**
 
 Once we add the genesis block and the genesis file, we can create the db via
 
@@ -225,7 +217,7 @@ Once we add the genesis block and the genesis file, we can create the db via
 ./build/bin/erigon init --datadir db genesis.json
 ```
 
-Now we can start the specific erigon built from the [boba-bedrock-hardfork](https://github.com/bobanetwork/v3-erigon/tree/boba-bedrock-hardfork) branch.
+Now we can start the specific erigon built from the [boba-migration](https://github.com/bobanetwork/v3-erigon/tree/bedrock-migration) branch.
 
 ```bash
 ./build/bin/erigon --datadir db --private.api.addr=localhost:9090 --http.addr=0.0.0.0 --http.port=9545 --http.corsdomain="*" --http.vhosts="*" --authrpc.addr=0.0.0.0 --authrpc.port=8551 --authrpc.vhosts="*" --authrpc.jwtsecret=jwt --rollup.disabletxpoolgossip=true --chain=dev --networkid=911 --http.api=eth,debug,net,engine,erigon,web3 --torrent.port=42068 --rollup.historicalrpc=http://localhost:8547 --log.console.verbosity dbug
@@ -251,13 +243,13 @@ go run ./cmd/geth-dump --db-path=db --output-path=genesis.json
 
 > The **hardfork block number** is the **last block number of the legacy chain + 1**.
 
-We now can stop the [boba-regenerate](https://github.com/bobanetwork/v3-anchorage/blob/develop/boba-chain-ops/cmd/boba-regenerate/main.go) and the specific erigon built from the [boba-bedrock-hardfork](https://github.com/bobanetwork/v3-erigon/tree/boba-bedrock-hardfork) branch once it reaches the hardfork block.
+We now can stop the [boba-regenerate](https://github.com/bobanetwork/v3-anchorage/blob/develop/boba-chain-ops/cmd/boba-regenerate/main.go) and the specific erigon built from the [boba-regenerate](https://github.com/bobanetwork/v3-anchorage/blob/develop/boba-chain-ops/cmd/boba-regenerate/main.go) branch once it reaches the hardfork block.
 
 ---
 
 **!! Important !!**
 
-**An L1 block should be selected at this moment. The block hash and timestamp should be updated in the configuration file for the migration and L1 contract deployment.** For example, the values for  `l1StartingBlockTag` and `l2OutputOracleStartingTimestamp` should be set to the chosen block hash and timestamp respectively in [hardhat-local.json](https://github.com/bobanetwork/v3-anchorage/blob/develop/packages/contracts-bedrock/deploy-config/hardhat-local.json). The `l2OutputOracleStartingBlockNumber`  should be set to the **hardfork block number** in [hardhat-local.json](https://github.com/bobanetwork/v3-anchorage/blob/develop/packages/contracts-bedrock/deploy-config/hardhat-local.json). The `l1BobaTokenAddress`  should be updated to reflect the address where we deployed on L1.
+**An L1 block and the hardfork block should be selected at this moment. The block hash and timestamp should be updated in the configuration file for the migration and L1 contract deployment.** For example, the values for  `l1StartingBlockTag` and `l2OutputOracleStartingTimestamp` should be set to the chosen block hash and timestamp respectively in [hardhat-local.json](https://github.com/bobanetwork/v3-anchorage/blob/develop/packages/contracts-bedrock/deploy-config/hardhat-local.json). The `l2OutputOracleStartingBlockNumber`  should be set to the **hardfork block number** in [hardhat-local.json](https://github.com/bobanetwork/v3-anchorage/blob/develop/packages/contracts-bedrock/deploy-config/hardhat-local.json). The `l1BobaTokenAddress`  should be updated to reflect the address where we deployed on L1.
 
 ---
 
@@ -285,11 +277,7 @@ Then we create a genesis file for the migration. For example,
 ```json
 {
   "config": {
-    ////////////////////////
-    /// EXAMPLE CHAIN ID ///
-    ////////////////////////
-    "chainId": 911,
-     ////////////////////////
+    "chainId": CHAIN_ID,
     "homesteadBlock": 0,
     "eip150Block": 0,
     "eip150Hash": "0x0000000000000000000000000000000000000000000000000000000000000000",
@@ -300,31 +288,23 @@ Then we create a genesis file for the migration. For example,
     "petersburgBlock": 0,
     "istanbulBlock": 0,
     "muirGlacierBlock": 0,
-    "berlinBlock": 0,
-    "londonBlock": 0,
-    "arrowGlacierBlock": 0,
-    "grayGlacierBlock": 0,
-    "mergeNetsplitBlock": 0,
-    /////////////////////////
-    // EXAMPLE BEDROCK //
-    /////////////////////////
-    "bedrockBlock": 56,
-    /////////////////////////
+    "berlinBlock": BEDROCK_BLOCK,
+    "londonBlock": BEDROCK_BLOCK,
+    "arrowGlacierBlock": BEDROCK_BLOCK,
+    "grayGlacierBlock": BEDROCK_BLOCK,
+    "mergeNetsplitBlock": BEDROCK_BLOCK,
+    "bedrockBlock": BEDROCK_BLOCK,
     "terminalTotalDifficulty": 0,
     "terminalTotalDifficultyPassed": true,
     "optimism": {
-      "eip1559Elasticity": 2,
-      "eip1559Denominator": 8
+      "eip1559Elasticity": 6,
+      "eip1559Denominator": 50
     }
   },
   "nonce": "0x0",
   "timestamp": "0x0",
   "extraData": "0x",
-  /////////////////////////
-  // EXAMPLE GAS LIMIT //
-  /////////////////////////
-  "gasLimit": "0x1C9C380",
-  /////////////////////////
+  "gasLimit": "0x1C9C380", // 30,000,000
   "difficulty": "0x0",
   "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
   "coinbase": "0x4200000000000000000000000000000000000011",
@@ -332,11 +312,11 @@ Then we create a genesis file for the migration. For example,
   "number": "0x0",
   "gasUsed": "0x0",
   "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
-  "baseFeePerGas": "0x3b9aca00"
+  "baseFeePerGas": "0xF4240"
 }
 ```
 
->The `bedrockBlock` must be the same as  `l2OutputOracleStartingBlockNumber`  which is **hardfork block number**
+>The `BEDROCK_BLOCK` must be the same as  `l2OutputOracleStartingBlockNumber`  which is **hardfork block number**
 
 Once we prepare everything, we can run the [boba-mirgate](https://github.com/bobanetwork/v3-anchorage/blob/develop/boba-chain-ops/cmd/boba-migrate/main.go) to insert the transition block.
 

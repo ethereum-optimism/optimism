@@ -284,7 +284,7 @@ func main() {
 
 			block, err := genesis.MigrateDB(chaindb, genesisBlock, config, header, &migrationData, !dryRun, noCheck)
 			if err != nil {
-				if err.Error() != "cannot write genesis: genesis block already exists" {
+				if err.Error() != "cannot write genesis: cannot write genesis: genesis block already exists" {
 					log.Error("failed to migrate db", "err", err)
 					return err
 				} else {

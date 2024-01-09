@@ -63,9 +63,7 @@ var (
 	// Special case for Boba mainnet
 	BOBAL2288Addr = common.HexToAddress(BOBAL2288)
 
-	Predeploys                    = make(map[string]*common.Address)
-	LegacyBobaProxy               = make(map[string]*common.Address)
-	LegacyBobaProxyImplementation = make(map[string]*common.Address)
+	Predeploys = make(map[string]*common.Address)
 )
 
 // IsProxied returns true for predeploys that will sit behind a proxy contract

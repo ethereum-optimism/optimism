@@ -113,6 +113,12 @@ func (b *BuilderEngine) RegenerateBlock() error {
 	if err != nil {
 		return err
 	}
+
+	if legacyBlock == nil {
+		log.Info("No new block to be mined", "blockNumber", nextBlockNumber)
+		return nil
+	}
+
 	gasLimit := legacyBlock.GasLimit
 	txHash := legacyBlock.Transactions[0]
 
