@@ -17,7 +17,8 @@ remappings = [
   '@cwia/=lib/clones-with-immutable-args/src',
   'forge-std/=lib/forge-std/src',
   'ds-test/=lib/forge-std/lib/ds-test/src',
-  'safe-contracts/=lib/safe-contracts/contracts'
+  'safe-contracts/=lib/safe-contracts/contracts',
+  'solady/=lib/solady/src',
 ]
 extra_output = ['devdoc', 'userdoc', 'metadata', 'storageLayout']
 bytecode_hash = 'none'
