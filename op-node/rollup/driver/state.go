@@ -27,6 +27,7 @@ const sealingDuration = time.Millisecond * 50
 
 type Driver struct {
 	l1State L1StateIface
+	interop Interop
 
 	// The derivation pipeline is reset whenever we reorg.
 	// The derivation pipeline determines the new l2Safe.
@@ -78,10 +79,14 @@ type Driver struct {
 
 	unsafeL2Payloads chan *eth.ExecutionPayload
 
-	l1        L1Chain
-	l2        L2Chain
-	sequencer SequencerIface
-	network   Network // may be nil, network for is optional
+	// Interop Signals
+	interopFinalizedUpdate chan finalizedHeadAndChain
+
+	l1              L1Chain
+	l2              L2Chain
+	interopMsgQueue InteropMessageQueue
+	sequencer       SequencerIface
+	network         Network // may be nil, network for is optional
 
 	metrics     Metrics
 	log         log.Logger
@@ -161,6 +166,15 @@ func (s *Driver) OnUnsafeL2Payload(ctx context.Context, payload *eth.ExecutionPa
 	case <-ctx.Done():
 		return ctx.Err()
 	case s.unsafeL2Payloads <- payload:
+		return nil
+	}
+}
+
+func (s *Driver) OnInteropL2Finalized(ctx context.Context, chain uint64, finalized eth.L1BlockRef) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case s.interopFinalizedUpdate <- finalizedHeadAndChain{finalized, chain}:
 		return nil
 	}
 }
@@ -311,6 +325,11 @@ func (s *Driver) eventLoop() {
 			s.l1State.HandleNewL1FinalizedBlock(newL1Finalized)
 			s.derivation.Finalize(newL1Finalized)
 			reqStep() // we may be able to mark more L2 data as finalized now
+		case newInteropL2Finalized := <-s.interopFinalizedUpdate:
+			err := s.interop.HandleNewFinalizedBlock(newInteropL2Finalized.chain, newInteropL2Finalized.finalized)
+			if err != nil {
+				s.log.Error("failed to handle interop finalization update", "err", err)
+			}
 		case <-delayedStepReq:
 			delayedStepReq = nil
 			step()
@@ -551,6 +570,11 @@ type hashAndError struct {
 type hashAndErrorChannel struct {
 	hash common.Hash
 	err  chan error
+}
+
+type finalizedHeadAndChain struct {
+	finalized eth.L1BlockRef
+	chain     uint64
 }
 
 // checkForGapInUnsafeQueue checks if there is a gap in the unsafe queue and attempts to retrieve the missing payloads from an alt-sync method.

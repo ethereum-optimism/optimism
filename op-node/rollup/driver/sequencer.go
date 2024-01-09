@@ -24,6 +24,10 @@ type L1OriginSelectorIface interface {
 	FindL1Origin(ctx context.Context, l2Head eth.L2BlockRef) (eth.L1BlockRef, error)
 }
 
+type InteropMessageQueueIface interface {
+	NewMessages() []derive.InteropMessages
+}
+
 type SequencerMetrics interface {
 	RecordSequencerInconsistentL1Origin(from eth.BlockID, to eth.BlockID)
 	RecordSequencerReset()
@@ -38,6 +42,7 @@ type Sequencer struct {
 
 	attrBuilder      derive.AttributesBuilder
 	l1OriginSelector L1OriginSelectorIface
+	interopMsgQueue  InteropMessageQueueIface
 
 	metrics SequencerMetrics
 
@@ -47,7 +52,7 @@ type Sequencer struct {
 	nextAction time.Time
 }
 
-func NewSequencer(log log.Logger, cfg *rollup.Config, engine derive.ResettableEngineControl, attributesBuilder derive.AttributesBuilder, l1OriginSelector L1OriginSelectorIface, metrics SequencerMetrics) *Sequencer {
+func NewSequencer(log log.Logger, cfg *rollup.Config, engine derive.ResettableEngineControl, attributesBuilder derive.AttributesBuilder, l1OriginSelector L1OriginSelectorIface, interopMsgQueue InteropMessageQueueIface, metrics SequencerMetrics) *Sequencer {
 	return &Sequencer{
 		log:              log,
 		config:           cfg,
@@ -55,6 +60,7 @@ func NewSequencer(log log.Logger, cfg *rollup.Config, engine derive.ResettableEn
 		timeNow:          time.Now,
 		attrBuilder:      attributesBuilder,
 		l1OriginSelector: l1OriginSelector,
+		interopMsgQueue:  interopMsgQueue,
 		metrics:          metrics,
 	}
 }
@@ -90,6 +96,25 @@ func (d *Sequencer) StartBuildingBlock(ctx context.Context) error {
 	// setting NoTxPool to true, which will cause the Sequencer to not include any transactions
 	// from the transaction pool.
 	attrs.NoTxPool = uint64(attrs.Timestamp) > l1Origin.Time+d.config.MaxSequencerDrift
+
+	// Include interop messages as they become available. Skip when producing empty blocks as
+	// these txs are included optionally rather than specified via derivation (for now).
+	if d.config.IsInterop(uint64(attrs.Timestamp)) {
+		interopMsgs := d.interopMsgQueue.NewMessages()
+		if !attrs.NoTxPool && len(interopMsgs) > 0 {
+			interopDepositTx, err := derive.InteropMessagesDeposit(interopMsgs)
+			if err != nil {
+				d.log.Error("Error creating interop deposit", "err", err)
+			}
+
+			interopOpaqueTx, err := types.NewTx(interopDepositTx).MarshalBinary()
+			if err != nil {
+				d.log.Error("failed to encode interop deposit tx", "err", err)
+			} else {
+				attrs.Transactions = append(attrs.Transactions, interopOpaqueTx)
+			}
+		}
+	}
 
 	d.log.Debug("prepared attributes for new block",
 		"num", l2Head.Number+1, "time", uint64(attrs.Timestamp),

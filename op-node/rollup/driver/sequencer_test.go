@@ -147,6 +147,12 @@ func (fn testOriginSelectorFn) FindL1Origin(ctx context.Context, l2Head eth.L2Bl
 
 var _ L1OriginSelectorIface = (testOriginSelectorFn)(nil)
 
+type testInteropMessageQueue struct{}
+
+func (t *testInteropMessageQueue) NewMessages() []derive.InteropMessages { return nil }
+
+var _ InteropMessageQueueIface = (*testInteropMessageQueue)(nil)
+
 // TestSequencerChaosMonkey runs the sequencer in a mocked adversarial environment with
 // repeated random errors in dependencies and poor clock timing.
 // At the end the health of the chain is checked to show that the sequencer kept the chain in shape.
@@ -302,7 +308,9 @@ func TestSequencerChaosMonkey(t *testing.T) {
 		}
 	})
 
-	seq := NewSequencer(log, cfg, engControl, attrBuilder, originSelector, metrics.NoopMetrics)
+	interopMsgQueue := &testInteropMessageQueue{}
+
+	seq := NewSequencer(log, cfg, engControl, attrBuilder, originSelector, interopMsgQueue, metrics.NoopMetrics)
 	seq.timeNow = clockFn
 
 	// try to build 1000 blocks, with 5x as many planning attempts, to handle errors and clock problems

@@ -45,6 +45,7 @@ type OpNode struct {
 	l1FinalizedSub ethereum.Subscription // Subscription to get L1 safe blocks, a.k.a. justified data (polling)
 
 	interopFinalizedSubs map[uint64]ethereum.Subscription
+	interopMgsQueue      *driver.InteropMessageQueue
 
 	l1Source *sources.L1Client // L1 Client to fetch data from
 
@@ -332,7 +333,7 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config, snapshotLog log.Logger
 		return err
 	}
 
-	n.l2Driver = driver.NewDriver(&cfg.Driver, &cfg.Rollup, n.l2Source, n.l1Source, n.beacon, n, n, n.log, snapshotLog, n.metrics, cfg.ConfigPersistence, &cfg.Sync)
+	n.l2Driver = driver.NewDriver(&cfg.Driver, &cfg.Rollup, n.l2Source, n.l1Source, n.beacon, n.interopMgsQueue, n, n, n.log, snapshotLog, n.metrics, cfg.ConfigPersistence, &cfg.Sync)
 
 	return nil
 }
@@ -388,7 +389,9 @@ func (n *OpNode) initInterop(ctx context.Context, cfg *Config) error {
 			}
 			ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 			defer cancel()
-			// TODO: notify the driver
+			if err := n.l2Driver.OnInteropL2Finalized(ctx, chainId, sig); err != nil {
+				n.log.Warn("failed to notify engine driver of L2 Interop change", "err", err)
+			}
 		}
 		n.interopFinalizedSubs[chainId] = eth.PollBlockChanges(n.log, l2Source, headSignal, eth.Finalized,
 			cfg.L1EpochPollInterval, time.Second*10)
@@ -396,7 +399,8 @@ func (n *OpNode) initInterop(ctx context.Context, cfg *Config) error {
 		clnts[chainId] = rpcClient
 	}
 
-	// TODO: setup message queue which gets passed to the driver
+	// setup message queue which gets passed to the driver
+	n.interopMgsQueue = driver.NewInteropMessageQueue(n.log, cfg.Rollup.L1ChainID, clnts)
 	return nil
 }
 

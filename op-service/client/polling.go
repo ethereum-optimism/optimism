@@ -27,6 +27,8 @@ type PollingClient struct {
 	currHead *types.Header
 	subID    int
 
+	blockTag string
+
 	// pollReqCh is used to request new polls of the upstream
 	// RPC client.
 	pollReqCh chan struct{}
@@ -49,6 +51,12 @@ func WithPollRate(duration time.Duration) WrappedHTTPClientOption {
 	}
 }
 
+func WithBlockTag(tag string) WrappedHTTPClientOption {
+	return func(w *PollingClient) {
+		w.blockTag = tag
+	}
+}
+
 // NewPollingClient returns a new PollingClient. Canceling the passed-in context
 // will close the client. Callers are responsible for closing the client in order
 // to prevent resource leaks.
@@ -57,6 +65,7 @@ func NewPollingClient(ctx context.Context, lgr log.Logger, c RPC, opts ...Wrappe
 	res := &PollingClient{
 		c:         c,
 		lgr:       lgr,
+		blockTag:  "latest",
 		pollRate:  12 * time.Second,
 		ctx:       ctx,
 		cancel:    cancel,
@@ -183,7 +192,7 @@ func (w *PollingClient) getLatestHeader() (*types.Header, error) {
 	ctx, cancel := context.WithTimeout(w.ctx, 5*time.Second)
 	defer cancel()
 	var head *types.Header
-	err := w.CallContext(ctx, &head, "eth_getBlockByNumber", "latest", false)
+	err := w.CallContext(ctx, &head, "eth_getBlockByNumber", w.blockTag, false)
 	if err == nil && head == nil {
 		err = ethereum.NotFound
 	}
