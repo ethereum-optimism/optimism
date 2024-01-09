@@ -95,7 +95,7 @@ func (b *BlockProcessor) AddTx(tx *types.Transaction) error {
 	receipt, err := core.ApplyTransaction(b.dataProvider.Config(), b.dataProvider, &b.header.Coinbase,
 		b.gasPool, b.state, b.header, tx, &b.header.GasUsed, *b.dataProvider.GetVMConfig())
 	if err != nil {
-		return fmt.Errorf("failed to apply deposit transaction to L2 block (tx %d): %w", txIndex, err)
+		return fmt.Errorf("failed to apply transaction to L2 block (tx %d): %w", txIndex, err)
 	}
 	b.receipts = append(b.receipts, receipt)
 	b.transactions = append(b.transactions, tx)
