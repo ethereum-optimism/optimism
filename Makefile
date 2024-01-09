@@ -90,11 +90,15 @@ cannon:
 	make -C ./cannon cannon
 .PHONY: cannon
 
-cannon-prestate: op-program cannon
+cannon-prestate:
+	DOCKER_BUILDKIT=1 DOCKER_OUTPUT_DESTINATION="" docker buildx bake --set op-program-mips.output=op-program/bin/ --progress plain -f docker-bake.hcl op-program-mips
+.PHONY: cannon-prestate
+
+cannon-prestate-local: op-program cannon
 	./cannon/bin/cannon load-elf --path op-program/bin/op-program-client.elf --out op-program/bin/prestate.json --meta op-program/bin/meta.json
 	./cannon/bin/cannon run --proof-at '=0' --stop-at '=1' --input op-program/bin/prestate.json --meta op-program/bin/meta.json --proof-fmt 'op-program/bin/%d.json' --output ""
 	mv op-program/bin/0.json op-program/bin/prestate-proof.json
-.PHONY: cannon-prestate
+.PHONY: cannon-prestate-local
 
 mod-tidy:
 	# Below GOPRIVATE line allows mod-tidy to be run immediately after
