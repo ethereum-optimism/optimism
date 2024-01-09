@@ -131,7 +131,9 @@ func setupConductor(
 	bootstrap bool,
 	rollupCfg rollup.Config,
 ) *conductor {
-	consensusPort := findAvailablePort()
+	// it's unfortunate that it is not possible to pass 0 as consensus port and get back the actual assigned port from raft implementation.
+	// So we find an available port and pass it in to avoid test flakiness (avoid port already in use error).
+	consensusPort := findAvailablePort(t)
 	cfg := con.Config{
 		ConsensusAddr:  localhost,
 		ConsensusPort:  consensusPort,
@@ -311,14 +313,21 @@ func sequencerActive(t *testing.T, ctx context.Context, rollupClient *sources.Ro
 	return active
 }
 
-func findAvailablePort() int {
+func findAvailablePort(t *testing.T) int {
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
 	for {
-		port := rand.Intn(65535-1024) + 1024 // Random port in the range 1024-65535
-		addr := fmt.Sprintf("127.0.0.1:%d", port)
-		l, err := net.Listen("tcp", addr)
-		if err == nil {
-			l.Close() // Close the listener and return the port if it's available
-			return port
+		select {
+		case <-ctx.Done():
+			t.Error("Failed to find available port")
+		default:
+			port := rand.Intn(65535-1024) + 1024 // Random port in the range 1024-65535
+			addr := fmt.Sprintf("127.0.0.1:%d", port)
+			l, err := net.Listen("tcp", addr)
+			if err == nil {
+				l.Close() // Close the listener and return the port if it's available
+				return port
+			}
 		}
 	}
 }
