@@ -8,7 +8,7 @@ import (
 
 // [Category: Initial Setup]
 // In this test, we test that we can successfully setup a working cluster.
-func TestSequencerFailver_SetupCluster(t *testing.T) {
+func TestSequencerFailover_SetupCluster(t *testing.T) {
 	sys, conductors := setupSequencerFailoverTest(t)
 	defer sys.Close()
 
