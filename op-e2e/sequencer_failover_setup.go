@@ -104,6 +104,7 @@ func setupSequencerFailoverTest(t *testing.T) (*System, map[string]*conductor) {
 	// Since our health monitor checks on safe head progression, wait for batcher to become normal before proceeding.
 	require.NoError(t, wait.ForNextSafeBlock(ctx, sys.Clients[sequencer1Name]))
 	require.NoError(t, wait.ForNextSafeBlock(ctx, sys.Clients[sequencer1Name]))
+	require.NoError(t, wait.ForNextSafeBlock(ctx, sys.Clients[sequencer1Name]))
 
 	// make sure conductor reports all sequencers as healthy, this means they're syncing correctly.
 	require.True(t, healthy(t, ctx, c1))
