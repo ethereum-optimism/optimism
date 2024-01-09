@@ -456,25 +456,6 @@
     "inputs": [
       {
         "indexed": false,
-        "internalType": "bytes32",
-        "name": "unionBefore",
-        "type": "bytes32"
-      },
-      {
-        "indexed": false,
-        "internalType": "bytes32",
-        "name": "unionAfter",
-        "type": "bytes32"
-      }
-    ],
-    "name": "HashUnionUpdated",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
         "internalType": "uint8",
         "name": "version",
         "type": "uint8"

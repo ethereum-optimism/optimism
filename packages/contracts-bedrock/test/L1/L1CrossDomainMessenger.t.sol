@@ -65,19 +65,17 @@ contract L1CrossDomainMessenger_Test is Bridge_Initializer {
 
         // TransactionDeposited event
         vm.expectEmit(address(optimismPortal));
-        emitTransactionDeposited(
-            AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger)),
-            Predeploys.L2_CROSS_DOMAIN_MESSENGER,
-            0,
-            0,
-            l1CrossDomainMessenger.baseGas(hex"ff", 100),
-            false,
-            callData
-        );
-
-        // OptimismPortal emits a HashUnionUpdated event on `depositTransaction` call
-        vm.expectEmit(address(optimismPortal));
-        emit HashUnionUpdated(unionBefore, unionAfter);
+        emitTransactionDeposited({
+            _from: AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger)),
+            _to: Predeploys.L2_CROSS_DOMAIN_MESSENGER,
+            _mint: 0,
+            _value: 0,
+            _gasLimit: l1CrossDomainMessenger.baseGas(hex"ff", 100),
+            _isCreation: false,
+            _data: callData,
+            _unionBefore: unionBefore,
+            _unionAfter: unionAfter
+        });
 
         // SentMessage event
         vm.expectEmit(address(l1CrossDomainMessenger));

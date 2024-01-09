@@ -75,7 +75,7 @@ contract CrossDomainOwnableThroughPortal_Test is CommonTest {
         // from logs
         VmSafe.Log[] memory logs = vm.getRecordedLogs();
         // 2 logs emitted
-        assertEq(logs.length, 2);
+        assertEq(logs.length, 1);
 
         VmSafe.Log memory log = logs[0];
 
@@ -88,11 +88,6 @@ contract CrossDomainOwnableThroughPortal_Test is CommonTest {
         address from = Bytes32AddressLib.fromLast20Bytes(_from);
 
         assertEq(AddressAliasHelper.undoL1ToL2Alias(from), alice);
-
-        // It is the expected topic
-        VmSafe.Log memory log2 = logs[1];
-        topic = log2.topics[0];
-        assertEq(topic, keccak256("HashUnionUpdated(bytes32,bytes32)"));
 
         // Make a call from the "from" value received from the log.
         // In theory the opaque data could be parsed from the log

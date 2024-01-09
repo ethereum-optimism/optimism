@@ -78,11 +78,6 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     /// @param opaqueData ABI encoded deposit data to be parsed off-chain.
     event TransactionDeposited(address indexed from, address indexed to, uint256 indexed version, bytes opaqueData);
 
-    /// @notice Emitted when the deposit hash union is updated.
-    /// @param unionBefore The global deposit hash union value before this deposit.
-    /// @param unionAfter The global deposit hash union value after this deposit.
-    event HashUnionUpdated(bytes32 unionBefore, bytes32 unionAfter);
-
     /// @notice Emitted when a withdrawal transaction is proven.
     /// @param withdrawalHash Hash of the withdrawal transaction.
     /// @param from           Address that triggered the withdrawal transaction.
@@ -406,18 +401,17 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         // without breaking the current interface.
         bytes memory opaqueData = abi.encodePacked(msg.value, _value, _gasLimit, _isCreation, _data);
 
-        // Emit a TransactionDeposited event so that the rollup node can derive a deposit
-        // transaction for this deposit.
-        emit TransactionDeposited(from, _to, DEPOSIT_VERSION, opaqueData);
-
         // Compute the updated global hash union of deposit data and cache the previous value on the stack for
         // event emission.
         bytes32 unionBefore = depositHashUnion;
         bytes32 unionAfter = keccak256(abi.encode(unionBefore, from, _to, DEPOSIT_VERSION, opaqueData));
 
+        // Emit a TransactionDeposited event so that the rollup node can derive a deposit
+        // transaction for this deposit.
+        emit TransactionDeposited(from, _to, DEPOSIT_VERSION, abi.encodePacked(opaqueData, unionBefore, unionAfter));
+
         // Persist the updated global hash union of deposit data and emit a HashUnionEvent update.
         depositHashUnion = unionAfter;
-        emit HashUnionUpdated(unionBefore, unionAfter);
     }
 
     /// @notice Determine if a given output is finalized.
