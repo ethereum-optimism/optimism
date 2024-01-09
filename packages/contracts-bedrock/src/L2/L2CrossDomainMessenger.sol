@@ -24,7 +24,7 @@ contract L2CrossDomainMessenger is CrossDomainMessenger, ISemver {
     }
 
     /// @notice Initializer.
-    /// @param _l1CrossDomainMessenger Address of the L1CrossDomainMessenger contract on the other network.
+    /// @param _l1CrossDomainMessenger L1CrossDomainMessenger contract on the other network.
     function initialize(CrossDomainMessenger _l1CrossDomainMessenger) public initializer {
         __CrossDomainMessenger_init({ _otherMessenger: _l1CrossDomainMessenger });
     }
