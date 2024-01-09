@@ -143,23 +143,29 @@ can be accessed in two interchangeable ways:
 Ecotone allows posting batches via Blobs which are subject to a new fee market. To account for this feature,
 L1 cost is computed as:
 
-`(compressedTxSize) * (l1Basefee*16*lBasefeeScalar + l1BlobBasefeeScalar*l1BlobBasefeeScalar) / 1e6`
+`(zeroes*4 + ones*16) * (16*l1Basefee*l1BasefeeScalar + l1BlobBasefeeScalar*l1BlobBasefeeScalar) / 16e6`
 
 Where:
 
 - the computation is an unlimited precision integer computation, with the result in Wei and having
   `uint256` range.
 
-- `compressedTxSize` is an approximation of how many bytes the transaction occupies in a compressed
-  batch. It is determined from the *full* encoded transaction as: `compressedTxSize = (zeroes*4 +
-  ones*16) / 16` (To preserve precision under integer arithmetic, the division by 16 is actually
-  performed at the very end of the fee computation together with the division by 1e6 as a single
-  division by 16e6.)
+- zeoroes and ones are the count of zero and non-zero bytes respectively in the *full* encoded
+  signed transaction.
 
 - `l1Basefee` is the L1 basefee of the latest L1 origin registered in the L2 chain.
 
 - `l1BlobBasefee` is the blob gasprice, computed as described in [EIP-4844][4844-gas] from the
   header of the latest registered L1 origin block.
+
+Conceptually what the above function captures is the formula below, where `compressedTxSize =
+(zeroes*4 + ones*16) / 16` can be thought of as a rough approximation of how many bytes the
+transaction occupies in a compressed batch.
+
+`(compressedTxSize) * (16*l1Basefee*lBasefeeScalar + l1BlobBasefeeScalar*l1BlobBasefeeScalar) / 1e6`
+
+The precise cost function used by Ecotone at the top of this section preserves precision under
+integer arithmetic by postponing the inner division by 16 until the very end.
 
 [4844-gas]: https://github.com/ethereum/EIPs/blob/master/EIPS/eip-4844.md#gas-accounting
 
