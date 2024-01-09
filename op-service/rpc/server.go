@@ -10,13 +10,13 @@ import (
 	"strconv"
 	"time"
 
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
-	optls "github.com/ethereum-optimism/optimism/op-service/tls"
-
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/rpc"
+
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
+	optls "github.com/ethereum-optimism/optimism/op-service/tls"
 )
 
 var wildcardHosts = []string{"*"}
@@ -33,6 +33,7 @@ type Server struct {
 	healthzPath    string
 	httpRecorder   opmetrics.HTTPRecorder
 	httpServer     *http.Server
+	listener       net.Listener
 	log            log.Logger
 	tls            *ServerTLSConfig
 	middlewares    []Middleware
@@ -149,7 +150,7 @@ func NewServer(host string, port int, appVersion string, opts ...ServerOption) *
 }
 
 func (b *Server) Endpoint() string {
-	return b.endpoint
+	return b.listener.Addr().String()
 }
 
 func (b *Server) AddAPI(api rpc.API) {
@@ -180,14 +181,22 @@ func (b *Server) Start() error {
 	handler = oplog.NewLoggingMiddleware(b.log, handler)
 	b.httpServer.Handler = handler
 
+	listener, err := net.Listen("tcp", b.endpoint)
+	if err != nil {
+		return fmt.Errorf("failed to listen: %w", err)
+	}
+	b.listener = listener
+	// override endpoint with the actual listener address, in case the port was 0 during test.
+	b.httpServer.Addr = listener.Addr().String()
+	b.endpoint = listener.Addr().String()
 	errCh := make(chan error, 1)
 	go func() {
 		if b.tls != nil {
-			if err := b.httpServer.ListenAndServeTLS("", ""); err != nil {
+			if err := b.httpServer.ServeTLS(b.listener, "", ""); err != nil {
 				errCh <- err
 			}
 		} else {
-			if err := b.httpServer.ListenAndServe(); err != nil {
+			if err := b.httpServer.Serve(b.listener); err != nil {
 				errCh <- err
 			}
 		}

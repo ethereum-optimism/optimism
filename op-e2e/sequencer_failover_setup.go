@@ -3,6 +3,8 @@ package op_e2e
 import (
 	"context"
 	"fmt"
+	"math/rand"
+	"net"
 	"strings"
 	"testing"
 	"time"
@@ -34,24 +36,17 @@ const (
 	sequencer3Name = "sequencer3"
 	verifierName   = "verifier"
 
-	sequencer1Port = 9001
-	sequencer2Port = 9002
-	sequencer3Port = 9003
-
-	conductor1ConsPort = 50001
-	conductor2ConsPort = 50002
-	conductor3ConsPort = 50003
-
-	conductor1RpcPort = 50051
-	conductor2RpcPort = 50052
-	conductor3RpcPort = 50053
-
 	localhost = "127.0.0.1"
 )
 
 type conductor struct {
-	service *con.OpConductor
-	client  conrpc.API
+	service       *con.OpConductor
+	client        conrpc.API
+	consensusPort int
+}
+
+func (c *conductor) ConsensusEndpoint() string {
+	return fmt.Sprintf("%s:%d", localhost, c.consensusPort)
 }
 
 func setupSequencerFailoverTest(t *testing.T) (*System, map[string]*conductor) {
@@ -71,20 +66,18 @@ func setupSequencerFailoverTest(t *testing.T) (*System, map[string]*conductor) {
 
 	// initialize all conductors in paused mode
 	conductorCfgs := []struct {
-		consPort      int
-		conductorPort int
-		name          string
-		bootstrap     bool
+		name      string
+		bootstrap bool
 	}{
-		{conductor1ConsPort, conductor1RpcPort, sequencer1Name, true}, // one in bootstrap mode so that we can form a cluster.
-		{conductor2ConsPort, conductor2RpcPort, sequencer2Name, false},
-		{conductor3ConsPort, conductor3RpcPort, sequencer3Name, false},
+		{sequencer1Name, true}, // one in bootstrap mode so that we can form a cluster.
+		{sequencer2Name, false},
+		{sequencer3Name, false},
 	}
 	for _, cfg := range conductorCfgs {
 		cfg := cfg
 		nodePRC := sys.RollupNodes[cfg.name].HTTPEndpoint()
 		engineRPC := sys.EthInstances[cfg.name].HTTPEndpoint()
-		conductors[cfg.name] = setupConductor(t, cfg.consPort, cfg.conductorPort, cfg.name, t.TempDir(), nodePRC, engineRPC, cfg.bootstrap, *sys.RollupConfig)
+		conductors[cfg.name] = setupConductor(t, cfg.name, t.TempDir(), nodePRC, engineRPC, cfg.bootstrap, *sys.RollupConfig)
 	}
 
 	// form a cluster
@@ -93,8 +86,8 @@ func setupSequencerFailoverTest(t *testing.T) (*System, map[string]*conductor) {
 	c3 := conductors[sequencer3Name]
 
 	require.NoError(t, waitForLeadershipChange(t, c1, true))
-	require.NoError(t, c1.client.AddServerAsVoter(ctx, sequencer2Name, fmt.Sprintf("%s:%d", localhost, conductor2ConsPort)))
-	require.NoError(t, c1.client.AddServerAsVoter(ctx, sequencer3Name, fmt.Sprintf("%s:%d", localhost, conductor3ConsPort)))
+	require.NoError(t, c1.client.AddServerAsVoter(ctx, sequencer2Name, c2.ConsensusEndpoint()))
+	require.NoError(t, c1.client.AddServerAsVoter(ctx, sequencer3Name, c3.ConsensusEndpoint()))
 	require.True(t, leader(t, ctx, c1))
 	require.False(t, leader(t, ctx, c2))
 	require.False(t, leader(t, ctx, c3))
@@ -134,14 +127,14 @@ func setupSequencerFailoverTest(t *testing.T) (*System, map[string]*conductor) {
 
 func setupConductor(
 	t *testing.T,
-	consPort, conductorPort int,
 	serverID, dir, nodePRC, engineRPC string,
 	bootstrap bool,
 	rollupCfg rollup.Config,
 ) *conductor {
+	consensusPort := findAvailablePort()
 	cfg := con.Config{
 		ConsensusAddr:  localhost,
-		ConsensusPort:  consPort,
+		ConsensusPort:  consensusPort,
 		RaftServerID:   serverID,
 		RaftStorageDir: dir,
 		RaftBootstrap:  bootstrap,
@@ -160,7 +153,7 @@ func setupConductor(
 		},
 		RPC: oprpc.CLIConfig{
 			ListenAddr: localhost,
-			ListenPort: conductorPort,
+			ListenPort: 0,
 		},
 	}
 
@@ -175,8 +168,9 @@ func setupConductor(
 	client := conrpc.NewAPIClient(rawClient)
 
 	return &conductor{
-		service: service,
-		client:  client,
+		service:       service,
+		client:        client,
+		consensusPort: consensusPort,
 	}
 }
 
@@ -234,9 +228,9 @@ func setupBatcher(t *testing.T, sys *System) {
 func sequencerFailoverSystemConfig(t *testing.T) SystemConfig {
 	cfg := DefaultSystemConfig(t)
 	delete(cfg.Nodes, "sequencer")
-	cfg.Nodes[sequencer1Name] = sequencerCfg(sequencer1Port, true)
-	cfg.Nodes[sequencer2Name] = sequencerCfg(sequencer2Port, false)
-	cfg.Nodes[sequencer3Name] = sequencerCfg(sequencer3Port, false)
+	cfg.Nodes[sequencer1Name] = sequencerCfg(true)
+	cfg.Nodes[sequencer2Name] = sequencerCfg(false)
+	cfg.Nodes[sequencer3Name] = sequencerCfg(false)
 
 	delete(cfg.Loggers, "sequencer")
 	cfg.Loggers[sequencer1Name] = testlog.Logger(t, log.LvlInfo).New("role", sequencer1Name)
@@ -253,7 +247,7 @@ func sequencerFailoverSystemConfig(t *testing.T) SystemConfig {
 	return cfg
 }
 
-func sequencerCfg(port int, sequencerEnabled bool) *rollupNode.Config {
+func sequencerCfg(sequencerEnabled bool) *rollupNode.Config {
 	return &rollupNode.Config{
 		Driver: driver.Config{
 			VerifierConfDepth:  0,
@@ -263,7 +257,7 @@ func sequencerCfg(port int, sequencerEnabled bool) *rollupNode.Config {
 		// Submitter PrivKey is set in system start for rollup nodes where sequencer = true
 		RPC: rollupNode.RPCConfig{
 			ListenAddr:  localhost,
-			ListenPort:  port,
+			ListenPort:  0,
 			EnableAdmin: true,
 		},
 		L1EpochPollInterval:         time.Second * 2,
@@ -315,4 +309,16 @@ func sequencerActive(t *testing.T, ctx context.Context, rollupClient *sources.Ro
 	active, err := rollupClient.SequencerActive(ctx)
 	require.NoError(t, err)
 	return active
+}
+
+func findAvailablePort() int {
+	for {
+		port := rand.Intn(65535-1024) + 1024 // Random port in the range 1024-65535
+		addr := fmt.Sprintf("127.0.0.1:%d", port)
+		l, err := net.Listen("tcp", addr)
+		if err == nil {
+			l.Close() // Close the listener and return the port if it's available
+			return port
+		}
+	}
 }
