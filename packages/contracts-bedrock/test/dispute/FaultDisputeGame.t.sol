@@ -34,14 +34,7 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
 
     event Move(uint256 indexed parentIndex, Claim indexed pivot, address indexed claimant);
 
-    function init(
-        Claim rootClaim,
-        Claim absolutePrestate,
-        uint256 genesisBlockNumber,
-        Hash genesisOutputRoot
-    )
-        public
-    {
+    function init(Claim rootClaim, Claim absolutePrestate, uint256 genesisBlockNumber, Hash genesisOutputRoot) public {
         // Set the time to a realistic date.
         vm.warp(1690906994);
 
@@ -217,7 +210,13 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         vm.deal(address(this), _value);
 
         assertEq(address(gameProxy).balance, 0);
-        gameProxy = FaultDisputeGame(address(factory.create{ value: _value }(GAME_TYPE, ROOT_CLAIM, abi.encode(_getExpectedL2Head(gameProxy.genesisTimestamp().raw()) - 1))));
+        gameProxy = FaultDisputeGame(
+            address(
+                factory.create{ value: _value }(
+                    GAME_TYPE, ROOT_CLAIM, abi.encode(_getExpectedL2Head(gameProxy.genesisTimestamp().raw()) - 1)
+                )
+            )
+        );
         assertEq(address(gameProxy).balance, _value);
     }
 

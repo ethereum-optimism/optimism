@@ -475,11 +475,16 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         // INVARIANT: The game must not have already been initialized.
         if (initialized) revert AlreadyInitialized();
 
+        // Do not allow the game to be initialized if the root claim corresponds to a block at or before the
+        // configured genesis block number.
+        if (l2BlockNumber() <= GENESIS_BLOCK_NUMBER) revert UnexpectedRootClaim(rootClaim());
+
         // Do not allow the game to be initialized if the root claim corresponds to an L2 block that is more than
-        // 1 day old. Note that this check prevents output roots from being disputed until a chain has been live for
-        // at least 1 day.
+        // 1 day old.
         uint256 expectedL2HeadNumber = (block.timestamp - GENESIS_TIMESTAMP.raw()) / 2;
-        if (l2BlockNumber() < expectedL2HeadNumber - L2_BLOCKS_PER_DAY) revert UnexpectedRootClaim(rootClaim());
+        if (expectedL2HeadNumber >= L2_BLOCKS_PER_DAY && l2BlockNumber() < expectedL2HeadNumber - L2_BLOCKS_PER_DAY) {
+            revert UnexpectedRootClaim(rootClaim());
+        }
 
         // Revert if the calldata size is too large, which signals that the `extraData` contains more than expected.
         // This is to prevent adding extra bytes to the `extraData` that result in a different game UUID in the factory,
