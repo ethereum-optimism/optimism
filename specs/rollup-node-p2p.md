@@ -306,6 +306,7 @@ An [extended-validator] checks the incoming messages as follows, in order of ope
 - `[REJECT]` if the block is on a topic <= V2 and has an excess blob gas value set
 - `[REJECT]` if the block is on a topic >= V3 and has a blob gas-used value that is not zero
 - `[REJECT]` if the block is on a topic >= V3 and has an excess blob gas value that is not zero
+- `[REJECT]` if the block is on a topic <= V2 and the parent beacon block root is not nil
 - `[REJECT]` if the block is on a topic >= V3 and the parent beacon block root is nil
 - `[REJECT]` if more than 5 different blocks have been seen with the same block height
 - `[IGNORE]` if the block has already been seen
