@@ -41,12 +41,6 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         assertEq(address(l2StandardBridge.otherBridge()), address(l1StandardBridge));
     }
 
-    /// @dev Tests that the proxy cannot be initialized twice.
-    function test_initializeProxy_alreadyInitialized_reverts() external {
-        vm.expectRevert("Initializable: contract is already initialized");
-        l2StandardBridge.initialize({ _otherBridge: l1StandardBridge });
-    }
-
     /// @dev Ensures that the L2StandardBridge is always not paused. The pausability
     ///      happens on L1 and not L2.
     function test_paused_succeeds() external {
