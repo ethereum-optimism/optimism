@@ -2,10 +2,6 @@
 
 Chain-ops scripts for the Fault Proof Alpha Chad contracts.
 
-## Dependencies
-
-* [just](github.com/casey/just)
-
 ## Usage
 
 ### Generating the Cannon prestate and artifacts
@@ -13,7 +9,7 @@ Chain-ops scripts for the Fault Proof Alpha Chad contracts.
 *Description*: Generates the cannon prestate, tars the relavent artifacts, and sets the absolute prestate field in the network's deploy config.
 
 ```sh
-just cannon-prestate <chain-name>
+make cannon-prestate chain=<chain-name>
 ```
 
 ### Deploying a fresh system
@@ -21,7 +17,7 @@ just cannon-prestate <chain-name>
 *Description*: Deploys a fully fresh FPAC system to the passed chain. All args after the `chain-name` are forwarded to `forge script`.
 
 ```sh
-just deploy-fresh <chain-name> [--broadcast]
+make deploy-fresh chain=<chain-name> [args=<forge-script-args>]
 ```
 
 ### Upgrading the Game Implementation
@@ -29,7 +25,7 @@ just deploy-fresh <chain-name> [--broadcast]
 *Description*: Upgrades the `CANNON` game type's implementation in the `DisputeGameFactory` that was deployed for the passed `chain-name`. All args after the `chain-name` are forwarded to `forge script`.
 
 ```sh
-just upgrade-game-impl <chain-name> <dgf-proxy-address> <vm-address> [--broadcast]
+make upgrade-game-impl chain=<chain-name> dgf=<dgf-proxy-address> vm=<vm-address> [args=<forge-script-args>]
 ```
 
 ### Updating Init Bonds
@@ -37,5 +33,5 @@ just upgrade-game-impl <chain-name> <dgf-proxy-address> <vm-address> [--broadcas
 *Description*: Updates the initialization bond for a given game type in the `DisputeGameFactory` that was deployed for the passed `chain-name`. All args after the `chain-name` are forwarded to `forge script`.
 
 ```sh
-just update-init-bond <chain-name> <dgf-proxy-address> <game-type> <new-init-bond> [--broadcast]
+make update-init-bond chain=<chain-name> dgf=<dgf-proxy-address> game-type=<game-type> new-init-bond=<new-init-bond> [args=<forge-script-args>]
 ```
