@@ -5,16 +5,11 @@ tmp := $(shell mktemp)
 
 # Help menu
 .PHONY: help
-help:
-	@echo "Available commands:"
-	@echo "  make cannon-prestate chain=<chain>"
-	@echo "  make deploy-fresh chain=<chain> args=<args>"
-	@echo "  make upgrade-game-impl chain=<chain> dgf=<dgf> vm=<vm> args=<args>"
-	@echo "  make update-init-bond chain=<chain> dgf=<dgf> game-type=<game-type> new-init-bond=<new-init-bond> args=<args>"
+help: # Show help for each of the Makefile recipes.
+	@grep -E '^[a-zA-Z0-9 -]+:.*#'  Makefile | sort | while read -r l; do printf "\033[1;32m$$(echo $$l | cut -f 1 -d':')\033[00m:$$(echo $$l | cut -f 2- -d'#')\n"; done
 
-# Generate the cannon prestate, and tar the `op-program` + `cannon` binaries + prestate data used to generate it.
 .PHONY: cannon-prestate
-cannon-prestate:
+cannon-prestate: # Generate the cannon prestate, and tar the `op-program` + `cannon` binaries + prestate data used to generate it.
 	cd $(monorepo_root) && make cannon-prestate
 	@mkdir -p prestate-artifacts
 	@cp -r $(monorepo_root)/cannon/bin/** prestate-artifacts/
@@ -26,17 +21,14 @@ cannon-prestate:
 	@echo "-> Set the absolute prestate to $$(cat prestate-artifacts/prestate-proof.json | jq .pre) in the $(chain) deploy config."
 	@rm -rf prestate-artifacts
 
-# Deploy a fresh version of the FPAC contracts. Pass `--broadcast` to send to the network.
 .PHONY: deploy-fresh
-deploy-fresh:
+deploy-fresh: # Deploy a fresh version of the FPAC contracts. Pass `--broadcast` to send to the network.
 	forge script FPACOPS.sol --sig "deployFPAC()" --chain $(chain) -vvv $(args)
 
-# Upgrades a dispute game implementation in the deployed `DisputeGameFactory` contract for the configured chain. Pass `--broadcast` to send to the network.
 .PHONY: upgrade-game-impl
-upgrade-game-impl:
+upgrade-game-impl: # Upgrades a dispute game implementation in the deployed `DisputeGameFactory` contract for the configured chain. Pass `--broadcast` to send to the network.
 	forge script FPACOPS.sol --sig "upgradeGameImpl(address,address)" --chain $(chain) -vvv $(dgf) $(vm) $(args)
 
-# Upgrades a dispute game's init bond in the deployed `DisputeGameFactory` contract for the configured chain. Pass `--broadcast` to send to the network.
 .PHONY: update-init-bond
-update-init-bond:
+update-init-bond: # Upgrades a dispute game's init bond in the deployed `DisputeGameFactory` contract for the configured chain. Pass `--broadcast` to send to the network.
 	forge script FPACOPS.sol --sig "updateInitBond(address,uint8,uint256)" --chain $(chain) -vvv $(dgf) $(game-type) $(new-init-bond) $(args)
