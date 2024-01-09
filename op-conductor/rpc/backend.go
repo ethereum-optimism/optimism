@@ -13,6 +13,7 @@ type conductor interface {
 	Resume(ctx context.Context) error
 	Paused() bool
 	Stopped() bool
+	SequencerHealthy(ctx context.Context) bool
 
 	Leader(ctx context.Context) bool
 	LeaderWithID(ctx context.Context) (string, string)
@@ -99,4 +100,9 @@ func (api *APIBackend) TransferLeader(ctx context.Context) error {
 // TransferLeaderToServer implements API.
 func (api *APIBackend) TransferLeaderToServer(ctx context.Context, id string, addr string) error {
 	return api.con.TransferLeaderToServer(ctx, id, addr)
+}
+
+// SequencerHealthy implements API.
+func (api *APIBackend) SequencerHealthy(ctx context.Context) (bool, error) {
+	return api.con.SequencerHealthy(ctx), nil
 }

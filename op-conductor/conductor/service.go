@@ -376,6 +376,11 @@ func (oc *OpConductor) CommitUnsafePayload(_ context.Context, payload *eth.Execu
 	return oc.cons.CommitUnsafePayload(payload)
 }
 
+// SequencerHealthy returns true if sequencer is healthy.
+func (oc *OpConductor) SequencerHealthy(_ context.Context) bool {
+	return oc.healthy.Load()
+}
+
 func (oc *OpConductor) loop() {
 	defer oc.wg.Done()
 
