@@ -161,7 +161,7 @@ Flag                   | Type   | Description                                   
 
 # Using BindGen to Add New Predeploys to L2 Genesis
 
-**Note** While we encourage hacking on the OP stack, we are not actively looking to integrate more contracts at the SuperChain's genesis.
+**Note** While we encourage hacking on the OP stack, we are not actively looking to integrate more contracts to the official OP stack genesis.
 
 BindGen uses the provided `contracts-list` to generate Go bindings and metadata files which are used when building the L2 genesis. The first step in adding a new predeploy to L2 genesis is adding the contract to your `contracts-list` (by default this list if [artifacts.json](../artifacts.json)).
 
