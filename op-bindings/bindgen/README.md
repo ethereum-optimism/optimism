@@ -315,7 +315,9 @@ Not every contract can be added as a predeploy, and some contracts have nuances 
 - Related to above, contracts that may become deprecated/unsupported relatively soon
   - As mentioned above, you're limited to options A, B, or C
 - Upgradeable Contracts
-  - While it's certainly feasible to predeploy an upgradeable contract, great care should be taken to ensure user's aren't "rugged" if the contract is upgraded to a malicious implementation. Understanding who has the ability to upgrade the contract is key to avoiding this. Additionally, user's might be expecting a predeploy to do something and may be caught off guard if the implementation was upgraded without their knowledge
+  - While it's certainly feasible to predeploy an upgradeable contract, great care should be taken to minimize security risks to users if the contract is upgraded to a malicious or buggy implementation. Understanding who has the ability to upgrade the contract is key to avoiding this. Additionally, user's might be expecting a predeploy to do something and may be caught off guard if the implementation was upgraded without their knowledge
+- Contracts with Privileged Roles and Configuration Parameters
+  - Similar to the upgradeable contracts, simply having an owner or other privileged role with the ability to make configuration changes can present a security risk and result in unexpected different behaviors across chains.
 - Contracts that have dependencies
   - Dependencies has many definitions, for example:
     - Being reliant on specific Oracle contracts that may not be available on your L2
