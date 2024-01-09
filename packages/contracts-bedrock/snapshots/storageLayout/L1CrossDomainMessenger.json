@@ -116,7 +116,7 @@
     "label": "otherMessenger",
     "offset": 0,
     "slot": "207",
-    "type": "address"
+    "type": "contract CrossDomainMessenger"
   },
   {
     "bytes": "1376",
@@ -137,6 +137,6 @@
     "label": "portal",
     "offset": 0,
     "slot": "252",
-    "type": "address payable"
+    "type": "contract OptimismPortal"
   }
 ]
