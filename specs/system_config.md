@@ -141,7 +141,7 @@ than `type(uint32).max` at time of conversion should be migrated as `type(uint32
 The `SystemConfig` contract MUST set these values as the initial values to guarantee
 the L2's view of the `SystemConfig` remains consistent.
 
-Any `ConfigUpdate` events for the Ecotone fee parameters before MAY be parsed or
+Any `ConfigUpdate` events for the Ecotone fee parameters before the activation MAY be parsed or
 MAY be ignored by the derivation pipeline. Since the values are overwritten on
 the hardfork activation block and are not consumed until the hardfork activation block
 height + 1 , there is no functional difference between the two approaches.
