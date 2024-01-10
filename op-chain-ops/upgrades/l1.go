@@ -447,17 +447,19 @@ func OptimismMintableERC20Factory(batch *safe.Batch, implementations superchain.
 		return err
 	}
 
-	var bridge common.Address
+	optimismMintableERC20Factory, err := bindings.NewOptimismMintableERC20FactoryCaller(common.HexToAddress(list.OptimismMintableERC20FactoryProxy.String()), backend)
+	if err != nil {
+		return err
+	}
+
+	bridge, err := optimismMintableERC20Factory.Bridge(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+
 	if config != nil {
-		bridge = common.HexToAddress(list.L1StandardBridgeProxy.String())
-	} else {
-		optimismMintableERC20Factory, err := bindings.NewOptimismMintableERC20FactoryCaller(common.HexToAddress(list.OptimismMintableERC20FactoryProxy.String()), backend)
-		if err != nil {
-			return err
-		}
-		bridge, err = optimismMintableERC20Factory.Bridge(&bind.CallOpts{})
-		if err != nil {
-			return err
+		if bridge != config.L1StandardBridgeProxy {
+			return fmt.Errorf("upgrading OptimismMintableERC20Factory: Bridge address doesn't match config")
 		}
 	}
 
