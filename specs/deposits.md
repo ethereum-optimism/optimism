@@ -272,7 +272,7 @@ function parameters, but are instead packed into 5 32-byte aligned segments (sta
 Each unsigned integer argument is encoded as big-endian using a number of bytes corresponding to the underlying
 type. The overall calldata layout is as follows:
 
-[ecotone-upgrade-txs]: #derivation.md#network-upgrade-automation-transactions
+[ecotone-upgrade-txs]: derivation.md#network-upgrade-automation-transactions
 
 
 | Input arg         | Type        | Calldata bytes | Segment |
