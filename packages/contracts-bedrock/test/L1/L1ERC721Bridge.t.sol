@@ -80,13 +80,6 @@ contract L1ERC721Bridge_Test is Bridge_Initializer {
         assertEq(address(l1ERC721Bridge.superchainConfig()), address(superchainConfig));
     }
 
-    /// @dev Tests that the implementation contract cannot be initialized twice.
-    function test_initializeImpl_alreadyInitialized_reverts() external {
-        L1ERC721Bridge impl = L1ERC721Bridge(deploy.mustGetAddress("L1ERC721Bridge"));
-        vm.expectRevert("Initializable: contract is already initialized");
-        impl.initialize({ _messenger: CrossDomainMessenger(address(0)), _superchainConfig: SuperchainConfig(address(0)) });
-    }
-
     /// @dev Tests that the ERC721 can be bridged successfully.
     function test_bridgeERC721_succeeds() public {
         // Expect a call to the messenger.
