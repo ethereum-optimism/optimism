@@ -761,10 +761,10 @@ func SystemConfig(batch *safe.Batch, implementations superchain.ImplementationLi
 	}
 
 	if config != nil {
-		if gasPriceOracleOverhead != new(big.Int).SetUint64(config.GasPriceOracleOverhead) {
+		if gasPriceOracleOverhead.Uint64() != config.GasPriceOracleOverhead {
 			return fmt.Errorf("upgrading SystemConfig: GasPriceOracleOverhead address doesn't match config")
 		}
-		if gasPriceOracleScalar != new(big.Int).SetUint64(config.GasPriceOracleScalar) {
+		if gasPriceOracleScalar.Uint64() != config.GasPriceOracleScalar {
 			return fmt.Errorf("upgrading SystemConfig: GasPriceOracleScalar address doesn't match config")
 		}
 		if batcherHash != common.BytesToHash(config.BatchSenderAddress.Bytes()) {
