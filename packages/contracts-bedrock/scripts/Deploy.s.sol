@@ -544,7 +544,6 @@ contract Deploy is Deployer {
         ChainAssertions.checkL2OutputOracle({
             _contracts: contracts,
             _cfg: cfg,
-            _l2OutputOracleStartingBlockNumber: 0,
             _l2OutputOracleStartingTimestamp: 0,
             _isProxy: false
         });
@@ -925,7 +924,6 @@ contract Deploy is Deployer {
         ChainAssertions.checkL2OutputOracle({
             _contracts: _proxies(),
             _cfg: cfg,
-            _l2OutputOracleStartingBlockNumber: cfg.l2OutputOracleStartingBlockNumber(),
             _l2OutputOracleStartingTimestamp: cfg.l2OutputOracleStartingTimestamp(),
             _isProxy: true
         });
