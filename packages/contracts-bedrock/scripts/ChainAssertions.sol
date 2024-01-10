@@ -101,7 +101,7 @@ library ChainAssertions {
             require(resourceConfig.minimumBaseFee == 0);
             require(resourceConfig.maximumBaseFee == 0);
             // Check _addresses
-            require(config.startBlock() == block.number);
+            require(config.startBlock() == type(uint256).max);
             require(config.batchInbox() == address(0));
             require(config.l1CrossDomainMessenger() == address(0));
             require(config.l1ERC721Bridge() == address(0));
