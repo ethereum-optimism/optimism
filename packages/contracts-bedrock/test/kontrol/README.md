@@ -50,18 +50,28 @@ test/kontrol
 - [`run-kontrol-local.sh`](./scrpts/run-kontrol-local.sh): Local execution script
 - [`json`](./scripts/json): Data cleaning scripts for the output of [`KontrolDeployment.sol`](./KontrolDeployment.sol)
 
-## Local verification exeuction
+## Verification exeuction
 
-The verification execution consists of two steps and there's one script to run per step. These commands should be run from the [`contracts-bedrock`](../../) directory.
+The verification execution consists of two steps, although the first step may be ommited to use the commited version. There's one script to run per step. These scripts should be run from the [`contracts-bedrock`](../../) directory.
 
 1. Generate a deployment summary contract from [`KontrolDeployment.sol`](./KontrolDeployment.sol)
 ```bash
-  bash test/kontrol/kontrol/scripts/make-summary-deployment.sh
+  ./test/kontrol/kontrol/scripts/make-summary-deployment.sh
 ```
+This step is optional. The default summary can be found [here](./proofs/utils/DeploymentSummary.sol), which is the summarization of the [`KontrolDeployment.sol`](./KontrolDeployment.sol) script.
 2. Execute the tests in [`OptimismPortal.k.sol`](./proofs/OptimismPortal.k.sol)
 ```bash
-  ./test/kontrol/kontrol/scripts/run-kontrol-local.sh
+  ./test/kontrol/kontrol/scripts/run-kontrol.sh $option
 ```
+See below for further documentation on `run-kontrol.sh`.
+
+### `run-kontrol.sh` script
+The `run-kontrol.sh` script handles all modes of proof execution. The modes, corresponding to the available arguments of the script, are the following:
+- `container`: Run the proofs in the same docker image used in CI. The intended use case is CI debugging. This is the default execution mode, meaning that if no arguments are provided, the proofs will be executed in this mode.
+- `local`: Run the proofs with your local Kontrol install, enforcing the version to be the same as the one used in CI. The intended use case is running the proofs without risking discrepancies because of different Kontrol versions.
+- `dev`: Run the proofs with your local Kontrol install, without enforcing any version in particular. The intended use case is proof development and related matters.
+
+For a similar description of the options run `run-kontrol.sh --help`.
 
 ## Kontrol Foundry profiles
 
