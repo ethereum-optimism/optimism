@@ -102,6 +102,11 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		Sync:              *syncConfig,
 		RollupHalt:        haltOption,
 		RethDBPath:        ctx.String(flags.L1RethDBPath.Name),
+
+		ConductorEnabled:    ctx.Bool(flags.ConductorEnabledFlag.Name),
+		ConductorAddr:       ctx.String(flags.ConductorAddrFlag.Name),
+		ConductorPort:       ctx.Int(flags.ConductorPortFlag.Name),
+		ConductorRpcTimeout: ctx.Duration(flags.ConductorRpcTimeoutFlag.Name),
 	}
 
 	if err := cfg.LoadPersisted(log); err != nil {

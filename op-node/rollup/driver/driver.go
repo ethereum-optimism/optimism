@@ -116,8 +116,16 @@ type SequencerStateListener interface {
 	SequencerStopped() error
 }
 
+// SequencerConductor is an interface for the driver to communicate with the sequencer conductor.
+// It is used to determine if the current node is the active sequencer, and to commit unsafe payloads to the conductor log.
+type SequencerConductor interface {
+	Initialize() error
+	Leader(ctx context.Context) (bool, error)
+	CommitUnsafePayload(ctx context.Context, payload *eth.ExecutionPayload) error
+}
+
 // NewDriver composes an events handler that tracks L1 state, triggers L2 derivation, and optionally sequences new L2 blocks.
-func NewDriver(driverCfg *Config, cfg *rollup.Config, l2 L2Chain, l1 L1Chain, l1Blobs derive.L1BlobsFetcher, altSync AltSync, network Network, log log.Logger, snapshotLog log.Logger, metrics Metrics, sequencerStateListener SequencerStateListener, syncCfg *sync.Config) *Driver {
+func NewDriver(driverCfg *Config, cfg *rollup.Config, l2 L2Chain, l1 L1Chain, l1Blobs derive.L1BlobsFetcher, altSync AltSync, network Network, log log.Logger, snapshotLog log.Logger, metrics Metrics, sequencerStateListener SequencerStateListener, syncCfg *sync.Config, sequencerConductor SequencerConductor) *Driver {
 	l1 = NewMeteredL1Fetcher(l1, metrics)
 	l1State := NewL1State(log, metrics)
 	sequencerConfDepth := NewConfDepth(driverCfg.SequencerConfDepth, l1State.L1Head, l1)
@@ -130,29 +138,30 @@ func NewDriver(driverCfg *Config, cfg *rollup.Config, l2 L2Chain, l1 L1Chain, l1
 	sequencer := NewSequencer(log, cfg, meteredEngine, attrBuilder, findL1Origin, metrics)
 	driverCtx, driverCancel := context.WithCancel(context.Background())
 	return &Driver{
-		l1State:          l1State,
-		derivation:       derivationPipeline,
-		stateReq:         make(chan chan struct{}),
-		forceReset:       make(chan chan struct{}, 10),
-		startSequencer:   make(chan hashAndErrorChannel, 10),
-		stopSequencer:    make(chan chan hashAndError, 10),
-		sequencerActive:  make(chan chan bool, 10),
-		sequencerNotifs:  sequencerStateListener,
-		config:           cfg,
-		driverConfig:     driverCfg,
-		driverCtx:        driverCtx,
-		driverCancel:     driverCancel,
-		log:              log,
-		snapshotLog:      snapshotLog,
-		l1:               l1,
-		l2:               l2,
-		sequencer:        sequencer,
-		network:          network,
-		metrics:          metrics,
-		l1HeadSig:        make(chan eth.L1BlockRef, 10),
-		l1SafeSig:        make(chan eth.L1BlockRef, 10),
-		l1FinalizedSig:   make(chan eth.L1BlockRef, 10),
-		unsafeL2Payloads: make(chan *eth.ExecutionPayload, 10),
-		altSync:          altSync,
+		l1State:            l1State,
+		derivation:         derivationPipeline,
+		stateReq:           make(chan chan struct{}),
+		forceReset:         make(chan chan struct{}, 10),
+		startSequencer:     make(chan hashAndErrorChannel, 10),
+		stopSequencer:      make(chan chan hashAndError, 10),
+		sequencerActive:    make(chan chan bool, 10),
+		sequencerNotifs:    sequencerStateListener,
+		config:             cfg,
+		driverConfig:       driverCfg,
+		driverCtx:          driverCtx,
+		driverCancel:       driverCancel,
+		log:                log,
+		snapshotLog:        snapshotLog,
+		l1:                 l1,
+		l2:                 l2,
+		sequencer:          sequencer,
+		network:            network,
+		metrics:            metrics,
+		l1HeadSig:          make(chan eth.L1BlockRef, 10),
+		l1SafeSig:          make(chan eth.L1BlockRef, 10),
+		l1FinalizedSig:     make(chan eth.L1BlockRef, 10),
+		unsafeL2Payloads:   make(chan *eth.ExecutionPayload, 10),
+		altSync:            altSync,
+		sequencerConductor: sequencerConductor,
 	}
 }
