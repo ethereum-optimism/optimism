@@ -309,8 +309,8 @@ importers:
         specifier: ^1.1.3
         version: 1.1.3(vitest@1.0.1)
       '@wagmi/cli':
-        specifier: ^1.5.2
-        version: 1.5.2(@wagmi/core@1.4.12)(typescript@5.3.3)(wagmi@2.0.1)
+        specifier: ^2.0.2
+        version: 2.0.2(typescript@5.3.3)
       '@wagmi/core':
         specifier: ^1.4.12
         version: 1.4.12(react@18.2.0)(typescript@5.3.3)(viem@2.0.3)
@@ -5263,7 +5263,7 @@ packages:
     resolution: {integrity: sha512-XJbEPuaVc7b9n23MqlF6c+ToYIS3f7P2Sel8f3cSBQ9WORE4xrSuvhMpK9fDSFqJ7by/brc+rmJR/5HViRr0/w==}
     dependencies:
       '@safe-global/safe-gateway-typescript-sdk': 3.7.3
-      viem: 1.20.3(typescript@5.3.3)(zod@3.22.3)
+      viem: 1.20.3(typescript@5.3.3)
     transitivePeerDependencies:
       - bufferutil
       - encoding
@@ -6579,31 +6579,21 @@ packages:
     resolution: {integrity: sha512-7OjdcV8vQ74eiz1TZLzZP4JwqM5fA94K6yntPS5Z25r9HDuGNzaGdgvwKYq6S+MxwF0TFRwe50fIR/MYnakdkQ==}
     dev: true
 
-  /@wagmi/cli@1.5.2(@wagmi/core@1.4.12)(typescript@5.3.3)(wagmi@2.0.1):
-    resolution: {integrity: sha512-UfLMYhW6mQBCjR8A5s01Chf9GpHzdpcuuBuzJ36QGXcMSJAxylz5ImVZWfCRV0ct1UruydjKVSW1QSI6azNxRQ==}
-    engines: {node: '>=14'}
+  /@wagmi/cli@2.0.2(typescript@5.3.3):
+    resolution: {integrity: sha512-yPMmysofCaC/0g4bwqHtJ7QztjVw8t1M1fppG0zO2qlsBHDreVjbeugHwe5+ZK009szsGo+d+G63pO5VhApXdA==}
     hasBin: true
     peerDependencies:
-      '@wagmi/core': '>=1.0.0'
-      typescript: '>=5.0.4'
-      wagmi: '>=1.0.0'
+      typescript: '>=5'
     peerDependenciesMeta:
-      '@wagmi/core':
-        optional: true
       typescript:
         optional: true
-      wagmi:
-        optional: true
     dependencies:
-      '@wagmi/core': 1.4.12(react@18.2.0)(typescript@5.3.3)(viem@2.0.3)
-      abitype: 0.8.7(typescript@5.3.3)(zod@3.22.3)
-      abort-controller: 3.0.0
+      abitype: 0.9.8(typescript@5.3.3)(zod@3.22.4)
       bundle-require: 3.1.2(esbuild@0.16.17)
       cac: 6.7.14
       change-case: 4.1.2
       chokidar: 3.5.3
       dedent: 0.7.0
-      detect-package-manager: 2.0.1
       dotenv: 16.3.1
       dotenv-expand: 10.0.0
       esbuild: 0.16.17
@@ -6611,15 +6601,13 @@ packages:
       find-up: 6.3.0
       fs-extra: 10.1.0
       globby: 13.2.2
-      node-fetch: 3.3.2
       ora: 6.3.1
       pathe: 1.1.1
       picocolors: 1.0.0
-      prettier: 2.8.8
+      prettier: 3.1.1
       typescript: 5.3.3
-      viem: 1.20.3(typescript@5.3.3)(zod@3.22.3)
-      wagmi: 2.0.1(@tanstack/react-query@5.17.1)(react-dom@18.2.0)(react-native@0.73.1)(react@18.2.0)(typescript@5.3.3)(viem@2.0.3)
-      zod: 3.22.3
+      viem: 2.0.0(typescript@5.3.3)(zod@3.22.4)
+      zod: 3.22.4
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
@@ -6641,7 +6629,7 @@ packages:
       '@walletconnect/legacy-provider': 2.0.0
       '@walletconnect/modal': 2.6.2(react@18.2.0)
       '@walletconnect/utils': 2.10.2
-      abitype: 0.8.7(typescript@5.3.3)(zod@3.22.3)
+      abitype: 0.8.7(typescript@5.3.3)
       eventemitter3: 4.0.7
       typescript: 5.3.3
       viem: 2.0.3(typescript@5.3.3)(zod@3.22.4)
@@ -6721,7 +6709,7 @@ packages:
         optional: true
     dependencies:
       '@wagmi/connectors': 3.1.10(react@18.2.0)(typescript@5.3.3)(viem@2.0.3)
-      abitype: 0.8.7(typescript@5.3.3)(zod@3.22.3)
+      abitype: 0.8.7(typescript@5.3.3)
       eventemitter3: 4.0.7
       typescript: 5.3.3
       viem: 2.0.3(typescript@5.3.3)(zod@3.22.4)
@@ -7522,7 +7510,7 @@ packages:
       typescript: 5.3.3
     dev: true
 
-  /abitype@0.8.7(typescript@5.3.3)(zod@3.22.3):
+  /abitype@0.8.7(typescript@5.3.3):
     resolution: {integrity: sha512-wQ7hV8Yg/yKmGyFpqrNZufCxbszDe5es4AZGYPBitocfSqXtjrTG9JMWFcc4N30ukl2ve48aBTwt7NJxVQdU3w==}
     peerDependencies:
       typescript: '>=5.0.4'
@@ -7532,10 +7520,9 @@ packages:
         optional: true
     dependencies:
       typescript: 5.3.3
-      zod: 3.22.3
     dev: true
 
-  /abitype@0.9.8(typescript@5.3.3)(zod@3.22.3):
+  /abitype@0.9.8(typescript@5.3.3)(zod@3.22.4):
     resolution: {integrity: sha512-puLifILdm+8sjyss4S+fsUN09obiT1g2YW6CtcQF+QDzxR0euzgEB29MZujC6zMk2a6SVmtttq1fc6+YFA7WYQ==}
     peerDependencies:
       typescript: '>=5.0.4'
@@ -7547,7 +7534,7 @@ packages:
         optional: true
     dependencies:
       typescript: 5.3.3
-      zod: 3.22.3
+      zod: 3.22.4
     dev: true
 
   /abort-controller@3.0.0:
@@ -9229,11 +9216,6 @@ packages:
       assert-plus: 1.0.0
     dev: true
 
-  /data-uri-to-buffer@4.0.1:
-    resolution: {integrity: sha512-0R9ikRb668HB7QDxT1vkpuUBtqc53YyAwMwGeUFKRojY/NWKvdZ+9UYtRfGmhqNbRkTSVpMbmyhXipFFv2cb/A==}
-    engines: {node: '>= 12'}
-    dev: true
-
   /data-urls@5.0.0:
     resolution: {integrity: sha512-ZYP5VBHshaDAiVZxjbRVcFJpc+4xGgT0bK3vzy1HLN8jTO975HEbuYzZJcHoQEY5K1a0z8YayJkyVETa08eNTg==}
     engines: {node: '>=18'}
@@ -9497,13 +9479,6 @@ packages:
     resolution: {integrity: sha512-pGjwhsmsp4kL2RTz08wcOlGN83otlqHeD/Z5T8GXZB+/YcpQ/dgo+lbU8ZsGxV0HIvqqxo9l7mqYwyYMD9bKDg==}
     engines: {node: '>=0.10'}
     hasBin: true
-    dev: true
-
-  /detect-package-manager@2.0.1:
-    resolution: {integrity: sha512-j/lJHyoLlWi6G1LDdLgvUtz60Zo5GEj+sVYtTVXnYLDPuzgC3llMxonXym9zIwhhUII8vjdw0LXxavpLqTbl1A==}
-    engines: {node: '>=12'}
-    dependencies:
-      execa: 5.1.1
     dev: true
 
   /dezalgo@1.0.4:
@@ -10816,14 +10791,6 @@ packages:
       bser: 2.1.1
     dev: true
 
-  /fetch-blob@3.2.0:
-    resolution: {integrity: sha512-7yAQpD2UMJzLi1Dqv7qFYnPbaPx7ZfFK6PiIxQ4PfkGPyNyl2Ugx+a/umUonmKqjhM4DnfbMvdX6otXq83soQQ==}
-    engines: {node: ^12.20 || >= 14.13}
-    dependencies:
-      node-domexception: 1.0.0
-      web-streams-polyfill: 3.2.1
-    dev: true
-
   /figures@3.2.0:
     resolution: {integrity: sha512-yaduQFRKLXYOGgEn6AZau90j3ggSOyiqXU0F9JZfeXYhNa+Jk4X+s45A2zg5jns87GAFa34BBm2kXw4XpNcbdg==}
     engines: {node: '>=8'}
@@ -11079,13 +11046,6 @@ packages:
   /format@0.2.2:
     resolution: {integrity: sha512-wzsgA6WOq+09wrU1tsJ09udeR/YZRaeArL9e1wPbFg3GG2yDnC2ldKpxs4xunpFF9DgqCqOIra3bc1HWrJ37Ww==}
     engines: {node: '>=0.4.x'}
-    dev: true
-
-  /formdata-polyfill@4.0.10:
-    resolution: {integrity: sha512-buewHzMvYL29jdeQTVILecSaZKnt/RJWjoZCF5OW60Z67/GmSLBkOFM7qh1PI3zFNtJbaZL5eQu1vLfazOwj4g==}
-    engines: {node: '>=12.20.0'}
-    dependencies:
-      fetch-blob: 3.2.0
     dev: true
 
   /formidable@2.1.2:
@@ -14217,7 +14177,7 @@ packages:
         optional: true
     dependencies:
       typescript: 5.3.3
-      viem: 1.20.3(typescript@5.3.3)(zod@3.22.3)
+      viem: 1.20.3(typescript@5.3.3)
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
@@ -14429,11 +14389,6 @@ packages:
       minimatch: 3.1.2
     dev: true
 
-  /node-domexception@1.0.0:
-    resolution: {integrity: sha512-/jKZoMpw0F8GRwl4/eLROPA3cfcXtLApP0QzLmUT/HuPCZWyB7IY9ZrMeKw2O/nFIqPQB3PVM9aYm0F312AXDQ==}
-    engines: {node: '>=10.5.0'}
-    dev: true
-
   /node-fetch-native@1.4.1:
     resolution: {integrity: sha512-NsXBU0UgBxo2rQLOeWNZqS3fvflWePMECr8CoSWoSTqCqGbVVsvl9vZu1HfQicYN0g5piV9Gh8RTEvo/uP752w==}
     dev: true
@@ -14460,15 +14415,6 @@ packages:
     dependencies:
       whatwg-url: 5.0.0
     dev: false
-
-  /node-fetch@3.3.2:
-    resolution: {integrity: sha512-dRB78srN/l6gqWulah9SrxeYnxeddIG30+GOqK/9OlLVyLg3HPnr6SqOWTWOXKRwC2eGYCkZ59NNuSgvSrpgOA==}
-    engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
-    dependencies:
-      data-uri-to-buffer: 4.0.1
-      fetch-blob: 3.2.0
-      formdata-polyfill: 4.0.10
-    dev: true
 
   /node-forge@1.3.1:
     resolution: {integrity: sha512-dPEtOeMvF9VMcYV/1Wb8CPoVAXtp6MKMlcbAt4ddqmGqUJ6fQZFXkNZNkNlfevtNkGtaSoXf/vNNNSvgrdXwtA==}
@@ -15436,6 +15382,12 @@ packages:
     resolution: {integrity: sha512-tdN8qQGvNjw4CHbY+XXk0JgCXn9QiF21a55rBe5LJAU+kDyC4WQn4+awm2Xfk2lQMk5fKup9XgzTZtGkjBdP9Q==}
     engines: {node: '>=10.13.0'}
     hasBin: true
+
+  /prettier@3.1.1:
+    resolution: {integrity: sha512-22UbSzg8luF4UuZtzgiUOfcGM8s4tjBv6dJRT7j275NXsy2jb4aJa4NNveul5x4eqlF1wuhuR2RElK71RvmVaw==}
+    engines: {node: '>=14'}
+    hasBin: true
+    dev: true
 
   /pretty-format@26.6.2:
     resolution: {integrity: sha512-7AeGuCYNGmycyQbCqd/3PWH4eOoX/OiCa0uphp57NVTeAGdJGaAliecxwBDHYQCIvrW7aDBZCYeNTP/WX69mkg==}
@@ -18151,7 +18103,7 @@ packages:
       vfile-message: 2.0.4
     dev: true
 
-  /viem@1.20.3(typescript@5.3.3)(zod@3.22.3):
+  /viem@1.20.3(typescript@5.3.3):
     resolution: {integrity: sha512-7CrmeCb2KYkeCgUmUyb1hsf+IX/PLwi+Np+Vm4YUTPeG82y3HRSgGHSaCOp3d0YtR2kXD3nv9y5kE7LBFE+wWw==}
     peerDependencies:
       typescript: '>=5.0.4'
@@ -18164,7 +18116,30 @@ packages:
       '@noble/hashes': 1.3.2
       '@scure/bip32': 1.3.2
       '@scure/bip39': 1.2.1
-      abitype: 0.9.8(typescript@5.3.3)(zod@3.22.3)
+      abitype: 0.9.8(typescript@5.3.3)(zod@3.22.4)
+      isows: 1.0.3(ws@8.13.0)
+      typescript: 5.3.3
+      ws: 8.13.0
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
+      - zod
+    dev: true
+
+  /viem@2.0.0(typescript@5.3.3)(zod@3.22.4):
+    resolution: {integrity: sha512-WYPwVAs/wrQE1Li9mgHMZaZTnRZuyPJMauIhnpZKeZgtx7f+bWU3uvVSR5kxTf1aBFdaTuRc/umzX2ucQUurnA==}
+    peerDependencies:
+      typescript: '>=5.0.4'
+    peerDependenciesMeta:
+      typescript:
+        optional: true
+    dependencies:
+      '@adraffy/ens-normalize': 1.10.0
+      '@noble/curves': 1.2.0
+      '@noble/hashes': 1.3.2
+      '@scure/bip32': 1.3.2
+      '@scure/bip39': 1.2.1
+      abitype: 0.10.0(typescript@5.3.3)(zod@3.22.4)
       isows: 1.0.3(ws@8.13.0)
       typescript: 5.3.3
       ws: 8.13.0
@@ -18425,11 +18400,6 @@ packages:
     resolution: {integrity: sha512-XHPEwS0q6TaxcvG85+8EYkbiCux2XtWG2mkc47Ng2A77BQu9+DqIOJldST4HgPkuea7dvKSj5VgX3P1d4rW8Tg==}
     dependencies:
       defaults: 1.0.4
-
-  /web-streams-polyfill@3.2.1:
-    resolution: {integrity: sha512-e0MO3wdXWKrLbL0DgGnUV7WHVuw9OUvL4hjgnPkIeEvESk74gAITi5G606JtZPp39cd8HA9VQzCIvA49LpPN5Q==}
-    engines: {node: '>= 8'}
-    dev: true
 
   /web3-core@4.1.0:
     resolution: {integrity: sha512-fVGmPInWNlT/lGj1aKDmmSDIqYO5iwVlZ3NdD4q/u/i9j8/o7a8S0jz8Js8oS/fqoBqF25WSJ8il2KKdSDGzXw==}
@@ -19261,10 +19231,6 @@ packages:
       ethers: ^5.7.0
     dependencies:
       ethers: 5.7.2
-    dev: true
-
-  /zod@3.22.3:
-    resolution: {integrity: sha512-EjIevzuJRiRPbVH4mGc8nApb/lVLKVpmUhAaR5R5doKGfAnGJ6Gr3CViAVjP+4FWSxCsybeWQdcgCtbX+7oZug==}
     dev: true
 
   /zod@3.22.4:
