@@ -202,10 +202,7 @@ func TestPostUnsafePayload(t *testing.T) {
 	require.NoError(t, err)
 	err = rollupClient.PostUnsafePayload(ctx, payload)
 	require.NoError(t, err)
-
-	ss, err := rollupClient.SyncStatus(ctx)
-	require.NoError(t, err)
-	require.Equal(t, uint64(1), ss.UnsafeL2.Number)
+	require.NoError(t, wait.ForUnsafeBlock(ctx, rollupClient, 1), "Chain did not advance after posting payload")
 
 	// Test validation
 	blockNumberTwo, err := l2Seq.BlockByNumber(ctx, big.NewInt(2))

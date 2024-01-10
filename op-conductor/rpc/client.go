@@ -86,3 +86,10 @@ func (c *APIClient) TransferLeader(ctx context.Context) error {
 func (c *APIClient) TransferLeaderToServer(ctx context.Context, id string, addr string) error {
 	return c.c.CallContext(ctx, nil, prefixRPC("transferLeaderToServer"), id, addr)
 }
+
+// SequencerHealthy implements API.
+func (c *APIClient) SequencerHealthy(ctx context.Context) (bool, error) {
+	var healthy bool
+	err := c.c.CallContext(ctx, &healthy, prefixRPC("sequencerHealthy"))
+	return healthy, err
+}

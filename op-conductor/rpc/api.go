@@ -17,6 +17,8 @@ type API interface {
 	Pause(ctx context.Context) error
 	// Resume resumes op-conductor.
 	Resume(ctx context.Context) error
+	// SequencerHealthy returns true if the sequencer is healthy.
+	SequencerHealthy(ctx context.Context) (bool, error)
 
 	// Consensus related APIs
 	// Leader returns true if the server is the leader.

@@ -339,6 +339,13 @@ func (oc *OpConductor) Paused() bool {
 	return oc.paused.Load()
 }
 
+func (oc *OpConductor) HTTPEndpoint() string {
+	if oc.rpcServer == nil {
+		return ""
+	}
+	return fmt.Sprintf("http://%s", oc.rpcServer.Endpoint())
+}
+
 // Leader returns true if OpConductor is the leader.
 func (oc *OpConductor) Leader(_ context.Context) bool {
 	return oc.cons.Leader()
@@ -377,6 +384,11 @@ func (oc *OpConductor) TransferLeaderToServer(_ context.Context, id string, addr
 // CommitUnsafePayload commits a unsafe payload (lastest head) to the cluster FSM.
 func (oc *OpConductor) CommitUnsafePayload(_ context.Context, payload *eth.ExecutionPayload) error {
 	return oc.cons.CommitUnsafePayload(payload)
+}
+
+// SequencerHealthy returns true if sequencer is healthy.
+func (oc *OpConductor) SequencerHealthy(_ context.Context) bool {
+	return oc.healthy.Load()
 }
 
 func (oc *OpConductor) loop() {

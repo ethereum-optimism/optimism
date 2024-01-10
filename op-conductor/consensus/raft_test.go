@@ -18,7 +18,7 @@ import (
 func TestCommitAndRead(t *testing.T) {
 	log := testlog.Logger(t, log.LvlInfo)
 	serverID := "SequencerA"
-	serverAddr := "127.0.0.1:50050"
+	serverAddr := "127.0.0.1:0"
 	bootstrap := true
 	now := uint64(time.Now().Unix())
 	rollupCfg := &rollup.Config{
