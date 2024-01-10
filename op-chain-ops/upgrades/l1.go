@@ -207,10 +207,10 @@ func L1ERC721Bridge(batch *safe.Batch, implementations superchain.Implementation
 		if messenger != config.L1CrossDomainMessengerProxy {
 			return fmt.Errorf("upgrading L1ERC721Bridge: Messenger address doesn't match config")
 		}
+	}
 
-		if otherBridge != predeploys.L2ERC721BridgeAddr {
-			return fmt.Errorf("upgrading L1ERC721Bridge: OtherBridge address doesn't match config")
-		}
+	if otherBridge != predeploys.L2ERC721BridgeAddr {
+		return fmt.Errorf("upgrading L1ERC721Bridge: OtherBridge address doesn't match config")
 	}
 
 	calldata, err := l1ERC721BridgeABI.Pack("initialize", messenger, superchainConfigProxy)
