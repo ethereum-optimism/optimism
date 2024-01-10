@@ -36,6 +36,7 @@ contract L1DomiconCommitment is DomiconCommitment, ISemver {
     }
 
     mapping(address => mapping(uint256 => DAInfo)) public submits;
+    mapping(address => uint256) public indices;
 
     /// @notice Constructs the L1StandardBridge contract.
     constructor() DomiconCommitment(DomiconCommitment(payable(Predeploys.L2_DOMICON_COMMITMENT))) {
@@ -49,18 +50,15 @@ contract L1DomiconCommitment is DomiconCommitment, ISemver {
 
     function SubmitCommitment(uint256 _index,uint256 _length,address _user,bytes calldata _sign,bytes calldata _commitment) external onlyEOA {
         require(checkSign(_user,_sign),"L1DomiconCommitment:invalid Signature");
-        require(checkIndex(_user,_index),"L1DomiconCommitment:index Error");
+        require(indices[_user]==_index,"L1DomiconCommitment:index Error");
         submits[_user][_index]=DAInfo({index:_index,length:_length,user:_user,broadcaster:msg.sender,sign:_sign,commitment:_commitment});
+        indices[_user]++;
         emit SendDACommitment(_user,msg.sender,_index,_commitment);
 
         _initSubmitCommitment(RECEIVE_DEFAULT_GAS_LIMIT,_user,msg.sender,_index,_commitment);
     }
 
     function checkSign(address user,bytes calldata sign) internal pure returns (bool){
-        return true;
-    }
-
-    function checkIndex(address user,uint256 index) internal pure returns (bool){
         return true;
     }
 
