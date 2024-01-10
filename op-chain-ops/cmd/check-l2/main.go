@@ -897,24 +897,6 @@ func checkPredeployBytecode(addr common.Address, client *ethclient.Client, expec
 	return nil
 }
 
-func getEIP1967AdminAddress(client *ethclient.Client, addr common.Address) (common.Address, error) {
-	slot, err := client.StorageAt(context.Background(), addr, genesis.AdminSlot, nil)
-	if err != nil {
-		return common.Address{}, err
-	}
-	admin := common.BytesToAddress(slot)
-	return admin, nil
-}
-
-func getEIP1967ImplementationAddress(client *ethclient.Client, addr common.Address) (common.Address, error) {
-	slot, err := client.StorageAt(context.Background(), addr, genesis.ImplementationSlot, nil)
-	if err != nil {
-		return common.Address{}, err
-	}
-	impl := common.BytesToAddress(slot)
-	return impl, nil
-}
-
 // getInitialized will get the initialized value in storage of a contract.
 // This is an incrementing number that starts at 1 and increments each time that
 // the contract is upgraded.
