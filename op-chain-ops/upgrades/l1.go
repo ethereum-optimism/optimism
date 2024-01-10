@@ -129,7 +129,7 @@ func L1CrossDomainMessenger(batch *safe.Batch, implementations superchain.Implem
 		}
 	}
 
-	calldata, err := l1CrossDomainMessengerABI.Pack("initialize", superchainConfigProxy, optimismPortal, otherMessenger)
+	calldata, err := l1CrossDomainMessengerABI.Pack("initialize", superchainConfigProxy, optimismPortal)
 	if err != nil {
 		return err
 	}
