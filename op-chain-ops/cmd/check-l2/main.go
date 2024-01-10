@@ -692,8 +692,17 @@ func checkOptimismMintableERC20Factory(addr common.Address, client *ethclient.Cl
 		return err
 	}
 	log.Info("OptimismMintableERC20Factory", "_initialized", initialized)
-	if initialized.Uint64() != 1 {
-		return fmt.Errorf("%w: %s", errInvalidInitialized, initialized)
+
+	abi, err := bindings.OptimismMintableERC20FactoryMetaData.GetAbi()
+	if err != nil {
+		return err
+	}
+	calldata, err := abi.Pack("initialize", bridge)
+	if err != nil {
+		return err
+	}
+	if err := checkAlreadyInitialized(addr, calldata, client); err != nil {
+		return err
 	}
 
 	initializing, err := getInitializing("OptimismMintableERC20Factory", addr, client)
