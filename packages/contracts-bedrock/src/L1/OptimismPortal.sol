@@ -115,7 +115,6 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         public
         initializer
     {
-        l2Sender = Constants.DEFAULT_L2_SENDER;
         l2Oracle = _l2Oracle;
         systemConfig = _systemConfig;
         superchainConfig = _superchainConfig;
