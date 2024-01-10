@@ -37,7 +37,4 @@ type SyncStatus struct {
 	// UnsafeL2SyncTarget points to the first unprocessed unsafe L2 block.
 	// It may be zeroed if there is no targeted block.
 	UnsafeL2SyncTarget L2BlockRef `json:"queued_unsafe_l2"`
-	// EngineSyncTarget points to the L2 block that the execution engine is syncing to.
-	// If it is ahead from UnsafeL2, the engine is in progress of P2P sync.
-	EngineSyncTarget L2BlockRef `json:"engine_sync_target"`
 }
