@@ -725,46 +725,59 @@ func SystemConfig(batch *safe.Batch, implementations superchain.ImplementationLi
 		return err
 	}
 
-	var gasPriceOracleOverhead, gasPriceOracleScalar *big.Int
-	var batcherHash common.Hash
-	var p2pSequencerAddress, finalSystemOwner common.Address
-	var l2GenesisBlockGasLimit uint64
+	systemConfig, err := bindings.NewSystemConfigCaller(common.HexToAddress(chainConfig.SystemConfigAddr.String()), backend)
+	if err != nil {
+		return err
+	}
+
+	gasPriceOracleOverhead, err := systemConfig.Overhead(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+
+	gasPriceOracleScalar, err := systemConfig.Scalar(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+
+	batcherHash, err := systemConfig.BatcherHash(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+
+	l2GenesisBlockGasLimit, err := systemConfig.GasLimit(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+
+	p2pSequencerAddress, err := systemConfig.UnsafeBlockSigner(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+
+	finalSystemOwner, err := systemConfig.Owner(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
 
 	if config != nil {
-		gasPriceOracleOverhead = new(big.Int).SetUint64(config.GasPriceOracleOverhead)
-		gasPriceOracleScalar = new(big.Int).SetUint64(config.GasPriceOracleScalar)
-		batcherHash = common.BytesToHash(config.BatchSenderAddress.Bytes())
-		l2GenesisBlockGasLimit = uint64(config.L2GenesisBlockGasLimit)
-		p2pSequencerAddress = config.P2PSequencerAddress
-		finalSystemOwner = config.FinalSystemOwner
-	} else {
-		systemConfig, err := bindings.NewSystemConfigCaller(common.HexToAddress(chainConfig.SystemConfigAddr.String()), backend)
-		if err != nil {
-			return err
+		if gasPriceOracleOverhead != new(big.Int).SetUint64(config.GasPriceOracleOverhead) {
+			return fmt.Errorf("upgrading SystemConfig: GasPriceOracleOverhead address doesn't match config")
 		}
-		gasPriceOracleOverhead, err = systemConfig.Overhead(&bind.CallOpts{})
-		if err != nil {
-			return err
+		if gasPriceOracleScalar != new(big.Int).SetUint64(config.GasPriceOracleScalar) {
+			return fmt.Errorf("upgrading SystemConfig: GasPriceOracleScalar address doesn't match config")
 		}
-		gasPriceOracleScalar, err = systemConfig.Scalar(&bind.CallOpts{})
-		if err != nil {
-			return err
+		if batcherHash != common.BytesToHash(config.BatchSenderAddress.Bytes()) {
+			return fmt.Errorf("upgrading SystemConfig: BatchSenderAddress address doesn't match config")
 		}
-		batcherHash, err = systemConfig.BatcherHash(&bind.CallOpts{})
-		if err != nil {
-			return err
+		if l2GenesisBlockGasLimit != uint64(config.L2GenesisBlockGasLimit) {
+			return fmt.Errorf("upgrading SystemConfig: L2GenesisBlockGasLimit address doesn't match config")
 		}
-		l2GenesisBlockGasLimit, err = systemConfig.GasLimit(&bind.CallOpts{})
-		if err != nil {
-			return err
+		if p2pSequencerAddress != config.P2PSequencerAddress {
+			return fmt.Errorf("upgrading SystemConfig: P2PSequencerAddress address doesn't match config")
 		}
-		p2pSequencerAddress, err = systemConfig.UnsafeBlockSigner(&bind.CallOpts{})
-		if err != nil {
-			return err
-		}
-		finalSystemOwner, err = systemConfig.Owner(&bind.CallOpts{})
-		if err != nil {
-			return err
+		if finalSystemOwner != config.FinalSystemOwner {
+			return fmt.Errorf("upgrading SystemConfig: FinalSystemOwner address doesn't match config")
 		}
 	}
 
