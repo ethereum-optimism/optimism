@@ -130,7 +130,7 @@ The initial fee paramaters for the Ecotone hardfork are noted in the following t
 
 | `l1BasefeeScalar` | `l1BlobBasefeeScalar` |
 |---------------------------------------------------|---|
-| Value of `scalar` at Ecotone activation block - 1 | 0 |
+| Value of `scalar` at Ecotone activation block | 0 |
 
 On the Ecotone hardfork activation block, the L2 view of the `SystemConfig` should
 migrate the current value of the `scalar` to the `l1BasefeeScalar` and set the
