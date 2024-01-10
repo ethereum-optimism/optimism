@@ -123,7 +123,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
                 systemTxMaxGas: 0,
                 maximumBaseFee: 0
             }),
-            _startBlock: 0,
+            _startBlock: type(uint256).max,
             _batchInbox: address(0),
             _addresses: SystemConfig.Addresses({
                 l1CrossDomainMessenger: address(0),
