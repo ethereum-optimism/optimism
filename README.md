@@ -84,7 +84,7 @@ The Optimism Immunefi program offers up to $2,000,042 for in-scope critical vuln
 │   ├── <a href="./packages/fee-estimation">fee-estimation</a>: Tools for estimating gas on OP chains
 │   └── <a href="./packages/sdk">sdk</a>: provides a set of tools for interacting with Optimism
 │   └── <a href="./packages/web3js-plugin">web3js-plugin</a>: Adds functions to estimate L1 and L2 gas
-├── <a href="./patches">patches</a>: Is this used somewhere or should it be deleted?
+├── <a href="./patches">patches</a>: This is no longer needed and will be deleted
 ├── <a href="./proxyd">proxyd</a>: Configurable RPC request router and proxy
 └── <a href="./specs">specs</a>: Specs of the rollup starting at the Bedrock upgrade
 └── <a href="./ufm-test-services">ufm-test-services</a>: Runs a set of tasks to generate metrics
@@ -115,12 +115,20 @@ Since we cannot left-pad with zeroes, the geth major version is not padded.
 
 The full set of components that have releases are:
 
-- `op-node`
-- `op-batcher`
-- `op-proposer`
-- `op-challenger`
+- `chain-mon`
+- `ci-builder`
+- `ci-builder`
 - `contracts-L1`
 - `contracts-L2`
+- `indexer`
+- `op-batcher`
+- `op-challenger`
+- `op-heartbeat`
+- `op-node`
+- `op-proposer`
+- `op-ufm`
+- `proxyd`
+- `ufm-metamask`
 
 All other components and packages should be considered development components only and do not have releases.
 
@@ -130,10 +138,10 @@ The primary development branch is [`develop`](https://github.com/ethereum-optimi
 `develop` contains the most up-to-date software that remains backwards compatible with the latest experimental [network deployments](https://community.optimism.io/docs/useful-tools/networks/).
 If you're making a backwards compatible change, please direct your pull request towards `develop`.
 
-**Changes to contracts within `packages/contracts-bedrock/src` are usually NOT considered backwards compatible and SHOULD be made against a feature branch**.
+**Changes to contracts within `packages/contracts-bedrock/src` are usually NOT considered backwards compatible.**.
 Some exceptions to this rule exist for cases in which we absolutely must deploy some new contract after a tag has already been fully deployed.
 If you're changing or adding a contract and you're unsure about which branch to make a PR into, default to using a feature branch.
-See below for info about release candidate branches.
+Feature branches are typically used when there are conflicts between 2 projects touching the same code, to avoid conflicts from merging both into `develop`.
 
 ## License
 
