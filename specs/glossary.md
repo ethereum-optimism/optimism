@@ -4,7 +4,6 @@
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 **Table of Contents**
 
-- [Glossary](#glossary)
 - [General Terms](#general-terms)
   - [Layer 1 (L1)](#layer-1-l1)
   - [Layer 2 (L2)](#layer-2-l2)
