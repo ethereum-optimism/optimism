@@ -279,19 +279,20 @@ func (s *Driver) eventLoop() {
 				s.log.Error("Sequencer critical error", "err", err)
 				return
 			}
-			defer planSequencerAction() // schedule the next sequencer action to keep the sequencing looping
 			if s.network != nil && payload != nil {
 				if err := s.sequencerConductor.CommitUnsafePayload(s.driverCtx, payload); err != nil {
 					s.log.Error("failed to commit unsafe payload to conductor log", "id", payload.ID(), "err", err)
 					continue
-				}
-				// Publishing of unsafe data via p2p is optional.
-				// Errors are not severe enough to change/halt sequencing but should be logged and metered.
-				if err := s.network.PublishL2Payload(s.driverCtx, payload); err != nil {
-					s.log.Warn("failed to publish newly created block", "id", payload.ID(), "err", err)
-					s.metrics.RecordPublishingError()
+				} else {
+					// Publishing of unsafe data via p2p is optional.
+					// Errors are not severe enough to change/halt sequencing but should be logged and metered.
+					if err := s.network.PublishL2Payload(s.driverCtx, payload); err != nil {
+						s.log.Warn("failed to publish newly created block", "id", payload.ID(), "err", err)
+						s.metrics.RecordPublishingError()
+					}
 				}
 			}
+			planSequencerAction() // schedule the next sequencer action to keep the sequencing looping
 		case <-altSyncTicker.C:
 			// Check if there is a gap in the current unsafe payload queue.
 			ctx, cancel := context.WithTimeout(s.driverCtx, time.Second*2)
