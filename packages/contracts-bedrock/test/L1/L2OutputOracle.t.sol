@@ -36,6 +36,30 @@ contract L2OutputOracle_constructor_Test is CommonTest {
         assertEq(oracleImpl.finalizationPeriodSeconds(), 0);
         assertEq(oracleImpl.FINALIZATION_PERIOD_SECONDS(), 0);
     }
+
+    /// @dev Tests that the proxy is initialized with the correct values.
+    function test_initialize_succeeds() external {
+        address proposer = deploy.cfg().l2OutputOracleProposer();
+        address challenger = deploy.cfg().l2OutputOracleChallenger();
+        uint256 submissionInterval = deploy.cfg().l2OutputOracleSubmissionInterval();
+        uint256 startingBlockNumber = deploy.cfg().l2OutputOracleStartingBlockNumber();
+        uint256 startingTimestamp = deploy.cfg().l2OutputOracleStartingTimestamp();
+        uint256 l2BlockTime = deploy.cfg().l2BlockTime();
+        uint256 finalizationPeriodSeconds = deploy.cfg().finalizationPeriodSeconds();
+
+        assertEq(l2OutputOracle.SUBMISSION_INTERVAL(), submissionInterval);
+        assertEq(l2OutputOracle.submissionInterval(), submissionInterval);
+        assertEq(l2OutputOracle.L2_BLOCK_TIME(), l2BlockTime);
+        assertEq(l2OutputOracle.l2BlockTime(), l2BlockTime);
+        assertEq(l2OutputOracle.startingBlockNumber(), startingBlockNumber);
+        assertEq(l2OutputOracle.startingTimestamp(), startingTimestamp);
+        assertEq(l2OutputOracle.finalizationPeriodSeconds(), finalizationPeriodSeconds);
+        assertEq(l2OutputOracle.PROPOSER(), proposer);
+        assertEq(l2OutputOracle.proposer(), proposer);
+        assertEq(l2OutputOracle.CHALLENGER(), challenger);
+        assertEq(l2OutputOracle.FINALIZATION_PERIOD_SECONDS(), finalizationPeriodSeconds);
+        assertEq(l2OutputOracle.challenger(), challenger);
+    }
 }
 
 contract L2OutputOracle_getter_Test is CommonTest {
@@ -381,49 +405,6 @@ contract L2OutputOracle_deleteOutputs_Test is CommonTest {
 }
 
 contract L2OutputOracleUpgradeable_Test is CommonTest {
-    /// @dev Tests that the proxy is initialized with the correct values.
-    function test_initValuesOnProxy_succeeds() external {
-        address proposer = deploy.cfg().l2OutputOracleProposer();
-        address challenger = deploy.cfg().l2OutputOracleChallenger();
-        uint256 submissionInterval = deploy.cfg().l2OutputOracleSubmissionInterval();
-        uint256 startingBlockNumber = deploy.cfg().l2OutputOracleStartingBlockNumber();
-        uint256 startingTimestamp = deploy.cfg().l2OutputOracleStartingTimestamp();
-        uint256 l2BlockTime = deploy.cfg().l2BlockTime();
-        uint256 finalizationPeriodSeconds = deploy.cfg().finalizationPeriodSeconds();
-
-        assertEq(l2OutputOracle.SUBMISSION_INTERVAL(), submissionInterval);
-        assertEq(l2OutputOracle.submissionInterval(), submissionInterval);
-        assertEq(l2OutputOracle.L2_BLOCK_TIME(), l2BlockTime);
-        assertEq(l2OutputOracle.l2BlockTime(), l2BlockTime);
-        assertEq(l2OutputOracle.startingBlockNumber(), startingBlockNumber);
-        assertEq(l2OutputOracle.startingTimestamp(), startingTimestamp);
-        assertEq(l2OutputOracle.finalizationPeriodSeconds(), finalizationPeriodSeconds);
-        assertEq(l2OutputOracle.PROPOSER(), proposer);
-        assertEq(l2OutputOracle.proposer(), proposer);
-        assertEq(l2OutputOracle.CHALLENGER(), challenger);
-        assertEq(l2OutputOracle.FINALIZATION_PERIOD_SECONDS(), finalizationPeriodSeconds);
-        assertEq(l2OutputOracle.challenger(), challenger);
-    }
-
-    /// @dev Tests that the impl is created with the correct values by the constructor.
-    function test_initValuesOnImpl_succeeds() external {
-        L2OutputOracle oracleImpl = L2OutputOracle(deploy.mustGetAddress("L2OutputOracle"));
-
-        assertEq(oracleImpl.SUBMISSION_INTERVAL(), 120);
-        assertEq(oracleImpl.submissionInterval(), 120);
-        assertEq(oracleImpl.L2_BLOCK_TIME(), 12);
-        assertEq(oracleImpl.l2BlockTime(), 12);
-        assertEq(oracleImpl.FINALIZATION_PERIOD_SECONDS(), 12);
-        assertEq(oracleImpl.finalizationPeriodSeconds(), 12);
-        assertEq(oracleImpl.PROPOSER(), address(0));
-        assertEq(oracleImpl.proposer(), address(0));
-        assertEq(oracleImpl.CHALLENGER(), address(0));
-        assertEq(oracleImpl.challenger(), address(0));
-
-        assertEq(oracleImpl.startingBlockNumber(), 0);
-        assertEq(oracleImpl.startingTimestamp(), block.timestamp);
-    }
-
     /// @dev Tests that the proxy can be successfully upgraded.
     function test_upgrading_succeeds() external {
         Proxy proxy = Proxy(deploy.mustGetAddress("L2OutputOracleProxy"));
