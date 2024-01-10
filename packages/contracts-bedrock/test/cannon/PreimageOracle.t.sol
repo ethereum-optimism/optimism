@@ -5,6 +5,8 @@ import { Test } from "forge-std/Test.sol";
 
 import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
 import { PreimageKeyLib } from "src/cannon/PreimageKeyLib.sol";
+import { LibKeccak } from "@lib-keccak/LibKeccak.sol";
+import { Bytes } from "src/libraries/Bytes.sol";
 import "src/cannon/libraries/CannonErrors.sol";
 
 contract PreimageOracle_Test is Test {
@@ -158,5 +160,50 @@ contract PreimageOracle_Test is Test {
     function testFuzz_readPreimage_missingPreimage_reverts(bytes32 key, uint256 offset) public {
         vm.expectRevert("pre-image must exist");
         oracle.readPreimage(key, offset);
+    }
+}
+
+contract KeccakDispute_LargePreimageProposals_Test is Test {
+    uint256 internal constant TEST_UUID = 0xFACADE;
+
+    PreimageOracle internal oracle;
+
+    /// @notice Sets up the testing suite.
+    function setUp() public {
+        oracle = new PreimageOracle();
+        vm.label(address(oracle), "PreimageOracle");
+    }
+
+    /// @notice Tests that leaves can be added the large preimage proposal mapping.
+    function testLoad() public {
+        bytes memory data = new bytes(136);
+        PreimageOracle.Leaf[] memory leaves = _constructLeaves(data);
+
+        oracle.addLeaves(TEST_UUID, leaves);
+
+        // We should have processed 1 block + the padding block.
+        assertEq(oracle.proposalBlocksProcessed(address(this), TEST_UUID), 2);
+        assertEq(oracle.getTreeRoot(address(this), TEST_UUID), 0x8a9c31550b516df5e1414d7192b10025bee28bd98e23fd8595ac346005e166b9);
+    }
+
+    /// @notice Helper to construct
+    function _constructLeaves(bytes memory _data) internal pure returns (PreimageOracle.Leaf[] memory leaves_) {
+        bytes memory data = LibKeccak.padMemory(_data);
+        uint256 numBlocks = data.length / LibKeccak.BLOCK_SIZE_BYTES;
+
+        LibKeccak.StateMatrix memory stateMatrix;
+        leaves_ = new PreimageOracle.Leaf[](numBlocks);
+        for (uint256 i = 0; i < numBlocks; i++) {
+            bytes memory blockSlice = Bytes.slice(data, i * LibKeccak.BLOCK_SIZE_BYTES, LibKeccak.BLOCK_SIZE_BYTES);
+
+            LibKeccak.absorb(stateMatrix, blockSlice);
+            LibKeccak.permutation(stateMatrix);
+
+            leaves_[i] = PreimageOracle.Leaf({
+                input: blockSlice,
+                index: i,
+                stateCommitment: keccak256(abi.encode(stateMatrix))
+            });
+        }
     }
 }
