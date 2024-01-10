@@ -123,10 +123,10 @@ func L1CrossDomainMessenger(batch *safe.Batch, implementations superchain.Implem
 		if optimismPortal != config.OptimismPortalProxy {
 			return fmt.Errorf("upgrading L1CrossDomainMessenger: Portal address doesn't match config")
 		}
+	}
 
-		if otherMessenger != predeploys.L2CrossDomainMessengerAddr {
-			return fmt.Errorf("upgrading L1CrossDomainMessenger: OtherMessenger address doesn't match config")
-		}
+	if otherMessenger != predeploys.L2CrossDomainMessengerAddr {
+		return fmt.Errorf("upgrading L1CrossDomainMessenger: OtherMessenger address doesn't match config")
 	}
 
 	calldata, err := l1CrossDomainMessengerABI.Pack("initialize", superchainConfigProxy, optimismPortal)
