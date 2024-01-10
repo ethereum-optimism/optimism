@@ -569,6 +569,8 @@ contract L2OutputOracleUpgradeable_Test is CommonTest {
         external
     {
         vm.assume(!(_submissionInterval > 0));
+        vm.assume(_l2BlockTime > 0);
+        vm.assume(_startingTimestamp <= block.timestamp);
 
         // Reset the initialized field in the 0th storage slot
         // so that initialize can be called again.
@@ -598,7 +600,9 @@ contract L2OutputOracleUpgradeable_Test is CommonTest {
     )
         external
     {
+        vm.assume(_submissionInterval > 0);
         vm.assume(!(_l2BlockTime > 0));
+        vm.assume(_startingTimestamp <= block.timestamp);
 
         // Reset the initialized field in the 0th storage slot
         // so that initialize can be called again.
@@ -628,6 +632,8 @@ contract L2OutputOracleUpgradeable_Test is CommonTest {
     )
         external
     {
+        vm.assume(_submissionInterval > 0);
+        vm.assume(_l2BlockTime > 0);
         vm.assume(!(_startingTimestamp <= block.timestamp));
 
         // Reset the initialized field in the 0th storage slot
