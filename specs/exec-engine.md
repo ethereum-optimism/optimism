@@ -440,6 +440,10 @@ EIP-4844 is disabled as following:
 - Block-building code does not select EIP-4844 transactions.
 - An L2 block state-transition with EIP-4844 transactions is invalid.
 
+The [BLOBBASEFEE opcode](https://eips.ethereum.org/EIPS/eip-7516) is present but its semantics are
+altered because there are no blobs processed by L2. The opcode will always push a value of 1 onto
+the stack.
+
 ## Ecotone: Beacon Block Root
 
 [EIP-4788] introduces a "beacon block root" into the execution-layer block-header and EVM.
