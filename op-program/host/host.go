@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	cl "github.com/ethereum-optimism/optimism/op-program/client"
-	"github.com/ethereum-optimism/optimism/op-program/client/driver"
 	"github.com/ethereum-optimism/optimism/op-program/host/config"
 	"github.com/ethereum-optimism/optimism/op-program/host/flags"
 	"github.com/ethereum-optimism/optimism/op-program/host/kvstore"
@@ -44,13 +43,10 @@ func Main(logger log.Logger, cfg *config.Config) error {
 		return PreimageServer(ctx, logger, cfg, preimageChan, hinterChan)
 	}
 
-	if err := FaultProofProgram(ctx, logger, cfg); errors.Is(err, driver.ErrClaimNotValid) {
-		log.Crit("Claim is invalid", "err", err)
-	} else if err != nil {
+	if err := FaultProofProgram(ctx, logger, cfg); err != nil {
 		return err
-	} else {
-		log.Info("Claim successfully verified")
 	}
+	log.Info("Claim successfully verified")
 	return nil
 }
 
