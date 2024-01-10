@@ -574,7 +574,7 @@ contract L2OutputOracleUpgradeable_Test is CommonTest {
         // so that initialize can be called again.
         vm.store(address(l2OutputOracle), bytes32(uint256(0)), bytes32(uint256(0)));
 
-        vm.expectRevert();
+        vm.expectRevert("L2OutputOracle: submission interval must be greater than 0");
         l2OutputOracle.initialize({
             _submissionInterval: _submissionInterval,
             _l2BlockTime: _l2BlockTime,
@@ -604,7 +604,7 @@ contract L2OutputOracleUpgradeable_Test is CommonTest {
         // so that initialize can be called again.
         vm.store(address(l2OutputOracle), bytes32(uint256(0)), bytes32(uint256(0)));
 
-        vm.expectRevert();
+        vm.expectRevert("L2OutputOracle: L2 block time must be greater than 0");
         l2OutputOracle.initialize({
             _submissionInterval: _submissionInterval,
             _l2BlockTime: _l2BlockTime,
@@ -634,7 +634,7 @@ contract L2OutputOracleUpgradeable_Test is CommonTest {
         // so that initialize can be called again.
         vm.store(address(l2OutputOracle), bytes32(uint256(0)), bytes32(uint256(0)));
 
-        vm.expectRevert();
+        vm.expectRevert("L2OutputOracle: starting L2 timestamp must be less than current time");
         l2OutputOracle.initialize({
             _submissionInterval: _submissionInterval,
             _l2BlockTime: _l2BlockTime,
