@@ -346,15 +346,15 @@ func L2OutputOracle(batch *safe.Batch, implementations superchain.Implementation
 	}
 
 	if config != nil {
-		if l2OutputOracleSubmissionInterval != new(big.Int).SetUint64(config.L2OutputOracleSubmissionInterval) {
+		if l2OutputOracleSubmissionInterval.Uint64() != config.L2OutputOracleSubmissionInterval {
 			return fmt.Errorf("upgrading L2OutputOracle: L2OutputOracleSubmissionInterval address doesn't match config")
 		}
 
-		if l2BlockTime != new(big.Int).SetUint64(config.L2BlockTime) {
+		if l2BlockTime.Uint64() != config.L2BlockTime {
 			return fmt.Errorf("upgrading L2OutputOracle: L2BlockTime address doesn't match config")
 		}
 
-		if l2OutputOracleStartingBlockNumber != new(big.Int).SetUint64(config.L2OutputOracleStartingBlockNumber) {
+		if l2OutputOracleStartingBlockNumber.Uint64() != config.L2OutputOracleStartingBlockNumber {
 			return fmt.Errorf("upgrading L2OutputOracle: L2OutputOracleStartingBlockNumber address doesn't match config")
 		}
 
@@ -362,7 +362,7 @@ func L2OutputOracle(batch *safe.Batch, implementations superchain.Implementation
 			return fmt.Errorf("L2OutputOracleStartingTimestamp must be concrete")
 		}
 
-		if l2OutputOracleStartingTimestamp != new(big.Int).SetInt64(int64(config.L2OutputOracleStartingTimestamp)) {
+		if int(l2OutputOracleStartingTimestamp.Int64()) != config.L2OutputOracleStartingTimestamp {
 			return fmt.Errorf("upgrading L2OutputOracle: L2OutputOracleStartingTimestamp address doesn't match config")
 		}
 
@@ -374,7 +374,7 @@ func L2OutputOracle(batch *safe.Batch, implementations superchain.Implementation
 			return fmt.Errorf("upgrading L2OutputOracle: L2OutputOracleChallenger address doesn't match config")
 		}
 
-		if finalizationPeriodSeconds != new(big.Int).SetUint64(config.FinalizationPeriodSeconds) {
+		if finalizationPeriodSeconds.Uint64() != config.FinalizationPeriodSeconds {
 			return fmt.Errorf("upgrading L2OutputOracle: FinalizationPeriodSeconds address doesn't match config")
 		}
 	}
