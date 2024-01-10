@@ -103,10 +103,19 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		Sync:              *syncConfig,
 		RollupHalt:        haltOption,
 		RethDBPath:        ctx.String(flags.L1RethDBPath.Name),
+
+		ConductorEnabled:    ctx.Bool(flags.ConductorEnabledFlag.Name),
+		ConductorRpc:        ctx.String(flags.ConductorRpcFlag.Name),
+		ConductorRpcTimeout: ctx.Duration(flags.ConductorRpcTimeoutFlag.Name),
 	}
 
 	if err := cfg.LoadPersisted(log); err != nil {
 		return nil, fmt.Errorf("failed to load driver config: %w", err)
+	}
+
+	// conductor controls the sequencer state
+	if cfg.ConductorEnabled {
+		cfg.Driver.SequencerStopped = true
 	}
 
 	if err := cfg.Check(); err != nil {

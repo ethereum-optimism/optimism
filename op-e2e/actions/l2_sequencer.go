@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/async"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
@@ -108,7 +109,7 @@ func (s *L2Sequencer) ActL2EndBlock(t Testing) {
 	}
 	s.l2Building = false
 
-	_, err := s.sequencer.CompleteBuildingBlock(t.Ctx(), async.NoOpGossiper{})
+	_, err := s.sequencer.CompleteBuildingBlock(t.Ctx(), async.NoOpGossiper{}, &conductor.NoOpConductor{})
 	// TODO: there may be legitimate temporary errors here, if we mock engine API RPC-failure.
 	// For advanced tests we can catch those and print a warning instead.
 	require.NoError(t, err)

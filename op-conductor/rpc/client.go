@@ -43,6 +43,11 @@ func (c *APIClient) AddServerAsVoter(ctx context.Context, id string, addr string
 	return c.c.CallContext(ctx, nil, prefixRPC("addServerAsVoter"), id, addr)
 }
 
+// Close closes the underlying RPC client.
+func (c *APIClient) Close() {
+	c.c.Close()
+}
+
 // CommitUnsafePayload implements API.
 func (c *APIClient) CommitUnsafePayload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) error {
 	return c.c.CallContext(ctx, nil, prefixRPC("commitUnsafePayload"), payload)

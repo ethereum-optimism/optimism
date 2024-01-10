@@ -15,6 +15,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/async"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -63,6 +64,8 @@ type Driver struct {
 
 	// Rollup config: rollup chain configuration
 	config *rollup.Config
+
+	sequencerConductor conductor.SequencerConductor
 
 	// Driver config: verifier and sequencer settings
 	driverConfig *Config
@@ -138,6 +141,7 @@ func (s *Driver) Close() error {
 	s.driverCancel()
 	s.wg.Wait()
 	s.asyncGossiper.Stop()
+	s.sequencerConductor.Close()
 	return nil
 }
 
@@ -302,7 +306,7 @@ func (s *Driver) eventLoop() {
 		case <-sequencerCh:
 			// the payload publishing is handled by the async gossiper, which will begin gossiping as soon as available
 			// so, we don't need to receive the payload here
-			_, err := s.sequencer.RunNextSequencerAction(s.driverCtx, s.asyncGossiper)
+			_, err := s.sequencer.RunNextSequencerAction(s.driverCtx, s.asyncGossiper, s.sequencerConductor)
 			if errors.Is(err, derive.ErrReset) {
 				s.derivation.Reset()
 			} else if err != nil {
@@ -465,6 +469,11 @@ func (s *Driver) ResetDerivationPipeline(ctx context.Context) error {
 func (s *Driver) StartSequencer(ctx context.Context, blockHash common.Hash) error {
 	if !s.driverConfig.SequencerEnabled {
 		return errors.New("sequencer is not enabled")
+	}
+	if isLeader, err := s.sequencerConductor.Leader(ctx); err != nil {
+		return fmt.Errorf("sequencer leader check failed: %w", err)
+	} else if !isLeader {
+		return errors.New("sequencer is not the leader, aborting.")
 	}
 	h := hashAndErrorChannel{
 		hash: blockHash,
