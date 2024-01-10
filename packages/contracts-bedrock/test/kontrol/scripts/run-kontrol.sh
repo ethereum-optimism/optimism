@@ -7,7 +7,7 @@ set -euo pipefail
 blank_line() { echo '' >&2 ; }
 notif() { echo "== $0: $*" >&2 ; }
 usage() {
-  echo "Usage: $0 [-h|--help] [container] [local] [dev]" 1>&2
+  echo "Usage: $0 [-h|--help] [container|local|dev]" 1>&2
   echo "Options:" 1>&2
   echo "  -h, --help         Display this help message." 1>&2
   echo "  container          Run tests in docker container. Reproduce CI execution. (Default)" 1>&2
