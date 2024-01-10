@@ -63,13 +63,13 @@ contract L2OutputOracle is Initializable, ISemver {
     ///         in the getting-started config.
     constructor() {
         initialize({
-            _submissionInterval: 120,
-            _l2BlockTime: 12,
+            _submissionInterval: 1,
+            _l2BlockTime: 1,
             _startingBlockNumber: 0,
-            _startingTimestamp: block.timestamp,
+            _startingTimestamp: 0,
             _proposer: address(0),
             _challenger: address(0),
-            _finalizationPeriodSeconds: 12
+            _finalizationPeriodSeconds: 0
         });
     }
 
