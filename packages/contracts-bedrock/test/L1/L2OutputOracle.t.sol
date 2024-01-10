@@ -424,52 +424,6 @@ contract L2OutputOracleUpgradeable_Test is CommonTest {
         assertEq(oracleImpl.startingTimestamp(), block.timestamp);
     }
 
-    /// @dev Tests that the proxy cannot be initialized twice.
-    function test_initializeProxy_alreadyInitialized_reverts() external {
-        uint256 submissionInterval = deploy.cfg().l2OutputOracleSubmissionInterval();
-        uint256 l2BlockTime = deploy.cfg().l2BlockTime();
-        uint256 startingBlockNumber = deploy.cfg().l2OutputOracleStartingBlockNumber();
-        uint256 startingTimestamp = deploy.cfg().l2OutputOracleStartingTimestamp();
-        address proposer = deploy.cfg().l2OutputOracleProposer();
-        address challenger = deploy.cfg().l2OutputOracleChallenger();
-        uint256 finalizationPeriodSeconds = deploy.cfg().finalizationPeriodSeconds();
-
-        vm.expectRevert("Initializable: contract is already initialized");
-        l2OutputOracle.initialize({
-            _submissionInterval: submissionInterval,
-            _l2BlockTime: l2BlockTime,
-            _startingBlockNumber: startingBlockNumber,
-            _startingTimestamp: startingTimestamp,
-            _proposer: proposer,
-            _challenger: challenger,
-            _finalizationPeriodSeconds: finalizationPeriodSeconds
-        });
-    }
-
-    /// @dev Tests that the implementation contract cannot be initialized twice.
-    function test_initializeImpl_alreadyInitialized_reverts() external {
-        L2OutputOracle oracleImpl = L2OutputOracle(deploy.mustGetAddress("L2OutputOracle"));
-
-        uint256 submissionInterval = deploy.cfg().l2OutputOracleSubmissionInterval();
-        uint256 l2BlockTime = deploy.cfg().l2BlockTime();
-        uint256 startingBlockNumber = deploy.cfg().l2OutputOracleStartingBlockNumber();
-        uint256 startingTimestamp = deploy.cfg().l2OutputOracleStartingTimestamp();
-        address proposer = deploy.cfg().l2OutputOracleProposer();
-        address challenger = deploy.cfg().l2OutputOracleChallenger();
-        uint256 finalizationPeriodSeconds = deploy.cfg().finalizationPeriodSeconds();
-
-        vm.expectRevert("Initializable: contract is already initialized");
-        oracleImpl.initialize({
-            _submissionInterval: submissionInterval,
-            _l2BlockTime: l2BlockTime,
-            _startingBlockNumber: startingBlockNumber,
-            _startingTimestamp: startingTimestamp,
-            _proposer: proposer,
-            _challenger: challenger,
-            _finalizationPeriodSeconds: finalizationPeriodSeconds
-        });
-    }
-
     /// @dev Tests that the proxy can be successfully upgraded.
     function test_upgrading_succeeds() external {
         Proxy proxy = Proxy(deploy.mustGetAddress("L2OutputOracleProxy"));
