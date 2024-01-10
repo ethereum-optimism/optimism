@@ -89,7 +89,6 @@ COPY --from=rust-build /root/.foundry/bin/anvil /usr/local/bin/anvil
 
 COPY --from=echidna-test /usr/local/bin/echidna-test /usr/local/bin/echidna-test
 
-COPY ./.slitherrc ./.slitherrc
 COPY .nvmrc .nvmrc
 COPY ./versions.json ./versions.json
 
