@@ -71,7 +71,7 @@ abstract contract KontrolUtils is KontrolCheats {
         return bytes32(kevm.freshUInt(32));
     }
 
-    /// @dev Returns a symbolic adress
+    /// @dev Returns a symbolic address
     function freshAddress() public returns (address) {
         return address(uint160(kevm.freshUInt(20)));
     }
