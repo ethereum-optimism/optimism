@@ -153,6 +153,8 @@ contract L1StandardBridge_Pause_TestFail is Bridge_Initializer {
     }
 }
 
+contract L1StandardBridge_Initialize_TestFail is Bridge_Initializer { }
+
 contract L1StandardBridge_Receive_Test is Bridge_Initializer {
     /// @dev Tests receive bridges ETH successfully.
     function test_receive_succeeds() external {
