@@ -305,58 +305,77 @@ func L2OutputOracle(batch *safe.Batch, implementations superchain.Implementation
 		return err
 	}
 
-	var l2OutputOracleSubmissionInterval, l2BlockTime, l2OutputOracleStartingBlockNumber, l2OutputOracleStartingTimestamp, finalizationPeriodSeconds *big.Int
-	var l2OutputOracleProposer, l2OutputOracleChallenger common.Address
+	l2OutputOracle, err := bindings.NewL2OutputOracleCaller(common.HexToAddress(list.L2OutputOracleProxy.String()), backend)
+	if err != nil {
+		return err
+	}
+
+	l2OutputOracleSubmissionInterval, err := l2OutputOracle.SubmissionInterval(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+
+	l2BlockTime, err := l2OutputOracle.L2BlockTime(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+
+	l2OutputOracleStartingBlockNumber, err := l2OutputOracle.StartingBlockNumber(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+
+	l2OutputOracleStartingTimestamp, err := l2OutputOracle.StartingTimestamp(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+
+	l2OutputOracleProposer, err := l2OutputOracle.Proposer(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+
+	l2OutputOracleChallenger, err := l2OutputOracle.Challenger(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+
+	finalizationPeriodSeconds, err := l2OutputOracle.FinalizationPeriodSeconds(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+
 	if config != nil {
-		l2OutputOracleSubmissionInterval = new(big.Int).SetUint64(config.L2OutputOracleSubmissionInterval)
-		l2BlockTime = new(big.Int).SetUint64(config.L2BlockTime)
-		l2OutputOracleStartingBlockNumber = new(big.Int).SetUint64(config.L2OutputOracleStartingBlockNumber)
+		if l2OutputOracleSubmissionInterval != new(big.Int).SetUint64(config.L2OutputOracleSubmissionInterval) {
+			return fmt.Errorf("upgrading L2OutputOracle: L2OutputOracleSubmissionInterval address doesn't match config")
+		}
+
+		if l2BlockTime != new(big.Int).SetUint64(config.L2BlockTime) {
+			return fmt.Errorf("upgrading L2OutputOracle: L2BlockTime address doesn't match config")
+		}
+
+		if l2OutputOracleStartingBlockNumber != new(big.Int).SetUint64(config.L2OutputOracleStartingBlockNumber) {
+			return fmt.Errorf("upgrading L2OutputOracle: L2OutputOracleStartingBlockNumber address doesn't match config")
+		}
+
 		if config.L2OutputOracleStartingTimestamp < 0 {
 			return fmt.Errorf("L2OutputOracleStartingTimestamp must be concrete")
 		}
-		l2OutputOracleStartingTimestamp = new(big.Int).SetInt64(int64(config.L2OutputOracleStartingTimestamp))
-		l2OutputOracleProposer = config.L2OutputOracleProposer
-		l2OutputOracleChallenger = config.L2OutputOracleChallenger
-		finalizationPeriodSeconds = new(big.Int).SetUint64(config.FinalizationPeriodSeconds)
-	} else {
-		l2OutputOracle, err := bindings.NewL2OutputOracleCaller(common.HexToAddress(list.L2OutputOracleProxy.String()), backend)
-		if err != nil {
-			return err
+
+		if l2OutputOracleStartingTimestamp != new(big.Int).SetInt64(int64(config.L2OutputOracleStartingTimestamp)) {
+			return fmt.Errorf("upgrading L2OutputOracle: L2OutputOracleStartingTimestamp address doesn't match config")
 		}
 
-		l2OutputOracleSubmissionInterval, err = l2OutputOracle.SubmissionInterval(&bind.CallOpts{})
-		if err != nil {
-			return err
+		if l2OutputOracleProposer != config.L2OutputOracleProposer {
+			return fmt.Errorf("upgrading L2OutputOracle: L2OutputOracleProposer address doesn't match config")
 		}
 
-		l2BlockTime, err = l2OutputOracle.L2BlockTime(&bind.CallOpts{})
-		if err != nil {
-			return err
+		if l2OutputOracleChallenger != config.L2OutputOracleChallenger {
+			return fmt.Errorf("upgrading L2OutputOracle: L2OutputOracleChallenger address doesn't match config")
 		}
 
-		l2OutputOracleStartingBlockNumber, err = l2OutputOracle.StartingBlockNumber(&bind.CallOpts{})
-		if err != nil {
-			return err
-		}
-
-		l2OutputOracleStartingTimestamp, err = l2OutputOracle.StartingTimestamp(&bind.CallOpts{})
-		if err != nil {
-			return err
-		}
-
-		l2OutputOracleProposer, err = l2OutputOracle.Proposer(&bind.CallOpts{})
-		if err != nil {
-			return err
-		}
-
-		l2OutputOracleChallenger, err = l2OutputOracle.Challenger(&bind.CallOpts{})
-		if err != nil {
-			return err
-		}
-
-		finalizationPeriodSeconds, err = l2OutputOracle.FinalizationPeriodSeconds(&bind.CallOpts{})
-		if err != nil {
-			return err
+		if finalizationPeriodSeconds != new(big.Int).SetUint64(config.FinalizationPeriodSeconds) {
+			return fmt.Errorf("upgrading L2OutputOracle: FinalizationPeriodSeconds address doesn't match config")
 		}
 	}
 
