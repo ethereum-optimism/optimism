@@ -243,6 +243,30 @@ var (
 		EnvVars: prefixEnvVars("L2_BACKUP_UNSAFE_SYNC_RPC_TRUST_RPC"),
 		Hidden:  true,
 	}
+	ConductorEnabledFlag = &cli.BoolFlag{
+		Name:    "conductor.enabled",
+		Usage:   "Enable the conductor service",
+		EnvVars: prefixEnvVars("CONDUCTOR_ENABLED"),
+		Value:   false,
+	}
+	ConductorAddrFlag = &cli.StringFlag{
+		Name:    "conductor.addr",
+		Usage:   "Conductor service rpc address",
+		EnvVars: prefixEnvVars("CONDUCTOR_ADDR"),
+		Value:   "localhost",
+	}
+	ConductorPortFlag = &cli.IntFlag{
+		Name:    "conductor.port",
+		Usage:   "Conductor service rpc port",
+		EnvVars: prefixEnvVars("CONDUCTOR_PORT"),
+		Value:   8547,
+	}
+	ConductorRpcTimeoutFlag = &cli.DurationFlag{
+		Name:    "conductor.rpc-timeout",
+		Usage:   "Conductor service rpc timeout",
+		EnvVars: prefixEnvVars("CONDUCTOR_RPC_TIMEOUT"),
+		Value:   time.Millisecond * 100,
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -280,6 +304,10 @@ var optionalFlags = []cli.Flag{
 	RollupHalt,
 	RollupLoadProtocolVersions,
 	L1RethDBPath,
+	ConductorEnabledFlag,
+	ConductorAddrFlag,
+	ConductorPortFlag,
+	ConductorRpcTimeoutFlag,
 }
 
 var DeprecatedFlags = []cli.Flag{
