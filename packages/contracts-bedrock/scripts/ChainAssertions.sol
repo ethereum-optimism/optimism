@@ -26,7 +26,6 @@ library ChainAssertions {
     function postDeployAssertions(
         Types.ContractSet memory _prox,
         DeployConfig _cfg,
-        uint256 _l2OutputOracleStartingBlockNumber,
         uint256 _l2OutputOracleStartingTimestamp,
         Vm _vm
     )
@@ -44,7 +43,6 @@ library ChainAssertions {
         checkL2OutputOracle({
             _contracts: _prox,
             _cfg: _cfg,
-            _l2OutputOracleStartingBlockNumber: _l2OutputOracleStartingBlockNumber,
             _l2OutputOracleStartingTimestamp: _l2OutputOracleStartingTimestamp,
             _isProxy: true
         });
@@ -118,7 +116,6 @@ library ChainAssertions {
     function checkL2OutputOracle(
         Types.ContractSet memory _contracts,
         DeployConfig _cfg,
-        uint256 _l2OutputOracleStartingBlockNumber,
         uint256 _l2OutputOracleStartingTimestamp,
         bool _isProxy
     )
@@ -139,7 +136,7 @@ library ChainAssertions {
             require(oracle.challenger() == _cfg.l2OutputOracleChallenger());
             require(oracle.FINALIZATION_PERIOD_SECONDS() == _cfg.finalizationPeriodSeconds());
             require(oracle.finalizationPeriodSeconds() == _cfg.finalizationPeriodSeconds());
-            require(oracle.startingBlockNumber() == _l2OutputOracleStartingBlockNumber);
+            require(oracle.startingBlockNumber() == _cfg.l2OutputOracleStartingBlockNumber());
             require(oracle.startingTimestamp() == _l2OutputOracleStartingTimestamp);
         } else {
             require(oracle.SUBMISSION_INTERVAL() == 1);
