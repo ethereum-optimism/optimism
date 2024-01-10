@@ -77,6 +77,8 @@
     - [Payload Attributes Derivation](#payload-attributes-derivation)
     - [Engine Queue](#engine-queue)
       - [Engine API usage](#engine-api-usage)
+        - [Bedrock, Canyon, Delta: API Usage](#bedrock-canyon-delta-api-usage)
+        - [Ecotone: API Usage](#ecotone-api-usage)
       - [Forkchoice synchronization](#forkchoice-synchronization)
       - [L1-consolidation: payload attributes matching](#l1-consolidation-payload-attributes-matching)
       - [L1-sync: payload attributes processing](#l1-sync-payload-attributes-processing)
@@ -798,24 +800,55 @@ To interact with the engine, the [execution engine API][exec-engine] is used, wi
 
 [exec-engine]: exec-engine.md
 
+##### Bedrock, Canyon, Delta: API Usage
+
 - [`engine_forkchoiceUpdatedV2`] — updates the forkchoice (i.e. the chain head) to `headBlockHash` if different, and
   instructs the engine to start building an execution payload if the payload attributes parameter is not `null`.
 - [`engine_getPayloadV2`] — retrieves a previously requested execution payload build.
 - [`engine_newPayloadV2`] — executes an execution payload to create a block.
 
-The current version of `op-node` uses the `v2` RPC methods from the engine API, whereas prior versions used the `v1`
-equivalents. The `v2` methods are backwards compatible with `v1` payloads but support Shanghai.
+##### Ecotone: API Usage
+
+- [`engine_forkchoiceUpdatedV3`] — updates the forkchoice (i.e. the chain head) to `headBlockHash` if different, and
+  instructs the engine to start building an execution payload if the payload attributes parameter is not `null`.
+- [`engine_getPayloadV3`] — retrieves a previously requested execution payload build.
+- `engine_newPayload`
+  - [`engine_newPayloadV2`] — executes a Bedrock/Canyon/Delta execution payload to create a block.
+  - [`engine_newPayloadV3`] — executes an Ecotone execution payload to create a block.
+
+The current version of `op-node` uses the `v3` Engine API RPC methods as well as `engine_newPayloadV2`, due to
+`engine_newPayloadV3` only supporting Ecotone execution payloads. Both `engine_forkchoiceUpdatedV3` and
+`engine_getPayloadV3` are backwards compatible with Bedrock, Canyon & Delta payloads.
+
+Prior versions of `op-node` used `v2` and `v1` methods.
 
 [`engine_forkchoiceUpdatedV2`]: exec-engine.md#engine_forkchoiceupdatedv2
+[`engine_forkchoiceUpdatedV3`]: exec-engine.md#engine_forkchoiceupdatedv3
 [`engine_getPayloadV2`]: exec-engine.md#engine_getpayloadv2
+[`engine_getPayloadV3`]: exec-engine.md#engine_getpayloadv3
 [`engine_newPayloadV2`]: exec-engine.md#engine_newpayloadv2
+[`engine_newPayloadV3`]: exec-engine.md#engine_newpayloadv3
 
-The execution payload is an object of type [`ExecutionPayloadV2`][eth-payload].
+The execution payload is an object of type [`ExecutionPayloadV3`][eth-payload].
 
-[eth-payload]: https://github.com/ethereum/execution-apis/blob/main/src/engine/shanghai.md#payloadattributesv2
+[eth-payload]: https://github.com/ethereum/execution-apis/blob/main/src/engine/cancun.md
 
-With V2 of the execution payload, before Canyon the withdrawals field is required to be nil. After Canyon the
-withdrawals field is required to be non-nil. The op-node should set the withdrawals field to be an empty list.
+The `ExecutionPayload` has the following requirements:
+
+- Bedrock
+  - The withdrawals field MUST be nil
+  - The blob gas used field MUST be nil
+  - The blob gas limit field MUST be nil
+- Canyon, Delta
+  - The withdrawals field MUST be non-nil
+  - The withdrawals field MUST be an empty list
+  - The blob gas used field MUST be nil
+  - The blob gas limit field MUST be nil
+- Ecotone
+  - The withdrawals field MUST be non-nil
+  - The withdrawals field MUST be an empty list
+  - The blob gas used field MUST be 0
+  - The blob gas limit field MUST be 0
 
 #### Forkchoice synchronization
 
@@ -828,7 +861,7 @@ This synchronization may happen when:
 - A successful consolidation of unsafe L2 blocks: updating the "safe" L2 block.
 - The first thing after a derivation pipeline reset, to ensure a consistent execution engine forkchoice state.
 
-The new forkchoice state is applied with `engine_forkchoiceUpdatedV2`.
+The new forkchoice state is applied by calling [fork choice updated](#engine-api-usage) on the engine API.
 On forkchoice-state validity errors the derivation pipeline must be reset to recover to consistent state.
 
 #### L1-consolidation: payload attributes matching
@@ -874,11 +907,13 @@ Engine][exec-engine-comm] section.
 
 The payload attributes are then processed with a sequence of:
 
-- `engine_forkchoiceUpdatedV2` with current forkchoice state of the stage, and the attributes to start block building.
+- [Engine: Fork choice updated](#engine-api-usage) with current forkchoice state of the stage, and the attributes to
+start block building.
   - Non-deterministic sources, like the tx-pool, must be disabled to reconstruct the expected block.
-- `engine_getPayload` to retrieve the payload, by the payload-ID in the result of the previous step.
-- `engine_newPayload` to import the new payload into the execution engine.
-- `engine_forkchoiceUpdatedV2` to make the new payload canonical,
+- [Engine: Get Payload](#engine-api-usage) to retrieve the payload, by the payload-ID in the result of the previous
+step.
+- [Engine: New Payload](#engine-api-usage) to import the new payload into the execution engine.
+- [Engine: Fork Choice Updated](#engine-api-usage) to make the new payload canonical,
    now with a change of both `safe` and `unsafe` fields to refer to the payload, and no payload attributes.
 
 Engine API Error handling:
@@ -907,8 +942,12 @@ To process unsafe payloads, the payload must:
 
 The payload is then processed with a sequence of:
 
-- `engine_newPayloadV2`: process the payload. It does not become canonical yet.
-- `engine_forkchoiceUpdatedV2`: make the payload the canonical unsafe L2 head, and keep the safe/finalized L2 heads.
+- Bedrock/Canyon/Delta Payloads
+  - `engine_newPayloadV2`: process the payload. It does not become canonical yet.
+  - `engine_forkchoiceUpdatedV2`: make the payload the canonical unsafe L2 head, and keep the safe/finalized L2 heads.
+- Ecotone Payloads
+  - `engine_newPayloadV3`: process the payload. It does not become canonical yet.
+  - `engine_forkchoiceUpdatedV3`: make the payload the canonical unsafe L2 head, and keep the safe/finalized L2 heads.
 
 Engine API Error handling:
 

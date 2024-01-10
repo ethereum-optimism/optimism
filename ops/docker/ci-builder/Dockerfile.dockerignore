@@ -3,4 +3,5 @@
 !/.abigenrc
 !/.gethrc
 !/.nvmrc
+!/.slitherrc
 !/ops/scripts/install-foundry.sh

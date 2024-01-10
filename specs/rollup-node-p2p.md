@@ -53,11 +53,12 @@ and are adopted by several other blockchains, most notably the [L1 consensus lay
 - [Gossip Topics](#gossip-topics)
   - [`blocksv1`](#blocksv1)
   - [`blocksv2`](#blocksv2)
-    - [Block encoding](#block-encoding)
-    - [Block signatures](#block-signatures)
-    - [Block validation](#block-validation)
-      - [Block processing](#block-processing)
-      - [Block topic scoring parameters](#block-topic-scoring-parameters)
+  - [`blocksv3`](#blocksv3)
+  - [Block encoding](#block-encoding)
+  - [Block signatures](#block-signatures)
+  - [Block validation](#block-validation)
+    - [Block processing](#block-processing)
+    - [Block topic scoring parameters](#block-topic-scoring-parameters)
 - [Req-Resp](#req-resp)
   - [`payload_by_number`](#payload_by_number)
 
@@ -248,7 +249,7 @@ The extended validator emits one of the following validation signals:
 
 ## Gossip Topics
 
-There are two topics for distributing blocks to other nodes faster than proxying through L1 would. These are:
+There are three topics for distributing blocks to other nodes faster than proxying through L1 would. These are:
 
 ### `blocksv1`
 
@@ -256,30 +257,39 @@ Pre-Canyon/Shanghai blocks are broadcast on `/optimism/<chainId>/0/blocks`.
 
 ### `blocksv2`
 
-Post-Canyon/Shanghai blocks are broadcast on `/optimism/<chainId>/1/blocks`.
+Canyon/Delta blocks are broadcast on `/optimism/<chainId>/1/blocks`.
 
-#### Block encoding
+### `blocksv3`
+
+Ecotone blocks are broadcast on `/optimism/<chainId>/2/blocks`.
+
+### Block encoding
 
 A block is structured as the concatenation of:
 
-- `signature`: A `secp256k1` signature, always 65 bytes, `r (uint256), s (uint256), y_parity (uint8)`
-- `payload`: A SSZ-encoded `ExecutionPayload`, always the remaining bytes.
+- V1 and V2 topics
+  - `signature`: A `secp256k1` signature, always 65 bytes, `r (uint256), s (uint256), y_parity (uint8)`
+  - `payload`: A SSZ-encoded `ExecutionPayload`, always the remaining bytes.
+- V3 topic
+  - `signature`: A `secp256k1` signature, always 65 bytes, `r (uint256), s (uint256), y_parity (uint8)`
+  - `parentBeaconBlockRoot`: L1 origin parent beacon block root, always 32 bytes
+  - `payload`: A SSZ-encoded `ExecutionPayload`, always the remaining bytes.
 
-The topic uses Snappy block-compression (i.e. no snappy frames):
+All topics use Snappy block-compression (i.e. no snappy frames):
 the above needs to be compressed after encoding, and decompressed before decoding.
 
-#### Block signatures
+### Block signatures
 
 The `signature` is a `secp256k1` signature, and signs over a message:
 `keccak256(domain ++ chain_id ++ payload_hash)`, where:
 
 - `domain` is 32 bytes, reserved for message types and versioning info. All zero for this signature.
 - `chain_id` is a big-endian encoded `uint256`.
-- `payload_hash` is `keccak256(payload)`, where `payload` is the SSZ-encoded `ExecutionPayload`
+- `payload_hash` is `keccak256(payload)`, where `payload` is the remaining bytes of the payload.
 
 The `secp256k1` signature must have `y_parity = 1 or 0`, the `chain_id` is already signed over.
 
-#### Block validation
+### Block validation
 
 An [extended-validator] checks the incoming messages as follows, in order of operation:
 
@@ -290,8 +300,14 @@ An [extended-validator] checks the incoming messages as follows, in order of ope
 - `[REJECT]` if the `payload.timestamp` is more than 5 seconds into the future
 - `[REJECT]` if the `block_hash` in the `payload` is not valid
 - `[REJECT]` if the block is on the V1 topic and has withdrawals
-- `[REJECT]` if the block is on the V2 topic and does not have withdrawals
-- `[REJECT]` if the block is on the V2 topic and has a non-zero amount of withdrawals
+- `[REJECT]` if the block is on the V1 topic and has a withdrawals list
+- `[REJECT]` if the block is on a topic >= V2 and does not have an empty withdrawals list
+- `[REJECT]` if the block is on a topic <= V2 and has a blob gas-used value set
+- `[REJECT]` if the block is on a topic <= V2 and has an excess blob gas value set
+- `[REJECT]` if the block is on a topic >= V3 and has a blob gas-used value that is not zero
+- `[REJECT]` if the block is on a topic >= V3 and has an excess blob gas value that is not zero
+- `[REJECT]` if the block is on a topic <= V2 and the parent beacon block root is not nil
+- `[REJECT]` if the block is on a topic >= V3 and the parent beacon block root is nil
 - `[REJECT]` if more than 5 different blocks have been seen with the same block height
 - `[IGNORE]` if the block has already been seen
 - `[REJECT]` if the signature by the sequencer is not valid
@@ -305,15 +321,15 @@ Note that blocks that a block may still be propagated even if the L1 already con
 The local L1 view of the node may be wrong, and the time and signature validation will prevent spam.
 Hence, calling into the execution engine with a block lookup every propagation step is not worth the added delay.
 
-##### Block processing
+#### Block processing
 
 A node may apply the block to their local engine ahead of L1 availability, if it ensures that:
 
 - The application of the block is reversible, in case of a conflict with delayed L1 information
 - The subsequent forkchoice-update ensures this block is recognized as "unsafe"
-  (see [`engine_forkchoiceUpdatedV2`](./exec-engine.md#engine_forkchoiceupdatedv2))
+  (see [fork choice updated](derivation.md#engine-api-usage))
 
-##### Block topic scoring parameters
+#### Block topic scoring parameters
 
 TODO: GossipSub per-topic scoring to fine-tune incentives for ideal propagation delay and bandwidth usage.
 
@@ -369,7 +385,7 @@ Response format: `<response> = <res><version><payload>`
   - `2` if invalid request
   - `3+` if other error
   - The `>= 128` range is reserved for future use.
-- `<version>` is a little-endian `uint32`, identifying the type of `ExecutionPayload` (fork-specific)
+- `<version>` is a little-endian `uint32`, identifying the response type (fork-specific)
 - `<payload>` is an encoded block, read till stream EOF.
 
 The input of `<response>` should be limited, as well as any generated decompressed output,
@@ -380,8 +396,9 @@ Implementations may opt for a different limit, since this sync method is optiona
 `<version>` list:
 
 - `0`: SSZ-encoded `ExecutionPayload`, with Snappy framing compression,
-  matching the `ExecutionPayload` SSZ definition of the L1 Merge, L2 Bedrock and L2 Regolith versions.
-- Other versions may be listed here with future network upgrades, such as the L1 Shanghai upgrade.
+  matching the `ExecutionPayload` SSZ definition of the L1 Merge, L2 Bedrock and L2 Regolith, L2 Canyon versions.
+- `1`: SSZ-encoded `ExecutionPayloadEnvelope` with Snappy framing compression,
+  matching the `ExecutionPayloadEnvelope` SSZ definition of the L2 Ecotone version.
 
 The request is by block-number, enabling parallel fetching of a chain across many peers.
 

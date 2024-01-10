@@ -8,7 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/metrics"
-	"github.com/ethereum-optimism/optimism/op-service/pprof"
+	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/stretchr/testify/require"
@@ -30,7 +30,7 @@ func validBatcherConfig() batcher.CLIConfig {
 		TxMgrConfig:            txmgr.NewCLIConfig("fake", txmgr.DefaultBatcherFlagValues),
 		LogConfig:              log.DefaultCLIConfig(),
 		MetricsConfig:          metrics.DefaultCLIConfig(),
-		PprofConfig:            pprof.DefaultCLIConfig(),
+		PprofConfig:            oppprof.DefaultCLIConfig(),
 		// The compressor config is not checked in config.Check()
 		RPC: rpc.DefaultCLIConfig(),
 	}

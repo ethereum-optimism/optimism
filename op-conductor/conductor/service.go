@@ -73,13 +73,18 @@ func NewOpConductor(
 	oc.paused.Store(cfg.Paused)
 	oc.stopped.Store(false)
 
+	// do not rely on the default context, use a dedicated context for shutdown.
+	oc.shutdownCtx, oc.shutdownCancel = context.WithCancel(context.Background())
+
 	err := oc.init(ctx)
 	if err != nil {
 		log.Error("failed to initialize OpConductor", "err", err)
 		// ensure we always close the resources if we fail to initialize the conductor.
-		if closeErr := oc.Stop(ctx); closeErr != nil {
-			return nil, multierror.Append(err, closeErr)
+		closeErr := oc.Stop(ctx)
+		if closeErr != nil {
+			err = multierror.Append(err, closeErr)
 		}
+		return nil, err
 	}
 
 	return oc, nil
@@ -252,7 +257,6 @@ func (oc *OpConductor) Start(ctx context.Context) error {
 		return errors.Wrap(err, "failed to start JSON-RPC server")
 	}
 
-	oc.shutdownCtx, oc.shutdownCancel = context.WithCancel(ctx)
 	oc.wg.Add(1)
 	go oc.loop()
 
@@ -274,17 +278,23 @@ func (oc *OpConductor) Stop(ctx context.Context) error {
 	oc.shutdownCancel()
 	oc.wg.Wait()
 
-	if err := oc.rpcServer.Stop(); err != nil {
-		result = multierror.Append(result, errors.Wrap(err, "failed to stop rpc server"))
+	if oc.rpcServer != nil {
+		if err := oc.rpcServer.Stop(); err != nil {
+			result = multierror.Append(result, errors.Wrap(err, "failed to stop rpc server"))
+		}
 	}
 
 	// stop health check
-	if err := oc.hmon.Stop(); err != nil {
-		result = multierror.Append(result, errors.Wrap(err, "failed to stop health monitor"))
+	if oc.hmon != nil {
+		if err := oc.hmon.Stop(); err != nil {
+			result = multierror.Append(result, errors.Wrap(err, "failed to stop health monitor"))
+		}
 	}
 
-	if err := oc.cons.Shutdown(); err != nil {
-		result = multierror.Append(result, errors.Wrap(err, "failed to shutdown consensus"))
+	if oc.cons != nil {
+		if err := oc.cons.Shutdown(); err != nil {
+			result = multierror.Append(result, errors.Wrap(err, "failed to shutdown consensus"))
+		}
 	}
 
 	if result.ErrorOrNil() != nil {
@@ -329,6 +339,13 @@ func (oc *OpConductor) Paused() bool {
 	return oc.paused.Load()
 }
 
+func (oc *OpConductor) HTTPEndpoint() string {
+	if oc.rpcServer == nil {
+		return ""
+	}
+	return fmt.Sprintf("http://%s", oc.rpcServer.Endpoint())
+}
+
 // Leader returns true if OpConductor is the leader.
 func (oc *OpConductor) Leader(_ context.Context) bool {
 	return oc.cons.Leader()
@@ -367,6 +384,11 @@ func (oc *OpConductor) TransferLeaderToServer(_ context.Context, id string, addr
 // CommitUnsafePayload commits a unsafe payload (lastest head) to the cluster FSM.
 func (oc *OpConductor) CommitUnsafePayload(_ context.Context, payload *eth.ExecutionPayload) error {
 	return oc.cons.CommitUnsafePayload(payload)
+}
+
+// SequencerHealthy returns true if sequencer is healthy.
+func (oc *OpConductor) SequencerHealthy(_ context.Context) bool {
+	return oc.healthy.Load()
 }
 
 func (oc *OpConductor) loop() {

@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
-	"strconv"
 	"sync/atomic"
 	"time"
 
@@ -26,7 +24,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/version"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
+	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 )
@@ -55,8 +53,8 @@ type OpNode struct {
 
 	rollupHalt string // when to halt the rollup, disabled if empty
 
-	pprofSrv   *httputil.HTTPServer
-	metricsSrv *httputil.HTTPServer
+	pprofService *oppprof.Service
+	metricsSrv   *httputil.HTTPServer
 
 	beacon *sources.L1BeaconClient
 
@@ -142,7 +140,7 @@ func (n *OpNode) init(ctx context.Context, cfg *Config, snapshotLog log.Logger) 
 	n.metrics.RecordUp()
 	n.initHeartbeat(cfg)
 	if err := n.initPProf(cfg); err != nil {
-		return fmt.Errorf("failed to init pprof server: %w", err)
+		return fmt.Errorf("failed to init profiling: %w", err)
 	}
 	return nil
 }
@@ -393,16 +391,19 @@ func (n *OpNode) initHeartbeat(cfg *Config) {
 }
 
 func (n *OpNode) initPProf(cfg *Config) error {
-	if !cfg.Pprof.Enabled {
-		return nil
+	n.pprofService = oppprof.New(
+		cfg.Pprof.ListenEnabled,
+		cfg.Pprof.ListenAddr,
+		cfg.Pprof.ListenPort,
+		cfg.Pprof.ProfileType,
+		cfg.Pprof.ProfileDir,
+		cfg.Pprof.ProfileFilename,
+	)
+
+	if err := n.pprofService.Start(); err != nil {
+		return fmt.Errorf("failed to start pprof service: %w", err)
 	}
-	log.Debug("starting pprof server", "addr", net.JoinHostPort(cfg.Pprof.ListenAddr, strconv.Itoa(cfg.Pprof.ListenPort)))
-	srv, err := oppprof.StartServer(cfg.Pprof.ListenAddr, cfg.Pprof.ListenPort)
-	if err != nil {
-		return err
-	}
-	n.pprofSrv = srv
-	log.Info("started pprof server", "addr", srv.Addr())
+
 	return nil
 }
 
@@ -621,8 +622,8 @@ func (n *OpNode) Stop(ctx context.Context) error {
 	}
 
 	// Close metrics and pprof only after we are done idling
-	if n.pprofSrv != nil {
-		if err := n.pprofSrv.Stop(ctx); err != nil {
+	if n.pprofService != nil {
+		if err := n.pprofService.Stop(ctx); err != nil {
 			result = multierror.Append(result, fmt.Errorf("failed to close pprof server: %w", err))
 		}
 	}

@@ -2,6 +2,7 @@ package conductor
 
 import (
 	"fmt"
+	"math"
 
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/pkg/errors"
@@ -12,7 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
-	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
+	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 )
 
@@ -58,8 +59,8 @@ func (c *Config) Check() error {
 	if c.ConsensusAddr == "" {
 		return fmt.Errorf("missing consensus address")
 	}
-	if c.ConsensusPort == 0 {
-		return fmt.Errorf("missing consensus port")
+	if c.ConsensusPort < 0 || c.ConsensusPort > math.MaxUint16 {
+		return fmt.Errorf("invalid RPC port")
 	}
 	if c.RaftServerID == "" {
 		return fmt.Errorf("missing raft server ID")

@@ -325,7 +325,7 @@ func (s *Driver) eventLoop() {
 				s.metrics.SetDerivationIdle(true)
 				continue
 			} else if err != nil && errors.Is(err, derive.EngineELSyncing) {
-				s.log.Debug("Derivation process went idle because the engine is syncing", "progress", s.derivation.Origin(), "sync_target", s.derivation.EngineSyncTarget(), "err", err)
+				s.log.Debug("Derivation process went idle because the engine is syncing", "progress", s.derivation.Origin(), "unsafe_head", s.derivation.UnsafeL2Head(), "err", err)
 				stepAttempts = 0
 				s.metrics.SetDerivationIdle(true)
 				continue
@@ -489,7 +489,6 @@ func (s *Driver) syncStatus() *eth.SyncStatus {
 		FinalizedL2:        s.derivation.Finalized(),
 		PendingSafeL2:      s.derivation.PendingSafeL2Head(),
 		UnsafeL2SyncTarget: s.derivation.UnsafeL2SyncTarget(),
-		EngineSyncTarget:   s.derivation.EngineSyncTarget(),
 	}
 }
 
