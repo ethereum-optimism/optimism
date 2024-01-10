@@ -22,19 +22,19 @@ contract L2OutputOracle_constructor_Test is CommonTest {
     function test_constructor_succeeds() external {
         L2OutputOracle oracleImpl = new L2OutputOracle();
 
-        assertEq(oracleImpl.SUBMISSION_INTERVAL(), 120);
-        assertEq(oracleImpl.submissionInterval(), 120);
-        assertEq(oracleImpl.L2_BLOCK_TIME(), 12);
-        assertEq(oracleImpl.l2BlockTime(), 12);
+        assertEq(oracleImpl.SUBMISSION_INTERVAL(), 1);
+        assertEq(oracleImpl.submissionInterval(), 1);
+        assertEq(oracleImpl.L2_BLOCK_TIME(), 1);
+        assertEq(oracleImpl.l2BlockTime(), 1);
         assertEq(oracleImpl.latestBlockNumber(), 0);
         assertEq(oracleImpl.startingBlockNumber(), 0);
-        assertEq(oracleImpl.startingTimestamp(), block.timestamp);
+        assertEq(oracleImpl.startingTimestamp(), 0);
         assertEq(oracleImpl.PROPOSER(), address(0));
         assertEq(oracleImpl.proposer(), address(0));
         assertEq(oracleImpl.CHALLENGER(), address(0));
         assertEq(oracleImpl.challenger(), address(0));
-        assertEq(oracleImpl.finalizationPeriodSeconds(), 12);
-        assertEq(oracleImpl.FINALIZATION_PERIOD_SECONDS(), 12);
+        assertEq(oracleImpl.finalizationPeriodSeconds(), 0);
+        assertEq(oracleImpl.FINALIZATION_PERIOD_SECONDS(), 0);
     }
 }
 
@@ -496,22 +496,15 @@ contract L2OutputOracleUpgradeable_Test is CommonTest {
         // so that initialize can be called again.
         vm.store(address(l2OutputOracle), bytes32(uint256(0)), bytes32(uint256(0)));
 
-        uint256 l2BlockTime = deploy.cfg().l2BlockTime();
-        uint256 startingBlockNumber = deploy.cfg().l2OutputOracleStartingBlockNumber();
-        uint256 startingTimestamp = deploy.cfg().l2OutputOracleStartingTimestamp();
-        address proposer = deploy.cfg().l2OutputOracleProposer();
-        address challenger = deploy.cfg().l2OutputOracleChallenger();
-        uint256 finalizationPeriodSeconds = deploy.cfg().finalizationPeriodSeconds();
-
         vm.expectRevert("L2OutputOracle: submission interval must be greater than 0");
         l2OutputOracle.initialize({
             _submissionInterval: 0,
-            _l2BlockTime: l2BlockTime,
-            _startingBlockNumber: startingBlockNumber,
-            _startingTimestamp: startingTimestamp,
-            _proposer: proposer,
-            _challenger: challenger,
-            _finalizationPeriodSeconds: finalizationPeriodSeconds
+            _l2BlockTime: deploy.cfg().l2BlockTime(),
+            _startingBlockNumber: deploy.cfg().l2OutputOracleStartingBlockNumber(),
+            _startingTimestamp: deploy.cfg().l2OutputOracleStartingTimestamp(),
+            _proposer: deploy.cfg().l2OutputOracleProposer(),
+            _challenger: deploy.cfg().l2OutputOracleChallenger(),
+            _finalizationPeriodSeconds: deploy.cfg().finalizationPeriodSeconds()
         });
     }
 

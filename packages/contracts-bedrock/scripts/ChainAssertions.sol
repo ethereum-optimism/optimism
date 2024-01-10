@@ -142,18 +142,18 @@ library ChainAssertions {
             require(oracle.startingBlockNumber() == _l2OutputOracleStartingBlockNumber);
             require(oracle.startingTimestamp() == _l2OutputOracleStartingTimestamp);
         } else {
-            require(oracle.SUBMISSION_INTERVAL() == 120);
-            require(oracle.submissionInterval() == 120);
-            require(oracle.L2_BLOCK_TIME() == 12);
-            require(oracle.l2BlockTime() == 12);
+            require(oracle.SUBMISSION_INTERVAL() == 1);
+            require(oracle.submissionInterval() == 1);
+            require(oracle.L2_BLOCK_TIME() == 1);
+            require(oracle.l2BlockTime() == 1);
             require(oracle.PROPOSER() == address(0));
             require(oracle.proposer() == address(0));
             require(oracle.CHALLENGER() == address(0));
             require(oracle.challenger() == address(0));
-            require(oracle.FINALIZATION_PERIOD_SECONDS() == 12);
-            require(oracle.finalizationPeriodSeconds() == 12);
+            require(oracle.FINALIZATION_PERIOD_SECONDS() == 0);
+            require(oracle.finalizationPeriodSeconds() == 0);
             require(oracle.startingBlockNumber() == 0);
-            require(oracle.startingTimestamp() == block.timestamp);
+            require(oracle.startingTimestamp() == 0);
         }
     }
 
