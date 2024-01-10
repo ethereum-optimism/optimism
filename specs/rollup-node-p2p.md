@@ -414,11 +414,7 @@ A `res = 0` response should be verified to:
     - The unsafe blocks should be queued for processing, the latest received L2 unsafe blocks should always
       override any previous chain, until the final L2 chain can be reproduced from L1 data.
 
-A `res = 1` response should be verified to have all the above, in addition to:
-
-- A non-nil parent block beacon root
-
-A `res > 1` response code should not be accepted. The result code is helpful for debugging,
+A `res > 0` response code should not be accepted. The result code is helpful for debugging,
 but the client should regard any error like any other unanswered request, as the responding peer cannot be trusted.
 
 ----
