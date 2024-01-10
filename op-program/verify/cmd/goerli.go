@@ -145,7 +145,7 @@ func Run(l1RpcUrl string, l1RpcKind string, l2RpcUrl string, l2OracleAddr common
 	if err != nil {
 		return fmt.Errorf("failed to load rollup config: %w", err)
 	}
-	offlineCfg := &config.Config{
+	offlineCfg := config.Config{
 		Rollup:             rollupCfg,
 		DataDir:            dataDir,
 		L2ChainConfig:      chainconfig.OPGoerliChainConfig,
@@ -161,13 +161,13 @@ func Run(l1RpcUrl string, l1RpcKind string, l2RpcUrl string, l2OracleAddr common
 	onlineCfg.L1RPCKind = sources.RPCProviderKind(l1RpcKind)
 
 	fmt.Println("Running in online mode")
-	err = host.Main(oplog.NewLogger(os.Stderr, logger), onlineCfg)
+	err = host.Main(oplog.NewLogger(os.Stderr, logger), &onlineCfg)
 	if err != nil {
 		return fmt.Errorf("online mode failed: %w", err)
 	}
 
 	fmt.Println("Running in offline mode")
-	err = host.Main(oplog.NewLogger(os.Stderr, logger), offlineCfg)
+	err = host.Main(oplog.NewLogger(os.Stderr, logger), &offlineCfg)
 	if err != nil {
 		return fmt.Errorf("offline mode failed: %w", err)
 	}
