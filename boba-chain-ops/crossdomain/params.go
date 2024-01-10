@@ -20,16 +20,8 @@ var ParamsByChainID = map[int]*Params{
 		// small overcommittment of the OVM_ETH TotalSupply
 		new(big.Int).SetInt64(-94819327096614),
 	},
-	// Goerli L2
-	2888: {
-		new(big.Int),
-	},
-	// Bobabeam
-	1294: {
-		new(big.Int),
-	},
-	// Bobaopera
-	301: {
+	// Ethereum Sepolia L2
+	28882: {
 		new(big.Int),
 	},
 }
