@@ -42,6 +42,8 @@
   - [Batcher](#batcher)
   - [Batcher Transaction](#batcher-transaction)
   - [Channel Timeout](#channel-timeout)
+- [L2 Output Root Proposals](#l2-output-root-proposals)
+  - [Proposer](#proposer)
 - [L2 Chain Derivation](#l2-chain-derivation)
   - [L2 Derivation Inputs](#l2-derivation-inputs)
   - [System Configuration](#system-configuration)
@@ -497,6 +499,21 @@ The purpose of channel timeouts is dual:
 [reset-channel-buffer]: derivation.md#resetting-channel-buffering
 
 > **TODO** specify `CHANNEL_TIMEOUT`
+
+------------------------------------------------------------------------------------------------------------------------
+
+# L2 Output Root Proposals
+
+[l2-output-root-proposals]: glossary.md#l2-output-root-proposals
+
+## Proposer
+
+[proposer]: glossary.md#proposer
+
+The proposer's role is to construct and submit output roots, which are commitments to the L2's state, to the
+L2OutputOracle contract on L1 (the settlement layer). To do this, the proposer periodically queries the rollup node for
+the latest output root derived from the latest finalized L1 block. It then takes the output root and submits it to the
+L2OutputOracle contract on the settlement layer (L1).
 
 ------------------------------------------------------------------------------------------------------------------------
 
