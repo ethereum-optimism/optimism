@@ -587,13 +587,11 @@ func (m *SimpleTxManager) SendDA(ctx context.Context, candidate TxCandidate) (*t
 		ctx, cancel = context.WithTimeout(ctx, m.cfg.TxSendTimeout)
 		defer cancel()
 	}
-	tx, err := retry.Do(ctx, 30, retry.Fixed(2*time.Second), func() (*types.Transaction, error) {
-		tx, err := m.craftTx(ctx, candidate)
-		if err != nil {
-			m.l.Warn("Failed to create a transaction, will retry", "err", err)
-		}
-		return tx, err
-	})
+	tx, err := m.craftTx(ctx, candidate)
+	if err != nil {
+		m.l.Warn("Failed to create a transaction, will retry", "err", err)
+		return nil, err
+	}
 	if err != nil {
 		m.resetNonce()
 		return nil, fmt.Errorf("failed to create the tx: %w", err)
