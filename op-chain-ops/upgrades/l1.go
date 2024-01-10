@@ -213,7 +213,7 @@ func L1ERC721Bridge(batch *safe.Batch, implementations superchain.Implementation
 		}
 	}
 
-	calldata, err := l1ERC721BridgeABI.Pack("initialize", messenger, otherBridge, superchainConfigProxy)
+	calldata, err := l1ERC721BridgeABI.Pack("initialize", messenger, superchainConfigProxy)
 	if err != nil {
 		return err
 	}
