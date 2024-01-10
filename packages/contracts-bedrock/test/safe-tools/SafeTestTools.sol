@@ -2,7 +2,7 @@
 pragma solidity >=0.7.0 <0.9.0;
 
 import "forge-std/Test.sol";
-import "scripts/libraries/LibSort.sol";
+import { LibSort } from "solady/utils/LibSort.sol";
 import { Safe as GnosisSafe, OwnerManager, ModuleManager, GuardManager } from "safe-contracts/Safe.sol";
 import { SafeProxyFactory as GnosisSafeProxyFactory } from "safe-contracts/proxies/SafeProxyFactory.sol";
 import { Enum } from "safe-contracts/common/Enum.sol";

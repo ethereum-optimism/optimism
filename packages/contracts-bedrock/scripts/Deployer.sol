@@ -7,6 +7,9 @@ import { console2 as console } from "forge-std/console2.sol";
 import { Executables } from "scripts/Executables.sol";
 import { Chains } from "scripts/Chains.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
+import { IAddressManager } from "scripts/interfaces/IAddressManager.sol";
+import { LibString } from "solady/utils/LibString.sol";
 
 /// @notice store the new deployment to be saved
 struct Deployment {
@@ -573,12 +576,23 @@ abstract contract Deployer is Script {
     }
 
     /// @dev Returns the value of the internal `_initialized` storage slot for a given contract.
-    function loadInitializedSlot(string memory _contractName, bool _isProxy) public returns (uint8 initialized_) {
-        StorageSlot memory slot = getInitializedSlot(_contractName);
-        if (_isProxy) {
-            _contractName = string.concat(_contractName, "Proxy");
+    function loadInitializedSlot(string memory _contractName) public returns (uint8 initialized_) {
+        address contractAddress;
+        // Check if the contract name ends with `Proxy` and, if so, get the implementation address
+        if (LibString.endsWith(_contractName, "Proxy")) {
+            contractAddress = EIP1967Helper.getImplementation(getAddress(_contractName));
+            _contractName = LibString.slice(_contractName, 0, bytes(_contractName).length - 5);
+            // If the EIP1967 implementation address is 0, we try to get the implementation address from legacy
+            // AddressManager, which would work if the proxy is ResolvedDelegateProxy like L1CrossDomainMessengerProxy.
+            if (contractAddress == address(0)) {
+                contractAddress =
+                    IAddressManager(mustGetAddress("AddressManager")).getAddress(string.concat("OVM_", _contractName));
+            }
+        } else {
+            contractAddress = mustGetAddress(_contractName);
         }
-        bytes32 slotVal = vm.load(mustGetAddress(_contractName), bytes32(vm.parseUint(slot.slot)));
+        StorageSlot memory slot = getInitializedSlot(_contractName);
+        bytes32 slotVal = vm.load(contractAddress, bytes32(vm.parseUint(slot.slot)));
         initialized_ = uint8((uint256(slotVal) >> (slot.offset * 8)) & 0xFF);
     }
 
