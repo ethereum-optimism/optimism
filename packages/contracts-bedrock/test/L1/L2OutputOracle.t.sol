@@ -431,15 +431,22 @@ contract L2OutputOracleUpgradeable_Test is CommonTest {
         // so that initialize can be called again.
         vm.store(address(l2OutputOracle), bytes32(uint256(0)), bytes32(uint256(0)));
 
+        uint256 l2BlockTime = deploy.cfg().l2BlockTime();
+        uint256 startingBlockNumber = deploy.cfg().l2OutputOracleStartingBlockNumber();
+        uint256 startingTimestamp = deploy.cfg().l2OutputOracleStartingTimestamp();
+        address proposer = deploy.cfg().l2OutputOracleProposer();
+        address challenger = deploy.cfg().l2OutputOracleChallenger();
+        uint256 finalizationPeriodSeconds = deploy.cfg().finalizationPeriodSeconds();
+
         vm.expectRevert("L2OutputOracle: submission interval must be greater than 0");
         l2OutputOracle.initialize({
             _submissionInterval: 0,
-            _l2BlockTime: deploy.cfg().l2BlockTime(),
-            _startingBlockNumber: deploy.cfg().l2OutputOracleStartingBlockNumber(),
-            _startingTimestamp: deploy.cfg().l2OutputOracleStartingTimestamp(),
-            _proposer: deploy.cfg().l2OutputOracleProposer(),
-            _challenger: deploy.cfg().l2OutputOracleChallenger(),
-            _finalizationPeriodSeconds: deploy.cfg().finalizationPeriodSeconds()
+            _l2BlockTime: l2BlockTime,
+            _startingBlockNumber: startingBlockNumber,
+            _startingTimestamp: startingTimestamp,
+            _proposer: proposer,
+            _challenger: challenger,
+            _finalizationPeriodSeconds: finalizationPeriodSeconds
         });
     }
 
