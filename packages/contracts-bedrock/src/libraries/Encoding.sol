@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import { Types } from "./Types.sol";
-import { Hashing } from "./Hashing.sol";
-import { RLPWriter } from "./rlp/RLPWriter.sol";
+import { Types } from "src/libraries/Types.sol";
+import { Hashing } from "src/libraries/Hashing.sol";
+import { RLPWriter } from "src/libraries/rlp/RLPWriter.sol";
 
 /// @title Encoding
 /// @notice Encoding handles Optimism's various different encoding schemes.
