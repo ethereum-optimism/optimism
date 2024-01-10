@@ -90,6 +90,55 @@ func BuildL1DeveloperGenesis(config *DeployConfig, dump *gstate.Dump, l1Deployme
 	return memDB.Genesis(), nil
 }
 
+func BuildL1DeveloperGenesisForL2s(config *DeployConfig, dump *gstate.Dump, l1Deployments []*L1Deployments, postProcess bool) (*core.Genesis, error) {
+	log.Info("Building developer L1 genesis block")
+	genesis, err := NewL1Genesis(config)
+	if err != nil {
+		return nil, fmt.Errorf("cannot create L1 developer genesis: %w", err)
+	}
+
+	memDB := state.NewMemoryStateDB(genesis)
+	FundDevAccounts(memDB)
+	SetPrecompileBalances(memDB)
+
+	if dump != nil {
+		for address, account := range dump.Accounts {
+			name := "<unknown>"
+			if l1Deployments != nil {
+				if n := l1Deployments[0].GetName(address); n != "" {
+					name = n
+				}
+				if n := l1Deployments[1].GetName(address); n != "" {
+					name = n
+				}
+			}
+			log.Info("Setting account", "name", name, "address", address.Hex())
+			memDB.CreateAccount(address)
+			memDB.SetNonce(address, account.Nonce)
+
+			balance, ok := new(big.Int).SetString(account.Balance, 10)
+			if !ok {
+				return nil, fmt.Errorf("failed to parse balance for %s", address)
+			}
+			memDB.AddBalance(address, balance)
+			memDB.SetCode(address, account.Code)
+			for key, value := range account.Storage {
+				log.Info("Setting storage", "name", name, "key", key.Hex(), "value", value)
+				memDB.SetState(address, key, common.HexToHash(value))
+			}
+		}
+
+		// This should only be used if we are expecting Optimism specific state to be set
+		if postProcess {
+			if err := PostProcessL1DeveloperGenesisForL2s(memDB, l1Deployments); err != nil {
+				return nil, fmt.Errorf("failed to post process L1 developer genesis: %w", err)
+			}
+		}
+	}
+
+	return memDB.Genesis(), nil
+}
+
 // PostProcessL1DeveloperGenesis will apply post processing to the L1 genesis
 // state. This is required to handle edge cases in the genesis generation.
 // `block.number` is used during deployment and without specifically setting
@@ -121,6 +170,42 @@ func PostProcessL1DeveloperGenesis(stateDB *state.MemoryStateDB, deployments *L1
 
 	stateDB.SetState(deployments.OptimismPortalProxy, slot, common.Hash{})
 	log.Info("Post process update", "address", deployments.OptimismPortalProxy, "slot", slot.Hex(), "value", common.Hash{}.Hex())
+
+	return nil
+}
+
+func PostProcessL1DeveloperGenesisForL2s(stateDB *state.MemoryStateDB, deployments []*L1Deployments) error {
+	log.Info("Post processing state")
+
+	if stateDB == nil {
+		return errors.New("cannot post process nil stateDB")
+	}
+	if deployments == nil {
+		return errors.New("cannot post process dump with nil deployments")
+	}
+
+	if !stateDB.Exist(deployments[0].OptimismPortalProxy) {
+		return fmt.Errorf("portal proxy doesn't exist at %s", deployments[0].OptimismPortalProxy)
+	}
+	if !stateDB.Exist(deployments[1].OptimismPortalProxy) {
+		return fmt.Errorf("portal proxy doesn't exist at %s", deployments[1].OptimismPortalProxy)
+	}
+
+	layout, err := bindings.GetStorageLayout("OptimismPortal")
+	if err != nil {
+		return errors.New("failed to get storage layout for OptimismPortal")
+	}
+
+	entry, err := layout.GetStorageLayoutEntry("params")
+	if err != nil {
+		return errors.New("failed to get storage layout entry for OptimismPortal.params")
+	}
+	slot := common.BigToHash(big.NewInt(int64(entry.Slot)))
+
+	stateDB.SetState(deployments[0].OptimismPortalProxy, slot, common.Hash{})
+	log.Info("Post process update", "address", deployments[0].OptimismPortalProxy, "slot", slot.Hex(), "value", common.Hash{}.Hex())
+	stateDB.SetState(deployments[1].OptimismPortalProxy, slot, common.Hash{})
+	log.Info("Post process update", "address", deployments[1].OptimismPortalProxy, "slot", slot.Hex(), "value", common.Hash{}.Hex())
 
 	return nil
 }
