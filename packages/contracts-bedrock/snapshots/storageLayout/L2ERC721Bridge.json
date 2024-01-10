@@ -25,7 +25,7 @@
     "label": "otherBridge",
     "offset": 0,
     "slot": "1",
-    "type": "address"
+    "type": "contract StandardBridge"
   },
   {
     "bytes": "1504",
