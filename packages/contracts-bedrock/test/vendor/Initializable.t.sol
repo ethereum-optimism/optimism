@@ -228,12 +228,20 @@ contract Initializer_Test is Bridge_Initializer {
                 initializedSlotVal: deploy.loadInitializedSlot("L2ERC721Bridge")
             })
         );
-        // OptimismMintableERC20Factory
+        // OptimismMintableERC20FactoryImpl
+        contracts.push(
+            InitializeableContract({
+                target: deploy.mustGetAddress("OptimismMintableERC20Factory"),
+                initCalldata: abi.encodeCall(l1OptimismMintableERC20Factory.initialize, (address(l1StandardBridge))),
+                initializedSlotVal: deploy.loadInitializedSlot("OptimismMintableERC20Factory")
+            })
+        );
+        // OptimismMintableERC20FactoryProxy
         contracts.push(
             InitializeableContract({
                 target: address(l1OptimismMintableERC20Factory),
                 initCalldata: abi.encodeCall(l1OptimismMintableERC20Factory.initialize, (address(l1StandardBridge))),
-                initializedSlotVal: deploy.loadInitializedSlot("OptimismMintableERC20Factory", false)
+                initializedSlotVal: deploy.loadInitializedSlot("OptimismMintableERC20FactoryProxy")
             })
         );
     }
