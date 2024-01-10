@@ -266,7 +266,7 @@ The `data` field of the L1 attributes deposited transaction is an [ABI][ABI] enc
 
 On the Ecotone activation block, the L1 Attributes Transaction includes a call to `setL1BlockValues()`
 because the L1 Attributes transaction precedes the [Ecotone Upgrade Transactions][ecotone-upgrade-txs],
-meaning that `setL1BlockValuesEcotone` is guaranteed to exist yet. Every subsequent L1 Attributes transaction
+meaning that `setL1BlockValuesEcotone` is not guaranteed to exist yet. Every subsequent L1 Attributes transaction
 should include a call to the `setL1BlockValuesEcotone()` function. The input args are no longer ABI encoded
 function parameters, but are instead packed into 5 32-byte aligned segments (starting after the function selector).
 Each unsigned integer argument is encoded as big-endian using a number of bytes corresponding to the underlying
