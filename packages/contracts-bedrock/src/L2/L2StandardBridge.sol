@@ -56,9 +56,8 @@ contract L2StandardBridge is StandardBridge, ISemver {
     string public constant version = "1.8.0";
 
     /// @notice Constructs the L2StandardBridge contract.
-    /// @param _otherBridge Address of the L1StandardBridge.
-    constructor(address payable _otherBridge) StandardBridge() {
-        initialize({ _otherBridge: StandardBridge(_otherBridge) });
+    constructor() StandardBridge() {
+        initialize({ _otherBridge: StandardBridge(payable(address(0))) });
     }
 
     /// @notice Initializer.

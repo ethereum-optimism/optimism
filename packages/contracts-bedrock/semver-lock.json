@@ -68,8 +68,8 @@
     "sourceCodeHash": "0x2b9b106a924ac21d6e8f57219e7f7c72f6581ea1cfd5cff77d79a7f144f0ebd2"
   },
   "src/L2/L2StandardBridge.sol": {
-    "initCodeHash": "0x2db3262819f71073a7aefba781a43d3b252042ca9955ea5a705d05ac2eb8780d",
-    "sourceCodeHash": "0x19cd05bfa708ebda599ae62c03e266fdc0ea7758ebb1f6f3e7efdc2c18fa6322"
+    "initCodeHash": "0xe16aed4fc021c768d0ebcb8bb83db7cfe6b062663d034df9f351cdc6af2e5077",
+    "sourceCodeHash": "0xc86e370a8cd1277b203d18df154a50aed16b27156b755e6bd6672d068d44b9f2"
   },
   "src/L2/L2ToL1MessagePasser.sol": {
     "initCodeHash": "0x08bbede75cd6dfd076903b8f04d24f82fa7881576c135825098778632e37eebc",
