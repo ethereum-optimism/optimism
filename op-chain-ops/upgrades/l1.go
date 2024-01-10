@@ -276,9 +276,10 @@ func L1StandardBridge(batch *safe.Batch, implementations superchain.Implementati
 		if messenger != config.L1CrossDomainMessengerProxy {
 			return fmt.Errorf("upgrading L1StandardBridge: Messenger address doesn't match config")
 		}
-		if otherBridge != predeploys.L2StandardBridgeAddr {
-			return fmt.Errorf("upgrading L1StandardBridge: OtherBridge address doesn't match config")
-		}
+	}
+
+	if otherBridge != predeploys.L2StandardBridgeAddr {
+		return fmt.Errorf("upgrading L1StandardBridge: OtherBridge address doesn't match config")
 	}
 
 	calldata, err := l1StandardBridgeABI.Pack("initialize", messenger, superchainConfigProxy)
