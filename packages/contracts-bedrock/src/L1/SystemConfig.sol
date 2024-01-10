@@ -184,7 +184,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         Storage.setAddress(OPTIMISM_PORTAL_SLOT, _addresses.optimismPortal);
         Storage.setAddress(OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT, _addresses.optimismMintableERC20Factory);
 
-        _setStartBlock(_startBlock);
+        _setStartBlock();
 
         _setResourceConfig(_config);
         require(_gasLimit >= minimumGasLimit(), "SystemConfig: gas limit too low");
@@ -249,18 +249,12 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     ///         can have their start block set by a user provided override.
     ///         A start block of 0 indicates that there is no override and the
     ///         start block will be set by `block.number`.
-    /// @dev    This logic is used to patch legacy with new storage values. In the
-    ///         next version, it should remove the override and set the start block
-    ///         to `block.number` if the value in storage is 0. This will allow it
-    ///         to be reinitialized again and also work for fresh deployments.
-    /// @param  _startBlock The start block override to set in storage.
-    function _setStartBlock(uint256 _startBlock) internal {
-        require(startBlock == 0, "SystemConfig: cannot override an already set start block");
-        if (_startBlock != 0) {
-            // There is an override, it cannot already be set.
-            startBlock = _startBlock;
-        } else {
-            // There is no override and it is not set in storage. Set it to the block number.
+    /// @dev    This logic is used to patch legacy deployments with new storage values.
+    ///         Use the override if it is provided as a non zero value and the value
+    ///         has not already been set in storage. Use `block.number` if the value
+    ///         has already been set in storage
+    function _setStartBlock() internal {
+        if (startBlock == 0) {
             startBlock = block.number;
         }
     }
