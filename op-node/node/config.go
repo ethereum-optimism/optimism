@@ -64,6 +64,16 @@ type Config struct {
 
 	// [OPTIONAL] The reth DB path to read receipts from
 	RethDBPath string
+
+	// Conductor is used to determine this node is the leader sequencer.
+	ConductorEnabled    bool          `json:"conductor_enabled"`
+	ConductorAddr       string        `json:"conductor_addr"`
+	ConductorPort       int           `json:"conductor_port"`
+	ConductorRpcTimeout time.Duration `json:"conductor_rpc_timeout"`
+}
+
+func (cfg *Config) ConductorEndpoint() string {
+	return fmt.Sprintf("http://%s:%d", cfg.ConductorAddr, cfg.ConductorPort)
 }
 
 type RPCConfig struct {
@@ -149,6 +159,17 @@ func (cfg *Config) Check() error {
 	}
 	if !(cfg.RollupHalt == "" || cfg.RollupHalt == "major" || cfg.RollupHalt == "minor" || cfg.RollupHalt == "patch") {
 		return fmt.Errorf("invalid rollup halting option: %q", cfg.RollupHalt)
+	}
+	if cfg.ConductorEnabled {
+		if state, _ := cfg.ConfigPersistence.SequencerState(); state != StateUnset {
+			return fmt.Errorf("config persistence must be disabled when conductor is enabled")
+		}
+		if !cfg.Driver.SequencerEnabled {
+			return fmt.Errorf("sequencer must be enabled when conductor is enabled")
+		}
+		if !cfg.Driver.SequencerStopped {
+			return fmt.Errorf("sequencer must be stopped when conductor is enabled")
+		}
 	}
 	return nil
 }

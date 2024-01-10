@@ -58,6 +58,8 @@ type Driver struct {
 	// Rollup config: rollup chain configuration
 	config *rollup.Config
 
+	sequencerConductor SequencerConductor
+
 	// Driver config: verifier and sequencer settings
 	driverConfig *Config
 
@@ -278,11 +280,16 @@ func (s *Driver) eventLoop() {
 				return
 			}
 			if s.network != nil && payload != nil {
-				// Publishing of unsafe data via p2p is optional.
-				// Errors are not severe enough to change/halt sequencing but should be logged and metered.
-				if err := s.network.PublishL2Payload(s.driverCtx, payload); err != nil {
-					s.log.Warn("failed to publish newly created block", "id", payload.ID(), "err", err)
-					s.metrics.RecordPublishingError()
+				// CommitUnsafePayload will fail if this node is not the leader sequencer.
+				if err := s.sequencerConductor.CommitUnsafePayload(s.driverCtx, payload); err != nil {
+					s.log.Error("failed to commit unsafe payload to conductor log", "id", payload.ID(), "err", err)
+				} else {
+					// Publishing of unsafe data via p2p is optional.
+					// Errors are not severe enough to change/halt sequencing but should be logged and metered.
+					if err := s.network.PublishL2Payload(s.driverCtx, payload); err != nil {
+						s.log.Warn("failed to publish newly created block", "id", payload.ID(), "err", err)
+						s.metrics.RecordPublishingError()
+					}
 				}
 			}
 			planSequencerAction() // schedule the next sequencer action to keep the sequencing looping
@@ -421,6 +428,9 @@ func (s *Driver) ResetDerivationPipeline(ctx context.Context) error {
 func (s *Driver) StartSequencer(ctx context.Context, blockHash common.Hash) error {
 	if !s.driverConfig.SequencerEnabled {
 		return errors.New("sequencer is not enabled")
+	}
+	if err := s.sequencerConductor.Initialize(); err != nil {
+		return fmt.Errorf("failed to initialize sequencer conductor: %w", err)
 	}
 	h := hashAndErrorChannel{
 		hash: blockHash,
