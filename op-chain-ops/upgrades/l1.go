@@ -281,7 +281,7 @@ func L1StandardBridge(batch *safe.Batch, implementations superchain.Implementati
 		}
 	}
 
-	calldata, err := l1StandardBridgeABI.Pack("initialize", messenger, otherBridge, superchainConfigProxy)
+	calldata, err := l1StandardBridgeABI.Pack("initialize", messenger, superchainConfigProxy)
 	if err != nil {
 		return err
 	}
