@@ -16,14 +16,14 @@ contract L2DomiconNode is DomiconNode, ISemver {
 
     event BroadcastNode(address indexed add,string rpc,string name,uint256 stakedTokens);
 
-    /// @notice Constructs the L1StandardBridge contract.
-    constructor() DomiconNode(DomiconNode(payable(Predeploys.L2_DOMICON_COMMITMENT))) {
-        initialize({ _messenger: CrossDomainMessenger(address(0)) });
+    /// @notice Constructs the L1DomiconNode contract.
+    constructor(DomiconNode _otherNode) DomiconNode(_otherNode) {
+        initialize();
     }
 
     /// @notice Initializer
-    function initialize(CrossDomainMessenger _messenger) public reinitializer(Constants.INITIALIZER) {
-        __DomiconNode_init({ _messenger: _messenger });
+    function initialize() public reinitializer(Constants.INITIALIZER) {
+        __DomiconNode_init({ _messenger: CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER) });
     }
 
     function finalizeBroadcastNode(

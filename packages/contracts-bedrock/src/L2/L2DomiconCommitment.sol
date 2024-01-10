@@ -37,14 +37,14 @@ contract L2DomiconCommitment is DomiconCommitment, ISemver {
 
     mapping(address => mapping(uint256 => DAInfo)) public submits;
 
-    /// @notice Constructs the L1StandardBridge contract.
-    constructor() DomiconCommitment(DomiconCommitment(payable(Predeploys.L2_DOMICON_COMMITMENT))) {
-        initialize({ _messenger: CrossDomainMessenger(address(0)) });
+    /// @notice Constructs the L1DomiconCommitment contract.
+    constructor(DomiconCommitment _otherCommitment) DomiconCommitment(_otherCommitment) {
+        initialize();
     }
 
     /// @notice Initializer
-    function initialize(CrossDomainMessenger _messenger) public reinitializer(Constants.INITIALIZER) {
-        __DomiconCommitment_init({ _messenger: _messenger });
+    function initialize() public reinitializer(Constants.INITIALIZER) {
+        __DomiconCommitment_init({ _messenger: CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER) });
     }
 
     function SubmitCommitment(uint256 _index,uint256 _length,address _user,bytes calldata _sign,bytes calldata _commitment) external onlyEOA {

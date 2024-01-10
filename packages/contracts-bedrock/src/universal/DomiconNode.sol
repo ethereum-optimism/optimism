@@ -33,8 +33,8 @@ abstract contract DomiconNode is Initializable{
         uint256 stakedTokens;
     }
 
-    mapping(address => NodeInfo)  broadcastingNodes;
-    mapping(address => NodeInfo)  storageNodes;
+    mapping(address => NodeInfo) public broadcastingNodes;
+    mapping(address => NodeInfo)  public storageNodes;
 
     /// @notice Messenger contract on this domain. This public getter is deprecated
     ///         and will be removed in the future. Please use `messenger` instead.

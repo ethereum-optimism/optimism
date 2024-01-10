@@ -4,6 +4,8 @@ pragma solidity 0.8.15;
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { L2CrossDomainMessenger } from "src/L2/L2CrossDomainMessenger.sol";
 import { L2StandardBridge } from "src/L2/L2StandardBridge.sol";
+import { L2DomiconCommitment } from "src/L2/L2DomiconCommitment.sol";
+import { L2DomiconNode } from "src/L2/L2DomiconNode.sol";
 import { L2ToL1MessagePasser } from "src/L2/L2ToL1MessagePasser.sol";
 import { L2ERC721Bridge } from "src/L2/L2ERC721Bridge.sol";
 import { BaseFeeVault } from "src/L2/BaseFeeVault.sol";
@@ -30,6 +32,8 @@ import { L1DomiconNode } from "src/L1/L1DomiconNode.sol";
 import { AddressManager } from "src/legacy/AddressManager.sol";
 import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
+import "../../src/L2/L2DomiconCommitment.sol";
+import "../../src/L2/L2DomiconNode.sol";
 
 /// @title Setup
 /// @dev This contact is responsible for setting up the contracts in state. It currently
@@ -52,6 +56,8 @@ contract Setup is Deploy {
     L2CrossDomainMessenger l2CrossDomainMessenger =
         L2CrossDomainMessenger(payable(Predeploys.L2_CROSS_DOMAIN_MESSENGER));
     L2StandardBridge l2StandardBridge = L2StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE));
+    L2DomiconCommitment l2DomiconCommitment = L2DomiconCommitment(payable(Predeploys.L2_DOMICON_COMMITMENT));
+    L2DomiconNode l2DomiconNode = L2DomiconNode(payable(Predeploys.L2_DOMICON_NODE));
     L2ToL1MessagePasser l2ToL1MessagePasser = L2ToL1MessagePasser(payable(Predeploys.L2_TO_L1_MESSAGE_PASSER));
     OptimismMintableERC20Factory l2OptimismMintableERC20Factory =
         OptimismMintableERC20Factory(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY);
@@ -83,6 +89,8 @@ contract Setup is Deploy {
         l2OutputOracle = L2OutputOracle(mustGetAddress("L2OutputOracleProxy"));
         systemConfig = SystemConfig(mustGetAddress("SystemConfigProxy"));
         l1StandardBridge = L1StandardBridge(mustGetAddress("L1StandardBridgeProxy"));
+        l1DomiconCommitment = L1DomiconCommitment(mustGetAddress("L1DomiconCommitmentProxy"));
+        l1DomiconNode = L1DomiconNode(mustGetAddress("L1DomiconNodeProxy"));
         l1CrossDomainMessenger = L1CrossDomainMessenger(mustGetAddress("L1CrossDomainMessengerProxy"));
         addressManager = AddressManager(mustGetAddress("AddressManager"));
         l1ERC721Bridge = L1ERC721Bridge(mustGetAddress("L1ERC721BridgeProxy"));
@@ -97,6 +105,8 @@ contract Setup is Deploy {
         vm.label(address(systemConfig), "SystemConfig");
         vm.label(mustGetAddress("SystemConfigProxy"), "SystemConfigProxy");
         vm.label(address(l1StandardBridge), "L1StandardBridge");
+        vm.label(address(l1DomiconCommitment), "L1DomiconCommitment");
+        vm.label(address(l1DomiconNode), "L1DomiconNode");
         vm.label(mustGetAddress("L1StandardBridgeProxy"), "L1StandardBridgeProxy");
         vm.label(address(l1CrossDomainMessenger), "L1CrossDomainMessenger");
         vm.label(mustGetAddress("L1CrossDomainMessengerProxy"), "L1CrossDomainMessengerProxy");
@@ -127,6 +137,17 @@ contract Setup is Deploy {
 
         vm.etch(address(l2OptimismMintableERC20Factory), address(new OptimismMintableERC20Factory()).code);
         l2OptimismMintableERC20Factory.initialize(address(l2StandardBridge));
+
+        vm.etch(
+            address(l2DomiconCommitment),address(new L2DomiconCommitment(DomiconCommitment(l1DomiconCommitment))).code
+        );
+        
+        l2DomiconCommitment.initialize();
+
+        vm.etch(
+            address(l2DomiconNode),address(new L2DomiconNode(DomiconNode(l1DomiconNode))).code
+        );
+        l2DomiconNode.initialize();
 
         vm.etch(address(legacyERC20ETH), address(new LegacyERC20ETH()).code);
 
