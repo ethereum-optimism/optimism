@@ -80,13 +80,6 @@ contract L2ERC721Bridge_Test is Bridge_Initializer {
         assertEq(address(l2ERC721Bridge.otherBridge()), address(l1ERC721Bridge));
     }
 
-    /// @dev Tests that the implementation contract cannot be initialized twice.
-    function test_initializeImpl_alreadyInitialized_reverts() external {
-        L2ERC721Bridge impl = L2ERC721Bridge(deploy.mustGetAddress("L2ERC721Bridge"));
-        vm.expectRevert("Initializable: contract is already initialized");
-        impl.initialize(payable(address(l1ERC721Bridge)));
-    }
-
     /// @dev Ensures that the L2ERC721Bridge is always not paused. The pausability
     ///      happens on L1 and not L2.
     function test_paused_succeeds() external {
