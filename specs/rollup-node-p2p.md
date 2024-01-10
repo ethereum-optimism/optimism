@@ -385,7 +385,7 @@ Response format: `<response> = <res><version><payload>`
   - `2` if invalid request
   - `3+` if other error
   - The `>= 128` range is reserved for future use.
-- `<version>` is a little-endian `uint32`, identifying the type of `ExecutionPayload` (fork-specific)
+- `<version>` is a little-endian `uint32`, identifying the response type (fork-specific)
 - `<payload>` is an encoded block, read till stream EOF.
 
 The input of `<response>` should be limited, as well as any generated decompressed output,
@@ -396,8 +396,9 @@ Implementations may opt for a different limit, since this sync method is optiona
 `<version>` list:
 
 - `0`: SSZ-encoded `ExecutionPayload`, with Snappy framing compression,
-  matching the `ExecutionPayload` SSZ definition of the L1 Merge, L2 Bedrock and L2 Regolith versions.
-- Other versions may be listed here with future network upgrades, such as the L1 Shanghai upgrade.
+  matching the `ExecutionPayload` SSZ definition of the L1 Merge, L2 Bedrock and L2 Regolith, L2 Canyon versions.
+- `1`: SSZ-encoded `ExecutionPayloadEnvelope` with Snappy framing compression,
+  matching the `ExecutionPayloadEnvelope` SSZ definition of the L2 Ecotone version.
 
 The request is by block-number, enabling parallel fetching of a chain across many peers.
 
@@ -413,7 +414,11 @@ A `res = 0` response should be verified to:
     - The unsafe blocks should be queued for processing, the latest received L2 unsafe blocks should always
       override any previous chain, until the final L2 chain can be reproduced from L1 data.
 
-A `res > 0` response code should not be accepted. The result code is helpful for debugging,
+A `res = 1` response should be verified to have all the above, in addition to:
+
+- A non-nil parent block beacon root
+
+A `res > 1` response code should not be accepted. The result code is helpful for debugging,
 but the client should regard any error like any other unanswered request, as the responding peer cannot be trusted.
 
 ----
