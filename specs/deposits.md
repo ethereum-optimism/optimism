@@ -31,6 +31,8 @@ with the authorization and validation conditions on L2.
 - [Deposit Receipt](#deposit-receipt)
 - [L1 Attributes Deposited Transaction](#l1-attributes-deposited-transaction)
   - [L1 Attributes Deposited Transaction Calldata](#l1-attributes-deposited-transaction-calldata)
+    - [Bedrock, Canyon, Delta](#bedrock-canyon-delta)
+    - [Ecotone](#ecotone)
 - [Special Accounts on L2](#special-accounts-on-l2)
   - [L1 Attributes Depositor Account](#l1-attributes-depositor-account)
   - [L1 Attributes Predeployed Contract](#l1-attributes-predeployed-contract)
@@ -366,8 +368,11 @@ The version is incremented to `1.2.0` and several new storage slots are used for
 - `blobBasefeeScalar` (`uint256`): The scalar value applied to the L1 blob base fee portion of the L1 cost.
 - `basefeeScalar` (`uint256`): The scalar value applied to the L1 base fee portion of the L1 cost.
 
-Additionally, the `setL1BlockValues` function is deprecated and MUST never be called after the Ecotone hardfork
-activation. The `setL1BlockValuesEcotone` MUST be called after the Ecotone hardfork activation.
+Additionally, the `setL1BlockValues` function is deprecated and MUST never be called when the L2 block number
+is greater than the Ecotone activation block number. `setL1BlockValues` MUST be called on the Ecotone hardfork
+activation block. The `setL1BlockValuesEcotone` MUST be called when the L2 block number is greater than the
+Ecotone hardfork activation block.
+
 `setL1BlockValuesEcotone` uses a tightly packed encoding for its parameters, which is described in
 [L1 Attributes Deposited Transaction Calldata](#l1-attributes-deposited-transaction-calldata).
 
