@@ -99,41 +99,6 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
         assertEq(address(systemConfig.optimismPortal()), address(optimismPortal));
         assertEq(address(systemConfig.optimismMintableERC20Factory()), address(optimismMintableERC20Factory));
     }
-
-    /// @dev Ensures that the start block override can be used to set the start block.
-    function test_initialize_startBlockOverride_succeeds() external {
-        uint256 startBlock = 100;
-
-        // Wipe out the initialized slot so the proxy can be initialized again
-        vm.store(address(systemConfig), bytes32(0), bytes32(0));
-
-        assertEq(systemConfig.startBlock(), block.number);
-        // the startBlock slot is 106, wipe it out
-        vm.store(address(systemConfig), bytes32(uint256(106)), bytes32(0));
-        assertEq(systemConfig.startBlock(), 0);
-
-        vm.prank(systemConfig.owner());
-        systemConfig.initialize({
-            _owner: alice,
-            _overhead: overhead,
-            _scalar: scalar,
-            _batcherHash: batcherHash,
-            _gasLimit: gasLimit,
-            _unsafeBlockSigner: unsafeBlockSigner,
-            _config: Constants.DEFAULT_RESOURCE_CONFIG(),
-            _startBlock: startBlock,
-            _batchInbox: batchInbox,
-            _addresses: SystemConfig.Addresses({
-                l1CrossDomainMessenger: address(l1CrossDomainMessenger),
-                l1ERC721Bridge: address(l1ERC721Bridge),
-                l1StandardBridge: address(l1StandardBridge),
-                l2OutputOracle: address(l2OutputOracle),
-                optimismPortal: address(optimismPortal),
-                optimismMintableERC20Factory: address(optimismMintableERC20Factory)
-            })
-        });
-        assertEq(systemConfig.startBlock(), startBlock);
-    }
 }
 
 contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
@@ -156,7 +121,6 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
             _gasLimit: minimumGasLimit - 1,
             _unsafeBlockSigner: address(1),
             _config: Constants.DEFAULT_RESOURCE_CONFIG(),
-            _startBlock: 0,
             _batchInbox: address(0),
             _addresses: SystemConfig.Addresses({
                 l1CrossDomainMessenger: address(0),
@@ -169,17 +133,15 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
         });
     }
 
-    /// @dev Tests that initialization fails when the start block override is used
-    ///      when the start block has already been set.
-    function test_initialize_startBlock_reverts() external {
+    /// @dev Tests that startBlock is updated correctly when it's zero.
+    function test_startBlock_update_succeeds() external {
         // wipe out initialized slot so we can initialize again
         vm.store(address(systemConfig), bytes32(0), bytes32(0));
-        // the startBlock slot is 106, set it to something non zero
-        vm.store(address(systemConfig), bytes32(uint256(106)), bytes32(uint256(block.number)));
+        // the startBlock slot is 106, set it to zero
+        vm.store(address(systemConfig), bytes32(uint256(106)), bytes32(uint256(0)));
 
-        // Initialize with a non zero start block, should see a revert
+        // Initialize and check that after call it updates to the current block number
         vm.prank(systemConfig.owner());
-        vm.expectRevert("SystemConfig: cannot override an already set start block");
         systemConfig.initialize({
             _owner: alice,
             _overhead: overhead,
@@ -188,7 +150,6 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
             _gasLimit: gasLimit,
             _unsafeBlockSigner: unsafeBlockSigner,
             _config: Constants.DEFAULT_RESOURCE_CONFIG(),
-            _startBlock: 1,
             _batchInbox: batchInbox,
             _addresses: SystemConfig.Addresses({
                 l1CrossDomainMessenger: address(l1CrossDomainMessenger),
@@ -199,6 +160,39 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
                 optimismMintableERC20Factory: address(optimismMintableERC20Factory)
             })
         });
+        assertEq(vm.load(address(systemConfig), bytes32(uint256(106))), bytes32(block.number));
+    }
+
+    /// @dev Tests that startBlock is not updated when it's not zero.
+    function test_startBlock_update_fails() external {
+        // wipe out initialized slot so we can initialize again
+        vm.store(address(systemConfig), bytes32(0), bytes32(0));
+        // the startBlock slot is 106, record the value
+        bytes32 startBlock = vm.load(address(systemConfig), bytes32(uint256(106)));
+
+        vm.store(address(systemConfig), bytes32(uint256(106)), bytes32(uint256(0)));
+
+        // Initialize and check that after call the value doesn't update
+        vm.prank(systemConfig.owner());
+        systemConfig.initialize({
+            _owner: alice,
+            _overhead: overhead,
+            _scalar: scalar,
+            _batcherHash: batcherHash,
+            _gasLimit: gasLimit,
+            _unsafeBlockSigner: unsafeBlockSigner,
+            _config: Constants.DEFAULT_RESOURCE_CONFIG(),
+            _batchInbox: batchInbox,
+            _addresses: SystemConfig.Addresses({
+                l1CrossDomainMessenger: address(l1CrossDomainMessenger),
+                l1ERC721Bridge: address(l1ERC721Bridge),
+                l1StandardBridge: address(l1StandardBridge),
+                l2OutputOracle: address(l2OutputOracle),
+                optimismPortal: address(optimismPortal),
+                optimismMintableERC20Factory: address(optimismMintableERC20Factory)
+            })
+        });
+        assertEq(vm.load(address(systemConfig), bytes32(uint256(106))), startBlock);
     }
 }
 
