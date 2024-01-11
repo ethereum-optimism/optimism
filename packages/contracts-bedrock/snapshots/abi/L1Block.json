@@ -14,12 +14,12 @@
   },
   {
     "inputs": [],
-    "name": "basefee",
+    "name": "baseFeeScalar",
     "outputs": [
       {
-        "internalType": "uint256",
+        "internalType": "uint32",
         "name": "",
-        "type": "uint256"
+        "type": "uint32"
       }
     ],
     "stateMutability": "view",
@@ -27,12 +27,12 @@
   },
   {
     "inputs": [],
-    "name": "basefeeScalar",
+    "name": "basefee",
     "outputs": [
       {
-        "internalType": "uint32",
+        "internalType": "uint256",
         "name": "",
-        "type": "uint32"
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",
@@ -53,7 +53,7 @@
   },
   {
     "inputs": [],
-    "name": "blobBasefee",
+    "name": "blobBaseFee",
     "outputs": [
       {
         "internalType": "uint256",
@@ -66,7 +66,7 @@
   },
   {
     "inputs": [],
-    "name": "blobBasefeeScalar",
+    "name": "blobBaseFeeScalar",
     "outputs": [
       {
         "internalType": "uint32",

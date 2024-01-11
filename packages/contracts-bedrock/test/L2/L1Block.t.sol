@@ -65,33 +65,33 @@ contract L1BlockBedrock_Test is L1BlockTest {
 contract L1BlockEcotone_Test is L1BlockTest {
     /// @dev Tests that setL1BlockValuesEcotone updates the values appropriately.
     function testFuzz_setL1BlockValuesEcotone_succeeds(
-        uint32 basefeeScalar,
-        uint32 blobBasefeeScalar,
+        uint32 baseFeeScalar,
+        uint32 blobBaseFeeScalar,
         uint64 sequenceNumber,
         uint64 timestamp,
         uint64 number,
-        uint256 basefee,
-        uint256 blobBasefee,
+        uint256 baseFee,
+        uint256 blobBaseFee,
         bytes32 hash,
         bytes32 batcherHash
     )
         external
     {
         bytes memory functionCallDataPacked = Encoding.encodeSetL1BlockValuesEcotone(
-            basefeeScalar, blobBasefeeScalar, sequenceNumber, timestamp, number, basefee, blobBasefee, hash, batcherHash
+            baseFeeScalar, blobBaseFeeScalar, sequenceNumber, timestamp, number, baseFee, blobBaseFee, hash, batcherHash
         );
 
         vm.prank(depositor);
         (bool success,) = address(l1Block).call(functionCallDataPacked);
         assertTrue(success, "Function call failed");
 
-        assertEq(l1Block.basefeeScalar(), basefeeScalar);
-        assertEq(l1Block.blobBasefeeScalar(), blobBasefeeScalar);
+        assertEq(l1Block.baseFeeScalar(), baseFeeScalar);
+        assertEq(l1Block.blobBaseFeeScalar(), blobBaseFeeScalar);
         assertEq(l1Block.sequenceNumber(), sequenceNumber);
         assertEq(l1Block.timestamp(), timestamp);
         assertEq(l1Block.number(), number);
-        assertEq(l1Block.basefee(), basefee);
-        assertEq(l1Block.blobBasefee(), blobBasefee);
+        assertEq(l1Block.basefee(), baseFee);
+        assertEq(l1Block.blobBaseFee(), blobBaseFee);
         assertEq(l1Block.hash(), hash);
         assertEq(l1Block.batcherHash(), batcherHash);
 

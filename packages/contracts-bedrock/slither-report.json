@@ -684,26 +684,26 @@
     "filename_relative": "src/universal/Proxy.sol"
   },
   {
-    "id": "8a3cbb409970f13c99fdfb6c1c35d7cdb67fa2ea79f2578425f5d167153382c3",
+    "id": "fa673f7f315b9ee7fea38da72b4b0b0eb94babc8d0938536b00ce803ecc07fa2",
     "impact": "High",
     "confidence": "High",
     "check": "uninitialized-state",
-    "description": "L1Block.blobBasefee (src/L2/L1Block.sol#50) is never initialized. It is used in:\n\t- L1Block.setL1BlockValuesEcotone() (src/L2/L1Block.sol#101-118)\n",
+    "description": "L1Block.blobBaseFee (src/L2/L1Block.sol#50) is never initialized. It is used in:\n\t- L1Block.setL1BlockValuesEcotone() (src/L2/L1Block.sol#101-118)\n",
     "type": "variable",
-    "name": "blobBasefee",
-    "start": 1897,
+    "name": "blobBaseFee",
+    "start": 1899,
     "length": 26,
     "filename_relative": "src/L2/L1Block.sol"
   },
   {
-    "id": "8a3cbb409970f13c99fdfb6c1c35d7cdb67fa2ea79f2578425f5d167153382c3",
+    "id": "fa673f7f315b9ee7fea38da72b4b0b0eb94babc8d0938536b00ce803ecc07fa2",
     "impact": "High",
     "confidence": "High",
     "check": "uninitialized-state",
-    "description": "L1Block.blobBasefee (src/L2/L1Block.sol#50) is never initialized. It is used in:\n\t- L1Block.setL1BlockValuesEcotone() (src/L2/L1Block.sol#101-118)\n",
+    "description": "L1Block.blobBaseFee (src/L2/L1Block.sol#50) is never initialized. It is used in:\n\t- L1Block.setL1BlockValuesEcotone() (src/L2/L1Block.sol#101-118)\n",
     "type": "function",
     "name": "setL1BlockValuesEcotone",
-    "start": 3879,
+    "start": 3886,
     "length": 956,
     "filename_relative": "src/L2/L1Block.sol"
   },

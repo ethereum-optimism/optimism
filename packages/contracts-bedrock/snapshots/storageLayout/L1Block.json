@@ -36,14 +36,14 @@
   },
   {
     "bytes": "4",
-    "label": "blobBasefeeScalar",
+    "label": "blobBaseFeeScalar",
     "offset": 8,
     "slot": "3",
     "type": "uint32"
   },
   {
     "bytes": "4",
-    "label": "basefeeScalar",
+    "label": "baseFeeScalar",
     "offset": 12,
     "slot": "3",
     "type": "uint32"
@@ -71,7 +71,7 @@
   },
   {
     "bytes": "32",
-    "label": "blobBasefee",
+    "label": "blobBaseFee",
     "offset": 0,
     "slot": "7",
     "type": "uint256"
