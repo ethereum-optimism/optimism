@@ -48,4 +48,6 @@ CONTRACT_NAMES=${CONTRACT_NAMES}Reversed
 SUMMARY_DIR=test/kontrol/proofs/utils
 SUMMARY_NAME=DeploymentSummary
 kontrol summary ${SUMMARY_NAME} snapshots/state-diff/${STATEDIFF} --contract-names ${CONTRACT_NAMES} --output-dir ${SUMMARY_DIR}
+forge fmt ${SUMMARY_DIR}/${SUMMARY_NAME}.sol
+forge fmt ${SUMMARY_DIR}/${SUMMARY_NAME}Code.sol
 echo "Added state updates to ${SUMMARY_DIR}/${SUMMARY_NAME}.sol"
