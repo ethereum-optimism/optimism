@@ -135,63 +135,24 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
 
     /// @dev Tests that startBlock is updated correctly when it's zero.
     function test_startBlock_update_succeeds() external {
-        // wipe out initialized slot so we can initialize again
-        vm.store(address(systemConfig), bytes32(0), bytes32(0));
-        // the startBlock slot is 106, set it to zero
-        vm.store(address(systemConfig), bytes32(uint256(106)), bytes32(uint256(0)));
+        // set slot startBlock to zero
+        vm.store(address(systemConfig), systemConfig.START_BLOCK_SLOT(), bytes32(uint256(0)));
 
-        // Initialize and check that after call it updates to the current block number
+        // Initialize and check that after call to setStartBlock it updates to current block number
         vm.prank(systemConfig.owner());
-        systemConfig.initialize({
-            _owner: alice,
-            _overhead: overhead,
-            _scalar: scalar,
-            _batcherHash: batcherHash,
-            _gasLimit: gasLimit,
-            _unsafeBlockSigner: unsafeBlockSigner,
-            _config: Constants.DEFAULT_RESOURCE_CONFIG(),
-            _batchInbox: batchInbox,
-            _addresses: SystemConfig.Addresses({
-                l1CrossDomainMessenger: address(l1CrossDomainMessenger),
-                l1ERC721Bridge: address(l1ERC721Bridge),
-                l1StandardBridge: address(l1StandardBridge),
-                l2OutputOracle: address(l2OutputOracle),
-                optimismPortal: address(optimismPortal),
-                optimismMintableERC20Factory: address(optimismMintableERC20Factory)
-            })
-        });
-        assertEq(vm.load(address(systemConfig), bytes32(uint256(106))), bytes32(block.number));
+        systemConfig.setStartBlock();
+        assertEq(systemConfig.startBlock(), block.number);
     }
 
     /// @dev Tests that startBlock is not updated when it's not zero.
     function test_startBlock_update_fails() external {
-        // wipe out initialized slot so we can initialize again
-        vm.store(address(systemConfig), bytes32(0), bytes32(0));
-        // the startBlock slot is 106, set it to non-zero value 1
-        vm.store(address(systemConfig), bytes32(uint256(106)), bytes32(uint256(1)));
+        // set slot startBlock to non-zero value 1
+        vm.store(address(systemConfig), systemConfig.START_BLOCK_SLOT(), bytes32(uint256(1)));
 
-        // Initialize and check that after call the value doesn't update
+        // Initialize and check that after call to setStartBlock the value doesn't update
         vm.prank(systemConfig.owner());
-        systemConfig.initialize({
-            _owner: alice,
-            _overhead: overhead,
-            _scalar: scalar,
-            _batcherHash: batcherHash,
-            _gasLimit: gasLimit,
-            _unsafeBlockSigner: unsafeBlockSigner,
-            _config: Constants.DEFAULT_RESOURCE_CONFIG(),
-            _batchInbox: batchInbox,
-            _addresses: SystemConfig.Addresses({
-                l1CrossDomainMessenger: address(l1CrossDomainMessenger),
-                l1ERC721Bridge: address(l1ERC721Bridge),
-                l1StandardBridge: address(l1StandardBridge),
-                l2OutputOracle: address(l2OutputOracle),
-                optimismPortal: address(optimismPortal),
-                optimismMintableERC20Factory: address(optimismMintableERC20Factory)
-            })
-        });
-        // check that the startBlock slot is still the same
-        assertEq(vm.load(address(systemConfig), bytes32(uint256(106))), bytes32(uint256(1)));
+        systemConfig.setStartBlock();
+        assertEq(systemConfig.startBlock(), 1);
     }
 }
 

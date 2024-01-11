@@ -72,6 +72,9 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @notice Storage slot that the batch inbox address is stored at.
     bytes32 public constant BATCH_INBOX_SLOT = bytes32(uint256(keccak256("systemconfig.batchinbox")) - 1);
 
+    /// @notice Storage slot for block at which the op-node can start searching for logs from.
+    bytes32 public constant START_BLOCK_SLOT = bytes32(uint256(keccak256("systemconfig.startBlock")) - 1);
+
     /// @notice Fixed L2 gas overhead. Used as part of the L2 fee calculation.
     uint256 public overhead;
 
@@ -96,9 +99,6 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @param updateType Type of update.
     /// @param data       Encoded update data.
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
-
-    /// @notice The block at which the op-node can start searching for logs from.
-    uint256 public startBlock;
 
     /// @notice Semantic version.
     /// @custom:semver 1.11.0
@@ -133,7 +133,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
                 optimismMintableERC20Factory: address(0)
             })
         });
-        Storage.setUint(bytes32(uint256(106)), type(uint256).max);
+        Storage.setUint(START_BLOCK_SLOT, type(uint256).max);
     }
 
     /// @notice Initializer.
@@ -239,19 +239,9 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         addr_ = Storage.getAddress(BATCH_INBOX_SLOT);
     }
 
-    /// @notice Sets the start block in a backwards compatible way. Proxies
-    ///         that were initialized before the startBlock existed in storage
-    ///         can have their start block set by a user provided override.
-    ///         A start block of 0 indicates that there is no override and the
-    ///         start block will be set by `block.number`.
-    /// @dev    This logic is used to patch legacy deployments with new storage values.
-    ///         Use the override if it is provided as a non zero value and the value
-    ///         has not already been set in storage. Use `block.number` if the value
-    ///         has already been set in storage
-    function _setStartBlock() internal {
-        if (startBlock == 0) {
-            startBlock = block.number;
-        }
+    /// @notice Getter for the StartBlock number.
+    function startBlock() external view returns (uint256 startBlock_) {
+        startBlock_ = Storage.getUint(START_BLOCK_SLOT);
     }
 
     /// @notice Updates the unsafe block signer address. Can only be called by the owner.
@@ -316,6 +306,26 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
 
         bytes memory data = abi.encode(_gasLimit);
         emit ConfigUpdate(VERSION, UpdateType.GAS_LIMIT, data);
+    }
+
+    /// @notice Updates StartBlock. Can only be called by the owner.
+    function setStartBlock() external onlyOwner {
+        _setStartBlock();
+    }
+
+    /// @notice Sets the start block in a backwards compatible way. Proxies
+    ///         that were initialized before the startBlock existed in storage
+    ///         can have their start block set by a user provided override.
+    ///         A start block of 0 indicates that there is no override and the
+    ///         start block will be set by `block.number`.
+    /// @dev    This logic is used to patch legacy deployments with new storage values.
+    ///         Use the override if it is provided as a non zero value and the value
+    ///         has not already been set in storage. Use `block.number` if the value
+    ///         has already been set in storage
+    function _setStartBlock() internal {
+        if (Storage.getUint(START_BLOCK_SLOT) == 0) {
+            Storage.setUint(START_BLOCK_SLOT, block.number);
+        }
     }
 
     /// @notice A getter for the resource config.
