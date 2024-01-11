@@ -342,8 +342,8 @@ importers:
         specifier: ^1.0.1
         version: 1.0.1(@types/node@20.10.8)(jsdom@23.2.0)
       wagmi:
-        specifier: ^2.0.1
-        version: 2.0.1(@tanstack/react-query@5.17.1)(react-dom@18.2.0)(react-native@0.73.1)(react@18.2.0)(typescript@5.3.3)(viem@2.0.3)
+        specifier: ^2.1.2
+        version: 2.1.2(@tanstack/react-query@5.17.1)(react-dom@18.2.0)(react-native@0.73.1)(react@18.2.0)(typescript@5.3.3)(viem@2.0.3)
 
   packages/core-utils:
     dependencies:
@@ -6621,10 +6621,10 @@ packages:
       - utf-8-validate
     dev: true
 
-  /@wagmi/connectors@4.0.1(@wagmi/core@2.0.1)(react-dom@18.2.0)(react-native@0.73.1)(react@18.2.0)(typescript@5.3.3)(viem@2.0.3):
-    resolution: {integrity: sha512-1DK8e8URL5nQkuHL7kh+arXvyHgj8S70CgFc54HiTOTrmgNe79KI/GxCiAeZEwJb8XUGXDtHpMozx1v6YS0Zdw==}
+  /@wagmi/connectors@4.1.2(@wagmi/core@2.1.2)(react-dom@18.2.0)(react-native@0.73.1)(react@18.2.0)(typescript@5.3.3)(viem@2.0.3):
+    resolution: {integrity: sha512-fSTSZaGBmbwUjpEvhojE+UVFGuR8Cg0luUp2bVPAVoKngzrnYxC+53IKuNFzhieI6rtAaAkjmWQQ6JAv7H0KKA==}
     peerDependencies:
-      '@wagmi/core': 2.0.1
+      '@wagmi/core': 2.1.2
       typescript: '>=5.0.4'
       viem: 2.x
     peerDependenciesMeta:
@@ -6635,7 +6635,7 @@ packages:
       '@metamask/sdk': 0.14.1(react-dom@18.2.0)(react-native@0.73.1)(react@18.2.0)
       '@safe-global/safe-apps-provider': 0.18.1(typescript@5.3.3)
       '@safe-global/safe-apps-sdk': 8.1.0(typescript@5.3.3)
-      '@wagmi/core': 2.0.1(react@18.2.0)(typescript@5.3.3)(viem@2.0.3)
+      '@wagmi/core': 2.1.2(react@18.2.0)(typescript@5.3.3)(viem@2.0.3)
       '@walletconnect/ethereum-provider': 2.11.0(react@18.2.0)
       '@walletconnect/modal': 2.6.2(react@18.2.0)
       typescript: 5.3.3
@@ -6665,8 +6665,8 @@ packages:
       - zod
     dev: true
 
-  /@wagmi/core@2.0.1(react@18.2.0)(typescript@5.3.3)(viem@2.0.3):
-    resolution: {integrity: sha512-jByxGj9vxptany6dnIJRPLW0vKVKm2bG33yc8ZiP7BHXUWMYiCK4B8ZgZLeqnpn/kSpYU9uCccS5ogqusAaYLA==}
+  /@wagmi/core@2.1.1(react@18.2.0)(typescript@5.3.3)(viem@2.0.3):
+    resolution: {integrity: sha512-ifQ1BvYCyetjIH2+Xxhz+V4oJ2d+V1zDei5lHB2D7MdhP5umw3z2fbbTFg05ixkc58hCG8obehiiktQs6ma94Q==}
     peerDependencies:
       '@tanstack/query-core': '>=5.0.0'
       typescript: '>=5.0.4'
@@ -6691,8 +6691,8 @@ packages:
       - zod
     dev: true
 
-  /@wagmi/core@2.1.1(react@18.2.0)(typescript@5.3.3)(viem@2.0.3):
-    resolution: {integrity: sha512-ifQ1BvYCyetjIH2+Xxhz+V4oJ2d+V1zDei5lHB2D7MdhP5umw3z2fbbTFg05ixkc58hCG8obehiiktQs6ma94Q==}
+  /@wagmi/core@2.1.2(react@18.2.0)(typescript@5.3.3)(viem@2.0.3):
+    resolution: {integrity: sha512-Rv7gc0pILlrNGpFDuPElIOrTaHPDxrbZoZivl3CNndCOXNUqaxgfbEVt7qFsILF+kmnDGmu7/0qJ7YhZZhyHpg==}
     peerDependencies:
       '@tanstack/query-core': '>=5.0.0'
       typescript: '>=5.0.4'
@@ -17941,8 +17941,8 @@ packages:
       xml-name-validator: 5.0.0
     dev: true
 
-  /wagmi@2.0.1(@tanstack/react-query@5.17.1)(react-dom@18.2.0)(react-native@0.73.1)(react@18.2.0)(typescript@5.3.3)(viem@2.0.3):
-    resolution: {integrity: sha512-B5D7JxE/WIGpKFn4r0sedsZPMBXAexnc3RnJ+X4svAB+wICIUVUekt1tcRLNqmgbd1t7heXdkyVqebghFPYjPw==}
+  /wagmi@2.1.2(@tanstack/react-query@5.17.1)(react-dom@18.2.0)(react-native@0.73.1)(react@18.2.0)(typescript@5.3.3)(viem@2.0.3):
+    resolution: {integrity: sha512-M4Mhz5ucvRWSApbw/7KCDm7H+naoeibKH9tcZLC/eW7f4U8jBR1x5YKpLhmANO0WJOh6vt3rSHlCsS+J4lrm1A==}
     peerDependencies:
       '@tanstack/react-query': '>=5.0.0'
       react: '>=18'
@@ -17953,8 +17953,8 @@ packages:
         optional: true
     dependencies:
       '@tanstack/react-query': 5.17.1(react@18.2.0)
-      '@wagmi/connectors': 4.0.1(@wagmi/core@2.0.1)(react-dom@18.2.0)(react-native@0.73.1)(react@18.2.0)(typescript@5.3.3)(viem@2.0.3)
-      '@wagmi/core': 2.0.1(react@18.2.0)(typescript@5.3.3)(viem@2.0.3)
+      '@wagmi/connectors': 4.1.2(@wagmi/core@2.1.2)(react-dom@18.2.0)(react-native@0.73.1)(react@18.2.0)(typescript@5.3.3)(viem@2.0.3)
+      '@wagmi/core': 2.1.2(react@18.2.0)(typescript@5.3.3)(viem@2.0.3)
       react: 18.2.0
       typescript: 5.3.3
       use-sync-external-store: 1.2.0(react@18.2.0)
