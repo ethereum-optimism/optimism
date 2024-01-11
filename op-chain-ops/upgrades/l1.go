@@ -190,7 +190,30 @@ func L1ERC721Bridge(batch *safe.Batch, implementations superchain.Implementation
 		return err
 	}
 
-	calldata, err := l1ERC721BridgeABI.Pack("initialize", superchainConfigProxy)
+	l1ERC721Bridge, err := bindings.NewL1ERC721BridgeCaller(common.HexToAddress(list.L1ERC721BridgeProxy.String()), backend)
+	if err != nil {
+		return err
+	}
+	messenger, err := l1ERC721Bridge.Messenger(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	otherBridge, err := l1ERC721Bridge.OtherBridge(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+
+	if config != nil {
+		if messenger != config.L1CrossDomainMessengerProxy {
+			return fmt.Errorf("upgrading L1ERC721Bridge: Messenger address doesn't match config")
+		}
+	}
+
+	if otherBridge != predeploys.L2ERC721BridgeAddr {
+		return fmt.Errorf("upgrading L1ERC721Bridge: OtherBridge address doesn't match config")
+	}
+
+	calldata, err := l1ERC721BridgeABI.Pack("initialize", messenger, superchainConfigProxy)
 	if err != nil {
 		return err
 	}

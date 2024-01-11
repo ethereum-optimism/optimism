@@ -14,11 +14,25 @@
     "type": "bool"
   },
   {
-    "bytes": "1536",
-    "label": "__gap",
+    "bytes": "20",
+    "label": "messenger",
+    "offset": 2,
+    "slot": "0",
+    "type": "contract CrossDomainMessenger"
+  },
+  {
+    "bytes": "20",
+    "label": "otherBridge",
     "offset": 0,
     "slot": "1",
-    "type": "uint256[48]"
+    "type": "contract StandardBridge"
+  },
+  {
+    "bytes": "1504",
+    "label": "__gap",
+    "offset": 0,
+    "slot": "2",
+    "type": "uint256[47]"
   },
   {
     "bytes": "32",

@@ -34,13 +34,7 @@ func TestBuildOptimism(t *testing.T) {
 		L1Block:             struct{}{},
 		GovernanceToken:     struct{}{},
 		LegacyMessagePasser: struct{}{},
-		L2ERC721Bridge: struct {
-			OtherBridge common.Address
-			Messenger   common.Address
-		}{
-			OtherBridge: common.HexToAddress("0x1234567890123456789012345678901234567890"),
-			Messenger:   predeploys.L2CrossDomainMessengerAddr,
-		},
+		L2ERC721Bridge:      struct{}{},
 		OptimismMintableERC721Factory: struct {
 			Bridge        common.Address
 			RemoteChainId *big.Int

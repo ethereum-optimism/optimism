@@ -748,13 +748,7 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (*immutables
 		L1Block:             struct{}{},
 		GovernanceToken:     struct{}{},
 		LegacyMessagePasser: struct{}{},
-		L2ERC721Bridge: struct {
-			OtherBridge common.Address
-			Messenger   common.Address
-		}{
-			OtherBridge: config.L1ERC721BridgeProxy,
-			Messenger:   predeploys.L2CrossDomainMessengerAddr,
-		},
+		L2ERC721Bridge:      struct{}{},
 		OptimismMintableERC721Factory: struct {
 			Bridge        common.Address
 			RemoteChainId *big.Int
@@ -828,6 +822,8 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 	storage["L2ERC721Bridge"] = state.StorageValues{
 		"_initialized":  1,
 		"_initializing": false,
+		"otherBridge":   config.L1ERC721BridgeProxy,
+		"messenger":     predeploys.L2CrossDomainMessengerAddr,
 	}
 	storage["OptimismMintableERC20Factory"] = state.StorageValues{
 		"_initialized":  1,

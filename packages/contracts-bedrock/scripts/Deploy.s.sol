@@ -643,8 +643,7 @@ contract Deploy is Deployer {
     /// @notice Deploy the L1ERC721Bridge
     function deployL1ERC721Bridge() public broadcast returns (address addr_) {
         console.log("Deploying L1ERC721Bridge implementation");
-        address l1CrossDomainMessengerProxy = mustGetAddress("L1CrossDomainMessengerProxy");
-        L1ERC721Bridge bridge = new L1ERC721Bridge{ salt: _implSalt() }({ _messenger: l1CrossDomainMessengerProxy });
+        L1ERC721Bridge bridge = new L1ERC721Bridge{ salt: _implSalt() }();
 
         save("L1ERC721Bridge", address(bridge));
         console.log("L1ERC721Bridge deployed at %s", address(bridge));
@@ -779,12 +778,16 @@ contract Deploy is Deployer {
         console.log("Upgrading and initializing L1ERC721Bridge proxy");
         address l1ERC721BridgeProxy = mustGetAddress("L1ERC721BridgeProxy");
         address l1ERC721Bridge = mustGetAddress("L1ERC721Bridge");
+        address l1CrossDomainMessengerProxy = mustGetAddress("L1CrossDomainMessengerProxy");
         address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
 
         _upgradeAndCallViaSafe({
             _proxy: payable(l1ERC721BridgeProxy),
             _implementation: l1ERC721Bridge,
-            _innerCallData: abi.encodeCall(L1ERC721Bridge.initialize, (SuperchainConfig(superchainConfigProxy)))
+            _innerCallData: abi.encodeCall(
+                L1ERC721Bridge.initialize,
+                (L1CrossDomainMessenger(payable(l1CrossDomainMessengerProxy)), SuperchainConfig(superchainConfigProxy))
+                )
         });
 
         L1ERC721Bridge bridge = L1ERC721Bridge(l1ERC721BridgeProxy);
