@@ -31,6 +31,8 @@ with the authorization and validation conditions on L2.
 - [Deposit Receipt](#deposit-receipt)
 - [L1 Attributes Deposited Transaction](#l1-attributes-deposited-transaction)
   - [L1 Attributes Deposited Transaction Calldata](#l1-attributes-deposited-transaction-calldata)
+    - [Bedrock, Canyon, Delta](#bedrock-canyon-delta)
+    - [Ecotone](#ecotone)
 - [Special Accounts on L2](#special-accounts-on-l2)
   - [L1 Attributes Depositor Account](#l1-attributes-depositor-account)
   - [L1 Attributes Predeployed Contract](#l1-attributes-predeployed-contract)
@@ -256,15 +258,23 @@ This system-initiated transaction for L1 attributes is not charged any ETH for i
 
 ### L1 Attributes Deposited Transaction Calldata
 
-Prior to the Ecotone upgrade, the `data` field of the L1 attributes deposited transaction is an
-[ABI][ABI] encoded call to the `setL1BlockValues()` function with correct values associated with
-the corresponding L1 block (cf.  [reference implementation][l1-attr-ref-implem]).
+#### Bedrock, Canyon, Delta
 
-If the Ecotone upgrade is active, then `data` is instead a call to the `setL1BlockValuesEcotone()`
-function, where the input args are no longer ABI encoded function parameters, but are instead
-packed into 5 32-byte aligned segments (starting after the function selector). Each unsigned
-integer argument is encoded as big-endian using a number of bytes corresponding to the underlying
+The `data` field of the L1 attributes deposited transaction is an [ABI][ABI] encoded call to the
+`setL1BlockValues()` function with correct values associated with the corresponding L1 block
+(cf.  [reference implementation][l1-attr-ref-implem]).
+
+#### Ecotone
+
+On the Ecotone activation block, the L1 Attributes Transaction includes a call to `setL1BlockValues()`
+because the L1 Attributes transaction precedes the [Ecotone Upgrade Transactions][ecotone-upgrade-txs],
+meaning that `setL1BlockValuesEcotone` is not guaranteed to exist yet. Every subsequent L1 Attributes transaction
+should include a call to the `setL1BlockValuesEcotone()` function. The input args are no longer ABI encoded
+function parameters, but are instead packed into 5 32-byte aligned segments (starting after the function selector).
+Each unsigned integer argument is encoded as big-endian using a number of bytes corresponding to the underlying
 type. The overall calldata layout is as follows:
+
+[ecotone-upgrade-txs]: derivation.md#network-upgrade-automation-transactions
 
 | Input arg         | Type        | Calldata bytes | Segment |
 | ----------------- | ----------- | -------------- | --------|
@@ -279,8 +289,9 @@ type. The overall calldata layout is as follows:
 | l1BlockHash       | bytes32     | 100-131        | 4       |
 | batcherHash       | bytes32     | 132-163        | 5       |
 
-Total calldata length must be exactly 164 bytes, implying the sixth and final segment is only
-partially filled.
+Total calldata length MUST be exactly 164 bytes, implying the sixth and final segment is only
+partially filled. This helps to slow database growth as every L2 block includes a L1 Attributes
+deposit transaction.
 
 ## Special Accounts on L2
 
@@ -356,9 +367,13 @@ The version is incremented to `1.2.0` and several new storage slots are used for
 - `blobBasefeeScalar` (`uint256`): The scalar value applied to the L1 blob base fee portion of the L1 cost.
 - `basefeeScalar` (`uint256`): The scalar value applied to the L1 base fee portion of the L1 cost.
 
-Additionally, the `setL1BlockValues` function is deprecated and replaced with `setL1BlockValuesEcotone`.
-`setL1BlockValuesEcotone` uses packed encoding for its parameters, which is described in
-[L1 Attributes Deposited Transaction Calldata](#l1-attributes-deposited-transaction-calldata)
+Additionally, the `setL1BlockValues` function is deprecated and MUST never be called when the L2 block number
+is greater than the Ecotone activation block number. `setL1BlockValues` MUST be called on the Ecotone hardfork
+activation block. The `setL1BlockValuesEcotone` MUST be called when the L2 block number is greater than the
+Ecotone hardfork activation block.
+
+`setL1BlockValuesEcotone` uses a tightly packed encoding for its parameters, which is described in
+[L1 Attributes Deposited Transaction Calldata](#l1-attributes-deposited-transaction-calldata).
 
 ## User-Deposited Transactions
 
