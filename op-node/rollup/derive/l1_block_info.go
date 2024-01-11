@@ -188,6 +188,7 @@ func (info *L1BlockInfo) marshalBinaryEcotone() ([]byte, error) {
 	if err := solabi.WriteHash(w, info.BlockHash); err != nil {
 		return nil, err
 	}
+	// ABI encoding will perform the left-padding with zeroes to 32 bytes, matching the "batcherHash" SystemConfig format and version 0 byte.
 	if err := solabi.WriteAddress(w, info.BatcherAddr); err != nil {
 		return nil, err
 	}
@@ -228,6 +229,7 @@ func (info *L1BlockInfo) unmarshalBinaryEcotone(data []byte) error {
 	if info.BlockHash, err = solabi.ReadHash(r); err != nil {
 		return err
 	}
+	// The "batcherHash" will be correctly parsed as address, since the version 0 and left-padding matches the ABI encoding format.
 	if info.BatcherAddr, err = solabi.ReadAddress(r); err != nil {
 		return err
 	}
