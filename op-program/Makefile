@@ -26,6 +26,11 @@ op-program-client-mips:
 	# verify output with: readelf -h bin/op-program-client.elf
 	# result is mips32, big endian, R3000
 
+validate-op-program-client-mips:
+	@[ -f ./bin/op-program-client.elf ] || (echo "op-program-client.elf does not exist!" && exit 1)
+	@[ $(shell [ -f ./bin/op-program-client.elf ] && shasum -a 256 ./bin/op-program-client.elf | sed 's/ .*//' || echo "") == "81e124af023ead5ae6ffa10c38d7c8d9755caad8dea1b8d68d5f3e849daacd8b" ] && echo "Absolute Prestate Valid!" || (echo "Absolute Prestate Invalid!" && exit 1)
+.PHONY: validate-op-program-client-mips
+
 clean:
 	rm -rf bin "$(COMPAT_DIR)"
 
