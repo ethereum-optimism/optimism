@@ -217,11 +217,6 @@
         "type": "tuple"
       },
       {
-        "internalType": "uint256",
-        "name": "_startBlock",
-        "type": "uint256"
-      },
-      {
         "internalType": "address",
         "name": "_batchInbox",
         "type": "address"
