@@ -19,7 +19,7 @@ usage() {
 #############
 # Variables #
 #############
-# Set Script Directory Variables <root>/packages/contracts-bedrock/test/kontrol/kontrol
+# Set Script Directory Variables <root>/packages/contracts-bedrock/test/kontrol
 SCRIPT_HOME="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 notif "Script Home: $SCRIPT_HOME"
 blank_line
