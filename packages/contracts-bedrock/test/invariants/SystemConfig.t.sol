@@ -27,7 +27,6 @@ contract SystemConfig_GasLimitLowerBound_Invariant is Test {
                     30_000_000, // gas limit
                     address(1), // unsafe block signer
                     Constants.DEFAULT_RESOURCE_CONFIG(),
-                    0, //_startBlock
                     address(0), // _batchInbox
                     SystemConfig.Addresses({ // _addrs
                         l1CrossDomainMessenger: address(0),
