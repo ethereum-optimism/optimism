@@ -86,13 +86,13 @@ abstract contract KontrolUtils is KontrolCheats {
             bytesSlotValue = bytesLength * 2 + 1;
         }
 
-        /* Deploy ghost contract */
+        // Deploy ghost contract
         GhostBytes ghostBytes = new GhostBytes();
 
-        /* Make the storage of the ghost contract symbolic */
+        // Make the storage of the ghost contract symbolic
         kevm.symbolicStorage(address(ghostBytes));
 
-        /* Load the size encoding into the first slot of ghostBytes*/
+        // Load the size encoding into the first slot of ghostBytes
         vm.store(address(ghostBytes), bytes32(uint256(0)), bytes32(bytesSlotValue));
 
         sBytes = ghostBytes.ghostBytes();
@@ -102,48 +102,48 @@ abstract contract KontrolUtils is KontrolCheats {
     /// Each element is 17 * 32 = 544 bytes long, plus ~10% margin for RLP encoding: each element is 600 bytes
     /// The length of the array to 10 or fewer elements
     function freshWithdrawalProof() public returns (bytes[] memory withdrawalProof) {
-        /* Assume arrayLength = 2 for faster proof speeds */
+        // Assume arrayLength = 2 for faster proof speeds
         uint256 arrayLength = 6;
 
         withdrawalProof = new bytes[](arrayLength);
 
-        /* Deploy ghost contract */
-        /* GhostBytes10 ghostBytes10 = new GhostBytes10(); */
+        // Deploy ghost contract
+        // GhostBytes10 ghostBytes10 = new GhostBytes10();
 
-        /* Make the storage of the ghost contract symbolic */
-        /* kevm.symbolicStorage(address(ghostBytes10)); */
+        // Make the storage of the ghost contract symbolic
+        // kevm.symbolicStorage(address(ghostBytes10));
 
-        /* Each bytes element will have a length of 600 */
-        /* uint256 bytesSlotValue = 600 * 2 + 1; */
+        // Each bytes element will have a length of 600
+        // uint256 bytesSlotValue = 600 * 2 + 1;
 
-        /* Load the size encoding into the first slot of ghostBytes*/
-        /* vm.store(address(ghostBytes10), bytes32(uint256(0)), bytes32(bytesSlotValue)); */
-        /* vm.store(address(ghostBytes10), bytes32(uint256(1)), bytes32(bytesSlotValue)); */
-        /* vm.store(address(ghostBytes10), bytes32(uint256(2)), bytes32(bytesSlotValue)); */
-        /* vm.store(address(ghostBytes10), bytes32(uint256(3)), bytes32(bytesSlotValue)); */
-        /* vm.store(address(ghostBytes10), bytes32(uint256(4)), bytes32(bytesSlotValue)); */
-        /* vm.store(address(ghostBytes10), bytes32(uint256(5)), bytes32(bytesSlotValue)); */
-        /* vm.store(address(ghostBytes10), bytes32(uint256(6)), bytes32(bytesSlotValue)); */
-        /* vm.store(address(ghostBytes10), bytes32(uint256(7)), bytes32(bytesSlotValue)); */
-        /* vm.store(address(ghostBytes10), bytes32(uint256(8)), bytes32(bytesSlotValue)); */
-        /* vm.store(address(ghostBytes10), bytes32(uint256(9)), bytes32(bytesSlotValue)); */
+        // Load the size encoding into the first slot of ghostBytes
+        // vm.store(address(ghostBytes10), bytes32(uint256(0)), bytes32(bytesSlotValue));
+        // vm.store(address(ghostBytes10), bytes32(uint256(1)), bytes32(bytesSlotValue));
+        // vm.store(address(ghostBytes10), bytes32(uint256(2)), bytes32(bytesSlotValue));
+        // vm.store(address(ghostBytes10), bytes32(uint256(3)), bytes32(bytesSlotValue));
+        // vm.store(address(ghostBytes10), bytes32(uint256(4)), bytes32(bytesSlotValue));
+        // vm.store(address(ghostBytes10), bytes32(uint256(5)), bytes32(bytesSlotValue));
+        // vm.store(address(ghostBytes10), bytes32(uint256(6)), bytes32(bytesSlotValue));
+        // vm.store(address(ghostBytes10), bytes32(uint256(7)), bytes32(bytesSlotValue));
+        // vm.store(address(ghostBytes10), bytes32(uint256(8)), bytes32(bytesSlotValue));
+        // vm.store(address(ghostBytes10), bytes32(uint256(9)), bytes32(bytesSlotValue));
 
-        /* withdrawalProof = ghostBytes10.getGhostBytesArray(); */
+        // withdrawalProof = ghostBytes10.getGhostBytesArray();
 
-        /* Second approach */
+        // Second approach
 
-        /* withdrawalProof[0] = ghostBytes10.ghostBytes0(); */
-        /* withdrawalProof[1] = ghostBytes10.ghostBytes1(); */
-        /* withdrawalProof[2] = ghostBytes10.ghostBytes2(); */
-        /* withdrawalProof[3] = ghostBytes10.ghostBytes3(); */
-        /* withdrawalProof[4] = ghostBytes10.ghostBytes4(); */
-        /* withdrawalProof[5] = ghostBytes10.ghostBytes5(); */
-        /* withdrawalProof[6] = ghostBytes10.ghostBytes6(); */
-        /* withdrawalProof[7] = ghostBytes10.ghostBytes7(); */
-        /* withdrawalProof[8] = ghostBytes10.ghostBytes8(); */
-        /* withdrawalProof[9] = ghostBytes10.ghostBytes9(); */
+        // withdrawalProof[0] = ghostBytes10.ghostBytes0();
+        // withdrawalProof[1] = ghostBytes10.ghostBytes1();
+        // withdrawalProof[2] = ghostBytes10.ghostBytes2();
+        // withdrawalProof[3] = ghostBytes10.ghostBytes3();
+        // withdrawalProof[4] = ghostBytes10.ghostBytes4();
+        // withdrawalProof[5] = ghostBytes10.ghostBytes5();
+        // withdrawalProof[6] = ghostBytes10.ghostBytes6();
+        // withdrawalProof[7] = ghostBytes10.ghostBytes7();
+        // withdrawalProof[8] = ghostBytes10.ghostBytes8();
+        // withdrawalProof[9] = ghostBytes10.ghostBytes9();
 
-        /* First approach */
+        // First approach
 
         for (uint256 i = 0; i < withdrawalProof.length; ++i) {
             withdrawalProof[i] = freshBigBytes(600);

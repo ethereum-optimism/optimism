@@ -8,18 +8,18 @@ contract KontrolDeployment is Deploy {
         deploySafe();
         setupSuperchain();
 
-        /* deployProxies(); */
+        // deployProxies();
         deployERC1967Proxy("OptimismPortalProxy");
         deployERC1967Proxy("L2OutputOracleProxy");
         deployERC1967Proxy("SystemConfigProxy");
         transferAddressManagerOwnership(); // to the ProxyAdmin
 
-        /* deployImplementations(); */
+        // deployImplementations();
         deployOptimismPortal();
         deployL2OutputOracle();
         deploySystemConfig();
 
-        /* initializeImplementations(); */
+        // initializeImplementations();
         initializeSystemConfig();
         initializeOptimismPortal();
     }
