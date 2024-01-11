@@ -11,3 +11,6 @@ FROM alpine:3.13
 
 RUN apk add --no-cache ca-certificates jq curl libgcc libstdc++
 COPY --from=builder /app/boba-chain-ops/bin /usr/local/bin/
+
+RUN mkdir /jwt
+RUN mkdir /addr
