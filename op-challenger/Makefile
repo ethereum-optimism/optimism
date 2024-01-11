@@ -19,19 +19,8 @@ test:
 visualize:
 	./scripts/visualize.sh
 
-alphabet:
-	./scripts/alphabet/init_game.sh
-	make alphabet-actors
-
-alphabet-actors:
-	@./scripts/parallel.sh \
-	./scripts/alphabet/mallory.sh 'mallory' \
-	./scripts/alphabet/charlie.sh 'charlie'
-
 .PHONY: \
 	op-challenger \
 	clean \
 	test \
-	visualize \
-	alphabet \
-	alphabet-actors
+	visualize
