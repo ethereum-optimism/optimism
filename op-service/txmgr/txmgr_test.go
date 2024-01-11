@@ -1313,7 +1313,7 @@ func TestClose(t *testing.T) {
 		}
 		if called%retries == 0 {
 			txHash := tx.Hash()
-			h.backend.mine(&txHash, tx.GasFeeCap())
+			h.backend.mine(&txHash, tx.GasFeeCap(), big.NewInt(1))
 		} else {
 			time.Sleep(10 * time.Millisecond)
 			err = core.ErrNonceTooLow
@@ -1375,7 +1375,7 @@ func TestCloseWaitingForConfirmation(t *testing.T) {
 
 	sendTx := func(ctx context.Context, tx *types.Transaction) error {
 		txHash := tx.Hash()
-		h.backend.mine(&txHash, tx.GasFeeCap())
+		h.backend.mine(&txHash, tx.GasFeeCap(), big.NewInt(1))
 		close(sendDone)
 		return nil
 	}
@@ -1393,7 +1393,7 @@ func TestCloseWaitingForConfirmation(t *testing.T) {
 	// by forcing this to happen after close, we are able to observe a closing manager waiting for confirmation
 	go func() {
 		<-closeDone
-		h.backend.mine(nil, nil)
+		h.backend.mine(nil, nil, big.NewInt(1))
 	}()
 
 	ctx := context.Background()
