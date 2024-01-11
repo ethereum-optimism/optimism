@@ -92,7 +92,7 @@ func (d *Sequencer) StartBuildingBlock(ctx context.Context) error {
 	attrs.NoTxPool = uint64(attrs.Timestamp) > l1Origin.Time+d.rollupCfg.MaxSequencerDrift
 
 	// For the Ecotone activation block we shouldn't include any sequencer transactions.
-	if d.config.IsEcotoneUpgradeDepositBlock(l2Head.Time, uint64(attrs.Timestamp)) {
+	if d.rollupCfg.IsEcotoneActivationBlock(uint64(attrs.Timestamp)) {
 		attrs.NoTxPool = true
 		d.log.Info("Sequencing Ecotone upgrade block")
 	}

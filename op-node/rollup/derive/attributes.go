@@ -103,7 +103,7 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 	}
 
 	var upgradeTxs []hexutil.Bytes
-	if ba.rollupCfg.IsEcotoneUpgradeDepositBlock(l2Parent.Time, nextL2Time) {
+	if ba.rollupCfg.IsEcotoneActivationBlock(nextL2Time) {
 		upgradeTxs, err = EcotoneNetworkUpgradeTransactions()
 		if err != nil {
 			return nil, NewCriticalError(fmt.Errorf("failed to build ecotone network upgrade txs: %w", err))
