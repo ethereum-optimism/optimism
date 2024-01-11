@@ -23,7 +23,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
-	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
+	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 )
 
 const (
@@ -60,13 +60,14 @@ func Main(version string) func(ctx *cli.Context) error {
 }
 
 type HeartbeatService struct {
-	pprof, metrics, http *httputil.HTTPServer
+	metrics, http *httputil.HTTPServer
+	pprofService  *oppprof.Service
 }
 
 func (hs *HeartbeatService) Stop(ctx context.Context) error {
 	var result error
-	if hs.pprof != nil {
-		result = errors.Join(result, hs.pprof.Stop(ctx))
+	if hs.pprofService != nil {
+		result = errors.Join(result, hs.pprofService.Stop(ctx))
 	}
 	if hs.metrics != nil {
 		result = errors.Join(result, hs.metrics.Stop(ctx))
@@ -93,14 +94,17 @@ func Start(ctx context.Context, l log.Logger, cfg Config, version string) (*Hear
 	}
 
 	pprofCfg := cfg.Pprof
-	if pprofCfg.Enabled {
-		l.Debug("starting pprof", "addr", pprofCfg.ListenAddr, "port", pprofCfg.ListenPort)
-		pprofSrv, err := oppprof.StartServer(pprofCfg.ListenAddr, pprofCfg.ListenPort)
-		if err != nil {
-			return nil, errors.Join(fmt.Errorf("failed to start pprof server: %w", err), hs.Stop(ctx))
-		}
-		l.Info("started pprof server", "addr", pprofSrv.Addr())
-		hs.pprof = pprofSrv
+	hs.pprofService = oppprof.New(
+		pprofCfg.ListenEnabled,
+		pprofCfg.ListenAddr,
+		pprofCfg.ListenPort,
+		pprofCfg.ProfileType,
+		pprofCfg.ProfileDir,
+		pprofCfg.ProfileFilename,
+	)
+
+	if err := hs.pprofService.Start(); err != nil {
+		return nil, fmt.Errorf("failed to start pprof service: %w", err)
 	}
 
 	metrics := NewMetrics(registry)

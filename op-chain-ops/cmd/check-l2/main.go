@@ -22,7 +22,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/clients"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
@@ -76,29 +75,6 @@ func entrypoint(ctx *cli.Context) error {
 	}
 
 	log.Info("Checking predeploy proxy config")
-	g := new(errgroup.Group)
-
-	// Check that all proxies are configured correctly
-	// Do this in parallel but not too quickly to allow for
-	// querying against rate limiting RPC backends
-	count := uint64(2048)
-	for i := uint64(0); i < count; i++ {
-		i := i
-		if i%4 == 0 {
-			log.Info("Checking proxy", "index", i, "total", count)
-			if err := g.Wait(); err != nil {
-				return err
-			}
-		}
-		g.Go(func() error {
-			return checkPredeploy(clients.L2Client, i)
-		})
-	}
-
-	if err := g.Wait(); err != nil {
-		return err
-	}
-	log.Info("All predeploy proxies are set correctly")
 
 	// Check that all of the defined predeploys are set up correctly
 	for name, pre := range predeploys.Predeploys {
@@ -106,23 +82,6 @@ func entrypoint(ctx *cli.Context) error {
 		if err := checkPredeployConfig(clients.L2Client, name); err != nil {
 			return err
 		}
-	}
-	return nil
-}
-
-// checkPredeploy ensures that the predeploy at index i has the correct proxy admin set
-func checkPredeploy(client *ethclient.Client, i uint64) error {
-	bigAddr := new(big.Int).Or(genesis.BigL2PredeployNamespace, new(big.Int).SetUint64(i))
-	addr := common.BigToAddress(bigAddr)
-	if pre, ok := predeploys.PredeploysByAddress[addr]; ok && pre.ProxyDisabled {
-		return nil
-	}
-	admin, err := getEIP1967AdminAddress(client, addr)
-	if err != nil {
-		return err
-	}
-	if admin != predeploys.ProxyAdminAddr {
-		return fmt.Errorf("%s does not have correct proxy admin set", addr)
 	}
 	return nil
 }
@@ -136,50 +95,6 @@ func checkPredeployConfig(client *ethclient.Client, name string) error {
 	p := predeploy.Address
 
 	g := new(errgroup.Group)
-	if !predeploy.ProxyDisabled {
-		// Check that an implementation is set. If the implementation has been upgraded,
-		// it will be considered non-standard. Ensure that there is code set at the implementation.
-		g.Go(func() error {
-			impl, err := getEIP1967ImplementationAddress(client, p)
-			if err != nil {
-				return err
-			}
-			log.Info(name, "implementation", impl.Hex())
-			standardImpl, err := genesis.AddressToCodeNamespace(p)
-			if err != nil {
-				return err
-			}
-			if impl != standardImpl {
-				log.Warn(name + " does not have the standard implementation")
-			}
-			implCode, err := client.CodeAt(context.Background(), impl, nil)
-			if err != nil {
-				return err
-			}
-			if len(implCode) == 0 {
-				return fmt.Errorf("%s implementation is not deployed", name)
-			}
-			return nil
-		})
-
-		// Ensure that the code is set to the proxy bytecode as expected
-		// This will not work against production networks where the bytecode
-		// has deviated from the current bytecode. We need a more reliable way to check for this.
-		g.Go(func() error {
-			proxyCode, err := client.CodeAt(context.Background(), p, nil)
-			if err != nil {
-				return err
-			}
-			proxy, err := bindings.GetDeployedBytecode("Proxy")
-			if err != nil {
-				return err
-			}
-			if !bytes.Equal(proxyCode, proxy) {
-				return fmt.Errorf("%s does not have the standard proxy code", name)
-			}
-			return nil
-		})
-	}
 
 	// Check the predeploy specific config is correct
 	g.Go(func() error {
@@ -979,24 +894,6 @@ func checkPredeployBytecode(addr common.Address, client *ethclient.Client, expec
 		return fmt.Errorf("deployed bytecode at %s, doesn't match expected", addr)
 	}
 	return nil
-}
-
-func getEIP1967AdminAddress(client *ethclient.Client, addr common.Address) (common.Address, error) {
-	slot, err := client.StorageAt(context.Background(), addr, genesis.AdminSlot, nil)
-	if err != nil {
-		return common.Address{}, err
-	}
-	admin := common.BytesToAddress(slot)
-	return admin, nil
-}
-
-func getEIP1967ImplementationAddress(client *ethclient.Client, addr common.Address) (common.Address, error) {
-	slot, err := client.StorageAt(context.Background(), addr, genesis.ImplementationSlot, nil)
-	if err != nil {
-		return common.Address{}, err
-	}
-	impl := common.BytesToAddress(slot)
-	return impl, nil
 }
 
 // getInitialized will get the initialized value in storage of a contract.

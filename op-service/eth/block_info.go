@@ -4,6 +4,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rlp"
 )
@@ -18,6 +19,9 @@ type BlockInfo interface {
 	// MixDigest field, reused for randomness after The Merge (Bellatrix hardfork)
 	MixDigest() common.Hash
 	BaseFee() *big.Int
+	// BlobBaseFee returns the result of computing the blob fee from excessDataGas, or nil if the
+	// block isn't a Dencun (4844 capable) block
+	BlobBaseFee() *big.Int
 	ReceiptHash() common.Hash
 	GasUsed() uint64
 	GasLimit() uint64
@@ -50,6 +54,14 @@ func ToBlockID(b NumberAndHash) BlockID {
 
 // blockInfo is a conversion type of types.Block turning it into a BlockInfo
 type blockInfo struct{ *types.Block }
+
+func (b blockInfo) BlobBaseFee() *big.Int {
+	ebg := b.ExcessBlobGas()
+	if ebg == nil {
+		return nil
+	}
+	return eip4844.CalcBlobFee(*ebg)
+}
 
 func (b blockInfo) HeaderRLP() ([]byte, error) {
 	return rlp.EncodeToBytes(b.Header())
@@ -91,6 +103,13 @@ func (h headerBlockInfo) MixDigest() common.Hash {
 
 func (h headerBlockInfo) BaseFee() *big.Int {
 	return h.Header.BaseFee
+}
+
+func (h headerBlockInfo) BlobBaseFee() *big.Int {
+	if h.ExcessBlobGas == nil {
+		return nil
+	}
+	return eip4844.CalcBlobFee(*h.ExcessBlobGas)
 }
 
 func (h headerBlockInfo) ReceiptHash() common.Hash {

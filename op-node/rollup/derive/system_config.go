@@ -139,7 +139,7 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 		// Ignored in derivation. This configurable applies to runtime configuration outside of the derivation.
 		return nil
 	case SystemConfigUpdateGasConfigEcotone:
-		// TODO(optimism#8801): pull this deserialazation logic out into a public handler for solidity
+		// TODO(optimism#8801): pull this deserialization logic out into a public handler for solidity
 		// diff/fuzz testing
 		if pointer, err := solabi.ReadUint64(reader); err != nil || pointer != 32 {
 			return NewCriticalError(errors.New("invalid pointer field"))

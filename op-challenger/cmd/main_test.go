@@ -75,8 +75,10 @@ func TestL1ETHRPCAddress(t *testing.T) {
 }
 
 func TestTraceType(t *testing.T) {
-	t.Run("Required", func(t *testing.T) {
-		verifyArgsInvalid(t, "flag trace-type is required", addRequiredArgsExcept("", "--trace-type"))
+	t.Run("Default", func(t *testing.T) {
+		expectedDefault := config.TraceTypeCannon
+		cfg := configForArgs(t, addRequiredArgsExcept(expectedDefault, "--trace-type"))
+		require.Equal(t, []config.TraceType{expectedDefault}, cfg.TraceTypes)
 	})
 
 	for _, traceType := range config.TraceTypes {

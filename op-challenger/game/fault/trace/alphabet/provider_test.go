@@ -44,7 +44,26 @@ func TestAlphabetProvider_Prestate(t *testing.T) {
 	}
 }
 
-// TestAlphabetProvider_Get_ClaimsByTraceIndex tests the [fault.AlphabetProvider] Get function.
+func TestAlphabetProvider_GetStepData_MaxLen(t *testing.T) {
+	depth := types.Depth(4)
+	startingL2BlockNumber := big.NewInt(2)
+	ap := NewTraceProvider(startingL2BlockNumber, depth)
+
+	// Step data for the max position is allowed
+	maxLen := int64(1 << depth)
+	maxPos := types.NewPosition(4, big.NewInt(maxLen))
+	result, _, _, err := ap.GetStepData(context.Background(), maxPos)
+	require.NoError(t, err)
+	expected := "00000000000000000000000000000000000000000000000000000000000000300000000000000000000000000000000000000000000000000000000000000090"
+	require.Equal(t, expected, common.Bytes2Hex(result))
+
+	// Cannot step on a position greater than the max.
+	oobPos := types.NewPosition(4, big.NewInt(int64(1<<depth)+1))
+	_, _, _, err = ap.GetStepData(context.Background(), oobPos)
+	require.ErrorIs(t, err, ErrIndexTooLarge)
+}
+
+// TestAlphabetProvider_Get_ClaimsByTraceIndex tests the Get function.
 func TestAlphabetProvider_Get_ClaimsByTraceIndex(t *testing.T) {
 	// Create a new alphabet provider.
 	depth := types.Depth(3)

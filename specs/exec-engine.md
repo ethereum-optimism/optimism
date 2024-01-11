@@ -17,8 +17,13 @@
 - [Engine API](#engine-api)
   - [`engine_forkchoiceUpdatedV2`](#engine_forkchoiceupdatedv2)
     - [Extended PayloadAttributesV2](#extended-payloadattributesv2)
+  - [`engine_forkchoiceUpdatedV3`](#engine_forkchoiceupdatedv3)
+    - [Extended PayloadAttributesV3](#extended-payloadattributesv3)
   - [`engine_newPayloadV2`](#engine_newpayloadv2)
+  - [`engine_newPayloadV3`](#engine_newpayloadv3)
   - [`engine_getPayloadV2`](#engine_getpayloadv2)
+  - [`engine_getPayloadV3`](#engine_getpayloadv3)
+    - [Extended Response](#extended-response)
   - [`engine_signalSuperchainV1`](#engine_signalsuperchainv1)
 - [Networking](#networking)
 - [Sync](#sync)
@@ -143,23 +148,29 @@ can be accessed in two interchangeable ways:
 Ecotone allows posting batches via Blobs which are subject to a new fee market. To account for this feature,
 L1 cost is computed as:
 
-`(compressedTxSize) * (l1Basefee*16*lBasefeeScalar + l1BlobBasefeeScalar*l1BlobBasefeeScalar) / 1e6`
+`(zeroes*4 + ones*16) * (16*l1Basefee*l1BasefeeScalar + l1BlobBasefee*l1BlobBasefeeScalar) / 16e6`
 
 Where:
 
 - the computation is an unlimited precision integer computation, with the result in Wei and having
   `uint256` range.
 
-- `compressedTxSize` is an approximation of how many bytes the transaction occupies in a compressed
-  batch. It is determined from the *full* encoded transaction as: `compressedTxSize = (zeroes*4 +
-  ones*16) / 16` (To preserve precision under integer arithmetic, the division by 16 is actually
-  performed at the very end of the fee computation together with the division by 1e6 as a single
-  division by 16e6.)
+- zeoroes and ones are the count of zero and non-zero bytes respectively in the *full* encoded
+  signed transaction.
 
 - `l1Basefee` is the L1 basefee of the latest L1 origin registered in the L2 chain.
 
 - `l1BlobBasefee` is the blob gasprice, computed as described in [EIP-4844][4844-gas] from the
   header of the latest registered L1 origin block.
+
+Conceptually what the above function captures is the formula below, where `compressedTxSize =
+(zeroes*4 + ones*16) / 16` can be thought of as a rough approximation of how many bytes the
+transaction occupies in a compressed batch.
+
+`(compressedTxSize) * (16*l1Basefee*lBasefeeScalar + l1BlobBasefee*l1BlobBasefeeScalar) / 1e6`
+
+The precise cost function used by Ecotone at the top of this section preserves precision under
+integer arithmetic by postponing the inner division by 16 until the very end.
 
 [4844-gas]: https://github.com/ethereum/EIPs/blob/master/EIPS/eip-4844.md#gas-accounting
 
@@ -173,15 +184,10 @@ ways:
   - using direct storage-reads:
     - basefee `uint256` in slot `1`
     - blobBasefee `uint256` in slot `7`
-    - l1BasefeeScalar big-endian `uint32` slot `8` offset `4`
-    - l1BlobBasefeeScalar as big-endian `uint32` in slot `8` offset `0`
+    - l1BasefeeScalar big-endian `uint32` slot `3` at offset `12`
+    - l1BlobBasefeeScalar big-endian `uint32` in slot `3` at offset `8`
 
 ## Engine API
-
-<!--
-*Note: the [Engine API][l1-api-spec] is in alpha, `v1.0.0-alpha.5`.
-There may be subtle tweaks, beta starts in a few weeks*
--->
 
 ### `engine_forkchoiceUpdatedV2`
 
@@ -246,15 +252,77 @@ If not specified as rollup, a `STATUS_INVALID` is returned.
 
 [rollup-driver]: rollup-node.md
 
+### `engine_forkchoiceUpdatedV3`
+
+See [`engine_forkchoiceUpdatedV2`](#engine_forkchoiceUpdatedV2) for a description of the forkchoice updated method.
+
+To support rollup functionality, one backwards-compatible change is introduced
+to [`engine_forkchoiceUpdatedV3`][engine_forkchoiceUpdatedV3]: the extended `PayloadAttributesV3`
+
+#### Extended PayloadAttributesV3
+
+[`PayloadAttributesV3`][PayloadAttributesV3] is extended to:
+
+```js
+PayloadAttributesV3: {
+    timestamp: QUANTITY
+    random: DATA (32 bytes)
+    suggestedFeeRecipient: DATA (20 bytes)
+    withdrawals: array of WithdrawalV1
+    parentBeaconBlockRoot: DATA (32 bytes)
+    transactions: array of DATA
+    noTxPool: bool
+    gasLimit: QUANTITY or null
+}
+```
+
+The requirements of this object are the same as extended [`PayloadAttributesV2`][#extended-payloadattributesv2] with
+the addition of `parentBeaconBlockRoot` which is the parent beacon block root from the L1 origin block of the L2 block.
+
+`parentBeaconBlockRoot` must be nil for Bedrock/Canyon/Delta payloads, but must be set to the L1
+origin `parentBeaconBlockRoot`.
+
 ### `engine_newPayloadV2`
 
 No modifications to [`engine_newPayloadV2`][engine_newPayloadV2].
 Applies a L2 block to the engine state.
 
+### `engine_newPayloadV3`
+
+[`engine_newPayloadV3`][engine_newPayloadV3] applies an Ecotone L2 block to the engine state. There are no
+modifications to this API. The additional parameters should be set as follows:
+
+- `expectedBlobVersionedHashes` MUST be an empty array.
+- `parentBeaconBlockRoot` MUST be the parent beacon block root from the L1 origin block of the L2 block.
+
 ### `engine_getPayloadV2`
 
 No modifications to [`engine_getPayloadV2`][engine_getPayloadV2].
 Retrieves a payload by ID, prepared by `engine_forkchoiceUpdatedV2` when called with `payloadAttributes`.
+
+### `engine_getPayloadV3`
+
+[`engine_getPayloadV3`][engine_getPayloadV3] retrieves a payload by ID, prepared by `engine_forkchoiceUpdatedV3`
+when called with `payloadAttributes`.
+
+#### Extended Response
+
+The [response][GetPayloadV3Response] is extended to:
+
+```js
+{
+    executionPayload: ExecutionPayload
+    blockValue: QUANTITY
+    blobsBundle: BlobsBundle
+    shouldOverrideBuilder: BOOLEAN
+    parentBeaconBlockRoot: DATA (32 bytes)
+}
+```
+
+[GetPayloadV3Response]: (https://github.com/ethereum/execution-apis/blob/main/src/engine/cancun.md#response-2)
+
+For Bedrock and Canyon `parentBeaconBlockRoot` MUST be nil and in Ecotone it MUST be set to the parentBeaconBlockRoot
+from the L1 Origin block of the L2 block.
 
 ### `engine_signalSuperchainV1`
 
@@ -331,9 +399,14 @@ as the engine implementation can sync state faster through methods like [snap-sy
 ### Happy-path sync
 
 1. The rollup node informs the engine of the L2 chain head, unconditionally (part of regular node operation):
-   - [`engine_newPayloadV2`][engine_newPayloadV2] is called with latest L2 block received from P2P.
-   - [`engine_forkchoiceUpdatedV2`][engine_forkchoiceUpdatedV2] is called with the current
-     `unsafe`/`safe`/`finalized` L2 block hashes.
+   - Bedrock / Canyon / Delta Payloads
+      - [`engine_newPayloadV2`][engine_newPayloadV2] is called with latest L2 block received from P2P.
+      - [`engine_forkchoiceUpdatedV2`][engine_forkchoiceUpdatedV2] is called with the current
+        `unsafe`/`safe`/`finalized` L2 block hashes.
+   - Ecotone Payloads
+      - [`engine_newPayloadV3`][engine_newPayloadV3] is called with latest L2 block received from P2P.
+      - [`engine_forkchoiceUpdatedV3`][engine_forkchoiceUpdatedV3] is called with the current
+        `unsafe`/`safe`/`finalized` L2 block hashes.
 2. The engine requests headers from peers, in reverse till the parent hash matches the local chain
 3. The engine catches up:
     a) A form of state sync is activated towards the finalized or head block hash
@@ -348,7 +421,7 @@ the operation within the engine is the exact same as with L1 (although with an E
 2. The rollup node maintains latest head from engine (poll `eth_getBlockByNumber` and/or maintain a header subscription)
 3. The rollup node activates sync if the engine is out of sync but not syncing through P2P (`eth_syncing`)
 4. The rollup node inserts blocks, derived from L1, one by one, potentially adapting to L1 reorg(s),
-   as outlined in the [rollup node spec] (`engine_forkchoiceUpdatedV2`, `engine_newPayloadV2`)
+   as outlined in the [rollup node spec].
 
 [rollup node spec]: rollup-node.md
 
@@ -366,6 +439,10 @@ EIP-4844 is disabled as following:
 - Transactions of the blob-type, through the RPC or otherwise, are not allowed into the transaction pool.
 - Block-building code does not select EIP-4844 transactions.
 - An L2 block state-transition with EIP-4844 transactions is invalid.
+
+The [BLOBBASEFEE opcode](https://eips.ethereum.org/EIPS/eip-7516) is present but its semantics are
+altered because there are no blobs processed by L2. The opcode will always push a value of 1 onto
+the stack.
 
 ## Ecotone: Beacon Block Root
 
@@ -391,10 +468,14 @@ For the Ecotone upgrade, this entails that:
 [eip-2718-transactions]: https://eips.ethereum.org/EIPS/eip-2718#transactions
 [exec-api-data]: https://github.com/ethereum/execution-apis/blob/769c53c94c4e487337ad0edea9ee0dce49c79bfa/src/engine/specification.md#structures
 [l1-api-spec]: https://github.com/ethereum/execution-apis/blob/769c53c94c4e487337ad0edea9ee0dce49c79bfa/src/engine/specification.md
+[PayloadAttributesV3]: https://github.com/ethereum/execution-apis/blob/cea7eeb642052f4c2e03449dc48296def4aafc24/src/engine/cancun.md#payloadattributesv3
 [PayloadAttributesV2]: https://github.com/ethereum/execution-apis/blob/584905270d8ad665718058060267061ecfd79ca5/src/engine/shanghai.md#PayloadAttributesV2
 [ExecutionPayloadV1]: https://github.com/ethereum/execution-apis/blob/769c53c94c4e487337ad0edea9ee0dce49c79bfa/src/engine/specification.md#ExecutionPayloadV1
+[engine_forkchoiceUpdatedV3]: https://github.com/ethereum/execution-apis/blob/cea7eeb642052f4c2e03449dc48296def4aafc24/src/engine/cancun.md#engine_forkchoiceupdatedv3
 [engine_forkchoiceUpdatedV2]: https://github.com/ethereum/execution-apis/blob/584905270d8ad665718058060267061ecfd79ca5/src/engine/shanghai.md#engine_forkchoiceupdatedv2
 [engine_newPayloadV2]: https://github.com/ethereum/execution-apis/blob/584905270d8ad665718058060267061ecfd79ca5/src/engine/shanghai.md#engine_newpayloadv2
+[engine_newPayloadV3]: https://github.com/ethereum/execution-apis/blob/cea7eeb642052f4c2e03449dc48296def4aafc24/src/engine/cancun.md#engine_newpayloadv3
 [engine_getPayloadV2]: https://github.com/ethereum/execution-apis/blob/584905270d8ad665718058060267061ecfd79ca5/src/engine/shanghai.md#engine_getpayloadv2
+[engine_getPayloadV3]: https://github.com/ethereum/execution-apis/blob/a0d03086564ab1838b462befbc083f873dcf0c0f/src/engine/cancun.md#engine_getpayloadv3
 [HEX value encoding]: https://eth.wiki/json-rpc/API#hex-value-encoding
 [JSON-RPC-API]: https://github.com/ethereum/execution-apis

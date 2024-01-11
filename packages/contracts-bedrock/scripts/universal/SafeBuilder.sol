@@ -4,7 +4,7 @@ pragma solidity 0.8.15;
 import { console } from "forge-std/console.sol";
 import { IMulticall3 } from "forge-std/interfaces/IMulticall3.sol";
 
-import { LibSort } from "../libraries/LibSort.sol";
+import { LibSort } from "solady/utils/LibSort.sol";
 import { IGnosisSafe, Enum } from "../interfaces/IGnosisSafe.sol";
 import { EnhancedScript } from "../universal/EnhancedScript.sol";
 import { GlobalConstants } from "../universal/GlobalConstants.sol";

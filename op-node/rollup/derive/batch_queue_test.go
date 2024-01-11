@@ -86,7 +86,7 @@ func l1InfoDepositTx(t *testing.T, l1BlockNum uint64) hexutil.Bytes {
 		Number:  l1BlockNum,
 		BaseFee: big.NewInt(0),
 	}
-	infoData, err := l1Info.MarshalBinary()
+	infoData, err := l1Info.marshalBinaryBedrock()
 	require.NoError(t, err)
 	depositTx := &types.DepositTx{
 		Data: infoData,

@@ -258,8 +258,6 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "SystemConfig", _sel: _getSel("VERSION()") });
         _addSpec({ _name: "SystemConfig", _sel: _getSel("batcherHash()") });
         _addSpec({ _name: "SystemConfig", _sel: _getSel("gasLimit()") });
-        _addSpec({ _name: "SystemConfig", _sel: _getSel("basefeeScalar()") });
-        _addSpec({ _name: "SystemConfig", _sel: _getSel("blobBasefeeScalar()") });
         _addSpec({ _name: "SystemConfig", _sel: SystemConfig.initialize.selector });
         _addSpec({ _name: "SystemConfig", _sel: SystemConfig.minimumGasLimit.selector });
         _addSpec({ _name: "SystemConfig", _sel: _getSel("overhead()") });
@@ -269,11 +267,6 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "SystemConfig", _sel: _getSel("scalar()") });
         _addSpec({ _name: "SystemConfig", _sel: SystemConfig.setBatcherHash.selector, _auth: Role.SYSTEMCONFIGOWNER });
         _addSpec({ _name: "SystemConfig", _sel: SystemConfig.setGasConfig.selector, _auth: Role.SYSTEMCONFIGOWNER });
-        _addSpec({
-            _name: "SystemConfig",
-            _sel: SystemConfig.setGasConfigEcotone.selector,
-            _auth: Role.SYSTEMCONFIGOWNER
-        });
         _addSpec({ _name: "SystemConfig", _sel: SystemConfig.setGasLimit.selector, _auth: Role.SYSTEMCONFIGOWNER });
         _addSpec({ _name: "SystemConfig", _sel: SystemConfig.setResourceConfig.selector, _auth: Role.SYSTEMCONFIGOWNER });
         _addSpec({

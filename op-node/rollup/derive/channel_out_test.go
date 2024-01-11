@@ -9,6 +9,12 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+)
+
+var (
+	rollupCfg rollup.Config
 )
 
 // basic implementation of the Compressor interface that does no compression
@@ -40,7 +46,7 @@ func TestChannelOutAddBlock(t *testing.T) {
 			},
 			nil,
 		)
-		_, err := cout.AddBlock(block)
+		_, err := cout.AddBlock(&rollupCfg, block)
 		require.Error(t, err)
 		require.Equal(t, ErrNotDepositTx, err)
 	})
@@ -152,6 +158,6 @@ func TestForceCloseTxData(t *testing.T) {
 
 func TestBlockToBatchValidity(t *testing.T) {
 	block := new(types.Block)
-	_, _, err := BlockToSingularBatch(block)
+	_, _, err := BlockToSingularBatch(&rollupCfg, block)
 	require.ErrorContains(t, err, "has no transactions")
 }

@@ -41,7 +41,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
+	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -202,7 +202,7 @@ func TestSystemE2EDencunAtGenesisWithBlobs(t *testing.T) {
 	require.Nil(t, err, "Waiting for blob tx on L1")
 	// end sending blob-containing txns on l1
 	l2Client := sys.Clients["sequencer"]
-	finalizedBlock, err := gethutils.WaitForL1OriginOnL2(blockContainsBlob.BlockNumber.Uint64(), l2Client, 30*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+	finalizedBlock, err := gethutils.WaitForL1OriginOnL2(sys.RollupConfig, blockContainsBlob.BlockNumber.Uint64(), l2Client, 30*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 	require.Nil(t, err, "Waiting for L1 origin of blob tx on L2")
 	finalizationTimeout := 30 * time.Duration(cfg.DeployConfig.L1BlockTime) * time.Second
 	_, err = gethutils.WaitForBlockToBeSafe(finalizedBlock.Header().Number, l2Client, finalizationTimeout)
@@ -326,11 +326,11 @@ func TestConfirmationDepth(t *testing.T) {
 	l2VerHead, err := l2Verif.BlockByNumber(ctx, nil)
 	require.NoError(t, err)
 
-	seqInfo, err := derive.L1InfoDepositTxData(l2SeqHead.Transactions()[0].Data())
+	seqInfo, err := derive.L1BlockInfoFromBytes(sys.RollupConfig, l2SeqHead.Time(), l2SeqHead.Transactions()[0].Data())
 	require.NoError(t, err)
 	require.LessOrEqual(t, seqInfo.Number+seqConfDepth, l1Head.NumberU64(), "the seq L2 head block should have an origin older than the L1 head block by at least the sequencer conf depth")
 
-	verInfo, err := derive.L1InfoDepositTxData(l2VerHead.Transactions()[0].Data())
+	verInfo, err := derive.L1BlockInfoFromBytes(sys.RollupConfig, l2VerHead.Time(), l2VerHead.Transactions()[0].Data())
 	require.NoError(t, err)
 	require.LessOrEqual(t, verInfo.Number+verConfDepth, l1Head.NumberU64(), "the ver L2 head block should have an origin older than the L1 head block by at least the verifier conf depth")
 }
@@ -469,9 +469,9 @@ func TestMissingBatchE2E(t *testing.T) {
 	}
 }
 
-func L1InfoFromState(ctx context.Context, contract *bindings.L1Block, l2Number *big.Int) (derive.L1BlockInfo, error) {
+func L1InfoFromState(ctx context.Context, contract *bindings.L1Block, l2Number *big.Int) (*derive.L1BlockInfo, error) {
 	var err error
-	var out derive.L1BlockInfo
+	var out = &derive.L1BlockInfo{}
 	opts := bind.CallOpts{
 		BlockNumber: l2Number,
 		Context:     ctx,
@@ -479,45 +479,45 @@ func L1InfoFromState(ctx context.Context, contract *bindings.L1Block, l2Number *
 
 	out.Number, err = contract.Number(&opts)
 	if err != nil {
-		return derive.L1BlockInfo{}, fmt.Errorf("failed to get number: %w", err)
+		return nil, fmt.Errorf("failed to get number: %w", err)
 	}
 
 	out.Time, err = contract.Timestamp(&opts)
 	if err != nil {
-		return derive.L1BlockInfo{}, fmt.Errorf("failed to get timestamp: %w", err)
+		return nil, fmt.Errorf("failed to get timestamp: %w", err)
 	}
 
 	out.BaseFee, err = contract.Basefee(&opts)
 	if err != nil {
-		return derive.L1BlockInfo{}, fmt.Errorf("failed to get timestamp: %w", err)
+		return nil, fmt.Errorf("failed to get base fee: %w", err)
 	}
 
 	blockHashBytes, err := contract.Hash(&opts)
 	if err != nil {
-		return derive.L1BlockInfo{}, fmt.Errorf("failed to get block hash: %w", err)
+		return nil, fmt.Errorf("failed to get block hash: %w", err)
 	}
 	out.BlockHash = common.BytesToHash(blockHashBytes[:])
 
 	out.SequenceNumber, err = contract.SequenceNumber(&opts)
 	if err != nil {
-		return derive.L1BlockInfo{}, fmt.Errorf("failed to get sequence number: %w", err)
+		return nil, fmt.Errorf("failed to get sequence number: %w", err)
 	}
 
 	overhead, err := contract.L1FeeOverhead(&opts)
 	if err != nil {
-		return derive.L1BlockInfo{}, fmt.Errorf("failed to get l1 fee overhead: %w", err)
+		return nil, fmt.Errorf("failed to get l1 fee overhead: %w", err)
 	}
 	out.L1FeeOverhead = eth.Bytes32(common.BigToHash(overhead))
 
 	scalar, err := contract.L1FeeScalar(&opts)
 	if err != nil {
-		return derive.L1BlockInfo{}, fmt.Errorf("failed to get l1 fee scalar: %w", err)
+		return nil, fmt.Errorf("failed to get l1 fee scalar: %w", err)
 	}
 	out.L1FeeScalar = eth.Bytes32(common.BigToHash(scalar))
 
 	batcherHash, err := contract.BatcherHash(&opts)
 	if err != nil {
-		return derive.L1BlockInfo{}, fmt.Errorf("failed to get batch sender: %w", err)
+		return nil, fmt.Errorf("failed to get batch sender: %w", err)
 	}
 	out.BatcherAddr = common.BytesToAddress(batcherHash[:])
 
@@ -871,11 +871,12 @@ func TestL1InfoContract(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
-	fillInfoLists := func(start *types.Block, contract *bindings.L1Block, client *ethclient.Client) ([]derive.L1BlockInfo, []derive.L1BlockInfo) {
-		var txList, stateList []derive.L1BlockInfo
+	fillInfoLists := func(start *types.Block, contract *bindings.L1Block, client *ethclient.Client) ([]*derive.L1BlockInfo, []*derive.L1BlockInfo) {
+		var txList, stateList []*derive.L1BlockInfo
 		for b := start; ; {
-			var infoFromTx derive.L1BlockInfo
-			require.NoError(t, infoFromTx.UnmarshalBinary(b.Transactions()[0].Data()))
+			var infoFromTx *derive.L1BlockInfo
+			infoFromTx, err := derive.L1BlockInfoFromBytes(sys.RollupConfig, b.Time(), b.Transactions()[0].Data())
+			require.NoError(t, err)
 			txList = append(txList, infoFromTx)
 
 			infoFromState, err := L1InfoFromState(ctx, contract, b.Number())
@@ -894,13 +895,13 @@ func TestL1InfoContract(t *testing.T) {
 	l1InfosFromSequencerTransactions, l1InfosFromSequencerState := fillInfoLists(endSeqBlock, seqL1Info, l2Seq)
 	l1InfosFromVerifierTransactions, l1InfosFromVerifierState := fillInfoLists(endVerifBlock, verifL1Info, l2Verif)
 
-	l1blocks := make(map[common.Hash]derive.L1BlockInfo)
+	l1blocks := make(map[common.Hash]*derive.L1BlockInfo)
 	maxL1Hash := l1InfosFromSequencerTransactions[0].BlockHash
 	for h := maxL1Hash; ; {
 		b, err := l1Client.BlockByHash(ctx, h)
 		require.Nil(t, err)
 
-		l1blocks[h] = derive.L1BlockInfo{
+		l1blocks[h] = &derive.L1BlockInfo{
 			Number:         b.NumberU64(),
 			Time:           b.Time(),
 			BaseFee:        b.BaseFee(),
@@ -917,7 +918,7 @@ func TestL1InfoContract(t *testing.T) {
 		}
 	}
 
-	checkInfoList := func(name string, list []derive.L1BlockInfo) {
+	checkInfoList := func(name string, list []*derive.L1BlockInfo) {
 		for _, info := range list {
 			if expected, ok := l1blocks[info.BlockHash]; ok {
 				expected.SequenceNumber = info.SequenceNumber // the seq nr is not part of the L1 info we know in advance, so we ignore it.
@@ -935,7 +936,7 @@ func TestL1InfoContract(t *testing.T) {
 
 }
 
-// calcGasFees determines the actual cost of the transaction given a specific basefee
+// calcGasFees determines the actual cost of the transaction given a specific base fee
 // This does not include the L1 data fee charged from L2 transactions.
 func calcGasFees(gasUsed uint64, gasTipCap *big.Int, gasFeeCap *big.Int, baseFee *big.Int) *big.Int {
 	x := new(big.Int).Add(gasTipCap, baseFee)
@@ -1198,7 +1199,7 @@ func TestFees(t *testing.T) {
 	bytes, err := tx.MarshalBinary()
 	require.Nil(t, err)
 
-	l1Fee := l1CostFn(receipt.BlockNumber.Uint64(), header.Time, tx.RollupDataGas(), tx.IsSystemTx())
+	l1Fee := l1CostFn(tx.RollupCostData(), header.Time)
 	require.Equalf(t, l1Fee, l1FeeRecipientDiff, "L1 fee mismatch: start balance %v, end balance %v", l1FeeRecipientStartBalance, l1FeeRecipientEndBalance)
 
 	gpoL1Fee, err := gpoContract.GetL1Fee(&bind.CallOpts{}, bytes)
@@ -1211,7 +1212,7 @@ func TestFees(t *testing.T) {
 			new(big.Float).SetInt(l1Header.BaseFee),
 			new(big.Float).Mul(new(big.Float).SetInt(receipt.L1GasUsed), receipt.FeeScalar),
 		),
-		new(big.Float).SetInt(receipt.L1Fee), "fee field in receipt matches gas used times scalar times basefee")
+		new(big.Float).SetInt(receipt.L1Fee), "fee field in receipt matches gas used times scalar times base fee")
 
 	// Calculate total fee
 	baseFeeRecipientDiff.Add(baseFeeRecipientDiff, coinbaseDiff)

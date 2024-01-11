@@ -53,10 +53,8 @@ type EngineQueueStage interface {
 	UnsafeL2Head() eth.L2BlockRef
 	SafeL2Head() eth.L2BlockRef
 	PendingSafeL2Head() eth.L2BlockRef
-	EngineSyncTarget() eth.L2BlockRef
 	Origin() eth.L1BlockRef
 	SystemConfig() eth.SystemConfig
-	SetUnsafeHead(head eth.L2BlockRef)
 
 	Finalize(l1Origin eth.L1BlockRef)
 	AddUnsafePayload(payload *eth.ExecutionPayload)
@@ -67,7 +65,7 @@ type EngineQueueStage interface {
 // DerivationPipeline is updated with new L1 data, and the Step() function can be iterated on to keep the L2 Engine in sync.
 type DerivationPipeline struct {
 	log       log.Logger
-	cfg       *rollup.Config
+	rollupCfg *rollup.Config
 	l1Fetcher L1Fetcher
 
 	// Index of the stage that is currently being reset.
@@ -83,21 +81,21 @@ type DerivationPipeline struct {
 }
 
 // NewDerivationPipeline creates a derivation pipeline, which should be reset before use.
-func NewDerivationPipeline(log log.Logger, cfg *rollup.Config, l1Fetcher L1Fetcher, engine Engine, metrics Metrics, syncCfg *sync.Config) *DerivationPipeline {
+func NewDerivationPipeline(log log.Logger, rollupCfg *rollup.Config, l1Fetcher L1Fetcher, l1Blobs L1BlobsFetcher, engine Engine, metrics Metrics, syncCfg *sync.Config) *DerivationPipeline {
 
 	// Pull stages
-	l1Traversal := NewL1Traversal(log, cfg, l1Fetcher)
-	dataSrc := NewDataSourceFactory(log, cfg, l1Fetcher) // auxiliary stage for L1Retrieval
+	l1Traversal := NewL1Traversal(log, rollupCfg, l1Fetcher)
+	dataSrc := NewDataSourceFactory(log, rollupCfg, l1Fetcher, l1Blobs) // auxiliary stage for L1Retrieval
 	l1Src := NewL1Retrieval(log, dataSrc, l1Traversal)
 	frameQueue := NewFrameQueue(log, l1Src)
-	bank := NewChannelBank(log, cfg, frameQueue, l1Fetcher, metrics)
-	chInReader := NewChannelInReader(cfg, log, bank, metrics)
-	batchQueue := NewBatchQueue(log, cfg, chInReader, engine)
-	attrBuilder := NewFetchingAttributesBuilder(cfg, l1Fetcher, engine)
-	attributesQueue := NewAttributesQueue(log, cfg, attrBuilder, batchQueue)
+	bank := NewChannelBank(log, rollupCfg, frameQueue, l1Fetcher, metrics)
+	chInReader := NewChannelInReader(rollupCfg, log, bank, metrics)
+	batchQueue := NewBatchQueue(log, rollupCfg, chInReader, engine)
+	attrBuilder := NewFetchingAttributesBuilder(rollupCfg, l1Fetcher, engine)
+	attributesQueue := NewAttributesQueue(log, rollupCfg, attrBuilder, batchQueue)
 
 	// Step stages
-	eng := NewEngineQueue(log, cfg, engine, metrics, attributesQueue, l1Fetcher, syncCfg)
+	eng := NewEngineQueue(log, rollupCfg, engine, metrics, attributesQueue, l1Fetcher, syncCfg)
 
 	// Reset from engine queue then up from L1 Traversal. The stages do not talk to each other during
 	// the reset, but after the engine queue, this is the order in which the stages could talk to each other.
@@ -106,7 +104,7 @@ func NewDerivationPipeline(log log.Logger, cfg *rollup.Config, l1Fetcher L1Fetch
 
 	return &DerivationPipeline{
 		log:       log,
-		cfg:       cfg,
+		rollupCfg: rollupCfg,
 		l1Fetcher: l1Fetcher,
 		resetting: 0,
 		stages:    stages,
@@ -159,11 +157,7 @@ func (dp *DerivationPipeline) UnsafeL2Head() eth.L2BlockRef {
 	return dp.eng.UnsafeL2Head()
 }
 
-func (dp *DerivationPipeline) EngineSyncTarget() eth.L2BlockRef {
-	return dp.eng.EngineSyncTarget()
-}
-
-func (dp *DerivationPipeline) StartPayload(ctx context.Context, parent eth.L2BlockRef, attrs *eth.PayloadAttributes, updateSafe bool) (errType BlockInsertionErrType, err error) {
+func (dp *DerivationPipeline) StartPayload(ctx context.Context, parent eth.L2BlockRef, attrs *AttributesWithParent, updateSafe bool) (errType BlockInsertionErrType, err error) {
 	return dp.eng.StartPayload(ctx, parent, attrs, updateSafe)
 }
 

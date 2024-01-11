@@ -10,6 +10,7 @@ import (
 	openum "github.com/ethereum-optimism/optimism/op-service/enum"
 	opflags "github.com/ethereum-optimism/optimism/op-service/flags"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 )
 
@@ -176,23 +177,6 @@ var (
 		Value:   7300,
 		EnvVars: prefixEnvVars("METRICS_PORT"),
 	}
-	PprofEnabledFlag = &cli.BoolFlag{
-		Name:    "pprof.enabled",
-		Usage:   "Enable the pprof server",
-		EnvVars: prefixEnvVars("PPROF_ENABLED"),
-	}
-	PprofAddrFlag = &cli.StringFlag{
-		Name:    "pprof.addr",
-		Usage:   "pprof listening address",
-		Value:   "0.0.0.0", // TODO(CLI-4159): Switch to 127.0.0.1
-		EnvVars: prefixEnvVars("PPROF_ADDR"),
-	}
-	PprofPortFlag = &cli.IntFlag{
-		Name:    "pprof.port",
-		Usage:   "pprof listening port",
-		Value:   6060,
-		EnvVars: prefixEnvVars("PPROF_PORT"),
-	}
 	SnapshotLog = &cli.StringFlag{
 		Name:    "snapshotlog.file",
 		Usage:   "Path to the snapshot log file",
@@ -289,9 +273,6 @@ var optionalFlags = []cli.Flag{
 	MetricsEnabledFlag,
 	MetricsAddrFlag,
 	MetricsPortFlag,
-	PprofEnabledFlag,
-	PprofAddrFlag,
-	PprofPortFlag,
 	SnapshotLog,
 	HeartbeatEnabledFlag,
 	HeartbeatMonikerFlag,
@@ -317,6 +298,7 @@ func init() {
 	DeprecatedFlags = append(DeprecatedFlags, deprecatedP2PFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, P2PFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, oplog.CLIFlags(EnvVarPrefix)...)
+	optionalFlags = append(optionalFlags, oppprof.CLIFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, DeprecatedFlags...)
 	optionalFlags = append(optionalFlags, opflags.CLIFlags(EnvVarPrefix)...)
 	Flags = append(requiredFlags, optionalFlags...)

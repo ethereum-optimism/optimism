@@ -1,3 +1,9 @@
+# Copy docker buildx in order to generate the absolute prestate
+# in the CI pipeline for reproducible fault proof builds
+FROM docker as buildx
+COPY --from=docker/buildx-bin /buildx /usr/libexec/docker/cli-plugins/docker-buildx
+RUN docker buildx version
+
 FROM --platform=linux/amd64 debian:bullseye-slim as rust-build
 
 SHELL ["/bin/bash", "-c"]
@@ -66,6 +72,7 @@ RUN mkdir /root/.cargo && mkdir /root/.cargo/bin && mkdir /root/.rustup
 
 # copy the go installation, but not the module cache (cache will get stale, and would add a lot of weight)
 COPY --from=go-build /usr/local/go /usr/local/go
+
 # copy tools
 COPY --from=go-build /go/bin/gotestsum /go/bin/gotestsum
 COPY --from=go-build /go/bin/mockery /go/bin/mockery
@@ -76,6 +83,7 @@ COPY --from=go-build /go/bin/geth /usr/local/bin/geth
 # copy the rust installation, alongside the installed toolchains
 COPY --from=rust-build /root/.cargo/bin /root/.cargo/bin
 COPY --from=rust-build /root/.rustup /root/.rustup
+
 # copy tools
 COPY --from=rust-build /root/.foundry/bin/forge /usr/local/bin/forge
 COPY --from=rust-build /root/.foundry/bin/cast /usr/local/bin/cast
@@ -83,10 +91,10 @@ COPY --from=rust-build /root/.foundry/bin/anvil /usr/local/bin/anvil
 
 COPY --from=echidna-test /usr/local/bin/echidna-test /usr/local/bin/echidna-test
 
+COPY ./.slitherrc ./.slitherrc
 COPY .nvmrc .nvmrc
 
 ENV NODE_MAJOR=20
-ENV SLITHER_VERSION=0.10.0
 
 # note: python3 package in apt is python 3.9, while base image already has python 3.11
 RUN /bin/sh -c set -eux; \
@@ -102,13 +110,12 @@ RUN /bin/sh -c set -eux; \
   apt-get install -y nodejs docker-ce-cli; \
   ln -s /usr/local/go/bin/gofmt /usr/local/bin/gofmt; \
   npm i -g depcheck; \
-  pip install slither-analyzer==$SLITHER_VERSION capstone pyelftools; \
+  pip install slither-analyzer==$(cat .slitherrc) capstone pyelftools; \
   curl -fLSs https://raw.githubusercontent.com/CircleCI-Public/circleci-cli/master/install.sh | bash; \
   apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false; \
   rm -rf /var/lib/apt/lists/*; \
   rm -rf /root/.cache/pip; \
   rm -rf /root/.cache/npm;
-
 
 RUN npm i -g pnpm && npm i -g yarn@1 && pnpm --version && yarn --version
 
@@ -127,8 +134,12 @@ RUN echo "downloading and verifying Codecov uploader" && \
   chmod +x /usr/local/bin/codecov  && \
   rm codecov
 
+# Copy docker buildx
+COPY --from=buildx /usr/libexec/docker/cli-plugins/docker-buildx /usr/libexec/docker/cli-plugins/docker-buildx
+
 # within docker use bash
 SHELL ["/bin/bash", "-c"]
+
 # set env to use bash
 ENV SHELL=/bin/bash
 ENV BASH=/bin/bash

@@ -41,5 +41,11 @@
   "l2GenesisRegolithTimeOffset": "0x0",
   "systemConfigStartBlock": 0,
   "requiredProtocolVersion": "0x0000000000000000000000000000000000000004000000000000000000000001",
-  "recommendedProtocolVersion": "0x0000000000000000000000000000000000000004000000000000000000000001"
+  "recommendedProtocolVersion": "0x0000000000000000000000000000000000000004000000000000000000000001",
+  "faultGameAbsolutePrestate": "0x037bbcc23684afbb7f608024369242c5cdea261a4f63981387efb7cd81763536",
+  "faultGameMaxDepth": 73,
+  "faultGameMaxDuration": 86400,
+  "faultGameGenesisBlock": 0,
+  "faultGameGenesisOutputRoot": "0x6a2fb9128c8bc82eed49ee590fba3e975bd67fede20535d0d20b3000ea6d99b1",
+  "faultGameSplitDepth": 32
 }

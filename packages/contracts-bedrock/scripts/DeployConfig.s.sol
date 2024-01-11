@@ -103,7 +103,10 @@ contract DeployConfig is Script {
         requiredProtocolVersion = stdJson.readUint(_json, "$.requiredProtocolVersion");
         recommendedProtocolVersion = stdJson.readUint(_json, "$.recommendedProtocolVersion");
 
-        if (block.chainid == Chains.LocalDevnet || block.chainid == Chains.GethDevnet) {
+        if (
+            block.chainid == Chains.LocalDevnet || block.chainid == Chains.GethDevnet || block.chainid == Chains.Sepolia
+                || block.chainid == Chains.Goerli
+        ) {
             faultGameAbsolutePrestate = stdJson.readUint(_json, "$.faultGameAbsolutePrestate");
             faultGameMaxDepth = stdJson.readUint(_json, "$.faultGameMaxDepth");
             faultGameSplitDepth = stdJson.readUint(_json, "$.faultGameSplitDepth");

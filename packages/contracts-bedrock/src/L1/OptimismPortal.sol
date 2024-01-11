@@ -93,8 +93,8 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 2.3.0
-    string public constant version = "2.3.0";
+    /// @custom:semver 2.4.0
+    string public constant version = "2.4.0";
 
     /// @notice Constructs the OptimismPortal contract.
     /// @param _l2Oracle Address of the L2OutputOracle contract.
@@ -108,8 +108,10 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     /// @notice Initializer.
     /// @param _superchainConfig Address of the SuperchainConfig contract.
     function initialize(SuperchainConfig _superchainConfig) public initializer {
-        l2Sender = Constants.DEFAULT_L2_SENDER;
         superchainConfig = _superchainConfig;
+        if (l2Sender == address(0)) {
+            l2Sender = Constants.DEFAULT_L2_SENDER;
+        }
         __ResourceMetering_init();
     }
 
