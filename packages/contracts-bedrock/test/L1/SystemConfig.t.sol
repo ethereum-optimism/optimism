@@ -167,10 +167,8 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
     function test_startBlock_update_fails() external {
         // wipe out initialized slot so we can initialize again
         vm.store(address(systemConfig), bytes32(0), bytes32(0));
-        // the startBlock slot is 106, record the value
-        bytes32 startBlock = vm.load(address(systemConfig), bytes32(uint256(106)));
-
-        vm.store(address(systemConfig), bytes32(uint256(106)), bytes32(uint256(0)));
+        // the startBlock slot is 106, set it to non-zero value 1
+        vm.store(address(systemConfig), bytes32(uint256(106)), bytes32(uint256(1)));
 
         // Initialize and check that after call the value doesn't update
         vm.prank(systemConfig.owner());
@@ -192,7 +190,8 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
                 optimismMintableERC20Factory: address(optimismMintableERC20Factory)
             })
         });
-        assertEq(vm.load(address(systemConfig), bytes32(uint256(106))), startBlock);
+        // check that the startBlock slot is still the same
+        assertEq(vm.load(address(systemConfig), bytes32(uint256(106))), bytes32(uint256(1)));
     }
 }
 
