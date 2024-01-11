@@ -82,7 +82,7 @@ library Predeploys {
     address internal constant MultiCall3 = 0xcA11bde05977b3631167028862bE2a173976CA11;
 
     /// @notice Address of the Create2Deployer predeploy.
-    address internal constant Create2Deployer = 0xF49600926c7109BD66Ab97a2c036bf696e58Dbc2;
+    address internal constant Create2Deployer = 0x13b0D85CcB8bf860b6b79AF3029fCA081AE9beF2;
 
     /// @notice Address of the Safe_v130 predeploy.
     address internal constant Safe_v130 = 0x69f4D1788e39c87893C980c06EdF4b7f686e2938;
