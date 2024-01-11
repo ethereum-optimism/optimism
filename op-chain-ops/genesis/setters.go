@@ -103,6 +103,6 @@ func setup4788Contract(db vm.StateDB) error {
 	eip4788ContractCode := common.Hex2Bytes("0x3373fffffffffffffffffffffffffffffffffffffffe14604d57602036146024575f5ffd5b5f35801560495762001fff810690815414603c575f5ffd5b62001fff01545f5260205ff35b5f5ffd5b62001fff42064281555f359062001fff015500")
 	db.CreateAccount(eip4788ContractAddr)
 	db.SetCode(eip4788ContractAddr, eip4788ContractCode)
-	db.SetNonce(eip4788ContractAddr, 1) // TODO review why goerli nonce is 1
+	db.SetNonce(eip4788ContractAddr, 1) // After contract deployment, the resulting contract has nonce=1, see EIP-158
 	return nil
 }
