@@ -175,35 +175,66 @@ contract KeccakDispute_LargePreimageProposals_Test is Test {
     }
 
     /// @notice Tests that leaves can be added the large preimage proposal mapping.
-    function testLoad() public {
+    function testLoadZ() public {
         bytes memory data = new bytes(136);
-        PreimageOracle.Leaf[] memory leaves = _constructLeaves(data);
 
-        oracle.addLeaves(TEST_UUID, leaves);
+        LibKeccak.StateMatrix memory stateMatrix;
+        bytes32[] memory stateCommitments = _generateStateCommitments(stateMatrix, data);
+        oracle.addLeaves(TEST_UUID, data, stateCommitments, true);
+
+        // for (uint i = 0; i < stateCommitments.length; i++) {
+        //     console.logBytes32(stateCommitments[i]);
+        // }
 
         // We should have processed 1 block + the padding block.
         assertEq(oracle.proposalBlocksProcessed(address(this), TEST_UUID), 2);
-        assertEq(oracle.getTreeRoot(address(this), TEST_UUID), 0x8a9c31550b516df5e1414d7192b10025bee28bd98e23fd8595ac346005e166b9);
+
+        bytes32[15] memory proof = oracle.getProposalBranch(address(this), TEST_UUID);
+        bytes32[] memory p;
+        assembly {
+            p := mload(0x40)
+            let destPtr := add(p, 0x20)
+            for { let i := 0 } lt(i, 15) { i := add(i, 1) } {
+                mstore(add(destPtr, shl(0x05, i)), mload(add(proof, shl(0x05, i))))
+            }
+            mstore(p, 15)
+            mstore(0x40, add(p, 0x200))
+        }
+        assertEq(keccak256(abi.encodePacked(p)), keccak256(abi.encodePacked(proof)));
+
+        PreimageOracle.Leaf memory leaf = PreimageOracle.Leaf({
+            input: Bytes.slice(LibKeccak.padMemory(data), LibKeccak.BLOCK_SIZE_BYTES, LibKeccak.BLOCK_SIZE_BYTES),
+            index: 1,
+            stateCommitment: stateCommitments[1]
+        });
+
+        oracle._verify(p, oracle.getTreeRoot(address(this), TEST_UUID), 1, _hashLeaf(leaf));
+    }
+
+    /// @notice Hashes leaf data for the preimage proposals tree
+    function _hashLeaf(PreimageOracle.Leaf memory _leaf) internal pure returns (bytes32 leaf_) {
+        leaf_ = keccak256(abi.encodePacked(_leaf.input, _leaf.index, _leaf.stateCommitment));
     }
 
     /// @notice Helper to construct
-    function _constructLeaves(bytes memory _data) internal pure returns (PreimageOracle.Leaf[] memory leaves_) {
+    function _generateStateCommitments(
+        LibKeccak.StateMatrix memory _stateMatrix,
+        bytes memory _data
+    )
+        internal
+        pure
+        returns (bytes32[] memory stateCommitments_)
+    {
         bytes memory data = LibKeccak.padMemory(_data);
-        uint256 numBlocks = data.length / LibKeccak.BLOCK_SIZE_BYTES;
+        uint256 numCommitments = data.length / LibKeccak.BLOCK_SIZE_BYTES;
 
-        LibKeccak.StateMatrix memory stateMatrix;
-        leaves_ = new PreimageOracle.Leaf[](numBlocks);
-        for (uint256 i = 0; i < numBlocks; i++) {
+        stateCommitments_ = new bytes32[](numCommitments);
+        for (uint256 i = 0; i < numCommitments; i++) {
             bytes memory blockSlice = Bytes.slice(data, i * LibKeccak.BLOCK_SIZE_BYTES, LibKeccak.BLOCK_SIZE_BYTES);
+            LibKeccak.absorb(_stateMatrix, blockSlice);
+            LibKeccak.permutation(_stateMatrix);
 
-            LibKeccak.absorb(stateMatrix, blockSlice);
-            LibKeccak.permutation(stateMatrix);
-
-            leaves_[i] = PreimageOracle.Leaf({
-                input: blockSlice,
-                index: i,
-                stateCommitment: keccak256(abi.encode(stateMatrix))
-            });
+            stateCommitments_[i] = keccak256(abi.encode(_stateMatrix));
         }
     }
 }

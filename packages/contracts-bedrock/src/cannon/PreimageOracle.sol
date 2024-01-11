@@ -10,7 +10,8 @@ import "./libraries/CannonTypes.sol";
 /// @title PreimageOracle
 /// @notice A contract for storing permissioned pre-images.
 /// @custom:attribution Solady <https://github.com/Vectorized/solady/blob/main/src/utils/MerkleProofLib.sol#L13-L43>
-/// @custom:attribution Beacon Deposit Contract <https://etherscan.io/address/0x00000000219ab540356cbb839cbe05303d7705fa#code>
+/// @custom:attribution Beacon Deposit Contract
+/// <https://etherscan.io/address/0x00000000219ab540356cbb839cbe05303d7705fa#code>
 contract PreimageOracle is IPreimageOracle {
     ////////////////////////////////////////////////////////////////
     //                         Constants                          //
@@ -19,7 +20,7 @@ contract PreimageOracle is IPreimageOracle {
     /// @notice The depth of the keccak256 merkle tree. Supports up to 32,768 blocks, or ~4.46MB preimages.
     uint256 public constant KECCAK_TREE_DEPTH = 15;
     /// @notice The maximum number of keccak blocks that can fit into the merkle tree.
-    uint256 public constant MAX_LEAF_COUNT = 2**KECCAK_TREE_DEPTH - 1;
+    uint256 public constant MAX_LEAF_COUNT = 2 ** KECCAK_TREE_DEPTH - 1;
 
     ////////////////////////////////////////////////////////////////
     //                 Authorized Preimage Parts                  //
@@ -177,16 +178,16 @@ contract PreimageOracle is IPreimageOracle {
         bytes32[] calldata _prevStateProof,
         Leaf calldata _postState,
         bytes32[] calldata _postStateProof
-    ) external {
+    )
+        external
+    {
         // Hash the pre and post states to get the leaf values.
-        bytes32 prevStateHash = keccak256(abi.encode(_prevState));
-        bytes32 postStateHash = keccak256(abi.encode(_postState));
+        bytes32 prevStateHash = _hashLeaf(_prevState);
+        bytes32 postStateHash = _hashLeaf(_postState);
 
         // Verify that both leaves are present in the merkle tree.
         bytes32 root = getTreeRoot(_claimant, _uuid);
-        if (!(_verify(_prevStateProof, root, prevStateHash) && _verify(_postStateProof, root, postStateHash))) {
-            revert InvalidProof();
-        }
+        if (!(_verify(_prevStateProof, root, _prevState.index, prevStateHash) && _verify(_postStateProof, root, _postState.index, postStateHash))) revert InvalidProof();
 
         // Verify that the prestate passed matches the intermediate state claimed in the leaf.
         if (keccak256(abi.encode(_stateMatrix)) != _prevState.stateCommitment) revert InvalidPreimage();
@@ -199,7 +200,7 @@ contract PreimageOracle is IPreimageOracle {
         LibKeccak.permutation(_stateMatrix);
 
         // Verify that the post state hash doesn't match the expected hash.
-        if (keccak256(abi.encode(_stateMatrix)) ==_postState.stateCommitment) revert PostStateMatches();
+        if (keccak256(abi.encode(_stateMatrix)) == _postState.stateCommitment) revert PostStateMatches();
 
         // Mark the keccak claim as challenged.
         LPPMetaData metaData = proposalMetadata[_claimant][_uuid];
@@ -213,13 +214,15 @@ contract PreimageOracle is IPreimageOracle {
         uint256 _uuid,
         Leaf calldata _postState,
         bytes32[] calldata _postStateProof
-    ) external {
+    )
+        external
+    {
         // Hash the post state to get the leaf value.
-        bytes32 prevStateHash = keccak256(abi.encode(_postState));
+        bytes32 prevStateHash = _hashLeaf(_postState);
 
         // Verify that the leaf is present in the merkle tree.
         bytes32 root = getTreeRoot(_claimant, _uuid);
-        if (!_verify(_postStateProof, root, prevStateHash)) {
+        if (!_verify(_postStateProof, root, _postState.index, prevStateHash)) {
             revert InvalidProof();
         }
 
@@ -243,82 +246,137 @@ contract PreimageOracle is IPreimageOracle {
     /// @notice Gets the current merkle root of the large preimage proposal tree.
     function getTreeRoot(address _owner, uint256 _uuid) public view returns (bytes32 treeRoot_) {
         bytes32 node;
-        uint256 blocksProcessed = proposalBlocksProcessed[_owner][_uuid];
-        uint256 size = blocksProcessed;
-        for (uint256 height; height < KECCAK_TREE_DEPTH; height++) {
+        uint256 size = proposalBlocksProcessed[_owner][_uuid];
+        for (uint256 height; height < KECCAK_TREE_DEPTH;) {
             if ((size & 1) == 1) {
                 node = keccak256(abi.encode(proposalBranches[_owner][_uuid][height], node));
             } else {
                 node = keccak256(abi.encode(node, zeroHashes[height]));
             }
             size /= 2;
+
+            unchecked { ++height; }
         }
-        return keccak256(abi.encode(node, blocksProcessed));
+        treeRoot_ = keccak256(abi.encode(node));
     }
 
     /// @notice Adds a contiguous list of keccak state matrices to the merkle tree.
-    function addLeaves(uint256 _uuid, Leaf[] calldata _leaves) external {
+    function addLeaves(
+        uint256 _uuid,
+        bytes calldata _input,
+        bytes32[] calldata _stateCommitments,
+        bool _finalize
+    )
+        external
+    {
+        bytes memory input;
+        if (_finalize) {
+            input = LibKeccak.pad(_input);
+        } else {
+            input = _input;
+        }
+
         // Pull storage variables onto the stack / into memory for operations.
         bytes32[KECCAK_TREE_DEPTH] memory branch_ = proposalBranches[msg.sender][_uuid];
         uint256 blocks_ = proposalBlocksProcessed[msg.sender][_uuid];
 
-        for (uint256 i = 0; i < _leaves.length;) {
-            if (_leaves[i].input.length != 136) revert InvalidInputSize();
+        assembly {
+            let inputLen := mload(input)
+            let inputPtr := add(input, 0x20)
 
-            bytes32 node = keccak256(abi.encode(_leaves[i]));
-
-            unchecked { ++blocks_; }
-
-            uint256 size = blocks_;
-            for (uint256 height = 0; height < KECCAK_TREE_DEPTH;) {
-                if ((size & 1) == 1) {
-                    branch_[height] = node;
-                    break;
-                }
-                node = keccak256(abi.encode(branch_[height], node));
-                size /= 2;
-
-                unchecked { ++height; }
+            // The input length must be a multiple of 136 bytes
+            // The input lenth / 136 must be equal to the number of state commitments.
+            if or(mod(inputLen, 136), iszero(eq(_stateCommitments.length, div(inputLen, 136)))) {
+                // TODO: Add nice revert
+                revert(0, 0)
             }
 
-            unchecked { ++i; }
+            // Allocate a hashing buffer the size of the leaf preimage.
+            let hashBuf := mload(0x40)
+            mstore(0x40, add(hashBuf, 0xC8))
+
+            for { let i := 0 } lt(i, inputLen) { i := add(i, 136) } {
+                // Copy the leaf preimage into the hashing buffer.
+                let inputStartPtr := add(inputPtr, i)
+                mstore(hashBuf, mload(inputStartPtr))
+                mstore(add(hashBuf, 0x20), mload(add(inputStartPtr, 0x20)))
+                mstore(add(hashBuf, 0x40), mload(add(inputStartPtr, 0x40)))
+                mstore(add(hashBuf, 0x60), mload(add(inputStartPtr, 0x60)))
+                mstore(add(hashBuf, 0x80), mload(add(inputStartPtr, 0x80)))
+                mstore(add(hashBuf, 136), blocks_)
+                mstore(add(hashBuf, 168), calldataload(add(_stateCommitments.offset, shl(0x05, div(i, 136)))))
+
+                // Hash the leaf preimage to get the node to add.
+                let node := keccak256(hashBuf, 0xC8)
+
+                // Increment the number of blocks processed.
+                blocks_ := add(blocks_, 0x01)
+
+                // Add the node to the tree.
+                let size := blocks_
+                for { let height := 0x00 } lt(height, KECCAK_TREE_DEPTH) { height := add(height, 0x01) } {
+                    let heightOffset := shl(0x05, height)
+                    if eq(and(size, 0x01), 0x01) {
+                        mstore(add(branch_, heightOffset), node)
+                        break
+                    }
+
+                    // Hash the node at `height` in the branch and the node together.
+                    mstore(hashBuf, mload(add(branch_, heightOffset)))
+                    mstore(add(hashBuf, 0x20), node)
+                    node := keccak256(hashBuf, 0x40)
+                    size := shr(0x01, size)
+                }
+            }
         }
+
+        // Do not allow for overflowing the tree size.
+        if (blocks_ > MAX_LEAF_COUNT) revert TreeSizeOverflow();
 
         // Perist the branch and number of blocks absorbed to storage.
         proposalBranches[msg.sender][_uuid] = branch_;
         proposalBlocksProcessed[msg.sender][_uuid] = blocks_;
     }
 
-    /// @dev Returns whether `leaf` exists in the Merkle tree with `root`, given `proof`.
-    function _verify(bytes32[] calldata _proof, bytes32 _root, bytes32 _leaf)
-        internal
+    /// @notice Get the proposal branch for an owner and a UUID.
+    function getProposalBranch(address _owner, uint256 _uuid) external view returns (bytes32[KECCAK_TREE_DEPTH] memory branches_) {
+        branches_ = proposalBranches[_owner][_uuid];
+    }
+
+    /// Check if leaf` at `index` verifies against the Merkle `root` and `branch`.
+    /// https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/beacon-chain.md#is_valid_merkle_branch
+    function _verify(
+        bytes32[] calldata _proof,
+        bytes32 _root,
+        uint256 _index,
+        bytes32 _leaf
+    )
+        public
         pure
         returns (bool isValid_)
     {
         /// @solidity memory-safe-assembly
         assembly {
-            if _proof.length {
-                // Left shift by 5 is equivalent to multiplying by 0x20.
-                let end := add(_proof.offset, shl(5, _proof.length))
-                // Initialize `offset` to the offset of `_proof` in the calldata.
-                let offset := _proof.offset
-                // Iterate over proof elements to compute root hash.
-                for {} 1 {} {
-                    // Slot of `leaf` in scratch space.
-                    // If the condition is true: 0x20, otherwise: 0x00.
-                    let scratch := shl(5, gt(_leaf, calldataload(offset)))
-                    // Store elements to hash contiguously in scratch space.
-                    // Scratch space is 64 bytes (0x00 - 0x3f) and both elements are 32 bytes.
-                    mstore(scratch, _leaf)
-                    mstore(xor(scratch, 0x20), calldataload(offset))
-                    // Reuse `leaf` to store the hash to reduce stack operations.
-                    _leaf := keccak256(0x00, 0x40)
-                    offset := add(offset, 0x20)
-                    if iszero(lt(offset, end)) { break }
-                }
+            function hashTwo(a, b) -> hash {
+                mstore(0x00, a)
+                mstore(0x20, b)
+                hash := keccak256(0x00, 0x40)
             }
-            isValid_ := eq(_leaf, _root)
+
+            let value := _leaf
+            for { let i := 0x00 } lt(i, KECCAK_TREE_DEPTH) { i := add(i, 0x01) } {
+                switch mod(shr(i, _index), 0x02)
+                case 1 { value := hashTwo(calldataload(add(_proof.offset, shl(0x05, i))), value) }
+                default { value := hashTwo(value, calldataload(add(_proof.offset, shl(0x05, i)))) }
+            }
+
+            isValid_ := eq(value, _root)
         }
+    }
+
+    /// @notice Hashes leaf data for the preimage proposals tree
+    function _hashLeaf(Leaf memory _leaf) internal pure returns (bytes32 leaf_) {
+        leaf_ = keccak256(abi.encodePacked(_leaf.input, _leaf.index, _leaf.stateCommitment));
     }
 }
 
