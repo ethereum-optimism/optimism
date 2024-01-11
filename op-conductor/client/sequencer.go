@@ -10,10 +10,14 @@ import (
 )
 
 // SequencerControl defines the interface for controlling the sequencer.
+//
+//go:generate mockery --name SequencerControl --output mocks/ --with-expecter=true
 type SequencerControl interface {
 	StartSequencer(ctx context.Context, hash common.Hash) error
 	StopSequencer(ctx context.Context) (common.Hash, error)
+	SequencerActive(ctx context.Context) (bool, error)
 	LatestUnsafeBlock(ctx context.Context) (eth.BlockInfo, error)
+	PostUnsafePayload(ctx context.Context, payload *eth.ExecutionPayload) error
 }
 
 // NewSequencerControl creates a new SequencerControl instance.
@@ -44,4 +48,14 @@ func (s *sequencerController) StartSequencer(ctx context.Context, hash common.Ha
 // StopSequencer implements SequencerControl.
 func (s *sequencerController) StopSequencer(ctx context.Context) (common.Hash, error) {
 	return s.node.StopSequencer(ctx)
+}
+
+// SequencerActive implements SequencerControl.
+func (s *sequencerController) SequencerActive(ctx context.Context) (bool, error) {
+	return s.node.SequencerActive(ctx)
+}
+
+// PostUnsafePayload implements SequencerControl.
+func (s *sequencerController) PostUnsafePayload(ctx context.Context, payload *eth.ExecutionPayload) error {
+	return s.node.PostUnsafePayload(ctx, payload)
 }

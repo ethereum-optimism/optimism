@@ -75,10 +75,8 @@ enum GameStatus {
 ## `DisputeGameFactory` Interface
 
 The dispute game factory is responsible for creating new `DisputeGame` contracts
-given a `GameType` and a root `Claim`. Challenger agents will listen to the
-`DisputeGameCreated` events that are emitted by the factory as well as other events
-that pertain to detecting fault (i.e. `OutputProposed(bytes32,uint256,uint256,uint256)`) in order to keep up
-with on-going disputes in the protocol.
+given a `GameType` and a root `Claim`. Challenger agents listen to the `DisputeGameCreated` events in order to
+keep up with on-going disputes in the protocol and participate accordingly.
 
 A [`clones-with-immutable-args`](https://github.com/Saw-mon-and-Natalie/clones-with-immutable-args) factory
 (originally by @wighawag, but forked by @Saw-mon-and-Natalie) is used to create Clones. Each `GameType` has
@@ -105,6 +103,11 @@ interface IDisputeGameFactory {
     /// @param impl The implementation contract for the given `GameType`.
     /// @param gameType The type of the DisputeGame.
     event ImplementationSet(address indexed impl, GameType indexed gameType);
+
+    /// @notice Emitted when a game type's initialization bond is updated
+    /// @param gameType The type of the DisputeGame.
+    /// @param newBond The new bond (in wei) for initializing the game type.
+    event InitBondUpdated(GameType indexed gameType, uint256 indexed newBond);
 
     /// @notice The total number of dispute games created by this factory.
     /// @return gameCount_ The total number of dispute games created by this factory.
@@ -147,6 +150,11 @@ interface IDisputeGameFactory {
     ///         Will be cloned on creation of a new dispute game with the given `gameType`.
     function gameImpls(GameType _gameType) external view returns (IDisputeGame impl_);
 
+    /// @notice Returns the required bonds for initializing a dispute game of the given type.
+    /// @param _gameType The type of the dispute game.
+    /// @return bond_ The required bond for initializing a dispute game of the given type.
+    function initBonds(GameType _gameType) external view returns (uint256 bond_);
+
     /// @notice Creates a new DisputeGame proxy contract.
     /// @param _gameType The type of the DisputeGame - used to decide the proxy implementation.
     /// @param _rootClaim The root claim of the DisputeGame.
@@ -158,6 +166,7 @@ interface IDisputeGameFactory {
         bytes calldata _extraData
     )
         external
+        payable
         returns (IDisputeGame proxy_);
 
     /// @notice Sets the implementation contract for a specific `GameType`.
@@ -165,6 +174,12 @@ interface IDisputeGameFactory {
     /// @param _gameType The type of the DisputeGame.
     /// @param _impl The implementation contract for the given `GameType`.
     function setImplementation(GameType _gameType, IDisputeGame _impl) external;
+
+    /// @notice Sets the bond (in wei) for initializing a game type.
+    /// @dev May only be called by the `owner`.
+    /// @param _gameType The type of the DisputeGame.
+    /// @param _initBond The bond (in wei) for initializing a game type.
+    function setInitBond(GameType _gameType, uint256 _initBond) external;
 
     /// @notice Returns a unique identifier for the given dispute game parameters.
     /// @dev Hashes the concatenation of `gameType . rootClaim . extraData`
@@ -186,12 +201,13 @@ interface IDisputeGameFactory {
 
 ## `DisputeGame` Interface
 
-The dispute game interface should be generic enough to allow it to work with any
-proof system. This means that it should work fault proofs, validity proofs,
-an attestation based proof system, or any other source of truth that adheres to
-the interface.
+The dispute game interface defines a generic, black-box dispute. It exposes stateful information such as the status of
+the dispute, when it was created, as well as the bootstrap data and dispute type. This interface exposes one state
+mutating function, `resolve`, which when implemented should deterministically yield an opinion about the `rootClaim`
+and reflect the opinion by updating the `status` to `CHALLENGER_WINS` or `DEFENDER_WINS`.
 
-Clones of the `IDisputeGame`'s `initialize` functions will be called by the `DisputeGameFactory` upon creation.
+Clones of the `IDisputeGame`'s `initialize` functions will be called by the `DisputeGameFactory` atomically upon
+creation.
 
 ```solidity
 /// @title IDisputeGame
@@ -224,10 +240,6 @@ interface IDisputeGame is IInitializable {
     /// @dev `clones-with-immutable-args` argument #2
     /// @return extraData_ Any extra data supplied to the dispute game contract by the creator.
     function extraData() external pure returns (bytes memory extraData_);
-
-    /// @notice Returns the address of the `BondManager` used.
-    /// @return bondManager_ The address of the `BondManager` used.
-    function bondManager() external view returns (IBondManager bondManager_);
 
     /// @notice If all necessary information has been gathered, this function should mark the game
     ///         status as either `CHALLENGER_WINS` or `DEFENDER_WINS` and return the status of

@@ -33,10 +33,10 @@ type GameContract interface {
 	GameInfo
 	ClaimLoader
 	GetStatus(ctx context.Context) (gameTypes.GameStatus, error)
-	GetMaxGameDepth(ctx context.Context) (uint64, error)
+	GetMaxGameDepth(ctx context.Context) (types.Depth, error)
 }
 
-type resourceCreator func(ctx context.Context, logger log.Logger, gameDepth uint64, dir string) (types.TraceAccessor, error)
+type resourceCreator func(ctx context.Context, logger log.Logger, gameDepth types.Depth, dir string) (types.TraceAccessor, error)
 
 func NewGamePlayer(
 	ctx context.Context,
@@ -85,7 +85,7 @@ func NewGamePlayer(
 		return nil, fmt.Errorf("failed to create the responder: %w", err)
 	}
 
-	agent := NewAgent(m, loader, int(gameDepth), accessor, responder, logger)
+	agent := NewAgent(m, loader, gameDepth, accessor, responder, logger)
 	return &GamePlayer{
 		act:    agent.Act,
 		loader: loader,

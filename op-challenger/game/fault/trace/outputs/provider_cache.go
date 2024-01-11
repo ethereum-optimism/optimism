@@ -14,7 +14,7 @@ type ProviderCache struct {
 	creator ProposalTraceProviderCreator
 }
 
-func (c *ProviderCache) GetOrCreate(ctx context.Context, localContext common.Hash, depth uint64, agreed contracts.Proposal, claimed contracts.Proposal) (types.TraceProvider, error) {
+func (c *ProviderCache) GetOrCreate(ctx context.Context, localContext common.Hash, depth types.Depth, agreed contracts.Proposal, claimed contracts.Proposal) (types.TraceProvider, error) {
 	provider, ok := c.cache.Get(localContext)
 	if ok {
 		return provider, nil

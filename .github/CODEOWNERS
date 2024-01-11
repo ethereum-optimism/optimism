@@ -13,7 +13,6 @@
 /op-chain-ops   @ethereum-optimism/go-reviewers
 /op-challenger  @ethereum-optimism/go-reviewers
 /op-e2e         @ethereum-optimism/go-reviewers
-/op-exporter    @ethereum-optimism/go-reviewers
 /op-heartbeat   @ethereum-optimism/go-reviewers
 /op-node        @ethereum-optimism/go-reviewers
 /op-node/rollup @protolambda @trianglesphere @ajsutton

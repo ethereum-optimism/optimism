@@ -288,6 +288,9 @@ abstract contract CrossDomainMessenger is
         xDomainMsgSender = Constants.DEFAULT_L2_SENDER;
 
         if (success) {
+            // This check is identical to one above, but it ensures that the same message cannot be relayed
+            // twice, and adds a layer of protection against rentrancy.
+            assert(successfulMessages[versionedHash] == false);
             successfulMessages[versionedHash] = true;
             emit RelayedMessage(versionedHash);
         } else {
@@ -354,7 +357,13 @@ abstract contract CrossDomainMessenger is
     /// @notice Initializer.
     // solhint-disable-next-line func-name-mixedcase
     function __CrossDomainMessenger_init() internal onlyInitializing {
-        xDomainMsgSender = Constants.DEFAULT_L2_SENDER;
+        // We only want to set the xDomainMsgSender to the default value if it hasn't been initialized yet,
+        // meaning that this is a fresh contract deployment.
+        // This prevents resetting the xDomainMsgSender to the default value during an upgrade, which would enable
+        // a reentrant withdrawal to sandwhich the upgrade replay a withdrawal twice.
+        if (xDomainMsgSender == address(0)) {
+            xDomainMsgSender = Constants.DEFAULT_L2_SENDER;
+        }
     }
 
     /// @notice Sends a low-level message to the other messenger. Needs to be implemented by child

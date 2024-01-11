@@ -38,15 +38,6 @@ type testTx struct {
 	sendErr bool // error to return from send for this tx
 }
 
-type testCase struct {
-	name   string        // name of the test
-	max    uint64        // max concurrency of the queue
-	calls  []queueCall   // calls to the queue
-	txs    []testTx      // txs to generate from the factory (and potentially error in send)
-	nonces []uint64      // expected sent tx nonces after all calls are made
-	total  time.Duration // approx. total time it should take to complete all queue calls
-}
-
 type mockBackendWithNonce struct {
 	mockBackend
 }
@@ -64,8 +55,15 @@ func (b *mockBackendWithNonce) NonceAt(ctx context.Context, account common.Addre
 	return uint64(len(b.minedTxs)), nil
 }
 
-func TestSend(t *testing.T) {
-	testCases := []testCase{
+func TestQueue_Send(t *testing.T) {
+	testCases := []struct {
+		name   string        // name of the test
+		max    uint64        // max concurrency of the queue
+		calls  []queueCall   // calls to the queue
+		txs    []testTx      // txs to generate from the factory (and potentially error in send)
+		nonces []uint64      // expected sent tx nonces after all calls are made
+		total  time.Duration // approx. total time it should take to complete all queue calls
+	}{
 		{
 			name: "success",
 			max:  5,
@@ -195,7 +193,7 @@ func TestSend(t *testing.T) {
 					return core.ErrNonceTooLow
 				}
 				txHash := tx.Hash()
-				backend.mine(&txHash, tx.GasFeeCap())
+				backend.mine(&txHash, tx.GasFeeCap(), nil)
 				return nil
 			}
 			backend.setTxSender(sendTx)
@@ -206,24 +204,16 @@ func TestSend(t *testing.T) {
 
 			// make all the queue calls given in the test case
 			start := time.Now()
+			receiptChs := make([]chan TxReceipt[int], len(test.calls))
 			for i, c := range test.calls {
 				msg := fmt.Sprintf("Call %d", i)
-				c := c
-				receiptCh := make(chan TxReceipt[int], 1)
 				candidate := TxCandidate{
 					TxData: []byte{byte(i)},
 					To:     &common.Address{},
 				}
-				queued := c.call(i, candidate, receiptCh, queue)
+				receiptChs[i] = make(chan TxReceipt[int], 1)
+				queued := c.call(i, candidate, receiptChs[i], queue)
 				require.Equal(t, c.queued, queued, msg)
-				go func() {
-					r := <-receiptCh
-					if c.txErr {
-						require.Error(t, r.Err, msg)
-					} else {
-						require.NoError(t, r.Err, msg)
-					}
-				}()
 			}
 			// wait for the queue to drain (all txs complete or failed)
 			queue.Wait()
@@ -234,6 +224,20 @@ func TestSend(t *testing.T) {
 			// check that the nonces match
 			slices.Sort(nonces)
 			require.Equal(t, test.nonces, nonces, "expected nonces do not match")
+			// check receipts
+			for i, c := range test.calls {
+				if !c.queued {
+					// non-queued txs won't have a tx result
+					continue
+				}
+				msg := fmt.Sprintf("Receipt %d", i)
+				r := <-receiptChs[i]
+				if c.txErr {
+					require.Error(t, r.Err, msg)
+				} else {
+					require.NoError(t, r.Err, msg)
+				}
+			}
 		})
 	}
 }

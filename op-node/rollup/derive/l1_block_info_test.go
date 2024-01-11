@@ -11,11 +11,15 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
 
-var _ eth.BlockInfo = (*testutils.MockBlockInfo)(nil)
+var (
+	MockDepositContractAddr               = common.HexToAddress("0xdeadbeefdeadbeefdeadbeefdeadbeef00000000")
+	_                       eth.BlockInfo = (*testutils.MockBlockInfo)(nil)
+)
 
 type infoTest struct {
 	name    string
@@ -32,8 +36,6 @@ func randomL1Cfg(rng *rand.Rand, l1Info eth.BlockInfo) eth.SystemConfig {
 		GasLimit:    1234567,
 	}
 }
-
-var MockDepositContractAddr = common.HexToAddress("0xdeadbeefdeadbeefdeadbeefdeadbeef00000000")
 
 func TestParseL1InfoDepositTxData(t *testing.T) {
 	randomSeqNr := func(rng *rand.Rand) uint64 {
@@ -60,15 +62,16 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 			return 0
 		}},
 	}
+	var rollupCfg rollup.Config
 	for i, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
 			rng := rand.New(rand.NewSource(int64(1234 + i)))
 			info := testCase.mkInfo(rng)
 			l1Cfg := testCase.mkL1Cfg(rng, info)
 			seqNr := testCase.seqNr(rng)
-			depTx, err := L1InfoDeposit(seqNr, info, l1Cfg, false)
+			depTx, err := L1InfoDeposit(&rollupCfg, l1Cfg, seqNr, info, 0)
 			require.NoError(t, err)
-			res, err := L1InfoDepositTxData(depTx.Data)
+			res, err := L1BlockInfoFromBytes(&rollupCfg, info.Time(), depTx.Data)
 			require.NoError(t, err, "expected valid deposit info")
 			assert.Equal(t, res.Number, info.NumberU64())
 			assert.Equal(t, res.Time, info.Time())
@@ -82,33 +85,81 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 		})
 	}
 	t.Run("no data", func(t *testing.T) {
-		_, err := L1InfoDepositTxData(nil)
+		_, err := L1BlockInfoFromBytes(&rollupCfg, 0, nil)
 		assert.Error(t, err)
 	})
 	t.Run("not enough data", func(t *testing.T) {
-		_, err := L1InfoDepositTxData([]byte{1, 2, 3, 4})
+		_, err := L1BlockInfoFromBytes(&rollupCfg, 0, []byte{1, 2, 3, 4})
 		assert.Error(t, err)
 	})
 	t.Run("too much data", func(t *testing.T) {
-		_, err := L1InfoDepositTxData(make([]byte, 4+32+32+32+32+32+1))
+		_, err := L1BlockInfoFromBytes(&rollupCfg, 0, make([]byte, 4+32+32+32+32+32+1))
 		assert.Error(t, err)
 	})
 	t.Run("invalid selector", func(t *testing.T) {
 		rng := rand.New(rand.NewSource(1234))
 		info := testutils.MakeBlockInfo(nil)(rng)
-		depTx, err := L1InfoDeposit(randomSeqNr(rng), info, randomL1Cfg(rng, info), false)
+		depTx, err := L1InfoDeposit(&rollupCfg, randomL1Cfg(rng, info), randomSeqNr(rng), info, 0)
 		require.NoError(t, err)
 		_, err = crand.Read(depTx.Data[0:4])
 		require.NoError(t, err)
-		_, err = L1InfoDepositTxData(depTx.Data)
+		_, err = L1BlockInfoFromBytes(&rollupCfg, info.Time(), depTx.Data)
 		require.ErrorContains(t, err, "function signature")
 	})
 	t.Run("regolith", func(t *testing.T) {
 		rng := rand.New(rand.NewSource(1234))
 		info := testutils.MakeBlockInfo(nil)(rng)
-		depTx, err := L1InfoDeposit(randomSeqNr(rng), info, randomL1Cfg(rng, info), true)
+		zero := uint64(0)
+		rollupCfg := rollup.Config{
+			RegolithTime: &zero,
+		}
+		depTx, err := L1InfoDeposit(&rollupCfg, randomL1Cfg(rng, info), randomSeqNr(rng), info, 0)
 		require.NoError(t, err)
 		require.False(t, depTx.IsSystemTransaction)
 		require.Equal(t, depTx.Gas, uint64(RegolithSystemTxGas))
+	})
+	t.Run("ecotone", func(t *testing.T) {
+		rng := rand.New(rand.NewSource(1234))
+		info := testutils.MakeBlockInfo(nil)(rng)
+		zero := uint64(0)
+		rollupCfg := rollup.Config{
+			RegolithTime: &zero,
+			EcotoneTime:  &zero,
+		}
+		depTx, err := L1InfoDeposit(&rollupCfg, randomL1Cfg(rng, info), randomSeqNr(rng), info, 1)
+		require.NoError(t, err)
+		require.False(t, depTx.IsSystemTransaction)
+		require.Equal(t, depTx.Gas, uint64(RegolithSystemTxGas))
+		require.Equal(t, L1InfoEcotoneLen, len(depTx.Data))
+	})
+	t.Run("first-block ecotone", func(t *testing.T) {
+		rng := rand.New(rand.NewSource(1234))
+		info := testutils.MakeBlockInfo(nil)(rng)
+		zero := uint64(2)
+		rollupCfg := rollup.Config{
+			RegolithTime: &zero,
+			EcotoneTime:  &zero,
+			BlockTime:    2,
+		}
+		depTx, err := L1InfoDeposit(&rollupCfg, randomL1Cfg(rng, info), randomSeqNr(rng), info, 2)
+		require.NoError(t, err)
+		require.False(t, depTx.IsSystemTransaction)
+		require.Equal(t, depTx.Gas, uint64(RegolithSystemTxGas))
+		require.Equal(t, L1InfoBedrockLen, len(depTx.Data))
+	})
+	t.Run("genesis-block ecotone", func(t *testing.T) {
+		rng := rand.New(rand.NewSource(1234))
+		info := testutils.MakeBlockInfo(nil)(rng)
+		zero := uint64(0)
+		rollupCfg := rollup.Config{
+			RegolithTime: &zero,
+			EcotoneTime:  &zero,
+			BlockTime:    2,
+		}
+		depTx, err := L1InfoDeposit(&rollupCfg, randomL1Cfg(rng, info), randomSeqNr(rng), info, 0)
+		require.NoError(t, err)
+		require.False(t, depTx.IsSystemTransaction)
+		require.Equal(t, depTx.Gas, uint64(RegolithSystemTxGas))
+		require.Equal(t, L1InfoEcotoneLen, len(depTx.Data))
 	})
 }

@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/stretchr/testify/require"
@@ -114,7 +115,12 @@ func TestE2EBridgeL2CrossDomainMessenger(t *testing.T) {
 	l1Opts.Value = l2Opts.Value
 	depositTx, err := optimismPortal.Receive(l1Opts)
 	require.NoError(t, err)
-	_, err = wait.ForReceiptOK(context.Background(), testSuite.L1Client, depositTx.Hash())
+	depositReceipt, err := wait.ForReceiptOK(context.Background(), testSuite.L1Client, depositTx.Hash())
+	require.NoError(t, err)
+	depositInfo, err := e2etest_utils.ParseDepositInfo(depositReceipt)
+	require.NoError(t, err)
+	depositL2TxHash := types.NewTx(depositInfo.DepositTx).Hash()
+	_, err = wait.ForReceiptOK(context.Background(), testSuite.L2Client, depositL2TxHash)
 	require.NoError(t, err)
 
 	// (1) Send the Message

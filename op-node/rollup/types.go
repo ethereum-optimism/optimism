@@ -83,9 +83,9 @@ type Config struct {
 	// Active if DeltaTime != nil && L2 block timestamp >= *DeltaTime, inactive otherwise.
 	DeltaTime *uint64 `json:"delta_time,omitempty"`
 
-	// EclipseTime sets the activation time of the Eclipse network upgrade.
-	// Active if EclipseTime != nil && L2 block timestamp >= *EclipseTime, inactive otherwise.
-	EclipseTime *uint64 `json:"eclipse_time,omitempty"`
+	// EcotoneTime sets the activation time of the Ecotone network upgrade.
+	// Active if EcotoneTime != nil && L2 block timestamp >= *EcotoneTime, inactive otherwise.
+	EcotoneTime *uint64 `json:"ecotone_time,omitempty"`
 
 	// FjordTime sets the activation time of the Fjord network upgrade.
 	// Active if FjordTime != nil && L2 block timestamp >= *FjordTime, inactive otherwise.
@@ -107,6 +107,9 @@ type Config struct {
 
 	// L1 address that declares the protocol versions, optional (Beta feature)
 	ProtocolVersionsAddress common.Address `json:"protocol_versions_address,omitempty"`
+
+	// L1 block timestamp to start reading blobs as batch data-source. Optional.
+	BlobsEnabledL1Timestamp *uint64 `json:"blobs_data,omitempty"`
 }
 
 // ValidateL1Config checks L1 config variables for errors.
@@ -275,7 +278,7 @@ func (cfg *Config) Check() error {
 }
 
 func (c *Config) L1Signer() types.Signer {
-	return types.NewLondonSigner(c.L1ChainID)
+	return types.NewCancunSigner(c.L1ChainID)
 }
 
 // IsRegolith returns true if the Regolith hardfork is active at or past the given timestamp.
@@ -293,9 +296,17 @@ func (c *Config) IsDelta(timestamp uint64) bool {
 	return c.DeltaTime != nil && timestamp >= *c.DeltaTime
 }
 
-// IsEclipse returns true if the Eclipse hardfork is active at or past the given timestamp.
-func (c *Config) IsEclipse(timestamp uint64) bool {
-	return c.EclipseTime != nil && timestamp >= *c.EclipseTime
+// IsEcotone returns true if the Ecotone hardfork is active at or past the given timestamp.
+func (c *Config) IsEcotone(timestamp uint64) bool {
+	return c.EcotoneTime != nil && timestamp >= *c.EcotoneTime
+}
+
+// IsEcotoneActivationBlock returns whether the specified block is the first block subject to the
+// Ecotone upgrade.
+func (c *Config) IsEcotoneActivationBlock(l2BlockTime uint64) bool {
+	return c.IsEcotone(l2BlockTime) &&
+		l2BlockTime >= c.BlockTime &&
+		!c.IsEcotone(l2BlockTime-c.BlockTime)
 }
 
 // IsFjord returns true if the Fjord hardfork is active at or past the given timestamp.
@@ -337,7 +348,7 @@ func (c *Config) Description(l2Chains map[string]string) string {
 	banner += fmt.Sprintf("  - Regolith: %s\n", fmtForkTimeOrUnset(c.RegolithTime))
 	banner += fmt.Sprintf("  - Canyon: %s\n", fmtForkTimeOrUnset(c.CanyonTime))
 	banner += fmt.Sprintf("  - Delta: %s\n", fmtForkTimeOrUnset(c.DeltaTime))
-	banner += fmt.Sprintf("  - Eclipse: %s\n", fmtForkTimeOrUnset(c.EclipseTime))
+	banner += fmt.Sprintf("  - Ecotone: %s\n", fmtForkTimeOrUnset(c.EcotoneTime))
 	banner += fmt.Sprintf("  - Fjord: %s\n", fmtForkTimeOrUnset(c.FjordTime))
 	banner += fmt.Sprintf("  - Interop: %s\n", fmtForkTimeOrUnset(c.InteropTime))
 	// Report the protocol version
@@ -367,7 +378,7 @@ func (c *Config) LogDescription(log log.Logger, l2Chains map[string]string) {
 		"l1_block_number", c.Genesis.L1.Number, "regolith_time", fmtForkTimeOrUnset(c.RegolithTime),
 		"canyon_time", fmtForkTimeOrUnset(c.CanyonTime),
 		"delta_time", fmtForkTimeOrUnset(c.DeltaTime),
-		"eclipse_time", fmtForkTimeOrUnset(c.EclipseTime),
+		"ecotone_time", fmtForkTimeOrUnset(c.EcotoneTime),
 		"fjord_time", fmtForkTimeOrUnset(c.FjordTime),
 		"interop_time", fmtForkTimeOrUnset(c.InteropTime),
 	)

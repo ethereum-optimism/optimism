@@ -50,6 +50,12 @@ run-goerli-verify: op-program-host op-program-client
 
 .PHONY: \
 	op-program \
+	op-program-host \
+	op-program-client \
+	op-program-client-mips \
 	clean \
 	test \
-	lint
+	verify-goerli \
+	capture-goerli-verify \
+	capture-chain-test-data \
+	run-goerli-verify

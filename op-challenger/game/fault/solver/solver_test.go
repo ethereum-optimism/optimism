@@ -13,8 +13,9 @@ import (
 )
 
 func TestAttemptStep(t *testing.T) {
-	maxDepth := 3
-	claimBuilder := faulttest.NewAlphabetClaimBuilder(t, maxDepth)
+	maxDepth := types.Depth(3)
+	startingL2BlockNumber := big.NewInt(0)
+	claimBuilder := faulttest.NewAlphabetClaimBuilder(t, startingL2BlockNumber, maxDepth)
 
 	// Last accessible leaf is the second last trace index
 	// The root node is used for the last trace index and can only be attacked.

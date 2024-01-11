@@ -11,7 +11,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
-	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
+	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
@@ -23,7 +23,6 @@ var (
 	ErrMissingCannonBin              = errors.New("missing cannon bin")
 	ErrMissingCannonServer           = errors.New("missing cannon server")
 	ErrMissingCannonAbsolutePreState = errors.New("missing cannon absolute pre-state")
-	ErrMissingAlphabetTrace          = errors.New("missing alphabet trace")
 	ErrMissingL1EthRPC               = errors.New("missing l1 eth rpc url")
 	ErrMissingGameFactoryAddress     = errors.New("missing game factory address")
 	ErrMissingCannonSnapshotFreq     = errors.New("missing cannon snapshot freq")
@@ -39,10 +38,8 @@ var (
 type TraceType string
 
 const (
-	TraceTypeAlphabet       TraceType = "alphabet"
-	TraceTypeCannon         TraceType = "cannon"
-	TraceTypeOutputCannon   TraceType = "output_cannon"
-	TraceTypeOutputAlphabet TraceType = "output_alphabet"
+	TraceTypeAlphabet TraceType = "alphabet"
+	TraceTypeCannon   TraceType = "cannon"
 
 	// Mainnet games
 	CannonFaultGameID = 0
@@ -51,7 +48,7 @@ const (
 	AlphabetFaultGameID = 255
 )
 
-var TraceTypes = []TraceType{TraceTypeAlphabet, TraceTypeCannon, TraceTypeOutputCannon, TraceTypeOutputAlphabet}
+var TraceTypes = []TraceType{TraceTypeAlphabet, TraceTypeCannon}
 
 // GameIdToString maps game IDs to their string representation.
 var GameIdToString = map[uint8]string{
@@ -111,9 +108,6 @@ type Config struct {
 
 	TraceTypes []TraceType // Type of traces supported
 
-	// Specific to the alphabet trace provider
-	AlphabetTrace string // String for the AlphabetTraceProvider
-
 	// Specific to the output cannon trace type
 	RollupRpc string
 
@@ -167,6 +161,9 @@ func (c Config) Check() error {
 	if c.L1EthRpc == "" {
 		return ErrMissingL1EthRPC
 	}
+	if c.RollupRpc == "" {
+		return ErrMissingRollupRpc
+	}
 	if c.GameFactoryAddress == (common.Address{}) {
 		return ErrMissingGameFactoryAddress
 	}
@@ -179,12 +176,7 @@ func (c Config) Check() error {
 	if c.MaxConcurrency == 0 {
 		return ErrMaxConcurrencyZero
 	}
-	if c.TraceTypeEnabled(TraceTypeOutputCannon) || c.TraceTypeEnabled(TraceTypeOutputAlphabet) {
-		if c.RollupRpc == "" {
-			return ErrMissingRollupRpc
-		}
-	}
-	if c.TraceTypeEnabled(TraceTypeCannon) || c.TraceTypeEnabled(TraceTypeOutputCannon) {
+	if c.TraceTypeEnabled(TraceTypeCannon) {
 		if c.CannonBin == "" {
 			return ErrMissingCannonBin
 		}
@@ -221,9 +213,6 @@ func (c Config) Check() error {
 		if c.CannonInfoFreq == 0 {
 			return ErrMissingCannonInfoFreq
 		}
-	}
-	if c.TraceTypeEnabled(TraceTypeAlphabet) && c.AlphabetTrace == "" {
-		return ErrMissingAlphabetTrace
 	}
 	if err := c.TxMgrConfig.Check(); err != nil {
 		return err

@@ -144,6 +144,12 @@ func (rc *RaftConsensus) Leader() bool {
 	return id == rc.serverID
 }
 
+// LeaderWithID implements Consensus, it returns the leader's server ID and address.
+func (rc *RaftConsensus) LeaderWithID() (string, string) {
+	addr, id := rc.r.LeaderWithID()
+	return string(id), string(addr)
+}
+
 // LeaderCh implements Consensus, it returns a channel that will be notified when leadership status changes (true = leader, false = follower).
 func (rc *RaftConsensus) LeaderCh() <-chan bool {
 	return rc.r.LeaderCh()
@@ -196,7 +202,7 @@ func (rc *RaftConsensus) Shutdown() error {
 }
 
 // CommitUnsafePayload implements Consensus, it commits latest unsafe payload to the cluster FSM.
-func (rc *RaftConsensus) CommitUnsafePayload(payload eth.ExecutionPayload) error {
+func (rc *RaftConsensus) CommitUnsafePayload(payload *eth.ExecutionPayload) error {
 	blockVersion := eth.BlockV1
 	if rc.rollupCfg.IsCanyon(uint64(payload.Timestamp)) {
 		blockVersion = eth.BlockV2
@@ -204,7 +210,7 @@ func (rc *RaftConsensus) CommitUnsafePayload(payload eth.ExecutionPayload) error
 
 	data := unsafeHeadData{
 		version: blockVersion,
-		payload: payload,
+		payload: *payload,
 	}
 
 	var buf bytes.Buffer
@@ -221,6 +227,7 @@ func (rc *RaftConsensus) CommitUnsafePayload(payload eth.ExecutionPayload) error
 }
 
 // LatestUnsafePayload implements Consensus, it returns the latest unsafe payload from FSM.
-func (rc *RaftConsensus) LatestUnsafePayload() eth.ExecutionPayload {
-	return rc.unsafeTracker.UnsafeHead()
+func (rc *RaftConsensus) LatestUnsafePayload() *eth.ExecutionPayload {
+	payload := rc.unsafeTracker.UnsafeHead()
+	return &payload
 }

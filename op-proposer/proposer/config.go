@@ -1,6 +1,7 @@
 package proposer
 
 import (
+	"errors"
 	"time"
 
 	"github.com/urfave/cli/v2"
@@ -8,7 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-proposer/flags"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
-	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
+	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
@@ -45,6 +46,15 @@ type CLIConfig struct {
 	MetricsConfig opmetrics.CLIConfig
 
 	PprofConfig oppprof.CLIConfig
+
+	// DGFAddress is the DisputeGameFactory contract address.
+	DGFAddress string
+
+	// ProposalInterval is the delay between submitting L2 output proposals when the DGFAddress is set.
+	ProposalInterval time.Duration
+
+	// DisputeGameType is the type of dispute game to create when submitting an output proposal.
+	DisputeGameType uint8
 }
 
 func (c *CLIConfig) Check() error {
@@ -60,6 +70,17 @@ func (c *CLIConfig) Check() error {
 	if err := c.TxMgrConfig.Check(); err != nil {
 		return err
 	}
+
+	if c.DGFAddress != "" && c.L2OOAddress != "" {
+		return errors.New("both the `DisputeGameFactory` and `L2OutputOracle` addresses were provided")
+	}
+	if c.DGFAddress != "" && c.ProposalInterval == 0 {
+		return errors.New("the `DisputeGameFactory` address was provided but the `ProposalInterval` was not set")
+	}
+	if c.ProposalInterval != 0 && c.DGFAddress == "" {
+		return errors.New("the `ProposalInterval` was provided but the `DisputeGameFactory` address was not set")
+	}
+
 	return nil
 }
 
@@ -78,5 +99,8 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 		LogConfig:         oplog.ReadCLIConfig(ctx),
 		MetricsConfig:     opmetrics.ReadCLIConfig(ctx),
 		PprofConfig:       oppprof.ReadCLIConfig(ctx),
+		DGFAddress:        ctx.String(flags.DisputeGameFactoryAddressFlag.Name),
+		ProposalInterval:  ctx.Duration(flags.ProposalIntervalFlag.Name),
+		DisputeGameType:   uint8(ctx.Uint(flags.DisputeGameTypeFlag.Name)),
 	}
 }

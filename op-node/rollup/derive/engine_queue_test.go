@@ -258,13 +258,13 @@ func TestEngineQueue_Finalize(t *testing.T) {
 	// now say C1 was included in D and became the new safe head
 	eq.origin = refD
 	prev.origin = refD
-	eq.safeHead = refC1
+	eq.ec.SetSafeHead(refC1)
 	eq.postProcessSafeL2()
 
 	// now say D0 was included in E and became the new safe head
 	eq.origin = refE
 	prev.origin = refE
-	eq.safeHead = refD0
+	eq.ec.SetSafeHead(refD0)
 	eq.postProcessSafeL2()
 
 	// let's finalize D (current L1), from which we fully derived C1 (it was safe head), but not D0 (included in E)
@@ -275,6 +275,7 @@ func TestEngineQueue_Finalize(t *testing.T) {
 	l1F.AssertExpectations(t)
 	eng.AssertExpectations(t)
 }
+
 func TestEngineQueue_ResetWhenUnsafeOriginNotCanonical(t *testing.T) {
 	logger := testlog.Logger(t, log.LvlInfo)
 
@@ -490,16 +491,15 @@ func TestEngineQueue_ResetWhenUnsafeOriginNotCanonical(t *testing.T) {
 	require.Equal(t, refA1, eq.Finalized(), "A1 is recognized as finalized before we run any steps")
 
 	// First step after reset will do a fork choice update
-	require.True(t, eq.needForkchoiceUpdate)
 	eng.ExpectForkchoiceUpdate(&eth.ForkchoiceState{
-		HeadBlockHash:      eq.unsafeHead.Hash,
-		SafeBlockHash:      eq.safeHead.Hash,
-		FinalizedBlockHash: eq.finalized.Hash,
+		HeadBlockHash:      eq.ec.UnsafeL2Head().Hash,
+		SafeBlockHash:      eq.ec.SafeL2Head().Hash,
+		FinalizedBlockHash: eq.ec.Finalized().Hash,
 	}, nil, &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionValid}}, nil)
 	err := eq.Step(context.Background())
 	require.NoError(t, err)
 
-	require.Equal(t, refF.ID(), eq.unsafeHead.L1Origin, "should have refF as unsafe head origin")
+	require.Equal(t, refF.ID(), eq.ec.UnsafeL2Head().L1Origin, "should have refF as unsafe head origin")
 
 	// L1 chain reorgs so new origin is at same slot as refF but on a different fork
 	prev.origin = eth.L1BlockRef{
@@ -821,16 +821,15 @@ func TestVerifyNewL1Origin(t *testing.T) {
 			require.Equal(t, refA1, eq.Finalized(), "A1 is recognized as finalized before we run any steps")
 
 			// First step after reset will do a fork choice update
-			require.True(t, eq.needForkchoiceUpdate)
 			eng.ExpectForkchoiceUpdate(&eth.ForkchoiceState{
-				HeadBlockHash:      eq.unsafeHead.Hash,
-				SafeBlockHash:      eq.safeHead.Hash,
-				FinalizedBlockHash: eq.finalized.Hash,
+				HeadBlockHash:      eq.ec.UnsafeL2Head().Hash,
+				SafeBlockHash:      eq.ec.SafeL2Head().Hash,
+				FinalizedBlockHash: eq.ec.Finalized().Hash,
 			}, nil, &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionValid}}, nil)
 			err := eq.Step(context.Background())
 			require.NoError(t, err)
 
-			require.Equal(t, refF.ID(), eq.unsafeHead.L1Origin, "should have refF as unsafe head origin")
+			require.Equal(t, refF.ID(), eq.ec.UnsafeL2Head().L1Origin, "should have refF as unsafe head origin")
 
 			// L1 chain reorgs so new origin is at same slot as refF but on a different fork
 			prev.origin = test.newOrigin
@@ -946,7 +945,7 @@ func TestBlockBuildingRace(t *testing.T) {
 	require.NotNil(t, eq.safeAttributes, "still have attributes")
 
 	// Now allow the building to complete
-	a1InfoTx, err := L1InfoDepositBytes(refA1.SequenceNumber, &testutils.MockBlockInfo{
+	a1InfoTx, err := L1InfoDepositBytes(cfg, cfg.Genesis.SystemConfig, refA1.SequenceNumber, &testutils.MockBlockInfo{
 		InfoHash:        refA.Hash,
 		InfoParentHash:  refA.ParentHash,
 		InfoCoinbase:    common.Address{},
@@ -957,7 +956,7 @@ func TestBlockBuildingRace(t *testing.T) {
 		InfoBaseFee:     big.NewInt(7),
 		InfoReceiptRoot: common.Hash{},
 		InfoGasUsed:     0,
-	}, cfg.Genesis.SystemConfig, false)
+	}, 0)
 
 	require.NoError(t, err)
 	payloadA1 := &eth.ExecutionPayload{
@@ -1082,13 +1081,20 @@ func TestResetLoop(t *testing.T) {
 	prev := &fakeAttributesQueue{origin: refA, attrs: attrs, islastInSpan: true}
 
 	eq := NewEngineQueue(logger, cfg, eng, metrics.NoopMetrics, prev, l1F, &sync.Config{})
-	eq.unsafeHead = refA2
-	eq.engineSyncTarget = refA2
-	eq.safeHead = refA1
-	eq.finalized = refA0
+	eq.ec.SetUnsafeHead(refA2)
+	eq.ec.SetSafeHead(refA1)
+	eq.ec.SetFinalizedHead(refA0)
 
 	// Queue up the safe attributes
+	// Expect a FCU after during the first step
+	preFc := &eth.ForkchoiceState{
+		HeadBlockHash:      refA2.Hash,
+		SafeBlockHash:      refA1.Hash,
+		FinalizedBlockHash: refA0.Hash,
+	}
+	eng.ExpectForkchoiceUpdate(preFc, nil, nil, nil)
 	require.Nil(t, eq.safeAttributes)
+	require.ErrorIs(t, eq.Step(context.Background()), nil)
 	require.ErrorIs(t, eq.Step(context.Background()), NotEnoughData)
 	require.NotNil(t, eq.safeAttributes)
 
@@ -1096,12 +1102,12 @@ func TestResetLoop(t *testing.T) {
 	require.ErrorIs(t, eq.Reset(context.Background(), eth.L1BlockRef{}, eth.SystemConfig{}), io.EOF)
 
 	// Expect a FCU after the reset
-	preFc := &eth.ForkchoiceState{
+	postFc := &eth.ForkchoiceState{
 		HeadBlockHash:      refA2.Hash,
 		SafeBlockHash:      refA0.Hash,
 		FinalizedBlockHash: refA0.Hash,
 	}
-	eng.ExpectForkchoiceUpdate(preFc, nil, nil, nil)
+	eng.ExpectForkchoiceUpdate(postFc, nil, nil, nil)
 	require.NoError(t, eq.Step(context.Background()), "clean forkchoice state after reset")
 
 	// Crux of the test. Should be in a valid state after the reset.
@@ -1180,14 +1186,23 @@ func TestEngineQueue_StepPopOlderUnsafe(t *testing.T) {
 	prev := &fakeAttributesQueue{origin: refA}
 
 	eq := NewEngineQueue(logger, cfg, eng, metrics.NoopMetrics, prev, l1F, &sync.Config{})
-	eq.unsafeHead = refA2
-	eq.safeHead = refA0
-	eq.finalized = refA0
+	eq.ec.SetUnsafeHead(refA2)
+	eq.ec.SetSafeHead(refA0)
+	eq.ec.SetFinalizedHead(refA0)
 
 	eq.AddUnsafePayload(payloadA1)
 
-	err := eq.Step(context.Background())
-	require.NoError(t, err)
+	// First Step calls FCU
+	preFc := &eth.ForkchoiceState{
+		HeadBlockHash:      refA2.Hash,
+		SafeBlockHash:      refA0.Hash,
+		FinalizedBlockHash: refA0.Hash,
+	}
+	eng.ExpectForkchoiceUpdate(preFc, nil, nil, nil)
+	require.NoError(t, eq.Step(context.Background()))
+
+	// Second Step pops the unsafe payload
+	require.NoError(t, eq.Step(context.Background()))
 
 	require.Nil(t, eq.unsafePayloads.Peek(), "should pop the unsafe payload because it is too old")
 	fmt.Println(eq.unsafePayloads.Peek())

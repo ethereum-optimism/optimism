@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-program/client/l2/engineapi"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -26,11 +27,15 @@ func RunEngineAPITests(t *testing.T, createBackend func(t *testing.T) engineapi.
 		api.assert.Equal(block.BlockHash, api.headHash(), "should create and import new block")
 	})
 
+	zero := uint64(0)
+	rollupCfg := &rollup.Config{
+		RegolithTime: &zero, // activate Regolith upgrade
+	}
 	t.Run("IncludeRequiredTransactions", func(t *testing.T) {
 		api := newTestHelper(t, createBackend)
 		genesis := api.backend.CurrentHeader()
 
-		txData, err := derive.L1InfoDeposit(1, eth.HeaderBlockInfo(genesis), eth.SystemConfig{}, true)
+		txData, err := derive.L1InfoDeposit(rollupCfg, eth.SystemConfig{}, 1, eth.HeaderBlockInfo(genesis), 0)
 		api.assert.NoError(err)
 		tx := types.NewTx(txData)
 		block := api.addBlock(tx)
@@ -48,7 +53,7 @@ func RunEngineAPITests(t *testing.T, createBackend func(t *testing.T) engineapi.
 		api := newTestHelper(t, createBackend)
 		genesis := api.backend.CurrentHeader()
 
-		txData, err := derive.L1InfoDeposit(1, eth.HeaderBlockInfo(genesis), eth.SystemConfig{}, true)
+		txData, err := derive.L1InfoDeposit(rollupCfg, eth.SystemConfig{}, 1, eth.HeaderBlockInfo(genesis), 0)
 		api.assert.NoError(err)
 		txData.Gas = uint64(gasLimit + 1)
 		tx := types.NewTx(txData)

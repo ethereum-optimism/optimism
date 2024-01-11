@@ -363,7 +363,7 @@ func checkSpanBatch(ctx context.Context, cfg *rollup.Config, log log.Logger, l1B
 					return BatchDrop
 				}
 			}
-			safeBlockRef, err := PayloadToBlockRef(safeBlockPayload, &cfg.Genesis)
+			safeBlockRef, err := PayloadToBlockRef(cfg, safeBlockPayload)
 			if err != nil {
 				log.Error("failed to extract L2BlockRef from execution payload", "hash", safeBlockPayload.BlockHash, "err", err)
 				return BatchDrop

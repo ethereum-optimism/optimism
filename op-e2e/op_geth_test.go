@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum"
@@ -393,7 +394,8 @@ func TestPreregolith(t *testing.T) {
 			require.NoError(t, err)
 			defer opGeth.Close()
 
-			systemTx, err := derive.L1InfoDeposit(1, opGeth.L1Head, opGeth.SystemConfig, false)
+			rollupCfg := rollup.Config{}
+			systemTx, err := derive.L1InfoDeposit(&rollupCfg, opGeth.SystemConfig, 1, opGeth.L1Head, 0)
 			systemTx.IsSystemTransaction = true
 			require.NoError(t, err)
 
@@ -589,7 +591,8 @@ func TestRegolith(t *testing.T) {
 
 			test.activateRegolith(ctx, opGeth)
 
-			systemTx, err := derive.L1InfoDeposit(1, opGeth.L1Head, opGeth.SystemConfig, false)
+			rollupCfg := rollup.Config{}
+			systemTx, err := derive.L1InfoDeposit(&rollupCfg, opGeth.SystemConfig, 1, opGeth.L1Head, 0)
 			systemTx.IsSystemTransaction = true
 			require.NoError(t, err)
 

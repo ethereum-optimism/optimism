@@ -33,7 +33,7 @@ From the top level of the repository run:
 
 ```shell
 make devnet-clean
-make cannon-prestate op-challenger
+make op-challenger
 make devnet-up
 ```
 
@@ -44,7 +44,6 @@ DISPUTE_GAME_FACTORY=$(jq -r .DisputeGameFactoryProxy .devnet/addresses.json)
   --trace-type cannon \
   --l1-eth-rpc http://localhost:8545 \
   --game-factory-address $DISPUTE_GAME_FACTORY \
-  --agree-with-proposed-output=true \
   --datadir temp/challenger-data \
   --cannon-rollup-config .devnet/rollup.json  \
   --cannon-l2-genesis .devnet/genesis-l2.json \
@@ -95,18 +94,15 @@ These scripts assume that the following tools are installed and available on the
 ### [create_game.sh](scripts/create_game.sh)
 
 ```shell
-./scripts/create_game.sh <RPC_URL> <GAME_FACTORY_ADDRESS> <ROOT_CLAIM> <SIGNER_ARGS>...
+./scripts/create_game.sh <RPC_URL> <GAME_FACTORY_ADDRESS> <OUTPUT_ROOT> <L2_BLOCK_NUM> <SIGNER_ARGS>...
 ```
 
 Starts a new fault dispute game that disputes the latest output proposal in the L2 output oracle.
 
 * `RPC_URL` - the RPC endpoint of the L1 endpoint to use (e.g. `http://localhost:8545`).
 * `GAME_FACTORY_ADDRESS` - the address of the dispute game factory contract on L1.
-* `ROOT_CLAIM` a hex encoded 32 byte hash to use as the root claim for the created game.
-    * The root claim must have the high-order byte set to the
-      invalid [VM status](../specs/cannon-fault-proof-vm.md#state-hash) (`0x01`) to indicate that the trace concludes
-      that the disputed output root is invalid.
-      e.g. `0x0146381068b59d2098495baa72ed2f773c1e09458610a7a208984859dff73add`
+* `OUTPUT_ROOT` a hex encoded 32 byte hash that is used as the proposed output root.
+* `L2_BLOCK_NUM` the L2 block number the proposed output root is from.
 * `SIGNER_ARGS` the remaining args are past as arguments to `cast` when sending transactions.
   These arguments must specify a way for `cast` to sign the transactions.
   See `cast send --help` for supported options.

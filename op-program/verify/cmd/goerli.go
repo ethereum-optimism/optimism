@@ -6,15 +6,20 @@ import (
 	"fmt"
 	"math/big"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-program/chainconfig"
+	"github.com/ethereum-optimism/optimism/op-program/host"
+	config "github.com/ethereum-optimism/optimism/op-program/host/config"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
@@ -127,30 +132,44 @@ func Run(l1RpcUrl string, l1RpcKind string, l2RpcUrl string, l2OracleAddr common
 		"--l2.blocknumber", l2BlockNumber.String(),
 	}
 	argsStr := strings.Join(args, " ")
+	// args.txt is used by run-goerli-verify job for offline verification in CI
 	if err := os.WriteFile(filepath.Join(dataDir, "args.txt"), []byte(argsStr), 0644); err != nil {
 		fmt.Printf("Could not write args: %v", err)
 		os.Exit(1)
 	}
 	fmt.Printf("Configuration: %s\n", argsStr)
+
+	logger := oplog.DefaultCLIConfig()
+	logger.Level = log.LvlDebug
+	rollupCfg, err := rollup.LoadOPStackRollupConfig(chainconfig.OPGoerliChainConfig.ChainID.Uint64())
+	if err != nil {
+		return fmt.Errorf("failed to load rollup config: %w", err)
+	}
+	offlineCfg := config.Config{
+		Rollup:             rollupCfg,
+		DataDir:            dataDir,
+		L2ChainConfig:      chainconfig.OPGoerliChainConfig,
+		L2Head:             l2Head,
+		L2OutputRoot:       agreedOutput.OutputRoot,
+		L2Claim:            l2Claim,
+		L2ClaimBlockNumber: l2BlockNumber.Uint64(),
+		L1Head:             l1Head,
+	}
+	onlineCfg := offlineCfg
+	onlineCfg.L1URL = l1RpcUrl
+	onlineCfg.L2URL = l2RpcUrl
+	onlineCfg.L1RPCKind = sources.RPCProviderKind(l1RpcKind)
+
 	fmt.Println("Running in online mode")
-	err = runFaultProofProgram(ctx, append(args, "--l1", l1RpcUrl, "--l2", l2RpcUrl, "--l1.rpckind", l1RpcKind))
+	err = host.Main(oplog.NewLogger(os.Stderr, logger), &onlineCfg)
 	if err != nil {
 		return fmt.Errorf("online mode failed: %w", err)
 	}
 
 	fmt.Println("Running in offline mode")
-	err = runFaultProofProgram(ctx, args)
+	err = host.Main(oplog.NewLogger(os.Stderr, logger), &offlineCfg)
 	if err != nil {
 		return fmt.Errorf("offline mode failed: %w", err)
 	}
 	return nil
-}
-
-func runFaultProofProgram(ctx context.Context, args []string) error {
-	ctx, cancel := context.WithTimeout(ctx, 60*time.Minute)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, "./bin/op-program", args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
 }

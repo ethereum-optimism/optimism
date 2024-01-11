@@ -37,7 +37,6 @@ ARG OP_CONDUCTOR_VERSION=v0.0.0
 
 
 # separate docker-builds:
-# - op-exporter
 # - op-ufm
 # - proxyd
 # - any JS/TS/smart-contract builds

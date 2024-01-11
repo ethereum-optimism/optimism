@@ -23,7 +23,7 @@ do
 
   GAME_ADDR="${GAME[2]}"
   CLAIMS=$(cast call --rpc-url "${RPC}" "${GAME_ADDR}" "claimDataLen() returns(uint256)")
-  STATUS=$(cast call --rpc-url "${RPC}" "${GAME_ADDR}" "status() return(uint8)" | cast to-dec)
+  STATUS=$(cast call --rpc-url "${RPC}" "${GAME_ADDR}" "status() returns(uint8)" | cast to-dec)
   if [[ "${STATUS}" == "0" ]]
   then
     STATUS="In Progress"

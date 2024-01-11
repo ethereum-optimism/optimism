@@ -3,17 +3,20 @@ package solver
 import (
 	"context"
 	"encoding/hex"
+	"math/big"
 	"testing"
 
 	faulttest "github.com/ethereum-optimism/optimism/op-challenger/game/fault/test"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
 
 func TestCalculateNextActions(t *testing.T) {
-	maxDepth := 4
-	claimBuilder := faulttest.NewAlphabetClaimBuilder(t, maxDepth)
+	maxDepth := types.Depth(4)
+	startingL2BlockNumber := big.NewInt(0)
+	claimBuilder := faulttest.NewAlphabetClaimBuilder(t, startingL2BlockNumber, maxDepth)
 
 	tests := []struct {
 		name             string
@@ -90,8 +93,8 @@ func TestCalculateNextActions(t *testing.T) {
 			test.setupGame(builder)
 			game := builder.Game
 			for i, claim := range game.Claims() {
-				t.Logf("Claim %v: Pos: %v TraceIdx: %v ParentIdx: %v, Countered: %v, Value: %v",
-					i, claim.Position.ToGIndex(), claim.Position.TraceIndex(maxDepth), claim.ParentContractIndex, claim.Countered, claim.Value)
+				t.Logf("Claim %v: Pos: %v TraceIdx: %v ParentIdx: %v, CounteredBy: %v, Value: %v",
+					i, claim.Position.ToGIndex(), claim.Position.TraceIndex(maxDepth), claim.ParentContractIndex, claim.CounteredBy, claim.Value)
 			}
 
 			solver := NewGameSolver(maxDepth, trace.NewSimpleTraceAccessor(claimBuilder.CorrectTraceProvider()))

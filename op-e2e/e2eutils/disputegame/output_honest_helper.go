@@ -14,8 +14,18 @@ type OutputHonestHelper struct {
 	t            *testing.T
 	require      *require.Assertions
 	game         *OutputGameHelper
-	contract     *contracts.OutputBisectionGameContract
+	contract     *contracts.FaultDisputeGameContract
 	correctTrace types.TraceAccessor
+}
+
+func (h *OutputHonestHelper) AttackClaim(ctx context.Context, claim *ClaimHelper) *ClaimHelper {
+	h.Attack(ctx, claim.index)
+	return claim.WaitForCounterClaim(ctx)
+}
+
+func (h *OutputHonestHelper) DefendClaim(ctx context.Context, claim *ClaimHelper) *ClaimHelper {
+	h.Defend(ctx, claim.index)
+	return claim.WaitForCounterClaim(ctx)
 }
 
 func (h *OutputHonestHelper) Attack(ctx context.Context, claimIdx int64) {
@@ -48,6 +58,10 @@ func (h *OutputHonestHelper) Defend(ctx context.Context, claimIdx int64) {
 	h.game.Defend(ctx, claimIdx, value)
 }
 
+func (h *OutputHonestHelper) StepClaimFails(ctx context.Context, claim *ClaimHelper, isAttack bool) {
+	h.StepFails(ctx, claim.index, isAttack)
+}
+
 func (h *OutputHonestHelper) StepFails(ctx context.Context, claimIdx int64, isAttack bool) {
 	// Ensure the claim exists
 	h.game.WaitForClaimCount(ctx, claimIdx+1)
@@ -69,7 +83,7 @@ func (h *OutputHonestHelper) StepFails(ctx context.Context, claimIdx int64, isAt
 func (h *OutputHonestHelper) loadState(ctx context.Context, claimIdx int64) (types.Game, types.Claim) {
 	claims, err := h.contract.GetAllClaims(ctx)
 	h.require.NoError(err, "Failed to load claims from game")
-	game := types.NewGameState(claims, uint64(h.game.MaxDepth(ctx)))
+	game := types.NewGameState(claims, h.game.MaxDepth(ctx))
 
 	claim := game.Claims()[claimIdx]
 	return game, claim

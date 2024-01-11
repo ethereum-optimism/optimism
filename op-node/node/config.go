@@ -12,13 +12,15 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
-	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
+	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum/go-ethereum/log"
 )
 
 type Config struct {
 	L1 L1EndpointSetup
 	L2 L2EndpointSetup
+
+	Beacon L1BeaconEndpointSetup
 
 	Driver driver.Config
 
@@ -123,6 +125,13 @@ func (cfg *Config) Check() error {
 	}
 	if err := cfg.L2.Check(); err != nil {
 		return fmt.Errorf("l2 endpoint config error: %w", err)
+	}
+	if cfg.Beacon != nil {
+		if err := cfg.Beacon.Check(); err != nil {
+			return fmt.Errorf("beacon endpoint config error: %w", err)
+		}
+	} else if cfg.Rollup.EcotoneTime != nil {
+		return fmt.Errorf("ecotone upgrade scheduled but no beacon endpoint is configured")
 	}
 	if err := cfg.Rollup.Check(); err != nil {
 		return fmt.Errorf("rollup config error: %w", err)

@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -54,28 +55,9 @@ func WithPrivKey(key *ecdsa.PrivateKey) Option {
 	}
 }
 
-func WithAlphabet(alphabet string) Option {
-	return func(c *config.Config) {
-		c.TraceTypes = append(c.TraceTypes, config.TraceTypeAlphabet)
-		c.AlphabetTrace = alphabet
-	}
-}
-
 func WithPollInterval(pollInterval time.Duration) Option {
 	return func(c *config.Config) {
 		c.PollInterval = pollInterval
-	}
-}
-
-func WithCannon(
-	t *testing.T,
-	rollupCfg *rollup.Config,
-	l2Genesis *core.Genesis,
-	l2Endpoint string,
-) Option {
-	return func(c *config.Config) {
-		c.TraceTypes = append(c.TraceTypes, config.TraceTypeCannon)
-		applyCannonConfig(c, t, rollupCfg, l2Genesis, l2Endpoint)
 	}
 }
 
@@ -96,34 +78,34 @@ func applyCannonConfig(
 	genesisBytes, err := json.Marshal(l2Genesis)
 	require.NoError(err, "marshall l2 genesis config")
 	genesisFile := filepath.Join(c.Datadir, "l2-genesis.json")
-	require.NoError(os.WriteFile(genesisFile, genesisBytes, 0644))
+	require.NoError(os.WriteFile(genesisFile, genesisBytes, 0o644))
 	c.CannonL2GenesisPath = genesisFile
 
 	rollupBytes, err := json.Marshal(rollupCfg)
 	require.NoError(err, "marshall rollup config")
 	rollupFile := filepath.Join(c.Datadir, "rollup.json")
-	require.NoError(os.WriteFile(rollupFile, rollupBytes, 0644))
+	require.NoError(os.WriteFile(rollupFile, rollupBytes, 0o644))
 	c.CannonRollupConfigPath = rollupFile
 }
 
-func WithOutputCannon(
+func WithCannon(
 	t *testing.T,
 	rollupCfg *rollup.Config,
 	l2Genesis *core.Genesis,
 	rollupEndpoint string,
-	l2Endpoint string) Option {
+	l2Endpoint string,
+) Option {
 	return func(c *config.Config) {
-		c.TraceTypes = append(c.TraceTypes, config.TraceTypeOutputCannon)
+		c.TraceTypes = append(c.TraceTypes, config.TraceTypeCannon)
 		c.RollupRpc = rollupEndpoint
 		applyCannonConfig(c, t, rollupCfg, l2Genesis, l2Endpoint)
 	}
 }
 
-func WithOutputAlphabet(alphabet string, rollupEndpoint string) Option {
+func WithAlphabet(rollupEndpoint string) Option {
 	return func(c *config.Config) {
-		c.TraceTypes = append(c.TraceTypes, config.TraceTypeOutputAlphabet)
+		c.TraceTypes = append(c.TraceTypes, config.TraceTypeAlphabet)
 		c.RollupRpc = rollupEndpoint
-		c.AlphabetTrace = alphabet
 	}
 }
 
@@ -152,6 +134,11 @@ func NewChallengerConfig(t *testing.T, l1Endpoint string, options ...Option) *co
 	if cfg.MaxConcurrency > 4 {
 		// Limit concurrency to something more reasonable when there are also multiple tests executing in parallel
 		cfg.MaxConcurrency = 4
+	}
+	cfg.MetricsConfig = metrics.CLIConfig{
+		Enabled:    true,
+		ListenAddr: "127.0.0.1",
+		ListenPort: 0, // Find any available port (avoids conflicts)
 	}
 	for _, option := range options {
 		option(&cfg)

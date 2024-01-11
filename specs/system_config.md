@@ -6,7 +6,9 @@
 
 - [System config contents (version 0)](#system-config-contents-version-0)
   - [`batcherHash` (`bytes32`)](#batcherhash-bytes32)
-  - [`overhead` and `scalar` (`uint256,uint256`)](#overhead-and-scalar-uint256uint256)
+  - [Scalars](#scalars)
+    - [`overhead`,`scalar` (`uint256,uint256`)](#overheadscalar-uint256uint256)
+    - [`l1BasefeeScalar`,`l1BlobBasefeeScalar` (`uint32,uint32`)](#l1basefeescalarl1blobbasefeescalar-uint32uint32)
   - [`gasLimit` (`uint64`)](#gaslimit-uint64)
   - [`unsafeBlockSigner` (`address`)](#unsafeblocksigner-address)
 - [Writing the system config](#writing-the-system-config)
@@ -31,10 +33,26 @@ Version `0` embeds the current batch submitter ethereum address (`bytes20`) in t
 In the future this versioned hash may become a commitment to a more extensive configuration,
 to enable more extensive redundancy and/or rotation configurations.
 
-### `overhead` and `scalar` (`uint256,uint256`)
+### Scalars
 
-The L1 fee parameters, also known as Gas Price Oracle (GPO) parameters,
-are updated in conjunction and apply new L1 costs to the L2 transactions.
+The L1 fee parameters, also known as Gas Price Oracle (GPO) parameters, are used to compute the L1
+data fee applied to an L2 transaction.  The specific parameters used depend on the upgrades that
+are active.
+
+#### `overhead`,`scalar` (`uint256,uint256`)
+
+Prior to the Ecotone upgrade, `overhead` and `scalar` are consulted and passed to the L2 via L1
+attribute info.
+
+#### `l1BasefeeScalar`,`l1BlobBasefeeScalar` (`uint32,uint32`)
+
+After the Ecotone upgrade, `l1BasefeeScalar` and `l1BlobBasefeeScalar` are passed to the L2
+instead.
+
+The only exception is for chains that have genesis prior to Ecotone and go through the Ecotone
+transition. For these chains, the very first Ecotone block will pass the older
+parameters. Thereafter and up until a type `4` log event is processed, `l1BasefeeScalar` passed to
+the L2 *must* be set to the value of `scalar`, or MaxUint32 if `scalar` is outside 32-bit range.
 
 ### `gasLimit` (`uint64`)
 
@@ -70,7 +88,9 @@ A rollup node initializes its derivation process by finding a starting point bas
 - When started from L2 genesis, the initial system configuration is retrieved from the rollup chain configuration.
 - When started from an existing L2 chain, a previously included L1 block is determined as derivation starting point,
   and the system config can thus be retrieved from the last L2 block that referenced the L1 block as L1 origin:
-  - `batcherHash`, `overhead` and `scalar` are retrieved from the L1 block info transaction.
+  - If the chain state precedes the Ecotone upgrade, `batcherHash`, `overhead` and `scalar` are
+    retrieved from the L1 block info transaction. Otherwise, `batcherHash`, `l1BasefeeScalar`, and
+    `l1BlobBasefeeScalar` are retrieved instead.
   - `gasLimit` is retrieved from the L2 block header.
   - other future variables may also be retrieved from other contents of the L2 block, such as the header.
 
@@ -89,6 +109,10 @@ The contained log events are filtered and processed as follows:
   - type `1`: `overhead` and `scalar` overwrite, as two packed `uint256` entries.
   - type `2`: `gasLimit` overwrite, as `uint64` payload.
   - type `3`: `unsafeBlockSigner` overwrite, as `address` payload.
+  - type `4`: `l1BasefeeScalar` and `l1BlobBasefeeScalar` overwrite, as two packed `uint32`
+    entries in [`abi.encodePacked()`][encodePacked] format.
+
+[encodePacked]: https://docs.soliditylang.org/en/latest/abi-spec.html#non-standard-packed-mode
 
 Note that individual derivation stages may be processing different L1 blocks,
 and should thus maintain individual system configuration copies,

@@ -40,14 +40,15 @@ of this credit is greater than the ETH value of the requested guaranteed gas
 
 ## Default Values
 
-| Variable                        | Value             |
-| ------------------------------- | ----------------- |
-| Max Resource Limit              | 20,000,000        |
-| Elasticity Multiplier           | 10                |
-| Base Fee Max Change Denominator | 8                 |
-| Minimum Base Fee                | 1 gwei            |
-| Maximum Base Fee                | type(uint128).max |
-| System Tx Max Gas               | 1,000,000         |
+| Variable                         | Value                                          |
+| -------------------------------- | ---------------------------------------------- |
+| `MAX_RESOURCE_LIMIT`             | 20,000,000                                     |
+| `ELASTICITY_MULTIPLIER`          | 10                                             |
+| `BASEFEE_MAX_CHANGE_DENOMINATOR` | 8                                              |
+| `MINIMUM_BASEFEE`                | 1 gwei                                         |
+| `MAXIMUM_BASEFEE`                | type(uint128).max                              |
+| `SYSTEM_TX_MAX_GAS`              | 1,000,000                                      |
+| `TARGET_RESOURCE_LIMIT`          | `MAX_RESOURCE_LIMIT` / `ELASTICITY_MULTIPLIER` |
 
 ## Limiting Guaranteed Gas
 
@@ -55,9 +56,9 @@ The total amount of guaranteed gas that can be bought in a single L1 block must 
 prevent a denial of service attack against L2 as well as ensure the total amount of guaranteed gas
 stays below the L2 block gas limit.
 
-We set a guaranteed gas limit of 8,000,000 gas per L1 block and a target of 2,000,000 gas per L1
-block. These numbers enabled occasional large transactions while staying within our target and
-maximum gas usage on L2.
+We set a guaranteed gas limit of `MAX_RESOURCE_LIMIT` gas per L1 block and a target of
+`MAX_RESOURCE_LIMIT` / `ELASTICITY_MULTIPLIER` gas per L1 block. These numbers enabled
+occasional large transactions while staying within our target and maximum gas usage on L2.
 
 Because the amount of guaranteed L2 gas that can be purchased in a single block is now limited,
 we implement an EIP-1559-style fee market to reduce congestion on deposits. By setting the limit
@@ -67,11 +68,6 @@ at a multiple of the target, we enable deposits to temporarily use more L2 gas a
 # Pseudocode to update the L2 Deposit Basefee and cap the amount of guaranteed gas
 # bought in a block. Calling code must handle the gas burn and validity checks on
 # the ability of the account to afford this gas.
-BASE_FEE_MAX_CHANGE_DENOMINATOR = 8
-ELASTICITY_MULTIPLIER = 4
-MAX_RESOURCE_LIMIT = 8_000_000
-TARGET_RESOURCE_LIMIT = MAX_RESOURCE_LIMIT / ELASTICITY_MULTIPLIER
-MINIMUM_BASEFEE = 10000
 
 # prev_basefee is a u128, prev_bought_gas and prev_num are u64s
 prev_basefee, prev_bought_gas, prev_num = <values from previous update>
@@ -98,7 +94,7 @@ elif prev_num != now_num:
     gas_used_delta = int128(prev_bought_gas) - int128(TARGET_RESOURCE_LIMIT)
     # Use truncating (round to 0) division - solidity's default.
     # Sign extend gas_used_delta & prev_basefee to 256 bits to avoid overflows here.
-    base_fee_per_gas_delta = prev_basefee * gas_used_delta / TARGET_RESOURCE_LIMIT / BASE_FEE_MAX_CHANGE_DENOMINATOR
+    base_fee_per_gas_delta = prev_basefee * gas_used_delta / TARGET_RESOURCE_LIMIT / BASEFEE_MAX_CHANGE_DENOMINATOR
     now_basefee_wide = prev_basefee + base_fee_per_gas_delta
 
     now_basefee = clamp(now_basefee_wide, min=MINIMUM_BASEFEE, max=UINT_128_MAX_VALUE)
@@ -111,7 +107,7 @@ elif prev_num != now_num:
     if prev_num + 1 < now_num:
         n = now_num - prev_num - 1
         # Apply 7/8 reduction to prev_basefee for the n empty blocks in a row.
-        now_basefee_wide = now_basefee * pow(1-(1/BASE_FEE_MAX_CHANGE_DENOMINATOR), n)
+        now_basefee_wide = now_basefee * pow(1-(1/BASEFEE_MAX_CHANGE_DENOMINATOR), n)
         now_basefee = clamp(now_basefee_wide, min=MINIMUM_BASEFEE, max=type(uint128).max)
 
 require(now_bought_gas < MAX_RESOURCE_LIMIT)

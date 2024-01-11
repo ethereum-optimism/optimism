@@ -26,7 +26,7 @@ func (g *OutputCannonGameHelper) StartChallenger(
 	rollupEndpoint := g.system.RollupEndpoint(l2Node)
 	l2Endpoint := g.system.NodeEndpoint(l2Node)
 	opts := []challenger.Option{
-		challenger.WithOutputCannon(g.t, g.system.RollupCfg(), g.system.L2Genesis(), rollupEndpoint, l2Endpoint),
+		challenger.WithCannon(g.t, g.system.RollupCfg(), g.system.L2Genesis(), rollupEndpoint, l2Endpoint),
 		challenger.WithFactoryAddress(g.factoryAddr),
 		challenger.WithGameAddress(g.addr),
 	}
@@ -40,7 +40,7 @@ func (g *OutputCannonGameHelper) StartChallenger(
 
 func (g *OutputCannonGameHelper) CreateHonestActor(ctx context.Context, l2Node string, options ...challenger.Option) *OutputHonestHelper {
 	opts := []challenger.Option{
-		challenger.WithOutputCannon(g.t, g.system.RollupCfg(), g.system.L2Genesis(), g.system.RollupEndpoint(l2Node), g.system.NodeEndpoint(l2Node)),
+		challenger.WithCannon(g.t, g.system.RollupCfg(), g.system.L2Genesis(), g.system.RollupEndpoint(l2Node), g.system.NodeEndpoint(l2Node)),
 		challenger.WithFactoryAddress(g.factoryAddr),
 		challenger.WithGameAddress(g.addr),
 	}
@@ -50,13 +50,13 @@ func (g *OutputCannonGameHelper) CreateHonestActor(ctx context.Context, l2Node s
 	logger := testlog.Logger(g.t, log.LvlInfo).New("role", "HonestHelper", "game", g.addr)
 	l2Client := g.system.NodeClient(l2Node)
 	caller := batching.NewMultiCaller(g.system.NodeClient("l1").Client(), batching.DefaultBatchSize)
-	contract, err := contracts.NewOutputBisectionGameContract(g.addr, caller)
+	contract, err := contracts.NewFaultDisputeGameContract(g.addr, caller)
 	g.require.NoError(err, "Failed to create game contact")
 
 	prestateBlock, poststateBlock, err := contract.GetBlockRange(ctx)
 	g.require.NoError(err, "Failed to load block range")
 	dir := filepath.Join(cfg.Datadir, "honest")
-	splitDepth := uint64(g.SplitDepth(ctx))
+	splitDepth := g.SplitDepth(ctx)
 	rollupClient := g.system.RollupClient(l2Node)
 	prestateProvider := outputs.NewPrestateProvider(ctx, logger, rollupClient, prestateBlock)
 	accessor, err := outputs.NewOutputCannonTraceAccessor(

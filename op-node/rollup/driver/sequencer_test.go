@@ -60,7 +60,7 @@ func (m *FakeEngineControl) avgTxsPerBlock() float64 {
 	return float64(m.totalTxs) / float64(m.totalBuiltBlocks)
 }
 
-func (m *FakeEngineControl) StartPayload(ctx context.Context, parent eth.L2BlockRef, attrs *eth.PayloadAttributes, updateSafe bool) (errType derive.BlockInsertionErrType, err error) {
+func (m *FakeEngineControl) StartPayload(ctx context.Context, parent eth.L2BlockRef, attrs *derive.AttributesWithParent, updateSafe bool) (errType derive.BlockInsertionErrType, err error) {
 	if m.err != nil {
 		return m.errTyp, m.err
 	}
@@ -68,7 +68,7 @@ func (m *FakeEngineControl) StartPayload(ctx context.Context, parent eth.L2Block
 	_, _ = crand.Read(m.buildingID[:])
 	m.buildingOnto = parent
 	m.buildingSafe = updateSafe
-	m.buildingAttrs = attrs
+	m.buildingAttrs = attrs.Attributes()
 	m.buildingStart = m.timeNow()
 	return derive.BlockInsertOK, nil
 }
@@ -81,7 +81,7 @@ func (m *FakeEngineControl) ConfirmPayload(ctx context.Context) (out *eth.Execut
 	m.totalBuildingTime += buildTime
 	m.totalBuiltBlocks += 1
 	payload := m.makePayload(m.buildingOnto, m.buildingAttrs)
-	ref, err := derive.PayloadToBlockRef(payload, &m.cfg.Genesis)
+	ref, err := derive.PayloadToBlockRef(m.cfg, payload)
 	if err != nil {
 		panic(err)
 	}
@@ -252,7 +252,7 @@ func TestSequencerChaosMonkey(t *testing.T) {
 			InfoBaseFee:     big.NewInt(1234),
 			InfoReceiptRoot: common.Hash{},
 		}
-		infoDep, err := derive.L1InfoDepositBytes(seqNr, l1Info, cfg.Genesis.SystemConfig, false)
+		infoDep, err := derive.L1InfoDepositBytes(cfg, cfg.Genesis.SystemConfig, seqNr, l1Info, 0)
 		require.NoError(t, err)
 
 		testGasLimit := eth.Uint64Quantity(10_000_000)
@@ -354,7 +354,7 @@ func TestSequencerChaosMonkey(t *testing.T) {
 			require.Equal(t, engControl.UnsafeL2Head().ID(), payload.ID(), "head must stay in sync with emitted payloads")
 			var tx types.Transaction
 			require.NoError(t, tx.UnmarshalBinary(payload.Transactions[0]))
-			info, err := derive.L1InfoDepositTxData(tx.Data())
+			info, err := derive.L1BlockInfoFromBytes(cfg, 0, tx.Data())
 			require.NoError(t, err)
 			require.GreaterOrEqual(t, uint64(payload.Timestamp), info.Time, "ensure L2 time >= L1 time")
 		}

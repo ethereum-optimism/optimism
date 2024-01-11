@@ -16,7 +16,11 @@ clean:
 test:
 	go test -v ./...
 
+generate-mocks:
+	go generate ./...
+
 .PHONY: \
-	clean \
 	op-conductor \
-	test
+	clean \
+	test \
+	generate-mocks

@@ -13,7 +13,22 @@
       },
       {
         "internalType": "uint256",
+        "name": "_genesisBlockNumber",
+        "type": "uint256"
+      },
+      {
+        "internalType": "Hash",
+        "name": "_genesisOutputRoot",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint256",
         "name": "_maxGameDepth",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_splitDepth",
         "type": "uint256"
       },
       {
@@ -25,16 +40,6 @@
         "internalType": "contract IBigStepper",
         "name": "_vm",
         "type": "address"
-      },
-      {
-        "internalType": "contract L2OutputOracle",
-        "name": "_l2oo",
-        "type": "address"
-      },
-      {
-        "internalType": "contract BlockOracle",
-        "name": "_blockOracle",
-        "type": "address"
       }
     ],
     "stateMutability": "nonpayable",
@@ -42,77 +47,12 @@
   },
   {
     "inputs": [],
-    "name": "ABSOLUTE_PRESTATE",
+    "name": "absolutePrestate",
     "outputs": [
       {
         "internalType": "Claim",
-        "name": "",
+        "name": "absolutePrestate_",
         "type": "bytes32"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "BLOCK_ORACLE",
-    "outputs": [
-      {
-        "internalType": "contract BlockOracle",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "GAME_DURATION",
-    "outputs": [
-      {
-        "internalType": "Duration",
-        "name": "",
-        "type": "uint64"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "L2_OUTPUT_ORACLE",
-    "outputs": [
-      {
-        "internalType": "contract L2OutputOracle",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "MAX_GAME_DEPTH",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "VM",
-    "outputs": [
-      {
-        "internalType": "contract IBigStepper",
-        "name": "",
-        "type": "address"
       }
     ],
     "stateMutability": "view",
@@ -126,9 +66,9 @@
         "type": "uint256"
       },
       {
-        "internalType": "bytes32",
-        "name": "_localContext",
-        "type": "bytes32"
+        "internalType": "uint256",
+        "name": "_execLeafIdx",
+        "type": "uint256"
       },
       {
         "internalType": "uint256",
@@ -160,16 +100,16 @@
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "bondManager",
-    "outputs": [
+    "inputs": [
       {
-        "internalType": "contract IBondManager",
-        "name": "",
+        "internalType": "address",
+        "name": "_recipient",
         "type": "address"
       }
     ],
-    "stateMutability": "view",
+    "name": "claimCredit",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -188,9 +128,19 @@
         "type": "uint32"
       },
       {
-        "internalType": "bool",
-        "name": "countered",
-        "type": "bool"
+        "internalType": "address",
+        "name": "counteredBy",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "claimant",
+        "type": "address"
+      },
+      {
+        "internalType": "uint128",
+        "name": "bond",
+        "type": "uint128"
       },
       {
         "internalType": "Claim",
@@ -232,6 +182,25 @@
         "internalType": "Timestamp",
         "name": "",
         "type": "uint64"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "credit",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",
@@ -293,6 +262,19 @@
   },
   {
     "inputs": [],
+    "name": "gameDuration",
+    "outputs": [
+      {
+        "internalType": "Duration",
+        "name": "gameDuration_",
+        "type": "uint64"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "gameType",
     "outputs": [
       {
@@ -306,22 +288,54 @@
   },
   {
     "inputs": [],
-    "name": "initialize",
-    "outputs": [],
-    "stateMutability": "nonpayable",
+    "name": "genesisBlockNumber",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "genesisBlockNumber_",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
     "inputs": [],
-    "name": "l1BlockNumber",
+    "name": "genesisOutputRoot",
+    "outputs": [
+      {
+        "internalType": "Hash",
+        "name": "genesisOutputRoot_",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "Position",
+        "name": "_position",
+        "type": "uint128"
+      }
+    ],
+    "name": "getRequiredBond",
     "outputs": [
       {
         "internalType": "uint256",
-        "name": "l1BlockNumber_",
+        "name": "requiredBond_",
         "type": "uint256"
       }
     ],
     "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "initialize",
+    "outputs": [],
+    "stateMutability": "payable",
     "type": "function"
   },
   {
@@ -351,6 +365,19 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "maxGameDepth",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "maxGameDepth_",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "uint256",
@@ -371,58 +398,6 @@
     "name": "move",
     "outputs": [],
     "stateMutability": "payable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "proposals",
-    "outputs": [
-      {
-        "components": [
-          {
-            "internalType": "uint128",
-            "name": "index",
-            "type": "uint128"
-          },
-          {
-            "internalType": "uint128",
-            "name": "l2BlockNumber",
-            "type": "uint128"
-          },
-          {
-            "internalType": "Hash",
-            "name": "outputRoot",
-            "type": "bytes32"
-          }
-        ],
-        "internalType": "struct IFaultDisputeGame.OutputProposal",
-        "name": "starting",
-        "type": "tuple"
-      },
-      {
-        "components": [
-          {
-            "internalType": "uint128",
-            "name": "index",
-            "type": "uint128"
-          },
-          {
-            "internalType": "uint128",
-            "name": "l2BlockNumber",
-            "type": "uint128"
-          },
-          {
-            "internalType": "Hash",
-            "name": "outputRoot",
-            "type": "bytes32"
-          }
-        ],
-        "internalType": "struct IFaultDisputeGame.OutputProposal",
-        "name": "disputed",
-        "type": "tuple"
-      }
-    ],
-    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -453,6 +428,19 @@
   },
   {
     "inputs": [],
+    "name": "resolvedAt",
+    "outputs": [
+      {
+        "internalType": "Timestamp",
+        "name": "",
+        "type": "uint64"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "rootClaim",
     "outputs": [
       {
@@ -462,6 +450,19 @@
       }
     ],
     "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "splitDepth",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "splitDepth_",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -519,6 +520,19 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "vm",
+    "outputs": [
+      {
+        "internalType": "contract IBigStepper",
+        "name": "vm_",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "anonymous": false,
     "inputs": [
       {
@@ -558,7 +572,22 @@
   },
   {
     "inputs": [],
+    "name": "AlreadyInitialized",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "BondTransferFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "CannotDefendRootClaim",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ClaimAboveSplit",
     "type": "error"
   },
   {
@@ -593,6 +622,16 @@
   },
   {
     "inputs": [],
+    "name": "InsufficientBond",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidLocalIdent",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidParent",
     "type": "error"
   },
@@ -603,7 +642,7 @@
   },
   {
     "inputs": [],
-    "name": "L1HeadTooOld",
+    "name": "InvalidSplitDepth",
     "type": "error"
   },
   {

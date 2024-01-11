@@ -15,19 +15,15 @@ COPY ./op-bindings /app/op-bindings
 COPY ./op-service /app/op-service
 COPY ./op-node /app/op-node
 COPY ./op-chain-ops /app/op-chain-ops
+COPY ./go.mod /app/go.mod
+COPY ./go.sum /app/go.sum
 
 WORKDIR /app/indexer
-
 RUN make indexer
 
 FROM alpine:3.18
-
 COPY --from=builder /app/indexer/indexer /usr/local/bin
-COPY --from=builder /app/indexer/indexer.toml /app/indexer/indexer.toml
 COPY --from=builder /app/indexer/migrations /app/indexer/migrations
 
-WORKDIR /app
-
-ENV INDEXER_MIGRATIONS_DIR="/app/indexer/migrations"
-
-CMD ["indexer", "index", "--config", "/app/indexer/indexer.toml"]
+WORKDIR /app/indexer
+CMD ["indexer"]

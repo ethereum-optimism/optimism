@@ -148,7 +148,7 @@ func TestMonitorCreateAndProgressGameAgents(t *testing.T) {
 	addr2 := common.Address{0xbb}
 	source.games = []types.GameMetadata{newFDG(addr1, 9999), newFDG(addr2, 9999)}
 
-	require.NoError(t, monitor.progressGames(context.Background(), common.Hash{0x01}))
+	require.NoError(t, monitor.progressGames(context.Background(), common.Hash{0x01}, 0))
 
 	require.Len(t, sched.Scheduled(), 1)
 	require.Equal(t, []common.Address{addr1, addr2}, sched.Scheduled()[0])
@@ -160,7 +160,7 @@ func TestMonitorOnlyScheduleSpecifiedGame(t *testing.T) {
 	monitor, source, sched, _ := setupMonitorTest(t, []common.Address{addr2})
 	source.games = []types.GameMetadata{newFDG(addr1, 9999), newFDG(addr2, 9999)}
 
-	require.NoError(t, monitor.progressGames(context.Background(), common.Hash{0x01}))
+	require.NoError(t, monitor.progressGames(context.Background(), common.Hash{0x01}, 0))
 
 	require.Len(t, sched.Scheduled(), 1)
 	require.Equal(t, []common.Address{addr2}, sched.Scheduled()[0])
@@ -271,7 +271,7 @@ func (s *stubScheduler) Scheduled() [][]common.Address {
 	defer s.Unlock()
 	return s.scheduled
 }
-func (s *stubScheduler) Schedule(games []types.GameMetadata) error {
+func (s *stubScheduler) Schedule(games []types.GameMetadata, blockNumber uint64) error {
 	s.Lock()
 	defer s.Unlock()
 	var addrs []common.Address

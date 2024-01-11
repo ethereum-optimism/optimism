@@ -2,8 +2,10 @@ package derive
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 
 	"github.com/hashicorp/go-multierror"
 
@@ -21,12 +23,15 @@ var (
 	SystemConfigUpdateGasConfig         = common.Hash{31: 1}
 	SystemConfigUpdateGasLimit          = common.Hash{31: 2}
 	SystemConfigUpdateUnsafeBlockSigner = common.Hash{31: 3}
+	SystemConfigUpdateGasConfigEcotone  = common.Hash{31: 4}
 )
 
 var (
 	ConfigUpdateEventABI      = "ConfigUpdate(uint256,uint8,bytes)"
 	ConfigUpdateEventABIHash  = crypto.Keccak256Hash([]byte(ConfigUpdateEventABI))
 	ConfigUpdateEventVersion0 = common.Hash{}
+
+	empty24 = make([]byte, 24)
 )
 
 // UpdateSystemConfigWithL1Receipts filters all L1 receipts to find config updates and applies the config updates to the given sysCfg
@@ -132,6 +137,35 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 		return nil
 	case SystemConfigUpdateUnsafeBlockSigner:
 		// Ignored in derivation. This configurable applies to runtime configuration outside of the derivation.
+		return nil
+	case SystemConfigUpdateGasConfigEcotone:
+		// TODO(optimism#8801): pull this deserialization logic out into a public handler for solidity
+		// diff/fuzz testing
+		if pointer, err := solabi.ReadUint64(reader); err != nil || pointer != 32 {
+			return NewCriticalError(errors.New("invalid pointer field"))
+		}
+		if length, err := solabi.ReadUint64(reader); err != nil || length != 8 {
+			return NewCriticalError(errors.New("invalid length field"))
+		}
+		packed := make([]byte, 8)
+		_, err := io.ReadFull(reader, packed)
+		if err != nil {
+			return NewCriticalError(errors.New("invalid packed scalars field"))
+		}
+		// confirm there is 32-8=24 bytes of 0-padding left
+		zeros := make([]byte, 24)
+		_, err = io.ReadFull(reader, zeros)
+		if err != nil {
+			return NewCriticalError(errors.New("didn't find expected padding"))
+		}
+		if !bytes.Equal(zeros, empty24) {
+			return NewCriticalError(fmt.Errorf("expected padding to be all zeros, got %x", zeros))
+		}
+		if !solabi.EmptyReader(reader) {
+			return NewCriticalError(errors.New("too many bytes"))
+		}
+		destSysCfg.BasefeeScalar = binary.BigEndian.Uint32(packed[0:4])
+		destSysCfg.BlobBasefeeScalar = binary.BigEndian.Uint32(packed[4:8])
 		return nil
 	default:
 		return fmt.Errorf("unrecognized L1 sysCfg update type: %s", updateType)

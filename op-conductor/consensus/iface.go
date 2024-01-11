@@ -5,6 +5,8 @@ import (
 )
 
 // Consensus defines the consensus interface for leadership election.
+//
+//go:generate mockery --name Consensus --output mocks/ --with-expecter=true
 type Consensus interface {
 	// AddVoter adds a voting member into the cluster, voter is elegible to become leader.
 	AddVoter(id, addr string) error
@@ -18,6 +20,8 @@ type Consensus interface {
 	LeaderCh() <-chan bool
 	// Leader returns if it is the leader of the cluster.
 	Leader() bool
+	// LeaderWithID returns the leader's server ID and address.
+	LeaderWithID() (string, string)
 	// ServerID returns the server ID of the consensus.
 	ServerID() string
 	// TransferLeader triggers leadership transfer to another member in the cluster.
@@ -26,9 +30,9 @@ type Consensus interface {
 	TransferLeaderTo(id, addr string) error
 
 	// CommitPayload commits latest unsafe payload to the FSM.
-	CommitUnsafePayload(payload eth.ExecutionPayload) error
+	CommitUnsafePayload(payload *eth.ExecutionPayload) error
 	// LatestUnsafeBlock returns the latest unsafe payload from FSM.
-	LatestUnsafePayload() eth.ExecutionPayload
+	LatestUnsafePayload() *eth.ExecutionPayload
 
 	// Shutdown shuts down the consensus protocol client.
 	Shutdown() error

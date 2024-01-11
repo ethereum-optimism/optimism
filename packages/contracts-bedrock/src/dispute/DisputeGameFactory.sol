@@ -23,8 +23,15 @@ contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, ISemver 
     /// @dev Allows for the creation of clone proxies with immutable arguments.
     using ClonesWithImmutableArgs for address;
 
+    /// @notice Semantic version.
+    /// @custom:semver 0.0.8
+    string public constant version = "0.0.8";
+
     /// @inheritdoc IDisputeGameFactory
     mapping(GameType => IDisputeGame) public gameImpls;
+
+    /// @inheritdoc IDisputeGameFactory
+    mapping(GameType => uint256) public initBonds;
 
     /// @notice Mapping of a hash of `gameType || rootClaim || extraData` to
     ///         the deployed `IDisputeGame` clone.
@@ -35,10 +42,6 @@ contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, ISemver 
     /// @dev this accessor is used by offchain game solvers to efficiently
     ///      track dispute games
     GameId[] internal _disputeGameList;
-
-    /// @notice Semantic version.
-    /// @custom:semver 0.0.6
-    string public constant version = "0.0.6";
 
     /// @notice constructs a new DisputeGameFactory contract.
     constructor() OwnableUpgradeable() {
@@ -87,6 +90,7 @@ contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, ISemver 
         bytes calldata _extraData
     )
         external
+        payable
         returns (IDisputeGame proxy_)
     {
         // Grab the implementation contract for the given `GameType`.
@@ -95,9 +99,12 @@ contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, ISemver 
         // If there is no implementation to clone for the given `GameType`, revert.
         if (address(impl) == address(0)) revert NoImplementation(_gameType);
 
+        // If the required initialization bond is not met, revert.
+        if (msg.value < initBonds[_gameType]) revert InsufficientBond();
+
         // Clone the implementation contract and initialize it with the given parameters.
         proxy_ = IDisputeGame(address(impl).clone(abi.encodePacked(_rootClaim, _extraData)));
-        proxy_.initialize();
+        proxy_.initialize{ value: msg.value }();
 
         // Compute the unique identifier for the dispute game.
         Hash uuid = getGameUUID(_gameType, _rootClaim, _extraData);
@@ -117,46 +124,24 @@ contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, ISemver 
     function getGameUUID(
         GameType _gameType,
         Claim _rootClaim,
-        bytes memory _extraData
+        bytes calldata _extraData
     )
         public
         pure
         returns (Hash uuid_)
     {
-        assembly {
-            // Grab the offsets of the other memory locations we will need to temporarily overwrite.
-            let gameTypeOffset := sub(_extraData, 0x60)
-            let rootClaimOffset := add(gameTypeOffset, 0x20)
-            let pointerOffset := add(rootClaimOffset, 0x20)
-
-            // Copy the memory that we will temporarily overwrite onto the stack
-            // so we can restore it later
-            let tempA := mload(gameTypeOffset)
-            let tempB := mload(rootClaimOffset)
-            let tempC := mload(pointerOffset)
-
-            // Overwrite the memory with the data we want to hash
-            mstore(gameTypeOffset, _gameType)
-            mstore(rootClaimOffset, _rootClaim)
-            mstore(pointerOffset, 0x60)
-
-            // Compute the length of the memory to hash
-            // `0x60 + 0x20 + extraData.length` rounded to the *next* multiple of 32.
-            let hashLen := and(add(mload(_extraData), 0x9F), not(0x1F))
-
-            // Hash the memory to produce the UUID digest
-            uuid_ := keccak256(gameTypeOffset, hashLen)
-
-            // Restore the memory prior to `extraData`
-            mstore(gameTypeOffset, tempA)
-            mstore(rootClaimOffset, tempB)
-            mstore(pointerOffset, tempC)
-        }
+        uuid_ = Hash.wrap(keccak256(abi.encode(_gameType, _rootClaim, _extraData)));
     }
 
     /// @inheritdoc IDisputeGameFactory
     function setImplementation(GameType _gameType, IDisputeGame _impl) external onlyOwner {
         gameImpls[_gameType] = _impl;
         emit ImplementationSet(address(_impl), _gameType);
+    }
+
+    /// @inheritdoc IDisputeGameFactory
+    function setInitBond(GameType _gameType, uint256 _initBond) external onlyOwner {
+        initBonds[_gameType] = _initBond;
+        emit InitBondUpdated(_gameType, _initBond);
     }
 }

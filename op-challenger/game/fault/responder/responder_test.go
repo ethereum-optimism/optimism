@@ -3,6 +3,7 @@ package responder
 import (
 	"context"
 	"errors"
+	"math/big"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
@@ -288,4 +289,8 @@ func (m *mockContract) UpdateOracleTx(_ context.Context, claimIdx uint64, data *
 	m.updateOracleClaimIdx = claimIdx
 	m.updateOracleArgs = data
 	return txmgr.TxCandidate{TxData: ([]byte)("updateOracle")}, nil
+}
+
+func (m *mockContract) GetRequiredBond(_ context.Context, position types.Position) (*big.Int, error) {
+	return big.NewInt(5), nil
 }

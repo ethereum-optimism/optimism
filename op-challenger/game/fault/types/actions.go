@@ -14,9 +14,10 @@ const (
 )
 
 type Action struct {
-	Type      ActionType
-	ParentIdx int
-	IsAttack  bool
+	Type           ActionType
+	ParentIdx      int
+	ParentPosition Position
+	IsAttack       bool
 
 	// Moves
 	Value common.Hash

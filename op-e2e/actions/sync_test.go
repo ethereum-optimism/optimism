@@ -132,6 +132,7 @@ func FinalizeWhileSyncing(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	require.Less(t, verifierStartStatus.FinalizedL2.Number, verifier.SyncStatus().FinalizedL2.Number, "verifier finalized L2 blocks during sync")
 }
 
+// TestUnsafeSync tests that a verifier properly imports unsafe blocks via gossip.
 func TestUnsafeSync(gt *testing.T) {
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
@@ -155,15 +156,15 @@ func TestUnsafeSync(gt *testing.T) {
 		verifier.ActL2UnsafeGossipReceive(seqHead)(t)
 		// Handle unsafe payload
 		verifier.ActL2PipelineFull(t)
-		// Verifier must advance its unsafe head and engine sync target.
+		// Verifier must advance its unsafe head.
 		require.Equal(t, sequencer.L2Unsafe().Hash, verifier.L2Unsafe().Hash)
-		// Check engine sync target updated.
-		require.Equal(t, sequencer.L2Unsafe().Hash, sequencer.EngineSyncTarget().Hash)
-		require.Equal(t, verifier.L2Unsafe().Hash, verifier.EngineSyncTarget().Hash)
 	}
 }
 
-func TestEngineP2PSync(gt *testing.T) {
+// TestELSync tests that a verifier will have the EL import the full chain from the sequencer
+// when passed a single unsafe block. op-geth can either snap sync or full sync here.
+func TestELSync(gt *testing.T) {
+	gt.Skip("not implemented yet")
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
@@ -179,8 +180,6 @@ func TestEngineP2PSync(gt *testing.T) {
 	sequencer.ActL2PipelineFull(t)
 	verifier.ActL2PipelineFull(t)
 
-	verifierUnsafeHead := verifier.L2Unsafe()
-
 	// Build a L2 block. This block will not be gossiped to verifier, so verifier can not advance chain by itself.
 	sequencer.ActL2StartBlock(t)
 	sequencer.ActL2EndBlock(t)
@@ -195,12 +194,13 @@ func TestEngineP2PSync(gt *testing.T) {
 		verifier.ActL2UnsafeGossipReceive(seqHead)(t)
 		// Handle unsafe payload
 		verifier.ActL2PipelineFull(t)
-		// Verifier must advance only engine sync target.
-		require.NotEqual(t, sequencer.L2Unsafe().Hash, verifier.L2Unsafe().Hash)
-		require.NotEqual(t, verifier.L2Unsafe().Hash, verifier.EngineSyncTarget().Hash)
-		require.Equal(t, verifier.L2Unsafe().Hash, verifierUnsafeHead.Hash)
-		require.Equal(t, sequencer.L2Unsafe().Hash, verifier.EngineSyncTarget().Hash)
+		// Verifier must advance unsafe head after unsafe gossip.
+		require.Equal(t, sequencer.L2Unsafe().Hash, verifier.L2Unsafe().Hash)
 	}
+	// Actual test flow should be as follows:
+	// 1. Build a chain on the sequencer.
+	// 2. Gossip only a single final L2 block from the sequencer to the verifier.
+	// 3. Assert that the verifier has the full chain.
 }
 
 func TestInvalidPayloadInSpanBatch(gt *testing.T) {
@@ -246,7 +246,7 @@ func TestInvalidPayloadInSpanBatch(gt *testing.T) {
 			block = block.WithBody([]*types.Transaction{block.Transactions()[0], invalidTx}, []*types.Header{})
 		}
 		// Add A1 ~ A12 into the channel
-		_, err = channelOut.AddBlock(block)
+		_, err = channelOut.AddBlock(sd.RollupCfg, block)
 		require.NoError(t, err)
 	}
 
@@ -304,7 +304,7 @@ func TestInvalidPayloadInSpanBatch(gt *testing.T) {
 			block = block.WithBody([]*types.Transaction{block.Transactions()[0], tx}, []*types.Header{})
 		}
 		// Add B1, A2 ~ A12 into the channel
-		_, err = channelOut.AddBlock(block)
+		_, err = channelOut.AddBlock(sd.RollupCfg, block)
 		require.NoError(t, err)
 	}
 	// Submit span batch(B1, A2, ... A12)

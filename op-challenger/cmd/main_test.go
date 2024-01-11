@@ -28,7 +28,6 @@ var (
 	datadir                 = "./test_data"
 	cannonL2                = "http://example.com:9545"
 	rollupRpc               = "http://example.com:8555"
-	alphabetTrace           = "abcdefghijz"
 )
 
 func TestLogLevel(t *testing.T) {
@@ -50,7 +49,7 @@ func TestDefaultCLIOptionsMatchDefaultConfig(t *testing.T) {
 	cfg := configForArgs(t, addRequiredArgs(config.TraceTypeAlphabet))
 	defaultCfg := config.NewConfig(common.HexToAddress(gameFactoryAddressValue), l1EthRpc, datadir, config.TraceTypeAlphabet)
 	// Add in the extra CLI options required when using alphabet trace type
-	defaultCfg.AlphabetTrace = alphabetTrace
+	defaultCfg.RollupRpc = rollupRpc
 	require.Equal(t, defaultCfg, cfg)
 }
 
@@ -58,7 +57,7 @@ func TestDefaultConfigIsValid(t *testing.T) {
 	cfg := config.NewConfig(common.HexToAddress(gameFactoryAddressValue), l1EthRpc, datadir, config.TraceTypeAlphabet)
 	// Add in options that are required based on the specific trace type
 	// To avoid needing to specify unused options, these aren't included in the params for NewConfig
-	cfg.AlphabetTrace = alphabetTrace
+	cfg.RollupRpc = rollupRpc
 	require.NoError(t, cfg.Check())
 }
 
@@ -76,8 +75,10 @@ func TestL1ETHRPCAddress(t *testing.T) {
 }
 
 func TestTraceType(t *testing.T) {
-	t.Run("Required", func(t *testing.T) {
-		verifyArgsInvalid(t, "flag trace-type is required", addRequiredArgsExcept("", "--trace-type"))
+	t.Run("Default", func(t *testing.T) {
+		expectedDefault := config.TraceTypeCannon
+		cfg := configForArgs(t, addRequiredArgsExcept(expectedDefault, "--trace-type"))
+		require.Equal(t, []config.TraceType{expectedDefault}, cfg.TraceTypes)
 	})
 
 	for _, traceType := range config.TraceTypes {
@@ -96,19 +97,17 @@ func TestTraceType(t *testing.T) {
 func TestMultipleTraceTypes(t *testing.T) {
 	t.Run("WithAllOptions", func(t *testing.T) {
 		argsMap := requiredArgs(config.TraceTypeCannon)
-		addRequiredOutputCannonArgs(argsMap)
-		addRequiredAlphabetArgs(argsMap)
+		addRequiredOutputArgs(argsMap)
 		args := toArgList(argsMap)
 		// Add extra trace types (cannon is already specified)
 		args = append(args,
-			"--trace-type", config.TraceTypeOutputCannon.String(),
 			"--trace-type", config.TraceTypeAlphabet.String())
 		cfg := configForArgs(t, args)
-		require.Equal(t, []config.TraceType{config.TraceTypeCannon, config.TraceTypeOutputCannon, config.TraceTypeAlphabet}, cfg.TraceTypes)
+		require.Equal(t, []config.TraceType{config.TraceTypeCannon, config.TraceTypeAlphabet}, cfg.TraceTypes)
 	})
 	t.Run("WithSomeOptions", func(t *testing.T) {
 		argsMap := requiredArgs(config.TraceTypeCannon)
-		addRequiredAlphabetArgs(argsMap)
+		addRequiredOutputArgs(argsMap)
 		args := toArgList(argsMap)
 		// Add extra trace types (cannon is already specified)
 		args = append(args,
@@ -270,20 +269,16 @@ func TestDataDir(t *testing.T) {
 }
 
 func TestRollupRpc(t *testing.T) {
-	t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
-		configForArgs(t, addRequiredArgsExcept(config.TraceTypeAlphabet, "--rollup-rpc"))
+	t.Run("RequiredForAlphabetTrace", func(t *testing.T) {
+		verifyArgsInvalid(t, "flag rollup-rpc is required", addRequiredArgsExcept(config.TraceTypeAlphabet, "--rollup-rpc"))
 	})
 
-	t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
-		configForArgs(t, addRequiredArgsExcept(config.TraceTypeCannon, "--rollup-rpc"))
-	})
-
-	t.Run("RequiredForOutputCannonTrace", func(t *testing.T) {
-		verifyArgsInvalid(t, "flag rollup-rpc is required", addRequiredArgsExcept(config.TraceTypeOutputCannon, "--rollup-rpc"))
+	t.Run("RequiredForCannonTrace", func(t *testing.T) {
+		verifyArgsInvalid(t, "flag rollup-rpc is required", addRequiredArgsExcept(config.TraceTypeCannon, "--rollup-rpc"))
 	})
 
 	t.Run("Valid", func(t *testing.T) {
-		cfg := configForArgs(t, addRequiredArgs(config.TraceTypeOutputCannon))
+		cfg := configForArgs(t, addRequiredArgs(config.TraceTypeCannon))
 		require.Equal(t, rollupRpc, cfg.RollupRpc)
 	})
 }
@@ -462,33 +457,12 @@ func requiredArgs(traceType config.TraceType) map[string]string {
 		"--datadir":              datadir,
 	}
 	switch traceType {
-	case config.TraceTypeAlphabet:
-		addRequiredAlphabetArgs(args)
 	case config.TraceTypeCannon:
 		addRequiredCannonArgs(args)
-	case config.TraceTypeOutputCannon:
-		addRequiredOutputCannonArgs(args)
-	case config.TraceTypeOutputAlphabet:
-		addRequiredOutputAlphabetArgs(args)
+	case config.TraceTypeAlphabet:
+		addRequiredOutputArgs(args)
 	}
 	return args
-}
-
-func addRequiredAlphabetArgs(args map[string]string) {
-	args["--alphabet"] = alphabetTrace
-}
-
-func addRequiredOutputAlphabetArgs(args map[string]string) {
-	addRequiredOutputArgs(args)
-}
-
-func addRequiredOutputCannonArgs(args map[string]string) {
-	addRequiredCannonArgs(args)
-	addRequiredOutputArgs(args)
-}
-
-func addRequiredOutputArgs(args map[string]string) {
-	args["--rollup-rpc"] = rollupRpc
 }
 
 func addRequiredCannonArgs(args map[string]string) {
@@ -497,6 +471,11 @@ func addRequiredCannonArgs(args map[string]string) {
 	args["--cannon-server"] = cannonServer
 	args["--cannon-prestate"] = cannonPreState
 	args["--cannon-l2"] = cannonL2
+	addRequiredOutputArgs(args)
+}
+
+func addRequiredOutputArgs(args map[string]string) {
+	args["--rollup-rpc"] = rollupRpc
 }
 
 func toArgList(req map[string]string) []string {

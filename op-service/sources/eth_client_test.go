@@ -180,7 +180,49 @@ func TestEthClient_WrongInfoByHash(t *testing.T) {
 	m.Mock.AssertExpectations(t)
 }
 
+type validateReceiptsTest struct {
+	desc        string
+	trustRPC    bool
+	mutReceipts func(types.Receipts) types.Receipts
+	expError    string
+}
+
 func TestEthClient_validateReceipts(t *testing.T) {
+	mutBloom := func(rs types.Receipts) types.Receipts {
+		rs[2].Bloom[0] = 1
+		return rs
+	}
+	mutTruncate := func(rs types.Receipts) types.Receipts {
+		return rs[:len(rs)-1]
+	}
+
+	for _, tt := range []validateReceiptsTest{
+		{
+			desc: "valid",
+		},
+		{
+			desc:        "invalid-mut-bloom",
+			mutReceipts: mutBloom,
+			expError:    "invalid receipts: failed to fetch list of receipts: expected receipt root",
+		},
+		{
+			desc:        "invalid-truncated",
+			mutReceipts: mutTruncate,
+			expError:    "invalid receipts: got 3 receipts but expected 4",
+		},
+	} {
+		t.Run("no-trust-"+tt.desc, func(t *testing.T) {
+			testEthClient_validateReceipts(t, tt)
+		})
+		// trusting the rpc should still lead to failed validation
+		tt.trustRPC = true
+		t.Run("trust-"+tt.desc, func(t *testing.T) {
+			testEthClient_validateReceipts(t, tt)
+		})
+	}
+}
+
+func testEthClient_validateReceipts(t *testing.T, test validateReceiptsTest) {
 	require := require.New(t)
 	mrpc := new(mockRPC)
 	mrp := new(mockReceiptsProvider)
@@ -189,8 +231,9 @@ func TestEthClient_validateReceipts(t *testing.T) {
 	txHashes := receiptTxHashes(receipts)
 	ctx := context.Background()
 
-	// mutate a field to make validation fail.
-	receipts[2].Bloom[0] = 1
+	if mut := test.mutReceipts; mut != nil {
+		receipts = mut(receipts)
+	}
 
 	mrpc.On("CallContext", ctx, mock.AnythingOfType("**sources.rpcBlock"),
 		"eth_getBlockByHash", []any{block.Hash, true}).
@@ -205,10 +248,18 @@ func TestEthClient_validateReceipts(t *testing.T) {
 	ethcl := newEthClientWithCaches(nil, numTxs)
 	ethcl.client = mrpc
 	ethcl.recProvider = mrp
-	ethcl.trustRPC = false
+	ethcl.trustRPC = test.trustRPC
 
-	_, _, err := ethcl.FetchReceipts(ctx, block.Hash)
-	require.ErrorContains(err, "invalid receipts")
+	info, recs, err := ethcl.FetchReceipts(ctx, block.Hash)
+	if test.expError != "" {
+		require.ErrorContains(err, test.expError)
+	} else {
+		require.NoError(err)
+		expInfo, _, err := block.Info(true, false)
+		require.NoError(err)
+		require.Equal(expInfo, info)
+		require.Equal(types.Receipts(receipts), recs)
+	}
 
 	mrpc.AssertExpectations(t)
 	mrp.AssertExpectations(t)

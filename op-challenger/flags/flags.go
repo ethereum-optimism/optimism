@@ -15,7 +15,7 @@ import (
 	openum "github.com/ethereum-optimism/optimism/op-service/enum"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
-	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
+	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
@@ -49,6 +49,7 @@ var (
 		Name:    "trace-type",
 		Usage:   "The trace types to support. Valid options: " + openum.EnumString(config.TraceTypes),
 		EnvVars: prefixEnvVars("TRACE_TYPE"),
+		Value:   cli.NewStringSlice(config.TraceTypeCannon.String()),
 	}
 	DatadirFlag = &cli.StringFlag{
 		Name:    "datadir",
@@ -72,11 +73,6 @@ var (
 		Name:    "rollup-rpc",
 		Usage:   "HTTP provider URL for the rollup node",
 		EnvVars: prefixEnvVars("ROLLUP_RPC"),
-	}
-	AlphabetFlag = &cli.StringFlag{
-		Name:    "alphabet",
-		Usage:   "Correct Alphabet Trace (alphabet trace type only)",
-		EnvVars: prefixEnvVars("ALPHABET"),
 	}
 	CannonNetworkFlag = &cli.StringFlag{
 		Name: "cannon-network",
@@ -140,16 +136,15 @@ var (
 var requiredFlags = []cli.Flag{
 	L1EthRpcFlag,
 	FactoryAddressFlag,
-	TraceTypeFlag,
 	DatadirFlag,
 }
 
 // optionalFlags is a list of unchecked cli flags
 var optionalFlags = []cli.Flag{
+	TraceTypeFlag,
 	MaxConcurrencyFlag,
 	HTTPPollInterval,
 	RollupRpcFlag,
-	AlphabetFlag,
 	GameAllowlistFlag,
 	CannonNetworkFlag,
 	CannonRollupConfigFlag,
@@ -213,18 +208,10 @@ func CheckRequired(ctx *cli.Context, traceTypes []config.TraceType) error {
 			if err := CheckCannonFlags(ctx); err != nil {
 				return err
 			}
-		case config.TraceTypeAlphabet:
-			if !ctx.IsSet(AlphabetFlag.Name) {
-				return fmt.Errorf("flag %s is required", "alphabet")
-			}
-		case config.TraceTypeOutputCannon:
-			if err := CheckCannonFlags(ctx); err != nil {
-				return err
-			}
 			if !ctx.IsSet(RollupRpcFlag.Name) {
 				return fmt.Errorf("flag %s is required", RollupRpcFlag.Name)
 			}
-		case config.TraceTypeOutputAlphabet:
+		case config.TraceTypeAlphabet:
 			if !ctx.IsSet(RollupRpcFlag.Name) {
 				return fmt.Errorf("flag %s is required", RollupRpcFlag.Name)
 			}
@@ -291,7 +278,6 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 		MaxConcurrency:         maxConcurrency,
 		PollInterval:           ctx.Duration(HTTPPollInterval.Name),
 		RollupRpc:              ctx.String(RollupRpcFlag.Name),
-		AlphabetTrace:          ctx.String(AlphabetFlag.Name),
 		CannonNetwork:          ctx.String(CannonNetworkFlag.Name),
 		CannonRollupConfigPath: ctx.String(CannonRollupConfigFlag.Name),
 		CannonL2GenesisPath:    ctx.String(CannonL2GenesisFlag.Name),

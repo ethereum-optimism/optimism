@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
-	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -18,7 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
-	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
+	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
@@ -26,16 +24,20 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-var (
-	ErrAlreadyStopped = errors.New("already stopped")
-)
+var ErrAlreadyStopped = errors.New("already stopped")
 
 type ProposerConfig struct {
 	// How frequently to poll L2 for new finalized outputs
 	PollInterval   time.Duration
 	NetworkTimeout time.Duration
 
-	L2OutputOracleAddr common.Address
+	// How frequently to post L2 outputs when the DisputeGameFactory is configured
+	ProposalInterval time.Duration
+
+	L2OutputOracleAddr     *common.Address
+	DisputeGameFactoryAddr *common.Address
+	DisputeGameType        uint8
+
 	// AllowNonFinalized enables the proposal of safe, but non-finalized L2 blocks.
 	// The L1 block-hash embedded in the proposal TX is checked and should ensure the proposal
 	// is never valid on an alternative L1 chain that would produce different L2 data.
@@ -57,9 +59,9 @@ type ProposerService struct {
 
 	Version string
 
-	pprofSrv   *httputil.HTTPServer
-	metricsSrv *httputil.HTTPServer
-	rpcServer  *oprpc.Server
+	pprofService *oppprof.Service
+	metricsSrv   *httputil.HTTPServer
+	rpcServer    *oprpc.Server
 
 	balanceMetricer io.Closer
 
@@ -87,6 +89,9 @@ func (ps *ProposerService) initFromCLIConfig(ctx context.Context, version string
 	ps.NetworkTimeout = cfg.TxMgrConfig.NetworkTimeout
 	ps.AllowNonFinalized = cfg.AllowNonFinalized
 
+	ps.initL2ooAddress(cfg)
+	ps.initDGF(cfg)
+
 	if err := ps.initRPCClients(ctx, cfg); err != nil {
 		return err
 	}
@@ -98,10 +103,7 @@ func (ps *ProposerService) initFromCLIConfig(ctx context.Context, version string
 		return fmt.Errorf("failed to start metrics server: %w", err)
 	}
 	if err := ps.initPProf(cfg); err != nil {
-		return fmt.Errorf("failed to start pprof server: %w", err)
-	}
-	if err := ps.initL2ooAddress(cfg); err != nil {
-		return fmt.Errorf("failed to init L2ooAddress: %w", err)
+		return fmt.Errorf("failed to init profiling: %w", err)
 	}
 	if err := ps.initDriver(); err != nil {
 		return fmt.Errorf("failed to init Driver: %w", err)
@@ -162,16 +164,19 @@ func (ps *ProposerService) initTxManager(cfg *CLIConfig) error {
 }
 
 func (ps *ProposerService) initPProf(cfg *CLIConfig) error {
-	if !cfg.PprofConfig.Enabled {
-		return nil
+	ps.pprofService = oppprof.New(
+		cfg.PprofConfig.ListenEnabled,
+		cfg.PprofConfig.ListenAddr,
+		cfg.PprofConfig.ListenPort,
+		cfg.PprofConfig.ProfileType,
+		cfg.PprofConfig.ProfileDir,
+		cfg.PprofConfig.ProfileFilename,
+	)
+
+	if err := ps.pprofService.Start(); err != nil {
+		return fmt.Errorf("failed to start pprof service: %w", err)
 	}
-	log.Debug("starting pprof server", "addr", net.JoinHostPort(cfg.PprofConfig.ListenAddr, strconv.Itoa(cfg.PprofConfig.ListenPort)))
-	srv, err := oppprof.StartServer(cfg.PprofConfig.ListenAddr, cfg.PprofConfig.ListenPort)
-	if err != nil {
-		return err
-	}
-	ps.pprofSrv = srv
-	log.Info("started pprof server", "addr", srv.Addr())
+
 	return nil
 }
 
@@ -194,13 +199,24 @@ func (ps *ProposerService) initMetricsServer(cfg *CLIConfig) error {
 	return nil
 }
 
-func (ps *ProposerService) initL2ooAddress(cfg *CLIConfig) error {
+func (ps *ProposerService) initL2ooAddress(cfg *CLIConfig) {
 	l2ooAddress, err := opservice.ParseAddress(cfg.L2OOAddress)
 	if err != nil {
-		return nil
+		// Return no error & set no L2OO related configuration fields.
+		return
 	}
-	ps.L2OutputOracleAddr = l2ooAddress
-	return nil
+	ps.L2OutputOracleAddr = &l2ooAddress
+}
+
+func (ps *ProposerService) initDGF(cfg *CLIConfig) {
+	dgfAddress, err := opservice.ParseAddress(cfg.DGFAddress)
+	if err != nil {
+		// Return no error & set no DGF related configuration fields.
+		return
+	}
+	ps.DisputeGameFactoryAddr = &dgfAddress
+	ps.ProposalInterval = cfg.ProposalInterval
+	ps.DisputeGameType = cfg.DisputeGameType
 }
 
 func (ps *ProposerService) initDriver() error {
@@ -279,8 +295,8 @@ func (ps *ProposerService) Stop(ctx context.Context) error {
 			result = errors.Join(result, fmt.Errorf("failed to stop RPC server: %w", err))
 		}
 	}
-	if ps.pprofSrv != nil {
-		if err := ps.pprofSrv.Stop(ctx); err != nil {
+	if ps.pprofService != nil {
+		if err := ps.pprofService.Stop(ctx); err != nil {
 			result = errors.Join(result, fmt.Errorf("failed to stop PProf server: %w", err))
 		}
 	}

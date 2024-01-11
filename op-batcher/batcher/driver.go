@@ -171,7 +171,7 @@ func (l *BatchSubmitter) loadBlocksIntoState(ctx context.Context) error {
 		latestBlock = block
 	}
 
-	l2ref, err := derive.L2BlockToBlockRef(latestBlock, &l.RollupConfig.Genesis)
+	l2ref, err := derive.L2BlockToBlockRef(l.RollupConfig, latestBlock)
 	if err != nil {
 		l.Log.Warn("Invalid L2 block loaded into state", "err", err)
 		return err
@@ -334,7 +334,7 @@ func (l *BatchSubmitter) publishTxToL1(ctx context.Context, queue *txmgr.Queue[t
 	// send all available transactions
 	l1tip, err := l.l1Tip(ctx)
 	if err != nil {
-		l.Log.Error("Failed to query L1 tip", "error", err)
+		l.Log.Error("Failed to query L1 tip", "err", err)
 		return err
 	}
 	l.recordL1Tip(l1tip)
@@ -349,38 +349,69 @@ func (l *BatchSubmitter) publishTxToL1(ctx context.Context, queue *txmgr.Queue[t
 		return err
 	}
 
-	l.sendTransaction(txdata, queue, receiptsCh)
+	if err = l.sendTransaction(txdata, queue, receiptsCh); err != nil {
+		return fmt.Errorf("BatchSubmitter.sendTransaction failed: %w", err)
+	}
 	return nil
 }
 
-// sendTransaction creates & submits a transaction to the batch inbox address with the given `data`.
+// sendTransaction creates & submits a transaction to the batch inbox address with the given `txData`.
 // It currently uses the underlying `txmgr` to handle transaction sending & price management.
 // This is a blocking method. It should not be called concurrently.
-func (l *BatchSubmitter) sendTransaction(txdata txData, queue *txmgr.Queue[txData], receiptsCh chan txmgr.TxReceipt[txData]) {
+func (l *BatchSubmitter) sendTransaction(txdata txData, queue *txmgr.Queue[txData], receiptsCh chan txmgr.TxReceipt[txData]) error {
 	// Do the gas estimation offline. A value of 0 will cause the [txmgr] to estimate the gas limit.
 	data := txdata.Bytes()
-	intrinsicGas, err := core.IntrinsicGas(data, nil, false, true, true, false)
-	if err != nil {
-		l.Log.Error("Failed to calculate intrinsic gas", "error", err)
-		return
+
+	var candidate *txmgr.TxCandidate
+	if l.Config.UseBlobs {
+		var err error
+		if candidate, err = l.blobTxCandidate(data); err != nil {
+			// We could potentially fall through and try a calldata tx instead, but this would
+			// likely result in the chain spending more in gas fees than it is tuned for, so best
+			// to just fail. We do not expect this error to trigger unless there is a serious bug
+			// or configuration issue.
+			return fmt.Errorf("could not create blob tx candidate: %w", err)
+		}
+	} else {
+		candidate = l.calldataTxCandidate(data)
 	}
 
-	candidate := txmgr.TxCandidate{
-		To:       &l.RollupConfig.BatchInboxAddress,
-		TxData:   data,
-		GasLimit: intrinsicGas,
+	intrinsicGas, err := core.IntrinsicGas(candidate.TxData, nil, false, true, true, false)
+	if err != nil {
+		// we log instead of return an error here because txmgr can do its own gas estimation
+		l.Log.Error("Failed to calculate intrinsic gas", "err", err)
+	} else {
+		candidate.GasLimit = intrinsicGas
 	}
-	queue.Send(txdata, candidate, receiptsCh)
+
+	queue.Send(txdata, *candidate, receiptsCh)
+	return nil
+}
+
+func (l *BatchSubmitter) blobTxCandidate(data []byte) (*txmgr.TxCandidate, error) {
+	var b eth.Blob
+	if err := b.FromData(data); err != nil {
+		return nil, fmt.Errorf("data could not be converted to blob: %w", err)
+	}
+	return &txmgr.TxCandidate{
+		To:    &l.RollupConfig.BatchInboxAddress,
+		Blobs: []*eth.Blob{&b},
+	}, nil
+}
+
+func (l *BatchSubmitter) calldataTxCandidate(data []byte) *txmgr.TxCandidate {
+	return &txmgr.TxCandidate{
+		To:     &l.RollupConfig.BatchInboxAddress,
+		TxData: data,
+	}
 }
 
 func (l *BatchSubmitter) handleReceipt(r txmgr.TxReceipt[txData]) {
 	// Record TX Status
 	if r.Err != nil {
-		l.Log.Warn("unable to publish tx", "err", r.Err, "data_size", r.ID.Len())
-		l.recordFailedTx(r.ID.ID(), r.Err)
+		l.recordFailedTx(r.ID, r.Err)
 	} else {
-		l.Log.Info("tx successfully published", "tx_hash", r.Receipt.TxHash, "data_size", r.ID.Len())
-		l.recordConfirmedTx(r.ID.ID(), r.Receipt)
+		l.recordConfirmedTx(r.ID, r.Receipt)
 	}
 }
 
@@ -392,15 +423,15 @@ func (l *BatchSubmitter) recordL1Tip(l1tip eth.L1BlockRef) {
 	l.Metr.RecordLatestL1Block(l1tip)
 }
 
-func (l *BatchSubmitter) recordFailedTx(id txID, err error) {
-	l.Log.Warn("Failed to send transaction", "err", err)
-	l.state.TxFailed(id)
+func (l *BatchSubmitter) recordFailedTx(txd txData, err error) {
+	l.Log.Warn("Transaction failed to send", logFields(txd, err)...)
+	l.state.TxFailed(txd.ID())
 }
 
-func (l *BatchSubmitter) recordConfirmedTx(id txID, receipt *types.Receipt) {
-	l.Log.Info("Transaction confirmed", "tx_hash", receipt.TxHash, "status", receipt.Status, "block_hash", receipt.BlockHash, "block_number", receipt.BlockNumber)
-	l1block := eth.BlockID{Number: receipt.BlockNumber.Uint64(), Hash: receipt.BlockHash}
-	l.state.TxConfirmed(id, l1block)
+func (l *BatchSubmitter) recordConfirmedTx(txd txData, receipt *types.Receipt) {
+	l.Log.Info("Transaction confirmed", logFields(txd, receipt)...)
+	l1block := eth.ReceiptBlockID(receipt)
+	l.state.TxConfirmed(txd.ID(), l1block)
 }
 
 // l1Tip gets the current L1 tip as a L1BlockRef. The passed context is assumed
@@ -413,4 +444,20 @@ func (l *BatchSubmitter) l1Tip(ctx context.Context) (eth.L1BlockRef, error) {
 		return eth.L1BlockRef{}, fmt.Errorf("getting latest L1 block: %w", err)
 	}
 	return eth.InfoToL1BlockRef(eth.HeaderBlockInfo(head)), nil
+}
+
+func logFields(xs ...any) (fs []any) {
+	for _, x := range xs {
+		switch v := x.(type) {
+		case txData:
+			fs = append(fs, "frame_id", v.ID(), "data_len", v.Len())
+		case *types.Receipt:
+			fs = append(fs, "tx", v.TxHash, "block", eth.ReceiptBlockID(v))
+		case error:
+			fs = append(fs, "err", v)
+		default:
+			fs = append(fs, "ERROR", fmt.Sprintf("logFields: unknown type: %T", x))
+		}
+	}
+	return fs
 }

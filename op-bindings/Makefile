@@ -28,7 +28,7 @@ bindings-build: bindgen-generate-local
 bindgen: compile bindgen-generate-all
 
 bindgen-generate-all:
-	go run ./bindgen/ \
+	go run ./cmd/ \
 		generate \
 		--metadata-out ./$(pkg) \
 		--bindings-package $(pkg) \
@@ -45,7 +45,7 @@ bindgen-generate-all:
 bindgen-local: compile bindgen-generate-local
 
 bindgen-generate-local:
-	go run ./bindgen/ \
+	go run ./cmd/ \
 		generate \
 		--metadata-out ./$(pkg) \
 		--bindings-package $(pkg) \
@@ -56,7 +56,7 @@ bindgen-generate-local:
 		--forge-artifacts $(contracts-dir)/forge-artifacts
 
 bindgen-remote:
-	go run ./bindgen/ \
+	go run ./cmd/ \
 		generate \
 		--metadata-out ./$(pkg) \
 		--bindings-package $(pkg) \
@@ -80,6 +80,3 @@ clean:
 
 test:
 	go test ./...
-
-test-bindgen-e2e:
-	RUN_E2E=true go test -count=1 ./bindgen/...

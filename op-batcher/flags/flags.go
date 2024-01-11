@@ -10,7 +10,7 @@ import (
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
-	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
+	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
@@ -20,6 +20,12 @@ const EnvVarPrefix = "OP_BATCHER"
 func prefixEnvVars(name string) []string {
 	return opservice.PrefixEnvVar(EnvVarPrefix, name)
 }
+
+const (
+	// data availability types
+	CalldataType = "calldata"
+	BlobsType    = "blobs"
+)
 
 var (
 	// Required flags
@@ -82,6 +88,12 @@ var (
 		Value:   0,
 		EnvVars: prefixEnvVars("BATCH_TYPE"),
 	}
+	DataAvailabilityTypeFlag = &cli.StringFlag{
+		Name:    "data-availability-type",
+		Usage:   "The data availability type to use for submitting batches to the L1, e.g. blobs or calldata.",
+		Value:   CalldataType,
+		EnvVars: prefixEnvVars("DATA_AVAILABILITY_TYPE"),
+	}
 	// Legacy Flags
 	SequencerHDPathFlag = txmgr.SequencerHDPathFlag
 )
@@ -101,6 +113,7 @@ var optionalFlags = []cli.Flag{
 	StoppedFlag,
 	SequencerHDPathFlag,
 	BatchTypeFlag,
+	DataAvailabilityTypeFlag,
 }
 
 func init() {

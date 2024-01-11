@@ -34,11 +34,10 @@
 
 ## Overview
 
-The Fault Dispute Game (FDG) is a specific type of
-[dispute game](./dispute-game-interface.md) that verifies the validity of a
-root claim by iteratively bisecting over [output roots][g-output-root] and execution traces of single block state
-transitions down to a single instruction step. It relies on a Virtual Machine (VM) to falsify invalid claims made at
-a single instruction step.
+The Fault Dispute Game (FDG) is a specific type of [dispute game](./dispute-game-interface.md) that verifies the
+validity of a root claim by iteratively bisecting over [output roots][g-output-root] and execution traces of single
+block state transitions down to a single instruction step. It relies on a Virtual Machine (VM) to falsify invalid
+claims made at a single instruction step.
 
 Actors, i.e. Players, interact with the game by making claims that dispute other claims in the FDG.
 Each claim made narrows the range over the entire historical state of L2, until the source of dispute is a single
@@ -140,7 +139,8 @@ Note that there can be multiple positions covering the same _trace index_.
 
 ### GAME_DURATION
 
-This is an immutable, preset to a FDG implementation, representing the duration of the game.
+This is an immutable, preset to a FDG implementation, representing the duration of the game. Each top level team will
+receive half of this duration on their initial chess clocks.
 
 ## Game Mechanics
 
@@ -218,7 +218,7 @@ If the STF post-state does not match the claimed state, the challenge succeeds.
 ///        the move is a defense. If the step is an attack on the first instruction, it is
 ///        the absolute prestate of the fault proof VM.
 /// @param _proof Proof to access memory nodes in the VM's merkle state tree.
-function step(uint256 _claimIndex, bool isAttack, bytes calldata _stateData, bytes calldata _proof) external;
+function step(uint256 _claimIndex, bool _isAttack, bytes calldata _stateData, bytes calldata _proof) external;
 ```
 
 ### Step Types
@@ -257,10 +257,10 @@ function addLocalData(uint256 _ident, uint256 _execLeafIdx, uint256 _partOffset)
 
 The `addLocalData` function loads parts of a pre-image to VM's `PreimageOracle`. Players use this to ensure pre-image
 parts are available to the VM during a step. Because there are multiple sets of local preimage keys that belong to the
-`FaultDisputeGame` contract due to the ability for players to bisect to any block `n->n+1` state transition since the
-configured genesis, the `_execLeafIdx` parameter enables a search for the starting / disputed outputs to be performed
-such that the contract can write to and reference unique local keys in the `PreimageOracle` for each of these `n->n+1`
-transitions.
+`FaultDisputeGame` contract due to the ability for players to bisect to any block $n \rarrow n + 1$ state transition
+since the configured genesis, the `_execLeafIdx` parameter enables a search for the starting / disputed outputs to be
+performed such that the contract can write to and reference unique local keys in the `PreimageOracle` for each of these
+$n \rarrow n + 1$ transitions.
 
 ### Team Dynamics
 

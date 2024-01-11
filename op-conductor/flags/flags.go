@@ -9,7 +9,7 @@ import (
 	opflags "github.com/ethereum-optimism/optimism/op-service/flags"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
-	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
+	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 )
 
@@ -48,6 +48,27 @@ var (
 		Usage:   "HTTP provider URL for execution layer",
 		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "EXECUTION_RPC"),
 	}
+	HealthCheckInterval = &cli.Uint64Flag{
+		Name:    "healthcheck.interval",
+		Usage:   "Interval between health checks",
+		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "HEALTHCHECK_INTERVAL"),
+	}
+	HealthCheckSafeInterval = &cli.Uint64Flag{
+		Name:    "healthcheck.safe-interval",
+		Usage:   "Interval between safe head progression measured in seconds",
+		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "HEALTHCHECK_SAFE_INTERVAL"),
+	}
+	HealthCheckMinPeerCount = &cli.Uint64Flag{
+		Name:    "healthcheck.min-peer-count",
+		Usage:   "Minimum number of peers required to be considered healthy",
+		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "HEALTHCHECK_MIN_PEER_COUNT"),
+	}
+	Paused = &cli.BoolFlag{
+		Name:    "paused",
+		Usage:   "Whether the conductor is paused",
+		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "PAUSED"),
+		Value:   false,
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -57,9 +78,14 @@ var requiredFlags = []cli.Flag{
 	RaftStorageDir,
 	NodeRPC,
 	ExecutionRPC,
+	HealthCheckInterval,
+	HealthCheckSafeInterval,
+	HealthCheckMinPeerCount,
 }
 
-var optionalFlags = []cli.Flag{}
+var optionalFlags = []cli.Flag{
+	Paused,
+}
 
 func init() {
 	optionalFlags = append(optionalFlags, oprpc.CLIFlags(EnvVarPrefix)...)

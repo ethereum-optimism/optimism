@@ -335,22 +335,25 @@ func TestDiscovery(t *testing.T) {
 		}
 	}
 
-	// For each node, check that they have recorded metadata about the other nodes during discovery
-	for _, n1 := range []*NodeP2P{nodeA, nodeB, nodeC} {
-		eps, ok := n1.Host().Peerstore().(store.ExtendedPeerstore)
-		require.True(t, ok)
-		for _, n2 := range []*NodeP2P{nodeA, nodeB, nodeC} {
-			if n1 == n2 {
-				continue
-			}
-			md, err := eps.GetPeerMetadata(n2.Host().ID())
-			require.NoError(t, err)
-			// we don't scrutinize the ENR itself, just that it exists
-			require.NotEmpty(t, md.ENR)
-			require.Equal(t, uint64(901), md.OPStackID)
-		}
+	// Check that among known connections (B-A, B-C), we have metadata
+	type mdcheck struct {
+		n1 *NodeP2P
+		n2 *NodeP2P
 	}
-
+	cases := []mdcheck{
+		{nodeB, nodeA},
+		{nodeB, nodeC},
+	}
+	for _, c := range cases {
+		// make peerstore metadata available
+		eps, ok := c.n1.Host().Peerstore().(store.ExtendedPeerstore)
+		require.True(t, ok)
+		// confirm n1 has metadata about n2
+		md, err := eps.GetPeerMetadata(c.n2.Host().ID())
+		require.NoError(t, err)
+		require.NotEmpty(t, md.ENR)
+		require.Equal(t, uint64(901), md.OPStackID)
+	}
 }
 
 // Most tests should use mocknets instead of using the actual local host network

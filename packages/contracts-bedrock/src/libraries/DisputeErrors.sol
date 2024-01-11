@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.15;
 
-import "./DisputeTypes.sol";
+import "src/libraries/DisputeTypes.sol";
 
 ////////////////////////////////////////////////////////////////
 //                `DisputeGameFactory` Errors                 //
@@ -24,9 +24,17 @@ error UnexpectedRootClaim(Claim rootClaim);
 //                 `FaultDisputeGame` Errors                  //
 ////////////////////////////////////////////////////////////////
 
-/// @notice Thrown when a supplied bond is too low to cover the
-///         cost of the next possible counter claim.
-error BondTooLow();
+/// @notice Thrown when a dispute game has already been initialized.
+error AlreadyInitialized();
+
+/// @notice Thrown when a supplied bond is too low to cover the cost of the interaction.
+error InsufficientBond();
+
+/// @notice Thrown when the transfer of credit to a recipient account reverts.
+error BondTransferFailed();
+
+/// @notice Thrown when the `extraData` passed to the CWIA proxy is too long for the `FaultDisputeGame`.
+error ExtraDataTooLong();
 
 /// @notice Thrown when a defense against the root claim is attempted.
 error CannotDefendRootClaim();
@@ -79,33 +87,3 @@ error ClaimAboveSplit();
 /// @notice Thrown on deployment if the split depth is greater than or equal to the max
 ///         depth of the game.
 error InvalidSplitDepth();
-
-////////////////////////////////////////////////////////////////
-//              `AttestationDisputeGame` Errors               //
-////////////////////////////////////////////////////////////////
-
-/// @notice Thrown when an invalid signature is submitted to `challenge`.
-error InvalidSignature();
-
-/// @notice Thrown when a signature that has already been used to support the
-///         `rootClaim` is submitted to `challenge`.
-error AlreadyChallenged();
-
-////////////////////////////////////////////////////////////////
-//                      `Ownable` Errors                      //
-////////////////////////////////////////////////////////////////
-
-/// @notice Thrown when a function that is protected by the `onlyOwner` modifier
-///          is called from an account other than the owner.
-error NotOwner();
-
-////////////////////////////////////////////////////////////////
-//                    `BlockOracle` Errors                    //
-////////////////////////////////////////////////////////////////
-
-/// @notice Thrown when a block that is out of the range of the `BLOCKHASH` opcode
-///         is attempted to be loaded.
-error BlockNumberOOB();
-
-/// @notice Thrown when a block hash is attempted to be loaded that has not been stored.
-error BlockHashNotPresent();
