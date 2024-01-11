@@ -1116,7 +1116,7 @@
     "filename_relative": "src/dispute/FaultDisputeGame.sol"
   },
   {
-    "id": "9ad67b006fc175893dd26d35a020a52dd8524709d87cca61212ee0e147eb992b",
+    "id": "858b95108475bbb08343b6f5701b03c0762d00b73cec53751173e93c3ec10c1a",
     "impact": "Medium",
     "confidence": "High",
     "check": "write-after-write",
