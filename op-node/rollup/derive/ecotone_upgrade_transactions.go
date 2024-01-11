@@ -32,6 +32,8 @@ var (
 	enableEcotoneSource        = UpgradeDepositSource{Intent: "Ecotone: Gas Price Oracle Set Ecotone"}
 	beaconRootsSource          = UpgradeDepositSource{Intent: "Ecotone: beacon block roots contract deployment"}
 
+	enableEcotoneInput = crypto.Keccak256([]byte("setEcotone()"))[:4]
+
 	eip4788From         = common.HexToAddress("0x0B799C86a49DEeb90402691F1041aa3AF2d3C875")
 	eip4788CreationData = common.Hex2Bytes("0x60618060095f395ff33373fffffffffffffffffffffffffffffffffffffffe14604d57602036146024575f5ffd5b5f35801560495762001fff810690815414603c575f5ffd5b62001fff01545f5260205ff35b5f5ffd5b62001fff42064281555f359062001fff015500")
 	UpgradeToFuncBytes4 = crypto.Keccak256([]byte(UpgradeToFuncSignature))[:4]
@@ -103,6 +105,20 @@ func EcotoneNetworkUpgradeTransactions() ([]hexutil.Bytes, error) {
 	}
 
 	upgradeTxns = append(upgradeTxns, updateGasPriceOracleProxy)
+
+	enableEcotone, err := types.NewTx(&types.DepositTx{
+		SourceHash:          enableEcotoneSource.SourceHash(),
+		From:                L1InfoDepositerAddress,
+		To:                  &predeploys.GasPriceOracleAddr,
+		Value:               nil,
+		Gas:                 1_000_000, // TBD
+		IsSystemTransaction: false,
+		Data:                enableEcotoneInput,
+	}).MarshalBinary()
+	if err != nil {
+		return nil, err
+	}
+	upgradeTxns = append(upgradeTxns, enableEcotone)
 
 	deployEIP4788, err := types.NewTx(&types.DepositTx{
 		From:                eip4788From,
