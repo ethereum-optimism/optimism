@@ -19,13 +19,7 @@ func TestBuildOptimism(t *testing.T) {
 		DeployerWhitelist:      struct{}{},
 		WETH9:                  struct{}{},
 		L2CrossDomainMessenger: struct{}{},
-		L2StandardBridge: struct {
-			OtherBridge common.Address
-			Messenger   common.Address
-		}{
-			OtherBridge: common.HexToAddress("0x1234567890123456789012345678901234567890"),
-			Messenger:   predeploys.L2CrossDomainMessengerAddr,
-		},
+		L2StandardBridge:       struct{}{},
 		SequencerFeeVault: struct {
 			Recipient           common.Address
 			MinWithdrawalAmount *big.Int
