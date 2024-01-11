@@ -27,8 +27,8 @@ func TestL1BlockSlots(t *testing.T) {
 	require.NoError(t, err)
 
 	var l1BaseFeeSlot, overHeadSlot, scalarSlot common.Hash
-	var l1BasefeeScalarSlot, l1BlobBasefeeScalarSlot, blobBasefeeSlot common.Hash // new in Ecotone
-	var l1BasefeeScalarOffset, l1BlobBasefeeScalarOffset uint                     // new in Ecotone
+	var l1BaseFeeScalarSlot, l1BlobBaseFeeScalarSlot, blobBaseFeeSlot common.Hash // new in Ecotone
+	var l1BaseFeeScalarOffset, l1BlobBaseFeeScalarOffset uint                     // new in Ecotone
 	for _, entry := range layout.Storage {
 		switch entry.Label {
 		case "l1FeeOverhead":
@@ -37,14 +37,14 @@ func TestL1BlockSlots(t *testing.T) {
 			scalarSlot = uintToHash(entry.Slot)
 		case "basefee":
 			l1BaseFeeSlot = uintToHash(entry.Slot)
-		case "blobBasefee":
-			blobBasefeeSlot = uintToHash(entry.Slot)
-		case "basefeeScalar":
-			l1BasefeeScalarSlot = uintToHash(entry.Slot)
-			l1BasefeeScalarOffset = entry.Offset
-		case "blobBasefeeScalar":
-			l1BlobBasefeeScalarSlot = uintToHash(entry.Slot)
-			l1BlobBasefeeScalarOffset = entry.Offset
+		case "blobBaseFee":
+			blobBaseFeeSlot = uintToHash(entry.Slot)
+		case "baseFeeScalar":
+			l1BaseFeeScalarSlot = uintToHash(entry.Slot)
+			l1BaseFeeScalarOffset = entry.Offset
+		case "blobBaseFeeScalar":
+			l1BlobBaseFeeScalarSlot = uintToHash(entry.Slot)
+			l1BlobBaseFeeScalarOffset = entry.Offset
 		}
 	}
 
@@ -52,9 +52,9 @@ func TestL1BlockSlots(t *testing.T) {
 	require.Equal(t, types.ScalarSlot, scalarSlot)
 	require.Equal(t, types.L1BasefeeSlot, l1BaseFeeSlot)
 	// new in Ecotone
-	require.Equal(t, types.L1BlobBasefeeSlot, blobBasefeeSlot)
-	require.Equal(t, types.L1FeeScalarsSlot, l1BasefeeScalarSlot)
-	require.Equal(t, types.L1FeeScalarsSlot, l1BlobBasefeeScalarSlot)
-	require.Equal(t, uint(types.BasefeeScalarSlotOffset), l1BasefeeScalarOffset)
-	require.Equal(t, uint(types.BlobBasefeeScalarSlotOffset), l1BlobBasefeeScalarOffset)
+	require.Equal(t, types.L1BlobBasefeeSlot, blobBaseFeeSlot)
+	require.Equal(t, types.L1FeeScalarsSlot, l1BaseFeeScalarSlot)
+	require.Equal(t, types.L1FeeScalarsSlot, l1BlobBaseFeeScalarSlot)
+	require.Equal(t, uint(types.BasefeeScalarSlotOffset), l1BaseFeeScalarOffset)
+	require.Equal(t, uint(types.BlobBasefeeScalarSlotOffset), l1BlobBaseFeeScalarOffset)
 }
