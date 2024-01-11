@@ -58,6 +58,7 @@ The verification execution consists of two steps, although the first step may be
   ./test/kontrol/scripts/make-summary-deployment.sh
 ```
 This step is optional. The default summary can be found [here](./proofs/utils/DeploymentSummary.sol), which is the summarization of the [`KontrolDeployment.sol`](./KontrolDeployment.sol) script.
+
 2. Execute the tests in [`OptimismPortal.k.sol`](./proofs/OptimismPortal.k.sol)
 ```bash
   ./test/kontrol/scripts/run-kontrol.sh $option
