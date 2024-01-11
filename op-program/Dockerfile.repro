@@ -28,6 +28,8 @@ ARG TARGETOS TARGETARCH
 
 RUN --mount=type=cache,target=/root/.cache/go-build cd cannon && make cannon  \
     GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$CANNON_VERSION"
+RUN --mount=type=cache,target=/root/.cache/go-build cd op-program && make op-program-host  \
+    GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_PROGRAM_VERSION"
 RUN --mount=type=cache,target=/root/.cache/go-build cd op-program && make op-program-client-mips  \
     GOOS=linux GOARCH=mips GOMIPS=softfloat GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_PROGRAM_VERSION"
 
@@ -43,6 +45,7 @@ RUN mv /app/op-program/bin/0.json /app/op-program/bin/prestate-proof.json
 # Additionally, writing files to host requires buildkit to be enabled.
 # e.g. `BUILDKIT=1 docker build ...`
 FROM scratch AS export-stage
+COPY --from=builder /app/op-program/bin/op-program .
 COPY --from=builder /app/op-program/bin/op-program-client.elf .
 COPY --from=builder /app/op-program/bin/prestate.json .
 COPY --from=builder /app/op-program/bin/prestate-proof.json .

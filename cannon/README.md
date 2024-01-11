@@ -19,18 +19,18 @@ For more information, see [Docs](./docs/README.md).
 
 ## Usage
 
+The following usage requires `docker` with buildkit enabled to generate
+a reproducible absolute prestate with the [op-program](../op-program/).
+
+The reproducible absolute prestate is built in a docker container with:
+- golang version `1.21.3`
+- alpine `3.18`
+
 ```shell
 # Build op-program server-mode and MIPS-client binaries.
-cd ../op-program
-make op-program # build
-
-# Switch back to cannon, and build the CLI
-cd ../cannon
-make cannon
-
 # Transform MIPS op-program client binary into first VM state.
 # This outputs state.json (VM state) and meta.json (for debug symbols).
-./bin/cannon load-elf --path=../op-program/bin/op-program-client.elf
+cd .. && make reproducible-prestate
 
 # Run cannon emulator (with example inputs)
 # Note that the server-mode op-program command is passed into cannon (after the --),
@@ -39,6 +39,7 @@ make cannon
 # Note:
 #  - The L2 RPC is an archive L2 node on OP goerli.
 #  - The L1 RPC is a non-archive RPC, also change `--l1.rpckind` to reflect the correct L1 RPC type.
+cd cannon
 ./bin/cannon run \
     --pprof.cpu \
     --info-at '%10000000' \
