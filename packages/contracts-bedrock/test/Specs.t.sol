@@ -255,6 +255,7 @@ contract Specification_Test is CommonTest {
 
         // SystemConfig
         _addSpec({ _name: "SystemConfig", _sel: _getSel("UNSAFE_BLOCK_SIGNER_SLOT()") });
+        _addSpec({ _name: "SystemConfig", _sel: _getSel("START_BLOCK_SLOT()") });
         _addSpec({ _name: "SystemConfig", _sel: _getSel("VERSION()") });
         _addSpec({ _name: "SystemConfig", _sel: _getSel("batcherHash()") });
         _addSpec({ _name: "SystemConfig", _sel: _getSel("gasLimit()") });
@@ -276,6 +277,7 @@ contract Specification_Test is CommonTest {
         });
         _addSpec({ _name: "SystemConfig", _sel: SystemConfig.setGasLimit.selector, _auth: Role.SYSTEMCONFIGOWNER });
         _addSpec({ _name: "SystemConfig", _sel: SystemConfig.setResourceConfig.selector, _auth: Role.SYSTEMCONFIGOWNER });
+        _addSpec({ _name: "SystemConfig", _sel: SystemConfig.setStartBlock.selector, _auth: Role.SYSTEMCONFIGOWNER });
         _addSpec({
             _name: "SystemConfig",
             _sel: SystemConfig.setUnsafeBlockSigner.selector,
