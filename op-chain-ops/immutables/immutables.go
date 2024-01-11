@@ -24,11 +24,8 @@ type PredeploysImmutableConfig struct {
 	DeployerWhitelist      struct{}
 	WETH9                  struct{}
 	L2CrossDomainMessenger struct{}
-	L2StandardBridge       struct {
-		OtherBridge common.Address
-		Messenger   common.Address
-	}
-	SequencerFeeVault struct {
+	L2StandardBridge       struct{}
+	SequencerFeeVault      struct {
 		Recipient           common.Address
 		MinWithdrawalAmount *big.Int
 		WithdrawalNetwork   uint8
