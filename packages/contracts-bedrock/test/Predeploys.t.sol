@@ -135,7 +135,8 @@ contract PredeploysTest is CommonTest {
     /// @dev The domain separator commits to the chainid of the chain
     function test_preinstall_permit2_succeeds() external {
         bytes32 domainSeparator = IEIP712(Predeploys.Permit2).DOMAIN_SEPARATOR();
-        bytes32 typeHash = keccak256(abi.encodePacked("EIP712Domain(string name,uint256 chainId,address verifyingContract)"));
+        bytes32 typeHash =
+            keccak256(abi.encodePacked("EIP712Domain(string name,uint256 chainId,address verifyingContract)"));
         bytes32 nameHash = keccak256(abi.encodePacked("Permit2"));
         uint256 chainId = block.chainid;
         bytes memory encoded = abi.encode(typeHash, nameHash, chainId, Predeploys.Permit2);
