@@ -34,7 +34,6 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
         bytes32 _outputRootProof1,
         bytes32 _outputRootProof2,
         bytes32 _outputRootProof3
-        // bytes[] calldata _withdrawalProof
     )
         external
     {
