@@ -11,6 +11,7 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 // Libraries
 import { Types } from "src/libraries/Types.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 // Target contract dependencies
 import { Proxy } from "src/universal/Proxy.sol";
@@ -31,12 +32,26 @@ contract OptimismPortal_Test is CommonTest {
 
     /// @dev Tests that the constructor sets the correct values.
     function test_constructor_succeeds() external {
+        OptimismPortal opImpl = OptimismPortal(payable(deploy.mustGetAddress("OptimismPortal")));
+        assertEq(address(opImpl.L2_ORACLE()), address(0));
+        assertEq(address(opImpl.l2Oracle()), address(0));
+        assertEq(address(opImpl.SYSTEM_CONFIG()), address(0));
+        assertEq(address(opImpl.systemConfig()), address(0));
+        assertEq(address(opImpl.superchainConfig()), address(0));
+        assertEq(opImpl.l2Sender(), Constants.DEFAULT_L2_SENDER);
+    }
+
+    /// @dev Tests that the initializer sets the correct values.
+    function test_initialize_succeeds() external {
         address guardian = deploy.cfg().superchainConfigGuardian();
         assertEq(address(optimismPortal.L2_ORACLE()), address(l2OutputOracle));
         assertEq(address(optimismPortal.l2Oracle()), address(l2OutputOracle));
+        assertEq(address(optimismPortal.SYSTEM_CONFIG()), address(systemConfig));
+        assertEq(address(optimismPortal.systemConfig()), address(systemConfig));
         assertEq(optimismPortal.GUARDIAN(), guardian);
         assertEq(optimismPortal.guardian(), guardian);
-        assertEq(optimismPortal.l2Sender(), 0x000000000000000000000000000000000000dEaD);
+        assertEq(address(optimismPortal.superchainConfig()), address(superchainConfig));
+        assertEq(optimismPortal.l2Sender(), Constants.DEFAULT_L2_SENDER);
         assertEq(optimismPortal.paused(), false);
     }
 
@@ -272,7 +287,7 @@ contract OptimismPortal_Test is CommonTest {
 
         uint256 ts = block.timestamp;
         vm.mockCall(
-            address(optimismPortal.L2_ORACLE()),
+            address(optimismPortal.l2Oracle()),
             abi.encodeWithSelector(L2OutputOracle.getL2Output.selector),
             abi.encode(Types.OutputProposal(bytes32(uint256(1)), uint128(ts), uint128(startingBlockNumber)))
         );
@@ -482,12 +497,12 @@ contract OptimismPortal_FinalizeWithdrawal_Test is CommonTest {
         vm.store(address(optimismPortal), slot, bytes32(0));
 
         // Fetch the output proposal at `_proposedOutputIndex` from the L2OutputOracle
-        Types.OutputProposal memory proposal = optimismPortal.L2_ORACLE().getL2Output(_proposedOutputIndex);
+        Types.OutputProposal memory proposal = optimismPortal.l2Oracle().getL2Output(_proposedOutputIndex);
 
         // Propose the same output root again, creating the same output at a different index + l2BlockNumber.
-        vm.startPrank(optimismPortal.L2_ORACLE().PROPOSER());
-        optimismPortal.L2_ORACLE().proposeL2Output(
-            proposal.outputRoot, optimismPortal.L2_ORACLE().nextBlockNumber(), blockhash(block.number), block.number
+        vm.startPrank(optimismPortal.l2Oracle().PROPOSER());
+        optimismPortal.l2Oracle().proposeL2Output(
+            proposal.outputRoot, optimismPortal.l2Oracle().nextBlockNumber(), blockhash(block.number), block.number
         );
         vm.stopPrank();
 
@@ -561,7 +576,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is CommonTest {
         // Mock a call where the resulting output root is anything but the original output root. In
         // this case we just use bytes32(uint256(1)).
         vm.mockCall(
-            address(optimismPortal.L2_ORACLE()),
+            address(optimismPortal.l2Oracle()),
             abi.encodeWithSelector(L2OutputOracle.getL2Output.selector),
             abi.encode(bytes32(uint256(1)), _proposedBlockNumber)
         );
@@ -587,7 +602,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is CommonTest {
 
         // Mock a startingTimestamp change on the L2 Oracle
         vm.mockCall(
-            address(optimismPortal.L2_ORACLE()),
+            address(optimismPortal.l2Oracle()),
             abi.encodeWithSignature("startingTimestamp()"),
             abi.encode(block.timestamp + 1)
         );
@@ -616,7 +631,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is CommonTest {
         // Mock an outputRoot change on the output proposal before attempting
         // to finalize the withdrawal.
         vm.mockCall(
-            address(optimismPortal.L2_ORACLE()),
+            address(optimismPortal.l2Oracle()),
             abi.encodeWithSelector(L2OutputOracle.getL2Output.selector),
             abi.encode(
                 Types.OutputProposal(bytes32(uint256(0)), uint128(block.timestamp), uint128(_proposedBlockNumber))
@@ -647,7 +662,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is CommonTest {
         // Mock a timestamp change on the output proposal that has not passed the
         // finalization period.
         vm.mockCall(
-            address(optimismPortal.L2_ORACLE()),
+            address(optimismPortal.l2Oracle()),
             abi.encodeWithSelector(L2OutputOracle.getL2Output.selector),
             abi.encode(Types.OutputProposal(_outputRoot, uint128(block.timestamp + 1), uint128(_proposedBlockNumber)))
         );
@@ -683,7 +698,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is CommonTest {
         // Setup the Oracle to return an output with a recent timestamp
         uint256 recentTimestamp = block.timestamp - 1;
         vm.mockCall(
-            address(optimismPortal.L2_ORACLE()),
+            address(optimismPortal.l2Oracle()),
             abi.encodeWithSelector(L2OutputOracle.getL2Output.selector),
             abi.encode(Types.OutputProposal(_outputRoot, uint128(recentTimestamp), uint128(_proposedBlockNumber)))
         );
@@ -735,7 +750,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is CommonTest {
         });
 
         vm.mockCall(
-            address(optimismPortal.L2_ORACLE()),
+            address(optimismPortal.l2Oracle()),
             abi.encodeWithSelector(L2OutputOracle.getL2Output.selector),
             abi.encode(
                 Types.OutputProposal(
@@ -784,7 +799,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is CommonTest {
         // Setup the Oracle to return the outputRoot we want as well as a finalized timestamp.
         uint256 finalizedTimestamp = block.timestamp - l2OutputOracle.FINALIZATION_PERIOD_SECONDS() - 1;
         vm.mockCall(
-            address(optimismPortal.L2_ORACLE()),
+            address(optimismPortal.l2Oracle()),
             abi.encodeWithSelector(L2OutputOracle.getL2Output.selector),
             abi.encode(Types.OutputProposal(outputRoot, uint128(finalizedTimestamp), uint128(_proposedBlockNumber)))
         );
@@ -892,21 +907,6 @@ contract OptimismPortalUpgradeable_Test is CommonTest {
         assertEq(prevBaseFee, rcfg.minimumBaseFee);
         assertEq(prevBoughtGas, 0);
         assertEq(prevBlockNum, block.number);
-    }
-
-    /// @dev Tests that the proxy cannot be initialized twice.
-    function test_initialize_cannotInitProxy_reverts() external {
-        SuperchainConfig superchainConfig = SuperchainConfig(deploy.mustGetAddress("SuperchainConfig"));
-        vm.expectRevert("Initializable: contract is already initialized");
-        optimismPortal.initialize(superchainConfig);
-    }
-
-    /// @dev Tests that the implementation cannot be initialized twice.
-    function test_initialize_cannotInitImpl_reverts() external {
-        address opImpl = deploy.mustGetAddress("OptimismPortal");
-        SuperchainConfig superchainConfig = SuperchainConfig(deploy.mustGetAddress("SuperchainConfig"));
-        vm.expectRevert("Initializable: contract is already initialized");
-        OptimismPortal(payable(opImpl)).initialize(superchainConfig);
     }
 
     /// @dev Tests that the proxy can be upgraded.

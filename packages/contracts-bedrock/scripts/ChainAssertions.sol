@@ -191,6 +191,7 @@ library ChainAssertions {
     /// @notice Asserts the OptimismPortal is setup correctly
     function checkOptimismPortal(Types.ContractSet memory _contracts, DeployConfig _cfg, bool _isProxy) internal view {
         console.log("Running chain assertions on the OptimismPortal");
+
         OptimismPortal portal = OptimismPortal(payable(_contracts.OptimismPortal));
 
         address guardian = _cfg.superchainConfigGuardian();
@@ -198,16 +199,22 @@ library ChainAssertions {
             console.log("Guardian has no code: %s", guardian);
         }
 
-        require(address(portal.L2_ORACLE()) == _contracts.L2OutputOracle);
-        require(address(portal.l2Oracle()) == _contracts.L2OutputOracle);
-        require(address(portal.SYSTEM_CONFIG()) == _contracts.SystemConfig);
-        require(address(portal.systemConfig()) == _contracts.SystemConfig);
-
         if (_isProxy) {
+            require(address(portal.L2_ORACLE()) == _contracts.L2OutputOracle);
+            require(address(portal.l2Oracle()) == _contracts.L2OutputOracle);
+            require(address(portal.SYSTEM_CONFIG()) == _contracts.SystemConfig);
+            require(address(portal.systemConfig()) == _contracts.SystemConfig);
+
             require(portal.GUARDIAN() == _cfg.superchainConfigGuardian());
             require(portal.guardian() == _cfg.superchainConfigGuardian());
             require(address(portal.superchainConfig()) == address(_contracts.SuperchainConfig));
             require(portal.paused() == SuperchainConfig(_contracts.SuperchainConfig).paused());
+        } else {
+            require(address(portal.L2_ORACLE()) == address(0));
+            require(address(portal.l2Oracle()) == address(0));
+            require(address(portal.SYSTEM_CONFIG()) == address(0));
+            require(address(portal.systemConfig()) == address(0));
+            require(address(portal.superchainConfig()) == address(0));
         }
     }
 

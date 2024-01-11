@@ -563,7 +563,29 @@ func OptimismPortal(batch *safe.Batch, implementations superchain.Implementation
 		return err
 	}
 
-	calldata, err := optimismPortalABI.Pack("initialize", superchainConfigProxy)
+	optimismPortal, err := bindings.NewOptimismPortalCaller(common.HexToAddress(list.OptimismPortalProxy.String()), backend)
+	if err != nil {
+		return err
+	}
+	l2OutputOracle, err := optimismPortal.L2Oracle(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	systemConfig, err := optimismPortal.SystemConfig(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+
+	if config != nil {
+		if l2OutputOracle != common.HexToAddress(list.L2OutputOracleProxy.String()) {
+			return fmt.Errorf("upgrading OptimismPortal: L2OutputOracle address doesn't match config")
+		}
+		if systemConfig != config.SystemConfigProxy {
+			return fmt.Errorf("upgrading OptimismPortal: SystemConfig address doesn't match config")
+		}
+	}
+
+	calldata, err := optimismPortalABI.Pack("initialize", l2OutputOracle, systemConfig, superchainConfigProxy)
 	if err != nil {
 		return err
 	}

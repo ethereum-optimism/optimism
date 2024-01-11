@@ -481,11 +481,7 @@ contract Deploy is Deployer {
     function deployOptimismPortal() public broadcast returns (address addr_) {
         console.log("Deploying OptimismPortal implementation");
 
-        L2OutputOracle l2OutputOracle = L2OutputOracle(mustGetAddress("L2OutputOracleProxy"));
-        SystemConfig systemConfig = SystemConfig(mustGetAddress("SystemConfigProxy"));
-
-        OptimismPortal portal =
-            new OptimismPortal{ salt: _implSalt() }({ _l2Oracle: l2OutputOracle, _systemConfig: systemConfig });
+        OptimismPortal portal = new OptimismPortal{ salt: _implSalt() }();
 
         save("OptimismPortal", address(portal));
         console.log("OptimismPortal deployed at %s", address(portal));
@@ -908,12 +904,21 @@ contract Deploy is Deployer {
         console.log("Upgrading and initializing OptimismPortal proxy");
         address optimismPortalProxy = mustGetAddress("OptimismPortalProxy");
         address optimismPortal = mustGetAddress("OptimismPortal");
-        SuperchainConfig superchainConfigProxy = SuperchainConfig(mustGetAddress("SuperchainConfigProxy"));
+        address l2OutputOracleProxy = mustGetAddress("L2OutputOracleProxy");
+        address systemConfigProxy = mustGetAddress("SystemConfigProxy");
+        address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
 
         _upgradeAndCallViaSafe({
             _proxy: payable(optimismPortalProxy),
             _implementation: optimismPortal,
-            _innerCallData: abi.encodeCall(OptimismPortal.initialize, (superchainConfigProxy))
+            _innerCallData: abi.encodeCall(
+                OptimismPortal.initialize,
+                (
+                    L2OutputOracle(l2OutputOracleProxy),
+                    SystemConfig(systemConfigProxy),
+                    SuperchainConfig(superchainConfigProxy)
+                )
+                )
         });
 
         OptimismPortal portal = OptimismPortal(payable(optimismPortalProxy));
