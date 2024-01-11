@@ -54,7 +54,8 @@ func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 
 	transactions := latestBlock.Transactions()
 
-	// L1Block: setInfo + 2 deploys + 2 upgradeTo + 1 4788 deploy
+	// L1Block: setInfo + 2 deploys + 2 upgradeTo + 1 enable ecotone on GPO + 1 4788 deploy
+	// See [derive.EcotoneNetworkUpgradeTransactions]
 	require.Equal(t, 6, len(transactions))
 
 	// All transactions are successful
