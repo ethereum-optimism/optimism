@@ -1032,26 +1032,26 @@
     "filename_relative": "src/universal/CrossDomainMessenger.sol"
   },
   {
-    "id": "1dcde69e4d267f13fad8ae2a414f741f6d4188c11332f13e6024a02ca7d690bd",
+    "id": "b507540468fdf3f9972d33e723efb8c120f8d824ffe54842e1e998244944abaf",
     "impact": "Medium",
     "confidence": "Medium",
     "check": "tx-origin",
-    "description": "OptimismPortal.finalizeWithdrawalTransaction(Types.WithdrawalTransaction) (src/L1/OptimismPortal.sol#281-364) uses tx.origin for authorization: success == false && tx.origin == Constants.ESTIMATION_ADDRESS (src/L1/OptimismPortal.sol#361)\n",
+    "description": "OptimismPortal.finalizeWithdrawalTransaction(Types.WithdrawalTransaction) (src/L1/OptimismPortal.sol#280-363) uses tx.origin for authorization: success == false && tx.origin == Constants.ESTIMATION_ADDRESS (src/L1/OptimismPortal.sol#360)\n",
     "type": "function",
     "name": "finalizeWithdrawalTransaction",
-    "start": 13300,
+    "start": 13252,
     "length": 4839,
     "filename_relative": "src/L1/OptimismPortal.sol"
   },
   {
-    "id": "1dcde69e4d267f13fad8ae2a414f741f6d4188c11332f13e6024a02ca7d690bd",
+    "id": "b507540468fdf3f9972d33e723efb8c120f8d824ffe54842e1e998244944abaf",
     "impact": "Medium",
     "confidence": "Medium",
     "check": "tx-origin",
-    "description": "OptimismPortal.finalizeWithdrawalTransaction(Types.WithdrawalTransaction) (src/L1/OptimismPortal.sol#281-364) uses tx.origin for authorization: success == false && tx.origin == Constants.ESTIMATION_ADDRESS (src/L1/OptimismPortal.sol#361)\n",
+    "description": "OptimismPortal.finalizeWithdrawalTransaction(Types.WithdrawalTransaction) (src/L1/OptimismPortal.sol#280-363) uses tx.origin for authorization: success == false && tx.origin == Constants.ESTIMATION_ADDRESS (src/L1/OptimismPortal.sol#360)\n",
     "type": "node",
     "name": "success == false && tx.origin == Constants.ESTIMATION_ADDRESS",
-    "start": 18002,
+    "start": 17954,
     "length": 61,
     "filename_relative": "src/L1/OptimismPortal.sol"
   },
@@ -1116,42 +1116,6 @@
     "filename_relative": "src/dispute/FaultDisputeGame.sol"
   },
   {
-    "id": "04f616c2187886bfe1cce286640ed8c2b08e9ad834b485e7e58f18e367fdd0e1",
-    "impact": "Medium",
-    "confidence": "High",
-    "check": "write-after-write",
-    "description": "OptimismPortal.l2Sender (src/L1/OptimismPortal.sol#43) is written in both\n\tl2Sender = _tx.sender (src/L1/OptimismPortal.sol#340)\n\tl2Sender = Constants.DEFAULT_L2_SENDER (src/L1/OptimismPortal.sol#352)\n",
-    "type": "variable",
-    "name": "l2Sender",
-    "start": 2193,
-    "length": 23,
-    "filename_relative": "src/L1/OptimismPortal.sol"
-  },
-  {
-    "id": "04f616c2187886bfe1cce286640ed8c2b08e9ad834b485e7e58f18e367fdd0e1",
-    "impact": "Medium",
-    "confidence": "High",
-    "check": "write-after-write",
-    "description": "OptimismPortal.l2Sender (src/L1/OptimismPortal.sol#43) is written in both\n\tl2Sender = _tx.sender (src/L1/OptimismPortal.sol#340)\n\tl2Sender = Constants.DEFAULT_L2_SENDER (src/L1/OptimismPortal.sol#352)\n",
-    "type": "node",
-    "name": "l2Sender = _tx.sender",
-    "start": 16703,
-    "length": 21,
-    "filename_relative": "src/L1/OptimismPortal.sol"
-  },
-  {
-    "id": "04f616c2187886bfe1cce286640ed8c2b08e9ad834b485e7e58f18e367fdd0e1",
-    "impact": "Medium",
-    "confidence": "High",
-    "check": "write-after-write",
-    "description": "OptimismPortal.l2Sender (src/L1/OptimismPortal.sol#43) is written in both\n\tl2Sender = _tx.sender (src/L1/OptimismPortal.sol#340)\n\tl2Sender = Constants.DEFAULT_L2_SENDER (src/L1/OptimismPortal.sol#352)\n",
-    "type": "node",
-    "name": "l2Sender = Constants.DEFAULT_L2_SENDER",
-    "start": 17497,
-    "length": 38,
-    "filename_relative": "src/L1/OptimismPortal.sol"
-  },
-  {
     "id": "9ad67b006fc175893dd26d35a020a52dd8524709d87cca61212ee0e147eb992b",
     "impact": "Medium",
     "confidence": "High",
@@ -1186,5 +1150,41 @@
     "start": 14217,
     "length": 46,
     "filename_relative": "src/universal/CrossDomainMessenger.sol"
+  },
+  {
+    "id": "a43b8cff6d6b33609e8c7e3e89af17a0bc9ec73eb9a1a1b796e69c36ce8bcf71",
+    "impact": "Medium",
+    "confidence": "High",
+    "check": "write-after-write",
+    "description": "OptimismPortal.l2Sender (src/L1/OptimismPortal.sol#43) is written in both\n\tl2Sender = _tx.sender (src/L1/OptimismPortal.sol#339)\n\tl2Sender = Constants.DEFAULT_L2_SENDER (src/L1/OptimismPortal.sol#351)\n",
+    "type": "variable",
+    "name": "l2Sender",
+    "start": 2193,
+    "length": 23,
+    "filename_relative": "src/L1/OptimismPortal.sol"
+  },
+  {
+    "id": "a43b8cff6d6b33609e8c7e3e89af17a0bc9ec73eb9a1a1b796e69c36ce8bcf71",
+    "impact": "Medium",
+    "confidence": "High",
+    "check": "write-after-write",
+    "description": "OptimismPortal.l2Sender (src/L1/OptimismPortal.sol#43) is written in both\n\tl2Sender = _tx.sender (src/L1/OptimismPortal.sol#339)\n\tl2Sender = Constants.DEFAULT_L2_SENDER (src/L1/OptimismPortal.sol#351)\n",
+    "type": "node",
+    "name": "l2Sender = _tx.sender",
+    "start": 16655,
+    "length": 21,
+    "filename_relative": "src/L1/OptimismPortal.sol"
+  },
+  {
+    "id": "a43b8cff6d6b33609e8c7e3e89af17a0bc9ec73eb9a1a1b796e69c36ce8bcf71",
+    "impact": "Medium",
+    "confidence": "High",
+    "check": "write-after-write",
+    "description": "OptimismPortal.l2Sender (src/L1/OptimismPortal.sol#43) is written in both\n\tl2Sender = _tx.sender (src/L1/OptimismPortal.sol#339)\n\tl2Sender = Constants.DEFAULT_L2_SENDER (src/L1/OptimismPortal.sol#351)\n",
+    "type": "node",
+    "name": "l2Sender = Constants.DEFAULT_L2_SENDER",
+    "start": 17449,
+    "length": 38,
+    "filename_relative": "src/L1/OptimismPortal.sol"
   }
 ]
