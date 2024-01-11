@@ -90,6 +90,12 @@ cannon:
 	make -C ./cannon cannon
 .PHONY: cannon
 
+reproducible-prestate:
+	@echo "Building the reproducible absolute prestate..."
+	@docker build --output ./op-program/bin/ --progress plain -f op-program/Dockerfile.repro .
+	@echo "Done! Absolute prestate is in ./op-program/bin/prestate.json"
+.PHONY: reproducible-prestate
+
 cannon-prestate: op-program cannon
 	./cannon/bin/cannon load-elf --path op-program/bin/op-program-client.elf --out op-program/bin/prestate.json --meta op-program/bin/meta.json
 	./cannon/bin/cannon run --proof-at '=0' --stop-at '=1' --input op-program/bin/prestate.json --meta op-program/bin/meta.json --proof-fmt 'op-program/bin/%d.json' --output ""
