@@ -24,11 +24,8 @@ type PredeploysImmutableConfig struct {
 	DeployerWhitelist      struct{}
 	WETH9                  struct{}
 	L2CrossDomainMessenger struct{}
-	L2StandardBridge       struct {
-		OtherBridge common.Address
-		Messenger   common.Address
-	}
-	SequencerFeeVault struct {
+	L2StandardBridge       struct{}
+	SequencerFeeVault      struct {
 		Recipient           common.Address
 		MinWithdrawalAmount *big.Int
 		WithdrawalNetwork   uint8
@@ -201,11 +198,7 @@ func l2ImmutableDeployer(backend *backends.SimulatedBackend, opts *bind.Transact
 	case "L2CrossDomainMessenger":
 		_, tx, _, err = bindings.DeployL2CrossDomainMessenger(opts, backend)
 	case "L2StandardBridge":
-		otherBridge, ok := deployment.Args[0].(common.Address)
-		if !ok {
-			return nil, fmt.Errorf("invalid type for otherBridge")
-		}
-		_, tx, _, err = bindings.DeployL2StandardBridge(opts, backend, otherBridge)
+		_, tx, _, err = bindings.DeployL2StandardBridge(opts, backend)
 	case "SequencerFeeVault":
 		recipient, minimumWithdrawalAmount, withdrawalNetwork, err = prepareFeeVaultArguments(deployment)
 		if err != nil {

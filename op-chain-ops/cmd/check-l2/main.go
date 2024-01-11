@@ -784,6 +784,26 @@ func checkL2StandardBridge(addr common.Address, client *ethclient.Client) error 
 	}
 
 	log.Info("L2StandardBridge version", "version", version)
+
+	abi, err := bindings.L2StandardBridgeMetaData.GetAbi()
+	if err != nil {
+		return err
+	}
+	calldata, err := abi.Pack("initialize", otherBridge)
+	if err != nil {
+		return err
+	}
+	if err := checkAlreadyInitialized(addr, calldata, client); err != nil {
+		return err
+	}
+	log.Info("L2StandardBridge", "_initialized", true)
+
+	initializing, err := getInitializing("L2StandardBridge", addr, client)
+	if err != nil {
+		return err
+	}
+	log.Info("L2StandardBridge", "_initializing", initializing)
+
 	return nil
 }
 

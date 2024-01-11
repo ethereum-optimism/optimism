@@ -8,10 +8,10 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/safe"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/superchain-registry/superchain"
 )
 
@@ -256,7 +256,32 @@ func L1StandardBridge(batch *safe.Batch, implementations superchain.Implementati
 		return err
 	}
 
-	calldata, err := l1StandardBridgeABI.Pack("initialize", superchainConfigProxy)
+	l1StandardBridge, err := bindings.NewL1StandardBridgeCaller(common.HexToAddress(list.L1StandardBridgeProxy.String()), backend)
+	if err != nil {
+		return err
+	}
+
+	messenger, err := l1StandardBridge.Messenger(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+
+	otherBridge, err := l1StandardBridge.OtherBridge(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+
+	if config != nil {
+		if messenger != config.L1CrossDomainMessengerProxy {
+			return fmt.Errorf("upgrading L1StandardBridge: Messenger address doesn't match config")
+		}
+	}
+
+	if otherBridge != predeploys.L2StandardBridgeAddr {
+		return fmt.Errorf("upgrading L1StandardBridge: OtherBridge address doesn't match config")
+	}
+
+	calldata, err := l1StandardBridgeABI.Pack("initialize", messenger, superchainConfigProxy)
 	if err != nil {
 		return err
 	}

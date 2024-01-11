@@ -733,13 +733,7 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (*immutables
 		DeployerWhitelist:      struct{}{},
 		WETH9:                  struct{}{},
 		L2CrossDomainMessenger: struct{}{},
-		L2StandardBridge: struct {
-			OtherBridge common.Address
-			Messenger   common.Address
-		}{
-			OtherBridge: config.L1StandardBridgeProxy,
-			Messenger:   predeploys.L2CrossDomainMessengerAddr,
-		},
+		L2StandardBridge:       struct{}{},
 		SequencerFeeVault: struct {
 			Recipient           common.Address
 			MinWithdrawalAmount *big.Int
@@ -828,6 +822,8 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 	storage["L2StandardBridge"] = state.StorageValues{
 		"_initialized":  1,
 		"_initializing": false,
+		"otherBridge":   config.L1StandardBridgeProxy,
+		"messenger":     predeploys.L2CrossDomainMessengerAddr,
 	}
 	storage["L2ERC721Bridge"] = state.StorageValues{
 		"_initialized":  1,
