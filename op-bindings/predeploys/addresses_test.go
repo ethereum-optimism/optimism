@@ -50,11 +50,11 @@ func TestL1BlockSlots(t *testing.T) {
 
 	require.Equal(t, types.OverheadSlot, overHeadSlot)
 	require.Equal(t, types.ScalarSlot, scalarSlot)
-	require.Equal(t, types.L1BasefeeSlot, l1BaseFeeSlot)
+	require.Equal(t, types.L1BaseFeeSlot, l1BaseFeeSlot)
 	// new in Ecotone
-	require.Equal(t, types.L1BlobBasefeeSlot, blobBaseFeeSlot)
+	require.Equal(t, types.L1BlobBaseFeeSlot, blobBaseFeeSlot)
 	require.Equal(t, types.L1FeeScalarsSlot, l1BaseFeeScalarSlot)
 	require.Equal(t, types.L1FeeScalarsSlot, l1BlobBaseFeeScalarSlot)
-	require.Equal(t, uint(types.BasefeeScalarSlotOffset), l1BaseFeeScalarOffset)
-	require.Equal(t, uint(types.BlobBasefeeScalarSlotOffset), l1BlobBaseFeeScalarOffset)
+	require.Equal(t, uint(types.BaseFeeScalarSlotOffset), l1BaseFeeScalarOffset)
+	require.Equal(t, uint(types.BlobBaseFeeScalarSlotOffset), l1BlobBaseFeeScalarOffset)
 }
