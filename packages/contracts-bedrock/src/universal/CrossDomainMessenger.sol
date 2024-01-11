@@ -114,9 +114,6 @@ abstract contract CrossDomainMessenger is
     ///         call in `relayMessage`.
     uint64 public constant RELAY_GAS_CHECK_BUFFER = 5_000;
 
-    /// @notice Address of the paired CrossDomainMessenger contract on the other chain.
-    address public immutable OTHER_MESSENGER;
-
     /// @notice Mapping of message hashes to boolean receipt values. Note that a message will only
     ///         be present in this mapping if it has successfully been relayed on this chain, and
     ///         can therefore not be relayed again.
@@ -138,10 +135,14 @@ abstract contract CrossDomainMessenger is
     ///         successfully executed on the first attempt.
     mapping(bytes32 => bool) public failedMessages;
 
+    /// @notice CrossDomainMessenger contract on the other chain.
+    /// @custom:network-specific
+    CrossDomainMessenger public otherMessenger;
+
     /// @notice Reserve extra slots in the storage layout for future upgrades.
-    ///         A gap size of 44 was chosen here, so that the first slot used in a child contract
+    ///         A gap size of 43 was chosen here, so that the first slot used in a child contract
     ///         would be 1 plus a multiple of 50.
-    uint256[44] private __gap;
+    uint256[43] private __gap;
 
     /// @notice Emitted whenever a message is sent to the other chain.
     /// @param target       Address of the recipient of the message.
@@ -165,11 +166,6 @@ abstract contract CrossDomainMessenger is
     /// @param msgHash Hash of the message that failed to be relayed.
     event FailedRelayedMessage(bytes32 indexed msgHash);
 
-    /// @param _otherMessenger Address of the messenger on the paired chain.
-    constructor(address _otherMessenger) {
-        OTHER_MESSENGER = _otherMessenger;
-    }
-
     /// @notice Sends a message to some target address on the other chain. Note that if the call
     ///         always reverts, then the message will be unrelayable, and any ETH sent will be
     ///         permanently locked. The same will occur if the target on the other chain is
@@ -182,14 +178,14 @@ abstract contract CrossDomainMessenger is
         // message is the amount of gas requested by the user PLUS the base gas value. We want to
         // guarantee the property that the call to the target contract will always have at least
         // the minimum gas limit specified by the user.
-        _sendMessage(
-            OTHER_MESSENGER,
-            baseGas(_message, _minGasLimit),
-            msg.value,
-            abi.encodeWithSelector(
+        _sendMessage({
+            _to: address(otherMessenger),
+            _gasLimit: baseGas(_message, _minGasLimit),
+            _value: msg.value,
+            _data: abi.encodeWithSelector(
                 this.relayMessage.selector, messageNonce(), msg.sender, _target, msg.value, _minGasLimit, _message
-            )
-        );
+                )
+        });
 
         emit SentMessage(_target, msg.sender, _message, messageNonce(), _minGasLimit);
         emit SentMessageExtension1(msg.sender, msg.value);
@@ -320,6 +316,14 @@ abstract contract CrossDomainMessenger is
         return xDomainMsgSender;
     }
 
+    /// @notice Retrieves the address of the paired CrossDomainMessenger contract on the other chain
+    ///         Public getter is legacy and will be removed in the future. Use `otherMessenger()` instead.
+    /// @return CrossDomainMessenger contract on the other chain.
+    /// @custom:legacy
+    function OTHER_MESSENGER() public view returns (CrossDomainMessenger) {
+        return otherMessenger;
+    }
+
     /// @notice Retrieves the next message nonce. Message version will be added to the upper two
     ///         bytes of the message nonce. Message version allows us to treat messages as having
     ///         different structures.
@@ -355,8 +359,9 @@ abstract contract CrossDomainMessenger is
     }
 
     /// @notice Initializer.
+    /// @param _otherMessenger CrossDomainMessenger contract on the other chain.
     // solhint-disable-next-line func-name-mixedcase
-    function __CrossDomainMessenger_init() internal onlyInitializing {
+    function __CrossDomainMessenger_init(CrossDomainMessenger _otherMessenger) internal onlyInitializing {
         // We only want to set the xDomainMsgSender to the default value if it hasn't been initialized yet,
         // meaning that this is a fresh contract deployment.
         // This prevents resetting the xDomainMsgSender to the default value during an upgrade, which would enable
@@ -364,6 +369,7 @@ abstract contract CrossDomainMessenger is
         if (xDomainMsgSender == address(0)) {
             xDomainMsgSender = Constants.DEFAULT_L2_SENDER;
         }
+        otherMessenger = _otherMessenger;
     }
 
     /// @notice Sends a low-level message to the other messenger. Needs to be implemented by child

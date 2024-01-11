@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/safe"
 
+	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/superchain-registry/superchain"
 )
 
@@ -105,7 +106,30 @@ func L1CrossDomainMessenger(batch *safe.Batch, implementations superchain.Implem
 		return err
 	}
 
-	calldata, err := l1CrossDomainMessengerABI.Pack("initialize", superchainConfigProxy)
+	l1CrossDomainMessenger, err := bindings.NewL1CrossDomainMessengerCaller(common.HexToAddress(list.L1CrossDomainMessengerProxy.String()), backend)
+	if err != nil {
+		return err
+	}
+	optimismPortal, err := l1CrossDomainMessenger.Portal(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	otherMessenger, err := l1CrossDomainMessenger.OtherMessenger(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+
+	if config != nil {
+		if optimismPortal != config.OptimismPortalProxy {
+			return fmt.Errorf("upgrading L1CrossDomainMessenger: Portal address doesn't match config")
+		}
+	}
+
+	if otherMessenger != predeploys.L2CrossDomainMessengerAddr {
+		return fmt.Errorf("upgrading L1CrossDomainMessenger: OtherMessenger address doesn't match config")
+	}
+
+	calldata, err := l1CrossDomainMessengerABI.Pack("initialize", superchainConfigProxy, optimismPortal)
 	if err != nil {
 		return err
 	}

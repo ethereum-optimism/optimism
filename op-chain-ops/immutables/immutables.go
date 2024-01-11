@@ -23,10 +23,8 @@ type PredeploysImmutableConfig struct {
 	L2ToL1MessagePasser    struct{}
 	DeployerWhitelist      struct{}
 	WETH9                  struct{}
-	L2CrossDomainMessenger struct {
-		OtherMessenger common.Address
-	}
-	L2StandardBridge struct {
+	L2CrossDomainMessenger struct{}
+	L2StandardBridge       struct {
 		OtherBridge common.Address
 		Messenger   common.Address
 	}
@@ -201,11 +199,7 @@ func l2ImmutableDeployer(backend *backends.SimulatedBackend, opts *bind.Transact
 
 	switch deployment.Name {
 	case "L2CrossDomainMessenger":
-		otherMessenger, ok := deployment.Args[0].(common.Address)
-		if !ok {
-			return nil, fmt.Errorf("invalid type for otherMessenger")
-		}
-		_, tx, _, err = bindings.DeployL2CrossDomainMessenger(opts, backend, otherMessenger)
+		_, tx, _, err = bindings.DeployL2CrossDomainMessenger(opts, backend)
 	case "L2StandardBridge":
 		otherBridge, ok := deployment.Args[0].(common.Address)
 		if !ok {
