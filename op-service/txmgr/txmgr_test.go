@@ -166,7 +166,7 @@ func (g *gasPricer) feesForEpoch(epoch int64) (*big.Int, *big.Int, uint64) {
 	return epochGasTipCap, epochGasFeeCap, epochExcessBlobGas
 }
 
-func (g *gasPricer) basefee() *big.Int {
+func (g *gasPricer) baseFee() *big.Int {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	return new(big.Int).Mul(g.baseBaseFee, big.NewInt(g.epoch))
@@ -263,7 +263,7 @@ func (b *mockBackend) HeaderByNumber(ctx context.Context, number *big.Int) (*typ
 	bg := b.g.excessblobgas()
 	return &types.Header{
 		Number:        num,
-		BaseFee:       b.g.basefee(),
+		BaseFee:       b.g.baseFee(),
 		ExcessBlobGas: &bg,
 	}, nil
 }
@@ -275,7 +275,7 @@ func (b *mockBackend) EstimateGas(ctx context.Context, msg ethereum.CallMsg) (ui
 	if msg.GasFeeCap.Cmp(msg.GasTipCap) < 0 {
 		return 0, core.ErrTipAboveFeeCap
 	}
-	return b.g.basefee().Uint64(), nil
+	return b.g.baseFee().Uint64(), nil
 }
 
 func (b *mockBackend) SuggestGasTipCap(ctx context.Context) (*big.Int, error) {
@@ -1022,7 +1022,7 @@ func TestIncreaseGasPrice(t *testing.T) {
 			},
 		},
 		{
-			name: "enforces min bump on only basefee increase",
+			name: "enforces min bump on only base fee increase",
 			run: func(t *testing.T) {
 				tx, newTx := doGasPriceIncrease(t, 100, 1000, 99, 460)
 				require.True(t, newTx.GasFeeCap().Cmp(tx.GasFeeCap()) > 0, "new tx fee cap must be larger")
@@ -1061,7 +1061,7 @@ func TestIncreaseGasPrice(t *testing.T) {
 	}
 }
 
-// TestIncreaseGasPriceLimits asserts that if the L1 basefee & tip remain the
+// TestIncreaseGasPriceLimits asserts that if the L1 base fee & tip remain the
 // same, repeated calls to IncreaseGasPrice eventually hit a limit.
 func TestIncreaseGasPriceLimits(t *testing.T) {
 	t.Run("no-threshold", func(t *testing.T) {
@@ -1094,7 +1094,7 @@ func testIncreaseGasPriceLimit(t *testing.T, lt gasPriceLimitTest) {
 
 	borkedTip := int64(10)
 	borkedFee := int64(45)
-	// simulate 100 excess blobs which yields a 50 wei blob basefee
+	// simulate 100 excess blobs which yields a 50 wei blob base fee
 	borkedExcessBlobGas := uint64(100 * params.BlobTxBlobGasPerBlob)
 	borkedBackend := failingBackend{
 		gasTip:              big.NewInt(borkedTip),
@@ -1227,9 +1227,9 @@ func TestNonceReset(t *testing.T) {
 func TestMinFees(t *testing.T) {
 	for _, tt := range []struct {
 		desc             string
-		minBasefee       *big.Int
+		minBaseFee       *big.Int
 		minTipCap        *big.Int
-		expectMinBasefee bool
+		expectMinBaseFee bool
 		expectMinTipCap  bool
 	}{
 		{
@@ -1237,8 +1237,8 @@ func TestMinFees(t *testing.T) {
 		},
 		{
 			desc:             "high-min-basefee",
-			minBasefee:       big.NewInt(10_000_000),
-			expectMinBasefee: true,
+			minBaseFee:       big.NewInt(10_000_000),
+			expectMinBaseFee: true,
 		},
 		{
 			desc:            "high-min-tipcap",
@@ -1247,14 +1247,14 @@ func TestMinFees(t *testing.T) {
 		},
 		{
 			desc:             "high-mins",
-			minBasefee:       big.NewInt(10_000_000),
+			minBaseFee:       big.NewInt(10_000_000),
 			minTipCap:        big.NewInt(1_000_000),
-			expectMinBasefee: true,
+			expectMinBaseFee: true,
 			expectMinTipCap:  true,
 		},
 		{
 			desc:       "low-min-basefee",
-			minBasefee: big.NewInt(1),
+			minBaseFee: big.NewInt(1),
 		},
 		{
 			desc:      "low-min-tipcap",
@@ -1262,24 +1262,24 @@ func TestMinFees(t *testing.T) {
 		},
 		{
 			desc:       "low-mins",
-			minBasefee: big.NewInt(1),
+			minBaseFee: big.NewInt(1),
 			minTipCap:  big.NewInt(1),
 		},
 	} {
 		t.Run(tt.desc, func(t *testing.T) {
 			require := require.New(t)
 			conf := configWithNumConfs(1)
-			conf.MinBasefee = tt.minBasefee
+			conf.MinBaseFee = tt.minBaseFee
 			conf.MinTipCap = tt.minTipCap
 			h := newTestHarnessWithConfig(t, conf)
 
-			tip, basefee, _, err := h.mgr.suggestGasPriceCaps(context.TODO())
+			tip, baseFee, _, err := h.mgr.suggestGasPriceCaps(context.TODO())
 			require.NoError(err)
 
-			if tt.expectMinBasefee {
-				require.Equal(tt.minBasefee, basefee, "expect suggested basefee to equal MinBasefee")
+			if tt.expectMinBaseFee {
+				require.Equal(tt.minBaseFee, baseFee, "expect suggested base fee to equal MinBaseFee")
 			} else {
-				require.Equal(h.gasPricer.baseBaseFee, basefee, "expect suggested basefee to equal mock basefee")
+				require.Equal(h.gasPricer.baseBaseFee, baseFee, "expect suggested base fee to equal mock base fee")
 			}
 
 			if tt.expectMinTipCap {

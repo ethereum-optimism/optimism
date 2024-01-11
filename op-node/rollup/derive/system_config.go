@@ -164,8 +164,8 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 		if !solabi.EmptyReader(reader) {
 			return NewCriticalError(errors.New("too many bytes"))
 		}
-		destSysCfg.BasefeeScalar = binary.BigEndian.Uint32(packed[0:4])
-		destSysCfg.BlobBasefeeScalar = binary.BigEndian.Uint32(packed[4:8])
+		destSysCfg.BaseFeeScalar = binary.BigEndian.Uint32(packed[0:4])
+		destSysCfg.BlobBaseFeeScalar = binary.BigEndian.Uint32(packed[4:8])
 		return nil
 	default:
 		return fmt.Errorf("unrecognized L1 sysCfg update type: %s", updateType)
