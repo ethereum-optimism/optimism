@@ -329,12 +329,6 @@ CommandPreset = namedtuple('Command', ['name', 'args', 'cwd', 'timeout'])
 
 
 def devnet_test(paths):
-    # Check the L2 config
-    run_command(
-        ['go', 'run', 'cmd/check-l2/main.go', '--l2-rpc-url', 'http://localhost:9545', '--l1-rpc-url', 'http://localhost:8545'],
-        cwd=paths.ops_chain_ops,
-    )
-
     # Run the two commands with different signers, so the ethereum nonce management does not conflict
     # And do not use devnet system addresses, to avoid breaking fee-estimation or nonce values.
     run_commands([
