@@ -174,41 +174,38 @@ contract KeccakDispute_LargePreimageProposals_Test is Test {
         vm.label(address(oracle), "PreimageOracle");
     }
 
-    /// @notice Tests that leaves can be added the large preimage proposal mapping.
-    function testLoadZ() public {
+    /// @notice Tests that leaves can be added the large preimage proposal mapping and proven to be contained within
+    ///         the computed merkle root.
+    function test_appendAndVerify_succeeds() public {
         bytes memory data = new bytes(136);
 
+        // Add the leaves to the tree (2 keccak blocks.)
         LibKeccak.StateMatrix memory stateMatrix;
         bytes32[] memory stateCommitments = _generateStateCommitments(stateMatrix, data);
         oracle.addLeaves(TEST_UUID, data, stateCommitments, true);
 
-        // for (uint i = 0; i < stateCommitments.length; i++) {
-        //     console.logBytes32(stateCommitments[i]);
-        // }
-
-        // We should have processed 1 block + the padding block.
+        // We should have processed 1 block + the padding block (2 blocks total).
         assertEq(oracle.proposalBlocksProcessed(address(this), TEST_UUID), 2);
 
-        bytes32[15] memory proof = oracle.getProposalBranch(address(this), TEST_UUID);
-        bytes32[] memory p;
-        assembly {
-            p := mload(0x40)
-            let destPtr := add(p, 0x20)
-            for { let i := 0 } lt(i, 15) { i := add(i, 1) } {
-                mstore(add(destPtr, shl(0x05, i)), mload(add(proof, shl(0x05, i))))
-            }
-            mstore(p, 15)
-            mstore(0x40, add(p, 0x200))
+        // Get the root of the tree after absorbing the data.
+        bytes32 root = oracle.getTreeRoot(address(this), TEST_UUID);
+
+        // Construct the leaf preimage data for the blocks added.
+        LibKeccak.StateMatrix memory matrix;
+        PreimageOracle.Leaf[] memory leaves = _generateLeaves(matrix, data);
+
+        // Create a proof array with 15 elements.
+        bytes32[] memory p = new bytes32[](15);
+        for (uint256 i = 1; i < p.length; i++) {
+            p[i] = oracle.zeroHashes(i);
         }
-        assertEq(keccak256(abi.encodePacked(p)), keccak256(abi.encodePacked(proof)));
 
-        PreimageOracle.Leaf memory leaf = PreimageOracle.Leaf({
-            input: Bytes.slice(LibKeccak.padMemory(data), LibKeccak.BLOCK_SIZE_BYTES, LibKeccak.BLOCK_SIZE_BYTES),
-            index: 1,
-            stateCommitment: stateCommitments[1]
-        });
-
-        oracle._verify(p, oracle.getTreeRoot(address(this), TEST_UUID), 1, _hashLeaf(leaf));
+        // The proof for `leaf1` should be valid
+        p[0] = _hashLeaf(leaves[1]);
+        assertTrue(oracle.verifyMerkle(p, root, 0, _hashLeaf(leaves[0])));
+        // The proof for `leaf2` should be valid
+        p[0] = _hashLeaf(leaves[0]);
+        assertTrue(oracle.verifyMerkle(p, root, 1, _hashLeaf(leaves[1])));
     }
 
     /// @notice Hashes leaf data for the preimage proposals tree
@@ -216,7 +213,30 @@ contract KeccakDispute_LargePreimageProposals_Test is Test {
         leaf_ = keccak256(abi.encodePacked(_leaf.input, _leaf.index, _leaf.stateCommitment));
     }
 
-    /// @notice Helper to construct
+    /// @notice Helper to construct the keccak merkle tree's leaves from a given input `_data`.
+    function _generateLeaves(
+        LibKeccak.StateMatrix memory _stateMatrix,
+        bytes memory _data
+    ) internal pure returns (PreimageOracle.Leaf[] memory leaves_) {
+        bytes memory data = LibKeccak.padMemory(_data);
+        uint256 numLeaves = data.length / LibKeccak.BLOCK_SIZE_BYTES;
+
+        leaves_ = new PreimageOracle.Leaf[](numLeaves);
+        for (uint256 i = 0; i < numLeaves; i++) {
+            bytes memory blockSlice = Bytes.slice(data, i * LibKeccak.BLOCK_SIZE_BYTES, LibKeccak.BLOCK_SIZE_BYTES);
+            LibKeccak.absorb(_stateMatrix, blockSlice);
+            LibKeccak.permutation(_stateMatrix);
+            bytes32 stateCommitment = keccak256(abi.encode(_stateMatrix));
+
+            leaves_[i] = PreimageOracle.Leaf({
+                input: blockSlice,
+                index: i,
+                stateCommitment: stateCommitment
+            });
+        }
+    }
+
+    /// @notice Helper to construct the keccak state commitments for each block processed in the input `_data`.
     function _generateStateCommitments(
         LibKeccak.StateMatrix memory _stateMatrix,
         bytes memory _data

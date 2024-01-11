@@ -187,7 +187,7 @@ contract PreimageOracle is IPreimageOracle {
 
         // Verify that both leaves are present in the merkle tree.
         bytes32 root = getTreeRoot(_claimant, _uuid);
-        if (!(_verify(_prevStateProof, root, _prevState.index, prevStateHash) && _verify(_postStateProof, root, _postState.index, postStateHash))) revert InvalidProof();
+        if (!(verifyMerkle(_prevStateProof, root, _prevState.index, prevStateHash) && verifyMerkle(_postStateProof, root, _postState.index, postStateHash))) revert InvalidProof();
 
         // Verify that the prestate passed matches the intermediate state claimed in the leaf.
         if (keccak256(abi.encode(_stateMatrix)) != _prevState.stateCommitment) revert InvalidPreimage();
@@ -222,7 +222,7 @@ contract PreimageOracle is IPreimageOracle {
 
         // Verify that the leaf is present in the merkle tree.
         bytes32 root = getTreeRoot(_claimant, _uuid);
-        if (!_verify(_postStateProof, root, _postState.index, prevStateHash)) {
+        if (!verifyMerkle(_postStateProof, root, _postState.index, prevStateHash)) {
             revert InvalidProof();
         }
 
@@ -245,19 +245,15 @@ contract PreimageOracle is IPreimageOracle {
 
     /// @notice Gets the current merkle root of the large preimage proposal tree.
     function getTreeRoot(address _owner, uint256 _uuid) public view returns (bytes32 treeRoot_) {
-        bytes32 node;
         uint256 size = proposalBlocksProcessed[_owner][_uuid];
-        for (uint256 height; height < KECCAK_TREE_DEPTH;) {
+        for (uint256 height = 0; height < KECCAK_TREE_DEPTH; height++) {
             if ((size & 1) == 1) {
-                node = keccak256(abi.encode(proposalBranches[_owner][_uuid][height], node));
+                treeRoot_ = keccak256(abi.encode(proposalBranches[_owner][_uuid][height], treeRoot_));
             } else {
-                node = keccak256(abi.encode(node, zeroHashes[height]));
+                treeRoot_ = keccak256(abi.encode(treeRoot_, zeroHashes[height]));
             }
             size /= 2;
-
-            unchecked { ++height; }
         }
-        treeRoot_ = keccak256(abi.encode(node));
     }
 
     /// @notice Adds a contiguous list of keccak state matrices to the merkle tree.
@@ -287,7 +283,7 @@ contract PreimageOracle is IPreimageOracle {
             // The input length must be a multiple of 136 bytes
             // The input lenth / 136 must be equal to the number of state commitments.
             if or(mod(inputLen, 136), iszero(eq(_stateCommitments.length, div(inputLen, 136)))) {
-                // TODO: Add nice revert
+                // TODO: Add nice revert signature
                 revert(0, 0)
             }
 
@@ -322,9 +318,9 @@ contract PreimageOracle is IPreimageOracle {
                     }
 
                     // Hash the node at `height` in the branch and the node together.
-                    mstore(hashBuf, mload(add(branch_, heightOffset)))
-                    mstore(add(hashBuf, 0x20), node)
-                    node := keccak256(hashBuf, 0x40)
+                    mstore(0x00, mload(add(branch_, heightOffset)))
+                    mstore(0x20, node)
+                    node := keccak256(0x00, 0x40)
                     size := shr(0x01, size)
                 }
             }
@@ -338,14 +334,9 @@ contract PreimageOracle is IPreimageOracle {
         proposalBlocksProcessed[msg.sender][_uuid] = blocks_;
     }
 
-    /// @notice Get the proposal branch for an owner and a UUID.
-    function getProposalBranch(address _owner, uint256 _uuid) external view returns (bytes32[KECCAK_TREE_DEPTH] memory branches_) {
-        branches_ = proposalBranches[_owner][_uuid];
-    }
-
     /// Check if leaf` at `index` verifies against the Merkle `root` and `branch`.
     /// https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/beacon-chain.md#is_valid_merkle_branch
-    function _verify(
+    function verifyMerkle(
         bytes32[] calldata _proof,
         bytes32 _root,
         uint256 _index,
@@ -365,11 +356,18 @@ contract PreimageOracle is IPreimageOracle {
 
             let value := _leaf
             for { let i := 0x00 } lt(i, KECCAK_TREE_DEPTH) { i := add(i, 0x01) } {
-                switch mod(shr(i, _index), 0x02)
-                case 1 { value := hashTwo(calldataload(add(_proof.offset, shl(0x05, i))), value) }
-                default { value := hashTwo(value, calldataload(add(_proof.offset, shl(0x05, i)))) }
+                let branchValue := calldataload(add(_proof.offset, shl(0x05, i)))
+
+                switch and(shr(i, _index), 0x01)
+                case 1 {
+                    value := hashTwo(branchValue, value)
+                }
+                default {
+                    value := hashTwo(value, branchValue)
+                }
             }
 
+            // Debug Logs
             isValid_ := eq(value, _root)
         }
     }
