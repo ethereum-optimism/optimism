@@ -164,8 +164,6 @@ func TestDencunL2ForkAtGenesis(gt *testing.T) {
 	l2Head := engine.l2Chain.CurrentBlock()
 	require.True(t, sd.L2Cfg.Config.IsCancun(l2Head.Number, l2Head.Time), "Cancun active")
 	require.NotNil(t, l2Head.ExcessBlobGas, "Cancun blob gas in header")
-
-	// try to build an L2 block with a blob tx, the EVM should fail
 }
 
 func aliceSimpleBlobTx(t Testing, dp *e2eutils.DeployParams) *types.Transaction {

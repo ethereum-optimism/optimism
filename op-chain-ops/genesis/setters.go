@@ -2,6 +2,7 @@ package genesis
 
 import (
 	"errors"
+	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -92,17 +93,8 @@ func setupPredeploy(db vm.StateDB, deployResults immutables.DeploymentResults, s
 
 // setup4788Contract creates the EIP-4788 beacon-block-roots contract, part of the Ecotone upgrade.
 func setup4788Contract(db vm.StateDB) error {
-	// EIP-4788 defines a deterministic deployment transaction that deploys the beacon-block-roots contract.
-	// To embed the contract in genesis, we want the deployment-result, not the contract-creation tx input code.
-	// Since the contract deployment result is deterministic and the same across every chain,
-	// the bytecode can be easily verified by comparing it with chains like Goerli.
-	// During deployment it does not modify any contract storage, the storage starts empty.
-	// See https://goerli.etherscan.io/tx/0xdf52c2d3bbe38820fff7b5eaab3db1b91f8e1412b56497d88388fb5d4ea1fde0
-	// And https://eips.ethereum.org/EIPS/eip-4788
-	eip4788ContractAddr := common.HexToAddress("0x000F3df6D732807Ef1319fB7B8bB8522d0Beac02")
-	eip4788ContractCode := common.Hex2Bytes("0x3373fffffffffffffffffffffffffffffffffffffffe14604d57602036146024575f5ffd5b5f35801560495762001fff810690815414603c575f5ffd5b62001fff01545f5260205ff35b5f5ffd5b62001fff42064281555f359062001fff015500")
-	db.CreateAccount(eip4788ContractAddr)
-	db.SetCode(eip4788ContractAddr, eip4788ContractCode)
-	db.SetNonce(eip4788ContractAddr, 1) // After contract deployment, the resulting contract has nonce=1, see EIP-158
+	db.CreateAccount(predeploys.EIP4788ContractAddr)
+	db.SetCode(predeploys.EIP4788ContractAddr, predeploys.EIP4788ContractCode)
+	db.SetNonce(predeploys.EIP4788ContractAddr, 1) // After contract deployment, the resulting contract has nonce=1, see EIP-158
 	return nil
 }

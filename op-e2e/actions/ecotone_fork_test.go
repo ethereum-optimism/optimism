@@ -52,11 +52,6 @@ func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, block.Number, latestBlock.Number().Uint64())
 
-	contractAddy := common.HexToAddress("0xA83144c24063155FBcBF8E51f96dbD4378e18907")
-	code, err := engine.EthClient().CodeAt(context.TODO(), contractAddy, latestBlock.Number())
-	require.NoError(t, err)
-	fmt.Println("code", code)
-
 	transactions := latestBlock.Transactions()
 
 	// L1Block: setInfo + 2 deploys + 2 upgradeTo
@@ -95,6 +90,11 @@ func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 	cost, err := gasPriceOracle.GetL1Fee(nil, []byte{0, 1, 2, 3, 4})
 	require.NoError(t, err)
 	assert.Greater(t, cost.Uint64(), uint64(0))
+
+	// 4788 contract is deployed
+	code, err := engine.EthClient().CodeAt(context.Background(), common.HexToAddress("0x000F3df6D732807Ef1319fB7B8bB8522d0Beac02"), latestBlock.Number())
+	require.NoError(t, err)
+	require.Equal(t, code, predeploys.EIP4788ContractCode)
 
 	// Get L1Block info
 	l1Block, err := bindings.NewL1BlockCaller(predeploys.L1BlockAddr, engine.EthClient())
