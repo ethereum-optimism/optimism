@@ -26,6 +26,7 @@ type DAManager struct {
 	cancelShutdownCtx context.CancelFunc
 	hashCh            chan *DABlockInfo
 	daHashes          map[*DABlockInfo]uint8
+	userNonces        map[common.Hash]uint64
 
 	TxMgr        *txmgr.SimpleTxManager
 	RollupConfig *rollup.Config
@@ -42,36 +43,44 @@ func NewDAManager(log log.Logger, rollup *rollup.Config, engine Engine, txmgr *t
 		IsBroadcast:  isBroadcast,
 		hashCh:       make(chan *DABlockInfo),
 		daHashes:     make(map[*DABlockInfo]uint8),
+		userNonces:   make(map[common.Hash]uint64),
 	}
 }
 
-func (d *DAManager) SendDA(ctx context.Context, index, length uint64, broadcaster, user common.Address, commitment, sign, data []byte) (common.Hash, error) {
+func (d *DAManager) SendDA(ctx context.Context, index, length, gasPrice uint64, broadcaster, user common.Address, commitment, sign, data []byte) (common.Hash, error) {
 	if !d.IsBroadcast {
 		return common.Hash{}, errors.New("broadcast node not started")
 	}
 	if !verifySignature(index, length, broadcaster, user, commitment, sign) {
 		return common.Hash{}, errors.New("invalid public key")
 	}
-	input, err := submit.L1SubmitTxData(index, length, user, sign, commitment)
+	txIndexHash := common.BytesToHash(sign)
+	log.Info("SendDa", "txIndexHash", txIndexHash)
+	var nonce int64 = -1
+
+	input, err := submit.L1SubmitTxData(index, length, gasPrice, user, sign, commitment)
 	if err != nil {
 		log.Info("L1SubmitTxData", "err", err)
 		return common.Hash{}, err
 	}
-	log.Info("L1SubmitTxData")
-
+	log.Info("L1SubmitTxData", "txIndexHash", d.userNonces[txIndexHash])
+	if n, ex := d.userNonces[txIndexHash]; ex {
+		nonce = int64(n)
+	}
 	tx, err := d.TxMgr.SendDA(ctx, txmgr.TxCandidate{
 		TxData:   input,
 		To:       &d.RollupConfig.SubmitContractAddress,
 		GasLimit: 0,
-	})
+	}, gasPrice, nonce)
 
 	if err != nil {
 		return common.Hash{}, err
 	}
 	log.Info("L1Submit tx successfully published",
-		"tx_hash", tx.Hash().Hex())
+		"tx_hash", tx.Hash().Hex(), "user", user.Hex(), "index", index)
+	d.userNonces[txIndexHash] = tx.Nonce()
 
-	d.engine.UploadFileDataByParams(ctx, index, length, broadcaster, user, commitment, sign, data, tx.Hash())
+	d.engine.UploadFileDataByParams(ctx, index, length, gasPrice, broadcaster, user, commitment, sign, data, tx.Hash())
 	return tx.Hash(), nil
 }
 

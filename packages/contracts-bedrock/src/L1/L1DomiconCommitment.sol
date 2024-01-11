@@ -19,21 +19,9 @@ import { Constants } from "src/libraries/Constants.sol";
 ///         not limited to: tokens with transfer fees, rebasing tokens, and tokens with blocklists.
 contract L1DomiconCommitment is DomiconCommitment, ISemver {
 
-    event SendDACommitment(address indexed A,address indexed B,uint256 indexed index, bytes commitment);
-
-
     /// @notice Semantic version.
     /// @custom:semver 1.4.1
     string public constant version = "1.4.1";
-
-    struct DAInfo{
-        uint256 index;
-        uint256 length;
-        address user;
-        address broadcaster;
-        bytes sign;
-        bytes commitment;
-    }
 
     mapping(address => mapping(uint256 => DAInfo)) public submits;
     mapping(address => uint256) public indices;
@@ -48,14 +36,14 @@ contract L1DomiconCommitment is DomiconCommitment, ISemver {
         __DomiconCommitment_init({ _messenger: _messenger });
     }
 
-    function SubmitCommitment(uint256 _index,uint256 _length,address _user,bytes calldata _sign,bytes calldata _commitment) external onlyEOA {
+    function SubmitCommitment(uint256 _index,uint256 _length,uint256 _price,address _user,bytes calldata _sign,bytes calldata _commitment) external onlyEOA {
         require(checkSign(_user,_sign),"L1DomiconCommitment:invalid Signature");
         require(indices[_user]==_index,"L1DomiconCommitment:index Error");
-        submits[_user][_index]=DAInfo({index:_index,length:_length,user:_user,broadcaster:msg.sender,sign:_sign,commitment:_commitment});
+        submits[_user][_index]=DAInfo({index:_index,length:_length,price:_price,user:_user,broadcaster:msg.sender,sign:_sign,commitment:_commitment});
         indices[_user]++;
-        emit SendDACommitment(_user,msg.sender,_index,_commitment);
+        emit SendDACommitment(_index,_length,_price,msg.sender,_user,_sign,_commitment);
 
-        _initSubmitCommitment(RECEIVE_DEFAULT_GAS_LIMIT,_user,msg.sender,_index,_commitment);
+        _initSubmitCommitment(RECEIVE_DEFAULT_GAS_LIMIT,_index,_length,_price,msg.sender,_user,_sign,_commitment);
     }
 
     function checkSign(address user,bytes calldata sign) internal pure returns (bool){

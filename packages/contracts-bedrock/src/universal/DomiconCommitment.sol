@@ -15,6 +15,18 @@ import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable
 ///         and minting/burning tokens that are native to the remote chain.
 abstract contract DomiconCommitment is Initializable{
 
+    event SendDACommitment(uint256 index,uint256 length,uint256 price,address indexed broadcaster,address indexed user,bytes sign,bytes commitment);
+
+    struct DAInfo{
+        uint256 index;
+        uint256 length;
+        uint256 price;
+        address user;
+        address broadcaster;
+        bytes sign;
+        bytes commitment;
+    }
+
     /// @notice The L2 gas limit set when eth is depoisited using the receive() function.
     uint32 internal constant RECEIVE_DEFAULT_GAS_LIMIT = 200_000;
 
@@ -50,10 +62,7 @@ abstract contract DomiconCommitment is Initializable{
 
 
     event FinalizeSubmitCommitment(
-        address indexed a,
-        address indexed b,
-        uint256 index,
-        bytes commitment
+        uint256 index,uint256 length,uint256 price,address indexed broadcaster,address indexed user,bytes sign,bytes commitment
     );
 
     /// @notice Only allow EOAs to call the functions. Note that this is not safe against contracts
@@ -99,30 +108,24 @@ abstract contract DomiconCommitment is Initializable{
 
     function _initSubmitCommitment(
         uint32 _minGasLimit,
-        address a,
-        address b,
-        uint256 index,
-        bytes calldata commitment
+        uint256 _index,uint256 _length,uint256 _price,address _broadcaster,address _user,bytes calldata _sign,bytes calldata _commitment
     )
     internal
     {
         messenger.sendSubmitMessage(
             address(OTHER_COMMITMENT),
-            abi.encodeWithSelector(this.finalizeSubmitCommitment.selector, a, b, index, commitment),
+            abi.encodeWithSelector(this.finalizeSubmitCommitment.selector, _index,_length,_price,_broadcaster,_user,_sign,_commitment),
             _minGasLimit
         );
     }
 
     function finalizeSubmitCommitment(
-        address a,
-        address b,
-        uint256 index,
-        bytes calldata commitment
+        uint256 _index,uint256 _length,uint256 _price,address _broadcaster,address _user,bytes calldata _sign,bytes calldata _commitment
     )
     public
     payable
     onlyOtherCommitment
     {
-        emit FinalizeSubmitCommitment(a,b,index,commitment);
+        emit FinalizeSubmitCommitment(_index,_length,_price,_broadcaster,_user,_sign,_commitment);
     }
 }

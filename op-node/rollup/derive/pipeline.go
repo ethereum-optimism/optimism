@@ -210,8 +210,8 @@ func (dp *DerivationPipeline) UnsafeL2SyncTarget() eth.L2BlockRef {
 	return dp.eng.UnsafeL2SyncTarget()
 }
 
-func (dp *DerivationPipeline) UploadFileDataByParams(ctx context.Context, index, length uint64, broadcaster, user common.Address, commitment, sign, data []byte, hash common.Hash) (bool, error) {
-	return dp.eng.UploadFileDataByParams(ctx, index, length, broadcaster, user, commitment, sign, data, hash)
+func (dp *DerivationPipeline) UploadFileDataByParams(ctx context.Context, index, length, price uint64, broadcaster, user common.Address, commitment, sign, data []byte, hash common.Hash) (bool, error) {
+	return dp.eng.UploadFileDataByParams(ctx, index, length, price, broadcaster, user, commitment, sign, data, hash)
 }
 
 func (dp *DerivationPipeline) GetFileDataByHash(ctx context.Context, hash common.Hash) (ethclient.RPCFileData, error) {
@@ -265,8 +265,8 @@ func (dp *DerivationPipeline) Step(ctx context.Context) error {
 	}
 }
 
-func (dp *DerivationPipeline) SendDA(ctx context.Context, index, length uint64, broadcaster, user common.Address, commitment, sign, data []byte) (common.Hash, error) {
-	return dp.eng.SendDA(ctx, index, length, broadcaster, user, commitment, sign, data)
+func (dp *DerivationPipeline) SendDA(ctx context.Context, index, length, gasPrice uint64, broadcaster, user common.Address, commitment, sign, data []byte) (common.Hash, error) {
+	return dp.eng.SendDA(ctx, index, length, gasPrice, broadcaster, user, commitment, sign, data)
 }
 
 func (dp *DerivationPipeline) Broadcaster(ctx context.Context) (common.Address, error) {

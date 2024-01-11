@@ -141,9 +141,9 @@ func (s *EngineClient) SignalSuperchainV1(ctx context.Context, recommended, requ
 	return result, err
 }
 
-func (s *EngineClient) UploadFileDataByParams(ctx context.Context, index, length uint64, broadcaster, user common.Address, commitment, sign, data []byte, hash common.Hash) (bool, error) {
+func (s *EngineClient) UploadFileDataByParams(ctx context.Context, index, length, price uint64, broadcaster, user common.Address, commitment, sign, data []byte, hash common.Hash) (bool, error) {
 	var result bool
-	err := s.client.CallContext(ctx, &result, "eth_uploadFileDataByParams", user, broadcaster, index, length, commitment, data, sign, hash)
+	err := s.client.CallContext(ctx, &result, "eth_uploadFileDataByParams", user, broadcaster, index, length, price, commitment, data, sign, hash)
 	return result, err
 }
 

@@ -192,13 +192,11 @@ func (m *SimpleTxManager) send(ctx context.Context, candidate TxCandidate) (*typ
 // NOTE: Otherwise, the [SimpleTxManager] will query the specified backend for an estimate.
 func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*types.Transaction, error) {
 	gasTipCap, basefee, err := m.suggestGasPriceCaps(ctx)
-	log.Info("craftTx", "gasTipCap", gasTipCap, "basefee", basefee)
 	if err != nil {
 		m.metr.RPCError()
 		return nil, fmt.Errorf("failed to get gas price info: %w", err)
 	}
 	gasFeeCap := calcGasFeeCap(basefee, gasTipCap)
-	log.Info("craftTx", "gasFeeCap", gasFeeCap)
 	rawTx := &types.DynamicFeeTx{
 		ChainID:   m.chainID,
 		To:        candidate.To,
@@ -224,10 +222,56 @@ func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*
 		if err != nil {
 			return nil, fmt.Errorf("failed to estimate gas: %w", err)
 		}
+		rawTx.Gas = gas
+	}
+
+	return m.signWithNextNonce(ctx, rawTx)
+}
+
+func (m *SimpleTxManager) craftDaTx(ctx context.Context, candidate TxCandidate, gasPrice uint64, nonce int64) (*types.Transaction, error) {
+	gasTipCap, basefee, err := m.suggestGasPriceCaps(ctx)
+	if err != nil {
+		m.metr.RPCError()
+		return nil, fmt.Errorf("failed to get gas price info: %w", err)
+	}
+	var gasFeeCap *big.Int
+	if gasPrice != 0 {
+		gasFeeCap = new(big.Int).SetUint64(gasPrice * 1000000000)
+	} else {
+		gasFeeCap = calcGasFeeCap(basefee, gasTipCap)
+	}
+	rawTx := &types.DynamicFeeTx{
+		ChainID:   m.chainID,
+		To:        candidate.To,
+		GasTipCap: gasTipCap,
+		GasFeeCap: gasFeeCap,
+		Data:      candidate.TxData,
+		Value:     candidate.Value,
+	}
+	// If the gas limit is set, we can use that as the gas
+	if candidate.GasLimit != 0 {
+		rawTx.Gas = candidate.GasLimit
+	} else {
+		// Calculate the intrinsic gas for the transaction
+		gas, err := m.backend.EstimateGas(ctx, ethereum.CallMsg{
+			From:      m.cfg.From,
+			To:        candidate.To,
+			GasFeeCap: gasFeeCap,
+			GasTipCap: gasTipCap,
+			Data:      rawTx.Data,
+			Value:     rawTx.Value,
+			GasPrice:  gasFeeCap,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to estimate gas: %w", err)
+		}
 		rawTx.Gas = gas * 2
 	}
-	m.l.Info("Creating tx", "gas", rawTx.Gas)
+	if nonce >= 0 {
+		log.Info("craftDaTx", "nonce", rawTx.Nonce, "*nonce", nonce)
+		return m.signWithNonce(ctx, rawTx, nonce)
 
+	}
 	return m.signWithNextNonce(ctx, rawTx)
 }
 
@@ -264,6 +308,26 @@ func (m *SimpleTxManager) signWithNextNonce(ctx context.Context, rawTx *types.Dy
 		*m.nonce--
 	} else {
 		m.metr.RecordNonce(*m.nonce)
+	}
+	return tx, err
+}
+
+func (m *SimpleTxManager) signWithNonce(ctx context.Context, rawTx *types.DynamicFeeTx, nonce int64) (*types.Transaction, error) {
+	m.nonceLock.Lock()
+	defer m.nonceLock.Unlock()
+
+	rawTx.Nonce = uint64(nonce)
+	ctx, cancel := context.WithTimeout(ctx, m.cfg.NetworkTimeout)
+	defer cancel()
+	log.Info("signWithNonce", "raw", rawTx.Nonce)
+	tx, err := m.cfg.Signer(ctx, m.cfg.From, types.NewTx(rawTx))
+	log.Info("signWithNonce", "tx", tx.Nonce())
+	if err != nil {
+		// decrement the nonce, so we can retry signing with the same nonce next time
+		// signWithNextNonce is called
+		//*m.nonce--
+	} else {
+		//m.metr.RecordNonce(*m.nonce)
 	}
 	return tx, err
 }
@@ -339,8 +403,6 @@ func (m *SimpleTxManager) publishTx(ctx context.Context, tx *types.Transaction, 
 		return m.l.New("hash", tx.Hash(), "nonce", tx.Nonce(), "gasTipCap", tx.GasTipCap(), "gasFeeCap", tx.GasFeeCap())
 	}
 	l := updateLogFields(tx)
-
-	l.Info("Publishing transaction")
 
 	for {
 		if bumpFeesImmediately {
@@ -577,7 +639,7 @@ func (m *SimpleTxManager) suggestGasPriceCaps(ctx context.Context) (*big.Int, *b
 }
 
 // SendDA does not need to wait for the transaction to be confirmed.
-func (m *SimpleTxManager) SendDA(ctx context.Context, candidate TxCandidate) (*types.Transaction, error) {
+func (m *SimpleTxManager) SendDA(ctx context.Context, candidate TxCandidate, gasPrice uint64, nonce int64) (*types.Transaction, error) {
 	m.metr.RecordPendingTx(m.pending.Add(1))
 	defer func() {
 		m.metr.RecordPendingTx(m.pending.Add(-1))
@@ -587,7 +649,7 @@ func (m *SimpleTxManager) SendDA(ctx context.Context, candidate TxCandidate) (*t
 		ctx, cancel = context.WithTimeout(ctx, m.cfg.TxSendTimeout)
 		defer cancel()
 	}
-	tx, err := m.craftTx(ctx, candidate)
+	tx, err := m.craftDaTx(ctx, candidate, gasPrice, nonce)
 	if err != nil {
 		m.l.Warn("Failed to create a transaction, will retry", "err", err)
 		return nil, err
@@ -596,9 +658,11 @@ func (m *SimpleTxManager) SendDA(ctx context.Context, candidate TxCandidate) (*t
 		m.resetNonce()
 		return nil, fmt.Errorf("failed to create the tx: %w", err)
 	}
+
+	log.Info("SendDa", "Nonce", tx.Nonce(), "hash", tx.Hash())
+
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-
 	sendState := NewSendState(m.cfg.SafeAbortNonceTooLowCount, m.cfg.TxNotInMempoolTimeout)
 	tx, published := m.publishTx(ctx, tx, sendState, false)
 	if published {

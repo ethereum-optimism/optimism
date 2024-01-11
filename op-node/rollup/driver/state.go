@@ -517,8 +517,8 @@ func (s *Driver) BlockRefWithStatus(ctx context.Context, num uint64) (eth.L2Bloc
 	}
 }
 
-func (s *Driver) SendDA(ctx context.Context, index, length uint64, broadcaster, user common.Address, commitment, sign, data []byte) (common.Hash, error) {
-	return s.derivation.SendDA(ctx, index, length, broadcaster, user, commitment, sign, data)
+func (s *Driver) SendDA(ctx context.Context, index, length, gasPrice uint64, broadcaster, user common.Address, commitment, sign, data []byte) (common.Hash, error) {
+	return s.derivation.SendDA(ctx, index, length, gasPrice, broadcaster, user, commitment, sign, data)
 }
 
 func (s *Driver) Broadcaster(ctx context.Context) (common.Address, error) {

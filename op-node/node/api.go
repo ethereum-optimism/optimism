@@ -132,6 +132,6 @@ func (n *nodeAPI) Broadcaster(ctx context.Context) (common.Address, error) {
 	return n.dr.Broadcaster(ctx)
 }
 
-func (n *nodeAPI) SendDA(ctx context.Context, index, length uint64, broadcaster, user common.Address, commitment, sign, data hexutil.Bytes) (common.Hash, error) {
-	return n.dr.SendDA(ctx, index, length, broadcaster, user, commitment, sign, data)
+func (n *nodeAPI) SendDA(ctx context.Context, index, length, gasPrice uint64, broadcaster, user common.Address, commitment, sign, data hexutil.Bytes) (common.Hash, error) {
+	return n.dr.SendDA(ctx, index, length, gasPrice, broadcaster, user, commitment, sign, data)
 }

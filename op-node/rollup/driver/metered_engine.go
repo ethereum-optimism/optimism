@@ -101,8 +101,8 @@ func (m *MeteredEngine) Reset() {
 	m.inner.Reset()
 }
 
-func (m *MeteredEngine) UploadFileDataByParams(ctx context.Context, index, length uint64, broadcaster, user common.Address, commitment, sign, data []byte, hash common.Hash) (bool, error) {
-	return m.inner.UploadFileDataByParams(ctx, index, length, broadcaster, user, commitment, sign, data, hash)
+func (m *MeteredEngine) UploadFileDataByParams(ctx context.Context, index, length, price uint64, broadcaster, user common.Address, commitment, sign, data []byte, hash common.Hash) (bool, error) {
+	return m.inner.UploadFileDataByParams(ctx, index, length, price, broadcaster, user, commitment, sign, data, hash)
 }
 
 func (m *MeteredEngine) GetFileDataByHash(ctx context.Context, hash common.Hash) (ethclient.RPCFileData, error) {

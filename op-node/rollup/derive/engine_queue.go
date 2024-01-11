@@ -54,7 +54,7 @@ type EngineState interface {
 }
 
 type EngineDAState interface {
-	UploadFileDataByParams(ctx context.Context, index, length uint64, broadcaster, user common.Address, commitment, sign, data []byte, hash common.Hash) (bool, error)
+	UploadFileDataByParams(ctx context.Context, index, length, price uint64, broadcaster, user common.Address, commitment, sign, data []byte, hash common.Hash) (bool, error)
 	GetFileDataByHash(ctx context.Context, hash common.Hash) (ethclient.RPCFileData, error)
 	BatchSaveFileDataWithHashes(ctx context.Context, hashes rpc.TxHashes) (bool, error)
 	ChangeCurrentState(ctx context.Context, state uint64, blockNr rpc.BlockNumber) (bool, error)
@@ -62,7 +62,7 @@ type EngineDAState interface {
 }
 
 type EngineDA interface {
-	SendDA(ctx context.Context, index, length uint64, broadcaster, user common.Address, commitment, sign, data []byte) (common.Hash, error)
+	SendDA(ctx context.Context, index, length, gasPrice uint64, broadcaster, user common.Address, commitment, sign, data []byte) (common.Hash, error)
 	Broadcaster(ctx context.Context) (common.Address, error)
 }
 
@@ -876,8 +876,8 @@ func (eq *EngineQueue) UnsafeL2SyncTarget() eth.L2BlockRef {
 	}
 }
 
-func (eq *EngineQueue) UploadFileDataByParams(ctx context.Context, index, length uint64, broadcaster, user common.Address, commitment, sign, data []byte, hash common.Hash) (bool, error) {
-	return eq.engine.UploadFileDataByParams(ctx, index, length, broadcaster, user, commitment, sign, data, hash)
+func (eq *EngineQueue) UploadFileDataByParams(ctx context.Context, index, length, price uint64, broadcaster, user common.Address, commitment, sign, data []byte, hash common.Hash) (bool, error) {
+	return eq.engine.UploadFileDataByParams(ctx, index, length, price, broadcaster, user, commitment, sign, data, hash)
 }
 
 func (eq *EngineQueue) GetFileDataByHash(ctx context.Context, hash common.Hash) (ethclient.RPCFileData, error) {
@@ -888,8 +888,8 @@ func (eq *EngineQueue) BatchSaveFileDataWithHashes(ctx context.Context, hashes r
 	return eq.engine.BatchSaveFileDataWithHashes(ctx, hashes)
 }
 
-func (eq *EngineQueue) SendDA(ctx context.Context, index, length uint64, broadcaster, user common.Address, commitment, sign, data []byte) (common.Hash, error) {
-	return eq.daMgr.SendDA(ctx, index, length, broadcaster, user, commitment, sign, data)
+func (eq *EngineQueue) SendDA(ctx context.Context, index, length, gasPrice uint64, broadcaster, user common.Address, commitment, sign, data []byte) (common.Hash, error) {
+	return eq.daMgr.SendDA(ctx, index, length, gasPrice, broadcaster, user, commitment, sign, data)
 }
 
 func (eq *EngineQueue) Broadcaster(ctx context.Context) (common.Address, error) {
