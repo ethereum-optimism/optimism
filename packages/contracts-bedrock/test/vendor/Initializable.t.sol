@@ -121,7 +121,6 @@ contract Initializer_Test is Bridge_Initializer {
                             systemTxMaxGas: 0,
                             maximumBaseFee: 0
                         }),
-                        0,
                         address(0),
                         SystemConfig.Addresses({
                             l1CrossDomainMessenger: address(0),
@@ -157,7 +156,6 @@ contract Initializer_Test is Bridge_Initializer {
                             systemTxMaxGas: 0,
                             maximumBaseFee: 0
                         }),
-                        0,
                         address(0),
                         SystemConfig.Addresses({
                             l1CrossDomainMessenger: address(0),

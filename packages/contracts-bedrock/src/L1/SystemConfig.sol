@@ -123,7 +123,6 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
                 systemTxMaxGas: 0,
                 maximumBaseFee: 0
             }),
-            _startBlock: type(uint256).max,
             _batchInbox: address(0),
             _addresses: SystemConfig.Addresses({
                 l1CrossDomainMessenger: address(0),
@@ -134,6 +133,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
                 optimismMintableERC20Factory: address(0)
             })
         });
+        Storage.setUint(bytes32(uint256(106)), type(uint256).max);
     }
 
     /// @notice Initializer.
@@ -145,10 +145,6 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @param _gasLimit          Initial gas limit.
     /// @param _unsafeBlockSigner Initial unsafe block signer address.
     /// @param _config            Initial ResourceConfig.
-    /// @param _startBlock        Starting block for the op-node to search for logs from.
-    ///                           Contracts that were deployed before this field existed
-    ///                           need to have this field set manually via an override.
-    ///                           Newly deployed contracts should set this value to uint256(0).
     /// @param _batchInbox        Batch inbox address. An identifier for the op-node to find
     ///                           canonical data.
     /// @param _addresses         Set of L1 contract addresses. These should be the proxies.
@@ -160,7 +156,6 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         uint64 _gasLimit,
         address _unsafeBlockSigner,
         ResourceMetering.ResourceConfig memory _config,
-        uint256 _startBlock,
         address _batchInbox,
         SystemConfig.Addresses memory _addresses
     )
