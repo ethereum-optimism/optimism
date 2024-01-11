@@ -666,6 +666,8 @@ jobs:
       - notify-failures-on-develop
 
   validate-absolute-prestate:
+    environment:
+      DOCKER_BUILDKIT: 1
     machine:
       image: <<pipeline.parameters.base_image>>
     steps:
