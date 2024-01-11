@@ -276,7 +276,6 @@ type. The overall calldata layout is as follows:
 
 [ecotone-upgrade-txs]: derivation.md#network-upgrade-automation-transactions
 
-
 | Input arg         | Type        | Calldata bytes | Segment |
 | ----------------- | ----------- | -------------- | --------|
 | {0x440a5e20}      |             | 0-3            | n/a     |
