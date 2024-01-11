@@ -226,8 +226,8 @@ use_booster=--use-booster
 #########################################
 tests=""
 tests+="--match-test CounterTest.test_SetNumber "
-#tests+="--match-test OptimismPortalKontrol.test_proveWithdrawalTransaction_paused "
-#tests+="--match-test OptimismPortalKontrol.test_finalizeWithdrawalTransaction_paused "
+#tests+="--match-test OptimismPortalKontrol.proof_proveWithdrawalTransaction_paused "
+#tests+="--match-test OptimismPortalKontrol.proof_finalizeWithdrawalTransaction_paused "
 
 #############
 # RUN TESTS #
