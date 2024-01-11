@@ -507,15 +507,7 @@ contract Deploy is Deployer {
     /// @notice Deploy the L2OutputOracle
     function deployL2OutputOracle() public broadcast returns (address addr_) {
         console.log("Deploying L2OutputOracle implementation");
-        L2OutputOracle oracle = new L2OutputOracle{ salt: _implSalt() }({
-            _submissionInterval: cfg.l2OutputOracleSubmissionInterval(),
-            _l2BlockTime: cfg.l2BlockTime(),
-            _startingBlockNumber: 0,
-            _startingTimestamp: 0,
-            _proposer: cfg.l2OutputOracleProposer(),
-            _challenger: cfg.l2OutputOracleChallenger(),
-            _finalizationPeriodSeconds: cfg.finalizationPeriodSeconds()
-        });
+        L2OutputOracle oracle = new L2OutputOracle{ salt: _implSalt() }();
 
         save("L2OutputOracle", address(oracle));
         console.log("L2OutputOracle deployed at %s", address(oracle));
@@ -525,7 +517,12 @@ contract Deploy is Deployer {
         // are always proxies.
         Types.ContractSet memory contracts = _proxiesUnstrict();
         contracts.L2OutputOracle = address(oracle);
-        ChainAssertions.checkL2OutputOracle(contracts, cfg, 0, 0);
+        ChainAssertions.checkL2OutputOracle({
+            _contracts: contracts,
+            _cfg: cfg,
+            _l2OutputOracleStartingTimestamp: 0,
+            _isProxy: false
+        });
 
         require(loadInitializedSlot("L2OutputOracle") == 1, "L2OutputOracle is not initialized");
 
@@ -880,7 +877,16 @@ contract Deploy is Deployer {
             _proxy: payable(l2OutputOracleProxy),
             _implementation: l2OutputOracle,
             _innerCallData: abi.encodeCall(
-                L2OutputOracle.initialize, (cfg.l2OutputOracleStartingBlockNumber(), cfg.l2OutputOracleStartingTimestamp())
+                L2OutputOracle.initialize,
+                (
+                    cfg.l2OutputOracleSubmissionInterval(),
+                    cfg.l2BlockTime(),
+                    cfg.l2OutputOracleStartingBlockNumber(),
+                    cfg.l2OutputOracleStartingTimestamp(),
+                    cfg.l2OutputOracleProposer(),
+                    cfg.l2OutputOracleChallenger(),
+                    cfg.finalizationPeriodSeconds()
+                )
                 )
         });
 
@@ -891,8 +897,8 @@ contract Deploy is Deployer {
         ChainAssertions.checkL2OutputOracle({
             _contracts: _proxies(),
             _cfg: cfg,
-            _l2OutputOracleStartingBlockNumber: cfg.l2OutputOracleStartingBlockNumber(),
-            _l2OutputOracleStartingTimestamp: cfg.l2OutputOracleStartingTimestamp()
+            _l2OutputOracleStartingTimestamp: cfg.l2OutputOracleStartingTimestamp(),
+            _isProxy: true
         });
 
         require(loadInitializedSlot("L2OutputOracleProxy") == 1, "L2OutputOracleProxy is not initialized");
