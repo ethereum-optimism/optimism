@@ -87,20 +87,20 @@ contract GasPriceOracle is ISemver {
 
     /// @notice Retrieves the current blob base fee.
     /// @return Current blob base fee.
-    function blobBasefee() public view returns (uint256) {
-        return L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).blobBasefee();
+    function blobBaseFee() public view returns (uint256) {
+        return L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).blobBaseFee();
     }
 
     /// @notice Retrieves the current base fee scalar.
     /// @return Current base fee scalar.
-    function basefeeScalar() public view returns (uint32) {
-        return L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).basefeeScalar();
+    function baseFeeScalar() public view returns (uint32) {
+        return L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).baseFeeScalar();
     }
 
     /// @notice Retrieves the current blob base fee scalar.
     /// @return Current blob base fee scalar.
-    function blobBasefeeScalar() public view returns (uint32) {
-        return L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).blobBasefeeScalar();
+    function blobBaseFeeScalar() public view returns (uint32) {
+        return L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).blobBaseFeeScalar();
     }
 
     /// @custom:legacy
@@ -137,9 +137,9 @@ contract GasPriceOracle is ISemver {
     /// @return L1 fee that should be paid for the tx
     function _getL1FeeEcotone(bytes memory _data) internal view returns (uint256) {
         uint256 l1GasUsed = _getCalldataGas(_data);
-        uint256 scaledBasefee = basefeeScalar() * 16 * l1BaseFee();
-        uint256 scaledBlobBasefee = blobBasefeeScalar() * blobBasefee();
-        uint256 fee = l1GasUsed * (scaledBasefee + scaledBlobBasefee);
+        uint256 scaledBaseFee = baseFeeScalar() * 16 * l1BaseFee();
+        uint256 scaledBlobBaseFee = blobBaseFeeScalar() * blobBaseFee();
+        uint256 fee = l1GasUsed * (scaledBaseFee + scaledBlobBaseFee);
         return fee / (16 * 10 ** DECIMALS);
     }
 

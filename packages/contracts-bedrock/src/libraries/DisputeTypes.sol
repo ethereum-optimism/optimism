@@ -80,9 +80,8 @@ type GameType is uint8;
 type VMStatus is uint8;
 
 /// @notice The current status of the dispute game.
-enum GameStatus
-// The game is currently in progress, and has not been resolved.
-{
+enum GameStatus {
+    // The game is currently in progress, and has not been resolved.
     IN_PROGRESS,
     // The game has concluded, and the `rootClaim` was challenged successfully.
     CHALLENGER_WINS,

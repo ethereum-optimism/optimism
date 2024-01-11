@@ -17,15 +17,15 @@ contract GasPriceOracle_Test is CommonTest {
     // The initial L1 context values
     uint64 constant number = 10;
     uint64 constant timestamp = 11;
-    uint256 constant basefee = 2 * (10 ** 6);
-    uint256 constant blobBasefee = 3 * (10 ** 6);
+    uint256 constant baseFee = 2 * (10 ** 6);
+    uint256 constant blobBaseFee = 3 * (10 ** 6);
     bytes32 constant hash = bytes32(uint256(64));
     uint64 constant sequenceNumber = 0;
     bytes32 constant batcherHash = bytes32(uint256(777));
     uint256 constant l1FeeOverhead = 310;
     uint256 constant l1FeeScalar = 10;
-    uint32 constant blobBasefeeScalar = 15;
-    uint32 constant basefeeScalar = 20;
+    uint32 constant blobBaseFeeScalar = 15;
+    uint32 constant baseFeeScalar = 20;
 
     /// @dev Sets up the test suite.
     function setUp() public virtual override {
@@ -43,7 +43,7 @@ contract GasPriceOracleBedrock_Test is GasPriceOracle_Test {
         l1Block.setL1BlockValues({
             _number: number,
             _timestamp: timestamp,
-            _basefee: basefee,
+            _basefee: baseFee,
             _hash: hash,
             _sequenceNumber: sequenceNumber,
             _batcherHash: batcherHash,
@@ -54,7 +54,7 @@ contract GasPriceOracleBedrock_Test is GasPriceOracle_Test {
 
     /// @dev Tests that `l1BaseFee` is set correctly.
     function test_l1BaseFee_succeeds() external {
-        assertEq(gasPriceOracle.l1BaseFee(), basefee);
+        assertEq(gasPriceOracle.l1BaseFee(), baseFee);
     }
 
     /// @dev Tests that `gasPrice` is set correctly.
@@ -112,7 +112,7 @@ contract GasPriceOracleEcotone_Test is GasPriceOracle_Test {
         super.setUp();
 
         bytes memory calldataPacked = Encoding.encodeSetL1BlockValuesEcotone(
-            basefeeScalar, blobBasefeeScalar, sequenceNumber, timestamp, number, basefee, blobBasefee, hash, batcherHash
+            baseFeeScalar, blobBaseFeeScalar, sequenceNumber, timestamp, number, baseFee, blobBaseFee, hash, batcherHash
         );
 
         // Execute the function call
@@ -158,22 +158,22 @@ contract GasPriceOracleEcotone_Test is GasPriceOracle_Test {
 
     /// @dev Tests that `l1BaseFee` is set correctly.
     function test_l1BaseFee_succeeds() external {
-        assertEq(gasPriceOracle.l1BaseFee(), basefee);
+        assertEq(gasPriceOracle.l1BaseFee(), baseFee);
     }
 
-    /// @dev Tests that `blobBasefee` is set correctly.
-    function test_blobBasefee_succeeds() external {
-        assertEq(gasPriceOracle.blobBasefee(), blobBasefee);
+    /// @dev Tests that `blobBaseFee` is set correctly.
+    function test_blobBaseFee_succeeds() external {
+        assertEq(gasPriceOracle.blobBaseFee(), blobBaseFee);
     }
 
-    /// @dev Tests that `basefeeScalar` is set correctly.
-    function test_basefeeScalar_succeeds() external {
-        assertEq(gasPriceOracle.basefeeScalar(), basefeeScalar);
+    /// @dev Tests that `baseFeeScalar` is set correctly.
+    function test_baseFeeScalar_succeeds() external {
+        assertEq(gasPriceOracle.baseFeeScalar(), baseFeeScalar);
     }
 
-    /// @dev Tests that `blobBasefeeScalar` is set correctly.
-    function test_blobBasefeeScalar_succeeds() external {
-        assertEq(gasPriceOracle.blobBasefeeScalar(), blobBasefeeScalar);
+    /// @dev Tests that `blobBaseFeeScalar` is set correctly.
+    function test_blobBaseFeeScalar_succeeds() external {
+        assertEq(gasPriceOracle.blobBaseFeeScalar(), blobBaseFeeScalar);
     }
 
     /// @dev Tests that `decimals` is set correctly.

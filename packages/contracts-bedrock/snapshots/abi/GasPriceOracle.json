@@ -27,7 +27,7 @@
   },
   {
     "inputs": [],
-    "name": "basefeeScalar",
+    "name": "baseFeeScalar",
     "outputs": [
       {
         "internalType": "uint32",
@@ -40,7 +40,7 @@
   },
   {
     "inputs": [],
-    "name": "blobBasefee",
+    "name": "blobBaseFee",
     "outputs": [
       {
         "internalType": "uint256",
@@ -53,7 +53,7 @@
   },
   {
     "inputs": [],
-    "name": "blobBasefeeScalar",
+    "name": "blobBaseFeeScalar",
     "outputs": [
       {
         "internalType": "uint32",
