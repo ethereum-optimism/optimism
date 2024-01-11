@@ -1,6 +1,6 @@
 # Copy docker buildx in order to generate the absolute prestate
 # in the CI pipeline for reproducible fault proof builds
-FROM docker
+FROM docker as buildx
 COPY --from=docker/buildx-bin /buildx /usr/libexec/docker/cli-plugins/docker-buildx
 RUN docker buildx version
 
@@ -133,6 +133,9 @@ RUN echo "downloading and verifying Codecov uploader" && \
   cp codecov /usr/local/bin/codecov && \
   chmod +x /usr/local/bin/codecov  && \
   rm codecov
+
+# Copy docker buildx
+COPY --from=buildx /usr/libexec/docker/cli-plugins/docker-buildx /usr/libexec/docker/cli-plugins/docker-buildx
 
 # within docker use bash
 SHELL ["/bin/bash", "-c"]

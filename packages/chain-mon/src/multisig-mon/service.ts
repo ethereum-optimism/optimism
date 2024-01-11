@@ -134,7 +134,7 @@ export class MultisigMonService extends BaseServiceV2<
 
       this.metrics.pausedState.set(
         { address: account.optimismPortalAddress, nickname: account.nickname },
-        parseInt(paused.toString(), 10)
+        paused ? 1 : 0
       )
     } catch (err) {
       this.logger.error(`got unexpected RPC error`, {
