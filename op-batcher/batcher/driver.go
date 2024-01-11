@@ -171,7 +171,7 @@ func (l *BatchSubmitter) loadBlocksIntoState(ctx context.Context) error {
 		latestBlock = block
 	}
 
-	l2ref, err := derive.L2BlockToBlockRef(latestBlock, &l.RollupConfig.Genesis)
+	l2ref, err := derive.L2BlockToBlockRef(l.RollupConfig, latestBlock)
 	if err != nil {
 		l.Log.Warn("Invalid L2 block loaded into state", "err", err)
 		return err

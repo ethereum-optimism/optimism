@@ -124,7 +124,7 @@ func testVerifyL2OutputRootEmptyBlock(t *testing.T, detached bool, spanBatchActi
 	t.Log("Wait for sequencer to catch up with last submitted batch")
 	l1HeadNum, err := l1Client.BlockNumber(ctx)
 	require.NoError(t, err)
-	_, err = geth.WaitForL1OriginOnL2(l1HeadNum, l2Seq, 30*time.Second)
+	_, err = geth.WaitForL1OriginOnL2(sys.RollupConfig, l1HeadNum, l2Seq, 30*time.Second)
 	require.NoError(t, err)
 
 	// Get the current safe head now that the batcher is stopped

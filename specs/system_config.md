@@ -46,7 +46,13 @@ attribute info.
 
 #### `l1BasefeeScalar`,`l1BlobBasefeeScalar` (`uint32,uint32`)
 
-After the Ecotone upgrade, `l1BasefeeScalar` and `l1BlobBasefeeScalar` are passed to the L2 instead.
+After the Ecotone upgrade, `l1BasefeeScalar` and `l1BlobBasefeeScalar` are passed to the L2
+instead.
+
+The only exception is for chains that have genesis prior to Ecotone and go through the Ecotone
+transition. For these chains, the very first Ecotone block will pass the older
+parameters. Thereafter and up until a type `4` log event is processed, `l1BasefeeScalar` passed to
+the L2 *must* be set to the value of `scalar`, or MaxUint32 if `scalar` is outside 32-bit range.
 
 ### `gasLimit` (`uint64`)
 

@@ -160,7 +160,7 @@ func NewEngineQueue(log log.Logger, cfg *rollup.Config, engine Engine, metrics M
 	return &EngineQueue{
 		log:            log,
 		cfg:            cfg,
-		ec:             NewEngineController(engine, log, metrics, cfg.Genesis, syncCfg.SyncMode),
+		ec:             NewEngineController(engine, log, metrics, cfg, syncCfg.SyncMode),
 		engine:         engine,
 		metrics:        metrics,
 		finalityData:   make([]FinalityData, 0, finalityLookback),
@@ -441,7 +441,7 @@ func (eq *EngineQueue) tryNextUnsafePayload(ctx context.Context) error {
 		return io.EOF // time to go to next stage if we cannot process the first unsafe payload
 	}
 
-	ref, err := PayloadToBlockRef(first, &eq.cfg.Genesis)
+	ref, err := PayloadToBlockRef(eq.cfg, first)
 	if err != nil {
 		eq.log.Error("failed to decode L2 block ref from payload", "err", err)
 		eq.unsafePayloads.Pop()
@@ -510,12 +510,12 @@ func (eq *EngineQueue) consolidateNextSafeAttributes(ctx context.Context) error 
 		}
 		return NewTemporaryError(fmt.Errorf("failed to get existing unsafe payload to compare against derived attributes from L1: %w", err))
 	}
-	if err := AttributesMatchBlock(eq.safeAttributes.attributes, eq.ec.PendingSafeL2Head().Hash, payload, eq.log); err != nil {
+	if err := AttributesMatchBlock(eq.cfg, eq.safeAttributes.attributes, eq.ec.PendingSafeL2Head().Hash, payload, eq.log); err != nil {
 		eq.log.Warn("L2 reorg: existing unsafe block does not match derived attributes from L1", "err", err, "unsafe", eq.ec.UnsafeL2Head(), "pending_safe", eq.ec.PendingSafeL2Head(), "safe", eq.ec.SafeL2Head())
 		// geth cannot wind back a chain without reorging to a new, previously non-canonical, block
 		return eq.forceNextSafeAttributes(ctx)
 	}
-	ref, err := PayloadToBlockRef(payload, &eq.cfg.Genesis)
+	ref, err := PayloadToBlockRef(eq.cfg, payload)
 	if err != nil {
 		return NewResetError(fmt.Errorf("failed to decode L2 block ref from payload: %w", err))
 	}
@@ -665,7 +665,7 @@ func (eq *EngineQueue) Reset(ctx context.Context, _ eth.L1BlockRef, _ eth.System
 // UnsafeL2SyncTarget retrieves the first queued-up L2 unsafe payload, or a zeroed reference if there is none.
 func (eq *EngineQueue) UnsafeL2SyncTarget() eth.L2BlockRef {
 	if first := eq.unsafePayloads.Peek(); first != nil {
-		ref, err := PayloadToBlockRef(first, &eq.cfg.Genesis)
+		ref, err := PayloadToBlockRef(eq.cfg, first)
 		if err != nil {
 			return eth.L2BlockRef{}
 		}

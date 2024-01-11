@@ -8,6 +8,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rlp"
+
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 )
 
 type SpanChannelOut struct {
@@ -63,12 +65,12 @@ func (co *SpanChannelOut) Reset() error {
 // and an error if there is a problem adding the block. The only sentinel error
 // that it returns is ErrTooManyRLPBytes. If this error is returned, the channel
 // should be closed and a new one should be made.
-func (co *SpanChannelOut) AddBlock(block *types.Block) (uint64, error) {
+func (co *SpanChannelOut) AddBlock(rollupCfg *rollup.Config, block *types.Block) (uint64, error) {
 	if co.closed {
 		return 0, ErrChannelOutAlreadyClosed
 	}
 
-	batch, l1Info, err := BlockToSingularBatch(block)
+	batch, l1Info, err := BlockToSingularBatch(rollupCfg, block)
 	if err != nil {
 		return 0, err
 	}

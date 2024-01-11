@@ -246,7 +246,7 @@ func TestInvalidPayloadInSpanBatch(gt *testing.T) {
 			block = block.WithBody([]*types.Transaction{block.Transactions()[0], invalidTx}, []*types.Header{})
 		}
 		// Add A1 ~ A12 into the channel
-		_, err = channelOut.AddBlock(block)
+		_, err = channelOut.AddBlock(sd.RollupCfg, block)
 		require.NoError(t, err)
 	}
 
@@ -304,7 +304,7 @@ func TestInvalidPayloadInSpanBatch(gt *testing.T) {
 			block = block.WithBody([]*types.Transaction{block.Transactions()[0], tx}, []*types.Header{})
 		}
 		// Add B1, A2 ~ A12 into the channel
-		_, err = channelOut.AddBlock(block)
+		_, err = channelOut.AddBlock(sd.RollupCfg, block)
 		require.NoError(t, err)
 	}
 	// Submit span batch(B1, A2, ... A12)
