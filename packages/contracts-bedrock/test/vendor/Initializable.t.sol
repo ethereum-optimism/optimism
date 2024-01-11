@@ -228,6 +228,22 @@ contract Initializer_Test is Bridge_Initializer {
                 initializedSlotVal: deploy.loadInitializedSlot("L2ERC721Bridge")
             })
         );
+        // OptimismMintableERC20FactoryImpl
+        contracts.push(
+            InitializeableContract({
+                target: deploy.mustGetAddress("OptimismMintableERC20Factory"),
+                initCalldata: abi.encodeCall(l1OptimismMintableERC20Factory.initialize, (address(l1StandardBridge))),
+                initializedSlotVal: deploy.loadInitializedSlot("OptimismMintableERC20Factory")
+            })
+        );
+        // OptimismMintableERC20FactoryProxy
+        contracts.push(
+            InitializeableContract({
+                target: address(l1OptimismMintableERC20Factory),
+                initCalldata: abi.encodeCall(l1OptimismMintableERC20Factory.initialize, (address(l1StandardBridge))),
+                initializedSlotVal: deploy.loadInitializedSlot("OptimismMintableERC20FactoryProxy")
+            })
+        );
     }
 
     /// @notice Tests that:
@@ -236,8 +252,9 @@ contract Initializer_Test is Bridge_Initializer {
     ///            contracts are initialized.
     ///         3. The `initialize()` function of each contract cannot be called more than once.
     function test_cannotReinitialize_succeeds() public {
-        // Ensure that all L1 `Initializable` contracts are accounted for.
-        assertEq(_getNumInitializable(), contracts.length);
+        // Ensure that all L1, L2 `Initializable` contracts are accounted for, in addition to
+        // OptimismMintableERC20FactoryImpl and OptimismMintableERC20FactoryProxy
+        assertEq(_getNumInitializable() + 2, contracts.length);
 
         // Attempt to re-initialize all contracts within the `contracts` array.
         for (uint256 i; i < contracts.length; i++) {

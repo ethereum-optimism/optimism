@@ -770,12 +770,8 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (*immutables
 			Bridge:        predeploys.L2ERC721BridgeAddr,
 			RemoteChainId: new(big.Int).SetUint64(config.L1ChainID),
 		},
-		OptimismMintableERC20Factory: struct {
-			Bridge common.Address
-		}{
-			Bridge: predeploys.L2StandardBridgeAddr,
-		},
-		ProxyAdmin: struct{}{},
+		OptimismMintableERC20Factory: struct{}{},
+		ProxyAdmin:                   struct{}{},
 		BaseFeeVault: struct {
 			Recipient           common.Address
 			MinWithdrawalAmount *big.Int
@@ -837,6 +833,11 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 	storage["L2ERC721Bridge"] = state.StorageValues{
 		"_initialized":  1,
 		"_initializing": false,
+	}
+	storage["OptimismMintableERC20Factory"] = state.StorageValues{
+		"_initialized":  1,
+		"_initializing": false,
+		"bridge":        predeploys.L2StandardBridgeAddr,
 	}
 	storage["L1Block"] = state.StorageValues{
 		"number":         block.Number(),

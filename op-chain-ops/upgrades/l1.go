@@ -18,8 +18,6 @@ const (
 	// upgradeAndCall represents the signature of the upgradeAndCall function
 	// on the ProxyAdmin contract.
 	upgradeAndCall = "upgradeAndCall(address,address,bytes)"
-	// upgrade represents the signature of the upgrade function on the ProxyAdmin contract.
-	upgrade = "upgrade(address,address)"
 
 	method = "setBytes32"
 )
@@ -444,13 +442,40 @@ func OptimismMintableERC20Factory(batch *safe.Batch, implementations superchain.
 		}
 	}
 
+	optimismMintableERC20FactoryABI, err := bindings.OptimismMintableERC20FactoryMetaData.GetAbi()
+	if err != nil {
+		return err
+	}
+
+	optimismMintableERC20Factory, err := bindings.NewOptimismMintableERC20FactoryCaller(common.HexToAddress(list.OptimismMintableERC20FactoryProxy.String()), backend)
+	if err != nil {
+		return err
+	}
+
+	bridge, err := optimismMintableERC20Factory.Bridge(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+
+	if config != nil {
+		if bridge != config.L1StandardBridgeProxy {
+			return fmt.Errorf("upgrading OptimismMintableERC20Factory: Bridge address doesn't match config")
+		}
+	}
+
+	calldata, err := optimismMintableERC20FactoryABI.Pack("initialize", bridge)
+	if err != nil {
+		return err
+	}
+
 	args := []any{
 		common.HexToAddress(list.OptimismMintableERC20FactoryProxy.String()),
 		common.HexToAddress(implementations.OptimismMintableERC20Factory.Address.String()),
+		calldata,
 	}
 
 	proxyAdmin := common.HexToAddress(list.ProxyAdmin.String())
-	if err := batch.AddCall(proxyAdmin, common.Big0, upgrade, args, proxyAdminABI); err != nil {
+	if err := batch.AddCall(proxyAdmin, common.Big0, upgradeAndCall, args, proxyAdminABI); err != nil {
 		return err
 	}
 
