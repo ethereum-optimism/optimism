@@ -20,17 +20,24 @@ contract SubmitLPP is Script, StdAssertions {
         // Bootstrap
         oracle = PreimageOracle(_po);
 
-        // Allocate chunk
+        // Allocate chunk - worst case w/ all bits set.
         bytes memory chunk = new bytes(CHUNK_SIZE);
+        for (uint256 i; i < chunk.length; i++) {
+            chunk[i] = 0xFF;
+        }
+
+        // Mock state commitments. Worst case w/ all bits set.
         bytes32[] memory mockStateCommitments = new bytes32[](CHUNK_SIZE / 136);
         bytes32[] memory mockStateCommitmentsLast = new bytes32[](CHUNK_SIZE / 136 + 1);
+        for (uint256 i; i < mockStateCommitments.length; i++) {
+            mockStateCommitments[i] = bytes32(type(uint256).max);
+            mockStateCommitmentsLast[i] = bytes32(type(uint256).max);
+        }
+        // Assign last mock state commitment to all bits set.
+        mockStateCommitmentsLast[mockStateCommitmentsLast.length - 1] = bytes32(type(uint256).max);
 
         vm.broadcast();
-        oracle.initLPP({
-            _uuid: TEST_UUID,
-            _partOffset: 0,
-            _claimedSize: uint32(BYTES_TO_SUBMIT)
-        });
+        oracle.initLPP({ _uuid: TEST_UUID, _partOffset: 0, _claimedSize: uint32(BYTES_TO_SUBMIT) });
 
         // Submit LPP in 500 * 136 byte chunks.
         for (uint256 i = 0; i < BYTES_TO_SUBMIT; i += CHUNK_SIZE) {
