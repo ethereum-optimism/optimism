@@ -44,7 +44,10 @@ type OpNode struct {
 	l1SafeSub      ethereum.Subscription // Subscription to get L1 safe blocks, a.k.a. justified data (polling)
 	l1FinalizedSub ethereum.Subscription // Subscription to get L1 safe blocks, a.k.a. justified data (polling)
 
-	l1Source  *sources.L1Client     // L1 Client to fetch data from
+	interopFinalizedSubs map[uint64]ethereum.Subscription
+
+	l1Source *sources.L1Client // L1 Client to fetch data from
+
 	l2Driver  *driver.Driver        // L2 Engine to Sync
 	l2Source  *sources.EngineClient // L2 Execution Engine RPC bindings
 	server    *rpcServer            // RPC server hosting the rollup-node API
@@ -118,6 +121,9 @@ func (n *OpNode) init(ctx context.Context, cfg *Config, snapshotLog log.Logger) 
 	}
 	if err := n.initL1BeaconAPI(ctx, cfg); err != nil {
 		return err
+	}
+	if err := n.initInterop(ctx, cfg); err != nil {
+		return fmt.Errorf("failed to init Interop: %w", err)
 	}
 	if err := n.initL2(ctx, cfg, snapshotLog); err != nil {
 		return fmt.Errorf("failed to init L2: %w", err)
@@ -328,6 +334,69 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config, snapshotLog log.Logger
 
 	n.l2Driver = driver.NewDriver(&cfg.Driver, &cfg.Rollup, n.l2Source, n.l1Source, n.beacon, n, n, n.log, snapshotLog, n.metrics, cfg.ConfigPersistence, &cfg.Sync)
 
+	return nil
+}
+
+func (n *OpNode) initInterop(ctx context.Context, cfg *Config) error {
+	clnts := map[uint64]client.RPC{}
+	for _, chainId := range cfg.InteropL2s.Chains() {
+		l2Setup, err := cfg.InteropL2s.Setup(chainId)
+		if err != nil {
+			return fmt.Errorf("failed setup interop L2 remote client (chain %d): %w", chainId, err)
+		}
+
+		// We are using L1 client confguration as we want a general RPC connection.
+		// Framework code will be cleaned up such that the L1Client libraries will be
+		// generalized to any ETH chain
+		rpcClient, l1Cfg, err := l2Setup.Setup(ctx, n.log, &cfg.Rollup)
+		if err != nil {
+			return fmt.Errorf("failed to get L2 RPC client (chain %d): %w", chainId, err)
+		}
+
+		// Replace the L1Cfg with the default L2 client config. Since we are dealing only
+		// with finalized L2 state, we can trust this rpc. Generally these interop nodes
+		// should be local full nodes anyways so trusting the connection is fine.
+		//  - TODO: instrument rpc metrics per remote client
+		defaultL2ClientConfig := sources.L2ClientDefaultConfig(&cfg.Rollup, true)
+		l1Cfg.EthClientConfig = defaultL2ClientConfig.EthClientConfig
+		l2Source, err := sources.NewL1Client(rpcClient, n.log, n.metrics.InteropL2SourceCache, l1Cfg)
+		if err != nil {
+			return fmt.Errorf("failed to create L2 source: %w", err)
+		}
+
+		// ensure chain id configuration matches
+		fetchedChainId, err := l2Source.ChainID(context.Background())
+		if err != nil {
+			return fmt.Errorf("failed to fetch chain id (chain %d), chainId", err)
+		}
+		if fetchedChainId.Uint64() != chainId {
+			return fmt.Errorf("mismatch in chain id. expected %d, got: %d", chainId, fetchedChainId)
+		}
+
+		// Ahead of time establish a subscription of finalized head updates.
+		//
+		// TODO/NOTE: However, we expect interop chains to tie into the SystemConfig which would specify
+		// the chains eligible to bridge messages. This can change dynamically and should be gracefully
+		// handled. We dont need to watch for updates of chains we are no longer interested in.
+
+		// NOTE: The L2 & Interop nodes should be syncing from the same L1 peer which ensure that
+		// each L2 has the same localized view of L1 state. Otherwise, we'll need to introduce logic
+		// that ensures the local finalization marker of a given L2 doesn't lag far behind.
+		headSignal := func(ctx context.Context, sig eth.L1BlockRef) {
+			if n.l2Driver == nil {
+				return
+			}
+			ctx, cancel := context.WithTimeout(ctx, time.Second*10)
+			defer cancel()
+			// TODO: notify the driver
+		}
+		n.interopFinalizedSubs[chainId] = eth.PollBlockChanges(n.log, l2Source, headSignal, eth.Finalized,
+			cfg.L1EpochPollInterval, time.Second*10)
+
+		clnts[chainId] = rpcClient
+	}
+
+	// TODO: setup message queue which gets passed to the driver
 	return nil
 }
 

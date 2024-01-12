@@ -83,8 +83,9 @@ type Metrics struct {
 
 	metrics.RPCMetrics
 
-	L1SourceCache *metrics.CacheMetrics
-	L2SourceCache *metrics.CacheMetrics
+	L1SourceCache        *metrics.CacheMetrics
+	L2SourceCache        *metrics.CacheMetrics
+	InteropL2SourceCache *metrics.CacheMetrics
 
 	DerivationIdle prometheus.Gauge
 
@@ -180,8 +181,9 @@ func NewMetrics(procName string) *Metrics {
 
 		RPCMetrics: metrics.MakeRPCMetrics(ns, factory),
 
-		L1SourceCache: metrics.NewCacheMetrics(factory, ns, "l1_source_cache", "L1 Source cache"),
-		L2SourceCache: metrics.NewCacheMetrics(factory, ns, "l2_source_cache", "L2 Source cache"),
+		L1SourceCache:        metrics.NewCacheMetrics(factory, ns, "l1_source_cache", "L1 Source cache"),
+		L2SourceCache:        metrics.NewCacheMetrics(factory, ns, "l2_source_cache", "L2 Source cache"),
+		InteropL2SourceCache: metrics.NewCacheMetrics(factory, ns, "interop_l2_source_cache", "Interop L2 Source cache"),
 
 		DerivationIdle: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: ns,

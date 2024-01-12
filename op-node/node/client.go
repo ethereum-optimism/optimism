@@ -34,6 +34,53 @@ type L1BeaconEndpointSetup interface {
 	Check() error
 }
 
+type InteropEndpointsSetup interface {
+	Chains() []uint64
+
+	// Reuse the L1EndpointConfig for now. This should be refactored into a generalized
+	// RPCEndpointConfig that can be shared between connected L1 & L2 Interop chains
+	Setup(remoteChainId uint64) (L1EndpointSetup, error)
+	Check() error
+}
+
+type InteropEndpointsConfig struct {
+	// Reuse the L1EndpointConfig for now. This should be refactored into a generalized
+	// RPCEndpointConfig that can be shared between connected L1 & L2 Interop chains
+	ChainCfgs map[uint64]L1EndpointConfig
+}
+
+var _ InteropEndpointsSetup = (*InteropEndpointsConfig)(nil)
+
+func (cfg *InteropEndpointsConfig) Setup(chainId uint64) (L1EndpointSetup, error) {
+	setup, ok := cfg.ChainCfgs[chainId]
+	if !ok {
+		return nil, fmt.Errorf("endpoint configuration does not exist for interop chain %d", chainId)
+	}
+
+	return &setup, nil
+}
+
+func (cfg *InteropEndpointsConfig) Chains() []uint64 {
+	chains := make([]uint64, 0, len(cfg.ChainCfgs))
+	for chainId, _ := range cfg.ChainCfgs {
+		chains = append(chains, chainId)
+	}
+
+	return chains
+}
+
+func (cfg *InteropEndpointsConfig) Check() error {
+	var err []error
+	for _, chainCfg := range cfg.ChainCfgs {
+		cfgErr := chainCfg.Check()
+		if cfgErr != nil {
+			err = append(err, fmt.Errorf("invalid endpoint configuration for interop chain %w", cfgErr))
+		}
+	}
+
+	return errors.Join(err...)
+}
+
 type L2EndpointConfig struct {
 	// L2EngineAddr is the address of the L2 Engine JSON-RPC endpoint to use. The engine and eth
 	// namespaces must be enabled by the endpoint.

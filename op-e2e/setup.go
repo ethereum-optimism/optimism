@@ -563,6 +563,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	for name, rollupCfg := range cfg.Nodes {
 		configureL1(rollupCfg, sys.EthInstances["l1"])
 		configureL2(rollupCfg, sys.EthInstances[name], cfg.JWTSecret)
+		configureInterop(rollupCfg)
 	}
 
 	// Geth Clients
@@ -858,6 +859,11 @@ func configureL1(rollupNodeCfg *rollupNode.Config, l1Node EthInstance) {
 		HttpPollInterval: time.Millisecond * 100,
 		MaxConcurrency:   10,
 	}
+}
+
+// disable for now
+func configureInterop(rollupNodeCfg *rollupNode.Config) {
+	rollupNodeCfg.InteropL2s = &rollupNode.InteropEndpointsConfig{}
 }
 
 type WSOrHTTPEndpoint interface {

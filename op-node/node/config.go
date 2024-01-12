@@ -17,8 +17,9 @@ import (
 )
 
 type Config struct {
-	L1 L1EndpointSetup
-	L2 L2EndpointSetup
+	L1         L1EndpointSetup
+	L2         L2EndpointSetup
+	InteropL2s InteropEndpointsSetup
 
 	Beacon L1BeaconEndpointSetup
 
@@ -122,6 +123,9 @@ func (cfg *Config) LoadPersisted(log log.Logger) error {
 func (cfg *Config) Check() error {
 	if err := cfg.L1.Check(); err != nil {
 		return fmt.Errorf("l2 endpoint config error: %w", err)
+	}
+	if err := cfg.InteropL2s.Check(); err != nil {
+		return fmt.Errorf("interop endpoint config error: %w", err)
 	}
 	if err := cfg.L2.Check(); err != nil {
 		return fmt.Errorf("l2 endpoint config error: %w", err)

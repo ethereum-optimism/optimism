@@ -57,6 +57,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 	}
 
 	l1Endpoint := NewL1EndpointConfig(ctx)
+	interopEndpoints := NewInteropEndpointsConfig(ctx)
 
 	l2Endpoint, err := NewL2EndpointConfig(ctx, log)
 	if err != nil {
@@ -74,10 +75,11 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 	}
 
 	cfg := &node.Config{
-		L1:     l1Endpoint,
-		L2:     l2Endpoint,
-		Rollup: *rollupConfig,
-		Driver: *driverConfig,
+		L1:         l1Endpoint,
+		L2:         l2Endpoint,
+		InteropL2s: interopEndpoints,
+		Rollup:     *rollupConfig,
+		Driver:     *driverConfig,
 		RPC: node.RPCConfig{
 			ListenAddr:  ctx.String(flags.RPCListenAddr.Name),
 			ListenPort:  ctx.Int(flags.RPCListenPort.Name),
@@ -158,6 +160,13 @@ func NewL2EndpointConfig(ctx *cli.Context, log log.Logger) (*node.L2EndpointConf
 		L2EngineAddr:      l2Addr,
 		L2EngineJWTSecret: secret,
 	}, nil
+}
+
+func NewInteropEndpointsConfig(ctx *cli.Context) *node.InteropEndpointsConfig {
+	// define flags
+	return &node.InteropEndpointsConfig{
+		ChainCfgs: map[uint64]node.L1EndpointConfig{},
+	}
 }
 
 func NewConfigPersistence(ctx *cli.Context) node.ConfigPersistence {
