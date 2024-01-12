@@ -49,9 +49,9 @@ test/kontrol
 - [`run-kontrol.sh`](./scrpts/run-kontrol.sh): Proof execution script
 - [`json`](./scripts/json): Data cleaning scripts for the output of [`KontrolDeployment.sol`](./KontrolDeployment.sol)
 
-## Verification exeuction
+## Verification execution
 
-The verification execution consists of two steps, although the first step may be ommited to use the commited version. There's one script to run per step. These scripts should be run from the [`contracts-bedrock`](../../) directory.
+The verification execution consists of two steps, although the first step may be omitted to use the committed version. There's one script to run per step. These scripts should be run from the [`contracts-bedrock`](../../) directory.
 
 1. Generate a deployment summary contract from [`KontrolDeployment.sol`](./KontrolDeployment.sol)
 ```bash
