@@ -1,5 +1,18 @@
-import json
+"""
+Description:
+    Reverses the key-value pairs of a given JSON
+    The use case for this script within the project is to reverse the key-value
+    pairs of the auto generated file contracts-bedrock/deployments/hardhat/.deployment
+    so that it can be fed as the `--contract-names` argument to `kontrol summary`
+    This script is used in ../make-summary-deployment.sh
+
+Usage:
+    To reverse the order of an $input_file and save it to an $output_file run
+    `python3 reverse_key_values.py $input_file $output_file`
+"""
+
 import sys
+import json
 
 def reverse_json(input_file, output_file):
     try:
