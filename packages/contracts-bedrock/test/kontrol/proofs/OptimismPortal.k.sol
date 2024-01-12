@@ -21,7 +21,7 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
 
     /// TODO: Replace struct parameters and workarounds with the appropriate
     /// types once Kontrol supports symbolic `bytes` and `bytes[]`
-    function proof_proveWithdrawalTransaction_paused(
+    function prove_proveWithdrawalTransaction_paused(
         // WithdrawalTransaction args
         uint256 _tx0,
         address _tx1,
@@ -63,7 +63,7 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
 
     /// TODO: Replace struct parameters and workarounds with the appropiate
     /// types once Kontrol supports symbolic `bytes` and `bytes[]`
-    function proof_finalizeWithdrawalTransaction_paused(
+    function prove_finalizeWithdrawalTransaction_paused(
         address _tx1,
         address _tx2,
         uint256 _tx0,

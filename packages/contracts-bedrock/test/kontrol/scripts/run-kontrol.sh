@@ -155,7 +155,7 @@ dump_log_results(){
     fi
     # Report where the file was generated and placed
     notif "Results Log: $(dirname "${RESULTS_LOG}") generated"
-    
+
     if [ "${LOCAL}" = false ]; then
       notif "Results Log: ${RESULTS_LOG} generated"
       blank_line
@@ -226,8 +226,8 @@ use_booster=--use-booster
 #########################################
 tests=""
 tests+="--match-test CounterTest.test_SetNumber "
-#tests+="--match-test OptimismPortalKontrol.proof_proveWithdrawalTransaction_paused "
-#tests+="--match-test OptimismPortalKontrol.proof_finalizeWithdrawalTransaction_paused "
+#tests+="--match-test OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused "
+#tests+="--match-test OptimismPortalKontrol.prove_finalizeWithdrawalTransaction_paused "
 
 #############
 # RUN TESTS #
