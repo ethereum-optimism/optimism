@@ -58,24 +58,6 @@ abstract contract KontrolUtils is KontrolCheats {
         _tx = Types.WithdrawalTransaction(nonce, sender, target, value, gasLimit, data);
     }
 
-    function freshBytesArray(uint256 symbolicArrayLength) public returns (bytes[] memory symbolicArray) {
-        symbolicArray = new bytes[](symbolicArrayLength);
-
-        for (uint256 i = 0; i < symbolicArray.length; ++i) {
-            symbolicArray[i] = abi.encodePacked(kevm.freshUInt(32));
-        }
-    }
-
-    /// @dev Returns a symbolic bytes32
-    function freshBytes32() public returns (bytes32) {
-        return bytes32(kevm.freshUInt(32));
-    }
-
-    /// @dev Returns a symbolic address
-    function freshAddress() public returns (address) {
-        return address(uint160(kevm.freshUInt(20)));
-    }
-
     /// @dev Creates a fresh bytes with length greater than 31
     /// @param bytesLength: Length of the fresh bytes. Should be concrete
     function freshBigBytes(uint256 bytesLength) internal returns (bytes memory sBytes) {
