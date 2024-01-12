@@ -26,6 +26,7 @@ ARG OP_PROGRAM_VERSION=v0.0.0
 
 ARG TARGETOS TARGETARCH
 
+# Build the cannon, op-program, and op-program-client.elf binaries.
 RUN --mount=type=cache,target=/root/.cache/go-build cd cannon && make cannon  \
     GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$CANNON_VERSION"
 RUN --mount=type=cache,target=/root/.cache/go-build cd op-program && make op-program-host  \
@@ -36,13 +37,12 @@ RUN --mount=type=cache,target=/root/.cache/go-build cd op-program && make op-pro
 # Run the op-program-client.elf binary directly through cannon's load-elf subcommand.
 RUN /app/cannon/bin/cannon load-elf --path /app/op-program/bin/op-program-client.elf --out /app/op-program/bin/prestate.json --meta ""
 
-# Generate the prestate proof.
+# Generate the prestate proof containing the absolute pre-state hash.
 RUN /app/cannon/bin/cannon run --proof-at '=0' --stop-at '=1' --input /app/op-program/bin/prestate.json --meta "" --proof-fmt '/app/op-program/bin/%d.json' --output ""
 RUN mv /app/op-program/bin/0.json /app/op-program/bin/prestate-proof.json
 
-# Export the prestate.json file to the specified output location.
-# The output location can be overridden by setting the target's output.
-# Additionally, writing files to host requires buildkit to be enabled.
+# Exports files to the specified output location.
+# Writing files to host requires buildkit to be enabled.
 # e.g. `BUILDKIT=1 docker build ...`
 FROM scratch AS export-stage
 COPY --from=builder /app/op-program/bin/op-program .
