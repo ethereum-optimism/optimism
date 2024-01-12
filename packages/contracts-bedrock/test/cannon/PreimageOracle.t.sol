@@ -293,10 +293,10 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         LibKeccak.StateMatrix memory matrix;
         PreimageOracle.Leaf[] memory leaves = _generateLeaves(matrix, data);
 
-        // Create a proof array with 15 elements.
-        bytes32[] memory preProof = new bytes32[](15);
+        // Create a proof array with 16 elements.
+        bytes32[] memory preProof = new bytes32[](16);
         preProof[0] = _hashLeaf(leaves[1]);
-        bytes32[] memory postProof = new bytes32[](15);
+        bytes32[] memory postProof = new bytes32[](16);
         postProof[0] = _hashLeaf(leaves[0]);
         for (uint256 i = 1; i < preProof.length; i++) {
             bytes32 zeroHash = oracle.zeroHashes(i);
@@ -347,10 +347,10 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         leaves[0].stateCommitment = stateCommitments[0];
         leaves[1].stateCommitment = stateCommitments[1];
 
-        // Create a proof array with 15 elements.
-        bytes32[] memory preProof = new bytes32[](15);
+        // Create a proof array with 16 elements.
+        bytes32[] memory preProof = new bytes32[](16);
         preProof[0] = _hashLeaf(leaves[1]);
-        bytes32[] memory postProof = new bytes32[](15);
+        bytes32[] memory postProof = new bytes32[](16);
         postProof[0] = _hashLeaf(leaves[0]);
         for (uint256 i = 1; i < preProof.length; i++) {
             bytes32 zeroHash = oracle.zeroHashes(i);
@@ -411,9 +411,9 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
             _uuid: TEST_UUID,
             _stateMatrix: _stateMatrixAtBlockIndex(data, 1),
             _preState: leaves[0],
-            _preStateProof: new bytes32[](15),
+            _preStateProof: new bytes32[](16),
             _postState: leaves[1],
-            _postStateProof: new bytes32[](15)
+            _postStateProof: new bytes32[](16)
         });
     }
 
@@ -439,9 +439,9 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
             _uuid: TEST_UUID,
             _stateMatrix: _stateMatrixAtBlockIndex(data, 1),
             _preState: leaves[0],
-            _preStateProof: new bytes32[](15),
+            _preStateProof: new bytes32[](16),
             _postState: leaves[1],
-            _postStateProof: new bytes32[](15)
+            _postStateProof: new bytes32[](16)
         });
     }
 
@@ -465,10 +465,10 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         LibKeccak.StateMatrix memory matrix;
         PreimageOracle.Leaf[] memory leaves = _generateLeaves(matrix, data);
 
-        // Create a proof array with 15 elements.
-        bytes32[] memory preProof = new bytes32[](15);
+        // Create a proof array with 16 elements.
+        bytes32[] memory preProof = new bytes32[](16);
         preProof[0] = _hashLeaf(leaves[1]);
-        bytes32[] memory postProof = new bytes32[](15);
+        bytes32[] memory postProof = new bytes32[](16);
         postProof[0] = _hashLeaf(leaves[0]);
         for (uint256 i = 1; i < preProof.length; i++) {
             bytes32 zeroHash = oracle.zeroHashes(i);
@@ -511,10 +511,10 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         LibKeccak.StateMatrix memory matrix;
         PreimageOracle.Leaf[] memory leaves = _generateLeaves(matrix, data);
 
-        // Create a proof array with 15 elements.
-        bytes32[] memory preProof = new bytes32[](15);
+        // Create a proof array with 16 elements.
+        bytes32[] memory preProof = new bytes32[](16);
         preProof[0] = _hashLeaf(leaves[1]);
-        bytes32[] memory postProof = new bytes32[](15);
+        bytes32[] memory postProof = new bytes32[](16);
         postProof[0] = _hashLeaf(leaves[0]);
         for (uint256 i = 1; i < preProof.length; i++) {
             bytes32 zeroHash = oracle.zeroHashes(i);
@@ -557,10 +557,10 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         LibKeccak.StateMatrix memory matrix;
         PreimageOracle.Leaf[] memory leaves = _generateLeaves(matrix, data);
 
-        // Create a proof array with 15 elements.
-        bytes32[] memory preProof = new bytes32[](15);
+        // Create a proof array with 16 elements.
+        bytes32[] memory preProof = new bytes32[](16);
         preProof[0] = _hashLeaf(leaves[1]);
-        bytes32[] memory postProof = new bytes32[](15);
+        bytes32[] memory postProof = new bytes32[](16);
         postProof[0] = _hashLeaf(leaves[0]);
         for (uint256 i = 1; i < preProof.length; i++) {
             bytes32 zeroHash = oracle.zeroHashes(i);
@@ -602,10 +602,10 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         LibKeccak.StateMatrix memory matrix;
         PreimageOracle.Leaf[] memory leaves = _generateLeaves(matrix, data);
 
-        // Create a proof array with 15 elements.
-        bytes32[] memory preProof = new bytes32[](15);
+        // Create a proof array with 16 elements.
+        bytes32[] memory preProof = new bytes32[](16);
         preProof[0] = _hashLeaf(leaves[1]);
-        bytes32[] memory postProof = new bytes32[](15);
+        bytes32[] memory postProof = new bytes32[](16);
         postProof[0] = _hashLeaf(leaves[0]);
         for (uint256 i = 1; i < preProof.length; i++) {
             bytes32 zeroHash = oracle.zeroHashes(i);
@@ -647,8 +647,8 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         LibKeccak.StateMatrix memory matrix;
         PreimageOracle.Leaf[] memory leaves = _generateLeaves(matrix, data);
 
-        // Create a proof array with 15 elements.
-        bytes32[] memory p = new bytes32[](15);
+        // Create a proof array with 16 elements.
+        bytes32[] memory p = new bytes32[](16);
         p[0] = _hashLeaf(leaves[1]);
         for (uint256 i = 1; i < p.length; i++) {
             p[i] = oracle.zeroHashes(i);
@@ -689,8 +689,8 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         leaves[0].stateCommitment = stateCommitments[0];
         leaves[1].stateCommitment = stateCommitments[1];
 
-        // Create a proof array with 15 elements.
-        bytes32[] memory p = new bytes32[](15);
+        // Create a proof array with 16 elements.
+        bytes32[] memory p = new bytes32[](16);
         p[0] = _hashLeaf(leaves[0]);
         for (uint256 i = 1; i < p.length; i++) {
             p[i] = oracle.zeroHashes(i);
@@ -729,8 +729,8 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         leaves[0].stateCommitment = stateCommitments[0];
         leaves[1].stateCommitment = stateCommitments[1];
 
-        // Create a proof array with 15 elements.
-        bytes32[] memory p = new bytes32[](15);
+        // Create a proof array with 16 elements.
+        bytes32[] memory p = new bytes32[](16);
         p[0] = _hashLeaf(leaves[1]);
         for (uint256 i = 1; i < p.length; i++) {
             p[i] = oracle.zeroHashes(i);
@@ -768,10 +768,10 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         LibKeccak.StateMatrix memory matrix;
         PreimageOracle.Leaf[] memory leaves = _generateLeaves(matrix, data);
 
-        // Create a proof array with 15 elements.
-        bytes32[] memory preProof = new bytes32[](15);
+        // Create a proof array with 16 elements.
+        bytes32[] memory preProof = new bytes32[](16);
         preProof[0] = _hashLeaf(leaves[1]);
-        bytes32[] memory postProof = new bytes32[](15);
+        bytes32[] memory postProof = new bytes32[](16);
         postProof[0] = _hashLeaf(leaves[0]);
         for (uint256 i = 1; i < preProof.length; i++) {
             bytes32 zeroHash = oracle.zeroHashes(i);
@@ -823,11 +823,11 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         leaves[1].stateCommitment = stateCommitments[1];
         leaves[2].stateCommitment = stateCommitments[2];
 
-        // Create a proof array with 15 elements.
-        bytes32[] memory preProof = new bytes32[](15);
+        // Create a proof array with 16 elements.
+        bytes32[] memory preProof = new bytes32[](16);
         preProof[0] = _hashLeaf(leaves[1]);
         preProof[1] = keccak256(abi.encode(_hashLeaf(leaves[2]), bytes32(0)));
-        bytes32[] memory postProof = new bytes32[](15);
+        bytes32[] memory postProof = new bytes32[](16);
         postProof[0] = _hashLeaf(leaves[0]);
         postProof[1] = keccak256(abi.encode(_hashLeaf(leaves[2]), bytes32(0)));
         for (uint256 i = 2; i < preProof.length; i++) {
@@ -877,11 +877,11 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         leaves[1].stateCommitment = stateCommitments[1];
         leaves[2].stateCommitment = stateCommitments[2];
 
-        // Create a proof array with 15 elements.
-        bytes32[] memory preProof = new bytes32[](15);
+        // Create a proof array with 16 elements.
+        bytes32[] memory preProof = new bytes32[](16);
         preProof[0] = _hashLeaf(leaves[1]);
         preProof[1] = keccak256(abi.encode(_hashLeaf(leaves[2]), bytes32(0)));
-        bytes32[] memory postProof = new bytes32[](15);
+        bytes32[] memory postProof = new bytes32[](16);
         postProof[0] = _hashLeaf(leaves[0]);
         postProof[1] = keccak256(abi.encode(_hashLeaf(leaves[2]), bytes32(0)));
         for (uint256 i = 2; i < preProof.length; i++) {
@@ -931,11 +931,11 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         leaves[1].stateCommitment = stateCommitments[1];
         leaves[2].stateCommitment = stateCommitments[2];
 
-        // Create a proof array with 15 elements.
-        bytes32[] memory preProof = new bytes32[](15);
+        // Create a proof array with 16 elements.
+        bytes32[] memory preProof = new bytes32[](16);
         preProof[0] = _hashLeaf(leaves[1]);
         preProof[1] = keccak256(abi.encode(_hashLeaf(leaves[2]), bytes32(0)));
-        bytes32[] memory postProof = new bytes32[](15);
+        bytes32[] memory postProof = new bytes32[](16);
         postProof[0] = _hashLeaf(leaves[0]);
         postProof[1] = keccak256(abi.encode(_hashLeaf(leaves[2]), bytes32(0)));
         for (uint256 i = 2; i < preProof.length; i++) {

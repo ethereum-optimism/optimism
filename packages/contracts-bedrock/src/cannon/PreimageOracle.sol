@@ -16,8 +16,8 @@ contract PreimageOracle is IPreimageOracle {
     //                         Constants                          //
     ////////////////////////////////////////////////////////////////
 
-    /// @notice The depth of the keccak256 merkle tree. Supports up to 32,768 blocks, or ~4.46MB preimages.
-    uint256 public constant KECCAK_TREE_DEPTH = 15;
+    /// @notice The depth of the keccak256 merkle tree. Supports up to 65,536 keccak blocks, or ~8.91MB preimages.
+    uint256 public constant KECCAK_TREE_DEPTH = 16;
     /// @notice The maximum number of keccak blocks that can fit into the merkle tree.
     uint256 public constant MAX_LEAF_COUNT = 2 ** KECCAK_TREE_DEPTH - 1;
     /// @notice The duration of the large preimage proposal challenge period.
@@ -428,7 +428,7 @@ contract PreimageOracle is IPreimageOracle {
             } else {
                 treeRoot_ = keccak256(abi.encode(treeRoot_, zeroHashes[height]));
             }
-            size /= 2;
+            size >>= 1;
         }
     }
 
