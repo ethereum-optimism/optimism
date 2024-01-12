@@ -2,6 +2,7 @@ package upgrades
 
 import (
 	"fmt"
+	"math/big"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -619,6 +620,15 @@ func SystemConfig(batch *safe.Batch, implementations superchain.ImplementationLi
 		l2GenesisBlockGasLimit,
 		p2pSequencerAddress,
 		genesis.DefaultResourceConfig,
+		chainConfig.BatchInboxAddr,
+		bindings.SystemConfigAddresses{
+			L1CrossDomainMessenger:       common.Address(list.L1CrossDomainMessengerProxy),
+			L1ERC721Bridge:               common.Address(list.L1ERC721BridgeProxy),
+			L1StandardBridge:             common.Address(list.L1StandardBridgeProxy),
+			L2OutputOracle:               common.Address(list.L2OutputOracleProxy),
+			OptimismPortal:               common.Address(list.OptimismPortalProxy),
+			OptimismMintableERC20Factory: common.Address(list.OptimismMintableERC20FactoryProxy),
+		},
 	)
 	if err != nil {
 		return err
