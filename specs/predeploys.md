@@ -242,9 +242,9 @@ L1 on L2.
 Address: `0x420000000000000000000000000000000000000F`
 
 In the legacy system, the `GasPriceOracle` was a permissioned contract
-that was pushed the L1 basefee and the L2 gas price by an offchain actor.
+that was pushed the L1 base fee and the L2 gas price by an offchain actor.
 The offchain actor observes the L1 blockheaders to get the
-L1 basefee as well as the gas usage on L2 to compute what the L2 gas price
+L1 base fee as well as the gas usage on L2 to compute what the L2 gas price
 should be based on a congestion control algorithm.
 
 After Bedrock, the `GasPriceOracle` is no longer a permissioned contract
@@ -267,8 +267,8 @@ has been hardcoded to 6.
 
 Following the Ecotone upgrade, the values used for L1 fee computation are:
 
-- l1BasefeeScalar
-- l1BlobBasefeeScalar
+- l1BaseFeeScalar
+- l1BlobBaseFeeScalar
 - decimals
 
 These values are managed by the `SystemConfig` contract on the L1. The`decimals` remains hardcoded
@@ -335,7 +335,7 @@ depositing native L1 NFTs into.
 
 Address: `0x4200000000000000000000000000000000000019`
 
-The `BaseFeeVault` predeploy receives the basefees on L2. The basefee is not
+The `BaseFeeVault` predeploy receives the base fees on L2. The base fee is not
 burnt on L2 like it is on L1. Once the contract has received a certain amount
 of fees, the ETH can be withdrawn to an immutable address on
 L1.

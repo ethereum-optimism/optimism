@@ -282,13 +282,13 @@ The overall calldata layout is as follows:
 | Input arg         | Type        | Calldata bytes | Segment |
 | ----------------- | ----------- | -------------- | --------|
 | {0x440a5e20}      |             | 0-3            | n/a     |
-| basefeeScalar     | uint32      | 4-7            | 1       |
-| blobBasefeeScalar | uint32      | 8-11           |         |
+| baseFeeScalar     | uint32      | 4-7            | 1       |
+| blobBaseFeeScalar | uint32      | 8-11           |         |
 | sequenceNumber    | uint64      | 12-19          |         |
 | l1BlockTimestamp  | uint64      | 20-27          |         |
 | l1BlockNumber     | uint64      | 28-35          |         |
 | basefee           | uint256     | 36-67          | 2       |
-| blobBasefee       | uint256     | 68-99          | 3       |
+| blobBaseFee       | uint256     | 68-99          | 3       |
 | l1BlockHash       | bytes32     | 100-131        | 4       |
 | batcherHash       | bytes32     | 132-163        | 5       |
 
@@ -334,9 +334,9 @@ The predeploy stores the following values:
   - `overhead` (`uint256`): The L1 fee overhead to apply to L1 cost computation of transactions in this L2 block.
   - `scalar` (`uint256`): The L1 fee scalar to apply to L1 cost computation of transactions in this L2 block.
 - With the Ecotone upgrade, the predeploy additionally stores:
-  - `blobBasefee` (`uint256`)
-  - `basefeeScalar` (`uint32`): system configurable to scale the `basefee` in the Ecotone l1 cost computation
-  - `blobBasefeeScalar` (`uint32`): system configurable to scale the `blobBasefee` in the Ecotone l1 cost computation
+  - `blobBaseFee` (`uint256`)
+  - `baseFeeScalar` (`uint32`): system configurable to scale the `basefee` in the Ecotone l1 cost computation
+  - `blobBasefeeScalar` (`uint32`): system configurable to scale the `blobBaseFee` in the Ecotone l1 cost computation
 
 Following the Ecotone upgrade, `overhead` and `scalar` are frozen at the values they had on the
 block immediately prior to the fork.
@@ -367,9 +367,9 @@ The L1 Attributes Predeployed contract, `L1Block.sol`, is upgraded as part of th
 The version is incremented to `1.2.0`, one new storage slot is introduced, and one existing slot
 begins to store additional data:
 
-- `blobBasefee` (`uint256`): The L1 basefee for blob transactions.
-- `blobBasefeeScalar` (`uint32`): The scalar value applied to the L1 blob base fee portion of the L1 cost.
-- `basefeeScalar` (`uint32`): The scalar value applied to the L1 base fee portion of the L1 cost.
+- `blobBaseFee` (`uint256`): The L1 blob base fee.
+- `blobBaseFeeScalar` (`uint32`): The scalar value applied to the L1 blob base fee portion of the L1 cost.
+- `baseFeeScalar` (`uint32`): The scalar value applied to the L1 base fee portion of the L1 cost.
 
 Additionally, the `setL1BlockValues` function is deprecated and MUST never be called when the L2 block number
 is greater than the Ecotone activation block number. `setL1BlockValues` MUST be called on the Ecotone hardfork

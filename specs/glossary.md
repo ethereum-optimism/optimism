@@ -539,6 +539,7 @@ L2 derivation inputs include:
   - block number
   - timestamp
   - basefee
+  - blob base fee
 - [deposits] (as log data)
 - [sequencer batches][sequencer-batch] (as transaction data)
 - [System configuration][system-config] updates (as log data)
