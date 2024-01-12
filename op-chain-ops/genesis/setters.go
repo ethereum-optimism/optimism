@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/immutables"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/state"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -87,5 +88,13 @@ func setupPredeploy(db vm.StateDB, deployResults immutables.DeploymentResults, s
 		}
 	}
 
+	return nil
+}
+
+// setup4788Contract creates the EIP-4788 beacon-block-roots contract, part of the Ecotone upgrade.
+func setup4788Contract(db vm.StateDB) error {
+	db.CreateAccount(predeploys.EIP4788ContractAddr)
+	db.SetCode(predeploys.EIP4788ContractAddr, predeploys.EIP4788ContractCode)
+	db.SetNonce(predeploys.EIP4788ContractAddr, 1) // After contract deployment, the resulting contract has nonce=1, see EIP-158
 	return nil
 }

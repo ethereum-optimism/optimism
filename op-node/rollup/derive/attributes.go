@@ -102,28 +102,35 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 			l2Parent, nextL2Time, eth.ToBlockID(l1Info), l1Info.Time()))
 	}
 
+	var upgradeTxs []hexutil.Bytes
+	if ba.rollupCfg.IsEcotoneActivationBlock(nextL2Time) {
+		upgradeTxs, err = EcotoneNetworkUpgradeTransactions()
+		if err != nil {
+			return nil, NewCriticalError(fmt.Errorf("failed to build ecotone network upgrade txs: %w", err))
+		}
+	}
+
+	// If we are past the activation block, then we use the new Ecotone L1-info data,
+	// and need to migrate our pre-ecotone scalar into the new ecotone scalar.
+	if ba.rollupCfg.IsEcotoneActivationBlock(l2Parent.Time) {
+		scalar := new(big.Int).SetBytes(sysConfig.Scalar[:])
+		basefeeScalar := uint32(math.MaxUint32)
+		if scalar.IsUint64() && scalar.Uint64() <= math.MaxUint32 {
+			basefeeScalar = uint32(scalar.Uint64())
+		}
+		// migrate by changing copy of parent system config that is used for the L1 data generation
+		sysConfig.BasefeeScalar = basefeeScalar
+	}
+
 	l1InfoTx, err := L1InfoDepositBytes(ba.rollupCfg, sysConfig, seqNumber, l1Info, nextL2Time)
 	if err != nil {
 		return nil, NewCriticalError(fmt.Errorf("failed to create l1InfoTx: %w", err))
 	}
 
-	// If this is the Ecotone activation block we update the system config by copying over "Scalar"
-	// to "BasefeeScalar". Note that after doing so, the L2 view of the system config differs from
-	// that on the L1 up until we receive a "type 4" log event that explicitly updates the new
-	// scalars.
-	if ba.rollupCfg.IsEcotoneActivationBlock(nextL2Time) {
-		// check if the scalar is too big to convert to uint32, and if so just use the uint32 max value
-		basefeeScalar := uint32(math.MaxUint32)
-		scalar := new(big.Int).SetBytes(sysConfig.Scalar[:])
-		if scalar.Cmp(big.NewInt(math.MaxUint32)) < 0 {
-			basefeeScalar = uint32(scalar.Int64())
-		}
-		sysConfig.BasefeeScalar = basefeeScalar
-	}
-
-	txs := make([]hexutil.Bytes, 0, 1+len(depositTxs))
+	txs := make([]hexutil.Bytes, 0, 1+len(depositTxs)+len(upgradeTxs))
 	txs = append(txs, l1InfoTx)
 	txs = append(txs, depositTxs...)
+	txs = append(txs, upgradeTxs...)
 
 	var withdrawals *types.Withdrawals
 	if ba.rollupCfg.IsCanyon(nextL2Time) {
