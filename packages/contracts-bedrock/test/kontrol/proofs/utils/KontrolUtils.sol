@@ -43,21 +43,6 @@ abstract contract KontrolUtils is KontrolCheats {
     address private constant VM_ADDRESS = address(uint160(uint256(keccak256("hevm cheat code"))));
     Vm private constant vm = Vm(VM_ADDRESS);
 
-    function createWithdrawalTransaction(
-        uint256 nonce,
-        address sender,
-        address target,
-        uint256 value,
-        uint256 gasLimit,
-        bytes memory data
-    )
-        internal
-        pure
-        returns (Types.WithdrawalTransaction memory _tx)
-    {
-        _tx = Types.WithdrawalTransaction(nonce, sender, target, value, gasLimit, data);
-    }
-
     /// @dev Creates a fresh bytes with length greater than 31
     /// @param bytesLength: Length of the fresh bytes. Should be concrete
     function freshBigBytes(uint256 bytesLength) internal returns (bytes memory sBytes) {

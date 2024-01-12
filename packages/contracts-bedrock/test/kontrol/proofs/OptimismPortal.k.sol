@@ -23,12 +23,12 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
     /// types once Kontrol supports symbolic `bytes` and `bytes[]`
     function prove_proveWithdrawalTransaction_paused(
         // WithdrawalTransaction args
-        uint256 _tx0,
-        address _tx1,
-        address _tx2,
-        uint256 _tx3,
-        uint256 _tx4,
-        // bytes   memory _tx5,
+        uint256 _nonce,
+        address _sender,
+        address _target,
+        uint256 _value,
+        uint256 _gasLimit,
+        // bytes   memory _data,
         uint256 _l2OutputIndex,
         // OutputRootProof args
         bytes32 _outputRootProof0,
@@ -38,11 +38,12 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
     )
         external
     {
-        bytes memory _tx5 = freshBigBytes(320);
+        bytes memory _data = freshBigBytes(320);
 
         bytes[] memory _withdrawalProof = freshWithdrawalProof();
 
-        Types.WithdrawalTransaction memory _tx = createWithdrawalTransaction(_tx0, _tx1, _tx2, _tx3, _tx4, _tx5);
+        Types.WithdrawalTransaction memory _tx =
+            Types.WithdrawalTransaction(_nonce, _sender, _target, _value, _gasLimit, _data);
         Types.OutputRootProof memory _outputRootProof =
             Types.OutputRootProof(_outputRootProof0, _outputRootProof1, _outputRootProof2, _outputRootProof3);
 
@@ -64,17 +65,18 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
     /// TODO: Replace struct parameters and workarounds with the appropiate
     /// types once Kontrol supports symbolic `bytes` and `bytes[]`
     function prove_finalizeWithdrawalTransaction_paused(
-        address _tx1,
-        address _tx2,
-        uint256 _tx0,
-        uint256 _tx3,
-        uint256 _tx4
+        uint256 _nonce,
+        address _sender,
+        address _target,
+        uint256 _value,
+        uint256 _gasLimit
     )
         external
     {
-        bytes memory _tx5 = freshBigBytes(320);
+        bytes memory _data = freshBigBytes(320);
 
-        Types.WithdrawalTransaction memory _tx = Types.WithdrawalTransaction(_tx0, _tx1, _tx2, _tx3, _tx4, _tx5);
+        Types.WithdrawalTransaction memory _tx =
+            Types.WithdrawalTransaction(_nonce, _sender, _target, _value, _gasLimit, _data);
 
         // After deployment, Optimism portal is enabled
         require(optimismPortal.paused() == false, "Portal should not be paused");
