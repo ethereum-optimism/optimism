@@ -174,6 +174,7 @@ func (c *OpConductor) initHealthMonitor(ctx context.Context) error {
 	c.hmon = health.NewSequencerHealthMonitor(
 		c.log,
 		c.cfg.HealthCheck.Interval,
+		c.cfg.HealthCheck.UnsafeInterval,
 		c.cfg.HealthCheck.SafeInterval,
 		c.cfg.HealthCheck.MinPeerCount,
 		&c.cfg.RollupCfg,

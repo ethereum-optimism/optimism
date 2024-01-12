@@ -112,9 +112,10 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*Config, error) {
 		ExecutionRPC:   ctx.String(flags.ExecutionRPC.Name),
 		Paused:         ctx.Bool(flags.Paused.Name),
 		HealthCheck: HealthCheckConfig{
-			Interval:     ctx.Uint64(flags.HealthCheckInterval.Name),
-			SafeInterval: ctx.Uint64(flags.HealthCheckSafeInterval.Name),
-			MinPeerCount: ctx.Uint64(flags.HealthCheckMinPeerCount.Name),
+			Interval:       ctx.Uint64(flags.HealthCheckInterval.Name),
+			UnsafeInterval: ctx.Uint64(flags.HealthCheckUnsafeInterval.Name),
+			SafeInterval:   ctx.Uint64(flags.HealthCheckSafeInterval.Name),
+			MinPeerCount:   ctx.Uint64(flags.HealthCheckMinPeerCount.Name),
 		},
 		RollupCfg:     *rollupCfg,
 		LogConfig:     oplog.ReadCLIConfig(ctx),
@@ -129,6 +130,9 @@ type HealthCheckConfig struct {
 	// Interval is the interval (in seconds) to check the health of the sequencer.
 	Interval uint64
 
+	// UnsafeInterval is the interval buffer between unsafe head progression measured in seconds.
+	UnsafeInterval uint64
+
 	// SafeInterval is the interval between safe head progression measured in seconds.
 	SafeInterval uint64
 
@@ -139,6 +143,9 @@ type HealthCheckConfig struct {
 func (c *HealthCheckConfig) Check() error {
 	if c.Interval == 0 {
 		return fmt.Errorf("missing health check interval")
+	}
+	if c.UnsafeInterval == 0 {
+		return fmt.Errorf("missing unsafe interval")
 	}
 	if c.SafeInterval == 0 {
 		return fmt.Errorf("missing safe interval")
