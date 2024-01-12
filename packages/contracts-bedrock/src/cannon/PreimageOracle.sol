@@ -10,8 +10,7 @@ import "./libraries/CannonTypes.sol";
 /// @title PreimageOracle
 /// @notice A contract for storing permissioned pre-images.
 /// @custom:attribution Solady <https://github.com/Vectorized/solady/blob/main/src/utils/MerkleProofLib.sol#L13-L43>
-/// @custom:attribution Beacon Deposit Contract
-/// <https://etherscan.io/address/0x00000000219ab540356cbb839cbe05303d7705fa#code>
+/// @custom:attribution Beacon Deposit Contract / <0x00000000219ab540356cbb839cbe05303d7705fa>
 contract PreimageOracle is IPreimageOracle {
     ////////////////////////////////////////////////////////////////
     //                         Constants                          //
@@ -52,12 +51,12 @@ contract PreimageOracle is IPreimageOracle {
     /// @notice Static padding hashes. These values are persisted in storage, but are entirely immutable
     ///         after the constructor's execution.
     bytes32[KECCAK_TREE_DEPTH] public zeroHashes;
-    /// @notice Mapping of addresses to UUIDs to the current branch path of the merkleization process.
+    /// @notice Mapping of claimants to proposal UUIDs to the current branch path of the merkleization process.
     mapping(address => mapping(uint256 => bytes32[KECCAK_TREE_DEPTH])) public proposalBranches;
-    /// @notice Mapping of addresses to UUIDs to the timestamp of creation of the proposal as well as the challenged
-    ///         status.
+    /// @notice Mapping of claimants to proposal UUIDs to the timestamp of creation of the proposal as well as the
+    /// challenged status.
     mapping(address => mapping(uint256 => LPPMetaData)) public proposalMetadata;
-    /// @notice Mapping of addresses to UUIDs to the preimage part picked up during the absorbtion process.
+    /// @notice Mapping of claimants to proposal UUIDs to the preimage part picked up during the absorbtion process.
     mapping(address => mapping(uint256 => bytes32)) public proposalParts;
 
     ////////////////////////////////////////////////////////////////
@@ -253,8 +252,6 @@ contract PreimageOracle is IPreimageOracle {
 
             for { let i := 0 } lt(i, inputLen) { i := add(i, 136) } {
                 // Copy the leaf preimage into the hashing buffer.
-                // TODO: Optimize this; Can probably store temps on stack and keep the input data in-place / restore
-                // after.
                 let inputStartPtr := add(inputPtr, i)
                 mstore(hashBuf, mload(inputStartPtr))
                 mstore(add(hashBuf, 0x20), mload(add(inputStartPtr, 0x20)))
