@@ -625,7 +625,7 @@ func (s *SyncClient) doRequest(ctx context.Context, id peer.ID, expectedBlockNum
 		return fmt.Errorf("failed to read response: %w", err)
 	}
 
-	var envelope *eth.ExecutionPayloadEnvelope
+	envelope := &eth.ExecutionPayloadEnvelope{}
 
 	if version == 0 {
 		expectedBlockTime := s.cfg.TimestampForBlock(expectedBlockNum)

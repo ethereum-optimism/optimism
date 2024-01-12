@@ -15,6 +15,7 @@ import (
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
@@ -78,6 +79,10 @@ func setupSyncTestData(length uint64) (*rollup.Config, *syncTestData) {
 		L2ChainID: big.NewInt(1234),
 	}
 
+	ecotoneBlock := length / 2
+	ecotoneTime := cfg.Genesis.L2Time + ecotoneBlock*cfg.BlockTime
+	cfg.EcotoneTime = &ecotoneTime
+
 	// create some simple fake test blocks
 	payloads := make(map[uint64]*eth.ExecutionPayloadEnvelope)
 	payloads[0] = &eth.ExecutionPayloadEnvelope{
@@ -88,13 +93,27 @@ func setupSyncTestData(length uint64) (*rollup.Config, *syncTestData) {
 
 	payloads[0].ExecutionPayload.BlockHash, _ = payloads[0].CheckBlockHash()
 	for i := uint64(1); i <= length; i++ {
+		timestamp := cfg.Genesis.L2Time + i*cfg.BlockTime
 		payload := &eth.ExecutionPayloadEnvelope{
 			ExecutionPayload: &eth.ExecutionPayload{
 				ParentHash:  payloads[i-1].ExecutionPayload.BlockHash,
 				BlockNumber: eth.Uint64Quantity(i),
-				Timestamp:   eth.Uint64Quantity(cfg.Genesis.L2Time + i*cfg.BlockTime),
+				Timestamp:   eth.Uint64Quantity(timestamp),
 			},
 		}
+
+		if cfg.IsEcotone(timestamp) {
+			hash := common.BigToHash(big.NewInt(int64(i)))
+			payload.ParentBeaconBlockRoot = &hash
+
+			zero := eth.Uint64Quantity(0)
+			payload.ExecutionPayload.ExcessBlobGas = &zero
+			payload.ExecutionPayload.BlobGasUsed = &zero
+
+			w := types.Withdrawals{}
+			payload.ExecutionPayload.Withdrawals = &w
+		}
+
 		payload.ExecutionPayload.BlockHash, _ = payload.CheckBlockHash()
 		payloads[i] = payload
 	}
@@ -159,6 +178,13 @@ func TestSinglePeerSync(t *testing.T) {
 		exp, ok := payloads.getPayload(uint64(p.ExecutionPayload.BlockNumber))
 		require.True(t, ok, "expecting known payload")
 		require.Equal(t, exp.ExecutionPayload.BlockHash, p.ExecutionPayload.BlockHash, "expecting the correct payload")
+
+		require.Equal(t, exp.ParentBeaconBlockRoot, p.ParentBeaconBlockRoot)
+		if cfg.IsEcotone(uint64(p.ExecutionPayload.Timestamp)) {
+			require.NotNil(t, p.ParentBeaconBlockRoot)
+		} else {
+			require.Nil(t, p.ParentBeaconBlockRoot)
+		}
 	}
 }
 
@@ -292,6 +318,12 @@ func TestMultiPeerSync(t *testing.T) {
 		exp, ok := payloads.getPayload(uint64(p.ExecutionPayload.BlockNumber))
 		require.True(t, ok, "expecting known payload")
 		require.Equal(t, exp.ExecutionPayload.BlockHash, p.ExecutionPayload.BlockHash, "expecting the correct payload")
+		require.Equal(t, exp.ParentBeaconBlockRoot, p.ParentBeaconBlockRoot)
+		if cfg.IsEcotone(uint64(p.ExecutionPayload.Timestamp)) {
+			require.NotNil(t, p.ParentBeaconBlockRoot)
+		} else {
+			require.Nil(t, p.ParentBeaconBlockRoot)
+		}
 	}
 }
 
@@ -346,5 +378,4 @@ func TestNetworkNotifyAddPeerAndRemovePeer(t *testing.T) {
 	<-waitChan
 	_, peerBExist3 := syncCl.peers[hostB.ID()]
 	require.True(t, !peerBExist3, "peerB should not exist in syncClient")
-
 }
