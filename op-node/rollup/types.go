@@ -302,7 +302,7 @@ func (c *Config) IsEcotone(timestamp uint64) bool {
 }
 
 // IsEcotoneActivationBlock returns whether the specified block is the first block subject to the
-// Ecotone upgrade.
+// Ecotone upgrade. Ecotone activation at genesis does not count.
 func (c *Config) IsEcotoneActivationBlock(l2BlockTime uint64) bool {
 	return c.IsEcotone(l2BlockTime) &&
 		l2BlockTime >= c.BlockTime &&

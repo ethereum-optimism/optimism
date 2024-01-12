@@ -310,16 +310,16 @@ type ForkchoiceUpdatedResult struct {
 type SystemConfig struct {
 	// BatcherAddr identifies the batch-sender address used in batch-inbox data-transaction filtering.
 	BatcherAddr common.Address `json:"batcherAddr"`
-	// Overhead identifies the L1 fee overhead, and is passed through opaquely to op-geth.
+	// Overhead identifies the L1 fee overhead.
+	// Pre-Ecotone this is passed as-is to the engine.
+	// Post-Ecotone this is always zero, and not passed into the engine.
 	Overhead Bytes32 `json:"overhead"`
-	// Scalar identifies the L1 fee scalar, and is passed through opaquely to op-geth.
+	// Scalar identifies the L1 fee scalar
+	// Pre-Ecotone this is passed as-is to the engine.
+	// Post-Ecotone this encodes multiple pieces of scalar data.
 	Scalar Bytes32 `json:"scalar"`
 	// GasLimit identifies the L2 block gas limit
 	GasLimit uint64 `json:"gasLimit"`
-	// BaseFeeScalar scales the L1 calldata fee after the Ecotone upgrade
-	BaseFeeScalar uint32 `json:"baseFeeScalar"`
-	// BlobBaseFeeScalar scales the L1 blob fee after the Ecotone upgrade
-	BlobBaseFeeScalar uint32 `json:"blobBaseFeeScalar"`
 	// More fields can be added for future SystemConfig versions.
 }
 

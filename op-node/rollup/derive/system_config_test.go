@@ -4,11 +4,14 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/stretchr/testify/require"
+
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 var (
@@ -42,6 +45,9 @@ func TestProcessSystemConfigUpdateLogEvent(t *testing.T) {
 		config eth.SystemConfig
 		hook   func(*testing.T, *types.Log) *types.Log
 		err    bool
+		// forks (optional)
+		ecotoneTime *uint64
+		l1Time      uint64
 	}{
 		{
 			// The log data is ignored by consensus and no modifications to the
@@ -145,25 +151,26 @@ func TestProcessSystemConfigUpdateLogEvent(t *testing.T) {
 				Topics: []common.Hash{
 					ConfigUpdateEventABIHash,
 					ConfigUpdateEventVersion0,
-					SystemConfigUpdateGasConfigEcotone,
+					SystemConfigUpdateGasConfig,
 				},
 			},
 			hook: func(t *testing.T, log *types.Log) *types.Log {
-				baseFeeScalar := big.NewInt(0xaa)
-				blobBaseFeeScalar := big.NewInt(0xbb)
-				packed := make([]byte, 8)
-				baseFeeScalar.FillBytes(packed[0:4])
-				blobBaseFeeScalar.FillBytes(packed[4:8])
-				data, err := bytesArgs.Pack(packed)
+				scalarData := common.Hash{0: 1, 24 + 3: 0xb3, 28 + 3: 0xbb}
+				scalar := scalarData.Big()
+				overhead := big.NewInt(0xff)
+				numberData, err := twoUint256.Pack(overhead, scalar)
+				require.NoError(t, err)
+				data, err := bytesArgs.Pack(numberData)
 				require.NoError(t, err)
 				log.Data = data
 				return log
 			},
 			config: eth.SystemConfig{
-				BaseFeeScalar:     0xaa,
-				BlobBaseFeeScalar: 0xbb,
+				Scalar: eth.Bytes32{0: 1, 24 + 3: 0xb3, 28 + 3: 0xbb},
 			},
-			err: false,
+			err:         false,
+			ecotoneTime: new(uint64), // activate ecotone
+			l1Time:      200,
 		},
 		{
 			name: "SystemConfigOneTopic",
@@ -184,8 +191,9 @@ func TestProcessSystemConfigUpdateLogEvent(t *testing.T) {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
 			config := eth.SystemConfig{}
+			rollupCfg := rollup.Config{EcotoneTime: test.ecotoneTime}
 
-			err := ProcessSystemConfigUpdateLogEvent(&config, test.hook(t, test.log))
+			err := ProcessSystemConfigUpdateLogEvent(&config, test.hook(t, test.log), &rollupCfg, test.l1Time)
 			if test.err {
 				require.Error(t, err)
 			} else {

@@ -161,7 +161,7 @@ func TestSystemE2EDencunAtGenesis(t *testing.T) {
 	InitParallel(t)
 
 	cfg := DefaultSystemConfig(t)
-	genesisActivation := uint64(0)
+	genesisActivation := hexutil.Uint64(0)
 	cfg.DeployConfig.L1CancunTimeOffset = &genesisActivation
 
 	sys, err := cfg.Start(t)
@@ -179,7 +179,7 @@ func TestSystemE2EDencunAtGenesisWithBlobs(t *testing.T) {
 
 	cfg := DefaultSystemConfig(t)
 	//cancun is on from genesis:
-	genesisActivation := uint64(0)
+	genesisActivation := hexutil.Uint64(0)
 	cfg.DeployConfig.L1CancunTimeOffset = &genesisActivation // i.e. turn cancun on at genesis time + 0
 
 	sys, err := cfg.Start(t)

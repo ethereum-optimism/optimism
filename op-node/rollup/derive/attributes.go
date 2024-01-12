@@ -3,8 +3,6 @@ package derive
 import (
 	"context"
 	"fmt"
-	"math"
-	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -75,7 +73,7 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 			return nil, NewCriticalError(fmt.Errorf("failed to derive some deposits: %w", err))
 		}
 		// apply sysCfg changes
-		if err := UpdateSystemConfigWithL1Receipts(&sysConfig, receipts, ba.rollupCfg); err != nil {
+		if err := UpdateSystemConfigWithL1Receipts(&sysConfig, receipts, ba.rollupCfg, info.Time()); err != nil {
 			return nil, NewCriticalError(fmt.Errorf("failed to apply derived L1 sysCfg updates: %w", err))
 		}
 
@@ -102,28 +100,23 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 			l2Parent, nextL2Time, eth.ToBlockID(l1Info), l1Info.Time()))
 	}
 
+	var upgradeTxs []hexutil.Bytes
+	if ba.rollupCfg.IsEcotoneActivationBlock(nextL2Time) {
+		upgradeTxs, err = EcotoneNetworkUpgradeTransactions()
+		if err != nil {
+			return nil, NewCriticalError(fmt.Errorf("failed to build ecotone network upgrade txs: %w", err))
+		}
+	}
+
 	l1InfoTx, err := L1InfoDepositBytes(ba.rollupCfg, sysConfig, seqNumber, l1Info, nextL2Time)
 	if err != nil {
 		return nil, NewCriticalError(fmt.Errorf("failed to create l1InfoTx: %w", err))
 	}
 
-	// If this is the Ecotone activation block we update the system config by copying over "Scalar"
-	// to "BaseFeeScalar". Note that after doing so, the L2 view of the system config differs from
-	// that on the L1 up until we receive a "type 4" log event that explicitly updates the new
-	// scalars.
-	if ba.rollupCfg.IsEcotoneActivationBlock(nextL2Time) {
-		// check if the scalar is too big to convert to uint32, and if so just use the uint32 max value
-		baseFeeScalar := uint32(math.MaxUint32)
-		scalar := new(big.Int).SetBytes(sysConfig.Scalar[:])
-		if scalar.Cmp(big.NewInt(math.MaxUint32)) < 0 {
-			baseFeeScalar = uint32(scalar.Int64())
-		}
-		sysConfig.BaseFeeScalar = baseFeeScalar
-	}
-
-	txs := make([]hexutil.Bytes, 0, 1+len(depositTxs))
+	txs := make([]hexutil.Bytes, 0, 1+len(depositTxs)+len(upgradeTxs))
 	txs = append(txs, l1InfoTx)
 	txs = append(txs, depositTxs...)
+	txs = append(txs, upgradeTxs...)
 
 	var withdrawals *types.Withdrawals
 	if ba.rollupCfg.IsCanyon(nextL2Time) {

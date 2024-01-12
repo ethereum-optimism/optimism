@@ -273,8 +273,20 @@ func L1InfoDeposit(rollupCfg *rollup.Config, sysCfg eth.SystemConfig, seqNumber 
 	var err error
 	if isEcotoneButNotFirstBlock(rollupCfg, l2BlockTime) {
 		l1BlockInfo.BlobBaseFee = block.BlobBaseFee()
-		l1BlockInfo.BlobBaseFeeScalar = sysCfg.BlobBaseFeeScalar
-		l1BlockInfo.BaseFeeScalar = sysCfg.BaseFeeScalar
+		if l1BlockInfo.BlobBaseFee == nil {
+			// The L2 spec states to use the MIN_BLOB_GASPRICE from EIP-4844 if not yet active on L1.
+			l1BlockInfo.BlobBaseFee = big.NewInt(1)
+		}
+		switch sysCfg.Scalar[0] {
+		case 0:
+			l1BlockInfo.BlobBaseFeeScalar = 0
+			l1BlockInfo.BaseFeeScalar = binary.BigEndian.Uint32(sysCfg.Scalar[28:32])
+		case 1:
+			l1BlockInfo.BlobBaseFeeScalar = binary.BigEndian.Uint32(sysCfg.Scalar[24:28])
+			l1BlockInfo.BaseFeeScalar = binary.BigEndian.Uint32(sysCfg.Scalar[28:32])
+		default:
+			return nil, fmt.Errorf("unexpected system config scalar: %s", sysCfg.Scalar)
+		}
 		data, err = l1BlockInfo.marshalBinaryEcotone()
 	} else {
 		l1BlockInfo.L1FeeOverhead = sysCfg.Overhead

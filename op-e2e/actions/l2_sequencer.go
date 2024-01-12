@@ -163,3 +163,11 @@ func (s *L2Sequencer) ActBuildL2ToTime(t Testing, target uint64) {
 		s.ActL2EndBlock(t)
 	}
 }
+
+func (s *L2Sequencer) ActBuildL2ToEcotone(t Testing) {
+	require.NotNil(t, s.rollupCfg.EcotoneTime, "cannot activate Ecotone when it is not scheduled")
+	for s.L2Unsafe().Time < *s.rollupCfg.EcotoneTime {
+		s.ActL2StartBlock(t)
+		s.ActL2EndBlock(t)
+	}
+}
