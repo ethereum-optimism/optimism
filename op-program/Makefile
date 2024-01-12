@@ -26,6 +26,12 @@ op-program-client-mips:
 	# verify output with: readelf -h bin/op-program-client.elf
 	# result is mips32, big endian, R3000
 
+reproducible-prestate:
+	@docker build --output ./bin/ --progress plain -f Dockerfile.repro ../
+	@echo "Absolute prestate hash:"
+	@cat ./bin/prestate-proof.json | jq -r .pre
+.PHONY: reproducible-prestate
+
 clean:
 	rm -rf bin "$(COMPAT_DIR)"
 
