@@ -478,4 +478,3 @@ contract PreimageOracle is IPreimageOracle {
         leaf_ = keccak256(abi.encodePacked(_leaf.input, _leaf.index, _leaf.stateCommitment));
     }
 }
-
