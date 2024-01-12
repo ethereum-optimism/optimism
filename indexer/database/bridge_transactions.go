@@ -197,7 +197,7 @@ func (db *bridgeTransactionsDB) MarkL2TransactionWithdrawalProvenEvent(withdrawa
 	return result.Error
 }
 
-// MarkL2TransactionWithdrawalProvenEvent links a withdrawn transaction in its finalized state
+// MarkL2TransactionWithdrawalFinalizedEvent links a withdrawn transaction in its finalized state
 func (db *bridgeTransactionsDB) MarkL2TransactionWithdrawalFinalizedEvent(withdrawalHash common.Hash, finalizedL1EventGuid uuid.UUID, succeeded bool) error {
 	withdrawal, err := db.L2TransactionWithdrawal(withdrawalHash)
 	if err != nil {

@@ -19,7 +19,7 @@ import (
 
 // Legacy Bridge Initiation
 
-// LegacyL1ProcessInitiatedEvents will query the data for bridge events within the specified block range
+// LegacyL1ProcessInitiatedBridgeEvents will query the data for bridge events within the specified block range
 // according the pre-bedrock protocol. This follows:
 //  1. CanonicalTransactionChain
 //  2. L1CrossDomainMessenger
@@ -143,7 +143,7 @@ func LegacyL1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metri
 	return nil
 }
 
-// LegacyL2ProcessInitiatedEvents will query the data for bridge events within the specified block range
+// LegacyL2ProcessInitiatedBridgeEvents will query the data for bridge events within the specified block range
 // according the pre-bedrock protocol. This follows:
 //  1. L2CrossDomainMessenger - The LegacyMessagePasser contract cannot be used as entrypoint to bridge transactions from L2. The protocol
 //     only allows the L2CrossDomainMessenger as the sole sender when relaying a bridged message.
