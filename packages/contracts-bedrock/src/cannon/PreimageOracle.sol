@@ -394,6 +394,9 @@ contract PreimageOracle is IPreimageOracle {
             )
         ) revert InvalidProof();
 
+        // Verify that the prestate passed matches the intermediate state claimed in the leaf.
+        if (keccak256(abi.encode(_stateMatrix)) != _preState.stateCommitment) revert InvalidPreimage();
+
         // Verify that the pre/post state are contiguous.
         if (_preState.index + 1 != _postState.index || _postState.index != metaData.blocksProcessed() - 1) {
             revert StatesNotContiguous();
