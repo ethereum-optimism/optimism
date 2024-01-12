@@ -880,6 +880,9 @@ The following fields of the derived L2 payload attributes are checked for equali
 - `randao`
 - `fee_recipient`
 - `transactions_list` (first length, then equality of each of the encoded transactions, including deposits)
+- `gas_limit`
+- `withdrawals` (first presence, then length, then equality of each of the encoded withdrawals)
+- `parent_beacon_block_root`
 
 If consolidation succeeds, the forkchoice change will synchronize as described in the section above.
 
