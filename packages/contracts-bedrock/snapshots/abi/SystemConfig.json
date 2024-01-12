@@ -97,6 +97,19 @@
   },
   {
     "inputs": [],
+    "name": "START_BLOCK_SLOT",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "UNSAFE_BLOCK_SIGNER_SLOT",
     "outputs": [
       {
@@ -129,6 +142,19 @@
         "internalType": "uint32",
         "name": "",
         "type": "uint32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "batchInbox",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "addr_",
+        "type": "address"
       }
     ],
     "stateMutability": "view",
@@ -580,6 +606,13 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "setStartBlock",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "address",
@@ -598,7 +631,7 @@
     "outputs": [
       {
         "internalType": "uint256",
-        "name": "",
+        "name": "startBlock_",
         "type": "uint256"
       }
     ],
