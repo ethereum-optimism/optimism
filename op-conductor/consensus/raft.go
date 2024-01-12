@@ -83,7 +83,7 @@ func NewRaftConsensus(log log.Logger, serverID, serverAddr, storageDir string, b
 		return nil, errors.Wrap(err, "failed to create raft")
 	}
 
-	// If boostrap = true, start raft in bootstrap mode, this will allow the current node to elect itself as leader when there's no other participants
+	// If bootstrap = true, start raft in bootstrap mode, this will allow the current node to elect itself as leader when there's no other participants
 	// and allow other nodes to join the cluster.
 	if bootstrap {
 		cfg := raft.Configuration{
