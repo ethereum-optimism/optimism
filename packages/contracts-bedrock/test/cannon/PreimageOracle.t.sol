@@ -164,7 +164,7 @@ contract PreimageOracle_Test is Test {
     }
 }
 
-contract KeccakDispute_LargePreimageProposals_Test is Test {
+contract PreimageOracle_LargePreimageProposals_Test is Test {
     uint256 internal constant TEST_UUID = 0xFACADE;
 
     PreimageOracle internal oracle;
@@ -255,6 +255,20 @@ contract KeccakDispute_LargePreimageProposals_Test is Test {
 
         // Should revert if we try to add new leaves.
         vm.expectRevert(AlreadyFinalized.selector);
+        oracle.addLeavesLPP(TEST_UUID, data, stateCommitments, true);
+    }
+
+    /// @notice Tests that leaves cannot be added until the large preimage proposal has been initialized.
+    function test_addLeaves_notInitialized_reverts() public {
+        // Allocate the preimage data.
+        bytes memory data = new bytes(136 * 500);
+
+        // Add the leaves to the tree (2 keccak blocks.)
+        LibKeccak.StateMatrix memory stateMatrix;
+        bytes32[] memory stateCommitments = _generateStateCommitments(stateMatrix, data);
+
+        // Allocate the calldata so it isn't included in the gas measurement.
+        vm.expectRevert(NotInitialized.selector);
         oracle.addLeavesLPP(TEST_UUID, data, stateCommitments, true);
     }
 

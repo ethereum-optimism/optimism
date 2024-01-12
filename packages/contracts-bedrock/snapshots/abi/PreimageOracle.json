@@ -612,6 +612,11 @@
   },
   {
     "inputs": [],
+    "name": "NotInitialized",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "PartOffsetOOB",
     "type": "error"
   },

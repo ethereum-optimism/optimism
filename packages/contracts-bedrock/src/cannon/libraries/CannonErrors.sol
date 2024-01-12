@@ -30,3 +30,6 @@ error ActiveProposal();
 
 /// @notice Thrown when attempting to finalize a proposal that has been challenged.
 error BadProposal();
+
+/// @notice Thrown when attempting to add leaves to a preimage proposal that has not been initialized.
+error NotInitialized();
