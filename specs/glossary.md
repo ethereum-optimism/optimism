@@ -143,7 +143,7 @@ All predeploy contracts are specified in the [predeploys specification][./predep
 [preinstall]: glossary.md#preinstalled-contract-preinstall
 
 A contract placed in the L2 genesis state (i.e. at the start of the chain). These contracts do not share the same
-security guarantees as [predeploys](#preinstalled-contract-preinstall), but are general use contracts made
+security guarantees as [predeploys](#predeployed-contract-predeploy), but are general use contracts made
 available to improve the L2's UX.
 
 All preinstall contracts are specified in the [preinstalls specification][./preinstalls.md].
