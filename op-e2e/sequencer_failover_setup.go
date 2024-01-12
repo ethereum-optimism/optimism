@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
@@ -187,10 +186,6 @@ func setupConductor(
 }
 
 func setupBatcher(t *testing.T, sys *System) {
-	var batchType uint = derive.SingularBatchType
-	if sys.Cfg.DeployConfig.L2GenesisDeltaTimeOffset != nil && *sys.Cfg.DeployConfig.L2GenesisDeltaTimeOffset == hexutil.Uint64(0) {
-		batchType = derive.SpanBatchType
-	}
 	batcherMaxL1TxSizeBytes := sys.Cfg.BatcherMaxL1TxSizeBytes
 	if batcherMaxL1TxSizeBytes == 0 {
 		batcherMaxL1TxSizeBytes = 240_000
@@ -227,7 +222,7 @@ func setupBatcher(t *testing.T, sys *System) {
 			Format: oplog.FormatText,
 		},
 		Stopped:              false,
-		BatchType:            batchType,
+		BatchType:            derive.SingularBatchType,
 		DataAvailabilityType: batcherFlags.CalldataType,
 	}
 
