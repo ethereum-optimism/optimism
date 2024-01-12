@@ -3,7 +3,7 @@
 set -e
 
 # Grab the foundry commit hash.
-SHA=$(cat versions.json | jq -r '.foundry')
+SHA=$(jq -r .foundry < versions.json)
 
 # Check if there is a nightly tag corresponding to the commit hash
 TAG="nightly-$SHA"

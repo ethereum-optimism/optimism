@@ -51,8 +51,8 @@ ENV PATH=/usr/local/go/bin:$GOPATH/bin:$PATH
 
 # Install the specific version of abigen and geth from version control
 COPY ./versions.json ./versions.json
-RUN go install github.com/ethereum/go-ethereum/cmd/abigen@$(cat versions.json | jq -r .abigen)
-RUN go install github.com/ethereum/go-ethereum/cmd/geth@$(cat versions.json | jq -r .geth)
+RUN go install github.com/ethereum/go-ethereum/cmd/abigen@$(jq -r .abigen < versions.json)
+RUN go install github.com/ethereum/go-ethereum/cmd/geth@$(jq -r .geth < versions.json)
 
 RUN go install gotest.tools/gotestsum@latest
 RUN go install github.com/vektra/mockery/v2@v2.28.1
@@ -108,7 +108,7 @@ RUN /bin/sh -c set -eux; \
   apt-get install -y nodejs docker-ce-cli; \
   ln -s /usr/local/go/bin/gofmt /usr/local/bin/gofmt; \
   npm i -g depcheck; \
-  pip install slither-analyzer==$(cat versions.json | jq -r '.slither') capstone pyelftools; \
+  pip install slither-analyzer==$(jq -r .slither < versions.json) capstone pyelftools; \
   curl -fLSs https://raw.githubusercontent.com/CircleCI-Public/circleci-cli/master/install.sh | bash; \
   apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false; \
   rm -rf /var/lib/apt/lists/*; \
