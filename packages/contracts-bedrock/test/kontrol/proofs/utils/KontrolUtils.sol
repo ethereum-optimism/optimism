@@ -85,6 +85,7 @@ abstract contract KontrolUtils is KontrolCheats {
     /// The length of the array to 10 or fewer elements
     function freshWithdrawalProof() public returns (bytes[] memory withdrawalProof) {
         // Assume arrayLength = 2 for faster proof speeds
+        // TODO: have the array length range between 0 and 10 elements
         uint256 arrayLength = 6;
 
         withdrawalProof = new bytes[](arrayLength);
