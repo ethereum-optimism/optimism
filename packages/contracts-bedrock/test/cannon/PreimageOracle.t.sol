@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Test } from "forge-std/Test.sol";
+import { Test, console2 as console } from "forge-std/Test.sol";
 
 import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
 import { PreimageKeyLib } from "src/cannon/PreimageKeyLib.sol";
@@ -163,6 +163,7 @@ contract PreimageOracle_Test is Test {
         oracle.readPreimage(key, offset);
     }
 }
+
 contract KeccakDispute_LargePreimageProposals_Test is Test {
     uint256 internal constant TEST_UUID = 0xFACADE;
 
@@ -172,6 +173,34 @@ contract KeccakDispute_LargePreimageProposals_Test is Test {
     function setUp() public {
         oracle = new PreimageOracle();
         vm.label(address(oracle), "PreimageOracle");
+    }
+
+    /// @notice Gas snapshot for `addLeaves`
+    function test_addLeaves_gasSnapshot() public {
+        // Allocate the preimage data.
+        bytes memory data = new bytes(136 * 500);
+        for (uint256 i; i < data.length; i++) {
+            data[i] = 0xFF;
+        }
+
+        // Initialize the proposal.
+        oracle.initLPP(TEST_UUID, 0, uint32(data.length));
+
+        // Add the leaves to the tree (2 keccak blocks.)
+        LibKeccak.StateMatrix memory stateMatrix;
+        bytes32[] memory stateCommitments = _generateStateCommitments(stateMatrix, data);
+
+        // Allocate the calldata so it isn't included in the gas measurement.
+        bytes memory cd = abi.encodeCall(oracle.addLeavesLPP, (TEST_UUID, data, stateCommitments, true));
+
+        uint256 gas = gasleft();
+        (bool success,) = address(oracle).call(cd);
+        uint256 gasUsed = gas - gasleft();
+        assertTrue(success);
+
+        console.log("Gas used: %d", gasUsed);
+        console.log("Gas per byte (%d bytes streamed): %d", data.length, gasUsed / data.length);
+        console.log("Gas for 4MB: %d", (gasUsed / data.length) * 4000000);
     }
 
     /// @notice Tests that leaves can be added the large preimage proposal mapping and proven to be contained within
@@ -227,6 +256,151 @@ contract KeccakDispute_LargePreimageProposals_Test is Test {
         // Should revert if we try to add new leaves.
         vm.expectRevert(AlreadyFinalized.selector);
         oracle.addLeavesLPP(TEST_UUID, data, stateCommitments, true);
+    }
+
+    /// @notice Tests that leaves can be added the large preimage proposal mapping and finalized to be added to the
+    ///         authorized mappings.
+    function test_finalize_challengePeriodPassed_succeeds() public {
+        // Allocate the preimage data.
+        bytes memory data = new bytes(136);
+        for (uint256 i; i < data.length; i++) {
+            data[i] = 0xFF;
+        }
+
+        // Initialize the proposal.
+        oracle.initLPP(TEST_UUID, 0, uint32(data.length));
+
+        // Add the leaves to the tree (2 keccak blocks.)
+        LibKeccak.StateMatrix memory stateMatrix;
+        bytes32[] memory stateCommitments = _generateStateCommitments(stateMatrix, data);
+        oracle.addLeavesLPP(TEST_UUID, data, stateCommitments, true);
+
+        // Construct the leaf preimage data for the blocks added.
+        LibKeccak.StateMatrix memory matrix;
+        PreimageOracle.Leaf[] memory leaves = _generateLeaves(matrix, data);
+
+        // Create a proof array with 15 elements.
+        bytes32[] memory preProof = new bytes32[](15);
+        preProof[0] = _hashLeaf(leaves[1]);
+        bytes32[] memory postProof = new bytes32[](15);
+        postProof[0] = _hashLeaf(leaves[0]);
+        for (uint256 i = 1; i < preProof.length; i++) {
+            bytes32 zeroHash = oracle.zeroHashes(i);
+            preProof[i] = zeroHash;
+            postProof[i] = zeroHash;
+        }
+
+        vm.warp(block.timestamp + oracle.CHALLENGE_PERIOD() + 1 seconds);
+
+        // Finalize the proposal.
+        oracle.finalizeLPP({
+            _claimant: address(this),
+            _uuid: TEST_UUID,
+            _stateMatrix: _stateMatrixAtBlockIndex(data, 1),
+            _prevState: leaves[0],
+            _prevStateProof: preProof,
+            _postState: leaves[1],
+            _postStateProof: postProof
+        });
+
+        bytes32 finalDigest = keccak256(data);
+        bytes32 expectedPart = bytes32((~uint256(0) & ~(uint256(type(uint64).max) << 192)) | (data.length << 192));
+        assertTrue(oracle.preimagePartOk(finalDigest, 0));
+        assertEq(oracle.preimageLengths(finalDigest), data.length);
+        assertEq(oracle.preimageParts(finalDigest, 0), expectedPart);
+    }
+
+    /// @notice Tests that a proposal cannot be finalized until it has passed the challenge period.
+    function test_finalize_proposalChallenged_reverts() public {
+        // Allocate the preimage data.
+        bytes memory data = new bytes(136);
+        for (uint256 i; i < data.length; i++) {
+            data[i] = 0xFF;
+        }
+        bytes memory phonyData = new bytes(136);
+
+        // Initialize the proposal.
+        oracle.initLPP(TEST_UUID, 0, uint32(data.length));
+
+        // Add the leaves to the tree with mismatching state commitments.
+        LibKeccak.StateMatrix memory stateMatrix;
+        bytes32[] memory stateCommitments = _generateStateCommitments(stateMatrix, data);
+        oracle.addLeavesLPP(TEST_UUID, phonyData, stateCommitments, true);
+
+        // Construct the leaf preimage data for the blocks added.
+        LibKeccak.StateMatrix memory matrix;
+        PreimageOracle.Leaf[] memory leaves = _generateLeaves(matrix, phonyData);
+        leaves[0].stateCommitment = stateCommitments[0];
+        leaves[1].stateCommitment = stateCommitments[1];
+
+        // Create a proof array with 15 elements.
+        bytes32[] memory preProof = new bytes32[](15);
+        preProof[0] = _hashLeaf(leaves[1]);
+        bytes32[] memory postProof = new bytes32[](15);
+        postProof[0] = _hashLeaf(leaves[0]);
+        for (uint256 i = 1; i < preProof.length; i++) {
+            bytes32 zeroHash = oracle.zeroHashes(i);
+            preProof[i] = zeroHash;
+            postProof[i] = zeroHash;
+        }
+
+        // Should succeed since the commitment was wrong.
+        oracle.challengeFirstLPP({
+            _claimant: address(this),
+            _uuid: TEST_UUID,
+            _postState: leaves[0],
+            _postStateProof: preProof
+        });
+
+        LPPMetaData metaData = oracle.proposalMetadata(address(this), TEST_UUID);
+        assertTrue(metaData.countered());
+
+        vm.warp(block.timestamp + oracle.CHALLENGE_PERIOD() + 1 seconds);
+
+        // Finalize the proposal.
+        vm.expectRevert(BadProposal.selector);
+        oracle.finalizeLPP({
+            _claimant: address(this),
+            _uuid: TEST_UUID,
+            _stateMatrix: _stateMatrixAtBlockIndex(data, 1),
+            _prevState: leaves[0],
+            _prevStateProof: preProof,
+            _postState: leaves[1],
+            _postStateProof: postProof
+        });
+    }
+
+    /// @notice Tests that a proposal cannot be finalized until it has passed the challenge period.
+    function test_finalize_challengePeriodActive_reverts() public {
+        // Allocate the preimage data.
+        bytes memory data = new bytes(136);
+        for (uint256 i; i < data.length; i++) {
+            data[i] = 0xFF;
+        }
+
+        // Initialize the proposal.
+        oracle.initLPP(TEST_UUID, 0, uint32(data.length));
+
+        // Add the leaves to the tree (2 keccak blocks.)
+        LibKeccak.StateMatrix memory stateMatrix;
+        bytes32[] memory stateCommitments = _generateStateCommitments(stateMatrix, data);
+        oracle.addLeavesLPP(TEST_UUID, data, stateCommitments, true);
+
+        // Construct the leaf preimage data for the blocks added.
+        LibKeccak.StateMatrix memory matrix;
+        PreimageOracle.Leaf[] memory leaves = _generateLeaves(matrix, data);
+
+        // Finalize the proposal.
+        vm.expectRevert(ActiveProposal.selector);
+        oracle.finalizeLPP({
+            _claimant: address(this),
+            _uuid: TEST_UUID,
+            _stateMatrix: _stateMatrixAtBlockIndex(data, 1),
+            _prevState: leaves[0],
+            _prevStateProof: new bytes32[](15),
+            _postState: leaves[1],
+            _postStateProof: new bytes32[](15)
+        });
     }
 
     /// @notice Tests that a valid leaf cannot be countered with the `challengeFirst` function.
@@ -423,7 +597,11 @@ contract KeccakDispute_LargePreimageProposals_Test is Test {
     function _generateLeaves(
         LibKeccak.StateMatrix memory _stateMatrix,
         bytes memory _data
-    ) internal pure returns (PreimageOracle.Leaf[] memory leaves_) {
+    )
+        internal
+        pure
+        returns (PreimageOracle.Leaf[] memory leaves_)
+    {
         bytes memory data = LibKeccak.padMemory(_data);
         uint256 numLeaves = data.length / LibKeccak.BLOCK_SIZE_BYTES;
 
@@ -434,16 +612,19 @@ contract KeccakDispute_LargePreimageProposals_Test is Test {
             LibKeccak.permutation(_stateMatrix);
             bytes32 stateCommitment = keccak256(abi.encode(_stateMatrix));
 
-            leaves_[i] = PreimageOracle.Leaf({
-                input: blockSlice,
-                index: i,
-                stateCommitment: stateCommitment
-            });
+            leaves_[i] = PreimageOracle.Leaf({ input: blockSlice, index: i, stateCommitment: stateCommitment });
         }
     }
 
     /// @notice Helper to get the keccak state matrix before applying the block at `_blockIndex` within `_data`.
-    function _stateMatrixAtBlockIndex(bytes memory _data, uint256 _blockIndex) internal pure returns (LibKeccak.StateMatrix memory matrix_) {
+    function _stateMatrixAtBlockIndex(
+        bytes memory _data,
+        uint256 _blockIndex
+    )
+        internal
+        pure
+        returns (LibKeccak.StateMatrix memory matrix_)
+    {
         bytes memory data = LibKeccak.padMemory(_data);
 
         for (uint256 i = 0; i < _blockIndex; i++) {
@@ -475,4 +656,3 @@ contract KeccakDispute_LargePreimageProposals_Test is Test {
         }
     }
 }
-

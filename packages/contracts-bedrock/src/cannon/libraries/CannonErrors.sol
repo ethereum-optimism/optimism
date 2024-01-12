@@ -24,3 +24,9 @@ error TreeSizeOverflow();
 
 /// @notice Thrown when the preimage proposal has already been finalized.
 error AlreadyFinalized();
+
+/// @notice Thrown when the proposal has not matured past the challenge period.
+error ActiveProposal();
+
+/// @notice Thrown when attempting to finalize a proposal that has been challenged.
+error BadProposal();

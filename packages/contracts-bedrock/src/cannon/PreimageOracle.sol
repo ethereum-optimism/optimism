@@ -21,6 +21,8 @@ contract PreimageOracle is IPreimageOracle {
     uint256 public constant KECCAK_TREE_DEPTH = 15;
     /// @notice The maximum number of keccak blocks that can fit into the merkle tree.
     uint256 public constant MAX_LEAF_COUNT = 2 ** KECCAK_TREE_DEPTH - 1;
+    /// @notice The duration of the large preimage proposal challenge period.
+    uint256 public constant CHALLENGE_PERIOD = 1 days;
 
     ////////////////////////////////////////////////////////////////
     //                 Authorized Preimage Parts                  //
@@ -184,14 +186,18 @@ contract PreimageOracle is IPreimageOracle {
         bytes32[] calldata _prevStateProof,
         Leaf calldata _postState,
         bytes32[] calldata _postStateProof
-    ) external {
+    )
+        external
+    {
         LPPMetaData metaData = proposalMetadata[_claimant][_uuid];
 
         // Check if the challenge period has passed since the proposal was finalized.
-        if (metaData.timestamp() != 0 && block.timestamp - metaData.timestamp() <= 1 days) revert("Challenge period");
+        if (metaData.timestamp() != 0 && block.timestamp - metaData.timestamp() <= CHALLENGE_PERIOD) {
+            revert ActiveProposal();
+        }
 
         // Check if the proposal was countered.
-        if (metaData.countered()) revert("Countered");
+        if (metaData.countered()) revert BadProposal();
 
         // Hash the pre and post states to get the leaf values.
         bytes32 prevStateHash = _hashLeaf(_prevState);
@@ -199,7 +205,12 @@ contract PreimageOracle is IPreimageOracle {
 
         // Verify that both leaves are present in the merkle tree.
         bytes32 root = getTreeRootLPP(_claimant, _uuid);
-        if (!(verifyMerkleLPP(_prevStateProof, root, _prevState.index, prevStateHash) && verifyMerkleLPP(_postStateProof, root, _postState.index, postStateHash))) { revert InvalidProof(); }
+        if (
+            !(
+                verifyMerkleLPP(_prevStateProof, root, _prevState.index, prevStateHash)
+                    && verifyMerkleLPP(_postStateProof, root, _postState.index, postStateHash)
+            )
+        ) revert InvalidProof();
 
         // Verify that the pre/post state are contiguous.
         if (_prevState.index + 1 != _postState.index || _postState.index != metaData.blocksProcessed() - 1) {
@@ -241,7 +252,12 @@ contract PreimageOracle is IPreimageOracle {
 
         // Verify that both leaves are present in the merkle tree.
         bytes32 root = getTreeRootLPP(_claimant, _uuid);
-        if (!(verifyMerkleLPP(_prevStateProof, root, _prevState.index, prevStateHash) && verifyMerkleLPP(_postStateProof, root, _postState.index, postStateHash))) revert InvalidProof();
+        if (
+            !(
+                verifyMerkleLPP(_prevStateProof, root, _prevState.index, prevStateHash)
+                    && verifyMerkleLPP(_postStateProof, root, _postState.index, postStateHash)
+            )
+        ) revert InvalidProof();
 
         // Verify that the prestate passed matches the intermediate state claimed in the leaf.
         if (keccak256(abi.encode(_stateMatrix)) != _prevState.stateCommitment) revert InvalidPreimage();
@@ -353,8 +369,9 @@ contract PreimageOracle is IPreimageOracle {
             // The input length must be a multiple of 136 bytes
             // The input lenth / 136 must be equal to the number of state commitments.
             if or(mod(inputLen, 136), iszero(eq(_stateCommitments.length, div(inputLen, 136)))) {
-                // TODO: Add nice revert signature
-                revert(0, 0)
+                // Store "InvalidInputSize()" error selector
+                mstore(0x00, 0x7b1daf1)
+                revert(0x1C, 0x04)
             }
 
             // Allocate a hashing buffer the size of the leaf preimage.
@@ -406,9 +423,8 @@ contract PreimageOracle is IPreimageOracle {
         // Update the proposal metadata.
         metaData = metaData.setBlocksProcessed(uint32(blocks_)).setBytesProcessed(uint32(_input.length));
         if (_finalize) metaData = metaData.setTimestamp(uint64(block.timestamp));
-        proposalMetadata[msg.sender][_uuid] = metaData.setBlocksProcessed(uint32(blocks_)).setBytesProcessed(uint32(_input.length));
+        proposalMetadata[msg.sender][_uuid] = metaData;
     }
-
 
     /// @notice Gets the current merkle root of the large preimage proposal tree.
     function getTreeRootLPP(address _owner, uint256 _uuid) public view returns (bytes32 treeRoot_) {
@@ -448,12 +464,8 @@ contract PreimageOracle is IPreimageOracle {
                 let branchValue := calldataload(add(_proof.offset, shl(0x05, i)))
 
                 switch and(shr(i, _index), 0x01)
-                case 1 {
-                    value := hashTwo(branchValue, value)
-                }
-                default {
-                    value := hashTwo(value, branchValue)
-                }
+                case 1 { value := hashTwo(branchValue, value) }
+                default { value := hashTwo(value, branchValue) }
             }
 
             // Debug Logs
