@@ -21,6 +21,7 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
 
     /// TODO: Replace struct parameters and workarounds with the appropriate
     /// types once Kontrol supports symbolic `bytes` and `bytes[]`
+    /// Tracking issue: https://github.com/runtimeverification/kontrol/issues/272
     function prove_proveWithdrawalTransaction_paused(
         // WithdrawalTransaction args
         uint256 _nonce,
@@ -64,6 +65,7 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
 
     /// TODO: Replace struct parameters and workarounds with the appropiate
     /// types once Kontrol supports symbolic `bytes` and `bytes[]`
+    /// Tracking issue: https://github.com/runtimeverification/kontrol/issues/272
     function prove_finalizeWithdrawalTransaction_paused(
         uint256 _nonce,
         address _sender,
