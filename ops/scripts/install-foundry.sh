@@ -2,8 +2,11 @@
 
 set -e
 
+SCRIPTS_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+MONOREPO_DIR=$(cd "$SCRIPTS_DIR/../../" && pwd)
+
 # Grab the foundry commit hash.
-SHA=$(jq -r .foundry < versions.json)
+SHA=$(jq -r .foundry < $MONOREPO_DIR/versions.json)
 
 # Check if there is a nightly tag corresponding to the commit hash
 TAG="nightly-$SHA"
@@ -42,3 +45,5 @@ fi
 # Remove the temporary foundry repo; Used just for checking the nightly tag's existence.
 rm -rf "$TMP_DIR"
 echo "Removed tempdir @ $TMP_DIR"
+
+

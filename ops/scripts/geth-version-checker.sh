@@ -1,10 +1,13 @@
 #!/bin/bash
 
+SCRIPTS_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+MONOREPO_DIR=$(cd "$SCRIPTS_DIR/../../" && pwd)
+
 # Extract the version from the geth command output
 GETH_VERSION="v$(geth version | grep '^Version:' | awk '{print $2}')"
 
 # Read the version from the versions file
-EXPECTED_GETH_VERSION=$(jq -r .geth < versions.json)
+EXPECTED_GETH_VERSION=$(jq -r .geth < $MONOREPO_DIR/versions.json)
 
 # Check if EXPECTED_GETH_VERSION contains a '-'. If not, append '-stable'.
 if [[ $EXPECTED_GETH_VERSION != *-* ]]; then
@@ -21,3 +24,5 @@ else
     echo "Expected geth version: $EXPECTED_GETH_VERSION"
     exit 1
 fi
+
+
