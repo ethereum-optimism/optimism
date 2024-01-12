@@ -108,6 +108,13 @@ contract XDM_MinGasLimits is Bridge_Initializer {
         // Don't allow the estimation address to be the sender
         excludeSender(Constants.ESTIMATION_ADDRESS);
 
+        // Don't allow the predeploys to be the senders
+        uint160 prefix = uint160(0x420) << 148;
+        for (uint256 i = 0; i < 2048; i++) {
+            address addr = address(prefix | uint160(i));
+            excludeContract(addr);
+        }
+
         // Target the actor's `relay` function
         bytes4[] memory selectors = new bytes4[](1);
         selectors[0] = actor.relay.selector;
