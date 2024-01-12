@@ -15,12 +15,12 @@ A CLI for generating Go bindings from Forge artifacts and API clients such as Et
     - [Global Flags](#global-flags)
   - [Local Flags](#local-flags)
   - [Remote Flags](#remote-flags)
-- [Using BindGen to Add New Predeploys to L2 Genesis](#using-bindgen-to-add-new-predeploys-to-l2-genesis)
+- [Using BindGen to Add New Preinstalls to L2 Genesis](#using-bindgen-to-add-new-preinstalls-to-l2-genesis)
   - [Anatomy of `artifacts.json`](#anatomy-of-artifactsjson)
     - [`"local"` Contracts](#local-contracts)
     - [`"remote"` Contracts](#remote-contracts)
     - [Adding A New `"remote"` Contract](#adding-a-new-remote-contract)
-      - [Contracts that Don't Make Good Predeploys](#contracts-that-dont-make-good-predeploys)
+      - [Contracts that Don't Make Good Preinstalls](#contracts-that-dont-make-good-preinstalls)
     - [Adding the Contract to L2 Genesis](#adding-the-contract-to-l2-genesis)
 
 # Dependencies
@@ -159,11 +159,11 @@ Flag                   | Type   | Description                                   
 `rpc.url.eth`          | String | This is any HTTP URL that can be used to query an Ethereum Mainnet RPC node | Yes
 `rpc.url.op`           | String | This is any HTTP URL that can be used to query an Optimism Mainnet RPC node | Yes
 
-# Using BindGen to Add New Predeploys to L2 Genesis
+# Using BindGen to Add New Preinstalls to L2 Genesis
 
 **Note** While we encourage hacking on the OP stack, we are not actively looking to integrate more contracts to the official OP stack genesis.
 
-BindGen uses the provided `contracts-list` to generate Go bindings and metadata files which are used when building the L2 genesis. The first step in adding a new predeploy to L2 genesis is adding the contract to your `contracts-list` (by default this list if [artifacts.json](../artifacts.json)).
+BindGen uses the provided `contracts-list` to generate Go bindings and metadata files which are used when building the L2 genesis. The first step in adding a new preinstall to L2 genesis is adding the contract to your `contracts-list` (by default this list if [artifacts.json](../artifacts.json)).
 
 ## Anatomy of `artifacts.json`
 
@@ -297,7 +297,7 @@ If you contract is verified on Etherscan, doesn't contain any Solidity `immutabl
 2. Compares the retrieved deployed bytecode from Etherscan against the response of `eth_codeAt` from an RPC node for each network specified in `RemoteContract.deployments` (this is a sanity check to verify Etherscan is returning correct data)
 3. If applicable, removes the provided `RemoteContract.deploymentSalt` from the initialization bytecode
 4. Compares the initialization bytecode retrieved from Etherscan on Ethereum Mainnet against the bytecode retrieved from Etherscan on Optimism Mainnet
-  - This is an important sanity check! If the initialization bytecode from Ethereum differs from Optimism, then there's a big chance the deployment from Ethereum may not behave as expected if predeployed to an OP stack L2
+  - This is an important sanity check! If the initialization bytecode from Ethereum differs from Optimism, then there's a big chance the deployment from Ethereum may not behave as expected if preinstalled to an OP stack L2
 5. Compares the deployment bytecode retrieved from Etherscan on Ethereum Mainnet against the bytecode retrieved from Etherscan on Optimism Mainnet
   - This has the same concern as differing initialization bytecode
 6. Lastly, the Go bindings are generated and the metadata file is written to the path provided as `metadata-out` CLI flag
@@ -308,16 +308,16 @@ All other default `"remote"` contract have some variation of the above execution
 - `MultiSend_v130` has an `immutable` Solidity variable the resolves to `address(this)`, so we can't use the deployment bytecode from Ethereum Mainnet, we must get it's deployment bytecode from Optimism Mainnet
 - `SenderCreator` is deployed by `EntryPoint`, so it's initialization bytecode is provided in [artifacts.json](../artifacts.json) and not being fetched from Etherscan like other contracts
 
-#### Contracts that Don't Make Good Predeploys
+#### Contracts that Don't Make Good Preinstalls
 
-Not every contract can be added as a predeploy, and some contracts have nuances that make them potentially dangerous or troublesome to predeploy. Below are some examples of contracts that wouldn't make good predeploys. This is not a comprehensive list, so make sure to use judgment for each contract added as a predeploy.
+Not every contract can be added as a preinstall, and some contracts have nuances that make them potentially dangerous or troublesome to preinstall. Below are some examples of contracts that wouldn't make good preinstalls. This is not a comprehensive list, so make sure to use judgment for each contract added as a preinstall.
 
 - Contracts that haven't been audited or stood the test of time
-  - Once a contract is predeployed and a network is started, if a vulnerability is discovered for the contract and there is no way to easily disable the contract, the only options to "disable" the vulnerable contract are to either (A) remove it from the L2 genesis and restart the L2 network, (B) Hardfork the network to remove/replace the predeploy, or (C) Warn users not to use the vulnerable predeploy
+  - Once a contract is preinstalled and a network is started, if a vulnerability is discovered for the contract and there is no way to easily disable the contract, the only options to "disable" the vulnerable contract are to either (A) remove it from the L2 genesis and restart the L2 network, (B) Hardfork the network to remove/replace the preinstall, or (C) Warn users not to use the vulnerable preinstall
 - Related to above, contracts that may become deprecated/unsupported relatively soon
   - As mentioned above, you're limited to options A, B, or C
 - Upgradeable Contracts
-  - While it's certainly feasible to predeploy an upgradeable contract, great care should be taken to minimize security risks to users if the contract is upgraded to a malicious or buggy implementation. Understanding who has the ability to upgrade the contract is key to avoiding this. Additionally, user's might be expecting a predeploy to do something and may be caught off guard if the implementation was upgraded without their knowledge
+  - While it's certainly feasible to preinstall an upgradeable contract, great care should be taken to minimize security risks to users if the contract is upgraded to a malicious or buggy implementation. Understanding who has the ability to upgrade the contract is key to avoiding this. Additionally, user's might be expecting a preinstall to do something and may be caught off guard if the implementation was upgraded without their knowledge
 - Contracts with Privileged Roles and Configuration Parameters
   - Similar to the upgradeable contracts, simply having an owner or other privileged role with the ability to make configuration changes can present a security risk and result in unexpected different behaviors across chains.
 - Contracts that have dependencies
@@ -329,9 +329,9 @@ Not every contract can be added as a predeploy, and some contracts have nuances 
 
 ### Adding the Contract to L2 Genesis
 
-Once you've configured the `contracts-list` to include the contracts you'd like to add as predeploys, the next step is utilizing the BindGen outputs to configure the L2 genesis.
+Once you've configured the `contracts-list` to include the contracts you'd like to add as preinstalls, the next step is utilizing the BindGen outputs to configure the L2 genesis.
 
-1. First we must update the [addresses.go](../predeploys/addresses.go) file to include the address we're predeploying our contracts to
+1. First we must update the [addresses.go](../predeploys/addresses.go) file to include the address we're preinstalling our contracts to
 1. Update the `switch` case found in [layer_two.go](../../op-chain-ops/genesis/layer_two.go) to include the `name` of your contracts
 1. Update [immutables.go](../../op-chain-ops/immutables/immutables.go) to include your added contracts
 1. Update [Predeploys.sol](../../packages/contracts-bedrock/src/libraries/Predeploys.sol) to include your added contracts at their expected addresses
