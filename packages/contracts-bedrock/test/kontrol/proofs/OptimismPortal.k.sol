@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
 import { DeploymentSummary } from "./utils/DeploymentSummary.sol";
@@ -18,7 +19,7 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
         superchainConfig = SuperchainConfig(SuperchainConfigProxyAddress);
     }
 
-    /// TODO: Replace struct parameters and workarounds with the appropiate
+    /// TODO: Replace struct parameters and workarounds with the appropriate
     /// types once Kontrol supports symbolic `bytes` and `bytes[]`
     function proof_proveWithdrawalTransaction_paused(
         // WithdrawalTransaction args
