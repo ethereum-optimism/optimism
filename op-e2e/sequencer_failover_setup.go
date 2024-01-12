@@ -1,4 +1,3 @@
-//nolint:all
 package op_e2e
 
 import (
