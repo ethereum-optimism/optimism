@@ -45,6 +45,7 @@ var (
 	two        = big.NewInt(2)
 
 	ErrBlobFeeLimit = errors.New("blob fee limit reached")
+	ErrClosed       = errors.New("transaction manager is closed")
 )
 
 // TxManager is an interface that allows callers to reliably publish txs,
@@ -119,6 +120,8 @@ type SimpleTxManager struct {
 	nonceLock sync.RWMutex
 
 	pending atomic.Int64
+
+	closed atomic.Bool
 }
 
 // NewSimpleTxManager initializes a new SimpleTxManager with the passed Config.
@@ -153,8 +156,11 @@ func (m *SimpleTxManager) BlockNumber(ctx context.Context) (uint64, error) {
 	return m.backend.BlockNumber(ctx)
 }
 
+// Close closes the underlying connection, and sets the closed flag.
+// once closed, the tx manager will refuse to send any new transactions, and may abandon pending ones.
 func (m *SimpleTxManager) Close() {
 	m.backend.Close()
+	m.closed.Store(true)
 }
 
 func (m *SimpleTxManager) txLogger(tx *types.Transaction, logGas bool) log.Logger {
@@ -195,6 +201,10 @@ type TxCandidate struct {
 //
 // NOTE: Send can be called concurrently, the nonce will be managed internally.
 func (m *SimpleTxManager) Send(ctx context.Context, candidate TxCandidate) (*types.Receipt, error) {
+	// refuse new requests if the tx manager is closed
+	if m.closed.Load() {
+		return nil, ErrClosed
+	}
 	m.metr.RecordPendingTx(m.pending.Add(1))
 	defer func() {
 		m.metr.RecordPendingTx(m.pending.Add(-1))
@@ -214,6 +224,9 @@ func (m *SimpleTxManager) send(ctx context.Context, candidate TxCandidate) (*typ
 		defer cancel()
 	}
 	tx, err := retry.Do(ctx, 30, retry.Fixed(2*time.Second), func() (*types.Transaction, error) {
+		if m.closed.Load() {
+			return nil, ErrClosed
+		}
 		tx, err := m.craftTx(ctx, candidate)
 		if err != nil {
 			m.l.Warn("Failed to create a transaction, will retry", "err", err)
@@ -418,6 +431,11 @@ func (m *SimpleTxManager) sendTx(ctx context.Context, tx *types.Transaction) (*t
 				m.txLogger(tx, false).Warn("Aborting transaction submission")
 				return nil, errors.New("aborted transaction sending")
 			}
+			// if the tx manager closed while we were waiting for the tx, give up
+			if m.closed.Load() {
+				m.txLogger(tx, false).Warn("TxManager closed, aborting transaction submission")
+				return nil, ErrClosed
+			}
 			tx = publishAndWait(tx, true)
 
 		case <-ctx.Done():
@@ -440,6 +458,11 @@ func (m *SimpleTxManager) publishTx(ctx context.Context, tx *types.Transaction, 
 	l.Info("Publishing transaction")
 
 	for {
+		// if the tx manager closed, give up without bumping fees or retrying
+		if m.closed.Load() {
+			l.Warn("TxManager closed, aborting transaction submission")
+			return tx, false
+		}
 		if bumpFeesImmediately {
 			newTx, err := m.increaseGasPrice(ctx, tx)
 			if err != nil {
