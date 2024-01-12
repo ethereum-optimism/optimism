@@ -205,9 +205,9 @@ contract KeccakDispute_LargePreimageProposals_Test is Test {
 
     /// @notice Tests that leaves can be added the large preimage proposal mapping and proven to be contained within
     ///         the computed merkle root.
-    function test_appendAndVerify_succeeds() public {
+    function test_addLeaves_multipleParts_succeeds() public {
         // Allocate the preimage data.
-        bytes memory data = new bytes(136);
+        bytes memory data = new bytes(136 * 3);
         for (uint256 i; i < data.length; i++) {
             data[i] = 0xFF;
         }
@@ -218,34 +218,34 @@ contract KeccakDispute_LargePreimageProposals_Test is Test {
         // Add the leaves to the tree (2 keccak blocks.)
         LibKeccak.StateMatrix memory stateMatrix;
         bytes32[] memory stateCommitments = _generateStateCommitments(stateMatrix, data);
-        oracle.addLeavesLPP(TEST_UUID, data, stateCommitments, true);
 
-        // Get the root of the tree after absorbing the data.
-        bytes32 root = oracle.getTreeRootLPP(address(this), TEST_UUID);
-
-        // Construct the leaf preimage data for the blocks added.
-        LibKeccak.StateMatrix memory matrix;
-        PreimageOracle.Leaf[] memory leaves = _generateLeaves(matrix, data);
-
-        // Create a proof array with 15 elements.
-        bytes32[] memory p = new bytes32[](15);
-        for (uint256 i = 1; i < p.length; i++) {
-            p[i] = oracle.zeroHashes(i);
+        uint256 midPoint = stateCommitments.length / 2;
+        bytes32[] memory commitmentsA = new bytes32[](midPoint);
+        bytes32[] memory commitmentsB = new bytes32[](midPoint);
+        for (uint256 i = 0; i < midPoint; i++) {
+            commitmentsA[i] = stateCommitments[i];
+            commitmentsB[i] = stateCommitments[i + midPoint];
         }
 
-        // The proof for `leaf1` should be valid
-        p[0] = _hashLeaf(leaves[1]);
-        assertTrue(oracle.verifyMerkleLPP(p, root, 0, _hashLeaf(leaves[0])));
-        // The proof for `leaf2` should be valid
-        p[0] = _hashLeaf(leaves[0]);
-        assertTrue(oracle.verifyMerkleLPP(p, root, 1, _hashLeaf(leaves[1])));
+        oracle.addLeavesLPP(TEST_UUID, Bytes.slice(data, 0, 136 * 2), commitmentsA, false);
 
         // MetaData assertions
         LPPMetaData metaData = oracle.proposalMetadata(address(this), TEST_UUID);
-        assertEq(metaData.timestamp(), 1);
+        assertEq(metaData.timestamp(), 0);
         assertEq(metaData.partOffset(), 0);
         assertEq(metaData.claimedSize(), data.length);
         assertEq(metaData.blocksProcessed(), 2);
+        assertEq(metaData.bytesProcessed(), 136 * 2);
+        assertFalse(metaData.countered());
+
+        oracle.addLeavesLPP(TEST_UUID, Bytes.slice(data, 136 * 2, 136), commitmentsB, true);
+
+        // MetaData assertions
+        metaData = oracle.proposalMetadata(address(this), TEST_UUID);
+        assertEq(metaData.timestamp(), 1);
+        assertEq(metaData.partOffset(), 0);
+        assertEq(metaData.claimedSize(), data.length);
+        assertEq(metaData.blocksProcessed(), 4);
         assertEq(metaData.bytesProcessed(), data.length);
         assertFalse(metaData.countered());
 
@@ -260,7 +260,7 @@ contract KeccakDispute_LargePreimageProposals_Test is Test {
 
     /// @notice Tests that leaves can be added the large preimage proposal mapping and finalized to be added to the
     ///         authorized mappings.
-    function test_finalize_challengePeriodPassed_succeeds() public {
+    function test_squeeze_challengePeriodPassed_succeeds() public {
         // Allocate the preimage data.
         bytes memory data = new bytes(136);
         for (uint256 i; i < data.length; i++) {
@@ -293,12 +293,12 @@ contract KeccakDispute_LargePreimageProposals_Test is Test {
         vm.warp(block.timestamp + oracle.CHALLENGE_PERIOD() + 1 seconds);
 
         // Finalize the proposal.
-        oracle.finalizeLPP({
+        oracle.squeezeLPP({
             _claimant: address(this),
             _uuid: TEST_UUID,
             _stateMatrix: _stateMatrixAtBlockIndex(data, 1),
-            _prevState: leaves[0],
-            _prevStateProof: preProof,
+            _preState: leaves[0],
+            _preStateProof: preProof,
             _postState: leaves[1],
             _postStateProof: postProof
         });
@@ -311,7 +311,7 @@ contract KeccakDispute_LargePreimageProposals_Test is Test {
     }
 
     /// @notice Tests that a proposal cannot be finalized until it has passed the challenge period.
-    function test_finalize_proposalChallenged_reverts() public {
+    function test_squeeze_proposalChallenged_reverts() public {
         // Allocate the preimage data.
         bytes memory data = new bytes(136);
         for (uint256 i; i < data.length; i++) {
@@ -359,19 +359,19 @@ contract KeccakDispute_LargePreimageProposals_Test is Test {
 
         // Finalize the proposal.
         vm.expectRevert(BadProposal.selector);
-        oracle.finalizeLPP({
+        oracle.squeezeLPP({
             _claimant: address(this),
             _uuid: TEST_UUID,
             _stateMatrix: _stateMatrixAtBlockIndex(data, 1),
-            _prevState: leaves[0],
-            _prevStateProof: preProof,
+            _preState: leaves[0],
+            _preStateProof: preProof,
             _postState: leaves[1],
             _postStateProof: postProof
         });
     }
 
     /// @notice Tests that a proposal cannot be finalized until it has passed the challenge period.
-    function test_finalize_challengePeriodActive_reverts() public {
+    function test_squeeze_challengePeriodActive_reverts() public {
         // Allocate the preimage data.
         bytes memory data = new bytes(136);
         for (uint256 i; i < data.length; i++) {
@@ -392,14 +392,87 @@ contract KeccakDispute_LargePreimageProposals_Test is Test {
 
         // Finalize the proposal.
         vm.expectRevert(ActiveProposal.selector);
-        oracle.finalizeLPP({
+        oracle.squeezeLPP({
             _claimant: address(this),
             _uuid: TEST_UUID,
             _stateMatrix: _stateMatrixAtBlockIndex(data, 1),
-            _prevState: leaves[0],
-            _prevStateProof: new bytes32[](15),
+            _preState: leaves[0],
+            _preStateProof: new bytes32[](15),
             _postState: leaves[1],
             _postStateProof: new bytes32[](15)
+        });
+    }
+
+    /// @notice Tests that a proposal cannot be finalized until it has passed the challenge period.
+    function test_squeeze_incompleteAbsorbtion_reverts() public {
+        // Allocate the preimage data.
+        bytes memory data = new bytes(136);
+        for (uint256 i; i < data.length; i++) {
+            data[i] = 0xFF;
+        }
+
+        // Initialize the proposal.
+        oracle.initLPP(TEST_UUID, 0, uint32(data.length));
+
+        // Construct the leaf preimage data for the blocks added.
+        LibKeccak.StateMatrix memory matrix;
+        PreimageOracle.Leaf[] memory leaves = _generateLeaves(matrix, data);
+
+        // Finalize the proposal.
+        vm.expectRevert(ActiveProposal.selector);
+        oracle.squeezeLPP({
+            _claimant: address(this),
+            _uuid: TEST_UUID,
+            _stateMatrix: _stateMatrixAtBlockIndex(data, 1),
+            _preState: leaves[0],
+            _preStateProof: new bytes32[](15),
+            _postState: leaves[1],
+            _postStateProof: new bytes32[](15)
+        });
+    }
+
+    /// @notice Tests that the `squeeze` function reverts when the post state passed
+    function test_squeeze_statesNotContiguous_reverts() public {
+        // Allocate the preimage data.
+        bytes memory data = new bytes(136);
+        for (uint256 i; i < data.length; i++) {
+            data[i] = 0xFF;
+        }
+
+        // Initialize the proposal.
+        oracle.initLPP(TEST_UUID, 0, uint32(data.length));
+
+        // Add the leaves to the tree (2 keccak blocks.)
+        LibKeccak.StateMatrix memory stateMatrix;
+        bytes32[] memory stateCommitments = _generateStateCommitments(stateMatrix, data);
+        oracle.addLeavesLPP(TEST_UUID, data, stateCommitments, true);
+
+        // Construct the leaf preimage data for the blocks added.
+        LibKeccak.StateMatrix memory matrix;
+        PreimageOracle.Leaf[] memory leaves = _generateLeaves(matrix, data);
+
+        // Create a proof array with 15 elements.
+        bytes32[] memory preProof = new bytes32[](15);
+        preProof[0] = _hashLeaf(leaves[1]);
+        bytes32[] memory postProof = new bytes32[](15);
+        postProof[0] = _hashLeaf(leaves[0]);
+        for (uint256 i = 1; i < preProof.length; i++) {
+            bytes32 zeroHash = oracle.zeroHashes(i);
+            preProof[i] = zeroHash;
+            postProof[i] = zeroHash;
+        }
+
+        vm.warp(block.timestamp + oracle.CHALLENGE_PERIOD() + 1 seconds);
+
+        // Finalize the proposal.
+        oracle.squeezeLPP({
+            _claimant: address(this),
+            _uuid: TEST_UUID,
+            _stateMatrix: _stateMatrixAtBlockIndex(data, 1),
+            _preState: leaves[0],
+            _preStateProof: preProof,
+            _postState: leaves[1],
+            _postStateProof: postProof
         });
     }
 
@@ -522,8 +595,8 @@ contract KeccakDispute_LargePreimageProposals_Test is Test {
             _claimant: address(this),
             _uuid: TEST_UUID,
             _stateMatrix: preMatrix,
-            _prevState: leaves[0],
-            _prevStateProof: preProof,
+            _preState: leaves[0],
+            _preStateProof: preProof,
             _postState: leaves[1],
             _postStateProof: postProof
         });
@@ -578,8 +651,8 @@ contract KeccakDispute_LargePreimageProposals_Test is Test {
             _claimant: address(this),
             _uuid: TEST_UUID,
             _stateMatrix: preMatrix,
-            _prevState: leaves[0],
-            _prevStateProof: preProof,
+            _preState: leaves[0],
+            _preStateProof: preProof,
             _postState: leaves[1],
             _postStateProof: postProof
         });

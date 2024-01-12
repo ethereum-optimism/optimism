@@ -178,12 +178,12 @@ contract PreimageOracle is IPreimageOracle {
     }
 
     /// @notice Finalize a large preimage proposal after the challenge period has passed.
-    function finalizeLPP(
+    function squeezeLPP(
         address _claimant,
         uint256 _uuid,
         LibKeccak.StateMatrix memory _stateMatrix,
-        Leaf calldata _prevState,
-        bytes32[] calldata _prevStateProof,
+        Leaf calldata _preState,
+        bytes32[] calldata _preStateProof,
         Leaf calldata _postState,
         bytes32[] calldata _postStateProof
     )
@@ -192,28 +192,24 @@ contract PreimageOracle is IPreimageOracle {
         LPPMetaData metaData = proposalMetadata[_claimant][_uuid];
 
         // Check if the challenge period has passed since the proposal was finalized.
-        if (metaData.timestamp() != 0 && block.timestamp - metaData.timestamp() <= CHALLENGE_PERIOD) {
+        if (block.timestamp - metaData.timestamp() <= CHALLENGE_PERIOD) {
             revert ActiveProposal();
         }
 
         // Check if the proposal was countered.
         if (metaData.countered()) revert BadProposal();
 
-        // Hash the pre and post states to get the leaf values.
-        bytes32 prevStateHash = _hashLeaf(_prevState);
-        bytes32 postStateHash = _hashLeaf(_postState);
-
         // Verify that both leaves are present in the merkle tree.
         bytes32 root = getTreeRootLPP(_claimant, _uuid);
         if (
             !(
-                verifyMerkleLPP(_prevStateProof, root, _prevState.index, prevStateHash)
-                    && verifyMerkleLPP(_postStateProof, root, _postState.index, postStateHash)
+                _verify(_preStateProof, root, _preState.index, _hashLeaf(_preState))
+                    && _verify(_postStateProof, root, _postState.index, _hashLeaf(_postState))
             )
         ) revert InvalidProof();
 
         // Verify that the pre/post state are contiguous.
-        if (_prevState.index + 1 != _postState.index || _postState.index != metaData.blocksProcessed() - 1) {
+        if (_preState.index + 1 != _postState.index || _postState.index != metaData.blocksProcessed() - 1) {
             revert StatesNotContiguous();
         }
 
@@ -239,31 +235,27 @@ contract PreimageOracle is IPreimageOracle {
         address _claimant,
         uint256 _uuid,
         LibKeccak.StateMatrix memory _stateMatrix,
-        Leaf calldata _prevState,
-        bytes32[] calldata _prevStateProof,
+        Leaf calldata _preState,
+        bytes32[] calldata _preStateProof,
         Leaf calldata _postState,
         bytes32[] calldata _postStateProof
     )
         external
     {
-        // Hash the pre and post states to get the leaf values.
-        bytes32 prevStateHash = _hashLeaf(_prevState);
-        bytes32 postStateHash = _hashLeaf(_postState);
-
         // Verify that both leaves are present in the merkle tree.
         bytes32 root = getTreeRootLPP(_claimant, _uuid);
         if (
             !(
-                verifyMerkleLPP(_prevStateProof, root, _prevState.index, prevStateHash)
-                    && verifyMerkleLPP(_postStateProof, root, _postState.index, postStateHash)
+                _verify(_preStateProof, root, _preState.index, _hashLeaf(_preState))
+                    && _verify(_postStateProof, root, _postState.index, _hashLeaf(_postState))
             )
         ) revert InvalidProof();
 
         // Verify that the prestate passed matches the intermediate state claimed in the leaf.
-        if (keccak256(abi.encode(_stateMatrix)) != _prevState.stateCommitment) revert InvalidPreimage();
+        if (keccak256(abi.encode(_stateMatrix)) != _preState.stateCommitment) revert InvalidPreimage();
 
         // Verify that the pre/post state are contiguous.
-        if (_prevState.index + 1 != _postState.index) revert StatesNotContiguous();
+        if (_preState.index + 1 != _postState.index) revert StatesNotContiguous();
 
         // Absorb and permute the input bytes.
         LibKeccak.absorb(_stateMatrix, _postState.input);
@@ -285,12 +277,9 @@ contract PreimageOracle is IPreimageOracle {
     )
         external
     {
-        // Hash the post state to get the leaf value.
-        bytes32 prevStateHash = _hashLeaf(_postState);
-
         // Verify that the leaf is present in the merkle tree.
         bytes32 root = getTreeRootLPP(_claimant, _uuid);
-        if (!verifyMerkleLPP(_postStateProof, root, _postState.index, prevStateHash)) revert InvalidProof();
+        if (!_verify(_postStateProof, root, _postState.index, _hashLeaf(_postState))) revert InvalidProof();
 
         // The prestate index must be 0 in order to challenge it with this function.
         if (_postState.index != 0) revert StatesNotContiguous();
@@ -421,7 +410,7 @@ contract PreimageOracle is IPreimageOracle {
         proposalBranches[msg.sender][_uuid] = branch_;
 
         // Update the proposal metadata.
-        metaData = metaData.setBlocksProcessed(uint32(blocks_)).setBytesProcessed(uint32(_input.length));
+        metaData = metaData.setBlocksProcessed(uint32(blocks_)).setBytesProcessed(uint32(_input.length + currentSize));
         if (_finalize) metaData = metaData.setTimestamp(uint64(block.timestamp));
         proposalMetadata[msg.sender][_uuid] = metaData;
     }
@@ -441,13 +430,13 @@ contract PreimageOracle is IPreimageOracle {
 
     /// Check if leaf` at `index` verifies against the Merkle `root` and `branch`.
     /// https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/beacon-chain.md#is_valid_merkle_branch
-    function verifyMerkleLPP(
+    function _verify(
         bytes32[] calldata _proof,
         bytes32 _root,
         uint256 _index,
         bytes32 _leaf
     )
-        public
+        internal
         pure
         returns (bool isValid_)
     {
