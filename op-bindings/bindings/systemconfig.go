@@ -438,6 +438,37 @@ func (_SystemConfig *SystemConfigCallerSession) OPTIMISMPORTALSLOT() ([32]byte, 
 	return _SystemConfig.Contract.OPTIMISMPORTALSLOT(&_SystemConfig.CallOpts)
 }
 
+// STARTBLOCKSLOT is a free data retrieval call binding the contract method 0xe0e2016d.
+//
+// Solidity: function START_BLOCK_SLOT() view returns(bytes32)
+func (_SystemConfig *SystemConfigCaller) STARTBLOCKSLOT(opts *bind.CallOpts) ([32]byte, error) {
+	var out []interface{}
+	err := _SystemConfig.contract.Call(opts, &out, "START_BLOCK_SLOT")
+
+	if err != nil {
+		return *new([32]byte), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new([32]byte)).(*[32]byte)
+
+	return out0, err
+
+}
+
+// STARTBLOCKSLOT is a free data retrieval call binding the contract method 0xe0e2016d.
+//
+// Solidity: function START_BLOCK_SLOT() view returns(bytes32)
+func (_SystemConfig *SystemConfigSession) STARTBLOCKSLOT() ([32]byte, error) {
+	return _SystemConfig.Contract.STARTBLOCKSLOT(&_SystemConfig.CallOpts)
+}
+
+// STARTBLOCKSLOT is a free data retrieval call binding the contract method 0xe0e2016d.
+//
+// Solidity: function START_BLOCK_SLOT() view returns(bytes32)
+func (_SystemConfig *SystemConfigCallerSession) STARTBLOCKSLOT() ([32]byte, error) {
+	return _SystemConfig.Contract.STARTBLOCKSLOT(&_SystemConfig.CallOpts)
+}
+
 // UNSAFEBLOCKSIGNERSLOT is a free data retrieval call binding the contract method 0x4f16540b.
 //
 // Solidity: function UNSAFE_BLOCK_SIGNER_SLOT() view returns(bytes32)
@@ -905,7 +936,7 @@ func (_SystemConfig *SystemConfigCallerSession) Scalar() (*big.Int, error) {
 
 // StartBlock is a free data retrieval call binding the contract method 0x48cd4cb1.
 //
-// Solidity: function startBlock() view returns(uint256)
+// Solidity: function startBlock() view returns(uint256 startBlock_)
 func (_SystemConfig *SystemConfigCaller) StartBlock(opts *bind.CallOpts) (*big.Int, error) {
 	var out []interface{}
 	err := _SystemConfig.contract.Call(opts, &out, "startBlock")
@@ -922,14 +953,14 @@ func (_SystemConfig *SystemConfigCaller) StartBlock(opts *bind.CallOpts) (*big.I
 
 // StartBlock is a free data retrieval call binding the contract method 0x48cd4cb1.
 //
-// Solidity: function startBlock() view returns(uint256)
+// Solidity: function startBlock() view returns(uint256 startBlock_)
 func (_SystemConfig *SystemConfigSession) StartBlock() (*big.Int, error) {
 	return _SystemConfig.Contract.StartBlock(&_SystemConfig.CallOpts)
 }
 
 // StartBlock is a free data retrieval call binding the contract method 0x48cd4cb1.
 //
-// Solidity: function startBlock() view returns(uint256)
+// Solidity: function startBlock() view returns(uint256 startBlock_)
 func (_SystemConfig *SystemConfigCallerSession) StartBlock() (*big.Int, error) {
 	return _SystemConfig.Contract.StartBlock(&_SystemConfig.CallOpts)
 }
@@ -1120,6 +1151,27 @@ func (_SystemConfig *SystemConfigSession) SetResourceConfig(_config ResourceMete
 // Solidity: function setResourceConfig((uint32,uint8,uint8,uint32,uint32,uint128) _config) returns()
 func (_SystemConfig *SystemConfigTransactorSession) SetResourceConfig(_config ResourceMeteringResourceConfig) (*types.Transaction, error) {
 	return _SystemConfig.Contract.SetResourceConfig(&_SystemConfig.TransactOpts, _config)
+}
+
+// SetStartBlock is a paid mutator transaction binding the contract method 0xf981b978.
+//
+// Solidity: function setStartBlock() returns()
+func (_SystemConfig *SystemConfigTransactor) SetStartBlock(opts *bind.TransactOpts) (*types.Transaction, error) {
+	return _SystemConfig.contract.Transact(opts, "setStartBlock")
+}
+
+// SetStartBlock is a paid mutator transaction binding the contract method 0xf981b978.
+//
+// Solidity: function setStartBlock() returns()
+func (_SystemConfig *SystemConfigSession) SetStartBlock() (*types.Transaction, error) {
+	return _SystemConfig.Contract.SetStartBlock(&_SystemConfig.TransactOpts)
+}
+
+// SetStartBlock is a paid mutator transaction binding the contract method 0xf981b978.
+//
+// Solidity: function setStartBlock() returns()
+func (_SystemConfig *SystemConfigTransactorSession) SetStartBlock() (*types.Transaction, error) {
+	return _SystemConfig.Contract.SetStartBlock(&_SystemConfig.TransactOpts)
 }
 
 // SetUnsafeBlockSigner is a paid mutator transaction binding the contract method 0x18d13918.
