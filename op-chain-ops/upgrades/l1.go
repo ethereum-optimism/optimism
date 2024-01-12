@@ -110,19 +110,17 @@ func L1CrossDomainMessenger(batch *safe.Batch, implementations superchain.Implem
 	if err != nil {
 		return err
 	}
-	optimismPortal, err := l1CrossDomainMessenger.Portal(&bind.CallOpts{})
+	optimismPortal, err := l1CrossDomainMessenger.PORTAL(&bind.CallOpts{})
 	if err != nil {
 		return err
 	}
-	otherMessenger, err := l1CrossDomainMessenger.OtherMessenger(&bind.CallOpts{})
+	otherMessenger, err := l1CrossDomainMessenger.OTHERMESSENGER(&bind.CallOpts{})
 	if err != nil {
 		return err
 	}
 
-	if config != nil {
-		if optimismPortal != config.OptimismPortalProxy {
-			return fmt.Errorf("upgrading L1CrossDomainMessenger: Portal address doesn't match config")
-		}
+	if optimismPortal != common.Address(list.OptimismPortalProxy) {
+		return fmt.Errorf("upgrading L1CrossDomainMessenger: Portal address doesn't match config")
 	}
 
 	if otherMessenger != predeploys.L2CrossDomainMessengerAddr {
@@ -203,10 +201,8 @@ func L1ERC721Bridge(batch *safe.Batch, implementations superchain.Implementation
 		return err
 	}
 
-	if config != nil {
-		if messenger != config.L1CrossDomainMessengerProxy {
-			return fmt.Errorf("upgrading L1ERC721Bridge: Messenger address doesn't match config")
-		}
+	if messenger != common.Address(list.L1CrossDomainMessengerProxy) {
+		return fmt.Errorf("upgrading L1ERC721Bridge: Messenger address doesn't match config")
 	}
 
 	if otherBridge != predeploys.L2ERC721BridgeAddr {
@@ -284,20 +280,18 @@ func L1StandardBridge(batch *safe.Batch, implementations superchain.Implementati
 		return err
 	}
 
-	messenger, err := l1StandardBridge.Messenger(&bind.CallOpts{})
+	messenger, err := l1StandardBridge.MESSENGER(&bind.CallOpts{})
 	if err != nil {
 		return err
 	}
 
-	otherBridge, err := l1StandardBridge.OtherBridge(&bind.CallOpts{})
+	otherBridge, err := l1StandardBridge.OTHERBRIDGE(&bind.CallOpts{})
 	if err != nil {
 		return err
 	}
 
-	if config != nil {
-		if messenger != config.L1CrossDomainMessengerProxy {
-			return fmt.Errorf("upgrading L1StandardBridge: Messenger address doesn't match config")
-		}
+	if messenger != common.Address(list.L1CrossDomainMessengerProxy) {
+		return fmt.Errorf("upgrading L1StandardBridge: Messenger address doesn't match config")
 	}
 
 	if otherBridge != predeploys.L2StandardBridgeAddr {
@@ -380,12 +374,12 @@ func L2OutputOracle(batch *safe.Batch, implementations superchain.Implementation
 		return err
 	}
 
-	l2OutputOracleSubmissionInterval, err := l2OutputOracle.SubmissionInterval(&bind.CallOpts{})
+	l2OutputOracleSubmissionInterval, err := l2OutputOracle.SUBMISSIONINTERVAL(&bind.CallOpts{})
 	if err != nil {
 		return err
 	}
 
-	l2BlockTime, err := l2OutputOracle.L2BlockTime(&bind.CallOpts{})
+	l2BlockTime, err := l2OutputOracle.L2BLOCKTIME(&bind.CallOpts{})
 	if err != nil {
 		return err
 	}
@@ -400,17 +394,17 @@ func L2OutputOracle(batch *safe.Batch, implementations superchain.Implementation
 		return err
 	}
 
-	l2OutputOracleProposer, err := l2OutputOracle.Proposer(&bind.CallOpts{})
+	l2OutputOracleProposer, err := l2OutputOracle.PROPOSER(&bind.CallOpts{})
 	if err != nil {
 		return err
 	}
 
-	l2OutputOracleChallenger, err := l2OutputOracle.Challenger(&bind.CallOpts{})
+	l2OutputOracleChallenger, err := l2OutputOracle.CHALLENGER(&bind.CallOpts{})
 	if err != nil {
 		return err
 	}
 
-	finalizationPeriodSeconds, err := l2OutputOracle.FinalizationPeriodSeconds(&bind.CallOpts{})
+	finalizationPeriodSeconds, err := l2OutputOracle.FINALIZATIONPERIODSECONDS(&bind.CallOpts{})
 	if err != nil {
 		return err
 	}
@@ -524,15 +518,13 @@ func OptimismMintableERC20Factory(batch *safe.Batch, implementations superchain.
 		return err
 	}
 
-	bridge, err := optimismMintableERC20Factory.Bridge(&bind.CallOpts{})
+	bridge, err := optimismMintableERC20Factory.BRIDGE(&bind.CallOpts{})
 	if err != nil {
 		return err
 	}
 
-	if config != nil {
-		if bridge != config.L1StandardBridgeProxy {
-			return fmt.Errorf("upgrading OptimismMintableERC20Factory: Bridge address doesn't match config")
-		}
+	if bridge != common.Address(list.L1StandardBridgeProxy) {
+		return fmt.Errorf("upgrading OptimismMintableERC20Factory: Bridge address doesn't match config")
 	}
 
 	calldata, err := optimismMintableERC20FactoryABI.Pack("initialize", bridge)
@@ -615,22 +607,21 @@ func OptimismPortal(batch *safe.Batch, implementations superchain.Implementation
 	if err != nil {
 		return err
 	}
-	l2OutputOracle, err := optimismPortal.L2Oracle(&bind.CallOpts{})
+	l2OutputOracle, err := optimismPortal.L2ORACLE(&bind.CallOpts{})
 	if err != nil {
 		return err
 	}
-	systemConfig, err := optimismPortal.SystemConfig(&bind.CallOpts{})
+	systemConfig, err := optimismPortal.SYSTEMCONFIG(&bind.CallOpts{})
 	if err != nil {
 		return err
 	}
 
-	if config != nil {
-		if l2OutputOracle != common.HexToAddress(list.L2OutputOracleProxy.String()) {
-			return fmt.Errorf("upgrading OptimismPortal: L2OutputOracle address doesn't match config")
-		}
-		if systemConfig != config.SystemConfigProxy {
-			return fmt.Errorf("upgrading OptimismPortal: SystemConfig address doesn't match config")
-		}
+	if l2OutputOracle != common.HexToAddress(list.L2OutputOracleProxy.String()) {
+		return fmt.Errorf("upgrading OptimismPortal: L2OutputOracle address doesn't match config")
+	}
+
+	if systemConfig != common.HexToAddress(chainConfig.SystemConfigAddr.String()) {
+		return fmt.Errorf("upgrading OptimismPortal: SystemConfig address doesn't match config")
 	}
 
 	calldata, err := optimismPortalABI.Pack("initialize", l2OutputOracle, systemConfig, superchainConfigProxy)
@@ -786,6 +777,15 @@ func SystemConfig(batch *safe.Batch, implementations superchain.ImplementationLi
 		l2GenesisBlockGasLimit,
 		p2pSequencerAddress,
 		genesis.DefaultResourceConfig,
+		chainConfig.BatchInboxAddr,
+		bindings.SystemConfigAddresses{
+			L1CrossDomainMessenger:       common.Address(list.L1CrossDomainMessengerProxy),
+			L1ERC721Bridge:               common.Address(list.L1ERC721BridgeProxy),
+			L1StandardBridge:             common.Address(list.L1StandardBridgeProxy),
+			L2OutputOracle:               common.Address(list.L2OutputOracleProxy),
+			OptimismPortal:               common.Address(list.OptimismPortalProxy),
+			OptimismMintableERC20Factory: common.Address(list.OptimismMintableERC20FactoryProxy),
+		},
 	)
 	if err != nil {
 		return err
