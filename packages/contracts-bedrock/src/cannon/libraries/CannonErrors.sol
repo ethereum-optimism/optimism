@@ -21,3 +21,6 @@ error PostStateMatches();
 
 /// @notice Thrown when the preimage is too large to fit in the tree.
 error TreeSizeOverflow();
+
+/// @notice Thrown when the preimage proposal has already been finalized.
+error AlreadyFinalized();

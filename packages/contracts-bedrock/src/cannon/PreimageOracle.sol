@@ -52,11 +52,11 @@ contract PreimageOracle is IPreimageOracle {
     bytes32[KECCAK_TREE_DEPTH] public zeroHashes;
     /// @notice Mapping of addresses to UUIDs to the current branch path of the merkleization process.
     mapping(address => mapping(uint256 => bytes32[KECCAK_TREE_DEPTH])) public proposalBranches;
-    /// @notice Mapping of addresses to UUIDs to the current number of blocks absorbed (# of leaves).
-    mapping(address => mapping(uint256 => uint256)) public proposalBlocksProcessed;
     /// @notice Mapping of addresses to UUIDs to the timestamp of creation of the proposal as well as the challenged
     ///         status.
     mapping(address => mapping(uint256 => LPPMetaData)) public proposalMetadata;
+    /// @notice Mapping of addresses to UUIDs to the preimage part picked up during the absorbtion process.
+    mapping(address => mapping(uint256 => bytes32)) public proposalParts;
 
     ////////////////////////////////////////////////////////////////
     //                        Constructor                         //
@@ -169,8 +169,62 @@ contract PreimageOracle is IPreimageOracle {
     //            Large Preimage Proposals (External)             //
     ////////////////////////////////////////////////////////////////
 
+    /// @notice Initialize a large preimage proposal.
+    function initLPP(uint256 _uuid, uint32 _partOffset, uint32 _claimedSize) external {
+        LPPMetaData metaData = proposalMetadata[msg.sender][_uuid];
+        proposalMetadata[msg.sender][_uuid] = metaData.setPartOffset(_partOffset).setClaimedSize(_claimedSize);
+    }
+
+    /// @notice Finalize a large preimage proposal after the challenge period has passed.
+    function finalizeLPP(
+        address _claimant,
+        uint256 _uuid,
+        LibKeccak.StateMatrix memory _stateMatrix,
+        Leaf calldata _prevState,
+        bytes32[] calldata _prevStateProof,
+        Leaf calldata _postState,
+        bytes32[] calldata _postStateProof
+    ) external {
+        LPPMetaData metaData = proposalMetadata[_claimant][_uuid];
+
+        // Check if the challenge period has passed since the proposal was finalized.
+        if (metaData.timestamp() != 0 && block.timestamp - metaData.timestamp() <= 1 days) revert("Challenge period");
+
+        // Check if the proposal was countered.
+        if (metaData.countered()) revert("Countered");
+
+        // Hash the pre and post states to get the leaf values.
+        bytes32 prevStateHash = _hashLeaf(_prevState);
+        bytes32 postStateHash = _hashLeaf(_postState);
+
+        // Verify that both leaves are present in the merkle tree.
+        bytes32 root = getTreeRootLPP(_claimant, _uuid);
+        if (!(verifyMerkleLPP(_prevStateProof, root, _prevState.index, prevStateHash) && verifyMerkleLPP(_postStateProof, root, _postState.index, postStateHash))) { revert InvalidProof(); }
+
+        // Verify that the pre/post state are contiguous.
+        if (_prevState.index + 1 != _postState.index || _postState.index != metaData.blocksProcessed() - 1) {
+            revert StatesNotContiguous();
+        }
+
+        // The claimed size must match the actual size of the preimage.
+        if (metaData.bytesProcessed() != metaData.claimedSize()) revert InvalidInputSize();
+
+        // Absorb and permute the input bytes.
+        LibKeccak.absorb(_stateMatrix, _postState.input);
+        LibKeccak.permutation(_stateMatrix);
+        bytes32 finalDigest = LibKeccak.squeeze(_stateMatrix);
+
+        // Write the preimage part to the authorized preimage parts mapping.
+        address claimant = _claimant;
+        uint256 uuid = _uuid;
+        uint256 partOffset = metaData.partOffset();
+        preimagePartOk[finalDigest][partOffset] = true;
+        preimageParts[finalDigest][partOffset] = proposalParts[claimant][uuid];
+        preimageLengths[finalDigest] = metaData.bytesProcessed();
+    }
+
     /// @notice Challenge a keccak256 block that was committed to in the merkle tree.
-    function challenge(
+    function challengeLPP(
         address _claimant,
         uint256 _uuid,
         LibKeccak.StateMatrix memory _stateMatrix,
@@ -186,8 +240,8 @@ contract PreimageOracle is IPreimageOracle {
         bytes32 postStateHash = _hashLeaf(_postState);
 
         // Verify that both leaves are present in the merkle tree.
-        bytes32 root = getTreeRoot(_claimant, _uuid);
-        if (!(verifyMerkle(_prevStateProof, root, _prevState.index, prevStateHash) && verifyMerkle(_postStateProof, root, _postState.index, postStateHash))) revert InvalidProof();
+        bytes32 root = getTreeRootLPP(_claimant, _uuid);
+        if (!(verifyMerkleLPP(_prevStateProof, root, _prevState.index, prevStateHash) && verifyMerkleLPP(_postStateProof, root, _postState.index, postStateHash))) revert InvalidProof();
 
         // Verify that the prestate passed matches the intermediate state claimed in the leaf.
         if (keccak256(abi.encode(_stateMatrix)) != _prevState.stateCommitment) revert InvalidPreimage();
@@ -202,14 +256,12 @@ contract PreimageOracle is IPreimageOracle {
         // Verify that the post state hash doesn't match the expected hash.
         if (keccak256(abi.encode(_stateMatrix)) == _postState.stateCommitment) revert PostStateMatches();
 
-        // Mark the keccak claim as challenged.
-        LPPMetaData metaData = proposalMetadata[_claimant][_uuid];
-        metaData = LPPMetaData.wrap(bytes32(uint256(1)) | LPPMetaData.unwrap(metaData));
-        proposalMetadata[_claimant][_uuid] = metaData;
+        // Mark the keccak claim as countered.
+        proposalMetadata[_claimant][_uuid] = proposalMetadata[_claimant][_uuid].setCountered(true);
     }
 
     /// @notice Challenge the first keccak256 block that was absorbed.
-    function challengeFirst(
+    function challengeFirstLPP(
         address _claimant,
         uint256 _uuid,
         Leaf calldata _postState,
@@ -221,10 +273,8 @@ contract PreimageOracle is IPreimageOracle {
         bytes32 prevStateHash = _hashLeaf(_postState);
 
         // Verify that the leaf is present in the merkle tree.
-        bytes32 root = getTreeRoot(_claimant, _uuid);
-        if (!verifyMerkle(_postStateProof, root, _postState.index, prevStateHash)) {
-            revert InvalidProof();
-        }
+        bytes32 root = getTreeRootLPP(_claimant, _uuid);
+        if (!verifyMerkleLPP(_postStateProof, root, _postState.index, prevStateHash)) revert InvalidProof();
 
         // The prestate index must be 0 in order to challenge it with this function.
         if (_postState.index != 0) revert StatesNotContiguous();
@@ -237,27 +287,12 @@ contract PreimageOracle is IPreimageOracle {
         // Verify that the post state hash doesn't match the expected hash.
         if (keccak256(abi.encode(stateMatrix)) == _postState.stateCommitment) revert PostStateMatches();
 
-        // Mark the keccak claim as challenged.
-        LPPMetaData metaData = proposalMetadata[_claimant][_uuid];
-        metaData = LPPMetaData.wrap(bytes32(uint256(1)) | LPPMetaData.unwrap(metaData));
-        proposalMetadata[_claimant][_uuid] = metaData;
-    }
-
-    /// @notice Gets the current merkle root of the large preimage proposal tree.
-    function getTreeRoot(address _owner, uint256 _uuid) public view returns (bytes32 treeRoot_) {
-        uint256 size = proposalBlocksProcessed[_owner][_uuid];
-        for (uint256 height = 0; height < KECCAK_TREE_DEPTH; height++) {
-            if ((size & 1) == 1) {
-                treeRoot_ = keccak256(abi.encode(proposalBranches[_owner][_uuid][height], treeRoot_));
-            } else {
-                treeRoot_ = keccak256(abi.encode(treeRoot_, zeroHashes[height]));
-            }
-            size /= 2;
-        }
+        // Mark the keccak claim as countered.
+        proposalMetadata[_claimant][_uuid] = proposalMetadata[_claimant][_uuid].setCountered(true);
     }
 
     /// @notice Adds a contiguous list of keccak state matrices to the merkle tree.
-    function addLeaves(
+    function addLeavesLPP(
         uint256 _uuid,
         bytes calldata _input,
         bytes32[] calldata _stateCommitments,
@@ -265,6 +300,7 @@ contract PreimageOracle is IPreimageOracle {
     )
         external
     {
+        // If we're finalizing, pad the input for the submitter. If not, use the input verbatim.
         bytes memory input;
         if (_finalize) {
             input = LibKeccak.pad(_input);
@@ -274,8 +310,42 @@ contract PreimageOracle is IPreimageOracle {
 
         // Pull storage variables onto the stack / into memory for operations.
         bytes32[KECCAK_TREE_DEPTH] memory branch_ = proposalBranches[msg.sender][_uuid];
-        uint256 blocks_ = proposalBlocksProcessed[msg.sender][_uuid];
+        LPPMetaData metaData = proposalMetadata[msg.sender][_uuid];
 
+        // Revert if the proposal has already been finalized. No leaves can be added after this point.
+        if (metaData.timestamp() != 0) revert AlreadyFinalized();
+
+        // Check if the part offset is present in the input data being posted. If it is, assign the part to the mapping.
+        uint256 offset = metaData.partOffset();
+        uint256 currentSize = metaData.bytesProcessed();
+        if (offset < 8 && currentSize == 0) {
+            uint32 claimedSize = metaData.claimedSize();
+            bytes32 preimagePart;
+            assembly {
+                mstore(0x00, shl(192, claimedSize))
+                mstore(0x08, calldataload(_input.offset))
+                preimagePart := mload(offset)
+            }
+            proposalParts[msg.sender][_uuid] = preimagePart;
+        } else if (offset >= 8 && (offset = offset - 8) >= currentSize && offset < currentSize + _input.length) {
+            uint256 relativeOffset = offset - currentSize;
+
+            // Revert if the full preimage part is not available in the data we're absorbing. The submitter must
+            // supply data that contains the full preimage part so that no partial preimage parts are stored in the
+            // oracle. Partial parts are *only* allowed at the tail end of the preimage, where no more data is available
+            // to be absorbed.
+            if (relativeOffset + 32 >= _input.length && !_finalize) revert PartOffsetOOB();
+
+            // If the preimage part is in the data we're about to absorb, persist the part to the caller's large
+            // preimaage metadata.
+            bytes32 preimagePart;
+            assembly {
+                preimagePart := calldataload(add(_input.offset, relativeOffset))
+            }
+            proposalParts[msg.sender][_uuid] = preimagePart;
+        }
+
+        uint256 blocks_ = metaData.blocksProcessed();
         assembly {
             let inputLen := mload(input)
             let inputPtr := add(input, 0x20)
@@ -293,6 +363,8 @@ contract PreimageOracle is IPreimageOracle {
 
             for { let i := 0 } lt(i, inputLen) { i := add(i, 136) } {
                 // Copy the leaf preimage into the hashing buffer.
+                // TODO: Optimize this; Can probably store temps on stack and keep the input data in-place / restore
+                // after.
                 let inputStartPtr := add(inputPtr, i)
                 mstore(hashBuf, mload(inputStartPtr))
                 mstore(add(hashBuf, 0x20), mload(add(inputStartPtr, 0x20)))
@@ -310,15 +382,14 @@ contract PreimageOracle is IPreimageOracle {
 
                 // Add the node to the tree.
                 let size := blocks_
-                for { let height := 0x00 } lt(height, KECCAK_TREE_DEPTH) { height := add(height, 0x01) } {
-                    let heightOffset := shl(0x05, height)
-                    if eq(and(size, 0x01), 0x01) {
-                        mstore(add(branch_, heightOffset), node)
+                for { let height := 0x00 } lt(height, shl(0x05, KECCAK_TREE_DEPTH)) { height := add(height, 0x20) } {
+                    if and(size, 0x01) {
+                        mstore(add(branch_, height), node)
                         break
                     }
 
                     // Hash the node at `height` in the branch and the node together.
-                    mstore(0x00, mload(add(branch_, heightOffset)))
+                    mstore(0x00, mload(add(branch_, height)))
                     mstore(0x20, node)
                     node := keccak256(0x00, 0x40)
                     size := shr(0x01, size)
@@ -331,12 +402,30 @@ contract PreimageOracle is IPreimageOracle {
 
         // Perist the branch and number of blocks absorbed to storage.
         proposalBranches[msg.sender][_uuid] = branch_;
-        proposalBlocksProcessed[msg.sender][_uuid] = blocks_;
+
+        // Update the proposal metadata.
+        metaData = metaData.setBlocksProcessed(uint32(blocks_)).setBytesProcessed(uint32(_input.length));
+        if (_finalize) metaData = metaData.setTimestamp(uint64(block.timestamp));
+        proposalMetadata[msg.sender][_uuid] = metaData.setBlocksProcessed(uint32(blocks_)).setBytesProcessed(uint32(_input.length));
+    }
+
+
+    /// @notice Gets the current merkle root of the large preimage proposal tree.
+    function getTreeRootLPP(address _owner, uint256 _uuid) public view returns (bytes32 treeRoot_) {
+        uint256 size = proposalMetadata[_owner][_uuid].blocksProcessed();
+        for (uint256 height = 0; height < KECCAK_TREE_DEPTH; height++) {
+            if ((size & 1) == 1) {
+                treeRoot_ = keccak256(abi.encode(proposalBranches[_owner][_uuid][height], treeRoot_));
+            } else {
+                treeRoot_ = keccak256(abi.encode(treeRoot_, zeroHashes[height]));
+            }
+            size /= 2;
+        }
     }
 
     /// Check if leaf` at `index` verifies against the Merkle `root` and `branch`.
     /// https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/beacon-chain.md#is_valid_merkle_branch
-    function verifyMerkle(
+    function verifyMerkleLPP(
         bytes32[] calldata _proof,
         bytes32 _root,
         uint256 _index,
