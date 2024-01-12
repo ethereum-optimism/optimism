@@ -28,8 +28,32 @@ services:
     # volumes:
     #   - /:/addr
 
+  boba-migrate:
+    image: bobanetwork/boba-chain-ops
+    build:
+      context: ..
+      dockerfile: ./boba-chain-ops/Dockerfile
+    command: |
+      boba-migrate
+      --l1-rpc-url=${L1_RPC_URL-}
+      --db-path=/db
+      --alloc-path=/files/genesis.json
+      --genesis-config-path=/files/genesis-l2.json
+      --ovm-addresses=/files/eth-addresses.json
+      --ovm-allowances=/files/eth-allowance.json
+      --ovm-messages=/files/ovm-message.json
+      --witness-file=/files/witness.txt
+      --deploy-config=/files/deploy-config.json
+      --network=${NETWORK-}
+      --hardhat-deployments=/files/deployments
+      --outfile-rollup=/files/rollup.json
+    # volumes:
+      # - /:/db
+      # - /:/files
+
   erigon:
     image: bobanetwork/erigon:migration
+    user: "1000:1000"
     entrypoint:
       - /bin/sh
       - -c
@@ -37,3 +61,14 @@ services:
     # volumes:
     #   - /:/data
     #   - /:/jwt
+
+  erigon-init:
+    image: bobanetwork/erigon:migration
+    user: "1000:1000"
+    entrypoint:
+      - /bin/sh
+      - -c
+      - "erigon --datadir=/data init /genesis.json"
+    # volumes:
+    #   - /:/data
+    #   - /:/genesis.json
