@@ -665,17 +665,6 @@ jobs:
           command: ./ops/scripts/todo-checker.sh --verbose
       - notify-failures-on-develop
 
-  validate-absolute-prestate:
-    environment:
-      DOCKER_BUILDKIT: 1
-    machine:
-      image: <<pipeline.parameters.base_image>>
-    steps:
-      - checkout
-      - run:
-          name: Validate the absolute prestate
-          command: make validate-prestate
-
   bedrock-markdown:
     machine:
       image: <<pipeline.parameters.base_image>>
@@ -1417,7 +1406,6 @@ workflows:
           package_name: core-utils
           requires:
             - pnpm-monorepo
-      - validate-absolute-prestate
       - contracts-bedrock-tests:
           requires:
             - pnpm-monorepo

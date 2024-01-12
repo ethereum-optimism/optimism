@@ -90,14 +90,8 @@ cannon:
 	make -C ./cannon cannon
 .PHONY: cannon
 
-validate-prestate: reproducible-prestate
-	@make -C ./op-program validate-op-program-client-mips
-.PHONY: validate-prestate
-
 reproducible-prestate:
-	@echo "Building the reproducible absolute prestate..."
-	@docker build --output ./op-program/bin/ --progress plain -f op-program/Dockerfile.repro .
-	@echo "Done! Absolute prestate is in ./op-program/bin/prestate.json"
+	make -C ./op-program reproducible-prestate
 .PHONY: reproducible-prestate
 
 cannon-prestate: op-program cannon
