@@ -27,11 +27,9 @@ parties unaffiliated with the Optimism Collective.
 
 These preinstalls are commonly deployed smart contracts that are being placed at genesis for convenience.
 It's important to note that these contracts do not have the same security guarantees
-as [Predeployed smart contracts](./glossary.md#predpeloyed-contract-predeploy).
+as [Predeployed smart contracts](./glossary.md#predeployed-contract-predeploy).
 
-The following table includes each of the preinstalls. The system version
-indicates when the preinstall was introduced. The possible values are
-`Bedrock` or `Canyon`. Deprecated contracts should not be used.
+The following table includes each of the preinstalls.
 
 | Name                                      | Address                                    |
 | ----------------------------------------- | ------------------------------------------ |
