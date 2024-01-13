@@ -606,13 +606,6 @@
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "setStartBlock",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
     "inputs": [
       {
         "internalType": "address",
