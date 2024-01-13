@@ -135,23 +135,61 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
 
     /// @dev Tests that startBlock is updated correctly when it's zero.
     function test_startBlock_update_succeeds() external {
-        // set slot startBlock to zero
+        // Wipe out the initialized slot so the proxy can be initialized again
+        vm.store(address(systemConfig), bytes32(0), bytes32(0));
+        // Set slot startBlock to zero
         vm.store(address(systemConfig), systemConfig.START_BLOCK_SLOT(), bytes32(uint256(0)));
 
-        // Initialize and check that after call to setStartBlock it updates to current block number
+        // Initialize and check that StartBlock updates to current block number
         vm.prank(systemConfig.owner());
-        systemConfig.setStartBlock();
+        systemConfig.initialize({
+            _owner: alice,
+            _overhead: 2100,
+            _scalar: 1000000,
+            _batcherHash: bytes32(hex"abcd"),
+            _gasLimit: gasLimit,
+            _unsafeBlockSigner: address(1),
+            _config: Constants.DEFAULT_RESOURCE_CONFIG(),
+            _batchInbox: address(0),
+            _addresses: SystemConfig.Addresses({
+                l1CrossDomainMessenger: address(0),
+                l1ERC721Bridge: address(0),
+                l1StandardBridge: address(0),
+                l2OutputOracle: address(0),
+                optimismPortal: address(0),
+                optimismMintableERC20Factory: address(0)
+            })
+        });
         assertEq(systemConfig.startBlock(), block.number);
     }
 
     /// @dev Tests that startBlock is not updated when it's not zero.
     function test_startBlock_update_fails() external {
-        // set slot startBlock to non-zero value 1
+        // Wipe out the initialized slot so the proxy can be initialized again
+        vm.store(address(systemConfig), bytes32(0), bytes32(0));
+        // Set slot startBlock to non-zero value 1
         vm.store(address(systemConfig), systemConfig.START_BLOCK_SLOT(), bytes32(uint256(1)));
 
-        // Initialize and check that after call to setStartBlock the value doesn't update
+        // Initialize and check that StartBlock doesn't update
         vm.prank(systemConfig.owner());
-        systemConfig.setStartBlock();
+        systemConfig.initialize({
+            _owner: alice,
+            _overhead: 2100,
+            _scalar: 1000000,
+            _batcherHash: bytes32(hex"abcd"),
+            _gasLimit: gasLimit,
+            _unsafeBlockSigner: address(1),
+            _config: Constants.DEFAULT_RESOURCE_CONFIG(),
+            _batchInbox: address(0),
+            _addresses: SystemConfig.Addresses({
+                l1CrossDomainMessenger: address(0),
+                l1ERC721Bridge: address(0),
+                l1StandardBridge: address(0),
+                l2OutputOracle: address(0),
+                optimismPortal: address(0),
+                optimismMintableERC20Factory: address(0)
+            })
+        });
         assertEq(systemConfig.startBlock(), 1);
     }
 }

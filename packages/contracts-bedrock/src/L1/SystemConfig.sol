@@ -308,11 +308,6 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         emit ConfigUpdate(VERSION, UpdateType.GAS_LIMIT, data);
     }
 
-    /// @notice Updates StartBlock. Can only be called by the owner.
-    function setStartBlock() external onlyOwner {
-        _setStartBlock();
-    }
-
     /// @notice Sets the start block in a backwards compatible way. Proxies
     ///         that were initialized before the startBlock existed in storage
     ///         can have their start block set by a user provided override.
