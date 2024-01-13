@@ -47,5 +47,12 @@
     "offset": 0,
     "slot": "21",
     "type": "mapping(address => mapping(uint256 => bytes32))"
+  },
+  {
+    "bytes": "32",
+    "label": "proposalBlocks",
+    "offset": 0,
+    "slot": "22",
+    "type": "mapping(address => mapping(uint256 => uint64[]))"
   }
 ]

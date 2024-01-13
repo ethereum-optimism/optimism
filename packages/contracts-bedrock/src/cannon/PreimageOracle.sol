@@ -58,6 +58,8 @@ contract PreimageOracle is IPreimageOracle {
     mapping(address => mapping(uint256 => LPPMetaData)) public proposalMetadata;
     /// @notice Mapping of claimants to proposal UUIDs to the preimage part picked up during the absorbtion process.
     mapping(address => mapping(uint256 => bytes32)) public proposalParts;
+    /// @notice Mapping of claimants to proposal UUIDs to blocks which leaves were added to the merkle tree.
+    mapping(address => mapping(uint256 => uint64[])) public proposalBlocks;
 
     ////////////////////////////////////////////////////////////////
     //                        Constructor                         //
@@ -178,6 +180,12 @@ contract PreimageOracle is IPreimageOracle {
         proposalMetadata[msg.sender][_uuid] = metaData.setPartOffset(_partOffset).setClaimedSize(_claimedSize);
     }
 
+    /// @notice Returns the length of the array with the block numbers of `addLeavesLPP` calls for a given large
+    ///         preimage proposal.
+    function proposalBlocksLen(address _claimant, uint256 _uuid) external view returns (uint256 len_) {
+        len_ = proposalBlocks[_claimant][_uuid].length;
+    }
+
     /// @notice Adds a contiguous list of keccak state matrices to the merkle tree.
     function addLeavesLPP(
         uint256 _uuid,
@@ -290,7 +298,9 @@ contract PreimageOracle is IPreimageOracle {
         if (blocksProcessed > MAX_LEAF_COUNT) revert TreeSizeOverflow();
 
         // Perist the branch to storage.
-        proposalBranches[msg.sender][_uuid] = branch;
+        proposalBranches[msg.sender][_uuid] = branch_;
+        // Track the block number that these leaves were added at.
+        proposalBlocks[msg.sender][_uuid].push(uint64(block.number));
 
         // Update the proposal metadata.
         metaData =

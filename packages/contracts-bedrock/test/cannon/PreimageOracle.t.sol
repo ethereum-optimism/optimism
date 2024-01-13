@@ -251,6 +251,9 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         assertEq(metaData.bytesProcessed(), 136 * 2);
         assertFalse(metaData.countered());
 
+        // Move ahead one block.
+        vm.roll(block.number + 1);
+
         oracle.addLeavesLPP(TEST_UUID, Bytes.slice(data, 136 * 2, 136), commitmentsB, true);
 
         // MetaData assertions
@@ -265,6 +268,9 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         // Preimage part assertions
         bytes32 expectedPart = bytes32((~uint256(0) & ~(uint256(type(uint64).max) << 192)) | (data.length << 192));
         assertEq(oracle.proposalParts(address(this), TEST_UUID), expectedPart);
+
+        assertEq(oracle.proposalBlocks(address(this), TEST_UUID, 0), block.number - 1);
+        assertEq(oracle.proposalBlocks(address(this), TEST_UUID, 1), block.number);
 
         // Should revert if we try to add new leaves.
         vm.expectRevert(AlreadyFinalized.selector);

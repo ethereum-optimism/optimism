@@ -430,6 +430,68 @@ func (_PreimageOracle *PreimageOracleCallerSession) PreimageParts(arg0 [32]byte,
 	return _PreimageOracle.Contract.PreimageParts(&_PreimageOracle.CallOpts, arg0, arg1)
 }
 
+// ProposalBlocks is a free data retrieval call binding the contract method 0x882856ef.
+//
+// Solidity: function proposalBlocks(address , uint256 , uint256 ) view returns(uint64)
+func (_PreimageOracle *PreimageOracleCaller) ProposalBlocks(opts *bind.CallOpts, arg0 common.Address, arg1 *big.Int, arg2 *big.Int) (uint64, error) {
+	var out []interface{}
+	err := _PreimageOracle.contract.Call(opts, &out, "proposalBlocks", arg0, arg1, arg2)
+
+	if err != nil {
+		return *new(uint64), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(uint64)).(*uint64)
+
+	return out0, err
+
+}
+
+// ProposalBlocks is a free data retrieval call binding the contract method 0x882856ef.
+//
+// Solidity: function proposalBlocks(address , uint256 , uint256 ) view returns(uint64)
+func (_PreimageOracle *PreimageOracleSession) ProposalBlocks(arg0 common.Address, arg1 *big.Int, arg2 *big.Int) (uint64, error) {
+	return _PreimageOracle.Contract.ProposalBlocks(&_PreimageOracle.CallOpts, arg0, arg1, arg2)
+}
+
+// ProposalBlocks is a free data retrieval call binding the contract method 0x882856ef.
+//
+// Solidity: function proposalBlocks(address , uint256 , uint256 ) view returns(uint64)
+func (_PreimageOracle *PreimageOracleCallerSession) ProposalBlocks(arg0 common.Address, arg1 *big.Int, arg2 *big.Int) (uint64, error) {
+	return _PreimageOracle.Contract.ProposalBlocks(&_PreimageOracle.CallOpts, arg0, arg1, arg2)
+}
+
+// ProposalBlocksLen is a free data retrieval call binding the contract method 0x9d53a648.
+//
+// Solidity: function proposalBlocksLen(address _claimant, uint256 _uuid) view returns(uint256 len_)
+func (_PreimageOracle *PreimageOracleCaller) ProposalBlocksLen(opts *bind.CallOpts, _claimant common.Address, _uuid *big.Int) (*big.Int, error) {
+	var out []interface{}
+	err := _PreimageOracle.contract.Call(opts, &out, "proposalBlocksLen", _claimant, _uuid)
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
+}
+
+// ProposalBlocksLen is a free data retrieval call binding the contract method 0x9d53a648.
+//
+// Solidity: function proposalBlocksLen(address _claimant, uint256 _uuid) view returns(uint256 len_)
+func (_PreimageOracle *PreimageOracleSession) ProposalBlocksLen(_claimant common.Address, _uuid *big.Int) (*big.Int, error) {
+	return _PreimageOracle.Contract.ProposalBlocksLen(&_PreimageOracle.CallOpts, _claimant, _uuid)
+}
+
+// ProposalBlocksLen is a free data retrieval call binding the contract method 0x9d53a648.
+//
+// Solidity: function proposalBlocksLen(address _claimant, uint256 _uuid) view returns(uint256 len_)
+func (_PreimageOracle *PreimageOracleCallerSession) ProposalBlocksLen(_claimant common.Address, _uuid *big.Int) (*big.Int, error) {
+	return _PreimageOracle.Contract.ProposalBlocksLen(&_PreimageOracle.CallOpts, _claimant, _uuid)
+}
+
 // ProposalBranches is a free data retrieval call binding the contract method 0xb4801e61.
 //
 // Solidity: function proposalBranches(address , uint256 , uint256 ) view returns(bytes32)
