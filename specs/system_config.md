@@ -69,7 +69,7 @@ The `scalar` is encoded as big-endian `uint256`, interpreted as `bytes32`, and c
     - `[1, 24)`: padding, must be zero.
     - `[24, 28)`: big-endian `uint32`, encoding the `blobBaseFeeScalar`
     - `[28, 32)`: big-endian `uint32`, encoding the `baseFeeScalar`
-    - This version is meant to configure the EIP-4844 blob fee component, once DA utilizes blob fees.
+    - This version is meant to configure the EIP-4844 blob fee component, once blobs are used for data-availability.
   - Other scalar-version values: unrecognized.
     OP-Stack forks are recommended to utilize the `>= 128` scalar-version range and document their `scalar` encoding.
 
