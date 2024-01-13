@@ -49,9 +49,10 @@ The values are interpreted as big-endian `uint256`.
 
 #### Ecotone `scalar`, `overhead` (`uint256,uint256`) change
 
-After Ecotone activation, the `scalar` attribute encodes additional scalar information, in a versioned encoding scheme.
+After Ecotone activation:
 
-After Ecotone activation, the `overhead` value is ignored: it does not affect the L2 state-transition output.
+- The `scalar` attribute encodes additional scalar information, in a versioned encoding scheme.
+- The `overhead` value is ignored: it does not affect the L2 state-transition output.
 
 The `scalar` is encoded as big-endian `uint256`. This `bytes32` is decoded as following:
 
@@ -82,6 +83,15 @@ Future upgrades of the `SystemConfig` contract may provide additional typed gett
 for the versioned scalar information.
 
 In Ecotone the existing `setGasConfig` function, and `scalar` and `overhead` getters, continue to function.
+
+When the batch-submitter utilizes EIP-4844 blob data for data-availability
+it can adjust the scalars to accurately price the resources:
+
+- `baseFeeScalar` to correspond to share of a user-transaction (per byte)
+  in the total Blob data that is introduced by the data-transaction of the batch-submitter.
+- `blobBaseFeeScalar` to correspond to the share of the user-transaction (per byte)
+  in the total regular L1 EVM gas usage consumed by the data-transaction of the batch-submitter.
+  For regular data-transactions this is the fixed intrinsic gas cost of the L1 transaction.
 
 ### `gasLimit` (`uint64`)
 

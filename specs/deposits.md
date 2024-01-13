@@ -303,7 +303,7 @@ The pre-Ecotone values are migrated over 1:1. The new Ecotone attributes are set
 - The `baseFeeScalar` is set to the pre-Ecotone `scalar` value.
 - The `blobBaseFeeScalar` is set to 0.
 - The pre-Ecotone `overhead` attribute is dropped.
-- The `blobBaseFee` represents the L1 blob basefee of the L1 origin block.
+- The `blobBaseFee` represents the L1 blob base fee of the L1 origin block.
   Or `0` if the L1 block does not support blobs.
 
 ## Special Accounts on L2
@@ -342,6 +342,8 @@ The predeploy stores the following values:
 - System configurables tied to the L1 block, see [System configuration specification](./system_config.md):
   - `batcherHash` (`bytes32`): A versioned commitment to the batch-submitter(s) currently operating.
   - `overhead` (`uint256`): The L1 fee overhead to apply to L1 cost computation of transactions in this L2 block.
+    The `overhead` value is dropped as it is no longer used in the
+    [Ecotone L1 fee formula](./exec-engine.md#ecotone-l1-cost-fee-changes-eip-4844-da).
   - `scalar` (`uint256`): The L1 fee scalar to apply to L1 cost computation of transactions in this L2 block.
 - With the Ecotone upgrade, the predeploy additionally stores:
   - `blobBaseFee` (`uint256`)
