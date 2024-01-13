@@ -19,7 +19,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 )
 
-var ErrSequencerAlreadyStarted = errors.New("sequencer already started")
+var ErrSequencerAlreadyStarted = errors.New("sequencer already running")
 
 // Deprecated: use eth.SyncStatus instead.
 type SyncStatus = eth.SyncStatus
