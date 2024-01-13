@@ -54,7 +54,7 @@ After Ecotone activation:
 - The `scalar` attribute encodes additional scalar information, in a versioned encoding scheme.
 - The `overhead` value is ignored: it does not affect the L2 state-transition output.
 
-The `scalar` is encoded as big-endian `uint256`. This `bytes32` is decoded as following:
+The `scalar` is encoded as big-endian `uint256`, interpreted as `bytes32`, and composed as following:
 
 *Byte ranges are indicated with `[` (inclusive) and `)` (exclusive).
 
