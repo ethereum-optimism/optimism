@@ -565,12 +565,12 @@ func (eq *EngineQueue) forceNextSafeAttributes(ctx context.Context) error {
 			// TODO: Can this be triggered by an empty batch with invalid data (like parent hash or gas limit?)
 			if len(attrs.Transactions) == depositCount {
 				switch depositCount {
-					case 0:
-						eq.log.Error("empty payload was invalid", "parent", eq.safeAttributes.parent, "err", err)
-						return NewCriticalError(fmt.Errorf("failed to process block with 0 transactions: %w", err))
-					default:
-						eq.log.Error("deposit only block was invalid", "parent", eq.safeAttributes.parent, "err", err)
-						return NewCriticalError(fmt.Errorf("failed to process block with only deposit transactions: %w", err))
+				case 0:
+					eq.log.Error("empty payload was invalid", "parent", eq.safeAttributes.parent, "err", err)
+					return NewCriticalError(fmt.Errorf("failed to process block with 0 transactions: %w", err))
+				default:
+					eq.log.Error("deposit only block was invalid", "parent", eq.safeAttributes.parent, "err", err)
+					return NewCriticalError(fmt.Errorf("failed to process block with only deposit transactions: %w", err))
 				}
 			}
 			// drop the payload without inserting it
