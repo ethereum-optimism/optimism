@@ -18,7 +18,6 @@ import (
 	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
 	con "github.com/ethereum-optimism/optimism/op-conductor/conductor"
 	conrpc "github.com/ethereum-optimism/optimism/op-conductor/rpc"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
@@ -59,13 +58,10 @@ func setupSequencerFailoverTest(t *testing.T) (*System, map[string]*conductor) {
 		Sequencer3Name: findAvailablePort(t),
 	}
 
-	// 3 sequencers, 1 verifier, 1 active sequencer.
+	// 3 stopped sequencers, 1 verifier
 	cfg := sequencerFailoverSystemConfig(t)
 	sys, err := cfg.Start(t)
 	require.NoError(t, err)
-
-	// 1 batcher that listens to all 3 sequencers, in started mode.
-	setupBatcher(t, sys)
 
 	// 3 conductors that connects to 1 sequencer each.
 	conductors := make(map[string]*conductor)
@@ -91,7 +87,6 @@ func setupSequencerFailoverTest(t *testing.T) (*System, map[string]*conductor) {
 	c1 := conductors[Sequencer1Name]
 	c2 := conductors[Sequencer2Name]
 	c3 := conductors[Sequencer3Name]
-
 	require.NoError(t, waitForLeadershipChange(t, c1, true))
 	require.NoError(t, c1.client.AddServerAsVoter(ctx, Sequencer2Name, c2.ConsensusEndpoint()))
 	require.NoError(t, c1.client.AddServerAsVoter(ctx, Sequencer3Name, c3.ConsensusEndpoint()))
@@ -99,17 +94,20 @@ func setupSequencerFailoverTest(t *testing.T) (*System, map[string]*conductor) {
 	require.False(t, leader(t, ctx, c2))
 	require.False(t, leader(t, ctx, c3))
 
-	// weirdly, batcher does not submit a batch until unsafe block 9.
-	// It became normal after that and submits a batch every L1 block (2s) per configuration.
-	// Since our health monitor checks on safe head progression, wait for batcher to become normal before proceeding.
-	require.NoError(t, wait.ForNextSafeBlock(ctx, sys.Clients[Sequencer1Name]))
-	require.NoError(t, wait.ForNextSafeBlock(ctx, sys.Clients[Sequencer1Name]))
-	require.NoError(t, wait.ForNextSafeBlock(ctx, sys.Clients[Sequencer1Name]))
+	// start sequencing on leader
+	lid, _ := findLeader(t, conductors)
+	unsafeHead, err := sys.Clients[lid].BlockByNumber(ctx, nil)
+	require.NoError(t, err)
+	require.NoError(t, sys.RollupClient(lid).StartSequencer(ctx, unsafeHead.Hash()))
 
-	// make sure conductor reports all sequencers as healthy, this means they're syncing correctly.
-	require.True(t, healthy(t, ctx, c1))
-	require.True(t, healthy(t, ctx, c2))
-	require.True(t, healthy(t, ctx, c3))
+	// 1 batcher that listens to all 3 sequencers, in started mode.
+	setupBatcher(t, sys)
+
+	require.Eventually(t, func() bool {
+		return healthy(t, ctx, c1) &&
+			healthy(t, ctx, c2) &&
+			healthy(t, ctx, c3)
+	}, 30*time.Second, 500*time.Millisecond, "Expected sequencer 1 to become healthy")
 
 	// unpause all conductors
 	require.NoError(t, c1.client.Resume(ctx))
@@ -338,3 +336,21 @@ func findAvailablePort(t *testing.T) int {
 		}
 	}
 }
+
+func findLeader(t *testing.T, conductors map[string]*conductor) (string, *conductor) {
+	for id, con := range conductors {
+		if leader(t, context.Background(), con) {
+			return id, con
+		}
+	}
+	return "", nil
+}
+
+// func findFollower(t *testing.T, conductors map[string]*conductor) (string, *conductor) {
+// 	for id, con := range conductors {
+// 		if !leader(t, context.Background(), con) {
+// 			return id, con
+// 		}
+// 	}
+// 	return "", nil
+// }
