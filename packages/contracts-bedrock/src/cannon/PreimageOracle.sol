@@ -4,8 +4,8 @@ pragma solidity 0.8.15;
 import { IPreimageOracle } from "./interfaces/IPreimageOracle.sol";
 import { PreimageKeyLib } from "./PreimageKeyLib.sol";
 import { LibKeccak } from "@lib-keccak/LibKeccak.sol";
-import "./libraries/CannonErrors.sol";
-import "./libraries/CannonTypes.sol";
+import "src/cannon/libraries/CannonErrors.sol";
+import "src/cannon/libraries/CannonTypes.sol";
 
 /// @title PreimageOracle
 /// @notice A contract for storing permissioned pre-images.
