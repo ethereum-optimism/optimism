@@ -124,6 +124,8 @@ func (hm *SequencerHealthMonitor) healthCheck() bool {
 			"unsafe_hash", status.UnsafeL2.Hash,
 			"unsafe_head_num", status.UnsafeL2.Number,
 			"unsafe_head_time", status.UnsafeL2.Time,
+			"safe_head_num", status.SafeL2.Number,
+			"safe_head_time", status.SafeL2.Time,
 		)
 		return false
 	}

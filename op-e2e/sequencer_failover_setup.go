@@ -151,7 +151,7 @@ func setupConductor(
 		Paused:         true,
 		HealthCheck: con.HealthCheckConfig{
 			Interval:       1, // per test setup, l2 block time is 1s.
-			UnsafeInterval: 3, // 1s block time + 2s buffer
+			UnsafeInterval: 3, // 1s L2 block time + 2s buffer
 			SafeInterval:   4, // 2s L1 block time + 2s buffer
 			MinPeerCount:   2, // per test setup, each sequencer has 2 peers
 		},
