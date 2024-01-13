@@ -10,7 +10,7 @@ import "./libraries/CannonTypes.sol";
 /// @title PreimageOracle
 /// @notice A contract for storing permissioned pre-images.
 /// @custom:attribution Solady <https://github.com/Vectorized/solady/blob/main/src/utils/MerkleProofLib.sol#L13-L43>
-/// @custom:attribution Beacon Deposit Contract / <0x00000000219ab540356cbb839cbe05303d7705fa>
+/// @custom:attribution Beacon Deposit Contract <0x00000000219ab540356cbb839cbe05303d7705fa>
 contract PreimageOracle is IPreimageOracle {
     ////////////////////////////////////////////////////////////////
     //                         Constants                          //
@@ -29,9 +29,9 @@ contract PreimageOracle is IPreimageOracle {
 
     /// @notice Mapping of pre-image keys to pre-image lengths.
     mapping(bytes32 => uint256) public preimageLengths;
-    /// @notice Mapping of pre-image keys to pre-image parts.
+    /// @notice Mapping of pre-image keys to pre-image offsets to pre-image parts.
     mapping(bytes32 => mapping(uint256 => bytes32)) public preimageParts;
-    /// @notice Mapping of pre-image keys to pre-image part offsets.
+    /// @notice Mapping of pre-image keys to pre-image part offsets to preimage preparedness.
     mapping(bytes32 => mapping(uint256 => bool)) public preimagePartOk;
 
     ////////////////////////////////////////////////////////////////
@@ -42,7 +42,7 @@ contract PreimageOracle is IPreimageOracle {
     struct Leaf {
         /// @notice The input absorbed for the block, exactly 136 bytes.
         bytes input;
-        /// @notice The index of the block in the absorbtion process.
+        /// @notice The index of the block in the absorption process.
         uint256 index;
         /// @notice The hash of the internal state after absorbing the input.
         bytes32 stateCommitment;
@@ -64,7 +64,7 @@ contract PreimageOracle is IPreimageOracle {
     ////////////////////////////////////////////////////////////////
 
     constructor() {
-        // Compute hashes in empty sparse Merkle tree
+        // Compute hashes in empty sparse Merkle tree. The first hash is not set, and kept as zero as the identity.
         for (uint256 height = 0; height < KECCAK_TREE_DEPTH - 1; height++) {
             zeroHashes[height + 1] = keccak256(abi.encodePacked(zeroHashes[height], zeroHashes[height]));
         }
@@ -185,7 +185,7 @@ contract PreimageOracle is IPreimageOracle {
     )
         external
     {
-        // If we're finalizing, pad the input for the submitter. If not, copy the input verbatim into memory verbatim.
+        // If we're finalizing, pad the input for the submitter. If not, copy the input into memory verbatim.
         bytes memory input;
         if (_finalize) {
             input = LibKeccak.pad(_input);
