@@ -538,7 +538,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
     }
 
     /// @notice Tests that the `squeeze` function reverts when the part offset is out of bounds of the full preimage.
-    function test_squeeze_partOffsetOOB_succeeds() public {
+    function test_squeeze_partOffsetOOB_reverts() public {
         // Allocate the preimage data.
         bytes memory data = new bytes(136);
         for (uint256 i; i < data.length; i++) {
@@ -583,7 +583,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
     }
 
     /// @notice Tests that the `squeeze` function reverts when the claimed size is not equal to the bytes processed.
-    function test_squeeze_invalidClaimedSize_succeeds() public {
+    function test_squeeze_invalidClaimedSize_reverts() public {
         // Allocate the preimage data.
         bytes memory data = new bytes(136);
         for (uint256 i; i < data.length; i++) {
@@ -667,7 +667,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
     }
 
     /// @notice Tests that an invalid leaf cannot be countered with `challengeFirst` if it is not the first leaf.
-    function test_challengeFirst_statesNotContiguous_succeeds() public {
+    function test_challengeFirst_statesNotContiguous_reverts() public {
         // Allocate the preimage data.
         bytes memory data = new bytes(136);
         for (uint256 i; i < data.length; i++) {
