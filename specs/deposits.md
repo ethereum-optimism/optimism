@@ -31,8 +31,8 @@ with the authorization and validation conditions on L2.
 - [Deposit Receipt](#deposit-receipt)
 - [L1 Attributes Deposited Transaction](#l1-attributes-deposited-transaction)
   - [L1 Attributes Deposited Transaction Calldata](#l1-attributes-deposited-transaction-calldata)
-    - [Bedrock, Canyon, Delta](#bedrock-canyon-delta)
-    - [Ecotone](#ecotone)
+    - [L1 Attributes - Bedrock, Canyon, Delta](#l1-attributes---bedrock-canyon-delta)
+    - [L1 Attributes - Ecotone](#l1-attributes---ecotone)
 - [Special Accounts on L2](#special-accounts-on-l2)
   - [L1 Attributes Depositor Account](#l1-attributes-depositor-account)
   - [L1 Attributes Predeployed Contract](#l1-attributes-predeployed-contract)
@@ -258,13 +258,13 @@ This system-initiated transaction for L1 attributes is not charged any ETH for i
 
 ### L1 Attributes Deposited Transaction Calldata
 
-#### Bedrock, Canyon, Delta
+#### L1 Attributes - Bedrock, Canyon, Delta
 
 The `data` field of the L1 attributes deposited transaction is an [ABI][ABI] encoded call to the
 `setL1BlockValues()` function with correct values associated with the corresponding L1 block
 (cf.  [reference implementation][l1-attr-ref-implem]).
 
-#### Ecotone
+#### L1 Attributes - Ecotone
 
 On the Ecotone activation block, and if Ecotone is not activated at Genesis,
 the L1 Attributes Transaction includes a call to `setL1BlockValues()`
@@ -295,6 +295,16 @@ The overall calldata layout is as follows:
 Total calldata length MUST be exactly 164 bytes, implying the sixth and final segment is only
 partially filled. This helps to slow database growth as every L2 block includes a L1 Attributes
 deposit transaction.
+
+In the first L2 block after the Ecotone activation block, the Ecotone L1 attributes are first used.
+
+The pre-Ecotone values are migrated over 1:1. The new Ecotone attributes are set as following:
+
+- The `baseFeeScalar` is set to the pre-Ecotone `scalar` value.
+- The `blobBaseFeeScalar` is set to 0.
+- The pre-Ecotone `overhead` attribute is dropped.
+- The `blobBaseFee` represents the L1 blob basefee of the L1 origin block.
+  Or `0` if the L1 block does not support blobs.
 
 ## Special Accounts on L2
 
