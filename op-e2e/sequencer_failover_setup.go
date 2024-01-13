@@ -59,7 +59,7 @@ func setupSequencerFailoverTest(t *testing.T) (*System, map[string]*conductor) {
 	}
 
 	// 3 stopped sequencers, 1 verifier
-	cfg := sequencerFailoverSystemConfig(t)
+	cfg := sequencerFailoverSystemConfig(t, conductorRpcPorts)
 	sys, err := cfg.Start(t)
 	require.NoError(t, err)
 
@@ -231,12 +231,12 @@ func setupBatcher(t *testing.T, sys *System) {
 	sys.BatchSubmitter = batcher
 }
 
-func sequencerFailoverSystemConfig(t *testing.T) SystemConfig {
+func sequencerFailoverSystemConfig(t *testing.T, ports map[string]int) SystemConfig {
 	cfg := DefaultSystemConfig(t)
 	delete(cfg.Nodes, "sequencer")
-	cfg.Nodes[Sequencer1Name] = sequencerCfg()
-	cfg.Nodes[Sequencer2Name] = sequencerCfg()
-	cfg.Nodes[Sequencer3Name] = sequencerCfg()
+	cfg.Nodes[Sequencer1Name] = sequencerCfg(ports[Sequencer1Name])
+	cfg.Nodes[Sequencer2Name] = sequencerCfg(ports[Sequencer1Name])
+	cfg.Nodes[Sequencer3Name] = sequencerCfg(ports[Sequencer1Name])
 
 	delete(cfg.Loggers, "sequencer")
 	cfg.Loggers[Sequencer1Name] = testlog.Logger(t, log.LvlInfo).New("role", Sequencer1Name)
@@ -253,7 +253,7 @@ func sequencerFailoverSystemConfig(t *testing.T) SystemConfig {
 	return cfg
 }
 
-func sequencerCfg() *rollupNode.Config {
+func sequencerCfg(port int) *rollupNode.Config {
 	return &rollupNode.Config{
 		Driver: driver.Config{
 			VerifierConfDepth:  0,
@@ -271,6 +271,10 @@ func sequencerCfg() *rollupNode.Config {
 		RuntimeConfigReloadInterval: time.Minute * 10,
 		ConfigPersistence:           &rollupNode.DisabledConfigPersistence{},
 		Sync:                        sync.Config{SyncMode: sync.CLSync},
+		ConductorEnabled:            true,
+		ConductorAddr:               localhost,
+		ConductorPort:               port,
+		ConductorRpcTimeout:         5 * time.Second,
 	}
 }
 
@@ -345,12 +349,3 @@ func findLeader(t *testing.T, conductors map[string]*conductor) (string, *conduc
 	}
 	return "", nil
 }
-
-// func findFollower(t *testing.T, conductors map[string]*conductor) (string, *conductor) {
-// 	for id, con := range conductors {
-// 		if !leader(t, context.Background(), con) {
-// 			return id, con
-// 		}
-// 	}
-// 	return "", nil
-// }

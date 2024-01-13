@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -19,6 +20,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-conductor/health"
 	conductorrpc "github.com/ethereum-optimism/optimism/op-conductor/rpc"
 	opp2p "github.com/ethereum-optimism/optimism/op-node/p2p"
+	rollup "github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	opclient "github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -569,8 +571,12 @@ func (oc *OpConductor) startSequencer() error {
 		return ErrUnsafeHeadMismarch // return error to allow retry
 	}
 
-	if err := oc.ctrl.StartSequencer(context.Background(), unsafeInCons.BlockHash); err != nil {
-		return errors.Wrap(err, "failed to start sequencer")
+	if err = oc.ctrl.StartSequencer(context.Background(), unsafeInCons.BlockHash); err != nil {
+		if !strings.Contains(err.Error(), rollup.ErrSequencerAlreadyStarted.Error()) {
+			return errors.Wrap(err, "failed to start sequencer")
+		} else {
+			oc.log.Warn("sequencer already started", "err", err)
+		}
 	}
 
 	oc.seqActive.Store(true)
