@@ -131,7 +131,7 @@ func (hm *SequencerHealthMonitor) healthCheck() bool {
 	}
 
 	if now-status.SafeL2.Time > hm.safeInterval {
-		hm.log.Error("safe head is not progressing", "safe_head_time", status.SafeL2.Time, "now", now)
+		hm.log.Error("safe head is not progressing as expected", "safe_head_time", status.SafeL2.Time, "now", now)
 		return false
 	}
 
