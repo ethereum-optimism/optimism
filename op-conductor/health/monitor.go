@@ -121,9 +121,9 @@ func (hm *SequencerHealthMonitor) healthCheck() bool {
 		hm.log.Error(
 			"unsafe head is not progressing",
 			"now", now,
-			"unsafe_hash", status.UnsafeL2.Hash,
 			"unsafe_head_num", status.UnsafeL2.Number,
 			"unsafe_head_time", status.UnsafeL2.Time,
+			"unsafe_sync_target", status.UnsafeL2SyncTarget.Number,
 			"safe_head_num", status.SafeL2.Number,
 			"safe_head_time", status.SafeL2.Time,
 		)

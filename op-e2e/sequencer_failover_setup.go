@@ -233,6 +233,7 @@ func setupBatcher(t *testing.T, sys *System) {
 
 func sequencerFailoverSystemConfig(t *testing.T, ports map[string]int) SystemConfig {
 	cfg := DefaultSystemConfig(t)
+	delete(cfg.Nodes, "verifier") // stand by sequencers can act as verifier, and remove this to reduce CI CPU load for running too many processes.
 	delete(cfg.Nodes, "sequencer")
 	cfg.Nodes[Sequencer1Name] = sequencerCfg(ports[Sequencer1Name])
 	cfg.Nodes[Sequencer2Name] = sequencerCfg(ports[Sequencer1Name])
@@ -245,9 +246,8 @@ func sequencerFailoverSystemConfig(t *testing.T, ports map[string]int) SystemCon
 
 	cfg.P2PTopology = map[string][]string{
 		Sequencer1Name: {Sequencer2Name, Sequencer3Name},
-		Sequencer2Name: {Sequencer3Name, VerifierName},
-		Sequencer3Name: {VerifierName, Sequencer1Name},
-		VerifierName:   {Sequencer1Name, Sequencer2Name},
+		Sequencer2Name: {Sequencer1Name, Sequencer3Name},
+		Sequencer3Name: {Sequencer1Name, Sequencer2Name},
 	}
 
 	return cfg
