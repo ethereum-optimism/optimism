@@ -119,7 +119,7 @@ func (hm *SequencerHealthMonitor) healthCheck() bool {
 	now := uint64(time.Now().Unix())
 	if now-status.UnsafeL2.Time > hm.unsafeInterval {
 		hm.log.Error(
-			"unsafe head is not syncing at tip",
+			"unsafe head is not progressing as expected",
 			"now", now,
 			"unsafe_head_num", status.UnsafeL2.Number,
 			"unsafe_head_time", status.UnsafeL2.Time,
