@@ -1150,6 +1150,8 @@ pnpm clean && pnpm install && pnpm build
 jq -r ".bytecode.object" packages/contracts-bedrock/forge-artifacts/L1Block.sol/L1Block.json
 ```
 
+This transaction MUST deploy a contract with the following code hash `0xc88a313aa75dc4fbf0b6850d9f9ae41e04243b7008cf3eadb29256d4a71c1dfd`.
+
 ##### GasPriceOracle Deployment
 
 The `GasPriceOracle` contract is upgraded to support the new Ecotone L1-data-fee parameters. Post fork this contract
@@ -1188,6 +1190,8 @@ git checkout 5996d0bc1a4721f2169ba4366a014532f31ea932
 pnpm clean && pnpm install && pnpm build
 jq -r ".bytecode.object" packages/contracts-bedrock/forge-artifacts/GasPriceOracle.sol/GasPriceOracle.json
 ```
+
+This transaction MUST deploy a contract with the following code hash `0x8b71360ea773b4cfaf1ae6d2bd15464a4e1e2e360f786e475f63aeaed8da0ae5`.
 
 ##### L1Block Proxy Update
 
