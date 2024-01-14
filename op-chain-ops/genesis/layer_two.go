@@ -9,12 +9,15 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/superchain-registry/superchain"
+
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/immutables"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/state"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum/go-ethereum/core/vm"
 )
 
 // BuildL2Genesis will build the L2 genesis block.
@@ -112,5 +115,23 @@ func BuildL2Genesis(config *DeployConfig, l1StartBlock *types.Block) (*core.Gene
 		}
 	}
 
+	if err := setupHardforks(db, config); err != nil {
+		return nil, err
+	}
+
 	return db.Genesis(), nil
+}
+
+func setupHardforks(db vm.StateDB, config *DeployConfig) error {
+	if config.L2GenesisRegolithTimeOffset != nil && *config.L2GenesisRegolithTimeOffset == 0 {
+		// TODO: these should be imported from geth but they are internal declarations
+		var create2DeployerAddress = common.HexToAddress("0x13b0D85CcB8bf860b6b79AF3029fCA081AE9beF2")
+		var create2DeployerCodeHash = common.HexToHash("0xb0550b5b431e30d38000efb7107aaa0ade03d48a7198a140edda9d27134468b2")
+		code, err := superchain.LoadContractBytecode(superchain.Hash(create2DeployerCodeHash))
+		if err != nil {
+			return err
+		}
+		db.SetCode(create2DeployerAddress, code)
+	}
+	return nil
 }
