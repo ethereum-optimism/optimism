@@ -1,8 +1,11 @@
 package derive
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"fmt"
+	kzg_sdk "github.com/domicon-labs/kzg-sdk"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/submit"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
@@ -12,6 +15,8 @@ import (
 	"sync"
 	"time"
 )
+
+const dSrsSize = 1 << 16
 
 type DABlockInfo struct {
 	rpc.TxHashes
@@ -32,6 +37,7 @@ type DAManager struct {
 	RollupConfig *rollup.Config
 
 	IsBroadcast bool
+	kzg         *kzg_sdk.DomiconSdk
 }
 
 func NewDAManager(log log.Logger, rollup *rollup.Config, engine Engine, txmgr *txmgr.SimpleTxManager, isBroadcast bool) *DAManager {
@@ -51,9 +57,19 @@ func (d *DAManager) SendDA(ctx context.Context, index, length, gasPrice uint64, 
 	if !d.IsBroadcast {
 		return common.Hash{}, errors.New("broadcast node not started")
 	}
+
+	if len(data) != int(length) {
+		return common.Hash{}, errors.New("inconsistent data length")
+	}
+
 	if !verifySignature(index, length, broadcaster, user, commitment, sign) {
 		return common.Hash{}, errors.New("invalid public key")
 	}
+
+	if !verifyCommitment(commitment, data, d.kzg) {
+		return common.Hash{}, errors.New("incorrect commitment")
+	}
+
 	txIndexHash := common.BytesToHash(sign)
 	log.Info("SendDa", "txIndexHash", txIndexHash)
 	var nonce int64 = -1
@@ -92,6 +108,13 @@ func (d *DAManager) Broadcaster(ctx context.Context) (common.Address, error) {
 }
 
 func (d *DAManager) Start() bool {
+	sdk, err := kzg_sdk.InitDomiconSdk(dSrsSize, "./srs")
+	if err != nil {
+		fmt.Println("InitDomiconSdk failed")
+		return false
+	}
+	d.kzg = sdk
+
 	d.shutdownCtx, d.cancelShutdownCtx = context.WithCancel(context.Background())
 	d.wg.Add(1)
 	go d.loop()
@@ -167,6 +190,20 @@ func (d *DAManager) getDA() {
 		}
 	}
 }
+
 func verifySignature(index, length uint64, broadcaster, user common.Address, commitment, sign []byte) bool {
+	return true
+}
+
+func verifyCommitment(commitment, data []byte, kzg *kzg_sdk.DomiconSdk) bool {
+	digest, err := kzg.GenerateDataCommit(data)
+	if err != nil {
+		fmt.Println("GenerateDataCommit failed")
+		return false
+	}
+	co := digest.Bytes()
+	if !bytes.Equal(co[:], commitment) {
+		return false
+	}
 	return true
 }
