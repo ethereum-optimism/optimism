@@ -1123,7 +1123,7 @@ A deposit transaction is derived with the following attributes:
 - `to`: `null`
 - `mint`: `0`
 - `value`: `0`
-- `gasLimit`: `350,000`
+- `gasLimit`: `375,000`
 - `data`: `0x60806040523480156100105...` ([full bytecode](./bytecode/ecotone-l1-block-deployment.txt))
 - `sourceHash`: `0x877a6077205782ea15a6dc8699fa5ebcec5e0f4389f09cb8eda09488231346f8`,
   computed with the "Upgrade-deposited" type, with `intent = "Ecotone: L1 Block Deployment"
@@ -1150,7 +1150,8 @@ pnpm clean && pnpm install && pnpm build
 jq -r ".bytecode.object" packages/contracts-bedrock/forge-artifacts/L1Block.sol/L1Block.json
 ```
 
-This transaction MUST deploy a contract with the following code hash `0xc88a313aa75dc4fbf0b6850d9f9ae41e04243b7008cf3eadb29256d4a71c1dfd`.
+This transaction MUST deploy a contract with the following code hash
+`0xc88a313aa75dc4fbf0b6850d9f9ae41e04243b7008cf3eadb29256d4a71c1dfd`.
 
 ##### GasPriceOracle Deployment
 
@@ -1163,7 +1164,7 @@ A deposit transaction is derived with the following attributes:
 - `to`: `null`,
 - `mint`: `0`
 - `value`: `0`
-- `gasLimit`: `920,000`
+- `gasLimit`: `1,000,000`
 - `data`: `0x60806040523480156100...` ([full bytecode](./bytecode/ecotone-gas-price-oracle-deployment.txt))
 - `sourceHash`: `0xa312b4510adf943510f05fcc8f15f86995a5066bd83ce11384688ae20e6ecf42`
   computed with the "Upgrade-deposited" type, with `intent = "Ecotone: Gas Price Oracle Deployment"
@@ -1191,7 +1192,8 @@ pnpm clean && pnpm install && pnpm build
 jq -r ".bytecode.object" packages/contracts-bedrock/forge-artifacts/GasPriceOracle.sol/GasPriceOracle.json
 ```
 
-This transaction MUST deploy a contract with the following code hash `0x8b71360ea773b4cfaf1ae6d2bd15464a4e1e2e360f786e475f63aeaed8da0ae5`.
+This transaction MUST deploy a contract with the following code hash
+`0x8b71360ea773b4cfaf1ae6d2bd15464a4e1e2e360f786e475f63aeaed8da0ae5`.
 
 ##### L1Block Proxy Update
 
@@ -1203,7 +1205,7 @@ A deposit transaction is derived with the following attributes:
 - `to`: `0x4200000000000000000000000000000000000015` (L1Block Proxy)
 - `mint`: `0`
 - `value`: `0`
-- `gasLimit`: `200,000`
+- `gasLimit`: `50,000`
 - `data`: `0x3659cfe600000000000000000000000007dbe8500fc591d1852b76fee44d5a05e13097ff`
 - `sourceHash`: `0x18acb38c5ff1c238a7460ebc1b421fa49ec4874bdf1e0a530d234104e5e67dbc`
   computed with the "Upgrade-deposited" type, with `intent = "Ecotone: L1 Block Proxy Update"
@@ -1233,7 +1235,7 @@ A deposit transaction is derived with the following attributes:
 - `to`: `0x420000000000000000000000000000000000000F` (Gas Price Oracle Proxy)
 - `mint`: `0`
 - `value`: `0`
-- `gasLimit`: `200,000`
+- `gasLimit`: `50,000`
 - `data`: `0x3659cfe6000000000000000000000000b528d11cc114e026f138fe568744c6d45ce6da7a`
 - `sourceHash`: `0xee4f9385eceef498af0be7ec5862229f426dec41c8d42397c7257a5117d9230a`
   computed with the "Upgrade-deposited" type, with `intent = "Ecotone: Gas Price Oracle Proxy Update"`
@@ -1262,7 +1264,7 @@ A deposit transaction is derived with the following attributes:
 - `to`: `0x420000000000000000000000000000000000000F` (Gas Price Oracle Proxy)
 - `mint`: `0`
 - `value`: `0`
-- `gasLimit`: `1,000,000` (TBC)
+- `gasLimit`: `80,000`
 - `data`: `0x22b90ab3`
 - `sourceHash`: `0x0c1cb38e99dbc9cbfab3bb80863380b0905290b37eb3d6ab18dc01c1f3e75f93`,
   computed with the "Upgrade-deposited" type, with `intent = "Ecotone: Gas Price Oracle Set Ecotone"
