@@ -5,6 +5,7 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -21,6 +22,18 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
+
+var (
+	l1BlockCodeHash        = common.FromHex("0xc88a313aa75dc4fbf0b6850d9f9ae41e04243b7008cf3eadb29256d4a71c1dfd")
+	gasPriceOracleCodeHash = common.FromHex("0x8b71360ea773b4cfaf1ae6d2bd15464a4e1e2e360f786e475f63aeaed8da0ae5")
+)
+
+func verifyCodeHashMatches(t *testing.T, client *ethclient.Client, address common.Address, expectedCodeHash []byte) {
+	code, err := client.CodeAt(context.Background(), address, nil)
+	require.NoError(t, err)
+	codeHash := crypto.Keccak256Hash(code)
+	require.Equal(t, expectedCodeHash, codeHash.Bytes())
+}
 
 func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 	t := NewDefaultTesting(gt)
@@ -60,22 +73,21 @@ func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 
 	// Build to the ecotone block
 	sequencer.ActBuildL2ToEcotone(t)
-	block := sequencer.L2Unsafe()
 
 	// get latest block
 	latestBlock, err := engine.EthClient().BlockByNumber(context.TODO(), nil)
 	require.NoError(t, err)
-	require.Equal(t, block.Number, latestBlock.Number().Uint64())
+	require.Equal(t, sequencer.L2Unsafe().Number, latestBlock.Number().Uint64())
 
 	transactions := latestBlock.Transactions()
-
-	l1Info, err := derive.L1BlockInfoFromBytes(sd.RollupCfg, latestBlock.Time(), latestBlock.Transactions()[0].Data())
-	require.NoError(t, err)
-	t.Log("seq num", l1Info.SequenceNumber)
-
 	// L1Block: 1 set-L1-info + 2 deploys + 2 upgradeTo + 1 enable ecotone on GPO + 1 4788 deploy
 	// See [derive.EcotoneNetworkUpgradeTransactions]
 	require.Equal(t, 7, len(transactions))
+
+	l1Info, err := derive.L1BlockInfoFromBytes(sd.RollupCfg, latestBlock.Time(), transactions[0].Data())
+	require.NoError(t, err)
+	t.Log("seq num", l1Info.SequenceNumber)
+	require.Equal(t, derive.L1InfoBedrockLen, len(transactions[0].Data()))
 
 	// All transactions are successful
 	for i := 1; i < 7; i++ {
@@ -93,12 +105,14 @@ func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, expectedGasPriceOracleAddress, common.BytesToAddress(updatedGasPriceOracleAddress))
 	assert.NotEqualf(t, initialGasPriceOracleAddress, updatedGasPriceOracleAddress, "Gas Price Oracle Proxy address should have changed")
+	verifyCodeHashMatches(gt, engine.EthClient(), expectedGasPriceOracleAddress, gasPriceOracleCodeHash)
 
 	// L1Block Proxy is updated
 	updatedL1BlockAddress, err := engine.EthClient().StorageAt(context.Background(), predeploys.L1BlockAddr, genesis.ImplementationSlot, latestBlock.Number())
 	require.NoError(t, err)
 	assert.Equal(t, expectedL1BlockAddress, common.BytesToAddress(updatedL1BlockAddress))
 	assert.NotEqualf(t, initialL1BlockAddress, updatedL1BlockAddress, "L1Block Proxy address should have changed")
+	verifyCodeHashMatches(gt, engine.EthClient(), expectedL1BlockAddress, l1BlockCodeHash)
 
 	_, err = gasPriceOracle.Scalar(nil)
 	require.ErrorContains(t, err, "scalar() is deprecated")
@@ -106,6 +120,11 @@ func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 	cost, err := gasPriceOracle.GetL1Fee(nil, []byte{0, 1, 2, 3, 4})
 	require.NoError(t, err)
 	require.Equal(t, cost.Uint64(), uint64(0), "expecting zero scalars within activation block")
+
+	// Check that Ecotone was activated
+	isEcotone, err := gasPriceOracle.IsEcotone(nil)
+	require.NoError(t, err)
+	require.True(t, isEcotone)
 
 	// 4788 contract is deployed
 	expected4788Address := crypto.CreateAddress(derive.EIP4788From, 0)
