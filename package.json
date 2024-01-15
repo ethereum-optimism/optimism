@@ -68,7 +68,7 @@
     "eslint-plugin-unicorn": "^49.0.0",
     "husky": "^8.0.3",
     "lint-staged": "15.2.0",
-    "markdownlint": "^0.32.1",
+    "markdownlint": "^0.33.0",
     "markdownlint-cli2": "0.4.0",
     "mocha": "^10.2.0",
     "nx": "17.2.4",
