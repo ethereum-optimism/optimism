@@ -464,7 +464,7 @@ func (eq *EngineQueue) logSyncProgress(reason string) {
 		"l2_safe", eq.ec.SafeL2Head(),
 		"l2_pending_safe", eq.ec.PendingSafeL2Head(),
 		"l2_unsafe", eq.ec.UnsafeL2Head(),
-		"l2_backupUnsafe", eq.ec.BackupUnsafeL2Head(),
+		"l2_backup_unsafe", eq.ec.BackupUnsafeL2Head(),
 		"l2_time", eq.ec.UnsafeL2Head().Time,
 		"l1_derived", eq.origin,
 	)

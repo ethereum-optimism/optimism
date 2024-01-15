@@ -154,7 +154,7 @@ func (e *EngineController) SetUnsafeHead(r eth.L2BlockRef) {
 
 // SetBackupUnsafeL2Head implements LocalEngineControl.
 func (e *EngineController) SetBackupUnsafeL2Head(r eth.L2BlockRef, triggerReorg bool) {
-	e.metrics.RecordL2Ref("l2_backupUnsafe", r)
+	e.metrics.RecordL2Ref("l2_backup_unsafe", r)
 	e.backupUnsafeHead = r
 	e.needFCUCallForBackupUnsafeReorg = triggerReorg
 }
