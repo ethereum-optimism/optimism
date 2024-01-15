@@ -318,7 +318,7 @@ The [response][GetPayloadV3Response] is extended to:
 }
 ```
 
-[GetPayloadV3Response]: (https://github.com/ethereum/execution-apis/blob/main/src/engine/cancun.md#response-2)
+[GetPayloadV3Response]: https://github.com/ethereum/execution-apis/blob/main/src/engine/cancun.md#response-2
 
 For Bedrock and Canyon `parentBeaconBlockRoot` MUST be nil and in Ecotone it MUST be set to the parentBeaconBlockRoot
 from the L1 Origin block of the L2 block.
