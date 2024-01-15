@@ -394,7 +394,7 @@ func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *et
 	return nil
 }
 
-// tryBackupUnsafeReorg attempts to reorg(restore) unsafe head to backupUnsafeHead.
+// TryBackupUnsafeReorg attempts to reorg(restore) unsafe head to backupUnsafeHead.
 // If succeeds, update current forkchoice state to the rollup node.
 func (e *EngineController) TryBackupUnsafeReorg(ctx context.Context) error {
 	if !e.needFCUCallForBackupUnsafeReorg {

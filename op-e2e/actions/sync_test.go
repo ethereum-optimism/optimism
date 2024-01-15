@@ -466,7 +466,7 @@ func TestBackupUnsafeReorgForkChoiceInputError(gt *testing.T) {
 	// mock forkChoiceUpdate error while restoring previous unsafe chain using backupUnsafe.
 	seqEng.ActL2RPCFail(t, eth.InputError{Inner: errors.New("mock L2 RPC error"), Code: eth.InvalidForkchoiceState})
 
-	// tryBackupUnsafeReorg is called
+	// TryBackupUnsafeReorg is called
 	sequencer.ActL2PipelineStep(t)
 
 	// try to process invalid leftovers: B4, B5
@@ -478,7 +478,7 @@ func TestBackupUnsafeReorgForkChoiceInputError(gt *testing.T) {
 
 	// check pendingSafe is reset
 	require.Equal(t, sequencer.L2PendingSafe().Number, uint64(0))
-	// unsafe head is not restored due to forkchoiceUpdate error in tryBackupUnsafeReorg
+	// unsafe head is not restored due to forkchoiceUpdate error in TryBackupUnsafeReorg
 	require.Equal(t, sequencer.L2Unsafe().Number, uint64(2))
 	// safe head cannot be advanced because batch contained invalid blocks
 	require.Equal(t, sequencer.L2Safe().Number, uint64(0))
@@ -616,7 +616,7 @@ func TestBackupUnsafeReorgForkChoiceNotInputError(gt *testing.T) {
 	for i := 0; i < serverErrCnt; i++ {
 		// mock forkChoiceUpdate failure while restoring previous unsafe chain using backupUnsafe.
 		seqEng.ActL2RPCFail(t, engine.GenericServerError)
-		// tryBackupUnsafeReorg is called - forkChoiceUpdate returns GenericServerError so retry
+		// TryBackupUnsafeReorg is called - forkChoiceUpdate returns GenericServerError so retry
 		sequencer.ActL2PipelineStep(t)
 		// backupUnsafeHead not emptied yet
 		require.Equal(t, targetUnsafeHeadHash, sequencer.L2BackupUnsafe().Hash)
