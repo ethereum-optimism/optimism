@@ -389,12 +389,78 @@
         "type": "uint256"
       }
     ],
+    "name": "proposalBlocks",
+    "outputs": [
+      {
+        "internalType": "uint64",
+        "name": "",
+        "type": "uint64"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_claimant",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_uuid",
+        "type": "uint256"
+      }
+    ],
+    "name": "proposalBlocksLen",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "len_",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
     "name": "proposalBranches",
     "outputs": [
       {
         "internalType": "bytes32",
         "name": "",
         "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "proposalCount",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "count_",
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",
@@ -443,6 +509,30 @@
         "internalType": "bytes32",
         "name": "",
         "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "proposals",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "claimant",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "uuid",
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",
