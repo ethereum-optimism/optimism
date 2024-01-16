@@ -881,6 +881,7 @@ jobs:
           command: go tool dist list | grep mips
       - run:
           name: run tests
+          no_output_timeout: 20m
           command: |
             mkdir -p /testlogs
 
