@@ -31,7 +31,7 @@ func TestSequencerFailover_ConductorRPC(t *testing.T) {
 
 	// SequencerHealthy, Leader, AddServerAsVoter are used in setup already.
 
-	// Test ClusterMembership
+	// Test ClusterMembership.
 	c1 := conductors[Sequencer1Name]
 	c2 := conductors[Sequencer2Name]
 	c3 := conductors[Sequencer3Name]
