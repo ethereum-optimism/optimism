@@ -103,67 +103,83 @@ func TestDencunL1ForkAtGenesis(gt *testing.T) {
 	require.Equal(t, sequencer.SyncStatus().UnsafeL2, verifier.SyncStatus().UnsafeL2, "verifier and sequencer agree")
 }
 
+func verifyPreEcotoneBlock(gt *testing.T, header *types.Header) {
+	require.Nil(gt, header.ParentBeaconRoot)
+	require.Nil(gt, header.ExcessBlobGas)
+	require.Nil(gt, header.BlobGasUsed)
+}
+
+func verifyEcotoneBlock(gt *testing.T, header *types.Header) {
+	require.NotNil(gt, header.ParentBeaconRoot)
+	require.NotNil(gt, header.ExcessBlobGas)
+	require.Equal(gt, *header.ExcessBlobGas, uint64(0))
+	require.NotNil(gt, header.BlobGasUsed)
+	require.Equal(gt, *header.BlobGasUsed, uint64(0))
+}
+
 func TestDencunL2ForkAfterGenesis(gt *testing.T) {
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
-	offset := hexutil.Uint64(0)
+
+	cancunOffset := hexutil.Uint64(0)
+	dp.DeployConfig.L1CancunTimeOffset = &cancunOffset
+	// This test wil fork on the second block
+	offset := hexutil.Uint64(dp.DeployConfig.L2BlockTime * 2)
 	dp.DeployConfig.L2GenesisCanyonTimeOffset = &offset
 	dp.DeployConfig.L2GenesisDeltaTimeOffset = &offset
 	dp.DeployConfig.L2GenesisEcotoneTimeOffset = &offset
 
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlDebug)
-	_, _, miner, sequencer, engine, verifier, _, _ := setupReorgTestActors(t, dp, sd, log)
+	_, _, _, sequencer, engine, verifier, _, _ := setupReorgTestActors(t, dp, sd, log)
 
 	// start op-nodes
 	sequencer.ActL2PipelineFull(t)
 	verifier.ActL2PipelineFull(t)
 
-	// build empty L1 blocks, crossing the fork boundary
-	miner.ActL1SetFeeRecipient(common.Address{'A', 0})
-	miner.ActEmptyBlock(t)
-	miner.ActEmptyBlock(t) // Cancun activates here
-	miner.ActEmptyBlock(t)
-	log.Info("L1 blocks built")
-	// build L2 chain
-	sequencer.ActL1HeadSignal(t)
-	sequencer.ActBuildToL1Head(t)
-	log.Info("L2 chain built")
-	// verify Cancun is still active
-	l2Head := engine.l2Chain.CurrentBlock()
-	require.True(t, sd.L2Cfg.Config.IsCancun(l2Head.Number, l2Head.Time), "Cancun active")
-	require.NotNil(t, l2Head.ExcessBlobGas, "Cancun blob gas in header")
+	// Genesis block is pre-ecotone
+	verifyPreEcotoneBlock(gt, engine.l2Chain.CurrentBlock())
+
+	// Block before fork block
+	sequencer.ActL2StartBlock(t)
+	sequencer.ActL2EndBlock(t)
+	verifyPreEcotoneBlock(gt, engine.l2Chain.CurrentBlock())
+
+	// Fork block is ecotone
+	sequencer.ActL2StartBlock(t)
+	sequencer.ActL2EndBlock(t)
+	verifyEcotoneBlock(gt, engine.l2Chain.CurrentBlock())
+
+	// Blocks post fork have Ecotone properties
+	sequencer.ActL2StartBlock(t)
+	sequencer.ActL2EndBlock(t)
+	verifyEcotoneBlock(gt, engine.l2Chain.CurrentBlock())
 }
 
 func TestDencunL2ForkAtGenesis(gt *testing.T) {
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
-	offset := hexutil.Uint64(24)
+	offset := hexutil.Uint64(0)
+	dp.DeployConfig.L1CancunTimeOffset = &offset
 	dp.DeployConfig.L2GenesisCanyonTimeOffset = &offset
 	dp.DeployConfig.L2GenesisDeltaTimeOffset = &offset
 	dp.DeployConfig.L2GenesisEcotoneTimeOffset = &offset
 
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlDebug)
-	_, _, miner, sequencer, engine, verifier, _, _ := setupReorgTestActors(t, dp, sd, log)
+	_, _, _, sequencer, engine, verifier, _, _ := setupReorgTestActors(t, dp, sd, log)
 
 	// start op-nodes
 	sequencer.ActL2PipelineFull(t)
 	verifier.ActL2PipelineFull(t)
 
-	// build empty L1 blocks
-	miner.ActL1SetFeeRecipient(common.Address{'A', 0})
-	miner.ActEmptyBlock(t)
-	miner.ActEmptyBlock(t)
-	log.Info("L1 blocks built")
-	// build L2 chain
-	sequencer.ActL1HeadSignal(t)
-	sequencer.ActBuildToL1Head(t)
-	log.Info("L2 chain built")
-	// verify Cancun is still active
-	l2Head := engine.l2Chain.CurrentBlock()
-	require.True(t, sd.L2Cfg.Config.IsCancun(l2Head.Number, l2Head.Time), "Cancun active")
-	require.NotNil(t, l2Head.ExcessBlobGas, "Cancun blob gas in header")
+	// Genesis block has ecotone properties
+	verifyEcotoneBlock(gt, engine.l2Chain.CurrentBlock())
+
+	// Blocks post fork have Ecotone properties
+	sequencer.ActL2StartBlock(t)
+	sequencer.ActL2EndBlock(t)
+	verifyEcotoneBlock(gt, engine.l2Chain.CurrentBlock())
 }
 
 func aliceSimpleBlobTx(t Testing, dp *e2eutils.DeployParams) *types.Transaction {
@@ -185,7 +201,7 @@ func newEngine(t Testing, sd *e2eutils.SetupData, log log.Logger) *L2Engine {
 func TestDencunBlobTxRPC(gt *testing.T) {
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
-	offset := hexutil.Uint64(24)
+	offset := hexutil.Uint64(0)
 	dp.DeployConfig.L2GenesisCanyonTimeOffset = &offset
 	dp.DeployConfig.L2GenesisDeltaTimeOffset = &offset
 	dp.DeployConfig.L2GenesisEcotoneTimeOffset = &offset
@@ -203,7 +219,7 @@ func TestDencunBlobTxRPC(gt *testing.T) {
 func TestDencunBlobTxInTxPool(gt *testing.T) {
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
-	offset := hexutil.Uint64(24)
+	offset := hexutil.Uint64(0)
 	dp.DeployConfig.L2GenesisCanyonTimeOffset = &offset
 	dp.DeployConfig.L2GenesisDeltaTimeOffset = &offset
 	dp.DeployConfig.L2GenesisEcotoneTimeOffset = &offset
@@ -220,7 +236,7 @@ func TestDencunBlobTxInTxPool(gt *testing.T) {
 func TestDencunBlobTxInclusion(gt *testing.T) {
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
-	offset := hexutil.Uint64(24)
+	offset := hexutil.Uint64(0)
 	dp.DeployConfig.L2GenesisCanyonTimeOffset = &offset
 	dp.DeployConfig.L2GenesisDeltaTimeOffset = &offset
 	dp.DeployConfig.L2GenesisEcotoneTimeOffset = &offset
