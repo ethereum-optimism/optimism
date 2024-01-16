@@ -4,7 +4,7 @@
   "superchainConfigGuardian": "0xe62B0E3a9F715493301eBdEC8310C899eae5b30c",
   "controller": "0xe62B0E3a9F715493301eBdEC8310C899eae5b30c",
 
-  "l1StartingBlockTag": "0xf7f91482b4c0c4bb7f6aa67551ac003d5c6fa3d170c2291ebcf346aef655edef",
+  "l1StartingBlockTag": "0x76fe909c500c3bb341143be38dc5c0f067a14362557dce571701f4f28c28f865",
 
   "l1ChainID": 11155111,
   "l1BlockTime": 12,
@@ -21,7 +21,7 @@
 
   "l2OutputOracleSubmissionInterval": 120,
   "l2OutputOracleStartingBlockNumber": 511,
-  "l2OutputOracleStartingTimestamp": 1692750204,
+  "l2OutputOracleStartingTimestamp": 1705429032,
 
   "l2OutputOracleProposer": "0x044DEa5dEe6c62Ac432Aa1e50C3eB5899e85a52F",
   "l2OutputOracleChallenger": "0xe62B0E3a9F715493301eBdEC8310C899eae5b30c",
