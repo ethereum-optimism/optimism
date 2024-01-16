@@ -55,7 +55,7 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 		return nil, NewTemporaryError(fmt.Errorf("failed to retrieve L2 parent block: %w", err))
 	}
 
-	// If the L1 origin changed this block, then we are in the first block of the epoch. In this
+	// If the L1 origin changed in this block, then we are in the first block of the epoch. In this
 	// case we need to fetch all transaction receipts from the L1 origin block so we can scan for
 	// user deposits.
 	if l2Parent.L1Origin.Number != epoch.Number {
