@@ -99,6 +99,23 @@ func BuildL2Genesis(config *DeployConfig, l1StartBlock *types.Block) (*core.Gene
 			}
 		}
 
+		if predeploy.Address == predeploys.CrossL2InboxAddr && !genspec.Config.IsInterop(l1StartBlock.Time()) {
+			log.Warn("Interop is not active, skipping CrossL2Inbox predeploy.")
+			continue
+		}
+		if predeploy.Address == predeploys.CrossL2OutboxAddr && !genspec.Config.IsInterop(l1StartBlock.Time()) {
+			log.Warn("Interop is not active, skipping CrossL2Outbox predeploy.")
+			continue
+		}
+		if predeploy.Address == predeploys.InteropL2CrossDomainMessengerAddr && !genspec.Config.IsInterop(l1StartBlock.Time()) {
+			log.Warn("Interop is not active, skipping InteropL2CrossDomainMessenger predeploy.")
+			continue
+		}
+		if predeploy.Address == predeploys.InteropL2StandardBridgeAddr && !genspec.Config.IsInterop(l1StartBlock.Time()) {
+			log.Warn("Interop is not active, skipping InteropL2StandardBridge predeploy.")
+			continue
+		}
+
 		if predeploy.ProxyDisabled && db.Exist(predeploy.Address) {
 			db.DeleteState(predeploy.Address, AdminSlot)
 		}

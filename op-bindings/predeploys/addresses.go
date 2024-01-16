@@ -153,6 +153,35 @@ func init() {
 		ProxyDisabled: true,
 	}
 
+	Predeploys["CrossL2Inbox"] = &Predeploy{
+		Address: CrossL2InboxAddr,
+		Enabled: func(config DeployConfig) bool {
+			interopTime := config.InteropTime(0)
+			return interopTime != nil && *interopTime == 0
+		},
+	}
+	Predeploys["CrossL2Outbox"] = &Predeploy{
+		Address: CrossL2OutboxAddr,
+		Enabled: func(config DeployConfig) bool {
+			interopTime := config.InteropTime(0)
+			return interopTime != nil && *interopTime == 0
+		},
+	}
+	Predeploys["InteropL2CrossDomainMessenger"] = &Predeploy{
+		Address: InteropL2CrossDomainMessengerAddr,
+		Enabled: func(config DeployConfig) bool {
+			interopTime := config.InteropTime(0)
+			return interopTime != nil && *interopTime == 0
+		},
+	}
+	Predeploys["InteropL2StandardBridge"] = &Predeploy{
+		Address: InteropL2StandardBridgeAddr,
+		Enabled: func(config DeployConfig) bool {
+			interopTime := config.InteropTime(0)
+			return interopTime != nil && *interopTime == 0
+		},
+	}
+
 	for _, predeploy := range Predeploys {
 		PredeploysByAddress[predeploy.Address] = predeploy
 	}

@@ -802,7 +802,14 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (*immutables
 		},
 		Create2Deployer: struct{}{},
 	}
-
+	if interopTime := config.InteropTime(block.Time()); interopTime != nil && *interopTime <= block.Time() {
+		cfg.CrossL2Inbox = &struct{}{}
+		cfg.CrossL2Outbox = &struct{}{}
+		cfg.InteropL2CrossDomainMessenger = &struct{}{}
+		cfg.InteropL2StandardBridge = &struct{ Messenger common.Address }{
+			Messenger: predeploys.InteropL2CrossDomainMessengerAddr,
+		}
+	}
 	if err := cfg.Check(); err != nil {
 		return nil, err
 	}
@@ -866,6 +873,18 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 	}
 	storage["ProxyAdmin"] = state.StorageValues{
 		"_owner": config.ProxyAdminOwner,
+	}
+
+	if interopTime := config.InteropTime(block.Time()); interopTime != nil && *interopTime <= block.Time() {
+		storage["CrossL2Inbox"] = state.StorageValues{
+			"crossL2Sender":      "0x000000000000000000000000000000000000dEaD",
+			"messageSourceChain": common.Hash{},
+		}
+		storage["InteropL2CrossDomainMessenger"] = state.StorageValues{
+			"xDomainMsgSender": "0x000000000000000000000000000000000000dEaD",
+			"xDomainChain":     common.Hash{},
+			"msgNonce":         0,
+		}
 	}
 	return storage, nil
 }

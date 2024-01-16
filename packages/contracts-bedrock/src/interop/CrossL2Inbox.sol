@@ -31,8 +31,8 @@ struct ChainState {
 /// @title CrossL2Inbox
 /// @notice The CrossL2Inbox receives messages & output-roots of any chain
 contract CrossL2Inbox is ISemver {
-    /// @notice The system address that is allowed to post into the inbox.
-    address internal immutable INBOX_POSTIE_ADDRESS;
+    /// @notice Address of the special depositor account.
+    address public constant DEPOSITOR_ACCOUNT = 0xDeAddEAddeADdeADdEaDdEaddeadDeADdEAD0002;
 
     /// @custom:semver 0.0.1
     string public constant version = "0.0.1";
@@ -59,15 +59,10 @@ contract CrossL2Inbox is ISemver {
     /// @param success     Whether the cross L2 message call was successful.
     event CrossL2MessageRelayed(bytes32 indexed messageRoot, bool success);
 
-    /// @notice Initialize the inbox.
-    /// @param _postie_address System address that will be allowed to deliver to the inbox.
-    constructor(address _postie_address) {
-        INBOX_POSTIE_ADDRESS = _postie_address;
-    }
     
     /// @notice The inbox receives mail from the postie of deliverd messages 
     function deliverMessages(InboxMessages[] calldata mail) external payable {
-        require(msg.sender == INBOX_POSTIE_ADDRESS, "CrossL2Inbox: only postie can deliver mail");
+        require(msg.sender == DEPOSITOR_ACCOUNT, "CrossL2Inbox: only postie can deliver mail");
 
         for (uint256 i = 0; i < mail.length; i++) {
             require(mail[i].blockNumber > chainState[mail[i].chain].blockNumber, "CrossL2Inbox: blockNumber must be increasing");

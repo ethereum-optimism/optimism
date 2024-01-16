@@ -67,6 +67,12 @@ type PredeploysImmutableConfig struct {
 	EAS            struct {
 		Name string
 	}
+	CrossL2Inbox                  *struct{} // optional, only there in interop
+	CrossL2Outbox                 *struct{} // optional, only there in interop
+	InteropL2CrossDomainMessenger *struct{} // optional, only there in interop
+	InteropL2StandardBridge       *struct { // optional, only there in interop
+		Messenger common.Address
+	}
 	Create2Deployer              struct{}
 	MultiCall3                   struct{}
 	Safe_v130                    struct{}
@@ -86,6 +92,12 @@ type PredeploysImmutableConfig struct {
 func (c *PredeploysImmutableConfig) Check() error {
 	return c.ForEach(func(name string, values any) error {
 		val := reflect.ValueOf(values)
+		if val.Kind() == reflect.Ptr { // skip missing optional entries
+			if val.IsNil() {
+				return nil
+			}
+			val = val.Elem()
+		}
 		if val.NumField() == 0 {
 			return nil
 		}
@@ -144,6 +156,12 @@ func Deploy(config *PredeploysImmutableConfig) (DeploymentResults, error) {
 
 	for i := 0; i < val.NumField(); i++ {
 		field := val.Field(i)
+		if field.Kind() == reflect.Ptr {
+			if field.IsNil() {
+				continue
+			}
+			field = field.Elem()
+		}
 		if reflect.ValueOf(field.Interface()).IsZero() {
 			continue
 		}
@@ -261,6 +279,12 @@ func l2ImmutableDeployer(backend *backends.SimulatedBackend, opts *bind.Transact
 		_, tx, _, err = bindings.DeployOptimismMintableERC721Factory(opts, backend, bridge, remoteChainId)
 	case "EAS":
 		_, tx, _, err = bindings.DeployEAS(opts, backend)
+	case "InteropL2StandardBridge":
+		messenger, ok := deployment.Args[0].(common.Address)
+		if !ok {
+			return nil, fmt.Errorf("invalid type for messenger")
+		}
+		_, tx, _, err = bindings.DeployInteropL2StandardBridge(opts, backend, messenger)
 	default:
 		return tx, fmt.Errorf("unknown contract: %s", deployment.Name)
 	}
