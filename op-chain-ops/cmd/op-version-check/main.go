@@ -98,10 +98,11 @@ func entrypoint(ctx *cli.Context) error {
 	slices.Sort(chainIDs)
 
 	targets := make([]*superchain.ChainConfig, 0)
-	// TODO: Need some logging here if a chain ID is filtered out for whatever reason.
 	for _, chainConfig := range superchain.OPChains {
 		if chainConfig.Superchain == superchainName && slices.Contains(chainIDs, chainConfig.ChainID) {
 			targets = append(targets, chainConfig)
+		} else {
+			log.Info("Skipping chain", "superchain", chainConfig.Superchain, "chainID", chainConfig.ChainID)
 		}
 	}
 
