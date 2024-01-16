@@ -298,13 +298,16 @@ deposit transaction.
 
 In the first L2 block after the Ecotone activation block, the Ecotone L1 attributes are first used.
 
-The pre-Ecotone values are migrated over 1:1. The new Ecotone attributes are set as following:
+The pre-Ecotone values are migrated over 1:1.
+Blocks after the Ecotone activation block contain all pre-Ecotone values 1:1,
+and also set the following new attributes:
 
 - The `baseFeeScalar` is set to the pre-Ecotone `scalar` value.
-- The `blobBaseFeeScalar` is set to 0.
+- The `blobBaseFeeScalar` is set to `0`.
 - The pre-Ecotone `overhead` attribute is dropped.
-- The `blobBaseFee` represents the L1 blob base fee of the L1 origin block.
-  Or `0` if the L1 block does not support blobs.
+- The `blobBaseFee` is set to the L1 blob base fee of the L1 origin block.
+  Or `1` if the L1 block does not support blobs.
+  The `1` value is derived from the EIP-4844 `MIN_BLOB_GASPRICE`.
 
 ## Special Accounts on L2
 
