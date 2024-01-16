@@ -112,7 +112,7 @@ func (hm *SequencerHealthMonitor) healthCheck() bool {
 	ctx := context.Background()
 	status, err := hm.node.SyncStatus(ctx)
 	if err != nil {
-		hm.log.Error("health monitor failed to get sync status", "err", err)
+		hm.log.Error("health monitor failed to retrieve sync status", "err", err)
 		return false
 	}
 
