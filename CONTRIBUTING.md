@@ -70,6 +70,7 @@ You'll need the following:
 * [Docker Compose](https://docs.docker.com/compose/install/)
 * [Go](https://go.dev/dl/)
 * [Foundry](https://getfoundry.sh)
+* [jq](https://jqlang.github.io/jq/)
 * [go-ethereum](https://github.com/ethereum/go-ethereum)
 
 ### Setup
@@ -105,6 +106,7 @@ To build all of the [TypeScript packages](./packages), run:
 
 ```bash
 pnpm clean
+pnpm install
 pnpm build
 ```
 
@@ -141,6 +143,7 @@ Finally, **if you're running into weird problems and nothing seems to be working
 ```bash
 cd optimism
 pnpm clean
+pnpm install
 pnpm build
 cd ops
 docker compose down -v
