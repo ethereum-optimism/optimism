@@ -1,12 +1,18 @@
 package keccak
 
 import (
+	_ "embed"
+	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
 )
+
+//go:embed testdata/commitments.json
+var refTests []byte
 
 func TestStateCommitment(t *testing.T) {
 	tests := []struct {
@@ -34,6 +40,33 @@ func TestStateCommitment(t *testing.T) {
 			actual := state.StateCommitment()
 			require.Equal(t, test.expectedPacked, common.Bytes2Hex(state.packState()))
 			require.Equal(t, expected, actual)
+		})
+	}
+}
+
+type testData struct {
+	Input       []byte        `json:"input"`
+	Commitments []common.Hash `json:"commitments"`
+}
+
+func TestReferenceCommitments(t *testing.T) {
+	var tests []testData
+	require.NoError(t, json.Unmarshal(refTests, &tests))
+
+	for i, test := range tests {
+		test := test
+		t.Run(fmt.Sprintf("Ref-%v", i), func(t *testing.T) {
+			s := NewStateMatrix()
+			commitments := []common.Hash{s.StateCommitment()}
+			for i := 0; i < len(test.Input); i += LeafSize {
+				end := min(i+LeafSize, len(test.Input))
+				s.AbsorbLeaf(test.Input[i:end], end == len(test.Input))
+				commitments = append(commitments, s.StateCommitment())
+			}
+			actual := s.Hash()
+			expected := crypto.Keccak256Hash(test.Input)
+			require.Equal(t, expected, actual)
+			require.Equal(t, test.Commitments, commitments)
 		})
 	}
 }
