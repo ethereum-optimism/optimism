@@ -100,6 +100,7 @@ Represents a snapshot of the rollup driver.
 - `current_l1_finalized`: `Object` - instance of [`L1BlockRef`](#l1blockref).
 - `head_l1`: `Object` - instance of [`L1BlockRef`](#l1blockref).
 - `safe_l1`: `Object` - instance of [`L1BlockRef`](#l1blockref).
+- `finalized_l1`: `Object` - instance of [`L1BlockRef`](#l1blockref).
 - `unsafe_l2`: `Object` - instance of [`L2BlockRef`](#l2blockref).
 - `safe_l2`: `Object` - instance of [`L2BlockRef`](#l2blockref).
 - `finalized_l2`: `Object` - instance of [`L2BlockRef`](#l2blockref).
@@ -118,7 +119,7 @@ The input and return types here are as defined by the [engine API specs][engine-
 - returns:
   1. `version`: `DATA`, 32 Bytes - the output root version number, beginning with 0.
   1. `outputRoot`: `DATA`, 32 Bytes - the output root.
-  1. `blockRef`: `Object` - instance of [`L1BlockRef`](#l1blockref).
+  1. `blockRef`: `Object` - instance of [`L2BlockRef`](#l2blockref).
   1. `withdrawalStorageRoot`: 32 bytes - storage root of the `L2toL1MessagePasser` contract.
   1. `stateRoot`: `DATA`: 32 bytes - the state root.
   1. `syncStatus`: `Object` - instance of [`SyncStatus`](#syncstatus).
