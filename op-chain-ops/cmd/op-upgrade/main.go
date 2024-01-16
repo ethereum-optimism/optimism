@@ -18,8 +18,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/safe"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/upgrades"
+	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 
-	op_node_genesis "github.com/ethereum-optimism/optimism/op-node/cmd/genesis"
 	"github.com/ethereum-optimism/superchain-registry/superchain"
 )
 
@@ -203,7 +203,7 @@ func entrypoint(ctx *cli.Context) error {
 
 	// Write the batch to disk or stdout
 	if outfile := ctx.Path("outfile"); outfile != "" {
-		if err := op_node_genesis.WriteJSONFile(outfile, batch); err != nil {
+		if err := jsonutil.WriteJSON(outfile, batch); err != nil {
 			return err
 		}
 	} else {

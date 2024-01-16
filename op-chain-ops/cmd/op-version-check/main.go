@@ -16,8 +16,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/clients"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/upgrades"
-
-	op_node_genesis "github.com/ethereum-optimism/optimism/op-node/cmd/genesis"
+	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 	"github.com/ethereum-optimism/superchain-registry/superchain"
 )
 
@@ -170,7 +169,7 @@ func entrypoint(ctx *cli.Context) error {
 
 	// Write contract versions to disk or stdout
 	if outfile := ctx.Path("outfile"); outfile != "" {
-		if err := op_node_genesis.WriteJSONFile(outfile, output); err != nil {
+		if err := jsonutil.WriteJSON(outfile, output); err != nil {
 			return err
 		}
 	} else {

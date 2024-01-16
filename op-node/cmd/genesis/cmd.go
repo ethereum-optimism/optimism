@@ -126,7 +126,7 @@ var Subcommands = cli.Commands{
 				return err
 			}
 
-			return WriteJSONFile(ctx.String("outfile.l1"), l1Genesis)
+			return writeJSONFile(ctx.String("outfile.l1"), l1Genesis)
 		},
 	},
 	{
@@ -249,17 +249,17 @@ var Subcommands = cli.Commands{
 				return fmt.Errorf("generated rollup config does not pass validation: %w", err)
 			}
 
-			if err := WriteJSONFile(ctx.String("outfile.l2"), l2Genesis); err != nil {
+			if err := writeJSONFile(ctx.String("outfile.l2"), l2Genesis); err != nil {
 				return err
 			}
-			return WriteJSONFile(ctx.String("outfile.rollup"), rollupConfig)
+			return writeJSONFile(ctx.String("outfile.rollup"), rollupConfig)
 		},
 	},
 }
 
-// WriteJSONFile will write a JSON file to disk at the given path
+// writeJSONFile will write a JSON file to disk at the given path
 // containing the JSON serialized input value.
-func WriteJSONFile(outfile string, input any) error {
+func writeJSONFile(outfile string, input any) error {
 	f, err := os.OpenFile(outfile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
 	if err != nil {
 		return err
