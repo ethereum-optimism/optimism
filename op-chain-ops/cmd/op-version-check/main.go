@@ -21,10 +21,15 @@ import (
 	"github.com/ethereum-optimism/superchain-registry/superchain"
 )
 
+type Contract struct {
+	Version string             `yaml:"version"`
+	Address superchain.Address `yaml:"address"`
+}
+
 type ChainVersionCheck struct {
-	Name             string                      `yaml:"name"`
-	ChainID          uint64                      `yaml:"chain_id"`
-	ContractVersions superchain.ContractVersions `yaml:"contract_versions"`
+	Name      string              `yaml:"name"`
+	ChainID   uint64              `yaml:"chain_id"`
+	Contracts map[string]Contract `yaml:"contracts"`
 }
 
 func main() {
@@ -147,7 +152,19 @@ func entrypoint(ctx *cli.Context) error {
 			return fmt.Errorf("error getting contract versions: %w", err)
 		}
 
-		output = append(output, ChainVersionCheck{Name: chainConfig.Name, ChainID: chainConfig.ChainID, ContractVersions: versions})
+		contracts := make(map[string]Contract)
+
+		contracts["AddressManager"] = Contract{Version: "null", Address: addresses.AddressManager}
+		contracts["L1CrossDomainMessenger"] = Contract{Version: versions.L1CrossDomainMessenger, Address: addresses.L1CrossDomainMessengerProxy}
+		contracts["L1ERC721Bridge"] = Contract{Version: versions.L1ERC721Bridge, Address: addresses.L1ERC721BridgeProxy}
+		contracts["L1StandardBridge"] = Contract{Version: versions.L1ERC721Bridge, Address: addresses.L1StandardBridgeProxy}
+		contracts["L2OutputOracle"] = Contract{Version: versions.L2OutputOracle, Address: addresses.L2OutputOracleProxy}
+		contracts["OptimismMintableERC20Factory"] = Contract{Version: versions.OptimismMintableERC20Factory, Address: addresses.OptimismMintableERC20FactoryProxy}
+		contracts["OptimismPortal"] = Contract{Version: versions.OptimismPortal, Address: addresses.OptimismPortalProxy}
+		contracts["SystemConfig"] = Contract{Version: versions.SystemConfig, Address: chainConfig.SystemConfigAddr}
+		contracts["ProxyAdmin"] = Contract{Version: "null", Address: addresses.ProxyAdmin}
+
+		output = append(output, ChainVersionCheck{Name: chainConfig.Name, ChainID: chainConfig.ChainID, Contracts: contracts})
 	}
 
 	// Write contract versions to disk or stdout
