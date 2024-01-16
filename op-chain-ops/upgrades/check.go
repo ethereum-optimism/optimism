@@ -122,3 +122,17 @@ func cmpVersion(v1, v2 string) bool {
 	}
 	return v1 == v2
 }
+
+// ToSuperchainName turns a base layer chain id into a superchain network name.
+func ToSuperchainName(chainID uint64) (string, error) {
+	if chainID == 1 {
+		return "mainnet", nil
+	}
+	if chainID == 5 {
+		return "goerli", nil
+	}
+	if chainID == 11155111 {
+		return "sepolia", nil
+	}
+	return "", fmt.Errorf("unsupported chain ID %d", chainID)
+}

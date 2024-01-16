@@ -78,7 +78,7 @@ func entrypoint(ctx *cli.Context) error {
 
 	superchainName := ctx.String("superchain-target")
 	if superchainName == "" {
-		superchainName, err = toSuperchainName(l1ChainID.Uint64())
+		superchainName, err = upgrades.ToSuperchainName(l1ChainID.Uint64())
 		if err != nil {
 			return err
 		}
@@ -163,19 +163,4 @@ func entrypoint(ctx *cli.Context) error {
 		fmt.Println(string(data))
 	}
 	return nil
-}
-
-// toSuperchainName turns a base layer chain id into a superchain
-// network name.
-func toSuperchainName(chainID uint64) (string, error) {
-	if chainID == 1 {
-		return "mainnet", nil
-	}
-	if chainID == 5 {
-		return "goerli", nil
-	}
-	if chainID == 11155111 {
-		return "sepolia", nil
-	}
-	return "", fmt.Errorf("unsupported chain ID %d", chainID)
 }
