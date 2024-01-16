@@ -70,6 +70,7 @@ You'll need the following:
 * [Docker Compose](https://docs.docker.com/compose/install/)
 * [Go](https://go.dev/dl/)
 * [Foundry](https://getfoundry.sh)
+* [jq](https://jqlang.github.io/jq/)
 * [go-ethereum](https://github.com/ethereum/go-ethereum)
 
 ### Setup
