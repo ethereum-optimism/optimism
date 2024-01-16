@@ -14,8 +14,8 @@
     "build": "npx nx run-many --target=build",
     "test": "npx nx run-many --target=test",
     "issues": "./ops/scripts/todo-checker.sh",
-    "install:ci": "pnpm install --ignore-scripts --frozen-lockfile && pnpm postinstall && pnpm rebuild nx",
-    "install:ci:offline": "pnpm install --ignore-scripts --offline --frozen-lockfile && pnpm postinstall && pnpm rebuild nx",
+    "install:ci": "pnpm install --ignore-scripts --frozen-lockfile && pnpm rebuild nx",
+    "install:ci:offline": "pnpm install --ignore-scripts --offline --frozen-lockfile && pnpm rebuild nx",
     "lint": "npx nx run-many --target=lint",
     "test:coverage": "npx nx run-many --target=test:coverage",
     "lint:ts:check": "npx nx run-many --target=lint:ts:check",
@@ -25,7 +25,6 @@
     "lint:specs:check": "npx markdownlint-cli2  \"./specs/**/*.md\"",
     "lint:specs:toc": "npx doctoc '--title=**Table of Contents**' ./specs",
     "preinstall": "npx only-allow pnpm",
-    "postinstall": "patch-package",
     "ready": "pnpm lint && pnpm test",
     "prepare": "husky install",
     "release": "npx nx run-many --target=build --skip-nx-cache && pnpm changeset publish",
@@ -73,7 +72,6 @@
     "mocha": "^10.2.0",
     "nx": "17.2.4",
     "nyc": "^15.1.0",
-    "patch-package": "^8.0.0",
     "prettier": "^2.8.0",
     "rimraf": "^5.0.5",
     "ts-mocha": "^10.0.0",
@@ -81,6 +79,6 @@
     "nx-cloud": "latest"
   },
   "dependencies": {
-    "@changesets/cli": "^2.26.0"
+    "@changesets/cli": "^2.27.1"
   }
 }
