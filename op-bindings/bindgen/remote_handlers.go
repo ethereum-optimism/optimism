@@ -69,14 +69,14 @@ func (generator *BindGenGeneratorRemote) create2DeployerHandler(contractMetadata
 		return err
 	}
 
-	// We're expecting the bytecode for Create2Deployer to not match the deployment on OP,
-	// because we're predeploying a modified version of Create2Deployer that has not yet been
-	// deployed to OP.
+	// We're expecting the initialization bytecode for Create2Deployer to not match the init code on OP,
+	// because the deployment on OP has been overwritten by the Canyon hardfork, and the init code
+	// Etherscan returns for the OP deployment is from the initial outdated deployment.
 	// For context: https://github.com/ethereum-optimism/op-geth/pull/126
 	if err := generator.CompareInitBytecodeWithOp(contractMetadata, false); err != nil {
 		return fmt.Errorf("%s: %w", contractMetadata.Name, err)
 	}
-	if err := generator.CompareDeployedBytecodeWithOp(contractMetadata, false); err != nil {
+	if err := generator.CompareDeployedBytecodeWithOp(contractMetadata, true); err != nil {
 		return fmt.Errorf("%s: %w", contractMetadata.Name, err)
 	}
 
