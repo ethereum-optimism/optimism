@@ -50,7 +50,7 @@ else
     usage
   elif [ "$1" == "local" ]; then
     notif "Running with LOCAL install, .kontrolrc CI version ENFORCED"
-    if [ "$(kontrol version | awk -F':' '{print$2}')" == "${KONTROLRC}" ]; then
+    if [ "$(kontrol version | awk -F': ' '{print$2}')" == "${KONTROLRC}" ]; then
       notif "Kontrol version matches ${KONTROLRC}"
       blank_line
       export LOCAL=true
