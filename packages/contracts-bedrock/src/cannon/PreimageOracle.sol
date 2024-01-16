@@ -211,6 +211,9 @@ contract PreimageOracle is IPreimageOracle {
     )
         external
     {
+        // The caller of `addLeavesLPP` must be an EOA.
+        if (msg.sender != tx.origin) revert NotEOA();
+
         // If we're finalizing, pad the input for the submitter. If not, copy the input into memory verbatim.
         bytes memory input;
         if (_finalize) {

@@ -173,6 +173,9 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
     function setUp() public {
         oracle = new PreimageOracle();
         vm.label(address(oracle), "PreimageOracle");
+
+        // Set `tx.origin` and `msg.sender` to `address(this)` so that it may behave like an EOA for `addLeavesLPP`.
+        vm.startPrank(address(this), address(this));
     }
 
     /// @notice Tests that the `initLPP` function reverts when the part offset is out of bounds of the full preimage.
@@ -214,6 +217,26 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         console.log("Gas used: %d", gasUsed);
         console.log("Gas per byte (%d bytes streamed): %d", data.length, gasUsed / data.length);
         console.log("Gas for 4MB: %d", (gasUsed / data.length) * 4000000);
+    }
+
+    /// @notice Tests that the `addLeavesLPP` function may never be called when `tx.origin != msg.sender`
+    function test_addLeaves_notEOA_reverts() public {
+        // Allocate the preimage data.
+        bytes memory data = new bytes(136 * 500);
+
+        // Initialize the proposal.
+        oracle.initLPP(TEST_UUID, 0, uint32(data.length));
+
+        // Add the leaves to the tree (2 keccak blocks.)
+        LibKeccak.StateMatrix memory stateMatrix;
+        bytes32[] memory stateCommitments = _generateStateCommitments(stateMatrix, data);
+
+        // Replace the global prank, set `tx.origin` to `address(0)`, and set `msg.sender` to `address(this)`.
+        vm.stopPrank();
+        vm.prank(address(0), address(this));
+
+        vm.expectRevert(NotEOA.selector);
+        oracle.addLeavesLPP(TEST_UUID, data, stateCommitments, true);
     }
 
     /// @notice Tests that leaves can be added the large preimage proposal mapping and proven to be contained within
