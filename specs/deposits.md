@@ -371,11 +371,16 @@ begins to store additional data:
 - `blobBaseFeeScalar` (`uint32`): The scalar value applied to the L1 blob base fee portion of the L1 cost.
 - `baseFeeScalar` (`uint32`): The scalar value applied to the L1 base fee portion of the L1 cost.
 
-Additionally, the `setL1BlockValues` function is deprecated and MUST never be called by the L1
-attributes transaction when the L2 block number is greater than the Ecotone activation block
-number. `setL1BlockValues` MUST be called by the L1 attributes transaction on the Ecotone hardfork
-activation block, except if activated at genesis.  The `setL1BlockValuesEcotone` MUST be called
-when the L2 block number is greater than the Ecotone hardfork activation block.
+The function called by the L1 attributes transaction depends on the network upgrade:
+
+- Before the Ecotone activation:
+  - `setL1BlockValues` is called, following the pre-Ecotone L1 attributes rules.
+- At the Ecotone activation block:
+  - `setL1BlockValues` function MUST be called, except if activated at genesis.
+    The contract is upgraded later in this block, to support `setL1BlockValuesEcotone`.
+- After the Ecotone activation:
+  - `setL1BlockValues` function is deprecated and MUST never be called.
+  - `setL1BlockValuesEcotone` MUST be called with the new Ecotone attributes.
 
 `setL1BlockValuesEcotone` uses a tightly packed encoding for its parameters, which is described in
 [L1 Attributes Deposited Transaction Calldata](#l1-attributes-deposited-transaction-calldata).
