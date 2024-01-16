@@ -28,9 +28,11 @@ func (m *MockL1OriginSelector) FindL1Origin(ctx context.Context, l2Head eth.L2Bl
 	return m.actual.FindL1Origin(ctx, l2Head)
 }
 
-type MockInteropMessageQueue struct{}
+type MockInteropMessageQueue struct {
+	nextMessages []derive.InteropMessages // a new set of messages to include
+}
 
-func (t *MockInteropMessageQueue) NewMessages() []derive.InteropMessages { return nil }
+func (t *MockInteropMessageQueue) NewMessages() []derive.InteropMessages { return t.nextMessages }
 
 // L2Sequencer is an actor that functions like a rollup node,
 // without the full P2P/API/Node stack, but just the derivation state, and simplified driver with sequencing ability.
@@ -42,6 +44,7 @@ type L2Sequencer struct {
 	failL2GossipUnsafeBlock error // mock error
 
 	mockL1OriginSelector *MockL1OriginSelector
+	mockInteropMsgQueue  *MockInteropMessageQueue
 }
 
 func NewL2Sequencer(t Testing, log log.Logger, l1 derive.L1Fetcher, eng L2API, cfg *rollup.Config, seqConfDepth uint64) *L2Sequencer {
@@ -54,6 +57,7 @@ func NewL2Sequencer(t Testing, log log.Logger, l1 derive.L1Fetcher, eng L2API, c
 		L2Verifier:              *ver,
 		sequencer:               driver.NewSequencer(log, cfg, ver.derivation, attrBuilder, l1OriginSelector, interopMsgQueue, metrics.NoopMetrics),
 		mockL1OriginSelector:    l1OriginSelector,
+		mockInteropMsgQueue:     interopMsgQueue,
 		failL2GossipUnsafeBlock: nil,
 	}
 }

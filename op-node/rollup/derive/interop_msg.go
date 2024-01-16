@@ -102,28 +102,20 @@ func InteropMessagesDeposit(interopMsgs []InteropMessages) (*types.DepositTx, er
 		return nil, err
 	}
 
-	// TODO: derive from the remote source info. Since the calldata includes the
-	// latest remote block number, the transaction hash will be unique anyways
+	// TODO: derive from the remote source info. Since the calldata includes the latest
+	// block numbers & output hashes, the transaction hash will be unique anyways
 	sourceHash := common.Hash{}
-
-	type inboxMessage struct {
-		Chain        common.Hash
-		Output       common.Hash
-		BlockNumber  *big.Int
-		MessageRoots []common.Hash
-	}
-
-	inboxMessages := make([]inboxMessage, len(interopMsgs))
+	inboxMessages := make([]bindings.InboxMessages, len(interopMsgs))
 
 	mint := big.NewInt(0)
 	for i, chainMsgs := range interopMsgs {
-		msgRoots := make([]common.Hash, len(chainMsgs.Messages))
+		msgRoots := make([][32]byte, len(chainMsgs.Messages))
 		for j, msg := range chainMsgs.Messages {
 			msgRoots[j] = msg.MessageRoot // verify message root
 			mint = mint.Add(mint, msg.Value)
 		}
 
-		inboxMessages[i] = inboxMessage{
+		inboxMessages[i] = bindings.InboxMessages{
 			Chain:        chainMsgs.SourceInfo.RemoteChain,
 			BlockNumber:  chainMsgs.SourceInfo.ToBlockNumber,
 			MessageRoots: msgRoots,
@@ -132,8 +124,7 @@ func InteropMessagesDeposit(interopMsgs []InteropMessages) (*types.DepositTx, er
 	}
 
 	// encode function call
-	deliverMsgsFn := abi.Methods["deliverMessages"]
-	data, err := deliverMsgsFn.Inputs.Pack(inboxMessages)
+	data, err := abi.Pack("deliverMessages", inboxMessages)
 	if err != nil {
 		return nil, err
 	}
