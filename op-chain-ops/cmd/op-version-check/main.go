@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/clients"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/upgrades"
 
+	"github.com/ethereum-optimism/optimism/op-node/cmd/genesis"
 	"github.com/ethereum-optimism/superchain-registry/superchain"
 )
 
@@ -92,6 +93,7 @@ func entrypoint(ctx *cli.Context) error {
 	slices.Sort(chainIDs)
 
 	targets := make([]*superchain.ChainConfig, 0)
+	// TODO: Need some logging here if a chain ID is filtered out for whatever reason.
 	for _, chainConfig := range superchain.OPChains {
 		if chainConfig.Superchain == superchainName && slices.Contains(chainIDs, chainConfig.ChainID) {
 			targets = append(targets, chainConfig)
@@ -150,7 +152,7 @@ func entrypoint(ctx *cli.Context) error {
 
 	// Write contract versions to disk or stdout
 	if outfile := ctx.Path("outfile"); outfile != "" {
-		if err := writeJSON(outfile, output); err != nil {
+		if err := genesis.WriteJSONFile(outfile, output); err != nil {
 			return err
 		}
 	} else {
@@ -176,16 +178,4 @@ func toSuperchainName(chainID uint64) (string, error) {
 		return "sepolia", nil
 	}
 	return "", fmt.Errorf("unsupported chain ID %d", chainID)
-}
-
-func writeJSON(outfile string, input interface{}) error {
-	f, err := os.OpenFile(outfile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o666)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	enc := json.NewEncoder(f)
-	enc.SetIndent("", "  ")
-	return enc.Encode(input)
 }
