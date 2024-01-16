@@ -19,5 +19,33 @@
     "offset": 0,
     "slot": "2",
     "type": "mapping(bytes32 => mapping(uint256 => bool))"
+  },
+  {
+    "bytes": "512",
+    "label": "zeroHashes",
+    "offset": 0,
+    "slot": "3",
+    "type": "bytes32[16]"
+  },
+  {
+    "bytes": "32",
+    "label": "proposalBranches",
+    "offset": 0,
+    "slot": "19",
+    "type": "mapping(address => mapping(uint256 => bytes32[16]))"
+  },
+  {
+    "bytes": "32",
+    "label": "proposalMetadata",
+    "offset": 0,
+    "slot": "20",
+    "type": "mapping(address => mapping(uint256 => LPPMetaData))"
+  },
+  {
+    "bytes": "32",
+    "label": "proposalParts",
+    "offset": 0,
+    "slot": "21",
+    "type": "mapping(address => mapping(uint256 => bytes32))"
   }
 ]

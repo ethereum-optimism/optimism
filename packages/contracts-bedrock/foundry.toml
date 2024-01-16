@@ -15,6 +15,7 @@ remappings = [
   '@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts',
   '@rari-capital/solmate/=lib/solmate',
   '@cwia/=lib/clones-with-immutable-args/src',
+  '@lib-keccak/=lib/lib-keccak/contracts/lib',
   'forge-std/=lib/forge-std/src',
   'ds-test/=lib/forge-std/lib/ds-test/src',
   'safe-contracts/=lib/safe-contracts/contracts',

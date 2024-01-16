@@ -1092,6 +1092,18 @@
     "filename_relative": "src/dispute/FaultDisputeGame.sol"
   },
   {
+    "id": "037c6a008887de2859c40f66cb99806d2e25ea8d4b0658d3fdc448e77c20439b",
+    "impact": "Medium",
+    "confidence": "Medium",
+    "check": "uninitialized-local",
+    "description": "PreimageOracle.challengeFirstLPP(address,uint256,PreimageOracle.Leaf,bytes32[]).stateMatrix (src/cannon/PreimageOracle.sol#357) is a local variable never initialized\n",
+    "type": "variable",
+    "name": "stateMatrix",
+    "start": 16305,
+    "length": 40,
+    "filename_relative": "src/cannon/PreimageOracle.sol"
+  },
+  {
     "id": "8c229f5475784b2e9526e30d55b066e479489bca4b07c4f062b42b5b70100794",
     "impact": "Medium",
     "confidence": "Medium",

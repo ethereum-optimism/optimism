@@ -20,3 +20,6 @@
 [submodule "packages/contracts-bedrock/lib/solady"]
 	path = packages/contracts-bedrock/lib/solady
 	url = https://github.com/Vectorized/solady
+[submodule "packages/contracts-bedrock/lib/lib-keccak"]
+	path = packages/contracts-bedrock/lib/lib-keccak
+	url = https://github.com/ethereum-optimism/lib-keccak

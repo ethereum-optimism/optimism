@@ -1,5 +1,253 @@
 [
   {
+    "inputs": [],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "inputs": [],
+    "name": "CHALLENGE_PERIOD",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "KECCAK_TREE_DEPTH",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "MAX_LEAF_COUNT",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_uuid",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bytes",
+        "name": "_input",
+        "type": "bytes"
+      },
+      {
+        "internalType": "bytes32[]",
+        "name": "_stateCommitments",
+        "type": "bytes32[]"
+      },
+      {
+        "internalType": "bool",
+        "name": "_finalize",
+        "type": "bool"
+      }
+    ],
+    "name": "addLeavesLPP",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_claimant",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_uuid",
+        "type": "uint256"
+      },
+      {
+        "components": [
+          {
+            "internalType": "bytes",
+            "name": "input",
+            "type": "bytes"
+          },
+          {
+            "internalType": "uint256",
+            "name": "index",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "stateCommitment",
+            "type": "bytes32"
+          }
+        ],
+        "internalType": "struct PreimageOracle.Leaf",
+        "name": "_postState",
+        "type": "tuple"
+      },
+      {
+        "internalType": "bytes32[]",
+        "name": "_postStateProof",
+        "type": "bytes32[]"
+      }
+    ],
+    "name": "challengeFirstLPP",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_claimant",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_uuid",
+        "type": "uint256"
+      },
+      {
+        "components": [
+          {
+            "internalType": "uint64[25]",
+            "name": "state",
+            "type": "uint64[25]"
+          }
+        ],
+        "internalType": "struct LibKeccak.StateMatrix",
+        "name": "_stateMatrix",
+        "type": "tuple"
+      },
+      {
+        "components": [
+          {
+            "internalType": "bytes",
+            "name": "input",
+            "type": "bytes"
+          },
+          {
+            "internalType": "uint256",
+            "name": "index",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "stateCommitment",
+            "type": "bytes32"
+          }
+        ],
+        "internalType": "struct PreimageOracle.Leaf",
+        "name": "_preState",
+        "type": "tuple"
+      },
+      {
+        "internalType": "bytes32[]",
+        "name": "_preStateProof",
+        "type": "bytes32[]"
+      },
+      {
+        "components": [
+          {
+            "internalType": "bytes",
+            "name": "input",
+            "type": "bytes"
+          },
+          {
+            "internalType": "uint256",
+            "name": "index",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "stateCommitment",
+            "type": "bytes32"
+          }
+        ],
+        "internalType": "struct PreimageOracle.Leaf",
+        "name": "_postState",
+        "type": "tuple"
+      },
+      {
+        "internalType": "bytes32[]",
+        "name": "_postStateProof",
+        "type": "bytes32[]"
+      }
+    ],
+    "name": "challengeLPP",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_owner",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_uuid",
+        "type": "uint256"
+      }
+    ],
+    "name": "getTreeRootLPP",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "treeRoot_",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_uuid",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint32",
+        "name": "_partOffset",
+        "type": "uint32"
+      },
+      {
+        "internalType": "uint32",
+        "name": "_claimedSize",
+        "type": "uint32"
+      }
+    ],
+    "name": "initLPP",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "uint256",
@@ -126,6 +374,83 @@
   {
     "inputs": [
       {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "proposalBranches",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "proposalMetadata",
+    "outputs": [
+      {
+        "internalType": "LPPMetaData",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "proposalParts",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "bytes32",
         "name": "_key",
         "type": "bytes32"
@@ -153,8 +478,161 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_claimant",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_uuid",
+        "type": "uint256"
+      },
+      {
+        "components": [
+          {
+            "internalType": "uint64[25]",
+            "name": "state",
+            "type": "uint64[25]"
+          }
+        ],
+        "internalType": "struct LibKeccak.StateMatrix",
+        "name": "_stateMatrix",
+        "type": "tuple"
+      },
+      {
+        "components": [
+          {
+            "internalType": "bytes",
+            "name": "input",
+            "type": "bytes"
+          },
+          {
+            "internalType": "uint256",
+            "name": "index",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "stateCommitment",
+            "type": "bytes32"
+          }
+        ],
+        "internalType": "struct PreimageOracle.Leaf",
+        "name": "_preState",
+        "type": "tuple"
+      },
+      {
+        "internalType": "bytes32[]",
+        "name": "_preStateProof",
+        "type": "bytes32[]"
+      },
+      {
+        "components": [
+          {
+            "internalType": "bytes",
+            "name": "input",
+            "type": "bytes"
+          },
+          {
+            "internalType": "uint256",
+            "name": "index",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "stateCommitment",
+            "type": "bytes32"
+          }
+        ],
+        "internalType": "struct PreimageOracle.Leaf",
+        "name": "_postState",
+        "type": "tuple"
+      },
+      {
+        "internalType": "bytes32[]",
+        "name": "_postStateProof",
+        "type": "bytes32[]"
+      }
+    ],
+    "name": "squeezeLPP",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "zeroHashes",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "ActiveProposal",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "AlreadyFinalized",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "BadProposal",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidInputSize",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidPreimage",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidProof",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotInitialized",
+    "type": "error"
+  },
+  {
     "inputs": [],
     "name": "PartOffsetOOB",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "PostStateMatches",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "StatesNotContiguous",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "TreeSizeOverflow",
     "type": "error"
   }
 ]
