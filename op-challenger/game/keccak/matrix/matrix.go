@@ -26,11 +26,12 @@ func NewStateMatrix() *StateMatrix {
 // StateCommitment returns the state commitment for the current state matrix.
 // Additional data may be absorbed after calling this method.
 func (d *StateMatrix) StateCommitment() common.Hash {
-	buf := d.packState()
+	buf := d.PackState()
 	return crypto.Keccak256Hash(buf)
 }
 
-func (d *StateMatrix) packState() []byte {
+// PackState packs the state in to the solidity ABI encoding required for the state matrix
+func (d *StateMatrix) PackState() []byte {
 	buf := make([]byte, 0, len(d.s.a)*uint256Size)
 	for _, v := range d.s.a {
 		buf = append(buf, math.U256Bytes(new(big.Int).SetUint64(v))...)

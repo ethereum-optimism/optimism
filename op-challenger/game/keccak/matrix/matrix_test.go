@@ -38,7 +38,7 @@ func TestStateCommitment(t *testing.T) {
 			copy(state.s.a[:], test.matrix)
 			expected := crypto.Keccak256Hash(common.Hex2Bytes(test.expectedPacked))
 			actual := state.StateCommitment()
-			require.Equal(t, test.expectedPacked, common.Bytes2Hex(state.packState()))
+			require.Equal(t, test.expectedPacked, common.Bytes2Hex(state.PackState()))
 			require.Equal(t, expected, actual)
 		})
 	}
