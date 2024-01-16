@@ -136,6 +136,19 @@
   },
   {
     "inputs": [],
+    "name": "batchInbox",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "addr_",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "batcherHash",
     "outputs": [
       {
@@ -544,13 +557,6 @@
       }
     ],
     "name": "setResourceConfig",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "setStartBlock",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
