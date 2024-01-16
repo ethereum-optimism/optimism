@@ -483,8 +483,8 @@ func (m *SimpleTxManager) publishTx(ctx context.Context, tx *types.Transaction, 
 		}
 
 		cCtx, cancel := context.WithTimeout(ctx, m.cfg.NetworkTimeout)
-		err := m.backend.SendTransaction(cCtx, tx)
 		defer cancel()
+		err := m.backend.SendTransaction(cCtx, tx)
 		sendState.ProcessSendError(err)
 
 		if err == nil {
