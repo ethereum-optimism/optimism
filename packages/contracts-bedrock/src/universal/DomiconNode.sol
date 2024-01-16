@@ -118,4 +118,14 @@ abstract contract DomiconNode is Initializable{
         broadcastNodeList.push(node);
         broadcastingNodes[node] = nodeInfo;
     }
+
+    function BROADCAST_NODES() external view returns(address[] memory){
+        return broadcastNodeList;
+    }
+
+
+
+    function STORAGE_NODES() external view returns(address[] memory){
+        return storageNodeList;
+    }
 }

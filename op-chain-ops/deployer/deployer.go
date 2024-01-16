@@ -21,7 +21,7 @@ import (
 var TestKey, _ = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
 
 // ChainID is the chain id used for simulated backends
-var ChainID = big.NewInt(1337)
+var ChainID = big.NewInt(1988)
 
 var TestAddress = crypto.PubkeyToAddress(TestKey.PublicKey)
 

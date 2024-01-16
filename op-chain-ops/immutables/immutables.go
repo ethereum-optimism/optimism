@@ -56,6 +56,12 @@ func (i ImmutableConfig) Check() error {
 	if _, ok := i["BaseFeeVault"]["recipient"]; !ok {
 		return errors.New("BaseFeeVault recipient not set")
 	}
+	if _, ok := i["L2DomiconCommitment"]["otherCommitment"]; !ok {
+		return errors.New("L2DomiconCommitment otherCommitment not set")
+	}
+	if _, ok := i["L2DomiconNode"]["otherNode"]; !ok {
+		return errors.New("L2DomiconNode otherNode not set")
+	}
 	return nil
 }
 
@@ -149,6 +155,12 @@ func BuildOptimism(immutable ImmutableConfig) (DeploymentResults, error) {
 		},
 		{
 			Name: "SchemaRegistry",
+		},
+		{
+			Name: "L2DomiconNode",
+			Args: []interface{}{
+				immutable["L2DomiconNode"]["otherNode"],
+			},
 		},
 	}
 	return BuildL2(deployments)
@@ -245,6 +257,12 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 		_, tx, _, err = bindings.DeployEAS(opts, backend)
 	case "SchemaRegistry":
 		_, tx, _, err = bindings.DeploySchemaRegistry(opts, backend)
+	case "L2DomiconNode":
+		otherNode, ok := deployment.Args[0].(common.Address)
+		if !ok {
+			return nil, fmt.Errorf("invalid type for otherNode")
+		}
+		_, tx, _, err = bindings.DeployL2DomiconNode(opts, backend, otherNode)
 	default:
 		return tx, fmt.Errorf("unknown contract: %s", deployment.Name)
 	}

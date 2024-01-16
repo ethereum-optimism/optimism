@@ -154,6 +154,8 @@ type DeployConfig struct {
 	// as part of building the L2 genesis state.
 	L1StandardBridgeProxy common.Address `json:"l1StandardBridgeProxy"`
 
+	L1DomiconNodeProxy common.Address `json:"l1DomiconNodeProxy"`
+
 	L1DomiconCommitmentProxy common.Address `json:"l1DomiconCommitment"`
 	// L1CrossDomainMessengerProxy represents the address of the L1CrossDomainMessengerProxy on L1 and is used
 	// as part of building the L2 genesis state.
@@ -396,6 +398,7 @@ func (d *DeployConfig) CheckAddresses() error {
 func (d *DeployConfig) SetDeployments(deployments *L1Deployments) {
 	d.L1StandardBridgeProxy = deployments.L1StandardBridgeProxy
 	d.L1DomiconCommitmentProxy = deployments.L1DomiconCommitmentProxy
+	d.L1DomiconNodeProxy = deployments.L1DomiconNodeProxy
 	d.L1CrossDomainMessengerProxy = deployments.L1CrossDomainMessengerProxy
 	d.L1ERC721BridgeProxy = deployments.L1ERC721BridgeProxy
 	d.SystemConfigProxy = deployments.SystemConfigProxy
@@ -411,14 +414,6 @@ func (d *DeployConfig) GetDeployedAddresses(hh *hardhat.Hardhat) error {
 			return fmt.Errorf("cannot find L1StandardBridgeProxy artifact: %w", err)
 		}
 		d.L1StandardBridgeProxy = l1StandardBridgeProxyDeployment.Address
-	}
-
-	if d.L1DomiconCommitmentProxy == (common.Address{}) {
-		l1DomiconCommitmentProxyDeployment, err := hh.GetDeployment("L1DomiconCommitmentProxy")
-		if err != nil {
-			return fmt.Errorf("cannot find L1StandardBridgeProxy artifact: %w", err)
-		}
-		d.L1DomiconCommitmentProxy = l1DomiconCommitmentProxyDeployment.Address
 	}
 
 	if d.L1CrossDomainMessengerProxy == (common.Address{}) {
@@ -451,6 +446,22 @@ func (d *DeployConfig) GetDeployedAddresses(hh *hardhat.Hardhat) error {
 			return fmt.Errorf("cannot find OptimismPortalProxy artifact: %w", err)
 		}
 		d.OptimismPortalProxy = optimismPortalProxyDeployment.Address
+	}
+
+	if d.L1DomiconCommitmentProxy == (common.Address{}) {
+		l1DomiconCommitmentProxyDeployment, err := hh.GetDeployment("L1DomiconCommitmentProxy")
+		if err != nil {
+			return fmt.Errorf("cannot find L1DomiconCommitmentProxy artifact: %w", err)
+		}
+		d.L1DomiconCommitmentProxy = l1DomiconCommitmentProxyDeployment.Address
+	}
+
+	if d.L1DomiconNodeProxy == (common.Address{}) {
+		l1DomiconNodeProxyDeployment, err := hh.GetDeployment("L1DomiconNodeProxy")
+		if err != nil {
+			return fmt.Errorf("cannot find L1DomiconNodeProxy artifact: %w", err)
+		}
+		d.L1DomiconNodeProxy = l1DomiconNodeProxyDeployment.Address
 	}
 
 	return nil
@@ -570,8 +581,6 @@ type L1Deployments struct {
 	L1ERC721BridgeProxy               common.Address `json:"L1ERC721BridgeProxy"`
 	L1StandardBridge                  common.Address `json:"L1StandardBridge"`
 	L1StandardBridgeProxy             common.Address `json:"L1StandardBridgeProxy"`
-	L1DomiconCommitment               common.Address `json:"L1DomiconCommitment"`
-	L1DomiconCommitmentProxy          common.Address `json:"L1DomiconCommitmentProxy"`
 	L2OutputOracle                    common.Address `json:"L2OutputOracle"`
 	L2OutputOracleProxy               common.Address `json:"L2OutputOracleProxy"`
 	OptimismMintableERC20Factory      common.Address `json:"OptimismMintableERC20Factory"`
@@ -583,6 +592,10 @@ type L1Deployments struct {
 	SystemConfigProxy                 common.Address `json:"SystemConfigProxy"`
 	ProtocolVersions                  common.Address `json:"ProtocolVersions"`
 	ProtocolVersionsProxy             common.Address `json:"ProtocolVersionsProxy"`
+	L1DomiconCommitment               common.Address `json:"L1DomiconCommitment"`
+	L1DomiconCommitmentProxy          common.Address `json:"L1DomiconCommitmentProxy"`
+	L1DomiconNode                     common.Address `json:"L1DomiconNode"`
+	L1DomiconNodeProxy                common.Address `json:"L1DomiconNodeProxy"`
 }
 
 // GetName will return the name of the contract given an address.
@@ -699,12 +712,15 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (immutables.
 	if config.L1FeeVaultRecipient == (common.Address{}) {
 		return immutable, fmt.Errorf("L1FeeVaultRecipient cannot be address(0): %w", ErrInvalidImmutablesConfig)
 	}
+	if config.L1DomiconNodeProxy == (common.Address{}) {
+		return immutable, fmt.Errorf("L1DomiconNodeProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
+	}
 
 	immutable["L2StandardBridge"] = immutables.ImmutableValues{
 		"otherBridge": config.L1StandardBridgeProxy,
 	}
 	immutable["L2DomiconCommitment"] = immutables.ImmutableValues{
-		"otherBridge": config.L1DomiconCommitmentProxy,
+		"otherCommitment": config.L1DomiconCommitmentProxy,
 	}
 	immutable["L2CrossDomainMessenger"] = immutables.ImmutableValues{
 		"otherMessenger": config.L1CrossDomainMessengerProxy,
@@ -731,6 +747,9 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (immutables.
 		"recipient":               config.BaseFeeVaultRecipient,
 		"minimumWithdrawalAmount": config.BaseFeeVaultMinimumWithdrawalAmount,
 		"withdrawalNetwork":       config.BaseFeeVaultWithdrawalNetwork.ToUint8(),
+	}
+	immutable["L2DomiconNode"] = immutables.ImmutableValues{
+		"otherNode": config.L1DomiconNodeProxy,
 	}
 
 	return immutable, nil
@@ -800,6 +819,12 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 		"bridge":        predeploys.L2StandardBridgeAddr,
 		"_initialized":  InitializedValue,
 		"_initializing": false,
+	}
+
+	storage["L2DomiconNode"] = state.StorageValues{
+		"_initialized":  InitializedValue,
+		"_initializing": false,
+		"messenger":     predeploys.L2CrossDomainMessengerAddr,
 	}
 	return storage, nil
 }

@@ -63,6 +63,7 @@ func BuildL2Genesis(config *DeployConfig, l1StartBlock *types.Block) (*core.Gene
 				return nil, fmt.Errorf("error converting to code namespace: %w", err)
 			}
 			db.CreateAccount(codeAddr)
+			log.Info("predeploys", "addr", addr.Hex(), "Im", ImplementationSlot, "val", eth.AddressAsLeftPaddedHash(codeAddr))
 			db.SetState(addr, ImplementationSlot, eth.AddressAsLeftPaddedHash(codeAddr))
 			log.Info("Set proxy", "name", name, "address", addr, "implementation", codeAddr)
 		} else {
