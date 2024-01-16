@@ -349,3 +349,12 @@ func findLeader(t *testing.T, conductors map[string]*conductor) (string, *conduc
 	}
 	return "", nil
 }
+
+func findFollower(t *testing.T, conductors map[string]*conductor) (string, *conductor) {
+	for id, con := range conductors {
+		if !leader(t, context.Background(), con) {
+			return id, con
+		}
+	}
+	return "", nil
+}

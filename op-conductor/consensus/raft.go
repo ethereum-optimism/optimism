@@ -231,3 +231,21 @@ func (rc *RaftConsensus) LatestUnsafePayload() *eth.ExecutionPayload {
 	payload := rc.unsafeTracker.UnsafeHead()
 	return &payload
 }
+
+// ClusterMembership implements Consensus, it returns the current cluster membership configuration.
+func (rc *RaftConsensus) ClusterMembership() ([]*ServerInfo, error) {
+	var future raft.ConfigurationFuture
+	if future = rc.r.GetConfiguration(); future.Error() != nil {
+		return nil, future.Error()
+	}
+
+	var servers []*ServerInfo
+	for _, srv := range future.Configuration().Servers {
+		servers = append(servers, &ServerInfo{
+			ID:       string(srv.ID),
+			Addr:     string(srv.Address),
+			Suffrage: ServerSuffrage(srv.Suffrage),
+		})
+	}
+	return servers, nil
+}

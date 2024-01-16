@@ -4,6 +4,34 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
+// ServerSuffrage determines whether a Server in a Configuration gets a vote.
+type ServerSuffrage int
+
+const (
+	// Voter is a server whose vote is counted in elections.
+	Voter ServerSuffrage = iota
+	// Nonvoter is a server that receives log entries but is not considered for
+	// elections or commitment purposes.
+	Nonvoter
+)
+
+func (s ServerSuffrage) String() string {
+	switch s {
+	case Voter:
+		return "Voter"
+	case Nonvoter:
+		return "Nonvoter"
+	}
+	return "ServerSuffrage"
+}
+
+// ServerInfo defines the server information.
+type ServerInfo struct {
+	ID       string         `json:"id"`
+	Addr     string         `json:"addr"`
+	Suffrage ServerSuffrage `json:"suffrage"`
+}
+
 // Consensus defines the consensus interface for leadership election.
 //
 //go:generate mockery --name Consensus --output mocks/ --with-expecter=true
@@ -28,6 +56,8 @@ type Consensus interface {
 	TransferLeader() error
 	// TransferLeaderTo triggers leadership transfer to a specific member in the cluster.
 	TransferLeaderTo(id, addr string) error
+	// ClusterMembership returns the current cluster membership configuration.
+	ClusterMembership() ([]*ServerInfo, error)
 
 	// CommitPayload commits latest unsafe payload to the FSM.
 	CommitUnsafePayload(payload *eth.ExecutionPayload) error

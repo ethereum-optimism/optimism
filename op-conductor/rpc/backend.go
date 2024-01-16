@@ -5,6 +5,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-conductor/consensus"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -23,6 +24,7 @@ type conductor interface {
 	TransferLeader(ctx context.Context) error
 	TransferLeaderToServer(ctx context.Context, id string, addr string) error
 	CommitUnsafePayload(ctx context.Context, payload *eth.ExecutionPayload) error
+	ClusterMembership(ctx context.Context) ([]*consensus.ServerInfo, error)
 }
 
 // APIBackend is the backend implementation of the API.
@@ -69,9 +71,9 @@ func (api *APIBackend) Leader(ctx context.Context) (bool, error) {
 }
 
 // LeaderWithID implements API, returns the leader's server ID and address (not necessarily the current conductor).
-func (api *APIBackend) LeaderWithID(ctx context.Context) (*ServerInfo, error) {
+func (api *APIBackend) LeaderWithID(ctx context.Context) (*consensus.ServerInfo, error) {
 	id, addr := api.con.LeaderWithID(ctx)
-	return &ServerInfo{
+	return &consensus.ServerInfo{
 		ID:   id,
 		Addr: addr,
 	}, nil
@@ -105,4 +107,9 @@ func (api *APIBackend) TransferLeaderToServer(ctx context.Context, id string, ad
 // SequencerHealthy implements API.
 func (api *APIBackend) SequencerHealthy(ctx context.Context) (bool, error) {
 	return api.con.SequencerHealthy(ctx), nil
+}
+
+// ClusterMembership implements API.
+func (api *APIBackend) ClusterMembership(ctx context.Context) ([]*consensus.ServerInfo, error) {
+	return api.con.ClusterMembership(ctx)
 }

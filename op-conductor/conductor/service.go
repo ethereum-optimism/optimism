@@ -396,6 +396,16 @@ func (oc *OpConductor) SequencerHealthy(_ context.Context) bool {
 	return oc.healthy.Load()
 }
 
+// ClusterMembership returns the current cluster membership configuration.
+func (oc *OpConductor) ClusterMembership(_ context.Context) ([]*consensus.ServerInfo, error) {
+	return oc.cons.ClusterMembership()
+}
+
+// LatestUnsafePayload returns the latest unsafe payload from FSM.
+func (oc *OpConductor) LatestUnsafePayload(_ context.Context) *eth.ExecutionPayload {
+	return oc.cons.LatestUnsafePayload()
+}
+
 func (oc *OpConductor) loop() {
 	defer oc.wg.Done()
 
