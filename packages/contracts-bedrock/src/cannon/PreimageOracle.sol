@@ -314,7 +314,7 @@ contract PreimageOracle is IPreimageOracle {
         if (blocksProcessed > MAX_LEAF_COUNT) revert TreeSizeOverflow();
 
         // Perist the branch to storage.
-        proposalBranches[msg.sender][_uuid] = branch_;
+        proposalBranches[msg.sender][_uuid] = branch;
         // Track the block number that these leaves were added at.
         proposalBlocks[msg.sender][_uuid].push(uint64(block.number));
 
