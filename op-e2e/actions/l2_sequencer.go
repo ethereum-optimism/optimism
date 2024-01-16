@@ -28,6 +28,10 @@ func (m *MockL1OriginSelector) FindL1Origin(ctx context.Context, l2Head eth.L2Bl
 	return m.actual.FindL1Origin(ctx, l2Head)
 }
 
+type MockInteropMessageQueue struct{}
+
+func (t *MockInteropMessageQueue) NewMessages() []derive.InteropMessages { return nil }
+
 // L2Sequencer is an actor that functions like a rollup node,
 // without the full P2P/API/Node stack, but just the derivation state, and simplified driver with sequencing ability.
 type L2Sequencer struct {
@@ -44,12 +48,11 @@ func NewL2Sequencer(t Testing, log log.Logger, l1 derive.L1Fetcher, eng L2API, c
 	ver := NewL2Verifier(t, log, l1, eng, cfg, &sync.Config{})
 	attrBuilder := derive.NewFetchingAttributesBuilder(cfg, l1, eng)
 	seqConfDepthL1 := driver.NewConfDepth(seqConfDepth, ver.l1State.L1Head, l1)
-	l1OriginSelector := &MockL1OriginSelector{
-		actual: driver.NewL1OriginSelector(log, cfg, seqConfDepthL1),
-	}
+	l1OriginSelector := &MockL1OriginSelector{actual: driver.NewL1OriginSelector(log, cfg, seqConfDepthL1)}
+	interopMsgQueue := &MockInteropMessageQueue{}
 	return &L2Sequencer{
 		L2Verifier:              *ver,
-		sequencer:               driver.NewSequencer(log, cfg, ver.derivation, attrBuilder, l1OriginSelector, metrics.NoopMetrics),
+		sequencer:               driver.NewSequencer(log, cfg, ver.derivation, attrBuilder, l1OriginSelector, interopMsgQueue, metrics.NoopMetrics),
 		mockL1OriginSelector:    l1OriginSelector,
 		failL2GossipUnsafeBlock: nil,
 	}

@@ -16,11 +16,11 @@ var (
 	OutboxMessagePassedABI     = "MessagePassed(uint256,address,address,bytes32,uint256,uint256,bytes,bytes32)"
 	OutboxMessagePassedABIHash = crypto.Keccak256Hash([]byte(OutboxMessagePassedABI))
 
-	// TODO
 	CrossL2InboxAddr          = predeploys.CrossL2InboxAddr
-	CrossL2InboxDepositorAddr = common.Address{byte(1)}
 	CrossL2InboxFuncSignature = "deliverMessages((bytes32,bytes32,uint256,bytes32[])[])"
 	CrossL2InboxFuncBytes4    = crypto.Keccak256([]byte(CrossL2InboxFuncSignature))[:4]
+
+	CrossL2InboxDepositerAddress = common.HexToAddress("0xdeaddeaddeaddeaddeaddeaddeaddeaddead0002")
 )
 
 type InteropMessage struct {
@@ -140,7 +140,7 @@ func InteropMessagesDeposit(interopMsgs []InteropMessages) (*types.DepositTx, er
 
 	return &types.DepositTx{
 		SourceHash:          sourceHash,
-		From:                CrossL2InboxDepositorAddr,
+		From:                CrossL2InboxDepositerAddress,
 		To:                  &CrossL2InboxAddr,
 		Mint:                mint,
 		Value:               mint,
