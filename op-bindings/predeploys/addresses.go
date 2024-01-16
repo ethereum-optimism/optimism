@@ -25,6 +25,7 @@ const (
 	L1FeeVault                    = "0x420000000000000000000000000000000000001a"
 	SchemaRegistry                = "0x4200000000000000000000000000000000000020"
 	EAS                           = "0x4200000000000000000000000000000000000021"
+	L2DomiconCommitment           = "0x4200000000000000000000000000000000000022"
 	L2DomiconNode                 = "0x4200000000000000000000000000000000000023"
 )
 
@@ -49,6 +50,7 @@ var (
 	SchemaRegistryAddr                = common.HexToAddress(SchemaRegistry)
 	EASAddr                           = common.HexToAddress(EAS)
 	L2DomiconNodeAddr                 = common.HexToAddress(L2DomiconNode)
+	L2DomiconCommitmentAddr           = common.HexToAddress(L2DomiconCommitment)
 
 	Predeploys = make(map[string]*common.Address)
 )
@@ -85,4 +87,5 @@ func init() {
 	Predeploys["SchemaRegistry"] = &SchemaRegistryAddr
 	Predeploys["EAS"] = &EASAddr
 	Predeploys["L2DomiconNode"] = &L2DomiconNodeAddr
+	Predeploys["L2DomiconCommitment"] = &L2DomiconCommitmentAddr
 }

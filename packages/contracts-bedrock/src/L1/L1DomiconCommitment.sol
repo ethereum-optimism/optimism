@@ -5,7 +5,9 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { DomiconCommitment } from "src/universal/DomiconCommitment.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
+import { DomiconNode } from "src/universal/DomiconNode.sol";
 import { Constants } from "src/libraries/Constants.sol";
+//import { Hashing } from "src/libraries/Hashing.sol";
 
 /// @custom:proxied
 /// @title L1StandardBridge
@@ -23,22 +25,25 @@ contract L1DomiconCommitment is DomiconCommitment, ISemver {
     /// @custom:semver 1.4.1
     string public constant version = "1.4.1";
 
-    mapping(address => mapping(uint256 => DAInfo)) public submits;
-    mapping(address => uint256) public indices;
-
     /// @notice Constructs the L1StandardBridge contract.
     constructor() DomiconCommitment(DomiconCommitment(payable(Predeploys.L2_DOMICON_COMMITMENT))) {
-        initialize({ _messenger: CrossDomainMessenger(address(0)) });
+        initialize({ _messenger: CrossDomainMessenger(address(0)),_node: DomiconNode(address(0)) });
     }
 
     /// @notice Initializer
-    function initialize(CrossDomainMessenger _messenger) public reinitializer(Constants.INITIALIZER) {
-        __DomiconCommitment_init({ _messenger: _messenger });
+    function initialize(CrossDomainMessenger _messenger,DomiconNode _node) public reinitializer(Constants.INITIALIZER) {
+        __DomiconCommitment_init({ _messenger: _messenger,_domiconNode:_node });
     }
 
-    function SubmitCommitment(uint256 _index,uint256 _length,uint256 _price,address _user,bytes calldata _sign,bytes calldata _commitment) external onlyEOA {
+    function SubmitCommitment(uint256 _index,uint256 _length,uint256 _price,address _user,bytes calldata _sign,bytes calldata _commitment) external onlyEOA onlyBroadcastNode {
         require(checkSign(_user,_sign),"L1DomiconCommitment:invalid Signature");
-        require(indices[_user]==_index,"L1DomiconCommitment:index Error");
+//        require(indices[_user]==_index,"L1DomiconCommitment:index Error");
+
+
+//        bytes32 hash = Hashing.getDataHash(_user,msg.sender,_price,_index,_length,_commitment);
+//        bool isTrue = Hashing.verifySignature(hash,_sign,_user);
+//        require(isTrue,"L1DomiconCommitment:Signature Error");
+
         submits[_user][_index]=DAInfo({index:_index,length:_length,price:_price,user:_user,broadcaster:msg.sender,sign:_sign,commitment:_commitment});
         indices[_user]++;
         emit SendDACommitment(_index,_length,_price,msg.sender,_user,_sign,_commitment);

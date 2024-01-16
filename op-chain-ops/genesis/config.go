@@ -715,12 +715,12 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (immutables.
 	if config.L1DomiconNodeProxy == (common.Address{}) {
 		return immutable, fmt.Errorf("L1DomiconNodeProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
 	}
+	if config.L1DomiconCommitmentProxy == (common.Address{}) {
+		return immutable, fmt.Errorf("L1DomiconCommitmentProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
+	}
 
 	immutable["L2StandardBridge"] = immutables.ImmutableValues{
 		"otherBridge": config.L1StandardBridgeProxy,
-	}
-	immutable["L2DomiconCommitment"] = immutables.ImmutableValues{
-		"otherCommitment": config.L1DomiconCommitmentProxy,
 	}
 	immutable["L2CrossDomainMessenger"] = immutables.ImmutableValues{
 		"otherMessenger": config.L1CrossDomainMessengerProxy,
@@ -750,6 +750,9 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (immutables.
 	}
 	immutable["L2DomiconNode"] = immutables.ImmutableValues{
 		"otherNode": config.L1DomiconNodeProxy,
+	}
+	immutable["L2DomiconCommitment"] = immutables.ImmutableValues{
+		"otherCommitment": config.L1DomiconCommitmentProxy,
 	}
 
 	return immutable, nil
@@ -822,6 +825,12 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 	}
 
 	storage["L2DomiconNode"] = state.StorageValues{
+		"_initialized":  InitializedValue,
+		"_initializing": false,
+		"messenger":     predeploys.L2CrossDomainMessengerAddr,
+	}
+
+	storage["L2DomiconCommitment"] = state.StorageValues{
 		"_initialized":  InitializedValue,
 		"_initializing": false,
 		"messenger":     predeploys.L2CrossDomainMessengerAddr,

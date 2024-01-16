@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	kzg_sdk "github.com/domicon-labs/kzg-sdk"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/submit"
@@ -12,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
+	"math/big"
 	"sync"
 	"time"
 )
@@ -62,7 +62,7 @@ func (d *DAManager) SendDA(ctx context.Context, index, length, gasPrice uint64, 
 		return common.Hash{}, errors.New("inconsistent data length")
 	}
 
-	if !verifySignature(index, length, broadcaster, user, commitment, sign) {
+	if !verifySignature(index, length, gasPrice, broadcaster, user, commitment, sign) {
 		return common.Hash{}, errors.New("invalid public key")
 	}
 
@@ -110,7 +110,7 @@ func (d *DAManager) Broadcaster(ctx context.Context) (common.Address, error) {
 func (d *DAManager) Start() bool {
 	sdk, err := kzg_sdk.InitDomiconSdk(dSrsSize, "./srs")
 	if err != nil {
-		fmt.Println("InitDomiconSdk failed")
+		log.Error("InitDomiconSdk failed", "err", err)
 		return false
 	}
 	d.kzg = sdk
@@ -127,6 +127,7 @@ func (d *DAManager) SendDaHash(hash *DABlockInfo) bool {
 }
 
 func (d *DAManager) ChangeCurrentState(stats uint64, number uint64) {
+	log.Info("ChangeCurrentState", "shutdownCtx", d.shutdownCtx, "stats", stats, "number", number)
 	d.engine.ChangeCurrentState(d.shutdownCtx, stats, rpc.BlockNumber(number))
 }
 
@@ -191,14 +192,23 @@ func (d *DAManager) getDA() {
 	}
 }
 
-func verifySignature(index, length uint64, broadcaster, user common.Address, commitment, sign []byte) bool {
+func verifySignature(index, length, price uint64, broadcaster, user common.Address, commitment, sign []byte) bool {
+	signer := kzg_sdk.NewEIP155FdSigner(big.NewInt(5))
+	addr, err := kzg_sdk.FdGetSender(signer, sign, user, broadcaster, price, index, length, commitment)
+	if err != nil {
+		log.Error("verifySignature", "err", err)
+		return false
+	}
+	if addr != user {
+		return false
+	}
 	return true
 }
 
 func verifyCommitment(commitment, data []byte, kzg *kzg_sdk.DomiconSdk) bool {
 	digest, err := kzg.GenerateDataCommit(data)
 	if err != nil {
-		fmt.Println("GenerateDataCommit failed")
+		log.Error("generateDataCommit failed")
 		return false
 	}
 	co := digest.Bytes()

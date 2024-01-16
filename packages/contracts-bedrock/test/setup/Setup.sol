@@ -138,12 +138,6 @@ contract Setup is Deploy {
         vm.etch(address(l2OptimismMintableERC20Factory), address(new OptimismMintableERC20Factory()).code);
         l2OptimismMintableERC20Factory.initialize(address(l2StandardBridge));
 
-        vm.etch(
-            address(l2DomiconCommitment),address(new L2DomiconCommitment(DomiconCommitment(l1DomiconCommitment))).code
-        );
-        
-        l2DomiconCommitment.initialize();
-
         vm.etch(address(legacyERC20ETH), address(new LegacyERC20ETH()).code);
 
         vm.etch(address(l2ERC721Bridge), address(new L2ERC721Bridge(address(l1ERC721Bridge))).code);
@@ -193,6 +187,11 @@ contract Setup is Deploy {
         );
         l2DomiconNode.initialize();
 
+        vm.etch(
+            address(l2DomiconCommitment),address(new L2DomiconCommitment(DomiconCommitment(l1DomiconCommitment))).code
+        );
+        l2DomiconCommitment.initialize();
+
         // Set the governance token's owner to be the final system owner
         address finalSystemOwner = cfg.finalSystemOwner();
         vm.prank(governanceToken.owner());
@@ -214,5 +213,6 @@ contract Setup is Deploy {
         vm.label(Predeploys.EAS, "EAS");
         vm.label(Predeploys.SCHEMA_REGISTRY, "SchemaRegistry");
         vm.label(Predeploys.L2_DOMICON_NODE, "L2DomiconNode");
+        vm.label(Predeploys.L2_DOMICON_COMMITMENT,"L2DomiconCommitment");
     }
 }

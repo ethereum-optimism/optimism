@@ -6,6 +6,7 @@ import { DomiconCommitment } from "src/universal/DomiconCommitment.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 import { Constants } from "src/libraries/Constants.sol";
+import { DomiconNode } from "src/universal/DomiconNode.sol";
 
 /// @custom:proxied
 /// @title L1StandardBridge
@@ -23,9 +24,6 @@ contract L2DomiconCommitment is DomiconCommitment, ISemver {
     /// @custom:semver 1.4.1
     string public constant version = "1.4.1";
 
-    mapping(address => mapping(uint256 => DAInfo)) public submits;
-    mapping(address => uint256) public indices;
-
     /// @notice Constructs the L1DomiconCommitment contract.
     constructor(DomiconCommitment _otherCommitment) DomiconCommitment(_otherCommitment) {
         initialize();
@@ -33,12 +31,12 @@ contract L2DomiconCommitment is DomiconCommitment, ISemver {
 
     /// @notice Initializer
     function initialize() public reinitializer(Constants.INITIALIZER) {
-        __DomiconCommitment_init({ _messenger: CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER) });
+        __DomiconCommitment_init({ _messenger: CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER),_domiconNode : DomiconNode(Predeploys.L2_DOMICON_NODE) });
     }
 
     function SubmitCommitment(uint256 _index,uint256 _length,uint256 _price,address _user,bytes calldata _sign,bytes calldata _commitment) external onlyEOA {
         require(checkSign(_user,_sign),"L1DomiconCommitment:invalid Signature");
-        require(indices[_user]==_index,"L1DomiconCommitment:index Error");
+//        require(indices[_user]==_index,"L1DomiconCommitment:index Error");
         submits[_user][_index]=DAInfo({index:_index,length:_length,price:_price,user:_user,broadcaster:msg.sender,sign:_sign,commitment:_commitment});
         indices[_user]++;
         emit SendDACommitment(_index,_length,_price,msg.sender,_user,_sign,_commitment);

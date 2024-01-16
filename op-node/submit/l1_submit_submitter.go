@@ -10,7 +10,7 @@ import (
 
 // L1SubmitTxData creates the transaction data for the L1Submit function
 func L1SubmitTxData(index, length, gasPrice uint64, address common.Address, sign, commitment hexutil.Bytes) ([]byte, error) {
-	parsed, err := bindings.L1DomiconCommitment.GetAbi()
+	parsed, err := bindings.L1DomiconCommitmentMetaData.GetAbi()
 	if err != nil {
 		return nil, err
 	}

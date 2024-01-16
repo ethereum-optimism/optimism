@@ -162,6 +162,12 @@ func BuildOptimism(immutable ImmutableConfig) (DeploymentResults, error) {
 				immutable["L2DomiconNode"]["otherNode"],
 			},
 		},
+		{
+			Name: "L2DomiconCommitment",
+			Args: []interface{}{
+				immutable["L2DomiconCommitment"]["otherCommitment"],
+			},
+		},
 	}
 	return BuildL2(deployments)
 }
@@ -263,6 +269,12 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 			return nil, fmt.Errorf("invalid type for otherNode")
 		}
 		_, tx, _, err = bindings.DeployL2DomiconNode(opts, backend, otherNode)
+	case "L2DomiconCommitment":
+		otherCommitment, ok := deployment.Args[0].(common.Address)
+		if !ok {
+			return nil, fmt.Errorf("invalid type for otherCommitment")
+		}
+		_, tx, _, err = bindings.DeployL2DomiconCommitment(opts, backend, otherCommitment)
 	default:
 		return tx, fmt.Errorf("unknown contract: %s", deployment.Name)
 	}

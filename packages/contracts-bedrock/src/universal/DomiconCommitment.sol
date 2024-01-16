@@ -5,6 +5,7 @@ import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { SafeCall } from "src/libraries/SafeCall.sol";
 import { IOptimismMintableERC20, ILegacyMintableERC20 } from "src/universal/IOptimismMintableERC20.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
+import { DomiconNode } from "src/universal/DomiconNode.sol";
 import { OptimismMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
@@ -50,10 +51,15 @@ abstract contract DomiconCommitment is Initializable{
     /// @notice Spacer for backwards compatibility.
     address private spacer_1_0_20;
 
+    mapping(address => mapping(uint256 => DAInfo)) public submits;
+    mapping(address => uint256) public indices;
+
     /// @notice Messenger contract on this domain. This public getter is deprecated
     ///         and will be removed in the future. Please use `messenger` instead.
     /// @custom:network-specific
     CrossDomainMessenger public messenger;
+
+    DomiconNode public domiconNode;
 
     /// @notice Reserve extra slots (to a total of 50) in the storage layout for future upgrades.
     ///         A gap size of 46 was chosen here, so that the first slot used in a child contract
@@ -82,6 +88,13 @@ abstract contract DomiconCommitment is Initializable{
         _;
     }
 
+    modifier onlyBroadcastNode(){
+        require(
+            domiconNode.IsNodeBroadcast(msg.sender),"DomiconCommitment: broadcast node address error"
+        );
+        _;
+    }
+
     /// @param _otherCommitment Address of the other DomiconCommitment contract.
     constructor(DomiconCommitment _otherCommitment) {
         OTHER_COMMITMENT = _otherCommitment;
@@ -90,8 +103,9 @@ abstract contract DomiconCommitment is Initializable{
     /// @notice Initializer.
     /// @param _messenger   Address of CrossDomainMessenger on this network.
     // solhint-disable-next-line func-name-mixedcase
-    function __DomiconCommitment_init(CrossDomainMessenger _messenger) internal onlyInitializing {
+    function __DomiconCommitment_init(CrossDomainMessenger _messenger,DomiconNode _domiconNode) internal onlyInitializing {
         messenger = _messenger;
+        domiconNode = _domiconNode;
     }
 
     /// @notice Getter for messenger contract.
@@ -104,6 +118,10 @@ abstract contract DomiconCommitment is Initializable{
     /// @notice Getter for the remote domain Commitment contract.
     function otherCommitment() external view returns (DomiconCommitment) {
         return OTHER_COMMITMENT;
+    }
+
+    function DOMICON_NODE() external view returns(DomiconNode){
+        return domiconNode;
     }
 
     function _initSubmitCommitment(
@@ -126,6 +144,7 @@ abstract contract DomiconCommitment is Initializable{
     payable
     onlyOtherCommitment
     {
+        submits[_user][_index]=DAInfo({index:_index,length:_length,price:_price,user:_user,broadcaster:msg.sender,sign:_sign,commitment:_commitment});
         emit FinalizeSubmitCommitment(_index,_length,_price,_broadcaster,_user,_sign,_commitment);
     }
 }
