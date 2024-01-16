@@ -12,8 +12,6 @@ import (
 
 var _ PreimageUploader = (*DirectPreimageUploader)(nil)
 
-var ErrNilPreimageData = fmt.Errorf("cannot upload nil preimage data")
-
 // DirectPreimageUploader uploads the provided [types.PreimageOracleData]
 // directly to the PreimageOracle contract in a single transaction.
 type DirectPreimageUploader struct {
