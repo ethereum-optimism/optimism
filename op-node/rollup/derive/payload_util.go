@@ -78,8 +78,8 @@ func PayloadToSystemConfig(rollupCfg *rollup.Config, payload *eth.ExecutionPaylo
 			Overhead:          info.L1FeeOverhead,
 			Scalar:            info.L1FeeScalar,
 			GasLimit:          uint64(payload.GasLimit),
-			BasefeeScalar:     info.BaseFeeScalar,
-			BlobBasefeeScalar: info.BlobBaseFeeScalar,
+			BaseFeeScalar:     info.BaseFeeScalar,
+			BlobBaseFeeScalar: info.BlobBaseFeeScalar,
 		}, err
 	}
 }
