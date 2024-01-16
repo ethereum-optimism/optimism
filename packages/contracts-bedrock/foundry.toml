@@ -19,6 +19,7 @@ remappings = [
   'forge-std/=lib/forge-std/src',
   'ds-test/=lib/forge-std/lib/ds-test/src',
   'safe-contracts/=lib/safe-contracts/contracts',
+  'kontrol-cheatcodes/=lib/kontrol-cheatcodes/src',
   'solady/=lib/solady/src',
 ]
 extra_output = ['devdoc', 'userdoc', 'metadata', 'storageLayout']
@@ -38,6 +39,7 @@ fs_permissions = [
   { access='read', path = './forge-artifacts/' },
   { access='write', path='./semver-lock.json' },
   { access='read-write', path='./.testdata/' },
+  { access='read', path='./kout-deployment' }
 ]
 libs = ["node_modules", "lib"]
 
@@ -73,9 +75,16 @@ optimizer = false
 ################################################################
 #                         PROFILE: KONTROL                     #
 ################################################################
+# See test/kontrol/README.md for an explanation of how the profiles are configured
 
-[profile.kontrol]
+[profile.kdeploy]
 src = 'src/L1'
-out = 'kout'
+out = 'kout-deployment'
 test = 'test/kontrol'
+script = 'scripts-kontrol'
+
+[profile.kprove]
+src = 'test/kontrol/proofs'
+out = 'kout-proofs'
+test = 'test/kontrol/proofs'
 script = 'scripts-kontrol'
