@@ -14,6 +14,6 @@ func TestSequencerFailover_SetupCluster(t *testing.T) {
 
 	require.Equal(t, 3, len(conductors), "Expected 3 conductors")
 	for _, con := range conductors {
-		require.NotNil(t, con, "Expected conductor to be non nil")
+		require.NotNil(t, con, "Expected conductor to be non-nil")
 	}
 }
