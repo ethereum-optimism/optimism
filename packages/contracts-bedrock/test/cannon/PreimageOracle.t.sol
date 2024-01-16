@@ -227,6 +227,11 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
 
         // Initialize the proposal.
         oracle.initLPP(TEST_UUID, 0, uint32(data.length));
+        // Ensure that the proposal keys are present in the array.
+        (address claimant, uint256 uuid) = oracle.proposals(0);
+        assertEq(oracle.proposalCount(), 1);
+        assertEq(claimant, address(this));
+        assertEq(uuid, TEST_UUID);
 
         // Add the leaves to the tree (2 keccak blocks.)
         LibKeccak.StateMatrix memory stateMatrix;
