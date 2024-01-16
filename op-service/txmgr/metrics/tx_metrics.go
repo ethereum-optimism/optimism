@@ -17,7 +17,7 @@ type TxMetricer interface {
 	RecordPendingTx(pending int64)
 	TxConfirmed(*types.Receipt)
 	TxPublished(string)
-	RecordBasefee(*big.Int)
+	RecordBaseFee(*big.Int)
 	RecordTipCap(*big.Int)
 	RPCError()
 }
@@ -33,7 +33,7 @@ type TxMetrics struct {
 	txPublishError     *prometheus.CounterVec
 	publishEvent       *metrics.Event
 	confirmEvent       metrics.EventVec
-	basefee            prometheus.Gauge
+	baseFee            prometheus.Gauge
 	tipCap             prometheus.Gauge
 	rpcError           prometheus.Counter
 }
@@ -104,10 +104,10 @@ func MakeTxMetrics(ns string, factory metrics.Factory) TxMetrics {
 		}, []string{"error"}),
 		confirmEvent: metrics.NewEventVec(factory, ns, "txmgr", "confirm", "tx confirm", []string{"status"}),
 		publishEvent: metrics.NewEvent(factory, ns, "txmgr", "publish", "tx publish"),
-		basefee: factory.NewGauge(prometheus.GaugeOpts{
+		baseFee: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: ns,
 			Name:      "basefee_wei",
-			Help:      "Latest L1 basefee (in Wei)",
+			Help:      "Latest L1 baseFee (in Wei)",
 			Subsystem: "txmgr",
 		}),
 		tipCap: factory.NewGauge(prometheus.GaugeOpts{
@@ -158,9 +158,9 @@ func (t *TxMetrics) TxPublished(errString string) {
 	}
 }
 
-func (t *TxMetrics) RecordBasefee(basefee *big.Int) {
-	bff, _ := basefee.Float64()
-	t.basefee.Set(bff)
+func (t *TxMetrics) RecordBaseFee(baseFee *big.Int) {
+	bff, _ := baseFee.Float64()
+	t.baseFee.Set(bff)
 }
 
 func (t *TxMetrics) RecordTipCap(tipcap *big.Int) {

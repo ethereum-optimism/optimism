@@ -108,17 +108,17 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 	}
 
 	// If this is the Ecotone activation block we update the system config by copying over "Scalar"
-	// to "BasefeeScalar". Note that after doing so, the L2 view of the system config differs from
+	// to "BaseFeeScalar". Note that after doing so, the L2 view of the system config differs from
 	// that on the L1 up until we receive a "type 4" log event that explicitly updates the new
 	// scalars.
 	if ba.rollupCfg.IsEcotoneActivationBlock(nextL2Time) {
 		// check if the scalar is too big to convert to uint32, and if so just use the uint32 max value
-		basefeeScalar := uint32(math.MaxUint32)
+		baseFeeScalar := uint32(math.MaxUint32)
 		scalar := new(big.Int).SetBytes(sysConfig.Scalar[:])
 		if scalar.Cmp(big.NewInt(math.MaxUint32)) < 0 {
-			basefeeScalar = uint32(scalar.Int64())
+			baseFeeScalar = uint32(scalar.Int64())
 		}
-		sysConfig.BasefeeScalar = basefeeScalar
+		sysConfig.BaseFeeScalar = baseFeeScalar
 	}
 
 	txs := make([]hexutil.Bytes, 0, 1+len(depositTxs))

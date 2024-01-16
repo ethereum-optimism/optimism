@@ -269,8 +269,8 @@ func L1InfoDeposit(rollupCfg *rollup.Config, sysCfg eth.SystemConfig, seqNumber 
 	var err error
 	if isEcotoneButNotFirstBlock(rollupCfg, l2BlockTime) {
 		l1BlockInfo.BlobBaseFee = block.BlobBaseFee()
-		l1BlockInfo.BlobBaseFeeScalar = sysCfg.BlobBasefeeScalar
-		l1BlockInfo.BaseFeeScalar = sysCfg.BasefeeScalar
+		l1BlockInfo.BlobBaseFeeScalar = sysCfg.BlobBaseFeeScalar
+		l1BlockInfo.BaseFeeScalar = sysCfg.BaseFeeScalar
 		data, err = l1BlockInfo.marshalBinaryEcotone()
 	} else {
 		l1BlockInfo.L1FeeOverhead = sysCfg.Overhead

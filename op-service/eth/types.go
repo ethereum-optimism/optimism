@@ -316,10 +316,10 @@ type SystemConfig struct {
 	Scalar Bytes32 `json:"scalar"`
 	// GasLimit identifies the L2 block gas limit
 	GasLimit uint64 `json:"gasLimit"`
-	// BasefeeScalar scales the L1 calldata fee after the Ecotone upgrade
-	BasefeeScalar uint32 `json:"basefeeScalar"`
-	// BlobBasefeeScalar scales the L1 blob fee after the Ecotone upgrade
-	BlobBasefeeScalar uint32 `json:"blobBasefeeScalar"`
+	// BaseFeeScalar scales the L1 calldata fee after the Ecotone upgrade
+	BaseFeeScalar uint32 `json:"baseFeeScalar"`
+	// BlobBaseFeeScalar scales the L1 blob fee after the Ecotone upgrade
+	BlobBaseFeeScalar uint32 `json:"blobBaseFeeScalar"`
 	// More fields can be added for future SystemConfig versions.
 }
 
