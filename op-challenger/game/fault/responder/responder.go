@@ -37,12 +37,12 @@ type FaultResponder struct {
 }
 
 // NewFaultResponder returns a new [FaultResponder].
-func NewFaultResponder(logger log.Logger, txMgr txmgr.TxManager, contract GameContract) (*FaultResponder, error) {
+func NewFaultResponder(logger log.Logger, txMgr txmgr.TxManager, contract GameContract, uploader preimages.PreimageUploader) (*FaultResponder, error) {
 	return &FaultResponder{
 		log:      logger,
 		txMgr:    txMgr,
 		contract: contract,
-		uploader: preimages.NewDirectPreimageUploader(logger, txMgr, contract),
+		uploader: uploader,
 	}, nil
 }
 

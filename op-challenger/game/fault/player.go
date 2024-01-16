@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/preimages"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/responder"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
@@ -80,7 +81,11 @@ func NewGamePlayer(
 		return nil, fmt.Errorf("failed to create trace accessor: %w", err)
 	}
 
-	responder, err := responder.NewFaultResponder(logger, txMgr, loader)
+	direct := preimages.NewDirectPreimageUploader(logger, txMgr, loader)
+	large := preimages.NewLargePreimageUploader(logger, txMgr, loader)
+	uploader := preimages.NewSplitPreimageUploader(direct, large)
+
+	responder, err := responder.NewFaultResponder(logger, txMgr, loader, uploader)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the responder: %w", err)
 	}
