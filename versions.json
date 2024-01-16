@@ -1,0 +1,8 @@
+{
+  "abigen": "v1.10.25",
+  "foundry": "71d8ea5923571f33c7aab9ee6e0d1f9a348bd6be",
+  "geth": "v1.13.4",
+  "nvm": "v20.9.0",
+  "slither": "0.10.0",
+  "kontrol": "0.1.74"
+}

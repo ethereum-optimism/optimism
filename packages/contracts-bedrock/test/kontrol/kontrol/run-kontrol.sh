@@ -22,7 +22,7 @@ blank_line
 
 export FOUNDRY_PROFILE=kontrol
 export CONTAINER_NAME=kontrol-tests
-KONTROLRC=$(cat "${WORKSPACE_DIR}/../../.kontrolrc")
+KONTROLRC=$(jq -r .kontrol < ${WORKSPACE_DIR}/../../versions.json)
 export KONTROL_RELEASE=${KONTROLRC}
 
 
