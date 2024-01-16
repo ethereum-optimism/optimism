@@ -62,3 +62,4 @@
     "slot": "23",
     "type": "mapping(address => mapping(uint256 => uint64[]))"
   }
+]
