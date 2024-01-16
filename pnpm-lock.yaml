@@ -68,7 +68,7 @@ importers:
         version: 1.2.3(eslint@8.56.0)
       eslint-plugin-prettier:
         specifier: ^4.0.0
-        version: 4.2.1(eslint-config-prettier@9.1.0)(eslint@8.56.0)(prettier@2.8.8)
+        version: 4.2.1(eslint-config-prettier@9.1.0)(eslint@8.56.0)(prettier@3.2.2)
       eslint-plugin-promise:
         specifier: ^5.1.0
         version: 5.2.0(eslint@8.56.0)
@@ -103,8 +103,8 @@ importers:
         specifier: ^15.1.0
         version: 15.1.0
       prettier:
-        specifier: ^2.8.0
-        version: 2.8.8
+        specifier: ^3.2.2
+        version: 3.2.2
       rimraf:
         specifier: ^5.0.5
         version: 5.0.5
@@ -9725,7 +9725,7 @@ packages:
       eslint: 8.56.0
     dev: true
 
-  /eslint-plugin-prettier@4.2.1(eslint-config-prettier@9.1.0)(eslint@8.56.0)(prettier@2.8.8):
+  /eslint-plugin-prettier@4.2.1(eslint-config-prettier@9.1.0)(eslint@8.56.0)(prettier@3.2.2):
     resolution: {integrity: sha512-f/0rXLXUt0oFYs8ra4w49wYZBG5GKZpAYsJSm6rnYL5uVDjd+zowwMwVZHnAjf4edNrKpCDYfXDgmRE/Ak7QyQ==}
     engines: {node: '>=12.0.0'}
     peerDependencies:
@@ -9738,7 +9738,7 @@ packages:
     dependencies:
       eslint: 8.56.0
       eslint-config-prettier: 9.1.0(eslint@8.56.0)
-      prettier: 2.8.8
+      prettier: 3.2.2
       prettier-linter-helpers: 1.0.0
     dev: true
 
@@ -14908,6 +14908,12 @@ packages:
     hasBin: true
     dev: true
 
+  /prettier@3.2.2:
+    resolution: {integrity: sha512-HTByuKZzw7utPiDO523Tt2pLtEyK7OibUD9suEJQrPUCYQqrHr74GGX6VidMrovbf/I50mPqr8j/II6oBAuc5A==}
+    engines: {node: '>=14'}
+    hasBin: true
+    dev: true
+
   /pretty-format@26.6.2:
     resolution: {integrity: sha512-7AeGuCYNGmycyQbCqd/3PWH4eOoX/OiCa0uphp57NVTeAGdJGaAliecxwBDHYQCIvrW7aDBZCYeNTP/WX69mkg==}
     engines: {node: '>= 10'}
@@ -16942,7 +16948,7 @@ packages:
       mocha: 10.2.0
       ts-node: 7.0.1
     optionalDependencies:
-      tsconfig-paths: 3.14.2
+      tsconfig-paths: 3.15.0
     dev: true
 
   /ts-node@10.9.2(@types/node@20.10.8)(typescript@5.3.3):
@@ -16991,19 +16997,9 @@ packages:
       yn: 2.0.0
     dev: true
 
-  /tsconfig-paths@3.14.2:
-    resolution: {integrity: sha512-o/9iXgCYc5L/JxCHPe3Hvh8Q/2xm5Z+p18PESBU6Ff33695QnCHBEjcytY2q19ua7Mbl/DavtBOLq+oG0RCL+g==}
-    requiresBuild: true
-    dependencies:
-      '@types/json5': 0.0.29
-      json5: 1.0.2
-      minimist: 1.2.8
-      strip-bom: 3.0.0
-    dev: true
-    optional: true
-
   /tsconfig-paths@3.15.0:
     resolution: {integrity: sha512-2Ac2RgzDe/cn48GvOe3M+o82pEFewD3UPbyoUHHdKasHwJKjds4fLXWf/Ux5kATBKN20oaFGu+jbElp1pos0mg==}
+    requiresBuild: true
     dependencies:
       '@types/json5': 0.0.29
       json5: 1.0.2
