@@ -190,10 +190,32 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @param _overhead New overhead value.
     /// @param _scalar   New scalar value.
     function _setGasConfig(uint256 _overhead, uint256 _scalar) internal {
+        require((uint256(0xff) << 248) & _scalar == 0, "SystemConfig: scalar exceeds max.");
+
         overhead = _overhead;
         scalar = _scalar;
 
         bytes memory data = abi.encode(_overhead, _scalar);
+        emit ConfigUpdate(VERSION, UpdateType.GAS_CONFIG, data);
+    }
+
+    /// @notice Updates gas config as of the Ecotone upgrade. Can only be called by the owner.
+    /// @param _basefeeScalar     New basefeeScalar value.
+    /// @param _blobBasefeeScalar New blobBasefeeScalar value.
+    function setGasConfigEcotone(uint32 _basefeeScalar, uint32 _blobBasefeeScalar) external onlyOwner {
+        _setGasConfigEcotone(_basefeeScalar, _blobBasefeeScalar);
+    }
+
+    /// @notice Internal function for updating the fee scalars as of the Ecotone upgrade.
+    /// @param _basefeeScalar     New basefeeScalar value.
+    /// @param _blobBasefeeScalar New blobBasefeeScalar value.
+    function _setGasConfigEcotone(uint32 _basefeeScalar, uint32 _blobBasefeeScalar) internal {
+        basefeeScalar = _basefeeScalar;
+        blobBasefeeScalar = _blobBasefeeScalar;
+
+        uint256 scalar = (uint256(0x01) << 248) | (_blobBasefeeScalar << 32) | _basefeeScalar;
+
+        bytes memory data = abi.encodePacked(overhead, scalar);
         emit ConfigUpdate(VERSION, UpdateType.GAS_CONFIG, data);
     }
 
