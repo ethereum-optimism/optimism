@@ -19,6 +19,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/safe"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/upgrades"
 
+	op_node_genesis "github.com/ethereum-optimism/optimism/op-node/cmd/genesis"
 	"github.com/ethereum-optimism/superchain-registry/superchain"
 )
 
@@ -202,7 +203,7 @@ func entrypoint(ctx *cli.Context) error {
 
 	// Write the batch to disk or stdout
 	if outfile := ctx.Path("outfile"); outfile != "" {
-		if err := writeJSON(outfile, batch); err != nil {
+		if err := op_node_genesis.WriteJSONFile(outfile, batch); err != nil {
 			return err
 		}
 	} else {
@@ -254,16 +255,4 @@ func toSuperchainName(chainID uint64) (string, error) {
 		return "sepolia", nil
 	}
 	return "", fmt.Errorf("unsupported chain ID %d", chainID)
-}
-
-func writeJSON(outfile string, input interface{}) error {
-	f, err := os.OpenFile(outfile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o666)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	enc := json.NewEncoder(f)
-	enc.SetIndent("", "  ")
-	return enc.Encode(input)
 }
