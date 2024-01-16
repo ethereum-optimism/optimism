@@ -1,6 +1,8 @@
 package matrix
 
 import (
+	"errors"
+	"io"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -37,6 +39,29 @@ func (d *StateMatrix) PackState() []byte {
 		buf = append(buf, math.U256Bytes(new(big.Int).SetUint64(v))...)
 	}
 	return buf
+}
+
+// AbsorbNextLeaf reads up to [LeafSize] bytes from in and absorbs them into the state matrix.
+// If EOF is reached while reading, the state matrix is finalized and [io.EOF] is returned.
+func (d *StateMatrix) AbsorbNextLeaf(in io.Reader) error {
+	data := make([]byte, LeafSize)
+	read := 0
+	final := false
+	for read < LeafSize {
+		n, err := in.Read(data[read:])
+		if errors.Is(err, io.EOF) {
+			final = true
+			break
+		} else if err != nil {
+			return err
+		}
+		read += n
+	}
+	d.AbsorbLeaf(data[:read], final)
+	if final {
+		return io.EOF
+	}
+	return nil
 }
 
 // AbsorbLeaf absorbs the specified data into the keccak sponge.

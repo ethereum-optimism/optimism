@@ -1,9 +1,12 @@
 package matrix
 
 import (
+	"bytes"
 	_ "embed"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -61,6 +64,38 @@ func TestReferenceCommitments(t *testing.T) {
 			for i := 0; i < len(test.Input); i += LeafSize {
 				end := min(i+LeafSize, len(test.Input))
 				s.AbsorbLeaf(test.Input[i:end], end == len(test.Input))
+				commitments = append(commitments, s.StateCommitment())
+			}
+			if len(test.Input) == 0 {
+				s.AbsorbLeaf(nil, true)
+				commitments = append(commitments, s.StateCommitment())
+			}
+			actual := s.Hash()
+			expected := crypto.Keccak256Hash(test.Input)
+			require.Equal(t, expected, actual)
+			require.Equal(t, test.Commitments, commitments)
+		})
+	}
+}
+
+func TestReferenceCommitmentsFromReader(t *testing.T) {
+	var tests []testData
+	require.NoError(t, json.Unmarshal(refTests, &tests))
+
+	for i, test := range tests {
+		test := test
+		t.Run(fmt.Sprintf("Ref-%v", i), func(t *testing.T) {
+			s := NewStateMatrix()
+			commitments := []common.Hash{s.StateCommitment()}
+			in := bytes.NewReader(test.Input)
+			for {
+				err := s.AbsorbNextLeaf(in)
+				if errors.Is(err, io.EOF) {
+					commitments = append(commitments, s.StateCommitment())
+					break
+				}
+				// Shouldn't get any error except EOF
+				require.NoError(t, err)
 				commitments = append(commitments, s.StateCommitment())
 			}
 			actual := s.Hash()
