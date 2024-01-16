@@ -29,23 +29,37 @@
   },
   {
     "bytes": "32",
-    "label": "proposalBranches",
+    "label": "proposals",
     "offset": 0,
     "slot": "19",
+    "type": "struct PreimageOracle.LargePreimageProposalKeys[]"
+  },
+  {
+    "bytes": "32",
+    "label": "proposalBranches",
+    "offset": 0,
+    "slot": "20",
     "type": "mapping(address => mapping(uint256 => bytes32[16]))"
   },
   {
     "bytes": "32",
     "label": "proposalMetadata",
     "offset": 0,
-    "slot": "20",
+    "slot": "21",
     "type": "mapping(address => mapping(uint256 => LPPMetaData))"
   },
   {
     "bytes": "32",
     "label": "proposalParts",
     "offset": 0,
-    "slot": "21",
+    "slot": "22",
     "type": "mapping(address => mapping(uint256 => bytes32))"
+  },
+  {
+    "bytes": "32",
+    "label": "proposalBlocks",
+    "offset": 0,
+    "slot": "23",
+    "type": "mapping(address => mapping(uint256 => uint64[]))"
   }
 ]
