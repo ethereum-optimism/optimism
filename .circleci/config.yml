@@ -1469,6 +1469,11 @@ workflows:
           name: op-stack-go-lint
           requires: [ "go-mod-tidy" ]
       - fuzz-golang:
+          name: op-challenger-fuzz
+          package_name: op-challenger
+          on_changes: op-challenger
+          requires: ["op-stack-go-lint"]
+      - fuzz-golang:
           name: op-node-fuzz
           package_name: op-node
           on_changes: op-node
