@@ -1,4 +1,4 @@
-package keccak
+package matrix
 
 import (
 	_ "embed"
