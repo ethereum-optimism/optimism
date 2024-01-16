@@ -28,7 +28,8 @@ contract L1DomiconNode is DomiconNode, ISemver {
 
     function RegisterBroadcastNode(address _address,string calldata _rpc,string calldata _name,uint256 _stakedTokens) public  {
         emit BroadcastNode(_address,_rpc,_name,_stakedTokens);
-        NodeInfo memory nodeInfo = NodeInfo({add:_address,rpc:_rpc,name:_name,stakedTokens:_stakedTokens});
+        broadcastNodeList.push(_address);
+        NodeInfo memory nodeInfo = NodeInfo({add:_address,rpc:_rpc,name:_name,stakedTokens:_stakedTokens,index:0});
         super.registerBroadcastNode(_address,nodeInfo);
     }
 }

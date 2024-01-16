@@ -12,9 +12,12 @@ abstract contract DomiconNode is Initializable{
 
     event FinalizeBroadcastNode(NodeInfo nodeInfo);
     DomiconNode public immutable OTHER_DOMICON_NODE;
-    
+
     /// @notice The L2 gas limit set when eth is depoisited using the receive() function.
     uint32 internal constant RECEIVE_DEFAULT_GAS_LIMIT = 200_000;
+
+
+    uint256 internal index =0;
 
     /// @custom:legacy
     /// @custom:spacer messenger
@@ -31,10 +34,14 @@ abstract contract DomiconNode is Initializable{
         string rpc;
         string name;
         uint256 stakedTokens;
+        uint256 index;
     }
 
     mapping(address => NodeInfo) public broadcastingNodes;
+    address[] public broadcastNodeList;
     mapping(address => NodeInfo)  public storageNodes;
+    address[] public storageNodeList;
+
 
     /// @notice Messenger contract on this domain. This public getter is deprecated
     ///         and will be removed in the future. Please use `messenger` instead.
@@ -78,6 +85,13 @@ abstract contract DomiconNode is Initializable{
         return OTHER_DOMICON_NODE;
     }
 
+    function IsNodeBroadcast(address addr) external returns (bool){
+        if (broadcastingNodes[addr].stakedTokens!=0){
+            return true;
+        }
+        return false;
+    }
+
     function registerBroadcastNode(address node,NodeInfo memory nodeInfo) internal  {
         broadcastingNodes[node] = nodeInfo;
 
@@ -101,6 +115,7 @@ abstract contract DomiconNode is Initializable{
     onlyOtherDomiconNode
     {
         emit FinalizeBroadcastNode(nodeInfo);
+        broadcastNodeList.push(node);
         broadcastingNodes[node] = nodeInfo;
     }
 }
