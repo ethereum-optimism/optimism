@@ -24,7 +24,7 @@ RUN source $HOME/.profile && cargo install svm-rs
 
 # Only diff from upstream docker image is this clone instead
 # of COPY. We select a specific commit to use.
-COPY ./.foundryrc ./.foundryrc
+COPY ./versions.json ./versions.json
 COPY ./ops/scripts/install-foundry.sh ./install-foundry.sh
 
 RUN curl -L https://foundry.paradigm.xyz | bash
@@ -49,12 +49,10 @@ RUN curl -sL https://go.dev/dl/go$GO_VERSION.linux-amd64.tar.gz -o go$GO_VERSION
 ENV GOPATH=/go
 ENV PATH=/usr/local/go/bin:$GOPATH/bin:$PATH
 
-# Install the specific version of abigen from .abigenrc
-COPY ./.abigenrc ./.abigenrc
-RUN go install github.com/ethereum/go-ethereum/cmd/abigen@$(cat .abigenrc)
-
-COPY ./.gethrc ./.gethrc
-RUN go install github.com/ethereum/go-ethereum/cmd/geth@$(cat .gethrc)
+# Install the specific version of abigen and geth from version control
+COPY ./versions.json ./versions.json
+RUN go install github.com/ethereum/go-ethereum/cmd/abigen@$(jq -r .abigen < versions.json)
+RUN go install github.com/ethereum/go-ethereum/cmd/geth@$(jq -r .geth < versions.json)
 
 RUN go install gotest.tools/gotestsum@latest
 RUN go install github.com/vektra/mockery/v2@v2.28.1
@@ -91,8 +89,8 @@ COPY --from=rust-build /root/.foundry/bin/anvil /usr/local/bin/anvil
 
 COPY --from=echidna-test /usr/local/bin/echidna-test /usr/local/bin/echidna-test
 
-COPY ./.slitherrc ./.slitherrc
 COPY .nvmrc .nvmrc
+COPY ./versions.json ./versions.json
 
 ENV NODE_MAJOR=20
 
@@ -110,7 +108,7 @@ RUN /bin/sh -c set -eux; \
   apt-get install -y nodejs docker-ce-cli; \
   ln -s /usr/local/go/bin/gofmt /usr/local/bin/gofmt; \
   npm i -g depcheck; \
-  pip install slither-analyzer==$(cat .slitherrc) capstone pyelftools; \
+  pip install slither-analyzer==$(jq -r .slither < versions.json) capstone pyelftools; \
   curl -fLSs https://raw.githubusercontent.com/CircleCI-Public/circleci-cli/master/install.sh | bash; \
   apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false; \
   rm -rf /var/lib/apt/lists/*; \

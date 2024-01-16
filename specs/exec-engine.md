@@ -111,7 +111,7 @@ the upgrades that are active.
 #### Pre-Ecotone
 
 Before Ecotone activation, L1 cost is calculated as:
-`(rollupDataGas + l1FeeOverhead) * l1Basefee * l1FeeScalar / 1e6` (big-int computation, result
+`(rollupDataGas + l1FeeOverhead) * l1BaseFee * l1FeeScalar / 1e6` (big-int computation, result
 in Wei and `uint256` range)
 Where:
 
@@ -123,7 +123,7 @@ Where:
   - With Regolith fork: `rollupDataGas = zeroes * 4 + ones * 16`
 - `l1FeeOverhead` is the Gas Price Oracle `overhead` value.
 - `l1FeeScalar` is the Gas Price Oracle `scalar` value.
-- `l1Basefee` is the L1 Base fee of the latest L1 origin registered in the L2 chain.
+- `l1BaseFee` is the L1 base fee of the latest L1 origin registered in the L2 chain.
 
 Note that the `rollupDataGas` uses the same byte cost accounting as defined in [eip-2028],
 except the full L2 transaction now counts towards the bytes charged in the L1 calldata.
@@ -132,7 +132,7 @@ This behavior matches pre-Bedrock L1-cost estimation of L2 transactions.
 Compression, batching, and intrinsic gas costs of the batch transactions are accounted for by the protocol
 with the Gas Price Oracle `overhead` and `scalar` parameters.
 
-The Gas Price Oracle `l1FeeOverhead` and `l1FeeScalar`, as well as the `l1Basefee` of the L1 origin,
+The Gas Price Oracle `l1FeeOverhead` and `l1FeeScalar`, as well as the `l1BaseFee` of the L1 origin,
 can be accessed in two interchangeable ways:
 
 - read from the deposited L1 attributes (`l1FeeOverhead`, `l1FeeScalar`, `basefee`) of the current L2 block
@@ -148,7 +148,7 @@ can be accessed in two interchangeable ways:
 Ecotone allows posting batches via Blobs which are subject to a new fee market. To account for this feature,
 L1 cost is computed as:
 
-`(zeroes*4 + ones*16) * (16*l1Basefee*l1BasefeeScalar + l1BlobBasefee*l1BlobBasefeeScalar) / 16e6`
+`(zeroes*4 + ones*16) * (16*l1BaseFee*l1BaseFeeScalar + l1BlobBaseFee*l1BlobBaseFeeScalar) / 16e6`
 
 Where:
 
@@ -158,34 +158,33 @@ Where:
 - zeoroes and ones are the count of zero and non-zero bytes respectively in the *full* encoded
   signed transaction.
 
-- `l1Basefee` is the L1 basefee of the latest L1 origin registered in the L2 chain.
+- `l1BaseFee` is the L1 base fee of the latest L1 origin registered in the L2 chain.
 
-- `l1BlobBasefee` is the blob gasprice, computed as described in [EIP-4844][4844-gas] from the
+- `l1BlobBaseFee` is the blob gas price, computed as described in [EIP-4844][4844-gas] from the
   header of the latest registered L1 origin block.
 
 Conceptually what the above function captures is the formula below, where `compressedTxSize =
 (zeroes*4 + ones*16) / 16` can be thought of as a rough approximation of how many bytes the
 transaction occupies in a compressed batch.
 
-`(compressedTxSize) * (16*l1Basefee*lBasefeeScalar + l1BlobBasefee*l1BlobBasefeeScalar) / 1e6`
+`(compressedTxSize) * (16*l1BaseFee*lBaseFeeScalar + l1BlobBaseFee*l1BlobBaseFeeScalar) / 1e6`
 
 The precise cost function used by Ecotone at the top of this section preserves precision under
 integer arithmetic by postponing the inner division by 16 until the very end.
 
 [4844-gas]: https://github.com/ethereum/EIPs/blob/master/EIPS/eip-4844.md#gas-accounting
 
-The two basefee values and their respective scalars can be accessed in two interchangeable
-ways:
+The two base fee values and their respective scalars can be accessed in two interchangeable ways:
 
-- read from the deposited L1 attributes (`l1BasefeeScalar`, `l1BlobBasefeeScalar`, `basefee`,
-  `blobBasefee`) of the current L2 block
+- read from the deposited L1 attributes (`l1BaseFeeScalar`, `l1BlobBaseFeeScalar`, `basefee`,
+  `blobBaseFee`) of the current L2 block
 - read from the L1 Block Info contract (`0x4200000000000000000000000000000000000015`)
   - using the respective solidity getter functions
   - using direct storage-reads:
     - basefee `uint256` in slot `1`
-    - blobBasefee `uint256` in slot `7`
-    - l1BasefeeScalar big-endian `uint32` slot `3` at offset `12`
-    - l1BlobBasefeeScalar big-endian `uint32` in slot `3` at offset `8`
+    - blobBaseFee `uint256` in slot `7`
+    - l1BaseFeeScalar big-endian `uint32` slot `3` at offset `12`
+    - l1BlobBaseFeeScalar big-endian `uint32` in slot `3` at offset `8`
 
 ## Engine API
 
@@ -319,7 +318,7 @@ The [response][GetPayloadV3Response] is extended to:
 }
 ```
 
-[GetPayloadV3Response]: (https://github.com/ethereum/execution-apis/blob/main/src/engine/cancun.md#response-2)
+[GetPayloadV3Response]: https://github.com/ethereum/execution-apis/blob/main/src/engine/cancun.md#response-2
 
 For Bedrock and Canyon `parentBeaconBlockRoot` MUST be nil and in Ecotone it MUST be set to the parentBeaconBlockRoot
 from the L1 Origin block of the L2 block.

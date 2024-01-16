@@ -201,6 +201,6 @@ install-geth:
 	./ops/scripts/geth-version-checker.sh && \
 	 	(echo "Geth versions match, not installing geth..."; true) || \
  		(echo "Versions do not match, installing geth!"; \
- 			go install -v github.com/ethereum/go-ethereum/cmd/geth@$(shell cat .gethrc); \
+ 			go install -v github.com/ethereum/go-ethereum/cmd/geth@$(shell jq -r .geth < versions.json); \
  			echo "Installed geth!"; true)
 .PHONY: install-geth

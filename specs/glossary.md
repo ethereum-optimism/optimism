@@ -12,6 +12,7 @@
   - [Merkle Patricia Trie](#merkle-patricia-trie)
   - [Chain Re-Organization](#chain-re-organization)
   - [Predeployed Contract ("Predeploy")](#predeployed-contract-predeploy)
+  - [Preinstalled Contract ("Preinstall")](#preinstalled-contract-preinstall)
   - [Receipt](#receipt)
   - [Transaction Type](#transaction-type)
   - [Fork Choice Rule](#fork-choice-rule)
@@ -136,6 +137,16 @@ L1 re-orgs can happen because of network conditions or attacks. L2 re-orgs are a
 A contract placed in the L2 genesis state (i.e. at the start of the chain).
 
 All predeploy contracts are specified in the [predeploys specification][./predeploys.md].
+
+## Preinstalled Contract ("Preinstall")
+
+[preinstall]: glossary.md#preinstalled-contract-preinstall
+
+A contract placed in the L2 genesis state (i.e. at the start of the chain). These contracts do not share the same
+security guarantees as [predeploys](#predeployed-contract-predeploy), but are general use contracts made
+available to improve the L2's UX.
+
+All preinstall contracts are specified in the [preinstalls specification][./preinstalls.md].
 
 ## Receipt
 
@@ -539,6 +550,7 @@ L2 derivation inputs include:
   - block number
   - timestamp
   - basefee
+  - blob base fee
 - [deposits] (as log data)
 - [sequencer batches][sequencer-batch] (as transaction data)
 - [System configuration][system-config] updates (as log data)

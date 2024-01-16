@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path"
@@ -151,13 +152,12 @@ func genContractBindings(logger log.Logger, monorepoRootPath, abiFilePath, bytec
 		abigenVersion := bytes.Trim(versionBuf.Bytes(), "\n")
 
 		// Fetch expected abigen version (format: vX.Y.Z)
-		expectedAbigenVersion, err := os.ReadFile(path.Join(monorepoRootPath, ".abigenrc"))
+		expectedAbigenVersion, err := readExpectedAbigenVersion(monorepoRootPath)
 		if err != nil {
-			return fmt.Errorf("error reading .abigenrc file: %w", err)
+			return fmt.Errorf("error fetching the expected abigen version: %w", err)
 		}
-		expectedAbigenVersion = bytes.Trim(expectedAbigenVersion, "\n")[1:]
 
-		if !bytes.Contains(abigenVersion, expectedAbigenVersion) {
+		if !bytes.Contains(abigenVersion, []byte(expectedAbigenVersion)) {
 			return fmt.Errorf("abigen version mismatch, expected %s, got %s. Please run `pnpm install:abigen` in the monorepo root", expectedAbigenVersion, abigenVersion)
 		}
 	} else {
@@ -187,4 +187,43 @@ func genContractBindings(logger log.Logger, monorepoRootPath, abiFilePath, bytec
 	}
 
 	return nil
+}
+
+// Versions is a struct for holding the versions of the tools used in the monorepo
+type Versions struct {
+	Abigen  string `json:"abigen"`
+	Foundry string `json:"foundry"`
+	Geth    string `json:"geth"`
+	Nvm     string `json:"nvm"`
+	Slither string `json:"slither"`
+	Kontrol string `json:"kontrol"`
+}
+
+// readExpectedAbigenVersion reads the expected abigen version from the monorepo's
+// versions.json file. This function will remove the 'v' prefix from the version
+// string.
+//
+// Parameters:
+// - monorepoRootPath: The path to the monorepo's root directory.
+//
+// Returns:
+// - The expected abigen version.
+// - An error if the versions.json file cannot be read or parsed, nil otherwise.
+func readExpectedAbigenVersion(monorepoRootPath string) (string, error) {
+	// Open the version control file
+	jsonFile, err := os.Open(path.Join(monorepoRootPath, "versions.json"))
+	if err != nil {
+		return "", fmt.Errorf("error reading versions.json file: %w", err)
+	}
+	defer jsonFile.Close()
+
+	// Parse the version control file
+	byteValue, _ := io.ReadAll(jsonFile)
+	var versions Versions
+	if err := json.Unmarshal(byteValue, &versions); err != nil {
+		return "", fmt.Errorf("error parsing versions.json file: %w", err)
+	}
+
+	// Trim the 'v' prefix from the version string
+	return strings.Trim(versions.Abigen, "v"), nil
 }

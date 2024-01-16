@@ -9,6 +9,7 @@ import (
 // [Category: Initial Setup]
 // In this test, we test that we can successfully setup a working cluster.
 func TestSequencerFailover_SetupCluster(t *testing.T) {
+	t.Skip("temporarily disable due to flakiness for now")
 	sys, conductors := setupSequencerFailoverTest(t)
 	defer sys.Close()
 

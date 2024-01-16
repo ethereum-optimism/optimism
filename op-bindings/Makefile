@@ -35,7 +35,6 @@ bindgen-generate-all:
 		--contracts-list $(contracts-list) \
 		--log.level $(log-level) \
 		all \
-		--source-maps-list MIPS,PreimageOracle \
 		--forge-artifacts $(contracts-dir)/forge-artifacts \
 		--etherscan.apikey.eth $(ETHERSCAN_APIKEY_ETH) \
 		--etherscan.apikey.op $(ETHERSCAN_APIKEY_OP) \
@@ -52,7 +51,6 @@ bindgen-generate-local:
 		--contracts-list $(contracts-list) \
 		--log.level $(log-level) \
 		local \
-		--source-maps-list MIPS,PreimageOracle \
 		--forge-artifacts $(contracts-dir)/forge-artifacts
 
 bindgen-remote:
