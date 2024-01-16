@@ -172,6 +172,8 @@ contract PreimageOracle is IPreimageOracle {
 
     /// @notice Initialize a large preimage proposal. Must be called before adding any leaves.
     function initLPP(uint256 _uuid, uint32 _partOffset, uint32 _claimedSize) external {
+        if (_partOffset >= _claimedSize + 8) revert PartOffsetOOB();
+
         LPPMetaData metaData = proposalMetadata[msg.sender][_uuid];
         proposalMetadata[msg.sender][_uuid] = metaData.setPartOffset(_partOffset).setClaimedSize(_claimedSize);
     }
@@ -194,7 +196,7 @@ contract PreimageOracle is IPreimageOracle {
         }
 
         // Pull storage variables onto the stack / into memory for operations.
-        bytes32[KECCAK_TREE_DEPTH] memory branch_ = proposalBranches[msg.sender][_uuid];
+        bytes32[KECCAK_TREE_DEPTH] memory branch = proposalBranches[msg.sender][_uuid];
         LPPMetaData metaData = proposalMetadata[msg.sender][_uuid];
 
         // Revert if the proposal has not been initialized. 0-size preimages are *not* allowed.
@@ -233,7 +235,7 @@ contract PreimageOracle is IPreimageOracle {
             proposalParts[msg.sender][_uuid] = preimagePart;
         }
 
-        uint256 blocks_ = metaData.blocksProcessed();
+        uint256 blocksProcessed = metaData.blocksProcessed();
         assembly {
             let inputLen := mload(input)
             let inputPtr := add(input, 0x20)
@@ -258,25 +260,25 @@ contract PreimageOracle is IPreimageOracle {
                 mstore(add(hashBuf, 0x40), mload(add(inputStartPtr, 0x40)))
                 mstore(add(hashBuf, 0x60), mload(add(inputStartPtr, 0x60)))
                 mstore(add(hashBuf, 0x80), mload(add(inputStartPtr, 0x80)))
-                mstore(add(hashBuf, 136), blocks_)
+                mstore(add(hashBuf, 136), blocksProcessed)
                 mstore(add(hashBuf, 168), calldataload(add(_stateCommitments.offset, shl(0x05, div(i, 136)))))
 
                 // Hash the leaf preimage to get the node to add.
                 let node := keccak256(hashBuf, 0xC8)
 
                 // Increment the number of blocks processed.
-                blocks_ := add(blocks_, 0x01)
+                blocksProcessed := add(blocksProcessed, 0x01)
 
                 // Add the node to the tree.
-                let size := blocks_
+                let size := blocksProcessed
                 for { let height := 0x00 } lt(height, shl(0x05, KECCAK_TREE_DEPTH)) { height := add(height, 0x20) } {
                     if and(size, 0x01) {
-                        mstore(add(branch_, height), node)
+                        mstore(add(branch, height), node)
                         break
                     }
 
                     // Hash the node at `height` in the branch and the node together.
-                    mstore(0x00, mload(add(branch_, height)))
+                    mstore(0x00, mload(add(branch, height)))
                     mstore(0x20, node)
                     node := keccak256(0x00, 0x40)
                     size := shr(0x01, size)
@@ -285,13 +287,14 @@ contract PreimageOracle is IPreimageOracle {
         }
 
         // Do not allow for posting preimages larger than the merkle tree can support.
-        if (blocks_ > MAX_LEAF_COUNT) revert TreeSizeOverflow();
+        if (blocksProcessed > MAX_LEAF_COUNT) revert TreeSizeOverflow();
 
         // Perist the branch to storage.
-        proposalBranches[msg.sender][_uuid] = branch_;
+        proposalBranches[msg.sender][_uuid] = branch;
 
         // Update the proposal metadata.
-        metaData = metaData.setBlocksProcessed(uint32(blocks_)).setBytesProcessed(uint32(_input.length + currentSize));
+        metaData =
+            metaData.setBlocksProcessed(uint32(blocksProcessed)).setBytesProcessed(uint32(_input.length + currentSize));
         if (_finalize) metaData = metaData.setTimestamp(uint64(block.timestamp));
         proposalMetadata[msg.sender][_uuid] = metaData;
     }
@@ -403,10 +406,6 @@ contract PreimageOracle is IPreimageOracle {
         uint256 claimedSize = metaData.claimedSize();
         if (metaData.bytesProcessed() != claimedSize) revert InvalidInputSize();
 
-        // The part offset must be within bounds.
-        uint256 partOffset = metaData.partOffset();
-        if (partOffset >= claimedSize + 8) revert PartOffsetOOB();
-
         // Absorb and permute the input bytes. We perform no final verification on the state matrix here, since the
         // proposal has passed the challenge period and is considered valid.
         LibKeccak.absorb(_stateMatrix, _postState.input);
@@ -414,6 +413,7 @@ contract PreimageOracle is IPreimageOracle {
         bytes32 finalDigest = LibKeccak.squeeze(_stateMatrix);
 
         // Write the preimage part to the authorized preimage parts mapping.
+        uint256 partOffset = metaData.partOffset();
         preimagePartOk[finalDigest][partOffset] = true;
         preimageParts[finalDigest][partOffset] = proposalParts[_claimant][_uuid];
         preimageLengths[finalDigest] = claimedSize;
@@ -461,7 +461,6 @@ contract PreimageOracle is IPreimageOracle {
                 default { value := hashTwo(value, branchValue) }
             }
 
-            // Debug Logs
             isValid_ := eq(value, _root)
         }
     }
