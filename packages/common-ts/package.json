@@ -43,7 +43,7 @@
     "envalid": "^8.0.0",
     "ethers": "^5.7.2",
     "express": "^4.18.2",
-    "express-prom-bundle": "^6.6.0",
+    "express-prom-bundle": "^7.0.0",
     "lodash": "^4.17.21",
     "morgan": "^1.10.0",
     "pino": "^8.17.2",
