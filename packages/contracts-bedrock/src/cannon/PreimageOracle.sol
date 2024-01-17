@@ -151,8 +151,8 @@ contract PreimageOracle is IPreimageOracle {
             // len(sig) + len(partOffset) + len(preimage offset) = 4 + 32 + 32 = 0x44
             size := calldataload(0x44)
 
-            // revert if part offset > size+8 (i.e. parts must be within bounds)
-            if gt(_partOffset, add(size, 8)) {
+            // revert if part offset >= size+8 (i.e. parts must be within bounds)
+            if iszero(lt(_partOffset, add(size, 8))) {
                 // Store "PartOffsetOOB()"
                 mstore(0, 0xfe254987)
                 // Revert with "PartOffsetOOB()"
