@@ -53,10 +53,11 @@ func (d *staticChain) GetHeader(h common.Hash, n uint64) *types.Header {
 
 type simState struct {
 	*state.MemoryStateDB
-	snapshotIndex int
-
+	snapshotIndex  int
 	tempAccessList map[common.Address]map[common.Hash]struct{}
 }
+
+var _ vm.StateDB = (*simState)(nil)
 
 func (db *simState) AddressInAccessList(addr common.Address) bool {
 	_, ok := db.tempAccessList[addr]
