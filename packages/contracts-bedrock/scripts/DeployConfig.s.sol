@@ -57,7 +57,7 @@ contract DeployConfig is Script {
     uint256 public requiredProtocolVersion;
     uint256 public recommendedProtocolVersion;
 
-    constructor(string memory _path) {
+    function read(string memory _path) public {
         console.log("DeployConfig: reading file %s", _path);
         try vm.readFile(_path) returns (string memory data) {
             _json = data;

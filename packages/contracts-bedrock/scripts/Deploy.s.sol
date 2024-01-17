@@ -220,7 +220,8 @@ contract Deploy is Deployer {
         super.setUp();
 
         string memory path = string.concat(vm.projectRoot(), "/deploy-config/", deploymentContext, ".json");
-        cfg = new DeployConfig(path);
+        cfg = new DeployConfig();
+        cfg.read(path);
 
         console.log("Deploying from %s", deployScript);
         console.log("Deployment context: %s", deploymentContext);

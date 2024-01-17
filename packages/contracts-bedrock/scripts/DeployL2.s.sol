@@ -13,7 +13,7 @@ import { Predeploys } from "../src/libraries/Predeploys.sol";
 /// @title DeployL2
 /// @notice Script used to deploy predeploy implementations to L2.
 contract DeployL2 is Deployer {
-    DeployConfig cfg;
+    DeployConfig public cfg;
 
     /// @notice The name of the script, used to ensure the right deploy artifacts
     ///         are used.
@@ -25,7 +25,8 @@ contract DeployL2 is Deployer {
         super.setUp();
 
         string memory path = string.concat(vm.projectRoot(), "/deploy-config/", deploymentContext, ".json");
-        cfg = new DeployConfig(path);
+        cfg = new DeployConfig();
+        cfg.read(path);
 
         console.log("Deploying from %s", deployScript);
         console.log("Deployment context: %s", deploymentContext);
