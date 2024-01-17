@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/preimages"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
@@ -32,6 +33,7 @@ type FaultResponder struct {
 
 	txMgr    txmgr.TxManager
 	contract GameContract
+	uploader preimages.PreimageUploader
 }
 
 // NewFaultResponder returns a new [FaultResponder].
@@ -40,6 +42,7 @@ func NewFaultResponder(logger log.Logger, txMgr txmgr.TxManager, contract GameCo
 		log:      logger,
 		txMgr:    txMgr,
 		contract: contract,
+		uploader: preimages.NewDirectPreimageUploader(logger, txMgr, contract),
 	}, nil
 }
 
@@ -76,13 +79,9 @@ func (r *FaultResponder) ResolveClaim(ctx context.Context, claimIdx uint64) erro
 
 func (r *FaultResponder) PerformAction(ctx context.Context, action types.Action) error {
 	if action.OracleData != nil {
-		r.log.Info("Updating oracle data", "key", action.OracleData.OracleKey)
-		candidate, err := r.contract.UpdateOracleTx(ctx, uint64(action.ParentIdx), action.OracleData)
+		err := r.uploader.UploadPreimage(ctx, uint64(action.ParentIdx), action.OracleData)
 		if err != nil {
-			return fmt.Errorf("failed to create pre-image oracle tx: %w", err)
-		}
-		if err := r.sendTxAndWait(ctx, candidate); err != nil {
-			return fmt.Errorf("failed to populate pre-image oracle: %w", err)
+			return fmt.Errorf("failed to upload preimage: %w", err)
 		}
 	}
 	var candidate txmgr.TxCandidate
