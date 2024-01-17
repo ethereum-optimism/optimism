@@ -16,26 +16,17 @@ import (
 )
 
 func TestLargePreimageUploader_UploadPreimage(t *testing.T) {
-	t.Run("Success", func(t *testing.T) {
-		oracle, _, _ := newTestLargePreimageUploader(t)
-		err := oracle.UploadPreimage(context.Background(), 0, &types.PreimageOracleData{})
-		// TODO(proofs#467): fix this to not error. See LargePreimageUploader.UploadPreimage.
-		require.ErrorIs(t, err, errNotSupported)
-	})
-}
-
-func TestLargePreimageUploader_InitLargePreimage(t *testing.T) {
 	t.Run("InitFails", func(t *testing.T) {
 		oracle, _, contract := newTestLargePreimageUploader(t)
 		contract.initFails = true
-		err := oracle.initLargePreimage(context.Background(), nil, 0, 0)
+		err := oracle.UploadPreimage(context.Background(), 0, &types.PreimageOracleData{})
 		require.ErrorIs(t, err, mockInitLPPError)
 		require.Equal(t, 1, contract.initCalls)
 	})
 
 	t.Run("Success", func(t *testing.T) {
 		oracle, _, contract := newTestLargePreimageUploader(t)
-		err := oracle.initLargePreimage(context.Background(), nil, 0, 0)
+		err := oracle.UploadPreimage(context.Background(), 0, &types.PreimageOracleData{})
 		require.NoError(t, err)
 		require.Equal(t, 1, contract.initCalls)
 	})

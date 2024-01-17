@@ -2,7 +2,7 @@ package preimages
 
 import (
 	"context"
-	"errors"
+	"crypto/rand"
 	"fmt"
 	"math/big"
 
@@ -13,8 +13,6 @@ import (
 )
 
 var _ PreimageUploader = (*LargePreimageUploader)(nil)
-
-var errNotSupported = errors.New("not supported")
 
 // LargePreimageUploader handles uploading large preimages by
 // streaming the merkleized preimage to the PreimageOracle contract,
@@ -37,9 +35,23 @@ func (p *LargePreimageUploader) UploadPreimage(ctx context.Context, parent uint6
 	// todo(proofs#467): split up the preimage into chunks and submit the preimages
 	//                   and state commitments to the preimage oracle contract using
 	//                   `PreimageOracle.addLeavesLPP` (`_finalize` = false).
+	uuid, err := p.newUUID()
+	if err != nil {
+		return fmt.Errorf("failed to generate UUID: %w", err)
+	}
+	err = p.initLargePreimage(ctx, uuid, data.OracleOffset, uint32(len(data.OracleData)))
+	if err != nil {
+		return fmt.Errorf("failed to initialize large preimage with uuid: %s: %w", uuid, err)
+	}
 	// todo(proofs#467): track the challenge period starting once the full preimage is posted.
 	// todo(proofs#467): once the challenge period is over, call `squeezeLPP` on the preimage oracle contract.
-	return errNotSupported
+	return nil
+}
+
+func (p *LargePreimageUploader) newUUID() (*big.Int, error) {
+	max := new(big.Int)
+	max.Exp(big.NewInt(2), big.NewInt(130), nil).Sub(max, big.NewInt(1))
+	return rand.Int(rand.Reader, max)
 }
 
 // initLargePreimage initializes the large preimage proposal.
