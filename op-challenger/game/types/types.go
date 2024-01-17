@@ -41,3 +41,7 @@ type GameMetadata struct {
 	Timestamp uint64
 	Proxy     common.Address
 }
+
+type LargePreimageOracle interface {
+	Addr() common.Address
+}

@@ -78,6 +78,21 @@ func TestLoadGame(t *testing.T) {
 	}
 }
 
+func TestGetGameImpl(t *testing.T) {
+	stubRpc, factory := setupDisputeGameFactoryTest(t)
+	gameType := uint8(3)
+	gameImplAddr := common.Address{0xaa}
+	stubRpc.SetResponse(
+		factoryAddr,
+		"gameImpls",
+		batching.BlockLatest,
+		[]interface{}{gameType},
+		[]interface{}{gameImplAddr})
+	actual, err := factory.GetGameImpl(context.Background(), gameType)
+	require.NoError(t, err)
+	require.Equal(t, gameImplAddr, actual)
+}
+
 func expectGetGame(stubRpc *batchingTest.AbiBasedRpc, idx int, blockHash common.Hash, game types.GameMetadata) {
 	stubRpc.SetResponse(
 		factoryAddr,

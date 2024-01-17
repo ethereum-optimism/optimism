@@ -14,6 +14,7 @@ import (
 const (
 	methodGameCount   = "gameCount"
 	methodGameAtIndex = "gameAtIndex"
+	methodGameImpls   = "gameImpls"
 )
 
 type DisputeGameFactoryContract struct {
@@ -46,6 +47,14 @@ func (f *DisputeGameFactoryContract) GetGame(ctx context.Context, idx uint64, bl
 		return types.GameMetadata{}, fmt.Errorf("failed to load game %v: %w", idx, err)
 	}
 	return f.decodeGame(result), nil
+}
+
+func (f *DisputeGameFactoryContract) GetGameImpl(ctx context.Context, gameType uint8) (common.Address, error) {
+	result, err := f.multiCaller.SingleCall(ctx, batching.BlockLatest, f.contract.Call(methodGameImpls, gameType))
+	if err != nil {
+		return common.Address{}, fmt.Errorf("failed to load game impl for type %v: %w", gameType, err)
+	}
+	return result.GetAddress(0), nil
 }
 
 func (f *DisputeGameFactoryContract) decodeGame(result *batching.CallResult) types.GameMetadata {
