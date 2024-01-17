@@ -43,9 +43,9 @@ abstract contract Artifacts {
         deploymentContext = _getDeploymentContext();
         deploymentsDir = string.concat(root, "/deployments/", deploymentContext);
 
-        if (vm.isDir(deploymentsDir) == false) {
-            vm.createDir(deploymentsDir, true);
-        }
+         if (!vm.isDir(deploymentsDir)) {
+             vm.createDir(deploymentsDir, true);
+         }
 
         tempDeploymentsPath = vm.envOr("DEPLOYMENT_OUTFILE", string.concat(deploymentsDir, "/.deploy"));
         try vm.readFile(tempDeploymentsPath) returns (string memory) { }
@@ -277,7 +277,7 @@ abstract contract Artifacts {
     /// @notice The context of the deployment is used to namespace the artifacts.
     ///         An unknown context will use the chainid as the context name.
     ///         This is legacy code and should be removed in the future.
-    function _getDeploymentContext() private returns (string memory) {
+    function _getDeploymentContext() private view returns (string memory) {
         string memory context = vm.envOr("DEPLOYMENT_CONTEXT", string(""));
         if (bytes(context).length > 0) {
             return context;
