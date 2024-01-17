@@ -1099,7 +1099,7 @@
     "description": "PreimageOracle.challengeFirstLPP(address,uint256,PreimageOracle.Leaf,bytes32[]).stateMatrix (src/cannon/PreimageOracle.sol#390) is a local variable never initialized\n",
     "type": "variable",
     "name": "stateMatrix",
-    "start": 17901,
+    "start": 17910,
     "length": 40,
     "filename_relative": "src/cannon/PreimageOracle.sol"
   },
