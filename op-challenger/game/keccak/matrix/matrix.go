@@ -43,7 +43,7 @@ func (d *StateMatrix) PackState() []byte {
 
 // AbsorbNextLeaf reads up to [LeafSize] bytes from in and absorbs them into the state matrix.
 // If EOF is reached while reading, the state matrix is finalized and [io.EOF] is returned.
-func (d *StateMatrix) AbsorbNextLeaf(in io.Reader) error {
+func (d *StateMatrix) AbsorbNextLeaf(in io.Reader) ([]byte, error) {
 	data := make([]byte, LeafSize)
 	read := 0
 	final := false
@@ -53,15 +53,16 @@ func (d *StateMatrix) AbsorbNextLeaf(in io.Reader) error {
 			final = true
 			break
 		} else if err != nil {
-			return err
+			return nil, err
 		}
 		read += n
 	}
-	d.AbsorbLeaf(data[:read], final)
+	leafData := data[:read]
+	d.AbsorbLeaf(leafData, final)
 	if final {
-		return io.EOF
+		return leafData, io.EOF
 	}
-	return nil
+	return leafData, nil
 }
 
 // AbsorbLeaf absorbs the specified data into the keccak sponge.
