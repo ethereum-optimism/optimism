@@ -41,7 +41,9 @@ type Service struct {
 
 	loader *loader.GameLoader
 
-	rollupClient *sources.RollupClient
+	factoryContract *contracts.DisputeGameFactoryContract
+	registry        *registry.GameTypeRegistry
+	rollupClient    *sources.RollupClient
 
 	l1Client   *ethclient.Client
 	pollClient client.RPC
@@ -88,10 +90,16 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 	if err := s.initMetricsServer(&cfg.MetricsConfig); err != nil {
 		return fmt.Errorf("failed to init metrics server: %w", err)
 	}
-	if err := s.initGameLoader(cfg); err != nil {
+	if err := s.initFactoryContract(cfg); err != nil {
+		return fmt.Errorf("failed to create factory contract bindings: %w", err)
+	}
+	if err := s.initGameLoader(); err != nil {
 		return fmt.Errorf("failed to init game loader: %w", err)
 	}
-	if err := s.initScheduler(ctx, cfg); err != nil {
+	if err := s.registerGameTypes(ctx, cfg); err != nil {
+		return fmt.Errorf("failed to register game types: %w", err)
+	}
+	if err := s.initScheduler(cfg); err != nil {
 		return fmt.Errorf("failed to init scheduler: %w", err)
 	}
 
@@ -165,13 +173,18 @@ func (s *Service) initMetricsServer(cfg *opmetrics.CLIConfig) error {
 	return nil
 }
 
-func (s *Service) initGameLoader(cfg *config.Config) error {
+func (s *Service) initFactoryContract(cfg *config.Config) error {
 	factoryContract, err := contracts.NewDisputeGameFactoryContract(cfg.GameFactoryAddress,
 		batching.NewMultiCaller(s.l1Client.Client(), batching.DefaultBatchSize))
 	if err != nil {
 		return fmt.Errorf("failed to bind the fault dispute game factory contract: %w", err)
 	}
-	s.loader = loader.NewGameLoader(factoryContract)
+	s.factoryContract = factoryContract
+	return nil
+}
+
+func (s *Service) initGameLoader() error {
+	s.loader = loader.NewGameLoader(s.factoryContract)
 	return nil
 }
 
@@ -187,17 +200,21 @@ func (s *Service) initRollupClient(ctx context.Context, cfg *config.Config) erro
 	return nil
 }
 
-func (s *Service) initScheduler(ctx context.Context, cfg *config.Config) error {
+func (s *Service) registerGameTypes(ctx context.Context, cfg *config.Config) error {
 	gameTypeRegistry := registry.NewGameTypeRegistry()
 	caller := batching.NewMultiCaller(s.l1Client.Client(), batching.DefaultBatchSize)
-	closer, err := fault.RegisterGameTypes(gameTypeRegistry, ctx, s.logger, s.metrics, cfg, s.rollupClient, s.txMgr, caller)
+	closer, err := fault.RegisterGameTypes(gameTypeRegistry, ctx, s.logger, s.metrics, cfg, s.rollupClient, s.txMgr, s.factoryContract, caller)
 	if err != nil {
 		return err
 	}
 	s.faultGamesCloser = closer
+	s.registry = gameTypeRegistry
+	return nil
+}
 
+func (s *Service) initScheduler(cfg *config.Config) error {
 	disk := newDiskManager(cfg.Datadir)
-	s.sched = scheduler.NewScheduler(s.logger, s.metrics, disk, cfg.MaxConcurrency, gameTypeRegistry.CreatePlayer)
+	s.sched = scheduler.NewScheduler(s.logger, s.metrics, disk, cfg.MaxConcurrency, s.registry.CreatePlayer)
 	return nil
 }
 

@@ -17,6 +17,7 @@ const (
 
 // PreimageOracleContract is a binding that works with contracts implementing the IPreimageOracle interface
 type PreimageOracleContract struct {
+	addr        common.Address
 	multiCaller *batching.MultiCaller
 	contract    *batching.BoundContract
 }
@@ -28,12 +29,17 @@ func NewPreimageOracleContract(addr common.Address, caller *batching.MultiCaller
 	}
 
 	return &PreimageOracleContract{
+		addr:        addr,
 		multiCaller: caller,
 		contract:    batching.NewBoundContract(mipsAbi, addr),
 	}, nil
 }
 
-func (c PreimageOracleContract) AddGlobalDataTx(data *types.PreimageOracleData) (txmgr.TxCandidate, error) {
+func (c *PreimageOracleContract) Addr() common.Address {
+	return c.addr
+}
+
+func (c *PreimageOracleContract) AddGlobalDataTx(data *types.PreimageOracleData) (txmgr.TxCandidate, error) {
 	call := c.contract.Call(methodLoadKeccak256PreimagePart, new(big.Int).SetUint64(uint64(data.OracleOffset)), data.GetPreimageWithoutSize())
 	return call.ToTxCandidate()
 }

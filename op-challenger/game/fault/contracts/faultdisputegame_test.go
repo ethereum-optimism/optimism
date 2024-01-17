@@ -105,6 +105,16 @@ func TestSimpleGetters(t *testing.T) {
 	}
 }
 
+func TestGetOracleAddr(t *testing.T) {
+	stubRpc, game := setupFaultDisputeGameTest(t)
+	stubRpc.SetResponse(fdgAddr, methodVM, batching.BlockLatest, nil, []interface{}{vmAddr})
+	stubRpc.SetResponse(vmAddr, methodOracle, batching.BlockLatest, nil, []interface{}{oracleAddr})
+
+	actual, err := game.GetOracle(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, oracleAddr, actual.Addr())
+}
+
 func TestGetClaim(t *testing.T) {
 	stubRpc, game := setupFaultDisputeGameTest(t)
 	idx := big.NewInt(2)

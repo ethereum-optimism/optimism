@@ -118,15 +118,19 @@ func (f *FaultDisputeGameContract) addLocalDataTx(claimIdx uint64, data *types.P
 }
 
 func (f *FaultDisputeGameContract) addGlobalDataTx(ctx context.Context, data *types.PreimageOracleData) (txmgr.TxCandidate, error) {
-	vm, err := f.vm(ctx)
-	if err != nil {
-		return txmgr.TxCandidate{}, err
-	}
-	oracle, err := vm.Oracle(ctx)
+	oracle, err := f.GetOracle(ctx)
 	if err != nil {
 		return txmgr.TxCandidate{}, err
 	}
 	return oracle.AddGlobalDataTx(data)
+}
+
+func (f *FaultDisputeGameContract) GetOracle(ctx context.Context) (*PreimageOracleContract, error) {
+	vm, err := f.vm(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return vm.Oracle(ctx)
 }
 
 func (f *FaultDisputeGameContract) GetGameDuration(ctx context.Context) (uint64, error) {
