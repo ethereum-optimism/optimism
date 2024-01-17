@@ -27,9 +27,6 @@ blockhash=$(echo "$block" | awk '/hash/ { print $2 }')
 # Generate the config file
 config=$(cat << EOL
 {
-  "finalSystemOwner": "$GS_ADMIN_ADDRESS",
-  "superchainConfigGuardian": "$GS_ADMIN_ADDRESS",
-
   "l1StartingBlockTag": "$blockhash",
 
   "l1ChainID": 11155111,
@@ -58,6 +55,8 @@ config=$(cat << EOL
   "baseFeeVaultRecipient": "$GS_ADMIN_ADDRESS",
   "l1FeeVaultRecipient": "$GS_ADMIN_ADDRESS",
   "sequencerFeeVaultRecipient": "$GS_ADMIN_ADDRESS",
+  "finalSystemOwner": "$GS_ADMIN_ADDRESS",
+  "superchainConfigGuardian": "$GS_ADMIN_ADDRESS",
 
   "baseFeeVaultMinimumWithdrawalAmount": "0x8ac7230489e80000",
   "l1FeeVaultMinimumWithdrawalAmount": "0x8ac7230489e80000",
@@ -80,12 +79,23 @@ config=$(cat << EOL
 
   "eip1559Denominator": 50,
   "eip1559DenominatorCanyon": 250,
-  "eip1559Elasticity": 10,
+  "eip1559Elasticity": 6,
+
+  "l2GenesisRegolithTimeOffset": "0x0",
+  "l2GenesisDeltaTimeOffset": null,
+  "l2GenesisCanyonTimeOffset": "0x0",
 
   "systemConfigStartBlock": 0,
 
   "requiredProtocolVersion": "0x0000000000000000000000000000000000000000000000000000000000000000",
-  "recommendedProtocolVersion": "0x0000000000000000000000000000000000000000000000000000000000000000"
+  "recommendedProtocolVersion": "0x0000000000000000000000000000000000000000000000000000000000000000",
+
+  "faultGameAbsolutePrestate": "0x03c7ae758795765c6664a5d39bf63841c71ff191e9189522bad8ebff5d4eca98",
+  "faultGameMaxDepth": 44,
+  "faultGameMaxDuration": 1200,
+  "faultGameGenesisBlock": 0,
+  "faultGameGenesisOutputRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
+  "faultGameSplitDepth": 14
 }
 EOL
 )
