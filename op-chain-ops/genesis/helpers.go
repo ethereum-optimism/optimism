@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/state"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -107,19 +106,4 @@ func newHexBig(in uint64) *hexutil.Big {
 	b := new(big.Int).SetUint64(in)
 	hb := hexutil.Big(*b)
 	return &hb
-}
-
-func maybeSetupEcotone4788(config *DeployConfig, db *state.MemoryStateDB) (*state.MemoryStateDB, error) {
-	genesis := db.Genesis()
-
-	ecotoneTime := config.EcotoneTime(genesis.Timestamp)
-
-	if ecotoneTime != nil && *ecotoneTime <= genesis.Timestamp {
-		err := setup4788Contract(db)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return db, nil
 }
