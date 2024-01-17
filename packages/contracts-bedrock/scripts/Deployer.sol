@@ -59,7 +59,7 @@ abstract contract Deployer is Script, Artifacts {
     ///         env var to specify what function signature was called so that
     ///         the `sync()` method can be used to create hardhat deploy style
     ///         artifacts.
-    function setUp() public override virtual {
+    function setUp() public virtual override {
         Artifacts.setUp();
 
         deployScript = vm.envOr("DEPLOY_SCRIPT", name());
@@ -67,7 +67,9 @@ abstract contract Deployer is Script, Artifacts {
         string memory sig = vm.envOr("SIG", string("run"));
         string memory deployFile = vm.envOr("DEPLOY_FILE", string.concat(sig, "-latest.json"));
         uint256 chainId = vm.envOr("CHAIN_ID", block.chainid);
-        deployPath = string.concat(vm.projectRoot(), "/broadcast/", deployScript, ".s.sol/", vm.toString(chainId), "/", deployFile);
+        deployPath = string.concat(
+            vm.projectRoot(), "/broadcast/", deployScript, ".s.sol/", vm.toString(chainId), "/", deployFile
+        );
     }
 
     /// @notice Call this function to sync the deployment artifacts such that
