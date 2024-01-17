@@ -12,16 +12,20 @@ import (
 
 var _ PreimageUploader = (*DirectPreimageUploader)(nil)
 
+type PreimageGameContract interface {
+	UpdateOracleTx(ctx context.Context, claimIdx uint64, data *types.PreimageOracleData) (txmgr.TxCandidate, error)
+}
+
 // DirectPreimageUploader uploads the provided [types.PreimageOracleData]
 // directly to the PreimageOracle contract in a single transaction.
 type DirectPreimageUploader struct {
 	log log.Logger
 
 	txMgr    txmgr.TxManager
-	contract PreimageOracleContract
+	contract PreimageGameContract
 }
 
-func NewDirectPreimageUploader(logger log.Logger, txMgr txmgr.TxManager, contract PreimageOracleContract) *DirectPreimageUploader {
+func NewDirectPreimageUploader(logger log.Logger, txMgr txmgr.TxManager, contract PreimageGameContract) *DirectPreimageUploader {
 	return &DirectPreimageUploader{logger, txMgr, contract}
 }
 

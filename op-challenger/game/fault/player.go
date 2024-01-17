@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/preimages"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/responder"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
@@ -30,11 +31,13 @@ type GamePlayer struct {
 }
 
 type GameContract interface {
+	preimages.PreimageGameContract
 	responder.GameContract
 	GameInfo
 	ClaimLoader
 	GetStatus(ctx context.Context) (gameTypes.GameStatus, error)
 	GetMaxGameDepth(ctx context.Context) (types.Depth, error)
+	GetOracle(ctx context.Context) (*contracts.PreimageOracleContract, error)
 }
 
 type resourceCreator func(ctx context.Context, logger log.Logger, gameDepth types.Depth, dir string) (types.TraceAccessor, error)
@@ -81,8 +84,12 @@ func NewGamePlayer(
 		return nil, fmt.Errorf("failed to create trace accessor: %w", err)
 	}
 
+	oracle, err := loader.GetOracle(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load oracle: %w", err)
+	}
 	direct := preimages.NewDirectPreimageUploader(logger, txMgr, loader)
-	large := preimages.NewLargePreimageUploader(logger, txMgr, loader)
+	large := preimages.NewLargePreimageUploader(logger, txMgr, oracle)
 	uploader := preimages.NewSplitPreimageUploader(direct, large)
 
 	responder, err := responder.NewFaultResponder(logger, txMgr, loader, uploader)
