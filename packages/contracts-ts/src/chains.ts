@@ -14,21 +14,21 @@ export const opMainnet = {
   "contracts": {
     "gasPriceOracle": {
       "address": "0x420000000000000000000000000000000000000F",
-      "blockCreated": 0,
+      "blockCreated": 105235063,
       "introduced": "Legacy",
       "deprecated": false,
       "proxied": true
     },
     "l1Block": {
       "address": "0x4200000000000000000000000000000000000015",
-      "blockCreated": 0,
+      "blockCreated": 105235063,
       "introduced": "Bedrock",
       "deprecated": false,
       "proxied": true
     },
     "l2CrossDomainMessenger": {
       "address": "0x4200000000000000000000000000000000000007",
-      "blockCreated": 0,
+      "blockCreated": 105235063,
       "introduced": "Legacy",
       "deprecated": false,
       "proxied": true
@@ -38,66 +38,66 @@ export const opMainnet = {
     },
     "l2StandardBridge": {
       "address": "0x4200000000000000000000000000000000000010",
-      "blockCreated": 0,
+      "blockCreated": 105235063,
       "introduced": "Legacy",
       "deprecated": false,
       "proxied": true
     },
     "l2ToL1MessagePasser": {
       "address": "0x4200000000000000000000000000000000000016",
-      "blockCreated": 0,
+      "blockCreated": 105235063,
       "introduced": "Bedrock",
       "deprecated": false,
       "proxied": true
+    },
+    "l2OutputOracle": {
+      "address": "0xdfe97868233d1aa22e815a266982f2cf17685a27"
     },
     "multicall3": {
       "address": "0xca11bde05977b3631167028862be2a173976ca11",
       "blockCreated": 4286263
     },
     "portal": {
-      "1": {
-        "address": "0xbEb5Fc579115071764c7423A4f12eDde41f106Ed"
-      },
       "address": "0xbEb5Fc579115071764c7423A4f12eDde41f106Ed"
     },
     "weth9": {
       "address": "0x4200000000000000000000000000000000000006",
-      "blockCreated": 0,
+      "blockCreated": 105235063,
       "introduced": "Legacy",
       "deprecated": false,
       "proxied": false
     },
     "sequencerFeeVault": {
       "address": "0x4200000000000000000000000000000000000011",
-      "blockCreated": 0,
+      "blockCreated": 105235063,
       "introduced": "Legacy",
       "deprecated": false,
       "proxied": true
     },
     "optimismMintableERC20Factory": {
       "address": "0x4200000000000000000000000000000000000012",
-      "blockCreated": 0,
+      "blockCreated": 105235063,
       "introduced": "Legacy",
       "deprecated": false,
       "proxied": true
     },
     "governanceToken": {
       "address": "0x4200000000000000000000000000000000000042",
-      "blockCreated": 0,
+      "blockCreated": 105235063,
       "introduced": "Legacy",
       "deprecated": false,
       "proxied": false
     },
     "l2ERC721Bridge": {
       "address": "0x4200000000000000000000000000000000000014",
-      "blockCreated": 0,
+      "blockCreated": 105235063,
       "introduced": "Legacy",
       "deprecated": false,
       "proxied": true
     },
     "optimismMintableERC721Factory": {
       "address": "0x4200000000000000000000000000000000000017",
-      "blockCreated": 0,
+      "blockCreated": 105235063,
       "introduced": "Bedrock",
       "deprecated": false,
       "proxied": true
@@ -107,14 +107,14 @@ export const opMainnet = {
     },
     "baseFeeVault": {
       "address": "0x4200000000000000000000000000000000000019",
-      "blockCreated": 0,
+      "blockCreated": 105235063,
       "introduced": "Bedrock",
       "deprecated": false,
       "proxied": true
     },
     "l1FeeVault": {
       "address": "0x420000000000000000000000000000000000001a",
-      "blockCreated": 0,
+      "blockCreated": 105235063,
       "introduced": "Bedrock",
       "deprecated": false,
       "proxied": true
@@ -124,9 +124,6 @@ export const opMainnet = {
     },
     "l1ERC721Bridge": {
       "address": "0x5a7749f83b81B301cAb5f48EB8516B986DAef23D"
-    },
-    "l2OutputOracle": {
-      "address": "0xdfe97868233d1aa22e815a266982f2cf17685a27"
     },
     "l1StandardBridge": {
       "address": "0x99C9fc46f92E8a1c0deC1b1747d010903E884bE1"
@@ -159,7 +156,142 @@ export const opMainnet = {
     }
   },
   "sourceId": 1
-}
+} as const
+export const opstack291 = {
+  "id": 291,
+  "name": "opstack291",
+  "nativeCurrency": {
+    "name": "Ether",
+    "symbol": "ETH",
+    "decimals": 18
+  },
+  "rpcUrls": {
+    "default": {
+      "http": []
+    },
+    "public": {
+      "http": []
+    }
+  },
+  "contracts": {
+    "weth9": {
+      "address": "0x4200000000000000000000000000000000000006",
+      "blockCreated": 0,
+      "introduced": "Legacy",
+      "deprecated": false,
+      "proxied": false
+    },
+    "l2CrossDomainMessenger": {
+      "address": "0x4200000000000000000000000000000000000007",
+      "blockCreated": 0,
+      "introduced": "Legacy",
+      "deprecated": false,
+      "proxied": true
+    },
+    "l2StandardBridge": {
+      "address": "0x4200000000000000000000000000000000000010",
+      "blockCreated": 0,
+      "introduced": "Legacy",
+      "deprecated": false,
+      "proxied": true
+    },
+    "sequencerFeeVault": {
+      "address": "0x4200000000000000000000000000000000000011",
+      "blockCreated": 0,
+      "introduced": "Legacy",
+      "deprecated": false,
+      "proxied": true
+    },
+    "optimismMintableERC20Factory": {
+      "address": "0x4200000000000000000000000000000000000012",
+      "blockCreated": 0,
+      "introduced": "Legacy",
+      "deprecated": false,
+      "proxied": true
+    },
+    "gasPriceOracle": {
+      "address": "0x420000000000000000000000000000000000000F",
+      "blockCreated": 0,
+      "introduced": "Legacy",
+      "deprecated": false,
+      "proxied": true
+    },
+    "governanceToken": {
+      "address": "0x4200000000000000000000000000000000000042",
+      "blockCreated": 0,
+      "introduced": "Legacy",
+      "deprecated": false,
+      "proxied": false
+    },
+    "l1Block": {
+      "address": "0x4200000000000000000000000000000000000015",
+      "blockCreated": 0,
+      "introduced": "Bedrock",
+      "deprecated": false,
+      "proxied": true
+    },
+    "l2ToL1MessagePasser": {
+      "address": "0x4200000000000000000000000000000000000016",
+      "blockCreated": 0,
+      "introduced": "Bedrock",
+      "deprecated": false,
+      "proxied": true
+    },
+    "l2ERC721Bridge": {
+      "address": "0x4200000000000000000000000000000000000014",
+      "blockCreated": 0,
+      "introduced": "Legacy",
+      "deprecated": false,
+      "proxied": true
+    },
+    "optimismMintableERC721Factory": {
+      "address": "0x4200000000000000000000000000000000000017",
+      "blockCreated": 0,
+      "introduced": "Bedrock",
+      "deprecated": false,
+      "proxied": true
+    },
+    "proxyAdmin": {
+      "address": "0xb570F4aD27e7De879A2E4F2F3DE27dBaBc20E9B9"
+    },
+    "baseFeeVault": {
+      "address": "0x4200000000000000000000000000000000000019",
+      "blockCreated": 0,
+      "introduced": "Bedrock",
+      "deprecated": false,
+      "proxied": true
+    },
+    "l1FeeVault": {
+      "address": "0x420000000000000000000000000000000000001a",
+      "blockCreated": 0,
+      "introduced": "Bedrock",
+      "deprecated": false,
+      "proxied": true
+    },
+    "portal": {
+      "address": "0x91493a61ab83b62943E6dCAa5475Dd330704Cc84"
+    },
+    "addressManager": {
+      "address": "0x87630a802a3789463eC4b00f89b27b1e9f6b92e9"
+    },
+    "l1ERC721Bridge": {
+      "address": "0x934Ab59Ef14b638653b1C0FEf7aB9a72186393DC"
+    },
+    "l2OutputOracle": {
+      "address": "0x5e76821C3c1AbB9fD6E310224804556C61D860e0"
+    },
+    "l1StandardBridge": {
+      "address": "0xe07eA0436100918F157DF35D01dCE5c11b16D1F1"
+    },
+    "l1CrossDomainMessenger": {
+      "address": "0xc76543A64666d9a073FaEF4e75F651c88e7DBC08"
+    },
+    "l2ERC20Factory": {
+      "address": "0x7a69a90d8ea11E9618855da55D09E6F953730686"
+    }
+  },
+  "sourceId": 1
+} as const
 export const optimismGoerli = {
   "formatters": {
     "block": {
@@ -212,14 +344,14 @@ export const optimismGoerli = {
       "deprecated": false,
       "proxied": true
     },
+    "l2OutputOracle": {
+      "address": "0xE6Dfba0953616Bacab0c9A8ecb3a9BBa77FC15c0"
+    },
     "multicall3": {
       "address": "0xca11bde05977b3631167028862be2a173976ca11",
       "blockCreated": 49461
     },
     "portal": {
-      "5": {
-        "address": "0x5b47E1A08Ea6d985D6649300584e6722Ec4B1383"
-      },
       "address": "0x5b47E1A08Ea6d985D6649300584e6722Ec4B1383"
     },
     "weth9": {
@@ -287,9 +419,6 @@ export const optimismGoerli = {
     "l1ERC721Bridge": {
       "address": "0x8DD330DdE8D9898d43b4dc840Da27A07dF91b3c9"
     },
-    "l2OutputOracle": {
-      "address": "0xE6Dfba0953616Bacab0c9A8ecb3a9BBa77FC15c0"
-    },
     "l1StandardBridge": {
       "address": "0x636Af16bf2f682dD3109e60102b8E1A089FedAa8"
     },
@@ -322,7 +451,7 @@ export const optimismGoerli = {
   },
   "testnet": true,
   "sourceId": 5
-}
+} as const
 export const pgn = {
   "formatters": {
     "block": {
@@ -348,11 +477,6 @@ export const pgn = {
       "http": [
         "https://rpc.publicgoods.network"
       ]
-    },
-    "public": {
-      "http": [
-        "https://rpc.publicgoods.network"
-      ]
     }
   },
   "blockExplorers": {
@@ -366,9 +490,15 @@ export const pgn = {
     }
   },
   "contracts": {
+    "l2OutputOracle": {
+      "address": "0xA38d0c4E6319F9045F20318BA5f04CDe94208608"
+    },
     "multicall3": {
       "address": "0xcA11bde05977b3631167028862bE2a173976CA11",
       "blockCreated": 3380209
+    },
+    "portal": {
+      "address": "0xb26Fd985c5959bBB382BAFdD0b879E149e48116c"
     },
     "weth9": {
       "address": "0x4200000000000000000000000000000000000006",
@@ -464,17 +594,11 @@ export const pgn = {
       "deprecated": false,
       "proxied": true
     },
-    "portal": {
-      "address": "0xb26Fd985c5959bBB382BAFdD0b879E149e48116c"
-    },
     "addressManager": {
       "address": "0x09d5DbA52F0ee2C4A5E94FD5C802bD74Ca9cAD3e"
     },
     "l1ERC721Bridge": {
       "address": "0xaFF0F8aaB6Cc9108D34b3B8423C76d2AF434d115"
-    },
-    "l2OutputOracle": {
-      "address": "0xA38d0c4E6319F9045F20318BA5f04CDe94208608"
     },
     "l1StandardBridge": {
       "address": "0xD0204B9527C1bA7bD765Fa5CCD9355d38338272b"
@@ -485,35 +609,26 @@ export const pgn = {
     "l2ERC20Factory": {
       "address": "0x8A04c7e5b182eb3470073E681bE54b2aB48FBbE8"
     }
-  }
-}
-export const wanchain = {
+  },
+  "sourceId": 1
+} as const
+export const opstack888 = {
   "id": 888,
-  "name": "Wanchain",
+  "name": "opstack888",
   "nativeCurrency": {
-    "name": "WANCHAIN",
-    "symbol": "WAN",
+    "name": "Ether",
+    "symbol": "ETH",
     "decimals": 18
   },
   "rpcUrls": {
     "default": {
-      "http": [
-        "https://gwan-ssl.wandevs.org:56891",
-        "https://gwan2-ssl.wandevs.org"
-      ]
-    }
-  },
-  "blockExplorers": {
-    "default": {
-      "name": "WanScan",
-      "url": "https://wanscan.org"
+      "http": []
+    },
+    "public": {
+      "http": []
     }
   },
   "contracts": {
-    "multicall3": {
-      "address": "0xcDF6A1566e78EB4594c86Fe73Fcdc82429e97fbB",
-      "blockCreated": 25312390
-    },
     "weth9": {
       "address": "0x4200000000000000000000000000000000000006",
       "blockCreated": 0,
@@ -629,30 +744,160 @@ export const wanchain = {
     "l2ERC20Factory": {
       "address": "0x526920419b61153c1F80fD306B5Ab52b69110A6C"
     }
-  }
-}
-export const 5ireChainThunderTestnet = {
-  "id": 997,
-  "name": "5ireChain Thunder Testnet",
+  },
+  "sourceId": 1
+} as const
+export const opstack957 = {
+  "id": 957,
+  "name": "opstack957",
   "nativeCurrency": {
-    "name": "5ire Token",
-    "symbol": "5IRE",
+    "name": "Ether",
+    "symbol": "ETH",
     "decimals": 18
   },
   "rpcUrls": {
     "default": {
-      "http": [
-        "https://rpc-testnet.5ire.network"
-      ]
+      "http": []
+    },
+    "public": {
+      "http": []
     }
   },
-  "blockExplorers": {
+  "contracts": {
+    "weth9": {
+      "address": "0x4200000000000000000000000000000000000006",
+      "blockCreated": 0,
+      "introduced": "Legacy",
+      "deprecated": false,
+      "proxied": false
+    },
+    "l2CrossDomainMessenger": {
+      "address": "0x4200000000000000000000000000000000000007",
+      "blockCreated": 0,
+      "introduced": "Legacy",
+      "deprecated": false,
+      "proxied": true
+    },
+    "l2StandardBridge": {
+      "address": "0x4200000000000000000000000000000000000010",
+      "blockCreated": 0,
+      "introduced": "Legacy",
+      "deprecated": false,
+      "proxied": true
+    },
+    "sequencerFeeVault": {
+      "address": "0x4200000000000000000000000000000000000011",
+      "blockCreated": 0,
+      "introduced": "Legacy",
+      "deprecated": false,
+      "proxied": true
+    },
+    "optimismMintableERC20Factory": {
+      "address": "0x4200000000000000000000000000000000000012",
+      "blockCreated": 0,
+      "introduced": "Legacy",
+      "deprecated": false,
+      "proxied": true
+    },
+    "gasPriceOracle": {
+      "address": "0x420000000000000000000000000000000000000F",
+      "blockCreated": 0,
+      "introduced": "Legacy",
+      "deprecated": false,
+      "proxied": true
+    },
+    "governanceToken": {
+      "address": "0x4200000000000000000000000000000000000042",
+      "blockCreated": 0,
+      "introduced": "Legacy",
+      "deprecated": false,
+      "proxied": false
+    },
+    "l1Block": {
+      "address": "0x4200000000000000000000000000000000000015",
+      "blockCreated": 0,
+      "introduced": "Bedrock",
+      "deprecated": false,
+      "proxied": true
+    },
+    "l2ToL1MessagePasser": {
+      "address": "0x4200000000000000000000000000000000000016",
+      "blockCreated": 0,
+      "introduced": "Bedrock",
+      "deprecated": false,
+      "proxied": true
+    },
+    "l2ERC721Bridge": {
+      "address": "0x4200000000000000000000000000000000000014",
+      "blockCreated": 0,
+      "introduced": "Legacy",
+      "deprecated": false,
+      "proxied": true
+    },
+    "optimismMintableERC721Factory": {
+      "address": "0x4200000000000000000000000000000000000017",
+      "blockCreated": 0,
+      "introduced": "Bedrock",
+      "deprecated": false,
+      "proxied": true
+    },
+    "proxyAdmin": {
+      "address": "0x35d5D43271548c984662d4879FBc8e041Bc1Ff93"
+    },
+    "baseFeeVault": {
+      "address": "0x4200000000000000000000000000000000000019",
+      "blockCreated": 0,
+      "introduced": "Bedrock",
+      "deprecated": false,
+      "proxied": true
+    },
+    "l1FeeVault": {
+      "address": "0x420000000000000000000000000000000000001a",
+      "blockCreated": 0,
+      "introduced": "Bedrock",
+      "deprecated": false,
+      "proxied": true
+    },
+    "portal": {
+      "address": "0x85eA9c11cf3D4786027F7FD08F4406b15777e5f8"
+    },
+    "addressManager": {
+      "address": "0xC845F9C4004EB35a8bde8ad89C4760a9c0e65CAB"
+    },
+    "l1ERC721Bridge": {
+      "address": "0x6CC3268794c5d3E3d9d52adEfC748B59d536cb22"
+    },
+    "l2OutputOracle": {
+      "address": "0x1145E7848c8B64c6cab86Fd6D378733385c5C3Ba"
+    },
+    "l1StandardBridge": {
+      "address": "0x61E44dC0dae6888B5a301887732217d5725B0bFf"
+    },
+    "l1CrossDomainMessenger": {
+      "address": "0x5456f02c08e9A018E42C39b351328E5AA864174A"
+    },
+    "l2ERC20Factory": {
+      "address": "0x08Dea366F26C25a08C8D1C3568ad07d1e587136d"
+    }
+  },
+  "sourceId": 1
+} as const
+export const opstack997 = {
+  "id": 997,
+  "name": "opstack997",
+  "nativeCurrency": {
+    "name": "Ether",
+    "symbol": "ETH",
+    "decimals": 18
+  },
+  "rpcUrls": {
     "default": {
-      "name": "5ireChain Explorer",
-      "url": "https://explorer.5ire.network"
+      "http": []
+    },
+    "public": {
+      "http": []
     }
   },
-  "testnet": true,
   "contracts": {
     "weth9": {
       "address": "0x4200000000000000000000000000000000000006",
@@ -769,8 +1014,9 @@ export const 5ireChainThunderTestnet = {
     "l2ERC20Factory": {
       "address": "0x00b75ed2e46c4c29bc363a75a6d97791018b3903"
     }
-  }
-}
+  },
+  "sourceId": 1
+} as const
 export const base = {
   "formatters": {
     "block": {
@@ -823,15 +1069,14 @@ export const base = {
       "deprecated": false,
       "proxied": true
     },
+    "l2OutputOracle": {
+      "address": "0x56315b90c40730925ec5485cf004d835058518A0"
+    },
     "multicall3": {
       "address": "0xca11bde05977b3631167028862be2a173976ca11",
       "blockCreated": 5022
     },
     "portal": {
-      "1": {
-        "address": "0x49048044D57e1C92A77f79988d21Fa8fAF74E97e",
-        "blockCreated": 17482143
-      },
       "address": "0x49048044D57e1C92A77f79988d21Fa8fAF74E97e"
     },
     "weth9": {
@@ -899,9 +1144,6 @@ export const base = {
     "l1ERC721Bridge": {
       "address": "0x608d94945A64503E642E6370Ec598e519a2C1E53"
     },
-    "l2OutputOracle": {
-      "address": "0x56315b90c40730925ec5485cf004d835058518A0"
-    },
     "l1StandardBridge": {
       "address": "0x3154Cf16ccdb4C6d922629664174b904d80F2C35"
     },
@@ -933,8 +1175,143 @@ export const base = {
     }
   },
   "sourceId": 1
-}
-export const pgn = {
+} as const
+export const opstack34443 = {
+  "id": 34443,
+  "name": "opstack34443",
+  "nativeCurrency": {
+    "name": "Ether",
+    "symbol": "ETH",
+    "decimals": 18
+  },
+  "rpcUrls": {
+    "default": {
+      "http": []
+    },
+    "public": {
+      "http": []
+    }
+  },
+  "contracts": {
+    "weth9": {
+      "address": "0x4200000000000000000000000000000000000006",
+      "blockCreated": 0,
+      "introduced": "Legacy",
+      "deprecated": false,
+      "proxied": false
+    },
+    "l2CrossDomainMessenger": {
+      "address": "0x4200000000000000000000000000000000000007",
+      "blockCreated": 0,
+      "introduced": "Legacy",
+      "deprecated": false,
+      "proxied": true
+    },
+    "l2StandardBridge": {
+      "address": "0x4200000000000000000000000000000000000010",
+      "blockCreated": 0,
+      "introduced": "Legacy",
+      "deprecated": false,
+      "proxied": true
+    },
+    "sequencerFeeVault": {
+      "address": "0x4200000000000000000000000000000000000011",
+      "blockCreated": 0,
+      "introduced": "Legacy",
+      "deprecated": false,
+      "proxied": true
+    },
+    "optimismMintableERC20Factory": {
+      "address": "0x4200000000000000000000000000000000000012",
+      "blockCreated": 0,
+      "introduced": "Legacy",
+      "deprecated": false,
+      "proxied": true
+    },
+    "gasPriceOracle": {
+      "address": "0x420000000000000000000000000000000000000F",
+      "blockCreated": 0,
+      "introduced": "Legacy",
+      "deprecated": false,
+      "proxied": true
+    },
+    "governanceToken": {
+      "address": "0x4200000000000000000000000000000000000042",
+      "blockCreated": 0,
+      "introduced": "Legacy",
+      "deprecated": false,
+      "proxied": false
+    },
+    "l1Block": {
+      "address": "0x4200000000000000000000000000000000000015",
+      "blockCreated": 0,
+      "introduced": "Bedrock",
+      "deprecated": false,
+      "proxied": true
+    },
+    "l2ToL1MessagePasser": {
+      "address": "0x4200000000000000000000000000000000000016",
+      "blockCreated": 0,
+      "introduced": "Bedrock",
+      "deprecated": false,
+      "proxied": true
+    },
+    "l2ERC721Bridge": {
+      "address": "0x4200000000000000000000000000000000000014",
+      "blockCreated": 0,
+      "introduced": "Legacy",
+      "deprecated": false,
+      "proxied": true
+    },
+    "optimismMintableERC721Factory": {
+      "address": "0x4200000000000000000000000000000000000017",
+      "blockCreated": 0,
+      "introduced": "Bedrock",
+      "deprecated": false,
+      "proxied": true
+    },
+    "proxyAdmin": {
+      "address": "0x470d87b1dae09a454A43D1fD772A561a03276aB7"
+    },
+    "baseFeeVault": {
+      "address": "0x4200000000000000000000000000000000000019",
+      "blockCreated": 0,
+      "introduced": "Bedrock",
+      "deprecated": false,
+      "proxied": true
+    },
+    "l1FeeVault": {
+      "address": "0x420000000000000000000000000000000000001a",
+      "blockCreated": 0,
+      "introduced": "Bedrock",
+      "deprecated": false,
+      "proxied": true
+    },
+    "portal": {
+      "address": "0x8B34b14c7c7123459Cf3076b8Cb929BE097d0C07"
+    },
+    "addressManager": {
+      "address": "0x50eF494573f28Cad6B64C31b7a00Cdaa48306e15"
+    },
+    "l1ERC721Bridge": {
+      "address": "0x2901dA832a4D0297FF0691100A8E496626cc626D"
+    },
+    "l2OutputOracle": {
+      "address": "0x4317ba146D4933D889518a3e5E11Fe7a53199b04"
+    },
+    "l1StandardBridge": {
+      "address": "0x735aDBbE72226BD52e818E7181953f42E3b0FF21"
+    },
+    "l1CrossDomainMessenger": {
+      "address": "0x95bDCA6c8EdEB69C98Bd5bd17660BaCef1298A6f"
+    },
+    "l2ERC20Factory": {
+      "address": "0x69216395A62dFb243C05EF4F1C27AF8655096a95"
+    }
+  },
+  "sourceId": 1
+} as const
+export const pgnTestnet = {
   "formatters": {
     "block": {
       "type": "block"
@@ -959,11 +1336,6 @@ export const pgn = {
       "http": [
         "https://sepolia.publicgoods.network"
       ]
-    },
-    "public": {
-      "http": [
-        "https://sepolia.publicgoods.network"
-      ]
     }
   },
   "blockExplorers": {
@@ -977,6 +1349,9 @@ export const pgn = {
     }
   },
   "contracts": {
+    "l2OutputOracle": {
+      "address": "0xD5bAc3152ffC25318F848B3DD5dA6C85171BaEEe"
+    },
     "multicall3": {
       "address": "0xcA11bde05977b3631167028862bE2a173976CA11",
       "blockCreated": 3754925
@@ -1084,9 +1459,6 @@ export const pgn = {
     "l1ERC721Bridge": {
       "address": "0xBA8397B6f255618D5985d0fB427D8c0496F3a5FA"
     },
-    "l2OutputOracle": {
-      "address": "0xD5bAc3152ffC25318F848B3DD5dA6C85171BaEEe"
-    },
     "l1StandardBridge": {
       "address": "0xFaE6abCAF30D23e233AC7faF747F2fC3a5a6Bfa3"
     },
@@ -1097,8 +1469,9 @@ export const pgn = {
       "address": "0x0167EF3188FDaa2661e4530A4623Ee1aB4555683"
     }
   },
+  "sourceId": 11155111,
   "testnet": true
-}
+} as const
 export const baseGoerli = {
   "formatters": {
     "block": {
@@ -1151,14 +1524,14 @@ export const baseGoerli = {
       "deprecated": false,
       "proxied": true
     },
+    "l2OutputOracle": {
+      "address": "0x2A35891ff30313CcFa6CE88dcf3858bb075A2298"
+    },
     "multicall3": {
       "address": "0xca11bde05977b3631167028862be2a173976ca11",
       "blockCreated": 1376988
     },
     "portal": {
-      "5": {
-        "address": "0xe93c8cD0D409341205A592f8c4Ac1A5fe5585cfA"
-      },
       "address": "0xe93c8cD0D409341205A592f8c4Ac1A5fe5585cfA"
     },
     "weth9": {
@@ -1226,9 +1599,6 @@ export const baseGoerli = {
     "l1ERC721Bridge": {
       "address": "0x5E0c967457347D5175bF82E8CCCC6480FCD7e568"
     },
-    "l2OutputOracle": {
-      "address": "0x2A35891ff30313CcFa6CE88dcf3858bb075A2298"
-    },
     "l1StandardBridge": {
       "address": "0xfA6D8Ee5BE770F84FC001D098C4bD604Fe01284a"
     },
@@ -1261,7 +1631,7 @@ export const baseGoerli = {
   },
   "testnet": true,
   "sourceId": 5
-}
+} as const
 export const baseSepolia = {
   "formatters": {
     "block": {
@@ -1314,11 +1684,10 @@ export const baseSepolia = {
       "deprecated": false,
       "proxied": true
     },
+    "l2OutputOracle": {
+      "address": "0x84457ca9D0163FbC4bbfe4Dfbb20ba46e48DF254"
+    },
     "portal": {
-      "11155111": {
-        "address": "0x49f53e41452c74589e85ca1677426ba426459e85",
-        "blockCreated": 4446677
-      },
       "address": "0x49f53e41452C74589E85cA1677426Ba426459e85"
     },
     "weth9": {
@@ -1386,9 +1755,6 @@ export const baseSepolia = {
     "l1ERC721Bridge": {
       "address": "0x21eFD066e581FA55Ef105170Cc04d74386a09190"
     },
-    "l2OutputOracle": {
-      "address": "0x84457ca9D0163FbC4bbfe4Dfbb20ba46e48DF254"
-    },
     "l1StandardBridge": {
       "address": "0xfd0Bf71F60660E2f608ed56e1659C450eB113120"
     },
@@ -1412,11 +1778,6 @@ export const baseSepolia = {
       "http": [
         "https://sepolia.base.org"
       ]
-    },
-    "public": {
-      "http": [
-        "https://sepolia.base.org"
-      ]
     }
   },
   "blockExplorers": {
@@ -1431,7 +1792,7 @@ export const baseSepolia = {
   },
   "testnet": true,
   "sourceId": 11155111
-}
+} as const
 export const zora = {
   "formatters": {
     "block": {
@@ -1484,14 +1845,14 @@ export const zora = {
       "deprecated": false,
       "proxied": true
     },
+    "l2OutputOracle": {
+      "address": "0x9E6204F750cD866b299594e2aC9eA824E2e5f95c"
+    },
     "multicall3": {
       "address": "0xcA11bde05977b3631167028862bE2a173976CA11",
       "blockCreated": 5882
     },
     "portal": {
-      "1": {
-        "address": "0x1a0ad011913A150f69f6A19DF447A0CfD9551054"
-      },
       "address": "0x1a0ad011913A150f69f6A19DF447A0CfD9551054"
     },
     "weth9": {
@@ -1559,9 +1920,6 @@ export const zora = {
     "l1ERC721Bridge": {
       "address": "0x83A4521A3573Ca87f3a971B169C5A0E1d34481c3"
     },
-    "l2OutputOracle": {
-      "address": "0x9E6204F750cD866b299594e2aC9eA824E2e5f95c"
-    },
     "l1StandardBridge": {
       "address": "0x3e2Ea9B92B7E48A52296fD261dc26fd995284631"
     },
@@ -1596,7 +1954,7 @@ export const zora = {
     }
   },
   "sourceId": 1
-}
+} as const
 export const optimismSepolia = {
   "formatters": {
     "block": {
@@ -1649,14 +2007,14 @@ export const optimismSepolia = {
       "deprecated": false,
       "proxied": true
     },
+    "l2OutputOracle": {
+      "address": "0x90E9c4f8a994a250F6aEfd61CAFb4F2e895D458F"
+    },
     "multicall3": {
       "address": "0xca11bde05977b3631167028862be2a173976ca11",
       "blockCreated": 1620204
     },
     "portal": {
-      "11155111": {
-        "address": "0x16Fc5058F25648194471939df75CF27A2fdC48BC"
-      },
       "address": "0x16Fc5058F25648194471939df75CF27A2fdC48BC"
     },
     "weth9": {
@@ -1724,9 +2082,6 @@ export const optimismSepolia = {
     "l1ERC721Bridge": {
       "address": "0xd83e03D576d23C9AEab8cC44Fa98d058D2176D1f"
     },
-    "l2OutputOracle": {
-      "address": "0x90E9c4f8a994a250F6aEfd61CAFb4F2e895D458F"
-    },
     "l1StandardBridge": {
       "address": "0xFBb0621E0B23b5478B630BD55a5f21f67730B0F1"
     },
@@ -1759,7 +2114,7 @@ export const optimismSepolia = {
   },
   "testnet": true,
   "sourceId": 11155111
-}
+} as const
 export const opstack11763071 = {
   "id": 11763071,
   "name": "opstack11763071",
@@ -1894,7 +2249,7 @@ export const opstack11763071 = {
     }
   },
   "sourceId": 1
-}
+} as const
 export const zoraSepolia = {
   "formatters": {
     "block": {
@@ -1947,14 +2302,14 @@ export const zoraSepolia = {
       "deprecated": false,
       "proxied": true
     },
+    "l2OutputOracle": {
+      "address": "0x2615B481Bd3E5A1C0C7Ca3Da1bdc663E8615Ade9"
+    },
     "multicall3": {
       "address": "0xcA11bde05977b3631167028862bE2a173976CA11",
       "blockCreated": 83160
     },
     "portal": {
-      "11155111": {
-        "address": "0xeffE2C6cA9Ab797D418f0D91eA60807713f3536f"
-      },
       "address": "0xeffE2C6cA9Ab797D418f0D91eA60807713f3536f"
     },
     "weth9": {
@@ -2022,9 +2377,6 @@ export const zoraSepolia = {
     "l1ERC721Bridge": {
       "address": "0x16B0a4f451c4CB567703367e587E15Ac108e4311"
     },
-    "l2OutputOracle": {
-      "address": "0x2615B481Bd3E5A1C0C7Ca3Da1bdc663E8615Ade9"
-    },
     "l1StandardBridge": {
       "address": "0x5376f1D543dcbB5BD416c56C189e4cB7399fCcCB"
     },
@@ -2051,14 +2403,6 @@ export const zoraSepolia = {
       "webSocket": [
         "wss://sepolia.rpc.zora.energy"
       ]
-    },
-    "public": {
-      "http": [
-        "https://sepolia.rpc.zora.energy"
-      ],
-      "webSocket": [
-        "wss://sepolia.rpc.zora.energy"
-      ]
     }
   },
   "blockExplorers": {
@@ -2069,7 +2413,7 @@ export const zoraSepolia = {
   },
   "sourceId": 11155111,
   "testnet": true
-}
+} as const
 export const opstack129831238013 = {
   "id": 129831238013,
   "name": "opstack129831238013",
@@ -2204,5 +2548,5 @@ export const opstack129831238013 = {
     }
   },
   "sourceId": 1
-}
+} as const
 

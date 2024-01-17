@@ -1,20 +1,19 @@
 import addressesJson from '@eth-optimism/superchain-registry/superchain/extra/addresses/addresses.json'
 import { writeFileSync } from 'fs'
-import * as viemChains from 'viem/chains/opStack/chains.js'
+import * as viemChains from 'viem/op-stack'
 import { camelCase } from 'change-case'
 import { getL2Predeploys } from './getL2Predeploys.js'
-import YAML from 'yaml'
 import { OP_GENESIS_BLOCK } from './OP_GENESIS_BLOCK.js'
-import { Chain } from 'viem'
+import { CHAINS_OUTPUT_PATH } from './paths.js'
 
-writeFileSync('./src/chains.ts', generateChainsFile())
+writeFileSync(CHAINS_OUTPUT_PATH, generateChainsFile())
 
 /**
  * Reads chain information from @eth-optimism/superchain-registry and generates a file shaped like a viem chain
  */
 function generateChainsFile() {
   /**
-   * @type {Record<number, Chain>}
+   * @type {Record<number, import('viem').Chain>}
    * Loops through every superchain chain and generates a viem chain to be used in typescript
    * Currently it uses addresses.json but a nice cleanup here would be to use the yaml files directly and then
    * we can remove the addresses.json script in favor of this script
@@ -95,7 +94,7 @@ function generateChainsFile() {
   const file = []
 
   Object.values(chains).forEach(chain => {
-    file.push(`export const ${(camelCase(chain.name))} = ${JSON.stringify(chain, null, 2)}`)
+    file.push(`export const ${(camelCase(chain.network ?? chain.name))} = ${JSON.stringify(chain, null, 2)} as const`)
   })
 
   // EOL

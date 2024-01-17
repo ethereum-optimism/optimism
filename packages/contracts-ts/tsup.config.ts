@@ -3,9 +3,10 @@ import packageJson from './package.json'
 
 export default defineConfig({
   name: packageJson.name,
-  entry: ['src/constants.ts', 'src/actions.ts', 'src/react.ts'],
+  entry: ['src/index.ts'],
   outDir: 'dist',
   format: ['esm', 'cjs'],
+  dts: true,
   splitting: false,
   sourcemap: true,
   clean: false,

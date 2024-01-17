@@ -11,5 +11,5 @@
     "target": "ESNext",
     "noEmit": true
   },
-  "include": ["./src"]
+  "include": ["src/*"]
 }

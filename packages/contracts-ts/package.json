@@ -18,16 +18,6 @@
       "types": "./src/constants.ts",
       "import": "./dist/constants.js",
       "require": "./dist/constants.cjs"
-    },
-    "./actions": {
-      "types": "./src/actions.ts",
-      "import": "./dist/actions.js",
-      "require": "./dist/actions.cjs"
-    },
-    "./react": {
-      "types": "./src/react.ts",
-      "import": "./dist/react.js",
-      "require": "./dist/react.cjs"
     }
   },
   "files": [
@@ -38,7 +28,7 @@
     "build": "tsup",
     "clean": "rm -rf ./dist",
     "preinstall": "npx only-allow pnpm",
-    "generate": "tsx generate.ts && pnpm build && pnpm lint:fix",
+    "generate": "tsx scripts/chains/generate.js && pnpm build && pnpm lint:fix",
     "generate:check": "pnpm generate && git diff --exit-code ./addresses.json && git diff --exit-code ./abis.json",
     "lint": "prettier --check .",
     "lint:fix": "prettier --write .",
@@ -48,22 +38,22 @@
   },
   "devDependencies": {
     "@eth-optimism/contracts-bedrock": "workspace:*",
-    "@testing-library/jest-dom": "^6.1.5",
+    "@eth-optimism/superchain-registry": "github:ethereum-optimism/superchain-registry",
+    "@testing-library/jest-dom": "^6.2.0",
     "@testing-library/react-hooks": "^8.0.1",
     "@types/glob": "^8.1.0",
-    "@vitest/coverage-istanbul": "^1.2.0",
-    "@wagmi/cli": "^2.0.3",
-    "@wagmi/core": "^2.1.1",
+    "@vitest/coverage-istanbul": "^1.2.1",
+    "@wagmi/core": "^2.2.1",
     "abitype": "^0.10.3",
     "glob": "^10.3.10",
     "isomorphic-fetch": "^3.0.0",
     "jest-dom": "link:@types/@testing-library/jest-dom",
     "jsdom": "^23.2.0",
     "tsup": "^8.0.1",
-    "tsx": "^4.6.2",
+    "tsx": "^4.7.0",
     "typescript": "^5.3.3",
     "vite": "^5.0.11",
-    "vitest": "^1.0.1",
+    "vitest": "^1.2.1",
     "wagmi": "^2.2.1",
     "yaml": "^2.3.4"
   },
@@ -80,12 +70,11 @@
     }
   },
   "dependencies": {
-    "@eth-optimism/superchain-registry": "github:ethereum-optimism/superchain-registry",
     "@testing-library/react": "^14.1.2",
     "@types/change-case": "^2.3.1",
-    "change-case": "4.1.2",
+    "change-case": "5.4.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "viem": "^2.0.3"
+    "viem": "^2.1.1"
   }
 }
