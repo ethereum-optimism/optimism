@@ -38,7 +38,7 @@ FROM --platform=linux/amd64 ghcr.io/crytic/echidna/echidna:v2.0.4 as echidna-tes
 
 FROM --platform=linux/amd64 debian:bullseye-slim as go-build
 
-RUN apt-get update && apt-get install -y curl ca-certificates
+RUN apt-get update && apt-get install -y curl ca-certificates jq
 
 ENV GO_VERSION=1.21.1
 
