@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/mattn/go-isatty"
 	"github.com/urfave/cli/v2"
+	"golang.org/x/exp/maps"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/upgrades"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
@@ -64,52 +65,48 @@ func entrypoint(ctx *cli.Context) error {
 
 	output := []ChainVersionCheck{}
 
-	for _, l1RPCURL := range l1RPCURLs {
-		var L2ChainIDs []uint64
+	var l2ChainIDs []uint64
 
-		client, err := ethclient.Dial(l1RPCURL)
-		if err != nil {
-			return err
-		}
-
-		l1ChainID, err := client.ChainID(ctx.Context)
-		if err != nil {
-			return err
-		}
-
-		superchainName, err := upgrades.ToSuperchainName(l1ChainID.Uint64())
-		if err != nil {
-			return err
-		}
-
-		// If no L2 RPC URLs are specified, we check all chains for the L1 RPC URL
-		if len(l2RPCURLs) == 0 {
-			for _, chainConfig := range superchain.OPChains {
-				// We only consider chains in the same superchain as l1RPCURL
-				if superchainName == chainConfig.Superchain {
-					L2ChainIDs = append(L2ChainIDs, chainConfig.ChainID)
-				}
+	// If no L2 RPC URLs are specified, we check all chains for the L1 RPC URL
+	if len(l2RPCURLs) == 0 {
+		l2ChainIDs = maps.Keys(superchain.OPChains)
+	} else {
+		for _, l2RPCURL := range l2RPCURLs {
+			client, err := ethclient.Dial(l2RPCURL)
+			if err != nil {
+				return err
 			}
-		} else {
-			for _, l2RPCURL := range l2RPCURLs {
-				client, err := ethclient.Dial(l2RPCURL)
-				if err != nil {
-					return err
-				}
 
-				l2ChainID, err := client.ChainID(ctx.Context)
-				if err != nil {
-					return err
-				}
-
-				L2ChainIDs = append(L2ChainIDs, l2ChainID.Uint64())
+			l2ChainID, err := client.ChainID(ctx.Context)
+			if err != nil {
+				return err
 			}
-		}
 
-		for _, l2ChainID := range L2ChainIDs {
-			chainConfig := superchain.OPChains[l2ChainID]
+			l2ChainIDs = append(l2ChainIDs, l2ChainID.Uint64())
+		}
+	}
+
+	for _, l2ChainID := range l2ChainIDs {
+		chainConfig := superchain.OPChains[l2ChainID]
+
+		for _, l1RPCURL := range l1RPCURLs {
+			client, err := ethclient.Dial(l1RPCURL)
+			if err != nil {
+				return err
+			}
+
+			l1ChainID, err := client.ChainID(ctx.Context)
+			if err != nil {
+				return err
+			}
+
+			superchainName, err := upgrades.ToSuperchainName(l1ChainID.Uint64())
+			if err != nil {
+				return err
+			}
 
 			if superchainName != chainConfig.Superchain {
+				// L2 chain corresponds to a different superchain than L1's, skip L1
 				continue
 			}
 
@@ -124,8 +121,7 @@ func entrypoint(ctx *cli.Context) error {
 			}
 			versions, err := upgrades.GetContractVersions(ctx.Context, addresses, chainConfig, client)
 			if err != nil {
-				log.Warn("error getting contract versions", "err", err)
-				continue
+				return fmt.Errorf("error getting contract versions: %w", err)
 			}
 
 			contracts := make(map[string]Contract)
@@ -141,6 +137,8 @@ func entrypoint(ctx *cli.Context) error {
 			contracts["ProxyAdmin"] = Contract{Version: "null", Address: addresses.ProxyAdmin}
 
 			output = append(output, ChainVersionCheck{Name: chainConfig.Name, ChainID: l2ChainID, Contracts: contracts})
+
+			break
 		}
 	}
 	// Write contract versions to disk or stdout
