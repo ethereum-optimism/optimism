@@ -121,8 +121,8 @@ library Hashing {
             )
         );
     }
-    function getDataHash(address _user,address _submiter,uint256 _gasPrice,uint256 _index,uint256 _length,bytes memory _commit) internal view returns (bytes32) {
-        uint256 _chainId;
+    function getDataHash(address _user,address _submiter,uint64 _gasPrice,uint64 _index,uint64 _length,bytes memory _commit) internal view returns (bytes32) {
+        uint64 _chainId;
         assembly {
             _chainId := chainid()
         }
