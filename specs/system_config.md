@@ -87,11 +87,12 @@ In Ecotone the existing `setGasConfig` function, and `scalar` and `overhead` get
 When the batch-submitter utilizes EIP-4844 blob data for data-availability
 it can adjust the scalars to accurately price the resources:
 
-- `baseFeeScalar` to correspond to share of a user-transaction (per byte)
-  in the total Blob data that is introduced by the data-transaction of the batch-submitter.
-- `blobBaseFeeScalar` to correspond to the share of the user-transaction (per byte)
+- `baseFeeScalar` to correspond to the share of the user-transaction (per byte)
   in the total regular L1 EVM gas usage consumed by the data-transaction of the batch-submitter.
-  For regular data-transactions this is the fixed intrinsic gas cost of the L1 transaction.
+  For blob transactions this is the fixed intrinsic gas cost of the L1 transaction.
+
+- `blobBaseFeeScalar` to correspond to share of a user-transaction (per byte)
+  in the total Blob data that is introduced by the data-transaction of the batch-submitter.
 
 ### `gasLimit` (`uint64`)
 
@@ -128,8 +129,8 @@ A rollup node initializes its derivation process by finding a starting point bas
 - When started from an existing L2 chain, a previously included L1 block is determined as derivation starting point,
   and the system config can thus be retrieved from the last L2 block that referenced the L1 block as L1 origin:
   - If the chain state precedes the Ecotone upgrade, `batcherHash`, `overhead` and `scalar` are
-    retrieved from the L1 block info transaction. Otherwise, `batcherHash`, `l1BasefeeScalar`, and
-    `l1BlobBasefeeScalar` are retrieved instead.
+    retrieved from the L1 block info transaction. Otherwise, `batcherHash`, `baseFeeScalar`, and
+    `blobBaseFeeScalar` are retrieved instead.
   - `gasLimit` is retrieved from the L2 block header.
   - other future variables may also be retrieved from other contents of the L2 block, such as the header.
 
@@ -145,11 +146,12 @@ The contained log events are filtered and processed as follows:
 - the remaining event data is opaque, encoded as ABI bytes (i.e. includes offset and length data),
   and encodes the configuration update. In version `0` the following types are supported:
   - type `0`: `batcherHash` overwrite, as `bytes32` payload.
-  - type `1`: `overhead` and `scalar` overwrite, as two packed `uint256` entries.
+  - type `1`: Pre-Ecotone, `overhead` and `scalar` overwrite, as two packed `uint256`
+    entries. After Ecotone upgrade, `overhead` is ignored and `scalar` interpreted as a [versioned
+    encoding](#ecotone-scalar-overhead-uint256uint256-change) that updates `baseFeeScalar` and
+    `blobBaseFeeScalar`.
   - type `2`: `gasLimit` overwrite, as `uint64` payload.
   - type `3`: `unsafeBlockSigner` overwrite, as `address` payload.
-  - type `4`: `l1BasefeeScalar` and `l1BlobBasefeeScalar` overwrite, as two packed `uint32`
-    entries in [`abi.encodePacked()`][encodePacked] format.
 
 [encodePacked]: https://docs.soliditylang.org/en/latest/abi-spec.html#non-standard-packed-mode
 
