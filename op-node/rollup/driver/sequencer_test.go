@@ -125,11 +125,7 @@ func (m *FakeEngineControl) resetBuildingState() {
 	m.buildingAttrs = nil
 }
 
-func (m *FakeEngineControl) Reset() {
-	m.err = nil
-}
-
-var _ derive.ResettableEngineControl = (*FakeEngineControl)(nil)
+var _ derive.EngineControl = (*FakeEngineControl)(nil)
 
 type testAttrBuilderFn func(ctx context.Context, l2Parent eth.L2BlockRef, epoch eth.BlockID) (attrs *eth.PayloadAttributes, err error)
 
@@ -349,7 +345,11 @@ func TestSequencerChaosMonkey(t *testing.T) {
 			// no error
 		}
 		payload, err := seq.RunNextSequencerAction(context.Background())
-		require.NoError(t, err)
+		// RunNextSequencerAction passes ErrReset & ErrCritical through.
+		// Only suppress ErrReset, not ErrCritical
+		if !errors.Is(err, derive.ErrReset) {
+			require.NoError(t, err)
+		}
 		if payload != nil {
 			require.Equal(t, engControl.UnsafeL2Head().ID(), payload.ID(), "head must stay in sync with emitted payloads")
 			var tx types.Transaction

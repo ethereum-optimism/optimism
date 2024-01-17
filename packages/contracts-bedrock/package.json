@@ -19,7 +19,7 @@
     "build:go-ffi": "(cd scripts/go-ffi && go build)",
     "autogen:invariant-docs": "npx tsx scripts/invariant-doc-gen.ts",
     "test": "pnpm build:go-ffi && forge test",
-    "test:kontrol": "./test/kontrol/kontrol/run-kontrol.sh",
+    "test:kontrol": "./test/kontrol/scripts/run-kontrol.sh",
     "genesis": "./scripts/generate-l2-genesis.sh",
     "coverage": "pnpm build:go-ffi && forge coverage",
     "coverage:lcov": "pnpm build:go-ffi && forge coverage --report lcov",

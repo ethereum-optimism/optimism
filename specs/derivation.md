@@ -875,11 +875,17 @@ safe head.
 
 The following fields of the derived L2 payload attributes are checked for equality with the L2 block:
 
-- `parent_hash`
-- `timestamp`
-- `randao`
-- `fee_recipient`
-- `transactions_list` (first length, then equality of each of the encoded transactions, including deposits)
+- Bedrock, Canyon, Delta, Ecotone Blocks
+  - `parent_hash`
+  - `timestamp`
+  - `randao`
+  - `fee_recipient`
+  - `transactions_list` (first length, then equality of each of the encoded transactions, including deposits)
+  - `gas_limit`
+- Canyon, Delta, Ecotone Blocks
+  - `withdrawals` (first presence, then length, then equality of each of the encoded withdrawals)
+- Ecotone Blocks
+  - `parent_beacon_block_root`
 
 If consolidation succeeds, the forkchoice change will synchronize as described in the section above.
 

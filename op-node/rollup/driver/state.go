@@ -32,6 +32,10 @@ type Driver struct {
 	// The derivation pipeline determines the new l2Safe.
 	derivation DerivationPipeline
 
+	// The engine controller is used by the sequencer & derivation components.
+	// We will also use it for EL sync in a future PR.
+	engineController *derive.EngineController
+
 	// Requests to block the event loop for synchronous execution to avoid reading an inconsistent state
 	stateReq chan chan struct{}
 
@@ -229,7 +233,7 @@ func (s *Driver) eventLoop() {
 	syncCheckInterval := time.Duration(s.config.BlockTime) * time.Second * 2
 	altSyncTicker := time.NewTicker(syncCheckInterval)
 	defer altSyncTicker.Stop()
-	lastUnsafeL2 := s.derivation.UnsafeL2Head()
+	lastUnsafeL2 := s.engineController.UnsafeL2Head()
 
 	for {
 		if s.driverCtx.Err() != nil { // don't try to schedule/handle more work when we are closing.
@@ -241,18 +245,18 @@ func (s *Driver) eventLoop() {
 		// And avoid sequencing if the derivation pipeline indicates the engine is not ready.
 		if s.driverConfig.SequencerEnabled && !s.driverConfig.SequencerStopped &&
 			s.l1State.L1Head() != (eth.L1BlockRef{}) && s.derivation.EngineReady() {
-			if s.driverConfig.SequencerMaxSafeLag > 0 && s.derivation.SafeL2Head().Number+s.driverConfig.SequencerMaxSafeLag <= s.derivation.UnsafeL2Head().Number {
+			if s.driverConfig.SequencerMaxSafeLag > 0 && s.engineController.SafeL2Head().Number+s.driverConfig.SequencerMaxSafeLag <= s.engineController.UnsafeL2Head().Number {
 				// If the safe head has fallen behind by a significant number of blocks, delay creating new blocks
 				// until the safe lag is below SequencerMaxSafeLag.
 				if sequencerCh != nil {
 					s.log.Warn(
 						"Delay creating new block since safe lag exceeds limit",
-						"safe_l2", s.derivation.SafeL2Head(),
-						"unsafe_l2", s.derivation.UnsafeL2Head(),
+						"safe_l2", s.engineController.SafeL2Head(),
+						"unsafe_l2", s.engineController.UnsafeL2Head(),
 					)
 					sequencerCh = nil
 				}
-			} else if s.sequencer.BuildingOnto().ID() != s.derivation.UnsafeL2Head().ID() {
+			} else if s.sequencer.BuildingOnto().ID() != s.engineController.UnsafeL2Head().ID() {
 				// If we are sequencing, and the L1 state is ready, update the trigger for the next sequencer action.
 				// This may adjust at any time based on fork-choice changes or previous errors.
 				//
@@ -265,7 +269,7 @@ func (s *Driver) eventLoop() {
 
 		// If the engine is not ready, or if the L2 head is actively changing, then reset the alt-sync:
 		// there is no need to request L2 blocks when we are syncing already.
-		if head := s.derivation.UnsafeL2Head(); head != lastUnsafeL2 || !s.derivation.EngineReady() {
+		if head := s.engineController.UnsafeL2Head(); head != lastUnsafeL2 || !s.derivation.EngineReady() {
 			lastUnsafeL2 = head
 			altSyncTicker.Reset(syncCheckInterval)
 		}
@@ -273,7 +277,9 @@ func (s *Driver) eventLoop() {
 		select {
 		case <-sequencerCh:
 			payload, err := s.sequencer.RunNextSequencerAction(s.driverCtx)
-			if err != nil {
+			if errors.Is(err, derive.ErrReset) {
+				s.derivation.Reset()
+			} else if err != nil {
 				s.log.Error("Sequencer critical error", "err", err)
 				return
 			}
@@ -325,7 +331,7 @@ func (s *Driver) eventLoop() {
 				s.metrics.SetDerivationIdle(true)
 				continue
 			} else if err != nil && errors.Is(err, derive.EngineELSyncing) {
-				s.log.Debug("Derivation process went idle because the engine is syncing", "progress", s.derivation.Origin(), "unsafe_head", s.derivation.UnsafeL2Head(), "err", err)
+				s.log.Debug("Derivation process went idle because the engine is syncing", "progress", s.derivation.Origin(), "unsafe_head", s.engineController.UnsafeL2Head(), "err", err)
 				stepAttempts = 0
 				s.metrics.SetDerivationIdle(true)
 				continue
@@ -362,7 +368,7 @@ func (s *Driver) eventLoop() {
 			s.metrics.RecordPipelineReset()
 			close(respCh)
 		case resp := <-s.startSequencer:
-			unsafeHead := s.derivation.UnsafeL2Head().Hash
+			unsafeHead := s.engineController.UnsafeL2Head().Hash
 			if !s.driverConfig.SequencerStopped {
 				resp.err <- errors.New("sequencer already running")
 			} else if !bytes.Equal(unsafeHead[:], resp.hash[:]) {
@@ -390,7 +396,7 @@ func (s *Driver) eventLoop() {
 				// Cancel any inflight block building. If we don't cancel this, we can resume sequencing an old block
 				// even if we've received new unsafe heads in the interim, causing us to introduce a re-org.
 				s.sequencer.CancelBuildingBlock(s.driverCtx)
-				respCh <- hashAndError{hash: s.derivation.UnsafeL2Head().Hash}
+				respCh <- hashAndError{hash: s.engineController.UnsafeL2Head().Hash}
 			}
 		case respCh := <-s.sequencerActive:
 			respCh <- !s.driverConfig.SequencerStopped
@@ -484,11 +490,10 @@ func (s *Driver) syncStatus() *eth.SyncStatus {
 		HeadL1:             s.l1State.L1Head(),
 		SafeL1:             s.l1State.L1Safe(),
 		FinalizedL1:        s.l1State.L1Finalized(),
-		UnsafeL2:           s.derivation.UnsafeL2Head(),
-		SafeL2:             s.derivation.SafeL2Head(),
-		FinalizedL2:        s.derivation.Finalized(),
-		PendingSafeL2:      s.derivation.PendingSafeL2Head(),
-		UnsafeL2SyncTarget: s.derivation.UnsafeL2SyncTarget(),
+		UnsafeL2:           s.engineController.UnsafeL2Head(),
+		SafeL2:             s.engineController.SafeL2Head(),
+		FinalizedL2:        s.engineController.Finalized(),
+		PendingSafeL2:      s.engineController.PendingSafeL2Head(),
 	}
 }
 
@@ -537,9 +542,9 @@ func (s *Driver) snapshot(event string) {
 		"event", event,
 		"l1Head", deferJSONString{s.l1State.L1Head()},
 		"l1Current", deferJSONString{s.derivation.Origin()},
-		"l2Head", deferJSONString{s.derivation.UnsafeL2Head()},
-		"l2Safe", deferJSONString{s.derivation.SafeL2Head()},
-		"l2FinalizedHead", deferJSONString{s.derivation.Finalized()})
+		"l2Head", deferJSONString{s.engineController.UnsafeL2Head()},
+		"l2Safe", deferJSONString{s.engineController.SafeL2Head()},
+		"l2FinalizedHead", deferJSONString{s.engineController.Finalized()})
 }
 
 type hashAndError struct {
@@ -556,8 +561,8 @@ type hashAndErrorChannel struct {
 // WARNING: This is only an outgoing signal, the blocks are not guaranteed to be retrieved.
 // Results are received through OnUnsafeL2Payload.
 func (s *Driver) checkForGapInUnsafeQueue(ctx context.Context) error {
-	start := s.derivation.UnsafeL2Head()
-	end := s.derivation.UnsafeL2SyncTarget()
+	start := s.engineController.UnsafeL2Head()
+	end := s.derivation.LowestQueuedUnsafeBlock()
 	// Check if we have missing blocks between the start and end. Request them if we do.
 	if end == (eth.L2BlockRef{}) {
 		s.log.Debug("requesting sync with open-end range", "start", start)

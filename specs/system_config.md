@@ -7,8 +7,8 @@
 - [System config contents (version 0)](#system-config-contents-version-0)
   - [`batcherHash` (`bytes32`)](#batcherhash-bytes32)
   - [Scalars](#scalars)
-    - [`overhead`,`scalar` (`uint256,uint256`)](#overheadscalar-uint256uint256)
-    - [`l1BasefeeScalar`,`l1BlobBasefeeScalar` (`uint32,uint32`)](#l1basefeescalarl1blobbasefeescalar-uint32uint32)
+    - [Pre-Ecotone `scalar`, `overhead` (`uint256,uint256`)](#pre-ecotone-scalar-overhead-uint256uint256)
+    - [Ecotone `scalar`, `overhead` (`uint256,uint256`) change](#ecotone-scalar-overhead-uint256uint256-change)
   - [`gasLimit` (`uint64`)](#gaslimit-uint64)
   - [`unsafeBlockSigner` (`address`)](#unsafeblocksigner-address)
 - [Writing the system config](#writing-the-system-config)
@@ -39,20 +39,59 @@ The L1 fee parameters, also known as Gas Price Oracle (GPO) parameters, are used
 data fee applied to an L2 transaction.  The specific parameters used depend on the upgrades that
 are active.
 
-#### `overhead`,`scalar` (`uint256,uint256`)
+Fee parameter updates are signaled to L2 through the `GAS_CONFIG` log-event of the `SystemConfig`.
 
-Prior to the Ecotone upgrade, `overhead` and `scalar` are consulted and passed to the L2 via L1
-attribute info.
+#### Pre-Ecotone `scalar`, `overhead` (`uint256,uint256`)
 
-#### `l1BasefeeScalar`,`l1BlobBasefeeScalar` (`uint32,uint32`)
+The `overhead` and `scalar` are consulted and passed to the L2 via L1 attribute info.
 
-After the Ecotone upgrade, `l1BasefeeScalar` and `l1BlobBasefeeScalar` are passed to the L2
-instead.
+The values are interpreted as big-endian `uint256`.
 
-The only exception is for chains that have genesis prior to Ecotone and go through the Ecotone
-transition. For these chains, the very first Ecotone block will pass the older
-parameters. Thereafter and up until a type `4` log event is processed, `l1BasefeeScalar` passed to
-the L2 *must* be set to the value of `scalar`, or MaxUint32 if `scalar` is outside 32-bit range.
+#### Ecotone `scalar`, `overhead` (`uint256,uint256`) change
+
+After Ecotone activation:
+
+- The `scalar` attribute encodes additional scalar information, in a versioned encoding scheme.
+- The `overhead` value is ignored: it does not affect the L2 state-transition output.
+
+The `scalar` is encoded as big-endian `uint256`, interpreted as `bytes32`, and composed as following:
+
+*Byte ranges are indicated with `[` (inclusive) and `)` (exclusive).
+
+- `0`: scalar-version byte
+- `[1, 32)`: depending scalar-version:
+  - Scalar-version `0`:
+    - `[1, 28)`: padding, must be zero.
+    - `[28, 32)`: big-endian `uint32`, encoding the L1-fee `baseFeeScalar`
+    - This version implies the L1-fee `blobBaseFeeScalar` is set to 0.
+    - This version is compatible with the pre-Ecotone `scalar` value (assuming a `uint32` range).
+  - Scalar-version `1`:
+    - `[1, 24)`: padding, must be zero.
+    - `[24, 28)`: big-endian `uint32`, encoding the `blobBaseFeeScalar`
+    - `[28, 32)`: big-endian `uint32`, encoding the `baseFeeScalar`
+    - This version is meant to configure the EIP-4844 blob fee component, once blobs are used for data-availability.
+  - Other scalar-version values: unrecognized.
+    OP-Stack forks are recommended to utilize the `>= 128` scalar-version range and document their `scalar` encoding.
+
+Invalid and unrecognized scalar event-data should be ignored,
+and the last valid configuration should continue to be utilized.
+
+The `baseFeeScalar` and `blobBaseFeeScalar` are incorporated into the L2 through the
+[Ecotone L1 attributes deposit transaction calldata](./deposits.md#l1-attributes---ecotone).
+
+Future upgrades of the `SystemConfig` contract may provide additional typed getters/setters
+for the versioned scalar information.
+
+In Ecotone the existing `setGasConfig` function, and `scalar` and `overhead` getters, continue to function.
+
+When the batch-submitter utilizes EIP-4844 blob data for data-availability
+it can adjust the scalars to accurately price the resources:
+
+- `baseFeeScalar` to correspond to share of a user-transaction (per byte)
+  in the total Blob data that is introduced by the data-transaction of the batch-submitter.
+- `blobBaseFeeScalar` to correspond to the share of the user-transaction (per byte)
+  in the total regular L1 EVM gas usage consumed by the data-transaction of the batch-submitter.
+  For regular data-transactions this is the fixed intrinsic gas cost of the L1 transaction.
 
 ### `gasLimit` (`uint64`)
 
