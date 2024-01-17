@@ -70,6 +70,7 @@ func mockConfig(t *testing.T) Config {
 			L1SystemConfigAddress:   [20]byte{3, 4},
 			ProtocolVersionsAddress: [20]byte{4, 5},
 		},
+		RPCEnableProxy: false,
 	}
 }
 

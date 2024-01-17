@@ -44,10 +44,15 @@ type conductor struct {
 	service       *con.OpConductor
 	client        conrpc.API
 	consensusPort int
+	rpcPort       int
 }
 
 func (c *conductor) ConsensusEndpoint() string {
 	return fmt.Sprintf("%s:%d", localhost, c.consensusPort)
+}
+
+func (c *conductor) RPCEndpoint() string {
+	return fmt.Sprintf("%s:%d", localhost, c.rpcPort)
 }
 
 func setupSequencerFailoverTest(t *testing.T) (*System, map[string]*conductor) {
@@ -58,9 +63,6 @@ func setupSequencerFailoverTest(t *testing.T) (*System, map[string]*conductor) {
 	cfg := sequencerFailoverSystemConfig(t)
 	sys, err := cfg.Start(t)
 	require.NoError(t, err)
-
-	// 1 batcher that listens to all 3 sequencers, in started mode.
-	setupBatcher(t, sys)
 
 	// 3 conductors that connects to 1 sequencer each.
 	conductors := make(map[string]*conductor)
@@ -80,6 +82,9 @@ func setupSequencerFailoverTest(t *testing.T) (*System, map[string]*conductor) {
 		engineRPC := sys.EthInstances[cfg.name].HTTPEndpoint()
 		conductors[cfg.name] = setupConductor(t, cfg.name, t.TempDir(), nodePRC, engineRPC, cfg.bootstrap, *sys.RollupConfig)
 	}
+
+	// 1 batcher that listens to all 3 sequencers, in started mode.
+	setupBatcher(t, sys, conductors)
 
 	// form a cluster
 	c1 := conductors[sequencer1Name]
@@ -128,20 +133,21 @@ func setupSequencerFailoverTest(t *testing.T) (*System, map[string]*conductor) {
 
 func setupConductor(
 	t *testing.T,
-	serverID, dir, nodePRC, engineRPC string,
+	serverID, dir, nodeRPC, engineRPC string,
 	bootstrap bool,
 	rollupCfg rollup.Config,
 ) *conductor {
 	// it's unfortunate that it is not possible to pass 0 as consensus port and get back the actual assigned port from raft implementation.
 	// So we find an available port and pass it in to avoid test flakiness (avoid port already in use error).
 	consensusPort := findAvailablePort(t)
+	rpcPort := findAvailablePort(t)
 	cfg := con.Config{
 		ConsensusAddr:  localhost,
 		ConsensusPort:  consensusPort,
 		RaftServerID:   serverID,
 		RaftStorageDir: dir,
 		RaftBootstrap:  bootstrap,
-		NodeRPC:        nodePRC,
+		NodeRPC:        nodeRPC,
 		ExecutionRPC:   engineRPC,
 		Paused:         true,
 		HealthCheck: con.HealthCheckConfig{
@@ -149,14 +155,15 @@ func setupConductor(
 			SafeInterval: 4, // per test setup (l1 block time = 2s, max channel duration = 1, 2s buffer)
 			MinPeerCount: 2, // per test setup, each sequencer has 2 peers
 		},
-		RollupCfg: rollupCfg,
+		RollupCfg:      rollupCfg,
+		RPCEnableProxy: true,
 		LogConfig: oplog.CLIConfig{
 			Level: log.LvlInfo,
 			Color: false,
 		},
 		RPC: oprpc.CLIConfig{
 			ListenAddr: localhost,
-			ListenPort: 0,
+			ListenPort: rpcPort,
 		},
 	}
 
@@ -174,10 +181,11 @@ func setupConductor(
 		service:       service,
 		client:        client,
 		consensusPort: consensusPort,
+		rpcPort:       rpcPort,
 	}
 }
 
-func setupBatcher(t *testing.T, sys *System) {
+func setupBatcher(t *testing.T, sys *System, conductors map[string]*conductor) {
 	var batchType uint = derive.SingularBatchType
 	if sys.Cfg.DeployConfig.L2GenesisDeltaTimeOffset != nil && *sys.Cfg.DeployConfig.L2GenesisDeltaTimeOffset == hexutil.Uint64(0) {
 		batchType = derive.SpanBatchType
@@ -189,14 +197,14 @@ func setupBatcher(t *testing.T, sys *System) {
 
 	// enable active sequencer follow mode.
 	l2EthRpc := strings.Join([]string{
-		sys.EthInstances[sequencer1Name].WSEndpoint(),
-		sys.EthInstances[sequencer2Name].WSEndpoint(),
-		sys.EthInstances[sequencer3Name].WSEndpoint(),
+		conductors[sequencer1Name].RPCEndpoint(),
+		conductors[sequencer2Name].RPCEndpoint(),
+		conductors[sequencer3Name].RPCEndpoint(),
 	}, ",")
 	rollupRpc := strings.Join([]string{
-		sys.RollupNodes[sequencer1Name].HTTPEndpoint(),
-		sys.RollupNodes[sequencer2Name].HTTPEndpoint(),
-		sys.RollupNodes[sequencer3Name].HTTPEndpoint(),
+		conductors[sequencer1Name].RPCEndpoint(),
+		conductors[sequencer2Name].RPCEndpoint(),
+		conductors[sequencer3Name].RPCEndpoint(),
 	}, ",")
 	batcherCLIConfig := &bss.CLIConfig{
 		L1EthRpc:               sys.EthInstances["l1"].WSEndpoint(),
@@ -217,9 +225,10 @@ func setupBatcher(t *testing.T, sys *System) {
 			Level:  log.LvlInfo,
 			Format: oplog.FormatText,
 		},
-		Stopped:              false,
-		BatchType:            batchType,
-		DataAvailabilityType: batcherFlags.CalldataType,
+		Stopped:                      false,
+		BatchType:                    batchType,
+		DataAvailabilityType:         batcherFlags.CalldataType,
+		ActiveSequencerCheckDuration: 0,
 	}
 
 	batcher, err := bss.BatcherServiceFromCLIConfig(context.Background(), "0.0.1", batcherCLIConfig, sys.Cfg.Loggers["batcher"])

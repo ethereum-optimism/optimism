@@ -93,6 +93,12 @@ var (
 		}(),
 		EnvVars: prefixEnvVars("DATA_AVAILABILITY_TYPE"),
 	}
+	ActiveSequencerCheckDurationFlag = &cli.DurationFlag{
+		Name:    "active-sequencer-check-duration",
+		Usage:   "The duration between checks to determine the active sequencer endpoint. ",
+		Value:   2 * time.Minute,
+		EnvVars: prefixEnvVars("ACTIVE_SEQUENCER_CHECK_DURATION"),
+	}
 	// Legacy Flags
 	SequencerHDPathFlag = txmgr.SequencerHDPathFlag
 )
@@ -113,6 +119,7 @@ var optionalFlags = []cli.Flag{
 	SequencerHDPathFlag,
 	BatchTypeFlag,
 	DataAvailabilityTypeFlag,
+	ActiveSequencerCheckDurationFlag,
 }
 
 func init() {
