@@ -47,5 +47,7 @@
   "faultGameMaxDuration": 86400,
   "faultGameGenesisBlock": 0,
   "faultGameGenesisOutputRoot": "0x6a2fb9128c8bc82eed49ee590fba3e975bd67fede20535d0d20b3000ea6d99b1",
-  "faultGameSplitDepth": 32
+  "faultGameSplitDepth": 32,
+  "preimageOracleMinProposalSize": 1800000,
+  "preimageOracleChallengePeriod": 86400
 }
