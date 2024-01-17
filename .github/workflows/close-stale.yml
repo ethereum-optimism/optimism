@@ -11,7 +11,7 @@ jobs:
         with:
           stale-pr-message: 'This PR is stale because it has been open 14 days with no activity. Remove stale label or comment or this will be closed in 5 days.'
           stale-issue-label: 'S-stale'
-          exempt-pr-labels: exempt-stale
+          exempt-pr-labels: 'S-exempt-stale'
           days-before-issue-stale: 999
           days-before-pr-stale: 14
           days-before-close: 5
