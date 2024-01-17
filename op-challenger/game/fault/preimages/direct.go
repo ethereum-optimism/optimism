@@ -14,10 +14,6 @@ var _ PreimageUploader = (*DirectPreimageUploader)(nil)
 
 var ErrNilPreimageData = fmt.Errorf("cannot upload nil preimage data")
 
-type PreimageOracleContract interface {
-	UpdateOracleTx(ctx context.Context, claimIdx uint64, data *types.PreimageOracleData) (txmgr.TxCandidate, error)
-}
-
 // DirectPreimageUploader uploads the provided [types.PreimageOracleData]
 // directly to the PreimageOracle contract in a single transaction.
 type DirectPreimageUploader struct {
