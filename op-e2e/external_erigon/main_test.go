@@ -26,7 +26,7 @@ func TestShim(t *testing.T) {
 	require.NoError(t, err)
 	workDir, err := filepath.Abs(filepath.Join("..", "..", "op-erigon"))
 	require.NoError(t, err)
-	cmd = exec.Command("go", "build", "-o", opErigonPath, "github.com/ledgerwatch/erigon/cmd/erigon")
+	cmd = exec.Command("go", "build", "-tags", "nosqlite,noboltdb,nosilkworm", "-o", opErigonPath, "github.com/ledgerwatch/erigon/cmd/erigon")
 	cmd.Dir = workDir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

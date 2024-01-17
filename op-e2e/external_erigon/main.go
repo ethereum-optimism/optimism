@@ -114,7 +114,9 @@ func execute(binPath string, config external.Config) (*erigonSession, error) {
 		binPath,
 		"--chain", "dev",
 		"--datadir", config.DataDir,
+		"--db.size.limit", "8TB",
 		"--ws",
+		"--ws.port", "0",
 		"--mine",
 		"--miner.gaslimit", strconv.FormatUint(config.GasCeil, 10),
 		"--http=true",
@@ -131,7 +133,7 @@ func execute(binPath string, config external.Config) (*erigonSession, error) {
 		"--authrpc.jwtsecret", config.JWTPath,
 		"--networkid", strconv.FormatUint(config.ChainID, 10),
 		"--torrent.port", "0", // There doesn't seem to be an obvious way to disable torrent listening
-		"--verbosity", strconv.FormatUint(config.Verbosity, 10),
+		"--log.console.verbosity", strconv.FormatUint(config.Verbosity, 10),
 	)
 	// The order of messages for engine vs vanilla http API is inconsistent.  A
 	// quick hack is to simply write to two gbytes buffers
@@ -147,9 +149,9 @@ func execute(binPath string, config external.Config) (*erigonSession, error) {
 	if err != nil {
 		return nil, fmt.Errorf("http endpoint never opened")
 	}
+	fmt.Fscanf(engineBuffer, "%d", &httpPort)
 	fmt.Printf("==================    op-erigon shim got http port %d  ==========================\n", httpPort)
 
-	fmt.Fscanf(engineBuffer, "%d", &httpPort)
 	gm.Eventually(sess.Err, time.Minute).Should(gbytes.Say("HTTP endpoint opened for Engine API\\s*url=127.0.0.1:"))
 	if err != nil {
 		return nil, fmt.Errorf("http engine endpoint never opened")
