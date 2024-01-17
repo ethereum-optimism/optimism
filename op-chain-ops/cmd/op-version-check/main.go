@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 
@@ -63,8 +64,6 @@ func entrypoint(ctx *cli.Context) error {
 	l1RPCURLs := ctx.StringSlice("l1-rpc-urls")
 	l2RPCURLs := ctx.StringSlice("l2-rpc-urls")
 
-	output := []ChainVersionCheck{}
-
 	var l2ChainIDs []uint64
 
 	// If no L2 RPC URLs are specified, we check all chains for the L1 RPC URL
@@ -74,39 +73,46 @@ func entrypoint(ctx *cli.Context) error {
 		for _, l2RPCURL := range l2RPCURLs {
 			client, err := ethclient.Dial(l2RPCURL)
 			if err != nil {
-				return err
+				return errors.New("cannot create L2 client")
 			}
 
 			l2ChainID, err := client.ChainID(ctx.Context)
 			if err != nil {
-				return err
+				return fmt.Errorf("cannot fetch L2 chain ID: %w", err)
 			}
 
 			l2ChainIDs = append(l2ChainIDs, l2ChainID.Uint64())
 		}
 	}
 
+	output := []ChainVersionCheck{}
+
 	for _, l2ChainID := range l2ChainIDs {
 		chainConfig := superchain.OPChains[l2ChainID]
+
+		if chainConfig.ChainID != l2ChainID {
+			return fmt.Errorf("mismatched chain IDs: %d != %d", chainConfig.ChainID, l2ChainID)
+		}
 
 		for _, l1RPCURL := range l1RPCURLs {
 			client, err := ethclient.Dial(l1RPCURL)
 			if err != nil {
-				return err
+				return errors.New("cannot create L1 client")
 			}
 
 			l1ChainID, err := client.ChainID(ctx.Context)
 			if err != nil {
-				return err
+				return fmt.Errorf("cannot fetch L1 chain ID: %w", err)
 			}
 
 			superchainName, err := upgrades.ToSuperchainName(l1ChainID.Uint64())
 			if err != nil {
-				return err
+				return fmt.Errorf("error getting superchain name: %w", err)
 			}
 
 			if superchainName != chainConfig.Superchain {
-				// L2 chain corresponds to a different superchain than L1's, skip L1
+				// L2 corresponds to a different superchain than L1, skip
+				log.Info("Ignoring L1/L2", "l1-chain-id", l1ChainID, "l2-chain-id", l2ChainID)
 				continue
 			}
 
