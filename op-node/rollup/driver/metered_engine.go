@@ -21,7 +21,7 @@ type EngineMetrics interface {
 
 // MeteredEngine wraps an EngineControl and adds metrics such as block building time diff and sealing time
 type MeteredEngine struct {
-	inner derive.ResettableEngineControl
+	inner derive.EngineControl
 
 	cfg     *rollup.Config
 	metrics EngineMetrics
@@ -30,10 +30,7 @@ type MeteredEngine struct {
 	buildingStartTime time.Time
 }
 
-// MeteredEngine implements derive.ResettableEngineControl
-var _ derive.ResettableEngineControl = (*MeteredEngine)(nil)
-
-func NewMeteredEngine(cfg *rollup.Config, inner derive.ResettableEngineControl, metrics EngineMetrics, log log.Logger) *MeteredEngine {
+func NewMeteredEngine(cfg *rollup.Config, inner derive.EngineControl, metrics EngineMetrics, log log.Logger) *MeteredEngine {
 	return &MeteredEngine{
 		inner:   inner,
 		cfg:     cfg,
@@ -92,8 +89,4 @@ func (m *MeteredEngine) CancelPayload(ctx context.Context, force bool) error {
 
 func (m *MeteredEngine) BuildingPayload() (onto eth.L2BlockRef, id eth.PayloadID, safe bool) {
 	return m.inner.BuildingPayload()
-}
-
-func (m *MeteredEngine) Reset() {
-	m.inner.Reset()
 }

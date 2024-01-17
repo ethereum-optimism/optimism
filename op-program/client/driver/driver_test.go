@@ -109,6 +109,7 @@ func createDriverWithNextBlock(t *testing.T, derivationResult error, nextBlockNu
 	return &Driver{
 		logger:         testlog.Logger(t, log.LvlDebug),
 		pipeline:       derivation,
+		engine:         derivation,
 		targetBlockNum: 1_000_000,
 	}
 }

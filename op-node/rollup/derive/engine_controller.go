@@ -32,7 +32,7 @@ type EngineController struct {
 
 	// Block Head State
 	unsafeHead      eth.L2BlockRef
-	pendingSafeHead eth.L2BlockRef
+	pendingSafeHead eth.L2BlockRef // L2 block processed from the middle of a span batch, but not marked as the safe block yet.
 	safeHead        eth.L2BlockRef
 	finalizedHead   eth.L2BlockRef
 	needFCUCall     bool
@@ -165,7 +165,6 @@ func (e *EngineController) ConfirmPayload(ctx context.Context) (out *eth.Executi
 	e.unsafeHead = ref
 
 	e.metrics.RecordL2Ref("l2_unsafe", ref)
-	e.metrics.RecordL2Ref("l2_engineSyncTarget", ref)
 	if e.buildingSafe {
 		e.metrics.RecordL2Ref("l2_pending_safe", ref)
 		e.pendingSafeHead = ref

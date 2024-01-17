@@ -248,12 +248,13 @@ func TestEngineQueue_Finalize(t *testing.T) {
 
 	prev := &fakeAttributesQueue{}
 
-	eq := NewEngineQueue(logger, cfg, eng, metrics, prev, l1F, &sync.Config{})
+	ec := NewEngineController(eng, logger, metrics, &rollup.Config{}, sync.CLSync)
+	eq := NewEngineQueue(logger, cfg, eng, ec, metrics, prev, l1F, &sync.Config{})
 	require.ErrorIs(t, eq.Reset(context.Background(), eth.L1BlockRef{}, eth.SystemConfig{}), io.EOF)
 
-	require.Equal(t, refB1, eq.SafeL2Head(), "L2 reset should go back to sequence window ago: blocks with origin E and D are not safe until we reconcile, C is extra, and B1 is the end we look for")
+	require.Equal(t, refB1, ec.SafeL2Head(), "L2 reset should go back to sequence window ago: blocks with origin E and D are not safe until we reconcile, C is extra, and B1 is the end we look for")
 	require.Equal(t, refB, eq.Origin(), "Expecting to be set back derivation L1 progress to B")
-	require.Equal(t, refA1, eq.Finalized(), "A1 is recognized as finalized before we run any steps")
+	require.Equal(t, refA1, ec.Finalized(), "A1 is recognized as finalized before we run any steps")
 
 	// now say C1 was included in D and became the new safe head
 	eq.origin = refD
@@ -270,7 +271,7 @@ func TestEngineQueue_Finalize(t *testing.T) {
 	// let's finalize D (current L1), from which we fully derived C1 (it was safe head), but not D0 (included in E)
 	eq.Finalize(refD)
 
-	require.Equal(t, refC1, eq.Finalized(), "C1 was included in finalized D, and should now be finalized")
+	require.Equal(t, refC1, ec.Finalized(), "C1 was included in finalized D, and should now be finalized")
 
 	l1F.AssertExpectations(t)
 	eng.AssertExpectations(t)
@@ -483,12 +484,13 @@ func TestEngineQueue_ResetWhenUnsafeOriginNotCanonical(t *testing.T) {
 
 	prev := &fakeAttributesQueue{origin: refE}
 
-	eq := NewEngineQueue(logger, cfg, eng, metrics, prev, l1F, &sync.Config{})
+	ec := NewEngineController(eng, logger, metrics, &rollup.Config{}, sync.CLSync)
+	eq := NewEngineQueue(logger, cfg, eng, ec, metrics, prev, l1F, &sync.Config{})
 	require.ErrorIs(t, eq.Reset(context.Background(), eth.L1BlockRef{}, eth.SystemConfig{}), io.EOF)
 
-	require.Equal(t, refB1, eq.SafeL2Head(), "L2 reset should go back to sequence window ago: blocks with origin E and D are not safe until we reconcile, C is extra, and B1 is the end we look for")
+	require.Equal(t, refB1, ec.SafeL2Head(), "L2 reset should go back to sequence window ago: blocks with origin E and D are not safe until we reconcile, C is extra, and B1 is the end we look for")
 	require.Equal(t, refB, eq.Origin(), "Expecting to be set back derivation L1 progress to B")
-	require.Equal(t, refA1, eq.Finalized(), "A1 is recognized as finalized before we run any steps")
+	require.Equal(t, refA1, ec.Finalized(), "A1 is recognized as finalized before we run any steps")
 
 	// First step after reset will do a fork choice update
 	eng.ExpectForkchoiceUpdate(&eth.ForkchoiceState{
@@ -508,7 +510,6 @@ func TestEngineQueue_ResetWhenUnsafeOriginNotCanonical(t *testing.T) {
 		ParentHash: refE.Hash,
 		Time:       refF.Time,
 	}
-	eq.UnsafeL2Head()
 	err = eq.Step(context.Background())
 	require.ErrorIs(t, err, ErrReset, "should reset pipeline due to mismatched origin")
 
@@ -813,12 +814,13 @@ func TestVerifyNewL1Origin(t *testing.T) {
 			}, nil)
 
 			prev := &fakeAttributesQueue{origin: refE}
-			eq := NewEngineQueue(logger, cfg, eng, metrics, prev, l1F, &sync.Config{})
+			ec := NewEngineController(eng, logger, metrics, &rollup.Config{}, sync.CLSync)
+			eq := NewEngineQueue(logger, cfg, eng, ec, metrics, prev, l1F, &sync.Config{})
 			require.ErrorIs(t, eq.Reset(context.Background(), eth.L1BlockRef{}, eth.SystemConfig{}), io.EOF)
 
-			require.Equal(t, refB1, eq.SafeL2Head(), "L2 reset should go back to sequence window ago: blocks with origin E and D are not safe until we reconcile, C is extra, and B1 is the end we look for")
+			require.Equal(t, refB1, ec.SafeL2Head(), "L2 reset should go back to sequence window ago: blocks with origin E and D are not safe until we reconcile, C is extra, and B1 is the end we look for")
 			require.Equal(t, refB, eq.Origin(), "Expecting to be set back derivation L1 progress to B")
-			require.Equal(t, refA1, eq.Finalized(), "A1 is recognized as finalized before we run any steps")
+			require.Equal(t, refA1, ec.Finalized(), "A1 is recognized as finalized before we run any steps")
 
 			// First step after reset will do a fork choice update
 			eng.ExpectForkchoiceUpdate(&eth.ForkchoiceState{
@@ -833,7 +835,6 @@ func TestVerifyNewL1Origin(t *testing.T) {
 
 			// L1 chain reorgs so new origin is at same slot as refF but on a different fork
 			prev.origin = test.newOrigin
-			eq.UnsafeL2Head()
 			err = eq.Step(context.Background())
 			if test.expectReset {
 				require.ErrorIs(t, err, ErrReset, "should reset pipeline due to mismatched origin")
@@ -910,7 +911,8 @@ func TestBlockBuildingRace(t *testing.T) {
 	}
 
 	prev := &fakeAttributesQueue{origin: refA, attrs: attrs, islastInSpan: true}
-	eq := NewEngineQueue(logger, cfg, eng, metrics, prev, l1F, &sync.Config{})
+	ec := NewEngineController(eng, logger, metrics, &rollup.Config{}, sync.CLSync)
+	eq := NewEngineQueue(logger, cfg, eng, ec, metrics, prev, l1F, &sync.Config{})
 	require.ErrorIs(t, eq.Reset(context.Background(), eth.L1BlockRef{}, eth.SystemConfig{}), io.EOF)
 
 	id := eth.PayloadID{0xff}
@@ -1001,7 +1003,7 @@ func TestBlockBuildingRace(t *testing.T) {
 	// Now complete the job, as external user of the engine
 	_, _, err = eq.ConfirmPayload(context.Background())
 	require.NoError(t, err)
-	require.Equal(t, refA1, eq.SafeL2Head(), "safe head should have changed")
+	require.Equal(t, refA1, ec.SafeL2Head(), "safe head should have changed")
 
 	require.NoError(t, eq.Step(context.Background()))
 	require.Nil(t, eq.safeAttributes, "attributes should now be invalidated")
@@ -1080,7 +1082,8 @@ func TestResetLoop(t *testing.T) {
 
 	prev := &fakeAttributesQueue{origin: refA, attrs: attrs, islastInSpan: true}
 
-	eq := NewEngineQueue(logger, cfg, eng, metrics.NoopMetrics, prev, l1F, &sync.Config{})
+	ec := NewEngineController(eng, logger, metrics.NoopMetrics, &rollup.Config{}, sync.CLSync)
+	eq := NewEngineQueue(logger, cfg, eng, ec, metrics.NoopMetrics, prev, l1F, &sync.Config{})
 	eq.ec.SetUnsafeHead(refA2)
 	eq.ec.SetSafeHead(refA1)
 	eq.ec.SetFinalizedHead(refA0)
@@ -1185,7 +1188,8 @@ func TestEngineQueue_StepPopOlderUnsafe(t *testing.T) {
 
 	prev := &fakeAttributesQueue{origin: refA}
 
-	eq := NewEngineQueue(logger, cfg, eng, metrics.NoopMetrics, prev, l1F, &sync.Config{})
+	ec := NewEngineController(eng, logger, metrics.NoopMetrics, &rollup.Config{}, sync.CLSync)
+	eq := NewEngineQueue(logger, cfg, eng, ec, metrics.NoopMetrics, prev, l1F, &sync.Config{})
 	eq.ec.SetUnsafeHead(refA2)
 	eq.ec.SetSafeHead(refA0)
 	eq.ec.SetFinalizedHead(refA0)

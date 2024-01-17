@@ -56,15 +56,11 @@ type DerivationPipeline interface {
 	Reset()
 	Step(ctx context.Context) error
 	AddUnsafePayload(payload *eth.ExecutionPayload)
-	UnsafeL2SyncTarget() eth.L2BlockRef
 	Finalize(ref eth.L1BlockRef)
 	FinalizedL1() eth.L1BlockRef
-	Finalized() eth.L2BlockRef
-	SafeL2Head() eth.L2BlockRef
-	UnsafeL2Head() eth.L2BlockRef
-	PendingSafeL2Head() eth.L2BlockRef
 	Origin() eth.L1BlockRef
 	EngineReady() bool
+	LowestQueuedUnsafeBlock() eth.L2BlockRef
 }
 
 type L1StateIface interface {
@@ -122,15 +118,16 @@ func NewDriver(driverCfg *Config, cfg *rollup.Config, l2 L2Chain, l1 L1Chain, l1
 	sequencerConfDepth := NewConfDepth(driverCfg.SequencerConfDepth, l1State.L1Head, l1)
 	findL1Origin := NewL1OriginSelector(log, cfg, sequencerConfDepth)
 	verifConfDepth := NewConfDepth(driverCfg.VerifierConfDepth, l1State.L1Head, l1)
-	derivationPipeline := derive.NewDerivationPipeline(log, cfg, verifConfDepth, l1Blobs, l2, metrics, syncCfg)
+	engine := derive.NewEngineController(l2, log, metrics, cfg, syncCfg.SyncMode)
+	derivationPipeline := derive.NewDerivationPipeline(log, cfg, verifConfDepth, l1Blobs, l2, engine, metrics, syncCfg)
 	attrBuilder := derive.NewFetchingAttributesBuilder(cfg, l1, l2)
-	engine := derivationPipeline
-	meteredEngine := NewMeteredEngine(cfg, engine, metrics, log)
+	meteredEngine := NewMeteredEngine(cfg, engine, metrics, log) // Only use the metered engine in the sequencer b/c it records sequencing metrics.
 	sequencer := NewSequencer(log, cfg, meteredEngine, attrBuilder, findL1Origin, metrics)
 	driverCtx, driverCancel := context.WithCancel(context.Background())
 	return &Driver{
 		l1State:          l1State,
 		derivation:       derivationPipeline,
+		engineController: engine,
 		stateReq:         make(chan chan struct{}),
 		forceReset:       make(chan chan struct{}, 10),
 		startSequencer:   make(chan hashAndErrorChannel, 10),
