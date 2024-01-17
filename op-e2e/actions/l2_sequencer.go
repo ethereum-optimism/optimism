@@ -49,7 +49,7 @@ func NewL2Sequencer(t Testing, log log.Logger, l1 derive.L1Fetcher, eng L2API, c
 	}
 	return &L2Sequencer{
 		L2Verifier:              *ver,
-		sequencer:               driver.NewSequencer(log, cfg, ver.derivation, attrBuilder, l1OriginSelector, metrics.NoopMetrics),
+		sequencer:               driver.NewSequencer(log, cfg, ver.engine, attrBuilder, l1OriginSelector, metrics.NoopMetrics),
 		mockL1OriginSelector:    l1OriginSelector,
 		failL2GossipUnsafeBlock: nil,
 	}
@@ -104,7 +104,7 @@ func (s *L2Sequencer) ActL2EndBlock(t Testing) {
 
 // ActL2KeepL1Origin makes the sequencer use the current L1 origin, even if the next origin is available.
 func (s *L2Sequencer) ActL2KeepL1Origin(t Testing) {
-	parent := s.derivation.UnsafeL2Head()
+	parent := s.engine.UnsafeL2Head()
 	// force old origin, for testing purposes
 	oldOrigin, err := s.l1.L1BlockRefByHash(t.Ctx(), parent.L1Origin.Hash)
 	require.NoError(t, err, "failed to get current origin: %s", parent.L1Origin)
@@ -113,7 +113,7 @@ func (s *L2Sequencer) ActL2KeepL1Origin(t Testing) {
 
 // ActBuildToL1Head builds empty blocks until (incl.) the L1 head becomes the L2 origin
 func (s *L2Sequencer) ActBuildToL1Head(t Testing) {
-	for s.derivation.UnsafeL2Head().L1Origin.Number < s.l1State.L1Head().Number {
+	for s.engine.UnsafeL2Head().L1Origin.Number < s.l1State.L1Head().Number {
 		s.ActL2PipelineFull(t)
 		s.ActL2StartBlock(t)
 		s.ActL2EndBlock(t)
@@ -122,7 +122,7 @@ func (s *L2Sequencer) ActBuildToL1Head(t Testing) {
 
 // ActBuildToL1HeadUnsafe builds empty blocks until (incl.) the L1 head becomes the L1 origin of the L2 head
 func (s *L2Sequencer) ActBuildToL1HeadUnsafe(t Testing) {
-	for s.derivation.UnsafeL2Head().L1Origin.Number < s.l1State.L1Head().Number {
+	for s.engine.UnsafeL2Head().L1Origin.Number < s.l1State.L1Head().Number {
 		// Note: the derivation pipeline does not run, we are just sequencing a block on top of the existing L2 chain.
 		s.ActL2StartBlock(t)
 		s.ActL2EndBlock(t)
@@ -133,7 +133,7 @@ func (s *L2Sequencer) ActBuildToL1HeadUnsafe(t Testing) {
 func (s *L2Sequencer) ActBuildToL1HeadExcl(t Testing) {
 	for {
 		s.ActL2PipelineFull(t)
-		nextOrigin, err := s.mockL1OriginSelector.FindL1Origin(t.Ctx(), s.derivation.UnsafeL2Head())
+		nextOrigin, err := s.mockL1OriginSelector.FindL1Origin(t.Ctx(), s.engine.UnsafeL2Head())
 		require.NoError(t, err)
 		if nextOrigin.Number >= s.l1State.L1Head().Number {
 			break
@@ -147,7 +147,7 @@ func (s *L2Sequencer) ActBuildToL1HeadExcl(t Testing) {
 func (s *L2Sequencer) ActBuildToL1HeadExclUnsafe(t Testing) {
 	for {
 		// Note: the derivation pipeline does not run, we are just sequencing a block on top of the existing L2 chain.
-		nextOrigin, err := s.mockL1OriginSelector.FindL1Origin(t.Ctx(), s.derivation.UnsafeL2Head())
+		nextOrigin, err := s.mockL1OriginSelector.FindL1Origin(t.Ctx(), s.engine.UnsafeL2Head())
 		require.NoError(t, err)
 		if nextOrigin.Number >= s.l1State.L1Head().Number {
 			break
