@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 import { ISemver } from "src/universal/ISemver.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { L1Block } from "src/L2/L1Block.sol";
+import { Compression } from "src/libraries/Compression.sol";
 
 /// @custom:proxied
 /// @custom:predeploy 0x420000000000000000000000000000000000000F
@@ -30,6 +31,9 @@ contract GasPriceOracle is ISemver {
     /// @notice Indicates whether the network has gone through the Ecotone upgrade.
     bool public isEcotone;
 
+    /// @notice Indicates whether the network has gone through the Fjord upgrade.
+    bool public isFjord;
+
     /// @notice Computes the L1 portion of the fee based on the size of the rlp encoded input
     ///         transaction, the current L1 base fee, and the various dynamic parameters.
     /// @param _data Unsigned fully RLP-encoded transaction to get the L1 fee for.
@@ -49,6 +53,16 @@ contract GasPriceOracle is ISemver {
         );
         require(isEcotone == false, "GasPriceOracle: Ecotone already active");
         isEcotone = true;
+    }
+
+    /// @notice Set chain to be Fjord chain (callable by depositor account)
+    function setFjord() external {
+        require(
+            msg.sender == L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).DEPOSITOR_ACCOUNT(),
+            "GasPriceOracle: only the depositor account can set isFjord flag"
+        );
+        require(isFjord == false, "GasPriceOracle: Fjord already active");
+        isFjord = true;
     }
 
     /// @notice Retrieves the current gas price (base fee).
@@ -146,14 +160,18 @@ contract GasPriceOracle is ISemver {
     /// @notice L1 gas estimation calculation.
     /// @param _data Unsigned fully RLP-encoded transaction to get the L1 gas for.
     /// @return Amount of L1 gas used to publish the transaction.
-    function _getCalldataGas(bytes memory _data) internal pure returns (uint256) {
+    function _getCalldataGas(bytes memory _data) internal view returns (uint256) {
         uint256 total = 0;
-        uint256 length = _data.length;
-        for (uint256 i = 0; i < length; i++) {
-            if (_data[i] == 0) {
-                total += 4;
-            } else {
-                total += 16;
+        if (isFjord) {
+            total = Compression.flzCompressLen(_data) * 16;
+        } else {
+            uint256 length = _data.length;
+            for (uint256 i = 0; i < length; i++) {
+                if (_data[i] == 0) {
+                    total += 4;
+                } else {
+                    total += 16;
+                }
             }
         }
         return total + (68 * 16);

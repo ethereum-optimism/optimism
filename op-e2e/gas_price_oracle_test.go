@@ -24,6 +24,9 @@ func TestGasPriceOracle(t *testing.T) {
 		predeploys.GasPriceOracleAddr: {
 			Code:    common.FromHex(bindings.GasPriceOracleDeployedBin),
 			Balance: big.NewInt(0),
+			Storage: map[common.Hash]common.Hash{
+				common.HexToHash("0x0"): common.HexToHash("0x0101"), // isEcotone = true, isFjord = true
+			},
 		},
 		predeploys.L1BlockAddr: {
 			Code:    common.FromHex(bindings.L1BlockDeployedBin),
