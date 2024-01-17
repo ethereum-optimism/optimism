@@ -151,12 +151,12 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 func CheckEcotoneL1SystemConfigScalar(scalar [32]byte) error {
 	versionByte := scalar[0]
 	switch versionByte {
-	case 0:
+	case L1ScalarOriginal:
 		if ([27]byte)(scalar[1:28]) != ([27]byte{}) { // check padding
 			return fmt.Errorf("invalid version 0 scalar padding: %x", scalar[1:28])
 		}
 		return nil
-	case 1:
+	case L1ScalarEcotone:
 		if ([23]byte)(scalar[1:24]) != ([23]byte{}) { // check padding
 			return fmt.Errorf("invalid version 1 scalar padding: %x", scalar[1:24])
 		}

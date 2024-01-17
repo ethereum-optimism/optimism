@@ -25,6 +25,15 @@ const (
 	L1InfoEcotoneLen           = 4 + 32*5 // after Ecotone upgrade, args are packed into 5 32-byte slots
 )
 
+// The Ecotone upgrade introduces a versioned L1 scalar format
+// that is backward-compatible with pre-Ecotone L1 scalar values.
+const (
+	// L1ScalarOriginal is implied pre-Ecotone, encoding just a regular-gas scalar.
+	L1ScalarOriginal = byte(0)
+	// L1ScalarEcotone is new in Ecotone, allowing configuration of both a regular and a blobs scalar.
+	L1ScalarEcotone = byte(1)
+)
+
 var (
 	L1InfoFuncBedrockBytes4 = crypto.Keccak256([]byte(L1InfoFuncBedrockSignature))[:4]
 	L1InfoFuncEcotoneBytes4 = crypto.Keccak256([]byte(L1InfoFuncEcotoneSignature))[:4]
@@ -278,10 +287,10 @@ func L1InfoDeposit(rollupCfg *rollup.Config, sysCfg eth.SystemConfig, seqNumber 
 			l1BlockInfo.BlobBaseFee = big.NewInt(1)
 		}
 		switch sysCfg.Scalar[0] {
-		case 0:
+		case L1ScalarOriginal:
 			l1BlockInfo.BlobBaseFeeScalar = 0
 			l1BlockInfo.BaseFeeScalar = binary.BigEndian.Uint32(sysCfg.Scalar[28:32])
-		case 1:
+		case L1ScalarEcotone:
 			l1BlockInfo.BlobBaseFeeScalar = binary.BigEndian.Uint32(sysCfg.Scalar[24:28])
 			l1BlockInfo.BaseFeeScalar = binary.BigEndian.Uint32(sysCfg.Scalar[28:32])
 		default:
