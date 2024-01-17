@@ -182,7 +182,11 @@ func (info *L1BlockInfo) marshalBinaryEcotone() ([]byte, error) {
 	if err := solabi.WriteUint256(w, info.BaseFee); err != nil {
 		return nil, err
 	}
-	if err := solabi.WriteUint256(w, info.BlobBaseFee); err != nil {
+	blobBasefee := info.BlobBaseFee
+	if blobBasefee == nil {
+		blobBasefee = big.NewInt(1) // set to 1, to match the min blob basefee as defined in EIP-4844
+	}
+	if err := solabi.WriteUint256(w, blobBasefee); err != nil {
 		return nil, err
 	}
 	if err := solabi.WriteHash(w, info.BlockHash); err != nil {

@@ -1067,13 +1067,44 @@ func (sga *stateGetterAdapter) GetState(addr common.Address, key common.Hash) co
 }
 
 // TestFees checks that L1/L2 fees are handled.
-func TestFees(t *testing.T) {
+func TestL1Fees(t *testing.T) {
 	InitParallel(t)
 
-	cfg := DefaultSystemConfig(t)
-	// This test only works with these config values modified
-	cfg.DeployConfig.L2GenesisRegolithTimeOffset = nil
-	cfg.DeployConfig.L1GenesisBlockBaseFeePerGas = (*hexutil.Big)(big.NewInt(7))
+	t.Run("pre-regolith", func(t *testing.T) {
+		cfg := DefaultSystemConfig(t)
+		cfg.DeployConfig.L1GenesisBlockBaseFeePerGas = (*hexutil.Big)(big.NewInt(7))
+
+		cfg.DeployConfig.L2GenesisRegolithTimeOffset = nil
+		cfg.DeployConfig.L2GenesisCanyonTimeOffset = nil
+		cfg.DeployConfig.L2GenesisDeltaTimeOffset = nil
+		cfg.DeployConfig.L2GenesisEcotoneTimeOffset = nil
+		testL1Fees(t, cfg)
+	})
+	t.Run("regolith", func(t *testing.T) {
+		t.Skip("getL1GasUsed in GPO does not support Regolith, it returns the Bedrock L1 cost, incl 68*16 gas overhead")
+		cfg := DefaultSystemConfig(t)
+		cfg.DeployConfig.L1GenesisBlockBaseFeePerGas = (*hexutil.Big)(big.NewInt(7))
+
+		cfg.DeployConfig.L2GenesisRegolithTimeOffset = new(hexutil.Uint64)
+		cfg.DeployConfig.L2GenesisCanyonTimeOffset = nil
+		cfg.DeployConfig.L2GenesisDeltaTimeOffset = nil
+		cfg.DeployConfig.L2GenesisEcotoneTimeOffset = nil
+		testL1Fees(t, cfg)
+	})
+	t.Run("ecotone", func(t *testing.T) {
+		t.Skip("when activating Ecotone at Genesis we do not yet call setEcotone() on GPO")
+		cfg := DefaultSystemConfig(t)
+		cfg.DeployConfig.L1GenesisBlockBaseFeePerGas = (*hexutil.Big)(big.NewInt(7))
+
+		cfg.DeployConfig.L2GenesisRegolithTimeOffset = new(hexutil.Uint64)
+		cfg.DeployConfig.L2GenesisCanyonTimeOffset = new(hexutil.Uint64)
+		cfg.DeployConfig.L2GenesisDeltaTimeOffset = new(hexutil.Uint64)
+		cfg.DeployConfig.L2GenesisEcotoneTimeOffset = new(hexutil.Uint64)
+		testL1Fees(t, cfg)
+	})
+}
+
+func testL1Fees(t *testing.T, cfg SystemConfig) {
 
 	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
@@ -1083,13 +1114,7 @@ func TestFees(t *testing.T) {
 	l2Verif := sys.Clients["verifier"]
 	l1 := sys.Clients["l1"]
 
-	config := &params.ChainConfig{
-		Optimism: &params.OptimismConfig{
-			EIP1559Elasticity:  cfg.DeployConfig.EIP1559Elasticity,
-			EIP1559Denominator: cfg.DeployConfig.EIP1559Denominator,
-		},
-		BedrockBlock: big.NewInt(0),
-	}
+	config := sys.L2Genesis().Config
 
 	sga := &stateGetterAdapter{
 		ctx:    context.Background(),
