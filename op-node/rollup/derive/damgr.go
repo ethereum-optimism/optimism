@@ -193,7 +193,7 @@ func (d *DAManager) getDA() {
 }
 
 func verifySignature(index, length, price uint64, broadcaster, user common.Address, commitment, sign []byte) bool {
-	signer := kzg_sdk.NewEIP155FdSigner(big.NewInt(5))
+	signer := kzg_sdk.NewEIP155FdSigner(big.NewInt(1988))
 	addr, err := kzg_sdk.FdGetSender(signer, sign, user, broadcaster, price, index, length, commitment)
 	if err != nil {
 		log.Error("verifySignature", "err", err)
