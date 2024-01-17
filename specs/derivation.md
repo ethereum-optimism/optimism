@@ -11,6 +11,7 @@
 [g-deposit-contract]: glossary.md#deposit-contract
 [g-deposited]: glossary.md#deposited-transaction
 [g-l1-attr-deposit]: glossary.md#l1-attributes-deposited-transaction
+[g-l1-origin]: glossary.md#l1-origin
 [g-user-deposited]: glossary.md#user-deposited-transaction
 [g-deposits]: glossary.md#deposits
 [g-deposit-contract]: glossary.md#deposit-contract
@@ -113,7 +114,7 @@ check on sequencing, and enables detecting L1 chain [re-organizations][g-reorg])
 The L2 chain is derived from the L1 chain. In particular, each L1 block following [L2 chain
 inception][g-l2-chain-inception] is mapped to a [sequencing epoch][g-sequencing-epoch] comprising
 at least one L2 block. Each L2 block belongs to exactly one epoch, and we call the corresponding L1
-block its [L1 origin][l1-origin]. The epoch's number equals that of its L1 origin block.
+block its [L1 origin][g-l1-origin]. The epoch's number equals that of its L1 origin block.
 
 To derive the L2 blocks of epoch number `E`, we need the following inputs:
 
@@ -132,7 +133,7 @@ To derive the L2 blocks of epoch number `E`, we need the following inputs:
   if `E` is the first epoch.
 
 To derive the whole L2 chain from scratch, we start with the [L2 genesis state][g-l2-genesis] and
-the [L2 genesis block] as the first L2 block. We then derive L2 blocks from each epoch in order,
+the [L2 genesis block][g-l2-genesis-block] as the first L2 block. We then derive L2 blocks from each epoch in order,
 starting at the first L1 block following [L2 chain inception][g-l2-chain-inception]. Refer to the
 [Architecture section][architecture] for more information on how we implement this in practice.
 The L2 chain may contain pre-Bedrock history, but the L2 genesis here refers to the Bedrock L2
@@ -510,7 +511,7 @@ transaction is a blob transaction, then its calldata MUST be ignored should it b
     recommended.  For each retrieved blob:
   - The blob SHOULD (MUST, if the source is untrusted) be cryptographically verified against its
     versioned hash.
-  - If the blob has a [valid encoding][#blob-encoding], decode it into its continuous byte-string
+  - If the blob has a [valid encoding](#blob-encoding), decode it into its continuous byte-string
     and pass that on to the next phase. Otherwise the blob is ignored.
 
 Note that batcher transactions of type blob must be processed in the same loop as other batcher
