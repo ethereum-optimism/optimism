@@ -121,4 +121,36 @@ library Hashing {
             )
         );
     }
+    function getDataHash(address _user,address _submiter,uint256 _gasPrice,uint256 _index,uint256 _length,bytes memory _commit) internal view returns (bytes32) {
+        uint256 _chainId;
+        assembly {
+            _chainId := chainid()
+        }
+        bytes memory data = abi.encodePacked(
+            _chainId,
+            _user,
+            _submiter,
+            _gasPrice,
+            _index,
+            _length,
+            _commit
+        );
+        return keccak256(data);
+    }
+
+    function verifySignature(bytes32 _dataHash, bytes memory signature,address _sender) internal pure returns (bool) {
+        require(signature.length == 65, "Invalid signature length");
+        uint8 v;
+        bytes32 r;
+        bytes32 s;
+        assembly {
+            r := mload(add(signature, 32))
+            s := mload(add(signature, 64))
+            v := byte(0, mload(add(signature, 96)))
+        }
+
+        address signer = ecrecover(_dataHash, v, r, s);
+        require(signer != address(0),"address is not avaible");
+        return signer == _sender;
+    }
 }

@@ -104,7 +104,7 @@ contract Deploy is Deployer {
     ///         Using this helps to reduce config across networks as the implementation
     ///         addresses will be the same across networks when deployed with create2.
     function implSalt() internal returns (bytes32) {
-        return keccak256(bytes(vm.envOr("IMPL_SALT", string("domicon 00"))));
+        return keccak256(bytes(vm.envOr("IMPL_SALT", string("domicon011"))));
     }
 
     /// @notice Modifier that wraps a function in broadcasting.
@@ -752,6 +752,7 @@ contract Deploy is Deployer {
         address l1DomiconCommitmentProxy = mustGetAddress("L1DomiconCommitmentProxy");
         address l1DomiconCommitment = mustGetAddress("L1DomiconCommitment");
         address l1CrossDomainMessengerProxy = mustGetAddress("L1CrossDomainMessengerProxy");
+        address l1DomiconNodeProxy = mustGetAddress("L1DomiconNodeProxy");
 
         uint256 proxyType = uint256(proxyAdmin.proxyType(l1DomiconCommitmentProxy));
         if (proxyType != uint256(ProxyAdmin.ProxyType.CHUGSPLASH)) {
@@ -766,7 +767,7 @@ contract Deploy is Deployer {
             _proxy: payable(l1DomiconCommitmentProxy),
             _implementation: l1DomiconCommitment,
             _innerCallData: abi.encodeCall(
-                L1DomiconCommitment.initialize, (L1CrossDomainMessenger(l1CrossDomainMessengerProxy))
+                L1DomiconCommitment.initialize, (L1CrossDomainMessenger(l1CrossDomainMessengerProxy),L1DomiconNode(l1DomiconNodeProxy))
             )
         });
 

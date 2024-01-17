@@ -7,7 +7,7 @@ import { ISemver } from "src/universal/ISemver.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 import { DomiconNode } from "src/universal/DomiconNode.sol";
 import { Constants } from "src/libraries/Constants.sol";
-//import { Hashing } from "src/libraries/Hashing.sol";
+import { Hashing } from "src/libraries/Hashing.sol";
 
 /// @custom:proxied
 /// @title L1StandardBridge
@@ -40,9 +40,9 @@ contract L1DomiconCommitment is DomiconCommitment, ISemver {
 //        require(indices[_user]==_index,"L1DomiconCommitment:index Error");
 
 
-//        bytes32 hash = Hashing.getDataHash(_user,msg.sender,_price,_index,_length,_commitment);
-//        bool isTrue = Hashing.verifySignature(hash,_sign,_user);
-//        require(isTrue,"L1DomiconCommitment:Signature Error");
+        bytes32 hash = Hashing.getDataHash(_user,msg.sender,_price,_index,_length,_commitment);
+        bool isTrue = Hashing.verifySignature(hash,_sign,_user);
+        require(isTrue,"L1DomiconCommitment:Signature Error");
 
         submits[_user][_index]=DAInfo({index:_index,length:_length,price:_price,user:_user,broadcaster:msg.sender,sign:_sign,commitment:_commitment});
         indices[_user]++;
