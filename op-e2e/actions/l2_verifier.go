@@ -57,9 +57,17 @@ type L2API interface {
 	OutputV0AtBlock(ctx context.Context, blockHash common.Hash) (*eth.OutputV0, error)
 }
 
+type EmptyBlobsSource struct {
+}
+
+func (b *EmptyBlobsSource) GetBlobs(ctx context.Context, ref eth.L1BlockRef, hashes []eth.IndexedBlobHash) ([]*eth.Blob, error) {
+	return nil, nil
+}
+
 func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher, eng L2API, cfg *rollup.Config, syncCfg *sync.Config) *L2Verifier {
 	metrics := &testutils.TestDerivationMetrics{}
-	pipeline := derive.NewDerivationPipeline(log, cfg, l1, nil, eng, metrics, syncCfg)
+	blobsSrc := &EmptyBlobsSource{}
+	pipeline := derive.NewDerivationPipeline(log, cfg, l1, blobsSrc, eng, metrics, syncCfg)
 	pipeline.Reset()
 
 	rollupNode := &L2Verifier{
