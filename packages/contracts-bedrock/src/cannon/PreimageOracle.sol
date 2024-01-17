@@ -189,6 +189,10 @@ contract PreimageOracle is IPreimageOracle {
 
     /// @notice Initialize a large preimage proposal. Must be called before adding any leaves.
     function initLPP(uint256 _uuid, uint32 _partOffset, uint32 _claimedSize) external {
+        // The caller of `addLeavesLPP` must be an EOA.
+        if (msg.sender != tx.origin) revert NotEOA();
+
+        // The part offset must be within the bounds of the claimed size + 8.
         if (_partOffset >= _claimedSize + 8) revert PartOffsetOOB();
 
         LPPMetaData metaData = proposalMetadata[msg.sender][_uuid];
@@ -211,6 +215,9 @@ contract PreimageOracle is IPreimageOracle {
     )
         external
     {
+        // The caller of `addLeavesLPP` must be an EOA.
+        if (msg.sender != tx.origin) revert NotEOA();
+
         // If we're finalizing, pad the input for the submitter. If not, copy the input into memory verbatim.
         bytes memory input;
         if (_finalize) {

@@ -702,6 +702,11 @@
   },
   {
     "inputs": [],
+    "name": "NotEOA",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "NotInitialized",
     "type": "error"
   },
