@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/mattn/go-isatty"
 	"github.com/urfave/cli/v2"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/clients"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/upgrades"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 	"github.com/ethereum-optimism/superchain-registry/superchain"
@@ -64,58 +64,66 @@ func entrypoint(ctx *cli.Context) error {
 
 	output := []ChainVersionCheck{}
 
-	if len(l2RPCURLs) == 0 {
-		for _, chainConfig := range superchain.OPChains {
-			l2RPCURLs = append(l2RPCURLs, chainConfig.PublicRPC)
-		}
-	}
-
 	for _, l1RPCURL := range l1RPCURLs {
-		for _, l2RPCURL := range l2RPCURLs {
-			clients, err := clients.NewClients(l1RPCURL, l2RPCURL)
-			if err != nil {
-				log.Warn("cannot create RPC clients", "err", err)
+		var L2ChainIDs []uint64
+
+		client, err := ethclient.Dial(l1RPCURL)
+		if err != nil {
+			return err
+		}
+
+		l1ChainID, err := client.ChainID(ctx.Context)
+		if err != nil {
+			return err
+		}
+
+		superchainName, err := upgrades.ToSuperchainName(l1ChainID.Uint64())
+		if err != nil {
+			return err
+		}
+
+		// If no L2 RPC URLs are specified, we check all chains for the L1 RPC URL
+		if len(l2RPCURLs) == 0 {
+			for _, chainConfig := range superchain.OPChains {
+				// We only consider chains in the same superchain as l1RPCURL
+				if superchainName == chainConfig.Superchain {
+					L2ChainIDs = append(L2ChainIDs, chainConfig.ChainID)
+				}
+			}
+		} else {
+			for _, l2RPCURL := range l2RPCURLs {
+				client, err := ethclient.Dial(l2RPCURL)
+				if err != nil {
+					return err
+				}
+
+				l2ChainID, err := client.ChainID(ctx.Context)
+				if err != nil {
+					return err
+				}
+
+				L2ChainIDs = append(L2ChainIDs, l2ChainID.Uint64())
+			}
+		}
+
+		for _, l2ChainID := range L2ChainIDs {
+			chainConfig := superchain.OPChains[l2ChainID]
+
+			if superchainName != chainConfig.Superchain {
 				continue
 			}
 
-			// The L1Client is required
-			if clients.L1Client == nil {
-				log.Warn("cannot create L1 client")
-				continue
-			}
-
-			l1ChainID, err := clients.L1Client.ChainID(ctx.Context)
-			if err != nil {
-				log.Warn("cannot fetch L1 chain ID", "err", err)
-				continue
-			}
-
-			// The L2Client is not required, but double check the chain id matches if possible
-			if clients.L2Client == nil {
-				log.Warn("cannot create L2 client")
-				continue
-			}
-
-			l2ChainID, err := clients.L2Client.ChainID(ctx.Context)
-			if err != nil {
-				log.Warn("cannot fetch L2 chain ID", "err", err)
-				continue
-			}
-
-			chainConfig := superchain.OPChains[l2ChainID.Uint64()]
-
-			log.Info(chainConfig.Name, "l1-chain-id", l1ChainID, "l2-chain-id", chainConfig.ChainID)
+			log.Info(chainConfig.Name, "l1-chain-id", l1ChainID, "l2-chain-id", l2ChainID)
 
 			log.Info("Detecting on chain contracts")
 			// Tracking the individual addresses can be deprecated once the system is upgraded
 			// to the new contracts where the system config has a reference to each address.
-			addresses, ok := superchain.Addresses[chainConfig.ChainID]
+			addresses, ok := superchain.Addresses[l2ChainID]
 			if !ok {
-				return fmt.Errorf("no addresses for chain ID %d", chainConfig.ChainID)
+				return fmt.Errorf("no addresses for chain ID %d", l2ChainID)
 			}
-			versions, err := upgrades.GetContractVersions(ctx.Context, addresses, chainConfig, clients.L1Client)
+			versions, err := upgrades.GetContractVersions(ctx.Context, addresses, chainConfig, client)
 			if err != nil {
-				//return fmt.Errorf("error getting contract versions: %w", err)
 				log.Warn("error getting contract versions", "err", err)
 				continue
 			}
@@ -132,7 +140,7 @@ func entrypoint(ctx *cli.Context) error {
 			contracts["SystemConfig"] = Contract{Version: versions.SystemConfig, Address: chainConfig.SystemConfigAddr}
 			contracts["ProxyAdmin"] = Contract{Version: "null", Address: addresses.ProxyAdmin}
 
-			output = append(output, ChainVersionCheck{Name: chainConfig.Name, ChainID: chainConfig.ChainID, Contracts: contracts})
+			output = append(output, ChainVersionCheck{Name: chainConfig.Name, ChainID: l2ChainID, Contracts: contracts})
 		}
 	}
 	// Write contract versions to disk or stdout
