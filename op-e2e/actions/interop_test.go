@@ -82,4 +82,8 @@ func TestL2InteropSequencer(gt *testing.T) {
 	unconsumed, err := inbox.UnconsumedMessages(nil, common.HexToHash("0xabc"))
 	require.NoError(t, err)
 	require.True(t, unconsumed)
+
+	mintedEth, err := cl.BalanceAt(t.Ctx(), predeploys.CrossL2InboxAddr, nil)
+	require.NoError(t, err)
+	require.Equal(t, uint64(10), mintedEth.Uint64())
 }
