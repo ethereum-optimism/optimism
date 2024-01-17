@@ -15,8 +15,6 @@ import (
 )
 
 type hardforkScheduledTest struct {
-	name string
-
 	regolithTime *hexutil.Uint64
 	canyonTime   *hexutil.Uint64
 	deltaTime    *hexutil.Uint64
