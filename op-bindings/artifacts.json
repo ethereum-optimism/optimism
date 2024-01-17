@@ -42,5 +42,8 @@
   "DelayedVetoable",
   "ISemver",
   "StorageSetter",
-  "L2DomiconNode"
+  "L2DomiconNode",
+  "L1DomiconNode",
+  "L2DomiconCommitment",
+  "L1DomiconCommitment"
 ]
