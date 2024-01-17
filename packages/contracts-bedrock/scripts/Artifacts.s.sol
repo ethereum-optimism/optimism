@@ -43,6 +43,10 @@ abstract contract Artifacts {
         deploymentContext = _getDeploymentContext();
         deploymentsDir = string.concat(root, "/deployments/", deploymentContext);
 
+        if (vm.isDir(deploymentsDir) == false) {
+            vm.createDir(deploymentsDir, true);
+        }
+
         tempDeploymentsPath = vm.envOr("DEPLOYMENT_OUTFILE", string.concat(deploymentsDir, "/.deploy"));
         try vm.readFile(tempDeploymentsPath) returns (string memory) { }
         catch {

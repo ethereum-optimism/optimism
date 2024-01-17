@@ -62,13 +62,12 @@ abstract contract Deployer is Script, Artifacts {
     function setUp() public override virtual {
         Artifacts.setUp();
 
-        string memory root = vm.projectRoot();
         deployScript = vm.envOr("DEPLOY_SCRIPT", name());
 
         string memory sig = vm.envOr("SIG", string("run"));
         string memory deployFile = vm.envOr("DEPLOY_FILE", string.concat(sig, "-latest.json"));
         uint256 chainId = vm.envOr("CHAIN_ID", block.chainid);
-        deployPath = string.concat(root, "/broadcast/", deployScript, ".s.sol/", vm.toString(chainId), "/", deployFile);
+        deployPath = string.concat(vm.projectRoot(), "/broadcast/", deployScript, ".s.sol/", vm.toString(chainId), "/", deployFile);
     }
 
     /// @notice Call this function to sync the deployment artifacts such that
