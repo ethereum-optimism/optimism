@@ -2,7 +2,6 @@
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
-
 **Table of Contents**
 
 - [Overview](#overview)
@@ -298,7 +297,7 @@ function hashLeaf(
     uint256 blockIndex,
     bytes32 stateCommitment
 ) internal view returns (bytes32 leaf) {
-    require(input.length == 136, "input must be exactly the size of keccak256's rate");
+    require(input.length == 136, "input must be exactly the size of the keccak256 rate");
 
     leaf = keccak256(abi.encodePacked(input, blockIndex, stateCommitment));
 }
@@ -317,8 +316,8 @@ proposal in the `PreimageOracle`. This involves:
    setup state of the matrix is constant.)
 
 The challenger then submits this data to the `PreimageOracle`, where the post state leaf's claimed input is absored into
-the pre state leaf's state matrix and the SHA3 permutation is executed on-chain. After that, we hash the resulting
-state matrix and compare it with the proposer's claim in the post state leaf. If the hash does not match, the proposal
+the pre state leaf's state matrix and the SHA3 permutation is executed on-chain. After that, the resulting state matrix
+is hashed and and compared with the proposer's claim in the post state leaf. If the hash does not match, the proposal
 is marked as challenged, and it may not be finalized. If, after the challenge period is concluded, a proposal has no
 challenges, it may be finalized and the preimage part may be placed into the authorized mappings for the FPVM to read.
 
