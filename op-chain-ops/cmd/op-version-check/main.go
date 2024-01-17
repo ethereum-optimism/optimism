@@ -144,6 +144,7 @@ func entrypoint(ctx *cli.Context) error {
 
 			output = append(output, ChainVersionCheck{Name: chainConfig.Name, ChainID: l2ChainID, Contracts: contracts})
 
+			log.Info("Successfully processed contract versions", "chain", chainConfig.Name, "l1-chain-id", l1ChainID, "l2-chain-id", l2ChainID)
 			break
 		}
 	}
