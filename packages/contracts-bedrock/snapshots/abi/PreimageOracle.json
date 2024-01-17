@@ -17,19 +17,6 @@
   },
   {
     "inputs": [],
-    "name": "CHALLENGE_PERIOD",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
     "name": "KECCAK_TREE_DEPTH",
     "outputs": [
       {
@@ -44,19 +31,6 @@
   {
     "inputs": [],
     "name": "MAX_LEAF_COUNT",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "MIN_LPP_SIZE_BYTES",
     "outputs": [
       {
         "internalType": "uint256",
@@ -225,6 +199,19 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "challengePeriod",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "challengePeriod_",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "address",
@@ -326,6 +313,19 @@
       }
     ],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "minProposalSize",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "minProposalSize_",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {

@@ -377,7 +377,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
             postProof[i] = zeroHash;
         }
 
-        vm.warp(block.timestamp + oracle.CHALLENGE_PERIOD() + 1 seconds);
+        vm.warp(block.timestamp + oracle.challengePeriod() + 1 seconds);
 
         // Finalize the proposal.
         oracle.squeezeLPP({
@@ -442,7 +442,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         LPPMetaData metaData = oracle.proposalMetadata(address(this), TEST_UUID);
         assertTrue(metaData.countered());
 
-        vm.warp(block.timestamp + oracle.CHALLENGE_PERIOD() + 1 seconds);
+        vm.warp(block.timestamp + oracle.challengePeriod() + 1 seconds);
 
         // Finalize the proposal.
         vm.expectRevert(BadProposal.selector);
@@ -549,7 +549,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
             postProof[i] = zeroHash;
         }
 
-        vm.warp(block.timestamp + oracle.CHALLENGE_PERIOD() + 1 seconds);
+        vm.warp(block.timestamp + oracle.challengePeriod() + 1 seconds);
 
         // Finalize the proposal.
         vm.expectRevert(StatesNotContiguous.selector);
@@ -595,7 +595,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
             postProof[i] = zeroHash;
         }
 
-        vm.warp(block.timestamp + oracle.CHALLENGE_PERIOD() + 1 seconds);
+        vm.warp(block.timestamp + oracle.challengePeriod() + 1 seconds);
 
         // Finalize the proposal.
         vm.expectRevert(InvalidPreimage.selector);
@@ -641,7 +641,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
             postProof[i] = zeroHash;
         }
 
-        vm.warp(block.timestamp + oracle.CHALLENGE_PERIOD() + 1 seconds);
+        vm.warp(block.timestamp + oracle.challengePeriod() + 1 seconds);
 
         vm.expectRevert(InvalidInputSize.selector);
         oracle.squeezeLPP({

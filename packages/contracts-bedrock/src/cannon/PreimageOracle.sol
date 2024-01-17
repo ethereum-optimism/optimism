@@ -17,9 +17,9 @@ contract PreimageOracle is IPreimageOracle {
     ////////////////////////////////////////////////////////////////
 
     /// @notice The duration of the large preimage proposal challenge period.
-    uint256 public immutable CHALLENGE_PERIOD;
+    uint256 internal immutable CHALLENGE_PERIOD;
     /// @notice The minimum size of a preimage that can be proposed in the large preimage path.
-    uint256 public immutable MIN_LPP_SIZE_BYTES;
+    uint256 internal immutable MIN_LPP_SIZE_BYTES;
     /// @notice The depth of the keccak256 merkle tree. Supports up to 65,536 keccak blocks, or ~8.91MB preimages.
     uint256 public constant KECCAK_TREE_DEPTH = 16;
     /// @notice The maximum number of keccak blocks that can fit into the merkle tree.
@@ -192,6 +192,22 @@ contract PreimageOracle is IPreimageOracle {
         count_ = proposals.length;
     }
 
+    /// @notice Returns the length of the array with the block numbers of `addLeavesLPP` calls for a given large
+    ///         preimage proposal.
+    function proposalBlocksLen(address _claimant, uint256 _uuid) external view returns (uint256 len_) {
+        len_ = proposalBlocks[_claimant][_uuid].length;
+    }
+
+    /// @notice Returns the length of the large preimage proposal challenge period.
+    function challengePeriod() external view returns (uint256 challengePeriod_) {
+        challengePeriod_ = CHALLENGE_PERIOD;
+    }
+
+    /// @notice Returns the minimum size (in bytes) of a large preimage proposal.
+    function minProposalSize() external view returns (uint256 minProposalSize_) {
+        minProposalSize_ = MIN_LPP_SIZE_BYTES;
+    }
+
     /// @notice Initialize a large preimage proposal. Must be called before adding any leaves.
     function initLPP(uint256 _uuid, uint32 _partOffset, uint32 _claimedSize) external {
         // The caller of `addLeavesLPP` must be an EOA.
@@ -200,18 +216,12 @@ contract PreimageOracle is IPreimageOracle {
         // The part offset must be within the bounds of the claimed size + 8.
         if (_partOffset >= _claimedSize + 8) revert PartOffsetOOB();
 
-        // The claimed size must be at least 1.8MB.
+        // The claimed size must be at least `MIN_LPP_SIZE_BYTES`.
         if (_claimedSize < MIN_LPP_SIZE_BYTES) revert InvalidInputSize();
 
         LPPMetaData metaData = proposalMetadata[msg.sender][_uuid];
         proposalMetadata[msg.sender][_uuid] = metaData.setPartOffset(_partOffset).setClaimedSize(_claimedSize);
         proposals.push(LargePreimageProposalKeys(msg.sender, _uuid));
-    }
-
-    /// @notice Returns the length of the array with the block numbers of `addLeavesLPP` calls for a given large
-    ///         preimage proposal.
-    function proposalBlocksLen(address _claimant, uint256 _uuid) external view returns (uint256 len_) {
-        len_ = proposalBlocks[_claimant][_uuid].length;
     }
 
     /// @notice Adds a contiguous list of keccak state matrices to the merkle tree.
