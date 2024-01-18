@@ -101,8 +101,8 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.11.0
-    string public constant version = "1.11.0";
+    /// @custom:semver 1.12.0
+    string public constant version = "1.12.0";
 
     /// @notice Constructs the SystemConfig contract. Cannot set
     ///         the owner to `address(0)` due to the Ownable contract's
