@@ -25,8 +25,8 @@ var deployments = map[uint64]superchain.ImplementationList{
 	// Base Sepolia
 	84532: {
 		L1CrossDomainMessenger: superchain.VersionedContract{
-			Version: "2.1.1",
-			Address: superchain.HexToAddress("0x442d5c024a80c34d64fed048bdc7c50dd84665c4"),
+			Version: "2.2.0",
+			Address: superchain.HexToAddress("0x0FD765Db621C17E420021405957f9fcE978f2311"),
 		},
 		L1ERC721Bridge: superchain.VersionedContract{
 			Version: "2.0.0",
@@ -37,8 +37,8 @@ var deployments = map[uint64]superchain.ImplementationList{
 			Address: superchain.HexToAddress("0xf71db0a6955b3edc78a267cd6441feed4ee0197b"),
 		},
 		OptimismPortal: superchain.VersionedContract{
-			Version: "2.1.0",
-			Address: superchain.HexToAddress("0x770d02b87e081e61ab30713b0ece6dfade792aff"),
+			Version: "2.4.0",
+			Address: superchain.HexToAddress("0xF4d33b5284eDc756997E8B61fd5203b35CD3F343"),
 		},
 		SystemConfig: superchain.VersionedContract{
 			Version: "1.11.0",
@@ -56,8 +56,8 @@ var deployments = map[uint64]superchain.ImplementationList{
 	// OP Sepolia
 	11155420: {
 		L1CrossDomainMessenger: superchain.VersionedContract{
-			Version: "2.1.1",
-			Address: superchain.HexToAddress("0xc3c7e6f4ad6a593a9731a39fa883ec1999d7d873"),
+			Version: "2.2.0",
+			Address: superchain.HexToAddress("0x07c9b3A3455714F25525f31E91412715F06062fD"),
 		},
 		L1ERC721Bridge: superchain.VersionedContract{
 			Version: "2.0.0",
@@ -68,8 +68,8 @@ var deployments = map[uint64]superchain.ImplementationList{
 			Address: superchain.HexToAddress("0xe19c7a2c0bb32287731ea75da9b1c836815964f1"),
 		},
 		OptimismPortal: superchain.VersionedContract{
-			Version: "2.1.0",
-			Address: superchain.HexToAddress("0x592B7D3255a8037307d23C16cC8c13a9563c8Ab1"),
+			Version: "2.4.0",
+			Address: superchain.HexToAddress("0x9e714EF35d8E9a44a509ebf40924EeD8E7dE461B"),
 		},
 		SystemConfig: superchain.VersionedContract{
 			Version: "1.11.0",
@@ -87,8 +87,8 @@ var deployments = map[uint64]superchain.ImplementationList{
 	// Zora Sepolia
 	999999999: {
 		L1CrossDomainMessenger: superchain.VersionedContract{
-			Version: "2.1.1",
-			Address: superchain.HexToAddress("0xb74e6f01cddfc53cd48fb94e14137a0801a67ee4"),
+			Version: "2.2.0",
+			Address: superchain.HexToAddress("0x440a330613Ffefae3f33d1d97F8E503447b3e648"),
 		},
 		L1ERC721Bridge: superchain.VersionedContract{
 			Version: "2.0.0",
@@ -99,8 +99,8 @@ var deployments = map[uint64]superchain.ImplementationList{
 			Address: superchain.HexToAddress("0xf8e25ec7ca94a960a9392c56c55b68414f5c7ded"),
 		},
 		OptimismPortal: superchain.VersionedContract{
-			Version: "2.1.0",
-			Address: superchain.HexToAddress("0xd2b5f6dfa6fdfd89327a5aa4c787a89456ef0ca8"),
+			Version: "2.4.0",
+			Address: superchain.HexToAddress("0x9EC8b0c9B4c3Cd17Fdc7F33d008ee59080027316"),
 		},
 		SystemConfig: superchain.VersionedContract{
 			Version: "1.11.0",
@@ -118,8 +118,8 @@ var deployments = map[uint64]superchain.ImplementationList{
 	// PGN Sepolia
 	58008: {
 		L1CrossDomainMessenger: superchain.VersionedContract{
-			Version: "2.1.1",
-			Address: superchain.HexToAddress("0x99bb19a985e1def20d363405c5943d10e715dc12"),
+			Version: "2.2.0",
+			Address: superchain.HexToAddress("0xfD8C8De9F2A2b5E8367325f52b0ecDa4e6809247"),
 		},
 		L1ERC721Bridge: superchain.VersionedContract{
 			Version: "2.0.0",
@@ -130,8 +130,8 @@ var deployments = map[uint64]superchain.ImplementationList{
 			Address: superchain.HexToAddress("0x9cde10006cac4423505864c904e2cfcf124dcaee"),
 		},
 		OptimismPortal: superchain.VersionedContract{
-			Version: "2.1.0",
-			Address: superchain.HexToAddress("0x725da050f385e52c0ae700e8c433c3636aba4592"),
+			Version: "2.4.0",
+			Address: superchain.HexToAddress("0x77977FC9b0b926ce13Da33c1091fc5c1E84187F8"),
 		},
 		SystemConfig: superchain.VersionedContract{
 			Version: "1.11.0",
