@@ -165,6 +165,10 @@ def devnet_l1_genesis(paths):
     log.info('Generating L1 genesis state')
     init_devnet_l1_deploy_config(paths)
 
+    # TODO:
+    # run a forge script that dumps the allocs json
+    # decorate the allocs with the right chainspec
+
     geth = subprocess.Popen([
         'anvil', '-a', '10', '--port', '8545', '--chain-id', '1337', '--disable-block-gas-limit',
         '--gas-price', '0', '--base-fee', '1', '--block-time', '1'
