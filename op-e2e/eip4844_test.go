@@ -54,11 +54,11 @@ func TestSystem4844E2E(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	startBalance, err := l2Verif.BalanceAt(ctx, fromAddr, nil)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	// Send deposit transaction
 	opts, err := bind.NewKeyedTransactorWithChainID(ethPrivKey, cfg.L1ChainIDBig())
-	require.Nil(t, err)
+	require.NoError(t, err)
 	mintAmount := big.NewInt(1_000_000_000_000)
 	opts.Value = mintAmount
 	SendDepositTx(t, cfg, l1Client, l2Verif, opts, func(l2Opts *DepositTxOpts) {})
@@ -67,10 +67,9 @@ func TestSystem4844E2E(t *testing.T) {
 	ctx, cancel = context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	endBalance, err := l2Verif.BalanceAt(ctx, fromAddr, nil)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
-	diff := new(big.Int)
-	diff = diff.Sub(endBalance, startBalance)
+	diff := new(big.Int).Sub(endBalance, startBalance)
 	require.Equal(t, mintAmount, diff, "Did not get expected balance change")
 
 	// Submit TX to L2 sequencer node
@@ -83,34 +82,37 @@ func TestSystem4844E2E(t *testing.T) {
 
 	// Verify blocks match after batch submission on verifiers and sequencers
 	verifBlock, err := l2Verif.BlockByNumber(context.Background(), receipt.BlockNumber)
-	require.Nil(t, err)
+	require.NoError(t, err)
+	require.Equal(t, verifBlock.Hash(), receipt.BlockHash, "must be same block")
 	seqBlock, err := l2Seq.BlockByNumber(context.Background(), receipt.BlockNumber)
-	require.Nil(t, err)
+	require.NoError(t, err)
+	require.Equal(t, seqBlock.Hash(), receipt.BlockHash, "must be same block")
 	require.Equal(t, verifBlock.NumberU64(), seqBlock.NumberU64(), "Verifier and sequencer blocks not the same after including a batch tx")
 	require.Equal(t, verifBlock.ParentHash(), seqBlock.ParentHash(), "Verifier and sequencer blocks parent hashes not the same after including a batch tx")
 	require.Equal(t, verifBlock.Hash(), seqBlock.Hash(), "Verifier and sequencer blocks not the same after including a batch tx")
 
 	rollupRPCClient, err := rpc.DialContext(context.Background(), sys.RollupNodes["sequencer"].HTTPEndpoint())
-	require.Nil(t, err)
+	require.NoError(t, err)
 	rollupClient := sources.NewRollupClient(client.NewBaseRPCClient(rollupRPCClient))
 	// basic check that sync status works
 	seqStatus, err := rollupClient.SyncStatus(context.Background())
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.LessOrEqual(t, seqBlock.NumberU64(), seqStatus.UnsafeL2.Number)
 	// basic check that version endpoint works
 	seqVersion, err := rollupClient.Version(context.Background())
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.NotEqual(t, "", seqVersion)
 
 	// quick check that the batch submitter works
-	for i := 0; i < 10; i++ {
+	require.Eventually(t, func() bool {
 		// wait for chain to be marked as "safe" (i.e. confirm batch-submission works)
 		stat, err := rollupClient.SyncStatus(context.Background())
 		require.NoError(t, err)
-		if stat.SafeL2.Number > 0 {
-			return
-		}
-		time.Sleep(2 * time.Second)
-	}
-	t.Fatal("expected L2 to be batch-submitted and labeled as safe")
+		return stat.SafeL2.Number > 0
+	}, time.Second*20, time.Second, "expected L2 to be batch-submitted and labeled as safe")
+
+	// check that the L2 tx is still canonical
+	seqBlock, err = l2Seq.BlockByNumber(context.Background(), receipt.BlockNumber)
+	require.NoError(t, err)
+	require.Equal(t, seqBlock.Hash(), receipt.BlockHash, "receipt block must match canonical block at tx inclusion height")
 }
