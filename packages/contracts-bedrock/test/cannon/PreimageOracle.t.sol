@@ -15,7 +15,7 @@ contract PreimageOracle_Test is Test {
 
     /// @notice Sets up the testing suite.
     function setUp() public {
-        oracle = new PreimageOracle();
+        oracle = new PreimageOracle(0, 0);
         vm.label(address(oracle), "PreimageOracle");
     }
 
@@ -174,13 +174,15 @@ contract PreimageOracle_Test is Test {
 }
 
 contract PreimageOracle_LargePreimageProposals_Test is Test {
+    uint256 internal constant MIN_SIZE_BYTES = 0;
+    uint256 internal constant CHALLENGE_PERIOD = 1 days;
     uint256 internal constant TEST_UUID = 0xFACADE;
 
     PreimageOracle internal oracle;
 
     /// @notice Sets up the testing suite.
     function setUp() public {
-        oracle = new PreimageOracle();
+        oracle = new PreimageOracle({ _minProposalSize: MIN_SIZE_BYTES, _challengePeriod: CHALLENGE_PERIOD });
         vm.label(address(oracle), "PreimageOracle");
 
         // Set `tx.origin` and `msg.sender` to `address(this)` so that it may behave like an EOA for `addLeavesLPP`.
@@ -198,6 +200,21 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         // Initialize the proposal.
         vm.expectRevert(PartOffsetOOB.selector);
         oracle.initLPP(TEST_UUID, 136 + 8, uint32(data.length));
+    }
+
+    /// @notice Tests that the `initLPP` function reverts when the part offset is out of bounds of the full preimage.
+    function test_initLPP_sizeTooSmall_reverts() public {
+        oracle = new PreimageOracle({ _minProposalSize: 1000, _challengePeriod: CHALLENGE_PERIOD });
+
+        // Allocate the preimage data.
+        bytes memory data = new bytes(136);
+        for (uint256 i; i < data.length; i++) {
+            data[i] = 0xFF;
+        }
+
+        // Initialize the proposal.
+        vm.expectRevert(InvalidInputSize.selector);
+        oracle.initLPP(TEST_UUID, 0, uint32(data.length));
     }
 
     /// @notice Gas snapshot for `addLeaves`
@@ -360,7 +377,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
             postProof[i] = zeroHash;
         }
 
-        vm.warp(block.timestamp + oracle.CHALLENGE_PERIOD() + 1 seconds);
+        vm.warp(block.timestamp + oracle.challengePeriod() + 1 seconds);
 
         // Finalize the proposal.
         oracle.squeezeLPP({
@@ -425,7 +442,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         LPPMetaData metaData = oracle.proposalMetadata(address(this), TEST_UUID);
         assertTrue(metaData.countered());
 
-        vm.warp(block.timestamp + oracle.CHALLENGE_PERIOD() + 1 seconds);
+        vm.warp(block.timestamp + oracle.challengePeriod() + 1 seconds);
 
         // Finalize the proposal.
         vm.expectRevert(BadProposal.selector);
@@ -532,7 +549,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
             postProof[i] = zeroHash;
         }
 
-        vm.warp(block.timestamp + oracle.CHALLENGE_PERIOD() + 1 seconds);
+        vm.warp(block.timestamp + oracle.challengePeriod() + 1 seconds);
 
         // Finalize the proposal.
         vm.expectRevert(StatesNotContiguous.selector);
@@ -578,7 +595,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
             postProof[i] = zeroHash;
         }
 
-        vm.warp(block.timestamp + oracle.CHALLENGE_PERIOD() + 1 seconds);
+        vm.warp(block.timestamp + oracle.challengePeriod() + 1 seconds);
 
         // Finalize the proposal.
         vm.expectRevert(InvalidPreimage.selector);
@@ -624,7 +641,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
             postProof[i] = zeroHash;
         }
 
-        vm.warp(block.timestamp + oracle.CHALLENGE_PERIOD() + 1 seconds);
+        vm.warp(block.timestamp + oracle.challengePeriod() + 1 seconds);
 
         vm.expectRevert(InvalidInputSize.selector);
         oracle.squeezeLPP({

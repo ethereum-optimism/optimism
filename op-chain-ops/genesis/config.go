@@ -218,6 +218,10 @@ type DeployConfig struct {
 	FaultGameGenesisOutputRoot common.Hash `json:"faultGameGenesisOutputRoot"`
 	// FaultGameSplitDepth is the depth at which the fault dispute game splits from output roots to execution trace claims.
 	FaultGameSplitDepth uint64 `json:"faultGameSplitDepth"`
+	// PreimageOracleMinProposalSize is the minimum number of bytes that a large preimage oracle proposal can be.
+	PreimageOracleMinProposalSize uint64 `json:"preimageOracleMinProposalSize"`
+	// PreimageOracleChallengePeriod is the number of seconds that challengers have to challenge a large preimage proposal.
+	PreimageOracleChallengePeriod uint64 `json:"preimageOracleChallengePeriod"`
 	// FundDevAccounts configures whether or not to fund the dev accounts. Should only be used
 	// during devnet deployments.
 	FundDevAccounts bool `json:"fundDevAccounts"`

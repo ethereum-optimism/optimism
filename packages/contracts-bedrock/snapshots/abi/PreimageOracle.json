@@ -1,21 +1,19 @@
 [
   {
-    "inputs": [],
-    "stateMutability": "nonpayable",
-    "type": "constructor"
-  },
-  {
-    "inputs": [],
-    "name": "CHALLENGE_PERIOD",
-    "outputs": [
+    "inputs": [
       {
         "internalType": "uint256",
-        "name": "",
+        "name": "_minProposalSize",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_challengePeriod",
         "type": "uint256"
       }
     ],
-    "stateMutability": "view",
-    "type": "function"
+    "stateMutability": "nonpayable",
+    "type": "constructor"
   },
   {
     "inputs": [],
@@ -201,6 +199,19 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "challengePeriod",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "challengePeriod_",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "address",
@@ -302,6 +313,19 @@
       }
     ],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "minProposalSize",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "minProposalSize_",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {

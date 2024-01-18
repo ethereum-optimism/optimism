@@ -53,6 +53,8 @@ contract DeployConfig is Script {
     uint256 public faultGameMaxDepth;
     uint256 public faultGameSplitDepth;
     uint256 public faultGameMaxDuration;
+    uint256 public preimageOracleMinProposalSize;
+    uint256 public preimageOracleChallengePeriod;
     uint256 public systemConfigStartBlock;
     uint256 public requiredProtocolVersion;
     uint256 public recommendedProtocolVersion;
@@ -113,6 +115,9 @@ contract DeployConfig is Script {
             faultGameMaxDuration = stdJson.readUint(_json, "$.faultGameMaxDuration");
             faultGameGenesisBlock = stdJson.readUint(_json, "$.faultGameGenesisBlock");
             faultGameGenesisOutputRoot = stdJson.readBytes32(_json, "$.faultGameGenesisOutputRoot");
+
+            preimageOracleMinProposalSize = stdJson.readUint(_json, "$.preimageOracleMinProposalSize");
+            preimageOracleChallengePeriod = stdJson.readUint(_json, "$.preimageOracleChallengePeriod");
         }
     }
 

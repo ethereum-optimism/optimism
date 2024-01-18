@@ -13,15 +13,17 @@ import "src/cannon/libraries/CannonTypes.sol";
 /// @custom:attribution Beacon Deposit Contract <0x00000000219ab540356cbb839cbe05303d7705fa>
 contract PreimageOracle is IPreimageOracle {
     ////////////////////////////////////////////////////////////////
-    //                         Constants                          //
+    //                   Constants & Immutables                   //
     ////////////////////////////////////////////////////////////////
 
+    /// @notice The duration of the large preimage proposal challenge period.
+    uint256 internal immutable CHALLENGE_PERIOD;
+    /// @notice The minimum size of a preimage that can be proposed in the large preimage path.
+    uint256 internal immutable MIN_LPP_SIZE_BYTES;
     /// @notice The depth of the keccak256 merkle tree. Supports up to 65,536 keccak blocks, or ~8.91MB preimages.
     uint256 public constant KECCAK_TREE_DEPTH = 16;
     /// @notice The maximum number of keccak blocks that can fit into the merkle tree.
     uint256 public constant MAX_LEAF_COUNT = 2 ** KECCAK_TREE_DEPTH - 1;
-    /// @notice The duration of the large preimage proposal challenge period.
-    uint256 public constant CHALLENGE_PERIOD = 1 days;
 
     ////////////////////////////////////////////////////////////////
     //                 Authorized Preimage Parts                  //
@@ -75,7 +77,10 @@ contract PreimageOracle is IPreimageOracle {
     //                        Constructor                         //
     ////////////////////////////////////////////////////////////////
 
-    constructor() {
+    constructor(uint256 _minProposalSize, uint256 _challengePeriod) {
+        MIN_LPP_SIZE_BYTES = _minProposalSize;
+        CHALLENGE_PERIOD = _challengePeriod;
+
         // Compute hashes in empty sparse Merkle tree. The first hash is not set, and kept as zero as the identity.
         for (uint256 height = 0; height < KECCAK_TREE_DEPTH - 1; height++) {
             zeroHashes[height + 1] = keccak256(abi.encodePacked(zeroHashes[height], zeroHashes[height]));
@@ -187,6 +192,22 @@ contract PreimageOracle is IPreimageOracle {
         count_ = proposals.length;
     }
 
+    /// @notice Returns the length of the array with the block numbers of `addLeavesLPP` calls for a given large
+    ///         preimage proposal.
+    function proposalBlocksLen(address _claimant, uint256 _uuid) external view returns (uint256 len_) {
+        len_ = proposalBlocks[_claimant][_uuid].length;
+    }
+
+    /// @notice Returns the length of the large preimage proposal challenge period.
+    function challengePeriod() external view returns (uint256 challengePeriod_) {
+        challengePeriod_ = CHALLENGE_PERIOD;
+    }
+
+    /// @notice Returns the minimum size (in bytes) of a large preimage proposal.
+    function minProposalSize() external view returns (uint256 minProposalSize_) {
+        minProposalSize_ = MIN_LPP_SIZE_BYTES;
+    }
+
     /// @notice Initialize a large preimage proposal. Must be called before adding any leaves.
     function initLPP(uint256 _uuid, uint32 _partOffset, uint32 _claimedSize) external {
         // The caller of `addLeavesLPP` must be an EOA.
@@ -195,15 +216,12 @@ contract PreimageOracle is IPreimageOracle {
         // The part offset must be within the bounds of the claimed size + 8.
         if (_partOffset >= _claimedSize + 8) revert PartOffsetOOB();
 
+        // The claimed size must be at least `MIN_LPP_SIZE_BYTES`.
+        if (_claimedSize < MIN_LPP_SIZE_BYTES) revert InvalidInputSize();
+
         LPPMetaData metaData = proposalMetadata[msg.sender][_uuid];
         proposalMetadata[msg.sender][_uuid] = metaData.setPartOffset(_partOffset).setClaimedSize(_claimedSize);
         proposals.push(LargePreimageProposalKeys(msg.sender, _uuid));
-    }
-
-    /// @notice Returns the length of the array with the block numbers of `addLeavesLPP` calls for a given large
-    ///         preimage proposal.
-    function proposalBlocksLen(address _claimant, uint256 _uuid) external view returns (uint256 len_) {
-        len_ = proposalBlocks[_claimant][_uuid].length;
     }
 
     /// @notice Adds a contiguous list of keccak state matrices to the merkle tree.
