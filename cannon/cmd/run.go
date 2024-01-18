@@ -64,9 +64,15 @@ var (
 		Value:    new(StepMatcherFlag),
 		Required: false,
 	}
-	RunStopAtPreimageFlag = &cli.BoolFlag{
-		Name:  "stop-at-preimage",
-		Usage: "stop at the first preimage request",
+	RunStopAtPreimageTypeFlag = &cli.StringFlag{
+		Name:     "stop-at-preimage-type",
+		Usage:    "stop at the first preimage request matching this type (must be either 'any', 'local' or 'global')",
+		Required: false,
+	}
+	RunStopAtPreimageKeyFlag = &cli.StringFlag{
+		Name:     "stop-at-preimage-key",
+		Usage:    "stop at the first step that requests the specified preimage key",
+		Required: false,
 	}
 	RunMetaFlag = &cli.PathFlag{
 		Name:     "meta",
@@ -237,6 +243,12 @@ func Run(ctx *cli.Context) error {
 	outLog := &mipsevm.LoggingWriter{Name: "program std-out", Log: l}
 	errLog := &mipsevm.LoggingWriter{Name: "program std-err", Log: l}
 
+	stopAtPreimageType := ctx.String(RunStopAtPreimageTypeFlag.Name)
+	if stopAtPreimageType != "" && stopAtPreimageType != "any" && stopAtPreimageType != "local" && stopAtPreimageType != "global" {
+		return fmt.Errorf("invalid preimage type %q, must be either 'any', 'local' or 'global'", stopAtPreimageType)
+	}
+	stopAtPreimageKey := common.HexToHash(ctx.String(RunStopAtPreimageKeyFlag.Name))
+
 	// split CLI args after first '--'
 	args := ctx.Args().Slice()
 	for i, arg := range args {
@@ -294,7 +306,6 @@ func Run(ctx *cli.Context) error {
 	// avoid symbol lookups every instruction by preparing a matcher func
 	sleepCheck := meta.SymbolMatcher("runtime.notesleep")
 
-	stopAtPreimageRead := ctx.Bool(RunStopAtPreimageFlag.Name)
 	for !state.Exited {
 		if state.Step%100 == 0 { // don't do the ctx err check (includes lock) too often
 			if err := ctx.Context.Err(); err != nil {
@@ -368,8 +379,22 @@ func Run(ctx *cli.Context) error {
 			}
 		}
 
-		if stopAtPreimageRead && state.PreimageOffset > prevPreimageOffset {
-			break
+		if preimageRead := state.PreimageOffset > prevPreimageOffset; preimageRead {
+			if stopAtPreimageType == "any" {
+				break
+			}
+			if stopAtPreimageType != "" {
+				keyType := byte(preimage.LocalKeyType)
+				if stopAtPreimageType == "global" {
+					keyType = byte(preimage.Keccak256KeyType)
+				}
+				if state.PreimageKey.Bytes()[0] == keyType {
+					break
+				}
+			}
+			if (stopAtPreimageKey != common.Hash{}) && state.PreimageKey == stopAtPreimageKey {
+				break
+			}
 		}
 	}
 
@@ -392,7 +417,8 @@ var RunCommand = &cli.Command{
 		RunSnapshotAtFlag,
 		RunSnapshotFmtFlag,
 		RunStopAtFlag,
-		RunStopAtPreimageFlag,
+		RunStopAtPreimageTypeFlag,
+		RunStopAtPreimageKeyFlag,
 		RunMetaFlag,
 		RunInfoAtFlag,
 		RunPProfCPU,
