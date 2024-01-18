@@ -56,7 +56,7 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 ///         contract name to address pairs. That enables this script to be much more flexible in the way it is used.
 ///         This contract must not have constructor logic because it is set into state using `etch`.
 contract Deploy is Deployer {
-    DeployConfig public cfg;
+    DeployConfig constant public cfg = DeployConfig(address(uint160(uint256(keccak256(abi.encode("optimism.deployconfig"))))));
 
     using stdJson for string;
 
@@ -221,7 +221,8 @@ contract Deploy is Deployer {
         super.setUp();
 
         string memory path = string.concat(vm.projectRoot(), "/deploy-config/", deploymentContext, ".json");
-        cfg = new DeployConfig(path);
+        vm.etch(address(cfg), vm.getDeployedCode("DeployConfig.s.sol:DeployConfig"));
+        cfg.read(path);
 
         console.log("Deploying from %s", deployScript);
         console.log("Deployment context: %s", deploymentContext);

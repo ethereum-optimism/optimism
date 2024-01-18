@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity 0.8.15;
 
 import { Script } from "forge-std/Script.sol";
 import { console2 as console } from "forge-std/console2.sol";
@@ -59,7 +59,7 @@ contract DeployConfig is Script {
     uint256 public requiredProtocolVersion;
     uint256 public recommendedProtocolVersion;
 
-    constructor(string memory _path) {
+    function read(string memory _path) public {
         console.log("DeployConfig: reading file %s", _path);
         try vm.readFile(_path) returns (string memory data) {
             _json = data;
