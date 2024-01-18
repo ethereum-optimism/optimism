@@ -92,7 +92,13 @@ contract Setup {
             hex"7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf3"
         );
 
-        deploy.run();
+        string memory allocsPath = string.concat(vm.projectRoot(), "/.testdata/genesis-l1.json");
+        if (vm.isFile(allocsPath)) {
+            vm.loadAllocs(allocsPath);
+            deploy.loadAddresses(string.concat(vm.projectRoot(), "/.testdata/addresses.json"));
+        } else {
+            deploy.run();
+        }
 
         optimismPortal = OptimismPortal(deploy.mustGetAddress("OptimismPortalProxy"));
         l2OutputOracle = L2OutputOracle(deploy.mustGetAddress("L2OutputOracleProxy"));
@@ -130,20 +136,8 @@ contract Setup {
 
     /// @dev Sets up the L2 contracts. Depends on `L1()` being called first.
     function L2() public {
-        string memory allocsPath = string.concat(vm.projectRoot(), "/.testdata/genesis.json");
-        if (vm.isFile(allocsPath) == false) {
-            string[] memory args = new string[](3);
-            args[0] = Executables.bash;
-            args[1] = "-c";
-            args[2] = string.concat(vm.projectRoot(), "/scripts/generate-l2-genesis.sh");
-            vm.ffi(args);
-        }
-
-        // Prevent race condition where the genesis.json file is not yet created
-        while (vm.isFile(allocsPath) == false) {
-            vm.sleep(1);
-        }
-
+        string memory allocsPath = string.concat(vm.projectRoot(), "/.testdata/genesis-l2.json");
+        require(vm.isFile(allocsPath), "generate the genesis.json with 'pnpm genesis'");
         vm.loadAllocs(allocsPath);
 
         // Set the governance token's owner to be the final system owner

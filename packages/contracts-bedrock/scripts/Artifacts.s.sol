@@ -66,7 +66,7 @@ abstract contract Artifacts {
         string memory addresses = vm.envOr("CONTRACT_ADDRESSES_PATH", string(""));
         if (bytes(addresses).length > 0) {
             console.log("Loading addresses from %s", addresses);
-            _loadAddresses(addresses);
+            loadAddresses(addresses);
         }
     }
 
@@ -74,7 +74,7 @@ abstract contract Artifacts {
     ///         The format of the JSON file is the same that it output by this script
     ///         as well as the JSON files that contain addresses in the `superchain-ops`
     ///         repo. The JSON key is the name of the contract and the value is an address.
-    function _loadAddresses(string memory _path) internal {
+    function loadAddresses(string memory _path) public {
         string[] memory commands = new string[](3);
         commands[0] = "bash";
         commands[1] = "-c";

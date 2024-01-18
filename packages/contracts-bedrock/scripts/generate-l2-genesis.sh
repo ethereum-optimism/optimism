@@ -16,7 +16,9 @@ OP_NODE="$MONOREPO_BASE/op-node/cmd/main.go"
 L1_STARTING_BLOCK_PATH="$CONTRACTS_DIR/test/mocks/block.json"
 TESTDATA_DIR="$CONTRACTS_DIR/.testdata"
 
-OUTFILE_L2="$TESTDATA_DIR/genesis.json"
+OUTFILE_L2="$TESTDATA_DIR/genesis-l2.json"
+OUTFILE_L1="$TESTDATA_DIR/genesis-l1.json"
+OUTFILE_ADDRESSES="$TESTDATA_DIR/addresses.json"
 OUTFILE_ROLLUP="$TESTDATA_DIR/rollup.json"
 
 LOCKDIR="/tmp/lock-generate-l2-genesis"
@@ -59,16 +61,18 @@ if mkdir -- "$LOCKDIR" > /dev/null 2>&1; then
   mkdir -p "$TESTDATA_DIR"
 
   if [ ! -f "$DEPLOY_ARTIFACT" ]; then
-    forge script "$CONTRACTS_DIR"/scripts/Deploy.s.sol:Deploy > /dev/null 2>&1
+    STATE_DUMP_PATH="$OUTFILE_L1" \
+      forge script "$CONTRACTS_DIR"/scripts/Deploy.s.sol:Deploy --sig 'runWithStateDump()'
+    cp "$DEPLOY_ARTIFACT" "$OUTFILE_ADDRESSES"
   fi
 
   if [ ! -f "$OUTFILE_L2" ]; then
     go run "$OP_NODE" genesis l2 \
       --deploy-config "$CONTRACTS_DIR/deploy-config/hardhat.json" \
-      --l1-deployments "$DEPLOY_ARTIFACT" \
+      --l1-deployments "$OUTFILE_ADDRESSES" \
       --l1-starting-block "$L1_STARTING_BLOCK_PATH" \
       --outfile.l2 "$OUTFILE_L2" \
-      --outfile.rollup "$OUTFILE_ROLLUP" > /dev/null 2>&1
+      --outfile.rollup "$OUTFILE_ROLLUP"
   fi
 else
   # Wait up to 5 minutes for the lock to be released
