@@ -38,10 +38,12 @@ import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 ///      up behind proxies. In the future we will migrate to importing the genesis JSON
 ///      file that is created to set up the L2 contracts instead of setting them up manually.
 contract Setup {
+    /// @notice The address of the foundry Vm contract.
     Vm private constant vm = Vm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
 
-    Deploy internal deploy;
-    address deployer = address(0xd3607);
+    /// @notice The address of the Deploy contract. Set into state with `etch` to avoid
+    ///         mutating any nonces. MUST not have constructor logic.
+    Deploy internal constant deploy = Deploy(address(uint160(uint256(keccak256(abi.encode("optimism.deploy"))))));
 
     OptimismPortal optimismPortal;
     L2OutputOracle l2OutputOracle;
@@ -77,19 +79,9 @@ contract Setup {
     ///      will also need to include the bytecode for the Deploy contract.
     ///      This is a hack as we are pushing solidity to the edge.
     function setUp() public virtual {
-        deploy = Deploy(_create(vm.getCode("Deploy.s.sol:Deploy")));
+        vm.etch(address(deploy), vm.getDeployedCode("Deploy.s.sol:Deploy"));
+        vm.allowCheatcodes(address(deploy));
         deploy.setUp();
-    }
-
-    /// @dev Simple wrapper around the `create` opcode that uses a particular
-    ///      deployer account.
-    function _create(bytes memory _code) internal returns (address addr_) {
-        vm.deal(deployer, 1 ether);
-        vm.prank(deployer);
-        assembly {
-            addr_ := create(0, add(_code, 0x20), mload(_code))
-        }
-        require(addr_ != address(0), "Setup: cannot create");
     }
 
     /// @dev Sets up the L1 contracts.
@@ -137,7 +129,7 @@ contract Setup {
     }
 
     /// @dev Sets up the L2 contracts. Depends on `L1()` being called first.
-    function L2(DeployConfig cfg) public {
+    function L2() public {
         string memory allocsPath = string.concat(vm.projectRoot(), "/.testdata/genesis.json");
         if (vm.isFile(allocsPath) == false) {
             string[] memory args = new string[](3);
@@ -155,7 +147,7 @@ contract Setup {
         vm.loadAllocs(allocsPath);
 
         // Set the governance token's owner to be the final system owner
-        address finalSystemOwner = cfg.finalSystemOwner();
+        address finalSystemOwner = deploy.cfg().finalSystemOwner();
         vm.prank(governanceToken.owner());
         governanceToken.transferOwnership(finalSystemOwner);
 

@@ -53,10 +53,11 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 ///         Then add a call to that function inside of `run`. Be sure to call the `save` function after each
 ///         deployment so that hardhat-deploy style artifacts can be generated using a call to `sync()`.
 ///         The `CONTRACT_ADDRESSES_PATH` environment variable can be set to a path that contains a JSON file full of
-///         contract name to address pairs. That enables this script to be much more flexible in the way
-///         it is used.
+///         contract name to address pairs. That enables this script to be much more flexible in the way it is used.
+///         This contract must not have constructor logic because it is set into state using `etch`.
 contract Deploy is Deployer {
-    DeployConfig public cfg;
+    DeployConfig public constant cfg =
+        DeployConfig(address(uint160(uint256(keccak256(abi.encode("optimism.deployconfig"))))));
 
     using stdJson for string;
 
@@ -221,7 +222,10 @@ contract Deploy is Deployer {
         super.setUp();
 
         string memory path = string.concat(vm.projectRoot(), "/deploy-config/", deploymentContext, ".json");
-        cfg = new DeployConfig(path);
+        vm.etch(address(cfg), vm.getDeployedCode("DeployConfig.s.sol:DeployConfig"));
+        vm.label(address(cfg), "DeployConfig");
+        vm.allowCheatcodes(address(cfg));
+        cfg.read(path);
 
         console.log("Deploying from %s", deployScript);
         console.log("Deployment context: %s", deploymentContext);

@@ -8,13 +8,13 @@ import { FFIInterface } from "test/setup/FFIInterface.sol";
 
 /// @title CommonTest
 /// @dev An extenstion to `Test` that sets up the optimism smart contracts.
-contract CommonTest is Setup, Test, Events {
+contract CommonTest is Test, Setup, Events {
     address alice;
     address bob;
 
     bytes32 constant nonZeroHash = keccak256(abi.encode("NON_ZERO"));
 
-    FFIInterface ffi;
+    FFIInterface constant ffi = FFIInterface(address(uint160(uint256(keccak256(abi.encode("optimism.ffi"))))));
 
     function setUp() public virtual override {
         alice = makeAddr("alice");
@@ -23,8 +23,8 @@ contract CommonTest is Setup, Test, Events {
         vm.deal(bob, 10000 ether);
 
         Setup.setUp();
-        vm.prank(deployer);
-        ffi = new FFIInterface();
+        vm.etch(address(ffi), vm.getDeployedCode("FFIInterface.sol:FFIInterface"));
+        vm.label(address(ffi), "FFIInterface");
 
         // Make sure the base fee is non zero
         vm.fee(1 gwei);
@@ -36,7 +36,7 @@ contract CommonTest is Setup, Test, Events {
         // Deploy L1
         Setup.L1();
         // Deploy L2
-        Setup.L2({ cfg: deploy.cfg() });
+        Setup.L2();
     }
 
     /// @dev Helper function that wraps `TransactionDeposited` event.
