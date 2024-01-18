@@ -47,8 +47,23 @@ func AttributesMatchBlock(rollupCfg *rollup.Config, attrs *eth.PayloadAttributes
 	if withdrawalErr := checkWithdrawalsMatch(attrs.Withdrawals, block.Withdrawals); withdrawalErr != nil {
 		return withdrawalErr
 	}
-	if envelope.ParentBeaconBlockRoot != attrs.ParentBeaconBlockRoot {
-		return fmt.Errorf("parent beacon block root does not match. expected %v. got: %v", attrs.ParentBeaconBlockRoot, envelope.ParentBeaconBlockRoot)
+	if err := checkParentBeaconBlockRootMatch(attrs.ParentBeaconBlockRoot, envelope.ParentBeaconBlockRoot); err != nil {
+		return err
+	}
+	return nil
+}
+
+func checkParentBeaconBlockRootMatch(attrRoot, blockRoot *common.Hash) error {
+	if blockRoot == nil {
+		if attrRoot != nil {
+			return fmt.Errorf("expected non-nil parent beacon block root %s but got nil", *attrRoot)
+		}
+	} else {
+		if attrRoot == nil {
+			return fmt.Errorf("expected nil parent beacon block root but got non-nil %s", *blockRoot)
+		} else if *blockRoot != *attrRoot {
+			return fmt.Errorf("parent beacon block root does not match. expected %s. got: %s", *attrRoot, *blockRoot)
+		}
 	}
 	return nil
 }
