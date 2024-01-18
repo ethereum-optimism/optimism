@@ -62,7 +62,7 @@ contract L1ERC721Bridge_Test is Bridge_Initializer {
     }
 
     /// @dev Tests that the impl is created with the correct values.
-    function test_constructor_succeeds() external {
+    function test_constructor_succeeds() public {
         L1ERC721Bridge impl = L1ERC721Bridge(deploy.mustGetAddress("L1ERC721Bridge"));
         assertEq(address(impl.MESSENGER()), address(0));
         assertEq(address(impl.messenger()), address(0));
