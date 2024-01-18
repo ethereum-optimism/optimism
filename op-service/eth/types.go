@@ -2,6 +2,7 @@ package eth
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
 	"math/big"
 	"reflect"
@@ -321,6 +322,51 @@ type SystemConfig struct {
 	// GasLimit identifies the L2 block gas limit
 	GasLimit uint64 `json:"gasLimit"`
 	// More fields can be added for future SystemConfig versions.
+}
+
+// The Ecotone upgrade introduces a versioned L1 scalar format
+// that is backward-compatible with pre-Ecotone L1 scalar values.
+const (
+	// L1ScalarOriginal is implied pre-Ecotone, encoding just a regular-gas scalar.
+	L1ScalarOriginal = byte(0)
+	// L1ScalarEcotone is new in Ecotone, allowing configuration of both a regular and a blobs scalar.
+	L1ScalarEcotone = byte(1)
+)
+
+func (sysCfg *SystemConfig) EcotoneScalars() (blobBaseFeeScalar, baseFeeScalar uint32, err error) {
+	if err := CheckEcotoneL1SystemConfigScalar(sysCfg.Scalar); err != nil {
+		return 0, 0, err
+	}
+	switch sysCfg.Scalar[0] {
+	case L1ScalarOriginal:
+		blobBaseFeeScalar = 0
+		baseFeeScalar = binary.BigEndian.Uint32(sysCfg.Scalar[28:32])
+	case L1ScalarEcotone:
+		blobBaseFeeScalar = binary.BigEndian.Uint32(sysCfg.Scalar[24:28])
+		baseFeeScalar = binary.BigEndian.Uint32(sysCfg.Scalar[28:32])
+	default:
+		err = fmt.Errorf("unexpected system config scalar: %s", sysCfg.Scalar)
+	}
+	return
+}
+
+func CheckEcotoneL1SystemConfigScalar(scalar [32]byte) error {
+	versionByte := scalar[0]
+	switch versionByte {
+	case L1ScalarOriginal:
+		if ([27]byte)(scalar[1:28]) != ([27]byte{}) { // check padding
+			return fmt.Errorf("invalid version 0 scalar padding: %x", scalar[1:28])
+		}
+		return nil
+	case L1ScalarEcotone:
+		if ([23]byte)(scalar[1:24]) != ([23]byte{}) { // check padding
+			return fmt.Errorf("invalid version 1 scalar padding: %x", scalar[1:24])
+		}
+		return nil
+	default:
+		// ignore the event if it's an unknown scalar format
+		return fmt.Errorf("unrecognized scalar version: %d", versionByte)
+	}
 }
 
 type Bytes48 [48]byte

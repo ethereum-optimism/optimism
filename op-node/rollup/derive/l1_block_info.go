@@ -25,15 +25,6 @@ const (
 	L1InfoEcotoneLen           = 4 + 32*5 // after Ecotone upgrade, args are packed into 5 32-byte slots
 )
 
-// The Ecotone upgrade introduces a versioned L1 scalar format
-// that is backward-compatible with pre-Ecotone L1 scalar values.
-const (
-	// L1ScalarOriginal is implied pre-Ecotone, encoding just a regular-gas scalar.
-	L1ScalarOriginal = byte(0)
-	// L1ScalarEcotone is new in Ecotone, allowing configuration of both a regular and a blobs scalar.
-	L1ScalarEcotone = byte(1)
-)
-
 var (
 	L1InfoFuncBedrockBytes4 = crypto.Keccak256([]byte(L1InfoFuncBedrockSignature))[:4]
 	L1InfoFuncEcotoneBytes4 = crypto.Keccak256([]byte(L1InfoFuncEcotoneSignature))[:4]
@@ -279,31 +270,31 @@ func L1InfoDeposit(rollupCfg *rollup.Config, sysCfg eth.SystemConfig, seqNumber 
 		BatcherAddr:    sysCfg.BatcherAddr,
 	}
 	var data []byte
-	var err error
 	if isEcotoneButNotFirstBlock(rollupCfg, l2BlockTime) {
 		l1BlockInfo.BlobBaseFee = block.BlobBaseFee()
 		if l1BlockInfo.BlobBaseFee == nil {
 			// The L2 spec states to use the MIN_BLOB_GASPRICE from EIP-4844 if not yet active on L1.
 			l1BlockInfo.BlobBaseFee = big.NewInt(1)
 		}
-		switch sysCfg.Scalar[0] {
-		case L1ScalarOriginal:
-			l1BlockInfo.BlobBaseFeeScalar = 0
-			l1BlockInfo.BaseFeeScalar = binary.BigEndian.Uint32(sysCfg.Scalar[28:32])
-		case L1ScalarEcotone:
-			l1BlockInfo.BlobBaseFeeScalar = binary.BigEndian.Uint32(sysCfg.Scalar[24:28])
-			l1BlockInfo.BaseFeeScalar = binary.BigEndian.Uint32(sysCfg.Scalar[28:32])
-		default:
-			return nil, fmt.Errorf("unexpected system config scalar: %s", sysCfg.Scalar)
+		baseFeeScalar, blobBaseFeeScalar, err := sysCfg.EcotoneScalars()
+		if err != nil {
+			return nil, err
 		}
-		data, err = l1BlockInfo.marshalBinaryEcotone()
+		l1BlockInfo.BlobBaseFeeScalar = blobBaseFeeScalar
+		l1BlockInfo.BaseFeeScalar = baseFeeScalar
+		out, err := l1BlockInfo.marshalBinaryEcotone()
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal Ecotone l1 block info: %w", err)
+		}
+		data = out
 	} else {
 		l1BlockInfo.L1FeeOverhead = sysCfg.Overhead
 		l1BlockInfo.L1FeeScalar = sysCfg.Scalar
-		data, err = l1BlockInfo.marshalBinaryBedrock()
-	}
-	if err != nil {
-		return nil, fmt.Errorf("Failed to marshal l1 block info: %w", err)
+		out, err := l1BlockInfo.marshalBinaryBedrock()
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal Bedrock l1 block info: %w", err)
+		}
+		data = out
 	}
 
 	source := L1InfoDepositSource{

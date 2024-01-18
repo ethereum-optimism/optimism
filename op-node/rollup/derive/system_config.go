@@ -112,7 +112,7 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 			return NewCriticalError(errors.New("too many bytes"))
 		}
 		if rollupCfg.IsEcotone(l1Time) {
-			if err := CheckEcotoneL1SystemConfigScalar(scalar); err != nil {
+			if err := eth.CheckEcotoneL1SystemConfigScalar(scalar); err != nil {
 				return nil // ignore invalid scalars, retain the old system-config scalar
 			}
 			// retain the scalar data in encoded form
@@ -145,24 +145,5 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 		return nil
 	default:
 		return fmt.Errorf("unrecognized L1 sysCfg update type: %s", updateType)
-	}
-}
-
-func CheckEcotoneL1SystemConfigScalar(scalar [32]byte) error {
-	versionByte := scalar[0]
-	switch versionByte {
-	case L1ScalarOriginal:
-		if ([27]byte)(scalar[1:28]) != ([27]byte{}) { // check padding
-			return fmt.Errorf("invalid version 0 scalar padding: %x", scalar[1:28])
-		}
-		return nil
-	case L1ScalarEcotone:
-		if ([23]byte)(scalar[1:24]) != ([23]byte{}) { // check padding
-			return fmt.Errorf("invalid version 1 scalar padding: %x", scalar[1:24])
-		}
-		return nil
-	default:
-		// ignore the event if it's an unknown scalar format
-		return fmt.Errorf("unrecognized scalar version: %d", versionByte)
 	}
 }
