@@ -95,7 +95,7 @@ func (b Bytes96) String() string {
 // TerminalString implements log.TerminalStringer, formatting a string for console
 // output during logging.
 func (b Bytes96) TerminalString() string {
-	return fmt.Sprintf("%x..%x", b[:3], b[29:])
+	return fmt.Sprintf("%x..%x", b[:3], b[93:])
 }
 
 type Bytes256 [256]byte
