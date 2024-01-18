@@ -40,6 +40,7 @@ contract L2OutputOracle_MonotonicBlockNumIncrease_Invariant is CommonTest {
 
         // Set the target contract to the proposer actor.
         targetContract(address(actor));
+        excludeContract(address(ffi));
 
         // Set the target selector for `proposeL2Output`
         // `proposeL2Output` is the only function we care about, as it is the only function

@@ -107,6 +107,7 @@ contract XDM_MinGasLimits is Bridge_Initializer {
 
         // Don't allow the estimation address to be the sender
         excludeSender(Constants.ESTIMATION_ADDRESS);
+        excludeContract(address(ffi));
 
         // Don't allow the predeploys to be the senders
         uint160 prefix = uint160(0x420) << 148;

@@ -136,6 +136,7 @@ contract OptimismPortal_Deposit_Invariant is CommonTest {
         actor = new OptimismPortal_Depositor(vm, optimismPortal);
 
         targetContract(address(actor));
+        excludeContract(address(ffi));
 
         bytes4[] memory selectors = new bytes4[](1);
         selectors[0] = actor.depositTransactionCompletes.selector;
