@@ -71,7 +71,7 @@ func (f *FakeBeacon) Start(addr string) error {
 		blockID := strings.TrimPrefix(r.URL.Path, "/eth/v1/beacon/blob_sidecars/")
 		slot, err := strconv.ParseUint(blockID, 10, 64)
 		if err != nil {
-			f.log.Error("could not parse block id from request", "url", r.URL.Path)
+			f.log.Error("could not parse block id from request", "url", r.URL.Path, "err", err)
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}

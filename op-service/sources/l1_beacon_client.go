@@ -9,7 +9,6 @@ import (
 	"net/url"
 	"slices"
 	"strconv"
-	"strings"
 	"sync"
 
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
@@ -36,10 +35,10 @@ func NewL1BeaconClient(cl client.HTTP) *L1BeaconClient {
 	return &L1BeaconClient{cl: cl}
 }
 
-func (cl *L1BeaconClient) apiReq(ctx context.Context, dest any, method string) error {
+func (cl *L1BeaconClient) apiReq(ctx context.Context, dest any, reqPath string, reqQuery url.Values) error {
 	headers := http.Header{}
 	headers.Add("Accept", "application/json")
-	resp, err := cl.cl.Get(ctx, method, headers)
+	resp, err := cl.cl.Get(ctx, reqPath, reqQuery, headers)
 	if err != nil {
 		return fmt.Errorf("%w: http Get failed", err)
 	}
@@ -69,12 +68,12 @@ func (cl *L1BeaconClient) GetTimeToSlotFn(ctx context.Context) (TimeToSlotFn, er
 	}
 
 	var genesisResp eth.APIGenesisResponse
-	if err := cl.apiReq(ctx, &genesisResp, genesisMethod); err != nil {
+	if err := cl.apiReq(ctx, &genesisResp, genesisMethod, nil); err != nil {
 		return nil, err
 	}
 
 	var configResp eth.APIConfigResponse
-	if err := cl.apiReq(ctx, &configResp, specMethod); err != nil {
+	if err := cl.apiReq(ctx, &configResp, specMethod, nil); err != nil {
 		return nil, err
 	}
 
@@ -108,18 +107,13 @@ func (cl *L1BeaconClient) GetBlobSidecars(ctx context.Context, ref eth.L1BlockRe
 		return nil, fmt.Errorf("%w: error in converting ref.Time to slot", err)
 	}
 
-	builder := strings.Builder{}
-	builder.WriteString(sidecarsMethodPrefix)
-	builder.WriteString(strconv.FormatUint(slot, 10))
-	builder.WriteRune('?')
-	v := url.Values{}
+	reqPath := sidecarsMethodPrefix + strconv.FormatUint(slot, 10)
+	reqQuery := url.Values{}
 	for i := range hashes {
-		v.Add("indices", strconv.FormatUint(hashes[i].Index, 10))
+		reqQuery.Add("indices", strconv.FormatUint(hashes[i].Index, 10))
 	}
-	builder.WriteString(v.Encode())
-
 	var resp eth.APIGetBlobSidecarsResponse
-	if err := cl.apiReq(ctx, &resp, builder.String()); err != nil {
+	if err := cl.apiReq(ctx, &resp, reqPath, reqQuery); err != nil {
 		return nil, fmt.Errorf("%w: failed to fetch blob sidecars for slot %v block %v", err, slot, ref)
 	}
 	if len(hashes) != len(resp.Data) {
