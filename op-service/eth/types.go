@@ -2,6 +2,7 @@ package eth
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
 	"math/big"
 	"reflect"
@@ -310,17 +311,62 @@ type ForkchoiceUpdatedResult struct {
 type SystemConfig struct {
 	// BatcherAddr identifies the batch-sender address used in batch-inbox data-transaction filtering.
 	BatcherAddr common.Address `json:"batcherAddr"`
-	// Overhead identifies the L1 fee overhead, and is passed through opaquely to op-geth.
+	// Overhead identifies the L1 fee overhead.
+	// Pre-Ecotone this is passed as-is to the engine.
+	// Post-Ecotone this is always zero, and not passed into the engine.
 	Overhead Bytes32 `json:"overhead"`
-	// Scalar identifies the L1 fee scalar, and is passed through opaquely to op-geth.
+	// Scalar identifies the L1 fee scalar
+	// Pre-Ecotone this is passed as-is to the engine.
+	// Post-Ecotone this encodes multiple pieces of scalar data.
 	Scalar Bytes32 `json:"scalar"`
 	// GasLimit identifies the L2 block gas limit
 	GasLimit uint64 `json:"gasLimit"`
-	// BaseFeeScalar scales the L1 calldata fee after the Ecotone upgrade
-	BaseFeeScalar uint32 `json:"baseFeeScalar"`
-	// BlobBaseFeeScalar scales the L1 blob fee after the Ecotone upgrade
-	BlobBaseFeeScalar uint32 `json:"blobBaseFeeScalar"`
 	// More fields can be added for future SystemConfig versions.
+}
+
+// The Ecotone upgrade introduces a versioned L1 scalar format
+// that is backward-compatible with pre-Ecotone L1 scalar values.
+const (
+	// L1ScalarBedrock is implied pre-Ecotone, encoding just a regular-gas scalar.
+	L1ScalarBedrock = byte(0)
+	// L1ScalarEcotone is new in Ecotone, allowing configuration of both a regular and a blobs scalar.
+	L1ScalarEcotone = byte(1)
+)
+
+func (sysCfg *SystemConfig) EcotoneScalars() (blobBaseFeeScalar, baseFeeScalar uint32, err error) {
+	if err := CheckEcotoneL1SystemConfigScalar(sysCfg.Scalar); err != nil {
+		return 0, 0, err
+	}
+	switch sysCfg.Scalar[0] {
+	case L1ScalarBedrock:
+		blobBaseFeeScalar = 0
+		baseFeeScalar = binary.BigEndian.Uint32(sysCfg.Scalar[28:32])
+	case L1ScalarEcotone:
+		blobBaseFeeScalar = binary.BigEndian.Uint32(sysCfg.Scalar[24:28])
+		baseFeeScalar = binary.BigEndian.Uint32(sysCfg.Scalar[28:32])
+	default:
+		err = fmt.Errorf("unexpected system config scalar: %s", sysCfg.Scalar)
+	}
+	return
+}
+
+func CheckEcotoneL1SystemConfigScalar(scalar [32]byte) error {
+	versionByte := scalar[0]
+	switch versionByte {
+	case L1ScalarBedrock:
+		if ([27]byte)(scalar[1:28]) != ([27]byte{}) { // check padding
+			return fmt.Errorf("invalid version 0 scalar padding: %x", scalar[1:28])
+		}
+		return nil
+	case L1ScalarEcotone:
+		if ([23]byte)(scalar[1:24]) != ([23]byte{}) { // check padding
+			return fmt.Errorf("invalid version 1 scalar padding: %x", scalar[1:24])
+		}
+		return nil
+	default:
+		// ignore the event if it's an unknown scalar format
+		return fmt.Errorf("unrecognized scalar version: %d", versionByte)
+	}
 }
 
 type Bytes48 [48]byte

@@ -270,19 +270,31 @@ func L1InfoDeposit(rollupCfg *rollup.Config, sysCfg eth.SystemConfig, seqNumber 
 		BatcherAddr:    sysCfg.BatcherAddr,
 	}
 	var data []byte
-	var err error
 	if isEcotoneButNotFirstBlock(rollupCfg, l2BlockTime) {
 		l1BlockInfo.BlobBaseFee = block.BlobBaseFee()
-		l1BlockInfo.BlobBaseFeeScalar = sysCfg.BlobBaseFeeScalar
-		l1BlockInfo.BaseFeeScalar = sysCfg.BaseFeeScalar
-		data, err = l1BlockInfo.marshalBinaryEcotone()
+		if l1BlockInfo.BlobBaseFee == nil {
+			// The L2 spec states to use the MIN_BLOB_GASPRICE from EIP-4844 if not yet active on L1.
+			l1BlockInfo.BlobBaseFee = big.NewInt(1)
+		}
+		blobBaseFeeScalar, baseFeeScalar, err := sysCfg.EcotoneScalars()
+		if err != nil {
+			return nil, err
+		}
+		l1BlockInfo.BlobBaseFeeScalar = blobBaseFeeScalar
+		l1BlockInfo.BaseFeeScalar = baseFeeScalar
+		out, err := l1BlockInfo.marshalBinaryEcotone()
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal Ecotone l1 block info: %w", err)
+		}
+		data = out
 	} else {
 		l1BlockInfo.L1FeeOverhead = sysCfg.Overhead
 		l1BlockInfo.L1FeeScalar = sysCfg.Scalar
-		data, err = l1BlockInfo.marshalBinaryBedrock()
-	}
-	if err != nil {
-		return nil, fmt.Errorf("Failed to marshal l1 block info: %w", err)
+		out, err := l1BlockInfo.marshalBinaryBedrock()
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal Bedrock l1 block info: %w", err)
+		}
+		data = out
 	}
 
 	source := L1InfoDepositSource{

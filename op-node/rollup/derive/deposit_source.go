@@ -13,8 +13,9 @@ type UserDepositSource struct {
 }
 
 const (
-	UserDepositSourceDomain   = 0
-	L1InfoDepositSourceDomain = 1
+	UserDepositSourceDomain    = 0
+	L1InfoDepositSourceDomain  = 1
+	UpgradeDepositSourceDomain = 2
 )
 
 func (dep *UserDepositSource) SourceHash() common.Hash {
@@ -42,5 +43,23 @@ func (dep *L1InfoDepositSource) SourceHash() common.Hash {
 	var domainInput [32 * 2]byte
 	binary.BigEndian.PutUint64(domainInput[32-8:32], L1InfoDepositSourceDomain)
 	copy(domainInput[32:], depositIDHash[:])
+	return crypto.Keccak256Hash(domainInput[:])
+}
+
+// UpgradeDepositSource implements the translation of upgrade-tx identity information to a deposit source-hash,
+// which makes the deposit uniquely identifiable.
+// System-upgrade transactions have their own domain for source-hashes,
+// to not conflict with user-deposits or deposited L1 information.
+// The intent identifies the upgrade-tx uniquely, in a human-readable way.
+type UpgradeDepositSource struct {
+	Intent string
+}
+
+func (dep *UpgradeDepositSource) SourceHash() common.Hash {
+	intentHash := crypto.Keccak256Hash([]byte(dep.Intent))
+
+	var domainInput [32 * 2]byte
+	binary.BigEndian.PutUint64(domainInput[32-8:32], UpgradeDepositSourceDomain)
+	copy(domainInput[32:], intentHash[:])
 	return crypto.Keccak256Hash(domainInput[:])
 }

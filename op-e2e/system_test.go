@@ -161,7 +161,7 @@ func TestSystemE2EDencunAtGenesis(t *testing.T) {
 	InitParallel(t)
 
 	cfg := DefaultSystemConfig(t)
-	genesisActivation := uint64(0)
+	genesisActivation := hexutil.Uint64(0)
 	cfg.DeployConfig.L1CancunTimeOffset = &genesisActivation
 
 	sys, err := cfg.Start(t)
@@ -179,7 +179,7 @@ func TestSystemE2EDencunAtGenesisWithBlobs(t *testing.T) {
 
 	cfg := DefaultSystemConfig(t)
 	//cancun is on from genesis:
-	genesisActivation := uint64(0)
+	genesisActivation := hexutil.Uint64(0)
 	cfg.DeployConfig.L1CancunTimeOffset = &genesisActivation // i.e. turn cancun on at genesis time + 0
 
 	sys, err := cfg.Start(t)
@@ -1067,7 +1067,7 @@ func (sga *stateGetterAdapter) GetState(addr common.Address, key common.Hash) co
 }
 
 // TestFees checks that L1/L2 fees are handled.
-func TestL1Fees(t *testing.T) {
+func TestFees(t *testing.T) {
 	InitParallel(t)
 
 	t.Run("pre-regolith", func(t *testing.T) {
@@ -1078,10 +1078,9 @@ func TestL1Fees(t *testing.T) {
 		cfg.DeployConfig.L2GenesisCanyonTimeOffset = nil
 		cfg.DeployConfig.L2GenesisDeltaTimeOffset = nil
 		cfg.DeployConfig.L2GenesisEcotoneTimeOffset = nil
-		testL1Fees(t, cfg)
+		testFees(t, cfg)
 	})
 	t.Run("regolith", func(t *testing.T) {
-		t.Skip("getL1GasUsed in GPO does not support Regolith, it returns the Bedrock L1 cost, incl 68*16 gas overhead")
 		cfg := DefaultSystemConfig(t)
 		cfg.DeployConfig.L1GenesisBlockBaseFeePerGas = (*hexutil.Big)(big.NewInt(7))
 
@@ -1089,10 +1088,9 @@ func TestL1Fees(t *testing.T) {
 		cfg.DeployConfig.L2GenesisCanyonTimeOffset = nil
 		cfg.DeployConfig.L2GenesisDeltaTimeOffset = nil
 		cfg.DeployConfig.L2GenesisEcotoneTimeOffset = nil
-		testL1Fees(t, cfg)
+		testFees(t, cfg)
 	})
 	t.Run("ecotone", func(t *testing.T) {
-		t.Skip("when activating Ecotone at Genesis we do not yet call setEcotone() on GPO")
 		cfg := DefaultSystemConfig(t)
 		cfg.DeployConfig.L1GenesisBlockBaseFeePerGas = (*hexutil.Big)(big.NewInt(7))
 
@@ -1100,11 +1098,11 @@ func TestL1Fees(t *testing.T) {
 		cfg.DeployConfig.L2GenesisCanyonTimeOffset = new(hexutil.Uint64)
 		cfg.DeployConfig.L2GenesisDeltaTimeOffset = new(hexutil.Uint64)
 		cfg.DeployConfig.L2GenesisEcotoneTimeOffset = new(hexutil.Uint64)
-		testL1Fees(t, cfg)
+		testFees(t, cfg)
 	})
 }
 
-func testL1Fees(t *testing.T, cfg SystemConfig) {
+func testFees(t *testing.T, cfg SystemConfig) {
 
 	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
@@ -1135,16 +1133,25 @@ func testL1Fees(t *testing.T, cfg SystemConfig) {
 	gpoContract, err := bindings.NewGasPriceOracle(predeploys.GasPriceOracleAddr, l2Seq)
 	require.Nil(t, err)
 
-	overhead, err := gpoContract.Overhead(&bind.CallOpts{})
-	require.Nil(t, err, "reading gpo overhead")
+	if !sys.RollupConfig.IsEcotone(sys.L2GenesisCfg.Timestamp) {
+		overhead, err := gpoContract.Overhead(&bind.CallOpts{})
+		require.Nil(t, err, "reading gpo overhead")
+		require.Equal(t, overhead.Uint64(), cfg.DeployConfig.GasPriceOracleOverhead, "wrong gpo overhead")
+
+		scalar, err := gpoContract.Scalar(&bind.CallOpts{})
+		require.Nil(t, err, "reading gpo scalar")
+		require.Equal(t, scalar.Uint64(), cfg.DeployConfig.GasPriceOracleScalar, "wrong gpo scalar")
+	} else {
+		_, err := gpoContract.Overhead(&bind.CallOpts{})
+		require.ErrorContains(t, err, "deprecated")
+		_, err = gpoContract.Scalar(&bind.CallOpts{})
+		require.ErrorContains(t, err, "deprecated")
+	}
+
 	decimals, err := gpoContract.Decimals(&bind.CallOpts{})
 	require.Nil(t, err, "reading gpo decimals")
-	scalar, err := gpoContract.Scalar(&bind.CallOpts{})
-	require.Nil(t, err, "reading gpo scalar")
 
-	require.Equal(t, overhead.Uint64(), cfg.DeployConfig.GasPriceOracleOverhead, "wrong gpo overhead")
 	require.Equal(t, decimals.Uint64(), uint64(6), "wrong gpo decimals")
-	require.Equal(t, scalar.Uint64(), cfg.DeployConfig.GasPriceOracleScalar, "wrong gpo scalar")
 
 	// BaseFee Recipient
 	baseFeeRecipientStartBalance, err := l2Seq.BalanceAt(context.Background(), predeploys.BaseFeeVaultAddr, big.NewInt(rpc.EarliestBlockNumber.Int64()))
@@ -1227,17 +1234,32 @@ func testL1Fees(t *testing.T, cfg SystemConfig) {
 	l1Fee := l1CostFn(tx.RollupCostData(), header.Time)
 	require.Equalf(t, l1Fee, l1FeeRecipientDiff, "L1 fee mismatch: start balance %v, end balance %v", l1FeeRecipientStartBalance, l1FeeRecipientEndBalance)
 
+	gpoEcotone, err := gpoContract.IsEcotone(nil)
+	require.NoError(t, err)
+	require.Equal(t, sys.RollupConfig.IsEcotone(header.Time), gpoEcotone, "GPO and chain must have same ecotone view")
+
 	gpoL1Fee, err := gpoContract.GetL1Fee(&bind.CallOpts{}, bytes)
 	require.Nil(t, err)
-	require.Equal(t, l1Fee, gpoL1Fee, "GPO reports L1 fee mismatch")
+
+	adjustedGPOFee := gpoL1Fee
+	if sys.RollupConfig.IsRegolith(header.Time) {
+		// if post-regolith, adjust the GPO fee by removing the overhead it adds because of signature data
+		artificialGPOOverhead := big.NewInt(68 * 16) // it adds 68 bytes to cover signature and RLP data
+		l1BaseFee := big.NewInt(7)                   // we assume the L1 basefee is the minimum, 7
+		// in our case we already include that, so we subtract it, to do a 1:1 comparison
+		adjustedGPOFee = new(big.Int).Sub(gpoL1Fee, new(big.Int).Mul(artificialGPOOverhead, l1BaseFee))
+	}
+	require.Equal(t, l1Fee, adjustedGPOFee, "GPO reports L1 fee mismatch")
 
 	require.Equal(t, receipt.L1Fee, l1Fee, "l1 fee in receipt is correct")
-	require.Equal(t,
-		new(big.Float).Mul(
-			new(big.Float).SetInt(l1Header.BaseFee),
-			new(big.Float).Mul(new(big.Float).SetInt(receipt.L1GasUsed), receipt.FeeScalar),
-		),
-		new(big.Float).SetInt(receipt.L1Fee), "fee field in receipt matches gas used times scalar times base fee")
+	if !sys.RollupConfig.IsEcotone(header.Time) { // FeeScalar receipt attribute is removed as of Ecotone
+		require.Equal(t,
+			new(big.Float).Mul(
+				new(big.Float).SetInt(l1Header.BaseFee),
+				new(big.Float).Mul(new(big.Float).SetInt(receipt.L1GasUsed), receipt.FeeScalar),
+			),
+			new(big.Float).SetInt(receipt.L1Fee), "fee field in receipt matches gas used times scalar times base fee")
+	}
 
 	// Calculate total fee
 	baseFeeRecipientDiff.Add(baseFeeRecipientDiff, coinbaseDiff)
