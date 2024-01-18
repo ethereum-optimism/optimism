@@ -61,9 +61,10 @@ The `scalar` is encoded as big-endian `uint256`, interpreted as `bytes32`, and c
 - `0`: scalar-version byte
 - `[1, 32)`: depending scalar-version:
   - Scalar-version `0`:
-    - `[1, 28)`: padding, must be zero.
+    - `[1, 28)`: padding, should be zero.
     - `[28, 32)`: big-endian `uint32`, encoding the L1-fee `baseFeeScalar`
     - This version implies the L1-fee `blobBaseFeeScalar` is set to 0.
+    - In the event there are non-zero bytes in the padding area, `baseFeeScalar` must be set to MaxUint32.
     - This version is compatible with the pre-Ecotone `scalar` value (assuming a `uint32` range).
   - Scalar-version `1`:
     - `[1, 24)`: padding, must be zero.
