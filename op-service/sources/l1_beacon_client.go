@@ -121,7 +121,12 @@ func (cl *L1BeaconClient) GetBlobSidecars(ctx context.Context, ref eth.L1BlockRe
 		return nil, fmt.Errorf("expected %v sidecars but got %v", len(hashes), len(resp.Data))
 	}
 
-	return resp.Data, nil
+	bscs := make([]*eth.BlobSidecar, 0, len(hashes))
+	for _, apisc := range resp.Data {
+		bscs = append(bscs, apisc.BlobSidecar())
+	}
+
+	return bscs, nil
 }
 
 // GetBlobs fetches blobs that were confirmed in the specified L1 block with the given indexed
