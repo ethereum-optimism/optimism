@@ -23,6 +23,10 @@ type DABlockInfo struct {
 	Height uint64
 	Hash   common.Hash
 }
+type l1TxInfo struct {
+	hash  common.Hash
+	nonce uint64
+}
 type DAManager struct {
 	log               log.Logger
 	engine            Engine
@@ -31,7 +35,7 @@ type DAManager struct {
 	cancelShutdownCtx context.CancelFunc
 	hashCh            chan *DABlockInfo
 	daHashes          map[*DABlockInfo]uint8
-	userNonces        map[common.Hash]uint64
+	userNonces        map[common.Hash]l1TxInfo
 
 	TxMgr        *txmgr.SimpleTxManager
 	RollupConfig *rollup.Config
@@ -49,7 +53,7 @@ func NewDAManager(log log.Logger, rollup *rollup.Config, engine Engine, txmgr *t
 		IsBroadcast:  isBroadcast,
 		hashCh:       make(chan *DABlockInfo),
 		daHashes:     make(map[*DABlockInfo]uint8),
-		userNonces:   make(map[common.Hash]uint64),
+		userNonces:   make(map[common.Hash]l1TxInfo),
 	}
 }
 
@@ -81,7 +85,7 @@ func (d *DAManager) SendDA(ctx context.Context, index, length, gasPrice uint64, 
 	}
 	log.Info("L1SubmitTxData", "txIndexHash", d.userNonces[txIndexHash])
 	if n, ex := d.userNonces[txIndexHash]; ex {
-		nonce = int64(n)
+		nonce = int64(n.nonce)
 	}
 	tx, err := d.TxMgr.SendDA(ctx, txmgr.TxCandidate{
 		TxData:   input,
@@ -90,11 +94,14 @@ func (d *DAManager) SendDA(ctx context.Context, index, length, gasPrice uint64, 
 	}, gasPrice, nonce)
 
 	if err != nil {
+		if nonce != -1 {
+			return d.userNonces[txIndexHash].hash, nil
+		}
 		return common.Hash{}, err
 	}
 	log.Info("L1Submit tx successfully published",
 		"tx_hash", tx.Hash().Hex(), "user", user.Hex(), "index", index)
-	d.userNonces[txIndexHash] = tx.Nonce()
+	d.userNonces[txIndexHash] = l1TxInfo{hash: tx.Hash(), nonce: tx.Nonce()}
 
 	d.engine.UploadFileDataByParams(ctx, index, length, gasPrice, broadcaster, user, commitment, sign, data, tx.Hash())
 	return tx.Hash(), nil
@@ -175,6 +182,7 @@ func (d *DAManager) getDA() {
 			}
 			block.TxHashes.TxHashes = filteredHashes
 			if len(exHashes) > 0 {
+				d.delUserNonce(exHashes)
 				d.engine.BatchSaveFileDataWithHashes(d.shutdownCtx, rpc.TxHashes{TxHashes: exHashes, BlockHash: block.Hash, BlockNumber: rpc.BlockNumber(block.Height)})
 			}
 		}
@@ -188,6 +196,16 @@ func (d *DAManager) getDA() {
 			log.Info("block processed", "helght", block.Height)
 			d.engine.ChangeCurrentState(d.shutdownCtx, 2, rpc.BlockNumber(block.Height))
 			delete(d.daHashes, block)
+		}
+	}
+}
+
+func (d *DAManager) delUserNonce(hashes []common.Hash) {
+	for _, hash := range hashes {
+		for key, info := range d.userNonces {
+			if info.hash == hash {
+				delete(d.userNonces, key)
+			}
 		}
 	}
 }
