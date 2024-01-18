@@ -1,13 +1,16 @@
 package derive
 
 import (
+	"math/rand"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
 
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
@@ -260,4 +263,127 @@ func TestWithdrawalsMatch(t *testing.T) {
 			require.Error(t, err)
 		}
 	}
+}
+
+func TestGetMissingTxnHashes(t *testing.T) {
+	depositTxs := make([]*types.Transaction, 5)
+
+	for i := 0; i < len(depositTxs); i++ {
+		rng := rand.New(rand.NewSource(1234 + int64(i)))
+		safeDeposit := testutils.GenerateDeposit(testutils.RandomHash(rng), rng)
+		depositTxs[i] = types.NewTx(safeDeposit)
+	}
+
+	tests := []struct {
+		safeTransactions            []hexutil.Bytes
+		unsafeTransactions          []hexutil.Bytes
+		expectedSafeMissingHashes   []common.Hash
+		expectedUnsafeMissingHashes []common.Hash
+		expectErr                   bool
+	}{
+		{
+			safeTransactions:            []hexutil.Bytes{},
+			unsafeTransactions:          []hexutil.Bytes{depositTxToBytes(t, depositTxs[0])},
+			expectedSafeMissingHashes:   []common.Hash{depositTxs[0].Hash()},
+			expectedUnsafeMissingHashes: []common.Hash{},
+			expectErr:                   false,
+		},
+		{
+			safeTransactions:            []hexutil.Bytes{depositTxToBytes(t, depositTxs[0])},
+			unsafeTransactions:          []hexutil.Bytes{},
+			expectedSafeMissingHashes:   []common.Hash{},
+			expectedUnsafeMissingHashes: []common.Hash{depositTxs[0].Hash()},
+			expectErr:                   false,
+		},
+		{
+			safeTransactions: []hexutil.Bytes{
+				depositTxToBytes(t, depositTxs[0]),
+			},
+			unsafeTransactions: []hexutil.Bytes{
+				depositTxToBytes(t, depositTxs[0]),
+				depositTxToBytes(t, depositTxs[1]),
+				depositTxToBytes(t, depositTxs[2]),
+			},
+			expectedSafeMissingHashes: []common.Hash{
+				depositTxs[1].Hash(),
+				depositTxs[2].Hash(),
+			},
+			expectedUnsafeMissingHashes: []common.Hash{},
+			expectErr:                   false,
+		},
+		{
+			safeTransactions: []hexutil.Bytes{
+				depositTxToBytes(t, depositTxs[0]),
+				depositTxToBytes(t, depositTxs[1]),
+				depositTxToBytes(t, depositTxs[2]),
+			},
+			unsafeTransactions: []hexutil.Bytes{
+				depositTxToBytes(t, depositTxs[0]),
+			},
+			expectedSafeMissingHashes: []common.Hash{},
+			expectedUnsafeMissingHashes: []common.Hash{
+				depositTxs[1].Hash(),
+				depositTxs[2].Hash(),
+			},
+			expectErr: false,
+		},
+		{
+			safeTransactions: []hexutil.Bytes{
+				depositTxToBytes(t, depositTxs[0]),
+				depositTxToBytes(t, depositTxs[1]),
+				depositTxToBytes(t, depositTxs[2]),
+			},
+			unsafeTransactions: []hexutil.Bytes{
+				depositTxToBytes(t, depositTxs[2]),
+				depositTxToBytes(t, depositTxs[3]),
+				depositTxToBytes(t, depositTxs[4]),
+			},
+			expectedSafeMissingHashes: []common.Hash{
+				depositTxs[3].Hash(),
+				depositTxs[4].Hash(),
+			},
+			expectedUnsafeMissingHashes: []common.Hash{
+				depositTxs[0].Hash(),
+				depositTxs[1].Hash(),
+			},
+			expectErr: false,
+		},
+		{
+			safeTransactions:            []hexutil.Bytes{{1, 2, 3}},
+			unsafeTransactions:          []hexutil.Bytes{},
+			expectedSafeMissingHashes:   []common.Hash{},
+			expectedUnsafeMissingHashes: []common.Hash{},
+			expectErr:                   true,
+		},
+		{
+			safeTransactions:            []hexutil.Bytes{},
+			unsafeTransactions:          []hexutil.Bytes{{1, 2, 3}},
+			expectedSafeMissingHashes:   []common.Hash{},
+			expectedUnsafeMissingHashes: []common.Hash{},
+			expectErr:                   true,
+		},
+	}
+
+	for _, test := range tests {
+		missingSafeHashes, missingUnsafeHashes, err := getMissingTxnHashes(
+			testlog.Logger(t, log.LvlError),
+			test.safeTransactions,
+			test.unsafeTransactions,
+		)
+
+		if test.expectErr {
+			require.Error(t, err)
+		} else {
+			require.NoError(t, err)
+			require.ElementsMatch(t, test.expectedSafeMissingHashes, missingSafeHashes)
+			require.ElementsMatch(t, test.expectedUnsafeMissingHashes, missingUnsafeHashes)
+		}
+	}
+}
+
+func depositTxToBytes(t *testing.T, tx *types.Transaction) hexutil.Bytes {
+	txBytes, err := tx.MarshalBinary()
+	require.NoError(t, err)
+
+	return txBytes
 }

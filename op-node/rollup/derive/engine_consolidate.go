@@ -28,6 +28,16 @@ func AttributesMatchBlock(rollupCfg *rollup.Config, attrs *eth.PayloadAttributes
 		return fmt.Errorf("random field does not match. expected: %v. got: %v", attrs.PrevRandao, block.PrevRandao)
 	}
 	if len(attrs.Transactions) != len(block.Transactions) {
+		missingSafeHashes, missingUnsafeHashes, err := getMissingTxnHashes(l, attrs.Transactions, block.Transactions)
+		if err != nil {
+			l.Error("failed to get missing txn hashes", "err", err)
+		} else {
+			l.Error("mismatched hashes",
+				"missingSafeHashes", missingSafeHashes,
+				"missingUnsafeHashes", missingUnsafeHashes,
+			)
+		}
+
 		return fmt.Errorf("transaction count does not match. expected: %d. got: %d", len(attrs.Transactions), len(block.Transactions))
 	}
 	for i, otx := range attrs.Transactions {
@@ -137,4 +147,51 @@ func logL1InfoTxns(rollupCfg *rollup.Config, l log.Logger, l2Number, l2Timestamp
 			"safe_gpo_scalar", safeInfo.L1FeeScalar, "safe_gpo_overhead", safeInfo.L1FeeOverhead,
 			"unsafe_gpo_scalar", unsafeInfo.L1FeeScalar, "unsafe_gpo_overhead", unsafeInfo.L1FeeOverhead)
 	}
+}
+
+func getMissingTxnHashes(l log.Logger, safeTxns, unsafeTxns []hexutil.Bytes) ([]common.Hash, []common.Hash, error) {
+	safeTxnHashes := make(map[common.Hash]struct{}, len(safeTxns))
+	unsafeTxnHashes := make(map[common.Hash]struct{}, len(unsafeTxns))
+
+	for _, tx := range safeTxns {
+		safeTxValue := &types.Transaction{}
+		errSafe := safeTxValue.UnmarshalBinary(tx)
+		if errSafe != nil {
+			return nil, nil, fmt.Errorf("failed to unmarshal safe tx: %w", errSafe)
+		}
+
+		if _, ok := safeTxnHashes[safeTxValue.Hash()]; ok {
+			l.Warn("duplicate safe tx value hash detected", "safeTxValueHash", safeTxValue.Hash())
+		}
+		safeTxnHashes[safeTxValue.Hash()] = struct{}{}
+	}
+
+	for _, tx := range unsafeTxns {
+		unsafeTxValue := &types.Transaction{}
+		errUnsafe := unsafeTxValue.UnmarshalBinary(tx)
+		if errUnsafe != nil {
+			return nil, nil, fmt.Errorf("failed to unmarshal unsafe tx: %w", errUnsafe)
+		}
+
+		if _, ok := unsafeTxnHashes[unsafeTxValue.Hash()]; ok {
+			l.Warn("duplicate unsafe tx value hash detected", "unsafeTxValueHash", unsafeTxValue.Hash())
+		}
+		unsafeTxnHashes[unsafeTxValue.Hash()] = struct{}{}
+	}
+
+	missingUnsafeHashes := []common.Hash{}
+	for hash := range safeTxnHashes {
+		if _, ok := unsafeTxnHashes[hash]; !ok {
+			missingUnsafeHashes = append(missingUnsafeHashes, hash)
+		}
+	}
+
+	missingSafeHashes := []common.Hash{}
+	for hash := range unsafeTxnHashes {
+		if _, ok := safeTxnHashes[hash]; !ok {
+			missingSafeHashes = append(missingSafeHashes, hash)
+		}
+	}
+
+	return missingSafeHashes, missingUnsafeHashes, nil
 }
