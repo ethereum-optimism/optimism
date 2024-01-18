@@ -175,3 +175,32 @@ func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 	expectedL1Fee = expectedL1Fee.Div(expectedL1Fee, big.NewInt(16e6))
 	require.Equal(t, expectedL1Fee, cost, "expecting cost based on regular base fee scalar alone")
 }
+
+// TestEcotoneBeforeL1 tests that the L2 Ecotone fork can activate before L1 Dencun does
+func TestEcotoneBeforeL1(gt *testing.T) {
+	t := NewDefaultTesting(gt)
+	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
+	offset := hexutil.Uint64(0)
+	farOffset := hexutil.Uint64(10000)
+	dp.DeployConfig.L2GenesisRegolithTimeOffset = &offset
+	dp.DeployConfig.L1CancunTimeOffset = &farOffset // L1 Dencun will not be active at genesis
+	dp.DeployConfig.L2GenesisCanyonTimeOffset = &offset
+	dp.DeployConfig.L2GenesisDeltaTimeOffset = &offset
+	dp.DeployConfig.L2GenesisEcotoneTimeOffset = &offset
+
+	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	log := testlog.Logger(t, log.LvlDebug)
+	_, _, _, sequencer, engine, verifier, _, _ := setupReorgTestActors(t, dp, sd, log)
+
+	// start op-nodes
+	sequencer.ActL2PipelineFull(t)
+	verifier.ActL2PipelineFull(t)
+
+	// Genesis block has ecotone properties
+	verifyEcotoneBlock(gt, engine.l2Chain.CurrentBlock())
+
+	// Blocks post fork have Ecotone properties
+	sequencer.ActL2StartBlock(t)
+	sequencer.ActL2EndBlock(t)
+	verifyEcotoneBlock(gt, engine.l2Chain.CurrentBlock())
+}
