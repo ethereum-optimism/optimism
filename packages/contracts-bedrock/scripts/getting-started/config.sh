@@ -81,7 +81,6 @@ config=$(cat << EOL
   "eip1559DenominatorCanyon": 250,
   "eip1559Elasticity": 6,
 
-  "l2GenesisRegolithTimeOffset": "0x0",
   "l2GenesisDeltaTimeOffset": null,
   "l2GenesisCanyonTimeOffset": "0x0",
 
