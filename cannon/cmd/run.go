@@ -64,6 +64,10 @@ var (
 		Value:    new(StepMatcherFlag),
 		Required: false,
 	}
+	RunStopAtPreimageFlag = &cli.BoolFlag{
+		Name:  "stop-at-preimage",
+		Usage: "stop at the first preimage request",
+	}
 	RunMetaFlag = &cli.PathFlag{
 		Name:     "meta",
 		Usage:    "path to metadata file for symbol lookup for enhanced debugging info during execution.",
@@ -290,6 +294,7 @@ func Run(ctx *cli.Context) error {
 	// avoid symbol lookups every instruction by preparing a matcher func
 	sleepCheck := meta.SymbolMatcher("runtime.notesleep")
 
+	stopAtPreimageRead := ctx.Bool(RunStopAtPreimageFlag.Name)
 	for !state.Exited {
 		if state.Step%100 == 0 { // don't do the ctx err check (includes lock) too often
 			if err := ctx.Context.Err(); err != nil {
@@ -326,6 +331,8 @@ func Run(ctx *cli.Context) error {
 			}
 		}
 
+		prevPreimageOffset := state.PreimageOffset
+
 		if proofAt(state) {
 			preStateHash, err := state.EncodeWitness().StateHash()
 			if err != nil {
@@ -360,6 +367,10 @@ func Run(ctx *cli.Context) error {
 				return fmt.Errorf("failed at step %d (PC: %08x): %w", step, state.PC, err)
 			}
 		}
+
+		if stopAtPreimageRead && state.PreimageOffset > prevPreimageOffset {
+			break
+		}
 	}
 
 	if err := writeJSON(ctx.Path(RunOutputFlag.Name), state); err != nil {
@@ -381,6 +392,7 @@ var RunCommand = &cli.Command{
 		RunSnapshotAtFlag,
 		RunSnapshotFmtFlag,
 		RunStopAtFlag,
+		RunStopAtPreimageFlag,
 		RunMetaFlag,
 		RunInfoAtFlag,
 		RunPProfCPU,
