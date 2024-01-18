@@ -7,6 +7,7 @@ import (
 	"io"
 	"sync/atomic"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
@@ -36,6 +37,8 @@ type Service struct {
 	sched   *scheduler.Scheduler
 
 	faultGamesCloser fault.CloseFunc
+
+	preimages *keccak.LargePreimageScheduler
 
 	txMgr *txmgr.SimpleTxManager
 
@@ -101,6 +104,9 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 	}
 	if err := s.initScheduler(cfg); err != nil {
 		return fmt.Errorf("failed to init scheduler: %w", err)
+	}
+	if err := s.initLargePreimages(); err != nil {
+		return fmt.Errorf("failed to init large preimage scheduler: %w", err)
 	}
 
 	s.initMonitor(cfg)
@@ -218,9 +224,14 @@ func (s *Service) initScheduler(cfg *config.Config) error {
 	return nil
 }
 
+func (s *Service) initLargePreimages() error {
+	s.preimages = keccak.NewLargePreimageScheduler(s.logger, s.registry.Oracles())
+	return nil
+}
+
 func (s *Service) initMonitor(cfg *config.Config) {
 	cl := clock.SystemClock
-	s.monitor = newGameMonitor(s.logger, cl, s.loader, s.sched, cfg.GameWindow, s.l1Client.BlockNumber, cfg.GameAllowlist, s.pollClient)
+	s.monitor = newGameMonitor(s.logger, cl, s.loader, s.sched, s.preimages, cfg.GameWindow, s.l1Client.BlockNumber, cfg.GameAllowlist, s.pollClient)
 }
 
 func (s *Service) Start(ctx context.Context) error {

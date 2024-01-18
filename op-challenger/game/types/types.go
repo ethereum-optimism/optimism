@@ -1,7 +1,9 @@
 package types
 
 import (
+	"context"
 	"fmt"
+	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -42,6 +44,12 @@ type GameMetadata struct {
 	Proxy     common.Address
 }
 
+type LargePreimageMetaData struct {
+	Claimant common.Address
+	UUID     *big.Int
+}
+
 type LargePreimageOracle interface {
 	Addr() common.Address
+	GetActivePreimages(ctx context.Context, blockHash common.Hash) ([]LargePreimageMetaData, error)
 }

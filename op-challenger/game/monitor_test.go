@@ -24,20 +24,20 @@ func TestMonitorMinGameTimestamp(t *testing.T) {
 	t.Parallel()
 
 	t.Run("zero game window returns zero", func(t *testing.T) {
-		monitor, _, _, _ := setupMonitorTest(t, []common.Address{})
+		monitor, _, _, _, _ := setupMonitorTest(t, []common.Address{})
 		monitor.gameWindow = time.Duration(0)
 		require.Equal(t, monitor.minGameTimestamp(), uint64(0))
 	})
 
 	t.Run("non-zero game window with zero clock", func(t *testing.T) {
-		monitor, _, _, _ := setupMonitorTest(t, []common.Address{})
+		monitor, _, _, _, _ := setupMonitorTest(t, []common.Address{})
 		monitor.gameWindow = time.Minute
 		monitor.clock = clock.NewDeterministicClock(time.Unix(0, 0))
 		require.Equal(t, monitor.minGameTimestamp(), uint64(0))
 	})
 
 	t.Run("minimum computed correctly", func(t *testing.T) {
-		monitor, _, _, _ := setupMonitorTest(t, []common.Address{})
+		monitor, _, _, _, _ := setupMonitorTest(t, []common.Address{})
 		monitor.gameWindow = time.Minute
 		frozen := time.Unix(int64(time.Hour.Seconds()), 0)
 		monitor.clock = clock.NewDeterministicClock(frozen)
@@ -52,7 +52,7 @@ func TestMonitorGames(t *testing.T) {
 	t.Run("Schedules games", func(t *testing.T) {
 		addr1 := common.Address{0xaa}
 		addr2 := common.Address{0xbb}
-		monitor, source, sched, mockHeadSource := setupMonitorTest(t, []common.Address{})
+		monitor, source, sched, mockHeadSource, preimages := setupMonitorTest(t, []common.Address{})
 		source.games = []types.GameMetadata{newFDG(addr1, 9999), newFDG(addr2, 9999)}
 
 		ctx, cancel := context.WithCancel(context.Background())
@@ -91,12 +91,13 @@ func TestMonitorGames(t *testing.T) {
 		monitor.StopMonitoring()
 		require.Len(t, sched.Scheduled(), 1)
 		require.Equal(t, []common.Address{addr1, addr2}, sched.Scheduled()[0])
+		require.GreaterOrEqual(t, preimages.ScheduleCount(), 1, "Should schedule preimage checks")
 	})
 
 	t.Run("Resubscribes on error", func(t *testing.T) {
 		addr1 := common.Address{0xaa}
 		addr2 := common.Address{0xbb}
-		monitor, source, sched, mockHeadSource := setupMonitorTest(t, []common.Address{})
+		monitor, source, sched, mockHeadSource, preimages := setupMonitorTest(t, []common.Address{})
 		source.games = []types.GameMetadata{newFDG(addr1, 9999), newFDG(addr2, 9999)}
 
 		ctx, cancel := context.WithCancel(context.Background())
@@ -138,11 +139,12 @@ func TestMonitorGames(t *testing.T) {
 		monitor.StopMonitoring()
 		require.NotEmpty(t, sched.Scheduled()) // We might get more than one update scheduled.
 		require.Equal(t, []common.Address{addr1, addr2}, sched.Scheduled()[0])
+		require.GreaterOrEqual(t, preimages.ScheduleCount(), 1, "Should schedule preimage checks")
 	})
 }
 
 func TestMonitorCreateAndProgressGameAgents(t *testing.T) {
-	monitor, source, sched, _ := setupMonitorTest(t, []common.Address{})
+	monitor, source, sched, _, _ := setupMonitorTest(t, []common.Address{})
 
 	addr1 := common.Address{0xaa}
 	addr2 := common.Address{0xbb}
@@ -157,7 +159,7 @@ func TestMonitorCreateAndProgressGameAgents(t *testing.T) {
 func TestMonitorOnlyScheduleSpecifiedGame(t *testing.T) {
 	addr1 := common.Address{0xaa}
 	addr2 := common.Address{0xbb}
-	monitor, source, sched, _ := setupMonitorTest(t, []common.Address{addr2})
+	monitor, source, sched, _, _ := setupMonitorTest(t, []common.Address{addr2})
 	source.games = []types.GameMetadata{newFDG(addr1, 9999), newFDG(addr2, 9999)}
 
 	require.NoError(t, monitor.progressGames(context.Background(), common.Hash{0x01}, 0))
@@ -176,7 +178,7 @@ func newFDG(proxy common.Address, timestamp uint64) types.GameMetadata {
 func setupMonitorTest(
 	t *testing.T,
 	allowedGames []common.Address,
-) (*gameMonitor, *stubGameSource, *stubScheduler, *mockNewHeadSource) {
+) (*gameMonitor, *stubGameSource, *stubScheduler, *mockNewHeadSource, *stubPreimageScheduler) {
 	logger := testlog.Logger(t, log.LvlDebug)
 	source := &stubGameSource{}
 	i := uint64(1)
@@ -185,18 +187,20 @@ func setupMonitorTest(
 		return i, nil
 	}
 	sched := &stubScheduler{}
+	preimages := &stubPreimageScheduler{}
 	mockHeadSource := &mockNewHeadSource{}
 	monitor := newGameMonitor(
 		logger,
 		clock.SystemClock,
 		source,
 		sched,
+		preimages,
 		time.Duration(0),
 		fetchBlockNum,
 		allowedGames,
 		mockHeadSource,
 	)
-	return monitor, source, sched, mockHeadSource
+	return monitor, source, sched, mockHeadSource, preimages
 }
 
 type mockNewHeadSource struct {
@@ -271,6 +275,7 @@ func (s *stubScheduler) Scheduled() [][]common.Address {
 	defer s.Unlock()
 	return s.scheduled
 }
+
 func (s *stubScheduler) Schedule(games []types.GameMetadata, blockNumber uint64) error {
 	s.Lock()
 	defer s.Unlock()
@@ -280,4 +285,22 @@ func (s *stubScheduler) Schedule(games []types.GameMetadata, blockNumber uint64)
 	}
 	s.scheduled = append(s.scheduled, addrs)
 	return nil
+}
+
+type stubPreimageScheduler struct {
+	sync.Mutex
+	scheduleCount int
+}
+
+func (s *stubPreimageScheduler) Schedule(_ common.Hash, _ uint64) error {
+	s.Lock()
+	defer s.Unlock()
+	s.scheduleCount++
+	return nil
+}
+
+func (s *stubPreimageScheduler) ScheduleCount() int {
+	s.Lock()
+	defer s.Unlock()
+	return s.scheduleCount
 }
