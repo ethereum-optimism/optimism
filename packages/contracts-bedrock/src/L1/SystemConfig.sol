@@ -107,7 +107,10 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @notice Constructs the SystemConfig contract. Cannot set
     ///         the owner to `address(0)` due to the Ownable contract's
     ///         implementation, so set it to `address(0xdEaD)`
+    /// @dev    START_BLOCK_SLOT is set to type(uint256).max here so that it will be a dead value
+    ///         in the singleton and is skipped by initialize when setting the start block.
     constructor() {
+        Storage.setUint(START_BLOCK_SLOT, type(uint256).max);
         initialize({
             _owner: address(0xdEaD),
             _overhead: 0,
@@ -133,7 +136,6 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
                 optimismMintableERC20Factory: address(0)
             })
         });
-        Storage.setUint(START_BLOCK_SLOT, type(uint256).max);
     }
 
     /// @notice Initializer.

@@ -702,6 +702,11 @@ func SystemConfig(batch *safe.Batch, implementations superchain.ImplementationLi
 				Key:   common.HexToHash("0x71ac12829d66ee73d8d95bff50b3589745ce57edae70a3fb111a2342464dc597"),
 				Value: common.Hash{},
 			},
+			// bytes32 public constant START_BLOCK_SLOT = bytes32(uint256(keccak256("systemconfig.startBlock")) - 1);
+			{
+				Key:   common.HexToHash("0xa11ee3ab75b40e88a0105e935d17cd36c8faee0138320d776c411291bdbbb19f"),
+				Value: common.Hash{},
+			},
 		}
 
 		calldata, err := storageSetterABI.Pack(method, input)
