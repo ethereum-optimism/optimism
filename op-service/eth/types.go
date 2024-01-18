@@ -127,7 +127,8 @@ type Data = hexutil.Bytes
 type PayloadID = engine.PayloadID
 
 type ExecutionPayloadEnvelope struct {
-	ExecutionPayload *ExecutionPayload `json:"executionPayload"`
+	ParentBeaconBlockRoot *common.Hash      `json:"parentBeaconBlockRoot,omitempty"`
+	ExecutionPayload      *ExecutionPayload `json:"executionPayload"`
 }
 
 type ExecutionPayload struct {
@@ -144,11 +145,15 @@ type ExecutionPayload struct {
 	ExtraData     BytesMax32      `json:"extraData"`
 	BaseFeePerGas Uint256Quantity `json:"baseFeePerGas"`
 	BlockHash     common.Hash     `json:"blockHash"`
-	// nil if not present, pre-shanghai
-	Withdrawals *types.Withdrawals `json:"withdrawals,omitempty"`
 	// Array of transaction objects, each object is a byte list (DATA) representing
 	// TransactionType || TransactionPayload or LegacyTransaction as defined in EIP-2718
 	Transactions []Data `json:"transactions"`
+	// Nil if not present (Bedrock)
+	Withdrawals *types.Withdrawals `json:"withdrawals,omitempty"`
+	// Nil if not present (Bedrock, Canyon, Delta)
+	BlobGasUsed *Uint64Quantity `json:"blobGasUsed,omitempty"`
+	// Nil if not present (Bedrock, Canyon, Delta)
+	ExcessBlobGas *Uint64Quantity `json:"excessBlobGas,omitempty"`
 }
 
 func (payload *ExecutionPayload) ID() BlockID {
@@ -175,27 +180,30 @@ func (payload *ExecutionPayload) CanyonBlock() bool {
 }
 
 // CheckBlockHash recomputes the block hash and returns if the embedded block hash matches.
-func (payload *ExecutionPayload) CheckBlockHash() (actual common.Hash, ok bool) {
+func (envelope *ExecutionPayloadEnvelope) CheckBlockHash() (actual common.Hash, ok bool) {
+	payload := envelope.ExecutionPayload
+
 	hasher := trie.NewStackTrie(nil)
 	txHash := types.DeriveSha(rawTransactions(payload.Transactions), hasher)
 
 	header := types.Header{
-		ParentHash:  payload.ParentHash,
-		UncleHash:   types.EmptyUncleHash,
-		Coinbase:    payload.FeeRecipient,
-		Root:        common.Hash(payload.StateRoot),
-		TxHash:      txHash,
-		ReceiptHash: common.Hash(payload.ReceiptsRoot),
-		Bloom:       types.Bloom(payload.LogsBloom),
-		Difficulty:  common.Big0, // zeroed, proof-of-work legacy
-		Number:      big.NewInt(int64(payload.BlockNumber)),
-		GasLimit:    uint64(payload.GasLimit),
-		GasUsed:     uint64(payload.GasUsed),
-		Time:        uint64(payload.Timestamp),
-		Extra:       payload.ExtraData,
-		MixDigest:   common.Hash(payload.PrevRandao),
-		Nonce:       types.BlockNonce{}, // zeroed, proof-of-work legacy
-		BaseFee:     payload.BaseFeePerGas.ToBig(),
+		ParentHash:       payload.ParentHash,
+		UncleHash:        types.EmptyUncleHash,
+		Coinbase:         payload.FeeRecipient,
+		Root:             common.Hash(payload.StateRoot),
+		TxHash:           txHash,
+		ReceiptHash:      common.Hash(payload.ReceiptsRoot),
+		Bloom:            types.Bloom(payload.LogsBloom),
+		Difficulty:       common.Big0, // zeroed, proof-of-work legacy
+		Number:           big.NewInt(int64(payload.BlockNumber)),
+		GasLimit:         uint64(payload.GasLimit),
+		GasUsed:          uint64(payload.GasUsed),
+		Time:             uint64(payload.Timestamp),
+		Extra:            payload.ExtraData,
+		MixDigest:        common.Hash(payload.PrevRandao),
+		Nonce:            types.BlockNonce{}, // zeroed, proof-of-work legacy
+		BaseFee:          payload.BaseFeePerGas.ToBig(),
+		ParentBeaconRoot: envelope.ParentBeaconBlockRoot,
 	}
 
 	if payload.CanyonBlock() {
@@ -236,6 +244,8 @@ func BlockAsPayload(bl *types.Block, canyonForkTime *uint64) (*ExecutionPayload,
 		BaseFeePerGas: *baseFee,
 		BlockHash:     bl.Hash(),
 		Transactions:  opaqueTxs,
+		ExcessBlobGas: (*Uint64Quantity)(bl.ExcessBlobGas()),
+		BlobGasUsed:   (*Uint64Quantity)(bl.BlobGasUsed()),
 	}
 
 	if canyonForkTime != nil && uint64(payload.Timestamp) >= *canyonForkTime {
@@ -260,6 +270,8 @@ type PayloadAttributes struct {
 	NoTxPool bool `json:"noTxPool,omitempty"`
 	// GasLimit override
 	GasLimit *Uint64Quantity `json:"gasLimit,omitempty"`
+	// parentBeaconBlockRoot optional extension in Dencun
+	ParentBeaconBlockRoot *common.Hash `json:"parentBeaconBlockRoot,omitempty"`
 }
 
 type ExecutePayloadStatus string

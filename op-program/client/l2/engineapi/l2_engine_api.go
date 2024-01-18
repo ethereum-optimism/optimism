@@ -178,12 +178,19 @@ func (ea *L2EngineAPI) endBlock() (*types.Block, error) {
 }
 
 func (ea *L2EngineAPI) GetPayloadV1(ctx context.Context, payloadId eth.PayloadID) (*eth.ExecutionPayload, error) {
-	return ea.getPayload(ctx, payloadId)
+	res, err := ea.getPayload(ctx, payloadId)
+	if err != nil {
+		return nil, err
+	}
+	return res.ExecutionPayload, nil
 }
 
 func (ea *L2EngineAPI) GetPayloadV2(ctx context.Context, payloadId eth.PayloadID) (*eth.ExecutionPayloadEnvelope, error) {
-	payload, err := ea.getPayload(ctx, payloadId)
-	return &eth.ExecutionPayloadEnvelope{ExecutionPayload: payload}, err
+	return ea.getPayload(ctx, payloadId)
+}
+
+func (ea *L2EngineAPI) GetPayloadV3(ctx context.Context, payloadId eth.PayloadID) (*eth.ExecutionPayloadEnvelope, error) {
+	return ea.getPayload(ctx, payloadId)
 }
 
 func (ea *L2EngineAPI) config() *params.ChainConfig {
@@ -213,6 +220,17 @@ func (ea *L2EngineAPI) ForkchoiceUpdatedV2(ctx context.Context, state *eth.Forkc
 	return ea.forkchoiceUpdated(ctx, state, attr)
 }
 
+// Ported from: https://github.com/ethereum-optimism/op-geth/blob/c50337a60a1309a0f1dca3bf33ed1bb38c46cdd7/eth/catalyst/api.go#L197C1-L205C1
+func (ea *L2EngineAPI) ForkchoiceUpdatedV3(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
+	if attr != nil {
+		if err := ea.verifyPayloadAttributes(attr); err != nil {
+			return STATUS_INVALID, engine.InvalidParams.With(err)
+		}
+	}
+	return ea.forkchoiceUpdated(ctx, state, attr)
+}
+
+// Ported from: https://github.com/ethereum-optimism/op-geth/blob/c50337a60a1309a0f1dca3bf33ed1bb38c46cdd7/eth/catalyst/api.go#L206-L218
 func (ea *L2EngineAPI) verifyPayloadAttributes(attr *eth.PayloadAttributes) error {
 	c := ea.config()
 
@@ -220,6 +238,11 @@ func (ea *L2EngineAPI) verifyPayloadAttributes(attr *eth.PayloadAttributes) erro
 	if err := checkAttribute(c.IsShanghai, attr.Withdrawals != nil, c.LondonBlock, uint64(attr.Timestamp)); err != nil {
 		return fmt.Errorf("invalid withdrawals: %w", err)
 	}
+	// Verify beacon root attribute for Cancun.
+	if err := checkAttribute(c.IsCancun, attr.ParentBeaconBlockRoot != nil, c.LondonBlock, uint64(attr.Timestamp)); err != nil {
+		return fmt.Errorf("invalid parent beacon block root: %w", err)
+	}
+
 	return nil
 }
 
@@ -238,7 +261,7 @@ func (ea *L2EngineAPI) NewPayloadV1(ctx context.Context, payload *eth.ExecutionP
 		return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(errors.New("withdrawals not supported in V1"))
 	}
 
-	return ea.newPayload(ctx, payload)
+	return ea.newPayload(ctx, payload, nil, nil)
 }
 
 func (ea *L2EngineAPI) NewPayloadV2(ctx context.Context, payload *eth.ExecutionPayload) (*eth.PayloadStatusV1, error) {
@@ -250,10 +273,32 @@ func (ea *L2EngineAPI) NewPayloadV2(ctx context.Context, payload *eth.ExecutionP
 		return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(errors.New("non-nil withdrawals pre-shanghai"))
 	}
 
-	return ea.newPayload(ctx, payload)
+	return ea.newPayload(ctx, payload, nil, nil)
 }
 
-func (ea *L2EngineAPI) getPayload(ctx context.Context, payloadId eth.PayloadID) (*eth.ExecutionPayload, error) {
+// Ported from: https://github.com/ethereum-optimism/op-geth/blob/c50337a60a1309a0f1dca3bf33ed1bb38c46cdd7/eth/catalyst/api.go#L486C1-L507
+func (ea *L2EngineAPI) NewPayloadV3(ctx context.Context, params *eth.ExecutionPayload, versionedHashes []common.Hash, beaconRoot *common.Hash) (*eth.PayloadStatusV1, error) {
+	if params.ExcessBlobGas == nil {
+		return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(errors.New("nil excessBlobGas post-cancun"))
+	}
+	if params.BlobGasUsed == nil {
+		return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(errors.New("nil params.BlobGasUsed post-cancun"))
+	}
+	if versionedHashes == nil {
+		return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(errors.New("nil versionedHashes post-cancun"))
+	}
+	if beaconRoot == nil {
+		return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(errors.New("nil parentBeaconBlockRoot post-cancun"))
+	}
+
+	if !ea.config().IsCancun(new(big.Int).SetUint64(uint64(params.BlockNumber)), uint64(params.Timestamp)) {
+		return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.UnsupportedFork.With(errors.New("newPayloadV3 called pre-cancun"))
+	}
+
+	return ea.newPayload(ctx, params, versionedHashes, beaconRoot)
+}
+
+func (ea *L2EngineAPI) getPayload(ctx context.Context, payloadId eth.PayloadID) (*eth.ExecutionPayloadEnvelope, error) {
 	ea.log.Trace("L2Engine API request received", "method", "GetPayload", "id", payloadId)
 	if ea.payloadID != payloadId {
 		ea.log.Warn("unexpected payload ID requested for block building", "expected", ea.payloadID, "got", payloadId)
@@ -264,7 +309,13 @@ func (ea *L2EngineAPI) getPayload(ctx context.Context, payloadId eth.PayloadID) 
 		ea.log.Error("failed to finish block building", "err", err)
 		return nil, engine.UnknownPayload
 	}
-	return eth.BlockAsPayload(bl, ea.config().CanyonTime)
+
+	payload, err := eth.BlockAsPayload(bl, ea.config().CanyonTime)
+	if err != nil {
+		return nil, err
+	}
+
+	return &eth.ExecutionPayloadEnvelope{ExecutionPayload: payload, ParentBeaconBlockRoot: bl.BeaconRoot()}, nil
 }
 
 func (ea *L2EngineAPI) forkchoiceUpdated(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
@@ -369,7 +420,7 @@ func toGethWithdrawals(payload *eth.ExecutionPayload) []*types.Withdrawal {
 	return result
 }
 
-func (ea *L2EngineAPI) newPayload(ctx context.Context, payload *eth.ExecutionPayload) (*eth.PayloadStatusV1, error) {
+func (ea *L2EngineAPI) newPayload(ctx context.Context, payload *eth.ExecutionPayload, hashes []common.Hash, root *common.Hash) (*eth.PayloadStatusV1, error) {
 	ea.log.Trace("L2Engine API request received", "method", "ExecutePayload", "number", payload.BlockNumber, "hash", payload.BlockHash)
 	txs := make([][]byte, len(payload.Transactions))
 	for i, tx := range payload.Transactions {
@@ -391,7 +442,10 @@ func (ea *L2EngineAPI) newPayload(ctx context.Context, payload *eth.ExecutionPay
 		BlockHash:     payload.BlockHash,
 		Transactions:  txs,
 		Withdrawals:   toGethWithdrawals(payload),
-	}, nil, nil)
+		ExcessBlobGas: (*uint64)(payload.ExcessBlobGas),
+		BlobGasUsed:   (*uint64)(payload.BlobGasUsed),
+	}, hashes, root)
+
 	if err != nil {
 		log.Debug("Invalid NewPayload params", "params", payload, "error", err)
 		return &eth.PayloadStatusV1{Status: eth.ExecutionInvalidBlockHash}, nil

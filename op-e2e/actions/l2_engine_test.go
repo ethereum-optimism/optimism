@@ -50,7 +50,7 @@ func TestL2EngineAPI(gt *testing.T) {
 	require.NoError(t, err)
 
 	// apply the payload
-	status, err := l2Cl.NewPayload(t.Ctx(), payloadA)
+	status, err := l2Cl.NewPayload(t.Ctx(), payloadA, nil)
 	require.NoError(t, err)
 	require.Equal(t, status.Status, eth.ExecutionValid)
 	require.Equal(t, genesisBlock.Hash(), engine.l2Chain.CurrentBlock().Hash(), "processed payloads are not immediately canonical")
@@ -73,7 +73,7 @@ func TestL2EngineAPI(gt *testing.T) {
 	require.NoError(t, err)
 
 	// apply the payload
-	status, err = l2Cl.NewPayload(t.Ctx(), payloadB)
+	status, err = l2Cl.NewPayload(t.Ctx(), payloadB, nil)
 	require.NoError(t, err)
 	require.Equal(t, status.Status, eth.ExecutionValid)
 	require.Equal(t, payloadA.BlockHash, engine.l2Chain.CurrentBlock().Hash(), "processed payloads are not immediately canonical")
@@ -154,12 +154,13 @@ func TestL2EngineAPIBlockBuilding(gt *testing.T) {
 			engine.ActL2IncludeTx(dp.Addresses.Alice)(t)
 		}
 
-		payload, err := l2Cl.GetPayload(t.Ctx(), *fcRes.PayloadID)
+		envelope, err := l2Cl.GetPayload(t.Ctx(), *fcRes.PayloadID)
+		payload := envelope.ExecutionPayload
 		require.NoError(t, err)
 		require.Equal(t, parent.Hash(), payload.ParentHash, "block builds on parent block")
 
 		// apply the payload
-		status, err := l2Cl.NewPayload(t.Ctx(), payload)
+		status, err := l2Cl.NewPayload(t.Ctx(), payload, nil)
 		require.NoError(t, err)
 		require.Equal(t, status.Status, eth.ExecutionValid)
 		require.Equal(t, parent.Hash(), engine.l2Chain.CurrentBlock().Hash(), "processed payloads are not immediately canonical")

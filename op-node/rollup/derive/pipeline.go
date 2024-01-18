@@ -44,7 +44,7 @@ type EngineQueueStage interface {
 	SystemConfig() eth.SystemConfig
 
 	Finalize(l1Origin eth.L1BlockRef)
-	AddUnsafePayload(payload *eth.ExecutionPayload)
+	AddUnsafePayload(payload *eth.ExecutionPayloadEnvelope)
 	Step(context.Context) error
 }
 
@@ -128,7 +128,7 @@ func (dp *DerivationPipeline) FinalizedL1() eth.L1BlockRef {
 }
 
 // AddUnsafePayload schedules an execution payload to be processed, ahead of deriving it from L1
-func (dp *DerivationPipeline) AddUnsafePayload(payload *eth.ExecutionPayload) {
+func (dp *DerivationPipeline) AddUnsafePayload(payload *eth.ExecutionPayloadEnvelope) {
 	dp.eng.AddUnsafePayload(payload)
 }
 

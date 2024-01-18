@@ -60,7 +60,7 @@ func (r *RollupClient) SequencerActive(ctx context.Context) (bool, error) {
 	return result, err
 }
 
-func (r *RollupClient) PostUnsafePayload(ctx context.Context, payload *eth.ExecutionPayload) error {
+func (r *RollupClient) PostUnsafePayload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) error {
 	return r.rpc.CallContext(ctx, nil, "admin_postUnsafePayload", payload)
 }
 

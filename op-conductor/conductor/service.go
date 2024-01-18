@@ -559,7 +559,9 @@ func (oc *OpConductor) startSequencer() error {
 
 		if uint64(unsafeInCons.BlockNumber)-unsafeInNode.NumberU64() == 1 {
 			// tries to post the unsafe head to op-node when head is only 1 block behind (most likely due to gossip delay)
-			if err = oc.ctrl.PostUnsafePayload(context.Background(), unsafeInCons); err != nil {
+			// TODO(ethereum-optimism/optimism#9064): op-conductor Dencun changes.
+			envelope := &eth.ExecutionPayloadEnvelope{ExecutionPayload: unsafeInCons}
+			if err = oc.ctrl.PostUnsafePayload(context.Background(), envelope); err != nil {
 				oc.log.Error("failed to post unsafe head payload to op-node", "err", err)
 			}
 		}

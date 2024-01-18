@@ -18,9 +18,9 @@ var _ EngineControl = (*EngineController)(nil)
 var _ LocalEngineControl = (*EngineController)(nil)
 
 type ExecEngine interface {
-	GetPayload(ctx context.Context, payloadId eth.PayloadID) (*eth.ExecutionPayload, error)
+	GetPayload(ctx context.Context, payloadId eth.PayloadID) (*eth.ExecutionPayloadEnvelope, error)
 	ForkchoiceUpdate(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error)
-	NewPayload(ctx context.Context, payload *eth.ExecutionPayload) (*eth.PayloadStatusV1, error)
+	NewPayload(ctx context.Context, payload *eth.ExecutionPayload, parentBeaconBlockRoot *common.Hash) (*eth.PayloadStatusV1, error)
 }
 
 type EngineController struct {
@@ -139,7 +139,7 @@ func (e *EngineController) StartPayload(ctx context.Context, parent eth.L2BlockR
 	return BlockInsertOK, nil
 }
 
-func (e *EngineController) ConfirmPayload(ctx context.Context) (out *eth.ExecutionPayload, errTyp BlockInsertionErrType, err error) {
+func (e *EngineController) ConfirmPayload(ctx context.Context) (out *eth.ExecutionPayloadEnvelope, errTyp BlockInsertionErrType, err error) {
 	if e.buildingID == (eth.PayloadID{}) {
 		return nil, BlockInsertPrestateErr, fmt.Errorf("cannot complete payload building: not currently building a payload")
 	}
@@ -153,11 +153,11 @@ func (e *EngineController) ConfirmPayload(ctx context.Context) (out *eth.Executi
 	}
 	// Update the safe head if the payload is built with the last attributes in the batch.
 	updateSafe := e.buildingSafe && e.safeAttrs != nil && e.safeAttrs.isLastInSpan
-	payload, errTyp, err := confirmPayload(ctx, e.log, e.engine, fc, e.buildingID, updateSafe)
+	envelope, errTyp, err := confirmPayload(ctx, e.log, e.engine, fc, e.buildingID, updateSafe)
 	if err != nil {
 		return nil, errTyp, fmt.Errorf("failed to complete building on top of L2 chain %s, id: %s, error (%d): %w", e.buildingOnto, e.buildingID, errTyp, err)
 	}
-	ref, err := PayloadToBlockRef(e.rollupCfg, payload)
+	ref, err := PayloadToBlockRef(e.rollupCfg, envelope.ExecutionPayload)
 	if err != nil {
 		return nil, BlockInsertPayloadErr, NewResetError(fmt.Errorf("failed to decode L2 block ref from payload: %w", err))
 	}
@@ -175,7 +175,7 @@ func (e *EngineController) ConfirmPayload(ctx context.Context) (out *eth.Executi
 	}
 
 	e.resetBuildingState()
-	return payload, BlockInsertOK, nil
+	return envelope, BlockInsertOK, nil
 }
 
 func (e *EngineController) CancelPayload(ctx context.Context, force bool) error {
@@ -256,19 +256,20 @@ func (e *EngineController) TryUpdateEngine(ctx context.Context) error {
 	return nil
 }
 
-func (e *EngineController) InsertUnsafePayload(ctx context.Context, payload *eth.ExecutionPayload, ref eth.L2BlockRef) error {
-	status, err := e.engine.NewPayload(ctx, payload)
+func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope, ref eth.L2BlockRef) error {
+	status, err := e.engine.NewPayload(ctx, envelope.ExecutionPayload, envelope.ParentBeaconBlockRoot)
 	if err != nil {
 		return NewTemporaryError(fmt.Errorf("failed to update insert payload: %w", err))
 	}
 	if !e.checkNewPayloadStatus(status.Status) {
+		payload := envelope.ExecutionPayload
 		return NewTemporaryError(fmt.Errorf("cannot process unsafe payload: new - %v; parent: %v; err: %w",
 			payload.ID(), payload.ParentID(), eth.NewPayloadErr(payload, status)))
 	}
 
 	// Mark the new payload as valid
 	fc := eth.ForkchoiceState{
-		HeadBlockHash:      payload.BlockHash,
+		HeadBlockHash:      envelope.ExecutionPayload.BlockHash,
 		SafeBlockHash:      e.safeHead.Hash,
 		FinalizedBlockHash: e.finalizedHead.Hash,
 	}
@@ -287,6 +288,7 @@ func (e *EngineController) InsertUnsafePayload(ctx context.Context, payload *eth
 		}
 	}
 	if !e.checkForkchoiceUpdatedStatus(fcRes.PayloadStatus.Status) {
+		payload := envelope.ExecutionPayload
 		return NewTemporaryError(fmt.Errorf("cannot prepare unsafe chain for new payload: new - %v; parent: %v; err: %w",
 			payload.ID(), payload.ParentID(), eth.ForkchoiceUpdateErr(fcRes.PayloadStatus)))
 	}
@@ -307,6 +309,6 @@ func (e *EngineController) ForkchoiceUpdate(ctx context.Context, state *eth.Fork
 }
 
 // NewPayload implements LocalEngineControl.
-func (e *EngineController) NewPayload(ctx context.Context, payload *eth.ExecutionPayload) (*eth.PayloadStatusV1, error) {
-	return e.engine.NewPayload(ctx, payload)
+func (e *EngineController) NewPayload(ctx context.Context, payload *eth.ExecutionPayload, parentBeaconBlockRoot *common.Hash) (*eth.PayloadStatusV1, error) {
+	return e.engine.NewPayload(ctx, payload, parentBeaconBlockRoot)
 }

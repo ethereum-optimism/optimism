@@ -50,31 +50,42 @@ func (o *OracleEngine) L2OutputRoot(l2ClaimBlockNum uint64) (eth.Bytes32, error)
 	return rollup.ComputeL2OutputRootV0(eth.HeaderBlockInfo(outBlock), withdrawalsTrie.Hash())
 }
 
-func (o *OracleEngine) GetPayload(ctx context.Context, payloadId eth.PayloadID) (*eth.ExecutionPayload, error) {
-	res, err := o.api.GetPayloadV2(ctx, payloadId)
+func (o *OracleEngine) GetPayload(ctx context.Context, payloadId eth.PayloadID) (*eth.ExecutionPayloadEnvelope, error) {
+	res, err := o.api.GetPayloadV3(ctx, payloadId)
 	if err != nil {
 		return nil, err
 	}
-	return res.ExecutionPayload, nil
+	return res, nil
 }
 
 func (o *OracleEngine) ForkchoiceUpdate(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
-	return o.api.ForkchoiceUpdatedV2(ctx, state, attr)
+	return o.api.ForkchoiceUpdatedV3(ctx, state, attr)
 }
 
-func (o *OracleEngine) NewPayload(ctx context.Context, payload *eth.ExecutionPayload) (*eth.PayloadStatusV1, error) {
-	return o.api.NewPayloadV2(ctx, payload)
+func (o *OracleEngine) NewPayload(ctx context.Context, payload *eth.ExecutionPayload, parentBeaconBlockRoot *common.Hash) (*eth.PayloadStatusV1, error) {
+	if o.rollupCfg.IsEcotone(uint64(payload.Timestamp)) {
+		return o.api.NewPayloadV3(ctx, payload, []common.Hash{}, parentBeaconBlockRoot)
+	} else {
+		return o.api.NewPayloadV2(ctx, payload)
+	}
 }
 
-func (o *OracleEngine) PayloadByHash(ctx context.Context, hash common.Hash) (*eth.ExecutionPayload, error) {
+func (o *OracleEngine) PayloadByHash(ctx context.Context, hash common.Hash) (*eth.ExecutionPayloadEnvelope, error) {
 	block := o.backend.GetBlockByHash(hash)
 	if block == nil {
 		return nil, ErrNotFound
 	}
-	return eth.BlockAsPayload(block, o.rollupCfg.CanyonTime)
+	payload, err := eth.BlockAsPayload(block, o.rollupCfg.CanyonTime)
+	if err != nil {
+		return nil, err
+	}
+	return &eth.ExecutionPayloadEnvelope{
+		ParentBeaconBlockRoot: block.BeaconRoot(),
+		ExecutionPayload:      payload,
+	}, nil
 }
 
-func (o *OracleEngine) PayloadByNumber(ctx context.Context, n uint64) (*eth.ExecutionPayload, error) {
+func (o *OracleEngine) PayloadByNumber(ctx context.Context, n uint64) (*eth.ExecutionPayloadEnvelope, error) {
 	hash := o.backend.GetCanonicalHash(n)
 	if hash == (common.Hash{}) {
 		return nil, ErrNotFound
@@ -125,5 +136,5 @@ func (o *OracleEngine) SystemConfigByL2Hash(ctx context.Context, hash common.Has
 	if err != nil {
 		return eth.SystemConfig{}, err
 	}
-	return derive.PayloadToSystemConfig(o.rollupCfg, payload)
+	return derive.PayloadToSystemConfig(o.rollupCfg, payload.ExecutionPayload)
 }

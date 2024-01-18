@@ -90,6 +90,10 @@ func (h headerInfo) GasLimit() uint64 {
 	return h.Header.GasLimit
 }
 
+func (h headerInfo) ParentBeaconRoot() *common.Hash {
+	return h.Header.ParentBeaconRoot
+}
+
 func (h headerInfo) HeaderRLP() ([]byte, error) {
 	return rlp.EncodeToBytes(h.Header)
 }
@@ -264,7 +268,7 @@ func (block *rpcBlock) Info(trustCache bool, mustBePostMerge bool) (eth.BlockInf
 	return info, block.Transactions, nil
 }
 
-func (block *rpcBlock) ExecutionPayload(trustCache bool) (*eth.ExecutionPayload, error) {
+func (block *rpcBlock) ExecutionPayloadEnvelope(trustCache bool) (*eth.ExecutionPayloadEnvelope, error) {
 	if err := block.checkPostMerge(); err != nil {
 		return nil, err
 	}
@@ -287,7 +291,7 @@ func (block *rpcBlock) ExecutionPayload(trustCache bool) (*eth.ExecutionPayload,
 		opaqueTxs[i] = data
 	}
 
-	return &eth.ExecutionPayload{
+	payload := &eth.ExecutionPayload{
 		ParentHash:    block.ParentHash,
 		FeeRecipient:  block.Coinbase,
 		StateRoot:     eth.Bytes32(block.Root),
@@ -303,6 +307,11 @@ func (block *rpcBlock) ExecutionPayload(trustCache bool) (*eth.ExecutionPayload,
 		BlockHash:     block.Hash,
 		Transactions:  opaqueTxs,
 		Withdrawals:   block.Withdrawals,
+	}
+
+	return &eth.ExecutionPayloadEnvelope{
+		ParentBeaconBlockRoot: block.ParentBeaconRoot,
+		ExecutionPayload:      payload,
 	}, nil
 }
 

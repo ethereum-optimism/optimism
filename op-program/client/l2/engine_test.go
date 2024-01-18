@@ -31,7 +31,7 @@ func TestPayloadByHash(t *testing.T) {
 		require.NoError(t, err)
 		expected, err := eth.BlockAsPayload(block, engine.rollupCfg.CanyonTime)
 		require.NoError(t, err)
-		require.Equal(t, expected, payload)
+		require.Equal(t, &eth.ExecutionPayloadEnvelope{ExecutionPayload: expected}, payload)
 	})
 
 	t.Run("UnknownBlock", func(t *testing.T) {
@@ -53,7 +53,7 @@ func TestPayloadByNumber(t *testing.T) {
 		require.NoError(t, err)
 		expected, err := eth.BlockAsPayload(block, engine.rollupCfg.CanyonTime)
 		require.NoError(t, err)
-		require.Equal(t, expected, payload)
+		require.Equal(t, &eth.ExecutionPayloadEnvelope{ExecutionPayload: expected}, payload)
 	})
 
 	t.Run("NoCanonicalHash", func(t *testing.T) {

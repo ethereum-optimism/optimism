@@ -8,6 +8,7 @@ import (
 	"math"
 	"sync"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
@@ -16,46 +17,68 @@ type BlockVersion int
 const ( // iota is reset to 0
 	BlockV1 BlockVersion = iota
 	BlockV2
+	BlockV3
 )
 
-// ExecutionPayload is the only SSZ type we have to marshal/unmarshal,
+// ExecutionPayload and ExecutionPayloadEnvelope are the only SSZ types we have to marshal/unmarshal,
 // so instead of importing a SSZ lib we implement the bare minimum.
 // This is more efficient than RLP, and matches the L1 consensus-layer encoding of ExecutionPayload.
 
-// All fields (4s are offsets to dynamic data)
-const blockV1FixedPart = 32 + 20 + 32 + 32 + 256 + 32 + 8 + 8 + 8 + 8 + 4 + 32 + 32 + 4
-
-// V1 + Withdrawals offset
-const blockV2FixedPart = blockV1FixedPart + 4
-
-const withdrawalSize = 8 + 8 + 20 + 8
-
-// MAX_TRANSACTIONS_PER_PAYLOAD in consensus spec
-// https://github.com/ethereum/consensus-specs/blob/ef434e87165e9a4c82a99f54ffd4974ae113f732/specs/bellatrix/beacon-chain.md#execution
-const maxTransactionsPerPayload = 1 << 20
-
-// MAX_WITHDRAWALS_PER_PAYLOAD	 in consensus spec
-// https://github.com/ethereum/consensus-specs/blob/dev/specs/capella/beacon-chain.md#execution
-const maxWithdrawalsPerPayload = 1 << 4
-
-// ErrExtraDataTooLarge occurs when the ExecutionPayload's ExtraData field
-// is too large to be properly represented in SSZ.
-var ErrExtraDataTooLarge = errors.New("extra data too large")
-
-// The payloads are small enough to read and write at once.
-// But this happens often enough that we want to avoid re-allocating buffers for this.
-var payloadBufPool = sync.Pool{New: func() any {
-	x := make([]byte, 0, 100_000)
-	return &x
-}}
-
 var (
+	// The payloads are small enough to read and write at once.
+	// But this happens often enough that we want to avoid re-allocating buffers for this.
+	payloadBufPool = sync.Pool{New: func() any {
+		x := make([]byte, 0, 100_000)
+		return &x
+	}}
+
+	// ErrExtraDataTooLarge occurs when the ExecutionPayload's ExtraData field
+	// is too large to be properly represented in SSZ.
+	ErrExtraDataTooLarge = errors.New("extra data too large")
+
 	ErrBadTransactionOffset = errors.New("transactions offset is smaller than extra data offset, aborting")
 	ErrBadWithdrawalsOffset = errors.New("withdrawals offset is smaller than transaction offset, aborting")
+
+	ErrMissingData = errors.New("execution payload envelope is missing data")
 )
 
+const (
+	// All fields (4s are offsets to dynamic data)
+	blockV1FixedPart = 32 + 20 + 32 + 32 + 256 + 32 + 8 + 8 + 8 + 8 + 4 + 32 + 32 + 4
+
+	// V1 + Withdrawals offset
+	blockV2FixedPart = blockV1FixedPart + 4
+
+	// V2 + BlobGasUed + ExcessBlobGas
+	blockV3FixedPart = blockV2FixedPart + 8 + 8
+
+	withdrawalSize = 8 + 8 + 20 + 8
+
+	// MAX_TRANSACTIONS_PER_PAYLOAD in consensus spec
+	// https://github.com/ethereum/consensus-specs/blob/ef434e87165e9a4c82a99f54ffd4974ae113f732/specs/bellatrix/beacon-chain.md#execution
+	maxTransactionsPerPayload = 1 << 20
+
+	// MAX_WITHDRAWALS_PER_PAYLOAD	 in consensus spec
+	// https://github.com/ethereum/consensus-specs/blob/dev/specs/capella/beacon-chain.md#execution
+	maxWithdrawalsPerPayload = 1 << 4
+)
+
+func (v BlockVersion) HasBlobProperties() bool {
+	return v == BlockV3
+}
+
+func (v BlockVersion) HasWithdrawals() bool {
+	return v == BlockV2 || v == BlockV3
+}
+
+func (v BlockVersion) HasParentBeaconBlockRoot() bool {
+	return v == BlockV3
+}
+
 func executionPayloadFixedPart(version BlockVersion) uint32 {
-	if version == BlockV2 {
+	if version == BlockV3 {
+		return blockV3FixedPart
+	} else if version == BlockV2 {
 		return blockV2FixedPart
 	} else {
 		return blockV1FixedPart
@@ -63,7 +86,9 @@ func executionPayloadFixedPart(version BlockVersion) uint32 {
 }
 
 func (payload *ExecutionPayload) inferVersion() BlockVersion {
-	if payload.Withdrawals != nil {
+	if payload.ExcessBlobGas != nil && payload.BlobGasUsed != nil {
+		return BlockV3
+	} else if payload.Withdrawals != nil {
 		return BlockV2
 	} else {
 		return BlockV1
@@ -170,10 +195,20 @@ func (payload *ExecutionPayload) MarshalSSZ(w io.Writer) (n int, err error) {
 	if payload.Withdrawals != nil {
 		binary.LittleEndian.PutUint32(buf[offset:offset+4], fixedSize+extraDataSize+transactionSize)
 		offset += 4
+	}
 
-		if offset != fixedSize {
-			panic("withdrawals - fixed part size is inconsistent")
+	if payload.inferVersion() == BlockV3 {
+		if payload.BlobGasUsed == nil || payload.ExcessBlobGas == nil {
+			return 0, errors.New("cannot encode ecotone payload without dencun header attributes")
 		}
+		binary.LittleEndian.PutUint64(buf[offset:offset+8], uint64(*payload.BlobGasUsed))
+		offset += 8
+		binary.LittleEndian.PutUint64(buf[offset:offset+8], uint64(*payload.ExcessBlobGas))
+		offset += 8
+	}
+
+	if payload.Withdrawals != nil && offset != fixedSize {
+		panic("withdrawals - fixed part size is inconsistent")
 	}
 
 	// dynamic value 1: ExtraData
@@ -277,14 +312,23 @@ func (payload *ExecutionPayload) UnmarshalSSZ(version BlockVersion, scope uint32
 	}
 
 	withdrawalsOffset := scope
-	if version == BlockV2 {
+	if version.HasWithdrawals() {
 		withdrawalsOffset = binary.LittleEndian.Uint32(buf[offset : offset+4])
-		// No offset increment, due to this being the last field
+		offset += 4
 
 		if withdrawalsOffset < transactionsOffset {
 			return ErrBadWithdrawalsOffset
 		}
 	}
+
+	if version == BlockV3 {
+		blobGasUsed := binary.LittleEndian.Uint64(buf[offset : offset+8])
+		payload.BlobGasUsed = (*Uint64Quantity)(&blobGasUsed)
+		offset += 8
+		excessBlobGas := binary.LittleEndian.Uint64(buf[offset : offset+8])
+		payload.ExcessBlobGas = (*Uint64Quantity)(&excessBlobGas)
+	}
+	_ = offset // for future extensions: we keep the offset accurate for extensions
 
 	if transactionsOffset > extraDataOffset+32 || transactionsOffset > scope {
 		return fmt.Errorf("extra-data is too large: %d", transactionsOffset-extraDataOffset)
@@ -300,7 +344,7 @@ func (payload *ExecutionPayload) UnmarshalSSZ(version BlockVersion, scope uint32
 	}
 	payload.Transactions = txs
 
-	if version == BlockV2 {
+	if version.HasWithdrawals() {
 		if withdrawalsOffset > scope {
 			return fmt.Errorf("withdrawals offset is too large: %d", withdrawalsOffset)
 		}
@@ -389,4 +433,49 @@ func unmarshalTransactions(in []byte) (txs []Data, err error) {
 		currentTxOffset = nextTxOffset
 	}
 	return txs, nil
+}
+
+// UnmarshalSSZ decodes the ExecutionPayloadEnvelope as SSZ type
+func (envelope *ExecutionPayloadEnvelope) UnmarshalSSZ(scope uint32, r io.Reader) error {
+	if scope < common.HashLength {
+		return fmt.Errorf("scope too small to decode execution payload envelope: %d", scope)
+	}
+
+	data := make([]byte, common.HashLength)
+	n, err := r.Read(data)
+	if err != nil || n != common.HashLength {
+		return err
+	}
+
+	envelope.ParentBeaconBlockRoot = &common.Hash{}
+	copy(envelope.ParentBeaconBlockRoot[:], data)
+
+	var payload ExecutionPayload
+	err = payload.UnmarshalSSZ(BlockV3, scope-32, r)
+	if err != nil {
+		return err
+	}
+
+	envelope.ExecutionPayload = &payload
+	return nil
+}
+
+// MarshalSSZ encodes the ExecutionPayload as SSZ type
+func (envelope *ExecutionPayloadEnvelope) MarshalSSZ(w io.Writer) (n int, err error) {
+	if envelope.ExecutionPayload == nil || envelope.ParentBeaconBlockRoot == nil {
+		return 0, ErrMissingData
+	}
+
+	// write parent beacon block root
+	hashSize, err := w.Write(envelope.ParentBeaconBlockRoot[:])
+	if err != nil || hashSize != common.HashLength {
+		return 0, errors.New("unable to write parent beacon block hash")
+	}
+
+	payloadSize, err := envelope.ExecutionPayload.MarshalSSZ(w)
+	if err != nil {
+		return 0, err
+	}
+
+	return hashSize + payloadSize, nil
 }

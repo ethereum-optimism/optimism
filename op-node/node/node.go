@@ -481,37 +481,38 @@ func (n *OpNode) OnNewL1Finalized(ctx context.Context, sig eth.L1BlockRef) {
 	}
 }
 
-func (n *OpNode) PublishL2Payload(ctx context.Context, payload *eth.ExecutionPayload) error {
-	n.tracer.OnPublishL2Payload(ctx, payload)
+func (n *OpNode) PublishL2Payload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope) error {
+	n.tracer.OnPublishL2Payload(ctx, envelope)
 
 	// publish to p2p, if we are running p2p at all
 	if n.p2pNode != nil {
+		payload := envelope.ExecutionPayload
 		if n.p2pSigner == nil {
 			return fmt.Errorf("node has no p2p signer, payload %s cannot be published", payload.ID())
 		}
 		n.log.Info("Publishing signed execution payload on p2p", "id", payload.ID())
-		return n.p2pNode.GossipOut().PublishL2Payload(ctx, payload, n.p2pSigner)
+		return n.p2pNode.GossipOut().PublishL2Payload(ctx, envelope, n.p2pSigner)
 	}
 	// if p2p is not enabled then we just don't publish the payload
 	return nil
 }
 
-func (n *OpNode) OnUnsafeL2Payload(ctx context.Context, from peer.ID, payload *eth.ExecutionPayload) error {
+func (n *OpNode) OnUnsafeL2Payload(ctx context.Context, from peer.ID, envelope *eth.ExecutionPayloadEnvelope) error {
 	// ignore if it's from ourselves
 	if n.p2pNode != nil && from == n.p2pNode.Host().ID() {
 		return nil
 	}
 
-	n.tracer.OnUnsafeL2Payload(ctx, from, payload)
+	n.tracer.OnUnsafeL2Payload(ctx, from, envelope)
 
-	n.log.Info("Received signed execution payload from p2p", "id", payload.ID(), "peer", from)
+	n.log.Info("Received signed execution payload from p2p", "id", envelope.ExecutionPayload.ID(), "peer", from)
 
 	// Pass on the event to the L2 Engine
 	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
 	defer cancel()
 
-	if err := n.l2Driver.OnUnsafeL2Payload(ctx, payload); err != nil {
-		n.log.Warn("failed to notify engine driver of new L2 payload", "err", err, "id", payload.ID())
+	if err := n.l2Driver.OnUnsafeL2Payload(ctx, envelope); err != nil {
+		n.log.Warn("failed to notify engine driver of new L2 payload", "err", err, "id", envelope.ExecutionPayload.ID())
 	}
 
 	return nil
