@@ -80,6 +80,7 @@ contract Setup {
     ///      This is a hack as we are pushing solidity to the edge.
     function setUp() public virtual {
         vm.etch(address(deploy), vm.getDeployedCode("Deploy.s.sol:Deploy"));
+        vm.allowCheatcodes(address(deploy));
         deploy.setUp();
     }
 

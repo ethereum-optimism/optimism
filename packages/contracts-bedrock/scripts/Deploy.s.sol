@@ -222,6 +222,7 @@ contract Deploy is Deployer {
 
         string memory path = string.concat(vm.projectRoot(), "/deploy-config/", deploymentContext, ".json");
         vm.etch(address(cfg), vm.getDeployedCode("DeployConfig.s.sol:DeployConfig"));
+        vm.allowCheatcodes(address(cfg));
         cfg.read(path);
 
         console.log("Deploying from %s", deployScript);
