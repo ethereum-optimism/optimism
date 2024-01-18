@@ -91,6 +91,13 @@ func ecotoneMismatchParentBeaconBlockRootPtr() args {
 	return args
 }
 
+func ecotoneNilParentBeaconBlockRoots() args {
+	args := ecotoneArgs()
+	args.attrs.ParentBeaconBlockRoot = nil
+	args.envelope.ParentBeaconBlockRoot = nil
+	return args
+}
+
 func mismatchedParentHashArgs() args {
 	args := ecotoneArgs()
 	args.parentHash = common.HexToHash("0xabc")
@@ -161,6 +168,10 @@ func TestAttributesMatch(t *testing.T) {
 		{
 			shouldMatch: true,
 			args:        ecotoneMismatchParentBeaconBlockRootPtr(),
+		},
+		{
+			shouldMatch: true,
+			args:        ecotoneNilParentBeaconBlockRoots(),
 		},
 		{
 			shouldMatch: false,
