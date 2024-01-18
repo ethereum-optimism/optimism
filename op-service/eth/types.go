@@ -74,30 +74,6 @@ func (b Bytes32) TerminalString() string {
 	return fmt.Sprintf("%x..%x", b[:3], b[29:])
 }
 
-type Bytes96 [96]byte
-
-func (b *Bytes96) UnmarshalJSON(text []byte) error {
-	return hexutil.UnmarshalFixedJSON(reflect.TypeOf(b), text, b[:])
-}
-
-func (b *Bytes96) UnmarshalText(text []byte) error {
-	return hexutil.UnmarshalFixedText("Bytes96", text, b[:])
-}
-
-func (b Bytes96) MarshalText() ([]byte, error) {
-	return hexutil.Bytes(b[:]).MarshalText()
-}
-
-func (b Bytes96) String() string {
-	return hexutil.Encode(b[:])
-}
-
-// TerminalString implements log.TerminalStringer, formatting a string for console
-// output during logging.
-func (b Bytes96) TerminalString() string {
-	return fmt.Sprintf("%x..%x", b[:3], b[29:])
-}
-
 type Bytes256 [256]byte
 
 func (b *Bytes256) UnmarshalJSON(text []byte) error {
