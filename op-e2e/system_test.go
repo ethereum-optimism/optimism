@@ -218,6 +218,7 @@ func TestSystemE2E(t *testing.T) {
 
 	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
+	runE2ESystemTest(t, sys)
 	defer sys.Close()
 }
 
