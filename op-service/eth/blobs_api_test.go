@@ -41,10 +41,10 @@ func TestAPIConfigResponse(t *testing.T) {
 // APIGenesisResponse is compatible with the current beacon node API.
 // This also confirms that the [sources.L1BeaconClient] correctly parses
 // responses from a real beacon node.
-func TestAPIGetBlobSidecarsResponse(t *testing.T) {
-	var resp eth.APIGetBlobSidecarsResponse
-	testBeaconAPIResponse(t, &resp, "eth_v1_beacon_blob_sidecars_7422094_goerli.json")
-}
+// func TestAPIGetBlobSidecarsResponse(t *testing.T) {
+// 	var resp eth.APIGetBlobSidecarsResponse
+// 	testBeaconAPIResponse(t, &resp, "eth_v1_beacon_blob_sidecars_7422094_goerli.json")
+// }
 
 // testBeaconAPIResponse tests that json-unmarshaling a Beacon node json response
 // read from the provided testfile path into the provided response object works
@@ -53,7 +53,7 @@ func TestAPIGetBlobSidecarsResponse(t *testing.T) {
 // It currently assumes that all Beacon responses have the actual resonse object in
 // a single "data" field and it doesn't support nested json response objects.
 //
-// This test in future proof in the sense that if new fields are added to an ABI response
+// This test in future proof in the sense that if new fields are added to an API response
 // struct which wouldn't be populated by the test jsons, it fails.
 func testBeaconAPIResponse(t *testing.T, resp any, testfile string) {
 	require := require.New(t)

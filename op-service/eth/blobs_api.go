@@ -9,8 +9,43 @@ type BlobSidecar struct {
 	KZGProof      Bytes48      `json:"kzg_proof"`
 }
 
+type APIBlobSidecar struct {
+	Index             Uint64String            `json:"index"`
+	Blob              Blob                    `json:"blob"`
+	KZGCommitment     Bytes48                 `json:"kzg_commitment"`
+	KZGProof          Bytes48                 `json:"kzg_proof"`
+	SignedBlockHeader SignedBeaconBlockHeader `json:"signed_block_header"`
+
+	// TODO(Seb): we don't use this yet afaik
+	// KZGCommitmentInclusionProof [17]Bytes32             `json:"kzg_commitment_inclusion_proof"`
+}
+
+func (sc *APIBlobSidecar) BlobSidecar() *BlobSidecar {
+	return &BlobSidecar{
+		BlockRoot:     sc.SignedBlockHeader.Message.StateRoot, // TODO confirm
+		Slot:          sc.SignedBlockHeader.Message.Slot,
+		Blob:          sc.Blob,
+		Index:         sc.Index,
+		KZGCommitment: sc.KZGCommitment,
+		KZGProof:      sc.KZGProof,
+	}
+}
+
+type SignedBeaconBlockHeader struct {
+	Message   BeaconBlockHeader `json:"message"`
+	Signature Bytes96           `json:"signature"`
+}
+
+type BeaconBlockHeader struct {
+	Slot          Uint64String `json:"slot"`
+	ProposerIndex Uint64String `json:"proposer_index "`
+	ParentRoot    Bytes32      `json:"parent_root"`
+	StateRoot     Bytes32      `json:"state_root"`
+	BodyRoot      Bytes32      `json:"body_root"`
+}
+
 type APIGetBlobSidecarsResponse struct {
-	Data []*BlobSidecar `json:"data"`
+	Data []*APIBlobSidecar `json:"data"`
 }
 
 type ReducedGenesisData struct {
