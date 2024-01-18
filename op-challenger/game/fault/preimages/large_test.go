@@ -16,9 +16,18 @@ import (
 )
 
 func TestLargePreimageUploader_UploadPreimage(t *testing.T) {
-	t.Run("Success", func(t *testing.T) {
-		oracle, _, _ := newTestLargePreimageUploader(t)
+	t.Run("InitFails", func(t *testing.T) {
+		oracle, _, contract := newTestLargePreimageUploader(t)
+		contract.initFails = true
 		err := oracle.UploadPreimage(context.Background(), 0, &types.PreimageOracleData{})
+		require.ErrorIs(t, err, mockInitLPPError)
+		require.Equal(t, 1, contract.initCalls)
+	})
+
+	t.Run("Success", func(t *testing.T) {
+		oracle, _, contract := newTestLargePreimageUploader(t)
+		err := oracle.UploadPreimage(context.Background(), 0, &types.PreimageOracleData{})
+		require.Equal(t, 1, contract.initCalls)
 		// TODO(proofs#467): fix this to not error. See LargePreimageUploader.UploadPreimage.
 		require.ErrorIs(t, err, errNotSupported)
 	})
@@ -31,9 +40,16 @@ func newTestLargePreimageUploader(t *testing.T) (*LargePreimageUploader, *mockTx
 	return NewLargePreimageUploader(logger, txMgr, contract), txMgr, contract
 }
 
-type mockPreimageOracleContract struct{}
+type mockPreimageOracleContract struct {
+	initCalls int
+	initFails bool
+}
 
 func (s *mockPreimageOracleContract) InitLargePreimage(_ *big.Int, _ uint32, _ uint32) (txmgr.TxCandidate, error) {
+	s.initCalls++
+	if s.initFails {
+		return txmgr.TxCandidate{}, mockInitLPPError
+	}
 	return txmgr.TxCandidate{}, nil
 }
 func (s *mockPreimageOracleContract) AddLeaves(_ *big.Int, _ []contracts.Leaf, _ bool) ([]txmgr.TxCandidate, error) {

@@ -17,6 +17,7 @@ import (
 var (
 	mockUpdateOracleTxError = errors.New("mock update oracle tx error")
 	mockTxMgrSendError      = errors.New("mock tx mgr send error")
+	mockInitLPPError        = errors.New("mock init LPP error")
 )
 
 func TestDirectPreimageUploader_UploadPreimage(t *testing.T) {
@@ -25,7 +26,7 @@ func TestDirectPreimageUploader_UploadPreimage(t *testing.T) {
 		contract.updateFails = true
 		err := oracle.UploadPreimage(context.Background(), 0, &types.PreimageOracleData{})
 		require.ErrorIs(t, err, mockUpdateOracleTxError)
-		require.Equal(t, 1, contract.updates)
+		require.Equal(t, 1, contract.updateCalls)
 		require.Equal(t, 0, txMgr.sends) // verify that the tx was not sent
 	})
 
@@ -34,7 +35,7 @@ func TestDirectPreimageUploader_UploadPreimage(t *testing.T) {
 		txMgr.sendFails = true
 		err := oracle.UploadPreimage(context.Background(), 0, &types.PreimageOracleData{})
 		require.ErrorIs(t, err, mockTxMgrSendError)
-		require.Equal(t, 1, contract.updates)
+		require.Equal(t, 1, contract.updateCalls)
 		require.Equal(t, 1, txMgr.sends)
 	})
 
@@ -48,7 +49,7 @@ func TestDirectPreimageUploader_UploadPreimage(t *testing.T) {
 		oracle, _, contract := newTestDirectPreimageUploader(t)
 		err := oracle.UploadPreimage(context.Background(), 0, &types.PreimageOracleData{})
 		require.NoError(t, err)
-		require.Equal(t, 1, contract.updates)
+		require.Equal(t, 1, contract.updateCalls)
 	})
 }
 
@@ -85,12 +86,12 @@ func newTestDirectPreimageUploader(t *testing.T) (*DirectPreimageUploader, *mock
 }
 
 type mockPreimageGameContract struct {
-	updates     int
+	updateCalls int
 	updateFails bool
 }
 
 func (s *mockPreimageGameContract) UpdateOracleTx(_ context.Context, _ uint64, _ *types.PreimageOracleData) (txmgr.TxCandidate, error) {
-	s.updates++
+	s.updateCalls++
 	if s.updateFails {
 		return txmgr.TxCandidate{}, mockUpdateOracleTxError
 	}
