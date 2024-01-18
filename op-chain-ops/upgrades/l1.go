@@ -2,6 +2,7 @@ package upgrades
 
 import (
 	"fmt"
+	"math/big"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -76,11 +77,6 @@ func L1CrossDomainMessenger(batch *safe.Batch, implementations superchain.Implem
 			// https://github.com/ethereum-optimism/optimism/blob/86a96023ffd04d119296dff095d02fff79fa15de/packages/contracts-bedrock/.storage-layout#L11-L13
 			{
 				Key:   common.Hash{},
-				Value: common.Hash{},
-			},
-			// https://github.com/ethereum-optimism/optimism/blob/86a96023ffd04d119296dff095d02fff79fa15de/packages/contracts-bedrock/.storage-layout#L28
-			{
-				Key:   common.Hash{31: 249},
 				Value: common.Hash{},
 			},
 		}
@@ -247,11 +243,6 @@ func L1StandardBridge(batch *safe.Batch, implementations superchain.Implementati
 				Key:   common.Hash{},
 				Value: common.Hash{},
 			},
-			// https://github.com/ethereum-optimism/optimism/blob/86a96023ffd04d119296dff095d02fff79fa15de/packages/contracts-bedrock/.storage-layout#L41
-			{
-				Key:   common.Hash{31: 0x03},
-				Value: common.Hash{},
-			},
 		}
 
 		calldata, err := storageSetterABI.Pack(method, input)
@@ -334,16 +325,6 @@ func L2OutputOracle(batch *safe.Batch, implementations superchain.Implementation
 			// https://github.com/ethereum-optimism/optimism/blob/86a96023ffd04d119296dff095d02fff79fa15de/packages/contracts-bedrock/.storage-layout#L50-L51
 			{
 				Key:   common.Hash{},
-				Value: common.Hash{},
-			},
-			// https://github.com/ethereum-optimism/optimism/blob/86a96023ffd04d119296dff095d02fff79fa15de/packages/contracts-bedrock/.storage-layout#L55
-			{
-				Key:   common.Hash{31: 0x04},
-				Value: common.Hash{},
-			},
-			// https://github.com/ethereum-optimism/optimism/blob/86a96023ffd04d119296dff095d02fff79fa15de/packages/contracts-bedrock/.storage-layout#L56
-			{
-				Key:   common.Hash{31: 0x05},
 				Value: common.Hash{},
 			},
 		}
@@ -565,21 +546,6 @@ func OptimismPortal(batch *safe.Batch, implementations superchain.Implementation
 				Key:   common.Hash{},
 				Value: common.Hash{},
 			},
-			// https://github.com/ethereum-optimism/optimism/blob/86a96023ffd04d119296dff095d02fff79fa15de/packages/contracts-bedrock/.storage-layout#L72
-			{
-				Key:   common.Hash{31: 53},
-				Value: common.Hash{},
-			},
-			// https://github.com/ethereum-optimism/optimism/blob/86a96023ffd04d119296dff095d02fff79fa15de/packages/contracts-bedrock/.storage-layout#L73
-			{
-				Key:   common.Hash{31: 54},
-				Value: common.Hash{},
-			},
-			// https://github.com/ethereum-optimism/optimism/blob/86a96023ffd04d119296dff095d02fff79fa15de/packages/contracts-bedrock/.storage-layout#L74
-			{
-				Key:   common.Hash{31: 55},
-				Value: common.Hash{},
-			},
 		}
 
 		calldata, err := storageSetterABI.Pack(method, input)
@@ -656,56 +622,22 @@ func SystemConfig(batch *safe.Batch, implementations superchain.ImplementationLi
 			return err
 		}
 
+		startBlock := common.Hash{}
+
+		if config != nil {
+			startBlock = common.BigToHash(new(big.Int).SetUint64(config.SystemConfigStartBlock))
+		}
+
 		input := []bindings.StorageSetterSlot{
 			// https://github.com/ethereum-optimism/optimism/blob/86a96023ffd04d119296dff095d02fff79fa15de/packages/contracts-bedrock/.storage-layout#L82-L83
 			{
 				Key:   common.Hash{},
 				Value: common.Hash{},
 			},
-			// https://github.com/ethereum-optimism/optimism/blob/86a96023ffd04d119296dff095d02fff79fa15de/packages/contracts-bedrock/.storage-layout#L92
-			{
-				Key:   common.Hash{31: 106},
-				Value: common.Hash{},
-			},
-			// bytes32 public constant L1_CROSS_DOMAIN_MESSENGER_SLOT = bytes32(uint256(keccak256("systemconfig.l1crossdomainmessenger")) - 1);
-			{
-				Key:   common.HexToHash("0x383f291819e6d54073bc9a648251d97421076bdd101933c0c022219ce9580636"),
-				Value: common.Hash{},
-			},
-			// bytes32 public constant L1_ERC_721_BRIDGE_SLOT = bytes32(uint256(keccak256("systemconfig.l1erc721bridge")) - 1);
-			{
-				Key:   common.HexToHash("0x46adcbebc6be8ce551740c29c47c8798210f23f7f4086c41752944352568d5a7"),
-				Value: common.Hash{},
-			},
-			// bytes32 public constant L1_STANDARD_BRIDGE_SLOT = bytes32(uint256(keccak256("systemconfig.l1standardbridge")) - 1);
-			{
-				Key:   common.HexToHash("0x9904ba90dde5696cda05c9e0dab5cbaa0fea005ace4d11218a02ac668dad6376"),
-				Value: common.Hash{},
-			},
-			// bytes32 public constant L2_OUTPUT_ORACLE_SLOT = bytes32(uint256(keccak256("systemconfig.l2outputoracle")) - 1);
-			{
-				Key:   common.HexToHash("0xe52a667f71ec761b9b381c7b76ca9b852adf7e8905da0e0ad49986a0a6871815"),
-				Value: common.Hash{},
-			},
-			// bytes32 public constant OPTIMISM_PORTAL_SLOT = bytes32(uint256(keccak256("systemconfig.optimismportal")) - 1);
-			{
-				Key:   common.HexToHash("0x4b6c74f9e688cb39801f2112c14a8c57232a3fc5202e1444126d4bce86eb19ac"),
-				Value: common.Hash{},
-			},
-			// bytes32 public constant OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT = bytes32(uint256(keccak256("systemconfig.optimismmintableerc20factory")) - 1);
-			{
-				Key:   common.HexToHash("0xa04c5bb938ca6fc46d95553abf0a76345ce3e722a30bf4f74928b8e7d852320c"),
-				Value: common.Hash{},
-			},
-			// bytes32 public constant BATCH_INBOX_SLOT = bytes32(uint256(keccak256("systemconfig.batchinbox")) - 1);
-			{
-				Key:   common.HexToHash("0x71ac12829d66ee73d8d95bff50b3589745ce57edae70a3fb111a2342464dc597"),
-				Value: common.Hash{},
-			},
 			// bytes32 public constant START_BLOCK_SLOT = bytes32(uint256(keccak256("systemconfig.startBlock")) - 1);
 			{
 				Key:   common.HexToHash("0xa11ee3ab75b40e88a0105e935d17cd36c8faee0138320d776c411291bdbbb19f"),
-				Value: common.Hash{},
+				Value: startBlock,
 			},
 		}
 
