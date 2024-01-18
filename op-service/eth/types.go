@@ -26,9 +26,7 @@ const (
 	InvalidPayloadAttributes ErrorCode = -38003 // Payload attributes are invalid / inconsistent.
 )
 
-var (
-	ErrBedrockScalarPaddingNotEmpty = errors.New("version 0 scalar value has non-empty padding")
-)
+var ErrBedrockScalarPaddingNotEmpty = errors.New("version 0 scalar value has non-empty padding")
 
 // InputError distinguishes an user-input error from regular rpc errors,
 // to help the (Engine) API user divert from accidental input mistakes.
@@ -74,6 +72,30 @@ func (b Bytes32) String() string {
 // output during logging.
 func (b Bytes32) TerminalString() string {
 	return fmt.Sprintf("%x..%x", b[:3], b[29:])
+}
+
+type Bytes96 [96]byte
+
+func (b *Bytes96) UnmarshalJSON(text []byte) error {
+	return hexutil.UnmarshalFixedJSON(reflect.TypeOf(b), text, b[:])
+}
+
+func (b *Bytes96) UnmarshalText(text []byte) error {
+	return hexutil.UnmarshalFixedText("Bytes96", text, b[:])
+}
+
+func (b Bytes96) MarshalText() ([]byte, error) {
+	return hexutil.Bytes(b[:]).MarshalText()
+}
+
+func (b Bytes96) String() string {
+	return hexutil.Encode(b[:])
+}
+
+// TerminalString implements log.TerminalStringer, formatting a string for console
+// output during logging.
+func (b Bytes96) TerminalString() string {
+	return fmt.Sprintf("%x..%x", b[:3], b[93:])
 }
 
 type Bytes256 [256]byte
