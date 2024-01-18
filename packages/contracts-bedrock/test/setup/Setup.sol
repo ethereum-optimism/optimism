@@ -146,6 +146,12 @@ contract Setup {
             args[2] = string.concat(vm.projectRoot(), "/scripts/generate-l2-genesis.sh");
             vm.ffi(args);
         }
+
+        // Prevent race condition where the genesis.json file is not yet created
+        while (vm.isFile(allocsPath) == false) {
+            vm.sleep(1);
+        }
+
         vm.loadAllocs(allocsPath);
 
         // Set the governance token's owner to be the final system owner
