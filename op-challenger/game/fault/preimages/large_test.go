@@ -27,8 +27,9 @@ func TestLargePreimageUploader_UploadPreimage(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		oracle, _, contract := newTestLargePreimageUploader(t)
 		err := oracle.UploadPreimage(context.Background(), 0, &types.PreimageOracleData{})
-		require.NoError(t, err)
 		require.Equal(t, 1, contract.initCalls)
+		// TODO(proofs#467): fix this to not error. See LargePreimageUploader.UploadPreimage.
+		require.ErrorIs(t, err, errNotSupported)
 	})
 }
 

@@ -3,6 +3,7 @@ package preimages
 import (
 	"context"
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"math/big"
 
@@ -11,6 +12,8 @@ import (
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 )
+
+var errNotSupported = errors.New("not supported")
 
 var _ PreimageUploader = (*LargePreimageUploader)(nil)
 
@@ -35,6 +38,8 @@ func (p *LargePreimageUploader) UploadPreimage(ctx context.Context, parent uint6
 	// todo(proofs#467): split up the preimage into chunks and submit the preimages
 	//                   and state commitments to the preimage oracle contract using
 	//                   `PreimageOracle.addLeavesLPP` (`_finalize` = false).
+
+	// TODO(client-pod#473): The UUID must be deterministic so the challenger can resume uploads.
 	uuid, err := p.newUUID()
 	if err != nil {
 		return fmt.Errorf("failed to generate UUID: %w", err)
@@ -43,9 +48,11 @@ func (p *LargePreimageUploader) UploadPreimage(ctx context.Context, parent uint6
 	if err != nil {
 		return fmt.Errorf("failed to initialize large preimage with uuid: %s: %w", uuid, err)
 	}
+
 	// todo(proofs#467): track the challenge period starting once the full preimage is posted.
 	// todo(proofs#467): once the challenge period is over, call `squeezeLPP` on the preimage oracle contract.
-	return nil
+
+	return errNotSupported
 }
 
 func (p *LargePreimageUploader) newUUID() (*big.Int, error) {
