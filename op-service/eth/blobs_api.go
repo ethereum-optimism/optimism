@@ -15,8 +15,7 @@ type APIBlobSidecar struct {
 	KZGProof          Bytes48                 `json:"kzg_proof"`
 	SignedBlockHeader SignedBeaconBlockHeader `json:"signed_block_header"`
 
-	// TODO(Seb): we don't use this yet afaik
-	// KZGCommitmentInclusionProof [17]Bytes32             `json:"kzg_commitment_inclusion_proof"`
+	KZGCommitmentInclusionProof [17]Bytes32 `json:"kzg_commitment_inclusion_proof"`
 }
 
 func (sc *APIBlobSidecar) BlobSidecar() *BlobSidecar {
@@ -36,7 +35,7 @@ type SignedBeaconBlockHeader struct {
 
 type BeaconBlockHeader struct {
 	Slot          Uint64String `json:"slot"`
-	ProposerIndex Uint64String `json:"proposer_index "`
+	ProposerIndex Uint64String `json:"proposer_index"`
 	ParentRoot    Bytes32      `json:"parent_root"`
 	StateRoot     Bytes32      `json:"state_root"`
 	BodyRoot      Bytes32      `json:"body_root"`

@@ -41,10 +41,21 @@ func TestAPIConfigResponse(t *testing.T) {
 // APIGenesisResponse is compatible with the current beacon node API.
 // This also confirms that the [sources.L1BeaconClient] correctly parses
 // responses from a real beacon node.
-// func TestAPIGetBlobSidecarsResponse(t *testing.T) {
-// 	var resp eth.APIGetBlobSidecarsResponse
-// 	testBeaconAPIResponse(t, &resp, "eth_v1_beacon_blob_sidecars_7422094_goerli.json")
-// }
+func TestAPIGetBlobSidecarsResponse(t *testing.T) {
+	require := require.New(t)
+
+	path := filepath.Join("testdata", "eth_v1_beacon_blob_sidecars_7422094_goerli.json")
+	jsonStr, err := os.ReadFile(path)
+	require.NoError(err)
+
+	var resp eth.APIGetBlobSidecarsResponse
+	require.NoError(json.Unmarshal(jsonStr, &resp))
+
+	respJsonStr, err := json.Marshal(&resp)
+	require.NoError(err)
+	// truncate newline of file
+	require.Equal(jsonStr[:len(jsonStr)-1], respJsonStr)
+}
 
 // testBeaconAPIResponse tests that json-unmarshaling a Beacon node json response
 // read from the provided testfile path into the provided response object works
