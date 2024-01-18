@@ -101,7 +101,8 @@ kontrol_prove() {
                         ${break_on_calls}                  \
                         ${auto_abstract}                   \
                         ${tests}                           \
-                        ${use_booster}
+                        ${use_booster}                     \
+                        --init-node-from ${state_diff}
 }
 
 start_docker () {
@@ -220,14 +221,14 @@ bug_report=--bug-report
 bug_report=
 use_booster=--use-booster
 # use_booster=
+state_diff=${WORKSPACE_DIR}/snapshots/state-diff/Kontrol-Deploy.json
 
 #########################################
 # List of tests to symbolically execute #
 #########################################
 tests=""
-tests+="--match-test CounterTest.test_SetNumber "
 #tests+="--match-test OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused "
-#tests+="--match-test OptimismPortalKontrol.prove_finalizeWithdrawalTransaction_paused "
+tests+="--match-test OptimismPortalKontrol.prove_finalizeWithdrawalTransaction_paused "
 
 #############
 # RUN TESTS #
