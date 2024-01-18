@@ -1,7 +1,6 @@
 package eth
 
 type BlobSidecar struct {
-	BlockRoot     Bytes32      `json:"block_root"`
 	Slot          Uint64String `json:"slot"`
 	Blob          Blob         `json:"blob"`
 	Index         Uint64String `json:"index"`
@@ -22,7 +21,6 @@ type APIBlobSidecar struct {
 
 func (sc *APIBlobSidecar) BlobSidecar() *BlobSidecar {
 	return &BlobSidecar{
-		BlockRoot:     sc.SignedBlockHeader.Message.StateRoot, // TODO confirm
 		Slot:          sc.SignedBlockHeader.Message.Slot,
 		Blob:          sc.Blob,
 		Index:         sc.Index,
