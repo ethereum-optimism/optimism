@@ -44,7 +44,7 @@ func (c *APIClient) AddServerAsVoter(ctx context.Context, id string, addr string
 }
 
 // CommitUnsafePayload implements API.
-func (c *APIClient) CommitUnsafePayload(ctx context.Context, payload *eth.ExecutionPayload) error {
+func (c *APIClient) CommitUnsafePayload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) error {
 	return c.c.CallContext(ctx, nil, prefixRPC("commitUnsafePayload"), payload)
 }
 
