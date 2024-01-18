@@ -278,8 +278,9 @@ PayloadAttributesV3: {
 The requirements of this object are the same as extended [`PayloadAttributesV2`][#extended-payloadattributesv2] with
 the addition of `parentBeaconBlockRoot` which is the parent beacon block root from the L1 origin block of the L2 block.
 
-`parentBeaconBlockRoot` must be nil for Bedrock/Canyon/Delta payloads, but must be set to the L1
-origin `parentBeaconBlockRoot`.
+The `parentBeaconBlockRoot` must be nil for Bedrock/Canyon/Delta payloads.
+Starting at Ecotone, the `parentBeaconBlockRoot` must be set to the L1 origin `parentBeaconBlockRoot`,
+or a zero `bytes32` if the Dencun functionality with `parentBeaconBlockRoot` is not active on L1.
 
 ### `engine_newPayloadV2`
 
