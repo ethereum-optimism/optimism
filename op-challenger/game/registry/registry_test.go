@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"context"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/scheduler"
@@ -60,4 +61,8 @@ type stubPreimageOracle common.Address
 
 func (s stubPreimageOracle) Addr() common.Address {
 	return common.Address(s)
+}
+
+func (s stubPreimageOracle) GetActivePreimages(_ context.Context, _ common.Hash) ([]types.LargePreimageMetaData, error) {
+	return nil, nil
 }

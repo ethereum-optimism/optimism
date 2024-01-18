@@ -1,12 +1,14 @@
 package contracts
 
 import (
+	"context"
 	"fmt"
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/matrix"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
@@ -17,6 +19,8 @@ const (
 	methodAddLeavesLPP              = "addLeavesLPP"
 	methodSqueezeLPP                = "squeezeLPP"
 	methodLoadKeccak256PreimagePart = "loadKeccak256PreimagePart"
+	methodProposalCount             = "proposalCount"
+	methodProposals                 = "proposals"
 )
 
 // PreimageOracleContract is a binding that works with contracts implementing the IPreimageOracle interface
@@ -136,4 +140,26 @@ func abiEncodeStateMatrix(stateMatrix *matrix.StateMatrix) bindings.LibKeccakSta
 		stateSlice[i/8] = new(big.Int).SetBytes(packedState[i : i+8]).Uint64()
 	}
 	return bindings.LibKeccakStateMatrix{State: *stateSlice}
+}
+
+func (c *PreimageOracleContract) GetActivePreimages(ctx context.Context, blockHash common.Hash) ([]gameTypes.LargePreimageMetaData, error) {
+	results, err := batching.ReadArray(ctx, c.multiCaller, batching.BlockByHash(blockHash), c.contract.Call(methodProposalCount), func(i *big.Int) *batching.ContractCall {
+		return c.contract.Call(methodProposals, i)
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to load claims: %w", err)
+	}
+
+	var proposals []gameTypes.LargePreimageMetaData
+	for idx, result := range results {
+		proposals = append(proposals, c.decodeProposal(result, idx))
+	}
+	return proposals, nil
+}
+
+func (c *PreimageOracleContract) decodeProposal(result *batching.CallResult, idx int) gameTypes.LargePreimageMetaData {
+	return gameTypes.LargePreimageMetaData{
+		Claimant: result.GetAddress(0),
+		UUID:     result.GetBigInt(1),
+	}
 }
