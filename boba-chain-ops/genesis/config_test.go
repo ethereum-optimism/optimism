@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/ledgerwatch/erigon-lib/common"
-	"github.com/ledgerwatch/erigon-lib/common/hexutil"
 	"github.com/ledgerwatch/erigon/rpc"
 
 	"github.com/stretchr/testify/require"
@@ -39,13 +38,25 @@ func TestUnmarshalL1StartingBlockTag(t *testing.T) {
 }
 
 func TestRegolithTimeZero(t *testing.T) {
-	regolithOffset := hexutil.Uint64(0)
+	regolithOffset := uint64(0)
 	config := &DeployConfig{L2GenesisRegolithTimeOffset: &regolithOffset}
-	require.Equal(t, uint64(0), *config.RegolithTime(1234))
+	require.Equal(t, uint64(0), *config.RegolithTime(0))
 }
 
 func TestRegolithTimeAsOffset(t *testing.T) {
-	regolithOffset := hexutil.Uint64(1500)
+	regolithOffset := uint64(1500)
 	config := &DeployConfig{L2GenesisRegolithTimeOffset: &regolithOffset}
 	require.Equal(t, uint64(1500+5000), *config.RegolithTime(5000))
+}
+
+func TestCanyonTimeZero(t *testing.T) {
+	canyonOffset := uint64(0)
+	config := &DeployConfig{L2GenesisCanyonTimeOffset: &canyonOffset}
+	require.Equal(t, uint64(0), *config.CanyonTime(0))
+}
+
+func TestCanyonTimeAsOffset(t *testing.T) {
+	canyonOffset := uint64(1500)
+	config := &DeployConfig{L2GenesisCanyonTimeOffset: &canyonOffset}
+	require.Equal(t, uint64(1500+5000), *config.CanyonTime(5000))
 }
