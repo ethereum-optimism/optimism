@@ -5,6 +5,7 @@ import (
 	"embed"
 	_ "embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"math/big"
@@ -268,6 +269,10 @@ func (e *stubGenerator) GenerateProof(ctx context.Context, dir string, i uint64)
 		return writeGzip(proofFile, data)
 	}
 	return nil
+}
+
+func (e *stubGenerator) GenerateProofOrUntilPreimageRead(ctx context.Context, dir string, begin uint64, end uint64, untilPreimageRead bool) error {
+	return errors.New("unimplemented")
 }
 
 func writeGzip(path string, data []byte) error {

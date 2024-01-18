@@ -3,6 +3,7 @@ package faultproofs
 import (
 	"context"
 	"fmt"
+	"math/big"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
@@ -211,6 +212,40 @@ func TestOutputCannonDefendStep(t *testing.T) {
 	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
 	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 
+	game.WaitForInactivity(ctx, 10, true)
+	game.LogGameData(ctx)
+	require.EqualValues(t, disputegame.StatusChallengerWins, game.Status(ctx))
+}
+
+func TestOutputCannonStepWithPreimage(t *testing.T) {
+	executor := uint64(1) // Different executor to the other tests to help balance things better
+	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(executor))
+
+	ctx := context.Background()
+	sys, l1Client := startFaultDisputeSystem(t)
+	t.Cleanup(sys.Close)
+
+	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
+	game := disputeGameFactory.StartOutputCannonGame(ctx, "sequencer", 1, common.Hash{0x01, 0xaa})
+	require.NotNil(t, game)
+	outputRootClaim := game.DisputeLastBlock(ctx)
+	game.LogGameData(ctx)
+
+	game.StartChallenger(ctx, "sequencer", "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
+	outputRootClaim = outputRootClaim.WaitForCounterClaim(ctx)
+
+	provider := game.CreateCannonTraceProvider(ctx, "sequencer", outputRootClaim, challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
+	preimageTraceIndex := game.FindStepWithPreimage(ctx, provider)
+	game.ChallengeIntoPosition(ctx, provider, outputRootClaim, preimageTraceIndex)
+
+	// Ensure that the honest challenger uploaded the preimage for the correct index
+	execDepth := game.MaxDepth(ctx) - game.SplitDepth(ctx) - 1
+	_, _, preimageData, err := provider.GetStepData(ctx, types.NewPosition(execDepth, big.NewInt(int64(preimageTraceIndex))))
+	require.NoError(t, err)
+	require.True(t, game.PreimageExistsInOracle(ctx, [32]byte(preimageData.OracleKey)))
+
+	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
+	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 	game.WaitForInactivity(ctx, 10, true)
 	game.LogGameData(ctx)
 	require.EqualValues(t, disputegame.StatusChallengerWins, game.Status(ctx))

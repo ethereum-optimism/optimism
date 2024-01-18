@@ -68,7 +68,9 @@ func (a *Agent) Act(ctx context.Context) error {
 	for _, action := range actions {
 		log := a.log.New("action", action.Type, "is_attack", action.IsAttack, "parent", action.ParentIdx)
 		if action.Type == types.ActionTypeStep {
-			log = log.New("prestate", common.Bytes2Hex(action.PreState), "proof", common.Bytes2Hex(action.ProofData))
+			containsOracleData := action.OracleData != nil
+			isLocal := containsOracleData && action.OracleData.IsLocal
+			log = log.New("prestate", common.Bytes2Hex(action.PreState), "proof", common.Bytes2Hex(action.ProofData), "containsOracleData", containsOracleData, "isLocalPreimage", isLocal)
 		} else {
 			log = log.New("value", action.Value)
 		}

@@ -27,6 +27,7 @@ const (
 	methodProposalMetadata          = "proposalMetadata"
 	methodProposalBlocksLen         = "proposalBlocksLen"
 	methodProposalBlocks            = "proposalBlocks"
+	methodPreimageLengths           = "preimageLengths"
 )
 
 var (
@@ -85,8 +86,12 @@ func (c *PreimageOracleContract) Addr() common.Address {
 }
 
 func (c *PreimageOracleContract) AddGlobalDataTx(data *types.PreimageOracleData) (txmgr.TxCandidate, error) {
-	call := c.contract.Call(methodLoadKeccak256PreimagePart, new(big.Int).SetUint64(uint64(data.OracleOffset)), data.GetPreimageWithoutSize())
+	call := c.AddGlobalDataTxCall(data)
 	return call.ToTxCandidate()
+}
+
+func (c *PreimageOracleContract) AddGlobalDataTxCall(data *types.PreimageOracleData) *batching.ContractCall {
+	return c.contract.Call(methodLoadKeccak256PreimagePart, new(big.Int).SetUint64(uint64(data.OracleOffset)), data.GetPreimageWithoutSize())
 }
 
 func (c *PreimageOracleContract) InitLargePreimage(uuid *big.Int, partOffset uint32, claimedSize uint32) (txmgr.TxCandidate, error) {
@@ -219,6 +224,15 @@ func (c *PreimageOracleContract) DecodeInputData(data []byte) (*big.Int, keccakT
 		Commitments: commitments,
 		Finalize:    finalize,
 	}, nil
+}
+
+func (c *PreimageOracleContract) ContainsPreimage(ctx context.Context, key [32]byte) (bool, error) {
+	call := c.contract.Call(methodPreimageLengths, key)
+	results, err := c.multiCaller.SingleCall(ctx, batching.BlockLatest, call)
+	if err != nil {
+		return false, fmt.Errorf("failed to load preimage lengths: %w", err)
+	}
+	return results.GetBigInt(0).BitLen() != 0, nil
 }
 
 func (c *PreimageOracleContract) decodePreimageIdent(result *batching.CallResult) keccakTypes.LargePreimageIdent {

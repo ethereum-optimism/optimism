@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"math"
 	"os"
 	"path/filepath"
 
@@ -39,29 +41,32 @@ type CannonMetricer interface {
 type ProofGenerator interface {
 	// GenerateProof executes cannon to generate a proof at the specified trace index in dataDir.
 	GenerateProof(ctx context.Context, dataDir string, proofAt uint64) error
+
+	// GenerateProofOrUntilPreimageRead executes cannon to generate a proof at the specified trace index,
+	// or until a non-local preimage read is encountered if untilPreimageRead is true.
+	// Used primarily by tests
+	GenerateProofOrUntilPreimageRead(ctx context.Context, dir string, begin uint64, end uint64, untilPreimageRead bool) error
 }
 
 type CannonTraceProvider struct {
-	logger       log.Logger
-	dir          string
-	prestate     string
-	generator    ProofGenerator
-	gameDepth    types.Depth
-	localContext common.Hash
+	logger    log.Logger
+	dir       string
+	prestate  string
+	generator ProofGenerator
+	gameDepth types.Depth
 
 	// lastStep stores the last step in the actual trace if known. 0 indicates unknown.
 	// Cached as an optimisation to avoid repeatedly attempting to execute beyond the end of the trace.
 	lastStep uint64
 }
 
-func NewTraceProvider(logger log.Logger, m CannonMetricer, cfg *config.Config, localContext common.Hash, localInputs LocalGameInputs, dir string, gameDepth types.Depth) *CannonTraceProvider {
+func NewTraceProvider(logger log.Logger, m CannonMetricer, cfg *config.Config, localInputs LocalGameInputs, dir string, gameDepth types.Depth) *CannonTraceProvider {
 	return &CannonTraceProvider{
-		logger:       logger,
-		dir:          dir,
-		prestate:     cfg.CannonAbsolutePreState,
-		generator:    NewExecutor(logger, m, cfg, localInputs),
-		gameDepth:    gameDepth,
-		localContext: localContext,
+		logger:    logger,
+		dir:       dir,
+		prestate:  cfg.CannonAbsolutePreState,
+		generator: NewExecutor(logger, m, cfg, localInputs),
+		gameDepth: gameDepth,
 	}
 }
 
@@ -128,6 +133,33 @@ func (p *CannonTraceProvider) AbsolutePreStateCommitment(_ context.Context) (com
 		return common.Hash{}, fmt.Errorf("cannot hash absolute pre-state: %w", err)
 	}
 	return hash, nil
+}
+
+func (p *CannonTraceProvider) FindStepReferencingPreimage(ctx context.Context, start uint64) (uint64, error) {
+	// first generate a snapshot for start, so we can rewind to it later for the full trace search
+	prestateProof, err := p.loadProof(ctx, start)
+	if err != nil {
+		return 0, err
+	}
+	start += 1
+	for {
+		if err := p.generator.GenerateProofOrUntilPreimageRead(ctx, p.dir, start, math.MaxUint64, true); err != nil {
+			return 0, fmt.Errorf("generate cannon trace (until preimage read) with proof at %d: %w", start, err)
+		}
+		state, err := parseState(filepath.Join(p.dir, finalState))
+		if err != nil {
+			return 0, fmt.Errorf("cannot read final state: %w", err)
+		}
+		if state.Exited {
+			break
+		}
+		if state.PreimageOffset != 0 && state.PreimageOffset != prestateProof.OracleOffset {
+			return state.Step - 1, nil
+		}
+		start = state.Step
+	}
+
+	return 0, io.EOF
 }
 
 // loadProof will attempt to load or generate the proof data at the specified index
