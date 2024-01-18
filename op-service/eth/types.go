@@ -3,7 +3,9 @@ package eth
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
+	"math"
 	"math/big"
 	"reflect"
 	"strconv"
@@ -22,6 +24,10 @@ const (
 	UnknownPayload           ErrorCode = -32001 // Payload does not exist / is not available.
 	InvalidForkchoiceState   ErrorCode = -38002 // Forkchoice state is invalid / inconsistent.
 	InvalidPayloadAttributes ErrorCode = -38003 // Payload attributes are invalid / inconsistent.
+)
+
+var (
+	ErrBedrockScalarPaddingNotEmpty = errors.New("version 0 scalar value has non-empty padding")
 )
 
 // InputError distinguishes an user-input error from regular rpc errors,
@@ -347,6 +353,11 @@ const (
 
 func (sysCfg *SystemConfig) EcotoneScalars() (blobBaseFeeScalar, baseFeeScalar uint32, err error) {
 	if err := CheckEcotoneL1SystemConfigScalar(sysCfg.Scalar); err != nil {
+		if errors.Is(err, ErrBedrockScalarPaddingNotEmpty) {
+			// L2 spec mandates we set baseFeeScalar to MaxUint32 if there are non-zero bytes in
+			// the padding area.
+			return 0, math.MaxUint32, nil
+		}
 		return 0, 0, err
 	}
 	switch sysCfg.Scalar[0] {
@@ -367,7 +378,7 @@ func CheckEcotoneL1SystemConfigScalar(scalar [32]byte) error {
 	switch versionByte {
 	case L1ScalarBedrock:
 		if ([27]byte)(scalar[1:28]) != ([27]byte{}) { // check padding
-			return fmt.Errorf("invalid version 0 scalar padding: %x", scalar[1:28])
+			return ErrBedrockScalarPaddingNotEmpty
 		}
 		return nil
 	case L1ScalarEcotone:

@@ -2,6 +2,7 @@ package eth
 
 import (
 	"errors"
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -29,9 +30,10 @@ type scalarTest struct {
 
 func TestEcotoneScalars(t *testing.T) {
 	testCases := []scalarTest{
-		{"invalid v0 scalar", Bytes32{0: 0, 27: 1, 31: 2}, true, 0, 0},
+		{"dirty padding v0 scalar", Bytes32{0: 0, 27: 1, 31: 2}, false, 0, math.MaxUint32},
+		{"dirty padding v0 scalar v2", Bytes32{0: 0, 1: 1, 31: 2}, false, 0, math.MaxUint32},
 		{"valid v0 scalar", Bytes32{0: 0, 27: 0, 31: 2}, false, 0, 2},
-		{"invalid v1 scalar", Bytes32{0: 0, 7: 1, 31: 2}, true, 0, 0},
+		{"invalid v1 scalar", Bytes32{0: 1, 7: 1, 31: 2}, true, 0, 0},
 		{"valid v1 scalar with 0 blob scalar", Bytes32{0: 1, 27: 0, 31: 2}, false, 0, 2},
 		{"valid v1 scalar with non-0 blob scalar", Bytes32{0: 1, 27: 123, 31: 2}, false, 123, 2},
 		{"valid v1 scalar with non-0 blob scalar and 0 scalar", Bytes32{0: 1, 27: 123, 31: 0}, false, 123, 0},
