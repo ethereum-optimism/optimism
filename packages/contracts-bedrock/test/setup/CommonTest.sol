@@ -14,7 +14,7 @@ contract CommonTest is Setup, Test, Events {
 
     bytes32 constant nonZeroHash = keccak256(abi.encode("NON_ZERO"));
 
-    FFIInterface ffi;
+    FFIInterface constant ffi = FFIInterface(address(uint160(uint256(keccak256(abi.encode("optimism.ffi"))))));
 
     function setUp() public virtual override {
         alice = makeAddr("alice");
@@ -23,8 +23,7 @@ contract CommonTest is Setup, Test, Events {
         vm.deal(bob, 10000 ether);
 
         Setup.setUp();
-        vm.prank(deployer);
-        ffi = new FFIInterface();
+        vm.etch(address(ffi), vm.getDeployedCode("FFIInterface.sol:FFIInterface"));
 
         // Make sure the base fee is non zero
         vm.fee(1 gwei);
