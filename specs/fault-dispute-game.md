@@ -30,6 +30,7 @@
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
 <!-- Glossary References -->
+
 [g-output-root]: glossary.md#L2-output-root
 
 ## Overview
@@ -68,7 +69,7 @@ The method for key-based retrieval of these pre-images varies according to the s
 An execution trace $T$ is a sequence $(S_0,S_1,S_2,...,S_n)$ where each $S_i$ is a VM state and
 for each $i$, $0 \le i \lt n$, $S_{n+1} = VM(S_i, P_i)$.
 Every execution trace has a unique starting state, $S_0$, that's preset to a FDG implementation.
-We refer to this state as the **ABSOLUTE\_PRESTATE**.
+We refer to this state as the **ABSOLUTE_PRESTATE**.
 
 ### Claims
 
@@ -84,9 +85,9 @@ claims, committing to different output roots and FPVM states in the FDG.
 A Directed Acyclic Graph $G = (V,E)$ representing the relationship between claims, where:
 
 - $V$ is the set of nodes, each representing a claim. Formally, $V = \{C_1,C_2,...,C_n\}$,
-where $C_i$ is a claim.
+  where $C_i$ is a claim.
 - $E$ is the set of _directed_ edges. An edge $(C_i,C_j)$ exists if $C_j$ is a direct dispute
-against $C_i$ through either an "Attack" or "Defend" [move](#moves).
+  against $C_i$ through either an "Attack" or "Defend" [move](#moves).
 
 ### Subgame
 
@@ -162,9 +163,9 @@ commitments. At and above the `SPLIT_DEPTH`, claims correspond to output roots, 
 correspond to execution trace commitments.
 
 Initially, claims added to the DAG are _uncontesteed_ (i.e. not **countered**). Once a move targets a claim, that claim
- is considered countered.
+is considered countered.
 The status of a claim &mdash; whether it's countered or not &mdash; helps determine its validity and, ultimately, the
- game's winner.
+game's winner.
 
 #### Attack
 
@@ -227,12 +228,12 @@ Similar to moves, there are two ways to step on a claim; attack or defend.
 These determine the pre-state input to the VM STF and the expected output.
 
 - **Attack Step** - Challenges a claim by providing a pre-state, proving an invalid state transition.
-It uses the previous state in the execution trace as input and expects the disputed claim's state as output.
-There must exist a claim in the DAG that commits to the input.
+  It uses the previous state in the execution trace as input and expects the disputed claim's state as output.
+  There must exist a claim in the DAG that commits to the input.
 - **Defense Step** - Challenges a claim by proving it was an invalid attack,
-thereby defending the disputed ancestor's claim. It uses the disputed claim's state as input and expects
-the next state in the execution trace as output. There must exist a claim in the DAG that commits to the
- expected output.
+  thereby defending the disputed ancestor's claim. It uses the disputed claim's state as input and expects
+  the next state in the execution trace as output. There must exist a claim in the DAG that commits to the
+  expected output.
 
 The FDG step handles the inputs to the VM and asserts the expected output.
 A step that successfully proves an invalid post-state (when attacking) or pre-state (when defending) is a
@@ -255,12 +256,70 @@ The FDG provides the following interface to manage data loaded to the `PreimageO
 function addLocalData(uint256 _ident, uint256 _execLeafIdx, uint256 _partOffset) external;
 ```
 
-The `addLocalData` function loads parts of a pre-image to VM's `PreimageOracle`. Players use this to ensure pre-image
-parts are available to the VM during a step. Because there are multiple sets of local preimage keys that belong to the
-`FaultDisputeGame` contract due to the ability for players to bisect to any block $n \rarrow n + 1$ state transition
-since the configured genesis, the `_execLeafIdx` parameter enables a search for the starting / disputed outputs to be
-performed such that the contract can write to and reference unique local keys in the `PreimageOracle` for each of these
-$n \rarrow n + 1$ transitions.
+The `addLocalData` function loads local data into the VM's `PreimageOracle`. This data consists of bootstrap data for
+the program. There are multiple sets of local preimage keys that belong to the `FaultDisputeGame` contract due to the
+ability for players to bisect to any block $n \rightarrow n + 1$ state transition since the configured genesis, the
+`_execLeafIdx` parameter enables a search for the starting / disputed outputs to be performed such that the contract
+can write to and reference unique local keys in the `PreimageOracle` for each of these $n \rightarrow n + 1$
+transitions.
+
+| Identifier | Description                                            |
+| ---------- | ------------------------------------------------------ |
+| `0`        | Parent L1 head hash at the time of the proposal        |
+| `1`        | Starting output root hash (commits to block # `n`)     |
+| `2`        | Disputed output root hash (commits to block # `n + 1`) |
+| `3`        | Starting L2 block number (block # `n`)                 |
+| `4`        | Chain ID                                               |
+
+For global `keccak256` preimages, there are two routes for players to submit:
+
+1. Small preimages atomically.
+2. Large preimages via streaming.
+
+Global `keccak256` preimages are non-context specific and can be submitted directly to the `PreimageOracle` via the
+`loadKeccak256PreimagePart` function, which takes the part offset as well as the full preimage. In the event that the
+preimage is too large to be submitted through calldata in a single block, challengers must resort to the streaming
+option.
+
+**Large Preimage Proposals**
+
+Large preimage proposals allow for submitters to stream in a large preimage over multiple transactions, along-side
+commitments to the intermediate state of the `keccak256` function after absorbing/permuting the $1088$ bit block.
+This data is progressively merkleized on-chain as it is streamed in, with each leaf constructed as follows:
+
+```solidity
+/// @notice Returns a leaf hash to add to a preimage proposal merkle tree.
+/// @param input A single 136 byte chunk of the input.
+/// @param blockIndex The index of the block that `input` corresponds to in the full preimage's absorbtion.
+/// @param stateCommitment The hash of the full 5x5 state matrix *after* absorbing and permuting `input`.
+function hashLeaf(
+    bytes memory input,
+    uint256 blockIndex,
+    bytes32 stateCommitment
+) internal view returns (bytes32 leaf) {
+    require(input.length == 136, "input must be exactly the size of the keccak256 rate");
+
+    leaf = keccak256(abi.encodePacked(input, blockIndex, stateCommitment));
+}
+```
+
+Once the full preimage and all intermediate state commitments have been posted, the large preimage proposal enters a
+challenge period. During this time, a challenger can reconstruct the merkle tree that was progressively built on-chain
+locally by scanning the block bodies that contain the proposer's leaf preimages. If they detect that a commitment to
+the intermediate state of the hash function is incorrect at any step, they may perform a single-step dispute for the
+proposal in the `PreimageOracle`. This involves:
+
+1. Creating a merkle proof for the agreed upon prestate leaf (not necessary if the invalid leaf is the first one, the
+   setup state of the matrix is constant.) within the proposal's merkle root.
+2. Creating a merkle proof for the disputed post state leaf within the proposal's merkle root.
+3. Computing the state matrix at the agreed upon prestate (not necessary if the invalid leaf is the first one, the
+   setup state of the matrix is constant.)
+
+The challenger then submits this data to the `PreimageOracle`, where the post state leaf's claimed input is absored into
+the pre state leaf's state matrix and the SHA3 permutation is executed on-chain. After that, the resulting state matrix
+is hashed and and compared with the proposer's claim in the post state leaf. If the hash does not match, the proposal
+is marked as challenged, and it may not be finalized. If, after the challenge period is concluded, a proposal has no
+challenges, it may be finalized and the preimage part may be placed into the authorized mappings for the FPVM to read.
 
 ### Team Dynamics
 
@@ -276,12 +335,12 @@ Uncontested claims are likely to result in a loss, as explained later under [Res
 ### Game Clock
 
 Every claim in the game has a Clock. A claim's inherits the clock of its grandparent claim in the
- DAG (and so on). Akin to a chess clock, it keeps track of the total time each team takes to make
-  moves, preventing delays.
+DAG (and so on). Akin to a chess clock, it keeps track of the total time each team takes to make
+moves, preventing delays.
 Making a move resumes the clock for the disputed claim and puases it for the newly added one.
 
 A move against a particular claim is no longer possible once the parent of the disputed claim's Clock
- has exceeded half of the `GAME_DURATION`. By which point, the claim's clock has _expired_.
+has exceeded half of the `GAME_DURATION`. By which point, the claim's clock has _expired_.
 
 ### Resolution
 
@@ -298,6 +357,7 @@ root game are recursively resolved, we can resolve the root to countered due to 
 
 <!-- https://gist.github.com/clabby/e98bdd80ef3c038424f3372b70e34e08 -->
 <!-- markdownlint-disable no-inline-html -->
+
 <https://github.com/ethereum-optimism/optimism/assets/8406232/d2b708a0-539e-439d-96bd-c2f66f3a45f8>
 
 Another example is this game, which has a slightly different structure. Here, the root claim will also
