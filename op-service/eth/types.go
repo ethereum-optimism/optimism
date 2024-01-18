@@ -327,8 +327,8 @@ type SystemConfig struct {
 // The Ecotone upgrade introduces a versioned L1 scalar format
 // that is backward-compatible with pre-Ecotone L1 scalar values.
 const (
-	// L1ScalarOriginal is implied pre-Ecotone, encoding just a regular-gas scalar.
-	L1ScalarOriginal = byte(0)
+	// L1ScalarBedrock is implied pre-Ecotone, encoding just a regular-gas scalar.
+	L1ScalarBedrock = byte(0)
 	// L1ScalarEcotone is new in Ecotone, allowing configuration of both a regular and a blobs scalar.
 	L1ScalarEcotone = byte(1)
 )
@@ -338,7 +338,7 @@ func (sysCfg *SystemConfig) EcotoneScalars() (blobBaseFeeScalar, baseFeeScalar u
 		return 0, 0, err
 	}
 	switch sysCfg.Scalar[0] {
-	case L1ScalarOriginal:
+	case L1ScalarBedrock:
 		blobBaseFeeScalar = 0
 		baseFeeScalar = binary.BigEndian.Uint32(sysCfg.Scalar[28:32])
 	case L1ScalarEcotone:
@@ -353,7 +353,7 @@ func (sysCfg *SystemConfig) EcotoneScalars() (blobBaseFeeScalar, baseFeeScalar u
 func CheckEcotoneL1SystemConfigScalar(scalar [32]byte) error {
 	versionByte := scalar[0]
 	switch versionByte {
-	case L1ScalarOriginal:
+	case L1ScalarBedrock:
 		if ([27]byte)(scalar[1:28]) != ([27]byte{}) { // check padding
 			return fmt.Errorf("invalid version 0 scalar padding: %x", scalar[1:28])
 		}
