@@ -8,15 +8,14 @@ The directory is structured as follows
 
 ```tree
 test/kontrol
-├── KontrolDeployment.sol
+├── deployment
+│   ├── DeploymentSummary.t.sol
+│   └── KontrolDeployment.sol
 ├── pausability-lemmas.k
 ├── proofs
 │   ├── interfaces
 │   │   └── KontrolInterfaces.sol
 │   ├── OptimismPortal.k.sol
-│   ├── tests
-│   │   ├── Counter.sol
-│   │   └── Counter.t.sol
 │   └── utils
 │       ├── DeploymentSummaryCode.sol
 │       ├── DeploymentSummary.sol
@@ -32,10 +31,15 @@ test/kontrol
 
 ### Root folder
 
-- [`KontrolDeployment.sol`](./KontrolDeployment.sol): Reduced deployment to generate the summary contract
 - [`pausability-lemmas.k`](./pausability-lemmas.k): File containing the necessary lemmas for this project
+- [`deployment`](./deployment): Custom deploy sequence for Kontrol proofs and tests for its summarization
 - [`proofs`](./proofs): Where the proofs of the project live
 - [`scripts`](./scripts): Where the scripts of the projects live
+
+### [`deployment`](./deployment) folder
+
+- [`KontrolDeployment.sol`](./deployment/KontrolDeployment.sol): Simplified deployment sequence for Kontrol proofs
+- [`DeploymentSummary.t.sol`](./deployment/DeploymentSummary.t.sol): Tests for the summarization of custom deployment
 
 ### [`proofs`](./proofs) folder
 
