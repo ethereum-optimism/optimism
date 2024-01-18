@@ -39,8 +39,6 @@ func TestGasPriceOracle(t *testing.T) {
 
 	atLeastOnce := false
 	err = filepath.WalkDir("../specs", func(path string, d fs.DirEntry, err error) error {
-		atLeastOnce = true
-
 		if d.IsDir() {
 			return nil
 		}
@@ -57,6 +55,7 @@ func TestGasPriceOracle(t *testing.T) {
 		expected := (types.FlzCompressLen(b) + 68) * 16
 		assert.Equal(t, used.Uint64(), uint64(expected), path)
 
+		atLeastOnce = true
 		return nil
 	})
 	assert.NoError(t, err)

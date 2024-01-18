@@ -4,7 +4,7 @@ pragma solidity 0.8.15;
 import { ISemver } from "src/universal/ISemver.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { L1Block } from "src/L2/L1Block.sol";
-import { Compression } from "src/libraries/Compression.sol";
+import { LibZip } from "solady/utils/LibZip.sol";
 
 /// @custom:proxied
 /// @custom:predeploy 0x420000000000000000000000000000000000000F
@@ -163,7 +163,7 @@ contract GasPriceOracle is ISemver {
     function _getCalldataGas(bytes memory _data) internal view returns (uint256) {
         uint256 total = 0;
         if (isFjord) {
-            total = Compression.flzCompressLen(_data) * 16;
+            total = LibZip.flzCompress(_data).length * 16;
         } else {
             uint256 length = _data.length;
             for (uint256 i = 0; i < length; i++) {
