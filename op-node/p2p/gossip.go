@@ -375,7 +375,7 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config, runCfg GossipRunti
 		}
 
 		// [REJECT] if the block is on a topic >= V3 and the parent beacon block root is nil
-		if blockVersion == eth.BlockV3 && envelope.ParentBeaconBlockRoot == nil {
+		if blockVersion.HasParentBeaconBlockRoot() && envelope.ParentBeaconBlockRoot == nil {
 			log.Warn("payload is on v3 topic, but has nil parent beacon block root", "bad_hash", payload.BlockHash.String())
 			return pubsub.ValidationReject
 		}

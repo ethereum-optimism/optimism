@@ -71,6 +71,10 @@ func (v BlockVersion) HasWithdrawals() bool {
 	return v == BlockV2 || v == BlockV3
 }
 
+func (v BlockVersion) HasParentBeaconBlockRoot() bool {
+	return v == BlockV3
+}
+
 func executionPayloadFixedPart(version BlockVersion) uint32 {
 	if version == BlockV3 {
 		return blockV3FixedPart
