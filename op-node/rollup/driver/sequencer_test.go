@@ -18,6 +18,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/async"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -73,7 +74,7 @@ func (m *FakeEngineControl) StartPayload(ctx context.Context, parent eth.L2Block
 	return derive.BlockInsertOK, nil
 }
 
-func (m *FakeEngineControl) ConfirmPayload(ctx context.Context) (out *eth.ExecutionPayloadEnvelope, errTyp derive.BlockInsertionErrType, err error) {
+func (m *FakeEngineControl) ConfirmPayload(ctx context.Context, agossip async.AsyncGossiper) (out *eth.ExecutionPayloadEnvelope, errTyp derive.BlockInsertionErrType, err error) {
 	if m.err != nil {
 		return nil, m.errTyp, m.err
 	}
@@ -344,7 +345,7 @@ func TestSequencerChaosMonkey(t *testing.T) {
 		default:
 			// no error
 		}
-		payload, err := seq.RunNextSequencerAction(context.Background())
+		payload, err := seq.RunNextSequencerAction(context.Background(), async.NoOpGossiper{})
 		// RunNextSequencerAction passes ErrReset & ErrCritical through.
 		// Only suppress ErrReset, not ErrCritical
 		if !errors.Is(err, derive.ErrReset) {

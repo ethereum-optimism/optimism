@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-node/rollup/async"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -117,8 +118,28 @@ func startPayload(ctx context.Context, eng ExecEngine, fc eth.ForkchoiceState, a
 // confirmPayload ends an execution payload building process in the provided Engine, and persists the payload as the canonical head.
 // If updateSafe is true, then the payload will also be recognized as safe-head at the same time.
 // The severity of the error is distinguished to determine whether the payload was valid and can become canonical.
-func confirmPayload(ctx context.Context, log log.Logger, eng ExecEngine, fc eth.ForkchoiceState, id eth.PayloadID, updateSafe bool) (out *eth.ExecutionPayloadEnvelope, errTyp BlockInsertionErrType, err error) {
-	envelope, err := eng.GetPayload(ctx, id)
+func confirmPayload(
+	ctx context.Context,
+	log log.Logger,
+	eng ExecEngine,
+	fc eth.ForkchoiceState,
+	id eth.PayloadID,
+	updateSafe bool,
+	agossip async.AsyncGossiper,
+) (out *eth.ExecutionPayloadEnvelope, errTyp BlockInsertionErrType, err error) {
+	var envelope *eth.ExecutionPayloadEnvelope
+	// if the payload is available from the async gossiper, it means it was not yet imported, so we reuse it
+	if cached := agossip.Get(); cached != nil {
+		envelope = cached
+		// log a limited amount of information about the reused payload, more detailed logging happens later down
+		log.Debug("found uninserted payload from async gossiper, reusing it and bypassing engine",
+			"hash", envelope.ExecutionPayload.BlockHash,
+			"number", uint64(envelope.ExecutionPayload.BlockNumber),
+			"parent", envelope.ExecutionPayload.ParentHash,
+			"txs", len(envelope.ExecutionPayload.Transactions))
+	} else {
+		envelope, err = eng.GetPayload(ctx, id)
+	}
 	if err != nil {
 		// even if it is an input-error (unknown payload ID), it is temporary, since we will re-attempt the full payload building, not just the retrieval of the payload.
 		return nil, BlockInsertTemporaryErr, fmt.Errorf("failed to get execution payload: %w", err)
@@ -127,12 +148,16 @@ func confirmPayload(ctx context.Context, log log.Logger, eng ExecEngine, fc eth.
 	if err := sanityCheckPayload(payload); err != nil {
 		return nil, BlockInsertPayloadErr, err
 	}
+	// begin gossiping as soon as possible
+	// agossip.Clear() will be called later if an non-temporary error is found, or if the payload is successfully inserted
+	agossip.Gossip(envelope)
 
 	status, err := eng.NewPayload(ctx, payload, envelope.ParentBeaconBlockRoot)
 	if err != nil {
 		return nil, BlockInsertTemporaryErr, fmt.Errorf("failed to insert execution payload: %w", err)
 	}
 	if status.Status == eth.ExecutionInvalid || status.Status == eth.ExecutionInvalidBlockHash {
+		agossip.Clear()
 		return nil, BlockInsertPayloadErr, eth.NewPayloadErr(payload, status)
 	}
 	if status.Status != eth.ExecutionValid {
@@ -150,14 +175,17 @@ func confirmPayload(ctx context.Context, log log.Logger, eng ExecEngine, fc eth.
 			switch inputErr.Code {
 			case eth.InvalidForkchoiceState:
 				// if we succeed to update the forkchoice pre-payload, but fail post-payload, then it is a payload error
+				agossip.Clear()
 				return nil, BlockInsertPayloadErr, fmt.Errorf("post-block-creation forkchoice update was inconsistent with engine, need reset to resolve: %w", inputErr.Unwrap())
 			default:
+				agossip.Clear()
 				return nil, BlockInsertPrestateErr, fmt.Errorf("unexpected error code in forkchoice-updated response: %w", err)
 			}
 		} else {
 			return nil, BlockInsertTemporaryErr, fmt.Errorf("failed to make the new L2 block canonical via forkchoice: %w", err)
 		}
 	}
+	agossip.Clear()
 	if fcRes.PayloadStatus.Status != eth.ExecutionValid {
 		return nil, BlockInsertPayloadErr, eth.ForkchoiceUpdateErr(fcRes.PayloadStatus)
 	}
