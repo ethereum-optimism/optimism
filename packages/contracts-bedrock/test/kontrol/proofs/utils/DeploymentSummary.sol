@@ -9,8 +9,8 @@ import { DeploymentSummaryCode } from "./DeploymentSummaryCode.sol";
 
 contract DeploymentSummary is DeploymentSummaryCode {
     // Cheat code address, 0x7109709ECfa91a80626fF3989D68f67F5b1DD12D
-    address internal constant VM_ADDRESS = address(uint160(uint256(keccak256("hevm cheat code"))));
-    Vm internal constant vm = Vm(VM_ADDRESS);
+    address private constant VM_ADDRESS = address(uint160(uint256(keccak256("hevm cheat code"))));
+    Vm private constant vm = Vm(VM_ADDRESS);
 
     address internal constant AddressManagerAddress = 0xBb2180ebd78ce97360503434eD37fcf4a1Df61c3;
     address internal constant L2OutputOracleAddress = 0x1B9F0e648A0A4780120A6Cd07B952F76560c8F8b;
