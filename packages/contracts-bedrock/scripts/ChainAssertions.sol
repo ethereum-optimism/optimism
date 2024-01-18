@@ -244,17 +244,18 @@ library ChainAssertions {
             require(address(portal.l2Oracle()) == _contracts.L2OutputOracle);
             require(address(portal.SYSTEM_CONFIG()) == _contracts.SystemConfig);
             require(address(portal.systemConfig()) == _contracts.SystemConfig);
-
-            require(portal.GUARDIAN() == _cfg.superchainConfigGuardian());
-            require(portal.guardian() == _cfg.superchainConfigGuardian());
+            require(portal.GUARDIAN() == guardian);
+            require(portal.guardian() == guardian);
             require(address(portal.superchainConfig()) == address(_contracts.SuperchainConfig));
             require(portal.paused() == SuperchainConfig(_contracts.SuperchainConfig).paused());
+            require(portal.l2Sender() == Constants.DEFAULT_L2_SENDER);
         } else {
             require(address(portal.L2_ORACLE()) == address(0));
             require(address(portal.l2Oracle()) == address(0));
             require(address(portal.SYSTEM_CONFIG()) == address(0));
             require(address(portal.systemConfig()) == address(0));
             require(address(portal.superchainConfig()) == address(0));
+            require(portal.l2Sender() == Constants.DEFAULT_L2_SENDER);
         }
     }
 
