@@ -249,14 +249,14 @@ func main() {
 			}
 			nodeConfig.Dirs = datadir.New(dbPath)
 
-			stack, err := node.New(&nodeConfig, logger)
+			stack, err := node.New(context.Background(), &nodeConfig, logger)
 			if err != nil {
 				log.Error("failed to create node", "err", err)
 				return err
 			}
 			defer stack.Close()
 
-			chaindb, err := node.OpenDatabase(stack.Config(), kv.ChainDB, "", false, logger)
+			chaindb, err := node.OpenDatabase(context.Background(), stack.Config(), kv.ChainDB, "", false, logger)
 			if err != nil {
 				log.Error("failed to open chaindb", "err", err)
 				return err
@@ -295,7 +295,7 @@ func main() {
 			// close the database handle
 			chaindb.Close()
 
-			postChaindb, err := node.OpenDatabase(stack.Config(), kv.ChainDB, "", false, logger)
+			postChaindb, err := node.OpenDatabase(context.Background(), stack.Config(), kv.ChainDB, "", false, logger)
 			if err != nil {
 				log.Error("failed to open post chaindb", "err", err)
 				return err

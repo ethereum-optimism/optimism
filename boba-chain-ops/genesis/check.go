@@ -18,7 +18,6 @@ import (
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/util"
 	libcommon "github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon-lib/kv"
-	"github.com/ledgerwatch/erigon/common"
 	"github.com/ledgerwatch/erigon/core/rawdb"
 	erigonstate "github.com/ledgerwatch/erigon/core/state"
 	"github.com/ledgerwatch/erigon/core/types"
@@ -174,7 +173,7 @@ func PostCheckMigratedDB(
 		return fmt.Errorf("expected chain tip to be %s, but got %s", bobaGenesisHash, genesisHeader.Hash())
 	}
 
-	bobaGenesisExtraData := common.Hex2Bytes(chain.GetBobaGenesisExtraData(g.Config.ChainID))
+	bobaGenesisExtraData := libcommon.Hex2Bytes(chain.GetBobaGenesisExtraData(g.Config.ChainID))
 	if !bytes.Equal(genesisHeader.Extra, bobaGenesisExtraData) {
 		return fmt.Errorf("expected extra data to be %x, but got %x", bobaGenesisExtraData, genesisHeader.Extra)
 	}
