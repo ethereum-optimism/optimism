@@ -1069,9 +1069,6 @@ jobs:
             source $HOME/.bashrc
             forge --version
       - run:
-          name: install geth
-          command: make install-geth
-      - run:
           name: Install NVM
           command: |
             curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.3/install.sh | bash
