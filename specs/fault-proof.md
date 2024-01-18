@@ -11,7 +11,9 @@
     - [Type `1`: Local key](#type-1-local-key)
     - [Type `2`: Global keccak256 key](#type-2-global-keccak256-key)
     - [Type `3`: Global generic key](#type-3-global-generic-key)
-    - [Type `4-128`: reserved range](#type-4-128-reserved-range)
+    - [Type `4`: Global SHA2-256 key](#type-4-global-sha2-256-key)
+    - [Type `5`: Global EIP-4844 Point-evaluation key](#type-5-global-eip-4844-point-evaluation-key)
+    - [Type `6-128`: reserved range](#type-6-128-reserved-range)
     - [Type `129-255`: application usage](#type-129-255-application-usage)
   - [Bootstrapping](#bootstrapping)
   - [Hinting](#hinting)
@@ -129,7 +131,31 @@ This enables fault proof programs to adopt any new pre-image schemes without VM 
 It is up to the user to index the special pre-image values by this key scheme,
 as there is no way to revert it to the original commitment without knowing said commitment or value.
 
-#### Type `4-128`: reserved range
+#### Type `4`: Global SHA2-256 key
+
+A SHA-256 pre-image.
+
+Key: the SHA-256 hash, with the first byte overwritten with the type byte: `4 ++ sha256(data)`.
+
+#### Type `5`: Global EIP-4844 Point-evaluation key
+
+An EIP-4844 point-evaluation.
+In an EIP-4844 blob, 4096 field elements represent the blob data.
+
+It verifies `p(z) = y` given `commitment` that corresponds to the polynomial `p(x)` and a KZG proof.
+The value `y` is the pre-image.
+The value `z` is part of the key; the index of the point within the blob.
+The `commitment` is part of the key.
+
+Each element is proven with a point-evaluation.
+
+Key: `5 ++ keccak256(commitment ++ z)[1:]`, where:
+- `5` is the type byte
+- `++` is concatenation
+- `commitment` is a bytes48, representing the KZG commitment.
+- `z` is a big-endian `uint256`
+
+#### Type `6-128`: reserved range
 
 Range start and end both inclusive.
 
