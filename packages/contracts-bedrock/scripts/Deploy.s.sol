@@ -56,7 +56,8 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 ///         contract name to address pairs. That enables this script to be much more flexible in the way it is used.
 ///         This contract must not have constructor logic because it is set into state using `etch`.
 contract Deploy is Deployer {
-    DeployConfig constant public cfg = DeployConfig(address(uint160(uint256(keccak256(abi.encode("optimism.deployconfig"))))));
+    DeployConfig public constant cfg =
+        DeployConfig(address(uint160(uint256(keccak256(abi.encode("optimism.deployconfig"))))));
 
     using stdJson for string;
 
