@@ -43,7 +43,7 @@ func (cl *BasicHTTPClient) Get(ctx context.Context, p string, query url.Values, 
 		return nil, fmt.Errorf("failed to parse endpoint URL: %w", err)
 	}
 	// If we include the raw query in the path-join, it gets url-encoded,
-	// and fails to prase as query, and ends up in the url.URL.Path part on the server side.
+	// and fails to parse as query, and ends up in the url.URL.Path part on the server side.
 	// We want to avoid that, and insert the query manually. Real footgun in the url package.
 	target = target.JoinPath(p)
 	target.RawQuery = query.Encode()

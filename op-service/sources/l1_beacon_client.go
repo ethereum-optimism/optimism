@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"path"
 	"slices"
 	"strconv"
 	"sync"
@@ -107,7 +108,7 @@ func (cl *L1BeaconClient) GetBlobSidecars(ctx context.Context, ref eth.L1BlockRe
 		return nil, fmt.Errorf("%w: error in converting ref.Time to slot", err)
 	}
 
-	reqPath := sidecarsMethodPrefix + strconv.FormatUint(slot, 10)
+	reqPath := path.Join(sidecarsMethodPrefix, strconv.FormatUint(slot, 10))
 	reqQuery := url.Values{}
 	for i := range hashes {
 		reqQuery.Add("indices", strconv.FormatUint(hashes[i].Index, 10))

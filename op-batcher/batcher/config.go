@@ -57,8 +57,8 @@ type CLIConfig struct {
 
 	BatchType uint
 
-	// DataAvailabilityType is one of the values defined in op-batcher/flags/flags.go and dictates
-	// the data availability type to use for poting batches, e.g. blobs vs calldata.
+	// DataAvailabilityType is one of the values defined in op-batcher/flags/types.go and dictates
+	// the data availability type to use for posting batches, e.g. blobs vs calldata.
 	DataAvailabilityType flags.DataAvailabilityType
 
 	TxMgrConfig      txmgr.CLIConfig
