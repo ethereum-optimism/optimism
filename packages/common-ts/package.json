@@ -59,6 +59,6 @@
     "@types/pino": "^7.0.5",
     "@types/pino-multi-stream": "^5.1.6",
     "chai": "^4.3.10",
-    "supertest": "^6.3.3"
+    "supertest": "^6.3.4"
   }
 }
