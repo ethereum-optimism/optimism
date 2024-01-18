@@ -1,8 +1,4 @@
-# op-chain-ops
-
-This package contains utilities for working with chain state.
-
-## op-version-check
+# op-version-check
 
 A CLI tool for determining which contract versions are deployed for
 chains in a superchain. It will output a JSON file that contains a
@@ -42,8 +38,8 @@ will be written to stdout
 
 #### Usage
 
-It can be built and run using the [Makefile](./Makefile) `op-version-check`
-target. Run `make op-version-check` to create a binary in [./bin/op-version-check](./bin/op-version-check)
+It can be built and run using the [Makefile](../../Makefile) `op-version-check`
+target. Run `make op-version-check` to create a binary in [../../bin/op-version-check](../../bin/op-version-check)
 that can be executed, optionally providing the `--l1-rpc-url`, `--chain-ids`,
 `--superchain-target`, and `--outfile` flags.
 
