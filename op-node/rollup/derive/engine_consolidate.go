@@ -61,10 +61,8 @@ func checkParentBeaconBlockRootMatch(attrRoot, blockRoot *common.Hash) error {
 	} else {
 		if attrRoot == nil {
 			return fmt.Errorf("expected nil parent beacon block root but got non-nil %s", *blockRoot)
-		} else {
-			if *blockRoot != *attrRoot {
-				return fmt.Errorf("parent beacon block root does not match. expected %s. got: %s", *attrRoot, *blockRoot)
-			}
+		} else if *blockRoot != *attrRoot {
+			return fmt.Errorf("parent beacon block root does not match. expected %s. got: %s", *attrRoot, *blockRoot)
 		}
 	}
 	return nil
