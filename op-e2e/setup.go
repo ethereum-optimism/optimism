@@ -210,7 +210,7 @@ type SystemConfig struct {
 	DisableBatcher bool
 
 	// Configure data-availability type that is used by the batcher.
-	DataAvailabilityType string
+	DataAvailabilityType batcherFlags.DataAvailabilityType
 
 	// Target L1 tx size for the batcher transactions
 	BatcherTargetL1TxSizeBytes uint64
