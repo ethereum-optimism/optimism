@@ -73,7 +73,9 @@ type DeployConfig struct {
 	L2GenesisBlockBaseFeePerGas *hexutil.Big   `json:"l2GenesisBlockBaseFeePerGas"`
 
 	// Seconds after genesis block that Regolith hard fork activates. 0 to activate at genesis. Nil to disable regolith
-	L2GenesisRegolithTimeOffset *hexutil.Uint64 `json:"l2GenesisRegolithTimeOffset,omitempty"`
+	L2GenesisRegolithTimeOffset *uint64 `json:"l2GenesisRegolithTimeOffset,omitempty"`
+	// Seconds after genesis block that Canyon hard fork activates. 0 to activate at genesis. Nil to disable canyon
+	L2GenesisCanyonTimeOffset *uint64 `json:"l2GenesisCanyonTimeOffset,omitempty"`
 	// Owner of the ProxyAdmin predeploy
 	ProxyAdminOwner common.Address `json:"proxyAdminOwner"`
 	// Owner of the system on L1
@@ -362,6 +364,7 @@ func (d *DeployConfig) RollupConfig(l1StartHeader *types.Header, l2GenesisBlockH
 		DepositContractAddress: d.OptimismPortalProxy,
 		L1SystemConfigAddress:  d.SystemConfigProxy,
 		RegolithTime:           d.RegolithTime(l1StartHeader.Time),
+		CanyonTime:             d.CanyonTime(l1StartHeader.Time),
 	}, nil
 }
 
@@ -398,7 +401,18 @@ func (d *DeployConfig) RegolithTime(genesisTime uint64) *uint64 {
 		return nil
 	}
 	v := uint64(0)
-	if offset := *d.L2GenesisRegolithTimeOffset; offset > 0 {
+	if offset := *d.L2GenesisRegolithTimeOffset; offset >= 0 {
+		v = genesisTime + uint64(offset)
+	}
+	return &v
+}
+
+func (d *DeployConfig) CanyonTime(genesisTime uint64) *uint64 {
+	if d.L2GenesisCanyonTimeOffset == nil {
+		return nil
+	}
+	v := uint64(0)
+	if offset := *d.L2GenesisCanyonTimeOffset; offset >= 0 {
 		v = genesisTime + uint64(offset)
 	}
 	return &v
