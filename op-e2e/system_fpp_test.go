@@ -2,11 +2,11 @@ package op_e2e
 
 import (
 	"context"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"math/big"
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-program/client/driver"
 	opp "github.com/ethereum-optimism/optimism/op-program/host"
