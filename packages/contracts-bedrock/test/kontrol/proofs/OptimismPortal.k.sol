@@ -13,7 +13,9 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
     OptimismPortal optimismPortal;
     SuperchainConfig superchainConfig;
 
-    function setUp() public {
+    /// @dev Inlined setUp function for faster Kontrol performance
+    ///      Tracking issue: https://github.com/runtimeverification/kontrol/issues/282
+    function setUpInlined() public {
         optimismPortal = OptimismPortal(payable(OptimismPortalProxyAddress));
         superchainConfig = SuperchainConfig(SuperchainConfigProxyAddress);
     }
@@ -38,6 +40,7 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
     )
         external
     {
+        setUpInlined();
         bytes memory _data = freshBigBytes(320);
 
         bytes[] memory _withdrawalProof = freshWithdrawalProof();
@@ -74,6 +77,7 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
     )
         external
     {
+        setUpInlined();
         bytes memory _data = freshBigBytes(320);
 
         Types.WithdrawalTransaction memory _tx =
