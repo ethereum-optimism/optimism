@@ -88,10 +88,14 @@ func (p *Prefetcher) prefetch(ctx context.Context, hint string) error {
 	if err != nil {
 		return err
 	}
-	p.logger.Debug("Prefetching", "type", hintType, "bytes", hintBytes)
+	p.logger.Debug("Prefetching", "type", hintType, "bytes", hexutil.Bytes(hintBytes))
 	switch hintType {
 	case l1.HintL1BlockHeader:
-		header, err := p.l1Fetcher.InfoByHash(ctx, common.BytesToHash(hintBytes))
+		if len(hintBytes) != 32 {
+			return fmt.Errorf("invalid L1 block hint: %x", hint)
+		}
+		hash := common.Hash(hintBytes)
+		header, err := p.l1Fetcher.InfoByHash(ctx, hash)
 		if err != nil {
 			return fmt.Errorf("failed to fetch L1 block %s header: %w", hintBytes, err)
 		}
@@ -101,35 +105,43 @@ func (p *Prefetcher) prefetch(ctx context.Context, hint string) error {
 		}
 		return p.kvStore.Put(preimage.Keccak256Key(hintBytes).PreimageKey(), data)
 	case l1.HintL1Transactions:
-		_, txs, err := p.l1Fetcher.InfoAndTxsByHash(ctx, common.BytesToHash(hintBytes))
+		if len(hintBytes) != 32 {
+			return fmt.Errorf("invalid L1 transactions hint: %x", hint)
+		}
+		hash := common.Hash(hintBytes)
+		_, txs, err := p.l1Fetcher.InfoAndTxsByHash(ctx, hash)
 		if err != nil {
 			return fmt.Errorf("failed to fetch L1 block %s txs: %w", hintBytes, err)
 		}
 		return p.storeTransactions(txs)
 	case l1.HintL1Receipts:
-		_, receipts, err := p.l1Fetcher.FetchReceipts(ctx, common.BytesToHash(hintBytes))
+		if len(hintBytes) != 32 {
+			return fmt.Errorf("invalid L1 receipts hint: %x", hint)
+		}
+		hash := common.Hash(hintBytes)
+		_, receipts, err := p.l1Fetcher.FetchReceipts(ctx, hash)
 		if err != nil {
 			return fmt.Errorf("failed to fetch L1 block %s receipts: %w", hintBytes, err)
 		}
 		return p.storeReceipts(receipts)
 	case l1.HintL1Blob:
 		if len(hintBytes) != 48 {
-			return fmt.Errorf("invalid blob hint: %s", hint)
+			return fmt.Errorf("invalid blob hint: %x", hint)
 		}
 
-		blobVersionHash := hintBytes[:32]
+		blobVersionHash := common.Hash(hintBytes[:32])
 		blobHashIndex := binary.BigEndian.Uint64(hintBytes[32:40])
 		refTimestamp := binary.BigEndian.Uint64(hintBytes[40:48])
 
 		// Fetch the blob sidecar for the indexed blob hash passed in the hint.
 		indexedBlobHash := eth.IndexedBlobHash{
-			Hash:  common.BytesToHash(blobVersionHash),
+			Hash:  blobVersionHash,
 			Index: blobHashIndex,
 		}
 		// We pass an `eth.L1BlockRef`, but `GetBlobSidecars` only uses the timestamp, which we received in the hint.
 		sidecars, err := p.l1BlobFetcher.GetBlobSidecars(ctx, eth.L1BlockRef{Time: refTimestamp}, []eth.IndexedBlobHash{indexedBlobHash})
 		if err != nil || len(sidecars) != 1 {
-			return fmt.Errorf("failed to fetch blob sidecars for %s %d: %w", blobVersionHash, blobHashIndex, err)
+			return fmt.Errorf("failed to fetch blob sidecars for %x %d: %w", blobVersionHash, blobHashIndex, err)
 		}
 		sidecar := sidecars[0]
 
@@ -139,19 +151,23 @@ func (p *Prefetcher) prefetch(ctx context.Context, hint string) error {
 		}
 
 		// Put all of the blob's field elements into the kv store. There should be 4096. The preimage oracle key for
-		// each field element is the hash of `abi.encode(sidecar.KZGCommitment, uint256(i))`
+		// each field element is the keccak256 hash of `abi.encodePacked(sidecar.KZGCommitment, uint256(i))`
 		blobKey := make([]byte, 80)
 		copy(blobKey[:48], sidecar.KZGCommitment[:])
 		for i := 0; i < params.BlobTxFieldElementsPerBlob; i++ {
 			binary.BigEndian.PutUint64(blobKey[72:], uint64(i))
-			blobKeyHash := crypto.Keccak256(blobKey)
+			blobKeyHash := crypto.Keccak256Hash(blobKey)
 			if err = p.kvStore.Put(preimage.BlobKey(blobKeyHash).PreimageKey(), sidecar.Blob[i<<5:(i+1)<<5]); err != nil {
 				return err
 			}
 		}
 		return nil
 	case l2.HintL2BlockHeader, l2.HintL2Transactions:
-		header, txs, err := p.l2Fetcher.InfoAndTxsByHash(ctx, common.BytesToHash(hintBytes))
+		if len(hintBytes) != 32 {
+			return fmt.Errorf("invalid L2 header/tx hint: %x", hint)
+		}
+		hash := common.Hash(hintBytes)
+		header, txs, err := p.l2Fetcher.InfoAndTxsByHash(ctx, hash)
 		if err != nil {
 			return fmt.Errorf("failed to fetch L2 block %s: %w", hintBytes, err)
 		}
@@ -165,19 +181,31 @@ func (p *Prefetcher) prefetch(ctx context.Context, hint string) error {
 		}
 		return p.storeTransactions(txs)
 	case l2.HintL2StateNode:
-		node, err := p.l2Fetcher.NodeByHash(ctx, common.BytesToHash(hintBytes))
+		if len(hintBytes) != 32 {
+			return fmt.Errorf("invalid L2 state node hint: %x", hint)
+		}
+		hash := common.Hash(hintBytes)
+		node, err := p.l2Fetcher.NodeByHash(ctx, hash)
 		if err != nil {
 			return fmt.Errorf("failed to fetch L2 state node %s: %w", hintBytes, err)
 		}
 		return p.kvStore.Put(preimage.Keccak256Key(hintBytes).PreimageKey(), node)
 	case l2.HintL2Code:
-		code, err := p.l2Fetcher.CodeByHash(ctx, common.BytesToHash(hintBytes))
+		if len(hintBytes) != 32 {
+			return fmt.Errorf("invalid L2 code hint: %x", hint)
+		}
+		hash := common.Hash(hintBytes)
+		code, err := p.l2Fetcher.CodeByHash(ctx, hash)
 		if err != nil {
 			return fmt.Errorf("failed to fetch L2 contract code %s: %w", hintBytes, err)
 		}
 		return p.kvStore.Put(preimage.Keccak256Key(hintBytes).PreimageKey(), code)
 	case l2.HintL2Output:
-		output, err := p.l2Fetcher.OutputByRoot(ctx, common.BytesToHash(hintBytes))
+		if len(hintBytes) != 32 {
+			return fmt.Errorf("invalid L2 output hint: %x", hint)
+		}
+		hash := common.Hash(hintBytes)
+		output, err := p.l2Fetcher.OutputByRoot(ctx, hash)
 		if err != nil {
 			return fmt.Errorf("failed to fetch L2 output root %s: %w", hintBytes, err)
 		}
@@ -217,7 +245,7 @@ func (p *Prefetcher) storeTrieNodes(values []hexutil.Bytes) error {
 func parseHint(hint string) (string, []byte, error) {
 	hintType, bytesStr, found := strings.Cut(hint, " ")
 	if !found {
-		return "", make([]byte, 0), fmt.Errorf("unsupported hint: %s", hint)
+		return "", nil, fmt.Errorf("unsupported hint: %s", hint)
 	}
 
 	hintBytes, err := hexutil.Decode(bytesStr)

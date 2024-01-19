@@ -1,7 +1,6 @@
 package prefetcher
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/binary"
@@ -162,24 +161,10 @@ func TestFetchL1Receipts(t *testing.T) {
 // Globally initialize a kzgCtx for blob tests.
 var kzgCtx, _ = gokzg4844.NewContext4096Secure()
 
-func deterministicRandomness(seed int64) [32]byte {
-	// Converts an int64 to a byte slice
-	buf := new(bytes.Buffer)
-	err := binary.Write(buf, binary.BigEndian, seed)
-	if err != nil {
-		log.Error("Failed to write int64 to bytes buffer: %v", err)
-	}
-	bytes := buf.Bytes()
-
-	return sha256.Sum256(bytes)
-}
-
 // Returns a serialized random field element in big-endian
 func GetRandFieldElement(seed int64) [32]byte {
-	bytes := deterministicRandomness(seed)
 	var r fr.Element
-	r.SetBytes(bytes[:])
-
+	_, _ = r.SetRandom()
 	return gokzg4844.SerializeScalar(r)
 }
 
@@ -489,7 +474,7 @@ func storeBlob(t *testing.T, kv kvstore.KV, commitment eth.Bytes48, blob *eth.Bl
 	copy(blobKeyBuf[:48], commitment[:])
 	for i := 0; i < params.BlobTxFieldElementsPerBlob; i++ {
 		binary.BigEndian.PutUint64(blobKeyBuf[:72], uint64(i))
-		feKey := crypto.Keccak256(blobKeyBuf)
+		feKey := crypto.Keccak256Hash(blobKeyBuf)
 
 		_ = kv.Put(preimage.BlobKey(feKey).PreimageKey(), blob[i<<5:(i+1)<<5])
 	}
