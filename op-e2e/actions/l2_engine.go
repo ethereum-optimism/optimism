@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/node"
+	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -50,7 +51,7 @@ type EngineOption func(ethCfg *ethconfig.Config, nodeCfg *node.Config) error
 
 func NewL2Engine(t Testing, log log.Logger, genesis *core.Genesis, rollupGenesisL1 eth.BlockID, jwtPath string, options ...EngineOption) *L2Engine {
 	n, ethBackend, apiBackend := newBackend(t, genesis, jwtPath, options)
-	engineApi := engineapi.NewL2EngineAPI(log, apiBackend)
+	engineApi := engineapi.NewL2EngineAPI(log, apiBackend, ethBackend.Downloader())
 	chain := ethBackend.BlockChain()
 	genesisBlock := chain.Genesis()
 	eng := &L2Engine{
@@ -129,6 +130,16 @@ func (e *engineApiBackend) Database() ethdb.Database {
 
 func (e *engineApiBackend) Genesis() *core.Genesis {
 	return e.genesis
+}
+
+func (s *L2Engine) Enode() *enode.Node {
+	return s.node.Server().LocalNode().Node()
+}
+
+func (s *L2Engine) AddPeers(peers ...*enode.Node) {
+	for _, en := range peers {
+		s.node.Server().AddPeer(en)
+	}
 }
 
 func (s *L2Engine) EthClient() *ethclient.Client {

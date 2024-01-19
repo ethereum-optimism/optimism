@@ -254,3 +254,13 @@ func (s *L2Verifier) ActL2UnsafeGossipReceive(payload *eth.ExecutionPayloadEnvel
 		s.derivation.AddUnsafePayload(payload)
 	}
 }
+
+// ActL2InsertUnsafePayload creates an action that can insert an unsafe execution payload
+func (s *L2Verifier) ActL2InsertUnsafePayload(payload *eth.ExecutionPayloadEnvelope) Action {
+	return func(t Testing) {
+		ref, err := derive.PayloadToBlockRef(s.rollupCfg, payload.ExecutionPayload)
+		require.NoError(t, err)
+		err = s.engine.InsertUnsafePayload(t.Ctx(), payload, ref)
+		require.NoError(t, err)
+	}
+}
