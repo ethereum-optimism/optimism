@@ -219,7 +219,7 @@ func TestValidateL2Config(t *testing.T) {
 	config.Genesis.L2.Number = 100
 	config.Genesis.L2.Hash = [32]byte{0x01}
 	mockClient := mockL2Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}}
-	err := config.ValidateL2Config(context.TODO(), &mockClient)
+	err := config.ValidateL2Config(context.TODO(), &mockClient, false)
 	assert.NoError(t, err)
 }
 
@@ -229,10 +229,10 @@ func TestValidateL2ConfigInvalidChainIdFails(t *testing.T) {
 	config.Genesis.L2.Number = 100
 	config.Genesis.L2.Hash = [32]byte{0x01}
 	mockClient := mockL2Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}}
-	err := config.ValidateL2Config(context.TODO(), &mockClient)
+	err := config.ValidateL2Config(context.TODO(), &mockClient, false)
 	assert.Error(t, err)
 	config.L2ChainID = big.NewInt(99)
-	err = config.ValidateL2Config(context.TODO(), &mockClient)
+	err = config.ValidateL2Config(context.TODO(), &mockClient, false)
 	assert.Error(t, err)
 }
 
@@ -242,11 +242,24 @@ func TestValidateL2ConfigInvalidGenesisHashFails(t *testing.T) {
 	config.Genesis.L2.Number = 100
 	config.Genesis.L2.Hash = [32]byte{0x00}
 	mockClient := mockL2Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}}
-	err := config.ValidateL2Config(context.TODO(), &mockClient)
+	err := config.ValidateL2Config(context.TODO(), &mockClient, false)
 	assert.Error(t, err)
 	config.Genesis.L2.Hash = [32]byte{0x02}
-	err = config.ValidateL2Config(context.TODO(), &mockClient)
+	err = config.ValidateL2Config(context.TODO(), &mockClient, false)
 	assert.Error(t, err)
+}
+
+func TestValidateL2ConfigInvalidGenesisHashSkippedWhenRequested(t *testing.T) {
+	config := randConfig()
+	config.L2ChainID = big.NewInt(100)
+	config.Genesis.L2.Number = 100
+	config.Genesis.L2.Hash = [32]byte{0x00}
+	mockClient := mockL2Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}}
+	err := config.ValidateL2Config(context.TODO(), &mockClient, true)
+	assert.NoError(t, err)
+	config.Genesis.L2.Hash = [32]byte{0x02}
+	err = config.ValidateL2Config(context.TODO(), &mockClient, true)
+	assert.NoError(t, err)
 }
 
 func TestCheckL2ChainID(t *testing.T) {
