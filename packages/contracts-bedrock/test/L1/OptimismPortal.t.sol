@@ -24,7 +24,7 @@ import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 contract OptimismPortal_Test is CommonTest {
     address depositor;
 
-    /// @notice Marked virtual to be overriden in
+    /// @notice Marked virtual to be overridden in
     ///         test/kontrol/deployment/DeploymentSummary.t.sol
     function setUp() public virtual override {
         super.setUp();
@@ -32,7 +32,7 @@ contract OptimismPortal_Test is CommonTest {
     }
 
     /// @dev Tests that the constructor sets the correct values.
-    /// @notice Marked virtual to be overriden in
+    /// @notice Marked virtual to be overridden in
     ///         test/kontrol/deployment/DeploymentSummary.t.sol
     function test_constructor_succeeds() external virtual {
         address guardian = deploy.cfg().superchainConfigGuardian();
@@ -271,7 +271,7 @@ contract OptimismPortal_Test is CommonTest {
     }
 
     /// @dev Tests that `isOutputFinalized` succeeds for an EOA depositing a tx with ETH and data.
-    /// @notice Marked virtual to be overriden in
+    /// @notice Marked virtual to be overridden in
     ///         test/kontrol/deployment/DeploymentSummary.t.sol
     function test_simple_isOutputFinalized_succeeds() external virtual {
         uint256 startingBlockNumber = deploy.cfg().l2OutputOracleStartingBlockNumber();
@@ -293,7 +293,7 @@ contract OptimismPortal_Test is CommonTest {
     }
 
     /// @dev Tests `isOutputFinalized` for a finalized output.
-    /// @notice Marked virtual to be overriden in
+    /// @notice Marked virtual to be overridden in
     ///         test/kontrol/deployment/DeploymentSummary.t.sol
     function test_isOutputFinalized_succeeds() external virtual {
         uint256 checkpoint = l2OutputOracle.nextBlockNumber();
