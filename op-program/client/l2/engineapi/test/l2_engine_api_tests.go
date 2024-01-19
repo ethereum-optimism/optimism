@@ -320,7 +320,7 @@ func newTestHelper(t *testing.T, createBackend func(t *testing.T) engineapi.Engi
 	logger := testlog.Logger(t, log.LvlDebug)
 	ctx := context.Background()
 	backend := createBackend(t)
-	api := engineapi.NewL2EngineAPI(logger, backend)
+	api := engineapi.NewL2EngineAPI(logger, backend, nil)
 	test := &testHelper{
 		t:       t,
 		ctx:     ctx,

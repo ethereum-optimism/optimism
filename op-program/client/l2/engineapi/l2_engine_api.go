@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/eth/downloader"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
@@ -50,6 +51,10 @@ type L2EngineAPI struct {
 	log     log.Logger
 	backend EngineBackend
 
+	// Functionality for snap sync
+	remotes    map[common.Hash]*types.Block
+	downloader *downloader.Downloader
+
 	// L2 block building data
 	blockProcessor *BlockProcessor
 	pendingIndices map[common.Address]uint64 // per account, how many txs from the pool were already included in the block, since the pool is lagging behind block mining.
@@ -59,10 +64,12 @@ type L2EngineAPI struct {
 	payloadID engine.PayloadID // ID of payload that is currently being built
 }
 
-func NewL2EngineAPI(log log.Logger, backend EngineBackend) *L2EngineAPI {
+func NewL2EngineAPI(log log.Logger, backend EngineBackend, downloader *downloader.Downloader) *L2EngineAPI {
 	return &L2EngineAPI{
-		log:     log,
-		backend: backend,
+		log:        log,
+		backend:    backend,
+		remotes:    make(map[common.Hash]*types.Block),
+		downloader: downloader,
 	}
 }
 
@@ -329,7 +336,24 @@ func (ea *L2EngineAPI) forkchoiceUpdated(ctx context.Context, state *eth.Forkcho
 	// reason.
 	block := ea.backend.GetBlockByHash(state.HeadBlockHash)
 	if block == nil {
-		// TODO: syncing not supported yet
+		if ea.downloader == nil {
+			ea.log.Warn("Must register downloader to be able to snap sync")
+			return STATUS_SYNCING, nil
+		}
+		// If the head hash is unknown (was not given to us in a newPayload request),
+		// we cannot resolve the header, so not much to do. This could be extended in
+		// the future to resolve from the `eth` network, but it's an unexpected case
+		// that should be fixed, not papered over.
+		header := ea.remotes[state.HeadBlockHash]
+		if header == nil {
+			ea.log.Warn("Forkchoice requested unknown head", "hash", state.HeadBlockHash)
+			return STATUS_SYNCING, nil
+		}
+
+		ea.log.Info("Forkchoice requested sync to new head", "number", header.Number, "hash", header.Hash())
+		if err := ea.downloader.BeaconSync(downloader.SnapSync, header.Header(), nil); err != nil {
+			return STATUS_SYNCING, err
+		}
 		return STATUS_SYNCING, nil
 	}
 	// Block is known locally, just sanity check that the beacon client does not
@@ -462,6 +486,7 @@ func (ea *L2EngineAPI) newPayload(ctx context.Context, payload *eth.ExecutionPay
 
 	parent := ea.backend.GetBlock(block.ParentHash(), block.NumberU64()-1)
 	if parent == nil {
+		ea.remotes[block.Hash()] = block
 		// TODO: hack, saying we accepted if we don't know the parent block. Might want to return critical error if we can't actually sync.
 		return &eth.PayloadStatusV1{Status: eth.ExecutionAccepted, LatestValidHash: nil}, nil
 	}

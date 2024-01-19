@@ -137,6 +137,7 @@ func NewDriver(driverCfg *Config, cfg *rollup.Config, l2 L2Chain, l1 L1Chain, l1
 		sequencerActive:  make(chan chan bool, 10),
 		sequencerNotifs:  sequencerStateListener,
 		config:           cfg,
+		syncCfg:          syncCfg,
 		driverConfig:     driverCfg,
 		driverCtx:        driverCtx,
 		driverCancel:     driverCancel,

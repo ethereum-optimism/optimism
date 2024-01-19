@@ -4,13 +4,31 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/async"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
+)
+
+type syncStatusEnum int
+
+const (
+	syncStatusCL syncStatusEnum = iota
+	// We transition between the 4 EL states linearly. We spend the majority of the time in the second & fourth.
+	// We only want to EL sync if there is no finalized block & once we finish EL sync we need to mark the last block
+	// as finalized so we can switch to consolidation
+	// TODO(protocol-quest/91): We can restart EL sync & still consolidate if there finalized blocks on the execution client if the
+	// execution client is running in archive mode. In some cases we may want to switch back from CL to EL sync, but that is complicated.
+	syncStatusWillStartEL               // First if we are directed to EL sync, check that nothing has been finalized yet
+	syncStatusStartedEL                 // Perform our EL sync
+	syncStatusFinishedELButNotFinalized // EL sync is done, but we need to mark the final sync block as finalized
+	syncStatusFinishedEL                // EL sync is done & we should be performing consolidation
 )
 
 var errNoFCUNeeded = errors.New("no FCU call was needed")
@@ -22,14 +40,18 @@ type ExecEngine interface {
 	GetPayload(ctx context.Context, payloadId eth.PayloadID) (*eth.ExecutionPayloadEnvelope, error)
 	ForkchoiceUpdate(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error)
 	NewPayload(ctx context.Context, payload *eth.ExecutionPayload, parentBeaconBlockRoot *common.Hash) (*eth.PayloadStatusV1, error)
+	L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error)
 }
 
 type EngineController struct {
-	engine    ExecEngine // Underlying execution engine RPC
-	log       log.Logger
-	metrics   Metrics
-	syncMode  sync.Mode
-	rollupCfg *rollup.Config
+	engine     ExecEngine // Underlying execution engine RPC
+	log        log.Logger
+	metrics    Metrics
+	syncMode   sync.Mode
+	syncStatus syncStatusEnum
+	rollupCfg  *rollup.Config
+	elStart    time.Time
+	clock      clock.Clock
 
 	// Block Head State
 	unsafeHead      eth.L2BlockRef
@@ -46,11 +68,19 @@ type EngineController struct {
 }
 
 func NewEngineController(engine ExecEngine, log log.Logger, metrics Metrics, rollupCfg *rollup.Config, syncMode sync.Mode) *EngineController {
+	syncStatus := syncStatusCL
+	if syncMode == sync.ELSync {
+		syncStatus = syncStatusWillStartEL
+	}
+
 	return &EngineController{
-		engine:    engine,
-		log:       log,
-		metrics:   metrics,
-		rollupCfg: rollupCfg,
+		engine:     engine,
+		log:        log,
+		metrics:    metrics,
+		rollupCfg:  rollupCfg,
+		syncMode:   syncMode,
+		syncStatus: syncStatus,
+		clock:      clock.SystemClock,
 	}
 }
 
@@ -77,7 +107,7 @@ func (e *EngineController) BuildingPayload() (eth.L2BlockRef, eth.PayloadID, boo
 }
 
 func (e *EngineController) IsEngineSyncing() bool {
-	return false
+	return e.syncStatus == syncStatusWillStartEL || e.syncStatus == syncStatusStartedEL || e.syncStatus == syncStatusFinishedELButNotFinalized
 }
 
 // Setters
@@ -209,6 +239,9 @@ func (e *EngineController) resetBuildingState() {
 // It returns true if the status is acceptable.
 func (e *EngineController) checkNewPayloadStatus(status eth.ExecutePayloadStatus) bool {
 	if e.syncMode == sync.ELSync {
+		if status == eth.ExecutionValid && e.syncStatus == syncStatusStartedEL {
+			e.syncStatus = syncStatusFinishedELButNotFinalized
+		}
 		// Allow SYNCING and ACCEPTED if engine EL sync is enabled
 		return status == eth.ExecutionValid || status == eth.ExecutionSyncing || status == eth.ExecutionAccepted
 	}
@@ -219,6 +252,9 @@ func (e *EngineController) checkNewPayloadStatus(status eth.ExecutePayloadStatus
 // It returns true if the status is acceptable.
 func (e *EngineController) checkForkchoiceUpdatedStatus(status eth.ExecutePayloadStatus) bool {
 	if e.syncMode == sync.ELSync {
+		if status == eth.ExecutionValid && e.syncStatus == syncStatusStartedEL {
+			e.syncStatus = syncStatusFinishedELButNotFinalized
+		}
 		// Allow SYNCING if engine P2P sync is enabled
 		return status == eth.ExecutionValid || status == eth.ExecutionSyncing
 	}
@@ -258,6 +294,22 @@ func (e *EngineController) TryUpdateEngine(ctx context.Context) error {
 }
 
 func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope, ref eth.L2BlockRef) error {
+	// Check if there is a finalized head once when doing EL sync. If so, transition to CL sync
+	if e.syncStatus == syncStatusWillStartEL {
+		b, err := e.engine.L2BlockRefByLabel(ctx, eth.Finalized)
+		if errors.Is(err, ethereum.NotFound) {
+			e.syncStatus = syncStatusStartedEL
+			e.log.Info("Starting EL sync")
+			e.elStart = e.clock.Now()
+		} else if err == nil {
+			e.syncStatus = syncStatusFinishedEL
+			e.log.Info("Skipping EL sync and going straight to CL sync because there is a finalized block", "id", b.ID())
+			return nil
+		} else {
+			return NewTemporaryError(fmt.Errorf("failed to fetch finalized head: %w", err))
+		}
+	}
+	// Insert the payload & then call FCU
 	status, err := e.engine.NewPayload(ctx, envelope.ExecutionPayload, envelope.ParentBeaconBlockRoot)
 	if err != nil {
 		return NewTemporaryError(fmt.Errorf("failed to update insert payload: %w", err))
@@ -273,6 +325,12 @@ func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *et
 		HeadBlockHash:      envelope.ExecutionPayload.BlockHash,
 		SafeBlockHash:      e.safeHead.Hash,
 		FinalizedBlockHash: e.finalizedHead.Hash,
+	}
+	if e.syncStatus == syncStatusFinishedELButNotFinalized {
+		fc.SafeBlockHash = envelope.ExecutionPayload.BlockHash
+		fc.FinalizedBlockHash = envelope.ExecutionPayload.BlockHash
+		e.SetSafeHead(ref)
+		e.SetFinalizedHead(ref)
 	}
 	fcRes, err := e.engine.ForkchoiceUpdate(ctx, &fc, nil)
 	if err != nil {
@@ -293,8 +351,13 @@ func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *et
 		return NewTemporaryError(fmt.Errorf("cannot prepare unsafe chain for new payload: new - %v; parent: %v; err: %w",
 			payload.ID(), payload.ParentID(), eth.ForkchoiceUpdateErr(fcRes.PayloadStatus)))
 	}
-	e.unsafeHead = ref
+	e.SetUnsafeHead(ref)
 	e.needFCUCall = false
+
+	if e.syncStatus == syncStatusFinishedELButNotFinalized {
+		e.log.Info("Finished EL sync", "sync_duration", e.clock.Since(e.elStart))
+		e.syncStatus = syncStatusFinishedEL
+	}
 
 	return nil
 }
@@ -302,14 +365,4 @@ func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *et
 // ResetBuildingState implements LocalEngineControl.
 func (e *EngineController) ResetBuildingState() {
 	e.resetBuildingState()
-}
-
-// ForkchoiceUpdate implements LocalEngineControl.
-func (e *EngineController) ForkchoiceUpdate(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
-	return e.engine.ForkchoiceUpdate(ctx, state, attr)
-}
-
-// NewPayload implements LocalEngineControl.
-func (e *EngineController) NewPayload(ctx context.Context, payload *eth.ExecutionPayload, parentBeaconBlockRoot *common.Hash) (*eth.PayloadStatusV1, error) {
-	return e.engine.NewPayload(ctx, payload, parentBeaconBlockRoot)
 }
