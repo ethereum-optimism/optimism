@@ -134,8 +134,7 @@ func (cfg *Config) ValidateL2Config(ctx context.Context, client L2Client, skipL2
 		return err
 	}
 
-	// Validate the Rollup L2 Genesis Blockhash if requested
-	// We skip this when doing EL sync
+	// Validate the Rollup L2 Genesis Blockhash if requested. We skip this when doing EL sync
 	if skipL2GenesisBlockHash {
 		return nil
 	}
