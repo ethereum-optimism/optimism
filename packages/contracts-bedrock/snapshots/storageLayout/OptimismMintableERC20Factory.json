@@ -15,16 +15,23 @@
   },
   {
     "bytes": "20",
-    "label": "bridge",
+    "label": "spacer_0_2_20",
     "offset": 2,
     "slot": "0",
+    "type": "address"
+  },
+  {
+    "bytes": "20",
+    "label": "bridge",
+    "offset": 0,
+    "slot": "1",
     "type": "address"
   },
   {
     "bytes": "1568",
     "label": "__gap",
     "offset": 0,
-    "slot": "1",
+    "slot": "2",
     "type": "uint256[49]"
   }
 ]
