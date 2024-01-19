@@ -26,6 +26,11 @@ contract CommonTest is Test, Setup, Events {
         vm.etch(address(ffi), vm.getDeployedCode("FFIInterface.sol:FFIInterface"));
         vm.label(address(ffi), "FFIInterface");
 
+        // Exclude contracts for the invariant tests
+        excludeContract(address(ffi));
+        excludeContract(address(deploy));
+        excludeContract(address(deploy.cfg()));
+
         // Make sure the base fee is non zero
         vm.fee(1 gwei);
 
