@@ -12,7 +12,7 @@ import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable
 abstract contract ERC721Bridge is Initializable {
     /// @custom:spacer ERC721Bridge's initializer slot spacing
     /// @notice Spacer to avoid packing into the initializer slot
-    address private spacer_0_2_20;
+    bytes30 private spacer_0_2_30;
 
     /// @notice Messenger contract on this domain.
     /// @custom:network-specific

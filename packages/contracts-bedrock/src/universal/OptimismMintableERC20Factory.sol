@@ -15,7 +15,7 @@ import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable
 contract OptimismMintableERC20Factory is ISemver, Initializable {
     /// @custom:spacer OptimismMintableERC20Factory's initializer slot spacing
     /// @notice Spacer to avoid packing into the initializer slot
-    address private spacer_0_2_20;
+    bytes30 private spacer_0_2_30;
 
     /// @notice Address of the StandardBridge on this chain.
     /// @custom:network-specific

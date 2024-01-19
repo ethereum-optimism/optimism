@@ -25,7 +25,7 @@ abstract contract StandardBridge is Initializable {
     /// @custom:legacy
     /// @custom:spacer messenger
     /// @notice Spacer for backwards compatibility.
-    address private spacer_0_2_20;
+    bytes30 private spacer_0_2_30;
 
     /// @custom:legacy
     /// @custom:spacer l2TokenBridge
