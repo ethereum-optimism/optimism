@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
@@ -470,7 +471,7 @@ func TestMissingBatchE2E(t *testing.T) {
 	}
 }
 
-func L1InfoFromState(ctx context.Context, contract *bindings.L1Block, l2Number *big.Int) (*derive.L1BlockInfo, error) {
+func L1InfoFromState(ctx context.Context, contract *bindings.L1Block, l2Number *big.Int, ecotone bool) (*derive.L1BlockInfo, error) {
 	var err error
 	var out = &derive.L1BlockInfo{}
 	opts := bind.CallOpts{
@@ -504,23 +505,45 @@ func L1InfoFromState(ctx context.Context, contract *bindings.L1Block, l2Number *
 		return nil, fmt.Errorf("failed to get sequence number: %w", err)
 	}
 
-	overhead, err := contract.L1FeeOverhead(&opts)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get l1 fee overhead: %w", err)
-	}
-	out.L1FeeOverhead = eth.Bytes32(common.BigToHash(overhead))
+	if !ecotone {
+		overhead, err := contract.L1FeeOverhead(&opts)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get l1 fee overhead: %w", err)
+		}
+		out.L1FeeOverhead = eth.Bytes32(common.BigToHash(overhead))
 
-	scalar, err := contract.L1FeeScalar(&opts)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get l1 fee scalar: %w", err)
+		scalar, err := contract.L1FeeScalar(&opts)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get l1 fee scalar: %w", err)
+		}
+		out.L1FeeScalar = eth.Bytes32(common.BigToHash(scalar))
 	}
-	out.L1FeeScalar = eth.Bytes32(common.BigToHash(scalar))
 
 	batcherHash, err := contract.BatcherHash(&opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get batch sender: %w", err)
 	}
 	out.BatcherAddr = common.BytesToAddress(batcherHash[:])
+
+	if ecotone {
+		blobBaseFeeScalar, err := contract.BlobBaseFeeScalar(&opts)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get blob basefee scalar: %w", err)
+		}
+		out.BlobBaseFeeScalar = blobBaseFeeScalar
+
+		baseFeeScalar, err := contract.BaseFeeScalar(&opts)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get basefee scalar: %w", err)
+		}
+		out.BaseFeeScalar = baseFeeScalar
+
+		blobBaseFee, err := contract.BlobBaseFee(&opts)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get blob basefee: %w", err)
+		}
+		out.BlobBaseFee = blobBaseFee
+	}
 
 	return out, nil
 }
@@ -880,7 +903,8 @@ func TestL1InfoContract(t *testing.T) {
 			require.NoError(t, err)
 			txList = append(txList, infoFromTx)
 
-			infoFromState, err := L1InfoFromState(ctx, contract, b.Number())
+			ecotone := sys.RollupConfig.IsEcotone(b.Time()) && !sys.RollupConfig.IsEcotoneActivationBlock(b.Time())
+			infoFromState, err := L1InfoFromState(ctx, contract, b.Number(), ecotone)
 			require.Nil(t, err)
 			stateList = append(stateList, infoFromState)
 
@@ -909,8 +933,20 @@ func TestL1InfoContract(t *testing.T) {
 			BlockHash:      h,
 			SequenceNumber: 0, // ignored, will be overwritten
 			BatcherAddr:    sys.RollupConfig.Genesis.SystemConfig.BatcherAddr,
-			L1FeeOverhead:  sys.RollupConfig.Genesis.SystemConfig.Overhead,
-			L1FeeScalar:    sys.RollupConfig.Genesis.SystemConfig.Scalar,
+		}
+		if sys.RollupConfig.IsEcotone(b.Time()) && !sys.RollupConfig.IsEcotoneActivationBlock(b.Time()) {
+			blobBaseFeeScalar, baseFeeScalar, err := sys.RollupConfig.Genesis.SystemConfig.EcotoneScalars()
+			require.NoError(t, err)
+			l1blocks[h].BlobBaseFeeScalar = blobBaseFeeScalar
+			l1blocks[h].BaseFeeScalar = baseFeeScalar
+			if excess := b.ExcessBlobGas(); excess != nil {
+				l1blocks[h].BlobBaseFee = eip4844.CalcBlobFee(*excess)
+			} else {
+				l1blocks[h].BlobBaseFee = big.NewInt(1)
+			}
+		} else {
+			l1blocks[h].L1FeeOverhead = sys.RollupConfig.Genesis.SystemConfig.Overhead
+			l1blocks[h].L1FeeScalar = sys.RollupConfig.Genesis.SystemConfig.Scalar
 		}
 
 		h = b.ParentHash()

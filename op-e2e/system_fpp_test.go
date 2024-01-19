@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-program/client/driver"
 	opp "github.com/ethereum-optimism/optimism/op-program/host"
@@ -53,6 +54,26 @@ func TestVerifyL2OutputRootEmptyBlockDetachedSpanBatch(t *testing.T) {
 	testVerifyL2OutputRootEmptyBlock(t, true, true)
 }
 
+func applySpanBatchActivation(active bool, dp *genesis.DeployConfig) {
+	if active {
+		// Activate delta hard fork
+		minTs := hexutil.Uint64(0)
+		dp.L2GenesisDeltaTimeOffset = &minTs
+		// readjust other activations
+		if dp.L2GenesisEcotoneTimeOffset != nil {
+			dp.L2GenesisEcotoneTimeOffset = &minTs
+		}
+		if dp.L2GenesisFjordTimeOffset != nil {
+			dp.L2GenesisFjordTimeOffset = &minTs
+		}
+	} else {
+		// cancel delta and any later hardfork activations
+		dp.L2GenesisDeltaTimeOffset = nil
+		dp.L2GenesisEcotoneTimeOffset = nil
+		dp.L2GenesisFjordTimeOffset = nil
+	}
+}
+
 // TestVerifyL2OutputRootEmptyBlock asserts that the program can verify the output root of an empty block
 // induced by missing batches.
 // Setup is as follows:
@@ -73,13 +94,7 @@ func testVerifyL2OutputRootEmptyBlock(t *testing.T, detached bool, spanBatchActi
 	// Use a small sequencer window size to avoid test timeout while waiting for empty blocks
 	// But not too small to ensure that our claim and subsequent state change is published
 	cfg.DeployConfig.SequencerWindowSize = 16
-	if spanBatchActivated {
-		// Activate delta hard fork
-		minTs := hexutil.Uint64(0)
-		cfg.DeployConfig.L2GenesisDeltaTimeOffset = &minTs
-	} else {
-		cfg.DeployConfig.L2GenesisDeltaTimeOffset = nil
-	}
+	applySpanBatchActivation(spanBatchActivated, cfg.DeployConfig)
 
 	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
@@ -178,13 +193,7 @@ func testVerifyL2OutputRoot(t *testing.T, detached bool, spanBatchActivated bool
 	cfg := DefaultSystemConfig(t)
 	// We don't need a verifier - just the sequencer is enough
 	delete(cfg.Nodes, "verifier")
-	if spanBatchActivated {
-		// Activate delta hard fork
-		minTs := hexutil.Uint64(0)
-		cfg.DeployConfig.L2GenesisDeltaTimeOffset = &minTs
-	} else {
-		cfg.DeployConfig.L2GenesisDeltaTimeOffset = nil
-	}
+	applySpanBatchActivation(spanBatchActivated, cfg.DeployConfig)
 
 	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
