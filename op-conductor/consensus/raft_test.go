@@ -67,7 +67,7 @@ func TestCommitAndRead(t *testing.T) {
 	}
 
 	err = cons.CommitUnsafePayload(payload)
-	// ExecutionPayloadEnvelope is expected to fail when unmarshalling a blockV1
+	// ExecutionPayloadEnvelope is expected to succeed when unmarshalling a blockV3
 	require.NoError(t, err)
 
 	unsafeHead := cons.LatestUnsafePayload()

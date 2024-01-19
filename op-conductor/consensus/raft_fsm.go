@@ -42,16 +42,14 @@ func (t *unsafeHeadTracker) Apply(l *raft.Log) interface{} {
 
 // Restore implements raft.FSM, it restores state from snapshot.
 func (t *unsafeHeadTracker) Restore(snapshot io.ReadCloser) error {
-	data := &eth.ExecutionPayloadEnvelope{}
-
 	var buf bytes.Buffer
 	n, err := io.Copy(&buf, snapshot)
 	snapshot.Close()
-
 	if err != nil {
 		return fmt.Errorf("error reading snapshot data: %w", err)
 	}
 
+	data := &eth.ExecutionPayloadEnvelope{}
 	if err := data.UnmarshalSSZ(uint32(n), bytes.NewReader(buf.Bytes())); err != nil {
 		return fmt.Errorf("error unmarshalling snapshot: %w", err)
 	}
