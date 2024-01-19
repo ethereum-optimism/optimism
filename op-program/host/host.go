@@ -201,12 +201,14 @@ func makePrefetcher(ctx context.Context, logger log.Logger, kv kvstore.KV, cfg *
 	if err != nil {
 		return nil, fmt.Errorf("failed to create L1 client: %w", err)
 	}
+	l1Beacon := client.NewBasicHTTPClient(cfg.L1BeaconURL, logger)
+	l1BlobFetcher := sources.NewL1BeaconClient(l1Beacon)
 	l2Cl, err := NewL2Client(l2RPC, logger, nil, &L2ClientConfig{L2ClientConfig: l2ClCfg, L2Head: cfg.L2Head})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create L2 client: %w", err)
 	}
 	l2DebugCl := &L2Source{L2Client: l2Cl, DebugClient: sources.NewDebugClient(l2RPC.CallContext)}
-	return prefetcher.NewPrefetcher(logger, l1Cl, l2DebugCl, kv), nil
+	return prefetcher.NewPrefetcher(logger, l1Cl, l1BlobFetcher, l2DebugCl, kv), nil
 }
 
 func routeHints(logger log.Logger, hHostRW io.ReadWriter, hinter preimage.HintHandler) chan error {

@@ -75,6 +75,11 @@ var (
 		Usage:   "Address of L1 JSON-RPC endpoint to use (eth namespace required)",
 		EnvVars: prefixEnvVars("L1_RPC"),
 	}
+	L1BeaconAddr = &cli.StringFlag{
+		Name:    "l1-beacon",
+		Usage:   "Address of L1 Beacon API endpoint to use",
+		EnvVars: prefixEnvVars("L1_BEACON_API"),
+	}
 	L1TrustRPC = &cli.BoolFlag{
 		Name:    "l1.trustrpc",
 		Usage:   "Trust the L1 RPC, sync faster at risk of malicious/buggy RPC providing bad or inconsistent L1 data",
@@ -112,6 +117,7 @@ var requiredFlags = []cli.Flag{
 	L2Claim,
 	L2BlockNumber,
 }
+
 var programFlags = []cli.Flag{
 	RollupConfig,
 	Network,
@@ -119,6 +125,7 @@ var programFlags = []cli.Flag{
 	L2NodeAddr,
 	L2GenesisPath,
 	L1NodeAddr,
+	L1BeaconAddr,
 	L1TrustRPC,
 	L1RPCProviderKind,
 	Exec,

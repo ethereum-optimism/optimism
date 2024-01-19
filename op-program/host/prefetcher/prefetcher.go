@@ -48,12 +48,11 @@ type Prefetcher struct {
 	kvStore       kvstore.KV
 }
 
-func NewPrefetcher(logger log.Logger, l1Fetcher L1Source, l2Fetcher L2Source, kvStore kvstore.KV) *Prefetcher {
-	// TODO: Take in l1BlobFetcher and add a retrying L1 blob source
+func NewPrefetcher(logger log.Logger, l1Fetcher L1Source, l1BlobFetcher L1BlobSource, l2Fetcher L2Source, kvStore kvstore.KV) *Prefetcher {
 	return &Prefetcher{
 		logger:        logger,
 		l1Fetcher:     NewRetryingL1Source(logger, l1Fetcher),
-		l1BlobFetcher: nil,
+		l1BlobFetcher: NewRetryingL1BlobSource(logger, l1BlobFetcher),
 		l2Fetcher:     NewRetryingL2Source(logger, l2Fetcher),
 		kvStore:       kvStore,
 	}
