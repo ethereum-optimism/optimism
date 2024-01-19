@@ -22,7 +22,37 @@ import (
 // Note that the key is the L2 chain id. This is because the L1 contracts must be specific
 // for a particular OP Stack chain and cannot currently be used by multiple chains.
 var deployments = map[uint64]superchain.ImplementationList{
-	// Base Sepolia
+	// OP Mainnet
+	10: {
+		L1CrossDomainMessenger: superchain.VersionedContract{
+			Version: "2.2.0",
+			Address: superchain.HexToAddress("0xa95B24af19f8907390eD15f8348A1a5e6Ccbc5C6"),
+		},
+		L1ERC721Bridge: superchain.VersionedContract{
+			Version: "2.0.0",
+			Address: superchain.HexToAddress("0xc599Fa757c2bCaA5aE3753Ab129237F38C10da0b"),
+		},
+		L1StandardBridge: superchain.VersionedContract{
+			Version: "2.0.0",
+			Address: superchain.HexToAddress("0x566511a1A09561e2896F8c0fD77E8544E59bFDB0"),
+		},
+		OptimismPortal: superchain.VersionedContract{
+			Version: "2.4.0",
+			Address: superchain.HexToAddress("0xaBAbe63514dDd6277356F8cc3d6518aA8BDEB4de"),
+		},
+		SystemConfig: superchain.VersionedContract{
+			Version: "1.11.0",
+			Address: superchain.HexToAddress("0x33A032ec93Ec0C492Ec4BF0B30D5f51986E5a314"),
+		},
+		L2OutputOracle: superchain.VersionedContract{
+			Version: "1.7.0",
+			Address: superchain.HexToAddress("0xDb5d932AF15D00F879CaBEbf008caDAAAa691e06"),
+		},
+		OptimismMintableERC20Factory: superchain.VersionedContract{
+			Version: "1.8.0",
+			Address: superchain.HexToAddress("0x74e273220Fa1cB62Fd756FE6CbDA8BBb89404deD"),
+		},
+	},
 	84532: {
 		L1CrossDomainMessenger: superchain.VersionedContract{
 			Version: "2.2.0",
