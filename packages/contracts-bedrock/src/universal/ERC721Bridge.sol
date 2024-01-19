@@ -10,6 +10,10 @@ import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable
 /// @title ERC721Bridge
 /// @notice ERC721Bridge is a base contract for the L1 and L2 ERC721 bridges.
 abstract contract ERC721Bridge is Initializable {
+    /// @custom:spacer ERC721Bridge's initializer slot spacing
+    /// @notice Spacer to avoid packing into the initializer slot
+    address private spacer_0_2_20;
+
     /// @notice Messenger contract on this domain.
     /// @custom:network-specific
     CrossDomainMessenger public messenger;
@@ -19,7 +23,7 @@ abstract contract ERC721Bridge is Initializable {
     StandardBridge public otherBridge;
 
     /// @notice Reserve extra slots (to a total of 50) in the storage layout for future upgrades.
-    uint256[47] private __gap;
+    uint256[46] private __gap;
 
     /// @notice Emitted when an ERC721 bridge to the other network is initiated.
     /// @param localToken  Address of the token on this domain.
