@@ -38,12 +38,12 @@ func (l ReceiptsHint) Hint() string {
 	return HintL1Receipts + " " + (common.Hash)(l).String()
 }
 
-type Sha2Hint common.Hash
+type Sha2Hint []byte
 
-var _ preimage.Hint = Sha2Hint{}
+var _ preimage.Hint = Sha2Hint("")
 
 func (l Sha2Hint) Hint() string {
-	return HintSha2 + " " + (common.Hash)(l).String()
+	return HintSha2 + " " + string(l)
 }
 
 type BlobHint common.Hash
