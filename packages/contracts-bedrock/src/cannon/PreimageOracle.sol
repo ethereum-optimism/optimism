@@ -217,7 +217,7 @@ contract PreimageOracle is IPreimageOracle {
                 0x02,   // Address of SHA-256 precompile
                 ptr,    // Start of input data in memory
                 size,   // Size of input data
-                0,      // Store output in scatch slot
+                0,      // Store output in scratch memory
                 0x20    // Output is always 32 bytes
             )
             // Check if the staticcall succeeded
