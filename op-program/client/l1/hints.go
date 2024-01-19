@@ -42,5 +42,5 @@ type BlobHint []byte
 var _ preimage.Hint = BlobHint{}
 
 func (l BlobHint) Hint() string {
-	return HintL1Blob + " " + string(l)
+	return HintL1Blob + " 0x" + common.Bytes2Hex(l)
 }
