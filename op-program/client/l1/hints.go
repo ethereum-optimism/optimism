@@ -10,6 +10,8 @@ const (
 	HintL1BlockHeader  = "l1-block-header"
 	HintL1Transactions = "l1-transactions"
 	HintL1Receipts     = "l1-receipts"
+	HintL1Blob         = "l1-blob"
+	HintSha2           = "l1-sha2"
 )
 
 type BlockHeaderHint common.Hash
@@ -34,4 +36,20 @@ var _ preimage.Hint = ReceiptsHint{}
 
 func (l ReceiptsHint) Hint() string {
 	return HintL1Receipts + " " + (common.Hash)(l).String()
+}
+
+type Sha2Hint common.Hash
+
+var _ preimage.Hint = Sha2Hint{}
+
+func (l Sha2Hint) Hint() string {
+	return HintSha2 + " " + (common.Hash)(l).String()
+}
+
+type BlobHint common.Hash
+
+var _ preimage.Hint = BlobHint{}
+
+func (l BlobHint) Hint() string {
+	return HintL1Blob + " " + (common.Hash)(l).String()
 }

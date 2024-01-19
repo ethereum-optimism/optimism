@@ -18,17 +18,20 @@ type CachingOracle struct {
 	blocks *simplelru.LRU[common.Hash, eth.BlockInfo]
 	txs    *simplelru.LRU[common.Hash, types.Transactions]
 	rcpts  *simplelru.LRU[common.Hash, types.Receipts]
+	blobs  *simplelru.LRU[common.Hash, *eth.Blob]
 }
 
 func NewCachingOracle(oracle Oracle) *CachingOracle {
 	blockLRU, _ := simplelru.NewLRU[common.Hash, eth.BlockInfo](cacheSize, nil)
 	txsLRU, _ := simplelru.NewLRU[common.Hash, types.Transactions](cacheSize, nil)
 	rcptsLRU, _ := simplelru.NewLRU[common.Hash, types.Receipts](cacheSize, nil)
+	blobsLRU, _ := simplelru.NewLRU[common.Hash, *eth.Blob](cacheSize, nil)
 	return &CachingOracle{
 		oracle: oracle,
 		blocks: blockLRU,
 		txs:    txsLRU,
 		rcpts:  rcptsLRU,
+		blobs:  blobsLRU,
 	}
 }
 
@@ -62,4 +65,14 @@ func (o *CachingOracle) ReceiptsByBlockHash(blockHash common.Hash) (eth.BlockInf
 	o.blocks.Add(blockHash, block)
 	o.rcpts.Add(blockHash, rcpts)
 	return block, rcpts
+}
+
+func (o *CachingOracle) GetBlob(ref eth.L1BlockRef, blobHash eth.IndexedBlobHash) *eth.Blob {
+	blob, ok := o.blobs.Get(blobHash.Hash)
+	if ok {
+		return blob
+	}
+	blob = o.oracle.GetBlob(ref, blobHash)
+	o.blobs.Add(blobHash.Hash, blob)
+	return blob
 }

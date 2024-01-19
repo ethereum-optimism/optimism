@@ -1,10 +1,12 @@
 package l1
 
 import (
+	"encoding/binary"
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/rlp"
 
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
@@ -21,6 +23,9 @@ type Oracle interface {
 
 	// ReceiptsByBlockHash retrieves the receipts from the block with the given hash.
 	ReceiptsByBlockHash(blockHash common.Hash) (eth.BlockInfo, types.Receipts)
+
+	// GetBlobField retrieves the field element at the given index from the blob with the given hash.
+	GetBlob(ref eth.L1BlockRef, blobHash eth.IndexedBlobHash) *eth.Blob
 }
 
 // PreimageOracle implements Oracle using by interfacing with the pure preimage.Oracle
@@ -85,4 +90,32 @@ func (p *PreimageOracle) ReceiptsByBlockHash(blockHash common.Hash) (eth.BlockIn
 	}
 
 	return info, receipts
+}
+
+func (p *PreimageOracle) GetBlob(ref eth.L1BlockRef, blobHash eth.IndexedBlobHash) *eth.Blob {
+	indexBytes := make([]byte, 32)
+	binary.BigEndian.PutUint64(indexBytes, blobHash.Index)
+
+	// Hint for the commitment, the preimage of the blob versioned hash.
+	p.hint.Hint(Sha2Hint(blobHash.Hash))
+	commitment := p.oracle.Get(preimage.Sha256Key(blobHash.Hash))
+
+	// Send a hint for the blob field elements.
+	blobHint := make([]byte, 32)
+	binary.BigEndian.PutUint64(blobHint[8:16], blobHash.Index)
+	binary.BigEndian.PutUint64(blobHint[24:32], ref.Time)
+	p.hint.Hint(BlobHint(blobHint))
+
+	// Reconstruct the full blob from the 4096 field elements.
+	blob := eth.Blob{}
+	fieldElemKey := make([]byte, 80)
+	copy(fieldElemKey[:48], commitment)
+	for i := 0; i < 4096; i++ {
+		binary.BigEndian.PutUint64(fieldElemKey[72:], uint64(i))
+		fieldElement := p.oracle.Get(preimage.BlobKey(crypto.Keccak256(fieldElemKey)))
+
+		copy(blob[i<<5:(i+1)<<5], fieldElement[:])
+	}
+
+	return &blob
 }

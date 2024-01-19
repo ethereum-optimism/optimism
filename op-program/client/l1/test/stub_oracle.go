@@ -19,6 +19,9 @@ type StubOracle struct {
 
 	// Rcpts maps Block hash to receipts
 	Rcpts map[common.Hash]types.Receipts
+
+	// Blobs maps indexed blob hash to l1 block ref to blob
+	Blobs map[eth.IndexedBlobHash]map[eth.L1BlockRef]*eth.Blob
 }
 
 func NewStubOracle(t *testing.T) *StubOracle {
@@ -27,8 +30,10 @@ func NewStubOracle(t *testing.T) *StubOracle {
 		Blocks: make(map[common.Hash]eth.BlockInfo),
 		Txs:    make(map[common.Hash]types.Transactions),
 		Rcpts:  make(map[common.Hash]types.Receipts),
+		Blobs:  make(map[eth.IndexedBlobHash]map[eth.L1BlockRef]*eth.Blob),
 	}
 }
+
 func (o StubOracle) HeaderByBlockHash(blockHash common.Hash) eth.BlockInfo {
 	info, ok := o.Blocks[blockHash]
 	if !ok {
@@ -51,4 +56,9 @@ func (o StubOracle) ReceiptsByBlockHash(blockHash common.Hash) (eth.BlockInfo, t
 		o.t.Fatalf("unknown rcpts %s", blockHash)
 	}
 	return o.HeaderByBlockHash(blockHash), rcpts
+}
+
+func (o StubOracle) GetBlob(ref eth.L1BlockRef, blobHash eth.IndexedBlobHash) *eth.Blob {
+	o.t.Fatalf("unimplemented")
+	return nil
 }
