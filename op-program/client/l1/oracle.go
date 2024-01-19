@@ -1,6 +1,7 @@
 package l1
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 
@@ -111,6 +112,11 @@ func (p *PreimageOracle) GetBlob(ref eth.L1BlockRef, blobHash eth.IndexedBlobHas
 		fieldElement := p.oracle.Get(preimage.BlobKey(crypto.Keccak256(fieldElemKey)))
 
 		copy(blob[i<<5:(i+1)<<5], fieldElement[:])
+	}
+
+	blobCommitment, err := blob.ComputeKZGCommitment()
+	if err != nil || !bytes.Equal(blobCommitment[:], commitment[:]) {
+		panic(fmt.Errorf("invalid blob commitment: %w", err))
 	}
 
 	return &blob
