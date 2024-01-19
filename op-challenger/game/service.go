@@ -225,7 +225,8 @@ func (s *Service) initScheduler(cfg *config.Config) error {
 }
 
 func (s *Service) initLargePreimages() error {
-	s.preimages = keccak.NewLargePreimageScheduler(s.logger, s.registry.Oracles())
+	verifier := keccak.NewPreimageVerifier(s.logger)
+	s.preimages = keccak.NewLargePreimageScheduler(s.logger, s.registry.Oracles(), verifier)
 	return nil
 }
 

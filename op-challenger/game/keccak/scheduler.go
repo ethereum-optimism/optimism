@@ -9,19 +9,25 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-type LargePreimageScheduler struct {
-	log     log.Logger
-	ch      chan common.Hash
-	oracles []types.LargePreimageOracle
-	cancel  func()
-	wg      sync.WaitGroup
+type Verifier interface {
+	Verify(ctx context.Context, oracle types.LargePreimageOracle, preimage types.LargePreimageMetaData)
 }
 
-func NewLargePreimageScheduler(logger log.Logger, oracles []types.LargePreimageOracle) *LargePreimageScheduler {
+type LargePreimageScheduler struct {
+	log      log.Logger
+	ch       chan common.Hash
+	oracles  []types.LargePreimageOracle
+	verifier Verifier
+	cancel   func()
+	wg       sync.WaitGroup
+}
+
+func NewLargePreimageScheduler(logger log.Logger, oracles []types.LargePreimageOracle, verifier Verifier) *LargePreimageScheduler {
 	return &LargePreimageScheduler{
-		log:     logger,
-		ch:      make(chan common.Hash, 1),
-		oracles: oracles,
+		log:      logger,
+		ch:       make(chan common.Hash, 1),
+		oracles:  oracles,
+		verifier: verifier,
 	}
 }
 
@@ -71,6 +77,11 @@ func (s *LargePreimageScheduler) verifyPreimages(ctx context.Context, blockHash 
 }
 
 func (s *LargePreimageScheduler) verifyOraclePreimages(ctx context.Context, oracle types.LargePreimageOracle, blockHash common.Hash) error {
-	_, err := oracle.GetActivePreimages(ctx, blockHash)
+	preimages, err := oracle.GetActivePreimages(ctx, blockHash)
+	for _, preimage := range preimages {
+		if preimage.ShouldVerify() {
+			s.verifier.Verify(ctx, oracle, preimage)
+		}
+	}
 	return err
 }
