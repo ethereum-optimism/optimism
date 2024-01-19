@@ -121,6 +121,8 @@ type DeployConfig struct {
 	EIP1559Elasticity uint64 `json:"eip1559Elasticity"`
 	// EIP1559Denominator is the denominator of EIP1559 base fee market.
 	EIP1559Denominator uint64 `json:"eip1559Denominator"`
+	// EIP1559DenominatorCanyon is the denominator of EIP1559 base fee market when Canyon is active.
+	EIP1559DenominatorCanyon uint64 `json:"eip1559DenominatorCanyon"`
 	// FundDevAccounts configures whether or not to fund the dev accounts. Should only be used
 	// during devnet deployments.
 	FundDevAccounts bool `json:"fundDevAccounts"`
@@ -237,6 +239,9 @@ func (d *DeployConfig) Check() error {
 	}
 	if d.EIP1559Elasticity == 0 {
 		return fmt.Errorf("%w: EIP1559Elasticity cannot be 0", ErrInvalidDeployConfig)
+	}
+	if d.L2GenesisCanyonTimeOffset != nil && d.EIP1559DenominatorCanyon == 0 {
+		return fmt.Errorf("%w: EIP1559DenominatorCanyon cannot be 0 if Canyon is activated", ErrInvalidDeployConfig)
 	}
 	if d.L2GenesisBlockGasLimit == 0 {
 		return fmt.Errorf("%w: L2 genesis block gas limit cannot be 0", ErrInvalidDeployConfig)
