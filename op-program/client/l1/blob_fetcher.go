@@ -30,6 +30,7 @@ func NewBlobFetcher(logger log.Logger, oracle Oracle) *BlobFetcher {
 func (b *BlobFetcher) GetBlobs(ctx context.Context, ref eth.L1BlockRef, hashes []eth.IndexedBlobHash) ([]*eth.Blob, error) {
 	blobs := make([]*eth.Blob, len(hashes))
 	for i := 0; i < len(hashes); i++ {
+		b.logger.Info("Fetching blob", "l1_ref", ref.Hash, "blob_versioned_hash", hashes[i].Hash, "index", hashes[i].Index)
 		blobs[i] = b.oracle.GetBlob(ref, hashes[i])
 	}
 	return blobs, nil

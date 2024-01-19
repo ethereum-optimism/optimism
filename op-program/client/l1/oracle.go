@@ -94,20 +94,13 @@ func (p *PreimageOracle) ReceiptsByBlockHash(blockHash common.Hash) (eth.BlockIn
 }
 
 func (p *PreimageOracle) GetBlob(ref eth.L1BlockRef, blobHash eth.IndexedBlobHash) *eth.Blob {
-	indexBytes := make([]byte, 32)
-	binary.BigEndian.PutUint64(indexBytes, blobHash.Index)
+	// Send a hint for the blob commitment & blob field elements.
+	blobReqMeta := make([]byte, 16)
+	binary.BigEndian.PutUint64(blobReqMeta[0:8], blobHash.Index)
+	binary.BigEndian.PutUint64(blobReqMeta[8:16], ref.Time)
+	p.hint.Hint(BlobHint(append(blobHash.Hash[:], blobReqMeta...)))
 
-	// Hint for the commitment, the preimage of the blob versioned hash.
-	l1Timestamp := make([]byte, 8)
-	binary.BigEndian.PutUint64(l1Timestamp, ref.Time)
-	p.hint.Hint(Sha2Hint(append(blobHash.Hash[:], l1Timestamp...)))
 	commitment := p.oracle.Get(preimage.Sha256Key(blobHash.Hash))
-
-	// Send a hint for the blob field elements.
-	blobHint := make([]byte, 32)
-	binary.BigEndian.PutUint64(blobHint[8:16], blobHash.Index)
-	binary.BigEndian.PutUint64(blobHint[24:32], ref.Time)
-	p.hint.Hint(BlobHint(blobHint))
 
 	// Reconstruct the full blob from the 4096 field elements.
 	blob := eth.Blob{}
