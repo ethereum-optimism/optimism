@@ -277,7 +277,7 @@ func TestBadHints(t *testing.T) {
 
 		// But it will fail to prefetch when the pre-image isn't available
 		pre, err := prefetcher.GetPreimage(context.Background(), hash)
-		require.ErrorContains(t, err, "invalid hash")
+		require.ErrorContains(t, err, "invalid bytes")
 		require.Nil(t, pre)
 	})
 
