@@ -25,6 +25,11 @@ type L1Source interface {
 	FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error)
 }
 
+type L1BlobSource interface {
+	GetBlobSidecars(ctx context.Context, ref eth.L1BlockRef, hashes []eth.IndexedBlobHash) ([]*eth.BlobSidecar, error)
+	GetBlobs(ctx context.Context, ref eth.L1BlockRef, hashes []eth.IndexedBlobHash) ([]*eth.Blob, error)
+}
+
 type L2Source interface {
 	InfoAndTxsByHash(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Transactions, error)
 	NodeByHash(ctx context.Context, hash common.Hash) ([]byte, error)
@@ -33,19 +38,22 @@ type L2Source interface {
 }
 
 type Prefetcher struct {
-	logger    log.Logger
-	l1Fetcher L1Source
-	l2Fetcher L2Source
-	lastHint  string
-	kvStore   kvstore.KV
+	logger        log.Logger
+	l1Fetcher     L1Source
+	l1BlobFetcher L1BlobSource
+	l2Fetcher     L2Source
+	lastHint      string
+	kvStore       kvstore.KV
 }
 
 func NewPrefetcher(logger log.Logger, l1Fetcher L1Source, l2Fetcher L2Source, kvStore kvstore.KV) *Prefetcher {
+	// TODO: Take in l1BlobFetcher and add a retrying L1 blob source
 	return &Prefetcher{
-		logger:    logger,
-		l1Fetcher: NewRetryingL1Source(logger, l1Fetcher),
-		l2Fetcher: NewRetryingL2Source(logger, l2Fetcher),
-		kvStore:   kvStore,
+		logger:        logger,
+		l1Fetcher:     NewRetryingL1Source(logger, l1Fetcher),
+		l1BlobFetcher: nil,
+		l2Fetcher:     NewRetryingL2Source(logger, l2Fetcher),
+		kvStore:       kvStore,
 	}
 }
 
@@ -75,66 +83,71 @@ func (p *Prefetcher) GetPreimage(ctx context.Context, key common.Hash) ([]byte, 
 }
 
 func (p *Prefetcher) prefetch(ctx context.Context, hint string) error {
-	hintType, hash, err := parseHint(hint)
+	hintType, hintBytes, err := parseHint(hint)
 	if err != nil {
 		return err
 	}
-	p.logger.Debug("Prefetching", "type", hintType, "hash", hash)
+	p.logger.Debug("Prefetching", "type", hintType, "bytes", hintBytes)
 	switch hintType {
 	case l1.HintL1BlockHeader:
-		header, err := p.l1Fetcher.InfoByHash(ctx, hash)
+		header, err := p.l1Fetcher.InfoByHash(ctx, common.BytesToHash(hintBytes))
 		if err != nil {
-			return fmt.Errorf("failed to fetch L1 block %s header: %w", hash, err)
+			return fmt.Errorf("failed to fetch L1 block %s header: %w", hintBytes, err)
 		}
 		data, err := header.HeaderRLP()
 		if err != nil {
 			return fmt.Errorf("marshall header: %w", err)
 		}
-		return p.kvStore.Put(preimage.Keccak256Key(hash).PreimageKey(), data)
+		return p.kvStore.Put(preimage.Keccak256Key(hintBytes).PreimageKey(), data)
 	case l1.HintL1Transactions:
-		_, txs, err := p.l1Fetcher.InfoAndTxsByHash(ctx, hash)
+		_, txs, err := p.l1Fetcher.InfoAndTxsByHash(ctx, common.BytesToHash(hintBytes))
 		if err != nil {
-			return fmt.Errorf("failed to fetch L1 block %s txs: %w", hash, err)
+			return fmt.Errorf("failed to fetch L1 block %s txs: %w", hintBytes, err)
 		}
 		return p.storeTransactions(txs)
 	case l1.HintL1Receipts:
-		_, receipts, err := p.l1Fetcher.FetchReceipts(ctx, hash)
+		_, receipts, err := p.l1Fetcher.FetchReceipts(ctx, common.BytesToHash(hintBytes))
 		if err != nil {
-			return fmt.Errorf("failed to fetch L1 block %s receipts: %w", hash, err)
+			return fmt.Errorf("failed to fetch L1 block %s receipts: %w", hintBytes, err)
 		}
 		return p.storeReceipts(receipts)
+	case l1.HintL1Blob:
+		// blobVersionHash := hintBytes[:32]
+		// blobHashIndex := binary.BigEndian.Uint64(hintBytes[32:40])
+		// refTimestmap := binary.BigEndian.Uint64(hintBytes[40:48])
+		panic("unimplemented")
 	case l2.HintL2BlockHeader, l2.HintL2Transactions:
-		header, txs, err := p.l2Fetcher.InfoAndTxsByHash(ctx, hash)
+		header, txs, err := p.l2Fetcher.InfoAndTxsByHash(ctx, common.BytesToHash(hintBytes))
 		if err != nil {
-			return fmt.Errorf("failed to fetch L2 block %s: %w", hash, err)
+			return fmt.Errorf("failed to fetch L2 block %s: %w", hintBytes, err)
 		}
 		data, err := header.HeaderRLP()
 		if err != nil {
 			return fmt.Errorf("failed to encode header to RLP: %w", err)
 		}
-		err = p.kvStore.Put(preimage.Keccak256Key(hash).PreimageKey(), data)
+		err = p.kvStore.Put(preimage.Keccak256Key(hintBytes).PreimageKey(), data)
 		if err != nil {
 			return err
 		}
 		return p.storeTransactions(txs)
 	case l2.HintL2StateNode:
-		node, err := p.l2Fetcher.NodeByHash(ctx, hash)
+		node, err := p.l2Fetcher.NodeByHash(ctx, common.BytesToHash(hintBytes))
 		if err != nil {
-			return fmt.Errorf("failed to fetch L2 state node %s: %w", hash, err)
+			return fmt.Errorf("failed to fetch L2 state node %s: %w", hintBytes, err)
 		}
-		return p.kvStore.Put(preimage.Keccak256Key(hash).PreimageKey(), node)
+		return p.kvStore.Put(preimage.Keccak256Key(hintBytes).PreimageKey(), node)
 	case l2.HintL2Code:
-		code, err := p.l2Fetcher.CodeByHash(ctx, hash)
+		code, err := p.l2Fetcher.CodeByHash(ctx, common.BytesToHash(hintBytes))
 		if err != nil {
-			return fmt.Errorf("failed to fetch L2 contract code %s: %w", hash, err)
+			return fmt.Errorf("failed to fetch L2 contract code %s: %w", hintBytes, err)
 		}
-		return p.kvStore.Put(preimage.Keccak256Key(hash).PreimageKey(), code)
+		return p.kvStore.Put(preimage.Keccak256Key(hintBytes).PreimageKey(), code)
 	case l2.HintL2Output:
-		output, err := p.l2Fetcher.OutputByRoot(ctx, hash)
+		output, err := p.l2Fetcher.OutputByRoot(ctx, common.BytesToHash(hintBytes))
 		if err != nil {
-			return fmt.Errorf("failed to fetch L2 output root %s: %w", hash, err)
+			return fmt.Errorf("failed to fetch L2 output root %s: %w", hintBytes, err)
 		}
-		return p.kvStore.Put(preimage.Keccak256Key(hash).PreimageKey(), output.Marshal())
+		return p.kvStore.Put(preimage.Keccak256Key(hintBytes).PreimageKey(), output.Marshal())
 	}
 	return fmt.Errorf("unknown hint type: %v", hintType)
 }
@@ -167,14 +180,14 @@ func (p *Prefetcher) storeTrieNodes(values []hexutil.Bytes) error {
 }
 
 // parseHint parses a hint string in wire protocol. Returns the hint type, requested hash and error (if any).
-func parseHint(hint string) (string, common.Hash, error) {
-	hintType, hashStr, found := strings.Cut(hint, " ")
+func parseHint(hint string) (string, []byte, error) {
+	hintType, bytesStr, found := strings.Cut(hint, " ")
 	if !found {
-		return "", common.Hash{}, fmt.Errorf("unsupported hint: %s", hint)
+		return "", make([]byte, 0), fmt.Errorf("unsupported hint: %s", hint)
 	}
-	hash := common.HexToHash(hashStr)
-	if hash == (common.Hash{}) {
-		return "", common.Hash{}, fmt.Errorf("invalid hash: %s", hashStr)
+	bytes := ([]byte)(bytesStr)
+	if len(bytes) == 0 {
+		return "", make([]byte, 0), fmt.Errorf("invalid bytes: %s", bytesStr)
 	}
-	return hintType, hash, nil
+	return hintType, bytes, nil
 }
