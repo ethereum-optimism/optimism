@@ -53,4 +53,21 @@ interface IPreimageOracle {
     /// @param _partOffset The offset of the preimage to read.
     /// @param _preimage The preimage data.
     function loadSha256PreimagePart(uint256 _partOffset, bytes calldata _preimage) external;
+
+    /// @notice Verifies that `p(_z) = _y` given `_commitment` that corresponds to the polynomial `p(x)` and a KZG
+    //          proof. The value `y` is the pre-image, and the preimage key is `5 ++ keccak256(_commitment ++ z)[1:]`.
+    //  @param _versionedHash The versioned hash of the blob.
+    /// @param _z Big endian point value. Part of the preimage key.
+    /// @param _y Big endian point value. The preimage for the key.
+    /// @param _commitment The commitment to the polynomial. 48 bytes, part of the preimage key.
+    /// @param _proof The KZG proof, part of the preimage key.
+    /// @param _partOffset The offset of the preimage to store.
+    function loadBlobPreimagePart(
+        uint256 _versionedHash,
+        uint256 _z,
+        uint256 _y,
+        bytes calldata _commitment,
+        bytes calldata _proof,
+        uint256 _partOffset
+    ) external;
 }

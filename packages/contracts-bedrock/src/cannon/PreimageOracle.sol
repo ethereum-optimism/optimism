@@ -232,7 +232,68 @@ contract PreimageOracle is IPreimageOracle {
         preimageLengths[key] = size;
     }
 
-    // TODO 4844 point-evaluation preimage
+    /// @inheritdoc IPreimageOracle
+    function loadBlobPreimagePart(
+        uint256 _versionedHash,
+        uint256 _z,
+        uint256 _y,
+        bytes calldata _commitment,
+        bytes calldata _proof,
+        uint256 _partOffset
+    ) external {
+        uint256 size;
+        bytes32 key;
+        bytes32 part;
+        assembly {
+            // we leave solidity slots 0x40 and 0x60 untouched,
+            // and everything after as scratch-memory.
+            let ptr := 0x80
+
+            // Load the inputs for the point evaluation precompile into memory.
+            mstore(ptr, _versionedHash)
+            mstore(add(ptr, 0x20), _z)
+            mstore(add(ptr, 0x40), _y)
+            calldatacopy(add(ptr, 0x60), _commitment.offset, 0x30)
+            calldatacopy(add(ptr, 0x90), _proof.offset, 0x30)
+
+            // Verify the KZG proof.
+            let success := staticcall(gas(), 0x0A, ptr, 0xC0, 0x00, 0x00)
+            if iszero(success) {
+                // Store the "InvalidProof()" error selector.
+                mstore(0x00, 0x09bde339)
+                // revert with "InvalidProof()"
+                revert(0x1C, 0x04)
+            }
+
+            // len(sig) + len(partOffset) + len(preimage offset) = 4 + 32 + 32 = 0x44
+            size := calldataload(0x44)
+
+            // revert if part offset >= size+8 (i.e. parts must be within bounds)
+            if iszero(lt(_partOffset, add(size, 0x08))) {
+                // Store "PartOffsetOOB()"
+                mstore(0x00, 0xfe254987)
+                // Revert with "PartOffsetOOB()"
+                revert(0x1c, 4)
+            }
+            // put size as big-endian uint64 at start of pre-image
+            mstore(ptr, shl(192, size))
+            // copy preimage payload into memory so we can hash and read it.
+            mstore(add(ptr, 8), _y)
+            // Note that it includes the 8-byte big-endian uint64 length prefix.
+            // this will be zero-padded at the end, since memory at end is clean.
+            part := mload(add(ptr, _partOffset))
+
+            // Compute the key: `commitment + z`
+            calldatacopy(ptr, _commitment.offset, 0x30)
+            mstore(add(ptr, 0x30), _z)
+            let h := keccak256(ptr, 0x50)
+            // mask out prefix byte, replace with type 5 byte
+            key := or(and(h, not(shl(248, 0xFF))), shl(248, 5))
+        }
+        preimagePartOk[key][_partOffset] = true;
+        preimageParts[key][_partOffset] = part;
+        preimageLengths[key] = size;
+    }
 
     ////////////////////////////////////////////////////////////////
     //            Large Preimage Proposals (External)             //
