@@ -2,6 +2,8 @@ package contracts
 
 import (
 	"context"
+	"fmt"
+	"math"
 	"math/big"
 	"testing"
 
@@ -117,16 +119,40 @@ func TestGetActivePreimages(t *testing.T) {
 		[]interface{}{big.NewInt(3)})
 
 	preimage1 := gameTypes.LargePreimageMetaData{
-		Claimant: common.Address{0xaa},
-		UUID:     big.NewInt(1111),
+		LargePreimageIdent: gameTypes.LargePreimageIdent{
+			Claimant: common.Address{0xaa},
+			UUID:     big.NewInt(1111),
+		},
+		Timestamp:       1234,
+		PartOffset:      1,
+		ClaimedSize:     100,
+		BlocksProcessed: 10,
+		BytesProcessed:  100,
+		Countered:       false,
 	}
 	preimage2 := gameTypes.LargePreimageMetaData{
-		Claimant: common.Address{0xbb},
-		UUID:     big.NewInt(2222),
+		LargePreimageIdent: gameTypes.LargePreimageIdent{
+			Claimant: common.Address{0xbb},
+			UUID:     big.NewInt(2222),
+		},
+		Timestamp:       2345,
+		PartOffset:      2,
+		ClaimedSize:     200,
+		BlocksProcessed: 20,
+		BytesProcessed:  200,
+		Countered:       true,
 	}
 	preimage3 := gameTypes.LargePreimageMetaData{
-		Claimant: common.Address{0xcc},
-		UUID:     big.NewInt(3333),
+		LargePreimageIdent: gameTypes.LargePreimageIdent{
+			Claimant: common.Address{0xcc},
+			UUID:     big.NewInt(3333),
+		},
+		Timestamp:       0,
+		PartOffset:      3,
+		ClaimedSize:     300,
+		BlocksProcessed: 30,
+		BytesProcessed:  233,
+		Countered:       false,
 	}
 	expectGetProposals(stubRpc, batching.BlockByHash(blockHash), preimage1, preimage2, preimage3)
 	preimages, err := oracle.GetActivePreimages(context.Background(), blockHash)
@@ -150,6 +176,19 @@ func expectGetProposal(stubRpc *batchingTest.AbiBasedRpc, block batching.Block, 
 			proposal.Claimant,
 			proposal.UUID,
 		})
+	meta := new(metadata)
+	meta.setTimestamp(proposal.Timestamp)
+	meta.setPartOffset(proposal.PartOffset)
+	meta.setClaimedSize(proposal.ClaimedSize)
+	meta.setBlocksProcessed(proposal.BlocksProcessed)
+	meta.setBytesProcessed(proposal.BytesProcessed)
+	meta.setCountered(proposal.Countered)
+	stubRpc.SetResponse(
+		oracleAddr,
+		methodProposalMetadata,
+		block,
+		[]interface{}{proposal.Claimant, proposal.UUID},
+		[]interface{}{meta})
 }
 
 func setupPreimageOracleTest(t *testing.T) (*batchingTest.AbiBasedRpc, *PreimageOracleContract) {
@@ -161,4 +200,65 @@ func setupPreimageOracleTest(t *testing.T) (*batchingTest.AbiBasedRpc, *Preimage
 	require.NoError(t, err)
 
 	return stubRpc, oracleContract
+}
+
+func TestMetadata(t *testing.T) {
+	uint32Values := []uint32{0, 1, 2, 3252354, math.MaxUint32}
+	tests := []struct {
+		name   string
+		setter func(meta *metadata, val uint32)
+		getter func(meta *metadata) uint32
+	}{
+		{
+			name:   "partOffset",
+			setter: (*metadata).setPartOffset,
+			getter: (*metadata).partOffset,
+		},
+		{
+			name:   "claimedSize",
+			setter: (*metadata).setClaimedSize,
+			getter: (*metadata).claimedSize,
+		},
+		{
+			name:   "blocksProcessed",
+			setter: (*metadata).setBlocksProcessed,
+			getter: (*metadata).blocksProcessed,
+		},
+		{
+			name:   "bytesProcessed",
+			setter: (*metadata).setBytesProcessed,
+			getter: (*metadata).bytesProcessed,
+		},
+	}
+	for _, test := range tests {
+		test := test
+		for _, value := range uint32Values {
+			value := value
+			t.Run(fmt.Sprintf("%v-%v", test.name, value), func(t *testing.T) {
+				meta := new(metadata)
+				require.Zero(t, test.getter(meta))
+				test.setter(meta, value)
+				require.Equal(t, value, test.getter(meta))
+			})
+		}
+	}
+}
+
+func TestMetadata_Timestamp(t *testing.T) {
+	values := []uint64{0, 1, 2, 3252354, math.MaxUint32, math.MaxUint32 + 1, math.MaxUint64}
+	var meta metadata
+	require.Zero(t, meta.timestamp())
+	for _, value := range values {
+		meta.setTimestamp(value)
+		require.Equal(t, value, meta.timestamp())
+	}
+}
+
+func TestMetadata_Countered(t *testing.T) {
+	var meta metadata
+	require.False(t, meta.countered())
+	meta.setCountered(true)
+	require.True(t, meta.countered())
+	meta.setCountered(false)
+	require.False(t, meta.countered())
 }

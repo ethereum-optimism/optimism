@@ -44,9 +44,22 @@ type GameMetadata struct {
 	Proxy     common.Address
 }
 
-type LargePreimageMetaData struct {
+type LargePreimageIdent struct {
 	Claimant common.Address
 	UUID     *big.Int
+}
+
+type LargePreimageMetaData struct {
+	LargePreimageIdent
+
+	// Timestamp is the time at which the proposal first became fully available.
+	// 0 when not all data is available yet
+	Timestamp       uint64
+	PartOffset      uint32
+	ClaimedSize     uint32
+	BlocksProcessed uint32
+	BytesProcessed  uint32
+	Countered       bool
 }
 
 type LargePreimageOracle interface {

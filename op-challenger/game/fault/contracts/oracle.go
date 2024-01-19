@@ -2,7 +2,9 @@ package contracts
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
+	"math"
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
@@ -21,6 +23,7 @@ const (
 	methodLoadKeccak256PreimagePart = "loadKeccak256PreimagePart"
 	methodProposalCount             = "proposalCount"
 	methodProposals                 = "proposals"
+	methodProposalMetadata          = "proposalMetadata"
 )
 
 // PreimageOracleContract is a binding that works with contracts implementing the IPreimageOracle interface
@@ -143,23 +146,113 @@ func abiEncodeStateMatrix(stateMatrix *matrix.StateMatrix) bindings.LibKeccakSta
 }
 
 func (c *PreimageOracleContract) GetActivePreimages(ctx context.Context, blockHash common.Hash) ([]gameTypes.LargePreimageMetaData, error) {
-	results, err := batching.ReadArray(ctx, c.multiCaller, batching.BlockByHash(blockHash), c.contract.Call(methodProposalCount), func(i *big.Int) *batching.ContractCall {
+	block := batching.BlockByHash(blockHash)
+	results, err := batching.ReadArray(ctx, c.multiCaller, block, c.contract.Call(methodProposalCount), func(i *big.Int) *batching.ContractCall {
 		return c.contract.Call(methodProposals, i)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to load claims: %w", err)
 	}
 
-	var proposals []gameTypes.LargePreimageMetaData
-	for idx, result := range results {
-		proposals = append(proposals, c.decodeProposal(result, idx))
+	var idents []gameTypes.LargePreimageIdent
+	for _, result := range results {
+		idents = append(idents, c.decodePreimageIdent(result))
 	}
+
+	// Fetch the metadata for each preimage
+	var calls []*batching.ContractCall
+	for _, ident := range idents {
+		calls = append(calls, c.contract.Call(methodProposalMetadata, ident.Claimant, ident.UUID))
+	}
+	results, err = c.multiCaller.Call(ctx, block, calls...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load proposal metadata: %w", err)
+	}
+	var proposals []gameTypes.LargePreimageMetaData
+	for i, result := range results {
+		meta := metadata(result.GetBytes32(0))
+		proposals = append(proposals, gameTypes.LargePreimageMetaData{
+			LargePreimageIdent: idents[i],
+			Timestamp:          meta.timestamp(),
+			PartOffset:         meta.partOffset(),
+			ClaimedSize:        meta.claimedSize(),
+			BlocksProcessed:    meta.blocksProcessed(),
+			BytesProcessed:     meta.bytesProcessed(),
+			Countered:          meta.countered(),
+		})
+	}
+
 	return proposals, nil
 }
 
-func (c *PreimageOracleContract) decodeProposal(result *batching.CallResult, idx int) gameTypes.LargePreimageMetaData {
-	return gameTypes.LargePreimageMetaData{
+func (c *PreimageOracleContract) decodePreimageIdent(result *batching.CallResult) gameTypes.LargePreimageIdent {
+	return gameTypes.LargePreimageIdent{
 		Claimant: result.GetAddress(0),
 		UUID:     result.GetBigInt(1),
 	}
+}
+
+// metadata is the packed preimage metadata
+// ┌─────────────┬────────────────────────────────────────────┐
+// │ Bit Offsets │                Description                 │
+// ├─────────────┼────────────────────────────────────────────┤
+// │ [0, 64)     │ Timestamp (Finalized - All data available) │
+// │ [64, 96)    │ Part Offset                                │
+// │ [96, 128)   │ Claimed Size                               │
+// │ [128, 160)  │ Blocks Processed (Inclusive of Padding)    │
+// │ [160, 192)  │ Bytes Processed (Non-inclusive of Padding) │
+// │ [192, 256)  │ Countered                                  │
+// └─────────────┴────────────────────────────────────────────┘
+type metadata [32]byte
+
+func (m *metadata) setTimestamp(timestamp uint64) {
+	binary.BigEndian.PutUint64(m[0:8], timestamp)
+}
+
+func (m *metadata) timestamp() uint64 {
+	return binary.BigEndian.Uint64(m[0:8])
+}
+
+func (m *metadata) setPartOffset(value uint32) {
+	binary.BigEndian.PutUint32(m[8:12], value)
+}
+
+func (m *metadata) partOffset() uint32 {
+	return binary.BigEndian.Uint32(m[8:12])
+}
+
+func (m *metadata) setClaimedSize(value uint32) {
+	binary.BigEndian.PutUint32(m[12:16], value)
+}
+
+func (m *metadata) claimedSize() uint32 {
+	return binary.BigEndian.Uint32(m[12:16])
+}
+
+func (m *metadata) setBlocksProcessed(value uint32) {
+	binary.BigEndian.PutUint32(m[16:20], value)
+}
+
+func (m *metadata) blocksProcessed() uint32 {
+	return binary.BigEndian.Uint32(m[16:20])
+}
+
+func (m *metadata) setBytesProcessed(value uint32) {
+	binary.BigEndian.PutUint32(m[20:24], value)
+}
+
+func (m *metadata) bytesProcessed() uint32 {
+	return binary.BigEndian.Uint32(m[20:24])
+}
+
+func (m *metadata) setCountered(value bool) {
+	v := uint64(0)
+	if value {
+		v = math.MaxUint64
+	}
+	binary.BigEndian.PutUint64(m[24:32], v)
+}
+
+func (m *metadata) countered() bool {
+	return binary.BigEndian.Uint64(m[24:32]) != 0
 }
