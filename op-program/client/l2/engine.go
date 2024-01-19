@@ -26,7 +26,7 @@ type OracleEngine struct {
 }
 
 func NewOracleEngine(rollupCfg *rollup.Config, logger log.Logger, backend engineapi.EngineBackend) *OracleEngine {
-	engineAPI := engineapi.NewL2EngineAPI(logger, backend)
+	engineAPI := engineapi.NewL2EngineAPI(logger, backend, nil)
 	return &OracleEngine{
 		api:       engineAPI,
 		backend:   backend,

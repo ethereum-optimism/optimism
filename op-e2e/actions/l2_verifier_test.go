@@ -15,7 +15,7 @@ import (
 
 func setupVerifier(t Testing, sd *e2eutils.SetupData, log log.Logger, l1F derive.L1Fetcher, syncCfg *sync.Config) (*L2Engine, *L2Verifier) {
 	jwtPath := e2eutils.WriteDefaultJWT(t)
-	engine := NewL2Engine(t, log, sd.L2Cfg, sd.RollupCfg.Genesis.L1, jwtPath)
+	engine := NewL2Engine(t, log, sd.L2Cfg, sd.RollupCfg.Genesis.L1, jwtPath, EngineWithP2P())
 	engCl := engine.EngineClient(t, sd.RollupCfg)
 	mockBlobFetcher := &emptyL1BlobsFetcher{t: t}
 	verifier := NewL2Verifier(t, log, l1F, mockBlobFetcher, engCl, sd.RollupCfg, syncCfg)

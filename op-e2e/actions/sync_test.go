@@ -5,6 +5,7 @@ import (
 	"math/big"
 	"math/rand"
 	"testing"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
@@ -164,7 +165,6 @@ func TestUnsafeSync(gt *testing.T) {
 // TestELSync tests that a verifier will have the EL import the full chain from the sequencer
 // when passed a single unsafe block. op-geth can either snap sync or full sync here.
 func TestELSync(gt *testing.T) {
-	gt.Skip("not implemented yet")
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
@@ -172,35 +172,42 @@ func TestELSync(gt *testing.T) {
 
 	miner, seqEng, sequencer := setupSequencerTest(t, sd, log)
 	// Enable engine P2P sync
-	_, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), &sync.Config{SyncMode: sync.ELSync})
+	verEng, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), &sync.Config{SyncMode: sync.ELSync})
+
+	seqEng.AddPeers(verEng.Enode())
+	verEng.AddPeers(seqEng.Enode())
 
 	seqEngCl, err := sources.NewEngineClient(seqEng.RPCClient(), log, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
 	require.NoError(t, err)
 
 	sequencer.ActL2PipelineFull(t)
-	verifier.ActL2PipelineFull(t)
 
-	// Build a L2 block. This block will not be gossiped to verifier, so verifier can not advance chain by itself.
-	sequencer.ActL2StartBlock(t)
-	sequencer.ActL2EndBlock(t)
-
+	// Build 10 L1 blocks on the sequencer
 	for i := 0; i < 10; i++ {
 		// Build a L2 block
 		sequencer.ActL2StartBlock(t)
 		sequencer.ActL2EndBlock(t)
-		// Notify new L2 block to verifier by unsafe gossip
-		seqHead, err := seqEngCl.PayloadByLabel(t.Ctx(), eth.Unsafe)
-		require.NoError(t, err)
-		verifier.ActL2UnsafeGossipReceive(seqHead)(t)
-		// Handle unsafe payload
-		verifier.ActL2PipelineFull(t)
-		// Verifier must advance unsafe head after unsafe gossip.
-		require.Equal(t, sequencer.L2Unsafe().Hash, verifier.L2Unsafe().Hash)
 	}
-	// Actual test flow should be as follows:
-	// 1. Build a chain on the sequencer.
-	// 2. Gossip only a single final L2 block from the sequencer to the verifier.
-	// 3. Assert that the verifier has the full chain.
+
+	// Insert it on the verifier
+	seqHead, err := seqEngCl.PayloadByLabel(t.Ctx(), eth.Unsafe)
+	require.NoError(t, err)
+	seqStart, err := seqEngCl.PayloadByNumber(t.Ctx(), 1)
+	require.NoError(t, err)
+	verifier.ActL2InsertUnsafePayload(seqHead)(t)
+
+	// Expect snap sync to download & execute the entire chain
+	// Verify this by checking that the verifier has the correct value for block 1
+	require.Eventually(t,
+		func() bool {
+			block, err := verifier.eng.L2BlockRefByNumber(t.Ctx(), 1)
+			if err != nil {
+				return false
+			}
+			return seqStart.ExecutionPayload.BlockHash == block.Hash
+		},
+		60*time.Second, 1500*time.Millisecond,
+	)
 }
 
 func TestInvalidPayloadInSpanBatch(gt *testing.T) {
