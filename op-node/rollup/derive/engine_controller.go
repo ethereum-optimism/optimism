@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/async"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -50,6 +51,7 @@ type EngineController struct {
 	syncStatus syncStatusEnum
 	rollupCfg  *rollup.Config
 	elStart    time.Time
+	clock      clock.Clock
 
 	// Block Head State
 	unsafeHead      eth.L2BlockRef
@@ -78,6 +80,7 @@ func NewEngineController(engine ExecEngine, log log.Logger, metrics Metrics, rol
 		rollupCfg:  rollupCfg,
 		syncMode:   syncMode,
 		syncStatus: syncStatus,
+		clock:      clock.SystemClock,
 	}
 }
 
@@ -297,7 +300,7 @@ func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *et
 		if errors.Is(err, ethereum.NotFound) {
 			e.syncStatus = syncStatusStartedEL
 			e.log.Info("Starting EL sync")
-			e.elStart = time.Now()
+			e.elStart = e.clock.Now()
 		} else if err == nil {
 			e.syncStatus = syncStatusFinishedEL
 			e.log.Info("Skipping EL sync and going straight to CL sync because there is a finalized block", "id", b.ID())
@@ -352,7 +355,7 @@ func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *et
 	e.needFCUCall = false
 
 	if e.syncStatus == syncStatusFinishedELButNotFinalized {
-		e.log.Info("Finished EL sync", "sync_duration", time.Since(e.elStart))
+		e.log.Info("Finished EL sync", "sync_duration", e.clock.Since(e.elStart))
 		e.syncStatus = syncStatusFinishedEL
 	}
 
