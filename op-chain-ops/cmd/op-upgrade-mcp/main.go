@@ -22,158 +22,35 @@ import (
 // Note that the key is the L2 chain id. This is because the L1 contracts must be specific
 // for a particular OP Stack chain and cannot currently be used by multiple chains.
 var deployments = map[uint64]superchain.ImplementationList{
-	// OP Mainnet
-	10: {
-		L1CrossDomainMessenger: superchain.VersionedContract{
-			Version: "2.2.0",
-			Address: superchain.HexToAddress("0xa95B24af19f8907390eD15f8348A1a5e6Ccbc5C6"),
-		},
-		L1ERC721Bridge: superchain.VersionedContract{
-			Version: "2.0.0",
-			Address: superchain.HexToAddress("0xc599Fa757c2bCaA5aE3753Ab129237F38C10da0b"),
-		},
-		L1StandardBridge: superchain.VersionedContract{
-			Version: "2.0.0",
-			Address: superchain.HexToAddress("0x566511a1A09561e2896F8c0fD77E8544E59bFDB0"),
-		},
-		OptimismPortal: superchain.VersionedContract{
-			Version: "2.4.0",
-			Address: superchain.HexToAddress("0xaBAbe63514dDd6277356F8cc3d6518aA8BDEB4de"),
-		},
-		SystemConfig: superchain.VersionedContract{
-			Version: "1.11.0",
-			Address: superchain.HexToAddress("0x33A032ec93Ec0C492Ec4BF0B30D5f51986E5a314"),
-		},
-		L2OutputOracle: superchain.VersionedContract{
-			Version: "1.7.0",
-			Address: superchain.HexToAddress("0xDb5d932AF15D00F879CaBEbf008caDAAAa691e06"),
-		},
-		OptimismMintableERC20Factory: superchain.VersionedContract{
-			Version: "1.8.0",
-			Address: superchain.HexToAddress("0x74e273220Fa1cB62Fd756FE6CbDA8BBb89404deD"),
-		},
-	},
-	84532: {
-		L1CrossDomainMessenger: superchain.VersionedContract{
-			Version: "2.2.0",
-			Address: superchain.HexToAddress("0x0FD765Db621C17E420021405957f9fcE978f2311"),
-		},
-		L1ERC721Bridge: superchain.VersionedContract{
-			Version: "2.0.0",
-			Address: superchain.HexToAddress("0x30e2c20c73353b8ddb6021d5636aef1b91727077"),
-		},
-		L1StandardBridge: superchain.VersionedContract{
-			Version: "2.0.0",
-			Address: superchain.HexToAddress("0xf71db0a6955b3edc78a267cd6441feed4ee0197b"),
-		},
-		OptimismPortal: superchain.VersionedContract{
-			Version: "2.4.0",
-			Address: superchain.HexToAddress("0xF4d33b5284eDc756997E8B61fd5203b35CD3F343"),
-		},
-		SystemConfig: superchain.VersionedContract{
-			Version: "1.11.0",
-			Address: superchain.HexToAddress("0xf55b3dbb3bd2f2fa9236b0be6e8b9e91b819fd14"),
-		},
-		L2OutputOracle: superchain.VersionedContract{
-			Version: "1.7.0",
-			Address: superchain.HexToAddress("0x1187d73b0580f607e1b9c03698238fcad483e776"),
-		},
-		OptimismMintableERC20Factory: superchain.VersionedContract{
-			Version: "1.8.0",
-			Address: superchain.HexToAddress("0x6B047052dc3DafbA003e2fA4fEEe2e883dd5575B"),
-		},
-	},
 	// OP Sepolia
 	11155420: {
 		L1CrossDomainMessenger: superchain.VersionedContract{
-			Version: "2.2.0",
-			Address: superchain.HexToAddress("0x07c9b3A3455714F25525f31E91412715F06062fD"),
+			Version: "2.3.0",
+			Address: superchain.HexToAddress("0xD3494713A5cfaD3F5359379DfA074E2Ac8C6Fd65"),
 		},
 		L1ERC721Bridge: superchain.VersionedContract{
-			Version: "2.0.0",
-			Address: superchain.HexToAddress("0x532cad52e1f812eeb9c9a9571e07fef55993fefa"),
+			Version: "2.1.0",
+			Address: superchain.HexToAddress("0xAE2AF01232a6c4a4d3012C5eC5b1b35059caF10d"),
 		},
 		L1StandardBridge: superchain.VersionedContract{
-			Version: "2.0.0",
-			Address: superchain.HexToAddress("0xe19c7a2c0bb32287731ea75da9b1c836815964f1"),
+			Version: "2.1.0",
+			Address: superchain.HexToAddress("0x64B5a5Ed26DCb17370Ff4d33a8D503f0fbD06CfF"),
 		},
 		OptimismPortal: superchain.VersionedContract{
-			Version: "2.4.0",
-			Address: superchain.HexToAddress("0x9e714EF35d8E9a44a509ebf40924EeD8E7dE461B"),
+			Version: "2.5.0",
+			Address: superchain.HexToAddress("0x2D778797049FE9259d947D1ED8e5442226dFB589"),
 		},
 		SystemConfig: superchain.VersionedContract{
-			Version: "1.11.0",
-			Address: superchain.HexToAddress("0xce77d580e0befbb1561376a722217017651b9dbf"),
+			Version: "1.12.0",
+			Address: superchain.HexToAddress("0xba2492e52F45651B60B8B38d4Ea5E2390C64Ffb1"),
 		},
 		L2OutputOracle: superchain.VersionedContract{
-			Version: "1.7.0",
-			Address: superchain.HexToAddress("0x83aEb8B156cD90E64C702781C84A681DADb1DDe2"),
+			Version: "1.8.0",
+			Address: superchain.HexToAddress("0xF243BEd163251380e78068d317ae10f26042B292"),
 		},
 		OptimismMintableERC20Factory: superchain.VersionedContract{
-			Version: "1.8.0",
-			Address: superchain.HexToAddress("0xd7e63ec8ec03803236be93642a610641dee51e62"),
-		},
-	},
-	// Zora Sepolia
-	999999999: {
-		L1CrossDomainMessenger: superchain.VersionedContract{
-			Version: "2.2.0",
-			Address: superchain.HexToAddress("0x440a330613Ffefae3f33d1d97F8E503447b3e648"),
-		},
-		L1ERC721Bridge: superchain.VersionedContract{
-			Version: "2.0.0",
-			Address: superchain.HexToAddress("0x5ff51b220049151710752ebe65d0a060020f6018"),
-		},
-		L1StandardBridge: superchain.VersionedContract{
-			Version: "2.0.0",
-			Address: superchain.HexToAddress("0xf8e25ec7ca94a960a9392c56c55b68414f5c7ded"),
-		},
-		OptimismPortal: superchain.VersionedContract{
-			Version: "2.4.0",
-			Address: superchain.HexToAddress("0x9EC8b0c9B4c3Cd17Fdc7F33d008ee59080027316"),
-		},
-		SystemConfig: superchain.VersionedContract{
-			Version: "1.11.0",
-			Address: superchain.HexToAddress("0xaeb5f8ed2977e70f4ddacf2f603c0dcf8e561873"),
-		},
-		L2OutputOracle: superchain.VersionedContract{
-			Version: "1.7.0",
-			Address: superchain.HexToAddress("0x1d5a9755983fa8520bb0fc5caf7904fac77ede76"),
-		},
-		OptimismMintableERC20Factory: superchain.VersionedContract{
-			Version: "1.8.0",
-			Address: superchain.HexToAddress("0xc1fa0ca70cd4f392883d2abe00d3971230382996"),
-		},
-	},
-	// PGN Sepolia
-	58008: {
-		L1CrossDomainMessenger: superchain.VersionedContract{
-			Version: "2.2.0",
-			Address: superchain.HexToAddress("0xfD8C8De9F2A2b5E8367325f52b0ecDa4e6809247"),
-		},
-		L1ERC721Bridge: superchain.VersionedContract{
-			Version: "2.0.0",
-			Address: superchain.HexToAddress("0x89eba5aeb024534e6e1575c6bdb0f4f70d32f7da"),
-		},
-		L1StandardBridge: superchain.VersionedContract{
-			Version: "2.0.0",
-			Address: superchain.HexToAddress("0x9cde10006cac4423505864c904e2cfcf124dcaee"),
-		},
-		OptimismPortal: superchain.VersionedContract{
-			Version: "2.4.0",
-			Address: superchain.HexToAddress("0x77977FC9b0b926ce13Da33c1091fc5c1E84187F8"),
-		},
-		SystemConfig: superchain.VersionedContract{
-			Version: "1.11.0",
-			Address: superchain.HexToAddress("0xd1557adfee8eda61619fc227c3dbb41fc16fc840"),
-		},
-		L2OutputOracle: superchain.VersionedContract{
-			Version: "1.7.0",
-			Address: superchain.HexToAddress("0xfae8e4695a0c96ea7ce20e1ed8d401604964315a"),
-		},
-		OptimismMintableERC20Factory: superchain.VersionedContract{
-			Version: "1.8.0",
-			Address: superchain.HexToAddress("0x8b55bf68569a9561a60d48419453ee570f87f7f0"),
+			Version: "1.9.0",
+			Address: superchain.HexToAddress("0xE01efbeb1089D1d1dB9c6c8b135C934C0734c846"),
 		},
 	},
 }
