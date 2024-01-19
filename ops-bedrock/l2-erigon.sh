@@ -16,7 +16,6 @@ COMMON_FLAGS=" \
 
 ERIGON_FLAGS=" \
   ${COMMON_FLAGS} \
-  --ws \
   --mine \
   --miner.etherbase=${BLOCK_SIGNER_ADDRESS} \
   --miner.sigfile=${DATADIR}/nodekey \
@@ -25,6 +24,8 @@ ERIGON_FLAGS=" \
   --http.vhosts=* \
   --http.corsdomain=* \
   --http.api=eth,debug,net,engine,erigon,web3 \
+  --ws \
+  --ws.port=8545 \
   --private.api.addr=0.0.0.0:9090 \
   --allow-insecure-unlock \
   --metrics \
@@ -37,6 +38,7 @@ ERIGON_FLAGS=" \
   --authrpc.port=8551 \
   --authrpc.vhosts=* \
   --authrpc.jwtsecret /config/jwt-secret.txt \
+  --db.size.limit=8TB \
   "
 
 if [ -z "$CHAIN_NAME" ]; then
