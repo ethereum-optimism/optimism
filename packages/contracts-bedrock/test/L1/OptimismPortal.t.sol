@@ -24,13 +24,17 @@ import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 contract OptimismPortal_Test is CommonTest {
     address depositor;
 
-    function setUp() public override {
+    /// @notice Marked virtual to be overriden in
+    ///         test/kontrol/deployment/DeploymentSummary.t.sol
+    function setUp() public virtual override {
         super.setUp();
         depositor = makeAddr("depositor");
     }
 
     /// @dev Tests that the constructor sets the correct values.
-    function test_constructor_succeeds() external {
+    /// @notice Marked virtual to be overriden in
+    ///         test/kontrol/deployment/DeploymentSummary.t.sol
+    function test_constructor_succeeds() external virtual {
         address guardian = deploy.cfg().superchainConfigGuardian();
         assertEq(address(optimismPortal.L2_ORACLE()), address(l2OutputOracle));
         assertEq(address(optimismPortal.l2Oracle()), address(l2OutputOracle));
@@ -267,7 +271,9 @@ contract OptimismPortal_Test is CommonTest {
     }
 
     /// @dev Tests that `isOutputFinalized` succeeds for an EOA depositing a tx with ETH and data.
-    function test_simple_isOutputFinalized_succeeds() external {
+    /// @notice Marked virtual to be overriden in
+    ///         test/kontrol/deployment/DeploymentSummary.t.sol
+    function test_simple_isOutputFinalized_succeeds() external virtual {
         uint256 startingBlockNumber = deploy.cfg().l2OutputOracleStartingBlockNumber();
 
         uint256 ts = block.timestamp;
@@ -287,7 +293,9 @@ contract OptimismPortal_Test is CommonTest {
     }
 
     /// @dev Tests `isOutputFinalized` for a finalized output.
-    function test_isOutputFinalized_succeeds() external {
+    /// @notice Marked virtual to be overriden in
+    ///         test/kontrol/deployment/DeploymentSummary.t.sol
+    function test_isOutputFinalized_succeeds() external virtual {
         uint256 checkpoint = l2OutputOracle.nextBlockNumber();
         uint256 nextOutputIndex = l2OutputOracle.nextOutputIndex();
         vm.roll(checkpoint);
