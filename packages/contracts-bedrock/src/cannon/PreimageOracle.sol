@@ -247,7 +247,7 @@ contract PreimageOracle is IPreimageOracle {
         bytes32 part;
         assembly {
             // Compute the versioned hash. The SHA2 hash of the 48 byte commitment is masked with the version byte,
-            // which is currently 0.
+            // which is currently 1. https://eips.ethereum.org/EIPS/eip-4844#parameters
             calldatacopy(0x00, _commitment.offset, 0x30)
             let success := staticcall(gas(), 0x02, 0x00, 0x30, 0x00, 0x20)
             if iszero(success) {
@@ -256,7 +256,7 @@ contract PreimageOracle is IPreimageOracle {
                 // revert with "ShaFailed()"
                 revert(0x1C, 0x04)
             }
-            let versionedHash := and(mload(0x00), not(shl(248, 0xFF)))
+            let versionedHash := or(and(mload(0x00), not(shl(248, 0xFF))), shl(248, 1))
 
             // we leave solidity slots 0x40 and 0x60 untouched, and everything after as scratch-memory.
             let ptr := 0x80
