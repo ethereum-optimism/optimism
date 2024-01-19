@@ -1,14 +1,20 @@
 package prefetcher
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/binary"
 	"math/rand"
 	"testing"
 
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
+	gokzg4844 "github.com/crate-crypto/go-kzg-4844"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/stretchr/testify/require"
 
@@ -150,6 +156,87 @@ func TestFetchL1Receipts(t *testing.T) {
 		header, actualReceipts := oracle.ReceiptsByBlockHash(hash)
 		require.EqualValues(t, hash, header.Hash())
 		assertReceiptsEqual(t, receipts, actualReceipts)
+	})
+}
+
+// Globally initialize a kzgCtx for blob tests.
+var kzgCtx, _ = gokzg4844.NewContext4096Secure()
+
+func deterministicRandomness(seed int64) [32]byte {
+	// Converts an int64 to a byte slice
+	buf := new(bytes.Buffer)
+	err := binary.Write(buf, binary.BigEndian, seed)
+	if err != nil {
+		log.Error("Failed to write int64 to bytes buffer: %v", err)
+	}
+	bytes := buf.Bytes()
+
+	return sha256.Sum256(bytes)
+}
+
+// Returns a serialized random field element in big-endian
+func GetRandFieldElement(seed int64) [32]byte {
+	bytes := deterministicRandomness(seed)
+	var r fr.Element
+	r.SetBytes(bytes[:])
+
+	return gokzg4844.SerializeScalar(r)
+}
+
+func GetRandBlob(seed int64) gokzg4844.Blob {
+	var blob gokzg4844.Blob
+	bytesPerBlob := gokzg4844.ScalarsPerBlob * gokzg4844.SerializedScalarSize
+	for i := 0; i < bytesPerBlob; i += gokzg4844.SerializedScalarSize {
+		fieldElementBytes := GetRandFieldElement(seed + int64(i))
+		copy(blob[i:i+gokzg4844.SerializedScalarSize], fieldElementBytes[:])
+	}
+	return blob
+}
+
+func TestFetchL1Blob(t *testing.T) {
+	blob := GetRandBlob(0xf00f00)
+	commitment, err := kzgCtx.BlobToKZGCommitment(blob, 0)
+	require.NoError(t, err)
+	versionedHash := sha256.Sum256(commitment[:])
+	versionedHash[0] = params.BlobTxHashVersion
+	blobHash := eth.IndexedBlobHash{Hash: versionedHash, Index: 0xFACADE}
+	l1Ref := eth.L1BlockRef{Time: 0}
+
+	t.Run("AlreadyKnown", func(t *testing.T) {
+		prefetcher, _, blobFetcher, _, kv := createPrefetcher(t)
+		storeBlob(t, kv, (eth.Bytes48)(commitment), (*eth.Blob)(&blob))
+
+		oracle := l1.NewPreimageOracle(asOracleFn(t, prefetcher), asHinter(t, prefetcher))
+		blobFetcher.ExpectOnGetBlobSidecars(
+			context.Background(),
+			l1Ref,
+			[]eth.IndexedBlobHash{blobHash},
+			(eth.Bytes48)(commitment),
+			[]*eth.Blob{(*eth.Blob)(&blob)},
+			nil,
+		)
+		defer blobFetcher.AssertExpectations(t)
+
+		blobs := oracle.GetBlob(l1Ref, blobHash)
+		require.EqualValues(t, blobs[:], blob[:])
+	})
+
+	t.Run("Unknown", func(t *testing.T) {
+		prefetcher, _, blobFetcher, _, _ := createPrefetcher(t)
+
+		oracle := l1.NewPreimageOracle(asOracleFn(t, prefetcher), asHinter(t, prefetcher))
+		blobFetcher.ExpectOnGetBlobSidecars(
+			context.Background(),
+			l1Ref,
+			[]eth.IndexedBlobHash{blobHash},
+			(eth.Bytes48)(commitment),
+			[]*eth.Blob{(*eth.Blob)(&blob)},
+			nil,
+		)
+		defer blobFetcher.AssertExpectations(t)
+
+		blobs := oracle.GetBlob(l1Ref, blobHash)
+		require.EqualValues(t, blobs[:], blob[:])
 	})
 }
 
@@ -391,6 +478,21 @@ func storeBlock(t *testing.T, kv kvstore.KV, block *types.Block, receipts types.
 	headerRlp, err := rlp.EncodeToBytes(block.Header())
 	require.NoError(t, err)
 	require.NoError(t, kv.Put(preimage.Keccak256Key(block.Hash()).PreimageKey(), headerRlp))
+}
+
+func storeBlob(t *testing.T, kv kvstore.KV, commitment eth.Bytes48, blob *eth.Blob) {
+	// Pre-store versioned hash preimage (commitment)
+	_ = kv.Put(preimage.Sha256Key(sha256.Sum256(commitment[:])).PreimageKey(), commitment[:])
+
+	// Pre-store blob field elements
+	blobKeyBuf := make([]byte, 80)
+	copy(blobKeyBuf[:48], commitment[:])
+	for i := 0; i < params.BlobTxFieldElementsPerBlob; i++ {
+		binary.BigEndian.PutUint64(blobKeyBuf[:72], uint64(i))
+		feKey := crypto.Keccak256(blobKeyBuf)
+
+		_ = kv.Put(preimage.BlobKey(feKey).PreimageKey(), blob[i<<5:(i+1)<<5])
+	}
 }
 
 func asOracleFn(t *testing.T, prefetcher *Prefetcher) preimage.OracleFn {

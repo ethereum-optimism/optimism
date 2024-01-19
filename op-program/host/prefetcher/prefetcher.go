@@ -220,7 +220,6 @@ func parseHint(hint string) (string, []byte, error) {
 		return "", make([]byte, 0), fmt.Errorf("unsupported hint: %s", hint)
 	}
 
-	// Trim the `0x` prefix off of the string; Hex2Bytes, unlike HexToHash, does not trim this for us.
 	hintBytes, err := hexutil.Decode(bytesStr)
 	if err != nil {
 		return "", make([]byte, 0), fmt.Errorf("invalid bytes: %s", bytesStr)
