@@ -172,7 +172,7 @@ func TestELSync(gt *testing.T) {
 
 	miner, seqEng, sequencer := setupSequencerTest(t, sd, log)
 	// Enable engine P2P sync
-	verEng, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), &sync.Config{SyncMode: sync.ELSync})
+	verEng, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{SyncMode: sync.ELSync})
 
 	seqEng.AddPeers(verEng.Enode())
 	verEng.AddPeers(seqEng.Enode())

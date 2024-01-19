@@ -84,7 +84,7 @@ func NormalBatcher(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlDebug)
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
-	verifEngine, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), &sync.Config{})
+	verifEngine, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{})
 
 	rollupSeqCl := sequencer.RollupClient()
 	batcher := NewL2Batcher(log, sd.RollupCfg, &BatcherCfg{
@@ -325,7 +325,7 @@ func GarbageBatch(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 		log := testlog.Logger(t, log.LvlError)
 		miner, engine, sequencer := setupSequencerTest(t, sd, log)
 
-		_, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), &sync.Config{})
+		_, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{})
 
 		batcherCfg := &BatcherCfg{
 			MinL1TxSize: 0,
@@ -409,7 +409,7 @@ func ExtendedTimeWithoutL1Batches(gt *testing.T, deltaTimeOffset *hexutil.Uint64
 	log := testlog.Logger(t, log.LvlError)
 	miner, engine, sequencer := setupSequencerTest(t, sd, log)
 
-	_, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), &sync.Config{})
+	_, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{})
 
 	batcher := NewL2Batcher(log, sd.RollupCfg, &BatcherCfg{
 		MinL1TxSize: 0,
@@ -468,7 +468,7 @@ func BigL2Txs(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	log := testlog.Logger(t, log.LvlInfo)
 	miner, engine, sequencer := setupSequencerTest(t, sd, log)
 
-	_, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), &sync.Config{})
+	_, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{})
 
 	batcher := NewL2Batcher(log, sd.RollupCfg, &BatcherCfg{
 		MinL1TxSize: 0,

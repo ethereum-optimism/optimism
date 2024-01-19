@@ -39,7 +39,7 @@ func TestDropSpanBatchBeforeHardfork(gt *testing.T) {
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlError)
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
-	verifEngine, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), &sync.Config{})
+	verifEngine, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{})
 	rollupSeqCl := sequencer.RollupClient()
 
 	// Force batcher to submit SpanBatches to L1.
@@ -129,7 +129,7 @@ func TestHardforkMiddleOfSpanBatch(gt *testing.T) {
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlError)
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
-	verifEngine, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), &sync.Config{})
+	verifEngine, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{})
 	minerCl := miner.EthClient()
 	rollupSeqCl := sequencer.RollupClient()
 
@@ -236,7 +236,7 @@ func TestAcceptSingularBatchAfterHardfork(gt *testing.T) {
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlError)
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
-	verifEngine, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), &sync.Config{})
+	verifEngine, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{})
 	rollupSeqCl := sequencer.RollupClient()
 
 	// Force batcher to submit SingularBatches to L1.
@@ -321,7 +321,7 @@ func TestMixOfBatchesAfterHardfork(gt *testing.T) {
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlError)
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
-	verifEngine, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), &sync.Config{})
+	verifEngine, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{})
 	rollupSeqCl := sequencer.RollupClient()
 	seqEngCl := seqEngine.EthClient()
 
@@ -410,7 +410,7 @@ func TestSpanBatchEmptyChain(gt *testing.T) {
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlError)
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
-	_, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), &sync.Config{})
+	_, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{})
 
 	rollupSeqCl := sequencer.RollupClient()
 	batcher := NewL2Batcher(log, sd.RollupCfg, &BatcherCfg{
@@ -476,7 +476,7 @@ func TestSpanBatchLowThroughputChain(gt *testing.T) {
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlError)
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
-	_, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), &sync.Config{})
+	_, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{})
 
 	rollupSeqCl := sequencer.RollupClient()
 	batcher := NewL2Batcher(log, sd.RollupCfg, &BatcherCfg{
@@ -604,10 +604,10 @@ func TestBatchEquivalence(gt *testing.T) {
 	seqEngCl := seqEngine.EthClient()
 
 	// Setup Delta activated spanVerifier
-	_, spanVerifier := setupVerifier(t, sdDeltaActivated, log, miner.L1Client(t, sdDeltaActivated.RollupCfg), &sync.Config{})
+	_, spanVerifier := setupVerifier(t, sdDeltaActivated, log, miner.L1Client(t, sdDeltaActivated.RollupCfg), miner.BlobStore(), &sync.Config{})
 
 	// Setup Delta deactivated spanVerifier
-	_, singularVerifier := setupVerifier(t, sdDeltaDeactivated, log, miner.L1Client(t, sdDeltaDeactivated.RollupCfg), &sync.Config{})
+	_, singularVerifier := setupVerifier(t, sdDeltaDeactivated, log, miner.L1Client(t, sdDeltaDeactivated.RollupCfg), miner.BlobStore(), &sync.Config{})
 
 	// Setup SpanBatcher
 	spanBatcher := NewL2Batcher(log, sdDeltaActivated.RollupCfg, &BatcherCfg{
