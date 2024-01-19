@@ -263,9 +263,12 @@ contract Deploy is Deployer {
         _run();
     }
     /// @notice
+
     function runWithStateDump() public {
         _run();
-        string memory path = vm.envOr("STATE_DUMP_PATH", string.concat(vm.projectRoot(), "/", name(), "-", vm.toString(block.chainid), ".json"));
+        string memory path = vm.envOr(
+            "STATE_DUMP_PATH", string.concat(vm.projectRoot(), "/", name(), "-", vm.toString(block.chainid), ".json")
+        );
         console.log("Writing state dump to %s", path);
         vm.dumpState(path);
     }
