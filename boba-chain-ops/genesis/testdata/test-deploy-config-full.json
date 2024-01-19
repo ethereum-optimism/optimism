@@ -57,6 +57,7 @@
   "deploymentWaitConfirmations": 1,
   "eip1559Denominator": 8,
   "eip1559Elasticity": 2,
+  "eip1559DenominatorCanyon": 12,
   "fundDevAccounts": true,
   "requiredProtocolVersion": "0x0000000000000000000000000000000000000000000000000000000000000000",
   "recommendedProtocolVersion": "0x0000000000000000000000000000000000000000000000000000000000000000"
