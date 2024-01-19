@@ -3,7 +3,7 @@ version: 2.1
 parameters:
   ci_builder_image:
     type: string
-    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:v0.35.0
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:v0.40.0
   base_image:
     type: string
     default: ubuntu-2204:2022.07.1
