@@ -214,6 +214,17 @@ contract Deploy is Deployer {
         }
     }
 
+    /// @notice Transfer ownership of a Proxy to the ProxyAdmin contract
+    ///         This is expected to be used in conjusting with deployERC1967ProxyWithOwner after setup actions
+    ///         have been performed on the proxy.
+    /// @param _name The name of the proxy to transfer ownership of.
+    function transferProxyToProxyAdmin(string memory _name) public broadcast {
+        Proxy proxy = Proxy(mustGetAddress(_name));
+        address proxyAdmin = mustGetAddress("ProxyAdmin");
+        proxy.changeAdmin(proxyAdmin);
+        console.log("Proxy %s ownership transferred to ProxyAdmin at: %s", _name, proxyAdmin);
+    }
+
     ////////////////////////////////////////////////////////////////
     //                    SetUp and Run                           //
     ////////////////////////////////////////////////////////////////
@@ -432,12 +443,22 @@ contract Deploy is Deployer {
         addr_ = address(proxy);
     }
 
+    /// @notice Deploys an ERC1967Proxy contract with the ProxyAdmin as the owner.
+    /// @param _name The name of the proxy contract to be deployed.
+    /// @return addr_ The address of the deployed proxy contract.
     function deployERC1967Proxy(string memory _name) public broadcast returns (address addr_) {
-        console.log(string.concat("Deploying ERC1967 proxy for", _name, ""));
-        address proxyAdmin = mustGetAddress("ProxyAdmin");
-        Proxy proxy = new Proxy({ _admin: proxyAdmin });
+        addr_ = deployERC1967ProxyWithOwner(_name, mustGetAddress("ProxyAdmin"));
+    }
 
-        require(EIP1967Helper.getAdmin(address(proxy)) == proxyAdmin);
+    /// @notice Deploys an ERC1967Proxy contract with a specified owner.
+    /// @param _name The name of the proxy contract to be deployed.
+    /// @param _proxyOwner The address of the owner of the proxy contract.
+    /// @return addr_ The address of the deployed proxy contract.
+    function deployERC1967ProxyWithOwner(string memory _name, address _proxyOwner) public returns (address addr_) {
+        console.log(string.concat("Deploying ERC1967 proxy for ", _name));
+        Proxy proxy = new Proxy({ _admin: _proxyOwner });
+
+        require(EIP1967Helper.getAdmin(address(proxy)) == _proxyOwner);
 
         save(_name, address(proxy));
         console.log("   at %s", address(proxy));
