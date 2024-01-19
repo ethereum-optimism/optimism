@@ -97,13 +97,13 @@ func (p *Prefetcher) prefetch(ctx context.Context, hint string) error {
 		hash := common.Hash(hintBytes)
 		header, err := p.l1Fetcher.InfoByHash(ctx, hash)
 		if err != nil {
-			return fmt.Errorf("failed to fetch L1 block %s header: %w", hintBytes, err)
+			return fmt.Errorf("failed to fetch L1 block %s header: %w", hash, err)
 		}
 		data, err := header.HeaderRLP()
 		if err != nil {
 			return fmt.Errorf("marshall header: %w", err)
 		}
-		return p.kvStore.Put(preimage.Keccak256Key(hintBytes).PreimageKey(), data)
+		return p.kvStore.Put(preimage.Keccak256Key(hash).PreimageKey(), data)
 	case l1.HintL1Transactions:
 		if len(hintBytes) != 32 {
 			return fmt.Errorf("invalid L1 transactions hint: %x", hint)
@@ -111,7 +111,7 @@ func (p *Prefetcher) prefetch(ctx context.Context, hint string) error {
 		hash := common.Hash(hintBytes)
 		_, txs, err := p.l1Fetcher.InfoAndTxsByHash(ctx, hash)
 		if err != nil {
-			return fmt.Errorf("failed to fetch L1 block %s txs: %w", hintBytes, err)
+			return fmt.Errorf("failed to fetch L1 block %s txs: %w", hash, err)
 		}
 		return p.storeTransactions(txs)
 	case l1.HintL1Receipts:
@@ -121,7 +121,7 @@ func (p *Prefetcher) prefetch(ctx context.Context, hint string) error {
 		hash := common.Hash(hintBytes)
 		_, receipts, err := p.l1Fetcher.FetchReceipts(ctx, hash)
 		if err != nil {
-			return fmt.Errorf("failed to fetch L1 block %s receipts: %w", hintBytes, err)
+			return fmt.Errorf("failed to fetch L1 block %s receipts: %w", hash, err)
 		}
 		return p.storeReceipts(receipts)
 	case l1.HintL1Blob:
@@ -141,7 +141,7 @@ func (p *Prefetcher) prefetch(ctx context.Context, hint string) error {
 		// We pass an `eth.L1BlockRef`, but `GetBlobSidecars` only uses the timestamp, which we received in the hint.
 		sidecars, err := p.l1BlobFetcher.GetBlobSidecars(ctx, eth.L1BlockRef{Time: refTimestamp}, []eth.IndexedBlobHash{indexedBlobHash})
 		if err != nil || len(sidecars) != 1 {
-			return fmt.Errorf("failed to fetch blob sidecars for %x %d: %w", blobVersionHash, blobHashIndex, err)
+			return fmt.Errorf("failed to fetch blob sidecars for %s %d: %w", blobVersionHash, blobHashIndex, err)
 		}
 		sidecar := sidecars[0]
 
@@ -169,13 +169,13 @@ func (p *Prefetcher) prefetch(ctx context.Context, hint string) error {
 		hash := common.Hash(hintBytes)
 		header, txs, err := p.l2Fetcher.InfoAndTxsByHash(ctx, hash)
 		if err != nil {
-			return fmt.Errorf("failed to fetch L2 block %s: %w", hintBytes, err)
+			return fmt.Errorf("failed to fetch L2 block %s: %w", hash, err)
 		}
 		data, err := header.HeaderRLP()
 		if err != nil {
 			return fmt.Errorf("failed to encode header to RLP: %w", err)
 		}
-		err = p.kvStore.Put(preimage.Keccak256Key(hintBytes).PreimageKey(), data)
+		err = p.kvStore.Put(preimage.Keccak256Key(hash).PreimageKey(), data)
 		if err != nil {
 			return err
 		}
@@ -187,9 +187,9 @@ func (p *Prefetcher) prefetch(ctx context.Context, hint string) error {
 		hash := common.Hash(hintBytes)
 		node, err := p.l2Fetcher.NodeByHash(ctx, hash)
 		if err != nil {
-			return fmt.Errorf("failed to fetch L2 state node %s: %w", hintBytes, err)
+			return fmt.Errorf("failed to fetch L2 state node %s: %w", hash, err)
 		}
-		return p.kvStore.Put(preimage.Keccak256Key(hintBytes).PreimageKey(), node)
+		return p.kvStore.Put(preimage.Keccak256Key(hash).PreimageKey(), node)
 	case l2.HintL2Code:
 		if len(hintBytes) != 32 {
 			return fmt.Errorf("invalid L2 code hint: %x", hint)
@@ -197,9 +197,9 @@ func (p *Prefetcher) prefetch(ctx context.Context, hint string) error {
 		hash := common.Hash(hintBytes)
 		code, err := p.l2Fetcher.CodeByHash(ctx, hash)
 		if err != nil {
-			return fmt.Errorf("failed to fetch L2 contract code %s: %w", hintBytes, err)
+			return fmt.Errorf("failed to fetch L2 contract code %s: %w", hash, err)
 		}
-		return p.kvStore.Put(preimage.Keccak256Key(hintBytes).PreimageKey(), code)
+		return p.kvStore.Put(preimage.Keccak256Key(hash).PreimageKey(), code)
 	case l2.HintL2Output:
 		if len(hintBytes) != 32 {
 			return fmt.Errorf("invalid L2 output hint: %x", hint)
@@ -207,9 +207,9 @@ func (p *Prefetcher) prefetch(ctx context.Context, hint string) error {
 		hash := common.Hash(hintBytes)
 		output, err := p.l2Fetcher.OutputByRoot(ctx, hash)
 		if err != nil {
-			return fmt.Errorf("failed to fetch L2 output root %s: %w", hintBytes, err)
+			return fmt.Errorf("failed to fetch L2 output root %s: %w", hash, err)
 		}
-		return p.kvStore.Put(preimage.Keccak256Key(hintBytes).PreimageKey(), output.Marshal())
+		return p.kvStore.Put(preimage.Keccak256Key(hash).PreimageKey(), output.Marshal())
 	}
 	return fmt.Errorf("unknown hint type: %v", hintType)
 }
