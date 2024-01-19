@@ -234,30 +234,42 @@ contract PreimageOracle is IPreimageOracle {
 
     /// @inheritdoc IPreimageOracle
     function loadBlobPreimagePart(
-        uint256 _versionedHash,
         uint256 _z,
         uint256 _y,
         bytes calldata _commitment,
         bytes calldata _proof,
         uint256 _partOffset
-    ) external {
+    )
+        external
+    {
         uint256 size;
         bytes32 key;
         bytes32 part;
         assembly {
-            // we leave solidity slots 0x40 and 0x60 untouched,
-            // and everything after as scratch-memory.
+            // Compute the versioned hash. The SHA2 hash of the 48 byte commitment is masked with the version byte,
+            // which is currently 0.
+            calldatacopy(0x00, _commitment.offset, 0x30)
+            let success := staticcall(gas(), 0x02, 0x00, 0x30, 0x00, 0x20)
+            if iszero(success) {
+                // Store the "ShaFailed()" error selector.
+                mstore(0x00, 0xf9112969)
+                // revert with "ShaFailed()"
+                revert(0x1C, 0x04)
+            }
+            let versionedHash := and(mload(0x00), not(shl(248, 0xFF)))
+
+            // we leave solidity slots 0x40 and 0x60 untouched, and everything after as scratch-memory.
             let ptr := 0x80
 
             // Load the inputs for the point evaluation precompile into memory.
-            mstore(ptr, _versionedHash)
+            mstore(ptr, versionedHash)
             mstore(add(ptr, 0x20), _z)
             mstore(add(ptr, 0x40), _y)
             calldatacopy(add(ptr, 0x60), _commitment.offset, 0x30)
             calldatacopy(add(ptr, 0x90), _proof.offset, 0x30)
 
             // Verify the KZG proof.
-            let success := staticcall(gas(), 0x0A, ptr, 0xC0, 0x00, 0x00)
+            success := staticcall(gas(), 0x0A, ptr, 0xC0, 0x00, 0x00)
             if iszero(success) {
                 // Store the "InvalidProof()" error selector.
                 mstore(0x00, 0x09bde339)

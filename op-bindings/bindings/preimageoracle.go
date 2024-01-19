@@ -852,25 +852,25 @@ func (_PreimageOracle *PreimageOracleTransactorSession) InitLPP(_uuid *big.Int, 
 	return _PreimageOracle.Contract.InitLPP(&_PreimageOracle.TransactOpts, _uuid, _partOffset, _claimedSize)
 }
 
-// LoadBlobPreimagePart is a paid mutator transaction binding the contract method 0x6e1f2130.
+// LoadBlobPreimagePart is a paid mutator transaction binding the contract method 0x9d7e8769.
 //
-// Solidity: function loadBlobPreimagePart(uint256 _versionedHash, uint256 _z, uint256 _y, bytes _commitment, bytes _proof, uint256 _partOffset) returns()
-func (_PreimageOracle *PreimageOracleTransactor) LoadBlobPreimagePart(opts *bind.TransactOpts, _versionedHash *big.Int, _z *big.Int, _y *big.Int, _commitment []byte, _proof []byte, _partOffset *big.Int) (*types.Transaction, error) {
-	return _PreimageOracle.contract.Transact(opts, "loadBlobPreimagePart", _versionedHash, _z, _y, _commitment, _proof, _partOffset)
+// Solidity: function loadBlobPreimagePart(uint256 _z, uint256 _y, bytes _commitment, bytes _proof, uint256 _partOffset) returns()
+func (_PreimageOracle *PreimageOracleTransactor) LoadBlobPreimagePart(opts *bind.TransactOpts, _z *big.Int, _y *big.Int, _commitment []byte, _proof []byte, _partOffset *big.Int) (*types.Transaction, error) {
+	return _PreimageOracle.contract.Transact(opts, "loadBlobPreimagePart", _z, _y, _commitment, _proof, _partOffset)
 }
 
-// LoadBlobPreimagePart is a paid mutator transaction binding the contract method 0x6e1f2130.
+// LoadBlobPreimagePart is a paid mutator transaction binding the contract method 0x9d7e8769.
 //
-// Solidity: function loadBlobPreimagePart(uint256 _versionedHash, uint256 _z, uint256 _y, bytes _commitment, bytes _proof, uint256 _partOffset) returns()
-func (_PreimageOracle *PreimageOracleSession) LoadBlobPreimagePart(_versionedHash *big.Int, _z *big.Int, _y *big.Int, _commitment []byte, _proof []byte, _partOffset *big.Int) (*types.Transaction, error) {
-	return _PreimageOracle.Contract.LoadBlobPreimagePart(&_PreimageOracle.TransactOpts, _versionedHash, _z, _y, _commitment, _proof, _partOffset)
+// Solidity: function loadBlobPreimagePart(uint256 _z, uint256 _y, bytes _commitment, bytes _proof, uint256 _partOffset) returns()
+func (_PreimageOracle *PreimageOracleSession) LoadBlobPreimagePart(_z *big.Int, _y *big.Int, _commitment []byte, _proof []byte, _partOffset *big.Int) (*types.Transaction, error) {
+	return _PreimageOracle.Contract.LoadBlobPreimagePart(&_PreimageOracle.TransactOpts, _z, _y, _commitment, _proof, _partOffset)
 }
 
-// LoadBlobPreimagePart is a paid mutator transaction binding the contract method 0x6e1f2130.
+// LoadBlobPreimagePart is a paid mutator transaction binding the contract method 0x9d7e8769.
 //
-// Solidity: function loadBlobPreimagePart(uint256 _versionedHash, uint256 _z, uint256 _y, bytes _commitment, bytes _proof, uint256 _partOffset) returns()
-func (_PreimageOracle *PreimageOracleTransactorSession) LoadBlobPreimagePart(_versionedHash *big.Int, _z *big.Int, _y *big.Int, _commitment []byte, _proof []byte, _partOffset *big.Int) (*types.Transaction, error) {
-	return _PreimageOracle.Contract.LoadBlobPreimagePart(&_PreimageOracle.TransactOpts, _versionedHash, _z, _y, _commitment, _proof, _partOffset)
+// Solidity: function loadBlobPreimagePart(uint256 _z, uint256 _y, bytes _commitment, bytes _proof, uint256 _partOffset) returns()
+func (_PreimageOracle *PreimageOracleTransactorSession) LoadBlobPreimagePart(_z *big.Int, _y *big.Int, _commitment []byte, _proof []byte, _partOffset *big.Int) (*types.Transaction, error) {
+	return _PreimageOracle.Contract.LoadBlobPreimagePart(&_PreimageOracle.TransactOpts, _z, _y, _commitment, _proof, _partOffset)
 }
 
 // LoadKeccak256PreimagePart is a paid mutator transaction binding the contract method 0xe1592611.
