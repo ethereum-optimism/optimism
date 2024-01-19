@@ -242,12 +242,13 @@ contract PreimageOracle is IPreimageOracle {
     )
         external
     {
-        uint256 size;
         bytes32 key;
         bytes32 part;
         assembly {
             // Compute the versioned hash. The SHA2 hash of the 48 byte commitment is masked with the version byte,
             // which is currently 1. https://eips.ethereum.org/EIPS/eip-4844#parameters
+            // SAFETY: We're only reading 48 bytes from `_commitment` into scratch space, so we're not reading into the
+            //         free memory ptr region.
             calldatacopy(0x00, _commitment.offset, 0x30)
             let success := staticcall(gas(), 0x02, 0x00, 0x30, 0x00, 0x20)
             if iszero(success) {
@@ -256,20 +257,31 @@ contract PreimageOracle is IPreimageOracle {
                 // revert with "ShaFailed()"
                 revert(0x1C, 0x04)
             }
+            // Set the `VERSIONED_HASH_VERSION_KZG` byte = 1 in the high-order byte of the hash.
             let versionedHash := or(and(mload(0x00), not(shl(248, 0xFF))), shl(248, 1))
 
             // we leave solidity slots 0x40 and 0x60 untouched, and everything after as scratch-memory.
             let ptr := 0x80
 
-            // Load the inputs for the point evaluation precompile into memory.
+            // Load the inputs for the point evaluation precompile into memory. The inputs to the point evaluation
+            // precompile are packed, and not supposed to be ABI-encoded.
             mstore(ptr, versionedHash)
             mstore(add(ptr, 0x20), _z)
             mstore(add(ptr, 0x40), _y)
             calldatacopy(add(ptr, 0x60), _commitment.offset, 0x30)
             calldatacopy(add(ptr, 0x90), _proof.offset, 0x30)
 
-            // Verify the KZG proof.
-            success := staticcall(gas(), 0x0A, ptr, 0xC0, 0x00, 0x00)
+            // Verify the KZG proof by calling the point evaluation precompile. If the proof is invalid, the precompile
+            // will revert.
+            success :=
+                staticcall(
+                    gas(), // gas
+                    0x0A, // point evaluation precompile address
+                    ptr, // input ptr
+                    0xC0, // input size = 192 bytes
+                    0x00, // output ptr
+                    0x00 // output size
+                )
             if iszero(success) {
                 // Store the "InvalidProof()" error selector.
                 mstore(0x00, 0x09bde339)
@@ -277,18 +289,15 @@ contract PreimageOracle is IPreimageOracle {
                 revert(0x1C, 0x04)
             }
 
-            // len(sig) + len(partOffset) + len(preimage offset) = 4 + 32 + 32 = 0x44
-            size := calldataload(0x44)
-
-            // revert if part offset >= size+8 (i.e. parts must be within bounds)
-            if iszero(lt(_partOffset, add(size, 0x08))) {
+            // revert if part offset >= 32+8 (i.e. parts must be within bounds)
+            if iszero(lt(_partOffset, 0x28)) {
                 // Store "PartOffsetOOB()"
                 mstore(0x00, 0xfe254987)
                 // Revert with "PartOffsetOOB()"
                 revert(0x1c, 4)
             }
-            // put size as big-endian uint64 at start of pre-image
-            mstore(ptr, shl(192, size))
+            // put size (32) as big-endian uint64 at start of pre-image
+            mstore(ptr, shl(192, 0x20))
             // copy preimage payload into memory so we can hash and read it.
             mstore(add(ptr, 8), _y)
             // Note that it includes the 8-byte big-endian uint64 length prefix.
@@ -304,7 +313,7 @@ contract PreimageOracle is IPreimageOracle {
         }
         preimagePartOk[key][_partOffset] = true;
         preimageParts[key][_partOffset] = part;
-        preimageLengths[key] = size;
+        preimageLengths[key] = 32;
     }
 
     ////////////////////////////////////////////////////////////////
