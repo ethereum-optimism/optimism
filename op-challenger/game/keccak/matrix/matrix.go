@@ -6,6 +6,7 @@ import (
 	"io"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/merkle"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
@@ -15,6 +16,14 @@ import (
 // StateMatrix implements a stateful keccak sponge with the ability to create state commitments after each permutation
 type StateMatrix struct {
 	s *state
+	// prestateLeaf is the last prestate leaf.
+	// Used to retrieve the prestate to squeeze.
+	prestateLeaf types.Leaf
+	// poststateLeaf is the last poststate leaf.
+	// Used to retrieve the poststate to squeeze.
+	poststateLeaf types.Leaf
+	// merkleTree is the internal [merkle.BinaryMerkleTree] used to generate proofs
+	merkleTree *merkle.BinaryMerkleTree
 }
 
 var (
@@ -76,7 +85,16 @@ func Challenge(data io.Reader, commitments []common.Hash) (types.Challenge, erro
 
 // NewStateMatrix creates a new state matrix initialized with the initial, zero keccak block.
 func NewStateMatrix() *StateMatrix {
-	return &StateMatrix{s: newLegacyKeccak256()}
+	return &StateMatrix{
+		s: newLegacyKeccak256(),
+		prestateLeaf: types.Leaf{
+			Index: big.NewInt(0),
+		},
+		poststateLeaf: types.Leaf{
+			Index: big.NewInt(0),
+		},
+		merkleTree: merkle.NewBinaryMerkleTree(),
+	}
 }
 
 // StateCommitment returns the state commitment for the current state matrix.
@@ -93,6 +111,18 @@ func (d *StateMatrix) PackState() []byte {
 		buf = append(buf, math.U256Bytes(new(big.Int).SetUint64(v))...)
 	}
 	return buf
+}
+
+// newLeafWithPadding creates a new [Leaf] from inputs, padding the input to the [BlockSize].
+func newLeafWithPadding(input []byte, index *big.Int, commitment common.Hash) types.Leaf {
+	// TODO(client-pod#480): Add actual keccak padding to ensure the merkle proofs are correct (for readData)
+	paddedInput := make([]byte, types.BlockSize)
+	copy(paddedInput, input)
+	return types.Leaf{
+		Input:           ([types.BlockSize]byte)(paddedInput),
+		Index:           index,
+		StateCommitment: commitment,
+	}
 }
 
 func (d *StateMatrix) AbsorbUpTo(in io.Reader, maxLen int) (types.InputData, error) {
@@ -125,6 +155,24 @@ func (d *StateMatrix) AbsorbUpTo(in io.Reader, maxLen int) (types.InputData, err
 	}, nil
 }
 
+// PrestateWithProof returns the prestate leaf with its merkle proof.
+func (d *StateMatrix) PrestateWithProof() (types.Leaf, merkle.Proof, error) {
+	proof, err := d.merkleTree.ProofAtIndex(d.prestateLeaf.Index.Uint64())
+	if err != nil {
+		return types.Leaf{}, merkle.Proof{}, err
+	}
+	return d.prestateLeaf, proof, nil
+}
+
+// PoststateWithProof returns the poststate leaf with its merkle proof.
+func (d *StateMatrix) PoststateWithProof() (types.Leaf, merkle.Proof, error) {
+	proof, err := d.merkleTree.ProofAtIndex(d.poststateLeaf.Index.Uint64())
+	if err != nil {
+		return types.Leaf{}, merkle.Proof{}, err
+	}
+	return d.poststateLeaf, proof, nil
+}
+
 // absorbNextLeafInput reads up to [BlockSize] bytes from in and absorbs them into the state matrix.
 // If EOF is reached while reading, the state matrix is finalized and [io.EOF] is returned.
 func (d *StateMatrix) absorbNextLeafInput(in io.Reader) ([]byte, error) {
@@ -149,6 +197,14 @@ func (d *StateMatrix) absorbNextLeafInput(in io.Reader) ([]byte, error) {
 	// additional block. We can then return EOF to indicate there are no further blocks.
 	final = final && len(input) < types.BlockSize
 	d.absorbLeafInput(input, final)
+	if d.prestateLeaf.StateCommitment == (common.Hash{}) {
+		d.prestateLeaf = newLeafWithPadding(input, d.prestateLeaf.Index, d.StateCommitment())
+		d.poststateLeaf = newLeafWithPadding(input, d.prestateLeaf.Index, d.StateCommitment())
+	} else {
+		d.prestateLeaf = d.poststateLeaf
+		d.poststateLeaf = newLeafWithPadding(input, new(big.Int).Add(d.prestateLeaf.Index, big.NewInt(1)), d.StateCommitment())
+	}
+	d.merkleTree.AddLeaf(d.poststateLeaf)
 	if final {
 		return input, io.EOF
 	}

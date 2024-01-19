@@ -11,6 +11,10 @@ import (
 // BinaryMerkleTreeDepth is the depth of the merkle tree.
 const BinaryMerkleTreeDepth = 16
 
+// Proof is a list of [common.Hash]s that prove the merkle inclusion of a leaf.
+// These are the sibling hashes of the leaf's path from the root to the leaf.
+type Proof [BinaryMerkleTreeDepth]common.Hash
+
 var (
 	// MaxLeafCount is the maximum number of leaves in the merkle tree.
 	MaxLeafCount = 1<<BinaryMerkleTreeDepth - 1 // 2^16 - 1
@@ -31,10 +35,6 @@ func init() {
 	}
 	rootHash = crypto.Keccak256Hash(rootHash[:], zeroHashes[BinaryMerkleTreeDepth-1][:])
 }
-
-// Proof is a list of [common.Hash]s that prove the merkle inclusion of a leaf.
-// These are the sibling hashes of the leaf's path from the root to the leaf.
-type Proof [BinaryMerkleTreeDepth]common.Hash
 
 // merkleNode is a single node in the binary merkle tree.
 type merkleNode struct {

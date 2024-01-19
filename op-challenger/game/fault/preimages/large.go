@@ -19,8 +19,6 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-var errNotSupported = errors.New("not supported")
-
 var _ PreimageUploader = (*LargePreimageUploader)(nil)
 
 // MaxBlocksPerChunk is the maximum number of keccak blocks per chunk.
@@ -46,7 +44,7 @@ func NewLargePreimageUploader(logger log.Logger, txMgr txmgr.TxManager, contract
 }
 
 func (p *LargePreimageUploader) UploadPreimage(ctx context.Context, parent uint64, data *types.PreimageOracleData) error {
-	calls, err := p.splitCalls(data)
+	stateMatrix, calls, err := p.splitCalls(data)
 	if err != nil {
 		return fmt.Errorf("failed to split preimage into chunks for data with oracle offset %d: %w", data.OracleOffset, err)
 	}
@@ -83,10 +81,7 @@ func (p *LargePreimageUploader) UploadPreimage(ctx context.Context, parent uint6
 		return fmt.Errorf("failed to add leaves to large preimage with uuid: %s: %w", uuid, err)
 	}
 
-	// todo(proofs#467): track the challenge period starting once the full preimage is posted.
-	// todo(proofs#467): once the challenge period is over, call `squeezeLPP` on the preimage oracle contract.
-
-	return errNotSupported
+	return p.Squeeze(ctx, uuid, stateMatrix)
 }
 
 // newUUID generates a new unique identifier for the preimage by hashing the
@@ -102,7 +97,8 @@ func (p *LargePreimageUploader) newUUID(data *types.PreimageOracleData) *big.Int
 }
 
 // splitChunks splits the preimage data into chunks of size [MaxChunkSize] (except the last chunk).
-func (p *LargePreimageUploader) splitCalls(data *types.PreimageOracleData) ([]keccakTypes.InputData, error) {
+// It also returns the state matrix and the data for the squeeze call if possible.
+func (p *LargePreimageUploader) splitCalls(data *types.PreimageOracleData) (*matrix.StateMatrix, []keccakTypes.InputData, error) {
 	// Split the preimage data into chunks of size [MaxChunkSize] (except the last chunk).
 	stateMatrix := matrix.NewStateMatrix()
 	var calls []keccakTypes.InputData
@@ -113,11 +109,37 @@ func (p *LargePreimageUploader) splitCalls(data *types.PreimageOracleData) ([]ke
 			calls = append(calls, call)
 			break
 		} else if err != nil {
-			return nil, fmt.Errorf("failed to absorb data: %w", err)
+			return nil, nil, fmt.Errorf("failed to absorb data: %w", err)
 		}
 		calls = append(calls, call)
 	}
-	return calls, nil
+	return stateMatrix, calls, nil
+}
+
+func (p *LargePreimageUploader) Squeeze(ctx context.Context, uuid *big.Int, stateMatrix *matrix.StateMatrix) error {
+	prestate, prestateProof, err := stateMatrix.PrestateWithProof()
+	if err != nil {
+		return fmt.Errorf("failed to generate prestate proof: %w", err)
+	}
+	poststate, poststateProof, err := stateMatrix.PoststateWithProof()
+	if err != nil {
+		return fmt.Errorf("failed to generate poststate proof: %w", err)
+	}
+	// TODO(client-pod#474): Return the ErrChallengePeriodNotOver error if the challenge period is not over.
+	//                       This allows the responder to retry the squeeze later.
+	//                       Other errors should force the responder to stop retrying.
+	//                       Nil errors should indicate the squeeze was successful.
+	if err := p.contract.CallSqueeze(ctx, p.txMgr.From(), uuid, stateMatrix, prestate, prestateProof, poststate, poststateProof); err != nil {
+		return fmt.Errorf("failed to call squeeze: %w", err)
+	}
+	tx, err := p.contract.Squeeze(p.txMgr.From(), uuid, stateMatrix, prestate, prestateProof, poststate, poststateProof)
+	if err != nil {
+		return fmt.Errorf("failed to create pre-image oracle tx: %w", err)
+	}
+	if err := p.sendTxAndWait(ctx, tx); err != nil {
+		return fmt.Errorf("failed to populate pre-image oracle: %w", err)
+	}
+	return nil
 }
 
 // initLargePreimage initializes the large preimage proposal.

@@ -82,6 +82,24 @@ func (c *PreimageOracleContract) AddLeaves(uuid *big.Int, startingBlockIndex *bi
 	return call.ToTxCandidate()
 }
 
+func (c *PreimageOracleContract) CallSqueeze(
+	ctx context.Context,
+	claimant common.Address,
+	uuid *big.Int,
+	stateMatrix *matrix.StateMatrix,
+	preState keccakTypes.Leaf,
+	preStateProof merkle.Proof,
+	postState keccakTypes.Leaf,
+	postStateProof merkle.Proof,
+) error {
+	call := c.contract.Call(methodSqueezeLPP, claimant, uuid, abiEncodeStateMatrix(stateMatrix), toPreimageOracleLeaf(preState), preStateProof, toPreimageOracleLeaf(postState), postStateProof)
+	_, err := c.multiCaller.SingleCall(ctx, batching.BlockLatest, call)
+	if err != nil {
+		return fmt.Errorf("failed to call resolve claim: %w", err)
+	}
+	return nil
+}
+
 func (c *PreimageOracleContract) Squeeze(
 	claimant common.Address,
 	uuid *big.Int,

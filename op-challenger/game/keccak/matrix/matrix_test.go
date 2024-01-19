@@ -52,8 +52,10 @@ func TestStateCommitment(t *testing.T) {
 }
 
 type testData struct {
-	Input       []byte        `json:"input"`
-	Commitments []common.Hash `json:"commitments"`
+	Input         []byte        `json:"input"`
+	Commitments   []common.Hash `json:"commitments"`
+	PrestateLeaf  []byte        `json:"prestateLeaf"`
+	PoststateLeaf []byte        `json:"poststateLeaf"`
 }
 
 func TestReferenceCommitmentsFromReader(t *testing.T) {
@@ -66,20 +68,29 @@ func TestReferenceCommitmentsFromReader(t *testing.T) {
 			s := NewStateMatrix()
 			commitments := []common.Hash{s.StateCommitment()}
 			in := bytes.NewReader(test.Input)
+			var prestateLeaf []byte
+			var poststateLeaf []byte
 			for {
-				_, err := s.absorbNextLeafInput(in)
+				readData, err := s.absorbNextLeafInput(in)
 				if errors.Is(err, io.EOF) {
+					if prestateLeaf == nil {
+						prestateLeaf = readData
+					}
+					poststateLeaf = readData
 					commitments = append(commitments, s.StateCommitment())
 					break
 				}
 				// Shouldn't get any error except EOF
 				require.NoError(t, err)
 				commitments = append(commitments, s.StateCommitment())
+				prestateLeaf = readData
 			}
 			actual := s.Hash()
 			expected := crypto.Keccak256Hash(test.Input)
 			require.Equal(t, expected, actual)
 			require.Equal(t, test.Commitments, commitments)
+			require.Equal(t, test.PrestateLeaf, prestateLeaf)
+			require.Equal(t, test.PoststateLeaf, poststateLeaf)
 		})
 	}
 }
@@ -270,15 +281,17 @@ func TestVerifyPreimage(t *testing.T) {
 		_, err := s.AbsorbUpTo(bytes.NewReader(preimage), invalidLeafStart)
 		require.NoError(t, err)
 
+		prestateLeaf := leafData(invalidIdx - 1)
+		poststateLeaf := leafData(invalidIdx)
 		return types.Challenge{
 			StateMatrix: s.PackState(),
 			Prestate: types.Leaf{
-				Input:           leafData(invalidIdx - 1),
+				Input:           prestateLeaf,
 				Index:           big.NewInt(int64(invalidIdx - 1)),
 				StateCommitment: commitments[invalidIdx-1],
 			},
 			Poststate: types.Leaf{
-				Input:           leafData(invalidIdx),
+				Input:           poststateLeaf,
 				Index:           big.NewInt(int64(invalidIdx)),
 				StateCommitment: commitments[invalidIdx],
 			},
@@ -292,6 +305,7 @@ func TestVerifyPreimage(t *testing.T) {
 		expectedErr error
 	}
 
+	poststateLeaf := leafData(0)
 	tests := []testInputs{
 		{
 			name:        "Valid",
@@ -309,7 +323,7 @@ func TestVerifyPreimage(t *testing.T) {
 				StateMatrix: NewStateMatrix().PackState(),
 				Prestate:    types.Leaf{},
 				Poststate: types.Leaf{
-					Input:           leafData(0),
+					Input:           poststateLeaf,
 					Index:           big.NewInt(int64(0)),
 					StateCommitment: common.Hash{0xaa},
 				},
