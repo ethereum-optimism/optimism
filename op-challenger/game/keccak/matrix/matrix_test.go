@@ -89,7 +89,7 @@ func TestReferenceCommitmentsFromReader(t *testing.T) {
 			commitments := []common.Hash{s.StateCommitment()}
 			in := bytes.NewReader(test.Input)
 			for {
-				err := s.AbsorbNextLeaf(in)
+				_, err := s.AbsorbNextLeaf(in)
 				if errors.Is(err, io.EOF) {
 					commitments = append(commitments, s.StateCommitment())
 					break
@@ -102,6 +102,61 @@ func TestReferenceCommitmentsFromReader(t *testing.T) {
 			expected := crypto.Keccak256Hash(test.Input)
 			require.Equal(t, expected, actual)
 			require.Equal(t, test.Commitments, commitments)
+		})
+	}
+}
+
+func TestMatrix_AbsorbNextLeaf(t *testing.T) {
+	fullLeaf := make([]byte, LeafSize)
+	for i := 0; i < LeafSize; i++ {
+		fullLeaf[i] = byte(i)
+	}
+	tests := []struct {
+		name  string
+		input []byte
+		leafs [][]byte
+		errs  []error
+	}{
+		{
+			name:  "empty",
+			input: []byte{},
+			leafs: [][]byte{{}},
+			errs:  []error{io.EOF},
+		},
+		{
+			name:  "single",
+			input: fullLeaf,
+			leafs: [][]byte{fullLeaf},
+			errs:  []error{io.EOF},
+		},
+		{
+			name:  "single-overflow",
+			input: append(fullLeaf, byte(9)),
+			leafs: [][]byte{fullLeaf, {byte(9)}},
+			errs:  []error{nil, io.EOF},
+		},
+		{
+			name:  "double",
+			input: append(fullLeaf, fullLeaf...),
+			leafs: [][]byte{fullLeaf, fullLeaf},
+			errs:  []error{nil, io.EOF},
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			state := NewStateMatrix()
+			in := bytes.NewReader(test.input)
+			for i, leaf := range test.leafs {
+				buf, err := state.AbsorbNextLeaf(in)
+				if errors.Is(err, io.EOF) {
+					require.Equal(t, test.errs[i], err)
+					break
+				}
+				require.NoError(t, err)
+				require.Equal(t, leaf, buf)
+			}
 		})
 	}
 }

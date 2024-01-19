@@ -98,18 +98,9 @@ func (c *PreimageOracleContract) InitLargePreimage(uuid *big.Int, partOffset uin
 	return call.ToTxCandidate()
 }
 
-func (c *PreimageOracleContract) AddLeaves(uuid *big.Int, leaves []Leaf, finalize bool) ([]txmgr.TxCandidate, error) {
-	var txs []txmgr.TxCandidate
-	for _, leaf := range leaves {
-		commitments := [][32]byte{([32]byte)(leaf.StateCommitment.Bytes())}
-		call := c.contract.Call(methodAddLeavesLPP, uuid, leaf.Input[:], commitments, finalize)
-		tx, err := call.ToTxCandidate()
-		if err != nil {
-			return nil, err
-		}
-		txs = append(txs, tx)
-	}
-	return txs, nil
+func (c *PreimageOracleContract) AddLeaves(uuid *big.Int, input []byte, commitments [][32]byte, finalize bool) (txmgr.TxCandidate, error) {
+	call := c.contract.Call(methodAddLeavesLPP, uuid, input, commitments, finalize)
+	return call.ToTxCandidate()
 }
 
 func (c *PreimageOracleContract) Squeeze(
