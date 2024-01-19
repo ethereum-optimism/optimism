@@ -73,9 +73,9 @@ type DeployConfig struct {
 	L2GenesisBlockBaseFeePerGas *hexutil.Big   `json:"l2GenesisBlockBaseFeePerGas"`
 
 	// Seconds after genesis block that Regolith hard fork activates. 0 to activate at genesis. Nil to disable regolith
-	L2GenesisRegolithTimeOffset *uint64 `json:"l2GenesisRegolithTimeOffset,omitempty"`
+	L2GenesisRegolithTimeOffset *hexutil.Uint64 `json:"l2GenesisRegolithTimeOffset,omitempty"`
 	// Seconds after genesis block that Canyon hard fork activates. 0 to activate at genesis. Nil to disable canyon
-	L2GenesisCanyonTimeOffset *uint64 `json:"l2GenesisCanyonTimeOffset,omitempty"`
+	L2GenesisCanyonTimeOffset *hexutil.Uint64 `json:"l2GenesisCanyonTimeOffset,omitempty"`
 	// Owner of the ProxyAdmin predeploy
 	ProxyAdminOwner common.Address `json:"proxyAdminOwner"`
 	// Owner of the system on L1
