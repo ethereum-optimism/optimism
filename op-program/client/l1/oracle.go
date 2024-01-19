@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
@@ -110,7 +111,7 @@ func (p *PreimageOracle) GetBlob(ref eth.L1BlockRef, blobHash eth.IndexedBlobHas
 	blob := eth.Blob{}
 	fieldElemKey := make([]byte, 80)
 	copy(fieldElemKey[:48], commitment)
-	for i := 0; i < 4096; i++ {
+	for i := 0; i < params.BlobTxFieldElementsPerBlob; i++ {
 		binary.BigEndian.PutUint64(fieldElemKey[72:], uint64(i))
 		fieldElement := p.oracle.Get(preimage.BlobKey(crypto.Keccak256(fieldElemKey)))
 
