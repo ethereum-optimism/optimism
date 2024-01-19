@@ -221,7 +221,7 @@ bug_report=--bug-report
 bug_report=
 use_booster=--use-booster
 # use_booster=
-state_diff=${WORKSPACE_DIR}/snapshots/state-diff/Kontrol-Deploy.json
+state_diff="./snapshots/state-diff/Kontrol-Deploy.json"
 
 #########################################
 # List of tests to symbolically execute #
