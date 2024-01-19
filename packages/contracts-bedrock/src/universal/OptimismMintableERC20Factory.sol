@@ -13,6 +13,10 @@ import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable
 ///         who may be less familiar with deploying smart contracts. Designed to be backwards
 ///         compatible with the older StandardL2ERC20Factory contract.
 contract OptimismMintableERC20Factory is ISemver, Initializable {
+    /// @custom:spacer OptimismMintableERC20Factory's initializer slot spacing
+    /// @notice Spacer to avoid packing into the initializer slot
+    address private spacer_0_2_20;
+
     /// @notice Address of the StandardBridge on this chain.
     /// @custom:network-specific
     address public bridge;
