@@ -94,7 +94,6 @@ kontrol_prove() {
                         --max-depth ${max_depth}           \
                         --max-iterations ${max_iterations} \
                         --smt-timeout ${smt_timeout}       \
-                        --bmc-depth ${bmc_depth}           \
                         --workers ${workers}               \
                         ${reinit}                          \
                         ${bug_report}                      \
@@ -209,7 +208,6 @@ regen=
 max_depth=1000000
 max_iterations=1000000
 smt_timeout=100000
-bmc_depth=10
 workers=1
 reinit=--reinit
 reinit=
