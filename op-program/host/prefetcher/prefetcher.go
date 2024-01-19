@@ -2,6 +2,7 @@ package prefetcher
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"strings"
@@ -17,6 +18,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 type L1Source interface {
@@ -112,10 +114,43 @@ func (p *Prefetcher) prefetch(ctx context.Context, hint string) error {
 		}
 		return p.storeReceipts(receipts)
 	case l1.HintL1Blob:
-		// blobVersionHash := hintBytes[:32]
-		// blobHashIndex := binary.BigEndian.Uint64(hintBytes[32:40])
-		// refTimestmap := binary.BigEndian.Uint64(hintBytes[40:48])
-		panic("unimplemented")
+		if len(hintBytes) != 48 {
+			return fmt.Errorf("invalid blob hint: %s", hint)
+		}
+
+		blobVersionHash := hintBytes[:32]
+		blobHashIndex := binary.BigEndian.Uint64(hintBytes[32:40])
+		refTimestamp := binary.BigEndian.Uint64(hintBytes[40:48])
+
+		// Fetch the blob sidecar for the indexed blob hash passed in the hint.
+		indexedBlobHash := eth.IndexedBlobHash{
+			Hash:  common.BytesToHash(blobVersionHash),
+			Index: blobHashIndex,
+		}
+		// We pass an `eth.L1BlockRef`, but `GetBlobSidecars` only uses the timestamp, which we received in the hint.
+		sidecars, err := p.l1BlobFetcher.GetBlobSidecars(ctx, eth.L1BlockRef{Time: refTimestamp}, []eth.IndexedBlobHash{indexedBlobHash})
+		if err != nil || len(sidecars) != 1 {
+			return fmt.Errorf("failed to fetch blob sidecars for %s %d: %w", blobVersionHash, blobHashIndex, err)
+		}
+		sidecar := sidecars[0]
+
+		// Put the preimage for the versioned hash into the kv store
+		if err = p.kvStore.Put(preimage.Sha256Key(blobVersionHash).PreimageKey(), sidecar.KZGCommitment[:]); err != nil {
+			return err
+		}
+
+		// Put all of the blob's field elements into the kv store. There should be 4096. The preimage oracle key for
+		// each field element is the hash of `abi.encode(sidecar.KZGCommitment, uint256(i))`
+		blobKey := make([]byte, 80)
+		copy(blobKey[:48], sidecar.KZGCommitment[:])
+		for i := 0; i < params.BlobTxFieldElementsPerBlob; i++ {
+			binary.BigEndian.PutUint64(blobKey[72:], uint64(i))
+			blobKeyHash := crypto.Keccak256(blobKey)
+			if err = p.kvStore.Put(preimage.BlobKey(blobKeyHash).PreimageKey(), sidecar.Blob[i<<5:(i+1)<<5]); err != nil {
+				return err
+			}
+		}
+		return nil
 	case l2.HintL2BlockHeader, l2.HintL2Transactions:
 		header, txs, err := p.l2Fetcher.InfoAndTxsByHash(ctx, common.BytesToHash(hintBytes))
 		if err != nil {
