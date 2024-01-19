@@ -94,22 +94,15 @@ COPY ./versions.json ./versions.json
 
 ENV NODE_MAJOR=20
 
-# note: python3 package in apt is python 3.9, while base image already has python 3.11
 RUN /bin/sh -c set -eux; \
   apt-get update; \
-  apt-get install -y --no-install-recommends bash curl openssh-client git build-essential pkg-config libssl-dev clang libclang-dev ca-certificates jq gnupg binutils-mips-linux-gnu libffi-dev zlib1g-dev libncurses5-dev libgdbm-dev libnss3-dev libreadline-dev wget; \
+  apt-get install -y --no-install-recommends bash curl openssh-client git build-essential pkg-config libssl-dev clang libclang-dev ca-certificates jq gnupg binutils-mips-linux-gnu python3 python3-pip; \
   mkdir -p /etc/apt/keyrings; \
   curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg; \
   echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_$NODE_MAJOR.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list; \
   curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg; \
   chmod a+r /etc/apt/keyrings/docker.gpg; \
   echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null; \
-  wget -P /tmp https://www.python.org/ftp/python/3.12.1/Python-3.12.1.tgz; \
-  tar -xzvf /tmp/Python-3.12.1.tgz -C /tmp; \
-  cd /tmp/Python-3.12.1 && ./configure --enable-optimizations; \
-  make -C /tmp/Python-3.12.1 -j `nproc`; \
-  ln -s /usr/local/bin/python3.12 /usr/local/bin/python3; \
-  ln -s /usr/local/bin/python3.12 /usr/local/bin/python; \
   apt-get update; \
   apt-get install -y nodejs docker-ce-cli; \
   ln -s /usr/local/go/bin/gofmt /usr/local/bin/gofmt; \
