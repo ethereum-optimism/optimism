@@ -320,7 +320,7 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config, snapshotLog log.Logger
 		return fmt.Errorf("failed to create Engine client: %w", err)
 	}
 
-	if err := cfg.Rollup.ValidateL2Config(ctx, n.l2Source); err != nil {
+	if err := cfg.Rollup.ValidateL2Config(ctx, n.l2Source, cfg.Sync.SyncMode == sync.ELSync); err != nil {
 		return err
 	}
 
