@@ -16,7 +16,7 @@
     "sourceCodeHash": "0x6c86ba9f20f54ac834ad846e6302f892b7576dd407db595ebaba017971471eb4"
   },
   "src/L1/L1ERC721Bridge.sol": {
-    "initCodeHash": "0x3efdee58ed808eabaceef0b6dfa238d79a980247e05a9e1d1de696b27eba6b8a",
+    "initCodeHash": "0xec73b46e68ea29298707f7b9709e7948afe303907b6c4e8b161e2ded2c85ee9c",
     "sourceCodeHash": "0xd57acdbd001941e75cf4326ba7c1bdad809912f10b1e44ffaebe073917cdd296"
   },
   "src/L1/L1StandardBridge.sol": {
@@ -64,7 +64,7 @@
     "sourceCodeHash": "0x9993c85445b4a00153d7bbfb8259d920d0b1b6c9fd557c65ad8df47119e55275"
   },
   "src/L2/L2ERC721Bridge.sol": {
-    "initCodeHash": "0xf0485fe5df07192288b67842d3270b0098f12d1f6f384f5bbc83e918fe568edd",
+    "initCodeHash": "0xcafa012b2d8f1bb05c11cbbff9749c0fe6f995c9afb1d26d2d71f03384e34a22",
     "sourceCodeHash": "0xa7646a588275046f92525ef121e5a0fe149e7752ea51fe62f7e0686a21153542"
   },
   "src/L2/L2StandardBridge.sol": {
@@ -128,8 +128,8 @@
     "sourceCodeHash": "0x52737b23e99bf79dd2c23196b3298e80aa41f740efc6adc7916e696833eb546a"
   },
   "src/universal/OptimismMintableERC20Factory.sol": {
-    "initCodeHash": "0x2b6abdf0592028c5babc4b3eb808e7dc36e9d7257a56ddcb10a96b9bb0cc651c",
-    "sourceCodeHash": "0xfe880585d89547c5568c653b3b519e058ea8c339c81f2f3a70791197d8ef865d"
+    "initCodeHash": "0xf6f522681e7ae940cb778db68004f122b25194296a65bba7ad1d792bd593c4a6",
+    "sourceCodeHash": "0x03f25e1721615588908b56636a81785c31b45d43f0b53b4a1920d3e0402c775a"
   },
   "src/universal/OptimismMintableERC721.sol": {
     "initCodeHash": "0xb400f430acf4d65bee9635e4935a6e1e3a0284fc50aea40ad8b7818dc826f31c",
