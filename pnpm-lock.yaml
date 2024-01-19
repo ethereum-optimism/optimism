@@ -303,8 +303,8 @@ importers:
         specifier: ^8.1.0
         version: 8.1.0
       '@vitest/coverage-istanbul':
-        specifier: ^1.2.0
-        version: 1.2.0(vitest@1.0.1)
+        specifier: ^1.2.1
+        version: 1.2.1(vitest@1.0.1)
       '@wagmi/cli':
         specifier: ^2.0.3
         version: 2.0.3(typescript@5.3.3)
@@ -406,8 +406,8 @@ importers:
         specifier: ^8.0.1
         version: 8.0.1(react@17.0.2)
       '@vitest/coverage-istanbul':
-        specifier: ^1.2.0
-        version: 1.2.0(vitest@1.0.1)
+        specifier: ^1.2.1
+        version: 1.2.1(vitest@1.0.1)
       abitype:
         specifier: ^0.10.3
         version: 0.10.3(typescript@5.3.3)
@@ -549,8 +549,8 @@ importers:
         specifier: ^1.3.100
         version: 1.3.100
       '@vitest/coverage-istanbul':
-        specifier: ^1.2.0
-        version: 1.2.0(vitest@1.0.1)
+        specifier: ^1.2.1
+        version: 1.2.1(vitest@1.0.1)
       tsup:
         specifier: ^8.0.1
         version: 8.0.1(@swc/core@1.3.100)(typescript@5.3.3)
@@ -622,7 +622,7 @@ packages:
       '@babel/helper-compilation-targets': 7.23.6
       '@babel/helper-module-transforms': 7.23.3(@babel/core@7.22.10)
       '@babel/helpers': 7.22.10
-      '@babel/parser': 7.23.3
+      '@babel/parser': 7.23.6
       '@babel/template': 7.22.15
       '@babel/traverse': 7.23.3
       '@babel/types': 7.23.6
@@ -884,8 +884,8 @@ packages:
       '@babel/types': 7.23.6
     dev: true
 
-  /@babel/parser@7.23.3:
-    resolution: {integrity: sha512-uVsWNvlVsIninV2prNz/3lHCb+5CJ+e+IUBfbjToAHODtfGYLfCFuY4AU7TskI+dAKk+njsPiBjq1gKTvZOBaw==}
+  /@babel/parser@7.23.6:
+    resolution: {integrity: sha512-Z2uID7YJ7oNvAI20O9X0bblw7Qqs8Q2hFy0R9tAfnfLkp5MW0UH9eUvnDSnFwKZ0AvgS1ucqR4KzvVHgnke1VQ==}
     engines: {node: '>=6.0.0'}
     hasBin: true
     dependencies:
@@ -2025,7 +2025,7 @@ packages:
     engines: {node: '>=6.9.0'}
     dependencies:
       '@babel/code-frame': 7.22.13
-      '@babel/parser': 7.23.3
+      '@babel/parser': 7.23.6
       '@babel/types': 7.23.6
     dev: true
 
@@ -2039,7 +2039,7 @@ packages:
       '@babel/helper-function-name': 7.23.0
       '@babel/helper-hoist-variables': 7.22.5
       '@babel/helper-split-export-declaration': 7.22.6
-      '@babel/parser': 7.23.3
+      '@babel/parser': 7.23.6
       '@babel/types': 7.23.6
       debug: 4.3.4(supports-color@8.1.1)
       globals: 11.12.0
@@ -5010,7 +5010,7 @@ packages:
     peerDependencies:
       '@babel/preset-env': ^7.1.6
     dependencies:
-      '@babel/parser': 7.23.3
+      '@babel/parser': 7.23.6
       '@babel/preset-env': 7.23.7(@babel/core@7.22.10)
       flow-parser: 0.206.0
       glob: 7.2.3
@@ -6452,8 +6452,8 @@ packages:
     resolution: {integrity: sha512-zuVdFrMJiuCDQUMCzQaD6KL28MjnqqN8XnAqiEq9PNm/hCPTSGfrXCOfwj1ow4LFb/tNymJPwsNbVePc1xFqrQ==}
     dev: true
 
-  /@vitest/coverage-istanbul@1.2.0(vitest@1.0.1):
-    resolution: {integrity: sha512-hNN/pUR5la6P/L78+YcRl05Lpf6APXlH9ujkmCxxjVWtVG6WuKuqUMhHgYQBYfiOORBwDZ1MBgSUGCMPh4kpmQ==}
+  /@vitest/coverage-istanbul@1.2.1(vitest@1.0.1):
+    resolution: {integrity: sha512-j8M4R3XbQ7cmLqJd7mfxCpEc0bQ7S6o5VIEt7c0Auri2lT1hkd89Sa/mOYDnuGasTNawamW+0d9vDRK/5uhVXw==}
     peerDependencies:
       vitest: ^1.0.0
     dependencies:
@@ -6463,7 +6463,7 @@ packages:
       istanbul-lib-report: 3.0.1
       istanbul-lib-source-maps: 4.0.1
       istanbul-reports: 3.1.6
-      magicast: 0.3.2
+      magicast: 0.3.3
       picocolors: 1.0.0
       test-exclude: 6.0.0
       vitest: 1.0.1(@types/node@20.10.8)(jsdom@23.2.0)
@@ -6512,7 +6512,7 @@ packages:
   /@vue/compiler-core@3.3.4:
     resolution: {integrity: sha512-cquyDNvZ6jTbf/+x+AgM2Arrp6G4Dzbb0R64jiG804HRMfRiFXWI6kqUVqZ6ZR0bQhIoQjB4+2bhNtVwndW15g==}
     dependencies:
-      '@babel/parser': 7.23.3
+      '@babel/parser': 7.23.6
       '@vue/shared': 3.3.4
       estree-walker: 2.0.2
       source-map-js: 1.0.2
@@ -6528,7 +6528,7 @@ packages:
   /@vue/compiler-sfc@3.3.4:
     resolution: {integrity: sha512-6y/d8uw+5TkCuzBkgLS0v3lSM3hJDntFEiUORM11pQ/hKvkhSKZrXW6i69UyXlJQisJxuUEJKAWEqWbWsLeNKQ==}
     dependencies:
-      '@babel/parser': 7.23.3
+      '@babel/parser': 7.23.6
       '@vue/compiler-core': 3.3.4
       '@vue/compiler-dom': 3.3.4
       '@vue/compiler-ssr': 3.3.4
@@ -6550,7 +6550,7 @@ packages:
   /@vue/reactivity-transform@3.3.4:
     resolution: {integrity: sha512-MXgwjako4nu5WFLAjpBnCj/ieqcjE2aJBINUNQzkZQfzIZA4xn+0fV1tIYBJvvva3N3OvKGofRLvQIwEQPpaXw==}
     dependencies:
-      '@babel/parser': 7.23.3
+      '@babel/parser': 7.23.6
       '@vue/compiler-core': 3.3.4
       '@vue/shared': 3.3.4
       estree-walker: 2.0.2
@@ -11969,7 +11969,7 @@ packages:
     engines: {node: '>=10'}
     dependencies:
       '@babel/core': 7.22.10
-      '@babel/parser': 7.23.3
+      '@babel/parser': 7.23.6
       '@istanbuljs/schema': 0.1.3
       istanbul-lib-coverage: 3.2.2
       semver: 7.5.4
@@ -12217,7 +12217,7 @@ packages:
       '@babel/preset-env': ^7.1.6
     dependencies:
       '@babel/core': 7.22.10
-      '@babel/parser': 7.23.3
+      '@babel/parser': 7.23.6
       '@babel/plugin-proposal-class-properties': 7.18.6(@babel/core@7.22.10)
       '@babel/plugin-proposal-nullish-coalescing-operator': 7.18.6(@babel/core@7.22.10)
       '@babel/plugin-proposal-optional-chaining': 7.21.0(@babel/core@7.22.10)
@@ -12941,10 +12941,10 @@ packages:
       '@jridgewell/sourcemap-codec': 1.4.15
     dev: true
 
-  /magicast@0.3.2:
-    resolution: {integrity: sha512-Fjwkl6a0syt9TFN0JSYpOybxiMCkYNEeOTnOTNRbjphirLakznZXAqrXgj/7GG3D1dvETONNwrBfinvAbpunDg==}
+  /magicast@0.3.3:
+    resolution: {integrity: sha512-ZbrP1Qxnpoes8sz47AM0z08U+jW6TyRgZzcWy3Ma3vDhJttwMwAFDMMQFobwdBxByBD46JYmxRzeF7w2+wJEuw==}
     dependencies:
-      '@babel/parser': 7.23.3
+      '@babel/parser': 7.23.6
       '@babel/types': 7.23.6
       source-map-js: 1.0.2
     dev: true
@@ -13434,7 +13434,7 @@ packages:
     dependencies:
       '@babel/core': 7.22.10
       '@babel/generator': 7.23.3
-      '@babel/parser': 7.23.3
+      '@babel/parser': 7.23.6
       '@babel/types': 7.23.6
       metro: 0.80.3
       metro-babel-transformer: 0.80.3
@@ -13458,7 +13458,7 @@ packages:
       '@babel/code-frame': 7.22.13
       '@babel/core': 7.22.10
       '@babel/generator': 7.23.3
-      '@babel/parser': 7.23.3
+      '@babel/parser': 7.23.6
       '@babel/template': 7.22.15
       '@babel/traverse': 7.23.3
       '@babel/types': 7.23.6
@@ -15237,7 +15237,7 @@ packages:
   /react-native-codegen@0.71.6(@babel/preset-env@7.23.7):
     resolution: {integrity: sha512-e5pR4VldIhEaFctfSAEgxbng0uG4gjBQxAHes3EKLdosH/Av90pQfSe9IDVdFIngvNPzt8Y14pNjrtqov/yNIg==}
     dependencies:
-      '@babel/parser': 7.23.3
+      '@babel/parser': 7.23.6
       flow-parser: 0.185.2
       jscodeshift: 0.14.0(@babel/preset-env@7.23.7)
       nullthrows: 1.1.1
