@@ -665,51 +665,6 @@ jobs:
           command: ./ops/scripts/todo-checker.sh --verbose
       - notify-failures-on-develop
 
-  bedrock-markdown:
-    machine:
-      image: <<pipeline.parameters.base_image>>
-    steps:
-      - checkout
-      - check-changed:
-          patterns: specs/(.*)\.md$
-      - run:
-          name: Install pnpm package manager
-          command: |
-            npm i pnpm --global
-      - run:
-          name: pnpm dev deps
-          command: pnpm install:ci
-      - run:
-          name: specs toc
-          command: pnpm lint:specs:toc && git diff --exit-code ./specs
-      - run:
-          name: markdown lint
-          command: pnpm lint:specs:check
-
-  bedrock-markdown-links:
-    machine:
-      image: <<pipeline.parameters.base_image>>
-    steps:
-      - checkout
-      - run:
-          name: Install pnpm package manager
-          command: |
-            npm i pnpm --global
-      - run:
-          name: Install node_modules
-          command: |
-            pnpm install:ci
-      - run:
-          name: Lint check
-          command: |
-            pnpm lint:specs:check
-      - run:
-          name: link lint
-          command: |
-            make bedrock-markdown-links
-      - notify-failures-on-develop:
-          channel: C055R639XT9 #notify-link-check
-
   fuzz-golang:
     parameters:
       package_name:
@@ -1461,7 +1416,6 @@ workflows:
           requires:
             - "go-mod-tidy"
             - l1-geth-version-check
-      - bedrock-markdown
       - go-lint: # we combine most of the go-lint work for two reasons: (1) warm up the Go build cache, (2) reduce sum of lint time
           name: op-stack-go-lint
           requires: [ "go-mod-tidy" ]
@@ -1878,13 +1832,6 @@ workflows:
           context:
             - slack
             - oplabs-fpp-nodes
-
-  scheduled-link-check:
-    when:
-      equal: [ build_daily, <<pipeline.schedule.name>> ]
-    jobs:
-      - bedrock-markdown-links:
-          context: slack
 
   scheduled-docker-publish:
     when:

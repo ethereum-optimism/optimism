@@ -53,7 +53,7 @@
   },
   "targetDefaults": {
     "lint": {
-      "inputs": ["{workspaceRoot}/.markdownlint.json", "default"]
+      "inputs": ["default"]
     },
     "test": {
       "inputs": ["default", "testing", "^production"],
