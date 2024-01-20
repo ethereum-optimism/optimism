@@ -21,6 +21,7 @@ import (
 	opp2p "github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	opclient "github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
@@ -198,6 +199,29 @@ func (oc *OpConductor) initRPCServer(ctx context.Context) error {
 		Version:   oc.version,
 		Service:   api,
 	})
+
+	if oc.cfg.RPCEnableProxy {
+		execClient, err := dial.DialEthClientWithTimeout(ctx, 1*time.Minute, oc.log, oc.cfg.ExecutionRPC)
+		if err != nil {
+			return errors.Wrap(err, "failed to create execution rpc client")
+		}
+		executionProxy := conductorrpc.NewExecutionProxyBackend(oc.log, oc, execClient)
+		server.AddAPI(rpc.API{
+			Namespace: conductorrpc.ExecutionRPCNamespace,
+			Service:   executionProxy,
+		})
+
+		nodeClient, err := dial.DialRollupClientWithTimeout(ctx, 1*time.Minute, oc.log, oc.cfg.NodeRPC)
+		if err != nil {
+			return errors.Wrap(err, "failed to create node rpc client")
+		}
+		nodeProxy := conductorrpc.NewNodeProxyBackend(oc.log, oc, nodeClient)
+		server.AddAPI(rpc.API{
+			Namespace: conductorrpc.NodeRPCNamespace,
+			Service:   nodeProxy,
+		})
+	}
+
 	oc.rpcServer = server
 	return nil
 }

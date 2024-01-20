@@ -69,6 +69,12 @@ var (
 		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "PAUSED"),
 		Value:   false,
 	}
+	RPCEnableProxy = &cli.BoolFlag{
+		Name:    "rpc.enable-proxy",
+		Usage:   "Enable the RPC proxy to underlying sequencer services",
+		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "RPC_ENABLE_PROXY"),
+		Value:   true,
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -85,6 +91,7 @@ var requiredFlags = []cli.Flag{
 
 var optionalFlags = []cli.Flag{
 	Paused,
+	RPCEnableProxy,
 }
 
 func init() {
