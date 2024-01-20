@@ -31,6 +31,8 @@ type L1EndpointSetup interface {
 
 type L1BeaconEndpointSetup interface {
 	Setup(ctx context.Context, log log.Logger) (cl client.HTTP, err error)
+	// ShouldIgnoreBeaconCheck returns true if the Beacon-node version check should not halt startup.
+	ShouldIgnoreBeaconCheck() bool
 	Check() error
 }
 
@@ -173,7 +175,8 @@ func (cfg *PreparedL1Endpoint) Check() error {
 }
 
 type L1BeaconEndpointConfig struct {
-	BeaconAddr string // Address of L1 User Beacon-API endpoint to use (beacon namespace required)
+	BeaconAddr        string // Address of L1 User Beacon-API endpoint to use (beacon namespace required)
+	BeaconCheckIgnore bool   // When false, halt startup if the beacon version endpoint fails
 }
 
 var _ L1BeaconEndpointSetup = (*L1BeaconEndpointConfig)(nil)
@@ -187,4 +190,8 @@ func (cfg *L1BeaconEndpointConfig) Check() error {
 		return errors.New("expected beacon address, but got none")
 	}
 	return nil
+}
+
+func (cfg *L1BeaconEndpointConfig) ShouldIgnoreBeaconCheck() bool {
+	return cfg.BeaconCheckIgnore
 }

@@ -121,7 +121,8 @@ func NewBeaconEndpointConfig(ctx *cli.Context) node.L1BeaconEndpointSetup {
 		return nil
 	}
 	return &node.L1BeaconEndpointConfig{
-		BeaconAddr: addr,
+		BeaconAddr:        addr,
+		BeaconCheckIgnore: ctx.Bool(flags.BeaconCheckIgnore.Name),
 	}
 }
 

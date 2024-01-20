@@ -49,6 +49,13 @@ var (
 		Required: false,
 		EnvVars:  prefixEnvVars("L1_BEACON"),
 	}
+	BeaconCheckIgnore = &cli.BoolFlag{
+		Name:     "l1.beacon.ignore",
+		Usage:    "When false, halts op-node startup if the healthcheck to the Beacon-node endpoint fails.",
+		Required: false,
+		Value:    true,
+		EnvVars:  prefixEnvVars("L1_BEACON_IGNORE"),
+	}
 	SyncModeFlag = &cli.GenericFlag{
 		Name:    "syncmode",
 		Usage:   fmt.Sprintf("IN DEVELOPMENT: Options are: %s", openum.EnumString(sync.ModeStrings)),
@@ -259,6 +266,7 @@ var requiredFlags = []cli.Flag{
 
 var optionalFlags = []cli.Flag{
 	BeaconAddr,
+	BeaconCheckIgnore,
 	SyncModeFlag,
 	RPCListenAddr,
 	RPCListenPort,

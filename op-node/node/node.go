@@ -315,7 +315,11 @@ func (n *OpNode) initL1BeaconAPI(ctx context.Context, cfg *Config) error {
 		v, err := cl.GetVersion(vctx)
 
 		if err != nil {
-			return fmt.Errorf("failed to check beacon api version: %w", err)
+			if cfg.Beacon.ShouldIgnoreBeaconCheck() {
+				n.log.Warn("failed to check beacon api version", "err", err)
+			} else {
+				return fmt.Errorf("failed to check beacon api version: %w", err)
+			}
 		} else {
 			n.log.Info("connected to beacon api", "version", v)
 		}

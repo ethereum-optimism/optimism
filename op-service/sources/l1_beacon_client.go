@@ -171,6 +171,7 @@ func blobsFromSidecars(blobSidecars []*eth.BlobSidecar, hashes []eth.IndexedBlob
 	return out, nil
 }
 
+// GetVersion fetches the version of the Beacon-node.
 func (cl *L1BeaconClient) GetVersion(ctx context.Context) (string, error) {
 	var resp eth.APIVersionResponse
 	if err := cl.apiReq(ctx, &resp, versionMethod, nil); err != nil {
