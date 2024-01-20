@@ -293,9 +293,13 @@ func (n *OpNode) initRuntimeConfig(ctx context.Context, cfg *Config) error {
 
 func (n *OpNode) initL1BeaconAPI(ctx context.Context, cfg *Config) error {
 	if cfg.Beacon == nil {
-		n.log.Warn("No beacon endpoint configured. Configuration is mandatory for the Ecotone upgrade")
+		if cfg.Rollup.EcotoneTime != nil {
+			n.log.Warn("No beacon endpoint configured. Configuration is mandatory for the Ecotone upgrade", "ecotoneTime", *cfg.Rollup.EcotoneTime)
+		}
+
 		return nil
 	}
+
 	httpClient, err := cfg.Beacon.Setup(ctx, n.log)
 	if err != nil {
 		return fmt.Errorf("failed to setup L1 beacon client: %w", err)
@@ -303,6 +307,19 @@ func (n *OpNode) initL1BeaconAPI(ctx context.Context, cfg *Config) error {
 
 	cl := sources.NewL1BeaconClient(httpClient)
 	n.beacon = cl
+
+	if cfg.Rollup.EcotoneTime != nil {
+		vctx, cancel := context.WithTimeout(ctx, time.Second*10)
+		defer cancel()
+
+		v, err := cl.GetVersion(vctx)
+
+		if err != nil {
+			return fmt.Errorf("failed to check beacon api version: %w", err)
+		} else {
+			n.log.Info("connected to beacon api", "version", v)
+		}
+	}
 
 	return nil
 }

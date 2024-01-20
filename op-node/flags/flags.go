@@ -43,6 +43,12 @@ var (
 		Destination: new(string),
 	}
 	/* Optional Flags */
+	BeaconAddr = &cli.StringFlag{
+		Name:     "l1.beacon",
+		Usage:    "Address of L1 Beacon Client endpoint to use",
+		Required: false,
+		EnvVars:  prefixEnvVars("L1_BEACON"),
+	}
 	SyncModeFlag = &cli.GenericFlag{
 		Name:    "syncmode",
 		Usage:   fmt.Sprintf("IN DEVELOPMENT: Options are: %s", openum.EnumString(sync.ModeStrings)),
@@ -252,6 +258,7 @@ var requiredFlags = []cli.Flag{
 }
 
 var optionalFlags = []cli.Flag{
+	BeaconAddr,
 	SyncModeFlag,
 	RPCListenAddr,
 	RPCListenPort,

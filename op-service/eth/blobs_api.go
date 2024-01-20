@@ -60,3 +60,11 @@ type ReducedConfigData struct {
 type APIConfigResponse struct {
 	Data ReducedConfigData `json:"data"`
 }
+
+type APIVersionResponse struct {
+	Data VersionInformation `json:"data"`
+}
+
+type VersionInformation struct {
+	Version string `json:"version"`
+}
