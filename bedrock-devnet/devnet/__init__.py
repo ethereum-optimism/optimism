@@ -217,7 +217,7 @@ def devnet_deploy(paths):
             'go', 'run', 'cmd/main.go', 'genesis', 'l2',
             '--l1-rpc', 'http://localhost:8545',
             '--deploy-config', paths.devnet_config_path,
-            '--deployment-dir', paths.deployment_dir,
+            '--l1-deployments', paths.addresses_json_path,
             '--outfile.l2', paths.genesis_l2_path,
             '--outfile.rollup', paths.rollup_config_path
         ], cwd=paths.op_node_dir)
