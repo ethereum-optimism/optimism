@@ -316,6 +316,24 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_partOffset",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bytes",
+        "name": "_preimage",
+        "type": "bytes"
+      }
+    ],
+    "name": "loadSha256PreimagePart",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "minProposalSize",
     "outputs": [

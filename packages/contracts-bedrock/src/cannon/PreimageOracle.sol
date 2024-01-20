@@ -212,18 +212,17 @@ contract PreimageOracle is IPreimageOracle {
             part := mload(add(sub(ptr, 8), _partOffset))
 
             // compute SHA2-256 hash with pre-compile
-            let success := staticcall(
-                gas(),  // Forward all available gas
-                0x02,   // Address of SHA-256 precompile
-                ptr,    // Start of input data in memory
-                size,   // Size of input data
-                0,      // Store output in scratch memory
-                0x20    // Output is always 32 bytes
-            )
+            let success :=
+                staticcall(
+                    gas(), // Forward all available gas
+                    0x02, // Address of SHA-256 precompile
+                    ptr, // Start of input data in memory
+                    size, // Size of input data
+                    0, // Store output in scratch memory
+                    0x20 // Output is always 32 bytes
+                )
             // Check if the staticcall succeeded
-            if iszero(success) {
-                revert(0, 0)
-            }
+            if iszero(success) { revert(0, 0) }
             let h := mload(0) // get return data
             // mask out prefix byte, replace with type 4 byte
             key := or(and(h, not(shl(248, 0xFF))), shl(248, 4))
