@@ -47,4 +47,10 @@ interface IPreimageOracle {
     /// @param _partOffset The offset of the preimage to read.
     /// @param _preimage The preimage data.
     function loadKeccak256PreimagePart(uint256 _partOffset, bytes calldata _preimage) external;
+
+    /// @notice Prepares a preimage to be read by SHA2-256 key, starting at
+    ///         the given offset and up to 32 bytes (clipped at preimage length, if out of data).
+    /// @param _partOffset The offset of the preimage to read.
+    /// @param _preimage The preimage data.
+    function loadSha256PreimagePart(uint256 _partOffset, bytes calldata _preimage) external;
 }
