@@ -30,9 +30,9 @@ type Consensus interface {
 	TransferLeaderTo(id, addr string) error
 
 	// CommitPayload commits latest unsafe payload to the FSM.
-	CommitUnsafePayload(payload *eth.ExecutionPayload) error
+	CommitUnsafePayload(payload *eth.ExecutionPayloadEnvelope) error
 	// LatestUnsafeBlock returns the latest unsafe payload from FSM.
-	LatestUnsafePayload() *eth.ExecutionPayload
+	LatestUnsafePayload() *eth.ExecutionPayloadEnvelope
 
 	// Shutdown shuts down the consensus protocol client.
 	Shutdown() error

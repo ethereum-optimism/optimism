@@ -115,7 +115,7 @@ func (_c *Consensus_AddVoter_Call) RunAndReturn(run func(string, string) error) 
 }
 
 // CommitUnsafePayload provides a mock function with given fields: payload
-func (_m *Consensus) CommitUnsafePayload(payload *eth.ExecutionPayload) error {
+func (_m *Consensus) CommitUnsafePayload(payload *eth.ExecutionPayloadEnvelope) error {
 	ret := _m.Called(payload)
 
 	if len(ret) == 0 {
@@ -123,7 +123,7 @@ func (_m *Consensus) CommitUnsafePayload(payload *eth.ExecutionPayload) error {
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(*eth.ExecutionPayload) error); ok {
+	if rf, ok := ret.Get(0).(func(*eth.ExecutionPayloadEnvelope) error); ok {
 		r0 = rf(payload)
 	} else {
 		r0 = ret.Error(0)
@@ -138,14 +138,14 @@ type Consensus_CommitUnsafePayload_Call struct {
 }
 
 // CommitUnsafePayload is a helper method to define mock.On call
-//   - payload *eth.ExecutionPayload
+//   - payload *eth.ExecutionPayloadEnvelope
 func (_e *Consensus_Expecter) CommitUnsafePayload(payload interface{}) *Consensus_CommitUnsafePayload_Call {
 	return &Consensus_CommitUnsafePayload_Call{Call: _e.mock.On("CommitUnsafePayload", payload)}
 }
 
-func (_c *Consensus_CommitUnsafePayload_Call) Run(run func(payload *eth.ExecutionPayload)) *Consensus_CommitUnsafePayload_Call {
+func (_c *Consensus_CommitUnsafePayload_Call) Run(run func(payload *eth.ExecutionPayloadEnvelope)) *Consensus_CommitUnsafePayload_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(*eth.ExecutionPayload))
+		run(args[0].(*eth.ExecutionPayloadEnvelope))
 	})
 	return _c
 }
@@ -155,7 +155,7 @@ func (_c *Consensus_CommitUnsafePayload_Call) Return(_a0 error) *Consensus_Commi
 	return _c
 }
 
-func (_c *Consensus_CommitUnsafePayload_Call) RunAndReturn(run func(*eth.ExecutionPayload) error) *Consensus_CommitUnsafePayload_Call {
+func (_c *Consensus_CommitUnsafePayload_Call) RunAndReturn(run func(*eth.ExecutionPayloadEnvelope) error) *Consensus_CommitUnsafePayload_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -207,19 +207,19 @@ func (_c *Consensus_DemoteVoter_Call) RunAndReturn(run func(string) error) *Cons
 }
 
 // LatestUnsafePayload provides a mock function with given fields:
-func (_m *Consensus) LatestUnsafePayload() *eth.ExecutionPayload {
+func (_m *Consensus) LatestUnsafePayload() *eth.ExecutionPayloadEnvelope {
 	ret := _m.Called()
 
 	if len(ret) == 0 {
 		panic("no return value specified for LatestUnsafePayload")
 	}
 
-	var r0 *eth.ExecutionPayload
-	if rf, ok := ret.Get(0).(func() *eth.ExecutionPayload); ok {
+	var r0 *eth.ExecutionPayloadEnvelope
+	if rf, ok := ret.Get(0).(func() *eth.ExecutionPayloadEnvelope); ok {
 		r0 = rf()
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*eth.ExecutionPayload)
+			r0 = ret.Get(0).(*eth.ExecutionPayloadEnvelope)
 		}
 	}
 
@@ -243,12 +243,12 @@ func (_c *Consensus_LatestUnsafePayload_Call) Run(run func()) *Consensus_LatestU
 	return _c
 }
 
-func (_c *Consensus_LatestUnsafePayload_Call) Return(_a0 *eth.ExecutionPayload) *Consensus_LatestUnsafePayload_Call {
+func (_c *Consensus_LatestUnsafePayload_Call) Return(_a0 *eth.ExecutionPayloadEnvelope) *Consensus_LatestUnsafePayload_Call {
 	_c.Call.Return(_a0)
 	return _c
 }
 
-func (_c *Consensus_LatestUnsafePayload_Call) RunAndReturn(run func() *eth.ExecutionPayload) *Consensus_LatestUnsafePayload_Call {
+func (_c *Consensus_LatestUnsafePayload_Call) RunAndReturn(run func() *eth.ExecutionPayloadEnvelope) *Consensus_LatestUnsafePayload_Call {
 	_c.Call.Return(run)
 	return _c
 }
