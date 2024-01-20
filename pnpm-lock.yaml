@@ -124,7 +124,7 @@ importers:
         version: 8.0.1(@swc/core@1.3.100)(typescript@5.3.3)
       vitest:
         specifier: ^1.0.1
-        version: 1.0.1(@types/node@20.10.8)(jsdom@23.2.0)
+        version: 1.0.1(@types/node@20.10.8)
 
   packages/chain-mon:
     dependencies:
@@ -333,8 +333,8 @@ importers:
         specifier: ^5.3.3
         version: 5.3.3
       vite:
-        specifier: ^5.0.11
-        version: 5.0.11(@types/node@20.10.8)
+        specifier: ^5.0.12
+        version: 5.0.12(@types/node@20.10.8)
       vitest:
         specifier: ^1.0.1
         version: 1.0.1(@types/node@20.10.8)(jsdom@23.2.0)
@@ -430,8 +430,8 @@ importers:
         specifier: ^2.0.3
         version: 2.0.3(typescript@5.3.3)(zod@3.22.4)
       vite:
-        specifier: ^5.0.11
-        version: 5.0.11(@types/node@20.10.8)
+        specifier: ^5.0.12
+        version: 5.0.12(@types/node@20.10.8)
       vitest:
         specifier: ^1.0.1
         version: 1.0.1(@types/node@20.10.8)(jsdom@23.2.0)
@@ -522,7 +522,7 @@ importers:
         version: 2.0.3(typescript@5.3.3)(zod@3.22.4)
       vitest:
         specifier: ^1.0.1
-        version: 1.0.1(@types/node@20.10.8)(jsdom@23.2.0)
+        version: 1.0.1(@types/node@20.10.8)
       zod:
         specifier: ^3.22.4
         version: 3.22.4
@@ -561,11 +561,11 @@ importers:
         specifier: ^2.0.3
         version: 2.0.3(typescript@5.3.3)(zod@3.22.4)
       vite:
-        specifier: ^5.0.11
-        version: 5.0.11(@types/node@20.10.8)
+        specifier: ^5.0.12
+        version: 5.0.12(@types/node@20.10.8)
       vitest:
         specifier: ^1.0.1
-        version: 1.0.1(@types/node@20.10.8)(jsdom@23.2.0)
+        version: 1.0.1(@types/node@20.10.8)
       zod:
         specifier: ^3.22.4
         version: 3.22.4
@@ -17464,7 +17464,7 @@ packages:
       debug: 4.3.4(supports-color@8.1.1)
       pathe: 1.1.1
       picocolors: 1.0.0
-      vite: 5.0.11(@types/node@20.10.8)
+      vite: 5.0.12(@types/node@20.10.8)
     transitivePeerDependencies:
       - '@types/node'
       - less
@@ -17474,42 +17474,6 @@ packages:
       - sugarss
       - supports-color
       - terser
-    dev: true
-
-  /vite@5.0.10(@types/node@20.10.8):
-    resolution: {integrity: sha512-2P8J7WWgmc355HUMlFrwofacvr98DAjoE52BfdbwQtyLH06XKwaL/FMnmKM2crF0iX4MpmMKoDlNCB1ok7zHCw==}
-    engines: {node: ^18.0.0 || >=20.0.0}
-    hasBin: true
-    peerDependencies:
-      '@types/node': ^18.0.0 || >=20.0.0
-      less: '*'
-      lightningcss: ^1.21.0
-      sass: '*'
-      stylus: '*'
-      sugarss: '*'
-      terser: ^5.4.0
-    peerDependenciesMeta:
-      '@types/node':
-        optional: true
-      less:
-        optional: true
-      lightningcss:
-        optional: true
-      sass:
-        optional: true
-      stylus:
-        optional: true
-      sugarss:
-        optional: true
-      terser:
-        optional: true
-    dependencies:
-      '@types/node': 20.10.8
-      esbuild: 0.19.10
-      postcss: 8.4.32
-      rollup: 4.5.1
-    optionalDependencies:
-      fsevents: 2.3.3
     dev: true
 
   /vite@5.0.11(@types/node@20.10.8):
@@ -17546,6 +17510,99 @@ packages:
       rollup: 4.5.1
     optionalDependencies:
       fsevents: 2.3.3
+    dev: true
+
+  /vite@5.0.12(@types/node@20.10.8):
+    resolution: {integrity: sha512-4hsnEkG3q0N4Tzf1+t6NdN9dg/L3BM+q8SWgbSPnJvrgH2kgdyzfVJwbR1ic69/4uMJJ/3dqDZZE5/WwqW8U1w==}
+    engines: {node: ^18.0.0 || >=20.0.0}
+    hasBin: true
+    peerDependencies:
+      '@types/node': ^18.0.0 || >=20.0.0
+      less: '*'
+      lightningcss: ^1.21.0
+      sass: '*'
+      stylus: '*'
+      sugarss: '*'
+      terser: ^5.4.0
+    peerDependenciesMeta:
+      '@types/node':
+        optional: true
+      less:
+        optional: true
+      lightningcss:
+        optional: true
+      sass:
+        optional: true
+      stylus:
+        optional: true
+      sugarss:
+        optional: true
+      terser:
+        optional: true
+    dependencies:
+      '@types/node': 20.10.8
+      esbuild: 0.19.10
+      postcss: 8.4.32
+      rollup: 4.5.1
+    optionalDependencies:
+      fsevents: 2.3.3
+    dev: true
+
+  /vitest@1.0.1(@types/node@20.10.8):
+    resolution: {integrity: sha512-MHsOj079S28hDsvdDvyD1pRj4dcS51EC5Vbe0xvOYX+WryP8soiK2dm8oULi+oA/8Xa/h6GoJEMTmcmBy5YM+Q==}
+    engines: {node: ^18.0.0 || >=20.0.0}
+    hasBin: true
+    peerDependencies:
+      '@edge-runtime/vm': '*'
+      '@types/node': ^18.0.0 || >=20.0.0
+      '@vitest/browser': ^1.0.0
+      '@vitest/ui': ^1.0.0
+      happy-dom: '*'
+      jsdom: '*'
+    peerDependenciesMeta:
+      '@edge-runtime/vm':
+        optional: true
+      '@types/node':
+        optional: true
+      '@vitest/browser':
+        optional: true
+      '@vitest/ui':
+        optional: true
+      happy-dom:
+        optional: true
+      jsdom:
+        optional: true
+    dependencies:
+      '@types/node': 20.10.8
+      '@vitest/expect': 1.0.1
+      '@vitest/runner': 1.0.1
+      '@vitest/snapshot': 1.0.1
+      '@vitest/spy': 1.0.1
+      '@vitest/utils': 1.0.1
+      acorn-walk: 8.3.0
+      cac: 6.7.14
+      chai: 4.3.10
+      debug: 4.3.4(supports-color@8.1.1)
+      execa: 8.0.1
+      local-pkg: 0.5.0
+      magic-string: 0.30.5
+      pathe: 1.1.1
+      picocolors: 1.0.0
+      std-env: 3.6.0
+      strip-literal: 1.3.0
+      tinybench: 2.5.1
+      tinypool: 0.8.1
+      vite: 5.0.11(@types/node@20.10.8)
+      vite-node: 1.0.1(@types/node@20.10.8)
+      why-is-node-running: 2.2.2
+    transitivePeerDependencies:
+      - less
+      - lightningcss
+      - sass
+      - stylus
+      - sugarss
+      - supports-color
+      - terser
     dev: true
 
   /vitest@1.0.1(@types/node@20.10.8)(jsdom@23.2.0):
@@ -17593,7 +17650,7 @@ packages:
       strip-literal: 1.3.0
       tinybench: 2.5.1
       tinypool: 0.8.1
-      vite: 5.0.10(@types/node@20.10.8)
+      vite: 5.0.12(@types/node@20.10.8)
       vite-node: 1.0.1(@types/node@20.10.8)
       why-is-node-running: 2.2.2
     transitivePeerDependencies:
