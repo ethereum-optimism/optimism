@@ -53,7 +53,7 @@ var (
 		Name:     "l1.beacon.ignore",
 		Usage:    "When false, halts op-node startup if the healthcheck to the Beacon-node endpoint fails.",
 		Required: false,
-		Value:    true,
+		Value:    false,
 		EnvVars:  prefixEnvVars("L1_BEACON_IGNORE"),
 	}
 	SyncModeFlag = &cli.GenericFlag{
