@@ -45,7 +45,7 @@ var (
 	/* Optional Flags */
 	BeaconAddr = &cli.StringFlag{
 		Name:     "l1.beacon",
-		Usage:    "Address of L1 Beacon Client endpoint to use",
+		Usage:    "Address of L1 Beacon-node HTTP endpoint to use.",
 		Required: false,
 		EnvVars:  prefixEnvVars("L1_BEACON"),
 	}
