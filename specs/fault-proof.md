@@ -135,7 +135,7 @@ as there is no way to revert it to the original commitment without knowing said 
 
 A SHA-256 pre-image.
 
-Key: the SHA-256 hash, with the first byte overwritten with the type byte: `4 ++ sha256(data)`.
+Key: the SHA-256 hash, with the first byte overwritten with the type byte: `4 ++ sha256(data)[1:]`.
 
 #### Type `5`: Global EIP-4844 Point-evaluation key
 
