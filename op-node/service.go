@@ -116,12 +116,8 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 }
 
 func NewBeaconEndpointConfig(ctx *cli.Context) node.L1BeaconEndpointSetup {
-	addr := ctx.String(flags.BeaconAddr.Name)
-	if addr == "" {
-		return nil
-	}
 	return &node.L1BeaconEndpointConfig{
-		BeaconAddr:        addr,
+		BeaconAddr:        ctx.String(flags.BeaconAddr.Name),
 		BeaconCheckIgnore: ctx.Bool(flags.BeaconCheckIgnore.Name),
 	}
 }

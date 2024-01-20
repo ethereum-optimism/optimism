@@ -2,10 +2,10 @@ package client
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -28,16 +28,19 @@ type BasicHTTPClient struct {
 }
 
 func NewBasicHTTPClient(endpoint string, log log.Logger) *BasicHTTPClient {
-	// Make sure the endpoint ends in trailing slash
-	trimmedEndpoint := strings.TrimSuffix(endpoint, "/") + "/"
 	return &BasicHTTPClient{
-		endpoint: trimmedEndpoint,
+		endpoint: endpoint,
 		log:      log,
 		client:   &http.Client{Timeout: DefaultTimeoutSeconds * time.Second},
 	}
 }
 
+var ErrNoEndpoint = errors.New("no endpoint is configured")
+
 func (cl *BasicHTTPClient) Get(ctx context.Context, p string, query url.Values, headers http.Header) (*http.Response, error) {
+	if cl.endpoint == "" {
+		return nil, ErrNoEndpoint
+	}
 	target, err := url.Parse(cl.endpoint)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse endpoint URL: %w", err)

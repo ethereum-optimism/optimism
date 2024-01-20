@@ -186,8 +186,8 @@ func (cfg *L1BeaconEndpointConfig) Setup(ctx context.Context, log log.Logger) (c
 }
 
 func (cfg *L1BeaconEndpointConfig) Check() error {
-	if cfg.BeaconAddr == "" {
-		return errors.New("expected beacon address, but got none")
+	if cfg.BeaconAddr == "" && !cfg.BeaconCheckIgnore {
+		return errors.New("expected L1 Beacon API endpoint, but got none")
 	}
 	return nil
 }
