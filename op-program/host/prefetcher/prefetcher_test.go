@@ -467,7 +467,8 @@ func storeBlock(t *testing.T, kv kvstore.KV, block *types.Block, receipts types.
 
 func storeBlob(t *testing.T, kv kvstore.KV, commitment eth.Bytes48, blob *eth.Blob) {
 	// Pre-store versioned hash preimage (commitment)
-	_ = kv.Put(preimage.Sha256Key(sha256.Sum256(commitment[:])).PreimageKey(), commitment[:])
+	err := kv.Put(preimage.Sha256Key(sha256.Sum256(commitment[:])).PreimageKey(), commitment[:])
+	require.NoError(t, err, "Failed to store versioned hash preimage in kvstore")
 
 	// Pre-store blob field elements
 	blobKeyBuf := make([]byte, 80)
@@ -476,7 +477,8 @@ func storeBlob(t *testing.T, kv kvstore.KV, commitment eth.Bytes48, blob *eth.Bl
 		binary.BigEndian.PutUint64(blobKeyBuf[:72], uint64(i))
 		feKey := crypto.Keccak256Hash(blobKeyBuf)
 
-		_ = kv.Put(preimage.BlobKey(feKey).PreimageKey(), blob[i<<5:(i+1)<<5])
+		err = kv.Put(preimage.BlobKey(feKey).PreimageKey(), blob[i<<5:(i+1)<<5])
+		require.NoError(t, err, "Failed to store field element preimage in kvstore")
 	}
 }
 
