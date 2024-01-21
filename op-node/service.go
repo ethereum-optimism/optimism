@@ -78,6 +78,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		L2:     l2Endpoint,
 		Rollup: *rollupConfig,
 		Driver: *driverConfig,
+		Beacon: NewBeaconEndpointConfig(ctx),
 		RPC: node.RPCConfig{
 			ListenAddr:  ctx.String(flags.RPCListenAddr.Name),
 			ListenPort:  ctx.Int(flags.RPCListenPort.Name),
@@ -112,6 +113,13 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		return nil, err
 	}
 	return cfg, nil
+}
+
+func NewBeaconEndpointConfig(ctx *cli.Context) node.L1BeaconEndpointSetup {
+	return &node.L1BeaconEndpointConfig{
+		BeaconAddr:        ctx.String(flags.BeaconAddr.Name),
+		BeaconCheckIgnore: ctx.Bool(flags.BeaconCheckIgnore.Name),
+	}
 }
 
 func NewL1EndpointConfig(ctx *cli.Context) *node.L1EndpointConfig {

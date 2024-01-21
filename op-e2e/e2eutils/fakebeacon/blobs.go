@@ -129,6 +129,15 @@ func (f *FakeBeacon) Start(addr string) error {
 			f.log.Error("blobs handler err", "err", err)
 		}
 	})
+	mux.HandleFunc("/eth/v1/node/version", func(w http.ResponseWriter, r *http.Request) {
+		err := json.NewEncoder(w).Encode(&eth.APIVersionResponse{Data: eth.VersionInformation{Version: "fakebeacon 1.2.3"}})
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			f.log.Error("version handler err", "err", err)
+		} else {
+			w.WriteHeader(http.StatusOK)
+		}
+	})
 	f.beaconSrv = &http.Server{
 		Handler:           mux,
 		ReadTimeout:       time.Second * 20,

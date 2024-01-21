@@ -19,6 +19,7 @@ import (
 )
 
 const (
+	versionMethod        = "eth/v1/node/version"
 	genesisMethod        = "eth/v1/beacon/genesis"
 	specMethod           = "eth/v1/config/spec"
 	sidecarsMethodPrefix = "eth/v1/beacon/blob_sidecars/"
@@ -168,4 +169,13 @@ func blobsFromSidecars(blobSidecars []*eth.BlobSidecar, hashes []eth.IndexedBlob
 		out[i] = &sidecar.Blob
 	}
 	return out, nil
+}
+
+// GetVersion fetches the version of the Beacon-node.
+func (cl *L1BeaconClient) GetVersion(ctx context.Context) (string, error) {
+	var resp eth.APIVersionResponse
+	if err := cl.apiReq(ctx, &resp, versionMethod, nil); err != nil {
+		return "", err
+	}
+	return resp.Data.Version, nil
 }
