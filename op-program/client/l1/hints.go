@@ -2,6 +2,7 @@ package l1
 
 import (
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 )
@@ -42,5 +43,5 @@ type BlobHint []byte
 var _ preimage.Hint = BlobHint{}
 
 func (l BlobHint) Hint() string {
-	return HintL1Blob + " 0x" + common.Bytes2Hex(l)
+	return HintL1Blob + " " + hexutil.Encode(l)
 }

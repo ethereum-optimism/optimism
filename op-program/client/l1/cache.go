@@ -1,10 +1,13 @@
 package l1
 
 import (
+	"encoding/binary"
+
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -68,11 +71,18 @@ func (o *CachingOracle) ReceiptsByBlockHash(blockHash common.Hash) (eth.BlockInf
 }
 
 func (o *CachingOracle) GetBlob(ref eth.L1BlockRef, blobHash eth.IndexedBlobHash) *eth.Blob {
-	blob, ok := o.blobs.Get(blobHash.Hash)
+	// Create a 32 byte hash key by hashing `blobHash.Hash ++ ref.Time ++ blobHash.Index`
+	hashBuf := make([]byte, 48)
+	copy(hashBuf[0:32], blobHash.Hash[:])
+	binary.BigEndian.PutUint64(hashBuf[32:], ref.Time)
+	binary.BigEndian.PutUint64(hashBuf[40:], blobHash.Index)
+	cacheKey := crypto.Keccak256Hash(hashBuf)
+
+	blob, ok := o.blobs.Get(cacheKey)
 	if ok {
 		return blob
 	}
 	blob = o.oracle.GetBlob(ref, blobHash)
-	o.blobs.Add(blobHash.Hash, blob)
+	o.blobs.Add(cacheKey, blob)
 	return blob
 }
