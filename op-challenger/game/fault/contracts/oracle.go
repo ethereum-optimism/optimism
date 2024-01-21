@@ -3,6 +3,7 @@ package contracts
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"math"
 	"math/big"
@@ -24,6 +25,12 @@ const (
 	methodProposalCount             = "proposalCount"
 	methodProposals                 = "proposals"
 	methodProposalMetadata          = "proposalMetadata"
+	methodProposalBlocksLen         = "proposalBlocksLen"
+	methodProposalBlocks            = "proposalBlocks"
+)
+
+var (
+	ErrInvalidAddLeavesCall = errors.New("tx is not a valid addLeaves call")
 )
 
 // PreimageOracleContract is a binding that works with contracts implementing the IPreimageOracle interface
@@ -165,6 +172,61 @@ func (c *PreimageOracleContract) GetProposalMetadata(ctx context.Context, block 
 		})
 	}
 	return proposals, nil
+}
+
+func (c *PreimageOracleContract) GetInputDataBlocks(ctx context.Context, block batching.Block, ident keccakTypes.LargePreimageIdent) ([]uint64, error) {
+	results, err := batching.ReadArray(ctx, c.multiCaller, block,
+		c.contract.Call(methodProposalBlocksLen, ident.Claimant, ident.UUID),
+		func(i *big.Int) *batching.ContractCall {
+			return c.contract.Call(methodProposalBlocks, ident.Claimant, ident.UUID, i)
+		})
+	if err != nil {
+		return nil, fmt.Errorf("failed to load proposal blocks: %w", err)
+	}
+	blockNums := make([]uint64, 0, len(results))
+	for _, result := range results {
+		blockNums = append(blockNums, result.GetUint64(0))
+	}
+	return blockNums, nil
+}
+
+func (c *PreimageOracleContract) DecodeInputData(data []byte) (*big.Int, keccakTypes.InputData, error) {
+	method, args, err := c.contract.DecodeCall(data)
+	if errors.Is(err, batching.ErrUnknownMethod) {
+		return nil, keccakTypes.InputData{}, ErrInvalidAddLeavesCall
+	} else if err != nil {
+		return nil, keccakTypes.InputData{}, err
+	}
+	if method != methodAddLeavesLPP {
+		return nil, keccakTypes.InputData{}, fmt.Errorf("%w: %v", ErrInvalidAddLeavesCall, method)
+	}
+	uuid := args.GetBigInt(0)
+	input := args.GetBytes(1)
+	stateCommitments := args.GetBytes32Slice(2)
+	finalize := args.GetBool(3)
+
+	if !finalize {
+		// Must contain exactly the right length of input data when not finalizing
+		expectedLen := keccakTypes.BlockSize * len(stateCommitments)
+		if len(input) != expectedLen {
+			return nil, keccakTypes.InputData{}, fmt.Errorf("%w: expected input of length %v but was %v", ErrInvalidAddLeavesCall, expectedLen, len(input))
+		}
+	} else {
+		// Must contain complete leaf data for all but the last leaf
+		minLen := keccakTypes.BlockSize * (len(stateCommitments) - 1)
+		if len(input) < minLen {
+			return nil, keccakTypes.InputData{}, fmt.Errorf("%w: expected input of at least length %v but was %v", ErrInvalidAddLeavesCall, minLen, len(input))
+		}
+	}
+	commitments := make([]common.Hash, 0, len(stateCommitments))
+	for _, c := range stateCommitments {
+		commitments = append(commitments, c)
+	}
+	return uuid, keccakTypes.InputData{
+		Input:       input,
+		Commitments: commitments,
+		Finalize:    finalize,
+	}, nil
 }
 
 func (c *PreimageOracleContract) decodePreimageIdent(result *batching.CallResult) keccakTypes.LargePreimageIdent {
