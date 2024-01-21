@@ -3,6 +3,7 @@ package contracts
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"math"
 	"math/big"
@@ -24,6 +25,14 @@ const (
 	methodProposalCount             = "proposalCount"
 	methodProposals                 = "proposals"
 	methodProposalMetadata          = "proposalMetadata"
+	methodProposalBlocksLen         = "proposalBlocksLen"
+	methodProposalBlocks            = "proposalBlocks"
+
+	LeafSize = 136
+)
+
+var (
+	ErrInvalidAddLeavesCall = errors.New("tx is not a valid addLeaves call")
 )
 
 // PreimageOracleContract is a binding that works with contracts implementing the IPreimageOracle interface
@@ -36,7 +45,7 @@ type PreimageOracleContract struct {
 // Leaf is the keccak state matrix added to the large preimage merkle tree.
 type Leaf struct {
 	// Input is the data absorbed for the block, exactly 136 bytes
-	Input [136]byte
+	Input [LeafSize]byte
 	// Index of the block in the absorption process
 	Index *big.Int
 	// StateCommitment is the hash of the internal state after absorbing the input.
@@ -174,6 +183,69 @@ func (c *PreimageOracleContract) GetActivePreimages(ctx context.Context, blockHa
 	}
 
 	return proposals, nil
+}
+
+func (c *PreimageOracleContract) GetLeafBlocks(ctx context.Context, block batching.Block, ident gameTypes.LargePreimageIdent) ([]uint64, error) {
+	results, err := batching.ReadArray(ctx, c.multiCaller, block,
+		c.contract.Call(methodProposalBlocksLen, ident.Claimant, ident.UUID),
+		func(i *big.Int) *batching.ContractCall {
+			return c.contract.Call(methodProposalBlocks, ident.Claimant, ident.UUID, i)
+		})
+	if err != nil {
+		return nil, fmt.Errorf("failed to load proposal blocks: %w", err)
+	}
+	blockNums := make([]uint64, 0, len(results))
+	for _, result := range results {
+		blockNums = append(blockNums, result.GetUint64(0))
+	}
+	return blockNums, nil
+}
+
+func (c *PreimageOracleContract) DecodeLeafData(data []byte) (*big.Int, []Leaf, error) {
+	method, args, err := c.contract.DecodeCall(data)
+	if errors.Is(err, batching.ErrUnknownMethod) {
+		return nil, nil, ErrInvalidAddLeavesCall
+	} else if err != nil {
+		return nil, nil, err
+	}
+	if method != methodAddLeavesLPP {
+		return nil, nil, fmt.Errorf("%w: %v", ErrInvalidAddLeavesCall, method)
+	}
+	uuid := args.GetBigInt(0)
+	input := args.GetBytes(1)
+	stateCommitments := args.GetBytes32Slice(2)
+	finalize := args.GetBool(3)
+
+	if !finalize {
+		// Must contain exactly the right length of input data when not finalizing
+		expectedLen := LeafSize * len(stateCommitments)
+		if len(input) != expectedLen {
+			return nil, nil, fmt.Errorf("%w: expected input of length %v but was %v", ErrInvalidAddLeavesCall, expectedLen, len(input))
+		}
+	} else {
+		// Must contain complete leaf data for all but the last leaf
+		minLen := LeafSize * (len(stateCommitments) - 1)
+		if len(input) < minLen {
+			return nil, nil, fmt.Errorf("%w: expected input of at least length %v but was %v", ErrInvalidAddLeavesCall, minLen, len(input))
+		}
+	}
+	leaves := make([]Leaf, 0, len(stateCommitments))
+	for i, commitment := range stateCommitments {
+		var leafInput [LeafSize]byte
+		// Allow for automatic padding for last input when finalized
+		// Note the minimum lengths were already validated above
+		end := (i + 1) * LeafSize
+		if finalize {
+			end = min(end, len(input))
+		}
+		copy(leafInput[:], input[i*LeafSize:end])
+		leaf := Leaf{
+			Input:           leafInput,
+			StateCommitment: common.Hash(commitment),
+		}
+		leaves = append(leaves, leaf)
+	}
+	return uuid, leaves, nil
 }
 
 func (c *PreimageOracleContract) decodePreimageIdent(result *batching.CallResult) gameTypes.LargePreimageIdent {

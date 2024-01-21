@@ -149,11 +149,25 @@ func TestCallResult_GetValues(t *testing.T) {
 			expected: ([32]byte)(common.Hash{0xaa, 0xbb, 0xcc}),
 		},
 		{
+			name: "GetBytes",
+			getter: func(result *CallResult, i int) interface{} {
+				return result.GetBytes(i)
+			},
+			expected: []byte{0xaa, 0xbb, 0xcc},
+		},
+		{
 			name: "GetBytes32",
 			getter: func(result *CallResult, i int) interface{} {
 				return result.GetBytes32(i)
 			},
 			expected: [32]byte{0xaa, 0xbb, 0xcc},
+		},
+		{
+			name: "GetBytes32Slice",
+			getter: func(result *CallResult, i int) interface{} {
+				return result.GetBytes32Slice(i)
+			},
+			expected: [][32]byte{{0xaa, 0xbb, 0xcc}, {0xdd, 0xee, 0xff}, {0x11, 0x22, 0x33}},
 		},
 		{
 			name: "GetBigInt",
