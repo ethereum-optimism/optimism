@@ -159,24 +159,23 @@ contract PreimageOracle is IPreimageOracle {
             // revert if part offset >= size+8 (i.e. parts must be within bounds)
             if iszero(lt(_partOffset, add(size, 8))) {
                 // Store "PartOffsetOOB()"
-                mstore(0, 0xfe254987)
+                mstore(0x00, 0xfe254987)
                 // Revert with "PartOffsetOOB()"
-                revert(0x1c, 4)
+                revert(0x1c, 0x04)
             }
-            // we leave solidity slots 0x40 and 0x60 untouched,
-            // and everything after as scratch-memory.
+            // we leave solidity slots 0x40 and 0x60 untouched, and everything after as scratch-memory.
             let ptr := 0x80
             // put size as big-endian uint64 at start of pre-image
             mstore(ptr, shl(192, size))
-            ptr := add(ptr, 8)
+            ptr := add(ptr, 0x08)
             // copy preimage payload into memory so we can hash and read it.
             calldatacopy(ptr, _preimage.offset, size)
             // Note that it includes the 8-byte big-endian uint64 length prefix.
             // this will be zero-padded at the end, since memory at end is clean.
-            part := mload(add(sub(ptr, 8), _partOffset))
+            part := mload(add(sub(ptr, 0x08), _partOffset))
             let h := keccak256(ptr, size) // compute preimage keccak256 hash
             // mask out prefix byte, replace with type 2 byte
-            key := or(and(h, not(shl(248, 0xFF))), shl(248, 2))
+            key := or(and(h, not(shl(248, 0xFF))), shl(248, 0x02))
         }
         preimagePartOk[key][_partOffset] = true;
         preimageParts[key][_partOffset] = part;
@@ -248,7 +247,9 @@ contract PreimageOracle is IPreimageOracle {
             // Compute the versioned hash. The SHA2 hash of the 48 byte commitment is masked with the version byte,
             // which is currently 1. https://eips.ethereum.org/EIPS/eip-4844#parameters
             // SAFETY: We're only reading 48 bytes from `_commitment` into scratch space, so we're not reading into the
-            //         free memory ptr region.
+            //         free memory ptr region. Since the exact number of btyes that is copied into scratch space is
+            //         the same size as the hash input, there's no concern of dirty memory being read into the hash
+            //         input.
             calldatacopy(0x00, _commitment.offset, 0x30)
             let success := staticcall(gas(), 0x02, 0x00, 0x30, 0x00, 0x20)
             if iszero(success) {
@@ -258,7 +259,7 @@ contract PreimageOracle is IPreimageOracle {
                 revert(0x1C, 0x04)
             }
             // Set the `VERSIONED_HASH_VERSION_KZG` byte = 1 in the high-order byte of the hash.
-            let versionedHash := or(and(mload(0x00), not(shl(248, 0xFF))), shl(248, 1))
+            let versionedHash := or(and(mload(0x00), not(shl(248, 0xFF))), shl(248, 0x01))
 
             // we leave solidity slots 0x40 and 0x60 untouched, and everything after as scratch-memory.
             let ptr := 0x80
@@ -275,7 +276,7 @@ contract PreimageOracle is IPreimageOracle {
             // will revert.
             success :=
                 staticcall(
-                    gas(), // gas
+                    gas(), // forward all gas
                     0x0A, // point evaluation precompile address
                     ptr, // input ptr
                     0xC0, // input size = 192 bytes
@@ -294,22 +295,27 @@ contract PreimageOracle is IPreimageOracle {
                 // Store "PartOffsetOOB()"
                 mstore(0x00, 0xfe254987)
                 // Revert with "PartOffsetOOB()"
-                revert(0x1c, 4)
+                revert(0x1C, 0x04)
             }
-            // put size (32) as big-endian uint64 at start of pre-image
+            // Clean the word at `ptr + 0x28` to ensure that data out of bounds of the preimage is zero, if the part
+            // offset requires a partial read.
+            mstore(add(ptr, 0x28), 0x00)
+            // put size (32) as a big-endian uint64 at start of pre-image
             mstore(ptr, shl(192, 0x20))
             // copy preimage payload into memory so we can hash and read it.
-            mstore(add(ptr, 8), _y)
-            // Note that it includes the 8-byte big-endian uint64 length prefix.
-            // this will be zero-padded at the end, since memory at end is clean.
+            mstore(add(ptr, 0x08), _y)
+            // Note that it includes the 8-byte big-endian uint64 length prefix. This will be zero-padded at the end,
+            // since memory at end is guaranteed to be clean.
             part := mload(add(ptr, _partOffset))
 
-            // Compute the key: `commitment + z`
+            // Compute the key: `keccak256(commitment ++ z)`. Since the exact number of btyes that is copied into
+            // scratch space is the same size as the hash input, there's no concern of dirty memory being read into
+            // the hash input.
             calldatacopy(ptr, _commitment.offset, 0x30)
             mstore(add(ptr, 0x30), _z)
             let h := keccak256(ptr, 0x50)
             // mask out prefix byte, replace with type 5 byte
-            key := or(and(h, not(shl(248, 0xFF))), shl(248, 5))
+            key := or(and(h, not(shl(248, 0xFF))), shl(248, 0x05))
         }
         preimagePartOk[key][_partOffset] = true;
         preimageParts[key][_partOffset] = part;
