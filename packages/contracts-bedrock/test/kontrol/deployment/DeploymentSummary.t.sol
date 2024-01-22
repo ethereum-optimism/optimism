@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+// Libraries
+import { Constants } from "src/libraries/Constants.sol";
+
 // Target contract dependencies
 import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
@@ -35,13 +38,30 @@ contract DeploymentSummary_Test is DeploymentSummary, OptimismPortal_Test {
     ///      we're not exercising the `Deploy` logic in these tests. However,
     ///      the remaining assertions of the test are important to check
     function test_constructor_succeeds() external override {
+        /* OptimismPortal opImpl = OptimismPortal(payable(deploy.mustGetAddress("OptimismPortal"))); */
+        OptimismPortal opImpl = OptimismPortal(payable(OptimismPortalAddress));
+        assertEq(address(opImpl.L2_ORACLE()), address(0));
+        assertEq(address(opImpl.l2Oracle()), address(0));
+        assertEq(address(opImpl.SYSTEM_CONFIG()), address(0));
+        assertEq(address(opImpl.systemConfig()), address(0));
+        assertEq(address(opImpl.superchainConfig()), address(0));
+        assertEq(opImpl.l2Sender(), Constants.DEFAULT_L2_SENDER);
+    }
+
+    /// @dev Skips the first line of `super.test_constructor_succeeds` because
+    ///      we're not exercising the `Deploy` logic in these tests. However,
+    ///      the remaining assertions of the test are important to check
+    function test_initialize_succeeds() external override {
         // address guardian = deploy.cfg().superchainConfigGuardian();
         address guardian = superchainConfig.guardian();
         assertEq(address(optimismPortal.L2_ORACLE()), address(l2OutputOracle));
         assertEq(address(optimismPortal.l2Oracle()), address(l2OutputOracle));
+        assertEq(address(optimismPortal.SYSTEM_CONFIG()), address(systemConfig));
+        assertEq(address(optimismPortal.systemConfig()), address(systemConfig));
         assertEq(optimismPortal.GUARDIAN(), guardian);
         assertEq(optimismPortal.guardian(), guardian);
-        assertEq(optimismPortal.l2Sender(), 0x000000000000000000000000000000000000dEaD);
+        assertEq(address(optimismPortal.superchainConfig()), address(superchainConfig));
+        assertEq(optimismPortal.l2Sender(), Constants.DEFAULT_L2_SENDER);
         assertEq(optimismPortal.paused(), false);
     }
 
