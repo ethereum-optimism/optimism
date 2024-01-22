@@ -283,15 +283,15 @@ func (s *stubL1Source) ChainID(_ context.Context) (*big.Int, error) {
 	return chainID, nil
 }
 
-func (s *stubL1Source) TxsByNumber(_ context.Context, number uint64) (types.Transactions, error) {
-	txs, ok := s.txs[number]
+func (s *stubL1Source) BlockByNumber(_ context.Context, number *big.Int) (*types.Block, error) {
+	txs, ok := s.txs[number.Uint64()]
 	if !ok {
 		return nil, errors.New("not found")
 	}
-	return txs, nil
+	return (&types.Block{}).WithBody(txs, nil), nil
 }
 
-func (s *stubL1Source) FetchReceipt(_ context.Context, txHash common.Hash) (*types.Receipt, error) {
+func (s *stubL1Source) TransactionReceipt(_ context.Context, txHash common.Hash) (*types.Receipt, error) {
 	rcptStatus, ok := s.rcptStatus[txHash]
 	if !ok {
 		rcptStatus = types.ReceiptStatusSuccessful

@@ -10,7 +10,7 @@ import (
 )
 
 type Verifier interface {
-	Verify(ctx context.Context, oracle keccakTypes.LargePreimageOracle, preimage keccakTypes.LargePreimageMetaData)
+	Verify(ctx context.Context, blockHash common.Hash, oracle keccakTypes.LargePreimageOracle, preimage keccakTypes.LargePreimageMetaData) error
 }
 
 type LargePreimageScheduler struct {
@@ -80,7 +80,9 @@ func (s *LargePreimageScheduler) verifyOraclePreimages(ctx context.Context, orac
 	preimages, err := oracle.GetActivePreimages(ctx, blockHash)
 	for _, preimage := range preimages {
 		if preimage.ShouldVerify() {
-			s.verifier.Verify(ctx, oracle, preimage)
+			if err := s.verifier.Verify(ctx, blockHash, oracle, preimage); err != nil {
+				s.log.Error("Failed to verify large preimage", "oracle", oracle.Addr(), "claimant", preimage.Claimant, "uuid", preimage.UUID, "err", err)
+			}
 		}
 	}
 	return err
