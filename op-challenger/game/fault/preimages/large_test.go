@@ -77,7 +77,8 @@ func (s *mockPreimageOracleContract) InitLargePreimage(_ *big.Int, _ uint32, _ u
 	}
 	return txmgr.TxCandidate{}, nil
 }
-func (s *mockPreimageOracleContract) AddLeaves(_ *big.Int, input []byte, _ [][32]byte, _ bool) (txmgr.TxCandidate, error) {
+
+func (s *mockPreimageOracleContract) AddLeaves(_ *big.Int, _ *big.Int, input []byte, _ [][32]byte, _ bool) (txmgr.TxCandidate, error) {
 	s.addCalls++
 	s.addData = append(s.addData, input...)
 	if s.addFails {
@@ -85,6 +86,7 @@ func (s *mockPreimageOracleContract) AddLeaves(_ *big.Int, input []byte, _ [][32
 	}
 	return txmgr.TxCandidate{}, nil
 }
+
 func (s *mockPreimageOracleContract) Squeeze(_ common.Address, _ *big.Int, _ *matrix.StateMatrix, _ contracts.Leaf, _ contracts.MerkleProof, _ contracts.Leaf, _ contracts.MerkleProof) (txmgr.TxCandidate, error) {
 	return txmgr.TxCandidate{}, nil
 }

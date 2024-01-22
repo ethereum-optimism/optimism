@@ -56,17 +56,19 @@ func TestPreimageOracleContract_AddLeaves(t *testing.T) {
 	stubRpc, oracle := setupPreimageOracleTest(t)
 
 	uuid := big.NewInt(123)
+	startingBlockIndex := big.NewInt(0)
 	input := []byte{0x12}
 	commitments := [][32]byte{{0x34}}
 	finalize := true
 	stubRpc.SetResponse(oracleAddr, methodAddLeavesLPP, batching.BlockLatest, []interface{}{
 		uuid,
+		startingBlockIndex,
 		input,
 		commitments,
 		finalize,
 	}, nil)
 
-	tx, err := oracle.AddLeaves(uuid, input, commitments, finalize)
+	tx, err := oracle.AddLeaves(uuid, startingBlockIndex, input, commitments, finalize)
 	require.NoError(t, err)
 	stubRpc.VerifyTxCandidate(tx)
 }

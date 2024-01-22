@@ -128,11 +128,13 @@ func (p *LargePreimageUploader) initLargePreimage(ctx context.Context, uuid *big
 func (p *LargePreimageUploader) addLargePreimageLeafs(ctx context.Context, uuid *big.Int, chunks []Chunk) error {
 	queue := txmgr.NewQueue[int](ctx, p.txMgr, 10)
 	receiptChs := make([]chan txmgr.TxReceipt[int], len(chunks))
+	blocksProcessed := int64(0)
 	for i, chunk := range chunks {
-		tx, err := p.contract.AddLeaves(uuid, chunk.Input, chunk.Commitments, chunk.Finalize)
+		tx, err := p.contract.AddLeaves(uuid, big.NewInt(blocksProcessed), chunk.Input, chunk.Commitments, chunk.Finalize)
 		if err != nil {
 			return fmt.Errorf("failed to create pre-image oracle tx: %w", err)
 		}
+		blocksProcessed += int64(len(chunk.Input) / matrix.LeafSize)
 		receiptChs[i] = make(chan txmgr.TxReceipt[int], 1)
 		queue.Send(i, tx, receiptChs[i])
 	}

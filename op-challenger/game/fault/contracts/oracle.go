@@ -98,8 +98,8 @@ func (c *PreimageOracleContract) InitLargePreimage(uuid *big.Int, partOffset uin
 	return call.ToTxCandidate()
 }
 
-func (c *PreimageOracleContract) AddLeaves(uuid *big.Int, input []byte, commitments [][32]byte, finalize bool) (txmgr.TxCandidate, error) {
-	call := c.contract.Call(methodAddLeavesLPP, uuid, input, commitments, finalize)
+func (c *PreimageOracleContract) AddLeaves(uuid *big.Int, startingBlockIndex *big.Int, input []byte, commitments [][32]byte, finalize bool) (txmgr.TxCandidate, error) {
+	call := c.contract.Call(methodAddLeavesLPP, uuid, startingBlockIndex, input, commitments, finalize)
 	return call.ToTxCandidate()
 }
 
@@ -128,7 +128,7 @@ func (c *PreimageOracleContract) Squeeze(
 // abiEncodeStateMatrix encodes the state matrix for the contract ABI
 func abiEncodeStateMatrix(stateMatrix *matrix.StateMatrix) bindings.LibKeccakStateMatrix {
 	packedState := stateMatrix.PackState()
-	var stateSlice = new([25]uint64)
+	stateSlice := new([25]uint64)
 	// SAFETY: a maximum of 25 * 8 bytes will be read from packedState and written to stateSlice
 	for i := 0; i < min(len(packedState), 25*8); i += 8 {
 		stateSlice[i/8] = new(big.Int).SetBytes(packedState[i : i+8]).Uint64()
