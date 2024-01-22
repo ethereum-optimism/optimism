@@ -149,12 +149,6 @@ def deploy_contracts(paths):
 
     shutil.copy(paths.l1_deployments_path, paths.addresses_json_path)
 
-    log.info('Syncing contracts.')
-    run_command([
-        'forge', 'script', fqn, '--sig', 'sync()',
-        '--rpc-url', 'http://127.0.0.1:8545'
-    ], env={}, cwd=paths.contracts_bedrock_dir)
-
 def init_devnet_l1_deploy_config(paths, update_timestamp=False):
     deploy_config = read_json(paths.devnet_config_template_path)
     if update_timestamp:
@@ -223,7 +217,7 @@ def devnet_deploy(paths):
             'go', 'run', 'cmd/main.go', 'genesis', 'l2',
             '--l1-rpc', 'http://localhost:8545',
             '--deploy-config', paths.devnet_config_path,
-            '--deployment-dir', paths.deployment_dir,
+            '--l1-deployments', paths.addresses_json_path,
             '--outfile.l2', paths.genesis_l2_path,
             '--outfile.rollup', paths.rollup_config_path
         ], cwd=paths.op_node_dir)
