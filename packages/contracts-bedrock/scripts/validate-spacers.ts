@@ -43,7 +43,7 @@ const parseVariableInfo = (
   } else if (variable.type.startsWith('t_bytes_')) {
     variableLength = 32
   } else if (variable.type.startsWith('t_bytes')) {
-    variableLength = variable.type.match(/uint([0-9]+)/)?.[1]
+    variableLength = parseInt(variable.type.match(/bytes([0-9]+)/)?.[1], 10)
   } else if (variable.type.startsWith('t_address')) {
     variableLength = 20
   } else if (variable.type.startsWith('t_bool')) {
