@@ -25,12 +25,7 @@ func TestLargePreimageUploader_NewUUID(t *testing.T) {
 		expectedUUID *big.Int
 	}{
 		{
-			name:         "nil data",
-			data:         nil,
-			expectedUUID: big.NewInt(0),
-		},
-		{
-			name:         "empty data",
+			name:         "EmptyOracleData",
 			data:         &types.PreimageOracleData{},
 			expectedUUID: new(big.Int).SetBytes(common.Hex2Bytes("827b659bbda2a0bdecce2c91b8b68462545758f3eba2dbefef18e0daf84f5ccd")),
 		},

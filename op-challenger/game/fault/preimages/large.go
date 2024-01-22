@@ -102,9 +102,6 @@ func (p *LargePreimageUploader) UploadPreimage(ctx context.Context, parent uint6
 // newUUID generates a new unique identifier for the preimage by hashing the
 // concatenated preimage data, preimage offset, and sender address.
 func (p *LargePreimageUploader) newUUID(data *types.PreimageOracleData) *big.Int {
-	if data == nil {
-		return big.NewInt(0)
-	}
 	sender := p.txMgr.From()
 	offset := make([]byte, 4)
 	binary.LittleEndian.PutUint32(offset, data.OracleOffset)
