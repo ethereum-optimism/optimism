@@ -45,7 +45,7 @@
   "dependencies": {
     "@ethereumjs/rlp": "^5.0.1",
     "web3-eth": "^4.0.3",
-    "web3-eth-accounts": "^4.0.3"
+    "web3-eth-accounts": "^4.1.1"
   },
   "peerDependencies": {
     "web3": ">= 4.0.3 < 5.x"
