@@ -543,6 +543,39 @@ func (eq *EngineQueue) tryNextUnsafePayload(ctx context.Context) error {
 			first.ID(), first.ParentID(), eth.NewPayloadErr(first, status)))
 	}
 
+	lastDeposit, err := lastDeposit(first.Transactions)
+	if err != nil {
+		return fmt.Errorf("failed to find last deposit: %w", err)
+	}
+	daBlosk := DABlockInfo{
+		TxHashes: rpc.TxHashes{},
+		Height:   uint64(first.BlockNumber),
+		Hash:     first.BlockHash,
+	}
+	for i := lastDeposit + 1; i < len(first.Transactions); i++ {
+		tx := first.Transactions[i]
+		deposit, err := isDepositTx(tx)
+		if tx[0] == types.SubmitTxType {
+			var submixTx types.Transaction
+
+			if err = submixTx.UnmarshalBinary(tx); err != nil {
+				return fmt.Errorf("failed to decode transaction idx %d: %w", i, err)
+			}
+			daBlosk.TxHashes.TxHashes = append(daBlosk.TxHashes.TxHashes, submixTx.SourceHash())
+		}
+		if err != nil {
+			return fmt.Errorf("failed to decode transaction idx %d: %w", i, err)
+		}
+		if deposit {
+			return fmt.Errorf("deposit tx (%d) after other tx in l2 block with prev deposit at idx %d", i, lastDeposit)
+		}
+	}
+	if len(daBlosk.TxHashes.TxHashes) > 0 {
+		eq.daMgr.ChangeCurrentState(0, uint64(first.BlockNumber))
+		eq.daMgr.SendDaHash(&daBlosk)
+	} else {
+		eq.daMgr.ChangeCurrentState(1, uint64(first.BlockNumber))
+	}
 	// Mark the new payload as valid
 	fc := eth.ForkchoiceState{
 		HeadBlockHash:      first.BlockHash,
@@ -579,7 +612,6 @@ func (eq *EngineQueue) tryNextUnsafePayload(ctx context.Context) error {
 	eq.unsafePayloads.Pop()
 	eq.log.Trace("Executed unsafe payload", "hash", ref.Hash, "number", ref.Number, "timestamp", ref.Time, "l1Origin", ref.L1Origin)
 	eq.logSyncProgress("unsafe payload from sequencer")
-
 	return nil
 }
 
