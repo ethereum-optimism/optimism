@@ -6,6 +6,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 // BlockSize is the size in bytes required for leaf data.
@@ -19,6 +20,16 @@ type Leaf struct {
 	Index *big.Int
 	// StateCommitment is the hash of the internal state after absorbing the input.
 	StateCommitment common.Hash
+}
+
+// Hash returns the hash of the leaf data. That is the
+// bytewise concatenation of the input, index, and state commitment.
+func (l *Leaf) Hash() common.Hash {
+	concatted := make([]byte, 0, 136+32+32)
+	concatted = append(concatted, l.Input[:]...)
+	concatted = append(concatted, l.Index.Bytes()...)
+	concatted = append(concatted, l.StateCommitment.Bytes()...)
+	return crypto.Keccak256Hash(concatted)
 }
 
 // InputData is a contiguous segment of preimage data.
