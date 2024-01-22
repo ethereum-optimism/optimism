@@ -2,11 +2,13 @@ package registry
 
 import (
 	"context"
+	"math/big"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/scheduler"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/scheduler/test"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
@@ -58,6 +60,14 @@ func TestDeduplicateOracles(t *testing.T) {
 }
 
 type stubPreimageOracle common.Address
+
+func (s stubPreimageOracle) GetLeafBlocks(_ context.Context, _ batching.Block, _ types.LargePreimageIdent) ([]uint64, error) {
+	panic("not supported")
+}
+
+func (s stubPreimageOracle) DecodeLeafData(_ []byte) (*big.Int, []types.Leaf, error) {
+	panic("not supported")
+}
 
 func (s stubPreimageOracle) Addr() common.Address {
 	return common.Address(s)

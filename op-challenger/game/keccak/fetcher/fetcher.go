@@ -19,15 +19,15 @@ var (
 )
 
 type L1Source interface {
-	TxsByNumber(ctx context.Context, number uint64) (types.Transactions, error)
-	FetchReceipt(ctx context.Context, txHash common.Hash) (*types.Receipt, error)
+	BlockByNumber(ctx context.Context, number *big.Int) (*types.Block, error)
+	TransactionReceipt(ctx context.Context, txHash common.Hash) (*types.Receipt, error)
 	ChainID(ctx context.Context) (*big.Int, error)
 }
 
 type Oracle interface {
 	Addr() common.Address
 	GetLeafBlocks(ctx context.Context, block batching.Block, ident gameTypes.LargePreimageIdent) ([]uint64, error)
-	DecodeLeafData(data []byte) (*big.Int, []contracts.Leaf, error)
+	DecodeLeafData(data []byte) (*big.Int, []gameTypes.Leaf, error)
 }
 
 type LeafFetcher struct {
@@ -35,7 +35,7 @@ type LeafFetcher struct {
 	source L1Source
 }
 
-func (f *LeafFetcher) FetchLeaves(ctx context.Context, blockHash common.Hash, oracle Oracle, ident gameTypes.LargePreimageIdent) ([]contracts.Leaf, error) {
+func (f *LeafFetcher) FetchLeaves(ctx context.Context, blockHash common.Hash, oracle Oracle, ident gameTypes.LargePreimageIdent) ([]gameTypes.Leaf, error) {
 	blockNums, err := oracle.GetLeafBlocks(ctx, batching.BlockByHash(blockHash), ident)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve leaf block nums: %w", err)
@@ -45,14 +45,14 @@ func (f *LeafFetcher) FetchLeaves(ctx context.Context, blockHash common.Hash, or
 		return nil, fmt.Errorf("failed to retrieve L1 chain ID: %w", err)
 	}
 	signer := types.LatestSignerForChainID(chainID)
-	var leaves []contracts.Leaf
+	var leaves []gameTypes.Leaf
 	for _, blockNum := range blockNums {
 		foundRelevantTx := false
-		txs, err := f.source.TxsByNumber(ctx, blockNum)
+		block, err := f.source.BlockByNumber(ctx, new(big.Int).SetUint64(blockNum))
 		if err != nil {
 			return nil, fmt.Errorf("failed getting tx for block %v: %w", blockNum, err)
 		}
-		for _, tx := range txs {
+		for _, tx := range block.Transactions() {
 			txLeaves, err := f.extractRelevantLeavesFromTx(ctx, oracle, signer, tx, ident)
 			if err != nil {
 				return nil, err
@@ -70,7 +70,7 @@ func (f *LeafFetcher) FetchLeaves(ctx context.Context, blockHash common.Hash, or
 	return leaves, nil
 }
 
-func (f *LeafFetcher) extractRelevantLeavesFromTx(ctx context.Context, oracle Oracle, signer types.Signer, tx *types.Transaction, ident gameTypes.LargePreimageIdent) ([]contracts.Leaf, error) {
+func (f *LeafFetcher) extractRelevantLeavesFromTx(ctx context.Context, oracle Oracle, signer types.Signer, tx *types.Transaction, ident gameTypes.LargePreimageIdent) ([]gameTypes.Leaf, error) {
 	if tx.To() == nil || *tx.To() != oracle.Addr() {
 		f.log.Trace("Skip tx with incorrect to addr", "tx", tx.Hash(), "expected", oracle.Addr(), "actual", tx.To())
 		return nil, nil
@@ -95,7 +95,7 @@ func (f *LeafFetcher) extractRelevantLeavesFromTx(ctx context.Context, oracle Or
 		f.log.Trace("Skipping transaction with incorrect sender", "tx", tx.Hash(), "expected", ident.Claimant, "actual", sender)
 		return nil, nil
 	}
-	rcpt, err := f.source.FetchReceipt(ctx, tx.Hash())
+	rcpt, err := f.source.TransactionReceipt(ctx, tx.Hash())
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve receipt for tx %v: %w", tx.Hash(), err)
 	}

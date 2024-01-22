@@ -27,8 +27,6 @@ const (
 	methodProposalMetadata          = "proposalMetadata"
 	methodProposalBlocksLen         = "proposalBlocksLen"
 	methodProposalBlocks            = "proposalBlocks"
-
-	LeafSize = 136
 )
 
 var (
@@ -42,18 +40,8 @@ type PreimageOracleContract struct {
 	contract    *batching.BoundContract
 }
 
-// Leaf is the keccak state matrix added to the large preimage merkle tree.
-type Leaf struct {
-	// Input is the data absorbed for the block, exactly 136 bytes
-	Input [LeafSize]byte
-	// Index of the block in the absorption process
-	Index *big.Int
-	// StateCommitment is the hash of the internal state after absorbing the input.
-	StateCommitment common.Hash
-}
-
 // toPreimageOracleLeaf converts a Leaf to the contract [bindings.PreimageOracleLeaf] type.
-func (l Leaf) toPreimageOracleLeaf() bindings.PreimageOracleLeaf {
+func toPreimageOracleLeaf(l gameTypes.Leaf) bindings.PreimageOracleLeaf {
 	commitment := ([32]byte)(l.StateCommitment.Bytes())
 	return bindings.PreimageOracleLeaf{
 		Input:           l.Input[:],
@@ -116,9 +104,9 @@ func (c *PreimageOracleContract) Squeeze(
 	claimant common.Address,
 	uuid *big.Int,
 	stateMatrix *matrix.StateMatrix,
-	preState Leaf,
+	preState gameTypes.Leaf,
 	preStateProof MerkleProof,
-	postState Leaf,
+	postState gameTypes.Leaf,
 	postStateProof MerkleProof,
 ) (txmgr.TxCandidate, error) {
 	call := c.contract.Call(
@@ -126,9 +114,9 @@ func (c *PreimageOracleContract) Squeeze(
 		claimant,
 		uuid,
 		abiEncodeStateMatrix(stateMatrix),
-		preState.toPreimageOracleLeaf(),
+		toPreimageOracleLeaf(preState),
 		preStateProof.toSized(),
-		postState.toPreimageOracleLeaf(),
+		toPreimageOracleLeaf(postState),
 		postStateProof.toSized(),
 	)
 	return call.ToTxCandidate()
@@ -201,7 +189,7 @@ func (c *PreimageOracleContract) GetLeafBlocks(ctx context.Context, block batchi
 	return blockNums, nil
 }
 
-func (c *PreimageOracleContract) DecodeLeafData(data []byte) (*big.Int, []Leaf, error) {
+func (c *PreimageOracleContract) DecodeLeafData(data []byte) (*big.Int, []gameTypes.Leaf, error) {
 	method, args, err := c.contract.DecodeCall(data)
 	if errors.Is(err, batching.ErrUnknownMethod) {
 		return nil, nil, ErrInvalidAddLeavesCall
@@ -218,28 +206,28 @@ func (c *PreimageOracleContract) DecodeLeafData(data []byte) (*big.Int, []Leaf, 
 
 	if !finalize {
 		// Must contain exactly the right length of input data when not finalizing
-		expectedLen := LeafSize * len(stateCommitments)
+		expectedLen := gameTypes.LeafSize * len(stateCommitments)
 		if len(input) != expectedLen {
 			return nil, nil, fmt.Errorf("%w: expected input of length %v but was %v", ErrInvalidAddLeavesCall, expectedLen, len(input))
 		}
 	} else {
 		// Must contain complete leaf data for all but the last leaf
-		minLen := LeafSize * (len(stateCommitments) - 1)
+		minLen := gameTypes.LeafSize * (len(stateCommitments) - 1)
 		if len(input) < minLen {
 			return nil, nil, fmt.Errorf("%w: expected input of at least length %v but was %v", ErrInvalidAddLeavesCall, minLen, len(input))
 		}
 	}
-	leaves := make([]Leaf, 0, len(stateCommitments))
+	leaves := make([]gameTypes.Leaf, 0, len(stateCommitments))
 	for i, commitment := range stateCommitments {
-		var leafInput [LeafSize]byte
+		var leafInput [gameTypes.LeafSize]byte
 		// Allow for automatic padding for last input when finalized
 		// Note the minimum lengths were already validated above
-		end := (i + 1) * LeafSize
+		end := (i + 1) * gameTypes.LeafSize
 		if finalize {
 			end = min(end, len(input))
 		}
-		copy(leafInput[:], input[i*LeafSize:end])
-		leaf := Leaf{
+		copy(leafInput[:], input[i*gameTypes.LeafSize:end])
+		leaf := gameTypes.Leaf{
 			Input:           leafInput,
 			StateCommitment: common.Hash(commitment),
 		}

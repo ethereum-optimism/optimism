@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/fetcher"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
@@ -225,7 +226,8 @@ func (s *Service) initScheduler(cfg *config.Config) error {
 }
 
 func (s *Service) initLargePreimages() error {
-	verifier := keccak.NewPreimageVerifier(s.logger)
+	fetcher := fetcher.NewPreimageFetcher(s.logger, s.l1Client)
+	verifier := keccak.NewPreimageVerifier(s.logger, fetcher)
 	s.preimages = keccak.NewLargePreimageScheduler(s.logger, s.registry.Oracles(), verifier)
 	return nil
 }

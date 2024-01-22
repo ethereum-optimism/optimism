@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -68,7 +69,21 @@ func (m LargePreimageMetaData) ShouldVerify() bool {
 	return m.Timestamp > 0 && !m.Countered
 }
 
+const LeafSize = 136
+
+// Leaf is the keccak state matrix added to the large preimage merkle tree.
+type Leaf struct {
+	// Input is the data absorbed for the block, exactly 136 bytes
+	Input [LeafSize]byte
+	// Index of the block in the absorption process
+	Index *big.Int
+	// StateCommitment is the hash of the internal state after absorbing the input.
+	StateCommitment common.Hash
+}
+
 type LargePreimageOracle interface {
 	Addr() common.Address
 	GetActivePreimages(ctx context.Context, blockHash common.Hash) ([]LargePreimageMetaData, error)
+	GetLeafBlocks(ctx context.Context, block batching.Block, ident LargePreimageIdent) ([]uint64, error)
+	DecodeLeafData(data []byte) (*big.Int, []Leaf, error)
 }

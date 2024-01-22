@@ -27,22 +27,22 @@ var (
 	}
 	chainID   = big.NewInt(123)
 	blockHash = common.Hash{0xdd}
-	leaf1     = contracts.Leaf{
+	leaf1     = gameTypes.Leaf{
 		Input:           [136]byte{0xbb, 0x11},
 		Index:           big.NewInt(0),
 		StateCommitment: common.Hash{0xcc, 0x11},
 	}
-	leaf2 = contracts.Leaf{
+	leaf2 = gameTypes.Leaf{
 		Input:           [136]byte{0xbb, 0x22},
 		Index:           big.NewInt(1),
 		StateCommitment: common.Hash{0xcc, 0x22},
 	}
-	leaf3 = contracts.Leaf{
+	leaf3 = gameTypes.Leaf{
 		Input:           [136]byte{0xbb, 0x33},
 		Index:           big.NewInt(2),
 		StateCommitment: common.Hash{0xcc, 0x33},
 	}
-	leaf4 = contracts.Leaf{
+	leaf4 = gameTypes.Leaf{
 		Input:           [136]byte{0xbb, 0x44},
 		Index:           big.NewInt(3),
 		StateCommitment: common.Hash{0xcc, 0x44},
@@ -64,7 +64,7 @@ func TestFetchLeaves_SingleTx(t *testing.T) {
 	l1Source.txs[blockNum] = types.Transactions{oracle.txForLeaves(ValidTx, leaf1)}
 	leaves, err := fetcher.FetchLeaves(context.Background(), blockHash, oracle, ident)
 	require.NoError(t, err)
-	require.Equal(t, []contracts.Leaf{leaf1}, leaves)
+	require.Equal(t, []gameTypes.Leaf{leaf1}, leaves)
 }
 
 func TestFetchLeaves_MultipleBlocksAndLeaves(t *testing.T) {
@@ -78,7 +78,7 @@ func TestFetchLeaves_MultipleBlocksAndLeaves(t *testing.T) {
 	l1Source.txs[block3] = types.Transactions{oracle.txForLeaves(ValidTx, leaf3, leaf4)}
 	leaves, err := fetcher.FetchLeaves(context.Background(), blockHash, oracle, ident)
 	require.NoError(t, err)
-	require.Equal(t, []contracts.Leaf{leaf1, leaf2, leaf3, leaf4}, leaves)
+	require.Equal(t, []gameTypes.Leaf{leaf1, leaf2, leaf3, leaf4}, leaves)
 }
 
 func TestFetchLeaves_SkipTxToWrongContract(t *testing.T) {
@@ -94,7 +94,7 @@ func TestFetchLeaves_SkipTxToWrongContract(t *testing.T) {
 	l1Source.txs[blockNum] = types.Transactions{tx1, tx2, tx3}
 	leaves, err := fetcher.FetchLeaves(context.Background(), blockHash, oracle, ident)
 	require.NoError(t, err)
-	require.Equal(t, []contracts.Leaf{leaf1}, leaves)
+	require.Equal(t, []gameTypes.Leaf{leaf1}, leaves)
 }
 
 func TestFetchLeaves_SkipTxWithDifferentUUID(t *testing.T) {
@@ -108,7 +108,7 @@ func TestFetchLeaves_SkipTxWithDifferentUUID(t *testing.T) {
 	l1Source.txs[blockNum] = types.Transactions{tx1, tx2}
 	leaves, err := fetcher.FetchLeaves(context.Background(), blockHash, oracle, ident)
 	require.NoError(t, err)
-	require.Equal(t, []contracts.Leaf{leaf1}, leaves)
+	require.Equal(t, []gameTypes.Leaf{leaf1}, leaves)
 }
 
 func TestFetchLeaves_SkipTxWithInvalidCall(t *testing.T) {
@@ -122,7 +122,7 @@ func TestFetchLeaves_SkipTxWithInvalidCall(t *testing.T) {
 	l1Source.txs[blockNum] = types.Transactions{tx1, tx2}
 	leaves, err := fetcher.FetchLeaves(context.Background(), blockHash, oracle, ident)
 	require.NoError(t, err)
-	require.Equal(t, []contracts.Leaf{leaf1}, leaves)
+	require.Equal(t, []gameTypes.Leaf{leaf1}, leaves)
 }
 
 func TestFetchLeaves_SkipTxWithInvalidSender(t *testing.T) {
@@ -139,7 +139,7 @@ func TestFetchLeaves_SkipTxWithInvalidSender(t *testing.T) {
 	l1Source.txs[blockNum] = types.Transactions{tx1, tx2, tx3}
 	leaves, err := fetcher.FetchLeaves(context.Background(), blockHash, oracle, ident)
 	require.NoError(t, err)
-	require.Equal(t, []contracts.Leaf{leaf1}, leaves)
+	require.Equal(t, []gameTypes.Leaf{leaf1}, leaves)
 }
 
 func TestFetchLeaves_SkipTxWithReceiptStatusFail(t *testing.T) {
@@ -154,7 +154,7 @@ func TestFetchLeaves_SkipTxWithReceiptStatusFail(t *testing.T) {
 	l1Source.txs[blockNum] = types.Transactions{tx1, tx2}
 	leaves, err := fetcher.FetchLeaves(context.Background(), blockHash, oracle, ident)
 	require.NoError(t, err)
-	require.Equal(t, []contracts.Leaf{leaf1}, leaves)
+	require.Equal(t, []gameTypes.Leaf{leaf1}, leaves)
 }
 
 func TestFetchLeaves_ErrorsWhenNoValidLeavesInBlock(t *testing.T) {
@@ -171,7 +171,7 @@ func TestFetchLeaves_ErrorsWhenNoValidLeavesInBlock(t *testing.T) {
 
 func setupFetcherTest(t *testing.T) (*LeafFetcher, *stubOracle, *stubL1Source) {
 	oracle := &stubOracle{
-		txLeaves: make(map[byte][]contracts.Leaf),
+		txLeaves: make(map[byte][]gameTypes.Leaf),
 	}
 	l1Source := &stubL1Source{
 		txs:        make(map[uint64]types.Transactions),
@@ -184,7 +184,7 @@ func setupFetcherTest(t *testing.T) (*LeafFetcher, *stubOracle, *stubL1Source) {
 type stubOracle struct {
 	nextTxId   byte
 	leafBlocks []uint64
-	txLeaves   map[byte][]contracts.Leaf
+	txLeaves   map[byte][]gameTypes.Leaf
 }
 
 func (o *stubOracle) Addr() common.Address {
@@ -195,7 +195,7 @@ func (o *stubOracle) GetLeafBlocks(_ context.Context, _ batching.Block, _ gameTy
 	return o.leafBlocks, nil
 }
 
-func (o *stubOracle) DecodeLeafData(data []byte) (*big.Int, []contracts.Leaf, error) {
+func (o *stubOracle) DecodeLeafData(data []byte) (*big.Int, []gameTypes.Leaf, error) {
 	if len(data) == 0 {
 		return nil, nil, contracts.ErrInvalidAddLeavesCall
 	}
@@ -258,7 +258,7 @@ func WithPrivKey(key *ecdsa.PrivateKey) TxModifier {
 	}
 }
 
-func (o *stubOracle) txForLeaves(txMod TxModifier, leaves ...contracts.Leaf) *types.Transaction {
+func (o *stubOracle) txForLeaves(txMod TxModifier, leaves ...gameTypes.Leaf) *types.Transaction {
 	id := o.nextTxId
 	o.nextTxId++
 	o.txLeaves[id] = leaves
@@ -286,15 +286,15 @@ func (s *stubL1Source) ChainID(_ context.Context) (*big.Int, error) {
 	return chainID, nil
 }
 
-func (s *stubL1Source) TxsByNumber(_ context.Context, number uint64) (types.Transactions, error) {
-	txs, ok := s.txs[number]
+func (s *stubL1Source) BlockByNumber(_ context.Context, number *big.Int) (*types.Block, error) {
+	txs, ok := s.txs[number.Uint64()]
 	if !ok {
 		return nil, errors.New("not found")
 	}
-	return txs, nil
+	return (&types.Block{}).WithBody(txs, nil), nil
 }
 
-func (s *stubL1Source) FetchReceipt(_ context.Context, txHash common.Hash) (*types.Receipt, error) {
+func (s *stubL1Source) TransactionReceipt(_ context.Context, txHash common.Hash) (*types.Receipt, error) {
 	rcptStatus, ok := s.rcptStatus[txHash]
 	if !ok {
 		rcptStatus = types.ReceiptStatusSuccessful

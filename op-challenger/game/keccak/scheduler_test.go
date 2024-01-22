@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -64,6 +65,14 @@ type stubOracle struct {
 	images            []types.LargePreimageMetaData
 }
 
+func (s *stubOracle) GetLeafBlocks(_ context.Context, _ batching.Block, _ types.LargePreimageIdent) ([]uint64, error) {
+	panic("not supported")
+}
+
+func (s *stubOracle) DecodeLeafData(_ []byte) (*big.Int, []types.Leaf, error) {
+	panic("not supported")
+}
+
 func (s *stubOracle) Addr() common.Address {
 	return s.addr
 }
@@ -86,10 +95,11 @@ type stubVerifier struct {
 	verified []types.LargePreimageMetaData
 }
 
-func (s *stubVerifier) Verify(_ context.Context, _ types.LargePreimageOracle, image types.LargePreimageMetaData) {
+func (s *stubVerifier) Verify(_ context.Context, _ common.Hash, _ types.LargePreimageOracle, image types.LargePreimageMetaData) error {
 	s.m.Lock()
 	defer s.m.Unlock()
 	s.verified = append(s.verified, image)
+	return nil
 }
 
 func (s *stubVerifier) Verified() []types.LargePreimageMetaData {
