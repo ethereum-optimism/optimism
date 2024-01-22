@@ -9,7 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/matrix"
-	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
@@ -150,12 +150,12 @@ func TestLargePreimageUploader_UploadPreimage(t *testing.T) {
 }
 
 func mockPreimageOracleData() types.PreimageOracleData {
-	fullLeaf := make([]byte, matrix.LeafSize)
-	for i := 0; i < matrix.LeafSize; i++ {
+	fullLeaf := make([]byte, keccakTypes.BlockSize)
+	for i := 0; i < keccakTypes.BlockSize; i++ {
 		fullLeaf[i] = byte(i)
 	}
-	oracleData := make([]byte, 5*MaxLeafsPerChunk)
-	for i := 0; i < 5*MaxLeafsPerChunk; i++ {
+	oracleData := make([]byte, 5*MaxBlocksPerChunk)
+	for i := 0; i < 5*MaxBlocksPerChunk; i++ {
 		oracleData = append(oracleData, fullLeaf...)
 	}
 	// Add a single byte to the end to make sure the last leaf is not processed.
@@ -193,7 +193,7 @@ func (s *mockPreimageOracleContract) InitLargePreimage(_ *big.Int, _ uint32, _ u
 	}
 	return txmgr.TxCandidate{}, nil
 }
-func (s *mockPreimageOracleContract) AddLeaves(_ *big.Int, input []byte, _ [][32]byte, _ bool) (txmgr.TxCandidate, error) {
+func (s *mockPreimageOracleContract) AddLeaves(_ *big.Int, input []byte, _ []common.Hash, _ bool) (txmgr.TxCandidate, error) {
 	s.addCalls++
 	s.addData = append(s.addData, input...)
 	if s.addFails {
@@ -201,14 +201,14 @@ func (s *mockPreimageOracleContract) AddLeaves(_ *big.Int, input []byte, _ [][32
 	}
 	return txmgr.TxCandidate{}, nil
 }
-func (s *mockPreimageOracleContract) Squeeze(_ common.Address, _ *big.Int, _ *matrix.StateMatrix, _ contracts.Leaf, _ contracts.MerkleProof, _ contracts.Leaf, _ contracts.MerkleProof) (txmgr.TxCandidate, error) {
+func (s *mockPreimageOracleContract) Squeeze(_ common.Address, _ *big.Int, _ *matrix.StateMatrix, _ keccakTypes.Leaf, _ contracts.MerkleProof, _ keccakTypes.Leaf, _ contracts.MerkleProof) (txmgr.TxCandidate, error) {
 	return txmgr.TxCandidate{}, nil
 }
-func (s *mockPreimageOracleContract) GetProposalMetadata(_ context.Context, _ batching.Block, idents ...gameTypes.LargePreimageIdent) ([]gameTypes.LargePreimageMetaData, error) {
+func (s *mockPreimageOracleContract) GetProposalMetadata(_ context.Context, _ batching.Block, idents ...keccakTypes.LargePreimageIdent) ([]keccakTypes.LargePreimageMetaData, error) {
 	if s.initialized || s.bytesProcessed > 0 {
-		metadata := make([]gameTypes.LargePreimageMetaData, 0)
+		metadata := make([]keccakTypes.LargePreimageMetaData, 0)
 		for _, ident := range idents {
-			metadata = append(metadata, gameTypes.LargePreimageMetaData{
+			metadata = append(metadata, keccakTypes.LargePreimageMetaData{
 				LargePreimageIdent: ident,
 				ClaimedSize:        s.claimedSize,
 				BytesProcessed:     uint32(s.bytesProcessed),
@@ -217,5 +217,5 @@ func (s *mockPreimageOracleContract) GetProposalMetadata(_ context.Context, _ ba
 		}
 		return metadata, nil
 	}
-	return []gameTypes.LargePreimageMetaData{{LargePreimageIdent: idents[0]}}, nil
+	return []keccakTypes.LargePreimageMetaData{{LargePreimageIdent: idents[0]}}, nil
 }
