@@ -446,7 +446,7 @@ contract Deploy is Deployer {
     /// @notice Deploys an ERC1967Proxy contract with the ProxyAdmin as the owner.
     /// @param _name The name of the proxy contract to be deployed.
     /// @return addr_ The address of the deployed proxy contract.
-    function deployERC1967Proxy(string memory _name) public broadcast returns (address addr_) {
+    function deployERC1967Proxy(string memory _name) public returns (address addr_) {
         addr_ = deployERC1967ProxyWithOwner(_name, mustGetAddress("ProxyAdmin"));
     }
 
@@ -454,7 +454,14 @@ contract Deploy is Deployer {
     /// @param _name The name of the proxy contract to be deployed.
     /// @param _proxyOwner The address of the owner of the proxy contract.
     /// @return addr_ The address of the deployed proxy contract.
-    function deployERC1967ProxyWithOwner(string memory _name, address _proxyOwner) public returns (address addr_) {
+    function deployERC1967ProxyWithOwner(
+        string memory _name,
+        address _proxyOwner
+    )
+        public
+        broadcast
+        returns (address addr_)
+    {
         console.log(string.concat("Deploying ERC1967 proxy for ", _name));
         Proxy proxy = new Proxy({ _admin: _proxyOwner });
 
