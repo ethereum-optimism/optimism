@@ -81,7 +81,7 @@ func (p MerkleProof) toSized() [][32]byte {
 }
 
 func NewPreimageOracleContract(addr common.Address, caller *batching.MultiCaller) (*PreimageOracleContract, error) {
-	mipsAbi, err := bindings.PreimageOracleMetaData.GetAbi()
+	oracleAbi, err := bindings.PreimageOracleMetaData.GetAbi()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load preimage oracle ABI: %w", err)
 	}
@@ -89,7 +89,7 @@ func NewPreimageOracleContract(addr common.Address, caller *batching.MultiCaller
 	return &PreimageOracleContract{
 		addr:        addr,
 		multiCaller: caller,
-		contract:    batching.NewBoundContract(mipsAbi, addr),
+		contract:    batching.NewBoundContract(oracleAbi, addr),
 	}, nil
 }
 
