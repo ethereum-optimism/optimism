@@ -183,7 +183,7 @@ Attacking the node at 6 moves creates a new claim positioned at 12.
 #### Defend
 
 The logical move against a claim when you agree with both it and its parent.
-A defense at the relative position to a node, `n``, in the Game Tree commits to the first half of n + 1’s trace range.
+A defense at the relative position to a node, `n`, in the Game Tree commits to the first half of n + 1’s trace range.
 
 ![Defend at 4](assets/defend.png)
 
