@@ -42,9 +42,9 @@ type PreimageOracleContract struct {
 
 // toPreimageOracleLeaf converts a Leaf to the contract [bindings.PreimageOracleLeaf] type.
 func toPreimageOracleLeaf(l gameTypes.Leaf) bindings.PreimageOracleLeaf {
-	commitment := ([32]byte)(l.StateCommitment.Bytes())
+	commitment := [32]byte(l.StateCommitment)
 	return bindings.PreimageOracleLeaf{
-		Input:           l.Input[:],
+		Input:           l.Input,
 		Index:           l.Index,
 		StateCommitment: commitment,
 	}
@@ -219,16 +219,14 @@ func (c *PreimageOracleContract) DecodeLeafData(data []byte) (*big.Int, []gameTy
 	}
 	leaves := make([]gameTypes.Leaf, 0, len(stateCommitments))
 	for i, commitment := range stateCommitments {
-		var leafInput [gameTypes.LeafSize]byte
 		// Allow for automatic padding for last input when finalized
 		// Note the minimum lengths were already validated above
 		end := (i + 1) * gameTypes.LeafSize
 		if finalize {
 			end = min(end, len(input))
 		}
-		copy(leafInput[:], input[i*gameTypes.LeafSize:end])
 		leaf := gameTypes.Leaf{
-			Input:           leafInput,
+			Input:           input[i*gameTypes.LeafSize : end],
 			StateCommitment: common.Hash(commitment),
 		}
 		leaves = append(leaves, leaf)

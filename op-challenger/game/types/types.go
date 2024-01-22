@@ -73,8 +73,9 @@ const LeafSize = 136
 
 // Leaf is the keccak state matrix added to the large preimage merkle tree.
 type Leaf struct {
-	// Input is the data absorbed for the block, exactly 136 bytes
-	Input [LeafSize]byte
+	// Input is the data absorbed for the block
+	// To be valid, all leaves except the final one must have exactly 136 bytes of Input
+	Input []byte
 	// Index of the block in the absorption process
 	Index *big.Int
 	// StateCommitment is the hash of the internal state after absorbing the input.

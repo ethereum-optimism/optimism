@@ -1,6 +1,7 @@
 package fetcher
 
 import (
+	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"errors"
@@ -28,22 +29,22 @@ var (
 	chainID   = big.NewInt(123)
 	blockHash = common.Hash{0xdd}
 	leaf1     = gameTypes.Leaf{
-		Input:           [136]byte{0xbb, 0x11},
+		Input:           bytes.Repeat([]byte{0x11}, gameTypes.LeafSize),
 		Index:           big.NewInt(0),
 		StateCommitment: common.Hash{0xcc, 0x11},
 	}
 	leaf2 = gameTypes.Leaf{
-		Input:           [136]byte{0xbb, 0x22},
+		Input:           bytes.Repeat([]byte{0x22}, gameTypes.LeafSize),
 		Index:           big.NewInt(1),
 		StateCommitment: common.Hash{0xcc, 0x22},
 	}
 	leaf3 = gameTypes.Leaf{
-		Input:           [136]byte{0xbb, 0x33},
+		Input:           []byte{0xbb, 0x33},
 		Index:           big.NewInt(2),
 		StateCommitment: common.Hash{0xcc, 0x33},
 	}
 	leaf4 = gameTypes.Leaf{
-		Input:           [136]byte{0xbb, 0x44},
+		Input:           []byte{0xbb, 0x44},
 		Index:           big.NewInt(3),
 		StateCommitment: common.Hash{0xcc, 0x44},
 	}
