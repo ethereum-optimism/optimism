@@ -162,7 +162,7 @@ Moves within the fault dispute game can claim two separate values: [output roots
 commitments. At and above the `SPLIT_DEPTH`, claims correspond to output roots, while below the split depth, they
 correspond to execution trace commitments.
 
-Initially, claims added to the DAG are _uncontesteed_ (i.e. not **countered**). Once a move targets a claim, that claim
+Initially, claims added to the DAG are _uncontested_ (i.e. not **countered**). Once a move targets a claim, that claim
 is considered countered.
 The status of a claim &mdash; whether it's countered or not &mdash; helps determine its validity and, ultimately, the
 game's winner.
