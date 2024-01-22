@@ -334,7 +334,7 @@ Uncontested claims are likely to result in a loss, as explained later under [Res
 
 ### Game Clock
 
-Every claim in the game has a Clock. A claim's inherits the clock of its grandparent claim in the
+Every claim in the game has a Clock. A claim inherits the clock of its grandparent claim in the
 DAG (and so on). Akin to a chess clock, it keeps track of the total time each team takes to make
 moves, preventing delays.
 Making a move resumes the clock for the disputed claim and puases it for the newly added one.
