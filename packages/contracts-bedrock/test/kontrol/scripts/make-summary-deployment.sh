@@ -39,6 +39,7 @@ GENERATED_STATEDIFF=Deploy.json # Name of the statediff json produced by the dep
 STATEDIFF=Kontrol-${GENERATED_STATEDIFF} # Name of the Kontrol statediff
 mv snapshots/state-diff/${GENERATED_STATEDIFF} snapshots/state-diff/${STATEDIFF}
 python3 ${JSON_SCRIPTS}/clean_json.py snapshots/state-diff/${STATEDIFF}
+jq . snapshots/state-diff/${STATEDIFF} > temp && mv temp snapshots/state-diff/${STATEDIFF} # Prettify json
 echo "Cleaned state diff json"
 
 CONTRACT_NAMES=deployments/hardhat/.deploy
