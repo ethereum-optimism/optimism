@@ -11,6 +11,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/matrix"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -54,41 +56,39 @@ func NewLargePreimageUploader(logger log.Logger, txMgr txmgr.TxManager, contract
 }
 
 func (p *LargePreimageUploader) UploadPreimage(ctx context.Context, parent uint64, data *types.PreimageOracleData) error {
-	// Split the preimage data into chunks of size [MaxChunkSize] (except the last chunk).
-	stateMatrix := matrix.NewStateMatrix()
-	chunk := make([]byte, 0, MaxChunkSize)
-	calls := []Chunk{}
-	commitments := make([][32]byte, 0, MaxLeafsPerChunk)
-	in := bytes.NewReader(data.OracleData)
-	for i := 0; ; i++ {
-		// Absorb the next preimage chunk leaf and run the keccak permutation.
-		leaf, err := stateMatrix.AbsorbNextLeaf(in)
-		chunk = append(chunk, leaf...)
-		commitments = append(commitments, stateMatrix.StateCommitment())
-		// SAFETY: the last leaf will always return an [io.EOF] error from [AbsorbNextLeaf].
-		if errors.Is(err, io.EOF) {
-			calls = append(calls, Chunk{chunk, commitments[:], true})
-			break
-		}
-		if err != nil {
-			return fmt.Errorf("failed to absorb leaf: %w", err)
-		}
-
-		// Only create a call if the chunk is full.
-		if len(chunk) >= MaxChunkSize {
-			calls = append(calls, Chunk{chunk, commitments[:], false})
-			chunk = make([]byte, 0, MaxChunkSize)
-			commitments = make([][32]byte, 0, MaxLeafsPerChunk)
-		}
+	chunks, err := p.splitChunks(data)
+	if err != nil {
+		return fmt.Errorf("failed to split preimage into chunks for data with oracle offset %d: %w", data.OracleOffset, err)
 	}
 
 	uuid := p.newUUID(data)
-	err := p.initLargePreimage(ctx, uuid, data.OracleOffset, uint32(len(data.OracleData)))
+
+	// Fetch the current metadata for this preimage data, if it exists.
+	ident := gameTypes.LargePreimageIdent{Claimant: p.txMgr.From(), UUID: uuid}
+	metadata, err := p.contract.GetProposalMetadata(ctx, batching.BlockLatest, ident)
 	if err != nil {
-		return fmt.Errorf("failed to initialize large preimage with uuid: %s: %w", uuid, err)
+		return fmt.Errorf("failed to get pre-image oracle metadata: %w", err)
 	}
 
-	err = p.addLargePreimageLeafs(ctx, uuid, calls)
+	// The proposal is not initialized if the queried metadata has a claimed size of 0.
+	if len(metadata) == 1 && metadata[0].ClaimedSize == 0 {
+		err = p.initLargePreimage(ctx, uuid, data.OracleOffset, uint32(len(data.OracleData)))
+		if err != nil {
+			return fmt.Errorf("failed to initialize large preimage with uuid: %s: %w", uuid, err)
+		}
+	}
+
+	// Filter out any chunks that have already been uploaded to the Preimage Oracle.
+	if len(metadata) > 0 {
+		numSkip := metadata[0].BytesProcessed / MaxChunkSize
+		chunks = chunks[numSkip:]
+		// If the timestamp is non-zero, the preimage has been finalized.
+		if metadata[0].Timestamp != 0 {
+			chunks = chunks[len(chunks):]
+		}
+	}
+
+	err = p.addLargePreimageLeafs(ctx, uuid, chunks)
 	if err != nil {
 		return fmt.Errorf("failed to add leaves to large preimage with uuid: %s: %w", uuid, err)
 	}
@@ -109,6 +109,37 @@ func (p *LargePreimageUploader) newUUID(data *types.PreimageOracleData) *big.Int
 	concatenated = append(concatenated, sender.Bytes()...)
 	hash := crypto.Keccak256Hash(concatenated)
 	return hash.Big()
+}
+
+// splitChunks splits the preimage data into chunks of size [MaxChunkSize] (except the last chunk).
+func (p *LargePreimageUploader) splitChunks(data *types.PreimageOracleData) ([]Chunk, error) {
+	stateMatrix := matrix.NewStateMatrix()
+	chunk := make([]byte, 0, MaxChunkSize)
+	chunks := []Chunk{}
+	commitments := make([][32]byte, 0, MaxLeafsPerChunk)
+	in := bytes.NewReader(data.OracleData)
+	for i := 0; ; i++ {
+		// Absorb the next preimage chunk leaf and run the keccak permutation.
+		leaf, err := stateMatrix.AbsorbNextLeaf(in)
+		chunk = append(chunk, leaf...)
+		commitments = append(commitments, stateMatrix.StateCommitment())
+		// SAFETY: the last leaf will always return an [io.EOF] error from [AbsorbNextLeaf].
+		if errors.Is(err, io.EOF) {
+			chunks = append(chunks, Chunk{chunk, commitments[:], true})
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to absorb leaf: %w", err)
+		}
+
+		// Only create a call if the chunk is full.
+		if len(chunk) >= MaxChunkSize {
+			chunks = append(chunks, Chunk{chunk, commitments[:], false})
+			chunk = make([]byte, 0, MaxChunkSize)
+			commitments = make([][32]byte, 0, MaxLeafsPerChunk)
+		}
+	}
+	return chunks, nil
 }
 
 // initLargePreimage initializes the large preimage proposal.

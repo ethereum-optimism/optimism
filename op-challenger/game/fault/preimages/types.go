@@ -8,6 +8,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/matrix"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -25,4 +27,5 @@ type PreimageOracleContract interface {
 	InitLargePreimage(uuid *big.Int, partOffset uint32, claimedSize uint32) (txmgr.TxCandidate, error)
 	AddLeaves(uuid *big.Int, input []byte, commitments [][32]byte, finalize bool) (txmgr.TxCandidate, error)
 	Squeeze(claimant common.Address, uuid *big.Int, stateMatrix *matrix.StateMatrix, preState contracts.Leaf, preStateProof contracts.MerkleProof, postState contracts.Leaf, postStateProof contracts.MerkleProof) (txmgr.TxCandidate, error)
+	GetProposalMetadata(ctx context.Context, block batching.Block, idents ...gameTypes.LargePreimageIdent) ([]gameTypes.LargePreimageMetaData, error)
 }

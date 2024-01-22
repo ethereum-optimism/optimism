@@ -112,7 +112,7 @@ func (s *mockTxMgr) Send(_ context.Context, _ txmgr.TxCandidate) (*ethtypes.Rece
 	if s.statusFail {
 		return &ethtypes.Receipt{Status: ethtypes.ReceiptStatusFailed}, nil
 	}
-	return &ethtypes.Receipt{}, nil
+	return &ethtypes.Receipt{Status: ethtypes.ReceiptStatusSuccessful}, nil
 }
 
 func (s *mockTxMgr) BlockNumber(_ context.Context) (uint64, error) { return 0, nil }

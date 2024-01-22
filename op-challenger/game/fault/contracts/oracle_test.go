@@ -105,12 +105,47 @@ func TestPreimageOracleContract_Squeeze(t *testing.T) {
 }
 
 func TestGetActivePreimages(t *testing.T) {
-	stubRpc, oracle := setupPreimageOracleTest(t)
 	blockHash := common.Hash{0xaa}
+	_, oracle, proposals := setupPreimageOracleTestWithProposals(t, batching.BlockByHash(blockHash))
+	preimages, err := oracle.GetActivePreimages(context.Background(), blockHash)
+	require.NoError(t, err)
+	require.Equal(t, proposals, preimages)
+}
+
+func TestGetProposalMetadata(t *testing.T) {
+	blockHash := common.Hash{0xaa}
+	block := batching.BlockByHash(blockHash)
+	stubRpc, oracle, proposals := setupPreimageOracleTestWithProposals(t, block)
+	preimages, err := oracle.GetProposalMetadata(
+		context.Background(),
+		block,
+		proposals[0].LargePreimageIdent,
+		proposals[1].LargePreimageIdent,
+		proposals[2].LargePreimageIdent,
+	)
+	require.NoError(t, err)
+	require.Equal(t, proposals, preimages)
+
+	// Fetching a proposal that doesn't exist should return an empty metadata object.
+	ident := gameTypes.LargePreimageIdent{Claimant: common.Address{0x12}, UUID: big.NewInt(123)}
+	meta := new(metadata)
+	stubRpc.SetResponse(
+		oracleAddr,
+		methodProposalMetadata,
+		block,
+		[]interface{}{ident.Claimant, ident.UUID},
+		[]interface{}{meta})
+	preimages, err = oracle.GetProposalMetadata(context.Background(), batching.BlockByHash(blockHash), ident)
+	require.NoError(t, err)
+	require.Equal(t, []gameTypes.LargePreimageMetaData{{LargePreimageIdent: ident}}, preimages)
+}
+
+func setupPreimageOracleTestWithProposals(t *testing.T, block batching.Block) (*batchingTest.AbiBasedRpc, *PreimageOracleContract, []gameTypes.LargePreimageMetaData) {
+	stubRpc, oracle := setupPreimageOracleTest(t)
 	stubRpc.SetResponse(
 		oracleAddr,
 		methodProposalCount,
-		batching.BlockByHash(blockHash),
+		block,
 		[]interface{}{},
 		[]interface{}{big.NewInt(3)})
 
@@ -150,41 +185,36 @@ func TestGetActivePreimages(t *testing.T) {
 		BytesProcessed:  233,
 		Countered:       false,
 	}
-	expectGetProposals(stubRpc, batching.BlockByHash(blockHash), preimage1, preimage2, preimage3)
-	preimages, err := oracle.GetActivePreimages(context.Background(), blockHash)
-	require.NoError(t, err)
-	require.Equal(t, []gameTypes.LargePreimageMetaData{preimage1, preimage2, preimage3}, preimages)
-}
 
-func expectGetProposals(stubRpc *batchingTest.AbiBasedRpc, block batching.Block, proposals ...gameTypes.LargePreimageMetaData) {
+	proposals := []gameTypes.LargePreimageMetaData{preimage1, preimage2, preimage3}
+
 	for i, proposal := range proposals {
-		expectGetProposal(stubRpc, block, int64(i), proposal)
+		stubRpc.SetResponse(
+			oracleAddr,
+			methodProposals,
+			block,
+			[]interface{}{big.NewInt(int64(i))},
+			[]interface{}{
+				proposal.Claimant,
+				proposal.UUID,
+			})
+		meta := new(metadata)
+		meta.setTimestamp(proposal.Timestamp)
+		meta.setPartOffset(proposal.PartOffset)
+		meta.setClaimedSize(proposal.ClaimedSize)
+		meta.setBlocksProcessed(proposal.BlocksProcessed)
+		meta.setBytesProcessed(proposal.BytesProcessed)
+		meta.setCountered(proposal.Countered)
+		stubRpc.SetResponse(
+			oracleAddr,
+			methodProposalMetadata,
+			block,
+			[]interface{}{proposal.Claimant, proposal.UUID},
+			[]interface{}{meta})
 	}
-}
 
-func expectGetProposal(stubRpc *batchingTest.AbiBasedRpc, block batching.Block, idx int64, proposal gameTypes.LargePreimageMetaData) {
-	stubRpc.SetResponse(
-		oracleAddr,
-		methodProposals,
-		block,
-		[]interface{}{big.NewInt(idx)},
-		[]interface{}{
-			proposal.Claimant,
-			proposal.UUID,
-		})
-	meta := new(metadata)
-	meta.setTimestamp(proposal.Timestamp)
-	meta.setPartOffset(proposal.PartOffset)
-	meta.setClaimedSize(proposal.ClaimedSize)
-	meta.setBlocksProcessed(proposal.BlocksProcessed)
-	meta.setBytesProcessed(proposal.BytesProcessed)
-	meta.setCountered(proposal.Countered)
-	stubRpc.SetResponse(
-		oracleAddr,
-		methodProposalMetadata,
-		block,
-		[]interface{}{proposal.Claimant, proposal.UUID},
-		[]interface{}{meta})
+	return stubRpc, oracle, proposals
+
 }
 
 func setupPreimageOracleTest(t *testing.T) (*batchingTest.AbiBasedRpc, *PreimageOracleContract) {

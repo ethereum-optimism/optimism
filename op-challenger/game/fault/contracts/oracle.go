@@ -150,12 +150,15 @@ func (c *PreimageOracleContract) GetActivePreimages(ctx context.Context, blockHa
 		idents = append(idents, c.decodePreimageIdent(result))
 	}
 
-	// Fetch the metadata for each preimage
+	return c.GetProposalMetadata(ctx, block, idents...)
+}
+
+func (c *PreimageOracleContract) GetProposalMetadata(ctx context.Context, block batching.Block, idents ...gameTypes.LargePreimageIdent) ([]gameTypes.LargePreimageMetaData, error) {
 	var calls []*batching.ContractCall
 	for _, ident := range idents {
 		calls = append(calls, c.contract.Call(methodProposalMetadata, ident.Claimant, ident.UUID))
 	}
-	results, err = c.multiCaller.Call(ctx, block, calls...)
+	results, err := c.multiCaller.Call(ctx, block, calls...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load proposal metadata: %w", err)
 	}
@@ -172,7 +175,6 @@ func (c *PreimageOracleContract) GetActivePreimages(ctx context.Context, blockHa
 			Countered:          meta.countered(),
 		})
 	}
-
 	return proposals, nil
 }
 
