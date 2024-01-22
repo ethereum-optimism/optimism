@@ -69,6 +69,12 @@ var (
 		EnvVars: prefixEnvVars("DG_TYPE"),
 		Hidden:  true,
 	}
+	ActiveSequencerCheckDurationFlag = &cli.DurationFlag{
+		Name:    "active-sequencer-check-duration",
+		Usage:   "The duration between checks to determine the active sequencer endpoint. ",
+		Value:   2 * time.Minute,
+		EnvVars: prefixEnvVars("ACTIVE_SEQUENCER_CHECK_DURATION"),
+	}
 	// Legacy Flags
 	L2OutputHDPathFlag = txmgr.L2OutputHDPathFlag
 )
@@ -86,6 +92,7 @@ var optionalFlags = []cli.Flag{
 	DisputeGameFactoryAddressFlag,
 	ProposalIntervalFlag,
 	DisputeGameTypeFlag,
+	ActiveSequencerCheckDurationFlag,
 }
 
 func init() {

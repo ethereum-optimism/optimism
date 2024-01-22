@@ -14,7 +14,9 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/async"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 )
@@ -65,6 +67,9 @@ type Driver struct {
 	// Driver config: verifier and sequencer settings
 	driverConfig *Config
 
+	// Sync Mod Config
+	syncCfg *sync.Config
+
 	// L1 Signals:
 	//
 	// Not all L1 blocks, or all changes, have to be signalled:
@@ -77,6 +82,10 @@ type Driver struct {
 
 	// Interface to signal the L2 block range to sync.
 	altSync AltSync
+
+	// async gossiper for payloads to be gossiped without
+	// blocking the event loop or waiting for insertion
+	asyncGossiper async.AsyncGossiper
 
 	// L2 Signals:
 
@@ -117,6 +126,8 @@ func (s *Driver) Start() error {
 		}
 	}
 
+	s.asyncGossiper.Start()
+
 	s.wg.Add(1)
 	go s.eventLoop()
 
@@ -126,6 +137,7 @@ func (s *Driver) Start() error {
 func (s *Driver) Close() error {
 	s.driverCancel()
 	s.wg.Wait()
+	s.asyncGossiper.Stop()
 	return nil
 }
 
@@ -167,6 +179,18 @@ func (s *Driver) OnUnsafeL2Payload(ctx context.Context, envelope *eth.ExecutionP
 	case s.unsafeL2Payloads <- envelope:
 		return nil
 	}
+}
+
+func (s *Driver) logSyncProgress(reason string) {
+	s.log.Info("Sync progress",
+		"reason", reason,
+		"l2_finalized", s.engineController.Finalized(),
+		"l2_safe", s.engineController.SafeL2Head(),
+		"l2_pending_safe", s.engineController.PendingSafeL2Head(),
+		"l2_unsafe", s.engineController.UnsafeL2Head(),
+		"l2_time", s.engineController.UnsafeL2Head().Time,
+		"l1_derived", s.derivation.Origin(),
+	)
 }
 
 // the eventLoop responds to L1 changes and internal timers to produce L2 blocks.
@@ -276,20 +300,14 @@ func (s *Driver) eventLoop() {
 
 		select {
 		case <-sequencerCh:
-			payload, err := s.sequencer.RunNextSequencerAction(s.driverCtx)
+			// the payload publishing is handled by the async gossiper, which will begin gossiping as soon as available
+			// so, we don't need to receive the payload here
+			_, err := s.sequencer.RunNextSequencerAction(s.driverCtx, s.asyncGossiper)
 			if errors.Is(err, derive.ErrReset) {
 				s.derivation.Reset()
 			} else if err != nil {
 				s.log.Error("Sequencer critical error", "err", err)
 				return
-			}
-			if s.network != nil && payload != nil {
-				// Publishing of unsafe data via p2p is optional.
-				// Errors are not severe enough to change/halt sequencing but should be logged and metered.
-				if err := s.network.PublishL2Payload(s.driverCtx, payload); err != nil {
-					s.log.Warn("failed to publish newly created block", "id", payload.ExecutionPayload.ID(), "err", err)
-					s.metrics.RecordPublishingError()
-				}
 			}
 			planSequencerAction() // schedule the next sequencer action to keep the sequencing looping
 		case <-altSyncTicker.C:
@@ -302,11 +320,27 @@ func (s *Driver) eventLoop() {
 			}
 		case envelope := <-s.unsafeL2Payloads:
 			s.snapshot("New unsafe payload")
-			s.log.Info("Optimistically queueing unsafe L2 execution payload", "id", envelope.ExecutionPayload.ID())
-			s.derivation.AddUnsafePayload(envelope)
-			s.metrics.RecordReceivedUnsafePayload(envelope)
-			reqStep()
-
+			// If we are doing CL sync or done with engine syncing, fallback to the unsafe payload queue & CL P2P sync.
+			if s.syncCfg.SyncMode == sync.CLSync || !s.engineController.IsEngineSyncing() {
+				s.log.Info("Optimistically queueing unsafe L2 execution payload", "id", envelope.ExecutionPayload.ID())
+				s.derivation.AddUnsafePayload(envelope)
+				s.metrics.RecordReceivedUnsafePayload(envelope)
+				reqStep()
+			} else if s.syncCfg.SyncMode == sync.ELSync {
+				ref, err := derive.PayloadToBlockRef(s.config, envelope.ExecutionPayload)
+				if err != nil {
+					s.log.Info("Failed to turn execution payload into a block ref", "id", envelope.ExecutionPayload.ID(), "err", err)
+					continue
+				}
+				if ref.Number <= s.engineController.UnsafeL2Head().Number {
+					continue
+				}
+				s.log.Info("Optimistically inserting unsafe L2 execution payload to drive EL sync", "id", envelope.ExecutionPayload.ID())
+				if err := s.engineController.InsertUnsafePayload(s.driverCtx, envelope, ref); err != nil {
+					s.log.Warn("Failed to insert unsafe payload for EL sync", "id", envelope.ExecutionPayload.ID(), "err", err)
+				}
+				s.logSyncProgress("unsafe payload from sequencer")
+			}
 		case newL1Head := <-s.l1HeadSig:
 			s.l1State.HandleNewL1HeadBlock(newL1Head)
 			reqStep() // a new L1 head may mean we have the data to not get an EOF again.
@@ -321,6 +355,10 @@ func (s *Driver) eventLoop() {
 			delayedStepReq = nil
 			step()
 		case <-stepReqCh:
+			// Don't start the derivation pipeline until we are done with EL sync
+			if s.engineController.IsEngineSyncing() {
+				continue
+			}
 			s.metrics.SetDerivationIdle(false)
 			s.log.Debug("Derivation process step", "onto_origin", s.derivation.Origin(), "attempts", stepAttempts)
 			err := s.derivation.Step(s.driverCtx)

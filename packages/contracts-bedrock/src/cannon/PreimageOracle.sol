@@ -183,6 +183,57 @@ contract PreimageOracle is IPreimageOracle {
         preimageLengths[key] = size;
     }
 
+    /// @inheritdoc IPreimageOracle
+    function loadSha256PreimagePart(uint256 _partOffset, bytes calldata _preimage) external {
+        uint256 size;
+        bytes32 key;
+        bytes32 part;
+        assembly {
+            // len(sig) + len(partOffset) + len(preimage offset) = 4 + 32 + 32 = 0x44
+            size := calldataload(0x44)
+
+            // revert if part offset >= size+8 (i.e. parts must be within bounds)
+            if iszero(lt(_partOffset, add(size, 8))) {
+                // Store "PartOffsetOOB()"
+                mstore(0, 0xfe254987)
+                // Revert with "PartOffsetOOB()"
+                revert(0x1c, 4)
+            }
+            // we leave solidity slots 0x40 and 0x60 untouched,
+            // and everything after as scratch-memory.
+            let ptr := 0x80
+            // put size as big-endian uint64 at start of pre-image
+            mstore(ptr, shl(192, size))
+            ptr := add(ptr, 8)
+            // copy preimage payload into memory so we can hash and read it.
+            calldatacopy(ptr, _preimage.offset, size)
+            // Note that it includes the 8-byte big-endian uint64 length prefix.
+            // this will be zero-padded at the end, since memory at end is clean.
+            part := mload(add(sub(ptr, 8), _partOffset))
+
+            // compute SHA2-256 hash with pre-compile
+            let success :=
+                staticcall(
+                    gas(), // Forward all available gas
+                    0x02, // Address of SHA-256 precompile
+                    ptr, // Start of input data in memory
+                    size, // Size of input data
+                    0, // Store output in scratch memory
+                    0x20 // Output is always 32 bytes
+                )
+            // Check if the staticcall succeeded
+            if iszero(success) { revert(0, 0) }
+            let h := mload(0) // get return data
+            // mask out prefix byte, replace with type 4 byte
+            key := or(and(h, not(shl(248, 0xFF))), shl(248, 4))
+        }
+        preimagePartOk[key][_partOffset] = true;
+        preimageParts[key][_partOffset] = part;
+        preimageLengths[key] = size;
+    }
+
+    // TODO 4844 point-evaluation preimage
+
     ////////////////////////////////////////////////////////////////
     //            Large Preimage Proposals (External)             //
     ////////////////////////////////////////////////////////////////

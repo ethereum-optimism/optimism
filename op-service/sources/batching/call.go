@@ -133,3 +133,7 @@ func (c *CallResult) GetBigInt(i int) *big.Int {
 func (c *CallResult) GetStruct(i int, target interface{}) {
 	abi.ConvertType(c.out[i], target)
 }
+
+func (c *CallResult) GetBytes32(i int) [32]byte {
+	return *abi.ConvertType(c.out[i], new([32]byte)).(*[32]byte)
+}

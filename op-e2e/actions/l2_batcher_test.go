@@ -50,6 +50,27 @@ func TestL2BatcherBatchType(t *testing.T) {
 	}
 }
 
+// applyDeltaTimeOffset adjusts fork configuration to not conflict with the delta overrides
+func applyDeltaTimeOffset(dp *e2eutils.DeployParams, deltaTimeOffset *hexutil.Uint64) {
+	dp.DeployConfig.L2GenesisDeltaTimeOffset = deltaTimeOffset
+	// configure Ecotone to not be before Delta accidentally
+	if dp.DeployConfig.L2GenesisEcotoneTimeOffset != nil {
+		if deltaTimeOffset == nil {
+			dp.DeployConfig.L2GenesisEcotoneTimeOffset = nil
+		} else if *dp.DeployConfig.L2GenesisEcotoneTimeOffset < *deltaTimeOffset {
+			dp.DeployConfig.L2GenesisEcotoneTimeOffset = deltaTimeOffset
+		}
+	}
+	// configure Fjord to not be before Delta accidentally
+	if dp.DeployConfig.L2GenesisFjordTimeOffset != nil {
+		if deltaTimeOffset == nil {
+			dp.DeployConfig.L2GenesisFjordTimeOffset = nil
+		} else if *dp.DeployConfig.L2GenesisFjordTimeOffset < *deltaTimeOffset {
+			dp.DeployConfig.L2GenesisFjordTimeOffset = deltaTimeOffset
+		}
+	}
+}
+
 func NormalBatcher(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	t := NewDefaultTesting(gt)
 	p := &e2eutils.TestParams{
@@ -59,7 +80,7 @@ func NormalBatcher(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 		L1BlockTime:         12,
 	}
 	dp := e2eutils.MakeDeployParams(t, p)
-	dp.DeployConfig.L2GenesisDeltaTimeOffset = deltaTimeOffset
+	applyDeltaTimeOffset(dp, deltaTimeOffset)
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlDebug)
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
@@ -131,7 +152,7 @@ func NormalBatcher(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 func L2Finalization(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
-	dp.DeployConfig.L2GenesisDeltaTimeOffset = deltaTimeOffset
+	applyDeltaTimeOffset(dp, deltaTimeOffset)
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlDebug)
 	miner, engine, sequencer := setupSequencerTest(t, sd, log)
@@ -238,7 +259,7 @@ func L2Finalization(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 func L2FinalizationWithSparseL1(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
-	dp.DeployConfig.L2GenesisDeltaTimeOffset = deltaTimeOffset
+	applyDeltaTimeOffset(dp, deltaTimeOffset)
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlDebug)
 	miner, engine, sequencer := setupSequencerTest(t, sd, log)
@@ -298,7 +319,7 @@ func GarbageBatch(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	t := NewDefaultTesting(gt)
 	p := defaultRollupTestParams
 	dp := e2eutils.MakeDeployParams(t, p)
-	dp.DeployConfig.L2GenesisDeltaTimeOffset = deltaTimeOffset
+	applyDeltaTimeOffset(dp, deltaTimeOffset)
 	for _, garbageKind := range GarbageKinds {
 		sd := e2eutils.Setup(t, dp, defaultAlloc)
 		log := testlog.Logger(t, log.LvlError)
@@ -383,7 +404,7 @@ func ExtendedTimeWithoutL1Batches(gt *testing.T, deltaTimeOffset *hexutil.Uint64
 		L1BlockTime:         12,
 	}
 	dp := e2eutils.MakeDeployParams(t, p)
-	dp.DeployConfig.L2GenesisDeltaTimeOffset = deltaTimeOffset
+	applyDeltaTimeOffset(dp, deltaTimeOffset)
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlError)
 	miner, engine, sequencer := setupSequencerTest(t, sd, log)
@@ -442,7 +463,7 @@ func BigL2Txs(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 		L1BlockTime:         12,
 	}
 	dp := e2eutils.MakeDeployParams(t, p)
-	dp.DeployConfig.L2GenesisDeltaTimeOffset = deltaTimeOffset
+	applyDeltaTimeOffset(dp, deltaTimeOffset)
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlInfo)
 	miner, engine, sequencer := setupSequencerTest(t, sd, log)

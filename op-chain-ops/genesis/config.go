@@ -761,19 +761,11 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (*immutables
 	}
 
 	cfg := immutables.PredeploysImmutableConfig{
-		L2ToL1MessagePasser: struct{}{},
-		DeployerWhitelist:   struct{}{},
-		WETH9:               struct{}{},
-		L2CrossDomainMessenger: struct{ OtherMessenger common.Address }{
-			OtherMessenger: config.L1CrossDomainMessengerProxy,
-		},
-		L2StandardBridge: struct {
-			OtherBridge common.Address
-			Messenger   common.Address
-		}{
-			OtherBridge: config.L1StandardBridgeProxy,
-			Messenger:   predeploys.L2CrossDomainMessengerAddr,
-		},
+		L2ToL1MessagePasser:    struct{}{},
+		DeployerWhitelist:      struct{}{},
+		WETH9:                  struct{}{},
+		L2CrossDomainMessenger: struct{}{},
+		L2StandardBridge:       struct{}{},
 		SequencerFeeVault: struct {
 			Recipient           common.Address
 			MinWithdrawalAmount *big.Int
@@ -788,13 +780,7 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (*immutables
 		L1Block:             struct{}{},
 		GovernanceToken:     struct{}{},
 		LegacyMessagePasser: struct{}{},
-		L2ERC721Bridge: struct {
-			OtherBridge common.Address
-			Messenger   common.Address
-		}{
-			OtherBridge: config.L1ERC721BridgeProxy,
-			Messenger:   predeploys.L2CrossDomainMessengerAddr,
-		},
+		L2ERC721Bridge:      struct{}{},
 		OptimismMintableERC721Factory: struct {
 			Bridge        common.Address
 			RemoteChainId *big.Int
@@ -802,12 +788,8 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (*immutables
 			Bridge:        predeploys.L2ERC721BridgeAddr,
 			RemoteChainId: new(big.Int).SetUint64(config.L1ChainID),
 		},
-		OptimismMintableERC20Factory: struct {
-			Bridge common.Address
-		}{
-			Bridge: predeploys.L2StandardBridgeAddr,
-		},
-		ProxyAdmin: struct{}{},
+		OptimismMintableERC20Factory: struct{}{},
+		ProxyAdmin:                   struct{}{},
 		BaseFeeVault: struct {
 			Recipient           common.Address
 			MinWithdrawalAmount *big.Int
@@ -861,14 +843,24 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 		"_initializing":    false,
 		"xDomainMsgSender": "0x000000000000000000000000000000000000dEaD",
 		"msgNonce":         0,
+		"otherMessenger":   config.L1CrossDomainMessengerProxy,
 	}
 	storage["L2StandardBridge"] = state.StorageValues{
 		"_initialized":  1,
 		"_initializing": false,
+		"otherBridge":   config.L1StandardBridgeProxy,
+		"messenger":     predeploys.L2CrossDomainMessengerAddr,
 	}
 	storage["L2ERC721Bridge"] = state.StorageValues{
 		"_initialized":  1,
 		"_initializing": false,
+		"otherBridge":   config.L1ERC721BridgeProxy,
+		"messenger":     predeploys.L2CrossDomainMessengerAddr,
+	}
+	storage["OptimismMintableERC20Factory"] = state.StorageValues{
+		"_initialized":  1,
+		"_initializing": false,
+		"bridge":        predeploys.L2StandardBridgeAddr,
 	}
 	storage["L1Block"] = state.StorageValues{
 		"number":         block.Number(),

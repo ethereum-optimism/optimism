@@ -38,12 +38,12 @@ func main() {
 			&cli.StringSliceFlag{
 				Name:    "l1-rpc-urls",
 				Usage:   "L1 RPC URLs, the chain ID will be used to determine the superchain",
-				EnvVars: []string{"L1_RPC_URL"},
+				EnvVars: []string{"L1_RPC_URLS"},
 			},
 			&cli.StringSliceFlag{
 				Name:    "l2-rpc-urls",
 				Usage:   "L2 RPC URLs, corresponding to chains to check versions for. Corresponds to all chains if empty",
-				EnvVars: []string{"L1_RPC_URL"},
+				EnvVars: []string{"L2_RPC_URLS"},
 			},
 			&cli.PathFlag{
 				Name:    "outfile",

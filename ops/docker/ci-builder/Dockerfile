@@ -1,6 +1,6 @@
 # Copy docker buildx in order to generate the absolute prestate
 # in the CI pipeline for reproducible fault proof builds
-FROM docker as buildx
+FROM --platform=linux/amd64 docker as buildx
 COPY --from=docker/buildx-bin /buildx /usr/libexec/docker/cli-plugins/docker-buildx
 RUN docker buildx version
 
@@ -34,8 +34,6 @@ RUN strip /root/.foundry/bin/forge && \
   strip /root/.foundry/bin/cast && \
   strip /root/.foundry/bin/anvil
 
-FROM --platform=linux/amd64 ghcr.io/crytic/echidna/echidna:v2.0.4 as echidna-test
-
 FROM --platform=linux/amd64 debian:bullseye-slim as go-build
 
 RUN apt-get update && apt-get install -y curl ca-certificates jq
@@ -58,7 +56,7 @@ RUN go install gotest.tools/gotestsum@latest
 RUN go install github.com/vektra/mockery/v2@v2.28.1
 RUN go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.54.2
 
-FROM --platform=linux/amd64 python:3.11.4-slim-bullseye
+FROM --platform=linux/amd64 debian:bullseye-slim
 
 ENV GOPATH=/go
 ENV PATH=/usr/local/go/bin:$GOPATH/bin:$PATH
@@ -87,17 +85,14 @@ COPY --from=rust-build /root/.foundry/bin/forge /usr/local/bin/forge
 COPY --from=rust-build /root/.foundry/bin/cast /usr/local/bin/cast
 COPY --from=rust-build /root/.foundry/bin/anvil /usr/local/bin/anvil
 
-COPY --from=echidna-test /usr/local/bin/echidna-test /usr/local/bin/echidna-test
-
 COPY .nvmrc .nvmrc
 COPY ./versions.json ./versions.json
 
 ENV NODE_MAJOR=20
 
-# note: python3 package in apt is python 3.9, while base image already has python 3.11
 RUN /bin/sh -c set -eux; \
   apt-get update; \
-  apt-get install -y --no-install-recommends bash curl openssh-client git build-essential pkg-config libssl-dev clang libclang-dev ca-certificates jq gnupg binutils-mips-linux-gnu; \
+  apt-get install -y --no-install-recommends bash curl openssh-client git build-essential pkg-config libssl-dev clang lld libclang-dev ca-certificates jq gnupg binutils-mips-linux-gnu python3 python3-pip; \
   mkdir -p /etc/apt/keyrings; \
   curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg; \
   echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_$NODE_MAJOR.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list; \

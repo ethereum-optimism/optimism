@@ -126,12 +126,13 @@ func (cfg *Config) Check() error {
 	if err := cfg.L2.Check(); err != nil {
 		return fmt.Errorf("l2 endpoint config error: %w", err)
 	}
-	if cfg.Beacon != nil {
-		if err := cfg.Beacon.Check(); err != nil {
-			return fmt.Errorf("beacon endpoint config error: %w", err)
+	if cfg.Rollup.EcotoneTime != nil {
+		if cfg.Beacon == nil {
+			return fmt.Errorf("the Ecotone upgrade is scheduled but no L1 Beacon API endpoint is configured")
 		}
-	} else if cfg.Rollup.EcotoneTime != nil {
-		return fmt.Errorf("ecotone upgrade scheduled but no beacon endpoint is configured")
+		if err := cfg.Beacon.Check(); err != nil {
+			return fmt.Errorf("misconfigured L1 Beacon API endpoint: %w", err)
+		}
 	}
 	if err := cfg.Rollup.Check(); err != nil {
 		return fmt.Errorf("rollup config error: %w", err)

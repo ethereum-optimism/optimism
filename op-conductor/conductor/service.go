@@ -21,6 +21,7 @@ import (
 	opp2p "github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	opclient "github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
@@ -198,6 +199,29 @@ func (oc *OpConductor) initRPCServer(ctx context.Context) error {
 		Version:   oc.version,
 		Service:   api,
 	})
+
+	if oc.cfg.RPCEnableProxy {
+		execClient, err := dial.DialEthClientWithTimeout(ctx, 1*time.Minute, oc.log, oc.cfg.ExecutionRPC)
+		if err != nil {
+			return errors.Wrap(err, "failed to create execution rpc client")
+		}
+		executionProxy := conductorrpc.NewExecutionProxyBackend(oc.log, oc, execClient)
+		server.AddAPI(rpc.API{
+			Namespace: conductorrpc.ExecutionRPCNamespace,
+			Service:   executionProxy,
+		})
+
+		nodeClient, err := dial.DialRollupClientWithTimeout(ctx, 1*time.Minute, oc.log, oc.cfg.NodeRPC)
+		if err != nil {
+			return errors.Wrap(err, "failed to create node rpc client")
+		}
+		nodeProxy := conductorrpc.NewNodeProxyBackend(oc.log, oc, nodeClient)
+		server.AddAPI(rpc.API{
+			Namespace: conductorrpc.NodeRPCNamespace,
+			Service:   nodeProxy,
+		})
+	}
+
 	oc.rpcServer = server
 	return nil
 }
@@ -382,7 +406,7 @@ func (oc *OpConductor) TransferLeaderToServer(_ context.Context, id string, addr
 }
 
 // CommitUnsafePayload commits a unsafe payload (lastest head) to the cluster FSM.
-func (oc *OpConductor) CommitUnsafePayload(_ context.Context, payload *eth.ExecutionPayload) error {
+func (oc *OpConductor) CommitUnsafePayload(_ context.Context, payload *eth.ExecutionPayloadEnvelope) error {
 	return oc.cons.CommitUnsafePayload(payload)
 }
 
@@ -548,27 +572,26 @@ func (oc *OpConductor) startSequencer() error {
 		return errors.Wrap(err, "failed to get latest unsafe block from EL during startSequencer phase")
 	}
 
-	if unsafeInCons.BlockHash != unsafeInNode.Hash() {
+	//if unsafeInCons.BlockHash != unsafeInNode.Hash() {
+	if unsafeInCons.ExecutionPayload.BlockHash != unsafeInNode.Hash() {
 		oc.log.Warn(
 			"latest unsafe block in consensus is not the same as the one in op-node",
-			"consensus_hash", unsafeInCons.BlockHash,
-			"consensus_block_num", unsafeInCons.BlockNumber,
+			"consensus_hash", unsafeInCons.ExecutionPayload.BlockHash,
+			"consensus_block_num", unsafeInCons.ExecutionPayload.BlockNumber,
 			"node_hash", unsafeInNode.Hash(),
 			"node_block_num", unsafeInNode.NumberU64(),
 		)
 
-		if uint64(unsafeInCons.BlockNumber)-unsafeInNode.NumberU64() == 1 {
+		if uint64(unsafeInCons.ExecutionPayload.BlockNumber)-unsafeInNode.NumberU64() == 1 {
 			// tries to post the unsafe head to op-node when head is only 1 block behind (most likely due to gossip delay)
-			// TODO(ethereum-optimism/optimism#9064): op-conductor Dencun changes.
-			envelope := &eth.ExecutionPayloadEnvelope{ExecutionPayload: unsafeInCons}
-			if err = oc.ctrl.PostUnsafePayload(context.Background(), envelope); err != nil {
-				oc.log.Error("failed to post unsafe head payload to op-node", "err", err)
+			if err = oc.ctrl.PostUnsafePayload(context.Background(), unsafeInCons); err != nil {
+				oc.log.Error("failed to post unsafe head payload envelope to op-node", "err", err)
 			}
 		}
 		return ErrUnsafeHeadMismarch // return error to allow retry
 	}
 
-	if err := oc.ctrl.StartSequencer(context.Background(), unsafeInCons.BlockHash); err != nil {
+	if err := oc.ctrl.StartSequencer(context.Background(), unsafeInCons.ExecutionPayload.BlockHash); err != nil {
 		return errors.Wrap(err, "failed to start sequencer")
 	}
 

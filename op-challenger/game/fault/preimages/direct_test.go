@@ -17,15 +17,16 @@ import (
 var (
 	mockUpdateOracleTxError = errors.New("mock update oracle tx error")
 	mockTxMgrSendError      = errors.New("mock tx mgr send error")
+	mockInitLPPError        = errors.New("mock init LPP error")
 )
 
 func TestDirectPreimageUploader_UploadPreimage(t *testing.T) {
 	t.Run("UpdateOracleTxFails", func(t *testing.T) {
 		oracle, txMgr, contract := newTestDirectPreimageUploader(t)
-		contract.uploadFails = true
+		contract.updateFails = true
 		err := oracle.UploadPreimage(context.Background(), 0, &types.PreimageOracleData{})
 		require.ErrorIs(t, err, mockUpdateOracleTxError)
-		require.Equal(t, 1, contract.updates)
+		require.Equal(t, 1, contract.updateCalls)
 		require.Equal(t, 0, txMgr.sends) // verify that the tx was not sent
 	})
 
@@ -34,7 +35,7 @@ func TestDirectPreimageUploader_UploadPreimage(t *testing.T) {
 		txMgr.sendFails = true
 		err := oracle.UploadPreimage(context.Background(), 0, &types.PreimageOracleData{})
 		require.ErrorIs(t, err, mockTxMgrSendError)
-		require.Equal(t, 1, contract.updates)
+		require.Equal(t, 1, contract.updateCalls)
 		require.Equal(t, 1, txMgr.sends)
 	})
 
@@ -48,7 +49,7 @@ func TestDirectPreimageUploader_UploadPreimage(t *testing.T) {
 		oracle, _, contract := newTestDirectPreimageUploader(t)
 		err := oracle.UploadPreimage(context.Background(), 0, &types.PreimageOracleData{})
 		require.NoError(t, err)
-		require.Equal(t, 1, contract.updates)
+		require.Equal(t, 1, contract.updateCalls)
 	})
 }
 
@@ -77,21 +78,21 @@ func TestDirectPreimageUploader_SendTxAndWait(t *testing.T) {
 	})
 }
 
-func newTestDirectPreimageUploader(t *testing.T) (*DirectPreimageUploader, *mockTxMgr, *mockPreimageOracleContract) {
+func newTestDirectPreimageUploader(t *testing.T) (*DirectPreimageUploader, *mockTxMgr, *mockPreimageGameContract) {
 	logger := testlog.Logger(t, log.LvlError)
 	txMgr := &mockTxMgr{}
-	contract := &mockPreimageOracleContract{}
+	contract := &mockPreimageGameContract{}
 	return NewDirectPreimageUploader(logger, txMgr, contract), txMgr, contract
 }
 
-type mockPreimageOracleContract struct {
-	updates     int
-	uploadFails bool
+type mockPreimageGameContract struct {
+	updateCalls int
+	updateFails bool
 }
 
-func (s *mockPreimageOracleContract) UpdateOracleTx(_ context.Context, _ uint64, _ *types.PreimageOracleData) (txmgr.TxCandidate, error) {
-	s.updates++
-	if s.uploadFails {
+func (s *mockPreimageGameContract) UpdateOracleTx(_ context.Context, _ uint64, _ *types.PreimageOracleData) (txmgr.TxCandidate, error) {
+	s.updateCalls++
+	if s.updateFails {
 		return txmgr.TxCandidate{}, mockUpdateOracleTxError
 	}
 	return txmgr.TxCandidate{}, nil

@@ -126,8 +126,8 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 	var parentBeaconRoot *common.Hash
 	if ba.rollupCfg.IsEcotone(nextL2Time) {
 		parentBeaconRoot = l1Info.ParentBeaconRoot()
-		if parentBeaconRoot == nil {
-			return nil, NewCriticalError(fmt.Errorf("cannot build Ecotone (L2 Dencun) block without L1 Dencun info, at L2 timestamp %d", nextL2Time))
+		if parentBeaconRoot == nil { // default to zero hash if there is no beacon-block-root available
+			parentBeaconRoot = new(common.Hash)
 		}
 	}
 

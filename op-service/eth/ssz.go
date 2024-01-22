@@ -257,7 +257,7 @@ func (payload *ExecutionPayload) UnmarshalSSZ(version BlockVersion, scope uint32
 	fixedSize := executionPayloadFixedPart(version)
 
 	if scope < fixedSize {
-		return fmt.Errorf("scope too small to decode execution payload: %d", scope)
+		return fmt.Errorf("scope too small to decode execution payload: %d, version is: %v", scope, version)
 	}
 
 	buf := *payloadBufPool.Get().(*[]byte)

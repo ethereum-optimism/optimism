@@ -23,7 +23,6 @@ type GameContract interface {
 	AttackTx(parentContractIndex uint64, pivot common.Hash) (txmgr.TxCandidate, error)
 	DefendTx(parentContractIndex uint64, pivot common.Hash) (txmgr.TxCandidate, error)
 	StepTx(claimIdx uint64, isAttack bool, stateData []byte, proof []byte) (txmgr.TxCandidate, error)
-	UpdateOracleTx(ctx context.Context, claimIdx uint64, data *types.PreimageOracleData) (txmgr.TxCandidate, error)
 	GetRequiredBond(ctx context.Context, position types.Position) (*big.Int, error)
 }
 

@@ -517,7 +517,9 @@ func TestClientBridgeFunctions(t *testing.T) {
 		l1Opts, err := bind.NewKeyedTransactorWithChainID(actor.priv, testSuite.OpCfg.L1ChainIDBig())
 		require.NoError(t, err)
 		l1Opts.Value = l2Opts.Value
-		depositTx, err := optimismPortal.Receive(l1Opts)
+		depositTx, err := transactions.PadGasEstimate(l1Opts, 1.1, func(opts *bind.TransactOpts) (*types.Transaction, error) {
+			return optimismPortal.Receive(opts)
+		})
 		require.NoError(t, err)
 		depositReceipt, err := wait.ForReceiptOK(context.Background(), testSuite.L1Client, depositTx.Hash())
 		require.NoError(t, err)
