@@ -17,7 +17,10 @@ In this repository, you'll find numerous core components of the OP Stack, the de
 
 - If you want to build on top of OP Mainnet, refer to the [Optimism Documentation](https://docs.optimism.io)
 - If you want to build your own OP Stack based blockchain, refer to the [OP Stack Guide](https://docs.optimism.io/stack/getting-started)
-- If you want to contribute to the OP Stack, check out the [Protocol Specs](./specs)
+
+## Specification
+
+If you're interested in the technical details of how Optimism works, refer to the [Optimism Protocol Specification](https://github.com/ethereum-optimism/specs).
 
 ## Community
 
@@ -62,8 +65,7 @@ The Optimism Immunefi program offers up to $2,000,042 for in-scope critical vuln
 │   ├── <a href="./packages/contracts-bedrock">contracts-bedrock</a>: Bedrock smart contracts
 │   ├── <a href="./packages/core-utils">core-utils</a>: Low-level utilities that make building Optimism easier
 │   └── <a href="./packages/sdk">sdk</a>: provides a set of tools for interacting with Optimism
-├── <a href="./proxyd">proxyd</a>: Configurable RPC request router and proxy
-└── <a href="./specs">specs</a>: Specs of the rollup starting at the Bedrock upgrade
+└── <a href="./proxyd">proxyd</a>: Configurable RPC request router and proxy
 </pre>
 
 ## Branching Model
