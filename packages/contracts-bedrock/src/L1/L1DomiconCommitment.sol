@@ -36,7 +36,7 @@ contract L1DomiconCommitment is DomiconCommitment, ISemver {
     }
 
     function SubmitCommitment(uint64 _index,uint64 _length,uint64 _price,address _user,bytes calldata _sign,bytes calldata _commitment) external onlyEOA onlyBroadcastNode {
-        require(checkSign(_user,_sign),"L1DomiconCommitment:invalid Signature");
+//        require(checkSign(_user,_sign),"L1DomiconCommitment:invalid Signature");
 //        require(indices[_user]==_index,"L1DomiconCommitment:index Error");
 
 
