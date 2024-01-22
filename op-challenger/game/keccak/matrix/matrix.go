@@ -5,6 +5,7 @@ import (
 	"io"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -63,6 +64,24 @@ func (d *StateMatrix) AbsorbNextLeaf(in io.Reader) ([]byte, error) {
 		return leafData, io.EOF
 	}
 	return leafData, nil
+}
+
+func (d *StateMatrix) AbsorbAll(in io.Reader) ([]types.Leaf, error) {
+	var leaves []types.Leaf
+	for idx := int64(0); ; idx++ {
+		data, err := d.AbsorbNextLeaf(in)
+		if err != nil && !errors.Is(err, io.EOF) {
+			return nil, err
+		}
+		leaves = append(leaves, types.Leaf{
+			Input:           data,
+			Index:           big.NewInt(idx),
+			StateCommitment: d.StateCommitment(),
+		})
+		if errors.Is(err, io.EOF) {
+			return leaves, nil
+		}
+	}
 }
 
 // AbsorbLeaf absorbs the specified data into the keccak sponge.

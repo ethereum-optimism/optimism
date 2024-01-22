@@ -106,6 +106,28 @@ func TestReferenceCommitmentsFromReader(t *testing.T) {
 	}
 }
 
+func TestReferenceCommitments_AbsorbAll(t *testing.T) {
+	var tests []testData
+	require.NoError(t, json.Unmarshal(refTests, &tests))
+
+	for i, test := range tests {
+		test := test
+		t.Run(fmt.Sprintf("Ref-%v", i), func(t *testing.T) {
+			s := NewStateMatrix()
+			commitments := []common.Hash{s.StateCommitment()}
+			leaves, err := s.AbsorbAll(bytes.NewReader(test.Input))
+			require.NoError(t, err)
+			for _, leaf := range leaves {
+				commitments = append(commitments, leaf.StateCommitment)
+			}
+			actual := s.Hash()
+			expected := crypto.Keccak256Hash(test.Input)
+			require.Equal(t, expected, actual)
+			require.Equal(t, test.Commitments, commitments)
+		})
+	}
+}
+
 func TestMatrix_AbsorbNextLeaf(t *testing.T) {
 	fullLeaf := make([]byte, LeafSize)
 	for i := 0; i < LeafSize; i++ {
