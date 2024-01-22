@@ -3,7 +3,7 @@ package preimages
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/matrix"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -81,13 +82,8 @@ func (p *LargePreimageUploader) UploadPreimage(ctx context.Context, parent uint6
 		}
 	}
 
-	// TODO(client-pod#473): The UUID must be deterministic so the challenger can resume uploads.
-	uuid, err := p.newUUID()
-	if err != nil {
-		return fmt.Errorf("failed to generate UUID: %w", err)
-	}
-
-	err = p.initLargePreimage(ctx, uuid, data.OracleOffset, uint32(len(data.OracleData)))
+	uuid := p.newUUID(data)
+	err := p.initLargePreimage(ctx, uuid, data.OracleOffset, uint32(len(data.OracleData)))
 	if err != nil {
 		return fmt.Errorf("failed to initialize large preimage with uuid: %s: %w", uuid, err)
 	}
@@ -103,10 +99,16 @@ func (p *LargePreimageUploader) UploadPreimage(ctx context.Context, parent uint6
 	return errNotSupported
 }
 
-func (p *LargePreimageUploader) newUUID() (*big.Int, error) {
-	max := new(big.Int)
-	max.Exp(big.NewInt(2), big.NewInt(130), nil).Sub(max, big.NewInt(1))
-	return rand.Int(rand.Reader, max)
+// newUUID generates a new unique identifier for the preimage by hashing the
+// concatenated preimage data, preimage offset, and sender address.
+func (p *LargePreimageUploader) newUUID(data *types.PreimageOracleData) *big.Int {
+	sender := p.txMgr.From()
+	offset := make([]byte, 4)
+	binary.LittleEndian.PutUint32(offset, data.OracleOffset)
+	concatenated := append(data.OracleData, offset...)
+	concatenated = append(concatenated, sender.Bytes()...)
+	hash := crypto.Keccak256Hash(concatenated)
+	return hash.Big()
 }
 
 // initLargePreimage initializes the large preimage proposal.

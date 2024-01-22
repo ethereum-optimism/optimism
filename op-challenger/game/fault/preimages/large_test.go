@@ -18,6 +18,52 @@ import (
 
 var mockAddLeavesError = errors.New("mock add leaves error")
 
+func TestLargePreimageUploader_NewUUID(t *testing.T) {
+	tests := []struct {
+		name         string
+		data         *types.PreimageOracleData
+		expectedUUID *big.Int
+	}{
+		{
+			name:         "EmptyOracleData",
+			data:         &types.PreimageOracleData{},
+			expectedUUID: new(big.Int).SetBytes(common.Hex2Bytes("827b659bbda2a0bdecce2c91b8b68462545758f3eba2dbefef18e0daf84f5ccd")),
+		},
+		{
+			name: "OracleDataAndOffset_Control",
+			data: &types.PreimageOracleData{
+				OracleData:   []byte{1, 2, 3},
+				OracleOffset: 0x010203,
+			},
+			expectedUUID: new(big.Int).SetBytes(common.Hex2Bytes("641e230bcf3ade8c71b7e591d210184cdb190e853f61ba59a1411c3b7aca9890")),
+		},
+		{
+			name: "OracleDataAndOffset_DifferentOffset",
+			data: &types.PreimageOracleData{
+				OracleData:   []byte{1, 2, 3},
+				OracleOffset: 0x010204,
+			},
+			expectedUUID: new(big.Int).SetBytes(common.Hex2Bytes("aec56de44401325420e5793f72b777e3e547778de7d8344004b31be086a3136d")),
+		},
+		{
+			name: "OracleDataAndOffset_DifferentData",
+			data: &types.PreimageOracleData{
+				OracleData:   []byte{1, 2, 3, 4},
+				OracleOffset: 0x010203,
+			},
+			expectedUUID: new(big.Int).SetBytes(common.Hex2Bytes("ca38aa17d56805cf26376a050c2c7b15b6be4e709bc422a1c679fe21aa6aa8c7")),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			oracle, _, _ := newTestLargePreimageUploader(t)
+			uuid := oracle.newUUID(test.data)
+			require.Equal(t, test.expectedUUID, uuid)
+		})
+	}
+}
+
 func TestLargePreimageUploader_UploadPreimage(t *testing.T) {
 	t.Run("InitFails", func(t *testing.T) {
 		oracle, _, contract := newTestLargePreimageUploader(t)
