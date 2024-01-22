@@ -28,10 +28,10 @@ var (
 	// storageSetterAddr represents the address of the StorageSetter contract.
 	storageSetterAddr = common.HexToAddress("0xd81f43eDBCAcb4c29a9bA38a13Ee5d79278270cC")
 
-	// superchainConfigProxy refers to the address of the Sepolia superchain config proxy.
+	// superchainConfigProxy refers to the address of the Mainnet superchain config proxy.
 	// NOTE: this is currently hardcoded and we will need to move this to the superchain-registry
 	// and have 1 deployed for each superchain target.
-	superchainConfigProxy = common.HexToAddress("0xC2Be75506d5724086DEB7245bd260Cc9753911Be")
+	superchainConfigProxy = common.HexToAddress("0x95703e0982140d16f8eba6d158fccede42f04a4c")
 )
 
 // L1 will add calls for upgrading each of the L1 contracts.
