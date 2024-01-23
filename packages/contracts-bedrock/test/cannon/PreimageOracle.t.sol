@@ -792,6 +792,60 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         assertTrue(metaData.countered());
     }
 
+    /// @notice Tests that challenging the first divergence in a large preimage proposal at an arbitrary location
+    ///         in the leaf values always succeeds.
+    function testDiff_challenge_arbitraryLocation_succeeds(uint256 _lastCorrectLeafIdx, uint256 _numBlocks) public {
+        _numBlocks = bound(_numBlocks, 1, 2 ** 8);
+        _lastCorrectLeafIdx = bound(_lastCorrectLeafIdx, 0, _numBlocks - 1);
+
+        // Allocate the preimage data.
+        bytes memory data = new bytes(136 * _numBlocks);
+
+        // Initialize the proposal.
+        oracle.initLPP(TEST_UUID, 0, uint32(data.length));
+
+        // Add the leaves to the tree with corrupted state commitments.
+        LibKeccak.StateMatrix memory matrixA;
+        bytes32[] memory stateCommitments = _generateStateCommitments(matrixA, data);
+        for (uint256 i = _lastCorrectLeafIdx + 1; i < stateCommitments.length; i++) {
+            stateCommitments[i] = 0;
+        }
+        oracle.addLeavesLPP(TEST_UUID, 0, data, stateCommitments, true);
+
+        // Construct the leaf preimage data for the blocks added and corrupt the state commitments.
+        data = new bytes(136 * _numBlocks);
+        LibKeccak.StateMatrix memory matrixB;
+        PreimageOracle.Leaf[] memory leaves = _generateLeaves(matrixB, data);
+        for (uint256 i = _lastCorrectLeafIdx + 1; i < leaves.length; i++) {
+            leaves[i].stateCommitment = 0;
+        }
+
+        // Stack2deep I hate solidity with a burning passion.
+        uint256 agreedLeafIdx = _lastCorrectLeafIdx;
+        uint256 disputedLeafIdx = agreedLeafIdx + 1;
+
+        // Fetch the merkle proofs for the pre/post state leaves in the proposal tree.
+        bytes32 canonicalRoot = oracle.getTreeRootLPP(address(this), TEST_UUID);
+        (bytes32 rootA, bytes32[] memory preProof) = _generateProof(agreedLeafIdx, leaves);
+        assertEq(rootA, canonicalRoot);
+        (bytes32 rootB, bytes32[] memory postProof) = _generateProof(disputedLeafIdx, leaves);
+        assertEq(rootB, canonicalRoot);
+
+        LibKeccak.StateMatrix memory preMatrix = _stateMatrixAtBlockIndex(data, disputedLeafIdx);
+        oracle.challengeLPP({
+            _claimant: address(this),
+            _uuid: TEST_UUID,
+            _stateMatrix: preMatrix,
+            _preState: leaves[agreedLeafIdx],
+            _preStateProof: preProof,
+            _postState: leaves[disputedLeafIdx],
+            _postStateProof: postProof
+        });
+
+        LPPMetaData metaData = oracle.proposalMetadata(address(this), TEST_UUID);
+        assertTrue(metaData.countered());
+    }
+
     /// @notice Tests that a valid leaf cannot be countered with the `challenge` function in the middle of the tree.
     function test_challenge_validCommitment_reverts() public {
         // Allocate the preimage data.
@@ -1019,16 +1073,19 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         returns (PreimageOracle.Leaf[] memory leaves_)
     {
         bytes memory data = LibKeccak.padMemory(_data);
-        uint256 numLeaves = data.length / LibKeccak.BLOCK_SIZE_BYTES;
+        uint256 numCommitments = data.length / LibKeccak.BLOCK_SIZE_BYTES;
 
-        leaves_ = new PreimageOracle.Leaf[](numLeaves);
-        for (uint256 i = 0; i < numLeaves; i++) {
+        leaves_ = new PreimageOracle.Leaf[](numCommitments);
+        for (uint256 i = 0; i < numCommitments; i++) {
             bytes memory blockSlice = Bytes.slice(data, i * LibKeccak.BLOCK_SIZE_BYTES, LibKeccak.BLOCK_SIZE_BYTES);
             LibKeccak.absorb(_stateMatrix, blockSlice);
             LibKeccak.permutation(_stateMatrix);
-            bytes32 stateCommitment = keccak256(abi.encode(_stateMatrix));
 
-            leaves_[i] = PreimageOracle.Leaf({ input: blockSlice, index: i, stateCommitment: stateCommitment });
+            leaves_[i] = PreimageOracle.Leaf({
+                input: blockSlice,
+                index: uint32(i),
+                stateCommitment: keccak256(abi.encode(_stateMatrix))
+            });
         }
     }
 
@@ -1070,5 +1127,28 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
 
             stateCommitments_[i] = keccak256(abi.encode(_stateMatrix));
         }
+    }
+
+    /// @notice Calls out to the `go-ffi` tool to generate a merkle proof for the leaf at `_leafIdx` in a merkle tree
+    ///         constructed with `_leaves`.
+    function _generateProof(
+        uint256 _leafIdx,
+        PreimageOracle.Leaf[] memory _leaves
+    )
+        internal
+        returns (bytes32 root_, bytes32[] memory proof_)
+    {
+        bytes32[] memory leaves = new bytes32[](_leaves.length);
+        for (uint256 i = 0; i < _leaves.length; i++) {
+            leaves[i] = _hashLeaf(_leaves[i]);
+        }
+
+        string[] memory commands = new string[](5);
+        commands[0] = "scripts/go-ffi/go-ffi";
+        commands[1] = "merkle";
+        commands[2] = "gen_proof";
+        commands[3] = vm.toString(abi.encodePacked(leaves));
+        commands[4] = vm.toString(_leafIdx);
+        (root_, proof_) = abi.decode(vm.ffi(commands), (bytes32, bytes32[]));
     }
 }
