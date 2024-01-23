@@ -58,7 +58,7 @@ else
       pushd "${WORKSPACE_DIR}" > /dev/null
     else
       notif "Kontrol version does NOT match ${KONTROLRC}"
-      notif "Please run 'kup install kontrol --version ${KONTROLRC}'"
+      notif "Please run 'kup install kontrol --version v${KONTROLRC}'"
       blank_line
       exit 1
     fi
