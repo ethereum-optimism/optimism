@@ -56,6 +56,13 @@ var (
 		Value:    false,
 		EnvVars:  prefixEnvVars("L1_BEACON_IGNORE"),
 	}
+	BeaconFetchAllSidecars = &cli.BoolFlag{
+		Name:     "l1.beacon.fetch-all-sidecars",
+		Usage:    "If true, all sidecars are fetched and filtered locally. Workaround for buggy Beacon nodes.",
+		Required: false,
+		Value:    false,
+		EnvVars:  prefixEnvVars("L1_BEACON_FETCH_ALL_SIDECARS"),
+	}
 	SyncModeFlag = &cli.GenericFlag{
 		Name:    "syncmode",
 		Usage:   fmt.Sprintf("IN DEVELOPMENT: Options are: %s", openum.EnumString(sync.ModeStrings)),
@@ -285,6 +292,7 @@ var requiredFlags = []cli.Flag{
 var optionalFlags = []cli.Flag{
 	BeaconAddr,
 	BeaconCheckIgnore,
+	BeaconFetchAllSidecars,
 	SyncModeFlag,
 	RPCListenAddr,
 	RPCListenPort,

@@ -41,9 +41,18 @@ func TestBlobsFromSidecars(t *testing.T) {
 
 	hashes := []eth.IndexedBlobHash{index0, index1, index2}
 
-	// put the sidecars in scrambled order of expectation to confirm function appropriately
-	// reorders the output to match that of the blob hashes
+	// put the sidecars in scrambled order to confirm error
 	sidecars := []*eth.BlobSidecar{sidecar2, sidecar0, sidecar1}
+	_, err := blobsFromSidecars(sidecars, hashes)
+	require.Error(t, err)
+
+	// too few sidecars should error
+	sidecars = []*eth.BlobSidecar{sidecar0, sidecar1}
+	_, err = blobsFromSidecars(sidecars, hashes)
+	require.Error(t, err)
+
+	// correct order should work
+	sidecars = []*eth.BlobSidecar{sidecar0, sidecar1, sidecar2}
 	blobs, err := blobsFromSidecars(sidecars, hashes)
 	require.NoError(t, err)
 	// confirm order by checking first blob byte against expected index
