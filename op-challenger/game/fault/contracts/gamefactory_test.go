@@ -78,6 +78,35 @@ func TestLoadGame(t *testing.T) {
 	}
 }
 
+func TestGetAllGames(t *testing.T) {
+	blockHash := common.Hash{0xbb, 0xce}
+	stubRpc, factory := setupDisputeGameFactoryTest(t)
+	game0 := types.GameMetadata{
+		GameType:  0,
+		Timestamp: 1234,
+		Proxy:     common.Address{0xaa},
+	}
+	game1 := types.GameMetadata{
+		GameType:  1,
+		Timestamp: 5678,
+		Proxy:     common.Address{0xbb},
+	}
+	game2 := types.GameMetadata{
+		GameType:  99,
+		Timestamp: 9988,
+		Proxy:     common.Address{0xcc},
+	}
+
+	expectedGames := []types.GameMetadata{game0, game1, game2}
+	stubRpc.SetResponse(factoryAddr, methodGameCount, batching.BlockByHash(blockHash), nil, []interface{}{big.NewInt(int64(len(expectedGames)))})
+	for idx, expected := range expectedGames {
+		expectGetGame(stubRpc, idx, blockHash, expected)
+	}
+	actualGames, err := factory.GetAllGames(context.Background(), blockHash)
+	require.NoError(t, err)
+	require.Equal(t, expectedGames, actualGames)
+}
+
 func TestGetGameImpl(t *testing.T) {
 	stubRpc, factory := setupDisputeGameFactoryTest(t)
 	gameType := uint8(3)

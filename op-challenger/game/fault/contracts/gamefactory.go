@@ -57,6 +57,29 @@ func (f *DisputeGameFactoryContract) GetGameImpl(ctx context.Context, gameType u
 	return result.GetAddress(0), nil
 }
 
+func (f *DisputeGameFactoryContract) GetAllGames(ctx context.Context, blockHash common.Hash) ([]types.GameMetadata, error) {
+	count, err := f.GetGameCount(ctx, blockHash)
+	if err != nil {
+		return nil, err
+	}
+
+	calls := make([]*batching.ContractCall, count)
+	for i := uint64(0); i < count; i++ {
+		calls[i] = f.contract.Call(methodGameAtIndex, new(big.Int).SetUint64(i))
+	}
+
+	results, err := f.multiCaller.Call(ctx, batching.BlockByHash(blockHash), calls...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch games: %w", err)
+	}
+
+	var games []types.GameMetadata
+	for _, result := range results {
+		games = append(games, f.decodeGame(result))
+	}
+	return games, nil
+}
+
 func (f *DisputeGameFactoryContract) decodeGame(result *batching.CallResult) types.GameMetadata {
 	gameType := result.GetUint8(0)
 	timestamp := result.GetUint64(1)
