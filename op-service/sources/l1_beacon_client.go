@@ -134,6 +134,7 @@ func (cl *L1BeaconClient) GetBlobSidecars(ctx context.Context, ref eth.L1BlockRe
 		for _, apisc := range resp.Data {
 			if h.Index == uint64(apisc.Index) {
 				apiscs = append(apiscs, apisc)
+				break
 			}
 		}
 	}
