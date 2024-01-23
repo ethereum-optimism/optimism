@@ -175,6 +175,7 @@ func (c *OpConductor) initHealthMonitor(ctx context.Context) error {
 	c.hmon = health.NewSequencerHealthMonitor(
 		c.log,
 		c.cfg.HealthCheck.Interval,
+		c.cfg.HealthCheck.UnsafeInterval,
 		c.cfg.HealthCheck.SafeInterval,
 		c.cfg.HealthCheck.MinPeerCount,
 		&c.cfg.RollupCfg,
@@ -572,7 +573,6 @@ func (oc *OpConductor) startSequencer() error {
 		return errors.Wrap(err, "failed to get latest unsafe block from EL during startSequencer phase")
 	}
 
-	//if unsafeInCons.BlockHash != unsafeInNode.Hash() {
 	if unsafeInCons.ExecutionPayload.BlockHash != unsafeInNode.Hash() {
 		oc.log.Warn(
 			"latest unsafe block in consensus is not the same as the one in op-node",

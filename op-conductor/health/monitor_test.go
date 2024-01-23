@@ -26,14 +26,15 @@ const (
 type HealthMonitorTestSuite struct {
 	suite.Suite
 
-	log          log.Logger
-	rc           *testutils.MockRollupClient
-	pc           *p2pMocks.API
-	interval     uint64
-	safeInterval uint64
-	minPeerCount uint64
-	rollupCfg    *rollup.Config
-	monitor      HealthMonitor
+	log            log.Logger
+	rc             *testutils.MockRollupClient
+	pc             *p2pMocks.API
+	interval       uint64
+	unsafeInterval uint64
+	safeInterval   uint64
+	minPeerCount   uint64
+	rollupCfg      *rollup.Config
+	monitor        HealthMonitor
 }
 
 func (s *HealthMonitorTestSuite) SetupSuite() {
@@ -41,6 +42,7 @@ func (s *HealthMonitorTestSuite) SetupSuite() {
 	s.rc = &testutils.MockRollupClient{}
 	s.pc = &p2pMocks.API{}
 	s.interval = 1
+	s.unsafeInterval = 3
 	s.safeInterval = 5
 	s.minPeerCount = minPeerCount
 	s.rollupCfg = &rollup.Config{
@@ -49,7 +51,7 @@ func (s *HealthMonitorTestSuite) SetupSuite() {
 }
 
 func (s *HealthMonitorTestSuite) SetupTest() {
-	s.monitor = NewSequencerHealthMonitor(s.log, s.interval, s.safeInterval, s.minPeerCount, s.rollupCfg, s.rc, s.pc)
+	s.monitor = NewSequencerHealthMonitor(s.log, s.interval, s.unsafeInterval, s.safeInterval, s.minPeerCount, s.rollupCfg, s.rc, s.pc)
 	err := s.monitor.Start()
 	s.NoError(err)
 }
