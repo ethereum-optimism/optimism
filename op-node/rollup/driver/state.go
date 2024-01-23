@@ -21,6 +21,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 )
 
+var ErrSequencerAlreadyStarted = errors.New("sequencer already running")
+
 // Deprecated: use eth.SyncStatus instead.
 type SyncStatus = eth.SyncStatus
 
@@ -408,7 +410,7 @@ func (s *Driver) eventLoop() {
 		case resp := <-s.startSequencer:
 			unsafeHead := s.engineController.UnsafeL2Head().Hash
 			if !s.driverConfig.SequencerStopped {
-				resp.err <- errors.New("sequencer already running")
+				resp.err <- ErrSequencerAlreadyStarted
 			} else if !bytes.Equal(unsafeHead[:], resp.hash[:]) {
 				resp.err <- fmt.Errorf("block hash does not match: head %s, received %s", unsafeHead.String(), resp.hash.String())
 			} else {

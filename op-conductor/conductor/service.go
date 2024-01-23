@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -19,6 +20,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-conductor/health"
 	conductorrpc "github.com/ethereum-optimism/optimism/op-conductor/rpc"
 	opp2p "github.com/ethereum-optimism/optimism/op-node/p2p"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	opclient "github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
@@ -560,6 +562,7 @@ func (oc *OpConductor) stopSequencer() error {
 
 func (oc *OpConductor) startSequencer() error {
 	oc.log.Info("starting sequencer", "server", oc.cons.ServerID(), "leader", oc.leader.Load(), "healthy", oc.healthy.Load(), "active", oc.seqActive.Load())
+	ctx := context.Background()
 
 	// When starting sequencer, we need to make sure that the current node has the latest unsafe head from the consensus protocol
 	// If not, then we wait for the unsafe head to catch up or gossip it to op-node manually from op-conductor.
@@ -567,12 +570,11 @@ func (oc *OpConductor) startSequencer() error {
 	if unsafeInCons == nil {
 		return errors.New("failed to get latest unsafe block from consensus")
 	}
-	unsafeInNode, err := oc.ctrl.LatestUnsafeBlock(context.Background())
+	unsafeInNode, err := oc.ctrl.LatestUnsafeBlock(ctx)
 	if err != nil {
 		return errors.Wrap(err, "failed to get latest unsafe block from EL during startSequencer phase")
 	}
 
-	//if unsafeInCons.BlockHash != unsafeInNode.Hash() {
 	if unsafeInCons.ExecutionPayload.BlockHash != unsafeInNode.Hash() {
 		oc.log.Warn(
 			"latest unsafe block in consensus is not the same as the one in op-node",
@@ -584,15 +586,19 @@ func (oc *OpConductor) startSequencer() error {
 
 		if uint64(unsafeInCons.ExecutionPayload.BlockNumber)-unsafeInNode.NumberU64() == 1 {
 			// tries to post the unsafe head to op-node when head is only 1 block behind (most likely due to gossip delay)
-			if err = oc.ctrl.PostUnsafePayload(context.Background(), unsafeInCons); err != nil {
+			if err = oc.ctrl.PostUnsafePayload(ctx, unsafeInCons); err != nil {
 				oc.log.Error("failed to post unsafe head payload envelope to op-node", "err", err)
 			}
 		}
 		return ErrUnsafeHeadMismarch // return error to allow retry
 	}
 
-	if err := oc.ctrl.StartSequencer(context.Background(), unsafeInCons.ExecutionPayload.BlockHash); err != nil {
-		return errors.Wrap(err, "failed to start sequencer")
+	if err = oc.ctrl.StartSequencer(ctx, unsafeInCons.ExecutionPayload.BlockHash); err != nil {
+		if !strings.Contains(err.Error(), driver.ErrSequencerAlreadyStarted.Error()) {
+			return errors.Wrap(err, "failed to start sequencer")
+		} else {
+			oc.log.Warn("sequencer already started", "err", err)
+		}
 	}
 
 	oc.seqActive.Store(true)
