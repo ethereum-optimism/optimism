@@ -65,15 +65,11 @@ contract DeploymentSummary_Test is DeploymentSummary, OptimismPortal_Test {
         assertEq(optimismPortal.paused(), false);
     }
 
-    /// @notice This test is skipped because `KontrolDeployment` doesn't initialize
-    ///         the L2OutputOracle
-    function test_simple_isOutputFinalized_succeeds() external override {
-        vm.skip(true);
-    }
+    /// @notice This test is overridden because `KontrolDeployment` doesn't initialize
+    ///         the L2OutputOracle, which is needed in this test
+    function test_simple_isOutputFinalized_succeeds() external override { }
 
-    /// @notice This test is skipped because `KontrolDeployment` doesn't initialize
-    ///         the L2OutputOracle
-    function test_isOutputFinalized_succeeds() external override {
-        vm.skip(true);
-    }
+    /// @notice This test is overridden because `KontrolDeployment` doesn't initialize
+    ///         the L2OutputOracle, which is needed in this test
+    function test_isOutputFinalized_succeeds() external override { }
 }
