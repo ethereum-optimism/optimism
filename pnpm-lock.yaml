@@ -147,8 +147,8 @@ importers:
         specifier: ^4.5.1
         version: 4.5.1
       dotenv:
-        specifier: ^16.3.1
-        version: 16.3.1
+        specifier: ^16.3.2
+        version: 16.3.2
       ethers:
         specifier: ^5.7.2
         version: 5.7.2
@@ -190,8 +190,8 @@ importers:
         specifier: ^11.1.0
         version: 11.1.0
       dotenv:
-        specifier: ^16.3.1
-        version: 16.3.1
+        specifier: ^16.3.2
+        version: 16.3.2
       envalid:
         specifier: ^8.0.0
         version: 8.0.0
@@ -6339,7 +6339,7 @@ packages:
       change-case: 4.1.2
       chokidar: 3.5.3
       dedent: 0.7.0
-      dotenv: 16.3.1
+      dotenv: 16.3.2
       dotenv-expand: 10.0.0
       esbuild: 0.19.10
       execa: 6.1.0
@@ -8933,8 +8933,8 @@ packages:
     engines: {node: '>=10'}
     dev: true
 
-  /dotenv@16.3.1:
-    resolution: {integrity: sha512-IPzF4w4/Rd94bA9imS68tZBaYyBWSCE47V1RGuMrB94iyTOIEwRmVL2x/4An+6mETpLrKJ5hQkB8W4kFAadeIQ==}
+  /dotenv@16.3.2:
+    resolution: {integrity: sha512-HTlk5nmhkm8F6JcdXvHIzaorzCoziNQT9mGxLPVXW8wJF1TiGSL60ZGB4gHWabHOaMmWmhvk2/lPHfnBiT78AQ==}
     engines: {node: '>=12'}
 
   /dotenv@8.6.0:
@@ -13718,7 +13718,7 @@ packages:
       cli-cursor: 3.1.0
       cli-spinners: 2.6.1
       cliui: 8.0.1
-      dotenv: 16.3.1
+      dotenv: 16.3.2
       dotenv-expand: 10.0.0
       enquirer: 2.3.6
       figures: 3.2.0
