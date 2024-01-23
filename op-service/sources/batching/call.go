@@ -11,22 +11,6 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
-type BoundContract struct {
-	abi  *abi.ABI
-	addr common.Address
-}
-
-func NewBoundContract(abi *abi.ABI, addr common.Address) *BoundContract {
-	return &BoundContract{
-		abi:  abi,
-		addr: addr,
-	}
-}
-
-func (b *BoundContract) Call(method string, args ...interface{}) *ContractCall {
-	return NewContractCall(b.abi, b.addr, method, args...)
-}
-
 type ContractCall struct {
 	Abi    *abi.ABI
 	Addr   common.Address
@@ -134,6 +118,14 @@ func (c *CallResult) GetStruct(i int, target interface{}) {
 	abi.ConvertType(c.out[i], target)
 }
 
+func (c *CallResult) GetBytes(i int) []byte {
+	return *abi.ConvertType(c.out[i], new([]byte)).(*[]byte)
+}
+
 func (c *CallResult) GetBytes32(i int) [32]byte {
 	return *abi.ConvertType(c.out[i], new([32]byte)).(*[32]byte)
+}
+
+func (c *CallResult) GetBytes32Slice(i int) [][32]byte {
+	return *abi.ConvertType(c.out[i], new([][32]byte)).(*[][32]byte)
 }

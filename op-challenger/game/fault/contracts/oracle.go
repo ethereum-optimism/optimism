@@ -3,6 +3,7 @@ package contracts
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"math"
 	"math/big"
@@ -24,6 +25,12 @@ const (
 	methodProposalCount             = "proposalCount"
 	methodProposals                 = "proposals"
 	methodProposalMetadata          = "proposalMetadata"
+	methodProposalBlocksLen         = "proposalBlocksLen"
+	methodProposalBlocks            = "proposalBlocks"
+)
+
+var (
+	ErrInvalidAddLeavesCall = errors.New("tx is not a valid addLeaves call")
 )
 
 // PreimageOracleContract is a binding that works with contracts implementing the IPreimageOracle interface
@@ -61,7 +68,7 @@ func (p MerkleProof) toSized() [][32]byte {
 }
 
 func NewPreimageOracleContract(addr common.Address, caller *batching.MultiCaller) (*PreimageOracleContract, error) {
-	mipsAbi, err := bindings.PreimageOracleMetaData.GetAbi()
+	oracleAbi, err := bindings.PreimageOracleMetaData.GetAbi()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load preimage oracle ABI: %w", err)
 	}
@@ -69,7 +76,7 @@ func NewPreimageOracleContract(addr common.Address, caller *batching.MultiCaller
 	return &PreimageOracleContract{
 		addr:        addr,
 		multiCaller: caller,
-		contract:    batching.NewBoundContract(mipsAbi, addr),
+		contract:    batching.NewBoundContract(oracleAbi, addr),
 	}, nil
 }
 
@@ -165,6 +172,52 @@ func (c *PreimageOracleContract) GetProposalMetadata(ctx context.Context, block 
 		})
 	}
 	return proposals, nil
+}
+
+func (c *PreimageOracleContract) GetInputDataBlocks(ctx context.Context, block batching.Block, ident keccakTypes.LargePreimageIdent) ([]uint64, error) {
+	results, err := batching.ReadArray(ctx, c.multiCaller, block,
+		c.contract.Call(methodProposalBlocksLen, ident.Claimant, ident.UUID),
+		func(i *big.Int) *batching.ContractCall {
+			return c.contract.Call(methodProposalBlocks, ident.Claimant, ident.UUID, i)
+		})
+	if err != nil {
+		return nil, fmt.Errorf("failed to load proposal blocks: %w", err)
+	}
+	blockNums := make([]uint64, 0, len(results))
+	for _, result := range results {
+		blockNums = append(blockNums, result.GetUint64(0))
+	}
+	return blockNums, nil
+}
+
+// DecodeInputData returns the UUID and [keccakTypes.InputData] being added to the preimage via a addLeavesLPP call.
+// An [ErrInvalidAddLeavesCall] error is returned if the call is not a valid call to addLeavesLPP.
+// Otherwise, the uuid and input data is returned. The raw data supplied is returned so long as it can be parsed.
+// Specifically the length of the input data is not validated to ensure it is consistent with the number of commitments.
+func (c *PreimageOracleContract) DecodeInputData(data []byte) (*big.Int, keccakTypes.InputData, error) {
+	method, args, err := c.contract.DecodeCall(data)
+	if errors.Is(err, batching.ErrUnknownMethod) {
+		return nil, keccakTypes.InputData{}, ErrInvalidAddLeavesCall
+	} else if err != nil {
+		return nil, keccakTypes.InputData{}, err
+	}
+	if method != methodAddLeavesLPP {
+		return nil, keccakTypes.InputData{}, fmt.Errorf("%w: %v", ErrInvalidAddLeavesCall, method)
+	}
+	uuid := args.GetBigInt(0)
+	input := args.GetBytes(1)
+	stateCommitments := args.GetBytes32Slice(2)
+	finalize := args.GetBool(3)
+
+	commitments := make([]common.Hash, 0, len(stateCommitments))
+	for _, c := range stateCommitments {
+		commitments = append(commitments, c)
+	}
+	return uuid, keccakTypes.InputData{
+		Input:       input,
+		Commitments: commitments,
+		Finalize:    finalize,
+	}, nil
 }
 
 func (c *PreimageOracleContract) decodePreimageIdent(result *batching.CallResult) keccakTypes.LargePreimageIdent {
