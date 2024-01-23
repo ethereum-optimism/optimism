@@ -190,6 +190,10 @@ func (c *PreimageOracleContract) GetInputDataBlocks(ctx context.Context, block b
 	return blockNums, nil
 }
 
+// DecodeInputData returns the UUID and [keccakTypes.InputData] being added to the preimage via a addLeavesLPP call.
+// An [ErrInvalidAddLeavesCall] error is returned if the call is not a valid call to addLeavesLPP.
+// Otherwise, the uuid and input data is returned. The raw data supplied is returned so long as it can be parsed.
+// Specifically the length of the input data is not validated to ensure it is consistent with the number of commitments.
 func (c *PreimageOracleContract) DecodeInputData(data []byte) (*big.Int, keccakTypes.InputData, error) {
 	method, args, err := c.contract.DecodeCall(data)
 	if errors.Is(err, batching.ErrUnknownMethod) {
@@ -205,19 +209,6 @@ func (c *PreimageOracleContract) DecodeInputData(data []byte) (*big.Int, keccakT
 	stateCommitments := args.GetBytes32Slice(2)
 	finalize := args.GetBool(3)
 
-	if !finalize {
-		// Must contain exactly the right length of input data when not finalizing
-		expectedLen := keccakTypes.BlockSize * len(stateCommitments)
-		if len(input) != expectedLen {
-			return nil, keccakTypes.InputData{}, fmt.Errorf("%w: expected input of length %v but was %v", ErrInvalidAddLeavesCall, expectedLen, len(input))
-		}
-	} else {
-		// Must contain complete leaf data for all but the last leaf
-		minLen := keccakTypes.BlockSize * (len(stateCommitments) - 1)
-		if len(input) < minLen {
-			return nil, keccakTypes.InputData{}, fmt.Errorf("%w: expected input of at least length %v but was %v", ErrInvalidAddLeavesCall, minLen, len(input))
-		}
-	}
 	commitments := make([]common.Hash, 0, len(stateCommitments))
 	for _, c := range stateCommitments {
 		commitments = append(commitments, c)
