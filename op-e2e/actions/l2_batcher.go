@@ -21,6 +21,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -54,6 +55,15 @@ type BatcherCfg struct {
 	ForceSubmitSpanBatch     bool
 
 	DataAvailabilityType batcherFlags.DataAvailabilityType
+}
+
+func DefaultBatcherCfg(dp *e2eutils.DeployParams) *BatcherCfg {
+	return &BatcherCfg{
+		MinL1TxSize:          0,
+		MaxL1TxSize:          128_000,
+		BatcherKey:           dp.Secrets.Batcher,
+		DataAvailabilityType: batcherFlags.CalldataType,
+	}
 }
 
 type L2BlockRefs interface {
