@@ -205,9 +205,10 @@ func (c *PreimageOracleContract) DecodeInputData(data []byte) (*big.Int, keccakT
 		return nil, keccakTypes.InputData{}, fmt.Errorf("%w: %v", ErrInvalidAddLeavesCall, method)
 	}
 	uuid := args.GetBigInt(0)
-	input := args.GetBytes(1)
-	stateCommitments := args.GetBytes32Slice(2)
-	finalize := args.GetBool(3)
+	// Arg 1 is the starting block index which we don't current use
+	input := args.GetBytes(2)
+	stateCommitments := args.GetBytes32Slice(3)
+	finalize := args.GetBool(4)
 
 	commitments := make([]common.Hash, 0, len(stateCommitments))
 	for _, c := range stateCommitments {
