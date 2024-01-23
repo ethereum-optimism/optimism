@@ -48,7 +48,7 @@ contract SystemDictator is OwnableUpgradeable {
         address l1ERC721BridgeProxy;
         address systemConfigProxy;
         address protocolVersionsProxy;
-        address SuperchainConfigProxy;
+        address superchainConfigProxy;
     }
 
     /**
@@ -410,7 +410,7 @@ contract SystemDictator is OwnableUpgradeable {
         config.globalConfig.proxyAdmin.upgradeAndCall(
             payable(config.proxyAddressConfig.optimismPortalProxy),
             address(config.implementationAddressConfig.optimismPortalImpl),
-            abi.encodeCall(OptimismPortal.initialize, (SuperchainConfig(config.proxyAddressConfig.SuperchainConfigProxy)))
+            abi.encodeCall(OptimismPortal.initialize, (SuperchainConfig(config.proxyAddressConfig.superchainConfigProxy)))
         );
 
         // Upgrade the L1CrossDomainMessenger.
@@ -421,7 +421,7 @@ contract SystemDictator is OwnableUpgradeable {
 
         // Try to initialize the L1CrossDomainMessenger, only fail if it's already been initialized.
         try L1CrossDomainMessenger(config.proxyAddressConfig.l1CrossDomainMessengerProxy).initialize(
-            SuperchainConfig(config.proxyAddressConfig.SuperchainConfigProxy)
+            SuperchainConfig(config.proxyAddressConfig.superchainConfigProxy)
         ) {
             // L1CrossDomainMessenger is the one annoying edge case difference between existing
             // networks and fresh networks because in existing networks it'll already be
@@ -469,13 +469,13 @@ contract SystemDictator is OwnableUpgradeable {
 
         // Upgrade the SuperchainConfig (no initializer).
         config.globalConfig.proxyAdmin.upgrade(
-            payable(config.proxyAddressConfig.SuperchainConfigProxy),
+            payable(config.proxyAddressConfig.superchainConfigProxy),
             address(config.implementationAddressConfig.superchainConfigImpl)
         );
 
         // Try to initialize the L1StandardBridge, only fail if it's already been initialized.
         try L1StandardBridge(payable(config.proxyAddressConfig.l1StandardBridgeProxy)).initialize(
-            SuperchainConfig(config.proxyAddressConfig.SuperchainConfigProxy)
+            SuperchainConfig(config.proxyAddressConfig.superchainConfigProxy)
         ) {
             // L1StandardBridge is the one annoying edge case difference between existing
             // networks and fresh networks because in existing networks it'll already be
@@ -493,7 +493,7 @@ contract SystemDictator is OwnableUpgradeable {
         // Try to set superchainConfig on the L1StandardBridge, only fail if it's already been set.
         // Try to initialize the L1StandardBridge, only fail if it's already been initialized.
         try L1StandardBridge(payable(config.proxyAddressConfig.l1StandardBridgeProxy)).setSuperchainConfig(
-            SuperchainConfig(config.proxyAddressConfig.SuperchainConfigProxy)
+            SuperchainConfig(config.proxyAddressConfig.superchainConfigProxy)
         ) {
             // L1StandardBridge is the one annoying edge case difference between existing
             // networks and fresh networks because in existing networks it'll already be
@@ -510,7 +510,7 @@ contract SystemDictator is OwnableUpgradeable {
 
         // Try to initialize the L1ERC721Bridge, only fail if it's already been initialized.
         try L1ERC721Bridge(payable(config.proxyAddressConfig.l1ERC721BridgeProxy)).initialize(
-            SuperchainConfig(config.proxyAddressConfig.SuperchainConfigProxy)
+            SuperchainConfig(config.proxyAddressConfig.superchainConfigProxy)
         ) {
             // L1ERC721Bridge is the one annoying edge case difference between existing
             // networks and fresh networks because in existing networks it'll already be
@@ -545,7 +545,7 @@ contract SystemDictator is OwnableUpgradeable {
         }
 
         // Try to initialize the SuperchainConfig, only fail if it's already been initialized.
-        try SuperchainConfig(config.proxyAddressConfig.SuperchainConfigProxy).initialize(
+        try SuperchainConfig(config.proxyAddressConfig.superchainConfigProxy).initialize(
             optimismPortalDynamicConfig.portalGuardian, false
         ) { } catch Error(string memory reason) {
             require(
