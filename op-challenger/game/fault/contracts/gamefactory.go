@@ -70,14 +70,14 @@ func (f *DisputeGameFactoryContract) GetAllGames(ctx context.Context, blockHash 
 
 	results, err := f.multiCaller.Call(ctx, batching.BlockByHash(blockHash), calls...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch claim data: %w", err)
+		return nil, fmt.Errorf("failed to fetch games: %w", err)
 	}
 
-	var claims []types.GameMetadata
+	var games []types.GameMetadata
 	for _, result := range results {
-		claims = append(claims, f.decodeGame(result))
+		games = append(games, f.decodeGame(result))
 	}
-	return claims, nil
+	return games, nil
 }
 
 func (f *DisputeGameFactoryContract) decodeGame(result *batching.CallResult) types.GameMetadata {
