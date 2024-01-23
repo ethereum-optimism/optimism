@@ -40,8 +40,8 @@ contract GhostBytes10 {
 abstract contract KontrolUtils is KontrolCheats {
     /// @dev we only care about the vm signature
     // Cheat code address, 0x7109709ECfa91a80626fF3989D68f67F5b1DD12D.
-    address private constant VM_ADDRESS = address(uint160(uint256(keccak256("hevm cheat code"))));
-    Vm private constant vm = Vm(VM_ADDRESS);
+    address internal constant VM_ADDRESS = address(uint160(uint256(keccak256("hevm cheat code"))));
+    Vm internal constant vm = Vm(VM_ADDRESS);
 
     /// @dev Creates a fresh bytes with length greater than 31
     /// @param bytesLength: Length of the fresh bytes. Should be concrete

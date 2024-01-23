@@ -13,8 +13,9 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
     OptimismPortal optimismPortal;
     SuperchainConfig superchainConfig;
 
-    function setUp() public {
-        recreateDeployment();
+    /// @dev Inlined setUp function for faster Kontrol performance
+    ///      Tracking issue: https://github.com/runtimeverification/kontrol/issues/282
+    function setUpInlined() public {
         optimismPortal = OptimismPortal(payable(OptimismPortalProxyAddress));
         superchainConfig = SuperchainConfig(SuperchainConfigProxyAddress);
     }
@@ -39,6 +40,7 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
     )
         external
     {
+        setUpInlined();
         bytes memory _data = freshBigBytes(320);
 
         bytes[] memory _withdrawalProof = freshWithdrawalProof();
@@ -48,15 +50,9 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
         Types.OutputRootProof memory _outputRootProof =
             Types.OutputRootProof(_outputRootProof0, _outputRootProof1, _outputRootProof2, _outputRootProof3);
 
-        // After deployment, Optimism portal is enabled
-        require(optimismPortal.paused() == false, "Portal should not be paused");
-
         // Pause Optimism Portal
         vm.prank(optimismPortal.GUARDIAN());
         superchainConfig.pause("identifier");
-
-        // Portal is now paused
-        require(optimismPortal.paused(), "Portal should be paused");
 
         // No one can call proveWithdrawalTransaction
         vm.expectRevert("OptimismPortal: paused");
@@ -75,20 +71,15 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
     )
         external
     {
+        setUpInlined();
         bytes memory _data = freshBigBytes(320);
 
         Types.WithdrawalTransaction memory _tx =
             Types.WithdrawalTransaction(_nonce, _sender, _target, _value, _gasLimit, _data);
 
-        // After deployment, Optimism portal is enabled
-        require(optimismPortal.paused() == false, "Portal should not be paused");
-
         // Pause Optimism Portal
         vm.prank(optimismPortal.GUARDIAN());
         superchainConfig.pause("identifier");
-
-        // Portal is now paused
-        require(optimismPortal.paused(), "Portal should be paused");
 
         vm.expectRevert("OptimismPortal: paused");
         optimismPortal.finalizeWithdrawalTransaction(_tx);
