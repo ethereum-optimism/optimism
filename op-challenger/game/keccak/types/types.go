@@ -4,6 +4,7 @@ import (
 	"context"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -59,4 +60,6 @@ func (m LargePreimageMetaData) ShouldVerify() bool {
 type LargePreimageOracle interface {
 	Addr() common.Address
 	GetActivePreimages(ctx context.Context, blockHash common.Hash) ([]LargePreimageMetaData, error)
+	GetInputDataBlocks(ctx context.Context, block batching.Block, ident LargePreimageIdent) ([]uint64, error)
+	DecodeInputData(data []byte) (*big.Int, InputData, error)
 }

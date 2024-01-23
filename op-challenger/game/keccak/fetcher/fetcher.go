@@ -19,8 +19,8 @@ var (
 )
 
 type L1Source interface {
-	TxsByNumber(ctx context.Context, number uint64) (types.Transactions, error)
-	FetchReceipt(ctx context.Context, txHash common.Hash) (*types.Receipt, error)
+	BlockByNumber(ctx context.Context, number *big.Int) (*types.Block, error)
+	TransactionReceipt(ctx context.Context, txHash common.Hash) (*types.Receipt, error)
 	ChainID(ctx context.Context) (*big.Int, error)
 }
 
@@ -48,11 +48,11 @@ func (f *InputFetcher) FetchInputs(ctx context.Context, blockHash common.Hash, o
 	var inputs []keccakTypes.InputData
 	for _, blockNum := range blockNums {
 		foundRelevantTx := false
-		txs, err := f.source.TxsByNumber(ctx, blockNum)
+		block, err := f.source.BlockByNumber(ctx, new(big.Int).SetUint64(blockNum))
 		if err != nil {
 			return nil, fmt.Errorf("failed getting tx for block %v: %w", blockNum, err)
 		}
-		for _, tx := range txs {
+		for _, tx := range block.Transactions() {
 			inputData, err := f.extractRelevantLeavesFromTx(ctx, oracle, signer, tx, ident)
 			if err != nil {
 				return nil, err
@@ -97,7 +97,7 @@ func (f *InputFetcher) extractRelevantLeavesFromTx(ctx context.Context, oracle O
 		f.log.Trace("Skipping transaction with incorrect sender", "tx", tx.Hash(), "expected", ident.Claimant, "actual", sender)
 		return nil, nil
 	}
-	rcpt, err := f.source.FetchReceipt(ctx, tx.Hash())
+	rcpt, err := f.source.TransactionReceipt(ctx, tx.Hash())
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve receipt for tx %v: %w", tx.Hash(), err)
 	}

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -64,6 +65,14 @@ type stubOracle struct {
 	images            []keccakTypes.LargePreimageMetaData
 }
 
+func (s *stubOracle) GetInputDataBlocks(_ context.Context, _ batching.Block, _ keccakTypes.LargePreimageIdent) ([]uint64, error) {
+	panic("not supported")
+}
+
+func (s *stubOracle) DecodeInputData(_ []byte) (*big.Int, keccakTypes.InputData, error) {
+	panic("not supported")
+}
+
 func (s *stubOracle) Addr() common.Address {
 	return s.addr
 }
@@ -86,10 +95,11 @@ type stubVerifier struct {
 	verified []keccakTypes.LargePreimageMetaData
 }
 
-func (s *stubVerifier) Verify(_ context.Context, _ keccakTypes.LargePreimageOracle, image keccakTypes.LargePreimageMetaData) {
+func (s *stubVerifier) Verify(_ context.Context, _ common.Hash, _ keccakTypes.LargePreimageOracle, image keccakTypes.LargePreimageMetaData) error {
 	s.m.Lock()
 	defer s.m.Unlock()
 	s.verified = append(s.verified, image)
+	return nil
 }
 
 func (s *stubVerifier) Verified() []keccakTypes.LargePreimageMetaData {
