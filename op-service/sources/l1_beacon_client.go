@@ -97,9 +97,10 @@ func (cl *L1BeaconClient) GetTimeToSlotFn(ctx context.Context) (TimeToSlotFn, er
 	return cl.timeToSlotFn, nil
 }
 
-// GetBlobSidecars fetches blob sidecars that were confirmed in the specified L1 block with the
-// given indexed hashes. Order of the returned sidecars is not guaranteed, and blob data is not
-// checked for validity.
+// GetBlobSidecars fetches blob sidecars that were confirmed in the specified
+// L1 block with the given indexed hashes.
+// Order of the returned sidecars is guaranteed to be that of the hashes.
+// Blob data is not checked for validity.
 func (cl *L1BeaconClient) GetBlobSidecars(ctx context.Context, ref eth.L1BlockRef, hashes []eth.IndexedBlobHash) ([]*eth.BlobSidecar, error) {
 	if len(hashes) == 0 {
 		return []*eth.BlobSidecar{}, nil
