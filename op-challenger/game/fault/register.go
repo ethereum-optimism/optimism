@@ -99,7 +99,7 @@ func registerAlphabet(
 		genesisValidator := NewPrestateValidator(contract.GetGenesisOutputRoot, prestateProvider)
 		return NewGamePlayer(ctx, logger, m, dir, game.Proxy, txMgr, contract, []Validator{prestateValidator, genesisValidator}, creator)
 	}
-	oracle, err := createOracle(ctx, gameFactory, caller)
+	oracle, err := createOracle(ctx, gameFactory, caller, alphabetGameType)
 	if err != nil {
 		return err
 	}
@@ -107,10 +107,10 @@ func registerAlphabet(
 	return nil
 }
 
-func createOracle(ctx context.Context, gameFactory *contracts.DisputeGameFactoryContract, caller *batching.MultiCaller) (*contracts.PreimageOracleContract, error) {
-	implAddr, err := gameFactory.GetGameImpl(ctx, alphabetGameType)
+func createOracle(ctx context.Context, gameFactory *contracts.DisputeGameFactoryContract, caller *batching.MultiCaller, gameType uint8) (*contracts.PreimageOracleContract, error) {
+	implAddr, err := gameFactory.GetGameImpl(ctx, gameType)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load alphabet game implementation: %w", err)
+		return nil, fmt.Errorf("failed to load implementation for game type %v: %w", gameType, err)
 	}
 	contract, err := contracts.NewFaultDisputeGameContract(implAddr, caller)
 	if err != nil {
@@ -160,7 +160,7 @@ func registerCannon(
 		genesisValidator := NewPrestateValidator(contract.GetGenesisOutputRoot, prestateProvider)
 		return NewGamePlayer(ctx, logger, m, dir, game.Proxy, txMgr, contract, []Validator{prestateValidator, genesisValidator}, creator)
 	}
-	oracle, err := createOracle(ctx, gameFactory, caller)
+	oracle, err := createOracle(ctx, gameFactory, caller, cannonGameType)
 	if err != nil {
 		return err
 	}
