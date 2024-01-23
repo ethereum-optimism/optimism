@@ -597,7 +597,7 @@ func (oc *OpConductor) startSequencer() error {
 		if !strings.Contains(err.Error(), driver.ErrSequencerAlreadyStarted.Error()) {
 			return errors.Wrap(err, "failed to start sequencer")
 		} else {
-			oc.log.Warn("sequencer already started", "err", err)
+			oc.log.Warn("sequencer already started.", "err", err)
 		}
 	}
 
