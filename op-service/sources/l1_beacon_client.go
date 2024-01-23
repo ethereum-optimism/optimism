@@ -25,16 +25,21 @@ const (
 	sidecarsMethodPrefix = "eth/v1/beacon/blob_sidecars/"
 )
 
+type L1BeaconClientConfig struct {
+	FetchAllSidecars bool
+}
+
 type L1BeaconClient struct {
-	cl client.HTTP
+	cl  client.HTTP
+	cfg L1BeaconClientConfig
 
 	initLock     sync.Mutex
 	timeToSlotFn TimeToSlotFn
 }
 
 // NewL1BeaconClient returns a client for making requests to an L1 consensus layer node.
-func NewL1BeaconClient(cl client.HTTP) *L1BeaconClient {
-	return &L1BeaconClient{cl: cl}
+func NewL1BeaconClient(cl client.HTTP, cfg L1BeaconClientConfig) *L1BeaconClient {
+	return &L1BeaconClient{cl: cl, cfg: cfg}
 }
 
 func (cl *L1BeaconClient) apiReq(ctx context.Context, dest any, reqPath string, reqQuery url.Values) error {
@@ -42,7 +47,7 @@ func (cl *L1BeaconClient) apiReq(ctx context.Context, dest any, reqPath string, 
 	headers.Add("Accept", "application/json")
 	resp, err := cl.cl.Get(ctx, reqPath, reqQuery, headers)
 	if err != nil {
-		return fmt.Errorf("%w: http Get failed", err)
+		return fmt.Errorf("http Get failed: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
 		errMsg, _ := io.ReadAll(resp.Body)
@@ -54,7 +59,7 @@ func (cl *L1BeaconClient) apiReq(ctx context.Context, dest any, reqPath string, 
 		return err
 	}
 	if err := resp.Body.Close(); err != nil {
-		return fmt.Errorf("%w: failed to close response body", err)
+		return fmt.Errorf("failed to close response body: %w", err)
 	}
 	return nil
 }
@@ -102,28 +107,43 @@ func (cl *L1BeaconClient) GetBlobSidecars(ctx context.Context, ref eth.L1BlockRe
 	}
 	slotFn, err := cl.GetTimeToSlotFn(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("%w: failed to get time to slot function", err)
+		return nil, fmt.Errorf("failed to get time to slot function: %w", err)
 	}
 	slot, err := slotFn(ref.Time)
 	if err != nil {
-		return nil, fmt.Errorf("%w: error in converting ref.Time to slot", err)
+		return nil, fmt.Errorf("error in converting ref.Time to slot: %w", err)
 	}
 
 	reqPath := path.Join(sidecarsMethodPrefix, strconv.FormatUint(slot, 10))
-	reqQuery := url.Values{}
-	for i := range hashes {
-		reqQuery.Add("indices", strconv.FormatUint(hashes[i].Index, 10))
+	var reqQuery url.Values
+	if !cl.cfg.FetchAllSidecars {
+		reqQuery = url.Values{}
+		for i := range hashes {
+			reqQuery.Add("indices", strconv.FormatUint(hashes[i].Index, 10))
+		}
 	}
+
 	var resp eth.APIGetBlobSidecarsResponse
 	if err := cl.apiReq(ctx, &resp, reqPath, reqQuery); err != nil {
-		return nil, fmt.Errorf("%w: failed to fetch blob sidecars for slot %v block %v", err, slot, ref)
+		return nil, fmt.Errorf("failed to fetch blob sidecars for slot %v block %v: %w", slot, ref, err)
 	}
-	if len(hashes) != len(resp.Data) {
+
+	apiscs := make([]*eth.APIBlobSidecar, 0, len(hashes))
+	// filter and order by hashes
+	for _, h := range hashes {
+		for _, apisc := range resp.Data {
+			if h.Index == uint64(apisc.Index) {
+				apiscs = append(apiscs, apisc)
+			}
+		}
+	}
+
+	if len(hashes) != len(apiscs) {
 		return nil, fmt.Errorf("expected %v sidecars but got %v", len(hashes), len(resp.Data))
 	}
 
 	bscs := make([]*eth.BlobSidecar, 0, len(hashes))
-	for _, apisc := range resp.Data {
+	for _, apisc := range apiscs {
 		bscs = append(bscs, apisc.BlobSidecar())
 	}
 
@@ -137,7 +157,7 @@ func (cl *L1BeaconClient) GetBlobSidecars(ctx context.Context, ref eth.L1BlockRe
 func (cl *L1BeaconClient) GetBlobs(ctx context.Context, ref eth.L1BlockRef, hashes []eth.IndexedBlobHash) ([]*eth.Blob, error) {
 	blobSidecars, err := cl.GetBlobSidecars(ctx, ref, hashes)
 	if err != nil {
-		return nil, fmt.Errorf("%w: failed to get blob sidecars for L1BlockRef %s", err, ref)
+		return nil, fmt.Errorf("failed to get blob sidecars for L1BlockRef %s: %w", ref, err)
 	}
 	return blobsFromSidecars(blobSidecars, hashes)
 }
@@ -164,7 +184,7 @@ func blobsFromSidecars(blobSidecars []*eth.BlobSidecar, hashes []eth.IndexedBlob
 
 		// confirm blob data is valid by verifying its proof against the commitment
 		if err := eth.VerifyBlobProof(&sidecar.Blob, kzg4844.Commitment(sidecar.KZGCommitment), kzg4844.Proof(sidecar.KZGProof)); err != nil {
-			return nil, fmt.Errorf("%w: blob at index %d failed verification", err, i)
+			return nil, fmt.Errorf("blob at index %d failed verification: %w", i, err)
 		}
 		out[i] = &sidecar.Blob
 	}

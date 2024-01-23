@@ -33,6 +33,7 @@ type L1BeaconEndpointSetup interface {
 	Setup(ctx context.Context, log log.Logger) (cl client.HTTP, err error)
 	// ShouldIgnoreBeaconCheck returns true if the Beacon-node version check should not halt startup.
 	ShouldIgnoreBeaconCheck() bool
+	ShouldFetchAllSidecars() bool
 	Check() error
 }
 
@@ -175,8 +176,9 @@ func (cfg *PreparedL1Endpoint) Check() error {
 }
 
 type L1BeaconEndpointConfig struct {
-	BeaconAddr        string // Address of L1 User Beacon-API endpoint to use (beacon namespace required)
-	BeaconCheckIgnore bool   // When false, halt startup if the beacon version endpoint fails
+	BeaconAddr             string // Address of L1 User Beacon-API endpoint to use (beacon namespace required)
+	BeaconCheckIgnore      bool   // When false, halt startup if the beacon version endpoint fails
+	BeaconFetchAllSidecars bool   // Whether to fetch all blob sidecars and filter locally
 }
 
 var _ L1BeaconEndpointSetup = (*L1BeaconEndpointConfig)(nil)
@@ -194,4 +196,8 @@ func (cfg *L1BeaconEndpointConfig) Check() error {
 
 func (cfg *L1BeaconEndpointConfig) ShouldIgnoreBeaconCheck() bool {
 	return cfg.BeaconCheckIgnore
+}
+
+func (cfg *L1BeaconEndpointConfig) ShouldFetchAllSidecars() bool {
+	return cfg.BeaconFetchAllSidecars
 }

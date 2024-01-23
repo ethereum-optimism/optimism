@@ -30,9 +30,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 )
 
-var (
-	ErrAlreadyClosed = errors.New("node is already closed")
-)
+var ErrAlreadyClosed = errors.New("node is already closed")
 
 type OpNode struct {
 	log        log.Logger
@@ -308,7 +306,10 @@ func (n *OpNode) initL1BeaconAPI(ctx context.Context, cfg *Config) error {
 	if err != nil {
 		return fmt.Errorf("failed to setup L1 Beacon API client: %w", err)
 	}
-	n.beacon = sources.NewL1BeaconClient(httpClient)
+	beaconCfg := sources.L1BeaconClientConfig{
+		FetchAllSidecars: cfg.Beacon.ShouldFetchAllSidecars(),
+	}
+	n.beacon = sources.NewL1BeaconClient(httpClient, beaconCfg)
 
 	// Retry retrieval of the Beacon API version, to be more robust on startup against Beacon API connection issues.
 	beaconVersion, missingEndpoint, err := retry.Do2[string, bool](ctx, 5, retry.Exponential(), func() (string, bool, error) {
