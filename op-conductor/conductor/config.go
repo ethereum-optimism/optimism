@@ -134,7 +134,7 @@ type HealthCheckConfig struct {
 	// Interval is the interval (in seconds) to check the health of the sequencer.
 	Interval uint64
 
-	// UnsafeInterval is the interval buffer between unsafe head progression measured in seconds.
+	// UnsafeInterval is the interval allowed between unsafe head and now in seconds.
 	UnsafeInterval uint64
 
 	// SafeInterval is the interval between safe head progression measured in seconds.
