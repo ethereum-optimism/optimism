@@ -38,7 +38,7 @@ contract DeploymentSummary_Test is DeploymentSummary, OptimismPortal_Test {
     ///      we're not exercising the `Deploy` logic in these tests. However,
     ///      the remaining assertions of the test are important to check
     function test_constructor_succeeds() external override {
-        /* OptimismPortal opImpl = OptimismPortal(payable(deploy.mustGetAddress("OptimismPortal"))); */
+        // OptimismPortal opImpl = OptimismPortal(payable(deploy.mustGetAddress("OptimismPortal")));
         OptimismPortal opImpl = OptimismPortal(payable(OptimismPortalAddress));
         assertEq(address(opImpl.L2_ORACLE()), address(0));
         assertEq(address(opImpl.l2Oracle()), address(0));
@@ -48,7 +48,7 @@ contract DeploymentSummary_Test is DeploymentSummary, OptimismPortal_Test {
         assertEq(opImpl.l2Sender(), Constants.DEFAULT_L2_SENDER);
     }
 
-    /// @dev Skips the first line of `super.test_constructor_succeeds` because
+    /// @dev Skips the first line of `super.test_initialize_succeeds` because
     ///      we're not exercising the `Deploy` logic in these tests. However,
     ///      the remaining assertions of the test are important to check
     function test_initialize_succeeds() external override {
