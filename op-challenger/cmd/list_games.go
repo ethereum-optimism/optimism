@@ -71,18 +71,19 @@ func listGames(ctx context.Context, caller *batching.MultiCaller, factory *contr
 		}
 		info := gameInfo{GameMetadata: game}
 		infos[idx] = &info
+		gameProxy := game.Proxy
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			claimCount, err := gameContract.GetClaimCount(ctx)
 			if err != nil {
-				info.err = fmt.Errorf("failed to retrieve claim count for game %v: %w", game.Proxy, err)
+				info.err = fmt.Errorf("failed to retrieve claim count for game %v: %w", gameProxy, err)
 				return
 			}
 			info.claimCount = claimCount
 			status, err := gameContract.GetStatus(ctx)
 			if err != nil {
-				info.err = fmt.Errorf("failed to retrieve status for game %v: %w", game.Proxy, err)
+				info.err = fmt.Errorf("failed to retrieve status for game %v: %w", gameProxy, err)
 				return
 			}
 			info.status = status
