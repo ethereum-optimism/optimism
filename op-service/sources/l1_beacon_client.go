@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/url"
 	"path"
-	"slices"
 	"strconv"
 	"sync"
 
@@ -164,18 +163,16 @@ func (cl *L1BeaconClient) GetBlobs(ctx context.Context, ref eth.L1BlockRef, hash
 }
 
 func blobsFromSidecars(blobSidecars []*eth.BlobSidecar, hashes []eth.IndexedBlobHash) ([]*eth.Blob, error) {
+	if len(blobSidecars) != len(hashes) {
+		return nil, fmt.Errorf("number of hashes and blobSidecars mismatch, %d != %d", len(hashes), len(blobSidecars))
+	}
+
 	out := make([]*eth.Blob, len(hashes))
 	for i, ih := range hashes {
-		// The beacon node api makes no guarantees on order of the returned blob sidecars, so
-		// search for the sidecar that matches the current indexed hash to ensure blobs are
-		// returned in the same order.
-		scIndex := slices.IndexFunc(
-			blobSidecars,
-			func(sc *eth.BlobSidecar) bool { return uint64(sc.Index) == ih.Index })
-		if scIndex == -1 {
-			return nil, fmt.Errorf("no blob in response matches desired index: %v", ih.Index)
+		sidecar := blobSidecars[i]
+		if sidx := uint64(sidecar.Index); sidx != ih.Index {
+			return nil, fmt.Errorf("expected sidecars to be ordered by hashes, but got %d != %d", sidx, ih.Index)
 		}
-		sidecar := blobSidecars[scIndex]
 
 		// make sure the blob's kzg commitment hashes to the expected value
 		hash := eth.KZGToVersionedHash(kzg4844.Commitment(sidecar.KZGCommitment))
