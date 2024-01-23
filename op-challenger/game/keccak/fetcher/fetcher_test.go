@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
-	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
@@ -21,38 +21,35 @@ import (
 var (
 	oracleAddr = common.Address{0x99, 0x98}
 	privKey, _ = crypto.GenerateKey()
-	ident      = gameTypes.LargePreimageIdent{
+	ident      = keccakTypes.LargePreimageIdent{
 		Claimant: crypto.PubkeyToAddress(privKey.PublicKey),
 		UUID:     big.NewInt(888),
 	}
 	chainID   = big.NewInt(123)
 	blockHash = common.Hash{0xdd}
-	leaf1     = contracts.Leaf{
-		Input:           [136]byte{0xbb, 0x11},
-		Index:           big.NewInt(0),
-		StateCommitment: common.Hash{0xcc, 0x11},
+	input1    = keccakTypes.InputData{
+		Input:       []byte{0xbb, 0x11},
+		Commitments: []common.Hash{{0xcc, 0x11}},
 	}
-	leaf2 = contracts.Leaf{
-		Input:           [136]byte{0xbb, 0x22},
-		Index:           big.NewInt(1),
-		StateCommitment: common.Hash{0xcc, 0x22},
+	input2 = keccakTypes.InputData{
+		Input:       []byte{0xbb, 0x22},
+		Commitments: []common.Hash{{0xcc, 0x22}},
 	}
-	leaf3 = contracts.Leaf{
-		Input:           [136]byte{0xbb, 0x33},
-		Index:           big.NewInt(2),
-		StateCommitment: common.Hash{0xcc, 0x33},
+	input3 = keccakTypes.InputData{
+		Input:       []byte{0xbb, 0x33},
+		Commitments: []common.Hash{{0xcc, 0x33}},
 	}
-	leaf4 = contracts.Leaf{
-		Input:           [136]byte{0xbb, 0x44},
-		Index:           big.NewInt(3),
-		StateCommitment: common.Hash{0xcc, 0x44},
+	input4 = keccakTypes.InputData{
+		Input:       []byte{0xbb, 0x44},
+		Commitments: []common.Hash{{0xcc, 0x44}},
+		Finalize:    true,
 	}
 )
 
 func TestFetchLeaves_NoBlocks(t *testing.T) {
 	fetcher, oracle, _ := setupFetcherTest(t)
 	oracle.leafBlocks = []uint64{}
-	leaves, err := fetcher.FetchLeaves(context.Background(), blockHash, oracle, ident)
+	leaves, err := fetcher.FetchInputs(context.Background(), blockHash, oracle, ident)
 	require.NoError(t, err)
 	require.Empty(t, leaves)
 }
@@ -61,10 +58,10 @@ func TestFetchLeaves_SingleTx(t *testing.T) {
 	fetcher, oracle, l1Source := setupFetcherTest(t)
 	blockNum := uint64(7)
 	oracle.leafBlocks = []uint64{blockNum}
-	l1Source.txs[blockNum] = types.Transactions{oracle.txForLeaves(ValidTx, leaf1)}
-	leaves, err := fetcher.FetchLeaves(context.Background(), blockHash, oracle, ident)
+	l1Source.txs[blockNum] = types.Transactions{oracle.txForInput(ValidTx, input1)}
+	inputs, err := fetcher.FetchInputs(context.Background(), blockHash, oracle, ident)
 	require.NoError(t, err)
-	require.Equal(t, []contracts.Leaf{leaf1}, leaves)
+	require.Equal(t, []keccakTypes.InputData{input1}, inputs)
 }
 
 func TestFetchLeaves_MultipleBlocksAndLeaves(t *testing.T) {
@@ -73,12 +70,12 @@ func TestFetchLeaves_MultipleBlocksAndLeaves(t *testing.T) {
 	block2 := uint64(15)
 	block3 := uint64(20)
 	oracle.leafBlocks = []uint64{block1, block2, block3}
-	l1Source.txs[block1] = types.Transactions{oracle.txForLeaves(ValidTx, leaf1)}
-	l1Source.txs[block2] = types.Transactions{oracle.txForLeaves(ValidTx, leaf2)}
-	l1Source.txs[block3] = types.Transactions{oracle.txForLeaves(ValidTx, leaf3, leaf4)}
-	leaves, err := fetcher.FetchLeaves(context.Background(), blockHash, oracle, ident)
+	l1Source.txs[block1] = types.Transactions{oracle.txForInput(ValidTx, input1)}
+	l1Source.txs[block2] = types.Transactions{oracle.txForInput(ValidTx, input2)}
+	l1Source.txs[block3] = types.Transactions{oracle.txForInput(ValidTx, input3), oracle.txForInput(ValidTx, input4)}
+	inputs, err := fetcher.FetchInputs(context.Background(), blockHash, oracle, ident)
 	require.NoError(t, err)
-	require.Equal(t, []contracts.Leaf{leaf1, leaf2, leaf3, leaf4}, leaves)
+	require.Equal(t, []keccakTypes.InputData{input1, input2, input3, input4}, inputs)
 }
 
 func TestFetchLeaves_SkipTxToWrongContract(t *testing.T) {
@@ -86,15 +83,15 @@ func TestFetchLeaves_SkipTxToWrongContract(t *testing.T) {
 	blockNum := uint64(7)
 	oracle.leafBlocks = []uint64{blockNum}
 	// Valid tx but to a different contract
-	tx1 := oracle.txForLeaves(WithToAddr(common.Address{0x88, 0x99, 0x11}), leaf2)
+	tx1 := oracle.txForInput(WithToAddr(common.Address{0x88, 0x99, 0x11}), input2)
 	// Valid tx but without a to addr
-	tx2 := oracle.txForLeaves(WithoutToAddr(), leaf2)
+	tx2 := oracle.txForInput(WithoutToAddr(), input2)
 	// Valid tx to the correct contract
-	tx3 := oracle.txForLeaves(ValidTx, leaf1)
+	tx3 := oracle.txForInput(ValidTx, input1)
 	l1Source.txs[blockNum] = types.Transactions{tx1, tx2, tx3}
-	leaves, err := fetcher.FetchLeaves(context.Background(), blockHash, oracle, ident)
+	inputs, err := fetcher.FetchInputs(context.Background(), blockHash, oracle, ident)
 	require.NoError(t, err)
-	require.Equal(t, []contracts.Leaf{leaf1}, leaves)
+	require.Equal(t, []keccakTypes.InputData{input1}, inputs)
 }
 
 func TestFetchLeaves_SkipTxWithDifferentUUID(t *testing.T) {
@@ -102,13 +99,13 @@ func TestFetchLeaves_SkipTxWithDifferentUUID(t *testing.T) {
 	blockNum := uint64(7)
 	oracle.leafBlocks = []uint64{blockNum}
 	// Valid tx but with a different UUID
-	tx1 := oracle.txForLeaves(WithUUID(big.NewInt(874927294)), leaf2)
+	tx1 := oracle.txForInput(WithUUID(big.NewInt(874927294)), input2)
 	// Valid tx
-	tx2 := oracle.txForLeaves(ValidTx, leaf1)
+	tx2 := oracle.txForInput(ValidTx, input1)
 	l1Source.txs[blockNum] = types.Transactions{tx1, tx2}
-	leaves, err := fetcher.FetchLeaves(context.Background(), blockHash, oracle, ident)
+	inputs, err := fetcher.FetchInputs(context.Background(), blockHash, oracle, ident)
 	require.NoError(t, err)
-	require.Equal(t, []contracts.Leaf{leaf1}, leaves)
+	require.Equal(t, []keccakTypes.InputData{input1}, inputs)
 }
 
 func TestFetchLeaves_SkipTxWithInvalidCall(t *testing.T) {
@@ -116,13 +113,13 @@ func TestFetchLeaves_SkipTxWithInvalidCall(t *testing.T) {
 	blockNum := uint64(7)
 	oracle.leafBlocks = []uint64{blockNum}
 	// Call to preimage oracle but fails to decode
-	tx1 := oracle.txForLeaves(WithInvalidData(), leaf2)
+	tx1 := oracle.txForInput(WithInvalidData(), input2)
 	// Valid tx
-	tx2 := oracle.txForLeaves(ValidTx, leaf1)
+	tx2 := oracle.txForInput(ValidTx, input1)
 	l1Source.txs[blockNum] = types.Transactions{tx1, tx2}
-	leaves, err := fetcher.FetchLeaves(context.Background(), blockHash, oracle, ident)
+	inputs, err := fetcher.FetchInputs(context.Background(), blockHash, oracle, ident)
 	require.NoError(t, err)
-	require.Equal(t, []contracts.Leaf{leaf1}, leaves)
+	require.Equal(t, []keccakTypes.InputData{input1}, inputs)
 }
 
 func TestFetchLeaves_SkipTxWithInvalidSender(t *testing.T) {
@@ -130,16 +127,16 @@ func TestFetchLeaves_SkipTxWithInvalidSender(t *testing.T) {
 	blockNum := uint64(7)
 	oracle.leafBlocks = []uint64{blockNum}
 	// Call to preimage oracle with different Chain ID
-	tx1 := oracle.txForLeaves(WithChainID(big.NewInt(992)), leaf3)
+	tx1 := oracle.txForInput(WithChainID(big.NewInt(992)), input3)
 	// Call to preimage oracle with wrong sender
 	wrongKey, _ := crypto.GenerateKey()
-	tx2 := oracle.txForLeaves(WithPrivKey(wrongKey), leaf4)
+	tx2 := oracle.txForInput(WithPrivKey(wrongKey), input4)
 	// Valid tx
-	tx3 := oracle.txForLeaves(ValidTx, leaf1)
+	tx3 := oracle.txForInput(ValidTx, input1)
 	l1Source.txs[blockNum] = types.Transactions{tx1, tx2, tx3}
-	leaves, err := fetcher.FetchLeaves(context.Background(), blockHash, oracle, ident)
+	inputs, err := fetcher.FetchInputs(context.Background(), blockHash, oracle, ident)
 	require.NoError(t, err)
-	require.Equal(t, []contracts.Leaf{leaf1}, leaves)
+	require.Equal(t, []keccakTypes.InputData{input1}, inputs)
 }
 
 func TestFetchLeaves_SkipTxWithReceiptStatusFail(t *testing.T) {
@@ -147,14 +144,14 @@ func TestFetchLeaves_SkipTxWithReceiptStatusFail(t *testing.T) {
 	blockNum := uint64(7)
 	oracle.leafBlocks = []uint64{blockNum}
 	// Valid call to the preimage oracle but that reverted
-	tx1 := oracle.txForLeaves(ValidTx, leaf2)
+	tx1 := oracle.txForInput(ValidTx, input2)
 	l1Source.rcptStatus[tx1.Hash()] = types.ReceiptStatusFailed
 	// Valid tx
-	tx2 := oracle.txForLeaves(ValidTx, leaf1)
+	tx2 := oracle.txForInput(ValidTx, input1)
 	l1Source.txs[blockNum] = types.Transactions{tx1, tx2}
-	leaves, err := fetcher.FetchLeaves(context.Background(), blockHash, oracle, ident)
+	inputs, err := fetcher.FetchInputs(context.Background(), blockHash, oracle, ident)
 	require.NoError(t, err)
-	require.Equal(t, []contracts.Leaf{leaf1}, leaves)
+	require.Equal(t, []keccakTypes.InputData{input1}, inputs)
 }
 
 func TestFetchLeaves_ErrorsWhenNoValidLeavesInBlock(t *testing.T) {
@@ -162,16 +159,16 @@ func TestFetchLeaves_ErrorsWhenNoValidLeavesInBlock(t *testing.T) {
 	blockNum := uint64(7)
 	oracle.leafBlocks = []uint64{blockNum}
 	// Irrelevant call
-	tx1 := oracle.txForLeaves(WithUUID(big.NewInt(492)), leaf2)
+	tx1 := oracle.txForInput(WithUUID(big.NewInt(492)), input2)
 	l1Source.rcptStatus[tx1.Hash()] = types.ReceiptStatusFailed
 	l1Source.txs[blockNum] = types.Transactions{tx1}
-	_, err := fetcher.FetchLeaves(context.Background(), blockHash, oracle, ident)
+	_, err := fetcher.FetchInputs(context.Background(), blockHash, oracle, ident)
 	require.ErrorIs(t, err, ErrNoLeavesFound)
 }
 
-func setupFetcherTest(t *testing.T) (*LeafFetcher, *stubOracle, *stubL1Source) {
+func setupFetcherTest(t *testing.T) (*InputFetcher, *stubOracle, *stubL1Source) {
 	oracle := &stubOracle{
-		txLeaves: make(map[byte][]contracts.Leaf),
+		txInputs: make(map[byte]keccakTypes.InputData),
 	}
 	l1Source := &stubL1Source{
 		txs:        make(map[uint64]types.Transactions),
@@ -184,31 +181,31 @@ func setupFetcherTest(t *testing.T) (*LeafFetcher, *stubOracle, *stubL1Source) {
 type stubOracle struct {
 	nextTxId   byte
 	leafBlocks []uint64
-	txLeaves   map[byte][]contracts.Leaf
+	txInputs   map[byte]keccakTypes.InputData
 }
 
 func (o *stubOracle) Addr() common.Address {
 	return oracleAddr
 }
 
-func (o *stubOracle) GetLeafBlocks(_ context.Context, _ batching.Block, _ gameTypes.LargePreimageIdent) ([]uint64, error) {
+func (o *stubOracle) GetInputDataBlocks(_ context.Context, _ batching.Block, _ keccakTypes.LargePreimageIdent) ([]uint64, error) {
 	return o.leafBlocks, nil
 }
 
-func (o *stubOracle) DecodeLeafData(data []byte) (*big.Int, []contracts.Leaf, error) {
+func (o *stubOracle) DecodeInputData(data []byte) (*big.Int, keccakTypes.InputData, error) {
 	if len(data) == 0 {
-		return nil, nil, contracts.ErrInvalidAddLeavesCall
+		return nil, keccakTypes.InputData{}, contracts.ErrInvalidAddLeavesCall
 	}
-	leaves, ok := o.txLeaves[data[0]]
+	input, ok := o.txInputs[data[0]]
 	if !ok {
-		return nil, nil, contracts.ErrInvalidAddLeavesCall
+		return nil, keccakTypes.InputData{}, contracts.ErrInvalidAddLeavesCall
 	}
 	uuid := ident.UUID
 	// WithUUID appends custom UUIDs to the tx data
 	if len(data) > 1 {
 		uuid = new(big.Int).SetBytes(data[1:])
 	}
-	return uuid, leaves, nil
+	return uuid, input, nil
 }
 
 type TxModifier func(tx *types.DynamicFeeTx) *ecdsa.PrivateKey
@@ -258,10 +255,10 @@ func WithPrivKey(key *ecdsa.PrivateKey) TxModifier {
 	}
 }
 
-func (o *stubOracle) txForLeaves(txMod TxModifier, leaves ...contracts.Leaf) *types.Transaction {
+func (o *stubOracle) txForInput(txMod TxModifier, input keccakTypes.InputData) *types.Transaction {
 	id := o.nextTxId
 	o.nextTxId++
-	o.txLeaves[id] = leaves
+	o.txInputs[id] = input
 	inner := &types.DynamicFeeTx{
 		ChainID:   chainID,
 		Nonce:     1,

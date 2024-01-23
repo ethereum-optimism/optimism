@@ -7,7 +7,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
-	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -26,17 +26,17 @@ type L1Source interface {
 
 type Oracle interface {
 	Addr() common.Address
-	GetLeafBlocks(ctx context.Context, block batching.Block, ident gameTypes.LargePreimageIdent) ([]uint64, error)
-	DecodeLeafData(data []byte) (*big.Int, []contracts.Leaf, error)
+	GetInputDataBlocks(ctx context.Context, block batching.Block, ident keccakTypes.LargePreimageIdent) ([]uint64, error)
+	DecodeInputData(data []byte) (*big.Int, keccakTypes.InputData, error)
 }
 
-type LeafFetcher struct {
+type InputFetcher struct {
 	log    log.Logger
 	source L1Source
 }
 
-func (f *LeafFetcher) FetchLeaves(ctx context.Context, blockHash common.Hash, oracle Oracle, ident gameTypes.LargePreimageIdent) ([]contracts.Leaf, error) {
-	blockNums, err := oracle.GetLeafBlocks(ctx, batching.BlockByHash(blockHash), ident)
+func (f *InputFetcher) FetchInputs(ctx context.Context, blockHash common.Hash, oracle Oracle, ident keccakTypes.LargePreimageIdent) ([]keccakTypes.InputData, error) {
+	blockNums, err := oracle.GetInputDataBlocks(ctx, batching.BlockByHash(blockHash), ident)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve leaf block nums: %w", err)
 	}
@@ -45,7 +45,7 @@ func (f *LeafFetcher) FetchLeaves(ctx context.Context, blockHash common.Hash, or
 		return nil, fmt.Errorf("failed to retrieve L1 chain ID: %w", err)
 	}
 	signer := types.LatestSignerForChainID(chainID)
-	var leaves []contracts.Leaf
+	var inputs []keccakTypes.InputData
 	for _, blockNum := range blockNums {
 		foundRelevantTx := false
 		txs, err := f.source.TxsByNumber(ctx, blockNum)
@@ -53,29 +53,31 @@ func (f *LeafFetcher) FetchLeaves(ctx context.Context, blockHash common.Hash, or
 			return nil, fmt.Errorf("failed getting tx for block %v: %w", blockNum, err)
 		}
 		for _, tx := range txs {
-			txLeaves, err := f.extractRelevantLeavesFromTx(ctx, oracle, signer, tx, ident)
+			inputData, err := f.extractRelevantLeavesFromTx(ctx, oracle, signer, tx, ident)
 			if err != nil {
 				return nil, err
 			}
-			foundRelevantTx = foundRelevantTx || len(txLeaves) > 0
-			leaves = append(leaves, txLeaves...)
+			if inputData != nil {
+				foundRelevantTx = true
+				inputs = append(inputs, *inputData)
+			}
 		}
 		if !foundRelevantTx {
-			// The contract said there was a relevant transaction in this block but we failed to find out
+			// The contract said there was a relevant transaction in this block that we failed to find.
 			// There was either a reorg or the extraction logic is broken.
-			// Either way, abort this attempt to validate the preimage
+			// Either way, abort this attempt to validate the preimage.
 			return nil, fmt.Errorf("%w %v", ErrNoLeavesFound, blockNum)
 		}
 	}
-	return leaves, nil
+	return inputs, nil
 }
 
-func (f *LeafFetcher) extractRelevantLeavesFromTx(ctx context.Context, oracle Oracle, signer types.Signer, tx *types.Transaction, ident gameTypes.LargePreimageIdent) ([]contracts.Leaf, error) {
+func (f *InputFetcher) extractRelevantLeavesFromTx(ctx context.Context, oracle Oracle, signer types.Signer, tx *types.Transaction, ident keccakTypes.LargePreimageIdent) (*keccakTypes.InputData, error) {
 	if tx.To() == nil || *tx.To() != oracle.Addr() {
 		f.log.Trace("Skip tx with incorrect to addr", "tx", tx.Hash(), "expected", oracle.Addr(), "actual", tx.To())
 		return nil, nil
 	}
-	uuid, txLeaves, err := oracle.DecodeLeafData(tx.Data())
+	uuid, inputData, err := oracle.DecodeInputData(tx.Data())
 	if errors.Is(err, contracts.ErrInvalidAddLeavesCall) {
 		f.log.Trace("Skip tx with invalid call data", "tx", tx.Hash(), "err", err)
 		return nil, nil
@@ -103,11 +105,11 @@ func (f *LeafFetcher) extractRelevantLeavesFromTx(ctx context.Context, oracle Or
 		f.log.Trace("Skipping transaction with failed receipt status", "tx", tx.Hash(), "status", rcpt.Status)
 		return nil, nil
 	}
-	return txLeaves, nil
+	return &inputData, nil
 }
 
-func NewPreimageFetcher(logger log.Logger, source L1Source) *LeafFetcher {
-	return &LeafFetcher{
+func NewPreimageFetcher(logger log.Logger, source L1Source) *InputFetcher {
+	return &InputFetcher{
 		log:    logger,
 		source: source,
 	}
