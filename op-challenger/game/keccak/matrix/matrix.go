@@ -5,6 +5,7 @@ import (
 	"io"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -15,10 +16,10 @@ type StateMatrix struct {
 	s *state
 }
 
-// LeafSize is the size in bytes required for leaf data.
-const LeafSize = 136
-
-var uint256Size = 32
+var (
+	ErrInvalidMaxLen = errors.New("invalid max length to absorb")
+	uint256Size      = 32
+)
 
 // NewStateMatrix creates a new state matrix initialized with the initial, zero keccak block.
 func NewStateMatrix() *StateMatrix {
@@ -41,13 +42,43 @@ func (d *StateMatrix) PackState() []byte {
 	return buf
 }
 
-// AbsorbNextLeaf reads up to [LeafSize] bytes from in and absorbs them into the state matrix.
+func (d *StateMatrix) AbsorbUpTo(in io.Reader, maxLen int) (types.InputData, error) {
+	if maxLen < types.BlockSize || maxLen%types.BlockSize != 0 {
+		return types.InputData{}, ErrInvalidMaxLen
+	}
+	input := make([]byte, 0, maxLen)
+	commitments := make([]common.Hash, 0, maxLen/types.BlockSize)
+	for len(input)+types.BlockSize <= maxLen {
+		readData, err := d.absorbNextLeafInput(in)
+		if errors.Is(err, io.EOF) {
+			input = append(input, readData...)
+			commitments = append(commitments, d.StateCommitment())
+			return types.InputData{
+				Input:       input,
+				Commitments: commitments,
+				Finalize:    true,
+			}, io.EOF
+		} else if err != nil {
+			return types.InputData{}, err
+		}
+		input = append(input, readData...)
+		commitments = append(commitments, d.StateCommitment())
+	}
+
+	return types.InputData{
+		Input:       input,
+		Commitments: commitments,
+		Finalize:    false,
+	}, nil
+}
+
+// absorbNextLeafInput reads up to [BlockSize] bytes from in and absorbs them into the state matrix.
 // If EOF is reached while reading, the state matrix is finalized and [io.EOF] is returned.
-func (d *StateMatrix) AbsorbNextLeaf(in io.Reader) ([]byte, error) {
-	data := make([]byte, LeafSize)
+func (d *StateMatrix) absorbNextLeafInput(in io.Reader) ([]byte, error) {
+	data := make([]byte, types.BlockSize)
 	read := 0
 	final := false
-	for read < LeafSize {
+	for read < types.BlockSize {
 		n, err := in.Read(data[read:])
 		if errors.Is(err, io.EOF) {
 			final = true
@@ -57,19 +88,18 @@ func (d *StateMatrix) AbsorbNextLeaf(in io.Reader) ([]byte, error) {
 		}
 		read += n
 	}
-	leafData := data[:read]
-	d.AbsorbLeaf(leafData, final)
+	input := data[:read]
+	d.absorbLeafInput(input, final)
 	if final {
-		return leafData, io.EOF
+		return input, io.EOF
 	}
-	return leafData, nil
+	return input, nil
 }
 
-// AbsorbLeaf absorbs the specified data into the keccak sponge.
-// If final is true, the data is padded to the required length, otherwise it must be exactly
-// LeafSize bytes.
-func (d *StateMatrix) AbsorbLeaf(data []byte, final bool) {
-	if !final && len(data) != LeafSize {
+// absorbLeafInput absorbs the specified data into the keccak sponge.
+// If final is true, the data is padded to the required length, otherwise it must be exactly [types.BlockSize] bytes.
+func (d *StateMatrix) absorbLeafInput(data []byte, final bool) {
+	if !final && len(data) != types.BlockSize {
 		panic("sha3: Incorrect leaf data length")
 	}
 	_, _ = d.s.Write(data[:])

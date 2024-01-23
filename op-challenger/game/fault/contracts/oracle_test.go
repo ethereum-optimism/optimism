@@ -10,7 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/matrix"
-	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	batchingTest "github.com/ethereum-optimism/optimism/op-service/sources/batching/test"
 	"github.com/ethereum/go-ethereum/common"
@@ -58,7 +58,7 @@ func TestPreimageOracleContract_AddLeaves(t *testing.T) {
 	uuid := big.NewInt(123)
 	startingBlockIndex := big.NewInt(0)
 	input := []byte{0x12}
-	commitments := [][32]byte{{0x34}}
+	commitments := []common.Hash{{0x34}}
 	finalize := true
 	stubRpc.SetResponse(oracleAddr, methodAddLeavesLPP, batching.BlockLatest, []interface{}{
 		uuid,
@@ -79,13 +79,13 @@ func TestPreimageOracleContract_Squeeze(t *testing.T) {
 	claimant := common.Address{0x12}
 	uuid := big.NewInt(123)
 	stateMatrix := matrix.NewStateMatrix()
-	preState := Leaf{
+	preState := keccakTypes.Leaf{
 		Input:           [136]byte{0x12},
 		Index:           big.NewInt(123),
 		StateCommitment: common.Hash{0x34},
 	}
 	preStateProof := MerkleProof{{0x34}}
-	postState := Leaf{
+	postState := keccakTypes.Leaf{
 		Input:           [136]byte{0x34},
 		Index:           big.NewInt(456),
 		StateCommitment: common.Hash{0x56},
@@ -95,9 +95,9 @@ func TestPreimageOracleContract_Squeeze(t *testing.T) {
 		claimant,
 		uuid,
 		abiEncodeStateMatrix(stateMatrix),
-		preState.toPreimageOracleLeaf(),
+		toPreimageOracleLeaf(preState),
 		preStateProof.toSized(),
-		postState.toPreimageOracleLeaf(),
+		toPreimageOracleLeaf(postState),
 		postStateProof.toSized(),
 	}, nil)
 
@@ -107,17 +107,52 @@ func TestPreimageOracleContract_Squeeze(t *testing.T) {
 }
 
 func TestGetActivePreimages(t *testing.T) {
-	stubRpc, oracle := setupPreimageOracleTest(t)
 	blockHash := common.Hash{0xaa}
+	_, oracle, proposals := setupPreimageOracleTestWithProposals(t, batching.BlockByHash(blockHash))
+	preimages, err := oracle.GetActivePreimages(context.Background(), blockHash)
+	require.NoError(t, err)
+	require.Equal(t, proposals, preimages)
+}
+
+func TestGetProposalMetadata(t *testing.T) {
+	blockHash := common.Hash{0xaa}
+	block := batching.BlockByHash(blockHash)
+	stubRpc, oracle, proposals := setupPreimageOracleTestWithProposals(t, block)
+	preimages, err := oracle.GetProposalMetadata(
+		context.Background(),
+		block,
+		proposals[0].LargePreimageIdent,
+		proposals[1].LargePreimageIdent,
+		proposals[2].LargePreimageIdent,
+	)
+	require.NoError(t, err)
+	require.Equal(t, proposals, preimages)
+
+	// Fetching a proposal that doesn't exist should return an empty metadata object.
+	ident := keccakTypes.LargePreimageIdent{Claimant: common.Address{0x12}, UUID: big.NewInt(123)}
+	meta := new(metadata)
+	stubRpc.SetResponse(
+		oracleAddr,
+		methodProposalMetadata,
+		block,
+		[]interface{}{ident.Claimant, ident.UUID},
+		[]interface{}{meta})
+	preimages, err = oracle.GetProposalMetadata(context.Background(), batching.BlockByHash(blockHash), ident)
+	require.NoError(t, err)
+	require.Equal(t, []keccakTypes.LargePreimageMetaData{{LargePreimageIdent: ident}}, preimages)
+}
+
+func setupPreimageOracleTestWithProposals(t *testing.T, block batching.Block) (*batchingTest.AbiBasedRpc, *PreimageOracleContract, []keccakTypes.LargePreimageMetaData) {
+	stubRpc, oracle := setupPreimageOracleTest(t)
 	stubRpc.SetResponse(
 		oracleAddr,
 		methodProposalCount,
-		batching.BlockByHash(blockHash),
+		block,
 		[]interface{}{},
 		[]interface{}{big.NewInt(3)})
 
-	preimage1 := gameTypes.LargePreimageMetaData{
-		LargePreimageIdent: gameTypes.LargePreimageIdent{
+	preimage1 := keccakTypes.LargePreimageMetaData{
+		LargePreimageIdent: keccakTypes.LargePreimageIdent{
 			Claimant: common.Address{0xaa},
 			UUID:     big.NewInt(1111),
 		},
@@ -128,8 +163,8 @@ func TestGetActivePreimages(t *testing.T) {
 		BytesProcessed:  100,
 		Countered:       false,
 	}
-	preimage2 := gameTypes.LargePreimageMetaData{
-		LargePreimageIdent: gameTypes.LargePreimageIdent{
+	preimage2 := keccakTypes.LargePreimageMetaData{
+		LargePreimageIdent: keccakTypes.LargePreimageIdent{
 			Claimant: common.Address{0xbb},
 			UUID:     big.NewInt(2222),
 		},
@@ -140,8 +175,8 @@ func TestGetActivePreimages(t *testing.T) {
 		BytesProcessed:  200,
 		Countered:       true,
 	}
-	preimage3 := gameTypes.LargePreimageMetaData{
-		LargePreimageIdent: gameTypes.LargePreimageIdent{
+	preimage3 := keccakTypes.LargePreimageMetaData{
+		LargePreimageIdent: keccakTypes.LargePreimageIdent{
 			Claimant: common.Address{0xcc},
 			UUID:     big.NewInt(3333),
 		},
@@ -152,41 +187,36 @@ func TestGetActivePreimages(t *testing.T) {
 		BytesProcessed:  233,
 		Countered:       false,
 	}
-	expectGetProposals(stubRpc, batching.BlockByHash(blockHash), preimage1, preimage2, preimage3)
-	preimages, err := oracle.GetActivePreimages(context.Background(), blockHash)
-	require.NoError(t, err)
-	require.Equal(t, []gameTypes.LargePreimageMetaData{preimage1, preimage2, preimage3}, preimages)
-}
 
-func expectGetProposals(stubRpc *batchingTest.AbiBasedRpc, block batching.Block, proposals ...gameTypes.LargePreimageMetaData) {
+	proposals := []keccakTypes.LargePreimageMetaData{preimage1, preimage2, preimage3}
+
 	for i, proposal := range proposals {
-		expectGetProposal(stubRpc, block, int64(i), proposal)
+		stubRpc.SetResponse(
+			oracleAddr,
+			methodProposals,
+			block,
+			[]interface{}{big.NewInt(int64(i))},
+			[]interface{}{
+				proposal.Claimant,
+				proposal.UUID,
+			})
+		meta := new(metadata)
+		meta.setTimestamp(proposal.Timestamp)
+		meta.setPartOffset(proposal.PartOffset)
+		meta.setClaimedSize(proposal.ClaimedSize)
+		meta.setBlocksProcessed(proposal.BlocksProcessed)
+		meta.setBytesProcessed(proposal.BytesProcessed)
+		meta.setCountered(proposal.Countered)
+		stubRpc.SetResponse(
+			oracleAddr,
+			methodProposalMetadata,
+			block,
+			[]interface{}{proposal.Claimant, proposal.UUID},
+			[]interface{}{meta})
 	}
-}
 
-func expectGetProposal(stubRpc *batchingTest.AbiBasedRpc, block batching.Block, idx int64, proposal gameTypes.LargePreimageMetaData) {
-	stubRpc.SetResponse(
-		oracleAddr,
-		methodProposals,
-		block,
-		[]interface{}{big.NewInt(idx)},
-		[]interface{}{
-			proposal.Claimant,
-			proposal.UUID,
-		})
-	meta := new(metadata)
-	meta.setTimestamp(proposal.Timestamp)
-	meta.setPartOffset(proposal.PartOffset)
-	meta.setClaimedSize(proposal.ClaimedSize)
-	meta.setBlocksProcessed(proposal.BlocksProcessed)
-	meta.setBytesProcessed(proposal.BytesProcessed)
-	meta.setCountered(proposal.Countered)
-	stubRpc.SetResponse(
-		oracleAddr,
-		methodProposalMetadata,
-		block,
-		[]interface{}{proposal.Claimant, proposal.UUID},
-		[]interface{}{meta})
+	return stubRpc, oracle, proposals
+
 }
 
 func setupPreimageOracleTest(t *testing.T) (*batchingTest.AbiBasedRpc, *PreimageOracleContract) {

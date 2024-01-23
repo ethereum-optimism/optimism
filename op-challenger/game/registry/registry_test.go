@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/scheduler"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/scheduler/test"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
@@ -63,6 +64,6 @@ func (s stubPreimageOracle) Addr() common.Address {
 	return common.Address(s)
 }
 
-func (s stubPreimageOracle) GetActivePreimages(_ context.Context, _ common.Hash) ([]types.LargePreimageMetaData, error) {
+func (s stubPreimageOracle) GetActivePreimages(_ context.Context, _ common.Hash) ([]keccakTypes.LargePreimageMetaData, error) {
 	return nil, nil
 }

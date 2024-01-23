@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/cannon"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/scheduler"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
@@ -26,7 +27,7 @@ var (
 type CloseFunc func()
 
 type Registry interface {
-	RegisterGameType(gameType uint8, creator scheduler.PlayerCreator, oracle types.LargePreimageOracle)
+	RegisterGameType(gameType uint8, creator scheduler.PlayerCreator, oracle keccakTypes.LargePreimageOracle)
 }
 
 func RegisterGameTypes(

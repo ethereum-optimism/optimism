@@ -1,15 +1,52 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { OptimismMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
+// Testing utilities
 import { Bridge_Initializer } from "test/setup/Bridge_Initializer.sol";
+import { NextImpl } from "test/mocks/NextImpl.sol";
+import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
+
+// Target contract dependencies
+import { OptimismMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
+import { Proxy } from "src/universal/Proxy.sol";
+
+// Target contract
+import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
 
 contract OptimismMintableTokenFactory_Test is Bridge_Initializer {
     event StandardL2TokenCreated(address indexed remoteToken, address indexed localToken);
     event OptimismMintableERC20Created(address indexed localToken, address indexed remoteToken, address deployer);
 
-    function test_bridge_succeeds() external {
-        assertEq(address(l2OptimismMintableERC20Factory.BRIDGE()), address(l2StandardBridge));
+    /// @dev Tests that the constructor is initialized correctly.
+    function test_constructor_succeeds() external {
+        OptimismMintableERC20Factory impl = new OptimismMintableERC20Factory();
+        assertEq(address(impl.BRIDGE()), address(0));
+        assertEq(address(impl.bridge()), address(0));
+    }
+
+    /// @dev Tests that the proxy is initialized correctly.
+    function test_initialize_succeeds() external {
+        assertEq(address(l1OptimismMintableERC20Factory.BRIDGE()), address(l1StandardBridge));
+        assertEq(address(l1OptimismMintableERC20Factory.bridge()), address(l1StandardBridge));
+    }
+
+    function test_upgrading_succeeds() external {
+        Proxy proxy = Proxy(deploy.mustGetAddress("OptimismMintableERC20FactoryProxy"));
+        // Check an unused slot before upgrading.
+        bytes32 slot21Before = vm.load(address(l1OptimismMintableERC20Factory), bytes32(uint256(21)));
+        assertEq(bytes32(0), slot21Before);
+
+        NextImpl nextImpl = new NextImpl();
+        vm.startPrank(EIP1967Helper.getAdmin(address(proxy)));
+        // Reviewer note: the NextImpl() still uses reinitializer. If we want to remove that, we'll need to use a
+        //   two step upgrade with the Storage lib.
+        proxy.upgradeToAndCall(address(nextImpl), abi.encodeWithSelector(NextImpl.initialize.selector, 2));
+        assertEq(proxy.implementation(), address(nextImpl));
+
+        // Verify that the NextImpl contract initialized its values according as expected
+        bytes32 slot21After = vm.load(address(l1OptimismMintableERC20Factory), bytes32(uint256(21)));
+        bytes32 slot21Expected = NextImpl(address(l1OptimismMintableERC20Factory)).slot21Init();
+        assertEq(slot21Expected, slot21After);
     }
 
     function test_createStandardL2Token_succeeds() external {

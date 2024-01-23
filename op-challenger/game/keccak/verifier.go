@@ -3,7 +3,7 @@ package keccak
 import (
 	"context"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -17,6 +17,6 @@ func NewPreimageVerifier(logger log.Logger) *PreimageVerifier {
 	}
 }
 
-func (v *PreimageVerifier) Verify(ctx context.Context, oracle types.LargePreimageOracle, preimage types.LargePreimageMetaData) {
+func (v *PreimageVerifier) Verify(ctx context.Context, oracle keccakTypes.LargePreimageOracle, preimage keccakTypes.LargePreimageMetaData) {
 	// No verification currently performed.
 }
