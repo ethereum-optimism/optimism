@@ -92,7 +92,7 @@ const deployFn: DeployFunction = async (hre) => {
         hre,
         'ProtocolVersionsProxy'
       ),
-      superChainConfigProxy: await getDeploymentAddress(
+      superchainConfigProxy: await getDeploymentAddress(
         hre,
         'SuperchainConfigProxy'
       ),
@@ -113,7 +113,7 @@ const deployFn: DeployFunction = async (hre) => {
       portalSenderImpl: await getDeploymentAddress(hre, 'PortalSender'),
       systemConfigImpl: await getDeploymentAddress(hre, 'SystemConfig'),
       protocolVersionsImpl: await getDeploymentAddress(hre, 'ProtocolVersions'),
-      superChainConfigImpl: await getDeploymentAddress(
+      superchainConfigImpl: await getDeploymentAddress(
         hre,
         'SuperchainConfig'
       ),
