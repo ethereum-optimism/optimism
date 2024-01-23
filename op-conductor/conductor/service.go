@@ -596,7 +596,7 @@ func (oc *OpConductor) startSequencer() error {
 	if err = oc.ctrl.StartSequencer(ctx, unsafeInCons.ExecutionPayload.BlockHash); err != nil {
 		// cannot directly compare using Errors.Is because the error is returned from an JSON RPC server which lost its type.
 		if !strings.Contains(err.Error(), driver.ErrSequencerAlreadyStarted.Error()) {
-			return errors.Wrap(err, "failed to start sequencer")
+			return fmt.Errorf("failed to start sequencer: %w", err)
 		} else {
 			oc.log.Warn("sequencer already started.", "err", err)
 		}
