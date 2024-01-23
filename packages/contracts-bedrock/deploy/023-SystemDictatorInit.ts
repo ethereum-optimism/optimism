@@ -113,10 +113,7 @@ const deployFn: DeployFunction = async (hre) => {
       portalSenderImpl: await getDeploymentAddress(hre, 'PortalSender'),
       systemConfigImpl: await getDeploymentAddress(hre, 'SystemConfig'),
       protocolVersionsImpl: await getDeploymentAddress(hre, 'ProtocolVersions'),
-      superchainConfigImpl: await getDeploymentAddress(
-        hre,
-        'SuperchainConfig'
-      ),
+      superchainConfigImpl: await getDeploymentAddress(hre, 'SuperchainConfig'),
     },
     systemConfigConfig: {
       owner: hre.deployConfig.finalSystemOwner,
