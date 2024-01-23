@@ -114,4 +114,5 @@ var ListGamesCommand = &cli.Command{
 	Description: "Lists the games created by a dispute game factory",
 	Action:      ListGames,
 	Flags:       listGamesFlags,
+	Hidden:      true,
 }

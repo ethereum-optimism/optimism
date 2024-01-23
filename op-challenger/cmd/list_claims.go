@@ -98,4 +98,5 @@ var ListClaimsCommand = &cli.Command{
 	Description: "Lists the claims in a dispute game",
 	Action:      ListClaims,
 	Flags:       listClaimsFlags,
+	Hidden:      true,
 }
