@@ -170,8 +170,8 @@ func setupConductor(
 			// CI is unstable in terms of the delay between now and the head time
 			// so we set the unsafe interval to 30s to avoid flakiness.
 			// This is fine because there's a progression check within health monitor to check progression.
-			UnsafeInterval: 3,
-			SafeInterval:   4,
+			UnsafeInterval: 30,
+			SafeInterval:   30,
 		},
 		RollupCfg:      rollupCfg,
 		RPCEnableProxy: true,
