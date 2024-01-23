@@ -743,22 +743,40 @@ func (m *SimpleTxManager) suggestGasPriceCaps(ctx context.Context) (*big.Int, *b
 	return tip, baseFee, blobFee, nil
 }
 
+// checkLimits checks that the tip and baseFee have not increased by more than the configured multipliers
+// if FeeLimitThreshold is specified in config, all increases which stay under the threshold are allowed
 func (m *SimpleTxManager) checkLimits(tip, baseFee, bumpedTip, bumpedFee *big.Int) error {
-	// If below threshold, don't apply multiplier limit
-	if thr := m.cfg.FeeLimitThreshold; thr != nil && thr.Cmp(bumpedFee) == 1 {
-		return nil
+	limit := big.NewInt(int64(m.cfg.FeeLimitMultiplier))
+	threshold := m.cfg.FeeLimitThreshold
+	maxTip := new(big.Int).Mul(tip, limit)
+	maxFee := calcGasFeeCap(new(big.Int).Mul(baseFee, limit), maxTip)
+
+	// collect error messages to return all at once
+	errMsgs := []string{}
+
+	// first check tip
+	// only check tip if the threshold is set, and the bumpedTip is above it
+	if threshold == nil || threshold.Cmp(bumpedTip) < 0 {
+		// bumpedTip should not be above the maxTip
+		if bumpedTip.Cmp(maxTip) > 0 {
+			errMsgs = append(errMsgs, fmt.Sprintf("bumped tip cap %v is over %dx multiple of the suggested value", bumpedTip, limit))
+		}
 	}
 
-	// Make sure increase is at most [FeeLimitMultiplier] the suggested values
-	feeLimitMult := big.NewInt(int64(m.cfg.FeeLimitMultiplier))
-	maxTip := new(big.Int).Mul(tip, feeLimitMult)
-	if bumpedTip.Cmp(maxTip) > 0 {
-		return fmt.Errorf("bumped tip cap %v is over %dx multiple of the suggested value", bumpedTip, m.cfg.FeeLimitMultiplier)
+	// second check fee
+	// only check fee if the threshold is set, and the bumpedFee is above it
+	if threshold == nil || threshold.Cmp(bumpedFee) < 0 {
+		// bumpedFee should not be above the maxFee
+		if bumpedFee.Cmp(maxFee) > 0 {
+			errMsgs = append(errMsgs, fmt.Sprintf("bumped fee cap %v is over %dx multiple of the suggested value", bumpedTip, limit))
+		}
 	}
-	maxFee := calcGasFeeCap(new(big.Int).Mul(baseFee, feeLimitMult), maxTip)
-	if bumpedFee.Cmp(maxFee) > 0 {
-		return fmt.Errorf("bumped fee cap %v is over %dx multiple of the suggested value", bumpedFee, m.cfg.FeeLimitMultiplier)
+
+	// if there are any errors, join and return them in a single error message
+	if len(errMsgs) > 0 {
+		return fmt.Errorf("%d error(s) during checkLimits: %s", len(errMsgs), strings.Join(errMsgs, "; "))
 	}
+
 	return nil
 }
 
