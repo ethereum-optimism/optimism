@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup/async"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -126,6 +127,7 @@ func confirmPayload(
 	id eth.PayloadID,
 	updateSafe bool,
 	agossip async.AsyncGossiper,
+	sequencerConductor conductor.SequencerConductor,
 ) (out *eth.ExecutionPayloadEnvelope, errTyp BlockInsertionErrType, err error) {
 	var envelope *eth.ExecutionPayloadEnvelope
 	// if the payload is available from the async gossiper, it means it was not yet imported, so we reuse it
@@ -147,6 +149,9 @@ func confirmPayload(
 	payload := envelope.ExecutionPayload
 	if err := sanityCheckPayload(payload); err != nil {
 		return nil, BlockInsertPayloadErr, err
+	}
+	if err := sequencerConductor.CommitUnsafePayload(ctx, envelope); err != nil {
+		return nil, BlockInsertTemporaryErr, fmt.Errorf("failed to commit unsafe payload to conductor: %w", err)
 	}
 	// begin gossiping as soon as possible
 	// agossip.Clear() will be called later if an non-temporary error is found, or if the payload is successfully inserted

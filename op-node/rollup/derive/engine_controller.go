@@ -8,6 +8,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/async"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -170,7 +171,7 @@ func (e *EngineController) StartPayload(ctx context.Context, parent eth.L2BlockR
 	return BlockInsertOK, nil
 }
 
-func (e *EngineController) ConfirmPayload(ctx context.Context, agossip async.AsyncGossiper) (out *eth.ExecutionPayloadEnvelope, errTyp BlockInsertionErrType, err error) {
+func (e *EngineController) ConfirmPayload(ctx context.Context, agossip async.AsyncGossiper, sequencerConductor conductor.SequencerConductor) (out *eth.ExecutionPayloadEnvelope, errTyp BlockInsertionErrType, err error) {
 	if e.buildingID == (eth.PayloadID{}) {
 		return nil, BlockInsertPrestateErr, fmt.Errorf("cannot complete payload building: not currently building a payload")
 	}
@@ -184,7 +185,7 @@ func (e *EngineController) ConfirmPayload(ctx context.Context, agossip async.Asy
 	}
 	// Update the safe head if the payload is built with the last attributes in the batch.
 	updateSafe := e.buildingSafe && e.safeAttrs != nil && e.safeAttrs.isLastInSpan
-	envelope, errTyp, err := confirmPayload(ctx, e.log, e.engine, fc, e.buildingID, updateSafe, agossip)
+	envelope, errTyp, err := confirmPayload(ctx, e.log, e.engine, fc, e.buildingID, updateSafe, agossip, sequencerConductor)
 	if err != nil {
 		return nil, errTyp, fmt.Errorf("failed to complete building on top of L2 chain %s, id: %s, error (%d): %w", e.buildingOnto, e.buildingID, errTyp, err)
 	}
