@@ -754,23 +754,22 @@ func (m *SimpleTxManager) checkLimits(tip, baseFee, bumpedTip, bumpedFee *big.In
 	// collect error messages to return all at once
 	errMsgs := []string{}
 
-	// first check tip
-	// only check tip if the threshold is set, and the bumpedTip is above it
-	if threshold == nil || threshold.Cmp(bumpedTip) < 0 {
-		// bumpedTip should not be above the maxTip
-		if bumpedTip.Cmp(maxTip) > 0 {
-			errMsgs = append(errMsgs, fmt.Sprintf("bumped tip cap %v is over %dx multiple of the suggested value", bumpedTip, limit))
+	// generic check function to confirm that:
+	// 1. if threshold is specified, the value is under the threshold, AND
+	// 2. the value is under the max value
+	// if the value does not satisfy these conditions, an error message is added to errMsgs
+	check := func(v, max *big.Int, name string) {
+		// if threshold is specified and the value is under the threshold, no need to check the max
+		if threshold != nil && threshold.Cmp(v) > 0 {
+			return
+		}
+		// if the value is over the max, add an error message
+		if v.Cmp(max) > 0 {
+			errMsgs = append(errMsgs, fmt.Sprintf("bumped %s cap %v is over %dx multiple of the suggested value", name, v, limit))
 		}
 	}
-
-	// second check fee
-	// only check fee if the threshold is set, and the bumpedFee is above it
-	if threshold == nil || threshold.Cmp(bumpedFee) < 0 {
-		// bumpedFee should not be above the maxFee
-		if bumpedFee.Cmp(maxFee) > 0 {
-			errMsgs = append(errMsgs, fmt.Sprintf("bumped fee cap %v is over %dx multiple of the suggested value", bumpedTip, limit))
-		}
-	}
+	check(bumpedTip, maxTip, "tip")
+	check(bumpedFee, maxFee, "fee")
 
 	// if there are any errors, join and return them in a single error message
 	if len(errMsgs) > 0 {
