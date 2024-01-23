@@ -110,7 +110,7 @@ func registerAlphabet(
 func createOracle(ctx context.Context, gameFactory *contracts.DisputeGameFactoryContract, caller *batching.MultiCaller, gameType uint8) (*contracts.PreimageOracleContract, error) {
 	implAddr, err := gameFactory.GetGameImpl(ctx, gameType)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load alphabet game implementation: %w", err)
+		return nil, fmt.Errorf("failed to load implementation for game type %v: %w", gameType, err)
 	}
 	contract, err := contracts.NewFaultDisputeGameContract(implAddr, caller)
 	if err != nil {
