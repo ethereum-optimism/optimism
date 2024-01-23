@@ -254,6 +254,10 @@ func (s *L2Batcher) ActL2BatchSubmit(t Testing, txOpts ...func(tx *types.Dynamic
 		require.NoError(t, err)
 		require.NotNil(t, pendingHeader.ExcessBlobGas, "need L1 header with 4844 properties")
 		blobBaseFee := eip4844.CalcBlobFee(*pendingHeader.ExcessBlobGas)
+		blobFeeCap := new(uint256.Int).Mul(uint256.NewInt(2), uint256.MustFromBig(blobBaseFee))
+		if blobFeeCap.Lt(uint256.NewInt(params.GWei)) { // ensure we meet 1 gwei geth tx-pool minimum
+			blobFeeCap = uint256.NewInt(params.GWei)
+		}
 		txData = &types.BlobTx{
 			To:         s.rollupCfg.BatchInboxAddress,
 			Data:       nil,
@@ -263,7 +267,7 @@ func (s *L2Batcher) ActL2BatchSubmit(t Testing, txOpts ...func(tx *types.Dynamic
 			ChainID:    uint256.MustFromBig(s.rollupCfg.L1ChainID),
 			GasTipCap:  uint256.MustFromBig(gasTipCap),
 			GasFeeCap:  uint256.MustFromBig(gasFeeCap),
-			BlobFeeCap: new(uint256.Int).Mul(uint256.NewInt(2), uint256.MustFromBig(blobBaseFee)),
+			BlobFeeCap: blobFeeCap,
 			Value:      uint256.NewInt(0),
 			Nonce:      nonce,
 		}

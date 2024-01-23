@@ -55,6 +55,9 @@ func TestEIP4844DataAvailability(gt *testing.T) {
 
 	// build empty L1 block
 	miner.ActEmptyBlock(t)
+	// finalize it, so the L1 geth blob pool doesn't log errors about missing finality
+	miner.ActL1SafeNext(t)
+	miner.ActL1FinalizeNext(t)
 
 	// Create L2 blocks, and reference the L1 head as origin
 	sequencer.ActL1HeadSignal(t)
@@ -91,6 +94,9 @@ func TestEIP4844DataAvailabilitySwitch(gt *testing.T) {
 
 	// build empty L1 block
 	miner.ActEmptyBlock(t)
+	// finalize it, so the L1 geth blob pool doesn't log errors about missing finality
+	miner.ActL1SafeNext(t)
+	miner.ActL1FinalizeNext(t)
 
 	// Create L2 blocks, and reference the L1 head as origin
 	sequencer.ActL1HeadSignal(t)
