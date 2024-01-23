@@ -7,8 +7,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
+	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
@@ -61,13 +64,13 @@ func TestReferenceCommitments(t *testing.T) {
 		t.Run(fmt.Sprintf("Ref-%v", i), func(t *testing.T) {
 			s := NewStateMatrix()
 			commitments := []common.Hash{s.StateCommitment()}
-			for i := 0; i < len(test.Input); i += LeafSize {
-				end := min(i+LeafSize, len(test.Input))
-				s.AbsorbLeaf(test.Input[i:end], end == len(test.Input))
+			for i := 0; i < len(test.Input); i += types.BlockSize {
+				end := min(i+types.BlockSize, len(test.Input))
+				s.absorbLeafInput(test.Input[i:end], end == len(test.Input))
 				commitments = append(commitments, s.StateCommitment())
 			}
 			if len(test.Input) == 0 {
-				s.AbsorbLeaf(nil, true)
+				s.absorbLeafInput(nil, true)
 				commitments = append(commitments, s.StateCommitment())
 			}
 			actual := s.Hash()
@@ -89,7 +92,7 @@ func TestReferenceCommitmentsFromReader(t *testing.T) {
 			commitments := []common.Hash{s.StateCommitment()}
 			in := bytes.NewReader(test.Input)
 			for {
-				_, err := s.AbsorbNextLeaf(in)
+				_, err := s.absorbNextLeafInput(in)
 				if errors.Is(err, io.EOF) {
 					commitments = append(commitments, s.StateCommitment())
 					break
@@ -106,40 +109,96 @@ func TestReferenceCommitmentsFromReader(t *testing.T) {
 	}
 }
 
+func TestAbsorbUpTo_ReferenceCommitments(t *testing.T) {
+	var tests []testData
+	require.NoError(t, json.Unmarshal(refTests, &tests))
+
+	for i, test := range tests {
+		test := test
+		t.Run(fmt.Sprintf("Ref-%v", i), func(t *testing.T) {
+			s := NewStateMatrix()
+			commitments := []common.Hash{s.StateCommitment()}
+			in := bytes.NewReader(test.Input)
+			for {
+				input, err := s.AbsorbUpTo(in, types.BlockSize*3)
+				if errors.Is(err, io.EOF) {
+					commitments = append(commitments, input.Commitments...)
+					break
+				}
+				// Shouldn't get any error except EOF
+				require.NoError(t, err)
+				commitments = append(commitments, input.Commitments...)
+			}
+			actual := s.Hash()
+			expected := crypto.Keccak256Hash(test.Input)
+			require.Equal(t, expected, actual)
+			require.Equal(t, test.Commitments, commitments)
+		})
+	}
+}
+
+func TestAbsorbUpTo_LimitsDataRead(t *testing.T) {
+	s := NewStateMatrix()
+	data := testutils.RandomData(rand.New(rand.NewSource(2424)), types.BlockSize*6+20)
+	in := bytes.NewReader(data)
+	// Should fully read the first four leaves worth
+	inputData, err := s.AbsorbUpTo(in, types.BlockSize*4)
+	require.NoError(t, err)
+	require.Equal(t, data[0:types.BlockSize*4], inputData.Input)
+	require.Len(t, inputData.Commitments, 4)
+	require.False(t, inputData.Finalize)
+
+	// Should read the remaining data and return EOF
+	inputData, err = s.AbsorbUpTo(in, types.BlockSize*10)
+	require.ErrorIs(t, err, io.EOF)
+	require.Equal(t, data[types.BlockSize*4:], inputData.Input)
+	require.Len(t, inputData.Commitments, 3, "2 full leaves plus the final partial leaf")
+	require.True(t, inputData.Finalize)
+}
+
+func TestAbsorbUpTo_InvalidLengths(t *testing.T) {
+	s := NewStateMatrix()
+	lengths := []int{-types.BlockSize, -1, 0, 1, types.BlockSize - 1, types.BlockSize + 1, 2*types.BlockSize + 1}
+	for _, length := range lengths {
+		_, err := s.AbsorbUpTo(bytes.NewReader(nil), length)
+		require.ErrorIsf(t, err, ErrInvalidMaxLen, "Should get invalid length for length %v", length)
+	}
+}
+
 func TestMatrix_AbsorbNextLeaf(t *testing.T) {
-	fullLeaf := make([]byte, LeafSize)
-	for i := 0; i < LeafSize; i++ {
+	fullLeaf := make([]byte, types.BlockSize)
+	for i := 0; i < types.BlockSize; i++ {
 		fullLeaf[i] = byte(i)
 	}
 	tests := []struct {
-		name  string
-		input []byte
-		leafs [][]byte
-		errs  []error
+		name       string
+		input      []byte
+		leafInputs [][]byte
+		errs       []error
 	}{
 		{
-			name:  "empty",
-			input: []byte{},
-			leafs: [][]byte{{}},
-			errs:  []error{io.EOF},
+			name:       "empty",
+			input:      []byte{},
+			leafInputs: [][]byte{{}},
+			errs:       []error{io.EOF},
 		},
 		{
-			name:  "single",
-			input: fullLeaf,
-			leafs: [][]byte{fullLeaf},
-			errs:  []error{io.EOF},
+			name:       "single",
+			input:      fullLeaf,
+			leafInputs: [][]byte{fullLeaf},
+			errs:       []error{io.EOF},
 		},
 		{
-			name:  "single-overflow",
-			input: append(fullLeaf, byte(9)),
-			leafs: [][]byte{fullLeaf, {byte(9)}},
-			errs:  []error{nil, io.EOF},
+			name:       "single-overflow",
+			input:      append(fullLeaf, byte(9)),
+			leafInputs: [][]byte{fullLeaf, {byte(9)}},
+			errs:       []error{nil, io.EOF},
 		},
 		{
-			name:  "double",
-			input: append(fullLeaf, fullLeaf...),
-			leafs: [][]byte{fullLeaf, fullLeaf},
-			errs:  []error{nil, io.EOF},
+			name:       "double",
+			input:      append(fullLeaf, fullLeaf...),
+			leafInputs: [][]byte{fullLeaf, fullLeaf},
+			errs:       []error{nil, io.EOF},
 		},
 	}
 
@@ -148,8 +207,8 @@ func TestMatrix_AbsorbNextLeaf(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			state := NewStateMatrix()
 			in := bytes.NewReader(test.input)
-			for i, leaf := range test.leafs {
-				buf, err := state.AbsorbNextLeaf(in)
+			for i, leaf := range test.leafInputs {
+				buf, err := state.absorbNextLeafInput(in)
 				if errors.Is(err, io.EOF) {
 					require.Equal(t, test.errs[i], err)
 					break
@@ -164,9 +223,9 @@ func TestMatrix_AbsorbNextLeaf(t *testing.T) {
 func FuzzKeccak(f *testing.F) {
 	f.Fuzz(func(t *testing.T, number, time uint64, data []byte) {
 		s := NewStateMatrix()
-		for i := 0; i < len(data); i += LeafSize {
-			end := min(i+LeafSize, len(data))
-			s.AbsorbLeaf(data[i:end], end == len(data))
+		for i := 0; i < len(data); i += types.BlockSize {
+			end := min(i+types.BlockSize, len(data))
+			s.absorbLeafInput(data[i:end], end == len(data))
 		}
 		actual := s.Hash()
 		expected := crypto.Keccak256Hash(data)

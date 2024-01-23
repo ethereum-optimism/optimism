@@ -1,9 +1,7 @@
 package types
 
 import (
-	"context"
 	"fmt"
-	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -42,33 +40,4 @@ type GameMetadata struct {
 	GameType  uint8
 	Timestamp uint64
 	Proxy     common.Address
-}
-
-type LargePreimageIdent struct {
-	Claimant common.Address
-	UUID     *big.Int
-}
-
-type LargePreimageMetaData struct {
-	LargePreimageIdent
-
-	// Timestamp is the time at which the proposal first became fully available.
-	// 0 when not all data is available yet
-	Timestamp       uint64
-	PartOffset      uint32
-	ClaimedSize     uint32
-	BlocksProcessed uint32
-	BytesProcessed  uint32
-	Countered       bool
-}
-
-// ShouldVerify returns true if the preimage upload is complete and has not yet been countered.
-// Note that the challenge period for the preimage may have expired but the image not yet been finalized.
-func (m LargePreimageMetaData) ShouldVerify() bool {
-	return m.Timestamp > 0 && !m.Countered
-}
-
-type LargePreimageOracle interface {
-	Addr() common.Address
-	GetActivePreimages(ctx context.Context, blockHash common.Hash) ([]LargePreimageMetaData, error)
 }
