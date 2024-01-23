@@ -89,7 +89,7 @@ var listClaimsFlags = []cli.Flag{
 }
 
 func init() {
-	listGamesFlags = append(listGamesFlags, oplog.CLIFlags("OP_CHALLENGER")...)
+	listClaimsFlags = append(listClaimsFlags, oplog.CLIFlags("OP_CHALLENGER")...)
 }
 
 var ListClaimsCommand = &cli.Command{
