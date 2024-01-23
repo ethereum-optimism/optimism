@@ -46,6 +46,7 @@ contract SubmitLPP is Script, StdAssertions {
             vm.broadcast();
             oracle.addLeavesLPP({
                 _uuid: TEST_UUID,
+                _inputStartBlock: i / 136,
                 _input: chunk,
                 _stateCommitments: finalize ? mockStateCommitmentsLast : mockStateCommitments,
                 _finalize: finalize

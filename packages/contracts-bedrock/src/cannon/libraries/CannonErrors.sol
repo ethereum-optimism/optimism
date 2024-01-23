@@ -13,6 +13,9 @@ error InvalidPreimage();
 /// @notice Thrown when a leaf with an invalid input size is added.
 error InvalidInputSize();
 
+/// @notice Thrown when data is submitted out of order in a large preimage proposal.
+error WrongStartingBlock();
+
 /// @notice Thrown when the pre and post states passed aren't contiguous.
 error StatesNotContiguous();
 
