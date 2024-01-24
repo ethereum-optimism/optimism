@@ -47,7 +47,7 @@ func TestPreimageOracleContract_PreimageDataExists(t *testing.T) {
 			[]interface{}{common.Hash(data.OracleKey), new(big.Int).SetUint64(uint64(data.OracleOffset))},
 			[]interface{}{true},
 		)
-		exists, err := oracle.PreimageDataExists(context.Background(), data)
+		exists, err := oracle.GlobalDataExists(context.Background(), data)
 		require.NoError(t, err)
 		require.True(t, exists)
 	})
@@ -62,7 +62,7 @@ func TestPreimageOracleContract_PreimageDataExists(t *testing.T) {
 			[]interface{}{common.Hash(data.OracleKey), new(big.Int).SetUint64(uint64(data.OracleOffset))},
 			[]interface{}{false},
 		)
-		exists, err := oracle.PreimageDataExists(context.Background(), data)
+		exists, err := oracle.GlobalDataExists(context.Background(), data)
 		require.NoError(t, err)
 		require.False(t, exists)
 	})

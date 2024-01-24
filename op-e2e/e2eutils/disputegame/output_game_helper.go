@@ -548,7 +548,7 @@ func (g *OutputGameHelper) PreimageExistsInOracle(ctx context.Context, data *typ
 	g.require.NoError(err, "Failed to create vm contract")
 	oracle, err := vm.Oracle(ctx)
 	g.require.NoError(err, "Failed to create oracle contract")
-	exists, err := oracle.PreimageDataExists(ctx, data)
+	exists, err := oracle.GlobalDataExists(ctx, data)
 	g.require.NoError(err)
 	return exists
 }

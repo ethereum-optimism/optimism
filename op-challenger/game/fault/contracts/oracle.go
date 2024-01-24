@@ -222,7 +222,7 @@ func (c *PreimageOracleContract) DecodeInputData(data []byte) (*big.Int, keccakT
 	}, nil
 }
 
-func (c *PreimageOracleContract) PreimageDataExists(ctx context.Context, data *types.PreimageOracleData) (bool, error) {
+func (c *PreimageOracleContract) GlobalDataExists(ctx context.Context, data *types.PreimageOracleData) (bool, error) {
 	call := c.contract.Call(methodPreimagePartOk, common.Hash(data.OracleKey), new(big.Int).SetUint64(uint64(data.OracleOffset)))
 	results, err := c.multiCaller.SingleCall(ctx, batching.BlockLatest, call)
 	if err != nil {
