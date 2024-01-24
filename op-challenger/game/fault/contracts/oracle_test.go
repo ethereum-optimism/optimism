@@ -35,6 +35,31 @@ func TestPreimageOracleContract_LoadKeccak256(t *testing.T) {
 	stubRpc.VerifyTxCandidate(tx)
 }
 
+func TestPreimageOracleContract_ContainsPreimage(t *testing.T) {
+	t.Run("exists", func(t *testing.T) {
+		stubRpc, oracle := setupPreimageOracleTest(t)
+		key := common.Hash{0xcc}
+		stubRpc.SetResponse(oracleAddr, methodPreimageLengths, batching.BlockLatest,
+			[]interface{}{key},
+			[]interface{}{big.NewInt(1)},
+		)
+		exists, err := oracle.ContainsPreimage(context.Background(), key)
+		require.NoError(t, err)
+		require.True(t, exists)
+	})
+	t.Run("does not exist", func(t *testing.T) {
+		stubRpc, oracle := setupPreimageOracleTest(t)
+		key := common.Hash{0xcc}
+		stubRpc.SetResponse(oracleAddr, methodPreimageLengths, batching.BlockLatest,
+			[]interface{}{key},
+			[]interface{}{big.NewInt(0)},
+		)
+		exists, err := oracle.ContainsPreimage(context.Background(), key)
+		require.NoError(t, err)
+		require.False(t, exists)
+	})
+}
+
 func TestPreimageOracleContract_InitLargePreimage(t *testing.T) {
 	stubRpc, oracle := setupPreimageOracleTest(t)
 

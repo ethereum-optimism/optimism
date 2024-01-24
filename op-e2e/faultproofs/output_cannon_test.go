@@ -232,14 +232,17 @@ func TestOutputCannonStepWithPreimage(t *testing.T) {
 	game.LogGameData(ctx)
 
 	game.StartChallenger(ctx, "sequencer", "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
-	outputRootClaim = outputRootClaim.WaitForCounterClaim(ctx)
 
+	// Wait for the honest challenger to dispute the outputRootClaim. This creates a root of an execution game that we challenge by coercing
+	// a step at a preimage trace index.
+	outputRootClaim = outputRootClaim.WaitForCounterClaim(ctx)
 	provider := game.CreateCannonTraceProvider(ctx, "sequencer", outputRootClaim, challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
-	preimageTraceIndex := game.FindStepWithPreimage(ctx, provider)
+	preimageTraceIndex, err := provider.FindStepReferencingPreimage(ctx, 0)
+	require.NoError(t, err)
 	game.ChallengeIntoPosition(ctx, provider, outputRootClaim, preimageTraceIndex)
 
 	// Ensure that the honest challenger uploaded the preimage for the correct index
-	execDepth := game.MaxDepth(ctx) - game.SplitDepth(ctx) - 1
+	execDepth := game.ExecDepth(ctx)
 	_, _, preimageData, err := provider.GetStepData(ctx, types.NewPosition(execDepth, big.NewInt(int64(preimageTraceIndex))))
 	require.NoError(t, err)
 	require.True(t, game.PreimageExistsInOracle(ctx, [32]byte(preimageData.OracleKey)))

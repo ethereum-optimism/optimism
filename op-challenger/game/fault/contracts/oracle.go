@@ -86,12 +86,8 @@ func (c *PreimageOracleContract) Addr() common.Address {
 }
 
 func (c *PreimageOracleContract) AddGlobalDataTx(data *types.PreimageOracleData) (txmgr.TxCandidate, error) {
-	call := c.AddGlobalDataTxCall(data)
+	call := c.contract.Call(methodLoadKeccak256PreimagePart, new(big.Int).SetUint64(uint64(data.OracleOffset)), data.GetPreimageWithoutSize())
 	return call.ToTxCandidate()
-}
-
-func (c *PreimageOracleContract) AddGlobalDataTxCall(data *types.PreimageOracleData) *batching.ContractCall {
-	return c.contract.Call(methodLoadKeccak256PreimagePart, new(big.Int).SetUint64(uint64(data.OracleOffset)), data.GetPreimageWithoutSize())
 }
 
 func (c *PreimageOracleContract) InitLargePreimage(uuid *big.Int, partOffset uint32, claimedSize uint32) (txmgr.TxCandidate, error) {
@@ -226,7 +222,7 @@ func (c *PreimageOracleContract) DecodeInputData(data []byte) (*big.Int, keccakT
 	}, nil
 }
 
-func (c *PreimageOracleContract) ContainsPreimage(ctx context.Context, key [32]byte) (bool, error) {
+func (c *PreimageOracleContract) ContainsPreimage(ctx context.Context, key common.Hash) (bool, error) {
 	call := c.contract.Call(methodPreimageLengths, key)
 	results, err := c.multiCaller.SingleCall(ctx, batching.BlockLatest, call)
 	if err != nil {

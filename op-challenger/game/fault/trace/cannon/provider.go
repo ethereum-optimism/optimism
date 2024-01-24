@@ -136,7 +136,7 @@ func (p *CannonTraceProvider) AbsolutePreStateCommitment(_ context.Context) (com
 }
 
 func (p *CannonTraceProvider) FindStepReferencingPreimage(ctx context.Context, start uint64) (uint64, error) {
-	// first generate a snapshot for start, so we can rewind to it later for the full trace search
+	// First generate a snapshot of the starting state, so we can snap to it later for the full trace search
 	prestateProof, err := p.loadProof(ctx, start)
 	if err != nil {
 		return 0, err
@@ -146,9 +146,9 @@ func (p *CannonTraceProvider) FindStepReferencingPreimage(ctx context.Context, s
 		if err := p.generator.GenerateProofOrUntilPreimageRead(ctx, p.dir, start, math.MaxUint64, true); err != nil {
 			return 0, fmt.Errorf("generate cannon trace (until preimage read) with proof at %d: %w", start, err)
 		}
-		state, err := parseState(filepath.Join(p.dir, finalState))
+		state, err := p.finalState()
 		if err != nil {
-			return 0, fmt.Errorf("cannot read final state: %w", err)
+			return 0, err
 		}
 		if state.Exited {
 			break
@@ -188,9 +188,9 @@ func (p *CannonTraceProvider) loadProof(ctx context.Context, i uint64) (*proofDa
 		file, err = ioutil.OpenDecompressed(path)
 		if errors.Is(err, os.ErrNotExist) {
 			// Expected proof wasn't generated, check if we reached the end of execution
-			state, err := parseState(filepath.Join(p.dir, finalState))
+			state, err := p.finalState()
 			if err != nil {
-				return nil, fmt.Errorf("cannot read final state: %w", err)
+				return nil, err
 			}
 			if state.Exited && state.Step <= i {
 				p.logger.Warn("Requested proof was after the program exited", "proof", i, "last", state.Step)
@@ -231,6 +231,14 @@ func (p *CannonTraceProvider) loadProof(ctx context.Context, i uint64) (*proofDa
 		return nil, fmt.Errorf("failed to read proof (%v): %w", path, err)
 	}
 	return &proof, nil
+}
+
+func (c *CannonTraceProvider) finalState() (*mipsevm.State, error) {
+	state, err := parseState(filepath.Join(c.dir, finalState))
+	if err != nil {
+		return nil, fmt.Errorf("cannot read final state: %w", err)
+	}
+	return state, nil
 }
 
 type diskStateCacheObj struct {

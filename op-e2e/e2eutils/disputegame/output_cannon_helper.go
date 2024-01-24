@@ -115,7 +115,7 @@ func (g *OutputCannonGameHelper) CreateCannonTraceProvider(ctx context.Context, 
 	localInputs, err := cannon.FetchLocalInputsFromProposals(ctx, contract, l2Client, proposals[0], proposals[1])
 	g.require.NoError(err, "Failed to fetch local inputs")
 	localContext := outputs.CreateLocalContext(pre, post)
-	dir := filepath.Join(cfg.Datadir, "honest-cannon")
+	dir := filepath.Join(cfg.Datadir, "cannon-trace")
 	subdir := filepath.Join(dir, localContext.Hex())
 	return cannon.NewTraceProvider(logger, metrics.NoopMetrics, cfg, localInputs, subdir, g.MaxDepth(ctx)-splitDepth-1)
 }

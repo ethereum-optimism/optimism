@@ -9,7 +9,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/cannon"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
@@ -43,6 +42,10 @@ func (g *OutputGameHelper) SplitDepth(ctx context.Context) types.Depth {
 	splitDepth, err := g.game.SplitDepth(&bind.CallOpts{Context: ctx})
 	g.require.NoError(err, "failed to load split depth")
 	return types.Depth(splitDepth.Uint64())
+}
+
+func (g *OutputGameHelper) ExecDepth(ctx context.Context) types.Depth {
+	return g.MaxDepth(ctx) - g.SplitDepth(ctx) - 1
 }
 
 func (g *OutputGameHelper) L2BlockNum(ctx context.Context) uint64 {
@@ -462,19 +465,11 @@ func (g *OutputGameHelper) ResolveClaim(ctx context.Context, claimIdx int64) {
 	g.require.NoError(err, "ResolveClaim transaction was not OK")
 }
 
-// FindStepWithPreimage returns the earliest trace index in the execution game subgame that references a global preimage
-func (g *OutputGameHelper) FindStepWithPreimage(ctx context.Context, cannonTraceProvider *cannon.CannonTraceProvider) uint64 {
-	step, err := cannonTraceProvider.FindStepReferencingPreimage(ctx, 0)
-	g.require.NoError(err)
-	return step
-}
-
 // ChallengeIntoPosition challenges the supplied claim by descending the execution subtree until a step occurs on the given trace index
 // Assumes the execution game depth is even so the honest challenger calls step
 func (g *OutputGameHelper) ChallengeIntoPosition(ctx context.Context, provider types.TraceProvider, outputRootClaim *ClaimHelper, targetTraceIndex uint64) {
-	maxDepth := g.MaxDepth(ctx)
 	splitDepth := g.SplitDepth(ctx)
-	execDepth := maxDepth - splitDepth - 1
+	execDepth := g.ExecDepth(ctx)
 	if targetTraceIndex == outputRootClaim.position.TraceIndex(execDepth).Uint64() {
 		g.require.Fail("cannot move to defend a terminal trace index")
 	}
