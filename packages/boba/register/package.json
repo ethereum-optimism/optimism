@@ -1,0 +1,42 @@
+{
+  "name": "@bobanetwork/register",
+  "version": "0.0.4",
+  "description": "BOBA Smart Contracts Registration",
+  "private": false,
+  "author": "Boba Network",
+  "license": "MIT",
+  "scripts": {
+    "build": "yarn build:contracts",
+    "build:contracts": "hardhat compile",
+    "deploy": "ts-node \"./bin/deploy.ts\""
+  },
+  "dependencies": {
+    "@bobanetwork/core_contracts": "0.5.13",
+    "@eth-optimism/core-utils": "^0.8.1",
+    "@ethersproject/abstract-provider": "^5.5.0",
+    "@ethersproject/abstract-signer": "^5.5.0",
+    "@nomiclabs/hardhat-waffle": "^2.0.1",
+    "@openzeppelin/contracts": "4.3.2",
+    "chalk": "^5.3.0",
+    "dotenv": "^8.2.0",
+    "glob": "^7.1.6",
+    "patch-package": "^6.4.7"
+  },
+  "devDependencies": {
+    "@ethersproject/providers": "^5.5.0",
+    "@nomiclabs/hardhat-ethers": "^2.0.2",
+    "@types/mocha": "^8.2.2",
+    "chai": "^4.3.6",
+    "chai-as-promised": "^7.1.1",
+    "directory-tree": "^2.2.7",
+    "ethereum-waffle": "^3.3.0",
+    "ethers": "^5.5.4",
+    "hardhat": "^2.12.5",
+    "hardhat-deploy": "^0.7.10",
+    "mocha": "^8.3.1",
+    "rimraf": "^3.0.2",
+    "shx": "^0.3.3",
+    "ts-node": "10.9.1",
+    "typescript": "^4.3.5"
+  }
+}
