@@ -74,14 +74,13 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
         setUpInlined();
         bytes memory _data = freshBigBytes(320);
 
-        Types.WithdrawalTransaction memory _tx =
-            Types.WithdrawalTransaction(_nonce, _sender, _target, _value, _gasLimit, _data);
-
         // Pause Optimism Portal
         vm.prank(optimismPortal.GUARDIAN());
         superchainConfig.pause("identifier");
 
         vm.expectRevert("OptimismPortal: paused");
-        optimismPortal.finalizeWithdrawalTransaction(_tx);
+        optimismPortal.finalizeWithdrawalTransaction(
+            Types.WithdrawalTransaction(_nonce, _sender, _target, _value, _gasLimit, _data)
+        );
     }
 }
