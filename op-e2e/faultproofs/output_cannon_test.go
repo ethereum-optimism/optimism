@@ -232,6 +232,8 @@ func TestOutputCannonStepWithPreimage(t *testing.T) {
 		outputRootClaim := game.DisputeLastBlock(ctx)
 		game.LogGameData(ctx)
 
+		game.StartChallenger(ctx, "sequencer", "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
+
 		// Wait for the honest challenger to dispute the outputRootClaim. This creates a root of an execution game that we challenge by coercing
 		// a step at a preimage trace index.
 		outputRootClaim = outputRootClaim.WaitForCounterClaim(ctx)

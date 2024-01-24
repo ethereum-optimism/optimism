@@ -92,7 +92,7 @@ func NewGamePlayer(
 	large := preimages.NewLargePreimageUploader(logger, txMgr, oracle)
 	uploader := preimages.NewSplitPreimageUploader(direct, large)
 
-	responder, err := responder.NewFaultResponder(logger, txMgr, loader, uploader)
+	responder, err := responder.NewFaultResponder(logger, txMgr, loader, uploader, oracle)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the responder: %w", err)
 	}
