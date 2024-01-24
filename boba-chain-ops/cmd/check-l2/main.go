@@ -18,7 +18,6 @@ import (
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/clients"
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/genesis"
 	libcommon "github.com/ledgerwatch/erigon-lib/common"
-	"github.com/ledgerwatch/erigon/common"
 	"github.com/ledgerwatch/log/v3"
 )
 
@@ -919,7 +918,7 @@ func getStorageValue(name, entryName string, addr libcommon.Address, client *cli
 		return nil, fmt.Errorf("value length is too short")
 	}
 	// Swap the endianness
-	slice := common.CopyBytes(value)
+	slice := libcommon.CopyBytes(value)
 	for i, j := 0, len(slice)-1; i < j; i, j = i+1, j-1 {
 		slice[i], slice[j] = slice[j], slice[i]
 	}

@@ -13,7 +13,7 @@ import (
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/node/nodefakes"
 	"github.com/holiman/uint256"
 	"github.com/ledgerwatch/erigon-lib/common"
-	"github.com/ledgerwatch/erigon/common/hexutil"
+	"github.com/ledgerwatch/erigon-lib/common/hexutil"
 	"github.com/ledgerwatch/erigon/core/types"
 	"github.com/stretchr/testify/require"
 )

@@ -26,6 +26,7 @@ const (
 	zoraMainnet = 7777777
 	labsDevnet  = 997
 	chaosnet    = 888
+	bobaSepolia = 28882
 )
 
 // LoadOPStackRollupConfig loads the rollup configuration of the requested chain ID from the superchain-registry.
@@ -72,6 +73,8 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 		regolithTime = 1677984480
 	case chaosnet:
 		regolithTime = 1692156862
+	case bobaSepolia:
+		regolithTime = 1705600788
 	}
 
 	cfg := &Config{
@@ -116,6 +119,11 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 	if chainID == pgnSepolia {
 		cfg.MaxSequencerDrift = 1000
 		cfg.SeqWindowSize = 7200
+	}
+	if chainID == bobaSepolia {
+		*cfg.CanyonTime = 1705600788
+		cfg.DeltaTime = nil
+		cfg.ProtocolVersionsAddress = common.Address{}
 	}
 	return cfg, nil
 }

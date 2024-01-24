@@ -7,8 +7,8 @@ import (
 
 	"github.com/ledgerwatch/erigon-lib/chain"
 	"github.com/ledgerwatch/erigon-lib/common"
+	"github.com/ledgerwatch/erigon-lib/common/hexutil"
 	"github.com/ledgerwatch/erigon-lib/common/hexutility"
-	"github.com/ledgerwatch/erigon/common/hexutil"
 	"github.com/ledgerwatch/erigon/core/types"
 )
 
@@ -50,6 +50,10 @@ type Config struct {
 	// "Regolith" is the loose deposited rock that sits on top of Bedrock.
 	// Active if RegolithTime != nil && L2 block timestamp >= *RegolithTime, inactive otherwise.
 	RegolithTime *uint64 `json:"regolith_time,omitempty"`
+
+	// CanyonTime sets the activation time of the Canyon network upgrade.
+	// Active if CanyonTime != nil && L2 block timestamp >= *CanyonTime, inactive otherwise.
+	CanyonTime *uint64 `json:"canyon_time,omitempty"`
 
 	// Note: below addresses are part of the block-derivation process,
 	// and required to be the same network-wide to stay in consensus.

@@ -29,9 +29,24 @@ func NewL2Genesis(config *DeployConfig, header *types.Header) (*types.Genesis, e
 	if eip1559Denom == 0 {
 		eip1559Denom = 50
 	}
+	eip1559DenomCanyon := config.EIP1559DenominatorCanyon
+	if eip1559DenomCanyon == 0 {
+		eip1559DenomCanyon = 250
+	}
 	eip1559Elasticity := config.EIP1559Elasticity
 	if eip1559Elasticity == 0 {
 		eip1559Elasticity = 10
+	}
+
+	var regolithTime *big.Int
+	regolithTimeUnit64 := config.RegolithTime(header.Time)
+	if regolithTimeUnit64 != nil {
+		regolithTime = new(big.Int).SetUint64(*regolithTimeUnit64)
+	}
+	var canyonTime *big.Int
+	canyonTimeUint64 := config.CanyonTime(header.Time)
+	if canyonTimeUint64 != nil {
+		canyonTime = new(big.Int).SetUint64(*canyonTimeUint64)
 	}
 
 	optimismChainConfig := chain.Config{
@@ -53,9 +68,14 @@ func NewL2Genesis(config *DeployConfig, header *types.Header) (*types.Genesis, e
 		TerminalTotalDifficulty:       big.NewInt(0),
 		TerminalTotalDifficultyPassed: true,
 		BedrockBlock:                  new(big.Int).SetUint64(uint64(config.L2GenesisBlockNumber)),
+		RegolithTime:                  regolithTime,
+		CanyonTime:                    canyonTime,
+		ShanghaiTime:                  canyonTime,
+		CancunTime:                    nil, // no Dencun on L2 yet.
 		Optimism: &chain.OptimismConfig{
-			EIP1559Denominator: eip1559Denom,
-			EIP1559Elasticity:  eip1559Elasticity,
+			EIP1559Denominator:       eip1559Denom,
+			EIP1559Elasticity:        eip1559Elasticity,
+			EIP1559DenominatorCanyon: eip1559DenomCanyon,
 		},
 	}
 

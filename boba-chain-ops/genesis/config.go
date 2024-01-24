@@ -14,7 +14,7 @@ import (
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/immutables"
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/state"
 	"github.com/ledgerwatch/erigon-lib/common"
-	"github.com/ledgerwatch/erigon/common/hexutil"
+	"github.com/ledgerwatch/erigon-lib/common/hexutil"
 	"github.com/ledgerwatch/erigon/core/types"
 	"github.com/ledgerwatch/erigon/crypto"
 	"github.com/ledgerwatch/erigon/crypto/cryptopool"
@@ -74,6 +74,8 @@ type DeployConfig struct {
 
 	// Seconds after genesis block that Regolith hard fork activates. 0 to activate at genesis. Nil to disable regolith
 	L2GenesisRegolithTimeOffset *hexutil.Uint64 `json:"l2GenesisRegolithTimeOffset,omitempty"`
+	// Seconds after genesis block that Canyon hard fork activates. 0 to activate at genesis. Nil to disable canyon
+	L2GenesisCanyonTimeOffset *hexutil.Uint64 `json:"l2GenesisCanyonTimeOffset,omitempty"`
 	// Owner of the ProxyAdmin predeploy
 	ProxyAdminOwner common.Address `json:"proxyAdminOwner"`
 	// Owner of the system on L1
@@ -119,6 +121,8 @@ type DeployConfig struct {
 	EIP1559Elasticity uint64 `json:"eip1559Elasticity"`
 	// EIP1559Denominator is the denominator of EIP1559 base fee market.
 	EIP1559Denominator uint64 `json:"eip1559Denominator"`
+	// EIP1559DenominatorCanyon is the denominator of EIP1559 base fee market when Canyon is active.
+	EIP1559DenominatorCanyon uint64 `json:"eip1559DenominatorCanyon"`
 	// FundDevAccounts configures whether or not to fund the dev accounts. Should only be used
 	// during devnet deployments.
 	FundDevAccounts bool `json:"fundDevAccounts"`
@@ -235,6 +239,9 @@ func (d *DeployConfig) Check() error {
 	}
 	if d.EIP1559Elasticity == 0 {
 		return fmt.Errorf("%w: EIP1559Elasticity cannot be 0", ErrInvalidDeployConfig)
+	}
+	if d.L2GenesisCanyonTimeOffset != nil && d.EIP1559DenominatorCanyon == 0 {
+		return fmt.Errorf("%w: EIP1559DenominatorCanyon cannot be 0 if Canyon is activated", ErrInvalidDeployConfig)
 	}
 	if d.L2GenesisBlockGasLimit == 0 {
 		return fmt.Errorf("%w: L2 genesis block gas limit cannot be 0", ErrInvalidDeployConfig)
@@ -362,6 +369,7 @@ func (d *DeployConfig) RollupConfig(l1StartHeader *types.Header, l2GenesisBlockH
 		DepositContractAddress: d.OptimismPortalProxy,
 		L1SystemConfigAddress:  d.SystemConfigProxy,
 		RegolithTime:           d.RegolithTime(l1StartHeader.Time),
+		CanyonTime:             d.CanyonTime(l1StartHeader.Time),
 	}, nil
 }
 
@@ -398,7 +406,18 @@ func (d *DeployConfig) RegolithTime(genesisTime uint64) *uint64 {
 		return nil
 	}
 	v := uint64(0)
-	if offset := *d.L2GenesisRegolithTimeOffset; offset > 0 {
+	if offset := *d.L2GenesisRegolithTimeOffset; offset >= 0 {
+		v = genesisTime + uint64(offset)
+	}
+	return &v
+}
+
+func (d *DeployConfig) CanyonTime(genesisTime uint64) *uint64 {
+	if d.L2GenesisCanyonTimeOffset == nil {
+		return nil
+	}
+	v := uint64(0)
+	if offset := *d.L2GenesisCanyonTimeOffset; offset >= 0 {
 		v = genesisTime + uint64(offset)
 	}
 	return &v
