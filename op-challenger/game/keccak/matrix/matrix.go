@@ -134,6 +134,7 @@ func (d *StateMatrix) absorbNextLeafInput(in io.Reader) ([]byte, error) {
 	for read < types.BlockSize {
 		n, err := in.Read(data[read:])
 		if errors.Is(err, io.EOF) {
+			read += n
 			final = true
 			break
 		} else if err != nil {
@@ -142,6 +143,11 @@ func (d *StateMatrix) absorbNextLeafInput(in io.Reader) ([]byte, error) {
 		read += n
 	}
 	input := data[:read]
+	// Don't add the padding if we read a full block of input data, even if we reached EOF.
+	// Just absorb the full block and return so the caller can capture the state commitment after the block
+	// The next call will read no data from the Reader (already at EOF) and so add the final padding as an
+	// additional block. We can then return EOF to indicate there are no further blocks.
+	final = final && len(input) < types.BlockSize
 	d.absorbLeafInput(input, final)
 	if final {
 		return input, io.EOF
