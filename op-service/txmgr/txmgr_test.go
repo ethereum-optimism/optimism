@@ -2,6 +2,7 @@ package txmgr
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"math/big"
@@ -1402,4 +1403,25 @@ func TestCloseWaitingForConfirmation(t *testing.T) {
 	})
 	require.True(t, h.mgr.closed.Load())
 	require.NoError(t, err)
+}
+
+func TestMakeSidecar(t *testing.T) {
+	var blob eth.Blob
+	_, err := rand.Read(blob[:])
+	require.NoError(t, err)
+	// get the field-elements into a valid range
+	for i := 0; i < 4096; i++ {
+		blob[32*i] &= 0b0011_1111
+	}
+	sidecar, hashes, err := MakeSidecar([]*eth.Blob{&blob})
+	require.NoError(t, err)
+	require.Equal(t, len(hashes), 1)
+	require.Equal(t, len(sidecar.Blobs), len(hashes))
+	require.Equal(t, len(sidecar.Proofs), len(hashes))
+	require.Equal(t, len(sidecar.Commitments), len(hashes))
+
+	for i, commit := range sidecar.Commitments {
+		require.NoError(t, eth.VerifyBlobProof((*eth.Blob)(&sidecar.Blobs[i]), commit, sidecar.Proofs[i]), "proof must be valid")
+		require.Equal(t, hashes[i], eth.KZGToVersionedHash(commit))
+	}
 }
