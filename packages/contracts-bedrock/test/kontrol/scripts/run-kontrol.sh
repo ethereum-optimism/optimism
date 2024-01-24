@@ -214,7 +214,7 @@ regen=
 max_depth=1000000
 max_iterations=1000000
 smt_timeout=100000
-workers=2
+workers=5
 reinit=--reinit
 reinit=
 break_on_calls=--no-break-on-calls
@@ -233,6 +233,9 @@ state_diff="./snapshots/state-diff/Kontrol-Deploy.json"
 tests=""
 #tests+="--match-test OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused "
 tests+="--match-test OptimismPortalKontrol.prove_finalizeWithdrawalTransaction_paused "
+tests+="--match-test L1StandardBridgeKontrol.prove_finalizeBridgeERC20_paused "
+tests+="--match-test L1StandardBridgeKontrol.prove_finalizeBridgeETH_paused "
+tests+="--match-test L1ERC721BridgeKontrol.prove_finalizeBridgeERC21_paused "
 tests+="--match-test L1CrossDomainMessengerKontrol.prove_relayMessage_paused "
 
 #############
