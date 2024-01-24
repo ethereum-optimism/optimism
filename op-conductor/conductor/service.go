@@ -221,6 +221,12 @@ func (oc *OpConductor) initRPCServer(ctx context.Context) error {
 			Namespace: conductorrpc.NodeRPCNamespace,
 			Service:   nodeProxy,
 		})
+
+		nodeAdminProxy := conductorrpc.NewNodeAdminProxyBackend(oc.log, oc, nodeClient)
+		server.AddAPI(rpc.API{
+			Namespace: conductorrpc.NodeAdminRPCNamespace,
+			Service:   nodeAdminProxy,
+		})
 	}
 
 	oc.rpcServer = server
