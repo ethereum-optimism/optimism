@@ -59,7 +59,7 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
         optimismPortal.proveWithdrawalTransaction(_tx, _l2OutputIndex, _outputRootProof, _withdrawalProof);
     }
 
-    /// TODO: Replace struct parameters and workarounds with the appropiate
+    /// TODO: Replace struct parameters and workarounds with the appropriate
     /// types once Kontrol supports symbolic `bytes` and `bytes[]`
     /// Tracking issue: https://github.com/runtimeverification/kontrol/issues/272
     function prove_finalizeWithdrawalTransaction_paused(

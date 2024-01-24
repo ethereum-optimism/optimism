@@ -19,7 +19,7 @@ contract L1CrossDomainMessengerKontrol is DeploymentSummary, KontrolUtils {
         superchainConfig = SuperchainConfig(SuperchainConfigProxyAddress);
     }
 
-    /// TODO: Replace struct parameters and workarounds with the appropiate
+    /// TODO: Replace struct parameters and workarounds with the appropriate
     /// types once Kontrol supports symbolic `bytes` and `bytes[]`
     /// Tracking issue: https://github.com/runtimeverification/kontrol/issues/272
     function prove_relayMessage_paused(
@@ -35,7 +35,7 @@ contract L1CrossDomainMessengerKontrol is DeploymentSummary, KontrolUtils {
 
         bytes memory _message = freshBigBytes(600);
 
-        /* Pause System */
+        // Pause System
         vm.prank(superchainConfig.guardian());
         superchainConfig.pause("identifier");
 
