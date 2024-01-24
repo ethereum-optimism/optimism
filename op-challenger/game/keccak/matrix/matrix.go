@@ -2,6 +2,7 @@ package matrix
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"math/big"
 
@@ -17,9 +18,60 @@ type StateMatrix struct {
 }
 
 var (
-	ErrInvalidMaxLen = errors.New("invalid max length to absorb")
-	uint256Size      = 32
+	ErrInvalidMaxLen            = errors.New("invalid max length to absorb")
+	ErrIncorrectCommitmentCount = errors.New("incorrect number of commitments for input length")
+	uint256Size                 = 32
 )
+
+// VerifyPreimage checks the claimed state commitments are correct for the provided preimage data.
+// Returns nil if the preimage is valid, otherwise returns a [types.Challenge] proving the fault.
+func VerifyPreimage(data io.Reader, commitments []common.Hash) (*types.Challenge, error) {
+	s := NewStateMatrix()
+	m := s.PackState()
+	var prestate types.Leaf
+	for i := 0; ; i++ {
+		unpaddedLeaf, err := s.absorbNextLeafInput(data)
+		if err != nil && !errors.Is(err, io.EOF) {
+			return nil, fmt.Errorf("failed to verify inputs: %w", err)
+		}
+		isEOF := errors.Is(err, io.EOF)
+		validCommitment := s.StateCommitment()
+		if i >= len(commitments) {
+			// There should have been more commitments.
+			// The contracts should prevent this so it can't be challenged, return an error
+			return nil, ErrIncorrectCommitmentCount
+		}
+		claimedCommitment := commitments[i]
+
+		var paddedLeaf [types.BlockSize]byte
+		copy(paddedLeaf[:], unpaddedLeaf)
+		// TODO(client-pod#480): Add actual keccak padding to ensure the merkle proofs are correct
+		poststate := types.Leaf{
+			Input:           paddedLeaf,
+			Index:           big.NewInt(int64(i)),
+			StateCommitment: claimedCommitment,
+		}
+
+		if validCommitment != claimedCommitment {
+			return &types.Challenge{
+				StateMatrix: m,
+				Prestate:    prestate,
+				Poststate:   poststate,
+			}, nil
+		}
+		if isEOF {
+			if i < len(commitments)-1 {
+				// We got too many commitments
+				// The contracts should prevent this so it can't be challenged, return an error
+				return nil, ErrIncorrectCommitmentCount
+			}
+			break
+		}
+		prestate = poststate
+		m = s.PackState()
+	}
+	return nil, nil
+}
 
 // NewStateMatrix creates a new state matrix initialized with the initial, zero keccak block.
 func NewStateMatrix() *StateMatrix {

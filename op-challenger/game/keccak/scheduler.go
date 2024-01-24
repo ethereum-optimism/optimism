@@ -4,13 +4,14 @@ import (
 	"context"
 	"sync"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/fetcher"
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
 
 type Verifier interface {
-	Verify(ctx context.Context, blockHash common.Hash, oracle keccakTypes.LargePreimageOracle, preimage keccakTypes.LargePreimageMetaData) error
+	Verify(ctx context.Context, blockHash common.Hash, oracle fetcher.Oracle, preimage keccakTypes.LargePreimageMetaData) error
 }
 
 type LargePreimageScheduler struct {
