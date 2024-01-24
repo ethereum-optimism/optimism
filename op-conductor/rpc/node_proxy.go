@@ -3,9 +3,11 @@ package rpc
 import (
 	"context"
 
+	"github.com/ethereum/go-ethereum/log"
+
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 var NodeRPCNamespace = "optimism"
@@ -49,13 +51,13 @@ func (api *NodeProxyBackend) OutputAtBlock(ctx context.Context, blockNum uint64)
 	return output, nil
 }
 
-func (api *NodeProxyBackend) SequencerActive(ctx context.Context) (bool, error) {
-	active, err := api.client.SequencerActive(ctx)
+func (api *NodeProxyBackend) RollupConfig(ctx context.Context) (*rollup.Config, error) {
+	config, err := api.client.RollupConfig(ctx)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 	if !api.con.Leader(ctx) {
-		return false, ErrNotLeader
+		return nil, ErrNotLeader
 	}
-	return active, err
+	return config, nil
 }
