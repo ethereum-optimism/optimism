@@ -129,11 +129,8 @@ func runCrossLayerUserTest(gt *testing.T, test hardforkScheduledTest) {
 	require.Equal(t, dp.Secrets.Addresses().Proposer, dp.DeployConfig.L2OutputOracleProposer)
 
 	miner, seqEngine, seq := setupSequencerTest(t, sd, log)
-	batcher := NewL2Batcher(log, sd.RollupCfg, &BatcherCfg{
-		MinL1TxSize: 0,
-		MaxL1TxSize: 128_000,
-		BatcherKey:  dp.Secrets.Batcher,
-	}, seq.RollupClient(), miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
+	batcher := NewL2Batcher(log, sd.RollupCfg, DefaultBatcherCfg(dp),
+		seq.RollupClient(), miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
 	proposer := NewL2Proposer(t, log, &ProposerCfg{
 		OutputOracleAddr:  &sd.DeploymentsL1.L2OutputOracleProxy,
 		ProposerKey:       dp.Secrets.Proposer,
