@@ -76,9 +76,9 @@ func (g *OutputCannonGameHelper) CreateHonestActor(ctx context.Context, l2Node s
 // It does this by:
 // 1. Identifying the first state transition that loads a global preimage
 // 2. Descending the execution game tree to reach the step that loads the preimage
-// 3. Asserting that the preimage was indeed loaded by an honest challenger
+// 3. Asserting that the preimage was indeed loaded by an honest challenger (assuming the preimage is not preloaded)
 // This expects an odd execution game depth in order for the honest challenger to step on our leaf claim
-func (g *OutputCannonGameHelper) ChallengeToFirstGlobalPreimageLoad(ctx context.Context, outputRootClaim *ClaimHelper, challengerKey *ecdsa.PrivateKey) {
+func (g *OutputCannonGameHelper) ChallengeToFirstGlobalPreimageLoad(ctx context.Context, outputRootClaim *ClaimHelper, challengerKey *ecdsa.PrivateKey, preloadPreimage bool) {
 	// 1. Identifying the first state transition that loads a global preimage
 	provider := g.createCannonTraceProvider(ctx, "sequencer", outputRootClaim, challenger.WithPrivKey(challengerKey))
 	targetTraceIndex, err := provider.FindStepReferencingPreimage(ctx, 0)
@@ -89,6 +89,13 @@ func (g *OutputCannonGameHelper) ChallengeToFirstGlobalPreimageLoad(ctx context.
 	g.require.NotEqual(outputRootClaim.position.TraceIndex(execDepth).Uint64(), targetTraceIndex, "cannot move to defend a terminal trace index")
 	g.require.EqualValues(splitDepth+1, outputRootClaim.Depth(), "supplied claim must be the root of an execution game")
 	g.require.EqualValues(execDepth%2, 1, "execution game depth must be odd") // since we're challenging the execution root claim
+
+	if preloadPreimage {
+		_, _, preimageData, err := provider.GetStepData(ctx, types.NewPosition(execDepth, big.NewInt(int64(targetTraceIndex))))
+		g.require.NoError(err)
+		g.uploadPreimage(ctx, preimageData, challengerKey)
+		g.require.True(g.preimageExistsInOracle(ctx, preimageData))
+	}
 
 	// 2. Descending the execution game tree to reach the step that loads the preimage
 	bisectTraceIndex := func(claim *ClaimHelper) *ClaimHelper {
