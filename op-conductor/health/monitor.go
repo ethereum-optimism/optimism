@@ -123,7 +123,9 @@ func (hm *SequencerHealthMonitor) healthCheck() bool {
 
 	if hm.lastSeenUnsafeNum != 0 {
 		diff := now - hm.lastSeenUnsafeTime
-		blocks := diff / hm.rollupCfg.BlockTime // how many blocks do we expect to see
+		// how many blocks do we expect to see, minus 1 to account for edge case with respect to time.
+		// for example, if diff = 2.001s and block time = 2s, expecting to see 1 block could potentially cause sequencer to be considered unhealthy.
+		blocks := diff/hm.rollupCfg.BlockTime - 1
 		if diff > hm.rollupCfg.BlockTime && blocks > status.UnsafeL2.Number-hm.lastSeenUnsafeNum {
 			hm.log.Error(
 				"unsafe head is not progressing as expected",

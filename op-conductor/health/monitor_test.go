@@ -92,10 +92,12 @@ func (s *HealthMonitorTestSuite) TestUnhealthyUnsafeHeadNotProgressing() {
 	now := uint64(time.Now().Unix())
 	ss1 := &eth.SyncStatus{
 		UnsafeL2: eth.L2BlockRef{
-			Time: now - 1,
+			Number: 5,
+			Time:   now - 1,
 		},
 		SafeL2: eth.L2BlockRef{
-			Time: now - 2,
+			Number: 1,
+			Time:   now - 2,
 		},
 	}
 	s.rc.ExpectSyncStatus(ss1, nil)
