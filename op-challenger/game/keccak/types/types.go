@@ -66,8 +66,6 @@ type Challenge struct {
 
 	// Poststate is the first invalid leaf in the preimage. The challenge claims that this leaf is invalid.
 	Poststate Leaf
-
-	// TODO(client-pod#480): Add preimages for leaves
 }
 
 type LargePreimageOracle interface {

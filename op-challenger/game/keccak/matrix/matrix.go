@@ -31,10 +31,10 @@ func VerifyPreimage(data io.Reader, commitments []common.Hash) (*types.Challenge
 	var prestate types.Leaf
 	for i := 0; ; i++ {
 		unpaddedLeaf, err := s.absorbNextLeafInput(data)
-		if err != nil && !errors.Is(err, io.EOF) {
+		isEOF := errors.Is(err, io.EOF)
+		if err != nil && !isEOF {
 			return nil, fmt.Errorf("failed to verify inputs: %w", err)
 		}
-		isEOF := errors.Is(err, io.EOF)
 		validCommitment := s.StateCommitment()
 		if i >= len(commitments) {
 			// There should have been more commitments.

@@ -198,15 +198,13 @@ func TestMatrix_AbsorbNextLeaf(t *testing.T) {
 func TestVerifyPreimage(t *testing.T) {
 	preimage := testutils.RandomData(rand.New(rand.NewSource(2323)), 1024)
 	validCommitments := func() []common.Hash {
-		s := NewStateMatrix()
-		valid, err := s.AbsorbUpTo(bytes.NewReader(preimage), 1000*types.BlockSize)
+		valid, err := NewStateMatrix().AbsorbUpTo(bytes.NewReader(preimage), 1000*types.BlockSize)
 		require.ErrorIs(t, err, io.EOF, "Should read all preimage data")
 		return valid.Commitments
 	}
-	leafData := func(idx int) [types.BlockSize]byte {
-		var out [types.BlockSize]byte
+	leafData := func(idx int) (out [types.BlockSize]byte) {
 		copy(out[:], preimage[idx*types.BlockSize:(idx+1)*types.BlockSize])
-		return out
+		return
 	}
 	challengeLeaf := func(commitments []common.Hash, invalidIdx int) *types.Challenge {
 		invalidLeafStart := invalidIdx * types.BlockSize
@@ -221,13 +219,11 @@ func TestVerifyPreimage(t *testing.T) {
 				Index:           big.NewInt(int64(invalidIdx - 1)),
 				StateCommitment: commitments[invalidIdx-1],
 			},
-			//PrestateProof: nil,
 			Poststate: types.Leaf{
 				Input:           leafData(invalidIdx),
 				Index:           big.NewInt(int64(invalidIdx)),
 				StateCommitment: commitments[invalidIdx],
 			},
-			//PoststateProof: nil,
 		}
 	}
 
@@ -253,13 +249,11 @@ func TestVerifyPreimage(t *testing.T) {
 			expected: &types.Challenge{
 				StateMatrix: NewStateMatrix().PackState(),
 				Prestate:    types.Leaf{},
-				//PrestateProof: nil,
 				Poststate: types.Leaf{
 					Input:           leafData(0),
 					Index:           big.NewInt(int64(0)),
 					StateCommitment: common.Hash{0xaa},
 				},
-				//PoststateProof: nil,
 			},
 		},
 	}
@@ -288,8 +282,7 @@ func TestVerifyPreimage(t *testing.T) {
 
 func TestVerifyPreimage_DataMultipleOfBlockSize(t *testing.T) {
 	preimage := testutils.RandomData(rand.New(rand.NewSource(2323)), 5*types.BlockSize)
-	s := NewStateMatrix()
-	valid, err := s.AbsorbUpTo(bytes.NewReader(preimage), 1000*types.BlockSize)
+	valid, err := NewStateMatrix().AbsorbUpTo(bytes.NewReader(preimage), 1000*types.BlockSize)
 	require.ErrorIs(t, err, io.EOF, "Should read all preimage data")
 
 	challenge, err := VerifyPreimage(bytes.NewReader(preimage), valid.Commitments)
