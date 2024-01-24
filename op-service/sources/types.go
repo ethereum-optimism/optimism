@@ -307,6 +307,8 @@ func (block *rpcBlock) ExecutionPayloadEnvelope(trustCache bool) (*eth.Execution
 		BlockHash:     block.Hash,
 		Transactions:  opaqueTxs,
 		Withdrawals:   block.Withdrawals,
+		BlobGasUsed:   block.BlobGasUsed,
+		ExcessBlobGas: block.ExcessBlobGas,
 	}
 
 	return &eth.ExecutionPayloadEnvelope{
