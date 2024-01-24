@@ -15,8 +15,8 @@ contract L1CrossDomainMessengerKontrol is DeploymentSummary, KontrolUtils {
     /// @dev Inlined setUp function for faster Kontrol performance
     ///      Tracking issue: https://github.com/runtimeverification/kontrol/issues/282
     function setUpInlined() public {
-        l1CrossDomainMessenger = L1CrossDomainMessenger(L1CrossDomainMessengerProxyAddress);
-        superchainConfig = SuperchainConfig(SuperchainConfigProxyAddress);
+        l1CrossDomainMessenger = L1CrossDomainMessenger(l1CrossDomainMessengerProxyAddress);
+        superchainConfig = SuperchainConfig(superchainConfigProxyAddress);
     }
 
     /// TODO: Replace struct parameters and workarounds with the appropriate

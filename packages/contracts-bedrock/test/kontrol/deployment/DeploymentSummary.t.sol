@@ -24,10 +24,10 @@ contract DeploymentSummary_TestOptimismPortal is DeploymentSummary, OptimismPort
         deploymentSummary.recreateDeployment();
 
         // Set summary addresses
-        optimismPortal = OptimismPortal(payable(OptimismPortalProxyAddress));
-        superchainConfig = SuperchainConfig(SuperchainConfigProxyAddress);
-        l2OutputOracle = L2OutputOracle(L2OutputOracleProxyAddress);
-        systemConfig = SystemConfig(SystemConfigProxyAddress);
+        optimismPortal = OptimismPortal(payable(optimismPortalProxyAddress));
+        superchainConfig = SuperchainConfig(superchainConfigProxyAddress);
+        l2OutputOracle = L2OutputOracle(l2OutputOracleProxyAddress);
+        systemConfig = SystemConfig(systemConfigProxyAddress);
 
         // Set up utilized addresses
         depositor = makeAddr("depositor");
@@ -42,7 +42,7 @@ contract DeploymentSummary_TestOptimismPortal is DeploymentSummary, OptimismPort
     ///      the remaining assertions of the test are important to check
     function test_constructor_succeeds() external override {
         // OptimismPortal opImpl = OptimismPortal(payable(deploy.mustGetAddress("OptimismPortal")));
-        OptimismPortal opImpl = OptimismPortal(payable(OptimismPortalAddress));
+        OptimismPortal opImpl = OptimismPortal(payable(optimismPortalAddress));
         assertEq(address(opImpl.L2_ORACLE()), address(0));
         assertEq(address(opImpl.l2Oracle()), address(0));
         assertEq(address(opImpl.SYSTEM_CONFIG()), address(0));
@@ -85,11 +85,11 @@ contract DeploymentSummary_TestL1CrossDomainMessenger is DeploymentSummary, L1Cr
         deploymentSummary.recreateDeployment();
 
         // Set summary addresses
-        optimismPortal = OptimismPortal(payable(OptimismPortalProxyAddress));
-        superchainConfig = SuperchainConfig(SuperchainConfigProxyAddress);
-        l2OutputOracle = L2OutputOracle(L2OutputOracleProxyAddress);
-        systemConfig = SystemConfig(SystemConfigProxyAddress);
-        l1CrossDomainMessenger = L1CrossDomainMessenger(L1CrossDomainMessengerProxyAddress);
+        optimismPortal = OptimismPortal(payable(optimismPortalProxyAddress));
+        superchainConfig = SuperchainConfig(superchainConfigProxyAddress);
+        l2OutputOracle = L2OutputOracle(l2OutputOracleProxyAddress);
+        systemConfig = SystemConfig(systemConfigProxyAddress);
+        l1CrossDomainMessenger = L1CrossDomainMessenger(l1CrossDomainMessengerProxyAddress);
 
         // Set up utilized addresses
         alice = makeAddr("alice");
@@ -103,7 +103,7 @@ contract DeploymentSummary_TestL1CrossDomainMessenger is DeploymentSummary, L1Cr
     ///      the remaining assertions of the test are important to check
     function test_constructor_succeeds() external override {
         // L1CrossDomainMessenger impl = L1CrossDomainMessenger(deploy.mustGetAddress("L1CrossDomainMessenger"));
-        L1CrossDomainMessenger impl = L1CrossDomainMessenger(L1CrossDomainMessengerAddress);
+        L1CrossDomainMessenger impl = L1CrossDomainMessenger(l1CrossDomainMessengerAddress);
         assertEq(address(impl.superchainConfig()), address(0));
         assertEq(address(impl.PORTAL()), address(0));
         assertEq(address(impl.portal()), address(0));
