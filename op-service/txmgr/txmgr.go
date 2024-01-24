@@ -744,20 +744,14 @@ func (m *SimpleTxManager) suggestGasPriceCaps(ctx context.Context) (*big.Int, *b
 }
 
 // checkLimits checks that the tip and baseFee have not increased by more than the configured multipliers
-// if FeeLimitThreshold is specified in config, all increases which stay under the threshold are allowed
-func (m *SimpleTxManager) checkLimits(tip, baseFee, bumpedTip, bumpedFee *big.Int) error {
-	limit := big.NewInt(int64(m.cfg.FeeLimitMultiplier))
+// if FeeLimitThreshold is specified in config, any increase which stays under the threshold are allowed
+func (m *SimpleTxManager) checkLimits(tip, baseFee, bumpedTip, bumpedFee *big.Int) (errs error) {
 	threshold := m.cfg.FeeLimitThreshold
+	limit := big.NewInt(int64(m.cfg.FeeLimitMultiplier))
 	maxTip := new(big.Int).Mul(tip, limit)
 	maxFee := calcGasFeeCap(new(big.Int).Mul(baseFee, limit), maxTip)
 
-	// collect error messages to return all at once
-	errMsgs := []string{}
-
-	// generic check function to confirm that:
-	// 1. if threshold is specified, the value is under the threshold, AND
-	// 2. the value is under the max value
-	// if the value does not satisfy these conditions, an error message is added to errMsgs
+	// generic check function to check tip and fee, and build up an error
 	check := func(v, max *big.Int, name string) {
 		// if threshold is specified and the value is under the threshold, no need to check the max
 		if threshold != nil && threshold.Cmp(v) > 0 {
@@ -765,18 +759,13 @@ func (m *SimpleTxManager) checkLimits(tip, baseFee, bumpedTip, bumpedFee *big.In
 		}
 		// if the value is over the max, add an error message
 		if v.Cmp(max) > 0 {
-			errMsgs = append(errMsgs, fmt.Sprintf("bumped %s cap %v is over %dx multiple of the suggested value", name, v, limit))
+			errs = errors.Join(errs, fmt.Errorf("bumped %s cap %v is over %dx multiple of the suggested value", name, v, limit))
 		}
 	}
 	check(bumpedTip, maxTip, "tip")
 	check(bumpedFee, maxFee, "fee")
 
-	// if there are any errors, join and return them in a single error message
-	if len(errMsgs) > 0 {
-		return fmt.Errorf("%d error(s) during checkLimits: %s", len(errMsgs), strings.Join(errMsgs, "; "))
-	}
-
-	return nil
+	return errs
 }
 
 func (m *SimpleTxManager) checkBlobFeeLimits(blobBaseFee, bumpedBlobFee *big.Int) error {
