@@ -49,14 +49,14 @@ type SequencerHealthMonitor struct {
 	done chan struct{}
 	wg   sync.WaitGroup
 
-	rollupCfg      *rollup.Config
-	unsafeInterval uint64
-	safeInterval   uint64
-	minPeerCount   uint64
-	interval       uint64
-	healthUpdateCh chan bool
-	lastSeenUnsafe uint64
-	lastSeenTime   uint64
+	rollupCfg          *rollup.Config
+	unsafeInterval     uint64
+	safeInterval       uint64
+	minPeerCount       uint64
+	interval           uint64
+	healthUpdateCh     chan bool
+	lastSeenUnsafeNum  uint64
+	lastSeenUnsafeTime uint64
 
 	node dial.RollupClientInterface
 	p2p  p2p.API
@@ -121,22 +121,25 @@ func (hm *SequencerHealthMonitor) healthCheck() bool {
 
 	now := uint64(time.Now().Unix())
 
-	if hm.lastSeenUnsafe != 0 {
-		diff := now - hm.lastSeenTime
+	if hm.lastSeenUnsafeNum != 0 {
+		diff := now - hm.lastSeenUnsafeTime
 		blocks := diff / hm.rollupCfg.BlockTime // how many blocks do we expect to see
-		if diff > hm.rollupCfg.BlockTime && blocks > status.UnsafeL2.Number-hm.lastSeenUnsafe {
+		if diff > hm.rollupCfg.BlockTime && blocks > status.UnsafeL2.Number-hm.lastSeenUnsafeNum {
 			hm.log.Error(
 				"unsafe head is not progressing as expected",
 				"now", now,
 				"unsafe_head_num", status.UnsafeL2.Number,
-				"unsafe_head_time", status.UnsafeL2.Time,
+				"last_seen_unsafe_num", hm.lastSeenUnsafeNum,
+				"last_seen_unsafe_time", hm.lastSeenUnsafeTime,
 				"unsafe_interval", hm.unsafeInterval,
 			)
 			return false
 		}
 	}
-	hm.lastSeenUnsafe = status.UnsafeL2.Number
-	hm.lastSeenTime = now
+	if status.UnsafeL2.Number > hm.lastSeenUnsafeNum {
+		hm.lastSeenUnsafeNum = status.UnsafeL2.Number
+		hm.lastSeenUnsafeTime = now
+	}
 
 	if now-status.UnsafeL2.Time > hm.unsafeInterval {
 		hm.log.Error(
