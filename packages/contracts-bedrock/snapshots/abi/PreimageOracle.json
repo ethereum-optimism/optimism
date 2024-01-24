@@ -49,6 +49,11 @@
         "type": "uint256"
       },
       {
+        "internalType": "uint256",
+        "name": "_inputStartBlock",
+        "type": "uint256"
+      },
+      {
         "internalType": "bytes",
         "name": "_input",
         "type": "bytes"
@@ -770,6 +775,11 @@
   {
     "inputs": [],
     "name": "TreeSizeOverflow",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "WrongStartingBlock",
     "type": "error"
   }
 ]

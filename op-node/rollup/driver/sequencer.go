@@ -12,6 +12,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/async"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -114,8 +115,8 @@ func (d *Sequencer) StartBuildingBlock(ctx context.Context) error {
 // CompleteBuildingBlock takes the current block that is being built, and asks the engine to complete the building, seal the block, and persist it as canonical.
 // Warning: the safe and finalized L2 blocks as viewed during the initiation of the block building are reused for completion of the block building.
 // The Execution engine should not change the safe and finalized blocks between start and completion of block building.
-func (d *Sequencer) CompleteBuildingBlock(ctx context.Context, agossip async.AsyncGossiper) (*eth.ExecutionPayloadEnvelope, error) {
-	envelope, errTyp, err := d.engine.ConfirmPayload(ctx, agossip)
+func (d *Sequencer) CompleteBuildingBlock(ctx context.Context, agossip async.AsyncGossiper, sequencerConductor conductor.SequencerConductor) (*eth.ExecutionPayloadEnvelope, error) {
+	envelope, errTyp, err := d.engine.ConfirmPayload(ctx, agossip, sequencerConductor)
 	if err != nil {
 		return nil, fmt.Errorf("failed to complete building block: error (%d): %w", errTyp, err)
 	}
@@ -204,7 +205,7 @@ func (d *Sequencer) BuildingOnto() eth.L2BlockRef {
 // If the derivation pipeline does force a conflicting block, then an ongoing sequencer task might still finish,
 // but the derivation can continue to reset until the chain is correct.
 // If the engine is currently building safe blocks, then that building is not interrupted, and sequencing is delayed.
-func (d *Sequencer) RunNextSequencerAction(ctx context.Context, agossip async.AsyncGossiper) (*eth.ExecutionPayloadEnvelope, error) {
+func (d *Sequencer) RunNextSequencerAction(ctx context.Context, agossip async.AsyncGossiper, sequencerConductor conductor.SequencerConductor) (*eth.ExecutionPayloadEnvelope, error) {
 	// if the engine returns a non-empty payload, OR if the async gossiper already has a payload, we can CompleteBuildingBlock
 	if onto, buildingID, safe := d.engine.BuildingPayload(); buildingID != (eth.PayloadID{}) || agossip.Get() != nil {
 		if safe {
@@ -213,7 +214,7 @@ func (d *Sequencer) RunNextSequencerAction(ctx context.Context, agossip async.As
 			d.nextAction = d.timeNow().Add(time.Second * time.Duration(d.rollupCfg.BlockTime))
 			return nil, nil
 		}
-		envelope, err := d.CompleteBuildingBlock(ctx, agossip)
+		envelope, err := d.CompleteBuildingBlock(ctx, agossip, sequencerConductor)
 		if err != nil {
 			if errors.Is(err, derive.ErrCritical) {
 				return nil, err // bubble up critical errors.

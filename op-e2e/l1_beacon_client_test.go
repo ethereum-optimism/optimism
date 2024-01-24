@@ -21,7 +21,8 @@ func TestGetVersion(t *testing.T) {
 	})
 	require.NoError(t, beaconApi.Start("127.0.0.1:0"))
 
-	cl := sources.NewL1BeaconClient(client.NewBasicHTTPClient(beaconApi.BeaconAddr(), l))
+	beaconCfg := sources.L1BeaconClientConfig{FetchAllSidecars: false}
+	cl := sources.NewL1BeaconClient(client.NewBasicHTTPClient(beaconApi.BeaconAddr(), l), beaconCfg)
 
 	version, err := cl.GetVersion(context.Background())
 	require.NoError(t, err)

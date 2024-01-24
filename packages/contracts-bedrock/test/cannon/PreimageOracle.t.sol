@@ -233,7 +233,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         bytes32[] memory stateCommitments = _generateStateCommitments(stateMatrix, data);
 
         // Allocate the calldata so it isn't included in the gas measurement.
-        bytes memory cd = abi.encodeCall(oracle.addLeavesLPP, (TEST_UUID, data, stateCommitments, true));
+        bytes memory cd = abi.encodeCall(oracle.addLeavesLPP, (TEST_UUID, 0, data, stateCommitments, true));
 
         uint256 gas = gasleft();
         (bool success,) = address(oracle).call(cd);
@@ -262,7 +262,23 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         vm.prank(address(0), address(this));
 
         vm.expectRevert(NotEOA.selector);
-        oracle.addLeavesLPP(TEST_UUID, data, stateCommitments, true);
+        oracle.addLeavesLPP(TEST_UUID, 0, data, stateCommitments, true);
+    }
+
+    /// @notice Tests that the `addLeavesLPP` function reverts when the starting block index is not what is expected.
+    function test_addLeaves_notContiguous_reverts() public {
+        // Allocate the preimage data.
+        bytes memory data = new bytes(136 * 500);
+
+        // Initialize the proposal.
+        oracle.initLPP(TEST_UUID, 0, uint32(data.length));
+
+        // Add the leaves to the tree (2 keccak blocks.)
+        LibKeccak.StateMatrix memory stateMatrix;
+        bytes32[] memory stateCommitments = _generateStateCommitments(stateMatrix, data);
+
+        vm.expectRevert(WrongStartingBlock.selector);
+        oracle.addLeavesLPP(TEST_UUID, 1, data, stateCommitments, true);
     }
 
     /// @notice Tests that leaves can be added the large preimage proposal mapping and proven to be contained within
@@ -294,7 +310,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
             commitmentsB[i] = stateCommitments[i + midPoint];
         }
 
-        oracle.addLeavesLPP(TEST_UUID, Bytes.slice(data, 0, 136 * 2), commitmentsA, false);
+        oracle.addLeavesLPP(TEST_UUID, 0, Bytes.slice(data, 0, 136 * 2), commitmentsA, false);
 
         // MetaData assertions
         LPPMetaData metaData = oracle.proposalMetadata(address(this), TEST_UUID);
@@ -308,7 +324,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         // Move ahead one block.
         vm.roll(block.number + 1);
 
-        oracle.addLeavesLPP(TEST_UUID, Bytes.slice(data, 136 * 2, 136), commitmentsB, true);
+        oracle.addLeavesLPP(TEST_UUID, 2, Bytes.slice(data, 136 * 2, 136), commitmentsB, true);
 
         // MetaData assertions
         metaData = oracle.proposalMetadata(address(this), TEST_UUID);
@@ -328,7 +344,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
 
         // Should revert if we try to add new leaves.
         vm.expectRevert(AlreadyFinalized.selector);
-        oracle.addLeavesLPP(TEST_UUID, data, stateCommitments, true);
+        oracle.addLeavesLPP(TEST_UUID, 4, data, stateCommitments, true);
     }
 
     /// @notice Tests that leaves cannot be added until the large preimage proposal has been initialized.
@@ -342,7 +358,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
 
         // Allocate the calldata so it isn't included in the gas measurement.
         vm.expectRevert(NotInitialized.selector);
-        oracle.addLeavesLPP(TEST_UUID, data, stateCommitments, true);
+        oracle.addLeavesLPP(TEST_UUID, 0, data, stateCommitments, true);
     }
 
     /// @notice Tests that leaves can be added the large preimage proposal mapping and finalized to be added to the
@@ -360,7 +376,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         // Add the leaves to the tree (2 keccak blocks.)
         LibKeccak.StateMatrix memory stateMatrix;
         bytes32[] memory stateCommitments = _generateStateCommitments(stateMatrix, data);
-        oracle.addLeavesLPP(TEST_UUID, data, stateCommitments, true);
+        oracle.addLeavesLPP(TEST_UUID, 0, data, stateCommitments, true);
 
         // Construct the leaf preimage data for the blocks added.
         LibKeccak.StateMatrix memory matrix;
@@ -412,7 +428,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         // Add the leaves to the tree with mismatching state commitments.
         LibKeccak.StateMatrix memory stateMatrix;
         bytes32[] memory stateCommitments = _generateStateCommitments(stateMatrix, data);
-        oracle.addLeavesLPP(TEST_UUID, phonyData, stateCommitments, true);
+        oracle.addLeavesLPP(TEST_UUID, 0, phonyData, stateCommitments, true);
 
         // Construct the leaf preimage data for the blocks added.
         LibKeccak.StateMatrix memory matrix;
@@ -471,7 +487,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         // Add the leaves to the tree (2 keccak blocks.)
         LibKeccak.StateMatrix memory stateMatrix;
         bytes32[] memory stateCommitments = _generateStateCommitments(stateMatrix, data);
-        oracle.addLeavesLPP(TEST_UUID, data, stateCommitments, true);
+        oracle.addLeavesLPP(TEST_UUID, 0, data, stateCommitments, true);
 
         // Construct the leaf preimage data for the blocks added.
         LibKeccak.StateMatrix memory matrix;
@@ -532,7 +548,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         // Add the leaves to the tree (2 keccak blocks.)
         LibKeccak.StateMatrix memory stateMatrix;
         bytes32[] memory stateCommitments = _generateStateCommitments(stateMatrix, data);
-        oracle.addLeavesLPP(TEST_UUID, data, stateCommitments, true);
+        oracle.addLeavesLPP(TEST_UUID, 0, data, stateCommitments, true);
 
         // Construct the leaf preimage data for the blocks added.
         LibKeccak.StateMatrix memory matrix;
@@ -578,7 +594,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         // Add the leaves to the tree (2 keccak blocks.)
         LibKeccak.StateMatrix memory stateMatrix;
         bytes32[] memory stateCommitments = _generateStateCommitments(stateMatrix, data);
-        oracle.addLeavesLPP(TEST_UUID, data, stateCommitments, true);
+        oracle.addLeavesLPP(TEST_UUID, 0, data, stateCommitments, true);
 
         // Construct the leaf preimage data for the blocks added.
         LibKeccak.StateMatrix memory matrix;
@@ -624,7 +640,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         // Add the leaves to the tree (2 keccak blocks.)
         LibKeccak.StateMatrix memory stateMatrix;
         bytes32[] memory stateCommitments = _generateStateCommitments(stateMatrix, data);
-        oracle.addLeavesLPP(TEST_UUID, data, stateCommitments, true);
+        oracle.addLeavesLPP(TEST_UUID, 0, data, stateCommitments, true);
 
         // Construct the leaf preimage data for the blocks added.
         LibKeccak.StateMatrix memory matrix;
@@ -669,7 +685,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         // Add the leaves to the tree with mismatching state commitments.
         LibKeccak.StateMatrix memory stateMatrix;
         bytes32[] memory stateCommitments = _generateStateCommitments(stateMatrix, data);
-        oracle.addLeavesLPP(TEST_UUID, data, stateCommitments, true);
+        oracle.addLeavesLPP(TEST_UUID, 0, data, stateCommitments, true);
 
         // Construct the leaf preimage data for the blocks added.
         LibKeccak.StateMatrix memory matrix;
@@ -709,7 +725,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         // Add the leaves to the tree with mismatching state commitments.
         LibKeccak.StateMatrix memory stateMatrix;
         bytes32[] memory stateCommitments = _generateStateCommitments(stateMatrix, data);
-        oracle.addLeavesLPP(TEST_UUID, phonyData, stateCommitments, true);
+        oracle.addLeavesLPP(TEST_UUID, 0, phonyData, stateCommitments, true);
 
         // Construct the leaf preimage data for the blocks added.
         LibKeccak.StateMatrix memory matrix;
@@ -749,7 +765,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         // Add the leaves to the tree with mismatching state commitments.
         LibKeccak.StateMatrix memory stateMatrix;
         bytes32[] memory stateCommitments = _generateStateCommitments(stateMatrix, data);
-        oracle.addLeavesLPP(TEST_UUID, phonyData, stateCommitments, true);
+        oracle.addLeavesLPP(TEST_UUID, 0, phonyData, stateCommitments, true);
 
         // Construct the leaf preimage data for the blocks added.
         LibKeccak.StateMatrix memory matrix;
@@ -790,7 +806,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         // Add the leaves to the tree with mismatching state commitments.
         LibKeccak.StateMatrix memory stateMatrix;
         bytes32[] memory stateCommitments = _generateStateCommitments(stateMatrix, data);
-        oracle.addLeavesLPP(TEST_UUID, data, stateCommitments, true);
+        oracle.addLeavesLPP(TEST_UUID, 0, data, stateCommitments, true);
 
         // Construct the leaf preimage data for the blocks added.
         LibKeccak.StateMatrix memory matrix;
@@ -842,7 +858,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         // Add the leaves to the tree with mismatching state commitments.
         LibKeccak.StateMatrix memory stateMatrix;
         bytes32[] memory stateCommitments = _generateStateCommitments(stateMatrix, data);
-        oracle.addLeavesLPP(TEST_UUID, phonyData, stateCommitments, true);
+        oracle.addLeavesLPP(TEST_UUID, 0, phonyData, stateCommitments, true);
 
         // Construct the leaf preimage data for the blocks added.
         LibKeccak.StateMatrix memory matrix;
@@ -896,7 +912,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         // Add the leaves to the tree with mismatching state commitments.
         LibKeccak.StateMatrix memory stateMatrix;
         bytes32[] memory stateCommitments = _generateStateCommitments(stateMatrix, data);
-        oracle.addLeavesLPP(TEST_UUID, phonyData, stateCommitments, true);
+        oracle.addLeavesLPP(TEST_UUID, 0, phonyData, stateCommitments, true);
 
         // Construct the leaf preimage data for the blocks added.
         LibKeccak.StateMatrix memory matrix;
@@ -950,7 +966,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         // Add the leaves to the tree with mismatching state commitments.
         LibKeccak.StateMatrix memory stateMatrix;
         bytes32[] memory stateCommitments = _generateStateCommitments(stateMatrix, data);
-        oracle.addLeavesLPP(TEST_UUID, phonyData, stateCommitments, true);
+        oracle.addLeavesLPP(TEST_UUID, 0, phonyData, stateCommitments, true);
 
         // Construct the leaf preimage data for the blocks added.
         LibKeccak.StateMatrix memory matrix;

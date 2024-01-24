@@ -479,7 +479,7 @@ func (g *OutputGameHelper) gameData(ctx context.Context) string {
 				extra = fmt.Sprintf("Block num: %v", blockNum)
 			}
 		}
-		info = info + fmt.Sprintf("%v - Position: %v, Depth: %v, IndexAtDepth: %v Trace Index: %v, Value: %v, Countered: %v, ParentIndex: %v %v\n",
+		info = info + fmt.Sprintf("%v - Position: %v, Depth: %v, IndexAtDepth: %v Trace Index: %v, Value: %v, Countered By: %v, ParentIndex: %v %v\n",
 			i, claim.Position.Int64(), pos.Depth(), pos.IndexAtDepth(), pos.TraceIndex(maxDepth), common.Hash(claim.Claim).Hex(), claim.CounteredBy, claim.ParentIndex, extra)
 	}
 	l2BlockNum := g.L2BlockNum(ctx)

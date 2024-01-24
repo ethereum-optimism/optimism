@@ -2,11 +2,14 @@ package registry
 
 import (
 	"context"
+	"math/big"
 	"testing"
 
+	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/scheduler"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/scheduler/test"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
@@ -59,10 +62,18 @@ func TestDeduplicateOracles(t *testing.T) {
 
 type stubPreimageOracle common.Address
 
+func (s stubPreimageOracle) GetInputDataBlocks(_ context.Context, _ batching.Block, _ keccakTypes.LargePreimageIdent) ([]uint64, error) {
+	panic("not supported")
+}
+
+func (s stubPreimageOracle) DecodeInputData(_ []byte) (*big.Int, keccakTypes.InputData, error) {
+	panic("not supported")
+}
+
 func (s stubPreimageOracle) Addr() common.Address {
 	return common.Address(s)
 }
 
-func (s stubPreimageOracle) GetActivePreimages(_ context.Context, _ common.Hash) ([]types.LargePreimageMetaData, error) {
+func (s stubPreimageOracle) GetActivePreimages(_ context.Context, _ common.Hash) ([]keccakTypes.LargePreimageMetaData, error) {
 	return nil, nil
 }

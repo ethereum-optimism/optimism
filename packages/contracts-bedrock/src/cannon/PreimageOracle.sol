@@ -278,15 +278,13 @@ contract PreimageOracle is IPreimageOracle {
     /// @notice Adds a contiguous list of keccak state matrices to the merkle tree.
     function addLeavesLPP(
         uint256 _uuid,
+        uint256 _inputStartBlock,
         bytes calldata _input,
         bytes32[] calldata _stateCommitments,
         bool _finalize
     )
         external
     {
-        // The caller of `addLeavesLPP` must be an EOA.
-        if (msg.sender != tx.origin) revert NotEOA();
-
         // If we're finalizing, pad the input for the submitter. If not, copy the input into memory verbatim.
         bytes memory input;
         if (_finalize) {
@@ -298,6 +296,10 @@ contract PreimageOracle is IPreimageOracle {
         // Pull storage variables onto the stack / into memory for operations.
         bytes32[KECCAK_TREE_DEPTH] memory branch = proposalBranches[msg.sender][_uuid];
         LPPMetaData metaData = proposalMetadata[msg.sender][_uuid];
+        uint256 blocksProcessed = metaData.blocksProcessed();
+
+        // The caller of `addLeavesLPP` must be an EOA.
+        if (msg.sender != tx.origin) revert NotEOA();
 
         // Revert if the proposal has not been initialized. 0-size preimages are *not* allowed.
         if (metaData.claimedSize() == 0) revert NotInitialized();
@@ -305,37 +307,15 @@ contract PreimageOracle is IPreimageOracle {
         // Revert if the proposal has already been finalized. No leaves can be added after this point.
         if (metaData.timestamp() != 0) revert AlreadyFinalized();
 
-        // Check if the part offset is present in the input data being posted. If it is, assign the part to the mapping.
-        uint256 offset = metaData.partOffset();
-        uint256 currentSize = metaData.bytesProcessed();
-        if (offset < 8 && currentSize == 0) {
-            uint32 claimedSize = metaData.claimedSize();
-            bytes32 preimagePart;
-            assembly {
-                mstore(0x00, shl(192, claimedSize))
-                mstore(0x08, calldataload(_input.offset))
-                preimagePart := mload(offset)
-            }
-            proposalParts[msg.sender][_uuid] = preimagePart;
-        } else if (offset >= 8 && (offset = offset - 8) >= currentSize && offset < currentSize + _input.length) {
-            uint256 relativeOffset = offset - currentSize;
+        // Revert if the starting block is not the next block to be added. This is to aid submitters in ensuring that
+        // they don't corrupt an in-progress proposal by submitting input out of order.
+        if (blocksProcessed != _inputStartBlock) revert WrongStartingBlock();
 
-            // Revert if the full preimage part is not available in the data we're absorbing. The submitter must
-            // supply data that contains the full preimage part so that no partial preimage parts are stored in the
-            // oracle. Partial parts are *only* allowed at the tail end of the preimage, where no more data is available
-            // to be absorbed.
-            if (relativeOffset + 32 >= _input.length && !_finalize) revert PartOffsetOOB();
+        // Attempt to extract the preimage part from the input data, if the part offset is present in the current
+        // chunk of input. This function has side effects, and will persist the preimage part to the caller's large
+        // preimage proposal storage if the part offset is present in the input data.
+        _extractPreimagePart(_input, _uuid, _finalize, metaData);
 
-            // If the preimage part is in the data we're about to absorb, persist the part to the caller's large
-            // preimaage metadata.
-            bytes32 preimagePart;
-            assembly {
-                preimagePart := calldataload(add(_input.offset, relativeOffset))
-            }
-            proposalParts[msg.sender][_uuid] = preimagePart;
-        }
-
-        uint256 blocksProcessed = metaData.blocksProcessed();
         assembly {
             let inputLen := mload(input)
             let inputPtr := add(input, 0x20)
@@ -389,15 +369,20 @@ contract PreimageOracle is IPreimageOracle {
         // Do not allow for posting preimages larger than the merkle tree can support.
         if (blocksProcessed > MAX_LEAF_COUNT) revert TreeSizeOverflow();
 
-        // Perist the branch to storage.
-        proposalBranches[msg.sender][_uuid] = branch;
-        // Track the block number that these leaves were added at.
-        proposalBlocks[msg.sender][_uuid].push(uint64(block.number));
-
-        // Update the proposal metadata.
-        metaData =
-            metaData.setBlocksProcessed(uint32(blocksProcessed)).setBytesProcessed(uint32(_input.length + currentSize));
+        // Update the proposal metadata to include the number of blocks processed and total bytes processed.
+        metaData = metaData.setBlocksProcessed(uint32(blocksProcessed)).setBytesProcessed(
+            uint32(_input.length + metaData.bytesProcessed())
+        );
+        // If the proposal is being finalized, set the timestamp to the current block timestamp. This begins the
+        // challenge period, which must be waited out before the proposal can be finalized.
         if (_finalize) metaData = metaData.setTimestamp(uint64(block.timestamp));
+
+        // Perist the latest branch to storage.
+        proposalBranches[msg.sender][_uuid] = branch;
+        // Persist the block number that these leaves were added in. This assists off-chain observers in reconstructing
+        // the proposal merkle tree by querying block bodies.
+        proposalBlocks[msg.sender][_uuid].push(uint64(block.number));
+        // Persist the updated metadata to storage.
         proposalMetadata[msg.sender][_uuid] = metaData;
     }
 
@@ -531,6 +516,52 @@ contract PreimageOracle is IPreimageOracle {
                 treeRoot_ = keccak256(abi.encode(treeRoot_, zeroHashes[height]));
             }
             size >>= 1;
+        }
+    }
+
+    /// @notice Attempts to persist the preimage part to the caller's large preimage proposal storage, if the preimage
+    ///         part is present in the input data being posted.
+    /// @param _input The portion of the preimage being posted.
+    /// @param _uuid The UUID of the large preimage proposal.
+    /// @param _finalize Whether or not the proposal is being finalized in the current call.
+    /// @param _metaData The metadata of the large preimage proposal.
+    function _extractPreimagePart(
+        bytes calldata _input,
+        uint256 _uuid,
+        bool _finalize,
+        LPPMetaData _metaData
+    )
+        internal
+    {
+        uint256 offset = _metaData.partOffset();
+        uint256 claimedSize = _metaData.claimedSize();
+        uint256 currentSize = _metaData.bytesProcessed();
+
+        // Check if the part offset is present in the input data being posted. If it is, assign the part to the mapping.
+        if (offset < 8 && currentSize == 0) {
+            bytes32 preimagePart;
+            assembly {
+                mstore(0x00, shl(192, claimedSize))
+                mstore(0x08, calldataload(_input.offset))
+                preimagePart := mload(offset)
+            }
+            proposalParts[msg.sender][_uuid] = preimagePart;
+        } else if (offset >= 8 && (offset = offset - 8) >= currentSize && offset < currentSize + _input.length) {
+            uint256 relativeOffset = offset - currentSize;
+
+            // Revert if the full preimage part is not available in the data we're absorbing. The submitter must
+            // supply data that contains the full preimage part so that no partial preimage parts are stored in the
+            // oracle. Partial parts are *only* allowed at the tail end of the preimage, where no more data is available
+            // to be absorbed.
+            if (relativeOffset + 32 >= _input.length && !_finalize) revert PartOffsetOOB();
+
+            // If the preimage part is in the data we're about to absorb, persist the part to the caller's large
+            // preimaage metadata.
+            bytes32 preimagePart;
+            assembly {
+                preimagePart := calldataload(add(_input.offset, relativeOffset))
+            }
+            proposalParts[msg.sender][_uuid] = preimagePart;
         }
     }
 

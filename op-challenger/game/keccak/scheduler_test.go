@@ -7,7 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -17,32 +18,32 @@ import (
 func TestScheduleNextCheck(t *testing.T) {
 	ctx := context.Background()
 	logger := testlog.Logger(t, log.LvlInfo)
-	preimage1 := types.LargePreimageMetaData{ // Incomplete so won't be verified
-		LargePreimageIdent: types.LargePreimageIdent{
+	preimage1 := keccakTypes.LargePreimageMetaData{ // Incomplete so won't be verified
+		LargePreimageIdent: keccakTypes.LargePreimageIdent{
 			Claimant: common.Address{0xab},
 			UUID:     big.NewInt(111),
 		},
 	}
-	preimage2 := types.LargePreimageMetaData{ // Already countered so won't be verified
-		LargePreimageIdent: types.LargePreimageIdent{
+	preimage2 := keccakTypes.LargePreimageMetaData{ // Already countered so won't be verified
+		LargePreimageIdent: keccakTypes.LargePreimageIdent{
 			Claimant: common.Address{0xab},
 			UUID:     big.NewInt(222),
 		},
 		Timestamp: 1234,
 		Countered: true,
 	}
-	preimage3 := types.LargePreimageMetaData{
-		LargePreimageIdent: types.LargePreimageIdent{
+	preimage3 := keccakTypes.LargePreimageMetaData{
+		LargePreimageIdent: keccakTypes.LargePreimageIdent{
 			Claimant: common.Address{0xdd},
 			UUID:     big.NewInt(333),
 		},
 		Timestamp: 1234,
 	}
 	oracle := &stubOracle{
-		images: []types.LargePreimageMetaData{preimage1, preimage2, preimage3},
+		images: []keccakTypes.LargePreimageMetaData{preimage1, preimage2, preimage3},
 	}
 	verifier := &stubVerifier{}
-	scheduler := NewLargePreimageScheduler(logger, []types.LargePreimageOracle{oracle}, verifier)
+	scheduler := NewLargePreimageScheduler(logger, []keccakTypes.LargePreimageOracle{oracle}, verifier)
 	scheduler.Start(ctx)
 	defer scheduler.Close()
 	err := scheduler.Schedule(common.Hash{0xaa}, 3)
@@ -61,14 +62,22 @@ type stubOracle struct {
 	m                 sync.Mutex
 	addr              common.Address
 	getPreimagesCount int
-	images            []types.LargePreimageMetaData
+	images            []keccakTypes.LargePreimageMetaData
+}
+
+func (s *stubOracle) GetInputDataBlocks(_ context.Context, _ batching.Block, _ keccakTypes.LargePreimageIdent) ([]uint64, error) {
+	panic("not supported")
+}
+
+func (s *stubOracle) DecodeInputData(_ []byte) (*big.Int, keccakTypes.InputData, error) {
+	panic("not supported")
 }
 
 func (s *stubOracle) Addr() common.Address {
 	return s.addr
 }
 
-func (s *stubOracle) GetActivePreimages(_ context.Context, _ common.Hash) ([]types.LargePreimageMetaData, error) {
+func (s *stubOracle) GetActivePreimages(_ context.Context, _ common.Hash) ([]keccakTypes.LargePreimageMetaData, error) {
 	s.m.Lock()
 	defer s.m.Unlock()
 	s.getPreimagesCount++
@@ -83,19 +92,20 @@ func (s *stubOracle) GetPreimagesCount() int {
 
 type stubVerifier struct {
 	m        sync.Mutex
-	verified []types.LargePreimageMetaData
+	verified []keccakTypes.LargePreimageMetaData
 }
 
-func (s *stubVerifier) Verify(_ context.Context, _ types.LargePreimageOracle, image types.LargePreimageMetaData) {
+func (s *stubVerifier) Verify(_ context.Context, _ common.Hash, _ keccakTypes.LargePreimageOracle, image keccakTypes.LargePreimageMetaData) error {
 	s.m.Lock()
 	defer s.m.Unlock()
 	s.verified = append(s.verified, image)
+	return nil
 }
 
-func (s *stubVerifier) Verified() []types.LargePreimageMetaData {
+func (s *stubVerifier) Verified() []keccakTypes.LargePreimageMetaData {
 	s.m.Lock()
 	defer s.m.Unlock()
-	v := make([]types.LargePreimageMetaData, len(s.verified))
+	v := make([]keccakTypes.LargePreimageMetaData, len(s.verified))
 	copy(v, s.verified)
 	return v
 }

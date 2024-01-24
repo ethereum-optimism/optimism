@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/scheduler"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum/go-ethereum/common"
@@ -16,19 +17,19 @@ var (
 
 type GameTypeRegistry struct {
 	types   map[uint8]scheduler.PlayerCreator
-	oracles map[common.Address]types.LargePreimageOracle
+	oracles map[common.Address]keccakTypes.LargePreimageOracle
 }
 
 func NewGameTypeRegistry() *GameTypeRegistry {
 	return &GameTypeRegistry{
 		types:   make(map[uint8]scheduler.PlayerCreator),
-		oracles: make(map[common.Address]types.LargePreimageOracle),
+		oracles: make(map[common.Address]keccakTypes.LargePreimageOracle),
 	}
 }
 
 // RegisterGameType registers a scheduler.PlayerCreator to use for a specific game type.
 // Panics if the same game type is registered multiple times, since this indicates a significant programmer error.
-func (r *GameTypeRegistry) RegisterGameType(gameType uint8, creator scheduler.PlayerCreator, oracle types.LargePreimageOracle) {
+func (r *GameTypeRegistry) RegisterGameType(gameType uint8, creator scheduler.PlayerCreator, oracle keccakTypes.LargePreimageOracle) {
 	if _, ok := r.types[gameType]; ok {
 		panic(fmt.Errorf("duplicate creator registered for game type: %v", gameType))
 	}
@@ -49,6 +50,6 @@ func (r *GameTypeRegistry) CreatePlayer(game types.GameMetadata, dir string) (sc
 	return creator(game, dir)
 }
 
-func (r *GameTypeRegistry) Oracles() []types.LargePreimageOracle {
+func (r *GameTypeRegistry) Oracles() []keccakTypes.LargePreimageOracle {
 	return maps.Values(r.oracles)
 }
