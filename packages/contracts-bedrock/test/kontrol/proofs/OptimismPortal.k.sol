@@ -16,8 +16,8 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
     /// @dev Inlined setUp function for faster Kontrol performance
     ///      Tracking issue: https://github.com/runtimeverification/kontrol/issues/282
     function setUpInlined() public {
-        optimismPortal = OptimismPortal(payable(OptimismPortalProxyAddress));
-        superchainConfig = SuperchainConfig(SuperchainConfigProxyAddress);
+        optimismPortal = OptimismPortal(payable(optimismPortalProxyAddress));
+        superchainConfig = SuperchainConfig(superchainConfigProxyAddress);
     }
 
     /// TODO: Replace struct parameters and workarounds with the appropriate
@@ -59,7 +59,7 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
         optimismPortal.proveWithdrawalTransaction(_tx, _l2OutputIndex, _outputRootProof, _withdrawalProof);
     }
 
-    /// TODO: Replace struct parameters and workarounds with the appropiate
+    /// TODO: Replace struct parameters and workarounds with the appropriate
     /// types once Kontrol supports symbolic `bytes` and `bytes[]`
     /// Tracking issue: https://github.com/runtimeverification/kontrol/issues/272
     function prove_finalizeWithdrawalTransaction_paused(

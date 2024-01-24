@@ -19,7 +19,7 @@ def reverse_json(input_file, output_file):
         with open(input_file, 'r') as file:
             json_data = json.load(file)
 
-        reversed_json = {str(value): key for key, value in json_data.items()}
+        reversed_json = {str(value): key[0].lower() + key[1:] for key, value in json_data.items()}
 
         with open(output_file, 'w') as file:
             json.dump(reversed_json, file, indent=2)

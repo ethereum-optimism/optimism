@@ -12,15 +12,18 @@ contract KontrolDeployment is Deploy {
         deployERC1967Proxy("OptimismPortalProxy");
         deployERC1967Proxy("L2OutputOracleProxy");
         deployERC1967Proxy("SystemConfigProxy");
+        deployL1CrossDomainMessengerProxy();
         transferAddressManagerOwnership(); // to the ProxyAdmin
 
         // deployImplementations();
         deployOptimismPortal();
+        deployL1CrossDomainMessenger();
         deployL2OutputOracle();
         deploySystemConfig();
 
         // initializeImplementations();
         initializeSystemConfig();
+        initializeL1CrossDomainMessenger();
         initializeOptimismPortal();
     }
 }

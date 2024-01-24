@@ -25,7 +25,9 @@ contract L1CrossDomainMessenger_Test is Bridge_Initializer {
     uint256 constant senderSlotIndex = 50;
 
     /// @dev Tests that the implementation is initialized correctly.
-    function test_constructor_succeeds() external {
+    /// @notice Marked virtual to be overridden in
+    ///         test/kontrol/deployment/DeploymentSummary.t.sol
+    function test_constructor_succeeds() external virtual {
         L1CrossDomainMessenger impl = L1CrossDomainMessenger(deploy.mustGetAddress("L1CrossDomainMessenger"));
         assertEq(address(impl.superchainConfig()), address(0));
         assertEq(address(impl.PORTAL()), address(0));
@@ -110,7 +112,9 @@ contract L1CrossDomainMessenger_Test is Bridge_Initializer {
 
     /// @dev Tests that the relayMessage function reverts when
     ///      the message version is not 0 or 1.
-    function test_relayMessage_v2_reverts() external {
+    /// @notice Marked virtual to be overridden in
+    ///         test/kontrol/deployment/DeploymentSummary.t.sol
+    function test_relayMessage_v2_reverts() external virtual {
         address target = address(0xabcd);
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
 
