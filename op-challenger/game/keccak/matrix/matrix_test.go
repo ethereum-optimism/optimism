@@ -206,13 +206,13 @@ func TestVerifyPreimage(t *testing.T) {
 		copy(out[:], preimage[idx*types.BlockSize:(idx+1)*types.BlockSize])
 		return
 	}
-	challengeLeaf := func(commitments []common.Hash, invalidIdx int) *types.Challenge {
+	challengeLeaf := func(commitments []common.Hash, invalidIdx int) types.Challenge {
 		invalidLeafStart := invalidIdx * types.BlockSize
 		s := NewStateMatrix()
 		_, err := s.AbsorbUpTo(bytes.NewReader(preimage), invalidLeafStart)
 		require.NoError(t, err)
 
-		return &types.Challenge{
+		return types.Challenge{
 			StateMatrix: s.PackState(),
 			Prestate: types.Leaf{
 				Input:           leafData(invalidIdx - 1),
@@ -230,14 +230,15 @@ func TestVerifyPreimage(t *testing.T) {
 	type testInputs struct {
 		name        string
 		commitments func() []common.Hash
-		expected    *types.Challenge
+		expected    types.Challenge
+		expectedErr error
 	}
 
 	tests := []testInputs{
 		{
 			name:        "Valid",
 			commitments: validCommitments,
-			expected:    nil,
+			expectedErr: ErrValid,
 		},
 		{
 			name: "IncorrectFirstLeaf",
@@ -246,7 +247,7 @@ func TestVerifyPreimage(t *testing.T) {
 				commitments[0] = common.Hash{0xaa}
 				return commitments
 			},
-			expected: &types.Challenge{
+			expected: types.Challenge{
 				StateMatrix: NewStateMatrix().PackState(),
 				Prestate:    types.Leaf{},
 				Poststate: types.Leaf{
@@ -273,8 +274,8 @@ func TestVerifyPreimage(t *testing.T) {
 	for _, test := range tests {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
-			challenge, err := VerifyPreimage(bytes.NewReader(preimage), test.commitments())
-			require.NoError(t, err)
+			challenge, err := Challenge(bytes.NewReader(preimage), test.commitments())
+			require.ErrorIs(t, err, test.expectedErr)
 			require.Equal(t, test.expected, challenge)
 		})
 	}
@@ -285,9 +286,8 @@ func TestVerifyPreimage_DataMultipleOfBlockSize(t *testing.T) {
 	valid, err := NewStateMatrix().AbsorbUpTo(bytes.NewReader(preimage), 1000*types.BlockSize)
 	require.ErrorIs(t, err, io.EOF, "Should read all preimage data")
 
-	challenge, err := VerifyPreimage(bytes.NewReader(preimage), valid.Commitments)
-	require.NoError(t, err)
-	require.Nil(t, challenge)
+	_, err = Challenge(bytes.NewReader(preimage), valid.Commitments)
+	require.ErrorIs(t, err, ErrValid)
 }
 
 func TestVerifyPreimage_TooManyCommitments(t *testing.T) {
@@ -295,7 +295,7 @@ func TestVerifyPreimage_TooManyCommitments(t *testing.T) {
 	valid, err := NewStateMatrix().AbsorbUpTo(bytes.NewReader(data[:]), 10*types.BlockSize)
 	require.ErrorIs(t, err, io.EOF)
 	commitments := append(valid.Commitments, common.Hash{0xaa})
-	_, err = VerifyPreimage(bytes.NewReader(data), commitments)
+	_, err = Challenge(bytes.NewReader(data), commitments)
 	require.ErrorIs(t, err, ErrIncorrectCommitmentCount)
 }
 
@@ -304,7 +304,7 @@ func TestVerifyPreimage_TooFewCommitments(t *testing.T) {
 	valid, err := NewStateMatrix().AbsorbUpTo(bytes.NewReader(data[:]), 10*types.BlockSize)
 	require.ErrorIs(t, err, io.EOF)
 	commitments := valid.Commitments[:len(valid.Commitments)-1]
-	_, err = VerifyPreimage(bytes.NewReader(data[:]), commitments)
+	_, err = Challenge(bytes.NewReader(data[:]), commitments)
 	require.ErrorIs(t, err, ErrIncorrectCommitmentCount)
 }
 

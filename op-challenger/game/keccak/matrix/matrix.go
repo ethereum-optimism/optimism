@@ -20,12 +20,13 @@ type StateMatrix struct {
 var (
 	ErrInvalidMaxLen            = errors.New("invalid max length to absorb")
 	ErrIncorrectCommitmentCount = errors.New("incorrect number of commitments for input length")
+	ErrValid                    = errors.New("state commitments are valid")
 	uint256Size                 = 32
 )
 
-// VerifyPreimage checks the claimed state commitments are correct for the provided preimage data.
-// Returns nil if the preimage is valid, otherwise returns a [types.Challenge] proving the fault.
-func VerifyPreimage(data io.Reader, commitments []common.Hash) (*types.Challenge, error) {
+// Challenge creates a [types.Challenge] to invalidate the provided preimage data if possible.
+// [ErrValid] is returned if the provided inputs are valid and no challenge can be created.
+func Challenge(data io.Reader, commitments []common.Hash) (types.Challenge, error) {
 	s := NewStateMatrix()
 	m := s.PackState()
 	var prestate types.Leaf
@@ -33,13 +34,13 @@ func VerifyPreimage(data io.Reader, commitments []common.Hash) (*types.Challenge
 		unpaddedLeaf, err := s.absorbNextLeafInput(data)
 		isEOF := errors.Is(err, io.EOF)
 		if err != nil && !isEOF {
-			return nil, fmt.Errorf("failed to verify inputs: %w", err)
+			return types.Challenge{}, fmt.Errorf("failed to verify inputs: %w", err)
 		}
 		validCommitment := s.StateCommitment()
 		if i >= len(commitments) {
 			// There should have been more commitments.
 			// The contracts should prevent this so it can't be challenged, return an error
-			return nil, ErrIncorrectCommitmentCount
+			return types.Challenge{}, ErrIncorrectCommitmentCount
 		}
 		claimedCommitment := commitments[i]
 
@@ -53,7 +54,7 @@ func VerifyPreimage(data io.Reader, commitments []common.Hash) (*types.Challenge
 		}
 
 		if validCommitment != claimedCommitment {
-			return &types.Challenge{
+			return types.Challenge{
 				StateMatrix: m,
 				Prestate:    prestate,
 				Poststate:   poststate,
@@ -63,14 +64,14 @@ func VerifyPreimage(data io.Reader, commitments []common.Hash) (*types.Challenge
 			if i < len(commitments)-1 {
 				// We got too many commitments
 				// The contracts should prevent this so it can't be challenged, return an error
-				return nil, ErrIncorrectCommitmentCount
+				return types.Challenge{}, ErrIncorrectCommitmentCount
 			}
 			break
 		}
 		prestate = poststate
 		m = s.PackState()
 	}
-	return nil, nil
+	return types.Challenge{}, ErrValid
 }
 
 // NewStateMatrix creates a new state matrix initialized with the initial, zero keccak block.

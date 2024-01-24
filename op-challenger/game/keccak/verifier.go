@@ -43,13 +43,12 @@ func (v *PreimageVerifier) Verify(ctx context.Context, blockHash common.Hash, or
 		readers = append(readers, bytes.NewReader(input.Input))
 		commitments = append(commitments, input.Commitments...)
 	}
-	challenge, err := matrix.VerifyPreimage(io.MultiReader(readers...), commitments)
-	if err != nil {
+	_, err = matrix.Challenge(io.MultiReader(readers...), commitments)
+	if errors.Is(err, matrix.ErrValid) {
+		return nil
+	} else if err != nil {
 		return fmt.Errorf("failed to verify preimage: %w", err)
 	}
-	if challenge != nil {
-		// TODO(client-pod#480): Implement sending the challenge transaction
-		return ErrNotImplemented
-	}
-	return nil
+	// TODO(client-pod#480): Implement sending the challenge transaction
+	return ErrNotImplemented
 }
