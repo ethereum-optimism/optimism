@@ -245,7 +245,7 @@ func TestOutputCannonStepWithPreimage(t *testing.T) {
 	execDepth := game.ExecDepth(ctx)
 	_, _, preimageData, err := provider.GetStepData(ctx, types.NewPosition(execDepth, big.NewInt(int64(preimageTraceIndex))))
 	require.NoError(t, err)
-	require.True(t, game.PreimageExistsInOracle(ctx, [32]byte(preimageData.OracleKey)))
+	require.True(t, game.PreimageExistsInOracle(ctx, preimageData))
 
 	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
 	require.NoError(t, wait.ForNextBlock(ctx, l1Client))

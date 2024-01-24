@@ -540,7 +540,7 @@ func (g *OutputGameHelper) ChallengeIntoPosition(ctx context.Context, provider t
 	g.DefendClaim(ctx, claim, bisectTraceIndex)
 }
 
-func (g *OutputGameHelper) PreimageExistsInOracle(ctx context.Context, key [32]byte) bool {
+func (g *OutputGameHelper) PreimageExistsInOracle(ctx context.Context, data *types.PreimageOracleData) bool {
 	caller := batching.NewMultiCaller(g.system.NodeClient("l1").Client(), batching.DefaultBatchSize)
 	contract, err := contracts.NewFaultDisputeGameContract(g.addr, caller)
 	g.require.NoError(err, "Failed to create game contract")
@@ -548,7 +548,7 @@ func (g *OutputGameHelper) PreimageExistsInOracle(ctx context.Context, key [32]b
 	g.require.NoError(err, "Failed to create vm contract")
 	oracle, err := vm.Oracle(ctx)
 	g.require.NoError(err, "Failed to create oracle contract")
-	exists, err := oracle.ContainsPreimage(ctx, key)
+	exists, err := oracle.PreimageDataExists(ctx, data)
 	g.require.NoError(err)
 	return exists
 }

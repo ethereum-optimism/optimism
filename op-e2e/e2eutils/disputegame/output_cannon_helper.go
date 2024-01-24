@@ -70,7 +70,7 @@ func (g *OutputCannonGameHelper) CreateHonestActor(ctx context.Context, l2Node s
 	}
 }
 
-func (g *OutputCannonGameHelper) CreateCannonTraceProvider(ctx context.Context, l2Node string, outputRootClaim *ClaimHelper, options ...challenger.Option) *cannon.CannonTraceProvider {
+func (g *OutputCannonGameHelper) CreateCannonTraceProvider(ctx context.Context, l2Node string, outputRootClaim *ClaimHelper, options ...challenger.Option) *cannon.CannonTraceProviderForTest {
 	splitDepth := g.SplitDepth(ctx)
 	g.require.EqualValues(outputRootClaim.Depth(), splitDepth+1, "outputRootClaim must be the root of an execution game")
 
@@ -117,7 +117,7 @@ func (g *OutputCannonGameHelper) CreateCannonTraceProvider(ctx context.Context, 
 	localContext := outputs.CreateLocalContext(pre, post)
 	dir := filepath.Join(cfg.Datadir, "cannon-trace")
 	subdir := filepath.Join(dir, localContext.Hex())
-	return cannon.NewTraceProvider(logger, metrics.NoopMetrics, cfg, localInputs, subdir, g.MaxDepth(ctx)-splitDepth-1)
+	return cannon.NewTraceProviderForTest(logger, metrics.NoopMetrics, cfg, localInputs, subdir, g.MaxDepth(ctx)-splitDepth-1)
 }
 
 func (g *OutputCannonGameHelper) defaultChallengerOptions(l2Node string) []challenger.Option {

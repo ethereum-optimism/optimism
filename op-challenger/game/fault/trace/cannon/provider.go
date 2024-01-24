@@ -41,11 +41,6 @@ type CannonMetricer interface {
 type ProofGenerator interface {
 	// GenerateProof executes cannon to generate a proof at the specified trace index in dataDir.
 	GenerateProof(ctx context.Context, dataDir string, proofAt uint64) error
-
-	// GenerateProofOrUntilPreimageRead executes cannon to generate a proof at the specified trace index,
-	// or until a non-local preimage read is encountered if untilPreimageRead is true.
-	// Used primarily by tests
-	GenerateProofOrUntilPreimageRead(ctx context.Context, dir string, begin uint64, end uint64, untilPreimageRead bool) error
 }
 
 type CannonTraceProvider struct {
@@ -133,33 +128,6 @@ func (p *CannonTraceProvider) AbsolutePreStateCommitment(_ context.Context) (com
 		return common.Hash{}, fmt.Errorf("cannot hash absolute pre-state: %w", err)
 	}
 	return hash, nil
-}
-
-func (p *CannonTraceProvider) FindStepReferencingPreimage(ctx context.Context, start uint64) (uint64, error) {
-	// First generate a snapshot of the starting state, so we can snap to it later for the full trace search
-	prestateProof, err := p.loadProof(ctx, start)
-	if err != nil {
-		return 0, err
-	}
-	start += 1
-	for {
-		if err := p.generator.GenerateProofOrUntilPreimageRead(ctx, p.dir, start, math.MaxUint64, true); err != nil {
-			return 0, fmt.Errorf("generate cannon trace (until preimage read) with proof at %d: %w", start, err)
-		}
-		state, err := p.finalState()
-		if err != nil {
-			return 0, err
-		}
-		if state.Exited {
-			break
-		}
-		if state.PreimageOffset != 0 && state.PreimageOffset != prestateProof.OracleOffset {
-			return state.Step - 1, nil
-		}
-		start = state.Step
-	}
-
-	return 0, io.EOF
 }
 
 // loadProof will attempt to load or generate the proof data at the specified index
@@ -271,4 +239,47 @@ func writeLastStep(dir string, proof *proofData, step uint64) error {
 		return fmt.Errorf("failed to write proof: %w", err)
 	}
 	return nil
+}
+
+// CannonTraceProviderForTest is a CannonTraceProvider that can find the step referencing the preimage read
+// Only to be used for testing
+type CannonTraceProviderForTest struct {
+	*CannonTraceProvider
+}
+
+func NewTraceProviderForTest(logger log.Logger, m CannonMetricer, cfg *config.Config, localInputs LocalGameInputs, dir string, gameDepth types.Depth) *CannonTraceProviderForTest {
+	p := &CannonTraceProvider{
+		logger:    logger,
+		dir:       dir,
+		prestate:  cfg.CannonAbsolutePreState,
+		generator: NewExecutor(logger, m, cfg, localInputs),
+		gameDepth: gameDepth,
+	}
+	return &CannonTraceProviderForTest{p}
+}
+
+func (p *CannonTraceProviderForTest) FindStepReferencingPreimage(ctx context.Context, start uint64) (uint64, error) {
+	// First generate a snapshot of the starting state, so we can snap to it later for the full trace search
+	prestateProof, err := p.loadProof(ctx, start)
+	if err != nil {
+		return 0, err
+	}
+	start += 1
+	for {
+		if err := p.generator.(*Executor).generateProofOrUntilPreimageRead(ctx, p.dir, start, math.MaxUint64, true); err != nil {
+			return 0, fmt.Errorf("generate cannon trace (until preimage read) with proof at %d: %w", start, err)
+		}
+		state, err := p.finalState()
+		if err != nil {
+			return 0, err
+		}
+		if state.Exited {
+			break
+		}
+		if state.PreimageOffset != 0 && state.PreimageOffset != prestateProof.OracleOffset {
+			return state.Step - 1, nil
+		}
+		start = state.Step
+	}
+	return 0, io.EOF
 }

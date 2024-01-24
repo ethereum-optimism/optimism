@@ -27,7 +27,7 @@ const (
 	methodProposalMetadata          = "proposalMetadata"
 	methodProposalBlocksLen         = "proposalBlocksLen"
 	methodProposalBlocks            = "proposalBlocks"
-	methodPreimageLengths           = "preimageLengths"
+	methodPreimagePartOk            = "preimagePartOk"
 )
 
 var (
@@ -222,13 +222,13 @@ func (c *PreimageOracleContract) DecodeInputData(data []byte) (*big.Int, keccakT
 	}, nil
 }
 
-func (c *PreimageOracleContract) ContainsPreimage(ctx context.Context, key common.Hash) (bool, error) {
-	call := c.contract.Call(methodPreimageLengths, key)
+func (c *PreimageOracleContract) PreimageDataExists(ctx context.Context, data *types.PreimageOracleData) (bool, error) {
+	call := c.contract.Call(methodPreimagePartOk, common.Hash(data.OracleKey), new(big.Int).SetUint64(uint64(data.OracleOffset)))
 	results, err := c.multiCaller.SingleCall(ctx, batching.BlockLatest, call)
 	if err != nil {
-		return false, fmt.Errorf("failed to load preimage lengths: %w", err)
+		return false, fmt.Errorf("failed to get preimagePartOk: %w", err)
 	}
-	return results.GetBigInt(0).BitLen() != 0, nil
+	return results.GetBool(0), nil
 }
 
 func (c *PreimageOracleContract) decodePreimageIdent(result *batching.CallResult) keccakTypes.LargePreimageIdent {
