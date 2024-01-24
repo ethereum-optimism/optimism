@@ -55,7 +55,7 @@ var (
 	}
 	HealthCheckUnsafeInterval = &cli.Uint64Flag{
 		Name:    "healthcheck.unsafe-interval",
-		Usage:   "Interval between unsafe head progression measured in seconds",
+		Usage:   "Interval allowed between unsafe head and now measured in seconds",
 		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "HEALTHCHECK_UNSAFE_INTERVAL"),
 	}
 	HealthCheckSafeInterval = &cli.Uint64Flag{
