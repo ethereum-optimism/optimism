@@ -48,6 +48,8 @@ contract L1StandardBridgeKontrol is DeploymentSummary, KontrolUtils {
         vm.prank(superchainConfig.guardian());
         superchainConfig.pause("identifier");
 
+        // Pranking with `vm.prank` instead will result in failure from Kontrol
+        // Tracking issue: https://github.com/runtimeverification/kontrol/issues/316
         vm.startPrank(address(l1standardBridge.messenger()));
         vm.expectRevert("StandardBridge: paused");
         l1standardBridge.finalizeBridgeERC20(_localToken, _remoteToken, _from, _to, _amount, _extraData);
@@ -76,6 +78,8 @@ contract L1StandardBridgeKontrol is DeploymentSummary, KontrolUtils {
         vm.prank(superchainConfig.guardian());
         superchainConfig.pause("identifier");
 
+        // Pranking with `vm.prank` instead will result in failure from Kontrol
+        // Tracking issue: https://github.com/runtimeverification/kontrol/issues/316
         vm.startPrank(address(l1standardBridge.messenger()));
         vm.expectRevert("StandardBridge: paused");
         l1standardBridge.finalizeBridgeETH(_from, _to, _amount, _extraData);

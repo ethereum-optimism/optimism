@@ -48,6 +48,8 @@ contract L1ERC721BridgeKontrol is DeploymentSummary, KontrolUtils {
         vm.prank(superchainConfig.guardian());
         superchainConfig.pause("identifier");
 
+        // Pranking with `vm.prank` instead will result in failure from Kontrol
+        // Tracking issue: https://github.com/runtimeverification/kontrol/issues/316
         vm.startPrank(address(l1ERC721Bridge.messenger()));
         vm.expectRevert("L1ERC721Bridge: paused");
         l1ERC721Bridge.finalizeBridgeERC721(_localToken, _remoteToken, _from, _to, _amount, _extraData);
