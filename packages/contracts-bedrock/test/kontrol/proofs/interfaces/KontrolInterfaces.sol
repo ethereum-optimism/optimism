@@ -4,8 +4,6 @@ pragma solidity 0.8.15;
 import { Types } from "src/libraries/Types.sol";
 
 interface IOptimismPortal {
-    function GUARDIAN() external view returns (address);
-
     function guardian() external view returns (address);
 
     function paused() external view returns (bool paused_);
@@ -38,9 +36,9 @@ interface ICrossDomainMessenger {
 interface IL1StandardBridge {
     function paused() external view returns (bool);
 
-    function MESSENGER() external view returns (ICrossDomainMessenger);
+    function messenger() external view returns (ICrossDomainMessenger);
 
-    function OTHER_BRIDGE() external view returns (IL1StandardBridge);
+    function otherBridge() external view returns (IL1StandardBridge);
 
     function finalizeBridgeERC20(
         address _localToken,
@@ -58,9 +56,9 @@ interface IL1StandardBridge {
 interface IL1ERC721Bridge {
     function paused() external view returns (bool);
 
-    function MESSENGER() external view returns (ICrossDomainMessenger);
+    function messenger() external view returns (ICrossDomainMessenger);
 
-    function OTHER_BRIDGE() external view returns (IL1StandardBridge);
+    function otherBridge() external view returns (IL1StandardBridge);
 
     function finalizeBridgeERC721(
         address _localToken,

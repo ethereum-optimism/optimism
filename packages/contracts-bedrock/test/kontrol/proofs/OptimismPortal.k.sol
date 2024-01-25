@@ -52,7 +52,7 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
             Types.OutputRootProof(_outputRootProof0, _outputRootProof1, _outputRootProof2, _outputRootProof3);
 
         // Pause Optimism Portal
-        vm.prank(optimismPortal.GUARDIAN());
+        vm.prank(optimismPortal.guardian());
         superchainConfig.pause("identifier");
 
         // No one can call proveWithdrawalTransaction
@@ -78,7 +78,7 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
         bytes memory _data = freshBigBytes(320);
 
         // Pause Optimism Portal
-        vm.prank(optimismPortal.GUARDIAN());
+        vm.prank(optimismPortal.guardian());
         superchainConfig.pause("identifier");
 
         vm.expectRevert("OptimismPortal: paused");

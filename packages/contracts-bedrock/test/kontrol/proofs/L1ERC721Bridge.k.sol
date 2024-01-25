@@ -38,7 +38,7 @@ contract L1ERC721BridgeKontrol is DeploymentSummary, KontrolUtils {
         vm.store(
             l1CrossDomainMessengerProxyAddress,
             hex"00000000000000000000000000000000000000000000000000000000000000cc",
-            bytes32(uint256(uint160(address(l1ERC721Bridge.OTHER_BRIDGE()))))
+            bytes32(uint256(uint160(address(l1ERC721Bridge.otherBridge()))))
         );
 
         // We're assuming a symbolic `_extraData` parameter of length 320
@@ -48,7 +48,7 @@ contract L1ERC721BridgeKontrol is DeploymentSummary, KontrolUtils {
         vm.prank(superchainConfig.guardian());
         superchainConfig.pause("identifier");
 
-        vm.startPrank(address(l1ERC721Bridge.MESSENGER()));
+        vm.startPrank(address(l1ERC721Bridge.messenger()));
         vm.expectRevert("L1ERC721Bridge: paused");
         l1ERC721Bridge.finalizeBridgeERC721(_localToken, _remoteToken, _from, _to, _amount, _extraData);
         vm.stopPrank();

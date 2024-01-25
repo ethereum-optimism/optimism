@@ -38,7 +38,7 @@ contract L1StandardBridgeKontrol is DeploymentSummary, KontrolUtils {
         vm.store(
             l1CrossDomainMessengerProxyAddress,
             hex"00000000000000000000000000000000000000000000000000000000000000cc",
-            bytes32(uint256(uint160(address(l1standardBridge.OTHER_BRIDGE()))))
+            bytes32(uint256(uint160(address(l1standardBridge.otherBridge()))))
         );
 
         // We're assuming a symbolic `_extraData` parameter of length 320
@@ -48,7 +48,7 @@ contract L1StandardBridgeKontrol is DeploymentSummary, KontrolUtils {
         vm.prank(superchainConfig.guardian());
         superchainConfig.pause("identifier");
 
-        vm.startPrank(address(l1standardBridge.MESSENGER()));
+        vm.startPrank(address(l1standardBridge.messenger()));
         vm.expectRevert("StandardBridge: paused");
         l1standardBridge.finalizeBridgeERC20(_localToken, _remoteToken, _from, _to, _amount, _extraData);
         vm.stopPrank();
@@ -66,7 +66,7 @@ contract L1StandardBridgeKontrol is DeploymentSummary, KontrolUtils {
         vm.store(
             l1CrossDomainMessengerProxyAddress,
             hex"00000000000000000000000000000000000000000000000000000000000000cc",
-            bytes32(uint256(uint160(address(l1standardBridge.OTHER_BRIDGE()))))
+            bytes32(uint256(uint160(address(l1standardBridge.otherBridge()))))
         );
 
         // We're assuming a symbolic `_extraData` parameter of length 320
@@ -76,7 +76,7 @@ contract L1StandardBridgeKontrol is DeploymentSummary, KontrolUtils {
         vm.prank(superchainConfig.guardian());
         superchainConfig.pause("identifier");
 
-        vm.startPrank(address(l1standardBridge.MESSENGER()));
+        vm.startPrank(address(l1standardBridge.messenger()));
         vm.expectRevert("StandardBridge: paused");
         l1standardBridge.finalizeBridgeETH(_from, _to, _amount, _extraData);
         vm.stopPrank();
