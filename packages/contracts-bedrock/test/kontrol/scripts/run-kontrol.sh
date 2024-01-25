@@ -229,7 +229,7 @@ done
 max_depth=1000000
 max_iterations=1000000
 smt_timeout=100000
-max_workers=7
+max_workers=7 # Set to 7 since the CI machine has 8 CPUs
 # workers is the minimum between max_workers and the length of test_list
 workers=$((${#test_list[@]}>max_workers ? max_workers : ${#test_list[@]}))
 reinit=--reinit
