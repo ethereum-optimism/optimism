@@ -31,6 +31,9 @@ contract L1StandardBridgeKontrol is DeploymentSummary, KontrolUtils {
         public
     {
         setUpInlined();
+        // Current workaround to be replaced with `vm.mockCall`, once the cheatcode is implemented in Kontrol
+        // This overrides the storage slot read by `CrossDomainMessenger::xDomainMessageSender`
+        // Tracking issue: https://github.com/runtimeverification/kontrol/issues/285
         vm.store(
             l1CrossDomainMessengerProxyAddress,
             hex"00000000000000000000000000000000000000000000000000000000000000cc",
@@ -53,6 +56,9 @@ contract L1StandardBridgeKontrol is DeploymentSummary, KontrolUtils {
     /// Tracking issue: https://github.com/runtimeverification/kontrol/issues/272
     function prove_finalizeBridgeETH_paused(address _from, address _to, uint256 _amount) public {
         setUpInlined();
+        // Current workaround to be replaced with `vm.mockCall`, once the cheatcode is implemented in Kontrol
+        // This overrides the storage slot read by `CrossDomainMessenger::xDomainMessageSender`
+        // Tracking issue: https://github.com/runtimeverification/kontrol/issues/285
         vm.store(
             l1CrossDomainMessengerProxyAddress,
             hex"00000000000000000000000000000000000000000000000000000000000000cc",

@@ -31,6 +31,9 @@ contract L1ERC721BridgeKontrol is DeploymentSummary, KontrolUtils {
         public
     {
         setUpInlined();
+        // Current workaround to be replaced with `vm.mockCall`, once the cheatcode is implemented in Kontrol
+        // This overrides the storage slot read by `CrossDomainMessenger::xDomainMessageSender`
+        // Tracking issue: https://github.com/runtimeverification/kontrol/issues/285
         vm.store(
             l1CrossDomainMessengerProxyAddress,
             hex"00000000000000000000000000000000000000000000000000000000000000cc",
