@@ -33,26 +33,4 @@ contract L2DomiconCommitment is DomiconCommitment, ISemver {
     function initialize() public reinitializer(Constants.INITIALIZER) {
         __DomiconCommitment_init({ _messenger: CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER),_domiconNode : DomiconNode(Predeploys.L2_DOMICON_NODE) });
     }
-
-    function SubmitCommitment(uint256 _index,uint256 _length,uint256 _price,address _user,bytes calldata _sign,bytes calldata _commitment) external onlyEOA {
-        require(checkSign(_user,_sign),"L1DomiconCommitment:invalid Signature");
-//        require(indices[_user]==_index,"L1DomiconCommitment:index Error");
-        submits[_user][_index]=DAInfo({index:_index,length:_length,price:_price,user:_user,broadcaster:msg.sender,sign:_sign,commitment:_commitment});
-        indices[_user]++;
-        emit SendDACommitment(_index,_length,_price,msg.sender,_user,_sign,_commitment);
-
-        _initSubmitCommitment(RECEIVE_DEFAULT_GAS_LIMIT,_index,_length,_price,msg.sender,_user,_sign,_commitment);
-    }
-
-    function checkSign(address user,bytes calldata sign) internal returns (bool){
-        return true;
-    }
-
-    function checkIndex(address user,uint256 index) internal returns (bool){
-        return true;
-    }
-
-    function getGas(uint256 length) internal returns(uint256){
-        return length;
-    }
 }

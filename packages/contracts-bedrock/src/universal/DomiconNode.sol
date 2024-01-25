@@ -85,7 +85,7 @@ abstract contract DomiconNode is Initializable{
         return OTHER_DOMICON_NODE;
     }
 
-    function IsNodeBroadcast(address addr) external returns (bool){
+    function IsNodeBroadcast(address addr) external view returns (bool){
         if (broadcastingNodes[addr].stakedTokens!=0){
             return true;
         }
@@ -95,7 +95,7 @@ abstract contract DomiconNode is Initializable{
     function registerBroadcastNode(address node,NodeInfo memory nodeInfo) internal  {
         broadcastingNodes[node] = nodeInfo;
 
-        messenger.sendSubmitMessage(
+        messenger.sendMessage(
             address(OTHER_DOMICON_NODE),
             abi.encodeWithSelector(this.finalizeBroadcastNode.selector, node,nodeInfo),
             RECEIVE_DEFAULT_GAS_LIMIT

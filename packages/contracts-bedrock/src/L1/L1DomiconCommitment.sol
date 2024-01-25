@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { DomiconCommitment } from "src/universal/DomiconCommitment.sol";
 import { ISemver } from "src/universal/ISemver.sol";
@@ -20,6 +22,7 @@ import { Hashing } from "src/libraries/Hashing.sol";
 ///         of some token types that may not be properly supported by this contract include, but are
 ///         not limited to: tokens with transfer fees, rebasing tokens, and tokens with blocklists.
 contract L1DomiconCommitment is DomiconCommitment, ISemver {
+    using SafeERC20 for IERC20;
 
     /// @notice Semantic version.
     /// @custom:semver 1.4.1
@@ -36,23 +39,21 @@ contract L1DomiconCommitment is DomiconCommitment, ISemver {
     }
 
     function SubmitCommitment(uint64 _index,uint64 _length,uint64 _price,address _user,bytes calldata _sign,bytes calldata _commitment) external onlyEOA onlyBroadcastNode {
-//        require(checkSign(_user,_sign),"L1DomiconCommitment:invalid Signature");
+        require(checkSign(_user,_price,_index,_length,_sign,_commitment),"L1DomiconCommitment:invalid Signature");
 //        require(indices[_user]==_index,"L1DomiconCommitment:index Error");
 
+        IERC20(DOM).safeTransferFrom(_user, address(this), 200);
 
-        bytes32 hash = Hashing.getDataHash(_user,msg.sender,_price,_index,_length,_commitment);
-        bool isTrue = Hashing.verifySignature(hash,_sign,_user);
-        require(isTrue,"L1DomiconCommitment:Signature Error");
-
-        submits[_user][_index]=DAInfo({index:_index,length:_length,price:_price,user:_user,broadcaster:msg.sender,sign:_sign,commitment:_commitment});
+        submits[_user][_index]=_commitment;
         indices[_user]++;
         emit SendDACommitment(_index,_length,_price,msg.sender,_user,_sign,_commitment);
 
         _initSubmitCommitment(RECEIVE_DEFAULT_GAS_LIMIT,_index,_length,_price,msg.sender,_user,_sign,_commitment);
     }
 
-    function checkSign(address user,bytes calldata sign) internal pure returns (bool){
-        return true;
+    function checkSign(address _user,uint64 _price,uint64 _index,uint64 _length,bytes calldata _sign,bytes calldata _commitment) internal view returns (bool){
+        bytes32 hash = Hashing.getDataHash(_user,msg.sender,_price,_index,_length,_commitment);
+        return Hashing.verifySignature(hash,_sign,_user);
     }
 
     function getGas(uint256 length) internal pure returns(uint256){

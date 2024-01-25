@@ -18,16 +18,6 @@ abstract contract DomiconCommitment is Initializable{
 
     event SendDACommitment(uint256 index,uint256 length,uint256 price,address indexed broadcaster,address indexed user,bytes sign,bytes commitment);
 
-    struct DAInfo{
-        uint256 index;
-        uint256 length;
-        uint256 price;
-        address user;
-        address broadcaster;
-        bytes sign;
-        bytes commitment;
-    }
-
     /// @notice The L2 gas limit set when eth is depoisited using the receive() function.
     uint32 internal constant RECEIVE_DEFAULT_GAS_LIMIT = 200_000;
 
@@ -51,7 +41,9 @@ abstract contract DomiconCommitment is Initializable{
     /// @notice Spacer for backwards compatibility.
     address private spacer_1_0_20;
 
-    mapping(address => mapping(uint256 => DAInfo)) public submits;
+    address public DOM = 0x779877A7B0D9E8603169DdbD7836e478b4624789;
+
+    mapping(address => mapping(uint256 => bytes)) public submits;
     mapping(address => uint256) public indices;
 
     /// @notice Messenger contract on this domain. This public getter is deprecated
@@ -144,7 +136,11 @@ abstract contract DomiconCommitment is Initializable{
     payable
     onlyOtherCommitment
     {
-        submits[_user][_index]=DAInfo({index:_index,length:_length,price:_price,user:_user,broadcaster:msg.sender,sign:_sign,commitment:_commitment});
+        submits[_user][_index]=_commitment;
         emit FinalizeSubmitCommitment(_index,_length,_price,_broadcaster,_user,_sign,_commitment);
+    }
+
+    function SetDom(address addr)external {
+        DOM=addr;
     }
 }
