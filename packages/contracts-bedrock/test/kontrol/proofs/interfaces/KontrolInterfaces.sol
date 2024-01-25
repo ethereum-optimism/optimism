@@ -32,7 +32,7 @@ interface ISuperchainConfig {
 interface IL1StandardBridge {
     function paused() external view returns (bool);
 
-    function messenger() external view returns (ICrossDomainMessenger);
+    function messenger() external view returns (IL1CrossDomainMessenger);
 
     function otherBridge() external view returns (IL1StandardBridge);
 
@@ -52,7 +52,7 @@ interface IL1StandardBridge {
 interface IL1ERC721Bridge {
     function paused() external view returns (bool);
 
-    function messenger() external view returns (ICrossDomainMessenger);
+    function messenger() external view returns (IL1CrossDomainMessenger);
 
     function otherBridge() external view returns (IL1StandardBridge);
 
