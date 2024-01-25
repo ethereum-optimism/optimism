@@ -9,6 +9,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/fetcher"
+	"github.com/ethereum-optimism/optimism/op-challenger/sender"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
@@ -41,7 +42,8 @@ type Service struct {
 
 	preimages *keccak.LargePreimageScheduler
 
-	txMgr *txmgr.SimpleTxManager
+	txMgr    *txmgr.SimpleTxManager
+	txSender *sender.TxSender
 
 	loader *loader.GameLoader
 
@@ -76,7 +78,7 @@ func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*Se
 }
 
 func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error {
-	if err := s.initTxManager(cfg); err != nil {
+	if err := s.initTxManager(ctx, cfg); err != nil {
 		return fmt.Errorf("failed to init tx manager: %w", err)
 	}
 	if err := s.initL1Client(ctx, cfg); err != nil {
@@ -117,12 +119,13 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 	return nil
 }
 
-func (s *Service) initTxManager(cfg *config.Config) error {
+func (s *Service) initTxManager(ctx context.Context, cfg *config.Config) error {
 	txMgr, err := txmgr.NewSimpleTxManager("challenger", s.logger, s.metrics, cfg.TxMgrConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create the transaction manager: %w", err)
 	}
 	s.txMgr = txMgr
+	s.txSender = sender.NewTxSender(ctx, s.logger, txMgr, cfg.MaxPendingTx)
 	return nil
 }
 
@@ -176,7 +179,7 @@ func (s *Service) initMetricsServer(cfg *opmetrics.CLIConfig) error {
 	}
 	s.logger.Info("started metrics server", "addr", metricsSrv.Addr())
 	s.metricsSrv = metricsSrv
-	s.balanceMetricer = s.metrics.StartBalanceMetrics(s.logger, s.l1Client, s.txMgr.From())
+	s.balanceMetricer = s.metrics.StartBalanceMetrics(s.logger, s.l1Client, s.txSender.From())
 	return nil
 }
 
@@ -210,7 +213,7 @@ func (s *Service) initRollupClient(ctx context.Context, cfg *config.Config) erro
 func (s *Service) registerGameTypes(ctx context.Context, cfg *config.Config) error {
 	gameTypeRegistry := registry.NewGameTypeRegistry()
 	caller := batching.NewMultiCaller(s.l1Client.Client(), batching.DefaultBatchSize)
-	closer, err := fault.RegisterGameTypes(gameTypeRegistry, ctx, s.logger, s.metrics, cfg, s.rollupClient, s.txMgr, s.factoryContract, caller)
+	closer, err := fault.RegisterGameTypes(gameTypeRegistry, ctx, s.logger, s.metrics, cfg, s.rollupClient, s.txSender, s.factoryContract, caller)
 	if err != nil {
 		return err
 	}

@@ -63,6 +63,12 @@ var (
 		EnvVars: prefixEnvVars("MAX_CONCURRENCY"),
 		Value:   uint(runtime.NumCPU()),
 	}
+	MaxPendingTransactionsFlag = &cli.Uint64Flag{
+		Name:    "max-pending-tx",
+		Usage:   "The maximum number of pending transactions. 0 for no limit.",
+		Value:   config.DefaultMaxPendingTx,
+		EnvVars: prefixEnvVars("MAX_PENDING_TX"),
+	}
 	HTTPPollInterval = &cli.DurationFlag{
 		Name:    "http-poll-interval",
 		Usage:   "Polling interval for latest-block subscription when using an HTTP RPC provider.",
@@ -143,6 +149,7 @@ var requiredFlags = []cli.Flag{
 var optionalFlags = []cli.Flag{
 	TraceTypeFlag,
 	MaxConcurrencyFlag,
+	MaxPendingTransactionsFlag,
 	HTTPPollInterval,
 	RollupRpcFlag,
 	GameAllowlistFlag,
@@ -276,6 +283,7 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 		GameAllowlist:          allowedGames,
 		GameWindow:             ctx.Duration(GameWindowFlag.Name),
 		MaxConcurrency:         maxConcurrency,
+		MaxPendingTx:           ctx.Uint64(MaxPendingTransactionsFlag.Name),
 		PollInterval:           ctx.Duration(HTTPPollInterval.Name),
 		RollupRpc:              ctx.String(RollupRpcFlag.Name),
 		CannonNetwork:          ctx.String(CannonNetworkFlag.Name),
