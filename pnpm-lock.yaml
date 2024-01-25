@@ -303,8 +303,8 @@ importers:
         specifier: ^2.0.4
         version: 2.0.4(typescript@5.3.3)
       '@wagmi/core':
-        specifier: ^2.3.1
-        version: 2.3.1(react@18.2.0)(typescript@5.3.3)(viem@2.0.3)
+        specifier: ^2.6.1
+        version: 2.6.1(react@18.2.0)(typescript@5.3.3)(viem@2.0.3)
       abitype:
         specifier: ^1.0.0
         version: 1.0.0(typescript@5.3.3)
@@ -6403,8 +6403,8 @@ packages:
       - zod
     dev: true
 
-  /@wagmi/core@2.3.1(react@18.2.0)(typescript@5.3.3)(viem@2.0.3):
-    resolution: {integrity: sha512-vpD5el6E8s2gmTDFPr1ghRuQCBTe45QSOSxAPkImCXWXiAh4xoCfwPH8lBUBpRJouu2eVBPVaCpGQNGO8yD1xw==}
+  /@wagmi/core@2.6.0(react@18.2.0)(typescript@5.3.3)(viem@2.0.3):
+    resolution: {integrity: sha512-z/9lVFG+mCQnATtdS/rFsOLp/Kf3DlpBM5aiDAahwXG405BgXl5SdFt7HkLefFmEnVon7ZN8a1eExSPJGlaRlA==}
     peerDependencies:
       '@tanstack/query-core': '>=5.0.0'
       typescript: '>=5.0.4'
@@ -6429,8 +6429,8 @@ packages:
       - zod
     dev: true
 
-  /@wagmi/core@2.6.0(react@18.2.0)(typescript@5.3.3)(viem@2.0.3):
-    resolution: {integrity: sha512-z/9lVFG+mCQnATtdS/rFsOLp/Kf3DlpBM5aiDAahwXG405BgXl5SdFt7HkLefFmEnVon7ZN8a1eExSPJGlaRlA==}
+  /@wagmi/core@2.6.1(react@18.2.0)(typescript@5.3.3)(viem@2.0.3):
+    resolution: {integrity: sha512-8uE4cpkGqHObjFcDUU6ZGqn9KiOO2wsJOKZ+bXevLOXe2a6M268vOUKJUM2d6/Whn4aBFEyMcX8ESdLuySS78w==}
     peerDependencies:
       '@tanstack/query-core': '>=5.0.0'
       typescript: '>=5.0.4'
