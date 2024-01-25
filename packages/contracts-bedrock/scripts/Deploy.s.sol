@@ -249,6 +249,15 @@ contract Deploy is Deployer {
         _run();
     }
 
+    function runWithStateDump() public {
+        _run();
+
+        string memory path = vm.envOr(
+            "STATE_DUMP_PATH", string.concat(vm.projectRoot(), "/", name(), "-", vm.toString(block.chainid), ".json")
+        );
+        vm.dumpState(path);
+    }
+
     /// @notice Deploy all L1 contracts and write the state diff to a file.
     function runWithStateDiff() public stateDiff {
         _run();

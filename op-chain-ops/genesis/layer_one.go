@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/core"
 	gstate "github.com/ethereum/go-ethereum/core/state"
 
@@ -67,7 +68,7 @@ func BuildL1DeveloperGenesis(config *DeployConfig, dump *gstate.Dump, l1Deployme
 			memDB.CreateAccount(address)
 			memDB.SetNonce(address, account.Nonce)
 
-			balance, ok := new(big.Int).SetString(account.Balance, 10)
+			balance, ok := math.ParseBig256(account.Balance)
 			if !ok {
 				return nil, fmt.Errorf("failed to parse balance for %s", address)
 			}
