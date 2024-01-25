@@ -159,6 +159,7 @@ func (m *BinaryMerkleTree) ProofAtIndex(index uint64) (proof Proof, err error) {
 }
 
 // VerifyMerkleProof verifies a merkle proof for a given leaf.
+// The proof is a list of sibling hashes from the leaf to the root.
 func (m *BinaryMerkleTree) VerifyMerkleProof(index uint64, leaf types.Leaf, proof [BinaryMerkleTreeDepth]common.Hash) bool {
 	leafHash := leaf.Hash()
 	for i := 0; i < BinaryMerkleTreeDepth; i++ {
