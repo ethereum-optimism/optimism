@@ -22,7 +22,7 @@
 /op-service     @ethereum-optimism/go-reviewers
 /op-wheel       @ethereum-optimism/go-reviewers
 /ops-bedrock    @ethereum-optimism/go-reviewers
-/op-conductor   @ethereum-optimism/go-reviewers @0x00101010
+/op-conductor   @ethereum-optimism/infra-reviewers @0x00101010
 
 # Ops
 /.circleci       @ethereum-optimism/infra-reviewers
