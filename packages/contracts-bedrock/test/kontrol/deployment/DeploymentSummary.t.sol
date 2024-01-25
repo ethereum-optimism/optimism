@@ -12,13 +12,20 @@ import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
 import { DeploymentSummary } from "../proofs/utils/DeploymentSummary.sol";
-import { OptimismPortal_Test } from "test/L1/OptimismPortal.t.sol";
-import { L1CrossDomainMessenger_Test } from "test/L1/L1CrossDomainMessenger.t.sol";
 import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
-import { L1ERC721Bridge_Test, TestERC721 } from "test/L1/L1ERC721Bridge.t.sol";
+import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import { OptimismMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
 import { LegacyMintableERC20 } from "src/legacy/LegacyMintableERC20.sol";
+
+// Tests
+import { L1CrossDomainMessenger_Test } from "test/L1/L1CrossDomainMessenger.t.sol";
+import { OptimismPortal_Test } from "test/L1/OptimismPortal.t.sol";
+import { L1ERC721Bridge_Test, TestERC721 } from "test/L1/L1ERC721Bridge.t.sol";
+import {
+    L1StandardBridge_Getter_Test,
+    L1StandardBridge_Initialize_Test,
+    L1StandardBridge_Pause_Test
+} from "test/L1/L1StandardBridge.t.sol";
 
 /// @dev Contract testing the deployment summary correctness
 contract DeploymentSummary_TestOptimismPortal is DeploymentSummary, OptimismPortal_Test {
@@ -211,5 +218,42 @@ contract DeploymentSummary_TestL1ERC721Bridge is DeploymentSummary, L1ERC721Brid
         assertEq(address(impl.OTHER_BRIDGE()), Predeploys.L2_ERC721_BRIDGE);
         assertEq(address(impl.otherBridge()), Predeploys.L2_ERC721_BRIDGE);
         assertEq(address(impl.superchainConfig()), address(0));
+    }
+}
+
+contract DeploymentSummary_TestL1StandardBridge is
+    DeploymentSummary,
+    L1StandardBridge_Getter_Test,
+    L1StandardBridge_Initialize_Test,
+    L1StandardBridge_Pause_Test
+{
+    /// @notice super.setUp is not called on purpose
+    function setUp() public override {
+        // Recreate Deployment Summary state changes
+        DeploymentSummary deploymentSummary = new DeploymentSummary();
+        deploymentSummary.recreateDeployment();
+
+        // Set summary addresses
+        optimismPortal = OptimismPortal(payable(optimismPortalProxyAddress));
+        superchainConfig = SuperchainConfig(superchainConfigProxyAddress);
+        l2OutputOracle = L2OutputOracle(l2OutputOracleProxyAddress);
+        systemConfig = SystemConfig(systemConfigProxyAddress);
+        l1CrossDomainMessenger = L1CrossDomainMessenger(l1CrossDomainMessengerProxyAddress);
+        l1ERC721Bridge = L1ERC721Bridge(l1ERC721BridgeProxyAddress);
+        l1StandardBridge = L1StandardBridge(payable(l1StandardBridgeProxyAddress));
+    }
+
+    /// @dev Skips the first line of `super.test_constructor_succeeds` because
+    ///      we're not exercising the `Deploy` logic in these tests. However,
+    ///      the remaining assertions of the test are important to check
+    function test_constructor_succeeds() external override {
+        // L1StandardBridge impl = L1StandardBridge(deploy.mustGetAddress("L1StandardBridge"));
+        L1StandardBridge impl = L1StandardBridge(payable(l1StandardBridgeAddress));
+        assertEq(address(impl.superchainConfig()), address(0));
+        assertEq(address(impl.MESSENGER()), address(0));
+        assertEq(address(impl.messenger()), address(0));
+        assertEq(address(impl.OTHER_BRIDGE()), Predeploys.L2_STANDARD_BRIDGE);
+        assertEq(address(impl.otherBridge()), Predeploys.L2_STANDARD_BRIDGE);
+        assertEq(address(l2StandardBridge), Predeploys.L2_STANDARD_BRIDGE);
     }
 }
