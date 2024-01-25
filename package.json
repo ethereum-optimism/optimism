@@ -21,6 +21,7 @@
     "lint:ts:check": "npx nx run-many --target=lint:ts:check",
     "lint:check": "npx nx run-many --target=lint:check",
     "lint:fix": "npx nx run-many --target=lint:fix",
+    "lint:shellcheck": "find . -type f -name '*.sh' -not -path '*/node_modules/*' -not -path './packages/contracts-bedrock/lib/*' -not -path './.husky/_/husky.sh' -exec sh -c 'echo \"Checking $1\"; shellcheck \"$1\"' _ {} \\;",
     "preinstall": "npx only-allow pnpm",
     "ready": "pnpm lint && pnpm test",
     "prepare": "husky install",
