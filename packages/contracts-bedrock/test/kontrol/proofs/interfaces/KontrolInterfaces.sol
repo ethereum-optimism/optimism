@@ -29,10 +29,6 @@ interface ISuperchainConfig {
     function unpause() external;
 }
 
-interface ICrossDomainMessenger {
-    function xDomainMessageSender() external view returns (address);
-}
-
 interface IL1StandardBridge {
     function paused() external view returns (bool);
 
@@ -82,4 +78,6 @@ interface IL1CrossDomainMessenger {
     )
         external
         payable;
+
+    function xDomainMessageSender() external view returns (address);
 }
