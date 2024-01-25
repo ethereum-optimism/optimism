@@ -26,6 +26,10 @@ type GameContract interface {
 	GetRequiredBond(ctx context.Context, position types.Position) (*big.Int, error)
 }
 
+type Oracle interface {
+	GlobalDataExists(ctx context.Context, data *types.PreimageOracleData) (bool, error)
+}
+
 // FaultResponder implements the [Responder] interface to send onchain transactions.
 type FaultResponder struct {
 	log log.Logger
@@ -33,15 +37,17 @@ type FaultResponder struct {
 	txMgr    txmgr.TxManager
 	contract GameContract
 	uploader preimages.PreimageUploader
+	oracle   Oracle
 }
 
 // NewFaultResponder returns a new [FaultResponder].
-func NewFaultResponder(logger log.Logger, txMgr txmgr.TxManager, contract GameContract, uploader preimages.PreimageUploader) (*FaultResponder, error) {
+func NewFaultResponder(logger log.Logger, txMgr txmgr.TxManager, contract GameContract, uploader preimages.PreimageUploader, oracle Oracle) (*FaultResponder, error) {
 	return &FaultResponder{
 		log:      logger,
 		txMgr:    txMgr,
 		contract: contract,
 		uploader: uploader,
+		oracle:   oracle,
 	}, nil
 }
 
@@ -78,9 +84,20 @@ func (r *FaultResponder) ResolveClaim(ctx context.Context, claimIdx uint64) erro
 
 func (r *FaultResponder) PerformAction(ctx context.Context, action types.Action) error {
 	if action.OracleData != nil {
-		err := r.uploader.UploadPreimage(ctx, uint64(action.ParentIdx), action.OracleData)
-		if err != nil {
-			return fmt.Errorf("failed to upload preimage: %w", err)
+		var preimageExists bool
+		var err error
+		if !action.OracleData.IsLocal {
+			preimageExists, err = r.oracle.GlobalDataExists(ctx, action.OracleData)
+			if err != nil {
+				return fmt.Errorf("failed to check if preimage exists: %w", err)
+			}
+		}
+		// Always upload local preimages
+		if !preimageExists {
+			err := r.uploader.UploadPreimage(ctx, uint64(action.ParentIdx), action.OracleData)
+			if err != nil {
+				return fmt.Errorf("failed to upload preimage: %w", err)
+			}
 		}
 	}
 	var candidate txmgr.TxCandidate
