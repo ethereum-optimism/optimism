@@ -126,7 +126,7 @@ func (f *FaultDisputeGameContract) addGlobalDataTx(ctx context.Context, data *ty
 }
 
 func (f *FaultDisputeGameContract) GetOracle(ctx context.Context) (*PreimageOracleContract, error) {
-	vm, err := f.Vm(ctx)
+	vm, err := f.vm(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -204,7 +204,7 @@ func (f *FaultDisputeGameContract) GetAllClaims(ctx context.Context) ([]types.Cl
 	return claims, nil
 }
 
-func (f *FaultDisputeGameContract) Vm(ctx context.Context) (*VMContract, error) {
+func (f *FaultDisputeGameContract) vm(ctx context.Context) (*VMContract, error) {
 	result, err := f.multiCaller.SingleCall(ctx, batching.BlockLatest, f.contract.Call(methodVM))
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch VM addr: %w", err)

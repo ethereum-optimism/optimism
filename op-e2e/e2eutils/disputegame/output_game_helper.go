@@ -465,88 +465,11 @@ func (g *OutputGameHelper) ResolveClaim(ctx context.Context, claimIdx int64) {
 	g.require.NoError(err, "ResolveClaim transaction was not OK")
 }
 
-// ChallengeIntoPosition challenges the supplied claim by descending the execution subtree until a step occurs on the given trace index
-// Assumes the execution game depth is even so the honest challenger calls step
-func (g *OutputGameHelper) ChallengeIntoPosition(ctx context.Context, provider types.TraceProvider, outputRootClaim *ClaimHelper, targetTraceIndex uint64) {
-	splitDepth := g.SplitDepth(ctx)
-	execDepth := g.ExecDepth(ctx)
-	if targetTraceIndex == outputRootClaim.position.TraceIndex(execDepth).Uint64() {
-		g.require.Fail("cannot move to defend a terminal trace index")
-	}
-	g.require.EqualValues(outputRootClaim.Depth(), splitDepth+1, "supplied claim must be the root of an execution game")
-	g.require.EqualValues(execDepth%2, 1, "execution game depth must be odd") // since we're challenging the outputRootClaim
-
-	bisectTraceIndex := func(claim *ClaimHelper) *ClaimHelper {
-		execClaimPosition, err := claim.position.RelativeToAncestorAtDepth(splitDepth + 1)
-		g.require.NoError(err)
-
-		claimTraceIndex := execClaimPosition.TraceIndex(execDepth).Uint64()
-		g.t.Logf("Bisecting: Into targetTraceIndex %v: claimIndex=%v at depth=%v. claimPosition=%v execClaimPosition=%v claimTraceIndex=%v",
-			targetTraceIndex, claim.index, claim.Depth(), claim.position, execClaimPosition, claimTraceIndex)
-
-		// We always want to position ourselves such that the challenger generates proofs for the targetTraceIndex as prestate
-		if execClaimPosition.Depth() == execDepth-1 {
-			if execClaimPosition.TraceIndex(execDepth).Uint64() == targetTraceIndex {
-				newPosition := execClaimPosition.Attack()
-				correct, err := provider.Get(ctx, newPosition)
-				g.require.NoError(err)
-				g.t.Logf("Bisecting: Attack correctly for step at newPosition=%v execIndexAtDepth=%v", newPosition, newPosition.TraceIndex(execDepth))
-				return claim.Attack(ctx, correct)
-			} else if execClaimPosition.TraceIndex(execDepth).Uint64() > targetTraceIndex {
-				g.t.Logf("Bisecting: Attack incorrectly for step")
-				return claim.Attack(ctx, common.Hash{0xdd})
-			} else if execClaimPosition.TraceIndex(execDepth).Uint64()+1 == targetTraceIndex {
-				g.t.Logf("Bisecting: Defend incorrectly for step")
-				return claim.Defend(ctx, common.Hash{0xcc})
-			} else {
-				newPosition := execClaimPosition.Defend()
-				correct, err := provider.Get(ctx, newPosition)
-				g.require.NoError(err)
-				g.t.Logf("Bisecting: Defend correctly for step at newPosition=%v execIndexAtDepth=%v", newPosition, newPosition.TraceIndex(execDepth))
-				return claim.Defend(ctx, correct)
-			}
-		}
-
-		// Attack or Defend depending on whether the claim we're responding to is to the left or right of the trace index
-		// Induce the honest challenger to attack or defend depending on whether our new position will be to the left or right of the trace index
-		if execClaimPosition.TraceIndex(execDepth).Uint64() < targetTraceIndex && claim.Depth() != splitDepth+1 {
-			newPosition := execClaimPosition.Defend()
-			if newPosition.TraceIndex(execDepth).Uint64() < targetTraceIndex {
-				g.t.Logf("Bisecting: Defend correct. newPosition=%v execIndexAtDepth=%v", newPosition, newPosition.TraceIndex(execDepth))
-				correct, err := provider.Get(ctx, newPosition)
-				g.require.NoError(err)
-				return claim.Defend(ctx, correct)
-			} else {
-				g.t.Logf("Bisecting: Defend incorrect. newPosition=%v execIndexAtDepth=%v", newPosition, newPosition.TraceIndex(execDepth))
-				return claim.Defend(ctx, common.Hash{0xaa})
-			}
-		} else {
-			newPosition := execClaimPosition.Attack()
-			if newPosition.TraceIndex(execDepth).Uint64() < targetTraceIndex {
-				g.t.Logf("Bisecting: Attack correct. newPosition=%v execIndexAtDepth=%v", newPosition, newPosition.TraceIndex(execDepth))
-				correct, err := provider.Get(ctx, newPosition)
-				g.require.NoError(err)
-				return claim.Attack(ctx, correct)
-			} else {
-				g.t.Logf("Bisecting: Attack incorrect. newPosition=%v execIndexAtDepth=%v", newPosition, newPosition.TraceIndex(execDepth))
-				return claim.Attack(ctx, common.Hash{0xbb})
-			}
-		}
-	}
-
-	g.LogGameData(ctx)
-	// Initial bisect to put us on defense
-	claim := bisectTraceIndex(outputRootClaim)
-	g.DefendClaim(ctx, claim, bisectTraceIndex)
-}
-
-func (g *OutputGameHelper) PreimageExistsInOracle(ctx context.Context, data *types.PreimageOracleData) bool {
+func (g *OutputGameHelper) preimageExistsInOracle(ctx context.Context, data *types.PreimageOracleData) bool {
 	caller := batching.NewMultiCaller(g.system.NodeClient("l1").Client(), batching.DefaultBatchSize)
 	contract, err := contracts.NewFaultDisputeGameContract(g.addr, caller)
 	g.require.NoError(err, "Failed to create game contract")
-	vm, err := contract.Vm(ctx)
-	g.require.NoError(err, "Failed to create vm contract")
-	oracle, err := vm.Oracle(ctx)
+	oracle, err := contract.GetOracle(ctx)
 	g.require.NoError(err, "Failed to create oracle contract")
 	exists, err := oracle.GlobalDataExists(ctx, data)
 	g.require.NoError(err)

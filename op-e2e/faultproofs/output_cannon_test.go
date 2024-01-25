@@ -3,7 +3,6 @@ package faultproofs
 import (
 	"context"
 	"fmt"
-	"math/big"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
@@ -236,16 +235,10 @@ func TestOutputCannonStepWithPreimage(t *testing.T) {
 	// Wait for the honest challenger to dispute the outputRootClaim. This creates a root of an execution game that we challenge by coercing
 	// a step at a preimage trace index.
 	outputRootClaim = outputRootClaim.WaitForCounterClaim(ctx)
-	provider := game.CreateCannonTraceProvider(ctx, "sequencer", outputRootClaim, challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
-	preimageTraceIndex, err := provider.FindStepReferencingPreimage(ctx, 0)
-	require.NoError(t, err)
-	game.ChallengeIntoPosition(ctx, provider, outputRootClaim, preimageTraceIndex)
 
-	// Ensure that the honest challenger uploaded the preimage for the correct index
-	execDepth := game.ExecDepth(ctx)
-	_, _, preimageData, err := provider.GetStepData(ctx, types.NewPosition(execDepth, big.NewInt(int64(preimageTraceIndex))))
-	require.NoError(t, err)
-	require.True(t, game.PreimageExistsInOracle(ctx, preimageData))
+	// Now the honest challenger is positioned as the defender of the execution game
+	// We then move to challenge it to induce a preimage load
+	game.ChallengeToFirstGlobalPreimageLoad(ctx, outputRootClaim, sys.Cfg.Secrets.Alice)
 
 	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
 	require.NoError(t, wait.ForNextBlock(ctx, l1Client))

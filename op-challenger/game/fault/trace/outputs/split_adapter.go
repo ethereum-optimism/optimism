@@ -17,21 +17,21 @@ type ProposalTraceProviderCreator func(ctx context.Context, localContext common.
 func OutputRootSplitAdapter(topProvider *OutputTraceProvider, creator ProposalTraceProviderCreator) split.ProviderCreator {
 	return func(ctx context.Context, depth types.Depth, pre types.Claim, post types.Claim) (types.TraceProvider, error) {
 		localContext := CreateLocalContext(pre, post)
-		proposals, err := FetchProposals(ctx, topProvider, pre, post)
+		agreed, disputed, err := FetchProposals(ctx, topProvider, pre, post)
 		if err != nil {
 			return nil, err
 		}
-		return creator(ctx, localContext, depth, proposals[0], proposals[1])
+		return creator(ctx, localContext, depth, agreed, disputed)
 	}
 }
 
-func FetchProposals(ctx context.Context, topProvider *OutputTraceProvider, pre types.Claim, post types.Claim) ([2]contracts.Proposal, error) {
+func FetchProposals(ctx context.Context, topProvider *OutputTraceProvider, pre types.Claim, post types.Claim) (contracts.Proposal, contracts.Proposal, error) {
 	usePrestateBlock := pre == (types.Claim{})
 	var agreed contracts.Proposal
 	if usePrestateBlock {
 		prestateRoot, err := topProvider.AbsolutePreStateCommitment(ctx)
 		if err != nil {
-			return [2]contracts.Proposal{}, fmt.Errorf("failed to retrieve absolute prestate output root: %w", err)
+			return contracts.Proposal{}, contracts.Proposal{}, fmt.Errorf("failed to retrieve absolute prestate output root: %w", err)
 		}
 		agreed = contracts.Proposal{
 			L2BlockNumber: new(big.Int).SetUint64(topProvider.prestateBlock),
@@ -40,7 +40,7 @@ func FetchProposals(ctx context.Context, topProvider *OutputTraceProvider, pre t
 	} else {
 		preBlockNum, err := topProvider.BlockNumber(pre.Position)
 		if err != nil {
-			return [2]contracts.Proposal{}, fmt.Errorf("unable to calculate pre-claim block number: %w", err)
+			return contracts.Proposal{}, contracts.Proposal{}, fmt.Errorf("unable to calculate pre-claim block number: %w", err)
 		}
 		agreed = contracts.Proposal{
 			L2BlockNumber: new(big.Int).SetUint64(preBlockNum),
@@ -49,13 +49,13 @@ func FetchProposals(ctx context.Context, topProvider *OutputTraceProvider, pre t
 	}
 	postBlockNum, err := topProvider.BlockNumber(post.Position)
 	if err != nil {
-		return [2]contracts.Proposal{}, fmt.Errorf("unable to calculate post-claim block number: %w", err)
+		return contracts.Proposal{}, contracts.Proposal{}, fmt.Errorf("unable to calculate post-claim block number: %w", err)
 	}
 	claimed := contracts.Proposal{
 		L2BlockNumber: new(big.Int).SetUint64(postBlockNum),
 		OutputRoot:    post.Value,
 	}
-	return [2]contracts.Proposal{agreed, claimed}, nil
+	return agreed, claimed, nil
 }
 
 func CreateLocalContext(pre types.Claim, post types.Claim) common.Hash {
