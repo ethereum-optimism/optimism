@@ -18,7 +18,7 @@ contract L1StandardBridgeKontrol is DeploymentSummary, KontrolUtils {
         superchainConfig = SuperchainConfig(superchainConfigProxyAddress);
     }
 
-    /// TODO: Replace symbolic workarounds with the appropiate
+    /// TODO: Replace symbolic workarounds with the appropriate
     /// types once Kontrol supports symbolic `bytes` and `bytes[]`
     /// Tracking issue: https://github.com/runtimeverification/kontrol/issues/272
     function prove_finalizeBridgeERC20_paused(
@@ -48,7 +48,7 @@ contract L1StandardBridgeKontrol is DeploymentSummary, KontrolUtils {
         vm.stopPrank();
     }
 
-    /// TODO: Replace symbolic workarounds with the appropiate
+    /// TODO: Replace symbolic workarounds with the appropriate
     /// types once Kontrol supports symbolic `bytes` and `bytes[]`
     /// Tracking issue: https://github.com/runtimeverification/kontrol/issues/272
     function prove_finalizeBridgeETH_paused(address _from, address _to, uint256 _amount) public {

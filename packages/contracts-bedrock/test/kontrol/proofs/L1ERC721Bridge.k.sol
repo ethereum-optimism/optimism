@@ -18,7 +18,7 @@ contract L1ERC721BridgeKontrol is DeploymentSummary, KontrolUtils {
         superchainConfig = SuperchainConfig(superchainConfigProxyAddress);
     }
 
-    /// TODO: Replace symbolic workarounds with the appropiate
+    /// TODO: Replace symbolic workarounds with the appropriate
     /// types once Kontrol supports symbolic `bytes` and `bytes[]`
     /// Tracking issue: https://github.com/runtimeverification/kontrol/issues/272
     function prove_finalizeBridgeERC21_paused(
