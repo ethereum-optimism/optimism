@@ -41,8 +41,9 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
         external
     {
         setUpInlined();
-        bytes memory _data = freshBigBytes(320);
 
+        // We're assuming a symbolic `_data` parameter of length 320
+        bytes memory _data = freshBigBytes(320);
         bytes[] memory _withdrawalProof = freshWithdrawalProof();
 
         Types.WithdrawalTransaction memory _tx =
@@ -72,6 +73,8 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
         external
     {
         setUpInlined();
+
+        // We're assuming a symbolic `_data` parameter of length 320
         bytes memory _data = freshBigBytes(320);
 
         // Pause Optimism Portal

@@ -31,6 +31,7 @@ contract L1StandardBridgeKontrol is DeploymentSummary, KontrolUtils {
         public
     {
         setUpInlined();
+
         // Current workaround to be replaced with `vm.mockCall`, once the cheatcode is implemented in Kontrol
         // This overrides the storage slot read by `CrossDomainMessenger::xDomainMessageSender`
         // Tracking issue: https://github.com/runtimeverification/kontrol/issues/285
@@ -39,6 +40,8 @@ contract L1StandardBridgeKontrol is DeploymentSummary, KontrolUtils {
             hex"00000000000000000000000000000000000000000000000000000000000000cc",
             bytes32(uint256(uint160(address(l1standardBridge.OTHER_BRIDGE()))))
         );
+
+        // We're assuming a symbolic `_extraData` parameter of length 320
         bytes memory _extraData = freshBigBytes(320);
 
         // Pause Standard Bridge
@@ -56,6 +59,7 @@ contract L1StandardBridgeKontrol is DeploymentSummary, KontrolUtils {
     /// Tracking issue: https://github.com/runtimeverification/kontrol/issues/272
     function prove_finalizeBridgeETH_paused(address _from, address _to, uint256 _amount) public {
         setUpInlined();
+
         // Current workaround to be replaced with `vm.mockCall`, once the cheatcode is implemented in Kontrol
         // This overrides the storage slot read by `CrossDomainMessenger::xDomainMessageSender`
         // Tracking issue: https://github.com/runtimeverification/kontrol/issues/285
@@ -64,6 +68,8 @@ contract L1StandardBridgeKontrol is DeploymentSummary, KontrolUtils {
             hex"00000000000000000000000000000000000000000000000000000000000000cc",
             bytes32(uint256(uint160(address(l1standardBridge.OTHER_BRIDGE()))))
         );
+
+        // We're assuming a symbolic `_extraData` parameter of length 320
         bytes memory _extraData = freshBigBytes(320);
 
         // Pause Standard Bridge
