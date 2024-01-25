@@ -252,7 +252,7 @@ func (m CLIConfig) Check() error {
 		return err
 	}
 	if m.KmsKeyID != "" {
-		if m.KmsEndpoint == "" {
+		if !m.KmsProduction && m.KmsEndpoint == "" {
 			return errors.New("KMS Endpoint must be provided")
 		}
 		if m.KmsRegion == "" {
