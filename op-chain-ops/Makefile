@@ -1,6 +1,9 @@
 op-version-check:
 	go build -o ./bin/op-version-check ./cmd/op-version-check/main.go
 
+ecotone-scalar:
+	go build -o ./bin/ecotone-scalar ./cmd/ecotone-scalar/main.go
+
 test:
 	go test ./...
 

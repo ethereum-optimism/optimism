@@ -36,9 +36,10 @@ func mockConfig(t *testing.T) Config {
 		ExecutionRPC:   "http://geth:8545",
 		Paused:         false,
 		HealthCheck: HealthCheckConfig{
-			Interval:     1,
-			SafeInterval: 5,
-			MinPeerCount: 1,
+			Interval:       1,
+			UnsafeInterval: 3,
+			SafeInterval:   5,
+			MinPeerCount:   1,
 		},
 		RollupCfg: rollup.Config{
 			Genesis: rollup.Genesis{

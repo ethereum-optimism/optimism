@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-batcher/rpc"
+	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
@@ -172,6 +173,7 @@ func (bs *BatcherService) initRollupConfig(ctx context.Context) error {
 	if err := bs.RollupConfig.Check(); err != nil {
 		return fmt.Errorf("invalid rollup config: %w", err)
 	}
+	bs.RollupConfig.LogDescription(bs.Log, chaincfg.L2ChainIDToNetworkDisplayName)
 	return nil
 }
 
@@ -197,9 +199,23 @@ func (bs *BatcherService) initChannelConfig(cfg *CLIConfig) error {
 	}
 	bs.ChannelConfig.MaxFrameSize-- // subtract 1 byte for version
 
+	if bs.UseBlobs && !bs.RollupConfig.IsEcotone(uint64(time.Now().Unix())) {
+		bs.Log.Error("Cannot use Blob data before Ecotone!") // log only, the batcher may not be actively running.
+	}
+	if !bs.UseBlobs && bs.RollupConfig.IsEcotone(uint64(time.Now().Unix())) {
+		bs.Log.Warn("Ecotone upgrade is active, but batcher is not configured to use Blobs!")
+	}
+
 	if err := bs.ChannelConfig.Check(); err != nil {
 		return fmt.Errorf("invalid channel configuration: %w", err)
 	}
+	bs.Log.Info("Initialized channel-config",
+		"use_blobs", bs.UseBlobs,
+		"max_frame_size", bs.ChannelConfig.MaxFrameSize,
+		"max_channel_duration", bs.ChannelConfig.MaxChannelDuration,
+		"channel_timeout", bs.ChannelConfig.ChannelTimeout,
+		"batch_type", bs.ChannelConfig.BatchType,
+		"sub_safety_margin", bs.ChannelConfig.SubSafetyMargin)
 	return nil
 }
 

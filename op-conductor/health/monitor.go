@@ -28,13 +28,14 @@ type HealthMonitor interface {
 // interval is the interval between health checks measured in seconds.
 // safeInterval is the interval between safe head progress measured in seconds.
 // minPeerCount is the minimum number of peers required for the sequencer to be healthy.
-func NewSequencerHealthMonitor(log log.Logger, interval, safeInterval, minPeerCount uint64, rollupCfg *rollup.Config, node dial.RollupClientInterface, p2p p2p.API) HealthMonitor {
+func NewSequencerHealthMonitor(log log.Logger, interval, unsafeInterval, safeInterval, minPeerCount uint64, rollupCfg *rollup.Config, node dial.RollupClientInterface, p2p p2p.API) HealthMonitor {
 	return &SequencerHealthMonitor{
 		log:            log,
 		done:           make(chan struct{}),
 		interval:       interval,
 		healthUpdateCh: make(chan bool),
 		rollupCfg:      rollupCfg,
+		unsafeInterval: unsafeInterval,
 		safeInterval:   safeInterval,
 		minPeerCount:   minPeerCount,
 		node:           node,
@@ -48,11 +49,14 @@ type SequencerHealthMonitor struct {
 	done chan struct{}
 	wg   sync.WaitGroup
 
-	rollupCfg      *rollup.Config
-	safeInterval   uint64
-	minPeerCount   uint64
-	interval       uint64
-	healthUpdateCh chan bool
+	rollupCfg          *rollup.Config
+	unsafeInterval     uint64
+	safeInterval       uint64
+	minPeerCount       uint64
+	interval           uint64
+	healthUpdateCh     chan bool
+	lastSeenUnsafeNum  uint64
+	lastSeenUnsafeTime uint64
 
 	node dial.RollupClientInterface
 	p2p  p2p.API
@@ -104,8 +108,9 @@ func (hm *SequencerHealthMonitor) loop() {
 
 // healthCheck checks the health of the sequencer by 3 criteria:
 // 1. unsafe head is progressing per block time
-// 2. safe head is progressing every configured batch submission interval
-// 3. peer count is above the configured minimum
+// 2. unsafe head is not too far behind now (measured by unsafeInterval)
+// 3. safe head is progressing every configured batch submission interval
+// 4. peer count is above the configured minimum
 func (hm *SequencerHealthMonitor) healthCheck() bool {
 	ctx := context.Background()
 	status, err := hm.node.SyncStatus(ctx)
@@ -115,14 +120,48 @@ func (hm *SequencerHealthMonitor) healthCheck() bool {
 	}
 
 	now := uint64(time.Now().Unix())
-	// allow at most one block drift for unsafe head
-	if now-status.UnsafeL2.Time > hm.interval+hm.rollupCfg.BlockTime {
-		hm.log.Error("unsafe head is not progressing", "lastSeenUnsafeBlock", status.UnsafeL2)
+
+	if hm.lastSeenUnsafeNum != 0 {
+		diff := now - hm.lastSeenUnsafeTime
+		// how many blocks do we expect to see, minus 1 to account for edge case with respect to time.
+		// for example, if diff = 2.001s and block time = 2s, expecting to see 1 block could potentially cause sequencer to be considered unhealthy.
+		blocks := diff/hm.rollupCfg.BlockTime - 1
+		if diff > hm.rollupCfg.BlockTime && blocks > status.UnsafeL2.Number-hm.lastSeenUnsafeNum {
+			hm.log.Error(
+				"unsafe head is not progressing as expected",
+				"now", now,
+				"unsafe_head_num", status.UnsafeL2.Number,
+				"last_seen_unsafe_num", hm.lastSeenUnsafeNum,
+				"last_seen_unsafe_time", hm.lastSeenUnsafeTime,
+				"unsafe_interval", hm.unsafeInterval,
+			)
+			return false
+		}
+	}
+	if status.UnsafeL2.Number > hm.lastSeenUnsafeNum {
+		hm.lastSeenUnsafeNum = status.UnsafeL2.Number
+		hm.lastSeenUnsafeTime = now
+	}
+
+	if now-status.UnsafeL2.Time > hm.unsafeInterval {
+		hm.log.Error(
+			"unsafe head is not progressing as expected",
+			"now", now,
+			"unsafe_head_num", status.UnsafeL2.Number,
+			"unsafe_head_time", status.UnsafeL2.Time,
+			"unsafe_interval", hm.unsafeInterval,
+		)
 		return false
 	}
 
 	if now-status.SafeL2.Time > hm.safeInterval {
-		hm.log.Error("safe head is not progressing", "safe_head_time", status.SafeL2.Time, "now", now)
+		hm.log.Error(
+			"safe head is not progressing as expected",
+			"now", now,
+			"safe_head_num", status.SafeL2.Number,
+			"safe_head_time", status.SafeL2.Time,
+			"safe_interval", hm.safeInterval,
+		)
 		return false
 	}
 

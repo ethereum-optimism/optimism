@@ -58,7 +58,7 @@ else
       pushd "${WORKSPACE_DIR}" > /dev/null
     else
       notif "Kontrol version does NOT match ${KONTROLRC}"
-      notif "Please run 'kup install kontrol --version ${KONTROLRC}'"
+      notif "Please run 'kup install kontrol --version v${KONTROLRC}'"
       blank_line
       exit 1
     fi
@@ -214,7 +214,7 @@ regen=
 max_depth=1000000
 max_iterations=1000000
 smt_timeout=100000
-workers=1
+workers=2
 reinit=--reinit
 reinit=
 break_on_calls=--no-break-on-calls
@@ -233,6 +233,7 @@ state_diff="./snapshots/state-diff/Kontrol-Deploy.json"
 tests=""
 #tests+="--match-test OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused "
 tests+="--match-test OptimismPortalKontrol.prove_finalizeWithdrawalTransaction_paused "
+tests+="--match-test L1CrossDomainMessengerKontrol.prove_relayMessage_paused "
 
 #############
 # RUN TESTS #

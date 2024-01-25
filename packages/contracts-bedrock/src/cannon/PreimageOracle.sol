@@ -366,7 +366,9 @@ contract PreimageOracle is IPreimageOracle {
             }
         }
 
-        // Do not allow for posting preimages larger than the merkle tree can support.
+        // Do not allow for posting preimages larger than the merkle tree can support. The incremental merkle tree
+        // algorithm only supports 2**height - 1 leaves, the right most leaf must always be kept empty.
+        // Reference: https://daejunpark.github.io/papers/deposit.pdf - Page 10, Section 5.1.
         if (blocksProcessed > MAX_LEAF_COUNT) revert TreeSizeOverflow();
 
         // Update the proposal metadata to include the number of blocks processed and total bytes processed.

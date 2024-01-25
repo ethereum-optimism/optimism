@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/matrix"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/merkle"
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
@@ -47,24 +48,6 @@ func toPreimageOracleLeaf(l keccakTypes.Leaf) bindings.PreimageOracleLeaf {
 		Index:           l.Index,
 		StateCommitment: l.StateCommitment,
 	}
-}
-
-// MerkleProof is a place holder for the actual type we use for merkle proofs
-// TODO(client-pod#481): Move this somewhere better and add useful functionality
-type MerkleProof [][]byte
-
-// toSized converts a [][]byte to a [][32]byte
-func (p MerkleProof) toSized() [][32]byte {
-	var sized [][32]byte
-	for _, proof := range p {
-		// SAFETY: if the proof is less than 32 bytes, it will be padded with 0s
-		if len(proof) < 32 {
-			proof = append(proof, make([]byte, 32-len(proof))...)
-		}
-		// SAFETY: the proof is 32 or more bytes here, so it will be truncated to 32 bytes
-		sized = append(sized, [32]byte(proof[:32]))
-	}
-	return sized
 }
 
 func NewPreimageOracleContract(addr common.Address, caller *batching.MultiCaller) (*PreimageOracleContract, error) {
@@ -104,9 +87,9 @@ func (c *PreimageOracleContract) Squeeze(
 	uuid *big.Int,
 	stateMatrix *matrix.StateMatrix,
 	preState keccakTypes.Leaf,
-	preStateProof MerkleProof,
+	preStateProof merkle.Proof,
 	postState keccakTypes.Leaf,
-	postStateProof MerkleProof,
+	postStateProof merkle.Proof,
 ) (txmgr.TxCandidate, error) {
 	call := c.contract.Call(
 		methodSqueezeLPP,
@@ -114,9 +97,9 @@ func (c *PreimageOracleContract) Squeeze(
 		uuid,
 		abiEncodeStateMatrix(stateMatrix),
 		toPreimageOracleLeaf(preState),
-		preStateProof.toSized(),
+		preStateProof,
 		toPreimageOracleLeaf(postState),
-		postStateProof.toSized(),
+		postStateProof,
 	)
 	return call.ToTxCandidate()
 }
