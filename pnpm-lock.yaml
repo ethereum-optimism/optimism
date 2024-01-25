@@ -306,8 +306,8 @@ importers:
         specifier: ^2.3.1
         version: 2.3.1(react@18.2.0)(typescript@5.3.3)(viem@2.0.3)
       abitype:
-        specifier: ^0.10.3
-        version: 0.10.3(typescript@5.3.3)
+        specifier: ^1.0.0
+        version: 1.0.0(typescript@5.3.3)
       glob:
         specifier: ^10.3.10
         version: 10.3.10
@@ -403,8 +403,8 @@ importers:
         specifier: ^1.2.1
         version: 1.2.1(vitest@1.0.1)
       abitype:
-        specifier: ^0.10.3
-        version: 0.10.3(typescript@5.3.3)
+        specifier: ^1.0.0
+        version: 1.0.0(typescript@5.3.3)
       isomorphic-fetch:
         specifier: ^3.0.0
         version: 3.0.0
@@ -6855,20 +6855,6 @@ packages:
       typescript: 5.3.3
       zod: 3.22.4
 
-  /abitype@0.10.3(typescript@5.3.3):
-    resolution: {integrity: sha512-tRN+7XIa7J9xugdbRzFv/95ka5ivR/sRe01eiWvM0HWWjHuigSZEACgKa0sj4wGuekTDtghCx+5Izk/cOi78pQ==}
-    peerDependencies:
-      typescript: '>=5.0.4'
-      zod: ^3 >=3.22.0
-    peerDependenciesMeta:
-      typescript:
-        optional: true
-      zod:
-        optional: true
-    dependencies:
-      typescript: 5.3.3
-    dev: true
-
   /abitype@0.9.8(typescript@5.3.3)(zod@3.22.4):
     resolution: {integrity: sha512-puLifILdm+8sjyss4S+fsUN09obiT1g2YW6CtcQF+QDzxR0euzgEB29MZujC6zMk2a6SVmtttq1fc6+YFA7WYQ==}
     peerDependencies:
@@ -6882,6 +6868,20 @@ packages:
     dependencies:
       typescript: 5.3.3
       zod: 3.22.4
+    dev: true
+
+  /abitype@1.0.0(typescript@5.3.3):
+    resolution: {integrity: sha512-NMeMah//6bJ56H5XRj8QCV4AwuW6hB6zqz2LnhhLdcWVQOsXki6/Pn3APeqxCma62nXIcmZWdu1DlHWS74umVQ==}
+    peerDependencies:
+      typescript: '>=5.0.4'
+      zod: ^3 >=3.22.0
+    peerDependenciesMeta:
+      typescript:
+        optional: true
+      zod:
+        optional: true
+    dependencies:
+      typescript: 5.3.3
     dev: true
 
   /abort-controller@3.0.0:
