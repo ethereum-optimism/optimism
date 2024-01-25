@@ -18,14 +18,18 @@ var (
 	IndexOutOfBoundsError = errors.New("index out of bounds")
 	// zeroHashes is a list of empty hashes in the binary merkle tree, indexed by height.
 	zeroHashes [BinaryMerkleTreeDepth]common.Hash
+	// rootHash is the known root hash of the empty binary merkle tree.
+	rootHash common.Hash
 )
 
 func init() {
 	// Initialize the zero hashes. These hashes are pre-computed for the starting state of the tree, where all leaves
 	// are equal to `[32]byte{}`.
 	for height := 0; height < BinaryMerkleTreeDepth-1; height++ {
+		rootHash = crypto.Keccak256Hash(rootHash[:], zeroHashes[height][:])
 		zeroHashes[height+1] = crypto.Keccak256Hash(zeroHashes[height][:], zeroHashes[height][:])
 	}
+	rootHash = crypto.Keccak256Hash(rootHash[:], zeroHashes[BinaryMerkleTreeDepth-1][:])
 }
 
 // Proof is a list of [common.Hash]s that prove the merkle inclusion of a leaf.
@@ -57,19 +61,13 @@ type BinaryMerkleTree struct {
 
 func NewBinaryMerkleTree() *BinaryMerkleTree {
 	return &BinaryMerkleTree{
-		Root:      &merkleNode{Label: common.Hash{}},
+		Root:      &merkleNode{Label: rootHash},
 		LeafCount: 0,
 	}
 }
 
 // RootHash returns the root hash of the binary merkle tree.
 func (m *BinaryMerkleTree) RootHash() (rootHash common.Hash) {
-	if m.Root.Label == (common.Hash{}) {
-		for height := 0; height < BinaryMerkleTreeDepth; height++ {
-			rootHash = crypto.Keccak256Hash(rootHash[:], zeroHashes[height][:])
-		}
-		m.Root.Label = rootHash
-	}
 	return m.Root.Label
 }
 
