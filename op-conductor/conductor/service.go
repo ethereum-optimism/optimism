@@ -133,13 +133,7 @@ func (c *OpConductor) initSequencerControl(ctx context.Context) error {
 	node := sources.NewRollupClient(nc)
 	c.ctrl = client.NewSequencerControl(exec, node)
 
-	active, err := c.ctrl.SequencerActive(ctx)
-	if err != nil {
-		return errors.Wrap(err, "failed to get sequencer active status")
-	}
-	c.seqActive.Store(active)
-
-	return nil
+	return c.updateSequencerActiveStatus()
 }
 
 func (c *OpConductor) initConsensus(ctx context.Context) error {
@@ -358,6 +352,11 @@ func (oc *OpConductor) Pause(ctx context.Context) error {
 
 // Resume resumes the control loop of OpConductor.
 func (oc *OpConductor) Resume(ctx context.Context) error {
+	err := oc.updateSequencerActiveStatus()
+	if err != nil {
+		return errors.Wrap(err, "cannot resume because failed to get sequencer active status")
+	}
+
 	select {
 	case oc.resumeCh <- struct{}{}:
 		<-oc.resumeDoneCh
@@ -610,5 +609,14 @@ func (oc *OpConductor) startSequencer() error {
 	}
 
 	oc.seqActive.Store(true)
+	return nil
+}
+
+func (oc *OpConductor) updateSequencerActiveStatus() error {
+	active, err := oc.ctrl.SequencerActive(oc.shutdownCtx)
+	if err != nil {
+		return errors.Wrap(err, "failed to get sequencer active status")
+	}
+	oc.seqActive.Store(active)
 	return nil
 }

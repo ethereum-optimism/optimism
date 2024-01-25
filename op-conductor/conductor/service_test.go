@@ -175,6 +175,7 @@ func (s *OpConductorTestSuite) TestControlLoop1() {
 	s.healthUpdateCh <- true
 
 	// Resume
+	s.ctrl.EXPECT().SequencerActive(mock.Anything).Return(false, nil)
 	err = s.conductor.Resume(s.ctx)
 	s.NoError(err)
 	s.False(s.conductor.Paused())
@@ -200,6 +201,7 @@ func (s *OpConductorTestSuite) TestControlLoop2() {
 	s.True(s.conductor.Paused())
 
 	// Resume
+	s.ctrl.EXPECT().SequencerActive(mock.Anything).Return(false, nil)
 	err = s.conductor.Resume(s.ctx)
 	s.NoError(err)
 	s.False(s.conductor.Paused())
