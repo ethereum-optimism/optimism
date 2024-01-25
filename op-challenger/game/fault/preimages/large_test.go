@@ -6,9 +6,9 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/matrix"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/merkle"
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -203,9 +203,10 @@ func (s *mockPreimageOracleContract) AddLeaves(_ *big.Int, _ *big.Int, input []b
 	return txmgr.TxCandidate{}, nil
 }
 
-func (s *mockPreimageOracleContract) Squeeze(_ common.Address, _ *big.Int, _ *matrix.StateMatrix, _ keccakTypes.Leaf, _ contracts.MerkleProof, _ keccakTypes.Leaf, _ contracts.MerkleProof) (txmgr.TxCandidate, error) {
+func (s *mockPreimageOracleContract) Squeeze(_ common.Address, _ *big.Int, _ *matrix.StateMatrix, _ keccakTypes.Leaf, _ merkle.Proof, _ keccakTypes.Leaf, _ merkle.Proof) (txmgr.TxCandidate, error) {
 	return txmgr.TxCandidate{}, nil
 }
+
 func (s *mockPreimageOracleContract) GetProposalMetadata(_ context.Context, _ batching.Block, idents ...keccakTypes.LargePreimageIdent) ([]keccakTypes.LargePreimageMetaData, error) {
 	if s.initialized || s.bytesProcessed > 0 {
 		metadata := make([]keccakTypes.LargePreimageMetaData, 0)
