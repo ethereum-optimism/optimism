@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -134,4 +135,8 @@ func (n *nodeAPI) Broadcaster(ctx context.Context) (common.Address, error) {
 
 func (n *nodeAPI) SendDA(ctx context.Context, index, length, gasPrice uint64, broadcaster, user common.Address, commitment, sign, data hexutil.Bytes) (common.Hash, error) {
 	return n.dr.SendDA(ctx, index, length, gasPrice, broadcaster, user, commitment, sign, data)
+}
+
+func (n *nodeAPI) FileDataByHash(ctx context.Context, hash common.Hash) (ethclient.RPCFileData, error) {
+	return n.dr.FileDataByHash(ctx, hash)
 }

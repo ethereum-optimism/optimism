@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/submit"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 	"math/big"
@@ -210,8 +211,12 @@ func (d *DAManager) delUserNonce(hashes []common.Hash) {
 	}
 }
 
+func (d *DAManager) FileDataByHash(ctx context.Context, hash common.Hash) (ethclient.RPCFileData, error) {
+	return d.engine.GetFileDataByHash(ctx, hash)
+}
+
 func verifySignature(index, length, price uint64, broadcaster, user common.Address, commitment, sign []byte) bool {
-	signer := kzg_sdk.NewEIP155FdSigner(big.NewInt(11155111))
+	signer := kzg_sdk.NewEIP155FdSigner(big.NewInt(42069))
 	addr, err := kzg_sdk.FdGetSender(signer, sign, user, broadcaster, price, index, length, commitment)
 	if err != nil {
 		log.Error("verifySignature", "err", err)

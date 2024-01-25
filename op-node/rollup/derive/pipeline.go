@@ -272,3 +272,7 @@ func (dp *DerivationPipeline) SendDA(ctx context.Context, index, length, gasPric
 func (dp *DerivationPipeline) Broadcaster(ctx context.Context) (common.Address, error) {
 	return dp.eng.Broadcaster(ctx)
 }
+
+func (dp *DerivationPipeline) FileDataByHash(ctx context.Context, hash common.Hash) (ethclient.RPCFileData, error) {
+	return dp.eng.FileDataByHash(ctx, hash)
+}

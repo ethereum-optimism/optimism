@@ -4,6 +4,7 @@ package metrics
 import (
 	"context"
 	txmetrics "github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
+	"github.com/ethereum/go-ethereum/core/types"
 	"net"
 	"strconv"
 	"time"
@@ -74,6 +75,14 @@ type Metricer interface {
 	RecordDial(allow bool)
 	RecordAccept(allow bool)
 	ReportProtocolVersions(local, engine, recommended, required params.ProtocolVersion)
+	// txmgr
+	RecordGasBumpCount(int)
+	RecordTxConfirmationLatency(int64)
+	RecordNonce(uint64)
+	RecordPendingTx(pending int64)
+	TxConfirmed(*types.Receipt)
+	TxPublished(string)
+	RPCError()
 }
 
 // Metrics tracks all the metrics for the op-node.
@@ -727,4 +736,19 @@ func (n *noopMetricer) RecordDial(allow bool) {
 func (n *noopMetricer) RecordAccept(allow bool) {
 }
 func (n *noopMetricer) ReportProtocolVersions(local, engine, recommended, required params.ProtocolVersion) {
+}
+
+func (n *noopMetricer) RecordGasBumpCount(i int) {
+}
+func (n *noopMetricer) RecordTxConfirmationLatency(i int64) {
+}
+func (n *noopMetricer) RecordNonce(u uint64) {
+}
+func (n *noopMetricer) RecordPendingTx(pending int64) {
+}
+func (n *noopMetricer) TxConfirmed(receipt *types.Receipt) {
+}
+func (n *noopMetricer) TxPublished(s string) {
+}
+func (n *noopMetricer) RPCError() {
 }

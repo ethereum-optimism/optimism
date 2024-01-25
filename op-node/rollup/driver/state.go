@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"io"
 	gosync "sync"
 	"time"
@@ -523,6 +524,9 @@ func (s *Driver) SendDA(ctx context.Context, index, length, gasPrice uint64, bro
 
 func (s *Driver) Broadcaster(ctx context.Context) (common.Address, error) {
 	return s.derivation.Broadcaster(ctx)
+}
+func (s *Driver) FileDataByHash(ctx context.Context, hash common.Hash) (ethclient.RPCFileData, error) {
+	return s.derivation.FileDataByHash(ctx, hash)
 }
 
 // deferJSONString helps avoid a JSON-encoding performance hit if the snapshot logger does not run

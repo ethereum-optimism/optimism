@@ -64,6 +64,7 @@ type EngineDAState interface {
 type EngineDA interface {
 	SendDA(ctx context.Context, index, length, gasPrice uint64, broadcaster, user common.Address, commitment, sign, data []byte) (common.Hash, error)
 	Broadcaster(ctx context.Context) (common.Address, error)
+	FileDataByHash(ctx context.Context, hash common.Hash) (ethclient.RPCFileData, error)
 }
 
 // EngineControl enables other components to build blocks with the Engine,
@@ -934,4 +935,8 @@ func (eq *EngineQueue) ChangeCurrentState(ctx context.Context, state uint64, blo
 
 func (eq *EngineQueue) BatchFileDataByHashes(ctx context.Context, hashes rpc.TxHashes) (*rpc.Result, error) {
 	return eq.engine.BatchFileDataByHashes(ctx, hashes)
+}
+
+func (eq *EngineQueue) FileDataByHash(ctx context.Context, hash common.Hash) (ethclient.RPCFileData, error) {
+	return eq.daMgr.FileDataByHash(ctx, hash)
 }
