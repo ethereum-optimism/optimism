@@ -112,6 +112,34 @@ func TestAbsorbUpTo_ReferenceCommitments(t *testing.T) {
 	}
 }
 
+func TestAbsorbUpTo_ReferenceCommitments_SameCallEOF(t *testing.T) {
+	var tests []testData
+	require.NoError(t, json.Unmarshal(refTests, &tests))
+
+	for i, test := range tests {
+		test := test
+		t.Run(fmt.Sprintf("Ref-%v", i), func(t *testing.T) {
+			s := NewStateMatrix()
+			commitments := []common.Hash{s.StateCommitment()}
+			in := newSameCallEOFReader(test.Input)
+			for {
+				input, err := s.AbsorbUpTo(in, types.BlockSize*3)
+				if errors.Is(err, io.EOF) {
+					commitments = append(commitments, input.Commitments...)
+					break
+				}
+				// Shouldn't get any error except EOF
+				require.NoError(t, err)
+				commitments = append(commitments, input.Commitments...)
+			}
+			actual := s.Hash()
+			expected := crypto.Keccak256Hash(test.Input)
+			require.Equal(t, expected, actual)
+			require.Equal(t, test.Commitments, commitments)
+		})
+	}
+}
+
 func TestAbsorbUpTo_LimitsDataRead(t *testing.T) {
 	s := NewStateMatrix()
 	data := testutils.RandomData(rand.New(rand.NewSource(2424)), types.BlockSize*6+20)
@@ -191,6 +219,36 @@ func TestMatrix_AbsorbNextLeaf(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, leaf, buf)
 			}
+		})
+	}
+}
+
+func TestVerifyPreimage_ReferenceCommitments(t *testing.T) {
+	var tests []testData
+	require.NoError(t, json.Unmarshal(refTests, &tests))
+
+	for i, test := range tests {
+		test := test
+		t.Run(fmt.Sprintf("Ref-%v", i), func(t *testing.T) {
+			// Exclude the empty state commitment
+			challenge, err := Challenge(bytes.NewReader(test.Input), test.Commitments[1:])
+			require.ErrorIs(t, err, ErrValid)
+			require.Equal(t, types.Challenge{}, challenge)
+		})
+	}
+}
+
+func TestVerifyPreimage_ReferenceCommitments_SameCallEOF(t *testing.T) {
+	var tests []testData
+	require.NoError(t, json.Unmarshal(refTests, &tests))
+
+	for i, test := range tests {
+		test := test
+		t.Run(fmt.Sprintf("Ref-%v", i), func(t *testing.T) {
+			// Exclude the empty state commitment
+			challenge, err := Challenge(newSameCallEOFReader(test.Input), test.Commitments[1:])
+			require.ErrorIs(t, err, ErrValid)
+			require.Equal(t, types.Challenge{}, challenge)
 		})
 	}
 }
