@@ -42,7 +42,7 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
     {
         setUpInlined();
 
-        // We're assuming a symbolic `_data` parameter of length 320
+        // ASSUME: conservative upper bound on the `_data` length
         bytes memory _data = freshBigBytes(320);
         bytes[] memory _withdrawalProof = freshWithdrawalProof();
 
@@ -74,7 +74,7 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
     {
         setUpInlined();
 
-        // We're assuming a symbolic `_data` parameter of length 320
+        // ASSUME: conservative upper bound on the `_data` length
         bytes memory _data = freshBigBytes(320);
 
         // Pause Optimism Portal

@@ -41,7 +41,7 @@ contract L1ERC721BridgeKontrol is DeploymentSummary, KontrolUtils {
             bytes32(uint256(uint160(address(l1ERC721Bridge.otherBridge()))))
         );
 
-        // We're assuming a symbolic `_extraData` parameter of length 320
+        // ASSUME: conservative upper bound on the `_extraData` length
         bytes memory _extraData = freshBigBytes(320);
 
         // Pause Standard Bridge

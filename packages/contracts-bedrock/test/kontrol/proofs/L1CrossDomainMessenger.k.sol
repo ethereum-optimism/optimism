@@ -33,7 +33,7 @@ contract L1CrossDomainMessengerKontrol is DeploymentSummary, KontrolUtils {
     {
         setUpInlined();
 
-        // We're assuming a symbolic `_message` parameter of length 600
+        // ASSUME: conservative upper bound on the `_message` length
         bytes memory _message = freshBigBytes(600);
 
         // Pause System
