@@ -231,9 +231,9 @@ func TestVerifyPreimage_ReferenceCommitments(t *testing.T) {
 		test := test
 		t.Run(fmt.Sprintf("Ref-%v", i), func(t *testing.T) {
 			// Exclude the empty state commitment
-			challenge, err := VerifyPreimage(bytes.NewReader(test.Input), test.Commitments[1:])
-			require.NoError(t, err)
-			require.Nil(t, challenge)
+			challenge, err := Challenge(bytes.NewReader(test.Input), test.Commitments[1:])
+			require.ErrorIs(t, err, ErrValid)
+			require.Equal(t, types.Challenge{}, challenge)
 		})
 	}
 }
@@ -246,9 +246,9 @@ func TestVerifyPreimage_ReferenceCommitments_SameCallEOF(t *testing.T) {
 		test := test
 		t.Run(fmt.Sprintf("Ref-%v", i), func(t *testing.T) {
 			// Exclude the empty state commitment
-			challenge, err := VerifyPreimage(newSameCallEOFReader(test.Input), test.Commitments[1:])
-			require.NoError(t, err)
-			require.Nil(t, challenge)
+			challenge, err := Challenge(newSameCallEOFReader(test.Input), test.Commitments[1:])
+			require.ErrorIs(t, err, ErrValid)
+			require.Equal(t, types.Challenge{}, challenge)
 		})
 	}
 }
