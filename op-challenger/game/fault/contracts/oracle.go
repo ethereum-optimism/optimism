@@ -28,6 +28,8 @@ const (
 	methodProposalMetadata          = "proposalMetadata"
 	methodProposalBlocksLen         = "proposalBlocksLen"
 	methodProposalBlocks            = "proposalBlocks"
+	methodChallengeFirstLPP         = "challengeFirstLPP"
+	methodChallengeLPP              = "challengeLPP"
 )
 
 var (
@@ -124,7 +126,10 @@ func (c *PreimageOracleContract) Squeeze(
 
 // abiEncodeStateMatrix encodes the state matrix for the contract ABI
 func abiEncodeStateMatrix(stateMatrix *matrix.StateMatrix) bindings.LibKeccakStateMatrix {
-	packedState := stateMatrix.PackState()
+	return abiEncodePackedState(stateMatrix.PackState())
+}
+
+func abiEncodePackedState(packedState []byte) bindings.LibKeccakStateMatrix {
 	stateSlice := new([25]uint64)
 	// SAFETY: a maximum of 25 * 8 bytes will be read from packedState and written to stateSlice
 	for i := 0; i < min(len(packedState), 25*8); i += 8 {
@@ -220,6 +225,29 @@ func (c *PreimageOracleContract) DecodeInputData(data []byte) (*big.Int, keccakT
 		Commitments: commitments,
 		Finalize:    finalize,
 	}, nil
+}
+
+func (c *PreimageOracleContract) ChallengeTx(ident keccakTypes.LargePreimageIdent, challenge keccakTypes.Challenge) (txmgr.TxCandidate, error) {
+	var call *batching.ContractCall
+	if challenge.Prestate == (keccakTypes.Leaf{}) {
+		call = c.contract.Call(
+			methodChallengeFirstLPP,
+			ident.Claimant,
+			ident.UUID,
+			toPreimageOracleLeaf(challenge.Poststate),
+			[]common.Hash{})
+	} else {
+		call = c.contract.Call(
+			methodChallengeLPP,
+			ident.Claimant,
+			ident.UUID,
+			abiEncodePackedState(challenge.StateMatrix),
+			toPreimageOracleLeaf(challenge.Prestate),
+			[]common.Hash{},
+			toPreimageOracleLeaf(challenge.Poststate),
+			[]common.Hash{})
+	}
+	return call.ToTxCandidate()
 }
 
 func (c *PreimageOracleContract) decodePreimageIdent(result *batching.CallResult) keccakTypes.LargePreimageIdent {
