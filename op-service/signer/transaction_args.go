@@ -15,7 +15,7 @@ import (
 
 // TransactionArgs represents the arguments to construct a new transaction
 // or a message call.
-// Geth has an internal version of this, but this internal version does not support blob transactions, nor is exported.
+// Geth has an internal version of this, but this is not exported, and only supported in v1.13.11 and forward.
 // This signing API format is based on the legacy personal-account signing RPC of ethereum.
 type TransactionArgs struct {
 	From                 *common.Address `json:"from"`
@@ -38,7 +38,7 @@ type TransactionArgs struct {
 
 	// Custom extension for EIP-4844 support
 	BlobVersionedHashes []common.Hash `json:"blobVersionedHashes,omitempty"`
-	BlobFeeCap          *hexutil.Big  `json:"blobFeeCap,omitempty"`
+	BlobFeeCap          *hexutil.Big  `json:"maxFeePerBlobGas,omitempty"`
 }
 
 // NewTransactionArgsFromTransaction creates a TransactionArgs struct from an EIP-1559 or EIP-4844 transaction
