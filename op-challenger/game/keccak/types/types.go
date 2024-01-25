@@ -68,6 +68,17 @@ func (m LargePreimageMetaData) ShouldVerify() bool {
 	return m.Timestamp > 0 && !m.Countered
 }
 
+type Challenge struct {
+	// StateMatrix is the packed state matrix preimage of the StateCommitment in Prestate
+	StateMatrix []byte // TODO(client-pod#480): Need a better representation of this
+
+	// Prestate is the valid leaf immediately prior to the first invalid leaf
+	Prestate Leaf
+
+	// Poststate is the first invalid leaf in the preimage. The challenge claims that this leaf is invalid.
+	Poststate Leaf
+}
+
 type LargePreimageOracle interface {
 	Addr() common.Address
 	GetActivePreimages(ctx context.Context, blockHash common.Hash) ([]LargePreimageMetaData, error)

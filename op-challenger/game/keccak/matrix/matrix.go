@@ -2,6 +2,7 @@ package matrix
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"math/big"
 
@@ -17,9 +18,61 @@ type StateMatrix struct {
 }
 
 var (
-	ErrInvalidMaxLen = errors.New("invalid max length to absorb")
-	uint256Size      = 32
+	ErrInvalidMaxLen            = errors.New("invalid max length to absorb")
+	ErrIncorrectCommitmentCount = errors.New("incorrect number of commitments for input length")
+	ErrValid                    = errors.New("state commitments are valid")
+	uint256Size                 = 32
 )
+
+// Challenge creates a [types.Challenge] to invalidate the provided preimage data if possible.
+// [ErrValid] is returned if the provided inputs are valid and no challenge can be created.
+func Challenge(data io.Reader, commitments []common.Hash) (types.Challenge, error) {
+	s := NewStateMatrix()
+	m := s.PackState()
+	var prestate types.Leaf
+	for i := 0; ; i++ {
+		unpaddedLeaf, err := s.absorbNextLeafInput(data)
+		isEOF := errors.Is(err, io.EOF)
+		if err != nil && !isEOF {
+			return types.Challenge{}, fmt.Errorf("failed to verify inputs: %w", err)
+		}
+		validCommitment := s.StateCommitment()
+		if i >= len(commitments) {
+			// There should have been more commitments.
+			// The contracts should prevent this so it can't be challenged, return an error
+			return types.Challenge{}, ErrIncorrectCommitmentCount
+		}
+		claimedCommitment := commitments[i]
+
+		var paddedLeaf [types.BlockSize]byte
+		copy(paddedLeaf[:], unpaddedLeaf)
+		// TODO(client-pod#480): Add actual keccak padding to ensure the merkle proofs are correct
+		poststate := types.Leaf{
+			Input:           paddedLeaf,
+			Index:           big.NewInt(int64(i)),
+			StateCommitment: claimedCommitment,
+		}
+
+		if validCommitment != claimedCommitment {
+			return types.Challenge{
+				StateMatrix: m,
+				Prestate:    prestate,
+				Poststate:   poststate,
+			}, nil
+		}
+		if isEOF {
+			if i < len(commitments)-1 {
+				// We got too many commitments
+				// The contracts should prevent this so it can't be challenged, return an error
+				return types.Challenge{}, ErrIncorrectCommitmentCount
+			}
+			break
+		}
+		prestate = poststate
+		m = s.PackState()
+	}
+	return types.Challenge{}, ErrValid
+}
 
 // NewStateMatrix creates a new state matrix initialized with the initial, zero keccak block.
 func NewStateMatrix() *StateMatrix {
