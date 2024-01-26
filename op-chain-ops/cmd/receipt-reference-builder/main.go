@@ -26,13 +26,13 @@ var (
 	FirstFlag = &cli.Uint64Flag{
 		Name:    "first",
 		Value:   0,
-		Usage:   "the first block to include in data collection",
+		Usage:   "the first block to include in data collection. INCLUSIVE",
 		EnvVars: opservice.PrefixEnvVar(EnvPrefix, "FIRST"),
 	}
 	LastFlag = &cli.Uint64Flag{
 		Name:    "last",
 		Value:   0,
-		Usage:   "the last block to include in data collection",
+		Usage:   "the last block to include in data collection. INCLUSIVE",
 		EnvVars: opservice.PrefixEnvVar(EnvPrefix, "LAST"),
 	}
 	RPCURLFlag = &cli.StringFlag{
@@ -132,8 +132,7 @@ func run(ctx *cli.Context) error {
 	return nil
 }
 
-// startAggregator will aggregate the results of the workers and print them to stdout
-// it will
+// startAggregator will aggregate the results of the workers and return the aggregation once done
 func startAggregator(results chan result, errors chan error, done chan struct{}, log log.Logger) []result {
 	aggregateResults := []result{}
 	for {
