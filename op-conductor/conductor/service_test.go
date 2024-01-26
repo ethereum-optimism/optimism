@@ -17,6 +17,7 @@ import (
 
 	clientmocks "github.com/ethereum-optimism/optimism/op-conductor/client/mocks"
 	consensusmocks "github.com/ethereum-optimism/optimism/op-conductor/consensus/mocks"
+	"github.com/ethereum-optimism/optimism/op-conductor/health"
 	healthmocks "github.com/ethereum-optimism/optimism/op-conductor/health/mocks"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -80,7 +81,7 @@ type OpConductorTestSuite struct {
 
 	conductor *OpConductor
 
-	healthUpdateCh chan bool
+	healthUpdateCh chan error
 	leaderUpdateCh chan bool
 
 	ctx     context.Context
@@ -114,7 +115,7 @@ func (s *OpConductorTestSuite) SetupTest() {
 	s.NoError(err)
 	s.conductor = conductor
 
-	s.healthUpdateCh = make(chan bool)
+	s.healthUpdateCh = make(chan error)
 	s.hmon.EXPECT().Start().Return(nil)
 	s.conductor.healthUpdateCh = s.healthUpdateCh
 
@@ -153,7 +154,14 @@ func (s *OpConductorTestSuite) execute(fn func()) {
 	s.wg.Wait()
 }
 
-func (s *OpConductorTestSuite) updateStatusAndExecuteAction(ch chan bool, status bool) {
+func (s *OpConductorTestSuite) updateLeaderStatusAndExecuteAction(ch chan bool, status bool) {
+	fn := func() {
+		ch <- status
+	}
+	s.execute(fn)
+}
+
+func (s *OpConductorTestSuite) updateHealthStatusAndExecuteAction(ch chan error, status error) {
 	fn := func() {
 		ch <- status
 	}
@@ -172,7 +180,7 @@ func (s *OpConductorTestSuite) TestControlLoop1() {
 	s.True(s.conductor.Paused())
 
 	// Send health update, make sure it can still be consumed.
-	s.healthUpdateCh <- true
+	s.healthUpdateCh <- nil
 
 	// Resume
 	s.ctrl.EXPECT().SequencerActive(mock.Anything).Return(false, nil)
@@ -247,7 +255,7 @@ func (s *OpConductorTestSuite) TestScenario1() {
 	s.cons.EXPECT().TransferLeader().Return(nil)
 
 	// become leader
-	s.updateStatusAndExecuteAction(s.leaderUpdateCh, true)
+	s.updateLeaderStatusAndExecuteAction(s.leaderUpdateCh, true)
 
 	// expect to transfer leadership, go back to [follower, not healthy, not sequencing]
 	s.False(s.conductor.leader.Load())
@@ -267,7 +275,7 @@ func (s *OpConductorTestSuite) TestScenario2() {
 	s.conductor.seqActive.Store(false)
 
 	// become healthy
-	s.updateStatusAndExecuteAction(s.healthUpdateCh, true)
+	s.updateHealthStatusAndExecuteAction(s.healthUpdateCh, nil)
 
 	// expect to stay as follower, go to [follower, healthy, not sequencing]
 	s.False(s.conductor.leader.Load())
@@ -302,7 +310,7 @@ func (s *OpConductorTestSuite) TestScenario3() {
 	s.False(s.conductor.seqActive.Load())
 
 	// become leader
-	s.updateStatusAndExecuteAction(s.leaderUpdateCh, true)
+	s.updateLeaderStatusAndExecuteAction(s.leaderUpdateCh, true)
 
 	// [leader, healthy, sequencing]
 	s.True(s.conductor.leader.Load())
@@ -335,7 +343,7 @@ func (s *OpConductorTestSuite) TestScenario4() {
 	s.ctrl.EXPECT().LatestUnsafeBlock(mock.Anything).Return(mockBlockInfo, nil).Times(1)
 	s.ctrl.EXPECT().PostUnsafePayload(mock.Anything, mock.Anything).Return(nil).Times(1)
 
-	s.updateStatusAndExecuteAction(s.leaderUpdateCh, true)
+	s.updateLeaderStatusAndExecuteAction(s.leaderUpdateCh, true)
 
 	// [leader, healthy, not sequencing]
 	s.True(s.conductor.leader.Load())
@@ -376,7 +384,7 @@ func (s *OpConductorTestSuite) TestScenario5() {
 	s.conductor.seqActive.Store(false)
 
 	// become unhealthy
-	s.updateStatusAndExecuteAction(s.healthUpdateCh, false)
+	s.updateHealthStatusAndExecuteAction(s.healthUpdateCh, health.ErrSequencerNotHealthy)
 
 	// expect to stay as follower, go to [follower, not healthy, not sequencing]
 	s.False(s.conductor.leader.Load())
@@ -397,7 +405,7 @@ func (s *OpConductorTestSuite) TestScenario6() {
 	s.ctrl.EXPECT().StopSequencer(mock.Anything).Return(common.Hash{}, nil).Times(1)
 
 	// step down as leader
-	s.updateStatusAndExecuteAction(s.leaderUpdateCh, false)
+	s.updateLeaderStatusAndExecuteAction(s.leaderUpdateCh, false)
 
 	// expect to stay as follower, go to [follower, healthy, not sequencing]
 	s.False(s.conductor.leader.Load())
@@ -421,7 +429,7 @@ func (s *OpConductorTestSuite) TestScenario7() {
 	s.ctrl.EXPECT().StopSequencer(mock.Anything).Return(common.Hash{}, nil).Times(1)
 
 	// become unhealthy
-	s.updateStatusAndExecuteAction(s.healthUpdateCh, false)
+	s.updateHealthStatusAndExecuteAction(s.healthUpdateCh, health.ErrSequencerNotHealthy)
 
 	// expect to step down as leader and stop sequencing
 	s.False(s.conductor.leader.Load())
@@ -451,7 +459,7 @@ func (s *OpConductorTestSuite) TestFailureAndRetry1() {
 	s.cons.EXPECT().TransferLeader().Return(err).Times(1)
 	s.ctrl.EXPECT().StopSequencer(mock.Anything).Return(common.Hash{}, err).Times(1)
 
-	s.updateStatusAndExecuteAction(s.healthUpdateCh, false)
+	s.updateHealthStatusAndExecuteAction(s.healthUpdateCh, health.ErrSequencerNotHealthy)
 
 	s.True(s.conductor.leader.Load())
 	s.False(s.conductor.healthy.Load())
@@ -503,7 +511,7 @@ func (s *OpConductorTestSuite) TestFailureAndRetry2() {
 	s.cons.EXPECT().TransferLeader().Return(nil).Times(1)
 	s.ctrl.EXPECT().StopSequencer(mock.Anything).Return(common.Hash{}, err).Times(1)
 
-	s.updateStatusAndExecuteAction(s.healthUpdateCh, false)
+	s.updateHealthStatusAndExecuteAction(s.healthUpdateCh, health.ErrSequencerNotHealthy)
 
 	s.False(s.conductor.leader.Load())
 	s.False(s.conductor.healthy.Load())
