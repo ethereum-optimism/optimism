@@ -123,16 +123,17 @@ func cmpVersion(v1, v2 string) bool {
 	return v1 == v2
 }
 
-// ToSuperchainName turns a base layer chain id into a superchain network name.
-func ToSuperchainName(chainID uint64) (string, error) {
-	if chainID == 1 {
-		return "mainnet", nil
+// SuperChainID returns the chain ID for the supplied superchain name, or an error
+// if no such superchain is known.
+func SuperChainID(superchain string) (uint64, error) {
+	switch superchain {
+	case "mainnet":
+		return 1, nil
+	case "goerli":
+	case "goerli-dev-0":
+		return 5, nil
+	case "sepolia":
+		return 11155111, nil
 	}
-	if chainID == 5 {
-		return "goerli", nil
-	}
-	if chainID == 11155111 {
-		return "sepolia", nil
-	}
-	return "", fmt.Errorf("unsupported chain ID %d", chainID)
+	return 0, fmt.Errorf("unkown superchain %s", superchain)
 }
