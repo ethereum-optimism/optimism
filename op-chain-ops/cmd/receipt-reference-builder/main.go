@@ -190,7 +190,7 @@ func processBlock(ctx context.Context, c *ethclient.Client, blockNumber uint64, 
 	txCount := 0
 	matches := 0
 	for _, tx := range block.Transactions() {
-		ok, err := checkTransaction(ctx, c, tx, log)
+		ok, err := checkTransaction(ctx, c, *tx, log)
 		if err != nil {
 			log.Error("failed to check tx", "err", err)
 			return nonces{}, err
