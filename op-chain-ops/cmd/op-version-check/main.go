@@ -106,8 +106,11 @@ func entrypoint(ctx *cli.Context) error {
 			}
 
 			declaredL1ChainID, err := upgrades.SuperChainID((chainConfig.Superchain))
+			if err != nil {
+				return err
+			}
 
-			if l1ChainID.Uint64() != declaredL1ChainID || err != nil {
+			if l1ChainID.Uint64() != declaredL1ChainID {
 				// L2 corresponds to a different superchain than L1, skip
 				log.Info("Ignoring L1/L2", "l1-chain-id", l1ChainID, "l2-chain-id", l2ChainID)
 				continue
