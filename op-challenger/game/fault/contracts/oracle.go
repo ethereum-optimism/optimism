@@ -29,6 +29,7 @@ const (
 	methodProposalBlocksLen         = "proposalBlocksLen"
 	methodProposalBlocks            = "proposalBlocks"
 	methodPreimagePartOk            = "preimagePartOk"
+	methodMinProposalSize           = "minProposalSize"
 )
 
 var (
@@ -132,6 +133,15 @@ func abiEncodeStateMatrix(stateMatrix *matrix.StateMatrix) bindings.LibKeccakSta
 		stateSlice[i/8] = new(big.Int).SetBytes(packedState[i : i+8]).Uint64()
 	}
 	return bindings.LibKeccakStateMatrix{State: *stateSlice}
+}
+
+// MinLargePreimageSize returns the minimum size of a large preimage.
+func (c *PreimageOracleContract) MinLargePreimageSize(ctx context.Context) (uint64, error) {
+	result, err := c.multiCaller.SingleCall(ctx, batching.BlockLatest, c.contract.Call(methodMinProposalSize))
+	if err != nil {
+		return 0, fmt.Errorf("failed to fetch min lpp size bytes: %w", err)
+	}
+	return result.GetBigInt(0).Uint64(), nil
 }
 
 func (c *PreimageOracleContract) GetActivePreimages(ctx context.Context, blockHash common.Hash) ([]keccakTypes.LargePreimageMetaData, error) {
