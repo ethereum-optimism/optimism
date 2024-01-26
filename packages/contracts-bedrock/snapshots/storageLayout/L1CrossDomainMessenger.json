@@ -112,11 +112,18 @@
     "type": "mapping(bytes32 => bool)"
   },
   {
-    "bytes": "1408",
-    "label": "__gap",
+    "bytes": "20",
+    "label": "otherMessenger",
     "offset": 0,
     "slot": "207",
-    "type": "uint256[44]"
+    "type": "contract CrossDomainMessenger"
+  },
+  {
+    "bytes": "1376",
+    "label": "__gap",
+    "offset": 0,
+    "slot": "208",
+    "type": "uint256[43]"
   },
   {
     "bytes": "20",
@@ -124,5 +131,12 @@
     "offset": 0,
     "slot": "251",
     "type": "contract SuperchainConfig"
+  },
+  {
+    "bytes": "20",
+    "label": "portal",
+    "offset": 0,
+    "slot": "252",
+    "type": "contract OptimismPortal"
   }
 ]

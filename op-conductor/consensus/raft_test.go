@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -36,31 +37,39 @@ func TestCommitAndRead(t *testing.T) {
 	<-cons.LeaderCh()
 
 	// eth.BlockV1
-	payload := &eth.ExecutionPayload{
-		BlockNumber:  1,
-		Timestamp:    hexutil.Uint64(now - 20),
-		Transactions: []eth.Data{},
-		ExtraData:    []byte{},
+	payload := &eth.ExecutionPayloadEnvelope{
+		ExecutionPayload: &eth.ExecutionPayload{
+			BlockNumber:  1,
+			Timestamp:    hexutil.Uint64(now - 20),
+			Transactions: []eth.Data{},
+			ExtraData:    []byte{},
+		},
 	}
 
 	err = cons.CommitUnsafePayload(payload)
+	// ExecutionPayloadEnvelope is expected to fail when unmarshalling a blockV1
+	require.Error(t, err)
+
+	// eth.BlockV3
+	one := hexutil.Uint64(1)
+	hash := common.HexToHash("0x12345")
+	payload = &eth.ExecutionPayloadEnvelope{
+		ParentBeaconBlockRoot: &hash,
+		ExecutionPayload: &eth.ExecutionPayload{
+			BlockNumber:   2,
+			Timestamp:     hexutil.Uint64(time.Now().Unix()),
+			Transactions:  []eth.Data{},
+			ExtraData:     []byte{},
+			Withdrawals:   &types.Withdrawals{},
+			ExcessBlobGas: &one,
+			BlobGasUsed:   &one,
+		},
+	}
+
+	err = cons.CommitUnsafePayload(payload)
+	// ExecutionPayloadEnvelope is expected to succeed when unmarshalling a blockV3
 	require.NoError(t, err)
 
 	unsafeHead := cons.LatestUnsafePayload()
-	require.Equal(t, payload, unsafeHead)
-
-	// eth.BlockV2
-	payload = &eth.ExecutionPayload{
-		BlockNumber:  2,
-		Timestamp:    hexutil.Uint64(time.Now().Unix()),
-		Transactions: []eth.Data{},
-		ExtraData:    []byte{},
-		Withdrawals:  &types.Withdrawals{},
-	}
-
-	err = cons.CommitUnsafePayload(payload)
-	require.NoError(t, err)
-
-	unsafeHead = cons.LatestUnsafePayload()
 	require.Equal(t, payload, unsafeHead)
 }

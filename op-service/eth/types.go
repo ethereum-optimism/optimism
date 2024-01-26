@@ -2,7 +2,10 @@ package eth
 
 import (
 	"bytes"
+	"encoding/binary"
+	"errors"
 	"fmt"
+	"math"
 	"math/big"
 	"reflect"
 	"strconv"
@@ -22,6 +25,8 @@ const (
 	InvalidForkchoiceState   ErrorCode = -38002 // Forkchoice state is invalid / inconsistent.
 	InvalidPayloadAttributes ErrorCode = -38003 // Payload attributes are invalid / inconsistent.
 )
+
+var ErrBedrockScalarPaddingNotEmpty = errors.New("version 0 scalar value has non-empty padding")
 
 // InputError distinguishes an user-input error from regular rpc errors,
 // to help the (Engine) API user divert from accidental input mistakes.
@@ -67,6 +72,30 @@ func (b Bytes32) String() string {
 // output during logging.
 func (b Bytes32) TerminalString() string {
 	return fmt.Sprintf("%x..%x", b[:3], b[29:])
+}
+
+type Bytes96 [96]byte
+
+func (b *Bytes96) UnmarshalJSON(text []byte) error {
+	return hexutil.UnmarshalFixedJSON(reflect.TypeOf(b), text, b[:])
+}
+
+func (b *Bytes96) UnmarshalText(text []byte) error {
+	return hexutil.UnmarshalFixedText("Bytes96", text, b[:])
+}
+
+func (b Bytes96) MarshalText() ([]byte, error) {
+	return hexutil.Bytes(b[:]).MarshalText()
+}
+
+func (b Bytes96) String() string {
+	return hexutil.Encode(b[:])
+}
+
+// TerminalString implements log.TerminalStringer, formatting a string for console
+// output during logging.
+func (b Bytes96) TerminalString() string {
+	return fmt.Sprintf("%x..%x", b[:3], b[93:])
 }
 
 type Bytes256 [256]byte
@@ -126,7 +155,8 @@ type Data = hexutil.Bytes
 type PayloadID = engine.PayloadID
 
 type ExecutionPayloadEnvelope struct {
-	ExecutionPayload *ExecutionPayload `json:"executionPayload"`
+	ParentBeaconBlockRoot *common.Hash      `json:"parentBeaconBlockRoot,omitempty"`
+	ExecutionPayload      *ExecutionPayload `json:"executionPayload"`
 }
 
 type ExecutionPayload struct {
@@ -143,11 +173,15 @@ type ExecutionPayload struct {
 	ExtraData     BytesMax32      `json:"extraData"`
 	BaseFeePerGas Uint256Quantity `json:"baseFeePerGas"`
 	BlockHash     common.Hash     `json:"blockHash"`
-	// nil if not present, pre-shanghai
-	Withdrawals *types.Withdrawals `json:"withdrawals,omitempty"`
 	// Array of transaction objects, each object is a byte list (DATA) representing
 	// TransactionType || TransactionPayload or LegacyTransaction as defined in EIP-2718
 	Transactions []Data `json:"transactions"`
+	// Nil if not present (Bedrock)
+	Withdrawals *types.Withdrawals `json:"withdrawals,omitempty"`
+	// Nil if not present (Bedrock, Canyon, Delta)
+	BlobGasUsed *Uint64Quantity `json:"blobGasUsed,omitempty"`
+	// Nil if not present (Bedrock, Canyon, Delta)
+	ExcessBlobGas *Uint64Quantity `json:"excessBlobGas,omitempty"`
 }
 
 func (payload *ExecutionPayload) ID() BlockID {
@@ -174,27 +208,30 @@ func (payload *ExecutionPayload) CanyonBlock() bool {
 }
 
 // CheckBlockHash recomputes the block hash and returns if the embedded block hash matches.
-func (payload *ExecutionPayload) CheckBlockHash() (actual common.Hash, ok bool) {
+func (envelope *ExecutionPayloadEnvelope) CheckBlockHash() (actual common.Hash, ok bool) {
+	payload := envelope.ExecutionPayload
+
 	hasher := trie.NewStackTrie(nil)
 	txHash := types.DeriveSha(rawTransactions(payload.Transactions), hasher)
 
 	header := types.Header{
-		ParentHash:  payload.ParentHash,
-		UncleHash:   types.EmptyUncleHash,
-		Coinbase:    payload.FeeRecipient,
-		Root:        common.Hash(payload.StateRoot),
-		TxHash:      txHash,
-		ReceiptHash: common.Hash(payload.ReceiptsRoot),
-		Bloom:       types.Bloom(payload.LogsBloom),
-		Difficulty:  common.Big0, // zeroed, proof-of-work legacy
-		Number:      big.NewInt(int64(payload.BlockNumber)),
-		GasLimit:    uint64(payload.GasLimit),
-		GasUsed:     uint64(payload.GasUsed),
-		Time:        uint64(payload.Timestamp),
-		Extra:       payload.ExtraData,
-		MixDigest:   common.Hash(payload.PrevRandao),
-		Nonce:       types.BlockNonce{}, // zeroed, proof-of-work legacy
-		BaseFee:     payload.BaseFeePerGas.ToBig(),
+		ParentHash:       payload.ParentHash,
+		UncleHash:        types.EmptyUncleHash,
+		Coinbase:         payload.FeeRecipient,
+		Root:             common.Hash(payload.StateRoot),
+		TxHash:           txHash,
+		ReceiptHash:      common.Hash(payload.ReceiptsRoot),
+		Bloom:            types.Bloom(payload.LogsBloom),
+		Difficulty:       common.Big0, // zeroed, proof-of-work legacy
+		Number:           big.NewInt(int64(payload.BlockNumber)),
+		GasLimit:         uint64(payload.GasLimit),
+		GasUsed:          uint64(payload.GasUsed),
+		Time:             uint64(payload.Timestamp),
+		Extra:            payload.ExtraData,
+		MixDigest:        common.Hash(payload.PrevRandao),
+		Nonce:            types.BlockNonce{}, // zeroed, proof-of-work legacy
+		BaseFee:          payload.BaseFeePerGas.ToBig(),
+		ParentBeaconRoot: envelope.ParentBeaconBlockRoot,
 	}
 
 	if payload.CanyonBlock() {
@@ -235,6 +272,8 @@ func BlockAsPayload(bl *types.Block, canyonForkTime *uint64) (*ExecutionPayload,
 		BaseFeePerGas: *baseFee,
 		BlockHash:     bl.Hash(),
 		Transactions:  opaqueTxs,
+		ExcessBlobGas: (*Uint64Quantity)(bl.ExcessBlobGas()),
+		BlobGasUsed:   (*Uint64Quantity)(bl.BlobGasUsed()),
 	}
 
 	if canyonForkTime != nil && uint64(payload.Timestamp) >= *canyonForkTime {
@@ -259,6 +298,8 @@ type PayloadAttributes struct {
 	NoTxPool bool `json:"noTxPool,omitempty"`
 	// GasLimit override
 	GasLimit *Uint64Quantity `json:"gasLimit,omitempty"`
+	// parentBeaconBlockRoot optional extension in Dencun
+	ParentBeaconBlockRoot *common.Hash `json:"parentBeaconBlockRoot,omitempty"`
 }
 
 type ExecutePayloadStatus string
@@ -310,17 +351,67 @@ type ForkchoiceUpdatedResult struct {
 type SystemConfig struct {
 	// BatcherAddr identifies the batch-sender address used in batch-inbox data-transaction filtering.
 	BatcherAddr common.Address `json:"batcherAddr"`
-	// Overhead identifies the L1 fee overhead, and is passed through opaquely to op-geth.
+	// Overhead identifies the L1 fee overhead.
+	// Pre-Ecotone this is passed as-is to the engine.
+	// Post-Ecotone this is always zero, and not passed into the engine.
 	Overhead Bytes32 `json:"overhead"`
-	// Scalar identifies the L1 fee scalar, and is passed through opaquely to op-geth.
+	// Scalar identifies the L1 fee scalar
+	// Pre-Ecotone this is passed as-is to the engine.
+	// Post-Ecotone this encodes multiple pieces of scalar data.
 	Scalar Bytes32 `json:"scalar"`
 	// GasLimit identifies the L2 block gas limit
 	GasLimit uint64 `json:"gasLimit"`
-	// BasefeeScalar scales the L1 calldata fee after the Ecotone upgrade
-	BasefeeScalar uint32 `json:"basefeeScalar"`
-	// BlobBasefeeScalar scales the L1 blob fee after the Ecotone upgrade
-	BlobBasefeeScalar uint32 `json:"blobBasefeeScalar"`
 	// More fields can be added for future SystemConfig versions.
+}
+
+// The Ecotone upgrade introduces a versioned L1 scalar format
+// that is backward-compatible with pre-Ecotone L1 scalar values.
+const (
+	// L1ScalarBedrock is implied pre-Ecotone, encoding just a regular-gas scalar.
+	L1ScalarBedrock = byte(0)
+	// L1ScalarEcotone is new in Ecotone, allowing configuration of both a regular and a blobs scalar.
+	L1ScalarEcotone = byte(1)
+)
+
+func (sysCfg *SystemConfig) EcotoneScalars() (blobBaseFeeScalar, baseFeeScalar uint32, err error) {
+	if err := CheckEcotoneL1SystemConfigScalar(sysCfg.Scalar); err != nil {
+		if errors.Is(err, ErrBedrockScalarPaddingNotEmpty) {
+			// L2 spec mandates we set baseFeeScalar to MaxUint32 if there are non-zero bytes in
+			// the padding area.
+			return 0, math.MaxUint32, nil
+		}
+		return 0, 0, err
+	}
+	switch sysCfg.Scalar[0] {
+	case L1ScalarBedrock:
+		blobBaseFeeScalar = 0
+		baseFeeScalar = binary.BigEndian.Uint32(sysCfg.Scalar[28:32])
+	case L1ScalarEcotone:
+		blobBaseFeeScalar = binary.BigEndian.Uint32(sysCfg.Scalar[24:28])
+		baseFeeScalar = binary.BigEndian.Uint32(sysCfg.Scalar[28:32])
+	default:
+		err = fmt.Errorf("unexpected system config scalar: %s", sysCfg.Scalar)
+	}
+	return
+}
+
+func CheckEcotoneL1SystemConfigScalar(scalar [32]byte) error {
+	versionByte := scalar[0]
+	switch versionByte {
+	case L1ScalarBedrock:
+		if ([27]byte)(scalar[1:28]) != ([27]byte{}) { // check padding
+			return ErrBedrockScalarPaddingNotEmpty
+		}
+		return nil
+	case L1ScalarEcotone:
+		if ([23]byte)(scalar[1:24]) != ([23]byte{}) { // check padding
+			return fmt.Errorf("invalid version 1 scalar padding: %x", scalar[1:24])
+		}
+		return nil
+	default:
+		// ignore the event if it's an unknown scalar format
+		return fmt.Errorf("unrecognized scalar version: %d", versionByte)
+	}
 }
 
 type Bytes48 [48]byte

@@ -27,4 +27,12 @@ On a high level, op-conductor serves the following functions:
 3. monitor sequencer (op-node) health
 4. control loop => control sequencer (op-node) status (start / stop) based on different scenarios
 
+### Conductor State Transition
+
+![conductor state transition](./assets/op-conductor-state-transition.svg)
+
+Helpful tips:
+To better understand the graph, focus on one node at a time, understand what can be transitioned to this current state and how it can transition to other states.
+This way you could understand how we handle the state transitions.
+
 This is initial version of README, more details will be added later.

@@ -1,49 +1,36 @@
 import { predeploys } from '@eth-optimism/core-utils'
 import { ethers } from 'ethers'
-import portalArtifactsMainnet from '@eth-optimism/contracts-bedrock/deployments/mainnet/OptimismPortalProxy.json'
-import portalArtifactsGoerli from '@eth-optimism/contracts-bedrock/deployments/goerli/OptimismPortalProxy.json'
-import portalArtifactsSepolia from '@eth-optimism/contracts-bedrock/deployments/sepolia/OptimismPortalProxy.json'
-import l2OutputOracleArtifactsMainnet from '@eth-optimism/contracts-bedrock/deployments/mainnet/L2OutputOracleProxy.json'
-import l2OutputOracleArtifactsGoerli from '@eth-optimism/contracts-bedrock/deployments/goerli/L2OutputOracleProxy.json'
-import l2OutputOracleArtifactsSepolia from '@eth-optimism/contracts-bedrock/deployments/sepolia/L2OutputOracleProxy.json'
-import addressManagerArtifactMainnet from '@eth-optimism/contracts-bedrock/deployments/mainnet/AddressManager.json'
-import addressManagerArtifactGoerli from '@eth-optimism/contracts-bedrock/deployments/goerli/AddressManager.json'
-import addressManagerArtifactSepolia from '@eth-optimism/contracts-bedrock/deployments/sepolia/AddressManager.json'
-import l1StandardBridgeArtifactMainnet from '@eth-optimism/contracts-bedrock/deployments/mainnet/L1StandardBridgeProxy.json'
-import l1StandardBridgeArtifactGoerli from '@eth-optimism/contracts-bedrock/deployments/goerli/L1StandardBridgeProxy.json'
-import l1StandardBridgeArtifactSepolia from '@eth-optimism/contracts-bedrock/deployments/sepolia/L1StandardBridgeProxy.json'
-import l1CrossDomainMessengerArtifactMainnet from '@eth-optimism/contracts-bedrock/deployments/mainnet/L1CrossDomainMessengerProxy.json'
-import l1CrossDomainMessengerArtifactGoerli from '@eth-optimism/contracts-bedrock/deployments/goerli/L1CrossDomainMessengerProxy.json'
-import l1CrossDomainMessengerArtifactSepolia from '@eth-optimism/contracts-bedrock/deployments/sepolia/L1CrossDomainMessengerProxy.json'
+
+// The addresses below should be for the proxy if it is a proxied contract.
 
 const portalAddresses = {
-  mainnet: portalArtifactsMainnet.address,
-  goerli: portalArtifactsGoerli.address,
-  sepolia: portalArtifactsSepolia.address,
+  mainnet: '0xbEb5Fc579115071764c7423A4f12eDde41f106Ed',
+  goerli: '0x5b47E1A08Ea6d985D6649300584e6722Ec4B1383',
+  sepolia: '0x16Fc5058F25648194471939df75CF27A2fdC48BC',
 }
 
 const l2OutputOracleAddresses = {
-  mainnet: l2OutputOracleArtifactsMainnet.address,
-  goerli: l2OutputOracleArtifactsGoerli.address,
-  sepolia: l2OutputOracleArtifactsSepolia.address,
+  mainnet: '0xdfe97868233d1aa22e815a266982f2cf17685a27',
+  goerli: '0xE6Dfba0953616Bacab0c9A8ecb3a9BBa77FC15c0',
+  sepolia: '0x90E9c4f8a994a250F6aEfd61CAFb4F2e895D458F',
 }
 
 const addressManagerAddresses = {
-  mainnet: addressManagerArtifactMainnet.address,
-  goerli: addressManagerArtifactGoerli.address,
-  sepolia: addressManagerArtifactSepolia.address,
+  mainnet: '0xdE1FCfB0851916CA5101820A69b13a4E276bd81F',
+  goerli: '0xa6f73589243a6A7a9023b1Fa0651b1d89c177111',
+  sepolia: '0x9bFE9c5609311DF1c011c47642253B78a4f33F4B',
 }
 
 const l1StandardBridgeAddresses = {
-  mainnet: l1StandardBridgeArtifactMainnet.address,
-  goerli: l1StandardBridgeArtifactGoerli.address,
-  sepolia: l1StandardBridgeArtifactSepolia.address,
+  mainnet: '0x99C9fc46f92E8a1c0deC1b1747d010903E884bE1',
+  goerli: '0x636Af16bf2f682dD3109e60102b8E1A089FedAa8',
+  sepolia: '0xFBb0621E0B23b5478B630BD55a5f21f67730B0F1',
 }
 
 const l1CrossDomainMessengerAddresses = {
-  mainnet: l1CrossDomainMessengerArtifactMainnet.address,
-  goerli: l1CrossDomainMessengerArtifactGoerli.address,
-  sepolia: l1CrossDomainMessengerArtifactSepolia.address,
+  mainnet: '0x25ace71c97B33Cc4729CF772ae268934F7ab5fA1',
+  goerli: '0x5086d1eEF304eb5284A0f6720f79403b4e9bE294',
+  sepolia: '0x58Cc85b8D04EA49cC6DBd3CbFFd00B4B8D6cb3ef',
 }
 
 // legacy

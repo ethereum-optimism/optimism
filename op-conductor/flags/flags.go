@@ -53,6 +53,11 @@ var (
 		Usage:   "Interval between health checks",
 		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "HEALTHCHECK_INTERVAL"),
 	}
+	HealthCheckUnsafeInterval = &cli.Uint64Flag{
+		Name:    "healthcheck.unsafe-interval",
+		Usage:   "Interval allowed between unsafe head and now measured in seconds",
+		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "HEALTHCHECK_UNSAFE_INTERVAL"),
+	}
 	HealthCheckSafeInterval = &cli.Uint64Flag{
 		Name:    "healthcheck.safe-interval",
 		Usage:   "Interval between safe head progression measured in seconds",
@@ -68,6 +73,12 @@ var (
 		Usage:   "Whether the conductor is paused",
 		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "PAUSED"),
 		Value:   false,
+	}
+	RPCEnableProxy = &cli.BoolFlag{
+		Name:    "rpc.enable-proxy",
+		Usage:   "Enable the RPC proxy to underlying sequencer services",
+		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "RPC_ENABLE_PROXY"),
+		Value:   true,
 	}
 )
 
@@ -85,6 +96,7 @@ var requiredFlags = []cli.Flag{
 
 var optionalFlags = []cli.Flag{
 	Paused,
+	RPCEnableProxy,
 }
 
 func init() {

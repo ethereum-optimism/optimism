@@ -118,15 +118,19 @@ func (f *FaultDisputeGameContract) addLocalDataTx(claimIdx uint64, data *types.P
 }
 
 func (f *FaultDisputeGameContract) addGlobalDataTx(ctx context.Context, data *types.PreimageOracleData) (txmgr.TxCandidate, error) {
-	vm, err := f.vm(ctx)
-	if err != nil {
-		return txmgr.TxCandidate{}, err
-	}
-	oracle, err := vm.Oracle(ctx)
+	oracle, err := f.GetOracle(ctx)
 	if err != nil {
 		return txmgr.TxCandidate{}, err
 	}
 	return oracle.AddGlobalDataTx(data)
+}
+
+func (f *FaultDisputeGameContract) GetOracle(ctx context.Context) (*PreimageOracleContract, error) {
+	vm, err := f.vm(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return vm.Oracle(ctx)
 }
 
 func (f *FaultDisputeGameContract) GetGameDuration(ctx context.Context) (uint64, error) {
@@ -186,19 +190,11 @@ func (f *FaultDisputeGameContract) GetClaim(ctx context.Context, idx uint64) (ty
 }
 
 func (f *FaultDisputeGameContract) GetAllClaims(ctx context.Context) ([]types.Claim, error) {
-	count, err := f.GetClaimCount(ctx)
+	results, err := batching.ReadArray(ctx, f.multiCaller, batching.BlockLatest, f.contract.Call(methodClaimCount), func(i *big.Int) *batching.ContractCall {
+		return f.contract.Call(methodClaim, i)
+	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to load claim count: %w", err)
-	}
-
-	calls := make([]*batching.ContractCall, count)
-	for i := uint64(0); i < count; i++ {
-		calls[i] = f.contract.Call(methodClaim, new(big.Int).SetUint64(i))
-	}
-
-	results, err := f.multiCaller.Call(ctx, batching.BlockLatest, calls...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch claim data: %w", err)
+		return nil, fmt.Errorf("failed to load claims: %w", err)
 	}
 
 	var claims []types.Claim

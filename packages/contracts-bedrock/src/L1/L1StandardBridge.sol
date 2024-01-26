@@ -70,22 +70,26 @@ contract L1StandardBridge is StandardBridge, ISemver {
     );
 
     /// @notice Semantic version.
-    /// @custom:semver 2.0.0
-    string public constant version = "2.0.0";
+    /// @custom:semver 2.1.0
+    string public constant version = "2.1.0";
 
     /// @notice Address of the SuperchainConfig contract.
     SuperchainConfig public superchainConfig;
 
     /// @notice Constructs the L1StandardBridge contract.
-    /// @param _messenger Address of the L1CrossDomainMessenger.
-    constructor(address payable _messenger) StandardBridge(_messenger, payable(Predeploys.L2_STANDARD_BRIDGE)) {
-        initialize({ _superchainConfig: SuperchainConfig(address(0)) });
+    constructor() StandardBridge() {
+        initialize({ _messenger: CrossDomainMessenger(address(0)), _superchainConfig: SuperchainConfig(address(0)) });
     }
 
-    /// @notice Initializes the contract.
-    /// @param _superchainConfig Address of the SuperchainConfig contract on this network.
-    function initialize(SuperchainConfig _superchainConfig) public initializer {
+    /// @notice Initializer.
+    /// @param _messenger        Contract for the CrossDomainMessenger on this network.
+    /// @param _superchainConfig Contract for the SuperchainConfig on this network.
+    function initialize(CrossDomainMessenger _messenger, SuperchainConfig _superchainConfig) public initializer {
         superchainConfig = _superchainConfig;
+        __StandardBridge_init({
+            _messenger: _messenger,
+            _otherBridge: StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE))
+        });
     }
 
     /// @inheritdoc StandardBridge
@@ -213,7 +217,7 @@ contract L1StandardBridge is StandardBridge, ISemver {
     /// @notice Retrieves the access of the corresponding L2 bridge contract.
     /// @return Address of the corresponding L2 bridge contract.
     function l2TokenBridge() external view returns (address) {
-        return address(OTHER_BRIDGE);
+        return address(otherBridge);
     }
 
     /// @notice Internal function for initiating an ETH deposit.

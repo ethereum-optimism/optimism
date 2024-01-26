@@ -18,6 +18,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/async"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -73,7 +75,7 @@ func (m *FakeEngineControl) StartPayload(ctx context.Context, parent eth.L2Block
 	return derive.BlockInsertOK, nil
 }
 
-func (m *FakeEngineControl) ConfirmPayload(ctx context.Context) (out *eth.ExecutionPayload, errTyp derive.BlockInsertionErrType, err error) {
+func (m *FakeEngineControl) ConfirmPayload(ctx context.Context, agossip async.AsyncGossiper, sequencerConductor conductor.SequencerConductor) (out *eth.ExecutionPayloadEnvelope, errTyp derive.BlockInsertionErrType, err error) {
 	if m.err != nil {
 		return nil, m.errTyp, m.err
 	}
@@ -92,7 +94,7 @@ func (m *FakeEngineControl) ConfirmPayload(ctx context.Context) (out *eth.Execut
 
 	m.resetBuildingState()
 	m.totalTxs += len(payload.Transactions)
-	return payload, derive.BlockInsertOK, nil
+	return &eth.ExecutionPayloadEnvelope{ExecutionPayload: payload}, derive.BlockInsertOK, nil
 }
 
 func (m *FakeEngineControl) CancelPayload(ctx context.Context, force bool) error {
@@ -125,11 +127,7 @@ func (m *FakeEngineControl) resetBuildingState() {
 	m.buildingAttrs = nil
 }
 
-func (m *FakeEngineControl) Reset() {
-	m.err = nil
-}
-
-var _ derive.ResettableEngineControl = (*FakeEngineControl)(nil)
+var _ derive.EngineControl = (*FakeEngineControl)(nil)
 
 type testAttrBuilderFn func(ctx context.Context, l2Parent eth.L2BlockRef, epoch eth.BlockID) (attrs *eth.PayloadAttributes, err error)
 
@@ -348,15 +346,19 @@ func TestSequencerChaosMonkey(t *testing.T) {
 		default:
 			// no error
 		}
-		payload, err := seq.RunNextSequencerAction(context.Background())
-		require.NoError(t, err)
-		if payload != nil {
-			require.Equal(t, engControl.UnsafeL2Head().ID(), payload.ID(), "head must stay in sync with emitted payloads")
-			var tx types.Transaction
-			require.NoError(t, tx.UnmarshalBinary(payload.Transactions[0]))
-			info, err := derive.L1BlockInfoFromBytes(cfg, 0, tx.Data())
+		payload, err := seq.RunNextSequencerAction(context.Background(), async.NoOpGossiper{}, &conductor.NoOpConductor{})
+		// RunNextSequencerAction passes ErrReset & ErrCritical through.
+		// Only suppress ErrReset, not ErrCritical
+		if !errors.Is(err, derive.ErrReset) {
 			require.NoError(t, err)
-			require.GreaterOrEqual(t, uint64(payload.Timestamp), info.Time, "ensure L2 time >= L1 time")
+		}
+		if payload != nil {
+			require.Equal(t, engControl.UnsafeL2Head().ID(), payload.ExecutionPayload.ID(), "head must stay in sync with emitted payloads")
+			var tx types.Transaction
+			require.NoError(t, tx.UnmarshalBinary(payload.ExecutionPayload.Transactions[0]))
+			info, err := derive.L1BlockInfoFromBytes(cfg, uint64(payload.ExecutionPayload.Timestamp), tx.Data())
+			require.NoError(t, err)
+			require.GreaterOrEqual(t, uint64(payload.ExecutionPayload.Timestamp), info.Time, "ensure L2 time >= L1 time")
 		}
 	}
 

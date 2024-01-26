@@ -3,7 +3,7 @@ version: 2.1
 parameters:
   ci_builder_image:
     type: string
-    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:v0.35.0
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:v0.40.0
   base_image:
     type: string
     default: ubuntu-2204:2022.07.1
@@ -374,7 +374,7 @@ jobs:
           working_directory: packages/contracts-bedrock
       - run:
           name: run tests
-          command: STRICT_DEPLOYMENT=false pnpm test
+          command: pnpm test
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
@@ -402,6 +402,9 @@ jobs:
           command: pnpm install:ci
       # Note: this step needs to come first because one of the later steps modifies the cache & forces a contracts rebuild
       - run:
+          name: forge version
+          command: forge --version
+      - run:
           name: semver lock
           command: |
             pnpm semver-lock
@@ -419,8 +422,7 @@ jobs:
       - run:
           name: gas snapshot
           command: |
-            forge --version
-            STRICT_DEPLOYMENT=false pnpm gas-snapshot --check || echo "export GAS_SNAPSHOT_STATUS=1" >> "$BASH_ENV"
+            pnpm gas-snapshot --check || echo "export GAS_SNAPSHOT_STATUS=1" >> "$BASH_ENV"
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
@@ -440,12 +442,12 @@ jobs:
           name: check statuses
           command: |
             if [[ "$LINT_STATUS" -ne 0 ]]; then
-              FAILED=1
               echo "Linting failed, see job output for details."
+              FAILED=1
             fi
             if [[ "$GAS_SNAPSHOT_STATUS" -ne 0 ]]; then
-              FAILED=1
               echo "Gas snapshot failed, see job output for details."
+              FAILED=1
             fi
             if [[ "$SEMVER_LOCK_STATUS" -ne 0 ]]; then
               echo "Semver lock failed, see job output for details."
@@ -665,51 +667,6 @@ jobs:
           command: ./ops/scripts/todo-checker.sh --verbose
       - notify-failures-on-develop
 
-  bedrock-markdown:
-    machine:
-      image: <<pipeline.parameters.base_image>>
-    steps:
-      - checkout
-      - check-changed:
-          patterns: specs/(.*)\.md$
-      - run:
-          name: Install pnpm package manager
-          command: |
-            npm i pnpm --global
-      - run:
-          name: pnpm dev deps
-          command: pnpm install:ci
-      - run:
-          name: specs toc
-          command: pnpm lint:specs:toc && git diff --exit-code ./specs
-      - run:
-          name: markdown lint
-          command: pnpm lint:specs:check
-
-  bedrock-markdown-links:
-    machine:
-      image: <<pipeline.parameters.base_image>>
-    steps:
-      - checkout
-      - run:
-          name: Install pnpm package manager
-          command: |
-            npm i pnpm --global
-      - run:
-          name: Install node_modules
-          command: |
-            pnpm install:ci
-      - run:
-          name: Lint check
-          command: |
-            pnpm lint:specs:check
-      - run:
-          name: link lint
-          command: |
-            make bedrock-markdown-links
-      - notify-failures-on-develop:
-          channel: C055R639XT9 #notify-link-check
-
   fuzz-golang:
     parameters:
       package_name:
@@ -881,6 +838,7 @@ jobs:
           command: go tool dist list | grep mips
       - run:
           name: run tests
+          no_output_timeout: 20m
           command: |
             mkdir -p /testlogs
 
@@ -1067,9 +1025,6 @@ jobs:
             echo 'export PATH=$HOME/.foundry/bin:$PATH' >> $BASH_ENV
             source $HOME/.bashrc
             forge --version
-      - run:
-          name: install geth
-          command: make install-geth
       - run:
           name: Install NVM
           command: |
@@ -1377,7 +1332,7 @@ jobs:
           name: Checkout Submodule
           command: make submodules
       - check-changed:
-          patterns: contracts-bedrock/test/kontrol,contracts-bedrock/src/L1/OptimismPortal\.sol
+          patterns: contracts-bedrock/test/kontrol,contracts-bedrock/src/L1/OptimismPortal\.sol,contracts-bedrock/src/L1/L1CrossDomainMessenger\.sol,contracts-bedrock/src/L1/L1ERC721Bridge\.sol,contracts-bedrock/src/L1/L1StandardBridge\.sol,contracts-bedrock/src/L1/ResourceMetering\.sol,contracts-bedrock/src/universal/StandardBridge\.sol,contracts-bedrock/src/universal/ERC721Bridge\.sol,contracts-bedrock/src/universal/CrossDomainMessenger\.sol
       - setup_remote_docker:
           docker_layer_caching: true
       - run:
@@ -1463,10 +1418,14 @@ workflows:
           requires:
             - "go-mod-tidy"
             - l1-geth-version-check
-      - bedrock-markdown
       - go-lint: # we combine most of the go-lint work for two reasons: (1) warm up the Go build cache, (2) reduce sum of lint time
           name: op-stack-go-lint
           requires: [ "go-mod-tidy" ]
+      - fuzz-golang:
+          name: op-challenger-fuzz
+          package_name: op-challenger
+          on_changes: op-challenger
+          requires: ["op-stack-go-lint"]
       - fuzz-golang:
           name: op-node-fuzz
           package_name: op-node
@@ -1875,13 +1834,6 @@ workflows:
           context:
             - slack
             - oplabs-fpp-nodes
-
-  scheduled-link-check:
-    when:
-      equal: [ build_daily, <<pipeline.schedule.name>> ]
-    jobs:
-      - bedrock-markdown-links:
-          context: slack
 
   scheduled-docker-publish:
     when:

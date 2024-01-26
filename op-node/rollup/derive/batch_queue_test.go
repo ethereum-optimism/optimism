@@ -96,15 +96,17 @@ func l1InfoDepositTx(t *testing.T, l1BlockNum uint64) hexutil.Bytes {
 	return txData
 }
 
-func singularBatchToPayload(t *testing.T, batch *SingularBatch, blockNumber uint64) eth.ExecutionPayload {
+func singularBatchToPayload(t *testing.T, batch *SingularBatch, blockNumber uint64) eth.ExecutionPayloadEnvelope {
 	txs := []hexutil.Bytes{l1InfoDepositTx(t, uint64(batch.EpochNum))}
 	txs = append(txs, batch.Transactions...)
-	return eth.ExecutionPayload{
-		BlockHash:    mockHash(batch.Timestamp, 2),
-		ParentHash:   batch.ParentHash,
-		BlockNumber:  hexutil.Uint64(blockNumber),
-		Timestamp:    hexutil.Uint64(batch.Timestamp),
-		Transactions: txs,
+	return eth.ExecutionPayloadEnvelope{
+		ExecutionPayload: &eth.ExecutionPayload{
+			BlockHash:    mockHash(batch.Timestamp, 2),
+			ParentHash:   batch.ParentHash,
+			BlockNumber:  hexutil.Uint64(blockNumber),
+			Timestamp:    hexutil.Uint64(batch.Timestamp),
+			Transactions: txs,
+		},
 	}
 }
 

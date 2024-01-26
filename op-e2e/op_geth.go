@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -135,7 +136,7 @@ func (d *OpGeth) Close() {
 
 // AddL2Block Appends a new L2 block to the current chain including the specified transactions
 // The L1Info transaction is automatically prepended to the created block
-func (d *OpGeth) AddL2Block(ctx context.Context, txs ...*types.Transaction) (*eth.ExecutionPayload, error) {
+func (d *OpGeth) AddL2Block(ctx context.Context, txs ...*types.Transaction) (*eth.ExecutionPayloadEnvelope, error) {
 	attrs, err := d.CreatePayloadAttributes(txs...)
 	if err != nil {
 		return nil, err
@@ -145,7 +146,9 @@ func (d *OpGeth) AddL2Block(ctx context.Context, txs ...*types.Transaction) (*et
 		return nil, err
 	}
 
-	payload, err := d.l2Engine.GetPayload(ctx, *res.PayloadID)
+	envelope, err := d.l2Engine.GetPayload(ctx, *res.PayloadID)
+	payload := envelope.ExecutionPayload
+
 	if err != nil {
 		return nil, err
 	}
@@ -153,7 +156,7 @@ func (d *OpGeth) AddL2Block(ctx context.Context, txs ...*types.Transaction) (*et
 		return nil, errors.New("required transactions were not included")
 	}
 
-	status, err := d.l2Engine.NewPayload(ctx, payload)
+	status, err := d.l2Engine.NewPayload(ctx, payload, envelope.ParentBeaconBlockRoot)
 	if err != nil {
 		return nil, err
 	}
@@ -174,7 +177,7 @@ func (d *OpGeth) AddL2Block(ctx context.Context, txs ...*types.Transaction) (*et
 	}
 	d.L2Head = payload
 	d.sequenceNum = d.sequenceNum + 1
-	return payload, nil
+	return envelope, nil
 }
 
 // StartBlockBuilding begins block building for the specified PayloadAttributes by sending a engine_forkChoiceUpdated call.
@@ -221,12 +224,18 @@ func (d *OpGeth) CreatePayloadAttributes(txs ...*types.Transaction) (*eth.Payloa
 		withdrawals = &types.Withdrawals{}
 	}
 
+	var parentBeaconBlockRoot *common.Hash
+	if d.L2ChainConfig.IsEcotone(uint64(timestamp)) {
+		parentBeaconBlockRoot = d.L1Head.ParentBeaconRoot()
+	}
+
 	attrs := eth.PayloadAttributes{
-		Timestamp:    timestamp,
-		Transactions: txBytes,
-		NoTxPool:     true,
-		GasLimit:     (*eth.Uint64Quantity)(&d.SystemConfig.GasLimit),
-		Withdrawals:  withdrawals,
+		Timestamp:             timestamp,
+		Transactions:          txBytes,
+		NoTxPool:              true,
+		GasLimit:              (*eth.Uint64Quantity)(&d.SystemConfig.GasLimit),
+		Withdrawals:           withdrawals,
+		ParentBeaconBlockRoot: parentBeaconBlockRoot,
 	}
 	return &attrs, nil
 }

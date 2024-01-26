@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 import { OptimismMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
 import { ISemver } from "src/universal/ISemver.sol";
+import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
 /// @custom:proxied
 /// @custom:predeployed 0x4200000000000000000000000000000000000012
@@ -11,9 +12,19 @@ import { ISemver } from "src/universal/ISemver.sol";
 ///         contracts on the network it's deployed to. Simplifies the deployment process for users
 ///         who may be less familiar with deploying smart contracts. Designed to be backwards
 ///         compatible with the older StandardL2ERC20Factory contract.
-contract OptimismMintableERC20Factory is ISemver {
+contract OptimismMintableERC20Factory is ISemver, Initializable {
+    /// @custom:spacer OptimismMintableERC20Factory's initializer slot spacing
+    /// @notice Spacer to avoid packing into the initializer slot
+    bytes30 private spacer_0_2_30;
+
     /// @notice Address of the StandardBridge on this chain.
-    address public immutable BRIDGE;
+    /// @custom:network-specific
+    address public bridge;
+
+    /// @notice Reserve extra slots in the storage layout for future upgrades.
+    ///         A gap size of 49 was chosen here, so that the first slot used in a child contract
+    ///         would be 1 plus a multiple of 50.
+    uint256[49] private __gap;
 
     /// @custom:legacy
     /// @notice Emitted whenever a new OptimismMintableERC20 is created. Legacy version of the newer
@@ -32,18 +43,26 @@ contract OptimismMintableERC20Factory is ISemver {
     ///         the OptimismMintableERC20 token contract since this contract
     ///         is responsible for deploying OptimismMintableERC20 contracts.
     /// @notice Semantic version.
-    /// @custom:semver 1.8.0
-    string public constant version = "1.8.0";
+    /// @custom:semver 1.9.0
+    string public constant version = "1.9.0";
 
+    /// @notice Constructs the OptimismMintableERC20Factory contract.
+    constructor() {
+        initialize({ _bridge: address(0) });
+    }
+
+    /// @notice Initializes the contract.
     /// @param _bridge Address of the StandardBridge on this chain.
-    constructor(address _bridge) {
-        BRIDGE = _bridge;
+    function initialize(address _bridge) public initializer {
+        bridge = _bridge;
     }
 
     /// @notice Getter function for the address of the StandardBridge on this chain.
-    /// @notice Address of the StandardBridge on this chain.
-    function bridge() public view returns (address) {
-        return BRIDGE;
+    ///         Public getter is legacy and will be removed in the future. Use `bridge` instead.
+    /// @return Address of the StandardBridge on this chain.
+    /// @custom:legacy
+    function BRIDGE() external view returns (address) {
+        return bridge;
     }
 
     /// @custom:legacy
@@ -99,7 +118,7 @@ contract OptimismMintableERC20Factory is ISemver {
 
         bytes32 salt = keccak256(abi.encode(_remoteToken, _name, _symbol, _decimals));
         address localToken =
-            address(new OptimismMintableERC20{ salt: salt }(BRIDGE, _remoteToken, _name, _symbol, _decimals));
+            address(new OptimismMintableERC20{ salt: salt }(bridge, _remoteToken, _name, _symbol, _decimals));
 
         // Emit the old event too for legacy support.
         emit StandardL2TokenCreated(_remoteToken, localToken);

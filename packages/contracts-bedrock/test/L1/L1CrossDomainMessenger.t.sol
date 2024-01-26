@@ -10,8 +10,10 @@ import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 // Target contract dependencies
+import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 
@@ -21,6 +23,27 @@ contract L1CrossDomainMessenger_Test is Bridge_Initializer {
 
     /// @dev The storage slot of the l2Sender
     uint256 constant senderSlotIndex = 50;
+
+    /// @dev Tests that the implementation is initialized correctly.
+    /// @notice Marked virtual to be overridden in
+    ///         test/kontrol/deployment/DeploymentSummary.t.sol
+    function test_constructor_succeeds() external virtual {
+        L1CrossDomainMessenger impl = L1CrossDomainMessenger(deploy.mustGetAddress("L1CrossDomainMessenger"));
+        assertEq(address(impl.superchainConfig()), address(0));
+        assertEq(address(impl.PORTAL()), address(0));
+        assertEq(address(impl.portal()), address(0));
+        assertEq(address(impl.OTHER_MESSENGER()), Predeploys.L2_CROSS_DOMAIN_MESSENGER);
+        assertEq(address(impl.otherMessenger()), Predeploys.L2_CROSS_DOMAIN_MESSENGER);
+    }
+
+    /// @dev Tests that the proxy is initialized correctly.
+    function test_initialize_succeeds() external {
+        assertEq(address(l1CrossDomainMessenger.superchainConfig()), address(superchainConfig));
+        assertEq(address(l1CrossDomainMessenger.PORTAL()), address(optimismPortal));
+        assertEq(address(l1CrossDomainMessenger.portal()), address(optimismPortal));
+        assertEq(address(l1CrossDomainMessenger.OTHER_MESSENGER()), Predeploys.L2_CROSS_DOMAIN_MESSENGER);
+        assertEq(address(l1CrossDomainMessenger.otherMessenger()), Predeploys.L2_CROSS_DOMAIN_MESSENGER);
+    }
 
     /// @dev Tests that the version can be decoded from the message nonce.
     function test_messageVersion_succeeds() external {
@@ -89,7 +112,9 @@ contract L1CrossDomainMessenger_Test is Bridge_Initializer {
 
     /// @dev Tests that the relayMessage function reverts when
     ///      the message version is not 0 or 1.
-    function test_relayMessage_v2_reverts() external {
+    /// @notice Marked virtual to be overridden in
+    ///         test/kontrol/deployment/DeploymentSummary.t.sol
+    function test_relayMessage_v2_reverts() external virtual {
         address target = address(0xabcd);
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
 
@@ -628,7 +653,7 @@ contract L1CrossDomainMessenger_ReinitReentryTest is Bridge_Initializer {
             vm.store(address(l1CrossDomainMessenger), 0, bytes32(uint256(0)));
 
             // call the initializer function
-            l1CrossDomainMessenger.initialize(SuperchainConfig(superchainConfig));
+            l1CrossDomainMessenger.initialize(SuperchainConfig(superchainConfig), OptimismPortal(optimismPortal));
 
             // attempt to re-replay the withdrawal
             vm.expectEmit(address(l1CrossDomainMessenger));

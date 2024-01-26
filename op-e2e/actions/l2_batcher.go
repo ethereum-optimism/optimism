@@ -8,18 +8,24 @@ import (
 	"io"
 	"math/big"
 
+	"github.com/holiman/uint256"
+	"github.com/stretchr/testify/require"
+
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
+	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
 type SyncStatusAPI interface {
@@ -47,6 +53,17 @@ type BatcherCfg struct {
 
 	ForceSubmitSingularBatch bool
 	ForceSubmitSpanBatch     bool
+
+	DataAvailabilityType batcherFlags.DataAvailabilityType
+}
+
+func DefaultBatcherCfg(dp *e2eutils.DeployParams) *BatcherCfg {
+	return &BatcherCfg{
+		MinL1TxSize:          0,
+		MaxL1TxSize:          128_000,
+		BatcherKey:           dp.Secrets.Batcher,
+		DataAvailabilityType: batcherFlags.CalldataType,
+	}
 }
 
 type L2BlockRefs interface {
@@ -76,6 +93,8 @@ type L2Batcher struct {
 	l2SubmittedBlock eth.L2BlockRef
 	l2BatcherCfg     *BatcherCfg
 	batcherAddr      common.Address
+
+	LastSubmitted *types.Transaction
 }
 
 func NewL2Batcher(log log.Logger, rollupCfg *rollup.Config, batcherCfg *BatcherCfg, api SyncStatusAPI, l1 L1TxAPI, l2 BlocksAPI, engCl L2BlockRefs) *L2Batcher {
@@ -220,26 +239,58 @@ func (s *L2Batcher) ActL2BatchSubmit(t Testing, txOpts ...func(tx *types.Dynamic
 	require.NoError(t, err, "need l1 pending header for gas price estimation")
 	gasFeeCap := new(big.Int).Add(gasTipCap, new(big.Int).Mul(pendingHeader.BaseFee, big.NewInt(2)))
 
-	rawTx := &types.DynamicFeeTx{
-		ChainID:   s.rollupCfg.L1ChainID,
-		Nonce:     nonce,
-		To:        &s.rollupCfg.BatchInboxAddress,
-		GasTipCap: gasTipCap,
-		GasFeeCap: gasFeeCap,
-		Data:      data.Bytes(),
-	}
-	for _, opt := range txOpts {
-		opt(rawTx)
-	}
-	gas, err := core.IntrinsicGas(rawTx.Data, nil, false, true, true, false)
-	require.NoError(t, err, "need to compute intrinsic gas")
-	rawTx.Gas = gas
+	var txData types.TxData
+	if s.l2BatcherCfg.DataAvailabilityType == batcherFlags.CalldataType {
+		rawTx := &types.DynamicFeeTx{
+			ChainID:   s.rollupCfg.L1ChainID,
+			Nonce:     nonce,
+			To:        &s.rollupCfg.BatchInboxAddress,
+			GasTipCap: gasTipCap,
+			GasFeeCap: gasFeeCap,
+			Data:      data.Bytes(),
+		}
+		for _, opt := range txOpts {
+			opt(rawTx)
+		}
 
-	tx, err := types.SignNewTx(s.l2BatcherCfg.BatcherKey, s.l1Signer, rawTx)
+		gas, err := core.IntrinsicGas(rawTx.Data, nil, false, true, true, false)
+		require.NoError(t, err, "need to compute intrinsic gas")
+		rawTx.Gas = gas
+		txData = rawTx
+	} else if s.l2BatcherCfg.DataAvailabilityType == batcherFlags.BlobsType {
+		var b eth.Blob
+		require.NoError(t, b.FromData(data.Bytes()), "must turn data into blob")
+		sidecar, blobHashes, err := txmgr.MakeSidecar([]*eth.Blob{&b})
+		require.NoError(t, err)
+		require.NotNil(t, pendingHeader.ExcessBlobGas, "need L1 header with 4844 properties")
+		blobBaseFee := eip4844.CalcBlobFee(*pendingHeader.ExcessBlobGas)
+		blobFeeCap := new(uint256.Int).Mul(uint256.NewInt(2), uint256.MustFromBig(blobBaseFee))
+		if blobFeeCap.Lt(uint256.NewInt(params.GWei)) { // ensure we meet 1 gwei geth tx-pool minimum
+			blobFeeCap = uint256.NewInt(params.GWei)
+		}
+		txData = &types.BlobTx{
+			To:         s.rollupCfg.BatchInboxAddress,
+			Data:       nil,
+			Gas:        params.TxGas, // intrinsic gas only
+			BlobHashes: blobHashes,
+			Sidecar:    sidecar,
+			ChainID:    uint256.MustFromBig(s.rollupCfg.L1ChainID),
+			GasTipCap:  uint256.MustFromBig(gasTipCap),
+			GasFeeCap:  uint256.MustFromBig(gasFeeCap),
+			BlobFeeCap: blobFeeCap,
+			Value:      uint256.NewInt(0),
+			Nonce:      nonce,
+		}
+	} else {
+		t.Fatalf("unrecognized DA type: %q", string(s.l2BatcherCfg.DataAvailabilityType))
+	}
+
+	tx, err := types.SignNewTx(s.l2BatcherCfg.BatcherKey, s.l1Signer, txData)
 	require.NoError(t, err, "need to sign tx")
 
 	err = s.l1.SendTransaction(t.Ctx(), tx)
 	require.NoError(t, err, "need to send tx")
+	s.LastSubmitted = tx
 }
 
 // ActL2BatchSubmitGarbage constructs a malformed channel frame and submits it to the

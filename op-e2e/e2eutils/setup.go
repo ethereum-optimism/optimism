@@ -57,8 +57,7 @@ func MakeDeployParams(t require.TestingT, tp *TestParams) *DeployParams {
 	deployConfig.SequencerWindowSize = tp.SequencerWindowSize
 	deployConfig.ChannelTimeout = tp.ChannelTimeout
 	deployConfig.L1BlockTime = tp.L1BlockTime
-	deployConfig.L2GenesisRegolithTimeOffset = nil
-	deployConfig.L2GenesisCanyonTimeOffset = CanyonTimeOffset()
+	ApplyDeployConfigForks(deployConfig)
 
 	require.NoError(t, deployConfig.Check())
 	require.Equal(t, addresses.Batcher, deployConfig.BatchSenderAddress)
@@ -188,10 +187,20 @@ func SystemConfigFromDeployConfig(deployConfig *genesis.DeployConfig) eth.System
 	}
 }
 
-func CanyonTimeOffset() *hexutil.Uint64 {
-	if os.Getenv("OP_E2E_USE_CANYON") == "true" {
-		offset := hexutil.Uint64(0)
-		return &offset
+func ApplyDeployConfigForks(deployConfig *genesis.DeployConfig) {
+	isFjord := os.Getenv("OP_E2E_USE_FJORD") == "true"
+	isEcotone := isFjord || os.Getenv("OP_E2E_USE_ECOTONE") == "true"
+	isDelta := isEcotone || os.Getenv("OP_E2E_USE_DELTA") == "true"
+	if isDelta {
+		deployConfig.L2GenesisDeltaTimeOffset = new(hexutil.Uint64)
 	}
-	return nil
+	if isEcotone {
+		deployConfig.L2GenesisEcotoneTimeOffset = new(hexutil.Uint64)
+	}
+	if isFjord {
+		deployConfig.L2GenesisFjordTimeOffset = new(hexutil.Uint64)
+	}
+	// Canyon and lower is activated by default
+	deployConfig.L2GenesisCanyonTimeOffset = new(hexutil.Uint64)
+	deployConfig.L2GenesisRegolithTimeOffset = new(hexutil.Uint64)
 }

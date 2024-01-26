@@ -95,8 +95,13 @@ func TestInvalidBlobDecoding(t *testing.T) {
 		t.Fatalf("failed to encode bytes: %v", err)
 	}
 
-	b[32] = 0x80 // field elements should never have their highest order bit set
+	b[32] = 0b10000000 // field elements should never have their highest order bit set
 	_, err := b.ToData()
+	require.ErrorIs(t, err, ErrBlobInvalidFieldElement)
+	b[32] = 0x0
+
+	b[32] = 0b01000000 // field elements should never have their second highest order bit set
+	_, err = b.ToData()
 	require.ErrorIs(t, err, ErrBlobInvalidFieldElement)
 	b[32] = 0x0
 
@@ -132,5 +137,96 @@ func FuzzEncodeDecodeBlob(f *testing.F) {
 	})
 }
 
-// TODO(optimism#8872): Create test vectors to implement one-way tests confirming that specific inputs yield
-// desired outputs.
+func FuzzDetectNonBijectivity(f *testing.F) {
+	var b Blob
+	r := rand.New(rand.NewSource(99))
+	f.Fuzz(func(t *testing.T, d []byte) {
+		b.Clear()
+		data := Data(d)
+		err := b.FromData(data)
+		require.NoError(t, err)
+		// randomly flip a bit and make sure the data either fails to decode or decodes differently
+		byteToFlip := r.Intn(BlobSize)
+		bitToFlip := r.Intn(8)
+		mask := byte(1 << bitToFlip)
+		b[byteToFlip] = b[byteToFlip] ^ mask
+		decoded, err := b.ToData()
+		if err != nil {
+			require.NotEqual(t, data, decoded)
+		}
+	})
+}
+
+// TODO(optimism#8872): Create more test vectors to implement one-way tests confirming that
+// specific inputs yield desired outputs.
+func TestDecodeTestVectors(t *testing.T) {
+	cases := []struct {
+		input, output string
+		err           error
+	}{
+		{
+			// an empty blob has version 0 and length 0, so is valid and will decode as empty output
+			input:  "",
+			output: "",
+		},
+		{
+			// encode len==1, so should get one zero byte output
+			input:  "\x00\x00\x00\x00\x01",
+			output: "\x00",
+		},
+		{
+			// encode len==130044 (0x01FBFC), max blob capacity, so should get 130044 zero bytes
+			// for output
+			input:  "\x00\x00\x01\xFB\xFC",
+			output: string(make([]byte, 130044)),
+		},
+		{
+			// encode len==130045 (0x01FBFD) which is greater than blob capacity, blob invalid
+			input: "\x00\x00\x01\xFB\xFD",
+			err:   ErrBlobInvalidLength,
+		},
+	}
+
+	var b Blob
+	for _, c := range cases {
+		b.Clear()
+		copy(b[:], []byte(c.input))
+		decoded, err := b.ToData()
+		if c.err != nil {
+			require.ErrorIs(t, err, c.err)
+		} else {
+			require.NoError(t, err)
+			require.Equal(t, len(c.output), len(decoded))
+			require.Equal(t, c.output, string(decoded))
+		}
+	}
+}
+
+func TestExtraneousData(t *testing.T) {
+	var b Blob
+	// make sure 0 length blob with non-zero bits in upper byte are detected & rejected
+	input := "\x30\x00\x00\x00\x00"
+	copy(b[:], []byte(input))
+	_, err := b.ToData()
+	require.ErrorIs(t, err, ErrBlobExtraneousDataFieldElement)
+	input = "\x01\x00\x00\x00\x00"
+	copy(b[:], []byte(input))
+	_, err = b.ToData()
+	require.ErrorIs(t, err, ErrBlobExtraneousDataFieldElement)
+	b.Clear()
+	i := len(input)
+
+	// make sure non-zero bytes in blob following the encoded length are detected & rejected
+	for ; i < 128; i++ {
+		b[i-1] = 0
+		b[i] = 0x01
+		decoded, err := b.ToData()
+		require.ErrorIs(t, err, ErrBlobExtraneousDataFieldElement, len(decoded))
+	}
+	for ; i < BlobSize; i += 7 { // increment by 7 bytes each iteration so the test isn't too slow
+		b[i-1] = 0
+		b[i] = 1
+		decoded, err := b.ToData()
+		require.ErrorIs(t, err, ErrBlobExtraneousData, len(decoded))
+	}
+}

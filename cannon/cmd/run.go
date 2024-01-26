@@ -64,6 +64,16 @@ var (
 		Value:    new(StepMatcherFlag),
 		Required: false,
 	}
+	RunStopAtPreimageTypeFlag = &cli.StringFlag{
+		Name:     "stop-at-preimage-type",
+		Usage:    "stop at the first preimage request matching this type (must be either 'any', 'local' or 'global')",
+		Required: false,
+	}
+	RunStopAtPreimageKeyFlag = &cli.StringFlag{
+		Name:     "stop-at-preimage-key",
+		Usage:    "stop at the first step that requests the specified preimage key",
+		Required: false,
+	}
 	RunMetaFlag = &cli.PathFlag{
 		Name:     "meta",
 		Usage:    "path to metadata file for symbol lookup for enhanced debugging info during execution.",
@@ -233,6 +243,12 @@ func Run(ctx *cli.Context) error {
 	outLog := &mipsevm.LoggingWriter{Name: "program std-out", Log: l}
 	errLog := &mipsevm.LoggingWriter{Name: "program std-err", Log: l}
 
+	stopAtPreimageType := ctx.String(RunStopAtPreimageTypeFlag.Name)
+	if stopAtPreimageType != "" && stopAtPreimageType != "any" && stopAtPreimageType != "local" && stopAtPreimageType != "global" {
+		return fmt.Errorf("invalid preimage type %q, must be either 'any', 'local' or 'global'", stopAtPreimageType)
+	}
+	stopAtPreimageKey := common.HexToHash(ctx.String(RunStopAtPreimageKeyFlag.Name))
+
 	// split CLI args after first '--'
 	args := ctx.Args().Slice()
 	for i, arg := range args {
@@ -326,6 +342,8 @@ func Run(ctx *cli.Context) error {
 			}
 		}
 
+		prevPreimageOffset := state.PreimageOffset
+
 		if proofAt(state) {
 			preStateHash, err := state.EncodeWitness().StateHash()
 			if err != nil {
@@ -360,6 +378,24 @@ func Run(ctx *cli.Context) error {
 				return fmt.Errorf("failed at step %d (PC: %08x): %w", step, state.PC, err)
 			}
 		}
+
+		if preimageRead := state.PreimageOffset > prevPreimageOffset; preimageRead {
+			if stopAtPreimageType == "any" {
+				break
+			}
+			if stopAtPreimageType != "" {
+				keyType := byte(preimage.LocalKeyType)
+				if stopAtPreimageType == "global" {
+					keyType = byte(preimage.Keccak256KeyType)
+				}
+				if state.PreimageKey.Bytes()[0] == keyType {
+					break
+				}
+			}
+			if (stopAtPreimageKey != common.Hash{}) && state.PreimageKey == stopAtPreimageKey {
+				break
+			}
+		}
 	}
 
 	if err := writeJSON(ctx.Path(RunOutputFlag.Name), state); err != nil {
@@ -381,6 +417,8 @@ var RunCommand = &cli.Command{
 		RunSnapshotAtFlag,
 		RunSnapshotFmtFlag,
 		RunStopAtFlag,
+		RunStopAtPreimageTypeFlag,
+		RunStopAtPreimageKeyFlag,
 		RunMetaFlag,
 		RunInfoAtFlag,
 		RunPProfCPU,

@@ -166,8 +166,8 @@ library LibPosition {
     }
 
     /// @notice Get the move position of `_position`, which is the left child of:
-    ///         1. `_position + 1` if `_isAttack` is true.
-    ///         1. `_position` if `_isAttack` is false.
+    ///         1. `_position` if `_isAttack` is true.
+    ///         2. `_position | 1` if `_isAttack` is false.
     /// @param _position The position to get the relative attack/defense position of.
     /// @param _isAttack Whether or not the move is an attack move.
     /// @return move_ The move position relative to `position`.

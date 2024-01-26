@@ -21,10 +21,12 @@ const (
 )
 
 var (
-	ErrBlobInvalidFieldElement    = errors.New("invalid field element")
-	ErrBlobInvalidEncodingVersion = errors.New("invalid encoding version")
-	ErrBlobInvalidLength          = errors.New("invalid length for blob")
-	ErrBlobInputTooLarge          = errors.New("too much data to encode in one blob")
+	ErrBlobInvalidFieldElement        = errors.New("invalid field element")
+	ErrBlobInvalidEncodingVersion     = errors.New("invalid encoding version")
+	ErrBlobInvalidLength              = errors.New("invalid length for blob")
+	ErrBlobInputTooLarge              = errors.New("too much data to encode in one blob")
+	ErrBlobExtraneousData             = errors.New("non-zero data encountered where blob should be empty")
+	ErrBlobExtraneousDataFieldElement = errors.New("non-zero data encountered where field element should be empty")
 )
 
 type Blob [BlobSize]byte
@@ -238,7 +240,17 @@ func (b *Blob) ToData() (Data, error) {
 		}
 		opos = reassembleBytes(opos, encodedByte, output)
 	}
+	for i := int(outputLen); i < len(output); i++ {
+		if output[i] != 0 {
+			return nil, fmt.Errorf("fe=%d: %w", opos/32, ErrBlobExtraneousDataFieldElement)
+		}
+	}
 	output = output[:outputLen]
+	for ; ipos < BlobSize; ipos++ {
+		if b[ipos] != 0 {
+			return nil, fmt.Errorf("pos=%d: %w", ipos, ErrBlobExtraneousData)
+		}
+	}
 	return output, nil
 }
 

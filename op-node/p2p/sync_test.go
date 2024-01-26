@@ -15,6 +15,7 @@ import (
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
@@ -23,9 +24,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
-type mockPayloadFn func(n uint64) (*eth.ExecutionPayload, error)
+type mockPayloadFn func(n uint64) (*eth.ExecutionPayloadEnvelope, error)
 
-func (fn mockPayloadFn) PayloadByNumber(_ context.Context, number uint64) (*eth.ExecutionPayload, error) {
+func (fn mockPayloadFn) PayloadByNumber(_ context.Context, number uint64) (*eth.ExecutionPayloadEnvelope, error) {
 	return fn(number)
 }
 
@@ -33,10 +34,10 @@ var _ L2Chain = mockPayloadFn(nil)
 
 type syncTestData struct {
 	sync.RWMutex
-	payloads map[uint64]*eth.ExecutionPayload
+	payloads map[uint64]*eth.ExecutionPayloadEnvelope
 }
 
-func (s *syncTestData) getPayload(i uint64) (payload *eth.ExecutionPayload, ok bool) {
+func (s *syncTestData) getPayload(i uint64) (payload *eth.ExecutionPayloadEnvelope, ok bool) {
 	s.RLock()
 	defer s.RUnlock()
 	payload, ok = s.payloads[i]
@@ -49,20 +50,20 @@ func (s *syncTestData) deletePayload(i uint64) {
 	delete(s.payloads, i)
 }
 
-func (s *syncTestData) addPayload(payload *eth.ExecutionPayload) {
+func (s *syncTestData) addPayload(payload *eth.ExecutionPayloadEnvelope) {
 	s.Lock()
 	defer s.Unlock()
-	s.payloads[uint64(payload.BlockNumber)] = payload
+	s.payloads[uint64(payload.ExecutionPayload.BlockNumber)] = payload
 }
 
 func (s *syncTestData) getBlockRef(i uint64) eth.L2BlockRef {
 	s.RLock()
 	defer s.RUnlock()
 	return eth.L2BlockRef{
-		Hash:       s.payloads[i].BlockHash,
-		Number:     uint64(s.payloads[i].BlockNumber),
-		ParentHash: s.payloads[i].ParentHash,
-		Time:       uint64(s.payloads[i].Timestamp),
+		Hash:       s.payloads[i].ExecutionPayload.BlockHash,
+		Number:     uint64(s.payloads[i].ExecutionPayload.BlockNumber),
+		ParentHash: s.payloads[i].ExecutionPayload.ParentHash,
+		Time:       uint64(s.payloads[i].ExecutionPayload.Timestamp),
 	}
 }
 
@@ -78,19 +79,42 @@ func setupSyncTestData(length uint64) (*rollup.Config, *syncTestData) {
 		L2ChainID: big.NewInt(1234),
 	}
 
+	ecotoneBlock := length / 2
+	ecotoneTime := cfg.Genesis.L2Time + ecotoneBlock*cfg.BlockTime
+	cfg.EcotoneTime = &ecotoneTime
+
 	// create some simple fake test blocks
-	payloads := make(map[uint64]*eth.ExecutionPayload)
-	payloads[0] = &eth.ExecutionPayload{
-		Timestamp: eth.Uint64Quantity(cfg.Genesis.L2Time),
+	payloads := make(map[uint64]*eth.ExecutionPayloadEnvelope)
+	payloads[0] = &eth.ExecutionPayloadEnvelope{
+		ExecutionPayload: &eth.ExecutionPayload{
+			Timestamp: eth.Uint64Quantity(cfg.Genesis.L2Time),
+		},
 	}
-	payloads[0].BlockHash, _ = payloads[0].CheckBlockHash()
+
+	payloads[0].ExecutionPayload.BlockHash, _ = payloads[0].CheckBlockHash()
 	for i := uint64(1); i <= length; i++ {
-		payload := &eth.ExecutionPayload{
-			ParentHash:  payloads[i-1].BlockHash,
-			BlockNumber: eth.Uint64Quantity(i),
-			Timestamp:   eth.Uint64Quantity(cfg.Genesis.L2Time + i*cfg.BlockTime),
+		timestamp := cfg.Genesis.L2Time + i*cfg.BlockTime
+		payload := &eth.ExecutionPayloadEnvelope{
+			ExecutionPayload: &eth.ExecutionPayload{
+				ParentHash:  payloads[i-1].ExecutionPayload.BlockHash,
+				BlockNumber: eth.Uint64Quantity(i),
+				Timestamp:   eth.Uint64Quantity(timestamp),
+			},
 		}
-		payload.BlockHash, _ = payload.CheckBlockHash()
+
+		if cfg.IsEcotone(timestamp) {
+			hash := common.BigToHash(big.NewInt(int64(i)))
+			payload.ParentBeaconBlockRoot = &hash
+
+			zero := eth.Uint64Quantity(0)
+			payload.ExecutionPayload.ExcessBlobGas = &zero
+			payload.ExecutionPayload.BlobGasUsed = &zero
+
+			w := types.Withdrawals{}
+			payload.ExecutionPayload.Withdrawals = &w
+		}
+
+		payload.ExecutionPayload.BlockHash, _ = payload.CheckBlockHash()
 		payloads[i] = payload
 	}
 
@@ -105,7 +129,7 @@ func TestSinglePeerSync(t *testing.T) {
 	cfg, payloads := setupSyncTestData(25)
 
 	// Serving payloads: just load them from the map, if they exist
-	servePayload := mockPayloadFn(func(n uint64) (*eth.ExecutionPayload, error) {
+	servePayload := mockPayloadFn(func(n uint64) (*eth.ExecutionPayloadEnvelope, error) {
 		p, ok := payloads.getPayload(n)
 		if !ok {
 			return nil, ethereum.NotFound
@@ -114,8 +138,8 @@ func TestSinglePeerSync(t *testing.T) {
 	})
 
 	// collect received payloads in a buffered channel, so we can verify we get everything
-	received := make(chan *eth.ExecutionPayload, 100)
-	receivePayload := receivePayloadFn(func(ctx context.Context, from peer.ID, payload *eth.ExecutionPayload) error {
+	received := make(chan *eth.ExecutionPayloadEnvelope, 100)
+	receivePayload := receivePayloadFn(func(ctx context.Context, from peer.ID, payload *eth.ExecutionPayloadEnvelope) error {
 		received <- payload
 		return nil
 	})
@@ -150,10 +174,17 @@ func TestSinglePeerSync(t *testing.T) {
 	// and wait for the sync results to come in (in reverse order)
 	for i := uint64(19); i > 10; i-- {
 		p := <-received
-		require.Equal(t, uint64(p.BlockNumber), i, "expecting payloads in order")
-		exp, ok := payloads.getPayload(uint64(p.BlockNumber))
+		require.Equal(t, uint64(p.ExecutionPayload.BlockNumber), i, "expecting payloads in order")
+		exp, ok := payloads.getPayload(uint64(p.ExecutionPayload.BlockNumber))
 		require.True(t, ok, "expecting known payload")
-		require.Equal(t, exp.BlockHash, p.BlockHash, "expecting the correct payload")
+		require.Equal(t, exp.ExecutionPayload.BlockHash, p.ExecutionPayload.BlockHash, "expecting the correct payload")
+
+		require.Equal(t, exp.ParentBeaconBlockRoot, p.ParentBeaconBlockRoot)
+		if cfg.IsEcotone(uint64(p.ExecutionPayload.Timestamp)) {
+			require.NotNil(t, p.ParentBeaconBlockRoot)
+		} else {
+			require.Nil(t, p.ParentBeaconBlockRoot)
+		}
 	}
 }
 
@@ -167,9 +198,9 @@ func TestMultiPeerSync(t *testing.T) {
 	// Buffered channel of all blocks requested from any client.
 	requested := make(chan uint64, 100)
 
-	setupPeer := func(ctx context.Context, h host.Host) (*SyncClient, chan *eth.ExecutionPayload) {
+	setupPeer := func(ctx context.Context, h host.Host) (*SyncClient, chan *eth.ExecutionPayloadEnvelope) {
 		// Serving payloads: just load them from the map, if they exist
-		servePayload := mockPayloadFn(func(n uint64) (*eth.ExecutionPayload, error) {
+		servePayload := mockPayloadFn(func(n uint64) (*eth.ExecutionPayloadEnvelope, error) {
 			requested <- n
 			p, ok := payloads.getPayload(n)
 			if !ok {
@@ -179,8 +210,8 @@ func TestMultiPeerSync(t *testing.T) {
 		})
 
 		// collect received payloads in a buffered channel, so we can verify we get everything
-		received := make(chan *eth.ExecutionPayload, 100)
-		receivePayload := receivePayloadFn(func(ctx context.Context, from peer.ID, payload *eth.ExecutionPayload) error {
+		received := make(chan *eth.ExecutionPayloadEnvelope, 100)
+		receivePayload := receivePayloadFn(func(ctx context.Context, from peer.ID, payload *eth.ExecutionPayloadEnvelope) error {
 			received <- payload
 			return nil
 		})
@@ -229,10 +260,11 @@ func TestMultiPeerSync(t *testing.T) {
 	// With such large range to request we are going to hit the rate-limits of B and C,
 	// but that means we'll balance the work between the peers.
 	for i := uint64(89); i > 10; i-- { // wait for all payloads
-		p := <-recvA
+		e := <-recvA
+		p := e.ExecutionPayload
 		exp, ok := payloads.getPayload(uint64(p.BlockNumber))
 		require.True(t, ok, "expecting known payload")
-		require.Equal(t, exp.BlockHash, p.BlockHash, "expecting the correct payload")
+		require.Equal(t, exp.ExecutionPayload.BlockHash, p.BlockHash, "expecting the correct payload")
 	}
 
 	// now see if B can sync a range, and fill the gap with a re-request
@@ -241,9 +273,9 @@ func TestMultiPeerSync(t *testing.T) {
 	require.NoError(t, clB.RequestL2Range(ctx, payloads.getBlockRef(20), payloads.getBlockRef(30)))
 	for i := uint64(29); i > 25; i-- {
 		p := <-recvB
-		exp, ok := payloads.getPayload(uint64(p.BlockNumber))
+		exp, ok := payloads.getPayload(uint64(p.ExecutionPayload.BlockNumber))
 		require.True(t, ok, "expecting known payload")
-		require.Equal(t, exp.BlockHash, p.BlockHash, "expecting the correct payload")
+		require.Equal(t, exp.ExecutionPayload.BlockHash, p.ExecutionPayload.BlockHash, "expecting the correct payload")
 	}
 	// Wait for the request for block 25 to be made
 	ctx, cancelFunc := context.WithTimeout(context.Background(), 30*time.Second)
@@ -283,9 +315,15 @@ func TestMultiPeerSync(t *testing.T) {
 	require.NoError(t, clB.RequestL2Range(ctx, payloads.getBlockRef(20), payloads.getBlockRef(26)))
 	for i := uint64(25); i > 20; i-- {
 		p := <-recvB
-		exp, ok := payloads.getPayload(uint64(p.BlockNumber))
+		exp, ok := payloads.getPayload(uint64(p.ExecutionPayload.BlockNumber))
 		require.True(t, ok, "expecting known payload")
-		require.Equal(t, exp.BlockHash, p.BlockHash, "expecting the correct payload")
+		require.Equal(t, exp.ExecutionPayload.BlockHash, p.ExecutionPayload.BlockHash, "expecting the correct payload")
+		require.Equal(t, exp.ParentBeaconBlockRoot, p.ParentBeaconBlockRoot)
+		if cfg.IsEcotone(uint64(p.ExecutionPayload.Timestamp)) {
+			require.NotNil(t, p.ParentBeaconBlockRoot)
+		} else {
+			require.Nil(t, p.ParentBeaconBlockRoot)
+		}
 	}
 }
 
@@ -304,7 +342,7 @@ func TestNetworkNotifyAddPeerAndRemovePeer(t *testing.T) {
 	require.NoError(t, err, "failed to launch host B")
 	defer hostB.Close()
 
-	syncCl := NewSyncClient(log, cfg, hostA.NewStream, func(ctx context.Context, from peer.ID, payload *eth.ExecutionPayload) error {
+	syncCl := NewSyncClient(log, cfg, hostA.NewStream, func(ctx context.Context, from peer.ID, payload *eth.ExecutionPayloadEnvelope) error {
 		return nil
 	}, metrics.NoopMetrics, &NoopApplicationScorer{})
 
@@ -340,5 +378,4 @@ func TestNetworkNotifyAddPeerAndRemovePeer(t *testing.T) {
 	<-waitChan
 	_, peerBExist3 := syncCl.peers[hostB.ID()]
 	require.True(t, !peerBExist3, "peerB should not exist in syncClient")
-
 }

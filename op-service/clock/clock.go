@@ -13,6 +13,9 @@ type Clock interface {
 	// Now provides the current local time. Equivalent to time.Now
 	Now() time.Time
 
+	// Since returns the time elapsed since t. It is shorthand for time.Now().Sub(t).
+	Since(time.Time) time.Duration
+
 	// After waits for the duration to elapse and then sends the current time on the returned channel.
 	// It is equivalent to time.After
 	After(d time.Duration) <-chan time.Time
@@ -79,6 +82,10 @@ type systemClock struct {
 
 func (s systemClock) Now() time.Time {
 	return time.Now()
+}
+
+func (s systemClock) Since(t time.Time) time.Duration {
+	return time.Since(t)
 }
 
 func (s systemClock) After(d time.Duration) <-chan time.Time {

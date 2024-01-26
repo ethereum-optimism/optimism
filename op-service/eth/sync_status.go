@@ -34,7 +34,4 @@ type SyncStatus struct {
 	FinalizedL2 L2BlockRef `json:"finalized_l2"`
 	// PendingSafeL2 points to the L2 block processed from the batch, but not consolidated to the safe block yet.
 	PendingSafeL2 L2BlockRef `json:"pending_safe_l2"`
-	// UnsafeL2SyncTarget points to the first unprocessed unsafe L2 block.
-	// It may be zeroed if there is no targeted block.
-	UnsafeL2SyncTarget L2BlockRef `json:"queued_unsafe_l2"`
 }
