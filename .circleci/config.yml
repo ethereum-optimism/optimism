@@ -1253,9 +1253,9 @@ jobs:
     steps:
       - checkout
       - run:
-          name: verify-goerli
+          name: verify-sepolia
           command: |
-            make verify-goerli
+            make verify-sepolia
           working_directory: op-program
       - notify-failures-on-develop
 
@@ -1270,9 +1270,9 @@ jobs:
       - restore_cache:
           key: golang-build-cache
       - run:
-          name: compat-goerli
+          name: compat-sepolia
           command: |
-            make run-goerli-verify
+            make run-sepolia-verify
           working_directory: op-program
 
   check-generated-mocks-op-node:

@@ -40,8 +40,8 @@ func main() {
 		os.Exit(2)
 	}
 
-	goerliOutputAddress := common.HexToAddress("0xE6Dfba0953616Bacab0c9A8ecb3a9BBa77FC15c0")
-	err := Run(l1RpcUrl, l1RpcKind, l2RpcUrl, goerliOutputAddress, dataDir)
+	sepoliaOutputAddress := common.HexToAddress("0x90E9c4f8a994a250F6aEfd61CAFb4F2e895D458F")
+	err := Run(l1RpcUrl, l1RpcKind, l2RpcUrl, sepoliaOutputAddress, dataDir)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "Failed: %v\n", err.Error())
 		os.Exit(1)
@@ -122,7 +122,7 @@ func Run(l1RpcUrl string, l1RpcKind string, l2RpcUrl string, l2OracleAddr common
 	fmt.Printf("Using dir: %s\n", dataDir)
 	args := []string{
 		"--log.level", "DEBUG",
-		"--network", "goerli",
+		"--network", "sepolia",
 		"--exec", "./bin/op-program-client",
 		"--datadir", dataDir,
 		"--l1.head", l1Head.Hex(),
@@ -132,7 +132,7 @@ func Run(l1RpcUrl string, l1RpcKind string, l2RpcUrl string, l2OracleAddr common
 		"--l2.blocknumber", l2BlockNumber.String(),
 	}
 	argsStr := strings.Join(args, " ")
-	// args.txt is used by run-goerli-verify job for offline verification in CI
+	// args.txt is used by run-sepolia-verify job for offline verification in CI
 	if err := os.WriteFile(filepath.Join(dataDir, "args.txt"), []byte(argsStr), 0644); err != nil {
 		fmt.Printf("Could not write args: %v", err)
 		os.Exit(1)
@@ -141,14 +141,14 @@ func Run(l1RpcUrl string, l1RpcKind string, l2RpcUrl string, l2OracleAddr common
 
 	logger := oplog.DefaultCLIConfig()
 	logger.Level = log.LvlDebug
-	rollupCfg, err := rollup.LoadOPStackRollupConfig(chainconfig.OPGoerliChainConfig.ChainID.Uint64())
+	rollupCfg, err := rollup.LoadOPStackRollupConfig(chainconfig.OPSepoliaChainConfig.ChainID.Uint64())
 	if err != nil {
 		return fmt.Errorf("failed to load rollup config: %w", err)
 	}
 	offlineCfg := config.Config{
 		Rollup:             rollupCfg,
 		DataDir:            dataDir,
-		L2ChainConfig:      chainconfig.OPGoerliChainConfig,
+		L2ChainConfig:      chainconfig.OPSepoliaChainConfig,
 		L2Head:             l2Head,
 		L2OutputRoot:       agreedOutput.OutputRoot,
 		L2Claim:            l2Claim,
