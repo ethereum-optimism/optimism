@@ -4,6 +4,9 @@ op-version-check:
 ecotone-scalar:
 	go build -o ./bin/ecotone-scalar ./cmd/ecotone-scalar/main.go
 
+receipt-reference-builder:
+	go build -o ./bin/receipt-reference-builder ./cmd/receipt-reference-builder/main.go
+
 test:
 	go test ./...
 
