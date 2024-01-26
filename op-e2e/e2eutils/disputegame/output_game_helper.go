@@ -2,15 +2,18 @@ package disputegame
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"fmt"
 	"math/big"
 	"testing"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	gethtypes "github.com/ethereum/go-ethereum/core/types"
@@ -40,6 +43,10 @@ func (g *OutputGameHelper) SplitDepth(ctx context.Context) types.Depth {
 	splitDepth, err := g.game.SplitDepth(&bind.CallOpts{Context: ctx})
 	g.require.NoError(err, "failed to load split depth")
 	return types.Depth(splitDepth.Uint64())
+}
+
+func (g *OutputGameHelper) ExecDepth(ctx context.Context) types.Depth {
+	return g.MaxDepth(ctx) - g.SplitDepth(ctx) - 1
 }
 
 func (g *OutputGameHelper) L2BlockNum(ctx context.Context) uint64 {
@@ -457,6 +464,32 @@ func (g *OutputGameHelper) ResolveClaim(ctx context.Context, claimIdx int64) {
 	g.require.NoError(err, "ResolveClaim transaction did not send")
 	_, err = wait.ForReceiptOK(ctx, g.client, tx.Hash())
 	g.require.NoError(err, "ResolveClaim transaction was not OK")
+}
+
+func (g *OutputGameHelper) preimageExistsInOracle(ctx context.Context, data *types.PreimageOracleData) bool {
+	oracle := g.oracle(ctx)
+	exists, err := oracle.GlobalDataExists(ctx, data)
+	g.require.NoError(err)
+	return exists
+}
+
+func (g *OutputGameHelper) uploadPreimage(ctx context.Context, data *types.PreimageOracleData, privateKey *ecdsa.PrivateKey) {
+	oracle := g.oracle(ctx)
+	boundOracle, err := bindings.NewPreimageOracle(oracle.Addr(), g.client)
+	g.require.NoError(err)
+	tx, err := boundOracle.LoadKeccak256PreimagePart(g.opts, new(big.Int).SetUint64(uint64(data.OracleOffset)), data.GetPreimageWithoutSize())
+	g.require.NoError(err, "Failed to load preimage part")
+	_, err = wait.ForReceiptOK(ctx, g.client, tx.Hash())
+	g.require.NoError(err)
+}
+
+func (g *OutputGameHelper) oracle(ctx context.Context) *contracts.PreimageOracleContract {
+	caller := batching.NewMultiCaller(g.system.NodeClient("l1").Client(), batching.DefaultBatchSize)
+	contract, err := contracts.NewFaultDisputeGameContract(g.addr, caller)
+	g.require.NoError(err, "Failed to create game contract")
+	oracle, err := contract.GetOracle(ctx)
+	g.require.NoError(err, "Failed to create oracle contract")
+	return oracle
 }
 
 func (g *OutputGameHelper) gameData(ctx context.Context) string {

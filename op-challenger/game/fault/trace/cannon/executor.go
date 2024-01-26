@@ -67,9 +67,18 @@ func NewExecutor(logger log.Logger, m CannonMetricer, cfg *config.Config, inputs
 	}
 }
 
+// GenerateProof executes cannon to generate a proof at the specified trace index.
+// The proof is stored at the specified directory.
 func (e *Executor) GenerateProof(ctx context.Context, dir string, i uint64) error {
+	return e.generateProofOrUntilPreimageRead(ctx, dir, i, i, false)
+}
+
+// generateProofOrUntilPreimageRead executes cannon to generate a proof at the specified trace index,
+// or until a non-local preimage read is encountered if untilPreimageRead is true.
+// The proof is stored at the specified directory.
+func (e *Executor) generateProofOrUntilPreimageRead(ctx context.Context, dir string, begin uint64, end uint64, untilPreimageRead bool) error {
 	snapshotDir := filepath.Join(dir, snapsDir)
-	start, err := e.selectSnapshot(e.logger, snapshotDir, e.absolutePreState, i)
+	start, err := e.selectSnapshot(e.logger, snapshotDir, e.absolutePreState, begin)
 	if err != nil {
 		return fmt.Errorf("find starting snapshot: %w", err)
 	}
@@ -82,13 +91,16 @@ func (e *Executor) GenerateProof(ctx context.Context, dir string, i uint64) erro
 		"--output", lastGeneratedState,
 		"--meta", "",
 		"--info-at", "%" + strconv.FormatUint(uint64(e.infoFreq), 10),
-		"--proof-at", "=" + strconv.FormatUint(i, 10),
+		"--proof-at", "=" + strconv.FormatUint(end, 10),
 		"--proof-fmt", filepath.Join(proofDir, "%d.json.gz"),
 		"--snapshot-at", "%" + strconv.FormatUint(uint64(e.snapshotFreq), 10),
 		"--snapshot-fmt", filepath.Join(snapshotDir, "%d.json.gz"),
 	}
-	if i < math.MaxUint64 {
-		args = append(args, "--stop-at", "="+strconv.FormatUint(i+1, 10))
+	if end < math.MaxUint64 {
+		args = append(args, "--stop-at", "="+strconv.FormatUint(end+1, 10))
+	}
+	if untilPreimageRead {
+		args = append(args, "--stop-at-preimage-type", "global")
 	}
 	args = append(args,
 		"--",
@@ -121,9 +133,9 @@ func (e *Executor) GenerateProof(ctx context.Context, dir string, i uint64) erro
 	if err := os.MkdirAll(proofDir, 0755); err != nil {
 		return fmt.Errorf("could not create proofs directory %v: %w", proofDir, err)
 	}
-	e.logger.Info("Generating trace", "proof", i, "cmd", e.cannon, "args", strings.Join(args, ", "))
+	e.logger.Info("Generating trace", "proof", end, "cmd", e.cannon, "args", strings.Join(args, ", "))
 	execStart := time.Now()
-	err = e.cmdExecutor(ctx, e.logger.New("proof", i), e.cannon, args...)
+	err = e.cmdExecutor(ctx, e.logger.New("proof", end), e.cannon, args...)
 	e.metrics.RecordCannonExecutionTime(time.Since(execStart).Seconds())
 	return err
 }
