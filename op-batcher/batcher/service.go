@@ -329,6 +329,12 @@ func (bs *BatcherService) Stop(ctx context.Context) error {
 	}
 	bs.Log.Info("Stopping batcher")
 
+	// close the TxManager first, so that new work is denied, in-flight work is cancelled as early as possible
+	// (transactions which are expected to be confirmed are still waited for)
+	if bs.TxManager != nil {
+		bs.TxManager.Close()
+	}
+
 	var result error
 	if bs.driver != nil {
 		if err := bs.driver.StopBatchSubmittingIfRunning(ctx); err != nil {
@@ -351,9 +357,6 @@ func (bs *BatcherService) Stop(ctx context.Context) error {
 		if err := bs.balanceMetricer.Close(); err != nil {
 			result = errors.Join(result, fmt.Errorf("failed to close balance metricer: %w", err))
 		}
-	}
-	if bs.TxManager != nil {
-		bs.TxManager.Close()
 	}
 
 	if bs.metricsSrv != nil {
