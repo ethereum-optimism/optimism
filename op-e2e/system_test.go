@@ -178,7 +178,7 @@ func TestSystemE2EDencunAtGenesisWithBlobs(t *testing.T) {
 	InitParallel(t)
 
 	cfg := DefaultSystemConfig(t)
-	//cancun is on from genesis:
+	// cancun is on from genesis:
 	genesisActivation := uint64(0)
 	cfg.DeployConfig.L1CancunTimeOffset = &genesisActivation // i.e. turn cancun on at genesis time + 0
 
@@ -471,7 +471,7 @@ func TestMissingBatchE2E(t *testing.T) {
 
 func L1InfoFromState(ctx context.Context, contract *bindings.L1Block, l2Number *big.Int) (*derive.L1BlockInfo, error) {
 	var err error
-	var out = &derive.L1BlockInfo{}
+	out := &derive.L1BlockInfo{}
 	opts := bind.CallOpts{
 		BlockNumber: l2Number,
 		Context:     ctx,
@@ -932,7 +932,6 @@ func TestL1InfoContract(t *testing.T) {
 	checkInfoList("On sequencer with state", l1InfosFromSequencerState)
 	checkInfoList("On verifier with tx", l1InfosFromVerifierTransactions)
 	checkInfoList("On verifier with state", l1InfosFromVerifierState)
-
 }
 
 // calcGasFees determines the actual cost of the transaction given a specific base fee
@@ -1227,11 +1226,11 @@ func StopStartBatcher(t *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	cfg := DefaultSystemConfig(t)
 	cfg.DeployConfig.L2GenesisDeltaTimeOffset = deltaTimeOffset
 	sys, err := cfg.Start(t)
-	require.Nil(t, err, "Error starting up system")
+	require.NoError(t, err, "Error starting up system")
 	defer sys.Close()
 
 	rollupRPCClient, err := rpc.DialContext(context.Background(), sys.RollupNodes["verifier"].HTTPEndpoint())
-	require.Nil(t, err)
+	require.NoError(t, err)
 	rollupClient := sources.NewRollupClient(client.NewBaseRPCClient(rollupRPCClient))
 
 	l2Seq := sys.Clients["sequencer"]
@@ -1239,7 +1238,7 @@ func StopStartBatcher(t *testing.T, deltaTimeOffset *hexutil.Uint64) {
 
 	// retrieve the initial sync status
 	seqStatus, err := rollupClient.SyncStatus(context.Background())
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	nonce := uint64(0)
 	sendTx := func() *types.Receipt {
@@ -1258,24 +1257,24 @@ func StopStartBatcher(t *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	// wait until the block the tx was first included in shows up in the safe chain on the verifier
 	safeBlockInclusionDuration := time.Duration(6*cfg.DeployConfig.L1BlockTime) * time.Second
 	_, err = geth.WaitForBlock(receipt.BlockNumber, l2Verif, safeBlockInclusionDuration)
-	require.Nil(t, err, "Waiting for block on verifier")
+	require.NoError(t, err, "Waiting for block on verifier")
 	require.NoError(t, wait.ForProcessingFullBatch(context.Background(), rollupClient))
 
 	// ensure the safe chain advances
 	newSeqStatus, err := rollupClient.SyncStatus(context.Background())
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Greater(t, newSeqStatus.SafeL2.Number, seqStatus.SafeL2.Number, "Safe chain did not advance")
 
 	// stop the batch submission
 	err = sys.BatchSubmitter.Driver().StopBatchSubmitting(context.Background())
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	// wait for any old safe blocks being submitted / derived
 	time.Sleep(safeBlockInclusionDuration)
 
 	// get the initial sync status
 	seqStatus, err = rollupClient.SyncStatus(context.Background())
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	// send another tx
 	sendTx()
@@ -1283,12 +1282,12 @@ func StopStartBatcher(t *testing.T, deltaTimeOffset *hexutil.Uint64) {
 
 	// ensure that the safe chain does not advance while the batcher is stopped
 	newSeqStatus, err = rollupClient.SyncStatus(context.Background())
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, newSeqStatus.SafeL2.Number, seqStatus.SafeL2.Number, "Safe chain advanced while batcher was stopped")
 
 	// start the batch submission
 	err = sys.BatchSubmitter.Driver().StartBatchSubmitting()
-	require.Nil(t, err)
+	require.NoError(t, err)
 	time.Sleep(safeBlockInclusionDuration)
 
 	// send a third tx
@@ -1296,12 +1295,12 @@ func StopStartBatcher(t *testing.T, deltaTimeOffset *hexutil.Uint64) {
 
 	// wait until the block the tx was first included in shows up in the safe chain on the verifier
 	_, err = geth.WaitForBlock(receipt.BlockNumber, l2Verif, safeBlockInclusionDuration)
-	require.Nil(t, err, "Waiting for block on verifier")
+	require.NoError(t, err, "Waiting for block on verifier")
 	require.NoError(t, wait.ForProcessingFullBatch(context.Background(), rollupClient))
 
 	// ensure that the safe chain advances after restarting the batcher
 	newSeqStatus, err = rollupClient.SyncStatus(context.Background())
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Greater(t, newSeqStatus.SafeL2.Number, seqStatus.SafeL2.Number, "Safe chain did not advance after batcher was restarted")
 }
 
