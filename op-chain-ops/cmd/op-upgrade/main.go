@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/safe"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/upgrades"
+	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 
 	"github.com/ethereum-optimism/superchain-registry/superchain"
 )
@@ -79,7 +80,7 @@ func entrypoint(ctx *cli.Context) error {
 
 	superchainName := ctx.String("superchain-target")
 	if superchainName == "" {
-		superchainName, err = toSuperchainName(l1ChainID.Uint64())
+		superchainName, err = upgrades.ToSuperchainName(l1ChainID.Uint64())
 		if err != nil {
 			return err
 		}
@@ -202,7 +203,7 @@ func entrypoint(ctx *cli.Context) error {
 
 	// Write the batch to disk or stdout
 	if outfile := ctx.Path("outfile"); outfile != "" {
-		if err := writeJSON(outfile, batch); err != nil {
+		if err := jsonutil.WriteJSON(outfile, batch); err != nil {
 			return err
 		}
 	} else {
@@ -239,31 +240,4 @@ func toDeployConfigName(cfg *superchain.ChainConfig) (string, error) {
 		return "zora-goerli", nil
 	}
 	return "", fmt.Errorf("unsupported chain name %s", cfg.Name)
-}
-
-// toSuperchainName turns a base layer chain id into a superchain
-// network name.
-func toSuperchainName(chainID uint64) (string, error) {
-	if chainID == 1 {
-		return "mainnet", nil
-	}
-	if chainID == 5 {
-		return "goerli", nil
-	}
-	if chainID == 11155111 {
-		return "sepolia", nil
-	}
-	return "", fmt.Errorf("unsupported chain ID %d", chainID)
-}
-
-func writeJSON(outfile string, input interface{}) error {
-	f, err := os.OpenFile(outfile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o666)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	enc := json.NewEncoder(f)
-	enc.SetIndent("", "  ")
-	return enc.Encode(input)
 }

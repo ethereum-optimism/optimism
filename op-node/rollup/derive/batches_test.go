@@ -15,7 +15,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -41,9 +40,6 @@ func (th *TestLogHandler) Log(r *log.Record) error {
 	th.logs.WriteString(r.Msg + "\n")
 	return th.handler.Log(r)
 }
-
-var HashA = common.Hash{0x0a}
-var HashB = common.Hash{0x0b}
 
 func TestValidBatch(t *testing.T) {
 	defaultConf := rollup.Config{
@@ -1515,18 +1511,20 @@ func TestValidBatch(t *testing.T) {
 	// will return an error for block #99 (parent of l2A0)
 	l2Client.Mock.On("L2BlockRefByNumber", l2A0.Number-1).Return(eth.L2BlockRef{}, &tempErr)
 	// will return an error for l2A3
-	l2Client.Mock.On("PayloadByNumber", l2A3.Number).Return(&eth.ExecutionPayload{}, &tempErr)
+	l2Client.Mock.On("PayloadByNumber", l2A3.Number).Return(&eth.ExecutionPayloadEnvelope{}, &tempErr)
 
 	// make payloads for L2 blocks and set as expected return value of MockL2Client
 	for _, l2Block := range []eth.L2BlockRef{l2A0, l2A1, l2A2, l2B0} {
 		l2Client.ExpectL2BlockRefByNumber(l2Block.Number, l2Block, nil)
 		txData := l1InfoDepositTx(t, l2Block.L1Origin.Number)
-		payload := eth.ExecutionPayload{
-			ParentHash:   l2Block.ParentHash,
-			BlockNumber:  hexutil.Uint64(l2Block.Number),
-			Timestamp:    hexutil.Uint64(l2Block.Time),
-			BlockHash:    l2Block.Hash,
-			Transactions: []hexutil.Bytes{txData},
+		payload := eth.ExecutionPayloadEnvelope{
+			ExecutionPayload: &eth.ExecutionPayload{
+				ParentHash:   l2Block.ParentHash,
+				BlockNumber:  hexutil.Uint64(l2Block.Number),
+				Timestamp:    hexutil.Uint64(l2Block.Time),
+				BlockHash:    l2Block.Hash,
+				Transactions: []hexutil.Bytes{txData},
+			},
 		}
 		l2Client.Mock.On("L2BlockRefByNumber", l2Block.Number).Return(l2Block, &nilErr)
 		l2Client.Mock.On("PayloadByNumber", l2Block.Number).Return(&payload, &nilErr)
@@ -1574,12 +1572,14 @@ func TestValidBatch(t *testing.T) {
 	txData := l1InfoDepositTx(t, l2B1.L1Origin.Number)
 	randTx = testutils.RandomTx(rng, new(big.Int).SetUint64(rng.Uint64()), signer)
 	randTxData, _ = randTx.MarshalBinary()
-	payload := eth.ExecutionPayload{
-		ParentHash:   l2B0.Hash,
-		BlockNumber:  hexutil.Uint64(l2B1.Number),
-		Timestamp:    hexutil.Uint64(l2B1.Time),
-		BlockHash:    l2B1.Hash,
-		Transactions: []hexutil.Bytes{txData, randTxData},
+	payload := eth.ExecutionPayloadEnvelope{
+		ExecutionPayload: &eth.ExecutionPayload{
+			ParentHash:   l2B0.Hash,
+			BlockNumber:  hexutil.Uint64(l2B1.Number),
+			Timestamp:    hexutil.Uint64(l2B1.Time),
+			BlockHash:    l2B1.Hash,
+			Transactions: []hexutil.Bytes{txData, randTxData},
+		},
 	}
 	l2Client.Mock.On("PayloadByNumber", l2B1.Number).Return(&payload, &nilErr).Once()
 
@@ -1618,13 +1618,15 @@ func TestValidBatch(t *testing.T) {
 	})
 
 	// ====== Test invalid TX for overlapping batches ======
-	payload = eth.ExecutionPayload{
-		ParentHash:  l2B0.Hash,
-		BlockNumber: hexutil.Uint64(l2B1.Number),
-		Timestamp:   hexutil.Uint64(l2B1.Time),
-		BlockHash:   l2B1.Hash,
-		// First TX is not a deposit TX. it will make error when extracting L2BlockRef from the payload
-		Transactions: []hexutil.Bytes{randTxData},
+	payload = eth.ExecutionPayloadEnvelope{
+		ExecutionPayload: &eth.ExecutionPayload{
+			ParentHash:  l2B0.Hash,
+			BlockNumber: hexutil.Uint64(l2B1.Number),
+			Timestamp:   hexutil.Uint64(l2B1.Time),
+			BlockHash:   l2B1.Hash,
+			// First TX is not a deposit TX. it will make error when extracting L2BlockRef from the payload
+			Transactions: []hexutil.Bytes{randTxData},
+		},
 	}
 	l2Client.Mock.On("PayloadByNumber", l2B1.Number).Return(&payload, &nilErr).Once()
 

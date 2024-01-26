@@ -30,11 +30,16 @@ type gameScheduler interface {
 	Schedule([]types.GameMetadata, uint64) error
 }
 
+type preimageScheduler interface {
+	Schedule(blockHash common.Hash, blockNumber uint64) error
+}
+
 type gameMonitor struct {
 	logger           log.Logger
 	clock            clock.Clock
 	source           gameSource
 	scheduler        gameScheduler
+	preimages        preimageScheduler
 	gameWindow       time.Duration
 	fetchBlockNumber blockNumberFetcher
 	allowedGames     []common.Address
@@ -60,6 +65,7 @@ func newGameMonitor(
 	cl clock.Clock,
 	source gameSource,
 	scheduler gameScheduler,
+	preimages preimageScheduler,
 	gameWindow time.Duration,
 	fetchBlockNumber blockNumberFetcher,
 	allowedGames []common.Address,
@@ -69,6 +75,7 @@ func newGameMonitor(
 		logger:           logger,
 		clock:            cl,
 		scheduler:        scheduler,
+		preimages:        preimages,
 		source:           source,
 		gameWindow:       gameWindow,
 		fetchBlockNumber: fetchBlockNumber,
@@ -125,6 +132,9 @@ func (m *gameMonitor) progressGames(ctx context.Context, blockHash common.Hash, 
 func (m *gameMonitor) onNewL1Head(ctx context.Context, sig eth.L1BlockRef) {
 	if err := m.progressGames(ctx, sig.Hash, sig.Number); err != nil {
 		m.logger.Error("Failed to progress games", "err", err)
+	}
+	if err := m.preimages.Schedule(sig.Hash, sig.Number); err != nil {
+		m.logger.Error("Failed to validate large preimages", "err", err)
 	}
 }
 

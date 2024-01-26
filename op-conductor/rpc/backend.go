@@ -22,7 +22,7 @@ type conductor interface {
 	RemoveServer(ctx context.Context, id string) error
 	TransferLeader(ctx context.Context) error
 	TransferLeaderToServer(ctx context.Context, id string, addr string) error
-	CommitUnsafePayload(ctx context.Context, payload *eth.ExecutionPayload) error
+	CommitUnsafePayload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) error
 }
 
 // APIBackend is the backend implementation of the API.
@@ -59,7 +59,7 @@ func (api *APIBackend) AddServerAsVoter(ctx context.Context, id string, addr str
 }
 
 // CommitUnsafePayload implements API.
-func (api *APIBackend) CommitUnsafePayload(ctx context.Context, payload *eth.ExecutionPayload) error {
+func (api *APIBackend) CommitUnsafePayload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) error {
 	return api.con.CommitUnsafePayload(ctx, payload)
 }
 

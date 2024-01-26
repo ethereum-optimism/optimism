@@ -33,6 +33,7 @@ type L2Verifier struct {
 	}
 
 	// L2 rollup
+	engine     *derive.EngineController
 	derivation *derive.DerivationPipeline
 
 	l1      derive.L1Fetcher
@@ -57,14 +58,16 @@ type L2API interface {
 	OutputV0AtBlock(ctx context.Context, blockHash common.Hash) (*eth.OutputV0, error)
 }
 
-func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher, eng L2API, cfg *rollup.Config, syncCfg *sync.Config) *L2Verifier {
+func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher, blobsSrc derive.L1BlobsFetcher, eng L2API, cfg *rollup.Config, syncCfg *sync.Config) *L2Verifier {
 	metrics := &testutils.TestDerivationMetrics{}
-	pipeline := derive.NewDerivationPipeline(log, cfg, l1, nil, eng, metrics, syncCfg)
+	engine := derive.NewEngineController(eng, log, metrics, cfg, syncCfg.SyncMode)
+	pipeline := derive.NewDerivationPipeline(log, cfg, l1, blobsSrc, eng, engine, metrics, syncCfg)
 	pipeline.Reset()
 
 	rollupNode := &L2Verifier{
 		log:            log,
 		eng:            eng,
+		engine:         engine,
 		derivation:     pipeline,
 		l1:             l1,
 		l1State:        driver.NewL1State(log, metrics),
@@ -127,24 +130,24 @@ func (s *l2VerifierBackend) SequencerActive(ctx context.Context) (bool, error) {
 	return false, nil
 }
 
-func (s *l2VerifierBackend) OnUnsafeL2Payload(ctx context.Context, payload *eth.ExecutionPayload) error {
+func (s *l2VerifierBackend) OnUnsafeL2Payload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope) error {
 	return nil
 }
 
 func (s *L2Verifier) L2Finalized() eth.L2BlockRef {
-	return s.derivation.Finalized()
+	return s.engine.Finalized()
 }
 
 func (s *L2Verifier) L2Safe() eth.L2BlockRef {
-	return s.derivation.SafeL2Head()
+	return s.engine.SafeL2Head()
 }
 
 func (s *L2Verifier) L2PendingSafe() eth.L2BlockRef {
-	return s.derivation.PendingSafeL2Head()
+	return s.engine.PendingSafeL2Head()
 }
 
 func (s *L2Verifier) L2Unsafe() eth.L2BlockRef {
-	return s.derivation.UnsafeL2Head()
+	return s.engine.UnsafeL2Head()
 }
 
 func (s *L2Verifier) SyncStatus() *eth.SyncStatus {
@@ -158,7 +161,6 @@ func (s *L2Verifier) SyncStatus() *eth.SyncStatus {
 		SafeL2:             s.L2Safe(),
 		FinalizedL2:        s.L2Finalized(),
 		PendingSafeL2:      s.L2PendingSafe(),
-		UnsafeL2SyncTarget: s.derivation.UnsafeL2SyncTarget(),
 	}
 }
 
@@ -232,6 +234,8 @@ func (s *L2Verifier) ActL2PipelineStep(t Testing) {
 		return
 	} else if err != nil && errors.Is(err, derive.ErrCritical) {
 		t.Fatalf("derivation failed critically: %v", err)
+	} else if err != nil {
+		t.Fatalf("derivation failed: %v", err)
 	} else {
 		return
 	}
@@ -245,8 +249,18 @@ func (s *L2Verifier) ActL2PipelineFull(t Testing) {
 }
 
 // ActL2UnsafeGossipReceive creates an action that can receive an unsafe execution payload, like gossipsub
-func (s *L2Verifier) ActL2UnsafeGossipReceive(payload *eth.ExecutionPayload) Action {
+func (s *L2Verifier) ActL2UnsafeGossipReceive(payload *eth.ExecutionPayloadEnvelope) Action {
 	return func(t Testing) {
 		s.derivation.AddUnsafePayload(payload)
+	}
+}
+
+// ActL2InsertUnsafePayload creates an action that can insert an unsafe execution payload
+func (s *L2Verifier) ActL2InsertUnsafePayload(payload *eth.ExecutionPayloadEnvelope) Action {
+	return func(t Testing) {
+		ref, err := derive.PayloadToBlockRef(s.rollupCfg, payload.ExecutionPayload)
+		require.NoError(t, err)
+		err = s.engine.InsertUnsafePayload(t.Ctx(), payload, ref)
+		require.NoError(t, err)
 	}
 }

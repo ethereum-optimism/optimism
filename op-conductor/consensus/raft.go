@@ -202,32 +202,22 @@ func (rc *RaftConsensus) Shutdown() error {
 }
 
 // CommitUnsafePayload implements Consensus, it commits latest unsafe payload to the cluster FSM.
-func (rc *RaftConsensus) CommitUnsafePayload(payload *eth.ExecutionPayload) error {
-	blockVersion := eth.BlockV1
-	if rc.rollupCfg.IsCanyon(uint64(payload.Timestamp)) {
-		blockVersion = eth.BlockV2
-	}
-
-	data := unsafeHeadData{
-		version: blockVersion,
-		payload: *payload,
-	}
-
+func (rc *RaftConsensus) CommitUnsafePayload(payload *eth.ExecutionPayloadEnvelope) error {
 	var buf bytes.Buffer
-	if _, err := data.MarshalSSZ(&buf); err != nil {
-		return errors.Wrap(err, "failed to marshal unsafe head data")
+	if _, err := payload.MarshalSSZ(&buf); err != nil {
+		return errors.Wrap(err, "failed to marshal payload envelope")
 	}
 
 	f := rc.r.Apply(buf.Bytes(), defaultTimeout)
 	if err := f.Error(); err != nil {
-		return errors.Wrap(err, "failed to apply unsafe head data")
+		return errors.Wrap(err, "failed to apply payload envelope")
 	}
 
 	return nil
 }
 
 // LatestUnsafePayload implements Consensus, it returns the latest unsafe payload from FSM.
-func (rc *RaftConsensus) LatestUnsafePayload() *eth.ExecutionPayload {
+func (rc *RaftConsensus) LatestUnsafePayload() *eth.ExecutionPayloadEnvelope {
 	payload := rc.unsafeTracker.UnsafeHead()
-	return &payload
+	return payload
 }

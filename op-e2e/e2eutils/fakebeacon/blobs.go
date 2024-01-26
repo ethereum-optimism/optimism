@@ -71,7 +71,7 @@ func (f *FakeBeacon) Start(addr string) error {
 		blockID := strings.TrimPrefix(r.URL.Path, "/eth/v1/beacon/blob_sidecars/")
 		slot, err := strconv.ParseUint(blockID, 10, 64)
 		if err != nil {
-			f.log.Error("could not parse block id from request", "url", r.URL.Path)
+			f.log.Error("could not parse block id from request", "url", r.URL.Path, "err", err)
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
@@ -105,24 +105,37 @@ func (f *FakeBeacon) Start(addr string) error {
 		var mockBeaconBlockRoot [32]byte
 		mockBeaconBlockRoot[0] = 42
 		binary.LittleEndian.PutUint64(mockBeaconBlockRoot[32-8:], slot)
-		sidecars := make([]*eth.BlobSidecar, len(indices))
+		sidecars := make([]*eth.APIBlobSidecar, len(indices))
 		for i, ix := range indices {
 			if ix >= uint64(len(bundle.Blobs)) {
 				f.log.Error("blob index from request is out of range", "url", r.URL)
 				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
-			sidecars[i] = &eth.BlobSidecar{
-				BlockRoot:     mockBeaconBlockRoot,
-				Slot:          eth.Uint64String(slot),
+			sidecars[i] = &eth.APIBlobSidecar{
 				Index:         eth.Uint64String(i),
 				KZGCommitment: eth.Bytes48(bundle.Commitments[ix]),
 				KZGProof:      eth.Bytes48(bundle.Proofs[ix]),
+				SignedBlockHeader: eth.SignedBeaconBlockHeader{
+					Message: eth.BeaconBlockHeader{
+						StateRoot: mockBeaconBlockRoot,
+						Slot:      eth.Uint64String(slot),
+					},
+				},
 			}
 			copy(sidecars[i].Blob[:], bundle.Blobs[ix])
 		}
 		if err := json.NewEncoder(w).Encode(&eth.APIGetBlobSidecarsResponse{Data: sidecars}); err != nil {
 			f.log.Error("blobs handler err", "err", err)
+		}
+	})
+	mux.HandleFunc("/eth/v1/node/version", func(w http.ResponseWriter, r *http.Request) {
+		err := json.NewEncoder(w).Encode(&eth.APIVersionResponse{Data: eth.VersionInformation{Version: "fakebeacon 1.2.3"}})
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			f.log.Error("version handler err", "err", err)
+		} else {
+			w.WriteHeader(http.StatusOK)
 		}
 	})
 	f.beaconSrv = &http.Server{

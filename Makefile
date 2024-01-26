@@ -90,6 +90,10 @@ cannon:
 	make -C ./cannon cannon
 .PHONY: cannon
 
+reproducible-prestate:
+	make -C ./op-program reproducible-prestate
+.PHONY: reproducible-prestate
+
 cannon-prestate: op-program cannon
 	./cannon/bin/cannon load-elf --path op-program/bin/op-program-client.elf --out op-program/bin/prestate.json --meta op-program/bin/meta.json
 	./cannon/bin/cannon run --proof-at '=0' --stop-at '=1' --input op-program/bin/prestate.json --meta op-program/bin/meta.json --proof-fmt 'op-program/bin/%d.json' --output ""
@@ -197,6 +201,6 @@ install-geth:
 	./ops/scripts/geth-version-checker.sh && \
 	 	(echo "Geth versions match, not installing geth..."; true) || \
  		(echo "Versions do not match, installing geth!"; \
- 			go install -v github.com/ethereum/go-ethereum/cmd/geth@$(shell cat .gethrc); \
+ 			go install -v github.com/ethereum/go-ethereum/cmd/geth@$(shell jq -r .geth < versions.json); \
  			echo "Installed geth!"; true)
 .PHONY: install-geth

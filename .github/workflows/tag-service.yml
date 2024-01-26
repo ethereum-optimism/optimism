@@ -29,6 +29,7 @@ on:
           - op-ufm
           - proxyd
           - ufm-metamask
+          - op-contracts
       prerelease:
         description: Increment major/minor/patch as prerelease?
         required: false

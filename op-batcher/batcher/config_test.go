@@ -85,7 +85,7 @@ func TestBatcherConfig(t *testing.T) {
 		{
 			name:      "invalid batch submission policy",
 			override:  func(c *batcher.CLIConfig) { c.DataAvailabilityType = "foo" },
-			errString: "unknown data availability type: foo",
+			errString: "unknown data availability type: \"foo\"",
 		},
 	}
 

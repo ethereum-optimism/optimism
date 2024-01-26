@@ -10,6 +10,9 @@ LDFLAGS := -ldflags "$(LDFLAGSSTRING)"
 op-challenger:
 	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) go build -v $(LDFLAGS) -o ./bin/op-challenger ./cmd
 
+fuzz:
+	go test -run NOTAREALTEST -v -fuzztime 10s -fuzz FuzzKeccak ./game/keccak/matrix
+
 clean:
 	rm bin/op-challenger
 

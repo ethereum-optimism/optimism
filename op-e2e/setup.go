@@ -16,7 +16,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-service/dial"
 	ds "github.com/ipfs/go-datastore"
 	dsSync "github.com/ipfs/go-datastore/sync"
 	ic "github.com/libp2p/go-libp2p/core/crypto"
@@ -59,6 +58,7 @@ import (
 	l2os "github.com/ethereum-optimism/optimism/op-proposer/proposer"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
+	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
@@ -91,7 +91,7 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 	require.NoError(t, err)
 	deployConfig := config.DeployConfig.Copy()
 	deployConfig.L1GenesisBlockTimestamp = hexutil.Uint64(time.Now().Unix())
-	deployConfig.L2GenesisCanyonTimeOffset = e2eutils.CanyonTimeOffset()
+	e2eutils.ApplyDeployConfigForks(deployConfig)
 	require.NoError(t, deployConfig.Check(), "Deploy config is invalid, do you need to run make devnet-allocs?")
 	l1Deployments := config.L1Deployments.Copy()
 	require.NoError(t, l1Deployments.Check())
@@ -156,6 +156,7 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 		NonFinalizedProposals:      false,
 		ExternalL2Shim:             config.ExternalL2Shim,
 		BatcherTargetL1TxSizeBytes: 100_000,
+		DataAvailabilityType:       batcherFlags.CalldataType,
 	}
 }
 
@@ -207,6 +208,9 @@ type SystemConfig struct {
 
 	// Explicitly disable batcher, for tests that rely on unsafe L2 payloads
 	DisableBatcher bool
+
+	// Configure data-availability type that is used by the batcher.
+	DataAvailabilityType batcherFlags.DataAvailabilityType
 
 	// Target L1 tx size for the batcher transactions
 	BatcherTargetL1TxSizeBytes uint64
@@ -512,6 +516,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	require.NoError(t, bcn.Start("127.0.0.1:0"))
 	beaconApiAddr := bcn.BeaconAddr()
 	require.NotEmpty(t, beaconApiAddr, "beacon API listener must be up")
+	sys.L1BeaconAPIAddr = beaconApiAddr
 
 	// Initialize nodes
 	l1Node, l1Backend, err := geth.InitL1(cfg.DeployConfig.L1ChainID, cfg.DeployConfig.L1BlockTime, l1Genesis, c,
@@ -561,9 +566,12 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	// Configure connections to L1 and L2 for rollup nodes.
 	// TODO: refactor testing to allow use of in-process rpc connections instead
 	// of only websockets (which are required for external eth client tests).
-	for name, rollupCfg := range cfg.Nodes {
-		configureL1(rollupCfg, sys.EthInstances["l1"])
-		configureL2(rollupCfg, sys.EthInstances[name], cfg.JWTSecret)
+	for name, nodeCfg := range cfg.Nodes {
+		configureL1(nodeCfg, sys.EthInstances["l1"])
+		configureL2(nodeCfg, sys.EthInstances[name], cfg.JWTSecret)
+		if sys.RollupConfig.EcotoneTime != nil {
+			nodeCfg.Beacon = &rollupNode.L1BeaconEndpointConfig{BeaconAddr: sys.L1BeaconAPIAddr}
+		}
 	}
 
 	// Geth Clients
@@ -777,7 +785,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 		},
 		Stopped:              sys.Cfg.DisableBatcher, // Batch submitter may be enabled later
 		BatchType:            batchType,
-		DataAvailabilityType: batcherFlags.CalldataType,
+		DataAvailabilityType: sys.Cfg.DataAvailabilityType,
 	}
 	// Batch Submitter
 	batcher, err := bss.BatcherServiceFromCLIConfig(context.Background(), "0.0.1", batcherCLIConfig, sys.Cfg.Loggers["batcher"])

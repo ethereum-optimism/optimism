@@ -32,10 +32,10 @@ import (
 )
 
 const (
-	sequencer1Name = "sequencer1"
-	sequencer2Name = "sequencer2"
-	sequencer3Name = "sequencer3"
-	verifierName   = "verifier"
+	Sequencer1Name = "sequencer1"
+	Sequencer2Name = "sequencer2"
+	Sequencer3Name = "sequencer3"
+	VerifierName   = "verifier"
 
 	localhost = "127.0.0.1"
 )
@@ -44,23 +44,31 @@ type conductor struct {
 	service       *con.OpConductor
 	client        conrpc.API
 	consensusPort int
+	rpcPort       int
 }
 
 func (c *conductor) ConsensusEndpoint() string {
 	return fmt.Sprintf("%s:%d", localhost, c.consensusPort)
 }
 
+func (c *conductor) RPCEndpoint() string {
+	return fmt.Sprintf("http://%s:%d", localhost, c.rpcPort)
+}
+
 func setupSequencerFailoverTest(t *testing.T) (*System, map[string]*conductor) {
 	InitParallel(t)
 	ctx := context.Background()
 
+	conductorRpcPorts := map[string]int{
+		Sequencer1Name: findAvailablePort(t),
+		Sequencer2Name: findAvailablePort(t),
+		Sequencer3Name: findAvailablePort(t),
+	}
+
 	// 3 sequencers, 1 verifier, 1 active sequencer.
-	cfg := sequencerFailoverSystemConfig(t)
+	cfg := sequencerFailoverSystemConfig(t, conductorRpcPorts)
 	sys, err := cfg.Start(t)
 	require.NoError(t, err)
-
-	// 1 batcher that listens to all 3 sequencers, in started mode.
-	setupBatcher(t, sys)
 
 	// 3 conductors that connects to 1 sequencer each.
 	conductors := make(map[string]*conductor)
@@ -68,42 +76,54 @@ func setupSequencerFailoverTest(t *testing.T) (*System, map[string]*conductor) {
 	// initialize all conductors in paused mode
 	conductorCfgs := []struct {
 		name      string
+		port      int
 		bootstrap bool
 	}{
-		{sequencer1Name, true}, // one in bootstrap mode so that we can form a cluster.
-		{sequencer2Name, false},
-		{sequencer3Name, false},
+		{Sequencer1Name, conductorRpcPorts[Sequencer1Name], true}, // one in bootstrap mode so that we can form a cluster.
+		{Sequencer2Name, conductorRpcPorts[Sequencer2Name], false},
+		{Sequencer3Name, conductorRpcPorts[Sequencer3Name], false},
 	}
 	for _, cfg := range conductorCfgs {
 		cfg := cfg
 		nodePRC := sys.RollupNodes[cfg.name].HTTPEndpoint()
 		engineRPC := sys.EthInstances[cfg.name].HTTPEndpoint()
-		conductors[cfg.name] = setupConductor(t, cfg.name, t.TempDir(), nodePRC, engineRPC, cfg.bootstrap, *sys.RollupConfig)
+		conductors[cfg.name] = setupConductor(t, cfg.name, t.TempDir(), nodePRC, engineRPC, cfg.port, cfg.bootstrap, *sys.RollupConfig)
 	}
 
 	// form a cluster
-	c1 := conductors[sequencer1Name]
-	c2 := conductors[sequencer2Name]
-	c3 := conductors[sequencer3Name]
+	c1 := conductors[Sequencer1Name]
+	c2 := conductors[Sequencer2Name]
+	c3 := conductors[Sequencer3Name]
 
 	require.NoError(t, waitForLeadershipChange(t, c1, true))
-	require.NoError(t, c1.client.AddServerAsVoter(ctx, sequencer2Name, c2.ConsensusEndpoint()))
-	require.NoError(t, c1.client.AddServerAsVoter(ctx, sequencer3Name, c3.ConsensusEndpoint()))
+	require.NoError(t, c1.client.AddServerAsVoter(ctx, Sequencer2Name, c2.ConsensusEndpoint()))
+	require.NoError(t, c1.client.AddServerAsVoter(ctx, Sequencer3Name, c3.ConsensusEndpoint()))
 	require.True(t, leader(t, ctx, c1))
 	require.False(t, leader(t, ctx, c2))
 	require.False(t, leader(t, ctx, c3))
 
+	// start sequencing on leader
+	lid, _ := findLeader(t, conductors)
+	unsafeHead, err := sys.Clients[lid].BlockByNumber(ctx, nil)
+	require.NoError(t, err)
+	require.Equal(t, uint64(0), unsafeHead.NumberU64())
+	require.NoError(t, sys.RollupClient(lid).StartSequencer(ctx, unsafeHead.Hash()))
+
+	// 1 batcher that listens to all 3 sequencers, in started mode.
+	setupBatcher(t, sys, conductors)
+
 	// weirdly, batcher does not submit a batch until unsafe block 9.
 	// It became normal after that and submits a batch every L1 block (2s) per configuration.
 	// Since our health monitor checks on safe head progression, wait for batcher to become normal before proceeding.
-	require.NoError(t, wait.ForNextSafeBlock(ctx, sys.Clients[sequencer1Name]))
-	require.NoError(t, wait.ForNextSafeBlock(ctx, sys.Clients[sequencer1Name]))
-	require.NoError(t, wait.ForNextSafeBlock(ctx, sys.Clients[sequencer1Name]))
+	require.NoError(t, wait.ForNextSafeBlock(ctx, sys.Clients[Sequencer1Name]))
+	require.NoError(t, wait.ForNextSafeBlock(ctx, sys.Clients[Sequencer1Name]))
 
 	// make sure conductor reports all sequencers as healthy, this means they're syncing correctly.
-	require.True(t, healthy(t, ctx, c1))
-	require.True(t, healthy(t, ctx, c2))
-	require.True(t, healthy(t, ctx, c3))
+	require.Eventually(t, func() bool {
+		return healthy(t, ctx, c1) &&
+			healthy(t, ctx, c2) &&
+			healthy(t, ctx, c3)
+	}, 30*time.Second, 500*time.Millisecond, "Expected sequencers to become healthy")
 
 	// unpause all conductors
 	require.NoError(t, c1.client.Resume(ctx))
@@ -115,9 +135,9 @@ func setupSequencerFailoverTest(t *testing.T) (*System, map[string]*conductor) {
 	require.True(t, conductorActive(t, ctx, c2))
 	require.True(t, conductorActive(t, ctx, c3))
 
-	require.True(t, sequencerActive(t, ctx, sys.RollupClient(sequencer1Name)))
-	require.False(t, sequencerActive(t, ctx, sys.RollupClient(sequencer2Name)))
-	require.False(t, sequencerActive(t, ctx, sys.RollupClient(sequencer3Name)))
+	require.True(t, sequencerActive(t, ctx, sys.RollupClient(Sequencer1Name)))
+	require.False(t, sequencerActive(t, ctx, sys.RollupClient(Sequencer2Name)))
+	require.False(t, sequencerActive(t, ctx, sys.RollupClient(Sequencer3Name)))
 
 	require.True(t, healthy(t, ctx, c1))
 	require.True(t, healthy(t, ctx, c2))
@@ -128,7 +148,8 @@ func setupSequencerFailoverTest(t *testing.T) (*System, map[string]*conductor) {
 
 func setupConductor(
 	t *testing.T,
-	serverID, dir, nodePRC, engineRPC string,
+	serverID, dir, nodeRPC, engineRPC string,
+	rpcPort int,
 	bootstrap bool,
 	rollupCfg rollup.Config,
 ) *conductor {
@@ -141,22 +162,27 @@ func setupConductor(
 		RaftServerID:   serverID,
 		RaftStorageDir: dir,
 		RaftBootstrap:  bootstrap,
-		NodeRPC:        nodePRC,
+		NodeRPC:        nodeRPC,
 		ExecutionRPC:   engineRPC,
 		Paused:         true,
 		HealthCheck: con.HealthCheckConfig{
 			Interval:     1, // per test setup, l2 block time is 1s.
-			SafeInterval: 4, // per test setup (l1 block time = 2s, max channel duration = 1, 2s buffer)
 			MinPeerCount: 2, // per test setup, each sequencer has 2 peers
+			// CI is unstable in terms of the delay between now and the head time
+			// so we set the unsafe interval to 30s to avoid flakiness.
+			// This is fine because there's a progression check within health monitor to check progression.
+			UnsafeInterval: 30,
+			SafeInterval:   30,
 		},
-		RollupCfg: rollupCfg,
+		RollupCfg:      rollupCfg,
+		RPCEnableProxy: true,
 		LogConfig: oplog.CLIConfig{
 			Level: log.LvlInfo,
 			Color: false,
 		},
 		RPC: oprpc.CLIConfig{
 			ListenAddr: localhost,
-			ListenPort: 0,
+			ListenPort: rpcPort,
 		},
 	}
 
@@ -174,29 +200,23 @@ func setupConductor(
 		service:       service,
 		client:        client,
 		consensusPort: consensusPort,
+		rpcPort:       rpcPort,
 	}
 }
 
-func setupBatcher(t *testing.T, sys *System) {
-	var batchType uint = derive.SingularBatchType
-	if sys.Cfg.DeployConfig.L2GenesisDeltaTimeOffset != nil && *sys.Cfg.DeployConfig.L2GenesisDeltaTimeOffset == hexutil.Uint64(0) {
-		batchType = derive.SpanBatchType
-	}
-	batcherMaxL1TxSizeBytes := sys.Cfg.BatcherMaxL1TxSizeBytes
-	if batcherMaxL1TxSizeBytes == 0 {
-		batcherMaxL1TxSizeBytes = 240_000
-	}
-
+func setupBatcher(t *testing.T, sys *System, conductors map[string]*conductor) {
 	// enable active sequencer follow mode.
+	// in sequencer HA, all batcher / proposer requests will be proxied by conductor so that we can make sure
+	// that requests are always handled by leader.
 	l2EthRpc := strings.Join([]string{
-		sys.EthInstances[sequencer1Name].WSEndpoint(),
-		sys.EthInstances[sequencer2Name].WSEndpoint(),
-		sys.EthInstances[sequencer3Name].WSEndpoint(),
+		conductors[Sequencer1Name].RPCEndpoint(),
+		conductors[Sequencer2Name].RPCEndpoint(),
+		conductors[Sequencer3Name].RPCEndpoint(),
 	}, ",")
 	rollupRpc := strings.Join([]string{
-		sys.RollupNodes[sequencer1Name].HTTPEndpoint(),
-		sys.RollupNodes[sequencer2Name].HTTPEndpoint(),
-		sys.RollupNodes[sequencer3Name].HTTPEndpoint(),
+		conductors[Sequencer1Name].RPCEndpoint(),
+		conductors[Sequencer2Name].RPCEndpoint(),
+		conductors[Sequencer3Name].RPCEndpoint(),
 	}, ",")
 	batcherCLIConfig := &bss.CLIConfig{
 		L1EthRpc:               sys.EthInstances["l1"].WSEndpoint(),
@@ -204,22 +224,23 @@ func setupBatcher(t *testing.T, sys *System) {
 		RollupRpc:              rollupRpc,
 		MaxPendingTransactions: 0,
 		MaxChannelDuration:     1,
-		MaxL1TxSize:            batcherMaxL1TxSizeBytes,
+		MaxL1TxSize:            240_000,
 		CompressorConfig: compressor.CLIConfig{
 			TargetL1TxSizeBytes: sys.Cfg.BatcherTargetL1TxSizeBytes,
 			TargetNumFrames:     1,
 			ApproxComprRatio:    0.4,
 		},
-		SubSafetyMargin: 0,
-		PollInterval:    50 * time.Millisecond,
+		SubSafetyMargin: 4,
+		PollInterval:    1 * time.Second,
 		TxMgrConfig:     newTxMgrConfig(sys.EthInstances["l1"].WSEndpoint(), sys.Cfg.Secrets.Batcher),
 		LogConfig: oplog.CLIConfig{
-			Level:  log.LvlInfo,
+			Level:  log.LvlDebug,
 			Format: oplog.FormatText,
 		},
-		Stopped:              false,
-		BatchType:            batchType,
-		DataAvailabilityType: batcherFlags.CalldataType,
+		Stopped:                      false,
+		BatchType:                    derive.SpanBatchType,
+		DataAvailabilityType:         batcherFlags.CalldataType,
+		ActiveSequencerCheckDuration: 0,
 	}
 
 	batcher, err := bss.BatcherServiceFromCLIConfig(context.Background(), "0.0.1", batcherCLIConfig, sys.Cfg.Loggers["batcher"])
@@ -229,34 +250,38 @@ func setupBatcher(t *testing.T, sys *System) {
 	sys.BatchSubmitter = batcher
 }
 
-func sequencerFailoverSystemConfig(t *testing.T) SystemConfig {
+func sequencerFailoverSystemConfig(t *testing.T, ports map[string]int) SystemConfig {
 	cfg := DefaultSystemConfig(t)
 	delete(cfg.Nodes, "sequencer")
-	cfg.Nodes[sequencer1Name] = sequencerCfg(true)
-	cfg.Nodes[sequencer2Name] = sequencerCfg(false)
-	cfg.Nodes[sequencer3Name] = sequencerCfg(false)
+	cfg.Nodes[Sequencer1Name] = sequencerCfg(ports[Sequencer1Name])
+	cfg.Nodes[Sequencer2Name] = sequencerCfg(ports[Sequencer2Name])
+	cfg.Nodes[Sequencer3Name] = sequencerCfg(ports[Sequencer3Name])
 
 	delete(cfg.Loggers, "sequencer")
-	cfg.Loggers[sequencer1Name] = testlog.Logger(t, log.LvlInfo).New("role", sequencer1Name)
-	cfg.Loggers[sequencer2Name] = testlog.Logger(t, log.LvlInfo).New("role", sequencer2Name)
-	cfg.Loggers[sequencer3Name] = testlog.Logger(t, log.LvlInfo).New("role", sequencer3Name)
+	cfg.Loggers[Sequencer1Name] = testlog.Logger(t, log.LvlInfo).New("role", Sequencer1Name)
+	cfg.Loggers[Sequencer2Name] = testlog.Logger(t, log.LvlInfo).New("role", Sequencer2Name)
+	cfg.Loggers[Sequencer3Name] = testlog.Logger(t, log.LvlInfo).New("role", Sequencer3Name)
 
 	cfg.P2PTopology = map[string][]string{
-		sequencer1Name: {sequencer2Name, sequencer3Name},
-		sequencer2Name: {sequencer3Name, verifierName},
-		sequencer3Name: {verifierName, sequencer1Name},
-		verifierName:   {sequencer1Name, sequencer2Name},
+		Sequencer1Name: {Sequencer2Name, Sequencer3Name},
+		Sequencer2Name: {Sequencer3Name, VerifierName},
+		Sequencer3Name: {VerifierName, Sequencer1Name},
+		VerifierName:   {Sequencer1Name, Sequencer2Name},
 	}
+	offset := hexutil.Uint64(0)
+	cfg.DeployConfig.L2GenesisDeltaTimeOffset = &offset
+	cfg.DeployConfig.L2GenesisEcotoneTimeOffset = &offset
 
 	return cfg
 }
 
-func sequencerCfg(sequencerEnabled bool) *rollupNode.Config {
+func sequencerCfg(rpcPort int) *rollupNode.Config {
 	return &rollupNode.Config{
 		Driver: driver.Config{
 			VerifierConfDepth:  0,
 			SequencerConfDepth: 0,
-			SequencerEnabled:   sequencerEnabled,
+			SequencerEnabled:   true,
+			SequencerStopped:   true,
 		},
 		// Submitter PrivKey is set in system start for rollup nodes where sequencer = true
 		RPC: rollupNode.RPCConfig{
@@ -268,6 +293,9 @@ func sequencerCfg(sequencerEnabled bool) *rollupNode.Config {
 		RuntimeConfigReloadInterval: time.Minute * 10,
 		ConfigPersistence:           &rollupNode.DisabledConfigPersistence{},
 		Sync:                        sync.Config{SyncMode: sync.CLSync},
+		ConductorEnabled:            true,
+		ConductorRpc:                fmt.Sprintf("http://%s:%d", localhost, rpcPort),
+		ConductorRpcTimeout:         1 * time.Second,
 	}
 }
 
@@ -323,7 +351,8 @@ func findAvailablePort(t *testing.T) int {
 		case <-ctx.Done():
 			t.Error("Failed to find available port")
 		default:
-			port := rand.Intn(65535-1024) + 1024 // Random port in the range 1024-65535
+			// private / ephemeral ports are in the range 49152-65535
+			port := rand.Intn(65535-49152) + 49152
 			addr := fmt.Sprintf("127.0.0.1:%d", port)
 			l, err := net.Listen("tcp", addr)
 			if err == nil {
@@ -332,4 +361,13 @@ func findAvailablePort(t *testing.T) int {
 			}
 		}
 	}
+}
+
+func findLeader(t *testing.T, conductors map[string]*conductor) (string, *conductor) {
+	for id, con := range conductors {
+		if leader(t, context.Background(), con) {
+			return id, con
+		}
+	}
+	return "", nil
 }

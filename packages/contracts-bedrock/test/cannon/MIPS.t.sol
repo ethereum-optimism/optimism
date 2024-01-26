@@ -12,7 +12,7 @@ contract MIPS_Test is CommonTest {
 
     function setUp() public virtual override {
         super.setUp();
-        oracle = new PreimageOracle();
+        oracle = new PreimageOracle(0, 0);
         mips = new MIPS(oracle);
         vm.store(address(mips), 0x0, bytes32(abi.encode(address(oracle))));
         vm.label(address(oracle), "PreimageOracle");

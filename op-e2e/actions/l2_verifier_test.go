@@ -13,18 +13,18 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
-func setupVerifier(t Testing, sd *e2eutils.SetupData, log log.Logger, l1F derive.L1Fetcher, syncCfg *sync.Config) (*L2Engine, *L2Verifier) {
+func setupVerifier(t Testing, sd *e2eutils.SetupData, log log.Logger, l1F derive.L1Fetcher, blobSrc derive.L1BlobsFetcher, syncCfg *sync.Config) (*L2Engine, *L2Verifier) {
 	jwtPath := e2eutils.WriteDefaultJWT(t)
-	engine := NewL2Engine(t, log, sd.L2Cfg, sd.RollupCfg.Genesis.L1, jwtPath)
+	engine := NewL2Engine(t, log, sd.L2Cfg, sd.RollupCfg.Genesis.L1, jwtPath, EngineWithP2P())
 	engCl := engine.EngineClient(t, sd.RollupCfg)
-	verifier := NewL2Verifier(t, log, l1F, engCl, sd.RollupCfg, syncCfg)
+	verifier := NewL2Verifier(t, log, l1F, blobSrc, engCl, sd.RollupCfg, syncCfg)
 	return engine, verifier
 }
 
 func setupVerifierOnlyTest(t Testing, sd *e2eutils.SetupData, log log.Logger) (*L1Miner, *L2Engine, *L2Verifier) {
 	miner := NewL1Miner(t, log, sd.L1Cfg)
 	l1Cl := miner.L1Client(t, sd.RollupCfg)
-	engine, verifier := setupVerifier(t, sd, log, l1Cl, &sync.Config{})
+	engine, verifier := setupVerifier(t, sd, log, l1Cl, miner.BlobStore(), &sync.Config{})
 	return miner, engine, verifier
 }
 

@@ -2,10 +2,13 @@
 
 set -e
 
-# Grab the `.foundryrc` commit hash.
-SHA=$(cat ./.foundryrc)
+SCRIPTS_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+MONOREPO_DIR=$(cd "$SCRIPTS_DIR/../../" && pwd)
 
-# Check if there is a nightly tag corresponding to the `.foundryrc` commit hash
+# Grab the foundry commit hash.
+SHA=$(jq -r .foundry < $MONOREPO_DIR/versions.json)
+
+# Check if there is a nightly tag corresponding to the commit hash
 TAG="nightly-$SHA"
 
 # If the foundry repository exists and a branch is checked out, we need to abort
@@ -42,3 +45,5 @@ fi
 # Remove the temporary foundry repo; Used just for checking the nightly tag's existence.
 rm -rf "$TMP_DIR"
 echo "Removed tempdir @ $TMP_DIR"
+
+

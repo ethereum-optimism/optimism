@@ -218,6 +218,10 @@ type DeployConfig struct {
 	FaultGameGenesisOutputRoot common.Hash `json:"faultGameGenesisOutputRoot"`
 	// FaultGameSplitDepth is the depth at which the fault dispute game splits from output roots to execution trace claims.
 	FaultGameSplitDepth uint64 `json:"faultGameSplitDepth"`
+	// PreimageOracleMinProposalSize is the minimum number of bytes that a large preimage oracle proposal can be.
+	PreimageOracleMinProposalSize uint64 `json:"preimageOracleMinProposalSize"`
+	// PreimageOracleChallengePeriod is the number of seconds that challengers have to challenge a large preimage proposal.
+	PreimageOracleChallengePeriod uint64 `json:"preimageOracleChallengePeriod"`
 	// FundDevAccounts configures whether or not to fund the dev accounts. Should only be used
 	// during devnet deployments.
 	FundDevAccounts bool `json:"fundDevAccounts"`
@@ -229,7 +233,7 @@ type DeployConfig struct {
 	RecommendedProtocolVersion params.ProtocolVersion `json:"recommendedProtocolVersion"`
 
 	// When Cancun activates. Relative to L1 genesis.
-	L1CancunTimeOffset *uint64 `json:"l1CancunTimeOffset,omitempty"`
+	L1CancunTimeOffset *hexutil.Uint64 `json:"l1CancunTimeOffset,omitempty"`
 }
 
 // Copy will deeply copy the DeployConfig. This does a JSON roundtrip to copy
@@ -370,6 +374,34 @@ func (d *DeployConfig) Check() error {
 	}
 	if d.RecommendedProtocolVersion == (params.ProtocolVersion{}) {
 		log.Warn("RecommendedProtocolVersion is empty")
+	}
+	// checkFork checks that fork A is before or at the same time as fork B
+	checkFork := func(a, b *hexutil.Uint64, aName, bName string) error {
+		if a == nil && b == nil {
+			return nil
+		}
+		if a == nil && b != nil {
+			return fmt.Errorf("fork %s set (to %d), but prior fork %s missing", bName, *b, aName)
+		}
+		if a != nil && b == nil {
+			return nil
+		}
+		if *a > *b {
+			return fmt.Errorf("fork %s set to %d, but prior fork %s has higher offset %d", bName, *b, aName, *a)
+		}
+		return nil
+	}
+	if err := checkFork(d.L2GenesisRegolithTimeOffset, d.L2GenesisCanyonTimeOffset, "regolith", "canyon"); err != nil {
+		return err
+	}
+	if err := checkFork(d.L2GenesisCanyonTimeOffset, d.L2GenesisDeltaTimeOffset, "canyon", "delta"); err != nil {
+		return err
+	}
+	if err := checkFork(d.L2GenesisDeltaTimeOffset, d.L2GenesisEcotoneTimeOffset, "delta", "ecotone"); err != nil {
+		return err
+	}
+	if err := checkFork(d.L2GenesisEcotoneTimeOffset, d.L2GenesisFjordTimeOffset, "ecotone", "fjord"); err != nil {
+		return err
 	}
 	return nil
 }
@@ -729,19 +761,11 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (*immutables
 	}
 
 	cfg := immutables.PredeploysImmutableConfig{
-		L2ToL1MessagePasser: struct{}{},
-		DeployerWhitelist:   struct{}{},
-		WETH9:               struct{}{},
-		L2CrossDomainMessenger: struct{ OtherMessenger common.Address }{
-			OtherMessenger: config.L1CrossDomainMessengerProxy,
-		},
-		L2StandardBridge: struct {
-			OtherBridge common.Address
-			Messenger   common.Address
-		}{
-			OtherBridge: config.L1StandardBridgeProxy,
-			Messenger:   predeploys.L2CrossDomainMessengerAddr,
-		},
+		L2ToL1MessagePasser:    struct{}{},
+		DeployerWhitelist:      struct{}{},
+		WETH9:                  struct{}{},
+		L2CrossDomainMessenger: struct{}{},
+		L2StandardBridge:       struct{}{},
 		SequencerFeeVault: struct {
 			Recipient           common.Address
 			MinWithdrawalAmount *big.Int
@@ -756,13 +780,7 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (*immutables
 		L1Block:             struct{}{},
 		GovernanceToken:     struct{}{},
 		LegacyMessagePasser: struct{}{},
-		L2ERC721Bridge: struct {
-			OtherBridge common.Address
-			Messenger   common.Address
-		}{
-			OtherBridge: config.L1ERC721BridgeProxy,
-			Messenger:   predeploys.L2CrossDomainMessengerAddr,
-		},
+		L2ERC721Bridge:      struct{}{},
 		OptimismMintableERC721Factory: struct {
 			Bridge        common.Address
 			RemoteChainId *big.Int
@@ -770,12 +788,8 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (*immutables
 			Bridge:        predeploys.L2ERC721BridgeAddr,
 			RemoteChainId: new(big.Int).SetUint64(config.L1ChainID),
 		},
-		OptimismMintableERC20Factory: struct {
-			Bridge common.Address
-		}{
-			Bridge: predeploys.L2StandardBridgeAddr,
-		},
-		ProxyAdmin: struct{}{},
+		OptimismMintableERC20Factory: struct{}{},
+		ProxyAdmin:                   struct{}{},
 		BaseFeeVault: struct {
 			Recipient           common.Address
 			MinWithdrawalAmount *big.Int
@@ -829,14 +843,24 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 		"_initializing":    false,
 		"xDomainMsgSender": "0x000000000000000000000000000000000000dEaD",
 		"msgNonce":         0,
+		"otherMessenger":   config.L1CrossDomainMessengerProxy,
 	}
 	storage["L2StandardBridge"] = state.StorageValues{
 		"_initialized":  1,
 		"_initializing": false,
+		"otherBridge":   config.L1StandardBridgeProxy,
+		"messenger":     predeploys.L2CrossDomainMessengerAddr,
 	}
 	storage["L2ERC721Bridge"] = state.StorageValues{
 		"_initialized":  1,
 		"_initializing": false,
+		"otherBridge":   config.L1ERC721BridgeProxy,
+		"messenger":     predeploys.L2CrossDomainMessengerAddr,
+	}
+	storage["OptimismMintableERC20Factory"] = state.StorageValues{
+		"_initialized":  1,
+		"_initializing": false,
+		"bridge":        predeploys.L2StandardBridgeAddr,
 	}
 	storage["L1Block"] = state.StorageValues{
 		"number":         block.Number(),

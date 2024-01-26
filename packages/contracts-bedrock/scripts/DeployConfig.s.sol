@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity 0.8.15;
 
 import { Script } from "forge-std/Script.sol";
 import { console2 as console } from "forge-std/console2.sol";
@@ -53,11 +53,13 @@ contract DeployConfig is Script {
     uint256 public faultGameMaxDepth;
     uint256 public faultGameSplitDepth;
     uint256 public faultGameMaxDuration;
+    uint256 public preimageOracleMinProposalSize;
+    uint256 public preimageOracleChallengePeriod;
     uint256 public systemConfigStartBlock;
     uint256 public requiredProtocolVersion;
     uint256 public recommendedProtocolVersion;
 
-    constructor(string memory _path) {
+    function read(string memory _path) public {
         console.log("DeployConfig: reading file %s", _path);
         try vm.readFile(_path) returns (string memory data) {
             _json = data;
@@ -113,6 +115,9 @@ contract DeployConfig is Script {
             faultGameMaxDuration = stdJson.readUint(_json, "$.faultGameMaxDuration");
             faultGameGenesisBlock = stdJson.readUint(_json, "$.faultGameGenesisBlock");
             faultGameGenesisOutputRoot = stdJson.readBytes32(_json, "$.faultGameGenesisOutputRoot");
+
+            preimageOracleMinProposalSize = stdJson.readUint(_json, "$.preimageOracleMinProposalSize");
+            preimageOracleChallengePeriod = stdJson.readUint(_json, "$.preimageOracleChallengePeriod");
         }
     }
 

@@ -17,7 +17,7 @@ var _ raft.FSM = (*unsafeHeadTracker)(nil)
 // unsafeHeadTracker implements raft.FSM for storing unsafe head payload into raft consensus layer.
 type unsafeHeadTracker struct {
 	mtx        sync.RWMutex
-	unsafeHead unsafeHeadData
+	unsafeHead *eth.ExecutionPayloadEnvelope
 }
 
 // Apply implements raft.FSM, it applies the latest change (latest unsafe head payload) to FSM.
@@ -25,14 +25,15 @@ func (t *unsafeHeadTracker) Apply(l *raft.Log) interface{} {
 	if l.Data == nil || len(l.Data) == 0 {
 		return fmt.Errorf("log data is nil or empty")
 	}
-	var data unsafeHeadData
-	if err := data.UnmarshalSSZ(bytes.NewReader(l.Data)); err != nil {
+
+	data := &eth.ExecutionPayloadEnvelope{}
+	if err := data.UnmarshalSSZ(uint32(len(l.Data)), bytes.NewReader(l.Data)); err != nil {
 		return err
 	}
 
 	t.mtx.Lock()
 	defer t.mtx.Unlock()
-	if t.unsafeHead.payload.BlockNumber < data.payload.BlockNumber {
+	if t.unsafeHead == nil || t.unsafeHead.ExecutionPayload.BlockNumber < data.ExecutionPayload.BlockNumber {
 		t.unsafeHead = data
 	}
 
@@ -41,8 +42,15 @@ func (t *unsafeHeadTracker) Apply(l *raft.Log) interface{} {
 
 // Restore implements raft.FSM, it restores state from snapshot.
 func (t *unsafeHeadTracker) Restore(snapshot io.ReadCloser) error {
-	var data unsafeHeadData
-	if err := data.UnmarshalSSZ(snapshot); err != nil {
+	var buf bytes.Buffer
+	n, err := io.Copy(&buf, snapshot)
+	snapshot.Close()
+	if err != nil {
+		return fmt.Errorf("error reading snapshot data: %w", err)
+	}
+
+	data := &eth.ExecutionPayloadEnvelope{}
+	if err := data.UnmarshalSSZ(uint32(n), bytes.NewReader(buf.Bytes())); err != nil {
 		return fmt.Errorf("error unmarshalling snapshot: %w", err)
 	}
 
@@ -63,18 +71,18 @@ func (t *unsafeHeadTracker) Snapshot() (raft.FSMSnapshot, error) {
 }
 
 // UnsafeHead returns the latest unsafe head payload.
-func (t *unsafeHeadTracker) UnsafeHead() eth.ExecutionPayload {
+func (t *unsafeHeadTracker) UnsafeHead() *eth.ExecutionPayloadEnvelope {
 	t.mtx.RLock()
 	defer t.mtx.RUnlock()
 
-	return t.unsafeHead.payload
+	return t.unsafeHead
 }
 
 var _ raft.FSMSnapshot = (*snapshot)(nil)
 
 type snapshot struct {
 	log        log.Logger
-	unsafeHead unsafeHeadData
+	unsafeHead *eth.ExecutionPayloadEnvelope
 }
 
 // Persist implements raft.FSMSnapshot, it writes the snapshot to the given sink.
@@ -92,42 +100,3 @@ func (s *snapshot) Persist(sink raft.SnapshotSink) error {
 // Release implements raft.FSMSnapshot.
 // We don't really need to do anything within Release as the snapshot is not gonna change after creation, and we don't hold any reference to closable resources.
 func (s *snapshot) Release() {}
-
-// unsafeHeadData wraps the execution payload with the block version, and provides ease of use interfaces to marshal/unmarshal it.
-type unsafeHeadData struct {
-	version eth.BlockVersion
-	payload eth.ExecutionPayload
-}
-
-func (e *unsafeHeadData) MarshalSSZ(w io.Writer) (int, error) {
-	vb := byte(e.version)
-	n1, err := w.Write([]byte{vb})
-	if err != nil {
-		return n1, err
-	}
-
-	n2, err := e.payload.MarshalSSZ(w)
-	if err != nil {
-		return n1 + n2, err
-	}
-
-	return n1 + n2, nil
-}
-
-func (e *unsafeHeadData) UnmarshalSSZ(r io.Reader) error {
-	bs, err := io.ReadAll(r)
-	if err != nil {
-		return err
-	}
-
-	if len(bs) < 1 {
-		return fmt.Errorf("data is too short to contain version information")
-	}
-
-	vb, data := bs[0], bs[1:]
-	e.version = eth.BlockVersion(vb)
-	if err = e.payload.UnmarshalSSZ(e.version, uint32(len(data)), bytes.NewReader(data)); err != nil {
-		return err
-	}
-	return nil
-}

@@ -29,7 +29,7 @@ const (
 	SafeAbortNonceTooLowCountFlagName = "safe-abort-nonce-too-low-count"
 	FeeLimitMultiplierFlagName        = "fee-limit-multiplier"
 	FeeLimitThresholdFlagName         = "txmgr.fee-limit-threshold"
-	MinBasefeeFlagName                = "txmgr.min-basefee"
+	MinBaseFeeFlagName                = "txmgr.min-basefee"
 	MinTipCapFlagName                 = "txmgr.min-tip-cap"
 	ResubmissionTimeoutFlagName       = "resubmission-timeout"
 	NetworkTimeoutFlagName            = "network-timeout"
@@ -139,8 +139,8 @@ func CLIFlagsWithDefaults(envPrefix string, defaults DefaultFlagValues) []cli.Fl
 			EnvVars: prefixEnvVars("TXMGR_FEE_LIMIT_THRESHOLD"),
 		},
 		&cli.Float64Flag{
-			Name:    MinBasefeeFlagName,
-			Usage:   "Enforces a minimum basefee (in GWei) to assume when determining tx fees. Off by default.",
+			Name:    MinBaseFeeFlagName,
+			Usage:   "Enforces a minimum base fee (in GWei) to assume when determining tx fees. Off by default.",
 			EnvVars: prefixEnvVars("TXMGR_MIN_BASEFEE"),
 		},
 		&cli.Float64Flag{
@@ -193,7 +193,7 @@ type CLIConfig struct {
 	SafeAbortNonceTooLowCount uint64
 	FeeLimitMultiplier        uint64
 	FeeLimitThresholdGwei     float64
-	MinBasefeeGwei            float64
+	MinBaseFeeGwei            float64
 	MinTipCapGwei             float64
 	ResubmissionTimeout       time.Duration
 	ReceiptQueryInterval      time.Duration
@@ -231,9 +231,9 @@ func (m CLIConfig) Check() error {
 	if m.FeeLimitMultiplier == 0 {
 		return errors.New("must provide FeeLimitMultiplier")
 	}
-	if m.MinBasefeeGwei < m.MinTipCapGwei {
-		return fmt.Errorf("minBasefee smaller than minTipCap, have %f < %f",
-			m.MinBasefeeGwei, m.MinTipCapGwei)
+	if m.MinBaseFeeGwei < m.MinTipCapGwei {
+		return fmt.Errorf("minBaseFee smaller than minTipCap, have %f < %f",
+			m.MinBaseFeeGwei, m.MinTipCapGwei)
 	}
 	if m.ResubmissionTimeout == 0 {
 		return errors.New("must provide ResubmissionTimeout")
@@ -266,7 +266,7 @@ func ReadCLIConfig(ctx *cli.Context) CLIConfig {
 		SafeAbortNonceTooLowCount: ctx.Uint64(SafeAbortNonceTooLowCountFlagName),
 		FeeLimitMultiplier:        ctx.Uint64(FeeLimitMultiplierFlagName),
 		FeeLimitThresholdGwei:     ctx.Float64(FeeLimitThresholdFlagName),
-		MinBasefeeGwei:            ctx.Float64(MinBasefeeFlagName),
+		MinBaseFeeGwei:            ctx.Float64(MinBaseFeeFlagName),
 		MinTipCapGwei:             ctx.Float64(MinTipCapFlagName),
 		ResubmissionTimeout:       ctx.Duration(ResubmissionTimeoutFlagName),
 		ReceiptQueryInterval:      ctx.Duration(ReceiptQueryIntervalFlagName),
@@ -313,9 +313,9 @@ func NewConfig(cfg CLIConfig, l log.Logger) (Config, error) {
 		return Config{}, fmt.Errorf("invalid fee limit threshold: %w", err)
 	}
 
-	minBasefee, err := eth.GweiToWei(cfg.MinBasefeeGwei)
+	minBaseFee, err := eth.GweiToWei(cfg.MinBaseFeeGwei)
 	if err != nil {
-		return Config{}, fmt.Errorf("invalid min basefee: %w", err)
+		return Config{}, fmt.Errorf("invalid min base fee: %w", err)
 	}
 
 	minTipCap, err := eth.GweiToWei(cfg.MinTipCapGwei)
@@ -328,7 +328,7 @@ func NewConfig(cfg CLIConfig, l log.Logger) (Config, error) {
 		ResubmissionTimeout:       cfg.ResubmissionTimeout,
 		FeeLimitMultiplier:        cfg.FeeLimitMultiplier,
 		FeeLimitThreshold:         feeLimitThreshold,
-		MinBasefee:                minBasefee,
+		MinBaseFee:                minBaseFee,
 		MinTipCap:                 minTipCap,
 		ChainID:                   chainID,
 		TxSendTimeout:             cfg.TxSendTimeout,
@@ -359,8 +359,8 @@ type Config struct {
 	// below this threshold.
 	FeeLimitThreshold *big.Int
 
-	// Minimum basefee (in Wei) to assume when determining tx fees.
-	MinBasefee *big.Int
+	// Minimum base fee (in Wei) to assume when determining tx fees.
+	MinBaseFee *big.Int
 
 	// Minimum tip cap (in Wei) to enforce when determining tx fees.
 	MinTipCap *big.Int
@@ -412,9 +412,9 @@ func (m Config) Check() error {
 	if m.FeeLimitMultiplier == 0 {
 		return errors.New("must provide FeeLimitMultiplier")
 	}
-	if m.MinBasefee != nil && m.MinTipCap != nil && m.MinBasefee.Cmp(m.MinTipCap) == -1 {
-		return fmt.Errorf("minBasefee smaller than minTipCap, have %v < %v",
-			m.MinBasefee, m.MinTipCap)
+	if m.MinBaseFee != nil && m.MinTipCap != nil && m.MinBaseFee.Cmp(m.MinTipCap) == -1 {
+		return fmt.Errorf("minBaseFee smaller than minTipCap, have %v < %v",
+			m.MinBaseFee, m.MinTipCap)
 	}
 	if m.ResubmissionTimeout == 0 {
 		return errors.New("must provide ResubmissionTimeout")

@@ -71,6 +71,8 @@
   "faultGameGenesisBlock": 0,
   "faultGameGenesisOutputRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
   "faultGameSplitDepth": 0,
+  "preimageOracleMinProposalSize": 1800000,
+  "preimageOracleChallengePeriod": 86400,
   "systemConfigStartBlock": 0,
   "requiredProtocolVersion": "0x0000000000000000000000000000000000000000000000000000000000000000",
   "recommendedProtocolVersion": "0x0000000000000000000000000000000000000000000000000000000000000000"

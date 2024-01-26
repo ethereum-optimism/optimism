@@ -2,9 +2,15 @@ package rpc
 
 import (
 	"context"
+	"errors"
 
+	"github.com/ethereum/go-ethereum/rpc"
+
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
+
+var ErrNotLeader = errors.New("refusing to proxy request to non-leader sequencer")
 
 type ServerInfo struct {
 	ID   string `json:"id"`
@@ -40,5 +46,25 @@ type API interface {
 	// Active returns true if op-conductor is active.
 	Active(ctx context.Context) (bool, error)
 	// CommitUnsafePayload commits a unsafe payload (latest head) to the consensus layer.
-	CommitUnsafePayload(ctx context.Context, payload *eth.ExecutionPayload) error
+	CommitUnsafePayload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) error
+}
+
+// ExecutionProxyAPI defines the methods proxied to the execution rpc backend
+// This should include all methods that are called by op-batcher or op-proposer
+type ExecutionProxyAPI interface {
+	GetBlockByNumber(ctx context.Context, number rpc.BlockNumber, fullTx bool) (map[string]interface{}, error)
+}
+
+// NodeProxyAPI defines the methods proxied to the node rpc backend
+// This should include all methods that are called by op-batcher or op-proposer
+type NodeProxyAPI interface {
+	OutputAtBlock(ctx context.Context, blockNum uint64) (*eth.OutputResponse, error)
+	SyncStatus(ctx context.Context) (*eth.SyncStatus, error)
+	RollupConfig(ctx context.Context) (*rollup.Config, error)
+}
+
+// NodeProxyAPI defines the methods proxied to the node rpc backend
+// This should include all methods that are called by op-batcher or op-proposer
+type NodeAdminProxyAPI interface {
+	SequencerActive(ctx context.Context) (bool, error)
 }

@@ -36,13 +36,10 @@ func setupReorgTestActors(t Testing, dp *e2eutils.DeployParams, sd *e2eutils.Set
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
 	miner.ActL1SetFeeRecipient(common.Address{'A'})
 	sequencer.ActL2PipelineFull(t)
-	verifEngine, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), &sync.Config{})
+	verifEngine, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{})
 	rollupSeqCl := sequencer.RollupClient()
-	batcher := NewL2Batcher(log, sd.RollupCfg, &BatcherCfg{
-		MinL1TxSize: 0,
-		MaxL1TxSize: 128_000,
-		BatcherKey:  dp.Secrets.Batcher,
-	}, rollupSeqCl, miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
+	batcher := NewL2Batcher(log, sd.RollupCfg, DefaultBatcherCfg(dp),
+		rollupSeqCl, miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
 	return sd, dp, miner, sequencer, seqEngine, verifier, verifEngine, batcher
 }
 
@@ -620,13 +617,10 @@ func RestartOpGeth(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	engRpc := &rpcWrapper{seqEng.RPCClient()}
 	l2Cl, err := sources.NewEngineClient(engRpc, log, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
 	require.NoError(t, err)
-	sequencer := NewL2Sequencer(t, log, l1F, l2Cl, sd.RollupCfg, 0)
+	sequencer := NewL2Sequencer(t, log, l1F, miner.BlobStore(), l2Cl, sd.RollupCfg, 0)
 
-	batcher := NewL2Batcher(log, sd.RollupCfg, &BatcherCfg{
-		MinL1TxSize: 0,
-		MaxL1TxSize: 128_000,
-		BatcherKey:  dp.Secrets.Batcher,
-	}, sequencer.RollupClient(), miner.EthClient(), seqEng.EthClient(), seqEng.EngineClient(t, sd.RollupCfg))
+	batcher := NewL2Batcher(log, sd.RollupCfg, DefaultBatcherCfg(dp),
+		sequencer.RollupClient(), miner.EthClient(), seqEng.EthClient(), seqEng.EngineClient(t, sd.RollupCfg))
 
 	// start
 	sequencer.ActL2PipelineFull(t)
@@ -711,12 +705,9 @@ func ConflictingL2Blocks(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	require.NoError(t, err)
 	l1F, err := sources.NewL1Client(miner.RPCClient(), log, nil, sources.L1ClientDefaultConfig(sd.RollupCfg, false, sources.RPCKindStandard))
 	require.NoError(t, err)
-	altSequencer := NewL2Sequencer(t, log, l1F, altSeqEngCl, sd.RollupCfg, 0)
-	altBatcher := NewL2Batcher(log, sd.RollupCfg, &BatcherCfg{
-		MinL1TxSize: 0,
-		MaxL1TxSize: 128_000,
-		BatcherKey:  dp.Secrets.Batcher,
-	}, altSequencer.RollupClient(), miner.EthClient(), altSeqEng.EthClient(), altSeqEng.EngineClient(t, sd.RollupCfg))
+	altSequencer := NewL2Sequencer(t, log, l1F, miner.BlobStore(), altSeqEngCl, sd.RollupCfg, 0)
+	altBatcher := NewL2Batcher(log, sd.RollupCfg, DefaultBatcherCfg(dp),
+		altSequencer.RollupClient(), miner.EthClient(), altSeqEng.EthClient(), altSeqEng.EngineClient(t, sd.RollupCfg))
 
 	// And set up user Alice, using the alternative sequencer endpoint
 	l2Cl := altSeqEng.EthClient()
@@ -833,11 +824,11 @@ func SyncAfterReorg(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	miner.ActL1SetFeeRecipient(common.Address{'A', 0})
 	miner.ActEmptyBlock(t)
 	sequencer.ActL1HeadSignal(t)
-	for sequencer.derivation.UnsafeL2Head().L1Origin.Number < sequencer.l1State.L1Head().Number {
+	for sequencer.engine.UnsafeL2Head().L1Origin.Number < sequencer.l1State.L1Head().Number {
 		// build L2 blocks until the L1 origin is the current L1 head(A0)
 		sequencer.ActL2PipelineFull(t)
 		sequencer.ActL2StartBlock(t)
-		if sequencer.derivation.UnsafeL2Head().Number == 11 {
+		if sequencer.engine.UnsafeL2Head().Number == 11 {
 			// include a user tx at L2 block #12 to make a state transition
 			alice.L2.ActResetTxOpts(t)
 			alice.L2.ActSetTxToAddr(&dp.Addresses.Bob)(t)
