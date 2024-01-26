@@ -109,6 +109,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*Config, error) {
 	return &Config{
 		ConsensusAddr:  ctx.String(flags.ConsensusAddr.Name),
 		ConsensusPort:  ctx.Int(flags.ConsensusPort.Name),
+		RaftBootstrap:  ctx.Bool(flags.RaftBootstrap.Name),
 		RaftServerID:   ctx.String(flags.RaftServerID.Name),
 		RaftStorageDir: ctx.String(flags.RaftStorageDir.Name),
 		NodeRPC:        ctx.String(flags.NodeRPC.Name),
