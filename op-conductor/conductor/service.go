@@ -30,9 +30,10 @@ import (
 )
 
 var (
-	ErrResumeTimeout      = errors.New("timeout to resume conductor")
-	ErrPauseTimeout       = errors.New("timeout to pause conductor")
-	ErrUnsafeHeadMismarch = errors.New("unsafe head mismatch")
+	ErrResumeTimeout                           = errors.New("timeout to resume conductor")
+	ErrPauseTimeout                            = errors.New("timeout to pause conductor")
+	ErrUnsafeHeadMismarch                      = errors.New("unsafe head mismatch")
+	ErrUnableToRetrieveUnsafeHeadFromConsensus = errors.New("unable to retrieve unsafe head from consensus")
 )
 
 // New creates a new OpConductor instance.
@@ -248,10 +249,11 @@ type OpConductor struct {
 	hmon health.HealthMonitor
 
 	leader    atomic.Bool
-	healthy   atomic.Bool
 	seqActive atomic.Bool
+	healthy   atomic.Bool
+	hcerr     error // error from health check
 
-	healthUpdateCh <-chan bool
+	healthUpdateCh <-chan error
 	leaderUpdateCh <-chan bool
 	actionFn       func() // actionFn defines the action to be executed to bring the sequencer to the desired state.
 
@@ -469,15 +471,21 @@ func (oc *OpConductor) handleLeaderUpdate(leader bool) {
 }
 
 // handleHealthUpdate handles health update from health monitor.
-func (oc *OpConductor) handleHealthUpdate(healthy bool) {
+func (oc *OpConductor) handleHealthUpdate(hcerr error) {
+	healthy := hcerr == nil
 	if !healthy {
-		oc.log.Error("Sequencer is unhealthy", "server", oc.cons.ServerID())
+		oc.log.Error("Sequencer is unhealthy", "server", oc.cons.ServerID(), "err", hcerr)
+		// always queue an action if it's unhealthy, it could be an no-op in the handler.
+		oc.queueAction()
 	}
 
 	if healthy != oc.healthy.Load() {
-		oc.healthy.Store(healthy)
+		// queue an action if health status changed.
 		oc.queueAction()
 	}
+
+	oc.healthy.Store(healthy)
+	oc.hcerr = hcerr
 }
 
 // action tries to bring the sequencer to the desired state, a retry will be queued if any action failed.
@@ -572,31 +580,16 @@ func (oc *OpConductor) startSequencer() error {
 
 	// When starting sequencer, we need to make sure that the current node has the latest unsafe head from the consensus protocol
 	// If not, then we wait for the unsafe head to catch up or gossip it to op-node manually from op-conductor.
-	unsafeInCons := oc.cons.LatestUnsafePayload()
-	if unsafeInCons == nil {
-		return errors.New("failed to get latest unsafe block from consensus")
-	}
-	unsafeInNode, err := oc.ctrl.LatestUnsafeBlock(ctx)
+	unsafeInCons, unsafeInNode, err := oc.compareUnsafeHead(ctx)
+	// if there's a mismatch, try to post the unsafe head to op-node
 	if err != nil {
-		return errors.Wrap(err, "failed to get latest unsafe block from EL during startSequencer phase")
-	}
-
-	if unsafeInCons.ExecutionPayload.BlockHash != unsafeInNode.Hash() {
-		oc.log.Warn(
-			"latest unsafe block in consensus is not the same as the one in op-node",
-			"consensus_hash", unsafeInCons.ExecutionPayload.BlockHash,
-			"consensus_block_num", unsafeInCons.ExecutionPayload.BlockNumber,
-			"node_hash", unsafeInNode.Hash(),
-			"node_block_num", unsafeInNode.NumberU64(),
-		)
-
-		if uint64(unsafeInCons.ExecutionPayload.BlockNumber)-unsafeInNode.NumberU64() == 1 {
+		if errors.Is(err, ErrUnsafeHeadMismarch) && uint64(unsafeInCons.ExecutionPayload.BlockNumber)-unsafeInNode.NumberU64() == 1 {
 			// tries to post the unsafe head to op-node when head is only 1 block behind (most likely due to gossip delay)
-			if err = oc.ctrl.PostUnsafePayload(ctx, unsafeInCons); err != nil {
-				oc.log.Error("failed to post unsafe head payload envelope to op-node", "err", err)
+			if innerErr := oc.ctrl.PostUnsafePayload(ctx, unsafeInCons); innerErr != nil {
+				oc.log.Error("failed to post unsafe head payload envelope to op-node", "err", innerErr)
 			}
 		}
-		return ErrUnsafeHeadMismarch // return error to allow retry
+		return err
 	}
 
 	if err = oc.ctrl.StartSequencer(ctx, unsafeInCons.ExecutionPayload.BlockHash); err != nil {
@@ -610,6 +603,32 @@ func (oc *OpConductor) startSequencer() error {
 
 	oc.seqActive.Store(true)
 	return nil
+}
+
+func (oc *OpConductor) compareUnsafeHead(ctx context.Context) (*eth.ExecutionPayloadEnvelope, eth.BlockInfo, error) {
+	unsafeInCons := oc.cons.LatestUnsafePayload()
+	if unsafeInCons == nil {
+		return nil, nil, ErrUnableToRetrieveUnsafeHeadFromConsensus
+	}
+
+	unsafeInNode, err := oc.ctrl.LatestUnsafeBlock(ctx)
+	if err != nil {
+		return unsafeInCons, nil, errors.Wrap(err, "failed to get latest unsafe block from EL during compareUnsafeHead phase")
+	}
+
+	if unsafeInCons.ExecutionPayload.BlockHash != unsafeInNode.Hash() {
+		oc.log.Warn(
+			"latest unsafe block in consensus is not the same as the one in op-node",
+			"consensus_hash", unsafeInCons.ExecutionPayload.BlockHash,
+			"consensus_block_num", unsafeInCons.ExecutionPayload.BlockNumber,
+			"node_hash", unsafeInNode.Hash(),
+			"node_block_num", unsafeInNode.NumberU64(),
+		)
+
+		return unsafeInCons, unsafeInNode, ErrUnsafeHeadMismarch
+	}
+
+	return unsafeInCons, unsafeInNode, nil
 }
 
 func (oc *OpConductor) updateSequencerActiveStatus() error {
