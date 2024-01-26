@@ -79,11 +79,13 @@ func entrypoint(ctx *cli.Context) error {
 	}
 
 	superchainName := ctx.String("superchain-target")
-	if superchainName == "" {
-		superchainName, err = upgrades.ToSuperchainName(l1ChainID.Uint64())
-		if err != nil {
-			return err
-		}
+	declaredChainID, err := upgrades.SuperChainID(superchainName)
+	if err != nil {
+		return err
+	}
+	if declaredChainID != l1ChainID.Uint64() {
+		return fmt.Errorf("superchain %s has chainID %d, but the l1-rpc-url returned a chainId of %d",
+			superchainName, declaredChainID, l1ChainID.Uint64())
 	}
 
 	chainIDs := ctx.Uint64Slice("chain-ids")
