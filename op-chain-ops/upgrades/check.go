@@ -135,5 +135,5 @@ func SuperChainID(superchain string) (uint64, error) {
 	case "sepolia":
 		return 11155111, nil
 	}
-	return 0, fmt.Errorf("unkown superchain %s", superchain)
+	return 0, fmt.Errorf("unknown superchain %s", superchain)
 }
