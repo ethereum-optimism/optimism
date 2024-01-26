@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"math/big"
 	"os"
 	"sync"
@@ -191,7 +190,7 @@ func processBlock(ctx context.Context, c *ethclient.Client, blockNumber uint64, 
 	txCount := 0
 	matches := 0
 	for _, tx := range block.Transactions() {
-		ok, err := checkTransaction(ctx, c, tx.Hash(), log)
+		ok, err := checkTransaction(ctx, c, tx, log)
 		if err != nil {
 			log.Error("failed to check tx", "err", err)
 			return nonces{}, err
@@ -208,17 +207,8 @@ func processBlock(ctx context.Context, c *ethclient.Client, blockNumber uint64, 
 }
 
 // checkTransaction will check if a transaction is a user deposit, and not initiated by the system address
-func checkTransaction(ctx context.Context, c *ethclient.Client, txHash common.Hash, log log.Logger) (bool, error) {
-	tx, isPending, err := c.TransactionByHash(ctx, txHash)
-	if err != nil {
-		log.Error("failed to get tx", "err", err)
-		return false, err
-	}
-	if isPending {
-		log.Error("tx is pending. this tool is meant for settled block content", "tx")
-		return false, fmt.Errorf("tx is pending. this tool is meant for settled block content")
-	}
-	from, err := types.Sender(types.LatestSignerForChainID(tx.ChainId()), tx)
+func checkTransaction(ctx context.Context, c *ethclient.Client, tx types.Transaction, log log.Logger) (bool, error) {
+	from, err := types.Sender(types.LatestSignerForChainID(tx.ChainId()), &tx)
 	if err != nil {
 		log.Error("failed to get sender from tx", "err", err)
 		return false, err
