@@ -1332,7 +1332,7 @@ jobs:
           name: Checkout Submodule
           command: make submodules
       - check-changed:
-          patterns: contracts-bedrock/test/kontrol,contracts-bedrock/src/L1/OptimismPortal\.sol
+          patterns: contracts-bedrock/test/kontrol,contracts-bedrock/src/L1/OptimismPortal\.sol,contracts-bedrock/src/L1/L1CrossDomainMessenger\.sol,contracts-bedrock/src/L1/L1ERC721Bridge\.sol,contracts-bedrock/src/L1/L1StandardBridge\.sol,contracts-bedrock/src/L1/ResourceMetering\.sol,contracts-bedrock/src/universal/StandardBridge\.sol,contracts-bedrock/src/universal/ERC721Bridge\.sol,contracts-bedrock/src/universal/CrossDomainMessenger\.sol
       - setup_remote_docker:
           docker_layer_caching: true
       - run:

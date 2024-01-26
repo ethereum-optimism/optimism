@@ -41,8 +41,9 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
         external
     {
         setUpInlined();
-        bytes memory _data = freshBigBytes(320);
 
+        // ASSUME: conservative upper bound on the `_data` length
+        bytes memory _data = freshBigBytes(320);
         bytes[] memory _withdrawalProof = freshWithdrawalProof();
 
         Types.WithdrawalTransaction memory _tx =
@@ -51,7 +52,7 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
             Types.OutputRootProof(_outputRootProof0, _outputRootProof1, _outputRootProof2, _outputRootProof3);
 
         // Pause Optimism Portal
-        vm.prank(optimismPortal.GUARDIAN());
+        vm.prank(optimismPortal.guardian());
         superchainConfig.pause("identifier");
 
         // No one can call proveWithdrawalTransaction
@@ -72,16 +73,17 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
         external
     {
         setUpInlined();
+
+        // ASSUME: conservative upper bound on the `_data` length
         bytes memory _data = freshBigBytes(320);
 
-        Types.WithdrawalTransaction memory _tx =
-            Types.WithdrawalTransaction(_nonce, _sender, _target, _value, _gasLimit, _data);
-
         // Pause Optimism Portal
-        vm.prank(optimismPortal.GUARDIAN());
+        vm.prank(optimismPortal.guardian());
         superchainConfig.pause("identifier");
 
         vm.expectRevert("OptimismPortal: paused");
-        optimismPortal.finalizeWithdrawalTransaction(_tx);
+        optimismPortal.finalizeWithdrawalTransaction(
+            Types.WithdrawalTransaction(_nonce, _sender, _target, _value, _gasLimit, _data)
+        );
     }
 }

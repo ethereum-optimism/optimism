@@ -208,13 +208,30 @@ regen=--regen
 # shellcheck disable=SC2034
 regen=
 
+#################################
+# Tests to symbolically execute #
+#################################
+# Missing: OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused
+test_list=( "OptimismPortalKontrol.prove_finalizeWithdrawalTransaction_paused" \
+            "L1StandardBridgeKontrol.prove_finalizeBridgeERC20_paused" \
+            "L1StandardBridgeKontrol.prove_finalizeBridgeETH_paused" \
+            "L1ERC721BridgeKontrol.prove_finalizeBridgeERC21_paused" \
+            "L1CrossDomainMessengerKontrol.prove_relayMessage_paused"
+          )
+tests=""
+for test_name in "${test_list[@]}"; do
+  tests+="--match-test $test_name "
+done
+
 #########################
 # kontrol prove options #
 #########################
 max_depth=1000000
 max_iterations=1000000
 smt_timeout=100000
-workers=2
+max_workers=7 # Set to 7 since the CI machine has 8 CPUs
+# workers is the minimum between max_workers and the length of test_list
+workers=$((${#test_list[@]}>max_workers ? max_workers : ${#test_list[@]}))
 reinit=--reinit
 reinit=
 break_on_calls=--no-break-on-calls
@@ -226,14 +243,6 @@ bug_report=
 use_booster=--use-booster
 # use_booster=
 state_diff="./snapshots/state-diff/Kontrol-Deploy.json"
-
-#########################################
-# List of tests to symbolically execute #
-#########################################
-tests=""
-#tests+="--match-test OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused "
-tests+="--match-test OptimismPortalKontrol.prove_finalizeWithdrawalTransaction_paused "
-tests+="--match-test L1CrossDomainMessengerKontrol.prove_relayMessage_paused "
 
 #############
 # RUN TESTS #

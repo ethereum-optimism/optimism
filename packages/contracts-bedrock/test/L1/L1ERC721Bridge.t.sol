@@ -47,7 +47,9 @@ contract L1ERC721Bridge_Test is Bridge_Initializer {
     );
 
     /// @dev Sets up the testing environment.
-    function setUp() public override {
+    /// @notice Marked virtual to be overridden in
+    ///         test/kontrol/deployment/DeploymentSummary.t.sol
+    function setUp() public virtual override {
         super.setUp();
 
         localToken = new TestERC721();
@@ -62,7 +64,9 @@ contract L1ERC721Bridge_Test is Bridge_Initializer {
     }
 
     /// @dev Tests that the impl is created with the correct values.
-    function test_constructor_succeeds() public {
+    /// @notice Marked virtual to be overridden in
+    ///         test/kontrol/deployment/DeploymentSummary.t.sol
+    function test_constructor_succeeds() public virtual {
         L1ERC721Bridge impl = L1ERC721Bridge(deploy.mustGetAddress("L1ERC721Bridge"));
         assertEq(address(impl.MESSENGER()), address(0));
         assertEq(address(impl.messenger()), address(0));
