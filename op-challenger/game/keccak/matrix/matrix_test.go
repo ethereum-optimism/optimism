@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/big"
 	"math/rand"
 	"testing"
 
@@ -51,34 +52,10 @@ func TestStateCommitment(t *testing.T) {
 }
 
 type testData struct {
-	Input       []byte        `json:"input"`
-	Commitments []common.Hash `json:"commitments"`
-}
-
-func TestReferenceCommitments(t *testing.T) {
-	var tests []testData
-	require.NoError(t, json.Unmarshal(refTests, &tests))
-
-	for i, test := range tests {
-		test := test
-		t.Run(fmt.Sprintf("Ref-%v", i), func(t *testing.T) {
-			s := NewStateMatrix()
-			commitments := []common.Hash{s.StateCommitment()}
-			for i := 0; i < len(test.Input); i += types.BlockSize {
-				end := min(i+types.BlockSize, len(test.Input))
-				s.absorbLeafInput(test.Input[i:end], end == len(test.Input))
-				commitments = append(commitments, s.StateCommitment())
-			}
-			if len(test.Input) == 0 {
-				s.absorbLeafInput(nil, true)
-				commitments = append(commitments, s.StateCommitment())
-			}
-			actual := s.Hash()
-			expected := crypto.Keccak256Hash(test.Input)
-			require.Equal(t, expected, actual)
-			require.Equal(t, test.Commitments, commitments)
-		})
-	}
+	Input         []byte        `json:"input"`
+	Commitments   []common.Hash `json:"commitments"`
+	PrestateLeaf  []byte        `json:"prestateLeaf"`
+	PoststateLeaf []byte        `json:"poststateLeaf"`
 }
 
 func TestReferenceCommitmentsFromReader(t *testing.T) {
@@ -91,20 +68,29 @@ func TestReferenceCommitmentsFromReader(t *testing.T) {
 			s := NewStateMatrix()
 			commitments := []common.Hash{s.StateCommitment()}
 			in := bytes.NewReader(test.Input)
+			var prestateLeaf []byte
+			var poststateLeaf []byte
 			for {
-				_, err := s.absorbNextLeafInput(in)
+				readData, err := s.absorbNextLeafInput(in)
 				if errors.Is(err, io.EOF) {
+					if prestateLeaf == nil {
+						prestateLeaf = readData
+					}
+					poststateLeaf = readData
 					commitments = append(commitments, s.StateCommitment())
 					break
 				}
 				// Shouldn't get any error except EOF
 				require.NoError(t, err)
 				commitments = append(commitments, s.StateCommitment())
+				prestateLeaf = readData
 			}
 			actual := s.Hash()
 			expected := crypto.Keccak256Hash(test.Input)
 			require.Equal(t, expected, actual)
 			require.Equal(t, test.Commitments, commitments)
+			require.Equal(t, test.PrestateLeaf, prestateLeaf)
+			require.Equal(t, test.PoststateLeaf, poststateLeaf)
 		})
 	}
 }
@@ -119,6 +105,34 @@ func TestAbsorbUpTo_ReferenceCommitments(t *testing.T) {
 			s := NewStateMatrix()
 			commitments := []common.Hash{s.StateCommitment()}
 			in := bytes.NewReader(test.Input)
+			for {
+				input, err := s.AbsorbUpTo(in, types.BlockSize*3)
+				if errors.Is(err, io.EOF) {
+					commitments = append(commitments, input.Commitments...)
+					break
+				}
+				// Shouldn't get any error except EOF
+				require.NoError(t, err)
+				commitments = append(commitments, input.Commitments...)
+			}
+			actual := s.Hash()
+			expected := crypto.Keccak256Hash(test.Input)
+			require.Equal(t, expected, actual)
+			require.Equal(t, test.Commitments, commitments)
+		})
+	}
+}
+
+func TestAbsorbUpTo_ReferenceCommitments_SameCallEOF(t *testing.T) {
+	var tests []testData
+	require.NoError(t, json.Unmarshal(refTests, &tests))
+
+	for i, test := range tests {
+		test := test
+		t.Run(fmt.Sprintf("Ref-%v", i), func(t *testing.T) {
+			s := NewStateMatrix()
+			commitments := []common.Hash{s.StateCommitment()}
+			in := newSameCallEOFReader(test.Input)
 			for {
 				input, err := s.AbsorbUpTo(in, types.BlockSize*3)
 				if errors.Is(err, io.EOF) {
@@ -218,6 +232,152 @@ func TestMatrix_AbsorbNextLeaf(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestVerifyPreimage_ReferenceCommitments(t *testing.T) {
+	var tests []testData
+	require.NoError(t, json.Unmarshal(refTests, &tests))
+
+	for i, test := range tests {
+		test := test
+		t.Run(fmt.Sprintf("Ref-%v", i), func(t *testing.T) {
+			// Exclude the empty state commitment
+			challenge, err := Challenge(bytes.NewReader(test.Input), test.Commitments[1:])
+			require.ErrorIs(t, err, ErrValid)
+			require.Equal(t, types.Challenge{}, challenge)
+		})
+	}
+}
+
+func TestVerifyPreimage_ReferenceCommitments_SameCallEOF(t *testing.T) {
+	var tests []testData
+	require.NoError(t, json.Unmarshal(refTests, &tests))
+
+	for i, test := range tests {
+		test := test
+		t.Run(fmt.Sprintf("Ref-%v", i), func(t *testing.T) {
+			// Exclude the empty state commitment
+			challenge, err := Challenge(newSameCallEOFReader(test.Input), test.Commitments[1:])
+			require.ErrorIs(t, err, ErrValid)
+			require.Equal(t, types.Challenge{}, challenge)
+		})
+	}
+}
+
+func TestVerifyPreimage(t *testing.T) {
+	preimage := testutils.RandomData(rand.New(rand.NewSource(2323)), 1024)
+	validCommitments := func() []common.Hash {
+		valid, err := NewStateMatrix().AbsorbUpTo(bytes.NewReader(preimage), 1000*types.BlockSize)
+		require.ErrorIs(t, err, io.EOF, "Should read all preimage data")
+		return valid.Commitments
+	}
+	leafData := func(idx int) (out [types.BlockSize]byte) {
+		copy(out[:], preimage[idx*types.BlockSize:(idx+1)*types.BlockSize])
+		return
+	}
+	challengeLeaf := func(commitments []common.Hash, invalidIdx int) types.Challenge {
+		invalidLeafStart := invalidIdx * types.BlockSize
+		s := NewStateMatrix()
+		_, err := s.AbsorbUpTo(bytes.NewReader(preimage), invalidLeafStart)
+		require.NoError(t, err)
+
+		prestateLeaf := leafData(invalidIdx - 1)
+		poststateLeaf := leafData(invalidIdx)
+		return types.Challenge{
+			StateMatrix: s.PackState(),
+			Prestate: types.Leaf{
+				Input:           prestateLeaf,
+				Index:           big.NewInt(int64(invalidIdx - 1)),
+				StateCommitment: commitments[invalidIdx-1],
+			},
+			Poststate: types.Leaf{
+				Input:           poststateLeaf,
+				Index:           big.NewInt(int64(invalidIdx)),
+				StateCommitment: commitments[invalidIdx],
+			},
+		}
+	}
+
+	type testInputs struct {
+		name        string
+		commitments func() []common.Hash
+		expected    types.Challenge
+		expectedErr error
+	}
+
+	poststateLeaf := leafData(0)
+	tests := []testInputs{
+		{
+			name:        "Valid",
+			commitments: validCommitments,
+			expectedErr: ErrValid,
+		},
+		{
+			name: "IncorrectFirstLeaf",
+			commitments: func() []common.Hash {
+				commitments := validCommitments()
+				commitments[0] = common.Hash{0xaa}
+				return commitments
+			},
+			expected: types.Challenge{
+				StateMatrix: NewStateMatrix().PackState(),
+				Prestate:    types.Leaf{},
+				Poststate: types.Leaf{
+					Input:           poststateLeaf,
+					Index:           big.NewInt(int64(0)),
+					StateCommitment: common.Hash{0xaa},
+				},
+			},
+		},
+	}
+
+	for i := 1; i < len(preimage)/types.BlockSize; i++ {
+		commitments := validCommitments()
+		commitments[i] = common.Hash{0xaa}
+		tests = append(tests, testInputs{
+			name: fmt.Sprintf("Incorrect-%v", i),
+			commitments: func() []common.Hash {
+				return commitments
+			},
+			expected: challengeLeaf(commitments, i),
+		})
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			challenge, err := Challenge(bytes.NewReader(preimage), test.commitments())
+			require.ErrorIs(t, err, test.expectedErr)
+			require.Equal(t, test.expected, challenge)
+		})
+	}
+}
+
+func TestVerifyPreimage_DataMultipleOfBlockSize(t *testing.T) {
+	preimage := testutils.RandomData(rand.New(rand.NewSource(2323)), 5*types.BlockSize)
+	valid, err := NewStateMatrix().AbsorbUpTo(bytes.NewReader(preimage), 1000*types.BlockSize)
+	require.ErrorIs(t, err, io.EOF, "Should read all preimage data")
+
+	_, err = Challenge(bytes.NewReader(preimage), valid.Commitments)
+	require.ErrorIs(t, err, ErrValid)
+}
+
+func TestVerifyPreimage_TooManyCommitments(t *testing.T) {
+	data := []byte{1}
+	valid, err := NewStateMatrix().AbsorbUpTo(bytes.NewReader(data[:]), 10*types.BlockSize)
+	require.ErrorIs(t, err, io.EOF)
+	commitments := append(valid.Commitments, common.Hash{0xaa})
+	_, err = Challenge(bytes.NewReader(data), commitments)
+	require.ErrorIs(t, err, ErrIncorrectCommitmentCount)
+}
+
+func TestVerifyPreimage_TooFewCommitments(t *testing.T) {
+	data := [types.BlockSize * 3]byte{}
+	valid, err := NewStateMatrix().AbsorbUpTo(bytes.NewReader(data[:]), 10*types.BlockSize)
+	require.ErrorIs(t, err, io.EOF)
+	commitments := valid.Commitments[:len(valid.Commitments)-1]
+	_, err = Challenge(bytes.NewReader(data[:]), commitments)
+	require.ErrorIs(t, err, ErrIncorrectCommitmentCount)
 }
 
 func FuzzKeccak(f *testing.F) {

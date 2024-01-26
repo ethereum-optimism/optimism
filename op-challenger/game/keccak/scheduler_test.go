@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/fetcher"
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -95,7 +96,7 @@ type stubVerifier struct {
 	verified []keccakTypes.LargePreimageMetaData
 }
 
-func (s *stubVerifier) Verify(_ context.Context, _ common.Hash, _ keccakTypes.LargePreimageOracle, image keccakTypes.LargePreimageMetaData) error {
+func (s *stubVerifier) Verify(_ context.Context, _ common.Hash, _ fetcher.Oracle, image keccakTypes.LargePreimageMetaData) error {
 	s.m.Lock()
 	defer s.m.Unlock()
 	s.verified = append(s.verified, image)

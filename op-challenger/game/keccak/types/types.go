@@ -6,6 +6,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 // BlockSize is the size in bytes required for leaf data.
@@ -19,6 +20,16 @@ type Leaf struct {
 	Index *big.Int
 	// StateCommitment is the hash of the internal state after absorbing the input.
 	StateCommitment common.Hash
+}
+
+// Hash returns the hash of the leaf data. That is the
+// bytewise concatenation of the input, index, and state commitment.
+func (l *Leaf) Hash() common.Hash {
+	concatted := make([]byte, 0, 136+32+32)
+	concatted = append(concatted, l.Input[:]...)
+	concatted = append(concatted, l.Index.Bytes()...)
+	concatted = append(concatted, l.StateCommitment.Bytes()...)
+	return crypto.Keccak256Hash(concatted)
 }
 
 // InputData is a contiguous segment of preimage data.
@@ -55,6 +66,17 @@ type LargePreimageMetaData struct {
 // Note that the challenge period for the preimage may have expired but the image not yet been finalized.
 func (m LargePreimageMetaData) ShouldVerify() bool {
 	return m.Timestamp > 0 && !m.Countered
+}
+
+type Challenge struct {
+	// StateMatrix is the packed state matrix preimage of the StateCommitment in Prestate
+	StateMatrix []byte // TODO(client-pod#480): Need a better representation of this
+
+	// Prestate is the valid leaf immediately prior to the first invalid leaf
+	Prestate Leaf
+
+	// Poststate is the first invalid leaf in the preimage. The challenge claims that this leaf is invalid.
+	Poststate Leaf
 }
 
 type LargePreimageOracle interface {

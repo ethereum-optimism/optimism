@@ -40,12 +40,12 @@
     "upgrade:slither": "jq '.slither = $v' --arg v $(pnpm -s print:slither) <<<$(cat versions.json) > versions.json"
   },
   "devDependencies": {
-    "@babel/eslint-parser": "^7.23.3",
+    "@babel/eslint-parser": "^7.23.9",
     "@changesets/changelog-github": "^0.4.8",
     "@types/chai": "^4.3.11",
     "@types/chai-as-promised": "^7.1.8",
     "@types/mocha": "^10.0.6",
-    "@types/node": "^20.11.5",
+    "@types/node": "^20.11.6",
     "@typescript-eslint/eslint-plugin": "^6.19.1",
     "@typescript-eslint/parser": "^6.19.1",
     "chai": "^4.3.10",
@@ -62,7 +62,7 @@
     "eslint-plugin-promise": "^5.1.0",
     "eslint-plugin-react": "^7.24.0",
     "eslint-plugin-unicorn": "^50.0.1",
-    "husky": "^8.0.3",
+    "husky": "^9.0.5",
     "lint-staged": "15.2.0",
     "mocha": "^10.2.0",
     "nx": "17.2.8",

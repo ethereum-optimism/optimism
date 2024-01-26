@@ -59,17 +59,6 @@ abstract contract Artifacts {
         try vm.createDir(deploymentsDir, true) { } catch (bytes memory) { }
 
         uint256 chainId = vm.envOr("CHAIN_ID", block.chainid);
-        string memory chainIdPath = string.concat(deploymentsDir, string("/.chainId"));
-        try vm.readFile(chainIdPath) returns (string memory localChainId) {
-            if (vm.envOr("STRICT_DEPLOYMENT", true)) {
-                require(
-                    vm.parseUint(localChainId) == chainId,
-                    string.concat("Misconfigured networks: ", localChainId, " != ", vm.toString(chainId))
-                );
-            }
-        } catch {
-            vm.writeFile(chainIdPath, vm.toString(chainId));
-        }
         console.log("Connected to network with chainid %s", chainId);
 
         // Load addresses from a JSON file if the CONTRACT_ADDRESSES_PATH environment variable

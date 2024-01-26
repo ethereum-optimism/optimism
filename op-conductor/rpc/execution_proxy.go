@@ -2,11 +2,10 @@ package rpc
 
 import (
 	"context"
-	"math/big"
 
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rpc"
 )
 
 var ExecutionRPCNamespace = "eth"
@@ -28,13 +27,14 @@ func NewExecutionProxyBackend(log log.Logger, con conductor, client *ethclient.C
 	}
 }
 
-func (api *ExecutionProxyBackend) BlockByNumber(ctx context.Context, number *big.Int) (*types.Block, error) {
-	block, err := api.client.BlockByNumber(ctx, number)
+func (api *ExecutionProxyBackend) GetBlockByNumber(ctx context.Context, number rpc.BlockNumber, fullTx bool) (map[string]interface{}, error) {
+	var result map[string]interface{}
+	err := api.client.Client().Call(&result, "eth_getBlockByNumber", number, fullTx)
 	if err != nil {
 		return nil, err
 	}
 	if !api.con.Leader(ctx) {
 		return nil, ErrNotLeader
 	}
-	return block, nil
+	return result, nil
 }

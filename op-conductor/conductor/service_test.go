@@ -36,9 +36,10 @@ func mockConfig(t *testing.T) Config {
 		ExecutionRPC:   "http://geth:8545",
 		Paused:         false,
 		HealthCheck: HealthCheckConfig{
-			Interval:     1,
-			SafeInterval: 5,
-			MinPeerCount: 1,
+			Interval:       1,
+			UnsafeInterval: 3,
+			SafeInterval:   5,
+			MinPeerCount:   1,
 		},
 		RollupCfg: rollup.Config{
 			Genesis: rollup.Genesis{
@@ -174,6 +175,7 @@ func (s *OpConductorTestSuite) TestControlLoop1() {
 	s.healthUpdateCh <- true
 
 	// Resume
+	s.ctrl.EXPECT().SequencerActive(mock.Anything).Return(false, nil)
 	err = s.conductor.Resume(s.ctx)
 	s.NoError(err)
 	s.False(s.conductor.Paused())
@@ -199,6 +201,7 @@ func (s *OpConductorTestSuite) TestControlLoop2() {
 	s.True(s.conductor.Paused())
 
 	// Resume
+	s.ctrl.EXPECT().SequencerActive(mock.Anything).Return(false, nil)
 	err = s.conductor.Resume(s.ctx)
 	s.NoError(err)
 	s.False(s.conductor.Paused())
