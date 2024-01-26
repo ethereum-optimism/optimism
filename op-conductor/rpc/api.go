@@ -45,7 +45,7 @@ type API interface {
 	// APIs called by op-node
 	// Active returns true if op-conductor is active.
 	Active(ctx context.Context) (bool, error)
-	// CommitUnsafePayload commits a unsafe payload (lastest head) to the consensus layer.
+	// CommitUnsafePayload commits a unsafe payload (latest head) to the consensus layer.
 	CommitUnsafePayload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) error
 }
 

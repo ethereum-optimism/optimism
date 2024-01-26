@@ -415,7 +415,7 @@ func (oc *OpConductor) TransferLeaderToServer(_ context.Context, id string, addr
 	return oc.cons.TransferLeaderTo(id, addr)
 }
 
-// CommitUnsafePayload commits a unsafe payload (lastest head) to the cluster FSM.
+// CommitUnsafePayload commits a unsafe payload (latest head) to the cluster FSM.
 func (oc *OpConductor) CommitUnsafePayload(_ context.Context, payload *eth.ExecutionPayloadEnvelope) error {
 	return oc.cons.CommitUnsafePayload(payload)
 }

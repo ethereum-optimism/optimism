@@ -8,9 +8,9 @@ import (
 //
 //go:generate mockery --name Consensus --output mocks/ --with-expecter=true
 type Consensus interface {
-	// AddVoter adds a voting member into the cluster, voter is elegible to become leader.
+	// AddVoter adds a voting member into the cluster, voter is eligible to become leader.
 	AddVoter(id, addr string) error
-	// AddNonVoter adds a non-voting member into the cluster, non-voter is not elegible to become leader.
+	// AddNonVoter adds a non-voting member into the cluster, non-voter is not eligible to become leader.
 	AddNonVoter(id, addr string) error
 	// DemoteVoter demotes a voting member into a non-voting member, if leader is being demoted, it will cause a new leader election.
 	DemoteVoter(id string) error
