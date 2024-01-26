@@ -288,8 +288,8 @@ importers:
         specifier: workspace:*
         version: link:../contracts-bedrock
       '@testing-library/jest-dom':
-        specifier: ^6.2.1
-        version: 6.2.1(vitest@1.0.1)
+        specifier: ^6.3.0
+        version: 6.3.0(vitest@1.0.1)
       '@testing-library/react-hooks':
         specifier: ^8.0.1
         version: 8.0.1(react-dom@18.2.0)(react@18.2.0)
@@ -394,8 +394,8 @@ importers:
         specifier: workspace:^
         version: link:../contracts-ts
       '@testing-library/jest-dom':
-        specifier: ^6.2.1
-        version: 6.2.1(vitest@1.0.1)
+        specifier: ^6.3.0
+        version: 6.3.0(vitest@1.0.1)
       '@testing-library/react-hooks':
         specifier: ^8.0.1
         version: 8.0.1(react@17.0.2)
@@ -5538,8 +5538,8 @@ packages:
       pretty-format: 27.5.1
     dev: false
 
-  /@testing-library/jest-dom@6.2.1(vitest@1.0.1):
-    resolution: {integrity: sha512-Nuy/uFFDe9h/2jwoUuMKgoxvgkUv4S9jI9bARj6dGUKJ3euRhg8JFi5sciYbrayoxkadEOZednRT9+vo6LvvxQ==}
+  /@testing-library/jest-dom@6.3.0(vitest@1.0.1):
+    resolution: {integrity: sha512-hJVIrkFizEQxoWsGBlycTcQhrpoCH4DhXfrnHFFXgkx3Xdm15zycsq5Ep+vpw4W8S0NJa8cxDHcuJib+1tEbhg==}
     engines: {node: '>=14', npm: '>=6', yarn: '>=1'}
     peerDependencies:
       '@jest/globals': '>= 28'
