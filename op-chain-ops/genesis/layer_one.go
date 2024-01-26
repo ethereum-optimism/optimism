@@ -57,6 +57,13 @@ func BuildL1DeveloperGenesis(config *DeployConfig, dump *gstate.Dump, l1Deployme
 
 	if dump != nil {
 		for _, account := range dump.Accounts {
+			// TODO(Seb) confirm this is what we want here
+			//   Changes in https://github.com/ethereum/go-ethereum/pull/28504
+			//   now also add accounts to the Dump with "pre(<AddressHash>)" as key
+			//   if the address itself is nil.
+			if account.Address == nil {
+				continue
+			}
 			address := *account.Address
 			name := "<unknown>"
 			if l1Deployments != nil {
