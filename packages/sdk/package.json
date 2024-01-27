@@ -57,7 +57,7 @@
     "typedoc": "^0.25.7",
     "typescript": "^5.3.3",
     "viem": "^2.5.0",
-    "vitest": "^1.0.1",
+    "vitest": "^1.2.2",
     "zod": "^3.22.4"
   },
   "dependencies": {
