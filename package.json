@@ -62,7 +62,7 @@
     "eslint-plugin-promise": "^5.1.0",
     "eslint-plugin-react": "^7.24.0",
     "eslint-plugin-unicorn": "^50.0.1",
-    "husky": "^9.0.5",
+    "husky": "^9.0.6",
     "lint-staged": "15.2.0",
     "mocha": "^10.2.0",
     "nx": "17.2.8",
