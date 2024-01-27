@@ -8,7 +8,7 @@ import { Deployer } from "scripts/Deployer.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
-import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
+import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
 import { ProtocolVersion, ProtocolVersions } from "src/L1/ProtocolVersions.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
@@ -27,7 +27,6 @@ library ChainAssertions {
     function postDeployAssertions(
         Types.ContractSet memory _prox,
         DeployConfig _cfg,
-        uint256 _l2OutputOracleStartingTimestamp,
         Vm _vm
     )
         internal
@@ -41,12 +40,7 @@ library ChainAssertions {
         checkSystemConfig({ _contracts: _prox, _cfg: _cfg, _isProxy: true });
         checkL1CrossDomainMessenger({ _contracts: _prox, _vm: _vm, _isProxy: true });
         checkL1StandardBridge({ _contracts: _prox, _isProxy: true });
-        checkL2OutputOracle({
-            _contracts: _prox,
-            _cfg: _cfg,
-            _l2OutputOracleStartingTimestamp: _l2OutputOracleStartingTimestamp,
-            _isProxy: true
-        });
+        // TODO: Check dispute game factory
         checkOptimismMintableERC20Factory({ _contracts: _prox, _isProxy: true });
         checkL1ERC721Bridge({ _contracts: _prox, _isProxy: true });
         checkOptimismPortal({ _contracts: _prox, _cfg: _cfg, _isProxy: true });
@@ -83,7 +77,7 @@ library ChainAssertions {
             require(config.l1CrossDomainMessenger() == _contracts.L1CrossDomainMessenger);
             require(config.l1ERC721Bridge() == _contracts.L1ERC721Bridge);
             require(config.l1StandardBridge() == _contracts.L1StandardBridge);
-            require(config.l2OutputOracle() == _contracts.L2OutputOracle);
+            require(config.disputeGameFactory() == _contracts.DisputeGameFactory);
             require(config.optimismPortal() == _contracts.OptimismPortal);
             require(config.optimismMintableERC20Factory() == _contracts.OptimismMintableERC20Factory);
         } else {
@@ -106,7 +100,7 @@ library ChainAssertions {
             require(config.l1CrossDomainMessenger() == address(0));
             require(config.l1ERC721Bridge() == address(0));
             require(config.l1StandardBridge() == address(0));
-            require(config.l2OutputOracle() == address(0));
+            require(config.disputeGameFactory() == address(0));
             require(config.optimismPortal() == address(0));
             require(config.optimismMintableERC20Factory() == address(0));
         }
@@ -150,48 +144,6 @@ library ChainAssertions {
             require(address(bridge.OTHER_BRIDGE()) == Predeploys.L2_STANDARD_BRIDGE);
             require(address(bridge.otherBridge()) == Predeploys.L2_STANDARD_BRIDGE);
             require(address(bridge.superchainConfig()) == address(0));
-        }
-    }
-
-    /// @notice Asserts that the L2OutputOracle is setup correctly
-    function checkL2OutputOracle(
-        Types.ContractSet memory _contracts,
-        DeployConfig _cfg,
-        uint256 _l2OutputOracleStartingTimestamp,
-        bool _isProxy
-    )
-        internal
-        view
-    {
-        console.log("Running chain assertions on the L2OutputOracle");
-        L2OutputOracle oracle = L2OutputOracle(_contracts.L2OutputOracle);
-
-        if (_isProxy) {
-            require(oracle.SUBMISSION_INTERVAL() == _cfg.l2OutputOracleSubmissionInterval());
-            require(oracle.submissionInterval() == _cfg.l2OutputOracleSubmissionInterval());
-            require(oracle.L2_BLOCK_TIME() == _cfg.l2BlockTime());
-            require(oracle.l2BlockTime() == _cfg.l2BlockTime());
-            require(oracle.PROPOSER() == _cfg.l2OutputOracleProposer());
-            require(oracle.proposer() == _cfg.l2OutputOracleProposer());
-            require(oracle.CHALLENGER() == _cfg.l2OutputOracleChallenger());
-            require(oracle.challenger() == _cfg.l2OutputOracleChallenger());
-            require(oracle.FINALIZATION_PERIOD_SECONDS() == _cfg.finalizationPeriodSeconds());
-            require(oracle.finalizationPeriodSeconds() == _cfg.finalizationPeriodSeconds());
-            require(oracle.startingBlockNumber() == _cfg.l2OutputOracleStartingBlockNumber());
-            require(oracle.startingTimestamp() == _l2OutputOracleStartingTimestamp);
-        } else {
-            require(oracle.SUBMISSION_INTERVAL() == 1);
-            require(oracle.submissionInterval() == 1);
-            require(oracle.L2_BLOCK_TIME() == 1);
-            require(oracle.l2BlockTime() == 1);
-            require(oracle.PROPOSER() == address(0));
-            require(oracle.proposer() == address(0));
-            require(oracle.CHALLENGER() == address(0));
-            require(oracle.challenger() == address(0));
-            require(oracle.FINALIZATION_PERIOD_SECONDS() == 0);
-            require(oracle.finalizationPeriodSeconds() == 0);
-            require(oracle.startingBlockNumber() == 0);
-            require(oracle.startingTimestamp() == 0);
         }
     }
 
@@ -240,8 +192,7 @@ library ChainAssertions {
         }
 
         if (_isProxy) {
-            require(address(portal.L2_ORACLE()) == _contracts.L2OutputOracle);
-            require(address(portal.l2Oracle()) == _contracts.L2OutputOracle);
+            require(address(portal.disputeGameFactory()) == _contracts.DisputeGameFactory);
             require(address(portal.SYSTEM_CONFIG()) == _contracts.SystemConfig);
             require(address(portal.systemConfig()) == _contracts.SystemConfig);
             require(portal.GUARDIAN() == guardian);
@@ -250,8 +201,7 @@ library ChainAssertions {
             require(portal.paused() == SuperchainConfig(_contracts.SuperchainConfig).paused());
             require(portal.l2Sender() == Constants.DEFAULT_L2_SENDER);
         } else {
-            require(address(portal.L2_ORACLE()) == address(0));
-            require(address(portal.l2Oracle()) == address(0));
+            require(address(portal.disputeGameFactory()) == address(0));
             require(address(portal.SYSTEM_CONFIG()) == address(0));
             require(address(portal.systemConfig()) == address(0));
             require(address(portal.superchainConfig()) == address(0));

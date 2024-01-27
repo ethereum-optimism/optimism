@@ -6,6 +6,8 @@ import { Setup } from "test/setup/Setup.sol";
 import { Events } from "test/setup/Events.sol";
 import { FFIInterface } from "test/setup/FFIInterface.sol";
 
+import "src/libraries/DisputeTypes.sol";
+
 /// @title CommonTest
 /// @dev An extenstion to `Test` that sets up the optimism smart contracts.
 contract CommonTest is Test, Setup, Events {
@@ -34,9 +36,9 @@ contract CommonTest is Test, Setup, Events {
         // Make sure the base fee is non zero
         vm.fee(1 gwei);
 
-        // Set sane initialize block numbers
-        vm.warp(deploy.cfg().l2OutputOracleStartingTimestamp() + 1);
-        vm.roll(deploy.cfg().l2OutputOracleStartingBlockNumber() + 1);
+        // Start @ August 14, 1984 @ block 1M
+        vm.warp(461347200);
+        vm.roll(1_000_000);
 
         // Deploy L1
         Setup.L1();
@@ -60,30 +62,20 @@ contract CommonTest is Test, Setup, Events {
         emit TransactionDeposited(_from, _to, 0, abi.encodePacked(_mint, _value, _gasLimit, _isCreation, _data));
     }
 
-    // @dev Advance the evm's time to meet the L2OutputOracle's requirements for proposeL2Output
-    function warpToProposeTime(uint256 _nextBlockNumber) public {
-        vm.warp(l2OutputOracle.computeL2Timestamp(_nextBlockNumber) + 1);
-    }
-
     /// @dev Helper function to propose an output.
     function proposeAnotherOutput() public {
-        bytes32 proposedOutput2 = keccak256(abi.encode());
-        uint256 nextBlockNumber = l2OutputOracle.nextBlockNumber();
-        uint256 nextOutputIndex = l2OutputOracle.nextOutputIndex();
-        warpToProposeTime(nextBlockNumber);
-        uint256 proposedNumber = l2OutputOracle.latestBlockNumber();
+        // Warp forward 1 block
+        vm.warp(block.timestamp + 12);
+        vm.roll(block.number + 1);
 
-        uint256 submissionInterval = deploy.cfg().l2OutputOracleSubmissionInterval();
-        // Ensure the submissionInterval is enforced
-        assertEq(nextBlockNumber, proposedNumber + submissionInterval);
+        // Expect the dispute game created event
+        vm.expectEmit(false, true, true, false);
+        emit DisputeGameCreated(
+            address(0),
+            GameTypes.CANNON,
+            Claim.wrap(keccak256(abi.encode()))
+        );
 
-        vm.roll(nextBlockNumber + 1);
-
-        vm.expectEmit(true, true, true, true);
-        emit OutputProposed(proposedOutput2, nextOutputIndex, nextBlockNumber, block.timestamp);
-
-        address proposer = deploy.cfg().l2OutputOracleProposer();
-        vm.prank(proposer);
-        l2OutputOracle.proposeL2Output(proposedOutput2, nextBlockNumber, 0, 0);
+        disputeGameFactory.create(GameTypes.CANNON, Claim.wrap(keccak256(abi.encode())), abi.encode(block.number));
     }
 }

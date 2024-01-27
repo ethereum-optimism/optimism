@@ -4,7 +4,7 @@ pragma solidity 0.8.15;
 import { Bridge_Initializer } from "test/setup/Bridge_Initializer.sol";
 import { Executables } from "scripts/Executables.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
-import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
+import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
@@ -68,27 +68,27 @@ contract Initializer_Test is Bridge_Initializer {
                 initializedSlotVal: deploy.loadInitializedSlot("L1CrossDomainMessengerProxy")
             })
         );
-        // L2OutputOracleImpl
+        // DisputeGameFactoryImpl
         contracts.push(
             InitializeableContract({
-                target: deploy.mustGetAddress("L2OutputOracle"),
-                initCalldata: abi.encodeCall(l2OutputOracle.initialize, (0, 0, 0, 0, address(0), address(0), 0)),
-                initializedSlotVal: deploy.loadInitializedSlot("L2OutputOracle")
+                target: deploy.mustGetAddress("DisputeGameFactory"),
+                initCalldata: abi.encodeCall(disputeGameFactory.initialize, (address(0))),
+                initializedSlotVal: deploy.loadInitializedSlot("DisputeGameFactory")
             })
         );
-        // L2OutputOracleProxy
+        // DisputeGameFactoryProxy
         contracts.push(
             InitializeableContract({
-                target: address(l2OutputOracle),
-                initCalldata: abi.encodeCall(l2OutputOracle.initialize, (0, 0, 0, 0, address(0), address(0), 0)),
-                initializedSlotVal: deploy.loadInitializedSlot("L2OutputOracleProxy")
+                target: address(disputeGameFactory),
+                initCalldata: abi.encodeCall(disputeGameFactory.initialize, (address(0))),
+                initializedSlotVal: deploy.loadInitializedSlot("DisputeGameFactoryProxy")
             })
         );
         // OptimismPortalImpl
         contracts.push(
             InitializeableContract({
                 target: deploy.mustGetAddress("OptimismPortal"),
-                initCalldata: abi.encodeCall(optimismPortal.initialize, (l2OutputOracle, systemConfig, superchainConfig)),
+                initCalldata: abi.encodeCall(optimismPortal.initialize, (disputeGameFactory, systemConfig, superchainConfig)),
                 initializedSlotVal: deploy.loadInitializedSlot("OptimismPortal")
             })
         );
@@ -96,7 +96,7 @@ contract Initializer_Test is Bridge_Initializer {
         contracts.push(
             InitializeableContract({
                 target: address(optimismPortal),
-                initCalldata: abi.encodeCall(optimismPortal.initialize, (l2OutputOracle, systemConfig, superchainConfig)),
+                initCalldata: abi.encodeCall(optimismPortal.initialize, (disputeGameFactory, systemConfig, superchainConfig)),
                 initializedSlotVal: deploy.loadInitializedSlot("OptimismPortalProxy")
             })
         );
@@ -126,7 +126,7 @@ contract Initializer_Test is Bridge_Initializer {
                             l1CrossDomainMessenger: address(0),
                             l1ERC721Bridge: address(0),
                             l1StandardBridge: address(0),
-                            l2OutputOracle: address(0),
+                            disputeGameFactory: address(0),
                             optimismPortal: address(0),
                             optimismMintableERC20Factory: address(0)
                         })
@@ -161,7 +161,7 @@ contract Initializer_Test is Bridge_Initializer {
                             l1CrossDomainMessenger: address(0),
                             l1ERC721Bridge: address(0),
                             l1StandardBridge: address(0),
-                            l2OutputOracle: address(0),
+                            disputeGameFactory: address(0),
                             optimismPortal: address(0),
                             optimismMintableERC20Factory: address(0)
                         })

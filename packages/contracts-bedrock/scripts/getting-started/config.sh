@@ -6,10 +6,10 @@
 # invalid JSON file when not filled in, which is annoying.
 
 reqenv() {
-  if [ -z "${!1}" ]; then
-    echo "Error: environment variable '$1' is undefined"
-    exit 1
-  fi
+    if [ -z "${!1}" ]; then
+        echo "Error: environment variable '$1' is undefined"
+        exit 1
+    fi
 }
 
 # Check required environment variables
@@ -21,7 +21,6 @@ reqenv "L1_RPC_URL"
 
 # Get the finalized block timestamp and hash
 block=$(cast block finalized --rpc-url "$L1_RPC_URL")
-timestamp=$(echo "$block" | awk '/timestamp/ { print $2 }')
 blockhash=$(echo "$block" | awk '/hash/ { print $2 }')
 
 # Generate the config file
@@ -41,13 +40,6 @@ config=$(cat << EOL
   "p2pSequencerAddress": "$GS_SEQUENCER_ADDRESS",
   "batchInboxAddress": "0xff00000000000000000000000000000000042069",
   "batchSenderAddress": "$GS_BATCHER_ADDRESS",
-
-  "l2OutputOracleSubmissionInterval": 120,
-  "l2OutputOracleStartingBlockNumber": 0,
-  "l2OutputOracleStartingTimestamp": $timestamp,
-
-  "l2OutputOracleProposer": "$GS_PROPOSER_ADDRESS",
-  "l2OutputOracleChallenger": "$GS_ADMIN_ADDRESS",
 
   "finalizationPeriodSeconds": 12,
 

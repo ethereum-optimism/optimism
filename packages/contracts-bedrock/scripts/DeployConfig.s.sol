@@ -25,11 +25,6 @@ contract DeployConfig is Script {
     address public p2pSequencerAddress;
     address public batchInboxAddress;
     address public batchSenderAddress;
-    uint256 public l2OutputOracleSubmissionInterval;
-    int256 internal _l2OutputOracleStartingTimestamp;
-    uint256 public l2OutputOracleStartingBlockNumber;
-    address public l2OutputOracleProposer;
-    address public l2OutputOracleChallenger;
     uint256 public finalizationPeriodSeconds;
     address public proxyAdminOwner;
     address public baseFeeVaultRecipient;
@@ -79,11 +74,6 @@ contract DeployConfig is Script {
         p2pSequencerAddress = stdJson.readAddress(_json, "$.p2pSequencerAddress");
         batchInboxAddress = stdJson.readAddress(_json, "$.batchInboxAddress");
         batchSenderAddress = stdJson.readAddress(_json, "$.batchSenderAddress");
-        l2OutputOracleSubmissionInterval = stdJson.readUint(_json, "$.l2OutputOracleSubmissionInterval");
-        _l2OutputOracleStartingTimestamp = stdJson.readInt(_json, "$.l2OutputOracleStartingTimestamp");
-        l2OutputOracleStartingBlockNumber = stdJson.readUint(_json, "$.l2OutputOracleStartingBlockNumber");
-        l2OutputOracleProposer = stdJson.readAddress(_json, "$.l2OutputOracleProposer");
-        l2OutputOracleChallenger = stdJson.readAddress(_json, "$.l2OutputOracleChallenger");
         finalizationPeriodSeconds = stdJson.readUint(_json, "$.finalizationPeriodSeconds");
         proxyAdminOwner = stdJson.readAddress(_json, "$.proxyAdminOwner");
         baseFeeVaultRecipient = stdJson.readAddress(_json, "$.baseFeeVaultRecipient");
@@ -134,19 +124,6 @@ contract DeployConfig is Script {
             }
         }
         revert("l1StartingBlockTag must be a bytes32, string or uint256 or cannot fetch l1StartingBlockTag");
-    }
-
-    function l2OutputOracleStartingTimestamp() public returns (uint256) {
-        if (_l2OutputOracleStartingTimestamp < 0) {
-            bytes32 tag = l1StartingBlockTag();
-            string[] memory cmd = new string[](3);
-            cmd[0] = Executables.bash;
-            cmd[1] = "-c";
-            cmd[2] = string.concat("cast block ", vm.toString(tag), " --json | ", Executables.jq, " .timestamp");
-            bytes memory res = vm.ffi(cmd);
-            return stdJson.readUint(string(res), "");
-        }
-        return uint256(_l2OutputOracleStartingTimestamp);
     }
 
     function _getBlockByTag(string memory _tag) internal returns (bytes32) {

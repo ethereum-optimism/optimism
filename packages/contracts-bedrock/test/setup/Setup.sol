@@ -21,7 +21,7 @@ import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
 import { DeployConfig } from "scripts/DeployConfig.s.sol";
 import { Deploy } from "scripts/Deploy.s.sol";
-import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
+import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
 import { ProtocolVersions } from "src/L1/ProtocolVersions.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
@@ -46,7 +46,7 @@ contract Setup {
     Deploy internal constant deploy = Deploy(address(uint160(uint256(keccak256(abi.encode("optimism.deploy"))))));
 
     OptimismPortal optimismPortal;
-    L2OutputOracle l2OutputOracle;
+    DisputeGameFactory disputeGameFactory;
     SystemConfig systemConfig;
     L1StandardBridge l1StandardBridge;
     L1CrossDomainMessenger l1CrossDomainMessenger;
@@ -95,7 +95,7 @@ contract Setup {
         deploy.run();
 
         optimismPortal = OptimismPortal(deploy.mustGetAddress("OptimismPortalProxy"));
-        l2OutputOracle = L2OutputOracle(deploy.mustGetAddress("L2OutputOracleProxy"));
+        disputeGameFactory = DisputeGameFactory(deploy.mustGetAddress("DisputeGameFactoryProxy"));
         systemConfig = SystemConfig(deploy.mustGetAddress("SystemConfigProxy"));
         l1StandardBridge = L1StandardBridge(deploy.mustGetAddress("L1StandardBridgeProxy"));
         l1CrossDomainMessenger = L1CrossDomainMessenger(deploy.mustGetAddress("L1CrossDomainMessengerProxy"));
@@ -106,8 +106,8 @@ contract Setup {
         protocolVersions = ProtocolVersions(deploy.mustGetAddress("ProtocolVersionsProxy"));
         superchainConfig = SuperchainConfig(deploy.mustGetAddress("SuperchainConfigProxy"));
 
-        vm.label(address(l2OutputOracle), "L2OutputOracle");
-        vm.label(deploy.mustGetAddress("L2OutputOracleProxy"), "L2OutputOracleProxy");
+        vm.label(address(disputeGameFactory), "DisputeGameFactory");
+        vm.label(deploy.mustGetAddress("DisputeGameFactoryProxy"), "DisputeGameFactoryProxy");
         vm.label(address(optimismPortal), "OptimismPortal");
         vm.label(deploy.mustGetAddress("OptimismPortalProxy"), "OptimismPortalProxy");
         vm.label(address(systemConfig), "SystemConfig");

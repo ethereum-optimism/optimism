@@ -2,6 +2,7 @@
 pragma solidity ^0.8.0;
 
 import { FeeVault } from "src/universal/FeeVault.sol";
+import "src/libraries/DisputeTypes.sol";
 
 /// @title Events
 /// @dev Contains various events that are tested against. This contract needs to
@@ -40,11 +41,7 @@ contract Events {
     );
     event WhatHappened(bool success, bytes returndata);
 
-    event OutputProposed(
-        bytes32 indexed outputRoot, uint256 indexed l2OutputIndex, uint256 indexed l2BlockNumber, uint256 l1Timestamp
-    );
-
-    event OutputsDeleted(uint256 indexed prevNextOutputIndex, uint256 indexed newNextOutputIndex);
+    event DisputeGameCreated(address indexed disputeProxy, GameType indexed gameType, Claim indexed rootClaim);
 
     event Withdrawal(uint256 value, address to, address from);
     event Withdrawal(uint256 value, address to, address from, FeeVault.WithdrawalNetwork withdrawalNetwork);

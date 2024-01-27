@@ -65,6 +65,6 @@ interface IFaultDisputeGame is IDisputeGame {
     /// @notice A block hash on the L1 that contains the disputed output root.
     function l1Head() external view returns (Hash l1Head_);
 
-    /// @notice The l2BlockNumber of the disputed output root in the `L2OutputOracle`.
+    /// @notice The l2BlockNumber of the proposed output root.
     function l2BlockNumber() external view returns (uint256 l2BlockNumber_);
 }

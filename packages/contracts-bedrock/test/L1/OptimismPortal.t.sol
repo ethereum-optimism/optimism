@@ -17,7 +17,7 @@ import { Constants } from "src/libraries/Constants.sol";
 import { Proxy } from "src/universal/Proxy.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
-import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
+import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
@@ -37,8 +37,7 @@ contract OptimismPortal_Test is CommonTest {
     ///         test/kontrol/deployment/DeploymentSummary.t.sol
     function test_constructor_succeeds() external virtual {
         OptimismPortal opImpl = OptimismPortal(payable(deploy.mustGetAddress("OptimismPortal")));
-        assertEq(address(opImpl.L2_ORACLE()), address(0));
-        assertEq(address(opImpl.l2Oracle()), address(0));
+        assertEq(address(opImpl.disputeGameFactory()), address(0));
         assertEq(address(opImpl.SYSTEM_CONFIG()), address(0));
         assertEq(address(opImpl.systemConfig()), address(0));
         assertEq(address(opImpl.superchainConfig()), address(0));
@@ -50,8 +49,7 @@ contract OptimismPortal_Test is CommonTest {
     ///         test/kontrol/deployment/DeploymentSummary.t.sol
     function test_initialize_succeeds() external virtual {
         address guardian = deploy.cfg().superchainConfigGuardian();
-        assertEq(address(optimismPortal.L2_ORACLE()), address(l2OutputOracle));
-        assertEq(address(optimismPortal.l2Oracle()), address(l2OutputOracle));
+        assertEq(address(optimismPortal.disputeGameFactory()), address(disputeGameFactory));
         assertEq(address(optimismPortal.SYSTEM_CONFIG()), address(systemConfig));
         assertEq(address(optimismPortal.systemConfig()), address(systemConfig));
         assertEq(optimismPortal.GUARDIAN(), guardian);

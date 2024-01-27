@@ -163,38 +163,18 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "L1StandardBridge", _sel: _getSel("superchainConfig()") });
         _addSpec({ _name: "L1StandardBridge", _sel: _getSel("version()") });
 
-        // L2OutputOracle
-        _addSpec({ _name: "L2OutputOracle", _sel: _getSel("CHALLENGER()") });
-        _addSpec({ _name: "L2OutputOracle", _sel: _getSel("FINALIZATION_PERIOD_SECONDS()") });
-        _addSpec({ _name: "L2OutputOracle", _sel: _getSel("L2_BLOCK_TIME()") });
-        _addSpec({ _name: "L2OutputOracle", _sel: _getSel("PROPOSER()") });
-        _addSpec({ _name: "L2OutputOracle", _sel: _getSel("SUBMISSION_INTERVAL()") });
-        _addSpec({ _name: "L2OutputOracle", _sel: _getSel("challenger()") });
-        _addSpec({ _name: "L2OutputOracle", _sel: _getSel("computeL2Timestamp(uint256)") });
-        _addSpec({ _name: "L2OutputOracle", _sel: _getSel("deleteL2Outputs(uint256)"), _auth: Role.CHALLENGER });
-        _addSpec({ _name: "L2OutputOracle", _sel: _getSel("finalizationPeriodSeconds()") });
-        _addSpec({ _name: "L2OutputOracle", _sel: _getSel("getL2Output(uint256)") });
-        _addSpec({ _name: "L2OutputOracle", _sel: _getSel("getL2OutputAfter(uint256)") });
-        _addSpec({ _name: "L2OutputOracle", _sel: _getSel("getL2OutputIndexAfter(uint256)") });
-        _addSpec({
-            _name: "L2OutputOracle",
-            _sel: _getSel("initialize(uint256,uint256,uint256,uint256,address,address,uint256)")
-        });
-        _addSpec({ _name: "L2OutputOracle", _sel: _getSel("l2BlockTime()") });
-        _addSpec({ _name: "L2OutputOracle", _sel: _getSel("latestBlockNumber()") });
-        _addSpec({ _name: "L2OutputOracle", _sel: _getSel("latestOutputIndex()") });
-        _addSpec({ _name: "L2OutputOracle", _sel: _getSel("nextBlockNumber()") });
-        _addSpec({ _name: "L2OutputOracle", _sel: _getSel("nextOutputIndex()") });
-        _addSpec({
-            _name: "L2OutputOracle",
-            _sel: _getSel("proposeL2Output(bytes32,uint256,bytes32,uint256)"),
-            _auth: Role.PROPOSER
-        });
-        _addSpec({ _name: "L2OutputOracle", _sel: _getSel("proposer()") });
-        _addSpec({ _name: "L2OutputOracle", _sel: _getSel("startingBlockNumber()") });
-        _addSpec({ _name: "L2OutputOracle", _sel: _getSel("startingTimestamp()") });
-        _addSpec({ _name: "L2OutputOracle", _sel: _getSel("submissionInterval()") });
-        _addSpec({ _name: "L2OutputOracle", _sel: _getSel("version()") });
+        // DisputeGameFactory
+        _addSpec({ _name: "DisputeGameFactory", _sel: _getSel("version()") });
+        _addSpec({ _name: "DisputeGameFactory", _sel: _getSel("gameImpls(uint32)") });
+        _addSpec({ _name: "DisputeGameFactory", _sel: _getSel("initBonds(uint32)") });
+        _addSpec({ _name: "DisputeGameFactory", _sel: _getSel("initialize(address)") });
+        _addSpec({ _name: "DisputeGameFactory", _sel: _getSel("gameCount()") });
+        _addSpec({ _name: "DisputeGameFactory", _sel: _getSel("games(uint32,bytes32,bytes)") });
+        _addSpec({ _name: "DisputeGameFactory", _sel: _getSel("gameAtIndex(uint256)") });
+        _addSpec({ _name: "DisputeGameFactory", _sel: _getSel("create(uint32,bytes32,bytes)") });
+        _addSpec({ _name: "DisputeGameFactory", _sel: _getSel("getGameUUID(uint32,bytes32,bytes)") });
+        _addSpec({ _name: "DisputeGameFactory", _sel: _getSel("setImplementation(uint32,address)") });
+        _addSpec({ _name: "DisputeGameFactory", _sel: _getSel("setInitBond(uint32,uint256)") });
 
         // OptimismPortal
         _addSpec({ _name: "OptimismPortal", _sel: _getSel("GUARDIAN()") });

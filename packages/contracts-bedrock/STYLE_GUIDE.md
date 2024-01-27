@@ -2,7 +2,7 @@
 
 This document provides guidance on how we organize and write our smart contracts. For cases where
 this document does not provide guidance, please refer to existing contracts for guidance,
-with priority on the `L2OutputOracle` and `OptimismPortal`.
+with priority on the `OptimismPortal`.
 
 ## Standards and Conventions
 
@@ -152,7 +152,7 @@ Test contracts should be named one of the following according to their use:
 - `TargetContract_Function_TestFail` for contracts containing sad path tests for a given function.
 
 To minimize clutter, getter functions can be grouped together into a single test contract,
-  ie. `TargetContract_Getters_Test`.
+ie. `TargetContract_Getters_Test`.
 
 ## Withdrawing From Fee Vaults
 
