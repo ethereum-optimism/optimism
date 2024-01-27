@@ -56,7 +56,7 @@ func (m *merkleNode) IsRightChild(o *merkleNode) bool {
 // It is an append-only tree, where leaves are added from left to right.
 type BinaryMerkleTree struct {
 	Root      *merkleNode
-	LeafCount int
+	LeafCount uint64
 }
 
 func NewBinaryMerkleTree() *BinaryMerkleTree {
@@ -72,11 +72,11 @@ func (m *BinaryMerkleTree) RootHash() (rootHash common.Hash) {
 }
 
 // walkDownToMaxLeaf walks down the tree to the max leaf node.
-func (m *BinaryMerkleTree) walkDownToLeafCount(subtreeLeafCount int) *merkleNode {
-	maxSubtreeLeafCount := MaxLeafCount + 1
+func (m *BinaryMerkleTree) walkDownToLeafCount(subtreeLeafCount uint64) *merkleNode {
+	maxSubtreeLeafCount := uint64(MaxLeafCount) + 1
 	levelNode := m.Root
 	for height := 0; height < BinaryMerkleTreeDepth; height++ {
-		if subtreeLeafCount*2 <= maxSubtreeLeafCount {
+		if subtreeLeafCount*2 <= uint64(maxSubtreeLeafCount) {
 			if levelNode.Left == nil {
 				levelNode.Left = &merkleNode{
 					Label:  zeroHashes[height],
@@ -142,7 +142,7 @@ func (m *BinaryMerkleTree) ProofAtIndex(index uint64) (proof Proof, err error) {
 		return proof, IndexOutOfBoundsError
 	}
 
-	levelNode := m.walkDownToLeafCount(int(index) + 1)
+	levelNode := m.walkDownToLeafCount(index + 1)
 	for height := 0; height < BinaryMerkleTreeDepth; height++ {
 		if levelNode.Parent.IsLeftChild(levelNode) {
 			if levelNode.Parent.Right == nil {
