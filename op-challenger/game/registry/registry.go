@@ -11,25 +11,23 @@ import (
 	"golang.org/x/exp/maps"
 )
 
-var (
-	ErrUnsupportedGameType = errors.New("unsupported game type")
-)
+var ErrUnsupportedGameType = errors.New("unsupported game type")
 
 type GameTypeRegistry struct {
-	types   map[uint8]scheduler.PlayerCreator
+	types   map[uint32]scheduler.PlayerCreator
 	oracles map[common.Address]keccakTypes.LargePreimageOracle
 }
 
 func NewGameTypeRegistry() *GameTypeRegistry {
 	return &GameTypeRegistry{
-		types:   make(map[uint8]scheduler.PlayerCreator),
+		types:   make(map[uint32]scheduler.PlayerCreator),
 		oracles: make(map[common.Address]keccakTypes.LargePreimageOracle),
 	}
 }
 
 // RegisterGameType registers a scheduler.PlayerCreator to use for a specific game type.
 // Panics if the same game type is registered multiple times, since this indicates a significant programmer error.
-func (r *GameTypeRegistry) RegisterGameType(gameType uint8, creator scheduler.PlayerCreator, oracle keccakTypes.LargePreimageOracle) {
+func (r *GameTypeRegistry) RegisterGameType(gameType uint32, creator scheduler.PlayerCreator, oracle keccakTypes.LargePreimageOracle) {
 	if _, ok := r.types[gameType]; ok {
 		panic(fmt.Errorf("duplicate creator registered for game type: %v", gameType))
 	}

@@ -29,7 +29,7 @@ type ProposerCfg struct {
 	OutputOracleAddr       *common.Address
 	DisputeGameFactoryAddr *common.Address
 	ProposalInterval       time.Duration
-	DisputeGameType        uint8
+	DisputeGameType        uint32
 	ProposerKey            *ecdsa.PrivateKey
 	AllowNonFinalized      bool
 }

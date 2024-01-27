@@ -149,7 +149,7 @@ func (m *mockMinimalDisputeGameFactoryCaller) GetGameCount(_ context.Context, _ 
 func (m *mockMinimalDisputeGameFactoryCaller) GetGame(_ context.Context, index uint64, _ common.Hash) (types.GameMetadata, error) {
 	if m.indexErrors[index] {
 		return struct {
-			GameType  uint8
+			GameType  uint32
 			Timestamp uint64
 			Proxy     common.Address
 		}{}, gameIndexErr
