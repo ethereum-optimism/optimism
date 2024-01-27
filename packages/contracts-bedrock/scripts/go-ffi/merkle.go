@@ -3,12 +3,10 @@ package main
 import (
 	"fmt"
 	"log"
-	"math/big"
 	"os"
 	"strconv"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/merkle"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
@@ -72,13 +70,8 @@ func DiffMerkle() {
 
 		// Append all leaves to the merkle tree.
 		for i := 0; i < len(rawLeaves)/32; i++ {
-			start := i * types.BlockSize
-			leaf := types.Leaf{
-				Input:           ([types.BlockSize]byte)(rawLeaves[start : start+types.BlockSize]),
-				Index:           big.NewInt(int64(i)),
-				StateCommitment: common.Hash{},
-			}
-			merkleTree.AddLeaf(leaf)
+			leaf := common.BytesToHash(rawLeaves[i<<5 : (i+1)<<5])
+			merkleTree.AddRawLeaf(leaf)
 		}
 
 		// Generate the proof for the given index.

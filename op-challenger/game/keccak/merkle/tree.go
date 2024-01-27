@@ -101,12 +101,17 @@ func (m *BinaryMerkleTree) walkDownToLeafCount(subtreeLeafCount int) *merkleNode
 
 // AddLeaf adds a leaf to the binary merkle tree.
 func (m *BinaryMerkleTree) AddLeaf(leaf types.Leaf) {
+	m.AddRawLeaf(leaf.Hash())
+}
+
+// AddRawLeaf adds a raw 32 byte leaf to the binary merkle tree.
+func (m *BinaryMerkleTree) AddRawLeaf(hash common.Hash) {
 	// Walk down to the new max leaf node.
 	m.LeafCount += 1
 	levelNode := m.walkDownToLeafCount(m.LeafCount)
 
 	// Set the leaf node data.
-	levelNode.Label = leaf.Hash()
+	levelNode.Label = hash
 
 	// Walk back up the tree, updating the hashes with its sibling hash.
 	for height := 0; height < BinaryMerkleTreeDepth; height++ {
