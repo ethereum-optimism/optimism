@@ -20,14 +20,14 @@ import (
 )
 
 var (
-	cannonGameType   = uint8(0)
-	alphabetGameType = uint8(255)
+	cannonGameType   = uint32(0)
+	alphabetGameType = uint32(255)
 )
 
 type CloseFunc func()
 
 type Registry interface {
-	RegisterGameType(gameType uint8, creator scheduler.PlayerCreator, oracle keccakTypes.LargePreimageOracle)
+	RegisterGameType(gameType uint32, creator scheduler.PlayerCreator, oracle keccakTypes.LargePreimageOracle)
 }
 
 func RegisterGameTypes(
@@ -107,7 +107,7 @@ func registerAlphabet(
 	return nil
 }
 
-func createOracle(ctx context.Context, gameFactory *contracts.DisputeGameFactoryContract, caller *batching.MultiCaller, gameType uint8) (*contracts.PreimageOracleContract, error) {
+func createOracle(ctx context.Context, gameFactory *contracts.DisputeGameFactoryContract, caller *batching.MultiCaller, gameType uint32) (*contracts.PreimageOracleContract, error) {
 	implAddr, err := gameFactory.GetGameImpl(ctx, gameType)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load implementation for game type %v: %w", gameType, err)
