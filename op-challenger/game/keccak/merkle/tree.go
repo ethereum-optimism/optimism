@@ -3,7 +3,6 @@ package merkle
 import (
 	"errors"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 )
@@ -76,7 +75,7 @@ func (m *BinaryMerkleTree) walkDownToLeafCount(subtreeLeafCount uint64) *merkleN
 	maxSubtreeLeafCount := uint64(MaxLeafCount) + 1
 	levelNode := m.Root
 	for height := 0; height < BinaryMerkleTreeDepth; height++ {
-		if subtreeLeafCount*2 <= uint64(maxSubtreeLeafCount) {
+		if subtreeLeafCount*2 <= maxSubtreeLeafCount {
 			if levelNode.Left == nil {
 				levelNode.Left = &merkleNode{
 					Label:  zeroHashes[height],
@@ -100,12 +99,7 @@ func (m *BinaryMerkleTree) walkDownToLeafCount(subtreeLeafCount uint64) *merkleN
 }
 
 // AddLeaf adds a leaf to the binary merkle tree.
-func (m *BinaryMerkleTree) AddLeaf(leaf types.Leaf) {
-	m.AddRawLeaf(leaf.Hash())
-}
-
-// AddRawLeaf adds a raw 32 byte leaf to the binary merkle tree.
-func (m *BinaryMerkleTree) AddRawLeaf(hash common.Hash) {
+func (m *BinaryMerkleTree) AddLeaf(hash common.Hash) {
 	// Walk down to the new max leaf node.
 	m.LeafCount += 1
 	levelNode := m.walkDownToLeafCount(m.LeafCount)

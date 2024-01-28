@@ -63,6 +63,7 @@ func Challenge(data io.Reader, commitments []common.Hash) (types.Challenge, erro
 		}
 
 		if validCommitment != claimedCommitment {
+			// TODO(client-pod#480): Add merkle proofs for these (invalid) leaves
 			return types.Challenge{
 				StateMatrix: m,
 				Prestate:    prestate,
@@ -204,7 +205,7 @@ func (d *StateMatrix) absorbNextLeafInput(in io.Reader) ([]byte, error) {
 		d.prestateLeaf = d.poststateLeaf
 		d.poststateLeaf = newLeafWithPadding(input, new(big.Int).Add(d.prestateLeaf.Index, big.NewInt(1)), d.StateCommitment())
 	}
-	d.merkleTree.AddLeaf(d.poststateLeaf)
+	d.merkleTree.AddLeaf(d.poststateLeaf.Hash())
 	if final {
 		return input, io.EOF
 	}

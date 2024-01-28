@@ -1,14 +1,11 @@
 package merkle
 
 import (
-	"bytes"
 	_ "embed"
 	"encoding/json"
 	"fmt"
-	"math/big"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
@@ -34,14 +31,8 @@ func TestBinaryMerkleTree_AddLeaf(t *testing.T) {
 			tree := NewBinaryMerkleTree()
 			expectedLeafHash := zeroHashes[BinaryMerkleTreeDepth-1]
 			for i := 0; i < int(test.LeafCount); i++ {
-				input := ([types.BlockSize]byte)(bytes.Repeat([]byte{byte(i)}, types.BlockSize))
-				lastLeaf := types.Leaf{
-					Input:           input,
-					Index:           big.NewInt(int64(i)),
-					StateCommitment: common.Hash{},
-				}
-				tree.AddLeaf(lastLeaf)
-				expectedLeafHash = lastLeaf.Hash()
+				expectedLeafHash = leafHash(i)
+				tree.AddLeaf(expectedLeafHash)
 			}
 			leaf := tree.walkDownToLeafCount(tree.LeafCount)
 			require.Equal(t, expectedLeafHash, leaf.Label)
@@ -58,12 +49,7 @@ func TestBinaryMerkleTree_RootHash(t *testing.T) {
 		t.Run(fmt.Sprintf("%s-LeafCount-%v-Ref-%v", test.Name, test.LeafCount, i), func(t *testing.T) {
 			tree := NewBinaryMerkleTree()
 			for i := 0; i < int(test.LeafCount); i++ {
-				input := ([types.BlockSize]byte)(bytes.Repeat([]byte{byte(i)}, types.BlockSize))
-				tree.AddLeaf(types.Leaf{
-					Input:           input,
-					Index:           big.NewInt(int64(i)),
-					StateCommitment: common.Hash{},
-				})
+				tree.AddLeaf(leafHash(i))
 			}
 			require.Equal(t, test.RootHash, tree.RootHash())
 		})
@@ -79,16 +65,15 @@ func TestBinaryMerkleTree_ProofAtIndex(t *testing.T) {
 		t.Run(fmt.Sprintf("%s-Index-%v-Ref-%v", test.Name, test.LeafCount, i), func(t *testing.T) {
 			tree := NewBinaryMerkleTree()
 			for i := 0; i < int(test.LeafCount); i++ {
-				input := ([types.BlockSize]byte)(bytes.Repeat([]byte{byte(i)}, types.BlockSize))
-				tree.AddLeaf(types.Leaf{
-					Input:           input,
-					Index:           big.NewInt(int64(i)),
-					StateCommitment: common.Hash{},
-				})
+				tree.AddLeaf(leafHash(i))
 			}
 			proof, err := tree.ProofAtIndex(test.Index)
 			require.NoError(t, err)
 			require.Equal(t, test.Proofs, proof)
 		})
 	}
+}
+
+func leafHash(idx int) common.Hash {
+	return common.Hash{0xff, byte(idx)}
 }

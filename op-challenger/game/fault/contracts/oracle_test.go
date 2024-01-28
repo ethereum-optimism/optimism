@@ -1,6 +1,7 @@
 package contracts
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"math"
@@ -470,6 +471,84 @@ func TestDecodeInputData(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestChallenge_First(t *testing.T) {
+	stubRpc, oracle := setupPreimageOracleTest(t)
+
+	ident := keccakTypes.LargePreimageIdent{
+		Claimant: common.Address{0xab},
+		UUID:     big.NewInt(4829),
+	}
+	challenge := keccakTypes.Challenge{
+		StateMatrix: []byte{1, 2, 3, 4, 5},
+		Prestate:    keccakTypes.Leaf{},
+		Poststate: keccakTypes.Leaf{
+			Input:           [136]byte{5, 4, 3, 2, 1},
+			Index:           big.NewInt(0),
+			StateCommitment: common.Hash{0xbb},
+		},
+		PoststateProof: merkle.Proof{common.Hash{0x01}, common.Hash{0x02}},
+	}
+	stubRpc.SetResponse(oracleAddr, methodChallengeFirstLPP, batching.BlockLatest,
+		[]interface{}{
+			ident.Claimant, ident.UUID,
+			bindings.PreimageOracleLeaf{
+				Input:           challenge.Poststate.Input[:],
+				Index:           challenge.Poststate.Index,
+				StateCommitment: challenge.Poststate.StateCommitment,
+			},
+			challenge.PoststateProof,
+		},
+		nil)
+	tx, err := oracle.ChallengeTx(ident, challenge)
+	require.NoError(t, err)
+	stubRpc.VerifyTxCandidate(tx)
+}
+
+func TestChallenge_NotFirst(t *testing.T) {
+	stubRpc, oracle := setupPreimageOracleTest(t)
+
+	ident := keccakTypes.LargePreimageIdent{
+		Claimant: common.Address{0xab},
+		UUID:     big.NewInt(4829),
+	}
+	challenge := keccakTypes.Challenge{
+		StateMatrix: bytes.Repeat([]byte{1, 2, 3, 4, 5, 6, 7, 8}, 25),
+		Prestate: keccakTypes.Leaf{
+			Input:           [136]byte{9, 8, 7, 6, 5},
+			Index:           big.NewInt(3),
+			StateCommitment: common.Hash{0xcc},
+		},
+		PrestateProof: merkle.Proof{common.Hash{0x01}, common.Hash{0x02}},
+		Poststate: keccakTypes.Leaf{
+			Input:           [136]byte{5, 4, 3, 2, 1},
+			Index:           big.NewInt(4),
+			StateCommitment: common.Hash{0xbb},
+		},
+		PoststateProof: merkle.Proof{common.Hash{0x03}, common.Hash{0x04}},
+	}
+	stubRpc.SetResponse(oracleAddr, methodChallengeLPP, batching.BlockLatest,
+		[]interface{}{
+			ident.Claimant, ident.UUID,
+			abiEncodePackedState(challenge.StateMatrix),
+			bindings.PreimageOracleLeaf{
+				Input:           challenge.Prestate.Input[:],
+				Index:           challenge.Prestate.Index,
+				StateCommitment: challenge.Prestate.StateCommitment,
+			},
+			challenge.PrestateProof,
+			bindings.PreimageOracleLeaf{
+				Input:           challenge.Poststate.Input[:],
+				Index:           challenge.Poststate.Index,
+				StateCommitment: challenge.Poststate.StateCommitment,
+			},
+			challenge.PoststateProof,
+		},
+		nil)
+	tx, err := oracle.ChallengeTx(ident, challenge)
+	require.NoError(t, err)
+	stubRpc.VerifyTxCandidate(tx)
 }
 
 func toAddLeavesTxData(t *testing.T, oracle *PreimageOracleContract, uuid *big.Int, inputData keccakTypes.InputData) []byte {

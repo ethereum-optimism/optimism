@@ -71,7 +71,7 @@ func DiffMerkle() {
 		// Append all leaves to the merkle tree.
 		for i := 0; i < len(rawLeaves)/32; i++ {
 			leaf := common.BytesToHash(rawLeaves[i<<5 : (i+1)<<5])
-			merkleTree.AddRawLeaf(leaf)
+			merkleTree.AddLeaf(leaf)
 		}
 
 		// Generate the proof for the given index.
