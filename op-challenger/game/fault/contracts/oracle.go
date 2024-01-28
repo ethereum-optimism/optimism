@@ -32,6 +32,7 @@ const (
 	methodMinProposalSize           = "minProposalSize"
 	methodChallengeFirstLPP         = "challengeFirstLPP"
 	methodChallengeLPP              = "challengeLPP"
+	methodChallengePeriod           = "challengePeriod"
 )
 
 var (
@@ -86,6 +87,24 @@ func (c *PreimageOracleContract) AddLeaves(uuid *big.Int, startingBlockIndex *bi
 	return call.ToTxCandidate()
 }
 
+// MinLargePreimageSize returns the minimum size of a large preimage.
+func (c *PreimageOracleContract) MinLargePreimageSize(ctx context.Context) (uint64, error) {
+	result, err := c.multiCaller.SingleCall(ctx, batching.BlockLatest, c.contract.Call(methodMinProposalSize))
+	if err != nil {
+		return 0, fmt.Errorf("failed to fetch min lpp size bytes: %w", err)
+	}
+	return result.GetBigInt(0).Uint64(), nil
+}
+
+// ChallengePeriod returns the challenge period for large preimages.
+func (c *PreimageOracleContract) ChallengePeriod(ctx context.Context) (uint64, error) {
+	result, err := c.multiCaller.SingleCall(ctx, batching.BlockLatest, c.contract.Call(methodChallengePeriod))
+	if err != nil {
+		return 0, fmt.Errorf("failed to fetch challenge period: %w", err)
+	}
+	return result.GetBigInt(0).Uint64(), nil
+}
+
 func (c *PreimageOracleContract) CallSqueeze(
 	ctx context.Context,
 	claimant common.Address,
@@ -99,7 +118,7 @@ func (c *PreimageOracleContract) CallSqueeze(
 	call := c.contract.Call(methodSqueezeLPP, claimant, uuid, abiEncodeStateMatrix(stateMatrix), toPreimageOracleLeaf(preState), preStateProof, toPreimageOracleLeaf(postState), postStateProof)
 	_, err := c.multiCaller.SingleCall(ctx, batching.BlockLatest, call)
 	if err != nil {
-		return fmt.Errorf("failed to call resolve claim: %w", err)
+		return fmt.Errorf("failed to call squeeze: %w", err)
 	}
 	return nil
 }
@@ -138,15 +157,6 @@ func abiEncodePackedState(packedState []byte) bindings.LibKeccakStateMatrix {
 		stateSlice[i/8] = new(big.Int).SetBytes(packedState[i : i+8]).Uint64()
 	}
 	return bindings.LibKeccakStateMatrix{State: *stateSlice}
-}
-
-// MinLargePreimageSize returns the minimum size of a large preimage.
-func (c *PreimageOracleContract) MinLargePreimageSize(ctx context.Context) (uint64, error) {
-	result, err := c.multiCaller.SingleCall(ctx, batching.BlockLatest, c.contract.Call(methodMinProposalSize))
-	if err != nil {
-		return 0, fmt.Errorf("failed to fetch min lpp size bytes: %w", err)
-	}
-	return result.GetBigInt(0).Uint64(), nil
 }
 
 func (c *PreimageOracleContract) GetActivePreimages(ctx context.Context, blockHash common.Hash) ([]keccakTypes.LargePreimageMetaData, error) {

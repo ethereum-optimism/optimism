@@ -5,11 +5,13 @@ import (
 	"errors"
 	"math/big"
 	"testing"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/matrix"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/merkle"
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
@@ -19,6 +21,7 @@ import (
 )
 
 var (
+	mockChallengePeriod  = uint64(10000000)
 	mockAddLeavesError   = errors.New("mock add leaves error")
 	mockSqueezeError     = errors.New("mock squeeze error")
 	mockSqueezeCallError = errors.New("mock squeeze call error")
@@ -63,7 +66,7 @@ func TestLargePreimageUploader_NewUUID(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			oracle, _, _ := newTestLargePreimageUploader(t)
+			oracle, _, _, _ := newTestLargePreimageUploader(t)
 			uuid := oracle.newUUID(test.data)
 			require.Equal(t, test.expectedUUID, uuid)
 		})
@@ -72,7 +75,7 @@ func TestLargePreimageUploader_NewUUID(t *testing.T) {
 
 func TestLargePreimageUploader_UploadPreimage_EdgeCases(t *testing.T) {
 	t.Run("InitFails", func(t *testing.T) {
-		oracle, _, contract := newTestLargePreimageUploader(t)
+		oracle, _, _, contract := newTestLargePreimageUploader(t)
 		contract.initFails = true
 		data := mockPreimageOracleData()
 		err := oracle.UploadPreimage(context.Background(), 0, &data)
@@ -81,7 +84,7 @@ func TestLargePreimageUploader_UploadPreimage_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("AddLeavesFails", func(t *testing.T) {
-		oracle, _, contract := newTestLargePreimageUploader(t)
+		oracle, _, _, contract := newTestLargePreimageUploader(t)
 		contract.addFails = true
 		data := mockPreimageOracleData()
 		err := oracle.UploadPreimage(context.Background(), 0, &data)
@@ -90,8 +93,9 @@ func TestLargePreimageUploader_UploadPreimage_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("NoBytesProcessed", func(t *testing.T) {
-		oracle, _, contract := newTestLargePreimageUploader(t)
+		oracle, _, _, contract := newTestLargePreimageUploader(t)
 		data := mockPreimageOracleData()
+		contract.claimedSize = uint32(len(data.OracleData))
 		err := oracle.UploadPreimage(context.Background(), 0, &data)
 		require.NoError(t, err)
 		require.Equal(t, 1, contract.initCalls)
@@ -100,7 +104,7 @@ func TestLargePreimageUploader_UploadPreimage_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("AlreadyInitialized", func(t *testing.T) {
-		oracle, _, contract := newTestLargePreimageUploader(t)
+		oracle, _, _, contract := newTestLargePreimageUploader(t)
 		data := mockPreimageOracleData()
 		contract.initialized = true
 		contract.claimedSize = uint32(len(data.OracleData))
@@ -110,8 +114,24 @@ func TestLargePreimageUploader_UploadPreimage_EdgeCases(t *testing.T) {
 		require.Equal(t, 6, contract.addCalls)
 	})
 
+	t.Run("ChallengePeriodNotElapsed", func(t *testing.T) {
+		oracle, cl, _, contract := newTestLargePreimageUploader(t)
+		data := mockPreimageOracleData()
+		contract.bytesProcessed = 5*MaxChunkSize + 1
+		contract.claimedSize = uint32(len(data.OracleData))
+		contract.timestamp = uint64(cl.Now().Unix())
+		err := oracle.UploadPreimage(context.Background(), 0, &data)
+		require.ErrorIs(t, err, ErrChallengePeriodNotOver)
+		require.Equal(t, 0, contract.squeezeCalls)
+		// Squeeze should be called once the challenge period has elapsed.
+		cl.AdvanceTime(time.Duration(mockChallengePeriod) * time.Second)
+		err = oracle.UploadPreimage(context.Background(), 0, &data)
+		require.NoError(t, err)
+		require.Equal(t, 1, contract.squeezeCalls)
+	})
+
 	t.Run("SqueezeCallFails", func(t *testing.T) {
-		oracle, _, contract := newTestLargePreimageUploader(t)
+		oracle, _, _, contract := newTestLargePreimageUploader(t)
 		data := mockPreimageOracleData()
 		contract.bytesProcessed = 5*MaxChunkSize + 1
 		contract.timestamp = 123
@@ -123,7 +143,7 @@ func TestLargePreimageUploader_UploadPreimage_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("SqueezeFails", func(t *testing.T) {
-		oracle, _, contract := newTestLargePreimageUploader(t)
+		oracle, _, _, contract := newTestLargePreimageUploader(t)
 		data := mockPreimageOracleData()
 		contract.bytesProcessed = 5*MaxChunkSize + 1
 		contract.timestamp = 123
@@ -135,7 +155,7 @@ func TestLargePreimageUploader_UploadPreimage_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("AllBytesProcessed", func(t *testing.T) {
-		oracle, _, contract := newTestLargePreimageUploader(t)
+		oracle, _, _, contract := newTestLargePreimageUploader(t)
 		data := mockPreimageOracleData()
 		contract.bytesProcessed = 5*MaxChunkSize + 1
 		contract.timestamp = 123
@@ -244,7 +264,7 @@ func TestLargePreimageUploader_UploadPreimage_Succeeds(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			oracle, _, contract := newTestLargePreimageUploader(t)
+			oracle, _, _, contract := newTestLargePreimageUploader(t)
 			data := types.PreimageOracleData{
 				OracleData: test.input,
 			}
@@ -262,30 +282,33 @@ func TestLargePreimageUploader_UploadPreimage_Succeeds(t *testing.T) {
 
 }
 
-func newTestLargePreimageUploader(t *testing.T) (*LargePreimageUploader, *mockTxSender, *mockPreimageOracleContract) {
+func newTestLargePreimageUploader(t *testing.T) (*LargePreimageUploader, *clock.AdvancingClock, *mockTxSender, *mockPreimageOracleContract) {
 	logger := testlog.Logger(t, log.LvlError)
+	cl := clock.NewAdvancingClock(time.Second)
+	cl.Start()
 	txSender := &mockTxSender{}
 	contract := &mockPreimageOracleContract{
 		addData: make([]byte, 0),
 	}
-	return NewLargePreimageUploader(logger, txSender, contract), txSender, contract
+	return NewLargePreimageUploader(logger, cl, txSender, contract), cl, txSender, contract
 }
 
 type mockPreimageOracleContract struct {
-	initCalls        int
-	initFails        bool
-	initialized      bool
-	claimedSize      uint32
-	bytesProcessed   int
-	timestamp        uint64
-	addCalls         int
-	addFails         bool
-	addData          []byte
-	squeezeCalls     int
-	squeezeFails     bool
-	squeezeCallFails bool
-	squeezePrestate  keccakTypes.Leaf
-	squeezePoststate keccakTypes.Leaf
+	initCalls            int
+	initFails            bool
+	initialized          bool
+	claimedSize          uint32
+	bytesProcessed       int
+	timestamp            uint64
+	addCalls             int
+	addFails             bool
+	addData              []byte
+	squeezeCalls         int
+	squeezeFails         bool
+	squeezeCallFails     bool
+	squeezeCallClaimSize uint32
+	squeezePrestate      keccakTypes.Leaf
+	squeezePoststate     keccakTypes.Leaf
 }
 
 func (s *mockPreimageOracleContract) InitLargePreimage(_ *big.Int, _ uint32, _ uint32) (txmgr.TxCandidate, error) {
@@ -315,7 +338,23 @@ func (s *mockPreimageOracleContract) Squeeze(_ common.Address, _ *big.Int, _ *ma
 	return txmgr.TxCandidate{}, nil
 }
 
+func (s *mockPreimageOracleContract) ChallengePeriod(_ context.Context) (uint64, error) {
+	return mockChallengePeriod, nil
+}
+
 func (s *mockPreimageOracleContract) GetProposalMetadata(_ context.Context, _ batching.Block, idents ...keccakTypes.LargePreimageIdent) ([]keccakTypes.LargePreimageMetaData, error) {
+	if s.squeezeCallClaimSize > 0 {
+		metadata := make([]keccakTypes.LargePreimageMetaData, 0)
+		for _, ident := range idents {
+			metadata = append(metadata, keccakTypes.LargePreimageMetaData{
+				LargePreimageIdent: ident,
+				ClaimedSize:        s.squeezeCallClaimSize,
+				BytesProcessed:     uint32(s.bytesProcessed),
+				Timestamp:          s.timestamp,
+			})
+		}
+		return metadata, nil
+	}
 	if s.initialized || s.bytesProcessed > 0 {
 		metadata := make([]keccakTypes.LargePreimageMetaData, 0)
 		for _, ident := range idents {
@@ -328,6 +367,7 @@ func (s *mockPreimageOracleContract) GetProposalMetadata(_ context.Context, _ ba
 		}
 		return metadata, nil
 	}
+	s.squeezeCallClaimSize = 1
 	return []keccakTypes.LargePreimageMetaData{{LargePreimageIdent: idents[0]}}, nil
 }
 func (s *mockPreimageOracleContract) CallSqueeze(_ context.Context, _ common.Address, _ *big.Int, _ *matrix.StateMatrix, _ keccakTypes.Leaf, _ merkle.Proof, _ keccakTypes.Leaf, _ merkle.Proof) error {

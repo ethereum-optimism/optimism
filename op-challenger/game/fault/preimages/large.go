@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/matrix"
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -20,6 +21,9 @@ import (
 )
 
 var _ PreimageUploader = (*LargePreimageUploader)(nil)
+
+// ErrChallengePeriodNotOver is returned when the challenge period is not over.
+var ErrChallengePeriodNotOver = errors.New("challenge period not over")
 
 // MaxBlocksPerChunk is the maximum number of keccak blocks per chunk.
 const MaxBlocksPerChunk = 300
@@ -35,12 +39,13 @@ const MaxChunkSize = MaxBlocksPerChunk * keccakTypes.BlockSize
 type LargePreimageUploader struct {
 	log log.Logger
 
+	clock    clock.Clock
 	txSender gameTypes.TxSender
 	contract PreimageOracleContract
 }
 
-func NewLargePreimageUploader(logger log.Logger, txSender gameTypes.TxSender, contract PreimageOracleContract) *LargePreimageUploader {
-	return &LargePreimageUploader{logger, txSender, contract}
+func NewLargePreimageUploader(logger log.Logger, cl clock.Clock, txSender gameTypes.TxSender, contract PreimageOracleContract) *LargePreimageUploader {
+	return &LargePreimageUploader{logger, cl, txSender, contract}
 }
 
 func (p *LargePreimageUploader) UploadPreimage(ctx context.Context, parent uint64, data *types.PreimageOracleData) error {
@@ -125,11 +130,24 @@ func (p *LargePreimageUploader) Squeeze(ctx context.Context, uuid *big.Int, stat
 	if err != nil {
 		return fmt.Errorf("failed to generate poststate proof: %w", err)
 	}
-	// TODO(client-pod#474): Return the ErrChallengePeriodNotOver error if the challenge period is not over.
-	//                       This allows the responder to retry the squeeze later.
-	//                       Other errors should force the responder to stop retrying.
-	//                       Nil errors should indicate the squeeze was successful.
+	challengePeriod, err := p.contract.ChallengePeriod(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get challenge period: %w", err)
+	}
+	currentTimestamp := p.clock.Now().Unix()
+	ident := keccakTypes.LargePreimageIdent{Claimant: p.txSender.From(), UUID: uuid}
+	metadata, err := p.contract.GetProposalMetadata(ctx, batching.BlockLatest, ident)
+	if err != nil {
+		return fmt.Errorf("failed to get pre-image oracle metadata: %w", err)
+	}
+	if len(metadata) == 0 || metadata[0].ClaimedSize == 0 {
+		return fmt.Errorf("no metadata found for pre-image oracle with uuid: %s", uuid)
+	}
+	if uint64(currentTimestamp) < metadata[0].Timestamp+challengePeriod {
+		return ErrChallengePeriodNotOver
+	}
 	if err := p.contract.CallSqueeze(ctx, p.txSender.From(), uuid, stateMatrix, prestate, prestateProof, poststate, poststateProof); err != nil {
+		p.log.Debug("expected a successful squeeze call", "metadataTimestamp", metadata[0].Timestamp, "currentTimestamp", currentTimestamp, "err", err)
 		return fmt.Errorf("failed to call squeeze: %w", err)
 	}
 	tx, err := p.contract.Squeeze(p.txSender.From(), uuid, stateMatrix, prestate, prestateProof, poststate, poststateProof)
