@@ -63,6 +63,7 @@ func Challenge(data io.Reader, commitments []common.Hash) (types.Challenge, erro
 		}
 
 		if validCommitment != claimedCommitment {
+			// TODO(client-pod#480): Add merkle proofs for these (invalid) leaves
 			return types.Challenge{
 				StateMatrix: m,
 				Prestate:    prestate,
@@ -156,21 +157,15 @@ func (d *StateMatrix) AbsorbUpTo(in io.Reader, maxLen int) (types.InputData, err
 }
 
 // PrestateWithProof returns the prestate leaf with its merkle proof.
-func (d *StateMatrix) PrestateWithProof() (types.Leaf, merkle.Proof, error) {
-	proof, err := d.merkleTree.ProofAtIndex(d.prestateLeaf.Index.Uint64())
-	if err != nil {
-		return types.Leaf{}, merkle.Proof{}, err
-	}
-	return d.prestateLeaf, proof, nil
+func (d *StateMatrix) PrestateWithProof() (types.Leaf, merkle.Proof) {
+	proof := d.merkleTree.ProofAtIndex(d.prestateLeaf.Index.Uint64())
+	return d.prestateLeaf, proof
 }
 
 // PoststateWithProof returns the poststate leaf with its merkle proof.
-func (d *StateMatrix) PoststateWithProof() (types.Leaf, merkle.Proof, error) {
-	proof, err := d.merkleTree.ProofAtIndex(d.poststateLeaf.Index.Uint64())
-	if err != nil {
-		return types.Leaf{}, merkle.Proof{}, err
-	}
-	return d.poststateLeaf, proof, nil
+func (d *StateMatrix) PoststateWithProof() (types.Leaf, merkle.Proof) {
+	proof := d.merkleTree.ProofAtIndex(d.poststateLeaf.Index.Uint64())
+	return d.poststateLeaf, proof
 }
 
 // absorbNextLeafInput reads up to [BlockSize] bytes from in and absorbs them into the state matrix.
@@ -204,7 +199,7 @@ func (d *StateMatrix) absorbNextLeafInput(in io.Reader) ([]byte, error) {
 		d.prestateLeaf = d.poststateLeaf
 		d.poststateLeaf = newLeafWithPadding(input, new(big.Int).Add(d.prestateLeaf.Index, big.NewInt(1)), d.StateCommitment())
 	}
-	d.merkleTree.AddLeaf(d.poststateLeaf)
+	d.merkleTree.AddLeaf(d.poststateLeaf.Hash())
 	if final {
 		return input, io.EOF
 	}

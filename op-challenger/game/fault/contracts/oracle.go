@@ -235,7 +235,7 @@ func (c *PreimageOracleContract) ChallengeTx(ident keccakTypes.LargePreimageIden
 			ident.Claimant,
 			ident.UUID,
 			toPreimageOracleLeaf(challenge.Poststate),
-			[]common.Hash{})
+			challenge.PoststateProof)
 	} else {
 		call = c.contract.Call(
 			methodChallengeLPP,
@@ -243,9 +243,9 @@ func (c *PreimageOracleContract) ChallengeTx(ident keccakTypes.LargePreimageIden
 			ident.UUID,
 			abiEncodePackedState(challenge.StateMatrix),
 			toPreimageOracleLeaf(challenge.Prestate),
-			[]common.Hash{},
+			challenge.PrestateProof,
 			toPreimageOracleLeaf(challenge.Poststate),
-			[]common.Hash{})
+			challenge.PoststateProof)
 	}
 	return call.ToTxCandidate()
 }

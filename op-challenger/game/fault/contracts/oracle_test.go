@@ -455,6 +455,7 @@ func TestChallenge_First(t *testing.T) {
 			Index:           big.NewInt(0),
 			StateCommitment: common.Hash{0xbb},
 		},
+		PoststateProof: merkle.Proof{common.Hash{0x01}, common.Hash{0x02}},
 	}
 	stubRpc.SetResponse(oracleAddr, methodChallengeFirstLPP, batching.BlockLatest,
 		[]interface{}{
@@ -464,7 +465,7 @@ func TestChallenge_First(t *testing.T) {
 				Index:           challenge.Poststate.Index,
 				StateCommitment: challenge.Poststate.StateCommitment,
 			},
-			[]common.Hash{},
+			challenge.PoststateProof,
 		},
 		nil)
 	tx, err := oracle.ChallengeTx(ident, challenge)
@@ -486,11 +487,13 @@ func TestChallenge_NotFirst(t *testing.T) {
 			Index:           big.NewInt(3),
 			StateCommitment: common.Hash{0xcc},
 		},
+		PrestateProof: merkle.Proof{common.Hash{0x01}, common.Hash{0x02}},
 		Poststate: keccakTypes.Leaf{
 			Input:           [136]byte{5, 4, 3, 2, 1},
 			Index:           big.NewInt(4),
 			StateCommitment: common.Hash{0xbb},
 		},
+		PoststateProof: merkle.Proof{common.Hash{0x03}, common.Hash{0x04}},
 	}
 	stubRpc.SetResponse(oracleAddr, methodChallengeLPP, batching.BlockLatest,
 		[]interface{}{
@@ -501,13 +504,13 @@ func TestChallenge_NotFirst(t *testing.T) {
 				Index:           challenge.Prestate.Index,
 				StateCommitment: challenge.Prestate.StateCommitment,
 			},
-			[]common.Hash{},
+			challenge.PrestateProof,
 			bindings.PreimageOracleLeaf{
 				Input:           challenge.Poststate.Input[:],
 				Index:           challenge.Poststate.Index,
 				StateCommitment: challenge.Poststate.StateCommitment,
 			},
-			[]common.Hash{},
+			challenge.PoststateProof,
 		},
 		nil)
 	tx, err := oracle.ChallengeTx(ident, challenge)

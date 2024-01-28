@@ -4,6 +4,7 @@ import (
 	"context"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/merkle"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -24,7 +25,7 @@ type Leaf struct {
 
 // Hash returns the hash of the leaf data. That is the
 // bytewise concatenation of the input, index, and state commitment.
-func (l *Leaf) Hash() common.Hash {
+func (l Leaf) Hash() common.Hash {
 	concatted := make([]byte, 0, 136+32+32)
 	concatted = append(concatted, l.Input[:]...)
 	concatted = append(concatted, l.Index.Bytes()...)
@@ -73,10 +74,12 @@ type Challenge struct {
 	StateMatrix []byte // TODO(client-pod#480): Need a better representation of this
 
 	// Prestate is the valid leaf immediately prior to the first invalid leaf
-	Prestate Leaf
+	Prestate      Leaf
+	PrestateProof merkle.Proof
 
 	// Poststate is the first invalid leaf in the preimage. The challenge claims that this leaf is invalid.
-	Poststate Leaf
+	Poststate      Leaf
+	PoststateProof merkle.Proof
 }
 
 type LargePreimageOracle interface {
