@@ -81,7 +81,7 @@ const (
 
 func (sw StateWitness) StateHash() (common.Hash, error) {
 	if len(sw) != 226 {
-		return common.Hash{}, fmt.Errorf("Invalid witness length. Got %d, expected at least 88", len(sw))
+		return common.Hash{}, fmt.Errorf("Invalid witness length. Got %d, expected 226", len(sw))
 	}
 
 	hash := crypto.Keccak256Hash(sw)
