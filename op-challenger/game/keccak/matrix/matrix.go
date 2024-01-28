@@ -157,15 +157,21 @@ func (d *StateMatrix) AbsorbUpTo(in io.Reader, maxLen int) (types.InputData, err
 }
 
 // PrestateWithProof returns the prestate leaf with its merkle proof.
-func (d *StateMatrix) PrestateWithProof() (types.Leaf, merkle.Proof) {
-	proof := d.merkleTree.ProofAtIndex(d.prestateLeaf.Index.Uint64())
-	return d.prestateLeaf, proof
+func (d *StateMatrix) PrestateWithProof() (types.Leaf, merkle.Proof, error) {
+	proof, err := d.merkleTree.ProofAtIndex(d.prestateLeaf.Index.Uint64())
+	if err != nil {
+		return types.Leaf{}, merkle.Proof{}, err
+	}
+	return d.prestateLeaf, proof, nil
 }
 
 // PoststateWithProof returns the poststate leaf with its merkle proof.
-func (d *StateMatrix) PoststateWithProof() (types.Leaf, merkle.Proof) {
-	proof := d.merkleTree.ProofAtIndex(d.poststateLeaf.Index.Uint64())
-	return d.poststateLeaf, proof
+func (d *StateMatrix) PoststateWithProof() (types.Leaf, merkle.Proof, error) {
+	proof, err := d.merkleTree.ProofAtIndex(d.poststateLeaf.Index.Uint64())
+	if err != nil {
+		return types.Leaf{}, merkle.Proof{}, err
+	}
+	return d.poststateLeaf, proof, nil
 }
 
 // absorbNextLeafInput reads up to [BlockSize] bytes from in and absorbs them into the state matrix.

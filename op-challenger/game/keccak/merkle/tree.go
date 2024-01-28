@@ -1,6 +1,8 @@
 package merkle
 
 import (
+	"errors"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 )
@@ -15,6 +17,8 @@ type Proof [BinaryMerkleTreeDepth]common.Hash
 var (
 	// MaxLeafCount is the maximum number of leaves in the merkle tree.
 	MaxLeafCount = 1<<BinaryMerkleTreeDepth - 1 // 2^16 - 1
+	// IndexOutOfBoundsError is returned when an index is out of bounds.
+	IndexOutOfBoundsError = errors.New("index out of bounds")
 	// zeroHashes is a list of empty hashes in the binary merkle tree, indexed by height.
 	zeroHashes [BinaryMerkleTreeDepth]common.Hash
 	// rootHash is the known root hash of the empty binary merkle tree.
@@ -127,9 +131,9 @@ func (m *BinaryMerkleTree) AddLeaf(hash common.Hash) {
 }
 
 // ProofAtIndex returns a merkle proof at the given leaf node index.
-func (m *BinaryMerkleTree) ProofAtIndex(index uint64) (proof Proof) {
+func (m *BinaryMerkleTree) ProofAtIndex(index uint64) (proof Proof, err error) {
 	if index >= uint64(MaxLeafCount) {
-		panic("merkle leaf out of bounds")
+		return proof, IndexOutOfBoundsError
 	}
 
 	levelNode := m.walkDownToLeafCount(index + 1)
@@ -150,5 +154,5 @@ func (m *BinaryMerkleTree) ProofAtIndex(index uint64) (proof Proof) {
 		levelNode = levelNode.Parent
 	}
 
-	return proof
+	return proof, nil
 }
