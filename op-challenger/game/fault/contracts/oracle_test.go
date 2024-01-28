@@ -36,6 +36,39 @@ func TestPreimageOracleContract_LoadKeccak256(t *testing.T) {
 	stubRpc.VerifyTxCandidate(tx)
 }
 
+func TestPreimageOracleContract_PreimageDataExists(t *testing.T) {
+	t.Run("exists", func(t *testing.T) {
+		stubRpc, oracle := setupPreimageOracleTest(t)
+		data := &types.PreimageOracleData{
+			OracleKey:    common.Hash{0xcc}.Bytes(),
+			OracleData:   make([]byte, 20),
+			OracleOffset: 545,
+		}
+		stubRpc.SetResponse(oracleAddr, methodPreimagePartOk, batching.BlockLatest,
+			[]interface{}{common.Hash(data.OracleKey), new(big.Int).SetUint64(uint64(data.OracleOffset))},
+			[]interface{}{true},
+		)
+		exists, err := oracle.GlobalDataExists(context.Background(), data)
+		require.NoError(t, err)
+		require.True(t, exists)
+	})
+	t.Run("does not exist", func(t *testing.T) {
+		stubRpc, oracle := setupPreimageOracleTest(t)
+		data := &types.PreimageOracleData{
+			OracleKey:    common.Hash{0xcc}.Bytes(),
+			OracleData:   make([]byte, 20),
+			OracleOffset: 545,
+		}
+		stubRpc.SetResponse(oracleAddr, methodPreimagePartOk, batching.BlockLatest,
+			[]interface{}{common.Hash(data.OracleKey), new(big.Int).SetUint64(uint64(data.OracleOffset))},
+			[]interface{}{false},
+		)
+		exists, err := oracle.GlobalDataExists(context.Background(), data)
+		require.NoError(t, err)
+		require.False(t, exists)
+	})
+}
+
 func TestPreimageOracleContract_InitLargePreimage(t *testing.T) {
 	stubRpc, oracle := setupPreimageOracleTest(t)
 

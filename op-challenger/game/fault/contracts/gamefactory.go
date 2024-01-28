@@ -49,7 +49,7 @@ func (f *DisputeGameFactoryContract) GetGame(ctx context.Context, idx uint64, bl
 	return f.decodeGame(result), nil
 }
 
-func (f *DisputeGameFactoryContract) GetGameImpl(ctx context.Context, gameType uint8) (common.Address, error) {
+func (f *DisputeGameFactoryContract) GetGameImpl(ctx context.Context, gameType uint32) (common.Address, error) {
 	result, err := f.multiCaller.SingleCall(ctx, batching.BlockLatest, f.contract.Call(methodGameImpls, gameType))
 	if err != nil {
 		return common.Address{}, fmt.Errorf("failed to load game impl for type %v: %w", gameType, err)
@@ -81,7 +81,7 @@ func (f *DisputeGameFactoryContract) GetAllGames(ctx context.Context, blockHash 
 }
 
 func (f *DisputeGameFactoryContract) decodeGame(result *batching.CallResult) types.GameMetadata {
-	gameType := result.GetUint8(0)
+	gameType := result.GetUint32(0)
 	timestamp := result.GetUint64(1)
 	proxy := result.GetAddress(2)
 	return types.GameMetadata{
