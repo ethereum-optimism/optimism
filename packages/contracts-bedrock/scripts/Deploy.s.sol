@@ -1115,7 +1115,7 @@ contract Deploy is Deployer {
             })
         );
 
-        uint8 rawGameType = GameType.unwrap(_gameType);
+        uint32 rawGameType = GameType.unwrap(_gameType);
         string memory gameTypeString;
         if (rawGameType == GameType.unwrap(GameTypes.CANNON)) {
             gameTypeString = "Cannon";

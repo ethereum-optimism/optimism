@@ -31,9 +31,9 @@ import (
 )
 
 const (
-	cannonGameType    uint8 = 0
-	alphabetGameType  uint8 = 255
-	alphabetGameDepth       = 4
+	cannonGameType    uint32 = 0
+	alphabetGameType  uint32 = 255
+	alphabetGameDepth        = 4
 )
 
 type Status uint8

@@ -36,7 +36,7 @@ type ProposerConfig struct {
 
 	L2OutputOracleAddr     *common.Address
 	DisputeGameFactoryAddr *common.Address
-	DisputeGameType        uint8
+	DisputeGameType        uint32
 
 	// AllowNonFinalized enables the proposal of safe, but non-finalized L2 blocks.
 	// The L1 block-hash embedded in the proposal TX is checked and should ensure the proposal

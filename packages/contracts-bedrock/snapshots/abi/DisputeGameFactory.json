@@ -9,7 +9,7 @@
       {
         "internalType": "GameType",
         "name": "_gameType",
-        "type": "uint8"
+        "type": "uint32"
       },
       {
         "internalType": "Claim",
@@ -46,7 +46,7 @@
       {
         "internalType": "GameType",
         "name": "gameType_",
-        "type": "uint8"
+        "type": "uint32"
       },
       {
         "internalType": "Timestamp",
@@ -80,7 +80,7 @@
       {
         "internalType": "GameType",
         "name": "",
-        "type": "uint8"
+        "type": "uint32"
       }
     ],
     "name": "gameImpls",
@@ -99,7 +99,7 @@
       {
         "internalType": "GameType",
         "name": "_gameType",
-        "type": "uint8"
+        "type": "uint32"
       },
       {
         "internalType": "Claim",
@@ -133,7 +133,7 @@
       {
         "internalType": "GameType",
         "name": "_gameType",
-        "type": "uint8"
+        "type": "uint32"
       },
       {
         "internalType": "Claim",
@@ -162,7 +162,7 @@
       {
         "internalType": "GameType",
         "name": "",
-        "type": "uint8"
+        "type": "uint32"
       }
     ],
     "name": "initBonds",
@@ -214,7 +214,7 @@
       {
         "internalType": "GameType",
         "name": "_gameType",
-        "type": "uint8"
+        "type": "uint32"
       },
       {
         "internalType": "contract IDisputeGame",
@@ -232,7 +232,7 @@
       {
         "internalType": "GameType",
         "name": "_gameType",
-        "type": "uint8"
+        "type": "uint32"
       },
       {
         "internalType": "uint256",
@@ -284,7 +284,7 @@
         "indexed": true,
         "internalType": "GameType",
         "name": "gameType",
-        "type": "uint8"
+        "type": "uint32"
       },
       {
         "indexed": true,
@@ -309,7 +309,7 @@
         "indexed": true,
         "internalType": "GameType",
         "name": "gameType",
-        "type": "uint8"
+        "type": "uint32"
       }
     ],
     "name": "ImplementationSet",
@@ -322,7 +322,7 @@
         "indexed": true,
         "internalType": "GameType",
         "name": "gameType",
-        "type": "uint8"
+        "type": "uint32"
       },
       {
         "indexed": true,
@@ -387,7 +387,7 @@
       {
         "internalType": "GameType",
         "name": "gameType",
-        "type": "uint8"
+        "type": "uint32"
       }
     ],
     "name": "NoImplementation",

@@ -13,9 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var (
-	factoryAddr = common.HexToAddress("0x24112842371dFC380576ebb09Ae16Cb6B6caD7CB")
-)
+var factoryAddr = common.HexToAddress("0x24112842371dFC380576ebb09Ae16Cb6B6caD7CB")
 
 func TestDisputeGameFactorySimpleGetters(t *testing.T) {
 	blockHash := common.Hash{0xbb, 0xcd}
@@ -109,7 +107,7 @@ func TestGetAllGames(t *testing.T) {
 
 func TestGetGameImpl(t *testing.T) {
 	stubRpc, factory := setupDisputeGameFactoryTest(t)
-	gameType := uint8(3)
+	gameType := uint32(3)
 	gameImplAddr := common.Address{0xaa}
 	stubRpc.SetResponse(
 		factoryAddr,
