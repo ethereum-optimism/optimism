@@ -28,6 +28,8 @@ const (
 	methodProposalMetadata          = "proposalMetadata"
 	methodProposalBlocksLen         = "proposalBlocksLen"
 	methodProposalBlocks            = "proposalBlocks"
+	methodPreimagePartOk            = "preimagePartOk"
+	methodMinProposalSize           = "minProposalSize"
 	methodChallengeFirstLPP         = "challengeFirstLPP"
 	methodChallengeLPP              = "challengeLPP"
 )
@@ -138,6 +140,15 @@ func abiEncodePackedState(packedState []byte) bindings.LibKeccakStateMatrix {
 	return bindings.LibKeccakStateMatrix{State: *stateSlice}
 }
 
+// MinLargePreimageSize returns the minimum size of a large preimage.
+func (c *PreimageOracleContract) MinLargePreimageSize(ctx context.Context) (uint64, error) {
+	result, err := c.multiCaller.SingleCall(ctx, batching.BlockLatest, c.contract.Call(methodMinProposalSize))
+	if err != nil {
+		return 0, fmt.Errorf("failed to fetch min lpp size bytes: %w", err)
+	}
+	return result.GetBigInt(0).Uint64(), nil
+}
+
 func (c *PreimageOracleContract) GetActivePreimages(ctx context.Context, blockHash common.Hash) ([]keccakTypes.LargePreimageMetaData, error) {
 	block := batching.BlockByHash(blockHash)
 	results, err := batching.ReadArray(ctx, c.multiCaller, block, c.contract.Call(methodProposalCount), func(i *big.Int) *batching.ContractCall {
@@ -225,6 +236,15 @@ func (c *PreimageOracleContract) DecodeInputData(data []byte) (*big.Int, keccakT
 		Commitments: commitments,
 		Finalize:    finalize,
 	}, nil
+}
+
+func (c *PreimageOracleContract) GlobalDataExists(ctx context.Context, data *types.PreimageOracleData) (bool, error) {
+	call := c.contract.Call(methodPreimagePartOk, common.Hash(data.OracleKey), new(big.Int).SetUint64(uint64(data.OracleOffset)))
+	results, err := c.multiCaller.SingleCall(ctx, batching.BlockLatest, call)
+	if err != nil {
+		return false, fmt.Errorf("failed to get preimagePartOk: %w", err)
+	}
+	return results.GetBool(0), nil
 }
 
 func (c *PreimageOracleContract) ChallengeTx(ident keccakTypes.LargePreimageIdent, challenge keccakTypes.Challenge) (txmgr.TxCandidate, error) {

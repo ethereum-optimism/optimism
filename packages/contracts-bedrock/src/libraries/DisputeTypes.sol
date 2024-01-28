@@ -74,7 +74,7 @@ type Clock is uint128;
 type Position is uint128;
 
 /// @notice A `GameType` represents the type of game being played.
-type GameType is uint8;
+type GameType is uint32;
 
 /// @notice A `VMStatus` represents the status of a VM execution.
 type VMStatus is uint8;

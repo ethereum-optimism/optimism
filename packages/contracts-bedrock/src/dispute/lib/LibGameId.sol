@@ -22,7 +22,7 @@ library LibGameId {
         returns (GameId gameId_)
     {
         assembly {
-            gameId_ := or(or(shl(248, _gameType), shl(184, _timestamp)), _gameProxy)
+            gameId_ := or(or(shl(224, _gameType), shl(160, _timestamp)), _gameProxy)
         }
     }
 
@@ -37,9 +37,9 @@ library LibGameId {
         returns (GameType gameType_, Timestamp timestamp_, IDisputeGame gameProxy_)
     {
         assembly {
-            gameType_ := shr(248, _gameId)
-            timestamp_ := shr(184, and(_gameId, not(shl(248, 0xff))))
-            gameProxy_ := and(_gameId, 0xffffffffffffffffffffffffffffffffffffffff)
+            gameType_ := shr(224, _gameId)
+            timestamp_ := and(shr(160, _gameId), 0xFFFFFFFFFFFFFFFF)
+            gameProxy_ := and(_gameId, 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF)
         }
     }
 }
