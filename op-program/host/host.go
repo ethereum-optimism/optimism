@@ -4,24 +4,27 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
-	"io/fs"
 	"os"
-	"os/exec"
+	"sync"
+	"sync/atomic"
+
+	"golang.org/x/sync/errgroup"
+
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
+	"github.com/ethereum-optimism/optimism/op-preimage/kvstore"
+	"github.com/ethereum-optimism/optimism/op-preimage/stack"
 	cl "github.com/ethereum-optimism/optimism/op-program/client"
 	"github.com/ethereum-optimism/optimism/op-program/host/config"
-	"github.com/ethereum-optimism/optimism/op-program/host/flags"
-	"github.com/ethereum-optimism/optimism/op-program/host/kvstore"
+	"github.com/ethereum-optimism/optimism/op-program/host/local"
 	"github.com/ethereum-optimism/optimism/op-program/host/prefetcher"
 	oppio "github.com/ethereum-optimism/optimism/op-program/io"
-	opservice "github.com/ethereum-optimism/optimism/op-service"
+	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 type L2Source struct {
@@ -29,90 +32,176 @@ type L2Source struct {
 	*sources.DebugClient
 }
 
-func Main(logger log.Logger, cfg *config.Config) error {
-	if err := cfg.Check(); err != nil {
-		return fmt.Errorf("invalid config: %w", err)
-	}
-	opservice.ValidateEnvVars(flags.EnvVarPrefix, flags.Flags, logger)
-	cfg.Rollup.LogDescription(logger, chaincfg.L2ChainIDToNetworkDisplayName)
+type HostService struct {
+	logger     log.Logger
+	cfg        *config.Config
+	onComplete context.CancelCauseFunc
 
-	ctx := context.Background()
-	if cfg.ServerMode {
-		preimageChan := cl.CreatePreimageChannel()
-		hinterChan := cl.CreateHinterChannel()
-		return PreimageServer(ctx, logger, cfg, preimageChan, hinterChan)
-	}
+	stopper stack.Stoppable
+	stopped atomic.Bool
+}
 
-	if err := FaultProofProgram(ctx, logger, cfg); err != nil {
+func (h *HostService) Start(ctx context.Context) error {
+	if h.cfg.ServerMode {
+		return h.startServerMode(ctx)
+	} else {
+		return h.startFullMode(ctx)
+	}
+}
+
+// startFullMode runs both the client and the server side of the program.
+// I.e. it boths runs the state-transition and handles the preimage requests/hints of the state-transition.
+func (h *HostService) startFullMode(ctx context.Context) error {
+	cl, err := FaultProofProgram(h.logger, h.cfg, h.onComplete)
+	if err != nil {
 		return err
 	}
-	log.Info("Claim successfully verified")
+	h.stopper = cl
 	return nil
 }
 
-// FaultProofProgram is the programmatic entry-point for the fault proof program
-func FaultProofProgram(ctx context.Context, logger log.Logger, cfg *config.Config) error {
-	var (
-		serverErr chan error
-		pClientRW oppio.FileChannel
-		hClientRW oppio.FileChannel
-	)
-	defer func() {
-		if pClientRW != nil {
-			_ = pClientRW.Close()
-		}
-		if hClientRW != nil {
-			_ = hClientRW.Close()
-		}
-		if serverErr != nil {
-			err := <-serverErr
-			if err != nil {
-				logger.Error("preimage server failed", "err", err)
-			}
-			logger.Debug("Preimage server stopped")
-		}
-	}()
-	// Setup client I/O for preimage oracle interaction
-	pClientRW, pHostRW, err := oppio.CreateBidirectionalChannel()
+// startServerMode makes the HostService act like a preimage server attached to the standard file-descriptors.
+// When running Cannon or another FP-VM, the op-program can be executed as child-process,
+// to handle the preimage requests/hints for the FP-VM.
+func (h *HostService) startServerMode(ctx context.Context) error {
+	preimageChan := preimage.CreatePreimageChannel()
+	hinterChan := preimage.CreateHinterChannel()
+
+	serverCtx, serverCancel := context.WithCancel(context.Background())
+	var errGrp errgroup.Group
+	errGrp.Go(func() error {
+		err := PreimageServer(serverCtx, h.logger, h.cfg, preimageChan, hinterChan)
+		serverCancel()
+		h.onComplete(err)
+		return err
+	})
+
+	h.stopper = stack.StopFn(func(ctx context.Context) error {
+		serverCancel()
+		var result error
+		// close the pipes first
+		result = errors.Join(result, preimageChan.Close())
+		result = errors.Join(result, hinterChan.Close())
+		// wait for server to shut down
+		result = errors.Join(result, errGrp.Wait())
+		return result
+	})
+	return nil
+}
+
+func (h *HostService) Stop(ctx context.Context) error {
+	defer h.stopped.Store(true)
+	return h.stopper.Stop(ctx)
+}
+
+func (h *HostService) Stopped() bool {
+	return h.stopped.Load()
+}
+
+var _ cliapp.Lifecycle = (*HostService)(nil)
+
+func Main(logger log.Logger, cfg *config.Config, onComplete context.CancelCauseFunc) (cliapp.Lifecycle, error) {
+	if err := cfg.Check(); err != nil {
+		return nil, fmt.Errorf("invalid config: %w", err)
+	}
+	cfg.Rollup.LogDescription(logger, chaincfg.L2ChainIDToNetworkDisplayName)
+
+	return &HostService{
+		logger:     logger,
+		cfg:        cfg,
+		onComplete: onComplete,
+	}, nil
+}
+
+// FaultProofProgram is the programmatic entry-point for the fault proof program.
+// It runs both the host and client. The client may be in a sub-process.
+func FaultProofProgram(logger log.Logger, cfg *config.Config, onComplete context.CancelCauseFunc) (stack.Stoppable, error) {
+	// The driver.ErrClaimNotValid error is propagated through the onComplete(err) call,
+	// if the program completes before interruption.
+
+	pClientRW, pHostRW, hClientRW, hHostRW, stopPipes, err := stack.MiddlewarePipes()
 	if err != nil {
-		return fmt.Errorf("failed to create preimage pipe: %w", err)
+		return nil, err
 	}
 
-	// Setup client I/O for hint comms
-	hClientRW, hHostRW, err := oppio.CreateBidirectionalChannel()
-	if err != nil {
-		return fmt.Errorf("failed to create hints pipe: %w", err)
-	}
+	serverCtx, serverCancel := context.WithCancel(context.Background())
 
-	// Use a channel to receive the server result so we can wait for it to complete before returning
-	serverErr = make(chan error)
-	go func() {
-		defer close(serverErr)
-		serverErr <- PreimageServer(ctx, logger, cfg, pHostRW, hHostRW)
-	}()
-
-	var cmd *exec.Cmd
-	if cfg.ExecCmd != "" {
-		cmd = exec.CommandContext(ctx, cfg.ExecCmd)
-		cmd.ExtraFiles = make([]*os.File, cl.MaxFd-3) // not including stdin, stdout and stderr
-		cmd.ExtraFiles[cl.HClientRFd-3] = hClientRW.Reader()
-		cmd.ExtraFiles[cl.HClientWFd-3] = hClientRW.Writer()
-		cmd.ExtraFiles[cl.PClientRFd-3] = pClientRW.Reader()
-		cmd.ExtraFiles[cl.PClientWFd-3] = pClientRW.Writer()
-		cmd.Stdout = os.Stdout // for debugging
-		cmd.Stderr = os.Stderr // for debugging
-
-		err := cmd.Start()
+	// Start the server. The server will stop when its communication channels stop.
+	var errGrp errgroup.Group
+	errGrp.Go(func() error {
+		err := PreimageServer(serverCtx, logger, cfg, pHostRW, hHostRW)
 		if err != nil {
-			return fmt.Errorf("program cmd failed to start: %w", err)
+			err = fmt.Errorf("preimage server failed: %w", err)
 		}
-		if err := cmd.Wait(); err != nil {
-			return fmt.Errorf("failed to wait for child program: %w", err)
+		onComplete(err)
+		return err
+	})
+
+	// Create the client (sub-process or in-process)
+	sink := CreateClient(logger, cfg, onComplete)
+
+	// Start the client. The client will stop when we signal it to stop.
+	stopClient, err := sink(pClientRW, hClientRW)
+	if err != nil {
+		err = fmt.Errorf("failed to start client: %w", err)
+		serverCancel()
+		if closeErr := stopPipes.Stop(serverCtx); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("failed to close client-server communication: %w", closeErr))
 		}
-		logger.Debug("Client program completed successfully")
-		return nil
+		if closeErr := errGrp.Wait(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("failed to close server upon client error: %w", closeErr))
+		}
+		return nil, err
+	}
+
+	// Upon closing the client we stop the communication channels to the server.
+	// This will cause the server to stop. Which we can then just await.
+
+	stopper := stack.StopFn(func(ctx context.Context) error {
+		serverCancel() // don't try to finish any fetching on the server-side
+		var result error
+		result = errors.Join(result, stopClient.Stop(ctx))
+		result = errors.Join(result, stopPipes.Stop(ctx))
+		result = errors.Join(result, errGrp.Wait())
+		return result
+	})
+
+	return stopper, nil
+}
+
+func CreateClient(logger log.Logger, cfg *config.Config, onComplete context.CancelCauseFunc) stack.Sink {
+	if cfg.ExecCmd != "" {
+		return stack.ExecSink(cfg.ExecCmd, os.Stdout, os.Stderr, onComplete)
 	} else {
-		return cl.RunProgram(logger, pClientRW, hClientRW)
+		return func(preimageRW oppio.FileChannel, hintRW oppio.FileChannel) (stack.Stoppable, error) {
+			// context to signal to the in-process client when we want it stop
+			ctx, cancel := context.WithCancel(context.Background())
+
+			// track client-side completion with a wait-group
+			var wg sync.WaitGroup
+			wg.Add(1)
+
+			// Start running the program, and signal to the caller when it ends.
+			go func() {
+				defer func() { // client is expected to panic when the server closes before the client can get its preimage data.
+					if r := recover(); r != nil {
+						err := fmt.Errorf("client panic: %v", r)
+						onComplete(err)
+					}
+					wg.Done()
+				}()
+				err := cl.RunProgram(ctx, logger, preimageRW, hintRW)
+				onComplete(err) // signal any client-side error as completion result
+			}()
+
+			return stack.StopFn(func(_ context.Context) error {
+				// If user asks the in-process client to stop, and we terminate the stop-context,
+				// we can't kill the client, since it's in-process. So unfortunately we just have to wait.
+				cancel()   // signal in-process client program to stop
+				wg.Wait()  // wait for it to stop
+				return nil // there is no case where we fail to stop the in-process program.
+			}), nil
+		}
 	}
 }
 
@@ -121,19 +210,9 @@ func FaultProofProgram(ctx context.Context, logger log.Logger, cfg *config.Confi
 // If either returns an error both handlers are stopped.
 // The supplied preimageChannel and hintChannel will be closed before this function returns.
 func PreimageServer(ctx context.Context, logger log.Logger, cfg *config.Config, preimageChannel oppio.FileChannel, hintChannel oppio.FileChannel) error {
-	var serverDone chan error
-	var hinterDone chan error
 	defer func() {
-		preimageChannel.Close()
-		hintChannel.Close()
-		if serverDone != nil {
-			// Wait for pre-image server to complete
-			<-serverDone
-		}
-		if hinterDone != nil {
-			// Wait for hinter to complete
-			<-hinterDone
-		}
+		_ = preimageChannel.Close()
+		_ = hintChannel.Close()
 	}()
 	logger.Info("Starting preimage server")
 	var kv kvstore.KV
@@ -168,18 +247,22 @@ func PreimageServer(ctx context.Context, logger log.Logger, cfg *config.Config, 
 		}
 	}
 
-	localPreimageSource := kvstore.NewLocalPreimageSource(cfg)
+	localPreimageSource := local.NewLocalPreimageSource(cfg)
 	splitter := kvstore.NewPreimageSourceSplitter(localPreimageSource.Get, getPreimage)
 	preimageGetter := preimage.WithVerification(splitter.Get)
 
-	serverDone = launchOracleServer(logger, preimageChannel, preimageGetter)
-	hinterDone = routeHints(logger, hintChannel, hinter)
-	select {
-	case err := <-serverDone:
+	var errGrp errgroup.Group
+	errGrp.Go(func() error {
+		err := stack.HandlePreimages(logger, preimageChannel, preimageGetter)
+		_ = hintChannel.Close() // stop the other err-group member
 		return err
-	case err := <-hinterDone:
+	})
+	errGrp.Go(func() error {
+		err := stack.HandleHints(logger, hintChannel, hinter)
+		_ = preimageChannel.Close() // stop the other err-group member
 		return err
-	}
+	})
+	return errGrp.Wait()
 }
 
 func makePrefetcher(ctx context.Context, logger log.Logger, kv kvstore.KV, cfg *config.Config) (*prefetcher.Prefetcher, error) {
@@ -207,44 +290,4 @@ func makePrefetcher(ctx context.Context, logger log.Logger, kv kvstore.KV, cfg *
 	}
 	l2DebugCl := &L2Source{L2Client: l2Cl, DebugClient: sources.NewDebugClient(l2RPC.CallContext)}
 	return prefetcher.NewPrefetcher(logger, l1Cl, l2DebugCl, kv), nil
-}
-
-func routeHints(logger log.Logger, hHostRW io.ReadWriter, hinter preimage.HintHandler) chan error {
-	chErr := make(chan error)
-	hintReader := preimage.NewHintReader(hHostRW)
-	go func() {
-		defer close(chErr)
-		for {
-			if err := hintReader.NextHint(hinter); err != nil {
-				if err == io.EOF || errors.Is(err, fs.ErrClosed) {
-					logger.Debug("closing pre-image hint handler")
-					return
-				}
-				logger.Error("pre-image hint router error", "err", err)
-				chErr <- err
-				return
-			}
-		}
-	}()
-	return chErr
-}
-
-func launchOracleServer(logger log.Logger, pHostRW io.ReadWriteCloser, getter preimage.PreimageGetter) chan error {
-	chErr := make(chan error)
-	server := preimage.NewOracleServer(pHostRW)
-	go func() {
-		defer close(chErr)
-		for {
-			if err := server.NextPreimageRequest(getter); err != nil {
-				if err == io.EOF || errors.Is(err, fs.ErrClosed) {
-					logger.Debug("closing pre-image server")
-					return
-				}
-				logger.Error("pre-image server error", "error", err)
-				chErr <- err
-				return
-			}
-		}
-	}()
-	return chErr
 }

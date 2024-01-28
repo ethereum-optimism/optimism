@@ -1,19 +1,23 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"strconv"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
-	"github.com/ethereum-optimism/optimism/op-program/chainconfig"
-	"github.com/ethereum-optimism/optimism/op-program/host/config"
-	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
+	"github.com/ethereum-optimism/optimism/op-program/chainconfig"
+	"github.com/ethereum-optimism/optimism/op-program/host/config"
+	"github.com/ethereum-optimism/optimism/op-service/cliapp"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 )
 
 var (
@@ -36,7 +40,7 @@ func TestLogLevel(t *testing.T) {
 	for _, lvl := range []string{"trace", "debug", "info", "error", "crit"} {
 		lvl := lvl
 		t.Run("AcceptValid_"+lvl, func(t *testing.T) {
-			logger, _, err := runWithArgs(addRequiredArgs("--log.level", lvl))
+			logger, _, err := dryRunWithArgs(addRequiredArgs("--log.level", lvl))
 			require.NoError(t, err)
 			require.NotNil(t, logger)
 		})
@@ -51,7 +55,7 @@ func TestLogFormat(t *testing.T) {
 	for _, lvl := range []string{"json", "json-pretty", "terminal", "text", "logfmt"} {
 		lvl := lvl
 		t.Run("AcceptValid_"+lvl, func(t *testing.T) {
-			logger, _, err := runWithArgs(addRequiredArgs("--log.format", lvl))
+			logger, _, err := dryRunWithArgs(addRequiredArgs("--log.format", lvl))
 			require.NoError(t, err)
 			require.NotNil(t, logger)
 		})
@@ -301,25 +305,29 @@ func TestServerMode(t *testing.T) {
 }
 
 func verifyArgsInvalid(t *testing.T, messageContains string, cliArgs []string) {
-	_, _, err := runWithArgs(cliArgs)
+	_, _, err := dryRunWithArgs(cliArgs)
 	require.ErrorContains(t, err, messageContains)
 }
 
 func configForArgs(t *testing.T, cliArgs []string) *config.Config {
-	_, cfg, err := runWithArgs(cliArgs)
+	_, cfg, err := dryRunWithArgs(cliArgs)
 	require.NoError(t, err)
 	return cfg
 }
 
-func runWithArgs(cliArgs []string) (log.Logger, *config.Config, error) {
+func dryRunWithArgs(cliArgs []string) (log.Logger, *config.Config, error) {
 	cfg := new(config.Config)
 	var logger log.Logger
 	fullArgs := append([]string{"op-program"}, cliArgs...)
-	err := run(fullArgs, func(log log.Logger, config *config.Config) error {
+	testErr := errors.New("dry-run")
+	err := run(context.Background(), fullArgs, func(log log.Logger, config *config.Config, onComplete context.CancelCauseFunc) (cliapp.Lifecycle, error) {
 		logger = log
 		cfg = config
-		return nil
+		return nil, testErr
 	})
+	if errors.Is(err, testErr) { // expected error
+		err = nil
+	}
 	return logger, cfg, err
 }
 

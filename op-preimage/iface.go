@@ -5,6 +5,12 @@ import (
 	"encoding/hex"
 )
 
+type RawKey [32]byte
+
+func (rk RawKey) PreimageKey() [32]byte {
+	return rk
+}
+
 type Key interface {
 	// PreimageKey changes the Key commitment into a
 	// 32-byte type-prefixed preimage key.
@@ -60,6 +66,12 @@ func (k Keccak256Key) String() string {
 
 func (k Keccak256Key) TerminalString() string {
 	return "0x" + hex.EncodeToString(k[:])
+}
+
+type RawHint string
+
+func (rh RawHint) Hint() string {
+	return string(rh)
 }
 
 // Hint is an interface to enable any program type to function as a hint,
