@@ -17,11 +17,8 @@ func writeAggregate(a aggregate, o string) error {
 	if err != nil {
 		return err
 	}
-	os.WriteFile(o, aggregateJson, 0644)
-	if err != nil {
-		return err
-	}
-	return nil
+	err = os.WriteFile(o, aggregateJson, 0644)
+	return err
 }
 
 func readAggregate(f string) (aggregate, error) {
