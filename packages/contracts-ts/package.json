@@ -52,7 +52,7 @@
     "@testing-library/react-hooks": "^8.0.1",
     "@types/glob": "^8.1.0",
     "@vitest/coverage-istanbul": "^1.2.2",
-    "@wagmi/cli": "^2.0.4",
+    "@wagmi/cli": "^2.1.0",
     "@wagmi/core": "^2.6.1",
     "abitype": "^1.0.0",
     "glob": "^10.3.10",
@@ -62,12 +62,12 @@
     "tsup": "^8.0.1",
     "typescript": "^5.3.3",
     "vite": "^5.0.12",
-    "vitest": "^1.2.2",
-    "wagmi": "^2.5.2"
+    "wagmi": "^2.5.4",
+    "vitest": "^1.2.2"
   },
   "peerDependencies": {
     "@wagmi/core": "^2.6.1",
-    "wagmi": "^2.5.2"
+    "wagmi": "^2.5.4"
   },
   "peerDependenciesMeta": {
     "wagmi": {
