@@ -300,8 +300,8 @@ importers:
         specifier: ^1.2.2
         version: 1.2.2(vitest@1.2.2)
       '@wagmi/cli':
-        specifier: ^2.0.4
-        version: 2.0.4(typescript@5.3.3)
+        specifier: ^2.1.0
+        version: 2.1.0(typescript@5.3.3)
       '@wagmi/core':
         specifier: ^2.6.1
         version: 2.6.1(react@18.2.0)(typescript@5.3.3)(viem@2.5.0)
@@ -6322,8 +6322,8 @@ packages:
     resolution: {integrity: sha512-7OjdcV8vQ74eiz1TZLzZP4JwqM5fA94K6yntPS5Z25r9HDuGNzaGdgvwKYq6S+MxwF0TFRwe50fIR/MYnakdkQ==}
     dev: true
 
-  /@wagmi/cli@2.0.4(typescript@5.3.3):
-    resolution: {integrity: sha512-JcIp46LUrhctEpMMNalFVX8Uua6Wv9875w8x3cRZlGF9nVLT3GigJVpRrgPCinY+Qn+m592rFCnpueS7FZbOiQ==}
+  /@wagmi/cli@2.1.0(typescript@5.3.3):
+    resolution: {integrity: sha512-K735NE+DIFrPF01V3RpbcKmhkEalgQahEE5Ttvrt+DUo3kEnjP9bmILZvBwr7F1o1jdOpZjJGPZVj1ZMFcTl3g==}
     hasBin: true
     peerDependencies:
       typescript: '>=5'
