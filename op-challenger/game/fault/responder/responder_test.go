@@ -50,14 +50,14 @@ func TestResolve(t *testing.T) {
 	t.Run("SendFails", func(t *testing.T) {
 		responder, mockTxMgr, _, _, _ := newTestFaultResponder(t)
 		mockTxMgr.sendFails = true
-		err := responder.Resolve(context.Background())
+		err := responder.Resolve()
 		require.ErrorIs(t, err, mockSendError)
 		require.Equal(t, 0, mockTxMgr.sends)
 	})
 
 	t.Run("Success", func(t *testing.T) {
 		responder, mockTxMgr, _, _, _ := newTestFaultResponder(t)
-		err := responder.Resolve(context.Background())
+		err := responder.Resolve()
 		require.NoError(t, err)
 		require.Equal(t, 1, mockTxMgr.sends)
 	})
@@ -84,14 +84,14 @@ func TestResolveClaim(t *testing.T) {
 	t.Run("SendFails", func(t *testing.T) {
 		responder, mockTxMgr, _, _, _ := newTestFaultResponder(t)
 		mockTxMgr.sendFails = true
-		err := responder.ResolveClaim(context.Background(), 0)
+		err := responder.ResolveClaim(0)
 		require.ErrorIs(t, err, mockSendError)
 		require.Equal(t, 0, mockTxMgr.sends)
 	})
 
 	t.Run("Success", func(t *testing.T) {
 		responder, mockTxMgr, _, _, _ := newTestFaultResponder(t)
-		err := responder.ResolveClaim(context.Background(), 0)
+		err := responder.ResolveClaim(0)
 		require.NoError(t, err)
 		require.Equal(t, 1, mockTxMgr.sends)
 	})
@@ -325,17 +325,21 @@ type mockTxManager struct {
 	sendFails bool
 }
 
-func (m *mockTxManager) Send(_ context.Context, candidate txmgr.TxCandidate) (*ethtypes.Receipt, error) {
-	if m.sendFails {
-		return nil, mockSendError
+func (m *mockTxManager) SendAndWait(_ string, txs ...txmgr.TxCandidate) ([]*ethtypes.Receipt, error) {
+	rcpts := make([]*ethtypes.Receipt, 0, len(txs))
+	for _, tx := range txs {
+		if m.sendFails {
+			return nil, mockSendError
+		}
+		m.sends++
+		m.sent = append(m.sent, tx)
+		rcpts = append(rcpts, ethtypes.NewReceipt(
+			[]byte{},
+			false,
+			0,
+		))
 	}
-	m.sends++
-	m.sent = append(m.sent, candidate)
-	return ethtypes.NewReceipt(
-		[]byte{},
-		false,
-		0,
-	), nil
+	return rcpts, nil
 }
 
 func (m *mockTxManager) BlockNumber(_ context.Context) (uint64, error) {

@@ -12,9 +12,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/matrix"
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
-	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -35,12 +35,12 @@ const MaxChunkSize = MaxBlocksPerChunk * keccakTypes.BlockSize
 type LargePreimageUploader struct {
 	log log.Logger
 
-	txMgr    txmgr.TxManager
+	txSender gameTypes.TxSender
 	contract PreimageOracleContract
 }
 
-func NewLargePreimageUploader(logger log.Logger, txMgr txmgr.TxManager, contract PreimageOracleContract) *LargePreimageUploader {
-	return &LargePreimageUploader{logger, txMgr, contract}
+func NewLargePreimageUploader(logger log.Logger, txSender gameTypes.TxSender, contract PreimageOracleContract) *LargePreimageUploader {
+	return &LargePreimageUploader{logger, txSender, contract}
 }
 
 func (p *LargePreimageUploader) UploadPreimage(ctx context.Context, parent uint64, data *types.PreimageOracleData) error {
@@ -52,7 +52,7 @@ func (p *LargePreimageUploader) UploadPreimage(ctx context.Context, parent uint6
 	uuid := p.newUUID(data)
 
 	// Fetch the current metadata for this preimage data, if it exists.
-	ident := keccakTypes.LargePreimageIdent{Claimant: p.txMgr.From(), UUID: uuid}
+	ident := keccakTypes.LargePreimageIdent{Claimant: p.txSender.From(), UUID: uuid}
 	metadata, err := p.contract.GetProposalMetadata(ctx, batching.BlockLatest, ident)
 	if err != nil {
 		return fmt.Errorf("failed to get pre-image oracle metadata: %w", err)
@@ -60,7 +60,7 @@ func (p *LargePreimageUploader) UploadPreimage(ctx context.Context, parent uint6
 
 	// The proposal is not initialized if the queried metadata has a claimed size of 0.
 	if len(metadata) == 1 && metadata[0].ClaimedSize == 0 {
-		err = p.initLargePreimage(ctx, uuid, data.OracleOffset, uint32(len(data.OracleData)))
+		err = p.initLargePreimage(uuid, data.OracleOffset, uint32(len(data.OracleData)))
 		if err != nil {
 			return fmt.Errorf("failed to initialize large preimage with uuid: %s: %w", uuid, err)
 		}
@@ -76,7 +76,7 @@ func (p *LargePreimageUploader) UploadPreimage(ctx context.Context, parent uint6
 		}
 	}
 
-	err = p.addLargePreimageData(ctx, uuid, calls)
+	err = p.addLargePreimageData(uuid, calls)
 	if err != nil {
 		return fmt.Errorf("failed to add leaves to large preimage with uuid: %s: %w", uuid, err)
 	}
@@ -87,7 +87,7 @@ func (p *LargePreimageUploader) UploadPreimage(ctx context.Context, parent uint6
 // newUUID generates a new unique identifier for the preimage by hashing the
 // concatenated preimage data, preimage offset, and sender address.
 func (p *LargePreimageUploader) newUUID(data *types.PreimageOracleData) *big.Int {
-	sender := p.txMgr.From()
+	sender := p.txSender.From()
 	offset := make([]byte, 4)
 	binary.LittleEndian.PutUint32(offset, data.OracleOffset)
 	concatenated := append(data.OracleData, offset...)
@@ -129,14 +129,14 @@ func (p *LargePreimageUploader) Squeeze(ctx context.Context, uuid *big.Int, stat
 	//                       This allows the responder to retry the squeeze later.
 	//                       Other errors should force the responder to stop retrying.
 	//                       Nil errors should indicate the squeeze was successful.
-	if err := p.contract.CallSqueeze(ctx, p.txMgr.From(), uuid, stateMatrix, prestate, prestateProof, poststate, poststateProof); err != nil {
+	if err := p.contract.CallSqueeze(ctx, p.txSender.From(), uuid, stateMatrix, prestate, prestateProof, poststate, poststateProof); err != nil {
 		return fmt.Errorf("failed to call squeeze: %w", err)
 	}
-	tx, err := p.contract.Squeeze(p.txMgr.From(), uuid, stateMatrix, prestate, prestateProof, poststate, poststateProof)
+	tx, err := p.contract.Squeeze(p.txSender.From(), uuid, stateMatrix, prestate, prestateProof, poststate, poststateProof)
 	if err != nil {
 		return fmt.Errorf("failed to create pre-image oracle tx: %w", err)
 	}
-	if err := p.sendTxAndWait(ctx, tx); err != nil {
+	if _, err := p.txSender.SendAndWait("squeeze large preimage", tx); err != nil {
 		return fmt.Errorf("failed to populate pre-image oracle: %w", err)
 	}
 	return nil
@@ -144,12 +144,12 @@ func (p *LargePreimageUploader) Squeeze(ctx context.Context, uuid *big.Int, stat
 
 // initLargePreimage initializes the large preimage proposal.
 // This method *must* be called before adding any leaves.
-func (p *LargePreimageUploader) initLargePreimage(ctx context.Context, uuid *big.Int, partOffset uint32, claimedSize uint32) error {
+func (p *LargePreimageUploader) initLargePreimage(uuid *big.Int, partOffset uint32, claimedSize uint32) error {
 	candidate, err := p.contract.InitLargePreimage(uuid, partOffset, claimedSize)
 	if err != nil {
 		return fmt.Errorf("failed to create pre-image oracle tx: %w", err)
 	}
-	if err := p.sendTxAndWait(ctx, candidate); err != nil {
+	if _, err := p.txSender.SendAndWait("init large preimage", candidate); err != nil {
 		return fmt.Errorf("failed to populate pre-image oracle: %w", err)
 	}
 	return nil
@@ -158,9 +158,8 @@ func (p *LargePreimageUploader) initLargePreimage(ctx context.Context, uuid *big
 // addLargePreimageData adds data to the large preimage proposal.
 // This method **must** be called after calling [initLargePreimage].
 // SAFETY: submits transactions in a [Queue] for latency while preserving submission order.
-func (p *LargePreimageUploader) addLargePreimageData(ctx context.Context, uuid *big.Int, chunks []keccakTypes.InputData) error {
-	queue := txmgr.NewQueue[int](ctx, p.txMgr, 10)
-	receiptChs := make([]chan txmgr.TxReceipt[int], len(chunks))
+func (p *LargePreimageUploader) addLargePreimageData(uuid *big.Int, chunks []keccakTypes.InputData) error {
+	txs := make([]txmgr.TxCandidate, len(chunks))
 	blocksProcessed := int64(0)
 	for i, chunk := range chunks {
 		tx, err := p.contract.AddLeaves(uuid, big.NewInt(blocksProcessed), chunk.Input, chunk.Commitments, chunk.Finalize)
@@ -168,34 +167,8 @@ func (p *LargePreimageUploader) addLargePreimageData(ctx context.Context, uuid *
 			return fmt.Errorf("failed to create pre-image oracle tx: %w", err)
 		}
 		blocksProcessed += int64(len(chunk.Input) / keccakTypes.BlockSize)
-		receiptChs[i] = make(chan txmgr.TxReceipt[int], 1)
-		queue.Send(i, tx, receiptChs[i])
+		txs[i] = tx
 	}
-	for _, receiptCh := range receiptChs {
-		receipt := <-receiptCh
-		if receipt.Err != nil {
-			return receipt.Err
-		}
-		if receipt.Receipt.Status == ethtypes.ReceiptStatusFailed {
-			p.log.Error("LargePreimageUploader add leafs tx successfully published but reverted", "tx_hash", receipt.Receipt.TxHash)
-		} else {
-			p.log.Debug("LargePreimageUploader add leafs tx successfully published", "tx_hash", receipt.Receipt.TxHash)
-		}
-	}
-	return nil
-}
-
-// sendTxAndWait sends a transaction through the [txmgr] and waits for a receipt.
-// This sets the tx GasLimit to 0, performing gas estimation online through the [txmgr].
-func (p *LargePreimageUploader) sendTxAndWait(ctx context.Context, candidate txmgr.TxCandidate) error {
-	receipt, err := p.txMgr.Send(ctx, candidate)
-	if err != nil {
-		return err
-	}
-	if receipt.Status == ethtypes.ReceiptStatusFailed {
-		p.log.Error("LargePreimageUploader tx successfully published but reverted", "tx_hash", receipt.TxHash)
-	} else {
-		p.log.Debug("LargePreimageUploader tx successfully published", "tx_hash", receipt.TxHash)
-	}
-	return nil
+	_, err := p.txSender.SendAndWait("add leaf to large preimage", txs...)
+	return err
 }

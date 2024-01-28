@@ -262,13 +262,13 @@ func TestLargePreimageUploader_UploadPreimage_Succeeds(t *testing.T) {
 
 }
 
-func newTestLargePreimageUploader(t *testing.T) (*LargePreimageUploader, *mockTxMgr, *mockPreimageOracleContract) {
+func newTestLargePreimageUploader(t *testing.T) (*LargePreimageUploader, *mockTxSender, *mockPreimageOracleContract) {
 	logger := testlog.Logger(t, log.LvlError)
-	txMgr := &mockTxMgr{}
+	txSender := &mockTxSender{}
 	contract := &mockPreimageOracleContract{
 		addData: make([]byte, 0),
 	}
-	return NewLargePreimageUploader(logger, txMgr, contract), txMgr, contract
+	return NewLargePreimageUploader(logger, txSender, contract), txSender, contract
 }
 
 type mockPreimageOracleContract struct {
