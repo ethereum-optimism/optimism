@@ -88,9 +88,13 @@ func NewGamePlayer(
 	if err != nil {
 		return nil, fmt.Errorf("failed to load oracle: %w", err)
 	}
+	minLargePreimageSize, err := oracle.MinLargePreimageSize(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load min large preimage size: %w", err)
+	}
 	direct := preimages.NewDirectPreimageUploader(logger, txMgr, loader)
 	large := preimages.NewLargePreimageUploader(logger, txMgr, oracle)
-	uploader := preimages.NewSplitPreimageUploader(direct, large)
+	uploader := preimages.NewSplitPreimageUploader(direct, large, minLargePreimageSize)
 
 	responder, err := responder.NewFaultResponder(logger, txMgr, loader, uploader, oracle)
 	if err != nil {
