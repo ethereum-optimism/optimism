@@ -22,17 +22,17 @@ abstract contract NestedMultisigBuilder is MultisigBase {
     /**
      * @notice Follow up assertions to ensure that the script ran to completion
      */
-    function _postCheck() internal virtual view;
+    function _postCheck() internal view virtual;
 
     /**
      * @notice Creates the calldata
      */
-    function _buildCalls() internal virtual view returns (IMulticall3.Call3[] memory);
+    function _buildCalls() internal view virtual returns (IMulticall3.Call3[] memory);
 
     /**
      * @notice Returns the nested safe address to execute the final transaction from
      */
-    function _ownerSafe() internal virtual view returns (address);
+    function _ownerSafe() internal view virtual returns (address);
 
     /**
      * -----------------------------------------------------------
@@ -101,7 +101,14 @@ abstract contract NestedMultisigBuilder is MultisigBase {
         return success;
     }
 
-    function _generateApproveCall(address _safe, IMulticall3.Call3[] memory _calls) internal view returns (IMulticall3.Call3 memory) {
+    function _generateApproveCall(
+        address _safe,
+        IMulticall3.Call3[] memory _calls
+    )
+        internal
+        view
+        returns (IMulticall3.Call3 memory)
+    {
         IGnosisSafe safe = IGnosisSafe(payable(_safe));
         bytes32 hash = _getTransactionHash(_safe, _calls);
 
@@ -150,13 +157,18 @@ abstract contract NestedMultisigBuilder is MultisigBase {
         IMulticall3.Call3[] memory calls = new IMulticall3.Call3[](2);
 
         // simulate an approveHash, so that signer can verify the data they are signing
-        bytes memory approveHashData = abi.encodeCall(IMulticall3.aggregate3, (toArray(
-            IMulticall3.Call3({
-                target: _safe,
-                allowFailure: false,
-                callData: abi.encodeCall(safe.approveHash, (hash))
-            })
-        )));
+        bytes memory approveHashData = abi.encodeCall(
+            IMulticall3.aggregate3,
+            (
+                toArray(
+                    IMulticall3.Call3({
+                        target: _safe,
+                        allowFailure: false,
+                        callData: abi.encodeCall(safe.approveHash, (hash))
+                    })
+                )
+            )
+        );
         bytes memory approveHashExec = abi.encodeCall(
             signerSafe.execTransaction,
             (
@@ -172,11 +184,7 @@ abstract contract NestedMultisigBuilder is MultisigBase {
                 prevalidatedSignature(address(multicall))
             )
         );
-        calls[0] = IMulticall3.Call3({
-            target: _signerSafe,
-            allowFailure: false,
-            callData: approveHashExec
-        });
+        calls[0] = IMulticall3.Call3({ target: _signerSafe, allowFailure: false, callData: approveHashExec });
 
         // simulate the final state changes tx, so that signer can verify the final results
         bytes memory finalExec = abi.encodeCall(
@@ -194,11 +202,7 @@ abstract contract NestedMultisigBuilder is MultisigBase {
                 prevalidatedSignature(_signerSafe)
             )
         );
-        calls[1] = IMulticall3.Call3({
-            target: _safe,
-            allowFailure: false,
-            callData: finalExec
-        });
+        calls[1] = IMulticall3.Call3({ target: _safe, allowFailure: false, callData: finalExec });
 
         SimulationStateOverride[] memory overrides = new SimulationStateOverride[](2);
         // The state change simulation sets the multisig threshold to 1 in the

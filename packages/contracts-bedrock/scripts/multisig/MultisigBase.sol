@@ -57,7 +57,14 @@ abstract contract MultisigBase is Simulator {
         console.log("^^^^^^^^");
     }
 
-    function _checkSignatures(address _safe, IMulticall3.Call3[] memory _calls, bytes memory _signatures) internal view {
+    function _checkSignatures(
+        address _safe,
+        IMulticall3.Call3[] memory _calls,
+        bytes memory _signatures
+    )
+        internal
+        view
+    {
         IGnosisSafe safe = IGnosisSafe(payable(_safe));
         bytes memory data = abi.encodeCall(IMulticall3.aggregate3, (_calls));
         bytes32 hash = _getTransactionHash(_safe, data);
@@ -69,14 +76,17 @@ abstract contract MultisigBase is Simulator {
         // safe requires signatures to be sorted ascending by public key
         _signatures = sortSignatures(_signatures, hash);
 
-        safe.checkSignatures({
-            dataHash: hash,
-            data: data,
-            signatures: _signatures
-        });
+        safe.checkSignatures({ dataHash: hash, data: data, signatures: _signatures });
     }
 
-    function _executeTransaction(address _safe, IMulticall3.Call3[] memory _calls, bytes memory _signatures) internal returns (bool) {
+    function _executeTransaction(
+        address _safe,
+        IMulticall3.Call3[] memory _calls,
+        bytes memory _signatures
+    )
+        internal
+        returns (bool)
+    {
         IGnosisSafe safe = IGnosisSafe(payable(_safe));
         bytes memory data = abi.encodeCall(IMulticall3.aggregate3, (_calls));
         bytes32 hash = _getTransactionHash(_safe, data);
@@ -105,7 +115,7 @@ abstract contract MultisigBase is Simulator {
                     payable(address(0)),
                     _signatures
                 )
-            )
+                )
         });
 
         return safe.execTransaction({
@@ -157,11 +167,13 @@ abstract contract MultisigBase is Simulator {
             if (v <= 1) {
                 owner = address(uint160(uint256(r)));
             } else if (v > 30) {
-                owner = ecrecover(keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", dataHash)), v - 4, r, s);
+                owner =
+                    ecrecover(keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", dataHash)), v - 4, r, s);
             } else {
                 owner = ecrecover(dataHash, v, r, s);
             }
-            addressesAndIndexes[i] = uint256(uint256(uint160(owner)) << 0x60 | i); // address in first 160 bits, index in second 96 bits
+            addressesAndIndexes[i] = uint256(uint256(uint160(owner)) << 0x60 | i); // address in first 160 bits, index
+                // in second 96 bits
         }
         LibSort.sort(addressesAndIndexes);
         for (uint256 i; i < count; i++) {
@@ -172,8 +184,16 @@ abstract contract MultisigBase is Simulator {
         return sorted;
     }
 
-    // see https://github.com/safe-global/safe-contracts/blob/1ed486bb148fe40c26be58d1b517cec163980027/contracts/common/SignatureDecoder.sol
-    function signatureSplit(bytes memory signatures, uint256 pos) internal pure returns (uint8 v, bytes32 r, bytes32 s) {
+    // see
+    // https://github.com/safe-global/safe-contracts/blob/1ed486bb148fe40c26be58d1b517cec163980027/contracts/common/SignatureDecoder.sol
+    function signatureSplit(
+        bytes memory signatures,
+        uint256 pos
+    )
+        internal
+        pure
+        returns (uint8 v, bytes32 r, bytes32 s)
+    {
         assembly {
             let signaturePos := mul(0x41, pos)
             r := mload(add(signatures, add(signaturePos, 0x20)))

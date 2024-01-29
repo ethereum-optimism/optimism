@@ -20,17 +20,17 @@ abstract contract MultisigBuilder is MultisigBase {
     /**
      * @notice Follow up assertions to ensure that the script ran to completion.
      */
-    function _postCheck() internal virtual view;
+    function _postCheck() internal view virtual;
 
     /**
      * @notice Creates the calldata
      */
-    function _buildCalls() internal virtual view returns (IMulticall3.Call3[] memory);
+    function _buildCalls() internal view virtual returns (IMulticall3.Call3[] memory);
 
     /**
      * @notice Returns the safe address to execute the transaction from
      */
-    function _ownerSafe() internal virtual view returns (address);
+    function _ownerSafe() internal view virtual returns (address);
 
     /**
      * -----------------------------------------------------------
@@ -113,7 +113,7 @@ abstract contract MultisigBuilder is MultisigBase {
                     payable(address(0)),
                     prevalidatedSignature(msg.sender)
                 )
-            ),
+                ),
             _from: msg.sender,
             _overrides: overrides
         });
