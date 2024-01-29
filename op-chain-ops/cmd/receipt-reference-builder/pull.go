@@ -40,6 +40,9 @@ func pull(ctx *cli.Context) error {
 		return err
 	}
 
+	// record start time
+	start := time.Now()
+
 	resultChan := make(chan result)
 	errorChan := make(chan error)
 
@@ -83,6 +86,8 @@ func pull(ctx *cli.Context) error {
 	}
 
 	log.Info("Aggregated Results", "results", aggregateResults)
+
+	log.Info("Finished", "numBlocks", last-first, "duration", time.Since(start))
 
 	return nil
 }
