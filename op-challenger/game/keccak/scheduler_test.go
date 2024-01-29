@@ -10,6 +10,7 @@ import (
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
@@ -90,12 +91,16 @@ func (s *stubOracle) GetPreimagesCount() int {
 	return s.getPreimagesCount
 }
 
+func (s *stubOracle) ChallengeTx(_ keccakTypes.LargePreimageIdent, _ keccakTypes.Challenge) (txmgr.TxCandidate, error) {
+	panic("not supported")
+}
+
 type stubChallenger struct {
 	m       sync.Mutex
 	checked []keccakTypes.LargePreimageMetaData
 }
 
-func (s *stubChallenger) Challenge(_ context.Context, _ common.Hash, _ keccakTypes.LargePreimageOracle, preimages []keccakTypes.LargePreimageMetaData) error {
+func (s *stubChallenger) Challenge(_ context.Context, _ common.Hash, _ Oracle, preimages []keccakTypes.LargePreimageMetaData) error {
 	s.m.Lock()
 	defer s.m.Unlock()
 	s.checked = append(s.checked, preimages...)

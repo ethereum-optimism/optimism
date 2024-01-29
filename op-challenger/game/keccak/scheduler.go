@@ -10,7 +10,7 @@ import (
 )
 
 type Challenger interface {
-	Challenge(ctx context.Context, blockHash common.Hash, oracle keccakTypes.LargePreimageOracle, preimages []keccakTypes.LargePreimageMetaData) error
+	Challenge(ctx context.Context, blockHash common.Hash, oracle Oracle, preimages []keccakTypes.LargePreimageMetaData) error
 }
 
 type LargePreimageScheduler struct {
