@@ -206,12 +206,12 @@ func TestLargePreimageUploader_UploadPreimage_Succeeds(t *testing.T) {
 			addCalls: 1,
 			prestateLeaf: keccakTypes.Leaf{
 				Input:           *fullLeaf,
-				Index:           big.NewInt(0),
+				Index:           0,
 				StateCommitment: common.HexToHash("9788a3b3bc36c482525b5890767be37130c997917bceca6e91a6c93359a4d1c6"),
 			},
 			poststateLeaf: keccakTypes.Leaf{
 				Input:           [keccakTypes.BlockSize]byte{},
-				Index:           big.NewInt(1),
+				Index:           1,
 				StateCommitment: common.HexToHash("78358b902b7774b314bcffdf0948746f18d6044086e76e3924d585dca3486c7d"),
 			},
 		},
@@ -221,12 +221,12 @@ func TestLargePreimageUploader_UploadPreimage_Succeeds(t *testing.T) {
 			addCalls: 1,
 			prestateLeaf: keccakTypes.Leaf{
 				Input:           *fullLeaf,
-				Index:           big.NewInt(2),
+				Index:           2,
 				StateCommitment: common.HexToHash("e3deed8ab6f8bbcf3d4fe825d74f703b3f2fc2f5b0afaa2574926fcfd0d4c895"),
 			},
 			poststateLeaf: keccakTypes.Leaf{
 				Input:           [keccakTypes.BlockSize]byte{},
-				Index:           big.NewInt(3),
+				Index:           3,
 				StateCommitment: common.HexToHash("79115eeab1ff2eccf5baf3ea2dda13bc79c548ce906bdd16433a23089c679df2"),
 			},
 		},
@@ -236,12 +236,12 @@ func TestLargePreimageUploader_UploadPreimage_Succeeds(t *testing.T) {
 			addCalls: 1,
 			prestateLeaf: keccakTypes.Leaf{
 				Input:           *fullLeaf,
-				Index:           big.NewInt(1),
+				Index:           1,
 				StateCommitment: common.HexToHash("b5ea400e375b2c1ce348f3cc4ad5b6ad28e1b36759ddd2aba155f0b1d476b015"),
 			},
 			poststateLeaf: keccakTypes.Leaf{
 				Input:           [keccakTypes.BlockSize]byte{byte(9)},
-				Index:           big.NewInt(2),
+				Index:           2,
 				StateCommitment: common.HexToHash("fa87e115dc4786e699bf80cc75d13ac1e2db0708c1418fc8cbc9800d17b5811a"),
 			},
 		},
@@ -251,12 +251,12 @@ func TestLargePreimageUploader_UploadPreimage_Succeeds(t *testing.T) {
 			addCalls: 2,
 			prestateLeaf: keccakTypes.Leaf{
 				Input:           *fullLeaf,
-				Index:           big.NewInt(301),
+				Index:           301,
 				StateCommitment: common.HexToHash("4e9c55542478939feca4ff55ee98fbc632bb65a784a55b94536644bc87298ca4"),
 			},
 			poststateLeaf: keccakTypes.Leaf{
 				Input:           [keccakTypes.BlockSize]byte{},
-				Index:           big.NewInt(302),
+				Index:           302,
 				StateCommitment: common.HexToHash("775020bfcaa93700263d040a4eeec3c8c3cf09e178457d04044594beaaf5e20b"),
 			},
 		},

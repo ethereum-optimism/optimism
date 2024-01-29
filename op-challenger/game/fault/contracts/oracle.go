@@ -50,7 +50,7 @@ type PreimageOracleContract struct {
 func toPreimageOracleLeaf(l keccakTypes.Leaf) bindings.PreimageOracleLeaf {
 	return bindings.PreimageOracleLeaf{
 		Input:           l.Input[:],
-		Index:           l.Index,
+		Index:           new(big.Int).SetUint64(l.Index),
 		StateCommitment: l.StateCommitment,
 	}
 }

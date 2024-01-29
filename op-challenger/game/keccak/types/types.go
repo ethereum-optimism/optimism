@@ -18,16 +18,9 @@ type Leaf struct {
 	// Input is the data absorbed for the block, exactly 136 bytes
 	Input [BlockSize]byte
 	// Index of the block in the absorption process
-	Index *big.Int
+	Index uint64
 	// StateCommitment is the hash of the internal state after absorbing the input.
 	StateCommitment common.Hash
-}
-
-func (l Leaf) IndexUint64() uint64 {
-	if l.Index == nil {
-		return 0
-	}
-	return l.Index.Uint64()
 }
 
 // Hash returns the hash of the leaf data. That is the
@@ -35,13 +28,7 @@ func (l Leaf) IndexUint64() uint64 {
 func (l Leaf) Hash() common.Hash {
 	concatted := make([]byte, 0, 136+32+32)
 	concatted = append(concatted, l.Input[:]...)
-	var indexBytes []byte
-	if l.Index != nil {
-		indexBytes = l.Index.Bytes()
-	} else {
-		indexBytes = big.NewInt(0).Bytes()
-	}
-	concatted = append(concatted, indexBytes...)
+	concatted = append(concatted, new(big.Int).SetUint64(l.Index).Bytes()...)
 	concatted = append(concatted, l.StateCommitment.Bytes()...)
 	return crypto.Keccak256Hash(concatted)
 }
