@@ -127,8 +127,9 @@ func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 
 	cost, err := gasPriceOracle.GetL1Fee(nil, []byte{0, 1, 2, 3, 4})
 	require.NoError(t, err)
-	// Pre-ecotone the GPO getL1Fee contract erroneously returned the pre-regolith L1 fee.
-	// Thus we do not require.the exact value here.
+	// The L1 info tx does not get included until after the Ecotone upgrade.
+	// The scalars are thus empty during activation, and only deposits are included, so the L1 fee is unused.
+	require.True(t, cost.IsUint64())
 	require.Equal(t, cost.Uint64(), uint64(0), "expecting zero scalars within activation block")
 
 	// Check that Ecotone was activated
@@ -189,6 +190,8 @@ func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 
 	cost, err = gasPriceOracle.GetL1Fee(nil, []byte{0, 1, 2, 3, 4})
 	require.NoError(t, err)
+	// The GPO getL1Fee contract returns the L1 fee with approximate signature overhead pre-included,
+	// like the pre-regolith L1 fee. We do the full fee check below. Just sanity check it is not zero anymore first.
 	require.Greater(t, cost.Uint64(), uint64(0), "expecting non-zero scalars after activation block")
 
 	// Get L1Block info
