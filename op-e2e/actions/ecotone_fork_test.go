@@ -5,7 +5,6 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -112,15 +111,15 @@ func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 	// Gas Price Oracle Proxy is updated
 	updatedGasPriceOracleAddress, err := ethCl.StorageAt(context.Background(), predeploys.GasPriceOracleAddr, genesis.ImplementationSlot, latestBlock.Number())
 	require.NoError(t, err)
-	assert.Equal(t, expectedGasPriceOracleAddress, common.BytesToAddress(updatedGasPriceOracleAddress))
-	assert.NotEqualf(t, initialGasPriceOracleAddress, updatedGasPriceOracleAddress, "Gas Price Oracle Proxy address should have changed")
+	require.Equal(t, expectedGasPriceOracleAddress, common.BytesToAddress(updatedGasPriceOracleAddress))
+	require.NotEqualf(t, initialGasPriceOracleAddress, updatedGasPriceOracleAddress, "Gas Price Oracle Proxy address should have changed")
 	verifyCodeHashMatches(t, ethCl, expectedGasPriceOracleAddress, gasPriceOracleCodeHash)
 
 	// L1Block Proxy is updated
 	updatedL1BlockAddress, err := ethCl.StorageAt(context.Background(), predeploys.L1BlockAddr, genesis.ImplementationSlot, latestBlock.Number())
 	require.NoError(t, err)
-	assert.Equal(t, expectedL1BlockAddress, common.BytesToAddress(updatedL1BlockAddress))
-	assert.NotEqualf(t, initialL1BlockAddress, updatedL1BlockAddress, "L1Block Proxy address should have changed")
+	require.Equal(t, expectedL1BlockAddress, common.BytesToAddress(updatedL1BlockAddress))
+	require.NotEqualf(t, initialL1BlockAddress, updatedL1BlockAddress, "L1Block Proxy address should have changed")
 	verifyCodeHashMatches(t, ethCl, expectedL1BlockAddress, l1BlockCodeHash)
 
 	_, err = gasPriceOracle.Scalar(nil)
@@ -129,7 +128,7 @@ func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 	cost, err := gasPriceOracle.GetL1Fee(nil, []byte{0, 1, 2, 3, 4})
 	require.NoError(t, err)
 	// Pre-ecotone the GPO getL1Fee contract erroneously returned the pre-regolith L1 fee.
-	// Thus we do not assert the exact value here.
+	// Thus we do not require.the exact value here.
 	require.Equal(t, cost.Uint64(), uint64(0), "expecting zero scalars within activation block")
 
 	// Check that Ecotone was activated
@@ -179,7 +178,7 @@ func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 	firstBeaconBlockRoot := *latestBlock.BeaconRoot()
 	checkBeaconBlockRoot(latestBlock.Time(), *latestBlock.BeaconRoot(), latestBlock.Time(), "post-activation")
 
-	// assert again, now that we are past activation
+	// require.again, now that we are past activation
 	_, err = gasPriceOracle.Scalar(nil)
 	require.ErrorContains(t, err, "scalar() is deprecated")
 
@@ -197,7 +196,7 @@ func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 	require.NoError(t, err)
 	l1BlockInfo, err := l1Block.Timestamp(nil)
 	require.NoError(t, err)
-	assert.Greater(t, l1BlockInfo, uint64(0))
+	require.Greater(t, l1BlockInfo, uint64(0))
 
 	l1OriginBlock, err := miner.EthClient().BlockByHash(context.Background(), sequencer.L2Unsafe().L1Origin.Hash)
 	require.NoError(t, err)
