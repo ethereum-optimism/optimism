@@ -26,12 +26,14 @@ func TestVerify(t *testing.T) {
 		expectedErr error
 	}{
 		{
-			name:   "Valid-SingleInput",
-			inputs: func() []keccakTypes.InputData { return validInputs(t, 1) },
+			name:        "Valid-SingleInput",
+			inputs:      func() []keccakTypes.InputData { return validInputs(t, 1) },
+			expectedErr: matrix.ErrValid,
 		},
 		{
-			name:   "Valid-MultipleInputs",
-			inputs: func() []keccakTypes.InputData { return validInputs(t, 3) },
+			name:        "Valid-MultipleInputs",
+			inputs:      func() []keccakTypes.InputData { return validInputs(t, 3) },
+			expectedErr: matrix.ErrValid,
 		},
 		{
 			name: "Invalid-FirstCommitment",
@@ -40,7 +42,7 @@ func TestVerify(t *testing.T) {
 				inputs[0].Commitments[0] = common.Hash{0xaa}
 				return inputs
 			},
-			expectedErr: ErrNotImplemented,
+			expectedErr: nil,
 		},
 		{
 			name: "Invalid-MiddleCommitment",
@@ -49,7 +51,7 @@ func TestVerify(t *testing.T) {
 				inputs[0].Commitments[1] = common.Hash{0xaa}
 				return inputs
 			},
-			expectedErr: ErrNotImplemented,
+			expectedErr: nil,
 		},
 		{
 			name: "Invalid-LastCommitment",
@@ -58,7 +60,7 @@ func TestVerify(t *testing.T) {
 				inputs[2].Commitments[len(inputs[2].Commitments)-1] = common.Hash{0xaa}
 				return inputs
 			},
-			expectedErr: ErrNotImplemented,
+			expectedErr: nil,
 		},
 	}
 
@@ -70,8 +72,15 @@ func TestVerify(t *testing.T) {
 			}
 			verifier := NewPreimageVerifier(logger, fetcher)
 			preimage := keccakTypes.LargePreimageMetaData{}
-			err := verifier.Verify(context.Background(), common.Hash{0xff}, &stubOracle{}, preimage)
+			challenge, err := verifier.CreateChallenge(context.Background(), common.Hash{0xff}, &stubOracle{}, preimage)
 			require.ErrorIs(t, err, test.expectedErr)
+			if err == nil {
+				// Leave checking the validity of the challenge to the StateMatrix tests
+				// Just confirm that we got a non-zero challenge
+				require.NotEqual(t, keccakTypes.Challenge{}, challenge)
+			} else {
+				require.Equal(t, keccakTypes.Challenge{}, challenge)
+			}
 		})
 	}
 }
