@@ -122,18 +122,3 @@ func cmpVersion(v1, v2 string) bool {
 	}
 	return v1 == v2
 }
-
-// SuperChainID returns the chain ID for the supplied superchain name, or an error
-// if no such superchain is known.
-func SuperChainID(superchain string) (uint64, error) {
-	switch superchain {
-	case "mainnet":
-		return 1, nil
-	case "goerli":
-	case "goerli-dev-0":
-		return 5, nil
-	case "sepolia":
-		return 11155111, nil
-	}
-	return 0, fmt.Errorf("unknown superchain %s", superchain)
-}
