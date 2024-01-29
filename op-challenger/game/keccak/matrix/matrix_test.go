@@ -71,7 +71,7 @@ func TestReferenceCommitmentsFromReader(t *testing.T) {
 			var prestateLeaf []byte
 			var poststateLeaf []byte
 			for {
-				readData, err := s.absorbNextLeafInput(in)
+				readData, err := s.absorbNextLeafInput(in, s.StateCommitment)
 				if errors.Is(err, io.EOF) {
 					if prestateLeaf == nil {
 						prestateLeaf = readData
@@ -222,7 +222,7 @@ func TestMatrix_AbsorbNextLeaf(t *testing.T) {
 			state := NewStateMatrix()
 			in := bytes.NewReader(test.input)
 			for i, leaf := range test.leafInputs {
-				buf, err := state.absorbNextLeafInput(in)
+				buf, err := state.absorbNextLeafInput(in, state.StateCommitment)
 				if errors.Is(err, io.EOF) {
 					require.Equal(t, test.errs[i], err)
 					break

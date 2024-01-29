@@ -40,18 +40,18 @@ func Challenge(data io.Reader, commitments []common.Hash) (types.Challenge, erro
 	m := s.PackState()
 	var prestate types.Leaf
 	for i := 0; ; i++ {
-		unpaddedLeaf, err := s.absorbNextLeafInput(data)
-		isEOF := errors.Is(err, io.EOF)
-		if err != nil && !isEOF {
-			return types.Challenge{}, fmt.Errorf("failed to verify inputs: %w", err)
-		}
-		validCommitment := s.StateCommitment()
 		if i >= len(commitments) {
 			// There should have been more commitments.
 			// The contracts should prevent this so it can't be challenged, return an error
 			return types.Challenge{}, ErrIncorrectCommitmentCount
 		}
 		claimedCommitment := commitments[i]
+		unpaddedLeaf, err := s.absorbNextLeafInput(data, func() common.Hash { return claimedCommitment })
+		isEOF := errors.Is(err, io.EOF)
+		if err != nil && !isEOF {
+			return types.Challenge{}, fmt.Errorf("failed to verify inputs: %w", err)
+		}
+		validCommitment := s.StateCommitment()
 
 		var paddedLeaf [types.BlockSize]byte
 		copy(paddedLeaf[:], unpaddedLeaf)
@@ -133,7 +133,7 @@ func (d *StateMatrix) AbsorbUpTo(in io.Reader, maxLen int) (types.InputData, err
 	input := make([]byte, 0, maxLen)
 	commitments := make([]common.Hash, 0, maxLen/types.BlockSize)
 	for len(input)+types.BlockSize <= maxLen {
-		readData, err := d.absorbNextLeafInput(in)
+		readData, err := d.absorbNextLeafInput(in, d.StateCommitment)
 		if errors.Is(err, io.EOF) {
 			input = append(input, readData...)
 			commitments = append(commitments, d.StateCommitment())
@@ -176,7 +176,7 @@ func (d *StateMatrix) PoststateWithProof() (types.Leaf, merkle.Proof, error) {
 
 // absorbNextLeafInput reads up to [BlockSize] bytes from in and absorbs them into the state matrix.
 // If EOF is reached while reading, the state matrix is finalized and [io.EOF] is returned.
-func (d *StateMatrix) absorbNextLeafInput(in io.Reader) ([]byte, error) {
+func (d *StateMatrix) absorbNextLeafInput(in io.Reader, stateCommitment func() common.Hash) ([]byte, error) {
 	data := make([]byte, types.BlockSize)
 	read := 0
 	final := false
@@ -198,12 +198,13 @@ func (d *StateMatrix) absorbNextLeafInput(in io.Reader) ([]byte, error) {
 	// additional block. We can then return EOF to indicate there are no further blocks.
 	final = final && len(input) < types.BlockSize
 	d.absorbLeafInput(input, final)
+	commitment := stateCommitment()
 	if d.prestateLeaf.StateCommitment == (common.Hash{}) {
-		d.prestateLeaf = newLeafWithPadding(input, d.prestateLeaf.Index, d.StateCommitment())
-		d.poststateLeaf = newLeafWithPadding(input, d.prestateLeaf.Index, d.StateCommitment())
+		d.prestateLeaf = newLeafWithPadding(input, d.prestateLeaf.Index, commitment)
+		d.poststateLeaf = newLeafWithPadding(input, d.prestateLeaf.Index, commitment)
 	} else {
 		d.prestateLeaf = d.poststateLeaf
-		d.poststateLeaf = newLeafWithPadding(input, new(big.Int).Add(d.prestateLeaf.Index, big.NewInt(1)), d.StateCommitment())
+		d.poststateLeaf = newLeafWithPadding(input, new(big.Int).Add(d.prestateLeaf.Index, big.NewInt(1)), commitment)
 	}
 	d.merkleTree.AddLeaf(d.poststateLeaf.Hash())
 	if final {
