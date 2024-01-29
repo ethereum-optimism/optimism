@@ -16,7 +16,7 @@ func main() {
 	var l2RpcUrl string
 	var dataDir string
 	flag.StringVar(&l1RpcUrl, "l1", "", "L1 RPC URL to use")
-	flag.StringVar(&l1RpcKind, "l1-rpckind", "standard", "L1 RPC kind")
+	flag.StringVar(&l1RpcKind, "l1-rpckind", "debug_geth", "L1 RPC kind")
 	flag.StringVar(&l2RpcUrl, "l2", "", "L2 RPC URL to use")
 	flag.StringVar(&dataDir, "datadir", "",
 		"Directory to use for storing pre-images. If not set a temporary directory will be used.")
