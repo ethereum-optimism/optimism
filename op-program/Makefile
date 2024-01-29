@@ -39,7 +39,7 @@ test:
 	go test -v ./...
 
 verify-goerli: op-program-host op-program-client
-	env GO111MODULE=on go run ./verify/cmd/goerli.go --l1 $$L1URL --l2 $$L2URL
+	env GO111MODULE=on go run ./verify/goerli/cmd/goerli.go --l1 $$L1URL --l2 $$L2URL
 
 run-goerli-verify: op-program-host op-program-client
 	mkdir -p "$(COMPAT_DIR)"
@@ -48,11 +48,11 @@ run-goerli-verify: op-program-host op-program-client
 	./bin/op-program `cat "$(COMPAT_DIR)/goerli/args.txt"`
 
 verify-sepolia: op-program-host op-program-client
-	env GO111MODULE=on go run ./verify/cmd/sepolia.go --l1 $$SEPOLIA_L1URL --l2 $$SEPOLIA_L2URL
+	env GO111MODULE=on go run ./verify/sepolia/cmd/sepolia.go --l1 $$SEPOLIA_L1URL --l2 $$SEPOLIA_L2URL
 
 capture-sepolia-verify: op-program-host op-program-client
 	rm -rf "$(COMPAT_DIR)/sepolia" "$(COMPAT_DIR)/sepolia.tar.bz"
-	env GO111MODULE=on go run ./verify/cmd/sepolia.go --l1 $$SEPOLIA_L1URL --l2 $$SEPOLIA_L2URL --datadir "$(COMPAT_DIR)/sepolia"
+	env GO111MODULE=on go run ./verify/sepolia/cmd/sepolia.go --l1 $$SEPOLIA_L1URL --l2 $$SEPOLIA_L2URL --datadir "$(COMPAT_DIR)/sepolia"
 	tar jcf "$(COMPAT_DIR)/sepolia.tar.bz" -C "$(COMPAT_DIR)" sepolia
 
 capture-chain-test-data: capture-sepolia-verify
