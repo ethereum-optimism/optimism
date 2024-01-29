@@ -153,8 +153,9 @@ func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 
 		timeValue, err := ethCl.StorageAt(context.Background(), predeploys.EIP4788ContractAddr, timeIdx, nil)
 		require.NoError(t, err)
-		require.True(t, common.BytesToHash(timeValue).Big().IsUint64())
-		require.Equal(t, expectedTime, common.BytesToHash(timeValue).Big().Uint64(), msg)
+		timeBig := new(big.Int).SetBytes(timeValue)
+		require.True(t, timeBig.IsUint64())
+		require.Equal(t, expectedTime, timeBig.Uint64(), msg)
 	}
 	// The header will always have the beacon-block-root, at the very start.
 	require.NotNil(t, latestBlock.BeaconRoot())
