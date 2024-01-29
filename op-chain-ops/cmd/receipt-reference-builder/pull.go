@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"math/big"
+	"sort"
 	"sync"
 	"time"
 
@@ -75,7 +76,7 @@ func pull(ctx *cli.Context) error {
 	aggregateResults.First = first
 	aggregateResults.Last = last
 
-	err = writeAggregate(aggregateResults, ctx.String("output"))
+	err = writeJSON(aggregateResults, ctx.String("output"))
 	if err != nil {
 		log.Error("failed to write aggregate results", "err", err)
 		return err
@@ -136,6 +137,12 @@ func startWorker(id uint64,
 	}
 }
 
+type ByHash []*types.Transaction
+
+func (a ByHash) Len() int           { return len(a) }
+func (a ByHash) Less(i, j int) bool { return a[i].Hash().Cmp(a[j].Hash()) < 0 }
+func (a ByHash) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+
 // processBlock will investigate the transaction of a block and return the nonces of all user deposits which pass checks
 func processBlock(ctx context.Context, c *ethclient.Client, blockNumber uint64, log log.Logger) ([]uint64, error) {
 	ns := []uint64{}
@@ -148,6 +155,9 @@ func processBlock(ctx context.Context, c *ethclient.Client, blockNumber uint64, 
 
 	txCount := 0
 	matches := 0
+	// sort the transactions by hash
+	// readers of the data will need to sort to match
+	sort.Sort(ByHash(block.Transactions()))
 	for _, tx := range block.Transactions() {
 		ok, err := checkTransaction(ctx, c, *tx, log)
 		if err != nil {

@@ -6,9 +6,9 @@ import (
 	"os"
 )
 
-// writeAggregate writes the aggregate to a file
+// writeJSON writes the aggregate to a file
 // if the output file is not specified, it will creeate a file based on the block range
-func writeAggregate(a aggregate, o string) error {
+func writeJSON(a aggregate, o string) error {
 	if o == "" {
 		o = fmt.Sprintf("%d-%d.json", a.First, a.Last)
 	}
@@ -21,7 +21,7 @@ func writeAggregate(a aggregate, o string) error {
 	return err
 }
 
-func readAggregate(f string) (aggregate, error) {
+func readJSON(f string) (aggregate, error) {
 	// read the file
 	aggregateJson, err := os.ReadFile(f)
 	if err != nil {

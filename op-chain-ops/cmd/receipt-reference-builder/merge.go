@@ -27,7 +27,7 @@ func merge(ctx *cli.Context) error {
 
 	aggregates := []aggregate{}
 	for _, f := range files {
-		a, err := readAggregate(f)
+		a, err := readJSON(f)
 		if err != nil {
 			log.Error("failed to read aggregate", "file", f, "err", err)
 			return err
@@ -53,7 +53,7 @@ func merge(ctx *cli.Context) error {
 	}
 
 	// write the merged aggregate
-	err = writeAggregate(merged, ctx.String("output"))
+	err = writeJSON(merged, ctx.String("output"))
 	if err != nil {
 		log.Error("failed to write aggregate", "err", err)
 		return err

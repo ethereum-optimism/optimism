@@ -66,6 +66,8 @@ func main() {
 	app.Commands = []*cli.Command{
 		pullCommand,
 		mergeCommand,
+		generateCommand,
+		printGobCommand,
 	}
 
 	if err := app.Run(os.Args); err != nil {
