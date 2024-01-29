@@ -189,6 +189,7 @@ func NewMetrics(procName string) *Metrics {
 			Namespace: ns,
 			Name:      "blob_used_bytes",
 			Help:      "Blob size in bytes being submitted.",
+			Buckets:   prometheus.LinearBuckets(0.0, eth.MaxBlobDataSize/13, 13),
 		}),
 
 		batcherTxEvs: opmetrics.NewEventVec(factory, ns, "", "batcher_tx", "BatcherTx", []string{"stage"}),
