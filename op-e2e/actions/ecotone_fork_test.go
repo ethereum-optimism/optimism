@@ -24,15 +24,20 @@ import (
 )
 
 var (
-	l1BlockCodeHash        = common.FromHex("0xc88a313aa75dc4fbf0b6850d9f9ae41e04243b7008cf3eadb29256d4a71c1dfd")
-	gasPriceOracleCodeHash = common.FromHex("0x8b71360ea773b4cfaf1ae6d2bd15464a4e1e2e360f786e475f63aeaed8da0ae5")
+	l1BlockCodeHash        = common.HexToHash("0xc88a313aa75dc4fbf0b6850d9f9ae41e04243b7008cf3eadb29256d4a71c1dfd")
+	gasPriceOracleCodeHash = common.HexToHash("0x8b71360ea773b4cfaf1ae6d2bd15464a4e1e2e360f786e475f63aeaed8da0ae5")
 )
 
-func verifyCodeHashMatches(t *testing.T, client *ethclient.Client, address common.Address, expectedCodeHash []byte) {
+// verifyCodeHashMatches checks that the has of the code at the given address matches the expected code-hash.
+// It also sanity-checks that the code is not empty: we should never deploy empty contract codes.
+// Returns the contract code
+func verifyCodeHashMatches(t Testing, client *ethclient.Client, address common.Address, expectedCodeHash common.Hash) []byte {
 	code, err := client.CodeAt(context.Background(), address, nil)
 	require.NoError(t, err)
+	require.NotEmpty(t, code)
 	codeHash := crypto.Keccak256Hash(code)
-	require.Equal(t, expectedCodeHash, codeHash.Bytes())
+	require.Equal(t, expectedCodeHash, codeHash)
+	return code
 }
 
 func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
@@ -109,14 +114,14 @@ func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, expectedGasPriceOracleAddress, common.BytesToAddress(updatedGasPriceOracleAddress))
 	assert.NotEqualf(t, initialGasPriceOracleAddress, updatedGasPriceOracleAddress, "Gas Price Oracle Proxy address should have changed")
-	verifyCodeHashMatches(gt, ethCl, expectedGasPriceOracleAddress, gasPriceOracleCodeHash)
+	verifyCodeHashMatches(t, ethCl, expectedGasPriceOracleAddress, gasPriceOracleCodeHash)
 
 	// L1Block Proxy is updated
 	updatedL1BlockAddress, err := ethCl.StorageAt(context.Background(), predeploys.L1BlockAddr, genesis.ImplementationSlot, latestBlock.Number())
 	require.NoError(t, err)
 	assert.Equal(t, expectedL1BlockAddress, common.BytesToAddress(updatedL1BlockAddress))
 	assert.NotEqualf(t, initialL1BlockAddress, updatedL1BlockAddress, "L1Block Proxy address should have changed")
-	verifyCodeHashMatches(gt, ethCl, expectedL1BlockAddress, l1BlockCodeHash)
+	verifyCodeHashMatches(t, ethCl, expectedL1BlockAddress, l1BlockCodeHash)
 
 	_, err = gasPriceOracle.Scalar(nil)
 	require.ErrorContains(t, err, "scalar() is deprecated")
@@ -135,12 +140,8 @@ func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 	// 4788 contract is deployed
 	expected4788Address := crypto.CreateAddress(derive.EIP4788From, 0)
 	require.Equal(t, predeploys.EIP4788ContractAddr, expected4788Address)
-	code, err := ethCl.CodeAt(context.Background(), expected4788Address, latestBlock.Number())
-	require.NoError(t, err)
-	require.NotEmpty(t, code)
+	code := verifyCodeHashMatches(t, ethCl, predeploys.EIP4788ContractAddr, predeploys.EIP4788ContractCodeHash)
 	require.Equal(t, predeploys.EIP4788ContractCode, code)
-	require.NotEmpty(t, predeploys.EIP4788ContractAddr)
-	require.Equal(t, predeploys.EIP4788ContractCodeHash, crypto.Keccak256Hash(code))
 	// Test that the beacon-block-root has been set
 	checkBeaconBlockRoot := func(timestamp uint64, expectedHash common.Hash, expectedTime uint64, msg string) {
 		historyBufferLength := uint64(8191)
