@@ -372,6 +372,7 @@ func (l *BatchSubmitter) sendTransaction(txdata txData, queue *txmgr.Queue[txDat
 			// or configuration issue.
 			return fmt.Errorf("could not create blob tx candidate: %w", err)
 		}
+		l.Metr.RecordBlobUsedBytes(len(data))
 	} else {
 		candidate = l.calldataTxCandidate(data)
 	}
