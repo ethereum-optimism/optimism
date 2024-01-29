@@ -27,8 +27,8 @@ func main() {
 		os.Exit(2)
 	}
 
-	sepoliaOutputAddress := common.HexToAddress("0x90E9c4f8a994a250F6aEfd61CAFb4F2e895D458F")
-	err := verify.Run(l1RpcUrl, l1RpcKind, l2RpcUrl, sepoliaOutputAddress, dataDir, "sepolia", chainconfig.OPSepoliaChainConfig)
+	goerliOutputAddress := common.HexToAddress("0xE6Dfba0953616Bacab0c9A8ecb3a9BBa77FC15c0")
+	err := verify.Run(l1RpcUrl, l1RpcKind, l2RpcUrl, goerliOutputAddress, dataDir, "goerli", chainconfig.OPGoerliChainConfig)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "Failed: %v\n", err.Error())
 		os.Exit(1)
