@@ -122,14 +122,8 @@ func (p *LargePreimageUploader) splitCalls(data *types.PreimageOracleData) (*mat
 }
 
 func (p *LargePreimageUploader) Squeeze(ctx context.Context, uuid *big.Int, stateMatrix *matrix.StateMatrix) error {
-	prestate, prestateProof, err := stateMatrix.PrestateWithProof()
-	if err != nil {
-		return fmt.Errorf("failed to generate prestate proof: %w", err)
-	}
-	poststate, poststateProof, err := stateMatrix.PoststateWithProof()
-	if err != nil {
-		return fmt.Errorf("failed to generate poststate proof: %w", err)
-	}
+	prestate, prestateProof := stateMatrix.PrestateWithProof()
+	poststate, poststateProof := stateMatrix.PoststateWithProof()
 	challengePeriod, err := p.contract.ChallengePeriod(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get challenge period: %w", err)

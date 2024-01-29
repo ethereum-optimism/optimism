@@ -67,8 +67,7 @@ func TestBinaryMerkleTree_ProofAtIndex(t *testing.T) {
 			for i := 0; i < int(test.LeafCount); i++ {
 				tree.AddLeaf(leafHash(i))
 			}
-			proof, err := tree.ProofAtIndex(test.Index)
-			require.NoError(t, err)
+			proof := tree.ProofAtIndex(test.Index)
 			require.Equal(t, test.Proofs, proof)
 		})
 	}
