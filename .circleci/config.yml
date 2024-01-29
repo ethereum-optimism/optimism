@@ -1255,9 +1255,9 @@ jobs:
     steps:
       - checkout
       - run:
-          name: verify-goerli
+          name: verify-sepolia
           command: |
-            make verify-goerli
+            make verify-sepolia
           working_directory: op-program
       - notify-failures-on-develop
 

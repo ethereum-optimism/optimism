@@ -39,20 +39,29 @@ test:
 	go test -v ./...
 
 verify-goerli: op-program-host op-program-client
-	env GO111MODULE=on go run ./verify/cmd/goerli.go --l1 $$L1URL --l2 $$L2URL
-
-capture-goerli-verify: op-program-host op-program-client
-	rm -rf "$(COMPAT_DIR)/goerli" "$(COMPAT_DIR)/goerli.tar.bz"
-	env GO111MODULE=on go run ./verify/cmd/goerli.go --l1 $$L1URL --l2 $$L2URL --datadir "$(COMPAT_DIR)/goerli"
-	tar jcf "$(COMPAT_DIR)/goerli.tar.bz" -C "$(COMPAT_DIR)" goerli
-
-capture-chain-test-data: capture-goerli-verify
+	env GO111MODULE=on go run ./verify/goerli/cmd/goerli.go --l1 $$L1URL --l2 $$L2URL
 
 run-goerli-verify: op-program-host op-program-client
 	mkdir -p "$(COMPAT_DIR)"
 	curl -L -o "$(COMPAT_DIR)/goerli.tar.bz" https://github.com/ethereum-optimism/chain-test-data/releases/download/2023-10-11/goerli.tar.bz
 	tar jxf "$(COMPAT_DIR)/goerli.tar.bz" -C "$(COMPAT_DIR)"
 	./bin/op-program `cat "$(COMPAT_DIR)/goerli/args.txt"`
+
+verify-sepolia: op-program-host op-program-client
+	env GO111MODULE=on go run ./verify/sepolia/cmd/sepolia.go --l1 $$SEPOLIA_L1URL --l2 $$SEPOLIA_L2URL
+
+capture-sepolia-verify: op-program-host op-program-client
+	rm -rf "$(COMPAT_DIR)/sepolia" "$(COMPAT_DIR)/sepolia.tar.bz"
+	env GO111MODULE=on go run ./verify/sepolia/cmd/sepolia.go --l1 $$SEPOLIA_L1URL --l2 $$SEPOLIA_L2URL --datadir "$(COMPAT_DIR)/sepolia"
+	tar jcf "$(COMPAT_DIR)/sepolia.tar.bz" -C "$(COMPAT_DIR)" sepolia
+
+capture-chain-test-data: capture-sepolia-verify
+
+run-sepolia-verify: op-program-host op-program-client
+	mkdir -p "$(COMPAT_DIR)"
+	curl -L -o "$(COMPAT_DIR)/sepolia.tar.bz" https://github.com/ethereum-optimism/chain-test-data/releases/download/2023-10-11/sepolia.tar.bz
+	tar jxf "$(COMPAT_DIR)/sepolia.tar.bz" -C "$(COMPAT_DIR)"
+	./bin/op-program `cat "$(COMPAT_DIR)/sepolia/args.txt"`
 
 .PHONY: \
 	op-program \
@@ -63,5 +72,8 @@ run-goerli-verify: op-program-host op-program-client
 	test \
 	verify-goerli \
 	capture-goerli-verify \
+	verify-sepolia \
+	capture-sepolia-verify \
 	capture-chain-test-data \
-	run-goerli-verify
+	run-goerli-verify \
+	run-sepolia-verify
