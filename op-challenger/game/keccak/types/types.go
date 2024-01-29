@@ -38,6 +38,8 @@ func (l Leaf) Hash() common.Hash {
 	var indexBytes []byte
 	if l.Index != nil {
 		indexBytes = l.Index.Bytes()
+	} else {
+		indexBytes = big.NewInt(0).Bytes()
 	}
 	concatted = append(concatted, indexBytes...)
 	concatted = append(concatted, l.StateCommitment.Bytes()...)
