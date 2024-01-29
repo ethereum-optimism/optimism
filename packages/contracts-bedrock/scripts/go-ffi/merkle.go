@@ -75,10 +75,7 @@ func DiffMerkle() {
 		}
 
 		// Generate the proof for the given index.
-		proof, err := merkleTree.ProofAtIndex(uint64(index))
-		if err != nil {
-			log.Fatal("Failed to generate proof: ", err)
-		}
+		proof := merkleTree.ProofAtIndex(uint64(index))
 
 		// Generate the merkle root.
 		root := merkleTree.RootHash()

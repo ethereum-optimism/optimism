@@ -11,6 +11,7 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/merkle"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum/common"
@@ -58,39 +59,47 @@ type testData struct {
 	PoststateLeaf []byte        `json:"poststateLeaf"`
 }
 
-func TestReferenceCommitmentsFromReader(t *testing.T) {
+func TestAbsorbNextLeaf_ReferenceCommitments(t *testing.T) {
 	var tests []testData
 	require.NoError(t, json.Unmarshal(refTests, &tests))
 
 	for i, test := range tests {
 		test := test
-		t.Run(fmt.Sprintf("Ref-%v", i), func(t *testing.T) {
+		t.Run(fmt.Sprintf("Ref-%v-%v", i, len(test.Input)), func(t *testing.T) {
+			prevLeaf := types.Leaf{}
 			s := NewStateMatrix()
 			commitments := []common.Hash{s.StateCommitment()}
 			in := bytes.NewReader(test.Input)
-			var prestateLeaf []byte
-			var poststateLeaf []byte
 			for {
-				readData, err := s.absorbNextLeafInput(in)
-				if errors.Is(err, io.EOF) {
-					if prestateLeaf == nil {
-						prestateLeaf = readData
-					}
-					poststateLeaf = readData
-					commitments = append(commitments, s.StateCommitment())
+				readData, err := s.absorbNextLeafInput(in, s.StateCommitment)
+				isEOF := errors.Is(err, io.EOF)
+				if !isEOF {
+					// Shouldn't get any error except EOF
+					require.NoError(t, err)
+				}
+				prestate, _ := s.PrestateWithProof()
+				poststate, _ := s.PoststateWithProof()
+				require.Equal(t, prevLeaf, prestate, "Prestate should be the previous post state")
+				require.Equal(t, poststate.Input[:len(readData)], readData, "Post state should have returned input data")
+				prevLeaf = poststate
+				commitments = append(commitments, s.StateCommitment())
+				if isEOF {
 					break
 				}
-				// Shouldn't get any error except EOF
-				require.NoError(t, err)
-				commitments = append(commitments, s.StateCommitment())
-				prestateLeaf = readData
 			}
 			actual := s.Hash()
 			expected := crypto.Keccak256Hash(test.Input)
 			require.Equal(t, expected, actual)
 			require.Equal(t, test.Commitments, commitments)
-			require.Equal(t, test.PrestateLeaf, prestateLeaf)
-			require.Equal(t, test.PoststateLeaf, poststateLeaf)
+
+			prestate, _ := s.PrestateWithProof()
+			var expectedPre [types.BlockSize]byte
+			copy(expectedPre[:], test.PrestateLeaf)
+			require.Equal(t, expectedPre, prestate.Input, "Final prestate")
+			poststate, _ := s.PoststateWithProof()
+			var expectedPost [types.BlockSize]byte
+			copy(expectedPost[:], test.PoststateLeaf)
+			require.Equal(t, expectedPost, poststate.Input, "Final poststate")
 		})
 	}
 }
@@ -179,7 +188,7 @@ func TestAbsorbUpTo_InvalidLengths(t *testing.T) {
 	}
 }
 
-func TestMatrix_AbsorbNextLeaf(t *testing.T) {
+func TestMatrix_absorbNextLeaf(t *testing.T) {
 	fullLeaf := make([]byte, types.BlockSize)
 	for i := 0; i < types.BlockSize; i++ {
 		fullLeaf[i] = byte(i)
@@ -222,7 +231,7 @@ func TestMatrix_AbsorbNextLeaf(t *testing.T) {
 			state := NewStateMatrix()
 			in := bytes.NewReader(test.input)
 			for i, leaf := range test.leafInputs {
-				buf, err := state.absorbNextLeafInput(in)
+				buf, err := state.absorbNextLeafInput(in, state.StateCommitment)
 				if errors.Is(err, io.EOF) {
 					require.Equal(t, test.errs[i], err)
 					break
@@ -272,15 +281,31 @@ func TestVerifyPreimage(t *testing.T) {
 		return valid.Commitments
 	}
 	leafData := func(idx int) (out [types.BlockSize]byte) {
-		copy(out[:], preimage[idx*types.BlockSize:(idx+1)*types.BlockSize])
+		end := min((idx+1)*types.BlockSize, len(preimage))
+		copy(out[:], preimage[idx*types.BlockSize:end])
 		return
 	}
+	// merkleTree creates the final merkle tree after including all leaves.
+	merkleTree := func(commitments []common.Hash) *merkle.BinaryMerkleTree {
+		m := merkle.NewBinaryMerkleTree()
+		for i, commitment := range commitments {
+			leaf := types.Leaf{
+				Input:           leafData(i),
+				Index:           big.NewInt(int64(i)),
+				StateCommitment: commitment,
+			}
+			m.AddLeaf(leaf.Hash())
+		}
+		return m
+	}
+
 	challengeLeaf := func(commitments []common.Hash, invalidIdx int) types.Challenge {
 		invalidLeafStart := invalidIdx * types.BlockSize
 		s := NewStateMatrix()
 		_, err := s.AbsorbUpTo(bytes.NewReader(preimage), invalidLeafStart)
 		require.NoError(t, err)
 
+		fullMerkle := merkleTree(commitments)
 		prestateLeaf := leafData(invalidIdx - 1)
 		poststateLeaf := leafData(invalidIdx)
 		return types.Challenge{
@@ -290,11 +315,14 @@ func TestVerifyPreimage(t *testing.T) {
 				Index:           big.NewInt(int64(invalidIdx - 1)),
 				StateCommitment: commitments[invalidIdx-1],
 			},
+			PrestateProof: fullMerkle.ProofAtIndex(uint64(invalidIdx - 1)),
+
 			Poststate: types.Leaf{
 				Input:           poststateLeaf,
 				Index:           big.NewInt(int64(invalidIdx)),
 				StateCommitment: commitments[invalidIdx],
 			},
+			PoststateProof: fullMerkle.ProofAtIndex(uint64(invalidIdx)),
 		}
 	}
 
@@ -312,23 +340,26 @@ func TestVerifyPreimage(t *testing.T) {
 			commitments: validCommitments,
 			expectedErr: ErrValid,
 		},
-		{
-			name: "IncorrectFirstLeaf",
-			commitments: func() []common.Hash {
-				commitments := validCommitments()
-				commitments[0] = common.Hash{0xaa}
-				return commitments
-			},
-			expected: types.Challenge{
-				StateMatrix: NewStateMatrix().PackState(),
-				Prestate:    types.Leaf{},
-				Poststate: types.Leaf{
-					Input:           poststateLeaf,
-					Index:           big.NewInt(int64(0)),
-					StateCommitment: common.Hash{0xaa},
+		func() testInputs {
+			incorrectFirstCommitment := validCommitments()
+			incorrectFirstCommitment[0] = common.Hash{0xaa}
+			return testInputs{
+				name: "IncorrectFirstLeaf",
+				commitments: func() []common.Hash {
+					return incorrectFirstCommitment
 				},
-			},
-		},
+				expected: types.Challenge{
+					StateMatrix: NewStateMatrix().PackState(),
+					Prestate:    types.Leaf{},
+					Poststate: types.Leaf{
+						Input:           poststateLeaf,
+						Index:           big.NewInt(int64(0)),
+						StateCommitment: common.Hash{0xaa},
+					},
+					PoststateProof: merkleTree(incorrectFirstCommitment).ProofAtIndex(0),
+				},
+			}
+		}(),
 	}
 
 	for i := 1; i < len(preimage)/types.BlockSize; i++ {
@@ -348,7 +379,12 @@ func TestVerifyPreimage(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			challenge, err := Challenge(bytes.NewReader(preimage), test.commitments())
 			require.ErrorIs(t, err, test.expectedErr)
-			require.Equal(t, test.expected, challenge)
+			require.Equal(t, test.expected.StateMatrix, challenge.StateMatrix, "Correct state matrix")
+			require.Equal(t, test.expected.Prestate, challenge.Prestate, "Correct prestate")
+			require.Equal(t, test.expected.PrestateProof, challenge.PrestateProof, "Correct prestate proof")
+			require.Equal(t, test.expected.Poststate, challenge.Poststate, "Correct poststate")
+			require.Equal(t, test.expected.PoststateProof, challenge.PoststateProof, "Correct poststate proof")
+			require.Equal(t, test.expected, challenge, "Challenge correct overall")
 		})
 	}
 }

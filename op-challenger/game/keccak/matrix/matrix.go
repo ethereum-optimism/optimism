@@ -37,38 +37,30 @@ var (
 // [ErrValid] is returned if the provided inputs are valid and no challenge can be created.
 func Challenge(data io.Reader, commitments []common.Hash) (types.Challenge, error) {
 	s := NewStateMatrix()
-	m := s.PackState()
-	var prestate types.Leaf
+	lastValidState := s.PackState()
+	var lastValidLeaf types.Leaf
+	var firstInvalidLeaf types.Leaf
 	for i := 0; ; i++ {
-		unpaddedLeaf, err := s.absorbNextLeafInput(data)
-		isEOF := errors.Is(err, io.EOF)
-		if err != nil && !isEOF {
-			return types.Challenge{}, fmt.Errorf("failed to verify inputs: %w", err)
-		}
-		validCommitment := s.StateCommitment()
 		if i >= len(commitments) {
 			// There should have been more commitments.
 			// The contracts should prevent this so it can't be challenged, return an error
 			return types.Challenge{}, ErrIncorrectCommitmentCount
 		}
 		claimedCommitment := commitments[i]
-
-		var paddedLeaf [types.BlockSize]byte
-		copy(paddedLeaf[:], unpaddedLeaf)
-		// TODO(client-pod#480): Add actual keccak padding to ensure the merkle proofs are correct
-		poststate := types.Leaf{
-			Input:           paddedLeaf,
-			Index:           big.NewInt(int64(i)),
-			StateCommitment: claimedCommitment,
+		_, err := s.absorbNextLeafInput(data, func() common.Hash { return claimedCommitment })
+		isEOF := errors.Is(err, io.EOF)
+		if err != nil && !isEOF {
+			return types.Challenge{}, fmt.Errorf("failed to verify inputs: %w", err)
 		}
+		validCommitment := s.StateCommitment()
 
-		if validCommitment != claimedCommitment {
-			// TODO(client-pod#480): Add merkle proofs for these (invalid) leaves
-			return types.Challenge{
-				StateMatrix: m,
-				Prestate:    prestate,
-				Poststate:   poststate,
-			}, nil
+		if firstInvalidLeaf == (types.Leaf{}) {
+			if validCommitment != claimedCommitment {
+				lastValidLeaf = s.prestateLeaf
+				firstInvalidLeaf = s.poststateLeaf
+			} else {
+				lastValidState = s.PackState()
+			}
 		}
 		if isEOF {
 			if i < len(commitments)-1 {
@@ -78,8 +70,20 @@ func Challenge(data io.Reader, commitments []common.Hash) (types.Challenge, erro
 			}
 			break
 		}
-		prestate = poststate
-		m = s.PackState()
+	}
+	if firstInvalidLeaf != (types.Leaf{}) {
+		var prestateProof merkle.Proof
+		if lastValidLeaf != (types.Leaf{}) {
+			prestateProof = s.merkleTree.ProofAtIndex(lastValidLeaf.IndexUint64())
+		}
+		poststateProof := s.merkleTree.ProofAtIndex(firstInvalidLeaf.IndexUint64())
+		return types.Challenge{
+			StateMatrix:    lastValidState,
+			Prestate:       lastValidLeaf,
+			PrestateProof:  prestateProof,
+			Poststate:      firstInvalidLeaf,
+			PoststateProof: poststateProof,
+		}, nil
 	}
 	return types.Challenge{}, ErrValid
 }
@@ -87,13 +91,7 @@ func Challenge(data io.Reader, commitments []common.Hash) (types.Challenge, erro
 // NewStateMatrix creates a new state matrix initialized with the initial, zero keccak block.
 func NewStateMatrix() *StateMatrix {
 	return &StateMatrix{
-		s: newLegacyKeccak256(),
-		prestateLeaf: types.Leaf{
-			Index: big.NewInt(0),
-		},
-		poststateLeaf: types.Leaf{
-			Index: big.NewInt(0),
-		},
+		s:          newLegacyKeccak256(),
 		merkleTree: merkle.NewBinaryMerkleTree(),
 	}
 }
@@ -117,10 +115,10 @@ func (d *StateMatrix) PackState() []byte {
 // newLeafWithPadding creates a new [Leaf] from inputs, padding the input to the [BlockSize].
 func newLeafWithPadding(input []byte, index *big.Int, commitment common.Hash) types.Leaf {
 	// TODO(client-pod#480): Add actual keccak padding to ensure the merkle proofs are correct (for readData)
-	paddedInput := make([]byte, types.BlockSize)
-	copy(paddedInput, input)
+	var paddedInput [types.BlockSize]byte
+	copy(paddedInput[:], input)
 	return types.Leaf{
-		Input:           ([types.BlockSize]byte)(paddedInput),
+		Input:           paddedInput,
 		Index:           index,
 		StateCommitment: commitment,
 	}
@@ -133,7 +131,7 @@ func (d *StateMatrix) AbsorbUpTo(in io.Reader, maxLen int) (types.InputData, err
 	input := make([]byte, 0, maxLen)
 	commitments := make([]common.Hash, 0, maxLen/types.BlockSize)
 	for len(input)+types.BlockSize <= maxLen {
-		readData, err := d.absorbNextLeafInput(in)
+		readData, err := d.absorbNextLeafInput(in, d.StateCommitment)
 		if errors.Is(err, io.EOF) {
 			input = append(input, readData...)
 			commitments = append(commitments, d.StateCommitment())
@@ -157,26 +155,20 @@ func (d *StateMatrix) AbsorbUpTo(in io.Reader, maxLen int) (types.InputData, err
 }
 
 // PrestateWithProof returns the prestate leaf with its merkle proof.
-func (d *StateMatrix) PrestateWithProof() (types.Leaf, merkle.Proof, error) {
-	proof, err := d.merkleTree.ProofAtIndex(d.prestateLeaf.Index.Uint64())
-	if err != nil {
-		return types.Leaf{}, merkle.Proof{}, err
-	}
-	return d.prestateLeaf, proof, nil
+func (d *StateMatrix) PrestateWithProof() (types.Leaf, merkle.Proof) {
+	proof := d.merkleTree.ProofAtIndex(d.prestateLeaf.IndexUint64())
+	return d.prestateLeaf, proof
 }
 
 // PoststateWithProof returns the poststate leaf with its merkle proof.
-func (d *StateMatrix) PoststateWithProof() (types.Leaf, merkle.Proof, error) {
-	proof, err := d.merkleTree.ProofAtIndex(d.poststateLeaf.Index.Uint64())
-	if err != nil {
-		return types.Leaf{}, merkle.Proof{}, err
-	}
-	return d.poststateLeaf, proof, nil
+func (d *StateMatrix) PoststateWithProof() (types.Leaf, merkle.Proof) {
+	proof := d.merkleTree.ProofAtIndex(d.poststateLeaf.IndexUint64())
+	return d.poststateLeaf, proof
 }
 
 // absorbNextLeafInput reads up to [BlockSize] bytes from in and absorbs them into the state matrix.
 // If EOF is reached while reading, the state matrix is finalized and [io.EOF] is returned.
-func (d *StateMatrix) absorbNextLeafInput(in io.Reader) ([]byte, error) {
+func (d *StateMatrix) absorbNextLeafInput(in io.Reader, stateCommitment func() common.Hash) ([]byte, error) {
 	data := make([]byte, types.BlockSize)
 	read := 0
 	final := false
@@ -198,12 +190,13 @@ func (d *StateMatrix) absorbNextLeafInput(in io.Reader) ([]byte, error) {
 	// additional block. We can then return EOF to indicate there are no further blocks.
 	final = final && len(input) < types.BlockSize
 	d.absorbLeafInput(input, final)
-	if d.prestateLeaf.StateCommitment == (common.Hash{}) {
-		d.prestateLeaf = newLeafWithPadding(input, d.prestateLeaf.Index, d.StateCommitment())
-		d.poststateLeaf = newLeafWithPadding(input, d.prestateLeaf.Index, d.StateCommitment())
+	commitment := stateCommitment()
+	if d.poststateLeaf == (types.Leaf{}) {
+		d.prestateLeaf = types.Leaf{}
+		d.poststateLeaf = newLeafWithPadding(input, big.NewInt(0), commitment)
 	} else {
 		d.prestateLeaf = d.poststateLeaf
-		d.poststateLeaf = newLeafWithPadding(input, new(big.Int).Add(d.prestateLeaf.Index, big.NewInt(1)), d.StateCommitment())
+		d.poststateLeaf = newLeafWithPadding(input, new(big.Int).Add(d.prestateLeaf.Index, big.NewInt(1)), commitment)
 	}
 	d.merkleTree.AddLeaf(d.poststateLeaf.Hash())
 	if final {

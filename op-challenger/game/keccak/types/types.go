@@ -23,12 +23,25 @@ type Leaf struct {
 	StateCommitment common.Hash
 }
 
+func (l Leaf) IndexUint64() uint64 {
+	if l.Index == nil {
+		return 0
+	}
+	return l.Index.Uint64()
+}
+
 // Hash returns the hash of the leaf data. That is the
 // bytewise concatenation of the input, index, and state commitment.
 func (l Leaf) Hash() common.Hash {
 	concatted := make([]byte, 0, 136+32+32)
 	concatted = append(concatted, l.Input[:]...)
-	concatted = append(concatted, l.Index.Bytes()...)
+	var indexBytes []byte
+	if l.Index != nil {
+		indexBytes = l.Index.Bytes()
+	} else {
+		indexBytes = big.NewInt(0).Bytes()
+	}
+	concatted = append(concatted, indexBytes...)
 	concatted = append(concatted, l.StateCommitment.Bytes()...)
 	return crypto.Keccak256Hash(concatted)
 }
