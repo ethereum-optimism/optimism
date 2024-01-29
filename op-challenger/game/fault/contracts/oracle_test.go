@@ -37,6 +37,28 @@ func TestPreimageOracleContract_LoadKeccak256(t *testing.T) {
 	stubRpc.VerifyTxCandidate(tx)
 }
 
+func TestPreimageOracleContract_ChallengePeriod(t *testing.T) {
+	stubRpc, oracle := setupPreimageOracleTest(t)
+	stubRpc.SetResponse(oracleAddr, methodChallengePeriod, batching.BlockLatest,
+		[]interface{}{},
+		[]interface{}{big.NewInt(123)},
+	)
+	challengePeriod, err := oracle.ChallengePeriod(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, uint64(123), challengePeriod)
+}
+
+func TestPreimageOracleContract_MinLargePreimageSize(t *testing.T) {
+	stubRpc, oracle := setupPreimageOracleTest(t)
+	stubRpc.SetResponse(oracleAddr, methodMinProposalSize, batching.BlockLatest,
+		[]interface{}{},
+		[]interface{}{big.NewInt(123)},
+	)
+	minProposalSize, err := oracle.MinLargePreimageSize(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, uint64(123), minProposalSize)
+}
+
 func TestPreimageOracleContract_PreimageDataExists(t *testing.T) {
 	t.Run("exists", func(t *testing.T) {
 		stubRpc, oracle := setupPreimageOracleTest(t)

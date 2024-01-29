@@ -94,7 +94,10 @@ func (r *FaultResponder) PerformAction(ctx context.Context, action types.Action)
 		// Always upload local preimages
 		if !preimageExists {
 			err := r.uploader.UploadPreimage(ctx, uint64(action.ParentIdx), action.OracleData)
-			if err != nil {
+			if err == preimages.ErrChallengePeriodNotOver {
+				r.log.Debug("Large Preimage Squeeze failed, challenge period not over")
+				return nil
+			} else if err != nil {
 				return fmt.Errorf("failed to upload preimage: %w", err)
 			}
 		}

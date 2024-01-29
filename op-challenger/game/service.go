@@ -42,6 +42,8 @@ type Service struct {
 
 	preimages *keccak.LargePreimageScheduler
 
+	cl clock.Clock
+
 	txMgr    *txmgr.SimpleTxManager
 	txSender *sender.TxSender
 
@@ -63,8 +65,9 @@ type Service struct {
 }
 
 // NewService creates a new Service.
-func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*Service, error) {
+func NewService(ctx context.Context, cl clock.Clock, logger log.Logger, cfg *config.Config) (*Service, error) {
 	s := &Service{
+		cl:      cl,
 		logger:  logger,
 		metrics: metrics.NewMetrics(),
 	}
@@ -213,7 +216,7 @@ func (s *Service) initRollupClient(ctx context.Context, cfg *config.Config) erro
 func (s *Service) registerGameTypes(ctx context.Context, cfg *config.Config) error {
 	gameTypeRegistry := registry.NewGameTypeRegistry()
 	caller := batching.NewMultiCaller(s.l1Client.Client(), batching.DefaultBatchSize)
-	closer, err := fault.RegisterGameTypes(gameTypeRegistry, ctx, s.logger, s.metrics, cfg, s.rollupClient, s.txSender, s.factoryContract, caller)
+	closer, err := fault.RegisterGameTypes(gameTypeRegistry, ctx, s.cl, s.logger, s.metrics, cfg, s.rollupClient, s.txSender, s.factoryContract, caller)
 	if err != nil {
 		return err
 	}
@@ -236,8 +239,7 @@ func (s *Service) initLargePreimages() error {
 }
 
 func (s *Service) initMonitor(cfg *config.Config) {
-	cl := clock.SystemClock
-	s.monitor = newGameMonitor(s.logger, cl, s.loader, s.sched, s.preimages, cfg.GameWindow, s.l1Client.BlockNumber, cfg.GameAllowlist, s.pollClient)
+	s.monitor = newGameMonitor(s.logger, s.cl, s.loader, s.sched, s.preimages, cfg.GameWindow, s.l1Client.BlockNumber, cfg.GameAllowlist, s.pollClient)
 }
 
 func (s *Service) Start(ctx context.Context) error {
