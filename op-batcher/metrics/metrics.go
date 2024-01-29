@@ -82,7 +82,7 @@ type Metrics struct {
 
 	batcherTxEvs opmetrics.EventVec
 
-	blobUsedBytes prometheus.Gauge
+	blobUsedBytes prometheus.Histogram
 }
 
 var _ Metricer = (*Metrics)(nil)
@@ -185,7 +185,7 @@ func NewMetrics(procName string) *Metrics {
 			Name:      "output_bytes_total",
 			Help:      "Total number of compressed output bytes from a channel.",
 		}),
-		blobUsedBytes: factory.NewGauge(prometheus.GaugeOpts{
+		blobUsedBytes: factory.NewHistogram(prometheus.HistogramOpts{
 			Namespace: ns,
 			Name:      "blob_used_bytes",
 			Help:      "Blob size in bytes being submitted.",
@@ -314,7 +314,7 @@ func (m *Metrics) RecordBatchTxFailed() {
 }
 
 func (m *Metrics) RecordBlobUsedBytes(num int) {
-	m.blobUsedBytes.Set(float64(num))
+	m.blobUsedBytes.Observe(float64(num))
 }
 
 // estimateBatchSize estimates the size of the batch
