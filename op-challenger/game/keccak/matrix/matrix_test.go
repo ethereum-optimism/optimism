@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math/big"
 	"math/rand"
 	"testing"
 
@@ -291,7 +290,7 @@ func TestVerifyPreimage(t *testing.T) {
 		for i, commitment := range commitments {
 			leaf := types.Leaf{
 				Input:           leafData(i),
-				Index:           big.NewInt(int64(i)),
+				Index:           uint64(i),
 				StateCommitment: commitment,
 			}
 			m.AddLeaf(leaf.Hash())
@@ -312,14 +311,14 @@ func TestVerifyPreimage(t *testing.T) {
 			StateMatrix: s.PackState(),
 			Prestate: types.Leaf{
 				Input:           prestateLeaf,
-				Index:           big.NewInt(int64(invalidIdx - 1)),
+				Index:           uint64(invalidIdx - 1),
 				StateCommitment: commitments[invalidIdx-1],
 			},
 			PrestateProof: fullMerkle.ProofAtIndex(uint64(invalidIdx - 1)),
 
 			Poststate: types.Leaf{
 				Input:           poststateLeaf,
-				Index:           big.NewInt(int64(invalidIdx)),
+				Index:           uint64(invalidIdx),
 				StateCommitment: commitments[invalidIdx],
 			},
 			PoststateProof: fullMerkle.ProofAtIndex(uint64(invalidIdx)),
@@ -353,7 +352,7 @@ func TestVerifyPreimage(t *testing.T) {
 					Prestate:    types.Leaf{},
 					Poststate: types.Leaf{
 						Input:           poststateLeaf,
-						Index:           big.NewInt(int64(0)),
+						Index:           0,
 						StateCommitment: common.Hash{0xaa},
 					},
 					PoststateProof: merkleTree(incorrectFirstCommitment).ProofAtIndex(0),

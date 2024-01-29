@@ -138,13 +138,13 @@ func TestPreimageOracleContract_Squeeze(t *testing.T) {
 	stateMatrix := matrix.NewStateMatrix()
 	preState := keccakTypes.Leaf{
 		Input:           [keccakTypes.BlockSize]byte{0x12},
-		Index:           big.NewInt(123),
+		Index:           123,
 		StateCommitment: common.Hash{0x34},
 	}
 	preStateProof := merkle.Proof{{0x34}}
 	postState := keccakTypes.Leaf{
 		Input:           [keccakTypes.BlockSize]byte{0x34},
-		Index:           big.NewInt(456),
+		Index:           456,
 		StateCommitment: common.Hash{0x56},
 	}
 	postStateProof := merkle.Proof{{0x56}}
@@ -507,7 +507,7 @@ func TestChallenge_First(t *testing.T) {
 		Prestate:    keccakTypes.Leaf{},
 		Poststate: keccakTypes.Leaf{
 			Input:           [136]byte{5, 4, 3, 2, 1},
-			Index:           big.NewInt(0),
+			Index:           0,
 			StateCommitment: common.Hash{0xbb},
 		},
 		PoststateProof: merkle.Proof{common.Hash{0x01}, common.Hash{0x02}},
@@ -517,7 +517,7 @@ func TestChallenge_First(t *testing.T) {
 			ident.Claimant, ident.UUID,
 			bindings.PreimageOracleLeaf{
 				Input:           challenge.Poststate.Input[:],
-				Index:           challenge.Poststate.Index,
+				Index:           new(big.Int).SetUint64(challenge.Poststate.Index),
 				StateCommitment: challenge.Poststate.StateCommitment,
 			},
 			challenge.PoststateProof,
@@ -539,13 +539,13 @@ func TestChallenge_NotFirst(t *testing.T) {
 		StateMatrix: bytes.Repeat([]byte{1, 2, 3, 4, 5, 6, 7, 8}, 25),
 		Prestate: keccakTypes.Leaf{
 			Input:           [136]byte{9, 8, 7, 6, 5},
-			Index:           big.NewInt(3),
+			Index:           3,
 			StateCommitment: common.Hash{0xcc},
 		},
 		PrestateProof: merkle.Proof{common.Hash{0x01}, common.Hash{0x02}},
 		Poststate: keccakTypes.Leaf{
 			Input:           [136]byte{5, 4, 3, 2, 1},
-			Index:           big.NewInt(4),
+			Index:           4,
 			StateCommitment: common.Hash{0xbb},
 		},
 		PoststateProof: merkle.Proof{common.Hash{0x03}, common.Hash{0x04}},
@@ -556,13 +556,13 @@ func TestChallenge_NotFirst(t *testing.T) {
 			abiEncodePackedState(challenge.StateMatrix),
 			bindings.PreimageOracleLeaf{
 				Input:           challenge.Prestate.Input[:],
-				Index:           challenge.Prestate.Index,
+				Index:           new(big.Int).SetUint64(challenge.Prestate.Index),
 				StateCommitment: challenge.Prestate.StateCommitment,
 			},
 			challenge.PrestateProof,
 			bindings.PreimageOracleLeaf{
 				Input:           challenge.Poststate.Input[:],
-				Index:           challenge.Poststate.Index,
+				Index:           new(big.Int).SetUint64(challenge.Poststate.Index),
 				StateCommitment: challenge.Poststate.StateCommitment,
 			},
 			challenge.PoststateProof,
