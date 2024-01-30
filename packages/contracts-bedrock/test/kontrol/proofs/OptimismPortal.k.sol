@@ -42,10 +42,12 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
     {
         setUpInlined();
 
-        // ASSUME: Upper bound on the `_data` length, derived from spot-checking a few calls to this
-        // method and choosing a values a bit higher than the maximum observed. This assumption can
-        // be removed once Kontrol supports symbolic `bytes`: https://github.com/runtimeverification/kontrol/issues/272
-        bytes memory _data = freshBigBytes(1000);
+        // ASSUME: This bound on the `_data` length is too low, and should be at least 1000 bytes.
+        // Kontrol currently hangs and fails with this value because of the resulting configuration
+        // size. For now we leave this as a low value to avoid the hang, but it should be increased
+        // once Kontrol is improved and supports symbolic `bytes`:
+        // https://github.com/runtimeverification/kontrol/issues/272
+        bytes memory _data = freshBigBytes(320);
         bytes[] memory _withdrawalProof = freshWithdrawalProof();
 
         Types.WithdrawalTransaction memory _tx =
@@ -76,10 +78,12 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
     {
         setUpInlined();
 
-        // ASSUME: Upper bound on the `_data` length, derived from spot-checking a few calls to this
-        // method and choosing a values a bit higher than the maximum observed. This assumption can
-        // be removed once Kontrol supports symbolic `bytes`: https://github.com/runtimeverification/kontrol/issues/272
-        bytes memory _data = freshBigBytes(1000);
+        // ASSUME: This bound on the `_data` length is too low, and should be at least 1000 bytes.
+        // Kontrol currently hangs and fails with this value because of the resulting configuration
+        // size. For now we leave this as a low value to avoid the hang, but it should be increased
+        // once Kontrol is improved and supports symbolic `bytes`:
+        // https://github.com/runtimeverification/kontrol/issues/272
+        bytes memory _data = freshBigBytes(320);
 
         // Pause Optimism Portal
         vm.prank(optimismPortal.guardian());
