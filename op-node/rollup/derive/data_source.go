@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -25,40 +26,61 @@ type L1BlobsFetcher interface {
 	GetBlobs(ctx context.Context, ref eth.L1BlockRef, hashes []eth.IndexedBlobHash) ([]*eth.Blob, error)
 }
 
+type PlasmaInputFetcher interface {
+	GetInput(ctx context.Context, commitment []byte, blockNumber uint64) (plasma.Input, error)
+}
+
 // DataSourceFactory reads raw transactions from a given block & then filters for
 // batch submitter transactions.
 // This is not a stage in the pipeline, but a wrapper for another stage in the pipeline
 type DataSourceFactory struct {
-	log          log.Logger
-	dsCfg        DataSourceConfig
-	fetcher      L1TransactionFetcher
-	blobsFetcher L1BlobsFetcher
-	ecotoneTime  *uint64
+	log           log.Logger
+	dsCfg         DataSourceConfig
+	fetcher       L1TransactionFetcher
+	blobsFetcher  L1BlobsFetcher
+	plasmaFetcher PlasmaInputFetcher
+	ecotoneTime   *uint64
 }
 
-func NewDataSourceFactory(log log.Logger, cfg *rollup.Config, fetcher L1TransactionFetcher, blobsFetcher L1BlobsFetcher) *DataSourceFactory {
+func NewDataSourceFactory(log log.Logger, cfg *rollup.Config, fetcher L1TransactionFetcher, blobsFetcher L1BlobsFetcher, plasmaFetcher PlasmaInputFetcher) *DataSourceFactory {
 	config := DataSourceConfig{
 		l1Signer:          cfg.L1Signer(),
 		batchInboxAddress: cfg.BatchInboxAddress,
+		plasmaEnabled:     cfg.IsPlasmaEnabled(),
 	}
-	return &DataSourceFactory{log: log, dsCfg: config, fetcher: fetcher, blobsFetcher: blobsFetcher, ecotoneTime: cfg.EcotoneTime}
+	return &DataSourceFactory{
+		log:           log,
+		dsCfg:         config,
+		fetcher:       fetcher,
+		blobsFetcher:  blobsFetcher,
+		plasmaFetcher: plasmaFetcher,
+		ecotoneTime:   cfg.EcotoneTime,
+	}
 }
 
 // OpenData returns the appropriate data source for the L1 block `ref`.
 func (ds *DataSourceFactory) OpenData(ctx context.Context, ref eth.L1BlockRef, batcherAddr common.Address) (DataIter, error) {
+	var src DataIter
 	if ds.ecotoneTime != nil && ref.Time >= *ds.ecotoneTime {
 		if ds.blobsFetcher == nil {
 			return nil, fmt.Errorf("ecotone upgrade active but beacon endpoint not configured")
 		}
-		return NewBlobDataSource(ctx, ds.log, ds.dsCfg, ds.fetcher, ds.blobsFetcher, ref, batcherAddr), nil
+		src = NewBlobDataSource(ctx, ds.log, ds.dsCfg, ds.fetcher, ds.blobsFetcher, ref, batcherAddr)
+	} else {
+		src = NewCalldataSource(ctx, ds.log, ds.dsCfg, ds.fetcher, ref, batcherAddr)
 	}
-	return NewCalldataSource(ctx, ds.log, ds.dsCfg, ds.fetcher, ref, batcherAddr), nil
+	// plasma source still needs access to the commitments onchain so we pass the source.
+	if ds.dsCfg.plasmaEnabled {
+		return NewPlasmaDataSource(ds.log, src, ds.plasmaFetcher, ref.ID()), nil
+	}
+	return src, nil
 }
 
 // DataSourceConfig regroups the mandatory rollup.Config fields needed for DataFromEVMTransactions.
 type DataSourceConfig struct {
 	l1Signer          types.Signer
 	batchInboxAddress common.Address
+	plasmaEnabled     bool
 }
 
 // isValidBatchTx returns true if:
