@@ -3,7 +3,7 @@ updates:
   - package-ecosystem: "docker"
     directory: "/ops-bedrock"
     schedule:
-      interval: "weekly"
+      interval: "daily"
       day: "tuesday"
       time: "14:30"
       timezone: "America/New_York"
@@ -40,7 +40,7 @@ updates:
   - package-ecosystem: "gomod"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "daily"
       day: "tuesday"
       time: "14:30"
       timezone: "America/New_York"
