@@ -779,11 +779,17 @@ contract FaultDisputeGameN is IFaultDisputeGame, Clone, ISemver {
     ) public pure returns (Position pos_, Claim claim_) {
         ClaimData storage ancestor_ = claimData[_start];
         uint256 pos = _pos.raw();
-        while (pos % _nary == 0) {
+        while (pos % _nary == 0 && pos != 1) {
             pos = pos / _nary;
             ancestor_ = claimData[ancestor_.parentIndex];
         }
-        return (Position.wrap(uint128(pos)), getClaimFromClaimHash(ancestor_.claim, (pos - 1) % _nary));
+        if (pos == 1) {
+            // S_0
+            claim_ = ABSOLUTE_PRESTATE;
+        } else {
+            claim_ = getClaimFromClaimHash(ancestor_.claim, (pos - 1) % _nary);
+        }
+        return (Position.wrap(uint128(pos)), claim_);
     }
 
     function findPostStateClaim(
@@ -795,6 +801,7 @@ contract FaultDisputeGameN is IFaultDisputeGame, Clone, ISemver {
         uint256 pos = _pos.raw();
         while ((pos + 1) % _nary == 0 && pos != 1) {
             pos = pos / _nary;
+            ancestor_ = claimData[ancestor_.parentIndex];
         }
         return (Position.wrap(uint128(pos)), getClaimFromClaimHash(ancestor_.claim, pos % _nary));
     }
