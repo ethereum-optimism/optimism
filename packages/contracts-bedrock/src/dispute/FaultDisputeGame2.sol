@@ -16,7 +16,7 @@ import "src/libraries/DisputeErrors.sol";
 
 /// @title FaultDisputeGame
 /// @notice An implementation of the `IFaultDisputeGame` interface.
-contract FaultDisputeGameN is IFaultDisputeGame, Clone, ISemver {
+contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     ////////////////////////////////////////////////////////////////
     //                         State Vars                         //
     ////////////////////////////////////////////////////////////////
@@ -80,9 +80,6 @@ contract FaultDisputeGameN is IFaultDisputeGame, Clone, ISemver {
     /// @notice Flag for the `initialize` function to prevent re-initialization.
     bool internal initialized;
 
-    /// @notice Bits of N-ary search
-    uint256 nBits;
-
     /// @notice Semantic version.
     /// @custom:semver 0.0.24
     string public constant version = "0.0.24";
@@ -125,10 +122,6 @@ contract FaultDisputeGameN is IFaultDisputeGame, Clone, ISemver {
 
     /// @inheritdoc IFaultDisputeGame
     function step(uint256 _claimIndex, bool _isAttack, bytes calldata _stateData, bytes calldata _proof) external {
-        revert();
-    }
-
-    function step(uint256 _claimIndex, uint256 _attackBranch, bytes calldata _stateData, bytes calldata _proof) external {
         // INVARIANT: Steps cannot be made unless the game is currently in progress.
         if (status != GameStatus.IN_PROGRESS) revert GameNotInProgress();
 
@@ -138,20 +131,34 @@ contract FaultDisputeGameN is IFaultDisputeGame, Clone, ISemver {
         // Pull the parent position out of storage.
         Position parentPos = parent.position;
         // Determine the position of the step.
-        Position stepPos = parentPos.moveN(nBits, _attackBranch);
+        Position stepPos = parentPos.move(_isAttack);
 
         // INVARIANT: A step cannot be made unless the move position is 1 below the `MAX_GAME_DEPTH`
         if (stepPos.depth() != MAX_GAME_DEPTH + 1) revert InvalidParent();
 
         // Determine the expected pre & post states of the step.
         Claim preStateClaim;
-        // ClaimData storage postState;
-        Claim postStateClaim;
-        Position postStatePosition;
-
-        // TODO: deal with SPLIT_DEPTH
-        (, preStateClaim) = findPreStateClaim(1 << nBits, stepPos, _claimIndex);
-        (postStatePosition, postStateClaim) = findPostStateClaim(1 << nBits, stepPos, _claimIndex);
+        ClaimData storage postState;
+        if (_isAttack) {
+            // If the step position's index at depth is 0, the prestate is the absolute
+            // prestate.
+            // If the step is an attack at a trace index > 0, the prestate exists elsewhere in
+            // the game state.
+            // NOTE: We localize the `indexAtDepth` for the current execution trace subgame by finding
+            //       the remainder of the index at depth divided by 2 ** (MAX_GAME_DEPTH - SPLIT_DEPTH),
+            //       which is the number of leaves in each execution trace subgame. This is so that we can
+            //       determine whether or not the step position is represents the `ABSOLUTE_PRESTATE`.
+            preStateClaim = (stepPos.indexAtDepth() % (1 << (MAX_GAME_DEPTH - SPLIT_DEPTH))) == 0
+                ? ABSOLUTE_PRESTATE
+                : _findTraceAncestor(Position.wrap(parentPos.raw() - 1), parent.parentIndex, false).claim;
+            // For all attacks, the poststate is the parent claim.
+            postState = parent;
+        } else {
+            // If the step is a defense, the poststate exists elsewhere in the game state,
+            // and the parent claim is the expected pre-state.
+            preStateClaim = parent.claim;
+            postState = _findTraceAncestor(Position.wrap(parentPos.raw() + 1), parent.parentIndex, false);
+        }
 
         // INVARIANT: The prestate is always invalid if the passed `_stateData` is not the
         //            preimage of the prestate claim hash.
@@ -174,8 +181,8 @@ contract FaultDisputeGameN is IFaultDisputeGame, Clone, ISemver {
         // SAFETY:    While the `attack` path does not need an extra check for the post
         //            state's depth in relation to the parent, we don't need another
         //            branch because (n - n) % 2 == 0.
-        bool validStep = VM.step(_stateData, _proof, uuid.raw()) == postStateClaim.raw();
-        bool parentPostAgree = (parentPos.depth() - postStatePosition.depth()) % 2 == 0;
+        bool validStep = VM.step(_stateData, _proof, uuid.raw()) == postState.claim.raw();
+        bool parentPostAgree = (parentPos.depth() - postState.position.depth()) % 2 == 0;
         if (parentPostAgree == validStep) revert ValidStep();
 
         // Set the parent claim as countered. We do not need to append a new claim to the game;
@@ -186,13 +193,8 @@ contract FaultDisputeGameN is IFaultDisputeGame, Clone, ISemver {
     /// @notice Generic move function, used for both `attack` and `defend` moves.
     /// @param _challengeIndex The index of the claim being moved against.
     /// @param _claim The claim at the next logical position in the game.
-    /// @param _attackBranch Which branch claim to attack.
-    function move(uint256 _challengeIndex, Claim _claim, uint256 _attackBranch) public payable {
-        // For N = 2 (bisec),
-        // 1. _attackBranch == 0 (attack)
-        // 2. _attackBranch == 1 (defense)
-        require(_attackBranch < (1 << nBits));
-
+    /// @param _isAttack Whether or not the move is an attack or defense.
+    function move(uint256 _challengeIndex, Claim _claim, bool _isAttack) public payable {
         // INVARIANT: Moves cannot be made unless the game is currently in progress.
         if (status != GameStatus.IN_PROGRESS) revert GameNotInProgress();
 
@@ -203,13 +205,13 @@ contract FaultDisputeGameN is IFaultDisputeGame, Clone, ISemver {
         // known, we can compute the next position by moving left or right depending on whether
         // or not the move is an attack or defense.
         Position parentPos = parent.position;
-        Position nextPosition = parentPos.moveN(nBits, _attackBranch);
+        Position nextPosition = parentPos.move(_isAttack);
         uint256 nextPositionDepth = nextPosition.depth();
 
         // INVARIANT: A defense can never be made against the root claim of either the output root game or any
         //            of the execution trace bisection subgames. This is because the root claim commits to the
         //            entire state. Therefore, the only valid defense is to do nothing if it is agreed with.
-        if ((_challengeIndex == 0 || nextPositionDepth == SPLIT_DEPTH + 2) && _attackBranch != 0) {
+        if ((_challengeIndex == 0 || nextPositionDepth == SPLIT_DEPTH + 2) && !_isAttack) {
             revert CannotDefendRootClaim();
         }
 
@@ -221,10 +223,9 @@ contract FaultDisputeGameN is IFaultDisputeGame, Clone, ISemver {
 
         // When the next position surpasses the split depth (i.e., it is the root claim of an execution
         // trace bisection sub-game), we need to perform some extra verification steps.
-        // TODO:
-        // if (nextPositionDepth == SPLIT_DEPTH + 1) {
-        //     _verifyExecBisectionRoot(_claim, _challengeIndex, parentPos, _isAttack);
-        // }
+        if (nextPositionDepth == SPLIT_DEPTH + 1) {
+            _verifyExecBisectionRoot(_claim, _challengeIndex, parentPos, _isAttack);
+        }
 
         // INVARIANT: The `msg.value` must be sufficient to cover the required bond.
         if (getRequiredBond(nextPosition) > msg.value) revert InsufficientBond();
@@ -259,10 +260,9 @@ contract FaultDisputeGameN is IFaultDisputeGame, Clone, ISemver {
         // INVARIANT: There cannot be multiple identical claims with identical moves on the same challengeIndex. Multiple
         //            claims at the same position may dispute the same challengeIndex. However, they must have different
         //            values.
-        // Ignore duplicate claim check, as submitting duplicated claim will lose more as long as the bond > move cost.
-        // ClaimHash claimHash = _claim.hashClaimPos(nextPosition, _challengeIndex);
-        // if (claims[claimHash]) revert ClaimAlreadyExists();
-        // claims[claimHash] = true;
+        ClaimHash claimHash = _claim.hashClaimPos(nextPosition, _challengeIndex);
+        if (claims[claimHash]) revert ClaimAlreadyExists();
+        claims[claimHash] = true;
 
         // Create the new claim.
         claimData.push(
@@ -289,14 +289,12 @@ contract FaultDisputeGameN is IFaultDisputeGame, Clone, ISemver {
 
     /// @inheritdoc IFaultDisputeGame
     function attack(uint256 _parentIndex, Claim _claim) external payable {
-        // move(_parentIndex, _claim, true);
-        revert();
+        move(_parentIndex, _claim, true);
     }
 
     /// @inheritdoc IFaultDisputeGame
     function defend(uint256 _parentIndex, Claim _claim) external payable {
-        // move(_parentIndex, _claim, false);
-        revert();
+        move(_parentIndex, _claim, false);
     }
 
     /// @inheritdoc IFaultDisputeGame
@@ -754,48 +752,5 @@ contract FaultDisputeGameN is IFaultDisputeGame, Clone, ISemver {
         } else {
             uuid_ = Hash.wrap(keccak256(abi.encode(_starting, _startingPos, _disputed, _disputedPos)));
         }
-    }
-
-    function attackAt(
-        uint256 _parentIndex,
-        Claim _claim,
-        uint256 _attackBranch
-    ) external payable {
-        move(_parentIndex, _claim, _attackBranch);
-    }
-
-    function getClaimFromClaimHash(
-        Claim claimsHash,
-        uint256 claimIndex
-    ) internal returns (Claim) {
-        // TODO: retrieve the claim from the claimsHash
-        // Either: from EIP-4844 BLOB with point-evaluation proof or calldata with Merkle proof
-    }
-
-    function findPreStateClaim(
-        uint256 _nary,
-        Position _pos,
-        uint256 _start
-    ) public pure returns (Position pos_, Claim claim_) {
-        ClaimData storage ancestor_ = claimData[_start];
-        uint256 pos = _pos.raw();
-        while (pos % _nary == 0) {
-            pos = pos / _nary;
-            ancestor_ = claimData[ancestor_.parentIndex];
-        }
-        return (Position.wrap(uint128(pos)), getClaimFromClaimHash(ancestor_.claim, (pos - 1) % _nary));
-    }
-
-    function findPostStateClaim(
-        uint256 _nary,
-        Position _pos,
-        uint256 _start
-    ) public pure returns (Position pos_, Claim claim_) {
-        ClaimData storage ancestor_ = claimData[_start];
-        uint256 pos = _pos.raw();
-        while ((pos + 1) % _nary == 0 && pos != 1) {
-            pos = pos / _nary;
-        }
-        return (Position.wrap(uint128(pos)), getClaimFromClaimHash(ancestor_.claim, pos % _nary));
     }
 }

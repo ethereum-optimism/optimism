@@ -20,7 +20,7 @@ library LibPosition {
 
     /// @notice Pulls the `depth` out of a `Position` type.
     /// @param _position The generalized index to get the `depth` of.
-    /// @return depth_ The `depth` of the `position` gindex.
+    /// @return depth_ The `depth` of the `position` gindex, 1 -> 0; 2, 3 -> 1; 4,7->2.
     /// @custom:attribution Solady <https://github.com/Vectorized/Solady>
     function depth(Position _position) internal pure returns (uint64 depth_) {
         // Return the most significant bit offset, which signifies the depth of the gindex.
@@ -174,6 +174,18 @@ library LibPosition {
     function move(Position _position, bool _isAttack) internal pure returns (Position move_) {
         assembly {
             move_ := shl(1, or(iszero(_isAttack), _position))
+        }
+    }
+
+    /// @notice Get the move position of `_position`, which is the left child of:
+    ///         1. `_position` if `_isAttack` is true.
+    ///         2. `_position | 1` if `_isAttack` is false.
+    /// @param _position The position to get the relative attack/defense position of.
+    /// @param _isAttack Whether or not the move is an attack move.
+    /// @return move_ The move position relative to `position`.
+    function moveN(Position _position, uint256 _bits, uint256 _branch) internal pure returns (Position move_) {
+        assembly {
+            move_ := shl(_bits, or(_branch, _position))
         }
     }
 
