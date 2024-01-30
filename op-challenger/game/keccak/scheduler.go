@@ -62,6 +62,7 @@ func (s *LargePreimageScheduler) Schedule(blockHash common.Hash, _ uint64) error
 	select {
 	case s.ch <- blockHash:
 	default:
+		s.log.Trace("Skipping preimage check while already processing")
 		// Already busy processing, skip this update
 	}
 	return nil
