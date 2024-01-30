@@ -174,6 +174,16 @@ func startAggregator(results chan result, errorChan chan error, done chan struct
 			errCount += 1
 			errs = errors.Join(errs, err)
 		case <-done:
+			// drain the results channel
+			// this is not very DRY, but it is the simplest way to do this
+			for len(results) > 0 {
+				r := <-results
+				handled += 1
+				if len(r.Nonces) > 0 {
+					log.Info("Block Has Deposit Transactions", "Block", r.BlockNumber, "Nonces", r.Nonces, "Handled", handled)
+					aggregateResults.Results[r.BlockNumber] = r.Nonces
+				}
+			}
 			log.Info("Finished Aggregation", "ResultsHandled", handled, "Errors", errCount, "ResultsMatched", len(aggregateResults.Results))
 			return aggregateResults, errs
 		}
