@@ -171,7 +171,7 @@ func (g *OutputCannonGameHelper) createCannonTraceProvider(ctx context.Context, 
 	splitDepth := g.SplitDepth(ctx)
 	g.require.EqualValues(outputRootClaim.Depth(), splitDepth+1, "outputRootClaim must be the root of an execution game")
 
-	logger := testlog.Logger(g.t, log.LvlInfo).New("role", "CannonTraceProvider", "game", g.addr)
+	logger := testlog.Logger(g.t, log.LevelInfo).New("role", "CannonTraceProvider", "game", g.addr)
 	opt := g.defaultChallengerOptions(l2Node)
 	opt = append(opt, options...)
 	cfg := challenger.NewChallengerConfig(g.t, g.system.NodeEndpoint("l1"), opt...)

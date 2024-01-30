@@ -153,8 +153,8 @@ func TestBlockValidator(t *testing.T) {
 	// Params Set 2: Call the validation function
 	peerID := peer.ID("foo")
 
-	v2Validator := BuildBlocksValidator(testlog.Logger(t, log.LvlCrit), cfg, runCfg, eth.BlockV2)
-	v3Validator := BuildBlocksValidator(testlog.Logger(t, log.LvlCrit), cfg, runCfg, eth.BlockV3)
+	v2Validator := BuildBlocksValidator(testlog.Logger(t, log.LevelCrit), cfg, runCfg, eth.BlockV2)
+	v3Validator := BuildBlocksValidator(testlog.Logger(t, log.LevelCrit), cfg, runCfg, eth.BlockV3)
 
 	zero, one := uint64(0), uint64(1)
 	beaconHash := common.HexToHash("0x1234")

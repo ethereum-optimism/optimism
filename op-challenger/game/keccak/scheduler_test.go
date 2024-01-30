@@ -18,7 +18,7 @@ import (
 
 func TestScheduleNextCheck(t *testing.T) {
 	ctx := context.Background()
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	preimage1 := keccakTypes.LargePreimageMetaData{ // Incomplete so won't be verified
 		LargePreimageIdent: keccakTypes.LargePreimageIdent{
 			Claimant: common.Address{0xab},

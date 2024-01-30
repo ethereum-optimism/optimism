@@ -54,7 +54,7 @@ func TestDirectPreimageUploader_UploadPreimage(t *testing.T) {
 }
 
 func newTestDirectPreimageUploader(t *testing.T) (*DirectPreimageUploader, *mockTxSender, *mockPreimageGameContract) {
-	logger := testlog.Logger(t, log.LvlError)
+	logger := testlog.Logger(t, log.LevelError)
 	txMgr := &mockTxSender{}
 	contract := &mockPreimageGameContract{}
 	return NewDirectPreimageUploader(logger, txMgr, contract), txMgr, contract

@@ -13,7 +13,7 @@ import (
 )
 
 func TestGetVersion(t *testing.T) {
-	l := testlog.Logger(t, log.LvlInfo)
+	l := testlog.Logger(t, log.LevelInfo)
 
 	beaconApi := fakebeacon.NewBeacon(l, t.TempDir(), uint64(0), uint64(0))
 	t.Cleanup(func() {

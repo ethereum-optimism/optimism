@@ -174,7 +174,7 @@ func setupFetcherTest(t *testing.T) (*InputFetcher, *stubOracle, *stubL1Source) 
 		txs:        make(map[uint64]types.Transactions),
 		rcptStatus: make(map[common.Hash]uint64),
 	}
-	fetcher := NewPreimageFetcher(testlog.Logger(t, log.LvlTrace), l1Source)
+	fetcher := NewPreimageFetcher(testlog.Logger(t, log.LevelTrace), l1Source)
 	return fetcher, oracle, l1Source
 }
 
