@@ -105,7 +105,12 @@ func entrypoint(ctx *cli.Context) error {
 				return fmt.Errorf("cannot fetch L1 chain ID: %w", err)
 			}
 
-			declaredL1ChainID := superchain.Superchains[chainConfig.Superchain].Config.L1.ChainID
+			sc, ok := superchain.Superchains[chainConfig.Superchain]
+			if !ok {
+				return fmt.Errorf("superchain name %s not registered", chainConfig.Superchain)
+			}
+
+			declaredL1ChainID := sc.Config.L1.ChainID
 
 			if l1ChainID.Uint64() != declaredL1ChainID {
 				// L2 corresponds to a different superchain than L1, skip
