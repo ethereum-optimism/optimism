@@ -277,6 +277,20 @@ func (cfg *Config) Check() error {
 	if cfg.L2ChainID.Sign() < 1 {
 		return ErrL2ChainIDNotPositive
 	}
+	if cfg.EcotoneTime != nil {
+		if cfg.CanyonTime == nil {
+			return fmt.Errorf("prior fork canyon activation time is missing")
+		}
+		if *cfg.CanyonTime > *cfg.EcotoneTime {
+			return fmt.Errorf("prior fork canyon has higher activation time")
+		}
+		if cfg.RegolithTime == nil {
+			return fmt.Errorf("prior fork regolith activation time is missing")
+		}
+		if *cfg.RegolithTime > *cfg.CanyonTime {
+			return fmt.Errorf("prior fork regolith has higher activation time")
+		}
+	}
 	return nil
 }
 
