@@ -71,6 +71,7 @@ func (c *PreimageChallenger) Challenge(ctx context.Context, blockHash common.Has
 		}()
 	}
 	wg.Wait()
+	c.log.Debug("Created preimage challenge transactions", "count", len(txs))
 	if len(txs) > 0 {
 		_, err := c.sender.SendAndWait("challenge preimages", txs...)
 		if err != nil {

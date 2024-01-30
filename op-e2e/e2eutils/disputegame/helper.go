@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame/preimage"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/transactions"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
@@ -99,6 +100,21 @@ func NewFactoryHelper(t *testing.T, ctx context.Context, system DisputeSystem) *
 		factory:     factory,
 		factoryAddr: factoryAddr,
 	}
+}
+
+func (h *FactoryHelper) PreimageHelper(ctx context.Context) *preimage.Helper {
+	opts := &bind.CallOpts{Context: ctx}
+	gameAddr, err := h.factory.GameImpls(opts, alphabetGameType)
+	h.require.NoError(err)
+	game, err := bindings.NewFaultDisputeGameCaller(gameAddr, h.client)
+	h.require.NoError(err)
+	vmAddr, err := game.Vm(opts)
+	h.require.NoError(err)
+	vm, err := bindings.NewMIPSCaller(vmAddr, h.client)
+	h.require.NoError(err)
+	oracleAddr, err := vm.Oracle(opts)
+	h.require.NoError(err)
+	return preimage.NewHelper(h.t, h.opts, h.client, oracleAddr)
 }
 
 func (h *FactoryHelper) StartOutputCannonGameWithCorrectRoot(ctx context.Context, l2Node string, l2BlockNumber uint64) *OutputCannonGameHelper {
