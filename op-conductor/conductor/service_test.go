@@ -3,7 +3,6 @@ package conductor
 import (
 	"context"
 	"errors"
-	"fmt"
 	"math/big"
 	"sync"
 	"testing"
@@ -80,12 +79,12 @@ func mockConfig(t *testing.T) Config {
 type OpConductorTestSuite struct {
 	suite.Suite
 
-	conductor *OpConductor
-
+	conductor      *OpConductor
 	healthUpdateCh chan error
 	leaderUpdateCh chan bool
 
 	ctx     context.Context
+	err     error
 	log     log.Logger
 	cfg     Config
 	version string
@@ -124,17 +123,13 @@ func (s *OpConductorTestSuite) SetupTest() {
 	s.leaderUpdateCh = make(chan bool, 1)
 	s.conductor.leaderUpdateCh = s.leaderUpdateCh
 
+	s.err = errors.New("error")
 	s.syncEnabled = false // default to no sync, turn it on by calling s.enableSynchronization()
-	// err = s.conductor.Start(s.ctx)
-	// s.NoError(err)
-	// s.False(s.conductor.Stopped())
 }
 
 func (s *OpConductorTestSuite) TearDownTest() {
 	s.hmon.EXPECT().Stop().Return(nil)
 	s.cons.EXPECT().Shutdown().Return(nil)
-
-	fmt.Println("entering teardown")
 
 	if s.syncEnabled {
 		s.wg.Add(1)
@@ -144,23 +139,27 @@ func (s *OpConductorTestSuite) TearDownTest() {
 	s.True(s.conductor.Stopped())
 }
 
+func (s *OpConductorTestSuite) startConductor() {
+	err := s.conductor.Start(s.ctx)
+	s.NoError(err)
+	s.False(s.conductor.Stopped())
+}
+
 // enableSynchronization wraps conductor actionFn with extra synchronization logic
 // so that we could control the execution of actionFn and observe the internal state transition in between.
 func (s *OpConductorTestSuite) enableSynchronization() {
-	fmt.Println("sync enabled")
 	s.syncEnabled = true
 	s.conductor.loopActionFn = func() {
-		fmt.Println("waiting for loop")
 		<-s.next
-		fmt.Println("entering loop action")
 		s.conductor.loopAction()
-		fmt.Println("finished loop action")
 		s.wg.Done()
 	}
-	// fmt.Println("sync enabled 2")
-	// s.conductor.actionCh <- struct{}{} // clear current select block since start
-	// fmt.Println("enable sync finished")
-	// s.executeAction()
+	s.startConductor()
+}
+
+func (s *OpConductorTestSuite) disableSynchronization() {
+	s.syncEnabled = false
+	s.startConductor()
 }
 
 func (s *OpConductorTestSuite) execute(fn func()) {
@@ -176,11 +175,8 @@ func updateStatusAndExecuteAction[T any](s *OpConductorTestSuite, ch chan T, sta
 	fn := func() {
 		ch <- status
 	}
-	fmt.Println("executing status update")
 	s.execute(fn) // this executes status update
-	fmt.Println("state update executed")
 	s.executeAction()
-	fmt.Println("action executed")
 }
 
 func (s *OpConductorTestSuite) updateLeaderStatusAndExecuteAction(status bool) {
@@ -197,6 +193,8 @@ func (s *OpConductorTestSuite) executeAction() {
 
 // Scenario 1: pause -> resume -> stop
 func (s *OpConductorTestSuite) TestControlLoop1() {
+	s.disableSynchronization()
+
 	// Pause
 	err := s.conductor.Pause(s.ctx)
 	s.NoError(err)
@@ -222,6 +220,8 @@ func (s *OpConductorTestSuite) TestControlLoop1() {
 
 // Scenario 2: pause -> pause -> resume -> resume
 func (s *OpConductorTestSuite) TestControlLoop2() {
+	s.disableSynchronization()
+
 	// Pause
 	err := s.conductor.Pause(s.ctx)
 	s.NoError(err)
@@ -253,6 +253,8 @@ func (s *OpConductorTestSuite) TestControlLoop2() {
 
 // Scenario 3: pause -> stop
 func (s *OpConductorTestSuite) TestControlLoop3() {
+	s.disableSynchronization()
+
 	// Pause
 	err := s.conductor.Pause(s.ctx)
 	s.NoError(err)
@@ -271,9 +273,6 @@ func (s *OpConductorTestSuite) TestControlLoop3() {
 // [follower, not healthy, not sequencing] -- become leader --> [leader, not healthy, not sequencing] -- transfer leadership --> [follower, not healthy, not sequencing]
 func (s *OpConductorTestSuite) TestScenario1() {
 	s.enableSynchronization()
-	err := s.conductor.Start(s.ctx)
-	s.NoError(err)
-	s.False(s.conductor.Stopped())
 
 	// set initial state
 	s.conductor.leader.Store(false)
@@ -379,7 +378,7 @@ func (s *OpConductorTestSuite) TestScenario4() {
 	s.enableSynchronization()
 
 	// unsafe in consensus is 1 block ahead of unsafe in sequencer, we try to post the unsafe payload to sequencer and return error to allow retry
-	// this is normal because the latest unsafe (in consensus) might not arrive at sequencer through p2p yet.
+	// this is normal because the latest unsafe (in consensus) might not arrive at sequencer through p2p yet
 	mockPayload := &eth.ExecutionPayloadEnvelope{
 		ExecutionPayload: &eth.ExecutionPayload{
 			BlockNumber: 2,
@@ -501,7 +500,6 @@ func (s *OpConductorTestSuite) TestScenario7() {
 // 5. [follower, unhealthy, not sequencing]
 func (s *OpConductorTestSuite) TestFailureAndRetry1() {
 	s.enableSynchronization()
-	err := errors.New("failure")
 
 	// set initial state
 	s.conductor.leader.Store(true)
@@ -514,8 +512,8 @@ func (s *OpConductorTestSuite) TestFailureAndRetry1() {
 	}
 
 	// step 1 & 2: become unhealthy, stop sequencing failed, transfer leadership failed
-	s.cons.EXPECT().TransferLeader().Return(err).Times(1)
-	s.ctrl.EXPECT().StopSequencer(mock.Anything).Return(common.Hash{}, err).Times(1)
+	s.cons.EXPECT().TransferLeader().Return(s.err).Times(1)
+	s.ctrl.EXPECT().StopSequencer(mock.Anything).Return(common.Hash{}, s.err).Times(1)
 
 	s.updateHealthStatusAndExecuteAction(health.ErrSequencerNotHealthy)
 
@@ -533,7 +531,7 @@ func (s *OpConductorTestSuite) TestFailureAndRetry1() {
 
 	// step 3: [leader, unhealthy, sequencing] -- stop sequencing succeeded, transfer leadership failed, retry
 	s.ctrl.EXPECT().StopSequencer(mock.Anything).Return(common.Hash{}, nil).Times(1)
-	s.cons.EXPECT().TransferLeader().Return(err).Times(1)
+	s.cons.EXPECT().TransferLeader().Return(s.err).Times(1)
 
 	s.executeAction()
 
@@ -576,7 +574,6 @@ func (s *OpConductorTestSuite) TestFailureAndRetry1() {
 // 4. [follower, unhealthy, not sequencing]
 func (s *OpConductorTestSuite) TestFailureAndRetry2() {
 	s.enableSynchronization()
-	err := errors.New("failure")
 
 	// set initial state
 	s.conductor.leader.Store(true)
@@ -590,7 +587,7 @@ func (s *OpConductorTestSuite) TestFailureAndRetry2() {
 
 	// step 1 & 2: become unhealthy, stop sequencing failed, transfer leadership succeeded, retry
 	s.cons.EXPECT().TransferLeader().Return(nil).Times(1)
-	s.ctrl.EXPECT().StopSequencer(mock.Anything).Return(common.Hash{}, err).Times(1)
+	s.ctrl.EXPECT().StopSequencer(mock.Anything).Return(common.Hash{}, s.err).Times(1)
 
 	s.updateHealthStatusAndExecuteAction(health.ErrSequencerNotHealthy)
 
@@ -711,7 +708,6 @@ func (s *OpConductorTestSuite) TestFailureAndRetry3() {
 				active:  true,
 			})
 		if !res {
-			fmt.Println("executing action")
 			s.executeAction()
 		}
 		return res

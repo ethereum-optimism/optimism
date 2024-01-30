@@ -497,6 +497,7 @@ func (oc *OpConductor) handleLeaderUpdate(leader bool) {
 
 // handleHealthUpdate handles health update from health monitor.
 func (oc *OpConductor) handleHealthUpdate(hcerr error) {
+	oc.log.Debug("received health update", "server", oc.cons.ServerID(), "error", hcerr)
 	healthy := hcerr == nil
 	if !healthy {
 		oc.log.Error("Sequencer is unhealthy", "server", oc.cons.ServerID(), "err", hcerr)
@@ -521,7 +522,8 @@ func (oc *OpConductor) action() {
 
 	var err error
 	status := NewState(oc.leader.Load(), oc.healthy.Load(), oc.seqActive.Load())
-	fmt.Println(status)
+	oc.log.Debug("entering action with status", "status", status)
+
 	// exhaust all cases below for completeness, 3 state, 8 cases.
 	switch {
 	case !status.leader && !status.healthy && !status.active:
@@ -589,6 +591,7 @@ func (oc *OpConductor) action() {
 		// normal leader, do nothing
 	}
 
+	oc.log.Debug("exiting action with status and error", "status", status, "err", err)
 	if err != nil {
 		oc.log.Error("failed to execute step, queueing another one to retry", "err", err)
 		// randomly sleep for 0-200ms to avoid excessive retry
@@ -606,6 +609,7 @@ func (oc *OpConductor) action() {
 // transferLeader tries to transfer leadership to another server.
 func (oc *OpConductor) transferLeader() error {
 	// TransferLeader here will do round robin to try to transfer leadership to the next healthy node.
+	oc.log.Info("transferring leadership", "server", oc.cons.ServerID())
 	err := oc.cons.TransferLeader()
 	if err == nil {
 		oc.leader.Store(false)
@@ -640,7 +644,6 @@ func (oc *OpConductor) stopSequencer() error {
 }
 
 func (oc *OpConductor) startSequencer() error {
-	oc.log.Info("starting sequencer", "server", oc.cons.ServerID(), "leader", oc.leader.Load(), "healthy", oc.healthy.Load(), "active", oc.seqActive.Load())
 	ctx := context.Background()
 
 	// When starting sequencer, we need to make sure that the current node has the latest unsafe head from the consensus protocol
@@ -657,6 +660,7 @@ func (oc *OpConductor) startSequencer() error {
 		return err
 	}
 
+	oc.log.Info("starting sequencer", "server", oc.cons.ServerID(), "leader", oc.leader.Load(), "healthy", oc.healthy.Load(), "active", oc.seqActive.Load())
 	if err = oc.ctrl.StartSequencer(ctx, unsafeInCons.ExecutionPayload.BlockHash); err != nil {
 		// cannot directly compare using Errors.Is because the error is returned from an JSON RPC server which lost its type.
 		if !strings.Contains(err.Error(), driver.ErrSequencerAlreadyStarted.Error()) {
@@ -681,6 +685,7 @@ func (oc *OpConductor) compareUnsafeHead(ctx context.Context) (*eth.ExecutionPay
 		return unsafeInCons, nil, errors.Wrap(err, "failed to get latest unsafe block from EL during compareUnsafeHead phase")
 	}
 
+	oc.log.Debug("comparing unsafe head", "consensus", unsafeInCons.ExecutionPayload.BlockNumber, "node", unsafeInNode.NumberU64())
 	if unsafeInCons.ExecutionPayload.BlockHash != unsafeInNode.Hash() {
 		oc.log.Warn(
 			"latest unsafe block in consensus is not the same as the one in op-node",
@@ -701,6 +706,7 @@ func (oc *OpConductor) updateSequencerActiveStatus() error {
 	if err != nil {
 		return errors.Wrap(err, "failed to get sequencer active status")
 	}
+	oc.log.Info("sequencer active status updated", "active", active)
 	oc.seqActive.Store(active)
 	return nil
 }
