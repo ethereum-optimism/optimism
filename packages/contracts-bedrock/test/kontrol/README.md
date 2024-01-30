@@ -11,7 +11,8 @@
   - [Build Deployment Summary](#build-deployment-summary)
   - [Execute Proofs](#execute-proofs)
 - [Implementation Details](#implementation-details)
-- [References](#references)
+  - [Assumptions](#assumptions)
+  - [Deployment Summary Process](#deployment-summary-process)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -68,10 +69,10 @@ First, generate a deployment summary contract from the deploy script in [`Kontro
 [`KontrolDeployment.sol`](./deployment/KontrolDeployment.sol) contains the minimal deployment sequence required by the proofs.
 The [`make-summary-deployment.sh`](./scripts/make-summary-deployment.sh) script will generate a summary contract is used to load the post-`setUp` state directly into Kontrol.
 
-This step is optional if an up-to-date summary contract already exists, which will be the case until the deployment script changes.
-A CI check will fail if the summary contract is not up-to-date.
+This step is optional if an up-to-date summary contract already exists, which will be the case until the `KontrolDeployment` contract changes.
+See the [Implementation Details](#implementation-details) section for more information.
 
-The summary contract can be found in [`./proofs/utils/DeploymentSummary.sol`](./proofs/utils/DeploymentSummary.sol), which is summarization (state changes) of the [`KontrolDeployment.sol`](./deployment/KontrolDeployment.sol) script.
+The summary contract can be found in [`DeploymentSummary.sol`](./proofs/utils/DeploymentSummary.sol), which is summarization (state changes) of the [`KontrolDeployment.sol`](./deployment/KontrolDeployment.sol) contract.
 
 ### Execute Proofs
 
@@ -91,12 +92,38 @@ For a similar description of the options run `run-kontrol.sh --help`.
 
 ## Implementation Details
 
+### Assumptions
+
+1. A critical invariant of the `KontrolDeployment.sol` contract is that it stays in sync with the original `Deploy.s.sol` contract.
+   Currently, this is partly enforced by running some of the standard post-`setUp` deployment assertions in `DeploymentSummary.t.sol`.
+   A more rigorous approach may be to leverage the `ChainAssertions` library, but more investigation is required to determine if this is feasible without large changes to the deploy script.
+
+2. Until symbolic bytes are natively supported in Kontrol, we must make assumptions about the length of `bytes` parameters.
+   All current assumptions can be found by searching for `// ASSUME:` comments in the files.
+   Some of this assumptions can be lifted once [symbolic bytes](https://github.com/runtimeverification/kontrol/issues/272) are supported in Kontrol.
+
+### Deployment Summary Process
+
 As mentioned above, a deployment summary contract is first generated before executing the proofs.
-This is because the proof execution leverages Kontrol's [fast summarization](https://github.com/runtimeverification/kontrol/pull/271) feature, which allows for the loading of the post-`setUp` state directly into Kontrol.
-This provides a significant speedup in the proof execution time, as it avoids the need to execute the deployment script every time the proofs are run, as execution is much slower in Kontrol than it is in Foundry.
+This is because the proof execution leverages Kontrol's [fast summarization](https://github.com/runtimeverification/kontrol/pull/271) feature, which allows loading the post-`setUp` state directly into Kontrol.
+This provides a significant reduction in proof execution time, as it avoids the need to execute the deployment script every time the proofs are run.
 
-Therefore, this project uses two different [`foundry.toml` profiles](../../foundry.toml), `kdeploy` and `kprove`:
+All code executed in Kontrol—even when execution is concrete and not symbolic—is significantly slower than in Foundry, due to the mathematical representation of the EVM in Kontrol.
+Therefore we want to minimize the amount of code executed in Kontrol, and the fast summarization feature allows us to reduce `setUp` execution time.
 
-- `kdeploy`: Used by [`make-summary-deployment.sh`](./scripts/make-summary-deployment.sh) to generate the [`DeploymentSummary.sol`](./proofs/utils/DeploymentSummary.sol) contract based on execution of the [`KontrolDeployment.sol`](./deployment/KontrolDeployment.sol) script using Foundry's state diff recording cheatcodes. This where all necessary [`src/L1`](../../src/L1) files are compiled with their bytecode saved into the [`DeploymentSummaryCode.sol`](./proofs/utils/DeploymentSummaryCode.sol) file, which is inherited by `DeploymentSummary`.
+This project uses two different [`foundry.toml` profiles](../../foundry.toml), `kdeploy` and `kprove`, to facilitate usage of this fast summarization feature.:
 
-- `kprove`: Used by the [`run-kontrol.sh`](./scrpts/run-kontrol.sh) script to execute proofs, which can be run once a `DeploymentSummary.sol` contract is present. This profile's `src` directory points to a test folder because we only want to compile what is in the `test/kontrol/proofs` folder, since that folder contains all bytecode and proofs. We point the script path to the same directory for the same reason.
+- `kdeploy`: Used by [`make-summary-deployment.sh`](./scripts/make-summary-deployment.sh) to generate the `DeploymentSummary.sol` contract based on execution of the `KontrolDeployment.sol` contract using Foundry's state diff recording cheatcodes.
+  This is where all necessary [`src/L1`](../../src/L1) files are compiled with their bytecode saved into the `DeploymentSummaryCode.sol` file, which is inherited by `DeploymentSummary`.
+
+- `kprove`: Used by the [`run-kontrol.sh`](./scrpts/run-kontrol.sh) script to execute proofs, which can be run once a `DeploymentSummary.sol` contract is present. This profile's `src` and `script` paths point to a test folder because we only want to compile what is in the `test/kontrol/proofs` folder, since that folder contains all bytecode and proofs.
+
+The `make-summary-deployment.sh` scripts saves off the generated JSON state diff to `snapshots/state-diff/Kontrol-Deploy.json`, and is run as part of the `snapshots` script in `package.json`.
+Therefore, the snapshots CI check will fail if the committed Kontrol state diff is out of sync.
+Note that the CI check only compares the JSON state diff, not the generated `DeploymentSummary.sol` or `DeploymentSummaryCode` contracts.
+This is for simplicity, as those three files will be in sync upon successful execution of the `make-summary-deployment.sh` script.
+We commit the `DeploymentSummary.sol` and `DeploymentSummaryCode.sol` contracts, because forge fails to build if those contracts are not present—it is simpler to commit these autogenerated files than to workaround their absence in forge builds.
+
+During `make-summary-deployment.sh`, the `mustGetAddress` usage in `Deploy.s.sol` is temporarily replaced by `getAddress`—the former reverts if the deployed contract does not exist, while the latter returns the zero address.
+This is required because the deploy script in `KontrolDeployment.sol` is does not fully reproduce all deployments in `Deploy.s.sol`, so the `mustGetAddress` usage would cause the script to revert since some contracts are not deployed.
+`KontrolDeployment.sol` is a simplified, minimal deployment sequence for Kontrol proofs, and is not intended to be a full deployment sequence for the contracts in `contracts-bedrock`.
