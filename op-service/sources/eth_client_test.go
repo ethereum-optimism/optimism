@@ -235,7 +235,7 @@ func testEthClient_validateReceipts(t *testing.T, test validateReceiptsTest) {
 		receipts = mut(receipts)
 	}
 
-	mrpc.On("CallContext", ctx, mock.AnythingOfType("**sources.rpcBlock"),
+	mrpc.On("CallContext", ctx, mock.AnythingOfType("**sources.RPCBlock"),
 		"eth_getBlockByHash", []any{block.Hash, true}).
 		Run(func(args mock.Arguments) {
 			*(args[1].(**RPCBlock)) = block
