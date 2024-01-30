@@ -1,9 +1,6 @@
 package merkle
 
 import (
-	"errors"
-
-	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 )
@@ -18,8 +15,6 @@ type Proof [BinaryMerkleTreeDepth]common.Hash
 var (
 	// MaxLeafCount is the maximum number of leaves in the merkle tree.
 	MaxLeafCount = 1<<BinaryMerkleTreeDepth - 1 // 2^16 - 1
-	// IndexOutOfBoundsError is returned when an index is out of bounds.
-	IndexOutOfBoundsError = errors.New("index out of bounds")
 	// zeroHashes is a list of empty hashes in the binary merkle tree, indexed by height.
 	zeroHashes [BinaryMerkleTreeDepth]common.Hash
 	// rootHash is the known root hash of the empty binary merkle tree.
@@ -56,7 +51,7 @@ func (m *merkleNode) IsRightChild(o *merkleNode) bool {
 // It is an append-only tree, where leaves are added from left to right.
 type BinaryMerkleTree struct {
 	Root      *merkleNode
-	LeafCount int
+	LeafCount uint64
 }
 
 func NewBinaryMerkleTree() *BinaryMerkleTree {
@@ -72,8 +67,8 @@ func (m *BinaryMerkleTree) RootHash() (rootHash common.Hash) {
 }
 
 // walkDownToMaxLeaf walks down the tree to the max leaf node.
-func (m *BinaryMerkleTree) walkDownToLeafCount(subtreeLeafCount int) *merkleNode {
-	maxSubtreeLeafCount := MaxLeafCount + 1
+func (m *BinaryMerkleTree) walkDownToLeafCount(subtreeLeafCount uint64) *merkleNode {
+	maxSubtreeLeafCount := uint64(MaxLeafCount) + 1
 	levelNode := m.Root
 	for height := 0; height < BinaryMerkleTreeDepth; height++ {
 		if subtreeLeafCount*2 <= maxSubtreeLeafCount {
@@ -100,13 +95,13 @@ func (m *BinaryMerkleTree) walkDownToLeafCount(subtreeLeafCount int) *merkleNode
 }
 
 // AddLeaf adds a leaf to the binary merkle tree.
-func (m *BinaryMerkleTree) AddLeaf(leaf types.Leaf) {
+func (m *BinaryMerkleTree) AddLeaf(hash common.Hash) {
 	// Walk down to the new max leaf node.
 	m.LeafCount += 1
 	levelNode := m.walkDownToLeafCount(m.LeafCount)
 
 	// Set the leaf node data.
-	levelNode.Label = leaf.Hash()
+	levelNode.Label = hash
 
 	// Walk back up the tree, updating the hashes with its sibling hash.
 	for height := 0; height < BinaryMerkleTreeDepth; height++ {
@@ -132,12 +127,12 @@ func (m *BinaryMerkleTree) AddLeaf(leaf types.Leaf) {
 }
 
 // ProofAtIndex returns a merkle proof at the given leaf node index.
-func (m *BinaryMerkleTree) ProofAtIndex(index uint64) (proof Proof, err error) {
+func (m *BinaryMerkleTree) ProofAtIndex(index uint64) (proof Proof) {
 	if index >= uint64(MaxLeafCount) {
-		return proof, IndexOutOfBoundsError
+		panic("proof index out of bounds")
 	}
 
-	levelNode := m.walkDownToLeafCount(int(index) + 1)
+	levelNode := m.walkDownToLeafCount(index + 1)
 	for height := 0; height < BinaryMerkleTreeDepth; height++ {
 		if levelNode.Parent.IsLeftChild(levelNode) {
 			if levelNode.Parent.Right == nil {
@@ -155,5 +150,5 @@ func (m *BinaryMerkleTree) ProofAtIndex(index uint64) (proof Proof, err error) {
 		levelNode = levelNode.Parent
 	}
 
-	return proof, nil
+	return proof
 }

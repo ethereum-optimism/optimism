@@ -10,7 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
-	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -44,11 +44,12 @@ type resourceCreator func(ctx context.Context, logger log.Logger, gameDepth type
 
 func NewGamePlayer(
 	ctx context.Context,
+	cl clock.Clock,
 	logger log.Logger,
 	m metrics.Metricer,
 	dir string,
 	addr common.Address,
-	txMgr txmgr.TxManager,
+	txSender gameTypes.TxSender,
 	loader GameContract,
 	validators []Validator,
 	creator resourceCreator,
@@ -88,11 +89,15 @@ func NewGamePlayer(
 	if err != nil {
 		return nil, fmt.Errorf("failed to load oracle: %w", err)
 	}
-	direct := preimages.NewDirectPreimageUploader(logger, txMgr, loader)
-	large := preimages.NewLargePreimageUploader(logger, txMgr, oracle)
-	uploader := preimages.NewSplitPreimageUploader(direct, large)
 
-	responder, err := responder.NewFaultResponder(logger, txMgr, loader, uploader)
+	minLargePreimageSize, err := oracle.MinLargePreimageSize(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load min large preimage size: %w", err)
+	}
+	direct := preimages.NewDirectPreimageUploader(logger, txSender, loader)
+	large := preimages.NewLargePreimageUploader(logger, cl, txSender, oracle)
+	uploader := preimages.NewSplitPreimageUploader(direct, large, minLargePreimageSize)
+	responder, err := responder.NewFaultResponder(logger, txSender, loader, uploader, oracle)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the responder: %w", err)
 	}

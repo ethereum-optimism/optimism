@@ -109,7 +109,7 @@ func (s *stubResponder) CallResolve(ctx context.Context) (gameTypes.GameStatus, 
 	return s.callResolveStatus, s.callResolveErr
 }
 
-func (s *stubResponder) Resolve(ctx context.Context) error {
+func (s *stubResponder) Resolve() error {
 	s.resolveCount++
 	return s.resolveErr
 }
@@ -119,7 +119,7 @@ func (s *stubResponder) CallResolveClaim(ctx context.Context, clainIdx uint64) e
 	return s.callResolveClaimErr
 }
 
-func (s *stubResponder) ResolveClaim(ctx context.Context, clainIdx uint64) error {
+func (s *stubResponder) ResolveClaim(clainIdx uint64) error {
 	s.resolveClaimCount++
 	return nil
 }

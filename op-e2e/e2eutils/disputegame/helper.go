@@ -14,8 +14,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame/preimage"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/l2oo"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/transactions"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -31,9 +31,9 @@ import (
 )
 
 const (
-	cannonGameType    uint8 = 0
-	alphabetGameType  uint8 = 255
-	alphabetGameDepth       = 4
+	cannonGameType    uint32 = 0
+	alphabetGameType  uint32 = 255
+	alphabetGameDepth        = 4
 )
 
 type Status uint8
@@ -76,7 +76,6 @@ type FactoryHelper struct {
 	opts        *bind.TransactOpts
 	factoryAddr common.Address
 	factory     *bindings.DisputeGameFactory
-	l2ooHelper  *l2oo.L2OOHelper
 }
 
 func NewFactoryHelper(t *testing.T, ctx context.Context, system DisputeSystem) *FactoryHelper {
@@ -100,8 +99,22 @@ func NewFactoryHelper(t *testing.T, ctx context.Context, system DisputeSystem) *
 		opts:        opts,
 		factory:     factory,
 		factoryAddr: factoryAddr,
-		l2ooHelper:  l2oo.NewL2OOHelperReadOnly(t, l1Deployments, client),
 	}
+}
+
+func (h *FactoryHelper) PreimageHelper(ctx context.Context) *preimage.Helper {
+	opts := &bind.CallOpts{Context: ctx}
+	gameAddr, err := h.factory.GameImpls(opts, alphabetGameType)
+	h.require.NoError(err)
+	game, err := bindings.NewFaultDisputeGameCaller(gameAddr, h.client)
+	h.require.NoError(err)
+	vmAddr, err := game.Vm(opts)
+	h.require.NoError(err)
+	vm, err := bindings.NewMIPSCaller(vmAddr, h.client)
+	h.require.NoError(err)
+	oracleAddr, err := vm.Oracle(opts)
+	h.require.NoError(err)
+	return preimage.NewHelper(h.t, h.opts, h.client, oracleAddr)
 }
 
 func (h *FactoryHelper) StartOutputCannonGameWithCorrectRoot(ctx context.Context, l2Node string, l2BlockNumber uint64) *OutputCannonGameHelper {

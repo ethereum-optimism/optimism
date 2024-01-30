@@ -62,7 +62,7 @@ func randHash() (out common.Hash) {
 	return out
 }
 
-func randHeader() (*types.Header, *rpcHeader) {
+func randHeader() (*types.Header, *RPCHeader) {
 	hdr := &types.Header{
 		ParentHash:  randHash(),
 		UncleHash:   randHash(),
@@ -81,7 +81,7 @@ func randHeader() (*types.Header, *rpcHeader) {
 		Nonce:       types.BlockNonce{},
 		BaseFee:     big.NewInt(100),
 	}
-	rhdr := &rpcHeader{
+	rhdr := &RPCHeader{
 		ParentHash:  hdr.ParentHash,
 		UncleHash:   hdr.UncleHash,
 		Coinbase:    hdr.Coinbase,
@@ -108,9 +108,9 @@ func TestEthClient_InfoByHash(t *testing.T) {
 	_, rhdr := randHeader()
 	expectedInfo, _ := rhdr.Info(true, false)
 	ctx := context.Background()
-	m.On("CallContext", ctx, new(*rpcHeader),
+	m.On("CallContext", ctx, new(*RPCHeader),
 		"eth_getBlockByHash", []any{rhdr.Hash, false}).Run(func(args mock.Arguments) {
-		*args[1].(**rpcHeader) = rhdr
+		*args[1].(**RPCHeader) = rhdr
 	}).Return([]error{nil})
 	s, err := NewEthClient(m, nil, nil, testEthClientConfig)
 	require.NoError(t, err)
@@ -131,9 +131,9 @@ func TestEthClient_InfoByNumber(t *testing.T) {
 	expectedInfo, _ := rhdr.Info(true, false)
 	n := rhdr.Number
 	ctx := context.Background()
-	m.On("CallContext", ctx, new(*rpcHeader),
+	m.On("CallContext", ctx, new(*RPCHeader),
 		"eth_getBlockByNumber", []any{n.String(), false}).Run(func(args mock.Arguments) {
-		*args[1].(**rpcHeader) = rhdr
+		*args[1].(**RPCHeader) = rhdr
 	}).Return([]error{nil})
 	s, err := NewL1Client(m, nil, nil, L1ClientDefaultConfig(&rollup.Config{SeqWindowSize: 10}, true, RPCKindStandard))
 	require.NoError(t, err)
@@ -150,9 +150,9 @@ func TestEthClient_WrongInfoByNumber(t *testing.T) {
 	rhdr2.Number += 1
 	n := rhdr.Number
 	ctx := context.Background()
-	m.On("CallContext", ctx, new(*rpcHeader),
+	m.On("CallContext", ctx, new(*RPCHeader),
 		"eth_getBlockByNumber", []any{n.String(), false}).Run(func(args mock.Arguments) {
-		*args[1].(**rpcHeader) = &rhdr2
+		*args[1].(**RPCHeader) = &rhdr2
 	}).Return([]error{nil})
 	s, err := NewL1Client(m, nil, nil, L1ClientDefaultConfig(&rollup.Config{SeqWindowSize: 10}, true, RPCKindStandard))
 	require.NoError(t, err)
@@ -169,9 +169,9 @@ func TestEthClient_WrongInfoByHash(t *testing.T) {
 	rhdr2.Hash = rhdr2.computeBlockHash()
 	k := rhdr.Hash
 	ctx := context.Background()
-	m.On("CallContext", ctx, new(*rpcHeader),
+	m.On("CallContext", ctx, new(*RPCHeader),
 		"eth_getBlockByHash", []any{k, false}).Run(func(args mock.Arguments) {
-		*args[1].(**rpcHeader) = &rhdr2
+		*args[1].(**RPCHeader) = &rhdr2
 	}).Return([]error{nil})
 	s, err := NewL1Client(m, nil, nil, L1ClientDefaultConfig(&rollup.Config{SeqWindowSize: 10}, true, RPCKindStandard))
 	require.NoError(t, err)
@@ -235,10 +235,10 @@ func testEthClient_validateReceipts(t *testing.T, test validateReceiptsTest) {
 		receipts = mut(receipts)
 	}
 
-	mrpc.On("CallContext", ctx, mock.AnythingOfType("**sources.rpcBlock"),
+	mrpc.On("CallContext", ctx, mock.AnythingOfType("**sources.RPCBlock"),
 		"eth_getBlockByHash", []any{block.Hash, true}).
 		Run(func(args mock.Arguments) {
-			*(args[1].(**rpcBlock)) = block
+			*(args[1].(**RPCBlock)) = block
 		}).
 		Return([]error{nil}).Once()
 

@@ -330,7 +330,7 @@ func (l *L2OutputSubmitter) ProposeL2OutputDGFTxData(output *eth.OutputResponse)
 }
 
 // proposeL2OutputDGFTxData creates the transaction data for the DisputeGameFactory's `create` function
-func proposeL2OutputDGFTxData(abi *abi.ABI, gameType uint8, output *eth.OutputResponse) ([]byte, error) {
+func proposeL2OutputDGFTxData(abi *abi.ABI, gameType uint32, output *eth.OutputResponse) ([]byte, error) {
 	return abi.Pack("create", gameType, output.OutputRoot, math.U256Bytes(new(big.Int).SetUint64(output.BlockRef.Number)))
 }
 

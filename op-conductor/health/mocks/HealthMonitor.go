@@ -108,19 +108,19 @@ func (_c *HealthMonitor_Stop_Call) RunAndReturn(run func() error) *HealthMonitor
 }
 
 // Subscribe provides a mock function with given fields:
-func (_m *HealthMonitor) Subscribe() <-chan bool {
+func (_m *HealthMonitor) Subscribe() <-chan error {
 	ret := _m.Called()
 
 	if len(ret) == 0 {
 		panic("no return value specified for Subscribe")
 	}
 
-	var r0 <-chan bool
-	if rf, ok := ret.Get(0).(func() <-chan bool); ok {
+	var r0 <-chan error
+	if rf, ok := ret.Get(0).(func() <-chan error); ok {
 		r0 = rf()
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(<-chan bool)
+			r0 = ret.Get(0).(<-chan error)
 		}
 	}
 
@@ -144,12 +144,12 @@ func (_c *HealthMonitor_Subscribe_Call) Run(run func()) *HealthMonitor_Subscribe
 	return _c
 }
 
-func (_c *HealthMonitor_Subscribe_Call) Return(_a0 <-chan bool) *HealthMonitor_Subscribe_Call {
+func (_c *HealthMonitor_Subscribe_Call) Return(_a0 <-chan error) *HealthMonitor_Subscribe_Call {
 	_c.Call.Return(_a0)
 	return _c
 }
 
-func (_c *HealthMonitor_Subscribe_Call) RunAndReturn(run func() <-chan bool) *HealthMonitor_Subscribe_Call {
+func (_c *HealthMonitor_Subscribe_Call) RunAndReturn(run func() <-chan error) *HealthMonitor_Subscribe_Call {
 	_c.Call.Return(run)
 	return _c
 }

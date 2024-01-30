@@ -4,7 +4,9 @@ import (
 	"context"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/merkle"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
+	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 )
@@ -17,17 +19,17 @@ type Leaf struct {
 	// Input is the data absorbed for the block, exactly 136 bytes
 	Input [BlockSize]byte
 	// Index of the block in the absorption process
-	Index *big.Int
+	Index uint64
 	// StateCommitment is the hash of the internal state after absorbing the input.
 	StateCommitment common.Hash
 }
 
 // Hash returns the hash of the leaf data. That is the
 // bytewise concatenation of the input, index, and state commitment.
-func (l *Leaf) Hash() common.Hash {
+func (l Leaf) Hash() common.Hash {
 	concatted := make([]byte, 0, 136+32+32)
 	concatted = append(concatted, l.Input[:]...)
-	concatted = append(concatted, l.Index.Bytes()...)
+	concatted = append(concatted, new(big.Int).SetUint64(l.Index).Bytes()...)
 	concatted = append(concatted, l.StateCommitment.Bytes()...)
 	return crypto.Keccak256Hash(concatted)
 }
@@ -73,10 +75,12 @@ type Challenge struct {
 	StateMatrix []byte // TODO(client-pod#480): Need a better representation of this
 
 	// Prestate is the valid leaf immediately prior to the first invalid leaf
-	Prestate Leaf
+	Prestate      Leaf
+	PrestateProof merkle.Proof
 
 	// Poststate is the first invalid leaf in the preimage. The challenge claims that this leaf is invalid.
-	Poststate Leaf
+	Poststate      Leaf
+	PoststateProof merkle.Proof
 }
 
 type LargePreimageOracle interface {
@@ -84,4 +88,5 @@ type LargePreimageOracle interface {
 	GetActivePreimages(ctx context.Context, blockHash common.Hash) ([]LargePreimageMetaData, error)
 	GetInputDataBlocks(ctx context.Context, block batching.Block, ident LargePreimageIdent) ([]uint64, error)
 	DecodeInputData(data []byte) (*big.Int, InputData, error)
+	ChallengeTx(ident LargePreimageIdent, challenge Challenge) (txmgr.TxCandidate, error)
 }

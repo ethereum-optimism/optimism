@@ -110,9 +110,11 @@ func TestEcotoneNetworkTransactions(t *testing.T) {
 	require.Nil(t, beaconRoots.To())
 	require.Equal(t, uint64(250_000), beaconRoots.Gas())
 	require.Equal(t, eip4788CreationData, beaconRoots.Data())
+	require.NotEmpty(t, beaconRoots.Data())
 }
 
 func TestEip4788Params(t *testing.T) {
 	require.Equal(t, EIP4788From, common.HexToAddress("0x0B799C86a49DEeb90402691F1041aa3AF2d3C875"))
-	require.Equal(t, eip4788CreationData, common.Hex2Bytes("0x60618060095f395ff33373fffffffffffffffffffffffffffffffffffffffe14604d57602036146024575f5ffd5b5f35801560495762001fff810690815414603c575f5ffd5b62001fff01545f5260205ff35b5f5ffd5b62001fff42064281555f359062001fff015500"))
+	require.Equal(t, eip4788CreationData, common.FromHex("0x60618060095f395ff33373fffffffffffffffffffffffffffffffffffffffe14604d57602036146024575f5ffd5b5f35801560495762001fff810690815414603c575f5ffd5b62001fff01545f5260205ff35b5f5ffd5b62001fff42064281555f359062001fff015500"))
+	require.NotEmpty(t, eip4788CreationData)
 }

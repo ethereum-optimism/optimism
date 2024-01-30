@@ -744,23 +744,29 @@ func (m *SimpleTxManager) suggestGasPriceCaps(ctx context.Context) (*big.Int, *b
 	return tip, baseFee, blobFee, nil
 }
 
-func (m *SimpleTxManager) checkLimits(tip, baseFee, bumpedTip, bumpedFee *big.Int) error {
-	// If below threshold, don't apply multiplier limit
-	if thr := m.cfg.FeeLimitThreshold; thr != nil && thr.Cmp(bumpedFee) == 1 {
-		return nil
-	}
+// checkLimits checks that the tip and baseFee have not increased by more than the configured multipliers
+// if FeeLimitThreshold is specified in config, any increase which stays under the threshold are allowed
+func (m *SimpleTxManager) checkLimits(tip, baseFee, bumpedTip, bumpedFee *big.Int) (errs error) {
+	threshold := m.cfg.FeeLimitThreshold
+	limit := big.NewInt(int64(m.cfg.FeeLimitMultiplier))
+	maxTip := new(big.Int).Mul(tip, limit)
+	maxFee := calcGasFeeCap(new(big.Int).Mul(baseFee, limit), maxTip)
 
-	// Make sure increase is at most [FeeLimitMultiplier] the suggested values
-	feeLimitMult := big.NewInt(int64(m.cfg.FeeLimitMultiplier))
-	maxTip := new(big.Int).Mul(tip, feeLimitMult)
-	if bumpedTip.Cmp(maxTip) > 0 {
-		return fmt.Errorf("bumped tip cap %v is over %dx multiple of the suggested value", bumpedTip, m.cfg.FeeLimitMultiplier)
+	// generic check function to check tip and fee, and build up an error
+	check := func(v, max *big.Int, name string) {
+		// if threshold is specified and the value is under the threshold, no need to check the max
+		if threshold != nil && threshold.Cmp(v) > 0 {
+			return
+		}
+		// if the value is over the max, add an error message
+		if v.Cmp(max) > 0 {
+			errs = errors.Join(errs, fmt.Errorf("bumped %s cap %v is over %dx multiple of the suggested value", name, v, limit))
+		}
 	}
-	maxFee := calcGasFeeCap(new(big.Int).Mul(baseFee, feeLimitMult), maxTip)
-	if bumpedFee.Cmp(maxFee) > 0 {
-		return fmt.Errorf("bumped fee cap %v is over %dx multiple of the suggested value", bumpedFee, m.cfg.FeeLimitMultiplier)
-	}
-	return nil
+	check(bumpedTip, maxTip, "tip")
+	check(bumpedFee, maxFee, "fee")
+
+	return errs
 }
 
 func (m *SimpleTxManager) checkBlobFeeLimits(blobBaseFee, bumpedBlobFee *big.Int) error {

@@ -80,6 +80,13 @@ func NewBlockProcessorFromHeader(provider BlockDataProvider, h *types.Header) (*
 	header.BaseFee = eip1559.CalcBaseFee(provider.Config(), parentHeader, header.Time)
 	header.GasUsed = 0
 	gasPool := new(core.GasPool).AddGas(header.GasLimit)
+	if h.ParentBeaconRoot != nil {
+		// Unfortunately this is not part of any Geth environment setup,
+		// we just have to apply it, like how the Geth block-builder worker does.
+		context := core.NewEVMBlockContext(header, provider, nil, provider.Config(), statedb)
+		vmenv := vm.NewEVM(context, vm.TxContext{}, statedb, provider.Config(), vm.Config{})
+		core.ProcessBeaconBlockRoot(*header.ParentBeaconRoot, vmenv, statedb)
+	}
 	return &BlockProcessor{
 		header:       header,
 		state:        statedb,

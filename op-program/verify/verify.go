@@ -1,8 +1,7 @@
-package main
+package verify
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"math/big"
 	"os"
@@ -11,44 +10,19 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-program/chainconfig"
 	"github.com/ethereum-optimism/optimism/op-program/host"
-	config "github.com/ethereum-optimism/optimism/op-program/host/config"
+	"github.com/ethereum-optimism/optimism/op-program/host/config"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
-func main() {
-	var l1RpcUrl string
-	var l1RpcKind string
-	var l2RpcUrl string
-	var dataDir string
-	flag.StringVar(&l1RpcUrl, "l1", "", "L1 RPC URL to use")
-	flag.StringVar(&l1RpcKind, "l1-rpckind", "alchemy", "L1 RPC kind")
-	flag.StringVar(&l2RpcUrl, "l2", "", "L2 RPC URL to use")
-	flag.StringVar(&dataDir, "datadir", "",
-		"Directory to use for storing pre-images. If not set a temporary directory will be used.")
-	flag.Parse()
-
-	if l1RpcUrl == "" || l2RpcUrl == "" {
-		_, _ = fmt.Fprintln(os.Stderr, "Must specify --l1 and --l2 RPC URLs")
-		os.Exit(2)
-	}
-
-	goerliOutputAddress := common.HexToAddress("0xE6Dfba0953616Bacab0c9A8ecb3a9BBa77FC15c0")
-	err := Run(l1RpcUrl, l1RpcKind, l2RpcUrl, goerliOutputAddress, dataDir)
-	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "Failed: %v\n", err.Error())
-		os.Exit(1)
-	}
-}
-
-func Run(l1RpcUrl string, l1RpcKind string, l2RpcUrl string, l2OracleAddr common.Address, dataDir string) error {
+func Run(l1RpcUrl string, l1RpcKind string, l2RpcUrl string, l2OracleAddr common.Address, dataDir string, network string, chainCfg *params.ChainConfig) error {
 	ctx := context.Background()
 	l1RpcClient, err := rpc.Dial(l1RpcUrl)
 	if err != nil {
@@ -122,7 +96,7 @@ func Run(l1RpcUrl string, l1RpcKind string, l2RpcUrl string, l2OracleAddr common
 	fmt.Printf("Using dir: %s\n", dataDir)
 	args := []string{
 		"--log.level", "DEBUG",
-		"--network", "goerli",
+		"--network", network,
 		"--exec", "./bin/op-program-client",
 		"--datadir", dataDir,
 		"--l1.head", l1Head.Hex(),
@@ -132,7 +106,7 @@ func Run(l1RpcUrl string, l1RpcKind string, l2RpcUrl string, l2OracleAddr common
 		"--l2.blocknumber", l2BlockNumber.String(),
 	}
 	argsStr := strings.Join(args, " ")
-	// args.txt is used by run-goerli-verify job for offline verification in CI
+	// args.txt is used by the verify job for offline verification in CI
 	if err := os.WriteFile(filepath.Join(dataDir, "args.txt"), []byte(argsStr), 0644); err != nil {
 		fmt.Printf("Could not write args: %v", err)
 		os.Exit(1)
@@ -141,14 +115,14 @@ func Run(l1RpcUrl string, l1RpcKind string, l2RpcUrl string, l2OracleAddr common
 
 	logger := oplog.DefaultCLIConfig()
 	logger.Level = log.LvlDebug
-	rollupCfg, err := rollup.LoadOPStackRollupConfig(chainconfig.OPGoerliChainConfig.ChainID.Uint64())
+	rollupCfg, err := rollup.LoadOPStackRollupConfig(chainCfg.ChainID.Uint64())
 	if err != nil {
 		return fmt.Errorf("failed to load rollup config: %w", err)
 	}
 	offlineCfg := config.Config{
 		Rollup:             rollupCfg,
 		DataDir:            dataDir,
-		L2ChainConfig:      chainconfig.OPGoerliChainConfig,
+		L2ChainConfig:      chainCfg,
 		L2Head:             l2Head,
 		L2OutputRoot:       agreedOutput.OutputRoot,
 		L2Claim:            l2Claim,

@@ -957,7 +957,7 @@ func TestWaitMinedReturnsReceiptAfterFailure(t *testing.T) {
 	require.Equal(t, receipt.TxHash, txHash)
 }
 
-func doGasPriceIncrease(t *testing.T, txTipCap, txFeeCap, newTip, newBaseFee int64) (*types.Transaction, *types.Transaction) {
+func doGasPriceIncrease(t *testing.T, txTipCap, txFeeCap, newTip, newBaseFee int64) (*types.Transaction, *types.Transaction, error) {
 	borkedBackend := failingBackend{
 		gasTip:              big.NewInt(newTip),
 		baseFee:             big.NewInt(newBaseFee),
@@ -987,8 +987,7 @@ func doGasPriceIncrease(t *testing.T, txTipCap, txFeeCap, newTip, newBaseFee int
 		GasFeeCap: big.NewInt(txFeeCap),
 	})
 	newTx, err := mgr.increaseGasPrice(context.Background(), tx)
-	require.NoError(t, err)
-	return tx, newTx
+	return tx, newTx, err
 }
 
 func TestIncreaseGasPrice(t *testing.T) {
@@ -1001,58 +1000,89 @@ func TestIncreaseGasPrice(t *testing.T) {
 		{
 			name: "bump at least 1",
 			run: func(t *testing.T) {
-				tx, newTx := doGasPriceIncrease(t, 1, 3, 1, 1)
+				tx, newTx, err := doGasPriceIncrease(t, 1, 3, 1, 1)
 				require.True(t, newTx.GasFeeCap().Cmp(tx.GasFeeCap()) > 0, "new tx fee cap must be larger")
 				require.True(t, newTx.GasTipCap().Cmp(tx.GasTipCap()) > 0, "new tx tip must be larger")
+				require.NoError(t, err)
 			},
 		},
 		{
 			name: "enforces min bump",
 			run: func(t *testing.T) {
-				tx, newTx := doGasPriceIncrease(t, 100, 1000, 101, 460)
+				tx, newTx, err := doGasPriceIncrease(t, 100, 1000, 101, 460)
 				require.True(t, newTx.GasFeeCap().Cmp(tx.GasFeeCap()) > 0, "new tx fee cap must be larger")
 				require.True(t, newTx.GasTipCap().Cmp(tx.GasTipCap()) > 0, "new tx tip must be larger")
+				require.NoError(t, err)
 			},
 		},
 		{
 			name: "enforces min bump on only tip increase",
 			run: func(t *testing.T) {
-				tx, newTx := doGasPriceIncrease(t, 100, 1000, 101, 440)
+				tx, newTx, err := doGasPriceIncrease(t, 100, 1000, 101, 440)
 				require.True(t, newTx.GasFeeCap().Cmp(tx.GasFeeCap()) > 0, "new tx fee cap must be larger")
 				require.True(t, newTx.GasTipCap().Cmp(tx.GasTipCap()) > 0, "new tx tip must be larger")
+				require.NoError(t, err)
 			},
 		},
 		{
 			name: "enforces min bump on only base fee increase",
 			run: func(t *testing.T) {
-				tx, newTx := doGasPriceIncrease(t, 100, 1000, 99, 460)
+				tx, newTx, err := doGasPriceIncrease(t, 100, 1000, 99, 460)
 				require.True(t, newTx.GasFeeCap().Cmp(tx.GasFeeCap()) > 0, "new tx fee cap must be larger")
 				require.True(t, newTx.GasTipCap().Cmp(tx.GasTipCap()) > 0, "new tx tip must be larger")
+				require.NoError(t, err)
 			},
 		},
 		{
 			name: "uses L1 values when larger",
 			run: func(t *testing.T) {
-				_, newTx := doGasPriceIncrease(t, 10, 100, 50, 200)
+				_, newTx, err := doGasPriceIncrease(t, 10, 100, 50, 200)
 				require.True(t, newTx.GasFeeCap().Cmp(big.NewInt(450)) == 0, "new tx fee cap must be equal L1")
 				require.True(t, newTx.GasTipCap().Cmp(big.NewInt(50)) == 0, "new tx tip must be equal L1")
+				require.NoError(t, err)
 			},
 		},
 		{
 			name: "uses L1 tip when larger and threshold FC",
 			run: func(t *testing.T) {
-				_, newTx := doGasPriceIncrease(t, 100, 2200, 120, 1050)
+				_, newTx, err := doGasPriceIncrease(t, 100, 2200, 120, 1050)
 				require.True(t, newTx.GasTipCap().Cmp(big.NewInt(120)) == 0, "new tx tip must be equal L1")
 				require.True(t, newTx.GasFeeCap().Cmp(big.NewInt(2420)) == 0, "new tx fee cap must be equal to the threshold value")
+				require.NoError(t, err)
+			},
+		},
+		{
+			name: "bumped fee above multiplier limit",
+			run: func(t *testing.T) {
+				_, _, err := doGasPriceIncrease(t, 1, 9999, 1, 1)
+				require.ErrorContains(t, err, "fee cap")
+				require.NotContains(t, err.Error(), "tip cap")
+			},
+		},
+		{
+			name: "bumped tip above multiplier limit",
+			run: func(t *testing.T) {
+				_, _, err := doGasPriceIncrease(t, 9999, 0, 0, 9999)
+				require.ErrorContains(t, err, "tip cap")
+				require.NotContains(t, err.Error(), "fee cap")
+			},
+		},
+		{
+			name: "bumped fee and tip above multiplier limit",
+			run: func(t *testing.T) {
+				_, _, err := doGasPriceIncrease(t, 9999, 9999, 1, 1)
+				require.ErrorContains(t, err, "tip cap")
+				require.ErrorContains(t, err, "fee cap")
 			},
 		},
 		{
 			name: "uses L1 FC when larger and threshold tip",
 			run: func(t *testing.T) {
-				_, newTx := doGasPriceIncrease(t, 100, 2200, 100, 2000)
+				_, newTx, err := doGasPriceIncrease(t, 100, 2200, 100, 2000)
 				require.True(t, newTx.GasTipCap().Cmp(big.NewInt(110)) == 0, "new tx tip must be equal the threshold value")
 				t.Log("Vals:", newTx.GasFeeCap())
 				require.True(t, newTx.GasFeeCap().Cmp(big.NewInt(4110)) == 0, "new tx fee cap must be equal L1")
+				require.NoError(t, err)
 			},
 		},
 	}

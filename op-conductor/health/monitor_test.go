@@ -80,7 +80,7 @@ func (s *HealthMonitorTestSuite) TestUnhealthyLowPeerCount() {
 
 	healthUpdateCh := s.monitor.Subscribe()
 	healthy := <-healthUpdateCh
-	s.False(healthy)
+	s.NotNil(healthy)
 }
 
 func (s *HealthMonitorTestSuite) TestUnhealthyUnsafeHeadNotProgressing() {
@@ -108,9 +108,9 @@ func (s *HealthMonitorTestSuite) TestUnhealthyUnsafeHeadNotProgressing() {
 	for i := 0; i < 3; i++ {
 		healthy := <-healthUpdateCh
 		if i < 2 {
-			s.True(healthy)
+			s.Nil(healthy)
 		} else {
-			s.False(healthy)
+			s.NotNil(healthy)
 		}
 	}
 }
@@ -143,9 +143,9 @@ func (s *HealthMonitorTestSuite) TestUnhealthySafeHeadNotProgressing() {
 	for i := 0; i < 6; i++ {
 		healthy := <-healthUpdateCh
 		if i < 5 {
-			s.True(healthy)
+			s.Nil(healthy)
 		} else {
-			s.False(healthy)
+			s.NotNil(healthy)
 		}
 	}
 }

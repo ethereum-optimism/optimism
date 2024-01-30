@@ -29,4 +29,5 @@ type PreimageOracleContract interface {
 	Squeeze(claimant common.Address, uuid *big.Int, stateMatrix *matrix.StateMatrix, preState keccakTypes.Leaf, preStateProof merkle.Proof, postState keccakTypes.Leaf, postStateProof merkle.Proof) (txmgr.TxCandidate, error)
 	CallSqueeze(ctx context.Context, claimant common.Address, uuid *big.Int, stateMatrix *matrix.StateMatrix, preState keccakTypes.Leaf, preStateProof merkle.Proof, postState keccakTypes.Leaf, postStateProof merkle.Proof) error
 	GetProposalMetadata(ctx context.Context, block batching.Block, idents ...keccakTypes.LargePreimageIdent) ([]keccakTypes.LargePreimageMetaData, error)
+	ChallengePeriod(ctx context.Context) (uint64, error)
 }

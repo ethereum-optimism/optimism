@@ -91,7 +91,8 @@ const (
 	// that the challenger will look for games to progress.
 	// The default value is 11 days, which is a 4 day resolution buffer
 	// plus the 7 day game finalization window.
-	DefaultGameWindow = time.Duration(11 * 24 * time.Hour)
+	DefaultGameWindow   = time.Duration(11 * 24 * time.Hour)
+	DefaultMaxPendingTx = 10
 )
 
 // Config is a well typed config that is parsed from the CLI params.
@@ -122,6 +123,8 @@ type Config struct {
 	CannonSnapshotFreq     uint   // Frequency of snapshots to create when executing cannon (in VM instructions)
 	CannonInfoFreq         uint   // Frequency of cannon progress log messages (in VM instructions)
 
+	MaxPendingTx uint64 // Maximum number of pending transactions (0 == no limit)
+
 	TxMgrConfig   txmgr.CLIConfig
 	MetricsConfig opmetrics.CLIConfig
 	PprofConfig   oppprof.CLIConfig
@@ -140,6 +143,8 @@ func NewConfig(
 		PollInterval:       DefaultPollInterval,
 
 		TraceTypes: supportedTraceTypes,
+
+		MaxPendingTx: DefaultMaxPendingTx,
 
 		TxMgrConfig:   txmgr.NewCLIConfig(l1EthRpc, txmgr.DefaultChallengerFlagValues),
 		MetricsConfig: opmetrics.DefaultCLIConfig(),

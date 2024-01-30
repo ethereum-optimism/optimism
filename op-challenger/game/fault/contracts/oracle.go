@@ -28,6 +28,11 @@ const (
 	methodProposalMetadata          = "proposalMetadata"
 	methodProposalBlocksLen         = "proposalBlocksLen"
 	methodProposalBlocks            = "proposalBlocks"
+	methodPreimagePartOk            = "preimagePartOk"
+	methodMinProposalSize           = "minProposalSize"
+	methodChallengeFirstLPP         = "challengeFirstLPP"
+	methodChallengeLPP              = "challengeLPP"
+	methodChallengePeriod           = "challengePeriod"
 )
 
 var (
@@ -45,7 +50,7 @@ type PreimageOracleContract struct {
 func toPreimageOracleLeaf(l keccakTypes.Leaf) bindings.PreimageOracleLeaf {
 	return bindings.PreimageOracleLeaf{
 		Input:           l.Input[:],
-		Index:           l.Index,
+		Index:           new(big.Int).SetUint64(l.Index),
 		StateCommitment: l.StateCommitment,
 	}
 }
@@ -82,6 +87,24 @@ func (c *PreimageOracleContract) AddLeaves(uuid *big.Int, startingBlockIndex *bi
 	return call.ToTxCandidate()
 }
 
+// MinLargePreimageSize returns the minimum size of a large preimage.
+func (c *PreimageOracleContract) MinLargePreimageSize(ctx context.Context) (uint64, error) {
+	result, err := c.multiCaller.SingleCall(ctx, batching.BlockLatest, c.contract.Call(methodMinProposalSize))
+	if err != nil {
+		return 0, fmt.Errorf("failed to fetch min lpp size bytes: %w", err)
+	}
+	return result.GetBigInt(0).Uint64(), nil
+}
+
+// ChallengePeriod returns the challenge period for large preimages.
+func (c *PreimageOracleContract) ChallengePeriod(ctx context.Context) (uint64, error) {
+	result, err := c.multiCaller.SingleCall(ctx, batching.BlockLatest, c.contract.Call(methodChallengePeriod))
+	if err != nil {
+		return 0, fmt.Errorf("failed to fetch challenge period: %w", err)
+	}
+	return result.GetBigInt(0).Uint64(), nil
+}
+
 func (c *PreimageOracleContract) CallSqueeze(
 	ctx context.Context,
 	claimant common.Address,
@@ -95,7 +118,7 @@ func (c *PreimageOracleContract) CallSqueeze(
 	call := c.contract.Call(methodSqueezeLPP, claimant, uuid, abiEncodeStateMatrix(stateMatrix), toPreimageOracleLeaf(preState), preStateProof, toPreimageOracleLeaf(postState), postStateProof)
 	_, err := c.multiCaller.SingleCall(ctx, batching.BlockLatest, call)
 	if err != nil {
-		return fmt.Errorf("failed to call resolve claim: %w", err)
+		return fmt.Errorf("failed to call squeeze: %w", err)
 	}
 	return nil
 }
@@ -124,7 +147,10 @@ func (c *PreimageOracleContract) Squeeze(
 
 // abiEncodeStateMatrix encodes the state matrix for the contract ABI
 func abiEncodeStateMatrix(stateMatrix *matrix.StateMatrix) bindings.LibKeccakStateMatrix {
-	packedState := stateMatrix.PackState()
+	return abiEncodePackedState(stateMatrix.PackState())
+}
+
+func abiEncodePackedState(packedState []byte) bindings.LibKeccakStateMatrix {
 	stateSlice := new([25]uint64)
 	// SAFETY: a maximum of 25 * 8 bytes will be read from packedState and written to stateSlice
 	for i := 0; i < min(len(packedState), 25*8); i += 8 {
@@ -220,6 +246,38 @@ func (c *PreimageOracleContract) DecodeInputData(data []byte) (*big.Int, keccakT
 		Commitments: commitments,
 		Finalize:    finalize,
 	}, nil
+}
+
+func (c *PreimageOracleContract) GlobalDataExists(ctx context.Context, data *types.PreimageOracleData) (bool, error) {
+	call := c.contract.Call(methodPreimagePartOk, common.Hash(data.OracleKey), new(big.Int).SetUint64(uint64(data.OracleOffset)))
+	results, err := c.multiCaller.SingleCall(ctx, batching.BlockLatest, call)
+	if err != nil {
+		return false, fmt.Errorf("failed to get preimagePartOk: %w", err)
+	}
+	return results.GetBool(0), nil
+}
+
+func (c *PreimageOracleContract) ChallengeTx(ident keccakTypes.LargePreimageIdent, challenge keccakTypes.Challenge) (txmgr.TxCandidate, error) {
+	var call *batching.ContractCall
+	if challenge.Prestate == (keccakTypes.Leaf{}) {
+		call = c.contract.Call(
+			methodChallengeFirstLPP,
+			ident.Claimant,
+			ident.UUID,
+			toPreimageOracleLeaf(challenge.Poststate),
+			challenge.PoststateProof)
+	} else {
+		call = c.contract.Call(
+			methodChallengeLPP,
+			ident.Claimant,
+			ident.UUID,
+			abiEncodePackedState(challenge.StateMatrix),
+			toPreimageOracleLeaf(challenge.Prestate),
+			challenge.PrestateProof,
+			toPreimageOracleLeaf(challenge.Poststate),
+			challenge.PoststateProof)
+	}
+	return call.ToTxCandidate()
 }
 
 func (c *PreimageOracleContract) decodePreimageIdent(result *batching.CallResult) keccakTypes.LargePreimageIdent {

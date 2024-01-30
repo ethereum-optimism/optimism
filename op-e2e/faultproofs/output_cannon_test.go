@@ -216,6 +216,47 @@ func TestOutputCannonDefendStep(t *testing.T) {
 	require.EqualValues(t, disputegame.StatusChallengerWins, game.Status(ctx))
 }
 
+func TestOutputCannonStepWithPreimage(t *testing.T) {
+	executor := uint64(1) // Different executor to the other tests to help balance things better
+
+	testPreimageStep := func(t *testing.T, preloadPreimage bool) {
+		op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(executor))
+
+		ctx := context.Background()
+		sys, l1Client := startFaultDisputeSystem(t)
+		t.Cleanup(sys.Close)
+
+		disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
+		game := disputeGameFactory.StartOutputCannonGame(ctx, "sequencer", 1, common.Hash{0x01, 0xaa})
+		require.NotNil(t, game)
+		outputRootClaim := game.DisputeLastBlock(ctx)
+		game.LogGameData(ctx)
+
+		game.StartChallenger(ctx, "sequencer", "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
+
+		// Wait for the honest challenger to dispute the outputRootClaim. This creates a root of an execution game that we challenge by coercing
+		// a step at a preimage trace index.
+		outputRootClaim = outputRootClaim.WaitForCounterClaim(ctx)
+
+		// Now the honest challenger is positioned as the defender of the execution game
+		// We then move to challenge it to induce a preimage load
+		game.ChallengeToFirstGlobalPreimageLoad(ctx, outputRootClaim, sys.Cfg.Secrets.Alice, preloadPreimage)
+
+		sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
+		require.NoError(t, wait.ForNextBlock(ctx, l1Client))
+		game.WaitForInactivity(ctx, 10, true)
+		game.LogGameData(ctx)
+		require.EqualValues(t, disputegame.StatusChallengerWins, game.Status(ctx))
+	}
+
+	t.Run("non-existing preimage", func(t *testing.T) {
+		testPreimageStep(t, false)
+	})
+	t.Run("preimage already exists", func(t *testing.T) {
+		testPreimageStep(t, true)
+	})
+}
+
 func TestOutputCannonProposedOutputRootValid(t *testing.T) {
 	executor := uint64(1) // Different executor to the other tests to help balance things better
 	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(executor))

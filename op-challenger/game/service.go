@@ -9,6 +9,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/fetcher"
+	"github.com/ethereum-optimism/optimism/op-challenger/sender"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
@@ -41,7 +42,10 @@ type Service struct {
 
 	preimages *keccak.LargePreimageScheduler
 
-	txMgr *txmgr.SimpleTxManager
+	cl clock.Clock
+
+	txMgr    *txmgr.SimpleTxManager
+	txSender *sender.TxSender
 
 	loader *loader.GameLoader
 
@@ -61,8 +65,9 @@ type Service struct {
 }
 
 // NewService creates a new Service.
-func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*Service, error) {
+func NewService(ctx context.Context, cl clock.Clock, logger log.Logger, cfg *config.Config) (*Service, error) {
 	s := &Service{
+		cl:      cl,
 		logger:  logger,
 		metrics: metrics.NewMetrics(),
 	}
@@ -76,7 +81,7 @@ func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*Se
 }
 
 func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error {
-	if err := s.initTxManager(cfg); err != nil {
+	if err := s.initTxManager(ctx, cfg); err != nil {
 		return fmt.Errorf("failed to init tx manager: %w", err)
 	}
 	if err := s.initL1Client(ctx, cfg); err != nil {
@@ -117,12 +122,13 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 	return nil
 }
 
-func (s *Service) initTxManager(cfg *config.Config) error {
+func (s *Service) initTxManager(ctx context.Context, cfg *config.Config) error {
 	txMgr, err := txmgr.NewSimpleTxManager("challenger", s.logger, s.metrics, cfg.TxMgrConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create the transaction manager: %w", err)
 	}
 	s.txMgr = txMgr
+	s.txSender = sender.NewTxSender(ctx, s.logger, txMgr, cfg.MaxPendingTx)
 	return nil
 }
 
@@ -176,7 +182,7 @@ func (s *Service) initMetricsServer(cfg *opmetrics.CLIConfig) error {
 	}
 	s.logger.Info("started metrics server", "addr", metricsSrv.Addr())
 	s.metricsSrv = metricsSrv
-	s.balanceMetricer = s.metrics.StartBalanceMetrics(s.logger, s.l1Client, s.txMgr.From())
+	s.balanceMetricer = s.metrics.StartBalanceMetrics(s.logger, s.l1Client, s.txSender.From())
 	return nil
 }
 
@@ -210,7 +216,7 @@ func (s *Service) initRollupClient(ctx context.Context, cfg *config.Config) erro
 func (s *Service) registerGameTypes(ctx context.Context, cfg *config.Config) error {
 	gameTypeRegistry := registry.NewGameTypeRegistry()
 	caller := batching.NewMultiCaller(s.l1Client.Client(), batching.DefaultBatchSize)
-	closer, err := fault.RegisterGameTypes(gameTypeRegistry, ctx, s.logger, s.metrics, cfg, s.rollupClient, s.txMgr, s.factoryContract, caller)
+	closer, err := fault.RegisterGameTypes(gameTypeRegistry, ctx, s.cl, s.logger, s.metrics, cfg, s.rollupClient, s.txSender, s.factoryContract, caller)
 	if err != nil {
 		return err
 	}
@@ -228,18 +234,19 @@ func (s *Service) initScheduler(cfg *config.Config) error {
 func (s *Service) initLargePreimages() error {
 	fetcher := fetcher.NewPreimageFetcher(s.logger, s.l1Client)
 	verifier := keccak.NewPreimageVerifier(s.logger, fetcher)
-	s.preimages = keccak.NewLargePreimageScheduler(s.logger, s.registry.Oracles(), verifier)
+	challenger := keccak.NewPreimageChallenger(s.logger, verifier, s.txSender)
+	s.preimages = keccak.NewLargePreimageScheduler(s.logger, s.registry.Oracles(), challenger)
 	return nil
 }
 
 func (s *Service) initMonitor(cfg *config.Config) {
-	cl := clock.SystemClock
-	s.monitor = newGameMonitor(s.logger, cl, s.loader, s.sched, s.preimages, cfg.GameWindow, s.l1Client.BlockNumber, cfg.GameAllowlist, s.pollClient)
+	s.monitor = newGameMonitor(s.logger, s.cl, s.loader, s.sched, s.preimages, cfg.GameWindow, s.l1Client.BlockNumber, cfg.GameAllowlist, s.pollClient)
 }
 
 func (s *Service) Start(ctx context.Context) error {
 	s.logger.Info("starting scheduler")
 	s.sched.Start(ctx)
+	s.preimages.Start(ctx)
 	s.logger.Info("starting monitoring")
 	s.monitor.StartMonitoring()
 	s.logger.Info("challenger game service start completed")

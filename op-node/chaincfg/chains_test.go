@@ -96,6 +96,7 @@ var goerliCfg = rollup.Config{
 	RegolithTime:            u64Ptr(1679079600),
 	CanyonTime:              u64Ptr(1699981200),
 	DeltaTime:               u64Ptr(1703116800),
+	EcotoneTime:             u64Ptr(1707238800),
 	ProtocolVersionsAddress: common.HexToAddress("0x0C24F5098774aA366827D667494e9F889f7cFc08"),
 }
 
