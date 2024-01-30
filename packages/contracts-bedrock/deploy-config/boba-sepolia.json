@@ -23,8 +23,8 @@
   "l2OutputOracleStartingBlockNumber": 511,
   "l2OutputOracleStartingTimestamp": 1705600788,
 
-  "l2OutputOracleProposer": "0x044DEa5dEe6c62Ac432Aa1e50C3eB5899e85a52F",
-  "l2OutputOracleChallenger": "0xe62B0E3a9F715493301eBdEC8310C899eae5b30c",
+  "l2OutputOracleProposer": "0xc5125722937c0fea053c602261238bf9f3b2450f",
+  "l2OutputOracleChallenger": "0x17070B4AF21625106E7971983Aa524f59EA40c57",
 
   "finalizationPeriodSeconds": 12,
 

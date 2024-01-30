@@ -61,7 +61,6 @@ const deployFn: DeployFunction = async (hre) => {
       controller: hre.deployConfig.controller,
       finalOwner: hre.deployConfig.finalSystemOwner,
       addressManager: await getDeploymentAddress(hre, 'Lib_AddressManager'),
-      superchainConfig: await getDeploymentAddress(hre, 'SuperchainConfig'),
     },
     proxyAddressConfig: {
       l2OutputOracleProxy: await getDeploymentAddress(
@@ -93,6 +92,10 @@ const deployFn: DeployFunction = async (hre) => {
         hre,
         'ProtocolVersionsProxy'
       ),
+      superchainConfigProxy: await getDeploymentAddress(
+        hre,
+        'SuperchainConfigProxy'
+      ),
     },
     implementationAddressConfig: {
       l2OutputOracleImpl: await getDeploymentAddress(hre, 'L2OutputOracle'),
@@ -110,6 +113,7 @@ const deployFn: DeployFunction = async (hre) => {
       portalSenderImpl: await getDeploymentAddress(hre, 'PortalSender'),
       systemConfigImpl: await getDeploymentAddress(hre, 'SystemConfig'),
       protocolVersionsImpl: await getDeploymentAddress(hre, 'ProtocolVersions'),
+      superchainConfigImpl: await getDeploymentAddress(hre, 'SuperchainConfig'),
     },
     systemConfigConfig: {
       owner: hre.deployConfig.finalSystemOwner,
