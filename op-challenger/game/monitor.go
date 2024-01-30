@@ -34,6 +34,10 @@ type preimageScheduler interface {
 	Schedule(blockHash common.Hash, blockNumber uint64) error
 }
 
+type claimer interface {
+	Schedule(blockNumber uint64, games []types.GameMetadata) error
+}
+
 type gameMonitor struct {
 	logger           log.Logger
 	clock            clock.Clock
@@ -41,6 +45,7 @@ type gameMonitor struct {
 	scheduler        gameScheduler
 	preimages        preimageScheduler
 	gameWindow       time.Duration
+	claimer          claimer
 	fetchBlockNumber blockNumberFetcher
 	allowedGames     []common.Address
 	l1HeadsSub       ethereum.Subscription
@@ -67,6 +72,7 @@ func newGameMonitor(
 	scheduler gameScheduler,
 	preimages preimageScheduler,
 	gameWindow time.Duration,
+	claimer claimer,
 	fetchBlockNumber blockNumberFetcher,
 	allowedGames []common.Address,
 	l1Source MinimalSubscriber,
@@ -78,6 +84,7 @@ func newGameMonitor(
 		preimages:        preimages,
 		source:           source,
 		gameWindow:       gameWindow,
+		claimer:          claimer,
 		fetchBlockNumber: fetchBlockNumber,
 		allowedGames:     allowedGames,
 		l1Source:         &headSource{inner: l1Source},
@@ -120,6 +127,9 @@ func (m *gameMonitor) progressGames(ctx context.Context, blockHash common.Hash, 
 			continue
 		}
 		gamesToPlay = append(gamesToPlay, game)
+	}
+	if err := m.claimer.Schedule(blockNumber, gamesToPlay); err != nil {
+		return fmt.Errorf("failed to schedule bond claims: %w", err)
 	}
 	if err := m.scheduler.Schedule(gamesToPlay, blockNumber); errors.Is(err, scheduler.ErrBusy) {
 		m.logger.Info("Scheduler still busy with previous update")

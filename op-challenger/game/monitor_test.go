@@ -189,6 +189,7 @@ func setupMonitorTest(
 	sched := &stubScheduler{}
 	preimages := &stubPreimageScheduler{}
 	mockHeadSource := &mockNewHeadSource{}
+	mockScheduler := &mockScheduler{}
 	monitor := newGameMonitor(
 		logger,
 		clock.SystemClock,
@@ -196,6 +197,7 @@ func setupMonitorTest(
 		sched,
 		preimages,
 		time.Duration(0),
+		mockScheduler,
 		fetchBlockNum,
 		allowedGames,
 		mockHeadSource,
@@ -242,6 +244,16 @@ func (m *mockNewHeadSource) EthSubscribe(
 	return m.sub, nil
 }
 
+type mockScheduler struct {
+	scheduleErr   error
+	scheduleCalls int
+}
+
+func (m *mockScheduler) Schedule(uint64, []types.GameMetadata) error {
+	m.scheduleCalls++
+	return m.scheduleErr
+}
+
 type mockSubscription struct {
 	errChan chan error
 	headers chan<- *ethtypes.Header
@@ -254,7 +266,8 @@ func (m *mockSubscription) Err() <-chan error {
 }
 
 type stubGameSource struct {
-	games []types.GameMetadata
+	fetchErr error
+	games    []types.GameMetadata
 }
 
 func (s *stubGameSource) FetchAllGamesAtBlock(
@@ -262,6 +275,9 @@ func (s *stubGameSource) FetchAllGamesAtBlock(
 	_ uint64,
 	_ common.Hash,
 ) ([]types.GameMetadata, error) {
+	if s.fetchErr != nil {
+		return nil, s.fetchErr
+	}
 	return s.games, nil
 }
 

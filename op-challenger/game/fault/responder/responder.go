@@ -23,6 +23,8 @@ type GameContract interface {
 	DefendTx(parentContractIndex uint64, pivot common.Hash) (txmgr.TxCandidate, error)
 	StepTx(claimIdx uint64, isAttack bool, stateData []byte, proof []byte) (txmgr.TxCandidate, error)
 	GetRequiredBond(ctx context.Context, position types.Position) (*big.Int, error)
+	GetCredit(ctx context.Context, receipient common.Address) (*big.Int, error)
+	ClaimCredit(receipient common.Address) (txmgr.TxCandidate, error)
 }
 
 type Oracle interface {
@@ -31,8 +33,7 @@ type Oracle interface {
 
 // FaultResponder implements the [Responder] interface to send onchain transactions.
 type FaultResponder struct {
-	log log.Logger
-
+	log      log.Logger
 	sender   gameTypes.TxSender
 	contract GameContract
 	uploader preimages.PreimageUploader
