@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/accounts"
 	"github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/stretchr/testify/require"
 
@@ -26,6 +27,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
+
+type System interface {
+	FundedAccount(t *testing.T, ctx context.Context, node string) *accounts.Account
+}
 
 type Helper struct {
 	log     log.Logger
@@ -52,6 +57,13 @@ func WithGameAddress(addr common.Address) Option {
 func WithPrivKey(key *ecdsa.PrivateKey) Option {
 	return func(c *config.Config) {
 		c.TxMgrConfig.PrivateKey = e2eutils.EncodePrivKeyToString(key)
+	}
+}
+
+func WithNewAccount(t *testing.T, ctx context.Context, system System) Option {
+	return func(c *config.Config) {
+		acct := system.FundedAccount(t, ctx, "l1")
+		c.TxMgrConfig.PrivateKey = e2eutils.EncodePrivKeyToString(acct.PrivKey)
 	}
 }
 

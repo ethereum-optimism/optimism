@@ -104,11 +104,11 @@ func TestOutputAlphabetGame_ValidOutputRoot(t *testing.T) {
 func TestChallengerCompleteExhaustiveDisputeGame(t *testing.T) {
 	op_e2e.InitParallel(t, op_e2e.UseExecutor(1))
 
-	testCase := func(t *testing.T, isRootCorrect bool) {
-		ctx := context.Background()
-		sys, l1Client := startFaultDisputeSystem(t)
-		t.Cleanup(sys.Close)
+	ctx := context.Background()
+	sys, l1Client := startFaultDisputeSystem(t)
+	t.Cleanup(sys.Close)
 
+	testCase := func(t *testing.T, isRootCorrect bool) {
 		disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
 		var game *disputegame.OutputAlphabetGameHelper
 		if isRootCorrect {
@@ -123,7 +123,7 @@ func TestChallengerCompleteExhaustiveDisputeGame(t *testing.T) {
 		// Start honest challenger
 		game.StartChallenger(ctx, "sequencer", "Challenger",
 			challenger.WithAlphabet(sys.RollupEndpoint("sequencer")),
-			challenger.WithPrivKey(sys.Cfg.Secrets.Alice),
+			challenger.WithNewAccount(t, ctx, sys),
 			// Ensures the challenger responds to all claims before test timeout
 			challenger.WithPollInterval(time.Millisecond*400),
 		)

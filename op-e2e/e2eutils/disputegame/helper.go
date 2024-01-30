@@ -9,10 +9,10 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/accounts"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/transactions"
@@ -65,6 +65,8 @@ type DisputeSystem interface {
 	L1Deployments() *genesis.L1Deployments
 	RollupCfg() *rollup.Config
 	L2Genesis() *core.Genesis
+
+	FundedAccount(t *testing.T, ctx context.Context, node string) *accounts.Account
 }
 
 type FactoryHelper struct {
@@ -80,10 +82,7 @@ type FactoryHelper struct {
 func NewFactoryHelper(t *testing.T, ctx context.Context, system DisputeSystem) *FactoryHelper {
 	require := require.New(t)
 	client := system.NodeClient("l1")
-	chainID, err := client.ChainID(ctx)
-	require.NoError(err)
-	opts, err := bind.NewKeyedTransactorWithChainID(deployer.TestKey, chainID)
-	require.NoError(err)
+	acct := system.FundedAccount(t, ctx, "l1")
 
 	l1Deployments := system.L1Deployments()
 	factoryAddr := l1Deployments.DisputeGameFactoryProxy
@@ -95,7 +94,7 @@ func NewFactoryHelper(t *testing.T, ctx context.Context, system DisputeSystem) *
 		require:     require,
 		system:      system,
 		client:      client,
-		opts:        opts,
+		opts:        acct.TransactOpts,
 		factory:     factory,
 		factoryAddr: factoryAddr,
 	}

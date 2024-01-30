@@ -12,10 +12,14 @@ import (
 	"path"
 	"sort"
 	"strings"
+	sync2 "sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/accounts"
+	"github.com/ethereum/go-ethereum/core/types"
 	ds "github.com/ipfs/go-datastore"
 	dsSync "github.com/ipfs/go-datastore/sync"
 	ic "github.com/libp2p/go-libp2p/core/crypto"
@@ -287,6 +291,32 @@ type System struct {
 
 	// rollupClients caches the lazily created RollupClient instances so they can be reused and closed
 	rollupClients map[string]*sources.RollupClient
+
+	testKeyLock sync2.Mutex
+}
+
+// FundedAccount returns an account with a large amount of funds available that is ready to use on the specified node
+func (sys *System) FundedAccount(t *testing.T, ctx context.Context, node string) *accounts.Account {
+	client := sys.NodeClient(node)
+	chainID, err := client.ChainID(ctx)
+	require.NoError(t, err)
+	acct, err := accounts.NewAccount(chainID)
+	require.NoError(t, err)
+
+	sys.testKeyLock.Lock()
+	defer sys.testKeyLock.Unlock()
+	nonce, err := client.PendingNonceAt(ctx, deployer.TestAddress)
+	require.NoError(t, err)
+	signer := types.NewEIP155Signer(chainID)
+	err = client.SendTransaction(ctx, types.MustSignNewTx(deployer.TestKey, signer, &types.LegacyTx{
+		To:       &acct.Addr,
+		Value:    new(big.Int).Mul(big.NewInt(1000), big.NewInt(params.Ether)),
+		Gas:      21_000,
+		GasPrice: new(big.Int).Mul(big.NewInt(1), big.NewInt(params.GWei)),
+		Nonce:    nonce,
+	}))
+	require.NoError(t, err)
+	return acct
 }
 
 func (sys *System) NodeEndpoint(name string) string {
