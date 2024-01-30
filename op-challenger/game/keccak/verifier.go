@@ -32,10 +32,10 @@ func NewPreimageVerifier(logger log.Logger, fetcher Fetcher) *PreimageVerifier {
 	}
 }
 
-func (v *PreimageVerifier) Verify(ctx context.Context, blockHash common.Hash, oracle fetcher.Oracle, preimage keccakTypes.LargePreimageMetaData) error {
+func (v *PreimageVerifier) CreateChallenge(ctx context.Context, blockHash common.Hash, oracle fetcher.Oracle, preimage keccakTypes.LargePreimageMetaData) (keccakTypes.Challenge, error) {
 	inputs, err := v.fetcher.FetchInputs(ctx, blockHash, oracle, preimage.LargePreimageIdent)
 	if err != nil {
-		return fmt.Errorf("failed to fetch leaves: %w", err)
+		return keccakTypes.Challenge{}, fmt.Errorf("failed to fetch leaves: %w", err)
 	}
 	readers := make([]io.Reader, 0, len(inputs))
 	var commitments []common.Hash
@@ -43,12 +43,9 @@ func (v *PreimageVerifier) Verify(ctx context.Context, blockHash common.Hash, or
 		readers = append(readers, bytes.NewReader(input.Input))
 		commitments = append(commitments, input.Commitments...)
 	}
-	_, err = matrix.Challenge(io.MultiReader(readers...), commitments)
-	if errors.Is(err, matrix.ErrValid) {
-		return nil
-	} else if err != nil {
-		return fmt.Errorf("failed to verify preimage: %w", err)
+	challenge, err := matrix.Challenge(io.MultiReader(readers...), commitments)
+	if err != nil {
+		return keccakTypes.Challenge{}, fmt.Errorf("failed to create challenge: %w", err)
 	}
-	// TODO(client-pod#480): Implement sending the challenge transaction
-	return ErrNotImplemented
+	return challenge, nil
 }

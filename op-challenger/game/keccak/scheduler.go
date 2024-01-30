@@ -4,31 +4,30 @@ import (
 	"context"
 	"sync"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/fetcher"
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
 
-type Verifier interface {
-	Verify(ctx context.Context, blockHash common.Hash, oracle fetcher.Oracle, preimage keccakTypes.LargePreimageMetaData) error
+type Challenger interface {
+	Challenge(ctx context.Context, blockHash common.Hash, oracle Oracle, preimages []keccakTypes.LargePreimageMetaData) error
 }
 
 type LargePreimageScheduler struct {
-	log      log.Logger
-	ch       chan common.Hash
-	oracles  []keccakTypes.LargePreimageOracle
-	verifier Verifier
-	cancel   func()
-	wg       sync.WaitGroup
+	log        log.Logger
+	ch         chan common.Hash
+	oracles    []keccakTypes.LargePreimageOracle
+	challenger Challenger
+	cancel     func()
+	wg         sync.WaitGroup
 }
 
-func NewLargePreimageScheduler(logger log.Logger, oracles []keccakTypes.LargePreimageOracle, verifier Verifier) *LargePreimageScheduler {
+func NewLargePreimageScheduler(logger log.Logger, oracles []keccakTypes.LargePreimageOracle, challenger Challenger) *LargePreimageScheduler {
 	return &LargePreimageScheduler{
-		log:      logger,
-		ch:       make(chan common.Hash, 1),
-		oracles:  oracles,
-		verifier: verifier,
+		log:        logger,
+		ch:         make(chan common.Hash, 1),
+		oracles:    oracles,
+		challenger: challenger,
 	}
 }
 
@@ -79,12 +78,14 @@ func (s *LargePreimageScheduler) verifyPreimages(ctx context.Context, blockHash 
 
 func (s *LargePreimageScheduler) verifyOraclePreimages(ctx context.Context, oracle keccakTypes.LargePreimageOracle, blockHash common.Hash) error {
 	preimages, err := oracle.GetActivePreimages(ctx, blockHash)
+	if err != nil {
+		return err
+	}
+	toVerify := make([]keccakTypes.LargePreimageMetaData, 0, len(preimages))
 	for _, preimage := range preimages {
 		if preimage.ShouldVerify() {
-			if err := s.verifier.Verify(ctx, blockHash, oracle, preimage); err != nil {
-				s.log.Error("Failed to verify large preimage", "oracle", oracle.Addr(), "claimant", preimage.Claimant, "uuid", preimage.UUID, "err", err)
-			}
+			toVerify = append(toVerify, preimage)
 		}
 	}
-	return err
+	return s.challenger.Challenge(ctx, blockHash, oracle, toVerify)
 }
