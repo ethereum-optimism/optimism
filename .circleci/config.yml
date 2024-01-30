@@ -12,6 +12,7 @@ orbs:
   go: circleci/go@1.8.0
   gcp-cli: circleci/gcp-cli@3.0.1
   slack: circleci/slack@4.10.1
+  shellcheck: circleci/shellcheck@3.2.0
 commands:
   gcp-oidc-authenticate:
     description: "Authenticate with GCP using a CircleCI OIDC token."
@@ -1620,6 +1621,12 @@ workflows:
       - cannon-go-lint-and-test
       - cannon-build-test-vectors
       - kontrol-tests
+      - shellcheck/check:
+          # We don't need the `exclude` key as the orb detects the `.shellcheckrc`
+          dir: .
+          ignore-dirs:
+            ./packages/contracts-bedrock/lib
+
   release:
     when:
       not:
