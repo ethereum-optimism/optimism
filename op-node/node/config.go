@@ -138,6 +138,18 @@ func (cfg *Config) Check() error {
 		if err := cfg.Beacon.Check(); err != nil {
 			return fmt.Errorf("misconfigured L1 Beacon API endpoint: %w", err)
 		}
+		if cfg.Rollup.CanyonTime == nil {
+			return fmt.Errorf("prior fork canyon activation time is missing")
+		}
+		if *cfg.Rollup.CanyonTime > *cfg.Rollup.EcotoneTime {
+			return fmt.Errorf("prior fork canyon has higher activation time")
+		}
+		if cfg.Rollup.RegolithTime == nil {
+			return fmt.Errorf("prior fork regolith activation time is missing")
+		}
+		if *cfg.Rollup.RegolithTime > *cfg.Rollup.CanyonTime {
+			return fmt.Errorf("prior fork regolith has higher activation time")
+		}
 	}
 	if err := cfg.Rollup.Check(); err != nil {
 		return fmt.Errorf("rollup config error: %w", err)
