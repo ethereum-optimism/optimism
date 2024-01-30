@@ -67,7 +67,9 @@ First, generate a deployment summary contract from the deploy script in [`Kontro
 ```
 
 [`KontrolDeployment.sol`](./deployment/KontrolDeployment.sol) contains the minimal deployment sequence required by the proofs.
-The [`make-summary-deployment.sh`](./scripts/make-summary-deployment.sh) script will generate a summary contract is used to load the post-`setUp` state directly into Kontrol.
+The [`make-summary-deployment.sh`](./scripts/make-summary-deployment.sh) script will generate a JSON state diff. This state diff is used in two ways by Kontrol.
+First, Kontrol generates a summary contract recreating the state diffs recorded in the JSON. This contract is used to test that the information contained in the generated JSON is correct and aids in the specification of the symbolic property tests. The generation of this contract is also handled by the `make-summary-deployment.sh` script.
+Second, the state diff JSON is used to load the post-deployment state directly into Kontrol when running the proofs.
 
 This step is optional if an up-to-date summary contract already exists, which will be the case until the `KontrolDeployment` contract changes.
 See the [Implementation Details](#implementation-details) section for more information.
