@@ -47,6 +47,5 @@ func (v *PreimageVerifier) CreateChallenge(ctx context.Context, blockHash common
 	if err != nil {
 		return keccakTypes.Challenge{}, fmt.Errorf("failed to create challenge: %w", err)
 	}
-	// TODO(client-pod#480): Implement sending the challenge transaction
 	return challenge, nil
 }
