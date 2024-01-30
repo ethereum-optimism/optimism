@@ -1,8 +1,33 @@
 # Kontrol Verification
 
-This folder contains Kontrol symbolic property tests.
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
-## Directory structure
+- [Getting Started](#getting-started)
+  - [Overview](#overview)
+  - [Directory structure](#directory-structure)
+  - [Installation](#installation)
+- [Usage](#usage)
+  - [Build Deployment Summary](#build-deployment-summary)
+  - [Execute Proofs](#execute-proofs)
+- [Implementation Details](#implementation-details)
+- [References](#references)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
+## Getting Started
+
+### Overview
+
+[Kontrol](https://github.com/runtimeverification/kontrol) is a tool by [Runtime Verification](https://runtimeverification.com/) (RV) that enables formal verification of Ethereum smart contracts. Quoting from the Kontrol [docs](https://docs.runtimeverification.com/kontrol/overview/readme):
+
+> Kontrol combines [KEVM](https://github.com/runtimeverification/evm-semantics) and [Foundry](https://book.getfoundry.sh/) to grant developers the ability to perform [formal verification](https://en.wikipedia.org/wiki/Formal_verification) without learning a new language or tool. This is especially useful for those who are not verification engineers. Additionally, developers can leverage Foundry test suites they have already developed and use symbolic execution to increase the level of confidence.
+>
+> KEVM is a tool that enables formal verification of smart contracts on the Ethereum blockchain. It provides a mathematical foundation for specifying and implementing smart contracts. Developers can use KEVM to rigorously reason about the behavior of their smart contracts, ensuring correctness and reducing the likelihood of vulnerabilities in the contract code.
+
+This document details the Kontrol setup used in this repo to run various proofs against the contracts in the [`contracts-bedrock`](../../) directory.
+
+### Directory structure
 
 The directory is structured as follows
 
@@ -18,44 +43,60 @@ The directory is structured as follows
 └── <a href="./scripts">scripts</a>: Where the scripts of the projects live
     ├── <a href="./scripts/json">json</a>: Data cleaning scripts for the output of <a href="./KontrolDeployment.sol">KontrolDeployment.sol</a>
     ├── <a href="./scripts/make-summary-deployment.sh">make-summary-deployment.sh</a>: Executes <a href="./KontrolDeployment.sol">KontrolDeployment.sol</a>, curates the result and writes the summary deployment contract
-    └── <a href="./scrpts/run-kontrol.sh">run-kontrol.sh</a>: Wrapper around the kontrol CLI to run the proofs
+    └── <a href="./scripts/run-kontrol.sh">run-kontrol.sh</a>: Wrapper around the kontrol CLI to run the proofs
 </pre>
 
+### Installation
 
-## Verification execution
+1. `cd` to the root of this repo.
+2. Install Foundry by running `pnpm install:foundry`. This installs `foundryup`, the foundry toolchain installer, then installs the required foundry version.
+3. Install Kontrol by running `pnpm install:kontrol`. This installs `kup`, the package manager for RV tools, then installs the required kontrol version.
+4. Install Docker.
 
-The verification execution consists of two steps, although the first step may be omitted to use the committed version. There's one script to run per step. These scripts should be run from the [`contracts-bedrock`](../../) directory.
+## Usage
 
-1. Generate a deployment summary contract from [`KontrolDeployment.sol`](./KontrolDeployment.sol)
+Verifying proofs has two steps: build, and execute.
+
+### Build Deployment Summary
+
+First, generate a deployment summary contract from the deploy script in [`KontrolDeployment.sol`](./KontrolDeployment.sol) by running the following command:
+
 ```bash
-  ./test/kontrol/scripts/make-summary-deployment.sh
+./test/kontrol/scripts/make-summary-deployment.sh
 ```
-This step is optional. The default summary can be found [here](./proofs/utils/DeploymentSummary.sol), which is the summarization of the [`KontrolDeployment.sol`](./KontrolDeployment.sol) script.
 
-2. Execute the tests in [`OptimismPortal.k.sol`](./proofs/OptimismPortal.k.sol)
-```bash
-  ./test/kontrol/scripts/run-kontrol.sh $option
+[`KontrolDeployment.sol`](./deployment/KontrolDeployment.sol) contains the minimal deployment sequence required by the proofs.
+The [`make-summary-deployment.sh`](./scripts/make-summary-deployment.sh) script will generate a summary contract is used to load the post-`setUp` state directly into Kontrol.
+
+This step is optional if an up-to-date summary contract already exists, which will be the case until the deployment script changes.
+A CI check will fail if the summary contract is not up-to-date.
+
+The summary contract can be found in [`./proofs/utils/DeploymentSummary.sol`](./proofs/utils/DeploymentSummary.sol), which is summarization (state changes) of the [`KontrolDeployment.sol`](./deployment/KontrolDeployment.sol) script.
+
+### Execute Proofs
+
+Use the [`run-kontrol.sh`](./scripts/run-kontrol.sh) script to runs the proofs in all `*.k.sol` files.
+
 ```
-See below for further documentation on `run-kontrol.sh`.
+./test/kontrol/scripts/run-kontrol.sh [container|local|dev]
+```
 
-### `run-kontrol.sh` script
-The `run-kontrol.sh` script handles all modes of proof execution. The modes, corresponding to the available arguments of the script, are the following:
-- `container`: Run the proofs in the same docker image used in CI. The intended use case is CI debugging. This is the default execution mode, meaning that if no arguments are provided, the proofs will be executed in this mode.
-- `local`: Run the proofs with your local Kontrol install, enforcing the version to be the same as the one used in CI. The intended use case is running the proofs without risking discrepancies because of different Kontrol versions.
+The `run-kontrol.sh` script supports three modes of proof execution:
+
+- `container`: Runs the proofs using the same Docker image used in CI. This is the default execution mode—if no arguments are provided, the proofs will be executed in this mode.
+- `local`: Runs the proofs with your local Kontrol install, and enforces that the Kontrol version matches the one used in CI, which is specified in [`versions.json`](../../../../versions.json).
 - `dev`: Run the proofs with your local Kontrol install, without enforcing any version in particular. The intended use case is proof development and related matters.
 
 For a similar description of the options run `run-kontrol.sh --help`.
 
-## Kontrol Foundry profiles
+## Implementation Details
 
-This project uses two different [Foundry profiles](../../foundry.toml), `kdeploy` and `kprove`.
+As mentioned above, a deployment summary contract is first generated before executing the proofs.
+This is because the proof execution leverages Kontrol's [fast summarization](https://github.com/runtimeverification/kontrol/pull/271) feature, which allows for the loading of the post-`setUp` state directly into Kontrol.
+This provides a significant speedup in the proof execution time, as it avoids the need to execute the deployment script every time the proofs are run, as execution is much slower in Kontrol than it is in Foundry.
 
-- `kdeploy`: This profile is used to generate a summary contract from the execution of the [`KontrolDeployment.sol`](./KontrolDeployment.sol) script. In particular, the `kdeploy` profile is used by the [`make-summary-deployment.sh`](./scripts/make-summary-deployment.sh) script to generate the [deployment summary contract](./proofs/utils/DeploymentSummary.sol). The summary contract is then used with the `kprove` profile to load the post-setUp state directly into Kontrol. We don't need the output artifacts from this step, so we save them to the `kout-deployment` directory, which is not used anywhere else. We also point the script path to the `scripts-kontrol` directory, which does not exist, to avoid compiling scripts we don't need, which reduces execution time.
+Therefore, this project uses two different [`foundry.toml` profiles](../../foundry.toml), `kdeploy` and `kprove`:
 
-- `kprove`: This profile is used by the [`run-kontrol.sh`](./scrpts/run-kontrol.sh) script, which needs to be run after executing [`./test/kontrol/script/make-summary-deployment`](./scripts/make-summary-deployment.sh) (this last script uses the `kdeploy` profile). The proofs are executed using the `kprove` profile. The `src` directory points to a test folder because we only want to compile what is in the `test/kontrol/proofs` folder since it contains all the deployed bytecode and the proofs. We similarly point the script path to a non-existent directory for the same reason as above. The `out` folder for this profile is `kout-proofs`.
+- `kdeploy`: Used by [`make-summary-deployment.sh`](./scripts/make-summary-deployment.sh) to generate the [`DeploymentSummary.sol`](./proofs/utils/DeploymentSummary.sol) contract based on execution of the [`KontrolDeployment.sol`](./deployment/KontrolDeployment.sol) script using Foundry's state diff recording cheatcodes. This where all necessary [`src/L1`](../../src/L1) files are compiled with their bytecode saved into the [`DeploymentSummaryCode.sol`](./proofs/utils/DeploymentSummaryCode.sol) file, which is inherited by `DeploymentSummary`.
 
-Note that the compilation of the necessary `src/L1` files is done with the `kdeploy` profile, and the results are saved into [`test/kontrol/proofs/utils/DeploymentSummary.sol`](./proofs/utils/DeploymentSummary.sol). So, when running the `kprove` profile, the deployed bytecode of the `src/L1` files are recorded in the automatically generated file `test/kontrol/proofs/utils/DeploymentSummaryCode.sol`.
-
-## References
-
-[Kontrol docs](https://docs.runtimeverification.com/kontrol/overview/readme)
+- `kprove`: Used by the [`run-kontrol.sh`](./scrpts/run-kontrol.sh) script to execute proofs, which can be run once a `DeploymentSummary.sol` contract is present. This profile's `src` directory points to a test folder because we only want to compile what is in the `test/kontrol/proofs` folder, since that folder contains all bytecode and proofs. We point the script path to the same directory for the same reason.
