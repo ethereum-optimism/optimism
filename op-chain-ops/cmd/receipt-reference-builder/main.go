@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"time"
 
 	"github.com/mattn/go-isatty"
 	"github.com/urfave/cli/v2"
@@ -32,11 +33,28 @@ var (
 		Usage:   "RPC URL to connect to",
 		EnvVars: opservice.PrefixEnvVar(EnvPrefix, "RPC_URL"),
 	}
+	ChainIDFlag = &cli.Uint64Flag{
+		Name:    "chain-id",
+		Usage:   "included in the output file, not consulted for anything else",
+		EnvVars: opservice.PrefixEnvVar(EnvPrefix, "BACKOFF"),
+	}
+	BackoffFlag = &cli.DurationFlag{
+		Name:    "backoff",
+		Value:   30 * time.Second,
+		Usage:   "how long to wait when a worker errors before retrying",
+		EnvVars: opservice.PrefixEnvVar(EnvPrefix, "BACKOFF"),
+	}
 	WorkerFlag = &cli.Uint64Flag{
 		Name:    "workers",
 		Value:   1,
 		Usage:   "how many workers to use to fetch txs",
 		EnvVars: opservice.PrefixEnvVar(EnvPrefix, "WORKERS"),
+	}
+	BatchSizeFlag = &cli.Uint64Flag{
+		Name:    "batch-size",
+		Value:   50,
+		Usage:   "how many blocks to batch together for each worker",
+		EnvVars: opservice.PrefixEnvVar(EnvPrefix, "BATCH_SIZE"),
 	}
 	OutputFlag = &cli.StringFlag{
 		Name:    "output",
