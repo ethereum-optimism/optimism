@@ -187,7 +187,7 @@ func (n numberID) CheckID(id eth.BlockID) error {
 }
 
 func (s *EthClient) headerCall(ctx context.Context, method string, id rpcBlockID) (eth.BlockInfo, error) {
-	var header *rpcHeader
+	var header *RPCHeader
 	err := s.client.CallContext(ctx, &header, method, id.Arg(), false) // headers are just blocks without txs
 	if err != nil {
 		return nil, err
@@ -207,7 +207,7 @@ func (s *EthClient) headerCall(ctx context.Context, method string, id rpcBlockID
 }
 
 func (s *EthClient) blockCall(ctx context.Context, method string, id rpcBlockID) (eth.BlockInfo, types.Transactions, error) {
-	var block *rpcBlock
+	var block *RPCBlock
 	err := s.client.CallContext(ctx, &block, method, id.Arg(), true)
 	if err != nil {
 		return nil, nil, err
@@ -228,7 +228,7 @@ func (s *EthClient) blockCall(ctx context.Context, method string, id rpcBlockID)
 }
 
 func (s *EthClient) payloadCall(ctx context.Context, method string, id rpcBlockID) (*eth.ExecutionPayloadEnvelope, error) {
-	var block *rpcBlock
+	var block *RPCBlock
 	err := s.client.CallContext(ctx, &block, method, id.Arg(), true)
 	if err != nil {
 		return nil, err

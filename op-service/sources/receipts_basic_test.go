@@ -130,7 +130,7 @@ func TestBasicRPCReceiptsFetcher_Concurrency(t *testing.T) {
 	require.Less(finalNumCalls, numFetchers, "Some IterativeBatchCalls should have been shared.")
 }
 
-func runConcurrentFetchingTest(t *testing.T, rp ReceiptsProvider, numFetchers int, receipts types.Receipts, block *rpcBlock) {
+func runConcurrentFetchingTest(t *testing.T, rp ReceiptsProvider, numFetchers int, receipts types.Receipts, block *RPCBlock) {
 	require := require.New(t)
 	txHashes := receiptTxHashes(receipts)
 
