@@ -42,8 +42,10 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
     {
         setUpInlined();
 
-        // ASSUME: conservative upper bound on the `_data` length
-        bytes memory _data = freshBigBytes(320);
+        // ASSUME: Upper bound on the `_data` length, derived from spot-checking a few calls to this
+        // method and choosing a values a bit higher than the maximum observed. This assumption can
+        // be removed once Kontrol supports symbolic `bytes`: https://github.com/runtimeverification/kontrol/issues/272
+        bytes memory _data = freshBigBytes(1000);
         bytes[] memory _withdrawalProof = freshWithdrawalProof();
 
         Types.WithdrawalTransaction memory _tx =
@@ -74,8 +76,10 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
     {
         setUpInlined();
 
-        // ASSUME: conservative upper bound on the `_data` length
-        bytes memory _data = freshBigBytes(320);
+        // ASSUME: Upper bound on the `_data` length, derived from spot-checking a few calls to this
+        // method and choosing a values a bit higher than the maximum observed. This assumption can
+        // be removed once Kontrol supports symbolic `bytes`: https://github.com/runtimeverification/kontrol/issues/272
+        bytes memory _data = freshBigBytes(1000);
 
         // Pause Optimism Portal
         vm.prank(optimismPortal.guardian());
