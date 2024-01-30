@@ -2,14 +2,15 @@
 set -euo pipefail
 
 SCRIPT_HOME="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-source "${SCRIPT_HOME}/common.sh"
+# shellcheck source=/dev/null
+source "$SCRIPT_HOME/common.sh"
 parse_args "$@"
 
 cleanup() {
   # Restore the original script from the backup
-  if [ -f "${DEPLOY_SCRIPT}.bak" ]; then
-    cp ${DEPLOY_SCRIPT}.bak ${DEPLOY_SCRIPT}
-    rm ${DEPLOY_SCRIPT}.bak
+  if [ -f "$DEPLOY_SCRIPT.bak" ]; then
+    cp "$DEPLOY_SCRIPT.bak" "$DEPLOY_SCRIPT"
+    rm "$DEPLOY_SCRIPT.bak"
   fi
 
   if [ -f "snapshots/state-diff/Deploy.json" ]; then
