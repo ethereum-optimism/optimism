@@ -25,7 +25,8 @@ func TestChallengeLargePreimages_ChallengeFirst(t *testing.T) {
 		challenger.WithAlphabet(sys.RollupEndpoint("sequencer")),
 		challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
 	preimageHelper := disputeGameFactory.PreimageHelper(ctx)
-	ident := preimageHelper.UploadLargePreimage(ctx, preimage.MinPreimageSize,
+	minPreimageSize := preimageHelper.MinPreimageSize()
+	ident := preimageHelper.UploadLargePreimage(ctx, minPreimageSize,
 		preimage.WithReplacedCommitment(0, common.Hash{0xaa}))
 
 	require.NotEqual(t, ident.Claimant, common.Address{})
@@ -45,7 +46,8 @@ func TestChallengeLargePreimages_ChallengeMiddle(t *testing.T) {
 		challenger.WithAlphabet(sys.RollupEndpoint("sequencer")),
 		challenger.WithPrivKey(sys.Cfg.Secrets.Mallory))
 	preimageHelper := disputeGameFactory.PreimageHelper(ctx)
-	ident := preimageHelper.UploadLargePreimage(ctx, preimage.MinPreimageSize,
+	minPreimageSize := preimageHelper.MinPreimageSize()
+	ident := preimageHelper.UploadLargePreimage(ctx, minPreimageSize,
 		preimage.WithReplacedCommitment(10, common.Hash{0xaa}))
 
 	require.NotEqual(t, ident.Claimant, common.Address{})

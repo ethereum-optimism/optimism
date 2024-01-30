@@ -25,8 +25,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const MinPreimageSize = 18000
-
 type Helper struct {
 	t              *testing.T
 	require        *require.Assertions
@@ -66,6 +64,12 @@ func WithReplacedCommitment(idx uint64, value common.Hash) InputModifier {
 		}
 		input.Commitments[idx-startBlock] = value
 	}
+}
+
+func (h *Helper) MinPreimageSize() int {
+	minProposalSize, err := h.oracleBindings.MinProposalSize(&bind.CallOpts{})
+	require.NoError(h.t, err)
+	return int(minProposalSize.Uint64())
 }
 
 // UploadLargePreimage inits the preimage upload and uploads the leaves, starting the challenge period.
