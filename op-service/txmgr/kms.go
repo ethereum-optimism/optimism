@@ -33,8 +33,8 @@ func NewKmsConfig(cfg CLIConfig) (*KmsConfig, error) {
 	// AWS uses IAM role for task
 	if cfg.KmsProduction {
 		log.Info("Using AWS KMS production mode")
-		if cfg.KmsKeyID == "" {
-			return nil, fmt.Errorf("KMS key ID is not set")
+		if cfg.KmsKeyID == "" || cfg.KmsRegion == "" {
+			return nil, fmt.Errorf("KMS config is not set")
 		}
 		sess, err = session.NewSession(&aws.Config{
 			Region: aws.String(cfg.KmsRegion)},
