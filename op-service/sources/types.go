@@ -209,6 +209,8 @@ func (hdr *rpcHeader) BlockID() eth.BlockID {
 	}
 }
 
+type RPCBlock rpcBlock
+
 type rpcBlock struct {
 	rpcHeader
 	Transactions []*types.Transaction `json:"transactions"`
