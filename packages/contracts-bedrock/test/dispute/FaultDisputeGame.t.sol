@@ -627,6 +627,71 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         // Ensure that bonds were paid out correctly.
         assertEq(address(this).balance, 100 ether);
         assertEq(address(gameProxy).balance, 0);
+
+        // Ensure that the init bond for the game is 0, in case we change it in the test suite in the future.
+        assertEq(factory.initBonds(GAME_TYPE), 0);
+    }
+
+    /// @dev Static unit test asserting that resolve pays out bonds on step, output bisection, and execution trace
+    /// moves with 2 actors and a dishonest root claim.
+    function test_resolve_bondPayoutsSeveralActors_succeeds() public {
+        // Give the test contract and bob some ether
+        address bob = address(0xb0b);
+        vm.deal(address(this), 100 ether);
+        vm.deal(bob, 100 ether);
+
+        // Make claims all the way down the tree, trading off between bob and the test contract.
+        gameProxy.attack{ value: 1 ether }(0, _dummyClaim());
+
+        vm.prank(bob);
+        gameProxy.attack{ value: 1 ether }(1, _dummyClaim());
+
+        gameProxy.attack{ value: 1 ether }(2, _dummyClaim());
+
+        vm.prank(bob);
+        gameProxy.attack{ value: 1 ether }(3, _dummyClaim());
+
+        gameProxy.attack{ value: 1 ether }(4, _changeClaimStatus(_dummyClaim(), VMStatuses.PANIC));
+
+        vm.prank(bob);
+        gameProxy.attack{ value: 1 ether }(5, _dummyClaim());
+
+        gameProxy.attack{ value: 1 ether }(6, _dummyClaim());
+
+        vm.prank(bob);
+        gameProxy.attack{ value: 1 ether }(7, _dummyClaim());
+
+        gameProxy.addLocalData(LocalPreimageKey.STARTING_L2_BLOCK_NUMBER, 8, 0);
+        gameProxy.step(8, true, absolutePrestateData, hex"");
+
+        // Ensure that the step successfully countered the leaf claim.
+        (, address counteredBy,,,,,) = gameProxy.claimData(8);
+        assertEq(counteredBy, address(this));
+
+        // Ensure we bonded the correct amounts
+        uint256 bonded = ((gameProxy.claimDataLen() - 1) / 2) * 1 ether;
+        assertEq(address(this).balance, 100 ether - bonded);
+        assertEq(bob.balance, 100 ether - bonded);
+        assertEq(address(gameProxy).balance, bonded * 2);
+
+        // Resolve all claims
+        vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
+        for (uint256 i = gameProxy.claimDataLen(); i > 0; i--) {
+            (bool success,) = address(gameProxy).call(abi.encodeCall(gameProxy.resolveClaim, (i - 1)));
+            success;
+        }
+        gameProxy.resolve();
+
+        gameProxy.claimCredit(address(this));
+        gameProxy.claimCredit(bob);
+
+        // Ensure that bonds were paid out correctly.
+        assertEq(address(this).balance, 100 ether + bonded);
+        assertEq(bob.balance, 100 ether - bonded);
+        assertEq(address(gameProxy).balance, 0);
+
+        // Ensure that the init bond for the game is 0, in case we change it in the test suite in the future.
+        assertEq(factory.initBonds(GAME_TYPE), 0);
     }
 
     /// @dev Static unit test asserting that credit may not be drained past allowance through reentrancy.
