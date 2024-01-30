@@ -82,7 +82,7 @@ type LocalEngineControl interface {
 	ResetBuildingState()
 	IsEngineSyncing() bool
 	TryUpdateEngine(ctx context.Context) error
-	TryBackupUnsafeReorg(ctx context.Context) error
+	TryBackupUnsafeReorg(ctx context.Context) (bool, error)
 	InsertUnsafePayload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope, ref eth.L2BlockRef) error
 
 	PendingSafeL2Head() eth.L2BlockRef
@@ -270,9 +270,9 @@ func (eq *EngineQueue) isEngineSyncing() bool {
 
 func (eq *EngineQueue) Step(ctx context.Context) error {
 	// If we don't need to call FCU to restore unsafeHead using backupUnsafe, keep going b/c
-	// this was a no-op(except correcting invalid state when backupUnsafe is empty but reorg triggered).
-	// If we needed to perform a network call, then we should yield even if we did not encounter an error.
-	if err := eq.ec.TryBackupUnsafeReorg(ctx); !errors.Is(err, errNoBackupUnsafeReorgNeeded) {
+	// this was a no-op(except correcting invalid state when backupUnsafe is empty but TryBackupUnsafeReorg called).
+	if FCUcalled, err := eq.ec.TryBackupUnsafeReorg(ctx); FCUcalled {
+		// If we needed to perform a network call, then we should yield even if we did not encounter an error.
 		return err
 	}
 	// If we don't need to call FCU, keep going b/c this was a no-op. If we needed to
