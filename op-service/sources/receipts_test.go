@@ -27,9 +27,9 @@ type ethBackend struct {
 	*mock.Mock
 }
 
-func (b *ethBackend) GetBlockByHash(id common.Hash, fullTxs bool) (*rpcBlock, error) {
+func (b *ethBackend) GetBlockByHash(id common.Hash, fullTxs bool) (*RPCBlock, error) {
 	out := b.Mock.MethodCalled("eth_getBlockByHash", id, fullTxs)
-	return out[0].(*rpcBlock), nil
+	return out[0].(*RPCBlock), nil
 }
 
 func (b *ethBackend) GetTransactionReceipt(txHash common.Hash) (*types.Receipt, error) {
@@ -98,7 +98,7 @@ type ReceiptsTestCase struct {
 	name         string
 	providerKind RPCProviderKind
 	staticMethod bool
-	setup        func(t *testing.T) (*rpcBlock, []ReceiptsRequest)
+	setup        func(t *testing.T) (*RPCBlock, []ReceiptsRequest)
 }
 
 func (tc *ReceiptsTestCase) Run(t *testing.T) {
@@ -185,10 +185,10 @@ func (tc *ReceiptsTestCase) Run(t *testing.T) {
 	m.AssertExpectations(t)
 }
 
-func randomRpcBlockAndReceipts(rng *rand.Rand, txCount uint64) (*rpcBlock, []*types.Receipt) {
+func randomRpcBlockAndReceipts(rng *rand.Rand, txCount uint64) (*RPCBlock, []*types.Receipt) {
 	block, receipts := testutils.RandomBlock(rng, txCount)
-	return &rpcBlock{
-		rpcHeader: rpcHeader{
+	return &RPCBlock{
+		RPCHeader: RPCHeader{
 			ParentHash:  block.ParentHash(),
 			UncleHash:   block.UncleHash(),
 			Coinbase:    block.Coinbase(),
@@ -214,8 +214,8 @@ func randomRpcBlockAndReceipts(rng *rand.Rand, txCount uint64) (*rpcBlock, []*ty
 func TestEthClient_FetchReceipts(t *testing.T) {
 	// Helper to quickly define the test case requests scenario:
 	// each method fails to fetch the receipts, except the last
-	fallbackCase := func(txCount uint64, methods ...ReceiptsFetchingMethod) func(t *testing.T) (*rpcBlock, []ReceiptsRequest) {
-		return func(t *testing.T) (*rpcBlock, []ReceiptsRequest) {
+	fallbackCase := func(txCount uint64, methods ...ReceiptsFetchingMethod) func(t *testing.T) (*RPCBlock, []ReceiptsRequest) {
+		return func(t *testing.T) (*RPCBlock, []ReceiptsRequest) {
 			block, receipts := randomRpcBlockAndReceipts(rand.New(rand.NewSource(123)), txCount)
 			// zero out the data we don't want to verify
 			for _, r := range receipts {

@@ -42,7 +42,7 @@ func TestBlockHeaderJSON(t *testing.T) {
 		var metadata testMetadata
 		readJsonTestdata(t, "testdata/data/headers/"+entry.Name(), &metadata)
 		t.Run(metadata.Name, func(t *testing.T) {
-			var header rpcHeader
+			var header RPCHeader
 			readJsonTestdata(t, "testdata/data/headers/"+strings.Replace(entry.Name(), "_metadata.json", "_data.json", 1), &header)
 
 			h := header.computeBlockHash()
@@ -67,7 +67,7 @@ func TestBlockJSON(t *testing.T) {
 		var metadata testMetadata
 		readJsonTestdata(t, "testdata/data/blocks/"+entry.Name(), &metadata)
 		t.Run(metadata.Name, func(t *testing.T) {
-			var block rpcBlock
+			var block RPCBlock
 			readJsonTestdata(t, "testdata/data/blocks/"+strings.Replace(entry.Name(), "_metadata.json", "_data.json", 1), &block)
 
 			err := block.verify()
@@ -106,7 +106,7 @@ func TestBlockToExecutionPayloadIncludesEcotoneProperties(t *testing.T) {
 		BlobGasUsed:      &zero,
 		ParentBeaconRoot: &common.Hash{},
 	}
-	rhdr := rpcHeader{
+	rhdr := RPCHeader{
 		ParentBeaconRoot: hdr.ParentBeaconRoot,
 		ParentHash:       hdr.ParentHash,
 		WithdrawalsRoot:  hdr.WithdrawalsHash,
@@ -130,8 +130,8 @@ func TestBlockToExecutionPayloadIncludesEcotoneProperties(t *testing.T) {
 		ExcessBlobGas:    (*hexutil.Uint64)(hdr.ExcessBlobGas),
 	}
 
-	block := rpcBlock{
-		rpcHeader:    rhdr,
+	block := RPCBlock{
+		RPCHeader:    rhdr,
 		Transactions: types.Transactions{},
 		Withdrawals:  &types.Withdrawals{},
 	}
