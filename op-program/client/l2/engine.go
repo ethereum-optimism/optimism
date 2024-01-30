@@ -50,8 +50,14 @@ func (o *OracleEngine) L2OutputRoot(l2ClaimBlockNum uint64) (eth.Bytes32, error)
 	return rollup.ComputeL2OutputRootV0(eth.HeaderBlockInfo(outBlock), withdrawalsTrie.Hash())
 }
 
-func (o *OracleEngine) GetPayload(ctx context.Context, payloadId eth.PayloadID) (*eth.ExecutionPayloadEnvelope, error) {
-	res, err := o.api.GetPayloadV3(ctx, payloadId)
+func (o *OracleEngine) GetPayload(ctx context.Context, payloadInfo eth.PayloadInfo) (*eth.ExecutionPayloadEnvelope, error) {
+	var res *eth.ExecutionPayloadEnvelope
+	var err error
+	if o.rollupCfg.IsEcotone(payloadInfo.Timestamp) {
+		res, err = o.api.GetPayloadV3(ctx, payloadInfo.ID)
+	} else {
+		res, err = o.api.GetPayloadV2(ctx, payloadInfo.ID)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -59,6 +65,15 @@ func (o *OracleEngine) GetPayload(ctx context.Context, payloadId eth.PayloadID) 
 }
 
 func (o *OracleEngine) ForkchoiceUpdate(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
+	if attr != nil {
+		if o.rollupCfg.IsEcotone(uint64(attr.Timestamp)) {
+			return o.api.ForkchoiceUpdatedV3(ctx, state, attr)
+		} else if o.rollupCfg.IsCanyon(uint64(attr.Timestamp)) {
+			return o.api.ForkchoiceUpdatedV2(ctx, state, attr)
+		} else {
+			return o.api.ForkchoiceUpdatedV1(ctx, state, attr)
+		}
+	}
 	return o.api.ForkchoiceUpdatedV3(ctx, state, attr)
 }
 

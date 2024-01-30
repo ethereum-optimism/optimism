@@ -58,7 +58,17 @@ func (s *EngineClient) ForkchoiceUpdate(ctx context.Context, fc *eth.ForkchoiceS
 	fcCtx, cancel := context.WithTimeout(ctx, time.Second*5)
 	defer cancel()
 	var result eth.ForkchoiceUpdatedResult
-	err := s.client.CallContext(fcCtx, &result, "engine_forkchoiceUpdatedV3", fc, attributes)
+	method := "engine_forkchoiceUpdatedV3"
+	if attributes != nil {
+		ts := uint64(attributes.Timestamp)
+		if s.rollupCfg.IsEcotone(ts) {
+		} else if s.rollupCfg.IsCanyon(ts) {
+			method = "engine_forkchoiceUpdatedV2"
+		} else if !s.rollupCfg.IsCanyon(ts) {
+			method = "engine_forkchoiceUpdatedV1"
+		}
+	}
+	err := s.client.CallContext(fcCtx, &result, method, fc, attributes)
 	if err == nil {
 		tlog.Trace("Shared forkchoice-updated signal")
 		if attributes != nil { // block building is optional, we only get a payload ID if we are building a block
@@ -113,13 +123,19 @@ func (s *EngineClient) NewPayload(ctx context.Context, payload *eth.ExecutionPay
 // There may be two types of error:
 // 1. `error` as eth.InputError: the payload ID may be unknown
 // 2. Other types of `error`: temporary RPC errors, like timeouts.
-func (s *EngineClient) GetPayload(ctx context.Context, payloadId eth.PayloadID) (*eth.ExecutionPayloadEnvelope, error) {
-	e := s.log.New("payload_id", payloadId)
+func (s *EngineClient) GetPayload(ctx context.Context, payloadInfo eth.PayloadInfo) (*eth.ExecutionPayloadEnvelope, error) {
+	e := s.log.New("payload_id", payloadInfo.ID)
 	e.Trace("getting payload")
 	var result eth.ExecutionPayloadEnvelope
-	err := s.client.CallContext(ctx, &result, "engine_getPayloadV3", payloadId)
+	var method string
+	if s.rollupCfg.IsEcotone(payloadInfo.Timestamp) {
+		method = "engine_getPayloadV3"
+	} else {
+		method = "engine_getPayloadV2"
+	}
+	err := s.client.CallContext(ctx, &result, method, payloadInfo.ID)
 	if err != nil {
-		e.Warn("Failed to get payload", "payload_id", payloadId, "err", err)
+		e.Warn("Failed to get payload", "payload_id", payloadInfo.ID, "err", err)
 		if rpcErr, ok := err.(rpc.Error); ok {
 			code := eth.ErrorCode(rpcErr.ErrorCode())
 			switch code {
