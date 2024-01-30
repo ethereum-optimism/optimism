@@ -16,6 +16,10 @@ interface IDisputeGame is IInitializable {
     /// @return createdAt_ The timestamp that the DisputeGame contract was created at.
     function createdAt() external view returns (Timestamp createdAt_);
 
+    /// @notice Returns the timestamp that the DisputeGame contract was resolved at.
+    /// @return resolvedAt_ The timestamp that the DisputeGame contract was resolved at.
+    function resolvedAt() external view returns (Timestamp resolvedAt_);
+
     /// @notice Returns the current status of the game.
     /// @return status_ The current status of the game.
     function status() external view returns (GameStatus status_);
