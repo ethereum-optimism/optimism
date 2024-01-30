@@ -1,6 +1,21 @@
 #!/bin/bash
 set -euo pipefail
 
+cleanup() {
+  # Restore the original script from the backup
+  if [ -f "${DEPLOY_SCRIPT}.bak" ]; then
+    cp ${DEPLOY_SCRIPT}.bak ${DEPLOY_SCRIPT}
+    rm ${DEPLOY_SCRIPT}.bak
+  fi
+
+  if [ -f "snapshots/state-diff/Deploy.json" ]; then
+    rm "snapshots/state-diff/Deploy.json"
+  fi
+}
+
+# Set trap to call cleanup function on exit
+trap cleanup EXIT
+
 # create deployments/hardhat/.deploy and snapshots/state-diff/Deploy.json if necessary
 if [ ! -d "deployments/hardhat" ]; then
   mkdir deployments/hardhat;
@@ -28,10 +43,6 @@ awk '{gsub(/mustGetAddress/, "getAddress")}1' ${DEPLOY_SCRIPT} > temp && mv temp
 
 FOUNDRY_PROFILE=kdeploy forge script -vvv test/kontrol/deployment/KontrolDeployment.sol:KontrolDeployment --sig 'runKontrolDeployment()'
 echo "Created state diff json"
-
-# Restore the file from the backup
-cp ${DEPLOY_SCRIPT}.bak ${DEPLOY_SCRIPT}
-rm ${DEPLOY_SCRIPT}.bak
 
 # Clean and store the state diff json in snapshots/state-diff/Kontrol-Deploy.json
 JSON_SCRIPTS=test/kontrol/scripts/json
