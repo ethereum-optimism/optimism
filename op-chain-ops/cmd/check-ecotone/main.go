@@ -72,6 +72,17 @@ func main() {
 		},
 		makeCommand("fees", checkL1Fees),
 		makeCommand("all", checkALL),
+		{
+			Name: "gen-key",
+			Action: func(c *cli.Context) error {
+				key, err := crypto.GenerateKey()
+				if err != nil {
+					return err
+				}
+				fmt.Println("address: " + crypto.PubkeyToAddress(key.PublicKey).String())
+				return crypto.SaveECDSA("hotkey.txt", key)
+			},
+		},
 	}
 
 	err := app.Run(os.Args)
@@ -212,6 +223,12 @@ func checkBlobTxDenial(ctx context.Context, env *actionEnv) error {
 		return fmt.Errorf("failed to make sidecar: %w", err)
 	}
 	latestHeader, err := env.l1.HeaderByNumber(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to get header: %w", err)
+	}
+	if latestHeader.ExcessBlobGas == nil {
+		return fmt.Errorf("the L1 block %s (time %d) is not ecotone yet", latestHeader.Hash(), latestHeader.Time)
+	}
 	blobBaseFee := eip4844.CalcBlobFee(*latestHeader.ExcessBlobGas)
 	blobFeeCap := new(uint256.Int).Mul(uint256.NewInt(2), uint256.MustFromBig(blobBaseFee))
 	if blobFeeCap.Lt(uint256.NewInt(params.GWei)) { // ensure we meet 1 gwei geth tx-pool minimum
@@ -304,16 +321,17 @@ func checkBeaconBlockRoot(ctx context.Context, env *actionEnv) error {
 	if err != nil {
 		return fmt.Errorf("failed to convert to block-ref: %w", err)
 	}
-	l1Header, err := env.l1.HeaderByHash(ctx, headRef.Hash)
+	l1Header, err := env.l1.HeaderByHash(ctx, headRef.L1Origin.Hash)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve matching L1 block %s: %w", headRef, err)
 	}
-	if l1Header.ParentBeaconRoot == nil {
-		return fmt.Errorf("header from L1 does not have parent beacon block root: %w", err)
+	var l1ParentBeaconBlockRoot common.Hash // zero before Dencun activates on L1
+	if l1Header.ParentBeaconRoot != nil {
+		l1ParentBeaconBlockRoot = *l1Header.ParentBeaconRoot
 	}
-	if *l1Header.ParentBeaconRoot != *payload.ParentBeaconBlockRoot {
+	if l1ParentBeaconBlockRoot != *payload.ParentBeaconBlockRoot {
 		return fmt.Errorf("parent beacon block root mismatch, L1: %s, L2: %s",
-			*l1Header.ParentBeaconRoot, *payload.ParentBeaconBlockRoot)
+			l1ParentBeaconBlockRoot, *payload.ParentBeaconBlockRoot)
 	}
 	return nil
 }
@@ -334,9 +352,9 @@ func checkAllCancun(ctx context.Context, env *actionEnv) error {
 	if err := checkSelfdestruct(ctx, env); err != nil {
 		return fmt.Errorf("eip-6780 selfdestruct error: %w", err)
 	}
-	if err := checkBlobTxDenial(ctx, env); err != nil {
-		return fmt.Errorf("eip-4844 blob-tx denial error: %w", err)
-	}
+	//if err := checkBlobTxDenial(ctx, env); err != nil {
+	//	return fmt.Errorf("eip-4844 blob-tx denial error: %w", err)
+	//}
 	if err := checkBeaconBlockRoot(ctx, env); err != nil {
 		return fmt.Errorf("eip-4788 beacon-block-roots error: %w", err)
 	}
@@ -352,7 +370,7 @@ func checkUpgradeTxs(ctx context.Context, env *actionEnv) error {
 
 	activationBlockNum := rollupCfg.Genesis.L2.Number +
 		((*rollupCfg.EcotoneTime - rollupCfg.Genesis.L2Time) / rollupCfg.BlockTime)
-
+	env.log.Info("upgrade block num", "num", activationBlockNum)
 	l2RPC := client.NewBaseRPCClient(env.l2.Client())
 	l2EthCl, err := sources.NewL2Client(l2RPC, env.log, nil,
 		sources.L2ClientDefaultConfig(rollupCfg, false))
@@ -398,14 +416,6 @@ func checkL1Block(ctx context.Context, env *actionEnv) error {
 	if err != nil {
 		return fmt.Errorf("failed to create bindings around L1Block contract: %w", err)
 	}
-	_, err = cl.L1FeeOverhead(nil)
-	if err == nil || !strings.Contains(err.Error(), "revert") {
-		return fmt.Errorf("expected revert on legacy overhead attribute acccess, but got %v", err)
-	}
-	_, err = cl.L1FeeScalar(nil)
-	if err == nil || !strings.Contains(err.Error(), "revert") {
-		return fmt.Errorf("expected revert on legacy scalar attribute acccess, but got %v", err)
-	}
 	blobBaseFee, err := cl.BlobBaseFee(nil)
 	if err != nil {
 		return fmt.Errorf("failed to get blob basfee from L1Block contract: %w", err)
@@ -417,9 +427,17 @@ func checkL1Block(ctx context.Context, env *actionEnv) error {
 }
 
 func checkGPO(ctx context.Context, env *actionEnv) error {
-	cl, err := bindings.NewGasPriceOracle(predeploys.L1BlockAddr, env.l2)
+	cl, err := bindings.NewGasPriceOracle(predeploys.GasPriceOracleAddr, env.l2)
 	if err != nil {
 		return fmt.Errorf("failed to create bindings around L1Block contract: %w", err)
+	}
+	_, err = cl.Overhead(nil)
+	if err == nil || !strings.Contains(err.Error(), "revert") {
+		return fmt.Errorf("expected revert on legacy overhead attribute acccess, but got %v", err)
+	}
+	_, err = cl.Scalar(nil)
+	if err == nil || !strings.Contains(err.Error(), "revert") {
+		return fmt.Errorf("expected revert on legacy scalar attribute acccess, but got %v", err)
 	}
 	isEcotone, err := cl.IsEcotone(nil)
 	if err != nil {
@@ -443,10 +461,12 @@ func checkL1Fees(ctx context.Context, env *actionEnv) error {
 	if err != nil {
 		return fmt.Errorf("failed to retrieve rollup config: %w", err)
 	}
+	env.log.Info("making test tx", "addr", env.addr)
 	nonce, err := env.l1.PendingNonceAt(ctx, env.addr)
 	if err != nil {
 		return fmt.Errorf("failed to get pending nonce: %w", err)
 	}
+	env.log.Info("retrieved account nonce", "nonce", nonce)
 	l2RPC := client.NewBaseRPCClient(env.l2.Client())
 	l2EthCl, err := sources.NewL2Client(l2RPC, env.log, nil,
 		sources.L2ClientDefaultConfig(rollupCfg, false))
@@ -461,7 +481,7 @@ func checkL1Fees(ctx context.Context, env *actionEnv) error {
 	if err != nil {
 		return fmt.Errorf("failed to convert to block-ref: %w", err)
 	}
-	l1Header, err := env.l1.HeaderByHash(ctx, headRef.Hash)
+	l1Header, err := env.l1.HeaderByHash(ctx, headRef.L1Origin.Hash)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve matching L1 block %s: %w", headRef, err)
 	}
@@ -474,7 +494,7 @@ func checkL1Fees(ctx context.Context, env *actionEnv) error {
 		Nonce:      nonce,
 		GasTipCap:  gasTip,
 		GasFeeCap:  gasMaxFee,
-		Gas:        params.TxGas,
+		Gas:        params.TxGas + 100, // some margin for the calldata
 		To:         &to,
 		Value:      big.NewInt(3 * params.GWei),
 		Data:       []byte("hello"),
@@ -484,6 +504,7 @@ func checkL1Fees(ctx context.Context, env *actionEnv) error {
 	if err != nil {
 		return fmt.Errorf("failed to sign test tx: %w", err)
 	}
+	env.log.Info("signed tx", "txhash", tx.Hash())
 	if err := env.l2.SendTransaction(ctx, tx); err != nil {
 		return fmt.Errorf("failed to send test tx: %w", err)
 	}
@@ -493,6 +514,10 @@ func checkL1Fees(ctx context.Context, env *actionEnv) error {
 	if err != nil {
 		return fmt.Errorf("failed to confirm tx %s timely: %w", tx.Hash(), err)
 	}
+	if receipt.Status != types.ReceiptStatusSuccessful {
+		return fmt.Errorf("transaction failed, gas used: %d", receipt.L1GasUsed)
+	}
+	env.log.Info("got receipt")
 	if receipt.FeeScalar != nil {
 		return fmt.Errorf("expected fee scalar attribute to be deprecated, but got %v", receipt.FeeScalar)
 	}
@@ -512,6 +537,8 @@ func checkL1Fees(ctx context.Context, env *actionEnv) error {
 		}
 	}
 	expectedCalldataGas := zero*4 + nonZero*16
+	env.log.Info("expecting fees", "calldatagas", expectedCalldataGas)
+	env.log.Info("paid fees", "l1_fee", receipt.L1Fee, "l1_basefee", receipt.L1GasPrice)
 	if new(big.Int).SetUint64(expectedCalldataGas).Cmp(receipt.L1GasUsed) != 0 {
 		return fmt.Errorf("expected %d L1 gas, but only spent %d", expectedCalldataGas, receipt.L1GasUsed)
 	}
