@@ -175,7 +175,7 @@ func entrypoint(ctx *cli.Context) error {
 			return fmt.Errorf("no implementations for chain ID %d", l1ChainID.Uint64())
 		}
 
-		list, err := implementations.Resolve(superchain.SuperchainSemver)
+		list, err := implementations.Resolve(superchain.SuperchainSemver[superchainName])
 		if err != nil {
 			return err
 		}
