@@ -299,7 +299,7 @@ func (e *EngineController) TryUpdateEngine(ctx context.Context) error {
 		return errNoFCUNeeded
 	}
 	if e.IsEngineSyncing() {
-		e.log.Warn("Attempting to update forkchoice state while EL sync.")
+		e.log.Warn("Attempting to update forkchoice state while EL syncing")
 	}
 	fc := eth.ForkchoiceState{
 		HeadBlockHash:      e.unsafeHead.Hash,
@@ -402,7 +402,7 @@ func (e *EngineController) TryBackupUnsafeReorg(ctx context.Context) error {
 	}
 	// This method must be never called when EL sync. If EL sync is in progress, early return.
 	if e.IsEngineSyncing() {
-		e.log.Warn("Attempting to update forkchoice state while EL sync.")
+		e.log.Warn("Attempting to unsafe reorg using backupUnsafe while EL syncing")
 		return errNoBackupUnsafeReorgNeeded
 	}
 	if e.BackupUnsafeL2Head() == (eth.L2BlockRef{}) { // sanity check backupUnsafeHead is there
