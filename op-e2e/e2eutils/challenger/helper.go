@@ -128,7 +128,9 @@ func NewChallenger(t *testing.T, ctx context.Context, l1Endpoint string, name st
 
 func NewChallengerConfig(t *testing.T, l1Endpoint string, options ...Option) *config.Config {
 	// Use the NewConfig method to ensure we pick up any defaults that are set.
-	cfg := config.NewConfig(common.Address{}, l1Endpoint, t.TempDir())
+	dir, err := os.MkdirTemp("/Users/aj/Downloads/testlogs", "challenger-"+t.Name())
+	require.NoError(t, err)
+	cfg := config.NewConfig(common.Address{}, l1Endpoint, dir)
 	cfg.TxMgrConfig.NumConfirmations = 1
 	cfg.TxMgrConfig.ReceiptQueryInterval = 1 * time.Second
 	if cfg.MaxConcurrency > 4 {
