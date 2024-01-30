@@ -13,13 +13,24 @@ import (
 )
 
 var ErrNotFound = errors.New("not found")
+var ErrCommitmentMismatch = errors.New("commitment mismatch")
 
+// DAClient is an HTTP client to communicate with a DA storage service.
+// It creates commitments and retrieves input data + verifies if needed.
+// Currently only supports Keccak256 commitments but may be extended eventually.
 type DAClient struct {
-	url string
+	url    string
+	verify bool
 }
 
 func NewDAClient(url string) *DAClient {
-	return &DAClient{url}
+	return &DAClient{url: url}
+}
+
+// VerifyOnRead sets the client to verify the commitment on read.
+// SHOULD enable if the storage service is not trusted.
+func (c *DAClient) VerifyOnRead(verify bool) {
+	c.verify = verify
 }
 
 // GetInput returns the input data for the given commitment bytes.
@@ -33,11 +44,17 @@ func (c *DAClient) GetInput(ctx context.Context, key []byte) ([]byte, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
-	bytes, err := io.ReadAll(resp.Body)
+	input, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
-	return bytes, nil
+	if c.verify {
+		exp := crypto.Keccak256(input)
+		if !bytes.Equal(exp, key) {
+			return nil, ErrCommitmentMismatch
+		}
+	}
+	return input, nil
 }
 
 // SetInput sets the input data and returns the keccak256 hash commitment.

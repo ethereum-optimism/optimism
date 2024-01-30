@@ -27,6 +27,7 @@ type L1BlobsFetcher interface {
 }
 
 type PlasmaInputFetcher interface {
+	// GetInput fetches the input for the given commitment at the given block number from the DA storage service.
 	GetInput(ctx context.Context, commitment []byte, blockNumber uint64) (plasma.Input, error)
 }
 
@@ -46,7 +47,7 @@ func NewDataSourceFactory(log log.Logger, cfg *rollup.Config, fetcher L1Transact
 	config := DataSourceConfig{
 		l1Signer:          cfg.L1Signer(),
 		batchInboxAddress: cfg.BatchInboxAddress,
-		plasmaEnabled:     cfg.IsPlasmaEnabled(),
+		plasmaEnabled:     plasmaFetcher != nil,
 	}
 	return &DataSourceFactory{
 		log:           log,
@@ -69,7 +70,7 @@ func (ds *DataSourceFactory) OpenData(ctx context.Context, ref eth.L1BlockRef, b
 	} else {
 		src = NewCalldataSource(ctx, ds.log, ds.dsCfg, ds.fetcher, ref, batcherAddr)
 	}
-	// plasma source still needs access to the commitments onchain so we pass the source.
+	// plasma source does need access to the commitments onchain so we pass the source.
 	if ds.dsCfg.plasmaEnabled {
 		return NewPlasmaDataSource(ds.log, src, ds.plasmaFetcher, ref.ID()), nil
 	}

@@ -307,7 +307,7 @@ func (bs *BatcherService) initRPCServer(cfg *CLIConfig) error {
 }
 
 func (bs *BatcherService) initPlasmaDA(cfg *CLIConfig) error {
-	config := cfg.PlasmaDA.Config(bs.RollupConfig.IsPlasmaEnabled())
+	config := cfg.PlasmaDA
 	if err := config.Check(); err != nil {
 		return err
 	}

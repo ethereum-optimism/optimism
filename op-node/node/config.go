@@ -71,8 +71,8 @@ type Config struct {
 	ConductorRpc        string
 	ConductorRpcTimeout time.Duration
 
-	// OP Plasma config
-	Plasma plasma.Config
+	// Plasma DA config
+	Plasma plasma.CLIConfig
 }
 
 type RPCConfig struct {

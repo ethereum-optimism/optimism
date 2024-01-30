@@ -15,7 +15,7 @@ type PlasmaDataSource struct {
 	src     DataIter
 	fetcher PlasmaInputFetcher
 	id      eth.BlockID
-	// keep track of a pending commitment so we can keep trying to fetch the pre-image
+	// keep track of a pending commitment so we can keep trying to fetch the input.
 	comm []byte
 }
 
@@ -37,10 +37,10 @@ func (s *PlasmaDataSource) Next(ctx context.Context) (eth.Data, error) {
 			return nil, err
 		}
 	}
-	// use the commitment to fetch the pre-image from the plasma DA provider.
+	// use the commitment to fetch the input from the plasma DA provider.
 	resp, err := s.fetcher.GetInput(ctx, s.comm, s.id.Number)
 	if err != nil {
-		// wrap in eth.Data for logging as hex string.
+		// wrap in eth.Data for printing as hex string.
 		comm := eth.Data(s.comm)
 		// return temporary error so we can keep retrying.
 		tempErr := NewTemporaryError(fmt.Errorf("failed to fetch input data with comm %v from da service: %w", comm, err))

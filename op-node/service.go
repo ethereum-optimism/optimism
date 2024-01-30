@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
+	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/common"
@@ -107,6 +108,8 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		ConductorEnabled:    ctx.Bool(flags.ConductorEnabledFlag.Name),
 		ConductorRpc:        ctx.String(flags.ConductorRpcFlag.Name),
 		ConductorRpcTimeout: ctx.Duration(flags.ConductorRpcTimeoutFlag.Name),
+
+		Plasma: plasma.ReadCLIConfig(ctx),
 	}
 
 	if err := cfg.LoadPersisted(log); err != nil {

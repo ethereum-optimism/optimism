@@ -4,28 +4,46 @@ import (
 	"fmt"
 	"net/url"
 
-	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/urfave/cli/v2"
 )
 
-const DaServerAddressFlagName = "da-server"
+const (
+	EnabledFlagName         = "plasma.enabled"
+	DaServerAddressFlagName = "plasma.da-server"
+	VerifyOnReadFlagName    = "plasma.verify-on-read"
+)
+
+func plasmaEnv(envprefix, v string) []string {
+	return []string{envprefix + "_PLASMA_" + v}
+}
 
 func CLIFlags(envPrefix string) []cli.Flag {
 	return []cli.Flag{
+		&cli.BoolFlag{
+			Name:    EnabledFlagName,
+			Usage:   "Enable plasma mode",
+			EnvVars: plasmaEnv(envPrefix, "ENABLED"),
+		},
 		&cli.StringFlag{
 			Name:    DaServerAddressFlagName,
-			Usage:   "HTTP address of a DaServer",
-			EnvVars: opservice.PrefixEnvVar(envPrefix, "DA_SERVER"),
+			Usage:   "HTTP address of a DA Server",
+			EnvVars: plasmaEnv(envPrefix, "DA_SERVER"),
+		},
+		&cli.BoolFlag{
+			Name:    VerifyOnReadFlagName,
+			Usage:   "Verify input data matches the commitments from the DA storage service",
+			EnvVars: plasmaEnv(envPrefix, "VERIFY_ON_READ"),
 		},
 	}
 }
 
-type Config struct {
-	Enabled     bool
-	DAServerURL string
+type CLIConfig struct {
+	Enabled      bool
+	DAServerURL  string
+	VerifyOnRead bool
 }
 
-func (c Config) Check() error {
+func (c CLIConfig) Check() error {
 	if c.Enabled {
 		if c.DAServerURL == "" {
 			return fmt.Errorf("DA server URL is required when plasma da is enabled")
@@ -37,19 +55,10 @@ func (c Config) Check() error {
 	return nil
 }
 
-type CLIConfig struct {
-	DAServer string
-}
-
-func (c *CLIConfig) Config(enabled bool) Config {
-	return Config{
-		Enabled:     enabled,
-		DAServerURL: c.DAServer,
-	}
-}
-
 func ReadCLIConfig(c *cli.Context) CLIConfig {
 	return CLIConfig{
-		DAServer: c.String(DaServerAddressFlagName),
+		Enabled:      c.Bool(EnabledFlagName),
+		DAServerURL:  c.String(DaServerAddressFlagName),
+		VerifyOnRead: c.Bool(VerifyOnReadFlagName),
 	}
 }

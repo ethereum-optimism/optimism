@@ -377,8 +377,9 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config, snapshotLog log.Logger
 	var plasmaDA *plasma.DA
 	if cfg.Plasma.Enabled {
 		storage := plasma.NewDAClient(cfg.Plasma.DAServerURL)
+		storage.VerifyOnRead(cfg.Plasma.VerifyOnRead)
 		plasmaDA = plasma.NewPlasmaDA(n.log, storage)
-		n.log.Info("Plasma DA enabled", "da_server", cfg.Plasma.DAServerURL, "challenge_contract", cfg.Rollup.DAChallengeContractAddress)
+		n.log.Info("Plasma DA enabled", "da_server", cfg.Plasma.DAServerURL)
 	}
 	n.l2Driver = driver.NewDriver(&cfg.Driver, &cfg.Rollup, n.l2Source, n.l1Source, n.beacon, n, n, n.log, snapshotLog, n.metrics, cfg.ConfigPersistence, &cfg.Sync, sequencerConductor, plasmaDA)
 

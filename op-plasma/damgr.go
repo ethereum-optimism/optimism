@@ -8,6 +8,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
+type DAStorage interface {
+	GetInput(ctx context.Context, key []byte) ([]byte, error)
+	SetInput(ctx context.Context, img []byte) ([]byte, error)
+}
+
 type DA struct {
 	log     log.Logger
 	storage DAStorage
