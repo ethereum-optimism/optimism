@@ -15,7 +15,6 @@ import (
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/l2oo"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/transactions"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -76,7 +75,6 @@ type FactoryHelper struct {
 	opts        *bind.TransactOpts
 	factoryAddr common.Address
 	factory     *bindings.DisputeGameFactory
-	l2ooHelper  *l2oo.L2OOHelper
 }
 
 func NewFactoryHelper(t *testing.T, ctx context.Context, system DisputeSystem) *FactoryHelper {
@@ -100,7 +98,6 @@ func NewFactoryHelper(t *testing.T, ctx context.Context, system DisputeSystem) *
 		opts:        opts,
 		factory:     factory,
 		factoryAddr: factoryAddr,
-		l2ooHelper:  l2oo.NewL2OOHelperReadOnly(t, l1Deployments, client),
 	}
 }
 
