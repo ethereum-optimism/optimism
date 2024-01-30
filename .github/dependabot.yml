@@ -8,7 +8,8 @@ updates:
       time: "14:30"
       timezone: "America/New_York"
     open-pull-requests-limit: 10
-    prefix: "dependabot(docker): "
+    commit-message:
+      prefix: "dependabot(docker): "
     labels:
       - "M-dependabot"
 
@@ -20,7 +21,8 @@ updates:
       time: "14:30"
       timezone: "America/New_York"
     open-pull-requests-limit: 10
-    prefix: "dependabot(actions): "
+    commit-message:
+      prefix: "dependabot(actions): "
     labels:
       - "M-dependabot"
 
@@ -33,7 +35,8 @@ updates:
       timezone: "America/New_York"
     open-pull-requests-limit: 10
     versioning-strategy: "auto"
-    prefix: "dependabot(npm): "
+    commit-message:
+      prefix: "dependabot(npm): "
     labels:
       - "M-dependabot"
 
@@ -45,6 +48,7 @@ updates:
       time: "14:30"
       timezone: "America/New_York"
     open-pull-requests-limit: 10
-    prefix: "dependabot(gomod): "
+    commit-message:
+      prefix: "dependabot(gomod): "
     labels:
       - "M-dependabot"
