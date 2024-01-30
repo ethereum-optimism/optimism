@@ -21,7 +21,7 @@ contract L1ERC721BridgeKontrol is DeploymentSummary, KontrolUtils {
     /// TODO: Replace symbolic workarounds with the appropriate
     /// types once Kontrol supports symbolic `bytes` and `bytes[]`
     /// Tracking issue: https://github.com/runtimeverification/kontrol/issues/272
-    function prove_finalizeBridgeERC21_paused(
+    function prove_finalizeBridgeERC721_paused(
         address _localToken,
         address _remoteToken,
         address _from,
