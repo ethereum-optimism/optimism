@@ -202,7 +202,7 @@ func makePrefetcher(ctx context.Context, logger log.Logger, kv kvstore.KV, cfg *
 		return nil, fmt.Errorf("failed to create L1 client: %w", err)
 	}
 	l1Beacon := client.NewBasicHTTPClient(cfg.L1BeaconURL, logger)
-	l1BlobFetcher := sources.NewL1BeaconClient(l1Beacon)
+	l1BlobFetcher := sources.NewL1BeaconClient(l1Beacon, sources.L1BeaconClientConfig{FetchAllSidecars: false})
 	l2Cl, err := NewL2Client(l2RPC, logger, nil, &L2ClientConfig{L2ClientConfig: l2ClCfg, L2Head: cfg.L2Head})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create L2 client: %w", err)
