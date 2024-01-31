@@ -36,7 +36,6 @@ parse_args() {
   elif [ "$1" == "dev" ]; then
     notif "Running with LOCAL install, IGNORING .kontrolrc version"
     export LOCAL=true
-    shift
     pushd "${WORKSPACE_DIR}" > /dev/null || exit
   else
     usage
@@ -47,7 +46,6 @@ check_kontrol_version() {
   if [ "$(kontrol version | awk -F': ' '{print$2}')" == "${KONTROLRC}" ]; then
     notif "Kontrol version matches ${KONTROLRC}"
     export LOCAL=true
-    shift
     pushd "${WORKSPACE_DIR}" > /dev/null || exit
   else
     notif "Kontrol version does NOT match ${KONTROLRC}"
