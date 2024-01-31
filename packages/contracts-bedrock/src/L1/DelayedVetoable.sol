@@ -170,7 +170,7 @@ contract DelayedVetoable is ISemver {
             revert Unauthorized(INITIATOR, msg.sender);
         }
 
-        if (_queuedAt[callHash] + _delay < block.timestamp) {
+        if (_queuedAt[callHash] + _delay > block.timestamp) {
             // Not enough time has passed, so we'll revert.
             revert ForwardingEarly();
         }
