@@ -2,8 +2,9 @@
   "finalSystemOwner": "0xe62B0E3a9F715493301eBdEC8310C899eae5b30c",
   "portalGuardian": "0xe62B0E3a9F715493301eBdEC8310C899eae5b30c",
   "superchainConfigGuardian": "0xe62B0E3a9F715493301eBdEC8310C899eae5b30c",
+  "controller": "0xe62B0E3a9F715493301eBdEC8310C899eae5b30c",
 
-  "l1StartingBlockTag": "0xf7f91482b4c0c4bb7f6aa67551ac003d5c6fa3d170c2291ebcf346aef655edef",
+  "l1StartingBlockTag": "0x632d8caedbfd573e09c1b49134bd5147147e0904e0f04eba15c662be0258f517",
 
   "l1ChainID": 11155111,
   "l1BlockTime": 12,
@@ -15,15 +16,15 @@
   "channelTimeout": 300,
 
   "p2pSequencerAddress": "0x274a47436C7C896827633805d924d41BBa1D19e9",
-  "batchInboxAddress": "0xff00000000000000000000000000000000000001",
+  "batchInboxAddress": "0xfFf0000000000000000000000000000000028882",
   "batchSenderAddress": "0xf598b6388eC06945021699F0bbb23dfCFc5edbE8",
 
   "l2OutputOracleSubmissionInterval": 120,
-  "l2OutputOracleStartingBlockNumber": 0,
-  "l2OutputOracleStartingTimestamp": 1692750204,
+  "l2OutputOracleStartingBlockNumber": 511,
+  "l2OutputOracleStartingTimestamp": 1705600788,
 
-  "l2OutputOracleProposer": "0x044DEa5dEe6c62Ac432Aa1e50C3eB5899e85a52F",
-  "l2OutputOracleChallenger": "0xe62B0E3a9F715493301eBdEC8310C899eae5b30c",
+  "l2OutputOracleProposer": "0xc5125722937c0fea053c602261238bf9f3b2450f",
+  "l2OutputOracleChallenger": "0x17070B4AF21625106E7971983Aa524f59EA40c57",
 
   "finalizationPeriodSeconds": 12,
 
@@ -44,11 +45,20 @@
 
   "governanceTokenSymbol": "OP",
   "governanceTokenName": "Optimism",
-  "governanceTokenOwner": "0xe62B0E3a9F715493301eBdEC8310C899eae5b30c",
+  "governanceTokenOwner": "0x0000000000000000000000000000000000000000",
 
-  "l2GenesisBlockGasLimit": "0x17D7840",
-  "l2GenesisBlockBaseFeePerGas": "0x3b9aca00",
+  "l2GenesisBlockGasLimit": "0x1C9C380",
+  "l2GenesisBlockBaseFeePerGas": "0xF4240",
 
   "eip1559Denominator": 50,
-  "eip1559Elasticity": 10
+  "eip1559Elasticity": 6,
+  "eip1559DenominatorCanyon": 250,
+
+  "l1BobaTokenAddress": "0x33faF65b3DfcC6A1FccaD4531D9ce518F0FDc896",
+
+  "requiredProtocolVersion": "0x0000000000000000000000000000000000000000000000000000000000000000",
+  "recommendedProtocolVersion": "0x0000000000000000000000000000000000000000000000000000000000000000",
+
+  "l2GenesisRegolithTimeOffset": "0x0",
+  "l2GenesisCanyonTimeOffset": "0x0"
 }

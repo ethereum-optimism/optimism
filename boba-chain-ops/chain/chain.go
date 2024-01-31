@@ -6,21 +6,6 @@ import (
 )
 
 var (
-	// Boba Goerli
-	BobaGoerliChainId = big.NewInt(2888)
-	// Boba Goerli genesis gas limit
-	BobaGoerliGenesisGasLimit = 11000000
-	// Boba Goerli genesis block coinbase
-	BobaGoerliGenesisCoinbase = "0x0000000000000000000000000000000000000000"
-	// Boba Goerli genesis block extra data
-	BobaGoerliGenesisExtraData = "000000000000000000000000000000000000000000000000000000000000000000000398232e2064f896018496b4b44b3d62751f0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
-	// Boba Goerli genesis root
-	BobaGoerliGenesisRoot = "0x36c808dc3bb586c14bebde3ca630a4d49a1fdad0b01d7e58f96f2fcd1aa0003d"
-	// Boba Goerli genesis block hash
-	BobaGoerliGenesisBlockHash = "0xde36bac664c1215f9a7d87cddd3745594b351d3464e8a624e322eddd59ccacf3"
-	// Goerli L1 BOBA Address
-	BobaTokenGoerliL1Address = "0xeCCD355862591CBB4bB7E7dD55072070ee3d0fC1"
-
 	// Boba Mainnet
 	BobaMainnetChainId = big.NewInt(288)
 	// Boba Mainnet genesis gas limit
@@ -36,90 +21,105 @@ var (
 	// Mainnet L1 BOBA Address
 	BobaTokenMainnetL1Address = "0x42bBFa2e77757C645eeaAd1655E0911a7553Efbc"
 
+	// Boba Sepolia
+	BobaSepoliaChainId = big.NewInt(28882)
+	// Boba Sepolia genesis gas limit
+	BobaSepoliaGenesisGasLimit = 11000000
+	// Boba Sepolia genesis block coinbase
+	BobaSepoliaGenesisCoinbase = "0x0000000000000000000000000000000000000000"
+	// Boba Sepolia genesis block extra data
+	BobaSepoliaGenesisExtraData = "000000000000000000000000000000000000000000000000000000000000000000000398232e2064f896018496b4b44b3d62751f0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+	// Boba Sepolia genesis root
+	BobaSepoliaGenesisRoot = "0x8c57d7486ebd810dc728748553b08919c81024f024651afdbd076780c48621b0"
+	// Boba Sepolia genesis block hash
+	BobaSepoliaGenesisBlockHash = "0xc6171953a6a376ece6e33149686044f24f58a387ce2636a54e391d330b2326b5"
+	// Sepolia L1 BOBA Address
+	BobaTokenSepoliaL1Address = "0x33faF65b3DfcC6A1FccaD4531D9ce518F0FDc896"
+
 	// error
 	ErrInvalidChainID = errors.New("invalid chain id")
 )
 
 func IsBobaValidChainId(chainId *big.Int) bool {
-	// Boba Goerli
-	if BobaGoerliChainId.Cmp(chainId) == 0 {
-		return true
-	}
 	// Mainnet
 	if BobaMainnetChainId.Cmp(chainId) == 0 {
+		return true
+	}
+	// Sepolia
+	if BobaSepoliaChainId.Cmp(chainId) == 0 {
 		return true
 	}
 	return false
 }
 
 func GetBobaGenesisGasLimit(chainId *big.Int) int {
-	// Boba Goerli
-	if BobaGoerliChainId.Cmp(chainId) == 0 {
-		return BobaGoerliGenesisGasLimit
-	}
 	// Mainnet
 	if BobaMainnetChainId.Cmp(chainId) == 0 {
 		return BobaMainnetGenesisGasLimit
+	}
+	// Sepolia
+	if BobaSepoliaChainId.Cmp(chainId) == 0 {
+		return BobaSepoliaGenesisGasLimit
 	}
 	return 11000000
 }
 
 func GetBobaGenesisCoinbase(chainId *big.Int) string {
-	// Boba Goerli
-	if BobaGoerliChainId.Cmp(chainId) == 0 {
-		return BobaGoerliGenesisCoinbase
-	}
 	// Mainnet
 	if BobaMainnetChainId.Cmp(chainId) == 0 {
 		return BobaMainnetGenesisCoinbase
+	}
+	// Sepolia
+	if BobaSepoliaChainId.Cmp(chainId) == 0 {
+		return BobaSepoliaGenesisCoinbase
 	}
 	return "0x0000000000000000000000000000000000000000"
 }
 
 func GetBobaGenesisExtraData(chainId *big.Int) string {
-	// Boba Goerli
-	if BobaGoerliChainId.Cmp(chainId) == 0 {
-		return BobaGoerliGenesisExtraData
-	}
 	// Mainnet
 	if BobaMainnetChainId.Cmp(chainId) == 0 {
 		return BobaMainnetGenesisExtraData
+	}
+	// Sepolia
+	if BobaSepoliaChainId.Cmp(chainId) == 0 {
+		return BobaSepoliaGenesisExtraData
 	}
 	return ""
 }
 
 func GetBobaGenesisRoot(chainId *big.Int) string {
-	// Boba Goerli
-	if BobaGoerliChainId.Cmp(chainId) == 0 {
-		return BobaGoerliGenesisRoot
-	}
 	// Mainnet
 	if BobaMainnetChainId.Cmp(chainId) == 0 {
 		return BobaMainnetGenesisRoot
+	}
+	// Sepolia
+	if BobaSepoliaChainId.Cmp(chainId) == 0 {
+		return BobaSepoliaGenesisRoot
 	}
 	return ""
 }
 
 func GetBobaGenesisHash(chainId *big.Int) string {
-	// Boba Goerli
-	if BobaGoerliChainId.Cmp(chainId) == 0 {
-		return BobaGoerliGenesisBlockHash
-	}
 	// Mainnet
 	if BobaMainnetChainId.Cmp(chainId) == 0 {
 		return BobaMainnetGenesisBlockHash
+	}
+	// Sepolia
+	if BobaSepoliaChainId.Cmp(chainId) == 0 {
+		return BobaSepoliaGenesisBlockHash
 	}
 	return ""
 }
 
 func GetBobaTokenL1Address(chainId *big.Int) string {
-	// Boba Goerli L1
-	if BobaGoerliChainId.Cmp(chainId) == 0 {
-		return BobaTokenGoerliL1Address
-	}
 	// Mainnet
 	if BobaMainnetChainId.Cmp(chainId) == 0 {
 		return BobaTokenMainnetL1Address
+	}
+	// Sepolia
+	if BobaSepoliaChainId.Cmp(chainId) == 0 {
+		return BobaTokenSepoliaL1Address
 	}
 	return "0x0000000000000000000000000000000000000000"
 }

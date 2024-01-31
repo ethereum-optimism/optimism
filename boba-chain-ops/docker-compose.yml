@@ -7,10 +7,13 @@ services:
       context: ..
       dockerfile: ./boba-chain-ops/Dockerfile
     command: boba-regenerate
-    # environment:
-      # JWT_SECRET_PATH: /jwt/jwt_secret.txt
+    environment:
+      L2_PRIVATE_ENDPOINT: http://erigon:8551
+      L2_PUBLIC_ENDPOINT: http://erigon:9545
+      L2_LEGACY_ENDPOINT: ${HISTORICAL_RPC-}
+      JWT_SECRET_PATH: /jwt/jwt_secret.txt
     # volumes:
-      #- /:/jwt
+    #   - /:/jwt
 
   boba-crawler:
     image: bobanetwork/boba-chain-ops
@@ -19,19 +22,53 @@ services:
       dockerfile: ./boba-chain-ops/Dockerfile
     command: boba-crawler
     environment:
+      RPC_URL: ${HISTORICAL_RPC-}
       OUTPUT_PATH: '/addr/eth-addresses.json'
     restart: always
-    #volumes:
-      #- /:/addr
+    # volumes:
+    #   - /:/addr
 
-  # boba-rollover:
-  #   image: bobanetwork/boba-chain-ops
-  #   build:
-  #     context: ..
-  #     dockerfile: ./boba-chain-ops/Dockerfile
+  boba-migrate:
+    image: bobanetwork/boba-chain-ops
+    build:
+      context: ..
+      dockerfile: ./boba-chain-ops/Dockerfile
+    command: |
+      boba-migrate
+      --l1-rpc-url=${L1_RPC_URL-}
+      --db-path=/db
+      --alloc-path=/files/genesis.json
+      --genesis-config-path=/files/genesis-l2.json
+      --ovm-addresses=/files/eth-addresses.json
+      --ovm-allowances=/files/eth-allowance.json
+      --ovm-messages=/files/ovm-message.json
+      --witness-file=/files/witness.txt
+      --deploy-config=/files/deploy-config.json
+      --network=${NETWORK-}
+      --hardhat-deployments=/files/deployments
+      --outfile-rollup=/files/rollup.json
+    # volumes:
+      # - /:/db
+      # - /:/files
 
-  # boba-migrate:
-  #   image: bobanetwork/boba-chain-ops
-  #   build:
-  #     context: ..
-  #     dockerfile: ./boba-chain-ops/Dockerfile
+  erigon:
+    image: bobanetwork/erigon:migration
+    user: "1000:1000"
+    entrypoint:
+      - /bin/sh
+      - -c
+      - "erigon --datadir=/data --private.api.addr=localhost:9090 --http.addr=0.0.0.0 --http.port=9545 --http.corsdomain=* --http.vhosts=* --authrpc.addr=0.0.0.0 --authrpc.port=8551 --authrpc.vhosts=* --authrpc.jwtsecret=/jwt/jwt_secret.txt --rollup.disabletxpoolgossip=true --chain=${CHAIN-} --http.api=eth,debug,net,engine,erigon,web3 --torrent.port=42068 --rollup.historicalrpc=${HISTORICAL_RPC-} --log.console.verbosity=dbug"
+    # volumes:
+    #   - /:/data
+    #   - /:/jwt
+
+  erigon-init:
+    image: bobanetwork/erigon:migration
+    user: "1000:1000"
+    entrypoint:
+      - /bin/sh
+      - -c
+      - "erigon --datadir=/data init /genesis.json"
+    # volumes:
+    #   - /:/data
+    #   - /:/genesis.json

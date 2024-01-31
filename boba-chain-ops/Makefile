@@ -7,7 +7,6 @@ build:
 	go build -o ./bin/boba-regenerate ./cmd/boba-regenerate && \
 	go build -o ./bin/boba-crawler ./cmd/boba-crawler && \
 	go build -o ./bin/boba-devnet ./cmd/boba-devnet && \
-	go build -o ./bin/boba-connect ./cmd/boba-connect && \
 	go build -o ./bin/check-l2 ./cmd/check-l2
 .PHONY: build
 
@@ -26,10 +25,6 @@ boba-crawler:
 boba-devnet:
 	go build -o ./bin/boba-devnet ./cmd/boba-devnet
 .PHONY: boba-devnet
-
-boba-connect:
-	go build -o ./bin/boba-connect ./cmd/boba-connect
-.PHONY: boba-connect
 
 check-l2:
 	go build -o ./bin/check-l2 ./cmd/check-l2

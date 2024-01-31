@@ -222,6 +222,7 @@ def devnet_store_addresses(paths):
     addresses_name = {
         'AddressManager': 'Lib_AddressManager.json',
         'SuperchainConfig': 'SuperchainConfig.json',
+        'SuperchainConfigProxy': 'SuperchainConfigProxy.json',
         'L1CrossDomainMessenger': 'L1CrossDomainMessenger.json',
         'L1CrossDomainMessengerProxy': 'Proxy__OVM_L1CrossDomainMessenger.json',
         'L1ERC721Bridge': 'L1ERC721Bridge.json',

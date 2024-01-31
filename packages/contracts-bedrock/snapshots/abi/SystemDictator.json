@@ -47,11 +47,6 @@
             "type": "address"
           },
           {
-            "internalType": "contract SuperchainConfig",
-            "name": "superchainConfig",
-            "type": "address"
-          },
-          {
             "internalType": "address",
             "name": "controller",
             "type": "address"
@@ -107,6 +102,11 @@
             "internalType": "address",
             "name": "protocolVersionsProxy",
             "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "superchainConfigProxy",
+            "type": "address"
           }
         ],
         "internalType": "struct SystemDictator.ProxyAddressConfig",
@@ -158,6 +158,11 @@
           {
             "internalType": "contract ProtocolVersions",
             "name": "protocolVersionsImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "contract SuperchainConfig",
+            "name": "superchainConfigImpl",
             "type": "address"
           }
         ],
@@ -390,11 +395,6 @@
                 "type": "address"
               },
               {
-                "internalType": "contract SuperchainConfig",
-                "name": "superchainConfig",
-                "type": "address"
-              },
-              {
                 "internalType": "address",
                 "name": "controller",
                 "type": "address"
@@ -450,6 +450,11 @@
                 "internalType": "address",
                 "name": "protocolVersionsProxy",
                 "type": "address"
+              },
+              {
+                "internalType": "address",
+                "name": "superchainConfigProxy",
+                "type": "address"
               }
             ],
             "internalType": "struct SystemDictator.ProxyAddressConfig",
@@ -501,6 +506,11 @@
               {
                 "internalType": "contract ProtocolVersions",
                 "name": "protocolVersionsImpl",
+                "type": "address"
+              },
+              {
+                "internalType": "contract SuperchainConfig",
+                "name": "superchainConfigImpl",
                 "type": "address"
               }
             ],

@@ -20,7 +20,7 @@ func TestCreateHeader(t *testing.T) {
 	_, err := CreateHeader(&genesis, &types.Header{}, &DeployConfig{})
 	require.EqualError(t, err, bobachain.ErrInvalidChainID.Error())
 
-	genesis.Config.ChainID = bobachain.BobaGoerliChainId
+	genesis.Config.ChainID = bobachain.BobaSepoliaChainId
 	if _, err := CreateHeader(&genesis, &types.Header{}, &DeployConfig{
 		L2OutputOracleStartingBlockNumber: 0,
 		L2OutputOracleStartingTimestamp:   0,

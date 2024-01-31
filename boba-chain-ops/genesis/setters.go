@@ -9,7 +9,7 @@ import (
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/immutables"
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/state"
 	"github.com/ledgerwatch/erigon-lib/common"
-	"github.com/ledgerwatch/erigon/common/hexutil"
+	"github.com/ledgerwatch/erigon-lib/common/hexutil"
 	"github.com/ledgerwatch/erigon/core/types"
 
 	"github.com/ledgerwatch/log/v3"
@@ -31,12 +31,11 @@ var (
 	// that should not be touched by the migration process.
 	UntouchableCodeHashes = map[common.Address]ChainHashMap{
 		predeploys.BobaL2Addr: {
-			// 1: common.HexToHash("0x8551d935f4e67ad3c98609f0d9f0f234740c4c4599f82674633b55204393e07f"),
-			2888: common.HexToHash("0xbaf64deb0d9e918626165a29068dfe0e69262b7b5bf17ded21cf0810fa425e6a"),
+			28882: common.HexToHash("0x536465c3460a5849f66be041a130eedbac32f223f6990db22988bd6db9e156f4"),
 		},
 		predeploys.WETH9Addr: {
-			288:  common.HexToHash("0x5b4b51d84d1f4b5bff7e20e96ed0771857d01c15aee81ff1eb34cf75c25e725e"),
-			2888: common.HexToHash("0x5b4b51d84d1f4b5bff7e20e96ed0771857d01c15aee81ff1eb34cf75c25e725e"),
+			288:   common.HexToHash("0x5b4b51d84d1f4b5bff7e20e96ed0771857d01c15aee81ff1eb34cf75c25e725e"),
+			28882: common.HexToHash("0x5b4b51d84d1f4b5bff7e20e96ed0771857d01c15aee81ff1eb34cf75c25e725e"),
 		},
 	}
 

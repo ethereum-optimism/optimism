@@ -37,11 +37,11 @@ func TestGetStorage(t *testing.T) {
 	tableKey = append(tableKey, storageKey.Bytes()...)
 	tableVal := []byte("test")
 
-	stack, err := node.New(testNodeConfig(t), logger)
+	stack, err := node.New(context.Background(), testNodeConfig(t), logger)
 	require.NoError(t, err)
 	defer stack.Close()
 
-	db, err := node.OpenDatabase(stack.Config(), kv.ChainDB, "", false, logger)
+	db, err := node.OpenDatabase(context.Background(), stack.Config(), kv.ChainDB, "", false, logger)
 	require.NoError(t, err)
 	defer db.Close()
 
@@ -64,11 +64,11 @@ func TestGetAccount(t *testing.T) {
 	addr := common.HexToAddress("0x4200000000000000000000000000000000000000")
 	tableVal := []byte("test")
 
-	stack, err := node.New(testNodeConfig(t), logger)
+	stack, err := node.New(context.Background(), testNodeConfig(t), logger)
 	require.NoError(t, err)
 	defer stack.Close()
 
-	db, err := node.OpenDatabase(stack.Config(), kv.ChainDB, "", false, logger)
+	db, err := node.OpenDatabase(context.Background(), stack.Config(), kv.ChainDB, "", false, logger)
 	require.NoError(t, err)
 	defer db.Close()
 
@@ -94,11 +94,11 @@ func TestGetContractCode(t *testing.T) {
 	contractHash := []byte("test")
 	contractCode := []byte("contract code")
 
-	stack, err := node.New(testNodeConfig(t), logger)
+	stack, err := node.New(context.Background(), testNodeConfig(t), logger)
 	require.NoError(t, err)
 	defer stack.Close()
 
-	db, err := node.OpenDatabase(stack.Config(), kv.ChainDB, "", false, logger)
+	db, err := node.OpenDatabase(context.Background(), stack.Config(), kv.ChainDB, "", false, logger)
 	require.NoError(t, err)
 	defer db.Close()
 
@@ -129,11 +129,11 @@ func TestGetContractCodeHash(t *testing.T) {
 	contractKey := append(addr.Bytes(), incarnation...)
 	contractHash := []byte("test")
 
-	stack, err := node.New(testNodeConfig(t), logger)
+	stack, err := node.New(context.Background(), testNodeConfig(t), logger)
 	require.NoError(t, err)
 	defer stack.Close()
 
-	db, err := node.OpenDatabase(stack.Config(), kv.ChainDB, "", false, logger)
+	db, err := node.OpenDatabase(context.Background(), stack.Config(), kv.ChainDB, "", false, logger)
 	require.NoError(t, err)
 	defer db.Close()
 
@@ -165,11 +165,11 @@ func TestForEachStorage(t *testing.T) {
 		{append(tableKey, ether.CalcStorageKey(common.Address{3}, common.Big0).Bytes()...), []byte{1}},
 	}
 
-	stack, err := node.New(testNodeConfig(t), logger)
+	stack, err := node.New(context.Background(), testNodeConfig(t), logger)
 	require.NoError(t, err)
 	defer stack.Close()
 
-	db, err := node.OpenDatabase(stack.Config(), kv.ChainDB, "", false, logger)
+	db, err := node.OpenDatabase(context.Background(), stack.Config(), kv.ChainDB, "", false, logger)
 	require.NoError(t, err)
 	defer db.Close()
 
