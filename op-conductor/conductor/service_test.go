@@ -66,6 +66,7 @@ func mockConfig(t *testing.T) Config {
 			ChannelTimeout:          300,
 			L1ChainID:               big.NewInt(1),
 			L2ChainID:               big.NewInt(2),
+			RegolithTime:            &now,
 			CanyonTime:              &now,
 			BatchInboxAddress:       [20]byte{1, 2},
 			DepositContractAddress:  [20]byte{2, 3},
