@@ -61,10 +61,14 @@ func (g *OutputGameHelper) GenesisBlockNum(ctx context.Context) uint64 {
 	return blockNum.Uint64()
 }
 
-// DisputeLastBlock posts claims from both the honest and dishonest actor to progress the output root part of the game
+func (g *OutputGameHelper) DisputeLastBlock(ctx context.Context) *ClaimHelper {
+	return g.DisputeBlock(ctx, g.L2BlockNum(ctx))
+}
+
+// DisputeBlock posts claims from both the honest and dishonest actor to progress the output root part of the game
 // through to the split depth and the claims are setup such that the last block in the game range is the block
 // to execute cannon on. ie the first block the honest and dishonest actors disagree about is the l2 block of the game.
-func (g *OutputGameHelper) DisputeLastBlock(ctx context.Context) *ClaimHelper {
+func (g *OutputGameHelper) DisputeBlock(ctx context.Context, disputeBlockNum uint64) *ClaimHelper {
 	dishonestValue := g.GetClaimValue(ctx, 0)
 	correctRootClaim := g.correctOutputRoot(ctx, types.NewPositionFromGIndex(big.NewInt(1)))
 	rootIsValid := dishonestValue == correctRootClaim
@@ -73,7 +77,6 @@ func (g *OutputGameHelper) DisputeLastBlock(ctx context.Context) *ClaimHelper {
 		// Otherwise, the honest challenger will defend our counter and ruin everything.
 		dishonestValue = common.Hash{0xff, 0xff, 0xff}
 	}
-	disputeBlockNum := g.L2BlockNum(ctx)
 	pos := types.NewPositionFromGIndex(big.NewInt(1))
 	getClaimValue := func(parentClaim *ClaimHelper, claimPos types.Position) common.Hash {
 		claimBlockNum, err := g.correctOutputProvider.BlockNumber(claimPos)

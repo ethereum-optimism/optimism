@@ -144,6 +144,7 @@ func (p *LargePreimageUploader) Squeeze(ctx context.Context, uuid *big.Int, stat
 		p.log.Debug("expected a successful squeeze call", "metadataTimestamp", metadata[0].Timestamp, "currentTimestamp", currentTimestamp, "err", err)
 		return fmt.Errorf("failed to call squeeze: %w", err)
 	}
+	p.log.Info("Squeezing large preimage", "uuid", uuid)
 	tx, err := p.contract.Squeeze(p.txSender.From(), uuid, stateMatrix, prestate, prestateProof, poststate, poststateProof)
 	if err != nil {
 		return fmt.Errorf("failed to create pre-image oracle tx: %w", err)
@@ -157,6 +158,7 @@ func (p *LargePreimageUploader) Squeeze(ctx context.Context, uuid *big.Int, stat
 // initLargePreimage initializes the large preimage proposal.
 // This method *must* be called before adding any leaves.
 func (p *LargePreimageUploader) initLargePreimage(uuid *big.Int, partOffset uint32, claimedSize uint32) error {
+	p.log.Info("Init large preimage upload", "uuid", uuid, "partOffset", partOffset, "size", claimedSize)
 	candidate, err := p.contract.InitLargePreimage(uuid, partOffset, claimedSize)
 	if err != nil {
 		return fmt.Errorf("failed to create pre-image oracle tx: %w", err)
@@ -181,6 +183,7 @@ func (p *LargePreimageUploader) addLargePreimageData(uuid *big.Int, chunks []kec
 		blocksProcessed += int64(len(chunk.Input) / keccakTypes.BlockSize)
 		txs[i] = tx
 	}
+	p.log.Info("Adding large preimage leaves", "uuid", uuid, "blocksProcessed", blocksProcessed, "txs", len(txs))
 	_, err := p.txSender.SendAndWait("add leaf to large preimage", txs...)
 	return err
 }

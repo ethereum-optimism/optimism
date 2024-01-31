@@ -7,8 +7,10 @@ import (
 	"path/filepath"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/cannon"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/split"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
@@ -72,16 +74,16 @@ func (g *OutputCannonGameHelper) CreateHonestActor(ctx context.Context, l2Node s
 	}
 }
 
-// ChallengeToFirstGlobalPreimageLoad challenges the supplied execution root claim by inducing a step that requires a preimage to be loaded
+// ChallengeToPreimageLoad challenges the supplied execution root claim by inducing a step that requires a preimage to be loaded
 // It does this by:
 // 1. Identifying the first state transition that loads a global preimage
 // 2. Descending the execution game tree to reach the step that loads the preimage
 // 3. Asserting that the preimage was indeed loaded by an honest challenger (assuming the preimage is not preloaded)
 // This expects an odd execution game depth in order for the honest challenger to step on our leaf claim
-func (g *OutputCannonGameHelper) ChallengeToFirstGlobalPreimageLoad(ctx context.Context, outputRootClaim *ClaimHelper, challengerKey *ecdsa.PrivateKey, preloadPreimage bool) {
+func (g *OutputCannonGameHelper) ChallengeToPreimageLoad(ctx context.Context, outputRootClaim *ClaimHelper, challengerKey *ecdsa.PrivateKey, preimage cannon.PreimageOpt, preloadPreimage bool) {
 	// 1. Identifying the first state transition that loads a global preimage
 	provider := g.createCannonTraceProvider(ctx, "sequencer", outputRootClaim, challenger.WithPrivKey(challengerKey))
-	targetTraceIndex, err := provider.FindStepReferencingPreimage(ctx, 0)
+	targetTraceIndex, _, err := provider.FindStep(ctx, 0, preimage)
 	g.require.NoError(err)
 
 	splitDepth := g.SplitDepth(ctx)
@@ -187,34 +189,26 @@ func (g *OutputCannonGameHelper) createCannonTraceProvider(ctx context.Context, 
 	prestateProvider := outputs.NewPrestateProvider(ctx, logger, rollupClient, prestateBlock)
 	outputProvider := outputs.NewTraceProviderFromInputs(logger, prestateProvider, rollupClient, splitDepth, prestateBlock, poststateBlock)
 
-	topLeaf := g.getClaim(ctx, int64(outputRootClaim.parentIndex))
-	topLeafPosition := types.NewPositionFromGIndex(topLeaf.Position)
-	var pre, post types.Claim
-	if outputRootClaim.position.TraceIndex(outputRootClaim.Depth()).Cmp(topLeafPosition.TraceIndex(outputRootClaim.Depth())) > 0 {
-		pre, err = contract.GetClaim(ctx, uint64(outputRootClaim.parentIndex))
-		g.require.NoError(err, "Failed to construct pre claim")
-		post, err = contract.GetClaim(ctx, uint64(outputRootClaim.index))
-		g.require.NoError(err, "Failed to construct post claim")
-	} else {
-		post, err = contract.GetClaim(ctx, uint64(outputRootClaim.parentIndex))
-		postTraceIdx := post.TraceIndex(splitDepth)
-		if postTraceIdx.Cmp(big.NewInt(0)) == 0 {
-			pre = types.Claim{}
-		} else {
-			g.require.NoError(err, "Failed to construct post claim")
-			pre, err = contract.GetClaim(ctx, uint64(outputRootClaim.index))
-			g.require.NoError(err, "Failed to construct pre claim")
-		}
-	}
-	agreed, disputed, err := outputs.FetchProposals(ctx, outputProvider, pre, post)
-	g.require.NoError(err, "Failed to fetch proposals")
+	selector := split.NewSplitProviderSelector(outputProvider, splitDepth, func(ctx context.Context, depth types.Depth, pre types.Claim, post types.Claim) (types.TraceProvider, error) {
+		agreed, disputed, err := outputs.FetchProposals(ctx, outputProvider, pre, post)
+		g.require.NoError(err)
+		g.t.Logf("Using trace between blocks %v and %v\n", agreed.L2BlockNumber, disputed.L2BlockNumber)
+		localInputs, err := cannon.FetchLocalInputsFromProposals(ctx, contract, l2Client, agreed, disputed)
+		g.require.NoError(err, "Failed to fetch local inputs")
+		localContext := outputs.CreateLocalContext(pre, post)
+		dir := filepath.Join(cfg.Datadir, "cannon-trace")
+		subdir := filepath.Join(dir, localContext.Hex())
+		return cannon.NewTraceProviderForTest(logger, metrics.NoopMetrics, cfg, localInputs, subdir, g.MaxDepth(ctx)-splitDepth-1), nil
+	})
 
-	localInputs, err := cannon.FetchLocalInputsFromProposals(ctx, contract, l2Client, agreed, disputed)
-	g.require.NoError(err, "Failed to fetch local inputs")
-	localContext := outputs.CreateLocalContext(pre, post)
-	dir := filepath.Join(cfg.Datadir, "cannon-trace")
-	subdir := filepath.Join(dir, localContext.Hex())
-	return cannon.NewTraceProviderForTest(logger, metrics.NoopMetrics, cfg, localInputs, subdir, g.MaxDepth(ctx)-splitDepth-1)
+	claims, err := contract.GetAllClaims(ctx)
+	g.require.NoError(err)
+	game := types.NewGameState(claims, g.MaxDepth(ctx))
+
+	provider, err := selector(ctx, game, game.Claims()[outputRootClaim.parentIndex], outputRootClaim.position)
+	g.require.NoError(err)
+	translatingProvider := provider.(*trace.TranslatingProvider)
+	return translatingProvider.Original().(*cannon.CannonTraceProviderForTest)
 }
 
 func (g *OutputCannonGameHelper) defaultChallengerOptions(l2Node string) []challenger.Option {
