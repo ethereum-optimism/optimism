@@ -267,6 +267,39 @@
     "inputs": [
       {
         "internalType": "uint256",
+        "name": "_z",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_y",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bytes",
+        "name": "_commitment",
+        "type": "bytes"
+      },
+      {
+        "internalType": "bytes",
+        "name": "_proof",
+        "type": "bytes"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_partOffset",
+        "type": "uint256"
+      }
+    ],
+    "name": "loadBlobPreimagePart",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
         "name": "_partOffset",
         "type": "uint256"
       },
