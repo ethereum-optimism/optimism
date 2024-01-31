@@ -10,7 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 )
 
-func loadJSON[X any](inputPath string) (*X, error) {
+func LoadJSON[X any](inputPath string) (*X, error) {
 	if inputPath == "" {
 		return nil, errors.New("no path specified")
 	}
@@ -27,7 +27,7 @@ func loadJSON[X any](inputPath string) (*X, error) {
 	return &state, nil
 }
 
-func writeJSON[X any](outputPath string, value X) error {
+func WriteJSON[X any](outputPath string, value X) error {
 	if outputPath == "" {
 		return nil
 	}

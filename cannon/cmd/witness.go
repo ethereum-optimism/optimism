@@ -25,7 +25,7 @@ var (
 func Witness(ctx *cli.Context) error {
 	input := ctx.Path(WitnessInputFlag.Name)
 	output := ctx.Path(WitnessOutputFlag.Name)
-	state, err := loadJSON[mipsevm.State](input)
+	state, err := LoadJSON[mipsevm.State](input)
 	if err != nil {
 		return fmt.Errorf("invalid input state (%v): %w", input, err)
 	}

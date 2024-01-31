@@ -66,10 +66,10 @@ func LoadELF(ctx *cli.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to compute program metadata: %w", err)
 	}
-	if err := writeJSON[*mipsevm.Metadata](ctx.Path(LoadELFMetaFlag.Name), meta); err != nil {
+	if err := WriteJSON[*mipsevm.Metadata](ctx.Path(LoadELFMetaFlag.Name), meta); err != nil {
 		return fmt.Errorf("failed to output metadata: %w", err)
 	}
-	return writeJSON[*mipsevm.State](ctx.Path(LoadELFOutFlag.Name), state)
+	return WriteJSON[*mipsevm.State](ctx.Path(LoadELFOutFlag.Name), state)
 }
 
 var LoadELFCommand = &cli.Command{
