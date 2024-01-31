@@ -42,7 +42,11 @@ func (c *DAClient) VerifyOnRead(verify bool) {
 // GetInput returns the input data for the given commitment bytes.
 func (c *DAClient) GetInput(ctx context.Context, key []byte) ([]byte, error) {
 	k := hexutil.Bytes(key)
-	resp, err := http.Get(fmt.Sprintf("%s/get/%s", c.url, k))
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%s/get/%s", c.url, k), nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
+	}
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -72,13 +76,18 @@ func (c *DAClient) SetInput(ctx context.Context, img []byte) ([]byte, error) {
 	k := hexutil.Bytes(key)
 	body := bytes.NewReader(img)
 	url := fmt.Sprintf("%s/put/%s", c.url, k)
-	resp, err := http.Post(url, "application/octet-stream", body)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/octet-stream")
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to store preimage: %s", resp.Status)
+		return nil, fmt.Errorf("failed to store preimage: %v", resp.StatusCode)
 	}
 	return key, nil
 }
