@@ -39,28 +39,36 @@ library ChainAssertions {
         ResourceMetering.ResourceConfig memory dflt = Constants.DEFAULT_RESOURCE_CONFIG();
         require(keccak256(abi.encode(rcfg)) == keccak256(abi.encode(dflt)));
 
-        checkSystemConfig({ _contracts: _prox, _cfg: _cfg, _isProxy: true });
+        checkSystemConfig({ _contracts: _prox, _cfg: _cfg, _vm: _vm, _isProxy: true });
         checkL1CrossDomainMessenger({ _contracts: _prox, _vm: _vm, _isProxy: true });
-        checkL1StandardBridge({ _contracts: _prox, _isProxy: true });
+        checkL1StandardBridge({ _contracts: _prox, _vm: _vm, _isProxy: true });
         checkL2OutputOracle({
             _contracts: _prox,
             _cfg: _cfg,
             _l2OutputOracleStartingTimestamp: _l2OutputOracleStartingTimestamp,
+            _vm: _vm,
             _isProxy: true
         });
-        checkOptimismMintableERC20Factory({ _contracts: _prox, _isProxy: true });
-        checkL1ERC721Bridge({ _contracts: _prox, _isProxy: true });
-        checkOptimismPortal({ _contracts: _prox, _cfg: _cfg, _isProxy: true });
-        checkOptimismPortal2({ _contracts: _prox, _cfg: _cfg, _isProxy: true });
-        checkProtocolVersions({ _contracts: _prox, _cfg: _cfg, _isProxy: true });
+        checkOptimismMintableERC20Factory({ _contracts: _prox, _vm: _vm, _isProxy: true });
+        checkL1ERC721Bridge({ _contracts: _prox, _vm: _vm, _isProxy: true });
+        checkOptimismPortal({ _contracts: _prox, _cfg: _cfg, _vm: _vm, _isProxy: true });
+        checkProtocolVersions({ _contracts: _prox, _cfg: _cfg, _vm: _vm, _isProxy: true });
     }
 
     /// @notice Asserts that the SystemConfig is setup correctly
-    function checkSystemConfig(Types.ContractSet memory _contracts, DeployConfig _cfg, bool _isProxy) internal view {
+    function checkSystemConfig(
+        Types.ContractSet memory _contracts,
+        DeployConfig _cfg,
+        Vm _vm,
+        bool _isProxy
+    )
+        internal
+        view
+    {
         console.log("Running chain assertions on the SystemConfig");
         SystemConfig config = SystemConfig(_contracts.SystemConfig);
 
-        bytes32 initialized = vm.load(address(config), bytes32(0));
+        bytes32 initialized = _vm.load(address(config), bytes32(0));
         require(initialized != 0);
 
         ResourceMetering.ResourceConfig memory resourceConfig = config.resourceConfig();
@@ -122,7 +130,7 @@ library ChainAssertions {
         console.log("Running chain assertions on the L1CrossDomainMessenger");
         L1CrossDomainMessenger messenger = L1CrossDomainMessenger(_contracts.L1CrossDomainMessenger);
 
-        bytes32 initialized = vm.load(address(messenger), bytes32(0));
+        bytes32 initialized = _vm.load(address(messenger), bytes32(0));
         require(initialized != 0);
 
         require(address(messenger.OTHER_MESSENGER()) == Predeploys.L2_CROSS_DOMAIN_MESSENGER);
@@ -142,11 +150,11 @@ library ChainAssertions {
     }
 
     /// @notice Asserts that the L1StandardBridge is setup correctly
-    function checkL1StandardBridge(Types.ContractSet memory _contracts, bool _isProxy) internal view {
+    function checkL1StandardBridge(Types.ContractSet memory _contracts, Vm _vm, bool _isProxy) internal view {
         console.log("Running chain assertions on the L1StandardBridge");
         L1StandardBridge bridge = L1StandardBridge(payable(_contracts.L1StandardBridge));
 
-        bytes32 initialized = vm.load(address(bridge), bytes32(0));
+        bytes32 initialized = _vm.load(address(bridge), bytes32(0));
         require(initialized != 0);
 
         if (_isProxy) {
@@ -169,6 +177,7 @@ library ChainAssertions {
         Types.ContractSet memory _contracts,
         DeployConfig _cfg,
         uint256 _l2OutputOracleStartingTimestamp,
+        Vm _vm,
         bool _isProxy
     )
         internal
@@ -177,7 +186,7 @@ library ChainAssertions {
         console.log("Running chain assertions on the L2OutputOracle");
         L2OutputOracle oracle = L2OutputOracle(_contracts.L2OutputOracle);
 
-        bytes32 initialized = vm.load(address(oracle), bytes32(0));
+        bytes32 initialized = _vm.load(address(oracle), bytes32(0));
         require(initialized != 0);
 
         if (_isProxy) {
@@ -210,11 +219,18 @@ library ChainAssertions {
     }
 
     /// @notice Asserts that the OptimismMintableERC20Factory is setup correctly
-    function checkOptimismMintableERC20Factory(Types.ContractSet memory _contracts, bool _isProxy) internal view {
+    function checkOptimismMintableERC20Factory(
+        Types.ContractSet memory _contracts,
+        Vm _vm,
+        bool _isProxy
+    )
+        internal
+        view
+    {
         console.log("Running chain assertions on the OptimismMintableERC20Factory");
         OptimismMintableERC20Factory factory = OptimismMintableERC20Factory(_contracts.OptimismMintableERC20Factory);
 
-        bytes32 initialized = vm.load(address(factory), bytes32(0));
+        bytes32 initialized = _vm.load(address(factory), bytes32(0));
         require(initialized != 0);
 
         if (_isProxy) {
@@ -227,11 +243,11 @@ library ChainAssertions {
     }
 
     /// @notice Asserts that the L1ERC721Bridge is setup correctly
-    function checkL1ERC721Bridge(Types.ContractSet memory _contracts, bool _isProxy) internal view {
+    function checkL1ERC721Bridge(Types.ContractSet memory _contracts, Vm _vm, bool _isProxy) internal view {
         console.log("Running chain assertions on the L1ERC721Bridge");
         L1ERC721Bridge bridge = L1ERC721Bridge(_contracts.L1ERC721Bridge);
 
-        bytes32 initialized = vm.load(address(bridge), bytes32(0));
+        bytes32 initialized = _vm.load(address(bridge), bytes32(0));
         require(initialized != 0);
 
         require(address(bridge.OTHER_BRIDGE()) == Predeploys.L2_ERC721_BRIDGE);
@@ -249,11 +265,19 @@ library ChainAssertions {
     }
 
     /// @notice Asserts the OptimismPortal is setup correctly
-    function checkOptimismPortal(Types.ContractSet memory _contracts, DeployConfig _cfg, bool _isProxy) internal view {
+    function checkOptimismPortal(
+        Types.ContractSet memory _contracts,
+        DeployConfig _cfg,
+        Vm _vm,
+        bool _isProxy
+    )
+        internal
+        view
+    {
         console.log("Running chain assertions on the OptimismPortal");
         OptimismPortal portal = OptimismPortal(payable(_contracts.OptimismPortal));
 
-        bytes32 initialized = vm.load(address(portal), bytes32(0));
+        bytes32 initialized = _vm.load(address(portal), bytes32(0));
         require(initialized != 0);
 
         address guardian = _cfg.superchainConfigGuardian();
@@ -321,6 +345,7 @@ library ChainAssertions {
     function checkProtocolVersions(
         Types.ContractSet memory _contracts,
         DeployConfig _cfg,
+        Vm _vm,
         bool _isProxy
     )
         internal
@@ -329,7 +354,7 @@ library ChainAssertions {
         console.log("Running chain assertions on the ProtocolVersions");
         ProtocolVersions versions = ProtocolVersions(_contracts.ProtocolVersions);
 
-        bytes32 initialized = vm.load(address(versions), bytes32(0));
+        bytes32 initialized = _vm.load(address(versions), bytes32(0));
         require(initialized != 0);
 
         if (_isProxy) {
@@ -347,6 +372,7 @@ library ChainAssertions {
     function checkSuperchainConfig(
         Types.ContractSet memory _contracts,
         DeployConfig _cfg,
+        Vm _vm,
         bool _isPaused
     )
         internal
@@ -355,7 +381,7 @@ library ChainAssertions {
         console.log("Running chain assertions on the SuperchainConfig");
         SuperchainConfig superchainConfig = SuperchainConfig(_contracts.SuperchainConfig);
 
-        bytes32 initialized = vm.load(address(superchainConfig), bytes32(0));
+        bytes32 initialized = _vm.load(address(superchainConfig), bytes32(0));
         require(initialized != 0);
 
         require(superchainConfig.guardian() == _cfg.superchainConfigGuardian());
