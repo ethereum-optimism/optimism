@@ -11,7 +11,7 @@ import (
 var mergeCommand = &cli.Command{
 	Name:   "merge",
 	Usage:  "Merge one or more output files into a single file. Later files take precedence per key",
-	Flags:  []cli.Flag{FilesFlag, OutputFlag},
+	Flags:  []cli.Flag{FilesFlag, OutputFlag, InputFormatFlag, OutputFormatFlag},
 	Action: merge,
 }
 
@@ -24,10 +24,20 @@ func merge(ctx *cli.Context) error {
 	}
 
 	log.Info("merging", "files", files)
+	reader, ok := formats[ctx.String("input-format")]
+	if !ok {
+		log.Error("Invalid Input Format. Defaulting to JSON", "Format", ctx.String("input-format"))
+		reader = formats["json"]
+	}
+	writer, ok := formats[ctx.String("output-format")]
+	if !ok {
+		log.Error("Invalid Output Format. Defaulting to JSON", "Format", ctx.String("output-format"))
+		writer = formats["json"]
+	}
 
 	aggregates := []aggregate{}
 	for _, f := range files {
-		a, err := readJSON(f)
+		a, err := reader.readAggregate(f)
 		if err != nil {
 			log.Error("failed to read aggregate", "file", f, "err", err)
 			return err
@@ -53,7 +63,7 @@ func merge(ctx *cli.Context) error {
 	}
 
 	// write the merged aggregate
-	err = writeJSON(merged, ctx.String("output"))
+	err = writer.writeAggregate(merged, ctx.String("output"))
 	if err != nil {
 		log.Error("failed to write aggregate", "err", err)
 		return err

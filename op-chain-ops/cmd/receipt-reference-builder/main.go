@@ -13,30 +13,23 @@ import (
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 )
 
-const EnvPrefix = "OP_CHAIN_OPS_PROTOCOL_VERSION"
+const EnvPrefix = "OP_CHAIN_OPS_RECEIPT_REFERENCE_BUILDER"
 
 var (
-	FirstFlag = &cli.Uint64Flag{
-		Name:    "first",
-		Value:   0,
+	StartFlag = &cli.Uint64Flag{
+		Name:    "start",
 		Usage:   "the first block to include in data collection. INCLUSIVE",
-		EnvVars: opservice.PrefixEnvVar(EnvPrefix, "FIRST"),
+		EnvVars: opservice.PrefixEnvVar(EnvPrefix, "START"),
 	}
-	LastFlag = &cli.Uint64Flag{
-		Name:    "last",
-		Value:   0,
-		Usage:   "the last block to include in data collection. INCLUSIVE",
-		EnvVars: opservice.PrefixEnvVar(EnvPrefix, "LAST"),
+	EndFlag = &cli.Uint64Flag{
+		Name:    "end",
+		Usage:   "the last block of the collection range. EXCLUSIVE",
+		EnvVars: opservice.PrefixEnvVar(EnvPrefix, "END"),
 	}
 	RPCURLFlag = &cli.StringFlag{
 		Name:    "rpc-url",
 		Usage:   "RPC URL to connect to",
 		EnvVars: opservice.PrefixEnvVar(EnvPrefix, "RPC_URL"),
-	}
-	ChainIDFlag = &cli.Uint64Flag{
-		Name:    "chain-id",
-		Usage:   "included in the output file, not consulted for anything else",
-		EnvVars: opservice.PrefixEnvVar(EnvPrefix, "BACKOFF"),
 	}
 	BackoffFlag = &cli.DurationFlag{
 		Name:    "backoff",
@@ -67,6 +60,24 @@ var (
 		Aliases: []string{"f"},
 		Usage:   "the set of files to merge",
 	}
+	InputFormatFlag = &cli.StringFlag{
+		Name:    "input-format",
+		Aliases: []string{"if"},
+		Value:   "json",
+		Usage:   "the format to read aggregate files: json, gob",
+		EnvVars: opservice.PrefixEnvVar(EnvPrefix, "OUTPUT"),
+	}
+	OutputFormatFlag = &cli.StringFlag{
+		Name:    "output-format",
+		Aliases: []string{"of"},
+		Value:   "json",
+		Usage:   "the format to write the results in. Options: json, gob",
+		EnvVars: opservice.PrefixEnvVar(EnvPrefix, "OUTPUT"),
+	}
+	formats = map[string]aggregateReaderWriter{
+		"json": jsonAggregateReaderWriter{},
+		"gob":  gobAggregateReaderWriter{},
+	}
 	systemAddress = common.HexToAddress("0xDeaDDEaDDeAdDeAdDEAdDEaddeAddEAdDEAd0001")
 	depositType   = uint8(126)
 )
@@ -84,8 +95,8 @@ func main() {
 	app.Commands = []*cli.Command{
 		pullCommand,
 		mergeCommand,
-		generateCommand,
-		printGobCommand,
+		convertCommand,
+		printCommand,
 	}
 
 	if err := app.Run(os.Args); err != nil {
@@ -101,6 +112,6 @@ type result struct {
 type aggregate struct {
 	Results map[uint64][]uint64 `json:"results"`
 	ChainID uint64              `json:"chainId"`
-	First   uint64              `json:"first"`
-	Last    uint64              `json:"last"`
+	First   uint64              `json:"start"`
+	Last    uint64              `json:"end"`
 }

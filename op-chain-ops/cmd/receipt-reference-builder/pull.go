@@ -20,7 +20,7 @@ import (
 var pullCommand = &cli.Command{
 	Name:   "pull",
 	Usage:  "Pull a range of blocks and extract nonces from all user deposits",
-	Flags:  []cli.Flag{FirstFlag, LastFlag, RPCURLFlag, WorkerFlag, OutputFlag, BackoffFlag, BatchSizeFlag},
+	Flags:  []cli.Flag{StartFlag, EndFlag, RPCURLFlag, WorkerFlag, OutputFlag, BackoffFlag, BatchSizeFlag, OutputFormatFlag},
 	Action: pull,
 }
 
@@ -52,30 +52,35 @@ func pull(ctx *cli.Context) error {
 	chainID := cid.Uint64()
 
 	// record start time
-	start := time.Now()
+	startT := time.Now()
 
 	resultChan := make(chan result)
 	errorChan := make(chan error)
 
-	first := ctx.Uint64("first")
-	last := ctx.Uint64("last")
+	start := ctx.Uint64("start")
+	end := ctx.Uint64("end")
 	workers := ctx.Uint64("workers")
 	batchSize := ctx.Uint64("batch-size")
+	writer, ok := formats[ctx.String("output-format")]
+	if !ok {
+		log.Error("Invalid Output Format. Defaulting to JSON", "Format", ctx.String("output-format"))
+		writer = formats["json"]
+	}
 
 	if batchSize > MaxBatchSize {
 		log.Warn("Batch Size Too Large, Reducing", "BatchSize", batchSize, "MaxBatchSize", MaxBatchSize)
 		batchSize = MaxBatchSize
 	}
 
-	log.Info("Starting", "First", first, "Last", last, "Workers", workers, "BatchSize", batchSize)
+	log.Info("Starting", "First", start, "Last", end, "Workers", workers, "BatchSize", batchSize)
 
 	// first cut the work into ranges for batching
 	// and load the work into a channel
-	if batchSize > last-first {
-		log.Info("More Batch Size Than Required", "BatchSize", batchSize, "Blocks", last-first)
-		batchSize = last - first
+	if batchSize > end-start {
+		log.Info("More Batch Size Than Required", "BatchSize", batchSize, "Blocks", end-start)
+		batchSize = end - start
 	}
-	batches := toBatches(first, last, batchSize)
+	batches := toBatches(start, end, batchSize)
 	workChan := make(chan batchRange, len(batches))
 	for _, b := range batches {
 		workChan <- b
@@ -114,17 +119,17 @@ func pull(ctx *cli.Context) error {
 		log.Error("Failed to Build Aggregate Results", "Err", err)
 		log.Warn("Writing Results Anyway")
 	}
-	aggregateResults.First = first
-	aggregateResults.Last = last
+	aggregateResults.First = start
+	aggregateResults.Last = end
 	aggregateResults.ChainID = chainID
 
-	err = writeJSON(aggregateResults, ctx.String("output"))
+	err = writer.writeAggregate(aggregateResults, ctx.String("output"))
 	if err != nil {
 		log.Error("Failed to Write Aggregate Results", "Err", err)
 		return err
 	}
 
-	log.Info("Finished", "Duration", time.Since(start))
+	log.Info("Finished", "Duration", time.Since(startT))
 
 	return nil
 }
@@ -135,18 +140,14 @@ type batchRange struct {
 }
 
 // toBatches is a helper function to split a single large range into smaller batches
-func toBatches(first, last, batchSize uint64) []batchRange {
+func toBatches(start, end, size uint64) []batchRange {
 	batches := []batchRange{}
-	for i := first; i < last; i += batchSize {
-		f := i
-		l := f + batchSize
-		if l > last {
-			l = last
+	for i := start; i < end; i += size {
+		if i+size > end {
+			batches = append(batches, batchRange{i, end})
+		} else {
+			batches = append(batches, batchRange{i, i + size})
 		}
-		if f == l {
-			break
-		}
-		batches = append(batches, batchRange{f, l})
 	}
 	return batches
 }
@@ -329,7 +330,7 @@ func checkTransaction(ctx context.Context, c *ethclient.Client, tx types.Transac
 	// we are filtering for deposit transactions which are not system transactions
 	if tx.Type() == depositType &&
 		from != systemAddress {
-		log.Info("Got Transaction", "From", from, "Nonce", tx.Nonce(), "Type", tx.Type())
+		log.Info("Got Transaction", "From", from, "Nonce", tx.EffectiveNonce(), "Type", tx.Type())
 		return true, nil
 	}
 	return false, nil
