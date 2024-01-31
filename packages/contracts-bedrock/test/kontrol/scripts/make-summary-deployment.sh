@@ -1,6 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
+export FOUNDRY_PROFILE=kdeploy
+
 SCRIPT_HOME="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 # shellcheck source=/dev/null
 source "$SCRIPT_HOME/common.sh"
@@ -51,7 +53,7 @@ cp ${DEPLOY_SCRIPT} ${DEPLOY_SCRIPT}.bak
 # of the system are deployed, we'd get some reverts on the `mustGetAddress` functions
 awk '{gsub(/mustGetAddress/, "getAddress")}1' ${DEPLOY_SCRIPT} > temp && mv temp ${DEPLOY_SCRIPT}
 
-FOUNDRY_PROFILE=kdeploy forge script -vvv test/kontrol/deployment/KontrolDeployment.sol:KontrolDeployment --sig 'runKontrolDeployment()'
+run forge script -vvv test/kontrol/deployment/KontrolDeployment.sol:KontrolDeployment --sig 'runKontrolDeployment()'
 echo "Created state diff json"
 
 # Clean and store the state diff json in snapshots/state-diff/Kontrol-Deploy.json
