@@ -12,8 +12,13 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
+// ErrNotFound is returned when the server could not find the input.
 var ErrNotFound = errors.New("not found")
+
+// ErrCommitmentMismatch is returned when the server returns the wrong input for the given commitment.
 var ErrCommitmentMismatch = errors.New("commitment mismatch")
+
+// ErrInvalidInput is returned when the input is not valid for posting to the DA storage.
 var ErrInvalidInput = errors.New("invalid input")
 
 // DAClient is an HTTP client to communicate with a DA storage service.
