@@ -78,7 +78,7 @@ func (fv *LevelFlagValue) Clone() any {
 	return &cpy
 }
 
-// LvlFromString returns the appropriate Lvl from a string name.
+// LevelFromString returns the appropriate Level from a string name.
 // Useful for parsing command line args and configuration files.
 // It also converts strings to lowercase.
 func LevelFromString(lvlString string) (slog.Level, error) {

@@ -1,15 +1,16 @@
 package main
 
 import (
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/pprof"
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/proxyd"
 
 	"github.com/BurntSushi/toml"
@@ -41,15 +42,15 @@ func main() {
 	}
 
 	// update log level from config
-	logLevel, err := oplog.LevelFromString(config.Server.LogLevel)
+	logLevel, err := LevelFromString(config.Server.LogLevel)
 	if err != nil {
 		logLevel = log.LevelInfo
 		if config.Server.LogLevel != "" {
 			log.Warn("invalid server.log_level set: " + config.Server.LogLevel)
 		}
 	}
-	oplog.SetGlobalLogHandler(slog.NewJSONHandler(
-		os.Stdout, &slog.HandlerOptions{Level: logLevel}))
+	slog.SetDefault(slog.New(slog.NewJSONHandler(
+		os.Stdout, &slog.HandlerOptions{Level: logLevel})))
 
 	if config.Server.EnablePprof {
 		log.Info("starting pprof", "addr", "0.0.0.0", "port", "6060")
@@ -72,6 +73,30 @@ func main() {
 	recvSig := <-sig
 	log.Info("caught signal, shutting down", "signal", recvSig)
 	shutdown()
+}
+
+// LevelFromString returns the appropriate Level from a string name.
+// Useful for parsing command line args and configuration files.
+// It also converts strings to lowercase.
+// Note: copied from op-service/log to avoid monorepo dependency
+func LevelFromString(lvlString string) (slog.Level, error) {
+	lvlString = strings.ToLower(lvlString) // ignore case
+	switch lvlString {
+	case "trace", "trce":
+		return log.LevelTrace, nil
+	case "debug", "dbug":
+		return log.LevelDebug, nil
+	case "info":
+		return log.LevelInfo, nil
+	case "warn":
+		return log.LevelWarn, nil
+	case "error", "eror":
+		return log.LevelError, nil
+	case "crit":
+		return log.LevelCrit, nil
+	default:
+		return log.LevelDebug, fmt.Errorf("unknown level: %v", lvlString)
+	}
 }
 
 func StartPProf(hostname string, port int) *http.Server {
