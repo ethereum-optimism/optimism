@@ -113,9 +113,15 @@ func setupChallengerTest(logger log.Logger) (*stubVerifier, *stubSender, *stubCh
 	}
 	sender := &stubSender{}
 	oracle := &stubChallengerOracle{}
-	challenger := NewPreimageChallenger(logger, verifier, sender)
+	metrics := &mockChallengeMetrics{}
+	challenger := NewPreimageChallenger(logger, metrics, verifier, sender)
 	return verifier, sender, oracle, challenger
 }
+
+type mockChallengeMetrics struct{}
+
+func (m *mockChallengeMetrics) RecordPreimageChallenged()      {}
+func (m *mockChallengeMetrics) RecordPreimageChallengeFailed() {}
 
 type stubVerifier struct {
 	challenges map[keccakTypes.LargePreimageIdent]keccakTypes.Challenge

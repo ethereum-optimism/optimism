@@ -34,6 +34,9 @@ type Metricer interface {
 	RecordGameMove()
 	RecordCannonExecutionTime(t float64)
 
+	RecordPreimageChallenged()
+	RecordPreimageChallengeFailed()
+
 	RecordBondClaimFailed()
 	RecordBondClaimed(amount uint64)
 
@@ -67,6 +70,9 @@ type Metrics struct {
 
 	bondClaimFailures prometheus.Counter
 	bondsClaimed      prometheus.Counter
+
+	preimageChallenged      prometheus.Counter
+	preimageChallengeFailed prometheus.Counter
 
 	highestActedL1Block prometheus.Gauge
 
@@ -145,6 +151,16 @@ func NewMetrics() *Metrics {
 			Name:      "bonds",
 			Help:      "Number of bonds claimed by the challenge agent",
 		}),
+		preimageChallenged: factory.NewCounter(prometheus.CounterOpts{
+			Namespace: Namespace,
+			Name:      "preimage_challenged",
+			Help:      "Number of preimages challenged by the challenger",
+		}),
+		preimageChallengeFailed: factory.NewCounter(prometheus.CounterOpts{
+			Namespace: Namespace,
+			Name:      "preimage_challenge_failed",
+			Help:      "Number of preimage challenges that failed",
+		}),
 		trackedGames: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: Namespace,
 			Name:      "tracked_games",
@@ -199,6 +215,14 @@ func (m *Metrics) RecordGameMove() {
 
 func (m *Metrics) RecordGameStep() {
 	m.steps.Add(1)
+}
+
+func (m *Metrics) RecordPreimageChallenged() {
+	m.preimageChallenged.Add(1)
+}
+
+func (m *Metrics) RecordPreimageChallengeFailed() {
+	m.preimageChallengeFailed.Add(1)
 }
 
 func (m *Metrics) RecordBondClaimFailed() {
