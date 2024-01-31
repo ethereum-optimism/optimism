@@ -10,7 +10,7 @@ const config: HardhatUserConfig = {
   },
   networks: {
     boba: {
-      url: 'http://localhost:8545',
+      url: 'http://localhost:9545',
       saveDeployments: false,
     },
     localhost: {
