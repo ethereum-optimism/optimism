@@ -29,7 +29,7 @@ type Leaf struct {
 func (l Leaf) Hash() common.Hash {
 	concatted := make([]byte, 0, 136+32+32)
 	concatted = append(concatted, l.Input[:]...)
-	concatted = append(concatted, new(big.Int).SetUint64(l.Index).Bytes()...)
+	concatted = append(concatted, new(big.Int).SetUint64(l.Index).FillBytes(make([]byte, 32))...)
 	concatted = append(concatted, l.StateCommitment.Bytes()...)
 	return crypto.Keccak256Hash(concatted)
 }

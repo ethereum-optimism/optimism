@@ -281,7 +281,11 @@ func TestVerifyPreimage(t *testing.T) {
 	}
 	leafData := func(idx int) (out [types.BlockSize]byte) {
 		end := min((idx+1)*types.BlockSize, len(preimage))
-		copy(out[:], preimage[idx*types.BlockSize:end])
+		input := preimage[idx*types.BlockSize : end]
+		copy(out[:], input)
+		if len(input) < types.BlockSize {
+			pad(input, &out, newLegacyKeccak256().dsbyte)
+		}
 		return
 	}
 	// merkleTree creates the final merkle tree after including all leaves.

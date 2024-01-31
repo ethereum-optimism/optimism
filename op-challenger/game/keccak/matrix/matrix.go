@@ -113,15 +113,31 @@ func (d *StateMatrix) PackState() []byte {
 }
 
 // newLeafWithPadding creates a new [Leaf] from inputs, padding the input to the [BlockSize].
-func newLeafWithPadding(input []byte, index uint64, commitment common.Hash) types.Leaf {
-	// TODO(client-pod#480): Add actual keccak padding to ensure the merkle proofs are correct (for readData)
+func (d *StateMatrix) newLeafWithPadding(input []byte, index uint64, commitment common.Hash, final bool) types.Leaf {
 	var paddedInput [types.BlockSize]byte
 	copy(paddedInput[:], input)
+
+	if final {
+		pad(input, &paddedInput, d.s.dsbyte)
+	}
 	return types.Leaf{
 		Input:           paddedInput,
 		Index:           index,
 		StateCommitment: commitment,
 	}
+}
+
+func pad(input []byte, paddedInput *[types.BlockSize]byte, dsbyte byte) {
+	// Pad with this instance's domain-separator bits. We know that there's
+	// at least one more byte of space in paddedInput because, if it were full,
+	// this wouldn't be the last block and the padding would be in the next block.
+	// dsbyte also contains the first one bit for the padding. See the comment in the state struct.
+	paddedInput[len(input)] = dsbyte
+	// The remaining bytes are already zeros since paddedInput is a new array.
+	// This adds the final one bit for the padding. Because of the way that
+	// bits are numbered from the LSB upwards, the final bit is the MSB of
+	// the last byte.
+	paddedInput[types.BlockSize-1] ^= 0x80
 }
 
 func (d *StateMatrix) AbsorbUpTo(in io.Reader, maxLen int) (types.InputData, error) {
@@ -193,10 +209,10 @@ func (d *StateMatrix) absorbNextLeafInput(in io.Reader, stateCommitment func() c
 	commitment := stateCommitment()
 	if d.poststateLeaf == (types.Leaf{}) {
 		d.prestateLeaf = types.Leaf{}
-		d.poststateLeaf = newLeafWithPadding(input, 0, commitment)
+		d.poststateLeaf = d.newLeafWithPadding(input, 0, commitment, final)
 	} else {
 		d.prestateLeaf = d.poststateLeaf
-		d.poststateLeaf = newLeafWithPadding(input, d.prestateLeaf.Index+1, commitment)
+		d.poststateLeaf = d.newLeafWithPadding(input, d.prestateLeaf.Index+1, commitment, final)
 	}
 	d.merkleTree.AddLeaf(d.poststateLeaf.Hash())
 	if final {

@@ -60,6 +60,7 @@ func (c *PreimageChallenger) Challenge(ctx context.Context, blockHash common.Has
 				logger.Error("Failed to verify large preimage", "err", err)
 				return
 			}
+			logger.Info("Challenging preimage", "block", challenge.Poststate.Index)
 			tx, err := oracle.ChallengeTx(preimage.LargePreimageIdent, challenge)
 			if err != nil {
 				logger.Error("Failed to create challenge transaction", "err", err)
