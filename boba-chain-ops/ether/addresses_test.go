@@ -366,7 +366,7 @@ func TestMapToAddresses(t *testing.T) {
 	}
 }
 
-func TestGetToFromEthMintLogs(t *testing.T) {
+func TestGetToFromEthLogs(t *testing.T) {
 	LegacyERC20ETHMetaData := bindings.MetaData{
 		ABI: bindings.LegacyERC20ETHABI,
 		Bin: bindings.LegacyERC20ETHBin,
@@ -460,6 +460,63 @@ func TestGetToFromEthMintLogs(t *testing.T) {
 				{
 					Address: predeploys.LegacyERC20ETHAddr,
 					Topics: []common.Hash{
+						ABI.Events["Approval"].ID,
+						common.BytesToHash(common.Address{1}.Bytes()),
+						common.BytesToHash(common.Address{2}.Bytes()),
+					},
+				},
+			},
+			expected: []*common.Address{
+				{1},
+				{2},
+			},
+		},
+		{
+			name: "Test 6",
+			input: []*types.Log{
+				{
+					Address: predeploys.LegacyERC20ETHAddr,
+					Topics: []common.Hash{
+						ABI.Events["Approval"].ID,
+						common.BytesToHash(common.Address{1}.Bytes()),
+					},
+				},
+			},
+			expected: []*common.Address(nil),
+		},
+		{
+			name: "Test 7",
+			input: []*types.Log{
+				{
+					Address: predeploys.LegacyERC20ETHAddr,
+					Topics: []common.Hash{
+						ABI.Events["Approval"].ID,
+						common.BytesToHash(common.Address{1}.Bytes()),
+						common.BytesToHash(common.Address{2}.Bytes()),
+					},
+				},
+				{
+					Address: predeploys.LegacyERC20ETHAddr,
+					Topics: []common.Hash{
+						ABI.Events["Transfer"].ID,
+						common.BytesToHash(common.Address{1}.Bytes()),
+						common.BytesToHash(common.Address{2}.Bytes()),
+					},
+				},
+			},
+			expected: []*common.Address{
+				{1},
+				{2},
+				{2},
+				{1},
+			},
+		},
+		{
+			name: "Test 8",
+			input: []*types.Log{
+				{
+					Address: predeploys.LegacyERC20ETHAddr,
+					Topics: []common.Hash{
 						{1},
 						{2},
 						{3},
@@ -478,7 +535,7 @@ func TestGetToFromEthMintLogs(t *testing.T) {
 			expected, ok := test.expected.([]*common.Address)
 			require.Equal(t, true, ok)
 			fakeRPC.GetLogsReturns(input, nil)
-			result, err := crawler.GetToFromEthMintLogs(common.Big0)
+			result, err := crawler.GetToFromEthLogs(common.Big0)
 			require.NoError(t, err)
 			require.Equal(t, expected, result)
 		})

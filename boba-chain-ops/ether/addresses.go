@@ -106,12 +106,12 @@ func (e *Crawler) StartCrawler(currentBlock int64, mapAddresses map[common.Addre
 		if err != nil {
 			return currentBlock, mapAddresses, err
 		}
-		mintAddress, err := e.GetToFromEthMintLogs(big.NewInt(currentBlock))
+		logAddress, err := e.GetToFromEthLogs(big.NewInt(currentBlock))
 		if err != nil {
 			return currentBlock, mapAddresses, err
 		}
-		log.Info("Crawled block", "block", currentBlock, "addresses", len(addresses), "mintAddress", len(mintAddress))
-		addresses = append(addresses, mintAddress...)
+		log.Info("Crawled block", "block", currentBlock, "addresses", len(addresses), "logAddress", len(logAddress))
+		addresses = append(addresses, logAddress...)
 		AddAddressesToMap(addresses, mapAddresses)
 		if err := e.SaveAddresses(currentBlock, MapToAddresses(mapAddresses)); err != nil {
 			return currentBlock, mapAddresses, err
@@ -182,7 +182,7 @@ func (e *Crawler) GetTraceTransaction(blockNumber *big.Int) (*node.TraceTransact
 	return nil, fmt.Errorf("block %d has more than one transaction", blockNumber)
 }
 
-func (e *Crawler) GetToFromEthMintLogs(blockNumber *big.Int) ([]*common.Address, error) {
+func (e *Crawler) GetToFromEthLogs(blockNumber *big.Int) ([]*common.Address, error) {
 	LegacyERC20ETHMetaData := bindings.MetaData{
 		ABI: bindings.LegacyERC20ETHABI,
 		Bin: bindings.LegacyERC20ETHBin,
@@ -213,6 +213,13 @@ func (e *Crawler) GetToFromEthMintLogs(blockNumber *big.Int) ([]*common.Address,
 				from := common.BytesToAddress(log.Topics[1].Bytes())
 				addresses = append(addresses, &from)
 			}
+		}
+		// This case for BOBA V1 that ETH can be approved via calling
+		// the OVM_ETH contract directly
+		if log.Topics[0] == ABI.Events["Approval"].ID && len(log.Topics) == 3 {
+			owner := common.BytesToAddress(log.Topics[1].Bytes())
+			spender := common.BytesToAddress(log.Topics[2].Bytes())
+			addresses = append(addresses, &owner, &spender)
 		}
 	}
 	return addresses, nil
