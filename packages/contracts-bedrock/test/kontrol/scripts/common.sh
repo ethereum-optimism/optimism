@@ -54,6 +54,18 @@ check_kontrol_version() {
   fi
 }
 
+conditionally_start_docker() {
+  if [ "${LOCAL}" == false ]; then
+    # Is old docker container running?
+    if [ "$(docker ps -q -f name="${CONTAINER_NAME}")" ]; then
+        # Stop old docker container
+        notif "Stopping old docker container"
+        clean_docker
+    fi
+    start_docker
+  fi
+}
+
 start_docker () {
   docker run                                    \
     --name "${CONTAINER_NAME}"                  \

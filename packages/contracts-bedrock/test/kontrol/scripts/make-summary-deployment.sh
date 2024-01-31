@@ -36,6 +36,7 @@ if [ ! -f "snapshots/state-diff/Deploy.json" ]; then
 fi
 
 DEPLOY_SCRIPT="./scripts/Deploy.s.sol"
+conditionally_start_docker
 
 # Create a backup
 cp ${DEPLOY_SCRIPT} ${DEPLOY_SCRIPT}.bak

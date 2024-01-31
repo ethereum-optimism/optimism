@@ -49,7 +49,6 @@ dump_log_results(){
     fi
 
     notif "Generating Results Log: ${LOG_PATH}"
-    blank_line
 
     run tar -czvf results.tar.gz kout-proofs/ > /dev/null 2>&1
     if [ "${LOCAL}" = true ]; then
@@ -61,14 +60,12 @@ dump_log_results(){
       cp "${RESULTS_LOG}" "${LOG_PATH}/kontrol-results_latest.tar.gz"
     else
       notif "Results Log: ${RESULTS_LOG} not found, skipping.."
-      blank_line
     fi
     # Report where the file was generated and placed
     notif "Results Log: $(dirname "${RESULTS_LOG}") generated"
 
     if [ "${LOCAL}" = false ]; then
       notif "Results Log: ${RESULTS_LOG} generated"
-      blank_line
       RUN_LOG="run-kontrol-$(date +'%Y-%m-%d-%H-%M-%S').log"
       docker logs "${CONTAINER_NAME}" > "${LOG_PATH}/${RUN_LOG}"
     fi
@@ -77,7 +74,6 @@ dump_log_results(){
 clean_docker(){
   notif "Stopping Docker Container"
   docker stop "${CONTAINER_NAME}"
-  blank_line
 }
 
 # Define the function to run on failure
@@ -89,7 +85,6 @@ on_failure() {
   fi
 
   notif "Cleanup complete."
-  blank_line
   exit 1
 }
 
@@ -151,16 +146,7 @@ state_diff="./snapshots/state-diff/Kontrol-Deploy.json"
 #############
 # RUN TESTS #
 #############
-if [ "${LOCAL}" == false ]; then
-  # Is old docker container running?
-  if [ "$(docker ps -q -f name="${CONTAINER_NAME}")" ]; then
-      # Stop old docker container
-      notif "Stopping old docker container"
-      clean_docker
-      blank_line
-  fi
-  start_docker
-fi
+conditionally_start_docker
 
 kontrol_build
 kontrol_prove
@@ -172,5 +158,4 @@ if [ "${LOCAL}" == false ]; then
     clean_docker
 fi
 
-blank_line
 notif "DONE"
