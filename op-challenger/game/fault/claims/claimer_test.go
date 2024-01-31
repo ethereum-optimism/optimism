@@ -64,6 +64,17 @@ func TestClaimer_ClaimBonds(t *testing.T) {
 		require.Equal(t, 0, txSender.sends)
 		require.Equal(t, 0, m.RecordBondClaimedCalls)
 	})
+
+	t.Run("MultipleBondClaimFails", func(t *testing.T) {
+		gameAddr := common.HexToAddress("0x1234")
+		c, m, rpc, txSender := newTestClaimer(t, gameAddr)
+		rpc.SetResponse(gameAddr, methodCredit, batching.BlockLatest, []interface{}{txSender.From()}, []interface{}{big.NewInt(1)})
+		txSender.sendFails = true
+		err := c.ClaimBonds(context.Background(), []types.GameMetadata{{Proxy: gameAddr}, {Proxy: gameAddr}, {Proxy: gameAddr}})
+		require.ErrorIs(t, err, mockTxMgrSendError)
+		require.Equal(t, 3, txSender.sends)
+		require.Equal(t, 0, m.RecordBondClaimedCalls)
+	})
 }
 
 func newTestClaimer(t *testing.T, gameAddr common.Address) (*claimer, *mockClaimMetrics, *batchingTest.AbiBasedRpc, *mockTxSender) {
