@@ -277,20 +277,37 @@ func (cfg *Config) Check() error {
 	if cfg.L2ChainID.Sign() < 1 {
 		return ErrL2ChainIDNotPositive
 	}
-	if cfg.EcotoneTime != nil {
-		if cfg.CanyonTime == nil {
-			return fmt.Errorf("prior fork canyon activation time is missing")
+
+	// checkFork checks that fork A is before or at the same time as fork B
+	checkFork := func(a, b *uint64, aName, bName string) error {
+		if a == nil && b == nil {
+			return nil
 		}
-		if *cfg.CanyonTime > *cfg.EcotoneTime {
-			return fmt.Errorf("prior fork canyon has higher activation time")
+		if a == nil && b != nil {
+			return fmt.Errorf("fork %s set (to %d), but prior fork %s missing", bName, *b, aName)
 		}
-		if cfg.RegolithTime == nil {
-			return fmt.Errorf("prior fork regolith activation time is missing")
+		if a != nil && b == nil {
+			return nil
 		}
-		if *cfg.RegolithTime > *cfg.CanyonTime {
-			return fmt.Errorf("prior fork regolith has higher activation time")
+		if *a > *b {
+			return fmt.Errorf("fork %s set to %d, but prior fork %s has higher offset %d", bName, *b, aName, *a)
 		}
+		return nil
 	}
+
+	if err := checkFork(cfg.RegolithTime, cfg.CanyonTime, "regolith", "canyon"); err != nil {
+		return err
+	}
+	if err := checkFork(cfg.CanyonTime, cfg.DeltaTime, "canyon", "delta"); err != nil {
+		return err
+	}
+	if err := checkFork(cfg.DeltaTime, cfg.EcotoneTime, "delta", "ecotone"); err != nil {
+		return err
+	}
+	if err := checkFork(cfg.EcotoneTime, cfg.FjordTime, "ecotone", "fjord"); err != nil {
+		return err
+	}
+
 	return nil
 }
 
