@@ -14,7 +14,7 @@ const config: HardhatUserConfig = {
       saveDeployments: false,
     },
     localhost: {
-      url: 'http://localhost:9545',
+      url: 'http://localhost:8545',
       allowUnlimitedContractSize: true,
       timeout: 1800000,
       accounts: [
