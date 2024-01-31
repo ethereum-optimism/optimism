@@ -14,6 +14,7 @@ import (
 
 var ErrNotFound = errors.New("not found")
 var ErrCommitmentMismatch = errors.New("commitment mismatch")
+var ErrInvalidInput = errors.New("invalid input")
 
 // DAClient is an HTTP client to communicate with a DA storage service.
 // It creates commitments and retrieves input data + verifies if needed.
@@ -37,11 +38,11 @@ func (c *DAClient) VerifyOnRead(verify bool) {
 func (c *DAClient) GetInput(ctx context.Context, key []byte) ([]byte, error) {
 	k := hexutil.Bytes(key)
 	resp, err := http.Get(fmt.Sprintf("%s/get/%s", c.url, k))
-	if resp.StatusCode == http.StatusNotFound {
-		return nil, ErrNotFound
-	}
 	if err != nil {
 		return nil, err
+	}
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, ErrNotFound
 	}
 	defer resp.Body.Close()
 	input, err := io.ReadAll(resp.Body)
@@ -59,6 +60,9 @@ func (c *DAClient) GetInput(ctx context.Context, key []byte) ([]byte, error) {
 
 // SetInput sets the input data and returns the keccak256 hash commitment.
 func (c *DAClient) SetInput(ctx context.Context, img []byte) ([]byte, error) {
+	if len(img) == 0 {
+		return nil, ErrInvalidInput
+	}
 	key := crypto.Keccak256(img)
 	k := hexutil.Bytes(key)
 	body := bytes.NewReader(img)

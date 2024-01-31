@@ -60,8 +60,6 @@ func TestPlasmaDataSource(t *testing.T) {
 		BlockTime:         1,
 		SeqWindowSize:     20,
 		BatchInboxAddress: batcherInbox,
-		// signal that plasma DA is enabled
-		DAChallengeContractAddress: common.Address{111},
 	}
 	// keep track of random input data to validate against
 	var inputs [][]byte
