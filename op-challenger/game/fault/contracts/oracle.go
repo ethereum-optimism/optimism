@@ -147,16 +147,11 @@ func (c *PreimageOracleContract) Squeeze(
 
 // abiEncodeStateMatrix encodes the state matrix for the contract ABI
 func abiEncodeStateMatrix(stateMatrix *matrix.StateMatrix) bindings.LibKeccakStateMatrix {
-	return abiEncodePackedState(stateMatrix.PackState())
+	return abiEncodeSnapshot(stateMatrix.StateSnapshot())
 }
 
-func abiEncodePackedState(packedState []byte) bindings.LibKeccakStateMatrix {
-	stateSlice := new([25]uint64)
-	// SAFETY: a maximum of 25 * 8 bytes will be read from packedState and written to stateSlice
-	for i := 0; i < min(len(packedState), 25*8); i += 8 {
-		stateSlice[i/8] = new(big.Int).SetBytes(packedState[i : i+8]).Uint64()
-	}
-	return bindings.LibKeccakStateMatrix{State: *stateSlice}
+func abiEncodeSnapshot(packedState keccakTypes.StateSnapshot) bindings.LibKeccakStateMatrix {
+	return bindings.LibKeccakStateMatrix{State: packedState}
 }
 
 func (c *PreimageOracleContract) GetActivePreimages(ctx context.Context, blockHash common.Hash) ([]keccakTypes.LargePreimageMetaData, error) {
@@ -271,7 +266,7 @@ func (c *PreimageOracleContract) ChallengeTx(ident keccakTypes.LargePreimageIden
 			methodChallengeLPP,
 			ident.Claimant,
 			ident.UUID,
-			abiEncodePackedState(challenge.StateMatrix),
+			abiEncodeSnapshot(challenge.StateMatrix),
 			toPreimageOracleLeaf(challenge.Prestate),
 			challenge.PrestateProof,
 			toPreimageOracleLeaf(challenge.Poststate),

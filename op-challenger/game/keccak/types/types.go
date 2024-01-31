@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
@@ -29,7 +30,7 @@ type Leaf struct {
 func (l Leaf) Hash() common.Hash {
 	concatted := make([]byte, 0, 136+32+32)
 	concatted = append(concatted, l.Input[:]...)
-	concatted = append(concatted, new(big.Int).SetUint64(l.Index).Bytes()...)
+	concatted = append(concatted, math.U256Bytes(new(big.Int).SetUint64(l.Index))...)
 	concatted = append(concatted, l.StateCommitment.Bytes()...)
 	return crypto.Keccak256Hash(concatted)
 }
@@ -70,9 +71,20 @@ func (m LargePreimageMetaData) ShouldVerify() bool {
 	return m.Timestamp > 0 && !m.Countered
 }
 
+type StateSnapshot [25]uint64
+
+// Pack packs the state in to the solidity ABI encoding required for the state matrix
+func (s StateSnapshot) Pack() []byte {
+	buf := make([]byte, 0, len(s)*32)
+	for _, v := range s {
+		buf = append(buf, math.U256Bytes(new(big.Int).SetUint64(v))...)
+	}
+	return buf
+}
+
 type Challenge struct {
 	// StateMatrix is the packed state matrix preimage of the StateCommitment in Prestate
-	StateMatrix []byte // TODO(client-pod#480): Need a better representation of this
+	StateMatrix StateSnapshot // TODO(client-pod#480): Need a better representation of this
 
 	// Prestate is the valid leaf immediately prior to the first invalid leaf
 	Prestate      Leaf

@@ -13,8 +13,6 @@ import (
 )
 
 func TestChallengeLargePreimages_ChallengeFirst(t *testing.T) {
-	// TODO(client-pod#480: Fix padding and make this pass
-	t.Skip("Padding not implemented properly yet")
 	op_e2e.InitParallel(t)
 	ctx := context.Background()
 	sys, _ := startFaultDisputeSystem(t)
@@ -34,8 +32,6 @@ func TestChallengeLargePreimages_ChallengeFirst(t *testing.T) {
 }
 
 func TestChallengeLargePreimages_ChallengeMiddle(t *testing.T) {
-	// TODO(client-pod#480: Fix padding and make this pass
-	t.Skip("Padding not implemented properly yet")
 	op_e2e.InitParallel(t)
 	ctx := context.Background()
 	sys, _ := startFaultDisputeSystem(t)
@@ -47,6 +43,24 @@ func TestChallengeLargePreimages_ChallengeMiddle(t *testing.T) {
 	preimageHelper := disputeGameFactory.PreimageHelper(ctx)
 	ident := preimageHelper.UploadLargePreimage(ctx, preimage.MinPreimageSize,
 		preimage.WithReplacedCommitment(10, common.Hash{0xaa}))
+
+	require.NotEqual(t, ident.Claimant, common.Address{})
+
+	preimageHelper.WaitForChallenged(ctx, ident)
+}
+
+func TestChallengeLargePreimages_ChallengeLast(t *testing.T) {
+	op_e2e.InitParallel(t)
+	ctx := context.Background()
+	sys, _ := startFaultDisputeSystem(t)
+	t.Cleanup(sys.Close)
+	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
+	disputeGameFactory.StartChallenger(ctx, "Challenger",
+		challenger.WithAlphabet(sys.RollupEndpoint("sequencer")),
+		challenger.WithPrivKey(sys.Cfg.Secrets.Mallory))
+	preimageHelper := disputeGameFactory.PreimageHelper(ctx)
+	ident := preimageHelper.UploadLargePreimage(ctx, preimage.MinPreimageSize,
+		preimage.WithReplacedCommitment(132, common.Hash{0xaa}))
 
 	require.NotEqual(t, ident.Claimant, common.Address{})
 
