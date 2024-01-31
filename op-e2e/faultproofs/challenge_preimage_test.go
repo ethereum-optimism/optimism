@@ -32,8 +32,6 @@ func TestChallengeLargePreimages_ChallengeFirst(t *testing.T) {
 }
 
 func TestChallengeLargePreimages_ChallengeMiddle(t *testing.T) {
-	// TODO(client-pod#480: Fix state preimage
-	t.Skip("Reverting with InvalidPreimage due to stateMatrix not matching prestate leaf")
 	op_e2e.InitParallel(t)
 	ctx := context.Background()
 	sys, _ := startFaultDisputeSystem(t)
@@ -52,8 +50,6 @@ func TestChallengeLargePreimages_ChallengeMiddle(t *testing.T) {
 }
 
 func TestChallengeLargePreimages_ChallengeLast(t *testing.T) {
-	// TODO(client-pod#480: Fix state preimage
-	t.Skip("Reverting with InvalidPreimage due to stateMatrix not matching prestate leaf")
 	op_e2e.InitParallel(t)
 	ctx := context.Background()
 	sys, _ := startFaultDisputeSystem(t)

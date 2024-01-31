@@ -43,8 +43,8 @@ func TestChallenge(t *testing.T) {
 
 	t.Run("SendChallenges", func(t *testing.T) {
 		verifier, sender, oracle, challenger := setupChallengerTest(logger)
-		verifier.challenges[preimages[1].LargePreimageIdent] = keccakTypes.Challenge{StateMatrix: []byte{0x01}}
-		verifier.challenges[preimages[2].LargePreimageIdent] = keccakTypes.Challenge{StateMatrix: []byte{0x02}}
+		verifier.challenges[preimages[1].LargePreimageIdent] = keccakTypes.Challenge{StateMatrix: keccakTypes.StateSnapshot{0x01}}
+		verifier.challenges[preimages[2].LargePreimageIdent] = keccakTypes.Challenge{StateMatrix: keccakTypes.StateSnapshot{0x02}}
 		err := challenger.Challenge(context.Background(), common.Hash{0xaa}, oracle, preimages)
 		require.NoError(t, err)
 
@@ -59,7 +59,7 @@ func TestChallenge(t *testing.T) {
 
 	t.Run("ReturnErrorWhenSendingFails", func(t *testing.T) {
 		verifier, sender, oracle, challenger := setupChallengerTest(logger)
-		verifier.challenges[preimages[1].LargePreimageIdent] = keccakTypes.Challenge{StateMatrix: []byte{0x01}}
+		verifier.challenges[preimages[1].LargePreimageIdent] = keccakTypes.Challenge{StateMatrix: keccakTypes.StateSnapshot{0x01}}
 		sender.err = errors.New("boom")
 		err := challenger.Challenge(context.Background(), common.Hash{0xaa}, oracle, preimages)
 		require.ErrorIs(t, err, sender.err)
@@ -69,7 +69,7 @@ func TestChallenge(t *testing.T) {
 		logs := testlog.Capture(logger)
 
 		verifier, _, oracle, challenger := setupChallengerTest(logger)
-		verifier.challenges[preimages[1].LargePreimageIdent] = keccakTypes.Challenge{StateMatrix: []byte{0x01}}
+		verifier.challenges[preimages[1].LargePreimageIdent] = keccakTypes.Challenge{StateMatrix: keccakTypes.StateSnapshot{0x01}}
 		oracle.err = errors.New("boom")
 		err := challenger.Challenge(context.Background(), common.Hash{0xaa}, oracle, preimages)
 		require.NoError(t, err)
@@ -82,7 +82,7 @@ func TestChallenge(t *testing.T) {
 		logs := testlog.Capture(logger)
 
 		verifier, _, oracle, challenger := setupChallengerTest(logger)
-		verifier.challenges[preimages[1].LargePreimageIdent] = keccakTypes.Challenge{StateMatrix: []byte{0x01}}
+		verifier.challenges[preimages[1].LargePreimageIdent] = keccakTypes.Challenge{StateMatrix: keccakTypes.StateSnapshot{0x01}}
 		verifier.err = errors.New("boom")
 		err := challenger.Challenge(context.Background(), common.Hash{0xaa}, oracle, preimages)
 		require.NoError(t, err)
@@ -157,6 +157,6 @@ func (s *stubChallengerOracle) ChallengeTx(ident keccakTypes.LargePreimageIdent,
 	}
 	return txmgr.TxCandidate{
 		To:     &ident.Claimant,
-		TxData: append(ident.UUID.Bytes(), challenge.StateMatrix...),
+		TxData: append(ident.UUID.Bytes(), challenge.StateMatrix.Pack()...),
 	}, nil
 }

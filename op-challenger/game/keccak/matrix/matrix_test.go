@@ -45,7 +45,7 @@ func TestStateCommitment(t *testing.T) {
 			copy(state.s.a[:], test.matrix)
 			expected := crypto.Keccak256Hash(common.Hex2Bytes(test.expectedPacked))
 			actual := state.StateCommitment()
-			require.Equal(t, test.expectedPacked, common.Bytes2Hex(state.PackState()))
+			require.Equal(t, test.expectedPacked, common.Bytes2Hex(state.StateSnapshot().Pack()))
 			require.Equal(t, expected, actual)
 		})
 	}
@@ -312,7 +312,7 @@ func TestVerifyPreimage(t *testing.T) {
 		prestateLeaf := leafData(invalidIdx - 1)
 		poststateLeaf := leafData(invalidIdx)
 		return types.Challenge{
-			StateMatrix: s.PackState(),
+			StateMatrix: s.StateSnapshot(),
 			Prestate: types.Leaf{
 				Input:           prestateLeaf,
 				Index:           uint64(invalidIdx - 1),
@@ -352,7 +352,7 @@ func TestVerifyPreimage(t *testing.T) {
 					return incorrectFirstCommitment
 				},
 				expected: types.Challenge{
-					StateMatrix: NewStateMatrix().PackState(),
+					StateMatrix: NewStateMatrix().StateSnapshot(),
 					Prestate:    types.Leaf{},
 					Poststate: types.Leaf{
 						Input:           poststateLeaf,
@@ -385,7 +385,7 @@ func TestVerifyPreimage(t *testing.T) {
 			require.Equal(t, test.expected.StateMatrix, challenge.StateMatrix, "Correct state matrix")
 			require.Equal(t, test.expected.Prestate, challenge.Prestate, "Correct prestate")
 			if test.expected.Prestate != (types.Leaf{}) {
-				require.Equal(t, test.expected.Prestate.StateCommitment, crypto.Keccak256Hash(challenge.StateMatrix), "Prestate matches leaf commitment")
+				require.Equal(t, test.expected.Prestate.StateCommitment, crypto.Keccak256Hash(challenge.StateMatrix.Pack()), "Prestate matches leaf commitment")
 			}
 			require.Equal(t, test.expected.PrestateProof, challenge.PrestateProof, "Correct prestate proof")
 			require.Equal(t, test.expected.Poststate, challenge.Poststate, "Correct poststate")
