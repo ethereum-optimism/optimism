@@ -28,6 +28,9 @@ func (*NoopMetricsImpl) RecordGameStep() {}
 
 func (*NoopMetricsImpl) RecordActedL1Block(_ uint64) {}
 
+func (*NoopMetricsImpl) RecordPreimageChallenged()      {}
+func (*NoopMetricsImpl) RecordPreimageChallengeFailed() {}
+
 func (*NoopMetricsImpl) RecordBondClaimFailed()   {}
 func (*NoopMetricsImpl) RecordBondClaimed(uint64) {}
 
