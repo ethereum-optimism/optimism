@@ -464,5 +464,3 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         respectedGameType = _gameType;
     }
 }
-
-
