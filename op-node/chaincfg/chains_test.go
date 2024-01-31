@@ -63,6 +63,7 @@ var mainnetCfg = rollup.Config{
 	L1SystemConfigAddress:   common.HexToAddress("0x229047fed2591dbec1eF1118d64F7aF3dB9EB290"),
 	RegolithTime:            u64Ptr(0),
 	CanyonTime:              u64Ptr(1704992401),
+	DeltaTime:               u64Ptr(1708560000),
 	ProtocolVersionsAddress: common.HexToAddress("0x8062AbC286f5e7D9428a0Ccb9AbD71e50d93b935"),
 }
 
