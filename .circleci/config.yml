@@ -1622,6 +1622,7 @@ workflows:
       - cannon-build-test-vectors
       - kontrol-tests
       - shellcheck/check:
+          name: shell-check
           # We don't need the `exclude` key as the orb detects the `.shellcheckrc`
           dir: .
           ignore-dirs:
