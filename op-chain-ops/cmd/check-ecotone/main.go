@@ -462,7 +462,7 @@ func checkL1Fees(ctx context.Context, env *actionEnv) error {
 		return fmt.Errorf("failed to retrieve rollup config: %w", err)
 	}
 	env.log.Info("making test tx", "addr", env.addr)
-	nonce, err := env.l1.PendingNonceAt(ctx, env.addr)
+	nonce, err := env.l2.PendingNonceAt(ctx, env.addr)
 	if err != nil {
 		return fmt.Errorf("failed to get pending nonce: %w", err)
 	}
