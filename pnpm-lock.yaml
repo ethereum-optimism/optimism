@@ -303,8 +303,8 @@ importers:
         specifier: ^2.1.0
         version: 2.1.0(typescript@5.3.3)
       '@wagmi/core':
-        specifier: ^2.6.1
-        version: 2.6.1(react@18.2.0)(typescript@5.3.3)(viem@2.5.0)
+        specifier: ^2.6.3
+        version: 2.6.3(react@18.2.0)(typescript@5.3.3)(viem@2.5.0)
       abitype:
         specifier: ^1.0.0
         version: 1.0.0(typescript@5.3.3)(zod@3.22.4)
@@ -6400,32 +6400,6 @@ packages:
       - zod
     dev: true
 
-  /@wagmi/core@2.6.1(react@18.2.0)(typescript@5.3.3)(viem@2.5.0):
-    resolution: {integrity: sha512-8uE4cpkGqHObjFcDUU6ZGqn9KiOO2wsJOKZ+bXevLOXe2a6M268vOUKJUM2d6/Whn4aBFEyMcX8ESdLuySS78w==}
-    peerDependencies:
-      '@tanstack/query-core': '>=5.0.0'
-      typescript: '>=5.0.4'
-      viem: 2.x
-    peerDependenciesMeta:
-      '@tanstack/query-core':
-        optional: true
-      typescript:
-        optional: true
-    dependencies:
-      eventemitter3: 5.0.1
-      mipd: 0.0.5(typescript@5.3.3)
-      typescript: 5.3.3
-      viem: 2.5.0(typescript@5.3.3)(zod@3.22.4)
-      zustand: 4.4.1(react@18.2.0)
-    transitivePeerDependencies:
-      - '@types/react'
-      - bufferutil
-      - immer
-      - react
-      - utf-8-validate
-      - zod
-    dev: true
-
   /@wagmi/core@2.6.3(react@18.2.0)(typescript@5.3.3)(viem@2.5.0):
     resolution: {integrity: sha512-hHvJkXFqfj56nAD0SH5bAHYxBItUBDIn6yGUBguMu121v6R4NxhwciEeff56lSjnKhmXjaWdJCEJ9C1YwkmDVw==}
     peerDependencies:
@@ -9900,6 +9874,7 @@ packages:
       is-hex-prefixed: 1.0.0
       strip-hex-prefix: 1.0.0
     dev: true
+    bundledDependencies: false
 
   /event-target-shim@5.0.1:
     resolution: {integrity: sha512-i/2XbnSz/uxRCU6+NdVJgKWDTM427+MqYbkQzD321DuCQJUqOuJKIA0IM2+W2xtYHdKOmZ4dR6fExsd4SXL+WQ==}
