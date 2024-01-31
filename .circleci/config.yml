@@ -759,6 +759,20 @@ jobs:
           paths:
             - "/root/.cache/golangci-lint"
 
+  op-challenger-check-hex2bytes:
+    docker:
+      - image: <<pipeline.parameters.ci_builder_image>>
+    resource_class: medium
+    steps:
+      - checkout
+      - restore_cache:
+          name: Restore Go modules cache
+          key: gomod-{{ checksum "go.sum" }}
+      - attach_workspace: { at: "." }
+      - run:
+          name: Install dependencies
+          command: make -C ./op-challenger hex2bytes-check
+
   go-test:
     parameters:
       module:
@@ -1456,6 +1470,8 @@ workflows:
           name: cannon-fuzz
           package_name: cannon
           on_changes: cannon,packages/contracts-bedrock/src/cannon
+          requires: ["op-stack-go-lint"]
+      - op-challenger-check-hex2bytes:
           requires: ["op-stack-go-lint"]
       - go-test:
           name: op-heartbeat-tests
