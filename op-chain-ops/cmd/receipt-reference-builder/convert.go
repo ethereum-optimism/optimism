@@ -35,7 +35,12 @@ func convert(ctx *cli.Context) error {
 			log.Error("failed to read aggregate", "file", f, "err", err)
 			return err
 		}
-		w.writeAggregate(a, ctx.String("output"))
+		err = w.writeAggregate(a, ctx.String("output"))
+		if err != nil {
+			log.Error("failed to write aggregate", "file", f, "err", err)
+			return err
+		}
+
 	}
 	return nil
 }

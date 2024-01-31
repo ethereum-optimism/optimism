@@ -15,7 +15,7 @@ type aggregateReaderWriter interface {
 type jsonAggregateReaderWriter struct{}
 
 // writeAggregate writes the aggregate to a file in json format
-// if the output file is not specified, it will creeate a file based on the block range
+// if the output file is not specified, it will create a file based on the block range
 func (w jsonAggregateReaderWriter) writeAggregate(a aggregate, o string) error {
 	if o == "" {
 		o = fmt.Sprintf("%d-%d.json", a.First, a.Last)
