@@ -22,7 +22,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 )
 
-var ErrSequencerAlreadyStarted = errors.New("sequencer already running")
+var (
+	ErrSequencerAlreadyStarted = errors.New("sequencer already running")
+	ErrSequencerAlreadyStopped = errors.New("sequencer not running")
+)
 
 // Deprecated: use eth.SyncStatus instead.
 type SyncStatus = eth.SyncStatus
@@ -429,7 +432,7 @@ func (s *Driver) eventLoop() {
 			}
 		case respCh := <-s.stopSequencer:
 			if s.driverConfig.SequencerStopped {
-				respCh <- hashAndError{err: errors.New("sequencer not running")}
+				respCh <- hashAndError{err: ErrSequencerAlreadyStopped}
 			} else {
 				if err := s.sequencerNotifs.SequencerStopped(); err != nil {
 					respCh <- hashAndError{err: fmt.Errorf("sequencer start notification: %w", err)}
