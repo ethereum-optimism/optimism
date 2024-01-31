@@ -3,6 +3,7 @@ package claims
 import (
 	"context"
 	"errors"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -62,10 +63,10 @@ func TestBondClaimScheduler_Schedule(t *testing.T) {
 			err := scheduler.Schedule(1, test.games)
 			require.NoError(t, err)
 			require.Eventually(t, func() bool {
-				return claimer.claimCalls == test.expectedClaimCalls
+				return int(claimer.claimCalls.Load()) == test.expectedClaimCalls
 			}, 10*time.Second, 10*time.Millisecond)
 			require.Eventually(t, func() bool {
-				return metrics.failedCalls == test.expectedMetricCalls
+				return int(metrics.failedCalls.Load()) == test.expectedMetricCalls
 			}, 10*time.Second, 10*time.Millisecond)
 		})
 	}
@@ -80,19 +81,19 @@ func setupTestBondClaimScheduler(t *testing.T) (*BondClaimScheduler, *stubMetric
 }
 
 type stubMetrics struct {
-	failedCalls int
+	failedCalls atomic.Int64
 }
 
 func (s *stubMetrics) RecordBondClaimFailed() {
-	s.failedCalls++
+	s.failedCalls.Add(1)
 }
 
 type stubClaimer struct {
-	claimCalls int
+	claimCalls atomic.Int64
 	claimErr   error
 }
 
 func (s *stubClaimer) ClaimBonds(ctx context.Context, games []types.GameMetadata) error {
-	s.claimCalls++
+	s.claimCalls.Add(1)
 	return s.claimErr
 }
