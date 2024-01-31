@@ -160,9 +160,10 @@ contract DelayedVetoable_HandleCall_TestFail is DelayedVetoable_Init {
         assumeNoClash(data);
         vm.prank(initiator);
         (bool success,) = address(delayedVetoable).call(data);
+        success;
 
         vm.expectRevert();
-        (bool revertsAsExpected, bytes memory revertData) = address(delayedVetoable).call(data);
+        (bool revertsAsExpected,) = address(delayedVetoable).call(data);
         assertTrue(revertsAsExpected);
     }
 
@@ -242,7 +243,7 @@ contract DelayedVetoable_HandleCall_TestFail is DelayedVetoable_Init {
     }
 
     /// @dev A test documenting the single instance in which the contract is not 'transparent' to the initiator.
-    function testFuzz_handleCall_queuedAtClash_reverts(bytes memory outData) external {
+    function testFuzz_handleCall_queuedAtClash_reverts() external {
         // This will get us calldata with the same function selector as the queuedAt function, but
         // with the incorrect input data length.
         bytes memory inData = abi.encodePacked(keccak256("queuedAt(bytes32)"));
