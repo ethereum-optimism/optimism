@@ -1080,6 +1080,30 @@
     "filename_relative": "src/universal/CrossDomainMessenger.sol"
   },
   {
+    "id": "ef5cd67f78205ab8eebc31cd1bf78fa51ac2f8ab4d776a5d08bed46c9f1d13fc",
+    "impact": "Medium",
+    "confidence": "High",
+    "check": "tautology",
+    "description": "DisputeGameFactory.findLatestGames(GameType,uint256,uint256) (src/dispute/DisputeGameFactory.sol#137-177) contains a tautology or contradiction:\n\t- i >= 0 && i <= _start (src/dispute/DisputeGameFactory.sol#157)\n",
+    "type": "function",
+    "name": "findLatestGames",
+    "start": 5076,
+    "length": 1595,
+    "filename_relative": "src/dispute/DisputeGameFactory.sol"
+  },
+  {
+    "id": "ef5cd67f78205ab8eebc31cd1bf78fa51ac2f8ab4d776a5d08bed46c9f1d13fc",
+    "impact": "Medium",
+    "confidence": "High",
+    "check": "tautology",
+    "description": "DisputeGameFactory.findLatestGames(GameType,uint256,uint256) (src/dispute/DisputeGameFactory.sol#137-177) contains a tautology or contradiction:\n\t- i >= 0 && i <= _start (src/dispute/DisputeGameFactory.sol#157)\n",
+    "type": "node",
+    "name": "i >= 0 && i <= _start",
+    "start": 5923,
+    "length": 21,
+    "filename_relative": "src/dispute/DisputeGameFactory.sol"
+  },
+  {
     "id": "0369380fef18a61639eac6a12773df792e9969e7bb20eddde54ccf3a263a0987",
     "impact": "Medium",
     "confidence": "Medium",
