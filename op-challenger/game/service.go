@@ -16,6 +16,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/claims"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/loader"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/registry"
@@ -48,6 +49,8 @@ type Service struct {
 	txSender *sender.TxSender
 
 	loader *loader.GameLoader
+
+	claimer *claims.BondClaimScheduler
 
 	factoryContract *contracts.DisputeGameFactoryContract
 	registry        *registry.GameTypeRegistry
@@ -104,6 +107,9 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 	}
 	if err := s.initGameLoader(); err != nil {
 		return fmt.Errorf("failed to init game loader: %w", err)
+	}
+	if err := s.initBondClaims(cfg); err != nil {
+		return fmt.Errorf("failed to init bond claiming: %w", err)
 	}
 	if err := s.registerGameTypes(ctx, cfg); err != nil {
 		return fmt.Errorf("failed to register game types: %w", err)
@@ -201,6 +207,13 @@ func (s *Service) initGameLoader() error {
 	return nil
 }
 
+func (s *Service) initBondClaims(cfg *config.Config) error {
+	caller := batching.NewMultiCaller(s.l1Client.Client(), batching.DefaultBatchSize)
+	claimer := claims.NewBondClaimer(s.logger, s.metrics, caller, s.txSender)
+	s.claimer = claims.NewBondClaimScheduler(s.logger, s.metrics, claimer)
+	return nil
+}
+
 func (s *Service) initRollupClient(ctx context.Context, cfg *config.Config) error {
 	if cfg.RollupRpc == "" {
 		return nil
@@ -240,7 +253,7 @@ func (s *Service) initLargePreimages() error {
 }
 
 func (s *Service) initMonitor(cfg *config.Config) {
-	s.monitor = newGameMonitor(s.logger, s.cl, s.loader, s.sched, s.preimages, cfg.GameWindow, s.l1Client.BlockNumber, cfg.GameAllowlist, s.pollClient)
+	s.monitor = newGameMonitor(s.logger, s.cl, s.loader, s.sched, s.preimages, cfg.GameWindow, s.claimer, s.l1Client.BlockNumber, cfg.GameAllowlist, s.pollClient)
 }
 
 func (s *Service) Start(ctx context.Context) error {
