@@ -299,24 +299,44 @@ func sequencerCfg(rpcPort int) *rollupNode.Config {
 	}
 }
 
-func waitForLeadershipChange(t *testing.T, c *conductor, leader bool) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+func waitFor(t *testing.T, duration time.Duration, condition func() bool) error {
+	ctx, cancel := context.WithTimeout(context.Background(), duration)
 	defer cancel()
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
-			isLeader, err := c.client.Leader(ctx)
-			if err != nil {
-				return err
-			}
-			if isLeader == leader {
+			if condition() {
 				return nil
 			}
 			time.Sleep(500 * time.Millisecond)
 		}
 	}
+}
+
+func waitForLeadershipChange(t *testing.T, c *conductor, leader bool) error {
+	condiction := func() bool {
+		isLeader, err := c.client.Leader(context.Background())
+		if err != nil {
+			return false
+		}
+		return isLeader == leader
+	}
+
+	return waitFor(t, 10*time.Second, condiction)
+}
+
+func waitForSequencerStatusChange(t *testing.T, rollupClient *sources.RollupClient, active bool) error {
+	condiction := func() bool {
+		isActive, err := rollupClient.SequencerActive(context.Background())
+		if err != nil {
+			return false
+		}
+		return isActive == active
+	}
+
+	return waitFor(t, 5*time.Second, condiction)
 }
 
 func leader(t *testing.T, ctx context.Context, con *conductor) bool {
@@ -366,6 +386,15 @@ func findAvailablePort(t *testing.T) int {
 func findLeader(t *testing.T, conductors map[string]*conductor) (string, *conductor) {
 	for id, con := range conductors {
 		if leader(t, context.Background(), con) {
+			return id, con
+		}
+	}
+	return "", nil
+}
+
+func findFollower(t *testing.T, conductors map[string]*conductor) (string, *conductor) {
+	for id, con := range conductors {
+		if !leader(t, context.Background(), con) {
 			return id, con
 		}
 	}
