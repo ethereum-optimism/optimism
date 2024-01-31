@@ -384,6 +384,9 @@ func TestVerifyPreimage(t *testing.T) {
 			require.ErrorIs(t, err, test.expectedErr)
 			require.Equal(t, test.expected.StateMatrix, challenge.StateMatrix, "Correct state matrix")
 			require.Equal(t, test.expected.Prestate, challenge.Prestate, "Correct prestate")
+			if test.expected.Prestate != (types.Leaf{}) {
+				require.Equal(t, test.expected.Prestate.StateCommitment, crypto.Keccak256Hash(challenge.StateMatrix), "Prestate matches leaf commitment")
+			}
 			require.Equal(t, test.expected.PrestateProof, challenge.PrestateProof, "Correct prestate proof")
 			require.Equal(t, test.expected.Poststate, challenge.Poststate, "Correct poststate")
 			require.Equal(t, test.expected.PoststateProof, challenge.PoststateProof, "Correct poststate proof")
