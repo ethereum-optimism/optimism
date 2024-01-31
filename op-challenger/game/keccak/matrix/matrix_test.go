@@ -43,7 +43,7 @@ func TestStateCommitment(t *testing.T) {
 		t.Run("", func(t *testing.T) {
 			state := NewStateMatrix()
 			copy(state.s.a[:], test.matrix)
-			expected := crypto.Keccak256Hash(common.Hex2Bytes(test.expectedPacked))
+			expected := crypto.Keccak256Hash(common.FromHex(test.expectedPacked))
 			actual := state.StateCommitment()
 			require.Equal(t, test.expectedPacked, common.Bytes2Hex(state.StateSnapshot().Pack()))
 			require.Equal(t, expected, actual)

@@ -10,7 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
-var absolutePrestate = common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000060")
+var absolutePrestate = common.FromHex("0000000000000000000000000000000000000000000000000000000000000060")
 var absolutePrestateInt = new(big.Int).SetBytes(absolutePrestate)
 
 var _ types.PrestateProvider = (*AlphabetPrestateProvider)(nil)
