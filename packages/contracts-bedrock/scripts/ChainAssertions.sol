@@ -60,6 +60,9 @@ library ChainAssertions {
         console.log("Running chain assertions on the SystemConfig");
         SystemConfig config = SystemConfig(_contracts.SystemConfig);
 
+        bytes32 initialized = vm.load(address(config), bytes32(0));
+        require(initialized != 0);
+
         ResourceMetering.ResourceConfig memory resourceConfig = config.resourceConfig();
 
         if (_isProxy) {
@@ -119,6 +122,9 @@ library ChainAssertions {
         console.log("Running chain assertions on the L1CrossDomainMessenger");
         L1CrossDomainMessenger messenger = L1CrossDomainMessenger(_contracts.L1CrossDomainMessenger);
 
+        bytes32 initialized = vm.load(address(messenger), bytes32(0));
+        require(initialized != 0);
+
         require(address(messenger.OTHER_MESSENGER()) == Predeploys.L2_CROSS_DOMAIN_MESSENGER);
         require(address(messenger.otherMessenger()) == Predeploys.L2_CROSS_DOMAIN_MESSENGER);
 
@@ -139,6 +145,9 @@ library ChainAssertions {
     function checkL1StandardBridge(Types.ContractSet memory _contracts, bool _isProxy) internal view {
         console.log("Running chain assertions on the L1StandardBridge");
         L1StandardBridge bridge = L1StandardBridge(payable(_contracts.L1StandardBridge));
+
+        bytes32 initialized = vm.load(address(bridge), bytes32(0));
+        require(initialized != 0);
 
         if (_isProxy) {
             require(address(bridge.MESSENGER()) == _contracts.L1CrossDomainMessenger);
@@ -167,6 +176,9 @@ library ChainAssertions {
     {
         console.log("Running chain assertions on the L2OutputOracle");
         L2OutputOracle oracle = L2OutputOracle(_contracts.L2OutputOracle);
+
+        bytes32 initialized = vm.load(address(oracle), bytes32(0));
+        require(initialized != 0);
 
         if (_isProxy) {
             require(oracle.SUBMISSION_INTERVAL() == _cfg.l2OutputOracleSubmissionInterval());
@@ -202,6 +214,9 @@ library ChainAssertions {
         console.log("Running chain assertions on the OptimismMintableERC20Factory");
         OptimismMintableERC20Factory factory = OptimismMintableERC20Factory(_contracts.OptimismMintableERC20Factory);
 
+        bytes32 initialized = vm.load(address(factory), bytes32(0));
+        require(initialized != 0);
+
         if (_isProxy) {
             require(factory.BRIDGE() == _contracts.L1StandardBridge);
             require(factory.bridge() == _contracts.L1StandardBridge);
@@ -215,6 +230,9 @@ library ChainAssertions {
     function checkL1ERC721Bridge(Types.ContractSet memory _contracts, bool _isProxy) internal view {
         console.log("Running chain assertions on the L1ERC721Bridge");
         L1ERC721Bridge bridge = L1ERC721Bridge(_contracts.L1ERC721Bridge);
+
+        bytes32 initialized = vm.load(address(bridge), bytes32(0));
+        require(initialized != 0);
 
         require(address(bridge.OTHER_BRIDGE()) == Predeploys.L2_ERC721_BRIDGE);
         require(address(bridge.otherBridge()) == Predeploys.L2_ERC721_BRIDGE);
@@ -233,8 +251,10 @@ library ChainAssertions {
     /// @notice Asserts the OptimismPortal is setup correctly
     function checkOptimismPortal(Types.ContractSet memory _contracts, DeployConfig _cfg, bool _isProxy) internal view {
         console.log("Running chain assertions on the OptimismPortal");
-
         OptimismPortal portal = OptimismPortal(payable(_contracts.OptimismPortal));
+
+        bytes32 initialized = vm.load(address(portal), bytes32(0));
+        require(initialized != 0);
 
         address guardian = _cfg.superchainConfigGuardian();
         if (guardian.code.length == 0) {
@@ -308,6 +328,10 @@ library ChainAssertions {
     {
         console.log("Running chain assertions on the ProtocolVersions");
         ProtocolVersions versions = ProtocolVersions(_contracts.ProtocolVersions);
+
+        bytes32 initialized = vm.load(address(versions), bytes32(0));
+        require(initialized != 0);
+
         if (_isProxy) {
             require(versions.owner() == _cfg.finalSystemOwner());
             require(ProtocolVersion.unwrap(versions.required()) == _cfg.requiredProtocolVersion());
@@ -330,6 +354,10 @@ library ChainAssertions {
     {
         console.log("Running chain assertions on the SuperchainConfig");
         SuperchainConfig superchainConfig = SuperchainConfig(_contracts.SuperchainConfig);
+
+        bytes32 initialized = vm.load(address(superchainConfig), bytes32(0));
+        require(initialized != 0);
+
         require(superchainConfig.guardian() == _cfg.superchainConfigGuardian());
         require(superchainConfig.paused() == _isPaused);
     }
