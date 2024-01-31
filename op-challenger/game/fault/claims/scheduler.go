@@ -8,12 +8,17 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-type BondClaimerScheduler struct {
+type BondClaimScheduler struct {
 	log     log.Logger
+	metrics BondClaimSchedulerMetrics
 	ch      chan schedulerMessage
 	claimer BondClaimer
 	cancel  func()
 	wg      sync.WaitGroup
+}
+
+type BondClaimSchedulerMetrics interface {
+	RecordBondClaimFailed()
 }
 
 type schedulerMessage struct {
@@ -21,28 +26,29 @@ type schedulerMessage struct {
 	games       []types.GameMetadata
 }
 
-func NewBondClaimerScheduler(logger log.Logger, claimer BondClaimer) *BondClaimerScheduler {
-	return &BondClaimerScheduler{
+func NewBondClaimScheduler(logger log.Logger, metrics BondClaimSchedulerMetrics, claimer BondClaimer) *BondClaimScheduler {
+	return &BondClaimScheduler{
 		log:     logger,
+		metrics: metrics,
 		ch:      make(chan schedulerMessage, 1),
 		claimer: claimer,
 	}
 }
 
-func (s *BondClaimerScheduler) Start(ctx context.Context) {
+func (s *BondClaimScheduler) Start(ctx context.Context) {
 	ctx, cancel := context.WithCancel(ctx)
 	s.cancel = cancel
 	s.wg.Add(1)
 	go s.run(ctx)
 }
 
-func (s *BondClaimerScheduler) Close() error {
+func (s *BondClaimScheduler) Close() error {
 	s.cancel()
 	s.wg.Wait()
 	return nil
 }
 
-func (s *BondClaimerScheduler) run(ctx context.Context) {
+func (s *BondClaimScheduler) run(ctx context.Context) {
 	defer s.wg.Done()
 	for {
 		select {
@@ -50,13 +56,14 @@ func (s *BondClaimerScheduler) run(ctx context.Context) {
 			return
 		case msg := <-s.ch:
 			if err := s.claimer.ClaimBonds(ctx, msg.games); err != nil {
+				s.metrics.RecordBondClaimFailed()
 				s.log.Error("Failed to claim bonds", "blockNumber", msg.blockNumber, "err", err)
 			}
 		}
 	}
 }
 
-func (s *BondClaimerScheduler) Schedule(blockNumber uint64, games []types.GameMetadata) error {
+func (s *BondClaimScheduler) Schedule(blockNumber uint64, games []types.GameMetadata) error {
 	select {
 	case s.ch <- schedulerMessage{blockNumber, games}:
 	default:

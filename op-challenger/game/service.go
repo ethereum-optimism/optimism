@@ -50,7 +50,7 @@ type Service struct {
 
 	loader *loader.GameLoader
 
-	claimer *claims.BondClaimerScheduler
+	claimer *claims.BondClaimScheduler
 
 	factoryContract *contracts.DisputeGameFactoryContract
 	registry        *registry.GameTypeRegistry
@@ -108,8 +108,8 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 	if err := s.initGameLoader(); err != nil {
 		return fmt.Errorf("failed to init game loader: %w", err)
 	}
-	if err := s.initBondClaimer(cfg); err != nil {
-		return fmt.Errorf("failed to init bond claimer: %w", err)
+	if err := s.initBondClaims(cfg); err != nil {
+		return fmt.Errorf("failed to init bond claiming: %w", err)
 	}
 	if err := s.registerGameTypes(ctx, cfg); err != nil {
 		return fmt.Errorf("failed to register game types: %w", err)
@@ -207,10 +207,10 @@ func (s *Service) initGameLoader() error {
 	return nil
 }
 
-func (s *Service) initBondClaimer(cfg *config.Config) error {
+func (s *Service) initBondClaims(cfg *config.Config) error {
 	caller := batching.NewMultiCaller(s.l1Client.Client(), batching.DefaultBatchSize)
 	claimer := claims.NewBondClaimer(s.logger, s.metrics, caller, s.txSender)
-	s.claimer = claims.NewBondClaimerScheduler(s.logger, claimer)
+	s.claimer = claims.NewBondClaimScheduler(s.logger, s.metrics, claimer)
 	return nil
 }
 
