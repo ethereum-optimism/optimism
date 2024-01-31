@@ -1,9 +1,13 @@
 package op_e2e
 
 import (
+	"context"
+	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/op-conductor/consensus"
 )
 
 // [Category: Initial Setup]
