@@ -58,7 +58,7 @@
     "@types/morgan": "^1.9.9",
     "@types/pino": "^7.0.5",
     "@types/pino-multi-stream": "^5.1.6",
-    "chai": "^4.3.10",
+    "chai": "^5.0.3",
     "supertest": "^6.3.4"
   }
 }

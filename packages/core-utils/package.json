@@ -44,7 +44,7 @@
     "@ethersproject/properties": "^5.7.0",
     "@ethersproject/rlp": "^5.7.0",
     "@ethersproject/web": "^5.7.1",
-    "chai": "^4.3.10",
+    "chai": "^5.0.3",
     "ethers": "^5.7.2",
     "node-fetch": "^2.6.7"
   },

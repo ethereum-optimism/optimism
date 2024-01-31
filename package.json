@@ -49,7 +49,7 @@
     "@types/node": "^20.11.13",
     "@typescript-eslint/eslint-plugin": "^6.19.1",
     "@typescript-eslint/parser": "^6.19.1",
-    "chai": "^4.3.10",
+    "chai": "^5.0.3",
     "depcheck": "^1.4.7",
     "doctoc": "^2.2.0",
     "eslint": "^8.56.0",
