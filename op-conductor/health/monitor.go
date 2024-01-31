@@ -44,6 +44,7 @@ func NewSequencerHealthMonitor(log log.Logger, interval, unsafeInterval, safeInt
 		unsafeInterval: unsafeInterval,
 		safeInterval:   safeInterval,
 		minPeerCount:   minPeerCount,
+		timeProviderFn: currentTimeProvicer,
 		node:           node,
 		p2p:            p2p,
 	}
@@ -63,6 +64,8 @@ type SequencerHealthMonitor struct {
 	healthUpdateCh     chan error
 	lastSeenUnsafeNum  uint64
 	lastSeenUnsafeTime uint64
+
+	timeProviderFn func() uint64
 
 	node dial.RollupClientInterface
 	p2p  p2p.API
@@ -125,28 +128,34 @@ func (hm *SequencerHealthMonitor) healthCheck() error {
 		return ErrSequencerConnectionDown
 	}
 
-	now := uint64(time.Now().Unix())
+	now := hm.timeProviderFn()
 
+	var timeDiff, blockDiff, expectedBlocks uint64
 	if hm.lastSeenUnsafeNum != 0 {
-		diff := now - hm.lastSeenUnsafeTime
+		timeDiff = now - hm.lastSeenUnsafeTime
+		blockDiff = status.UnsafeL2.Number - hm.lastSeenUnsafeNum
 		// how many blocks do we expect to see, minus 1 to account for edge case with respect to time.
 		// for example, if diff = 2.001s and block time = 2s, expecting to see 1 block could potentially cause sequencer to be considered unhealthy.
-		blocks := diff/hm.rollupCfg.BlockTime - 1
-		if diff > hm.rollupCfg.BlockTime && blocks > status.UnsafeL2.Number-hm.lastSeenUnsafeNum {
-			hm.log.Error(
-				"unsafe head is not progressing as expected",
-				"now", now,
-				"unsafe_head_num", status.UnsafeL2.Number,
-				"last_seen_unsafe_num", hm.lastSeenUnsafeNum,
-				"last_seen_unsafe_time", hm.lastSeenUnsafeTime,
-				"unsafe_interval", hm.unsafeInterval,
-			)
-			return ErrSequencerNotHealthy
+		expectedBlocks = timeDiff / hm.rollupCfg.BlockTime
+		if expectedBlocks > 0 {
+			expectedBlocks--
 		}
 	}
 	if status.UnsafeL2.Number > hm.lastSeenUnsafeNum {
 		hm.lastSeenUnsafeNum = status.UnsafeL2.Number
 		hm.lastSeenUnsafeTime = now
+	}
+
+	if timeDiff > hm.rollupCfg.BlockTime && expectedBlocks > blockDiff {
+		hm.log.Error(
+			"unsafe head is not progressing as expected",
+			"now", now,
+			"unsafe_head_num", status.UnsafeL2.Number,
+			"last_seen_unsafe_num", hm.lastSeenUnsafeNum,
+			"last_seen_unsafe_time", hm.lastSeenUnsafeTime,
+			"unsafe_interval", hm.unsafeInterval,
+		)
+		return ErrSequencerNotHealthy
 	}
 
 	if now-status.UnsafeL2.Time > hm.unsafeInterval {
@@ -182,4 +191,8 @@ func (hm *SequencerHealthMonitor) healthCheck() error {
 	}
 
 	return nil
+}
+
+func currentTimeProvicer() uint64 {
+	return uint64(time.Now().Unix())
 }

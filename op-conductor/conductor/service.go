@@ -538,7 +538,7 @@ func (oc *OpConductor) action() {
 		// stop sequencer, this happens when current server steps down as leader.
 		err = oc.stopSequencer()
 	case status.leader && !status.healthy && !status.active:
-		// There are 2 scenarios we need to handle here:
+		// There are 2 scenarios we need to handle:
 		// 1. current node is follower, active sequencer became unhealthy and started the leadership transfer process.
 		//    however if leadership transfer took longer than the time for health monitor to treat the node as unhealthy,
 		//    then basically the entire network is stalled and we need to start sequencing in this case.
