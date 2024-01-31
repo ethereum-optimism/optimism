@@ -92,9 +92,9 @@ type OpConductorTestSuite struct {
 	cons    *consensusmocks.Consensus
 	hmon    *healthmocks.HealthMonitor
 
-	syncEnabled bool
-	next        chan struct{}
-	wg          sync.WaitGroup
+	syncEnabled bool           // syncEnabled controls whether synchronization is enabled for test actions.
+	next        chan struct{}  // next is used to signal when the next action in the test can proceed.
+	wg          sync.WaitGroup // wg ensures that test actions are completed before moving on.
 }
 
 func (s *OpConductorTestSuite) SetupSuite() {
