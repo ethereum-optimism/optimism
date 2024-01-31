@@ -16,6 +16,10 @@ cleanup() {
   if [ -f "snapshots/state-diff/Deploy.json" ]; then
     rm "snapshots/state-diff/Deploy.json"
   fi
+
+  if [ "${LOCAL}" = false ]; then
+    clean_docker
+  fi
 }
 
 # Set trap to call cleanup function on exit

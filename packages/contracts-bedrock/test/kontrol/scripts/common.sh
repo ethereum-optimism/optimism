@@ -81,6 +81,12 @@ start_docker () {
   docker exec --user root ${CONTAINER_NAME} chown -R user:user /home/user
 }
 
+clean_docker(){
+  notif "Stopping Docker Container"
+  docker stop "${CONTAINER_NAME}"
+}
+
+
 docker_exec () {
   docker exec --user user --workdir /home/user/workspace ${CONTAINER_NAME} "${@}"
 }

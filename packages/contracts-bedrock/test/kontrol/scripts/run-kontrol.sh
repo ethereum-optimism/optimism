@@ -71,11 +71,6 @@ dump_log_results(){
     fi
 }
 
-clean_docker(){
-  notif "Stopping Docker Container"
-  docker stop "${CONTAINER_NAME}"
-}
-
 # Define the function to run on failure
 on_failure() {
   dump_log_results
