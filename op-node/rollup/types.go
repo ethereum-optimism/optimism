@@ -278,23 +278,6 @@ func (cfg *Config) Check() error {
 		return ErrL2ChainIDNotPositive
 	}
 
-	// checkFork checks that fork A is before or at the same time as fork B
-	checkFork := func(a, b *uint64, aName, bName string) error {
-		if a == nil && b == nil {
-			return nil
-		}
-		if a == nil && b != nil {
-			return fmt.Errorf("fork %s set (to %d), but prior fork %s missing", bName, *b, aName)
-		}
-		if a != nil && b == nil {
-			return nil
-		}
-		if *a > *b {
-			return fmt.Errorf("fork %s set to %d, but prior fork %s has higher offset %d", bName, *b, aName, *a)
-		}
-		return nil
-	}
-
 	if err := checkFork(cfg.RegolithTime, cfg.CanyonTime, "regolith", "canyon"); err != nil {
 		return err
 	}
@@ -308,6 +291,23 @@ func (cfg *Config) Check() error {
 		return err
 	}
 
+	return nil
+}
+
+// checkFork checks that fork A is before or at the same time as fork B
+func checkFork(a, b *uint64, aName, bName string) error {
+	if a == nil && b == nil {
+		return nil
+	}
+	if a == nil && b != nil {
+		return fmt.Errorf("fork %s set (to %d), but prior fork %s missing", bName, *b, aName)
+	}
+	if a != nil && b == nil {
+		return nil
+	}
+	if *a > *b {
+		return fmt.Errorf("fork %s set to %d, but prior fork %s has higher offset %d", bName, *b, aName, *a)
+	}
 	return nil
 }
 
