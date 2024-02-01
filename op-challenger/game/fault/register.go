@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/claims"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/cannon"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
@@ -28,6 +29,7 @@ type CloseFunc func()
 
 type Registry interface {
 	RegisterGameType(gameType uint32, creator scheduler.PlayerCreator, oracle keccakTypes.LargePreimageOracle)
+	RegisterBondContract(gameType uint32, creator claims.BondContractCreator)
 }
 
 func RegisterGameTypes(
@@ -106,6 +108,11 @@ func registerAlphabet(
 		return err
 	}
 	registry.RegisterGameType(alphabetGameType, playerCreator, oracle)
+
+	contractCreator := func(game types.GameMetadata) (claims.BondContract, error) {
+		return contracts.NewFaultDisputeGameContract(game.Proxy, caller)
+	}
+	registry.RegisterBondContract(alphabetGameType, contractCreator)
 	return nil
 }
 
@@ -168,5 +175,10 @@ func registerCannon(
 		return err
 	}
 	registry.RegisterGameType(cannonGameType, playerCreator, oracle)
+
+	contractCreator := func(game types.GameMetadata) (claims.BondContract, error) {
+		return contracts.NewFaultDisputeGameContract(game.Proxy, caller)
+	}
+	registry.RegisterBondContract(cannonGameType, contractCreator)
 	return nil
 }
