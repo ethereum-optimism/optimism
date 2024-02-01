@@ -15,7 +15,7 @@ contract PreimageOracle_Test is Test {
 
     /// @notice Sets up the testing suite.
     function setUp() public {
-        oracle = new PreimageOracle(0, 0);
+        oracle = new PreimageOracle(0, 0, 0);
         vm.label(address(oracle), "PreimageOracle");
     }
 
@@ -182,7 +182,11 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
 
     /// @notice Sets up the testing suite.
     function setUp() public {
-        oracle = new PreimageOracle({ _minProposalSize: MIN_SIZE_BYTES, _challengePeriod: CHALLENGE_PERIOD });
+        oracle = new PreimageOracle({
+            _minProposalSize: MIN_SIZE_BYTES,
+            _challengePeriod: CHALLENGE_PERIOD,
+            _cancunActivation: 0
+        });
         vm.label(address(oracle), "PreimageOracle");
 
         // Set `tx.origin` and `msg.sender` to `address(this)` so that it may behave like an EOA for `addLeavesLPP`.
@@ -204,7 +208,8 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
 
     /// @notice Tests that the `initLPP` function reverts when the part offset is out of bounds of the full preimage.
     function test_initLPP_sizeTooSmall_reverts() public {
-        oracle = new PreimageOracle({ _minProposalSize: 1000, _challengePeriod: CHALLENGE_PERIOD });
+        oracle =
+            new PreimageOracle({ _minProposalSize: 1000, _challengePeriod: CHALLENGE_PERIOD, _cancunActivation: 0 });
 
         // Allocate the preimage data.
         bytes memory data = new bytes(136);
