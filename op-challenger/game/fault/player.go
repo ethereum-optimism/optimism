@@ -44,7 +44,7 @@ type resourceCreator func(ctx context.Context, logger log.Logger, gameDepth type
 
 func NewGamePlayer(
 	ctx context.Context,
-	cl clock.Clock,
+	cl clock.SimpleClock,
 	logger log.Logger,
 	m metrics.Metricer,
 	dir string,

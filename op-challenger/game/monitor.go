@@ -40,7 +40,7 @@ type claimer interface {
 
 type gameMonitor struct {
 	logger           log.Logger
-	clock            clock.Clock
+	clock            clock.SimpleClock
 	source           gameSource
 	scheduler        gameScheduler
 	preimages        preimageScheduler
@@ -67,7 +67,7 @@ func (s *headSource) SubscribeNewHead(ctx context.Context, ch chan<- *ethTypes.H
 
 func newGameMonitor(
 	logger log.Logger,
-	cl clock.Clock,
+	cl clock.SimpleClock,
 	source gameSource,
 	scheduler gameScheduler,
 	preimages preimageScheduler,
@@ -140,6 +140,7 @@ func (m *gameMonitor) progressGames(ctx context.Context, blockHash common.Hash, 
 }
 
 func (m *gameMonitor) onNewL1Head(ctx context.Context, sig eth.L1BlockRef) {
+	m.clock.SetTime(time.Unix(int64(sig.Time), 0))
 	if err := m.progressGames(ctx, sig.Hash, sig.Number); err != nil {
 		m.logger.Error("Failed to progress games", "err", err)
 	}

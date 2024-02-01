@@ -33,7 +33,7 @@ type Registry interface {
 func RegisterGameTypes(
 	registry Registry,
 	ctx context.Context,
-	cl clock.Clock,
+	cl clock.SimpleClock,
 	logger log.Logger,
 	m metrics.Metricer,
 	cfg *config.Config,
@@ -68,7 +68,7 @@ func RegisterGameTypes(
 func registerAlphabet(
 	registry Registry,
 	ctx context.Context,
-	cl clock.Clock,
+	cl clock.SimpleClock,
 	logger log.Logger,
 	m metrics.Metricer,
 	rollupClient outputs.OutputRollupClient,
@@ -128,7 +128,7 @@ func createOracle(ctx context.Context, gameFactory *contracts.DisputeGameFactory
 func registerCannon(
 	registry Registry,
 	ctx context.Context,
-	cl clock.Clock,
+	cl clock.SimpleClock,
 	logger log.Logger,
 	m metrics.Metricer,
 	cfg *config.Config,

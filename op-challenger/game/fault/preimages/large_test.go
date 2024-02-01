@@ -249,7 +249,6 @@ func TestLargePreimageUploader_UploadPreimage_Succeeds(t *testing.T) {
 			require.Equal(t, poststate, contract.squeezePoststate)
 		})
 	}
-
 }
 
 func newTestLargePreimageUploader(t *testing.T) (*LargePreimageUploader, *clock.AdvancingClock, *mockTxSender, *mockPreimageOracleContract) {

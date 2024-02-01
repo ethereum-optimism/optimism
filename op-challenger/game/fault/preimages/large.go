@@ -8,12 +8,12 @@ import (
 	"fmt"
 	"io"
 	"math/big"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/matrix"
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
-	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
@@ -34,18 +34,22 @@ const MaxBlocksPerChunk = 300
 // The max chunk size is roughly 0.04MB to avoid memory expansion.
 const MaxChunkSize = MaxBlocksPerChunk * keccakTypes.BlockSize
 
+type ClockReader interface {
+	Now() time.Time
+}
+
 // LargePreimageUploader handles uploading large preimages by
 // streaming the merkleized preimage to the PreimageOracle contract,
 // tightly packed across multiple transactions.
 type LargePreimageUploader struct {
 	log log.Logger
 
-	clock    clock.Clock
+	clock    ClockReader
 	txSender gameTypes.TxSender
 	contract PreimageOracleContract
 }
 
-func NewLargePreimageUploader(logger log.Logger, cl clock.Clock, txSender gameTypes.TxSender, contract PreimageOracleContract) *LargePreimageUploader {
+func NewLargePreimageUploader(logger log.Logger, cl ClockReader, txSender gameTypes.TxSender, contract PreimageOracleContract) *LargePreimageUploader {
 	return &LargePreimageUploader{logger, cl, txSender, contract}
 }
 
