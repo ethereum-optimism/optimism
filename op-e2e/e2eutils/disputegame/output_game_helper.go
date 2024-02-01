@@ -360,23 +360,28 @@ type Mover func(parent *ClaimHelper) *ClaimHelper
 // Stepper is a function that attempts to perform a step against the claim at parentClaimIdx
 type Stepper func(parentClaimIdx int64)
 
-type CounterCheckOpt func(ctx context.Context, claim *ClaimHelper)
-
-func (g *OutputGameHelper) CreateWaitForCounterCheck() CounterCheckOpt {
-	return func(ctx context.Context, claim *ClaimHelper) {
-		claim.WaitForCountered(ctx)
-	}
+type defendClaimCfg struct {
+	skipWaitingForStep bool
 }
 
-func (g *OutputGameHelper) EmptyMaxDepthCounterCheck() CounterCheckOpt {
-	return func(context.Context, *ClaimHelper) {}
+type DefendClaimOpt func(cfg *defendClaimCfg)
+
+func WithoutWaitingForStep() DefendClaimOpt {
+	return func(cfg *defendClaimCfg) {
+		cfg.skipWaitingForStep = true
+	}
 }
 
 // DefendClaim uses the supplied Mover to perform moves in an attempt to defend the supplied claim.
 // It is assumed that the specified claim is invalid and that an honest op-challenger is already running.
 // When the game has reached the maximum depth it waits for the honest challenger to counter the leaf claim with step.
-func (g *OutputGameHelper) DefendClaim(ctx context.Context, claim *ClaimHelper, performMove Mover, counterCheck CounterCheckOpt) {
+// Returns the final leaf claim
+func (g *OutputGameHelper) DefendClaim(ctx context.Context, claim *ClaimHelper, performMove Mover, opts ...DefendClaimOpt) *ClaimHelper {
 	g.t.Logf("Defending claim %v at depth %v", claim.index, claim.Depth())
+	cfg := &defendClaimCfg{}
+	for _, opt := range opts {
+		opt(cfg)
+	}
 	for !claim.IsMaxDepth(ctx) {
 		g.LogGameData(ctx)
 		// Wait for the challenger to counter
@@ -387,7 +392,10 @@ func (g *OutputGameHelper) DefendClaim(ctx context.Context, claim *ClaimHelper, 
 		claim = performMove(claim)
 	}
 
-	counterCheck(ctx, claim)
+	if !cfg.skipWaitingForStep {
+		claim.WaitForCountered(ctx)
+	}
+	return claim
 }
 
 // ChallengeClaim uses the supplied functions to perform moves and steps in an attempt to challenge the supplied claim.
@@ -525,11 +533,15 @@ func (g *OutputGameHelper) ChallengePeriodStartTime(ctx context.Context, sender 
 	return metadata[0].Timestamp
 }
 
-func (g *OutputGameHelper) preimageExistsInOracle(ctx context.Context, data *types.PreimageOracleData) bool {
+func (g *OutputGameHelper) waitForPreimageInOracle(ctx context.Context, data *types.PreimageOracleData) {
+	timedCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
 	oracle := g.oracle(ctx)
-	exists, err := oracle.GlobalDataExists(ctx, data)
-	g.require.NoError(err)
-	return exists
+	err := wait.For(timedCtx, time.Second, func() (bool, error) {
+		g.t.Logf("Waiting for preimage (%v) to be present in oracle", data.OracleKey)
+		return oracle.GlobalDataExists(ctx, data)
+	})
+	g.require.NoErrorf(err, "Did not find preimage (%v) in oracle", data.OracleKey)
 }
 
 func (g *OutputGameHelper) uploadPreimage(ctx context.Context, data *types.PreimageOracleData, privateKey *ecdsa.PrivateKey) {
