@@ -12,13 +12,15 @@ REBUILD_ALL_PATTERNS = [
     r'^\.github/\.*',
     r'^package\.json',
     r'ops/check-changed/.*',
-    r'^go\.mod',
-    r'^go\.sum',
-    r'ops/check-changed/.*'
 ]
 with open("../../nx.json") as file:
     nx_json_data = json.load(file)
 REBUILD_ALL_PATTERNS += nx_json_data["implicitDependencies"].keys()
+
+GO_PATTERNS = [
+    r'^go\.mod',
+    r'^go\.sum',
+]
 
 WHITELISTED_BRANCHES = {
     'master',
@@ -55,8 +57,10 @@ log = logging.getLogger(__name__)
 
 
 def main():
-    patterns = sys.argv[1].split(',')
-    patterns = patterns + REBUILD_ALL_PATTERNS
+    patterns = sys.argv[1].split(',') + REBUILD_ALL_PATTERNS
+    no_go_deps = os.getenv('CHECK_CHANGED_NO_GO_DEPS')
+    if no_go_deps is None:
+        patterns = patterns + GO_PATTERNS
 
     fp = os.path.realpath(__file__)
     monorepo_path = os.path.realpath(os.path.join(fp, '..', '..'))
