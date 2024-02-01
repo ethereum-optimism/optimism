@@ -2,6 +2,7 @@ package prefetcher
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"testing"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
@@ -106,6 +108,117 @@ func createL1Source(t *testing.T) (*RetryingL1Source, *testutils.MockL1Source) {
 	logger := testlog.Logger(t, log.LvlDebug)
 	mock := &testutils.MockL1Source{}
 	source := NewRetryingL1Source(logger, mock)
+	// Avoid sleeping in tests by using a fixed retry strategy with no delay
+	source.strategy = retry.Fixed(0)
+	return source, mock
+}
+
+func TestRetryingL1BlobSource(t *testing.T) {
+	ctx := context.Background()
+	blob := GetRandBlob(0xFACADE)
+	commitment, err := kzgCtx.BlobToKZGCommitment(blob, 0)
+	require.NoError(t, err)
+	versionedHash := sha256.Sum256(commitment[:])
+	versionedHash[0] = params.BlobTxHashVersion
+	blobHash := eth.IndexedBlobHash{Hash: versionedHash, Index: 0xFACADE}
+	l1BlockRef := eth.L1BlockRef{Time: 0}
+
+	t.Run("GetBlobs Success", func(t *testing.T) {
+		source, mock := createL1BlobSource(t)
+		defer mock.AssertExpectations(t)
+		mock.ExpectOnGetBlobs(
+			ctx,
+			l1BlockRef,
+			[]eth.IndexedBlobHash{blobHash},
+			[]*eth.Blob{(*eth.Blob)(&blob)},
+			nil,
+		)
+
+		result, err := source.GetBlobs(ctx, l1BlockRef, []eth.IndexedBlobHash{blobHash})
+		require.NoError(t, err)
+		require.Equal(t, len(result), 1)
+		require.Equal(t, blob[:], result[0][:])
+	})
+
+	t.Run("GetBlobs Error", func(t *testing.T) {
+		source, mock := createL1BlobSource(t)
+		defer mock.AssertExpectations(t)
+		expectedErr := errors.New("boom")
+		mock.ExpectOnGetBlobs(
+			ctx,
+			l1BlockRef,
+			[]eth.IndexedBlobHash{blobHash},
+			nil,
+			expectedErr,
+		)
+		mock.ExpectOnGetBlobs(
+			ctx,
+			l1BlockRef,
+			[]eth.IndexedBlobHash{blobHash},
+			[]*eth.Blob{(*eth.Blob)(&blob)},
+			nil,
+		)
+
+		result, err := source.GetBlobs(ctx, l1BlockRef, []eth.IndexedBlobHash{blobHash})
+		require.NoError(t, err)
+		require.Equal(t, len(result), 1)
+		require.Equal(t, blob[:], result[0][:])
+	})
+
+	t.Run("GetBlobSidecars Success", func(t *testing.T) {
+		source, mock := createL1BlobSource(t)
+		defer mock.AssertExpectations(t)
+		mock.ExpectOnGetBlobSidecars(
+			ctx,
+			l1BlockRef,
+			[]eth.IndexedBlobHash{blobHash},
+			(eth.Bytes48)(commitment),
+			[]*eth.Blob{(*eth.Blob)(&blob)},
+			nil,
+		)
+
+		result, err := source.GetBlobSidecars(ctx, l1BlockRef, []eth.IndexedBlobHash{blobHash})
+		require.NoError(t, err)
+		require.Equal(t, len(result), 1)
+		require.Equal(t, blob[:], result[0].Blob[:])
+		require.Equal(t, blobHash.Index, uint64(result[0].Index))
+		require.Equal(t, (eth.Bytes48)(commitment), result[0].KZGCommitment)
+	})
+
+	t.Run("GetBlobSidecars Error", func(t *testing.T) {
+		source, mock := createL1BlobSource(t)
+		defer mock.AssertExpectations(t)
+		expectedErr := errors.New("boom")
+		mock.ExpectOnGetBlobSidecars(
+			ctx,
+			l1BlockRef,
+			[]eth.IndexedBlobHash{blobHash},
+			(eth.Bytes48)(commitment),
+			[]*eth.Blob{(*eth.Blob)(&blob)},
+			expectedErr,
+		)
+		mock.ExpectOnGetBlobSidecars(
+			ctx,
+			l1BlockRef,
+			[]eth.IndexedBlobHash{blobHash},
+			(eth.Bytes48)(commitment),
+			[]*eth.Blob{(*eth.Blob)(&blob)},
+			nil,
+		)
+
+		result, err := source.GetBlobSidecars(ctx, l1BlockRef, []eth.IndexedBlobHash{blobHash})
+		require.NoError(t, err)
+		require.Equal(t, len(result), 1)
+		require.Equal(t, blob[:], result[0].Blob[:])
+		require.Equal(t, blobHash.Index, uint64(result[0].Index))
+		require.Equal(t, (eth.Bytes48)(commitment), result[0].KZGCommitment)
+	})
+}
+
+func createL1BlobSource(t *testing.T) (*RetryingL1BlobSource, *testutils.MockBlobsFetcher) {
+	logger := testlog.Logger(t, log.LvlDebug)
+	mock := &testutils.MockBlobsFetcher{}
+	source := NewRetryingL1BlobSource(logger, mock)
 	// Avoid sleeping in tests by using a fixed retry strategy with no delay
 	source.strategy = retry.Fixed(0)
 	return source, mock
