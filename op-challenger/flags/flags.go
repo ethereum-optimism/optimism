@@ -131,8 +131,9 @@ var (
 		Value:   config.DefaultCannonInfoFreq,
 	}
 	GameWindowFlag = &cli.DurationFlag{
-		Name:    "game-window",
-		Usage:   "The time window which the challenger will look for games to progress.",
+		Name: "game-window",
+		Usage: "The time window which the challenger will look for games to progress and claim bonds. " +
+			"This should include a buffer for the challenger to claim bonds for games outside the maximum game duration.",
 		EnvVars: prefixEnvVars("GAME_WINDOW"),
 		Value:   config.DefaultGameWindow,
 	}

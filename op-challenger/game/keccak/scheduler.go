@@ -2,6 +2,7 @@ package keccak
 
 import (
 	"context"
+	"errors"
 	"sync"
 
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
@@ -52,7 +53,7 @@ func (s *LargePreimageScheduler) run(ctx context.Context) {
 			return
 		case blockHash := <-s.ch:
 			if err := s.verifyPreimages(ctx, blockHash); err != nil {
-				s.log.Error("Failed to verify large preimages", "err", err)
+				s.log.Error("Failed to verify large preimages", "blockHash", blockHash, "err", err)
 			}
 		}
 	}
@@ -63,18 +64,16 @@ func (s *LargePreimageScheduler) Schedule(blockHash common.Hash, _ uint64) error
 	case s.ch <- blockHash:
 	default:
 		s.log.Trace("Skipping preimage check while already processing")
-		// Already busy processing, skip this update
 	}
 	return nil
 }
 
 func (s *LargePreimageScheduler) verifyPreimages(ctx context.Context, blockHash common.Hash) error {
+	var err error
 	for _, oracle := range s.oracles {
-		if err := s.verifyOraclePreimages(ctx, oracle, blockHash); err != nil {
-			s.log.Error("Failed to verify preimages in oracle %v: %w", oracle.Addr(), err)
-		}
+		err = errors.Join(err, s.verifyOraclePreimages(ctx, oracle, blockHash))
 	}
-	return nil
+	return err
 }
 
 func (s *LargePreimageScheduler) verifyOraclePreimages(ctx context.Context, oracle keccakTypes.LargePreimageOracle, blockHash common.Hash) error {

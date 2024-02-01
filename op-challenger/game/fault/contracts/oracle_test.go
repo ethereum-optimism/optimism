@@ -1,7 +1,6 @@
 package contracts
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"math"
@@ -503,7 +502,7 @@ func TestChallenge_First(t *testing.T) {
 		UUID:     big.NewInt(4829),
 	}
 	challenge := keccakTypes.Challenge{
-		StateMatrix: []byte{1, 2, 3, 4, 5},
+		StateMatrix: keccakTypes.StateSnapshot{1, 2, 3, 4, 5},
 		Prestate:    keccakTypes.Leaf{},
 		Poststate: keccakTypes.Leaf{
 			Input:           [136]byte{5, 4, 3, 2, 1},
@@ -536,7 +535,7 @@ func TestChallenge_NotFirst(t *testing.T) {
 		UUID:     big.NewInt(4829),
 	}
 	challenge := keccakTypes.Challenge{
-		StateMatrix: bytes.Repeat([]byte{1, 2, 3, 4, 5, 6, 7, 8}, 25),
+		StateMatrix: keccakTypes.StateSnapshot{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25},
 		Prestate: keccakTypes.Leaf{
 			Input:           [136]byte{9, 8, 7, 6, 5},
 			Index:           3,
@@ -553,7 +552,7 @@ func TestChallenge_NotFirst(t *testing.T) {
 	stubRpc.SetResponse(oracleAddr, methodChallengeLPP, batching.BlockLatest,
 		[]interface{}{
 			ident.Claimant, ident.UUID,
-			abiEncodePackedState(challenge.StateMatrix),
+			bindings.LibKeccakStateMatrix{State: challenge.StateMatrix},
 			bindings.PreimageOracleLeaf{
 				Input:           challenge.Prestate.Input[:],
 				Index:           new(big.Int).SetUint64(challenge.Prestate.Index),

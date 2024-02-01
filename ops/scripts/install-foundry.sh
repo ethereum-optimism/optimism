@@ -6,7 +6,7 @@ SCRIPTS_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 MONOREPO_DIR=$(cd "$SCRIPTS_DIR/../../" && pwd)
 
 # Grab the foundry commit hash.
-SHA=$(jq -r .foundry < $MONOREPO_DIR/versions.json)
+SHA=$(jq -r .foundry < "$MONOREPO_DIR"/versions.json)
 
 # Check if there is a nightly tag corresponding to the commit hash
 TAG="nightly-$SHA"

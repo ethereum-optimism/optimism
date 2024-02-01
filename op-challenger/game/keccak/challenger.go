@@ -20,6 +20,11 @@ type Oracle interface {
 	ChallengeTx(ident keccakTypes.LargePreimageIdent, challenge keccakTypes.Challenge) (txmgr.TxCandidate, error)
 }
 
+type ChallengeMetrics interface {
+	RecordPreimageChallenged()
+	RecordPreimageChallengeFailed()
+}
+
 type Verifier interface {
 	CreateChallenge(ctx context.Context, blockHash common.Hash, oracle fetcher.Oracle, preimage keccakTypes.LargePreimageMetaData) (keccakTypes.Challenge, error)
 }
@@ -30,13 +35,15 @@ type Sender interface {
 
 type PreimageChallenger struct {
 	log      log.Logger
+	metrics  ChallengeMetrics
 	verifier Verifier
 	sender   Sender
 }
 
-func NewPreimageChallenger(logger log.Logger, verifier Verifier, sender Sender) *PreimageChallenger {
+func NewPreimageChallenger(logger log.Logger, metrics ChallengeMetrics, verifier Verifier, sender Sender) *PreimageChallenger {
 	return &PreimageChallenger{
 		log:      logger,
+		metrics:  metrics,
 		verifier: verifier,
 		sender:   sender,
 	}
@@ -60,6 +67,7 @@ func (c *PreimageChallenger) Challenge(ctx context.Context, blockHash common.Has
 				logger.Error("Failed to verify large preimage", "err", err)
 				return
 			}
+			logger.Info("Challenging preimage", "block", challenge.Poststate.Index)
 			tx, err := oracle.ChallengeTx(preimage.LargePreimageIdent, challenge)
 			if err != nil {
 				logger.Error("Failed to create challenge transaction", "err", err)
@@ -75,8 +83,10 @@ func (c *PreimageChallenger) Challenge(ctx context.Context, blockHash common.Has
 	if len(txs) > 0 {
 		_, err := c.sender.SendAndWait("challenge preimages", txs...)
 		if err != nil {
+			c.metrics.RecordPreimageChallengeFailed()
 			return fmt.Errorf("failed to send challenge txs: %w", err)
 		}
+		c.metrics.RecordPreimageChallenged()
 	}
 	return nil
 }

@@ -236,6 +236,10 @@ func applyOverrides(ctx *cli.Context, rollupConfig *rollup.Config) {
 		delta := ctx.Uint64(opflags.DeltaOverrideFlagName)
 		rollupConfig.DeltaTime = &delta
 	}
+	if ctx.IsSet(opflags.EcotoneOverrideFlagName) {
+		ecotone := ctx.Uint64(opflags.EcotoneOverrideFlagName)
+		rollupConfig.EcotoneTime = &ecotone
+	}
 }
 
 func NewSnapshotLogger(ctx *cli.Context) (log.Logger, error) {

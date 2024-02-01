@@ -4,12 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/merkle"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
@@ -30,14 +28,13 @@ var (
 	ErrInvalidMaxLen            = errors.New("invalid max length to absorb")
 	ErrIncorrectCommitmentCount = errors.New("incorrect number of commitments for input length")
 	ErrValid                    = errors.New("state commitments are valid")
-	uint256Size                 = 32
 )
 
 // Challenge creates a [types.Challenge] to invalidate the provided preimage data if possible.
 // [ErrValid] is returned if the provided inputs are valid and no challenge can be created.
 func Challenge(data io.Reader, commitments []common.Hash) (types.Challenge, error) {
 	s := NewStateMatrix()
-	lastValidState := s.PackState()
+	lastValidState := s.StateSnapshot()
 	var lastValidLeaf types.Leaf
 	var firstInvalidLeaf types.Leaf
 	for i := 0; ; i++ {
@@ -59,7 +56,7 @@ func Challenge(data io.Reader, commitments []common.Hash) (types.Challenge, erro
 				lastValidLeaf = s.prestateLeaf
 				firstInvalidLeaf = s.poststateLeaf
 			} else {
-				lastValidState = s.PackState()
+				lastValidState = s.StateSnapshot()
 			}
 		}
 		if isEOF {
@@ -99,29 +96,41 @@ func NewStateMatrix() *StateMatrix {
 // StateCommitment returns the state commitment for the current state matrix.
 // Additional data may be absorbed after calling this method.
 func (d *StateMatrix) StateCommitment() common.Hash {
-	buf := d.PackState()
-	return crypto.Keccak256Hash(buf)
+	return crypto.Keccak256Hash(d.StateSnapshot().Pack())
 }
 
-// PackState packs the state in to the solidity ABI encoding required for the state matrix
-func (d *StateMatrix) PackState() []byte {
-	buf := make([]byte, 0, len(d.s.a)*uint256Size)
-	for _, v := range d.s.a {
-		buf = append(buf, math.U256Bytes(new(big.Int).SetUint64(v))...)
-	}
-	return buf
+func (d *StateMatrix) StateSnapshot() types.StateSnapshot {
+	var snap types.StateSnapshot
+	copy(snap[:], d.s.a[:])
+	return snap
 }
 
 // newLeafWithPadding creates a new [Leaf] from inputs, padding the input to the [BlockSize].
-func newLeafWithPadding(input []byte, index uint64, commitment common.Hash) types.Leaf {
-	// TODO(client-pod#480): Add actual keccak padding to ensure the merkle proofs are correct (for readData)
+func (d *StateMatrix) newLeafWithPadding(input []byte, index uint64, commitment common.Hash, final bool) types.Leaf {
 	var paddedInput [types.BlockSize]byte
 	copy(paddedInput[:], input)
+
+	if final {
+		pad(input, &paddedInput, d.s.dsbyte)
+	}
 	return types.Leaf{
 		Input:           paddedInput,
 		Index:           index,
 		StateCommitment: commitment,
 	}
+}
+
+func pad(input []byte, paddedInput *[types.BlockSize]byte, dsbyte byte) {
+	// Pad with this instance's domain-separator bits. We know that there's
+	// at least one more byte of space in paddedInput because, if it were full,
+	// this wouldn't be the last block and the padding would be in the next block.
+	// dsbyte also contains the first one bit for the padding. See the comment in the state struct.
+	paddedInput[len(input)] = dsbyte
+	// The remaining bytes are already zeros since paddedInput is a new array.
+	// This adds the final one bit for the padding. Because of the way that
+	// bits are numbered from the LSB upwards, the final bit is the MSB of
+	// the last byte.
+	paddedInput[types.BlockSize-1] ^= 0x80
 }
 
 func (d *StateMatrix) AbsorbUpTo(in io.Reader, maxLen int) (types.InputData, error) {
@@ -193,10 +202,10 @@ func (d *StateMatrix) absorbNextLeafInput(in io.Reader, stateCommitment func() c
 	commitment := stateCommitment()
 	if d.poststateLeaf == (types.Leaf{}) {
 		d.prestateLeaf = types.Leaf{}
-		d.poststateLeaf = newLeafWithPadding(input, 0, commitment)
+		d.poststateLeaf = d.newLeafWithPadding(input, 0, commitment, final)
 	} else {
 		d.prestateLeaf = d.poststateLeaf
-		d.poststateLeaf = newLeafWithPadding(input, d.prestateLeaf.Index+1, commitment)
+		d.poststateLeaf = d.newLeafWithPadding(input, d.prestateLeaf.Index+1, commitment, final)
 	}
 	d.merkleTree.AddLeaf(d.poststateLeaf.Hash())
 	if final {

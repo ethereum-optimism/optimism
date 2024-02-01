@@ -17,31 +17,31 @@ func TestCreate2Address(t *testing.T) {
 		{
 			name:            "SafeL2",
 			creatorAddress:  common.HexToAddress("0x4e59b44847b379578588920cA78FbF26c0B4956C").Bytes(),
-			salt:            common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000000"),
+			salt:            common.FromHex("0000000000000000000000000000000000000000000000000000000000000000"),
 			expectedAddress: common.HexToAddress("0x3E5c63644E683549055b9Be8653de26E0B4CD36E"),
 		},
 		{
 			name:            "MultiSendCallOnly",
 			creatorAddress:  common.HexToAddress("0x4e59b44847b379578588920cA78FbF26c0B4956C").Bytes(),
-			salt:            common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000000"),
+			salt:            common.FromHex("0000000000000000000000000000000000000000000000000000000000000000"),
 			expectedAddress: common.HexToAddress("0x40A2aCCbd92BCA938b02010E17A5b8929b49130D"),
 		},
 		{
 			name:            "MultiSend",
 			creatorAddress:  common.HexToAddress("0x4e59b44847b379578588920cA78FbF26c0B4956C").Bytes(),
-			salt:            common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000000"),
+			salt:            common.FromHex("0000000000000000000000000000000000000000000000000000000000000000"),
 			expectedAddress: common.HexToAddress("0xA238CBeb142c10Ef7Ad8442C6D1f9E89e07e7761"),
 		},
 		{
 			name:            "Permit2",
 			creatorAddress:  common.HexToAddress("0x4e59b44847b379578588920cA78FbF26c0B4956C").Bytes(),
-			salt:            common.Hex2Bytes("0000000000000000000000000000000000000000d3af2663da51c10215000000"),
+			salt:            common.FromHex("0000000000000000000000000000000000000000d3af2663da51c10215000000"),
 			expectedAddress: common.HexToAddress("0x000000000022D473030F116dDEE9F6B43aC78BA3"),
 		},
 		{
 			name:            "EntryPoint",
 			creatorAddress:  common.HexToAddress("0x4e59b44847b379578588920cA78FbF26c0B4956C").Bytes(),
-			salt:            common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000000"),
+			salt:            common.FromHex("0000000000000000000000000000000000000000000000000000000000000000"),
 			expectedAddress: common.HexToAddress("0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789"),
 		},
 	}
