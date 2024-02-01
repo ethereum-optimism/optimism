@@ -1,6 +1,7 @@
 package clock
 
 import (
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -9,31 +10,34 @@ import (
 
 func TestSimpleClock_Now(t *testing.T) {
 	c := NewSimpleClock()
-	expectedTime := time.Now()
-	c.time = expectedTime
-	require.Equal(t, expectedTime, c.Now())
+	require.Equal(t, time.Unix(0, 0), c.Now())
+	expectedTime := uint64(time.Now().Unix())
+	c.unix = atomic.Uint64{}
+	c.unix.Store(expectedTime)
+	require.Equal(t, time.Unix(int64(expectedTime), 0), c.Now())
 }
 
 func TestSimpleClock_SetTime(t *testing.T) {
 	tests := []struct {
 		name         string
-		expectedTime time.Time
+		expectedTime int64
 	}{
 		{
-			name:         "SetZeroUnixTime",
-			expectedTime: time.Unix(0, 0),
+			name:         "SetZeroTime",
+			expectedTime: 0,
 		},
 		{
-			name:         "SetEmptyTime",
-			expectedTime: time.Time{},
+			name:         "SetZeroUnixTime",
+			expectedTime: time.Unix(0, 0).Unix(),
 		},
+
 		{
 			name:         "SetCurrentTime",
-			expectedTime: time.Now(),
+			expectedTime: time.Now().Unix(),
 		},
 		{
 			name:         "SetFutureTime",
-			expectedTime: time.Now().Add(time.Hour),
+			expectedTime: time.Now().Add(time.Hour).Unix(),
 		},
 	}
 
@@ -41,8 +45,8 @@ func TestSimpleClock_SetTime(t *testing.T) {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
 			c := NewSimpleClock()
-			c.SetTime(test.expectedTime)
-			require.Equal(t, test.expectedTime, c.Now())
+			c.SetTime(uint64(test.expectedTime))
+			require.Equal(t, time.Unix(test.expectedTime, 0), c.Now())
 		})
 	}
 }

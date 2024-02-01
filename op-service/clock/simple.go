@@ -1,30 +1,27 @@
 package clock
 
 import (
-	"sync"
+	"sync/atomic"
 	"time"
 )
 
 type SimpleClock interface {
-	SetTime(time.Time)
+	SetTime(uint64)
 	Now() time.Time
 }
 
 type simpleClock struct {
-	mu   sync.Mutex
-	time time.Time
+	unix atomic.Uint64
 }
 
 func NewSimpleClock() *simpleClock {
-	return &simpleClock{time: time.Now()}
+	return &simpleClock{}
 }
 
-func (c *simpleClock) SetTime(t time.Time) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.time = t
+func (c *simpleClock) SetTime(u uint64) {
+	c.unix.Store(u)
 }
 
 func (c *simpleClock) Now() time.Time {
-	return c.time
+	return time.Unix(int64(c.unix.Load()), 0)
 }

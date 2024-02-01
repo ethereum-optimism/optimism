@@ -33,17 +33,17 @@ func TestMonitorMinGameTimestamp(t *testing.T) {
 		monitor, _, _, _, _ := setupMonitorTest(t, []common.Address{})
 		monitor.gameWindow = time.Minute
 		monitor.clock = clock.NewSimpleClock()
-		monitor.clock.SetTime(time.Unix(0, 0))
+		monitor.clock.SetTime(0)
 		require.Equal(t, uint64(0), monitor.minGameTimestamp())
 	})
 
 	t.Run("minimum computed correctly", func(t *testing.T) {
 		monitor, _, _, _, _ := setupMonitorTest(t, []common.Address{})
 		monitor.gameWindow = time.Minute
-		frozen := time.Unix(int64(time.Hour.Seconds()), 0)
 		monitor.clock = clock.NewSimpleClock()
+		frozen := uint64(time.Hour.Seconds())
 		monitor.clock.SetTime(frozen)
-		expected := uint64(frozen.Add(-time.Minute).Unix())
+		expected := uint64(time.Unix(int64(frozen), 0).Add(-time.Minute).Unix())
 		require.Equal(t, monitor.minGameTimestamp(), expected)
 	})
 }

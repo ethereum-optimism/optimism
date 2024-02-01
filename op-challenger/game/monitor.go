@@ -140,7 +140,7 @@ func (m *gameMonitor) progressGames(ctx context.Context, blockHash common.Hash, 
 }
 
 func (m *gameMonitor) onNewL1Head(ctx context.Context, sig eth.L1BlockRef) {
-	m.clock.SetTime(time.Unix(int64(sig.Time), 0))
+	m.clock.SetTime(sig.Time)
 	if err := m.progressGames(ctx, sig.Hash, sig.Number); err != nil {
 		m.logger.Error("Failed to progress games", "err", err)
 	}
