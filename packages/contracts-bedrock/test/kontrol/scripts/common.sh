@@ -67,24 +67,15 @@ conditionally_start_docker() {
 }
 
 start_docker () {
-  docker run                                    \
-    --name "${CONTAINER_NAME}"                  \
-    --rm                                        \
-    --interactive                               \
-    --detach                                    \
-    --env FOUNDRY_PROFILE="${FOUNDRY_PROFILE}"  \
-    --workdir /home/user/workspace              \
-    runtimeverificationinc/kontrol:ubuntu-jammy-"${KONTROL_RELEASE}"
-
-  # Copy test content to container. We need to avoid copying node_modules because
-  # it results in the below error, so we copy the workspace to a temp directory
-  # and then copy it to the container.
-  #   Error response from daemon: invalid symlink "/home/user/workspace/node_modules/@typescript-eslint/eslint-plugin" -> "../../../../node_modules/.pnpm/@typescript-eslint+eslint-plugin@6.19.1_@typescript-eslint+parser@6.19.1_eslint@8.56.0_typescript@5.3.3/node_modules/@typescript-eslint/eslint-plugin"
-  TMP_DIR=$(mktemp -d)
-  cp -r "$WORKSPACE_DIR/." "$TMP_DIR"
-  rm -rf "$TMP_DIR/node_modules"
-  docker cp --follow-link "$TMP_DIR/." $CONTAINER_NAME:/home/user/workspace
-  rm -rf "$TMP_DIR"
+  docker run \
+    --name "$CONTAINER_NAME" \
+    --rm \
+    --interactive \
+    --detach \
+    --env FOUNDRY_PROFILE="$FOUNDRY_PROFILE" \
+    --workdir /home/user/workspace \
+    --mount type=bind,source="$WORKSPACE_DIR",target=/home/user/workspace \
+    runtimeverificationinc/kontrol:ubuntu-jammy-"$KONTROL_RELEASE"
 
   docker exec --user root ${CONTAINER_NAME} chown -R user:user /home/user
 }
