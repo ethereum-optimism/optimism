@@ -158,20 +158,20 @@ func PostCheckMigratedDB(
 	if header.Time != uint64(timestamp) {
 		return fmt.Errorf("expected timestamp to be %d, but got %d", timestamp, header.Time)
 	}
-	// parentHeader := rawdb.ReadHeader(tx, header.ParentHash, header.Number.Uint64()-1)
-	// if parentHeader == nil {
-	// 	return fmt.Errorf("cannot find parent header for %s", header.ParentHash)
-	// }
+	parentHeader := rawdb.ReadHeader(tx, header.ParentHash, header.Number.Uint64()-1)
+	if parentHeader == nil {
+		return fmt.Errorf("cannot find parent header for %s", header.ParentHash)
+	}
 
 	genesisHeader := rawdb.ReadHeaderByNumber(tx, 0)
 	if err != nil {
 		return fmt.Errorf("failed to read genesis header from database: %w", err)
 	}
 
-	// bobaGenesisHash := libcommon.HexToHash(chain.GetBobaGenesisHash(g.Config.ChainID))
-	// if genesisHeader.Hash() != bobaGenesisHash {
-	// 	return fmt.Errorf("expected chain tip to be %s, but got %s", bobaGenesisHash, genesisHeader.Hash())
-	// }
+	bobaGenesisHash := libcommon.HexToHash(chain.GetBobaGenesisHash(g.Config.ChainID))
+	if genesisHeader.Hash() != bobaGenesisHash {
+		return fmt.Errorf("expected chain tip to be %s, but got %s", bobaGenesisHash, genesisHeader.Hash())
+	}
 
 	bobaGenesisExtraData := libcommon.Hex2Bytes(chain.GetBobaGenesisExtraData(g.Config.ChainID))
 	if !bytes.Equal(genesisHeader.Extra, bobaGenesisExtraData) {

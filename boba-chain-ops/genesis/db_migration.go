@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/bobanetwork/v3-anchorage/boba-bindings/predeploys"
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/crossdomain"
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/ether"
 	"github.com/ledgerwatch/erigon-lib/chain"
@@ -87,7 +86,6 @@ func MigrateDB(chaindb kv.RwDB, genesis *types.Genesis, config *DeployConfig, bl
 	if err := SetL2Proxies(genesis); err != nil {
 		return nil, fmt.Errorf("cannot set L2Proxies: %w", err)
 	}
-	log.Info("debug 0x420023", "res", genesis.Alloc[predeploys.BobaL2Addr])
 
 	// Here we update the storage of each predeploy with the new storage variables that we want to
 	// set on L2 and update the implementations for all predeployed contracts that are behind
@@ -150,9 +148,6 @@ func WriteGenesis(chaindb kv.RwDB, genesis *types.Genesis, config *DeployConfig)
 	if config.L2OutputOracleStartingBlockNumber == parentHeader.Number.Uint64() {
 		return nil, fmt.Errorf("cannot write genesis: genesis block already exists")
 	}
-	// if config.L2OutputOracleStartingBlockNumber != parentHeader.Number.Uint64()+1 {
-	// 	return nil, fmt.Errorf("L2OutputOracleStartingBlockNumber must be %d", parentHeader.Number.Uint64()+1)
-	// }
 	transitionBlockNumber := config.L2OutputOracleStartingBlockNumber
 
 	var root libcommon.Hash
