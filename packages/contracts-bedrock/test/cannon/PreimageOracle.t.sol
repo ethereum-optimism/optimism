@@ -411,7 +411,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
             _postStateProof: postProof
         });
 
-        bytes32 finalDigest = keccak256(data);
+        bytes32 finalDigest = _setStatusByte(keccak256(data), 2);
         bytes32 expectedPart = bytes32((~uint256(0) & ~(uint256(type(uint64).max) << 192)) | (data.length << 192));
         assertTrue(oracle.preimagePartOk(finalDigest, 0));
         assertEq(oracle.preimageLengths(finalDigest), data.length);
@@ -727,7 +727,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
 
         // Validate the preimage part
         {
-            bytes32 finalDigest = keccak256(data);
+            bytes32 finalDigest = _setStatusByte(keccak256(data), 2);
             bytes32 expectedPart;
             assembly {
                 switch lt(_partOffset, 0x08)
@@ -1267,5 +1267,12 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         commands[3] = vm.toString(abi.encodePacked(leaves));
         commands[4] = vm.toString(_leafIdx);
         (root_, proof_) = abi.decode(vm.ffi(commands), (bytes32, bytes32[]));
+    }
+}
+
+/// @notice Sets the status byte of a hash.
+function _setStatusByte(bytes32 _hash, uint8 _status) pure returns (bytes32 out_) {
+    assembly {
+        out_ := or(and(not(shl(248, 0xFF)), _hash), shl(248, _status))
     }
 }
