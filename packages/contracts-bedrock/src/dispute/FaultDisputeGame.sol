@@ -81,8 +81,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     bool internal initialized;
 
     /// @notice Semantic version.
-    /// @custom:semver 0.0.25
-    string public constant version = "0.0.25";
+    /// @custom:semver 0.0.26
+    string public constant version = "0.0.26";
 
     /// @param _gameType The type ID of the game.
     /// @param _absolutePrestate The absolute prestate of the instruction trace.
@@ -401,6 +401,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
 
         // Assume parent is honest until proven otherwise
         address countered = address(0);
+        Position leftmostCounter;
         for (uint256 i = 0; i < challengeIndicesLen; ++i) {
             uint256 challengeIndex = challengeIndices[i];
 
@@ -412,7 +413,13 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
             // Ignore false claims
             if (claim.counteredBy == address(0)) {
                 countered = claim.claimant;
-                break;
+                leftmostCounter = claim.position;
+            } else {
+                // These claims are at the same depth, so we can compare them using their gindices
+                if (leftmostCounter.raw() > claim.position.raw()) {
+                    countered = claim.claimant;
+                    leftmostCounter = claim.position;
+                }
             }
         }
 

@@ -694,6 +694,53 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         assertEq(factory.initBonds(GAME_TYPE), 0);
     }
 
+    /// @dev Static unit test asserting that resolve pays out bonds on moves to the leftmost actor
+    /// in subgames containing successful counters.
+    function test_resolve_LeftmostBondPayout_succeeds() public {
+        address alice = address(0xa11ce);
+        address bob = address(0xb0b);
+        vm.deal(address(this), 100 ether);
+        vm.deal(alice, 100 ether);
+        vm.deal(bob, 100 ether);
+
+        // Make claims with bob and test contract on defense, and alice as the challenger
+        vm.prank(alice);
+        gameProxy.attack{ value: 1 ether }(0, _dummyClaim());
+
+        vm.prank(bob);
+        gameProxy.defend{ value: 1 ether }(1, _dummyClaim());
+        gameProxy.attack{ value: 1 ether }(1, _dummyClaim());
+
+        vm.prank(alice);
+        gameProxy.attack{ value: 1 ether }(3, _dummyClaim());
+
+        vm.prank(bob);
+        gameProxy.defend{ value: 1 ether }(4, _dummyClaim());
+        gameProxy.attack{ value: 1 ether }(4, _dummyClaim());
+
+        // Resolve all claims
+        vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
+        for (uint256 i = gameProxy.claimDataLen(); i > 0; i--) {
+            (bool success,) = address(gameProxy).call(abi.encodeCall(gameProxy.resolveClaim, (i - 1)));
+            success;
+        }
+        gameProxy.resolve();
+
+        gameProxy.claimCredit(address(this));
+        gameProxy.claimCredit(bob);
+        gameProxy.claimCredit(alice);
+
+        // Ensure that bonds were paid out correctly.
+        uint256 loserBond = 2 ether;
+        assertEq(address(this).balance, 100 ether + loserBond);
+        assertEq(bob.balance, 100 ether);
+        assertEq(alice.balance, 100 ether - loserBond);
+        assertEq(address(gameProxy).balance, 0);
+
+        // Ensure that the init bond for the game is 0, in case we change it in the test suite in the future.
+        assertEq(factory.initBonds(GAME_TYPE), 0);
+    }
+
     /// @dev Static unit test asserting that credit may not be drained past allowance through reentrancy.
     function test_claimCredit_claimAlreadyResolved_reverts() public {
         ClaimCreditReenter reenter = new ClaimCreditReenter(gameProxy);
