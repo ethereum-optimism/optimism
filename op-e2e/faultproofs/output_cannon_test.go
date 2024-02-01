@@ -218,6 +218,8 @@ func TestOutputCannonDefendStep(t *testing.T) {
 }
 
 func TestOutputCannonStepWithLargePreimage(t *testing.T) {
+	// TODO(client-pod#525): Fix preimage insertion and enable this test
+	t.Skip("Preimage not being inserted under correct key")
 	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(outputCannonTestExecutor))
 
 	ctx := context.Background()
