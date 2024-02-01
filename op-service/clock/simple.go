@@ -5,23 +5,18 @@ import (
 	"time"
 )
 
-type SimpleClock interface {
-	SetTime(uint64)
-	Now() time.Time
-}
-
-type simpleClock struct {
+type SimpleClock struct {
 	unix atomic.Uint64
 }
 
-func NewSimpleClock() *simpleClock {
-	return &simpleClock{}
+func NewSimpleClock() *SimpleClock {
+	return &SimpleClock{}
 }
 
-func (c *simpleClock) SetTime(u uint64) {
+func (c *SimpleClock) SetTime(u uint64) {
 	c.unix.Store(u)
 }
 
-func (c *simpleClock) Now() time.Time {
+func (c *SimpleClock) Now() time.Time {
 	return time.Unix(int64(c.unix.Load()), 0)
 }

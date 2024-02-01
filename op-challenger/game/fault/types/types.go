@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"math/big"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -15,6 +16,10 @@ var (
 	// of a split game.
 	NoLocalContext = common.Hash{}
 )
+
+type ClockReader interface {
+	Now() time.Time
+}
 
 // PreimageOracleData encapsulates the preimage oracle data
 // to load into the onchain oracle.

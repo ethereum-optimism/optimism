@@ -9,7 +9,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/scheduler"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
-	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 
 	"github.com/ethereum/go-ethereum"
@@ -26,6 +25,11 @@ type gameSource interface {
 	FetchAllGamesAtBlock(ctx context.Context, earliest uint64, blockHash common.Hash) ([]types.GameMetadata, error)
 }
 
+type RWClock interface {
+	SetTime(uint64)
+	Now() time.Time
+}
+
 type gameScheduler interface {
 	Schedule([]types.GameMetadata, uint64) error
 }
@@ -40,7 +44,7 @@ type claimer interface {
 
 type gameMonitor struct {
 	logger           log.Logger
-	clock            clock.SimpleClock
+	clock            RWClock
 	source           gameSource
 	scheduler        gameScheduler
 	preimages        preimageScheduler
@@ -67,7 +71,7 @@ func (s *headSource) SubscribeNewHead(ctx context.Context, ch chan<- *ethTypes.H
 
 func newGameMonitor(
 	logger log.Logger,
-	cl clock.SimpleClock,
+	cl RWClock,
 	source gameSource,
 	scheduler gameScheduler,
 	preimages preimageScheduler,

@@ -46,7 +46,7 @@ type Service struct {
 	txMgr    *txmgr.SimpleTxManager
 	txSender *sender.TxSender
 
-	cl clock.SimpleClock
+	cl *clock.SimpleClock
 
 	loader *loader.GameLoader
 
