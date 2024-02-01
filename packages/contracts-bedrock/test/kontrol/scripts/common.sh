@@ -78,7 +78,6 @@ start_docker () {
     runtimeverificationinc/kontrol:ubuntu-jammy-"$KONTROL_RELEASE"
 
   copy_to_docker
-  docker exec --user root $CONTAINER_NAME chown -R user:user /home/user
 }
 
 copy_to_docker() {
@@ -93,6 +92,8 @@ copy_to_docker() {
   rm -rf "$TMP_DIR/node_modules"
   docker cp --follow-link "$TMP_DIR/." $CONTAINER_NAME:/home/user/workspace
   rm -rf "$TMP_DIR"
+
+  docker exec --user root "$CONTAINER_NAME" chown -R user:user /home/user
 }
 
 clean_docker(){
