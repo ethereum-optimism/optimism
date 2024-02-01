@@ -216,7 +216,7 @@ func (d *DAManager) FileDataByHash(ctx context.Context, hash common.Hash) (ethcl
 }
 
 func verifySignature(index, length, price uint64, broadcaster, user common.Address, commitment, sign []byte) bool {
-	signer := kzg_sdk.NewEIP155FdSigner(big.NewInt(42069))
+	signer := kzg_sdk.NewEIP155FdSigner(big.NewInt(11155111))
 	addr, err := kzg_sdk.FdGetSender(signer, sign, user, broadcaster, price, index, length, commitment)
 	if err != nil {
 		log.Error("verifySignature", "err", err)

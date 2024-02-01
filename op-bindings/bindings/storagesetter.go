@@ -26,6 +26,7 @@ var (
 	_ = common.Big1
 	_ = types.BloomLookup
 	_ = event.NewSubscription
+	_ = abi.ConvertType
 )
 
 // StorageSetterSlot is an auto generated low-level Go binding around an user-defined struct.
@@ -162,11 +163,11 @@ func NewStorageSetterFilterer(address common.Address, filterer bind.ContractFilt
 
 // bindStorageSetter binds a generic wrapper to an already deployed contract.
 func bindStorageSetter(address common.Address, caller bind.ContractCaller, transactor bind.ContractTransactor, filterer bind.ContractFilterer) (*bind.BoundContract, error) {
-	parsed, err := abi.JSON(strings.NewReader(StorageSetterABI))
+	parsed, err := StorageSetterMetaData.GetAbi()
 	if err != nil {
 		return nil, err
 	}
-	return bind.NewBoundContract(address, parsed, caller, transactor, filterer), nil
+	return bind.NewBoundContract(address, *parsed, caller, transactor, filterer), nil
 }
 
 // Call invokes the (constant) contract method with params as input values and
