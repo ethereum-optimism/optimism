@@ -13,6 +13,8 @@ import (
 )
 
 func TestGetVersion(t *testing.T) {
+	InitParallel(t)
+
 	l := testlog.Logger(t, log.LvlInfo)
 
 	beaconApi := fakebeacon.NewBeacon(l, t.TempDir(), uint64(0), uint64(0))
