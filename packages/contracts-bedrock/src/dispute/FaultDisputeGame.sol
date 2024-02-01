@@ -401,7 +401,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
 
         // Assume parent is honest until proven otherwise
         address countered = address(0);
-        Position leftmostCounter;
+        Position leftmostCounter = Position.wrap(type(uint128).max);
         for (uint256 i = 0; i < challengeIndicesLen; ++i) {
             uint256 challengeIndex = challengeIndices[i];
 
@@ -410,16 +410,15 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
 
             ClaimData storage claim = claimData[challengeIndex];
 
-            // Ignore false claims
-            if (claim.counteredBy == address(0)) {
+            // If the child subgame is uncountered and further left than the current left-most counter,
+            // update the parent subgame's `countered` address and the current `leftmostCounter`.
+            // The left-most correct counter is preferred in bond payouts in order to discourage attackers
+            // from countering invalid subgame roots via an invalid defense position. As such positions
+            // cannot be correctly countered.
+            // Note that correctly positioned defense, but invalid claimes can still be successfully countered.
+            if (claim.counteredBy == address(0) && leftmostCounter.raw() > claim.position.raw()) {
                 countered = claim.claimant;
                 leftmostCounter = claim.position;
-            } else {
-                // These claims are at the same depth, so we can compare them using their gindices
-                if (leftmostCounter.raw() > claim.position.raw()) {
-                    countered = claim.claimant;
-                    leftmostCounter = claim.position;
-                }
             }
         }
 
