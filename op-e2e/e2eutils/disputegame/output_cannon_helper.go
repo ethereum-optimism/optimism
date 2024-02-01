@@ -92,9 +92,12 @@ func (g *OutputCannonGameHelper) CreatStepLargePreimageLoadCheck(ctx context.Con
 		// period start time is not zero by calling the ChallengePeriodStartTime method
 		g.WaitForChallengePeriodStart(ctx, sender, preimageData)
 
+		challengePeriodStart := g.ChallengePeriodStartTime(ctx, sender, preimageData)
+		challengePeriodEnd := challengePeriodStart + challengePeriod
+
 		// Time travel past the challenge period.
 		g.system.AdvanceTime(time.Duration(challengePeriod) * time.Second)
-		g.require.NoError(wait.ForNextBlock(ctx, g.system.NodeClient("l1")))
+		g.require.NoError(wait.ForBlockWithTimestamp(ctx, g.system.NodeClient("l1"), challengePeriodEnd))
 
 		// Assert that the preimage was indeed loaded by an honest challenger
 		g.waitForPreimageInOracle(ctx, preimageData)

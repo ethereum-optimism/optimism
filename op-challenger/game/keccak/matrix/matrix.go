@@ -14,6 +14,8 @@ import (
 // StateMatrix implements a stateful keccak sponge with the ability to create state commitments after each permutation
 type StateMatrix struct {
 	s *state
+	//prestateMatrix is the state matrix snapshot after processing prestateLeaf but before processing poststateLeaf
+	prestateMatrix types.StateSnapshot
 	// prestateLeaf is the last prestate leaf.
 	// Used to retrieve the prestate to squeeze.
 	prestateLeaf types.Leaf
@@ -163,6 +165,10 @@ func (d *StateMatrix) AbsorbUpTo(in io.Reader, maxLen int) (types.InputData, err
 	}, nil
 }
 
+func (d *StateMatrix) PrestateMatrix() types.StateSnapshot {
+	return d.prestateMatrix
+}
+
 // PrestateWithProof returns the prestate leaf with its merkle proof.
 func (d *StateMatrix) PrestateWithProof() (types.Leaf, merkle.Proof) {
 	proof := d.merkleTree.ProofAtIndex(d.prestateLeaf.Index)
@@ -198,6 +204,7 @@ func (d *StateMatrix) absorbNextLeafInput(in io.Reader, stateCommitment func() c
 	// The next call will read no data from the Reader (already at EOF) and so add the final padding as an
 	// additional block. We can then return EOF to indicate there are no further blocks.
 	final = final && len(input) < types.BlockSize
+	d.prestateMatrix = d.StateSnapshot()
 	d.absorbLeafInput(input, final)
 	commitment := stateCommitment()
 	if d.poststateLeaf == (types.Leaf{}) {

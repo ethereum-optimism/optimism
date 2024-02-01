@@ -9,7 +9,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/matrix"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/merkle"
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
@@ -134,7 +133,7 @@ func TestPreimageOracleContract_Squeeze(t *testing.T) {
 
 	claimant := common.Address{0x12}
 	uuid := big.NewInt(123)
-	stateMatrix := matrix.NewStateMatrix()
+	preStateMatrix := keccakTypes.StateSnapshot{0, 1, 2, 3, 4}
 	preState := keccakTypes.Leaf{
 		Input:           [keccakTypes.BlockSize]byte{0x12},
 		Index:           123,
@@ -150,14 +149,14 @@ func TestPreimageOracleContract_Squeeze(t *testing.T) {
 	stubRpc.SetResponse(oracleAddr, methodSqueezeLPP, batching.BlockLatest, []interface{}{
 		claimant,
 		uuid,
-		abiEncodeStateMatrix(stateMatrix),
+		abiEncodeSnapshot(preStateMatrix),
 		toPreimageOracleLeaf(preState),
 		preStateProof,
 		toPreimageOracleLeaf(postState),
 		postStateProof,
 	}, nil)
 
-	tx, err := oracle.Squeeze(claimant, uuid, stateMatrix, preState, preStateProof, postState, postStateProof)
+	tx, err := oracle.Squeeze(claimant, uuid, preStateMatrix, preState, preStateProof, postState, postStateProof)
 	require.NoError(t, err)
 	stubRpc.VerifyTxCandidate(tx)
 }

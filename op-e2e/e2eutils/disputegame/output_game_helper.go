@@ -534,7 +534,7 @@ func (g *OutputGameHelper) ChallengePeriodStartTime(ctx context.Context, sender 
 }
 
 func (g *OutputGameHelper) waitForPreimageInOracle(ctx context.Context, data *types.PreimageOracleData) {
-	timedCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	timedCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
 	defer cancel()
 	oracle := g.oracle(ctx)
 	err := wait.For(timedCtx, time.Second, func() (bool, error) {

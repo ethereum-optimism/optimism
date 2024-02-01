@@ -54,6 +54,7 @@ func NewLargePreimageUploader(logger log.Logger, cl ClockReader, txSender gameTy
 }
 
 func (p *LargePreimageUploader) UploadPreimage(ctx context.Context, parent uint64, data *types.PreimageOracleData) error {
+	p.log.Debug("Upload large preimage", "key", data.OracleKey)
 	stateMatrix, calls, err := p.splitCalls(data)
 	if err != nil {
 		return fmt.Errorf("failed to split preimage into chunks for data with oracle offset %d: %w", data.OracleOffset, err)
@@ -126,6 +127,7 @@ func (p *LargePreimageUploader) splitCalls(data *types.PreimageOracleData) (*mat
 }
 
 func (p *LargePreimageUploader) Squeeze(ctx context.Context, uuid *big.Int, stateMatrix *matrix.StateMatrix) error {
+	prestateMatrix := stateMatrix.PrestateMatrix()
 	prestate, prestateProof := stateMatrix.PrestateWithProof()
 	poststate, poststateProof := stateMatrix.PoststateWithProof()
 	challengePeriod, err := p.contract.ChallengePeriod(ctx)
@@ -144,12 +146,12 @@ func (p *LargePreimageUploader) Squeeze(ctx context.Context, uuid *big.Int, stat
 	if uint64(currentTimestamp) < metadata[0].Timestamp+challengePeriod {
 		return ErrChallengePeriodNotOver
 	}
-	if err := p.contract.CallSqueeze(ctx, p.txSender.From(), uuid, stateMatrix, prestate, prestateProof, poststate, poststateProof); err != nil {
-		p.log.Debug("expected a successful squeeze call", "metadataTimestamp", metadata[0].Timestamp, "currentTimestamp", currentTimestamp, "err", err)
+	if err := p.contract.CallSqueeze(ctx, p.txSender.From(), uuid, prestateMatrix, prestate, prestateProof, poststate, poststateProof); err != nil {
+		p.log.Warn("Expected a successful squeeze call", "metadataTimestamp", metadata[0].Timestamp, "currentTimestamp", currentTimestamp, "err", err)
 		return fmt.Errorf("failed to call squeeze: %w", err)
 	}
 	p.log.Info("Squeezing large preimage", "uuid", uuid)
-	tx, err := p.contract.Squeeze(p.txSender.From(), uuid, stateMatrix, prestate, prestateProof, poststate, poststateProof)
+	tx, err := p.contract.Squeeze(p.txSender.From(), uuid, prestateMatrix, prestate, prestateProof, poststate, poststateProof)
 	if err != nil {
 		return fmt.Errorf("failed to create pre-image oracle tx: %w", err)
 	}

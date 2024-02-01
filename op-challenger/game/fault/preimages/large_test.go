@@ -297,7 +297,7 @@ func (s *mockPreimageOracleContract) AddLeaves(_ *big.Int, _ *big.Int, input []b
 	return txmgr.TxCandidate{}, nil
 }
 
-func (s *mockPreimageOracleContract) Squeeze(_ common.Address, _ *big.Int, _ *matrix.StateMatrix, prestate keccakTypes.Leaf, _ merkle.Proof, poststate keccakTypes.Leaf, _ merkle.Proof) (txmgr.TxCandidate, error) {
+func (s *mockPreimageOracleContract) Squeeze(_ common.Address, _ *big.Int, _ keccakTypes.StateSnapshot, prestate keccakTypes.Leaf, _ merkle.Proof, poststate keccakTypes.Leaf, _ merkle.Proof) (txmgr.TxCandidate, error) {
 	s.squeezeCalls++
 	s.squeezePrestate = prestate
 	s.squeezePoststate = poststate
@@ -339,7 +339,7 @@ func (s *mockPreimageOracleContract) GetProposalMetadata(_ context.Context, _ ba
 	s.squeezeCallClaimSize = 1
 	return []keccakTypes.LargePreimageMetaData{{LargePreimageIdent: idents[0]}}, nil
 }
-func (s *mockPreimageOracleContract) CallSqueeze(_ context.Context, _ common.Address, _ *big.Int, _ *matrix.StateMatrix, _ keccakTypes.Leaf, _ merkle.Proof, _ keccakTypes.Leaf, _ merkle.Proof) error {
+func (s *mockPreimageOracleContract) CallSqueeze(_ context.Context, _ common.Address, _ *big.Int, _ keccakTypes.StateSnapshot, _ keccakTypes.Leaf, _ merkle.Proof, _ keccakTypes.Leaf, _ merkle.Proof) error {
 	if s.squeezeCallFails {
 		return mockSqueezeCallError
 	}
