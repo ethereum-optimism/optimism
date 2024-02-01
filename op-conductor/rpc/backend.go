@@ -5,7 +5,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-conductor/consensus"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -17,14 +16,13 @@ type conductor interface {
 	SequencerHealthy(ctx context.Context) bool
 
 	Leader(ctx context.Context) bool
-	LeaderWithID(ctx context.Context) *consensus.ServerInfo
+	LeaderWithID(ctx context.Context) (string, string)
 	AddServerAsVoter(ctx context.Context, id string, addr string) error
 	AddServerAsNonvoter(ctx context.Context, id string, addr string) error
 	RemoveServer(ctx context.Context, id string) error
 	TransferLeader(ctx context.Context) error
 	TransferLeaderToServer(ctx context.Context, id string, addr string) error
 	CommitUnsafePayload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) error
-	ClusterMembership(ctx context.Context) ([]*consensus.ServerInfo, error)
 }
 
 // APIBackend is the backend implementation of the API.
@@ -71,8 +69,12 @@ func (api *APIBackend) Leader(ctx context.Context) (bool, error) {
 }
 
 // LeaderWithID implements API, returns the leader's server ID and address (not necessarily the current conductor).
-func (api *APIBackend) LeaderWithID(ctx context.Context) (*consensus.ServerInfo, error) {
-	return api.con.LeaderWithID(ctx), nil
+func (api *APIBackend) LeaderWithID(ctx context.Context) (*ServerInfo, error) {
+	id, addr := api.con.LeaderWithID(ctx)
+	return &ServerInfo{
+		ID:   id,
+		Addr: addr,
+	}, nil
 }
 
 // Pause implements API.
@@ -90,14 +92,12 @@ func (api *APIBackend) Resume(ctx context.Context) error {
 	return api.con.Resume(ctx)
 }
 
-// TransferLeader implements API. With Raft implementation, a successful call does not mean that leadership transfer is complete
-// It just means that leadership transfer is in progress (current leader has initiated a new leader election round and stepped down as leader)
+// TransferLeader implements API.
 func (api *APIBackend) TransferLeader(ctx context.Context) error {
 	return api.con.TransferLeader(ctx)
 }
 
-// TransferLeaderToServer implements API. With Raft implementation, a successful call does not mean that leadership transfer is complete
-// It just means that leadership transfer is in progress (current leader has initiated a new leader election round and stepped down as leader)
+// TransferLeaderToServer implements API.
 func (api *APIBackend) TransferLeaderToServer(ctx context.Context, id string, addr string) error {
 	return api.con.TransferLeaderToServer(ctx, id, addr)
 }
@@ -105,9 +105,4 @@ func (api *APIBackend) TransferLeaderToServer(ctx context.Context, id string, ad
 // SequencerHealthy implements API.
 func (api *APIBackend) SequencerHealthy(ctx context.Context) (bool, error) {
 	return api.con.SequencerHealthy(ctx), nil
-}
-
-// ClusterMembership implements API.
-func (api *APIBackend) ClusterMembership(ctx context.Context) ([]*consensus.ServerInfo, error) {
-	return api.con.ClusterMembership(ctx)
 }
