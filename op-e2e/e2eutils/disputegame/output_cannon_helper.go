@@ -78,7 +78,7 @@ func (g *OutputCannonGameHelper) CreateHonestActor(ctx context.Context, l2Node s
 
 type PreimageLoadCheck func(types.TraceProvider, uint64) error
 
-func (g *OutputCannonGameHelper) CreatStepLargePreimageLoadCheck(ctx context.Context, sender common.Address) PreimageLoadCheck {
+func (g *OutputCannonGameHelper) CreateStepLargePreimageLoadCheck(ctx context.Context, sender common.Address) PreimageLoadCheck {
 	return func(provider types.TraceProvider, targetTraceIndex uint64) error {
 		// Fetch the challenge period
 		challengePeriod := g.ChallengePeriod(ctx)
@@ -105,7 +105,7 @@ func (g *OutputCannonGameHelper) CreatStepLargePreimageLoadCheck(ctx context.Con
 	}
 }
 
-func (g *OutputCannonGameHelper) CreatStepPreimageLoadCheck(ctx context.Context) PreimageLoadCheck {
+func (g *OutputCannonGameHelper) CreateStepPreimageLoadCheck(ctx context.Context) PreimageLoadCheck {
 	return func(provider types.TraceProvider, targetTraceIndex uint64) error {
 		execDepth := g.ExecDepth(ctx)
 		_, _, preimageData, err := provider.GetStepData(ctx, types.NewPosition(execDepth, big.NewInt(int64(targetTraceIndex))))
