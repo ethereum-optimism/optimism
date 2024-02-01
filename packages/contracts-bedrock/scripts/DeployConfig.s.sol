@@ -119,7 +119,8 @@ contract DeployConfig is Script {
 
             preimageOracleMinProposalSize = stdJson.readUint(_json, "$.preimageOracleMinProposalSize");
             preimageOracleChallengePeriod = stdJson.readUint(_json, "$.preimageOracleChallengePeriod");
-            preimageOracleCancunActivationTimestamp = stdJson.readUint(_json, "$.preimageOracleCancunActivationTimestamp");
+            preimageOracleCancunActivationTimestamp =
+                stdJson.readUint(_json, "$.preimageOracleCancunActivationTimestamp");
         }
     }
 
