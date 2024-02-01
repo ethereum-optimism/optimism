@@ -21,7 +21,7 @@ contract L1ERC721BridgeKontrol is DeploymentSummary, KontrolUtils {
     /// TODO: Replace symbolic workarounds with the appropriate
     /// types once Kontrol supports symbolic `bytes` and `bytes[]`
     /// Tracking issue: https://github.com/runtimeverification/kontrol/issues/272
-    function prove_finalizeBridgeERC21_paused(
+    function prove_finalizeBridgeERC721_paused(
         address _localToken,
         address _remoteToken,
         address _from,
@@ -41,8 +41,10 @@ contract L1ERC721BridgeKontrol is DeploymentSummary, KontrolUtils {
             bytes32(uint256(uint160(address(l1ERC721Bridge.otherBridge()))))
         );
 
-        // ASSUME: conservative upper bound on the `_extraData` length
-        bytes memory _extraData = freshBigBytes(320);
+        // ASSUME: Conservative upper bound on the `_extraData` length, since extra data is optional
+        // for convenience of off-chain tooling. This assumption can be removed once Kontrol
+        // supports symbolic `bytes`: https://github.com/runtimeverification/kontrol/issues/272
+        bytes memory _extraData = freshBigBytes(64);
 
         // Pause Standard Bridge
         vm.prank(superchainConfig.guardian());
