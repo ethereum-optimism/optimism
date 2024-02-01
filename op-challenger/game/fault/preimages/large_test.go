@@ -69,7 +69,7 @@ func TestLargePreimageUploader_NewUUID(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			oracle, _, _, _ := newTestLargePreimageUploader(t)
-			uuid := oracle.newUUID(test.data)
+			uuid := NewUUID(oracle.txSender.From(), test.data)
 			require.Equal(t, test.expectedUUID, uuid)
 		})
 	}

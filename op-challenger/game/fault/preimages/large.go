@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -54,7 +55,7 @@ func (p *LargePreimageUploader) UploadPreimage(ctx context.Context, parent uint6
 		return fmt.Errorf("failed to split preimage into chunks for data with oracle offset %d: %w", data.OracleOffset, err)
 	}
 
-	uuid := p.newUUID(data)
+	uuid := NewUUID(p.txSender.From(), data)
 
 	// Fetch the current metadata for this preimage data, if it exists.
 	ident := keccakTypes.LargePreimageIdent{Claimant: p.txSender.From(), UUID: uuid}
@@ -89,10 +90,9 @@ func (p *LargePreimageUploader) UploadPreimage(ctx context.Context, parent uint6
 	return p.Squeeze(ctx, uuid, stateMatrix)
 }
 
-// newUUID generates a new unique identifier for the preimage by hashing the
+// NewUUID generates a new unique identifier for the preimage by hashing the
 // concatenated preimage data, preimage offset, and sender address.
-func (p *LargePreimageUploader) newUUID(data *types.PreimageOracleData) *big.Int {
-	sender := p.txSender.From()
+func NewUUID(sender common.Address, data *types.PreimageOracleData) *big.Int {
 	offset := make([]byte, 4)
 	binary.LittleEndian.PutUint32(offset, data.OracleOffset)
 	concatenated := append(data.OracleData, offset...)

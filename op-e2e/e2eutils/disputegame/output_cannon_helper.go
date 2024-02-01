@@ -5,6 +5,7 @@ import (
 	"crypto/ecdsa"
 	"math/big"
 	"path/filepath"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace"
@@ -13,10 +14,13 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/split"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
+	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -74,14 +78,39 @@ func (g *OutputCannonGameHelper) CreateHonestActor(ctx context.Context, l2Node s
 	}
 }
 
+type PreimageLoadCheck func(types.TraceProvider, uint64) error
+
+func (g *OutputCannonGameHelper) CreatStepPreimageLoadCheck(ctx context.Context, sys *op_e2e.System, l1Client *ethclient.Client) PreimageLoadCheck {
+	return func(provider types.TraceProvider, targetTraceIndex uint64) error {
+		// Fetch the challenge period
+		challengePeriod := g.ChallengePeriod(ctx)
+
+		// Get the preimage data
+		execDepth := g.ExecDepth(ctx)
+		_, _, preimageData, err := provider.GetStepData(ctx, types.NewPosition(execDepth, big.NewInt(int64(targetTraceIndex))))
+		g.require.NoError(err)
+
+		// Wait until the challenge period has started by checking until the challenge period start time is not zero by calling the ChallengePeriodStartTime methodd
+		g.WaitForChallengePeriodStart(ctx, sys.Cfg.Secrets.Addresses().Alice, preimageData)
+
+		// Time travel past the challenge period.
+		sys.TimeTravelClock.AdvanceTime(time.Duration(challengePeriod) * time.Second)
+		g.require.NoError(wait.ForNextBlock(ctx, l1Client))
+
+		// Assert that the preimage was indeed loaded by an honest challenger
+		g.require.True(g.preimageExistsInOracle(ctx, preimageData))
+		return nil
+	}
+}
+
 // ChallengeToPreimageLoad challenges the supplied execution root claim by inducing a step that requires a preimage to be loaded
 // It does this by:
 // 1. Identifying the first state transition that loads a global preimage
 // 2. Descending the execution game tree to reach the step that loads the preimage
 // 3. Asserting that the preimage was indeed loaded by an honest challenger (assuming the preimage is not preloaded)
 // This expects an odd execution game depth in order for the honest challenger to step on our leaf claim
-func (g *OutputCannonGameHelper) ChallengeToPreimageLoad(ctx context.Context, outputRootClaim *ClaimHelper, challengerKey *ecdsa.PrivateKey, preimage cannon.PreimageOpt, preloadPreimage bool) {
-	// 1. Identifying the first state transition that loads a global preimage
+func (g *OutputCannonGameHelper) ChallengeToPreimageLoad(ctx context.Context, outputRootClaim *ClaimHelper, challengerKey *ecdsa.PrivateKey, preimage cannon.PreimageOpt, preimageCheck PreimageLoadCheck, preloadPreimage bool) {
+	// Identifying the first state transition that loads a global preimage
 	provider := g.createCannonTraceProvider(ctx, "sequencer", outputRootClaim, challenger.WithPrivKey(challengerKey))
 	targetTraceIndex, _, err := provider.FindStep(ctx, 0, preimage)
 	g.require.NoError(err)
@@ -99,7 +128,7 @@ func (g *OutputCannonGameHelper) ChallengeToPreimageLoad(ctx context.Context, ou
 		g.require.True(g.preimageExistsInOracle(ctx, preimageData))
 	}
 
-	// 2. Descending the execution game tree to reach the step that loads the preimage
+	// Descending the execution game tree to reach the step that loads the preimage
 	bisectTraceIndex := func(claim *ClaimHelper) *ClaimHelper {
 		execClaimPosition, err := claim.position.RelativeToAncestorAtDepth(splitDepth + 1)
 		g.require.NoError(err)
@@ -163,10 +192,8 @@ func (g *OutputCannonGameHelper) ChallengeToPreimageLoad(ctx context.Context, ou
 	claim := bisectTraceIndex(outputRootClaim)
 	g.DefendClaim(ctx, claim, bisectTraceIndex)
 
-	// 3. Asserts that the preimage was indeed loaded by an honest challenger
-	_, _, preimageData, err := provider.GetStepData(ctx, types.NewPosition(execDepth, big.NewInt(int64(targetTraceIndex))))
-	g.require.NoError(err)
-	g.require.True(g.preimageExistsInOracle(ctx, preimageData))
+	// Validate that the preimage was loaded correctly
+	g.require.NoError(preimageCheck(provider, targetTraceIndex))
 }
 
 func (g *OutputCannonGameHelper) createCannonTraceProvider(ctx context.Context, l2Node string, outputRootClaim *ClaimHelper, options ...challenger.Option) *cannon.CannonTraceProviderForTest {

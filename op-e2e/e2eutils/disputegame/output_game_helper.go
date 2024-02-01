@@ -10,8 +10,10 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/preimages"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -467,6 +469,48 @@ func (g *OutputGameHelper) ResolveClaim(ctx context.Context, claimIdx int64) {
 	g.require.NoError(err, "ResolveClaim transaction did not send")
 	_, err = wait.ForReceiptOK(ctx, g.client, tx.Hash())
 	g.require.NoError(err, "ResolveClaim transaction was not OK")
+}
+
+// ChallengePeriod returns the challenge period fetched from the PreimageOracle contract.
+// The returned uint64 value is the number of seconds for the challenge period.
+func (g *OutputGameHelper) ChallengePeriod(ctx context.Context) uint64 {
+	oracle := g.oracle(ctx)
+	period, err := oracle.ChallengePeriod(ctx)
+	g.require.NoError(err, "Failed to get challenge period")
+	return period
+}
+
+// WaitForChallengePeriodStart waits for the challenge period to start for a given large preimage claim.
+func (g *OutputGameHelper) WaitForChallengePeriodStart(ctx context.Context, sender common.Address, data *types.PreimageOracleData) {
+	timedCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
+	defer cancel()
+	err := wait.For(timedCtx, time.Second, func() (bool, error) {
+		ctx, cancel := context.WithTimeout(timedCtx, 30*time.Second)
+		defer cancel()
+		timestamp := g.ChallengePeriodStartTime(ctx, sender, data)
+		g.t.Log("Waiting for challenge period start", "timestamp", timestamp, "data", data, "game", g.addr)
+		return timestamp > 0, nil
+	})
+	if err != nil {
+		g.LogGameData(ctx)
+		g.require.NoErrorf(err, "Failed to get challenge start period for preimage data %v", data)
+	}
+}
+
+// ChallengePeriodStartTime returns the start time of the challenge period for a given large preimage claim.
+// If the returned start time is 0, the challenge period has not started.
+func (g *OutputGameHelper) ChallengePeriodStartTime(ctx context.Context, sender common.Address, data *types.PreimageOracleData) uint64 {
+	oracle := g.oracle(ctx)
+	uuid := preimages.NewUUID(sender, data)
+	metadata, err := oracle.GetProposalMetadata(ctx, batching.BlockLatest, keccakTypes.LargePreimageIdent{
+		Claimant: sender,
+		UUID:     uuid,
+	})
+	g.require.NoError(err, "Failed to get proposal metadata")
+	if len(metadata) == 0 {
+		return 0
+	}
+	return metadata[0].Timestamp
 }
 
 func (g *OutputGameHelper) preimageExistsInOracle(ctx context.Context, data *types.PreimageOracleData) bool {
