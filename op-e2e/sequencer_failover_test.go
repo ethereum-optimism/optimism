@@ -2,8 +2,11 @@ package op_e2e
 
 import (
 	"context"
+	"fmt"
 	"sort"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -141,4 +144,109 @@ func TestSequencerFailover_ConductorRPC(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 2, len(membership), "Expected 2 members in cluster after removal")
 	require.NotContains(t, membership, fid, "Expected follower to be removed from cluster")
+}
+
+// [Category: Sequencer Failover]
+// In this test, we test that the sequencer can successfully failover to a new sequencer once active sequencer goes down.
+func TestSequencerFailover_ActiveSequencerDown(t *testing.T) {
+	ctx := context.Background()
+	sys, conductors := setupSequencerFailoverTest(t)
+	defer sys.Close()
+
+	// find leader, stop sequencer completely
+	lid, _ := findLeader(t, conductors)
+	err := sys.RollupNodes[lid].Stop(ctx)
+	require.NoError(t, err, "Expected leader to stop")
+	require.NoError(t, waitForHealthChange(t, conductors[lid], false), "Expected leader to become unhealthy")
+	require.NoError(t, waitForLeadershipChange(t, conductors[lid], false), "Expected leader to lose leadership")
+
+	t.Log("ensure there's only 1 leader and active sequencer")
+	ensureOnlyOneLeader(t, sys, conductors)
+}
+
+// [Category: Sequencer Failover]
+// In this test, we test that one follower goes down does not affect the cluster.
+func TestSequencerFailover_FollowerDown(t *testing.T) {
+	ctx := context.Background()
+	sys, conductors := setupSequencerFailoverTest(t)
+	defer sys.Close()
+
+	// find follower, stop sequencer completely
+	fid, _ := findFollower(t, conductors)
+	err := sys.RollupNodes[fid].Stop(ctx)
+	require.NoError(t, err, "Expected follower to stop")
+	require.NoError(t, waitForHealthChange(t, conductors[fid], false), "Expected follower to become unhealthy")
+
+	t.Log("ensure there's only 1 leader and active sequencer")
+	ensureOnlyOneLeader(t, sys, conductors)
+}
+
+// [Category: Sequencer Failover]
+// In this test, we test that when conductor failed on active sequencer A, we'll be able to
+// 1. start sequencing on another sequencer B.
+// 2. current sequencer A won't cause unsafe reorg despite the fact that it stays in active sequencing mode.
+func TestSequencerFailover_ActiveSequencerConductorDown(t *testing.T) {
+	ctx := context.Background()
+	sys, conductors := setupSequencerFailoverTest(t)
+	defer sys.Close()
+
+	t.Log("find leader, stop conductor")
+	lid, leader := findLeader(t, conductors)
+	require.NoError(t, leader.service.Stop(ctx))
+	active, err := sys.RollupClient(lid).SequencerActive(ctx)
+	require.NoError(t, err)
+	require.True(t, active, "Expect sequencer to stay in active mode")
+
+	t.Log("ensure there's only 1 leader and active sequencer")
+	ensureOnlyOneLeader(t, sys, conductors)
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		t.Log("ensure original leader unsafe head won't proceed")
+
+		base, err := sys.Clients[lid].BlockNumber(ctx)
+		require.NoError(t, err)
+		for i := 0; i < 4; i++ {
+			now, err := sys.Clients[lid].BlockNumber(ctx)
+			require.NoError(t, err)
+			require.Equal(t, base, now, "Expect unsafe head to stay the same")
+			ss, err := sys.RollupClient(lid).SyncStatus(ctx)
+			require.NoError(t, err)
+			require.Equal(t, base, ss.UnsafeL2.Number, "Expect unsafe head to stay the same")
+			time.Sleep(time.Duration(sys.RollupCfg().BlockTime * uint64(time.Second)))
+		}
+	}()
+
+	for name, con := range conductors {
+		if name == lid {
+			continue
+		}
+
+		wg.Add(1)
+		go func(seq string, c *conductor) {
+			defer wg.Done()
+			t.Log("ensure the other sequencer's unsafe head is still progressing")
+
+			// There could be a chance that newly taken over sequencer hasn't been able to sequence to tip yet.
+			// We call SequencerHealthy here because its monitor contains chain progression check.
+			require.NoError(t, waitForHealthChange(t, c, true))
+			for i := 0; i < 4; i++ {
+				healthy, err := c.client.SequencerHealthy(ctx)
+				require.NoError(t, err)
+				require.True(t, healthy, "Expect sequencer to stay healthy")
+				time.Sleep(time.Duration(sys.RollupCfg().BlockTime * uint64(time.Second)))
+				fmt.Println("current time", time.Now())
+			}
+
+			base, err := sys.RollupClient(lid).SyncStatus(ctx)
+			require.NoError(t, err)
+			now, err := sys.RollupClient(seq).SyncStatus(ctx)
+			require.NoError(t, err)
+			require.Greater(t, now.UnsafeL2.Number, base.UnsafeL2.Number, "Expect unsafe head to progress")
+		}(name, con)
+	}
+
+	wg.Wait()
 }

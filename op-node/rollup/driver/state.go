@@ -182,6 +182,11 @@ func (s *Driver) OnL1Finalized(ctx context.Context, finalized eth.L1BlockRef) er
 }
 
 func (s *Driver) OnUnsafeL2Payload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope) error {
+	if !s.driverConfig.SequencerStopped {
+		s.log.Warn("sequencer running, should not receive unsafe payload")
+		return nil
+	}
+
 	select {
 	case <-ctx.Done():
 		return ctx.Err()

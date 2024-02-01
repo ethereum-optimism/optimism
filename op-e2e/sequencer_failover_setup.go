@@ -327,6 +327,18 @@ func waitForLeadershipChange(t *testing.T, c *conductor, leader bool) error {
 	return waitFor(t, 10*time.Second, condiction)
 }
 
+func waitForHealthChange(t *testing.T, c *conductor, healthy bool) error {
+	condiction := func() bool {
+		isHealthy, err := c.client.SequencerHealthy(context.Background())
+		if err != nil {
+			return false
+		}
+		return isHealthy == healthy
+	}
+
+	return waitFor(t, 10*time.Second, condiction)
+}
+
 func waitForSequencerStatusChange(t *testing.T, rollupClient *sources.RollupClient, active bool) error {
 	condiction := func() bool {
 		isActive, err := rollupClient.SequencerActive(context.Background())
@@ -336,7 +348,7 @@ func waitForSequencerStatusChange(t *testing.T, rollupClient *sources.RollupClie
 		return isActive == active
 	}
 
-	return waitFor(t, 5*time.Second, condiction)
+	return waitFor(t, 10*time.Second, condiction)
 }
 
 func leader(t *testing.T, ctx context.Context, con *conductor) bool {
@@ -399,4 +411,28 @@ func findFollower(t *testing.T, conductors map[string]*conductor) (string, *cond
 		}
 	}
 	return "", nil
+}
+
+func ensureOnlyOneLeader(t *testing.T, sys *System, conductors map[string]*conductor) {
+	condiction := func() bool {
+		leaders := 0
+		ctx := context.Background()
+		for name, con := range conductors {
+			leader, err := con.client.Leader(ctx)
+			if err != nil {
+				continue
+			}
+			active, err := sys.RollupClient(name).SequencerActive(ctx)
+			if err != nil {
+				continue
+			}
+
+			if leader && active {
+				leaders++
+			}
+		}
+		return leaders == 1
+	}
+
+	require.NoError(t, waitFor(t, 10*time.Second, condiction))
 }
