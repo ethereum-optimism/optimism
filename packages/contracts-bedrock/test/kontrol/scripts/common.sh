@@ -13,12 +13,12 @@ usage() {
 }
 
 # Set Run Directory <root>/packages/contracts-bedrock
-WORKSPACE_DIR=$( cd "${SCRIPT_HOME}/../../.." >/dev/null 2>&1 && pwd )
+WORKSPACE_DIR=$( cd "$SCRIPT_HOME/../../.." >/dev/null 2>&1 && pwd )
 
 # Variables
 export CONTAINER_NAME=kontrol-tests
-KONTROLRC=$(jq -r .kontrol < "${WORKSPACE_DIR}/../../versions.json")
-export KONTROL_RELEASE=${KONTROLRC}
+KONTROLRC=$(jq -r .kontrol < "$WORKSPACE_DIR/../../versions.json")
+export KONTROL_RELEASE=$KONTROLRC
 export LOCAL=false
 
 # Argument Parsing
@@ -36,28 +36,28 @@ parse_args() {
   elif [ "$1" == "dev" ]; then
     notif "Running with LOCAL install, IGNORING .kontrolrc version"
     export LOCAL=true
-    pushd "${WORKSPACE_DIR}" > /dev/null || exit
+    pushd "$WORKSPACE_DIR" > /dev/null || exit
   else
     usage
   fi
 }
 
 check_kontrol_version() {
-  if [ "$(kontrol version | awk -F': ' '{print$2}')" == "${KONTROLRC}" ]; then
-    notif "Kontrol version matches ${KONTROLRC}"
+  if [ "$(kontrol version | awk -F': ' '{print$2}')" == "$KONTROLRC" ]; then
+    notif "Kontrol version matches $KONTROLRC"
     export LOCAL=true
-    pushd "${WORKSPACE_DIR}" > /dev/null || exit
+    pushd "$WORKSPACE_DIR" > /dev/null || exit
   else
-    notif "Kontrol version does NOT match ${KONTROLRC}"
-    notif "Please run 'kup install kontrol --version v${KONTROLRC}'"
+    notif "Kontrol version does NOT match $KONTROLRC"
+    notif "Please run 'kup install kontrol --version v$KONTROLRC'"
     exit 1
   fi
 }
 
 conditionally_start_docker() {
-  if [ "${LOCAL}" == false ]; then
+  if [ "$LOCAL" == false ]; then
     # Is old docker container running?
-    if [ "$(docker ps -q -f name="${CONTAINER_NAME}")" ]; then
+    if [ "$(docker ps -q -f name="$CONTAINER_NAME")" ]; then
         # Stop old docker container
         notif "Stopping old docker container"
         clean_docker
@@ -77,21 +77,21 @@ start_docker () {
     --mount type=bind,source="$WORKSPACE_DIR",target=/home/user/workspace \
     runtimeverificationinc/kontrol:ubuntu-jammy-"$KONTROL_RELEASE"
 
-  docker exec --user root ${CONTAINER_NAME} chown -R user:user /home/user
+  docker exec --user root $CONTAINER_NAME chown -R user:user /home/user
 }
 
 clean_docker(){
   notif "Stopping Docker Container"
-  docker stop "${CONTAINER_NAME}"
+  docker stop "$CONTAINER_NAME"
 }
 
 
 docker_exec () {
-  docker exec --user user --workdir /home/user/workspace ${CONTAINER_NAME} "${@}"
+  docker exec --user user --workdir /home/user/workspace $CONTAINER_NAME "${@}"
 }
 
 run () {
-  if [ "${LOCAL}" = true ]; then
+  if [ "$LOCAL" = true ]; then
     notif "Running local"
     # shellcheck disable=SC2086
     "${@}"

@@ -5,7 +5,7 @@ export FOUNDRY_PROFILE=kprove
 
 SCRIPT_HOME="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 # shellcheck source=/dev/null
-source "${SCRIPT_HOME}/common.sh"
+source "$SCRIPT_HOME/common.sh"
 parse_args "$@"
 
 #############
@@ -16,58 +16,58 @@ kontrol_build() {
   # shellcheck disable=SC2086
   run kontrol build \
     --verbose \
-    --require ${lemmas} \
-    --module-import ${module} \
-    ${rekompile}
+    --require $lemmas \
+    --module-import $module \
+    $rekompile
 }
 
 kontrol_prove() {
   notif "Kontrol Prove"
   # shellcheck disable=SC2086
   run kontrol prove \
-    --max-depth ${max_depth} \
-    --max-iterations ${max_iterations} \
-    --smt-timeout ${smt_timeout} \
-    --workers ${workers} \
-    ${reinit} \
-    ${bug_report} \
-    ${break_on_calls} \
-    ${auto_abstract} \
-    ${tests} \
-    ${use_booster} \
-    --init-node-from ${state_diff}
+    --max-depth $max_depth \
+    --max-iterations $max_iterations \
+    --smt-timeout $smt_timeout \
+    --workers $workers \
+    $reinit \
+    $bug_report \
+    $break_on_calls \
+    $auto_abstract \
+    $tests \
+    $use_booster \
+    --init-node-from $state_diff
 }
 
 dump_log_results(){
   trap clean_docker ERR
     RESULTS_FILE="results-$(date +'%Y-%m-%d-%H-%M-%S').tar.gz"
     LOG_PATH="test/kontrol/logs"
-    RESULTS_LOG="${LOG_PATH}/${RESULTS_FILE}"
+    RESULTS_LOG="$LOG_PATH/$RESULTS_FILE"
 
-    if [ ! -d ${LOG_PATH} ]; then
-      mkdir ${LOG_PATH}
+    if [ ! -d $LOG_PATH ]; then
+      mkdir $LOG_PATH
     fi
 
-    notif "Generating Results Log: ${LOG_PATH}"
+    notif "Generating Results Log: $LOG_PATH"
 
     run tar -czvf results.tar.gz kout-proofs/ > /dev/null 2>&1
-    if [ "${LOCAL}" = true ]; then
-      mv results.tar.gz "${RESULTS_LOG}"
+    if [ "$LOCAL" = true ]; then
+      mv results.tar.gz "$RESULTS_LOG"
     else
-      docker cp "${CONTAINER_NAME}:/home/user/workspace/results.tar.gz" "${RESULTS_LOG}"
+      docker cp "$CONTAINER_NAME:/home/user/workspace/results.tar.gz" "$RESULTS_LOG"
     fi
-    if [ -f "${RESULTS_LOG}" ]; then
-      cp "${RESULTS_LOG}" "${LOG_PATH}/kontrol-results_latest.tar.gz"
+    if [ -f "$RESULTS_LOG" ]; then
+      cp "$RESULTS_LOG" "$LOG_PATH/kontrol-results_latest.tar.gz"
     else
-      notif "Results Log: ${RESULTS_LOG} not found, skipping.."
+      notif "Results Log: $RESULTS_LOG not found, skipping.."
     fi
     # Report where the file was generated and placed
-    notif "Results Log: $(dirname "${RESULTS_LOG}") generated"
+    notif "Results Log: $(dirname "$RESULTS_LOG") generated"
 
-    if [ "${LOCAL}" = false ]; then
-      notif "Results Log: ${RESULTS_LOG} generated"
+    if [ "$LOCAL" = false ]; then
+      notif "Results Log: $RESULTS_LOG generated"
       RUN_LOG="run-kontrol-$(date +'%Y-%m-%d-%H-%M-%S').log"
-      docker logs "${CONTAINER_NAME}" > "${LOG_PATH}/${RUN_LOG}"
+      docker logs "$CONTAINER_NAME" > "$LOG_PATH/$RUN_LOG"
     fi
 }
 
@@ -75,7 +75,7 @@ dump_log_results(){
 on_failure() {
   dump_log_results
 
-  if [ "${LOCAL}" = false ]; then
+  if [ "$LOCAL" = false ]; then
     clean_docker
   fi
 
@@ -95,7 +95,7 @@ trap on_failure ERR INT
 # empty assignment to activate/deactivate the corresponding flag
 lemmas=test/kontrol/pausability-lemmas.k
 base_module=PAUSABILITY-LEMMAS
-module=OptimismPortalKontrol:${base_module}
+module=OptimismPortalKontrol:$base_module
 rekompile=--rekompile
 rekompile=
 regen=--regen
@@ -148,7 +148,7 @@ kontrol_prove
 
 dump_log_results
 
-if [ "${LOCAL}" == false ]; then
+if [ "$LOCAL" == false ]; then
     notif "Stopping docker container"
     clean_docker
 fi

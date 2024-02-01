@@ -19,7 +19,7 @@ cleanup() {
     rm "snapshots/state-diff/Deploy.json"
   fi
 
-  if [ "${LOCAL}" = false ]; then
+  if [ "$LOCAL" = false ]; then
     clean_docker
   fi
 }
@@ -45,13 +45,13 @@ DEPLOY_SCRIPT="./scripts/Deploy.s.sol"
 conditionally_start_docker
 
 # Create a backup
-cp ${DEPLOY_SCRIPT} ${DEPLOY_SCRIPT}.bak
+cp $DEPLOY_SCRIPT $DEPLOY_SCRIPT.bak
 
 # Replace mustGetAddress by getAddress in Deploy.s.sol
 # This is needed because the Kontrol deployment is only a partial
 # version of the full Optimism deployment. Since not all the components
 # of the system are deployed, we'd get some reverts on the `mustGetAddress` functions
-awk '{gsub(/mustGetAddress/, "getAddress")}1' ${DEPLOY_SCRIPT} > temp && mv temp ${DEPLOY_SCRIPT}
+awk '{gsub(/mustGetAddress/, "getAddress")}1' $DEPLOY_SCRIPT > temp && mv temp $DEPLOY_SCRIPT
 
 forge script -vvv test/kontrol/deployment/KontrolDeployment.sol:KontrolDeployment --sig 'runKontrolDeployment()'
 echo "Created state diff json"
@@ -59,20 +59,20 @@ echo "Created state diff json"
 # Clean and store the state diff json in snapshots/state-diff/Kontrol-Deploy.json
 JSON_SCRIPTS=test/kontrol/scripts/json
 GENERATED_STATEDIFF=Deploy.json # Name of the statediff json produced by the deployment script
-STATEDIFF=Kontrol-${GENERATED_STATEDIFF} # Name of the Kontrol statediff
-mv snapshots/state-diff/${GENERATED_STATEDIFF} snapshots/state-diff/${STATEDIFF}
-python3 ${JSON_SCRIPTS}/clean_json.py snapshots/state-diff/${STATEDIFF}
-jq . snapshots/state-diff/${STATEDIFF} > temp && mv temp snapshots/state-diff/${STATEDIFF} # Prettify json
+STATEDIFF=Kontrol-$GENERATED_STATEDIFF # Name of the Kontrol statediff
+mv snapshots/state-diff/$GENERATED_STATEDIFF snapshots/state-diff/$STATEDIFF
+python3 $JSON_SCRIPTS/clean_json.py snapshots/state-diff/$STATEDIFF
+jq . snapshots/state-diff/$STATEDIFF > temp && mv temp snapshots/state-diff/$STATEDIFF # Prettify json
 echo "Cleaned state diff json"
 
 CONTRACT_NAMES=deployments/hardhat/.deploy
-python3 ${JSON_SCRIPTS}/reverse_key_values.py ${CONTRACT_NAMES} ${CONTRACT_NAMES}Reversed
+python3 $JSON_SCRIPTS/reverse_key_values.py $CONTRACT_NAMES ${CONTRACT_NAMES}Reversed
 CONTRACT_NAMES=${CONTRACT_NAMES}Reversed
 
 SUMMARY_DIR=test/kontrol/proofs/utils
 SUMMARY_NAME=DeploymentSummary
 LICENSE=MIT
-run kontrol summary ${SUMMARY_NAME} snapshots/state-diff/${STATEDIFF} --contract-names ${CONTRACT_NAMES} --output-dir ${SUMMARY_DIR} --license ${LICENSE}
-forge fmt ${SUMMARY_DIR}/${SUMMARY_NAME}.sol
-forge fmt ${SUMMARY_DIR}/${SUMMARY_NAME}Code.sol
-echo "Added state updates to ${SUMMARY_DIR}/${SUMMARY_NAME}.sol"
+run kontrol summary $SUMMARY_NAME snapshots/state-diff/$STATEDIFF --contract-names $CONTRACT_NAMES --output-dir $SUMMARY_DIR --license $LICENSE
+forge fmt $SUMMARY_DIR/$SUMMARY_NAME.sol
+forge fmt $SUMMARY_DIR/${SUMMARY_NAME}Code.sol
+echo "Added state updates to $SUMMARY_DIR/$SUMMARY_NAME.sol"
