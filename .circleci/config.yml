@@ -1332,16 +1332,6 @@ jobs:
     steps:
       - checkout
       - run:
-          # This is a workaround for how check-changed doesn't work in
-          # the merge queue. By running this check the kontrol tests will
-          # run on PR builds and on develop, but not the merge queue.
-          name: Ensure PR/develop
-          command: |
-            if [ -z "$CIRCLE_PULL_REQUEST" ] && [ "$CIRCLE_BRANCH" != "develop" ]; then
-              echo "Not a PR or develop branch, skipping kontrol tests"
-              circleci step halt
-            fi
-      - run:
           name: Checkout Submodule
           command: make submodules
       - check-changed:
@@ -1354,6 +1344,7 @@ jobs:
           working_directory: ./packages/contracts-bedrock
       - store_artifacts:
           path: ./packages/contracts-bedrock/kontrol-results_latest.tar.gz
+      - notify-failures-on-develop
 
 workflows:
   main:
@@ -1622,7 +1613,6 @@ workflows:
       - check-generated-mocks-op-service
       - cannon-go-lint-and-test
       - cannon-build-test-vectors
-      - kontrol-tests
       - shellcheck/check:
           name: shell-check
           # We don't need the `exclude` key as the orb detects the `.shellcheckrc`
@@ -1854,6 +1844,14 @@ workflows:
           context:
             - slack
             - oplabs-fpp-nodes
+
+  scheduled-kontrol-tests:
+    when:
+      equal: [ build_six_hours, <<pipeline.schedule.name>> ]
+    jobs:
+      - kontrol-tests:
+          context:
+            - slack
 
   scheduled-docker-publish:
     when:
