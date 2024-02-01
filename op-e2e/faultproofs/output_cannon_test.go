@@ -221,7 +221,7 @@ func TestOutputCannonStepWithLargePreimage(t *testing.T) {
 	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(outputCannonTestExecutor))
 
 	ctx := context.Background()
-	sys, l1Client := startFaultDisputeSystem(t)
+	sys, l1Client := startFaultDisputeSystem(t, withLargeBatches())
 	t.Cleanup(sys.Close)
 
 	// Send a large l2 transaction and use the receipt block number as the l2 block number for the game
