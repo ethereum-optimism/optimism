@@ -255,7 +255,8 @@ func TestOutputCannonStepWithLargePreimage(t *testing.T) {
 	game.LogGameData(ctx)
 	// Now the honest challenger is positioned as the defender of the
 	// execution game. We then move to challenge it to induce a large preimage load.
-	check := game.CreatStepPreimageLoadCheck(ctx, sys, l1Client)
+	sender := sys.Cfg.Secrets.Addresses().Alice
+	check := game.CreatStepLargePreimageLoadCheck(ctx, sender)
 	game.ChallengeToPreimageLoad(ctx, outputRootClaim, sys.Cfg.Secrets.Alice, cannon.PreimageLargerThan(18_000), check, false)
 
 	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
@@ -288,7 +289,7 @@ func TestOutputCannonStepWithPreimage(t *testing.T) {
 
 		// Now the honest challenger is positioned as the defender of the execution game
 		// We then move to challenge it to induce a preimage load
-		check := game.CreatStepPreimageLoadCheck(ctx, sys, l1Client)
+		check := game.CreatStepPreimageLoadCheck(ctx)
 		game.ChallengeToPreimageLoad(ctx, outputRootClaim, sys.Cfg.Secrets.Alice, cannon.FirstGlobalPreimageLoad(), check, preloadPreimage)
 
 		sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))

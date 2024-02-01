@@ -14,13 +14,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/split"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
-	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -80,7 +78,7 @@ func (g *OutputCannonGameHelper) CreateHonestActor(ctx context.Context, l2Node s
 
 type PreimageLoadCheck func(types.TraceProvider, uint64) error
 
-func (g *OutputCannonGameHelper) CreatStepPreimageLoadCheck(ctx context.Context, sys *op_e2e.System, l1Client *ethclient.Client) PreimageLoadCheck {
+func (g *OutputCannonGameHelper) CreatStepLargePreimageLoadCheck(ctx context.Context, sender common.Address) PreimageLoadCheck {
 	return func(provider types.TraceProvider, targetTraceIndex uint64) error {
 		// Fetch the challenge period
 		challengePeriod := g.ChallengePeriod(ctx)
@@ -90,14 +88,25 @@ func (g *OutputCannonGameHelper) CreatStepPreimageLoadCheck(ctx context.Context,
 		_, _, preimageData, err := provider.GetStepData(ctx, types.NewPosition(execDepth, big.NewInt(int64(targetTraceIndex))))
 		g.require.NoError(err)
 
-		// Wait until the challenge period has started by checking until the challenge period start time is not zero by calling the ChallengePeriodStartTime methodd
-		g.WaitForChallengePeriodStart(ctx, sys.Cfg.Secrets.Addresses().Alice, preimageData)
+		// Wait until the challenge period has started by checking until the challenge
+		// period start time is not zero by calling the ChallengePeriodStartTime method
+		g.WaitForChallengePeriodStart(ctx, sender, preimageData)
 
 		// Time travel past the challenge period.
-		sys.TimeTravelClock.AdvanceTime(time.Duration(challengePeriod) * time.Second)
-		g.require.NoError(wait.ForNextBlock(ctx, l1Client))
+		g.system.AdvanceTime(time.Duration(challengePeriod) * time.Second)
+		g.require.NoError(wait.ForNextBlock(ctx, g.system.NodeClient("l1")))
 
 		// Assert that the preimage was indeed loaded by an honest challenger
+		g.require.True(g.preimageExistsInOracle(ctx, preimageData))
+		return nil
+	}
+}
+
+func (g *OutputCannonGameHelper) CreatStepPreimageLoadCheck(ctx context.Context) PreimageLoadCheck {
+	return func(provider types.TraceProvider, targetTraceIndex uint64) error {
+		execDepth := g.ExecDepth(ctx)
+		_, _, preimageData, err := provider.GetStepData(ctx, types.NewPosition(execDepth, big.NewInt(int64(targetTraceIndex))))
+		g.require.NoError(err)
 		g.require.True(g.preimageExistsInOracle(ctx, preimageData))
 		return nil
 	}

@@ -66,6 +66,8 @@ type DisputeSystem interface {
 	L1Deployments() *genesis.L1Deployments
 	RollupCfg() *rollup.Config
 	L2Genesis() *core.Genesis
+
+	AdvanceTime(time.Duration)
 }
 
 type FactoryHelper struct {
