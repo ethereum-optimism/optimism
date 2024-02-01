@@ -56,5 +56,6 @@
   "faultGameGenesisOutputRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
   "faultGameSplitDepth": 14,
   "preimageOracleMinProposalSize": 18000,
-  "preimageOracleChallengePeriod": 86400
+  "preimageOracleChallengePeriod": 86400,
+  "preimageOracleCancunActivationTimestamp": 0
 }
