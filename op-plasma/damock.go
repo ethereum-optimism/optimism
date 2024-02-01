@@ -34,13 +34,11 @@ func (c *MockDAClient) GetInput(ctx context.Context, key []byte) ([]byte, error)
 
 func (c *MockDAClient) SetInput(ctx context.Context, data []byte) ([]byte, error) {
 	key := crypto.Keccak256(data)
-	c.store.Put(key, data)
-
-	return key, nil
+	return key, c.store.Put(key, data)
 }
 
-func (c *MockDAClient) DeleteData(key []byte) {
-	c.store.Delete(key)
+func (c *MockDAClient) DeleteData(key []byte) error {
+	return c.store.Delete(key)
 }
 
 type DAErrFaker struct {

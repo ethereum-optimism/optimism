@@ -38,7 +38,10 @@ func TestDAClient(t *testing.T) {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
-		w.Write(input)
+		if _, err := w.Write(input); err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 	})))
 	mux.Handle("/put/", http.StripPrefix("/put/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		logger.Debug("PUT", "url", r.URL)
@@ -53,9 +56,15 @@ func TestDAClient(t *testing.T) {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		store.Put(comm, input)
+		if err := store.Put(comm, input); err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 
-		w.Write(comm)
+		if _, err := w.Write(comm); err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 	})))
 
 	tsrv := httptest.NewServer(mux)
@@ -78,25 +87,25 @@ func TestDAClient(t *testing.T) {
 	require.Equal(t, input, stored)
 
 	// set a bad commitment in the store
-	store.Put(comm, []byte("bad data"))
+	require.NoError(t, store.Put(comm, []byte("bad data")))
 
-	stored, err = client.GetInput(ctx, comm)
+	_, err = client.GetInput(ctx, comm)
 	require.ErrorIs(t, err, ErrCommitmentMismatch)
 
 	// test not found error
 	comm = crypto.Keccak256(testutils.RandomData(rng, 32))
-	stored, err = client.GetInput(ctx, comm)
+	_, err = client.GetInput(ctx, comm)
 	require.ErrorIs(t, err, ErrNotFound)
 
 	// test storing bad data
-	comm, err = client.SetInput(ctx, []byte{})
+	_, err = client.SetInput(ctx, []byte{})
 	require.ErrorIs(t, err, ErrInvalidInput)
 
 	// server not responsive
 	tsrv.Close()
-	comm, err = client.SetInput(ctx, input)
+	_, err = client.SetInput(ctx, input)
 	require.Error(t, err)
 
-	stored, err = client.GetInput(ctx, crypto.Keccak256(input))
+	_, err = client.GetInput(ctx, crypto.Keccak256(input))
 	require.Error(t, err)
 }

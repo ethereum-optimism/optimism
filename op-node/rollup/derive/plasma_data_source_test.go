@@ -63,7 +63,6 @@ func TestPlasmaDataSource(t *testing.T) {
 	}
 	// keep track of random input data to validate against
 	var inputs [][]byte
-	var comms [][]byte
 
 	signer := cfg.L1Signer()
 
@@ -90,7 +89,6 @@ func TestPlasmaDataSource(t *testing.T) {
 			input := testutils.RandomData(rng, 2000)
 			comm, _ := storage.SetInput(ctx, input)
 			inputs = append(inputs, input)
-			comms = append(comms, comm)
 
 			tx, err := types.SignNewTx(batcherPriv, signer, &types.DynamicFeeTx{
 				ChainID:   signer.ChainID(),
