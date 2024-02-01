@@ -119,38 +119,6 @@ def main():
     log.info('Devnet starting')
     devnet_deploy(paths)
 
-
-def deploy_contracts(paths):
-    wait_up(8545)
-    wait_for_rpc_server('127.0.0.1:8545')
-    res = eth_accounts('127.0.0.1:8545')
-
-    response = json.loads(res)
-    account = response['result'][0]
-    log.info(f'Deploying with {account}')
-
-    # send some ether to the create2 deployer account
-    run_command([
-        'cast', 'send', '--from', account,
-        '--rpc-url', 'http://127.0.0.1:8545',
-        '--unlocked', '--value', '5ether', '0x3fAB184622Dc19b6109349B94811493BF2a45362'
-    ], env={}, cwd=paths.contracts_bedrock_dir)
-
-    # deploy the create2 deployer
-    run_command([
-      'cast', 'publish', '--rpc-url', 'http://127.0.0.1:8545',
-      '0xf8a58085174876e800830186a08080b853604580600e600039806000f350fe7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf31ba02222222222222222222222222222222222222222222222222222222222222222a02222222222222222222222222222222222222222222222222222222222222222'
-    ], env={}, cwd=paths.contracts_bedrock_dir)
-
-    fqn = 'scripts/Deploy.s.sol:Deploy'
-    run_command([
-        'forge', 'script', fqn, '--sender', account,
-        '--rpc-url', 'http://127.0.0.1:8545', '--broadcast',
-        '--unlocked', '--with-gas-price', '100000000000'
-    ], env={}, cwd=paths.contracts_bedrock_dir)
-
-    shutil.copy(paths.l1_deployments_path, paths.addresses_json_path)
-
 def init_devnet_l1_deploy_config(paths, update_timestamp=False):
     deploy_config = read_json(paths.devnet_config_template_path)
     if update_timestamp:
@@ -171,7 +139,6 @@ def devnet_l1_genesis(paths):
     os.remove(paths.forge_dump_path)
 
     shutil.copy(paths.l1_deployments_path, paths.addresses_json_path)
-
 
 # Bring up the devnet where the contracts are deployed to L1
 def devnet_deploy(paths):
@@ -244,21 +211,6 @@ def devnet_deploy(paths):
     })
 
     log.info('Devnet ready.')
-
-
-def eth_accounts(url):
-    log.info(f'Fetch eth_accounts {url}')
-    conn = http.client.HTTPConnection(url)
-    headers = {'Content-type': 'application/json'}
-    body = '{"id":2, "jsonrpc":"2.0", "method": "eth_accounts", "params":[]}'
-    conn.request('POST', '/', body, headers)
-    response = conn.getresponse()
-    data = response.read().decode()
-    conn.close()
-    return data
-
-def pad_hex(input):
-    return '0x' + input.replace('0x', '').zfill(64)
 
 def wait_for_rpc_server(url):
     log.info(f'Waiting for RPC server at {url}')
