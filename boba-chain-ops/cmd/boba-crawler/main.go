@@ -30,10 +30,16 @@ func main() {
 				EnvVars: []string{"END_BLOCK"},
 			},
 			&cli.StringFlag{
-				Name:    "output-path",
-				Usage:   "File to write the output to",
+				Name:    "eth-addresses-output-path",
+				Usage:   "File to write eth addresses to",
 				Value:   "eth-addresses.json",
-				EnvVars: []string{"OUTPUT_PATH"},
+				EnvVars: []string{"ETH_ADDRESSES_OUTPUT_PATH"},
+			},
+			&cli.StringFlag{
+				Name:    "eth-allowances-output-path",
+				Usage:   "File to write eth allowances to",
+				Value:   "eth-allowances.json",
+				EnvVars: []string{"ETH_ALLOWANCES_OUTPUT_PATH"},
 			},
 			&cli.StringFlag{
 				Name:    "rpc-time-out",
@@ -84,7 +90,7 @@ func main() {
 				if err != nil {
 					return err
 				}
-				if err := ether.CheckEthSlots(*alloc, ctx.String("output-path")); err != nil {
+				if err := ether.CheckEthSlots(*alloc, ctx.String("eth-addresses-output-path"), ctx.String("eth-allowances-output-path")); err != nil {
 					return err
 				}
 				log.Info("All checks passed")
@@ -95,14 +101,15 @@ func main() {
 			endBlock := ctx.Int64("end-block")
 			rpcTimeout := ctx.Duration("rpc-time-out")
 			rpcPollingInterval := ctx.Duration("polling-interval")
-			outputPath := ctx.String("output-path")
+			addrOutputPath := ctx.String("eth-addresses-output-path")
+			alloOutputPath := ctx.String("eth-allowances-output-path")
 
 			client, err := node.NewRPC(rpcURL, rpcTimeout, logger)
 			if err != nil {
 				return err
 			}
 
-			crawler := ether.NewCrawler(client, endBlock, rpcPollingInterval, outputPath)
+			crawler := ether.NewCrawler(client, endBlock, rpcPollingInterval, addrOutputPath, alloOutputPath)
 			if err := crawler.Start(); err != nil {
 				return err
 			}

@@ -23,7 +23,8 @@ type Crawler struct {
 	Client             node.RPC
 	EndBlock           int64
 	RpcPollingInterval time.Duration
-	OutputPath         string
+	AddrOutputPath     string
+	AlloOutputPath     string
 	ctx                context.Context
 	stop               chan struct{}
 }
@@ -33,26 +34,48 @@ type EthAddresses struct {
 	Addresses   []*common.Address `json:"addresses"`
 }
 
-func NewCrawler(client node.RPC, endBlock int64, rpcPollingInterval time.Duration, outputPath string) *Crawler {
+// Allowance represents the allowances that were set in the
+// legacy ERC20 representation of ether
+type Allowance struct {
+	From common.Address `json:"fr"`
+	To   common.Address `json:"to"`
+}
+
+type EthAllowances struct {
+	BlockNumber int64        `json:"blockNumber"`
+	Allowances  []*Allowance `json:"allowances"`
+}
+
+func NewCrawler(client node.RPC, endBlock int64, rpcPollingInterval time.Duration, addrOutputPath, alloOutputPath string) *Crawler {
 	return &Crawler{
 		Client:             client,
 		EndBlock:           endBlock,
 		RpcPollingInterval: rpcPollingInterval,
-		OutputPath:         outputPath,
+		AddrOutputPath:     addrOutputPath,
+		AlloOutputPath:     alloOutputPath,
 		ctx:                context.Background(),
 		stop:               make(chan struct{}),
 	}
 }
 
 func (e *Crawler) Start() error {
-	currentBlock, addresses, err := e.LoadAddresses()
+	addrCurrentBlock, addresses, err := e.LoadAddresses()
 	if err != nil && !os.IsNotExist(err) {
 		return err
 	}
 	// insert the constant addresses to the addresses list
 	addresses = append(addresses, &predeploys.SequencerFeeVaultAddr)
 
-	go e.Loop(currentBlock, addresses)
+	alloCurrentBlock, allowances, err := e.LoadAllowances()
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+
+	currentBlock := addrCurrentBlock
+	if alloCurrentBlock < currentBlock {
+		currentBlock = alloCurrentBlock
+	}
+	go e.Loop(currentBlock, addresses, allowances)
 	return nil
 }
 
@@ -64,15 +87,16 @@ func (e *Crawler) Wait() {
 	<-e.stop
 }
 
-func (e *Crawler) Loop(currentBlock int64, addresses []*common.Address) {
+func (e *Crawler) Loop(currentBlock int64, addresses []*common.Address, allowances []*Allowance) {
 	var err error
 	timer := time.NewTicker(e.RpcPollingInterval)
 	defer timer.Stop()
 	mapAddresses := MapAddresses(addresses)
+	mapAllowances := MapAllowances(allowances)
 	for {
 		select {
 		case <-timer.C:
-			currentBlock, mapAddresses, err = e.StartCrawler(currentBlock, mapAddresses)
+			currentBlock, mapAddresses, mapAllowances, err = e.StartCrawler(currentBlock, mapAddresses, mapAllowances)
 			if err != nil {
 				log.Error("error in crawler", "error", err)
 			}
@@ -82,7 +106,7 @@ func (e *Crawler) Loop(currentBlock int64, addresses []*common.Address) {
 	}
 }
 
-func (e *Crawler) StartCrawler(currentBlock int64, mapAddresses map[common.Address]bool) (int64, map[common.Address]bool, error) {
+func (e *Crawler) StartCrawler(currentBlock int64, mapAddresses map[common.Address]bool, mapAllowances map[Allowance]bool) (int64, map[common.Address]bool, map[Allowance]bool, error) {
 	var (
 		err      error
 		endBlock = big.NewInt(e.EndBlock)
@@ -93,38 +117,46 @@ func (e *Crawler) StartCrawler(currentBlock int64, mapAddresses map[common.Addre
 	if endBlock.Cmp(common.Big0) == 0 {
 		endBlock, err = e.Client.GetBlockNumber()
 		if err != nil {
-			return currentBlock, mapAddresses, err
+			return currentBlock, mapAddresses, mapAllowances, err
 		}
 	}
 
 	if currentBlock <= endBlock.Int64() {
 		traceTransaction, err := e.GetTraceTransaction(big.NewInt(currentBlock))
 		if err != nil {
-			return currentBlock, mapAddresses, err
+			return currentBlock, mapAddresses, mapAllowances, err
 		}
 		addresses, err := GetAddressesFromTrace(traceTransaction, true)
 		if err != nil {
-			return currentBlock, mapAddresses, err
+			return currentBlock, mapAddresses, mapAllowances, err
 		}
-		logAddress, err := e.GetToFromEthLogs(big.NewInt(currentBlock))
+		ethAddresses, ethAllowances, err := e.GetToFromEthLogs(big.NewInt(currentBlock))
 		if err != nil {
-			return currentBlock, mapAddresses, err
+			return currentBlock, mapAddresses, mapAllowances, err
 		}
-		log.Info("Crawled block", "block", currentBlock, "addresses", len(addresses), "logAddress", len(logAddress))
-		addresses = append(addresses, logAddress...)
+
+		log.Info("Crawled block", "block", currentBlock, "addresses", len(addresses), "transfer log", len(ethAddresses), "allowance log", len(ethAllowances))
+
+		addresses = append(addresses, ethAddresses...)
 		AddAddressesToMap(addresses, mapAddresses)
 		if err := e.SaveAddresses(currentBlock, MapToAddresses(mapAddresses)); err != nil {
-			return currentBlock, mapAddresses, err
+			return currentBlock, mapAddresses, mapAllowances, err
 		}
-		log.Info("Wrote addresses to file", "block", currentBlock, "addresses", len(mapAddresses))
+
+		AddAllowancesToMap(mapAllowances, MapAllowances(ethAllowances))
+		if err := e.SaveAllowances(currentBlock, MapToAllowances(mapAllowances)); err != nil {
+			return currentBlock, mapAddresses, mapAllowances, err
+		}
+
+		log.Info("Wrote addresses and allowances to file", "block", currentBlock, "addresses", len(mapAddresses), "allowances", len(mapAllowances))
 		currentBlock++
 	}
 
-	return currentBlock, mapAddresses, nil
+	return currentBlock, mapAddresses, mapAllowances, nil
 }
 
 func (e *Crawler) LoadAddresses() (int64, []*common.Address, error) {
-	file, err := os.Open(e.OutputPath)
+	file, err := os.Open(e.AddrOutputPath)
 	if err != nil {
 		return 1, nil, err
 	}
@@ -140,6 +172,23 @@ func (e *Crawler) LoadAddresses() (int64, []*common.Address, error) {
 	return history.BlockNumber, history.Addresses, nil
 }
 
+func (e *Crawler) LoadAllowances() (int64, []*Allowance, error) {
+	file, err := os.Open(e.AlloOutputPath)
+	if err != nil {
+		return 1, nil, err
+	}
+	defer file.Close()
+	byteValue, err := io.ReadAll(file)
+	if err != nil {
+		return 1, nil, err
+	}
+	var history EthAllowances
+	if err := json.Unmarshal(byteValue, &history); err != nil {
+		return 1, nil, err
+	}
+	return history.BlockNumber, history.Allowances, nil
+}
+
 func (e *Crawler) SaveAddresses(blockNumber int64, addresses []*common.Address) error {
 	ethAddresses := EthAddresses{
 		BlockNumber: blockNumber,
@@ -149,7 +198,27 @@ func (e *Crawler) SaveAddresses(blockNumber int64, addresses []*common.Address) 
 	if err != nil {
 		return err
 	}
-	f, err := os.OpenFile(e.OutputPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	f, err := os.OpenFile(e.AddrOutputPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	if _, err := f.Write(byteValue); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (e *Crawler) SaveAllowances(blockNumber int64, allowances []*Allowance) error {
+	ethAllowances := EthAllowances{
+		BlockNumber: blockNumber,
+		Allowances:  allowances,
+	}
+	byteValue, err := json.Marshal(ethAllowances)
+	if err != nil {
+		return err
+	}
+	f, err := os.OpenFile(e.AlloOutputPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
 		return err
 	}
@@ -182,14 +251,14 @@ func (e *Crawler) GetTraceTransaction(blockNumber *big.Int) (*node.TraceTransact
 	return nil, fmt.Errorf("block %d has more than one transaction", blockNumber)
 }
 
-func (e *Crawler) GetToFromEthLogs(blockNumber *big.Int) ([]*common.Address, error) {
+func (e *Crawler) GetToFromEthLogs(blockNumber *big.Int) ([]*common.Address, []*Allowance, error) {
 	LegacyERC20ETHMetaData := bindings.MetaData{
 		ABI: bindings.LegacyERC20ETHABI,
 		Bin: bindings.LegacyERC20ETHBin,
 	}
 	ABI, err := LegacyERC20ETHMetaData.GetAbi()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	filter := ethereum.FilterQuery{
 		FromBlock: blockNumber,
@@ -199,9 +268,10 @@ func (e *Crawler) GetToFromEthLogs(blockNumber *big.Int) ([]*common.Address, err
 		},
 	}
 	var addresses []*common.Address
+	var allowances []*Allowance
 	logs, err := e.Client.GetLogs(&filter)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	for _, log := range logs {
 		if log.Topics[0] == ABI.Events["Transfer"].ID && len(log.Topics) == 3 {
@@ -219,10 +289,13 @@ func (e *Crawler) GetToFromEthLogs(blockNumber *big.Int) ([]*common.Address, err
 		if log.Topics[0] == ABI.Events["Approval"].ID && len(log.Topics) == 3 {
 			owner := common.BytesToAddress(log.Topics[1].Bytes())
 			spender := common.BytesToAddress(log.Topics[2].Bytes())
-			addresses = append(addresses, &owner, &spender)
+			allowances = append(allowances, &Allowance{
+				From: owner,
+				To:   spender,
+			})
 		}
 	}
-	return addresses, nil
+	return addresses, allowances, nil
 }
 
 func GetAddressesFromTrace(traceTransaction *node.TraceTransaction, sender bool) ([]*common.Address, error) {
@@ -266,27 +339,64 @@ func AddAddressesToMap(addresses []*common.Address, addressMap map[common.Addres
 	}
 }
 
-func MapToAddresses(addressMap map[common.Address]bool) []*common.Address {
+func MapToAddresses(addressesMap map[common.Address]bool) []*common.Address {
 	var addresses []*common.Address
-	for address := range addressMap {
+	for address := range addressesMap {
 		addr := address
 		addresses = append(addresses, &addr)
 	}
 	return addresses
 }
 
-func CheckEthSlots(alloc types.GenesisAlloc, outputPath string) error {
-	file, err := os.Open(outputPath)
+func MapAllowances(allowances []*Allowance) map[Allowance]bool {
+	allowanceMap := make(map[Allowance]bool)
+	for _, allowance := range allowances {
+		allowanceMap[*allowance] = true
+	}
+	return allowanceMap
+}
+
+func AddAllowancesToMap(allowances map[Allowance]bool, allowancesMap map[Allowance]bool) {
+	for allowance, _ := range allowancesMap {
+		allowances[allowance] = true
+	}
+}
+
+func MapToAllowances(allowancesMap map[Allowance]bool) []*Allowance {
+	var allowances []*Allowance
+	for allowance := range allowancesMap {
+		allo := allowance
+		allowances = append(allowances, &allo)
+	}
+	return allowances
+}
+
+func CheckEthSlots(alloc types.GenesisAlloc, addrOutputPath, alloOutputPath string) error {
+	addrFile, err := os.Open(addrOutputPath)
 	if err != nil {
 		return err
 	}
-	defer file.Close()
-	bytes, _ := io.ReadAll(file)
-	if len(bytes) == 0 {
+	defer addrFile.Close()
+	addBytes, _ := io.ReadAll(addrFile)
+	if len(addBytes) == 0 {
 		return errors.New("Invalid eth addresses directory. The directory is empty.")
 	}
 	var addresses EthAddresses
-	if err := json.Unmarshal(bytes, &addresses); err != nil {
+	if err := json.Unmarshal(addBytes, &addresses); err != nil {
+		return err
+	}
+
+	alloFile, err := os.Open(alloOutputPath)
+	if err != nil {
+		return err
+	}
+	defer alloFile.Close()
+	alloBytes, _ := io.ReadAll(alloFile)
+	if len(alloBytes) == 0 {
+		return errors.New("Invalid eth allowances directory. The directory is empty.")
+	}
+	var allowances EthAllowances
+	if err := json.Unmarshal(alloBytes, &allowances); err != nil {
 		return err
 	}
 
@@ -306,6 +416,12 @@ func CheckEthSlots(alloc types.GenesisAlloc, outputPath string) error {
 			validAddrCount++
 		}
 	}
+	for _, allo := range allowances.Allowances {
+		storageKey := CalcAllowanceStorageKey(allo.From, allo.To)
+		if _, ok := ethStorage[storageKey]; ok {
+			validAddrCount++
+		}
+	}
 	for _, slot := range commonStorageKey {
 		if _, ok := ethStorage[slot]; ok {
 			validAddrCount++
@@ -313,11 +429,11 @@ func CheckEthSlots(alloc types.GenesisAlloc, outputPath string) error {
 	}
 
 	if len(ethStorage) != validAddrCount {
-		log.Warn("Some addresses in eth addresses file are not valid", "valid", validAddrCount, "total", len(ethStorage))
-		return fmt.Errorf("Some addresses in eth addresses file are not valid. Valid: %d, Total: %d", validAddrCount, len(ethStorage))
+		log.Warn("Some addresses in eth addresses and eth allowances files are not valid", "valid", validAddrCount, "total", len(ethStorage))
+		return fmt.Errorf("Some addresses in eeth addresses and eth allowances files are not valid. Valid: %d, Total: %d", validAddrCount, len(ethStorage))
 	}
 
-	log.Info("All addresses in eth addresses file are valid", "valid", validAddrCount, "total", len(ethStorage))
+	log.Info("All addresses in eth addresses and eth allowances files are valid", "valid", validAddrCount, "total", len(ethStorage))
 
 	return nil
 }
