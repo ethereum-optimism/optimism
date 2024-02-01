@@ -508,7 +508,7 @@ func (g *OutputGameHelper) WaitForChallengePeriodStart(ctx context.Context, send
 		ctx, cancel := context.WithTimeout(timedCtx, 30*time.Second)
 		defer cancel()
 		timestamp := g.ChallengePeriodStartTime(ctx, sender, data)
-		g.t.Log("Waiting for challenge period start", "timestamp", timestamp, "data", data, "game", g.addr)
+		g.t.Log("Waiting for challenge period start", "timestamp", timestamp, "key", data.OracleKey, "game", g.addr)
 		return timestamp > 0, nil
 	})
 	if err != nil {
