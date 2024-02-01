@@ -217,10 +217,9 @@ func TestOutputCannonDefendStep(t *testing.T) {
 }
 
 func TestOutputCannonStepWithPreimage(t *testing.T) {
-	executor := uint64(1) // Different executor to the other tests to help balance things better
-
+	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(outputCannonTestExecutor))
 	testPreimageStep := func(t *testing.T, preloadPreimage bool) {
-		op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(executor))
+		op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(outputCannonTestExecutor))
 
 		ctx := context.Background()
 		sys, l1Client := startFaultDisputeSystem(t)
