@@ -405,7 +405,7 @@ func (oc *OpConductor) Leader(_ context.Context) bool {
 }
 
 // LeaderWithID returns the current leader's server ID and address.
-func (oc *OpConductor) LeaderWithID(_ context.Context) (string, string) {
+func (oc *OpConductor) LeaderWithID(_ context.Context) *consensus.ServerInfo {
 	return oc.cons.LeaderWithID()
 }
 
@@ -442,6 +442,16 @@ func (oc *OpConductor) CommitUnsafePayload(_ context.Context, payload *eth.Execu
 // SequencerHealthy returns true if sequencer is healthy.
 func (oc *OpConductor) SequencerHealthy(_ context.Context) bool {
 	return oc.healthy.Load()
+}
+
+// ClusterMembership returns current cluster's membership information.
+func (oc *OpConductor) ClusterMembership(_ context.Context) ([]*consensus.ServerInfo, error) {
+	return oc.cons.ClusterMembership()
+}
+
+// LatestUnsafePayload returns the latest unsafe payload envelope from FSM.
+func (oc *OpConductor) LatestUnsafePayload(_ context.Context) *eth.ExecutionPayloadEnvelope {
+	return oc.cons.LatestUnsafePayload()
 }
 
 func (oc *OpConductor) loop() {
