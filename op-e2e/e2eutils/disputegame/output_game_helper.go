@@ -360,10 +360,22 @@ type Mover func(parent *ClaimHelper) *ClaimHelper
 // Stepper is a function that attempts to perform a step against the claim at parentClaimIdx
 type Stepper func(parentClaimIdx int64)
 
+type CounterCheckOpt func(ctx context.Context, claim *ClaimHelper)
+
+func (g *OutputGameHelper) CreateWaitForCounterCheck() CounterCheckOpt {
+	return func(ctx context.Context, claim *ClaimHelper) {
+		claim.WaitForCountered(ctx)
+	}
+}
+
+func (g *OutputGameHelper) EmptyMaxDepthCounterCheck() CounterCheckOpt {
+	return func(context.Context, *ClaimHelper) {}
+}
+
 // DefendClaim uses the supplied Mover to perform moves in an attempt to defend the supplied claim.
 // It is assumed that the specified claim is invalid and that an honest op-challenger is already running.
 // When the game has reached the maximum depth it waits for the honest challenger to counter the leaf claim with step.
-func (g *OutputGameHelper) DefendClaim(ctx context.Context, claim *ClaimHelper, performMove Mover) {
+func (g *OutputGameHelper) DefendClaim(ctx context.Context, claim *ClaimHelper, performMove Mover, counterCheck CounterCheckOpt) {
 	g.t.Logf("Defending claim %v at depth %v", claim.index, claim.Depth())
 	for !claim.IsMaxDepth(ctx) {
 		g.LogGameData(ctx)
@@ -375,7 +387,7 @@ func (g *OutputGameHelper) DefendClaim(ctx context.Context, claim *ClaimHelper, 
 		claim = performMove(claim)
 	}
 
-	claim.WaitForCountered(ctx)
+	counterCheck(ctx, claim)
 }
 
 // ChallengeClaim uses the supplied functions to perform moves and steps in an attempt to challenge the supplied claim.

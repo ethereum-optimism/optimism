@@ -91,7 +91,7 @@ func TestOutputCannon_ChallengeAllZeroClaim(t *testing.T) {
 			return parent.Attack(ctx, common.Hash{})
 		}
 		return parent.Defend(ctx, common.Hash{})
-	})
+	}, game.CreateWaitForCounterCheck())
 
 	game.LogGameData(ctx)
 
@@ -169,7 +169,7 @@ func TestOutputCannonDisputeGame(t *testing.T) {
 					} else {
 						return claim.Attack(ctx, common.Hash{byte(claim.Depth())})
 					}
-				})
+				}, game.CreateWaitForCounterCheck())
 
 			sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
 			require.NoError(t, wait.ForNextBlock(ctx, l1Client))
@@ -207,7 +207,7 @@ func TestOutputCannonDefendStep(t *testing.T) {
 			// Post our own counter but using the correct hash in low levels to force a defense step
 			return correctTrace.AttackClaim(ctx, claim)
 		}
-	})
+	}, game.CreateWaitForCounterCheck())
 
 	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
 	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
@@ -256,8 +256,9 @@ func TestOutputCannonStepWithLargePreimage(t *testing.T) {
 	// Now the honest challenger is positioned as the defender of the
 	// execution game. We then move to challenge it to induce a large preimage load.
 	sender := sys.Cfg.Secrets.Addresses().Alice
-	check := game.CreatStepLargePreimageLoadCheck(ctx, sender)
-	game.ChallengeToPreimageLoad(ctx, outputRootClaim, sys.Cfg.Secrets.Alice, cannon.PreimageLargerThan(18_000), check, false)
+	preimageLoadCheck := game.CreatStepLargePreimageLoadCheck(ctx, sender)
+	counterCheck := game.EmptyMaxDepthCounterCheck()
+	game.ChallengeToPreimageLoad(ctx, outputRootClaim, sys.Cfg.Secrets.Alice, cannon.PreimageLargerThan(18_000), preimageLoadCheck, counterCheck, false)
 
 	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
 	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
@@ -289,8 +290,9 @@ func TestOutputCannonStepWithPreimage(t *testing.T) {
 
 		// Now the honest challenger is positioned as the defender of the execution game
 		// We then move to challenge it to induce a preimage load
-		check := game.CreatStepPreimageLoadCheck(ctx)
-		game.ChallengeToPreimageLoad(ctx, outputRootClaim, sys.Cfg.Secrets.Alice, cannon.FirstGlobalPreimageLoad(), check, preloadPreimage)
+		preimageLoadCheck := game.CreatStepPreimageLoadCheck(ctx)
+		counterCheck := game.CreateWaitForCounterCheck()
+		game.ChallengeToPreimageLoad(ctx, outputRootClaim, sys.Cfg.Secrets.Alice, cannon.FirstGlobalPreimageLoad(), preimageLoadCheck, counterCheck, preloadPreimage)
 
 		sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
 		require.NoError(t, wait.ForNextBlock(ctx, l1Client))
