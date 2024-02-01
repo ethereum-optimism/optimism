@@ -1,6 +1,7 @@
 package clock
 
 import (
+	"sync"
 	"time"
 )
 
@@ -10,6 +11,7 @@ type SimpleClock interface {
 }
 
 type simpleClock struct {
+	mu   sync.Mutex
 	time time.Time
 }
 
@@ -18,6 +20,8 @@ func NewSimpleClock() *simpleClock {
 }
 
 func (c *simpleClock) SetTime(t time.Time) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.time = t
 }
 
