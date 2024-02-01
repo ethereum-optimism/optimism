@@ -696,7 +696,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
 
     /// @dev Static unit test asserting that resolve pays out bonds on moves to the leftmost actor
     /// in subgames containing successful counters.
-    function test_resolve_LeftmostBondPayout_succeeds() public {
+    function test_resolve_leftmostBondPayout_succeeds() public {
         address alice = address(0xa11ce);
         address bob = address(0xb0b);
         vm.deal(address(this), 100 ether);
