@@ -18,7 +18,7 @@ var ParamsByChainID = map[int]*Params{
 	288: {
 		// Calculated at checkpoint block=1,000,000 - there is a
 		// small overcommittment of the OVM_ETH TotalSupply
-		new(big.Int).SetInt64(-94819327096614),
+		new(big.Int),
 	},
 	// Ethereum Sepolia L2
 	28882: {

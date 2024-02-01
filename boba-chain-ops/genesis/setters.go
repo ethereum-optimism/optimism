@@ -6,6 +6,7 @@ import (
 
 	"github.com/bobanetwork/v3-anchorage/boba-bindings/bindings"
 	"github.com/bobanetwork/v3-anchorage/boba-bindings/predeploys"
+	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/chain"
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/immutables"
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/state"
 	"github.com/ledgerwatch/erigon-lib/common"
@@ -71,7 +72,7 @@ func WipePredeployStorage(g *types.Genesis) error {
 			return fmt.Errorf("nil address in predeploys mapping for %s", name)
 		}
 
-		if FrozenStoragePredeploys[*addr] {
+		if FrozenStoragePredeploys[*addr] && (*addr != predeploys.BobaL2Addr || chain.IsBobaTokenPredeploy(g.Config.ChainID)) {
 			log.Trace("skipping wiping of storage", "name", name, "address", *addr)
 			continue
 		}
@@ -101,7 +102,7 @@ func setProxies(g *types.Genesis, proxyAdminAddr common.Address, namespace *big.
 		bigAddr := new(big.Int).Or(namespace, new(big.Int).SetUint64(i))
 		addr := common.BigToAddress(bigAddr)
 
-		if UntouchablePredeploys[addr] {
+		if UntouchablePredeploys[addr] && (addr != predeploys.BobaL2Addr || chain.IsBobaTokenPredeploy(g.Config.ChainID)) {
 			log.Info("Skipping setting proxy", "address", addr)
 			continue
 		}

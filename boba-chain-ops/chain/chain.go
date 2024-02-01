@@ -123,3 +123,15 @@ func GetBobaTokenL1Address(chainId *big.Int) string {
 	}
 	return "0x0000000000000000000000000000000000000000"
 }
+
+func IsBobaTokenPredeploy(chainId *big.Int) bool {
+	// Mainnet
+	if BobaMainnetChainId.Cmp(chainId) == 0 {
+		return false
+	}
+	// Sepolia
+	if BobaSepoliaChainId.Cmp(chainId) == 0 {
+		return true
+	}
+	return true
+}

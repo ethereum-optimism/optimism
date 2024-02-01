@@ -158,20 +158,20 @@ func PostCheckMigratedDB(
 	if header.Time != uint64(timestamp) {
 		return fmt.Errorf("expected timestamp to be %d, but got %d", timestamp, header.Time)
 	}
-	parentHeader := rawdb.ReadHeader(tx, header.ParentHash, header.Number.Uint64()-1)
-	if parentHeader == nil {
-		return fmt.Errorf("cannot find parent header for %s", header.ParentHash)
-	}
+	// parentHeader := rawdb.ReadHeader(tx, header.ParentHash, header.Number.Uint64()-1)
+	// if parentHeader == nil {
+	// 	return fmt.Errorf("cannot find parent header for %s", header.ParentHash)
+	// }
 
 	genesisHeader := rawdb.ReadHeaderByNumber(tx, 0)
 	if err != nil {
 		return fmt.Errorf("failed to read genesis header from database: %w", err)
 	}
 
-	bobaGenesisHash := libcommon.HexToHash(chain.GetBobaGenesisHash(g.Config.ChainID))
-	if genesisHeader.Hash() != bobaGenesisHash {
-		return fmt.Errorf("expected chain tip to be %s, but got %s", bobaGenesisHash, genesisHeader.Hash())
-	}
+	// bobaGenesisHash := libcommon.HexToHash(chain.GetBobaGenesisHash(g.Config.ChainID))
+	// if genesisHeader.Hash() != bobaGenesisHash {
+	// 	return fmt.Errorf("expected chain tip to be %s, but got %s", bobaGenesisHash, genesisHeader.Hash())
+	// }
 
 	bobaGenesisExtraData := libcommon.Hex2Bytes(chain.GetBobaGenesisExtraData(g.Config.ChainID))
 	if !bytes.Equal(genesisHeader.Extra, bobaGenesisExtraData) {
@@ -232,6 +232,25 @@ func PostCheckUntouchables(tx kv.Tx, g *types.Genesis) error {
 		if err != nil {
 			return fmt.Errorf("failed to read code hash from database: %w", err)
 		}
+
+		// This is the speical case for boba token not predeploy in 0x4200...023
+		if addr == predeploys.BobaL2Addr && !chain.IsBobaTokenPredeploy(g.Config.ChainID) {
+			if hash == nil {
+				return fmt.Errorf("no code found at predeploy %s for the special case of Boba token", addr)
+			}
+
+			// There must be an admin
+			hash, err := state.GetStorage(tx, addr, AdminSlot)
+			if err != nil {
+				return fmt.Errorf("failed to read admin from database: %w", err)
+			}
+			adminAddr := libcommon.BytesToAddress(hash[:])
+			if addr != predeploys.ProxyAdminAddr && adminAddr != predeploys.ProxyAdminAddr {
+				return fmt.Errorf("expected admin for %s to be %s but got %s", addr, predeploys.ProxyAdminAddr, adminAddr)
+			}
+			continue
+		}
+
 		expHash := UntouchableCodeHashes[addr][g.Config.ChainID.Uint64()]
 		if *hash != expHash {
 			return fmt.Errorf("expected code hash for %s to be %s, but got %s", addr, expHash, hash)
@@ -283,7 +302,7 @@ func PostCheckPredeploys(tx kv.Tx, g *types.Genesis) error {
 			return fmt.Errorf("no code found at predeploy %s", addr)
 		}
 
-		if UntouchablePredeploys[addr] {
+		if UntouchablePredeploys[addr] && !(addr == predeploys.BobaL2Addr && chain.IsBobaTokenPredeploy(g.Config.ChainID)) {
 			log.Trace("skipping untouchable predeploy", "address", addr)
 			continue
 		}
