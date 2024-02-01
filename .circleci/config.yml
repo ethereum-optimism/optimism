@@ -397,6 +397,8 @@ jobs:
       - attach_workspace: { at: "." }
       - check-changed:
           patterns: contracts-bedrock,op-node
+      - setup_remote_docker:
+          docker_layer_caching: true
       # populate node modules from the cache
       - run:
           name: Install dependencies
