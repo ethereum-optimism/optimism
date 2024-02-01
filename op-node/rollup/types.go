@@ -353,6 +353,41 @@ func (c *Config) IsInterop(timestamp uint64) bool {
 	return c.InteropTime != nil && timestamp >= *c.InteropTime
 }
 
+// ForkchoiceUpdatedVersion returns the EngineAPIVersion suitable for the chain hard fork version.
+func (c *Config) ForkchoiceUpdatedVersion(timestamp uint64) EngineAPIVersion {
+	if c.IsEcotone(timestamp) {
+		// Cancun
+		return EngineAPIV3
+	} else if c.IsCanyon(timestamp) {
+		// Shanghai
+		return EngineAPIV2
+	} else {
+		// According to Ethereum engine API spec, we can use fcuV2 here,
+		// but upstream Geth v1.13.11 does not accept V2 before Shanghai.
+		return EngineAPIV1
+	}
+}
+
+// NewPayloadVersion returns the EngineAPIVersion suitable for the chain hard fork version.
+func (c *Config) NewPayloadVersion(timestamp uint64) EngineAPIVersion {
+	if c.IsEcotone(timestamp) {
+		// Cancun
+		return EngineAPIV3
+	} else {
+		return EngineAPIV2
+	}
+}
+
+// GetPayloadVersion returns the EngineAPIVersion suitable for the chain hard fork version.
+func (c *Config) GetPayloadVersion(timestamp uint64) EngineAPIVersion {
+	if c.IsEcotone(timestamp) {
+		// Cancun
+		return EngineAPIV3
+	} else {
+		return EngineAPIV2
+	}
+}
+
 // Description outputs a banner describing the important parts of rollup configuration in a human-readable form.
 // Optionally provide a mapping of L2 chain IDs to network names to label the L2 chain with if not unknown.
 // The config should be config.Check()-ed before creating a description.
@@ -433,3 +468,11 @@ func fmtTime(v uint64) string {
 }
 
 type Epoch uint64
+
+type EngineAPIVersion string
+
+const (
+	EngineAPIV1 EngineAPIVersion = "V1"
+	EngineAPIV2 EngineAPIVersion = "V2"
+	EngineAPIV3 EngineAPIVersion = "V3"
+)

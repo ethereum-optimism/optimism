@@ -58,16 +58,11 @@ func (s *EngineClient) ForkchoiceUpdate(ctx context.Context, fc *eth.ForkchoiceS
 	fcCtx, cancel := context.WithTimeout(ctx, time.Second*5)
 	defer cancel()
 	var result eth.ForkchoiceUpdatedResult
-	method := "engine_forkchoiceUpdatedV3"
+	engineAPIVersion := rollup.EngineAPIV3
 	if attributes != nil {
-		ts := uint64(attributes.Timestamp)
-		if s.rollupCfg.IsEcotone(ts) {
-		} else if s.rollupCfg.IsCanyon(ts) {
-			method = "engine_forkchoiceUpdatedV2"
-		} else if !s.rollupCfg.IsCanyon(ts) {
-			method = "engine_forkchoiceUpdatedV1"
-		}
+		engineAPIVersion = s.rollupCfg.ForkchoiceUpdatedVersion(uint64(attributes.Timestamp))
 	}
+	method := fmt.Sprintf("engine_forkchoiceUpdated%s", engineAPIVersion)
 	err := s.client.CallContext(fcCtx, &result, method, fc, attributes)
 	if err == nil {
 		tlog.Trace("Shared forkchoice-updated signal")
@@ -105,9 +100,10 @@ func (s *EngineClient) NewPayload(ctx context.Context, payload *eth.ExecutionPay
 	var result eth.PayloadStatusV1
 
 	var err error
-	if s.rollupCfg.IsEcotone(uint64(payload.Timestamp)) {
+	switch s.rollupCfg.NewPayloadVersion(uint64(payload.Timestamp)) {
+	case rollup.EngineAPIV3:
 		err = s.client.CallContext(execCtx, &result, "engine_newPayloadV3", payload, []common.Hash{}, parentBeaconBlockRoot)
-	} else {
+	default:
 		err = s.client.CallContext(execCtx, &result, "engine_newPayloadV2", payload)
 	}
 
@@ -127,12 +123,8 @@ func (s *EngineClient) GetPayload(ctx context.Context, payloadInfo eth.PayloadIn
 	e := s.log.New("payload_id", payloadInfo.ID)
 	e.Trace("getting payload")
 	var result eth.ExecutionPayloadEnvelope
-	var method string
-	if s.rollupCfg.IsEcotone(payloadInfo.Timestamp) {
-		method = "engine_getPayloadV3"
-	} else {
-		method = "engine_getPayloadV2"
-	}
+	engineAPIVersion := s.rollupCfg.GetPayloadVersion(payloadInfo.Timestamp)
+	method := fmt.Sprintf("engine_getPayload%s", engineAPIVersion)
 	err := s.client.CallContext(ctx, &result, method, payloadInfo.ID)
 	if err != nil {
 		e.Warn("Failed to get payload", "payload_id", payloadInfo.ID, "err", err)
