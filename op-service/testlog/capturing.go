@@ -56,13 +56,13 @@ func (c *CapturingHandler) Clear() {
 	*c.Logs = (*c.Logs)[:0] // reuse slice
 }
 
-func (c *CapturingHandler) FindLog(lvl slog.Level, msg string) HelperRecord {
+func (c *CapturingHandler) FindLog(lvl slog.Level, msg string) *HelperRecord {
 	for _, record := range *c.Logs {
 		if record.Level == lvl && record.Message == msg {
-			return HelperRecord{record}
+			return &HelperRecord{record}
 		}
 	}
-	return HelperRecord{}
+	return nil
 }
 
 func (c *CapturingHandler) FindLogContaining(msg string) (*HelperRecord, bool) {
