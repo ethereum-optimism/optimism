@@ -390,8 +390,6 @@ jobs:
       - run:
           name: git submodules
           command: make submodules
-      - setup_remote_docker:
-          docker_layer_caching: true
       - restore_cache:
           name: Restore PNPM Package Cache
           keys:
@@ -399,6 +397,8 @@ jobs:
       - attach_workspace: { at: "." }
       - check-changed:
           patterns: contracts-bedrock,op-node
+      - setup_remote_docker:
+          docker_layer_caching: true
       # populate node modules from the cache
       - run:
           name: Install dependencies
