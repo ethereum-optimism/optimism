@@ -211,6 +211,7 @@ func entrypoint(ctx *cli.Context) error {
 	cfg.BedrockBlock = transitionBlock.Number()
 	cfg.RegolithTime = transitionState.Config.RegolithTime
 	cfg.CanyonTime = transitionState.Config.CanyonTime
+	cfg.ShanghaiTime = transitionState.Config.ShanghaiTime
 
 	cfg.Optimism = &params.OptimismConfig{
 		EIP1559Denominator:       transitionState.Config.Optimism.EIP1559Denominator,
