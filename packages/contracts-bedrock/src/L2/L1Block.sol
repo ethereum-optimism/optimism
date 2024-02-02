@@ -35,6 +35,15 @@ contract L1Block is ISemver {
     /// @notice The scalar value applied to the L1 base fee portion of the blob-capable L1 cost func.
     uint32 public baseFeeScalar;
 
+    /// @notice The tx size coefficient from the linear regression of the L1 cost func.
+    int32 public costTxSizeCoef;
+
+    /// @notice The FastLZ coefficient from the linear regression of the L1 cost func.
+    int32 public costFastlzCoef;
+
+    /// @notice The intercept from the linear regression of the L1 cost func.
+    int32 public costIntercept;
+
     /// @notice The versioned hash to authenticate the batcher by.
     bytes32 public batcherHash;
 
@@ -49,8 +58,8 @@ contract L1Block is ISemver {
     /// @notice The latest L1 blob base fee.
     uint256 public blobBaseFee;
 
-    /// @custom:semver 1.2.0
-    string public constant version = "1.2.0";
+    /// @custom:semver 1.3.0
+    string public constant version = "1.3.0";
 
     /// @custom:legacy
     /// @notice Updates the L1 block values.
@@ -105,9 +114,41 @@ contract L1Block is ISemver {
                 mstore(0x00, 0x3cc50b45) // 0x3cc50b45 is the 4-byte selector of "NotDepositor()"
                 revert(0x1C, 0x04) // returns the stored 4-byte selector from above
             }
-            let data := calldataload(4)
             // sequencenum (uint64), blobBaseFeeScalar (uint32), baseFeeScalar (uint32)
             sstore(sequenceNumber.slot, shr(128, calldataload(4)))
+            // number (uint64) and timestamp (uint64)
+            sstore(number.slot, shr(128, calldataload(20)))
+            sstore(basefee.slot, calldataload(36)) // uint256
+            sstore(blobBaseFee.slot, calldataload(68)) // uint256
+            sstore(hash.slot, calldataload(100)) // bytes32
+            sstore(batcherHash.slot, calldataload(132)) // bytes32
+        }
+    }
+
+    /// @notice Updates the L1 block values for an Fjord upgraded chain.
+    /// Params are packed and passed in as raw msg.data instead of ABI to reduce calldata size.
+    /// Params are expected to be in the following order:
+    ///   1. _baseFeeScalar      L1 base fee scalar
+    ///   2. _blobBaseFeeScalar  L1 blob base fee scalar
+    ///   3. _sequenceNumber     Number of L2 blocks since epoch start.
+    ///   4. _timestamp          L1 timestamp.
+    ///   5. _number             L1 blocknumber.
+    ///   6. _basefee            L1 base fee.
+    ///   7. _blobBaseFee        L1 blob base fee.
+    ///   8. _hash               L1 blockhash.
+    ///   9. _batcherHash        Versioned hash to authenticate batcher by.
+    ///  10. _costIntercept      Intercept from the linear regression of the L1 cost func.
+    ///  11. _costFastlzCoef     FastLZ coefficient from the linear regression of the L1 cost func.
+    ///  12. _costTxSizeCoef     Tx size coefficient from the linear regression of the L1 cost func.
+    function setL1BlockValuesFjord() external {
+        assembly {
+            // Revert if the caller is not the depositor account.
+            if xor(caller(), DEPOSITOR_ACCOUNT) {
+                mstore(0x00, 0x3cc50b45) // 0x3cc50b45 is the 4-byte selector of "NotDepositor()"
+                revert(0x1C, 0x04) // returns the stored 4-byte selector from above
+            }
+            // sequencenum (uint64), blobBaseFeeScalar (uint32), baseFeeScalar (uint32), costTxSizeCoef (int32), costFastlzCoef (int32), costIntercept (int32)
+            sstore(sequenceNumber.slot, or(shr(128, calldataload(4)), shl(128, shr(160, calldataload(164)))))
             // number (uint64) and timestamp (uint64)
             sstore(number.slot, shr(128, calldataload(20)))
             sstore(basefee.slot, calldataload(36)) // uint256

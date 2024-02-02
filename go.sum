@@ -170,8 +170,6 @@ github.com/elastic/gosigar v0.14.2 h1:Dg80n8cr90OZ7x+bAax/QjoW/XqTI11RmA79ZwIm9/
 github.com/elastic/gosigar v0.14.2/go.mod h1:iXRIGg2tLnu7LBdpqzyQfGDEidKCfWcCMS0WKyPWoMs=
 github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.3 h1:RWHKLhCrQThMfch+QJ1Z8veEq5ZO3DfIhZ7xgRP9WTc=
 github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.3/go.mod h1:QziizLAiF0KqyLdNJYD7O5cpDlaFMNZzlxYNcWsJUxs=
-github.com/ethereum-optimism/op-geth v1.101305.3-rc.5 h1:ZDsZt9TWPTV8pCAklbk2IDxPbh23P6ZvaIeurGt/tL0=
-github.com/ethereum-optimism/op-geth v1.101305.3-rc.5/go.mod h1:4i/arCdcrEzkmLO5XNMYo8s8eyhmKILxsLxz0PNwJwk=
 github.com/ethereum-optimism/superchain-registry/superchain v0.0.0-20240131175747-1300b1825140 h1:F2Q+Gj4+W67CKZpVR+MEDL+EiIpgbx6VtwtdsPR4mbQ=
 github.com/ethereum-optimism/superchain-registry/superchain v0.0.0-20240131175747-1300b1825140/go.mod h1:7xh2awFQqsiZxFrHKTgEd+InVfDRrkKVUIuK8SAFHp0=
 github.com/ethereum/c-kzg-4844 v0.4.0 h1:3MS1s4JtA868KpJxroZoepdV0ZKBp3u/O5HcZ7R3nlY=
@@ -540,6 +538,8 @@ github.com/mattn/go-runewidth v0.0.14/go.mod h1:Jdepj2loyihRzMpdS35Xk/zdY8IAYHsh
 github.com/matttproud/golang_protobuf_extensions v1.0.1/go.mod h1:D8He9yQNgCq6Z5Ld7szi9bcBfOoFv/3dc6xSMkL2PC0=
 github.com/matttproud/golang_protobuf_extensions/v2 v2.0.0 h1:jWpvCLoY8Z/e3VKvlsiIGKtc+UG6U5vzxaoagmhXfyg=
 github.com/matttproud/golang_protobuf_extensions/v2 v2.0.0/go.mod h1:QUyp042oQthUoa9bqDv0ER0wrtXnBruoNd7aNjkbP+k=
+github.com/mdehoog/op-geth v0.0.0-20240202212424-715a526d1d14 h1:TgbC39kkO1bXzXvlCYdF8S0Zf7i3tNnqEKPrcD0Dc9Y=
+github.com/mdehoog/op-geth v0.0.0-20240202212424-715a526d1d14/go.mod h1:4i/arCdcrEzkmLO5XNMYo8s8eyhmKILxsLxz0PNwJwk=
 github.com/microcosm-cc/bluemonday v1.0.1/go.mod h1:hsXNsILzKxV+sX77C5b8FSuKF00vh2OMYv+xgHpAMF4=
 github.com/miekg/dns v1.1.41/go.mod h1:p6aan82bvRIyn+zDIv9xYNUpwa73JcSh9BKwknJysuI=
 github.com/miekg/dns v1.1.56 h1:5imZaSeoRNvpM9SzWNhEcP9QliKiz20/dA2QabIGVnE=

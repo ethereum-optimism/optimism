@@ -20,14 +20,17 @@ import (
 const (
 	L1InfoFuncBedrockSignature = "setL1BlockValues(uint64,uint64,uint256,bytes32,uint64,bytes32,uint256,uint256)"
 	L1InfoFuncEcotoneSignature = "setL1BlockValuesEcotone()"
+	L1InfoFuncFjordSignature   = "setL1BlockValuesFjord()"
 	L1InfoArguments            = 8
 	L1InfoBedrockLen           = 4 + 32*L1InfoArguments
-	L1InfoEcotoneLen           = 4 + 32*5 // after Ecotone upgrade, args are packed into 5 32-byte slots
+	L1InfoEcotoneLen           = 4 + 32*5      // after Ecotone upgrade, args are packed into 5 32-byte slots
+	L1InfoFjordLen             = 4 + 32*5 + 12 // after Fjord upgrade, args are packed into 5 32-byte slots and 1 12-byte slot
 )
 
 var (
 	L1InfoFuncBedrockBytes4 = crypto.Keccak256([]byte(L1InfoFuncBedrockSignature))[:4]
 	L1InfoFuncEcotoneBytes4 = crypto.Keccak256([]byte(L1InfoFuncEcotoneSignature))[:4]
+	L1InfoFuncFjordBytes4   = crypto.Keccak256([]byte(L1InfoFuncFjordSignature))[:4]
 	L1InfoDepositerAddress  = common.HexToAddress("0xdeaddeaddeaddeaddeaddeaddeaddeaddead0001")
 	L1BlockAddress          = predeploys.L1BlockAddr
 )
@@ -54,6 +57,10 @@ type L1BlockInfo struct {
 	BlobBaseFee       *big.Int // added by Ecotone upgrade
 	BaseFeeScalar     uint32   // added by Ecotone upgrade
 	BlobBaseFeeScalar uint32   // added by Ecotone upgrade
+
+	CostIntercept  int32 // added by Fjord upgrade
+	CostFastLZCoef int32 // added by Fjord upgrade
+	CostTxSizeCoef int32 // added by Fjord upgrade
 }
 
 // Bedrock Binary Format
@@ -243,15 +250,145 @@ func (info *L1BlockInfo) unmarshalBinaryEcotone(data []byte) error {
 	return nil
 }
 
+// Fjord Binary Format
+// +---------+--------------------------+
+// | Bytes   | Field                    |
+// +---------+--------------------------+
+// | 4       | Function signature       |
+// | 4       | BaseFeeScalar            |
+// | 4       | BlobBaseFeeScalar        |
+// | 8       | SequenceNumber           |
+// | 8       | Timestamp                |
+// | 8       | L1BlockNumber            |
+// | 32      | BaseFee                  |
+// | 32      | BlobBaseFee              |
+// | 32      | BlockHash                |
+// | 32      | BatcherHash              |
+// | 4       | CostIntercept            |
+// | 4       | CostFastLZCoefficient    |
+// | 4       | CostTxSizeCoefficient    |
+// +---------+--------------------------+
+
+func (info *L1BlockInfo) marshalBinaryFjord() ([]byte, error) {
+	w := bytes.NewBuffer(make([]byte, 0, L1InfoFjordLen))
+	if err := solabi.WriteSignature(w, L1InfoFuncFjordBytes4); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(w, binary.BigEndian, info.BaseFeeScalar); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(w, binary.BigEndian, info.BlobBaseFeeScalar); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(w, binary.BigEndian, info.SequenceNumber); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(w, binary.BigEndian, info.Time); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(w, binary.BigEndian, info.Number); err != nil {
+		return nil, err
+	}
+	if err := solabi.WriteUint256(w, info.BaseFee); err != nil {
+		return nil, err
+	}
+	blobBasefee := info.BlobBaseFee
+	if blobBasefee == nil {
+		blobBasefee = big.NewInt(1) // set to 1, to match the min blob basefee as defined in EIP-4844
+	}
+	if err := solabi.WriteUint256(w, blobBasefee); err != nil {
+		return nil, err
+	}
+	if err := solabi.WriteHash(w, info.BlockHash); err != nil {
+		return nil, err
+	}
+	// ABI encoding will perform the left-padding with zeroes to 32 bytes, matching the "batcherHash" SystemConfig format and version 0 byte.
+	if err := solabi.WriteAddress(w, info.BatcherAddr); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(w, binary.BigEndian, info.CostIntercept); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(w, binary.BigEndian, info.CostFastLZCoef); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(w, binary.BigEndian, info.CostTxSizeCoef); err != nil {
+		return nil, err
+	}
+	return w.Bytes(), nil
+}
+
+func (info *L1BlockInfo) unmarshalBinaryFjord(data []byte) error {
+	if len(data) != L1InfoFjordLen {
+		return fmt.Errorf("data is unexpected length: %d", len(data))
+	}
+	r := bytes.NewReader(data)
+
+	var err error
+	if _, err := solabi.ReadAndValidateSignature(r, L1InfoFuncFjordBytes4); err != nil {
+		return err
+	}
+	if err := binary.Read(r, binary.BigEndian, &info.BaseFeeScalar); err != nil {
+		return fmt.Errorf("invalid fjord l1 block info format")
+	}
+	if err := binary.Read(r, binary.BigEndian, &info.BlobBaseFeeScalar); err != nil {
+		return fmt.Errorf("invalid fjord l1 block info format")
+	}
+	if err := binary.Read(r, binary.BigEndian, &info.SequenceNumber); err != nil {
+		return fmt.Errorf("invalid fjord l1 block info format")
+	}
+	if err := binary.Read(r, binary.BigEndian, &info.Time); err != nil {
+		return fmt.Errorf("invalid fjord l1 block info format")
+	}
+	if err := binary.Read(r, binary.BigEndian, &info.Number); err != nil {
+		return fmt.Errorf("invalid fjord l1 block info format")
+	}
+	if info.BaseFee, err = solabi.ReadUint256(r); err != nil {
+		return err
+	}
+	if info.BlobBaseFee, err = solabi.ReadUint256(r); err != nil {
+		return err
+	}
+	if info.BlockHash, err = solabi.ReadHash(r); err != nil {
+		return err
+	}
+	// The "batcherHash" will be correctly parsed as address, since the version 0 and left-padding matches the ABI encoding format.
+	if info.BatcherAddr, err = solabi.ReadAddress(r); err != nil {
+		return err
+	}
+	if err := binary.Read(r, binary.BigEndian, &info.CostIntercept); err != nil {
+		return fmt.Errorf("invalid fjord l1 block info format")
+	}
+	if err := binary.Read(r, binary.BigEndian, &info.CostFastLZCoef); err != nil {
+		return fmt.Errorf("invalid fjord l1 block info format")
+	}
+	if err := binary.Read(r, binary.BigEndian, &info.CostTxSizeCoef); err != nil {
+		return fmt.Errorf("invalid fjord l1 block info format")
+	}
+	if !solabi.EmptyReader(r) {
+		return errors.New("too many bytes")
+	}
+	return nil
+}
+
 // isEcotoneButNotFirstBlock returns whether the specified block is subject to the Ecotone upgrade,
 // but is not the actiation block itself.
 func isEcotoneButNotFirstBlock(rollupCfg *rollup.Config, l2BlockTime uint64) bool {
 	return rollupCfg.IsEcotone(l2BlockTime) && !rollupCfg.IsEcotoneActivationBlock(l2BlockTime)
 }
 
+// isFjordButNotFirstBlock returns whether the specified block is subject to the Fjord upgrade,
+// but is not the actiation block itself.
+func isFjordButNotFirstBlock(rollupCfg *rollup.Config, l2BlockTime uint64) bool {
+	return rollupCfg.IsFjord(l2BlockTime) && !rollupCfg.IsFjordActivationBlock(l2BlockTime)
+}
+
 // L1BlockInfoFromBytes is the inverse of L1InfoDeposit, to see where the L2 chain is derived from
 func L1BlockInfoFromBytes(rollupCfg *rollup.Config, l2BlockTime uint64, data []byte) (*L1BlockInfo, error) {
 	var info L1BlockInfo
+	if isFjordButNotFirstBlock(rollupCfg, l2BlockTime) {
+		return &info, info.unmarshalBinaryFjord(data)
+	}
 	if isEcotoneButNotFirstBlock(rollupCfg, l2BlockTime) {
 		return &info, info.unmarshalBinaryEcotone(data)
 	}
@@ -270,7 +407,27 @@ func L1InfoDeposit(rollupCfg *rollup.Config, sysCfg eth.SystemConfig, seqNumber 
 		BatcherAddr:    sysCfg.BatcherAddr,
 	}
 	var data []byte
-	if isEcotoneButNotFirstBlock(rollupCfg, l2BlockTime) {
+	if isFjordButNotFirstBlock(rollupCfg, l2BlockTime) {
+		l1BlockInfo.BlobBaseFee = block.BlobBaseFee()
+		if l1BlockInfo.BlobBaseFee == nil {
+			// The L2 spec states to use the MIN_BLOB_GASPRICE from EIP-4844 if not yet active on L1.
+			l1BlockInfo.BlobBaseFee = big.NewInt(1)
+		}
+		blobBaseFeeScalar, baseFeeScalar, costIntercept, costFastLzCoef, costTxSizeCoef, err := sysCfg.FjordScalars()
+		if err != nil {
+			return nil, err
+		}
+		l1BlockInfo.BlobBaseFeeScalar = blobBaseFeeScalar
+		l1BlockInfo.BaseFeeScalar = baseFeeScalar
+		l1BlockInfo.CostIntercept = costIntercept
+		l1BlockInfo.CostFastLZCoef = costFastLzCoef
+		l1BlockInfo.CostTxSizeCoef = costTxSizeCoef
+		out, err := l1BlockInfo.marshalBinaryFjord()
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal Fjord l1 block info: %w", err)
+		}
+		data = out
+	} else if isEcotoneButNotFirstBlock(rollupCfg, l2BlockTime) {
 		l1BlockInfo.BlobBaseFee = block.BlobBaseFee()
 		if l1BlockInfo.BlobBaseFee == nil {
 			// The L2 spec states to use the MIN_BLOB_GASPRICE from EIP-4844 if not yet active on L1.
