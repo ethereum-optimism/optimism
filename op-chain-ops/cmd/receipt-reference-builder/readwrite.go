@@ -18,7 +18,7 @@ type jsonAggregateReaderWriter struct{}
 // if the output file is not specified, it will create a file based on the block range
 func (w jsonAggregateReaderWriter) writeAggregate(a aggregate, o string) error {
 	if o == "" {
-		o = fmt.Sprintf("%d.%d-%d.json", a.First, a.Last, a.ChainID)
+		o = fmt.Sprintf("%d.%d-%d.json", a.ChainID, a.First, a.Last)
 	}
 	// write the results to a file
 	aggregateJson, err := json.Marshal(a)
@@ -50,7 +50,7 @@ type gobAggregateReaderWriter struct{}
 // if the output file is not specified, it will creeate a file based on the block range
 func (w gobAggregateReaderWriter) writeAggregate(a aggregate, o string) error {
 	if o == "" {
-		o = fmt.Sprintf("%d-%d.gob", a.First, a.Last)
+		o = fmt.Sprintf("%d.%d-%d.gob", a.ChainID, a.First, a.Last)
 	}
 	file, err := os.Create(o)
 	if err != nil {
