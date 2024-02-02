@@ -35,14 +35,15 @@ var (
 type Config struct {
 	Rollup *rollup.Config
 	// DataDir is the directory to read/write pre-image data from/to.
-	//If not set, an in-memory key-value store is used and fetching data must be enabled
+	// If not set, an in-memory key-value store is used and fetching data must be enabled
 	DataDir string
 
 	// L1Head is the block has of the L1 chain head block
-	L1Head     common.Hash
-	L1URL      string
-	L1TrustRPC bool
-	L1RPCKind  sources.RPCProviderKind
+	L1Head      common.Hash
+	L1URL       string
+	L1BeaconURL string
+	L1TrustRPC  bool
+	L1RPCKind   sources.RPCProviderKind
 
 	// L2Head is the l2 block hash contained in the L2 Output referenced by the L2OutputRoot
 	// TODO(inphi): This can be made optional with hardcoded rollup configs and output oracle addresses by searching the oracle for the l2 output root
@@ -104,6 +105,7 @@ func (c *Config) Check() error {
 }
 
 func (c *Config) FetchingEnabled() bool {
+	// TODO: Include Beacon URL once cancun is active on all chains we fault prove.
 	return c.L1URL != "" && c.L2URL != ""
 }
 
@@ -193,6 +195,7 @@ func NewConfigFromCLI(log log.Logger, ctx *cli.Context) (*Config, error) {
 		L2ClaimBlockNumber:  l2ClaimBlockNum,
 		L1Head:              l1Head,
 		L1URL:               ctx.String(flags.L1NodeAddr.Name),
+		L1BeaconURL:         ctx.String(flags.L1BeaconAddr.Name),
 		L1TrustRPC:          ctx.Bool(flags.L1TrustRPC.Name),
 		L1RPCKind:           sources.RPCProviderKind(ctx.String(flags.L1RPCProviderKind.Name)),
 		ExecCmd:             ctx.String(flags.Exec.Name),

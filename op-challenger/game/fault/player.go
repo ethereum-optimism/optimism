@@ -10,7 +10,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
-	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -44,7 +43,7 @@ type resourceCreator func(ctx context.Context, logger log.Logger, gameDepth type
 
 func NewGamePlayer(
 	ctx context.Context,
-	cl clock.Clock,
+	cl types.ClockReader,
 	logger log.Logger,
 	m metrics.Metricer,
 	dir string,

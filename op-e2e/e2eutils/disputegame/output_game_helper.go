@@ -10,8 +10,10 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/preimages"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -61,10 +63,14 @@ func (g *OutputGameHelper) GenesisBlockNum(ctx context.Context) uint64 {
 	return blockNum.Uint64()
 }
 
-// DisputeLastBlock posts claims from both the honest and dishonest actor to progress the output root part of the game
+func (g *OutputGameHelper) DisputeLastBlock(ctx context.Context) *ClaimHelper {
+	return g.DisputeBlock(ctx, g.L2BlockNum(ctx))
+}
+
+// DisputeBlock posts claims from both the honest and dishonest actor to progress the output root part of the game
 // through to the split depth and the claims are setup such that the last block in the game range is the block
 // to execute cannon on. ie the first block the honest and dishonest actors disagree about is the l2 block of the game.
-func (g *OutputGameHelper) DisputeLastBlock(ctx context.Context) *ClaimHelper {
+func (g *OutputGameHelper) DisputeBlock(ctx context.Context, disputeBlockNum uint64) *ClaimHelper {
 	dishonestValue := g.GetClaimValue(ctx, 0)
 	correctRootClaim := g.correctOutputRoot(ctx, types.NewPositionFromGIndex(big.NewInt(1)))
 	rootIsValid := dishonestValue == correctRootClaim
@@ -73,7 +79,6 @@ func (g *OutputGameHelper) DisputeLastBlock(ctx context.Context) *ClaimHelper {
 		// Otherwise, the honest challenger will defend our counter and ruin everything.
 		dishonestValue = common.Hash{0xff, 0xff, 0xff}
 	}
-	disputeBlockNum := g.L2BlockNum(ctx)
 	pos := types.NewPositionFromGIndex(big.NewInt(1))
 	getClaimValue := func(parentClaim *ClaimHelper, claimPos types.Position) common.Hash {
 		claimBlockNum, err := g.correctOutputProvider.BlockNumber(claimPos)
@@ -355,11 +360,28 @@ type Mover func(parent *ClaimHelper) *ClaimHelper
 // Stepper is a function that attempts to perform a step against the claim at parentClaimIdx
 type Stepper func(parentClaimIdx int64)
 
+type defendClaimCfg struct {
+	skipWaitingForStep bool
+}
+
+type DefendClaimOpt func(cfg *defendClaimCfg)
+
+func WithoutWaitingForStep() DefendClaimOpt {
+	return func(cfg *defendClaimCfg) {
+		cfg.skipWaitingForStep = true
+	}
+}
+
 // DefendClaim uses the supplied Mover to perform moves in an attempt to defend the supplied claim.
 // It is assumed that the specified claim is invalid and that an honest op-challenger is already running.
 // When the game has reached the maximum depth it waits for the honest challenger to counter the leaf claim with step.
-func (g *OutputGameHelper) DefendClaim(ctx context.Context, claim *ClaimHelper, performMove Mover) {
+// Returns the final leaf claim
+func (g *OutputGameHelper) DefendClaim(ctx context.Context, claim *ClaimHelper, performMove Mover, opts ...DefendClaimOpt) *ClaimHelper {
 	g.t.Logf("Defending claim %v at depth %v", claim.index, claim.Depth())
+	cfg := &defendClaimCfg{}
+	for _, opt := range opts {
+		opt(cfg)
+	}
 	for !claim.IsMaxDepth(ctx) {
 		g.LogGameData(ctx)
 		// Wait for the challenger to counter
@@ -370,7 +392,10 @@ func (g *OutputGameHelper) DefendClaim(ctx context.Context, claim *ClaimHelper, 
 		claim = performMove(claim)
 	}
 
-	claim.WaitForCountered(ctx)
+	if !cfg.skipWaitingForStep {
+		claim.WaitForCountered(ctx)
+	}
+	return claim
 }
 
 // ChallengeClaim uses the supplied functions to perform moves and steps in an attempt to challenge the supplied claim.
@@ -466,11 +491,57 @@ func (g *OutputGameHelper) ResolveClaim(ctx context.Context, claimIdx int64) {
 	g.require.NoError(err, "ResolveClaim transaction was not OK")
 }
 
-func (g *OutputGameHelper) preimageExistsInOracle(ctx context.Context, data *types.PreimageOracleData) bool {
+// ChallengePeriod returns the challenge period fetched from the PreimageOracle contract.
+// The returned uint64 value is the number of seconds for the challenge period.
+func (g *OutputGameHelper) ChallengePeriod(ctx context.Context) uint64 {
 	oracle := g.oracle(ctx)
-	exists, err := oracle.GlobalDataExists(ctx, data)
-	g.require.NoError(err)
-	return exists
+	period, err := oracle.ChallengePeriod(ctx)
+	g.require.NoError(err, "Failed to get challenge period")
+	return period
+}
+
+// WaitForChallengePeriodStart waits for the challenge period to start for a given large preimage claim.
+func (g *OutputGameHelper) WaitForChallengePeriodStart(ctx context.Context, sender common.Address, data *types.PreimageOracleData) {
+	timedCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
+	defer cancel()
+	err := wait.For(timedCtx, time.Second, func() (bool, error) {
+		ctx, cancel := context.WithTimeout(timedCtx, 30*time.Second)
+		defer cancel()
+		timestamp := g.ChallengePeriodStartTime(ctx, sender, data)
+		g.t.Log("Waiting for challenge period start", "timestamp", timestamp, "key", data.OracleKey, "game", g.addr)
+		return timestamp > 0, nil
+	})
+	if err != nil {
+		g.LogGameData(ctx)
+		g.require.NoErrorf(err, "Failed to get challenge start period for preimage data %v", data)
+	}
+}
+
+// ChallengePeriodStartTime returns the start time of the challenge period for a given large preimage claim.
+// If the returned start time is 0, the challenge period has not started.
+func (g *OutputGameHelper) ChallengePeriodStartTime(ctx context.Context, sender common.Address, data *types.PreimageOracleData) uint64 {
+	oracle := g.oracle(ctx)
+	uuid := preimages.NewUUID(sender, data)
+	metadata, err := oracle.GetProposalMetadata(ctx, batching.BlockLatest, keccakTypes.LargePreimageIdent{
+		Claimant: sender,
+		UUID:     uuid,
+	})
+	g.require.NoError(err, "Failed to get proposal metadata")
+	if len(metadata) == 0 {
+		return 0
+	}
+	return metadata[0].Timestamp
+}
+
+func (g *OutputGameHelper) waitForPreimageInOracle(ctx context.Context, data *types.PreimageOracleData) {
+	timedCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
+	defer cancel()
+	oracle := g.oracle(ctx)
+	err := wait.For(timedCtx, time.Second, func() (bool, error) {
+		g.t.Logf("Waiting for preimage (%v) to be present in oracle", data.OracleKey)
+		return oracle.GlobalDataExists(ctx, data)
+	})
+	g.require.NoErrorf(err, "Did not find preimage (%v) in oracle", data.OracleKey)
 }
 
 func (g *OutputGameHelper) uploadPreimage(ctx context.Context, data *types.PreimageOracleData, privateKey *ecdsa.PrivateKey) {

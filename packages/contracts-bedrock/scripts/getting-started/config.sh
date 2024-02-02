@@ -6,10 +6,10 @@
 # invalid JSON file when not filled in, which is annoying.
 
 reqenv() {
-  if [ -z "${!1}" ]; then
-    echo "Error: environment variable '$1' is undefined"
-    exit 1
-  fi
+    if [ -z "${!1}" ]; then
+        echo "Error: environment variable '$1' is undefined"
+        exit 1
+    fi
 }
 
 # Check required environment variables
@@ -97,7 +97,8 @@ config=$(cat << EOL
   "faultGameSplitDepth": 14,
 
   "preimageOracleMinProposalSize": 1800000,
-  "preimageOracleChallengePeriod": 86400
+  "preimageOracleChallengePeriod": 86400,
+  "preimageOracleCancunActivationTimestamp": 0
 }
 EOL
 )

@@ -2,13 +2,18 @@ package prefetcher
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/binary"
 	"math/rand"
 	"testing"
 
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
+	gokzg4844 "github.com/crate-crypto/go-kzg-4844"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/stretchr/testify/require"
 
@@ -24,14 +29,14 @@ import (
 
 func TestNoHint(t *testing.T) {
 	t.Run("NotFound", func(t *testing.T) {
-		prefetcher, _, _, _ := createPrefetcher(t)
+		prefetcher, _, _, _, _ := createPrefetcher(t)
 		res, err := prefetcher.GetPreimage(context.Background(), common.Hash{0xab})
 		require.ErrorIs(t, err, kvstore.ErrNotFound)
 		require.Nil(t, res)
 	})
 
 	t.Run("Exists", func(t *testing.T) {
-		prefetcher, _, _, kv := createPrefetcher(t)
+		prefetcher, _, _, _, kv := createPrefetcher(t)
 		data := []byte{1, 2, 3}
 		hash := crypto.Keccak256Hash(data)
 		require.NoError(t, kv.Put(hash, data))
@@ -51,7 +56,7 @@ func TestFetchL1BlockHeader(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("AlreadyKnown", func(t *testing.T) {
-		prefetcher, _, _, kv := createPrefetcher(t)
+		prefetcher, _, _, _, kv := createPrefetcher(t)
 		storeBlock(t, kv, block, rcpts)
 
 		oracle := l1.NewPreimageOracle(asOracleFn(t, prefetcher), asHinter(t, prefetcher))
@@ -60,7 +65,7 @@ func TestFetchL1BlockHeader(t *testing.T) {
 	})
 
 	t.Run("Unknown", func(t *testing.T) {
-		prefetcher, l1Cl, _, _ := createPrefetcher(t)
+		prefetcher, l1Cl, _, _, _ := createPrefetcher(t)
 		l1Cl.ExpectInfoByHash(hash, eth.HeaderBlockInfo(block.Header()), nil)
 		defer l1Cl.AssertExpectations(t)
 
@@ -77,7 +82,7 @@ func TestFetchL1Transactions(t *testing.T) {
 	hash := block.Hash()
 
 	t.Run("AlreadyKnown", func(t *testing.T) {
-		prefetcher, _, _, kv := createPrefetcher(t)
+		prefetcher, _, _, _, kv := createPrefetcher(t)
 
 		storeBlock(t, kv, block, rcpts)
 
@@ -89,7 +94,7 @@ func TestFetchL1Transactions(t *testing.T) {
 	})
 
 	t.Run("Unknown", func(t *testing.T) {
-		prefetcher, l1Cl, _, _ := createPrefetcher(t)
+		prefetcher, l1Cl, _, _, _ := createPrefetcher(t)
 		l1Cl.ExpectInfoByHash(hash, eth.BlockToInfo(block), nil)
 		l1Cl.ExpectInfoAndTxsByHash(hash, eth.BlockToInfo(block), block.Transactions(), nil)
 		defer l1Cl.AssertExpectations(t)
@@ -107,7 +112,7 @@ func TestFetchL1Receipts(t *testing.T) {
 	hash := block.Hash()
 
 	t.Run("AlreadyKnown", func(t *testing.T) {
-		prefetcher, _, _, kv := createPrefetcher(t)
+		prefetcher, _, _, _, kv := createPrefetcher(t)
 		storeBlock(t, kv, block, receipts)
 
 		// Check the data is available (note the oracle does not know about the block, only the kvstore does)
@@ -118,7 +123,7 @@ func TestFetchL1Receipts(t *testing.T) {
 	})
 
 	t.Run("Unknown", func(t *testing.T) {
-		prefetcher, l1Cl, _, _ := createPrefetcher(t)
+		prefetcher, l1Cl, _, _, _ := createPrefetcher(t)
 		l1Cl.ExpectInfoByHash(hash, eth.BlockToInfo(block), nil)
 		l1Cl.ExpectInfoAndTxsByHash(hash, eth.BlockToInfo(block), block.Transactions(), nil)
 		l1Cl.ExpectFetchReceipts(hash, eth.BlockToInfo(block), receipts, nil)
@@ -133,7 +138,7 @@ func TestFetchL1Receipts(t *testing.T) {
 	// Blocks may have identical RLP receipts for different transactions.
 	// Check that the node already existing is handled
 	t.Run("CommonTrieNodes", func(t *testing.T) {
-		prefetcher, l1Cl, _, kv := createPrefetcher(t)
+		prefetcher, l1Cl, _, _, kv := createPrefetcher(t)
 		l1Cl.ExpectInfoByHash(hash, eth.BlockToInfo(block), nil)
 		l1Cl.ExpectInfoAndTxsByHash(hash, eth.BlockToInfo(block), block.Transactions(), nil)
 		l1Cl.ExpectFetchReceipts(hash, eth.BlockToInfo(block), receipts, nil)
@@ -153,13 +158,80 @@ func TestFetchL1Receipts(t *testing.T) {
 	})
 }
 
+// Globally initialize a kzgCtx for blob tests.
+var kzgCtx, _ = gokzg4844.NewContext4096Secure()
+
+// Returns a serialized random field element in big-endian
+func GetRandFieldElement(seed int64) [32]byte {
+	var r fr.Element
+	_, _ = r.SetRandom()
+	return gokzg4844.SerializeScalar(r)
+}
+
+func GetRandBlob(seed int64) gokzg4844.Blob {
+	var blob gokzg4844.Blob
+	bytesPerBlob := gokzg4844.ScalarsPerBlob * gokzg4844.SerializedScalarSize
+	for i := 0; i < bytesPerBlob; i += gokzg4844.SerializedScalarSize {
+		fieldElementBytes := GetRandFieldElement(seed + int64(i))
+		copy(blob[i:i+gokzg4844.SerializedScalarSize], fieldElementBytes[:])
+	}
+	return blob
+}
+
+func TestFetchL1Blob(t *testing.T) {
+	blob := GetRandBlob(0xf00f00)
+	commitment, err := kzgCtx.BlobToKZGCommitment(blob, 0)
+	require.NoError(t, err)
+	versionedHash := sha256.Sum256(commitment[:])
+	versionedHash[0] = params.BlobTxHashVersion
+	blobHash := eth.IndexedBlobHash{Hash: versionedHash, Index: 0xFACADE}
+	l1Ref := eth.L1BlockRef{Time: 0}
+
+	t.Run("AlreadyKnown", func(t *testing.T) {
+		prefetcher, _, blobFetcher, _, kv := createPrefetcher(t)
+		storeBlob(t, kv, (eth.Bytes48)(commitment), (*eth.Blob)(&blob))
+
+		oracle := l1.NewPreimageOracle(asOracleFn(t, prefetcher), asHinter(t, prefetcher))
+		blobFetcher.ExpectOnGetBlobSidecars(
+			context.Background(),
+			l1Ref,
+			[]eth.IndexedBlobHash{blobHash},
+			(eth.Bytes48)(commitment),
+			[]*eth.Blob{(*eth.Blob)(&blob)},
+			nil,
+		)
+		defer blobFetcher.AssertExpectations(t)
+
+		blobs := oracle.GetBlob(l1Ref, blobHash)
+		require.EqualValues(t, blobs[:], blob[:])
+	})
+
+	t.Run("Unknown", func(t *testing.T) {
+		prefetcher, _, blobFetcher, _, _ := createPrefetcher(t)
+
+		oracle := l1.NewPreimageOracle(asOracleFn(t, prefetcher), asHinter(t, prefetcher))
+		blobFetcher.ExpectOnGetBlobSidecars(
+			context.Background(),
+			l1Ref,
+			[]eth.IndexedBlobHash{blobHash},
+			(eth.Bytes48)(commitment),
+			[]*eth.Blob{(*eth.Blob)(&blob)},
+			nil,
+		)
+		defer blobFetcher.AssertExpectations(t)
+
+		blobs := oracle.GetBlob(l1Ref, blobHash)
+		require.EqualValues(t, blobs[:], blob[:])
+	})
+}
+
 func TestFetchL2Block(t *testing.T) {
 	rng := rand.New(rand.NewSource(123))
 	block, rcpts := testutils.RandomBlock(rng, 10)
 	hash := block.Hash()
 
 	t.Run("AlreadyKnown", func(t *testing.T) {
-		prefetcher, _, _, kv := createPrefetcher(t)
+		prefetcher, _, _, _, kv := createPrefetcher(t)
 		storeBlock(t, kv, block, rcpts)
 
 		oracle := l2.NewPreimageOracle(asOracleFn(t, prefetcher), asHinter(t, prefetcher))
@@ -169,7 +241,7 @@ func TestFetchL2Block(t *testing.T) {
 	})
 
 	t.Run("Unknown", func(t *testing.T) {
-		prefetcher, _, l2Cl, _ := createPrefetcher(t)
+		prefetcher, _, _, l2Cl, _ := createPrefetcher(t)
 		l2Cl.ExpectInfoAndTxsByHash(hash, eth.BlockToInfo(block), block.Transactions(), nil)
 		defer l2Cl.MockL2Client.AssertExpectations(t)
 
@@ -186,7 +258,7 @@ func TestFetchL2Transactions(t *testing.T) {
 	hash := block.Hash()
 
 	t.Run("AlreadyKnown", func(t *testing.T) {
-		prefetcher, _, _, kv := createPrefetcher(t)
+		prefetcher, _, _, _, kv := createPrefetcher(t)
 		storeBlock(t, kv, block, rcpts)
 
 		oracle := l2.NewPreimageOracle(asOracleFn(t, prefetcher), asHinter(t, prefetcher))
@@ -195,7 +267,7 @@ func TestFetchL2Transactions(t *testing.T) {
 	})
 
 	t.Run("Unknown", func(t *testing.T) {
-		prefetcher, _, l2Cl, _ := createPrefetcher(t)
+		prefetcher, _, _, l2Cl, _ := createPrefetcher(t)
 		l2Cl.ExpectInfoAndTxsByHash(hash, eth.BlockToInfo(block), block.Transactions(), nil)
 		defer l2Cl.MockL2Client.AssertExpectations(t)
 
@@ -212,7 +284,7 @@ func TestFetchL2Node(t *testing.T) {
 	key := preimage.Keccak256Key(hash).PreimageKey()
 
 	t.Run("AlreadyKnown", func(t *testing.T) {
-		prefetcher, _, _, kv := createPrefetcher(t)
+		prefetcher, _, _, _, kv := createPrefetcher(t)
 		require.NoError(t, kv.Put(key, node))
 
 		oracle := l2.NewPreimageOracle(asOracleFn(t, prefetcher), asHinter(t, prefetcher))
@@ -221,7 +293,7 @@ func TestFetchL2Node(t *testing.T) {
 	})
 
 	t.Run("Unknown", func(t *testing.T) {
-		prefetcher, _, l2Cl, _ := createPrefetcher(t)
+		prefetcher, _, _, l2Cl, _ := createPrefetcher(t)
 		l2Cl.ExpectNodeByHash(hash, node, nil)
 		defer l2Cl.MockDebugClient.AssertExpectations(t)
 
@@ -238,7 +310,7 @@ func TestFetchL2Code(t *testing.T) {
 	key := preimage.Keccak256Key(hash).PreimageKey()
 
 	t.Run("AlreadyKnown", func(t *testing.T) {
-		prefetcher, _, _, kv := createPrefetcher(t)
+		prefetcher, _, _, _, kv := createPrefetcher(t)
 		require.NoError(t, kv.Put(key, code))
 
 		oracle := l2.NewPreimageOracle(asOracleFn(t, prefetcher), asHinter(t, prefetcher))
@@ -247,7 +319,7 @@ func TestFetchL2Code(t *testing.T) {
 	})
 
 	t.Run("Unknown", func(t *testing.T) {
-		prefetcher, _, l2Cl, _ := createPrefetcher(t)
+		prefetcher, _, _, l2Cl, _ := createPrefetcher(t)
 		l2Cl.ExpectCodeByHash(hash, code, nil)
 		defer l2Cl.MockDebugClient.AssertExpectations(t)
 
@@ -258,7 +330,7 @@ func TestFetchL2Code(t *testing.T) {
 }
 
 func TestBadHints(t *testing.T) {
-	prefetcher, _, _, kv := createPrefetcher(t)
+	prefetcher, _, _, _, kv := createPrefetcher(t)
 	hash := common.Hash{0xad}
 
 	t.Run("NoSpace", func(t *testing.T) {
@@ -277,7 +349,7 @@ func TestBadHints(t *testing.T) {
 
 		// But it will fail to prefetch when the pre-image isn't available
 		pre, err := prefetcher.GetPreimage(context.Background(), hash)
-		require.ErrorContains(t, err, "invalid hash")
+		require.ErrorContains(t, err, "invalid bytes")
 		require.Nil(t, pre)
 	})
 
@@ -311,10 +383,10 @@ func TestRetryWhenNotAvailableAfterPrefetching(t *testing.T) {
 	node := testutils.RandomData(rng, 30)
 	hash := crypto.Keccak256Hash(node)
 
-	_, l1Source, l2Cl, kv := createPrefetcher(t)
+	_, l1Source, l1BlobSource, l2Cl, kv := createPrefetcher(t)
 	putsToIgnore := 2
 	kv = &unreliableKvStore{KV: kv, putsToIgnore: putsToIgnore}
-	prefetcher := NewPrefetcher(testlog.Logger(t, log.LvlInfo), l1Source, l2Cl, kv)
+	prefetcher := NewPrefetcher(testlog.Logger(t, log.LvlInfo), l1Source, l1BlobSource, l2Cl, kv)
 
 	// Expect one call for each ignored put, plus one more request for when the put succeeds
 	for i := 0; i < putsToIgnore+1; i++ {
@@ -355,18 +427,19 @@ func (m *l2Client) ExpectOutputByRoot(root common.Hash, output eth.Output, err e
 	m.Mock.On("OutputByRoot", root).Once().Return(output, &err)
 }
 
-func createPrefetcher(t *testing.T) (*Prefetcher, *testutils.MockL1Source, *l2Client, kvstore.KV) {
+func createPrefetcher(t *testing.T) (*Prefetcher, *testutils.MockL1Source, *testutils.MockBlobsFetcher, *l2Client, kvstore.KV) {
 	logger := testlog.Logger(t, log.LvlDebug)
 	kv := kvstore.NewMemKV()
 
 	l1Source := new(testutils.MockL1Source)
+	l1BlobSource := new(testutils.MockBlobsFetcher)
 	l2Source := &l2Client{
 		MockL2Client:    new(testutils.MockL2Client),
 		MockDebugClient: new(testutils.MockDebugClient),
 	}
 
-	prefetcher := NewPrefetcher(logger, l1Source, l2Source, kv)
-	return prefetcher, l1Source, l2Source, kv
+	prefetcher := NewPrefetcher(logger, l1Source, l1BlobSource, l2Source, kv)
+	return prefetcher, l1Source, l1BlobSource, l2Source, kv
 }
 
 func storeBlock(t *testing.T, kv kvstore.KV, block *types.Block, receipts types.Receipts) {
@@ -390,6 +463,23 @@ func storeBlock(t *testing.T, kv kvstore.KV, block *types.Block, receipts types.
 	headerRlp, err := rlp.EncodeToBytes(block.Header())
 	require.NoError(t, err)
 	require.NoError(t, kv.Put(preimage.Keccak256Key(block.Hash()).PreimageKey(), headerRlp))
+}
+
+func storeBlob(t *testing.T, kv kvstore.KV, commitment eth.Bytes48, blob *eth.Blob) {
+	// Pre-store versioned hash preimage (commitment)
+	err := kv.Put(preimage.Sha256Key(sha256.Sum256(commitment[:])).PreimageKey(), commitment[:])
+	require.NoError(t, err, "Failed to store versioned hash preimage in kvstore")
+
+	// Pre-store blob field elements
+	blobKeyBuf := make([]byte, 80)
+	copy(blobKeyBuf[:48], commitment[:])
+	for i := 0; i < params.BlobTxFieldElementsPerBlob; i++ {
+		binary.BigEndian.PutUint64(blobKeyBuf[:72], uint64(i))
+		feKey := crypto.Keccak256Hash(blobKeyBuf)
+
+		err = kv.Put(preimage.BlobKey(feKey).PreimageKey(), blob[i<<5:(i+1)<<5])
+		require.NoError(t, err, "Failed to store field element preimage in kvstore")
+	}
 }
 
 func asOracleFn(t *testing.T, prefetcher *Prefetcher) preimage.OracleFn {

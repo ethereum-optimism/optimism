@@ -32,16 +32,18 @@ func TestMonitorMinGameTimestamp(t *testing.T) {
 	t.Run("non-zero game window with zero clock", func(t *testing.T) {
 		monitor, _, _, _, _ := setupMonitorTest(t, []common.Address{})
 		monitor.gameWindow = time.Minute
-		monitor.clock = clock.NewDeterministicClock(time.Unix(0, 0))
-		require.Equal(t, monitor.minGameTimestamp(), uint64(0))
+		monitor.clock = clock.NewSimpleClock()
+		monitor.clock.SetTime(0)
+		require.Equal(t, uint64(0), monitor.minGameTimestamp())
 	})
 
 	t.Run("minimum computed correctly", func(t *testing.T) {
 		monitor, _, _, _, _ := setupMonitorTest(t, []common.Address{})
 		monitor.gameWindow = time.Minute
-		frozen := time.Unix(int64(time.Hour.Seconds()), 0)
-		monitor.clock = clock.NewDeterministicClock(frozen)
-		expected := uint64(frozen.Add(-time.Minute).Unix())
+		monitor.clock = clock.NewSimpleClock()
+		frozen := uint64(time.Hour.Seconds())
+		monitor.clock.SetTime(frozen)
+		expected := uint64(time.Unix(int64(frozen), 0).Add(-time.Minute).Unix())
 		require.Equal(t, monitor.minGameTimestamp(), expected)
 	})
 }
@@ -189,13 +191,15 @@ func setupMonitorTest(
 	sched := &stubScheduler{}
 	preimages := &stubPreimageScheduler{}
 	mockHeadSource := &mockNewHeadSource{}
+	mockScheduler := &mockScheduler{}
 	monitor := newGameMonitor(
 		logger,
-		clock.SystemClock,
+		clock.NewSimpleClock(),
 		source,
 		sched,
 		preimages,
 		time.Duration(0),
+		mockScheduler,
 		fetchBlockNum,
 		allowedGames,
 		mockHeadSource,
@@ -242,6 +246,16 @@ func (m *mockNewHeadSource) EthSubscribe(
 	return m.sub, nil
 }
 
+type mockScheduler struct {
+	scheduleErr   error
+	scheduleCalls int
+}
+
+func (m *mockScheduler) Schedule(uint64, []types.GameMetadata) error {
+	m.scheduleCalls++
+	return m.scheduleErr
+}
+
 type mockSubscription struct {
 	errChan chan error
 	headers chan<- *ethtypes.Header
@@ -254,7 +268,8 @@ func (m *mockSubscription) Err() <-chan error {
 }
 
 type stubGameSource struct {
-	games []types.GameMetadata
+	fetchErr error
+	games    []types.GameMetadata
 }
 
 func (s *stubGameSource) FetchAllGamesAtBlock(
@@ -262,6 +277,9 @@ func (s *stubGameSource) FetchAllGamesAtBlock(
 	_ uint64,
 	_ common.Hash,
 ) ([]types.GameMetadata, error) {
+	if s.fetchErr != nil {
+		return nil, s.fetchErr
+	}
 	return s.games, nil
 }
 

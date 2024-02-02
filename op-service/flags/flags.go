@@ -11,10 +11,11 @@ import (
 )
 
 const (
-	RollupConfigFlagName   = "rollup.config"
-	NetworkFlagName        = "network"
-	CanyonOverrideFlagName = "override.canyon"
-	DeltaOverrideFlagName  = "override.delta"
+	RollupConfigFlagName    = "rollup.config"
+	NetworkFlagName         = "network"
+	CanyonOverrideFlagName  = "override.canyon"
+	DeltaOverrideFlagName   = "override.delta"
+	EcotoneOverrideFlagName = "override.ecotone"
 )
 
 func CLIFlags(envPrefix string) []cli.Flag {
@@ -29,6 +30,12 @@ func CLIFlags(envPrefix string) []cli.Flag {
 			Name:    DeltaOverrideFlagName,
 			Usage:   "Manually specify the Delta fork timestamp, overriding the bundled setting",
 			EnvVars: opservice.PrefixEnvVar(envPrefix, "OVERRIDE_DELTA"),
+			Hidden:  false,
+		},
+		&cli.Uint64Flag{
+			Name:    EcotoneOverrideFlagName,
+			Usage:   "Manually specify the Ecotone fork timestamp, overriding the bundled setting",
+			EnvVars: opservice.PrefixEnvVar(envPrefix, "OVERRIDE_ECOTONE"),
 			Hidden:  false,
 		},
 		CLINetworkFlag(envPrefix),

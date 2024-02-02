@@ -33,7 +33,9 @@ contract L1CrossDomainMessengerKontrol is DeploymentSummary, KontrolUtils {
     {
         setUpInlined();
 
-        // ASSUME: conservative upper bound on the `_message` length
+        // ASSUME: Conservative upper bound on the `_message` length. Most contract calls will have
+        // a message length less than 600 bytes. This assumption can be removed once Kontrol
+        // supports symbolic `bytes`: https://github.com/runtimeverification/kontrol/issues/272
         bytes memory _message = freshBigBytes(600);
 
         // Pause System

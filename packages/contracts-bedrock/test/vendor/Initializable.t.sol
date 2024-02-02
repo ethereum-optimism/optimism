@@ -271,8 +271,9 @@ contract Initializer_Test is Bridge_Initializer {
     ///         3. The `initialize()` function of each contract cannot be called more than once.
     function test_cannotReinitialize_succeeds() public {
         // Ensure that all L1, L2 `Initializable` contracts are accounted for, in addition to
-        // OptimismMintableERC20FactoryImpl and OptimismMintableERC20FactoryProxy
-        assertEq(_getNumInitializable() + 2, contracts.length);
+        // OptimismMintableERC20FactoryImpl and OptimismMintableERC20FactoryProxy.
+        // TODO: Add `OptimismPortal2` and `OptimismPortal2Proxy` once the deployment scripts are updated.
+        assertEq(_getNumInitializable(), contracts.length);
 
         // Attempt to re-initialize all contracts within the `contracts` array.
         for (uint256 i; i < contracts.length; i++) {

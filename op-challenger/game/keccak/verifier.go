@@ -3,7 +3,6 @@ package keccak
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 
@@ -17,8 +16,6 @@ import (
 type Fetcher interface {
 	FetchInputs(ctx context.Context, blockHash common.Hash, oracle fetcher.Oracle, ident keccakTypes.LargePreimageIdent) ([]keccakTypes.InputData, error)
 }
-
-var ErrNotImplemented = errors.New("verify implementation not complete")
 
 type PreimageVerifier struct {
 	log     log.Logger

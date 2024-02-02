@@ -41,10 +41,22 @@ jobs:
       - name: Setup
         uses: ./.github/actions/setup
 
+      - name: Check if NPM_TOKEN is set
+        id: check_token
+        run: |
+          if [ -z "${{ secrets.NPM_TOKEN }}" ]; then
+            echo "NPM_TOKEN is not set. Is it set it in your repository secrets?"
+            exit 1
+          fi
+        shell: bash
+
       - name: Set deployment token
         run: npm config set '//registry.npmjs.org/:_authToken' "${NPM_TOKEN}"
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Verify NPM Token is valid
+        run: npm whoami
 
       # Makes a pr to publish the changesets that when
       # merged will publish to npm

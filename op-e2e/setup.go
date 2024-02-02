@@ -289,6 +289,14 @@ type System struct {
 	rollupClients map[string]*sources.RollupClient
 }
 
+// AdvanceTime advances the system clock by the given duration.
+// If the [System.TimeTravelClock] is nil, this is a no-op.
+func (sys *System) AdvanceTime(d time.Duration) {
+	if sys.TimeTravelClock != nil {
+		sys.TimeTravelClock.AdvanceTime(d)
+	}
+}
+
 func (sys *System) NodeEndpoint(name string) string {
 	return selectEndpoint(sys.EthInstances[name])
 }

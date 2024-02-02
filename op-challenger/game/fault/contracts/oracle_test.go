@@ -1,7 +1,6 @@
 package contracts
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"math"
@@ -10,7 +9,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/matrix"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/merkle"
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
@@ -135,7 +133,7 @@ func TestPreimageOracleContract_Squeeze(t *testing.T) {
 
 	claimant := common.Address{0x12}
 	uuid := big.NewInt(123)
-	stateMatrix := matrix.NewStateMatrix()
+	preStateMatrix := keccakTypes.StateSnapshot{0, 1, 2, 3, 4}
 	preState := keccakTypes.Leaf{
 		Input:           [keccakTypes.BlockSize]byte{0x12},
 		Index:           123,
@@ -151,14 +149,14 @@ func TestPreimageOracleContract_Squeeze(t *testing.T) {
 	stubRpc.SetResponse(oracleAddr, methodSqueezeLPP, batching.BlockLatest, []interface{}{
 		claimant,
 		uuid,
-		abiEncodeStateMatrix(stateMatrix),
+		abiEncodeSnapshot(preStateMatrix),
 		toPreimageOracleLeaf(preState),
 		preStateProof,
 		toPreimageOracleLeaf(postState),
 		postStateProof,
 	}, nil)
 
-	tx, err := oracle.Squeeze(claimant, uuid, stateMatrix, preState, preStateProof, postState, postStateProof)
+	tx, err := oracle.Squeeze(claimant, uuid, preStateMatrix, preState, preStateProof, postState, postStateProof)
 	require.NoError(t, err)
 	stubRpc.VerifyTxCandidate(tx)
 }
@@ -503,7 +501,7 @@ func TestChallenge_First(t *testing.T) {
 		UUID:     big.NewInt(4829),
 	}
 	challenge := keccakTypes.Challenge{
-		StateMatrix: []byte{1, 2, 3, 4, 5},
+		StateMatrix: keccakTypes.StateSnapshot{1, 2, 3, 4, 5},
 		Prestate:    keccakTypes.Leaf{},
 		Poststate: keccakTypes.Leaf{
 			Input:           [136]byte{5, 4, 3, 2, 1},
@@ -536,7 +534,7 @@ func TestChallenge_NotFirst(t *testing.T) {
 		UUID:     big.NewInt(4829),
 	}
 	challenge := keccakTypes.Challenge{
-		StateMatrix: bytes.Repeat([]byte{1, 2, 3, 4, 5, 6, 7, 8}, 25),
+		StateMatrix: keccakTypes.StateSnapshot{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25},
 		Prestate: keccakTypes.Leaf{
 			Input:           [136]byte{9, 8, 7, 6, 5},
 			Index:           3,
@@ -553,7 +551,7 @@ func TestChallenge_NotFirst(t *testing.T) {
 	stubRpc.SetResponse(oracleAddr, methodChallengeLPP, batching.BlockLatest,
 		[]interface{}{
 			ident.Claimant, ident.UUID,
-			abiEncodePackedState(challenge.StateMatrix),
+			bindings.LibKeccakStateMatrix{State: challenge.StateMatrix},
 			bindings.PreimageOracleLeaf{
 				Input:           challenge.Prestate.Input[:],
 				Index:           new(big.Int).SetUint64(challenge.Prestate.Index),
