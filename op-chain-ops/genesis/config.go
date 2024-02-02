@@ -733,11 +733,53 @@ func NewStateDump(path string) (*gstate.Dump, error) {
 		return nil, fmt.Errorf("dump at %s not found: %w", path, err)
 	}
 
-	var dump gstate.Dump
-	if err := json.Unmarshal(file, &dump); err != nil {
+	var fdump ForgeDump
+	if err := json.Unmarshal(file, &fdump); err != nil {
 		return nil, fmt.Errorf("cannot unmarshal dump: %w", err)
 	}
+	dump := (gstate.Dump)(fdump)
 	return &dump, nil
+}
+
+// ForgeDump is a simple alias for state.Dump that can read "nonce" as a hex string.
+// It appears as if updates to foundry have changed the serialization of the state dump.
+type ForgeDump gstate.Dump
+
+func (d *ForgeDump) UnmarshalJSON(b []byte) error {
+	type forgeDumpAccount struct {
+		Balance   string                 `json:"balance"`
+		Nonce     hexutil.Uint64         `json:"nonce"`
+		Root      hexutil.Bytes          `json:"root"`
+		CodeHash  hexutil.Bytes          `json:"codeHash"`
+		Code      hexutil.Bytes          `json:"code,omitempty"`
+		Storage   map[common.Hash]string `json:"storage,omitempty"`
+		Address   *common.Address        `json:"address,omitempty"`
+		SecureKey hexutil.Bytes          `json:"key,omitempty"`
+	}
+	type forgeDump struct {
+		Root     string                              `json:"root"`
+		Accounts map[common.Address]forgeDumpAccount `json:"accounts"`
+	}
+	var dump forgeDump
+	if err := json.Unmarshal(b, &dump); err != nil {
+		return err
+	}
+
+	d.Root = dump.Root
+	d.Accounts = make(map[common.Address]gstate.DumpAccount)
+	for addr, acc := range dump.Accounts {
+		d.Accounts[addr] = gstate.DumpAccount{
+			Balance:   acc.Balance,
+			Nonce:     (uint64)(acc.Nonce),
+			Root:      acc.Root,
+			CodeHash:  acc.CodeHash,
+			Code:      acc.Code,
+			Storage:   acc.Storage,
+			Address:   acc.Address,
+			SecureKey: acc.SecureKey,
+		}
+	}
+	return nil
 }
 
 // NewL2ImmutableConfig will create an ImmutableConfig given an instance of a
