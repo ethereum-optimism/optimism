@@ -33,7 +33,7 @@ var (
 	}
 	ReorgFlag = &cli.Uint64Flag{
 		Name:     "l1-height",
-		Aliases:  []string{"h", "height"},
+		Aliases:  []string{"height"},
 		Usage:    "the lowest l1 height that has been reorg'd. All L1 data and derived L2 blocks starting from this height will be deleted",
 		Required: true,
 	}
@@ -148,7 +148,8 @@ func newCli(GitCommit string, GitDate string) *cli.App {
 				Action:      runMigrations,
 			},
 			{
-				Name:        "reorg",
+				Name:        "reorg-delete",
+				Aliases:     []string{"reorg"},
 				Flags:       append(flags, ReorgFlag),
 				Description: "Deletes data that has been reorg'ed out of the canonical L1 chain",
 				Action:      runReorgDeletion,
