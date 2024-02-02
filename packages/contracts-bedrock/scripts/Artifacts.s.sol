@@ -32,8 +32,8 @@ abstract contract Artifacts {
     Deployment[] internal _newDeployments;
     /// @notice Path to the directory containing the hh deploy style artifacts
     string internal deploymentsDir;
-    /// @notice The path to the temp deployments file
-    string internal tempDeploymentsPath;
+    /// @notice The path to the deployment artifact that is being written to.
+    string internal deployArtifactPath;
     /// @notice The namespace for the deployment. Can be set with the env var DEPLOYMENT_CONTEXT.
     string internal deploymentContext;
 
@@ -49,12 +49,12 @@ abstract contract Artifacts {
             vm.createDir(deploymentsDir, true);
         }
 
-        tempDeploymentsPath = vm.envOr("DEPLOYMENT_OUTFILE", string.concat(deploymentsDir, "/.deploy"));
-        try vm.readFile(tempDeploymentsPath) returns (string memory) { }
+        deployArtifactPath = vm.envOr("DEPLOYMENT_OUTFILE", string.concat(deploymentsDir, "/.deploy"));
+        try vm.readFile(deployArtifactPath) returns (string memory) { }
         catch {
-            vm.writeJson("{}", tempDeploymentsPath);
+            vm.writeJson("{}", deployArtifactPath);
         }
-        console.log("Storing temp deployment data in %s", tempDeploymentsPath);
+        console.log("Using deploy artifact %s", deployArtifactPath);
 
         try vm.createDir(deploymentsDir, true) { } catch (bytes memory) { }
 
@@ -189,8 +189,7 @@ abstract contract Artifacts {
         }
     }
 
-    /// @notice Writes a deployment to disk as a temp deployment so that the
-    ///         hardhat deploy artifact can be generated afterwards.
+    /// @notice Appends a deployment to disk as a JSON deploy artifact.
     /// @param _name The name of the deployment.
     /// @param _deployed The address of the deployment.
     function save(string memory _name, address _deployed) public {
@@ -201,17 +200,18 @@ abstract contract Artifacts {
             revert InvalidDeployment("AlreadyExists");
         }
 
+        console.log("Saving %s: %s", _name, _deployed);
         Deployment memory deployment = Deployment({ name: _name, addr: payable(_deployed) });
         _namedDeployments[_name] = deployment;
         _newDeployments.push(deployment);
-        _writeTemp(_name, _deployed);
+        _appendDeployment(_name, _deployed);
     }
 
-    /// @notice Reads the temp deployments from disk that were generated
+    /// @notice Reads the deployment artifact from disk that were generated
     ///         by the deploy script.
     /// @return An array of deployments.
-    function _getTempDeployments() internal returns (Deployment[] memory) {
-        string memory json = vm.readFile(tempDeploymentsPath);
+    function _getDeployments() internal returns (Deployment[] memory) {
+        string memory json = vm.readFile(deployArtifactPath);
         string[] memory cmd = new string[](3);
         cmd[0] = Executables.bash;
         cmd[1] = "-c";
@@ -229,8 +229,8 @@ abstract contract Artifacts {
     }
 
     /// @notice Adds a deployment to the temp deployments file
-    function _writeTemp(string memory _name, address _deployed) internal {
-        vm.writeJson({ json: stdJson.serialize("", _name, _deployed), path: tempDeploymentsPath });
+    function _appendDeployment(string memory _name, address _deployed) internal {
+        vm.writeJson({ json: stdJson.serialize("", _name, _deployed), path: deployArtifactPath });
     }
 
     /// @notice Reads the artifact from the filesystem by name and returns the address.
@@ -246,8 +246,8 @@ abstract contract Artifacts {
     function _getExistingDeployment(string memory _name) internal view returns (Deployment memory) {
         string memory path = string.concat(deploymentsDir, "/", _name, ".json");
         try vm.readFile(path) returns (string memory json) {
-            bytes memory addr = stdJson.parseRaw(json, "$.address");
-            return Deployment({ addr: abi.decode(addr, (address)), name: _name });
+            address addr = stdJson.readAddress(json, "$.address");
+            return Deployment({ addr: payable(addr), name: _name });
         } catch {
             return Deployment({ addr: payable(address(0)), name: "" });
         }
