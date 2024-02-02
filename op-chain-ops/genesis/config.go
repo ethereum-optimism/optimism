@@ -745,7 +745,7 @@ func NewStateDump(path string) (*gstate.Dump, error) {
 // It appears as if updates to foundry have changed the serialization of the state dump.
 type ForgeDump gstate.Dump
 
-func (d *ForgeDump) UmashalJSON(b []byte) error {
+func (d *ForgeDump) UnmarshalJSON(b []byte) error {
 	type forgeDumpAccount struct {
 		Balance   string                 `json:"balance"`
 		Nonce     hexutil.Uint64         `json:"nonce"`
