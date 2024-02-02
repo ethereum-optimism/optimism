@@ -353,38 +353,38 @@ func (c *Config) IsInterop(timestamp uint64) bool {
 	return c.InteropTime != nil && timestamp >= *c.InteropTime
 }
 
-// ForkchoiceUpdatedVersion returns the EngineAPIVersion suitable for the chain hard fork version.
-func (c *Config) ForkchoiceUpdatedVersion(timestamp uint64) EngineAPIVersion {
+// ForkchoiceUpdatedVersion returns the EngineAPIMethod suitable for the chain hard fork version.
+func (c *Config) ForkchoiceUpdatedVersion(timestamp uint64) eth.EngineAPIMethod {
 	if c.IsEcotone(timestamp) {
 		// Cancun
-		return EngineAPIV3
+		return eth.FCUV3
 	} else if c.IsCanyon(timestamp) {
 		// Shanghai
-		return EngineAPIV2
+		return eth.FCUV2
 	} else {
 		// According to Ethereum engine API spec, we can use fcuV2 here,
 		// but upstream Geth v1.13.11 does not accept V2 before Shanghai.
-		return EngineAPIV1
+		return eth.FCUV1
 	}
 }
 
-// NewPayloadVersion returns the EngineAPIVersion suitable for the chain hard fork version.
-func (c *Config) NewPayloadVersion(timestamp uint64) EngineAPIVersion {
+// NewPayloadVersion returns the EngineAPIMethod suitable for the chain hard fork version.
+func (c *Config) NewPayloadVersion(timestamp uint64) eth.EngineAPIMethod {
 	if c.IsEcotone(timestamp) {
 		// Cancun
-		return EngineAPIV3
+		return eth.NewPayloadV3
 	} else {
-		return EngineAPIV2
+		return eth.NewPayloadV2
 	}
 }
 
-// GetPayloadVersion returns the EngineAPIVersion suitable for the chain hard fork version.
-func (c *Config) GetPayloadVersion(timestamp uint64) EngineAPIVersion {
+// GetPayloadVersion returns the EngineAPIMethod suitable for the chain hard fork version.
+func (c *Config) GetPayloadVersion(timestamp uint64) eth.EngineAPIMethod {
 	if c.IsEcotone(timestamp) {
 		// Cancun
-		return EngineAPIV3
+		return eth.GetPayloadV3
 	} else {
-		return EngineAPIV2
+		return eth.GetPayloadV2
 	}
 }
 
@@ -468,11 +468,3 @@ func fmtTime(v uint64) string {
 }
 
 type Epoch uint64
-
-type EngineAPIVersion string
-
-const (
-	EngineAPIV1 EngineAPIVersion = "V1"
-	EngineAPIV2 EngineAPIVersion = "V2"
-	EngineAPIV3 EngineAPIVersion = "V3"
-)

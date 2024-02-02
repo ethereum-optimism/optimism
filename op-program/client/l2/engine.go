@@ -54,7 +54,7 @@ func (o *OracleEngine) GetPayload(ctx context.Context, payloadInfo eth.PayloadIn
 	var res *eth.ExecutionPayloadEnvelope
 	var err error
 	switch o.rollupCfg.GetPayloadVersion(payloadInfo.Timestamp) {
-	case rollup.EngineAPIV3:
+	case eth.GetPayloadV3:
 		res, err = o.api.GetPayloadV3(ctx, payloadInfo.ID)
 	default:
 		res, err = o.api.GetPayloadV2(ctx, payloadInfo.ID)
@@ -68,9 +68,9 @@ func (o *OracleEngine) GetPayload(ctx context.Context, payloadInfo eth.PayloadIn
 func (o *OracleEngine) ForkchoiceUpdate(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
 	if attr != nil {
 		switch o.rollupCfg.ForkchoiceUpdatedVersion(uint64(attr.Timestamp)) {
-		case rollup.EngineAPIV3:
+		case eth.FCUV3:
 			return o.api.ForkchoiceUpdatedV3(ctx, state, attr)
-		case rollup.EngineAPIV2:
+		case eth.FCUV2:
 			return o.api.ForkchoiceUpdatedV2(ctx, state, attr)
 		default:
 			return o.api.ForkchoiceUpdatedV1(ctx, state, attr)
@@ -81,7 +81,7 @@ func (o *OracleEngine) ForkchoiceUpdate(ctx context.Context, state *eth.Forkchoi
 
 func (o *OracleEngine) NewPayload(ctx context.Context, payload *eth.ExecutionPayload, parentBeaconBlockRoot *common.Hash) (*eth.PayloadStatusV1, error) {
 	switch o.rollupCfg.GetPayloadVersion(uint64(payload.Timestamp)) {
-	case rollup.EngineAPIV3:
+	case eth.NewPayloadV3:
 		return o.api.NewPayloadV3(ctx, payload, []common.Hash{}, parentBeaconBlockRoot)
 	default:
 		return o.api.NewPayloadV2(ctx, payload)

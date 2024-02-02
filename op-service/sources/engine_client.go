@@ -58,12 +58,11 @@ func (s *EngineClient) ForkchoiceUpdate(ctx context.Context, fc *eth.ForkchoiceS
 	fcCtx, cancel := context.WithTimeout(ctx, time.Second*5)
 	defer cancel()
 	var result eth.ForkchoiceUpdatedResult
-	engineAPIVersion := rollup.EngineAPIV3
+	method := eth.FCUV3
 	if attributes != nil {
-		engineAPIVersion = s.rollupCfg.ForkchoiceUpdatedVersion(uint64(attributes.Timestamp))
+		method = s.rollupCfg.ForkchoiceUpdatedVersion(uint64(attributes.Timestamp))
 	}
-	method := fmt.Sprintf("engine_forkchoiceUpdated%s", engineAPIVersion)
-	err := s.client.CallContext(fcCtx, &result, method, fc, attributes)
+	err := s.client.CallContext(fcCtx, &result, string(method), fc, attributes)
 	if err == nil {
 		tlog.Trace("Shared forkchoice-updated signal")
 		if attributes != nil { // block building is optional, we only get a payload ID if we are building a block
@@ -100,11 +99,11 @@ func (s *EngineClient) NewPayload(ctx context.Context, payload *eth.ExecutionPay
 	var result eth.PayloadStatusV1
 
 	var err error
-	switch s.rollupCfg.NewPayloadVersion(uint64(payload.Timestamp)) {
-	case rollup.EngineAPIV3:
-		err = s.client.CallContext(execCtx, &result, "engine_newPayloadV3", payload, []common.Hash{}, parentBeaconBlockRoot)
+	switch method := s.rollupCfg.NewPayloadVersion(uint64(payload.Timestamp)); method {
+	case eth.NewPayloadV3:
+		err = s.client.CallContext(execCtx, &result, string(method), payload, []common.Hash{}, parentBeaconBlockRoot)
 	default:
-		err = s.client.CallContext(execCtx, &result, "engine_newPayloadV2", payload)
+		err = s.client.CallContext(execCtx, &result, string(method), payload)
 	}
 
 	e.Trace("Received payload execution result", "status", result.Status, "latestValidHash", result.LatestValidHash, "message", result.ValidationError)
@@ -123,9 +122,8 @@ func (s *EngineClient) GetPayload(ctx context.Context, payloadInfo eth.PayloadIn
 	e := s.log.New("payload_id", payloadInfo.ID)
 	e.Trace("getting payload")
 	var result eth.ExecutionPayloadEnvelope
-	engineAPIVersion := s.rollupCfg.GetPayloadVersion(payloadInfo.Timestamp)
-	method := fmt.Sprintf("engine_getPayload%s", engineAPIVersion)
-	err := s.client.CallContext(ctx, &result, method, payloadInfo.ID)
+	method := s.rollupCfg.GetPayloadVersion(payloadInfo.Timestamp)
+	err := s.client.CallContext(ctx, &result, string(method), payloadInfo.ID)
 	if err != nil {
 		e.Warn("Failed to get payload", "payload_id", payloadInfo.ID, "err", err)
 		if rpcErr, ok := err.(rpc.Error); ok {

@@ -458,3 +458,17 @@ func (v *Uint64String) UnmarshalText(b []byte) error {
 	*v = Uint64String(n)
 	return nil
 }
+
+type EngineAPIMethod string
+
+const (
+	FCUV1 EngineAPIMethod = "engine_forkchoiceUpdatedV1"
+	FCUV2 EngineAPIMethod = "engine_forkchoiceUpdatedV2"
+	FCUV3 EngineAPIMethod = "engine_forkchoiceUpdatedV3"
+
+	NewPayloadV2 EngineAPIMethod = "engine_newPayloadV2"
+	NewPayloadV3 EngineAPIMethod = "engine_newPayloadV3"
+
+	GetPayloadV2 EngineAPIMethod = "engine_getPayloadV2"
+	GetPayloadV3 EngineAPIMethod = "engine_getPayloadV3"
+)
