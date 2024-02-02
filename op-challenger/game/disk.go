@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum/go-ethereum/common"
 	"golang.org/x/exp/slices"
 )
@@ -22,13 +23,19 @@ func newDiskManager(dir string) *diskManager {
 	return &diskManager{datadir: dir}
 }
 
+func (d *diskManager) CreateDir() error {
+	return os.MkdirAll(d.datadir, 0700)
+}
+
 func (d *diskManager) DirForGame(addr common.Address) string {
 	return filepath.Join(d.datadir, gameDirPrefix+addr.Hex())
 }
 
 func (d *diskManager) RemoveAllExcept(keep []common.Address) error {
 	entries, err := os.ReadDir(d.datadir)
-	if err != nil {
+	if err != nil && os.IsNotExist(err) {
+		return types.ErrGameDataDirNotFound
+	} else if err != nil {
 		return fmt.Errorf("failed to list directory: %w", err)
 	}
 	var errs []error

@@ -181,8 +181,12 @@ func (c *coordinator) deleteResolvedGameFiles() {
 			keepGames = append(keepGames, addr)
 		}
 	}
-	if err := c.disk.RemoveAllExcept(keepGames); err != nil {
-		c.logger.Error("Unable to cleanup game data", "err", err)
+	err := c.disk.RemoveAllExcept(keepGames)
+	if err != nil && errors.Is(err, types.ErrGameDataDirNotFound) {
+		c.logger.Warn("Game directory not found, creating...", "err", err)
+		if err := c.disk.CreateDir(); err != nil {
+			c.logger.Error("Failed to create game data directory", "err", err)
+		}
 	}
 }
 

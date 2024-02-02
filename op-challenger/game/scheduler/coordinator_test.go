@@ -393,6 +393,10 @@ type stubDiskManager struct {
 	deletedDirs   []common.Address
 }
 
+func (s *stubDiskManager) CreateDir() error {
+	return nil
+}
+
 func (s *stubDiskManager) DirForGame(addr common.Address) string {
 	s.gameDirExists[addr] = true
 	return addr.Hex()

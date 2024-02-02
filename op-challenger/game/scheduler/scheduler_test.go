@@ -63,6 +63,10 @@ type trackingDiskManager struct {
 	removeExceptCalls chan []common.Address
 }
 
+func (t *trackingDiskManager) CreateDir() error {
+	return nil
+}
+
 func (t *trackingDiskManager) DirForGame(addr common.Address) string {
 	return addr.Hex()
 }

@@ -15,6 +15,7 @@ type GamePlayer interface {
 }
 
 type DiskManager interface {
+	CreateDir() error
 	DirForGame(addr common.Address) string
 	RemoveAllExcept(addrs []common.Address) error
 }

@@ -1,6 +1,7 @@
 package types
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
@@ -14,6 +15,10 @@ const (
 	GameStatusInProgress GameStatus = iota
 	GameStatusChallengerWon
 	GameStatusDefenderWon
+)
+
+var (
+	ErrGameDataDirNotFound = errors.New("game data directory not found")
 )
 
 // String returns the string representation of the game status.
