@@ -12,9 +12,9 @@ contract AlphabetVM is IBigStepper {
     Claim internal immutable ABSOLUTE_PRESTATE;
     IPreimageOracle public oracle;
 
-    constructor(Claim _absolutePrestate) {
+    constructor(Claim _absolutePrestate, PreimageOracle _oracle) {
         ABSOLUTE_PRESTATE = _absolutePrestate;
-        oracle = new PreimageOracle(0, 0, 0);
+        oracle = _oracle;
     }
 
     /// @inheritdoc IBigStepper
