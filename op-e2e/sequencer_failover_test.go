@@ -82,11 +82,10 @@ func TestSequencerFailover_ConductorRPC(t *testing.T) {
 	err = leader.client.TransferLeader(ctx)
 	require.NoError(t, err, "Expected leader to transfer leadership")
 	require.NoError(t, waitForLeadershipChange(t, leader, false))
+	ensureOnlyOneLeader(t, sys, conductors)
 	newLeader, err := leader.client.LeaderWithID(ctx)
 	require.NoError(t, err)
-	isLeader, err := leader.client.Leader(ctx)
-	require.NoError(t, err)
-	require.False(t, isLeader, "Expected leader to transfer leadership")
+	require.NotEmpty(t, newLeader.ID)
 	require.NotEqual(t, lid, newLeader.ID, "Expected leader to change")
 	require.NoError(t, waitForSequencerStatusChange(t, sys.RollupClient(newLeader.ID), true))
 
@@ -119,7 +118,7 @@ func TestSequencerFailover_ConductorRPC(t *testing.T) {
 	require.Equal(t, 4, len(membership), "Expected 4 members in cluster")
 	require.Equal(t, consensus.Nonvoter, membership[3].Suffrage, "Expected last member to be non-voter")
 
-	t.Log("Testing RemoveServer")
+	t.Log("Testing RemoveServer, call remove on follower")
 	lid, leader = findLeader(t, conductors)
 	fid, follower = findFollower(t, conductors)
 	err = follower.client.RemoveServer(ctx, lid)
@@ -128,6 +127,7 @@ func TestSequencerFailover_ConductorRPC(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 4, len(membership), "Expected 4 members in cluster")
 
+	t.Log("Testing RemoveServer, call remove on leader, expect non-voter to be removed")
 	err = leader.client.RemoveServer(ctx, VerifierName)
 	require.NoError(t, err, "Expected leader to remove non-voter")
 	membership, err = c1.client.ClusterMembership(ctx)
@@ -135,6 +135,7 @@ func TestSequencerFailover_ConductorRPC(t *testing.T) {
 	require.Equal(t, 3, len(membership), "Expected 2 members in cluster after removal")
 	require.NotContains(t, membership, VerifierName, "Expected follower to be removed from cluster")
 
+	t.Log("Testing RemoveServer, call remove on leader, expect voter to be removed")
 	err = leader.client.RemoveServer(ctx, fid)
 	require.NoError(t, err, "Expected leader to remove follower")
 	membership, err = c1.client.ClusterMembership(ctx)
