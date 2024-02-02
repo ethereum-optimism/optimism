@@ -277,6 +277,37 @@ func (cfg *Config) Check() error {
 	if cfg.L2ChainID.Sign() < 1 {
 		return ErrL2ChainIDNotPositive
 	}
+
+	if err := checkFork(cfg.RegolithTime, cfg.CanyonTime, "regolith", "canyon"); err != nil {
+		return err
+	}
+	if err := checkFork(cfg.CanyonTime, cfg.DeltaTime, "canyon", "delta"); err != nil {
+		return err
+	}
+	if err := checkFork(cfg.DeltaTime, cfg.EcotoneTime, "delta", "ecotone"); err != nil {
+		return err
+	}
+	if err := checkFork(cfg.EcotoneTime, cfg.FjordTime, "ecotone", "fjord"); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// checkFork checks that fork A is before or at the same time as fork B
+func checkFork(a, b *uint64, aName, bName string) error {
+	if a == nil && b == nil {
+		return nil
+	}
+	if a == nil && b != nil {
+		return fmt.Errorf("fork %s set (to %d), but prior fork %s missing", bName, *b, aName)
+	}
+	if a != nil && b == nil {
+		return nil
+	}
+	if *a > *b {
+		return fmt.Errorf("fork %s set to %d, but prior fork %s has higher offset %d", bName, *b, aName, *a)
+	}
 	return nil
 }
 
