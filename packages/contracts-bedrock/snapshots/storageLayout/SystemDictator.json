@@ -35,7 +35,7 @@
     "type": "uint256[49]"
   },
   {
-    "bytes": "1216",
+    "bytes": "1248",
     "label": "config",
     "offset": 0,
     "slot": "101",
@@ -45,49 +45,49 @@
     "bytes": "128",
     "label": "l2OutputOracleDynamicConfig",
     "offset": 0,
-    "slot": "139",
+    "slot": "140",
     "type": "struct SystemDictator.L2OutputOracleDynamicConfig"
   },
   {
     "bytes": "96",
     "label": "optimismPortalDynamicConfig",
     "offset": 0,
-    "slot": "143",
+    "slot": "144",
     "type": "struct SystemDictator.OptimismPortalDynamicConfig"
   },
   {
     "bytes": "1",
     "label": "currentStep",
     "offset": 0,
-    "slot": "146",
+    "slot": "147",
     "type": "uint8"
   },
   {
     "bytes": "1",
     "label": "dynamicConfigSet",
     "offset": 1,
-    "slot": "146",
+    "slot": "147",
     "type": "bool"
   },
   {
     "bytes": "1",
     "label": "finalized",
     "offset": 2,
-    "slot": "146",
+    "slot": "147",
     "type": "bool"
   },
   {
     "bytes": "1",
     "label": "exited",
     "offset": 3,
-    "slot": "146",
+    "slot": "147",
     "type": "bool"
   },
   {
     "bytes": "20",
     "label": "oldL1CrossDomainMessenger",
     "offset": 4,
-    "slot": "146",
+    "slot": "147",
     "type": "address"
   }
 ]
