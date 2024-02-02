@@ -60,9 +60,15 @@ commands:
       patterns:
         type: string
         description: "Comma-separated list of dependencies"
+      no_go_deps:
+        type: string
+        default: ""
+        description: "If set, does not trigger on `go.mod` / `go.sum` changes."
     steps:
       - run:
           name: "Check for changes"
+          environment:
+            CHECK_CHANGED_NO_GO_DEPS: "<<parameters.no_go_deps>>"
           command: |
             cd ops/check-changed
             pip3 install -r requirements.txt
@@ -1335,6 +1341,7 @@ jobs:
           name: Checkout Submodule
           command: make submodules
       - check-changed:
+          no_go_deps: "true"
           patterns: contracts-bedrock/test/kontrol,contracts-bedrock/src/L1/OptimismPortal\.sol,contracts-bedrock/src/L1/L1CrossDomainMessenger\.sol,contracts-bedrock/src/L1/L1ERC721Bridge\.sol,contracts-bedrock/src/L1/L1StandardBridge\.sol,contracts-bedrock/src/L1/ResourceMetering\.sol,contracts-bedrock/src/universal/StandardBridge\.sol,contracts-bedrock/src/universal/ERC721Bridge\.sol,contracts-bedrock/src/universal/CrossDomainMessenger\.sol
       - setup_remote_docker:
           docker_layer_caching: true
