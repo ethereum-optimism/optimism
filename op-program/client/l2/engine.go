@@ -53,11 +53,13 @@ func (o *OracleEngine) L2OutputRoot(l2ClaimBlockNum uint64) (eth.Bytes32, error)
 func (o *OracleEngine) GetPayload(ctx context.Context, payloadInfo eth.PayloadInfo) (*eth.ExecutionPayloadEnvelope, error) {
 	var res *eth.ExecutionPayloadEnvelope
 	var err error
-	switch o.rollupCfg.GetPayloadVersion(payloadInfo.Timestamp) {
+	switch method := o.rollupCfg.GetPayloadVersion(payloadInfo.Timestamp); method {
 	case eth.GetPayloadV3:
 		res, err = o.api.GetPayloadV3(ctx, payloadInfo.ID)
-	default:
+	case eth.GetPayloadV2:
 		res, err = o.api.GetPayloadV2(ctx, payloadInfo.ID)
+	default:
+		return nil, fmt.Errorf("unsupported GetPayload version: %s", method)
 	}
 	if err != nil {
 		return nil, err
@@ -67,24 +69,28 @@ func (o *OracleEngine) GetPayload(ctx context.Context, payloadInfo eth.PayloadIn
 
 func (o *OracleEngine) ForkchoiceUpdate(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
 	if attr != nil {
-		switch o.rollupCfg.ForkchoiceUpdatedVersion(attr) {
+		switch method := o.rollupCfg.ForkchoiceUpdatedVersion(attr); method {
 		case eth.FCUV3:
 			return o.api.ForkchoiceUpdatedV3(ctx, state, attr)
 		case eth.FCUV2:
 			return o.api.ForkchoiceUpdatedV2(ctx, state, attr)
-		default:
+		case eth.FCUV1:
 			return o.api.ForkchoiceUpdatedV1(ctx, state, attr)
+		default:
+			return nil, fmt.Errorf("unsupported ForkchoiceUpdated version: %s", method)
 		}
 	}
 	return o.api.ForkchoiceUpdatedV3(ctx, state, attr)
 }
 
 func (o *OracleEngine) NewPayload(ctx context.Context, payload *eth.ExecutionPayload, parentBeaconBlockRoot *common.Hash) (*eth.PayloadStatusV1, error) {
-	switch o.rollupCfg.NewPayloadVersion(uint64(payload.Timestamp)) {
+	switch method := o.rollupCfg.NewPayloadVersion(uint64(payload.Timestamp)); method {
 	case eth.NewPayloadV3:
 		return o.api.NewPayloadV3(ctx, payload, []common.Hash{}, parentBeaconBlockRoot)
-	default:
+	case eth.NewPayloadV2:
 		return o.api.NewPayloadV2(ctx, payload)
+	default:
+		return nil, fmt.Errorf("unsupported NewPayload version: %s", method)
 	}
 }
 
