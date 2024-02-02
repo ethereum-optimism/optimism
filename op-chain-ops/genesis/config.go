@@ -766,17 +766,17 @@ func (d *ForgeDump) UnmarshalJSON(b []byte) error {
 	}
 
 	d.Root = dump.Root
-	d.Accounts = make(map[common.Address]gstate.DumpAccount)
+	d.Accounts = make(map[string]gstate.DumpAccount)
 	for addr, acc := range dump.Accounts {
-		d.Accounts[addr] = gstate.DumpAccount{
-			Balance:   acc.Balance,
-			Nonce:     (uint64)(acc.Nonce),
-			Root:      acc.Root,
-			CodeHash:  acc.CodeHash,
-			Code:      acc.Code,
-			Storage:   acc.Storage,
-			Address:   acc.Address,
-			SecureKey: acc.SecureKey,
+		d.Accounts[addr.String()] = gstate.DumpAccount{
+			Balance:     acc.Balance,
+			Nonce:       (uint64)(acc.Nonce),
+			Root:        acc.Root,
+			CodeHash:    acc.CodeHash,
+			Code:        acc.Code,
+			Storage:     acc.Storage,
+			Address:     acc.Address,
+			AddressHash: acc.SecureKey,
 		}
 	}
 	return nil
