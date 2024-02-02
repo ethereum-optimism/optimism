@@ -20,11 +20,7 @@ import (
 func TestPreimageOracleContract_LoadKeccak256(t *testing.T) {
 	stubRpc, oracle := setupPreimageOracleTest(t)
 
-	data := &types.PreimageOracleData{
-		OracleKey:    common.Hash{0xcc}.Bytes(),
-		OracleData:   make([]byte, 20),
-		OracleOffset: 545,
-	}
+	data := types.NewPreimageOracleData(common.Hash{0xcc}.Bytes(), make([]byte, 20), 545)
 	stubRpc.SetResponse(oracleAddr, methodLoadKeccak256PreimagePart, batching.BlockLatest, []interface{}{
 		new(big.Int).SetUint64(uint64(data.OracleOffset)),
 		data.GetPreimageWithoutSize(),
@@ -60,11 +56,7 @@ func TestPreimageOracleContract_MinLargePreimageSize(t *testing.T) {
 func TestPreimageOracleContract_PreimageDataExists(t *testing.T) {
 	t.Run("exists", func(t *testing.T) {
 		stubRpc, oracle := setupPreimageOracleTest(t)
-		data := &types.PreimageOracleData{
-			OracleKey:    common.Hash{0xcc}.Bytes(),
-			OracleData:   make([]byte, 20),
-			OracleOffset: 545,
-		}
+		data := types.NewPreimageOracleData(common.Hash{0xcc}.Bytes(), make([]byte, 20), 545)
 		stubRpc.SetResponse(oracleAddr, methodPreimagePartOk, batching.BlockLatest,
 			[]interface{}{common.Hash(data.OracleKey), new(big.Int).SetUint64(uint64(data.OracleOffset))},
 			[]interface{}{true},
@@ -75,11 +67,7 @@ func TestPreimageOracleContract_PreimageDataExists(t *testing.T) {
 	})
 	t.Run("does not exist", func(t *testing.T) {
 		stubRpc, oracle := setupPreimageOracleTest(t)
-		data := &types.PreimageOracleData{
-			OracleKey:    common.Hash{0xcc}.Bytes(),
-			OracleData:   make([]byte, 20),
-			OracleOffset: 545,
-		}
+		data := types.NewPreimageOracleData(common.Hash{0xcc}.Bytes(), make([]byte, 20), 545)
 		stubRpc.SetResponse(oracleAddr, methodPreimagePartOk, batching.BlockLatest,
 			[]interface{}{common.Hash(data.OracleKey), new(big.Int).SetUint64(uint64(data.OracleOffset))},
 			[]interface{}{false},

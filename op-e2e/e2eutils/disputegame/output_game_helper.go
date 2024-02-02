@@ -538,10 +538,10 @@ func (g *OutputGameHelper) waitForPreimageInOracle(ctx context.Context, data *ty
 	defer cancel()
 	oracle := g.oracle(ctx)
 	err := wait.For(timedCtx, time.Second, func() (bool, error) {
-		g.t.Logf("Waiting for preimage (%v) to be present in oracle", data.OracleKey)
+		g.t.Logf("Waiting for preimage (%v) to be present in oracle", common.Bytes2Hex(data.OracleKey))
 		return oracle.GlobalDataExists(ctx, data)
 	})
-	g.require.NoErrorf(err, "Did not find preimage (%v) in oracle", data.OracleKey)
+	g.require.NoErrorf(err, "Did not find preimage (%v) in oracle", common.Bytes2Hex(data.OracleKey))
 }
 
 func (g *OutputGameHelper) uploadPreimage(ctx context.Context, data *types.PreimageOracleData, privateKey *ecdsa.PrivateKey) {

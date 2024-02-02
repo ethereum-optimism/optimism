@@ -106,7 +106,7 @@ func NewFactoryHelper(t *testing.T, ctx context.Context, system DisputeSystem) *
 
 func (h *FactoryHelper) PreimageHelper(ctx context.Context) *preimage.Helper {
 	opts := &bind.CallOpts{Context: ctx}
-	gameAddr, err := h.factory.GameImpls(opts, alphabetGameType)
+	gameAddr, err := h.factory.GameImpls(opts, cannonGameType)
 	h.require.NoError(err)
 	game, err := bindings.NewFaultDisputeGameCaller(gameAddr, h.client)
 	h.require.NoError(err)
