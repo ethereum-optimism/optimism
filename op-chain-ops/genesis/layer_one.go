@@ -1,7 +1,6 @@
 package genesis
 
 import (
-	"errors"
 	"fmt"
 	"math/big"
 
