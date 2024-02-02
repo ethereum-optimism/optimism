@@ -94,10 +94,11 @@ contract Setup {
 
         string memory allocsPath = string.concat(vm.projectRoot(), "/.testdata/genesis-l1.json");
         if (vm.isFile(allocsPath)) {
+            console.log("Loading allocs from %s", allocsPath);
             vm.loadAllocs(allocsPath);
             deploy.loadAddresses(string.concat(vm.projectRoot(), "/.testdata/addresses.json"));
         } else {
-            deploy.run();
+            revert("generate the genesis with `pnpm genesis`");
         }
 
         optimismPortal = OptimismPortal(deploy.mustGetAddress("OptimismPortalProxy"));
