@@ -78,7 +78,7 @@ func TestSequencerFailover_ConductorRPC(t *testing.T) {
 	t.Log("Testing TransferLeader")
 	lid, leader := findLeader(t, conductors)
 	err = leader.client.TransferLeader(ctx)
-	require.NoError(t, err, "Expected leader to transfer leadership")
+	require.NoError(t, err, "Expected leader to transfer leadership to another node")
 	require.NoError(t, waitForLeadershipChange(t, leader, false))
 	ensureOnlyOneLeader(t, sys, conductors)
 	newLeader, err := leader.client.LeaderWithID(ctx)
