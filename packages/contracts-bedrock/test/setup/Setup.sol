@@ -31,6 +31,7 @@ import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { Executables } from "scripts/Executables.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
+import { console } from "forge-std/console.sol";
 
 /// @title Setup
 /// @dev This contact is responsible for setting up the contracts in state. It currently
@@ -93,13 +94,12 @@ contract Setup {
         );
 
         string memory allocsPath = string.concat(vm.projectRoot(), "/.testdata/genesis-l1.json");
-        if (vm.isFile(allocsPath)) {
-            console.log("Loading allocs from %s", allocsPath);
-            vm.loadAllocs(allocsPath);
-            deploy.loadAddresses(string.concat(vm.projectRoot(), "/.testdata/addresses.json"));
-        } else {
-            revert("generate the genesis with `pnpm genesis`");
-        }
+        console.log("Loading allocs from %s", allocsPath);
+        require(vm.isFile(allocsPath), "generate the genesis.json with `pnpm genesis`");
+        vm.loadAllocs(allocsPath);
+        string memory addressesPath = string.concat(vm.projectRoot(), "/.testdata/addresses.json");
+        require(vm.isFile(addressesPath), "generate the genesis.json with `pnpm genesis`");
+        deploy.loadAddresses(addressesPath);
 
         optimismPortal = OptimismPortal(deploy.mustGetAddress("OptimismPortalProxy"));
         l2OutputOracle = L2OutputOracle(deploy.mustGetAddress("L2OutputOracleProxy"));
