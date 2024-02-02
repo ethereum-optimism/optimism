@@ -2,6 +2,7 @@ package responder
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/big"
 
@@ -95,7 +96,7 @@ func (r *FaultResponder) PerformAction(ctx context.Context, action types.Action)
 		// Always upload local preimages
 		if !preimageExists {
 			err := r.uploader.UploadPreimage(ctx, uint64(action.ParentIdx), action.OracleData)
-			if err == preimages.ErrChallengePeriodNotOver {
+			if errors.Is(err, preimages.ErrChallengePeriodNotOver) {
 				r.log.Debug("Large Preimage Squeeze failed, challenge period not over")
 				return nil
 			} else if err != nil {

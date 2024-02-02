@@ -13,9 +13,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/matrix"
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
-	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -39,22 +39,23 @@ const MaxChunkSize = MaxBlocksPerChunk * keccakTypes.BlockSize
 type LargePreimageUploader struct {
 	log log.Logger
 
-	clock    clock.Clock
+	clock    types.ClockReader
 	txSender gameTypes.TxSender
 	contract PreimageOracleContract
 }
 
-func NewLargePreimageUploader(logger log.Logger, cl clock.Clock, txSender gameTypes.TxSender, contract PreimageOracleContract) *LargePreimageUploader {
+func NewLargePreimageUploader(logger log.Logger, cl types.ClockReader, txSender gameTypes.TxSender, contract PreimageOracleContract) *LargePreimageUploader {
 	return &LargePreimageUploader{logger, cl, txSender, contract}
 }
 
 func (p *LargePreimageUploader) UploadPreimage(ctx context.Context, parent uint64, data *types.PreimageOracleData) error {
+	p.log.Debug("Upload large preimage", "key", data.OracleKey)
 	stateMatrix, calls, err := p.splitCalls(data)
 	if err != nil {
 		return fmt.Errorf("failed to split preimage into chunks for data with oracle offset %d: %w", data.OracleOffset, err)
 	}
 
-	uuid := p.newUUID(data)
+	uuid := NewUUID(p.txSender.From(), data)
 
 	// Fetch the current metadata for this preimage data, if it exists.
 	ident := keccakTypes.LargePreimageIdent{Claimant: p.txSender.From(), UUID: uuid}
@@ -89,10 +90,9 @@ func (p *LargePreimageUploader) UploadPreimage(ctx context.Context, parent uint6
 	return p.Squeeze(ctx, uuid, stateMatrix)
 }
 
-// newUUID generates a new unique identifier for the preimage by hashing the
+// NewUUID generates a new unique identifier for the preimage by hashing the
 // concatenated preimage data, preimage offset, and sender address.
-func (p *LargePreimageUploader) newUUID(data *types.PreimageOracleData) *big.Int {
-	sender := p.txSender.From()
+func NewUUID(sender common.Address, data *types.PreimageOracleData) *big.Int {
 	offset := make([]byte, 4)
 	binary.LittleEndian.PutUint32(offset, data.OracleOffset)
 	concatenated := append(data.OracleData, offset...)
@@ -122,6 +122,7 @@ func (p *LargePreimageUploader) splitCalls(data *types.PreimageOracleData) (*mat
 }
 
 func (p *LargePreimageUploader) Squeeze(ctx context.Context, uuid *big.Int, stateMatrix *matrix.StateMatrix) error {
+	prestateMatrix := stateMatrix.PrestateMatrix()
 	prestate, prestateProof := stateMatrix.PrestateWithProof()
 	poststate, poststateProof := stateMatrix.PoststateWithProof()
 	challengePeriod, err := p.contract.ChallengePeriod(ctx)
@@ -140,11 +141,12 @@ func (p *LargePreimageUploader) Squeeze(ctx context.Context, uuid *big.Int, stat
 	if uint64(currentTimestamp) < metadata[0].Timestamp+challengePeriod {
 		return ErrChallengePeriodNotOver
 	}
-	if err := p.contract.CallSqueeze(ctx, p.txSender.From(), uuid, stateMatrix, prestate, prestateProof, poststate, poststateProof); err != nil {
-		p.log.Debug("expected a successful squeeze call", "metadataTimestamp", metadata[0].Timestamp, "currentTimestamp", currentTimestamp, "err", err)
+	if err := p.contract.CallSqueeze(ctx, p.txSender.From(), uuid, prestateMatrix, prestate, prestateProof, poststate, poststateProof); err != nil {
+		p.log.Warn("Expected a successful squeeze call", "metadataTimestamp", metadata[0].Timestamp, "currentTimestamp", currentTimestamp, "err", err)
 		return fmt.Errorf("failed to call squeeze: %w", err)
 	}
-	tx, err := p.contract.Squeeze(p.txSender.From(), uuid, stateMatrix, prestate, prestateProof, poststate, poststateProof)
+	p.log.Info("Squeezing large preimage", "uuid", uuid)
+	tx, err := p.contract.Squeeze(p.txSender.From(), uuid, prestateMatrix, prestate, prestateProof, poststate, poststateProof)
 	if err != nil {
 		return fmt.Errorf("failed to create pre-image oracle tx: %w", err)
 	}
@@ -157,6 +159,7 @@ func (p *LargePreimageUploader) Squeeze(ctx context.Context, uuid *big.Int, stat
 // initLargePreimage initializes the large preimage proposal.
 // This method *must* be called before adding any leaves.
 func (p *LargePreimageUploader) initLargePreimage(uuid *big.Int, partOffset uint32, claimedSize uint32) error {
+	p.log.Info("Init large preimage upload", "uuid", uuid, "partOffset", partOffset, "size", claimedSize)
 	candidate, err := p.contract.InitLargePreimage(uuid, partOffset, claimedSize)
 	if err != nil {
 		return fmt.Errorf("failed to create pre-image oracle tx: %w", err)
@@ -181,6 +184,7 @@ func (p *LargePreimageUploader) addLargePreimageData(uuid *big.Int, chunks []kec
 		blocksProcessed += int64(len(chunk.Input) / keccakTypes.BlockSize)
 		txs[i] = tx
 	}
+	p.log.Info("Adding large preimage leaves", "uuid", uuid, "blocksProcessed", blocksProcessed, "txs", len(txs))
 	_, err := p.txSender.SendAndWait("add leaf to large preimage", txs...)
 	return err
 }

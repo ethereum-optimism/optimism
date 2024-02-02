@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/cannon"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
@@ -216,6 +217,57 @@ func TestOutputCannonDefendStep(t *testing.T) {
 	require.EqualValues(t, disputegame.StatusChallengerWins, game.Status(ctx))
 }
 
+func TestOutputCannonStepWithLargePreimage(t *testing.T) {
+	// TODO(client-pod#525): Fix preimage insertion and enable this test
+	t.Skip("Preimage not being inserted under correct key")
+	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(outputCannonTestExecutor))
+
+	ctx := context.Background()
+	sys, l1Client := startFaultDisputeSystem(t, withLargeBatches())
+	t.Cleanup(sys.Close)
+
+	// Send a large l2 transaction and use the receipt block number as the l2 block number for the game
+	l2Client := sys.NodeClient("sequencer")
+
+	// Send a large, difficult to compress L2 transaction. This isn't read by op-program but the batcher has to include
+	// it in a batch which *is* read.
+	receipt := op_e2e.SendLargeL2Tx(t, sys.Cfg, l2Client, sys.Cfg.Secrets.Alice, func(opts *op_e2e.TxOpts) {
+		aliceAddr := sys.Cfg.Secrets.Addresses().Alice
+		startL2Nonce, err := l2Client.NonceAt(ctx, aliceAddr, nil)
+		require.NoError(t, err)
+		opts.Nonce = startL2Nonce
+		opts.ToAddr = &common.Address{}
+		// By default, the receipt status must be successful and is checked in the SendL2Tx function
+	})
+	l2BlockNumber := receipt.BlockNumber.Uint64()
+	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
+	// Dispute any block - it will have to read the L1 batches to see if the block is reached
+	game := disputeGameFactory.StartOutputCannonGame(ctx, "sequencer", l2BlockNumber, common.Hash{0x01, 0xaa})
+	require.NotNil(t, game)
+	outputRootClaim := game.DisputeBlock(ctx, l2BlockNumber)
+	game.LogGameData(ctx)
+
+	game.StartChallenger(ctx, "sequencer", "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
+
+	// Wait for the honest challenger to dispute the outputRootClaim.
+	// This creates a root of an execution game that we challenge by
+	// coercing a step at a preimage trace index.
+	outputRootClaim = outputRootClaim.WaitForCounterClaim(ctx)
+
+	game.LogGameData(ctx)
+	// Now the honest challenger is positioned as the defender of the
+	// execution game. We then move to challenge it to induce a large preimage load.
+	sender := sys.Cfg.Secrets.Addresses().Alice
+	preimageLoadCheck := game.CreateStepLargePreimageLoadCheck(ctx, sender)
+	game.ChallengeToPreimageLoad(ctx, outputRootClaim, sys.Cfg.Secrets.Alice, cannon.PreimageLargerThan(18_000), preimageLoadCheck, false)
+
+	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
+	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
+	game.WaitForInactivity(ctx, 10, true)
+	game.LogGameData(ctx)
+	require.EqualValues(t, disputegame.StatusChallengerWins, game.Status(ctx))
+}
+
 func TestOutputCannonStepWithPreimage(t *testing.T) {
 	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(outputCannonTestExecutor))
 	testPreimageStep := func(t *testing.T, preloadPreimage bool) {
@@ -239,7 +291,8 @@ func TestOutputCannonStepWithPreimage(t *testing.T) {
 
 		// Now the honest challenger is positioned as the defender of the execution game
 		// We then move to challenge it to induce a preimage load
-		game.ChallengeToFirstGlobalPreimageLoad(ctx, outputRootClaim, sys.Cfg.Secrets.Alice, preloadPreimage)
+		preimageLoadCheck := game.CreateStepPreimageLoadCheck(ctx)
+		game.ChallengeToPreimageLoad(ctx, outputRootClaim, sys.Cfg.Secrets.Alice, cannon.FirstGlobalPreimageLoad(), preimageLoadCheck, preloadPreimage)
 
 		sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
 		require.NoError(t, wait.ForNextBlock(ctx, l1Client))

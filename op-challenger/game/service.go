@@ -43,10 +43,10 @@ type Service struct {
 
 	preimages *keccak.LargePreimageScheduler
 
-	cl clock.Clock
-
 	txMgr    *txmgr.SimpleTxManager
 	txSender *sender.TxSender
+
+	cl *clock.SimpleClock
 
 	loader *loader.GameLoader
 
@@ -68,9 +68,9 @@ type Service struct {
 }
 
 // NewService creates a new Service.
-func NewService(ctx context.Context, cl clock.Clock, logger log.Logger, cfg *config.Config) (*Service, error) {
+func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*Service, error) {
 	s := &Service{
-		cl:      cl,
+		cl:      clock.NewSimpleClock(),
 		logger:  logger,
 		metrics: metrics.NewMetrics(),
 	}
