@@ -4,8 +4,11 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"crypto/rand"
+	"encoding/binary"
 	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/vm"
 	"math/big"
 	"os"
 	"strings"
@@ -60,7 +63,8 @@ func main() {
 				makeCommand("eip-4788", checkBeaconBlockRoot),
 				makeCommand("all", checkAllCancun),
 			},
-			Action: nil,
+			Flags:  makeFlags(),
+			Action: makeCommandAction(checkAllCancun),
 		},
 		makeCommand("upgrade", checkUpgradeTxs),
 		{
@@ -130,18 +134,21 @@ var (
 	}
 )
 
-func makeCommand(name string, fn CheckAction) *cli.Command {
+func makeFlags() []cli.Flag {
 	flags := []cli.Flag{
 		EndpointL1,
 		EndpointL2,
 		EndpointRollup,
 		AccountKey,
 	}
-	flags = append(flags, oplog.CLIFlags(prefix)...)
+	return append(flags, oplog.CLIFlags(prefix)...)
+}
+
+func makeCommand(name string, fn CheckAction) *cli.Command {
 	return &cli.Command{
 		Name:   name,
 		Action: makeCommandAction(fn),
-		Flags:  cliapp.ProtectFlags(flags),
+		Flags:  cliapp.ProtectFlags(makeFlags()),
 	}
 }
 
@@ -181,30 +188,194 @@ func makeCommandAction(fn CheckAction) func(c *cli.Context) error {
 	}
 }
 
+// assuming a 0 (fail) or non-zero (success) on the stack, this performs a revert or self-destruct
+func conditionalCode(data []byte) []byte {
+	suffix := []byte{
+		// add jump dest
+		byte(vm.PUSH4),
+		0xff, 0xff, 0xff, 0xff,
+		byte(vm.JUMPI),
+		// error case
+		byte(vm.PUSH0),
+		byte(vm.PUSH0),
+		byte(vm.REVERT),
+		// success case
+		byte(vm.JUMPDEST),
+		byte(vm.CALLER),
+		byte(vm.SELFDESTRUCT),
+		byte(vm.STOP),
+	}
+	binary.BigEndian.PutUint32(suffix[1:5], uint32(len(data))+9)
+	out := make([]byte, 0, len(data)+len(suffix))
+	out = append(out, data...)
+	out = append(out, suffix...)
+	return out
+}
+
 func checkEIP1153(ctx context.Context, env *actionEnv) error {
-	// TODO check EIP-1153
-	return nil
+	input := conditionalCode([]byte{
+		// store 0xc0ffee at 0x42
+		byte(vm.PUSH3),
+		0xc0, 0xff, 0xee,
+		byte(vm.PUSH1),
+		0x42,
+		byte(vm.TSTORE),
+		// retrieve it
+		byte(vm.PUSH1),
+		0x42,
+		byte(vm.TLOAD),
+		// check value
+		byte(vm.PUSH3),
+		0xc0, 0xff, 0xee,
+		byte(vm.EQ),
+	})
+	return execTx(ctx, nil, input, false, env)
 }
 
 func checkBlobDataHash(ctx context.Context, env *actionEnv) error {
-	// TODO assert opcode reverts
-	return nil
+	// revert on non-blob tx
+	input := []byte{
+		byte(vm.BLOBHASH),
+	}
+	return execTx(ctx, nil, input, true, env)
 }
 
 func check4844Precompile(ctx context.Context, env *actionEnv) error {
-	// TODO verify precompile call
+	head, err := env.l2.HeaderByNumber(ctx, nil)
+	if err != nil {
+		return err
+	}
+	// reverts on all-0 time input
+	if err := execTx(ctx, &predeploys.EIP4788ContractAddr, make([]byte, 32), true, env); err != nil {
+		return fmt.Errorf("expected revert on empty input: %w", err)
+	}
+
+	conf, err := env.rollupCl.RollupConfig(ctx)
+	if err != nil {
+		return fmt.Errorf("config retrieval failed: %w", err)
+	}
+	t := head.Time
+	alignment := head.Time % conf.BlockTime
+	for i := 0; i < 20; i++ {
+		ti := t - uint64(i)
+		if !conf.IsEcotone(ti) {
+			continue
+		}
+		env.log.Info("Beacon block root query timestamp", "query_timestamp", ti)
+		// revert when timestamp doesn't exist (when not aligned it won't exist)
+		input := new(uint256.Int).SetUint64(ti).Bytes32()
+		if err := execTx(ctx, &predeploys.EIP4788ContractAddr, input[:], ti%conf.BlockTime != alignment, env); err != nil {
+			return fmt.Errorf("failed at t = %d", ti)
+		}
+	}
 	return nil
 }
 
 func checkMcopy(ctx context.Context, env *actionEnv) error {
-	// TODO verify mcopy works
-	return nil
+	input := conditionalCode([]byte{
+		// push info & mstore it
+		byte(vm.PUSH3),
+		0xc0, 0xff, 0xee,
+		byte(vm.PUSH0), // store at 0
+		byte(vm.MSTORE),
+		// copy the memory
+		byte(vm.PUSH1), // length
+		0x2,            // only copy the C0FF part
+		byte(vm.PUSH1), // src
+		32 - 3,         // right-aligned bytes3
+		byte(vm.PUSH1), // dst
+		0x42,
+		byte(vm.MCOPY),
+		byte(vm.PUSH1),  // copy from destination
+		0x42 - (32 - 3), // a little to the left, so it's left-padded
+		byte(vm.MLOAD),  // load the memory from copied location
+		// check if it matches, with zero 3rd byte
+		byte(vm.PUSH3),
+		0xc0, 0xff, 0x00,
+		byte(vm.EQ),
+	})
+	return execTx(ctx, nil, input, false, env)
 }
 
 func checkSelfdestruct(ctx context.Context, env *actionEnv) error {
-	// TODO verify self-destruct within tx works
-	// TODO verify self-destruct of pre-tx contract does not work
-	return nil
+	input := conditionalCode([]byte{
+		// prepare code in memory
+		byte(vm.PUSH2), // value
+		byte(vm.CALLER),
+		byte(vm.SELFDESTRUCT),
+		byte(vm.PUSH1), // offset
+		byte(vm.MSTORE),
+		// create contract
+		byte(vm.PUSH1), // size, just a 2 byte contract
+		2,
+		byte(vm.PUSH0),       // ETH value
+		byte(vm.PUSH0),       // offset
+		byte(vm.CREATE),      // pushes address on stack. Contract will immediately self-destruct
+		byte(vm.EXTCODESIZE), // size should be 0
+		byte(vm.ISZERO),      // check that it is
+	})
+	return execTx(ctx, nil, input, false, env)
+}
+
+func execTx(ctx context.Context, to *common.Address, data []byte, expectRevert bool, env *actionEnv) error {
+	nonce, err := env.l2.PendingNonceAt(ctx, env.addr)
+	if err != nil {
+		return fmt.Errorf("pending nonce retrieval failed: %w", err)
+	}
+	head, err := env.l2.HeaderByNumber(context.Background(), nil)
+	if err != nil {
+		return fmt.Errorf("failed to retrieve head header: %w", err)
+	}
+
+	tip := big.NewInt(params.GWei)
+	maxFee := new(big.Int).Mul(head.BaseFee, big.NewInt(2))
+	maxFee = maxFee.Add(maxFee, tip)
+
+	chainID, err := env.l2.ChainID(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get chainID: %w", err)
+	}
+	tx := types.NewTx(&types.DynamicFeeTx{ChainID: chainID, Nonce: nonce,
+		GasTipCap: tip, GasFeeCap: maxFee, Gas: 500000, To: to, Data: data})
+	signer := types.NewCancunSigner(chainID)
+	signedTx, err := types.SignTx(tx, signer, env.key)
+	if err != nil {
+		return fmt.Errorf("failed to sign tx: %w", err)
+	}
+
+	env.log.Info("sending tx", "txhash", signedTx.Hash(), "to", to, "data", hexutil.Bytes(data))
+	if err := env.l2.SendTransaction(ctx, signedTx); err != nil {
+		return fmt.Errorf("failed to send tx: %w", err)
+	}
+	for i := 0; i < 30; i++ {
+		env.log.Info("checking confirmation...", "txhash", signedTx.Hash())
+		receipt, err := env.l2.TransactionReceipt(context.Background(), signedTx.Hash())
+		if err != nil {
+			if strings.Contains(err.Error(), "not found") {
+				env.log.Info("not found yet, waiting...")
+				time.Sleep(time.Second)
+				continue
+			} else {
+				return fmt.Errorf("error while checking tx receipt: %w", err)
+			}
+		}
+		if expectRevert {
+			if receipt.Status == types.ReceiptStatusFailed {
+				env.log.Info("tx reverted as expected", "txhash", signedTx.Hash())
+				return nil
+			} else {
+				return fmt.Errorf("tx %s unexpectedly completed without revert", signedTx.Hash())
+			}
+		} else {
+			if receipt.Status == types.ReceiptStatusSuccessful {
+				env.log.Info("tx confirmed", "txhash", signedTx.Hash())
+				return nil
+			} else {
+				return fmt.Errorf("tx %s failed", signedTx.Hash())
+			}
+		}
+	}
+	return fmt.Errorf("failed to confirm tx: %s", signedTx.Hash())
 }
 
 func checkBlobTxDenial(ctx context.Context, env *actionEnv) error {
@@ -251,7 +422,7 @@ func checkBlobTxDenial(ctx context.Context, env *actionEnv) error {
 		Gas:        params.TxGas, // intrinsic gas only
 		BlobHashes: blobHashes,
 		Sidecar:    sidecar,
-		ChainID:    uint256.MustFromBig(rollupCfg.L1ChainID),
+		ChainID:    uint256.MustFromBig(rollupCfg.L2ChainID),
 		GasTipCap:  uint256.MustFromBig(gasTipCap),
 		GasFeeCap:  uint256.MustFromBig(gasFeeCap),
 		BlobFeeCap: blobFeeCap,
@@ -315,7 +486,7 @@ func checkBeaconBlockRoot(ctx context.Context, env *actionEnv) error {
 		return fmt.Errorf("failed to get head ref: %w", err)
 	}
 	if payload.ParentBeaconBlockRoot == nil {
-		return fmt.Errorf("payload %s misses parent beacon block root: %w", payload.ExecutionPayload.ID())
+		return fmt.Errorf("payload %s misses parent beacon block root", payload.ExecutionPayload.ID())
 	}
 	headRef, err := derive.PayloadToBlockRef(rollupCfg, payload.ExecutionPayload)
 	if err != nil {
@@ -352,9 +523,9 @@ func checkAllCancun(ctx context.Context, env *actionEnv) error {
 	if err := checkSelfdestruct(ctx, env); err != nil {
 		return fmt.Errorf("eip-6780 selfdestruct error: %w", err)
 	}
-	//if err := checkBlobTxDenial(ctx, env); err != nil {
-	//	return fmt.Errorf("eip-4844 blob-tx denial error: %w", err)
-	//}
+	if err := checkBlobTxDenial(ctx, env); err != nil {
+		return fmt.Errorf("eip-4844 blob-tx denial error: %w", err)
+	}
 	if err := checkBeaconBlockRoot(ctx, env); err != nil {
 		return fmt.Errorf("eip-4788 beacon-block-roots error: %w", err)
 	}
@@ -433,11 +604,11 @@ func checkGPO(ctx context.Context, env *actionEnv) error {
 	}
 	_, err = cl.Overhead(nil)
 	if err == nil || !strings.Contains(err.Error(), "revert") {
-		return fmt.Errorf("expected revert on legacy overhead attribute acccess, but got %v", err)
+		return fmt.Errorf("expected revert on legacy overhead attribute acccess, but got %w", err)
 	}
 	_, err = cl.Scalar(nil)
 	if err == nil || !strings.Contains(err.Error(), "revert") {
-		return fmt.Errorf("expected revert on legacy scalar attribute acccess, but got %v", err)
+		return fmt.Errorf("expected revert on legacy scalar attribute acccess, but got %w", err)
 	}
 	isEcotone, err := cl.IsEcotone(nil)
 	if err != nil {
