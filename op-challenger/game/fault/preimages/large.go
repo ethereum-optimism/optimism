@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -49,7 +50,7 @@ func NewLargePreimageUploader(logger log.Logger, cl types.ClockReader, txSender 
 }
 
 func (p *LargePreimageUploader) UploadPreimage(ctx context.Context, parent uint64, data *types.PreimageOracleData) error {
-	p.log.Debug("Upload large preimage", "key", data.OracleKey)
+	p.log.Debug("Upload large preimage", "key", hexutil.Bytes(data.OracleKey))
 	stateMatrix, calls, err := p.splitCalls(data)
 	if err != nil {
 		return fmt.Errorf("failed to split preimage into chunks for data with oracle offset %d: %w", data.OracleOffset, err)
@@ -66,7 +67,7 @@ func (p *LargePreimageUploader) UploadPreimage(ctx context.Context, parent uint6
 
 	// The proposal is not initialized if the queried metadata has a claimed size of 0.
 	if len(metadata) == 1 && metadata[0].ClaimedSize == 0 {
-		err = p.initLargePreimage(uuid, data.OracleOffset, uint32(len(data.OracleData)))
+		err = p.initLargePreimage(uuid, data.OracleOffset, uint32(len(data.GetPreimageWithoutSize())))
 		if err != nil {
 			return fmt.Errorf("failed to initialize large preimage with uuid: %s: %w", uuid, err)
 		}
@@ -95,7 +96,7 @@ func (p *LargePreimageUploader) UploadPreimage(ctx context.Context, parent uint6
 func NewUUID(sender common.Address, data *types.PreimageOracleData) *big.Int {
 	offset := make([]byte, 4)
 	binary.LittleEndian.PutUint32(offset, data.OracleOffset)
-	concatenated := append(data.OracleData, offset...)
+	concatenated := append(data.GetPreimageWithoutSize(), offset...)
 	concatenated = append(concatenated, sender.Bytes()...)
 	hash := crypto.Keccak256Hash(concatenated)
 	return hash.Big()
@@ -107,7 +108,7 @@ func (p *LargePreimageUploader) splitCalls(data *types.PreimageOracleData) (*mat
 	// Split the preimage data into chunks of size [MaxChunkSize] (except the last chunk).
 	stateMatrix := matrix.NewStateMatrix()
 	var calls []keccakTypes.InputData
-	in := bytes.NewReader(data.OracleData)
+	in := bytes.NewReader(data.GetPreimageWithoutSize())
 	for {
 		call, err := stateMatrix.AbsorbUpTo(in, MaxChunkSize)
 		if errors.Is(err, io.EOF) {

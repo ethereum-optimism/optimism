@@ -212,12 +212,10 @@ func TestOutputCannonDefendStep(t *testing.T) {
 }
 
 func TestOutputCannonStepWithLargePreimage(t *testing.T) {
-	// TODO(client-pod#525): Fix preimage insertion and enable this test
-	t.Skip("Preimage not being inserted under correct key")
 	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(0))
 
 	ctx := context.Background()
-	sys, l1Client := startFaultDisputeSystem(t, withLargeBatches())
+	sys, _ := startFaultDisputeSystem(t, withLargeBatches())
 	t.Cleanup(sys.Close)
 
 	// Send a large l2 transaction and use the receipt block number as the l2 block number for the game
@@ -254,12 +252,8 @@ func TestOutputCannonStepWithLargePreimage(t *testing.T) {
 	sender := sys.Cfg.Secrets.Addresses().Alice
 	preimageLoadCheck := game.CreateStepLargePreimageLoadCheck(ctx, sender)
 	game.ChallengeToPreimageLoad(ctx, outputRootClaim, sys.Cfg.Secrets.Alice, cannon.PreimageLargerThan(18_000), preimageLoadCheck, false)
-
-	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
-	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
-	game.WaitForInactivity(ctx, 10, true)
-	game.LogGameData(ctx)
-	require.EqualValues(t, disputegame.StatusChallengerWins, game.Status(ctx))
+	// The above method already verified the image was uploaded and step called successfully
+	// So we don't waste time resolving the game - that's tested elsewhere.
 }
 
 func TestOutputCannonStepWithPreimage(t *testing.T) {

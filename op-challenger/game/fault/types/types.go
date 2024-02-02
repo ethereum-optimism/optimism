@@ -26,7 +26,7 @@ type ClockReader interface {
 type PreimageOracleData struct {
 	IsLocal      bool
 	OracleKey    []byte
-	OracleData   []byte
+	oracleData   []byte
 	OracleOffset uint32
 }
 
@@ -37,7 +37,12 @@ func (p *PreimageOracleData) GetIdent() *big.Int {
 
 // GetPreimageWithoutSize returns the preimage for the preimage oracle data.
 func (p *PreimageOracleData) GetPreimageWithoutSize() []byte {
-	return p.OracleData[8:]
+	return p.oracleData[8:]
+}
+
+// GetPreimageWithSize returns the preimage with its length prefix.
+func (p *PreimageOracleData) GetPreimageWithSize() []byte {
+	return p.oracleData
 }
 
 // NewPreimageOracleData creates a new [PreimageOracleData] instance.
@@ -45,7 +50,7 @@ func NewPreimageOracleData(key []byte, data []byte, offset uint32) *PreimageOrac
 	return &PreimageOracleData{
 		IsLocal:      len(key) > 0 && key[0] == byte(1),
 		OracleKey:    key,
-		OracleData:   data,
+		oracleData:   data,
 		OracleOffset: offset,
 	}
 }

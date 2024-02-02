@@ -176,7 +176,7 @@ func TestAttemptStep(t *testing.T) {
 				require.Equal(t, tableTest.expectProofData, step.ProofData)
 				require.Equal(t, tableTest.expectedOracleData.IsLocal, step.OracleData.IsLocal)
 				require.Equal(t, tableTest.expectedOracleData.OracleKey, step.OracleData.OracleKey)
-				require.Equal(t, tableTest.expectedOracleData.OracleData, step.OracleData.OracleData)
+				require.Equal(t, tableTest.expectedOracleData.GetPreimageWithSize(), step.OracleData.GetPreimageWithSize())
 				require.Equal(t, tableTest.expectedOracleData.OracleOffset, step.OracleData.OracleOffset)
 			} else {
 				require.ErrorIs(t, err, tableTest.expectedErr)
