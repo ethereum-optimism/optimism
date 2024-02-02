@@ -53,7 +53,7 @@ func TestScheduleNextCheck(t *testing.T) {
 	scheduler := NewLargePreimageScheduler(logger, cl, []keccakTypes.LargePreimageOracle{oracle}, challenger)
 	scheduler.Start(ctx)
 	defer scheduler.Close()
-	err := scheduler.Schedule(common.Hash{0xaa}, 3)
+	err := scheduler.Schedule(common.Hash{0xaa})
 	require.NoError(t, err)
 	require.Eventually(t, func() bool {
 		return oracle.GetPreimagesCount() == 1

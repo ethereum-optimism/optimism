@@ -2,76 +2,74 @@ package claims
 
 import (
 	"context"
-	"sync"
+	"errors"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-service/sync"
 	"github.com/ethereum/go-ethereum/log"
 )
-
-type BondClaimer interface {
-	ClaimBonds(ctx context.Context, games []types.GameMetadata) error
-}
-
-type BondClaimScheduler struct {
-	log     log.Logger
-	metrics BondClaimSchedulerMetrics
-	ch      chan schedulerMessage
-	claimer BondClaimer
-	cancel  func()
-	wg      sync.WaitGroup
-}
-
-type BondClaimSchedulerMetrics interface {
-	RecordBondClaimFailed()
-}
 
 type schedulerMessage struct {
 	blockNumber uint64
 	games       []types.GameMetadata
 }
 
-func NewBondClaimScheduler(logger log.Logger, metrics BondClaimSchedulerMetrics, claimer BondClaimer) *BondClaimScheduler {
-	return &BondClaimScheduler{
-		log:     logger,
-		metrics: metrics,
-		ch:      make(chan schedulerMessage, 1),
-		claimer: claimer,
-	}
+type Scheduler interface {
+	Start(context.Context)
+	Close() error
+	Schedule(schedulerMessage) error
+	Drain()
 }
 
-func (s *BondClaimScheduler) Start(ctx context.Context) {
-	ctx, cancel := context.WithCancel(ctx)
-	s.cancel = cancel
-	s.wg.Add(1)
-	go s.run(ctx)
+type BondClaimer interface {
+	ClaimBonds(ctx context.Context, games []types.GameMetadata) error
 }
 
-func (s *BondClaimScheduler) Close() error {
-	s.cancel()
-	s.wg.Wait()
-	return nil
+type BondClaimScheduler struct {
+	log       log.Logger
+	metrics   BondClaimSchedulerMetrics
+	scheduler Scheduler
 }
 
-func (s *BondClaimScheduler) run(ctx context.Context) {
-	defer s.wg.Done()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case msg := <-s.ch:
-			if err := s.claimer.ClaimBonds(ctx, msg.games); err != nil {
-				s.metrics.RecordBondClaimFailed()
-				s.log.Error("Failed to claim bonds", "blockNumber", msg.blockNumber, "err", err)
-			}
+type BondClaimSchedulerMetrics interface {
+	RecordBondClaimFailed()
+}
+
+func newBondClaimRunner(claimer BondClaimer, logger log.Logger, metrics BondClaimSchedulerMetrics) sync.SchedulerRunner[schedulerMessage] {
+	return func(ctx context.Context, msg schedulerMessage) {
+		if err := claimer.ClaimBonds(ctx, msg.games); err != nil {
+			metrics.RecordBondClaimFailed()
+			logger.Error("Failed to claim bonds", "blockNumber", msg.blockNumber, "err", err)
 		}
 	}
 }
 
+func NewBondClaimScheduler(logger log.Logger, metrics BondClaimSchedulerMetrics, claimer BondClaimer) *BondClaimScheduler {
+	runner := newBondClaimRunner(claimer, logger, metrics)
+	return &BondClaimScheduler{
+		log:       logger,
+		metrics:   metrics,
+		scheduler: sync.NewSchedulerFromBufferSize[schedulerMessage](runner, 1),
+	}
+}
+
+func (s *BondClaimScheduler) Start(ctx context.Context) {
+	s.scheduler.Start(ctx)
+}
+
+func (s *BondClaimScheduler) Close() error {
+	if err := s.scheduler.Close(); err != nil {
+		return err
+	}
+	s.scheduler.Drain()
+	return nil
+}
+
 func (s *BondClaimScheduler) Schedule(blockNumber uint64, games []types.GameMetadata) error {
-	select {
-	case s.ch <- schedulerMessage{blockNumber, games}:
-	default:
-		s.log.Trace("Skipping game bond claim while claiming in progress")
+	if err := s.scheduler.Schedule(schedulerMessage{blockNumber, games}); errors.Is(err, sync.ErrChannelFull) {
+		s.log.Trace("Skipping bond claim check while already processing")
+	} else if err != nil {
+		s.log.Error("Failed to schedule bond claim", "blockNumber", blockNumber, "error", err)
 	}
 	return nil
 }

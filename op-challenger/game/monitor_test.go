@@ -310,7 +310,7 @@ type stubPreimageScheduler struct {
 	scheduleCount int
 }
 
-func (s *stubPreimageScheduler) Schedule(_ common.Hash, _ uint64) error {
+func (s *stubPreimageScheduler) Schedule(_ common.Hash) error {
 	s.Lock()
 	defer s.Unlock()
 	s.scheduleCount++

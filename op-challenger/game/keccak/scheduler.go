@@ -4,88 +4,32 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync"
 	"time"
 
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
+	"github.com/ethereum-optimism/optimism/op-service/sync"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
+
+type Scheduler interface {
+	Start(context.Context)
+	Close() error
+	Schedule(common.Hash) error
+	Drain()
+}
 
 type Challenger interface {
 	Challenge(ctx context.Context, blockHash common.Hash, oracle Oracle, preimages []keccakTypes.LargePreimageMetaData) error
 }
 
 type LargePreimageScheduler struct {
-	log        log.Logger
-	cl         faultTypes.ClockReader
-	ch         chan common.Hash
-	oracles    []keccakTypes.LargePreimageOracle
-	challenger Challenger
-	cancel     func()
-	wg         sync.WaitGroup
+	log       log.Logger
+	scheduler Scheduler
 }
 
-func NewLargePreimageScheduler(
-	logger log.Logger,
-	cl faultTypes.ClockReader,
-	oracles []keccakTypes.LargePreimageOracle,
-	challenger Challenger) *LargePreimageScheduler {
-	return &LargePreimageScheduler{
-		log:        logger,
-		cl:         cl,
-		ch:         make(chan common.Hash, 1),
-		oracles:    oracles,
-		challenger: challenger,
-	}
-}
-
-func (s *LargePreimageScheduler) Start(ctx context.Context) {
-	ctx, cancel := context.WithCancel(ctx)
-	s.cancel = cancel
-	s.wg.Add(1)
-	go s.run(ctx)
-}
-
-func (s *LargePreimageScheduler) Close() error {
-	s.cancel()
-	s.wg.Wait()
-	return nil
-}
-
-func (s *LargePreimageScheduler) run(ctx context.Context) {
-	defer s.wg.Done()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case blockHash := <-s.ch:
-			if err := s.verifyPreimages(ctx, blockHash); err != nil {
-				s.log.Error("Failed to verify large preimages", "blockHash", blockHash, "err", err)
-			}
-		}
-	}
-}
-
-func (s *LargePreimageScheduler) Schedule(blockHash common.Hash, _ uint64) error {
-	select {
-	case s.ch <- blockHash:
-	default:
-		s.log.Trace("Skipping preimage check while already processing")
-	}
-	return nil
-}
-
-func (s *LargePreimageScheduler) verifyPreimages(ctx context.Context, blockHash common.Hash) error {
-	var err error
-	for _, oracle := range s.oracles {
-		err = errors.Join(err, s.verifyOraclePreimages(ctx, oracle, blockHash))
-	}
-	return err
-}
-
-func (s *LargePreimageScheduler) verifyOraclePreimages(ctx context.Context, oracle keccakTypes.LargePreimageOracle, blockHash common.Hash) error {
+func verifyOraclePreimages(ctx context.Context, cl faultTypes.ClockReader, oracle keccakTypes.LargePreimageOracle, blockHash common.Hash, challenger Challenger) error {
 	preimages, err := oracle.GetActivePreimages(ctx, blockHash)
 	if err != nil {
 		return err
@@ -96,9 +40,50 @@ func (s *LargePreimageScheduler) verifyOraclePreimages(ctx context.Context, orac
 	}
 	toVerify := make([]keccakTypes.LargePreimageMetaData, 0, len(preimages))
 	for _, preimage := range preimages {
-		if preimage.ShouldVerify(s.cl.Now(), time.Duration(period)*time.Second) {
+		if preimage.ShouldVerify(cl.Now(), time.Duration(period)*time.Second) {
 			toVerify = append(toVerify, preimage)
 		}
 	}
-	return s.challenger.Challenge(ctx, blockHash, oracle, toVerify)
+	return challenger.Challenge(ctx, blockHash, oracle, toVerify)
+}
+
+func newVerifyPreimagesRunner(logger log.Logger, cl faultTypes.ClockReader, oracles []keccakTypes.LargePreimageOracle, challenger Challenger) sync.SchedulerRunner[common.Hash] {
+	return func(ctx context.Context, blockHash common.Hash) {
+		var err error
+		for _, oracle := range oracles {
+			err = errors.Join(err, verifyOraclePreimages(ctx, cl, oracle, blockHash, challenger))
+		}
+		if err != nil {
+			logger.Error("Failed to verify large preimages", "blockHash", blockHash, "err", err)
+		}
+	}
+}
+
+func NewLargePreimageScheduler(logger log.Logger, cl faultTypes.ClockReader, oracles []keccakTypes.LargePreimageOracle, challenger Challenger) *LargePreimageScheduler {
+	runner := newVerifyPreimagesRunner(logger, cl, oracles, challenger)
+	return &LargePreimageScheduler{
+		log:       logger,
+		scheduler: sync.NewSchedulerFromBufferSize[common.Hash](runner, 1),
+	}
+}
+
+func (s *LargePreimageScheduler) Start(ctx context.Context) {
+	s.scheduler.Start(ctx)
+}
+
+func (s *LargePreimageScheduler) Close() error {
+	if err := s.scheduler.Close(); err != nil {
+		return err
+	}
+	s.scheduler.Drain()
+	return nil
+}
+
+func (s *LargePreimageScheduler) Schedule(blockHash common.Hash) error {
+	if err := s.scheduler.Schedule(blockHash); errors.Is(err, sync.ErrChannelFull) {
+		s.log.Trace("Skipping preimage check while already processing")
+	} else if err != nil {
+		s.log.Error("Failed to schedule preimage verification", "error", err)
+	}
+	return nil
 }

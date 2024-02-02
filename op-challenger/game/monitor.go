@@ -35,7 +35,7 @@ type gameScheduler interface {
 }
 
 type preimageScheduler interface {
-	Schedule(blockHash common.Hash, blockNumber uint64) error
+	Schedule(blockHash common.Hash) error
 }
 
 type claimer interface {
@@ -148,7 +148,7 @@ func (m *gameMonitor) onNewL1Head(ctx context.Context, sig eth.L1BlockRef) {
 	if err := m.progressGames(ctx, sig.Hash, sig.Number); err != nil {
 		m.logger.Error("Failed to progress games", "err", err)
 	}
-	if err := m.preimages.Schedule(sig.Hash, sig.Number); err != nil {
+	if err := m.preimages.Schedule(sig.Hash); err != nil {
 		m.logger.Error("Failed to validate large preimages", "err", err)
 	}
 }
