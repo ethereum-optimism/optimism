@@ -373,3 +373,36 @@ func findLeader(t *testing.T, conductors map[string]*conductor) (string, *conduc
 	}
 	return "", nil
 }
+
+func findFollower(t *testing.T, conductors map[string]*conductor) (string, *conductor) {
+	for id, con := range conductors {
+		if !leader(t, context.Background(), con) {
+			return id, con
+		}
+	}
+	return "", nil
+}
+
+func ensureOnlyOneLeader(t *testing.T, sys *System, conductors map[string]*conductor) {
+	condiction := func() bool {
+		leaders := 0
+		ctx := context.Background()
+		for name, con := range conductors {
+			leader, err := con.client.Leader(ctx)
+			if err != nil {
+				continue
+			}
+			active, err := sys.RollupClient(name).SequencerActive(ctx)
+			if err != nil {
+				continue
+			}
+
+			if leader && active {
+				leaders++
+			}
+		}
+		return leaders == 1
+	}
+
+	require.NoError(t, waitFor(t, 10*time.Second, condiction))
+}
