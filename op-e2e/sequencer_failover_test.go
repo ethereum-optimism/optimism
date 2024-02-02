@@ -65,7 +65,6 @@ func TestSequencerFailover_ConductorRPC(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, active, "Expected conductor to be active")
 
-	// Test LeaderWithID
 	t.Log("Testing LeaderWithID")
 	leader1, err := c1.client.LeaderWithID(ctx)
 	require.NoError(t, err)
@@ -76,7 +75,6 @@ func TestSequencerFailover_ConductorRPC(t *testing.T) {
 	require.Equal(t, leader1.ID, leader2.ID, "Expected leader ID to be the same")
 	require.Equal(t, leader1.ID, leader3.ID, "Expected leader ID to be the same")
 
-	// Test TransferLeader & TransferLeaderToServer
 	t.Log("Testing TransferLeader")
 	lid, leader := findLeader(t, conductors)
 	err = leader.client.TransferLeader(ctx)
