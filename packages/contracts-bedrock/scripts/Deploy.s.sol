@@ -616,7 +616,8 @@ contract Deploy is Deployer {
         console.log("Deploying PreimageOracle implementation");
         PreimageOracle preimageOracle = new PreimageOracle{ salt: _implSalt() }({
             _minProposalSize: cfg.preimageOracleMinProposalSize(),
-            _challengePeriod: cfg.preimageOracleChallengePeriod()
+            _challengePeriod: cfg.preimageOracleChallengePeriod(),
+            _cancunActivation: cfg.preimageOracleCancunActivationTimestamp()
         });
         save("PreimageOracle", address(preimageOracle));
         console.log("PreimageOracle deployed at %s", address(preimageOracle));

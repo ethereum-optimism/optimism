@@ -55,6 +55,7 @@ contract DeployConfig is Script {
     uint256 public faultGameMaxDuration;
     uint256 public preimageOracleMinProposalSize;
     uint256 public preimageOracleChallengePeriod;
+    uint256 public preimageOracleCancunActivationTimestamp;
     uint256 public systemConfigStartBlock;
     uint256 public requiredProtocolVersion;
     uint256 public recommendedProtocolVersion;
@@ -118,6 +119,8 @@ contract DeployConfig is Script {
 
             preimageOracleMinProposalSize = stdJson.readUint(_json, "$.preimageOracleMinProposalSize");
             preimageOracleChallengePeriod = stdJson.readUint(_json, "$.preimageOracleChallengePeriod");
+            preimageOracleCancunActivationTimestamp =
+                stdJson.readUint(_json, "$.preimageOracleCancunActivationTimestamp");
         }
     }
 

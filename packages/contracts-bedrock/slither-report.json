@@ -1144,10 +1144,10 @@
     "impact": "Medium",
     "confidence": "Medium",
     "check": "uninitialized-local",
-    "description": "PreimageOracle.challengeFirstLPP(address,uint256,PreimageOracle.Leaf,bytes32[]).stateMatrix (src/cannon/PreimageOracle.sol#534) is a local variable never initialized\n",
+    "description": "PreimageOracle.challengeFirstLPP(address,uint256,PreimageOracle.Leaf,bytes32[]).stateMatrix (src/cannon/PreimageOracle.sol#541) is a local variable never initialized\n",
     "type": "variable",
     "name": "stateMatrix",
-    "start": 25088,
+    "start": 25480,
     "length": 40,
     "filename_relative": "src/cannon/PreimageOracle.sol"
   },
