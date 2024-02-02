@@ -66,6 +66,8 @@ type BlocksDB interface {
 
 	StoreL1BlockHeaders([]L1BlockHeader) error
 	StoreL2BlockHeaders([]L2BlockHeader) error
+
+	DeleteReorgedState(fromL1Height *big.Int) error
 }
 
 /**
@@ -172,4 +174,33 @@ func (db *blocksDB) L2LatestBlockHeader() (*L2BlockHeader, error) {
 	}
 
 	return &l2Header, nil
+}
+
+// Reorgs
+
+func (db *blocksDB) DeleteReorgedState(fromL1Height *big.Int) error {
+	l1Header, err := db.L1BlockHeaderWithFilter(BlockHeader{Number: fromL1Height})
+	if err != nil {
+		log.Error("unable to find L1 header associated with height", "err", err, "height", fromL1Height)
+		return err
+	}
+
+	// Look for the right starting L2 height to delete
+	l2Header, err := db.L2BlockHeaderWithScope(func(db *gorm.DB) *gorm.DB {
+		return db.Where("timestamp >= ?", l1Header.Timestamp).Order("number ASC").Limit(1)
+	})
+	if err != nil {
+		log.Error("unable to find earliest derived L2 header from L1 height", "err", err, "height", fromL1Height)
+		return err
+	}
+
+	// Delete reorg'd state. Block deletes cascades to all tables
+	if result := db.gorm.Delete(&L1BlockHeader{}, "number >= ?", l1Header.Number); result.Error != nil {
+		return fmt.Errorf("unable to delete l1 state: %w", err)
+	}
+	if result := db.gorm.Delete(&L2BlockHeader{}, "number >= ?", l2Header.Number); result.Error != nil {
+		return fmt.Errorf("unable to delete l2 state: %w", err)
+	}
+
+	return nil
 }

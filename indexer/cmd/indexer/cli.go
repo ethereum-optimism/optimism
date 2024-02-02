@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"math/big"
 
 	"github.com/urfave/cli/v2"
 
@@ -29,6 +30,12 @@ var (
 		Value:   "./migrations",
 		Usage:   "path to migrations folder",
 		EnvVars: []string{"INDEXER_MIGRATIONS_DIR"},
+	}
+	ReorgFlag = &cli.Uint64Flag{
+		Name:     "l1-height",
+		Aliases:  []string{"h", "height"},
+		Usage:    "the lowest l1 height that has been reorg'd. All L1 data and derived L2 blocks starting from this height will be deleted",
+		Required: true,
 	}
 )
 
@@ -91,11 +98,32 @@ func runMigrations(ctx *cli.Context) error {
 	return db.ExecuteSQLMigration(migrationsDir)
 }
 
+func runReorgDeletion(ctx *cli.Context) error {
+	fromL1Height := ctx.Uint64(ReorgFlag.Name)
+
+	log := oplog.NewLogger(oplog.AppOut(ctx), oplog.ReadCLIConfig(ctx)).New("role", "reorg-deletion")
+	oplog.SetGlobalLogHandler(log.GetHandler())
+	cfg, err := config.LoadConfig(log, ctx.String(ConfigFlag.Name))
+	if err != nil {
+		log.Error("failed to load config", "err", err)
+		return err
+	}
+
+	db, err := database.NewDB(ctx.Context, log, cfg.DB)
+	if err != nil {
+		log.Error("failed to connect to database", "err", err)
+		return err
+	}
+	defer db.Close()
+
+	log.Info("deleting reorg'd state", "from_l1_height", fromL1Height)
+	return db.Transaction(func(db *database.DB) error {
+		return db.Blocks.DeleteReorgedState(big.NewInt(int64(fromL1Height)))
+	})
+}
+
 func newCli(GitCommit string, GitDate string) *cli.App {
-	flags := []cli.Flag{ConfigFlag}
-	flags = append(flags, oplog.CLIFlags("INDEXER")...)
-	migrationFlags := []cli.Flag{MigrationsFlag, ConfigFlag}
-	migrationFlags = append(migrationFlags, oplog.CLIFlags("INDEXER")...)
+	flags := append([]cli.Flag{ConfigFlag}, oplog.CLIFlags("INDEXER")...)
 	return &cli.App{
 		Version:              params.VersionWithCommit(GitCommit, GitDate),
 		Description:          "An indexer of all optimism events with a serving api layer",
@@ -115,9 +143,15 @@ func newCli(GitCommit string, GitDate string) *cli.App {
 			},
 			{
 				Name:        "migrate",
-				Flags:       migrationFlags,
+				Flags:       append(flags, MigrationsFlag),
 				Description: "Runs the database migrations",
 				Action:      runMigrations,
+			},
+			{
+				Name:        "reorg",
+				Flags:       append(flags, ReorgFlag),
+				Description: "Deletes data that has been reorg'ed out of the canonical L1 chain",
+				Action:      runReorgDeletion,
 			},
 			{
 				Name:        "version",
