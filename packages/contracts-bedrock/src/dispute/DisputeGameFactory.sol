@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.15;
+pragma solidity 0.8.15;
 
 import { ClonesWithImmutableArgs } from "@cwia/ClonesWithImmutableArgs.sol";
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
@@ -156,7 +156,7 @@ contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, ISemver 
         // Perform a reverse linear search for the `_n` most recent games of type `_gameType`.
         for (uint256 i = _start; i >= 0 && i <= _start;) {
             GameId id = _disputeGameList[i];
-            (GameType gameType,,) = id.unpack();
+            (GameType gameType, Timestamp timestamp, IDisputeGame proxy) = id.unpack();
 
             if (gameType.raw() == _gameType.raw()) {
                 // Increase the size of the `games_` array by 1.
@@ -166,7 +166,15 @@ contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, ISemver 
                     mstore(games_, add(mload(games_), 0x01))
                 }
 
-                games_[games_.length - 1] = GameSearchResult({ index: i, metadata: id });
+                bytes memory extraData = proxy.extraData();
+                Claim rootClaim = proxy.rootClaim();
+                games_[games_.length - 1] = GameSearchResult({
+                    index: i,
+                    metadata: id,
+                    timestamp: timestamp,
+                    rootClaim: rootClaim,
+                    extraData: extraData
+                });
                 if (games_.length >= _n) break;
             }
 

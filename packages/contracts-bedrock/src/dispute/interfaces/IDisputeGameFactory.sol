@@ -28,6 +28,9 @@ interface IDisputeGameFactory {
     struct GameSearchResult {
         uint256 index;
         GameId metadata;
+        Timestamp timestamp;
+        Claim rootClaim;
+        bytes extraData;
     }
 
     /// @notice The total number of dispute games created by this factory.

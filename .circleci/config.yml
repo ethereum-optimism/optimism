@@ -1020,9 +1020,13 @@ jobs:
   devnet:
     machine:
       image: <<pipeline.parameters.base_image>>
+    parameters:
+      devnet_fpac:
+        type: string
     environment:
       DOCKER_BUILDKIT: 1
       DEVNET_NO_BUILD: 'true'
+      DEVNET_FPAC: <<parameters.devnet_fpac>>
     steps:
       - checkout
       - check-changed:
@@ -1124,9 +1128,20 @@ jobs:
             docker logs ops-bedrock-op-proposer-1 || echo "No logs."
           when: on_fail
       - run:
+          name: Dump op-challenger logs
+          command: |
+            docker logs ops-bedrock-op-challenger-1 || echo "No logs."
+          when: on_fail
+      - run:
           name: Log deployment artifact
           command: |
             cat broadcast/Deploy.s.sol/900/run-latest.json || echo "No deployment file found"
+          when: on_fail
+          working_directory: packages/contracts-bedrock
+      - run:
+          name: Log devnet config
+          command: |
+            cat deploy-config/devnetL1.json || echo "No devnet config found"
           when: on_fail
           working_directory: packages/contracts-bedrock
       - run:
@@ -1613,6 +1628,9 @@ workflows:
           requires:
             - go-mod-download
       - devnet:
+          matrix:
+            parameters:
+              devnet_fpac: ["false", "true"]
           requires:
             - pnpm-monorepo
             - op-batcher-docker-build

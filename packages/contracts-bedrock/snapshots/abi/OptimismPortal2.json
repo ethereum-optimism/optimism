@@ -71,6 +71,19 @@
         "type": "bytes32"
       }
     ],
+    "name": "checkWithdrawal",
+    "outputs": [],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "_withdrawalHash",
+        "type": "bytes32"
+      }
+    ],
     "name": "deleteProvenWithdrawal",
     "outputs": [],
     "stateMutability": "nonpayable",
