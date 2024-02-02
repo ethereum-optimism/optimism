@@ -79,49 +79,7 @@ func BuildL1DeveloperGenesis(config *DeployConfig, dump *gstate.Dump, l1Deployme
 				memDB.SetState(address, key, common.HexToHash(value))
 			}
 		}
-
-		// This should only be used if we are expecting Optimism specific state to be set
-		if postProcess {
-			if err := PostProcessL1DeveloperGenesis(memDB, l1Deployments); err != nil {
-				return nil, fmt.Errorf("failed to post process L1 developer genesis: %w", err)
-			}
-		}
 	}
 
 	return memDB.Genesis(), nil
-}
-
-// PostProcessL1DeveloperGenesis will apply post processing to the L1 genesis
-// state. This is required to handle edge cases in the genesis generation.
-// `block.number` is used during deployment and without specifically setting
-// the value to 0, it will cause underflow reverts for deposits in testing.
-func PostProcessL1DeveloperGenesis(stateDB *state.MemoryStateDB, deployments *L1Deployments) error {
-	log.Info("Post processing state")
-
-	if stateDB == nil {
-		return errors.New("cannot post process nil stateDB")
-	}
-	if deployments == nil {
-		return errors.New("cannot post process dump with nil deployments")
-	}
-
-	if !stateDB.Exist(deployments.OptimismPortalProxy) {
-		return fmt.Errorf("portal proxy doesn't exist at %s", deployments.OptimismPortalProxy)
-	}
-
-	layout, err := bindings.GetStorageLayout("OptimismPortal")
-	if err != nil {
-		return errors.New("failed to get storage layout for OptimismPortal")
-	}
-
-	entry, err := layout.GetStorageLayoutEntry("params")
-	if err != nil {
-		return errors.New("failed to get storage layout entry for OptimismPortal.params")
-	}
-	slot := common.BigToHash(big.NewInt(int64(entry.Slot)))
-
-	stateDB.SetState(deployments.OptimismPortalProxy, slot, common.Hash{})
-	log.Info("Post process update", "address", deployments.OptimismPortalProxy, "slot", slot.Hex(), "value", common.Hash{}.Hex())
-
-	return nil
 }
