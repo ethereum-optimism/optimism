@@ -212,7 +212,7 @@ func TestOutputCannonDefendStep(t *testing.T) {
 }
 
 func TestOutputCannonStepWithLargePreimage(t *testing.T) {
-	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(outputCannonTestExecutor))
+	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(0))
 
 	ctx := context.Background()
 	sys, _ := startFaultDisputeSystem(t, withLargeBatches())
