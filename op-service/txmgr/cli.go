@@ -34,9 +34,10 @@ const (
 	TxNotInMempoolTimeoutFlagName     = "txmgr.not-in-mempool-timeout"
 	ReceiptQueryIntervalFlagName      = "txmgr.receipt-query-interval"
 	// Kms
-	KmsKeyIDName    = "kms.key.id"
-	KmsEndpointName = "kms.endpoint"
-	KmsRegionName   = "kms.region"
+	KmsProductionName = "kms.production"
+	KmsKeyIDName      = "kms.key.id"
+	KmsEndpointName   = "kms.endpoint"
+	KmsRegionName     = "kms.region"
 )
 
 var (
@@ -160,6 +161,13 @@ func CLIFlagsWithDefaults(envPrefix string, defaults DefaultFlagValues) []cli.Fl
 			Value:   defaults.ReceiptQueryInterval,
 			EnvVars: prefixEnvVars("TXMGR_RECEIPT_QUERY_INTERVAL"),
 		},
+		&cli.BoolFlag{
+			Name: KmsProductionName,
+			Usage: "Whether to use the production KMS. If false, the KMS will be " +
+				"initialized in development mode.",
+			Value:   false,
+			EnvVars: opservice.PrefixEnvVar(envPrefix, "KMS_PRODUCTION"),
+		},
 		&cli.StringFlag{
 			Name:    KmsKeyIDName,
 			Usage:   "KMS Key ID.",
@@ -194,6 +202,7 @@ type CLIConfig struct {
 	NetworkTimeout            time.Duration
 	TxSendTimeout             time.Duration
 	TxNotInMempoolTimeout     time.Duration
+	KmsProduction             bool
 	KmsKeyID                  string
 	KmsEndpoint               string
 	KmsRegion                 string
@@ -243,7 +252,7 @@ func (m CLIConfig) Check() error {
 		return err
 	}
 	if m.KmsKeyID != "" {
-		if m.KmsEndpoint == "" {
+		if !m.KmsProduction && m.KmsEndpoint == "" {
 			return errors.New("KMS Endpoint must be provided")
 		}
 		if m.KmsRegion == "" {
@@ -270,6 +279,7 @@ func ReadCLIConfig(ctx *cli.Context) CLIConfig {
 		NetworkTimeout:            ctx.Duration(NetworkTimeoutFlagName),
 		TxSendTimeout:             ctx.Duration(TxSendTimeoutFlagName),
 		TxNotInMempoolTimeout:     ctx.Duration(TxNotInMempoolTimeoutFlagName),
+		KmsProduction:             ctx.Bool(KmsProductionName),
 		KmsKeyID:                  ctx.String(KmsKeyIDName),
 		KmsEndpoint:               ctx.String(KmsEndpointName),
 		KmsRegion:                 ctx.String(KmsRegionName),
