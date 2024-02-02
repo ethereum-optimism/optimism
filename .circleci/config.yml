@@ -1867,7 +1867,7 @@ workflows:
 
   scheduled-kontrol-tests:
     when:
-      equal: [ build_six_hours, <<pipeline.schedule.name>> ]
+      equal: [ build_four_hours, <<pipeline.schedule.name>> ]
     jobs:
       - kontrol-tests:
           context:
