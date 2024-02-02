@@ -1,6 +1,7 @@
 package op_e2e
 
 import (
+	"crypto/md5"
 	"os"
 	"strconv"
 	"testing"
@@ -18,11 +19,17 @@ func InitParallel(t *testing.T, args ...func(t *testing.T, opts *testopts)) {
 		t.Parallel()
 	}
 
-	opts := &testopts{}
+	info := getExecutorInfo(t)
+	tName := t.Name()
+	tHash := md5.Sum([]byte(tName))
+	executor := uint64(tHash[0]) % info.total
+	opts := &testopts{
+		executor: executor,
+	}
 	for _, arg := range args {
 		arg(t, opts)
 	}
-	checkExecutor(t, opts.executor)
+	checkExecutor(t, info, opts.executor)
 }
 
 func UsesCannon(t *testing.T, opts *testopts) {
@@ -43,13 +50,21 @@ func UseExecutor(assignedIdx uint64) func(t *testing.T, opts *testopts) {
 	}
 }
 
-func checkExecutor(t *testing.T, assignedIdx uint64) {
+type executorInfo struct {
+	total      uint64
+	idx        uint64
+	splitInUse bool
+}
+
+func getExecutorInfo(t *testing.T) executorInfo {
+	var info executorInfo
 	envTotal := os.Getenv("CIRCLE_NODE_TOTAL")
 	envIdx := os.Getenv("CIRCLE_NODE_INDEX")
 	if envTotal == "" || envIdx == "" {
 		// Not using test splitting, so ignore assigned executor
-		t.Logf("Running test. Test splitting not in use.")
-		return
+		t.Logf("Test splitting not in use.")
+		info.total = 1
+		return info
 	}
 	total, err := strconv.ParseUint(envTotal, 10, 0)
 	if err != nil {
@@ -59,13 +74,26 @@ func checkExecutor(t *testing.T, assignedIdx uint64) {
 	if err != nil {
 		t.Fatalf("Could not parse CIRCLE_NODE_INDEX env var %v: %v", envIdx, err)
 	}
-	if assignedIdx >= total && idx == total-1 {
-		t.Logf("Running test. Current executor (%v) is the last executor and assigned executor (%v) >= total executors (%v).", idx, assignedIdx, total)
+
+	info.total = total
+	info.idx = idx
+	info.splitInUse = true
+	return info
+}
+
+func checkExecutor(t *testing.T, info executorInfo, assignedIdx uint64) {
+	if !info.splitInUse {
+		t.Logf("Test splitting not in use.")
 		return
 	}
-	if idx == assignedIdx {
-		t.Logf("Running test. Assigned executor (%v) matches current executor (%v) of total (%v)", assignedIdx, idx, total)
+
+	if assignedIdx >= info.total && info.idx == info.total-1 {
+		t.Logf("Running test. Current executor (%v) is the last executor and assigned executor (%v) >= total executors (%v).", info.idx, assignedIdx, info.total)
 		return
 	}
-	t.Skipf("Skipping test. Assigned executor %v, current executor %v of total %v", assignedIdx, idx, total)
+	if info.idx == assignedIdx {
+		t.Logf("Running test. Assigned executor (%v) matches current executor (%v) of total (%v)", assignedIdx, info.idx, info.total)
+		return
+	}
+	t.Skipf("Skipping test. Assigned executor %v, current executor %v of total %v", assignedIdx, info.idx, info.total)
 }

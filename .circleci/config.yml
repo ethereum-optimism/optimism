@@ -812,10 +812,10 @@ jobs:
       target:
         description: The make target to execute
         type: string
-      cannon_enabled:
-        description: Whether to include cannon tests
-        default: true
-        type: boolean
+      parallelism:
+        description: Number of parallel test runs
+        type: integer
+        default: 6
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: xlarge
@@ -824,7 +824,7 @@ jobs:
     # InitParallel(t, UseExecutor(1))
     # Any tests assigned to an executor greater than the number available automatically use the last executor.
     # Executor indexes start from 0
-    parallelism: 2
+    parallelism: <<parameters.parallelism>>
     steps:
       - checkout
       - check-changed:
@@ -851,7 +851,10 @@ jobs:
           command: |
             mkdir -p /testlogs
 
-            export OP_E2E_CANNON_ENABLED="<<parameters.cannon_enabled>>"
+            # The below env var gets overridden when running make test-cannon, but we
+            # need to explicitly set it here to prevent Cannon from running when we don't
+            # want it to.
+            export OP_E2E_CANNON_ENABLED="false"
             # Note: We don't use circle CI test splits because we need to split by test name, not by package. There is an additional
             # constraint that gotestsum does not currently (nor likely will) accept files from different pacakges when building.
             JUNIT_FILE=/tmp/test-results/<<parameters.module>>_<<parameters.target>>.xml make <<parameters.target>> 2>&1 | tee /testlogs/test.log
@@ -1501,25 +1504,34 @@ workflows:
           requires:
             - op-stack-go-lint
       - go-e2e-test:
-          name: op-e2e-WS-tests
+          name: op-e2e-HTTP-tests
           module: op-e2e
-          target: test-ws
+          target: test-http
+          parallelism: 4
           requires:
             - op-stack-go-lint
             - devnet-allocs
       - go-e2e-test:
-          name: op-e2e-HTTP-tests
+          name: op-e2e-action-tests
           module: op-e2e
-          target: test-http
-          cannon_enabled: false
+          target: test-actions
+          parallelism: 1
           requires:
             - op-stack-go-lint
             - devnet-allocs
+      - go-e2e-test:
+          name: op-e2e-cannon-tests
+          module: op-e2e
+          target: test-cannon
+          parallelism: 8
+          requires:
+            - op-stack-go-lint
+            - devnet-allocs
+            - cannon-prestate
       - go-e2e-test:
           name: op-e2e-ext-geth-tests
           module: op-e2e
           target: test-external-geth
-          cannon_enabled: false
           requires:
             - op-stack-go-lint
             - devnet-allocs
@@ -1547,8 +1559,9 @@ workflows:
             - op-program-tests
             - op-program-compat
             - op-service-tests
-            - op-e2e-WS-tests
             - op-e2e-HTTP-tests
+            - op-e2e-cannon-tests
+            - op-e2e-action-tests
             - op-e2e-ext-geth-tests
             - op-service-rethdb-tests
       - docker-build: # just to warm up the cache (other jobs run in parallel)

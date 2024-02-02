@@ -15,10 +15,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const outputCannonTestExecutor = 0
-
 func TestOutputCannonGame(t *testing.T) {
-	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(outputCannonTestExecutor))
+	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(0))
 	ctx := context.Background()
 	sys, l1Client := startFaultDisputeSystem(t)
 	t.Cleanup(sys.Close)
@@ -74,7 +72,7 @@ func TestOutputCannonGame(t *testing.T) {
 
 func TestOutputCannon_ChallengeAllZeroClaim(t *testing.T) {
 	// The dishonest actor always posts claims with all zeros.
-	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(outputCannonTestExecutor))
+	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(1))
 	ctx := context.Background()
 	sys, l1Client := startFaultDisputeSystem(t)
 	t.Cleanup(sys.Close)
@@ -102,7 +100,6 @@ func TestOutputCannon_ChallengeAllZeroClaim(t *testing.T) {
 }
 
 func TestOutputCannon_PublishCannonRootClaim(t *testing.T) {
-	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(outputCannonTestExecutor))
 	tests := []struct {
 		disputeL2BlockNumber uint64
 	}{
@@ -112,7 +109,8 @@ func TestOutputCannon_PublishCannonRootClaim(t *testing.T) {
 	for _, test := range tests {
 		test := test
 		t.Run(fmt.Sprintf("Dispute_%v", test.disputeL2BlockNumber), func(t *testing.T) {
-			op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(outputCannonTestExecutor))
+			op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(2))
+
 			ctx := context.Background()
 			sys, _ := startFaultDisputeSystem(t)
 
@@ -130,9 +128,6 @@ func TestOutputCannon_PublishCannonRootClaim(t *testing.T) {
 }
 
 func TestOutputCannonDisputeGame(t *testing.T) {
-	executor := uint64(1) // Different executor to the other tests to help balance things better
-	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(executor))
-
 	tests := []struct {
 		name             string
 		defendClaimDepth types.Depth
@@ -144,7 +139,7 @@ func TestOutputCannonDisputeGame(t *testing.T) {
 	for _, test := range tests {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
-			op_e2e.InitParallel(t, op_e2e.UseExecutor(executor))
+			op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(3))
 
 			ctx := context.Background()
 			sys, l1Client := startFaultDisputeSystem(t)
@@ -181,8 +176,7 @@ func TestOutputCannonDisputeGame(t *testing.T) {
 }
 
 func TestOutputCannonDefendStep(t *testing.T) {
-	executor := uint64(1) // Different executor to the other tests to help balance things better
-	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(executor))
+	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(4))
 
 	ctx := context.Background()
 	sys, l1Client := startFaultDisputeSystem(t)
@@ -220,7 +214,7 @@ func TestOutputCannonDefendStep(t *testing.T) {
 func TestOutputCannonStepWithLargePreimage(t *testing.T) {
 	// TODO(client-pod#525): Fix preimage insertion and enable this test
 	t.Skip("Preimage not being inserted under correct key")
-	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(outputCannonTestExecutor))
+	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(0))
 
 	ctx := context.Background()
 	sys, l1Client := startFaultDisputeSystem(t, withLargeBatches())
@@ -269,9 +263,8 @@ func TestOutputCannonStepWithLargePreimage(t *testing.T) {
 }
 
 func TestOutputCannonStepWithPreimage(t *testing.T) {
-	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(outputCannonTestExecutor))
 	testPreimageStep := func(t *testing.T, preloadPreimage bool) {
-		op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(outputCannonTestExecutor))
+		op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(5))
 
 		ctx := context.Background()
 		sys, l1Client := startFaultDisputeSystem(t)
@@ -310,8 +303,6 @@ func TestOutputCannonStepWithPreimage(t *testing.T) {
 }
 
 func TestOutputCannonProposedOutputRootValid(t *testing.T) {
-	executor := uint64(1) // Different executor to the other tests to help balance things better
-	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(executor))
 	// honestStepsFail attempts to perform both an attack and defend step using the correct trace.
 	honestStepsFail := func(ctx context.Context, game *disputegame.OutputCannonGameHelper, correctTrace *disputegame.OutputHonestHelper, parentClaimIdx int64) {
 		// Attack step should fail
@@ -330,6 +321,9 @@ func TestOutputCannonProposedOutputRootValid(t *testing.T) {
 		// performStep is called once the maximum game depth is reached. It should perform a step to counter the
 		// claim at parentClaimIdx. Since the proposed output root is invalid, the step call should always revert.
 		performStep func(ctx context.Context, game *disputegame.OutputCannonGameHelper, correctTrace *disputegame.OutputHonestHelper, parentClaimIdx int64)
+
+		// executor to run the task on
+		executor uint64
 	}{
 		{
 			name: "AttackWithCorrectTrace",
@@ -342,6 +336,7 @@ func TestOutputCannonProposedOutputRootValid(t *testing.T) {
 				return correctTrace.AttackClaim(ctx, claim)
 			},
 			performStep: honestStepsFail,
+			executor:    6,
 		},
 		{
 			name: "DefendWithCorrectTrace",
@@ -360,13 +355,14 @@ func TestOutputCannonProposedOutputRootValid(t *testing.T) {
 				return correctTrace.DefendClaim(ctx, claim)
 			},
 			performStep: honestStepsFail,
+			executor:    7,
 		},
 	}
 
 	for _, test := range tests {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
-			op_e2e.InitParallel(t, op_e2e.UseExecutor(executor))
+			op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(test.executor))
 
 			ctx := context.Background()
 			sys, l1Client := startFaultDisputeSystem(t)
@@ -400,7 +396,7 @@ func TestOutputCannonProposedOutputRootValid(t *testing.T) {
 }
 
 func TestOutputCannonPoisonedPostState(t *testing.T) {
-	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(outputCannonTestExecutor))
+	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(1))
 
 	ctx := context.Background()
 	sys, l1Client := startFaultDisputeSystem(t)
@@ -464,7 +460,7 @@ func TestOutputCannonPoisonedPostState(t *testing.T) {
 }
 
 func TestDisputeOutputRootBeyondProposedBlock_ValidOutputRoot(t *testing.T) {
-	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(outputCannonTestExecutor))
+	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(2))
 
 	ctx := context.Background()
 	sys, l1Client := startFaultDisputeSystem(t)
@@ -514,7 +510,7 @@ func TestDisputeOutputRootBeyondProposedBlock_ValidOutputRoot(t *testing.T) {
 }
 
 func TestDisputeOutputRootBeyondProposedBlock_InvalidOutputRoot(t *testing.T) {
-	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(outputCannonTestExecutor))
+	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(3))
 
 	ctx := context.Background()
 	sys, l1Client := startFaultDisputeSystem(t)
@@ -565,7 +561,7 @@ func TestDisputeOutputRootBeyondProposedBlock_InvalidOutputRoot(t *testing.T) {
 }
 
 func TestDisputeOutputRoot_ChangeClaimedOutputRoot(t *testing.T) {
-	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(outputCannonTestExecutor))
+	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(4))
 
 	ctx := context.Background()
 	sys, l1Client := startFaultDisputeSystem(t)
