@@ -121,7 +121,7 @@ var Subcommands = cli.Commands{
 				}
 			}
 
-			l1Genesis, err := genesis.BuildL1DeveloperGenesis(config, dump, deployments, true)
+			l1Genesis, err := genesis.BuildL1DeveloperGenesis(config, dump, deployments)
 			if err != nil {
 				return err
 			}
