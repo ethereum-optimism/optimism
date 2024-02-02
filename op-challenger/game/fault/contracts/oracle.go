@@ -10,7 +10,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/matrix"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/merkle"
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
@@ -109,13 +108,13 @@ func (c *PreimageOracleContract) CallSqueeze(
 	ctx context.Context,
 	claimant common.Address,
 	uuid *big.Int,
-	stateMatrix *matrix.StateMatrix,
+	prestateMatrix keccakTypes.StateSnapshot,
 	preState keccakTypes.Leaf,
 	preStateProof merkle.Proof,
 	postState keccakTypes.Leaf,
 	postStateProof merkle.Proof,
 ) error {
-	call := c.contract.Call(methodSqueezeLPP, claimant, uuid, abiEncodeStateMatrix(stateMatrix), toPreimageOracleLeaf(preState), preStateProof, toPreimageOracleLeaf(postState), postStateProof)
+	call := c.contract.Call(methodSqueezeLPP, claimant, uuid, abiEncodeSnapshot(prestateMatrix), toPreimageOracleLeaf(preState), preStateProof, toPreimageOracleLeaf(postState), postStateProof)
 	_, err := c.multiCaller.SingleCall(ctx, batching.BlockLatest, call)
 	if err != nil {
 		return fmt.Errorf("failed to call squeeze: %w", err)
@@ -126,7 +125,7 @@ func (c *PreimageOracleContract) CallSqueeze(
 func (c *PreimageOracleContract) Squeeze(
 	claimant common.Address,
 	uuid *big.Int,
-	stateMatrix *matrix.StateMatrix,
+	prestateMatrix keccakTypes.StateSnapshot,
 	preState keccakTypes.Leaf,
 	preStateProof merkle.Proof,
 	postState keccakTypes.Leaf,
@@ -136,18 +135,13 @@ func (c *PreimageOracleContract) Squeeze(
 		methodSqueezeLPP,
 		claimant,
 		uuid,
-		abiEncodeStateMatrix(stateMatrix),
+		abiEncodeSnapshot(prestateMatrix),
 		toPreimageOracleLeaf(preState),
 		preStateProof,
 		toPreimageOracleLeaf(postState),
 		postStateProof,
 	)
 	return call.ToTxCandidate()
-}
-
-// abiEncodeStateMatrix encodes the state matrix for the contract ABI
-func abiEncodeStateMatrix(stateMatrix *matrix.StateMatrix) bindings.LibKeccakStateMatrix {
-	return abiEncodeSnapshot(stateMatrix.StateSnapshot())
 }
 
 func abiEncodeSnapshot(packedState keccakTypes.StateSnapshot) bindings.LibKeccakStateMatrix {

@@ -39,3 +39,6 @@ error NotInitialized();
 
 /// @notice Thrown when the caller of a function is not an EOA.
 error NotEOA();
+
+/// @notice Thrown when a function that requires Cancun EVM features is called on at a time where Cancun is not enabled.
+error CancunNotActive();

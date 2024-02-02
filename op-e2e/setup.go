@@ -289,6 +289,14 @@ type System struct {
 	rollupClients map[string]*sources.RollupClient
 }
 
+// AdvanceTime advances the system clock by the given duration.
+// If the [System.TimeTravelClock] is nil, this is a no-op.
+func (sys *System) AdvanceTime(d time.Duration) {
+	if sys.TimeTravelClock != nil {
+		sys.TimeTravelClock.AdvanceTime(d)
+	}
+}
+
 func (sys *System) NodeEndpoint(name string) string {
 	return selectEndpoint(sys.EthInstances[name])
 }
@@ -426,7 +434,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 		return nil, err
 	}
 
-	l1Genesis, err := genesis.BuildL1DeveloperGenesis(cfg.DeployConfig, config.L1Allocs, config.L1Deployments, true)
+	l1Genesis, err := genesis.BuildL1DeveloperGenesis(cfg.DeployConfig, config.L1Allocs, config.L1Deployments)
 	if err != nil {
 		return nil, err
 	}

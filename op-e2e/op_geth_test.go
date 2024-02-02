@@ -223,7 +223,6 @@ func TestGethOnlyPendingBlockIsLatest(t *testing.T) {
 }
 
 func TestPreregolith(t *testing.T) {
-	InitParallel(t)
 	futureTimestamp := hexutil.Uint64(4)
 	tests := []struct {
 		name         string
@@ -408,7 +407,6 @@ func TestPreregolith(t *testing.T) {
 }
 
 func TestRegolith(t *testing.T) {
-	InitParallel(t)
 	tests := []struct {
 		name             string
 		regolithTime     hexutil.Uint64
@@ -726,7 +724,6 @@ func TestRegolith(t *testing.T) {
 }
 
 func TestPreCanyon(t *testing.T) {
-	InitParallel(t)
 	futureTimestamp := hexutil.Uint64(4)
 
 	tests := []struct {
@@ -793,8 +790,6 @@ func TestPreCanyon(t *testing.T) {
 }
 
 func TestCanyon(t *testing.T) {
-	InitParallel(t)
-
 	tests := []struct {
 		name           string
 		canyonTime     hexutil.Uint64
@@ -869,7 +864,6 @@ func TestCanyon(t *testing.T) {
 }
 
 func TestPreEcotone(t *testing.T) {
-	InitParallel(t)
 	futureTimestamp := hexutil.Uint64(4)
 
 	tests := []struct {
@@ -938,8 +932,6 @@ func TestPreEcotone(t *testing.T) {
 }
 
 func TestEcotone(t *testing.T) {
-	InitParallel(t)
-
 	tests := []struct {
 		name            string
 		ecotoneTime     hexutil.Uint64

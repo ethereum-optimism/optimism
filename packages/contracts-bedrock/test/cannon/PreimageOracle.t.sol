@@ -15,7 +15,7 @@ contract PreimageOracle_Test is Test {
 
     /// @notice Sets up the testing suite.
     function setUp() public {
-        oracle = new PreimageOracle(0, 0);
+        oracle = new PreimageOracle(0, 0, 0);
         vm.label(address(oracle), "PreimageOracle");
     }
 
@@ -182,7 +182,11 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
 
     /// @notice Sets up the testing suite.
     function setUp() public {
-        oracle = new PreimageOracle({ _minProposalSize: MIN_SIZE_BYTES, _challengePeriod: CHALLENGE_PERIOD });
+        oracle = new PreimageOracle({
+            _minProposalSize: MIN_SIZE_BYTES,
+            _challengePeriod: CHALLENGE_PERIOD,
+            _cancunActivation: 0
+        });
         vm.label(address(oracle), "PreimageOracle");
 
         // Set `tx.origin` and `msg.sender` to `address(this)` so that it may behave like an EOA for `addLeavesLPP`.
@@ -204,7 +208,8 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
 
     /// @notice Tests that the `initLPP` function reverts when the part offset is out of bounds of the full preimage.
     function test_initLPP_sizeTooSmall_reverts() public {
-        oracle = new PreimageOracle({ _minProposalSize: 1000, _challengePeriod: CHALLENGE_PERIOD });
+        oracle =
+            new PreimageOracle({ _minProposalSize: 1000, _challengePeriod: CHALLENGE_PERIOD, _cancunActivation: 0 });
 
         // Allocate the preimage data.
         bytes memory data = new bytes(136);
@@ -406,7 +411,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
             _postStateProof: postProof
         });
 
-        bytes32 finalDigest = keccak256(data);
+        bytes32 finalDigest = _setStatusByte(keccak256(data), 2);
         bytes32 expectedPart = bytes32((~uint256(0) & ~(uint256(type(uint64).max) << 192)) | (data.length << 192));
         assertTrue(oracle.preimagePartOk(finalDigest, 0));
         assertEq(oracle.preimageLengths(finalDigest), data.length);
@@ -722,7 +727,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
 
         // Validate the preimage part
         {
-            bytes32 finalDigest = keccak256(data);
+            bytes32 finalDigest = _setStatusByte(keccak256(data), 2);
             bytes32 expectedPart;
             assembly {
                 switch lt(_partOffset, 0x08)
@@ -1262,5 +1267,12 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         commands[3] = vm.toString(abi.encodePacked(leaves));
         commands[4] = vm.toString(_leafIdx);
         (root_, proof_) = abi.decode(vm.ffi(commands), (bytes32, bytes32[]));
+    }
+}
+
+/// @notice Sets the status byte of a hash.
+function _setStatusByte(bytes32 _hash, uint8 _status) pure returns (bytes32 out_) {
+    assembly {
+        out_ := or(and(not(shl(248, 0xFF)), _hash), shl(248, _status))
     }
 }

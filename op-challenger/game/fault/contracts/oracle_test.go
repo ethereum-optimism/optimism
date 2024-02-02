@@ -9,7 +9,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/matrix"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/merkle"
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
@@ -21,11 +20,7 @@ import (
 func TestPreimageOracleContract_LoadKeccak256(t *testing.T) {
 	stubRpc, oracle := setupPreimageOracleTest(t)
 
-	data := &types.PreimageOracleData{
-		OracleKey:    common.Hash{0xcc}.Bytes(),
-		OracleData:   make([]byte, 20),
-		OracleOffset: 545,
-	}
+	data := types.NewPreimageOracleData(common.Hash{0xcc}.Bytes(), make([]byte, 20), 545)
 	stubRpc.SetResponse(oracleAddr, methodLoadKeccak256PreimagePart, batching.BlockLatest, []interface{}{
 		new(big.Int).SetUint64(uint64(data.OracleOffset)),
 		data.GetPreimageWithoutSize(),
@@ -61,11 +56,7 @@ func TestPreimageOracleContract_MinLargePreimageSize(t *testing.T) {
 func TestPreimageOracleContract_PreimageDataExists(t *testing.T) {
 	t.Run("exists", func(t *testing.T) {
 		stubRpc, oracle := setupPreimageOracleTest(t)
-		data := &types.PreimageOracleData{
-			OracleKey:    common.Hash{0xcc}.Bytes(),
-			OracleData:   make([]byte, 20),
-			OracleOffset: 545,
-		}
+		data := types.NewPreimageOracleData(common.Hash{0xcc}.Bytes(), make([]byte, 20), 545)
 		stubRpc.SetResponse(oracleAddr, methodPreimagePartOk, batching.BlockLatest,
 			[]interface{}{common.Hash(data.OracleKey), new(big.Int).SetUint64(uint64(data.OracleOffset))},
 			[]interface{}{true},
@@ -76,11 +67,7 @@ func TestPreimageOracleContract_PreimageDataExists(t *testing.T) {
 	})
 	t.Run("does not exist", func(t *testing.T) {
 		stubRpc, oracle := setupPreimageOracleTest(t)
-		data := &types.PreimageOracleData{
-			OracleKey:    common.Hash{0xcc}.Bytes(),
-			OracleData:   make([]byte, 20),
-			OracleOffset: 545,
-		}
+		data := types.NewPreimageOracleData(common.Hash{0xcc}.Bytes(), make([]byte, 20), 545)
 		stubRpc.SetResponse(oracleAddr, methodPreimagePartOk, batching.BlockLatest,
 			[]interface{}{common.Hash(data.OracleKey), new(big.Int).SetUint64(uint64(data.OracleOffset))},
 			[]interface{}{false},
@@ -134,7 +121,7 @@ func TestPreimageOracleContract_Squeeze(t *testing.T) {
 
 	claimant := common.Address{0x12}
 	uuid := big.NewInt(123)
-	stateMatrix := matrix.NewStateMatrix()
+	preStateMatrix := keccakTypes.StateSnapshot{0, 1, 2, 3, 4}
 	preState := keccakTypes.Leaf{
 		Input:           [keccakTypes.BlockSize]byte{0x12},
 		Index:           123,
@@ -150,14 +137,14 @@ func TestPreimageOracleContract_Squeeze(t *testing.T) {
 	stubRpc.SetResponse(oracleAddr, methodSqueezeLPP, batching.BlockLatest, []interface{}{
 		claimant,
 		uuid,
-		abiEncodeStateMatrix(stateMatrix),
+		abiEncodeSnapshot(preStateMatrix),
 		toPreimageOracleLeaf(preState),
 		preStateProof,
 		toPreimageOracleLeaf(postState),
 		postStateProof,
 	}, nil)
 
-	tx, err := oracle.Squeeze(claimant, uuid, stateMatrix, preState, preStateProof, postState, postStateProof)
+	tx, err := oracle.Squeeze(claimant, uuid, preStateMatrix, preState, preStateProof, postState, postStateProof)
 	require.NoError(t, err)
 	stubRpc.VerifyTxCandidate(tx)
 }

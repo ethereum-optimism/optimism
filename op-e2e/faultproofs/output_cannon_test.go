@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/cannon"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
@@ -14,10 +15,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const outputCannonTestExecutor = 0
-
 func TestOutputCannonGame(t *testing.T) {
-	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(outputCannonTestExecutor))
+	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(0))
 	ctx := context.Background()
 	sys, l1Client := startFaultDisputeSystem(t)
 	t.Cleanup(sys.Close)
@@ -73,7 +72,7 @@ func TestOutputCannonGame(t *testing.T) {
 
 func TestOutputCannon_ChallengeAllZeroClaim(t *testing.T) {
 	// The dishonest actor always posts claims with all zeros.
-	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(outputCannonTestExecutor))
+	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(1))
 	ctx := context.Background()
 	sys, l1Client := startFaultDisputeSystem(t)
 	t.Cleanup(sys.Close)
@@ -101,7 +100,6 @@ func TestOutputCannon_ChallengeAllZeroClaim(t *testing.T) {
 }
 
 func TestOutputCannon_PublishCannonRootClaim(t *testing.T) {
-	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(outputCannonTestExecutor))
 	tests := []struct {
 		disputeL2BlockNumber uint64
 	}{
@@ -111,7 +109,8 @@ func TestOutputCannon_PublishCannonRootClaim(t *testing.T) {
 	for _, test := range tests {
 		test := test
 		t.Run(fmt.Sprintf("Dispute_%v", test.disputeL2BlockNumber), func(t *testing.T) {
-			op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(outputCannonTestExecutor))
+			op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(2))
+
 			ctx := context.Background()
 			sys, _ := startFaultDisputeSystem(t)
 
@@ -129,9 +128,6 @@ func TestOutputCannon_PublishCannonRootClaim(t *testing.T) {
 }
 
 func TestOutputCannonDisputeGame(t *testing.T) {
-	executor := uint64(1) // Different executor to the other tests to help balance things better
-	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(executor))
-
 	tests := []struct {
 		name             string
 		defendClaimDepth types.Depth
@@ -143,7 +139,7 @@ func TestOutputCannonDisputeGame(t *testing.T) {
 	for _, test := range tests {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
-			op_e2e.InitParallel(t, op_e2e.UseExecutor(executor))
+			op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(3))
 
 			ctx := context.Background()
 			sys, l1Client := startFaultDisputeSystem(t)
@@ -180,8 +176,7 @@ func TestOutputCannonDisputeGame(t *testing.T) {
 }
 
 func TestOutputCannonDefendStep(t *testing.T) {
-	executor := uint64(1) // Different executor to the other tests to help balance things better
-	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(executor))
+	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(4))
 
 	ctx := context.Background()
 	sys, l1Client := startFaultDisputeSystem(t)
@@ -216,11 +211,54 @@ func TestOutputCannonDefendStep(t *testing.T) {
 	require.EqualValues(t, disputegame.StatusChallengerWins, game.Status(ctx))
 }
 
-func TestOutputCannonStepWithPreimage(t *testing.T) {
-	executor := uint64(1) // Different executor to the other tests to help balance things better
+func TestOutputCannonStepWithLargePreimage(t *testing.T) {
+	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(0))
 
+	ctx := context.Background()
+	sys, _ := startFaultDisputeSystem(t, withLargeBatches())
+	t.Cleanup(sys.Close)
+
+	// Send a large l2 transaction and use the receipt block number as the l2 block number for the game
+	l2Client := sys.NodeClient("sequencer")
+
+	// Send a large, difficult to compress L2 transaction. This isn't read by op-program but the batcher has to include
+	// it in a batch which *is* read.
+	receipt := op_e2e.SendLargeL2Tx(t, sys.Cfg, l2Client, sys.Cfg.Secrets.Alice, func(opts *op_e2e.TxOpts) {
+		aliceAddr := sys.Cfg.Secrets.Addresses().Alice
+		startL2Nonce, err := l2Client.NonceAt(ctx, aliceAddr, nil)
+		require.NoError(t, err)
+		opts.Nonce = startL2Nonce
+		opts.ToAddr = &common.Address{}
+		// By default, the receipt status must be successful and is checked in the SendL2Tx function
+	})
+	l2BlockNumber := receipt.BlockNumber.Uint64()
+	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
+	// Dispute any block - it will have to read the L1 batches to see if the block is reached
+	game := disputeGameFactory.StartOutputCannonGame(ctx, "sequencer", l2BlockNumber, common.Hash{0x01, 0xaa})
+	require.NotNil(t, game)
+	outputRootClaim := game.DisputeBlock(ctx, l2BlockNumber)
+	game.LogGameData(ctx)
+
+	game.StartChallenger(ctx, "sequencer", "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
+
+	// Wait for the honest challenger to dispute the outputRootClaim.
+	// This creates a root of an execution game that we challenge by
+	// coercing a step at a preimage trace index.
+	outputRootClaim = outputRootClaim.WaitForCounterClaim(ctx)
+
+	game.LogGameData(ctx)
+	// Now the honest challenger is positioned as the defender of the
+	// execution game. We then move to challenge it to induce a large preimage load.
+	sender := sys.Cfg.Secrets.Addresses().Alice
+	preimageLoadCheck := game.CreateStepLargePreimageLoadCheck(ctx, sender)
+	game.ChallengeToPreimageLoad(ctx, outputRootClaim, sys.Cfg.Secrets.Alice, cannon.PreimageLargerThan(18_000), preimageLoadCheck, false)
+	// The above method already verified the image was uploaded and step called successfully
+	// So we don't waste time resolving the game - that's tested elsewhere.
+}
+
+func TestOutputCannonStepWithPreimage(t *testing.T) {
 	testPreimageStep := func(t *testing.T, preloadPreimage bool) {
-		op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(executor))
+		op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(5))
 
 		ctx := context.Background()
 		sys, l1Client := startFaultDisputeSystem(t)
@@ -240,7 +278,8 @@ func TestOutputCannonStepWithPreimage(t *testing.T) {
 
 		// Now the honest challenger is positioned as the defender of the execution game
 		// We then move to challenge it to induce a preimage load
-		game.ChallengeToFirstGlobalPreimageLoad(ctx, outputRootClaim, sys.Cfg.Secrets.Alice, preloadPreimage)
+		preimageLoadCheck := game.CreateStepPreimageLoadCheck(ctx)
+		game.ChallengeToPreimageLoad(ctx, outputRootClaim, sys.Cfg.Secrets.Alice, cannon.FirstGlobalPreimageLoad(), preimageLoadCheck, preloadPreimage)
 
 		sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
 		require.NoError(t, wait.ForNextBlock(ctx, l1Client))
@@ -258,8 +297,6 @@ func TestOutputCannonStepWithPreimage(t *testing.T) {
 }
 
 func TestOutputCannonProposedOutputRootValid(t *testing.T) {
-	executor := uint64(1) // Different executor to the other tests to help balance things better
-	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(executor))
 	// honestStepsFail attempts to perform both an attack and defend step using the correct trace.
 	honestStepsFail := func(ctx context.Context, game *disputegame.OutputCannonGameHelper, correctTrace *disputegame.OutputHonestHelper, parentClaimIdx int64) {
 		// Attack step should fail
@@ -278,6 +315,9 @@ func TestOutputCannonProposedOutputRootValid(t *testing.T) {
 		// performStep is called once the maximum game depth is reached. It should perform a step to counter the
 		// claim at parentClaimIdx. Since the proposed output root is invalid, the step call should always revert.
 		performStep func(ctx context.Context, game *disputegame.OutputCannonGameHelper, correctTrace *disputegame.OutputHonestHelper, parentClaimIdx int64)
+
+		// executor to run the task on
+		executor uint64
 	}{
 		{
 			name: "AttackWithCorrectTrace",
@@ -290,6 +330,7 @@ func TestOutputCannonProposedOutputRootValid(t *testing.T) {
 				return correctTrace.AttackClaim(ctx, claim)
 			},
 			performStep: honestStepsFail,
+			executor:    6,
 		},
 		{
 			name: "DefendWithCorrectTrace",
@@ -308,13 +349,14 @@ func TestOutputCannonProposedOutputRootValid(t *testing.T) {
 				return correctTrace.DefendClaim(ctx, claim)
 			},
 			performStep: honestStepsFail,
+			executor:    7,
 		},
 	}
 
 	for _, test := range tests {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
-			op_e2e.InitParallel(t, op_e2e.UseExecutor(executor))
+			op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(test.executor))
 
 			ctx := context.Background()
 			sys, l1Client := startFaultDisputeSystem(t)
@@ -348,7 +390,7 @@ func TestOutputCannonProposedOutputRootValid(t *testing.T) {
 }
 
 func TestOutputCannonPoisonedPostState(t *testing.T) {
-	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(outputCannonTestExecutor))
+	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(1))
 
 	ctx := context.Background()
 	sys, l1Client := startFaultDisputeSystem(t)
@@ -412,7 +454,7 @@ func TestOutputCannonPoisonedPostState(t *testing.T) {
 }
 
 func TestDisputeOutputRootBeyondProposedBlock_ValidOutputRoot(t *testing.T) {
-	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(outputCannonTestExecutor))
+	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(2))
 
 	ctx := context.Background()
 	sys, l1Client := startFaultDisputeSystem(t)
@@ -462,7 +504,7 @@ func TestDisputeOutputRootBeyondProposedBlock_ValidOutputRoot(t *testing.T) {
 }
 
 func TestDisputeOutputRootBeyondProposedBlock_InvalidOutputRoot(t *testing.T) {
-	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(outputCannonTestExecutor))
+	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(3))
 
 	ctx := context.Background()
 	sys, l1Client := startFaultDisputeSystem(t)
@@ -513,7 +555,7 @@ func TestDisputeOutputRootBeyondProposedBlock_InvalidOutputRoot(t *testing.T) {
 }
 
 func TestDisputeOutputRoot_ChangeClaimedOutputRoot(t *testing.T) {
-	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(outputCannonTestExecutor))
+	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(4))
 
 	ctx := context.Background()
 	sys, l1Client := startFaultDisputeSystem(t)

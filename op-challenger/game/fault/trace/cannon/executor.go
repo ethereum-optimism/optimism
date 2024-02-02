@@ -70,13 +70,13 @@ func NewExecutor(logger log.Logger, m CannonMetricer, cfg *config.Config, inputs
 // GenerateProof executes cannon to generate a proof at the specified trace index.
 // The proof is stored at the specified directory.
 func (e *Executor) GenerateProof(ctx context.Context, dir string, i uint64) error {
-	return e.generateProofOrUntilPreimageRead(ctx, dir, i, i, false)
+	return e.generateProof(ctx, dir, i, i)
 }
 
 // generateProofOrUntilPreimageRead executes cannon to generate a proof at the specified trace index,
 // or until a non-local preimage read is encountered if untilPreimageRead is true.
 // The proof is stored at the specified directory.
-func (e *Executor) generateProofOrUntilPreimageRead(ctx context.Context, dir string, begin uint64, end uint64, untilPreimageRead bool) error {
+func (e *Executor) generateProof(ctx context.Context, dir string, begin uint64, end uint64, extraCannonArgs ...string) error {
 	snapshotDir := filepath.Join(dir, snapsDir)
 	start, err := e.selectSnapshot(e.logger, snapshotDir, e.absolutePreState, begin)
 	if err != nil {
@@ -99,9 +99,7 @@ func (e *Executor) generateProofOrUntilPreimageRead(ctx context.Context, dir str
 	if end < math.MaxUint64 {
 		args = append(args, "--stop-at", "="+strconv.FormatUint(end+1, 10))
 	}
-	if untilPreimageRead {
-		args = append(args, "--stop-at-preimage-type", "global")
-	}
+	args = append(args, extraCannonArgs...)
 	args = append(args,
 		"--",
 		e.server, "--server",
