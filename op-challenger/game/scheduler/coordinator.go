@@ -187,6 +187,8 @@ func (c *coordinator) deleteResolvedGameFiles() {
 		if err := c.disk.CreateDir(); err != nil {
 			c.logger.Error("Failed to create game data directory", "err", err)
 		}
+	} else if err != nil {
+		c.logger.Error("Unable to cleanup game data", "err", err)
 	}
 }
 
