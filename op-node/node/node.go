@@ -7,14 +7,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-service/httputil"
-
-	"github.com/hashicorp/go-multierror"
-	"github.com/libp2p/go-libp2p/core/peer"
-
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/hashicorp/go-multierror"
+	"github.com/libp2p/go-libp2p/core/peer"
 
 	"github.com/ethereum-optimism/optimism/op-node/heartbeat"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
@@ -25,6 +22,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/version"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/httputil"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
@@ -550,6 +548,20 @@ func (n *OpNode) PublishL2Payload(ctx context.Context, envelope *eth.ExecutionPa
 func (n *OpNode) OnUnsafeL2Payload(ctx context.Context, from peer.ID, envelope *eth.ExecutionPayloadEnvelope) error {
 	// ignore if it's from ourselves
 	if n.p2pNode != nil && from == n.p2pNode.Host().ID() {
+		return nil
+	}
+
+	// During sequencer HA setup, there is an edge case that could happen:
+	// 1. Sequencer A is the cluster leader and sequencing
+	// 2. op-conductor on Sequencer A went down
+	// 3. Sequencer B took over and started sequencing via leader election
+	// 4. At this moment, Sequencer A is still running and in sequencing mode (op-conductor down, cannot turn off sequencing automatically on A)
+	// 5. Sequencer A received a unsafe payload from B
+	// In this case, we should ignore the payload from B, because current sequencer is stuck at RunNextSequencerAction step
+	// trying to build on top of the last unsafe block it produced but keeps failing (due to cannot commit unsafe payload to consensus layer).
+	// However if we allow the payload from B to be processed, it will cache the payload on op-node and also create a block on op-geth.
+	// It would be better to ignore the payload from B entirely and keep the sequencer in stuck state until it's remediated.
+	if active, _ := n.l2Driver.SequencerActive(ctx); active {
 		return nil
 	}
 
