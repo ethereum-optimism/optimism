@@ -249,28 +249,20 @@ contract Deploy is Deployer {
         _run();
     }
 
+    /// @notice Calls `_run` and then writes the state dump to a file.
     function runWithStateDump() public {
         _run();
 
         string memory path = vm.envOr(
             "STATE_DUMP_PATH", string.concat(vm.projectRoot(), "/", name(), "-", vm.toString(block.chainid), ".json")
         );
+        console.log("Writing state dump to %s", path);
         vm.dumpState(path);
     }
 
     /// @notice Deploy all L1 contracts and write the state diff to a file.
     function runWithStateDiff() public stateDiff {
         _run();
-    }
-    /// @notice
-
-    function runWithStateDump() public {
-        _run();
-        string memory path = vm.envOr(
-            "STATE_DUMP_PATH", string.concat(vm.projectRoot(), "/", name(), "-", vm.toString(block.chainid), ".json")
-        );
-        console.log("Writing state dump to %s", path);
-        vm.dumpState(path);
     }
 
     /// @notice Internal function containing the deploy logic.
