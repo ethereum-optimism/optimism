@@ -75,6 +75,15 @@ def main():
 
     pr_urls = os.getenv('CIRCLE_PULL_REQUESTS', None)
     pr_urls = pr_urls.split(',') if pr_urls else []
+
+    # If we successfully extracted a PR number and did not find PRs from CIRCLE_PULL_REQUESTS,
+    # we are on a merge queue branch and can reconstruct the original PR URL from the PR number.
+    pr_number = extract_pr_number(current_branch)
+    if not pr_urls and pr_number is not None:
+        log.info('No PR URLs found but extracted branch number, constructing PR URL')
+        base_url = "https://github.com/ethereum-optimism/optimism/pull/"
+        pr_urls = [base_url + pr_number]
+
     if len(pr_urls) == 0:
         log.info('Not a PR build, triggering build')
         exit_build()
@@ -126,6 +135,15 @@ def match_path(path, patterns):
             return True
     return False
 
+def extract_pr_number(branch_name):
+    # Merge queue branches are named: gh-readonly-queue/{base_branch}/pr-{number}-{sha}
+    match = re.search(r'/pr-(\d+)-', branch_name)
+    if match:
+        pr_number = match.group(1)
+        log.info('Extracted PR number: %s', pr_number)
+        return pr_number
+    else:
+        return None
 
 def exit_build():
     sys.exit(0)
