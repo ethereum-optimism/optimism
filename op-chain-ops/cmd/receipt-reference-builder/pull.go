@@ -85,6 +85,7 @@ func pull(ctx *cli.Context) error {
 	for _, b := range batches {
 		workChan <- b
 	}
+	retryWorkChan := make(chan batchRange, len(batches))
 
 	// set the number of workers to the number of batches if there are more workers than batches
 	if workers > uint64(len(batches)) {
@@ -99,6 +100,7 @@ func pull(ctx *cli.Context) error {
 		go startWorker(
 			id, ctx, c,
 			workChan,
+			retryWorkChan,
 			resultChan,
 			errorChan,
 			log,
@@ -116,8 +118,7 @@ func pull(ctx *cli.Context) error {
 	// aggregate until the done signal is received
 	aggregateResults, err := startAggregator(resultChan, errorChan, done, log)
 	if err != nil {
-		log.Error("Failed to Build Aggregate Results", "Err", err)
-		log.Warn("Writing Results Anyway")
+		log.Error("Errors Encountered During Aggregation. All Jobs Retried to Completion")
 	}
 	aggregateResults.First = start
 	aggregateResults.Last = end
@@ -135,8 +136,8 @@ func pull(ctx *cli.Context) error {
 }
 
 type batchRange struct {
-	First uint64
-	Last  uint64
+	Start uint64
+	End   uint64
 }
 
 // toBatches is a helper function to split a single large range into smaller batches
@@ -150,6 +151,20 @@ func toBatches(start, end, size uint64) []batchRange {
 		}
 	}
 	return batches
+}
+
+// splitBatchRange will split a batch range into two smaller ranges
+// it is used to reduce pressure from large batches dynamically
+func splitBatchRange(b batchRange) []batchRange {
+	size := b.End - b.Start
+	if size < 2 {
+		return []batchRange{b}
+	}
+	half := size / 2
+	return []batchRange{
+		{b.Start, b.Start + half},
+		{b.Start + half, b.End},
+	}
 }
 
 // startAggregator will aggregate the results of the workers and return the aggregation once done
@@ -185,7 +200,7 @@ func startAggregator(results chan result, errorChan chan error, done chan struct
 					aggregateResults.Results[r.BlockNumber] = r.Nonces
 				}
 			}
-			log.Info("Finished Aggregation", "ResultsHandled", handled, "Errors", errCount, "ResultsMatched", len(aggregateResults.Results))
+			log.Info("Finished Aggregation", "ResultsHandled", handled, "ResultsMatched", len(aggregateResults.Results))
 			return aggregateResults, errs
 		}
 	}
@@ -201,8 +216,9 @@ func startWorker(
 	ctx *cli.Context,
 	c *ethclient.Client,
 	workChan chan batchRange,
+	retryWorkChan chan batchRange,
 	resultsChan chan result,
-	errors chan error,
+	errorsChan chan error,
 	log log.Logger,
 	wg *sync.WaitGroup) {
 
@@ -213,25 +229,34 @@ func startWorker(
 		case <-ctx.Context.Done():
 			log.Info("Context Done")
 			return
+		// retry work is work that has been tried at least once. it is prioritized equally to new work
+		case b := <-retryWorkChan:
+			log.Info("Got Retry Work", "Start", b.Start, "End", b.End)
+			doWork(*ctx, b, resultsChan, errorsChan, retryWorkChan, c, log)
 		case b := <-workChan:
-			log.Info("Got Work", "ID", id, "First", b.First, "Last", b.Last)
-			results, err := processBlockRange(ctx.Context, c, b, log)
-			// if there is an error, return the work to the work channel and sleep for the backoff duration before trying again
-			// this will give other workers a chance to process work, and will reduce the load on the backend
-			if err != nil {
-				log.Error("Failed to Process Block", "Err", err)
-				errors <- err
-				workChan <- b
-				log.Warn("Returned Failed Work to Work Channel. Sleeping for Backoff Duration", "Backoff", ctx.Duration("backoff"))
-				time.Sleep(ctx.Duration("backoff"))
-			} else {
-				for _, r := range results {
-					resultsChan <- r
-				}
-			}
+			log.Info("Got Work", "Start", b.Start, "End", b.End)
+			doWork(*ctx, b, resultsChan, errorsChan, retryWorkChan, c, log)
 		default:
 			log.Info("No More Work")
 			return
+		}
+	}
+}
+
+func doWork(ctx cli.Context, b batchRange, resultsChan chan result, errorChan chan error, retryChan chan batchRange, c *ethclient.Client, log log.Logger) {
+	results, err := processBlockRange(ctx.Context, c, b, log)
+	if err != nil {
+		log.Error("Failed to Process Blocks")
+		errorChan <- err
+		newWork := splitBatchRange(b)
+		for _, w := range newWork {
+			retryChan <- w
+		}
+		log.Warn("Returned Failed Work to Retry Channel. Sleeping for Backoff Duration", "Backoff", ctx.Duration("backoff"), "Start", b.Start, "End", b.End)
+		time.Sleep(ctx.Duration("backoff"))
+	} else {
+		for _, r := range results {
+			resultsChan <- r
 		}
 	}
 }
@@ -248,7 +273,7 @@ func processBlockRange(
 
 	// turn the batch range into a list of block numbers
 	nums := []rpc.BlockNumber{}
-	for i := br.First; i < br.Last; i++ {
+	for i := br.Start; i < br.End; i++ {
 		nums = append(nums, rpc.BlockNumber(i))
 	}
 
@@ -313,7 +338,7 @@ func batchBlockByNumber(ctx context.Context, c *ethclient.Client, blockNumbers [
 		if err := batchReq.Fetch(ctx); err == io.EOF {
 			break
 		} else if err != nil {
-			log.Warn("Failed to Fetch Blocks", "Err", err)
+			log.Warn("Failed to Fetch Blocks", "Err", err, "Start", blockNumbers[0], "End", blockNumbers[len(blockNumbers)-1])
 			return nil, err
 		}
 	}
@@ -330,7 +355,7 @@ func checkTransaction(ctx context.Context, c *ethclient.Client, tx types.Transac
 	// we are filtering for deposit transactions which are not system transactions
 	if tx.Type() == depositType &&
 		from != systemAddress {
-		log.Info("Got Transaction", "From", from, "Nonce", tx.EffectiveNonce(), "Type", tx.Type())
+		log.Info("Got Transaction", "From", from, "Nonce", *tx.EffectiveNonce(), "Type", tx.Type())
 		return true, nil
 	}
 	return false, nil

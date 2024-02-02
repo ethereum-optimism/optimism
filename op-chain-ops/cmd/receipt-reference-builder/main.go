@@ -17,14 +17,12 @@ const EnvPrefix = "OP_CHAIN_OPS_RECEIPT_REFERENCE_BUILDER"
 
 var (
 	StartFlag = &cli.Uint64Flag{
-		Name:    "start",
-		Usage:   "the first block to include in data collection. INCLUSIVE",
-		EnvVars: opservice.PrefixEnvVar(EnvPrefix, "START"),
+		Name:  "start",
+		Usage: "the first block to include in data collection. INCLUSIVE",
 	}
 	EndFlag = &cli.Uint64Flag{
-		Name:    "end",
-		Usage:   "the last block of the collection range. EXCLUSIVE",
-		EnvVars: opservice.PrefixEnvVar(EnvPrefix, "END"),
+		Name:  "end",
+		Usage: "the last block of the collection range. EXCLUSIVE",
 	}
 	RPCURLFlag = &cli.StringFlag{
 		Name:    "rpc-url",
@@ -32,28 +30,24 @@ var (
 		EnvVars: opservice.PrefixEnvVar(EnvPrefix, "RPC_URL"),
 	}
 	BackoffFlag = &cli.DurationFlag{
-		Name:    "backoff",
-		Value:   30 * time.Second,
-		Usage:   "how long to wait when a worker errors before retrying",
-		EnvVars: opservice.PrefixEnvVar(EnvPrefix, "BACKOFF"),
+		Name:  "backoff",
+		Value: 30 * time.Second,
+		Usage: "how long to wait when a worker errors before retrying",
 	}
 	WorkerFlag = &cli.Uint64Flag{
-		Name:    "workers",
-		Value:   1,
-		Usage:   "how many workers to use to fetch txs",
-		EnvVars: opservice.PrefixEnvVar(EnvPrefix, "WORKERS"),
+		Name:  "workers",
+		Value: 1,
+		Usage: "how many workers to use to fetch txs",
 	}
 	BatchSizeFlag = &cli.Uint64Flag{
-		Name:    "batch-size",
-		Value:   50,
-		Usage:   "how many blocks to batch together for each worker",
-		EnvVars: opservice.PrefixEnvVar(EnvPrefix, "BATCH_SIZE"),
+		Name:  "batch-size",
+		Value: 50,
+		Usage: "how many blocks to batch together for each worker",
 	}
 	OutputFlag = &cli.StringFlag{
 		Name:    "output",
 		Aliases: []string{"o"},
 		Usage:   "the file to write the results to",
-		EnvVars: opservice.PrefixEnvVar(EnvPrefix, "OUTPUT"),
 	}
 	FilesFlag = &cli.StringSliceFlag{
 		Name:    "files",
@@ -65,14 +59,12 @@ var (
 		Aliases: []string{"if"},
 		Value:   "json",
 		Usage:   "the format to read aggregate files: json, gob",
-		EnvVars: opservice.PrefixEnvVar(EnvPrefix, "OUTPUT"),
 	}
 	OutputFormatFlag = &cli.StringFlag{
 		Name:    "output-format",
 		Aliases: []string{"of"},
 		Value:   "json",
 		Usage:   "the format to write the results in. Options: json, gob",
-		EnvVars: opservice.PrefixEnvVar(EnvPrefix, "OUTPUT"),
 	}
 	formats = map[string]aggregateReaderWriter{
 		"json": jsonAggregateReaderWriter{},
