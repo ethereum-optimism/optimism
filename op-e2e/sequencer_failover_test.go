@@ -84,7 +84,7 @@ func TestSequencerFailover_ConductorRPC(t *testing.T) {
 	newLeader, err := leader.client.LeaderWithID(ctx)
 	require.NoError(t, err)
 	require.NotEmpty(t, newLeader.ID)
-	require.NotEqual(t, lid, newLeader.ID, "Expected leader to change")
+	require.NotEqual(t, lid, newLeader.ID, "Expected a new leader")
 	require.NoError(t, waitForSequencerStatusChange(t, sys.RollupClient(newLeader.ID), true))
 
 	// old leader now became follower, we're trying to transfer leadership directly back to it.
