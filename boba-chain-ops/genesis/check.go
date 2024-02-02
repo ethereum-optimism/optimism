@@ -302,7 +302,7 @@ func PostCheckPredeploys(tx kv.Tx, g *types.Genesis) error {
 			return fmt.Errorf("no code found at predeploy %s", addr)
 		}
 
-		if UntouchablePredeploys[addr] && !(addr == predeploys.BobaL2Addr && chain.IsBobaTokenPredeploy(g.Config.ChainID)) {
+		if UntouchablePredeploys[addr] && (addr != predeploys.BobaL2Addr || chain.IsBobaTokenPredeploy(g.Config.ChainID)) {
 			log.Trace("skipping untouchable predeploy", "address", addr)
 			continue
 		}
