@@ -112,7 +112,7 @@ func TestSequencerFailover_ConductorRPC(t *testing.T) {
 	require.Equal(t, 4, len(membership), "Expected 4 members in cluster")
 	require.Equal(t, consensus.Nonvoter, membership[3].Suffrage, "Expected last member to be non-voter")
 
-	t.Log("Testing RemoveServer, call remove on follower")
+	t.Log("Testing RemoveServer, call remove on follower, expected to fail")
 	lid, leader = findLeader(t, conductors)
 	fid, follower = findFollower(t, conductors)
 	err = follower.client.RemoveServer(ctx, lid)
