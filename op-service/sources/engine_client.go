@@ -60,7 +60,7 @@ func (s *EngineClient) ForkchoiceUpdate(ctx context.Context, fc *eth.ForkchoiceS
 	var result eth.ForkchoiceUpdatedResult
 	method := eth.FCUV3
 	if attributes != nil {
-		method = s.rollupCfg.ForkchoiceUpdatedVersion(uint64(attributes.Timestamp))
+		method = s.rollupCfg.ForkchoiceUpdatedVersion(attributes)
 	}
 	err := s.client.CallContext(fcCtx, &result, string(method), fc, attributes)
 	if err == nil {

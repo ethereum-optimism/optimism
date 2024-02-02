@@ -67,7 +67,7 @@ func (o *OracleEngine) GetPayload(ctx context.Context, payloadInfo eth.PayloadIn
 
 func (o *OracleEngine) ForkchoiceUpdate(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
 	if attr != nil {
-		switch o.rollupCfg.ForkchoiceUpdatedVersion(uint64(attr.Timestamp)) {
+		switch o.rollupCfg.ForkchoiceUpdatedVersion(attr) {
 		case eth.FCUV3:
 			return o.api.ForkchoiceUpdatedV3(ctx, state, attr)
 		case eth.FCUV2:
