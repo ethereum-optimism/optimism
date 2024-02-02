@@ -595,6 +595,9 @@ contract PreimageOracle is IPreimageOracle {
         LibKeccak.absorb(_stateMatrix, _postState.input);
         LibKeccak.permutation(_stateMatrix);
         bytes32 finalDigest = LibKeccak.squeeze(_stateMatrix);
+        assembly {
+            finalDigest := or(and(finalDigest, not(shl(248, 0xFF))), shl(248, 0x02))
+        }
 
         // Write the preimage part to the authorized preimage parts mapping.
         uint256 partOffset = metaData.partOffset();
