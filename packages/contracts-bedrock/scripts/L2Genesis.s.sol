@@ -3,10 +3,12 @@ pragma solidity 0.8.15;
 
 import { Script } from "forge-std/Script.sol";
 import { console2 as console } from "forge-std/console2.sol";
+import { stdJson } from "forge-std/StdJson.sol";
 
 import { Artifacts } from "scripts/Artifacts.s.sol";
 import { DeployConfig } from "scripts/DeployConfig.s.sol";
 import { L2GenesisHelpers } from "scripts/libraries/L2GenesisHelpers.sol";
+import { Executables } from "scripts/Executables.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { L2ToL1MessagePasser } from "src/L2/L2ToL1MessagePasser.sol";
@@ -60,9 +62,13 @@ contract L2Genesis is Script, Artifacts, DeployConfig {
     /// @dev The complete filepath for the output of `vm.dumpState` (a.k.a the L2 genesis file).
     string public outfilePath;
 
+    string public l1RpcUrl;
+
     /// @dev Reads the deploy config, sets `outfilePath` which is where the `vm.dumpState` will be saved to, and
     ///      loads in the addresses for the L1 contract deployments.
     function setUp() public override virtual {
+        l1RpcUrl = vm.envString("L1_RPC_URL");
+
         Artifacts.setUp();
 
         string memory deployConfigPath = string.concat(vm.projectRoot(), "/deploy-config/", deploymentContext, ".json");
@@ -84,12 +90,13 @@ contract L2Genesis is Script, Artifacts, DeployConfig {
         _setPredeployProxies();
         _setPredeployImplementations();
 
-        if (fundDevAccounts) {
-            _fundDevAccounts();
-        }
+        if (fundDevAccounts) _fundDevAccounts();
 
         vm.dumpState(outfilePath);
-        _sortJsonByKeys(outfilePath);
+        _sortGenesisAllocs(outfilePath);
+        _addAllocPropertyToGenesis(outfilePath);
+        _addConfigToGenesis(outfilePath);
+        _addBlockConfigToGenesis(outfilePath);
     }
 
     /// @notice Give all of the precompiles 1 wei so that they are
@@ -170,7 +177,7 @@ contract L2Genesis is Script, Artifacts, DeployConfig {
     }
 
     //////////////////////////////////////////////////////
-    /// Predeploys
+    /// Predeploy Setters
     //////////////////////////////////////////////////////
 
     function _setL2ToL1MessagePasser() internal {
@@ -442,7 +449,7 @@ contract L2Genesis is Script, Artifacts, DeployConfig {
     // }
 
     //////////////////////////////////////////////////////
-    /// Preinstalls
+    /// Preinstall Setters
     //////////////////////////////////////////////////////
     function _setMulticall3() internal {
         vm.etch(Preinstalls.MULTICALL3, Preinstalls.MULTICALL3_DEPLOYED_BYTECODE);
@@ -501,8 +508,88 @@ contract L2Genesis is Script, Artifacts, DeployConfig {
     }
 
     //////////////////////////////////////////////////////
-    /// Helpers
+    /// Other
     //////////////////////////////////////////////////////
+
+    function _getChainConfig() internal returns (string memory) {
+        uint256 genesisTime = _getBlockTimestamp(l1RpcUrl, l1StartingBlockTag());
+
+        string memory serializedConfigName = "chainConfig";
+        string memory json = "";
+        json = stdJson.serialize(serializedConfigName, "chainId", l2ChainID);
+
+        json = stdJson.serialize(serializedConfigName, "homesteadBlock", uint256(0));
+        json = stdJson.serialize(serializedConfigName, "eip150Block", uint256(0));
+        json = stdJson.serialize(serializedConfigName, "eip155Block", uint256(0));
+        json = stdJson.serialize(serializedConfigName, "eip158Block", uint256(0));
+        json = stdJson.serialize(serializedConfigName, "byzantiumBlock", uint256(0));
+        json = stdJson.serialize(serializedConfigName, "constantinopleBlock", uint256(0));
+        json = stdJson.serialize(serializedConfigName, "petersburgBlock", uint256(0));
+        json = stdJson.serialize(serializedConfigName, "istanbulBlock", uint256(0));
+        json = stdJson.serialize(serializedConfigName, "muirGlacierBlock", uint256(0));
+        json = stdJson.serialize(serializedConfigName, "berlinBlock", uint256(0));
+        json = stdJson.serialize(serializedConfigName, "londonBlock", uint256(0));
+        json = stdJson.serialize(serializedConfigName, "arrowGlacierBlock", uint256(0));
+        json = stdJson.serialize(serializedConfigName, "grayGlacierBlock", uint256(0));
+        json = stdJson.serialize(serializedConfigName, "mergeNetsplitBlock", uint256(0));
+
+        json = stdJson.serialize(serializedConfigName, "terminalTotalDifficulty", uint256(0));
+        json = stdJson.serialize(serializedConfigName, "terminalTotalDifficultyPassed", true);
+        json = stdJson.serialize(serializedConfigName, "bedrockBlock", l2GenesisBlockNumber);
+
+        int256 regolithTime = _getHardforkTime(l2GenesisRegolithTimeOffset, int256(genesisTime));
+        if (regolithTime != -1) {
+            json = stdJson.serialize(serializedConfigName, "regolithTime", regolithTime);
+        }
+        int256 canyonTime = _getHardforkTime(l2GenesisCanyonTimeOffset, int256(genesisTime));
+        if (canyonTime != -1) {
+            json = stdJson.serialize(serializedConfigName, "canyonTime", canyonTime);
+            json = stdJson.serialize(serializedConfigName, "shanghaiTime", canyonTime);
+        }
+        int256 ecotoneTime = _getHardforkTime(l2GenesisEcotoneTimeOffset, int256(genesisTime));
+        if (ecotoneTime != -1) {
+            json = stdJson.serialize(serializedConfigName, "cancunTime", ecotoneTime);
+            json = stdJson.serialize(serializedConfigName, "ecotoneTime", ecotoneTime);
+        }
+        int256 interopTime = _getHardforkTime(l2GenesisInteropTimeOffset, int256(genesisTime));
+        if (interopTime != -1) {
+            json = stdJson.serialize(serializedConfigName, "interopTime", interopTime);
+        }
+
+        string memory serializedOptimismConfig = "optimismConfig";
+        string memory nestedOptimismConfig = "";
+        nestedOptimismConfig = stdJson.serialize(serializedOptimismConfig, "eip1559Elasticity", eip1559Elasticity);
+        nestedOptimismConfig = stdJson.serialize(serializedOptimismConfig, "eip1559Denominator", eip1559Denominator);
+        nestedOptimismConfig =
+            stdJson.serialize(serializedOptimismConfig, "eip1559DenominatorCanyon", eip1559DenominatorCanyon);
+
+        json = stdJson.serialize(serializedConfigName, "optimism", nestedOptimismConfig);
+        return json;
+    }
+
+    function _getBlockConfig() internal returns (string memory) {
+        string memory serializedConfigName = "blockConfig";
+        string memory json = "";
+
+        json = stdJson.serialize(serializedConfigName, "nonce", nonce);
+        json = stdJson.serialize(serializedConfigName, "timestamp", timestamp);
+        json = stdJson.serialize(serializedConfigName, "extraData", extraData);
+        json = stdJson.serialize(serializedConfigName, "gasLimit", gasLimit);
+        json = stdJson.serialize(serializedConfigName, "difficulty", difficulty);
+        json = stdJson.serialize(serializedConfigName, "mixHash", mixHash);
+        json = stdJson.serialize(serializedConfigName, "coinbase", coinbase);
+        json = stdJson.serialize(serializedConfigName, "number", number);
+        json = stdJson.serialize(serializedConfigName, "gasUsed", gasUsed);
+        json = stdJson.serialize(serializedConfigName, "parentHash", parentHash);
+        json = stdJson.serialize(serializedConfigName, "baseFeePerGas", baseFeePerGas);
+
+        return json;
+    }
+
+    //////////////////////////////////////////////////////
+    /// Helper Functions
+    //////////////////////////////////////////////////////
+
     function _setImplementationCode(address _addr, string memory _name) internal returns (address) {
         address impl = L2GenesisHelpers.predeployToCodeNamespace(_addr);
         console.log("Setting %s implementation at: %s", _name, impl);
@@ -531,7 +618,7 @@ contract L2Genesis is Script, Artifacts, DeployConfig {
 
     /// @dev Helper function to sort the genesis alloc numerically by address.
     /// @notice The storage slot keys are also sorted numerically.
-    function _sortJsonByKeys(string memory _path) internal {
+    function _sortGenesisAllocs(string memory _path) internal {
         string[] memory commands = new string[](3);
         commands[0] = "bash";
         commands[1] = "-c";
@@ -557,6 +644,59 @@ contract L2Genesis is Script, Artifacts, DeployConfig {
         }
 
         _checkDevAccountsFunded();
+    }
+
+    function _getBlockTimestamp(string memory _rpcUrl, bytes32 _blockHash) internal returns (uint256) {
+        string[] memory cmd = new string[](3);
+        cmd[0] = "bash";
+        cmd[1] = "-c";
+        cmd[2] = string.concat(
+            "cast block --rpc-url ", _rpcUrl, " ", vm.toString(_blockHash), " --json | ", Executables.jq, " .timestamp"
+        );
+        vm.ffi(cmd);
+        bytes memory res = vm.ffi(cmd);
+        return stdJson.readUint(string(res), "");
+    }
+
+    /// @dev If `-1` is returned, that means that `_hardforkTimeOffset` was `null` in the deploy config, which means
+    ///      the time should not be included in the genesis config.
+    function _getHardforkTime(int256 _hardforkTimeOffset, int256 _genesisTime) internal pure returns (int256) {
+        if (_hardforkTimeOffset == -1) {
+            return -1;
+        }
+
+        int256 _default = 0;
+        if (_hardforkTimeOffset > 0) {
+            return _genesisTime + _hardforkTimeOffset;
+        }
+        return _default;
+    }
+
+    function _addAllocPropertyToGenesis(string memory _path) internal {
+        string[] memory addAllocsKeyToGenesisCommands = new string[](3);
+        addAllocsKeyToGenesisCommands[0] = "bash";
+        addAllocsKeyToGenesisCommands[1] = "-c";
+        addAllocsKeyToGenesisCommands[2] =
+            string.concat("output=$(jq '{ \"alloc\": . }' ", _path, "); ", "echo \"$output\" > ", _path);
+        vm.ffi(addAllocsKeyToGenesisCommands);
+    }
+
+    function _addConfigToGenesis(string memory _path) internal {
+        string[] memory addConfigToGenesisCommands = new string[](3);
+        addConfigToGenesisCommands[0] = "bash";
+        addConfigToGenesisCommands[1] = "-c";
+        addConfigToGenesisCommands[2] =
+            string.concat("cat <<< $(jq '.config += ", _getChainConfig(), "' ", _path, ") > ", _path);
+        vm.ffi(addConfigToGenesisCommands);
+    }
+
+    function _addBlockConfigToGenesis(string memory _path) internal {
+        string[] memory addBlockConfigToGenesisCommands = new string[](3);
+        addBlockConfigToGenesisCommands[0] = "bash";
+        addBlockConfigToGenesisCommands[1] = "-c";
+        addBlockConfigToGenesisCommands[2] =
+            string.concat("cat <<< $(jq '. * ", _getBlockConfig(), "' ", _path, ") > ", _path);
+        vm.ffi(addBlockConfigToGenesisCommands);
     }
 
     //////////////////////////////////////////////////////

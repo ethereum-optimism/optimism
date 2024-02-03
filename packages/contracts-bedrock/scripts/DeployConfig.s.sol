@@ -49,13 +49,12 @@ contract DeployConfig is Script {
     string public governanceTokenName;
     string public governanceTokenSymbol;
     address public governanceTokenOwner;
+    uint256 public l2GenesisBlockNumber;
     uint256 public l2GenesisBlockGasLimit;
     uint256 public l2GenesisBlockBaseFeePerGas;
     uint256 public gasPriceOracleOverhead;
     uint256 public gasPriceOracleScalar;
     bool public enableGovernance;
-    uint256 public eip1559Denominator;
-    uint256 public eip1559Elasticity;
     uint256 public faultGameAbsolutePrestate;
     uint256 public faultGameGenesisBlock;
     bytes32 public faultGameGenesisOutputRoot;
@@ -72,6 +71,33 @@ contract DeployConfig is Script {
     uint256 public disputeGameFinalityDelaySeconds;
     uint256 public respectedGameType;
     bool public useFaultProofs;
+
+    //////////////////////////////////////////////////////
+    /// Genesis Block Properties
+    //////////////////////////////////////////////////////
+
+    uint256 public bedrockBlock;
+
+    int256 public l2GenesisRegolithTimeOffset;
+    int256 public l2GenesisCanyonTimeOffset;
+    int256 public l2GenesisEcotoneTimeOffset;
+    int256 public l2GenesisInteropTimeOffset;
+
+    uint256 public eip1559Elasticity;
+    uint256 public eip1559Denominator;
+    uint256 public eip1559DenominatorCanyon;
+
+    uint256 public nonce;
+    uint256 public timestamp;
+    bytes public extraData;
+    uint256 public gasLimit;
+    uint256 public difficulty;
+    bytes public mixHash;
+    address public coinbase;
+    uint256 public number;
+    uint256 public gasUsed;
+    bytes public parentHash;
+    uint256 public baseFeePerGas;
 
     function read(string memory _path) public {
         console.log("DeployConfig: reading file %s", _path);
@@ -139,6 +165,46 @@ contract DeployConfig is Script {
         preimageOracleMinProposalSize = stdJson.readUint(_json, "$.preimageOracleMinProposalSize");
         preimageOracleChallengePeriod = stdJson.readUint(_json, "$.preimageOracleChallengePeriod");
         preimageOracleCancunActivationTimestamp = stdJson.readUint(_json, "$.preimageOracleCancunActivationTimestamp");
+
+        //////////////////////////////////////////////////////
+        /// Genesis Config Properties
+        //////////////////////////////////////////////////////
+        l2GenesisBlockNumber = stdJson.readUint(_json, "$.l2GenesisBlockNumber");
+        bedrockBlock = l2GenesisBlockNumber;
+
+        l2GenesisRegolithTimeOffset = parseJsonIntWithDefault("$.l2GenesisRegolithTimeOffset", int256(-1));
+        l2GenesisCanyonTimeOffset = parseJsonIntWithDefault("$.l2GenesisCanyonTimeOffset", int256(-1));
+        l2GenesisEcotoneTimeOffset = parseJsonIntWithDefault("$.l2GenesisEcotoneTimeOffset", int256(-1));
+        l2GenesisInteropTimeOffset = parseJsonIntWithDefault("$.l2GenesisInteropTimeOffset", int256(-1));
+
+        eip1559Elasticity = parseJsonUintWithDefault("$.eip1559Elasticity", uint256(10));
+        eip1559Denominator = parseJsonUintWithDefault("$.eip1559Denominator", uint256(50));
+        eip1559DenominatorCanyon = parseJsonUintWithDefault("$.eip1559DenominatorCanyon", uint256(250));
+
+        nonce = parseJsonUintWithDefault("$.l2GenesisBlockNonce", uint256(0));
+        // TODO block.timestamp
+        // timestamp = parseJsonUintWithDefault("$.timestamp", block.timestamp);
+        /// @notice 424544524f434b == BEDROCK
+        extraData = parseJsonBytesWithDefault("$.extraData", hex"424544524f434b");
+        gasLimit = parseJsonUintWithDefault("$.gasLimit", uint256(30_000_000));
+        // TODO difficulty.ToInt() in Go code
+        // difficulty = parseJsonUintWithDefault("$.difficulty", uint256(0));
+        mixHash = parseJsonBytesWithDefault(
+            "$.l2GenesisBlockMixHash", hex"0000000000000000000000000000000000000000000000000000000000000000"
+        );
+        // TODO 0x4200000000000000000000000000000000000011
+        // try vm.parseJsonAddress(_json, "$.coinbase") returns (address _data) {
+        //     coinbase = _data;
+        // } catch {
+        //     coinbase = 0x4200000000000000000000000000000000000011;
+        // }
+        number = l2GenesisBlockNumber;
+        // TODO L2GenesisBlockGasUsed
+        // gasUsed = parseJsonUintWithDefault("$.gasUsed", uint256(0));
+        // TODO L2GenesisBlockParentHash
+        // parentHash = parseJsonBytesWithDefault("$.parentHash",
+        // hex'0000000000000000000000000000000000000000000000000000000000000000');
+        baseFeePerGas = l2GenesisBlockBaseFeePerGas;
     }
 
     function l1StartingBlockTag() public returns (bytes32) {
@@ -176,5 +242,36 @@ contract DeployConfig is Script {
         cmd[2] = string.concat("cast block ", _tag, " --json | ", Executables.jq, " -r .hash");
         bytes memory res = vm.ffi(cmd);
         return abi.decode(res, (bytes32));
+    }
+
+    function parseJsonUintWithDefault(string memory _path, uint256 _defaultValue) internal view returns (uint256) {
+        try vm.parseJsonUint(_json, _path) returns (uint256 _data) {
+            return _data;
+        } catch {
+            return _defaultValue;
+        }
+    }
+
+    function parseJsonIntWithDefault(string memory _path, int256 _defaultValue) internal view returns (int256) {
+        try vm.parseJsonInt(_json, _path) returns (int256 _data) {
+            return _data;
+        } catch {
+            return _defaultValue;
+        }
+    }
+
+    function parseJsonBytesWithDefault(
+        string memory _path,
+        bytes memory _defaultValue
+    )
+        internal
+        view
+        returns (bytes memory)
+    {
+        try vm.parseJsonBytes(_json, _path) returns (bytes memory _data) {
+            return _data;
+        } catch {
+            return _defaultValue;
+        }
     }
 }

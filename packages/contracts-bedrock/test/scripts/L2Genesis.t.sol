@@ -129,8 +129,6 @@ contract L2Genesis_Test is Test, L2Genesis {
     //     // } else {
     //     //     revert(string.concat("Unknown predeploy proxy: ", vm.toString(_access.account)));
     //     // }
-
-
     //     // assertEq(_access.account.code, vm.getDeployedCode("Proxy.sol:Proxy"));
     //     // // assertEq(_access.storageAccesses.length, 0);
 
