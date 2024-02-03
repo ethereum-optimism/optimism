@@ -1,48 +1,42 @@
 # op-challenger
 
-The `op-challenger` is a modular **op-stack** challenge agent
-written in golang for dispute games including, but not limited to, attestation games, fault
-games, and validity games. To learn more about dispute games, visit the
-[fault proof specs](../specs/fault-proof.md).
+The `op-challenger` is a modular **op-stack** challenge agent written in
+golang for dispute games including, but not limited to,attestation games,
+fault games, and validity games. To learn more about dispute games, visit
+the [fault proof specs][proof-specs].
+
+[proof-specs]: https://specs.optimism.io/experimental/fault-proof/index.html
 
 ## Quickstart
 
-First, clone this repo. Then run:
-
-```shell
-cd op-challenger
-make alphabet
-```
-
-This creates a local devnet, starts a dispute game using the simple alphabet trace type and runs two op-challenger
-instances with differing views of the correct alphabet to play the game.
-
-Alternatively, you can build the `op-challenger` binary directly using the pre-configured
-[Makefile](./Makefile) target by running `make build`, and then running `./bin/op-challenger --help`
-to see a list of available options.
+To build the `op-challenger`, run `make` (which executes the `make build`
+[Makefile](./Makefile) target). To view a list of available commands and
+options, run `./bin/op-challenger --help`.
 
 ## Usage
 
-`op-challenger` is configurable via command line flags and environment variables. The help menu
-shows the available config options and can be accessed by running `./op-challenger --help`.
+`op-challenger` is configurable via command line flags and environment
+variables. The help menu shows the available config options and can be
+accessed by running `./op-challenger --help`.
 
 ### Running with Cannon on Local Devnet
 
-To run `op-challenger` against the local devnet, first ensure the required components are built and the devnet is running.
-From the top level of the repository run:
-
+To run `op-challenger` against the local devnet, first clean and run
+the devnet from the root of the repository.
 ```shell
 make devnet-clean
-make op-challenger
 make devnet-up
 ```
 
-Then start `op-challenger` with:
+Then build the `op-challenger` with `make op-challenger`.
+
+Run the `op-challenger` with:
 ```shell
 DISPUTE_GAME_FACTORY=$(jq -r .DisputeGameFactoryProxy .devnet/addresses.json)
 ./op-challenger/bin/op-challenger \
   --trace-type cannon \
   --l1-eth-rpc http://localhost:8545 \
+  --rollup-rpc http://localhost:9546 \
   --game-factory-address $DISPUTE_GAME_FACTORY \
   --datadir temp/challenger-data \
   --cannon-rollup-config .devnet/rollup.json  \
@@ -56,71 +50,61 @@ DISPUTE_GAME_FACTORY=$(jq -r .DisputeGameFactoryProxy .devnet/addresses.json)
   --num-confirmations 1
 ```
 
-The mnemonic and hd-path above is a prefunded address on the devnet. The challenger respond to any created games by
-posting the correct trace as the counter-claim. The scripts below can then be used to create and interact with games.
+The mnemonic and hd-path above is a prefunded address on the devnet.
+The challenger will monitor dispute games and respond to any invalid
+claims by posting the correct trace as the counter-claim. The commands
+below can then be used to create and interact with games.
 
-## Scripts
+## Subcommands
 
-The [scripts](scripts) directory contains a collection of scripts to assist with manually creating and playing games.
-This are not intended to be used in production, only to support manual testing and to aid with understanding how
-dispute games work. They also serve as examples of how to use `cast` to manually interact with the dispute game
-contracts.
+The `op-challenger` has a few subcommands to interact with on-chain
+fault dispute games. The subcommands support game creation, performing
+game moves, and viewing fault dispute game data. They should not be
+used in production and are intended to provide convenient manual testing.
 
-### Understanding Revert Reasons
-
-When actions performed by these scripts fails, they typically print a message that includes the
-abi encoded revert reason provided by the contract. e.g.
-
-```
-Error:
-(code: 3, message: execution reverted, data: Some(String("0x67fe1950")))
-```
-
-The `cast 4byte` command can be used to decode these revert reasons. e.g.
+### create-game
 
 ```shell
-$ cast 4byte 0x67fe1950
-GameNotInProgress()
+./bin/op-challenger create-game \
+  --l1-eth-rpc <L1_ETH_RPC> \
+  --game-address <GAME_FACTORY_ADDRESS> \
+  --output-root <OUTPUT_ROOT> \
+  --l2-block-num <L2_BLOCK_NUM> \
+  ...<SIGNER_ARGS>
 ```
 
-### Dependencies
+Starts a new fault dispute game that disputes the latest output proposal
+in the L2 output oracle.
 
-These scripts assume that the following tools are installed and available on the current `PATH`:
-
-* `cast` (https://book.getfoundry.sh/cast/)
-* `jq` (https://jqlang.github.io/jq/)
-* `bash`
-
-### [create_game.sh](scripts/create_game.sh)
-
-```shell
-./scripts/create_game.sh <RPC_URL> <GAME_FACTORY_ADDRESS> <OUTPUT_ROOT> <L2_BLOCK_NUM> <SIGNER_ARGS>...
-```
-
-Starts a new fault dispute game that disputes the latest output proposal in the L2 output oracle.
-
-* `RPC_URL` - the RPC endpoint of the L1 endpoint to use (e.g. `http://localhost:8545`).
+* `L1_ETH_RPC` - the RPC endpoint of the L1 endpoint to use (e.g. `http://localhost:8545`).
 * `GAME_FACTORY_ADDRESS` - the address of the dispute game factory contract on L1.
 * `OUTPUT_ROOT` a hex encoded 32 byte hash that is used as the proposed output root.
 * `L2_BLOCK_NUM` the L2 block number the proposed output root is from.
-* `SIGNER_ARGS` the remaining args are past as arguments to `cast` when sending transactions.
-  These arguments must specify a way for `cast` to sign the transactions.
+* `SIGNER_ARGS` the remaining args are past as arguments to `cast` when sending
+  transactions. These arguments must specify a way for `cast` to sign the transactions.
   See `cast send --help` for supported options.
 
-Creating a dispute game requires sending two transactions. The first transaction creates a
-checkpoint in the `BlockOracle` that records the L1 block that will be used as the L1 head
-when generating the cannon execution trace. The second transaction then creates the actual
-dispute game, specifying the disputed L2 block number and previously checkpointed L1 head block.
+Optionally, you may specify the game type (aka "trace type") using the `--trace-type`
+flag, which is set to the cannon trace type by default.
 
-### [move.sh](scripts/move.sh)
+### move
+
+The `move` subcommand can be run with either the `--attack` or `--defend` flag,
+but not both.
 
 ```shell
-./scripts/move.sh <RPC_URL> <GAME_ADDRESS> (attack|defend) <PARENT_INDEX> <CLAIM> <SIGNER_ARGS>...
+./bin/op-challenger move \
+  --l1-eth-rpc <L1_ETH_RPC> \
+  --game-address <GAME_ADDRESS> \
+  --attack \
+  --parent-index <PARENT_INDEX> \
+  --claim <CLAIM> \
+  ...<SIGNER_ARGS>
 ```
 
 Performs a move to either attack or defend the latest claim in the specified game.
 
-* `RPC_URL` - the RPC endpoint of the L1 endpoint to use (e.g. `http://localhost:8545`).
+* `L1_ETH_RPC` - the RPC endpoint of the L1 endpoint to use (e.g. `http://localhost:8545`).
 * `GAME_ADDRESS` - the address of the dispute game to perform the move in.
 * `(attack|defend)` - the type of move to make.
   * `attack` indicates that the state hash in your local cannon trace differs to the state
@@ -134,40 +118,47 @@ Performs a move to either attack or defend the latest claim in the specified gam
   These arguments must specify a way for `cast` to sign the transactions.
   See `cast send --help` for supported options.
 
-### [resolve.sh](scripts/resolve.sh)
+### resolve
 
 ```shell
-./scripts/resolve.sh <RPC_URL> <GAME_ADDRESS> <SIGNER_ARGS>...
+./bin/op-challenger resolve \
+  --l1-eth-rpc <L1_ETH_RPC> \
+  --game-address <GAME_ADDRESS> \
+  ...<SIGNER_ARGS>
 ```
 
-Resolves a dispute game. Note that this will fail if the dispute game has already been resolved
-or if the clocks have not yet expired and further moves are possible.
+Resolves a dispute game. Note that this will fail if the dispute game has already
+been resolved or if the clocks have not yet expired and further moves are possible.
 If the game is resolved successfully, the result is printed.
 
-* `RPC_URL` - the RPC endpoint of the L1 endpoint to use (e.g. `http://localhost:8545`).
+* `L1_ETH_RPC` - the RPC endpoint of the L1 endpoint to use (e.g. `http://localhost:8545`).
 * `GAME_ADDRESS` - the address of the dispute game to resolve.
 * `SIGNER_ARGS` the remaining args are past as arguments to `cast` when sending transactions.
   These arguments must specify a way for `cast` to sign the transactions.
   See `cast send --help` for supported options.
 
-### [list_games.sh](scripts/list_games.sh)
+### list-games
 
 ```shell
-./scripts/list_games.sh <RPC> <GAME_FACTORY_ADDRESS>
+./bin/op-challenger list-games \
+  --l1-eth-rpc <L1_ETH_RPC> \
+  --game-factory-address <GAME_FACTORY_ADDRESS>
 ```
 
 Prints the games created by the game factory along with their current status.
 
-* `RPC_URL` - the RPC endpoint of the L1 endpoint to use (e.g. `http://localhost:8545`).
+* `L1_ETH_RPC` - the RPC endpoint of the L1 endpoint to use (e.g. `http://localhost:8545`).
 * `GAME_FACTORY_ADDRESS` - the address of the dispute game factory contract on L1.
 
-### [list_claims.sh](scripts/list_claims.sh)
+### list-claims
 
 ```shell
-./scripts/list_claims.sh <RPC> <GAME_ADDR>
+./bin/op-challenger list-games \
+  --l1-eth-rpc <L1_ETH_RPC> \
+  --game-address <GAME_ADDRESS>
 ```
 
 Prints the list of current claims in a dispute game.
 
-* `RPC_URL` - the RPC endpoint of the L1 endpoint to use (e.g. `http://localhost:8545`).
+* `L1_ETH_RPC` - the RPC endpoint of the L1 endpoint to use (e.g. `http://localhost:8545`).
 * `GAME_ADDRESS` - the address of the dispute game to list the move in.
