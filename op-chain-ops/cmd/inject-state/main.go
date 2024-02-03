@@ -177,11 +177,8 @@ func entrypoint(ctx *cli.Context) error {
 	}
 
 	// Next we write the Bedrock transition block to the database.
-	tD := rawdb.ReadTd(db, transitionBlock.ParentHash(), transitionBlock.NumberU64()-1)
-	if transitionState.Config.ChainID.Cmp(big.NewInt(28882)) == 0 {
-		tD = big.NewInt(3)
-	}
-	rawdb.WriteTd(db, transitionBlock.Hash(), transitionBlock.NumberU64(), tD)
+	td := rawdb.ReadTd(db, transitionBlock.ParentHash(), transitionBlock.NumberU64()-1)
+	rawdb.WriteTd(db, transitionBlock.Hash(), transitionBlock.NumberU64(), td)
 	rawdb.WriteBlock(db, transitionBlock)
 	rawdb.WriteReceipts(db, transitionBlock.Hash(), transitionBlock.NumberU64(), nil)
 	rawdb.WriteCanonicalHash(db, transitionBlock.Hash(), transitionBlock.NumberU64())

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	"math/big"
 
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/crossdomain"
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/ether"
@@ -243,15 +242,12 @@ func CommitGenesisBlock(tx kv.RwTx, g *types.Genesis, tmpDir string, block *type
 		return err
 	}
 	// This is a special case for the sepolia
-	Td, err := rawdb.ReadTdByHash(tx, block.ParentHash())
+	td, err := rawdb.ReadTdByHash(tx, block.ParentHash())
 	if err != nil {
 		log.Error("failed to read parent block", "err", err)
 		return err
 	}
-	if config.ChainID.Cmp(chain.BobaSepoliaChainId) == 0 {
-		Td = big.NewInt(3)
-	}
-	if err := rawdb.WriteTd(tx, block.Hash(), block.NumberU64(), Td); err != nil {
+	if err := rawdb.WriteTd(tx, block.Hash(), block.NumberU64(), td); err != nil {
 		return err
 	}
 	if err := rawdb.WriteBlock(tx, block); err != nil {
