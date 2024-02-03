@@ -975,7 +975,7 @@ func TestBlockBuildingRace(t *testing.T) {
 		GasUsed:       0,
 		Timestamp:     eth.Uint64Quantity(refA1.Time),
 		ExtraData:     nil,
-		BaseFeePerGas: *uint256.NewInt(7),
+		BaseFeePerGas: eth.Uint256Quantity(*uint256.NewInt(7)),
 		BlockHash:     refA1.Hash,
 		Transactions: []eth.Data{
 			a1InfoTx,
@@ -1184,7 +1184,7 @@ func TestEngineQueue_StepPopOlderUnsafe(t *testing.T) {
 		GasUsed:       0,
 		Timestamp:     eth.Uint64Quantity(refA1.Time),
 		ExtraData:     nil,
-		BaseFeePerGas: *uint256.NewInt(7),
+		BaseFeePerGas: eth.Uint256Quantity(*uint256.NewInt(7)),
 		BlockHash:     refA1.Hash,
 		Transactions:  []eth.Data{},
 	}}

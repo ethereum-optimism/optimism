@@ -303,7 +303,7 @@ func (block *RPCBlock) ExecutionPayloadEnvelope(trustCache bool) (*eth.Execution
 		GasUsed:       block.GasUsed,
 		Timestamp:     block.Time,
 		ExtraData:     eth.BytesMax32(block.Extra),
-		BaseFeePerGas: baseFee,
+		BaseFeePerGas: eth.Uint256Quantity(baseFee),
 		BlockHash:     block.Hash,
 		Transactions:  opaqueTxs,
 		Withdrawals:   block.Withdrawals,
