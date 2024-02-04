@@ -28,9 +28,9 @@ COPY ./versions.json ./versions.json
 COPY ./ops/scripts/install-foundry.sh ./install-foundry.sh
 
 RUN curl -L https://foundry.paradigm.xyz | bash
-RUN source $HOME/.profile && ./install-foundry.sh
-
-RUN cargo install svm-rs
+RUN source $HOME/.profile && \
+    ./install-foundry.sh && \
+    cargo install svm-rs
 
 RUN strip /root/.foundry/bin/forge && \
   strip /root/.foundry/bin/cast && \
