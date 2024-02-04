@@ -1505,9 +1505,6 @@ workflows:
           name: op-service-tests
           module: op-service
           requires: ["go-mod-download"]
-      - op-service-rethdb-tests:
-          requires:
-            - go-mod-download
       - go-e2e-test:
           name: op-e2e-HTTP-tests
           module: op-e2e
@@ -1565,7 +1562,6 @@ workflows:
             - op-e2e-fault-proof-tests
             - op-e2e-action-tests
             - op-e2e-ext-geth-tests
-            - op-service-rethdb-tests
       - docker-build: # just to warm up the cache (other jobs run in parallel)
           name: op-stack-go-docker-build
           docker_name: op-stack-go
