@@ -87,7 +87,7 @@ COPY --from=go-build /go/bin/geth /usr/local/bin/geth
 COPY --from=rust-build /root/.foundry/bin/forge /usr/local/bin/forge
 COPY --from=rust-build /root/.foundry/bin/cast /usr/local/bin/cast
 COPY --from=rust-build /root/.foundry/bin/anvil /usr/local/bin/anvil
-COPY --from=rust-build /root/.cargo/bin/svm /usr/local/bin/anvil
+COPY --from=rust-build /root/.cargo/bin/svm /usr/local/bin/svm
 
 COPY .nvmrc .nvmrc
 COPY ./versions.json ./versions.json
