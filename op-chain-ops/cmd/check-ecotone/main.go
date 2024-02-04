@@ -335,8 +335,10 @@ func execTx(ctx context.Context, to *common.Address, data []byte, expectRevert b
 	if err != nil {
 		return fmt.Errorf("failed to get chainID: %w", err)
 	}
-	tx := types.NewTx(&types.DynamicFeeTx{ChainID: chainID, Nonce: nonce,
-		GasTipCap: tip, GasFeeCap: maxFee, Gas: 500000, To: to, Data: data})
+	tx := types.NewTx(&types.DynamicFeeTx{
+		ChainID: chainID, Nonce: nonce,
+		GasTipCap: tip, GasFeeCap: maxFee, Gas: 500000, To: to, Data: data,
+	})
 	signer := types.NewCancunSigner(chainID)
 	signedTx, err := types.SignTx(tx, signer, env.key)
 	if err != nil {
@@ -657,8 +659,9 @@ func checkL1Fees(ctx context.Context, env *actionEnv) error {
 		return fmt.Errorf("failed to retrieve matching L1 block %s: %w", headRef, err)
 	}
 	gasTip := big.NewInt(2 * params.GWei)
+	baseFee := (*uint256.Int)(&payload.ExecutionPayload.BaseFeePerGas).ToBig()
 	gasMaxFee := new(big.Int).Add(
-		new(big.Int).Mul(big.NewInt(2), payload.ExecutionPayload.BaseFeePerGas.ToBig()), gasTip)
+		new(big.Int).Mul(big.NewInt(2), baseFee), gasTip)
 	to := common.Address{1, 2, 3, 5}
 	txData := &types.DynamicFeeTx{
 		ChainID:    rollupCfg.L2ChainID,
