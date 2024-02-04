@@ -1486,9 +1486,6 @@ workflows:
           name: op-service-tests
           module: op-service
           requires: ["op-stack-go-lint"]
-      - op-service-rethdb-tests:
-          requires:
-            - op-stack-go-lint
       - go-e2e-test:
           name: op-e2e-HTTP-tests
           module: op-e2e
@@ -1549,7 +1546,6 @@ workflows:
             - op-e2e-cannon-tests
             - op-e2e-action-tests
             - op-e2e-ext-geth-tests
-            - op-service-rethdb-tests
       - docker-build: # just to warm up the cache (other jobs run in parallel)
           name: op-stack-go-docker-build
           docker_name: op-stack-go
