@@ -104,15 +104,14 @@ func LevelFromString(lvlString string) (slog.Level, error) {
 var _ cliapp.CloneableGeneric = (*LevelFlagValue)(nil)
 
 // FormatType defines a type of log format.
-// Supported formats: 'text', 'terminal', 'logfmt', 'json', 'json-pretty'
+// Supported formats: 'text', 'terminal', 'logfmt', 'json'
 type FormatType string
 
 const (
-	FormatText       FormatType = "text"
-	FormatTerminal   FormatType = "terminal"
-	FormatLogFmt     FormatType = "logfmt"
-	FormatJSON       FormatType = "json"
-	FormatJSONPretty FormatType = "json-pretty"
+	FormatText     FormatType = "text"
+	FormatTerminal FormatType = "terminal"
+	FormatLogFmt   FormatType = "logfmt"
+	FormatJSON     FormatType = "json"
 )
 
 // FormatHandler returns the correct slog handler factory for the provided format.
@@ -122,10 +121,6 @@ func FormatHandler(ft FormatType, color bool) func(io.Writer) slog.Handler {
 	}
 	switch ft {
 	case FormatJSON:
-		return log.JSONHandler
-	case FormatJSONPretty:
-		// TODO(Seb): Neither slog nor geth/log seem to provide separate (non)pretty JSON loggers.
-		//   So just reusing the same in both cases for backwards compatibility.
 		return log.JSONHandler
 	case FormatText:
 		if term.IsTerminal(int(os.Stdout.Fd())) {
@@ -155,7 +150,7 @@ func NewFormatFlagValue(fmtType FormatType) *FormatFlagValue {
 
 func (fv *FormatFlagValue) Set(value string) error {
 	switch FormatType(value) {
-	case FormatText, FormatTerminal, FormatLogFmt, FormatJSON, FormatJSONPretty:
+	case FormatText, FormatTerminal, FormatLogFmt, FormatJSON:
 		*fv = FormatFlagValue(value)
 		return nil
 	default:

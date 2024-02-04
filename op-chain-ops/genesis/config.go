@@ -747,14 +747,14 @@ type ForgeDump gstate.Dump
 
 func (d *ForgeDump) UnmarshalJSON(b []byte) error {
 	type forgeDumpAccount struct {
-		Balance   string                 `json:"balance"`
-		Nonce     hexutil.Uint64         `json:"nonce"`
-		Root      hexutil.Bytes          `json:"root"`
-		CodeHash  hexutil.Bytes          `json:"codeHash"`
-		Code      hexutil.Bytes          `json:"code,omitempty"`
-		Storage   map[common.Hash]string `json:"storage,omitempty"`
-		Address   *common.Address        `json:"address,omitempty"`
-		SecureKey hexutil.Bytes          `json:"key,omitempty"`
+		Balance     string                 `json:"balance"`
+		Nonce       hexutil.Uint64         `json:"nonce"`
+		Root        hexutil.Bytes          `json:"root"`
+		CodeHash    hexutil.Bytes          `json:"codeHash"`
+		Code        hexutil.Bytes          `json:"code,omitempty"`
+		Storage     map[common.Hash]string `json:"storage,omitempty"`
+		Address     *common.Address        `json:"address,omitempty"`
+		AddressHash hexutil.Bytes          `json:"key,omitempty"`
 	}
 	type forgeDump struct {
 		Root     string                              `json:"root"`
@@ -776,7 +776,7 @@ func (d *ForgeDump) UnmarshalJSON(b []byte) error {
 			Code:        acc.Code,
 			Storage:     acc.Storage,
 			Address:     acc.Address,
-			AddressHash: acc.SecureKey,
+			AddressHash: acc.AddressHash,
 		}
 	}
 	return nil
