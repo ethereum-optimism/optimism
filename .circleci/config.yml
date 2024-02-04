@@ -809,6 +809,10 @@ jobs:
         description: Number of parallel test runs
         type: integer
         default: 6
+      notify:
+        description: Whether to notify on failure
+        type: boolean
+        default: false
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: xlarge
@@ -863,6 +867,10 @@ jobs:
           when: always
       - store_test_results:
           path: /tmp/test-results
+      - when:
+          condition: "<<parameters.notify>>"
+          steps:
+            - notify-failures-on-develop
 
   go-lint-test-build:
     parameters:
@@ -1031,6 +1039,8 @@ jobs:
           name: Install Geth
           command: |
             wget https://gethstore.blob.core.windows.net/builds/geth-alltools-linux-amd64-1.13.4-3f907d6a.tar.gz
+            # geth only provides md5 sums sadly
+            echo 'c2e3d38372cb8081ed01591246a7556f geth-alltools-linux-amd64-1.13.4-3f907d6a.tar.gz' | md5sum -c -
             tar -xzvf geth-alltools-linux-amd64-1.13.4-3f907d6a.tar.gz
             sudo cp geth-alltools-linux-amd64-1.13.4-3f907d6a/* /usr/local/bin
       - run:
@@ -1848,9 +1858,9 @@ workflows:
           context:
             - slack
 
-  scheduled-fpp:
+  develop-fault-proofs:
     when:
-      equal: [ build_four_hours, <<pipeline.schedule.name>> ]
+      equal: [ "develop", <<pipeline.git.branch>> ]
     jobs:
       - go-mod-download
       - cannon-prestate:
@@ -1869,9 +1879,12 @@ workflows:
           module: op-e2e
           target: test-cannon
           parallelism: 4
+          notify: true
           requires:
             - pnpm-monorepo
             - cannon-prestate
+          context:
+            - slack
 
   scheduled-kontrol-tests:
     when:
