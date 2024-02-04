@@ -60,8 +60,8 @@ RUN go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.54.2
 RUN strip /go/bin/gotestsum && \
   strip /go/bin/mockery && \
   strip /go/bin/golangci-lint && \
-  strip /usr/local/bin/abigen && \
-  strip /usr/local/bin/geth
+  strip /go/bin/abigen && \
+  strip /go/bin/geth
 
 FROM --platform=linux/amd64 debian:bullseye-slim as base-builder
 
