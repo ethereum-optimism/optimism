@@ -9,7 +9,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-program/chainconfig"
 	"github.com/ethereum-optimism/optimism/op-program/host/config"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/log"
@@ -48,7 +50,12 @@ func TestLogFormat(t *testing.T) {
 		verifyArgsInvalid(t, `unrecognized log-format: "foo"`, addRequiredArgs("--log.format=foo"))
 	})
 
-	for _, lvl := range []string{"json", "json-pretty", "terminal", "text", "logfmt"} {
+	for _, lvl := range []string{
+		oplog.FormatJSON.String(),
+		oplog.FormatTerminal.String(),
+		oplog.FormatText.String(),
+		oplog.FormatLogFmt.String(),
+	} {
 		lvl := lvl
 		t.Run("AcceptValid_"+lvl, func(t *testing.T) {
 			logger, _, err := runWithArgs(addRequiredArgs("--log.format", lvl))
