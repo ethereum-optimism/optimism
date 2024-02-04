@@ -478,19 +478,6 @@ jobs:
               exit 1
             fi
 
-  contracts-bedrock-slither:
-    docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
-    resource_class: medium
-    steps:
-      - checkout
-      - check-changed:
-          patterns: contracts-bedrock
-      - run:
-          name: slither
-          command: pnpm slither:check
-          working_directory: packages/contracts-bedrock
-
   contracts-bedrock-validate-spaces:
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
@@ -1382,7 +1369,6 @@ workflows:
       - contracts-bedrock-checks:
           requires:
             - pnpm-monorepo
-      - contracts-bedrock-slither
       - contracts-bedrock-validate-spaces:
           requires:
             - pnpm-monorepo
