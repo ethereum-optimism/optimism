@@ -30,9 +30,12 @@ COPY ./ops/scripts/install-foundry.sh ./install-foundry.sh
 RUN curl -L https://foundry.paradigm.xyz | bash
 RUN source $HOME/.profile && ./install-foundry.sh
 
+RUN cargo install svm-rs
+
 RUN strip /root/.foundry/bin/forge && \
   strip /root/.foundry/bin/cast && \
-  strip /root/.foundry/bin/anvil
+  strip /root/.foundry/bin/anvil && \
+  strip /root/.cargo/bin/svm
 
 FROM --platform=linux/amd64 debian:bullseye-slim as go-build
 
@@ -84,6 +87,7 @@ COPY --from=go-build /go/bin/geth /usr/local/bin/geth
 COPY --from=rust-build /root/.foundry/bin/forge /usr/local/bin/forge
 COPY --from=rust-build /root/.foundry/bin/cast /usr/local/bin/cast
 COPY --from=rust-build /root/.foundry/bin/anvil /usr/local/bin/anvil
+COPY --from=rust-build /root/.cargo/bin/svm /usr/local/bin/anvil
 
 COPY .nvmrc .nvmrc
 COPY ./versions.json ./versions.json
