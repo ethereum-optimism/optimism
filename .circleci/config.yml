@@ -1858,6 +1858,15 @@ workflows:
           context:
             - slack
 
+  scheduled-fpp:
+    when:
+      equal: [ build_four_hours, <<pipeline.schedule.name>> ]
+    jobs:
+      - fpp-verify:
+          context:
+            - slack
+            - oplabs-fpp-nodes
+
   develop-fault-proofs:
     when:
       equal: [ "develop", <<pipeline.git.branch>> ]
@@ -1870,10 +1879,6 @@ workflows:
           name: pnpm-monorepo
           requires:
             - go-mod-download
-      - fpp-verify:
-          context:
-            - slack
-            - oplabs-fpp-nodes
       - go-e2e-test:
           name: op-e2e-cannon-tests
           module: op-e2e
