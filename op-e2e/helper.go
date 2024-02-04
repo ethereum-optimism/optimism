@@ -4,7 +4,8 @@ import (
 	"crypto/md5"
 	"os"
 	"strconv"
-	"testing"
+
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 )
 
 var enableParallelTesting bool = os.Getenv("OP_E2E_DISABLE_PARALLEL") != "true"
@@ -13,7 +14,7 @@ type testopts struct {
 	executor uint64
 }
 
-func InitParallel(t *testing.T, args ...func(t *testing.T, opts *testopts)) {
+func InitParallel(t e2eutils.TestingBase, args ...func(t e2eutils.TestingBase, opts *testopts)) {
 	t.Helper()
 	if enableParallelTesting {
 		t.Parallel()
@@ -32,7 +33,7 @@ func InitParallel(t *testing.T, args ...func(t *testing.T, opts *testopts)) {
 	checkExecutor(t, info, opts.executor)
 }
 
-func UsesCannon(t *testing.T, opts *testopts) {
+func UsesCannon(t e2eutils.TestingBase, opts *testopts) {
 	if os.Getenv("OP_E2E_CANNON_ENABLED") == "false" {
 		t.Skip("Skipping cannon test")
 	}
@@ -44,8 +45,8 @@ func UsesCannon(t *testing.T, opts *testopts) {
 // InitParallel(t, UseExecutor(1))
 // Any tests assigned to an executor greater than the number available automatically use the last executor.
 // Executor indexes start from 0
-func UseExecutor(assignedIdx uint64) func(t *testing.T, opts *testopts) {
-	return func(t *testing.T, opts *testopts) {
+func UseExecutor(assignedIdx uint64) func(t e2eutils.TestingBase, opts *testopts) {
+	return func(t e2eutils.TestingBase, opts *testopts) {
 		opts.executor = assignedIdx
 	}
 }
@@ -56,7 +57,7 @@ type executorInfo struct {
 	splitInUse bool
 }
 
-func getExecutorInfo(t *testing.T) executorInfo {
+func getExecutorInfo(t e2eutils.TestingBase) executorInfo {
 	var info executorInfo
 	envTotal := os.Getenv("CIRCLE_NODE_TOTAL")
 	envIdx := os.Getenv("CIRCLE_NODE_INDEX")
@@ -81,7 +82,7 @@ func getExecutorInfo(t *testing.T) executorInfo {
 	return info
 }
 
-func checkExecutor(t *testing.T, info executorInfo, assignedIdx uint64) {
+func checkExecutor(t e2eutils.TestingBase, info executorInfo, assignedIdx uint64) {
 	if !info.splitInUse {
 		t.Logf("Test splitting not in use.")
 		return
