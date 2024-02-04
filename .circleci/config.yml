@@ -3,7 +3,7 @@ version: 2.1
 parameters:
   ci_builder_image:
     type: string
-    default: docker.io/mslipper/ci-builder:test-slim-down-1
+    default: docker.io/mslipper/ci-builder:test-slim-down-2
   base_image:
     type: string
     default: ubuntu-2204:2022.07.1
