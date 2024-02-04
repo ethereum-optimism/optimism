@@ -29,6 +29,11 @@ test-http: pre-test
 
 test-cannon: pre-test
 	OP_E2E_CANNON_ENABLED=true $(go_test) $(go_test_flags) ./faultproofs
+.PHONY: test-cannon
+
+test-fault-proofs: pre-test
+	$(go_test) $(go_test_flags) ./faultproofs
+.PHONY: test-faultproofs
 
 cannon-prestate:
 	make -C .. cannon-prestate
