@@ -36,7 +36,7 @@ RUN strip /root/.foundry/bin/forge && \
 
 FROM --platform=linux/amd64 debian:bullseye-slim as go-build
 
-RUN apt-get update && apt-get install -y curl ca-certificates jq
+RUN apt-get update && apt-get install -y curl ca-certificates jq binutils
 
 ENV GO_VERSION=1.21.1
 
