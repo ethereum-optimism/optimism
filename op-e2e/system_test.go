@@ -176,6 +176,9 @@ func TestSystemE2EDencunAtGenesis(t *testing.T) {
 
 // TestSystemE2EDencunAtGenesis tests if L2 finalizes when blobs are present on L1
 func TestSystemE2EDencunAtGenesisWithBlobs(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	InitParallel(t)
 
 	cfg := DefaultSystemConfig(t)
@@ -199,7 +202,7 @@ func TestSystemE2EDencunAtGenesisWithBlobs(t *testing.T) {
 	err = l1Client.SendTransaction(sendCtx, tx)
 	require.NoError(t, err, "Sending L1 empty blob tx")
 	// Wait for transaction on L1
-	blockContainsBlob, err := geth.WaitForTransaction(tx.Hash(), l1Client, 30*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+	blockContainsBlob, err := wait.ForReceiptOK(ctx, l1Client, tx.Hash())
 	require.Nil(t, err, "Waiting for blob tx on L1")
 	// end sending blob-containing txns on l1
 	l2Client := sys.Clients["sequencer"]

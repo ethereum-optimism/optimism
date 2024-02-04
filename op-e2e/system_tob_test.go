@@ -33,6 +33,9 @@ import (
 
 // TestGasPriceOracleFeeUpdates checks that the gas price oracle cannot be locked by mis-configuring parameters.
 func TestGasPriceOracleFeeUpdates(t *testing.T) {
+	ctx, ctxCancel := context.WithCancel(context.Background())
+	defer ctxCancel()
+
 	InitParallel(t)
 	// Define our values to set in the GasPriceOracle (we set them high to see if it can lock L2 or stop bindings
 	// from updating the prices once again.
@@ -66,14 +69,13 @@ func TestGasPriceOracleFeeUpdates(t *testing.T) {
 	txTimeoutDuration := 10 * time.Duration(cfg.DeployConfig.L1BlockTime) * time.Second
 
 	// Update the gas config, wait for it to show up on L2, & verify that it was set as intended
-	opts.Context, cancel = context.WithTimeout(context.Background(), txTimeoutDuration)
+	opts.Context, cancel = context.WithTimeout(ctx, txTimeoutDuration)
 	tx, err := sysconfig.SetGasConfig(opts, overheadValue, scalarValue)
 	cancel()
 	require.Nil(t, err, "sending overhead update tx")
 
-	receipt, err := geth.WaitForTransaction(tx.Hash(), l1Client, txTimeoutDuration)
-	require.Nil(t, err, "waiting for sysconfig set gas config update tx")
-	require.Equal(t, receipt.Status, types.ReceiptStatusSuccessful, "transaction failed")
+	receipt, err := wait.ForReceiptOK(ctx, l1Client, tx.Hash())
+	require.Nil(t, err, "Waiting for sysconfig set gas config update tx")
 
 	_, err = geth.WaitForL1OriginOnL2(sys.RollupConfig, receipt.BlockNumber.Uint64(), l2Seq, txTimeoutDuration)
 	require.NoError(t, err, "waiting for L2 block to include the sysconfig update")
@@ -98,9 +100,8 @@ func TestGasPriceOracleFeeUpdates(t *testing.T) {
 	cancel()
 	require.Nil(t, err, "sending overhead update tx")
 
-	receipt, err = geth.WaitForTransaction(tx.Hash(), l1Client, txTimeoutDuration)
-	require.Nil(t, err, "waiting for sysconfig set gas config update tx")
-	require.Equal(t, receipt.Status, types.ReceiptStatusSuccessful, "transaction failed")
+	receipt, err = wait.ForReceiptOK(ctx, l1Client, tx.Hash())
+	require.Nil(t, err, "Waiting for sysconfig set gas config update tx")
 
 	_, err = geth.WaitForL1OriginOnL2(sys.RollupConfig, receipt.BlockNumber.Uint64(), l2Seq, txTimeoutDuration)
 	require.NoError(t, err, "waiting for L2 block to include the sysconfig update")
@@ -394,6 +395,9 @@ func TestMixedWithdrawalValidity(t *testing.T) {
 	for i := 0; i <= 8; i++ {
 		i := i // avoid loop var capture
 		t.Run(fmt.Sprintf("withdrawal test#%d", i+1), func(t *testing.T) {
+			ctx, bgCancel := context.WithCancel(context.Background())
+			defer bgCancel()
+
 			InitParallel(t)
 
 			// Create our system configuration, funding all accounts we created for L1/L2, and start it
@@ -470,15 +474,15 @@ func TestMixedWithdrawalValidity(t *testing.T) {
 			require.NoError(t, err)
 
 			// Obtain the transactor's starting balance on L1.
-			ctx, cancel := context.WithTimeout(context.Background(), txTimeoutDuration)
-			transactor.ExpectedL1Balance, err = l1Client.BalanceAt(ctx, transactor.Account.L1Opts.From, nil)
-			cancel()
+			txCtx, txCancel := context.WithTimeout(context.Background(), txTimeoutDuration)
+			transactor.ExpectedL1Balance, err = l1Client.BalanceAt(txCtx, transactor.Account.L1Opts.From, nil)
+			txCancel()
 			require.NoError(t, err)
 
 			// Obtain the transactor's starting balance on L2.
-			ctx, cancel = context.WithTimeout(context.Background(), txTimeoutDuration)
-			transactor.ExpectedL2Balance, err = l2Verif.BalanceAt(ctx, transactor.Account.L2Opts.From, nil)
-			cancel()
+			txCtx, txCancel = context.WithTimeout(context.Background(), txTimeoutDuration)
+			transactor.ExpectedL2Balance, err = l2Verif.BalanceAt(txCtx, transactor.Account.L2Opts.From, nil)
+			txCancel()
 			require.NoError(t, err)
 
 			// Bind to the L2-L1 message passer
@@ -505,23 +509,20 @@ func TestMixedWithdrawalValidity(t *testing.T) {
 			require.Nil(t, err, "sending initiate withdraw tx")
 
 			t.Logf("Waiting for tx %s to be in sequencer", tx.Hash().Hex())
-			receiptSeq, err := geth.WaitForTransaction(tx.Hash(), l2Seq, txTimeoutDuration)
+			receiptSeq, err := wait.ForReceiptOK(ctx, l2Seq, tx.Hash())
 			require.Nil(t, err, "withdrawal initiated on L2 sequencer")
-			require.Equal(t, receiptSeq.Status, types.ReceiptStatusSuccessful, "transaction failed")
 
 			verifierTip, err := l2Verif.BlockByNumber(context.Background(), nil)
 			require.Nil(t, err)
 
 			t.Logf("Waiting for tx %s to be in verifier. Verifier tip is %s:%d. Included in sequencer in block %s:%d", tx.Hash().Hex(), verifierTip.Hash().Hex(), verifierTip.NumberU64(), receiptSeq.BlockHash.Hex(), receiptSeq.BlockNumber)
-			// Wait for the transaction to appear in L2 verifier
-			receipt, err := geth.WaitForTransaction(tx.Hash(), l2Verif, txTimeoutDuration)
+			receipt, err := wait.ForReceiptOK(ctx, l2Verif, tx.Hash())
 			require.Nilf(t, err, "withdrawal tx %s not found in verifier. included in block %s:%d", tx.Hash().Hex(), receiptSeq.BlockHash.Hex(), receiptSeq.BlockNumber)
-			require.Equal(t, receipt.Status, types.ReceiptStatusSuccessful, "transaction failed")
 
 			// Obtain the header for the block containing the transaction (used to calculate gas fees)
-			ctx, cancel = context.WithTimeout(context.Background(), txTimeoutDuration)
-			header, err := l2Verif.HeaderByNumber(ctx, receipt.BlockNumber)
-			cancel()
+			txCtx, txCancel = context.WithTimeout(context.Background(), txTimeoutDuration)
+			header, err := l2Verif.HeaderByNumber(txCtx, receipt.BlockNumber)
+			txCancel()
 			require.Nil(t, err)
 
 			// Calculate gas fees for the withdrawal in L2 to later adjust our balance.
@@ -534,15 +535,15 @@ func TestMixedWithdrawalValidity(t *testing.T) {
 			transactor.ExpectedL2Nonce = transactor.ExpectedL2Nonce + 1
 
 			// Wait for the finalization period, then we can finalize this withdrawal.
-			ctx, cancel = context.WithTimeout(context.Background(), 40*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+			ctx, withdaralCancel := context.WithTimeout(context.Background(), 40*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 			require.NotEqual(t, cfg.L1Deployments.L2OutputOracleProxy, common.Address{})
 			blockNumber, err := wait.ForOutputRootPublished(ctx, l1Client, cfg.L1Deployments.L2OutputOracleProxy, receipt.BlockNumber)
-			cancel()
+			withdaralCancel()
 			require.Nil(t, err)
 
-			ctx, cancel = context.WithTimeout(context.Background(), txTimeoutDuration)
+			ctx, txCancel = context.WithTimeout(context.Background(), txTimeoutDuration)
 			header, err = l2Verif.HeaderByNumber(ctx, new(big.Int).SetUint64(blockNumber))
-			cancel()
+			txCancel()
 			require.Nil(t, err)
 
 			rpcClient, err := rpc.Dial(sys.EthInstances["verifier"].WSEndpoint())
@@ -639,14 +640,13 @@ func TestMixedWithdrawalValidity(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 
-				receipt, err = geth.WaitForTransaction(tx.Hash(), l1Client, txTimeoutDuration)
+				receipt, err = wait.ForReceiptOK(ctx, l1Client, tx.Hash())
 				require.Nil(t, err, "finalize withdrawal")
-				require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status)
 
 				// Verify balance after withdrawal
-				ctx, cancel = context.WithTimeout(context.Background(), txTimeoutDuration)
+				ctx, txCancel = context.WithTimeout(context.Background(), txTimeoutDuration)
 				header, err = l1Client.HeaderByNumber(ctx, receipt.BlockNumber)
-				cancel()
+				txCancel()
 				require.Nil(t, err)
 
 				// Ensure that withdrawal - gas fees are added to the L1 balance
@@ -657,13 +657,12 @@ func TestMixedWithdrawalValidity(t *testing.T) {
 				transactor.ExpectedL1Nonce++
 
 				// Ensure that our withdrawal was proved successfully
-				proveReceipt, err := geth.WaitForTransaction(tx.Hash(), l1Client, 3*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+				_, err := wait.ForReceiptOK(ctx, l1Client, tx.Hash())
 				require.Nil(t, err, "prove withdrawal")
-				require.Equal(t, types.ReceiptStatusSuccessful, proveReceipt.Status)
 
 				// Wait for finalization and then create the Finalized Withdrawal Transaction
-				ctx, cancel = context.WithTimeout(context.Background(), 45*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
-				defer cancel()
+				ctx, withdrawalCancel := context.WithTimeout(context.Background(), 45*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+				defer withdrawalCancel()
 				err = wait.ForFinalizationPeriod(ctx, l1Client, header.Number, cfg.L1Deployments.L2OutputOracleProxy)
 				require.Nil(t, err)
 
@@ -678,39 +677,39 @@ func TestMixedWithdrawalValidity(t *testing.T) {
 			// At the end, assert our account balance/nonce states.
 
 			// Obtain the L2 sequencer account balance
-			ctx, cancel = context.WithTimeout(context.Background(), txTimeoutDuration)
+			ctx, txCancel = context.WithTimeout(context.Background(), txTimeoutDuration)
 			endL1Balance, err := l1Client.BalanceAt(ctx, transactor.Account.L1Opts.From, nil)
-			cancel()
+			txCancel()
 			require.NoError(t, err)
 
 			// Obtain the L1 account nonce
-			ctx, cancel = context.WithTimeout(context.Background(), txTimeoutDuration)
+			ctx, txCancel = context.WithTimeout(context.Background(), txTimeoutDuration)
 			endL1Nonce, err := l1Client.NonceAt(ctx, transactor.Account.L1Opts.From, nil)
-			cancel()
+			txCancel()
 			require.NoError(t, err)
 
 			// Obtain the L2 sequencer account balance
-			ctx, cancel = context.WithTimeout(context.Background(), txTimeoutDuration)
+			ctx, txCancel = context.WithTimeout(context.Background(), txTimeoutDuration)
 			endL2SeqBalance, err := l2Seq.BalanceAt(ctx, transactor.Account.L1Opts.From, nil)
-			cancel()
+			txCancel()
 			require.NoError(t, err)
 
 			// Obtain the L2 sequencer account nonce
-			ctx, cancel = context.WithTimeout(context.Background(), txTimeoutDuration)
+			ctx, txCancel = context.WithTimeout(context.Background(), txTimeoutDuration)
 			endL2SeqNonce, err := l2Seq.NonceAt(ctx, transactor.Account.L1Opts.From, nil)
-			cancel()
+			txCancel()
 			require.NoError(t, err)
 
 			// Obtain the L2 verifier account balance
-			ctx, cancel = context.WithTimeout(context.Background(), txTimeoutDuration)
+			ctx, txCancel = context.WithTimeout(context.Background(), txTimeoutDuration)
 			endL2VerifBalance, err := l2Verif.BalanceAt(ctx, transactor.Account.L1Opts.From, nil)
-			cancel()
+			txCancel()
 			require.NoError(t, err)
 
 			// Obtain the L2 verifier account nonce
-			ctx, cancel = context.WithTimeout(context.Background(), txTimeoutDuration)
+			ctx, txCancel = context.WithTimeout(context.Background(), txTimeoutDuration)
 			endL2VerifNonce, err := l2Verif.NonceAt(ctx, transactor.Account.L1Opts.From, nil)
-			cancel()
+			txCancel()
 			require.NoError(t, err)
 
 			// TODO: Check L1 balance as well here. We avoided this due to time constraints as it seems L1 fees
