@@ -54,6 +54,7 @@ commands:
             gcloud auth login --brief --cred-file "<< parameters.gcp_cred_config_file_path >>"
             # Configure ADC
             echo "export GOOGLE_APPLICATION_CREDENTIALS='<< parameters.gcp_cred_config_file_path >>'" | tee -a "$BASH_ENV"
+
   check-changed:
     description: "Conditionally halts a step if certain modules change"
     parameters:
@@ -73,6 +74,7 @@ commands:
             cd ops/check-changed
             pip3 install -r requirements.txt
             python3 main.py "<<parameters.patterns>>"
+
   notify-failures-on-develop:
     description: "Notify Slack"
     parameters:
@@ -138,14 +140,18 @@ jobs:
     steps:
       - checkout
       - run:
+          name: "Check L1 geth version"
+          command: ./ops/scripts/geth-version-checker.sh || (echo "geth version is wrong, update ci-builder"; false)
+      - run:
           name: git submodules
           command: make submodules
-      - check-changed:
-          patterns: op-chain-ops,packages/,op-node
       - restore_cache:
           name: Restore PNPM Package Cache
           keys:
             - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
+      - restore_cache:
+          name: Restore Go modules cache
+          key: gomod-{{ checksum "go.sum" }}
       # Fetch node_modules into the pnpm store
       # This will cache node_modules based on pnpm-lock so other steps can instantly install them with `pnpm install --prefer-offline`
       # --prefer-offline installs node_modules instantly by just reading from cache if it exists rather than fetching from network
@@ -171,6 +177,9 @@ jobs:
           environment:
             FOUNDRY_PROFILE: ci
           command: pnpm build
+      - run:
+          name: Generate allocs
+          command: make devnet-allocs
       - persist_to_workspace:
           root: "."
           paths:
@@ -180,6 +189,10 @@ jobs:
             - "packages/contracts-bedrock/forge-artifacts"
             - "packages/contracts-bedrock/tsconfig.tsbuildinfo"
             - "packages/contracts-bedrock/tsconfig.build.tsbuildinfo"
+            - ".devnet/allocs-l1.json"
+            - ".devnet/addresses.json"
+            - "packages/contracts-bedrock/deploy-config/devnetL1.json"
+            - "packages/contracts-bedrock/deployments/devnetL1"
 
   docker-build:
     environment:
@@ -241,13 +254,6 @@ jobs:
               - "<<parameters.release>>"
           steps:
             - gcp-oidc-authenticate
-      # Below is CircleCI recommended way of specifying nameservers on an Ubuntu box:
-      # https://support.circleci.com/hc/en-us/articles/7323511028251-How-to-set-custom-DNS-on-Ubuntu-based-images-using-netplan
-      - run: sudo sed -i '13 i \ \ \ \ \ \ \ \ \ \ \ \ nameservers:' /etc/netplan/50-cloud-init.yaml
-      - run: sudo sed -i '14 i \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ addresses:' /etc/netplan/50-cloud-init.yaml
-      - run: sudo sed -i "s/addresses:/ addresses":" [8.8.8.8, 8.8.4.4] /g" /etc/netplan/50-cloud-init.yaml
-      - run: cat /etc/netplan/50-cloud-init.yaml
-      - run: sudo netplan apply
       - run:
           name: Build
           command: |
@@ -803,6 +809,10 @@ jobs:
         description: Number of parallel test runs
         type: integer
         default: 6
+      notify:
+        description: Whether to notify on failure
+        type: boolean
+        default: false
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: xlarge
@@ -819,6 +829,12 @@ jobs:
       - run:
           name: prep results dir
           command: mkdir -p /tmp/test-results
+      - restore_cache:
+          name: Restore Go modules cache
+          key: gomod-{{ checksum "go.sum" }}
+      - restore_cache:
+          name: Restore Go build cache
+          key: golang-build-cache
       - attach_workspace:
           at: /tmp/workspace
       - run:
@@ -851,6 +867,10 @@ jobs:
           when: always
       - store_test_results:
           path: /tmp/test-results
+      - when:
+          condition: "<<parameters.notify>>"
+          steps:
+            - notify-failures-on-develop
 
   go-lint-test-build:
     parameters:
@@ -1016,6 +1036,14 @@ jobs:
             export PATH=$PATH:/usr/local/go/bin
             go version
       - run:
+          name: Install Geth
+          command: |
+            wget https://gethstore.blob.core.windows.net/builds/geth-alltools-linux-amd64-1.13.4-3f907d6a.tar.gz
+            # geth only provides md5 sums sadly
+            echo 'c2e3d38372cb8081ed01591246a7556f geth-alltools-linux-amd64-1.13.4-3f907d6a.tar.gz' | md5sum -c -
+            tar -xzvf geth-alltools-linux-amd64-1.13.4-3f907d6a.tar.gz
+            sudo cp geth-alltools-linux-amd64-1.13.4-3f907d6a/* /usr/local/bin
+      - run:
           name: foundryup
           command: |
             curl -L https://foundry.paradigm.xyz | bash
@@ -1042,44 +1070,31 @@ jobs:
       - run:
           name: git submodules
           command: make submodules
-      - run:
-          name: Install and build
-          command: |
-            pnpm install:ci && pnpm build
       - attach_workspace:
-          at: /tmp/workspace
-      - run:
-          name: Load cannon pre-state
-          command: |
-            mkdir -p op-program/bin
-            cp /tmp/workspace/op-program/bin/prestate.json op-program/bin/prestate.json
-            cp /tmp/workspace/op-program/bin/meta.json op-program/bin/meta.json
-            cp /tmp/workspace/op-program/bin/prestate-proof.json op-program/bin/prestate-proof.json
-      - run:
-          name: Load devnet-allocs
-          command: |
-            mkdir -p .devnet
-            cp /tmp/workspace/.devnet/allocs-l1.json .devnet/allocs-l1.json
-            cp /tmp/workspace/.devnet/addresses.json .devnet/addresses.json
-            cp /tmp/workspace/packages/contracts-bedrock/deploy-config/devnetL1.json packages/contracts-bedrock/deploy-config/devnetL1.json
-            cp -r /tmp/workspace/packages/contracts-bedrock/deployments/devnetL1 packages/contracts-bedrock/deployments/devnetL1
+          at: "."
       - run:
           name: Load and tag docker images
           command: |
             IMAGE_BASE_PREFIX="us-docker.pkg.dev/oplabs-tools-artifacts/images"
             # Load from previous docker-build job
-            docker load < "/tmp/workspace/op-stack-go.tar"
-            docker load < "/tmp/workspace/op-node.tar"
-            docker load < "/tmp/workspace/op-proposer.tar"
-            docker load < "/tmp/workspace/op-batcher.tar"
+            docker load < "./op-stack-go.tar"
+            docker load < "./op-node.tar"
+            docker load < "./op-proposer.tar"
+            docker load < "./op-batcher.tar"
             # rename to the tags that the docker-compose of the devnet expects
             docker tag "$IMAGE_BASE_PREFIX/op-stack-go:<<pipeline.git.revision>>" "$IMAGE_BASE_PREFIX/op-stack-go:devnet"
             docker tag "$IMAGE_BASE_PREFIX/op-node:<<pipeline.git.revision>>" "$IMAGE_BASE_PREFIX/op-node:devnet"
             docker tag "$IMAGE_BASE_PREFIX/op-proposer:<<pipeline.git.revision>>" "$IMAGE_BASE_PREFIX/op-proposer:devnet"
             docker tag "$IMAGE_BASE_PREFIX/op-batcher:<<pipeline.git.revision>>" "$IMAGE_BASE_PREFIX/op-batcher:devnet"
       - run:
+          name: pnpm i
+          command: |
+            pnpm i && pnpm build
+      - run:
           name: Bring up the stack
-          command: make devnet-up
+          command: |
+            # Specify like this to avoid a forced rebuild of the contracts + devnet L1
+            PYTHONPATH=./bedrock-devnet python3 ./bedrock-devnet/main.py --monorepo-dir=.
       - run:
           name: Test the stack
           command: make devnet-test
@@ -1184,6 +1199,16 @@ jobs:
       - run:
           command: go mod download
           name: Download Go module dependencies
+      - run:
+          name: "Go mod tidy"
+          command: make mod-tidy && git diff --exit-code
+      - run:
+          name: run Go linter
+          command: |
+            # Identify how many cores it defaults to
+            golangci-lint --help | grep concurrency
+            make lint-go
+          working_directory: .
       - save_cache:
           key: << parameters.key >>-{{ checksum "<< parameters.file >>" }}
           name: Save Go modules cache
@@ -1243,7 +1268,10 @@ jobs:
 
   bedrock-go-tests:  # just a helper, that depends on all the actual test jobs
     docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
+      # Use a smaller base image to avoid pulling the huge ci-builder
+      # image which is not needed for this job and sometimes misses
+      # the cache.
+      - image: cimg/base:2024.01
     resource_class: medium
     steps:
       - run: echo Done
@@ -1349,7 +1377,8 @@ workflows:
       not:
         equal: [ scheduled_pipeline, << pipeline.trigger_source >> ]
     jobs:
-      - pnpm-monorepo
+      - pnpm-monorepo:
+          name: pnpm-monorepo
       - js-lint-test:
           name: common-ts-tests
           coverage_flag: common-ts-tests
@@ -1409,131 +1438,118 @@ workflows:
           binary_name: proxyd
           working_directory: proxyd
       - indexer-tests
-      - l1-geth-version-check
       - semgrep-scan
       - go-mod-download
-      - go-mod-tidy:
-          requires: ["go-mod-download"]
-      - devnet-allocs:  # devnet-allocs uses op-node genesis sub-command
-          requires:
-            - "go-mod-tidy"
-            - l1-geth-version-check
-      - go-lint: # we combine most of the go-lint work for two reasons: (1) warm up the Go build cache, (2) reduce sum of lint time
-          name: op-stack-go-lint
-          requires: [ "go-mod-tidy" ]
       - fuzz-golang:
           name: op-challenger-fuzz
           package_name: op-challenger
           on_changes: op-challenger
-          requires: ["op-stack-go-lint"]
+          requires: ["go-mod-download"]
       - fuzz-golang:
           name: op-node-fuzz
           package_name: op-node
           on_changes: op-node
-          requires: ["op-stack-go-lint"]
+          requires: ["go-mod-download"]
       - fuzz-golang:
           name: op-service-fuzz
           package_name: op-service
           on_changes: op-service
-          requires: ["op-stack-go-lint"]
+          requires: ["go-mod-download"]
       - fuzz-golang:
           name: op-chain-ops-fuzz
           package_name: op-chain-ops
           on_changes: op-chain-ops,op-bindings
-          requires: ["op-stack-go-lint"]
+          requires: ["go-mod-download"]
       - fuzz-golang:
           name: cannon-fuzz
           package_name: cannon
           on_changes: cannon,packages/contracts-bedrock/src/cannon
-          requires: ["op-stack-go-lint"]
+          requires: ["go-mod-download"]
       - go-test:
           name: op-heartbeat-tests
           module: op-heartbeat
-          requires: [ "op-stack-go-lint" ]
+          requires: [ "go-mod-download" ]
       - go-test:
           name: op-batcher-tests
           module: op-batcher
-          requires: ["op-stack-go-lint"]
+          requires: ["go-mod-download"]
       - go-test:
           name: op-bindings-tests
           module: op-bindings
-          requires: ["op-stack-go-lint"]
+          requires: ["go-mod-download"]
       - go-test:
           name: op-chain-ops-tests
           module: op-chain-ops
-          requires: ["op-stack-go-lint"]
+          requires: ["go-mod-download"]
       - go-test:
           name: op-node-tests
           module: op-node
-          requires: ["op-stack-go-lint"]
+          requires: ["go-mod-download"]
       - go-test:
           name: op-proposer-tests
           module: op-proposer
-          requires: ["op-stack-go-lint"]
+          requires: ["go-mod-download"]
       - go-test:
           name: op-challenger-tests
           module: op-challenger
-          requires: ["op-stack-go-lint"]
+          requires: ["go-mod-download"]
       - go-test:
           name: op-conductor-tests
           module: op-conductor
-          requires: ["op-stack-go-lint"]
+          requires: ["go-mod-download"]
       - go-test:
           name: op-program-tests
           module: op-program
-          requires: ["op-stack-go-lint"]
+          requires: ["go-mod-download"]
       - go-test:
           name: op-service-tests
           module: op-service
-          requires: ["op-stack-go-lint"]
+          requires: ["go-mod-download"]
       - op-service-rethdb-tests:
           requires:
-            - op-stack-go-lint
+            - go-mod-download
       - go-e2e-test:
           name: op-e2e-HTTP-tests
           module: op-e2e
           target: test-http
           parallelism: 4
           requires:
-            - op-stack-go-lint
-            - devnet-allocs
+            - go-mod-download
+            - pnpm-monorepo
       - go-e2e-test:
           name: op-e2e-action-tests
           module: op-e2e
           target: test-actions
           parallelism: 1
           requires:
-            - op-stack-go-lint
-            - devnet-allocs
+            - go-mod-download
+            - pnpm-monorepo
       - go-e2e-test:
-          name: op-e2e-cannon-tests
+          name: op-e2e-fault-proof-tests
           module: op-e2e
-          target: test-cannon
-          parallelism: 8
+          target: test-fault-proofs
+          parallelism: 4
           requires:
-            - op-stack-go-lint
-            - devnet-allocs
+            - pnpm-monorepo
             - cannon-prestate
       - go-e2e-test:
           name: op-e2e-ext-geth-tests
           module: op-e2e
           target: test-external-geth
           requires:
-            - op-stack-go-lint
-            - devnet-allocs
-            - l1-geth-version-check
+            - go-mod-download
+            - pnpm-monorepo
       - op-program-compat:
           requires:
             - op-program-tests
       - bedrock-go-tests:
           requires:
             - go-mod-download
-            - go-mod-tidy
             - cannon-build-test-vectors
             - cannon-go-lint-and-test
             - check-generated-mocks-op-node
             - check-generated-mocks-op-service
-            - op-stack-go-lint
+            - go-mod-download
             - op-batcher-tests
             - op-bindings-tests
             - op-chain-ops-tests
@@ -1546,7 +1562,7 @@ workflows:
             - op-program-compat
             - op-service-tests
             - op-e2e-HTTP-tests
-            - op-e2e-cannon-tests
+            - op-e2e-fault-proof-tests
             - op-e2e-action-tests
             - op-e2e-ext-geth-tests
             - op-service-rethdb-tests
@@ -1598,14 +1614,14 @@ workflows:
           requires: ['op-stack-go-docker-build']
           save_image_tag: <<pipeline.git.revision>> # for devnet later
       - cannon-prestate:
-          requires: ["op-stack-go-lint"]
+          requires:
+            - go-mod-download
       - devnet:
           requires:
-            - op-node-docker-build
+            - pnpm-monorepo
             - op-batcher-docker-build
             - op-proposer-docker-build
-            - l1-geth-version-check
-            - devnet-allocs
+            - op-node-docker-build
             - cannon-prestate
       - docker-build:
           name: indexer-docker-build
@@ -1850,6 +1866,30 @@ workflows:
           context:
             - slack
             - oplabs-fpp-nodes
+
+  develop-fault-proofs:
+    when:
+      equal: [ "develop", <<pipeline.git.branch>> ]
+    jobs:
+      - go-mod-download
+      - cannon-prestate:
+          requires:
+            - go-mod-download
+      - pnpm-monorepo:
+          name: pnpm-monorepo
+          requires:
+            - go-mod-download
+      - go-e2e-test:
+          name: op-e2e-cannon-tests
+          module: op-e2e
+          target: test-cannon
+          parallelism: 4
+          notify: true
+          requires:
+            - pnpm-monorepo
+            - cannon-prestate
+          context:
+            - slack
 
   scheduled-kontrol-tests:
     when:
