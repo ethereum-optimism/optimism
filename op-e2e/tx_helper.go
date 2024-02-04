@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
+
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/transactions"
@@ -112,13 +114,13 @@ func SendL2Tx(t *testing.T, cfg SystemConfig, l2Client *ethclient.Client, privKe
 	err := l2Client.SendTransaction(ctx, tx)
 	require.NoError(t, err, "Sending L2 tx")
 
-	receipt, err := geth.WaitForTransaction(tx.Hash(), l2Client, 10*time.Duration(cfg.DeployConfig.L2BlockTime)*time.Second)
+	receipt, err := wait.ForReceiptOK(ctx, l2Client, tx.Hash())
 	require.NoError(t, err, "Waiting for L2 tx")
 	require.Equal(t, opts.ExpectedStatus, receipt.Status, "TX should have expected status")
 
 	for i, client := range opts.VerifyClients {
 		t.Logf("Waiting for tx %v on verification client %d", tx.Hash(), i)
-		receiptVerif, err := geth.WaitForTransaction(tx.Hash(), client, 10*time.Duration(cfg.DeployConfig.L2BlockTime)*time.Second)
+		receiptVerif, err := wait.ForReceiptOK(ctx, client, tx.Hash())
 		require.NoErrorf(t, err, "Waiting for L2 tx on verification client %d", i)
 		require.Equalf(t, receipt, receiptVerif, "Receipts should be the same on sequencer and verification client %d", i)
 	}
