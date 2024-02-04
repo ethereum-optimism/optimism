@@ -25,7 +25,7 @@ func (s *SplitPreimageUploader) UploadPreimage(ctx context.Context, parent uint6
 		return ErrNilPreimageData
 	}
 	// Always route local preimage uploads to the direct uploader.
-	if uint64(len(data.OracleData)) < s.largePreimageSizeThreshold || data.IsLocal {
+	if data.IsLocal || uint64(len(data.GetPreimageWithoutSize())) < s.largePreimageSizeThreshold {
 		return s.directUploader.UploadPreimage(ctx, parent, data)
 	} else {
 		return s.largeUploader.UploadPreimage(ctx, parent, data)

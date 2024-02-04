@@ -8,9 +8,22 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func startFaultDisputeSystem(t *testing.T) (*op_e2e.System, *ethclient.Client) {
+type faultDisputeConfigOpts func(cfg *op_e2e.SystemConfig)
+
+func withLargeBatches() faultDisputeConfigOpts {
+	return func(cfg *op_e2e.SystemConfig) {
+		// Allow the batcher to produce really huge calldata transactions.
+		cfg.BatcherTargetL1TxSizeBytes = 130072 // A bit under the max tx size as per Ethereum spec
+		cfg.BatcherMaxL1TxSizeBytes = 130072
+	}
+}
+
+func startFaultDisputeSystem(t *testing.T, opts ...faultDisputeConfigOpts) (*op_e2e.System, *ethclient.Client) {
 	cfg := op_e2e.DefaultSystemConfig(t)
 	delete(cfg.Nodes, "verifier")
+	for _, opt := range opts {
+		opt(&cfg)
+	}
 	cfg.DeployConfig.SequencerWindowSize = 4
 	cfg.DeployConfig.FinalizationPeriodSeconds = 2
 	cfg.SupportL1TimeTravel = true

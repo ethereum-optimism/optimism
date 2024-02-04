@@ -411,3 +411,11 @@ func (m *mockContract) UpdateOracleTx(_ context.Context, claimIdx uint64, data *
 func (m *mockContract) GetRequiredBond(_ context.Context, position types.Position) (*big.Int, error) {
 	return big.NewInt(5), nil
 }
+
+func (m *mockContract) GetCredit(_ context.Context, _ common.Address) (*big.Int, error) {
+	return big.NewInt(5), nil
+}
+
+func (m *mockContract) ClaimCredit(_ common.Address) (txmgr.TxCandidate, error) {
+	return txmgr.TxCandidate{TxData: ([]byte)("claimCredit")}, nil
+}

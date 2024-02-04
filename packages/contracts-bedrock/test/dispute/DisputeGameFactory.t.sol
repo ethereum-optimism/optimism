@@ -5,7 +5,7 @@ import "src/libraries/DisputeTypes.sol";
 import "src/libraries/DisputeErrors.sol";
 
 import { Test } from "forge-std/Test.sol";
-import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
+import { DisputeGameFactory, IDisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
 import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
 import { Proxy } from "src/universal/Proxy.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
@@ -233,6 +233,114 @@ contract DisputeGameFactory_TransferOwnership_Test is DisputeGameFactory_Init {
         vm.prank(address(0));
         vm.expectRevert("Ownable: caller is not the owner");
         factory.transferOwnership(address(1));
+    }
+}
+
+contract DisputeGameFactory_FindLatestGames_Test is DisputeGameFactory_Init {
+    function setUp() public override {
+        super.setUp();
+
+        // Set three implementations to the same `FakeClone` contract.
+        for (uint8 i; i < 3; i++) {
+            GameType lgt = GameType.wrap(i);
+            factory.setImplementation(lgt, IDisputeGame(address(fakeClone)));
+            factory.setInitBond(lgt, 0);
+        }
+    }
+
+    /// @dev Tests that `findLatestGames` returns an empty array when the passed starting index is greater than or equal
+    ///      to the game count.
+    function testFuzz_findLatestGames_greaterThanLength_succeeds(uint256 _start) public {
+        // Create some dispute games of varying game types.
+        for (uint256 i; i < 1 << 5; i++) {
+            factory.create(GameType.wrap(uint8(i % 2)), Claim.wrap(bytes32(i)), abi.encode(i));
+        }
+
+        // Bound the starting index to a number greater than the length of the game list.
+        uint256 gameCount = factory.gameCount();
+        _start = bound(_start, gameCount, type(uint256).max);
+
+        // The array's length should always be 0.
+        IDisputeGameFactory.GameSearchResult[] memory games = factory.findLatestGames(GameTypes.CANNON, _start, 1);
+        assertEq(games.length, 0);
+    }
+
+    /// @dev Tests that `findLatestGames` returns the correct games.
+    function test_findLatestGames_static_succeeds() public {
+        // Create some dispute games of varying game types.
+        for (uint256 i; i < 1 << 5; i++) {
+            factory.create(GameType.wrap(uint8(i % 3)), Claim.wrap(bytes32(i)), abi.encode(i));
+        }
+
+        uint256 gameCount = factory.gameCount();
+
+        IDisputeGameFactory.GameSearchResult[] memory games =
+            factory.findLatestGames(GameType.wrap(0), gameCount - 1, 1);
+        assertEq(games.length, 1);
+        assertEq(games[0].index, 30);
+        (GameType gameType, Timestamp createdAt, IDisputeGame game) = games[0].metadata.unpack();
+        assertEq(gameType.raw(), 0);
+        assertEq(createdAt.raw(), block.timestamp);
+
+        games = factory.findLatestGames(GameType.wrap(1), gameCount - 1, 1);
+        assertEq(games.length, 1);
+        assertEq(games[0].index, 31);
+        (gameType, createdAt, game) = games[0].metadata.unpack();
+        assertEq(gameType.raw(), 1);
+        assertEq(createdAt.raw(), block.timestamp);
+
+        games = factory.findLatestGames(GameType.wrap(2), gameCount - 1, 1);
+        assertEq(games.length, 1);
+        assertEq(games[0].index, 29);
+        (gameType, createdAt, game) = games[0].metadata.unpack();
+        assertEq(gameType.raw(), 2);
+        assertEq(createdAt.raw(), block.timestamp);
+    }
+
+    /// @dev Tests that `findLatestGames` returns the correct games, if there are less than `_n` games of the given type
+    ///      available.
+    function test_findLatestGames_lessThanNAvailable_succeeds() public {
+        // Create some dispute games of varying game types.
+        factory.create(GameType.wrap(1), Claim.wrap(bytes32(0)), abi.encode(0));
+        factory.create(GameType.wrap(1), Claim.wrap(bytes32(uint256(1))), abi.encode(1));
+        for (uint256 i; i < 1 << 3; i++) {
+            factory.create(GameType.wrap(0), Claim.wrap(bytes32(i)), abi.encode(i));
+        }
+
+        uint256 gameCount = factory.gameCount();
+
+        IDisputeGameFactory.GameSearchResult[] memory games =
+            factory.findLatestGames(GameType.wrap(2), gameCount - 1, 5);
+        assertEq(games.length, 0);
+
+        games = factory.findLatestGames(GameType.wrap(1), gameCount - 1, 5);
+        assertEq(games.length, 2);
+        assertEq(games[0].index, 1);
+        assertEq(games[1].index, 0);
+    }
+
+    /// @dev Tests that the expected number of games are returned when `findLatestGames` is called.
+    function testFuzz_findLatestGames_correctAmount_succeeds(
+        uint256 _numGames,
+        uint256 _numSearchedGames,
+        uint256 _n
+    )
+        public
+    {
+        _numGames = bound(_numGames, 0, 1 << 8);
+        _numSearchedGames = bound(_numSearchedGames, 0, _numGames);
+        _n = bound(_n, 0, _numSearchedGames);
+
+        // Create `_numGames` dispute games, with at least `_numSearchedGames` games.
+        for (uint256 i; i < _numGames; i++) {
+            uint8 gameType = i < _numSearchedGames ? 0 : 1;
+            factory.create(GameType.wrap(gameType), Claim.wrap(bytes32(i)), abi.encode(i));
+        }
+
+        // Ensure that the correct number of games are returned.
+        uint256 start = _numGames == 0 ? 0 : _numGames - 1;
+        IDisputeGameFactory.GameSearchResult[] memory games = factory.findLatestGames(GameType.wrap(0), start, _n);
+        assertEq(games.length, _n);
     }
 }
 

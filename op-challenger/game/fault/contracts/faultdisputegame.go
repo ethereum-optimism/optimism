@@ -33,6 +33,8 @@ var (
 	methodSplitDepth         = "splitDepth"
 	methodL2BlockNumber      = "l2BlockNumber"
 	methodRequiredBond       = "getRequiredBond"
+	methodClaimCredit        = "claimCredit"
+	methodCredit             = "credit"
 )
 
 type FaultDisputeGameContract struct {
@@ -90,6 +92,19 @@ func (c *FaultDisputeGameContract) GetSplitDepth(ctx context.Context) (types.Dep
 		return 0, fmt.Errorf("failed to retrieve split depth: %w", err)
 	}
 	return types.Depth(splitDepth.GetBigInt(0).Uint64()), nil
+}
+
+func (c *FaultDisputeGameContract) GetCredit(ctx context.Context, receipient common.Address) (*big.Int, error) {
+	credit, err := c.multiCaller.SingleCall(ctx, batching.BlockLatest, c.contract.Call(methodCredit, receipient))
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve credit: %w", err)
+	}
+	return credit.GetBigInt(0), nil
+}
+
+func (f *FaultDisputeGameContract) ClaimCredit(recipient common.Address) (txmgr.TxCandidate, error) {
+	call := f.contract.Call(methodClaimCredit, recipient)
+	return call.ToTxCandidate()
 }
 
 func (c *FaultDisputeGameContract) GetRequiredBond(ctx context.Context, position types.Position) (*big.Int, error) {

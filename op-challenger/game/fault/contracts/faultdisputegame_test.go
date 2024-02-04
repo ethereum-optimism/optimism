@@ -290,12 +290,7 @@ func TestGetGenesisOutputRoot(t *testing.T) {
 func TestFaultDisputeGame_UpdateOracleTx(t *testing.T) {
 	t.Run("Local", func(t *testing.T) {
 		stubRpc, game := setupFaultDisputeGameTest(t)
-		data := &faultTypes.PreimageOracleData{
-			IsLocal:      true,
-			OracleKey:    common.Hash{0xbc}.Bytes(),
-			OracleData:   []byte{1, 2, 3, 4, 5, 6, 7},
-			OracleOffset: 16,
-		}
+		data := faultTypes.NewPreimageOracleData(common.Hash{0x01, 0xbc}.Bytes(), []byte{1, 2, 3, 4, 5, 6, 7}, 16)
 		claimIdx := uint64(6)
 		stubRpc.SetResponse(fdgAddr, methodAddLocalData, batching.BlockLatest, []interface{}{
 			data.GetIdent(),
@@ -309,12 +304,7 @@ func TestFaultDisputeGame_UpdateOracleTx(t *testing.T) {
 
 	t.Run("Global", func(t *testing.T) {
 		stubRpc, game := setupFaultDisputeGameTest(t)
-		data := &faultTypes.PreimageOracleData{
-			IsLocal:      false,
-			OracleKey:    common.Hash{0xbc}.Bytes(),
-			OracleData:   []byte{1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15},
-			OracleOffset: 16,
-		}
+		data := faultTypes.NewPreimageOracleData(common.Hash{0x02, 0xbc}.Bytes(), []byte{1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15}, 16)
 		claimIdx := uint64(6)
 		stubRpc.SetResponse(fdgAddr, methodVM, batching.BlockLatest, nil, []interface{}{vmAddr})
 		stubRpc.SetResponse(vmAddr, methodOracle, batching.BlockLatest, nil, []interface{}{oracleAddr})

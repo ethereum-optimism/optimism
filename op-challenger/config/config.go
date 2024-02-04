@@ -90,7 +90,7 @@ const (
 	// DefaultGameWindow is the default maximum time duration in the past
 	// that the challenger will look for games to progress.
 	// The default value is 11 days, which is a 4 day resolution buffer
-	// plus the 7 day game finalization window.
+	// and bond claiming buffer plus the 7 day game finalization window.
 	DefaultGameWindow   = time.Duration(11 * 24 * time.Hour)
 	DefaultMaxPendingTx = 10
 )

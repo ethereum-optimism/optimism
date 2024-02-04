@@ -3,7 +3,7 @@ version: 2.1
 parameters:
   ci_builder_image:
     type: string
-    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:v0.40.0
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:v0.41.0
   base_image:
     type: string
     default: ubuntu-2204:2022.07.1
@@ -12,6 +12,7 @@ orbs:
   go: circleci/go@1.8.0
   gcp-cli: circleci/gcp-cli@3.0.1
   slack: circleci/slack@4.10.1
+  shellcheck: circleci/shellcheck@3.2.0
 commands:
   gcp-oidc-authenticate:
     description: "Authenticate with GCP using a CircleCI OIDC token."
@@ -59,9 +60,15 @@ commands:
       patterns:
         type: string
         description: "Comma-separated list of dependencies"
+      no_go_deps:
+        type: string
+        default: ""
+        description: "If set, does not trigger on `go.mod` / `go.sum` changes."
     steps:
       - run:
           name: "Check for changes"
+          environment:
+            CHECK_CHANGED_NO_GO_DEPS: "<<parameters.no_go_deps>>"
           command: |
             cd ops/check-changed
             pip3 install -r requirements.txt
@@ -396,6 +403,8 @@ jobs:
       - attach_workspace: { at: "." }
       - check-changed:
           patterns: contracts-bedrock,op-node
+      - setup_remote_docker:
+          docker_layer_caching: true
       # populate node modules from the cache
       - run:
           name: Install dependencies
@@ -468,19 +477,6 @@ jobs:
             if [[ "$FAILED" -ne 0 ]]; then
               exit 1
             fi
-
-  contracts-bedrock-slither:
-    docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
-    resource_class: medium
-    steps:
-      - checkout
-      - check-changed:
-          patterns: contracts-bedrock
-      - run:
-          name: slither
-          command: pnpm slither:check
-          working_directory: packages/contracts-bedrock
 
   contracts-bedrock-validate-spaces:
     docker:
@@ -803,10 +799,10 @@ jobs:
       target:
         description: The make target to execute
         type: string
-      cannon_enabled:
-        description: Whether to include cannon tests
-        default: true
-        type: boolean
+      parallelism:
+        description: Number of parallel test runs
+        type: integer
+        default: 6
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: xlarge
@@ -815,7 +811,7 @@ jobs:
     # InitParallel(t, UseExecutor(1))
     # Any tests assigned to an executor greater than the number available automatically use the last executor.
     # Executor indexes start from 0
-    parallelism: 2
+    parallelism: <<parameters.parallelism>>
     steps:
       - checkout
       - check-changed:
@@ -842,7 +838,10 @@ jobs:
           command: |
             mkdir -p /testlogs
 
-            export OP_E2E_CANNON_ENABLED="<<parameters.cannon_enabled>>"
+            # The below env var gets overridden when running make test-cannon, but we
+            # need to explicitly set it here to prevent Cannon from running when we don't
+            # want it to.
+            export OP_E2E_CANNON_ENABLED="false"
             # Note: We don't use circle CI test splits because we need to split by test name, not by package. There is an additional
             # constraint that gotestsum does not currently (nor likely will) accept files from different pacakges when building.
             JUNIT_FILE=/tmp/test-results/<<parameters.module>>_<<parameters.target>>.xml make <<parameters.target>> 2>&1 | tee /testlogs/test.log
@@ -1329,19 +1328,10 @@ jobs:
     steps:
       - checkout
       - run:
-          # This is a workaround for how check-changed doesn't work in
-          # the merge queue. By running this check the kontrol tests will
-          # run on PR builds and on develop, but not the merge queue.
-          name: Ensure PR/develop
-          command: |
-            if [ -z "$CIRCLE_PULL_REQUEST" ] && [ "$CIRCLE_BRANCH" != "develop" ]; then
-              echo "Not a PR or develop branch, skipping kontrol tests"
-              circleci step halt
-            fi
-      - run:
           name: Checkout Submodule
           command: make submodules
       - check-changed:
+          no_go_deps: "true"
           patterns: contracts-bedrock/test/kontrol,contracts-bedrock/src/L1/OptimismPortal\.sol,contracts-bedrock/src/L1/L1CrossDomainMessenger\.sol,contracts-bedrock/src/L1/L1ERC721Bridge\.sol,contracts-bedrock/src/L1/L1StandardBridge\.sol,contracts-bedrock/src/L1/ResourceMetering\.sol,contracts-bedrock/src/universal/StandardBridge\.sol,contracts-bedrock/src/universal/ERC721Bridge\.sol,contracts-bedrock/src/universal/CrossDomainMessenger\.sol
       - setup_remote_docker:
           docker_layer_caching: true
@@ -1351,6 +1341,7 @@ jobs:
           working_directory: ./packages/contracts-bedrock
       - store_artifacts:
           path: ./packages/contracts-bedrock/kontrol-results_latest.tar.gz
+      - notify-failures-on-develop
 
 workflows:
   main:
@@ -1378,7 +1369,6 @@ workflows:
       - contracts-bedrock-checks:
           requires:
             - pnpm-monorepo
-      - contracts-bedrock-slither
       - contracts-bedrock-validate-spaces:
           requires:
             - pnpm-monorepo
@@ -1500,25 +1490,34 @@ workflows:
           requires:
             - op-stack-go-lint
       - go-e2e-test:
-          name: op-e2e-WS-tests
+          name: op-e2e-HTTP-tests
           module: op-e2e
-          target: test-ws
+          target: test-http
+          parallelism: 4
           requires:
             - op-stack-go-lint
             - devnet-allocs
       - go-e2e-test:
-          name: op-e2e-HTTP-tests
+          name: op-e2e-action-tests
           module: op-e2e
-          target: test-http
-          cannon_enabled: false
+          target: test-actions
+          parallelism: 1
           requires:
             - op-stack-go-lint
             - devnet-allocs
+      - go-e2e-test:
+          name: op-e2e-cannon-tests
+          module: op-e2e
+          target: test-cannon
+          parallelism: 8
+          requires:
+            - op-stack-go-lint
+            - devnet-allocs
+            - cannon-prestate
       - go-e2e-test:
           name: op-e2e-ext-geth-tests
           module: op-e2e
           target: test-external-geth
-          cannon_enabled: false
           requires:
             - op-stack-go-lint
             - devnet-allocs
@@ -1546,8 +1545,9 @@ workflows:
             - op-program-tests
             - op-program-compat
             - op-service-tests
-            - op-e2e-WS-tests
             - op-e2e-HTTP-tests
+            - op-e2e-cannon-tests
+            - op-e2e-action-tests
             - op-e2e-ext-geth-tests
             - op-service-rethdb-tests
       - docker-build: # just to warm up the cache (other jobs run in parallel)
@@ -1619,7 +1619,13 @@ workflows:
       - check-generated-mocks-op-service
       - cannon-go-lint-and-test
       - cannon-build-test-vectors
-      - kontrol-tests
+      - shellcheck/check:
+          name: shell-check
+          # We don't need the `exclude` key as the orb detects the `.shellcheckrc`
+          dir: .
+          ignore-dirs:
+            ./packages/contracts-bedrock/lib
+
   release:
     when:
       not:
@@ -1844,6 +1850,14 @@ workflows:
           context:
             - slack
             - oplabs-fpp-nodes
+
+  scheduled-kontrol-tests:
+    when:
+      equal: [ build_four_hours, <<pipeline.schedule.name>> ]
+    jobs:
+      - kontrol-tests:
+          context:
+            - slack
 
   scheduled-docker-publish:
     when:

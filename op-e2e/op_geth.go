@@ -54,7 +54,7 @@ type OpGeth struct {
 func NewOpGeth(t *testing.T, ctx context.Context, cfg *SystemConfig) (*OpGeth, error) {
 	logger := testlog.Logger(t, log.LvlCrit)
 
-	l1Genesis, err := genesis.BuildL1DeveloperGenesis(cfg.DeployConfig, config.L1Allocs, config.L1Deployments, true)
+	l1Genesis, err := genesis.BuildL1DeveloperGenesis(cfg.DeployConfig, config.L1Allocs, config.L1Deployments)
 	require.Nil(t, err)
 	l1Block := l1Genesis.ToBlock()
 

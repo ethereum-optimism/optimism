@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"math/big"
+	"math/rand"
 	"testing"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/transactions"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -77,6 +79,17 @@ func defaultDepositTxOpts(opts *bind.TransactOpts) *DepositTxOpts {
 	}
 }
 
+// SendLargeL2Tx creates and sends a transaction with a large amount of txdata.
+func SendLargeL2Tx(t *testing.T, cfg SystemConfig, l2Client *ethclient.Client, privKey *ecdsa.PrivateKey, applyTxOpts TxOptsFn) *types.Receipt {
+	maxTxDataSize := 131072                                                          // As per the Ethereum spec.
+	data := testutils.RandomData(rand.New(rand.NewSource(12342)), maxTxDataSize-200) // Leave some buffer
+	return SendL2Tx(t, cfg, l2Client, privKey, func(opts *TxOpts) {
+		opts.Data = data
+		opts.Gas = uint64(2_200_000) // Lots but less than the block limit
+		applyTxOpts(opts)
+	})
+}
+
 // SendL2Tx creates and sends a transaction.
 // The supplied privKey is used to specify the account to send from and the transaction is sent to the supplied l2Client
 // Transaction options and expected status can be configured in the applyTxOpts function by modifying the supplied TxOpts
@@ -92,6 +105,7 @@ func SendL2Tx(t *testing.T, cfg SystemConfig, l2Client *ethclient.Client, privKe
 		GasTipCap: opts.GasTipCap,
 		GasFeeCap: opts.GasFeeCap,
 		Gas:       opts.Gas,
+		Data:      opts.Data,
 	})
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()

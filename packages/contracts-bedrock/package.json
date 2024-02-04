@@ -27,7 +27,7 @@
     "gas-snapshot:no-build": "forge snapshot --match-contract GasBenchMark",
     "statediff": "./scripts/statediff.sh && git diff --exit-code",
     "gas-snapshot": "pnpm build:go-ffi && pnpm gas-snapshot:no-build",
-    "snapshots": "npx tsx scripts/generate-snapshots.ts",
+    "snapshots": "npx tsx scripts/generate-snapshots.ts && ./test/kontrol/scripts/make-summary-deployment.sh",
     "snapshots:check": "./scripts/check-snapshots.sh",
     "slither": "./scripts/slither.sh",
     "slither:check": "pnpm slither && git diff --exit-code",

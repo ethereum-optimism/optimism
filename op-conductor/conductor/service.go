@@ -68,7 +68,7 @@ func NewOpConductor(
 		cons:         cons,
 		hmon:         hmon,
 	}
-	oc.actionFn = oc.action
+	oc.loopActionFn = oc.loopAction
 
 	// explicitly set all atomic.Bool values
 	oc.leader.Store(false)    // upon start, it should not be the leader unless specified otherwise by raft bootstrap, in that case, it'll receive a leadership update from consensus.
@@ -90,6 +90,7 @@ func NewOpConductor(
 		}
 		return nil, err
 	}
+	oc.prevState = NewState(oc.leader.Load(), oc.healthy.Load(), oc.seqActive.Load())
 
 	return oc, nil
 }
@@ -252,10 +253,11 @@ type OpConductor struct {
 	seqActive atomic.Bool
 	healthy   atomic.Bool
 	hcerr     error // error from health check
+	prevState *state
 
 	healthUpdateCh <-chan error
 	leaderUpdateCh <-chan bool
-	actionFn       func() // actionFn defines the action to be executed to bring the sequencer to the desired state.
+	loopActionFn   func() // loopActionFn defines the logic to be executed inside control loop.
 
 	wg             sync.WaitGroup
 	pauseCh        chan struct{}
@@ -269,6 +271,23 @@ type OpConductor struct {
 	shutdownCancel context.CancelFunc
 
 	rpcServer *oprpc.Server
+}
+
+type state struct {
+	leader, healthy, active bool
+}
+
+// NewState creates a new state instance.
+func NewState(leader, healthy, active bool) *state {
+	return &state{
+		leader:  leader,
+		healthy: healthy,
+		active:  active,
+	}
+}
+
+func (s *state) Equal(other *state) bool {
+	return s.leader == other.leader && s.healthy == other.healthy && s.active == other.active
 }
 
 var _ cliapp.Lifecycle = (*OpConductor)(nil)
@@ -430,26 +449,32 @@ func (oc *OpConductor) loop() {
 
 	for {
 		select {
-		// We process status update (health, leadership) first regardless of the paused state.
-		// This way we could properly bring the sequencer to the desired state when resumed.
-		case healthy := <-oc.healthUpdateCh:
-			oc.handleHealthUpdate(healthy)
-		case leader := <-oc.leaderUpdateCh:
-			oc.handleLeaderUpdate(leader)
-		case <-oc.pauseCh:
-			oc.paused.Store(true)
-			oc.pauseDoneCh <- struct{}{}
-		case <-oc.resumeCh:
-			oc.paused.Store(false)
-			oc.resumeDoneCh <- struct{}{}
-			// queue an action to make sure sequencer is in the desired state after resume.
-			oc.queueAction()
 		case <-oc.shutdownCtx.Done():
 			return
-		// Handle control action last, so that when executing the action, we have the latest status and bring the sequencer to the desired state.
-		case <-oc.actionCh:
-			oc.actionFn()
+		default:
+			oc.loopActionFn()
 		}
+	}
+}
+
+func (oc *OpConductor) loopAction() {
+	select {
+	case healthy := <-oc.healthUpdateCh:
+		oc.handleHealthUpdate(healthy)
+	case leader := <-oc.leaderUpdateCh:
+		oc.handleLeaderUpdate(leader)
+	case <-oc.pauseCh:
+		oc.paused.Store(true)
+		oc.pauseDoneCh <- struct{}{}
+	case <-oc.resumeCh:
+		oc.paused.Store(false)
+		oc.resumeDoneCh <- struct{}{}
+		// queue an action to make sure sequencer is in the desired state after resume.
+		oc.queueAction()
+	case <-oc.shutdownCtx.Done():
+		return
+	case <-oc.actionCh:
+		oc.action()
 	}
 }
 
@@ -472,6 +497,7 @@ func (oc *OpConductor) handleLeaderUpdate(leader bool) {
 
 // handleHealthUpdate handles health update from health monitor.
 func (oc *OpConductor) handleHealthUpdate(hcerr error) {
+	oc.log.Debug("received health update", "server", oc.cons.ServerID(), "error", hcerr)
 	healthy := hcerr == nil
 	if !healthy {
 		oc.log.Error("Sequencer is unhealthy", "server", oc.cons.ServerID(), "err", hcerr)
@@ -495,8 +521,11 @@ func (oc *OpConductor) action() {
 	}
 
 	var err error
+	status := NewState(oc.leader.Load(), oc.healthy.Load(), oc.seqActive.Load())
+	oc.log.Debug("entering action with status", "status", status)
+
 	// exhaust all cases below for completeness, 3 state, 8 cases.
-	switch status := struct{ leader, healthy, active bool }{oc.leader.Load(), oc.healthy.Load(), oc.seqActive.Load()}; {
+	switch {
 	case !status.leader && !status.healthy && !status.active:
 		// if follower is not healthy and not sequencing, just log an error
 		oc.log.Error("server (follower) is not healthy", "server", oc.cons.ServerID())
@@ -509,9 +538,35 @@ func (oc *OpConductor) action() {
 		// stop sequencer, this happens when current server steps down as leader.
 		err = oc.stopSequencer()
 	case status.leader && !status.healthy && !status.active:
-		// transfer leadership to another node
+		// There are 2 scenarios we need to handle:
+		// 1. current node is follower, active sequencer became unhealthy and started the leadership transfer process.
+		//    however if leadership transfer took longer than the time for health monitor to treat the node as unhealthy,
+		//    then basically the entire network is stalled and we need to start sequencing in this case.
+		if !oc.prevState.leader && !oc.prevState.active {
+			_, _, cerr := oc.compareUnsafeHead(oc.shutdownCtx)
+			if cerr == nil && !errors.Is(oc.hcerr, health.ErrSequencerConnectionDown) {
+				// if unsafe in consensus is the same as unsafe in op-node, then it is scenario #1 and we should start sequencer.
+				err = oc.startSequencer()
+				break
+			}
+		}
+
+		// 2. for other cases, we should try to transfer leader to another node.
+		//    for example, if follower became a leader and unhealthy at the same time (just unhealthy itself), then we should transfer leadership.
 		err = oc.transferLeader()
 	case status.leader && !status.healthy && status.active:
+		// There are two scenarios we need to handle here:
+		// 1. we're transitioned from case status.leader && !status.healthy && !status.active, see description above
+		//    then we should continue to sequence blocks and try to bring ourselves back to healthy state.
+		//    note: we need to also make sure that the health error is not due to ErrSequencerConnectionDown
+		//    		because in this case, we should stop sequencing and transfer leadership to other nodes.
+		if oc.prevState.leader && !oc.prevState.healthy && !oc.prevState.active && !errors.Is(oc.hcerr, health.ErrSequencerConnectionDown) {
+			err = errors.New("waiting for sequencing to become healthy by itself")
+			break
+		}
+
+		// 2. we're here becasuse an healthy leader became unhealthy itself
+		//    then we should try to stop sequencing locally and transfer leadership.
 		var result *multierror.Error
 		// Try to stop sequencer first, but since sequencer is not healthy, we may not be able to stop it.
 		// In this case, it's fine to continue to try to transfer leadership to another server. This is safe because
@@ -536,17 +591,25 @@ func (oc *OpConductor) action() {
 		// normal leader, do nothing
 	}
 
+	oc.log.Debug("exiting action with status and error", "status", status, "err", err)
 	if err != nil {
 		oc.log.Error("failed to execute step, queueing another one to retry", "err", err)
 		// randomly sleep for 0-200ms to avoid excessive retry
 		time.Sleep(time.Duration(rand.Intn(200)) * time.Millisecond)
 		oc.queueAction()
+		return
+	}
+
+	if !status.Equal(oc.prevState) {
+		oc.log.Info("state changed", "prev_state", oc.prevState, "new_state", status)
+		oc.prevState = status
 	}
 }
 
 // transferLeader tries to transfer leadership to another server.
 func (oc *OpConductor) transferLeader() error {
 	// TransferLeader here will do round robin to try to transfer leadership to the next healthy node.
+	oc.log.Info("transferring leadership", "server", oc.cons.ServerID())
 	err := oc.cons.TransferLeader()
 	if err == nil {
 		oc.leader.Store(false)
@@ -567,15 +630,20 @@ func (oc *OpConductor) transferLeader() error {
 func (oc *OpConductor) stopSequencer() error {
 	oc.log.Info("stopping sequencer", "server", oc.cons.ServerID(), "leader", oc.leader.Load(), "healthy", oc.healthy.Load(), "active", oc.seqActive.Load())
 
-	if _, err := oc.ctrl.StopSequencer(context.Background()); err != nil {
-		return errors.Wrap(err, "failed to stop sequencer")
+	_, err := oc.ctrl.StopSequencer(context.Background())
+	if err != nil {
+		if strings.Contains(err.Error(), driver.ErrSequencerAlreadyStopped.Error()) {
+			oc.log.Warn("sequencer already stopped.", "err", err)
+		} else {
+			return errors.Wrap(err, "failed to stop sequencer")
+		}
 	}
+
 	oc.seqActive.Store(false)
 	return nil
 }
 
 func (oc *OpConductor) startSequencer() error {
-	oc.log.Info("starting sequencer", "server", oc.cons.ServerID(), "leader", oc.leader.Load(), "healthy", oc.healthy.Load(), "active", oc.seqActive.Load())
 	ctx := context.Background()
 
 	// When starting sequencer, we need to make sure that the current node has the latest unsafe head from the consensus protocol
@@ -592,6 +660,7 @@ func (oc *OpConductor) startSequencer() error {
 		return err
 	}
 
+	oc.log.Info("starting sequencer", "server", oc.cons.ServerID(), "leader", oc.leader.Load(), "healthy", oc.healthy.Load(), "active", oc.seqActive.Load())
 	if err = oc.ctrl.StartSequencer(ctx, unsafeInCons.ExecutionPayload.BlockHash); err != nil {
 		// cannot directly compare using Errors.Is because the error is returned from an JSON RPC server which lost its type.
 		if !strings.Contains(err.Error(), driver.ErrSequencerAlreadyStarted.Error()) {
@@ -616,6 +685,7 @@ func (oc *OpConductor) compareUnsafeHead(ctx context.Context) (*eth.ExecutionPay
 		return unsafeInCons, nil, errors.Wrap(err, "failed to get latest unsafe block from EL during compareUnsafeHead phase")
 	}
 
+	oc.log.Debug("comparing unsafe head", "consensus", unsafeInCons.ExecutionPayload.BlockNumber, "node", unsafeInNode.NumberU64())
 	if unsafeInCons.ExecutionPayload.BlockHash != unsafeInNode.Hash() {
 		oc.log.Warn(
 			"latest unsafe block in consensus is not the same as the one in op-node",
@@ -636,6 +706,7 @@ func (oc *OpConductor) updateSequencerActiveStatus() error {
 	if err != nil {
 		return errors.Wrap(err, "failed to get sequencer active status")
 	}
+	oc.log.Info("sequencer active status updated", "active", active)
 	oc.seqActive.Store(active)
 	return nil
 }

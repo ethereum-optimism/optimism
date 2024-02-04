@@ -69,9 +69,9 @@ var (
 		Usage:    "stop at the first preimage request matching this type (must be either 'any', 'local' or 'global')",
 		Required: false,
 	}
-	RunStopAtPreimageKeyFlag = &cli.StringFlag{
-		Name:     "stop-at-preimage-key",
-		Usage:    "stop at the first step that requests the specified preimage key",
+	RunStopAtPreimageLargerThanFlag = &cli.StringFlag{
+		Name:     "stop-at-preimage-larger-than",
+		Usage:    "stop at the first step that requests a preimage larger than the specified size (in bytes)",
 		Required: false,
 	}
 	RunMetaFlag = &cli.PathFlag{
@@ -247,7 +247,7 @@ func Run(ctx *cli.Context) error {
 	if stopAtPreimageType != "" && stopAtPreimageType != "any" && stopAtPreimageType != "local" && stopAtPreimageType != "global" {
 		return fmt.Errorf("invalid preimage type %q, must be either 'any', 'local' or 'global'", stopAtPreimageType)
 	}
-	stopAtPreimageKey := common.HexToHash(ctx.String(RunStopAtPreimageKeyFlag.Name))
+	stopAtPreimageLargerThan := ctx.Int(RunStopAtPreimageLargerThanFlag.Name)
 
 	// split CLI args after first '--'
 	args := ctx.Args().Slice()
@@ -392,7 +392,7 @@ func Run(ctx *cli.Context) error {
 					break
 				}
 			}
-			if (stopAtPreimageKey != common.Hash{}) && state.PreimageKey == stopAtPreimageKey {
+			if stopAtPreimageLargerThan != 0 && len(us.LastPreimage()) > stopAtPreimageLargerThan {
 				break
 			}
 		}
@@ -418,7 +418,7 @@ var RunCommand = &cli.Command{
 		RunSnapshotFmtFlag,
 		RunStopAtFlag,
 		RunStopAtPreimageTypeFlag,
-		RunStopAtPreimageKeyFlag,
+		RunStopAtPreimageLargerThanFlag,
 		RunMetaFlag,
 		RunInfoAtFlag,
 		RunPProfCPU,

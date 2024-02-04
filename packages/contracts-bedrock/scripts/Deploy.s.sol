@@ -616,7 +616,8 @@ contract Deploy is Deployer {
         console.log("Deploying PreimageOracle implementation");
         PreimageOracle preimageOracle = new PreimageOracle{ salt: _implSalt() }({
             _minProposalSize: cfg.preimageOracleMinProposalSize(),
-            _challengePeriod: cfg.preimageOracleChallengePeriod()
+            _challengePeriod: cfg.preimageOracleChallengePeriod(),
+            _cancunActivation: cfg.preimageOracleCancunActivationTimestamp()
         });
         save("PreimageOracle", address(preimageOracle));
         console.log("PreimageOracle deployed at %s", address(preimageOracle));
@@ -1075,7 +1076,7 @@ contract Deploy is Deployer {
             _factory: factory,
             _gameType: GameTypes.ALPHABET,
             _absolutePrestate: outputAbsolutePrestate,
-            _faultVm: IBigStepper(new AlphabetVM(outputAbsolutePrestate)),
+            _faultVm: IBigStepper(new AlphabetVM(outputAbsolutePrestate, PreimageOracle(mustGetAddress("PreimageOracle")))),
             // The max depth for the alphabet trace is always 3. Add 1 because split depth is fully inclusive.
             _maxGameDepth: cfg.faultGameSplitDepth() + 3 + 1,
             _allowUpgrade: _allowUpgrade
