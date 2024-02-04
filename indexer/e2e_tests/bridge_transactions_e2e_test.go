@@ -40,7 +40,7 @@ func TestE2EBridgeTransactionsOptimismPortalDeposits(t *testing.T) {
 	// In the same deposit transaction, transfer, 0.5ETH to Bob. We do this to ensure we're only indexing
 	// bridged funds from the source address versus any transferred value to a recipient in the same L2 transaction
 	depositTx, err := transactions.PadGasEstimate(l1Opts, 1.2, func(opts *bind.TransactOpts) (*types.Transaction, error) {
-		return optimismPortal.DepositTransaction(l1Opts, bobAddr, big.NewInt(params.Ether/2), 100_000, false, calldata)
+		return optimismPortal.DepositTransaction(opts, bobAddr, big.NewInt(params.Ether/2), 100_000, false, calldata)
 	})
 	require.NoError(t, err)
 	depositReceipt, err := wait.ForReceiptOK(context.Background(), testSuite.L1Client, depositTx.Hash())
