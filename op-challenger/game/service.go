@@ -43,10 +43,10 @@ type Service struct {
 
 	preimages *keccak.LargePreimageScheduler
 
-	cl clock.Clock
-
 	txMgr    *txmgr.SimpleTxManager
 	txSender *sender.TxSender
+
+	cl *clock.SimpleClock
 
 	loader *loader.GameLoader
 
@@ -68,9 +68,9 @@ type Service struct {
 }
 
 // NewService creates a new Service.
-func NewService(ctx context.Context, cl clock.Clock, logger log.Logger, cfg *config.Config) (*Service, error) {
+func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*Service, error) {
 	s := &Service{
-		cl:      cl,
+		cl:      clock.NewSimpleClock(),
 		logger:  logger,
 		metrics: metrics.NewMetrics(),
 	}
@@ -108,11 +108,11 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 	if err := s.initGameLoader(); err != nil {
 		return fmt.Errorf("failed to init game loader: %w", err)
 	}
-	if err := s.initBondClaims(cfg); err != nil {
-		return fmt.Errorf("failed to init bond claiming: %w", err)
-	}
 	if err := s.registerGameTypes(ctx, cfg); err != nil {
 		return fmt.Errorf("failed to register game types: %w", err)
+	}
+	if err := s.initBondClaims(); err != nil {
+		return fmt.Errorf("failed to init bond claiming: %w", err)
 	}
 	if err := s.initScheduler(cfg); err != nil {
 		return fmt.Errorf("failed to init scheduler: %w", err)
@@ -207,9 +207,8 @@ func (s *Service) initGameLoader() error {
 	return nil
 }
 
-func (s *Service) initBondClaims(cfg *config.Config) error {
-	caller := batching.NewMultiCaller(s.l1Client.Client(), batching.DefaultBatchSize)
-	claimer := claims.NewBondClaimer(s.logger, s.metrics, caller, s.txSender)
+func (s *Service) initBondClaims() error {
+	claimer := claims.NewBondClaimer(s.logger, s.metrics, s.registry.CreateBondContract, s.txSender)
 	s.claimer = claims.NewBondClaimScheduler(s.logger, s.metrics, claimer)
 	return nil
 }

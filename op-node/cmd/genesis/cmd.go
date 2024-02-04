@@ -20,6 +20,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-bindings/hardhat"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 )
 
 var (
@@ -121,12 +122,12 @@ var Subcommands = cli.Commands{
 				}
 			}
 
-			l1Genesis, err := genesis.BuildL1DeveloperGenesis(config, dump, deployments, true)
+			l1Genesis, err := genesis.BuildL1DeveloperGenesis(config, dump, deployments)
 			if err != nil {
 				return err
 			}
 
-			return writeJSONFile(ctx.String("outfile.l1"), l1Genesis)
+			return jsonutil.WriteJSON(ctx.String("outfile.l1"), l1Genesis)
 		},
 	},
 	{
@@ -249,26 +250,12 @@ var Subcommands = cli.Commands{
 				return fmt.Errorf("generated rollup config does not pass validation: %w", err)
 			}
 
-			if err := writeJSONFile(ctx.String("outfile.l2"), l2Genesis); err != nil {
+			if err := jsonutil.WriteJSON(ctx.String("outfile.l2"), l2Genesis); err != nil {
 				return err
 			}
-			return writeJSONFile(ctx.String("outfile.rollup"), rollupConfig)
+			return jsonutil.WriteJSON(ctx.String("outfile.rollup"), rollupConfig)
 		},
 	},
-}
-
-// writeJSONFile will write a JSON file to disk at the given path
-// containing the JSON serialized input value.
-func writeJSONFile(outfile string, input any) error {
-	f, err := os.OpenFile(outfile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	enc := json.NewEncoder(f)
-	enc.SetIndent("", "  ")
-	return enc.Encode(input)
 }
 
 // rpcBlock represents the JSON serialization of a block from an Ethereum RPC.

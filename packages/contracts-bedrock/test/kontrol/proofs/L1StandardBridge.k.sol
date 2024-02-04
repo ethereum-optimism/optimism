@@ -41,8 +41,11 @@ contract L1StandardBridgeKontrol is DeploymentSummary, KontrolUtils {
             bytes32(uint256(uint160(address(l1standardBridge.otherBridge()))))
         );
 
-        // ASSUME: conservative upper bound on the `_extraData` length
-        bytes memory _extraData = freshBigBytes(320);
+        // ASSUME: Upper bound on the `_extraData` length, since extra data is optional for
+        // for convenience of off-chain tooling, and should not affect execution  This assumption
+        // can be removed once Kontrol supports symbolic `bytes`:
+        // https://github.com/runtimeverification/kontrol/issues/272
+        bytes memory _extraData = freshBigBytes(32);
 
         // Pause Standard Bridge
         vm.prank(superchainConfig.guardian());
@@ -71,8 +74,11 @@ contract L1StandardBridgeKontrol is DeploymentSummary, KontrolUtils {
             bytes32(uint256(uint160(address(l1standardBridge.otherBridge()))))
         );
 
-        // ASSUME: conservative upper bound on the `_extraData` length
-        bytes memory _extraData = freshBigBytes(320);
+        // ASSUME: Upper bound on the `_extraData` length, since extra data is optional for
+        // for convenience of off-chain tooling, and should not affect execution  This assumption
+        // can be removed once Kontrol supports symbolic `bytes`:
+        // https://github.com/runtimeverification/kontrol/issues/272
+        bytes memory _extraData = freshBigBytes(32);
 
         // Pause Standard Bridge
         vm.prank(superchainConfig.guardian());

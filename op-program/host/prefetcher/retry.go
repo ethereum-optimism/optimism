@@ -59,6 +59,42 @@ func (s *RetryingL1Source) FetchReceipts(ctx context.Context, blockHash common.H
 
 var _ L1Source = (*RetryingL1Source)(nil)
 
+type RetryingL1BlobSource struct {
+	logger   log.Logger
+	source   L1BlobSource
+	strategy retry.Strategy
+}
+
+func NewRetryingL1BlobSource(logger log.Logger, source L1BlobSource) *RetryingL1BlobSource {
+	return &RetryingL1BlobSource{
+		logger:   logger,
+		source:   source,
+		strategy: retry.Exponential(),
+	}
+}
+
+func (s *RetryingL1BlobSource) GetBlobSidecars(ctx context.Context, ref eth.L1BlockRef, hashes []eth.IndexedBlobHash) ([]*eth.BlobSidecar, error) {
+	return retry.Do(ctx, maxAttempts, s.strategy, func() ([]*eth.BlobSidecar, error) {
+		sidecars, err := s.source.GetBlobSidecars(ctx, ref, hashes)
+		if err != nil {
+			s.logger.Warn("Failed to retrieve blob sidecars", "ref", ref, "err", err)
+		}
+		return sidecars, err
+	})
+}
+
+func (s *RetryingL1BlobSource) GetBlobs(ctx context.Context, ref eth.L1BlockRef, hashes []eth.IndexedBlobHash) ([]*eth.Blob, error) {
+	return retry.Do(ctx, maxAttempts, s.strategy, func() ([]*eth.Blob, error) {
+		blobs, err := s.source.GetBlobs(ctx, ref, hashes)
+		if err != nil {
+			s.logger.Warn("Failed to retrieve blobs", "ref", ref, "err", err)
+		}
+		return blobs, err
+	})
+}
+
+var _ L1BlobSource = (*RetryingL1BlobSource)(nil)
+
 type RetryingL2Source struct {
 	logger   log.Logger
 	source   L2Source

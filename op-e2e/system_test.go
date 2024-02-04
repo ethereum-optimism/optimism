@@ -1105,9 +1105,8 @@ func (sga *stateGetterAdapter) GetState(addr common.Address, key common.Hash) co
 
 // TestFees checks that L1/L2 fees are handled.
 func TestFees(t *testing.T) {
-	InitParallel(t)
-
 	t.Run("pre-regolith", func(t *testing.T) {
+		InitParallel(t)
 		cfg := DefaultSystemConfig(t)
 		cfg.DeployConfig.L1GenesisBlockBaseFeePerGas = (*hexutil.Big)(big.NewInt(7))
 
@@ -1118,6 +1117,7 @@ func TestFees(t *testing.T) {
 		testFees(t, cfg)
 	})
 	t.Run("regolith", func(t *testing.T) {
+		InitParallel(t)
 		cfg := DefaultSystemConfig(t)
 		cfg.DeployConfig.L1GenesisBlockBaseFeePerGas = (*hexutil.Big)(big.NewInt(7))
 
@@ -1128,6 +1128,7 @@ func TestFees(t *testing.T) {
 		testFees(t, cfg)
 	})
 	t.Run("ecotone", func(t *testing.T) {
+		InitParallel(t)
 		cfg := DefaultSystemConfig(t)
 		cfg.DeployConfig.L1GenesisBlockBaseFeePerGas = (*hexutil.Big)(big.NewInt(7))
 
@@ -1140,7 +1141,6 @@ func TestFees(t *testing.T) {
 }
 
 func testFees(t *testing.T, cfg SystemConfig) {
-
 	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()

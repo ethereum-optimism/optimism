@@ -84,7 +84,7 @@ func (s StateSnapshot) Pack() []byte {
 
 type Challenge struct {
 	// StateMatrix is the packed state matrix preimage of the StateCommitment in Prestate
-	StateMatrix StateSnapshot // TODO(client-pod#480): Need a better representation of this
+	StateMatrix StateSnapshot
 
 	// Prestate is the valid leaf immediately prior to the first invalid leaf
 	Prestate      Leaf

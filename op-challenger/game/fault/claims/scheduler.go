@@ -8,6 +8,10 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
+type BondClaimer interface {
+	ClaimBonds(ctx context.Context, games []types.GameMetadata) error
+}
+
 type BondClaimScheduler struct {
 	log     log.Logger
 	metrics BondClaimSchedulerMetrics

@@ -42,7 +42,11 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
     {
         setUpInlined();
 
-        // ASSUME: conservative upper bound on the `_data` length
+        // ASSUME: This bound on the `_data` length is too low, and should be at least 1000 bytes.
+        // Kontrol currently hangs and fails with this value because of the resulting configuration
+        // size. For now we leave this as a low value to avoid the hang, but it should be increased
+        // once Kontrol is improved and supports symbolic `bytes`:
+        // https://github.com/runtimeverification/kontrol/issues/272
         bytes memory _data = freshBigBytes(320);
         bytes[] memory _withdrawalProof = freshWithdrawalProof();
 
@@ -74,7 +78,11 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
     {
         setUpInlined();
 
-        // ASSUME: conservative upper bound on the `_data` length
+        // ASSUME: This bound on the `_data` length is too low, and should be at least 1000 bytes.
+        // Kontrol currently hangs and fails with this value because of the resulting configuration
+        // size. For now we leave this as a low value to avoid the hang, but it should be increased
+        // once Kontrol is improved and supports symbolic `bytes`:
+        // https://github.com/runtimeverification/kontrol/issues/272
         bytes memory _data = freshBigBytes(320);
 
         // Pause Optimism Portal
