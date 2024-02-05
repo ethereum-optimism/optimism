@@ -14,6 +14,5 @@ contract InvariantTest is Test {
     function setUp() public virtual {
         excludeContract(address(ffi));
         excludeContract(address(deploy));
-        excludeContract(address(deploy.cfg()));
     }
 }
