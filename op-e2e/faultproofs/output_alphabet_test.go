@@ -14,7 +14,7 @@ import (
 )
 
 func TestOutputAlphabetGame_ChallengerWins(t *testing.T) {
-	op_e2e.InitParallel(t, op_e2e.UseExecutor(1))
+	op_e2e.InitParallel(t)
 	ctx := context.Background()
 	sys, l1Client := startFaultDisputeSystem(t)
 	t.Cleanup(sys.Close)
@@ -71,7 +71,7 @@ func TestOutputAlphabetGame_ChallengerWins(t *testing.T) {
 }
 
 func TestOutputAlphabetGame_ValidOutputRoot(t *testing.T) {
-	op_e2e.InitParallel(t, op_e2e.UseExecutor(1))
+	op_e2e.InitParallel(t)
 	ctx := context.Background()
 	sys, l1Client := startFaultDisputeSystem(t)
 	t.Cleanup(sys.Close)
@@ -102,7 +102,7 @@ func TestOutputAlphabetGame_ValidOutputRoot(t *testing.T) {
 }
 
 func TestChallengerCompleteExhaustiveDisputeGame(t *testing.T) {
-	op_e2e.InitParallel(t, op_e2e.UseExecutor(1))
+	op_e2e.InitParallel(t)
 
 	testCase := func(t *testing.T, isRootCorrect bool) {
 		ctx := context.Background()
@@ -159,11 +159,11 @@ func TestChallengerCompleteExhaustiveDisputeGame(t *testing.T) {
 	}
 
 	t.Run("RootCorrect", func(t *testing.T) {
-		op_e2e.InitParallel(t, op_e2e.UseExecutor(1))
+		op_e2e.InitParallel(t)
 		testCase(t, true)
 	})
 	t.Run("RootIncorrect", func(t *testing.T) {
-		op_e2e.InitParallel(t, op_e2e.UseExecutor(1))
+		op_e2e.InitParallel(t)
 		testCase(t, false)
 	})
 }
