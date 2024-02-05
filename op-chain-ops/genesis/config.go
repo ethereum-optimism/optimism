@@ -241,6 +241,15 @@ type DeployConfig struct {
 	// proofs instead of the older output oracle mechanism.
 	UseFaultProofs bool `json:"useFaultProofs"`
 
+	// DaChallengeWindow represents the block interval during which the availability of a data commitment can be challenged.
+	DaChallengeWindow uint64 `json:"daChallengeWindow"`
+	// DaResolveWindow represents the block interval during which a data availability challenge can be resolved.
+	DaResolveWindow uint64 `json:"daResolveWindow"`
+	// DaBondSize represents the required bond size to initiate a data availability challenge.
+	DaBondSize uint64 `json:"daBondSize"`
+	// DaResolverRefundPercentage represents the percentage of the resolving cost to be refunded to the resolver.
+	DaResolverRefundPercentage uint64 `json:"daResolverRefundPercentage"`
+
 	// When Cancun activates. Relative to L1 genesis.
 	L1CancunTimeOffset *hexutil.Uint64 `json:"l1CancunTimeOffset,omitempty"`
 }

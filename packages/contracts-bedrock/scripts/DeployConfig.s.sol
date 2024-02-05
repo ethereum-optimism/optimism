@@ -70,6 +70,10 @@ contract DeployConfig is Script {
     uint256 public disputeGameFinalityDelaySeconds;
     uint256 public respectedGameType;
     bool public useFaultProofs;
+    uint256 public daChallengeWindow;
+    uint256 public daResolveWindow;
+    uint256 public daBondSize;
+    uint256 public daResolverRefundPercentage;
 
     function read(string memory _path) public {
         console.log("DeployConfig: reading file %s", _path);
@@ -135,6 +139,14 @@ contract DeployConfig is Script {
         preimageOracleMinProposalSize = stdJson.readUint(_json, "$.preimageOracleMinProposalSize");
         preimageOracleChallengePeriod = stdJson.readUint(_json, "$.preimageOracleChallengePeriod");
         preimageOracleCancunActivationTimestamp = stdJson.readUint(_json, "$.preimageOracleCancunActivationTimestamp");
+
+        if (vm.keyExists(_json, "$.daChallengeWindow")) {
+            console.log("DeployConfig: initializing plasma parameters");
+            daChallengeWindow = stdJson.readUint(_json, "$.daChallengeWindow");
+            daResolveWindow = stdJson.readUint(_json, "$.daResolveWindow");
+            daBondSize = stdJson.readUint(_json, "$.daBondSize");
+            daResolverRefundPercentage = stdJson.readUint(_json, "$.daResolverRefundPercentage");
+        }
     }
 
     function l1StartingBlockTag() public returns (bytes32) {
