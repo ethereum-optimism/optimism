@@ -25,7 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const MinPreimageSize = 18000
+const MinPreimageSize = 10000
 
 type Helper struct {
 	t              *testing.T
@@ -65,6 +65,14 @@ func WithReplacedCommitment(idx uint64, value common.Hash) InputModifier {
 			return
 		}
 		input.Commitments[idx-startBlock] = value
+	}
+}
+
+func WithLastCommitment(value common.Hash) InputModifier {
+	return func(startBlock uint64, input *types.InputData) {
+		if input.Finalize {
+			input.Commitments[len(input.Commitments)-1] = value
+		}
 	}
 }
 
