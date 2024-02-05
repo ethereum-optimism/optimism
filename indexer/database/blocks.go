@@ -179,7 +179,9 @@ func (db *blocksDB) L2LatestBlockHeader() (*L2BlockHeader, error) {
 // Reorgs
 
 func (db *blocksDB) DeleteReorgedState(fromL1Height *big.Int) error {
-	l1Header, err := db.L1BlockHeaderWithFilter(BlockHeader{Number: fromL1Height})
+	l1Header, err := db.L1BlockHeaderWithScope(func(db *gorm.DB) *gorm.DB {
+		return db.Where("number <= ?", fromL1Height).Order("number DESC").Limit(1)
+	})
 	if err != nil {
 		log.Error("unable to find L1 header associated with height", "err", err, "height", fromL1Height)
 		return err

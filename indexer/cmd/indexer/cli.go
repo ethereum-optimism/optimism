@@ -32,9 +32,10 @@ var (
 		EnvVars: []string{"INDEXER_MIGRATIONS_DIR"},
 	}
 	ReorgFlag = &cli.Uint64Flag{
-		Name:     "l1-height",
-		Aliases:  []string{"height"},
-		Usage:    "the lowest l1 height that has been reorg'd. All L1 data and derived L2 blocks starting from this height will be deleted",
+		Name:    "l1-height",
+		Aliases: []string{"height"},
+		Usage: `the lowest l1 height that has been reorg'd. All L1 data and derived L2 state will be deleted. Since not all L1 blocks are
+		indexed, this will find the maximum indexed height <= the marker, which may result in slightly more deleted state.`,
 		Required: true,
 	}
 )
