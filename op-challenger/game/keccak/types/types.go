@@ -99,6 +99,7 @@ type LargePreimageOracle interface {
 	Addr() common.Address
 	GetActivePreimages(ctx context.Context, blockHash common.Hash) ([]LargePreimageMetaData, error)
 	GetInputDataBlocks(ctx context.Context, block batching.Block, ident LargePreimageIdent) ([]uint64, error)
+	GetProposalTreeRoot(ctx context.Context, block batching.Block, ident LargePreimageIdent) (common.Hash, error)
 	DecodeInputData(data []byte) (*big.Int, InputData, error)
 	ChallengeTx(ident LargePreimageIdent, challenge Challenge) (txmgr.TxCandidate, error)
 }

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/fetcher"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/matrix"
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
@@ -16,7 +15,7 @@ import (
 )
 
 type Oracle interface {
-	fetcher.Oracle
+	VerifierPreimageOracle
 	ChallengeTx(ident keccakTypes.LargePreimageIdent, challenge keccakTypes.Challenge) (txmgr.TxCandidate, error)
 }
 
@@ -26,7 +25,7 @@ type ChallengeMetrics interface {
 }
 
 type Verifier interface {
-	CreateChallenge(ctx context.Context, blockHash common.Hash, oracle fetcher.Oracle, preimage keccakTypes.LargePreimageMetaData) (keccakTypes.Challenge, error)
+	CreateChallenge(ctx context.Context, blockHash common.Hash, oracle VerifierPreimageOracle, preimage keccakTypes.LargePreimageMetaData) (keccakTypes.Challenge, error)
 }
 
 type Sender interface {

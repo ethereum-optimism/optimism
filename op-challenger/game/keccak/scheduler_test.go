@@ -2,6 +2,7 @@ package keccak
 
 import (
 	"context"
+	"errors"
 	"math/big"
 	"sync"
 	"testing"
@@ -64,6 +65,7 @@ type stubOracle struct {
 	addr              common.Address
 	getPreimagesCount int
 	images            []keccakTypes.LargePreimageMetaData
+	treeRoots         map[keccakTypes.LargePreimageIdent]common.Hash
 }
 
 func (s *stubOracle) GetInputDataBlocks(_ context.Context, _ batching.Block, _ keccakTypes.LargePreimageIdent) ([]uint64, error) {
@@ -93,6 +95,14 @@ func (s *stubOracle) GetPreimagesCount() int {
 
 func (s *stubOracle) ChallengeTx(_ keccakTypes.LargePreimageIdent, _ keccakTypes.Challenge) (txmgr.TxCandidate, error) {
 	panic("not supported")
+}
+
+func (s *stubOracle) GetProposalTreeRoot(_ context.Context, _ batching.Block, ident keccakTypes.LargePreimageIdent) (common.Hash, error) {
+	root, ok := s.treeRoots[ident]
+	if ok {
+		return root, nil
+	}
+	return common.Hash{}, errors.New("unknown tree root")
 }
 
 type stubChallenger struct {

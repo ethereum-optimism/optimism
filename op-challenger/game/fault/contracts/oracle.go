@@ -32,6 +32,7 @@ const (
 	methodChallengeFirstLPP         = "challengeFirstLPP"
 	methodChallengeLPP              = "challengeLPP"
 	methodChallengePeriod           = "challengePeriod"
+	methodGetTreeRootLPP            = "getTreeRootLPP"
 )
 
 var (
@@ -188,6 +189,15 @@ func (c *PreimageOracleContract) GetProposalMetadata(ctx context.Context, block 
 		})
 	}
 	return proposals, nil
+}
+
+func (c *PreimageOracleContract) GetProposalTreeRoot(ctx context.Context, block batching.Block, ident keccakTypes.LargePreimageIdent) (common.Hash, error) {
+	call := c.contract.Call(methodGetTreeRootLPP, ident.Claimant, ident.UUID)
+	result, err := c.multiCaller.SingleCall(ctx, block, call)
+	if err != nil {
+		return common.Hash{}, fmt.Errorf("failed to get tree root: %w", err)
+	}
+	return result.GetHash(0), nil
 }
 
 func (c *PreimageOracleContract) GetInputDataBlocks(ctx context.Context, block batching.Block, ident keccakTypes.LargePreimageIdent) ([]uint64, error) {
