@@ -1275,7 +1275,7 @@ export class CrossChainMessenger {
       const latestGames =
         await this.contracts.l1.DisputeGameFactory.findLatestGames(
           gameType,
-          gameCount.sub(1),
+          Math.max(0, gameCount.sub(1).toNumber()),
           Math.min(100, gameCount.toNumber())
         )
 
