@@ -1665,7 +1665,7 @@ workflows:
           type: approval
           filters:
             tags:
-              only: /^(proxyd|chain-mon|indexer|ci-builder|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/
+              only: /^(proxyd|chain-mon|indexer|ci-builder(-rust)?|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/
             branches:
               ignore: /.*/
       - docker-build: # just to warm up the cache (other jobs run in parallel)
@@ -1839,6 +1839,22 @@ workflows:
             branches:
               ignore: /.*/
           docker_name: ci-builder
+          docker_tags: <<pipeline.git.revision>>,latest
+          publish: true
+          release: true
+          resource_class: xlarge
+          context:
+            - oplabs-gcr
+          requires:
+            - hold
+      - docker-build:
+          name: ci-builder-rust-docker-release
+          filters:
+            tags:
+              only: /^ci-builder-rust\/v.*/
+            branches:
+              ignore: /.*/
+          docker_name: ci-builder-rust
           docker_tags: <<pipeline.git.revision>>,latest
           publish: true
           release: true
