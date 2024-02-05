@@ -42,9 +42,5 @@
   "l2GenesisRegolithTimeOffset": "0x0",
   "systemConfigStartBlock": 0,
   "requiredProtocolVersion": "0x0000000000000000000000000000000000000000000000000000000000000000",
-  "recommendedProtocolVersion": "0x0000000000000000000000000000000000000000000000000000000000000000",
-  "proofMaturityDelaySeconds": 12,
-  "disputeGameFinalityDelaySeconds": 6,
-  "respectedGameType": 0,
-  "useFaultProofs": false
+  "recommendedProtocolVersion": "0x0000000000000000000000000000000000000000000000000000000000000000"
 }

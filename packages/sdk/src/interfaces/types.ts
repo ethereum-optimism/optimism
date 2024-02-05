@@ -50,9 +50,6 @@ export interface OEL1Contracts {
   // Bedrock
   OptimismPortal: Contract
   L2OutputOracle: Contract
-  // FPAC
-  OptimismPortal2?: Contract
-  DisputeGameFactory?: Contract
 }
 
 /**

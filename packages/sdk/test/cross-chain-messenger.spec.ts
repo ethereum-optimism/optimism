@@ -16,7 +16,6 @@ import {
   ETHBridgeAdapter,
   L1ChainID,
   L2ChainID,
-  IGNORABLE_CONTRACTS,
 } from '../src'
 import { DUMMY_MESSAGE, DUMMY_EXTENDED_MESSAGE } from './helpers'
 
@@ -235,7 +234,7 @@ describe('CrossChainMessenger', () => {
               if (overrides.l1[contractName]) {
                 const contract = messenger.contracts.l1[contractName]
                 expect(contract.address).to.equal(overrides.l1[contractName])
-              } else if (!IGNORABLE_CONTRACTS.includes(contractName)) {
+              } else {
                 const contract = messenger.contracts.l1[contractName]
                 expect(contract.address).to.equal(contractAddress)
               }
