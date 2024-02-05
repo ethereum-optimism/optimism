@@ -13,6 +13,7 @@ This directory contains documentation for all defined invariant tests within `co
 - [Encoding](./Encoding.md)
 - [FaultDisputeGame](./FaultDisputeGame.md)
 - [Hashing](./Hashing.md)
+- [InvariantTest.sol](./InvariantTest.sol.md)
 - [L2OutputOracle](./L2OutputOracle.md)
 - [OptimismPortal](./OptimismPortal.md)
 - [ResourceMetering](./ResourceMetering.md)
