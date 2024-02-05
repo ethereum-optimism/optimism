@@ -303,7 +303,7 @@ contract L2Genesis is Script, Artifacts {
         _setImplementationCode(Predeploys.L1_BLOCK_ATTRIBUTES, "L1Block");
     }
 
-    /// @dev Returns true if the adress is not proxied.
+    /// @dev Returns true if the address is not proxied.
     function _notProxied(address _addr) internal pure returns (bool) {
         return _addr == Predeploys.GOVERNANCE_TOKEN || _addr == Predeploys.WETH9;
     }
