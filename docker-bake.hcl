@@ -93,6 +93,19 @@ target "op-challenger" {
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-challenger:${tag}"]
 }
 
+target "op-dispute-mon" {
+  dockerfile = "Dockerfile"
+  context = "./op-dispute-mon"
+  args = {
+    OP_STACK_GO_BUILDER = "op-stack-go"
+  }
+  contexts = {
+    op-stack-go: "target:op-stack-go"
+  }
+  platforms = split(",", PLATFORMS)
+  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-dispute-mon:${tag}"]
+}
+
 target "op-conductor" {
   dockerfile = "Dockerfile"
   context = "./op-conductor"
