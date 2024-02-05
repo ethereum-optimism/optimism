@@ -7,6 +7,7 @@ import { Vm } from "forge-std/Vm.sol";
 
 import { StdInvariant } from "forge-std/StdInvariant.sol";
 import { Burn } from "src/libraries/Burn.sol";
+import { InvariantTest } from "test/invariants/InvariantTest.sol";
 
 contract Burn_EthBurner is StdUtils {
     Vm internal vm;
@@ -41,10 +42,11 @@ contract Burn_EthBurner is StdUtils {
     }
 }
 
-contract Burn_BurnEth_Invariant is StdInvariant, Test {
+contract Burn_BurnEth_Invariant is StdInvariant, InvariantTest {
     Burn_EthBurner internal actor;
 
-    function setUp() public {
+    function setUp() public override {
+        super.setUp();
         // Create a Eth burner actor.
 
         actor = new Burn_EthBurner(vm);

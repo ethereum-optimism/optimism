@@ -5,11 +5,13 @@ import { Test } from "forge-std/Test.sol";
 import { StdUtils } from "forge-std/StdUtils.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { SafeCall } from "src/libraries/SafeCall.sol";
+import { InvariantTest } from "test/invariants/InvariantTest.sol";
 
-contract SafeCall_Succeeds_Invariants is Test {
+contract SafeCall_Succeeds_Invariants is InvariantTest {
     SafeCaller_Actor actor;
 
-    function setUp() public {
+    function setUp() public override {
+        super.setUp();
         // Create a new safe caller actor.
         actor = new SafeCaller_Actor(vm, false);
 
@@ -37,10 +39,11 @@ contract SafeCall_Succeeds_Invariants is Test {
     }
 }
 
-contract SafeCall_Fails_Invariants is Test {
+contract SafeCall_Fails_Invariants is InvariantTest {
     SafeCaller_Actor actor;
 
-    function setUp() public {
+    function setUp() public override {
+        super.setUp();
         // Create a new safe caller actor.
         actor = new SafeCaller_Actor(vm, true);
 
