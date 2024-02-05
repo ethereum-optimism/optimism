@@ -81,6 +81,8 @@ func (fv *LevelFlagValue) Clone() any {
 // LevelFromString returns the appropriate Level from a string name.
 // Useful for parsing command line args and configuration files.
 // It also converts strings to lowercase.
+// If the string is unknown, LevelDebug is returned as a default, together with
+// a non-nil error.
 func LevelFromString(lvlString string) (slog.Level, error) {
 	lvlString = strings.ToLower(lvlString) // ignore case
 	switch lvlString {
