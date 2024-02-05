@@ -58,10 +58,7 @@ func (s *EngineClient) ForkchoiceUpdate(ctx context.Context, fc *eth.ForkchoiceS
 	fcCtx, cancel := context.WithTimeout(ctx, time.Second*5)
 	defer cancel()
 	var result eth.ForkchoiceUpdatedResult
-	method := eth.FCUV3
-	if attributes != nil {
-		method = s.rollupCfg.ForkchoiceUpdatedVersion(attributes)
-	}
+	method := s.rollupCfg.ForkchoiceUpdatedVersion(attributes)
 	err := s.client.CallContext(fcCtx, &result, string(method), fc, attributes)
 	if err == nil {
 		tlog.Trace("Shared forkchoice-updated signal")

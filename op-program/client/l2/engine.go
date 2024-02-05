@@ -68,19 +68,16 @@ func (o *OracleEngine) GetPayload(ctx context.Context, payloadInfo eth.PayloadIn
 }
 
 func (o *OracleEngine) ForkchoiceUpdate(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
-	if attr != nil {
-		switch method := o.rollupCfg.ForkchoiceUpdatedVersion(attr); method {
-		case eth.FCUV3:
-			return o.api.ForkchoiceUpdatedV3(ctx, state, attr)
-		case eth.FCUV2:
-			return o.api.ForkchoiceUpdatedV2(ctx, state, attr)
-		case eth.FCUV1:
-			return o.api.ForkchoiceUpdatedV1(ctx, state, attr)
-		default:
-			return nil, fmt.Errorf("unsupported ForkchoiceUpdated version: %s", method)
-		}
+	switch method := o.rollupCfg.ForkchoiceUpdatedVersion(attr); method {
+	case eth.FCUV3:
+		return o.api.ForkchoiceUpdatedV3(ctx, state, attr)
+	case eth.FCUV2:
+		return o.api.ForkchoiceUpdatedV2(ctx, state, attr)
+	case eth.FCUV1:
+		return o.api.ForkchoiceUpdatedV1(ctx, state, attr)
+	default:
+		return nil, fmt.Errorf("unsupported ForkchoiceUpdated version: %s", method)
 	}
-	return o.api.ForkchoiceUpdatedV3(ctx, state, attr)
 }
 
 func (o *OracleEngine) NewPayload(ctx context.Context, payload *eth.ExecutionPayload, parentBeaconBlockRoot *common.Hash) (*eth.PayloadStatusV1, error) {

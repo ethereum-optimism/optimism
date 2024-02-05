@@ -355,6 +355,10 @@ func (c *Config) IsInterop(timestamp uint64) bool {
 
 // ForkchoiceUpdatedVersion returns the EngineAPIMethod suitable for the chain hard fork version.
 func (c *Config) ForkchoiceUpdatedVersion(attr *eth.PayloadAttributes) eth.EngineAPIMethod {
+	if attr == nil {
+		// Don't begin payload build process.
+		return eth.FCUV3
+	}
 	ts := uint64(attr.Timestamp)
 	if c.IsEcotone(ts) {
 		// Cancun
