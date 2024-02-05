@@ -105,7 +105,7 @@ contract L2Genesis is Script, Artifacts {
         uint160 prefix = uint160(0x420) << 148;
 
         console.log(
-            "Seting proxy deployed bytecode for addresses in range %s through %s",
+            "Setting proxy deployed bytecode for addresses in range %s through %s",
             address(prefix | uint160(0)),
             address(prefix | uint160(PROXY_COUNT - 1))
         );
