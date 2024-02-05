@@ -19,12 +19,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
-const (
-	envVarPrefix = "OP_CHALLENGER"
-)
+const EnvVarPrefix = "OP_CHALLENGER"
 
 func prefixEnvVars(name string) []string {
-	return opservice.PrefixEnvVar(envVarPrefix, name)
+	return opservice.PrefixEnvVar(EnvVarPrefix, name)
 }
 
 var (
@@ -167,10 +165,10 @@ var optionalFlags = []cli.Flag{
 }
 
 func init() {
-	optionalFlags = append(optionalFlags, oplog.CLIFlags(envVarPrefix)...)
-	optionalFlags = append(optionalFlags, txmgr.CLIFlagsWithDefaults(envVarPrefix, txmgr.DefaultChallengerFlagValues)...)
-	optionalFlags = append(optionalFlags, opmetrics.CLIFlags(envVarPrefix)...)
-	optionalFlags = append(optionalFlags, oppprof.CLIFlags(envVarPrefix)...)
+	optionalFlags = append(optionalFlags, oplog.CLIFlags(EnvVarPrefix)...)
+	optionalFlags = append(optionalFlags, txmgr.CLIFlagsWithDefaults(EnvVarPrefix, txmgr.DefaultChallengerFlagValues)...)
+	optionalFlags = append(optionalFlags, opmetrics.CLIFlags(EnvVarPrefix)...)
+	optionalFlags = append(optionalFlags, oppprof.CLIFlags(EnvVarPrefix)...)
 
 	Flags = append(requiredFlags, optionalFlags...)
 }

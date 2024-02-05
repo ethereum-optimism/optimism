@@ -17,7 +17,7 @@ var (
 	GameAddressFlag = &cli.StringFlag{
 		Name:    "game-address",
 		Usage:   "Address of the fault game contract.",
-		EnvVars: opservice.PrefixEnvVar("OP_CHALLENGER", "GAME_FACTORY_ADDRESS"),
+		EnvVars: opservice.PrefixEnvVar(flags.EnvVarPrefix, "GAME_ADDRESS"),
 	}
 )
 

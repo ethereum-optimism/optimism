@@ -105,13 +105,30 @@ func TestGetAllGames(t *testing.T) {
 	require.Equal(t, expectedGames, actualGames)
 }
 
+func TestGetGameFromParameters(t *testing.T) {
+	stubRpc, factory := setupDisputeGameFactoryTest(t)
+	traceType := uint32(123)
+	outputRoot := common.Hash{0x01}
+	l2BlockNum := common.BigToHash(big.NewInt(456)).Bytes()
+	stubRpc.SetResponse(
+		factoryAddr,
+		methodGames,
+		batching.BlockLatest,
+		[]interface{}{traceType, outputRoot, l2BlockNum},
+		[]interface{}{common.Address{0xaa}, uint64(1)},
+	)
+	addr, err := factory.GetGameFromParameters(context.Background(), traceType, outputRoot, uint64(456))
+	require.NoError(t, err)
+	require.Equal(t, common.Address{0xaa}, addr)
+}
+
 func TestGetGameImpl(t *testing.T) {
 	stubRpc, factory := setupDisputeGameFactoryTest(t)
 	gameType := uint32(3)
 	gameImplAddr := common.Address{0xaa}
 	stubRpc.SetResponse(
 		factoryAddr,
-		"gameImpls",
+		methodGameImpls,
 		batching.BlockLatest,
 		[]interface{}{gameType},
 		[]interface{}{gameImplAddr})
@@ -131,6 +148,17 @@ func expectGetGame(stubRpc *batchingTest.AbiBasedRpc, idx int, blockHash common.
 			game.Timestamp,
 			game.Proxy,
 		})
+}
+
+func TestCreateTx(t *testing.T) {
+	stubRpc, factory := setupDisputeGameFactoryTest(t)
+	traceType := uint32(123)
+	outputRoot := common.Hash{0x01}
+	l2BlockNum := common.BigToHash(big.NewInt(456)).Bytes()
+	stubRpc.SetResponse(factoryAddr, methodCreateGame, batching.BlockLatest, []interface{}{traceType, outputRoot, l2BlockNum}, nil)
+	tx, err := factory.CreateTx(traceType, outputRoot, uint64(456))
+	require.NoError(t, err)
+	stubRpc.VerifyTxCandidate(tx)
 }
 
 func setupDisputeGameFactoryTest(t *testing.T) (*batchingTest.AbiBasedRpc, *DisputeGameFactoryContract) {
