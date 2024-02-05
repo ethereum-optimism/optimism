@@ -102,7 +102,7 @@ func testSystem4844E2E(t *testing.T, multiBlob bool) {
 		opts.ToAddr = &common.Address{0xff, 0xff}
 		// put some random data in the tx to make it fill up 6 blobs (multi-blob case)
 		opts.Data = testutils.RandomData(rand.New(rand.NewSource(420)), 400)
-		opts.Gas, err = core.IntrinsicGas(opts.Data, nil, false, true, true, false)
+		opts.Gas, err = core.IntrinsicGas(opts.Data, nil, false, true, true, false, nil)
 		require.NoError(t, err)
 		opts.VerifyOnClients(l2Verif)
 	})
