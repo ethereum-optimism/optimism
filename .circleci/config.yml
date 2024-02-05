@@ -178,7 +178,13 @@ jobs:
             FOUNDRY_PROFILE: ci
           command: pnpm build
       - run:
-          name: Generate allocs
+          name: Generate FPAC allocs
+          command: DEVNET_FPAC="true" make devnet-allocs
+      - run:
+          name: Copy FPAC allocs to .devnet-fpac
+          command: cp -r .devnet/ .devnet-fault-proofs/
+      - run:
+          name: Generate non-FPAC allocs
           command: make devnet-allocs
       - persist_to_workspace:
           root: "."
@@ -191,6 +197,8 @@ jobs:
             - "packages/contracts-bedrock/tsconfig.build.tsbuildinfo"
             - ".devnet/allocs-l1.json"
             - ".devnet/addresses.json"
+            - ".devnet-fault-proofs/allocs-l1.json"
+            - ".devnet-fault-proofs/addresses.json"
             - "packages/contracts-bedrock/deploy-config/devnetL1.json"
             - "packages/contracts-bedrock/deployments/devnetL1"
 
@@ -799,6 +807,9 @@ jobs:
 
   go-e2e-test:
     parameters:
+      fpac:
+        type: string
+        default: ''
       module:
         description: Go Module Name
         type: string
@@ -813,6 +824,9 @@ jobs:
         description: Whether to notify on failure
         type: boolean
         default: false
+    environment:
+      DEVNET_FPAC: 'false'
+      OP_E2E_USE_FPAC: 'false'
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: xlarge
@@ -824,6 +838,16 @@ jobs:
     parallelism: <<parameters.parallelism>>
     steps:
       - checkout
+      - when:
+          condition:
+            equal: ['-fault-proofs', <<parameters.fpac>>]
+          steps:
+            - run:
+                name: Set DEVNET_FPAC = true
+                command: echo 'export DEVNET_FPAC=true' >> $BASH_ENV
+            - run:
+                name: Set OP_E2E_USE_FPAC = true
+                command: echo 'export OP_E2E_USE_FPAC=true' >> $BASH_ENV
       - check-changed:
           patterns: op-(.+),cannon,contracts-bedrock
       - run:
@@ -841,8 +865,8 @@ jobs:
           name: Load devnet-allocs
           command: |
             mkdir -p .devnet
-            cp /tmp/workspace/.devnet/allocs-l1.json .devnet/allocs-l1.json
-            cp /tmp/workspace/.devnet/addresses.json .devnet/addresses.json
+            cp /tmp/workspace/.devnet<<parameters.fpac>>/allocs-l1.json .devnet/allocs-l1.json
+            cp /tmp/workspace/.devnet<<parameters.fpac>>/addresses.json .devnet/addresses.json
             cp /tmp/workspace/packages/contracts-bedrock/deploy-config/devnetL1.json packages/contracts-bedrock/deploy-config/devnetL1.json
             cp -r /tmp/workspace/packages/contracts-bedrock/deployments/devnetL1 packages/contracts-bedrock/deployments/devnetL1
       - run:
@@ -917,12 +941,29 @@ jobs:
                 working_directory: <<parameters.working_directory>>
 
   indexer-tests:
+    parameters:
+      fpac:
+        type: string
+        default: ''
+    environment:
+      DEVNET_FPAC: 'false'
+      OP_E2E_USE_FPAC: 'false'
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
       - image: cimg/postgres:14.1
     resource_class: xlarge
     steps:
       - checkout
+      - when:
+          condition:
+            equal: ['fault-proofs', <<parameters.fpac>>]
+          steps:
+            - run:
+                name: Set DEVNET_FPAC = true
+                command: echo 'export DEVNET_FPAC=true' >> $BASH_ENV
+            - run:
+                name: Set OP_E2E_USE_FPAC = true
+                command: echo 'export OP_E2E_USE_FPAC=true' >> $BASH_ENV
       - check-changed:
           patterns: indexer
       - run:
@@ -1021,7 +1062,7 @@ jobs:
     machine:
       image: <<pipeline.parameters.base_image>>
     parameters:
-      devnet_fpac:
+      fpac:
         type: string
     environment:
       DOCKER_BUILDKIT: 1
@@ -1032,7 +1073,7 @@ jobs:
       - checkout
       - when:
           condition:
-            equal: ['fault-proofs', <<parameters.devnet_fpac>>]
+            equal: ['-fault-proofs', <<parameters.fpac>>]
           steps:
             - run:
                 name: Set DEVNET_FPAC = true
@@ -1460,7 +1501,11 @@ workflows:
           name: proxyd-tests
           binary_name: proxyd
           working_directory: proxyd
-      - indexer-tests
+      - indexer-tests:
+          name: indexer-tests<< matrix.fpac >>
+          matrix:
+            parameters:
+              fpac: ["", "-fault-proofs"]
       - semgrep-scan
       - go-mod-download
       - fuzz-golang:
@@ -1533,7 +1578,10 @@ workflows:
           module: op-service
           requires: ["go-mod-download"]
       - go-e2e-test:
-          name: op-e2e-HTTP-tests
+          name: op-e2e-HTTP-tests<< matrix.fpac >>
+          matrix:
+            parameters:
+              fpac: ["", "-fault-proofs"]
           module: op-e2e
           target: test-http
           parallelism: 4
@@ -1541,7 +1589,10 @@ workflows:
             - go-mod-download
             - pnpm-monorepo
       - go-e2e-test:
-          name: op-e2e-action-tests
+          name: op-e2e-action-tests<< matrix.fpac >>
+          matrix:
+            parameters:
+              fpac: ["", "-fault-proofs"]
           module: op-e2e
           target: test-actions
           parallelism: 1
@@ -1557,7 +1608,10 @@ workflows:
             - pnpm-monorepo
             - cannon-prestate
       - go-e2e-test:
-          name: op-e2e-ext-geth-tests
+          name: op-e2e-ext-geth-tests<< matrix.fpac >>
+          matrix:
+            parameters:
+              fpac: ["", "-fault-proofs"]
           module: op-e2e
           target: test-external-geth
           requires:
@@ -1649,7 +1703,7 @@ workflows:
       - devnet:
           matrix:
             parameters:
-              devnet_fpac: ["legacy", "fault-proofs"]
+              fpac: ["legacy", "fault-proofs"]
           requires:
             - pnpm-monorepo
             - op-batcher-docker-build
