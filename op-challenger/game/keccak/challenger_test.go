@@ -6,7 +6,6 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/fetcher"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/matrix"
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -128,7 +127,7 @@ type stubVerifier struct {
 	err        error
 }
 
-func (s *stubVerifier) CreateChallenge(_ context.Context, _ common.Hash, _ fetcher.Oracle, preimage keccakTypes.LargePreimageMetaData) (keccakTypes.Challenge, error) {
+func (s *stubVerifier) CreateChallenge(_ context.Context, _ common.Hash, _ VerifierPreimageOracle, preimage keccakTypes.LargePreimageMetaData) (keccakTypes.Challenge, error) {
 	if s.err != nil {
 		return keccakTypes.Challenge{}, s.err
 	}

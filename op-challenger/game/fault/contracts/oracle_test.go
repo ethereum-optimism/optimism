@@ -185,6 +185,19 @@ func TestGetProposalMetadata(t *testing.T) {
 	require.Equal(t, []keccakTypes.LargePreimageMetaData{{LargePreimageIdent: ident}}, preimages)
 }
 
+func TestGetProposalTreeRoot(t *testing.T) {
+	blockHash := common.Hash{0xaa}
+	expectedRoot := common.Hash{0xbb}
+	ident := keccakTypes.LargePreimageIdent{Claimant: common.Address{0x12}, UUID: big.NewInt(123)}
+	stubRpc, oracle := setupPreimageOracleTest(t)
+	stubRpc.SetResponse(oracleAddr, methodGetTreeRootLPP, batching.BlockByHash(blockHash),
+		[]interface{}{ident.Claimant, ident.UUID},
+		[]interface{}{expectedRoot})
+	actualRoot, err := oracle.GetProposalTreeRoot(context.Background(), batching.BlockByHash(blockHash), ident)
+	require.NoError(t, err)
+	require.Equal(t, expectedRoot, actualRoot)
+}
+
 func setupPreimageOracleTestWithProposals(t *testing.T, block batching.Block) (*batchingTest.AbiBasedRpc, *PreimageOracleContract, []keccakTypes.LargePreimageMetaData) {
 	stubRpc, oracle := setupPreimageOracleTest(t)
 	stubRpc.SetResponse(
