@@ -26,6 +26,10 @@ parser.add_argument('--test', help='Tests the deployment, must already be deploy
 
 log = logging.getLogger()
 
+# Global environment variables
+DEVNET_NO_BUILD = os.getenv('DEVNET_NO_BUILD') == "true"
+DEVNET_FPAC = os.getenv('DEVNET_FPAC') == "true"
+
 class Bunch:
     def __init__(self, **kwds):
         self.__dict__.update(kwds)
@@ -104,7 +108,7 @@ def main():
     git_date = subprocess.run(['git', 'show', '-s', "--format=%ct"], capture_output=True, text=True).stdout.strip()
 
     # CI loads the images from workspace, and does not otherwise know the images are good as-is
-    if os.getenv('DEVNET_NO_BUILD') == "true":
+    if DEVNET_NO_BUILD:
         log.info('Skipping docker images build')
     else:
         log.info(f'Building docker images for git commit {git_commit} ({git_date})')
@@ -123,6 +127,9 @@ def init_devnet_l1_deploy_config(paths, update_timestamp=False):
     deploy_config = read_json(paths.devnet_config_template_path)
     if update_timestamp:
         deploy_config['l1GenesisBlockTimestamp'] = '{:#x}'.format(int(time.time()))
+    if DEVNET_FPAC:
+        deploy_config['useFaultProofs'] = True
+        deploy_config['faultGameMaxDuration'] = 10
     write_json(paths.devnet_config_path, deploy_config)
 
 def devnet_l1_genesis(paths):
@@ -146,7 +153,11 @@ def devnet_deploy(paths):
         log.info('L1 genesis already generated.')
     else:
         log.info('Generating L1 genesis.')
-        if os.path.exists(paths.allocs_path) == False:
+        if os.path.exists(paths.allocs_path) == False or DEVNET_FPAC == True:
+            # If this is the FPAC devnet then we need to generate the allocs
+            # file here always. This is because CI will run devnet-allocs
+            # without DEVNET_FPAC=true which means the allocs will be wrong.
+            # Re-running this step means the allocs will be correct.
             devnet_l1_genesis(paths)
 
         # It's odd that we want to regenerate the devnetL1.json file with
@@ -186,30 +197,49 @@ def devnet_deploy(paths):
     rollup_config = read_json(paths.rollup_config_path)
     addresses = read_json(paths.addresses_json_path)
 
+    # Start the L2.
     log.info('Bringing up L2.')
     run_command(['docker', 'compose', 'up', '-d', 'l2'], cwd=paths.ops_bedrock_dir, env={
         'PWD': paths.ops_bedrock_dir
     })
+
+    # Wait for the L2 to be available.
     wait_up(9545)
     wait_for_rpc_server('127.0.0.1:9545')
 
+    # Print out the addresses being used for easier debugging.
     l2_output_oracle = addresses['L2OutputOracleProxy']
-    log.info(f'Using L2OutputOracle {l2_output_oracle}')
+    dispute_game_factory = addresses['DisputeGameFactoryProxy']
     batch_inbox_address = rollup_config['batch_inbox_address']
+    log.info(f'Using L2OutputOracle {l2_output_oracle}')
+    log.info(f'Using DisputeGameFactory {dispute_game_factory}')
     log.info(f'Using batch inbox {batch_inbox_address}')
 
-    log.info('Bringing up `op-node`, `op-proposer` and `op-batcher`.')
-    run_command(['docker', 'compose', 'up', '-d', 'op-node', 'op-proposer', 'op-batcher'], cwd=paths.ops_bedrock_dir, env={
+    # Set up the base docker environment.
+    docker_env = {
         'PWD': paths.ops_bedrock_dir,
-        'L2OO_ADDRESS': l2_output_oracle,
         'SEQUENCER_BATCH_INBOX_ADDRESS': batch_inbox_address
-    })
+    }
 
-    log.info('Bringing up `artifact-server`')
-    run_command(['docker', 'compose', 'up', '-d', 'artifact-server'], cwd=paths.ops_bedrock_dir, env={
-        'PWD': paths.ops_bedrock_dir
-    })
+    # Selectively set the L2OO_ADDRESS or DGF_ADDRESS if using FPAC.
+    # Must be done selectively because op-proposer throws if both are set.
+    if DEVNET_FPAC:
+        docker_env['DGF_ADDRESS'] = dispute_game_factory
+        docker_env['DG_TYPE'] = '0'
+        docker_env['PROPOSAL_INTERVAL'] = '10s'
+    else:
+        docker_env['L2OO_ADDRESS'] = l2_output_oracle
 
+    # Bring up the rest of the services.
+    log.info('Bringing up `op-node`, `op-proposer` and `op-batcher`.')
+    run_command(['docker', 'compose', 'up', '-d', 'op-node', 'op-proposer', 'op-batcher', 'artifact-server'], cwd=paths.ops_bedrock_dir, env=docker_env)
+
+    # Optionally bring up op-challenger.
+    if DEVNET_FPAC:
+        log.info('Bringing up `op-challenger`.')
+        run_command(['docker', 'compose', 'up', '-d', 'op-challenger'], cwd=paths.ops_bedrock_dir, env=docker_env)
+
+    # Fin.
     log.info('Devnet ready.')
 
 def wait_for_rpc_server(url):

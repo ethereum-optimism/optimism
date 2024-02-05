@@ -233,6 +233,18 @@ type DeployConfig struct {
 	// RequiredProtocolVersion indicates the protocol version that
 	// nodes are recommended to adopt, to stay in sync with the network.
 	RecommendedProtocolVersion params.ProtocolVersion `json:"recommendedProtocolVersion"`
+	// ProofMaturityDelaySeconds is the number of seconds that a proof must be
+	// mature before it can be used to finalize a withdrawal.
+	ProofMaturityDelaySeconds uint64 `json:"proofMaturityDelaySeconds"`
+	// DisputeGameFinalityDelaySeconds is an additional number of seconds a
+	// dispute game must wait before it can be used to finalize a withdrawal.
+	DisputeGameFinalityDelaySeconds uint64 `json:"disputeGameFinalityDelaySeconds"`
+	// RespectedGameType is the dispute game type that the OptimismPortal
+	// contract will respect for finalizing withdrawals.
+	RespectedGameType uint32 `json:"respectedGameType"`
+	// UseFaultProofs is a flag that indicates if the system is using fault
+	// proofs instead of the older output oracle mechanism.
+	UseFaultProofs bool `json:"useFaultProofs"`
 
 	// When Cancun activates. Relative to L1 genesis.
 	L1CancunTimeOffset *hexutil.Uint64 `json:"l1CancunTimeOffset,omitempty"`
@@ -376,6 +388,12 @@ func (d *DeployConfig) Check() error {
 	}
 	if d.RecommendedProtocolVersion == (params.ProtocolVersion{}) {
 		log.Warn("RecommendedProtocolVersion is empty")
+	}
+	if d.ProofMaturityDelaySeconds == 0 {
+		log.Warn("ProofMaturityDelaySeconds is 0")
+	}
+	if d.DisputeGameFinalityDelaySeconds == 0 {
+		log.Warn("DisputeGameFinalityDelaySeconds is 0")
 	}
 	// checkFork checks that fork A is before or at the same time as fork B
 	checkFork := func(a, b *hexutil.Uint64, aName, bName string) error {

@@ -20,6 +20,7 @@ import { Proxy } from "src/universal/Proxy.sol";
 import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
 import { StandardBridge } from "src/universal/StandardBridge.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
+import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
 import { L1ChugSplashProxy } from "src/legacy/L1ChugSplashProxy.sol";
 import { ResolvedDelegateProxy } from "src/legacy/ResolvedDelegateProxy.sol";
 import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
@@ -128,8 +129,10 @@ contract Deploy is Deployer {
             L1CrossDomainMessenger: mustGetAddress("L1CrossDomainMessengerProxy"),
             L1StandardBridge: mustGetAddress("L1StandardBridgeProxy"),
             L2OutputOracle: mustGetAddress("L2OutputOracleProxy"),
+            DisputeGameFactory: mustGetAddress("DisputeGameFactoryProxy"),
             OptimismMintableERC20Factory: mustGetAddress("OptimismMintableERC20FactoryProxy"),
             OptimismPortal: mustGetAddress("OptimismPortalProxy"),
+            OptimismPortal2: mustGetAddress("OptimismPortalProxy"),
             SystemConfig: mustGetAddress("SystemConfigProxy"),
             L1ERC721Bridge: mustGetAddress("L1ERC721BridgeProxy"),
             ProtocolVersions: mustGetAddress("ProtocolVersionsProxy"),
@@ -143,8 +146,10 @@ contract Deploy is Deployer {
             L1CrossDomainMessenger: getAddress("L1CrossDomainMessengerProxy"),
             L1StandardBridge: getAddress("L1StandardBridgeProxy"),
             L2OutputOracle: getAddress("L2OutputOracleProxy"),
+            DisputeGameFactory: getAddress("DisputeGameFactoryProxy"),
             OptimismMintableERC20Factory: getAddress("OptimismMintableERC20FactoryProxy"),
             OptimismPortal: getAddress("OptimismPortalProxy"),
+            OptimismPortal2: getAddress("OptimismPortalProxy"),
             SystemConfig: getAddress("SystemConfigProxy"),
             L1ERC721Bridge: getAddress("L1ERC721BridgeProxy"),
             ProtocolVersions: getAddress("ProtocolVersionsProxy"),
@@ -339,6 +344,7 @@ contract Deploy is Deployer {
     function deployImplementations() public {
         console.log("Deploying implementations");
         deployOptimismPortal();
+        deployOptimismPortal2();
         deployL1CrossDomainMessenger();
         deployL2OutputOracle();
         deployOptimismMintableERC20Factory();
@@ -360,7 +366,17 @@ contract Deploy is Deployer {
         initializeOptimismMintableERC20Factory();
         initializeL1CrossDomainMessenger();
         initializeL2OutputOracle();
-        initializeOptimismPortal();
+
+        // Selectively initialize either the original OptimismPortal or the
+        // new OptimismPortal2. Since this will upgrade the proxy, we cannot
+        // initialize both. FPAC warning can be removed once we're done with
+        // the old OptimismPortal contract.
+        if (cfg.useFaultProofs()) {
+            console.log("WARNING: FPAC is enabled and using OptimismPortal2");
+            initializeOptimismPortal2();
+        } else {
+            initializeOptimismPortal();
+        }
     }
 
     ////////////////////////////////////////////////////////////////
@@ -539,6 +555,36 @@ contract Deploy is Deployer {
         addr_ = address(portal);
     }
 
+    /// @notice Deploy the OptimismPortal2
+    function deployOptimismPortal2() public broadcast returns (address addr_) {
+        console.log("Deploying OptimismPortal2 implementation");
+
+        // Could also verify this inside DeployConfig but doing it here is a bit more reliable.
+        require(
+            uint32(cfg.respectedGameType()) == cfg.respectedGameType(), "Deploy: respectedGameType must fit into uint32"
+        );
+
+        OptimismPortal2 portal = new OptimismPortal2{ salt: _implSalt() }({
+            _proofMaturityDelaySeconds: cfg.proofMaturityDelaySeconds(),
+            _disputeGameFinalityDelaySeconds: cfg.disputeGameFinalityDelaySeconds(),
+            _initialRespectedGameType: GameType.wrap(uint32(cfg.respectedGameType()))
+        });
+
+        save("OptimismPortal2", address(portal));
+        console.log("OptimismPortal2 deployed at %s", address(portal));
+
+        // Override the `OptimismPortal2` contract to the deployed implementation. This is necessary
+        // to check the `OptimismPortal2` implementation alongside dependent contracts, which
+        // are always proxies.
+        Types.ContractSet memory contracts = _proxiesUnstrict();
+        contracts.OptimismPortal2 = address(portal);
+        ChainAssertions.checkOptimismPortal2({ _contracts: contracts, _cfg: cfg, _isProxy: false });
+
+        require(loadInitializedSlot("OptimismPortal2") == 1, "OptimismPortal2 is not initialized");
+
+        addr_ = address(portal);
+    }
+
     /// @notice Deploy the L2OutputOracle
     function deployL2OutputOracle() public broadcast returns (address addr_) {
         console.log("Deploying L2OutputOracle implementation");
@@ -588,6 +634,8 @@ contract Deploy is Deployer {
         DisputeGameFactory factory = new DisputeGameFactory{ salt: _implSalt() }();
         save("DisputeGameFactory", address(factory));
         console.log("DisputeGameFactory deployed at %s", address(factory));
+        // TODO: Run the checkDisputeGameFactory function here.
+        // @see https://github.com/ethereum-optimism/optimism/issues/9354
 
         addr_ = address(factory);
     }
@@ -738,6 +786,8 @@ contract Deploy is Deployer {
 
         string memory version = DisputeGameFactory(disputeGameFactoryProxy).version();
         console.log("DisputeGameFactory version: %s", version);
+        // TODO: Run the checkDisputeGameFactory function here.
+        // @see https://github.com/ethereum-optimism/optimism/issues/9354
     }
 
     /// @notice Initialize the SystemConfig
@@ -975,6 +1025,37 @@ contract Deploy is Deployer {
         console.log("OptimismPortal version: %s", version);
 
         ChainAssertions.checkOptimismPortal({ _contracts: _proxies(), _cfg: cfg, _isProxy: true });
+
+        require(loadInitializedSlot("OptimismPortalProxy") == 1, "OptimismPortalProxy is not initialized");
+    }
+
+    /// @notice Initialize the OptimismPortal2
+    function initializeOptimismPortal2() public broadcast {
+        console.log("Upgrading and initializing OptimismPortal2 proxy");
+        address optimismPortalProxy = mustGetAddress("OptimismPortalProxy");
+        address optimismPortal2 = mustGetAddress("OptimismPortal2");
+        address disputeGameFactoryProxy = mustGetAddress("DisputeGameFactoryProxy");
+        address systemConfigProxy = mustGetAddress("SystemConfigProxy");
+        address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
+
+        _upgradeAndCallViaSafe({
+            _proxy: payable(optimismPortalProxy),
+            _implementation: optimismPortal2,
+            _innerCallData: abi.encodeCall(
+                OptimismPortal2.initialize,
+                (
+                    DisputeGameFactory(disputeGameFactoryProxy),
+                    SystemConfig(systemConfigProxy),
+                    SuperchainConfig(superchainConfigProxy)
+                )
+                )
+        });
+
+        OptimismPortal2 portal = OptimismPortal2(payable(optimismPortalProxy));
+        string memory version = portal.version();
+        console.log("OptimismPortal2 version: %s", version);
+
+        ChainAssertions.checkOptimismPortal2({ _contracts: _proxies(), _cfg: cfg, _isProxy: true });
 
         require(loadInitializedSlot("OptimismPortalProxy") == 1, "OptimismPortalProxy is not initialized");
     }

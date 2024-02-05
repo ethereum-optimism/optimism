@@ -59,6 +59,10 @@ contract DeployConfig is Script {
     uint256 public systemConfigStartBlock;
     uint256 public requiredProtocolVersion;
     uint256 public recommendedProtocolVersion;
+    uint256 public proofMaturityDelaySeconds;
+    uint256 public disputeGameFinalityDelaySeconds;
+    uint256 public respectedGameType;
+    bool public useFaultProofs;
 
     function read(string memory _path) public {
         console.log("DeployConfig: reading file %s", _path);
@@ -105,6 +109,10 @@ contract DeployConfig is Script {
         systemConfigStartBlock = stdJson.readUint(_json, "$.systemConfigStartBlock");
         requiredProtocolVersion = stdJson.readUint(_json, "$.requiredProtocolVersion");
         recommendedProtocolVersion = stdJson.readUint(_json, "$.recommendedProtocolVersion");
+        proofMaturityDelaySeconds = stdJson.readUint(_json, "$.proofMaturityDelaySeconds");
+        disputeGameFinalityDelaySeconds = stdJson.readUint(_json, "$.disputeGameFinalityDelaySeconds");
+        respectedGameType = stdJson.readUint(_json, "$.respectedGameType");
+        useFaultProofs = stdJson.readBool(_json, "$.useFaultProofs");
 
         if (
             block.chainid == Chains.LocalDevnet || block.chainid == Chains.GethDevnet || block.chainid == Chains.Sepolia

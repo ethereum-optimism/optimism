@@ -251,6 +251,7 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "OptimismPortal2", _sel: _getSel("blacklistDisputeGame(address)") });
         _addSpec({ _name: "OptimismPortal2", _sel: _getSel("deleteProvenWithdrawal(bytes32)") });
         _addSpec({ _name: "OptimismPortal2", _sel: _getSel("setRespectedGameType(uint32)") });
+        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("checkWithdrawal(bytes32)") });
 
         // ProtocolVersions
         _addSpec({ _name: "ProtocolVersions", _sel: _getSel("RECOMMENDED_SLOT()") });
