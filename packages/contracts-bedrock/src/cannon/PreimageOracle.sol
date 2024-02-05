@@ -475,9 +475,8 @@ contract PreimageOracle is IPreimageOracle {
         if (_finalize) {
             metaData = metaData.setTimestamp(uint64(block.timestamp));
 
-            // If the number of bytes processed is not equal to the claimed size, the proposal is invalid. We mark it as
-            // countered to prevent the challenger from having to check the proposal.
-            if (metaData.bytesProcessed() != metaData.claimedSize()) metaData = metaData.setCountered(true);
+            // If the number of bytes processed is not equal to the claimed size, the proposal cannot be finalized.
+            if (metaData.bytesProcessed() != metaData.claimedSize()) revert InvalidInputSize();
         }
 
         // Perist the latest branch to storage.

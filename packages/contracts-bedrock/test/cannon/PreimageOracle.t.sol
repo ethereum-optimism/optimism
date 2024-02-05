@@ -265,16 +265,9 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         // Add the leaves to the tree (2 keccak blocks.)
         LibKeccak.StateMatrix memory stateMatrix;
         bytes32[] memory stateCommitments = _generateStateCommitments(stateMatrix, data);
-        oracle.addLeavesLPP(TEST_UUID, 0, data, stateCommitments, true);
 
-        // MetaData assertions
-        LPPMetaData metaData = oracle.proposalMetadata(address(this), TEST_UUID);
-        assertEq(metaData.timestamp(), block.timestamp);
-        assertEq(metaData.partOffset(), 0);
-        assertEq(metaData.claimedSize(), data.length + 1);
-        assertEq(metaData.blocksProcessed(), 2);
-        assertEq(metaData.bytesProcessed(), data.length);
-        assertTrue(metaData.countered());
+        vm.expectRevert(InvalidInputSize.selector);
+        oracle.addLeavesLPP(TEST_UUID, 0, data, stateCommitments, true);
     }
 
     /// @notice Tests that the `addLeavesLPP` function may never be called when `tx.origin != msg.sender`
