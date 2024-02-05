@@ -25,7 +25,7 @@ interface IInitializable {
 /// @dev The general flow of adding a predeploy is:
 ///      1. _setProxies uses vm.etch to set the Proxy.sol deployed bytecode for proxy address `0x420...000` to `0x420...000 + PROXY_COUNT - 1`.
 ///      Additionally, the PROXY_ADMIN_ADDRESS and PROXY_IMPLEMENTATION_ADDRESS storage slots are set for the proxy
-/// address.
+///      address.
 ///      2. vm.etch sets the deployed bytecode for each predeploy at the implementation address (i.e. code namespace).
 ///      3. The `initialize` method is called at the implementation address with zero/dummy vaules if it exists.
 ///      4. The `initialize` method is called at the proxy address with actual vaules if it exists.
