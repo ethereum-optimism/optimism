@@ -40,7 +40,7 @@
     "preinstall": "npx only-allow pnpm",
     "pre-pr:no-build": "pnpm gas-snapshot:no-build && pnpm snapshots && pnpm semver-lock && pnpm autogen:invariant-docs && pnpm lint && pnpm bindings:go:no-build",
     "pre-pr": "pnpm clean && pnpm build:go-ffi && pnpm build && pnpm pre-pr:no-build",
-    "pre-pr:full": "pnpm test && pnpm slither && pnpm validate-deploy-configs && pnpm validate-spacers && pnpm pre-pr",
+    "pre-pr:full": "pnpm test && pnpm validate-deploy-configs && pnpm validate-spacers && pnpm pre-pr",
     "lint:ts:check": "eslint . --max-warnings=0",
     "lint:forge-tests:check": "npx tsx scripts/forge-test-names.ts",
     "lint:contracts:check": "pnpm lint:fix && git diff --exit-code",
