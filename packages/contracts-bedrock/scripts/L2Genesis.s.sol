@@ -37,7 +37,7 @@ interface IInitializable {
 ///         Any other side effects from the init code besides setting the immutables must be cleaned up afterwards.
 ///         3. A contract is deployed using the `new` syntax because it's not proxied, but still needs to be set
 ///         at a specific address. Because just deploying a new instance doesn't give us the contract at our desired
-/// address,
+///         address,
 ///         we must use `vm.etch` to set the deployed bytecode, and `vm.store` to set an storage slots. Lastly, we reset
 ///         the account the contract was initially deployed so it's not included in the `vm.dumpState`.
 contract L2Genesis is Script, Artifacts {
