@@ -58,7 +58,8 @@ func (s *EngineClient) ForkchoiceUpdate(ctx context.Context, fc *eth.ForkchoiceS
 	fcCtx, cancel := context.WithTimeout(ctx, time.Second*5)
 	defer cancel()
 	var result eth.ForkchoiceUpdatedResult
-	err := s.client.CallContext(fcCtx, &result, "engine_forkchoiceUpdatedV3", fc, attributes)
+	method := s.rollupCfg.ForkchoiceUpdatedVersion(attributes)
+	err := s.client.CallContext(fcCtx, &result, string(method), fc, attributes)
 	if err == nil {
 		tlog.Trace("Shared forkchoice-updated signal")
 		if attributes != nil { // block building is optional, we only get a payload ID if we are building a block
@@ -95,10 +96,13 @@ func (s *EngineClient) NewPayload(ctx context.Context, payload *eth.ExecutionPay
 	var result eth.PayloadStatusV1
 
 	var err error
-	if s.rollupCfg.IsEcotone(uint64(payload.Timestamp)) {
-		err = s.client.CallContext(execCtx, &result, "engine_newPayloadV3", payload, []common.Hash{}, parentBeaconBlockRoot)
-	} else {
-		err = s.client.CallContext(execCtx, &result, "engine_newPayloadV2", payload)
+	switch method := s.rollupCfg.NewPayloadVersion(uint64(payload.Timestamp)); method {
+	case eth.NewPayloadV3:
+		err = s.client.CallContext(execCtx, &result, string(method), payload, []common.Hash{}, parentBeaconBlockRoot)
+	case eth.NewPayloadV2:
+		err = s.client.CallContext(execCtx, &result, string(method), payload)
+	default:
+		return nil, fmt.Errorf("unsupported NewPayload version: %s", method)
 	}
 
 	e.Trace("Received payload execution result", "status", result.Status, "latestValidHash", result.LatestValidHash, "message", result.ValidationError)
@@ -113,13 +117,14 @@ func (s *EngineClient) NewPayload(ctx context.Context, payload *eth.ExecutionPay
 // There may be two types of error:
 // 1. `error` as eth.InputError: the payload ID may be unknown
 // 2. Other types of `error`: temporary RPC errors, like timeouts.
-func (s *EngineClient) GetPayload(ctx context.Context, payloadId eth.PayloadID) (*eth.ExecutionPayloadEnvelope, error) {
-	e := s.log.New("payload_id", payloadId)
+func (s *EngineClient) GetPayload(ctx context.Context, payloadInfo eth.PayloadInfo) (*eth.ExecutionPayloadEnvelope, error) {
+	e := s.log.New("payload_id", payloadInfo.ID)
 	e.Trace("getting payload")
 	var result eth.ExecutionPayloadEnvelope
-	err := s.client.CallContext(ctx, &result, "engine_getPayloadV3", payloadId)
+	method := s.rollupCfg.GetPayloadVersion(payloadInfo.Timestamp)
+	err := s.client.CallContext(ctx, &result, string(method), payloadInfo.ID)
 	if err != nil {
-		e.Warn("Failed to get payload", "payload_id", payloadId, "err", err)
+		e.Warn("Failed to get payload", "payload_id", payloadInfo.ID, "err", err)
 		if rpcErr, ok := err.(rpc.Error); ok {
 			code := eth.ErrorCode(rpcErr.ErrorCode())
 			switch code {

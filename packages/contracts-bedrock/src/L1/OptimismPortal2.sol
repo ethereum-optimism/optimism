@@ -313,51 +313,11 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
             l2Sender == Constants.DEFAULT_L2_SENDER, "OptimismPortal: can only trigger one withdrawal per transaction"
         );
 
-        // Grab the proven withdrawal from the `provenWithdrawals` map.
+        // Compute the withdrawal hash.
         bytes32 withdrawalHash = Hashing.hashWithdrawal(_tx);
-        ProvenWithdrawal memory provenWithdrawal = provenWithdrawals[withdrawalHash];
-        IDisputeGame disputeGameProxy = provenWithdrawal.disputeGameProxy;
 
-        // The dispute game must not be blacklisted.
-        require(!disputeGameBlacklist[disputeGameProxy], "OptimismPortal: dispute game has been blacklisted");
-
-        // A withdrawal can only be finalized if it has been proven. We know that a withdrawal has
-        // been proven at least once when its timestamp is non-zero. Unproven withdrawals will have
-        // a timestamp of zero.
-        require(provenWithdrawal.timestamp != 0, "OptimismPortal: withdrawal has not been proven yet");
-
-        // As a sanity check, we make sure that the proven withdrawal's timestamp is greater than
-        // starting timestamp inside the Dispute Game. Not strictly necessary but extra layer of
-        // safety against weird bugs in the proving step.
-        require(
-            provenWithdrawal.timestamp > disputeGameProxy.createdAt().raw(),
-            "OptimismPortal: withdrawal timestamp less than L2 Oracle starting timestamp"
-        );
-
-        // A proven withdrawal must wait at least `PROOF_MATURITY_DELAY_SECONDS` before finalizing.
-        require(
-            block.timestamp - provenWithdrawal.timestamp > PROOF_MATURITY_DELAY_SECONDS,
-            "OptimismPortal: proven withdrawal has not matured yet"
-        );
-
-        // A proven withdrawal must wait until the dispute game it was proven against has been
-        // resolved in favor of the root claim (the output proposal). This is to prevent users
-        // from finalizing withdrawals proven against non-finalized output roots.
-        require(
-            disputeGameProxy.status() == GameStatus.DEFENDER_WINS,
-            "OptimismPortal: output proposal has not been finalized yet"
-        );
-
-        // Before a withdrawal can be finalized, the dispute game it was proven against must have been
-        // resolved for at least `DISPUTE_GAME_FINALITY_DELAY_SECONDS`. This is to allow for manual
-        // intervention in the event that a dispute game is resolved incorrectly.
-        require(
-            block.timestamp - disputeGameProxy.resolvedAt().raw() > DISPUTE_GAME_FINALITY_DELAY_SECONDS,
-            "OptimismPortal: output proposal in air-gap"
-        );
-
-        // Check that this withdrawal has not already been finalized, this is replay protection.
-        require(!finalizedWithdrawals[withdrawalHash], "OptimismPortal: withdrawal has already been finalized");
+        // Check that the withdrawal can be finalized.
+        checkWithdrawal(withdrawalHash);
 
         // Mark the withdrawal as finalized so it can't be replayed.
         finalizedWithdrawals[withdrawalHash] = true;
@@ -462,5 +422,55 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     function setRespectedGameType(GameType _gameType) external {
         require(msg.sender == SAURON, "OptimismPortal: only sauron can set the respected game type");
         respectedGameType = _gameType;
+    }
+
+    /// @notice Checks if a withdrawal can be finalized. NOTE: Decision was made to have this
+    ///         function revert rather than returning a boolean so that was more obvious why the
+    ///         function failed.
+    /// @param _withdrawalHash Hash of the withdrawal to check.
+    function checkWithdrawal(bytes32 _withdrawalHash) public view {
+        ProvenWithdrawal memory provenWithdrawal = provenWithdrawals[_withdrawalHash];
+        IDisputeGame disputeGameProxy = provenWithdrawal.disputeGameProxy;
+
+        // The dispute game must not be blacklisted.
+        require(!disputeGameBlacklist[disputeGameProxy], "OptimismPortal: dispute game has been blacklisted");
+
+        // A withdrawal can only be finalized if it has been proven. We know that a withdrawal has
+        // been proven at least once when its timestamp is non-zero. Unproven withdrawals will have
+        // a timestamp of zero.
+        require(provenWithdrawal.timestamp != 0, "OptimismPortal: withdrawal has not been proven yet");
+
+        // As a sanity check, we make sure that the proven withdrawal's timestamp is greater than
+        // starting timestamp inside the Dispute Game. Not strictly necessary but extra layer of
+        // safety against weird bugs in the proving step.
+        require(
+            provenWithdrawal.timestamp > disputeGameProxy.createdAt().raw(),
+            "OptimismPortal: withdrawal timestamp less than L2 Oracle starting timestamp"
+        );
+
+        // A proven withdrawal must wait at least `PROOF_MATURITY_DELAY_SECONDS` before finalizing.
+        require(
+            block.timestamp - provenWithdrawal.timestamp > PROOF_MATURITY_DELAY_SECONDS,
+            "OptimismPortal: proven withdrawal has not matured yet"
+        );
+
+        // A proven withdrawal must wait until the dispute game it was proven against has been
+        // resolved in favor of the root claim (the output proposal). This is to prevent users
+        // from finalizing withdrawals proven against non-finalized output roots.
+        require(
+            disputeGameProxy.status() == GameStatus.DEFENDER_WINS,
+            "OptimismPortal: output proposal has not been finalized yet"
+        );
+
+        // Before a withdrawal can be finalized, the dispute game it was proven against must have been
+        // resolved for at least `DISPUTE_GAME_FINALITY_DELAY_SECONDS`. This is to allow for manual
+        // intervention in the event that a dispute game is resolved incorrectly.
+        require(
+            block.timestamp - disputeGameProxy.resolvedAt().raw() > DISPUTE_GAME_FINALITY_DELAY_SECONDS,
+            "OptimismPortal: output proposal in air-gap"
+        );
+
+        // Check that this withdrawal has not already been finalized, this is replay protection.
+        require(!finalizedWithdrawals[_withdrawalHash], "OptimismPortal: withdrawal has already been finalized");
     }
 }

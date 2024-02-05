@@ -508,3 +508,118 @@ func TestTimestampForBlock(t *testing.T) {
 	}
 
 }
+
+func TestForkchoiceUpdatedVersion(t *testing.T) {
+	config := randConfig()
+	tests := []struct {
+		name           string
+		canyonTime     uint64
+		ecotoneTime    uint64
+		attrs          *eth.PayloadAttributes
+		expectedMethod eth.EngineAPIMethod
+	}{
+		{
+			name:           "NoAttrs",
+			canyonTime:     10,
+			ecotoneTime:    20,
+			attrs:          nil,
+			expectedMethod: eth.FCUV3,
+		},
+		{
+			name:           "BeforeCanyon",
+			canyonTime:     10,
+			ecotoneTime:    20,
+			attrs:          &eth.PayloadAttributes{Timestamp: 5},
+			expectedMethod: eth.FCUV1,
+		},
+		{
+			name:           "Canyon",
+			canyonTime:     10,
+			ecotoneTime:    20,
+			attrs:          &eth.PayloadAttributes{Timestamp: 15},
+			expectedMethod: eth.FCUV2,
+		},
+		{
+			name:           "Ecotone",
+			canyonTime:     10,
+			ecotoneTime:    20,
+			attrs:          &eth.PayloadAttributes{Timestamp: 25},
+			expectedMethod: eth.FCUV3,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(fmt.Sprintf("TestForkchoiceUpdatedVersion_%s", test.name), func(t *testing.T) {
+			config.CanyonTime = &test.canyonTime
+			config.EcotoneTime = &test.ecotoneTime
+			assert.Equal(t, config.ForkchoiceUpdatedVersion(test.attrs), test.expectedMethod)
+		})
+	}
+}
+
+func TestNewPayloadVersion(t *testing.T) {
+	config := randConfig()
+	canyonTime := uint64(0)
+	config.CanyonTime = &canyonTime
+	tests := []struct {
+		name           string
+		ecotoneTime    uint64
+		payloadTime    uint64
+		expectedMethod eth.EngineAPIMethod
+	}{
+		{
+			name:           "BeforeEcotone",
+			ecotoneTime:    10,
+			payloadTime:    5,
+			expectedMethod: eth.NewPayloadV2,
+		},
+		{
+			name:           "Ecotone",
+			ecotoneTime:    10,
+			payloadTime:    15,
+			expectedMethod: eth.NewPayloadV3,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(fmt.Sprintf("TestNewPayloadVersion_%s", test.name), func(t *testing.T) {
+			config.EcotoneTime = &test.ecotoneTime
+			assert.Equal(t, config.NewPayloadVersion(test.payloadTime), test.expectedMethod)
+		})
+	}
+}
+
+func TestGetPayloadVersion(t *testing.T) {
+	config := randConfig()
+	canyonTime := uint64(0)
+	config.CanyonTime = &canyonTime
+	tests := []struct {
+		name           string
+		ecotoneTime    uint64
+		payloadTime    uint64
+		expectedMethod eth.EngineAPIMethod
+	}{
+		{
+			name:           "BeforeEcotone",
+			ecotoneTime:    10,
+			payloadTime:    5,
+			expectedMethod: eth.GetPayloadV2,
+		},
+		{
+			name:           "Ecotone",
+			ecotoneTime:    10,
+			payloadTime:    15,
+			expectedMethod: eth.GetPayloadV3,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(fmt.Sprintf("TestGetPayloadVersion_%s", test.name), func(t *testing.T) {
+			config.EcotoneTime = &test.ecotoneTime
+			assert.Equal(t, config.GetPayloadVersion(test.payloadTime), test.expectedMethod)
+		})
+	}
+}

@@ -12,8 +12,8 @@ type MockEngine struct {
 	MockL2Client
 }
 
-func (m *MockEngine) GetPayload(ctx context.Context, payloadId eth.PayloadID) (*eth.ExecutionPayloadEnvelope, error) {
-	out := m.Mock.Called(payloadId)
+func (m *MockEngine) GetPayload(ctx context.Context, payloadInfo eth.PayloadInfo) (*eth.ExecutionPayloadEnvelope, error) {
+	out := m.Mock.Called(payloadInfo.ID)
 	return out.Get(0).(*eth.ExecutionPayloadEnvelope), out.Error(1)
 }
 

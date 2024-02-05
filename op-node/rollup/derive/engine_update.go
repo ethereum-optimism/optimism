@@ -124,7 +124,7 @@ func confirmPayload(
 	log log.Logger,
 	eng ExecEngine,
 	fc eth.ForkchoiceState,
-	id eth.PayloadID,
+	payloadInfo eth.PayloadInfo,
 	updateSafe bool,
 	agossip async.AsyncGossiper,
 	sequencerConductor conductor.SequencerConductor,
@@ -140,7 +140,7 @@ func confirmPayload(
 			"parent", envelope.ExecutionPayload.ParentHash,
 			"txs", len(envelope.ExecutionPayload.Transactions))
 	} else {
-		envelope, err = eng.GetPayload(ctx, id)
+		envelope, err = eng.GetPayload(ctx, payloadInfo)
 	}
 	if err != nil {
 		// even if it is an input-error (unknown payload ID), it is temporary, since we will re-attempt the full payload building, not just the retrieval of the payload.

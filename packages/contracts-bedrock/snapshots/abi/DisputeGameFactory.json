@@ -64,6 +64,21 @@
             "internalType": "GameId",
             "name": "metadata",
             "type": "bytes32"
+          },
+          {
+            "internalType": "Timestamp",
+            "name": "timestamp",
+            "type": "uint64"
+          },
+          {
+            "internalType": "Claim",
+            "name": "rootClaim",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes",
+            "name": "extraData",
+            "type": "bytes"
           }
         ],
         "internalType": "struct IDisputeGameFactory.GameSearchResult[]",

@@ -274,8 +274,9 @@ contract DisputeGameFactory_FindLatestGames_Test is DisputeGameFactory_Init {
 
         uint256 gameCount = factory.gameCount();
 
-        IDisputeGameFactory.GameSearchResult[] memory games =
-            factory.findLatestGames(GameType.wrap(0), gameCount - 1, 1);
+        IDisputeGameFactory.GameSearchResult[] memory games;
+
+        games = factory.findLatestGames(GameType.wrap(0), gameCount - 1, 1);
         assertEq(games.length, 1);
         assertEq(games[0].index, 30);
         (GameType gameType, Timestamp createdAt, IDisputeGame game) = games[0].metadata.unpack();
@@ -309,8 +310,9 @@ contract DisputeGameFactory_FindLatestGames_Test is DisputeGameFactory_Init {
 
         uint256 gameCount = factory.gameCount();
 
-        IDisputeGameFactory.GameSearchResult[] memory games =
-            factory.findLatestGames(GameType.wrap(2), gameCount - 1, 5);
+        IDisputeGameFactory.GameSearchResult[] memory games;
+
+        games = factory.findLatestGames(GameType.wrap(2), gameCount - 1, 5);
         assertEq(games.length, 0);
 
         games = factory.findLatestGames(GameType.wrap(1), gameCount - 1, 5);
@@ -348,5 +350,13 @@ contract DisputeGameFactory_FindLatestGames_Test is DisputeGameFactory_Init {
 contract FakeClone {
     function initialize() external payable {
         // noop
+    }
+
+    function extraData() external pure returns (bytes memory) {
+        return hex"FF0420";
+    }
+
+    function rootClaim() external pure returns (Claim) {
+        return Claim.wrap(bytes32(0));
     }
 }
