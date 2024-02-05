@@ -110,6 +110,9 @@ type Config struct {
 
 	// L1 block timestamp to start reading blobs as batch data-source. Optional.
 	BlobsEnabledL1Timestamp *uint64 `json:"blobs_data,omitempty"`
+
+	// L1 DataAvailabilityChallenge contract proxy address
+	DAChallengeAddress common.Address `json:"da_challenge_address,omitempty"`
 }
 
 // ValidateL1Config checks L1 config variables for errors.
@@ -395,7 +398,7 @@ func (c *Config) GetPayloadVersion(timestamp uint64) eth.EngineAPIMethod {
 
 // IsPlasmaEnabled returns false for now until we add the DA challenge contract parameters.
 func (c *Config) IsPlasmaEnabled() bool {
-	return false
+	return c.DAChallengeAddress != (common.Address{})
 }
 
 // Description outputs a banner describing the important parts of rollup configuration in a human-readable form.
