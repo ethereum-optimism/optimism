@@ -5,7 +5,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/rpc"
 
-	"github.com/ethereum-optimism/optimism/op-conductor/consensus"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -62,8 +61,8 @@ func (c *APIClient) Leader(ctx context.Context) (bool, error) {
 }
 
 // LeaderWithID implements API.
-func (c *APIClient) LeaderWithID(ctx context.Context) (*consensus.ServerInfo, error) {
-	var info *consensus.ServerInfo
+func (c *APIClient) LeaderWithID(ctx context.Context) (*ServerInfo, error) {
+	var info *ServerInfo
 	err := c.c.CallContext(ctx, &info, prefixRPC("leaderWithID"))
 	return info, err
 }
@@ -98,11 +97,4 @@ func (c *APIClient) SequencerHealthy(ctx context.Context) (bool, error) {
 	var healthy bool
 	err := c.c.CallContext(ctx, &healthy, prefixRPC("sequencerHealthy"))
 	return healthy, err
-}
-
-// ClusterMembership implements API.
-func (c *APIClient) ClusterMembership(ctx context.Context) ([]*consensus.ServerInfo, error) {
-	var info []*consensus.ServerInfo
-	err := c.c.CallContext(ctx, &info, prefixRPC("clusterMembership"))
-	return info, err
 }

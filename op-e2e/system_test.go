@@ -622,13 +622,16 @@ func TestSystemMockP2P(t *testing.T) {
 
 	// Verify that everything that was received was published
 	require.GreaterOrEqual(t, len(published), len(received))
-	require.ElementsMatch(t, received, published[:len(received)])
+	require.Subset(t, published, received)
 
 	// Verify that the tx was received via p2p
 	require.Contains(t, received, receiptSeq.BlockHash)
 }
 
 func TestSystemP2PAltSync(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	InitParallel(t)
 
 	cfg := DefaultSystemConfig(t)
@@ -736,10 +739,13 @@ func TestSystemP2PAltSync(t *testing.T) {
 
 	configureL2(syncNodeCfg, syncerL2Engine, cfg.JWTSecret)
 
-	syncerNode, err := rollupNode.New(context.Background(), syncNodeCfg, cfg.Loggers["syncer"], snapLog, "", metrics.NewMetrics(""))
+	syncerNode, err := rollupNode.New(ctx, syncNodeCfg, cfg.Loggers["syncer"], snapLog, "", metrics.NewMetrics(""))
 	require.NoError(t, err)
-	err = syncerNode.Start(context.Background())
+	err = syncerNode.Start(ctx)
 	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, syncerNode.Stop(ctx))
+	}()
 
 	// connect alice and bob to our new syncer node
 	_, err = sys.Mocknet.ConnectPeers(sys.RollupNodes["alice"].P2P().Host().ID(), syncerNode.P2P().Host().ID())
@@ -751,7 +757,7 @@ func TestSystemP2PAltSync(t *testing.T) {
 	l2Verif := ethclient.NewClient(rpc)
 
 	// It may take a while to sync, but eventually we should see the sequenced data show up
-	receiptVerif, err := geth.WaitForTransaction(receiptSeq.TxHash, l2Verif, 100*time.Duration(sys.RollupConfig.BlockTime)*time.Second)
+	receiptVerif, err := wait.ForReceiptOK(ctx, l2Verif, receiptSeq.TxHash)
 	require.Nil(t, err, "Waiting for L2 tx on verifier")
 
 	require.Equal(t, receiptSeq, receiptVerif)
@@ -761,7 +767,7 @@ func TestSystemP2PAltSync(t *testing.T) {
 
 	// Verify that everything that was received was published
 	require.GreaterOrEqual(t, len(published), len(syncedPayloads))
-	require.ElementsMatch(t, syncedPayloads, published[:len(syncedPayloads)])
+	require.Subset(t, published, syncedPayloads)
 }
 
 // TestSystemDenseTopology sets up a dense p2p topology with 3 verifier nodes and 1 sequencer node.
@@ -1105,9 +1111,8 @@ func (sga *stateGetterAdapter) GetState(addr common.Address, key common.Hash) co
 
 // TestFees checks that L1/L2 fees are handled.
 func TestFees(t *testing.T) {
-	InitParallel(t)
-
 	t.Run("pre-regolith", func(t *testing.T) {
+		InitParallel(t)
 		cfg := DefaultSystemConfig(t)
 		cfg.DeployConfig.L1GenesisBlockBaseFeePerGas = (*hexutil.Big)(big.NewInt(7))
 
@@ -1118,6 +1123,7 @@ func TestFees(t *testing.T) {
 		testFees(t, cfg)
 	})
 	t.Run("regolith", func(t *testing.T) {
+		InitParallel(t)
 		cfg := DefaultSystemConfig(t)
 		cfg.DeployConfig.L1GenesisBlockBaseFeePerGas = (*hexutil.Big)(big.NewInt(7))
 
@@ -1128,6 +1134,7 @@ func TestFees(t *testing.T) {
 		testFees(t, cfg)
 	})
 	t.Run("ecotone", func(t *testing.T) {
+		InitParallel(t)
 		cfg := DefaultSystemConfig(t)
 		cfg.DeployConfig.L1GenesisBlockBaseFeePerGas = (*hexutil.Big)(big.NewInt(7))
 
@@ -1140,7 +1147,6 @@ func TestFees(t *testing.T) {
 }
 
 func testFees(t *testing.T, cfg SystemConfig) {
-
 	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()

@@ -2,9 +2,10 @@
 pragma solidity 0.8.15;
 
 import { Vm } from "forge-std/Vm.sol";
-import { Types } from "src/libraries/Types.sol";
 import { KontrolCheats } from "kontrol-cheatcodes/KontrolCheats.sol";
 
+// The GhostBytes contracts are a workaround to create a symbolic bytes array. This is slow, but
+// required until symbolic bytes are supported in Kontrol: https://github.com/runtimeverification/kontrol/issues/272
 contract GhostBytes {
     bytes public ghostBytes;
 }
@@ -36,12 +37,9 @@ contract GhostBytes10 {
     }
 }
 
-/// @notice tests inheriting this contract cannot be run with forge
+/// @notice Tests inheriting this contract cannot be run with forge
 abstract contract KontrolUtils is KontrolCheats {
-    /// @dev we only care about the vm signature
-    // Cheat code address, 0x7109709ECfa91a80626fF3989D68f67F5b1DD12D.
-    address internal constant VM_ADDRESS = address(uint160(uint256(keccak256("hevm cheat code"))));
-    Vm internal constant vm = Vm(VM_ADDRESS);
+    Vm internal constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
 
     /// @dev Creates a fresh bytes with length greater than 31
     /// @param bytesLength: Length of the fresh bytes. Should be concrete
@@ -65,55 +63,18 @@ abstract contract KontrolUtils is KontrolCheats {
         sBytes = ghostBytes.ghostBytes();
     }
 
-    /// @dev Creates a bounded symbolic bytes[] memory representing a withdrawal proof
-    /// Each element is 17 * 32 = 544 bytes long, plus ~10% margin for RLP encoding: each element is 600 bytes
-    /// The length of the array to 10 or fewer elements
+    /// @dev Creates a bounded symbolic bytes[] memory representing a withdrawal proof.
     function freshWithdrawalProof() public returns (bytes[] memory withdrawalProof) {
-        // Assume arrayLength = 2 for faster proof speeds
-        // TODO: have the array length range between 0 and 10 elements
+        // ASSUME: Withdrawal proofs do not currently exceed 6 elements in length. This can be
+        // shrank to 2 for faster proof speeds during testing and development.
+        // TODO: Allow the array length range between 0 and 10 elements. This can be done once
+        // symbolic bytes are supported in Kontrol: https://github.com/runtimeverification/kontrol/issues/272
         uint256 arrayLength = 6;
-
         withdrawalProof = new bytes[](arrayLength);
 
-        // Deploy ghost contract
-        // GhostBytes10 ghostBytes10 = new GhostBytes10();
-
-        // Make the storage of the ghost contract symbolic
-        // kevm.symbolicStorage(address(ghostBytes10));
-
-        // Each bytes element will have a length of 600
-        // uint256 bytesSlotValue = 600 * 2 + 1;
-
-        // Load the size encoding into the first slot of ghostBytes
-        // vm.store(address(ghostBytes10), bytes32(uint256(0)), bytes32(bytesSlotValue));
-        // vm.store(address(ghostBytes10), bytes32(uint256(1)), bytes32(bytesSlotValue));
-        // vm.store(address(ghostBytes10), bytes32(uint256(2)), bytes32(bytesSlotValue));
-        // vm.store(address(ghostBytes10), bytes32(uint256(3)), bytes32(bytesSlotValue));
-        // vm.store(address(ghostBytes10), bytes32(uint256(4)), bytes32(bytesSlotValue));
-        // vm.store(address(ghostBytes10), bytes32(uint256(5)), bytes32(bytesSlotValue));
-        // vm.store(address(ghostBytes10), bytes32(uint256(6)), bytes32(bytesSlotValue));
-        // vm.store(address(ghostBytes10), bytes32(uint256(7)), bytes32(bytesSlotValue));
-        // vm.store(address(ghostBytes10), bytes32(uint256(8)), bytes32(bytesSlotValue));
-        // vm.store(address(ghostBytes10), bytes32(uint256(9)), bytes32(bytesSlotValue));
-
-        // withdrawalProof = ghostBytes10.getGhostBytesArray();
-
-        // Second approach
-
-        // withdrawalProof[0] = ghostBytes10.ghostBytes0();
-        // withdrawalProof[1] = ghostBytes10.ghostBytes1();
-        // withdrawalProof[2] = ghostBytes10.ghostBytes2();
-        // withdrawalProof[3] = ghostBytes10.ghostBytes3();
-        // withdrawalProof[4] = ghostBytes10.ghostBytes4();
-        // withdrawalProof[5] = ghostBytes10.ghostBytes5();
-        // withdrawalProof[6] = ghostBytes10.ghostBytes6();
-        // withdrawalProof[7] = ghostBytes10.ghostBytes7();
-        // withdrawalProof[8] = ghostBytes10.ghostBytes8();
-        // withdrawalProof[9] = ghostBytes10.ghostBytes9();
-
-        // First approach
-
         for (uint256 i = 0; i < withdrawalProof.length; ++i) {
+            // ASSUME: Each element is 600 bytes. Proof elements are 17 * 32 = 544 bytes long, plus
+            // ~10% margin for RLP encoding:, giving us the 600 byte assumption.
             withdrawalProof[i] = freshBigBytes(600);
         }
     }

@@ -408,6 +408,54 @@ func TestConfig_Check(t *testing.T) {
 			assert.Same(t, err, test.expectedErr)
 		})
 	}
+
+	forkTests := []struct {
+		name        string
+		modifier    func(cfg *Config)
+		expectedErr error
+	}{
+		{
+			name: "PriorForkMissing",
+			modifier: func(cfg *Config) {
+				ecotoneTime := uint64(1)
+				cfg.EcotoneTime = &ecotoneTime
+			},
+			expectedErr: fmt.Errorf("fork ecotone set (to 1), but prior fork delta missing"),
+		},
+		{
+			name: "PriorForkHasHigherOffset",
+			modifier: func(cfg *Config) {
+				regolithTime := uint64(2)
+				canyonTime := uint64(1)
+				cfg.RegolithTime = &regolithTime
+				cfg.CanyonTime = &canyonTime
+			},
+			expectedErr: fmt.Errorf("fork canyon set to 1, but prior fork regolith has higher offset 2"),
+		},
+		{
+			name: "PriorForkOK",
+			modifier: func(cfg *Config) {
+				regolithTime := uint64(1)
+				canyonTime := uint64(2)
+				deltaTime := uint64(3)
+				ecotoneTime := uint64(4)
+				cfg.RegolithTime = &regolithTime
+				cfg.CanyonTime = &canyonTime
+				cfg.DeltaTime = &deltaTime
+				cfg.EcotoneTime = &ecotoneTime
+			},
+			expectedErr: nil,
+		},
+	}
+
+	for _, test := range forkTests {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := randConfig()
+			test.modifier(cfg)
+			err := cfg.Check()
+			assert.Equal(t, err, test.expectedErr)
+		})
+	}
 }
 
 func TestTimestampForBlock(t *testing.T) {

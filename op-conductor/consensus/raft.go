@@ -145,13 +145,9 @@ func (rc *RaftConsensus) Leader() bool {
 }
 
 // LeaderWithID implements Consensus, it returns the leader's server ID and address.
-func (rc *RaftConsensus) LeaderWithID() *ServerInfo {
+func (rc *RaftConsensus) LeaderWithID() (string, string) {
 	addr, id := rc.r.LeaderWithID()
-	return &ServerInfo{
-		ID:       string(id),
-		Addr:     string(addr),
-		Suffrage: Voter, // leader will always be Voter
-	}
+	return string(id), string(addr)
 }
 
 // LeaderCh implements Consensus, it returns a channel that will be notified when leadership status changes (true = leader, false = follower).
@@ -224,22 +220,4 @@ func (rc *RaftConsensus) CommitUnsafePayload(payload *eth.ExecutionPayloadEnvelo
 func (rc *RaftConsensus) LatestUnsafePayload() *eth.ExecutionPayloadEnvelope {
 	payload := rc.unsafeTracker.UnsafeHead()
 	return payload
-}
-
-// ClusterMembership implements Consensus, it returns the current cluster membership configuration.
-func (rc *RaftConsensus) ClusterMembership() ([]*ServerInfo, error) {
-	var future raft.ConfigurationFuture
-	if future = rc.r.GetConfiguration(); future.Error() != nil {
-		return nil, future.Error()
-	}
-
-	var servers []*ServerInfo
-	for _, srv := range future.Configuration().Servers {
-		servers = append(servers, &ServerInfo{
-			ID:       string(srv.ID),
-			Addr:     string(srv.Address),
-			Suffrage: ServerSuffrage(srv.Suffrage),
-		})
-	}
-	return servers, nil
 }

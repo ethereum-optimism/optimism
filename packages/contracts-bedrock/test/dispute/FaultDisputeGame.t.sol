@@ -49,7 +49,7 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
         // Set the extra data for the game creation
         extraData = abi.encode(l2BlockNumber);
 
-        AlphabetVM _vm = new AlphabetVM(absolutePrestate);
+        AlphabetVM _vm = new AlphabetVM(absolutePrestate, new PreimageOracle(0, 0, 0));
 
         // Deploy an implementation of the fault game
         gameImpl = new FaultDisputeGame({
@@ -116,7 +116,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     /// @dev Tests that the constructor of the `FaultDisputeGame` reverts when the `_splitDepth`
     ///      parameter is greater than or equal to the `MAX_GAME_DEPTH`
     function test_constructor_wrongArgs_reverts(uint256 _splitDepth) public {
-        AlphabetVM alphabetVM = new AlphabetVM(absolutePrestate);
+        AlphabetVM alphabetVM = new AlphabetVM(absolutePrestate, new PreimageOracle(0, 0, 0));
 
         // Test that the constructor reverts when the `_splitDepth` parameter is greater than or equal
         // to the `MAX_GAME_DEPTH` parameter.
@@ -688,6 +688,58 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         // Ensure that bonds were paid out correctly.
         assertEq(address(this).balance, 100 ether + bonded);
         assertEq(bob.balance, 100 ether - bonded);
+        assertEq(address(gameProxy).balance, 0);
+
+        // Ensure that the init bond for the game is 0, in case we change it in the test suite in the future.
+        assertEq(factory.initBonds(GAME_TYPE), 0);
+    }
+
+    /// @dev Static unit test asserting that resolve pays out bonds on moves to the leftmost actor
+    /// in subgames containing successful counters.
+    function test_resolve_leftmostBondPayout_succeeds() public {
+        address alice = address(0xa11ce);
+        address bob = address(0xb0b);
+        address charlie = address(0xc0c);
+        vm.deal(address(this), 100 ether);
+        vm.deal(alice, 100 ether);
+        vm.deal(bob, 100 ether);
+        vm.deal(charlie, 100 ether);
+
+        // Make claims with bob, charlie and the test contract on defense, and alice as the challenger
+        // charlie is successfully countered by alice
+        // alice is successfully countered by both bob and the test coontract
+        vm.prank(alice);
+        gameProxy.attack{ value: 1 ether }(0, _dummyClaim());
+
+        vm.prank(bob);
+        gameProxy.defend{ value: 1 ether }(1, _dummyClaim());
+        vm.prank(charlie);
+        gameProxy.attack{ value: 1 ether }(1, _dummyClaim());
+        gameProxy.attack{ value: 1 ether }(1, _dummyClaim());
+
+        vm.prank(alice);
+        gameProxy.attack{ value: 1 ether }(3, _dummyClaim());
+
+        // Resolve all claims
+        vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
+        for (uint256 i = gameProxy.claimDataLen(); i > 0; i--) {
+            (bool success,) = address(gameProxy).call(abi.encodeCall(gameProxy.resolveClaim, (i - 1)));
+            success;
+        }
+        gameProxy.resolve();
+
+        gameProxy.claimCredit(address(this));
+        gameProxy.claimCredit(alice);
+        gameProxy.claimCredit(bob);
+        gameProxy.claimCredit(charlie);
+
+        // Ensure that bonds were paid out correctly.
+        uint256 aliceLosses = 1 ether;
+        uint256 charlieLosses = 1 ether;
+        assertEq(address(this).balance, 100 ether + aliceLosses, "incorrect this balance");
+        assertEq(alice.balance, 100 ether - aliceLosses + charlieLosses, "incorrect alice balance");
+        assertEq(bob.balance, 100 ether, "incorrect bob balance");
+        assertEq(charlie.balance, 100 ether - charlieLosses, "incorrect charlie balance");
         assertEq(address(gameProxy).balance, 0);
 
         // Ensure that the init bond for the game is 0, in case we change it in the test suite in the future.

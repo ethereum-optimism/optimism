@@ -13,7 +13,7 @@ var mockLargePreimageSizeThreshold = uint64(100)
 func TestSplitPreimageUploader_UploadPreimage(t *testing.T) {
 	t.Run("DirectUploadSucceeds", func(t *testing.T) {
 		oracle, direct, large := newTestSplitPreimageUploader(t, mockLargePreimageSizeThreshold)
-		err := oracle.UploadPreimage(context.Background(), 0, &types.PreimageOracleData{})
+		err := oracle.UploadPreimage(context.Background(), 0, makePreimageData(nil, 0))
 		require.NoError(t, err)
 		require.Equal(t, 1, direct.updates)
 		require.Equal(t, 0, large.updates)
@@ -29,7 +29,7 @@ func TestSplitPreimageUploader_UploadPreimage(t *testing.T) {
 
 	t.Run("MaxSizeDirectUploadSucceeds", func(t *testing.T) {
 		oracle, direct, large := newTestSplitPreimageUploader(t, mockLargePreimageSizeThreshold)
-		err := oracle.UploadPreimage(context.Background(), 0, &types.PreimageOracleData{OracleData: make([]byte, mockLargePreimageSizeThreshold-1)})
+		err := oracle.UploadPreimage(context.Background(), 0, makePreimageData(make([]byte, mockLargePreimageSizeThreshold-1), 0))
 		require.NoError(t, err)
 		require.Equal(t, 1, direct.updates)
 		require.Equal(t, 0, large.updates)
@@ -37,7 +37,7 @@ func TestSplitPreimageUploader_UploadPreimage(t *testing.T) {
 
 	t.Run("LargeUploadSucceeds", func(t *testing.T) {
 		oracle, direct, large := newTestSplitPreimageUploader(t, mockLargePreimageSizeThreshold)
-		err := oracle.UploadPreimage(context.Background(), 0, &types.PreimageOracleData{OracleData: make([]byte, mockLargePreimageSizeThreshold)})
+		err := oracle.UploadPreimage(context.Background(), 0, makePreimageData(make([]byte, mockLargePreimageSizeThreshold), 0))
 		require.NoError(t, err)
 		require.Equal(t, 1, large.updates)
 		require.Equal(t, 0, direct.updates)

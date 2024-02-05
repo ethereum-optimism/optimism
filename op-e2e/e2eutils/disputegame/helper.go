@@ -66,6 +66,8 @@ type DisputeSystem interface {
 	L1Deployments() *genesis.L1Deployments
 	RollupCfg() *rollup.Config
 	L2Genesis() *core.Genesis
+
+	AdvanceTime(time.Duration)
 }
 
 type FactoryHelper struct {
@@ -104,7 +106,7 @@ func NewFactoryHelper(t *testing.T, ctx context.Context, system DisputeSystem) *
 
 func (h *FactoryHelper) PreimageHelper(ctx context.Context) *preimage.Helper {
 	opts := &bind.CallOpts{Context: ctx}
-	gameAddr, err := h.factory.GameImpls(opts, alphabetGameType)
+	gameAddr, err := h.factory.GameImpls(opts, cannonGameType)
 	h.require.NoError(err)
 	game, err := bindings.NewFaultDisputeGameCaller(gameAddr, h.client)
 	h.require.NoError(err)

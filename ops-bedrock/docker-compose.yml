@@ -171,17 +171,3 @@ services:
       - "${PWD}/../.devnet/:/usr/share/nginx/html/:ro"
     security_opt:
       - "no-new-privileges:true"
-
-#  stateviz:
-#    build:
-#      context: ../
-#      dockerfile: ./ops-bedrock/Dockerfile.stateviz
-#    command:
-#      - stateviz
-#      - -addr=0.0.0.0:8080
-#      - -snapshot=/op_log/snapshot.log
-#      - -refresh=10s
-#    ports:
-#      - "9090:8080"
-#    volumes:
-#      - op_log:/op_log:ro
