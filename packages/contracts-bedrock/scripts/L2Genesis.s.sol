@@ -38,8 +38,8 @@ interface IInitializable {
 ///         3. A contract is deployed using the `new` syntax because it's not proxied, but still needs to be set
 ///         at a specific address. Because just deploying a new instance doesn't give us the contract at our desired
 ///         address,
-///         we must use `vm.etch` to set the deployed bytecode, and `vm.store` to set an storage slots. Lastly, we reset
-///         the account the contract was initially deployed so it's not included in the `vm.dumpState`.
+///         we must use `vm.etch` to set the deployed bytecode, and `vm.store` to set any storage slots. Lastly, we reset
+///         the account the contract was initially deployed by so it's not included in the `vm.dumpState`.
 contract L2Genesis is Script, Artifacts {
     uint256 constant PROXY_COUNT = 2048;
     uint256 constant PRECOMPILE_COUNT = 256;
