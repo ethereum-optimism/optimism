@@ -393,6 +393,11 @@ func (c *Config) GetPayloadVersion(timestamp uint64) eth.EngineAPIMethod {
 	}
 }
 
+// IsPlasmaEnabled returns false for now until we add the DA challenge contract parameters.
+func (c *Config) IsPlasmaEnabled() bool {
+	return false
+}
+
 // Description outputs a banner describing the important parts of rollup configuration in a human-readable form.
 // Optionally provide a mapping of L2 chain IDs to network names to label the L2 chain with if not unknown.
 // The config should be config.Check()-ed before creating a description.
