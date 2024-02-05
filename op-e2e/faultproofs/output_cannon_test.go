@@ -213,9 +213,6 @@ func TestOutputCannonDefendStep(t *testing.T) {
 }
 
 func TestOutputCannonStepWithLargePreimage(t *testing.T) {
-	// TODO(client-pod#525): Investigate and fix flakiness
-	t.Skip("Skipping until the flakiness can be resolved")
-
 	op_e2e.InitParallel(t, op_e2e.UsesCannon)
 
 	ctx := context.Background()
