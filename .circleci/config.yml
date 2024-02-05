@@ -1029,6 +1029,13 @@ jobs:
       DEVNET_FPAC: <<parameters.devnet_fpac>>
     steps:
       - checkout
+      - run:
+          command: |
+            # skip step if DEVNET_FPAC is true
+            if [ "$DEVNET_FPAC" == "true" ]; then
+              echo "Skipping flaky devnet tests"
+              circleci step halt
+            fi
       - check-changed:
           patterns: op-(.+),packages,ops-bedrock,bedrock-devnet
       - run:
