@@ -154,7 +154,7 @@ func TestL2EngineAPIBlockBuilding(gt *testing.T) {
 			engine.ActL2IncludeTx(dp.Addresses.Alice)(t)
 		}
 
-		envelope, err := l2Cl.GetPayload(t.Ctx(), *fcRes.PayloadID)
+		envelope, err := l2Cl.GetPayload(t.Ctx(), eth.PayloadInfo{ID: *fcRes.PayloadID, Timestamp: uint64(nextBlockTime)})
 		payload := envelope.ExecutionPayload
 		require.NoError(t, err)
 		require.Equal(t, parent.Hash(), payload.ParentHash, "block builds on parent block")

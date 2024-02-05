@@ -153,6 +153,10 @@ type Uint256Quantity = uint256.Int
 type Data = hexutil.Bytes
 
 type PayloadID = engine.PayloadID
+type PayloadInfo struct {
+	ID        PayloadID
+	Timestamp uint64
+}
 
 type ExecutionPayloadEnvelope struct {
 	ParentBeaconBlockRoot *common.Hash      `json:"parentBeaconBlockRoot,omitempty"`
@@ -454,3 +458,17 @@ func (v *Uint64String) UnmarshalText(b []byte) error {
 	*v = Uint64String(n)
 	return nil
 }
+
+type EngineAPIMethod string
+
+const (
+	FCUV1 EngineAPIMethod = "engine_forkchoiceUpdatedV1"
+	FCUV2 EngineAPIMethod = "engine_forkchoiceUpdatedV2"
+	FCUV3 EngineAPIMethod = "engine_forkchoiceUpdatedV3"
+
+	NewPayloadV2 EngineAPIMethod = "engine_newPayloadV2"
+	NewPayloadV3 EngineAPIMethod = "engine_newPayloadV3"
+
+	GetPayloadV2 EngineAPIMethod = "engine_getPayloadV2"
+	GetPayloadV3 EngineAPIMethod = "engine_getPayloadV3"
+)
