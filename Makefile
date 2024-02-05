@@ -82,6 +82,10 @@ op-challenger:
 	make -C ./op-challenger op-challenger
 .PHONY: op-challenger
 
+op-dispute-mon:
+	make -C ./op-dispute-mon op-dispute-mon
+.PHONY: op-dispute-mon
+
 op-program:
 	make -C ./op-program op-program
 .PHONY: op-program
