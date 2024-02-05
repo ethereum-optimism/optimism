@@ -407,7 +407,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
 
         // Assert correctness of the parent claim's data.
         assertEq(parentIndex, type(uint32).max);
-        assertEq(counteredBy, address(this));
+        assertEq(counteredBy, address(0));
         assertEq(claimant, DEFAULT_SENDER);
         assertEq(bond, 0);
         assertEq(claim.raw(), ROOT_CLAIM.raw());
