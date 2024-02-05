@@ -12,9 +12,11 @@ type faultDisputeConfigOpts func(cfg *op_e2e.SystemConfig)
 
 func withLargeBatches() faultDisputeConfigOpts {
 	return func(cfg *op_e2e.SystemConfig) {
+		maxTxDataSize := uint64(131072) // As per the Ethereum spec.
 		// Allow the batcher to produce really huge calldata transactions.
-		cfg.BatcherTargetL1TxSizeBytes = 130072 // A bit under the max tx size as per Ethereum spec
-		cfg.BatcherMaxL1TxSizeBytes = 130072
+		// Make the max deliberately bigger than the target but still with some padding below the actual limit
+		cfg.BatcherTargetL1TxSizeBytes = maxTxDataSize - 5000
+		cfg.BatcherMaxL1TxSizeBytes = maxTxDataSize - 1000
 	}
 }
 
