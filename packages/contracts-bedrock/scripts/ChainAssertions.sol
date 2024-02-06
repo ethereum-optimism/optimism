@@ -70,8 +70,8 @@ library ChainAssertions {
         console.log("Running chain assertions on the SystemConfig");
         SystemConfig config = SystemConfig(_contracts.SystemConfig);
 
-        bytes32 initialized = _vm.load(address(config), bytes32(0));
-        require(initialized != 0);
+        // Check that the contract is initialized
+        assertSlotIsOne({ contractAddress: address(config), slot: 0, offset: 0 });
 
         ResourceMetering.ResourceConfig memory resourceConfig = config.resourceConfig();
 
@@ -132,8 +132,8 @@ library ChainAssertions {
         console.log("Running chain assertions on the L1CrossDomainMessenger");
         L1CrossDomainMessenger messenger = L1CrossDomainMessenger(_contracts.L1CrossDomainMessenger);
 
-        bytes32 initialized = _vm.load(address(messenger), bytes32(0));
-        require(initialized != 0);
+        // Check that the contract is initialized
+        assertSlotIsOne({ contractAddress: address(messenger), slot: 0, offset: 20 });
 
         require(address(messenger.OTHER_MESSENGER()) == Predeploys.L2_CROSS_DOMAIN_MESSENGER);
         require(address(messenger.otherMessenger()) == Predeploys.L2_CROSS_DOMAIN_MESSENGER);
@@ -156,8 +156,8 @@ library ChainAssertions {
         console.log("Running chain assertions on the L1StandardBridge");
         L1StandardBridge bridge = L1StandardBridge(payable(_contracts.L1StandardBridge));
 
-        bytes32 initialized = _vm.load(address(bridge), bytes32(0));
-        require(initialized != 0);
+        // Check that the contract is initialized
+        assertSlotIsOne({ contractAddress: address(bridge), slot: 0, offset: 0 });
 
         if (_isProxy) {
             require(address(bridge.MESSENGER()) == _contracts.L1CrossDomainMessenger);
@@ -188,8 +188,8 @@ library ChainAssertions {
         console.log("Running chain assertions on the L2OutputOracle");
         L2OutputOracle oracle = L2OutputOracle(_contracts.L2OutputOracle);
 
-        bytes32 initialized = _vm.load(address(oracle), bytes32(0));
-        require(initialized != 0);
+        // Check that the contract is initialized
+        assertSlotIsOne({ contractAddress: address(oracle), slot: 0, offset: 0 });
 
         if (_isProxy) {
             require(oracle.SUBMISSION_INTERVAL() == _cfg.l2OutputOracleSubmissionInterval());
@@ -232,8 +232,8 @@ library ChainAssertions {
         console.log("Running chain assertions on the OptimismMintableERC20Factory");
         OptimismMintableERC20Factory factory = OptimismMintableERC20Factory(_contracts.OptimismMintableERC20Factory);
 
-        bytes32 initialized = _vm.load(address(factory), bytes32(0));
-        require(initialized != 0);
+        // Check that the contract is initialized
+        assertSlotIsOne({ contractAddress: address(factory), slot: 0, offset: 0 });
 
         if (_isProxy) {
             require(factory.BRIDGE() == _contracts.L1StandardBridge);
@@ -249,8 +249,8 @@ library ChainAssertions {
         console.log("Running chain assertions on the L1ERC721Bridge");
         L1ERC721Bridge bridge = L1ERC721Bridge(_contracts.L1ERC721Bridge);
 
-        bytes32 initialized = _vm.load(address(bridge), bytes32(0));
-        require(initialized != 0);
+        // Check that the contract is initialized
+        assertSlotIsOne({ contractAddress: address(bridge), slot: 0, offset: 0 });
 
         require(address(bridge.OTHER_BRIDGE()) == Predeploys.L2_ERC721_BRIDGE);
         require(address(bridge.otherBridge()) == Predeploys.L2_ERC721_BRIDGE);
@@ -279,8 +279,8 @@ library ChainAssertions {
         console.log("Running chain assertions on the OptimismPortal");
         OptimismPortal portal = OptimismPortal(payable(_contracts.OptimismPortal));
 
-        bytes32 initialized = _vm.load(address(portal), bytes32(0));
-        require(initialized != 0);
+        // Check that the contract is initialized
+        assertSlotIsOne({ contractAddress: address(portal), slot: 0, offset: 0 });
 
         address guardian = _cfg.superchainConfigGuardian();
         if (guardian.code.length == 0) {
@@ -320,6 +320,9 @@ library ChainAssertions {
 
         OptimismPortal2 portal = OptimismPortal2(payable(_contracts.OptimismPortal2));
 
+        // Check that the contract is initialized
+        assertSlotIsOne({ contractAddress: address(portal), slot: 0, offset: 0 });
+
         address guardian = _cfg.superchainConfigGuardian();
         if (guardian.code.length == 0) {
             console.log("Guardian has no code: %s", guardian);
@@ -356,8 +359,8 @@ library ChainAssertions {
         console.log("Running chain assertions on the ProtocolVersions");
         ProtocolVersions versions = ProtocolVersions(_contracts.ProtocolVersions);
 
-        bytes32 initialized = _vm.load(address(versions), bytes32(0));
-        require(initialized != 0);
+        // Check that the contract is initialized
+        assertSlotIsOne({ contractAddress: address(versions), slot: 0, offset: 0 });
 
         if (_isProxy) {
             require(versions.owner() == _cfg.finalSystemOwner());
@@ -383,8 +386,8 @@ library ChainAssertions {
         console.log("Running chain assertions on the SuperchainConfig");
         SuperchainConfig superchainConfig = SuperchainConfig(_contracts.SuperchainConfig);
 
-        bytes32 initialized = _vm.load(address(superchainConfig), bytes32(0));
-        require(initialized != 0);
+        // Check that the contract is initialized
+        assertSlotIsOne({ contractAddress: address(superchainConfig), slot: 0, offset: 0 });
 
         require(superchainConfig.guardian() == _cfg.superchainConfigGuardian());
         require(superchainConfig.paused() == _isPaused);
