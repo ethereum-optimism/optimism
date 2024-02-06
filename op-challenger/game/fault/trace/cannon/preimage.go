@@ -56,12 +56,18 @@ func (l *preimageLoader) LoadPreimage(proof *proofData) (*types.PreimageOracleDa
 }
 
 func (l *preimageLoader) loadBlobPreimage(proof *proofData) (*types.PreimageOracleData, error) {
+	if len(proof.OracleValue) != gokzg4844.SerializedScalarSize {
+		return nil, fmt.Errorf("invalid scalar, expected length %v but was %v", gokzg4844.SerializedScalarSize, len(proof.OracleValue))
+	}
 	hint, hintBytes, err := parseHint(string(proof.LastHint))
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse last hint: %w", err)
 	}
 	if hint != l1.HintL1Blob {
 		return nil, fmt.Errorf("invalid last hint for blob type: %v", hint)
+	}
+	if len(hintBytes) != 48 {
+		return nil, fmt.Errorf("invalid blob hint: %x", hintBytes)
 	}
 
 	blobVersionHash := common.Hash(hintBytes[:32])
@@ -100,7 +106,7 @@ func (l *preimageLoader) loadBlobPreimage(proof *proofData) (*types.PreimageOrac
 		return nil, fmt.Errorf("invalid blob commitment: %w", err)
 	}
 
-	kzgProof, _, err := kzg().ComputeKZGProof(gokzg4844.Blob(blob), gokzg4844.Scalar(blob[requiredFieldElement<<5:(requiredFieldElement+1)<<5]), 0)
+	kzgProof, _, err := kzg().ComputeKZGProof(gokzg4844.Blob(blob), gokzg4844.Scalar(proof.OracleValue), 0)
 	if err != nil {
 		return nil, fmt.Errorf("failed to compute kzg proof: %w", err)
 	}

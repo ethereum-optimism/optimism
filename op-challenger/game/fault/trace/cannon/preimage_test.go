@@ -74,7 +74,8 @@ func TestPreimageLoader_BlobPreimage(t *testing.T) {
 	}
 
 	fieldIndex := uint64(24)
-	kzgProof, _, err := kzg().ComputeKZGProof(blob, gokzg4844.Scalar(blob[fieldIndex<<5:(fieldIndex+1)<<5]), 0)
+	elementData := blob[fieldIndex<<5 : (fieldIndex+1)<<5]
+	kzgProof, _, err := kzg().ComputeKZGProof(blob, gokzg4844.Scalar(elementData), 0)
 	require.NoError(t, err)
 
 	keyBuf := make([]byte, 80)
@@ -89,7 +90,7 @@ func TestPreimageLoader_BlobPreimage(t *testing.T) {
 
 	proof := &proofData{
 		OracleKey:    key[:],
-		OracleValue:  []byte{1, 2, 3, 4, 5, 6},
+		OracleValue:  elementData,
 		OracleOffset: 4,
 		LastHint:     hexutil.Bytes(hint),
 	}
