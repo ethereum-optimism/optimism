@@ -18,6 +18,11 @@ var (
 	NoLocalContext = common.Hash{}
 )
 
+const (
+	CannonGameType   uint32 = 0
+	AlphabetGameType uint32 = 255
+)
+
 type ClockReader interface {
 	Now() time.Time
 }
