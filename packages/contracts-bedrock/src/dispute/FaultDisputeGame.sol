@@ -81,8 +81,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     bool internal initialized;
 
     /// @notice Semantic version.
-    /// @custom:semver 0.1.0
-    string public constant version = "0.1.0";
+    /// @custom:semver 0.2.0
+    string public constant version = "0.2.0";
 
     /// @param _gameType The type ID of the game.
     /// @param _absolutePrestate The absolute prestate of the instruction trace.
@@ -268,6 +268,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         claimData.push(
             ClaimData({
                 parentIndex: uint32(_challengeIndex),
+                // This is updated during subgame resolution
                 counteredBy: address(0),
                 claimant: msg.sender,
                 bond: uint128(msg.value),
@@ -276,9 +277,6 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
                 clock: nextClock
             })
         );
-
-        // Set the parent claim as countered.
-        claimData[_challengeIndex].counteredBy = msg.sender;
 
         // Update the subgame rooted at the parent claim.
         subgames[_challengeIndex].push(claimData.length - 1);
