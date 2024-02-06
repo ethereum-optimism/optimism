@@ -248,6 +248,9 @@ contract DelayedVetoable_HandleCall_TestFail is DelayedVetoable_Init {
         // with the incorrect input data length.
         bytes memory inData = abi.encodePacked(keccak256("queuedAt(bytes32)"));
 
+        // Reset the delay to zero
+        vm.store(address(delayedVetoable), bytes32(uint256(0)), bytes32(uint256(0)));
+
         vm.prank(initiator);
         vm.expectRevert(bytes(""));
         (bool revertsAsExpected,) = address(delayedVetoable).call(inData);
