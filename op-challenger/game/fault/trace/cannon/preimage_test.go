@@ -99,11 +99,24 @@ func TestPreimageLoader_BlobPreimage(t *testing.T) {
 	loader := newPreimageLoader(kv.Get)
 	storeBlob(t, kv, commitment, blob)
 
-	actual, err := loader.LoadPreimage(proof)
-	require.NoError(t, err)
-	expected := types.NewPreimageOracleBlobData(proof.OracleKey, proof.OracleValue, proof.OracleOffset, fieldIndex, commitment[:], kzgProof[:])
-	require.Equal(t, expected, actual)
-	require.False(t, actual.IsLocal)
+	t.Run("RejectInvalidValueLength", func(t *testing.T) {
+		proof := &proofData{
+			OracleKey:    proof.OracleKey,
+			OracleValue:  []byte{1, 2, 3},
+			OracleOffset: proof.OracleOffset,
+			LastHint:     proof.LastHint,
+		}
+		_, err := loader.LoadPreimage(proof)
+		require.ErrorIs(t, err, ErrInvalidScalarValue)
+	})
+
+	t.Run("Valid", func(t *testing.T) {
+		actual, err := loader.LoadPreimage(proof)
+		require.NoError(t, err)
+		expected := types.NewPreimageOracleBlobData(proof.OracleKey, proof.OracleValue, proof.OracleOffset, fieldIndex, commitment[:], kzgProof[:])
+		require.Equal(t, expected, actual)
+		require.False(t, actual.IsLocal)
+	})
 }
 
 // Returns a serialized random field element in big-endian

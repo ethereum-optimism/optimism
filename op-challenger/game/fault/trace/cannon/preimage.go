@@ -3,6 +3,7 @@ package cannon
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"strings"
 	"sync/atomic"
@@ -16,6 +17,10 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
+)
+
+var (
+	ErrInvalidScalarValue = errors.New("invalid scalar value")
 )
 
 var kzg4844Ctx atomic.Pointer[gokzg4844.Context]
@@ -57,7 +62,7 @@ func (l *preimageLoader) LoadPreimage(proof *proofData) (*types.PreimageOracleDa
 
 func (l *preimageLoader) loadBlobPreimage(proof *proofData) (*types.PreimageOracleData, error) {
 	if len(proof.OracleValue) != gokzg4844.SerializedScalarSize {
-		return nil, fmt.Errorf("invalid scalar, expected length %v but was %v", gokzg4844.SerializedScalarSize, len(proof.OracleValue))
+		return nil, fmt.Errorf("%w, expected length %v but was %v", ErrInvalidScalarValue, gokzg4844.SerializedScalarSize, len(proof.OracleValue))
 	}
 	hint, hintBytes, err := parseHint(string(proof.LastHint))
 	if err != nil {
