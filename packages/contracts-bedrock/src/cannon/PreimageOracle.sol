@@ -472,7 +472,12 @@ contract PreimageOracle is IPreimageOracle {
         );
         // If the proposal is being finalized, set the timestamp to the current block timestamp. This begins the
         // challenge period, which must be waited out before the proposal can be finalized.
-        if (_finalize) metaData = metaData.setTimestamp(uint64(block.timestamp));
+        if (_finalize) {
+            metaData = metaData.setTimestamp(uint64(block.timestamp));
+
+            // If the number of bytes processed is not equal to the claimed size, the proposal cannot be finalized.
+            if (metaData.bytesProcessed() != metaData.claimedSize()) revert InvalidInputSize();
+        }
 
         // Perist the latest branch to storage.
         proposalBranches[msg.sender][_uuid] = branch;
@@ -586,10 +591,6 @@ contract PreimageOracle is IPreimageOracle {
             revert StatesNotContiguous();
         }
 
-        // The claimed size must match the actual size of the preimage.
-        uint256 claimedSize = metaData.claimedSize();
-        if (metaData.bytesProcessed() != claimedSize) revert InvalidInputSize();
-
         // Absorb and permute the input bytes. We perform no final verification on the state matrix here, since the
         // proposal has passed the challenge period and is considered valid.
         LibKeccak.absorb(_stateMatrix, _postState.input);
@@ -603,7 +604,7 @@ contract PreimageOracle is IPreimageOracle {
         uint256 partOffset = metaData.partOffset();
         preimagePartOk[finalDigest][partOffset] = true;
         preimageParts[finalDigest][partOffset] = proposalParts[_claimant][_uuid];
-        preimageLengths[finalDigest] = claimedSize;
+        preimageLengths[finalDigest] = metaData.claimedSize();
     }
 
     /// @notice Gets the current merkle root of the large preimage proposal tree.
