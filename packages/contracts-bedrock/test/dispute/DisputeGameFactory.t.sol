@@ -11,7 +11,6 @@ import { Proxy } from "src/universal/Proxy.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
 
 contract DisputeGameFactory_Init is CommonTest {
-    DisputeGameFactory factory;
     FakeClone fakeClone;
 
     event DisputeGameCreated(address indexed disputeProxy, GameType indexed gameType, Claim indexed rootClaim);
@@ -19,19 +18,13 @@ contract DisputeGameFactory_Init is CommonTest {
     event InitBondUpdated(GameType indexed gameType, uint256 indexed newBond);
 
     function setUp() public virtual override {
+        super.enableFaultProofs();
         super.setUp();
-
-        Proxy proxy = new Proxy(address(this));
-        DisputeGameFactory impl = new DisputeGameFactory();
-
-        proxy.upgradeToAndCall({
-            _implementation: address(impl),
-            _data: abi.encodeCall(impl.initialize, (address(this)))
-        });
-        factory = DisputeGameFactory(address(proxy));
-        vm.label(address(factory), "DisputeGameFactoryProxy");
-
         fakeClone = new FakeClone();
+
+        // Transfer ownership of the factory to the test contract.
+        vm.prank(deploy.mustGetAddress("SystemOwnerSafe"));
+        disputeGameFactory.transferOwnership(address(this));
     }
 }
 
@@ -54,24 +47,24 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_Init {
         // Set all three implementations to the same `FakeClone` contract.
         for (uint8 i; i < 3; i++) {
             GameType lgt = GameType.wrap(i);
-            factory.setImplementation(lgt, IDisputeGame(address(fakeClone)));
-            factory.setInitBond(lgt, _value);
+            disputeGameFactory.setImplementation(lgt, IDisputeGame(address(fakeClone)));
+            disputeGameFactory.setInitBond(lgt, _value);
         }
 
         vm.deal(address(this), _value);
 
         vm.expectEmit(false, true, true, false);
         emit DisputeGameCreated(address(0), gt, rootClaim);
-        IDisputeGame proxy = factory.create{ value: _value }(gt, rootClaim, extraData);
+        IDisputeGame proxy = disputeGameFactory.create{ value: _value }(gt, rootClaim, extraData);
 
-        (IDisputeGame game, Timestamp timestamp) = factory.games(gt, rootClaim, extraData);
+        (IDisputeGame game, Timestamp timestamp) = disputeGameFactory.games(gt, rootClaim, extraData);
 
         // Ensure that the dispute game was assigned to the `disputeGames` mapping.
         assertEq(address(game), address(proxy));
         assertEq(Timestamp.unwrap(timestamp), block.timestamp);
-        assertEq(factory.gameCount(), 1);
+        assertEq(disputeGameFactory.gameCount(), 1);
 
-        (, Timestamp timestamp2, IDisputeGame game2) = factory.gameAtIndex(0);
+        (, Timestamp timestamp2, IDisputeGame game2) = disputeGameFactory.gameAtIndex(0);
         assertEq(address(game2), address(proxy));
         assertEq(Timestamp.unwrap(timestamp2), block.timestamp);
 
@@ -95,24 +88,25 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_Init {
         // Set all three implementations to the same `FakeClone` contract.
         for (uint8 i; i < 3; i++) {
             GameType lgt = GameType.wrap(i);
-            factory.setImplementation(lgt, IDisputeGame(address(fakeClone)));
-            factory.setInitBond(lgt, 1 ether);
+            disputeGameFactory.setImplementation(lgt, IDisputeGame(address(fakeClone)));
+            disputeGameFactory.setInitBond(lgt, 1 ether);
         }
 
         vm.expectRevert(InsufficientBond.selector);
-        factory.create(gt, rootClaim, extraData);
+        disputeGameFactory.create(gt, rootClaim, extraData);
     }
 
     /// @dev Tests that the `create` function reverts when there is no implementation
     ///      set for the given `GameType`.
-    function testFuzz_create_noImpl_reverts(uint8 gameType, Claim rootClaim, bytes calldata extraData) public {
-        // Ensure that the `gameType` is within the bounds of the `GameType` enum's possible values.
-        GameType gt = GameType.wrap(uint8(bound(gameType, 0, 2)));
+    function testFuzz_create_noImpl_reverts(uint32 gameType, Claim rootClaim, bytes calldata extraData) public {
+        // Ensure that the `gameType` is within the bounds of the `GameType` enum's possible values. We skip over
+        // game type = 0, since the deploy script set the implementation for that game type.
+        GameType gt = GameType.wrap(uint32(bound(gameType, 1, type(uint32).max)));
         // Ensure the rootClaim has a VMStatus that disagrees with the validity.
         rootClaim = changeClaimStatus(rootClaim, VMStatuses.INVALID);
 
         vm.expectRevert(abi.encodeWithSelector(NoImplementation.selector, gt));
-        factory.create(gt, rootClaim, extraData);
+        disputeGameFactory.create(gt, rootClaim, extraData);
     }
 
     /// @dev Tests that the `create` function reverts when there exists a dispute game with the same UUID.
@@ -124,24 +118,24 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_Init {
 
         // Set all three implementations to the same `FakeClone` contract.
         for (uint8 i; i < 3; i++) {
-            factory.setImplementation(GameType.wrap(i), IDisputeGame(address(fakeClone)));
+            disputeGameFactory.setImplementation(GameType.wrap(i), IDisputeGame(address(fakeClone)));
         }
 
         // Create our first dispute game - this should succeed.
         vm.expectEmit(false, true, true, false);
         emit DisputeGameCreated(address(0), gt, rootClaim);
-        IDisputeGame proxy = factory.create(gt, rootClaim, extraData);
+        IDisputeGame proxy = disputeGameFactory.create(gt, rootClaim, extraData);
 
-        (IDisputeGame game, Timestamp timestamp) = factory.games(gt, rootClaim, extraData);
+        (IDisputeGame game, Timestamp timestamp) = disputeGameFactory.games(gt, rootClaim, extraData);
         // Ensure that the dispute game was assigned to the `disputeGames` mapping.
         assertEq(address(game), address(proxy));
         assertEq(Timestamp.unwrap(timestamp), block.timestamp);
 
         // Ensure that the `create` function reverts when called with parameters that would result in the same UUID.
         vm.expectRevert(
-            abi.encodeWithSelector(GameAlreadyExists.selector, factory.getGameUUID(gt, rootClaim, extraData))
+            abi.encodeWithSelector(GameAlreadyExists.selector, disputeGameFactory.getGameUUID(gt, rootClaim, extraData))
         );
-        factory.create(gt, rootClaim, extraData);
+        disputeGameFactory.create(gt, rootClaim, extraData);
     }
 
     function changeClaimStatus(Claim _claim, VMStatus _status) public pure returns (Claim out_) {
@@ -154,17 +148,14 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_Init {
 contract DisputeGameFactory_SetImplementation_Test is DisputeGameFactory_Init {
     /// @dev Tests that the `setImplementation` function properly sets the implementation for a given `GameType`.
     function test_setImplementation_succeeds() public {
-        // There should be no implementation for the `GameTypes.CANNON` enum value, it has not been set.
-        assertEq(address(factory.gameImpls(GameTypes.CANNON)), address(0));
-
-        vm.expectEmit(true, true, true, true, address(factory));
+        vm.expectEmit(true, true, true, true, address(disputeGameFactory));
         emit ImplementationSet(address(1), GameTypes.CANNON);
 
         // Set the implementation for the `GameTypes.CANNON` enum value.
-        factory.setImplementation(GameTypes.CANNON, IDisputeGame(address(1)));
+        disputeGameFactory.setImplementation(GameTypes.CANNON, IDisputeGame(address(1)));
 
         // Ensure that the implementation for the `GameTypes.CANNON` enum value is set.
-        assertEq(address(factory.gameImpls(GameTypes.CANNON)), address(1));
+        assertEq(address(disputeGameFactory.gameImpls(GameTypes.CANNON)), address(1));
     }
 
     /// @dev Tests that the `setImplementation` function reverts when called by a non-owner.
@@ -172,7 +163,7 @@ contract DisputeGameFactory_SetImplementation_Test is DisputeGameFactory_Init {
         // Ensure that the `setImplementation` function reverts when called by a non-owner.
         vm.prank(address(0));
         vm.expectRevert("Ownable: caller is not the owner");
-        factory.setImplementation(GameTypes.CANNON, IDisputeGame(address(1)));
+        disputeGameFactory.setImplementation(GameTypes.CANNON, IDisputeGame(address(1)));
     }
 }
 
@@ -180,16 +171,16 @@ contract DisputeGameFactory_SetInitBond_Test is DisputeGameFactory_Init {
     /// @dev Tests that the `setInitBond` function properly sets the init bond for a given `GameType`.
     function test_setInitBond_succeeds() public {
         // There should be no init bond for the `GameTypes.CANNON` enum value, it has not been set.
-        assertEq(factory.initBonds(GameTypes.CANNON), 0);
+        assertEq(disputeGameFactory.initBonds(GameTypes.CANNON), 0);
 
-        vm.expectEmit(true, true, true, true, address(factory));
+        vm.expectEmit(true, true, true, true, address(disputeGameFactory));
         emit InitBondUpdated(GameTypes.CANNON, 1 ether);
 
         // Set the init bond for the `GameTypes.CANNON` enum value.
-        factory.setInitBond(GameTypes.CANNON, 1 ether);
+        disputeGameFactory.setInitBond(GameTypes.CANNON, 1 ether);
 
         // Ensure that the init bond for the `GameTypes.CANNON` enum value is set.
-        assertEq(factory.initBonds(GameTypes.CANNON), 1 ether);
+        assertEq(disputeGameFactory.initBonds(GameTypes.CANNON), 1 ether);
     }
 
     /// @dev Tests that the `setInitBond` function reverts when called by a non-owner.
@@ -197,7 +188,7 @@ contract DisputeGameFactory_SetInitBond_Test is DisputeGameFactory_Init {
         // Ensure that the `setInitBond` function reverts when called by a non-owner.
         vm.prank(address(0));
         vm.expectRevert("Ownable: caller is not the owner");
-        factory.setInitBond(GameTypes.CANNON, 1 ether);
+        disputeGameFactory.setInitBond(GameTypes.CANNON, 1 ether);
     }
 }
 
@@ -209,7 +200,8 @@ contract DisputeGameFactory_GetGameUUID_Test is DisputeGameFactory_Init {
         GameType gt = GameType.wrap(uint8(bound(gameType, 0, 2)));
 
         assertEq(
-            Hash.unwrap(factory.getGameUUID(gt, rootClaim, extraData)), keccak256(abi.encode(gt, rootClaim, extraData))
+            Hash.unwrap(disputeGameFactory.getGameUUID(gt, rootClaim, extraData)),
+            keccak256(abi.encode(gt, rootClaim, extraData))
         );
     }
 }
@@ -217,22 +209,22 @@ contract DisputeGameFactory_GetGameUUID_Test is DisputeGameFactory_Init {
 contract DisputeGameFactory_Owner_Test is DisputeGameFactory_Init {
     /// @dev Tests that the `owner` function returns the correct address after deployment.
     function test_owner_succeeds() public {
-        assertEq(factory.owner(), address(this));
+        assertEq(disputeGameFactory.owner(), address(this));
     }
 }
 
 contract DisputeGameFactory_TransferOwnership_Test is DisputeGameFactory_Init {
     /// @dev Tests that the `transferOwnership` function succeeds when called by the owner.
     function test_transferOwnership_succeeds() public {
-        factory.transferOwnership(address(1));
-        assertEq(factory.owner(), address(1));
+        disputeGameFactory.transferOwnership(address(1));
+        assertEq(disputeGameFactory.owner(), address(1));
     }
 
     /// @dev Tests that the `transferOwnership` function reverts when called by a non-owner.
     function test_transferOwnership_notOwner_reverts() public {
         vm.prank(address(0));
         vm.expectRevert("Ownable: caller is not the owner");
-        factory.transferOwnership(address(1));
+        disputeGameFactory.transferOwnership(address(1));
     }
 }
 
@@ -243,8 +235,8 @@ contract DisputeGameFactory_FindLatestGames_Test is DisputeGameFactory_Init {
         // Set three implementations to the same `FakeClone` contract.
         for (uint8 i; i < 3; i++) {
             GameType lgt = GameType.wrap(i);
-            factory.setImplementation(lgt, IDisputeGame(address(fakeClone)));
-            factory.setInitBond(lgt, 0);
+            disputeGameFactory.setImplementation(lgt, IDisputeGame(address(fakeClone)));
+            disputeGameFactory.setInitBond(lgt, 0);
         }
     }
 
@@ -253,15 +245,16 @@ contract DisputeGameFactory_FindLatestGames_Test is DisputeGameFactory_Init {
     function testFuzz_findLatestGames_greaterThanLength_succeeds(uint256 _start) public {
         // Create some dispute games of varying game types.
         for (uint256 i; i < 1 << 5; i++) {
-            factory.create(GameType.wrap(uint8(i % 2)), Claim.wrap(bytes32(i)), abi.encode(i));
+            disputeGameFactory.create(GameType.wrap(uint8(i % 2)), Claim.wrap(bytes32(i)), abi.encode(i));
         }
 
         // Bound the starting index to a number greater than the length of the game list.
-        uint256 gameCount = factory.gameCount();
+        uint256 gameCount = disputeGameFactory.gameCount();
         _start = bound(_start, gameCount, type(uint256).max);
 
         // The array's length should always be 0.
-        IDisputeGameFactory.GameSearchResult[] memory games = factory.findLatestGames(GameTypes.CANNON, _start, 1);
+        IDisputeGameFactory.GameSearchResult[] memory games =
+            disputeGameFactory.findLatestGames(GameTypes.CANNON, _start, 1);
         assertEq(games.length, 0);
     }
 
@@ -269,28 +262,28 @@ contract DisputeGameFactory_FindLatestGames_Test is DisputeGameFactory_Init {
     function test_findLatestGames_static_succeeds() public {
         // Create some dispute games of varying game types.
         for (uint256 i; i < 1 << 5; i++) {
-            factory.create(GameType.wrap(uint8(i % 3)), Claim.wrap(bytes32(i)), abi.encode(i));
+            disputeGameFactory.create(GameType.wrap(uint8(i % 3)), Claim.wrap(bytes32(i)), abi.encode(i));
         }
 
-        uint256 gameCount = factory.gameCount();
+        uint256 gameCount = disputeGameFactory.gameCount();
 
         IDisputeGameFactory.GameSearchResult[] memory games;
 
-        games = factory.findLatestGames(GameType.wrap(0), gameCount - 1, 1);
+        games = disputeGameFactory.findLatestGames(GameType.wrap(0), gameCount - 1, 1);
         assertEq(games.length, 1);
         assertEq(games[0].index, 30);
         (GameType gameType, Timestamp createdAt, IDisputeGame game) = games[0].metadata.unpack();
         assertEq(gameType.raw(), 0);
         assertEq(createdAt.raw(), block.timestamp);
 
-        games = factory.findLatestGames(GameType.wrap(1), gameCount - 1, 1);
+        games = disputeGameFactory.findLatestGames(GameType.wrap(1), gameCount - 1, 1);
         assertEq(games.length, 1);
         assertEq(games[0].index, 31);
         (gameType, createdAt, game) = games[0].metadata.unpack();
         assertEq(gameType.raw(), 1);
         assertEq(createdAt.raw(), block.timestamp);
 
-        games = factory.findLatestGames(GameType.wrap(2), gameCount - 1, 1);
+        games = disputeGameFactory.findLatestGames(GameType.wrap(2), gameCount - 1, 1);
         assertEq(games.length, 1);
         assertEq(games[0].index, 29);
         (gameType, createdAt, game) = games[0].metadata.unpack();
@@ -302,20 +295,20 @@ contract DisputeGameFactory_FindLatestGames_Test is DisputeGameFactory_Init {
     ///      available.
     function test_findLatestGames_lessThanNAvailable_succeeds() public {
         // Create some dispute games of varying game types.
-        factory.create(GameType.wrap(1), Claim.wrap(bytes32(0)), abi.encode(0));
-        factory.create(GameType.wrap(1), Claim.wrap(bytes32(uint256(1))), abi.encode(1));
+        disputeGameFactory.create(GameType.wrap(1), Claim.wrap(bytes32(0)), abi.encode(0));
+        disputeGameFactory.create(GameType.wrap(1), Claim.wrap(bytes32(uint256(1))), abi.encode(1));
         for (uint256 i; i < 1 << 3; i++) {
-            factory.create(GameType.wrap(0), Claim.wrap(bytes32(i)), abi.encode(i));
+            disputeGameFactory.create(GameType.wrap(0), Claim.wrap(bytes32(i)), abi.encode(i));
         }
 
-        uint256 gameCount = factory.gameCount();
+        uint256 gameCount = disputeGameFactory.gameCount();
 
         IDisputeGameFactory.GameSearchResult[] memory games;
 
-        games = factory.findLatestGames(GameType.wrap(2), gameCount - 1, 5);
+        games = disputeGameFactory.findLatestGames(GameType.wrap(2), gameCount - 1, 5);
         assertEq(games.length, 0);
 
-        games = factory.findLatestGames(GameType.wrap(1), gameCount - 1, 5);
+        games = disputeGameFactory.findLatestGames(GameType.wrap(1), gameCount - 1, 5);
         assertEq(games.length, 2);
         assertEq(games[0].index, 1);
         assertEq(games[1].index, 0);
@@ -336,12 +329,13 @@ contract DisputeGameFactory_FindLatestGames_Test is DisputeGameFactory_Init {
         // Create `_numGames` dispute games, with at least `_numSearchedGames` games.
         for (uint256 i; i < _numGames; i++) {
             uint8 gameType = i < _numSearchedGames ? 0 : 1;
-            factory.create(GameType.wrap(gameType), Claim.wrap(bytes32(i)), abi.encode(i));
+            disputeGameFactory.create(GameType.wrap(gameType), Claim.wrap(bytes32(i)), abi.encode(i));
         }
 
         // Ensure that the correct number of games are returned.
         uint256 start = _numGames == 0 ? 0 : _numGames - 1;
-        IDisputeGameFactory.GameSearchResult[] memory games = factory.findLatestGames(GameType.wrap(0), start, _n);
+        IDisputeGameFactory.GameSearchResult[] memory games =
+            disputeGameFactory.findLatestGames(GameType.wrap(0), start, _n);
         assertEq(games.length, _n);
     }
 }

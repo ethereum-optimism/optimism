@@ -63,9 +63,9 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
             _vm: _vm
         });
         // Register the game implementation with the factory.
-        factory.setImplementation(GAME_TYPE, gameImpl);
+        disputeGameFactory.setImplementation(GAME_TYPE, gameImpl);
         // Create a new game.
-        gameProxy = FaultDisputeGame(address(factory.create(GAME_TYPE, rootClaim, extraData)));
+        gameProxy = FaultDisputeGame(address(disputeGameFactory.create(GAME_TYPE, rootClaim, extraData)));
 
         // Check immutables
         assertEq(gameProxy.gameType().raw(), GAME_TYPE.raw());
@@ -174,7 +174,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
 
         Claim claim = _dummyClaim();
         vm.expectRevert(abi.encodeWithSelector(UnexpectedRootClaim.selector, claim));
-        gameProxy = FaultDisputeGame(address(factory.create(GAME_TYPE, claim, abi.encode(_blockNumber))));
+        gameProxy = FaultDisputeGame(address(disputeGameFactory.create(GAME_TYPE, claim, abi.encode(_blockNumber))));
     }
 
     /// @dev Tests that the proxy receives ETH from the dispute game factory.
@@ -183,7 +183,8 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         vm.deal(address(this), _value);
 
         assertEq(address(gameProxy).balance, 0);
-        gameProxy = FaultDisputeGame(address(factory.create{ value: _value }(GAME_TYPE, ROOT_CLAIM, abi.encode(1))));
+        gameProxy =
+            FaultDisputeGame(address(disputeGameFactory.create{ value: _value }(GAME_TYPE, ROOT_CLAIM, abi.encode(1))));
         assertEq(address(gameProxy).balance, _value);
     }
 
@@ -206,7 +207,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
 
         Claim claim = _dummyClaim();
         vm.expectRevert(abi.encodeWithSelector(ExtraDataTooLong.selector));
-        gameProxy = FaultDisputeGame(address(factory.create(GAME_TYPE, claim, _extraData)));
+        gameProxy = FaultDisputeGame(address(disputeGameFactory.create(GAME_TYPE, claim, _extraData)));
     }
 
     /// @dev Tests that the game is initialized with the correct data.
@@ -629,7 +630,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         assertEq(address(gameProxy).balance, 0);
 
         // Ensure that the init bond for the game is 0, in case we change it in the test suite in the future.
-        assertEq(factory.initBonds(GAME_TYPE), 0);
+        assertEq(disputeGameFactory.initBonds(GAME_TYPE), 0);
     }
 
     /// @dev Static unit test asserting that resolve pays out bonds on step, output bisection, and execution trace
@@ -691,7 +692,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         assertEq(address(gameProxy).balance, 0);
 
         // Ensure that the init bond for the game is 0, in case we change it in the test suite in the future.
-        assertEq(factory.initBonds(GAME_TYPE), 0);
+        assertEq(disputeGameFactory.initBonds(GAME_TYPE), 0);
     }
 
     /// @dev Static unit test asserting that resolve pays out bonds on moves to the leftmost actor
@@ -743,7 +744,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         assertEq(address(gameProxy).balance, 0);
 
         // Ensure that the init bond for the game is 0, in case we change it in the test suite in the future.
-        assertEq(factory.initBonds(GAME_TYPE), 0);
+        assertEq(disputeGameFactory.initBonds(GAME_TYPE), 0);
     }
 
     /// @dev Static unit test asserting that credit may not be drained past allowance through reentrancy.
