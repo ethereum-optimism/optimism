@@ -272,10 +272,10 @@ type stubGameSource struct {
 	games    []types.GameMetadata
 }
 
-func (s *stubGameSource) FetchAllGamesAtBlock(
+func (s *stubGameSource) GetGamesAtOrAfter(
 	_ context.Context,
-	_ uint64,
 	_ common.Hash,
+	_ uint64,
 ) ([]types.GameMetadata, error) {
 	if s.fetchErr != nil {
 		return nil, s.fetchErr

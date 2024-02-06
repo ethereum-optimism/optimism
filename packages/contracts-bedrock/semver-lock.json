@@ -96,8 +96,8 @@
     "sourceCodeHash": "0xe1891e7e6a1928b9a2ddc47d1f010650f1125a0617b8bf32190176a3bb674b4f"
   },
   "src/dispute/FaultDisputeGame.sol": {
-    "initCodeHash": "0x4755dd5a5400731d68995a6fbd8219c82faf0b009b9db96162d8953526d856f5",
-    "sourceCodeHash": "0xe774740ba445211a3017bc78e30b0fc07e25f30e48fe788907e9564408678502"
+    "initCodeHash": "0x04fc1926f2ccd02a2c065e4dd0e562be7c8c498d76d6d860cc394fd74fffca06",
+    "sourceCodeHash": "0x1e539ba88487b2ec1359577dbd82270fddbabc3b8982dc6dc1a4a5169318e479"
   },
   "src/legacy/DeployerWhitelist.sol": {
     "initCodeHash": "0x8de80fb23b26dd9d849f6328e56ea7c173cd9e9ce1f05c9beea559d1720deb3d",

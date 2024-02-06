@@ -7,11 +7,13 @@ import (
 	"fmt"
 	"math"
 	"math/big"
+	"sync/atomic"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/merkle"
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
+	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
@@ -22,6 +24,7 @@ const (
 	methodAddLeavesLPP              = "addLeavesLPP"
 	methodSqueezeLPP                = "squeezeLPP"
 	methodLoadKeccak256PreimagePart = "loadKeccak256PreimagePart"
+	methodLoadSha256PreimagePart    = "loadSha256PreimagePart"
 	methodProposalCount             = "proposalCount"
 	methodProposals                 = "proposals"
 	methodProposalMetadata          = "proposalMetadata"
@@ -32,10 +35,13 @@ const (
 	methodChallengeFirstLPP         = "challengeFirstLPP"
 	methodChallengeLPP              = "challengeLPP"
 	methodChallengePeriod           = "challengePeriod"
+	methodGetTreeRootLPP            = "getTreeRootLPP"
 )
 
 var (
 	ErrInvalidAddLeavesCall = errors.New("tx is not a valid addLeaves call")
+	ErrInvalidPreimageKey   = errors.New("invalid preimage key")
+	ErrUnsupportedKeyType   = errors.New("unsupported preimage key type")
 )
 
 // PreimageOracleContract is a binding that works with contracts implementing the IPreimageOracle interface
@@ -43,6 +49,10 @@ type PreimageOracleContract struct {
 	addr        common.Address
 	multiCaller *batching.MultiCaller
 	contract    *batching.BoundContract
+
+	// challengePeriod caches the challenge period from the contract once it has been loaded.
+	// 0 indicates the period has not been loaded yet.
+	challengePeriod atomic.Uint64
 }
 
 // toPreimageOracleLeaf converts a Leaf to the contract [bindings.PreimageOracleLeaf] type.
@@ -72,8 +82,20 @@ func (c *PreimageOracleContract) Addr() common.Address {
 }
 
 func (c *PreimageOracleContract) AddGlobalDataTx(data *types.PreimageOracleData) (txmgr.TxCandidate, error) {
-	call := c.contract.Call(methodLoadKeccak256PreimagePart, new(big.Int).SetUint64(uint64(data.OracleOffset)), data.GetPreimageWithoutSize())
-	return call.ToTxCandidate()
+	if len(data.OracleKey) == 0 {
+		return txmgr.TxCandidate{}, ErrInvalidPreimageKey
+	}
+	keyType := preimage.KeyType(data.OracleKey[0])
+	switch keyType {
+	case preimage.Keccak256KeyType:
+		call := c.contract.Call(methodLoadKeccak256PreimagePart, new(big.Int).SetUint64(uint64(data.OracleOffset)), data.GetPreimageWithoutSize())
+		return call.ToTxCandidate()
+	case preimage.Sha256KeyType:
+		call := c.contract.Call(methodLoadSha256PreimagePart, new(big.Int).SetUint64(uint64(data.OracleOffset)), data.GetPreimageWithoutSize())
+		return call.ToTxCandidate()
+	default:
+		return txmgr.TxCandidate{}, fmt.Errorf("%w: %v", ErrUnsupportedKeyType, keyType)
+	}
 }
 
 func (c *PreimageOracleContract) InitLargePreimage(uuid *big.Int, partOffset uint32, claimedSize uint32) (txmgr.TxCandidate, error) {
@@ -97,11 +119,16 @@ func (c *PreimageOracleContract) MinLargePreimageSize(ctx context.Context) (uint
 
 // ChallengePeriod returns the challenge period for large preimages.
 func (c *PreimageOracleContract) ChallengePeriod(ctx context.Context) (uint64, error) {
+	if period := c.challengePeriod.Load(); period != 0 {
+		return period, nil
+	}
 	result, err := c.multiCaller.SingleCall(ctx, batching.BlockLatest, c.contract.Call(methodChallengePeriod))
 	if err != nil {
 		return 0, fmt.Errorf("failed to fetch challenge period: %w", err)
 	}
-	return result.GetBigInt(0).Uint64(), nil
+	period := result.GetBigInt(0).Uint64()
+	c.challengePeriod.Store(period)
+	return period, nil
 }
 
 func (c *PreimageOracleContract) CallSqueeze(
@@ -188,6 +215,15 @@ func (c *PreimageOracleContract) GetProposalMetadata(ctx context.Context, block 
 		})
 	}
 	return proposals, nil
+}
+
+func (c *PreimageOracleContract) GetProposalTreeRoot(ctx context.Context, block batching.Block, ident keccakTypes.LargePreimageIdent) (common.Hash, error) {
+	call := c.contract.Call(methodGetTreeRootLPP, ident.Claimant, ident.UUID)
+	result, err := c.multiCaller.SingleCall(ctx, block, call)
+	if err != nil {
+		return common.Hash{}, fmt.Errorf("failed to get tree root: %w", err)
+	}
+	return result.GetHash(0), nil
 }
 
 func (c *PreimageOracleContract) GetInputDataBlocks(ctx context.Context, block batching.Block, ident keccakTypes.LargePreimageIdent) ([]uint64, error) {

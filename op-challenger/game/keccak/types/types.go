@@ -3,6 +3,7 @@ package types
 import (
 	"context"
 	"math/big"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/merkle"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
@@ -65,10 +66,10 @@ type LargePreimageMetaData struct {
 	Countered       bool
 }
 
-// ShouldVerify returns true if the preimage upload is complete and has not yet been countered.
-// Note that the challenge period for the preimage may have expired but the image not yet been finalized.
-func (m LargePreimageMetaData) ShouldVerify() bool {
-	return m.Timestamp > 0 && !m.Countered
+// ShouldVerify returns true if the preimage upload is complete, has not yet been countered, and the
+// challenge period has not yet elapsed.
+func (m LargePreimageMetaData) ShouldVerify(now time.Time, ignoreAfter time.Duration) bool {
+	return m.Timestamp > 0 && !m.Countered && m.Timestamp+uint64(ignoreAfter.Seconds()) > uint64(now.Unix())
 }
 
 type StateSnapshot [25]uint64
@@ -99,6 +100,8 @@ type LargePreimageOracle interface {
 	Addr() common.Address
 	GetActivePreimages(ctx context.Context, blockHash common.Hash) ([]LargePreimageMetaData, error)
 	GetInputDataBlocks(ctx context.Context, block batching.Block, ident LargePreimageIdent) ([]uint64, error)
+	GetProposalTreeRoot(ctx context.Context, block batching.Block, ident LargePreimageIdent) (common.Hash, error)
 	DecodeInputData(data []byte) (*big.Int, InputData, error)
 	ChallengeTx(ident LargePreimageIdent, challenge Challenge) (txmgr.TxCandidate, error)
+	ChallengePeriod(ctx context.Context) (uint64, error)
 }
