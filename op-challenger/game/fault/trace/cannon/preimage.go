@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"strings"
+	"sync/atomic"
 
 	gokzg4844 "github.com/crate-crypto/go-kzg-4844"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
@@ -17,17 +18,17 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
-var kzg4844Ctx *gokzg4844.Context
+var kzg4844Ctx atomic.Pointer[gokzg4844.Context]
 
 func kzg() *gokzg4844.Context {
-	if kzg4844Ctx == nil {
+	if kzg4844Ctx.Load() == nil {
 		ctx, err := gokzg4844.NewContext4096Secure()
 		if err != nil {
 			panic("unable to load kzg trusted setup")
 		}
-		kzg4844Ctx = ctx
+		kzg4844Ctx.Store(ctx)
 	}
-	return kzg4844Ctx
+	return kzg4844Ctx.Load()
 }
 
 type preimageSource func(key common.Hash) ([]byte, error)

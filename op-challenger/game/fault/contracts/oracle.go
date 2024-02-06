@@ -25,6 +25,7 @@ const (
 	methodSqueezeLPP                = "squeezeLPP"
 	methodLoadKeccak256PreimagePart = "loadKeccak256PreimagePart"
 	methodLoadSha256PreimagePart    = "loadSha256PreimagePart"
+	methodLoadBlobPreimagePart      = "loadBlobPreimagePart"
 	methodProposalCount             = "proposalCount"
 	methodProposals                 = "proposals"
 	methodProposalMetadata          = "proposalMetadata"
@@ -92,6 +93,14 @@ func (c *PreimageOracleContract) AddGlobalDataTx(data *types.PreimageOracleData)
 		return call.ToTxCandidate()
 	case preimage.Sha256KeyType:
 		call := c.contract.Call(methodLoadSha256PreimagePart, new(big.Int).SetUint64(uint64(data.OracleOffset)), data.GetPreimageWithoutSize())
+		return call.ToTxCandidate()
+	case preimage.BlobKeyType:
+		call := c.contract.Call(methodLoadBlobPreimagePart,
+			new(big.Int).SetUint64(data.BlobFieldIndex),
+			new(big.Int).SetBytes(data.GetPreimageWithoutSize()),
+			data.BlobCommitment,
+			data.BlobProof,
+			new(big.Int).SetUint64(uint64(data.OracleOffset)))
 		return call.ToTxCandidate()
 	default:
 		return txmgr.TxCandidate{}, fmt.Errorf("%w: %v", ErrUnsupportedKeyType, keyType)
