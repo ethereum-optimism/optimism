@@ -1,6 +1,9 @@
 package mipsevm
 
-import "github.com/ethereum/go-ethereum/common"
+import (
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+)
 
 type LocalContext common.Hash
 
@@ -13,6 +16,7 @@ type StepWitness struct {
 	PreimageKey    [32]byte // zeroed when no pre-image is accessed
 	PreimageValue  []byte   // including the 8-byte length prefix
 	PreimageOffset uint32
+	LastHint       hexutil.Bytes
 }
 
 func (wit *StepWitness) HasPreimage() bool {
