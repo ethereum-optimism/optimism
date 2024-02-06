@@ -3,9 +3,10 @@ package sources
 import (
 	"context"
 
+	"golang.org/x/exp/slog"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/client"
@@ -64,7 +65,7 @@ func (r *RollupClient) PostUnsafePayload(ctx context.Context, payload *eth.Execu
 	return r.rpc.CallContext(ctx, nil, "admin_postUnsafePayload", payload)
 }
 
-func (r *RollupClient) SetLogLevel(ctx context.Context, lvl log.Lvl) error {
+func (r *RollupClient) SetLogLevel(ctx context.Context, lvl slog.Level) error {
 	return r.rpc.CallContext(ctx, nil, "admin_setLogLevel", lvl.String())
 }
 

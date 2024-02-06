@@ -199,7 +199,7 @@ func setupOracleBackedChain(t *testing.T, blockCount int) ([]*types.Block, *Orac
 }
 
 func setupOracleBackedChainWithLowerHead(t *testing.T, blockCount int, headBlockNumber int) ([]*types.Block, *OracleBackedL2Chain) {
-	logger := testlog.Logger(t, log.LvlDebug)
+	logger := testlog.Logger(t, log.LevelDebug)
 	chainCfg, blocks, oracle := setupOracle(t, blockCount, headBlockNumber)
 	head := blocks[headBlockNumber].Hash()
 	stubOutput := eth.OutputV0{BlockHash: head}

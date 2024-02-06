@@ -17,7 +17,7 @@ import (
 )
 
 func TestCommitAndRead(t *testing.T) {
-	log := testlog.Logger(t, log.LvlInfo)
+	log := testlog.Logger(t, log.LevelInfo)
 	serverID := "SequencerA"
 	serverAddr := "127.0.0.1:0"
 	bootstrap := true

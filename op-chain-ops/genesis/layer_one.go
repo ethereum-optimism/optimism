@@ -56,7 +56,16 @@ func BuildL1DeveloperGenesis(config *DeployConfig, dump *gstate.Dump, l1Deployme
 	SetPrecompileBalances(memDB)
 
 	if dump != nil {
-		for address, account := range dump.Accounts {
+		for addrstr, account := range dump.Accounts {
+			if !common.IsHexAddress(addrstr) {
+				// Changes in https://github.com/ethereum/go-ethereum/pull/28504
+				// add accounts to the Dump with "pre(<AddressHash>)" as key
+				// if the address itself is nil.
+				// So depending on how `dump` was created, this might be a
+				// pre-image key, which we skip.
+				continue
+			}
+			address := common.HexToAddress(addrstr)
 			name := "<unknown>"
 			if l1Deployments != nil {
 				if n := l1Deployments.GetName(address); n != "" {

@@ -100,7 +100,7 @@ type OpConductorTestSuite struct {
 
 func (s *OpConductorTestSuite) SetupSuite() {
 	s.ctx = context.Background()
-	s.log = testlog.Logger(s.T(), log.LvlDebug)
+	s.log = testlog.Logger(s.T(), log.LevelDebug)
 	s.cfg = mockConfig(s.T())
 	s.version = "v0.0.1"
 	s.next = make(chan struct{}, 1)

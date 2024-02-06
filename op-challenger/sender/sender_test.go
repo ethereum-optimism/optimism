@@ -20,7 +20,7 @@ func TestSendAndWait(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	txMgr := &stubTxMgr{sending: make(map[byte]chan *types.Receipt)}
-	sender := NewTxSender(ctx, testlog.Logger(t, log.LvlInfo), txMgr, 5)
+	sender := NewTxSender(ctx, testlog.Logger(t, log.LevelInfo), txMgr, 5)
 
 	tx := func(i byte) txmgr.TxCandidate {
 		return txmgr.TxCandidate{TxData: []byte{i}}

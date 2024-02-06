@@ -52,7 +52,7 @@ func (g *OutputCannonGameHelper) CreateHonestActor(ctx context.Context, l2Node s
 	opts = append(opts, options...)
 	cfg := challenger.NewChallengerConfig(g.t, g.system.NodeEndpoint("l1"), opts...)
 
-	logger := testlog.Logger(g.t, log.LvlInfo).New("role", "HonestHelper", "game", g.addr)
+	logger := testlog.Logger(g.t, log.LevelInfo).New("role", "HonestHelper", "game", g.addr)
 	l2Client := g.system.NodeClient(l2Node)
 	caller := batching.NewMultiCaller(g.system.NodeClient("l1").Client(), batching.DefaultBatchSize)
 	contract, err := contracts.NewFaultDisputeGameContract(g.addr, caller)
@@ -215,7 +215,7 @@ func (g *OutputCannonGameHelper) createCannonTraceProvider(ctx context.Context, 
 	splitDepth := g.SplitDepth(ctx)
 	g.require.EqualValues(outputRootClaim.Depth(), splitDepth+1, "outputRootClaim must be the root of an execution game")
 
-	logger := testlog.Logger(g.t, log.LvlInfo).New("role", "CannonTraceProvider", "game", g.addr)
+	logger := testlog.Logger(g.t, log.LevelInfo).New("role", "CannonTraceProvider", "game", g.addr)
 	opt := g.defaultChallengerOptions(l2Node)
 	opt = append(opt, options...)
 	cfg := challenger.NewChallengerConfig(g.t, g.system.NodeEndpoint("l1"), opt...)

@@ -181,7 +181,7 @@ func setupMonitorTest(
 	t *testing.T,
 	allowedGames []common.Address,
 ) (*gameMonitor, *stubGameSource, *stubScheduler, *mockNewHeadSource, *stubPreimageScheduler) {
-	logger := testlog.Logger(t, log.LvlDebug)
+	logger := testlog.Logger(t, log.LevelDebug)
 	source := &stubGameSource{}
 	i := uint64(1)
 	fetchBlockNum := func(ctx context.Context) (uint64, error) {

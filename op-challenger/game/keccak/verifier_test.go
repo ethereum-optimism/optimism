@@ -21,7 +21,7 @@ import (
 )
 
 func TestVerify(t *testing.T) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	tests := []struct {
 		name        string
 		inputs      func() []keccakTypes.InputData

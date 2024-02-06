@@ -140,10 +140,10 @@ func (e *Executor) generateProof(ctx context.Context, dir string, begin uint64, 
 
 func runCmd(ctx context.Context, l log.Logger, binary string, args ...string) error {
 	cmd := exec.CommandContext(ctx, binary, args...)
-	stdOut := oplog.NewWriter(l, log.LvlInfo)
+	stdOut := oplog.NewWriter(l, log.LevelInfo)
 	defer stdOut.Close()
 	// Keep stdErr at info level because cannon uses stderr for progress messages
-	stdErr := oplog.NewWriter(l, log.LvlInfo)
+	stdErr := oplog.NewWriter(l, log.LevelInfo)
 	defer stdErr.Close()
 	cmd.Stdout = stdOut
 	cmd.Stderr = stdErr

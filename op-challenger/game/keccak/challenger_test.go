@@ -38,7 +38,7 @@ func TestChallenge(t *testing.T) {
 		},
 	}
 
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 
 	t.Run("SendChallenges", func(t *testing.T) {
 		verifier, sender, oracle, challenger := setupChallengerTest(logger)
@@ -65,7 +65,7 @@ func TestChallenge(t *testing.T) {
 	})
 
 	t.Run("LogErrorWhenCreateTxFails", func(t *testing.T) {
-		logs := testlog.Capture(logger)
+		logger, logs := testlog.CaptureLogger(t, log.LevelInfo)
 
 		verifier, _, oracle, challenger := setupChallengerTest(logger)
 		verifier.challenges[preimages[1].LargePreimageIdent] = keccakTypes.Challenge{StateMatrix: keccakTypes.StateSnapshot{0x01}}
@@ -73,12 +73,12 @@ func TestChallenge(t *testing.T) {
 		err := challenger.Challenge(context.Background(), common.Hash{0xaa}, oracle, preimages)
 		require.NoError(t, err)
 
-		errLog := logs.FindLog(log.LvlError, "Failed to create challenge transaction")
-		require.ErrorIs(t, errLog.GetContextValue("err").(error), oracle.err)
+		errLog := logs.FindLog(log.LevelError, "Failed to create challenge transaction")
+		require.ErrorIs(t, errLog.AttrValue("err").(error), oracle.err)
 	})
 
 	t.Run("LogErrorWhenVerifierFails", func(t *testing.T) {
-		logs := testlog.Capture(logger)
+		logger, logs := testlog.CaptureLogger(t, log.LevelInfo)
 
 		verifier, _, oracle, challenger := setupChallengerTest(logger)
 		verifier.challenges[preimages[1].LargePreimageIdent] = keccakTypes.Challenge{StateMatrix: keccakTypes.StateSnapshot{0x01}}
@@ -86,22 +86,22 @@ func TestChallenge(t *testing.T) {
 		err := challenger.Challenge(context.Background(), common.Hash{0xaa}, oracle, preimages)
 		require.NoError(t, err)
 
-		errLog := logs.FindLog(log.LvlError, "Failed to verify large preimage")
-		require.ErrorIs(t, errLog.GetContextValue("err").(error), verifier.err)
+		errLog := logs.FindLog(log.LevelError, "Failed to verify large preimage")
+		require.ErrorIs(t, errLog.AttrValue("err").(error), verifier.err)
 	})
 
 	t.Run("DoNotLogErrValid", func(t *testing.T) {
-		logs := testlog.Capture(logger)
+		logger, logs := testlog.CaptureLogger(t, log.LevelInfo)
 
 		_, _, oracle, challenger := setupChallengerTest(logger)
 		// All preimages are valid
 		err := challenger.Challenge(context.Background(), common.Hash{0xaa}, oracle, preimages)
 		require.NoError(t, err)
 
-		errLog := logs.FindLog(log.LvlError, "Failed to verify large preimage")
+		errLog := logs.FindLog(log.LevelError, "Failed to verify large preimage")
 		require.Nil(t, errLog)
 
-		dbgLog := logs.FindLog(log.LvlDebug, "Preimage is valid")
+		dbgLog := logs.FindLog(log.LevelDebug, "Preimage is valid")
 		require.NotNil(t, dbgLog)
 	})
 }

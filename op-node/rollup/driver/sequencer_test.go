@@ -171,7 +171,7 @@ func TestSequencerChaosMonkey(t *testing.T) {
 	l1Time := uint64(100000)
 
 	// mute errors. We expect a lot of the mocked errors to cause error-logs. We check chain health at the end of the test.
-	log := testlog.Logger(t, log.LvlCrit)
+	log := testlog.Logger(t, log.LevelCrit)
 
 	cfg := &rollup.Config{
 		Genesis: rollup.Genesis{

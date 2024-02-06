@@ -765,14 +765,14 @@ type ForgeDump gstate.Dump
 
 func (d *ForgeDump) UnmarshalJSON(b []byte) error {
 	type forgeDumpAccount struct {
-		Balance   string                 `json:"balance"`
-		Nonce     hexutil.Uint64         `json:"nonce"`
-		Root      hexutil.Bytes          `json:"root"`
-		CodeHash  hexutil.Bytes          `json:"codeHash"`
-		Code      hexutil.Bytes          `json:"code,omitempty"`
-		Storage   map[common.Hash]string `json:"storage,omitempty"`
-		Address   *common.Address        `json:"address,omitempty"`
-		SecureKey hexutil.Bytes          `json:"key,omitempty"`
+		Balance     string                 `json:"balance"`
+		Nonce       hexutil.Uint64         `json:"nonce"`
+		Root        hexutil.Bytes          `json:"root"`
+		CodeHash    hexutil.Bytes          `json:"codeHash"`
+		Code        hexutil.Bytes          `json:"code,omitempty"`
+		Storage     map[common.Hash]string `json:"storage,omitempty"`
+		Address     *common.Address        `json:"address,omitempty"`
+		AddressHash hexutil.Bytes          `json:"key,omitempty"`
 	}
 	type forgeDump struct {
 		Root     string                              `json:"root"`
@@ -784,17 +784,17 @@ func (d *ForgeDump) UnmarshalJSON(b []byte) error {
 	}
 
 	d.Root = dump.Root
-	d.Accounts = make(map[common.Address]gstate.DumpAccount)
+	d.Accounts = make(map[string]gstate.DumpAccount)
 	for addr, acc := range dump.Accounts {
-		d.Accounts[addr] = gstate.DumpAccount{
-			Balance:   acc.Balance,
-			Nonce:     (uint64)(acc.Nonce),
-			Root:      acc.Root,
-			CodeHash:  acc.CodeHash,
-			Code:      acc.Code,
-			Storage:   acc.Storage,
-			Address:   acc.Address,
-			SecureKey: acc.SecureKey,
+		d.Accounts[addr.String()] = gstate.DumpAccount{
+			Balance:     acc.Balance,
+			Nonce:       (uint64)(acc.Nonce),
+			Root:        acc.Root,
+			CodeHash:    acc.CodeHash,
+			Code:        acc.Code,
+			Storage:     acc.Storage,
+			Address:     acc.Address,
+			AddressHash: acc.AddressHash,
 		}
 	}
 	return nil

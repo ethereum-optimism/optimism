@@ -41,7 +41,7 @@ func TestGenerateProof(t *testing.T) {
 	}
 	captureExec := func(t *testing.T, cfg config.Config, proofAt uint64) (string, string, map[string]string) {
 		m := &cannonDurationMetrics{}
-		executor := NewExecutor(testlog.Logger(t, log.LvlInfo), m, &cfg, inputs)
+		executor := NewExecutor(testlog.Logger(t, log.LevelInfo), m, &cfg, inputs)
 		executor.selectSnapshot = func(logger log.Logger, dir string, absolutePreState string, i uint64) (string, error) {
 			return input, nil
 		}
@@ -135,15 +135,14 @@ func TestRunCmdLogsOutput(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	logger := testlog.Logger(t, log.LvlInfo)
-	logs := testlog.Capture(logger)
+	logger, logs := testlog.CaptureLogger(t, log.LevelInfo)
 	err := runCmd(ctx, logger, bin, "Hello World")
 	require.NoError(t, err)
-	require.NotNil(t, logs.FindLog(log.LvlInfo, "Hello World"))
+	require.NotNil(t, logs.FindLog(log.LevelInfo, "Hello World"))
 }
 
 func TestFindStartingSnapshot(t *testing.T) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 
 	withSnapshots := func(t *testing.T, files ...string) string {
 		dir := t.TempDir()

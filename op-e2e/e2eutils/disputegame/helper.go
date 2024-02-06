@@ -127,7 +127,7 @@ func (h *FactoryHelper) StartOutputCannonGameWithCorrectRoot(ctx context.Context
 }
 
 func (h *FactoryHelper) StartOutputCannonGame(ctx context.Context, l2Node string, l2BlockNumber uint64, rootClaim common.Hash) *OutputCannonGameHelper {
-	logger := testlog.Logger(h.t, log.LvlInfo).New("role", "OutputCannonGameHelper")
+	logger := testlog.Logger(h.t, log.LevelInfo).New("role", "OutputCannonGameHelper")
 	rollupClient := h.system.RollupClient(l2Node)
 
 	extraData := h.createBisectionGameExtraData(l2Node, l2BlockNumber)
@@ -179,7 +179,7 @@ func (h *FactoryHelper) StartOutputAlphabetGameWithCorrectRoot(ctx context.Conte
 }
 
 func (h *FactoryHelper) StartOutputAlphabetGame(ctx context.Context, l2Node string, l2BlockNumber uint64, rootClaim common.Hash) *OutputAlphabetGameHelper {
-	logger := testlog.Logger(h.t, log.LvlInfo).New("role", "OutputAlphabetGameHelper")
+	logger := testlog.Logger(h.t, log.LevelInfo).New("role", "OutputAlphabetGameHelper")
 	rollupClient := h.system.RollupClient(l2Node)
 
 	extraData := h.createBisectionGameExtraData(l2Node, l2BlockNumber)

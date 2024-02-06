@@ -52,7 +52,7 @@ func TestChannelManagerBatchType(t *testing.T) {
 // ChannelManagerReturnsErrReorg ensures that the channel manager
 // detects a reorg when it has cached L1 blocks.
 func ChannelManagerReturnsErrReorg(t *testing.T, batchType uint) {
-	log := testlog.Logger(t, log.LvlCrit)
+	log := testlog.Logger(t, log.LevelCrit)
 	m := NewChannelManager(log, metrics.NoopMetrics, ChannelConfig{BatchType: batchType}, &rollup.Config{})
 	m.Clear()
 
@@ -83,7 +83,7 @@ func ChannelManagerReturnsErrReorg(t *testing.T, batchType uint) {
 // ChannelManagerReturnsErrReorgWhenDrained ensures that the channel manager
 // detects a reorg even if it does not have any blocks inside it.
 func ChannelManagerReturnsErrReorgWhenDrained(t *testing.T, batchType uint) {
-	log := testlog.Logger(t, log.LvlCrit)
+	log := testlog.Logger(t, log.LevelCrit)
 	m := NewChannelManager(log, metrics.NoopMetrics,
 		ChannelConfig{
 			MaxFrameSize: 120_000,
@@ -116,7 +116,7 @@ func ChannelManager_Clear(t *testing.T, batchType uint) {
 	require := require.New(t)
 
 	// Create a channel manager
-	log := testlog.Logger(t, log.LvlCrit)
+	log := testlog.Logger(t, log.LevelCrit)
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	m := NewChannelManager(log, metrics.NoopMetrics, ChannelConfig{
 		// Need to set the channel timeout here so we don't clear pending
@@ -196,7 +196,7 @@ func ChannelManager_Clear(t *testing.T, batchType uint) {
 func ChannelManager_TxResend(t *testing.T, batchType uint) {
 	require := require.New(t)
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-	log := testlog.Logger(t, log.LvlError)
+	log := testlog.Logger(t, log.LevelError)
 	m := NewChannelManager(log, metrics.NoopMetrics,
 		ChannelConfig{
 			MaxFrameSize: 120_000,
@@ -244,7 +244,7 @@ func ChannelManager_TxResend(t *testing.T, batchType uint) {
 func ChannelManagerCloseBeforeFirstUse(t *testing.T, batchType uint) {
 	require := require.New(t)
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-	log := testlog.Logger(t, log.LvlCrit)
+	log := testlog.Logger(t, log.LevelCrit)
 	m := NewChannelManager(log, metrics.NoopMetrics,
 		ChannelConfig{
 			MaxFrameSize:   100,
@@ -275,7 +275,7 @@ func ChannelManagerCloseBeforeFirstUse(t *testing.T, batchType uint) {
 // channel frames.
 func ChannelManagerCloseNoPendingChannel(t *testing.T, batchType uint) {
 	require := require.New(t)
-	log := testlog.Logger(t, log.LvlCrit)
+	log := testlog.Logger(t, log.LevelCrit)
 	m := NewChannelManager(log, metrics.NoopMetrics,
 		ChannelConfig{
 			MaxFrameSize:   100,
@@ -321,7 +321,7 @@ func ChannelManagerClosePendingChannel(t *testing.T, batchType uint) {
 	// The number of batch txs depends on compression of the random data, hence the static test RNG seed.
 	// Example of different RNG seed that creates less than 2 frames: 1698700588902821588
 	rng := rand.New(rand.NewSource(123))
-	log := testlog.Logger(t, log.LvlError)
+	log := testlog.Logger(t, log.LevelError)
 	m := NewChannelManager(log, metrics.NoopMetrics,
 		ChannelConfig{
 			MaxFrameSize:   10_000,
@@ -379,7 +379,7 @@ func TestChannelManager_Close_PartiallyPendingChannel(t *testing.T) {
 	// The number of batch txs depends on compression of the random data, hence the static test RNG seed.
 	// Example of different RNG seed that creates less than 2 frames: 1698700588902821588
 	rng := rand.New(rand.NewSource(123))
-	log := testlog.Logger(t, log.LvlError)
+	log := testlog.Logger(t, log.LevelError)
 	const framesize = 2200
 	m := NewChannelManager(log, metrics.NoopMetrics,
 		ChannelConfig{
@@ -441,7 +441,7 @@ func TestChannelManager_Close_PartiallyPendingChannel(t *testing.T) {
 func ChannelManagerCloseAllTxsFailed(t *testing.T, batchType uint) {
 	require := require.New(t)
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-	log := testlog.Logger(t, log.LvlCrit)
+	log := testlog.Logger(t, log.LevelCrit)
 	m := NewChannelManager(log, metrics.NoopMetrics,
 		ChannelConfig{
 			MaxFrameSize:   1000,

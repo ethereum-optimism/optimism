@@ -332,7 +332,7 @@ func TestDropOldGameStates(t *testing.T) {
 }
 
 func setupCoordinatorTest(t *testing.T, bufferSize int) (*coordinator, <-chan job, chan job, *createdGames, *stubDiskManager) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	workQueue := make(chan job, bufferSize)
 	resultQueue := make(chan job, bufferSize)
 	games := &createdGames{

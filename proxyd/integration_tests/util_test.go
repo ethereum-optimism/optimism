@@ -10,13 +10,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/BurntSushi/toml"
+	"github.com/gorilla/websocket"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slog"
+
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/gorilla/websocket"
-
-	"github.com/BurntSushi/toml"
 	"github.com/ethereum-optimism/optimism/proxyd"
-	"github.com/stretchr/testify/require"
 )
 
 type ProxydHTTPClient struct {
@@ -129,8 +130,10 @@ type WSMessage struct {
 	Body []byte
 }
 
-type ProxydWSClientOnMessage func(msgType int, data []byte)
-type ProxydWSClientOnClose func(err error)
+type (
+	ProxydWSClientOnMessage func(msgType int, data []byte)
+	ProxydWSClientOnClose   func(err error)
+)
 
 func NewProxydWSClient(
 	url string,
@@ -183,11 +186,6 @@ func (h *ProxydWSClient) WriteControlMessage(msgType int, msg []byte) error {
 }
 
 func InitLogger() {
-	log.Root().SetHandler(
-		log.LvlFilterHandler(log.LvlDebug,
-			log.StreamHandler(
-				os.Stdout,
-				log.TerminalFormat(false),
-			)),
-	)
+	slog.SetDefault(slog.New(
+		log.NewTerminalHandlerWithLevel(os.Stdout, slog.LevelDebug, false)))
 }
