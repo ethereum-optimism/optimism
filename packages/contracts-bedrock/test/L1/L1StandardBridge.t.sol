@@ -8,7 +8,6 @@ import { Bridge_Initializer } from "test/setup/Bridge_Initializer.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { Constants } from "src/libraries/Constants.sol";
 
 // Target contract dependencies
 import { StandardBridge } from "src/universal/StandardBridge.sol";
@@ -677,7 +676,7 @@ contract L1StandardBridge_FinalizeERC20Withdrawal_TestFail is Bridge_Initializer
             abi.encodeWithSelector(CrossDomainMessenger.xDomainMessageSender.selector),
             abi.encode(address(l1StandardBridge.OTHER_BRIDGE()))
         );
-        vm.prank(address(28));
+        // vm.prank(address(28));
         vm.expectRevert("StandardBridge: function can only be called from the other bridge");
         l1StandardBridge.finalizeERC20Withdrawal(address(L1Token), address(L2Token), alice, alice, 100, hex"");
     }

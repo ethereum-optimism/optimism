@@ -6,16 +6,13 @@ import { Vm } from "forge-std/Vm.sol";
 import { DisputeGameFactory_Init } from "test/dispute/DisputeGameFactory.t.sol";
 import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
 import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
-import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
 import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
-import { PreimageKeyLib } from "src/cannon/PreimageKeyLib.sol";
 
 import "src/libraries/DisputeTypes.sol";
 import "src/libraries/DisputeErrors.sol";
-import { Types } from "src/libraries/Types.sol";
 import { LibClock } from "src/dispute/lib/LibUDT.sol";
 import { LibPosition } from "src/dispute/lib/LibPosition.sol";
-import { IBigStepper, IPreimageOracle } from "src/dispute/interfaces/IBigStepper.sol";
+import { IPreimageOracle } from "src/dispute/interfaces/IBigStepper.sol";
 import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
 
 import { DisputeActor, HonestDisputeActor } from "test/actors/FaultDisputeActors.sol";
