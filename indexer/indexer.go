@@ -80,7 +80,7 @@ func (ix *Indexer) Start(ctx context.Context) error {
 }
 
 func (ix *Indexer) Stop(ctx context.Context) error {
-	if ix.stopped.Load() == true {
+	if ix.stopped.Load() {
 		return nil
 	}
 
