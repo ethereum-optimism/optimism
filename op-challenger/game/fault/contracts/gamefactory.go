@@ -68,6 +68,49 @@ func (f *DisputeGameFactoryContract) GetGameImpl(ctx context.Context, gameType u
 	return result.GetAddress(0), nil
 }
 
+func (f *DisputeGameFactoryContract) GetGamesAtOrAfter(ctx context.Context, blockHash common.Hash, earliestTimestamp uint64) ([]types.GameMetadata, error) {
+	count, err := f.GetGameCount(ctx, blockHash)
+	if err != nil {
+		return nil, err
+	}
+	batchSize := uint64(f.multiCaller.BatchSize())
+	rangeEnd := count
+
+	var games []types.GameMetadata
+	for {
+		if rangeEnd == uint64(0) {
+			// rangeEnd is exclusive so if its 0 we've reached the end.
+			return games, nil
+		}
+		rangeStart := uint64(0)
+		if rangeEnd > batchSize {
+			rangeStart = rangeEnd - batchSize
+		}
+		calls := make([]*batching.ContractCall, 0, rangeEnd-rangeStart)
+		for i := rangeEnd - 1; ; i-- {
+			calls = append(calls, f.contract.Call(methodGameAtIndex, new(big.Int).SetUint64(i)))
+			// Break once we've added the last call to avoid underflow when rangeStart == 0
+			if i == rangeStart {
+				break
+			}
+		}
+
+		results, err := f.multiCaller.Call(ctx, batching.BlockByHash(blockHash), calls...)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch games: %w", err)
+		}
+
+		for _, result := range results {
+			game := f.decodeGame(result)
+			if game.Timestamp < earliestTimestamp {
+				return games, nil
+			}
+			games = append(games, game)
+		}
+		rangeEnd = rangeStart
+	}
+}
+
 func (f *DisputeGameFactoryContract) GetAllGames(ctx context.Context, blockHash common.Hash) ([]types.GameMetadata, error) {
 	count, err := f.GetGameCount(ctx, blockHash)
 	if err != nil {

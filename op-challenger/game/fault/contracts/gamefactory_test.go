@@ -2,7 +2,9 @@ package contracts
 
 import (
 	"context"
+	"fmt"
 	"math/big"
+	"slices"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
@@ -13,7 +15,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var factoryAddr = common.HexToAddress("0x24112842371dFC380576ebb09Ae16Cb6B6caD7CB")
+var (
+	factoryAddr = common.HexToAddress("0x24112842371dFC380576ebb09Ae16Cb6B6caD7CB")
+	batchSize   = 5
+)
 
 func TestDisputeGameFactorySimpleGetters(t *testing.T) {
 	blockHash := common.Hash{0xbb, 0xcd}
@@ -105,6 +110,57 @@ func TestGetAllGames(t *testing.T) {
 	require.Equal(t, expectedGames, actualGames)
 }
 
+func TestGetAllGamesAtOrAfter(t *testing.T) {
+	tests := []struct {
+		gameCount       int
+		earliestGameIdx int
+	}{
+		{gameCount: batchSize * 4, earliestGameIdx: batchSize + 3},
+		{gameCount: 0, earliestGameIdx: 0},
+		{gameCount: batchSize * 2, earliestGameIdx: batchSize},
+		{gameCount: batchSize * 2, earliestGameIdx: batchSize + 1},
+		{gameCount: batchSize * 2, earliestGameIdx: batchSize - 1},
+		{gameCount: batchSize * 2, earliestGameIdx: batchSize * 2},
+		{gameCount: batchSize * 2, earliestGameIdx: batchSize*2 + 1},
+		{gameCount: batchSize - 2, earliestGameIdx: batchSize - 3},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(fmt.Sprintf("Count_%v_Start_%v", test.gameCount, test.earliestGameIdx), func(t *testing.T) {
+			blockHash := common.Hash{0xbb, 0xce}
+			stubRpc, factory := setupDisputeGameFactoryTest(t)
+			var allGames []types.GameMetadata
+			for i := 0; i < test.gameCount; i++ {
+				allGames = append(allGames, types.GameMetadata{
+					GameType:  uint32(i),
+					Timestamp: uint64(i),
+					Proxy:     common.Address{byte(i)},
+				})
+			}
+
+			stubRpc.SetResponse(factoryAddr, methodGameCount, batching.BlockByHash(blockHash), nil, []interface{}{big.NewInt(int64(len(allGames)))})
+			for idx, expected := range allGames {
+				expectGetGame(stubRpc, idx, blockHash, expected)
+			}
+			// Set an earliest timestamp that's in the middle of a batch
+			earliestTimestamp := uint64(test.earliestGameIdx)
+			actualGames, err := factory.GetGamesAtOrAfter(context.Background(), blockHash, earliestTimestamp)
+			require.NoError(t, err)
+			// Games come back in descending timestamp order
+			var expectedGames []types.GameMetadata
+			if test.earliestGameIdx < len(allGames) {
+				expectedGames = slices.Clone(allGames[test.earliestGameIdx:])
+			}
+			slices.Reverse(expectedGames)
+			require.Equal(t, len(expectedGames), len(actualGames))
+			if len(expectedGames) != 0 {
+				// Don't assert equal for empty arrays, we accept nil or empty array
+				require.Equal(t, expectedGames, actualGames)
+			}
+		})
+	}
+}
+
 func TestGetGameFromParameters(t *testing.T) {
 	stubRpc, factory := setupDisputeGameFactoryTest(t)
 	traceType := uint32(123)
@@ -166,7 +222,7 @@ func setupDisputeGameFactoryTest(t *testing.T) (*batchingTest.AbiBasedRpc, *Disp
 	require.NoError(t, err)
 
 	stubRpc := batchingTest.NewAbiBasedRpc(t, factoryAddr, fdgAbi)
-	caller := batching.NewMultiCaller(stubRpc, 100)
+	caller := batching.NewMultiCaller(stubRpc, batchSize)
 	factory, err := NewDisputeGameFactoryContract(factoryAddr, caller)
 	require.NoError(t, err)
 	return stubRpc, factory
