@@ -27,6 +27,7 @@ on:
           - op-batcher
           - op-proposer
           - op-challenger
+          - op-dispute-mon
           - op-ufm
           - proxyd
           - ufm-metamask
