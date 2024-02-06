@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 import { Test } from "forge-std/Test.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 import { console2 as console } from "forge-std/console2.sol";
+import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 
 import { Artifacts } from "scripts/Artifacts.s.sol";
 import { Executables } from "scripts/Executables.sol";
@@ -48,68 +49,31 @@ contract L2Genesis_Test is Test, Artifacts {
     }
 
     function _parseAllocs(string memory filePath) internal {
-        console.log("Parsing allocs");
-        string[] memory getAllocAddressesCmd = new string[](3);
-        getAllocAddressesCmd[0] = "bash";
-        getAllocAddressesCmd[1] = "-c";
-        getAllocAddressesCmd[2] = string.concat("jq 'keys' ", filePath);
-        bytes memory rawAllocAddresses = vm.ffi(getAllocAddressesCmd);
-        allocAddresses = stdJson.readStringArray(string(rawAllocAddresses), "");
+        string memory jqCommand = string.concat(
+            "jq -cr 'to_entries | map({address: .key, balance: .value.balance, code: .value.code, nonce: .value.nonce, storageKeys: (.value.storage | keys), storageValues: (.value.storage | [.[]])})' ",
+            filePath
+        );
 
-        for (uint256 i; i < allocAddresses.length; i++) {
+        string[] memory cmd = new string[](3);
+        cmd[0] = "bash";
+        cmd[1] = "-c";
+        cmd[2] = jqCommand;
+        bytes memory result = vm.ffi(cmd);
+
+        string memory jsonResult = string(result);
+        // uint allocCount = stdJson.parseUint(stdJson.count(jsonResult, "$"));
+        for (uint i = 0; i < 2313; i++) {
+            string memory basePath = string.concat("$[", Strings.toString(i), "]");
             Alloc memory alloc;
+            alloc.balance = stdJson.readString(jsonResult, string.concat(basePath, ".balance"));
+            alloc.code = stdJson.readString(jsonResult, string.concat(basePath, ".code"));
+            alloc.nonce = stdJson.readString(jsonResult, string.concat(basePath, ".nonce"));
+            alloc.storageKeys = stdJson.readStringArray(jsonResult, string.concat(basePath, ".storageKeys"));
+            alloc.storageValues = stdJson.readStringArray(jsonResult, string.concat(basePath, ".storageValues"));
+            string memory addressStr = stdJson.readString(jsonResult, string.concat(basePath, ".address"));
+            address allocAddress = vm.parseAddress(addressStr);
 
-            bytes memory rawAllocProperties = _getAllocProperties(filePath, allocAddresses[i]);
-            alloc.balance = stdJson.readString(string(rawAllocProperties), "$.balance");
-            alloc.code = stdJson.readString(string(rawAllocProperties), "$.code");
-            alloc.nonce = stdJson.readString(string(rawAllocProperties), "$.nonce");
-
-            alloc.storageKeys = _getAllocStorageKeys(filePath, allocAddresses[i]);
-            alloc.storageValues = _getAllocStorageValues(filePath, allocAddresses[i]);
-
-            allocs[vm.parseAddress(allocAddresses[i])] = alloc;
+            allocs[allocAddress] = alloc;
         }
-    }
-
-    function _getAllocProperties(string memory filePath, string memory allocAddress) internal returns(bytes memory) {
-        string[] memory getAllocPropertiesCmd = new string[](3);
-        getAllocPropertiesCmd[0] = "bash";
-        getAllocPropertiesCmd[1] = "-c";
-        getAllocPropertiesCmd[2] = string.concat(
-            Executables.jq,
-            " -cr '.[\"",
-            allocAddress,
-            "\"]' ",
-            filePath
-        );
-        return vm.ffi(getAllocPropertiesCmd);
-    }
-
-    function _getAllocStorageKeys(string memory filePath, string memory allocAddress) internal returns(string[] memory) {
-        string[] memory getAllocStorageKeysCmd = new string[](3);
-        getAllocStorageKeysCmd[0] = "bash";
-        getAllocStorageKeysCmd[1] = "-c";
-        getAllocStorageKeysCmd[2] = string.concat(
-            Executables.jq,
-            " -cr '",
-            "[.\"", allocAddress, "\".storage | to_entries[] | .key]' ",
-            filePath
-        );
-        bytes memory rawAllocStorageKeys = vm.ffi(getAllocStorageKeysCmd);
-        return stdJson.readStringArray(string(rawAllocStorageKeys), "");
-    }
-
-    function _getAllocStorageValues(string memory filePath, string memory allocAddress) internal returns(string[] memory) {
-        string[] memory getAllocStorageValuesCmd = new string[](3);
-        getAllocStorageValuesCmd[0] = "bash";
-        getAllocStorageValuesCmd[1] = "-c";
-        getAllocStorageValuesCmd[2] = string.concat(
-            Executables.jq,
-            " -cr '",
-            "[.\"", allocAddress, "\".storage | to_entries[] | .value]' ",
-            filePath
-        );
-        bytes memory rawAllocStorageValues = vm.ffi(getAllocStorageValuesCmd);
-        return stdJson.readStringArray(string(rawAllocStorageValues), "");
     }
 }
