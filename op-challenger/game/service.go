@@ -247,7 +247,7 @@ func (s *Service) initLargePreimages() error {
 	fetcher := fetcher.NewPreimageFetcher(s.logger, s.l1Client)
 	verifier := keccak.NewPreimageVerifier(s.logger, fetcher)
 	challenger := keccak.NewPreimageChallenger(s.logger, s.metrics, verifier, s.txSender)
-	s.preimages = keccak.NewLargePreimageScheduler(s.logger, s.registry.Oracles(), challenger)
+	s.preimages = keccak.NewLargePreimageScheduler(s.logger, s.cl, s.registry.Oracles(), challenger)
 	return nil
 }
 
