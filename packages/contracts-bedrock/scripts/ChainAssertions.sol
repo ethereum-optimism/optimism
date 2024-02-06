@@ -371,6 +371,6 @@ library ChainAssertions {
     /// @dev Asserts that for a given contract the value of a storage slot at an offset is 1.
     function assertSlotValueIsOne(address _contractAddress, uint256 _slot, uint256 _offset) internal view {
         bytes32 slotVal = vm.load(_contractAddress, bytes32(_slot));
-        require(uint8((uint256(slotVal) >> (_offset * 8)) & 0xFF) == uint8(1), "Contract's slot value at offet not 1");
+        require(uint8((uint256(slotVal) >> (_offset * 8)) & 0xFF) == uint8(1), "Contract's slot value at offset not 1");
     }
 }
