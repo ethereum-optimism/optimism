@@ -5,13 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/pkg/profile"
 	"io/fs"
 	"math/big"
 	"os"
 	"path"
 	"time"
 
+	"github.com/pkg/profile"
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -163,7 +163,7 @@ func fetchPrestate(ctx context.Context, cl *rpc.Client, dir string, txHash commo
 	}); err != nil {
 		return fmt.Errorf("failed to retrieve prestate trace: %w", err)
 	}
-	if err := os.WriteFile(dest, result, 0755); err != nil {
+	if err := os.WriteFile(dest, result, 0644); err != nil {
 		return fmt.Errorf("failed to write prestate trace: %w", err)
 	}
 	return nil
