@@ -33,7 +33,10 @@ func TestPlasmaDataSource(t *testing.T) {
 
 	storage := plasma.NewMockDAClient(logger)
 
-	da := plasma.NewPlasmaDA(logger, storage)
+	da := &plasma.DA{
+		Log:     logger,
+		Storage: storage,
+	}
 
 	// Create rollup genesis and config
 	l1Time := uint64(2)
