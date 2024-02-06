@@ -115,8 +115,10 @@ func setupSequencerFailoverTest(t *testing.T) (*System, map[string]*conductor) {
 	// weirdly, batcher does not submit a batch until unsafe block 9.
 	// It became normal after that and submits a batch every L1 block (2s) per configuration.
 	// Since our health monitor checks on safe head progression, wait for batcher to become normal before proceeding.
-	require.NoError(t, wait.ForNextSafeBlock(ctx, sys.Clients[Sequencer1Name]))
-	require.NoError(t, wait.ForNextSafeBlock(ctx, sys.Clients[Sequencer1Name]))
+	_, err = wait.ForNextSafeBlock(ctx, sys.Clients[Sequencer1Name])
+	require.NoError(t, err)
+	_, err = wait.ForNextSafeBlock(ctx, sys.Clients[Sequencer1Name])
+	require.NoError(t, err)
 
 	// make sure conductor reports all sequencers as healthy, this means they're syncing correctly.
 	require.Eventually(t, func() bool {
