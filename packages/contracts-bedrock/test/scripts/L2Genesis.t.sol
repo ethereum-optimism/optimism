@@ -16,44 +16,47 @@ contract L2Genesis_Test is Test, Artifacts {
     string internal genesisPath;
     string[] allocAddresses;
 
-    // mapping(address => Alloc) allocs;
-
-    struct Alloc {
-        string balance;
-        string code;
-        // string nonce;
-        // string[] storageKeys;
-        // string[] storageValues;
+    struct StorageData {
+        bytes32 key;
+        bytes32 value;
     }
 
-    Alloc[] allocs;
+    struct Alloc {
+        address _address;
+        bytes balance;
+        bytes code;
+        bytes nonce;
+        StorageData[] storageData;
+    }
 
     function setUp() public override {
         super.setUp();
 
         Artifacts.setUp();
         genesisPath = string.concat(vm.projectRoot(), "/deployments/", deploymentContext, "/genesis-l2.json");
-        _parseAllocs(genesisPath);
     }
 
     function test_allocs() external {
-        // _checkPrecompiles();
+        Alloc[] memory allocs = _parseAllocs(genesisPath);
+
+        for(uint256 i; i < allocs.length; i++) {
+            uint160 numericAddress = uint160(allocs[i]._address);
+            if (numericAddress < PRECOMPILE_COUNT) {
+                _checkPrecompile(allocs[i]);
+            }
+        }
     }
 
-    function _checkPrecompiles() internal {
-        // for (uint256 i; i < 1; i++) {
-        //     address expectedAddress = address(uint160(i));
-        //     console.log("Checking precompile: %s", expectedAddress);
-
-        //     Alloc storage alloc = allocs[expectedAddress];
-        //     assertEq(alloc.balance, "0x1");
-        // }
+    function _checkPrecompile(Alloc memory alloc) internal {
+        assertEq(alloc.balance, hex'01');
+        assertEq(alloc.code, hex'');
+        assertEq(alloc.nonce, hex'00');
+        assertEq(alloc.storageData.length, 0);
     }
 
-    function _parseAllocs(string memory filePath) internal {
+    function _parseAllocs(string memory filePath) internal returns(Alloc[] memory) {
         string memory jqCommand = string.concat(
-            // "jq -cr 'to_entries | map({address: .key, balance: .value.balance, code: .value.code, nonce: .value.nonce, storageKeys: (.value.storage | keys), storageValues: (.value.storage | [.[]])})' ",
-            "jq -cr 'to_entries | map({address: .key, balance: .value.balance, code: .value.code})' ",
+            "jq -cr 'to_entries | map({address: .key, balance: .value.balance, code: .value.code, nonce: .value.nonce, storageData: (.value.storage | to_entries | map({key: .key, value: .value}))})' ",
             filePath
         );
 
@@ -63,9 +66,15 @@ contract L2Genesis_Test is Test, Artifacts {
         cmd[2] = jqCommand;
         bytes memory result = vm.ffi(cmd);
         bytes memory parsedJson = vm.parseJson(string(result));
-        Alloc[] memory _allocs = abi.decode(parsedJson, (Alloc[]));
+        return abi.decode(parsedJson, (Alloc[]));
 
-        console.log(_allocs[0].balance);
-        console.log(_allocs[0].code);
+        // console.log(_allocs[0]._address);
+        // console.logBytes(_allocs[0].balance);
+        // console.logBytes(_allocs[0].code);
+        // console.logBytes(_allocs[0].nonce);
+        // console.logBytes32(_allocs[0].storageData[0].key);
+        // console.logBytes32(_allocs[0].storageData[0].value);
+        // console.logBytes32(_allocs[0].storageData[1].key);
+        // console.logBytes32(_allocs[0].storageData[1].value);
     }
 }
