@@ -48,7 +48,7 @@ require (
 	golang.org/x/sync v0.6.0
 	golang.org/x/term v0.16.0
 	golang.org/x/time v0.5.0
-	gorm.io/driver/postgres v1.5.4
+	gorm.io/driver/postgres v1.5.6
 	gorm.io/gorm v1.25.7
 )
 
