@@ -424,9 +424,8 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         respectedGameType = _gameType;
     }
 
-    /// @notice Checks if a withdrawal can be finalized. NOTE: Decision was made to have this
-    ///         function revert rather than returning a boolean so that was more obvious why the
-    ///         function failed.
+    /// @notice Checks if a withdrawal can be finalized. This function will revert if the withdrawal cannot be
+    ///         finalized, and otherwise has no side-effects.
     /// @param _withdrawalHash Hash of the withdrawal to check.
     function checkWithdrawal(bytes32 _withdrawalHash) public view {
         ProvenWithdrawal memory provenWithdrawal = provenWithdrawals[_withdrawalHash];
@@ -445,7 +444,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         // safety against weird bugs in the proving step.
         require(
             provenWithdrawal.timestamp > disputeGameProxy.createdAt().raw(),
-            "OptimismPortal: withdrawal timestamp less than L2 Oracle starting timestamp"
+            "OptimismPortal: withdrawal timestamp less than dispute game creation timestamp"
         );
 
         // A proven withdrawal must wait at least `PROOF_MATURITY_DELAY_SECONDS` before finalizing.
