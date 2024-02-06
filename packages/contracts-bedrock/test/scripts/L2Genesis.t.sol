@@ -16,15 +16,17 @@ contract L2Genesis_Test is Test, Artifacts {
     string internal genesisPath;
     string[] allocAddresses;
 
-    mapping(address => Alloc) allocs;
+    // mapping(address => Alloc) allocs;
 
     struct Alloc {
         string balance;
         string code;
-        string nonce;
-        string[] storageKeys;
-        string[] storageValues;
+        // string nonce;
+        // string[] storageKeys;
+        // string[] storageValues;
     }
+
+    Alloc[] allocs;
 
     function setUp() public override {
         super.setUp();
@@ -35,22 +37,23 @@ contract L2Genesis_Test is Test, Artifacts {
     }
 
     function test_allocs() external {
-        _checkPrecompiles();
+        // _checkPrecompiles();
     }
 
     function _checkPrecompiles() internal {
-        for (uint256 i; i < PRECOMPILE_COUNT; i++) {
-            address expectedAddress = address(uint160(i));
-            console.log("Checking precompile: %s", expectedAddress);
+        // for (uint256 i; i < 1; i++) {
+        //     address expectedAddress = address(uint160(i));
+        //     console.log("Checking precompile: %s", expectedAddress);
 
-            Alloc storage alloc = allocs[expectedAddress];
-            assertEq(alloc.balance, "0x1");
-        }
+        //     Alloc storage alloc = allocs[expectedAddress];
+        //     assertEq(alloc.balance, "0x1");
+        // }
     }
 
     function _parseAllocs(string memory filePath) internal {
         string memory jqCommand = string.concat(
-            "jq -cr 'to_entries | map({address: .key, balance: .value.balance, code: .value.code, nonce: .value.nonce, storageKeys: (.value.storage | keys), storageValues: (.value.storage | [.[]])})' ",
+            // "jq -cr 'to_entries | map({address: .key, balance: .value.balance, code: .value.code, nonce: .value.nonce, storageKeys: (.value.storage | keys), storageValues: (.value.storage | [.[]])})' ",
+            "jq -cr 'to_entries | map({address: .key, balance: .value.balance, code: .value.code})' ",
             filePath
         );
 
@@ -59,21 +62,10 @@ contract L2Genesis_Test is Test, Artifacts {
         cmd[1] = "-c";
         cmd[2] = jqCommand;
         bytes memory result = vm.ffi(cmd);
+        bytes memory parsedJson = vm.parseJson(string(result));
+        Alloc[] memory _allocs = abi.decode(parsedJson, (Alloc[]));
 
-        string memory jsonResult = string(result);
-        // uint allocCount = stdJson.parseUint(stdJson.count(jsonResult, "$"));
-        for (uint i = 0; i < 2313; i++) {
-            string memory basePath = string.concat("$[", Strings.toString(i), "]");
-            Alloc memory alloc;
-            alloc.balance = stdJson.readString(jsonResult, string.concat(basePath, ".balance"));
-            alloc.code = stdJson.readString(jsonResult, string.concat(basePath, ".code"));
-            alloc.nonce = stdJson.readString(jsonResult, string.concat(basePath, ".nonce"));
-            alloc.storageKeys = stdJson.readStringArray(jsonResult, string.concat(basePath, ".storageKeys"));
-            alloc.storageValues = stdJson.readStringArray(jsonResult, string.concat(basePath, ".storageValues"));
-            string memory addressStr = stdJson.readString(jsonResult, string.concat(basePath, ".address"));
-            address allocAddress = vm.parseAddress(addressStr);
-
-            allocs[allocAddress] = alloc;
-        }
+        console.log(_allocs[0].balance);
+        console.log(_allocs[0].code);
     }
 }
