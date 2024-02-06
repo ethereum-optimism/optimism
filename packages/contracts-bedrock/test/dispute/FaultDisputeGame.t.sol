@@ -618,7 +618,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
         for (uint256 i = gameProxy.claimDataLen(); i > 0; i--) {
             (bool success,) = address(gameProxy).call(abi.encodeCall(gameProxy.resolveClaim, (i - 1)));
-            success;
+            assertTrue(success);
         }
         gameProxy.resolve();
 
@@ -678,7 +678,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
         for (uint256 i = gameProxy.claimDataLen(); i > 0; i--) {
             (bool success,) = address(gameProxy).call(abi.encodeCall(gameProxy.resolveClaim, (i - 1)));
-            success;
+            assertTrue(success);
         }
         gameProxy.resolve();
 
@@ -707,7 +707,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
 
         // Make claims with bob, charlie and the test contract on defense, and alice as the challenger
         // charlie is successfully countered by alice
-        // alice is successfully countered by both bob and the test coontract
+        // alice is successfully countered by both bob and the test contract
         vm.prank(alice);
         gameProxy.attack{ value: 1 ether }(0, _dummyClaim());
 
@@ -724,7 +724,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
         for (uint256 i = gameProxy.claimDataLen(); i > 0; i--) {
             (bool success,) = address(gameProxy).call(abi.encodeCall(gameProxy.resolveClaim, (i - 1)));
-            success;
+            assertTrue(success);
         }
         gameProxy.resolve();
 
@@ -1435,7 +1435,7 @@ contract FaultDispute_1v1_Actors_Test is FaultDisputeGame_Init {
         // resolved before global resolution, which catches any unresolved subgames here.
         for (uint256 i = gameProxy.claimDataLen(); i > 0; i--) {
             (bool success,) = address(gameProxy).call(abi.encodeCall(gameProxy.resolveClaim, (i - 1)));
-            success;
+            assertTrue(success);
         }
         gameProxy.resolve();
     }
