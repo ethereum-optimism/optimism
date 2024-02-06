@@ -192,14 +192,6 @@ func TestFetchL1Blob(t *testing.T) {
 		storeBlob(t, kv, (eth.Bytes48)(commitment), (*eth.Blob)(&blob))
 
 		oracle := l1.NewPreimageOracle(asOracleFn(t, prefetcher), asHinter(t, prefetcher))
-		blobFetcher.ExpectOnGetBlobSidecars(
-			context.Background(),
-			l1Ref,
-			[]eth.IndexedBlobHash{blobHash},
-			(eth.Bytes48)(commitment),
-			[]*eth.Blob{(*eth.Blob)(&blob)},
-			nil,
-		)
 		defer blobFetcher.AssertExpectations(t)
 
 		blobs := oracle.GetBlob(l1Ref, blobHash)
@@ -474,7 +466,7 @@ func storeBlob(t *testing.T, kv kvstore.KV, commitment eth.Bytes48, blob *eth.Bl
 	blobKeyBuf := make([]byte, 80)
 	copy(blobKeyBuf[:48], commitment[:])
 	for i := 0; i < params.BlobTxFieldElementsPerBlob; i++ {
-		binary.BigEndian.PutUint64(blobKeyBuf[:72], uint64(i))
+		binary.BigEndian.PutUint64(blobKeyBuf[72:], uint64(i))
 		feKey := crypto.Keccak256Hash(blobKeyBuf)
 
 		err = kv.Put(preimage.BlobKey(feKey).PreimageKey(), blob[i<<5:(i+1)<<5])
