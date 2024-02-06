@@ -62,6 +62,12 @@ func TestPreimageOracleContract_ChallengePeriod(t *testing.T) {
 	challengePeriod, err := oracle.ChallengePeriod(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, uint64(123), challengePeriod)
+
+	// Should cache responses
+	stubRpc.ClearResponses(methodChallengePeriod)
+	challengePeriod, err = oracle.ChallengePeriod(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, uint64(123), challengePeriod)
 }
 
 func TestPreimageOracleContract_MinLargePreimageSize(t *testing.T) {

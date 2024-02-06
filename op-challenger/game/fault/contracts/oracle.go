@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"math/big"
+	"sync/atomic"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
@@ -48,6 +49,10 @@ type PreimageOracleContract struct {
 	addr        common.Address
 	multiCaller *batching.MultiCaller
 	contract    *batching.BoundContract
+
+	// challengePeriod caches the challenge period from the contract once it has been loaded.
+	// 0 indicates the period has not been loaded yet.
+	challengePeriod atomic.Uint64
 }
 
 // toPreimageOracleLeaf converts a Leaf to the contract [bindings.PreimageOracleLeaf] type.
@@ -114,11 +119,16 @@ func (c *PreimageOracleContract) MinLargePreimageSize(ctx context.Context) (uint
 
 // ChallengePeriod returns the challenge period for large preimages.
 func (c *PreimageOracleContract) ChallengePeriod(ctx context.Context) (uint64, error) {
+	if period := c.challengePeriod.Load(); period != 0 {
+		return period, nil
+	}
 	result, err := c.multiCaller.SingleCall(ctx, batching.BlockLatest, c.contract.Call(methodChallengePeriod))
 	if err != nil {
 		return 0, fmt.Errorf("failed to fetch challenge period: %w", err)
 	}
-	return result.GetBigInt(0).Uint64(), nil
+	period := result.GetBigInt(0).Uint64()
+	c.challengePeriod.Store(period)
+	return period, nil
 }
 
 func (c *PreimageOracleContract) CallSqueeze(
