@@ -23,6 +23,8 @@ import { ISystemConfigV0 } from "scripts/interfaces/ISystemConfigV0.sol";
 import { console2 as console } from "forge-std/console2.sol";
 
 library ChainAssertions {
+    Vm internal constant vm = Vm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
+
     /// @notice Asserts the correctness of an L1 deployment. This function expects that all contracts
     ///         within the `prox` ContractSet are proxies that have been setup and initialized.
     function postDeployAssertions(
@@ -386,5 +388,11 @@ library ChainAssertions {
 
         require(superchainConfig.guardian() == _cfg.superchainConfigGuardian());
         require(superchainConfig.paused() == _isPaused);
+    }
+
+    /// @dev Asserts that for a given contract the value of a storage slot at an offset is 1.
+    function assertSlotIsOne(address contractAddress, uint256 slot, uint256 offset) internal view {
+        bytes32 slotVal = vm.load(contractAddress, bytes32(slot));
+        require(uint8((uint256(slotVal) >> (offset * 8)) & 0xFF) == uint8(1), "Value not 1");
     }
 }
