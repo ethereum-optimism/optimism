@@ -19,3 +19,8 @@ runtime, but others cannot be changed or else it will result in
 broken tests. Any changes to `devnetL1.json` should result in
 rebuilding the `.devnet` artifacts before the new values will
 be present in the `op-e2e` tests.
+
+### Troubleshooting
+If you encounter errors:
+* ensure you have the latest version of foundry installed (run `foundryup`)
+* try running `pnpm clean`
