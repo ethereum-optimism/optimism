@@ -22,7 +22,7 @@ type blockNumberFetcher func(ctx context.Context) (uint64, error)
 
 // gameSource loads information about the games available to play
 type gameSource interface {
-	FetchAllGamesAtBlock(ctx context.Context, earliest uint64, blockHash common.Hash) ([]types.GameMetadata, error)
+	GetGamesAtOrAfter(ctx context.Context, blockHash common.Hash, earliestTimestamp uint64) ([]types.GameMetadata, error)
 }
 
 type RWClock interface {
@@ -120,7 +120,7 @@ func (m *gameMonitor) minGameTimestamp() uint64 {
 }
 
 func (m *gameMonitor) progressGames(ctx context.Context, blockHash common.Hash, blockNumber uint64) error {
-	games, err := m.source.FetchAllGamesAtBlock(ctx, m.minGameTimestamp(), blockHash)
+	games, err := m.source.GetGamesAtOrAfter(ctx, blockHash, m.minGameTimestamp())
 	if err != nil {
 		return fmt.Errorf("failed to load games: %w", err)
 	}
