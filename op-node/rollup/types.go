@@ -396,7 +396,7 @@ func (c *Config) GetPayloadVersion(timestamp uint64) eth.EngineAPIMethod {
 	}
 }
 
-// IsPlasmaEnabled returns false for now until we add the DA challenge contract parameters.
+// IsPlasmaEnabled returns true if a DA Challenge proxy Address is provided in the rollup config.
 func (c *Config) IsPlasmaEnabled() bool {
 	return c.DAChallengeAddress != (common.Address{})
 }

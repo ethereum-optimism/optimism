@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
@@ -25,24 +24,19 @@ var ErrInvalidInput = errors.New("invalid input")
 // It creates commitments and retrieves input data + verifies if needed.
 // Currently only supports Keccak256 commitments but may be extended eventually.
 type DAClient struct {
-	url    string
+	url string
+	// VerifyOnRead sets the client to verify the commitment on read.
+	// SHOULD enable if the storage service is not trusted.
 	verify bool
 }
 
-func NewDAClient(url string) *DAClient {
-	return &DAClient{url: url}
-}
-
-// VerifyOnRead sets the client to verify the commitment on read.
-// SHOULD enable if the storage service is not trusted.
-func (c *DAClient) VerifyOnRead(verify bool) {
-	c.verify = verify
+func NewDAClient(url string, verify bool) *DAClient {
+	return &DAClient{url, verify}
 }
 
 // GetInput returns the input data for the given commitment bytes.
 func (c *DAClient) GetInput(ctx context.Context, key []byte) ([]byte, error) {
-	k := hexutil.Bytes(key)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%s/get/%s", c.url, k), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%s/get/0x%x", c.url, key), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
 	}
@@ -73,9 +67,8 @@ func (c *DAClient) SetInput(ctx context.Context, img []byte) ([]byte, error) {
 		return nil, ErrInvalidInput
 	}
 	key := crypto.Keccak256(img)
-	k := hexutil.Bytes(key)
 	body := bytes.NewReader(img)
-	url := fmt.Sprintf("%s/put/%s", c.url, k)
+	url := fmt.Sprintf("%s/put/0x%x", c.url, key)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP request: %w", err)

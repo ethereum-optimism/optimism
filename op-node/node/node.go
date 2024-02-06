@@ -374,10 +374,8 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config, snapshotLog log.Logger
 	if cfg.ConductorEnabled {
 		sequencerConductor = NewConductorClient(cfg, n.log, n.metrics)
 	}
-	// plasma DA client will be inactive unless enabled in the cli config.
-	storage := plasma.NewDAClient(cfg.Plasma.DAServerURL)
-	storage.VerifyOnRead(cfg.Plasma.VerifyOnRead)
-	plasmaDA := plasma.NewPlasmaDA(n.log, storage)
+
+	plasmaDA := plasma.NewPlasmaDA(n.log, cfg.Plasma)
 	if cfg.Plasma.Enabled {
 		n.log.Info("Plasma DA enabled", "da_server", cfg.Plasma.DAServerURL)
 	}

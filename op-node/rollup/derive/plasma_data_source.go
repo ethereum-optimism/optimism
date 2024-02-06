@@ -40,11 +40,8 @@ func (s *PlasmaDataSource) Next(ctx context.Context) (eth.Data, error) {
 	// use the commitment to fetch the input from the plasma DA provider.
 	resp, err := s.fetcher.GetInput(ctx, s.comm, s.id.Number)
 	if err != nil {
-		// wrap in eth.Data for printing as hex string.
-		comm := eth.Data(s.comm)
 		// return temporary error so we can keep retrying.
-		tempErr := NewTemporaryError(fmt.Errorf("failed to fetch input data with comm %v from da service: %w", comm, err))
-		return nil, tempErr
+		return nil, NewTemporaryError(fmt.Errorf("failed to fetch input data with comm %x from da service: %w", s.comm, err))
 	}
 	// reset the commitment so we can fetch the next one from the source at the next iteration.
 	s.comm = nil

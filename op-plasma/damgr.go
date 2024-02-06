@@ -22,13 +22,15 @@ type Input struct {
 	Data eth.Data
 }
 
-func NewPlasmaDA(log log.Logger, storage DAStorage) *DA {
+func NewPlasmaDA(log log.Logger, cfg CLIConfig) *DA {
 	return &DA{
 		log:     log,
-		storage: storage,
+		storage: cfg.NewDAClient(),
 	}
 }
 
+// GetInput returns the input data for the given commitment bytes. blockNumber is required to lookup
+// the challenge status in the DataAvailabilityChallenge L1 contract.
 func (d *DA) GetInput(ctx context.Context, commitment []byte, blockNumber uint64) (Input, error) {
 	data, err := d.storage.GetInput(ctx, commitment)
 	if err != nil {

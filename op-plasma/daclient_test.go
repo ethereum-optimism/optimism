@@ -69,8 +69,14 @@ func TestDAClient(t *testing.T) {
 
 	tsrv := httptest.NewServer(mux)
 
-	client := NewDAClient(tsrv.URL)
-	client.VerifyOnRead(true)
+	cfg := CLIConfig{
+		Enabled:      true,
+		DAServerURL:  tsrv.URL,
+		VerifyOnRead: true,
+	}
+	require.NoError(t, cfg.Check())
+
+	client := cfg.NewDAClient()
 
 	rng := rand.New(rand.NewSource(1234))
 

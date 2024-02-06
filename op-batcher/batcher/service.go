@@ -311,10 +311,8 @@ func (bs *BatcherService) initPlasmaDA(cfg *CLIConfig) error {
 	if err := config.Check(); err != nil {
 		return err
 	}
-	if config.Enabled {
-		bs.PlasmaDA = plasma.NewDAClient(config.DAServerURL)
-		bs.UsePlasma = true
-	}
+	bs.PlasmaDA = config.NewDAClient()
+	bs.UsePlasma = config.Enabled
 	return nil
 }
 

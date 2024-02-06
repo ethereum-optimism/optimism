@@ -22,6 +22,7 @@ func CLIFlags(envPrefix string) []cli.Flag {
 		&cli.BoolFlag{
 			Name:    EnabledFlagName,
 			Usage:   "Enable plasma mode",
+			Value:   false,
 			EnvVars: plasmaEnv(envPrefix, "ENABLED"),
 		},
 		&cli.StringFlag{
@@ -32,6 +33,7 @@ func CLIFlags(envPrefix string) []cli.Flag {
 		&cli.BoolFlag{
 			Name:    VerifyOnReadFlagName,
 			Usage:   "Verify input data matches the commitments from the DA storage service",
+			Value:   true,
 			EnvVars: plasmaEnv(envPrefix, "VERIFY_ON_READ"),
 		},
 	}
@@ -53,6 +55,10 @@ func (c CLIConfig) Check() error {
 		}
 	}
 	return nil
+}
+
+func (c CLIConfig) NewDAClient() *DAClient {
+	return &DAClient{url: c.DAServerURL, verify: c.VerifyOnRead}
 }
 
 func ReadCLIConfig(c *cli.Context) CLIConfig {
