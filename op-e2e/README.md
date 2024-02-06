@@ -22,5 +22,5 @@ be present in the `op-e2e` tests.
 
 ### Troubleshooting
 If you encounter errors:
-* ensure you have the latest version of foundry installed (run `foundryup`)
+* ensure you have the latest version of foundry installed (run `pnpm update:foundry` or `foundryup`)
 * try running `pnpm clean`
