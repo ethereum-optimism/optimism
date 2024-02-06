@@ -9,6 +9,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -188,6 +189,7 @@ func setupMonitorTest(t *testing.T) (*gameMonitor, *stubGameSource, *stubMonitor
 	metrics := &stubMonitorMetricer{}
 	monitorInterval := time.Duration(100 * time.Millisecond)
 	status := &mockStatusLoader{}
+	rollupClient := &stubRollupClient{}
 	monitor := newGameMonitor(
 		logger,
 		metrics,
@@ -196,10 +198,21 @@ func setupMonitorTest(t *testing.T) (*gameMonitor, *stubGameSource, *stubMonitor
 		source,
 		status,
 		time.Duration(10*time.Second),
+		rollupClient,
 		fetchBlockNum,
 		fetchBlockHash,
 	)
 	return monitor, source, metrics, status
+}
+
+type stubRollupClient struct {
+	blockNum uint64
+	err      error
+}
+
+func (s *stubRollupClient) OutputAtBlock(ctx context.Context, blockNum uint64) (*eth.OutputResponse, error) {
+	s.blockNum = blockNum
+	return &eth.OutputResponse{OutputRoot: eth.Bytes32(common.HexToHash("0x10"))}, s.err
 }
 
 type mockStatusLoader struct {
@@ -216,6 +229,14 @@ func (m *mockStatusLoader) GetStatus(ctx context.Context, _ common.Address) (typ
 	return m.status, nil
 }
 
+func (m *mockStatusLoader) GetRootClaim(ctx context.Context, _ common.Address) (common.Hash, error) {
+	return common.Hash{}, nil
+}
+
+func (m *mockStatusLoader) GetL2BlockNumber(ctx context.Context, _ common.Address) (uint64, error) {
+	return 0, nil
+}
+
 type stubMonitorMetricer struct {
 	inProgress    int
 	defenderWon   int
@@ -226,6 +247,10 @@ func (s *stubMonitorMetricer) RecordGamesStatus(inProgress, defenderWon, challen
 	s.inProgress += inProgress
 	s.defenderWon += defenderWon
 	s.challengerWon += challengerWon
+}
+
+func (s *stubMonitorMetricer) RecordGameAgreement(status string, count int) {
+	panic("implement me")
 }
 
 type stubGameSource struct {

@@ -19,6 +19,7 @@ type Metricer interface {
 	RecordInfo(version string)
 	RecordUp()
 
+	RecordGameAgreement(status string, count int)
 	RecordGamesStatus(inProgress, defenderWon, challengerWon int)
 
 	caching.Metrics
@@ -37,7 +38,8 @@ type Metrics struct {
 	info prometheus.GaugeVec
 	up   prometheus.Gauge
 
-	trackedGames prometheus.GaugeVec
+	trackedGames   prometheus.GaugeVec
+	gamesAgreement prometheus.GaugeVec
 }
 
 func (m *Metrics) Registry() *prometheus.Registry {
@@ -76,6 +78,13 @@ func NewMetrics() *Metrics {
 		}, []string{
 			"status",
 		}),
+		gamesAgreement: *factory.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "games_agreement",
+			Help:      "Number of games that have reached agreement",
+		}, []string{
+			"status",
+		}),
 	}
 }
 
@@ -111,4 +120,8 @@ func (m *Metrics) RecordGamesStatus(inProgress, defenderWon, challengerWon int) 
 	m.trackedGames.WithLabelValues("in_progress").Set(float64(inProgress))
 	m.trackedGames.WithLabelValues("defender_won").Set(float64(defenderWon))
 	m.trackedGames.WithLabelValues("challenger_won").Set(float64(challengerWon))
+}
+
+func (m *Metrics) RecordGameAgreement(status string, count int) {
+	m.gamesAgreement.WithLabelValues(status).Set(float64(count))
 }

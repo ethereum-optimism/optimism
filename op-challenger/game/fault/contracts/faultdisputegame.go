@@ -18,6 +18,7 @@ var (
 	methodMaxGameDepth       = "maxGameDepth"
 	methodAbsolutePrestate   = "absolutePrestate"
 	methodStatus             = "status"
+	methodRootClaim          = "rootClaim"
 	methodClaimCount         = "claimDataLen"
 	methodClaim              = "claimData"
 	methodL1Head             = "l1Head"
@@ -76,6 +77,22 @@ func (c *FaultDisputeGameContract) GetBlockRange(ctx context.Context) (prestateB
 	prestateBlock = results[0].GetBigInt(0).Uint64()
 	poststateBlock = results[1].GetBigInt(0).Uint64()
 	return
+}
+
+func (c *FaultDisputeGameContract) GetL2BlockNumber(ctx context.Context) (uint64, error) {
+	result, err := c.multiCaller.SingleCall(ctx, batching.BlockLatest, c.contract.Call(methodL2BlockNumber))
+	if err != nil {
+		return 0, fmt.Errorf("failed to retrieve L2 block number: %w", err)
+	}
+	return result.GetBigInt(0).Uint64(), nil
+}
+
+func (c *FaultDisputeGameContract) GetRootClaim(ctx context.Context) (common.Hash, error) {
+	rootClaim, err := c.multiCaller.SingleCall(ctx, batching.BlockLatest, c.contract.Call(methodRootClaim))
+	if err != nil {
+		return common.Hash{}, fmt.Errorf("failed to retrieve root claim: %w", err)
+	}
+	return rootClaim.GetHash(0), nil
 }
 
 func (c *FaultDisputeGameContract) GetGenesisOutputRoot(ctx context.Context) (common.Hash, error) {

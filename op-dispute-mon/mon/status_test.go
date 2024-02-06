@@ -40,7 +40,8 @@ func TestStatusLoader_GetStatus(t *testing.T) {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
 			stubRpc, caller := setupStatusLoaderTest(t)
-			loader := NewStatusLoader(caller)
+			metrics := &mockCacheMetrics{}
+			loader := NewStatusLoader(metrics, caller)
 			stubRpc.SetResponse(fdgAddr, "status", batching.BlockLatest, nil, []interface{}{test.status})
 			status, err := loader.GetStatus(context.Background(), fdgAddr)
 			require.NoError(t, err)
@@ -56,3 +57,8 @@ func setupStatusLoaderTest(t *testing.T) (*batchingTest.AbiBasedRpc, *batching.M
 	caller := batching.NewMultiCaller(stubRpc, batching.DefaultBatchSize)
 	return stubRpc, caller
 }
+
+type mockCacheMetrics struct{}
+
+func (m *mockCacheMetrics) CacheAdd(_ string, _ int, _ bool) {}
+func (m *mockCacheMetrics) CacheGet(_ string, _ bool)        {}

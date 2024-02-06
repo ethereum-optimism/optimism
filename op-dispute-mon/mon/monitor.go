@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -15,13 +16,14 @@ import (
 type blockNumberFetcher func(ctx context.Context) (uint64, error)
 type blockHashFetcher func(ctx context.Context, number *big.Int) (common.Hash, error)
 
-// gameSource loads information about the games available to play
-type gameSource interface {
+type factorySource interface {
 	GetGamesAtOrAfter(ctx context.Context, blockHash common.Hash, earliestTimestamp uint64) ([]types.GameMetadata, error)
 }
 
-type StatusFetcher interface {
+type gameSource interface {
+	GetRootClaim(context.Context, common.Address) (common.Hash, error)
 	GetStatus(context.Context, common.Address) (types.GameStatus, error)
+	GetL2BlockNumber(context.Context, common.Address) (uint64, error)
 }
 
 type RWClock interface {
@@ -29,7 +31,12 @@ type RWClock interface {
 	Now() time.Time
 }
 
+type OutputRollupClient interface {
+	OutputAtBlock(ctx context.Context, blockNum uint64) (*eth.OutputResponse, error)
+}
+
 type MonitorMetricer interface {
+	RecordGameAgreement(status string, count int)
 	RecordGamesStatus(inProgress, defenderWon, challengerWon int)
 }
 
@@ -39,9 +46,10 @@ type gameMonitor struct {
 	clock            RWClock
 	monitorInterval  time.Duration
 	done             chan struct{}
-	source           gameSource
-	status           StatusFetcher
+	factory          factorySource
+	game             gameSource
 	gameWindow       time.Duration
+	outputClient     OutputRollupClient
 	fetchBlockNumber blockNumberFetcher
 	fetchBlockHash   blockHashFetcher
 }
@@ -51,9 +59,10 @@ func newGameMonitor(
 	metrics MonitorMetricer,
 	cl RWClock,
 	monitorInterval time.Duration,
-	source gameSource,
-	status StatusFetcher,
+	factory factorySource,
+	game gameSource,
 	gameWindow time.Duration,
+	outputClient OutputRollupClient,
 	fetchBlockNumber blockNumberFetcher,
 	fetchBlockHash blockHashFetcher,
 ) *gameMonitor {
@@ -63,9 +72,10 @@ func newGameMonitor(
 		clock:            cl,
 		done:             make(chan struct{}),
 		monitorInterval:  monitorInterval,
-		source:           source,
-		status:           status,
+		factory:          factory,
+		game:             game,
 		gameWindow:       gameWindow,
+		outputClient:     outputClient,
 		fetchBlockNumber: fetchBlockNumber,
 		fetchBlockHash:   fetchBlockHash,
 	}
@@ -83,17 +93,33 @@ func (m *gameMonitor) minGameTimestamp() uint64 {
 	return 0
 }
 
+func (m *gameMonitor) checkRootAgreement(ctx context.Context, game types.GameMetadata) (bool, error) {
+	root, err := m.game.GetRootClaim(ctx, game.Proxy)
+	if err != nil {
+		return false, fmt.Errorf("failed to get game root claim: %w", err)
+	}
+	l2BlockNum, err := m.game.GetL2BlockNumber(ctx, game.Proxy)
+	if err != nil {
+		return false, fmt.Errorf("failed to get game L2 block number: %w", err)
+	}
+	output, err := m.outputClient.OutputAtBlock(ctx, l2BlockNum)
+	if err != nil {
+		return false, fmt.Errorf("failed to get output at block: %w", err)
+	}
+	return root == common.Hash(output.OutputRoot), nil
+}
+
 func (m *gameMonitor) monitorGames(ctx context.Context) error {
-	blockNumber, err := m.fetchBlockNumber(context.Background())
+	blockNum, err := m.fetchBlockNumber(context.Background())
 	if err != nil {
 		return fmt.Errorf("Failed to fetch block number: %w", err)
 	}
-	m.logger.Debug("Fetched block number", "blockNumber", blockNumber)
-	blockHash, err := m.fetchBlockHash(context.Background(), new(big.Int).SetUint64(blockNumber))
+	m.logger.Debug("Fetched block number", "blockNumber", blockNum)
+	blockHash, err := m.fetchBlockHash(context.Background(), new(big.Int).SetUint64(blockNum))
 	if err != nil {
 		return fmt.Errorf("Failed to fetch block hash: %w", err)
 	}
-	games, err := m.source.GetGamesAtOrAfter(ctx, blockHash, m.minGameTimestamp())
+	games, err := m.factory.GetGamesAtOrAfter(ctx, blockHash, m.minGameTimestamp())
 	if err != nil {
 		return fmt.Errorf("failed to load games: %w", err)
 	}
@@ -101,12 +127,17 @@ func (m *gameMonitor) monitorGames(ctx context.Context) error {
 		if err := m.recordGameStatus(ctx, game); err != nil {
 			m.logger.Error("Failed to record game status", "err", err)
 		}
+		agree, err := m.checkRootAgreement(ctx, game)
+		if err != nil {
+			m.logger.Error("Failed to check root agreement", "err", err)
+		}
+		m.logger.Debug("Checked root agreement", "game", game.Proxy, "agree", agree)
 	}
 	return nil
 }
 
 func (m *gameMonitor) recordGameStatus(ctx context.Context, game types.GameMetadata) error {
-	status, err := m.status.GetStatus(ctx, game.Proxy)
+	status, err := m.game.GetStatus(ctx, game.Proxy)
 	if err != nil {
 		return fmt.Errorf("failed to get game status: %w", err)
 	}

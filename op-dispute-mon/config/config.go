@@ -14,6 +14,7 @@ import (
 var (
 	ErrMissingL1EthRPC           = errors.New("missing l1 eth rpc url")
 	ErrMissingGameFactoryAddress = errors.New("missing game factory address")
+	ErrMissingRollupRpc          = errors.New("missing rollup rpc url")
 )
 
 const (
@@ -31,6 +32,7 @@ const (
 type Config struct {
 	L1EthRpc           string         // L1 RPC Url
 	GameFactoryAddress common.Address // Address of the dispute game factory
+	RollupRpc          string         // The rollup node RPC URL.
 	MonitorInterval    time.Duration  // Frequency to check for new games to monitor.
 	GameWindow         time.Duration  // Maximum window to look for games to monitor.
 
@@ -54,6 +56,9 @@ func NewConfig(gameFactoryAddress common.Address, l1EthRpc string) Config {
 func (c Config) Check() error {
 	if c.L1EthRpc == "" {
 		return ErrMissingL1EthRPC
+	}
+	if c.RollupRpc == "" {
+		return ErrMissingRollupRpc
 	}
 	if c.GameFactoryAddress == (common.Address{}) {
 		return ErrMissingGameFactoryAddress
