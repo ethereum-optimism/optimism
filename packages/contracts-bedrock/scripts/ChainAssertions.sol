@@ -41,32 +41,23 @@ library ChainAssertions {
         ResourceMetering.ResourceConfig memory dflt = Constants.DEFAULT_RESOURCE_CONFIG();
         require(keccak256(abi.encode(rcfg)) == keccak256(abi.encode(dflt)));
 
-        checkSystemConfig({ _contracts: _prox, _cfg: _cfg, _vm: _vm, _isProxy: true });
+        checkSystemConfig({ _contracts: _prox, _cfg: _cfg, _isProxy: true });
         checkL1CrossDomainMessenger({ _contracts: _prox, _vm: _vm, _isProxy: true });
-        checkL1StandardBridge({ _contracts: _prox, _vm: _vm, _isProxy: true });
+        checkL1StandardBridge({ _contracts: _prox, _isProxy: true });
         checkL2OutputOracle({
             _contracts: _prox,
             _cfg: _cfg,
             _l2OutputOracleStartingTimestamp: _l2OutputOracleStartingTimestamp,
-            _vm: _vm,
             _isProxy: true
         });
-        checkOptimismMintableERC20Factory({ _contracts: _prox, _vm: _vm, _isProxy: true });
-        checkL1ERC721Bridge({ _contracts: _prox, _vm: _vm, _isProxy: true });
-        checkOptimismPortal({ _contracts: _prox, _cfg: _cfg, _vm: _vm, _isProxy: true });
-        checkProtocolVersions({ _contracts: _prox, _cfg: _cfg, _vm: _vm, _isProxy: true });
+        checkOptimismMintableERC20Factory({ _contracts: _prox, _isProxy: true });
+        checkL1ERC721Bridge({ _contracts: _prox, _isProxy: true });
+        checkOptimismPortal({ _contracts: _prox, _cfg: _cfg, _isProxy: true });
+        checkProtocolVersions({ _contracts: _prox, _cfg: _cfg, _isProxy: true });
     }
 
     /// @notice Asserts that the SystemConfig is setup correctly
-    function checkSystemConfig(
-        Types.ContractSet memory _contracts,
-        DeployConfig _cfg,
-        Vm _vm,
-        bool _isProxy
-    )
-        internal
-        view
-    {
+    function checkSystemConfig(Types.ContractSet memory _contracts, DeployConfig _cfg, bool _isProxy) internal view {
         console.log("Running chain assertions on the SystemConfig");
         SystemConfig config = SystemConfig(_contracts.SystemConfig);
 
@@ -152,7 +143,7 @@ library ChainAssertions {
     }
 
     /// @notice Asserts that the L1StandardBridge is setup correctly
-    function checkL1StandardBridge(Types.ContractSet memory _contracts, Vm _vm, bool _isProxy) internal view {
+    function checkL1StandardBridge(Types.ContractSet memory _contracts, bool _isProxy) internal view {
         console.log("Running chain assertions on the L1StandardBridge");
         L1StandardBridge bridge = L1StandardBridge(payable(_contracts.L1StandardBridge));
 
@@ -179,7 +170,6 @@ library ChainAssertions {
         Types.ContractSet memory _contracts,
         DeployConfig _cfg,
         uint256 _l2OutputOracleStartingTimestamp,
-        Vm _vm,
         bool _isProxy
     )
         internal
@@ -221,14 +211,7 @@ library ChainAssertions {
     }
 
     /// @notice Asserts that the OptimismMintableERC20Factory is setup correctly
-    function checkOptimismMintableERC20Factory(
-        Types.ContractSet memory _contracts,
-        Vm _vm,
-        bool _isProxy
-    )
-        internal
-        view
-    {
+    function checkOptimismMintableERC20Factory(Types.ContractSet memory _contracts, bool _isProxy) internal view {
         console.log("Running chain assertions on the OptimismMintableERC20Factory");
         OptimismMintableERC20Factory factory = OptimismMintableERC20Factory(_contracts.OptimismMintableERC20Factory);
 
@@ -245,7 +228,7 @@ library ChainAssertions {
     }
 
     /// @notice Asserts that the L1ERC721Bridge is setup correctly
-    function checkL1ERC721Bridge(Types.ContractSet memory _contracts, Vm _vm, bool _isProxy) internal view {
+    function checkL1ERC721Bridge(Types.ContractSet memory _contracts, bool _isProxy) internal view {
         console.log("Running chain assertions on the L1ERC721Bridge");
         L1ERC721Bridge bridge = L1ERC721Bridge(_contracts.L1ERC721Bridge);
 
@@ -267,15 +250,7 @@ library ChainAssertions {
     }
 
     /// @notice Asserts the OptimismPortal is setup correctly
-    function checkOptimismPortal(
-        Types.ContractSet memory _contracts,
-        DeployConfig _cfg,
-        Vm _vm,
-        bool _isProxy
-    )
-        internal
-        view
-    {
+    function checkOptimismPortal(Types.ContractSet memory _contracts, DeployConfig _cfg, bool _isProxy) internal view {
         console.log("Running chain assertions on the OptimismPortal");
         OptimismPortal portal = OptimismPortal(payable(_contracts.OptimismPortal));
 
@@ -350,7 +325,6 @@ library ChainAssertions {
     function checkProtocolVersions(
         Types.ContractSet memory _contracts,
         DeployConfig _cfg,
-        Vm _vm,
         bool _isProxy
     )
         internal
@@ -377,7 +351,6 @@ library ChainAssertions {
     function checkSuperchainConfig(
         Types.ContractSet memory _contracts,
         DeployConfig _cfg,
-        Vm _vm,
         bool _isPaused
     )
         internal
