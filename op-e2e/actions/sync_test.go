@@ -174,9 +174,6 @@ func TestELSync(gt *testing.T) {
 	// Enable engine P2P sync
 	verEng, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{SyncMode: sync.ELSync})
 
-	seqEng.AddPeers(verEng.Enode())
-	verEng.AddPeers(seqEng.Enode())
-
 	seqEngCl, err := sources.NewEngineClient(seqEng.RPCClient(), log, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
 	require.NoError(t, err)
 
@@ -189,12 +186,24 @@ func TestELSync(gt *testing.T) {
 		sequencer.ActL2EndBlock(t)
 	}
 
+	// Wait longer to peer. This tests flakes or takes a long time when the op-geth instances are not able to peer.
+	seqEng.AddPeers(verEng.Enode())
+	verEng.AddPeers(seqEng.Enode())
+
 	// Insert it on the verifier
 	seqHead, err := seqEngCl.PayloadByLabel(t.Ctx(), eth.Unsafe)
 	require.NoError(t, err)
 	seqStart, err := seqEngCl.PayloadByNumber(t.Ctx(), 1)
 	require.NoError(t, err)
 	verifier.ActL2InsertUnsafePayload(seqHead)(t)
+
+	require.Eventually(t,
+		func() bool {
+			return seqEng.PeerCount() > 0 && verEng.PeerCount() > 0
+		},
+		60*time.Second, 1500*time.Millisecond,
+		"Sequencer & Verifier must peer with each other for snap sync to work",
+	)
 
 	// Expect snap sync to download & execute the entire chain
 	// Verify this by checking that the verifier has the correct value for block 1
@@ -207,6 +216,7 @@ func TestELSync(gt *testing.T) {
 			return seqStart.ExecutionPayload.BlockHash == block.Hash
 		},
 		60*time.Second, 1500*time.Millisecond,
+		"verifier did not snap sync",
 	)
 }
 

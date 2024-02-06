@@ -350,7 +350,7 @@ func (ea *L2EngineAPI) forkchoiceUpdated(ctx context.Context, state *eth.Forkcho
 			return STATUS_SYNCING, nil
 		}
 
-		ea.log.Info("Forkchoice requested sync to new head", "number", header.Number, "hash", header.Hash())
+		ea.log.Info("Forkchoice requested sync to new head", "number", header.Number(), "hash", header.Hash())
 		if err := ea.downloader.BeaconSync(downloader.SnapSync, header.Header(), nil); err != nil {
 			return STATUS_SYNCING, err
 		}
