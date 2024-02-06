@@ -1509,6 +1509,10 @@ workflows:
           module: op-challenger
           requires: ["go-mod-download"]
       - go-test:
+          name: op-dispute-mon-tests
+          module: op-dispute-mon
+          requires: ["go-mod-download"]
+      - go-test:
           name: op-conductor-tests
           module: op-conductor
           requires: ["go-mod-download"]
@@ -1569,6 +1573,7 @@ workflows:
             - op-node-tests
             - op-proposer-tests
             - op-challenger-tests
+            - op-dispute-mon-tests
             - op-conductor-tests
             - op-program-tests
             - op-program-compat
@@ -1609,6 +1614,12 @@ workflows:
       - docker-build:
           name: op-challenger-docker-build
           docker_name: op-challenger
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          requires: ['op-stack-go-docker-build']
+          save_image_tag: <<pipeline.git.revision>> # for devnet later
+      - docker-build:
+          name: op-dispute-mon-docker-build
+          docker_name: op-dispute-mon
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           requires: ['op-stack-go-docker-build']
           save_image_tag: <<pipeline.git.revision>> # for devnet later
@@ -1984,6 +1995,16 @@ workflows:
       - docker-build:
           name: op-challenger-docker-publish
           docker_name: op-challenger
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          requires: [ 'op-stack-go-docker-build-publish' ]
+          platforms: "linux/amd64,linux/arm64"
+          publish: true
+          context:
+            - oplabs-gcr
+            - slack
+      - docker-build:
+          name: op-dispute-mon-docker-publish
+          docker_name: op-dispute-mon
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           requires: [ 'op-stack-go-docker-build-publish' ]
           platforms: "linux/amd64,linux/arm64"
