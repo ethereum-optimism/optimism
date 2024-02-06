@@ -10,13 +10,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/proxyd"
-
 	"github.com/BurntSushi/toml"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slog"
+
+	"github.com/ethereum/go-ethereum/log"
+
+	"github.com/ethereum-optimism/optimism/proxyd"
 )
 
 type ProxydHTTPClient struct {

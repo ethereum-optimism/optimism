@@ -10,10 +10,11 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/exp/slog"
+
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/log"
-	"golang.org/x/exp/slog"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-e2e/external"

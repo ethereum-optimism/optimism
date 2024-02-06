@@ -3,8 +3,9 @@ package log
 import (
 	"sync"
 
-	"github.com/ethereum/go-ethereum/log"
 	"golang.org/x/exp/slog"
+
+	"github.com/ethereum/go-ethereum/log"
 )
 
 type Writer struct {

@@ -27,8 +27,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/ethereum/go-ethereum/log"
 	"golang.org/x/exp/slog"
+
+	"github.com/ethereum/go-ethereum/log"
 )
 
 var useColorInTestLog bool = true

@@ -3,8 +3,9 @@ package cmd
 import (
 	"io"
 
-	"github.com/ethereum/go-ethereum/log"
 	"golang.org/x/exp/slog"
+
+	"github.com/ethereum/go-ethereum/log"
 )
 
 func Logger(w io.Writer, lvl slog.Level) log.Logger {

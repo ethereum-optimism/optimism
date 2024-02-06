@@ -11,11 +11,12 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/ethereum-optimism/optimism/proxyd"
-
 	"github.com/BurntSushi/toml"
-	"github.com/ethereum/go-ethereum/log"
 	"golang.org/x/exp/slog"
+
+	"github.com/ethereum/go-ethereum/log"
+
+	"github.com/ethereum-optimism/optimism/proxyd"
 )
 
 var (

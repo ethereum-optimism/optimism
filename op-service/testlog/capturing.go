@@ -4,9 +4,9 @@ import (
 	"context"
 	"strings"
 
-	"github.com/ethereum/go-ethereum/log"
-
 	"golang.org/x/exp/slog"
+
+	"github.com/ethereum/go-ethereum/log"
 )
 
 // CapturingHandler provides a log handler that captures all log records and optionally forwards them to a delegate.
