@@ -53,6 +53,7 @@ library ChainAssertions {
         checkOptimismMintableERC20Factory({ _contracts: _prox, _isProxy: true });
         checkL1ERC721Bridge({ _contracts: _prox, _isProxy: true });
         checkOptimismPortal({ _contracts: _prox, _cfg: _cfg, _isProxy: true });
+        checkOptimismPortal2({ _contracts: _prox, _cfg: _cfg, _isProxy: true });
         checkProtocolVersions({ _contracts: _prox, _cfg: _cfg, _isProxy: true });
     }
 
@@ -252,6 +253,7 @@ library ChainAssertions {
     /// @notice Asserts the OptimismPortal is setup correctly
     function checkOptimismPortal(Types.ContractSet memory _contracts, DeployConfig _cfg, bool _isProxy) internal view {
         console.log("Running chain assertions on the OptimismPortal");
+
         OptimismPortal portal = OptimismPortal(payable(_contracts.OptimismPortal));
 
         // Check that the contract is initialized
