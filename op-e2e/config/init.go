@@ -80,7 +80,7 @@ func init() {
 	flag.Parse()
 
 	// Setup global logger
-	lvl := slog.Level(EthNodeVerbosity)
+	lvl := log.FromLegacyLevel(EthNodeVerbosity)
 	var handler slog.Handler
 	if lvl > log.LevelCrit {
 		handler = log.DiscardHandler()
