@@ -63,7 +63,7 @@ library ChainAssertions {
         SystemConfig config = SystemConfig(_contracts.SystemConfig);
 
         // Check that the contract is initialized
-        assertSlotIsOne({ contractAddress: address(config), slot: 0, offset: 0 });
+        assertSlotIsOne({ _contractAddress: address(config), _slot: 0, _offset: 0 });
 
         ResourceMetering.ResourceConfig memory resourceConfig = config.resourceConfig();
 
@@ -125,7 +125,7 @@ library ChainAssertions {
         L1CrossDomainMessenger messenger = L1CrossDomainMessenger(_contracts.L1CrossDomainMessenger);
 
         // Check that the contract is initialized
-        assertSlotIsOne({ contractAddress: address(messenger), slot: 0, offset: 20 });
+        assertSlotIsOne({ _contractAddress: address(messenger), _slot: 0, _offset: 20 });
 
         require(address(messenger.OTHER_MESSENGER()) == Predeploys.L2_CROSS_DOMAIN_MESSENGER);
         require(address(messenger.otherMessenger()) == Predeploys.L2_CROSS_DOMAIN_MESSENGER);
@@ -149,7 +149,7 @@ library ChainAssertions {
         L1StandardBridge bridge = L1StandardBridge(payable(_contracts.L1StandardBridge));
 
         // Check that the contract is initialized
-        assertSlotIsOne({ contractAddress: address(bridge), slot: 0, offset: 0 });
+        assertSlotIsOne({ _contractAddress: address(bridge), _slot: 0, _offset: 0 });
 
         if (_isProxy) {
             require(address(bridge.MESSENGER()) == _contracts.L1CrossDomainMessenger);
@@ -180,7 +180,7 @@ library ChainAssertions {
         L2OutputOracle oracle = L2OutputOracle(_contracts.L2OutputOracle);
 
         // Check that the contract is initialized
-        assertSlotIsOne({ contractAddress: address(oracle), slot: 0, offset: 0 });
+        assertSlotIsOne({ _contractAddress: address(oracle), _slot: 0, _offset: 0 });
 
         if (_isProxy) {
             require(oracle.SUBMISSION_INTERVAL() == _cfg.l2OutputOracleSubmissionInterval());
@@ -217,7 +217,7 @@ library ChainAssertions {
         OptimismMintableERC20Factory factory = OptimismMintableERC20Factory(_contracts.OptimismMintableERC20Factory);
 
         // Check that the contract is initialized
-        assertSlotIsOne({ contractAddress: address(factory), slot: 0, offset: 0 });
+        assertSlotIsOne({ _contractAddress: address(factory), _slot: 0, _offset: 0 });
 
         if (_isProxy) {
             require(factory.BRIDGE() == _contracts.L1StandardBridge);
@@ -234,7 +234,7 @@ library ChainAssertions {
         L1ERC721Bridge bridge = L1ERC721Bridge(_contracts.L1ERC721Bridge);
 
         // Check that the contract is initialized
-        assertSlotIsOne({ contractAddress: address(bridge), slot: 0, offset: 0 });
+        assertSlotIsOne({ _contractAddress: address(bridge), _slot: 0, _offset: 0 });
 
         require(address(bridge.OTHER_BRIDGE()) == Predeploys.L2_ERC721_BRIDGE);
         require(address(bridge.otherBridge()) == Predeploys.L2_ERC721_BRIDGE);
@@ -257,7 +257,7 @@ library ChainAssertions {
         OptimismPortal portal = OptimismPortal(payable(_contracts.OptimismPortal));
 
         // Check that the contract is initialized
-        assertSlotIsOne({ contractAddress: address(portal), slot: 0, offset: 0 });
+        assertSlotIsOne({ _contractAddress: address(portal), _slot: 0, _offset: 0 });
 
         address guardian = _cfg.superchainConfigGuardian();
         if (guardian.code.length == 0) {
@@ -298,7 +298,7 @@ library ChainAssertions {
         OptimismPortal2 portal = OptimismPortal2(payable(_contracts.OptimismPortal2));
 
         // Check that the contract is initialized
-        assertSlotIsOne({ contractAddress: address(portal), slot: 0, offset: 0 });
+        assertSlotIsOne({ _contractAddress: address(portal), _slot: 0, _offset: 0 });
 
         address guardian = _cfg.superchainConfigGuardian();
         if (guardian.code.length == 0) {
@@ -336,7 +336,7 @@ library ChainAssertions {
         ProtocolVersions versions = ProtocolVersions(_contracts.ProtocolVersions);
 
         // Check that the contract is initialized
-        assertSlotIsOne({ contractAddress: address(versions), slot: 0, offset: 0 });
+        assertSlotIsOne({ _contractAddress: address(versions), _slot: 0, _offset: 0 });
 
         if (_isProxy) {
             require(versions.owner() == _cfg.finalSystemOwner());
@@ -362,15 +362,15 @@ library ChainAssertions {
         SuperchainConfig superchainConfig = SuperchainConfig(_contracts.SuperchainConfig);
 
         // Check that the contract is initialized
-        assertSlotIsOne({ contractAddress: address(superchainConfig), slot: 0, offset: 0 });
+        assertSlotIsOne({ _contractAddress: address(superchainConfig), _slot: 0, _offset: 0 });
 
         require(superchainConfig.guardian() == _cfg.superchainConfigGuardian());
         require(superchainConfig.paused() == _isPaused);
     }
 
     /// @dev Asserts that for a given contract the value of a storage slot at an offset is 1.
-    function assertSlotIsOne(address contractAddress, uint256 slot, uint256 offset) internal view {
-        bytes32 slotVal = vm.load(contractAddress, bytes32(slot));
-        require(uint8((uint256(slotVal) >> (offset * 8)) & 0xFF) == uint8(1), "Contract's slot value at offet not 1");
+    function assertSlotIsOne(address _contractAddress, uint256 _slot, uint256 _offset) internal view {
+        bytes32 slotVal = vm.load(_contractAddress, bytes32(_slot));
+        require(uint8((uint256(slotVal) >> (_offset * 8)) & 0xFF) == uint8(1), "Contract's slot value at offet not 1");
     }
 }
