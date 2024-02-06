@@ -72,7 +72,7 @@ func TestE2EReorgDeletion(t *testing.T) {
 	depositBlock, err := testSuite.DB.Blocks.L1BlockHeaderWithFilter(database.BlockHeader{Number: depositReceipt.BlockNumber})
 	require.NoError(t, err)
 	require.NoError(t, testSuite.Indexer.Stop(context.Background()))
-	require.NoError(t, testSuite.DB.Blocks.DeleteReorgedState(depositReceipt.BlockNumber))
+	require.NoError(t, testSuite.DB.Blocks.DeleteReorgedState(deposits.Deposits[0].L1BridgeDeposit.Tx.Timestamp))
 
 	// L1 & L2 block state deleted appropriately
 	latestL1Header, err := testSuite.DB.Blocks.L2LatestBlockHeader()

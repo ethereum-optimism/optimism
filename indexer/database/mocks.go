@@ -1,8 +1,6 @@
 package database
 
 import (
-	"math/big"
-
 	"github.com/ethereum/go-ethereum/common"
 	"gorm.io/gorm"
 
@@ -78,8 +76,8 @@ func (m *MockBlocksDB) StoreL2BlockHeaders(headers []L2BlockHeader) error {
 	return args.Error(1)
 }
 
-func (m *MockBlocksDB) DeleteReorgedState(fromL1Height *big.Int) error {
-	args := m.Called(fromL1Height)
+func (m *MockBlocksDB) DeleteReorgedState(timestamp uint64) error {
+	args := m.Called(timestamp)
 	return args.Error(1)
 }
 

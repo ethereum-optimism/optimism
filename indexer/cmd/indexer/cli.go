@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"math/big"
 
 	"github.com/urfave/cli/v2"
@@ -12,8 +13,10 @@ import (
 	"github.com/ethereum-optimism/optimism/indexer/api"
 	"github.com/ethereum-optimism/optimism/indexer/config"
 	"github.com/ethereum-optimism/optimism/indexer/database"
+	"github.com/ethereum-optimism/optimism/indexer/node"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/opio"
 )
 
@@ -106,20 +109,28 @@ func runReorgDeletion(ctx *cli.Context) error {
 	oplog.SetGlobalLogHandler(log.GetHandler())
 	cfg, err := config.LoadConfig(log, ctx.String(ConfigFlag.Name))
 	if err != nil {
-		log.Error("failed to load config", "err", err)
-		return err
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+
+	l1Clnt, err := node.DialEthClient(ctx.Context, cfg.RPCs.L1RPC, node.NewMetrics(metrics.NewRegistry(), "l1"))
+	if err != nil {
+		return fmt.Errorf("failed to dial L1 client: %w", err)
+	}
+	l1Header, err := l1Clnt.BlockHeaderByNumber(big.NewInt(int64(fromL1Height)))
+	if err != nil {
+		return fmt.Errorf("failed to query L1 header at height: %w", err)
+	} else if l1Header == nil {
+		return fmt.Errorf("no header found at height")
 	}
 
 	db, err := database.NewDB(ctx.Context, log, cfg.DB)
 	if err != nil {
-		log.Error("failed to connect to database", "err", err)
-		return err
+		return fmt.Errorf("failed to connect to database: %w", err)
 	}
-	defer db.Close()
 
-	log.Info("deleting reorg'd state", "from_l1_height", fromL1Height)
+	defer db.Close()
 	return db.Transaction(func(db *database.DB) error {
-		return db.Blocks.DeleteReorgedState(big.NewInt(int64(fromL1Height)))
+		return db.Blocks.DeleteReorgedState(l1Header.Time)
 	})
 }
 

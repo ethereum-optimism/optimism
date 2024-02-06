@@ -67,7 +67,7 @@ type BlocksDB interface {
 	StoreL1BlockHeaders([]L1BlockHeader) error
 	StoreL2BlockHeaders([]L2BlockHeader) error
 
-	DeleteReorgedState(fromL1Height *big.Int) error
+	DeleteReorgedState(uint64) error
 }
 
 /**
@@ -178,31 +178,21 @@ func (db *blocksDB) L2LatestBlockHeader() (*L2BlockHeader, error) {
 
 // Reorgs
 
-func (db *blocksDB) DeleteReorgedState(fromL1Height *big.Int) error {
-	l1Header, err := db.L1BlockHeaderWithScope(func(db *gorm.DB) *gorm.DB {
-		return db.Where("number <= ?", fromL1Height).Order("number DESC").Limit(1)
-	})
-	if err != nil {
-		log.Error("unable to find L1 header associated with height", "err", err, "height", fromL1Height)
-		return err
-	}
-
-	// Look for the right starting L2 height to delete
-	l2Header, err := db.L2BlockHeaderWithScope(func(db *gorm.DB) *gorm.DB {
-		return db.Where("timestamp >= ?", l1Header.Timestamp).Order("number ASC").Limit(1)
-	})
-	if err != nil {
-		log.Error("unable to find earliest derived L2 header from L1 height", "err", err, "height", fromL1Height)
-		return err
-	}
+func (db *blocksDB) DeleteReorgedState(timestamp uint64) error {
+	db.log.Info("deleting reorg'd state", "from_timestamp", timestamp)
 
 	// Delete reorg'd state. Block deletes cascades to all tables
-	if result := db.gorm.Delete(&L1BlockHeader{}, "number >= ?", l1Header.Number); result.Error != nil {
-		return fmt.Errorf("unable to delete l1 state: %w", err)
+	l1Result := db.gorm.Delete(&L1BlockHeader{}, "timestamp >= ?", timestamp)
+	if l1Result.Error != nil {
+		return fmt.Errorf("unable to delete l1 state: %w", l1Result.Error)
 	}
-	if result := db.gorm.Delete(&L2BlockHeader{}, "number >= ?", l2Header.Number); result.Error != nil {
-		return fmt.Errorf("unable to delete l2 state: %w", err)
+	db.log.Info("L1 blocks (& derived events/tables) deleted", "block_count", l1Result.RowsAffected)
+
+	l2Result := db.gorm.Delete(&L2BlockHeader{}, "timestamp >= ?", timestamp)
+	if l2Result.Error != nil {
+		return fmt.Errorf("unable to delete l2 state: %w", l2Result.Error)
 	}
+	db.log.Info("L2 blocks (& derived events/tables) deleted", "block_count", l2Result.RowsAffected)
 
 	return nil
 }
