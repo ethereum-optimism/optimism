@@ -34,7 +34,7 @@ const (
 	LocalKeyType KeyType = 1
 	// Keccak256KeyType is for keccak256 pre-images, for any global shared pre-images.
 	Keccak256KeyType KeyType = 2
-	// GlobalGenericKeyType is a reseved key type for generic global data.
+	// GlobalGenericKeyType is a reserved key type for generic global data.
 	GlobalGenericKeyType KeyType = 3
 	// Sha256KeyType is for sha256 pre-images, for any global shared pre-images.
 	Sha256KeyType KeyType = 4

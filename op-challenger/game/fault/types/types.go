@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"time"
 
+	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -48,7 +49,7 @@ func (p *PreimageOracleData) GetPreimageWithSize() []byte {
 // NewPreimageOracleData creates a new [PreimageOracleData] instance.
 func NewPreimageOracleData(key []byte, data []byte, offset uint32) *PreimageOracleData {
 	return &PreimageOracleData{
-		IsLocal:      len(key) > 0 && key[0] == byte(1),
+		IsLocal:      len(key) > 0 && key[0] == byte(preimage.LocalKeyType),
 		OracleKey:    key,
 		oracleData:   data,
 		OracleOffset: offset,

@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/merkle"
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
+	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
@@ -22,6 +23,7 @@ const (
 	methodAddLeavesLPP              = "addLeavesLPP"
 	methodSqueezeLPP                = "squeezeLPP"
 	methodLoadKeccak256PreimagePart = "loadKeccak256PreimagePart"
+	methodLoadSha256PreimagePart    = "loadSha256PreimagePart"
 	methodProposalCount             = "proposalCount"
 	methodProposals                 = "proposals"
 	methodProposalMetadata          = "proposalMetadata"
@@ -37,6 +39,8 @@ const (
 
 var (
 	ErrInvalidAddLeavesCall = errors.New("tx is not a valid addLeaves call")
+	ErrInvalidPreimageKey   = errors.New("invalid preimage key")
+	ErrUnsupportedKeyType   = errors.New("unsupported preimage key type")
 )
 
 // PreimageOracleContract is a binding that works with contracts implementing the IPreimageOracle interface
@@ -73,8 +77,20 @@ func (c *PreimageOracleContract) Addr() common.Address {
 }
 
 func (c *PreimageOracleContract) AddGlobalDataTx(data *types.PreimageOracleData) (txmgr.TxCandidate, error) {
-	call := c.contract.Call(methodLoadKeccak256PreimagePart, new(big.Int).SetUint64(uint64(data.OracleOffset)), data.GetPreimageWithoutSize())
-	return call.ToTxCandidate()
+	if len(data.OracleKey) == 0 {
+		return txmgr.TxCandidate{}, ErrInvalidPreimageKey
+	}
+	keyType := preimage.KeyType(data.OracleKey[0])
+	switch keyType {
+	case preimage.Keccak256KeyType:
+		call := c.contract.Call(methodLoadKeccak256PreimagePart, new(big.Int).SetUint64(uint64(data.OracleOffset)), data.GetPreimageWithoutSize())
+		return call.ToTxCandidate()
+	case preimage.Sha256KeyType:
+		call := c.contract.Call(methodLoadSha256PreimagePart, new(big.Int).SetUint64(uint64(data.OracleOffset)), data.GetPreimageWithoutSize())
+		return call.ToTxCandidate()
+	default:
+		return txmgr.TxCandidate{}, fmt.Errorf("%w: %v", ErrUnsupportedKeyType, keyType)
+	}
 }
 
 func (c *PreimageOracleContract) InitLargePreimage(uuid *big.Int, partOffset uint32, claimedSize uint32) (txmgr.TxCandidate, error) {
