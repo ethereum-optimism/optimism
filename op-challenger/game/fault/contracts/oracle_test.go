@@ -11,24 +11,46 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/merkle"
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
+	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	batchingTest "github.com/ethereum-optimism/optimism/op-service/sources/batching/test"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
 
-func TestPreimageOracleContract_LoadKeccak256(t *testing.T) {
-	stubRpc, oracle := setupPreimageOracleTest(t)
+func TestPreimageOracleContract_AddGlobalDataTx(t *testing.T) {
+	t.Run("UnknownType", func(t *testing.T) {
+		_, oracle := setupPreimageOracleTest(t)
+		data := types.NewPreimageOracleData(common.Hash{0xcc}.Bytes(), make([]byte, 20), uint32(545))
+		_, err := oracle.AddGlobalDataTx(data)
+		require.ErrorIs(t, err, ErrUnsupportedKeyType)
+	})
 
-	data := types.NewPreimageOracleData(common.Hash{0xcc}.Bytes(), make([]byte, 20), 545)
-	stubRpc.SetResponse(oracleAddr, methodLoadKeccak256PreimagePart, batching.BlockLatest, []interface{}{
-		new(big.Int).SetUint64(uint64(data.OracleOffset)),
-		data.GetPreimageWithoutSize(),
-	}, nil)
+	t.Run("Keccak256", func(t *testing.T) {
+		stubRpc, oracle := setupPreimageOracleTest(t)
+		data := types.NewPreimageOracleData(common.Hash{byte(preimage.Keccak256KeyType), 0xcc}.Bytes(), make([]byte, 20), uint32(545))
+		stubRpc.SetResponse(oracleAddr, methodLoadKeccak256PreimagePart, batching.BlockLatest, []interface{}{
+			new(big.Int).SetUint64(uint64(data.OracleOffset)),
+			data.GetPreimageWithoutSize(),
+		}, nil)
 
-	tx, err := oracle.AddGlobalDataTx(data)
-	require.NoError(t, err)
-	stubRpc.VerifyTxCandidate(tx)
+		tx, err := oracle.AddGlobalDataTx(data)
+		require.NoError(t, err)
+		stubRpc.VerifyTxCandidate(tx)
+	})
+
+	t.Run("Sha256", func(t *testing.T) {
+		stubRpc, oracle := setupPreimageOracleTest(t)
+		data := types.NewPreimageOracleData(common.Hash{byte(preimage.Sha256KeyType), 0xcc}.Bytes(), make([]byte, 20), uint32(545))
+		stubRpc.SetResponse(oracleAddr, methodLoadSha256PreimagePart, batching.BlockLatest, []interface{}{
+			new(big.Int).SetUint64(uint64(data.OracleOffset)),
+			data.GetPreimageWithoutSize(),
+		}, nil)
+
+		tx, err := oracle.AddGlobalDataTx(data)
+		require.NoError(t, err)
+		stubRpc.VerifyTxCandidate(tx)
+	})
 }
 
 func TestPreimageOracleContract_ChallengePeriod(t *testing.T) {
