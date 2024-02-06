@@ -655,7 +655,9 @@ func (s *SyncClient) doRequest(ctx context.Context, id peer.ID, expectedBlockNum
 
 func (s *SyncClient) readExecutionPayload(data []byte, expectedTime uint64) (*eth.ExecutionPayloadEnvelope, error) {
 	blockVersion := eth.BlockV1
-	if s.cfg.IsCanyon(expectedTime) {
+	if s.cfg.IsEcotone(expectedTime) {
+		blockVersion = eth.BlockV3
+	} else if s.cfg.IsCanyon(expectedTime) {
 		blockVersion = eth.BlockV2
 	}
 
