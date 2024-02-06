@@ -1026,9 +1026,17 @@ jobs:
     environment:
       DOCKER_BUILDKIT: 1
       DEVNET_NO_BUILD: 'true'
-      DEVNET_FPAC: <<parameters.devnet_fpac>>
+      # Default value; Can be overridden.
+      DEVNET_FPAC: 'false'
     steps:
       - checkout
+      - when:
+          condition:
+            equal: ['fault-proofs', <<parameters.devnet_fpac>>]
+          steps:
+            - run:
+                name: Set DEVNET_FPAC = true
+                command: echo 'export DEVNET_FPAC=true' >> $BASH_ENV
       - check-changed:
           patterns: op-(.+),packages,ops-bedrock,bedrock-devnet
       - run:
@@ -1641,7 +1649,7 @@ workflows:
       - devnet:
           matrix:
             parameters:
-              devnet_fpac: ["false", "true"]
+              devnet_fpac: ["legacy", "fault-proofs"]
           requires:
             - pnpm-monorepo
             - op-batcher-docker-build
