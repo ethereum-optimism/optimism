@@ -163,7 +163,7 @@ contract Deploy is Deployer {
 
     /// @notice Gets the address of the SafeProxyFactory and Safe singleton for use in deploying a new GnosisSafe.
     function _getSafeFactory() internal returns (SafeProxyFactory safeProxyFactory_, Safe safeSingleton_) {
-        // These are they standard create2 deployed contracts. First we'll check if they are deployed,
+        // These are the standard create2 deployed contracts. First we'll check if they are deployed,
         // if not we'll deploy new ones, though not at these addresses.
         address safeProxyFactory = 0xa6B71E26C5e0845f74c812102Ca7114b6a896AB2;
         address safeSingleton = 0xd9Db270c1B5E3Bd161E8c8503c55cEABeE709552;
