@@ -84,9 +84,15 @@ contract L2Genesis_Test is Test, Artifacts {
         /// that we at least have the expected amount of storage slots and their corresponding values (i.e. we don't have missing or extra storage slots).
         /// Next we assert that the `value` of each `_alloc.storageData`'s `key` matches the expected value for that slot.
         /// After these assertions, we now know that for this `_alloc`, we have the expected number of storage slot keys, and the correct corrsponding values.
+        /// However, this misses the edgecase where, for example, `_alloc.storageData.length` equals 2 and `expectedStorageData.length` equals 2, but the keys
+        /// set in ``_alloc.storageData` are both 0x000...000 and their values are 0x000.000, so when we look up the corresponding values using
+        /// `l2GenesisFixtures.getStorageValueBySlot`, if the expected values for those keys are their default mapping values, the test assertions will pass, even if
+        /// `expectedStorageData` is expected different keys. To solve this we add an assertion for `l2GenesisFixtures.slotIsInitialized`, to verify the slot is supposed
+        /// to be set even if the value is 0x000...000.
         L2GenesisFixtures.StorageData[] memory expectedStorageData = l2GenesisFixtures.getStorageData(_alloc.addr);
         assertEq(_alloc.storageData.length, expectedStorageData.length);
         for (uint256 i; i < expectedStorageData.length; i++) {
+            assertEq(true, l2GenesisFixtures.slotIsInitialized(_alloc.addr, _alloc.storageData[i].key));
             assertEq(
                 _alloc.storageData[i].value,
                 l2GenesisFixtures.getStorageValueBySlot(_alloc.addr, _alloc.storageData[i].key)

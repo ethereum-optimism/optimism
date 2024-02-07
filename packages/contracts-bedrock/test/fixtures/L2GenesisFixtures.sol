@@ -21,6 +21,7 @@ contract L2GenesisFixtures is Script {
     }
 
     mapping(address => StorageData[]) public storageDatas;
+    mapping(address => mapping(bytes32 => bool)) public slotIsInitialized;
     mapping(address => mapping(bytes32 => bytes32)) public storageSlotValues;
 
     function setUp() public {
@@ -47,7 +48,6 @@ contract L2GenesisFixtures is Script {
                         value: bytes32(uint256(uint160(Predeploys.PROXY_ADMIN)))
                     })
                 );
-
 
                 /// L1 Message Sender has been deprecated and doesn't have the
                 // PROXY_IMPLEMENTATION_ADDRESS slot set.
@@ -100,6 +100,7 @@ contract L2GenesisFixtures is Script {
                 })
             );
 
+            slotIsInitialized[Predeploys.WETH9][expectedStorageKeys[i]] = true;
             storageSlotValues[Predeploys.WETH9][expectedStorageKeys[i]] = expectedStorageValues[i];
         }
     }
@@ -124,6 +125,7 @@ contract L2GenesisFixtures is Script {
                 })
             );
 
+            slotIsInitialized[Predeploys.L2_CROSS_DOMAIN_MESSENGER][expectedStorageKeys[i]] = true;
             storageSlotValues[Predeploys.L2_CROSS_DOMAIN_MESSENGER][expectedStorageKeys[i]] = expectedStorageValues[i];
         }
     }
@@ -148,6 +150,7 @@ contract L2GenesisFixtures is Script {
                 })
             );
 
+            slotIsInitialized[Predeploys.L2_STANDARD_BRIDGE][expectedStorageKeys[i]] = true;
             storageSlotValues[Predeploys.L2_STANDARD_BRIDGE][expectedStorageKeys[i]] = expectedStorageValues[i];
         }
     }
@@ -170,6 +173,7 @@ contract L2GenesisFixtures is Script {
                 })
             );
 
+            slotIsInitialized[Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY][expectedStorageKeys[i]] = true;
             storageSlotValues[Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY][expectedStorageKeys[i]] = expectedStorageValues[i];
         }
     }
@@ -194,6 +198,7 @@ contract L2GenesisFixtures is Script {
                 })
             );
 
+            slotIsInitialized[Predeploys.GOVERNANCE_TOKEN][expectedStorageKeys[i]] = true;
             storageSlotValues[Predeploys.GOVERNANCE_TOKEN][expectedStorageKeys[i]] = expectedStorageValues[i];
         }
     }
