@@ -23,7 +23,6 @@ jobs:
       - name: Run Slither
         uses: crytic/slither-action@v0.3.1
         id: slither
-        continue-on-error: true # Required to ensure we always upload the SARIF file.
         with:
           target: packages/contracts-bedrock
           slither-config: packages/contracts-bedrock/slither.config.json
@@ -32,5 +31,6 @@ jobs:
 
       - name: Upload SARIF file
         uses: github/codeql-action/upload-sarif@v3
+        if: always()
         with:
           sarif_file: ${{ steps.slither.outputs.sarif }}
