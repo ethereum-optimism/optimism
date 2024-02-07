@@ -565,6 +565,32 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         });
     }
 
+    /// @dev Tests that `proveWithdrawalTransaction` can be re-executed if the dispute game proven against is no longer
+    ///      of the respected game type.
+    function test_proveWithdrawalTransaction_replayRespectedGameTypeChanged_suceeds() external {
+        vm.expectEmit(true, true, true, true);
+        emit WithdrawalProven(_withdrawalHash, alice, bob);
+        optimismPortal2.proveWithdrawalTransaction({
+            _tx: _defaultTx,
+            _disputeGameIndex: _proposedGameIndex,
+            _outputRootProof: _outputRootProof,
+            _withdrawalProof: _withdrawalProof
+        });
+
+        vm.mockCall(address(game), abi.encodeCall(game.gameType, ()), abi.encode(GameType.wrap(0xFF)));
+        vm.prank(optimismPortal2.sauron());
+        optimismPortal2.setRespectedGameType(GameType.wrap(0xFF));
+
+        vm.expectEmit(true, true, true, true);
+        emit WithdrawalProven(_withdrawalHash, alice, bob);
+        optimismPortal2.proveWithdrawalTransaction({
+            _tx: _defaultTx,
+            _disputeGameIndex: _proposedGameIndex,
+            _outputRootProof: _outputRootProof,
+            _withdrawalProof: _withdrawalProof
+        });
+    }
+
     /// @dev Tests that `proveWithdrawalTransaction` succeeds.
     function test_proveWithdrawalTransaction_validWithdrawalProof_succeeds() external {
         vm.expectEmit(true, true, true, true);

@@ -285,7 +285,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         // re-proving the withdrawal against a new proposal.
         require(
             provenWithdrawal.timestamp == 0 || gameProxy.status() == GameStatus.CHALLENGER_WINS
-                || disputeGameBlacklist[gameProxy],
+                || disputeGameBlacklist[gameProxy] || gameProxy.gameType().raw() != respectedGameType.raw(),
             "OptimismPortal: withdrawal hash has already been proven, and dispute game is not invalid"
         );
 
