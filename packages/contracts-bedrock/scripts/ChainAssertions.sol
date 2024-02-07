@@ -9,6 +9,7 @@ import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
 import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
+import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
 import { ProtocolVersion, ProtocolVersions } from "src/L1/ProtocolVersions.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
@@ -164,6 +165,14 @@ library ChainAssertions {
             require(address(bridge.otherBridge()) == Predeploys.L2_STANDARD_BRIDGE);
             require(address(bridge.superchainConfig()) == address(0));
         }
+    }
+
+    /// @notice Asserts that the DisputeGameFactory is setup correctly
+    function checkDisputeGameFactory(Types.ContractSet memory _contracts, address _expectedOwner) internal view {
+        console.log("Running chain assertions on the DisputeGameFactory");
+        DisputeGameFactory factory = DisputeGameFactory(_contracts.DisputeGameFactory);
+
+        require(factory.owner() == _expectedOwner);
     }
 
     /// @notice Asserts that the L2OutputOracle is setup correctly
