@@ -1,7 +1,7 @@
 version: '3.4'
 
 # The erigon db can be downloaded from
-# https://op-erigon-backup.mainnet.testinprod.io
+# https://boba-db.s3.us-east-2.amazonaws.com/sepolia/boba-sepolia-erigon-db.tgz
 # and extracted to the DATA_DIR
 
 services:
@@ -9,7 +9,7 @@ services:
     image:  us-docker.pkg.dev/boba-392114/bobanetwork-tools-artifacts/images/op-erigon:${ERIGON_VERSION:-latest}
     command: |
       --datadir=/db
-      --chain=optimism-mainnet
+      --chain=boba-sepolia
       --http.addr=0.0.0.0
       --http.port=9545
       --http.corsdomain=*
@@ -22,7 +22,7 @@ services:
       --http.api=eth,debug,net,engine,web3
       --db.size.limit=8TB
     ports:
-      - "9545:8545"
+      - "9545:9545"
       - "8551:8551"
     volumes:
       - ./jwt-secret.txt:/config/jwt-secret.txt
@@ -33,16 +33,15 @@ services:
     image: us-docker.pkg.dev/boba-392114/bobanetwork-tools-artifacts/images/op-node:${OP_NODE_VERSION:-latest}
     command: >
       op-node
-      --l1=${ETH1_HTTP:-https://ethereum.publicnode.com}
+      --l1=${ETH1_HTTP:-https://sepolia.gateway.tenderly.co}
       --l2=http://l2:8551
       --l2.jwt-secret=/config/jwt-secret.txt
-      --network=mainnet
+      --network=boba-sepolia
       --rpc.addr=0.0.0.0
-      --rpc.port=8547
-      --l1.trustrpc=true
+      --rpc.port=8545
       --p2p.disable=true
     ports:
-      - "8547:8547"
+      - "8545:8545"
     volumes:
       - ./jwt-secret.txt:/config/jwt-secret.txt
     restart: always

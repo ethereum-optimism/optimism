@@ -6,39 +6,81 @@ Here are instructions if you want to run boba erigon version as the replica node
 
 ### Get the data dir
 
-The first step is to download the initial data for `op-erigon`. Thanks for the contribution from [Test in Prod](https://www.testinprod.io).
+1. The first step is to download the initial data for `op-erigon`. 
 
-1. Download the correct data directory snapshot.
+- BOBA Sepolia
 
-* [OP Mainnet](https://op-erigon-backup.mainnet.testinprod.io)
-* [OP Goerli](https://op-erigon-backup.goerli.testinprod.io)
-
-2. Create the data directory and fill it.
+  The **erigon** db can be downloaded from the [boba sepolia erigon db](https://boba-db.s3.us-east-2.amazonaws.com/sepolia/boba-sepolia-erigon-db.tgz).
 
   ```bash
-  cd op-anchorage/boba-community
-  mkdir op-db
-  cd ./op-db
-  tar xvf ~/[DIR]/op-erigon-goerli.tar
+  curl -o boba-sepolia-erigon-db.tgz -sL https://boba-db.s3.us-east-2.amazonaws.com/sepolia/boba-sepolia-erigon-db.tgz
   ```
+
+  The **geth** db can be downloaded from [boba sepolia geth db](https://boba-db.s3.us-east-2.amazonaws.com/sepolia/boba-sepolia-geth-db.tgz).
+
+  ```bash
+  curl -o boba-sepolia-geth-db.tgz -sL https://boba-db.s3.us-east-2.amazonaws.com/sepolia/boba-sepolia-geth-db.tgz
+  ```
+
+- OP Mainnet
+
+  The **erigon** db can be downloaded from [Test in Prod OP Mainnet](https://op-erigon-backup.mainnet.testinprod.io).
+
+- OP Sepolia
+
+  The genesis file can be downloaded from [Optimsim](https://networks.optimism.io/op-sepolia/genesis.json).
+
+  ```bash
+  curl -o op-sepolia-genesis.json -sL https://networks.optimism.io/op-sepolia/genesis.json
+  ```
+
+  Once the genesis file is downloaded to the local directory, you can initialize the data directory with the genesis file.
+
+  ```bash
+  erigon init --datadir=/db genesis.json
+  ```
+
+  The erigon can be built from the [source](https://github.com/bobanetwork/v3-erigon) using `make erigon` .
+
+  > You can verify the download by running the following command:
+  >
+  > ```
+  > sha256sum boba-sepolia-erigon-db.tgz
+  > ```
+  >
+  > You should see the following output
+  >
+  > ```
+  > b887d2e0318e9299e844da7d39ca32040e3d0fb6a9d7abe2dd2f8624eca1cade  boba-sepolia-erigon-db.tgz
+  > ```
+  >
+  > Check the [BOBA Snapshots](TODO) page for the correct checksum for the snapshot you've downloaded.
+
+2. Extract the data Directory
+
+   Once you've downloaded the database snapshot, you'll need to extract it to a directory on your machine. This will take some time to complete.
+
+   ```bash
+   tar xvf data.tgz
+   ```
 
 3. Create a shared secret (JWT token)
 
-  ```bash
-  cd op-anchorage/boba-community
-  openssl rand -hex 32 > jwt-secret.txt
-  ```
+   ```bash
+   openssl rand -hex 32 > jwt-secret.txt
+   ```
 
 ### Create a .env file
 
 Create a  `.env` file in `boba-community`.
 
 ```
-VERSION=
+ERIGON_VERSION=
+OP_NODE_VERSION=
 ETH1_HTTP=
 ```
 
-> This step is optional, but we recommand you to use a latest release image for `VERSION`. Otherwise, it pulls the image with the `latest` tag.
+> This step is optional, but we recommand you to use a latest release image for `ERIGON_VERSION` and `OP_NODE_VERSION`. Otherwise, it pulls the image with the `latest` tag.
 
 ### Modify volume location
 
@@ -57,7 +99,7 @@ op-node:
 ### Start your replica node
 
 ```bash
-docker-compose -f docker-compose-op-goerli.yml up -d
+docker-compose -f docker-compose-node.yml up -d
 ```
 
 ### The initial synchornization
