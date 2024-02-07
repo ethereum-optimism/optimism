@@ -27,16 +27,38 @@ var (
 		Usage:   "HTTP provider URL for L1.",
 		EnvVars: prefixEnvVars("L1_ETH_RPC"),
 	}
+	FactoryAddressFlag = &cli.StringFlag{
+		Name:    "game-factory-address",
+		Usage:   "Address of the fault game factory contract.",
+		EnvVars: prefixEnvVars("GAME_FACTORY_ADDRESS"),
+	}
 	// Optional Flags
+	MonitorIntervalFlag = &cli.DurationFlag{
+		Name:    "monitor-interval",
+		Usage:   "The interval at which the dispute monitor will check for new games to monitor.",
+		EnvVars: prefixEnvVars("MONITOR_INTERVAL"),
+		Value:   config.DefaultMonitorInterval,
+	}
+	GameWindowFlag = &cli.DurationFlag{
+		Name: "game-window",
+		Usage: "The time window which the monitor will consider games to report on. " +
+			"This should include a bond claim buffer for games outside the maximum game duration.",
+		EnvVars: prefixEnvVars("GAME_WINDOW"),
+		Value:   config.DefaultGameWindow,
+	}
 )
 
 // requiredFlags are checked by [CheckRequired]
 var requiredFlags = []cli.Flag{
 	L1EthRpcFlag,
+	FactoryAddressFlag,
 }
 
 // optionalFlags is a list of unchecked cli flags
-var optionalFlags = []cli.Flag{}
+var optionalFlags = []cli.Flag{
+	MonitorIntervalFlag,
+	GameWindowFlag,
+}
 
 func init() {
 	optionalFlags = append(optionalFlags, oplog.CLIFlags(envVarPrefix)...)
@@ -63,12 +85,21 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 	if err := CheckRequired(ctx); err != nil {
 		return nil, err
 	}
+	gameFactoryAddress, err := opservice.ParseAddress(ctx.String(FactoryAddressFlag.Name))
+	if err != nil {
+		return nil, err
+	}
 
 	metricsConfig := opmetrics.ReadCLIConfig(ctx)
 	pprofConfig := oppprof.ReadCLIConfig(ctx)
 
 	return &config.Config{
-		L1EthRpc:      ctx.String(L1EthRpcFlag.Name),
+		L1EthRpc:           ctx.String(L1EthRpcFlag.Name),
+		GameFactoryAddress: gameFactoryAddress,
+
+		MonitorInterval: ctx.Duration(MonitorIntervalFlag.Name),
+		GameWindow:      ctx.Duration(GameWindowFlag.Name),
+
 		MetricsConfig: metricsConfig,
 		PprofConfig:   pprofConfig,
 	}, nil

@@ -4,23 +4,36 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/big"
 	"sync/atomic"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
+
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/config"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/metrics"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/version"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 )
 
 type Service struct {
 	logger  log.Logger
 	metrics metrics.Metricer
+	monitor *gameMonitor
+
+	factoryContract *contracts.DisputeGameFactoryContract
+
+	cl clock.Clock
+
+	metadata *metadataCreator
 
 	l1Client *ethclient.Client
 
@@ -33,6 +46,7 @@ type Service struct {
 // NewService creates a new Service.
 func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*Service, error) {
 	s := &Service{
+		cl:      clock.SystemClock,
 		logger:  logger,
 		metrics: metrics.NewMetrics(),
 	}
@@ -54,10 +68,20 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 	if err := s.initMetricsServer(&cfg.MetricsConfig); err != nil {
 		return fmt.Errorf("failed to init metrics server: %w", err)
 	}
+	if err := s.initFactoryContract(cfg); err != nil {
+		return fmt.Errorf("failed to create factory contract bindings: %w", err)
+	}
+	s.initMetadataCreator()
+	s.initMonitor(ctx, cfg)
 
 	s.metrics.RecordInfo(version.SimpleWithMeta)
 	s.metrics.RecordUp()
+
 	return nil
+}
+
+func (s *Service) initMetadataCreator() {
+	s.metadata = NewMetadataCreator(s.metrics, batching.NewMultiCaller(s.l1Client.Client(), batching.DefaultBatchSize))
 }
 
 func (s *Service) initL1Client(ctx context.Context, cfg *config.Config) error {
@@ -104,9 +128,42 @@ func (s *Service) initMetricsServer(cfg *opmetrics.CLIConfig) error {
 	return nil
 }
 
+func (s *Service) initFactoryContract(cfg *config.Config) error {
+	factoryContract, err := contracts.NewDisputeGameFactoryContract(cfg.GameFactoryAddress,
+		batching.NewMultiCaller(s.l1Client.Client(), batching.DefaultBatchSize))
+	if err != nil {
+		return fmt.Errorf("failed to bind the fault dispute game factory contract: %w", err)
+	}
+	s.factoryContract = factoryContract
+	return nil
+}
+
+func (s *Service) initMonitor(ctx context.Context, cfg *config.Config) {
+	blockHashFetcher := func(ctx context.Context, blockNumber *big.Int) (common.Hash, error) {
+		block, err := s.l1Client.BlockByNumber(ctx, blockNumber)
+		if err != nil {
+			return common.Hash{}, fmt.Errorf("failed to fetch block by number: %w", err)
+		}
+		return block.Hash(), nil
+	}
+	s.monitor = newGameMonitor(
+		ctx,
+		s.logger,
+		s.metrics,
+		s.cl,
+		cfg.MonitorInterval,
+		s.factoryContract,
+		s.metadata,
+		cfg.GameWindow,
+		s.l1Client.BlockNumber,
+		blockHashFetcher,
+	)
+}
+
 func (s *Service) Start(ctx context.Context) error {
 	s.logger.Info("starting scheduler")
 	s.logger.Info("starting monitoring")
+	s.monitor.StartMonitoring()
 	s.logger.Info("dispute monitor game service start completed")
 	return nil
 }

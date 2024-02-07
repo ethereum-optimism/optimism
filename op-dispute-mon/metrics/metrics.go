@@ -19,6 +19,8 @@ type Metricer interface {
 	RecordInfo(version string)
 	RecordUp()
 
+	RecordGamesStatus(inProgress, defenderWon, challengerWon int)
+
 	caching.Metrics
 }
 
@@ -34,6 +36,8 @@ type Metrics struct {
 
 	info prometheus.GaugeVec
 	up   prometheus.Gauge
+
+	trackedGames prometheus.GaugeVec
 }
 
 func (m *Metrics) Registry() *prometheus.Registry {
@@ -65,6 +69,13 @@ func NewMetrics() *Metrics {
 			Name:      "up",
 			Help:      "1 if the op-challenger has finished starting up",
 		}),
+		trackedGames: *factory.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "tracked_games",
+			Help:      "Number of games being tracked by the challenger",
+		}, []string{
+			"status",
+		}),
 	}
 }
 
@@ -94,4 +105,10 @@ func (m *Metrics) RecordUp() {
 
 func (m *Metrics) Document() []opmetrics.DocumentedMetric {
 	return m.factory.Document()
+}
+
+func (m *Metrics) RecordGamesStatus(inProgress, defenderWon, challengerWon int) {
+	m.trackedGames.WithLabelValues("in_progress").Set(float64(inProgress))
+	m.trackedGames.WithLabelValues("defender_won").Set(float64(defenderWon))
+	m.trackedGames.WithLabelValues("challenger_won").Set(float64(challengerWon))
 }
