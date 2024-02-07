@@ -195,7 +195,7 @@ func TestOutputAlphabetGame_FreeloaderEarnsNothing(t *testing.T) {
 	//       - freeloader
 	//       - honest
 	//       - freeloader
-	// The freeloader must be positioned leftmost (ginddx positioning) or at the same position as honest claims.
+	// The freeloader must be positioned leftmost (gindex positioning) or at the same position as honest claims.
 
 	// honest counter
 	claim = correctTrace.AttackClaim(ctx, claim)
