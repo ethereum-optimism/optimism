@@ -23,6 +23,8 @@ import { ISystemConfigV0 } from "scripts/interfaces/ISystemConfigV0.sol";
 import { console2 as console } from "forge-std/console2.sol";
 
 library ChainAssertions {
+    Vm internal constant vm = Vm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
+
     /// @notice Asserts the correctness of an L1 deployment. This function expects that all contracts
     ///         within the `prox` ContractSet are proxies that have been setup and initialized.
     function postDeployAssertions(
@@ -59,6 +61,9 @@ library ChainAssertions {
     function checkSystemConfig(Types.ContractSet memory _contracts, DeployConfig _cfg, bool _isProxy) internal view {
         console.log("Running chain assertions on the SystemConfig");
         SystemConfig config = SystemConfig(_contracts.SystemConfig);
+
+        // Check that the contract is initialized
+        assertSlotValueIsOne({ _contractAddress: address(config), _slot: 0, _offset: 0 });
 
         ResourceMetering.ResourceConfig memory resourceConfig = config.resourceConfig();
 
@@ -119,6 +124,9 @@ library ChainAssertions {
         console.log("Running chain assertions on the L1CrossDomainMessenger");
         L1CrossDomainMessenger messenger = L1CrossDomainMessenger(_contracts.L1CrossDomainMessenger);
 
+        // Check that the contract is initialized
+        assertSlotValueIsOne({ _contractAddress: address(messenger), _slot: 0, _offset: 20 });
+
         require(address(messenger.OTHER_MESSENGER()) == Predeploys.L2_CROSS_DOMAIN_MESSENGER);
         require(address(messenger.otherMessenger()) == Predeploys.L2_CROSS_DOMAIN_MESSENGER);
 
@@ -139,6 +147,9 @@ library ChainAssertions {
     function checkL1StandardBridge(Types.ContractSet memory _contracts, bool _isProxy) internal view {
         console.log("Running chain assertions on the L1StandardBridge");
         L1StandardBridge bridge = L1StandardBridge(payable(_contracts.L1StandardBridge));
+
+        // Check that the contract is initialized
+        assertSlotValueIsOne({ _contractAddress: address(bridge), _slot: 0, _offset: 0 });
 
         if (_isProxy) {
             require(address(bridge.MESSENGER()) == _contracts.L1CrossDomainMessenger);
@@ -167,6 +178,9 @@ library ChainAssertions {
     {
         console.log("Running chain assertions on the L2OutputOracle");
         L2OutputOracle oracle = L2OutputOracle(_contracts.L2OutputOracle);
+
+        // Check that the contract is initialized
+        assertSlotValueIsOne({ _contractAddress: address(oracle), _slot: 0, _offset: 0 });
 
         if (_isProxy) {
             require(oracle.SUBMISSION_INTERVAL() == _cfg.l2OutputOracleSubmissionInterval());
@@ -202,6 +216,9 @@ library ChainAssertions {
         console.log("Running chain assertions on the OptimismMintableERC20Factory");
         OptimismMintableERC20Factory factory = OptimismMintableERC20Factory(_contracts.OptimismMintableERC20Factory);
 
+        // Check that the contract is initialized
+        assertSlotValueIsOne({ _contractAddress: address(factory), _slot: 0, _offset: 0 });
+
         if (_isProxy) {
             require(factory.BRIDGE() == _contracts.L1StandardBridge);
             require(factory.bridge() == _contracts.L1StandardBridge);
@@ -215,6 +232,9 @@ library ChainAssertions {
     function checkL1ERC721Bridge(Types.ContractSet memory _contracts, bool _isProxy) internal view {
         console.log("Running chain assertions on the L1ERC721Bridge");
         L1ERC721Bridge bridge = L1ERC721Bridge(_contracts.L1ERC721Bridge);
+
+        // Check that the contract is initialized
+        assertSlotValueIsOne({ _contractAddress: address(bridge), _slot: 0, _offset: 0 });
 
         require(address(bridge.OTHER_BRIDGE()) == Predeploys.L2_ERC721_BRIDGE);
         require(address(bridge.otherBridge()) == Predeploys.L2_ERC721_BRIDGE);
@@ -235,6 +255,9 @@ library ChainAssertions {
         console.log("Running chain assertions on the OptimismPortal");
 
         OptimismPortal portal = OptimismPortal(payable(_contracts.OptimismPortal));
+
+        // Check that the contract is initialized
+        assertSlotValueIsOne({ _contractAddress: address(portal), _slot: 0, _offset: 0 });
 
         address guardian = _cfg.superchainConfigGuardian();
         if (guardian.code.length == 0) {
@@ -274,6 +297,9 @@ library ChainAssertions {
 
         OptimismPortal2 portal = OptimismPortal2(payable(_contracts.OptimismPortal2));
 
+        // Check that the contract is initialized
+        assertSlotValueIsOne({ _contractAddress: address(portal), _slot: 0, _offset: 0 });
+
         address guardian = _cfg.superchainConfigGuardian();
         if (guardian.code.length == 0) {
             console.log("Guardian has no code: %s", guardian);
@@ -308,6 +334,10 @@ library ChainAssertions {
     {
         console.log("Running chain assertions on the ProtocolVersions");
         ProtocolVersions versions = ProtocolVersions(_contracts.ProtocolVersions);
+
+        // Check that the contract is initialized
+        assertSlotValueIsOne({ _contractAddress: address(versions), _slot: 0, _offset: 0 });
+
         if (_isProxy) {
             require(versions.owner() == _cfg.finalSystemOwner());
             require(ProtocolVersion.unwrap(versions.required()) == _cfg.requiredProtocolVersion());
@@ -330,7 +360,20 @@ library ChainAssertions {
     {
         console.log("Running chain assertions on the SuperchainConfig");
         SuperchainConfig superchainConfig = SuperchainConfig(_contracts.SuperchainConfig);
+
+        // Check that the contract is initialized
+        assertSlotValueIsOne({ _contractAddress: address(superchainConfig), _slot: 0, _offset: 0 });
+
         require(superchainConfig.guardian() == _cfg.superchainConfigGuardian());
         require(superchainConfig.paused() == _isPaused);
+    }
+
+    /// @dev Asserts that for a given contract the value of a storage slot at an offset is 1.
+    function assertSlotValueIsOne(address _contractAddress, uint256 _slot, uint256 _offset) internal view {
+        bytes32 slotVal = vm.load(_contractAddress, bytes32(_slot));
+        require(
+            uint8((uint256(slotVal) >> (_offset * 8)) & 0xFF) == uint8(1),
+            "Storage value is not 1 at the given slot and offset"
+        );
     }
 }

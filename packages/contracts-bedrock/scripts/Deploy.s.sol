@@ -542,8 +542,6 @@ contract Deploy is Deployer {
         contracts.L1CrossDomainMessenger = address(messenger);
         ChainAssertions.checkL1CrossDomainMessenger({ _contracts: contracts, _vm: vm, _isProxy: false });
 
-        require(loadInitializedSlot("L1CrossDomainMessenger") == 1, "L1CrossDomainMessenger is not initialized");
-
         addr_ = address(messenger);
     }
 
@@ -562,8 +560,6 @@ contract Deploy is Deployer {
         Types.ContractSet memory contracts = _proxiesUnstrict();
         contracts.OptimismPortal = address(portal);
         ChainAssertions.checkOptimismPortal({ _contracts: contracts, _cfg: cfg, _isProxy: false });
-
-        require(loadInitializedSlot("OptimismPortal") == 1, "OptimismPortal is not initialized");
 
         addr_ = address(portal);
     }
@@ -593,8 +589,6 @@ contract Deploy is Deployer {
         contracts.OptimismPortal2 = address(portal);
         ChainAssertions.checkOptimismPortal2({ _contracts: contracts, _cfg: cfg, _isProxy: false });
 
-        require(loadInitializedSlot("OptimismPortal2") == 1, "OptimismPortal2 is not initialized");
-
         addr_ = address(portal);
     }
 
@@ -617,8 +611,6 @@ contract Deploy is Deployer {
             _l2OutputOracleStartingTimestamp: 0,
             _isProxy: false
         });
-
-        require(loadInitializedSlot("L2OutputOracle") == 1, "L2OutputOracle is not initialized");
 
         addr_ = address(oracle);
     }
@@ -667,8 +659,6 @@ contract Deploy is Deployer {
         contracts.ProtocolVersions = address(versions);
         ChainAssertions.checkProtocolVersions({ _contracts: contracts, _cfg: cfg, _isProxy: false });
 
-        require(loadInitializedSlot("ProtocolVersions") == 1, "ProtocolVersions is not initialized");
-
         addr_ = address(versions);
     }
 
@@ -710,8 +700,6 @@ contract Deploy is Deployer {
         Types.ContractSet memory contracts = _proxiesUnstrict();
         contracts.SystemConfig = address(config);
         ChainAssertions.checkSystemConfig({ _contracts: contracts, _cfg: cfg, _isProxy: false });
-
-        require(loadInitializedSlot("SystemConfig") == 1, "SystemConfig is not initialized");
 
         addr_ = address(config);
     }
@@ -842,8 +830,6 @@ contract Deploy is Deployer {
         console.log("SystemConfig version: %s", version);
 
         ChainAssertions.checkSystemConfig({ _contracts: _proxies(), _cfg: cfg, _isProxy: true });
-
-        require(loadInitializedSlot("SystemConfigProxy") == 1, "SystemConfigProxy is not initialized");
     }
 
     /// @notice Initialize the L1StandardBridge
@@ -968,10 +954,6 @@ contract Deploy is Deployer {
         console.log("L1CrossDomainMessenger version: %s", version);
 
         ChainAssertions.checkL1CrossDomainMessenger({ _contracts: _proxies(), _vm: vm, _isProxy: true });
-
-        require(
-            loadInitializedSlot("L1CrossDomainMessengerProxy") == 1, "L1CrossDomainMessengerProxy is not initialized"
-        );
     }
 
     /// @notice Initialize the L2OutputOracle
@@ -1007,8 +989,6 @@ contract Deploy is Deployer {
             _l2OutputOracleStartingTimestamp: cfg.l2OutputOracleStartingTimestamp(),
             _isProxy: true
         });
-
-        require(loadInitializedSlot("L2OutputOracleProxy") == 1, "L2OutputOracleProxy is not initialized");
     }
 
     /// @notice Initialize the OptimismPortal
@@ -1038,8 +1018,6 @@ contract Deploy is Deployer {
         console.log("OptimismPortal version: %s", version);
 
         ChainAssertions.checkOptimismPortal({ _contracts: _proxies(), _cfg: cfg, _isProxy: true });
-
-        require(loadInitializedSlot("OptimismPortalProxy") == 1, "OptimismPortalProxy is not initialized");
     }
 
     /// @notice Initialize the OptimismPortal2
@@ -1069,8 +1047,6 @@ contract Deploy is Deployer {
         console.log("OptimismPortal2 version: %s", version);
 
         ChainAssertions.checkOptimismPortal2({ _contracts: _proxies(), _cfg: cfg, _isProxy: true });
-
-        require(loadInitializedSlot("OptimismPortalProxy") == 1, "OptimismPortalProxy is not initialized");
     }
 
     function initializeProtocolVersions() public broadcast {
@@ -1100,8 +1076,6 @@ contract Deploy is Deployer {
         console.log("ProtocolVersions version: %s", version);
 
         ChainAssertions.checkProtocolVersions({ _contracts: _proxiesUnstrict(), _cfg: cfg, _isProxy: true });
-
-        require(loadInitializedSlot("ProtocolVersionsProxy") == 1, "ProtocolVersionsProxy is not initialized");
     }
 
     /// @notice Transfer ownership of the DisputeGameFactory contract to the final system owner
