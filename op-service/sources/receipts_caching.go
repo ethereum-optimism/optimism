@@ -51,6 +51,8 @@ func (p *CachingReceiptsProvider) deleteFetchingLock(blockHash common.Hash) {
 	delete(p.fetching, blockHash)
 }
 
+// FetchReceipts fetches receipts for the given block and transaction hashes
+// it expects that the inner FetchReceipts implementation handles validation
 func (p *CachingReceiptsProvider) FetchReceipts(ctx context.Context, blockInfo eth.BlockInfo, txHashes []common.Hash) (types.Receipts, error) {
 	block := eth.ToBlockID(blockInfo)
 	if r, ok := p.cache.Get(block.Hash); ok {
