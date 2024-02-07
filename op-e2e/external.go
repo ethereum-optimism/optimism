@@ -20,10 +20,11 @@ import (
 )
 
 type ExternalRunner struct {
-	Name    string
-	BinPath string
-	Genesis *core.Genesis
-	JWTPath string
+	Name     string
+	BinPath  string
+	Genesis  *core.Genesis
+	JWTPath  string
+	GasLimit uint64
 	// 4844: a datadir specifically for tx-pool blobs
 	BlobPoolPath string
 }
@@ -91,6 +92,7 @@ func (er *ExternalRunner) Run(t *testing.T) *ExternalEthClient {
 		ChainID:            er.Genesis.Config.ChainID.Uint64(),
 		GenesisPath:        filepath.Join(workDir, "genesis.json"),
 		EndpointsReadyPath: filepath.Join(workDir, "endpoints.json"),
+		GasCeil:            er.GasLimit,
 		Verbosity:          uint64(config.EthNodeVerbosity),
 	}
 
