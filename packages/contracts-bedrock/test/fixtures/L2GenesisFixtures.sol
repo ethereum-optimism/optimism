@@ -2,10 +2,11 @@
 pragma solidity ^0.8.0;
 
 import { Script } from "forge-std/Script.sol";
+import { console2 as console } from "forge-std/console2.sol";
 
 import { Predeploys } from "src/libraries/Predeploys.sol";
 
-contract L2GenesisFixtures is Script {
+contract L2GenesisFixtures {
     uint256 constant PROXY_COUNT = 2048;
     /// @notice The storage slot that holds the address of the owner.
     /// @dev `bytes32(uint256(keccak256('eip1967.proxy.admin')) - 1)`
@@ -15,25 +16,24 @@ contract L2GenesisFixtures is Script {
     bytes32 internal constant PROXY_IMPLEMENTATION_ADDRESS =
         0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
 
-    struct StorageData {
-        bytes32 key;
-        bytes32 value;
-    }
+    mapping(address => uint256) numExpectedSlotKeys;
+    mapping(address => mapping(bytes32 => bool)) expectedSlotKeys;
+    mapping(address => mapping(bytes32 => bytes32)) slotValueByKey;
 
-    mapping(address => StorageData[]) public storageDatas;
-    mapping(address => mapping(bytes32 => bool)) public slotIsInitialized;
-    mapping(address => mapping(bytes32 => bytes32)) public storageSlotValues;
-
-    function setUp() public {
+    function setUp() public virtual {
         _setProxyStorageData();
     }
 
-    function getStorageData(address _addr) public view returns(StorageData[] memory) {
-        return storageDatas[_addr];
+    function getNumExpectedSlotKeys(address _addr) public view returns(uint256) {
+        return numExpectedSlotKeys[_addr];
     }
 
-    function getStorageValueBySlot(address _addr, bytes32 _slot) public view returns(bytes32) {
-        return storageSlotValues[_addr][_slot];
+    function isExpectedSlotKey(address _addr, bytes32 _slot) public view returns(bool) {
+        return expectedSlotKeys[_addr][_slot];
+    }
+
+    function getSlotValueByKey(address _addr, bytes32 _slot) public view returns(bytes32) {
+        return slotValueByKey[_addr][_slot];
     }
 
     function _setProxyStorageData() internal {
@@ -41,26 +41,22 @@ contract L2GenesisFixtures is Script {
 
         for (uint256 i; i < PROXY_COUNT; i++) {
             address addr = address(prefix | uint160(i));
-            if (!_notProxied(addr)) {
-                storageDatas[addr].push(
-                    StorageData({
-                        key: PROXY_ADMIN_ADDRESS,
-                        value: bytes32(uint256(uint160(Predeploys.PROXY_ADMIN)))
-                    })
-                );
 
-                /// L1 Message Sender has been deprecated and doesn't have the
-                // PROXY_IMPLEMENTATION_ADDRESS slot set.
-                if (addr != Predeploys.L1_MESSAGE_SENDER) continue;
-
-                address implementation = _predeployToCodeNamespace(addr);
-                storageDatas[addr].push(
-                    StorageData({
-                        key: PROXY_IMPLEMENTATION_ADDRESS,
-                        value: bytes32(uint256(uint160(implementation)))
-                    })
-                );
+            if (_notProxied(addr)) {
+                continue;
             }
+
+            numExpectedSlotKeys[addr] = ++numExpectedSlotKeys[addr];
+            expectedSlotKeys[addr][PROXY_ADMIN_ADDRESS] = true;
+            slotValueByKey[addr][PROXY_ADMIN_ADDRESS] = bytes32(uint256(uint160(Predeploys.PROXY_ADMIN)));
+
+            if (_hasImplementation(addr)) {
+                address implementation = _predeployToCodeNamespace(addr);
+                numExpectedSlotKeys[addr] = ++numExpectedSlotKeys[addr];
+                expectedSlotKeys[addr][PROXY_IMPLEMENTATION_ADDRESS] = true;
+                slotValueByKey[addr][PROXY_IMPLEMENTATION_ADDRESS] = bytes32(uint256(uint160(implementation)));
+            }
+
         }
 
         _setWETH9StorageData();
@@ -74,10 +70,46 @@ contract L2GenesisFixtures is Script {
         return _addr == Predeploys.GOVERNANCE_TOKEN || _addr == Predeploys.WETH9;
     }
 
+    function _hasImplementation(address _addr) internal pure returns(bool) {
+        return _addr == Predeploys.LEGACY_MESSAGE_PASSER ||
+            _addr == Predeploys.DEPLOYER_WHITELIST ||
+            _addr == Predeploys.L2_CROSS_DOMAIN_MESSENGER ||
+            _addr == Predeploys.GAS_PRICE_ORACLE ||
+            _addr == Predeploys.L2_STANDARD_BRIDGE ||
+            _addr == Predeploys.SEQUENCER_FEE_WALLET ||
+            _addr == Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY ||
+            _addr == Predeploys.L1_BLOCK_NUMBER ||
+            _addr == Predeploys.L2_ERC721_BRIDGE ||
+            _addr == Predeploys.L1_BLOCK_ATTRIBUTES ||
+            _addr == Predeploys.L2_TO_L1_MESSAGE_PASSER ||
+            _addr == Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY ||
+            _addr == Predeploys.PROXY_ADMIN ||
+            _addr == Predeploys.BASE_FEE_VAULT ||
+            _addr == Predeploys.L1_FEE_VAULT ||
+            _addr == Predeploys.SCHEMA_REGISTRY ||
+            _addr == Predeploys.EAS;
+    }
+
     function _predeployToCodeNamespace(address _addr) internal pure returns (address) {
         return address(
             uint160(uint256(uint160(_addr)) & 0xffff | uint256(uint160(0xc0D3C0d3C0d3C0D3c0d3C0d3c0D3C0d3c0d30000)))
         );
+    }
+
+    function _setFixtureData(address _addr, bytes32[2] memory _expectedStorageKeys, bytes32[2] memory _expectedStorageValues) internal {
+        for(uint256 i; i < _expectedStorageKeys.length; i++) {
+            numExpectedSlotKeys[_addr] = ++numExpectedSlotKeys[_addr];
+            expectedSlotKeys[_addr][_expectedStorageKeys[i]] = true;
+            slotValueByKey[_addr][_expectedStorageKeys[i]] = _expectedStorageValues[i];
+        }
+    }
+
+    function _setFixtureData(address _addr, bytes32[3] memory _expectedStorageKeys, bytes32[3] memory _expectedStorageValues) internal {
+        for(uint256 i; i < _expectedStorageKeys.length; i++) {
+            numExpectedSlotKeys[_addr] = ++numExpectedSlotKeys[_addr];
+            expectedSlotKeys[_addr][_expectedStorageKeys[i]] = true;
+            slotValueByKey[_addr][_expectedStorageKeys[i]] = _expectedStorageValues[i];
+        }
     }
 
     function _setWETH9StorageData() internal {
@@ -92,17 +124,7 @@ contract L2GenesisFixtures is Script {
             bytes32(0x0000000000000000000000000000000000000000000000000000000000000012)
         ];
 
-        for(uint256 i; i < expectedStorageKeys.length; i++) {
-            storageDatas[Predeploys.WETH9].push(
-                StorageData({
-                    key: expectedStorageKeys[i],
-                    value: expectedStorageValues[i]
-                })
-            );
-
-            slotIsInitialized[Predeploys.WETH9][expectedStorageKeys[i]] = true;
-            storageSlotValues[Predeploys.WETH9][expectedStorageKeys[i]] = expectedStorageValues[i];
-        }
+        _setFixtureData(Predeploys.WETH9, expectedStorageKeys, expectedStorageValues);
     }
 
     function _setL2CrossDomainMessengerStorageData() internal {
@@ -117,17 +139,7 @@ contract L2GenesisFixtures is Script {
             bytes32(0x00000000000000000000000020a42a5a785622c6ba2576b2d6e924aa82bfa11d)
         ];
 
-        for(uint256 i; i < expectedStorageKeys.length; i++) {
-            storageDatas[Predeploys.L2_CROSS_DOMAIN_MESSENGER].push(
-                StorageData({
-                    key: expectedStorageKeys[i],
-                    value: expectedStorageValues[i]
-                })
-            );
-
-            slotIsInitialized[Predeploys.L2_CROSS_DOMAIN_MESSENGER][expectedStorageKeys[i]] = true;
-            storageSlotValues[Predeploys.L2_CROSS_DOMAIN_MESSENGER][expectedStorageKeys[i]] = expectedStorageValues[i];
-        }
+        _setFixtureData(Predeploys.L2_CROSS_DOMAIN_MESSENGER, expectedStorageKeys, expectedStorageValues);
     }
 
     function _setL2StandardBridgeStorageData() internal {
@@ -142,17 +154,7 @@ contract L2GenesisFixtures is Script {
             bytes32(0x0000000000000000000000000c8b5822b6e02cda722174f19a1439a7495a3fa6)
         ];
 
-        for(uint256 i; i < expectedStorageKeys.length; i++) {
-            storageDatas[Predeploys.L2_STANDARD_BRIDGE].push(
-                StorageData({
-                    key: expectedStorageKeys[i],
-                    value: expectedStorageValues[i]
-                })
-            );
-
-            slotIsInitialized[Predeploys.L2_STANDARD_BRIDGE][expectedStorageKeys[i]] = true;
-            storageSlotValues[Predeploys.L2_STANDARD_BRIDGE][expectedStorageKeys[i]] = expectedStorageValues[i];
-        }
+        _setFixtureData(Predeploys.L2_STANDARD_BRIDGE, expectedStorageKeys, expectedStorageValues);
     }
 
     function _setOptimismMintableERC20FactoryStorageData() internal {
@@ -165,17 +167,7 @@ contract L2GenesisFixtures is Script {
             bytes32(0x0000000000000000000000004200000000000000000000000000000000000010)
         ];
 
-        for(uint256 i; i < expectedStorageKeys.length; i++) {
-            storageDatas[Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY].push(
-                StorageData({
-                    key: expectedStorageKeys[i],
-                    value: expectedStorageValues[i]
-                })
-            );
-
-            slotIsInitialized[Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY][expectedStorageKeys[i]] = true;
-            storageSlotValues[Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY][expectedStorageKeys[i]] = expectedStorageValues[i];
-        }
+        _setFixtureData(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY, expectedStorageKeys, expectedStorageValues);
     }
 
     function _setGovernanceTokenStorageData() internal {
@@ -190,16 +182,6 @@ contract L2GenesisFixtures is Script {
             bytes32(0x000000000000000000000000a0ee7a142d267c1f36714e4a8f75612f20a79720)
         ];
 
-        for(uint256 i; i < expectedStorageKeys.length; i++) {
-            storageDatas[Predeploys.GOVERNANCE_TOKEN].push(
-                StorageData({
-                    key: expectedStorageKeys[i],
-                    value: expectedStorageValues[i]
-                })
-            );
-
-            slotIsInitialized[Predeploys.GOVERNANCE_TOKEN][expectedStorageKeys[i]] = true;
-            storageSlotValues[Predeploys.GOVERNANCE_TOKEN][expectedStorageKeys[i]] = expectedStorageValues[i];
-        }
+        _setFixtureData(Predeploys.GOVERNANCE_TOKEN, expectedStorageKeys, expectedStorageValues);
     }
 }

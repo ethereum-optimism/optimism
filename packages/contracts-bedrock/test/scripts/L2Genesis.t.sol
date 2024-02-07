@@ -12,7 +12,6 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { L2GenesisFixtures } from "test/fixtures/L2GenesisFixtures.sol";
 
 contract L2Genesis_Test is Test, Artifacts {
-    uint256 constant PROXY_COUNT = 2048;
     uint256 constant PRECOMPILE_COUNT = 256;
 
     string internal genesisPath;
@@ -46,6 +45,7 @@ contract L2Genesis_Test is Test, Artifacts {
         genesisPath = string.concat(vm.projectRoot(), "/deployments/", deploymentContext, "/genesis-l2.json");
 
         l2GenesisFixtures = new L2GenesisFixtures();
+        l2GenesisFixtures.setUp();
     }
 
     function test_allocs() external {
@@ -80,23 +80,13 @@ contract L2Genesis_Test is Test, Artifacts {
             assertEq(_alloc.code, vm.getDeployedCode("Proxy.sol:Proxy"));
         }
 
-        /// By asserting the length of the `_alloc.storageData` and `expectedStorageData` are equal, we know
-        /// that we at least have the expected amount of storage slots and their corresponding values (i.e. we don't have missing or extra storage slots).
-        /// Next we assert that the `value` of each `_alloc.storageData`'s `key` matches the expected value for that slot.
-        /// After these assertions, we now know that for this `_alloc`, we have the expected number of storage slot keys, and the correct corrsponding values.
-        /// However, this misses the edgecase where, for example, `_alloc.storageData.length` equals 2 and `expectedStorageData.length` equals 2, but the keys
-        /// set in ``_alloc.storageData` are both 0x000...000 and their values are 0x000.000, so when we look up the corresponding values using
-        /// `l2GenesisFixtures.getStorageValueBySlot`, if the expected values for those keys are their default mapping values, the test assertions will pass, even if
-        /// `expectedStorageData` is expected different keys. To solve this we add an assertion for `l2GenesisFixtures.slotIsInitialized`, to verify the slot is supposed
-        /// to be set even if the value is 0x000...000.
-        L2GenesisFixtures.StorageData[] memory expectedStorageData = l2GenesisFixtures.getStorageData(_alloc.addr);
-        assertEq(_alloc.storageData.length, expectedStorageData.length);
-        for (uint256 i; i < expectedStorageData.length; i++) {
-            assertEq(true, l2GenesisFixtures.slotIsInitialized(_alloc.addr, _alloc.storageData[i].key));
-            assertEq(
-                _alloc.storageData[i].value,
-                l2GenesisFixtures.getStorageValueBySlot(_alloc.addr, _alloc.storageData[i].key)
-            );
+        /// First we assert we have the same number of set storage slots for `_alloc` that we expect to be set.
+        assertEq(_alloc.storageData.length, l2GenesisFixtures.getNumExpectedSlotKeys(_alloc.addr));
+        /// Then we loop through all of `_alloc`'s storage slots and check if that storage slot is supposed be set,
+        /// lastly we assert that the corresponding slot value matches what's expected for that slot.
+        for (uint256 i; i < _alloc.storageData.length; i++) {
+            assertTrue(l2GenesisFixtures.isExpectedSlotKey(_alloc.addr, _alloc.storageData[i].key));
+            assertEq(_alloc.storageData[i].value, l2GenesisFixtures.getSlotValueByKey(_alloc.addr, _alloc.storageData[i].key));
         }
     }
 
@@ -137,9 +127,5 @@ contract L2Genesis_Test is Test, Artifacts {
 
     function _notProxied(address _addr) internal pure returns(bool) {
         return _addr == Predeploys.GOVERNANCE_TOKEN || _addr == Predeploys.WETH9;
-    }
-
-    function _setExpectedAllocStorage() internal {
-
     }
 }
