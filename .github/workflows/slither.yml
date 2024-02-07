@@ -26,6 +26,7 @@ jobs:
         continue-on-error: true # Required to ensure we always upload the SARIF file.
         with:
           target: packages/contracts-bedrock
+          slither-config: packages/contracts-bedrock/slither.config.json
           fail-on: config
           sarif: results.sarif
 
