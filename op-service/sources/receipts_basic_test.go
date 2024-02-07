@@ -75,8 +75,10 @@ func TestBasicRPCReceiptsFetcher_Reuse(t *testing.T) {
 		return err
 	}
 
+	bInfo, _, _ := block.Info(true, true)
+
 	// 1st fetching should result in errors
-	recs, err := rp.FetchReceipts(ctx, blockid, txHashes)
+	recs, err := rp.FetchReceipts(ctx, blockid, txHashes, bInfo)
 	require.Error(err)
 	require.Nil(recs)
 	require.EqualValues(2, numCalls.Load())
@@ -84,7 +86,7 @@ func TestBasicRPCReceiptsFetcher_Reuse(t *testing.T) {
 	// prepare 2nd fetching - all should succeed now
 	response[txHashes[2]] = true
 	response[txHashes[3]] = true
-	recs, err = rp.FetchReceipts(ctx, blockid, txHashes)
+	recs, err = rp.FetchReceipts(ctx, blockid, txHashes, bInfo)
 	require.NoError(err)
 	require.NotNil(recs)
 	for i, rec := range recs {
@@ -141,12 +143,13 @@ func runConcurrentFetchingTest(t *testing.T, rp ReceiptsProvider, numFetchers in
 	}
 	fetchResults := make(chan fetchResult, numFetchers)
 	barrier := make(chan struct{})
+	bInfo, _, _ := block.Info(true, true)
 	ctx, done := context.WithTimeout(context.Background(), 10*time.Second)
 	defer done()
 	for i := 0; i < numFetchers; i++ {
 		go func() {
 			<-barrier
-			recs, err := rp.FetchReceipts(ctx, block.BlockID(), txHashes)
+			recs, err := rp.FetchReceipts(ctx, block.BlockID(), txHashes, bInfo)
 			fetchResults <- fetchResult{rs: recs, err: err}
 		}()
 	}
