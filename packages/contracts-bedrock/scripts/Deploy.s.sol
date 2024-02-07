@@ -12,7 +12,7 @@ import { SafeProxyFactory } from "safe-contracts/proxies/SafeProxyFactory.sol";
 import { Enum as SafeOps } from "safe-contracts/common/Enum.sol";
 
 import { Deployer } from "scripts/Deployer.sol";
-import { DeployConfig } from "scripts/DeployConfig.s.sol";
+import "scripts/DeployConfig.s.sol";
 
 import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
 import { AddressManager } from "src/legacy/AddressManager.sol";
@@ -238,11 +238,19 @@ contract Deploy is Deployer {
     function setUp() public virtual override {
         super.setUp();
 
+        // Load the `useFaultProofs` slot value prior to etching the DeployConfig's bytecode and reading the deploy
+        // config file. If this slot has already been set, it will override the preference in the deploy config.
+        bytes32 useFaultProofsOverride = vm.load(address(cfg), USE_FAULT_PROOFS_SLOT);
+
         string memory path = string.concat(vm.projectRoot(), "/deploy-config/", deploymentContext, ".json");
         vm.etch(address(cfg), vm.getDeployedCode("DeployConfig.s.sol:DeployConfig"));
         vm.label(address(cfg), "DeployConfig");
         vm.allowCheatcodes(address(cfg));
         cfg.read(path);
+
+        if (useFaultProofsOverride != 0) {
+            vm.store(address(cfg), USE_FAULT_PROOFS_SLOT, useFaultProofsOverride);
+        }
 
         console.log("Deploying from %s", deployScript);
         console.log("Deployment context: %s", deploymentContext);
@@ -329,13 +337,17 @@ contract Deploy is Deployer {
         console.log("Deploying proxies");
 
         deployERC1967Proxy("OptimismPortalProxy");
-        deployERC1967Proxy("L2OutputOracleProxy");
         deployERC1967Proxy("SystemConfigProxy");
         deployL1StandardBridgeProxy();
         deployL1CrossDomainMessengerProxy();
         deployERC1967Proxy("OptimismMintableERC20FactoryProxy");
         deployERC1967Proxy("L1ERC721BridgeProxy");
+
+        // Both the DisputeGameFactory and L2OutputOracle proxies are deployed regardles of whether FPAC is enabled
+        // to prevent a nastier refactor to the deploy scripts. In the future, the L2OutputOracle will be removed. If
+        // fault proofs are not enabled, the DisputeGameFactory proxy will be unused.
         deployERC1967Proxy("DisputeGameFactoryProxy");
+        deployERC1967Proxy("L2OutputOracleProxy");
 
         transferAddressManagerOwnership(); // to the ProxyAdmin
     }
@@ -343,14 +355,16 @@ contract Deploy is Deployer {
     /// @notice Deploy all of the implementations
     function deployImplementations() public {
         console.log("Deploying implementations");
-        deployOptimismPortal();
-        deployOptimismPortal2();
         deployL1CrossDomainMessenger();
-        deployL2OutputOracle();
         deployOptimismMintableERC20Factory();
         deploySystemConfig();
         deployL1StandardBridge();
         deployL1ERC721Bridge();
+        deployOptimismPortal();
+        deployL2OutputOracle();
+
+        // Fault proofs
+        deployOptimismPortal2();
         deployDisputeGameFactory();
         deployPreimageOracle();
         deployMips();
@@ -359,20 +373,19 @@ contract Deploy is Deployer {
     /// @notice Initialize all of the implementations
     function initializeImplementations() public {
         console.log("Initializing implementations");
-        initializeDisputeGameFactory();
         initializeSystemConfig();
         initializeL1StandardBridge();
         initializeL1ERC721Bridge();
         initializeOptimismMintableERC20Factory();
         initializeL1CrossDomainMessenger();
         initializeL2OutputOracle();
+        initializeDisputeGameFactory();
 
-        // Selectively initialize either the original OptimismPortal or the
-        // new OptimismPortal2. Since this will upgrade the proxy, we cannot
-        // initialize both. FPAC warning can be removed once we're done with
-        // the old OptimismPortal contract.
+        // Selectively initialize either the original OptimismPortal or the new OptimismPortal2. Since this will upgrade
+        // the proxy, we cannot initialize both. FPAC warning can be removed once we're done with the old OptimismPortal
+        // contract.
         if (cfg.useFaultProofs()) {
-            console.log("WARNING: FPAC is enabled and using OptimismPortal2");
+            console.log("WARNING: FPAC is enabled. Initializing the OptimismPortal proxy with the OptimismPortal2.");
             initializeOptimismPortal2();
         } else {
             initializeOptimismPortal();
@@ -629,7 +642,7 @@ contract Deploy is Deployer {
     }
 
     /// @notice Deploy the DisputeGameFactory
-    function deployDisputeGameFactory() public onlyTestnetOrDevnet broadcast returns (address addr_) {
+    function deployDisputeGameFactory() public broadcast returns (address addr_) {
         console.log("Deploying DisputeGameFactory implementation");
         DisputeGameFactory factory = new DisputeGameFactory{ salt: _implSalt() }();
         save("DisputeGameFactory", address(factory));
@@ -660,7 +673,7 @@ contract Deploy is Deployer {
     }
 
     /// @notice Deploy the PreimageOracle
-    function deployPreimageOracle() public onlyTestnetOrDevnet broadcast returns (address addr_) {
+    function deployPreimageOracle() public broadcast returns (address addr_) {
         console.log("Deploying PreimageOracle implementation");
         PreimageOracle preimageOracle = new PreimageOracle{ salt: _implSalt() }({
             _minProposalSize: cfg.preimageOracleMinProposalSize(),
@@ -674,7 +687,7 @@ contract Deploy is Deployer {
     }
 
     /// @notice Deploy Mips
-    function deployMips() public onlyTestnetOrDevnet broadcast returns (address addr_) {
+    function deployMips() public broadcast returns (address addr_) {
         console.log("Deploying Mips implementation");
         MIPS mips = new MIPS{ salt: _implSalt() }(IPreimageOracle(mustGetAddress("PreimageOracle")));
         save("Mips", address(mips));
@@ -773,7 +786,7 @@ contract Deploy is Deployer {
     }
 
     /// @notice Initialize the DisputeGameFactory
-    function initializeDisputeGameFactory() public onlyTestnetOrDevnet broadcast {
+    function initializeDisputeGameFactory() public broadcast {
         console.log("Upgrading and initializing DisputeGameFactory proxy");
         address disputeGameFactoryProxy = mustGetAddress("DisputeGameFactoryProxy");
         address disputeGameFactory = mustGetAddress("DisputeGameFactory");
@@ -1092,7 +1105,7 @@ contract Deploy is Deployer {
     }
 
     /// @notice Transfer ownership of the DisputeGameFactory contract to the final system owner
-    function transferDisputeGameFactoryOwnership() public onlyTestnetOrDevnet broadcast {
+    function transferDisputeGameFactoryOwnership() public broadcast {
         console.log("Transferring DisputeGameFactory ownership to Safe");
         DisputeGameFactory disputeGameFactory = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
         address owner = disputeGameFactory.owner();
@@ -1132,7 +1145,7 @@ contract Deploy is Deployer {
     }
 
     /// @notice Sets the implementation for the `FAULT` game type in the `DisputeGameFactory`
-    function setCannonFaultGameImplementation(bool _allowUpgrade) public onlyTestnetOrDevnet broadcast {
+    function setCannonFaultGameImplementation(bool _allowUpgrade) public broadcast {
         console.log("Setting Cannon FaultDisputeGame implementation");
         DisputeGameFactory factory = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
 

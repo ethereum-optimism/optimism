@@ -18,6 +18,8 @@ import { LegacyERC20ETH } from "src/legacy/LegacyERC20ETH.sol";
 import { StandardBridge } from "src/universal/StandardBridge.sol";
 import { FeeVault } from "src/universal/FeeVault.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
+import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
+import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
 import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
 import { DeployConfig } from "scripts/DeployConfig.s.sol";
 import { Deploy } from "scripts/Deploy.s.sol";
@@ -46,6 +48,8 @@ contract Setup {
     Deploy internal constant deploy = Deploy(address(uint160(uint256(keccak256(abi.encode("optimism.deploy"))))));
 
     OptimismPortal optimismPortal;
+    OptimismPortal2 optimismPortal2;
+    DisputeGameFactory disputeGameFactory;
     L2OutputOracle l2OutputOracle;
     SystemConfig systemConfig;
     L1StandardBridge l1StandardBridge;
@@ -95,6 +99,8 @@ contract Setup {
         deploy.run();
 
         optimismPortal = OptimismPortal(deploy.mustGetAddress("OptimismPortalProxy"));
+        optimismPortal2 = OptimismPortal2(deploy.mustGetAddress("OptimismPortalProxy"));
+        disputeGameFactory = DisputeGameFactory(deploy.mustGetAddress("DisputeGameFactoryProxy"));
         l2OutputOracle = L2OutputOracle(deploy.mustGetAddress("L2OutputOracleProxy"));
         systemConfig = SystemConfig(deploy.mustGetAddress("SystemConfigProxy"));
         l1StandardBridge = L1StandardBridge(deploy.mustGetAddress("L1StandardBridgeProxy"));
@@ -110,6 +116,8 @@ contract Setup {
         vm.label(deploy.mustGetAddress("L2OutputOracleProxy"), "L2OutputOracleProxy");
         vm.label(address(optimismPortal), "OptimismPortal");
         vm.label(deploy.mustGetAddress("OptimismPortalProxy"), "OptimismPortalProxy");
+        vm.label(address(disputeGameFactory), "DisputeGameFactory");
+        vm.label(deploy.mustGetAddress("DisputeGameFactoryProxy"), "DisputeGameFactoryProxy");
         vm.label(address(systemConfig), "SystemConfig");
         vm.label(deploy.mustGetAddress("SystemConfigProxy"), "SystemConfigProxy");
         vm.label(address(l1StandardBridge), "L1StandardBridge");
