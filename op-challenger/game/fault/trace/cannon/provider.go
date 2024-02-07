@@ -34,7 +34,6 @@ type proofData struct {
 	OracleKey    hexutil.Bytes `json:"oracle-key,omitempty"`
 	OracleValue  hexutil.Bytes `json:"oracle-value,omitempty"`
 	OracleOffset uint32        `json:"oracle-offset,omitempty"`
-	LastHint     hexutil.Bytes `json:"last-hint,omitempty"`
 }
 
 type CannonMetricer interface {

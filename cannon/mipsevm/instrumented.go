@@ -73,7 +73,6 @@ func (m *InstrumentedState) Step(proof bool) (wit *StepWitness, err error) {
 	if proof {
 		wit.MemProof = append(wit.MemProof, m.memProof[:]...)
 		if m.lastPreimageOffset != ^uint32(0) {
-			wit.LastHint = m.state.LastHint
 			wit.PreimageOffset = m.lastPreimageOffset
 			wit.PreimageKey = m.lastPreimageKey
 			wit.PreimageValue = m.lastPreimage

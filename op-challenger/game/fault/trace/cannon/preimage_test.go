@@ -10,11 +10,8 @@ import (
 	gokzg4844 "github.com/crate-crypto/go-kzg-4844"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
-	"github.com/ethereum-optimism/optimism/op-program/client/l1"
 	"github.com/ethereum-optimism/optimism/op-program/host/kvstore"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
@@ -68,11 +65,6 @@ func TestPreimageLoader_BlobPreimage(t *testing.T) {
 	commitment, err := kzg().BlobToKZGCommitment(blob, 0)
 	require.NoError(t, err)
 
-	blobHash := eth.IndexedBlobHash{
-		Index: 4,
-		Hash:  sha256.Sum256(commitment[:]),
-	}
-
 	fieldIndex := uint64(24)
 	elementData := blob[fieldIndex<<5 : (fieldIndex+1)<<5]
 	kzgProof, _, err := kzg().ComputeKZGProof(blob, gokzg4844.Scalar(elementData), 0)
@@ -81,18 +73,13 @@ func TestPreimageLoader_BlobPreimage(t *testing.T) {
 	keyBuf := make([]byte, 80)
 	copy(keyBuf[:48], commitment[:])
 	binary.BigEndian.PutUint64(keyBuf[72:], fieldIndex)
+	fmt.Printf("Input bytes: %x\n", keyBuf)
 	key := preimage.BlobKey(crypto.Keccak256Hash(keyBuf)).PreimageKey()
-
-	blobReqMeta := make([]byte, 16)
-	binary.BigEndian.PutUint64(blobReqMeta[0:8], blobHash.Index)
-	binary.BigEndian.PutUint64(blobReqMeta[8:16], 12342)
-	hint := l1.BlobHint(append(blobHash.Hash[:], blobReqMeta...)).Hint()
 
 	proof := &proofData{
 		OracleKey:    key[:],
 		OracleValue:  elementData,
 		OracleOffset: 4,
-		LastHint:     hexutil.Bytes(hint),
 	}
 
 	kv := kvstore.NewMemKV()
@@ -104,7 +91,6 @@ func TestPreimageLoader_BlobPreimage(t *testing.T) {
 			OracleKey:    proof.OracleKey,
 			OracleValue:  []byte{1, 2, 3},
 			OracleOffset: proof.OracleOffset,
-			LastHint:     proof.LastHint,
 		}
 		_, err := loader.LoadPreimage(proof)
 		require.ErrorIs(t, err, ErrInvalidScalarValue)
@@ -147,6 +133,8 @@ func storeBlob(t *testing.T, kv kvstore.KV, commitment gokzg4844.KZGCommitment, 
 	for i := 0; i < params.BlobTxFieldElementsPerBlob; i++ {
 		binary.BigEndian.PutUint64(blobKeyBuf[72:], uint64(i))
 		feKey := crypto.Keccak256Hash(blobKeyBuf)
+		err := kv.Put(preimage.Keccak256Key(feKey).PreimageKey(), blobKeyBuf)
+		require.NoError(t, err)
 
 		err = kv.Put(preimage.BlobKey(feKey).PreimageKey(), blob[i<<5:(i+1)<<5])
 		require.NoError(t, err, "Failed to store field element preimage in kvstore")

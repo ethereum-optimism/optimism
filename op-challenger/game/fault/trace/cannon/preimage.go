@@ -5,18 +5,20 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"strings"
 	"sync/atomic"
 
 	gokzg4844 "github.com/crate-crypto/go-kzg-4844"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
-	"github.com/ethereum-optimism/optimism/op-program/client/l1"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
+)
+
+const (
+	fieldElemKeyLength = 80
+	commitmentLength   = 48
 )
 
 var (
@@ -64,71 +66,45 @@ func (l *preimageLoader) loadBlobPreimage(proof *proofData) (*types.PreimageOrac
 	if len(proof.OracleValue) != gokzg4844.SerializedScalarSize {
 		return nil, fmt.Errorf("%w, expected length %v but was %v", ErrInvalidScalarValue, gokzg4844.SerializedScalarSize, len(proof.OracleValue))
 	}
-	hint, hintBytes, err := parseHint(string(proof.LastHint))
+
+	// The key for a blob field element is a keccak hash of commitment++fieldElementIndex.
+	// First retrieve the preimage of the key as a keccak hash so we have the commitment and required field element
+	inputsKey := preimage.Keccak256Key(proof.OracleKey).PreimageKey()
+	inputs, err := l.getPreimage(inputsKey)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse last hint: %w", err)
+		return nil, fmt.Errorf("failed to get key preimage: %w", err)
 	}
-	if hint != l1.HintL1Blob {
-		return nil, fmt.Errorf("invalid last hint for blob type: %v", hint)
+	if len(inputs) != fieldElemKeyLength {
+		return nil, fmt.Errorf("invalid key preimage, expected length %v but was %v", fieldElemKeyLength, len(inputs))
 	}
-	if len(hintBytes) != 48 {
-		return nil, fmt.Errorf("invalid blob hint: %x", hintBytes)
-	}
+	commitment := inputs[:commitmentLength]
+	requiredFieldElement := binary.BigEndian.Uint64(inputs[72:])
 
-	blobVersionHash := common.Hash(hintBytes[:32])
-
-	// Start by using the last hint to load the blob commitment
-	commitmentKey := preimage.Sha256Key(blobVersionHash)
-	commitment, err := l.getPreimage(commitmentKey.PreimageKey())
-	if err != nil {
-		return nil, fmt.Errorf("failed to get blob commitment preimage (%v): %w", commitmentKey, err)
-	}
-
-	// Load the full blob data
-	// Reconstruct the full blob from the 4096 field elements.
+	// Now, reconstruct the full blob by loading the 4096 field elements.
 	blob := eth.Blob{}
-	fieldElemKey := make([]byte, 80)
-	copy(fieldElemKey[:48], commitment)
-	requiredFieldElement := -1
+	fieldElemKey := make([]byte, fieldElemKeyLength)
+	copy(fieldElemKey[:commitmentLength], commitment)
 	for i := 0; i < params.BlobTxFieldElementsPerBlob; i++ {
 		binary.BigEndian.PutUint64(fieldElemKey[72:], uint64(i))
 		key := preimage.BlobKey(crypto.Keccak256(fieldElemKey)).PreimageKey()
-		if bytes.Equal(key[:], proof.OracleKey) {
-			requiredFieldElement = i
-		}
 		fieldElement, err := l.getPreimage(key)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load field element %v with key %v", i, common.Hash(key))
 		}
 		copy(blob[i<<5:(i+1)<<5], fieldElement[:])
 	}
-	if requiredFieldElement == -1 {
-		return nil, fmt.Errorf("no field element key matched: %v", proof.OracleKey)
-	}
 
+	// Sanity check the blob data matches the commitment
 	blobCommitment, err := blob.ComputeKZGCommitment()
 	if err != nil || !bytes.Equal(blobCommitment[:], commitment[:]) {
 		return nil, fmt.Errorf("invalid blob commitment: %w", err)
 	}
 
+	// Compute the KZG proof for the required field element
 	kzgProof, _, err := kzg().ComputeKZGProof(gokzg4844.Blob(blob), gokzg4844.Scalar(proof.OracleValue), 0)
 	if err != nil {
 		return nil, fmt.Errorf("failed to compute kzg proof: %w", err)
 	}
 
-	return types.NewPreimageOracleBlobData(proof.OracleKey, proof.OracleValue, proof.OracleOffset, uint64(requiredFieldElement), commitment, kzgProof[:]), nil
-}
-
-// parseHint parses a hint string in wire protocol. Returns the hint type, requested hash and error (if any).
-func parseHint(hint string) (string, []byte, error) {
-	hintType, bytesStr, found := strings.Cut(hint, " ")
-	if !found {
-		return "", nil, fmt.Errorf("unsupported hint: %s", hint)
-	}
-
-	hintBytes, err := hexutil.Decode(bytesStr)
-	if err != nil {
-		return "", make([]byte, 0), fmt.Errorf("invalid bytes: %s", bytesStr)
-	}
-	return hintType, hintBytes, nil
+	return types.NewPreimageOracleBlobData(proof.OracleKey, proof.OracleValue, proof.OracleOffset, requiredFieldElement, commitment, kzgProof[:]), nil
 }

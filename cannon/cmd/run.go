@@ -104,7 +104,6 @@ type Proof struct {
 	OracleKey    hexutil.Bytes `json:"oracle-key,omitempty"`
 	OracleValue  hexutil.Bytes `json:"oracle-value,omitempty"`
 	OracleOffset uint32        `json:"oracle-offset,omitempty"`
-	LastHint     hexutil.Bytes `json:"last-hint,omitempty"`
 }
 
 type rawHint string
@@ -369,7 +368,6 @@ func Run(ctx *cli.Context) error {
 				proof.OracleKey = witness.PreimageKey[:]
 				proof.OracleValue = witness.PreimageValue
 				proof.OracleOffset = witness.PreimageOffset
-				proof.LastHint = witness.LastHint
 			}
 			if err := writeJSON(fmt.Sprintf(proofFmt, step), proof); err != nil {
 				return fmt.Errorf("failed to write proof data: %w", err)

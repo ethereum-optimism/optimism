@@ -157,6 +157,9 @@ func (p *Prefetcher) prefetch(ctx context.Context, hint string) error {
 		for i := 0; i < params.BlobTxFieldElementsPerBlob; i++ {
 			binary.BigEndian.PutUint64(blobKey[72:], uint64(i))
 			blobKeyHash := crypto.Keccak256Hash(blobKey)
+			if err := p.kvStore.Put(preimage.Keccak256Key(blobKeyHash).PreimageKey(), blobKey); err != nil {
+				return err
+			}
 			if err = p.kvStore.Put(preimage.BlobKey(blobKeyHash).PreimageKey(), sidecar.Blob[i<<5:(i+1)<<5]); err != nil {
 				return err
 			}
