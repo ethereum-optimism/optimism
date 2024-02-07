@@ -204,6 +204,8 @@ func (b *Server) Start() error {
 
 	// verify that the server comes up
 	tick := time.NewTimer(10 * time.Millisecond)
+	defer tick.Stop()
+
 	select {
 	case err := <-errCh:
 		return fmt.Errorf("http server failed: %w", err)
