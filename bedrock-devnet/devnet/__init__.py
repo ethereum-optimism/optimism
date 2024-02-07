@@ -205,6 +205,10 @@ def devnet_deploy(paths):
             '--outfile.l1', paths.genesis_l1_path,
         ], cwd=paths.op_node_dir)
 
+        run_command([
+          'sh', 'l1-generate-beacon-genesis.sh',
+        ], cwd=paths.ops_bedrock_dir)
+
     log.info('Starting L1.')
     run_command(['docker', 'compose', 'up', '-d', 'l1'], cwd=paths.ops_bedrock_dir, env={
         'PWD': paths.ops_bedrock_dir
