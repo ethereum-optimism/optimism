@@ -5,7 +5,6 @@ import { StdUtils } from "forge-std/Test.sol";
 import { Vm } from "forge-std/Vm.sol";
 
 import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
-import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
@@ -126,7 +125,7 @@ contract OptimismPortal2_Invariant_Harness is CommonTest {
         _proposedGameIndex = disputeGameFactory.gameCount() - 1;
 
         // Warp beyond the finalization period for the dispute game and resolve it.
-        vm.warp(block.timestamp + 7 days + 1 seconds);
+        vm.warp(block.timestamp + game.gameDuration().raw() + 1 seconds);
         game.resolveClaim(0);
         game.resolve();
 
@@ -174,11 +173,10 @@ contract OptimismPortal2_CannotTimeTravel is OptimismPortal2_Invariant_Harness {
         excludeSender(EIP1967Helper.getAdmin(address(optimismPortal2)));
     }
 
-    /// @custom:invariant `finalizeWithdrawalTransaction` should revert if the finalization
-    ///                   period has not elapsed.
+    /// @custom:invariant `finalizeWithdrawalTransaction` should revert if the proof maturity period has not elapsed.
     ///
     ///                   A withdrawal that has been proven should not be able to be finalized
-    ///                   until after the finalization period has elapsed.
+    ///                   until after the proof maturity period has elapsed.
     function invariant_cannotFinalizeBeforePeriodHasPassed() external {
         vm.expectRevert("OptimismPortal: proven withdrawal has not matured yet");
         optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
@@ -192,8 +190,8 @@ contract OptimismPortal2_CannotFinalizeTwice is OptimismPortal2_Invariant_Harnes
         // Prove the withdrawal transaction
         optimismPortal2.proveWithdrawalTransaction(_defaultTx, _proposedGameIndex, _outputRootProof, _withdrawalProof);
 
-        // Warp past the finalization period.
-        vm.warp(block.timestamp + 7 days + 1);
+        // Warp past the proof maturity period.
+        vm.warp(block.timestamp + optimismPortal2.proofMaturityDelaySeconds() + 1);
 
         // Finalize the withdrawal transaction.
         optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
@@ -204,11 +202,10 @@ contract OptimismPortal2_CannotFinalizeTwice is OptimismPortal2_Invariant_Harnes
         excludeSender(EIP1967Helper.getAdmin(address(optimismPortal2)));
     }
 
-    /// @custom:invariant `finalizeWithdrawalTransaction` should revert if the withdrawal
-    ///                   has already been finalized.
+    /// @custom:invariant `finalizeWithdrawalTransaction` should revert if the withdrawal has already been finalized.
     ///
-    ///                   Ensures that there is no chain of calls that can be made that
-    ///                   allows a withdrawal to be finalized twice.
+    ///                   Ensures that there is no chain of calls that can be made that allows a withdrawal to be
+    ///                   finalized twice.
     function invariant_cannotFinalizeTwice() external {
         vm.expectRevert("OptimismPortal: withdrawal has already been finalized");
         optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
@@ -222,8 +219,8 @@ contract OptimismPortal_CanAlwaysFinalizeAfterWindow is OptimismPortal2_Invarian
         // Prove the withdrawal transaction
         optimismPortal2.proveWithdrawalTransaction(_defaultTx, _proposedGameIndex, _outputRootProof, _withdrawalProof);
 
-        // Warp past the finalization period.
-        vm.warp(block.timestamp + 7 days + 1);
+        // Warp past the proof maturity period.
+        vm.warp(block.timestamp + optimismPortal2.proofMaturityDelaySeconds() + 1);
 
         // Set the target contract to the portal proxy
         targetContract(address(optimismPortal2));
@@ -231,13 +228,12 @@ contract OptimismPortal_CanAlwaysFinalizeAfterWindow is OptimismPortal2_Invarian
         excludeSender(EIP1967Helper.getAdmin(address(optimismPortal2)));
     }
 
-    /// @custom:invariant A withdrawal should **always** be able to be finalized
-    ///                   `FINALIZATION_PERIOD_SECONDS` after it was successfully proven.
+    /// @custom:invariant A withdrawal should **always** be able to be finalized `PROOF_MATURITY_DELAY_SECONDS` after
+    ///                   it was successfully proven, if the game has resolved and passed the air-gap.
     ///
-    ///                   This invariant asserts that there is no chain of calls that can
-    ///                   be made that will prevent a withdrawal from being finalized
-    ///                   exactly `FINALIZATION_PERIOD_SECONDS` after it was successfully
-    ///                   proven.
+    ///                   This invariant asserts that there is no chain of calls that can be made that will prevent a
+    ///                   withdrawal from being finalized exactly `PROOF_MATURITY_DELAY_SECONDS` after it was
+    ///                   successfully proven and the game has resolved and passed the air-gap.
     function invariant_canAlwaysFinalize() external {
         uint256 bobBalanceBefore = address(bob).balance;
 
