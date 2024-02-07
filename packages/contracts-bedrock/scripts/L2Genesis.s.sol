@@ -505,7 +505,13 @@ contract L2Genesis is Script, Artifacts {
         string[] memory commands = new string[](3);
         commands[0] = "bash";
         commands[1] = "-c";
-        commands[2] = string.concat("cat <<< $(jq -S '.' ", _path, ") > ", _path);
+        commands[2] = string.concat(
+            "cat <<< $(jq -S '",
+            "to_entries | ",
+            "map( {key: .key, value: {balance: .value.balance, code: .value.code, nonce: .value.nonce, storage: (.value.storage | to_entries | sort_by(.key) | from_entries)} } ) | ",
+            "from_entries' ",
+            _path, ") > ", _path
+        );
         vm.ffi(commands);
     }
 
