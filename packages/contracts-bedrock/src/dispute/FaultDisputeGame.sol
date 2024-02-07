@@ -535,9 +535,9 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     /// @param _position The position of the bonded interaction.
     /// @return requiredBond_ The required ETH bond for the given move, in wei.
     function getRequiredBond(Position _position) public pure returns (uint256 requiredBond_) {
-        // TODO
+        // TODO(client-pod#551): For now use a non-zero bond amount to unblock functional tests.
         _position;
-        requiredBond_ = 0;
+        requiredBond_ = 0.01 ether;
     }
 
     /// @notice Claim the credit belonging to the recipient address.

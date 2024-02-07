@@ -466,7 +466,13 @@ func (g *OutputGameHelper) Attack(ctx context.Context, claimIdx int64, claim com
 
 func (g *OutputGameHelper) DefendWithTransactOpts(ctx context.Context, claimIdx int64, claim common.Hash, opts *bind.TransactOpts) {
 	g.t.Logf("Defending claim %v with value %v", claimIdx, claim)
-	tx, err := g.game.Defend(g.opts, big.NewInt(claimIdx), claim)
+
+	claimData, err := g.game.ClaimData(&bind.CallOpts{Context: ctx}, big.NewInt(claimIdx))
+	g.require.NoError(err, "Failed to get claim data")
+	pos := types.NewPositionFromGIndex(claimData.Position)
+	opts := g.makeBondedTransactOpts(ctx, pos.Defend().ToGIndex())
+
+	tx, err := g.game.Defend(opts, big.NewInt(claimIdx), claim)
 	if err != nil {
 		g.require.NoErrorf(err, "Defend transaction did not send. Game state: \n%v", g.gameData(ctx))
 	}
