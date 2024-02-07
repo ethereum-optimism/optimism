@@ -47,6 +47,14 @@ func TestScheduler(t *testing.T) {
 		require.Equal(t, 0, len(s.receiver))
 	})
 
+	t.Run("ZeroBuffer", func(t *testing.T) {
+		runner := func(ctx context.Context, item int) {}
+		s := NewSchedulerFromBufferSize(runner, 0)
+		s.Start(context.Background())
+		err := s.Schedule(1)
+		require.ErrorIs(t, err, ErrChannelFull)
+	})
+
 	t.Run("ScheduleMessage", func(t *testing.T) {
 		runnerCalls := 0
 		runner := func(ctx context.Context, item int) {
