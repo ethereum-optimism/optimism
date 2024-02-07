@@ -254,11 +254,11 @@ func TestOutputCannonStepWithLargePreimage(t *testing.T) {
 }
 
 func TestOutputCannonStepWithPreimage(t *testing.T) {
-	testPreimageStep := func(t *testing.T, preloadPreimage bool) {
+	testPreimageStep := func(t *testing.T, preimageType cannon.PreimageOpt, preloadPreimage bool) {
 		op_e2e.InitParallel(t, op_e2e.UsesCannon)
 
 		ctx := context.Background()
-		sys, l1Client := startFaultDisputeSystem(t)
+		sys, _ := startFaultDisputeSystem(t)
 		t.Cleanup(sys.Close)
 
 		disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
@@ -276,20 +276,16 @@ func TestOutputCannonStepWithPreimage(t *testing.T) {
 		// Now the honest challenger is positioned as the defender of the execution game
 		// We then move to challenge it to induce a preimage load
 		preimageLoadCheck := game.CreateStepPreimageLoadCheck(ctx)
-		game.ChallengeToPreimageLoad(ctx, outputRootClaim, sys.Cfg.Secrets.Alice, cannon.FirstGlobalPreimageLoad(), preimageLoadCheck, preloadPreimage)
-
-		sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
-		require.NoError(t, wait.ForNextBlock(ctx, l1Client))
-		game.WaitForInactivity(ctx, 10, true)
-		game.LogGameData(ctx)
-		require.EqualValues(t, disputegame.StatusChallengerWins, game.Status(ctx))
+		game.ChallengeToPreimageLoad(ctx, outputRootClaim, sys.Cfg.Secrets.Alice, preimageType, preimageLoadCheck, preloadPreimage)
+		// The above method already verified the image was uploaded and step called successfully
+		// So we don't waste time resolving the game - that's tested elsewhere.
 	}
 
 	t.Run("non-existing preimage", func(t *testing.T) {
-		testPreimageStep(t, false)
+		testPreimageStep(t, cannon.FirstKeccakPreimageLoad(), false)
 	})
 	t.Run("preimage already exists", func(t *testing.T) {
-		testPreimageStep(t, true)
+		testPreimageStep(t, cannon.FirstKeccakPreimageLoad(), true)
 	})
 }
 

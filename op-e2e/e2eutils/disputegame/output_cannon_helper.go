@@ -209,6 +209,7 @@ func (g *OutputCannonGameHelper) ChallengeToPreimageLoad(ctx context.Context, ou
 
 	// Now the preimage is available wait for the step call to succeed.
 	leafClaim.WaitForCountered(ctx)
+	g.LogGameData(ctx)
 }
 
 func (g *OutputCannonGameHelper) createCannonTraceProvider(ctx context.Context, l2Node string, outputRootClaim *ClaimHelper, options ...challenger.Option) *cannon.CannonTraceProviderForTest {

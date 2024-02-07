@@ -66,7 +66,7 @@ var (
 	}
 	RunStopAtPreimageTypeFlag = &cli.StringFlag{
 		Name:     "stop-at-preimage-type",
-		Usage:    "stop at the first preimage request matching this type (must be either 'any', 'local' or 'global')",
+		Usage:    "stop at the first preimage request matching this type",
 		Required: false,
 	}
 	RunStopAtPreimageLargerThanFlag = &cli.StringFlag{
@@ -243,9 +243,23 @@ func Run(ctx *cli.Context) error {
 	outLog := &mipsevm.LoggingWriter{Name: "program std-out", Log: l}
 	errLog := &mipsevm.LoggingWriter{Name: "program std-err", Log: l}
 
-	stopAtPreimageType := ctx.String(RunStopAtPreimageTypeFlag.Name)
-	if stopAtPreimageType != "" && stopAtPreimageType != "any" && stopAtPreimageType != "local" && stopAtPreimageType != "global" {
-		return fmt.Errorf("invalid preimage type %q, must be either 'any', 'local' or 'global'", stopAtPreimageType)
+	stopAtAnyPreimage := false
+	var stopAtPreimageTypeByte preimage.KeyType
+	switch ctx.String(RunStopAtPreimageTypeFlag.Name) {
+	case "local":
+		stopAtPreimageTypeByte = preimage.LocalKeyType
+	case "keccak":
+		stopAtPreimageTypeByte = preimage.Keccak256KeyType
+	case "sha256":
+		stopAtPreimageTypeByte = preimage.Sha256KeyType
+	case "blob":
+		stopAtPreimageTypeByte = preimage.BlobKeyType
+	case "any":
+		stopAtAnyPreimage = true
+	case "":
+		// 0 preimage type is forbidden so will not stop at any preimage
+	default:
+		return fmt.Errorf("invalid preimage type %q", ctx.String(RunStopAtPreimageTypeFlag.Name))
 	}
 	stopAtPreimageLargerThan := ctx.Int(RunStopAtPreimageLargerThanFlag.Name)
 
@@ -380,17 +394,11 @@ func Run(ctx *cli.Context) error {
 		}
 
 		if preimageRead := state.PreimageOffset > prevPreimageOffset; preimageRead {
-			if stopAtPreimageType == "any" {
+			if stopAtAnyPreimage {
 				break
 			}
-			if stopAtPreimageType != "" {
-				keyType := byte(preimage.LocalKeyType)
-				if stopAtPreimageType == "global" {
-					keyType = byte(preimage.Keccak256KeyType)
-				}
-				if state.PreimageKey.Bytes()[0] == keyType {
-					break
-				}
+			if state.PreimageKey.Bytes()[0] == byte(stopAtPreimageTypeByte) {
+				break
 			}
 			if stopAtPreimageLargerThan != 0 && len(us.LastPreimage()) > stopAtPreimageLargerThan {
 				break

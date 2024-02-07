@@ -252,10 +252,14 @@ type preimageOpts []string
 
 type PreimageOpt func() preimageOpts
 
-func FirstGlobalPreimageLoad() PreimageOpt {
+func FirstPreimageLoadOfType(preimageType string) PreimageOpt {
 	return func() preimageOpts {
-		return []string{"--stop-at-preimage-type", "global"}
+		return []string{"--stop-at-preimage-type", preimageType}
 	}
+}
+
+func FirstKeccakPreimageLoad() PreimageOpt {
+	return FirstPreimageLoadOfType("keccak")
 }
 
 func PreimageLargerThan(size int) PreimageOpt {
