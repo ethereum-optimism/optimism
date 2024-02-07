@@ -113,7 +113,7 @@ func (f *FakeBeacon) Start(addr string) error {
 				return
 			}
 			sidecars[i] = &eth.APIBlobSidecar{
-				Index:         eth.Uint64String(i),
+				Index:         eth.Uint64String(ix),
 				KZGCommitment: eth.Bytes48(bundle.Commitments[ix]),
 				KZGProof:      eth.Bytes48(bundle.Proofs[ix]),
 				SignedBlockHeader: eth.SignedBeaconBlockHeader{
