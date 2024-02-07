@@ -6,7 +6,7 @@ import {
   validators,
   waitForProvider,
 } from '@eth-optimism/common-ts'
-import { getChainId } from '@eth-optimism/core-utils'
+import { getChainId, compareAddrs } from '@eth-optimism/core-utils'
 import { Provider, TransactionResponse } from '@ethersproject/abstract-provider'
 import mainnetConfig from '@eth-optimism/contracts-bedrock/deploy-config/mainnet.json'
 import goerliConfig from '@eth-optimism/contracts-bedrock/deploy-config/goerli.json'
@@ -17,33 +17,17 @@ const networks = {
   1: {
     name: 'mainnet',
     l1StartingBlockTag: mainnetConfig.l1StartingBlockTag,
-    accounts: [
+    contracts: [
       {
-        label: 'Proposer',
-        initialize: mainnetConfig.l2OutputOracleProposer,
-        target: '0xdfe97868233d1aa22e815a266982f2cf17685a27',
-      },
-      {
-        label: 'Batcher',
-        initialize: mainnetConfig.batchSenderAddress,
-        target: mainnetConfig.batchInboxAddress,
+        label: 'SystemConfig',
+        address: '0x5efa852e92800d1c982711761e45c3fe39a2b6d8',
       },
     ],
   },
   10: {
     name: 'goerli',
     l1StartingBlockTag: goerliConfig.l1StartingBlockTag,
-    accounts: [
-      {
-        label: 'Proposer',
-        initialize: goerliConfig.l2OutputOracleProposer,
-        target: '0xE6Dfba0953616Bacab0c9A8ecb3a9BBa77FC15c0',
-      },
-      {
-        label: 'Batcher',
-        initialize: goerliConfig.batchSenderAddress,
-        target: goerliConfig.batchInboxAddress,
-      },
+    contracts: [
     ],
   },
 }
@@ -139,7 +123,7 @@ export class InitializeMonService extends BaseServiceV2<
     }
 
     const network = networks[this.state.chainId]
-    const accounts = network.accounts
+    const contracts = network.contracts
 
     const block = await this.options.rpc.getBlock(
       this.state.highestUncheckedBlockNumber
@@ -155,16 +139,37 @@ export class InitializeMonService extends BaseServiceV2<
     }
 
     for (const transaction of transactions) {
-      const transactionReceipt = await transaction.wait()
-      for (const log of transactionReceipt.logs) {
-        // keccak256("Initialized(suint8)") = 0x7f26b83ff96e1f2b6a682f133852f6798a09c465da95921460cefb3847402498
-        if (log.topics.includes('0x7f26b83ff96e1f2b6a682f133852f6798a09c465da95921460cefb3847402498')) {
-          if (accounts.includes(transaction.from)) {
-            this.metrics.validatedCalls.inc({})
-            this.logger.info('validated call', {})
-          } else {
-            this.metrics.unexpectedCalls.inc({})
-            this.logger.error('Unexpected call detected', {})
+      for (const contract of contracts) {
+        const to = transaction.to != null ? transaction.to : transaction["creates"]
+        if (compareAddrs(contract.address, to)) {
+          try {
+            const transactionReceipt = await transaction.wait()
+            for (const log of transactionReceipt.logs) {
+              // keccak256("Initialized(suint8)") = 0x7f26b83ff96e1f2b6a682f133852f6798a09c465da95921460cefb3847402498
+              if (log.topics.includes('0x7f26b83ff96e1f2b6a682f133852f6798a09c465da95921460cefb3847402498')) {
+                this.logger.info('initialized', {
+                  address: contract.address,
+                })
+              }
+            }
+          } catch (err) {
+            // If error is due to transaction failing, ignore transaction
+            if (err.message.length >= 18 && err.message.slice(0, 18) === 'transaction failed') {
+              break
+            }
+            // Otherwise, we have an unexpected RPC error
+            this.logger.info(`got unexpected RPC error`, {
+              section: 'creations',
+              name: 'NULL',
+              err,
+            })
+
+            this.metrics.unexpectedRpcErrors.inc({
+              section: 'creations',
+              name: 'NULL',
+            })
+
+            return
           }
         }
       }
