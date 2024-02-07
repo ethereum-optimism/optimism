@@ -258,7 +258,7 @@ func TestOutputCannonStepWithPreimage(t *testing.T) {
 		op_e2e.InitParallel(t, op_e2e.UsesCannon)
 
 		ctx := context.Background()
-		sys, _ := startFaultDisputeSystem(t)
+		sys, _ := startFaultDisputeSystem(t, withBlobBatches())
 		t.Cleanup(sys.Close)
 
 		disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
@@ -281,9 +281,14 @@ func TestOutputCannonStepWithPreimage(t *testing.T) {
 		// So we don't waste time resolving the game - that's tested elsewhere.
 	}
 
-	t.Run("non-existing preimage", func(t *testing.T) {
-		testPreimageStep(t, cannon.FirstKeccakPreimageLoad(), false)
-	})
+	preimageConditions := []string{"keccak", "sha256", "blob"}
+	for _, preimageType := range preimageConditions {
+		preimageType := preimageType
+		t.Run("non-existing preimage-"+preimageType, func(t *testing.T) {
+			testPreimageStep(t, cannon.FirstPreimageLoadOfType(preimageType), false)
+		})
+	}
+	// Only test pre-existing images with one type to save runtime
 	t.Run("preimage already exists", func(t *testing.T) {
 		testPreimageStep(t, cannon.FirstKeccakPreimageLoad(), true)
 	})

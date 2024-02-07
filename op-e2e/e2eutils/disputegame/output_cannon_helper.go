@@ -125,7 +125,7 @@ func (g *OutputCannonGameHelper) ChallengeToPreimageLoad(ctx context.Context, ou
 	// Identifying the first state transition that loads a global preimage
 	provider := g.createCannonTraceProvider(ctx, "sequencer", outputRootClaim, challenger.WithPrivKey(challengerKey))
 	targetTraceIndex, _, err := provider.FindStep(ctx, 0, preimage)
-	g.require.NoError(err)
+	g.require.NoError(err, "Did not find expected preimage type in cannon trace")
 
 	splitDepth := g.SplitDepth(ctx)
 	execDepth := g.ExecDepth(ctx)

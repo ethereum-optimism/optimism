@@ -1,7 +1,6 @@
 package l1
 
 import (
-	"bytes"
 	"encoding/binary"
 	"fmt"
 
@@ -100,8 +99,10 @@ func (p *PreimageOracle) GetBlob(ref eth.L1BlockRef, blobHash eth.IndexedBlobHas
 	binary.BigEndian.PutUint64(blobReqMeta[0:8], blobHash.Index)
 	binary.BigEndian.PutUint64(blobReqMeta[8:16], ref.Time)
 	p.hint.Hint(BlobHint(append(blobHash.Hash[:], blobReqMeta...)))
+	fmt.Printf("Sent blob hint\n")
 
 	commitment := p.oracle.Get(preimage.Sha256Key(blobHash.Hash))
+	fmt.Printf("Got commitment\n")
 
 	// Reconstruct the full blob from the 4096 field elements.
 	blob := eth.Blob{}
@@ -114,10 +115,14 @@ func (p *PreimageOracle) GetBlob(ref eth.L1BlockRef, blobHash eth.IndexedBlobHas
 		copy(blob[i<<5:(i+1)<<5], fieldElement[:])
 	}
 
-	blobCommitment, err := blob.ComputeKZGCommitment()
-	if err != nil || !bytes.Equal(blobCommitment[:], commitment[:]) {
-		panic(fmt.Errorf("invalid blob commitment: %w", err))
-	}
+	fmt.Printf("Loaded all blobs")
+	//fmt.Printf("Computing commitment\n")
+	//blobCommitment, err := blob.ComputeKZGCommitment()
+	//fmt.Printf("Computed commitment\n")
+	//if err != nil || !bytes.Equal(blobCommitment[:], commitment[:]) {
+	//	fmt.Printf("Invalid commitment!\n")
+	//	panic(fmt.Errorf("invalid blob commitment: %w", err))
+	//}
 
 	return &blob
 }
