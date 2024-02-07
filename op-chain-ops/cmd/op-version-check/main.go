@@ -155,7 +155,7 @@ func entrypoint(ctx *cli.Context) error {
 	}
 	// Write contract versions to disk or stdout
 	if outfile := ctx.Path("outfile"); outfile != "" {
-		if err := jsonutil.WriteJSON(outfile, output); err != nil {
+		if err := jsonutil.WriteJSON(outfile, output, 0o666); err != nil {
 			return err
 		}
 	} else {

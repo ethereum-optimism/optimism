@@ -1,4 +1,4 @@
-package cmd
+package jsonutil
 
 import (
 	"encoding/json"
@@ -13,7 +13,7 @@ func TestRoundTripJSON(t *testing.T) {
 	dir := t.TempDir()
 	file := filepath.Join(dir, "test.json")
 	data := &jsonTestData{A: "yay", B: 3}
-	err := writeJSON(file, data)
+	err := WriteJSON(file, data, 0o755)
 	require.NoError(t, err)
 
 	// Confirm the file is uncompressed
@@ -23,7 +23,7 @@ func TestRoundTripJSON(t *testing.T) {
 	require.NoError(t, err)
 
 	var result *jsonTestData
-	result, err = loadJSON[jsonTestData](file)
+	result, err = LoadJSON[jsonTestData](file)
 	require.NoError(t, err)
 	require.EqualValues(t, data, result)
 }
@@ -32,7 +32,7 @@ func TestRoundTripJSONWithGzip(t *testing.T) {
 	dir := t.TempDir()
 	file := filepath.Join(dir, "test.json.gz")
 	data := &jsonTestData{A: "yay", B: 3}
-	err := writeJSON(file, data)
+	err := WriteJSON(file, data, 0o755)
 	require.NoError(t, err)
 
 	// Confirm the file isn't raw JSON
@@ -42,7 +42,7 @@ func TestRoundTripJSONWithGzip(t *testing.T) {
 	require.Error(t, err, "should not be able to decode without decompressing")
 
 	var result *jsonTestData
-	result, err = loadJSON[jsonTestData](file)
+	result, err = LoadJSON[jsonTestData](file)
 	require.NoError(t, err)
 	require.EqualValues(t, data, result)
 }

@@ -210,7 +210,7 @@ func entrypoint(ctx *cli.Context) error {
 
 	// Write the batch to disk or stdout
 	if outfile := ctx.Path("outfile"); outfile != "" {
-		if err := jsonutil.WriteJSON(outfile, batch); err != nil {
+		if err := jsonutil.WriteJSON(outfile, batch, 0o666); err != nil {
 			return err
 		}
 	} else {

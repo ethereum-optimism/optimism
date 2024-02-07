@@ -1,4 +1,4 @@
-package cmd
+package jsonutil
 
 import (
 	"encoding/json"
@@ -10,7 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 )
 
-func loadJSON[X any](inputPath string) (*X, error) {
+func LoadJSON[X any](inputPath string) (*X, error) {
 	if inputPath == "" {
 		return nil, errors.New("no path specified")
 	}
@@ -27,14 +27,14 @@ func loadJSON[X any](inputPath string) (*X, error) {
 	return &state, nil
 }
 
-func writeJSON[X any](outputPath string, value X) error {
+func WriteJSON[X any](outputPath string, value X, perm os.FileMode) error {
 	if outputPath == "" {
 		return nil
 	}
 	var out io.Writer
 	finish := func() error { return nil }
 	if outputPath != "-" {
-		f, err := ioutil.NewAtomicWriterCompressed(outputPath, 0755)
+		f, err := ioutil.NewAtomicWriterCompressed(outputPath, perm)
 		if err != nil {
 			return fmt.Errorf("failed to open output file: %w", err)
 		}
@@ -48,6 +48,7 @@ func writeJSON[X any](outputPath string, value X) error {
 		out = os.Stdout
 	}
 	enc := json.NewEncoder(out)
+	enc.SetIndent("", "  ")
 	if err := enc.Encode(value); err != nil {
 		return fmt.Errorf("failed to encode to JSON: %w", err)
 	}

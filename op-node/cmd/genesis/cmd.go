@@ -127,7 +127,7 @@ var Subcommands = cli.Commands{
 				return err
 			}
 
-			return jsonutil.WriteJSON(ctx.String("outfile.l1"), l1Genesis)
+			return jsonutil.WriteJSON(ctx.String("outfile.l1"), l1Genesis, 0o666)
 		},
 	},
 	{
@@ -250,10 +250,10 @@ var Subcommands = cli.Commands{
 				return fmt.Errorf("generated rollup config does not pass validation: %w", err)
 			}
 
-			if err := jsonutil.WriteJSON(ctx.String("outfile.l2"), l2Genesis); err != nil {
+			if err := jsonutil.WriteJSON(ctx.String("outfile.l2"), l2Genesis, 0o666); err != nil {
 				return err
 			}
-			return jsonutil.WriteJSON(ctx.String("outfile.rollup"), rollupConfig)
+			return jsonutil.WriteJSON(ctx.String("outfile.rollup"), rollupConfig, 0o666)
 		},
 	},
 }
