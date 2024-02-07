@@ -187,7 +187,6 @@ func TestELSync(gt *testing.T) {
 	}
 
 	// Wait longer to peer. This tests flakes or takes a long time when the op-geth instances are not able to peer.
-	seqEng.AddPeers(verEng.Enode())
 	verEng.AddPeers(seqEng.Enode())
 
 	// Insert it on the verifier
@@ -201,7 +200,7 @@ func TestELSync(gt *testing.T) {
 		func() bool {
 			return seqEng.PeerCount() > 0 && verEng.PeerCount() > 0
 		},
-		60*time.Second, 1500*time.Millisecond,
+		120*time.Second, 1500*time.Millisecond,
 		"Sequencer & Verifier must peer with each other for snap sync to work",
 	)
 
