@@ -166,6 +166,54 @@ abstract contract Artifacts {
         return payable(address(0));
     }
 
+    function getName(address _addr) public pure returns (string memory) {
+        if (_addr == Predeploys.L2_CROSS_DOMAIN_MESSENGER) {
+            return "L2CrossDomainMessenger";
+        } else if (_addr == Predeploys.L2_TO_L1_MESSAGE_PASSER) {
+            return "L2ToL1MessagePasser";
+        } else if (_addr == Predeploys.L2_STANDARD_BRIDGE) {
+            return "L2StandardBridge";
+        } else if (_addr == Predeploys.L2_ERC721_BRIDGE) {
+            return "L2ERC721Bridge";
+        } else if (_addr == Predeploys.SEQUENCER_FEE_WALLET) {
+            return "SequencerFeeVault";
+        } else if (_addr == Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY) {
+            return "OptimismMintableERC20Factory";
+        } else if (_addr == Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY) {
+            return "OptimismMintableERC721Factory";
+        } else if (_addr == Predeploys.L1_BLOCK_ATTRIBUTES) {
+            return "L1Block";
+        } else if (_addr == Predeploys.GAS_PRICE_ORACLE) {
+            return "GasPriceOracle";
+        } else if (_addr == Predeploys.L1_MESSAGE_SENDER) {
+            return "L1MessageSender";
+        } else if (_addr == Predeploys.DEPLOYER_WHITELIST) {
+            return "DeployerWhitelist";
+        } else if (_addr == Predeploys.WETH9) {
+            return "WETH9";
+        } else if (_addr == Predeploys.LEGACY_ERC20_ETH) {
+            return "LegacyERC20ETH";
+        } else if (_addr == Predeploys.L1_BLOCK_NUMBER) {
+            return "L1BlockNumber";
+        } else if (_addr == Predeploys.LEGACY_MESSAGE_PASSER) {
+            return "LegacyMessagePasser";
+        } else if (_addr == Predeploys.PROXY_ADMIN) {
+            return "ProxyAdmin";
+        } else if (_addr == Predeploys.BASE_FEE_VAULT) {
+            return "BaseFeeVault";
+        } else if (_addr == Predeploys.L1_FEE_VAULT) {
+            return "L1FeeVault";
+        } else if (_addr == Predeploys.GOVERNANCE_TOKEN) {
+            return "GovernanceToken";
+        } else if (_addr == Predeploys.SCHEMA_REGISTRY) {
+            return "SchemaRegistry";
+        } else if (_addr == Predeploys.EAS) {
+            return "EAS";
+        }
+
+        return "";
+    }
+
     /// @notice Returns the address of a deployment and reverts if the deployment
     ///         does not exist.
     /// @return The address of the deployment.
