@@ -31,7 +31,8 @@ func NewBasicRPCReceiptsFetcher(client rpcClient, maxBatchSize int) *BasicRPCRec
 	}
 }
 
-func (f *BasicRPCReceiptsFetcher) FetchReceipts(ctx context.Context, block eth.BlockID, txHashes []common.Hash, bInfo eth.BlockInfo) (types.Receipts, error) {
+func (f *BasicRPCReceiptsFetcher) FetchReceipts(ctx context.Context, blockInfo eth.BlockInfo, txHashes []common.Hash) (types.Receipts, error) {
+	block := eth.ToBlockID(blockInfo)
 	call := f.getOrCreateBatchCall(block.Hash, txHashes)
 
 	// Fetch all receipts
@@ -46,10 +47,7 @@ func (f *BasicRPCReceiptsFetcher) FetchReceipts(ctx context.Context, block eth.B
 	if err != nil {
 		return nil, err
 	}
-	err = validateReceipts(block, bInfo.ReceiptHash(), txHashes, res)
-	if err != nil {
-		return nil, err
-	}
+
 	// call successful, remove from cache
 	f.deleteBatchCall(block.Hash)
 	return res, nil

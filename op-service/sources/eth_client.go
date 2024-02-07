@@ -317,8 +317,8 @@ func (s *EthClient) FetchReceipts(ctx context.Context, blockHash common.Hash) (e
 		return nil, nil, fmt.Errorf("querying block: %w", err)
 	}
 
-	txHashes, block := eth.TransactionsToHashes(txs), eth.ToBlockID(info)
-	receipts, err := s.recProvider.FetchReceipts(ctx, block, txHashes, info)
+	txHashes, _ := eth.TransactionsToHashes(txs), eth.ToBlockID(info)
+	receipts, err := s.recProvider.FetchReceipts(ctx, info, txHashes)
 	if err != nil {
 		return nil, nil, err
 	}

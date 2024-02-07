@@ -17,7 +17,8 @@ type mockReceiptsProvider struct {
 	mock.Mock
 }
 
-func (m *mockReceiptsProvider) FetchReceipts(ctx context.Context, block eth.BlockID, txHashes []common.Hash, bInfo eth.BlockInfo) (types.Receipts, error) {
+func (m *mockReceiptsProvider) FetchReceipts(ctx context.Context, blockInfo eth.BlockInfo, txHashes []common.Hash) (types.Receipts, error) {
+	block := eth.ToBlockID(blockInfo)
 	args := m.Called(ctx, block, txHashes)
 	return args.Get(0).(types.Receipts), args.Error(1)
 }
@@ -37,7 +38,7 @@ func TestCachingReceiptsProvider_Caching(t *testing.T) {
 
 	bInfo, _, _ := block.Info(true, true)
 	for i := 0; i < 4; i++ {
-		gotRecs, err := rp.FetchReceipts(ctx, blockid, txHashes, bInfo)
+		gotRecs, err := rp.FetchReceipts(ctx, bInfo, txHashes)
 		require.NoError(t, err)
 		for i, gotRec := range gotRecs {
 			requireEqualReceipt(t, receipts[i], gotRec)

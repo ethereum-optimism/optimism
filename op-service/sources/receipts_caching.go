@@ -51,7 +51,8 @@ func (p *CachingReceiptsProvider) deleteFetchingLock(blockHash common.Hash) {
 	delete(p.fetching, blockHash)
 }
 
-func (p *CachingReceiptsProvider) FetchReceipts(ctx context.Context, block eth.BlockID, txHashes []common.Hash, bInfo eth.BlockInfo) (types.Receipts, error) {
+func (p *CachingReceiptsProvider) FetchReceipts(ctx context.Context, blockInfo eth.BlockInfo, txHashes []common.Hash) (types.Receipts, error) {
+	block := eth.ToBlockID(blockInfo)
 	if r, ok := p.cache.Get(block.Hash); ok {
 		return r, nil
 	}
@@ -67,7 +68,7 @@ func (p *CachingReceiptsProvider) FetchReceipts(ctx context.Context, block eth.B
 		return r, nil
 	}
 
-	r, err := p.inner.FetchReceipts(ctx, block, txHashes, bInfo)
+	r, err := p.inner.FetchReceipts(ctx, blockInfo, txHashes)
 	if err != nil {
 		return nil, err
 	}

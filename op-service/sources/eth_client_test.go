@@ -3,6 +3,7 @@ package sources
 import (
 	"context"
 	crand "crypto/rand"
+	"fmt"
 	"math/big"
 	"math/rand"
 	"testing"
@@ -271,4 +272,44 @@ func newEthClientWithCaches(metrics caching.Metrics, cacheSize int) *EthClient {
 		headersCache:      caching.NewLRUCache[common.Hash, eth.BlockInfo](metrics, "headers", cacheSize),
 		payloadsCache:     caching.NewLRUCache[common.Hash, *eth.ExecutionPayloadEnvelope](metrics, "payloads", cacheSize),
 	}
+}
+
+// TestReceiptValidation tests that the receipt validation is performed by the underlying RPCReceiptsFetcher
+func TestReceiptValidation(t *testing.T) {
+	require := require.New(t)
+	mrpc := new(mockRPC)
+	rp := NewRPCReceiptsFetcher(mrpc, nil, RPCReceiptsConfig{})
+	const numTxs = 1
+	block, _ := randomRpcBlockAndReceipts(rand.New(rand.NewSource(420)), numTxs)
+	//txHashes := receiptTxHashes(receipts)
+	ctx := context.Background()
+
+	mrpc.On("CallContext",
+		ctx,
+		mock.Anything,
+		"eth_getTransactionReceipt",
+		mock.Anything).
+		Run(func(args mock.Arguments) {
+			fmt.Println("getTransactionReceipt called", args)
+		}).
+		Return([]error{nil})
+
+	// when the block is requested, the block is returned
+	mrpc.On("CallContext",
+		ctx,
+		mock.Anything,
+		"eth_getBlockByHash",
+		mock.Anything).
+		Run(func(args mock.Arguments) {
+			*(args[1].(**RPCBlock)) = block
+		}).
+		Return([]error{nil})
+
+	ethcl := newEthClientWithCaches(nil, numTxs)
+	ethcl.client = mrpc
+	ethcl.recProvider = rp
+	ethcl.trustRPC = true
+
+	_, _, err := ethcl.FetchReceipts(ctx, block.Hash)
+	require.ErrorContains(err, "unexpected nil block number")
 }
