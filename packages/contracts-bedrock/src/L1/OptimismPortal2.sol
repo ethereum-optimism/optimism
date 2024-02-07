@@ -183,10 +183,27 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         return superchainConfig.guardian();
     }
 
+    /// @notice Getter function for the address of the sauron role.
+    ///         Public getter is legacy and will be removed in the future. Use `SuperchainConfig.sauron()` instead
+    ///         once it's added.
+    /// @custom:deprecated
+    function sauron() public pure returns (address) {
+        return SAURON;
+    }
+
     /// @notice Getter for the current paused status.
-    /// @return paused_ Whether or not the contract is paused.
-    function paused() public view returns (bool paused_) {
-        paused_ = superchainConfig.paused();
+    function paused() public view returns (bool) {
+        return superchainConfig.paused();
+    }
+
+    /// @notice Getter for the proof maturity delay.
+    function proofMaturityDelaySeconds() public view returns (uint256) {
+        return PROOF_MATURITY_DELAY_SECONDS;
+    }
+
+    /// @notice Getter for the dispute game finality delay.
+    function disputeGameFinalityDelaySeconds() public view returns (uint256) {
+        return DISPUTE_GAME_FINALITY_DELAY_SECONDS;
     }
 
     /// @notice Computes the minimum gas limit for a deposit.
@@ -266,9 +283,10 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         // in the case that an honest user proves their withdrawal against a dispute game that
         // resolves against the root claim, or the dispute game is blacklisted, we allow
         // re-proving the withdrawal against a new proposal.
+        IDisputeGame game = provenWithdrawal.disputeGameProxy;
         require(
             provenWithdrawal.timestamp == 0 || gameProxy.status() == GameStatus.CHALLENGER_WINS
-                || disputeGameBlacklist[gameProxy],
+                || disputeGameBlacklist[gameProxy] || game.gameType().raw() != respectedGameType.raw(),
             "OptimismPortal: withdrawal hash has already been proven, and dispute game is not invalid"
         );
 
@@ -424,9 +442,8 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         respectedGameType = _gameType;
     }
 
-    /// @notice Checks if a withdrawal can be finalized. NOTE: Decision was made to have this
-    ///         function revert rather than returning a boolean so that was more obvious why the
-    ///         function failed.
+    /// @notice Checks if a withdrawal can be finalized. This function will revert if the withdrawal cannot be
+    ///         finalized, and otherwise has no side-effects.
     /// @param _withdrawalHash Hash of the withdrawal to check.
     function checkWithdrawal(bytes32 _withdrawalHash) public view {
         ProvenWithdrawal memory provenWithdrawal = provenWithdrawals[_withdrawalHash];
@@ -445,7 +462,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         // safety against weird bugs in the proving step.
         require(
             provenWithdrawal.timestamp > disputeGameProxy.createdAt().raw(),
-            "OptimismPortal: withdrawal timestamp less than L2 Oracle starting timestamp"
+            "OptimismPortal: withdrawal timestamp less than dispute game creation timestamp"
         );
 
         // A proven withdrawal must wait at least `PROOF_MATURITY_DELAY_SECONDS` before finalizing.
@@ -461,6 +478,11 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
             disputeGameProxy.status() == GameStatus.DEFENDER_WINS,
             "OptimismPortal: output proposal has not been finalized yet"
         );
+
+        // The game type of the dispute game must be the respected game type. This was also checked in
+        // `proveWithdrawalTransaction`, but we check it again in case the respected game type has changed since
+        // the withdrawal was proven.
+        require(disputeGameProxy.gameType().raw() == respectedGameType.raw(), "OptimismPortal: invalid game type");
 
         // Before a withdrawal can be finalized, the dispute game it was proven against must have been
         // resolved for at least `DISPUTE_GAME_FINALITY_DELAY_SECONDS`. This is to allow for manual
