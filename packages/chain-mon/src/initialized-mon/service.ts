@@ -280,30 +280,30 @@ const networks = {
   },
 }
 
-type InitializeMonOptions = {
+type InitializedMonOptions = {
   rpc: Provider
   startBlockNumber: number
 }
 
-type InitializeMonMetrics = {
+type InitializedMonMetrics = {
   initializedCalls: Counter
   unexpectedRpcErrors: Counter
 }
 
-type InitializeMonState = {
+type InitializedMonState = {
   chainId: number
   highestUncheckedBlockNumber: number
 }
 
-export class InitializeMonService extends BaseServiceV2<
-  InitializeMonOptions,
-  InitializeMonMetrics,
-  InitializeMonState
+export class InitializedMonService extends BaseServiceV2<
+  InitializedMonOptions,
+  InitializedMonMetrics,
+  InitializedMonState
 > {
-  constructor(options?: Partial<InitializeMonOptions & StandardOptions>) {
+  constructor(options?: Partial<InitializedMonOptions & StandardOptions>) {
     super({
       version,
-      name: 'initialize-mon',
+      name: 'initialized-mon',
       loop: true,
       options: {
         loopIntervalMs: 1000,
@@ -429,6 +429,6 @@ export class InitializeMonService extends BaseServiceV2<
 }
 
 if (require.main === module) {
-  const service = new InitializeMonService()
+  const service = new InitializedMonService()
   service.run()
 }
