@@ -359,6 +359,71 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         assertFalse(optimismPortal2.finalizedWithdrawals(Hashing.hashWithdrawal(_defaultTx)));
     }
 
+    /// @dev Tests that `deleteProvenWithdrawal` reverts when called by a non-SAURON.
+    function testFuzz_deleteProvenWithdrawal_onlySauron_reverts(address _act, bytes32 _wdHash) external {
+        vm.assume(_act != address(optimismPortal2.sauron()));
+
+        vm.expectRevert("OptimismPortal: only sauron can delete proven withdrawals");
+        optimismPortal2.deleteProvenWithdrawal(_wdHash);
+    }
+
+    /// @dev Tests that the SAURON role can delete any proven withdrawal.
+    function test_deleteProvenWithdrawal_sauron_succeeds() external {
+        vm.expectEmit(true, true, true, true);
+        emit WithdrawalProven(_withdrawalHash, alice, bob);
+        optimismPortal2.proveWithdrawalTransaction({
+            _tx: _defaultTx,
+            _disputeGameIndex: _proposedGameIndex,
+            _outputRootProof: _outputRootProof,
+            _withdrawalProof: _withdrawalProof
+        });
+
+        // Ensure the withdrawal has been proven.
+        (, uint64 timestamp) = optimismPortal2.provenWithdrawals(_withdrawalHash);
+        assertEq(timestamp, block.timestamp);
+
+        // Delete the proven withdrawal.
+        vm.prank(optimismPortal2.sauron());
+        optimismPortal2.deleteProvenWithdrawal(_withdrawalHash);
+
+        // Ensure the withdrawal has been deleted
+        (, timestamp) = optimismPortal2.provenWithdrawals(_withdrawalHash);
+        assertEq(timestamp, 0);
+    }
+
+    /// @dev Tests that `deleteProvenWithdrawal` reverts when called by a non-SAURON.
+    function testFuzz_blacklist_onlySauron_reverts(address _act) external {
+        vm.assume(_act != address(optimismPortal2.sauron()));
+
+        vm.expectRevert("OptimismPortal: only sauron can blacklist dispute games");
+        optimismPortal2.blacklistDisputeGame(IDisputeGame(address(0xdead)));
+    }
+
+    /// @dev Tests that the SAURON role can blacklist any dispute game.
+    function testFuzz_blacklist_sauron_succeeds(address _addr) external {
+        vm.prank(optimismPortal2.sauron());
+        optimismPortal2.blacklistDisputeGame(IDisputeGame(_addr));
+
+        assertTrue(optimismPortal2.disputeGameBlacklist(IDisputeGame(_addr)));
+    }
+
+    /// @dev Tests that `setRespectedGameType` reverts when called by a non-SAURON.
+    function testFuzz_setRespectedGameType_onlySauron_reverts(address _act, GameType _ty) external {
+        vm.assume(_act != address(optimismPortal2.sauron()));
+
+        vm.prank(_act);
+        vm.expectRevert("OptimismPortal: only sauron can set the respected game type");
+        optimismPortal2.setRespectedGameType(_ty);
+    }
+
+    /// @dev Tests that the SAURON role can set the respected game type to anything they want.
+    function testFuzz_setRespectedGameType_sauron_succeeds(GameType _ty) external {
+        vm.prank(optimismPortal2.sauron());
+        optimismPortal2.setRespectedGameType(_ty);
+
+        assertEq(optimismPortal2.respectedGameType().raw(), _ty.raw());
+    }
+
     /// @dev Tests that `proveWithdrawalTransaction` reverts when paused.
     function test_proveWithdrawalTransaction_paused_reverts() external {
         vm.prank(optimismPortal2.GUARDIAN());
@@ -432,6 +497,74 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         });
     }
 
+    /// @dev Tests that `proveWithdrawalTransaction` reverts if the dispute game being proven against is not of the
+    ///      respected game type.
+    function test_proveWithdrawalTransaction_badGameType_reverts() external {
+        vm.mockCall(
+            address(disputeGameFactory),
+            abi.encodeCall(disputeGameFactory.gameAtIndex, (_proposedGameIndex)),
+            abi.encode(GameType.wrap(0xFF), Timestamp.wrap(uint64(block.timestamp)), IDisputeGame(address(game)))
+        );
+
+        vm.expectRevert("OptimismPortal: invalid game type");
+        optimismPortal2.proveWithdrawalTransaction({
+            _tx: _defaultTx,
+            _disputeGameIndex: _proposedGameIndex,
+            _outputRootProof: _outputRootProof,
+            _withdrawalProof: _withdrawalProof
+        });
+    }
+
+    /// @dev Tests that `proveWithdrawalTransaction` can be re-executed if the dispute game proven against has been
+    ///      blacklisted.
+    function test_proveWithdrawalTransaction_replayProveBlacklisted_suceeds() external {
+        vm.expectEmit(true, true, true, true);
+        emit WithdrawalProven(_withdrawalHash, alice, bob);
+        optimismPortal2.proveWithdrawalTransaction({
+            _tx: _defaultTx,
+            _disputeGameIndex: _proposedGameIndex,
+            _outputRootProof: _outputRootProof,
+            _withdrawalProof: _withdrawalProof
+        });
+
+        // Blacklist the dispute dispute game.
+        vm.prank(optimismPortal2.sauron());
+        optimismPortal2.blacklistDisputeGame(IDisputeGame(address(game)));
+
+        vm.expectEmit(true, true, true, true);
+        emit WithdrawalProven(_withdrawalHash, alice, bob);
+        optimismPortal2.proveWithdrawalTransaction({
+            _tx: _defaultTx,
+            _disputeGameIndex: _proposedGameIndex,
+            _outputRootProof: _outputRootProof,
+            _withdrawalProof: _withdrawalProof
+        });
+    }
+
+    /// @dev Tests that `proveWithdrawalTransaction` can be re-executed if the dispute game proven against has resolved
+    ///      against the favor of the root claim.
+    function test_proveWithdrawalTransaction_replayProveBadProposal_suceeds() external {
+        vm.expectEmit(true, true, true, true);
+        emit WithdrawalProven(_withdrawalHash, alice, bob);
+        optimismPortal2.proveWithdrawalTransaction({
+            _tx: _defaultTx,
+            _disputeGameIndex: _proposedGameIndex,
+            _outputRootProof: _outputRootProof,
+            _withdrawalProof: _withdrawalProof
+        });
+
+        vm.mockCall(address(game), abi.encodeCall(game.status, ()), abi.encode(GameStatus.CHALLENGER_WINS));
+
+        vm.expectEmit(true, true, true, true);
+        emit WithdrawalProven(_withdrawalHash, alice, bob);
+        optimismPortal2.proveWithdrawalTransaction({
+            _tx: _defaultTx,
+            _disputeGameIndex: _proposedGameIndex,
+            _outputRootProof: _outputRootProof,
+            _withdrawalProof: _withdrawalProof
+        });
+    }
+
     /// @dev Tests that `proveWithdrawalTransaction` succeeds.
     function test_proveWithdrawalTransaction_validWithdrawalProof_succeeds() external {
         vm.expectEmit(true, true, true, true);
@@ -460,7 +593,7 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         // Warp and resolve the dispute game.
         game.resolveClaim(0);
         game.resolve();
-        vm.warp(block.timestamp + 7 days + 1 seconds);
+        vm.warp(block.timestamp + optimismPortal2.proofMaturityDelaySeconds() + 1 seconds);
 
         vm.expectEmit(true, true, false, true);
         emit WithdrawalFinalized(_withdrawalHash, true);
@@ -524,7 +657,7 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         });
 
         // Warp to after the finalization period
-        vm.warp(block.timestamp + 7 days + 1);
+        vm.warp(block.timestamp + optimismPortal2.proofMaturityDelaySeconds() + 1);
 
         // Mock a createdAt change in the dispute game.
         vm.mockCall(address(game), abi.encodeWithSignature("createdAt()"), abi.encode(block.timestamp + 1));
@@ -553,7 +686,7 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         });
 
         // Warp to after the finalization period
-        vm.warp(block.timestamp + 7 days + 1);
+        vm.warp(block.timestamp + optimismPortal2.proofMaturityDelaySeconds() + 1);
 
         // Attempt to finalize the withdrawal
         vm.expectRevert("OptimismPortal: output proposal has not been finalized yet");
@@ -581,7 +714,7 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         game.resolveClaim(0);
         game.resolve();
 
-        vm.warp(block.timestamp + 7 days + 1);
+        vm.warp(block.timestamp + optimismPortal2.proofMaturityDelaySeconds() + 1);
         vm.expectEmit(true, true, true, true);
         emit WithdrawalFinalized(_withdrawalHash, false);
         optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
@@ -605,7 +738,7 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         game.resolveClaim(0);
         game.resolve();
 
-        vm.warp(block.timestamp + 7 days + 1);
+        vm.warp(block.timestamp + optimismPortal2.proofMaturityDelaySeconds() + 1);
         vm.expectEmit(true, true, true, true);
         emit WithdrawalFinalized(_withdrawalHash, true);
         optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
@@ -653,7 +786,7 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         game.resolveClaim(0);
         game.resolve();
 
-        vm.warp(block.timestamp + 7 days + 1);
+        vm.warp(block.timestamp + optimismPortal2.proofMaturityDelaySeconds() + 1);
         vm.expectRevert("SafeCall: Not enough gas");
         optimismPortal2.finalizeWithdrawalTransaction{ gas: gasLimit }(insufficientGasTx);
     }
@@ -695,7 +828,7 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         game.resolveClaim(0);
         game.resolve();
 
-        vm.warp(block.timestamp + 7 days + 1);
+        vm.warp(block.timestamp + optimismPortal2.proofMaturityDelaySeconds() + 1);
         vm.expectCall(address(this), _testTx.data);
         vm.expectEmit(true, true, true, true);
         emit WithdrawalFinalized(withdrawalHash, true);
@@ -771,12 +904,130 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         game.resolve();
 
         // Warp past the finalization period
-        vm.warp(block.timestamp + 7 days + 1);
+        vm.warp(block.timestamp + optimismPortal2.proofMaturityDelaySeconds() + 1);
 
         // Finalize the withdrawal transaction
         vm.expectCallMinGas(_tx.target, _tx.value, uint64(_tx.gasLimit), _tx.data);
         optimismPortal2.finalizeWithdrawalTransaction(_tx);
         assertTrue(optimismPortal2.finalizedWithdrawals(withdrawalHash));
+    }
+
+    /// @dev Tests that `finalizeWithdrawalTransaction` reverts if the withdrawal's dispute game has been blacklisted.
+    function test_finalizeWithdrawalTransaction_blacklisted_reverts() external {
+        vm.expectEmit(true, true, true, true);
+        emit WithdrawalProven(_withdrawalHash, alice, bob);
+        optimismPortal2.proveWithdrawalTransaction({
+            _tx: _defaultTx,
+            _disputeGameIndex: _proposedGameIndex,
+            _outputRootProof: _outputRootProof,
+            _withdrawalProof: _withdrawalProof
+        });
+
+        // Resolve the dispute game.
+        game.resolveClaim(0);
+        game.resolve();
+
+        vm.prank(optimismPortal2.sauron());
+        optimismPortal2.blacklistDisputeGame(IDisputeGame(address(game)));
+
+        vm.warp(block.timestamp + optimismPortal2.proofMaturityDelaySeconds() + 1);
+
+        vm.expectRevert("OptimismPortal: dispute game has been blacklisted");
+        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
+    }
+
+    /// @dev Tests that `finalizeWithdrawalTransaction` reverts if the withdrawal's dispute game is still in the air
+    ///      gap.
+    function test_finalizeWithdrawalTransaction_gameInAirGap_reverts() external {
+        vm.expectEmit(true, true, true, true);
+        emit WithdrawalProven(_withdrawalHash, alice, bob);
+        optimismPortal2.proveWithdrawalTransaction({
+            _tx: _defaultTx,
+            _disputeGameIndex: _proposedGameIndex,
+            _outputRootProof: _outputRootProof,
+            _withdrawalProof: _withdrawalProof
+        });
+
+        // Warp past the finalization period.
+        vm.warp(block.timestamp + optimismPortal2.proofMaturityDelaySeconds() + 1);
+
+        // Resolve the dispute game.
+        game.resolveClaim(0);
+        game.resolve();
+
+        // Attempt to finalize the withdrawal directly after the game resolves. This should fail.
+        vm.expectRevert("OptimismPortal: output proposal in air-gap");
+        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
+
+        // Finalize the withdrawal transaction. This should succeed.
+        vm.warp(block.timestamp + optimismPortal2.disputeGameFinalityDelaySeconds() + 1);
+        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
+        assertTrue(optimismPortal2.finalizedWithdrawals(_withdrawalHash));
+    }
+
+    /// @dev Tests that `finalizeWithdrawalTransaction` reverts if the respected game type has changed since the
+    ///      withdrawal was proven.
+    function test_finalizeWithdrawalTransaction_respectedTypeChangedSinceProving_reverts() external {
+        vm.expectEmit(true, true, true, true);
+        emit WithdrawalProven(_withdrawalHash, alice, bob);
+        optimismPortal2.proveWithdrawalTransaction({
+            _tx: _defaultTx,
+            _disputeGameIndex: _proposedGameIndex,
+            _outputRootProof: _outputRootProof,
+            _withdrawalProof: _withdrawalProof
+        });
+
+        // Warp past the finalization period.
+        vm.warp(block.timestamp + optimismPortal2.proofMaturityDelaySeconds() + 1);
+
+        // Resolve the dispute game.
+        game.resolveClaim(0);
+        game.resolve();
+
+        // Change the respected game type in the portal.
+        vm.prank(optimismPortal2.sauron());
+        optimismPortal2.setRespectedGameType(GameType.wrap(0xFF));
+
+        vm.expectRevert("OptimismPortal: invalid game type");
+        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
+    }
+
+    /// @dev Tests an e2e prove -> finalize path, checking the edges of each delay for correctness.
+    function test_finalizeWithdrawalTransaction_delayEdges_succeeds() external {
+        // Prove the withdrawal transaction.
+        vm.expectEmit(true, true, true, true);
+        emit WithdrawalProven(_withdrawalHash, alice, bob);
+        optimismPortal2.proveWithdrawalTransaction({
+            _tx: _defaultTx,
+            _disputeGameIndex: _proposedGameIndex,
+            _outputRootProof: _outputRootProof,
+            _withdrawalProof: _withdrawalProof
+        });
+
+        // Attempt to finalize the withdrawal transaction 1 second before the proof has matured. This should fail.
+        vm.warp(block.timestamp + optimismPortal2.proofMaturityDelaySeconds());
+        vm.expectRevert("OptimismPortal: proven withdrawal has not matured yet");
+        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
+
+        // Warp 1 second in the future, past the proof maturity delay, and attempt to finalize the withdrawal.
+        // This should also fail, since the dispute game has not resolved yet.
+        vm.warp(block.timestamp + 1 seconds);
+        vm.expectRevert("OptimismPortal: output proposal has not been finalized yet");
+        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
+
+        // Finalize the dispute game and attempt to finalize the withdrawal again. This should also fail, since the
+        // air gap dispute game delay has not elapsed.
+        game.resolveClaim(0);
+        game.resolve();
+        vm.warp(block.timestamp + optimismPortal2.disputeGameFinalityDelaySeconds());
+        vm.expectRevert("OptimismPortal: output proposal in air-gap");
+        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
+
+        // Warp 1 second in the future, past the air gap dispute game delay, and attempt to finalize the withdrawal.
+        // This should succeed.
+        vm.warp(block.timestamp + 1 seconds);
+        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
+        assertTrue(optimismPortal2.finalizedWithdrawals(_withdrawalHash));
     }
 }
 

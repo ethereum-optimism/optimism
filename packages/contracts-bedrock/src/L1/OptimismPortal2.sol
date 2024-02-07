@@ -183,10 +183,27 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         return superchainConfig.guardian();
     }
 
+    /// @notice Getter function for the address of the sauron role.
+    ///         Public getter is legacy and will be removed in the future. Use `SuperchainConfig.sauron()` instead
+    ///         once it's added.
+    /// @custom:deprecated
+    function sauron() public pure returns (address) {
+        return SAURON;
+    }
+
     /// @notice Getter for the current paused status.
-    /// @return paused_ Whether or not the contract is paused.
-    function paused() public view returns (bool paused_) {
-        paused_ = superchainConfig.paused();
+    function paused() public view returns (bool) {
+        return superchainConfig.paused();
+    }
+
+    /// @notice Getter for the proof maturity delay.
+    function proofMaturityDelaySeconds() public view returns (uint256) {
+        return PROOF_MATURITY_DELAY_SECONDS;
+    }
+
+    /// @notice Getter for the dispute game finality delay.
+    function disputeGameFinalityDelaySeconds() public view returns (uint256) {
+        return DISPUTE_GAME_FINALITY_DELAY_SECONDS;
     }
 
     /// @notice Computes the minimum gas limit for a deposit.
@@ -460,6 +477,11 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
             disputeGameProxy.status() == GameStatus.DEFENDER_WINS,
             "OptimismPortal: output proposal has not been finalized yet"
         );
+
+        // The game type of the dispute game must be the respected game type. This was also checked in
+        // `proveWithdrawalTransaction`, but we check it again in case the respected game type has changed since
+        // the withdrawal was proven.
+        require(disputeGameProxy.gameType().raw() == respectedGameType.raw(), "OptimismPortal: invalid game type");
 
         // Before a withdrawal can be finalized, the dispute game it was proven against must have been
         // resolved for at least `DISPUTE_GAME_FINALITY_DELAY_SECONDS`. This is to allow for manual
