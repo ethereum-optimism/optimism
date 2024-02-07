@@ -18,15 +18,16 @@ contract L1StandardBridgeKontrol is DeploymentSummary, KontrolUtils {
         superchainConfig = SuperchainConfig(superchainConfigProxyAddress);
     }
 
-    /// TODO: Replace symbolic workarounds with the appropriate
-    /// types once Kontrol supports symbolic `bytes` and `bytes[]`
-    /// Tracking issue: https://github.com/runtimeverification/kontrol/issues/272
+    // ASSUME: Conservative upper bound on the `_extraData` length, since extra data is optional
+    // for convenience of off-chain tooling.
+    /// @custom:kontrol-length-equals _extraData: 64,
     function prove_finalizeBridgeERC20_paused(
         address _localToken,
         address _remoteToken,
         address _from,
         address _to,
-        uint256 _amount
+        uint256 _amount,
+        bytes calldata _extraData
     )
         public
     {
@@ -41,12 +42,6 @@ contract L1StandardBridgeKontrol is DeploymentSummary, KontrolUtils {
             bytes32(uint256(uint160(address(l1standardBridge.otherBridge()))))
         );
 
-        // ASSUME: Upper bound on the `_extraData` length, since extra data is optional for
-        // for convenience of off-chain tooling, and should not affect execution  This assumption
-        // can be removed once Kontrol supports symbolic `bytes`:
-        // https://github.com/runtimeverification/kontrol/issues/272
-        bytes memory _extraData = freshBigBytes(32);
-
         // Pause Standard Bridge
         vm.prank(superchainConfig.guardian());
         superchainConfig.pause("identifier");
@@ -59,10 +54,10 @@ contract L1StandardBridgeKontrol is DeploymentSummary, KontrolUtils {
         vm.stopPrank();
     }
 
-    /// TODO: Replace symbolic workarounds with the appropriate
-    /// types once Kontrol supports symbolic `bytes` and `bytes[]`
-    /// Tracking issue: https://github.com/runtimeverification/kontrol/issues/272
-    function prove_finalizeBridgeETH_paused(address _from, address _to, uint256 _amount) public {
+    // ASSUME: Conservative upper bound on the `_extraData` length, since extra data is optional
+    // for convenience of off-chain tooling.
+    /// @custom:kontrol-length-equals _extraData: 64,
+    function prove_finalizeBridgeETH_paused(address _from, address _to, uint256 _amount, bytes calldata _extraData) public {
         setUpInlined();
 
         // Current workaround to be replaced with `vm.mockCall`, once the cheatcode is implemented in Kontrol
@@ -73,12 +68,6 @@ contract L1StandardBridgeKontrol is DeploymentSummary, KontrolUtils {
             hex"00000000000000000000000000000000000000000000000000000000000000cc",
             bytes32(uint256(uint160(address(l1standardBridge.otherBridge()))))
         );
-
-        // ASSUME: Upper bound on the `_extraData` length, since extra data is optional for
-        // for convenience of off-chain tooling, and should not affect execution  This assumption
-        // can be removed once Kontrol supports symbolic `bytes`:
-        // https://github.com/runtimeverification/kontrol/issues/272
-        bytes memory _extraData = freshBigBytes(32);
 
         // Pause Standard Bridge
         vm.prank(superchainConfig.guardian());
