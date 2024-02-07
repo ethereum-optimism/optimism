@@ -2,6 +2,7 @@ package mon
 
 import (
 	"context"
+	"math/big"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -17,40 +18,52 @@ var (
 	fdgAddr = common.HexToAddress("0x24112842371dFC380576ebb09Ae16Cb6B6caD7CB")
 )
 
-func TestStatusLoader_GetStatus(t *testing.T) {
+func TestMetadataLoader_GetMetadata(t *testing.T) {
 	tests := []struct {
-		name   string
-		status types.GameStatus
+		name      string
+		status    types.GameStatus
+		blockNum  uint64
+		rootClaim common.Hash
 	}{
 		{
-			name:   "statusInProgress",
-			status: types.GameStatusInProgress,
+			name:      "statusInProgress",
+			status:    types.GameStatusInProgress,
+			blockNum:  1,
+			rootClaim: common.HexToHash("0x1"),
 		},
 		{
-			name:   "statusDefenderWon",
-			status: types.GameStatusDefenderWon,
+			name:      "statusDefenderWon",
+			status:    types.GameStatusDefenderWon,
+			blockNum:  2,
+			rootClaim: common.HexToHash("0x2"),
 		},
 		{
-			name:   "statusChallengerWon",
-			status: types.GameStatusChallengerWon,
+			name:      "statusChallengerWon",
+			status:    types.GameStatusChallengerWon,
+			blockNum:  3,
+			rootClaim: common.HexToHash("0x3"),
 		},
 	}
 
 	for _, test := range tests {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
-			stubRpc, caller := setupStatusLoaderTest(t)
+			stubRpc, caller := setupMetadataLoaderTest(t)
 			metrics := &mockCacheMetrics{}
-			loader := NewStatusLoader(metrics, caller)
+			loader := NewMetadataLoader(metrics, caller)
 			stubRpc.SetResponse(fdgAddr, "status", batching.BlockLatest, nil, []interface{}{test.status})
-			status, err := loader.GetStatus(context.Background(), fdgAddr)
+			stubRpc.SetResponse(fdgAddr, "l2BlockNumber", batching.BlockLatest, nil, []interface{}{new(big.Int).SetUint64(test.blockNum)})
+			stubRpc.SetResponse(fdgAddr, "rootClaim", batching.BlockLatest, nil, []interface{}{test.rootClaim})
+			blockNum, rootClaim, status, err := loader.GetGameMetadata(context.Background(), fdgAddr)
 			require.NoError(t, err)
 			require.Equal(t, test.status, status)
+			require.Equal(t, test.blockNum, blockNum)
+			require.Equal(t, test.rootClaim, rootClaim)
 		})
 	}
 }
 
-func setupStatusLoaderTest(t *testing.T) (*batchingTest.AbiBasedRpc, *batching.MultiCaller) {
+func setupMetadataLoaderTest(t *testing.T) (*batchingTest.AbiBasedRpc, *batching.MultiCaller) {
 	fdgAbi, err := bindings.FaultDisputeGameMetaData.GetAbi()
 	require.NoError(t, err)
 	stubRpc := batchingTest.NewAbiBasedRpc(t, fdgAddr, fdgAbi)

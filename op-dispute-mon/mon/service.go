@@ -35,8 +35,9 @@ type Service struct {
 
 	cl *clock.SimpleClock
 
-	game         *statusLoader
+	game         *metadataLoader
 	rollupClient *sources.RollupClient
+	detector     *detector
 
 	l1Client   *ethclient.Client
 	pollClient client.RPC
@@ -81,7 +82,8 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 	if err := s.initOutputRollupClient(ctx, cfg); err != nil {
 		return fmt.Errorf("failed to init rollup client: %w", err)
 	}
-	s.initStatusLoader()
+	s.initDetector()
+	s.initMetadataLoader()
 	s.initMonitor(cfg)
 
 	s.metrics.RecordInfo(version.SimpleWithMeta)
@@ -90,8 +92,12 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 	return nil
 }
 
-func (s *Service) initStatusLoader() {
-	s.game = NewStatusLoader(s.metrics, batching.NewMultiCaller(s.l1Client.Client(), batching.DefaultBatchSize))
+func (s *Service) initMetadataLoader() {
+	s.game = NewMetadataLoader(s.metrics, batching.NewMultiCaller(s.l1Client.Client(), batching.DefaultBatchSize))
+}
+
+func (s *Service) initDetector() {
+	s.detector = newDetector(s.logger, s.metrics, s.game, s.rollupClient)
 }
 
 func (s *Service) initOutputRollupClient(ctx context.Context, cfg *config.Config) error {
@@ -180,9 +186,8 @@ func (s *Service) initMonitor(cfg *config.Config) {
 		s.cl,
 		cfg.MonitorInterval,
 		s.factoryContract,
-		s.game,
 		cfg.GameWindow,
-		s.rollupClient,
+		s.detector,
 		s.l1Client.BlockNumber,
 		blockHashFetcher,
 	)

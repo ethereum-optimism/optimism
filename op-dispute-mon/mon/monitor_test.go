@@ -9,7 +9,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -44,50 +43,6 @@ func TestMonitor_MinGameTimestamp(t *testing.T) {
 	})
 }
 
-func TestMonitor_RecordGameStatus(t *testing.T) {
-	t.Parallel()
-
-	t.Run("in_progress", func(t *testing.T) {
-		monitor, _, metrics, status := setupMonitorTest(t)
-		status.status = types.GameStatusInProgress
-		err := monitor.recordGameStatus(context.Background(), types.GameMetadata{})
-		require.NoError(t, err)
-		require.Equal(t, 1, metrics.inProgress)
-		require.Equal(t, 0, metrics.defenderWon)
-		require.Equal(t, 0, metrics.challengerWon)
-	})
-
-	t.Run("defender_won", func(t *testing.T) {
-		monitor, _, metrics, status := setupMonitorTest(t)
-		status.status = types.GameStatusDefenderWon
-		err := monitor.recordGameStatus(context.Background(), types.GameMetadata{})
-		require.NoError(t, err)
-		require.Equal(t, 0, metrics.inProgress)
-		require.Equal(t, 1, metrics.defenderWon)
-		require.Equal(t, 0, metrics.challengerWon)
-	})
-
-	t.Run("challenger_won", func(t *testing.T) {
-		monitor, _, metrics, status := setupMonitorTest(t)
-		status.status = types.GameStatusChallengerWon
-		err := monitor.recordGameStatus(context.Background(), types.GameMetadata{})
-		require.NoError(t, err)
-		require.Equal(t, 0, metrics.inProgress)
-		require.Equal(t, 0, metrics.defenderWon)
-		require.Equal(t, 1, metrics.challengerWon)
-	})
-
-	t.Run("status_error", func(t *testing.T) {
-		monitor, _, metrics, status := setupMonitorTest(t)
-		status.err = errors.New("boom")
-		err := monitor.recordGameStatus(context.Background(), types.GameMetadata{})
-		require.ErrorIs(t, err, status.err)
-		require.Equal(t, 0, metrics.inProgress)
-		require.Equal(t, 0, metrics.defenderWon)
-		require.Equal(t, 0, metrics.challengerWon)
-	})
-}
-
 func TestMonitor_MonitorGames(t *testing.T) {
 	t.Parallel()
 
@@ -97,7 +52,7 @@ func TestMonitor_MonitorGames(t *testing.T) {
 		monitor.fetchBlockNumber = func(ctx context.Context) (uint64, error) {
 			return 0, boom
 		}
-		err := monitor.monitorGames(context.Background())
+		err := monitor.monitorGames()
 		require.ErrorIs(t, err, boom)
 	})
 
@@ -107,60 +62,42 @@ func TestMonitor_MonitorGames(t *testing.T) {
 		monitor.fetchBlockHash = func(ctx context.Context, number *big.Int) (common.Hash, error) {
 			return common.Hash{}, boom
 		}
-		err := monitor.monitorGames(context.Background())
+		err := monitor.monitorGames()
 		require.ErrorIs(t, err, boom)
 	})
 
-	t.Run("Fails to fetch games", func(t *testing.T) {
-		monitor, source, _, status := setupMonitorTest(t)
-		source.games = []types.GameMetadata{}
-		err := monitor.monitorGames(context.Background())
-		require.NoError(t, err)
-		require.Equal(t, 0, status.calls) // No status loader should be created
-	})
-
-	t.Run("Record status loader errors gracefully", func(t *testing.T) {
-		monitor, source, _, status := setupMonitorTest(t)
-		source.games = []types.GameMetadata{{}}
-		status.err = errors.New("boom")
-		err := monitor.monitorGames(context.Background())
-		require.NoError(t, err)
-		require.Equal(t, 1, status.calls)
-	})
-
 	t.Run("Record status success", func(t *testing.T) {
-		monitor, source, metrics, _ := setupMonitorTest(t)
+		monitor, source, _, _ := setupMonitorTest(t)
 		source.games = []types.GameMetadata{{}, {}, {}}
-		err := monitor.monitorGames(context.Background())
+		err := monitor.monitorGames()
 		require.NoError(t, err)
-		require.Equal(t, len(source.games), metrics.inProgress)
 	})
 }
 
 func TestMonitorGames(t *testing.T) {
-	t.Run("Monitors games", func(t *testing.T) {
+	t.Run("MonitorsGames", func(t *testing.T) {
 		addr1 := common.Address{0xaa}
 		addr2 := common.Address{0xbb}
-		monitor, source, metrics, _ := setupMonitorTest(t)
+		monitor, source, _, detector := setupMonitorTest(t)
 		source.games = []types.GameMetadata{newFDG(addr1, 9999), newFDG(addr2, 9999)}
 		source.maxSuccess = 2 // Only allow two successful fetches
 
 		monitor.StartMonitoring()
 		require.Eventually(t, func() bool {
-			return metrics.inProgress == 2
-		}, time.Second, 100*time.Millisecond)
+			return source.calls > 3
+		}, 10*time.Second, 50*time.Millisecond)
+		require.Equal(t, 2, detector.calls)
 		monitor.StopMonitoring()
-		require.Equal(t, source.maxSuccess*len(source.games), metrics.inProgress) // Each game's status is recorded twice
 	})
 
-	t.Run("Fails to monitor games", func(t *testing.T) {
+	t.Run("FailsToFetch", func(t *testing.T) {
 		monitor, source, metrics, _ := setupMonitorTest(t)
 		source.fetchErr = errors.New("boom")
 
 		monitor.StartMonitoring()
 		require.Eventually(t, func() bool {
-			return source.calls > 0
-		}, time.Second, 100*time.Millisecond)
+			return source.calls > 3
+		}, 10*time.Second, 50*time.Millisecond)
 		monitor.StopMonitoring()
 		require.Equal(t, 0, metrics.inProgress)
 		require.Equal(t, 0, metrics.defenderWon)
@@ -175,72 +112,45 @@ func newFDG(proxy common.Address, timestamp uint64) types.GameMetadata {
 	}
 }
 
-func setupMonitorTest(t *testing.T) (*gameMonitor, *stubGameSource, *stubMonitorMetricer, *mockStatusLoader) {
+func setupMonitorTest(t *testing.T) (*gameMonitor, *stubGameSource, *stubMonitorMetricer, *stubDetector) {
 	logger := testlog.Logger(t, log.LvlDebug)
 	source := &stubGameSource{}
-	i := uint64(1)
 	fetchBlockNum := func(ctx context.Context) (uint64, error) {
-		i++
-		return i, nil
+		return 1, nil
 	}
 	fetchBlockHash := func(ctx context.Context, number *big.Int) (common.Hash, error) {
 		return common.Hash{}, nil
 	}
 	metrics := &stubMonitorMetricer{}
 	monitorInterval := time.Duration(100 * time.Millisecond)
-	status := &mockStatusLoader{}
-	rollupClient := &stubRollupClient{}
+	detector := &stubDetector{}
 	monitor := newGameMonitor(
 		logger,
 		metrics,
 		clock.NewSimpleClock(),
 		monitorInterval,
 		source,
-		status,
 		time.Duration(10*time.Second),
-		rollupClient,
+		detector,
 		fetchBlockNum,
 		fetchBlockHash,
 	)
-	return monitor, source, metrics, status
+	return monitor, source, metrics, detector
 }
 
-type stubRollupClient struct {
-	blockNum uint64
-	err      error
+type stubDetector struct {
+	calls int
 }
 
-func (s *stubRollupClient) OutputAtBlock(ctx context.Context, blockNum uint64) (*eth.OutputResponse, error) {
-	s.blockNum = blockNum
-	return &eth.OutputResponse{OutputRoot: eth.Bytes32(common.HexToHash("0x10"))}, s.err
-}
-
-type mockStatusLoader struct {
-	calls  int
-	status types.GameStatus
-	err    error
-}
-
-func (m *mockStatusLoader) GetStatus(ctx context.Context, _ common.Address) (types.GameStatus, error) {
-	m.calls++
-	if m.err != nil {
-		return 0, m.err
-	}
-	return m.status, nil
-}
-
-func (m *mockStatusLoader) GetRootClaim(ctx context.Context, _ common.Address) (common.Hash, error) {
-	return common.Hash{}, nil
-}
-
-func (m *mockStatusLoader) GetL2BlockNumber(ctx context.Context, _ common.Address) (uint64, error) {
-	return 0, nil
+func (s *stubDetector) Detect(_ context.Context, _ []types.GameMetadata) {
+	s.calls++
 }
 
 type stubMonitorMetricer struct {
 	inProgress    int
 	defenderWon   int
 	challengerWon int
+	gameAgreement map[string]int
 }
 
 func (s *stubMonitorMetricer) RecordGamesStatus(inProgress, defenderWon, challengerWon int) {
@@ -250,7 +160,10 @@ func (s *stubMonitorMetricer) RecordGamesStatus(inProgress, defenderWon, challen
 }
 
 func (s *stubMonitorMetricer) RecordGameAgreement(status string, count int) {
-	panic("implement me")
+	if s.gameAgreement == nil {
+		s.gameAgreement = make(map[string]int)
+	}
+	s.gameAgreement[status] += count
 }
 
 type stubGameSource struct {
@@ -266,8 +179,11 @@ func (s *stubGameSource) GetGamesAtOrAfter(
 	_ uint64,
 ) ([]types.GameMetadata, error) {
 	s.calls++
-	if s.fetchErr != nil || (s.calls > s.maxSuccess && s.maxSuccess != 0) {
+	if s.fetchErr != nil {
 		return nil, s.fetchErr
+	}
+	if s.calls > s.maxSuccess && s.maxSuccess != 0 {
+		return nil, errors.New("max success")
 	}
 	return s.games, nil
 }
