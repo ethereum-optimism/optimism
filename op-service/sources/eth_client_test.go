@@ -3,7 +3,6 @@ package sources
 import (
 	"context"
 	crand "crypto/rand"
-	"fmt"
 	"math/big"
 	"math/rand"
 	"testing"
@@ -290,7 +289,6 @@ func TestReceiptValidation(t *testing.T) {
 		"eth_getTransactionReceipt",
 		mock.Anything).
 		Run(func(args mock.Arguments) {
-			fmt.Println("getTransactionReceipt called", args)
 		}).
 		Return([]error{nil})
 

@@ -47,7 +47,6 @@ func (f *BasicRPCReceiptsFetcher) FetchReceipts(ctx context.Context, blockInfo e
 	if err != nil {
 		return nil, err
 	}
-
 	// call successful, remove from cache
 	f.deleteBatchCall(block.Hash)
 	return res, nil
