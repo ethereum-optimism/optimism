@@ -97,15 +97,17 @@ since some contracts are deployed using `CREATE`. Run `pnpm clean` and rerun the
 
 ### Static Analysis
 
-`contracts-bedrock` uses [slither](https://github.com/crytic/slither) as its primary static analysis tool. When opening a pr that includes changes to `contracts-bedrock`, you should
-verify that slither did not detect any new issues by running `pnpm slither:check`.
+`contracts-bedrock` uses [slither](https://github.com/crytic/slither) as its primary static analysis tool. When opening a PR that includes changes to `contracts-bedrock`, you should
+verify that slither did not detect any new issues by running `pnpm slither`.
 
 If there are new issues, you should triage them.
 Run `pnpm slither:triage` to step through findings.
-You should _carefully_ walk through these findings, specifying which to triage/ignore (default is to keep all, outputting them into `slither-report.json`).
-Findings can be triaged into `slither.db.json` or kept in the `slither-report.json`.
+You should _carefully_ walk through these findings, specifying which to ignore.
+Findings are triaged into `slither.db.json`.
 You should triage issues with extreme _care_ and security sign-off.
 
-After issues are triaged, or an updated slither report is generated, make sure to check in your changes to git.
-Once checked in, the changes can be verified by running `pnpm slither:check`.
-This will fail if there are issues missing from the `slither-report.json` that are _not_ triaged into `slither.db.json`.
+After issues are triaged, or an updated slither report is generated, make sure to format the updated `slither.db.json` with `pnpm slither:fmt`, then commit.
+Formatting ensures the file can be more easily diffed by reviewers.
+
+This database file is used in CI to ensure that no new issues are introduced.
+Issues found in CI scans are reported as a comment on the PR and can be triaged from the comment.
