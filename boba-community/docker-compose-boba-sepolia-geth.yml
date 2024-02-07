@@ -24,12 +24,13 @@ services:
       --nodiscover
       --syncmode=full
       --maxpeers=0
+      --rollup.sequencerhttp=https://sepolia.boba.network
     ports:
       - "9545:9545"
       - "8551:8551"
     volumes:
       - ./jwt-secret.txt:/config/jwt-secret.txt
-      - /Users/boyuanchen/Downloads/geth:/db
+      - DATA_DIR:/db
   op-node:
     depends_on:
       - l2

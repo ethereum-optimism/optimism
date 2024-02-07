@@ -19,8 +19,9 @@ services:
       --authrpc.port=8551
       --authrpc.vhosts=*
       --authrpc.jwtsecret=/config/jwt-secret.txt
-      --rollup.disabletxpoolgossip=true
       --http.api=eth,debug,net,engine,web3
+      --rollup.disabletxpoolgossip=true
+      --rollup.sequencerhttp=https://sepolia.optimism.io
       --db.size.limit=8TB
     ports:
       - "9545:8545"
