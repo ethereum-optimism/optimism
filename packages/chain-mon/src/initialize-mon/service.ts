@@ -20,7 +20,7 @@ const networks = {
     contracts: [
       {
         label: 'SystemConfig',
-        address: '0x5efa852e92800d1c982711761e45c3fe39a2b6d8',
+        address: '0x9ba6e03d8b90de867373db8cf1a58d2f7f006b3a',
       },
     ],
   },
@@ -38,8 +38,7 @@ type InitializeMonOptions = {
 }
 
 type InitializeMonMetrics = {
-  validatedCalls: Counter
-  unexpectedCalls: Counter
+  initializedCalls: Counter
   unexpectedRpcErrors: Counter
 }
 
@@ -75,15 +74,10 @@ export class InitializeMonService extends BaseServiceV2<
         },
       },
       metricsSpec: {
-        validatedCalls: {
+        initializedCalls: {
           type: Gauge,
-          desc: 'Transactions from the account checked',
-          labels: ['initialize', 'target', 'nickname'],
-        },
-        unexpectedCalls: {
-          type: Counter,
-          desc: 'Number of unexpected initializes',
-          labels: ['initialize', 'target', 'nickname', 'transactionHash'],
+          desc: 'Successful transactions to tracked contracts emitting initialized event',
+          labels: ['label', 'address'],
         },
         unexpectedRpcErrors: {
           type: Counter,
@@ -147,7 +141,12 @@ export class InitializeMonService extends BaseServiceV2<
             for (const log of transactionReceipt.logs) {
               // keccak256("Initialized(suint8)") = 0x7f26b83ff96e1f2b6a682f133852f6798a09c465da95921460cefb3847402498
               if (log.topics.includes('0x7f26b83ff96e1f2b6a682f133852f6798a09c465da95921460cefb3847402498')) {
-                this.logger.info('initialized', {
+                this.metrics.initializedCalls.inc({
+                  label: contract.label,
+                  address: contract.address,
+                })
+                this.logger.info('initialized event', {
+                  label: contract.label,
                   address: contract.address,
                 })
               }
