@@ -18,7 +18,6 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/hardhat"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/immutables"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/state"
@@ -458,52 +457,6 @@ func (d *DeployConfig) SetDeployments(deployments *L1Deployments) {
 	d.OptimismPortalProxy = deployments.OptimismPortalProxy
 }
 
-// GetDeployedAddresses will get the deployed addresses of deployed L1 contracts
-// required for the L2 genesis creation.
-func (d *DeployConfig) GetDeployedAddresses(hh *hardhat.Hardhat) error {
-	if d.L1StandardBridgeProxy == (common.Address{}) {
-		l1StandardBridgeProxyDeployment, err := hh.GetDeployment("L1StandardBridgeProxy")
-		if err != nil {
-			return fmt.Errorf("cannot find L1StandardBridgeProxy artifact: %w", err)
-		}
-		d.L1StandardBridgeProxy = l1StandardBridgeProxyDeployment.Address
-	}
-
-	if d.L1CrossDomainMessengerProxy == (common.Address{}) {
-		l1CrossDomainMessengerProxyDeployment, err := hh.GetDeployment("L1CrossDomainMessengerProxy")
-		if err != nil {
-			return fmt.Errorf("cannot find L1CrossDomainMessengerProxy artifact: %w", err)
-		}
-		d.L1CrossDomainMessengerProxy = l1CrossDomainMessengerProxyDeployment.Address
-	}
-
-	if d.L1ERC721BridgeProxy == (common.Address{}) {
-		l1ERC721BridgeProxyDeployment, err := hh.GetDeployment("L1ERC721BridgeProxy")
-		if err != nil {
-			return fmt.Errorf("cannot find L1ERC721BridgeProxy artifact: %w", err)
-		}
-		d.L1ERC721BridgeProxy = l1ERC721BridgeProxyDeployment.Address
-	}
-
-	if d.SystemConfigProxy == (common.Address{}) {
-		systemConfigProxyDeployment, err := hh.GetDeployment("SystemConfigProxy")
-		if err != nil {
-			return fmt.Errorf("cannot find SystemConfigProxy artifact: %w", err)
-		}
-		d.SystemConfigProxy = systemConfigProxyDeployment.Address
-	}
-
-	if d.OptimismPortalProxy == (common.Address{}) {
-		optimismPortalProxyDeployment, err := hh.GetDeployment("OptimismPortalProxy")
-		if err != nil {
-			return fmt.Errorf("cannot find OptimismPortalProxy artifact: %w", err)
-		}
-		d.OptimismPortalProxy = optimismPortalProxyDeployment.Address
-	}
-
-	return nil
-}
-
 func (d *DeployConfig) GovernanceEnabled() bool {
 	return d.EnableGovernance
 }
@@ -885,8 +838,7 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (*immutables
 	return &cfg, nil
 }
 
-// NewL2StorageConfig will create a StorageConfig given an instance of a
-// Hardhat and a DeployConfig.
+// NewL2StorageConfig will create a StorageConfig given an instance of a DeployConfig and genesis block.
 func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.StorageConfig, error) {
 	storage := make(state.StorageConfig)
 
