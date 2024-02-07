@@ -347,6 +347,7 @@ func Run(ctx *cli.Context) error {
 		}
 
 		if stopAt(state) {
+			l.Info("Reached stop at")
 			break
 		}
 
@@ -408,7 +409,7 @@ func Run(ctx *cli.Context) error {
 			}
 		}
 	}
-	l.Info("VM exited", "code", state.ExitCode)
+	l.Info("Stopping execution", "exited", state.Exited, "code", state.ExitCode)
 
 	if err := writeJSON(ctx.Path(RunOutputFlag.Name), state); err != nil {
 		return fmt.Errorf("failed to write state output: %w", err)

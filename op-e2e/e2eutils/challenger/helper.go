@@ -79,7 +79,6 @@ func applyCannonConfig(
 	c.CannonServer = "../../op-program/bin/op-program"
 	c.CannonAbsolutePreState = "../../op-program/bin/prestate.json"
 	c.CannonSnapshotFreq = 10_000_000
-	c.CannonInfoFreq = 1000
 
 	genesisBytes, err := json.Marshal(l2Genesis)
 	require.NoError(err, "marshall l2 genesis config")
