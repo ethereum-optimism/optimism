@@ -651,7 +651,10 @@ func (m *SimpleTxManager) increaseGasPrice(ctx context.Context, tx *types.Transa
 		return nil, err
 	}
 	if tx.Gas() != gas {
-		m.l.Info("re-estimated gas differs", "tx", tx.Hash(), "oldgas", tx.Gas(), "newgas", gas,
+		// non-determinism in gas limit estimation happens regularly due to underlying state
+		// changes across calls, and is even more common now that geth uses an in-exact estimation
+		// approach as of v1.13.6.
+		m.l.Debug("re-estimated gas differs", "tx", tx.Hash(), "oldgas", tx.Gas(), "newgas", gas,
 			"gasFeeCap", bumpedFee, "gasTipCap", bumpedTip)
 	}
 
