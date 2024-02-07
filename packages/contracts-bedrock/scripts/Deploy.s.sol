@@ -326,12 +326,10 @@ contract Deploy is Deployer {
         deployImplementations();
         initializeImplementations();
 
-        if (cfg.useFaultProofs()) {
-            setAlphabetFaultGameImplementation({ _allowUpgrade: false });
-            setCannonFaultGameImplementation({ _allowUpgrade: false });
+        setAlphabetFaultGameImplementation({ _allowUpgrade: false });
+        setCannonFaultGameImplementation({ _allowUpgrade: false });
 
-            transferDisputeGameFactoryOwnership();
-        }
+        transferDisputeGameFactoryOwnership();
     }
 
     /// @notice Deploy all of the proxies
@@ -362,21 +360,14 @@ contract Deploy is Deployer {
         deploySystemConfig();
         deployL1StandardBridge();
         deployL1ERC721Bridge();
+        deployOptimismPortal();
+        deployL2OutputOracle();
 
-        // If fault proofs are enabled, deploy the DisputeGameFactory, PreimageOracle, MIPS, and OptimismPortal2 impls.
-        // Otherwise, deploy the L2OutputOracle and OptimismPortal impls.
-        if (cfg.useFaultProofs()) {
-            console.log(
-                "WARNING: FPAC is enabled. Deploying OptimismPortal2, DisputeGameFactory, PreimageOracle, and MIPS contracts."
-            );
-            deployOptimismPortal2();
-            deployDisputeGameFactory();
-            deployPreimageOracle();
-            deployMips();
-        } else {
-            deployOptimismPortal();
-            deployL2OutputOracle();
-        }
+        // Fault proofs
+        deployOptimismPortal2();
+        deployDisputeGameFactory();
+        deployPreimageOracle();
+        deployMips();
     }
 
     /// @notice Initialize all of the implementations
@@ -387,16 +378,16 @@ contract Deploy is Deployer {
         initializeL1ERC721Bridge();
         initializeOptimismMintableERC20Factory();
         initializeL1CrossDomainMessenger();
+        initializeL2OutputOracle();
+        initializeDisputeGameFactory();
 
         // Selectively initialize either the original OptimismPortal or the new OptimismPortal2. Since this will upgrade
         // the proxy, we cannot initialize both. FPAC warning can be removed once we're done with the old OptimismPortal
         // contract.
         if (cfg.useFaultProofs()) {
-            console.log("WARNING: FPAC is enabled. Initializing the DisputeGameFactory and OptimismPortal2 proxies.");
-            initializeDisputeGameFactory();
+            console.log("WARNING: FPAC is enabled. Initializing the OptimismPortal proxy with the OptimismPortal2.");
             initializeOptimismPortal2();
         } else {
-            initializeL2OutputOracle();
             initializeOptimismPortal();
         }
     }
