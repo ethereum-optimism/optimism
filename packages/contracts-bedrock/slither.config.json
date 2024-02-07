@@ -1,5 +1,5 @@
 {
-  "detectors_to_exclude": "incorrect-shift-in-assembly,assembly,timestamp,solc-version,missing-zero-check,immutable-states,arbitrary-send-eth,too-many-digits,divide-before-multiply,conformance-to-solidity-naming-conventions,low-level-calls,reentrancy-events,cache-array-length,unused-return,cyclomatic-complexity,calls-loop,reentrancy-unlimited-gas,reentrancy-eth,reentrancy-benign,costly-loop,events-maths,incorrect-equality",
+  "detectors_to_exclude": "arbitrary-send-eth,incorrect-equality,naming-convention,solc-version",
   "exclude_dependencies": true,
   "exclude_informational": true,
   "exclude_low": true,
