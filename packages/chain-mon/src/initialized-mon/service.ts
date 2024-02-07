@@ -175,7 +175,7 @@ const networks = {
         address: '0x90E9c4f8a994a250F6aEfd61CAFb4F2e895D458F',
       },
       {
-        label: 'OptimismMintableERC20FactoryProxy	',
+        label: 'OptimismMintableERC20FactoryProxy',
         address: '0x868D59fF9710159C2B330Cc0fBDF57144dD7A13b',
       },
       {
