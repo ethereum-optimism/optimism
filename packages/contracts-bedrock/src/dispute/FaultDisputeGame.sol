@@ -81,8 +81,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     bool internal initialized;
 
     /// @notice Semantic version.
-    /// @custom:semver 0.2.0
-    string public constant version = "0.2.0";
+    /// @custom:semver 0.2.1
+    string public constant version = "0.2.1";
 
     /// @param _gameType The type ID of the game.
     /// @param _absolutePrestate The absolute prestate of the instruction trace.
@@ -121,7 +121,15 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     ////////////////////////////////////////////////////////////////
 
     /// @inheritdoc IFaultDisputeGame
-    function step(uint256 _claimIndex, bool _isAttack, bytes calldata _stateData, bytes calldata _proof) external {
+    function step(
+        uint256 _claimIndex,
+        bool _isAttack,
+        bytes calldata _stateData,
+        bytes calldata _proof
+    )
+        public
+        virtual
+    {
         // INVARIANT: Steps cannot be made unless the game is currently in progress.
         if (status != GameStatus.IN_PROGRESS) revert GameNotInProgress();
 
@@ -194,7 +202,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     /// @param _challengeIndex The index of the claim being moved against.
     /// @param _claim The claim at the next logical position in the game.
     /// @param _isAttack Whether or not the move is an attack or defense.
-    function move(uint256 _challengeIndex, Claim _claim, bool _isAttack) public payable {
+    function move(uint256 _challengeIndex, Claim _claim, bool _isAttack) public payable virtual {
         // INVARIANT: Moves cannot be made unless the game is currently in progress.
         if (status != GameStatus.IN_PROGRESS) revert GameNotInProgress();
 
@@ -461,7 +469,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     ////////////////////////////////////////////////////////////////
 
     /// @inheritdoc IInitializable
-    function initialize() external payable {
+    function initialize() public payable virtual {
         // SAFETY: Any revert in this function will bubble up to the DisputeGameFactory and
         // prevent the game from being created.
         //

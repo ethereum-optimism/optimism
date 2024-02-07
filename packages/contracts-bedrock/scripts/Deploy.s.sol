@@ -32,6 +32,7 @@ import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
 import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
+import { PermissionedDisputeGame } from "src/dispute/PermissionedDisputeGame.sol";
 import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
 import { MIPS } from "src/cannon/MIPS.sol";
 import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
@@ -328,6 +329,7 @@ contract Deploy is Deployer {
 
         setAlphabetFaultGameImplementation({ _allowUpgrade: false });
         setCannonFaultGameImplementation({ _allowUpgrade: false });
+        setPermissionedCannonFaultGameImplementation({ _allowUpgrade: false });
 
         transferDisputeGameFactoryOwnership();
     }
@@ -1123,7 +1125,7 @@ contract Deploy is Deployer {
         }
     }
 
-    /// @notice Sets the implementation for the `FAULT` game type in the `DisputeGameFactory`
+    /// @notice Sets the implementation for the `CANNON` game type in the `DisputeGameFactory`
     function setCannonFaultGameImplementation(bool _allowUpgrade) public broadcast {
         console.log("Setting Cannon FaultDisputeGame implementation");
         DisputeGameFactory factory = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
@@ -1132,6 +1134,22 @@ contract Deploy is Deployer {
         _setFaultGameImplementation({
             _factory: factory,
             _gameType: GameTypes.CANNON,
+            _absolutePrestate: loadMipsAbsolutePrestate(),
+            _faultVm: IBigStepper(mustGetAddress("Mips")),
+            _maxGameDepth: cfg.faultGameMaxDepth(),
+            _allowUpgrade: _allowUpgrade
+        });
+    }
+
+    /// @notice Sets the implementation for the `PERMISSIONED_CANNON` game type in the `DisputeGameFactory`
+    function setPermissionedCannonFaultGameImplementation(bool _allowUpgrade) public broadcast {
+        console.log("Setting Cannon PermissionedDisputeGame implementation");
+        DisputeGameFactory factory = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
+
+        // Set the Cannon FaultDisputeGame implementation in the factory.
+        _setFaultGameImplementation({
+            _factory: factory,
+            _gameType: GameTypes.PERMISSIONED_CANNON,
             _absolutePrestate: loadMipsAbsolutePrestate(),
             _faultVm: IBigStepper(mustGetAddress("Mips")),
             _maxGameDepth: cfg.faultGameMaxDepth(),
@@ -1175,25 +1193,45 @@ contract Deploy is Deployer {
             return;
         }
 
-        _factory.setImplementation(
-            _gameType,
-            new FaultDisputeGame({
-                _gameType: _gameType,
-                _absolutePrestate: _absolutePrestate,
-                _genesisBlockNumber: cfg.faultGameGenesisBlock(),
-                _genesisOutputRoot: Hash.wrap(cfg.faultGameGenesisOutputRoot()),
-                _maxGameDepth: _maxGameDepth,
-                _splitDepth: cfg.faultGameSplitDepth(),
-                _gameDuration: Duration.wrap(uint64(cfg.faultGameMaxDuration())),
-                _vm: _faultVm
-            })
-        );
-
         uint32 rawGameType = GameType.unwrap(_gameType);
+        if (rawGameType != GameTypes.PERMISSIONED_CANNON.raw()) {
+            _factory.setImplementation(
+                _gameType,
+                new FaultDisputeGame({
+                    _gameType: _gameType,
+                    _absolutePrestate: _absolutePrestate,
+                    _genesisBlockNumber: cfg.faultGameGenesisBlock(),
+                    _genesisOutputRoot: Hash.wrap(cfg.faultGameGenesisOutputRoot()),
+                    _maxGameDepth: _maxGameDepth,
+                    _splitDepth: cfg.faultGameSplitDepth(),
+                    _gameDuration: Duration.wrap(uint64(cfg.faultGameMaxDuration())),
+                    _vm: _faultVm
+                })
+            );
+        } else {
+            _factory.setImplementation(
+                _gameType,
+                new PermissionedDisputeGame({
+                    _gameType: _gameType,
+                    _absolutePrestate: _absolutePrestate,
+                    _genesisBlockNumber: cfg.faultGameGenesisBlock(),
+                    _genesisOutputRoot: Hash.wrap(cfg.faultGameGenesisOutputRoot()),
+                    _maxGameDepth: _maxGameDepth,
+                    _splitDepth: cfg.faultGameSplitDepth(),
+                    _gameDuration: Duration.wrap(uint64(cfg.faultGameMaxDuration())),
+                    _vm: _faultVm,
+                    _proposer: cfg.l2OutputOracleProposer(),
+                    _challenger: cfg.l2OutputOracleChallenger()
+                })
+            );
+        }
+
         string memory gameTypeString;
-        if (rawGameType == GameType.unwrap(GameTypes.CANNON)) {
+        if (rawGameType == GameTypes.CANNON.raw()) {
             gameTypeString = "Cannon";
-        } else if (rawGameType == GameType.unwrap(GameTypes.ALPHABET)) {
+        } else if (rawGameType == GameTypes.PERMISSIONED_CANNON.raw()) {
+            gameTypeString = "PermissionedCannon";
+        } else if (rawGameType == GameTypes.ALPHABET.raw()) {
             gameTypeString = "Alphabet";
         } else {
             gameTypeString = "Unknown";
