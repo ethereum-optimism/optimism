@@ -28,7 +28,7 @@ func (g *OutputAlphabetGameHelper) StartChallenger(
 		challenger.WithGameAddress(g.addr),
 	}
 	opts = append(opts, options...)
-	c := challenger.NewChallenger(g.t, ctx, g.system.NodeEndpoint("l1"), name, opts...)
+	c := challenger.NewChallenger(g.t, ctx, g.system, name, opts...)
 	g.t.Cleanup(func() {
 		_ = c.Close()
 	})

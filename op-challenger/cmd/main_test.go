@@ -19,6 +19,7 @@ import (
 
 var (
 	l1EthRpc                = "http://example.com:8545"
+	l1Beacon                = "http://example.com:9000"
 	gameFactoryAddressValue = "0xbb00000000000000000000000000000000000000"
 	cannonNetwork           = "op-mainnet"
 	otherCannonNetwork      = "op-goerli"
@@ -47,14 +48,14 @@ func TestLogLevel(t *testing.T) {
 
 func TestDefaultCLIOptionsMatchDefaultConfig(t *testing.T) {
 	cfg := configForArgs(t, addRequiredArgs(config.TraceTypeAlphabet))
-	defaultCfg := config.NewConfig(common.HexToAddress(gameFactoryAddressValue), l1EthRpc, datadir, config.TraceTypeAlphabet)
+	defaultCfg := config.NewConfig(common.HexToAddress(gameFactoryAddressValue), l1EthRpc, l1Beacon, datadir, config.TraceTypeAlphabet)
 	// Add in the extra CLI options required when using alphabet trace type
 	defaultCfg.RollupRpc = rollupRpc
 	require.Equal(t, defaultCfg, cfg)
 }
 
 func TestDefaultConfigIsValid(t *testing.T) {
-	cfg := config.NewConfig(common.HexToAddress(gameFactoryAddressValue), l1EthRpc, datadir, config.TraceTypeAlphabet)
+	cfg := config.NewConfig(common.HexToAddress(gameFactoryAddressValue), l1EthRpc, l1Beacon, datadir, config.TraceTypeAlphabet)
 	// Add in options that are required based on the specific trace type
 	// To avoid needing to specify unused options, these aren't included in the params for NewConfig
 	cfg.RollupRpc = rollupRpc
@@ -71,6 +72,18 @@ func TestL1ETHRPCAddress(t *testing.T) {
 		cfg := configForArgs(t, addRequiredArgsExcept(config.TraceTypeAlphabet, "--l1-eth-rpc", "--l1-eth-rpc="+url))
 		require.Equal(t, url, cfg.L1EthRpc)
 		require.Equal(t, url, cfg.TxMgrConfig.L1RPCURL)
+	})
+}
+
+func TestL1Beacon(t *testing.T) {
+	t.Run("Required", func(t *testing.T) {
+		verifyArgsInvalid(t, "flag l1-beacon is required", addRequiredArgsExcept(config.TraceTypeAlphabet, "--l1-beacon"))
+	})
+
+	t.Run("Valid", func(t *testing.T) {
+		url := "http://example.com:8888"
+		cfg := configForArgs(t, addRequiredArgsExcept(config.TraceTypeAlphabet, "--l1-beacon", "--l1-beacon="+url))
+		require.Equal(t, url, cfg.L1Beacon)
 	})
 }
 
@@ -472,6 +485,7 @@ func addRequiredArgsExcept(traceType config.TraceType, name string, optionalArgs
 func requiredArgs(traceType config.TraceType) map[string]string {
 	args := map[string]string{
 		"--l1-eth-rpc":           l1EthRpc,
+		"--l1-beacon":            l1Beacon,
 		"--game-factory-address": gameFactoryAddressValue,
 		"--trace-type":           traceType.String(),
 		"--datadir":              datadir,

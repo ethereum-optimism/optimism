@@ -33,6 +33,7 @@ type Executor struct {
 	logger           log.Logger
 	metrics          CannonMetricer
 	l1               string
+	l1Beacon         string
 	l2               string
 	inputs           LocalGameInputs
 	cannon           string
@@ -52,6 +53,7 @@ func NewExecutor(logger log.Logger, m CannonMetricer, cfg *config.Config, inputs
 		logger:           logger,
 		metrics:          m,
 		l1:               cfg.L1EthRpc,
+		l1Beacon:         cfg.L1Beacon,
 		l2:               cfg.CannonL2,
 		inputs:           inputs,
 		cannon:           cfg.CannonBin,
@@ -104,6 +106,7 @@ func (e *Executor) generateProof(ctx context.Context, dir string, begin uint64, 
 		"--",
 		e.server, "--server",
 		"--l1", e.l1,
+		"--l1.beacon", e.l1Beacon,
 		"--l2", e.l2,
 		"--datadir", dataDir,
 		"--l1.head", e.inputs.L1Head.Hex(),
