@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"sync/atomic"
 
 	gokzg4844 "github.com/crate-crypto/go-kzg-4844"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
@@ -13,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -22,21 +22,9 @@ const (
 )
 
 var (
-	ErrInvalidScalarValue = errors.New("invalid scalar value")
+	ErrInvalidScalarValue     = errors.New("invalid scalar value")
+	ErrInvalidBlobKeyPreimage = errors.New("invalid blob key preimage")
 )
-
-var kzg4844Ctx atomic.Pointer[gokzg4844.Context]
-
-func kzg() *gokzg4844.Context {
-	if kzg4844Ctx.Load() == nil {
-		ctx, err := gokzg4844.NewContext4096Secure()
-		if err != nil {
-			panic("unable to load kzg trusted setup")
-		}
-		kzg4844Ctx.Store(ctx)
-	}
-	return kzg4844Ctx.Load()
-}
 
 type preimageSource func(key common.Hash) ([]byte, error)
 
@@ -75,7 +63,7 @@ func (l *preimageLoader) loadBlobPreimage(proof *proofData) (*types.PreimageOrac
 		return nil, fmt.Errorf("failed to get key preimage: %w", err)
 	}
 	if len(inputs) != fieldElemKeyLength {
-		return nil, fmt.Errorf("invalid key preimage, expected length %v but was %v", fieldElemKeyLength, len(inputs))
+		return nil, fmt.Errorf("%w, expected length %v but was %v", ErrInvalidBlobKeyPreimage, fieldElemKeyLength, len(inputs))
 	}
 	commitment := inputs[:commitmentLength]
 	requiredFieldElement := binary.BigEndian.Uint64(inputs[72:])
@@ -89,7 +77,7 @@ func (l *preimageLoader) loadBlobPreimage(proof *proofData) (*types.PreimageOrac
 		key := preimage.BlobKey(crypto.Keccak256(fieldElemKey)).PreimageKey()
 		fieldElement, err := l.getPreimage(key)
 		if err != nil {
-			return nil, fmt.Errorf("failed to load field element %v with key %v", i, common.Hash(key))
+			return nil, fmt.Errorf("failed to load field element %v with key %v:  %w", i, common.Hash(key), err)
 		}
 		copy(blob[i<<5:(i+1)<<5], fieldElement[:])
 	}
@@ -101,7 +89,7 @@ func (l *preimageLoader) loadBlobPreimage(proof *proofData) (*types.PreimageOrac
 	}
 
 	// Compute the KZG proof for the required field element
-	kzgProof, _, err := kzg().ComputeKZGProof(gokzg4844.Blob(blob), gokzg4844.Scalar(proof.OracleValue), 0)
+	kzgProof, _, err := kzg4844.ComputeProof(kzg4844.Blob(blob), kzg4844.Point(proof.OracleValue))
 	if err != nil {
 		return nil, fmt.Errorf("failed to compute kzg proof: %w", err)
 	}

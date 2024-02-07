@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-program/host/kvstore"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
@@ -62,18 +63,17 @@ func TestPreimageLoader_SimpleTypes(t *testing.T) {
 
 func TestPreimageLoader_BlobPreimage(t *testing.T) {
 	blob := testBlob()
-	commitment, err := kzg().BlobToKZGCommitment(blob, 0)
+	commitment, err := kzg4844.BlobToCommitment(kzg4844.Blob(blob))
 	require.NoError(t, err)
 
 	fieldIndex := uint64(24)
 	elementData := blob[fieldIndex<<5 : (fieldIndex+1)<<5]
-	kzgProof, _, err := kzg().ComputeKZGProof(blob, gokzg4844.Scalar(elementData), 0)
+	kzgProof, _, err := kzg4844.ComputeProof(kzg4844.Blob(blob), kzg4844.Point(elementData))
 	require.NoError(t, err)
 
 	keyBuf := make([]byte, 80)
 	copy(keyBuf[:48], commitment[:])
 	binary.BigEndian.PutUint64(keyBuf[72:], fieldIndex)
-	fmt.Printf("Input bytes: %x\n", keyBuf)
 	key := preimage.BlobKey(crypto.Keccak256Hash(keyBuf)).PreimageKey()
 
 	proof := &proofData{
@@ -82,11 +82,9 @@ func TestPreimageLoader_BlobPreimage(t *testing.T) {
 		OracleOffset: 4,
 	}
 
-	kv := kvstore.NewMemKV()
-	loader := newPreimageLoader(kv.Get)
-	storeBlob(t, kv, commitment, blob)
-
 	t.Run("RejectInvalidValueLength", func(t *testing.T) {
+		kv := kvstore.NewMemKV()
+		loader := newPreimageLoader(kv.Get)
 		proof := &proofData{
 			OracleKey:    proof.OracleKey,
 			OracleValue:  []byte{1, 2, 3},
@@ -96,7 +94,48 @@ func TestPreimageLoader_BlobPreimage(t *testing.T) {
 		require.ErrorIs(t, err, ErrInvalidScalarValue)
 	})
 
+	t.Run("NoKeyPreimage", func(t *testing.T) {
+		kv := kvstore.NewMemKV()
+		loader := newPreimageLoader(kv.Get)
+		proof := &proofData{
+			OracleKey:    common.Hash{byte(preimage.BlobKeyType), 0xaf}.Bytes(),
+			OracleValue:  proof.OracleValue,
+			OracleOffset: proof.OracleOffset,
+		}
+		_, err := loader.LoadPreimage(proof)
+		require.ErrorIs(t, err, kvstore.ErrNotFound)
+	})
+
+	t.Run("InvalidKeyPreimage", func(t *testing.T) {
+		kv := kvstore.NewMemKV()
+		loader := newPreimageLoader(kv.Get)
+		proof := &proofData{
+			OracleKey:    common.Hash{byte(preimage.BlobKeyType), 0xad}.Bytes(),
+			OracleValue:  proof.OracleValue,
+			OracleOffset: proof.OracleOffset,
+		}
+		require.NoError(t, kv.Put(preimage.Keccak256Key(proof.OracleKey).PreimageKey(), []byte{1, 2}))
+		_, err := loader.LoadPreimage(proof)
+		require.ErrorIs(t, err, ErrInvalidBlobKeyPreimage)
+	})
+
+	t.Run("MissingBlobs", func(t *testing.T) {
+		kv := kvstore.NewMemKV()
+		loader := newPreimageLoader(kv.Get)
+		proof := &proofData{
+			OracleKey:    common.Hash{byte(preimage.BlobKeyType), 0xae}.Bytes(),
+			OracleValue:  proof.OracleValue,
+			OracleOffset: proof.OracleOffset,
+		}
+		require.NoError(t, kv.Put(preimage.Keccak256Key(proof.OracleKey).PreimageKey(), keyBuf))
+		_, err := loader.LoadPreimage(proof)
+		require.ErrorIs(t, err, kvstore.ErrNotFound)
+	})
+
 	t.Run("Valid", func(t *testing.T) {
+		kv := kvstore.NewMemKV()
+		loader := newPreimageLoader(kv.Get)
+		storeBlob(t, kv, gokzg4844.KZGCommitment(commitment), blob)
 		actual, err := loader.LoadPreimage(proof)
 		require.NoError(t, err)
 		expected := types.NewPreimageOracleBlobData(proof.OracleKey, proof.OracleValue, proof.OracleOffset, fieldIndex, commitment[:], kzgProof[:])
