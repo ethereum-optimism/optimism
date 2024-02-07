@@ -178,6 +178,8 @@ services:
     image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-challenger:devnet
     environment:
       OP_CHALLENGER_L1_ETH_RPC: http://l1:8545
+      # Note: this will need to be updated to point to a L1 consensus node when there is one in the devnet
+      OP_CHALLENGER_L1_BEACON: "unset"
       OP_CHALLENGER_ROLLUP_RPC: http://op-node:8545
       OP_CHALLENGER_TRACE_TYPE: cannon
       OP_CHALLENGER_GAME_FACTORY_ADDRESS: ${DGF_ADDRESS}
