@@ -58,6 +58,7 @@ func (s Status) String() string {
 }
 
 type DisputeSystem interface {
+	L1BeaconEndpoint() string
 	NodeEndpoint(name string) string
 	NodeClient(name string) *ethclient.Client
 	RollupEndpoint(name string) string
@@ -242,7 +243,7 @@ func (h *FactoryHelper) StartChallenger(ctx context.Context, name string, option
 		challenger.WithFactoryAddress(h.factoryAddr),
 	}
 	opts = append(opts, options...)
-	c := challenger.NewChallenger(h.t, ctx, h.system.NodeEndpoint("l1"), name, opts...)
+	c := challenger.NewChallenger(h.t, ctx, h.system, name, opts...)
 	h.t.Cleanup(func() {
 		_ = c.Close()
 	})

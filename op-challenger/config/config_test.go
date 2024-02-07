@@ -12,6 +12,7 @@ import (
 
 var (
 	validL1EthRpc              = "http://localhost:8545"
+	validL1BeaconUrl           = "http://localhost:9000"
 	validGameFactoryAddress    = common.Address{0x23}
 	validCannonBin             = "./bin/cannon"
 	validCannonOpProgramBin    = "./bin/op-program"
@@ -23,7 +24,7 @@ var (
 )
 
 func validConfig(traceType TraceType) Config {
-	cfg := NewConfig(validGameFactoryAddress, validL1EthRpc, validDatadir, traceType)
+	cfg := NewConfig(validGameFactoryAddress, validL1EthRpc, validL1BeaconUrl, validDatadir, traceType)
 	if traceType == TraceTypeCannon {
 		cfg.CannonBin = validCannonBin
 		cfg.CannonServer = validCannonOpProgramBin
@@ -58,6 +59,12 @@ func TestL1EthRpcRequired(t *testing.T) {
 	config := validConfig(TraceTypeCannon)
 	config.L1EthRpc = ""
 	require.ErrorIs(t, config.Check(), ErrMissingL1EthRPC)
+}
+
+func TestL1BeaconRequired(t *testing.T) {
+	config := validConfig(TraceTypeCannon)
+	config.L1Beacon = ""
+	require.ErrorIs(t, config.Check(), ErrMissingL1Beacon)
 }
 
 func TestGameFactoryAddressRequired(t *testing.T) {

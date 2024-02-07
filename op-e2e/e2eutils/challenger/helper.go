@@ -27,6 +27,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
+type EndpointProvider interface {
+	NodeEndpoint(name string) string
+	L1BeaconEndpoint() string
+}
+
 type Helper struct {
 	log     log.Logger
 	t       *testing.T
@@ -109,10 +114,10 @@ func WithAlphabet(rollupEndpoint string) Option {
 	}
 }
 
-func NewChallenger(t *testing.T, ctx context.Context, l1Endpoint string, name string, options ...Option) *Helper {
+func NewChallenger(t *testing.T, ctx context.Context, sys EndpointProvider, name string, options ...Option) *Helper {
 	log := testlog.Logger(t, log.LevelDebug).New("role", name)
-	log.Info("Creating challenger", "l1", l1Endpoint)
-	cfg := NewChallengerConfig(t, l1Endpoint, options...)
+	log.Info("Creating challenger")
+	cfg := NewChallengerConfig(t, sys, options...)
 	chl, err := challenger.Main(ctx, log, cfg)
 	require.NoError(t, err, "must init challenger")
 	require.NoError(t, chl.Start(ctx), "must start challenger")
@@ -126,9 +131,11 @@ func NewChallenger(t *testing.T, ctx context.Context, l1Endpoint string, name st
 	}
 }
 
-func NewChallengerConfig(t *testing.T, l1Endpoint string, options ...Option) *config.Config {
+func NewChallengerConfig(t *testing.T, sys EndpointProvider, options ...Option) *config.Config {
 	// Use the NewConfig method to ensure we pick up any defaults that are set.
-	cfg := config.NewConfig(common.Address{}, l1Endpoint, t.TempDir())
+	l1Endpoint := sys.NodeEndpoint("l1")
+	l1Beacon := sys.L1BeaconEndpoint()
+	cfg := config.NewConfig(common.Address{}, l1Endpoint, l1Beacon, t.TempDir())
 	cfg.TxMgrConfig.NumConfirmations = 1
 	cfg.TxMgrConfig.ReceiptQueryInterval = 1 * time.Second
 	if cfg.MaxConcurrency > 4 {
