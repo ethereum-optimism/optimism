@@ -78,6 +78,11 @@ var (
 		Usage:   "HTTP provider URL for the rollup node",
 		EnvVars: prefixEnvVars("ROLLUP_RPC"),
 	}
+	L1BeaconFlag = &cli.StringFlag{
+		Name:    "l1-beacon",
+		Usage:   "Address of L1 Beacon API endpoint to use",
+		EnvVars: prefixEnvVars("L1_BEACON"),
+	}
 	CannonNetworkFlag = &cli.StringFlag{
 		Name: "cannon-network",
 		Usage: fmt.Sprintf(
@@ -142,6 +147,8 @@ var requiredFlags = []cli.Flag{
 	L1EthRpcFlag,
 	FactoryAddressFlag,
 	DatadirFlag,
+	RollupRpcFlag,
+	L1BeaconFlag,
 }
 
 // optionalFlags is a list of unchecked cli flags
@@ -150,7 +157,6 @@ var optionalFlags = []cli.Flag{
 	MaxConcurrencyFlag,
 	MaxPendingTransactionsFlag,
 	HTTPPollInterval,
-	RollupRpcFlag,
 	GameAllowlistFlag,
 	CannonNetworkFlag,
 	CannonRollupConfigFlag,
@@ -214,13 +220,7 @@ func CheckRequired(ctx *cli.Context, traceTypes []config.TraceType) error {
 			if err := CheckCannonFlags(ctx); err != nil {
 				return err
 			}
-			if !ctx.IsSet(RollupRpcFlag.Name) {
-				return fmt.Errorf("flag %s is required", RollupRpcFlag.Name)
-			}
 		case config.TraceTypeAlphabet:
-			if !ctx.IsSet(RollupRpcFlag.Name) {
-				return fmt.Errorf("flag %s is required", RollupRpcFlag.Name)
-			}
 		default:
 			return fmt.Errorf("invalid trace type. must be one of %v", config.TraceTypes)
 		}
@@ -277,6 +277,7 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 	return &config.Config{
 		// Required Flags
 		L1EthRpc:               ctx.String(L1EthRpcFlag.Name),
+		L1Beacon:               ctx.String(L1BeaconFlag.Name),
 		TraceTypes:             traceTypes,
 		GameFactoryAddress:     gameFactoryAddress,
 		GameAllowlist:          allowedGames,
