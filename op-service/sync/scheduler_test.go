@@ -55,6 +55,16 @@ func TestScheduler(t *testing.T) {
 		require.ErrorIs(t, err, ErrChannelFull)
 	})
 
+	t.Run("CancelledContext", func(t *testing.T) {
+		runner := func(ctx context.Context, item int) {}
+		s := NewSchedulerFromBufferSize(runner, 1)
+		ctx, cancel := context.WithCancel(context.Background())
+		s.Start(ctx)
+		cancel()
+		err := s.Schedule(1)
+		require.ErrorIs(t, err, ErrSchedulerStopped)
+	})
+
 	t.Run("ScheduleMessage", func(t *testing.T) {
 		runnerCalls := 0
 		runner := func(ctx context.Context, item int) {
