@@ -140,7 +140,7 @@ func (cl *L1BeaconClient) GetBlobSidecars(ctx context.Context, ref eth.L1BlockRe
 	}
 
 	if len(hashes) != len(apiscs) {
-		return nil, fmt.Errorf("expected %v sidecars but got %v", len(hashes), len(resp.Data))
+		return nil, fmt.Errorf("expected %v sidecars but got %v", len(hashes), len(apiscs))
 	}
 
 	bscs := make([]*eth.BlobSidecar, 0, len(hashes))
