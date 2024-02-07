@@ -16,6 +16,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
+	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 )
 
 var (
@@ -90,6 +91,8 @@ var (
 		Name:  "pprof.cpu",
 		Usage: "enable pprof cpu profiling",
 	}
+
+	OutFilePerm = os.FileMode(0o755)
 )
 
 type Proof struct {
@@ -234,7 +237,7 @@ func Run(ctx *cli.Context) error {
 		defer profile.Start(profile.NoShutdownHook, profile.ProfilePath("."), profile.CPUProfile).Stop()
 	}
 
-	state, err := LoadJSON[mipsevm.State](ctx.Path(RunInputFlag.Name))
+	state, err := jsonutil.LoadJSON[mipsevm.State](ctx.Path(RunInputFlag.Name))
 	if err != nil {
 		return err
 	}
@@ -284,7 +287,7 @@ func Run(ctx *cli.Context) error {
 		l.Info("no metadata file specified, defaulting to empty metadata")
 		meta = &mipsevm.Metadata{Symbols: nil} // provide empty metadata by default
 	} else {
-		if m, err := LoadJSON[mipsevm.Metadata](metaPath); err != nil {
+		if m, err := jsonutil.LoadJSON[mipsevm.Metadata](metaPath); err != nil {
 			return fmt.Errorf("failed to load metadata: %w", err)
 		} else {
 			meta = m
@@ -337,7 +340,7 @@ func Run(ctx *cli.Context) error {
 		}
 
 		if snapshotAt(state) {
-			if err := WriteJSON(fmt.Sprintf(snapshotFmt, step), state); err != nil {
+			if err := jsonutil.WriteJSON(fmt.Sprintf(snapshotFmt, step), state, OutFilePerm); err != nil {
 				return fmt.Errorf("failed to write state snapshot: %w", err)
 			}
 		}
@@ -369,7 +372,7 @@ func Run(ctx *cli.Context) error {
 				proof.OracleValue = witness.PreimageValue
 				proof.OracleOffset = witness.PreimageOffset
 			}
-			if err := WriteJSON(fmt.Sprintf(proofFmt, step), proof); err != nil {
+			if err := jsonutil.WriteJSON(fmt.Sprintf(proofFmt, step), proof, OutFilePerm); err != nil {
 				return fmt.Errorf("failed to write proof data: %w", err)
 			}
 		} else {
@@ -398,7 +401,7 @@ func Run(ctx *cli.Context) error {
 		}
 	}
 
-	if err := WriteJSON(ctx.Path(RunOutputFlag.Name), state); err != nil {
+	if err := jsonutil.WriteJSON(ctx.Path(RunOutputFlag.Name), state, OutFilePerm); err != nil {
 		return fmt.Errorf("failed to write state output: %w", err)
 	}
 	return nil
