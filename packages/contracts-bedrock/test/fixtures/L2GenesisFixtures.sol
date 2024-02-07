@@ -66,52 +66,6 @@ contract L2GenesisFixtures {
         _setGovernanceTokenStorageData();
     }
 
-    function _notProxied(address _addr) internal pure returns(bool) {
-        return _addr == Predeploys.GOVERNANCE_TOKEN || _addr == Predeploys.WETH9;
-    }
-
-    function _hasImplementation(address _addr) internal pure returns(bool) {
-        return _addr == Predeploys.LEGACY_MESSAGE_PASSER ||
-            _addr == Predeploys.DEPLOYER_WHITELIST ||
-            _addr == Predeploys.L2_CROSS_DOMAIN_MESSENGER ||
-            _addr == Predeploys.GAS_PRICE_ORACLE ||
-            _addr == Predeploys.L2_STANDARD_BRIDGE ||
-            _addr == Predeploys.SEQUENCER_FEE_WALLET ||
-            _addr == Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY ||
-            _addr == Predeploys.L1_BLOCK_NUMBER ||
-            _addr == Predeploys.L2_ERC721_BRIDGE ||
-            _addr == Predeploys.L1_BLOCK_ATTRIBUTES ||
-            _addr == Predeploys.L2_TO_L1_MESSAGE_PASSER ||
-            _addr == Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY ||
-            _addr == Predeploys.PROXY_ADMIN ||
-            _addr == Predeploys.BASE_FEE_VAULT ||
-            _addr == Predeploys.L1_FEE_VAULT ||
-            _addr == Predeploys.SCHEMA_REGISTRY ||
-            _addr == Predeploys.EAS;
-    }
-
-    function _predeployToCodeNamespace(address _addr) internal pure returns (address) {
-        return address(
-            uint160(uint256(uint160(_addr)) & 0xffff | uint256(uint160(0xc0D3C0d3C0d3C0D3c0d3C0d3c0D3C0d3c0d30000)))
-        );
-    }
-
-    function _setFixtureData(address _addr, bytes32[2] memory _expectedStorageKeys, bytes32[2] memory _expectedStorageValues) internal {
-        for(uint256 i; i < _expectedStorageKeys.length; i++) {
-            numExpectedSlotKeys[_addr] = ++numExpectedSlotKeys[_addr];
-            expectedSlotKeys[_addr][_expectedStorageKeys[i]] = true;
-            slotValueByKey[_addr][_expectedStorageKeys[i]] = _expectedStorageValues[i];
-        }
-    }
-
-    function _setFixtureData(address _addr, bytes32[3] memory _expectedStorageKeys, bytes32[3] memory _expectedStorageValues) internal {
-        for(uint256 i; i < _expectedStorageKeys.length; i++) {
-            numExpectedSlotKeys[_addr] = ++numExpectedSlotKeys[_addr];
-            expectedSlotKeys[_addr][_expectedStorageKeys[i]] = true;
-            slotValueByKey[_addr][_expectedStorageKeys[i]] = _expectedStorageValues[i];
-        }
-    }
-
     function _setWETH9StorageData() internal {
         bytes32[3] memory expectedStorageKeys = [
             bytes32(0x0000000000000000000000000000000000000000000000000000000000000000),
@@ -183,5 +137,54 @@ contract L2GenesisFixtures {
         ];
 
         _setFixtureData(Predeploys.GOVERNANCE_TOKEN, expectedStorageKeys, expectedStorageValues);
+    }
+
+    //////////////////////////////////////////////////////
+    /// Helper Functions
+    //////////////////////////////////////////////////////
+    function _notProxied(address _addr) internal pure returns(bool) {
+        return _addr == Predeploys.GOVERNANCE_TOKEN || _addr == Predeploys.WETH9;
+    }
+
+    function _hasImplementation(address _addr) internal pure returns(bool) {
+        return _addr == Predeploys.LEGACY_MESSAGE_PASSER ||
+            _addr == Predeploys.DEPLOYER_WHITELIST ||
+            _addr == Predeploys.L2_CROSS_DOMAIN_MESSENGER ||
+            _addr == Predeploys.GAS_PRICE_ORACLE ||
+            _addr == Predeploys.L2_STANDARD_BRIDGE ||
+            _addr == Predeploys.SEQUENCER_FEE_WALLET ||
+            _addr == Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY ||
+            _addr == Predeploys.L1_BLOCK_NUMBER ||
+            _addr == Predeploys.L2_ERC721_BRIDGE ||
+            _addr == Predeploys.L1_BLOCK_ATTRIBUTES ||
+            _addr == Predeploys.L2_TO_L1_MESSAGE_PASSER ||
+            _addr == Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY ||
+            _addr == Predeploys.PROXY_ADMIN ||
+            _addr == Predeploys.BASE_FEE_VAULT ||
+            _addr == Predeploys.L1_FEE_VAULT ||
+            _addr == Predeploys.SCHEMA_REGISTRY ||
+            _addr == Predeploys.EAS;
+    }
+
+    function _predeployToCodeNamespace(address _addr) internal pure returns (address) {
+        return address(
+            uint160(uint256(uint160(_addr)) & 0xffff | uint256(uint160(0xc0D3C0d3C0d3C0D3c0d3C0d3c0D3C0d3c0d30000)))
+        );
+    }
+
+    function _setFixtureData(address _addr, bytes32[2] memory _expectedStorageKeys, bytes32[2] memory _expectedStorageValues) internal {
+        for(uint256 i; i < _expectedStorageKeys.length; i++) {
+            numExpectedSlotKeys[_addr] = ++numExpectedSlotKeys[_addr];
+            expectedSlotKeys[_addr][_expectedStorageKeys[i]] = true;
+            slotValueByKey[_addr][_expectedStorageKeys[i]] = _expectedStorageValues[i];
+        }
+    }
+
+    function _setFixtureData(address _addr, bytes32[3] memory _expectedStorageKeys, bytes32[3] memory _expectedStorageValues) internal {
+        for(uint256 i; i < _expectedStorageKeys.length; i++) {
+            numExpectedSlotKeys[_addr] = ++numExpectedSlotKeys[_addr];
+            expectedSlotKeys[_addr][_expectedStorageKeys[i]] = true;
+            slotValueByKey[_addr][_expectedStorageKeys[i]] = _expectedStorageValues[i];
+        }
     }
 }
