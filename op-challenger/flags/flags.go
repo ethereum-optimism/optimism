@@ -32,6 +32,16 @@ var (
 		Usage:   "HTTP provider URL for L1.",
 		EnvVars: prefixEnvVars("L1_ETH_RPC"),
 	}
+	L1BeaconFlag = &cli.StringFlag{
+		Name:    "l1-beacon",
+		Usage:   "Address of L1 Beacon API endpoint to use",
+		EnvVars: prefixEnvVars("L1_BEACON"),
+	}
+	RollupRpcFlag = &cli.StringFlag{
+		Name:    "rollup-rpc",
+		Usage:   "HTTP provider URL for the rollup node",
+		EnvVars: prefixEnvVars("ROLLUP_RPC"),
+	}
 	FactoryAddressFlag = &cli.StringFlag{
 		Name:    "game-factory-address",
 		Usage:   "Address of the fault game factory contract.",
@@ -72,16 +82,6 @@ var (
 		Usage:   "Polling interval for latest-block subscription when using an HTTP RPC provider.",
 		EnvVars: prefixEnvVars("HTTP_POLL_INTERVAL"),
 		Value:   config.DefaultPollInterval,
-	}
-	RollupRpcFlag = &cli.StringFlag{
-		Name:    "rollup-rpc",
-		Usage:   "HTTP provider URL for the rollup node",
-		EnvVars: prefixEnvVars("ROLLUP_RPC"),
-	}
-	L1BeaconFlag = &cli.StringFlag{
-		Name:    "l1-beacon",
-		Usage:   "Address of L1 Beacon API endpoint to use",
-		EnvVars: prefixEnvVars("L1_BEACON"),
 	}
 	CannonNetworkFlag = &cli.StringFlag{
 		Name: "cannon-network",
