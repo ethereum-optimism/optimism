@@ -106,7 +106,7 @@ contract StandardBridge_Stateless_Test is CommonTest {
         assertFalse(bridge.isCorrectTokenPair(address(legacy), address(0x20)));
         // A token that doesn't support either modern or legacy interface
         // will revert
-        vm.expectRevert();
+        vm.expectRevert(bytes(""));
         bridge.isCorrectTokenPair(address(erc20), address(1));
     }
 

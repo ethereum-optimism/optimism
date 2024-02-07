@@ -8,7 +8,6 @@ import { StdInvariant } from "forge-std/StdInvariant.sol";
 
 import { Arithmetic } from "src/libraries/Arithmetic.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
-import { Proxy } from "src/universal/Proxy.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { InvariantTest } from "test/invariants/InvariantTest.sol";
 
