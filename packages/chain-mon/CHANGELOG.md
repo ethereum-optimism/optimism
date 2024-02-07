@@ -1,5 +1,18 @@
 # @eth-optimism/drippie-mon
 
+## 0.6.0
+
+### Minor Changes
+
+- [#9334](https://github.com/ethereum-optimism/optimism/pull/9334) [`1ed50c44a5c4fb7244ede3b4c45ea7bbf144c1e5`](https://github.com/ethereum-optimism/optimism/commit/1ed50c44a5c4fb7244ede3b4c45ea7bbf144c1e5) Thanks [@smartcontracts](https://github.com/smartcontracts)! - Updates wd-mon inside chain-mon to support FPAC.
+
+### Patch Changes
+
+- Updated dependencies [[`1ed50c44a5c4fb7244ede3b4c45ea7bbf144c1e5`](https://github.com/ethereum-optimism/optimism/commit/1ed50c44a5c4fb7244ede3b4c45ea7bbf144c1e5), [`d99d425a4f73fba19ffcf180deb0ef48ff3b9a6a`](https://github.com/ethereum-optimism/optimism/commit/d99d425a4f73fba19ffcf180deb0ef48ff3b9a6a), [`79effc52e8b82d15b5eda43acf540ac6c5f8d5d7`](https://github.com/ethereum-optimism/optimism/commit/79effc52e8b82d15b5eda43acf540ac6c5f8d5d7), [`73a748575e7c3d67c293814a12bf41eee216163c`](https://github.com/ethereum-optimism/optimism/commit/73a748575e7c3d67c293814a12bf41eee216163c), [`44a2d9cec5f3b309b723b3e4dd8d29b5b70f1cc8`](https://github.com/ethereum-optimism/optimism/commit/44a2d9cec5f3b309b723b3e4dd8d29b5b70f1cc8)]:
+  - @eth-optimism/common-ts@0.8.8
+  - @eth-optimism/sdk@3.2.0
+  - @eth-optimism/contracts-bedrock@0.17.1
+
 ## 0.5.7
 
 ### Patch Changes
