@@ -103,12 +103,6 @@ func (p *PreimageOracle) GetBlob(ref eth.L1BlockRef, blobHash eth.IndexedBlobHas
 
 	commitment := p.oracle.Get(preimage.Sha256Key(blobHash.Hash))
 
-	blob := p.GetBlobFromCommitment(commitment)
-
-	return &blob
-}
-
-func (p *PreimageOracle) GetBlobFromCommitment(commitment []byte) eth.Blob {
 	// Reconstruct the full blob from the 4096 field elements.
 	blob := eth.Blob{}
 	fieldElemKey := make([]byte, 80)
@@ -124,5 +118,6 @@ func (p *PreimageOracle) GetBlobFromCommitment(commitment []byte) eth.Blob {
 	if err != nil || !bytes.Equal(blobCommitment[:], commitment[:]) {
 		panic(fmt.Errorf("invalid blob commitment: %w", err))
 	}
-	return blob
+
+	return &blob
 }
