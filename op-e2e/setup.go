@@ -298,6 +298,10 @@ func (sys *System) AdvanceTime(d time.Duration) {
 	}
 }
 
+func (sys *System) L1BeaconEndpoint() string {
+	return sys.L1BeaconAPIAddr
+}
+
 func (sys *System) NodeEndpoint(name string) string {
 	return selectEndpoint(sys.EthInstances[name])
 }
