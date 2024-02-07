@@ -13,61 +13,48 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-type blockNumberFetcher func(ctx context.Context) (uint64, error)
-type blockHashFetcher func(ctx context.Context, number *big.Int) (common.Hash, error)
-
-// gameSource loads information about the games available to play
-type gameSource interface {
-	GetGamesAtOrAfter(ctx context.Context, blockHash common.Hash, earliestTimestamp uint64) ([]types.GameMetadata, error)
-}
-
-type MonitorMetricer interface {
-	RecordGamesStatus(inProgress, defenderWon, challengerWon int)
-}
-
-type MetadataCreator interface {
-	CreateContract(game types.GameMetadata) (MetadataLoader, error)
-}
+type Detect func(ctx context.Context, games []types.GameMetadata)
+type BlockHashFetcher func(ctx context.Context, number *big.Int) (common.Hash, error)
+type BlockNumberFetcher func(ctx context.Context) (uint64, error)
+type FactoryGameFetcher func(ctx context.Context, blockHash common.Hash, earliestTimestamp uint64) ([]types.GameMetadata, error)
 
 type gameMonitor struct {
-	logger  log.Logger
-	metrics MonitorMetricer
+	logger log.Logger
+	clock  clock.Clock
 
+	done   chan struct{}
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	clock            clock.Clock
-	monitorInterval  time.Duration
-	done             chan struct{}
-	source           gameSource
-	metadata         MetadataCreator
-	gameWindow       time.Duration
-	fetchBlockNumber blockNumberFetcher
-	fetchBlockHash   blockHashFetcher
+	gameWindow      time.Duration
+	monitorInterval time.Duration
+
+	detect           Detect
+	fetchGames       FactoryGameFetcher
+	fetchBlockHash   BlockHashFetcher
+	fetchBlockNumber BlockNumberFetcher
 }
 
 func newGameMonitor(
 	ctx context.Context,
 	logger log.Logger,
-	metrics MonitorMetricer,
 	cl clock.Clock,
 	monitorInterval time.Duration,
-	source gameSource,
-	metadata MetadataCreator,
 	gameWindow time.Duration,
-	fetchBlockNumber blockNumberFetcher,
-	fetchBlockHash blockHashFetcher,
+	detect Detect,
+	factory FactoryGameFetcher,
+	fetchBlockNumber BlockNumberFetcher,
+	fetchBlockHash BlockHashFetcher,
 ) *gameMonitor {
 	return &gameMonitor{
 		logger:           logger,
-		metrics:          metrics,
-		ctx:              ctx,
 		clock:            cl,
+		ctx:              ctx,
 		done:             make(chan struct{}),
 		monitorInterval:  monitorInterval,
-		source:           source,
-		metadata:         metadata,
 		gameWindow:       gameWindow,
+		detect:           detect,
+		fetchGames:       factory,
 		fetchBlockNumber: fetchBlockNumber,
 		fetchBlockHash:   fetchBlockHash,
 	}
@@ -95,36 +82,11 @@ func (m *gameMonitor) monitorGames() error {
 	if err != nil {
 		return fmt.Errorf("Failed to fetch block hash: %w", err)
 	}
-	games, err := m.source.GetGamesAtOrAfter(m.ctx, blockHash, m.minGameTimestamp())
+	games, err := m.fetchGames(m.ctx, blockHash, m.minGameTimestamp())
 	if err != nil {
 		return fmt.Errorf("failed to load games: %w", err)
 	}
-	return m.recordGamesStatus(m.ctx, games)
-}
-
-func (m *gameMonitor) recordGamesStatus(ctx context.Context, games []types.GameMetadata) error {
-	inProgress, defenderWon, challengerWon := 0, 0, 0
-	for _, game := range games {
-		loader, err := m.metadata.CreateContract(game)
-		if err != nil {
-			m.logger.Error("Failed to create contract", "err", err)
-			continue
-		}
-		_, _, status, err := loader.GetGameMetadata(ctx)
-		if err != nil {
-			m.logger.Error("Failed to get game metadata", "err", err)
-			continue
-		}
-		switch status {
-		case types.GameStatusInProgress:
-			inProgress++
-		case types.GameStatusDefenderWon:
-			defenderWon++
-		case types.GameStatusChallengerWon:
-			challengerWon++
-		}
-	}
-	m.metrics.RecordGamesStatus(inProgress, defenderWon, challengerWon)
+	m.detect(m.ctx, games)
 	return nil
 }
 

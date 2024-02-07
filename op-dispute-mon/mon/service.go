@@ -21,6 +21,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 )
 
@@ -33,7 +34,9 @@ type Service struct {
 
 	cl clock.Clock
 
-	metadata *metadataCreator
+	metadata     *metadataCreator
+	rollupClient *sources.RollupClient
+	detector     *detector
 
 	l1Client *ethclient.Client
 
@@ -71,12 +74,29 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 	if err := s.initFactoryContract(cfg); err != nil {
 		return fmt.Errorf("failed to create factory contract bindings: %w", err)
 	}
+	if err := s.initOutputRollupClient(ctx, cfg); err != nil {
+		return fmt.Errorf("failed to init rollup client: %w", err)
+	}
+	s.initDetector()
 	s.initMetadataCreator()
 	s.initMonitor(ctx, cfg)
 
 	s.metrics.RecordInfo(version.SimpleWithMeta)
 	s.metrics.RecordUp()
 
+	return nil
+}
+
+func (s *Service) initDetector() {
+	s.detector = newDetector(s.logger, s.metrics, s.metadata, s.rollupClient)
+}
+
+func (s *Service) initOutputRollupClient(ctx context.Context, cfg *config.Config) error {
+	outputRollupClient, err := dial.DialRollupClientWithTimeout(ctx, dial.DefaultDialTimeout, s.logger, cfg.RollupRpc)
+	if err != nil {
+		return fmt.Errorf("failed to dial rollup client: %w", err)
+	}
+	s.rollupClient = outputRollupClient
 	return nil
 }
 
@@ -149,12 +169,11 @@ func (s *Service) initMonitor(ctx context.Context, cfg *config.Config) {
 	s.monitor = newGameMonitor(
 		ctx,
 		s.logger,
-		s.metrics,
 		s.cl,
 		cfg.MonitorInterval,
-		s.factoryContract,
-		s.metadata,
 		cfg.GameWindow,
+		s.detector.Detect,
+		s.factoryContract.GetGamesAtOrAfter,
 		s.l1Client.BlockNumber,
 		blockHashFetcher,
 	)

@@ -22,21 +22,21 @@ var (
 func TestMonitor_MinGameTimestamp(t *testing.T) {
 	t.Parallel()
 
-	t.Run("zero game window returns zero", func(t *testing.T) {
-		monitor, _, _, _ := setupMonitorTest(t)
+	t.Run("ZeroGameWindow", func(t *testing.T) {
+		monitor, _, _ := setupMonitorTest(t)
 		monitor.gameWindow = time.Duration(0)
 		require.Equal(t, monitor.minGameTimestamp(), uint64(0))
 	})
 
-	t.Run("non-zero game window with zero clock", func(t *testing.T) {
-		monitor, _, _, _ := setupMonitorTest(t)
+	t.Run("ZeroClock", func(t *testing.T) {
+		monitor, _, _ := setupMonitorTest(t)
 		monitor.gameWindow = time.Minute
 		monitor.clock = clock.NewDeterministicClock(time.Unix(0, 0))
 		require.Equal(t, uint64(0), monitor.minGameTimestamp())
 	})
 
-	t.Run("minimum computed correctly", func(t *testing.T) {
-		monitor, _, _, _ := setupMonitorTest(t)
+	t.Run("ValidArithmetic", func(t *testing.T) {
+		monitor, _, _ := setupMonitorTest(t)
 		monitor.gameWindow = time.Minute
 		frozen := time.Unix(int64(time.Hour.Seconds()), 0)
 		monitor.clock = clock.NewDeterministicClock(frozen)
@@ -45,102 +45,11 @@ func TestMonitor_MinGameTimestamp(t *testing.T) {
 	})
 }
 
-func TestMonitor_RecordGamesStatus(t *testing.T) {
-	tests := []struct {
-		name    string
-		games   []types.GameMetadata
-		status  func(loader *mockMetadataLoader)
-		creator func(creator *mockMetadataCreator)
-		metrics func(m *stubMonitorMetricer)
-	}{
-		{
-			name:  "NoGames",
-			games: []types.GameMetadata{},
-			metrics: func(m *stubMonitorMetricer) {
-				require.Equal(t, 0, m.inProgress)
-				require.Equal(t, 0, m.defenderWon)
-				require.Equal(t, 0, m.challengerWon)
-			},
-		},
-		{
-			name:  "InProgress",
-			games: []types.GameMetadata{{}},
-			metrics: func(m *stubMonitorMetricer) {
-				require.Equal(t, 1, m.inProgress)
-				require.Equal(t, 0, m.defenderWon)
-				require.Equal(t, 0, m.challengerWon)
-			},
-		},
-		{
-			name:  "DefenderWon",
-			games: []types.GameMetadata{{}},
-			status: func(loader *mockMetadataLoader) {
-				loader.status = types.GameStatusDefenderWon
-			},
-			metrics: func(m *stubMonitorMetricer) {
-				require.Equal(t, 0, m.inProgress)
-				require.Equal(t, 1, m.defenderWon)
-				require.Equal(t, 0, m.challengerWon)
-			},
-		},
-		{
-			name:  "ChallengerWon",
-			games: []types.GameMetadata{{}},
-			status: func(loader *mockMetadataLoader) {
-				loader.status = types.GameStatusChallengerWon
-			},
-			metrics: func(m *stubMonitorMetricer) {
-				require.Equal(t, 0, m.inProgress)
-				require.Equal(t, 0, m.defenderWon)
-				require.Equal(t, 1, m.challengerWon)
-			},
-		},
-		{
-			name:  "MetadataLoaderError",
-			games: []types.GameMetadata{{}},
-			status: func(loader *mockMetadataLoader) {
-				loader.err = mockErr
-			},
-			metrics: func(m *stubMonitorMetricer) {
-				require.Equal(t, 0, m.inProgress)
-				require.Equal(t, 0, m.defenderWon)
-				require.Equal(t, 0, m.challengerWon)
-			},
-		},
-		{
-			name:    "MetadataCreatorError",
-			games:   []types.GameMetadata{{}},
-			creator: func(creator *mockMetadataCreator) { creator.err = mockErr },
-			metrics: func(m *stubMonitorMetricer) {
-				require.Equal(t, 0, m.inProgress)
-				require.Equal(t, 0, m.defenderWon)
-				require.Equal(t, 0, m.challengerWon)
-			},
-		},
-	}
-
-	for _, test := range tests {
-		test := test
-		t.Run(test.name, func(t *testing.T) {
-			monitor, _, metrics, creator := setupMonitorTest(t)
-			if test.status != nil {
-				test.status(creator.loader)
-			}
-			if test.creator != nil {
-				test.creator(creator)
-			}
-			err := monitor.recordGamesStatus(context.Background(), test.games)
-			require.NoError(t, err) // All errors are handled gracefully
-			test.metrics(metrics)
-		})
-	}
-}
-
 func TestMonitor_MonitorGames(t *testing.T) {
 	t.Parallel()
 
 	t.Run("FailedFetchBlocknumber", func(t *testing.T) {
-		monitor, _, _, _ := setupMonitorTest(t)
+		monitor, _, _ := setupMonitorTest(t)
 		boom := errors.New("boom")
 		monitor.fetchBlockNumber = func(ctx context.Context) (uint64, error) {
 			return 0, boom
@@ -150,7 +59,7 @@ func TestMonitor_MonitorGames(t *testing.T) {
 	})
 
 	t.Run("FailedFetchBlockHash", func(t *testing.T) {
-		monitor, _, _, _ := setupMonitorTest(t)
+		monitor, _, _ := setupMonitorTest(t)
 		boom := errors.New("boom")
 		monitor.fetchBlockHash = func(ctx context.Context, number *big.Int) (common.Hash, error) {
 			return common.Hash{}, boom
@@ -159,60 +68,49 @@ func TestMonitor_MonitorGames(t *testing.T) {
 		require.ErrorIs(t, err, boom)
 	})
 
-	t.Run("NoGames", func(t *testing.T) {
-		monitor, source, _, creator := setupMonitorTest(t)
-		source.games = []types.GameMetadata{}
+	t.Run("DetectsWithNoGames", func(t *testing.T) {
+		monitor, factory, detector := setupMonitorTest(t)
+		factory.games = []types.GameMetadata{}
 		err := monitor.monitorGames()
 		require.NoError(t, err)
-		require.Equal(t, 0, creator.calls)
+		require.Equal(t, 1, detector.calls)
 	})
 
-	t.Run("CreatorErrorsHandled", func(t *testing.T) {
-		monitor, source, _, creator := setupMonitorTest(t)
-		source.games = []types.GameMetadata{{}}
-		creator.err = errors.New("boom")
+	t.Run("DetectsMultipleGames", func(t *testing.T) {
+		monitor, factory, detector := setupMonitorTest(t)
+		factory.games = []types.GameMetadata{{}, {}, {}}
 		err := monitor.monitorGames()
 		require.NoError(t, err)
-		require.Equal(t, 1, creator.calls)
-	})
-
-	t.Run("Success", func(t *testing.T) {
-		monitor, source, metrics, _ := setupMonitorTest(t)
-		source.games = []types.GameMetadata{{}, {}, {}}
-		err := monitor.monitorGames()
-		require.NoError(t, err)
-		require.Equal(t, len(source.games), metrics.inProgress)
+		require.Equal(t, 1, detector.calls)
 	})
 }
 
 func TestMonitor_StartMonitoring(t *testing.T) {
-	t.Run("Monitors games", func(t *testing.T) {
+	t.Run("MonitorsGames", func(t *testing.T) {
 		addr1 := common.Address{0xaa}
 		addr2 := common.Address{0xbb}
-		monitor, source, metrics, _ := setupMonitorTest(t)
-		source.games = []types.GameMetadata{newFDG(addr1, 9999), newFDG(addr2, 9999)}
-		source.maxSuccess = len(source.games) // Only allow two successful fetches
+		monitor, factory, detector := setupMonitorTest(t)
+		factory.games = []types.GameMetadata{newFDG(addr1, 9999), newFDG(addr2, 9999)}
+		factory.maxSuccess = len(factory.games) // Only allow two successful fetches
 
 		monitor.StartMonitoring()
 		require.Eventually(t, func() bool {
-			return metrics.inProgress == 2
+			return detector.calls >= 2
 		}, time.Second, 50*time.Millisecond)
 		monitor.StopMonitoring()
-		require.Equal(t, len(source.games), metrics.inProgress) // Each game's status is recorded twice
+		require.Equal(t, len(factory.games), detector.calls) // Each game's status is recorded twice
 	})
 
-	t.Run("Fails to monitor games", func(t *testing.T) {
-		monitor, source, metrics, _ := setupMonitorTest(t)
-		source.fetchErr = errors.New("boom")
+	t.Run("FailsToFetchGames", func(t *testing.T) {
+		monitor, factory, detector := setupMonitorTest(t)
+		factory.fetchErr = errors.New("boom")
 
 		monitor.StartMonitoring()
 		require.Eventually(t, func() bool {
-			return source.calls > 0
+			return factory.calls > 0
 		}, time.Second, 50*time.Millisecond)
 		monitor.StopMonitoring()
-		require.Equal(t, 0, metrics.inProgress)
-		require.Equal(t, 0, metrics.defenderWon)
-		require.Equal(t, 0, metrics.challengerWon)
+		require.Equal(t, 0, detector.calls)
 	})
 }
 
@@ -223,94 +121,59 @@ func newFDG(proxy common.Address, timestamp uint64) types.GameMetadata {
 	}
 }
 
-func setupMonitorTest(t *testing.T) (*gameMonitor, *stubGameSource, *stubMonitorMetricer, *mockMetadataCreator) {
+func setupMonitorTest(t *testing.T) (*gameMonitor, *mockFactory, *mockDetector) {
 	logger := testlog.Logger(t, log.LvlDebug)
-	source := &stubGameSource{}
 	fetchBlockNum := func(ctx context.Context) (uint64, error) {
 		return 1, nil
 	}
 	fetchBlockHash := func(ctx context.Context, number *big.Int) (common.Hash, error) {
 		return common.Hash{}, nil
 	}
-	metrics := &stubMonitorMetricer{}
 	monitorInterval := time.Duration(100 * time.Millisecond)
-	loader := &mockMetadataLoader{}
-	creator := &mockMetadataCreator{loader: loader}
 	cl := clock.NewAdvancingClock(10 * time.Millisecond)
 	cl.Start()
+	factory := &mockFactory{}
+	detect := &mockDetector{}
 	monitor := newGameMonitor(
 		context.Background(),
 		logger,
-		metrics,
 		cl,
 		monitorInterval,
-		source,
-		creator,
 		time.Duration(10*time.Second),
+		detect.Detect,
+		factory.GetGamesAtOrAfter,
 		fetchBlockNum,
 		fetchBlockHash,
 	)
-	return monitor, source, metrics, creator
+	return monitor, factory, detect
 }
 
-type mockMetadataCreator struct {
-	calls  int
-	err    error
-	loader *mockMetadataLoader
+type mockDetector struct {
+	calls int
 }
 
-func (m *mockMetadataCreator) CreateContract(game types.GameMetadata) (MetadataLoader, error) {
+func (m *mockDetector) Detect(ctx context.Context, games []types.GameMetadata) {
 	m.calls++
-	if m.err != nil {
-		return nil, m.err
-	}
-	return m.loader, nil
 }
 
-type mockMetadataLoader struct {
-	calls  int
-	status types.GameStatus
-	err    error
-}
-
-func (m *mockMetadataLoader) GetGameMetadata(ctx context.Context) (uint64, common.Hash, types.GameStatus, error) {
-	m.calls++
-	if m.err != nil {
-		return 0, common.Hash{}, m.status, m.err
-	}
-	return 0, common.Hash{}, m.status, nil
-}
-
-type stubMonitorMetricer struct {
-	inProgress    int
-	defenderWon   int
-	challengerWon int
-}
-
-func (s *stubMonitorMetricer) RecordGamesStatus(inProgress, defenderWon, challengerWon int) {
-	s.inProgress = inProgress
-	s.defenderWon = defenderWon
-	s.challengerWon = challengerWon
-}
-
-type stubGameSource struct {
+type mockFactory struct {
 	fetchErr   error
 	calls      int
 	maxSuccess int
 	games      []types.GameMetadata
 }
 
-func (s *stubGameSource) GetGamesAtOrAfter(
+func (m *mockFactory) GetGamesAtOrAfter(
 	_ context.Context,
 	_ common.Hash,
 	_ uint64,
 ) ([]types.GameMetadata, error) {
-	s.calls++
-	if s.fetchErr != nil {
-		return nil, s.fetchErr
+	m.calls++
+	if m.fetchErr != nil {
+		return nil, m.fetchErr
 	}
-	if s.calls > s.maxSuccess && s.maxSuccess != 0 {
+	if m.calls > m.maxSuccess && m.maxSuccess != 0 {
 		return nil, mockErr
 	}
-	return s.games, nil
+	return m.games, nil
 }
