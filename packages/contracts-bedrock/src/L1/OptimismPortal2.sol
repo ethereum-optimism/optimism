@@ -283,9 +283,10 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         // in the case that an honest user proves their withdrawal against a dispute game that
         // resolves against the root claim, or the dispute game is blacklisted, we allow
         // re-proving the withdrawal against a new proposal.
+        IDisputeGame game = provenWithdrawal.disputeGameProxy;
         require(
             provenWithdrawal.timestamp == 0 || gameProxy.status() == GameStatus.CHALLENGER_WINS
-                || disputeGameBlacklist[gameProxy] || gameProxy.gameType().raw() != respectedGameType.raw(),
+                || disputeGameBlacklist[gameProxy] || game.gameType().raw() != respectedGameType.raw(),
             "OptimismPortal: withdrawal hash has already been proven, and dispute game is not invalid"
         );
 

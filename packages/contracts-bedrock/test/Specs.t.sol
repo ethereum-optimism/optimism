@@ -32,6 +32,7 @@ contract Specification_Test is CommonTest {
         CHALLENGER,
         SYSTEMCONFIGOWNER,
         GUARDIAN,
+        SAURON,
         MESSENGER,
         L1PROXYADMINOWNER,
         GOVERNANCETOKENOWNER,
@@ -249,9 +250,9 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "OptimismPortal2", _sel: _getSel("disputeGameFactory()") });
         _addSpec({ _name: "OptimismPortal2", _sel: _getSel("disputeGameBlacklist(address)") });
         _addSpec({ _name: "OptimismPortal2", _sel: _getSel("respectedGameType()") });
-        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("blacklistDisputeGame(address)") });
-        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("deleteProvenWithdrawal(bytes32)") });
-        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("setRespectedGameType(uint32)") });
+        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("blacklistDisputeGame(address)"), _auth: Role.SAURON });
+        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("deleteProvenWithdrawal(bytes32)"), _auth: Role.SAURON });
+        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("setRespectedGameType(uint32)"), _auth: Role.SAURON });
         _addSpec({ _name: "OptimismPortal2", _sel: _getSel("checkWithdrawal(bytes32)") });
         _addSpec({ _name: "OptimismPortal2", _sel: _getSel("proofMaturityDelaySeconds()") });
         _addSpec({ _name: "OptimismPortal2", _sel: _getSel("disputeGameFinalityDelaySeconds()") });

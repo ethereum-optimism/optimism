@@ -568,6 +568,7 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
     /// @dev Tests that `proveWithdrawalTransaction` can be re-executed if the dispute game proven against is no longer
     ///      of the respected game type.
     function test_proveWithdrawalTransaction_replayRespectedGameTypeChanged_suceeds() external {
+        // Prove the withdrawal against a game with the current respected game type.
         vm.expectEmit(true, true, true, true);
         emit WithdrawalProven(_withdrawalHash, alice, bob);
         optimismPortal2.proveWithdrawalTransaction({
@@ -577,15 +578,25 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
             _withdrawalProof: _withdrawalProof
         });
 
-        vm.mockCall(address(game), abi.encodeCall(game.gameType, ()), abi.encode(GameType.wrap(0xFF)));
+        // Update the respected game type to 0xbeef.
         vm.prank(optimismPortal2.sauron());
-        optimismPortal2.setRespectedGameType(GameType.wrap(0xFF));
+        optimismPortal2.setRespectedGameType(GameType.wrap(0xbeef));
 
+        // Create a new game and mock the game type as 0xbeef in the factory.
+        IDisputeGame newGame =
+            disputeGameFactory.create(GameType.wrap(0), Claim.wrap(_outputRoot), abi.encode(_proposedBlockNumber + 1));
+        vm.mockCall(
+            address(disputeGameFactory),
+            abi.encodeCall(disputeGameFactory.gameAtIndex, (_proposedGameIndex + 1)),
+            abi.encode(GameType.wrap(0xbeef), Timestamp.wrap(uint64(block.timestamp)), IDisputeGame(address(newGame)))
+        );
+
+        // Re-proving should be successful against the new game.
         vm.expectEmit(true, true, true, true);
         emit WithdrawalProven(_withdrawalHash, alice, bob);
         optimismPortal2.proveWithdrawalTransaction({
             _tx: _defaultTx,
-            _disputeGameIndex: _proposedGameIndex,
+            _disputeGameIndex: _proposedGameIndex + 1,
             _outputRootProof: _outputRootProof,
             _withdrawalProof: _withdrawalProof
         });
