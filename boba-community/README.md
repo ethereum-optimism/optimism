@@ -54,7 +54,7 @@ Here are instructions if you want to run boba erigon version as the replica node
   > b887d2e0318e9299e844da7d39ca32040e3d0fb6a9d7abe2dd2f8624eca1cade  boba-sepolia-erigon-db.tgz
   > ```
   >
-  > Check the [BOBA Snapshots](TODO) page for the correct checksum for the snapshot you've downloaded.
+  > Check the [BOBA Snapshots](https://docs.boba.network/for-developers/node-operators/snapshot-downloads) page for the correct checksum for the snapshot you've downloaded.
 
 2. Extract the data Directory
 
