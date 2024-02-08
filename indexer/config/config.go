@@ -31,8 +31,9 @@ type L1Contracts struct {
 	SystemConfigProxy common.Address `toml:"system-config"`
 
 	// rollup state
-	OptimismPortalProxy common.Address `toml:"optimism-portal"`
-	L2OutputOracleProxy common.Address `toml:"l2-output-oracle"`
+	OptimismPortalProxy     common.Address `toml:"optimism-portal"`
+	L2OutputOracleProxy     common.Address `toml:"l2-output-oracle"`
+	DisputeGameFactoryProxy common.Address `toml:"dispute-game-factory"`
 
 	// bridging
 	L1CrossDomainMessengerProxy common.Address `toml:"l1-cross-domain-messenger"`

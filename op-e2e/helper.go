@@ -39,6 +39,18 @@ func UsesCannon(t e2eutils.TestingBase, opts *testopts) {
 	}
 }
 
+func SkipOnFPAC(t e2eutils.TestingBase, opts *testopts) {
+	if e2eutils.UseFPAC() {
+		t.Skip("Skipping test for FPAC")
+	}
+}
+
+func SkipOnNotFPAC(t e2eutils.TestingBase, opts *testopts) {
+	if !e2eutils.UseFPAC() {
+		t.Skip("Skipping test for non-FPAC")
+	}
+}
+
 //	UseExecutor allows manually splitting tests between circleci executors
 //
 // Tests default to run on the first executor but can be moved to the second with:

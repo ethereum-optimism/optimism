@@ -107,6 +107,7 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 				L1CrossDomainMessengerProxy: opCfg.L1Deployments.L1CrossDomainMessengerProxy,
 				L1StandardBridgeProxy:       opCfg.L1Deployments.L1StandardBridgeProxy,
 				L1ERC721BridgeProxy:         opCfg.L1Deployments.L1ERC721BridgeProxy,
+				DisputeGameFactoryProxy:     opCfg.L1Deployments.DisputeGameFactoryProxy,
 			},
 		},
 		HTTPServer:    config.ServerConfig{Host: "127.0.0.1", Port: 0},

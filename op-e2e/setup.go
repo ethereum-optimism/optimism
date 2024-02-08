@@ -747,17 +747,35 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	}
 
 	// L2Output Submitter
-	proposerCLIConfig := &l2os.CLIConfig{
-		L1EthRpc:          sys.EthInstances["l1"].WSEndpoint(),
-		RollupRpc:         sys.RollupNodes["sequencer"].HTTPEndpoint(),
-		L2OOAddress:       config.L1Deployments.L2OutputOracleProxy.Hex(),
-		PollInterval:      50 * time.Millisecond,
-		TxMgrConfig:       newTxMgrConfig(sys.EthInstances["l1"].WSEndpoint(), cfg.Secrets.Proposer),
-		AllowNonFinalized: cfg.NonFinalizedProposals,
-		LogConfig: oplog.CLIConfig{
-			Level:  log.LevelInfo,
-			Format: oplog.FormatText,
-		},
+	var proposerCLIConfig *l2os.CLIConfig
+	if e2eutils.UseFPAC() {
+		proposerCLIConfig = &l2os.CLIConfig{
+			L1EthRpc:          sys.EthInstances["l1"].WSEndpoint(),
+			RollupRpc:         sys.RollupNodes["sequencer"].HTTPEndpoint(),
+			DGFAddress:        config.L1Deployments.DisputeGameFactoryProxy.Hex(),
+			ProposalInterval:  6 * time.Second,
+			DisputeGameType:   0,
+			PollInterval:      50 * time.Millisecond,
+			TxMgrConfig:       newTxMgrConfig(sys.EthInstances["l1"].WSEndpoint(), cfg.Secrets.Proposer),
+			AllowNonFinalized: cfg.NonFinalizedProposals,
+			LogConfig: oplog.CLIConfig{
+				Level:  log.LvlInfo,
+				Format: oplog.FormatText,
+			},
+		}
+	} else {
+		proposerCLIConfig = &l2os.CLIConfig{
+			L1EthRpc:          sys.EthInstances["l1"].WSEndpoint(),
+			RollupRpc:         sys.RollupNodes["sequencer"].HTTPEndpoint(),
+			L2OOAddress:       config.L1Deployments.L2OutputOracleProxy.Hex(),
+			PollInterval:      50 * time.Millisecond,
+			TxMgrConfig:       newTxMgrConfig(sys.EthInstances["l1"].WSEndpoint(), cfg.Secrets.Proposer),
+			AllowNonFinalized: cfg.NonFinalizedProposals,
+			LogConfig: oplog.CLIConfig{
+				Level:  log.LvlInfo,
+				Format: oplog.FormatText,
+			},
+		}
 	}
 	proposer, err := l2os.ProposerServiceFromCLIConfig(context.Background(), "0.0.1", proposerCLIConfig, sys.Cfg.Loggers["proposer"])
 	if err != nil {

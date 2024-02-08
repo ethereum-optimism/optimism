@@ -204,3 +204,7 @@ func ApplyDeployConfigForks(deployConfig *genesis.DeployConfig) {
 	deployConfig.L2GenesisCanyonTimeOffset = new(hexutil.Uint64)
 	deployConfig.L2GenesisRegolithTimeOffset = new(hexutil.Uint64)
 }
+
+func UseFPAC() bool {
+	return os.Getenv("OP_E2E_USE_FPAC") == "true"
+}

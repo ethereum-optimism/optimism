@@ -18,9 +18,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-proposer/metrics"
 	"github.com/ethereum-optimism/optimism/op-proposer/proposer"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
@@ -35,14 +37,16 @@ type ProposerCfg struct {
 }
 
 type L2Proposer struct {
-	log          log.Logger
-	l1           *ethclient.Client
-	driver       *proposer.L2OutputSubmitter
-	contract     *bindings.L2OutputOracleCaller
-	address      common.Address
-	privKey      *ecdsa.PrivateKey
-	contractAddr common.Address
-	lastTx       common.Hash
+	log                    log.Logger
+	l1                     *ethclient.Client
+	driver                 *proposer.L2OutputSubmitter
+	l2OutputOracle         *bindings.L2OutputOracleCaller
+	l2OutputOracleAddr     *common.Address
+	disputeGameFactory     *bindings.DisputeGameFactoryCaller
+	disputeGameFactoryAddr *common.Address
+	address                common.Address
+	privKey                *ecdsa.PrivateKey
+	lastTx                 common.Hash
 }
 
 type fakeTxMgr struct {
@@ -85,28 +89,34 @@ func NewL2Proposer(t Testing, log log.Logger, cfg *ProposerCfg, l1 *ethclient.Cl
 		RollupProvider: rollupProvider,
 	}
 
-	if cfg.OutputOracleAddr == nil {
-		panic("L2OutputOracle address must be set in op-e2e test harness. The DisputeGameFactory is not yet supported as a proposal destination.")
-	}
-
 	dr, err := proposer.NewL2OutputSubmitter(driverSetup)
-	require.NoError(t, err)
-	contract, err := bindings.NewL2OutputOracleCaller(*cfg.OutputOracleAddr, l1)
 	require.NoError(t, err)
 
 	address := crypto.PubkeyToAddress(cfg.ProposerKey.PublicKey)
-	proposer, err := contract.PROPOSER(&bind.CallOpts{})
-	require.NoError(t, err)
-	require.Equal(t, proposer, address, "PROPOSER must be the proposer's address")
+
+	var l2OutputOracle *bindings.L2OutputOracleCaller
+	var disputeGameFactory *bindings.DisputeGameFactoryCaller
+	if e2eutils.UseFPAC() {
+		disputeGameFactory, err = bindings.NewDisputeGameFactoryCaller(*cfg.DisputeGameFactoryAddr, l1)
+		require.NoError(t, err)
+	} else {
+		l2OutputOracle, err := bindings.NewL2OutputOracleCaller(*cfg.OutputOracleAddr, l1)
+		require.NoError(t, err)
+		proposer, err := l2OutputOracle.PROPOSER(&bind.CallOpts{})
+		require.NoError(t, err)
+		require.Equal(t, proposer, address, "PROPOSER must be the proposer's address")
+	}
 
 	return &L2Proposer{
-		log:          log,
-		l1:           l1,
-		driver:       dr,
-		contract:     contract,
-		address:      address,
-		privKey:      cfg.ProposerKey,
-		contractAddr: *cfg.OutputOracleAddr,
+		log:                    log,
+		l1:                     l1,
+		driver:                 dr,
+		l2OutputOracle:         l2OutputOracle,
+		l2OutputOracleAddr:     cfg.OutputOracleAddr,
+		disputeGameFactory:     disputeGameFactory,
+		disputeGameFactoryAddr: cfg.DisputeGameFactoryAddr,
+		address:                address,
+		privKey:                cfg.ProposerKey,
 	}
 }
 
@@ -122,9 +132,16 @@ func (p *L2Proposer) sendTx(t Testing, data []byte) {
 	nonce, err := p.l1.NonceAt(t.Ctx(), p.address, nil)
 	require.NoError(t, err)
 
+	var addr common.Address
+	if e2eutils.UseFPAC() {
+		addr = *p.disputeGameFactoryAddr
+	} else {
+		addr = *p.l2OutputOracleAddr
+	}
+
 	gasLimit, err := estimateGasPending(t.Ctx(), p.l1, ethereum.CallMsg{
 		From:      p.address,
-		To:        &p.contractAddr,
+		To:        &addr,
 		GasFeeCap: gasFeeCap,
 		GasTipCap: gasTipCap,
 		Data:      data,
@@ -133,7 +150,7 @@ func (p *L2Proposer) sendTx(t Testing, data []byte) {
 
 	rawTx := &types.DynamicFeeTx{
 		Nonce:     nonce,
-		To:        &p.contractAddr,
+		To:        &addr,
 		Data:      data,
 		GasFeeCap: gasFeeCap,
 		GasTipCap: gasTipCap,
@@ -145,7 +162,6 @@ func (p *L2Proposer) sendTx(t Testing, data []byte) {
 	require.NoError(t, err, "need to sign tx")
 
 	err = p.l1.SendTransaction(t.Ctx(), tx)
-	log.Info("Proposer sent tx", "hash", tx.Hash(), "to", p.contractAddr)
 	require.NoError(t, err, "need to send tx")
 
 	p.lastTx = tx.Hash()
@@ -184,21 +200,56 @@ func toCallArg(msg ethereum.CallMsg) interface{} {
 	return arg
 }
 
+func (p *L2Proposer) fetchNextOutput(t Testing) (*eth.OutputResponse, bool, error) {
+	if e2eutils.UseFPAC() {
+		blockNumber, err := p.driver.FetchCurrentBlockNumber(t.Ctx())
+		if err != nil {
+			return nil, false, err
+		}
+
+		output, _, err := p.driver.FetchOutput(t.Ctx(), blockNumber)
+		if err != nil {
+			return nil, false, err
+		}
+
+		encodedBlockNumber := make([]byte, 32)
+		copy(encodedBlockNumber[32-len(blockNumber.Bytes()):], blockNumber.Bytes())
+		game, err := p.disputeGameFactory.Games(&bind.CallOpts{}, p.driver.Cfg.DisputeGameType, output.OutputRoot, encodedBlockNumber)
+		if err != nil {
+			return nil, false, err
+		}
+		if game.Timestamp != 0 {
+			return nil, false, nil
+		}
+
+		return output, true, nil
+	} else {
+		return p.driver.FetchNextOutputInfo(t.Ctx())
+	}
+}
+
 func (p *L2Proposer) CanPropose(t Testing) bool {
-	_, shouldPropose, err := p.driver.FetchNextOutputInfo(t.Ctx())
+	_, shouldPropose, err := p.fetchNextOutput(t)
 	require.NoError(t, err)
 	return shouldPropose
 }
 
 func (p *L2Proposer) ActMakeProposalTx(t Testing) {
-	output, shouldPropose, err := p.driver.FetchNextOutputInfo(t.Ctx())
+	output, shouldPropose, err := p.fetchNextOutput(t)
+	require.NoError(t, err)
+
 	if !shouldPropose {
 		return
 	}
-	require.NoError(t, err)
 
-	txData, err := p.driver.ProposeL2OutputTxData(output)
-	require.NoError(t, err)
+	var txData []byte
+	if e2eutils.UseFPAC() {
+		txData, _, err = p.driver.ProposeL2OutputDGFTxData(output)
+		require.NoError(t, err)
+	} else {
+		txData, err = p.driver.ProposeL2OutputTxData(output)
+		require.NoError(t, err)
+	}
 
 	// Note: Use L1 instead of the output submitter's transaction manager because
 	// this is non-blocking while the txmgr is blocking & deadlocks the tests
