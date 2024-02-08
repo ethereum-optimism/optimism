@@ -97,17 +97,14 @@ since some contracts are deployed using `CREATE`. Run `pnpm clean` and rerun the
 
 ### Static Analysis
 
-`contracts-bedrock` uses [slither](https://github.com/crytic/slither) as its primary static analysis tool. When opening a PR that includes changes to `contracts-bedrock`, you should
-verify that slither did not detect any new issues by running `pnpm slither`.
+`contracts-bedrock` uses [slither](https://github.com/crytic/slither) as its primary static analysis tool.
+Slither will be run against PRs as part of CI, and new findings will be reported as a comment on the PR.
+CI will fail if there are any new findings of medium or higher severity, as configured in the repo's Settings > Code Security and Analysis > Code Scanning > Protection rules setting.
 
-If there are new issues, you should triage them.
-Run `pnpm slither:triage` to step through findings.
-You should _carefully_ walk through these findings, specifying which to ignore.
-Findings are triaged into `slither.db.json`.
-You should triage issues with extreme _care_ and security sign-off.
+Existing findings can be found in the repo's Security tab > [Code Scanning](https://github.com/ethereum-optimism/optimism/security/code-scanning) section.
+You can view findings for a specific PR using the `pr:{number}` filter, such [`pr:9405`](https://github.com/ethereum-optimism/optimism/security/code-scanning?query=is:open+pr:9405).
 
-After issues are triaged, or an updated slither report is generated, make sure to format the updated `slither.db.json` with `pnpm slither:fmt`, then commit.
-Formatting ensures the file can be more easily diffed by reviewers.
+For each finding, either fix it locally and push a new commit, or dismiss it through the PR comment's UI.
 
-This database file is used in CI to ensure that no new issues are introduced.
-Issues found in CI scans are reported as a comment on the PR and can be triaged from the comment.
+Note that you can run slither locally by running `slither .`, but because it does not contain the triaged results from GitHub, it will be noisy.
+Instead, you should run `slither ./path/to/contract.sol` to run it against a specific file.
