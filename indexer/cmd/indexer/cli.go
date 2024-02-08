@@ -106,7 +106,7 @@ func runReorgDeletion(ctx *cli.Context) error {
 	fromL1Height := ctx.Uint64(ReorgFlag.Name)
 
 	log := oplog.NewLogger(oplog.AppOut(ctx), oplog.ReadCLIConfig(ctx)).New("role", "reorg-deletion")
-	oplog.SetGlobalLogHandler(log.GetHandler())
+	oplog.SetGlobalLogHandler(log.Handler())
 	cfg, err := config.LoadConfig(log, ctx.String(ConfigFlag.Name))
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
