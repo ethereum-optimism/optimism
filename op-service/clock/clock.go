@@ -3,6 +3,7 @@ package clock
 
 import (
 	"context"
+	"math"
 	"time"
 )
 
@@ -12,6 +13,10 @@ import (
 type Clock interface {
 	// Now provides the current local time. Equivalent to time.Now
 	Now() time.Time
+
+	// Add returns the time t+d. Equivalent to time.Now().Add(d)
+	// If d is negative, the duration is safely subtracted from t.
+	Add(d time.Duration) time.Time
 
 	// Since returns the time elapsed since t. It is shorthand for time.Now().Sub(t).
 	Since(time.Time) time.Duration
@@ -90,6 +95,14 @@ func (s systemClock) Since(t time.Time) time.Duration {
 
 func (s systemClock) After(d time.Duration) <-chan time.Time {
 	return time.After(d)
+}
+
+func (s systemClock) Add(d time.Duration) time.Time {
+	now := s.Now()
+	if d < 0 && math.Abs(d.Seconds()) > float64(now.Unix()) {
+		return time.Unix(0, 0)
+	}
+	return now.Add(d)
 }
 
 type SystemTicker struct {

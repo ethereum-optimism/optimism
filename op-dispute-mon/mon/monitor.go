@@ -61,15 +61,7 @@ func newGameMonitor(
 }
 
 func (m *gameMonitor) minGameTimestamp() uint64 {
-	if m.gameWindow.Seconds() == 0 {
-		return 0
-	}
-	// time: "To compute t-d for a duration d, use t.Add(-d)."
-	// https://pkg.go.dev/time#Time.Sub
-	if m.clock.Now().Unix() > int64(m.gameWindow.Seconds()) {
-		return uint64(m.clock.Now().Add(-m.gameWindow).Unix())
-	}
-	return 0
+	return uint64(m.clock.Add(-m.gameWindow).Unix())
 }
 
 func (m *gameMonitor) monitorGames() error {

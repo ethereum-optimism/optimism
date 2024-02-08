@@ -64,6 +64,36 @@ func TestAfter(t *testing.T) {
 	})
 }
 
+func TestAdd(t *testing.T) {
+	t.Run("PositiveDuration", func(t *testing.T) {
+		clock := NewDeterministicClock(time.UnixMilli(1000))
+		clock.AdvanceTime(10 * time.Minute)
+		d := 5 * time.Minute
+		require.Equal(t, clock.Now().Add(d), clock.Add(d))
+	})
+
+	t.Run("NegativeDuration", func(t *testing.T) {
+		clock := NewDeterministicClock(time.UnixMilli(1000))
+		clock.AdvanceTime(10 * time.Minute)
+		d := -5 * time.Minute
+		require.Equal(t, clock.Now().Add(d), clock.Add(d))
+	})
+
+	t.Run("NegativeDurationSinceUnix", func(t *testing.T) {
+		clock := NewDeterministicClock(time.UnixMilli(1000))
+		clock.AdvanceTime(10 * time.Minute)
+		d := -clock.Since(time.Unix(0, 0))
+		require.Equal(t, time.Unix(0, 0), clock.Add(d))
+	})
+
+	t.Run("NegativeDurationTooLarge", func(t *testing.T) {
+		clock := NewDeterministicClock(time.UnixMilli(1000))
+		clock.AdvanceTime(10 * time.Minute)
+		d := -2 * clock.Since(time.Unix(0, 0))
+		require.Equal(t, time.Unix(0, 0), clock.Add(d))
+	})
+}
+
 func TestAfterFunc(t *testing.T) {
 	t.Run("ZeroExecutesImmediately", func(t *testing.T) {
 		clock := NewDeterministicClock(time.UnixMilli(1000))

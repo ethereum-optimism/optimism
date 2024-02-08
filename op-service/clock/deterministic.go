@@ -2,6 +2,7 @@ package clock
 
 import (
 	"context"
+	"math"
 	"sync"
 	"time"
 )
@@ -155,6 +156,16 @@ func (s *DeterministicClock) After(d time.Duration) <-chan time.Time {
 		s.addPending(&task{ch: ch, due: s.now.Add(d)})
 	}
 	return ch
+}
+
+func (s *DeterministicClock) Add(d time.Duration) time.Time {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	now := s.now
+	if d < 0 && math.Abs(d.Seconds()) > float64(now.Unix()) {
+		return time.Unix(0, 0)
+	}
+	return now.Add(d)
 }
 
 func (s *DeterministicClock) AfterFunc(d time.Duration, f func()) Timer {

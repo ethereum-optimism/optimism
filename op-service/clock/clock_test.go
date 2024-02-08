@@ -30,3 +30,33 @@ func TestSystemClock_SleepCtx(t *testing.T) {
 		require.Greater(t, end.Sub(start), 5*time.Millisecond, "should sleep at least a bit")
 	})
 }
+
+func TestSystemClock_Add(t *testing.T) {
+	t.Run("PositiveDuration", func(t *testing.T) {
+		now := time.Now()
+		d := 5 * time.Minute
+		expected := now.Add(d)
+		actual := SystemClock.Add(d)
+		require.WithinDuration(t, expected, actual, time.Second)
+	})
+
+	t.Run("NegativeDuration", func(t *testing.T) {
+		now := time.Now()
+		d := -5 * time.Minute
+		expected := now.Add(d)
+		actual := SystemClock.Add(d)
+		require.WithinDuration(t, expected, actual, time.Second)
+	})
+
+	t.Run("NegativeDurationSinceUnix", func(t *testing.T) {
+		d := -SystemClock.Since(time.Unix(0, 0))
+		actual := SystemClock.Add(d)
+		require.Equal(t, time.Unix(0, 0), actual)
+	})
+
+	t.Run("NegativeDurationTooLarge", func(t *testing.T) {
+		d := -2 * SystemClock.Since(time.Unix(0, 0))
+		actual := SystemClock.Add(d)
+		require.Equal(t, time.Unix(0, 0), actual)
+	})
+}

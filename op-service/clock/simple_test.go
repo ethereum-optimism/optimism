@@ -50,3 +50,40 @@ func TestSimpleClock_SetTime(t *testing.T) {
 		})
 	}
 }
+
+func TestSimpleClock_Add(t *testing.T) {
+	t.Run("PositiveDuration", func(t *testing.T) {
+		c := NewSimpleClock()
+		now := c.Now()
+		d := 5 * time.Minute
+		expected := now.Add(d)
+		actual := c.Add(d)
+		require.WithinDuration(t, expected, actual, time.Second)
+	})
+
+	t.Run("NegativeDuration", func(t *testing.T) {
+		c := NewSimpleClock()
+		c.SetTime(uint64(10 * time.Minute))
+		now := c.Now()
+		d := -5 * time.Minute
+		expected := now.Add(d)
+		actual := c.Add(d)
+		require.WithinDuration(t, expected, actual, time.Second)
+	})
+
+	t.Run("NegativeDurationSinceUnix", func(t *testing.T) {
+		c := NewSimpleClock()
+		c.SetTime(5)
+		d := -1 * time.Duration(5*time.Second)
+		actual := c.Add(d)
+		require.Equal(t, time.Unix(0, 0), actual)
+	})
+
+	t.Run("NegativeDurationTooLarge", func(t *testing.T) {
+		c := NewSimpleClock()
+		c.SetTime(5)
+		d := -2 * time.Duration(5*time.Second)
+		actual := c.Add(d)
+		require.Equal(t, time.Unix(0, 0), actual)
+	})
+}
