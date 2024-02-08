@@ -356,7 +356,7 @@ func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *et
 	e.needFCUCall = false
 
 	if e.syncStatus == syncStatusFinishedELButNotFinalized {
-		e.log.Info("Finished EL sync", "sync_duration", e.clock.Since(e.elStart))
+		e.log.Info("Finished EL sync", "sync_duration", e.clock.Since(e.elStart), "finalized_block", ref.ID().String())
 		e.syncStatus = syncStatusFinishedEL
 	}
 
