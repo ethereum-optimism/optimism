@@ -106,6 +106,7 @@ func InjectState(transitionState *core.Genesis, db ethdb.Database, deployConfig 
 	cfg := rawdb.ReadChainConfig(db, genesisHash)
 	if cfg == nil {
 		log.Crit("chain config not found")
+		return fmt.Errorf("chain config not found")
 	}
 
 	// Set the standard options.

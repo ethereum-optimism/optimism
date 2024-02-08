@@ -3,8 +3,6 @@ set -e
 
 DATADIR=/db
 VERBOSITY=${VERBOSITY:-3}
-CHAIN_NAME=${CHAIN_NAME}
-CHAIN_ID=${CHAIN_ID}
 BLOCK_SIGNER_PRIVATE_KEY="2e0834786285daccd064ca17f1654f67b4aef298acbb82cef9ec422fb4975622"
 BLOCK_SIGNER_ADDRESS="0x123463a4B065722E99115D6c222f267d9cABb524"
 
@@ -41,7 +39,7 @@ ERIGON_FLAGS=" \
   --db.size.limit=8TB \
   "
 
-if [ -z "$CHAIN_NAME" ]; then
+if [ -n "$CHAIN_NAME" ]; then
   echo "CHAIN_NAME must be set to init chaindata"
   exit 1
 fi
@@ -57,7 +55,7 @@ fi
 
 if [ ! -d "${DATADIR}/chaindata" ] ; then
 	echo "${DATADIR}/chaindata  missing, running init"
-  erigon ${COMMON_FLAGS} init /config/genesis-l2.json
+  erigon "${COMMON_FLAGS}" init /config/genesis-l2.json
   echo "Creating keyfile"
   echo ${BLOCK_SIGNER_PRIVATE_KEY} > ${DATADIR}/nodekey
   echo "Init completed"
@@ -67,10 +65,10 @@ else
 fi
 
 echo "---------------"
-echo ${ERIGON_FLAGS} "$@"
+echo "${ERIGON_FLAGS}" "$@"
 echo "--------------"
 
-exec erigon ${ERIGON_FLAGS} "$@"
+exec erigon "${ERIGON_FLAGS}" "$@"
 echo
 echo ***** EXITED WITH STATUS $? *****
 echo
