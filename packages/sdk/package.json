@@ -68,7 +68,7 @@
     "lodash": "^4.17.21",
     "merkletreejs": "^0.3.11",
     "rlp": "^2.2.7",
-    "semver": "^7.5.4"
+    "semver": "^7.6.0"
   },
   "peerDependencies": {
     "ethers": "^5"
