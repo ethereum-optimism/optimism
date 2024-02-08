@@ -108,14 +108,14 @@ contract Initializer_Test is Bridge_Initializer {
                 initializedSlotVal: deploy.loadInitializedSlot("OptimismPortal")
             })
         );
-        // OptimismPortal2Impl
+        // L1ToL2MessagePasserImpl
         contracts.push(
             InitializeableContract({
-                target: deploy.mustGetAddress("OptimismPortal2"),
+                target: deploy.mustGetAddress("L1ToL2MessagePasser"),
                 initCalldata: abi.encodeCall(
-                    optimismPortal2.initialize, (disputeGameFactory, systemConfig, superchainConfig)
+                    l1ToL2MessagePasser.initialize, (disputeGameFactory, systemConfig, superchainConfig)
                     ),
-                initializedSlotVal: deploy.loadInitializedSlot("OptimismPortal2")
+                initializedSlotVal: deploy.loadInitializedSlot("L1ToL2MessagePasser")
             })
         );
         // OptimismPortalProxy
@@ -297,7 +297,8 @@ contract Initializer_Test is Bridge_Initializer {
     ///         3. The `initialize()` function of each contract cannot be called more than once.
     function test_cannotReinitialize_succeeds() public {
         // Ensure that all L1, L2 `Initializable` contracts are accounted for, in addition to
-        // OptimismMintableERC20FactoryImpl, OptimismMintableERC20FactoryProxy, OptimismPortal2, DisputeGameFactoryImpl
+        // OptimismMintableERC20FactoryImpl, OptimismMintableERC20FactoryProxy, L1ToL2MessagePasser,
+        // DisputeGameFactoryImpl
         // and DisputeGameFactoryProxy
         assertEq(_getNumInitializable() + 3, contracts.length);
 

@@ -4,7 +4,7 @@ pragma solidity 0.8.15;
 import { StdUtils } from "forge-std/Test.sol";
 import { Vm } from "forge-std/Vm.sol";
 
-import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
+import { L1ToL2MessagePasser } from "src/L1/L1ToL2MessagePasser.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
@@ -17,14 +17,14 @@ import { Types } from "src/libraries/Types.sol";
 import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
 import "src/libraries/DisputeTypes.sol";
 
-contract OptimismPortal2_Depositor is StdUtils, ResourceMetering {
+contract L1ToL2MessagePasser_Depositor is StdUtils, ResourceMetering {
     Vm internal vm;
-    OptimismPortal2 internal portal;
+    L1ToL2MessagePasser internal messagePasser;
     bool public failedToComplete;
 
-    constructor(Vm _vm, OptimismPortal2 _portal) {
+    constructor(Vm _vm, L1ToL2MessagePasser _messagePasser) {
         vm = _vm;
-        portal = _portal;
+        messagePasser = _messagePasser;
         initialize();
     }
 
@@ -61,14 +61,16 @@ contract OptimismPortal2_Depositor is StdUtils, ResourceMetering {
         uint256 preDepositBalance = address(this).balance;
         uint256 value = bound(preDepositvalue, 0, preDepositBalance);
 
-        (, uint64 cachedPrevBoughtGas,) = ResourceMetering(address(portal)).params();
+        (, uint64 cachedPrevBoughtGas,) = ResourceMetering(address(messagePasser)).params();
         ResourceMetering.ResourceConfig memory rcfg = resourceConfig();
         uint256 maxResourceLimit = uint64(rcfg.maxResourceLimit);
         uint64 gasLimit = uint64(
-            bound(_gasLimit, portal.minimumGasLimit(uint64(_data.length)), maxResourceLimit - cachedPrevBoughtGas)
+            bound(
+                _gasLimit, messagePasser.minimumGasLimit(uint64(_data.length)), maxResourceLimit - cachedPrevBoughtGas
+            )
         );
 
-        try portal.depositTransaction{ value: value }(_to, value, gasLimit, _isCreation, _data) {
+        try messagePasser.depositTransaction{ value: value }(_to, value, gasLimit, _isCreation, _data) {
             // Do nothing; Call succeeded
         } catch {
             failedToComplete = true;
@@ -76,7 +78,7 @@ contract OptimismPortal2_Depositor is StdUtils, ResourceMetering {
     }
 }
 
-contract OptimismPortal2_Invariant_Harness is CommonTest {
+contract L1ToL2MessagePasser_Invariant_Harness is CommonTest {
     // Reusable default values for a test withdrawal
     Types.WithdrawalTransaction _defaultTx;
 
@@ -118,7 +120,7 @@ contract OptimismPortal2_Invariant_Harness is CommonTest {
         FaultDisputeGame game = FaultDisputeGame(
             address(
                 disputeGameFactory.create(
-                    optimismPortal2.respectedGameType(), Claim.wrap(_outputRoot), abi.encode(_proposedBlockNumber)
+                    l1ToL2MessagePasser.respectedGameType(), Claim.wrap(_outputRoot), abi.encode(_proposedBlockNumber)
                 )
             )
         );
@@ -129,18 +131,18 @@ contract OptimismPortal2_Invariant_Harness is CommonTest {
         game.resolveClaim(0);
         game.resolve();
 
-        // Fund the portal so that we can withdraw ETH.
-        vm.deal(address(optimismPortal2), 0xFFFFFFFF);
+        // Fund the message passer so that we can withdraw ETH.
+        vm.deal(address(l1ToL2MessagePasser), 0xFFFFFFFF);
     }
 }
 
-contract OptimismPortal2_Deposit_Invariant is CommonTest {
-    OptimismPortal2_Depositor internal actor;
+contract L1ToL2MessagePasser_Deposit_Invariant is CommonTest {
+    L1ToL2MessagePasser_Depositor internal actor;
 
     function setUp() public override {
         super.setUp();
         // Create a deposit actor.
-        actor = new OptimismPortal2_Depositor(vm, optimismPortal2);
+        actor = new L1ToL2MessagePasser_Depositor(vm, l1ToL2MessagePasser);
 
         targetContract(address(actor));
 
@@ -160,17 +162,19 @@ contract OptimismPortal2_Deposit_Invariant is CommonTest {
     }
 }
 
-contract OptimismPortal2_CannotTimeTravel is OptimismPortal2_Invariant_Harness {
+contract L1ToL2MessagePasser_CannotTimeTravel is L1ToL2MessagePasser_Invariant_Harness {
     function setUp() public override {
         super.setUp();
 
         // Prove the withdrawal transaction
-        optimismPortal2.proveWithdrawalTransaction(_defaultTx, _proposedGameIndex, _outputRootProof, _withdrawalProof);
+        l1ToL2MessagePasser.proveWithdrawalTransaction(
+            _defaultTx, _proposedGameIndex, _outputRootProof, _withdrawalProof
+        );
 
-        // Set the target contract to the portal proxy
-        targetContract(address(optimismPortal2));
+        // Set the target contract to the message passer proxy
+        targetContract(address(l1ToL2MessagePasser));
         // Exclude the proxy admin from the senders so that the proxy cannot be upgraded
-        excludeSender(EIP1967Helper.getAdmin(address(optimismPortal2)));
+        excludeSender(EIP1967Helper.getAdmin(address(l1ToL2MessagePasser)));
     }
 
     /// @custom:invariant `finalizeWithdrawalTransaction` should revert if the proof maturity period has not elapsed.
@@ -178,28 +182,30 @@ contract OptimismPortal2_CannotTimeTravel is OptimismPortal2_Invariant_Harness {
     ///                   A withdrawal that has been proven should not be able to be finalized
     ///                   until after the proof maturity period has elapsed.
     function invariant_cannotFinalizeBeforePeriodHasPassed() external {
-        vm.expectRevert("OptimismPortal: proven withdrawal has not matured yet");
-        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
+        vm.expectRevert("L1ToL2MessagePasser: proven withdrawal has not matured yet");
+        l1ToL2MessagePasser.finalizeWithdrawalTransaction(_defaultTx);
     }
 }
 
-contract OptimismPortal2_CannotFinalizeTwice is OptimismPortal2_Invariant_Harness {
+contract L1ToL2MessagePasser_CannotFinalizeTwice is L1ToL2MessagePasser_Invariant_Harness {
     function setUp() public override {
         super.setUp();
 
         // Prove the withdrawal transaction
-        optimismPortal2.proveWithdrawalTransaction(_defaultTx, _proposedGameIndex, _outputRootProof, _withdrawalProof);
+        l1ToL2MessagePasser.proveWithdrawalTransaction(
+            _defaultTx, _proposedGameIndex, _outputRootProof, _withdrawalProof
+        );
 
         // Warp past the proof maturity period.
-        vm.warp(block.timestamp + optimismPortal2.proofMaturityDelaySeconds() + 1);
+        vm.warp(block.timestamp + l1ToL2MessagePasser.proofMaturityDelaySeconds() + 1);
 
         // Finalize the withdrawal transaction.
-        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
+        l1ToL2MessagePasser.finalizeWithdrawalTransaction(_defaultTx);
 
         // Set the target contract to the portal proxy
-        targetContract(address(optimismPortal2));
+        targetContract(address(l1ToL2MessagePasser));
         // Exclude the proxy admin from the senders so that the proxy cannot be upgraded
-        excludeSender(EIP1967Helper.getAdmin(address(optimismPortal2)));
+        excludeSender(EIP1967Helper.getAdmin(address(l1ToL2MessagePasser)));
     }
 
     /// @custom:invariant `finalizeWithdrawalTransaction` should revert if the withdrawal has already been finalized.
@@ -207,37 +213,39 @@ contract OptimismPortal2_CannotFinalizeTwice is OptimismPortal2_Invariant_Harnes
     ///                   Ensures that there is no chain of calls that can be made that allows a withdrawal to be
     ///                   finalized twice.
     function invariant_cannotFinalizeTwice() external {
-        vm.expectRevert("OptimismPortal: withdrawal has already been finalized");
-        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
+        vm.expectRevert("L1ToL2MessagePasser: withdrawal has already been finalized");
+        l1ToL2MessagePasser.finalizeWithdrawalTransaction(_defaultTx);
     }
 }
 
-contract OptimismPortal_CanAlwaysFinalizeAfterWindow is OptimismPortal2_Invariant_Harness {
+contract L1ToL2MessagePasser_CanAlwaysFinalizeAfterWindow is L1ToL2MessagePasser_Invariant_Harness {
     function setUp() public override {
         super.setUp();
 
         // Prove the withdrawal transaction
-        optimismPortal2.proveWithdrawalTransaction(_defaultTx, _proposedGameIndex, _outputRootProof, _withdrawalProof);
+        l1ToL2MessagePasser.proveWithdrawalTransaction(
+            _defaultTx, _proposedGameIndex, _outputRootProof, _withdrawalProof
+        );
 
         // Warp past the proof maturity period.
-        vm.warp(block.timestamp + optimismPortal2.proofMaturityDelaySeconds() + 1);
+        vm.warp(block.timestamp + l1ToL2MessagePasser.proofMaturityDelaySeconds() + 1);
 
         // Set the target contract to the portal proxy
-        targetContract(address(optimismPortal2));
+        targetContract(address(l1ToL2MessagePasser));
         // Exclude the proxy admin from the senders so that the proxy cannot be upgraded
-        excludeSender(EIP1967Helper.getAdmin(address(optimismPortal2)));
+        excludeSender(EIP1967Helper.getAdmin(address(l1ToL2MessagePasser)));
     }
 
     /// @custom:invariant A withdrawal should **always** be able to be finalized `PROOF_MATURITY_DELAY_SECONDS` after
     ///                   it was successfully proven, if the game has resolved and passed the air-gap.
-    ///
+    ///gh
     ///                   This invariant asserts that there is no chain of calls that can be made that will prevent a
     ///                   withdrawal from being finalized exactly `PROOF_MATURITY_DELAY_SECONDS` after it was
     ///                   successfully proven and the game has resolved and passed the air-gap.
     function invariant_canAlwaysFinalize() external {
         uint256 bobBalanceBefore = address(bob).balance;
 
-        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
+        l1ToL2MessagePasser.finalizeWithdrawalTransaction(_defaultTx);
 
         assertEq(address(bob).balance, bobBalanceBefore + _defaultTx.value);
     }

@@ -6,7 +6,7 @@ import { Executables } from "scripts/Executables.sol";
 import { console2 as console } from "forge-std/console2.sol";
 import { ProtocolVersions } from "src/L1/ProtocolVersions.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
-import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
+import { L1ToL2MessagePasser } from "src/L1/L1ToL2MessagePasser.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 
 /// @title Specification_Test
@@ -224,38 +224,42 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "OptimismPortal", _sel: _getSel("systemConfig()") });
         _addSpec({ _name: "OptimismPortal", _sel: _getSel("version()") });
 
-        // OptimismPortal2
-        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("GUARDIAN()") });
-        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("SYSTEM_CONFIG()") });
-        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("depositTransaction(address,uint256,uint64,bool,bytes)") });
-        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("donateETH()") });
+        // L1ToL2MessagePasser
+        _addSpec({ _name: "L1ToL2MessagePasser", _sel: _getSel("GUARDIAN()") });
+        _addSpec({ _name: "L1ToL2MessagePasser", _sel: _getSel("SYSTEM_CONFIG()") });
+        _addSpec({ _name: "L1ToL2MessagePasser", _sel: _getSel("depositTransaction(address,uint256,uint64,bool,bytes)") });
+        _addSpec({ _name: "L1ToL2MessagePasser", _sel: _getSel("donateETH()") });
         _addSpec({
-            _name: "OptimismPortal2",
-            _sel: OptimismPortal2.finalizeWithdrawalTransaction.selector,
+            _name: "L1ToL2MessagePasser",
+            _sel: L1ToL2MessagePasser.finalizeWithdrawalTransaction.selector,
             _pausable: true
         });
-        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("finalizedWithdrawals(bytes32)") });
-        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("guardian()") });
-        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("sauron()") });
-        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("initialize(address,address,address)") });
-        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("l2Sender()") });
-        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("minimumGasLimit(uint64)") });
-        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("params()") });
-        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("paused()") });
-        _addSpec({ _name: "OptimismPortal2", _sel: OptimismPortal2.proveWithdrawalTransaction.selector, _pausable: true });
-        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("provenWithdrawals(bytes32)") });
-        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("superchainConfig()") });
-        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("systemConfig()") });
-        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("version()") });
-        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("disputeGameFactory()") });
-        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("disputeGameBlacklist(address)") });
-        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("respectedGameType()") });
-        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("blacklistDisputeGame(address)"), _auth: Role.SAURON });
-        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("deleteProvenWithdrawal(bytes32)"), _auth: Role.SAURON });
-        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("setRespectedGameType(uint32)"), _auth: Role.SAURON });
-        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("checkWithdrawal(bytes32)") });
-        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("proofMaturityDelaySeconds()") });
-        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("disputeGameFinalityDelaySeconds()") });
+        _addSpec({ _name: "L1ToL2MessagePasser", _sel: _getSel("finalizedWithdrawals(bytes32)") });
+        _addSpec({ _name: "L1ToL2MessagePasser", _sel: _getSel("guardian()") });
+        _addSpec({ _name: "L1ToL2MessagePasser", _sel: _getSel("sauron()") });
+        _addSpec({ _name: "L1ToL2MessagePasser", _sel: _getSel("initialize(address,address,address)") });
+        _addSpec({ _name: "L1ToL2MessagePasser", _sel: _getSel("l2Sender()") });
+        _addSpec({ _name: "L1ToL2MessagePasser", _sel: _getSel("minimumGasLimit(uint64)") });
+        _addSpec({ _name: "L1ToL2MessagePasser", _sel: _getSel("params()") });
+        _addSpec({ _name: "L1ToL2MessagePasser", _sel: _getSel("paused()") });
+        _addSpec({
+            _name: "L1ToL2MessagePasser",
+            _sel: L1ToL2MessagePasser.proveWithdrawalTransaction.selector,
+            _pausable: true
+        });
+        _addSpec({ _name: "L1ToL2MessagePasser", _sel: _getSel("provenWithdrawals(bytes32)") });
+        _addSpec({ _name: "L1ToL2MessagePasser", _sel: _getSel("superchainConfig()") });
+        _addSpec({ _name: "L1ToL2MessagePasser", _sel: _getSel("systemConfig()") });
+        _addSpec({ _name: "L1ToL2MessagePasser", _sel: _getSel("version()") });
+        _addSpec({ _name: "L1ToL2MessagePasser", _sel: _getSel("disputeGameFactory()") });
+        _addSpec({ _name: "L1ToL2MessagePasser", _sel: _getSel("disputeGameBlacklist(address)") });
+        _addSpec({ _name: "L1ToL2MessagePasser", _sel: _getSel("respectedGameType()") });
+        _addSpec({ _name: "L1ToL2MessagePasser", _sel: _getSel("blacklistDisputeGame(address)"), _auth: Role.SAURON });
+        _addSpec({ _name: "L1ToL2MessagePasser", _sel: _getSel("deleteProvenWithdrawal(bytes32)"), _auth: Role.SAURON });
+        _addSpec({ _name: "L1ToL2MessagePasser", _sel: _getSel("setRespectedGameType(uint32)"), _auth: Role.SAURON });
+        _addSpec({ _name: "L1ToL2MessagePasser", _sel: _getSel("checkWithdrawal(bytes32)") });
+        _addSpec({ _name: "L1ToL2MessagePasser", _sel: _getSel("proofMaturityDelaySeconds()") });
+        _addSpec({ _name: "L1ToL2MessagePasser", _sel: _getSel("disputeGameFinalityDelaySeconds()") });
 
         // ProtocolVersions
         _addSpec({ _name: "ProtocolVersions", _sel: _getSel("RECOMMENDED_SLOT()") });

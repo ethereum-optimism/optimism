@@ -18,7 +18,7 @@ import { LegacyERC20ETH } from "src/legacy/LegacyERC20ETH.sol";
 import { StandardBridge } from "src/universal/StandardBridge.sol";
 import { FeeVault } from "src/universal/FeeVault.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
-import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
+import { L1ToL2MessagePasser } from "src/L1/L1ToL2MessagePasser.sol";
 import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
 import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
 import { DeployConfig } from "scripts/DeployConfig.s.sol";
@@ -48,7 +48,7 @@ contract Setup {
     Deploy internal constant deploy = Deploy(address(uint160(uint256(keccak256(abi.encode("optimism.deploy"))))));
 
     OptimismPortal optimismPortal;
-    OptimismPortal2 optimismPortal2;
+    L1ToL2MessagePasser l1ToL2MessagePasser;
     DisputeGameFactory disputeGameFactory;
     L2OutputOracle l2OutputOracle;
     SystemConfig systemConfig;
@@ -99,7 +99,7 @@ contract Setup {
         deploy.run();
 
         optimismPortal = OptimismPortal(deploy.mustGetAddress("OptimismPortalProxy"));
-        optimismPortal2 = OptimismPortal2(deploy.mustGetAddress("OptimismPortalProxy"));
+        l1ToL2MessagePasser = L1ToL2MessagePasser(deploy.mustGetAddress("OptimismPortalProxy"));
         disputeGameFactory = DisputeGameFactory(deploy.mustGetAddress("DisputeGameFactoryProxy"));
         l2OutputOracle = L2OutputOracle(deploy.mustGetAddress("L2OutputOracleProxy"));
         systemConfig = SystemConfig(deploy.mustGetAddress("SystemConfigProxy"));

@@ -10,7 +10,7 @@ library Types {
         address DisputeGameFactory;
         address OptimismMintableERC20Factory;
         address OptimismPortal;
-        address OptimismPortal2;
+        address L1ToL2MessagePasser;
         address SystemConfig;
         address L1ERC721Bridge;
         address ProtocolVersions;

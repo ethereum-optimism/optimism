@@ -18,11 +18,11 @@ import { Constants } from "src/libraries/Constants.sol";
 import "src/libraries/DisputeTypes.sol";
 
 /// @custom:proxied
-/// @title OptimismPortal2
-/// @notice The OptimismPortal is a low-level contract responsible for passing messages between L1
-///         and L2. Messages sent directly to the OptimismPortal have no form of replayability.
+/// @title L1ToL2MessagePasser
+/// @notice The L1ToL2MessagePasser is a low-level contract responsible for passing messages between L1
+///         and L2. Messages sent directly to the L1ToL2MessagePasser have no form of replayability.
 ///         Users are encouraged to use the L1CrossDomainMessenger for a higher-level interface.
-contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
+contract L1ToL2MessagePasser is Initializable, ResourceMetering, ISemver {
     /// @notice Represents a proven withdrawal.
     /// @custom:field disputeGameProxy The address of the dispute game proxy that the withdrawal was proven against.
     /// @custom:field timestamp        Timestamp at whcih the withdrawal was proven.
@@ -88,7 +88,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     /// @notice A mapping of dispute game addresses to whether or not they are blacklisted.
     mapping(IDisputeGame => bool) public disputeGameBlacklist;
 
-    /// @notice The game type that the OptimismPortal consults for output proposals.
+    /// @notice The game type that the L1ToL2MessagePasser consults for output proposals.
     GameType public respectedGameType;
 
     /// @notice Emitted when a transaction is deposited from L1 to L2.
@@ -113,7 +113,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
 
     /// @notice Reverts when paused.
     modifier whenNotPaused() {
-        require(!paused(), "OptimismPortal: paused");
+        require(!paused(), "L1ToL2MessagePasser: paused");
         _;
     }
 
@@ -121,7 +121,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     /// @custom:semver 3.0.0
     string public constant version = "3.0.0";
 
-    /// @notice Constructs the OptimismPortal contract.
+    /// @notice Constructs the L1ToL2MessagePasser contract.
     constructor(
         uint256 _proofMaturityDelaySeconds,
         uint256 _disputeGameFinalityDelaySeconds,
@@ -258,19 +258,19 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         // Prevent users from creating a deposit transaction where this address is the message
         // sender on L2. Because this is checked here, we do not need to check again in
         // `finalizeWithdrawalTransaction`.
-        require(_tx.target != address(this), "OptimismPortal: you cannot send messages to the portal contract");
+        require(_tx.target != address(this), "L1ToL2MessagePasser: you cannot send messages to the portal contract");
 
         // Fetch the dispute game proxy from the `DisputeGameFactory` contract.
         (GameType gameType,, IDisputeGame gameProxy) = disputeGameFactory.gameAtIndex(_disputeGameIndex);
         Claim outputRoot = gameProxy.rootClaim();
 
         // The game type of the dispute game must be the respected game type.
-        require(gameType.raw() == respectedGameType.raw(), "OptimismPortal: invalid game type");
+        require(gameType.raw() == respectedGameType.raw(), "L1ToL2MessagePasser: invalid game type");
 
         // Verify that the output root can be generated with the elements in the proof.
         require(
             outputRoot.raw() == Hashing.hashOutputRootProof(_outputRootProof),
-            "OptimismPortal: invalid output root proof"
+            "L1ToL2MessagePasser: invalid output root proof"
         );
 
         // Load the ProvenWithdrawal into memory, using the withdrawal hash as a unique identifier.
@@ -287,7 +287,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         require(
             provenWithdrawal.timestamp == 0 || gameProxy.status() == GameStatus.CHALLENGER_WINS
                 || disputeGameBlacklist[gameProxy] || game.gameType().raw() != respectedGameType.raw(),
-            "OptimismPortal: withdrawal hash has already been proven, and dispute game is not invalid"
+            "L1ToL2MessagePasser: withdrawal hash has already been proven, and dispute game is not invalid"
         );
 
         // Compute the storage slot of the withdrawal hash in the L2ToL1MessagePasser contract.
@@ -308,7 +308,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
             SecureMerkleTrie.verifyInclusionProof(
                 abi.encode(storageKey), hex"01", _withdrawalProof, _outputRootProof.messagePasserStorageRoot
             ),
-            "OptimismPortal: invalid withdrawal inclusion proof"
+            "L1ToL2MessagePasser: invalid withdrawal inclusion proof"
         );
 
         // Designate the withdrawalHash as proven by storing the `disputeGameProxy` & `timestamp` in the
@@ -328,7 +328,8 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         // than the default value when a withdrawal transaction is being finalized. This check is
         // a defacto reentrancy guard.
         require(
-            l2Sender == Constants.DEFAULT_L2_SENDER, "OptimismPortal: can only trigger one withdrawal per transaction"
+            l2Sender == Constants.DEFAULT_L2_SENDER,
+            "L1ToL2MessagePasser: can only trigger one withdrawal per transaction"
         );
 
         // Compute the withdrawal hash.
@@ -363,7 +364,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         // sub call to the target contract if the minimum gas limit specified by the user would not
         // be sufficient to execute the sub call.
         if (!success && tx.origin == Constants.ESTIMATION_ADDRESS) {
-            revert("OptimismPortal: withdrawal failed");
+            revert("L1ToL2MessagePasser: withdrawal failed");
         }
     }
 
@@ -390,18 +391,18 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         // Just to be safe, make sure that people specify address(0) as the target when doing
         // contract creations.
         if (_isCreation) {
-            require(_to == address(0), "OptimismPortal: must send to address(0) when creating a contract");
+            require(_to == address(0), "L1ToL2MessagePasser: must send to address(0) when creating a contract");
         }
 
         // Prevent depositing transactions that have too small of a gas limit. Users should pay
         // more for more resource usage.
-        require(_gasLimit >= minimumGasLimit(uint64(_data.length)), "OptimismPortal: gas limit too small");
+        require(_gasLimit >= minimumGasLimit(uint64(_data.length)), "L1ToL2MessagePasser: gas limit too small");
 
         // Prevent the creation of deposit transactions that have too much calldata. This gives an
         // upper limit on the size of unsafe blocks over the p2p network. 120kb is chosen to ensure
         // that the transaction can fit into the p2p network policy of 128kb even though deposit
         // transactions are not gossipped over the p2p network.
-        require(_data.length <= 120_000, "OptimismPortal: data too large");
+        require(_data.length <= 120_000, "L1ToL2MessagePasser: data too large");
 
         // Transform the from-address to its alias if the caller is a contract.
         address from = msg.sender;
@@ -422,7 +423,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     /// @notice Blacklists a dispute game. Should only be used in the event that a dispute game resolves incorrectly.
     /// @param _disputeGame Dispute game to blacklist.
     function blacklistDisputeGame(IDisputeGame _disputeGame) external {
-        require(msg.sender == SAURON, "OptimismPortal: only sauron can blacklist dispute games");
+        require(msg.sender == SAURON, "L1ToL2MessagePasser: only sauron can blacklist dispute games");
         disputeGameBlacklist[_disputeGame] = true;
     }
 
@@ -430,7 +431,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     ///         incorrectly verified by the `MerkleTrie` verifier contract.
     /// @param _withdrawalHash Hash of the withdrawal transaction to delete from the `pendingWithdrawals` mapping.
     function deleteProvenWithdrawal(bytes32 _withdrawalHash) external {
-        require(msg.sender == SAURON, "OptimismPortal: only sauron can delete proven withdrawals");
+        require(msg.sender == SAURON, "L1ToL2MessagePasser: only sauron can delete proven withdrawals");
         delete provenWithdrawals[_withdrawalHash];
     }
 
@@ -438,7 +439,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     ///         depending on the new game's behavior.
     /// @param _gameType The game type to consult for output proposals.
     function setRespectedGameType(GameType _gameType) external {
-        require(msg.sender == SAURON, "OptimismPortal: only sauron can set the respected game type");
+        require(msg.sender == SAURON, "L1ToL2MessagePasser: only sauron can set the respected game type");
         respectedGameType = _gameType;
     }
 
@@ -450,25 +451,25 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         IDisputeGame disputeGameProxy = provenWithdrawal.disputeGameProxy;
 
         // The dispute game must not be blacklisted.
-        require(!disputeGameBlacklist[disputeGameProxy], "OptimismPortal: dispute game has been blacklisted");
+        require(!disputeGameBlacklist[disputeGameProxy], "L1ToL2MessagePasser: dispute game has been blacklisted");
 
         // A withdrawal can only be finalized if it has been proven. We know that a withdrawal has
         // been proven at least once when its timestamp is non-zero. Unproven withdrawals will have
         // a timestamp of zero.
-        require(provenWithdrawal.timestamp != 0, "OptimismPortal: withdrawal has not been proven yet");
+        require(provenWithdrawal.timestamp != 0, "L1ToL2MessagePasser: withdrawal has not been proven yet");
 
         // As a sanity check, we make sure that the proven withdrawal's timestamp is greater than
         // starting timestamp inside the Dispute Game. Not strictly necessary but extra layer of
         // safety against weird bugs in the proving step.
         require(
             provenWithdrawal.timestamp > disputeGameProxy.createdAt().raw(),
-            "OptimismPortal: withdrawal timestamp less than dispute game creation timestamp"
+            "L1ToL2MessagePasser: withdrawal timestamp less than dispute game creation timestamp"
         );
 
         // A proven withdrawal must wait at least `PROOF_MATURITY_DELAY_SECONDS` before finalizing.
         require(
             block.timestamp - provenWithdrawal.timestamp > PROOF_MATURITY_DELAY_SECONDS,
-            "OptimismPortal: proven withdrawal has not matured yet"
+            "L1ToL2MessagePasser: proven withdrawal has not matured yet"
         );
 
         // A proven withdrawal must wait until the dispute game it was proven against has been
@@ -476,23 +477,23 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         // from finalizing withdrawals proven against non-finalized output roots.
         require(
             disputeGameProxy.status() == GameStatus.DEFENDER_WINS,
-            "OptimismPortal: output proposal has not been finalized yet"
+            "L1ToL2MessagePasser: output proposal has not been finalized yet"
         );
 
         // The game type of the dispute game must be the respected game type. This was also checked in
         // `proveWithdrawalTransaction`, but we check it again in case the respected game type has changed since
         // the withdrawal was proven.
-        require(disputeGameProxy.gameType().raw() == respectedGameType.raw(), "OptimismPortal: invalid game type");
+        require(disputeGameProxy.gameType().raw() == respectedGameType.raw(), "L1ToL2MessagePasser: invalid game type");
 
         // Before a withdrawal can be finalized, the dispute game it was proven against must have been
         // resolved for at least `DISPUTE_GAME_FINALITY_DELAY_SECONDS`. This is to allow for manual
         // intervention in the event that a dispute game is resolved incorrectly.
         require(
             block.timestamp - disputeGameProxy.resolvedAt().raw() > DISPUTE_GAME_FINALITY_DELAY_SECONDS,
-            "OptimismPortal: output proposal in air-gap"
+            "L1ToL2MessagePasser: output proposal in air-gap"
         );
 
         // Check that this withdrawal has not already been finalized, this is replay protection.
-        require(!finalizedWithdrawals[_withdrawalHash], "OptimismPortal: withdrawal has already been finalized");
+        require(!finalizedWithdrawals[_withdrawalHash], "L1ToL2MessagePasser: withdrawal has already been finalized");
     }
 }
