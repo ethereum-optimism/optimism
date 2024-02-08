@@ -350,6 +350,7 @@ func Run(ctx *cli.Context) error {
 		}
 
 		if stopAt(state) {
+			l.Info("Reached stop at")
 			break
 		}
 
@@ -398,16 +399,20 @@ func Run(ctx *cli.Context) error {
 
 		if preimageRead := state.PreimageOffset > prevPreimageOffset; preimageRead {
 			if stopAtAnyPreimage {
+				l.Info("Stopping at preimage read")
 				break
 			}
 			if state.PreimageKey.Bytes()[0] == byte(stopAtPreimageTypeByte) {
+				l.Info("Stopping at preimage read", "type", stopAtPreimageTypeByte)
 				break
 			}
 			if stopAtPreimageLargerThan != 0 && len(us.LastPreimage()) > stopAtPreimageLargerThan {
+				l.Info("Stopping at preimage read", "size", len(us.LastPreimage()), "min", stopAtPreimageLargerThan)
 				break
 			}
 		}
 	}
+	l.Info("Execution stopped", "exited", state.Exited, "code", state.ExitCode)
 
 	if err := jsonutil.WriteJSON(ctx.Path(RunOutputFlag.Name), state, OutFilePerm); err != nil {
 		return fmt.Errorf("failed to write state output: %w", err)
