@@ -75,18 +75,18 @@ func Move(ctx *cli.Context) error {
 	return nil
 }
 
-var moveFlags = []cli.Flag{
-	flags.L1EthRpcFlag,
-	GameAddressFlag,
-	AttackFlag,
-	DefendFlag,
-	ParentIndexFlag,
-	ClaimFlag,
-}
-
-func init() {
-	moveFlags = append(moveFlags, txmgr.CLIFlagsWithDefaults(flags.EnvVarPrefix, txmgr.DefaultChallengerFlagValues)...)
-	moveFlags = append(moveFlags, oplog.CLIFlags(flags.EnvVarPrefix)...)
+func moveFlags() []cli.Flag {
+	cliFlags := []cli.Flag{
+		flags.L1EthRpcFlag,
+		GameAddressFlag,
+		AttackFlag,
+		DefendFlag,
+		ParentIndexFlag,
+		ClaimFlag,
+	}
+	cliFlags = append(cliFlags, txmgr.CLIFlagsWithDefaults(flags.EnvVarPrefix, txmgr.DefaultChallengerFlagValues)...)
+	cliFlags = append(cliFlags, oplog.CLIFlags(flags.EnvVarPrefix)...)
+	return cliFlags
 }
 
 var MoveCommand = &cli.Command{
@@ -94,6 +94,6 @@ var MoveCommand = &cli.Command{
 	Usage:       "Creates and sends a move transaction to the dispute game",
 	Description: "Creates and sends a move transaction to the dispute game",
 	Action:      Move,
-	Flags:       moveFlags,
+	Flags:       moveFlags(),
 	Hidden:      true,
 }
