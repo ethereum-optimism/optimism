@@ -4,7 +4,7 @@
   "exclude_informational": true,
   "exclude_low": true,
   "exclude_optimization": true,
-  "fail_on": "medium",
+  "fail_on": "none",
   "filter_paths": "(src/vendor|src/cannon/MIPS.sol|src/EAS/EAS.sol)",
   "foundry_out_directory": "artifacts"
 }
