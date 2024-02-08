@@ -7,11 +7,15 @@ import { LibKeccak } from "@lib-keccak/LibKeccak.sol";
 import "src/cannon/libraries/CannonErrors.sol";
 import "src/cannon/libraries/CannonTypes.sol";
 
+
 /// @title PreimageOracle
 /// @notice A contract for storing permissioned pre-images.
 /// @custom:attribution Solady <https://github.com/Vectorized/solady/blob/main/src/utils/MerkleProofLib.sol#L13-L43>
 /// @custom:attribution Beacon Deposit Contract <0x00000000219ab540356cbb839cbe05303d7705fa>
 contract PreimageOracle is IPreimageOracle {
+
+    event AddedPreimage(bytes32);
+
     ////////////////////////////////////////////////////////////////
     //                   Constants & Immutables                   //
     ////////////////////////////////////////////////////////////////
@@ -315,7 +319,7 @@ contract PreimageOracle is IPreimageOracle {
             // since memory at end is guaranteed to be clean.
             part := mload(add(ptr, _partOffset))
 
-            // Compute the key: `keccak256(commitment ++ z)`. Since the exact number of btyes that is copied into
+            // Compute the key: `keccak256(commitment ++ z)`. Since the exact number of bytes that is copied into
             // scratch space is the same size as the hash input, there's no concern of dirty memory being read into
             // the hash input.
             calldatacopy(ptr, _commitment.offset, 0x30)
@@ -327,6 +331,7 @@ contract PreimageOracle is IPreimageOracle {
         preimagePartOk[key][_partOffset] = true;
         preimageParts[key][_partOffset] = part;
         preimageLengths[key] = 32;
+        emit AddedPreimage(key);
     }
 
     ////////////////////////////////////////////////////////////////

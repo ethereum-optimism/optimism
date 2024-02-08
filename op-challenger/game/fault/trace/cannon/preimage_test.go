@@ -68,8 +68,11 @@ func TestPreimageLoader_BlobPreimage(t *testing.T) {
 
 	fieldIndex := uint64(24)
 	elementData := blob[fieldIndex<<5 : (fieldIndex+1)<<5]
-	kzgProof, _, err := kzg4844.ComputeProof(kzg4844.Blob(blob), kzg4844.Point(elementData))
+	kzgProof, claim, err := kzg4844.ComputeProof(kzg4844.Blob(blob), kzg4844.Point(elementData))
 	require.NoError(t, err)
+	elementDataWithLengthPrefix := make([]byte, len(elementData)+lengthPrefixSize)
+	binary.BigEndian.PutUint64(elementDataWithLengthPrefix[:lengthPrefixSize], uint64(len(elementData)))
+	copy(elementDataWithLengthPrefix[lengthPrefixSize:], elementData)
 
 	keyBuf := make([]byte, 80)
 	copy(keyBuf[:48], commitment[:])
@@ -78,7 +81,7 @@ func TestPreimageLoader_BlobPreimage(t *testing.T) {
 
 	proof := &proofData{
 		OracleKey:    key[:],
-		OracleValue:  elementData,
+		OracleValue:  elementDataWithLengthPrefix,
 		OracleOffset: 4,
 	}
 
@@ -138,7 +141,7 @@ func TestPreimageLoader_BlobPreimage(t *testing.T) {
 		storeBlob(t, kv, gokzg4844.KZGCommitment(commitment), blob)
 		actual, err := loader.LoadPreimage(proof)
 		require.NoError(t, err)
-		expected := types.NewPreimageOracleBlobData(proof.OracleKey, proof.OracleValue, proof.OracleOffset, fieldIndex, commitment[:], kzgProof[:])
+		expected := types.NewPreimageOracleBlobData(proof.OracleKey, proof.OracleValue, proof.OracleOffset, fieldIndex, claim[:], commitment[:], kzgProof[:])
 		require.Equal(t, expected, actual)
 		require.False(t, actual.IsLocal)
 	})

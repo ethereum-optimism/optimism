@@ -59,7 +59,7 @@ func TestPreimageOracleContract_AddGlobalDataTx(t *testing.T) {
 		fieldData := testutils.RandomData(rand.New(rand.NewSource(23)), 32)
 		data := types.NewPreimageOracleData(common.Hash{byte(preimage.BlobKeyType), 0xcc}.Bytes(), fieldData, uint32(545))
 		stubRpc.SetResponse(oracleAddr, methodLoadBlobPreimagePart, batching.BlockLatest, []interface{}{
-			new(big.Int).SetUint64(data.BlobFieldIndex),
+			new(big.Int).SetBytes(data.BlobClaim),
 			new(big.Int).SetBytes(data.GetPreimageWithoutSize()),
 			data.BlobCommitment,
 			data.BlobProof,

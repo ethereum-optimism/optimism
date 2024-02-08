@@ -16,7 +16,9 @@ import (
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	gethTypes "github.com/ethereum/go-ethereum/core/types"
 )
 
 const (
@@ -54,6 +56,7 @@ type PreimageOracleContract struct {
 	// challengePeriod caches the challenge period from the contract once it has been loaded.
 	// 0 indicates the period has not been loaded yet.
 	challengePeriod atomic.Uint64
+	abi             *abi.ABI
 }
 
 // toPreimageOracleLeaf converts a Leaf to the contract [bindings.PreimageOracleLeaf] type.
@@ -72,6 +75,7 @@ func NewPreimageOracleContract(addr common.Address, caller *batching.MultiCaller
 	}
 
 	return &PreimageOracleContract{
+		abi:         oracleAbi,
 		addr:        addr,
 		multiCaller: caller,
 		contract:    batching.NewBoundContract(oracleAbi, addr),
@@ -83,27 +87,53 @@ func (c *PreimageOracleContract) Addr() common.Address {
 }
 
 func (c *PreimageOracleContract) AddGlobalDataTx(data *types.PreimageOracleData) (txmgr.TxCandidate, error) {
+	call, err := c.globalDataCall(data)
+	if err != nil {
+		return txmgr.TxCandidate{}, err
+	}
+	return call.ToTxCandidate()
+}
+
+func (c *PreimageOracleContract) ParseLog(log *gethTypes.Log) (common.Hash, error) {
+	out := common.Hash{}
+	err := c.abi.UnpackIntoInterface(&out, "AddedPreimage", log.Data)
+	if err != nil {
+		return common.Hash{}, err
+	}
+	return out, nil
+}
+
+func (c *PreimageOracleContract) CallAddGlobalData(ctx context.Context, data *types.PreimageOracleData) error {
+	call, err := c.globalDataCall(data)
+	if err != nil {
+		return err
+	}
+	_, err = c.multiCaller.SingleCall(ctx, batching.BlockLatest, call)
+	return err
+}
+
+func (c *PreimageOracleContract) globalDataCall(data *types.PreimageOracleData) (*batching.ContractCall, error) {
 	if len(data.OracleKey) == 0 {
-		return txmgr.TxCandidate{}, ErrInvalidPreimageKey
+		return nil, ErrInvalidPreimageKey
 	}
 	keyType := preimage.KeyType(data.OracleKey[0])
 	switch keyType {
 	case preimage.Keccak256KeyType:
 		call := c.contract.Call(methodLoadKeccak256PreimagePart, new(big.Int).SetUint64(uint64(data.OracleOffset)), data.GetPreimageWithoutSize())
-		return call.ToTxCandidate()
+		return call, nil
 	case preimage.Sha256KeyType:
 		call := c.contract.Call(methodLoadSha256PreimagePart, new(big.Int).SetUint64(uint64(data.OracleOffset)), data.GetPreimageWithoutSize())
-		return call.ToTxCandidate()
+		return call, nil
 	case preimage.BlobKeyType:
 		call := c.contract.Call(methodLoadBlobPreimagePart,
 			new(big.Int).SetUint64(data.BlobFieldIndex),
-			new(big.Int).SetBytes(data.GetPreimageWithoutSize()),
+			new(big.Int).SetBytes(data.BlobClaim),
 			data.BlobCommitment,
 			data.BlobProof,
 			new(big.Int).SetUint64(uint64(data.OracleOffset)))
-		return call.ToTxCandidate()
+		return call, nil
 	default:
-		return txmgr.TxCandidate{}, fmt.Errorf("%w: %v", ErrUnsupportedKeyType, keyType)
+		return nil, fmt.Errorf("%w: %v", ErrUnsupportedKeyType, keyType)
 	}
 }
 
