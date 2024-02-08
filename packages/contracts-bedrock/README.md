@@ -101,6 +101,9 @@ since some contracts are deployed using `CREATE`. Run `pnpm clean` and rerun the
 Slither will be run against PRs as part of CI, and new findings will be reported as a comment on the PR.
 CI will fail if there are any new findings of medium or higher severity, as configured in the repo's Settings > Code Security and Analysis > Code Scanning > Protection rules setting.
 
+There are two corresponding jobs in CI: one calls "Slither Analysis" and one called "Code scanning results / Slither".
+The former will always pass if Slither runs successfully, and the latter will fail if there are any new findings of medium or higher severity.
+
 Existing findings can be found in the repo's Security tab > [Code Scanning](https://github.com/ethereum-optimism/optimism/security/code-scanning) section.
 You can view findings for a specific PR using the `pr:{number}` filter, such [`pr:9405`](https://github.com/ethereum-optimism/optimism/security/code-scanning?query=is:open+pr:9405).
 
