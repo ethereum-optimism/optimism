@@ -2,12 +2,10 @@ package flags
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/urfave/cli/v2"
 
-	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	openum "github.com/ethereum-optimism/optimism/op-service/enum"
@@ -56,16 +54,6 @@ var (
 		Usage:   "Timeout for L2 RPC batch requests",
 		EnvVars: prefixEnvVars("L2_RPC_BATCH_TIMEOUT"),
 		Value:   time.Second * 20,
-	}
-	RollupConfig = &cli.StringFlag{
-		Name:    "rollup.config",
-		Usage:   "Rollup chain parameters",
-		EnvVars: prefixEnvVars("ROLLUP_CONFIG"),
-	}
-	Network = &cli.StringFlag{
-		Name:    "network",
-		Usage:   fmt.Sprintf("Predefined network selection. Available networks: %s", strings.Join(chaincfg.AvailableNetworks(), ", ")),
-		EnvVars: prefixEnvVars("NETWORK"),
 	}
 	/* Optional Flags */
 	BeaconAddr = &cli.StringFlag{

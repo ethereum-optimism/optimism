@@ -1694,13 +1694,6 @@ workflows:
             - go-mod-download
             - pnpm-monorepo
       - go-e2e-test:
-          name: op-e2e-span-batch-tests
-          module: op-e2e
-          target: test-span-batch
-          requires:
-            - go-mod-download
-            - pnpm-monorepo
-      - go-e2e-test:
           name: op-e2e-ext-erigon-tests
           module: op-e2e
           target: test-external-erigon
