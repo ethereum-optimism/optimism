@@ -5,8 +5,8 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"math/big"
 
-	gokzg4844 "github.com/crate-crypto/go-kzg-4844"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -19,6 +19,7 @@ import (
 const (
 	fieldElemKeyLength = 80
 	commitmentLength   = 48
+	lengthPrefixSize   = 8
 )
 
 var (
@@ -51,10 +52,6 @@ func (l *preimageLoader) LoadPreimage(proof *proofData) (*types.PreimageOracleDa
 }
 
 func (l *preimageLoader) loadBlobPreimage(proof *proofData) (*types.PreimageOracleData, error) {
-	if len(proof.OracleValue) != gokzg4844.SerializedScalarSize {
-		return nil, fmt.Errorf("%w, expected length %v but was %v", ErrInvalidScalarValue, gokzg4844.SerializedScalarSize, len(proof.OracleValue))
-	}
-
 	// The key for a blob field element is a keccak hash of commitment++fieldElementIndex.
 	// First retrieve the preimage of the key as a keccak hash so we have the commitment and required field element
 	inputsKey := preimage.Keccak256Key(proof.OracleKey).PreimageKey()
@@ -87,12 +84,20 @@ func (l *preimageLoader) loadBlobPreimage(proof *proofData) (*types.PreimageOrac
 	if err != nil || !bytes.Equal(blobCommitment[:], commitment[:]) {
 		return nil, fmt.Errorf("invalid blob commitment: %w", err)
 	}
-
 	// Compute the KZG proof for the required field element
-	kzgProof, _, err := kzg4844.ComputeProof(kzg4844.Blob(blob), kzg4844.Point(proof.OracleValue))
+	var point kzg4844.Point
+	new(big.Int).SetUint64(requiredFieldElement).FillBytes(point[:])
+	kzgProof, claim, err := kzg4844.ComputeProof(kzg4844.Blob(blob), point)
 	if err != nil {
 		return nil, fmt.Errorf("failed to compute kzg proof: %w", err)
 	}
+	err = kzg4844.VerifyProof(kzg4844.Commitment(commitment), point, claim, kzgProof)
+	if err != nil {
+		return nil, fmt.Errorf("failed to verify proof: %w", err)
+	}
 
-	return types.NewPreimageOracleBlobData(proof.OracleKey, proof.OracleValue, proof.OracleOffset, requiredFieldElement, commitment, kzgProof[:]), nil
+	claimWithLength := make([]byte, len(claim)+lengthPrefixSize)
+	binary.BigEndian.PutUint64(claimWithLength[:lengthPrefixSize], uint64(len(claim)))
+	copy(claimWithLength[lengthPrefixSize:], claim[:])
+	return types.NewPreimageOracleBlobData(proof.OracleKey, claimWithLength, proof.OracleOffset, requiredFieldElement, commitment, kzgProof[:]), nil
 }

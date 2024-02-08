@@ -273,11 +273,12 @@ func PreimageLargerThan(size int) PreimageOpt {
 
 func NewTraceProviderForTest(logger log.Logger, m CannonMetricer, cfg *config.Config, localInputs LocalGameInputs, dir string, gameDepth types.Depth) *CannonTraceProviderForTest {
 	p := &CannonTraceProvider{
-		logger:    logger,
-		dir:       dir,
-		prestate:  cfg.CannonAbsolutePreState,
-		generator: NewExecutor(logger, m, cfg, localInputs),
-		gameDepth: gameDepth,
+		logger:         logger,
+		dir:            dir,
+		prestate:       cfg.CannonAbsolutePreState,
+		generator:      NewExecutor(logger, m, cfg, localInputs),
+		gameDepth:      gameDepth,
+		preimageLoader: newPreimageLoader(kvstore.NewDiskKV(preimageDir(dir)).Get),
 	}
 	return &CannonTraceProviderForTest{p}
 }

@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
+	"math/big"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
@@ -68,8 +69,13 @@ func TestPreimageLoader_BlobPreimage(t *testing.T) {
 
 	fieldIndex := uint64(24)
 	elementData := blob[fieldIndex<<5 : (fieldIndex+1)<<5]
-	kzgProof, _, err := kzg4844.ComputeProof(kzg4844.Blob(blob), kzg4844.Point(elementData))
+	var point kzg4844.Point
+	new(big.Int).SetUint64(fieldIndex).FillBytes(point[:])
+	kzgProof, claim, err := kzg4844.ComputeProof(kzg4844.Blob(blob), point)
 	require.NoError(t, err)
+	elementDataWithLengthPrefix := make([]byte, len(elementData)+lengthPrefixSize)
+	binary.BigEndian.PutUint64(elementDataWithLengthPrefix[:lengthPrefixSize], uint64(len(elementData)))
+	copy(elementDataWithLengthPrefix[lengthPrefixSize:], elementData)
 
 	keyBuf := make([]byte, 80)
 	copy(keyBuf[:48], commitment[:])
@@ -78,21 +84,9 @@ func TestPreimageLoader_BlobPreimage(t *testing.T) {
 
 	proof := &proofData{
 		OracleKey:    key[:],
-		OracleValue:  elementData,
+		OracleValue:  elementDataWithLengthPrefix,
 		OracleOffset: 4,
 	}
-
-	t.Run("RejectInvalidValueLength", func(t *testing.T) {
-		kv := kvstore.NewMemKV()
-		loader := newPreimageLoader(kv.Get)
-		proof := &proofData{
-			OracleKey:    proof.OracleKey,
-			OracleValue:  []byte{1, 2, 3},
-			OracleOffset: proof.OracleOffset,
-		}
-		_, err := loader.LoadPreimage(proof)
-		require.ErrorIs(t, err, ErrInvalidScalarValue)
-	})
 
 	t.Run("NoKeyPreimage", func(t *testing.T) {
 		kv := kvstore.NewMemKV()
@@ -138,9 +132,23 @@ func TestPreimageLoader_BlobPreimage(t *testing.T) {
 		storeBlob(t, kv, gokzg4844.KZGCommitment(commitment), blob)
 		actual, err := loader.LoadPreimage(proof)
 		require.NoError(t, err)
-		expected := types.NewPreimageOracleBlobData(proof.OracleKey, proof.OracleValue, proof.OracleOffset, fieldIndex, commitment[:], kzgProof[:])
+
+		claimWithLength := make([]byte, len(claim)+lengthPrefixSize)
+		binary.BigEndian.PutUint64(claimWithLength[:lengthPrefixSize], uint64(len(claim)))
+		copy(claimWithLength[lengthPrefixSize:], claim[:])
+
+		expected := types.NewPreimageOracleBlobData(proof.OracleKey, claimWithLength, proof.OracleOffset, fieldIndex, commitment[:], kzgProof[:])
 		require.Equal(t, expected, actual)
 		require.False(t, actual.IsLocal)
+
+		// Check the KZG proof is valid
+		var actualPoint kzg4844.Point
+		new(big.Int).SetUint64(actual.BlobFieldIndex).FillBytes(actualPoint[:])
+		actualClaim := kzg4844.Claim(actual.GetPreimageWithoutSize())
+		actualCommitment := kzg4844.Commitment(actual.BlobCommitment)
+		actualProof := kzg4844.Proof(actual.BlobProof)
+		err = kzg4844.VerifyProof(actualCommitment, actualPoint, actualClaim, actualProof)
+		require.NoError(t, err)
 	})
 }
 
