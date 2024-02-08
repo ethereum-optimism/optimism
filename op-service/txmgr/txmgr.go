@@ -170,7 +170,7 @@ func (m *SimpleTxManager) txLogger(tx *types.Transaction, logGas bool) log.Logge
 	}
 	if len(tx.BlobHashes()) != 0 {
 		// log the number of blobs a tx has only if it's a blob tx
-		fields = append(fields, "blobs", len(tx.BlobHashes()))
+		fields = append(fields, "blobs", len(tx.BlobHashes()), "blobFeeCap", tx.BlobGasFeeCap())
 	}
 	return m.l.New(fields...)
 }
