@@ -157,13 +157,19 @@ contract Specification_Test is CommonTest {
             _auth: Role.MESSENGER,
             _pausable: true
         });
-        _addSpec({ _name: "L1StandardBridge", _sel: _getSel("initialize(address,address)") });
-        _addSpec({ _name: "L1StandardBridge", _sel: _getSel("l2TokenBridge()") });
-        _addSpec({ _name: "L1StandardBridge", _sel: _getSel("messenger()") });
-        _addSpec({ _name: "L1StandardBridge", _sel: _getSel("otherBridge()") });
-        _addSpec({ _name: "L1StandardBridge", _sel: _getSel("paused()") });
-        _addSpec({ _name: "L1StandardBridge", _sel: _getSel("superchainConfig()") });
-        _addSpec({ _name: "L1StandardBridge", _sel: _getSel("version()") });
+        _addSpec({ _name: "L1StandardBridge", _sel: _getSel("initialize(address)"), _auth: false, _pausable: false });
+        _addSpec({ _name: "L1StandardBridge", _sel: _getSel("l2TokenBridge()"), _auth: false, _pausable: false });
+        _addSpec({ _name: "L1StandardBridge", _sel: _getSel("messenger()"), _auth: false, _pausable: false });
+        _addSpec({ _name: "L1StandardBridge", _sel: _getSel("otherBridge()"), _auth: false, _pausable: false });
+        _addSpec({ _name: "L1StandardBridge", _sel: _getSel("paused()"), _auth: false, _pausable: false });
+        _addSpec({ _name: "L1StandardBridge", _sel: _getSel("superchainConfig()"), _auth: false, _pausable: false });
+        _addSpec({ _name: "L1StandardBridge", _sel: _getSel("version()"), _auth: false, _pausable: false });
+        _addSpec({
+            _name: "L1StandardBridge",
+            _sel: _getSel("setSuperchainConfig(address)"),
+            _auth: false,
+            _pausable: false
+        });
 
         // L2OutputOracle
         _addSpec({ _name: "L2OutputOracle", _sel: _getSel("CHALLENGER()") });

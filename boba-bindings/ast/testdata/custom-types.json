@@ -1,0 +1,286 @@
+{
+  "in": {
+    "storage": [
+      {
+        "astId": 59243,
+        "contract": "contracts/dispute/DisputeGameFactory.sol:DisputeGameFactory",
+        "label": "_initialized",
+        "offset": 0,
+        "slot": "0",
+        "type": "t_uint8"
+      },
+      {
+        "astId": 59246,
+        "contract": "contracts/dispute/DisputeGameFactory.sol:DisputeGameFactory",
+        "label": "_initializing",
+        "offset": 1,
+        "slot": "0",
+        "type": "t_bool"
+      },
+      {
+        "astId": 59671,
+        "contract": "contracts/dispute/DisputeGameFactory.sol:DisputeGameFactory",
+        "label": "__gap",
+        "offset": 0,
+        "slot": "1",
+        "type": "t_array(t_uint256)50_storage"
+      },
+      {
+        "astId": 59115,
+        "contract": "contracts/dispute/DisputeGameFactory.sol:DisputeGameFactory",
+        "label": "_owner",
+        "offset": 0,
+        "slot": "51",
+        "type": "t_address"
+      },
+      {
+        "astId": 59235,
+        "contract": "contracts/dispute/DisputeGameFactory.sol:DisputeGameFactory",
+        "label": "__gap",
+        "offset": 0,
+        "slot": "52",
+        "type": "t_array(t_uint256)49_storage"
+      },
+      {
+        "astId": 4350,
+        "contract": "contracts/dispute/DisputeGameFactory.sol:DisputeGameFactory",
+        "label": "gameImpls",
+        "offset": 0,
+        "slot": "101",
+        "type": "t_mapping(t_userDefinedValueType(GameType)8945,t_contract(IDisputeGame)5664)"
+      },
+      {
+        "astId": 4357,
+        "contract": "contracts/dispute/DisputeGameFactory.sol:DisputeGameFactory",
+        "label": "_disputeGames",
+        "offset": 0,
+        "slot": "102",
+        "type": "t_mapping(t_userDefinedValueType(Hash)8927,t_userDefinedValueType(GameId)8939)"
+      },
+      {
+        "astId": 4362,
+        "contract": "contracts/dispute/DisputeGameFactory.sol:DisputeGameFactory",
+        "label": "_disputeGameList",
+        "offset": 0,
+        "slot": "103",
+        "type": "t_array(t_userDefinedValueType(GameId)8939)dyn_storage"
+      }
+    ],
+    "types": {
+      "t_address": {
+        "encoding": "inplace",
+        "label": "address",
+        "numberOfBytes": "20"
+      },
+      "t_array(t_uint256)49_storage": {
+        "encoding": "inplace",
+        "label": "uint256[49]",
+        "numberOfBytes": "1568",
+        "base": "t_uint256"
+      },
+      "t_array(t_uint256)50_storage": {
+        "encoding": "inplace",
+        "label": "uint256[50]",
+        "numberOfBytes": "1600",
+        "base": "t_uint256"
+      },
+      "t_array(t_userDefinedValueType(GameId)8939)dyn_storage": {
+        "encoding": "dynamic_array",
+        "label": "GameId[]",
+        "numberOfBytes": "32",
+        "base": "t_userDefinedValueType(GameId)8939"
+      },
+      "t_bool": {
+        "encoding": "inplace",
+        "label": "bool",
+        "numberOfBytes": "1"
+      },
+      "t_contract(IDisputeGame)5664": {
+        "encoding": "inplace",
+        "label": "contract IDisputeGame",
+        "numberOfBytes": "20"
+      },
+      "t_mapping(t_userDefinedValueType(GameType)8945,t_contract(IDisputeGame)5664)": {
+        "encoding": "mapping",
+        "key": "t_userDefinedValueType(GameType)8945",
+        "label": "mapping(GameType => contract IDisputeGame)",
+        "numberOfBytes": "32",
+        "value": "t_contract(IDisputeGame)5664"
+      },
+      "t_mapping(t_userDefinedValueType(Hash)8927,t_userDefinedValueType(GameId)8939)": {
+        "encoding": "mapping",
+        "key": "t_userDefinedValueType(Hash)8927",
+        "label": "mapping(Hash => GameId)",
+        "numberOfBytes": "32",
+        "value": "t_userDefinedValueType(GameId)8939"
+      },
+      "t_uint256": {
+        "encoding": "inplace",
+        "label": "uint256",
+        "numberOfBytes": "32"
+      },
+      "t_uint8": {
+        "encoding": "inplace",
+        "label": "uint8",
+        "numberOfBytes": "1"
+      },
+      "t_userDefinedValueType(GameId)8939": {
+        "encoding": "inplace",
+        "label": "GameId",
+        "numberOfBytes": "32"
+      },
+      "t_userDefinedValueType(GameType)8945": {
+        "encoding": "inplace",
+        "label": "GameType",
+        "numberOfBytes": "1"
+      },
+      "t_userDefinedValueType(Hash)8927": {
+        "encoding": "inplace",
+        "label": "Hash",
+        "numberOfBytes": "32"
+      }
+    }
+  },
+  "out": {
+    "storage": [
+      {
+        "astId": 1000,
+        "contract": "contracts/dispute/DisputeGameFactory.sol:DisputeGameFactory",
+        "label": "_initialized",
+        "offset": 0,
+        "slot": "0",
+        "type": "t_uint8"
+      },
+      {
+        "astId": 1001,
+        "contract": "contracts/dispute/DisputeGameFactory.sol:DisputeGameFactory",
+        "label": "_initializing",
+        "offset": 1,
+        "slot": "0",
+        "type": "t_bool"
+      },
+      {
+        "astId": 1002,
+        "contract": "contracts/dispute/DisputeGameFactory.sol:DisputeGameFactory",
+        "label": "__gap",
+        "offset": 0,
+        "slot": "1",
+        "type": "t_array(t_uint256)50_storage"
+      },
+      {
+        "astId": 1003,
+        "contract": "contracts/dispute/DisputeGameFactory.sol:DisputeGameFactory",
+        "label": "_owner",
+        "offset": 0,
+        "slot": "51",
+        "type": "t_address"
+      },
+      {
+        "astId": 1004,
+        "contract": "contracts/dispute/DisputeGameFactory.sol:DisputeGameFactory",
+        "label": "__gap",
+        "offset": 0,
+        "slot": "52",
+        "type": "t_array(t_uint256)49_storage"
+      },
+      {
+        "astId": 1005,
+        "contract": "contracts/dispute/DisputeGameFactory.sol:DisputeGameFactory",
+        "label": "gameImpls",
+        "offset": 0,
+        "slot": "101",
+        "type": "t_mapping(t_userDefinedValueType(GameType)1010,t_contract(IDisputeGame)1008)"
+      },
+      {
+        "astId": 1006,
+        "contract": "contracts/dispute/DisputeGameFactory.sol:DisputeGameFactory",
+        "label": "_disputeGames",
+        "offset": 0,
+        "slot": "102",
+        "type": "t_mapping(t_userDefinedValueType(Hash)1011,t_userDefinedValueType(GameId)1009)"
+      },
+      {
+        "astId": 1007,
+        "contract": "contracts/dispute/DisputeGameFactory.sol:DisputeGameFactory",
+        "label": "_disputeGameList",
+        "offset": 0,
+        "slot": "103",
+        "type": "t_array(t_userDefinedValueType(GameId)1009)dyn_storage"
+      }
+    ],
+    "types": {
+      "t_address": {
+        "encoding": "inplace",
+        "label": "address",
+        "numberOfBytes": "20"
+      },
+      "t_array(t_uint256)49_storage": {
+        "encoding": "inplace",
+        "label": "uint256[49]",
+        "numberOfBytes": "1568",
+        "base": "t_uint256"
+      },
+      "t_array(t_uint256)50_storage": {
+        "encoding": "inplace",
+        "label": "uint256[50]",
+        "numberOfBytes": "1600",
+        "base": "t_uint256"
+      },
+      "t_array(t_userDefinedValueType(GameId)1009)dyn_storage": {
+        "encoding": "dynamic_array",
+        "label": "GameId[]",
+        "numberOfBytes": "32",
+        "base": "t_userDefinedValueType(GameId)1009"
+      },
+      "t_bool": {
+        "encoding": "inplace",
+        "label": "bool",
+        "numberOfBytes": "1"
+      },
+      "t_contract(IDisputeGame)1008": {
+        "encoding": "inplace",
+        "label": "contract IDisputeGame",
+        "numberOfBytes": "20"
+      },
+      "t_mapping(t_userDefinedValueType(GameType)1010,t_contract(IDisputeGame)1008)": {
+        "encoding": "mapping",
+        "key": "t_userDefinedValueType(GameType)1010",
+        "label": "mapping(GameType => contract IDisputeGame)",
+        "numberOfBytes": "32",
+        "value": "t_contract(IDisputeGame)1008"
+      },
+      "t_mapping(t_userDefinedValueType(Hash)1011,t_userDefinedValueType(GameId)1009)": {
+        "encoding": "mapping",
+        "key": "t_userDefinedValueType(Hash)1011",
+        "label": "mapping(Hash => GameId)",
+        "numberOfBytes": "32",
+        "value": "t_userDefinedValueType(GameId)1009"
+      },
+      "t_uint256": {
+        "encoding": "inplace",
+        "label": "uint256",
+        "numberOfBytes": "32"
+      },
+      "t_uint8": {
+        "encoding": "inplace",
+        "label": "uint8",
+        "numberOfBytes": "1"
+      },
+      "t_userDefinedValueType(GameId)1009": {
+        "encoding": "inplace",
+        "label": "GameId",
+        "numberOfBytes": "32"
+      },
+      "t_userDefinedValueType(GameType)1010": {
+        "encoding": "inplace",
+        "label": "GameType",
+        "numberOfBytes": "1"
+      },
+      "t_userDefinedValueType(Hash)1011": {
+        "encoding": "inplace",
+        "label": "Hash",
+        "numberOfBytes": "32"
+      }
+    }
+  }
+}

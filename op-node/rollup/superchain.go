@@ -26,8 +26,9 @@ const (
 	baseGoerli  = 84531
 	baseMainnet = 8453
 
-	pgnMainnet = 424
-	pgnSepolia = 58008
+	pgnMainnet  = 424
+	pgnSepolia  = 58008
+	bobaSepolia = 28882
 )
 
 // LoadOPStackRollupConfig loads the rollup configuration of the requested chain ID from the superchain-registry.
@@ -74,6 +75,8 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 		regolithTime = 1677984480
 	case labsGoerliChaosnet:
 		regolithTime = 1692156862
+	case bobaSepolia:
+		regolithTime = 1705600788
 	}
 
 	deltaTime := superChain.Config.DeltaTime
@@ -126,6 +129,11 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 	if chainID == pgnSepolia {
 		cfg.MaxSequencerDrift = 1000
 		cfg.SeqWindowSize = 7200
+	}
+	if chainID == bobaSepolia {
+		*cfg.CanyonTime = 1705600788
+		cfg.DeltaTime = nil
+		cfg.ProtocolVersionsAddress = common.Address{}
 	}
 	return cfg, nil
 }

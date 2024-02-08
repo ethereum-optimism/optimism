@@ -1,0 +1,42 @@
+# Log level.
+# Possible values: trace | debug | info | warn | error | crit
+# Default: debug
+log_level = "debug"
+
+[healthz]
+# Whether or not to enable healthz endpoint
+enabled = true
+# Host for the healthz endpoint to listen on
+host = "0.0.0.0"
+# Port for the above.
+port = "8080"
+
+[metrics]
+# Whether or not to enable Prometheus metrics
+enabled = true
+# Host for the Prometheus metrics endpoint to listen on.
+host = "0.0.0.0"
+# Port for the above.
+port = "9761"
+
+[wallets.default]
+# Transaction value in wei
+tx_value = 100000000000000
+
+[providers.p1]
+# Read only providers are only used to check for transactions
+read_only = false
+# Interval to poll the provider for expected transactions
+read_interval = "10s"
+# Interval to submit new transactions to the provider
+send_interval = "60s"
+# Interval between send transaction when we get "already known" txpool err
+send_transaction_retry_interval = "100ms"
+# Max time to retry
+send_transaction_retry_timeout = "5s"
+# Interval between each send transaction to the same network
+send_transaction_cool_down = "30s"
+# Interval between receipt retrieval
+receipt_retrieval_interval = "500ms"
+# Max time to check for receipt
+receipt_retrieval_timeout = "2m"

@@ -12,7 +12,7 @@ optimizer = true
 optimizer_runs = 999999
 remappings = [
   '@openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts',
-  '@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts',
+  '@openzeppelin/contracts/=lib/openzeppelin-contracts-patched/contracts',
   '@rari-capital/solmate/=lib/solmate',
   '@cwia/=lib/clones-with-immutable-args/src',
   '@lib-keccak/=lib/lib-keccak/contracts/lib',
@@ -41,6 +41,8 @@ fs_permissions = [
   { access='read', path='./kout-deployment' }
 ]
 libs = ["node_modules", "lib"]
+
+memory_limit = 43554432
 
 [fuzz]
 runs = 64

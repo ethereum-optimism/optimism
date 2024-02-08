@@ -77,6 +77,19 @@ func TestBuildOptimism(t *testing.T) {
 		Permit2:                      struct{}{},
 		SenderCreator:                struct{}{},
 		EntryPoint:                   struct{}{},
+		BobaL2: struct {
+			L2Bridge common.Address
+			L1Token  common.Address
+			Name     string
+			Symbol   string
+			Decimals uint8
+		}{
+			L2Bridge: common.HexToAddress("0x1234567890123456789012345678901234567890"),
+			L1Token:  common.HexToAddress("0x1234567890123456789012345678901234567890"),
+			Name:     "BOBA Token",
+			Symbol:   "BOBA",
+			Decimals: uint8(18),
+		},
 	}
 
 	require.NoError(t, cfg.Check())
@@ -94,6 +107,9 @@ func TestBuildOptimism(t *testing.T) {
 
 		// If a predeploy has no config, it needs to have no immutable references in the solc output.
 		if reflect.ValueOf(predeployConfig).IsZero() {
+			if specialName, ok := bindings.SpecialContractNames[name]; ok {
+				name = specialName
+			}
 			ref, _ := bindings.HasImmutableReferences(name)
 			require.Zero(t, ref, "found immutable reference for %s", name)
 			return nil

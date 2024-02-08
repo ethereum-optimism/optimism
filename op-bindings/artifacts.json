@@ -36,6 +36,8 @@
     "PreimageOracle",
     "EAS",
     "SchemaRegistry",
+    "BOBA",
+    "L2GovernanceERC20",
     "ProtocolVersions",
     "Safe",
     "SafeProxyFactory",

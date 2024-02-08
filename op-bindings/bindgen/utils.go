@@ -5,13 +5,18 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
+	goast "go/ast"
+	"go/format"
+	"go/parser"
+	"go/token"
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/log"
+	"golang.org/x/tools/go/ast/astutil"
 )
 
 type BindGenGeneratorBase struct {
@@ -169,6 +174,42 @@ func genContractBindings(logger log.Logger, monorepoRootPath, abiFilePath, bytec
 	cmd.Stdout = os.Stdout
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("error running abigen for %s: %w", contractName, err)
+	}
+
+	// XXX(jky) This is an absolutely horrible hack, and we should really
+	// figure out a way to make the generation right.  But, it would require
+	// modifying contracts, or the generation scheme, and I'm wary of
+	// creating conflicts and churn, so this is a benign way to handle
+	// things.
+	if filepath.Base(outFilePath) == "boba.go" || filepath.Base(outFilePath) == "l2governanceerc20.go" {
+		fSet := token.NewFileSet()
+		file, err := parser.ParseFile(fSet, outFilePath, nil, parser.ParseComments)
+		if err != nil {
+			log.Error("could not open %s for rewriting: %s", outFilePath, err)
+		}
+		astutil.Apply(file, nil, func(c *astutil.Cursor) bool {
+			n := c.Node()
+			switch x := n.(type) {
+			case *goast.GenDecl:
+				if x.Tok == token.TYPE {
+					spec := x.Specs[0].(*goast.TypeSpec)
+					if spec.Name.Name == "ERC20VotesCheckpoint" {
+						c.Delete()
+						return false
+					}
+				}
+			}
+
+			return true
+		})
+		out, err := os.Create(outFilePath)
+		if err != nil {
+			logger.Error("could not truncate for rewrite: %s", err)
+		}
+		defer out.Close()
+		if err := format.Node(out, fSet, file); err != nil {
+			logger.Error("could not rewrite: %s", err)
+		}
 	}
 
 	if len(existingOutput) != 0 {

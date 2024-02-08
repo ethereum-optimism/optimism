@@ -130,6 +130,8 @@ type DeployConfig struct {
 	// FinalSystemOwner is the owner of the system on L1. Any L1 contract that is ownable has
 	// this account set as its owner.
 	FinalSystemOwner common.Address `json:"finalSystemOwner"`
+	// GUARDIAN account in the OptimismPortal
+	PortalGuardian common.Address `json:"portalGuardian,omitempty"`
 	// SuperchainConfigGuardian represents the GUARDIAN account in the SuperchainConfig. Has the ability to pause withdrawals.
 	SuperchainConfigGuardian common.Address `json:"superchainConfigGuardian"`
 	// BaseFeeVaultRecipient represents the recipient of fees accumulated in the BaseFeeVault.
@@ -226,6 +228,10 @@ type DeployConfig struct {
 	// FundDevAccounts configures whether or not to fund the dev accounts. Should only be used
 	// during devnet deployments.
 	FundDevAccounts bool `json:"fundDevAccounts"`
+	// It controls the upgrade process of the L1 contracts.
+	Controller *common.Address `json:"controller,omitempty"`
+	// L1 Boba token address
+	L1BobaToken *common.Address `json:"l1BobaTokenAddress,omitempty"`
 	// RequiredProtocolVersion indicates the protocol version that
 	// nodes are required to adopt, to stay in sync with the network.
 	RequiredProtocolVersion params.ProtocolVersion `json:"requiredProtocolVersion"`
@@ -572,6 +578,19 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHas
 	}, nil
 }
 
+func (d *DeployConfig) GetL1BobaTokenAddress() (*common.Address, error) {
+	var l1TokenAddr common.Address
+	if d.L1BobaToken != nil {
+		l1TokenAddr = *d.L1BobaToken
+	} else {
+		l1TokenAddr = predeploys.BobaL2Addr
+	}
+	if l1TokenAddr == (common.Address{}) {
+		return &l1TokenAddr, fmt.Errorf("L1BobaTokenAddress cannot be address(0): %w", ErrInvalidImmutablesConfig)
+	}
+	return &l1TokenAddr, nil
+}
+
 // NewDeployConfig reads a config file given a path on the filesystem.
 func NewDeployConfig(path string) (*DeployConfig, error) {
 	file, err := os.ReadFile(path)
@@ -774,6 +793,14 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (*immutables
 	if config.L1FeeVaultRecipient == (common.Address{}) {
 		return nil, fmt.Errorf("L1FeeVaultRecipient cannot be address(0): %w", ErrInvalidImmutablesConfig)
 	}
+	if config.ProxyAdminOwner == (common.Address{}) {
+		return nil, fmt.Errorf("ProxyAdminOwner cannot be address(0): %w", ErrInvalidImmutablesConfig)
+	}
+
+	l1BobaTokenAddress, err := config.GetL1BobaTokenAddress()
+	if err != nil {
+		return nil, fmt.Errorf("cannot get L1BobaTokenAddress: %w", err)
+	}
 
 	cfg := immutables.PredeploysImmutableConfig{
 		L2ToL1MessagePasser:    struct{}{},
@@ -830,6 +857,19 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (*immutables
 			Name: "EAS",
 		},
 		Create2Deployer: struct{}{},
+		BobaL2: struct {
+			L2Bridge common.Address
+			L1Token  common.Address
+			Name     string
+			Symbol   string
+			Decimals uint8
+		}{
+			L2Bridge: predeploys.L2StandardBridgeAddr,
+			L1Token:  *l1BobaTokenAddress,
+			Name:     "Boba Token",
+			Symbol:   "BOBA",
+			Decimals: uint8(18),
+		},
 	}
 
 	if err := cfg.Check(); err != nil {
@@ -904,6 +944,17 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 	}
 	storage["ProxyAdmin"] = state.StorageValues{
 		"_owner": config.ProxyAdminOwner,
+	}
+	l1TokenAddr, err := config.GetL1BobaTokenAddress()
+	if err != nil {
+		return storage, err
+	}
+	storage["BobaL2"] = state.StorageValues{
+		"l2Bridge":  predeploys.L2StandardBridgeAddr,
+		"l1Token":   l1TokenAddr,
+		"_name":     "Boba Token",
+		"_symbol":   "BOBA",
+		"_decimals": uint8(18),
 	}
 	return storage, nil
 }

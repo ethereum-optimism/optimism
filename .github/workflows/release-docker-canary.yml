@@ -8,6 +8,8 @@ on:
         description: 'Custom Docker Image Tag (keep empty for git hash)'
         required: false
         default: '0.0.0-rc-0'
+env:
+  ORG: bobanetwork
 
 jobs:
   canary-publish:
@@ -68,7 +70,7 @@ jobs:
           file: ./ops/docker/Dockerfile.packages
           target: fault-mon
           push: true
-          tags: ethereumoptimism/fault-mon:${{ needs.canary-publish.outputs.canary-docker-tag }}
+          tags: ${{ env.ORG }}/fault-mon:${{ needs.canary-publish.outputs.canary-docker-tag }}
 
   balance-mon:
     name: Publish Balance Monitor Version ${{ needs.canary-publish.outputs.canary-docker-tag }}
@@ -95,7 +97,7 @@ jobs:
           file: ./ops/docker/Dockerfile.packages
           target: balance-mon
           push: true
-          tags: ethereumoptimism/balance-mon:${{ needs.canary-publish.outputs.canary-docker-tag }}
+          tags: ${{ env.ORG }}/balance-mon:${{ needs.canary-publish.outputs.canary-docker-tag }}
 
   multisig-mon:
     name: Publish Multisig Monitor Version ${{ needs.canary-publish.outputs.canary-docker-tag }}
@@ -149,7 +151,7 @@ jobs:
           file: ./ops/docker/Dockerfile.packages
           target: drippie-mon
           push: true
-          tags: ethereumoptimism/drippie-mon:${{ needs.canary-publish.outputs.canary-docker-tag }}
+          tags: ${{ env.ORG }}/drippie-mon:${{ needs.canary-publish.outputs.canary-docker-tag }}
 
   wd-mon:
     name: Publish Withdrawal Monitor Version ${{ needs.canary-publish.outputs.canary-docker-tag }}
@@ -176,7 +178,7 @@ jobs:
           file: ./ops/docker/Dockerfile.packages
           target: wd-mon
           push: true
-          tags: ethereumoptimism/wd-mon:${{ needs.canary-publish.outputs.canary-docker-tag }}
+          tags: ${{ env.ORG }}/wd-mon:${{ needs.canary-publish.outputs.canary-docker-tag }}
 
   replica-mon:
     name: Publish replica-mon Version ${{ needs.canary-publish.outputs.canary-docker-tag }}
@@ -203,7 +205,7 @@ jobs:
           file: ./ops/docker/Dockerfile.packages
           target: replica-mon
           push: true
-          tags: ethereumoptimism/replica-mon:${{ needs.canary-publish.outputs.canary-docker-tag }}
+          tags: ${{ env.ORG }}/replica-mon:${{ needs.canary-publish.outputs.canary-docker-tag }}
 
   endpoint-monitor:
     name: Publish endpoint-monitor Version ${{ needs.canary-publish.outputs.canary-docker-tag }}
@@ -237,7 +239,7 @@ jobs:
           context: .
           file: ./endpoint-monitor/Dockerfile
           push: true
-          tags: ethereumoptimism/endpoint-monitor:${{ needs.canary-publish.outputs.endpoint-monitor }}
+          tags: ${{ env.ORG }}/endpoint-monitor:${{ needs.canary-publish.outputs.endpoint-monitor }}
           build-args: |
             GITDATE=${{ steps.build_args.outputs.GITDATE }}
             GITCOMMIT=${{ steps.build_args.outputs.GITCOMMIT }}

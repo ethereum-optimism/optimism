@@ -43,6 +43,28 @@ var (
 		Value:       "",
 		Destination: new(string),
 	}
+	L2RpcTimeout = &cli.DurationFlag{
+		Name:    "l2.rpc-timeout",
+		Usage:   "Timeout for L2 RPC requests",
+		EnvVars: prefixEnvVars("L2_RPC_TIMEOUT"),
+		Value:   time.Second * 10,
+	}
+	L2RpcBatchTimeout = &cli.DurationFlag{
+		Name:    "l2.rpc-batch-timeout",
+		Usage:   "Timeout for L2 RPC batch requests",
+		EnvVars: prefixEnvVars("L2_RPC_BATCH_TIMEOUT"),
+		Value:   time.Second * 20,
+	}
+	RollupConfig = &cli.StringFlag{
+		Name:    "rollup.config",
+		Usage:   "Rollup chain parameters",
+		EnvVars: prefixEnvVars("ROLLUP_CONFIG"),
+	}
+	Network = &cli.StringFlag{
+		Name:    "network",
+		Usage:   fmt.Sprintf("Predefined network selection. Available networks: %s", strings.Join(chaincfg.AvailableNetworks(), ", ")),
+		EnvVars: prefixEnvVars("NETWORK"),
+	}
 	/* Optional Flags */
 	BeaconAddr = &cli.StringFlag{
 		Name:     "l1.beacon",
@@ -85,6 +107,30 @@ var (
 		Usage:   "RPC listening port",
 		EnvVars: prefixEnvVars("RPC_PORT"),
 		Value:   9545, // Note: op-service/rpc/cli.go uses 8545 as the default.
+	}
+	RPCListenReadTimeout = &cli.DurationFlag{
+		Name:    "rpc.read-timeout",
+		Usage:   "RPC read timeout",
+		EnvVars: prefixEnvVars("RPC_READ_TIMEOUT"),
+		Value:   time.Second * 30,
+	}
+	RPCListenReadHeaderTimeout = &cli.DurationFlag{
+		Name:    "rpc.read-header-timeout",
+		Usage:   "RPC read header timeout",
+		EnvVars: prefixEnvVars("RPC_READ_HEADER_TIMEOUT"),
+		Value:   time.Second * 30,
+	}
+	RPCListenWriteTimeout = &cli.DurationFlag{
+		Name:    "rpc.write-timeout",
+		Usage:   "RPC write timeout",
+		EnvVars: prefixEnvVars("RPC_WRITE_TIMEOUT"),
+		Value:   time.Second * 30,
+	}
+	RPCListenIdleTimeout = &cli.DurationFlag{
+		Name:    "rpc.idle-timeout",
+		Usage:   "RPC idle timeout",
+		EnvVars: prefixEnvVars("RPC_IDLE_TIMEOUT"),
+		Value:   time.Second * 120,
 	}
 	RPCEnableAdmin = &cli.BoolFlag{
 		Name:    "rpc.enable-admin",
@@ -297,12 +343,20 @@ var optionalFlags = []cli.Flag{
 	SyncModeFlag,
 	RPCListenAddr,
 	RPCListenPort,
+	RPCListenReadTimeout,
+	RPCListenReadHeaderTimeout,
+	RPCListenWriteTimeout,
+	RPCListenIdleTimeout,
+	RollupConfig,
+	Network,
 	L1TrustRPC,
 	L1RPCProviderKind,
 	L1RPCRateLimit,
 	L1RPCMaxBatchSize,
 	L1RPCMaxConcurrency,
 	L1HTTPPollInterval,
+	L2RpcTimeout,
+	L2RpcBatchTimeout,
 	VerifierL1Confs,
 	SequencerEnabledFlag,
 	SequencerStoppedFlag,

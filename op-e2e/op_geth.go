@@ -83,10 +83,11 @@ func NewOpGeth(t *testing.T, ctx context.Context, cfg *SystemConfig) (*OpGeth, e
 		node = gethNode
 	} else {
 		externalNode := (&ExternalRunner{
-			Name:    "l2",
-			BinPath: cfg.ExternalL2Shim,
-			Genesis: l2Genesis,
-			JWTPath: cfg.JWTFilePath,
+			Name:     "l2",
+			BinPath:  cfg.ExternalL2Shim,
+			Genesis:  l2Genesis,
+			JWTPath:  cfg.JWTFilePath,
+			GasLimit: uint64(cfg.DeployConfig.L2GenesisBlockGasLimit),
 		}).Run(t)
 		node = externalNode
 	}
