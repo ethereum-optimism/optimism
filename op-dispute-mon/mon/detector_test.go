@@ -219,22 +219,25 @@ func TestDetector_CheckRootAgreement(t *testing.T) {
 	t.Run("OutputFetchFails", func(t *testing.T) {
 		detector, _, _, rollup := setupDetectorTest(t)
 		rollup.err = errors.New("boom")
-		agree, err := detector.checkRootAgreement(context.Background(), 0, mockRootClaim)
+		agree, fetched, err := detector.checkRootAgreement(context.Background(), 0, mockRootClaim)
 		require.ErrorIs(t, err, rollup.err)
+		require.Equal(t, common.Hash{}, fetched)
 		require.False(t, agree)
 	})
 
 	t.Run("OutputMismatch", func(t *testing.T) {
 		detector, _, _, _ := setupDetectorTest(t)
-		agree, err := detector.checkRootAgreement(context.Background(), 0, common.Hash{})
+		agree, fetched, err := detector.checkRootAgreement(context.Background(), 0, common.Hash{})
 		require.NoError(t, err)
+		require.Equal(t, mockRootClaim, fetched)
 		require.False(t, agree)
 	})
 
 	t.Run("OutputMatches", func(t *testing.T) {
 		detector, _, _, _ := setupDetectorTest(t)
-		agree, err := detector.checkRootAgreement(context.Background(), 0, mockRootClaim)
+		agree, fetched, err := detector.checkRootAgreement(context.Background(), 0, mockRootClaim)
 		require.NoError(t, err)
+		require.Equal(t, mockRootClaim, fetched)
 		require.True(t, agree)
 	})
 }
