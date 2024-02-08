@@ -10,7 +10,7 @@ help: # Show help for each of the Makefile recipes.
 
 .PHONY: cannon-prestate
 cannon-prestate: # Generate the cannon prestate, and tar the `op-program` + `cannon` binaries + prestate data used to generate it.
-	cd $(monorepo_root) && make cannon-prestate
+	cd $(monorepo_root) && make reproducible-prestate
 	@mkdir -p prestate-artifacts
 	@cp -r $(monorepo_root)/cannon/bin/** prestate-artifacts/
 	@cp -r $(monorepo_root)/op-program/bin/** prestate-artifacts/

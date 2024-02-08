@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/batcher"
 	ds "github.com/ipfs/go-datastore"
 	dsSync "github.com/ipfs/go-datastore/sync"
 	ic "github.com/libp2p/go-libp2p/core/crypto"
@@ -146,10 +147,10 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 			},
 		},
 		Loggers: map[string]log.Logger{
-			"verifier":  testlog.Logger(t, log.LvlInfo).New("role", "verifier"),
-			"sequencer": testlog.Logger(t, log.LvlInfo).New("role", "sequencer"),
-			"batcher":   testlog.Logger(t, log.LvlInfo).New("role", "batcher"),
-			"proposer":  testlog.Logger(t, log.LvlCrit).New("role", "proposer"),
+			"verifier":  testlog.Logger(t, log.LevelInfo).New("role", "verifier"),
+			"sequencer": testlog.Logger(t, log.LevelInfo).New("role", "sequencer"),
+			"batcher":   testlog.Logger(t, log.LevelInfo).New("role", "batcher"),
+			"proposer":  testlog.Logger(t, log.LevelCrit).New("role", "proposer"),
 		},
 		GethOptions:                map[string][]geth.GethOption{},
 		P2PTopology:                nil, // no P2P connectivity by default
@@ -297,6 +298,10 @@ func (sys *System) AdvanceTime(d time.Duration) {
 	}
 }
 
+func (sys *System) L1BeaconEndpoint() string {
+	return sys.L1BeaconAPIAddr
+}
+
 func (sys *System) NodeEndpoint(name string) string {
 	return selectEndpoint(sys.EthInstances[name])
 }
@@ -314,7 +319,7 @@ func (sys *System) RollupClient(name string) *sources.RollupClient {
 	if ok {
 		return client
 	}
-	logger := testlog.Logger(sys.t, log.LvlInfo).New("rollupClient", name)
+	logger := testlog.Logger(sys.t, log.LevelInfo).New("rollupClient", name)
 	endpoint := sys.RollupEndpoint(name)
 	client, err := dial.DialRollupClientWithTimeout(context.Background(), 30*time.Second, logger, endpoint)
 	require.NoErrorf(sys.t, err, "Failed to dial rollup client %v", name)
@@ -516,7 +521,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	sys.RollupConfig = &defaultConfig
 
 	// Create a fake Beacon node to hold on to blobs created by the L1 miner, and to serve them to L2
-	bcn := fakebeacon.NewBeacon(testlog.Logger(t, log.LvlInfo).New("role", "l1_cl"),
+	bcn := fakebeacon.NewBeacon(testlog.Logger(t, log.LevelInfo).New("role", "l1_cl"),
 		path.Join(cfg.BlobsPath, "l1_cl"), l1Genesis.Timestamp, cfg.DeployConfig.L1BlockTime)
 	t.Cleanup(func() {
 		_ = bcn.Close()
@@ -657,8 +662,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	}
 
 	// Don't log state snapshots in test output
-	snapLog := log.New()
-	snapLog.SetHandler(log.DiscardHandler())
+	snapLog := log.NewLogger(log.DiscardHandler())
 
 	// Rollup nodes
 
@@ -751,7 +755,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 		TxMgrConfig:       newTxMgrConfig(sys.EthInstances["l1"].WSEndpoint(), cfg.Secrets.Proposer),
 		AllowNonFinalized: cfg.NonFinalizedProposals,
 		LogConfig: oplog.CLIConfig{
-			Level:  log.LvlInfo,
+			Level:  log.LevelInfo,
 			Format: oplog.FormatText,
 		},
 	}
@@ -788,7 +792,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 		PollInterval:    50 * time.Millisecond,
 		TxMgrConfig:     newTxMgrConfig(sys.EthInstances["l1"].WSEndpoint(), cfg.Secrets.Batcher),
 		LogConfig: oplog.CLIConfig{
-			Level:  log.LvlInfo,
+			Level:  log.LevelInfo,
 			Format: oplog.FormatText,
 		},
 		Stopped:              sys.Cfg.DisableBatcher, // Batch submitter may be enabled later
@@ -851,6 +855,10 @@ func (sys *System) newMockNetPeer() (host.Host, error) {
 		return nil, err
 	}
 	return sys.Mocknet.AddPeerWithPeerstore(p, eps)
+}
+
+func (sys *System) BatcherHelper() *batcher.Helper {
+	return batcher.NewHelper(sys.t, sys.Cfg.Secrets.Batcher, sys.RollupConfig, sys.NodeClient("l1"))
 }
 
 func UseHTTP() bool {

@@ -164,7 +164,7 @@ docker compose logs --follow <service name>
 
 Before running tests: **follow the above instructions to get everything built.**
 
-#### Running unit tests
+#### Running unit tests (typescript)
 
 Run unit tests for all packages in parallel via:
 
@@ -178,6 +178,16 @@ To run unit tests for a specific package:
 cd packages/package-to-test
 pnpm test
 ```
+
+#### Running unit tests (Go)
+
+Change directory to the package you want to run tests for. Then:
+```shell
+go test ./...
+```
+
+#### Running e2e tests (Go)
+See [this document](./op-e2e/README.md)
 
 #### Running contract static analysis
 

@@ -72,7 +72,7 @@ func TestLoadClaimsWhenGameNotResolvable(t *testing.T) {
 }
 
 func setupTestAgent(t *testing.T) (*Agent, *stubClaimLoader, *stubResponder) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	claimLoader := &stubClaimLoader{}
 	depth := types.Depth(4)
 	provider := alphabet.NewTraceProvider(big.NewInt(0), depth)

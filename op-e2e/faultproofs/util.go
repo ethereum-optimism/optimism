@@ -10,11 +10,9 @@ import (
 
 type faultDisputeConfigOpts func(cfg *op_e2e.SystemConfig)
 
-func withLargeBatches() faultDisputeConfigOpts {
+func withBatcherStopped() faultDisputeConfigOpts {
 	return func(cfg *op_e2e.SystemConfig) {
-		// Allow the batcher to produce really huge calldata transactions.
-		cfg.BatcherTargetL1TxSizeBytes = 130072 // A bit under the max tx size as per Ethereum spec
-		cfg.BatcherMaxL1TxSizeBytes = 130072
+		cfg.DisableBatcher = true
 	}
 }
 

@@ -44,7 +44,7 @@ func RunProposerTest(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	dp.DeployConfig.L2GenesisDeltaTimeOffset = deltaTimeOffset
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
-	log := testlog.Logger(t, log.LvlDebug)
+	log := testlog.Logger(t, log.LevelDebug)
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
 
 	rollupSeqCl := sequencer.RollupClient()

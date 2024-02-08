@@ -164,7 +164,7 @@ func TestL1BlockRefByNumber(t *testing.T) {
 func newClient(t *testing.T) (*OracleL1Client, *test.StubOracle) {
 	stub := test.NewStubOracle(t)
 	stub.Blocks[head.Hash()] = head
-	client := NewOracleL1Client(testlog.Logger(t, log.LvlDebug), stub, head.Hash())
+	client := NewOracleL1Client(testlog.Logger(t, log.LevelDebug), stub, head.Hash())
 	return client, stub
 }
 

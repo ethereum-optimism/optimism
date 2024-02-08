@@ -192,14 +192,6 @@ func TestFetchL1Blob(t *testing.T) {
 		storeBlob(t, kv, (eth.Bytes48)(commitment), (*eth.Blob)(&blob))
 
 		oracle := l1.NewPreimageOracle(asOracleFn(t, prefetcher), asHinter(t, prefetcher))
-		blobFetcher.ExpectOnGetBlobSidecars(
-			context.Background(),
-			l1Ref,
-			[]eth.IndexedBlobHash{blobHash},
-			(eth.Bytes48)(commitment),
-			[]*eth.Blob{(*eth.Blob)(&blob)},
-			nil,
-		)
 		defer blobFetcher.AssertExpectations(t)
 
 		blobs := oracle.GetBlob(l1Ref, blobHash)
@@ -222,6 +214,20 @@ func TestFetchL1Blob(t *testing.T) {
 
 		blobs := oracle.GetBlob(l1Ref, blobHash)
 		require.EqualValues(t, blobs[:], blob[:])
+
+		// Check that the preimages of field element keys are also stored
+		// This makes it possible for the challenger to extract the commitment and required field from the
+		// oracle key rather than needing the hint data.
+
+		fieldElemKey := make([]byte, 80)
+		copy(fieldElemKey[:48], commitment[:])
+		for i := 0; i < params.BlobTxFieldElementsPerBlob; i++ {
+			binary.BigEndian.PutUint64(fieldElemKey[72:], uint64(i))
+			key := preimage.Keccak256Key(crypto.Keccak256(fieldElemKey)).PreimageKey()
+			actual, err := prefetcher.kvStore.Get(key)
+			require.NoError(t, err)
+			require.Equal(t, fieldElemKey, actual)
+		}
 	})
 }
 
@@ -386,7 +392,7 @@ func TestRetryWhenNotAvailableAfterPrefetching(t *testing.T) {
 	_, l1Source, l1BlobSource, l2Cl, kv := createPrefetcher(t)
 	putsToIgnore := 2
 	kv = &unreliableKvStore{KV: kv, putsToIgnore: putsToIgnore}
-	prefetcher := NewPrefetcher(testlog.Logger(t, log.LvlInfo), l1Source, l1BlobSource, l2Cl, kv)
+	prefetcher := NewPrefetcher(testlog.Logger(t, log.LevelInfo), l1Source, l1BlobSource, l2Cl, kv)
 
 	// Expect one call for each ignored put, plus one more request for when the put succeeds
 	for i := 0; i < putsToIgnore+1; i++ {
@@ -428,7 +434,7 @@ func (m *l2Client) ExpectOutputByRoot(root common.Hash, output eth.Output, err e
 }
 
 func createPrefetcher(t *testing.T) (*Prefetcher, *testutils.MockL1Source, *testutils.MockBlobsFetcher, *l2Client, kvstore.KV) {
-	logger := testlog.Logger(t, log.LvlDebug)
+	logger := testlog.Logger(t, log.LevelDebug)
 	kv := kvstore.NewMemKV()
 
 	l1Source := new(testutils.MockL1Source)
@@ -474,7 +480,7 @@ func storeBlob(t *testing.T, kv kvstore.KV, commitment eth.Bytes48, blob *eth.Bl
 	blobKeyBuf := make([]byte, 80)
 	copy(blobKeyBuf[:48], commitment[:])
 	for i := 0; i < params.BlobTxFieldElementsPerBlob; i++ {
-		binary.BigEndian.PutUint64(blobKeyBuf[:72], uint64(i))
+		binary.BigEndian.PutUint64(blobKeyBuf[72:], uint64(i))
 		feKey := crypto.Keccak256Hash(blobKeyBuf)
 
 		err = kv.Put(preimage.BlobKey(feKey).PreimageKey(), blob[i<<5:(i+1)<<5])

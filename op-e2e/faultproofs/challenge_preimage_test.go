@@ -60,7 +60,7 @@ func TestChallengeLargePreimages_ChallengeLast(t *testing.T) {
 		challenger.WithPrivKey(sys.Cfg.Secrets.Mallory))
 	preimageHelper := disputeGameFactory.PreimageHelper(ctx)
 	ident := preimageHelper.UploadLargePreimage(ctx, preimage.MinPreimageSize,
-		preimage.WithReplacedCommitment(132, common.Hash{0xaa}))
+		preimage.WithLastCommitment(common.Hash{0xaa}))
 
 	require.NotEqual(t, ident.Claimant, common.Address{})
 

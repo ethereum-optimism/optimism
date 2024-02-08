@@ -12,7 +12,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
+	"github.com/mattn/go-isatty"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
@@ -206,7 +208,10 @@ func CheckInactivation(f func(Args, bool) error, ctx Args, forkActivated bool, v
 }
 
 func main() {
-	logger := log.New()
+	color := isatty.IsTerminal(os.Stderr.Fd())
+	handler := log.NewTerminalHandler(os.Stderr, color)
+	oplog.SetGlobalLogHandler(handler)
+	logger := log.NewLogger(handler)
 
 	// Define the flag variables
 	var (

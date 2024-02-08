@@ -105,7 +105,7 @@ func TestRetryingL1Source(t *testing.T) {
 }
 
 func createL1Source(t *testing.T) (*RetryingL1Source, *testutils.MockL1Source) {
-	logger := testlog.Logger(t, log.LvlDebug)
+	logger := testlog.Logger(t, log.LevelDebug)
 	mock := &testutils.MockL1Source{}
 	source := NewRetryingL1Source(logger, mock)
 	// Avoid sleeping in tests by using a fixed retry strategy with no delay
@@ -329,7 +329,7 @@ func TestRetryingL2Source(t *testing.T) {
 }
 
 func createL2Source(t *testing.T) (*RetryingL2Source, *MockL2Source) {
-	logger := testlog.Logger(t, log.LvlDebug)
+	logger := testlog.Logger(t, log.LevelDebug)
 	mock := &MockL2Source{}
 	source := NewRetryingL2Source(logger, mock)
 	// Avoid sleeping in tests by using a fixed retry strategy with no delay

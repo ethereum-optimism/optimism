@@ -6,16 +6,13 @@ import { Vm } from "forge-std/Vm.sol";
 import { DisputeGameFactory_Init } from "test/dispute/DisputeGameFactory.t.sol";
 import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
 import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
-import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
 import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
-import { PreimageKeyLib } from "src/cannon/PreimageKeyLib.sol";
 
 import "src/libraries/DisputeTypes.sol";
 import "src/libraries/DisputeErrors.sol";
-import { Types } from "src/libraries/Types.sol";
 import { LibClock } from "src/dispute/lib/LibUDT.sol";
 import { LibPosition } from "src/dispute/lib/LibPosition.sol";
-import { IBigStepper, IPreimageOracle } from "src/dispute/interfaces/IBigStepper.sol";
+import { IPreimageOracle } from "src/dispute/interfaces/IBigStepper.sol";
 import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
 
 import { DisputeActor, HonestDisputeActor } from "test/actors/FaultDisputeActors.sol";
@@ -63,9 +60,9 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
             _vm: _vm
         });
         // Register the game implementation with the factory.
-        factory.setImplementation(GAME_TYPE, gameImpl);
+        disputeGameFactory.setImplementation(GAME_TYPE, gameImpl);
         // Create a new game.
-        gameProxy = FaultDisputeGame(address(factory.create(GAME_TYPE, rootClaim, extraData)));
+        gameProxy = FaultDisputeGame(address(disputeGameFactory.create(GAME_TYPE, rootClaim, extraData)));
 
         // Check immutables
         assertEq(gameProxy.gameType().raw(), GAME_TYPE.raw());
@@ -174,7 +171,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
 
         Claim claim = _dummyClaim();
         vm.expectRevert(abi.encodeWithSelector(UnexpectedRootClaim.selector, claim));
-        gameProxy = FaultDisputeGame(address(factory.create(GAME_TYPE, claim, abi.encode(_blockNumber))));
+        gameProxy = FaultDisputeGame(address(disputeGameFactory.create(GAME_TYPE, claim, abi.encode(_blockNumber))));
     }
 
     /// @dev Tests that the proxy receives ETH from the dispute game factory.
@@ -183,7 +180,8 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         vm.deal(address(this), _value);
 
         assertEq(address(gameProxy).balance, 0);
-        gameProxy = FaultDisputeGame(address(factory.create{ value: _value }(GAME_TYPE, ROOT_CLAIM, abi.encode(1))));
+        gameProxy =
+            FaultDisputeGame(address(disputeGameFactory.create{ value: _value }(GAME_TYPE, ROOT_CLAIM, abi.encode(1))));
         assertEq(address(gameProxy).balance, _value);
     }
 
@@ -206,7 +204,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
 
         Claim claim = _dummyClaim();
         vm.expectRevert(abi.encodeWithSelector(ExtraDataTooLong.selector));
-        gameProxy = FaultDisputeGame(address(factory.create(GAME_TYPE, claim, _extraData)));
+        gameProxy = FaultDisputeGame(address(disputeGameFactory.create(GAME_TYPE, claim, _extraData)));
     }
 
     /// @dev Tests that the game is initialized with the correct data.
@@ -407,7 +405,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
 
         // Assert correctness of the parent claim's data.
         assertEq(parentIndex, type(uint32).max);
-        assertEq(counteredBy, address(this));
+        assertEq(counteredBy, address(0));
         assertEq(claimant, DEFAULT_SENDER);
         assertEq(bond, 0);
         assertEq(claim.raw(), ROOT_CLAIM.raw());
@@ -618,7 +616,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
         for (uint256 i = gameProxy.claimDataLen(); i > 0; i--) {
             (bool success,) = address(gameProxy).call(abi.encodeCall(gameProxy.resolveClaim, (i - 1)));
-            success;
+            assertTrue(success);
         }
         gameProxy.resolve();
 
@@ -629,7 +627,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         assertEq(address(gameProxy).balance, 0);
 
         // Ensure that the init bond for the game is 0, in case we change it in the test suite in the future.
-        assertEq(factory.initBonds(GAME_TYPE), 0);
+        assertEq(disputeGameFactory.initBonds(GAME_TYPE), 0);
     }
 
     /// @dev Static unit test asserting that resolve pays out bonds on step, output bisection, and execution trace
@@ -678,7 +676,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
         for (uint256 i = gameProxy.claimDataLen(); i > 0; i--) {
             (bool success,) = address(gameProxy).call(abi.encodeCall(gameProxy.resolveClaim, (i - 1)));
-            success;
+            assertTrue(success);
         }
         gameProxy.resolve();
 
@@ -691,7 +689,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         assertEq(address(gameProxy).balance, 0);
 
         // Ensure that the init bond for the game is 0, in case we change it in the test suite in the future.
-        assertEq(factory.initBonds(GAME_TYPE), 0);
+        assertEq(disputeGameFactory.initBonds(GAME_TYPE), 0);
     }
 
     /// @dev Static unit test asserting that resolve pays out bonds on moves to the leftmost actor
@@ -707,7 +705,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
 
         // Make claims with bob, charlie and the test contract on defense, and alice as the challenger
         // charlie is successfully countered by alice
-        // alice is successfully countered by both bob and the test coontract
+        // alice is successfully countered by both bob and the test contract
         vm.prank(alice);
         gameProxy.attack{ value: 1 ether }(0, _dummyClaim());
 
@@ -724,7 +722,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
         for (uint256 i = gameProxy.claimDataLen(); i > 0; i--) {
             (bool success,) = address(gameProxy).call(abi.encodeCall(gameProxy.resolveClaim, (i - 1)));
-            success;
+            assertTrue(success);
         }
         gameProxy.resolve();
 
@@ -743,7 +741,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         assertEq(address(gameProxy).balance, 0);
 
         // Ensure that the init bond for the game is 0, in case we change it in the test suite in the future.
-        assertEq(factory.initBonds(GAME_TYPE), 0);
+        assertEq(disputeGameFactory.initBonds(GAME_TYPE), 0);
     }
 
     /// @dev Static unit test asserting that credit may not be drained past allowance through reentrancy.
@@ -1435,7 +1433,7 @@ contract FaultDispute_1v1_Actors_Test is FaultDisputeGame_Init {
         // resolved before global resolution, which catches any unresolved subgames here.
         for (uint256 i = gameProxy.claimDataLen(); i > 0; i--) {
             (bool success,) = address(gameProxy).call(abi.encodeCall(gameProxy.resolveClaim, (i - 1)));
-            success;
+            assertTrue(success);
         }
         gameProxy.resolve();
     }

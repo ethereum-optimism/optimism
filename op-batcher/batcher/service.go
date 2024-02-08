@@ -28,9 +28,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
-var (
-	ErrAlreadyStopped = errors.New("already stopped")
-)
+var ErrAlreadyStopped = errors.New("already stopped")
 
 type BatcherConfig struct {
 	NetworkTimeout         time.Duration

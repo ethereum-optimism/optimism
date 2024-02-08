@@ -33,7 +33,7 @@ type HealthMonitorTestSuite struct {
 }
 
 func (s *HealthMonitorTestSuite) SetupSuite() {
-	s.log = testlog.Logger(s.T(), log.LvlDebug)
+	s.log = testlog.Logger(s.T(), log.LevelDebug)
 	s.interval = 1
 	s.minPeerCount = minPeerCount
 	s.rollupCfg = &rollup.Config{

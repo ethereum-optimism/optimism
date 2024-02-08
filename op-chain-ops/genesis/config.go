@@ -18,7 +18,6 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/hardhat"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/immutables"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/state"
@@ -233,6 +232,18 @@ type DeployConfig struct {
 	// RequiredProtocolVersion indicates the protocol version that
 	// nodes are recommended to adopt, to stay in sync with the network.
 	RecommendedProtocolVersion params.ProtocolVersion `json:"recommendedProtocolVersion"`
+	// ProofMaturityDelaySeconds is the number of seconds that a proof must be
+	// mature before it can be used to finalize a withdrawal.
+	ProofMaturityDelaySeconds uint64 `json:"proofMaturityDelaySeconds"`
+	// DisputeGameFinalityDelaySeconds is an additional number of seconds a
+	// dispute game must wait before it can be used to finalize a withdrawal.
+	DisputeGameFinalityDelaySeconds uint64 `json:"disputeGameFinalityDelaySeconds"`
+	// RespectedGameType is the dispute game type that the OptimismPortal
+	// contract will respect for finalizing withdrawals.
+	RespectedGameType uint32 `json:"respectedGameType"`
+	// UseFaultProofs is a flag that indicates if the system is using fault
+	// proofs instead of the older output oracle mechanism.
+	UseFaultProofs bool `json:"useFaultProofs"`
 
 	// When Cancun activates. Relative to L1 genesis.
 	L1CancunTimeOffset *hexutil.Uint64 `json:"l1CancunTimeOffset,omitempty"`
@@ -377,6 +388,12 @@ func (d *DeployConfig) Check() error {
 	if d.RecommendedProtocolVersion == (params.ProtocolVersion{}) {
 		log.Warn("RecommendedProtocolVersion is empty")
 	}
+	if d.ProofMaturityDelaySeconds == 0 {
+		log.Warn("ProofMaturityDelaySeconds is 0")
+	}
+	if d.DisputeGameFinalityDelaySeconds == 0 {
+		log.Warn("DisputeGameFinalityDelaySeconds is 0")
+	}
 	// checkFork checks that fork A is before or at the same time as fork B
 	checkFork := func(a, b *hexutil.Uint64, aName, bName string) error {
 		if a == nil && b == nil {
@@ -438,52 +455,6 @@ func (d *DeployConfig) SetDeployments(deployments *L1Deployments) {
 	d.L1ERC721BridgeProxy = deployments.L1ERC721BridgeProxy
 	d.SystemConfigProxy = deployments.SystemConfigProxy
 	d.OptimismPortalProxy = deployments.OptimismPortalProxy
-}
-
-// GetDeployedAddresses will get the deployed addresses of deployed L1 contracts
-// required for the L2 genesis creation.
-func (d *DeployConfig) GetDeployedAddresses(hh *hardhat.Hardhat) error {
-	if d.L1StandardBridgeProxy == (common.Address{}) {
-		l1StandardBridgeProxyDeployment, err := hh.GetDeployment("L1StandardBridgeProxy")
-		if err != nil {
-			return fmt.Errorf("cannot find L1StandardBridgeProxy artifact: %w", err)
-		}
-		d.L1StandardBridgeProxy = l1StandardBridgeProxyDeployment.Address
-	}
-
-	if d.L1CrossDomainMessengerProxy == (common.Address{}) {
-		l1CrossDomainMessengerProxyDeployment, err := hh.GetDeployment("L1CrossDomainMessengerProxy")
-		if err != nil {
-			return fmt.Errorf("cannot find L1CrossDomainMessengerProxy artifact: %w", err)
-		}
-		d.L1CrossDomainMessengerProxy = l1CrossDomainMessengerProxyDeployment.Address
-	}
-
-	if d.L1ERC721BridgeProxy == (common.Address{}) {
-		l1ERC721BridgeProxyDeployment, err := hh.GetDeployment("L1ERC721BridgeProxy")
-		if err != nil {
-			return fmt.Errorf("cannot find L1ERC721BridgeProxy artifact: %w", err)
-		}
-		d.L1ERC721BridgeProxy = l1ERC721BridgeProxyDeployment.Address
-	}
-
-	if d.SystemConfigProxy == (common.Address{}) {
-		systemConfigProxyDeployment, err := hh.GetDeployment("SystemConfigProxy")
-		if err != nil {
-			return fmt.Errorf("cannot find SystemConfigProxy artifact: %w", err)
-		}
-		d.SystemConfigProxy = systemConfigProxyDeployment.Address
-	}
-
-	if d.OptimismPortalProxy == (common.Address{}) {
-		optimismPortalProxyDeployment, err := hh.GetDeployment("OptimismPortalProxy")
-		if err != nil {
-			return fmt.Errorf("cannot find OptimismPortalProxy artifact: %w", err)
-		}
-		d.OptimismPortalProxy = optimismPortalProxyDeployment.Address
-	}
-
-	return nil
 }
 
 func (d *DeployConfig) GovernanceEnabled() bool {
@@ -747,14 +718,14 @@ type ForgeDump gstate.Dump
 
 func (d *ForgeDump) UnmarshalJSON(b []byte) error {
 	type forgeDumpAccount struct {
-		Balance   string                 `json:"balance"`
-		Nonce     hexutil.Uint64         `json:"nonce"`
-		Root      hexutil.Bytes          `json:"root"`
-		CodeHash  hexutil.Bytes          `json:"codeHash"`
-		Code      hexutil.Bytes          `json:"code,omitempty"`
-		Storage   map[common.Hash]string `json:"storage,omitempty"`
-		Address   *common.Address        `json:"address,omitempty"`
-		SecureKey hexutil.Bytes          `json:"key,omitempty"`
+		Balance     string                 `json:"balance"`
+		Nonce       hexutil.Uint64         `json:"nonce"`
+		Root        hexutil.Bytes          `json:"root"`
+		CodeHash    hexutil.Bytes          `json:"codeHash"`
+		Code        hexutil.Bytes          `json:"code,omitempty"`
+		Storage     map[common.Hash]string `json:"storage,omitempty"`
+		Address     *common.Address        `json:"address,omitempty"`
+		AddressHash hexutil.Bytes          `json:"key,omitempty"`
 	}
 	type forgeDump struct {
 		Root     string                              `json:"root"`
@@ -766,17 +737,17 @@ func (d *ForgeDump) UnmarshalJSON(b []byte) error {
 	}
 
 	d.Root = dump.Root
-	d.Accounts = make(map[common.Address]gstate.DumpAccount)
+	d.Accounts = make(map[string]gstate.DumpAccount)
 	for addr, acc := range dump.Accounts {
-		d.Accounts[addr] = gstate.DumpAccount{
-			Balance:   acc.Balance,
-			Nonce:     (uint64)(acc.Nonce),
-			Root:      acc.Root,
-			CodeHash:  acc.CodeHash,
-			Code:      acc.Code,
-			Storage:   acc.Storage,
-			Address:   acc.Address,
-			SecureKey: acc.SecureKey,
+		d.Accounts[addr.String()] = gstate.DumpAccount{
+			Balance:     acc.Balance,
+			Nonce:       (uint64)(acc.Nonce),
+			Root:        acc.Root,
+			CodeHash:    acc.CodeHash,
+			Code:        acc.Code,
+			Storage:     acc.Storage,
+			Address:     acc.Address,
+			AddressHash: acc.AddressHash,
 		}
 	}
 	return nil
@@ -867,8 +838,7 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (*immutables
 	return &cfg, nil
 }
 
-// NewL2StorageConfig will create a StorageConfig given an instance of a
-// Hardhat and a DeployConfig.
+// NewL2StorageConfig will create a StorageConfig given an instance of a DeployConfig and genesis block.
 func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.StorageConfig, error) {
 	storage := make(state.StorageConfig)
 

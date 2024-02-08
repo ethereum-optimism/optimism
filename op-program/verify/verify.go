@@ -114,7 +114,7 @@ func Run(l1RpcUrl string, l1RpcKind string, l2RpcUrl string, l2OracleAddr common
 	fmt.Printf("Configuration: %s\n", argsStr)
 
 	logger := oplog.DefaultCLIConfig()
-	logger.Level = log.LvlDebug
+	logger.Level = log.LevelDebug
 	rollupCfg, err := rollup.LoadOPStackRollupConfig(chainCfg.ChainID.Uint64())
 	if err != nil {
 		return fmt.Errorf("failed to load rollup config: %w", err)

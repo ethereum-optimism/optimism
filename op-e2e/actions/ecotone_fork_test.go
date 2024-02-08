@@ -55,7 +55,7 @@ func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 	require.NoError(t, dp.DeployConfig.Check(), "must have valid config")
 
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
-	log := testlog.Logger(t, log.LvlDebug)
+	log := testlog.Logger(t, log.LevelDebug)
 	_, _, miner, sequencer, engine, verifier, _, _ := setupReorgTestActors(t, dp, sd, log)
 	ethCl := engine.EthClient()
 
@@ -242,7 +242,7 @@ func TestEcotoneBeforeL1(gt *testing.T) {
 	dp.DeployConfig.L2GenesisEcotoneTimeOffset = &offset
 
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
-	log := testlog.Logger(t, log.LvlDebug)
+	log := testlog.Logger(t, log.LevelDebug)
 	_, _, _, sequencer, engine, verifier, _, _ := setupReorgTestActors(t, dp, sd, log)
 
 	// start op-nodes

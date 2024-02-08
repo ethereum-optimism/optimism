@@ -121,7 +121,7 @@ func setupWithTestData(t *testing.T, prestateBlock, poststateBlock uint64, custo
 		inputGameDepth = customGameDepth[0]
 	}
 	return &OutputTraceProvider{
-		logger:         testlog.Logger(t, log.LvlInfo),
+		logger:         testlog.Logger(t, log.LevelInfo),
 		rollupClient:   &rollupClient,
 		prestateBlock:  prestateBlock,
 		poststateBlock: poststateBlock,

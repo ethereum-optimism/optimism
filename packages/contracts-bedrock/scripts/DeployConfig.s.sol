@@ -7,6 +7,10 @@ import { stdJson } from "forge-std/StdJson.sol";
 import { Executables } from "scripts/Executables.sol";
 import { Chains } from "scripts/Chains.sol";
 
+// Global constant for the `useFaultProofs` slot in the DeployConfig contract, which can be overridden in the testing
+// environment.
+bytes32 constant USE_FAULT_PROOFS_SLOT = bytes32(uint256(61));
+
 /// @title DeployConfig
 /// @notice Represents the configuration required to deploy the system. It is expected
 ///         to read the file from JSON. A future improvement would be to have fallback
@@ -59,6 +63,10 @@ contract DeployConfig is Script {
     uint256 public systemConfigStartBlock;
     uint256 public requiredProtocolVersion;
     uint256 public recommendedProtocolVersion;
+    uint256 public proofMaturityDelaySeconds;
+    uint256 public disputeGameFinalityDelaySeconds;
+    uint256 public respectedGameType;
+    bool public useFaultProofs;
 
     function read(string memory _path) public {
         console.log("DeployConfig: reading file %s", _path);
@@ -106,22 +114,21 @@ contract DeployConfig is Script {
         requiredProtocolVersion = stdJson.readUint(_json, "$.requiredProtocolVersion");
         recommendedProtocolVersion = stdJson.readUint(_json, "$.recommendedProtocolVersion");
 
-        if (
-            block.chainid == Chains.LocalDevnet || block.chainid == Chains.GethDevnet || block.chainid == Chains.Sepolia
-                || block.chainid == Chains.Goerli
-        ) {
-            faultGameAbsolutePrestate = stdJson.readUint(_json, "$.faultGameAbsolutePrestate");
-            faultGameMaxDepth = stdJson.readUint(_json, "$.faultGameMaxDepth");
-            faultGameSplitDepth = stdJson.readUint(_json, "$.faultGameSplitDepth");
-            faultGameMaxDuration = stdJson.readUint(_json, "$.faultGameMaxDuration");
-            faultGameGenesisBlock = stdJson.readUint(_json, "$.faultGameGenesisBlock");
-            faultGameGenesisOutputRoot = stdJson.readBytes32(_json, "$.faultGameGenesisOutputRoot");
+        useFaultProofs = stdJson.readBool(_json, "$.useFaultProofs");
+        proofMaturityDelaySeconds = stdJson.readUint(_json, "$.proofMaturityDelaySeconds");
+        disputeGameFinalityDelaySeconds = stdJson.readUint(_json, "$.disputeGameFinalityDelaySeconds");
+        respectedGameType = stdJson.readUint(_json, "$.respectedGameType");
 
-            preimageOracleMinProposalSize = stdJson.readUint(_json, "$.preimageOracleMinProposalSize");
-            preimageOracleChallengePeriod = stdJson.readUint(_json, "$.preimageOracleChallengePeriod");
-            preimageOracleCancunActivationTimestamp =
-                stdJson.readUint(_json, "$.preimageOracleCancunActivationTimestamp");
-        }
+        faultGameAbsolutePrestate = stdJson.readUint(_json, "$.faultGameAbsolutePrestate");
+        faultGameMaxDepth = stdJson.readUint(_json, "$.faultGameMaxDepth");
+        faultGameSplitDepth = stdJson.readUint(_json, "$.faultGameSplitDepth");
+        faultGameMaxDuration = stdJson.readUint(_json, "$.faultGameMaxDuration");
+        faultGameGenesisBlock = stdJson.readUint(_json, "$.faultGameGenesisBlock");
+        faultGameGenesisOutputRoot = stdJson.readBytes32(_json, "$.faultGameGenesisOutputRoot");
+
+        preimageOracleMinProposalSize = stdJson.readUint(_json, "$.preimageOracleMinProposalSize");
+        preimageOracleChallengePeriod = stdJson.readUint(_json, "$.preimageOracleChallengePeriod");
+        preimageOracleCancunActivationTimestamp = stdJson.readUint(_json, "$.preimageOracleCancunActivationTimestamp");
     }
 
     function l1StartingBlockTag() public returns (bytes32) {

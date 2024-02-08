@@ -19,12 +19,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
-const (
-	envVarPrefix = "OP_CHALLENGER"
-)
+const EnvVarPrefix = "OP_CHALLENGER"
 
 func prefixEnvVars(name string) []string {
-	return opservice.PrefixEnvVar(envVarPrefix, name)
+	return opservice.PrefixEnvVar(EnvVarPrefix, name)
 }
 
 var (
@@ -33,6 +31,16 @@ var (
 		Name:    "l1-eth-rpc",
 		Usage:   "HTTP provider URL for L1.",
 		EnvVars: prefixEnvVars("L1_ETH_RPC"),
+	}
+	L1BeaconFlag = &cli.StringFlag{
+		Name:    "l1-beacon",
+		Usage:   "Address of L1 Beacon API endpoint to use",
+		EnvVars: prefixEnvVars("L1_BEACON"),
+	}
+	RollupRpcFlag = &cli.StringFlag{
+		Name:    "rollup-rpc",
+		Usage:   "HTTP provider URL for the rollup node",
+		EnvVars: prefixEnvVars("ROLLUP_RPC"),
 	}
 	FactoryAddressFlag = &cli.StringFlag{
 		Name:    "game-factory-address",
@@ -74,11 +82,6 @@ var (
 		Usage:   "Polling interval for latest-block subscription when using an HTTP RPC provider.",
 		EnvVars: prefixEnvVars("HTTP_POLL_INTERVAL"),
 		Value:   config.DefaultPollInterval,
-	}
-	RollupRpcFlag = &cli.StringFlag{
-		Name:    "rollup-rpc",
-		Usage:   "HTTP provider URL for the rollup node",
-		EnvVars: prefixEnvVars("ROLLUP_RPC"),
 	}
 	CannonNetworkFlag = &cli.StringFlag{
 		Name: "cannon-network",
@@ -144,6 +147,8 @@ var requiredFlags = []cli.Flag{
 	L1EthRpcFlag,
 	FactoryAddressFlag,
 	DatadirFlag,
+	RollupRpcFlag,
+	L1BeaconFlag,
 }
 
 // optionalFlags is a list of unchecked cli flags
@@ -152,7 +157,6 @@ var optionalFlags = []cli.Flag{
 	MaxConcurrencyFlag,
 	MaxPendingTransactionsFlag,
 	HTTPPollInterval,
-	RollupRpcFlag,
 	GameAllowlistFlag,
 	CannonNetworkFlag,
 	CannonRollupConfigFlag,
@@ -167,10 +171,10 @@ var optionalFlags = []cli.Flag{
 }
 
 func init() {
-	optionalFlags = append(optionalFlags, oplog.CLIFlags(envVarPrefix)...)
-	optionalFlags = append(optionalFlags, txmgr.CLIFlagsWithDefaults(envVarPrefix, txmgr.DefaultChallengerFlagValues)...)
-	optionalFlags = append(optionalFlags, opmetrics.CLIFlags(envVarPrefix)...)
-	optionalFlags = append(optionalFlags, oppprof.CLIFlags(envVarPrefix)...)
+	optionalFlags = append(optionalFlags, oplog.CLIFlags(EnvVarPrefix)...)
+	optionalFlags = append(optionalFlags, txmgr.CLIFlagsWithDefaults(EnvVarPrefix, txmgr.DefaultChallengerFlagValues)...)
+	optionalFlags = append(optionalFlags, opmetrics.CLIFlags(EnvVarPrefix)...)
+	optionalFlags = append(optionalFlags, oppprof.CLIFlags(EnvVarPrefix)...)
 
 	Flags = append(requiredFlags, optionalFlags...)
 }
@@ -216,13 +220,7 @@ func CheckRequired(ctx *cli.Context, traceTypes []config.TraceType) error {
 			if err := CheckCannonFlags(ctx); err != nil {
 				return err
 			}
-			if !ctx.IsSet(RollupRpcFlag.Name) {
-				return fmt.Errorf("flag %s is required", RollupRpcFlag.Name)
-			}
 		case config.TraceTypeAlphabet:
-			if !ctx.IsSet(RollupRpcFlag.Name) {
-				return fmt.Errorf("flag %s is required", RollupRpcFlag.Name)
-			}
 		default:
 			return fmt.Errorf("invalid trace type. must be one of %v", config.TraceTypes)
 		}
@@ -279,6 +277,7 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 	return &config.Config{
 		// Required Flags
 		L1EthRpc:               ctx.String(L1EthRpcFlag.Name),
+		L1Beacon:               ctx.String(L1BeaconFlag.Name),
 		TraceTypes:             traceTypes,
 		GameFactoryAddress:     gameFactoryAddress,
 		GameAllowlist:          allowedGames,

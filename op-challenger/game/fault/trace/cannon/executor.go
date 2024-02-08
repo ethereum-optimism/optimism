@@ -33,6 +33,7 @@ type Executor struct {
 	logger           log.Logger
 	metrics          CannonMetricer
 	l1               string
+	l1Beacon         string
 	l2               string
 	inputs           LocalGameInputs
 	cannon           string
@@ -52,6 +53,7 @@ func NewExecutor(logger log.Logger, m CannonMetricer, cfg *config.Config, inputs
 		logger:           logger,
 		metrics:          m,
 		l1:               cfg.L1EthRpc,
+		l1Beacon:         cfg.L1Beacon,
 		l2:               cfg.CannonL2,
 		inputs:           inputs,
 		cannon:           cfg.CannonBin,
@@ -83,7 +85,7 @@ func (e *Executor) generateProof(ctx context.Context, dir string, begin uint64, 
 		return fmt.Errorf("find starting snapshot: %w", err)
 	}
 	proofDir := filepath.Join(dir, proofsDir)
-	dataDir := filepath.Join(dir, preimagesDir)
+	dataDir := preimageDir(dir)
 	lastGeneratedState := filepath.Join(dir, finalState)
 	args := []string{
 		"run",
@@ -104,6 +106,7 @@ func (e *Executor) generateProof(ctx context.Context, dir string, begin uint64, 
 		"--",
 		e.server, "--server",
 		"--l1", e.l1,
+		"--l1.beacon", e.l1Beacon,
 		"--l2", e.l2,
 		"--datadir", dataDir,
 		"--l1.head", e.inputs.L1Head.Hex(),
@@ -138,12 +141,16 @@ func (e *Executor) generateProof(ctx context.Context, dir string, begin uint64, 
 	return err
 }
 
+func preimageDir(dir string) string {
+	return filepath.Join(dir, preimagesDir)
+}
+
 func runCmd(ctx context.Context, l log.Logger, binary string, args ...string) error {
 	cmd := exec.CommandContext(ctx, binary, args...)
-	stdOut := oplog.NewWriter(l, log.LvlInfo)
+	stdOut := oplog.NewWriter(l, log.LevelInfo)
 	defer stdOut.Close()
 	// Keep stdErr at info level because cannon uses stderr for progress messages
-	stdErr := oplog.NewWriter(l, log.LvlInfo)
+	stdErr := oplog.NewWriter(l, log.LevelInfo)
 	defer stdErr.Close()
 	cmd.Stdout = stdOut
 	cmd.Stderr = stdErr

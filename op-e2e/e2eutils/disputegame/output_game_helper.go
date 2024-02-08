@@ -446,9 +446,9 @@ func (g *OutputGameHelper) waitForNewClaim(ctx context.Context, checkPoint int64
 	return newClaimLen, err
 }
 
-func (g *OutputGameHelper) Attack(ctx context.Context, claimIdx int64, claim common.Hash) {
+func (g *OutputGameHelper) AttackWithTransactOpts(ctx context.Context, claimIdx int64, claim common.Hash, opts *bind.TransactOpts) {
 	g.t.Logf("Attacking claim %v with value %v", claimIdx, claim)
-	tx, err := g.game.Attack(g.opts, big.NewInt(claimIdx), claim)
+	tx, err := g.game.Attack(opts, big.NewInt(claimIdx), claim)
 	if err != nil {
 		g.require.NoErrorf(err, "Attack transaction did not send. Game state: \n%v", g.gameData(ctx))
 	}
@@ -458,7 +458,11 @@ func (g *OutputGameHelper) Attack(ctx context.Context, claimIdx int64, claim com
 	}
 }
 
-func (g *OutputGameHelper) Defend(ctx context.Context, claimIdx int64, claim common.Hash) {
+func (g *OutputGameHelper) Attack(ctx context.Context, claimIdx int64, claim common.Hash) {
+	g.AttackWithTransactOpts(ctx, claimIdx, claim, g.opts)
+}
+
+func (g *OutputGameHelper) DefendWithTransactOpts(ctx context.Context, claimIdx int64, claim common.Hash, opts *bind.TransactOpts) {
 	g.t.Logf("Defending claim %v with value %v", claimIdx, claim)
 	tx, err := g.game.Defend(g.opts, big.NewInt(claimIdx), claim)
 	if err != nil {
@@ -468,6 +472,10 @@ func (g *OutputGameHelper) Defend(ctx context.Context, claimIdx int64, claim com
 	if err != nil {
 		g.require.NoErrorf(err, "Defend transaction was not OK. Game state: \n%v", g.gameData(ctx))
 	}
+}
+
+func (g *OutputGameHelper) Defend(ctx context.Context, claimIdx int64, claim common.Hash) {
+	g.DefendWithTransactOpts(ctx, claimIdx, claim, g.opts)
 }
 
 type ErrWithData interface {
@@ -583,8 +591,8 @@ func (g *OutputGameHelper) gameData(ctx context.Context) string {
 				extra = fmt.Sprintf("Block num: %v", blockNum)
 			}
 		}
-		info = info + fmt.Sprintf("%v - Position: %v, Depth: %v, IndexAtDepth: %v Trace Index: %v, Value: %v, Countered By: %v, ParentIndex: %v %v\n",
-			i, claim.Position.Int64(), pos.Depth(), pos.IndexAtDepth(), pos.TraceIndex(maxDepth), common.Hash(claim.Claim).Hex(), claim.CounteredBy, claim.ParentIndex, extra)
+		info = info + fmt.Sprintf("%v - Position: %v, Depth: %v, IndexAtDepth: %v Trace Index: %v, ClaimHash: %v, Countered By: %v, ParentIndex: %v Claimant: %v Bond: %v %v\n",
+			i, claim.Position.Int64(), pos.Depth(), pos.IndexAtDepth(), pos.TraceIndex(maxDepth), common.Hash(claim.Claim).Hex(), claim.CounteredBy, claim.ParentIndex, claim.Claimant, claim.Bond, extra)
 	}
 	l2BlockNum := g.L2BlockNum(ctx)
 	status, err := g.game.Status(opts)
@@ -595,4 +603,11 @@ func (g *OutputGameHelper) gameData(ctx context.Context) string {
 
 func (g *OutputGameHelper) LogGameData(ctx context.Context) {
 	g.t.Log(g.gameData(ctx))
+}
+
+func (g *OutputGameHelper) Credit(ctx context.Context, addr common.Address) *big.Int {
+	opts := &bind.CallOpts{Context: ctx}
+	amt, err := g.game.Credit(opts, addr)
+	g.require.NoError(err)
+	return amt
 }

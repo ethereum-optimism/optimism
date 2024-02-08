@@ -163,7 +163,7 @@ func (tc *ReceiptsTestCase) Run(t *testing.T) {
 	if tc.staticMethod { // if static, instantly reset, for fast clock-independent testing
 		testCfg.MethodResetDuration = 0
 	}
-	logger := testlog.Logger(t, log.LvlError)
+	logger := testlog.Logger(t, log.LevelError)
 	ethCl, err := NewEthClient(client.NewBaseRPCClient(cl), logger, nil, testCfg)
 	require.NoError(t, err)
 	defer ethCl.Close()

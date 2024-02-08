@@ -5,7 +5,9 @@ import (
 	"context"
 	"errors"
 	"io"
+	"math/big"
 	"math/rand"
+	"sync/atomic"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/fetcher"
@@ -19,7 +21,7 @@ import (
 )
 
 func TestVerify(t *testing.T) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	tests := []struct {
 		name        string
 		inputs      func() []keccakTypes.InputData
@@ -72,7 +74,12 @@ func TestVerify(t *testing.T) {
 			}
 			verifier := NewPreimageVerifier(logger, fetcher)
 			preimage := keccakTypes.LargePreimageMetaData{}
-			challenge, err := verifier.CreateChallenge(context.Background(), common.Hash{0xff}, &stubOracle{}, preimage)
+			oracle := &stubOracle{
+				treeRoots: map[keccakTypes.LargePreimageIdent]common.Hash{
+					preimage.LargePreimageIdent: {0xde},
+				},
+			}
+			challenge, err := verifier.CreateChallenge(context.Background(), common.Hash{0xff}, oracle, preimage)
 			require.ErrorIs(t, err, test.expectedErr)
 			if err == nil {
 				// Leave checking the validity of the challenge to the StateMatrix tests
@@ -83,6 +90,48 @@ func TestVerify(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCacheValidRoots(t *testing.T) {
+	logger := testlog.Logger(t, log.LvlInfo)
+	fetcher := &stubFetcher{
+		inputs: validInputs(t, 1),
+	}
+	verifier := NewPreimageVerifier(logger, fetcher)
+	preimage1 := keccakTypes.LargePreimageMetaData{
+		LargePreimageIdent: keccakTypes.LargePreimageIdent{
+			Claimant: common.Address{0x12},
+			UUID:     big.NewInt(1),
+		},
+	}
+	preimage2 := keccakTypes.LargePreimageMetaData{
+		LargePreimageIdent: keccakTypes.LargePreimageIdent{
+			Claimant: common.Address{0x23},
+			UUID:     big.NewInt(2),
+		},
+	}
+	oracle := &stubOracle{
+		treeRoots: map[keccakTypes.LargePreimageIdent]common.Hash{
+			preimage1.LargePreimageIdent: {0xde},
+			preimage2.LargePreimageIdent: {0xde},
+		},
+	}
+	challenge, err := verifier.CreateChallenge(context.Background(), common.Hash{0xff}, oracle, preimage1)
+	require.ErrorIs(t, err, matrix.ErrValid)
+	require.Equal(t, keccakTypes.Challenge{}, challenge, "Should be valid")
+	require.EqualValues(t, 1, fetcher.fetchCount.Load(), "Should fetch data and validate")
+
+	// Should cache the validity
+	challenge, err = verifier.CreateChallenge(context.Background(), common.Hash{0xee}, oracle, preimage1)
+	require.ErrorIs(t, err, matrix.ErrValid)
+	require.Equal(t, keccakTypes.Challenge{}, challenge, "Should be valid")
+	require.EqualValues(t, 1, fetcher.fetchCount.Load(), "Should use cached validity")
+
+	// Should cache the validity across different challenges
+	challenge, err = verifier.CreateChallenge(context.Background(), common.Hash{0xee}, oracle, preimage2)
+	require.ErrorIs(t, err, matrix.ErrValid)
+	require.Equal(t, keccakTypes.Challenge{}, challenge, "Should be valid")
+	require.EqualValues(t, 1, fetcher.fetchCount.Load(), "Should use cached validity")
 }
 
 func validInputs(t *testing.T, inputCount int) []keccakTypes.InputData {
@@ -105,9 +154,11 @@ func validInputs(t *testing.T, inputCount int) []keccakTypes.InputData {
 }
 
 type stubFetcher struct {
-	inputs []keccakTypes.InputData
+	inputs     []keccakTypes.InputData
+	fetchCount atomic.Int64
 }
 
 func (s *stubFetcher) FetchInputs(_ context.Context, _ common.Hash, _ fetcher.Oracle, _ keccakTypes.LargePreimageIdent) ([]keccakTypes.InputData, error) {
+	s.fetchCount.Add(1)
 	return s.inputs, nil
 }

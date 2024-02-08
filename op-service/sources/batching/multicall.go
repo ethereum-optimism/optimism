@@ -29,6 +29,10 @@ func NewMultiCaller(rpc EthRpc, batchSize int) *MultiCaller {
 	}
 }
 
+func (m *MultiCaller) BatchSize() int {
+	return m.batchSize
+}
+
 func (m *MultiCaller) SingleCall(ctx context.Context, block Block, call *ContractCall) (*CallResult, error) {
 	results, err := m.Call(ctx, block, call)
 	if err != nil {

@@ -10881,32 +10881,6 @@
       "value": 0
     },
     {
-      "accessor": "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38",
-      "account": "0xBb2180ebd78ce97360503434eD37fcf4a1Df61c3",
-      "chainInfo": {
-        "chainId": 31337,
-        "forkId": 0
-      },
-      "data": "0xbf40fac10000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000001a4f564d5f4c3143726f7373446f6d61696e4d657373656e676572000000000000",
-      "deployedCode": "0x",
-      "initialized": true,
-      "kind": "StaticCall",
-      "newBalance": 0,
-      "oldBalance": 0,
-      "reverted": false,
-      "storageAccesses": [
-        {
-          "account": "0xBb2180ebd78ce97360503434eD37fcf4a1Df61c3",
-          "isWrite": false,
-          "newValue": "0x00000000000000000000000071fa82ea96672797954c28032b337aa40aafc99f",
-          "previousValue": "0x00000000000000000000000071fa82ea96672797954c28032b337aa40aafc99f",
-          "reverted": false,
-          "slot": "0x515216935740e67dfdda5cf8e248ea32b3277787818ab59153061ac875c9385e"
-        }
-      ],
-      "value": 0
-    },
-    {
       "accessor": "0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496",
       "account": "0x7109709ECfa91a80626fF3989D68f67F5b1DD12D",
       "chainInfo": {

@@ -244,18 +244,16 @@ func applyOverrides(ctx *cli.Context, rollupConfig *rollup.Config) {
 
 func NewSnapshotLogger(ctx *cli.Context) (log.Logger, error) {
 	snapshotFile := ctx.String(flags.SnapshotLog.Name)
-	handler := log.DiscardHandler()
-	if snapshotFile != "" {
-		var err error
-		handler, err = log.FileHandler(snapshotFile, log.JSONFormat())
-		if err != nil {
-			return nil, err
-		}
-		handler = log.SyncHandler(handler)
+	if snapshotFile == "" {
+		return log.NewLogger(log.DiscardHandler()), nil
 	}
-	logger := log.New()
-	logger.SetHandler(handler)
-	return logger, nil
+
+	sf, err := os.OpenFile(snapshotFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		return nil, err
+	}
+	handler := log.JSONHandler(sf)
+	return log.NewLogger(handler), nil
 }
 
 func NewSyncConfig(ctx *cli.Context, log log.Logger) (*sync.Config, error) {

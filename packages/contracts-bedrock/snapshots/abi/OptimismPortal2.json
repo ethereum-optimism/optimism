@@ -71,6 +71,19 @@
         "type": "bytes32"
       }
     ],
+    "name": "checkWithdrawal",
+    "outputs": [],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "_withdrawalHash",
+        "type": "bytes32"
+      }
+    ],
     "name": "deleteProvenWithdrawal",
     "outputs": [],
     "stateMutability": "nonpayable",
@@ -136,6 +149,19 @@
         "internalType": "contract DisputeGameFactory",
         "name": "",
         "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "disputeGameFinalityDelaySeconds",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",
@@ -309,8 +335,21 @@
     "outputs": [
       {
         "internalType": "bool",
-        "name": "paused_",
+        "name": "",
         "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "proofMaturityDelaySeconds",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",
@@ -433,6 +472,19 @@
       }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "sauron",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "pure",
     "type": "function"
   },
   {

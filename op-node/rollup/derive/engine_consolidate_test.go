@@ -195,7 +195,7 @@ func TestAttributesMatch(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		err := AttributesMatchBlock(rollupCfg, test.args.attrs, test.args.parentHash, test.args.envelope, testlog.Logger(t, log.LvlInfo))
+		err := AttributesMatchBlock(rollupCfg, test.args.attrs, test.args.parentHash, test.args.envelope, testlog.Logger(t, log.LevelInfo))
 		if test.shouldMatch {
 			require.NoError(t, err)
 		} else {
@@ -366,7 +366,7 @@ func TestGetMissingTxnHashes(t *testing.T) {
 
 	for _, test := range tests {
 		missingSafeHashes, missingUnsafeHashes, err := getMissingTxnHashes(
-			testlog.Logger(t, log.LvlError),
+			testlog.Logger(t, log.LevelError),
 			test.safeTransactions,
 			test.unsafeTransactions,
 		)

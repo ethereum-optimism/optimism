@@ -19,6 +19,7 @@ import (
 	"github.com/ethereum/go-ethereum/eth/downloader"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/holiman/uint256"
 )
 
 type EngineBackend interface {
@@ -113,9 +114,7 @@ func (ea *L2EngineAPI) PendingIndices(from common.Address) uint64 {
 	return ea.pendingIndices[from]
 }
 
-var (
-	ErrNotBuildingBlock = errors.New("not currently building a block, cannot include tx from queue")
-)
+var ErrNotBuildingBlock = errors.New("not currently building a block, cannot include tx from queue")
 
 func (ea *L2EngineAPI) IncludeTx(tx *types.Transaction, from common.Address) error {
 	if ea.blockProcessor == nil {
@@ -350,7 +349,7 @@ func (ea *L2EngineAPI) forkchoiceUpdated(ctx context.Context, state *eth.Forkcho
 			return STATUS_SYNCING, nil
 		}
 
-		ea.log.Info("Forkchoice requested sync to new head", "number", header.Number, "hash", header.Hash())
+		ea.log.Info("Forkchoice requested sync to new head", "number", header.Number(), "hash", header.Hash())
 		if err := ea.downloader.BeaconSync(downloader.SnapSync, header.Header(), nil); err != nil {
 			return STATUS_SYNCING, err
 		}
@@ -462,14 +461,13 @@ func (ea *L2EngineAPI) newPayload(ctx context.Context, payload *eth.ExecutionPay
 		GasUsed:       uint64(payload.GasUsed),
 		Timestamp:     uint64(payload.Timestamp),
 		ExtraData:     payload.ExtraData,
-		BaseFeePerGas: payload.BaseFeePerGas.ToBig(),
+		BaseFeePerGas: (*uint256.Int)(&payload.BaseFeePerGas).ToBig(),
 		BlockHash:     payload.BlockHash,
 		Transactions:  txs,
 		Withdrawals:   toGethWithdrawals(payload),
 		ExcessBlobGas: (*uint64)(payload.ExcessBlobGas),
 		BlobGasUsed:   (*uint64)(payload.BlobGasUsed),
 	}, hashes, root)
-
 	if err != nil {
 		log.Debug("Invalid NewPayload params", "params", payload, "error", err)
 		return &eth.PayloadStatusV1{Status: eth.ExecutionInvalidBlockHash}, nil

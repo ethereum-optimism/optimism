@@ -123,7 +123,7 @@ func runCrossLayerUserTest(gt *testing.T, test hardforkScheduledTest) {
 	}
 
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
-	log := testlog.Logger(t, log.LvlDebug)
+	log := testlog.Logger(t, log.LevelDebug)
 
 	require.Equal(t, dp.Secrets.Addresses().Batcher, dp.DeployConfig.BatchSenderAddress)
 	require.Equal(t, dp.Secrets.Addresses().Proposer, dp.DeployConfig.L2OutputOracleProposer)

@@ -281,7 +281,7 @@ func TestPerformAction(t *testing.T) {
 }
 
 func newTestFaultResponder(t *testing.T) (*FaultResponder, *mockTxManager, *mockContract, *mockPreimageUploader, *mockOracle) {
-	log := testlog.Logger(t, log.LvlError)
+	log := testlog.Logger(t, log.LevelError)
 	mockTxMgr := &mockTxManager{}
 	contract := &mockContract{}
 	uploader := &mockPreimageUploader{}

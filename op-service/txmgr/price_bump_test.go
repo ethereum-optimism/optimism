@@ -24,7 +24,7 @@ type priceBumpTest struct {
 
 func (tc *priceBumpTest) run(t *testing.T) {
 	prevFC := calcGasFeeCap(big.NewInt(tc.prevBaseFee), big.NewInt(tc.prevGasTip))
-	lgr := testlog.Logger(t, log.LvlCrit)
+	lgr := testlog.Logger(t, log.LevelCrit)
 
 	tip, fc := updateFees(big.NewInt(tc.prevGasTip), prevFC, big.NewInt(tc.newGasTip), big.NewInt(tc.newBaseFee), tc.isBlobTx, lgr)
 

@@ -16,6 +16,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
+	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 )
 
 var (
@@ -66,7 +67,7 @@ var (
 	}
 	RunStopAtPreimageTypeFlag = &cli.StringFlag{
 		Name:     "stop-at-preimage-type",
-		Usage:    "stop at the first preimage request matching this type (must be either 'any', 'local' or 'global')",
+		Usage:    "stop at the first preimage request matching this type",
 		Required: false,
 	}
 	RunStopAtPreimageLargerThanFlag = &cli.StringFlag{
@@ -90,6 +91,8 @@ var (
 		Name:  "pprof.cpu",
 		Usage: "enable pprof cpu profiling",
 	}
+
+	OutFilePerm = os.FileMode(0o755)
 )
 
 type Proof struct {
@@ -234,18 +237,32 @@ func Run(ctx *cli.Context) error {
 		defer profile.Start(profile.NoShutdownHook, profile.ProfilePath("."), profile.CPUProfile).Stop()
 	}
 
-	state, err := loadJSON[mipsevm.State](ctx.Path(RunInputFlag.Name))
+	state, err := jsonutil.LoadJSON[mipsevm.State](ctx.Path(RunInputFlag.Name))
 	if err != nil {
 		return err
 	}
 
-	l := Logger(os.Stderr, log.LvlInfo)
+	l := Logger(os.Stderr, log.LevelInfo)
 	outLog := &mipsevm.LoggingWriter{Name: "program std-out", Log: l}
 	errLog := &mipsevm.LoggingWriter{Name: "program std-err", Log: l}
 
-	stopAtPreimageType := ctx.String(RunStopAtPreimageTypeFlag.Name)
-	if stopAtPreimageType != "" && stopAtPreimageType != "any" && stopAtPreimageType != "local" && stopAtPreimageType != "global" {
-		return fmt.Errorf("invalid preimage type %q, must be either 'any', 'local' or 'global'", stopAtPreimageType)
+	stopAtAnyPreimage := false
+	var stopAtPreimageTypeByte preimage.KeyType
+	switch ctx.String(RunStopAtPreimageTypeFlag.Name) {
+	case "local":
+		stopAtPreimageTypeByte = preimage.LocalKeyType
+	case "keccak":
+		stopAtPreimageTypeByte = preimage.Keccak256KeyType
+	case "sha256":
+		stopAtPreimageTypeByte = preimage.Sha256KeyType
+	case "blob":
+		stopAtPreimageTypeByte = preimage.BlobKeyType
+	case "any":
+		stopAtAnyPreimage = true
+	case "":
+		// 0 preimage type is forbidden so will not stop at any preimage
+	default:
+		return fmt.Errorf("invalid preimage type %q", ctx.String(RunStopAtPreimageTypeFlag.Name))
 	}
 	stopAtPreimageLargerThan := ctx.Int(RunStopAtPreimageLargerThanFlag.Name)
 
@@ -284,7 +301,7 @@ func Run(ctx *cli.Context) error {
 		l.Info("no metadata file specified, defaulting to empty metadata")
 		meta = &mipsevm.Metadata{Symbols: nil} // provide empty metadata by default
 	} else {
-		if m, err := loadJSON[mipsevm.Metadata](metaPath); err != nil {
+		if m, err := jsonutil.LoadJSON[mipsevm.Metadata](metaPath); err != nil {
 			return fmt.Errorf("failed to load metadata: %w", err)
 		} else {
 			meta = m
@@ -337,7 +354,7 @@ func Run(ctx *cli.Context) error {
 		}
 
 		if snapshotAt(state) {
-			if err := writeJSON(fmt.Sprintf(snapshotFmt, step), state); err != nil {
+			if err := jsonutil.WriteJSON(fmt.Sprintf(snapshotFmt, step), state, OutFilePerm); err != nil {
 				return fmt.Errorf("failed to write state snapshot: %w", err)
 			}
 		}
@@ -369,7 +386,7 @@ func Run(ctx *cli.Context) error {
 				proof.OracleValue = witness.PreimageValue
 				proof.OracleOffset = witness.PreimageOffset
 			}
-			if err := writeJSON(fmt.Sprintf(proofFmt, step), proof); err != nil {
+			if err := jsonutil.WriteJSON(fmt.Sprintf(proofFmt, step), proof, OutFilePerm); err != nil {
 				return fmt.Errorf("failed to write proof data: %w", err)
 			}
 		} else {
@@ -380,17 +397,11 @@ func Run(ctx *cli.Context) error {
 		}
 
 		if preimageRead := state.PreimageOffset > prevPreimageOffset; preimageRead {
-			if stopAtPreimageType == "any" {
+			if stopAtAnyPreimage {
 				break
 			}
-			if stopAtPreimageType != "" {
-				keyType := byte(preimage.LocalKeyType)
-				if stopAtPreimageType == "global" {
-					keyType = byte(preimage.Keccak256KeyType)
-				}
-				if state.PreimageKey.Bytes()[0] == keyType {
-					break
-				}
+			if state.PreimageKey.Bytes()[0] == byte(stopAtPreimageTypeByte) {
+				break
 			}
 			if stopAtPreimageLargerThan != 0 && len(us.LastPreimage()) > stopAtPreimageLargerThan {
 				break
@@ -398,7 +409,7 @@ func Run(ctx *cli.Context) error {
 		}
 	}
 
-	if err := writeJSON(ctx.Path(RunOutputFlag.Name), state); err != nil {
+	if err := jsonutil.WriteJSON(ctx.Path(RunOutputFlag.Name), state, OutFilePerm); err != nil {
 		return fmt.Errorf("failed to write state output: %w", err)
 	}
 	return nil

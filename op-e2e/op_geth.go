@@ -52,7 +52,7 @@ type OpGeth struct {
 }
 
 func NewOpGeth(t *testing.T, ctx context.Context, cfg *SystemConfig) (*OpGeth, error) {
-	logger := testlog.Logger(t, log.LvlCrit)
+	logger := testlog.Logger(t, log.LevelCrit)
 
 	l1Genesis, err := genesis.BuildL1DeveloperGenesis(cfg.DeployConfig, config.L1Allocs, config.L1Deployments)
 	require.Nil(t, err)
@@ -146,7 +146,7 @@ func (d *OpGeth) AddL2Block(ctx context.Context, txs ...*types.Transaction) (*et
 		return nil, err
 	}
 
-	envelope, err := d.l2Engine.GetPayload(ctx, *res.PayloadID)
+	envelope, err := d.l2Engine.GetPayload(ctx, eth.PayloadInfo{ID: *res.PayloadID, Timestamp: uint64(attrs.Timestamp)})
 	payload := envelope.ExecutionPayload
 
 	if err != nil {

@@ -148,11 +148,15 @@ func (b BytesMax32) String() string {
 	return hexutil.Encode(b)
 }
 
-type Uint256Quantity = uint256.Int
+type Uint256Quantity = hexutil.U256
 
 type Data = hexutil.Bytes
 
 type PayloadID = engine.PayloadID
+type PayloadInfo struct {
+	ID        PayloadID
+	Timestamp uint64
+}
 
 type ExecutionPayloadEnvelope struct {
 	ParentBeaconBlockRoot *common.Hash      `json:"parentBeaconBlockRoot,omitempty"`
@@ -230,7 +234,7 @@ func (envelope *ExecutionPayloadEnvelope) CheckBlockHash() (actual common.Hash, 
 		Extra:            payload.ExtraData,
 		MixDigest:        common.Hash(payload.PrevRandao),
 		Nonce:            types.BlockNonce{}, // zeroed, proof-of-work legacy
-		BaseFee:          payload.BaseFeePerGas.ToBig(),
+		BaseFee:          (*uint256.Int)(&payload.BaseFeePerGas).ToBig(),
 		ParentBeaconRoot: envelope.ParentBeaconBlockRoot,
 	}
 
@@ -269,7 +273,7 @@ func BlockAsPayload(bl *types.Block, canyonForkTime *uint64) (*ExecutionPayload,
 		GasUsed:       Uint64Quantity(bl.GasUsed()),
 		Timestamp:     Uint64Quantity(bl.Time()),
 		ExtraData:     bl.Extra(),
-		BaseFeePerGas: *baseFee,
+		BaseFeePerGas: Uint256Quantity(*baseFee),
 		BlockHash:     bl.Hash(),
 		Transactions:  opaqueTxs,
 		ExcessBlobGas: (*Uint64Quantity)(bl.ExcessBlobGas()),
@@ -454,3 +458,17 @@ func (v *Uint64String) UnmarshalText(b []byte) error {
 	*v = Uint64String(n)
 	return nil
 }
+
+type EngineAPIMethod string
+
+const (
+	FCUV1 EngineAPIMethod = "engine_forkchoiceUpdatedV1"
+	FCUV2 EngineAPIMethod = "engine_forkchoiceUpdatedV2"
+	FCUV3 EngineAPIMethod = "engine_forkchoiceUpdatedV3"
+
+	NewPayloadV2 EngineAPIMethod = "engine_newPayloadV2"
+	NewPayloadV3 EngineAPIMethod = "engine_newPayloadV3"
+
+	GetPayloadV2 EngineAPIMethod = "engine_getPayloadV2"
+	GetPayloadV3 EngineAPIMethod = "engine_getPayloadV3"
+)

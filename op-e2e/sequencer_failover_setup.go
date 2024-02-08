@@ -115,8 +115,10 @@ func setupSequencerFailoverTest(t *testing.T) (*System, map[string]*conductor) {
 	// weirdly, batcher does not submit a batch until unsafe block 9.
 	// It became normal after that and submits a batch every L1 block (2s) per configuration.
 	// Since our health monitor checks on safe head progression, wait for batcher to become normal before proceeding.
-	require.NoError(t, wait.ForNextSafeBlock(ctx, sys.Clients[Sequencer1Name]))
-	require.NoError(t, wait.ForNextSafeBlock(ctx, sys.Clients[Sequencer1Name]))
+	_, err = wait.ForNextSafeBlock(ctx, sys.Clients[Sequencer1Name])
+	require.NoError(t, err)
+	_, err = wait.ForNextSafeBlock(ctx, sys.Clients[Sequencer1Name])
+	require.NoError(t, err)
 
 	// make sure conductor reports all sequencers as healthy, this means they're syncing correctly.
 	require.Eventually(t, func() bool {
@@ -177,7 +179,7 @@ func setupConductor(
 		RollupCfg:      rollupCfg,
 		RPCEnableProxy: true,
 		LogConfig: oplog.CLIConfig{
-			Level: log.LvlInfo,
+			Level: log.LevelInfo,
 			Color: false,
 		},
 		RPC: oprpc.CLIConfig{
@@ -187,7 +189,7 @@ func setupConductor(
 	}
 
 	ctx := context.Background()
-	service, err := con.New(ctx, &cfg, testlog.Logger(t, log.LvlInfo), "0.0.1")
+	service, err := con.New(ctx, &cfg, testlog.Logger(t, log.LevelInfo), "0.0.1")
 	require.NoError(t, err)
 	err = service.Start(ctx)
 	require.NoError(t, err)
@@ -234,7 +236,7 @@ func setupBatcher(t *testing.T, sys *System, conductors map[string]*conductor) {
 		PollInterval:    1 * time.Second,
 		TxMgrConfig:     newTxMgrConfig(sys.EthInstances["l1"].WSEndpoint(), sys.Cfg.Secrets.Batcher),
 		LogConfig: oplog.CLIConfig{
-			Level:  log.LvlDebug,
+			Level:  log.LevelDebug,
 			Format: oplog.FormatText,
 		},
 		Stopped:                      false,
@@ -258,9 +260,9 @@ func sequencerFailoverSystemConfig(t *testing.T, ports map[string]int) SystemCon
 	cfg.Nodes[Sequencer3Name] = sequencerCfg(ports[Sequencer3Name])
 
 	delete(cfg.Loggers, "sequencer")
-	cfg.Loggers[Sequencer1Name] = testlog.Logger(t, log.LvlInfo).New("role", Sequencer1Name)
-	cfg.Loggers[Sequencer2Name] = testlog.Logger(t, log.LvlInfo).New("role", Sequencer2Name)
-	cfg.Loggers[Sequencer3Name] = testlog.Logger(t, log.LvlInfo).New("role", Sequencer3Name)
+	cfg.Loggers[Sequencer1Name] = testlog.Logger(t, log.LevelInfo).New("role", Sequencer1Name)
+	cfg.Loggers[Sequencer2Name] = testlog.Logger(t, log.LevelInfo).New("role", Sequencer2Name)
+	cfg.Loggers[Sequencer3Name] = testlog.Logger(t, log.LevelInfo).New("role", Sequencer3Name)
 
 	cfg.P2PTopology = map[string][]string{
 		Sequencer1Name: {Sequencer2Name, Sequencer3Name},

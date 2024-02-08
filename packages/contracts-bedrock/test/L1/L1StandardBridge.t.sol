@@ -8,7 +8,6 @@ import { Bridge_Initializer } from "test/setup/Bridge_Initializer.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { Constants } from "src/libraries/Constants.sol";
 
 // Target contract dependencies
 import { StandardBridge } from "src/universal/StandardBridge.sol";

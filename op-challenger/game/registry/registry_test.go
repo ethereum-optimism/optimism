@@ -93,6 +93,14 @@ func TestBondContracts(t *testing.T) {
 
 type stubPreimageOracle common.Address
 
+func (s stubPreimageOracle) ChallengePeriod(_ context.Context) (uint64, error) {
+	panic("not supported")
+}
+
+func (s stubPreimageOracle) GetProposalTreeRoot(_ context.Context, _ batching.Block, _ keccakTypes.LargePreimageIdent) (common.Hash, error) {
+	panic("not supported")
+}
+
 func (s stubPreimageOracle) ChallengeTx(_ keccakTypes.LargePreimageIdent, _ keccakTypes.Challenge) (txmgr.TxCandidate, error) {
 	panic("not supported")
 }

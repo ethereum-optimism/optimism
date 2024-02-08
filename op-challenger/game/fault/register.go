@@ -19,11 +19,6 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-var (
-	cannonGameType   = uint32(0)
-	alphabetGameType = uint32(255)
-)
-
 type CloseFunc func()
 
 type Registry interface {
@@ -102,16 +97,16 @@ func registerAlphabet(
 		genesisValidator := NewPrestateValidator(contract.GetGenesisOutputRoot, prestateProvider)
 		return NewGamePlayer(ctx, cl, logger, m, dir, game.Proxy, txSender, contract, []Validator{prestateValidator, genesisValidator}, creator)
 	}
-	oracle, err := createOracle(ctx, gameFactory, caller, alphabetGameType)
+	oracle, err := createOracle(ctx, gameFactory, caller, faultTypes.AlphabetGameType)
 	if err != nil {
 		return err
 	}
-	registry.RegisterGameType(alphabetGameType, playerCreator, oracle)
+	registry.RegisterGameType(faultTypes.AlphabetGameType, playerCreator, oracle)
 
 	contractCreator := func(game types.GameMetadata) (claims.BondContract, error) {
 		return contracts.NewFaultDisputeGameContract(game.Proxy, caller)
 	}
-	registry.RegisterBondContract(alphabetGameType, contractCreator)
+	registry.RegisterBondContract(faultTypes.AlphabetGameType, contractCreator)
 	return nil
 }
 
@@ -169,15 +164,15 @@ func registerCannon(
 		genesisValidator := NewPrestateValidator(contract.GetGenesisOutputRoot, prestateProvider)
 		return NewGamePlayer(ctx, cl, logger, m, dir, game.Proxy, txSender, contract, []Validator{prestateValidator, genesisValidator}, creator)
 	}
-	oracle, err := createOracle(ctx, gameFactory, caller, cannonGameType)
+	oracle, err := createOracle(ctx, gameFactory, caller, faultTypes.CannonGameType)
 	if err != nil {
 		return err
 	}
-	registry.RegisterGameType(cannonGameType, playerCreator, oracle)
+	registry.RegisterGameType(faultTypes.CannonGameType, playerCreator, oracle)
 
 	contractCreator := func(game types.GameMetadata) (claims.BondContract, error) {
 		return contracts.NewFaultDisputeGameContract(game.Proxy, caller)
 	}
-	registry.RegisterBondContract(cannonGameType, contractCreator)
+	registry.RegisterBondContract(faultTypes.CannonGameType, contractCreator)
 	return nil
 }

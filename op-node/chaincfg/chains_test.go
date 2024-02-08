@@ -20,7 +20,7 @@ import (
 // This test ensures no op-node config-loading behavior changes before
 // the superchain-registry is no longer deemed experimental.
 func TestGetRollupConfig(t *testing.T) {
-	var configsByName = map[string]rollup.Config{
+	configsByName := map[string]rollup.Config{
 		"goerli":  goerliCfg,
 		"mainnet": mainnetCfg,
 		"sepolia": sepoliaCfg,
@@ -131,6 +131,7 @@ var sepoliaCfg = rollup.Config{
 	RegolithTime:            u64Ptr(0),
 	CanyonTime:              u64Ptr(1699981200),
 	DeltaTime:               u64Ptr(1703203200),
+	EcotoneTime:             u64Ptr(1708534800),
 	ProtocolVersionsAddress: common.HexToAddress("0x79ADD5713B383DAa0a138d3C4780C7A1804a8090"),
 }
 

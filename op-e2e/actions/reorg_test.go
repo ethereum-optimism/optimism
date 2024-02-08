@@ -27,7 +27,7 @@ func setupReorgTest(t Testing, config *e2eutils.TestParams, deltaTimeOffset *hex
 	dp.DeployConfig.L2GenesisDeltaTimeOffset = deltaTimeOffset
 
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
-	log := testlog.Logger(t, log.LvlDebug)
+	log := testlog.Logger(t, log.LevelDebug)
 
 	return setupReorgTestActors(t, dp, sd, log)
 }
@@ -381,7 +381,7 @@ func DeepReorg(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	}
 
 	// Set up alice
-	log := testlog.Logger(t, log.LvlDebug)
+	log := testlog.Logger(t, log.LevelDebug)
 	addresses := e2eutils.CollectAddresses(sd, dp)
 	l2UserEnv := &BasicUserEnv[*L2Bindings]{
 		EthCl:          l2Client,
@@ -606,7 +606,7 @@ func RestartOpGeth(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	dp.DeployConfig.L2GenesisDeltaTimeOffset = deltaTimeOffset
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
-	log := testlog.Logger(t, log.LvlDebug)
+	log := testlog.Logger(t, log.LevelDebug)
 	jwtPath := e2eutils.WriteDefaultJWT(t)
 	// L1
 	miner := NewL1Miner(t, log, sd.L1Cfg)
@@ -694,7 +694,7 @@ func ConflictingL2Blocks(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	dp.DeployConfig.L2GenesisDeltaTimeOffset = deltaTimeOffset
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
-	log := testlog.Logger(t, log.LvlDebug)
+	log := testlog.Logger(t, log.LevelDebug)
 
 	sd, _, miner, sequencer, seqEng, verifier, _, batcher := setupReorgTestActors(t, dp, sd, log)
 
@@ -806,7 +806,7 @@ func SyncAfterReorg(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	}
 	sd, dp, miner, sequencer, seqEngine, verifier, _, batcher := setupReorgTest(t, &testingParams, deltaTimeOffset)
 	l2Client := seqEngine.EthClient()
-	log := testlog.Logger(t, log.LvlDebug)
+	log := testlog.Logger(t, log.LevelDebug)
 	addresses := e2eutils.CollectAddresses(sd, dp)
 	l2UserEnv := &BasicUserEnv[*L2Bindings]{
 		EthCl:          l2Client,

@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"time"
 
+	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -15,6 +16,11 @@ var (
 	// NoLocalContext is the LocalContext value used when the cannon trace provider is used alone instead of as part
 	// of a split game.
 	NoLocalContext = common.Hash{}
+)
+
+const (
+	CannonGameType   uint32 = 0
+	AlphabetGameType uint32 = 255
 )
 
 type ClockReader interface {
@@ -28,6 +34,11 @@ type PreimageOracleData struct {
 	OracleKey    []byte
 	oracleData   []byte
 	OracleOffset uint32
+
+	// 4844 blob data
+	BlobFieldIndex uint64
+	BlobCommitment []byte
+	BlobProof      []byte
 }
 
 // GetIdent returns the ident for the preimage oracle data.
@@ -48,10 +59,22 @@ func (p *PreimageOracleData) GetPreimageWithSize() []byte {
 // NewPreimageOracleData creates a new [PreimageOracleData] instance.
 func NewPreimageOracleData(key []byte, data []byte, offset uint32) *PreimageOracleData {
 	return &PreimageOracleData{
-		IsLocal:      len(key) > 0 && key[0] == byte(1),
+		IsLocal:      len(key) > 0 && key[0] == byte(preimage.LocalKeyType),
 		OracleKey:    key,
 		oracleData:   data,
 		OracleOffset: offset,
+	}
+}
+
+func NewPreimageOracleBlobData(key []byte, data []byte, offset uint32, fieldIndex uint64, commitment []byte, proof []byte) *PreimageOracleData {
+	return &PreimageOracleData{
+		IsLocal:        false,
+		OracleKey:      key,
+		oracleData:     data,
+		OracleOffset:   offset,
+		BlobFieldIndex: fieldIndex,
+		BlobCommitment: commitment,
+		BlobProof:      proof,
 	}
 }
 

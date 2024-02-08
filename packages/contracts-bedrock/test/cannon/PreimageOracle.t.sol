@@ -250,6 +250,26 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         console.log("Gas for 4MB: %d", (gasUsed / data.length) * 4000000);
     }
 
+    /// @notice Tests that `addLeavesLPP` sets the proposal as countered when `_finalize = true` and the number of
+    ///         bytes processed is less than the claimed size.
+    function test_addLeaves_mismatchedSize_succeeds() public {
+        // Allocate the preimage data.
+        bytes memory data = new bytes(136);
+        for (uint256 i; i < data.length; i++) {
+            data[i] = 0xFF;
+        }
+
+        // Initialize the proposal.
+        oracle.initLPP(TEST_UUID, 0, uint32(data.length + 1));
+
+        // Add the leaves to the tree (2 keccak blocks.)
+        LibKeccak.StateMatrix memory stateMatrix;
+        bytes32[] memory stateCommitments = _generateStateCommitments(stateMatrix, data);
+
+        vm.expectRevert(InvalidInputSize.selector);
+        oracle.addLeavesLPP(TEST_UUID, 0, data, stateCommitments, true);
+    }
+
     /// @notice Tests that the `addLeavesLPP` function may never be called when `tx.origin != msg.sender`
     function test_addLeaves_notEOA_reverts() public {
         // Allocate the preimage data.
@@ -624,51 +644,6 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
             _claimant: address(this),
             _uuid: TEST_UUID,
             _stateMatrix: _stateMatrixAtBlockIndex(data, 2),
-            _preState: leaves[0],
-            _preStateProof: preProof,
-            _postState: leaves[1],
-            _postStateProof: postProof
-        });
-    }
-
-    /// @notice Tests that the `squeeze` function reverts when the claimed size is not equal to the bytes processed.
-    function test_squeeze_invalidClaimedSize_reverts() public {
-        // Allocate the preimage data.
-        bytes memory data = new bytes(136);
-        for (uint256 i; i < data.length; i++) {
-            data[i] = 0xFF;
-        }
-
-        // Initialize the proposal.
-        oracle.initLPP(TEST_UUID, 0, uint32(data.length) - 1);
-
-        // Add the leaves to the tree (2 keccak blocks.)
-        LibKeccak.StateMatrix memory stateMatrix;
-        bytes32[] memory stateCommitments = _generateStateCommitments(stateMatrix, data);
-        oracle.addLeavesLPP(TEST_UUID, 0, data, stateCommitments, true);
-
-        // Construct the leaf preimage data for the blocks added.
-        LibKeccak.StateMatrix memory matrix;
-        PreimageOracle.Leaf[] memory leaves = _generateLeaves(matrix, data);
-
-        // Create a proof array with 16 elements.
-        bytes32[] memory preProof = new bytes32[](16);
-        preProof[0] = _hashLeaf(leaves[1]);
-        bytes32[] memory postProof = new bytes32[](16);
-        postProof[0] = _hashLeaf(leaves[0]);
-        for (uint256 i = 1; i < preProof.length; i++) {
-            bytes32 zeroHash = oracle.zeroHashes(i);
-            preProof[i] = zeroHash;
-            postProof[i] = zeroHash;
-        }
-
-        vm.warp(block.timestamp + oracle.challengePeriod() + 1 seconds);
-
-        vm.expectRevert(InvalidInputSize.selector);
-        oracle.squeezeLPP({
-            _claimant: address(this),
-            _uuid: TEST_UUID,
-            _stateMatrix: _stateMatrixAtBlockIndex(data, 1),
             _preState: leaves[0],
             _preStateProof: preProof,
             _postState: leaves[1],
