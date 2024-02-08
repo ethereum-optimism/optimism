@@ -67,7 +67,7 @@ func (m *MultiCaller) Call(ctx context.Context, block Block, calls ...*ContractC
 		if err := fetcher.Fetch(ctx); err == io.EOF {
 			break
 		} else if err != nil {
-			return nil, fmt.Errorf("failed to fetch claims: %w", err)
+			return nil, fmt.Errorf("failed to fetch batch: %w", err)
 		}
 	}
 	results, err := fetcher.Result()
