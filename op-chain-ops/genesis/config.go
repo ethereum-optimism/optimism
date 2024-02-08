@@ -719,7 +719,7 @@ type ForgeDump gstate.Dump
 func (d *ForgeDump) UnmarshalJSON(b []byte) error {
 	type forgeDumpAccount struct {
 		Balance     string                 `json:"balance"`
-		Nonce       hexutil.Uint64         `json:"nonce"`
+		Nonce       uint64                 `json:"nonce"`
 		Root        hexutil.Bytes          `json:"root"`
 		CodeHash    hexutil.Bytes          `json:"codeHash"`
 		Code        hexutil.Bytes          `json:"code,omitempty"`
