@@ -42,7 +42,7 @@
   "systemConfigStartBlock": 4071248,
   "requiredProtocolVersion": "0x0000000000000000000000000000000000000004000000000000000000000001",
   "recommendedProtocolVersion": "0x0000000000000000000000000000000000000004000000000000000000000001",
-  "faultGameAbsolutePrestate": "0x037bbcc23684afbb7f608024369242c5cdea261a4f63981387efb7cd81763536",
+  "faultGameAbsolutePrestate": "0x03e1255457128b9afd9acf93239c1d477bdff88624901f9ca8fe0783b756dbe0",
   "faultGameMaxDepth": 73,
   "faultGameMaxDuration": 86400,
   "faultGameGenesisBlock": 0,
@@ -50,5 +50,9 @@
   "faultGameSplitDepth": 32,
   "preimageOracleMinProposalSize": 1800000,
   "preimageOracleChallengePeriod": 86400,
-  "preimageOracleCancunActivationTimestamp": 1706655072
+  "preimageOracleCancunActivationTimestamp": 1706655072,
+  "proofMaturityDelaySeconds": 12,
+  "disputeGameFinalityDelaySeconds": 6,
+  "respectedGameType": 0,
+  "useFaultProofs": false
 }
