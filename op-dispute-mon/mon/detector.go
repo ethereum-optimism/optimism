@@ -5,14 +5,13 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
 
-type OutputRollupClient interface {
-	OutputAtBlock(ctx context.Context, blockNum uint64) (*eth.OutputResponse, error)
+type OutputValidator interface {
+	CheckRootAgreement(ctx context.Context, blockNum uint64, root common.Hash) (bool, common.Hash, error)
 }
 
 type MetadataCreator interface {
@@ -25,18 +24,18 @@ type DetectorMetrics interface {
 }
 
 type detector struct {
-	logger       log.Logger
-	metrics      DetectorMetrics
-	creator      MetadataCreator
-	outputClient OutputRollupClient
+	logger    log.Logger
+	metrics   DetectorMetrics
+	creator   MetadataCreator
+	validator OutputValidator
 }
 
-func newDetector(logger log.Logger, metrics DetectorMetrics, creator MetadataCreator, outputClient OutputRollupClient) *detector {
+func newDetector(logger log.Logger, metrics DetectorMetrics, creator MetadataCreator, validator OutputValidator) *detector {
 	return &detector{
-		logger:       logger,
-		metrics:      metrics,
-		creator:      creator,
-		outputClient: outputClient,
+		logger:    logger,
+		metrics:   metrics,
+		creator:   creator,
+		validator: validator,
 	}
 }
 
@@ -84,7 +83,7 @@ func (d *detector) fetchGameMetadata(ctx context.Context, game types.GameMetadat
 }
 
 func (d *detector) checkAgreement(ctx context.Context, addr common.Address, blockNum uint64, rootClaim common.Hash, status types.GameStatus) (detectionBatch, error) {
-	agree, expected, err := d.checkRootAgreement(ctx, blockNum, rootClaim)
+	agree, expected, err := d.validator.CheckRootAgreement(ctx, blockNum, rootClaim)
 	if err != nil {
 		return detectionBatch{}, err
 	}
@@ -97,13 +96,4 @@ func (d *detector) checkAgreement(ctx context.Context, addr common.Address, bloc
 		d.logger.Error("Defender won but expected challenger to win", "gameAddr", addr, "rootClaim", rootClaim, "expected", expected)
 	}
 	return batch, nil
-}
-
-func (d *detector) checkRootAgreement(ctx context.Context, blockNum uint64, rootClaim common.Hash) (bool, common.Hash, error) {
-	output, err := d.outputClient.OutputAtBlock(ctx, blockNum)
-	if err != nil {
-		return false, common.Hash{}, fmt.Errorf("failed to get output at block: %w", err)
-	}
-	expected := common.Hash(output.OutputRoot)
-	return rootClaim == expected, expected, nil
 }
