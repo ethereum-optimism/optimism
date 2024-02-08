@@ -639,8 +639,12 @@ contract Deploy is Deployer {
         DisputeGameFactory factory = new DisputeGameFactory{ salt: _implSalt() }();
         save("DisputeGameFactory", address(factory));
         console.log("DisputeGameFactory deployed at %s", address(factory));
-        // TODO: Run the checkDisputeGameFactory function here.
-        // @see https://github.com/ethereum-optimism/optimism/issues/9354
+
+        // Override the `DisputeGameFactory` contract to the deployed implementation. This is necessary to check the
+        // `DisputeGameFactory` implementation alongside dependent contracts, which are always proxies.
+        Types.ContractSet memory contracts = _proxiesUnstrict();
+        contracts.DisputeGameFactory = address(factory);
+        ChainAssertions.checkDisputeGameFactory({ _contracts: contracts, _expectedOwner: address(0) });
 
         addr_ = address(factory);
     }
@@ -787,8 +791,8 @@ contract Deploy is Deployer {
 
         string memory version = DisputeGameFactory(disputeGameFactoryProxy).version();
         console.log("DisputeGameFactory version: %s", version);
-        // TODO: Run the checkDisputeGameFactory function here.
-        // @see https://github.com/ethereum-optimism/optimism/issues/9354
+
+        ChainAssertions.checkDisputeGameFactory({ _contracts: _proxiesUnstrict(), _expectedOwner: msg.sender });
     }
 
     /// @notice Initialize the SystemConfig
@@ -1089,6 +1093,7 @@ contract Deploy is Deployer {
             disputeGameFactory.transferOwnership(safe);
             console.log("DisputeGameFactory ownership transferred to Safe at: %s", safe);
         }
+        ChainAssertions.checkDisputeGameFactory({ _contracts: _proxies(), _expectedOwner: safe });
     }
 
     /// @notice Loads the mips absolute prestate from the prestate-proof for devnets otherwise

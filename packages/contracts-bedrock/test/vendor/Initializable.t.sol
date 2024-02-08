@@ -68,6 +68,22 @@ contract Initializer_Test is Bridge_Initializer {
                 initializedSlotVal: deploy.loadInitializedSlot("L1CrossDomainMessengerProxy")
             })
         );
+        // DisputeGameFactoryImpl
+        contracts.push(
+            InitializeableContract({
+                target: deploy.mustGetAddress("DisputeGameFactory"),
+                initCalldata: abi.encodeCall(disputeGameFactory.initialize, (address(0))),
+                initializedSlotVal: deploy.loadInitializedSlot("DisputeGameFactory")
+            })
+        );
+        // DisputeGameFactoryProxy
+        contracts.push(
+            InitializeableContract({
+                target: address(disputeGameFactory),
+                initCalldata: abi.encodeCall(disputeGameFactory.initialize, (address(0))),
+                initializedSlotVal: deploy.loadInitializedSlot("DisputeGameFactoryProxy")
+            })
+        );
         // L2OutputOracleImpl
         contracts.push(
             InitializeableContract({
@@ -90,6 +106,16 @@ contract Initializer_Test is Bridge_Initializer {
                 target: deploy.mustGetAddress("OptimismPortal"),
                 initCalldata: abi.encodeCall(optimismPortal.initialize, (l2OutputOracle, systemConfig, superchainConfig)),
                 initializedSlotVal: deploy.loadInitializedSlot("OptimismPortal")
+            })
+        );
+        // OptimismPortal2Impl
+        contracts.push(
+            InitializeableContract({
+                target: deploy.mustGetAddress("OptimismPortal2"),
+                initCalldata: abi.encodeCall(
+                    optimismPortal2.initialize, (disputeGameFactory, systemConfig, superchainConfig)
+                    ),
+                initializedSlotVal: deploy.loadInitializedSlot("OptimismPortal2")
             })
         );
         // OptimismPortalProxy
@@ -271,9 +297,9 @@ contract Initializer_Test is Bridge_Initializer {
     ///         3. The `initialize()` function of each contract cannot be called more than once.
     function test_cannotReinitialize_succeeds() public {
         // Ensure that all L1, L2 `Initializable` contracts are accounted for, in addition to
-        // OptimismMintableERC20FactoryImpl and OptimismMintableERC20FactoryProxy.
-        // TODO: Add `OptimismPortal2` and `OptimismPortal2Proxy` once the deployment scripts are updated.
-        assertEq(_getNumInitializable(), contracts.length);
+        // OptimismMintableERC20FactoryImpl, OptimismMintableERC20FactoryProxy, OptimismPortal2, DisputeGameFactoryImpl
+        // and DisputeGameFactoryProxy
+        assertEq(_getNumInitializable() + 3, contracts.length);
 
         // Attempt to re-initialize all contracts within the `contracts` array.
         for (uint256 i; i < contracts.length; i++) {
