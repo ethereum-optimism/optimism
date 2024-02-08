@@ -20,22 +20,47 @@ import { PreimageKeyLib } from "./PreimageKeyLib.sol";
 /// @dev https://github.com/golang/go/blob/master/src/syscall/zerrors_linux_mips.go
 ///      MIPS linux kernel errors used by Go runtime
 contract MIPS {
+
+    /// @notice Stores a thread-context with its state and meta-data.
+    struct ThreadContext {
+        uint32 threadID;
+        uint8 exitCode;
+        bool exited;
+
+        ThreadState state;
+    }
+
+    /// @notice Stores the processing state of a thread-context.
+    struct ThreadState {
+        uint32 futextAddr;
+        uint32 futexVal;
+        uint64 futexTimeoutStep;
+
+        uint32 pc;
+        uint32 nextPC;
+        uint32 lo;
+        uint32 hi;
+
+        uint32[32] registers;
+    }
+
     /// @notice Stores the VM state.
-    ///         Total state size: 32 + 32 + 6 * 4 + 1 + 1 + 8 + 32 * 4 = 226 bytes
+    ///         Total state size: 32 + 32 + 4 + 4 + 1 + 1 + 8 + 4 + 4 + 32 = 122 bytes
     ///         If nextPC != pc + 4, then the VM is executing a branch/jump delay slot.
     struct State {
         bytes32 memRoot;
         bytes32 preimageKey;
         uint32 preimageOffset;
-        uint32 pc;
-        uint32 nextPC;
-        uint32 lo;
-        uint32 hi;
+
         uint32 heap;
         uint8 exitCode;
         bool exited;
         uint64 step;
-        uint32[32] registers;
+
+        uint32 wakeup;
+        uint32 currentThread;
+
+        bytes32 threadsRoot;
     }
 
     /// @notice Start of the data segment.
@@ -51,6 +76,7 @@ contract MIPS {
 
     uint32 constant EBADF = 0x9;
     uint32 constant EINVAL = 0x16;
+    uint32 constant EAGAIN = 0xb;
 
     /// @notice The preimage oracle contract.
     IPreimageOracle internal immutable ORACLE;
@@ -93,6 +119,12 @@ contract MIPS {
             // Copy to the free memory pointer
             let start := mload(0x40)
             let to := start
+
+            // TODO: update the below to:
+            //  1. encode the ThreadContext
+            //  2. hash the ThreadContext
+            //  3. update the threadsRoot
+            //  4. encode the state with updated threadsRoot
 
             // Copy state to free memory
             from, to := copyMem(from, to, 32) // memRoot
@@ -150,16 +182,21 @@ contract MIPS {
             assembly {
                 state := 0x80
             }
+            // Load ThreadContext from memory
+            ThreadContext memory tc;
+            assembly {
+                tc := 0x500 // TODO
+            }
 
             // Load the syscall number from the registers
-            uint32 syscall_no = state.registers[2];
+            uint32 syscall_no = tc.state.registers[2];
             uint32 v0 = 0;
             uint32 v1 = 0;
 
             // Load the syscall arguments from the registers
-            uint32 a0 = state.registers[4];
-            uint32 a1 = state.registers[5];
-            uint32 a2 = state.registers[6];
+            uint32 a0 = tc.state.registers[4];
+            uint32 a1 = tc.state.registers[5];
+            uint32 a2 = tc.state.registers[6];
 
             // mmap: Allocates a page from the heap.
             if (syscall_no == 4090) {
@@ -178,10 +215,6 @@ contract MIPS {
             // brk: Returns a fixed address for the program break at 0x40000000
             else if (syscall_no == 4045) {
                 v0 = BRK_START;
-            }
-            // clone (not supported) returns 1
-            else if (syscall_no == 4120) {
-                v0 = 1;
             }
             // exit group: Sets the Exited and ExitCode states to true and argument 0.
             else if (syscall_no == 4246) {
@@ -292,14 +325,125 @@ contract MIPS {
                     v1 = EINVAL; // cmd not recognized by this kernel
                 }
             }
+            // getTID
+            else if (syscall_no == 4222) {
+                v0 = state.currentThread;
+            }
+            // exit
+            else if (syscall_no == 4001) {
+                tc.exited = true;
+                tc.exitCode = uint8(a0);
+                // TODO cleanup thread state
+                // maybe we just zero it out?
+            }
+            // futex
+            else if (syscall_no == 4238) {
+                // args: a0 = addr, a1 = op, a2 = val, a3 = timeout
+                tc.state.futexAddr = a0;
+                if (a1 == 128) { // futexWaitPrivate
+                    uint32 mem = readMem(a0);
+                    if (mem != a2) { // check if we can sleep, or if the value already changed
+                        v0 = 0xFFffFFff;
+                        v1 = EAGAIN;
+                    } else {
+                        tc.state.futexVal = a2;
+                        if (a3 != 0) { // if timeout != null, then read the timeout (relative value) from the pointer to the timespec.
+                            // Technically we should read the timeout, a pointer to a timespec struct in memory.
+                            // timespec is just {tv_sec int32, tv_nsec int32} in mips.
+                            // Since there is no concept of time, we can also just apply a fixed 10k steps timeout,
+                            // to not use memory.
+                            tc.state.futexTimeoutStep = state.step + 10000;
+                        }
+                        // leave state as-is, instruction to be completed by onWaitComplete()
+                        return;
+                    }
+                }
+                else if (a1 == 129) { // futexWakePrivate
+                    // Try to wake up the thread, by starting to search for a locked thread from thread 0
+                    state.wakeup = a0;
+                    state.currentThread = 0;
+                    // But don't say we have woken up anyone, as there are no guarantees.
+                    // The woken up thread should tell the user in userspace.
+                    v0 = 0;
+                    v1 = 0;
+                } else {
+                    revert("wtf");
+                }
+            }
+            // clone
+            else if (syscall_no == 4120) {
+                // args: a0 = flags, a1 = *stack, a2 = ptid (parent id), a3 = tls (thread local storage)
+                // Go runtime does not use ptid or tls, so we ignore those.
+
+                // determine the new thread ID, and set as return arg
+                v0 = uint32(len(state.threads)); // TODO
+
+                // TODO check flags, and return error if bad flags are set
+                // no error, simple in-process threads are supported
+                v1 = 0;
+
+                // clone into a new thread context
+                ThreadContext memory newThreadContext;
+                newThreadContext.threadID = v0;
+                // newThreadContext.state = ThreadState{} (already 0)
+                newThreadContext.state.futexAddr = 0xFFffFFff;
+
+                // copy all registers, but change the stack pointer
+                newThreadContext.state.lo = tc.state.lo;
+                newThreadContext.state.hi = tc.state.hi;
+                newThreadContext.state.registers = tc.state.registers; // TODO can we copy like this?
+                newThreadContext.state.registers[29] = a1; // set stack pointer
+                // the child will perceive a 0 value as returned value instead, and no error
+                newThreadContext.state.registers[2] = 0;
+                newThreadContext.state.registers[7] = 0;
+
+                // the new thread also has to continue with the next instruction
+                newThreadContext.state.pc = tc.state.nextPC;
+                newThreadContext.state.nextPC = tc.state.nextPC + 4;
+
+                // add the new thread context to the state
+                // TODO append to threads (update merkle root)
+                state.threads = append(state.threads, newThreadContext);
+                // TODO and execution continues, still need to handle more thread-context mutations of current thread.
+            }
+            // schedYield
+            else if (syscall_no == 4162) {
+                state.currentThread += 1;
+            }
+            // open (runtime tries to read optional kernel info)
+            else if (syscall_no == 4005) {
+                v0 = 0xFFffFFff;
+                v1 = EBADF;
+            }
+            // nanosleep
+            else if (syscall_no == 4166) {
+                state.currentThread += 1 // handle it like a yield, we can cycle other threads maybe
+            }
+            // sched_getaffinity
+            else if (syscall_no == 4240) {} // no-op
+            // clock_gettime
+            else if (syscall_no == 4263) {} // no-op
+            // madvise
+            else if (syscall_no == 4218) {} // no-op
+            // rt_sigprocmask
+            else if (syscall_no == 4195) {} // no-op
+            // sigaltstack
+            else if (syscall_no == 4206) {} // no-op
+            // rt_sigaction
+            else if (syscall_no == 4194) {} // no-op
+            // prlimit64
+            else if (syscall_no == 4338) {} // no-op
+            else {
+                revert("unrecognized syscall");
+            }
 
             // Write the results back to the state registers
-            state.registers[2] = v0;
-            state.registers[7] = v1;
+            tc.state.registers[2] = v0;
+            tc.state.registers[7] = v1;
 
             // Update the PC and nextPC
-            state.pc = state.nextPC;
-            state.nextPC = state.nextPC + 4;
+            tc.state.pc = tc.state.nextPC;
+            tc.state.nextPC = tc.state.nextPC + 4;
 
             out_ = outputState();
         }
@@ -318,16 +462,21 @@ contract MIPS {
             assembly {
                 state := 0x80
             }
+            // Load ThreadContext from memory
+            ThreadContext memory tc;
+            assembly {
+                tc := 0x500 // TODO
+            }
 
             bool shouldBranch = false;
 
-            if (state.nextPC != state.pc + 4) {
+            if (tc.state.nextPC != tc.state.pc + 4) {
                 revert("branch in delay slot");
             }
 
             // beq/bne: Branch on equal / not equal
             if (_opcode == 4 || _opcode == 5) {
-                uint32 rt = state.registers[_rtReg];
+                uint32 rt = tc.state.registers[_rtReg];
                 shouldBranch = (_rs == rt && _opcode == 4) || (_rs != rt && _opcode == 5);
             }
             // blez: Branches if instruction is less than or equal to zero
@@ -351,17 +500,17 @@ contract MIPS {
             }
 
             // Update the state's previous PC
-            uint32 prevPC = state.pc;
+            uint32 prevPC = tc.state.pc;
 
             // Execute the delay slot first
-            state.pc = state.nextPC;
+            tc.state.pc = tc.state.nextPC;
 
             // If we should branch, update the PC to the branch target
             // Otherwise, proceed to the next instruction
             if (shouldBranch) {
-                state.nextPC = prevPC + 4 + (SE(_insn & 0xFFFF, 16) << 2);
+                tc.state.nextPC = prevPC + 4 + (SE(_insn & 0xFFFF, 16) << 2);
             } else {
-                state.nextPC = state.nextPC + 4;
+                tc.state.nextPC = tc.state.nextPC + 4;
             }
 
             // Return the hash of the resulting state
@@ -382,60 +531,65 @@ contract MIPS {
             assembly {
                 state := 0x80
             }
+            // Load ThreadContext from memory
+            ThreadContext memory tc;
+            assembly {
+                tc := 0x500 // TODO
+            }
 
             uint32 val;
 
             // mfhi: Move the contents of the HI register into the destination
             if (_func == 0x10) {
-                val = state.hi;
+                val = tc.state.hi;
             }
             // mthi: Move the contents of the source into the HI register
             else if (_func == 0x11) {
-                state.hi = _rs;
+                tc.state.hi = _rs;
             }
             // mflo: Move the contents of the LO register into the destination
             else if (_func == 0x12) {
-                val = state.lo;
+                val = tc.state.lo;
             }
             // mtlo: Move the contents of the source into the LO register
             else if (_func == 0x13) {
-                state.lo = _rs;
+                tc.state.lo = _rs;
             }
             // mult: Multiplies `rs` by `rt` and stores the result in HI and LO registers
             else if (_func == 0x18) {
                 uint64 acc = uint64(int64(int32(_rs)) * int64(int32(_rt)));
-                state.hi = uint32(acc >> 32);
-                state.lo = uint32(acc);
+                tc.state.hi = uint32(acc >> 32);
+                tc.state.lo = uint32(acc);
             }
             // multu: Unsigned multiplies `rs` by `rt` and stores the result in HI and LO registers
             else if (_func == 0x19) {
                 uint64 acc = uint64(uint64(_rs) * uint64(_rt));
-                state.hi = uint32(acc >> 32);
-                state.lo = uint32(acc);
+                tc.state.hi = uint32(acc >> 32);
+                tc.state.lo = uint32(acc);
             }
             // div: Divides `rs` by `rt`.
             // Stores the quotient in LO
             // And the remainder in HI
             else if (_func == 0x1a) {
-                state.hi = uint32(int32(_rs) % int32(_rt));
-                state.lo = uint32(int32(_rs) / int32(_rt));
+                tc.state.hi = uint32(int32(_rs) % int32(_rt));
+                tc.state.lo = uint32(int32(_rs) / int32(_rt));
             }
             // divu: Unsigned divides `rs` by `rt`.
             // Stores the quotient in LO
             // And the remainder in HI
             else if (_func == 0x1b) {
-                state.hi = _rs % _rt;
-                state.lo = _rs / _rt;
+                tc.state.hi = _rs % _rt;
+                tc.state.lo = _rs / _rt;
             }
 
             // Store the result in the destination register, if applicable
             if (_storeReg != 0) {
-                state.registers[_storeReg] = val;
+                tc.state.registers[_storeReg] = val;
             }
 
             // Update the PC
-            state.pc = state.nextPC;
-            state.nextPC = state.nextPC + 4;
+            tc.state.pc = state.nextPC;
+            tc.state.nextPC = state.nextPC + 4;
 
             // Return the hash of the resulting state
             out_ = outputState();
@@ -453,19 +607,24 @@ contract MIPS {
             assembly {
                 state := 0x80
             }
+            // Load ThreadContext from memory
+            ThreadContext memory tc;
+            assembly {
+                tc := 0x500 // TODO
+            }
 
-            if (state.nextPC != state.pc + 4) {
+            if (tc.state.nextPC != tc.state.pc + 4) {
                 revert("jump in delay slot");
             }
 
             // Update the next PC to the jump destination.
-            uint32 prevPC = state.pc;
-            state.pc = state.nextPC;
-            state.nextPC = _dest;
+            uint32 prevPC = tc.state.pc;
+            tc.state.pc = tc.state.nextPC;
+            tc.state.nextPC = _dest;
 
             // Update the link-register to the instruction after the delay slot instruction.
             if (_linkReg != 0) {
-                state.registers[_linkReg] = prevPC + 8;
+                tc.state.registers[_linkReg] = prevPC + 8;
             }
 
             // Return the hash of the resulting state.
@@ -485,18 +644,23 @@ contract MIPS {
             assembly {
                 state := 0x80
             }
+            // Load ThreadContext from memory
+            ThreadContext memory tc;
+            assembly {
+                tc := 0x500 // TODO
+            }
 
             // The destination register must be valid.
             require(_storeReg < 32, "valid register");
 
             // Never write to reg 0, and it can be conditional (movz, movn).
             if (_storeReg != 0 && _conditional) {
-                state.registers[_storeReg] = _val;
+                tc.state.registers[_storeReg] = _val;
             }
 
             // Update the PC.
-            state.pc = state.nextPC;
-            state.nextPC = state.nextPC + 4;
+            tc.state.pc = tc.state.nextPC;
+            tc.state.nextPC = tc.state.nextPC + 4;
 
             // Return the hash of the resulting state.
             out_ = outputState();
@@ -630,6 +794,11 @@ contract MIPS {
         unchecked {
             State memory state;
 
+            ThreadContext memory tc;
+            // TODO update below decoding to parse into thread context
+            // and verify it's a valid current thread (inclusion proof to threads root)
+            // read the Thread-context and its proof data from the _proof
+
             // Packed calldata is ~6 times smaller than state size
             assembly {
                 if iszero(eq(state, 0x80)) {
@@ -686,13 +855,13 @@ contract MIPS {
             state.step += 1;
 
             // instruction fetch
-            uint32 insn = readMem(state.pc, 0);
+            uint32 insn = readMem(tc.state.pc, 0);
             uint32 opcode = insn >> 26; // 6-bits
 
             // j-type j/jal
             if (opcode == 2 || opcode == 3) {
                 // Take top 4 bits of the next PC (its 256 MB region), and concatenate with the 26-bit offset
-                uint32 target = (state.nextPC & 0xF0000000) | (insn & 0x03FFFFFF) << 2;
+                uint32 target = (tc.state.nextPC & 0xF0000000) | (insn & 0x03FFFFFF) << 2;
                 return handleJump(opcode == 2 ? 0 : 31, target);
             }
 
@@ -702,12 +871,12 @@ contract MIPS {
             uint32 rtReg = (insn >> 16) & 0x1F;
 
             // R-type or I-type (stores rt)
-            rs = state.registers[(insn >> 21) & 0x1F];
+            rs = tc.state.registers[(insn >> 21) & 0x1F];
             uint32 rdReg = rtReg;
 
             if (opcode == 0 || opcode == 0x1c) {
                 // R-type (stores rd)
-                rt = state.registers[rtReg];
+                rt = tc.state.registers[rtReg];
                 rdReg = (insn >> 11) & 0x1F;
             } else if (opcode < 0x20) {
                 // rt is SignExtImm
@@ -721,7 +890,7 @@ contract MIPS {
                 }
             } else if (opcode >= 0x28 || opcode == 0x22 || opcode == 0x26) {
                 // store rt value with store
-                rt = state.registers[rtReg];
+                rt = tc.state.registers[rtReg];
 
                 // store actual rt with lwl and lwr
                 rdReg = rtReg;
@@ -781,7 +950,7 @@ contract MIPS {
 
             // stupid sc, write a 1 to rt
             if (opcode == 0x38 && rtReg != 0) {
-                state.registers[rtReg] = 1;
+                tc.state.registers[rtReg] = 1;
             }
 
             // write memory
