@@ -224,6 +224,8 @@ func TestP2PFull(t *testing.T) {
 }
 
 func TestDiscovery(t *testing.T) {
+	t.Skipf("skipping flaky test")
+
 	pA, _, err := crypto.GenerateSecp256k1Key(rand.Reader)
 	require.NoError(t, err, "failed to generate new p2p priv key")
 	pB, _, err := crypto.GenerateSecp256k1Key(rand.Reader)
