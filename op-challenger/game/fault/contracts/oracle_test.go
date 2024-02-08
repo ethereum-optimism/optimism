@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"math/big"
+	"math/rand"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
@@ -14,6 +15,7 @@ import (
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	batchingTest "github.com/ethereum-optimism/optimism/op-service/sources/batching/test"
+	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
@@ -45,6 +47,23 @@ func TestPreimageOracleContract_AddGlobalDataTx(t *testing.T) {
 		stubRpc.SetResponse(oracleAddr, methodLoadSha256PreimagePart, batching.BlockLatest, []interface{}{
 			new(big.Int).SetUint64(uint64(data.OracleOffset)),
 			data.GetPreimageWithoutSize(),
+		}, nil)
+
+		tx, err := oracle.AddGlobalDataTx(data)
+		require.NoError(t, err)
+		stubRpc.VerifyTxCandidate(tx)
+	})
+
+	t.Run("Blob", func(t *testing.T) {
+		stubRpc, oracle := setupPreimageOracleTest(t)
+		fieldData := testutils.RandomData(rand.New(rand.NewSource(23)), 32)
+		data := types.NewPreimageOracleData(common.Hash{byte(preimage.BlobKeyType), 0xcc}.Bytes(), fieldData, uint32(545))
+		stubRpc.SetResponse(oracleAddr, methodLoadBlobPreimagePart, batching.BlockLatest, []interface{}{
+			new(big.Int).SetUint64(data.BlobFieldIndex),
+			new(big.Int).SetBytes(data.GetPreimageWithoutSize()),
+			data.BlobCommitment,
+			data.BlobProof,
+			new(big.Int).SetUint64(uint64(data.OracleOffset)),
 		}, nil)
 
 		tx, err := oracle.AddGlobalDataTx(data)

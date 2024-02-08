@@ -85,7 +85,7 @@ func (e *Executor) generateProof(ctx context.Context, dir string, begin uint64, 
 		return fmt.Errorf("find starting snapshot: %w", err)
 	}
 	proofDir := filepath.Join(dir, proofsDir)
-	dataDir := filepath.Join(dir, preimagesDir)
+	dataDir := preimageDir(dir)
 	lastGeneratedState := filepath.Join(dir, finalState)
 	args := []string{
 		"run",
@@ -139,6 +139,10 @@ func (e *Executor) generateProof(ctx context.Context, dir string, begin uint64, 
 	err = e.cmdExecutor(ctx, e.logger.New("proof", end), e.cannon, args...)
 	e.metrics.RecordCannonExecutionTime(time.Since(execStart).Seconds())
 	return err
+}
+
+func preimageDir(dir string) string {
+	return filepath.Join(dir, preimagesDir)
 }
 
 func runCmd(ctx context.Context, l log.Logger, binary string, args ...string) error {

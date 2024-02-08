@@ -13,6 +13,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	"github.com/ethereum-optimism/optimism/op-program/host/kvstore"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -45,11 +46,12 @@ type ProofGenerator interface {
 }
 
 type CannonTraceProvider struct {
-	logger    log.Logger
-	dir       string
-	prestate  string
-	generator ProofGenerator
-	gameDepth types.Depth
+	logger         log.Logger
+	dir            string
+	prestate       string
+	generator      ProofGenerator
+	gameDepth      types.Depth
+	preimageLoader *preimageLoader
 
 	// lastStep stores the last step in the actual trace if known. 0 indicates unknown.
 	// Cached as an optimisation to avoid repeatedly attempting to execute beyond the end of the trace.
@@ -58,11 +60,12 @@ type CannonTraceProvider struct {
 
 func NewTraceProvider(logger log.Logger, m CannonMetricer, cfg *config.Config, localInputs LocalGameInputs, dir string, gameDepth types.Depth) *CannonTraceProvider {
 	return &CannonTraceProvider{
-		logger:    logger,
-		dir:       dir,
-		prestate:  cfg.CannonAbsolutePreState,
-		generator: NewExecutor(logger, m, cfg, localInputs),
-		gameDepth: gameDepth,
+		logger:         logger,
+		dir:            dir,
+		prestate:       cfg.CannonAbsolutePreState,
+		generator:      NewExecutor(logger, m, cfg, localInputs),
+		gameDepth:      gameDepth,
+		preimageLoader: newPreimageLoader(kvstore.NewDiskKV(preimageDir(dir)).Get),
 	}
 }
 
@@ -104,9 +107,9 @@ func (p *CannonTraceProvider) GetStepData(ctx context.Context, pos types.Positio
 	if data == nil {
 		return nil, nil, nil, errors.New("proof missing proof data")
 	}
-	var oracleData *types.PreimageOracleData
-	if len(proof.OracleKey) > 0 {
-		oracleData = types.NewPreimageOracleData(proof.OracleKey, proof.OracleValue, proof.OracleOffset)
+	oracleData, err := p.preimageLoader.LoadPreimage(proof)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to load preimage: %w", err)
 	}
 	return value, data, oracleData, nil
 }

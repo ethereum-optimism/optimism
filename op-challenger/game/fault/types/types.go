@@ -34,6 +34,11 @@ type PreimageOracleData struct {
 	OracleKey    []byte
 	oracleData   []byte
 	OracleOffset uint32
+
+	// 4844 blob data
+	BlobFieldIndex uint64
+	BlobCommitment []byte
+	BlobProof      []byte
 }
 
 // GetIdent returns the ident for the preimage oracle data.
@@ -58,6 +63,18 @@ func NewPreimageOracleData(key []byte, data []byte, offset uint32) *PreimageOrac
 		OracleKey:    key,
 		oracleData:   data,
 		OracleOffset: offset,
+	}
+}
+
+func NewPreimageOracleBlobData(key []byte, data []byte, offset uint32, fieldIndex uint64, commitment []byte, proof []byte) *PreimageOracleData {
+	return &PreimageOracleData{
+		IsLocal:        false,
+		OracleKey:      key,
+		oracleData:     data,
+		OracleOffset:   offset,
+		BlobFieldIndex: fieldIndex,
+		BlobCommitment: commitment,
+		BlobProof:      proof,
 	}
 }
 

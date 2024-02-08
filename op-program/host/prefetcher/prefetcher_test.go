@@ -214,6 +214,20 @@ func TestFetchL1Blob(t *testing.T) {
 
 		blobs := oracle.GetBlob(l1Ref, blobHash)
 		require.EqualValues(t, blobs[:], blob[:])
+
+		// Check that the preimages of field element keys are also stored
+		// This makes it possible for the challenger to extract the commitment and required field from the
+		// oracle key rather than needing the hint data.
+
+		fieldElemKey := make([]byte, 80)
+		copy(fieldElemKey[:48], commitment[:])
+		for i := 0; i < params.BlobTxFieldElementsPerBlob; i++ {
+			binary.BigEndian.PutUint64(fieldElemKey[72:], uint64(i))
+			key := preimage.Keccak256Key(crypto.Keccak256(fieldElemKey)).PreimageKey()
+			actual, err := prefetcher.kvStore.Get(key)
+			require.NoError(t, err)
+			require.Equal(t, fieldElemKey, actual)
+		}
 	})
 }
 
