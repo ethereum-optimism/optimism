@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
 
 	"github.com/hashicorp/go-multierror"
@@ -373,7 +374,12 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config, snapshotLog log.Logger
 	if cfg.ConductorEnabled {
 		sequencerConductor = NewConductorClient(cfg, n.log, n.metrics)
 	}
-	n.l2Driver = driver.NewDriver(&cfg.Driver, &cfg.Rollup, n.l2Source, n.l1Source, n.beacon, n, n, n.log, snapshotLog, n.metrics, cfg.ConfigPersistence, &cfg.Sync, sequencerConductor)
+
+	plasmaDA := plasma.NewPlasmaDA(n.log, cfg.Plasma)
+	if cfg.Plasma.Enabled {
+		n.log.Info("Plasma DA enabled", "da_server", cfg.Plasma.DAServerURL)
+	}
+	n.l2Driver = driver.NewDriver(&cfg.Driver, &cfg.Rollup, n.l2Source, n.l1Source, n.beacon, n, n, n.log, snapshotLog, n.metrics, cfg.ConfigPersistence, &cfg.Sync, sequencerConductor, plasmaDA)
 
 	return nil
 }

@@ -61,7 +61,7 @@ type L2API interface {
 func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher, blobsSrc derive.L1BlobsFetcher, eng L2API, cfg *rollup.Config, syncCfg *sync.Config) *L2Verifier {
 	metrics := &testutils.TestDerivationMetrics{}
 	engine := derive.NewEngineController(eng, log, metrics, cfg, syncCfg.SyncMode)
-	pipeline := derive.NewDerivationPipeline(log, cfg, l1, blobsSrc, eng, engine, metrics, syncCfg)
+	pipeline := derive.NewDerivationPipeline(log, cfg, l1, blobsSrc, nil, eng, engine, metrics, syncCfg)
 	pipeline.Reset()
 
 	rollupNode := &L2Verifier{
