@@ -451,8 +451,8 @@ importers:
         specifier: ^2.2.7
         version: 2.2.7
       semver:
-        specifier: ^7.5.4
-        version: 7.5.4
+        specifier: ^7.6.0
+        version: 7.6.0
     devDependencies:
       '@ethersproject/abstract-provider':
         specifier: ^5.7.0
@@ -2094,7 +2094,7 @@ packages:
       outdent: 0.5.0
       prettier: 2.8.8
       resolve-from: 5.0.0
-      semver: 7.5.4
+      semver: 7.6.0
     dev: false
 
   /@changesets/assemble-release-plan@6.0.0:
@@ -2105,7 +2105,7 @@ packages:
       '@changesets/get-dependents-graph': 2.0.0
       '@changesets/types': 6.0.0
       '@manypkg/get-packages': 1.1.3
-      semver: 7.5.4
+      semver: 7.6.0
     dev: false
 
   /@changesets/changelog-git@0.2.0:
@@ -2156,7 +2156,7 @@ packages:
       p-limit: 2.3.0
       preferred-pm: 3.0.3
       resolve-from: 5.0.0
-      semver: 7.5.4
+      semver: 7.6.0
       spawndamnit: 2.0.0
       term-size: 2.2.1
       tty-table: 4.1.6
@@ -2187,7 +2187,7 @@ packages:
       '@manypkg/get-packages': 1.1.3
       chalk: 2.4.2
       fs-extra: 7.0.1
-      semver: 7.5.4
+      semver: 7.6.0
     dev: false
 
   /@changesets/get-github-info@0.5.2:
@@ -3855,7 +3855,7 @@ packages:
       '@ethereumjs/tx': 4.2.0
       '@types/debug': 4.1.8
       debug: 4.3.4(supports-color@8.1.1)
-      semver: 7.5.4
+      semver: 7.6.0
       superstruct: 1.0.3
     transitivePeerDependencies:
       - supports-color
@@ -3871,7 +3871,7 @@ packages:
       '@types/debug': 4.1.8
       debug: 4.3.4(supports-color@8.1.1)
       pony-cause: 2.1.10
-      semver: 7.5.4
+      semver: 7.6.0
       superstruct: 1.0.3
     transitivePeerDependencies:
       - supports-color
@@ -4610,7 +4610,7 @@ packages:
       ip: 1.1.8
       node-stream-zip: 1.15.0
       ora: 5.4.1
-      semver: 7.5.4
+      semver: 7.6.0
       strip-ansi: 5.2.0
       wcwidth: 1.0.1
       yaml: 2.3.4
@@ -4689,7 +4689,7 @@ packages:
       node-fetch: 2.6.12
       open: 6.4.0
       ora: 5.4.1
-      semver: 7.5.4
+      semver: 7.6.0
       shell-quote: 1.8.1
       sudo-prompt: 9.2.1
     transitivePeerDependencies:
@@ -4724,7 +4724,7 @@ packages:
       fs-extra: 8.1.0
       graceful-fs: 4.2.11
       prompts: 2.4.2
-      semver: 7.5.4
+      semver: 7.6.0
     transitivePeerDependencies:
       - bufferutil
       - encoding
@@ -6109,7 +6109,7 @@ packages:
       graphemer: 1.4.0
       ignore: 5.2.4
       natural-compare: 1.4.0
-      semver: 7.5.4
+      semver: 7.6.0
       ts-api-utils: 1.0.1(typescript@5.3.3)
       typescript: 5.3.3
     transitivePeerDependencies:
@@ -6198,7 +6198,7 @@ packages:
       globby: 11.1.0
       is-glob: 4.0.3
       minimatch: 9.0.3
-      semver: 7.5.4
+      semver: 7.6.0
       ts-api-utils: 1.0.1(typescript@5.3.3)
       typescript: 5.3.3
     transitivePeerDependencies:
@@ -6220,7 +6220,7 @@ packages:
       globby: 11.1.0
       is-glob: 4.0.3
       minimatch: 9.0.3
-      semver: 7.5.4
+      semver: 7.6.0
       ts-api-utils: 1.0.1(typescript@5.3.3)
       typescript: 5.3.3
     transitivePeerDependencies:
@@ -6240,7 +6240,7 @@ packages:
       '@typescript-eslint/types': 6.21.0
       '@typescript-eslint/typescript-estree': 6.21.0(typescript@5.3.3)
       eslint: 8.56.0
-      semver: 7.5.4
+      semver: 7.6.0
     transitivePeerDependencies:
       - supports-color
       - typescript
@@ -8809,7 +8809,7 @@ packages:
       require-package-name: 2.0.1
       resolve: 1.22.4
       resolve-from: 5.0.0
-      semver: 7.5.4
+      semver: 7.6.0
       yargs: 16.2.0
     transitivePeerDependencies:
       - supports-color
@@ -9577,7 +9577,7 @@ packages:
       read-pkg-up: 7.0.1
       regexp-tree: 0.1.27
       regjsparser: 0.10.0
-      semver: 7.5.4
+      semver: 7.6.0
       strip-indent: 3.0.0
     transitivePeerDependencies:
       - supports-color
@@ -11745,7 +11745,7 @@ packages:
       '@babel/parser': 7.23.6
       '@istanbuljs/schema': 0.1.3
       istanbul-lib-coverage: 3.2.2
-      semver: 7.5.4
+      semver: 7.6.0
     transitivePeerDependencies:
       - supports-color
     dev: true
@@ -12718,7 +12718,7 @@ packages:
     resolution: {integrity: sha512-hXdUTZYIVOt1Ex//jAQi+wTZZpUpwBj/0QsOzqegb3rGMMeJiSEu5xLHnYfBrRV4RH2+OCSOO95Is/7x1WJ4bw==}
     engines: {node: '>=10'}
     dependencies:
-      semver: 7.5.4
+      semver: 7.6.0
     dev: true
 
   /make-error@1.3.6:
@@ -13770,7 +13770,7 @@ packages:
       npm-run-path: 4.0.1
       open: 8.4.2
       ora: 5.3.0
-      semver: 7.5.4
+      semver: 7.6.0
       string-width: 4.2.3
       strong-log-transformer: 2.1.0
       tar-stream: 2.2.0
@@ -15605,20 +15605,12 @@ packages:
     hasBin: true
     dev: true
 
-  /semver@7.5.4:
-    resolution: {integrity: sha512-1bCSESV6Pv+i21Hvpxp3Dx+pSD8lIPt8uVjRrxAUt/nbswYc+tK6Y2btiULjd4+fnq15PX+nqQDC7Oft7WkwcA==}
-    engines: {node: '>=10'}
-    hasBin: true
-    dependencies:
-      lru-cache: 6.0.0
-
   /semver@7.6.0:
     resolution: {integrity: sha512-EnwXhrlwXMk9gKu5/flx5sv/an57AkRplG3hTK68W7FRDN+k+OWBj65M7719OkA82XLBxrcX0KSHj+X5COhOVg==}
     engines: {node: '>=10'}
     hasBin: true
     dependencies:
       lru-cache: 6.0.0
-    dev: true
 
   /send@0.18.0:
     resolution: {integrity: sha512-qqWzuOjSFOuqPjFe4NOsMLafToQQwBSOEpS+FwEt3A2V3vKubTquT3vmLTQpFgMXp8AlFWFuP1qKaJZOtPpVXg==}
@@ -16290,7 +16282,7 @@ packages:
       methods: 1.1.2
       mime: 2.6.0
       qs: 6.11.2
-      semver: 7.5.4
+      semver: 7.6.0
     transitivePeerDependencies:
       - supports-color
     dev: true
