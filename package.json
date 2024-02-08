@@ -31,6 +31,7 @@
     "release:version": "changeset version && pnpm install --lockfile-only",
     "install:foundry": "curl -L https://foundry.paradigm.xyz | bash && pnpm update:foundry",
     "update:foundry": "bash ./ops/scripts/install-foundry.sh",
+    "check:foundry": "bash ./packages/contracts-bedrock/scripts/verify-foundry-install.sh",
     "install:kontrol": "curl -L https://kframework.org/install | bash && pnpm update:kontrol",
     "update:kontrol": "kup install kontrol --version v$(jq -r .kontrol < versions.json)",
     "install:abigen": "go install github.com/ethereum/go-ethereum/cmd/abigen@$(jq -r .abigen < versions.json)",
