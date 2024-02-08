@@ -359,16 +359,16 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         assertFalse(optimismPortal2.finalizedWithdrawals(Hashing.hashWithdrawal(_defaultTx)));
     }
 
-    /// @dev Tests that `deleteProvenWithdrawal` reverts when called by a non-SAURON.
-    function testFuzz_deleteProvenWithdrawal_onlySauron_reverts(address _act, bytes32 _wdHash) external {
-        vm.assume(_act != address(optimismPortal2.sauron()));
+    /// @dev Tests that `deleteProvenWithdrawal` reverts when called by a non-guardian.
+    function testFuzz_deleteProvenWithdrawal_onlyGuardian_reverts(address _act, bytes32 _wdHash) external {
+        vm.assume(_act != address(optimismPortal2.guardian()));
 
-        vm.expectRevert("OptimismPortal: only sauron can delete proven withdrawals");
+        vm.expectRevert("OptimismPortal: only the guardian can delete proven withdrawals");
         optimismPortal2.deleteProvenWithdrawal(_wdHash);
     }
 
-    /// @dev Tests that the SAURON role can delete any proven withdrawal.
-    function test_deleteProvenWithdrawal_sauron_succeeds() external {
+    /// @dev Tests that the guardian role can delete any proven withdrawal.
+    function test_deleteProvenWithdrawal_guardian_succeeds() external {
         vm.expectEmit(true, true, true, true);
         emit WithdrawalProven(_withdrawalHash, alice, bob);
         optimismPortal2.proveWithdrawalTransaction({
@@ -383,7 +383,7 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         assertEq(timestamp, block.timestamp);
 
         // Delete the proven withdrawal.
-        vm.prank(optimismPortal2.sauron());
+        vm.prank(optimismPortal2.guardian());
         optimismPortal2.deleteProvenWithdrawal(_withdrawalHash);
 
         // Ensure the withdrawal has been deleted
@@ -391,34 +391,34 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         assertEq(timestamp, 0);
     }
 
-    /// @dev Tests that `deleteProvenWithdrawal` reverts when called by a non-SAURON.
-    function testFuzz_blacklist_onlySauron_reverts(address _act) external {
-        vm.assume(_act != address(optimismPortal2.sauron()));
+    /// @dev Tests that `deleteProvenWithdrawal` reverts when called by a non-guardian.
+    function testFuzz_blacklist_onlyGuardian_reverts(address _act) external {
+        vm.assume(_act != address(optimismPortal2.guardian()));
 
-        vm.expectRevert("OptimismPortal: only sauron can blacklist dispute games");
+        vm.expectRevert("OptimismPortal: only the guardian can blacklist dispute games");
         optimismPortal2.blacklistDisputeGame(IDisputeGame(address(0xdead)));
     }
 
-    /// @dev Tests that the SAURON role can blacklist any dispute game.
-    function testFuzz_blacklist_sauron_succeeds(address _addr) external {
-        vm.prank(optimismPortal2.sauron());
+    /// @dev Tests that the guardian role can blacklist any dispute game.
+    function testFuzz_blacklist_guardian_succeeds(address _addr) external {
+        vm.prank(optimismPortal2.guardian());
         optimismPortal2.blacklistDisputeGame(IDisputeGame(_addr));
 
         assertTrue(optimismPortal2.disputeGameBlacklist(IDisputeGame(_addr)));
     }
 
-    /// @dev Tests that `setRespectedGameType` reverts when called by a non-SAURON.
-    function testFuzz_setRespectedGameType_onlySauron_reverts(address _act, GameType _ty) external {
-        vm.assume(_act != address(optimismPortal2.sauron()));
+    /// @dev Tests that `setRespectedGameType` reverts when called by a non-guardian.
+    function testFuzz_setRespectedGameType_onlyGuardian_reverts(address _act, GameType _ty) external {
+        vm.assume(_act != address(optimismPortal2.guardian()));
 
         vm.prank(_act);
-        vm.expectRevert("OptimismPortal: only sauron can set the respected game type");
+        vm.expectRevert("OptimismPortal: only the guardian can set the respected game type");
         optimismPortal2.setRespectedGameType(_ty);
     }
 
-    /// @dev Tests that the SAURON role can set the respected game type to anything they want.
-    function testFuzz_setRespectedGameType_sauron_succeeds(GameType _ty) external {
-        vm.prank(optimismPortal2.sauron());
+    /// @dev Tests that the guardian role can set the respected game type to anything they want.
+    function testFuzz_setRespectedGameType_guardian_succeeds(GameType _ty) external {
+        vm.prank(optimismPortal2.guardian());
         optimismPortal2.setRespectedGameType(_ty);
 
         assertEq(optimismPortal2.respectedGameType().raw(), _ty.raw());
@@ -528,7 +528,7 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         });
 
         // Blacklist the dispute dispute game.
-        vm.prank(optimismPortal2.sauron());
+        vm.prank(optimismPortal2.guardian());
         optimismPortal2.blacklistDisputeGame(IDisputeGame(address(game)));
 
         vm.expectEmit(true, true, true, true);
@@ -579,7 +579,7 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         });
 
         // Update the respected game type to 0xbeef.
-        vm.prank(optimismPortal2.sauron());
+        vm.prank(optimismPortal2.guardian());
         optimismPortal2.setRespectedGameType(GameType.wrap(0xbeef));
 
         // Create a new game and mock the game type as 0xbeef in the factory.
@@ -964,7 +964,7 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         game.resolveClaim(0);
         game.resolve();
 
-        vm.prank(optimismPortal2.sauron());
+        vm.prank(optimismPortal2.guardian());
         optimismPortal2.blacklistDisputeGame(IDisputeGame(address(game)));
 
         vm.warp(block.timestamp + optimismPortal2.proofMaturityDelaySeconds() + 1);
@@ -1022,7 +1022,7 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         game.resolve();
 
         // Change the respected game type in the portal.
-        vm.prank(optimismPortal2.sauron());
+        vm.prank(optimismPortal2.guardian());
         optimismPortal2.setRespectedGameType(GameType.wrap(0xFF));
 
         vm.expectRevert("OptimismPortal: invalid game type");
