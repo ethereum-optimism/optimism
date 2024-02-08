@@ -1615,7 +1615,6 @@ workflows:
       - go-test:
           name: boba-bindings-tests
           module: boba-bindings
-          requires: ["op-stack-go-lint"]
       - go-test:
           name: op-heartbeat-tests
           module: op-heartbeat
@@ -1623,7 +1622,6 @@ workflows:
       - go-test:
           name: boba-chain-ops-tests
           module: boba-chain-ops
-          requires: ["op-stack-go-lint"]
       - go-test:
           name: op-batcher-tests
           module: op-batcher
