@@ -337,8 +337,6 @@ var optionalFlags = []cli.Flag{
 	RPCListenReadHeaderTimeout,
 	RPCListenWriteTimeout,
 	RPCListenIdleTimeout,
-	RollupConfig,
-	Network,
 	L1TrustRPC,
 	L1RPCProviderKind,
 	L1RPCRateLimit,
