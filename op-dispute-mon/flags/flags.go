@@ -33,6 +33,11 @@ var (
 		EnvVars: prefixEnvVars("GAME_FACTORY_ADDRESS"),
 	}
 	// Optional Flags
+	RollupRpcFlag = &cli.StringFlag{
+		Name:    "rollup-rpc",
+		Usage:   "HTTP provider URL for the rollup node",
+		EnvVars: prefixEnvVars("ROLLUP_RPC"),
+	}
 	MonitorIntervalFlag = &cli.DurationFlag{
 		Name:    "monitor-interval",
 		Usage:   "The interval at which the dispute monitor will check for new games to monitor.",
@@ -56,6 +61,7 @@ var requiredFlags = []cli.Flag{
 
 // optionalFlags is a list of unchecked cli flags
 var optionalFlags = []cli.Flag{
+	RollupRpcFlag,
 	MonitorIntervalFlag,
 	GameWindowFlag,
 }
@@ -97,6 +103,7 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 		L1EthRpc:           ctx.String(L1EthRpcFlag.Name),
 		GameFactoryAddress: gameFactoryAddress,
 
+		RollupRpc:       ctx.String(RollupRpcFlag.Name),
 		MonitorInterval: ctx.Duration(MonitorIntervalFlag.Name),
 		GameWindow:      ctx.Duration(GameWindowFlag.Name),
 
