@@ -100,13 +100,13 @@ func listGames(ctx context.Context, caller *batching.MultiCaller, factory *contr
 	return nil
 }
 
-var listGamesFlags = []cli.Flag{
-	flags.L1EthRpcFlag,
-	flags.FactoryAddressFlag,
-}
-
-func init() {
-	listGamesFlags = append(listGamesFlags, oplog.CLIFlags("OP_CHALLENGER")...)
+func listGamesFlags() []cli.Flag {
+	cliFlags := []cli.Flag{
+		flags.L1EthRpcFlag,
+		flags.FactoryAddressFlag,
+	}
+	cliFlags = append(cliFlags, oplog.CLIFlags("OP_CHALLENGER")...)
+	return cliFlags
 }
 
 var ListGamesCommand = &cli.Command{
@@ -114,6 +114,6 @@ var ListGamesCommand = &cli.Command{
 	Usage:       "List the games created by a dispute game factory",
 	Description: "Lists the games created by a dispute game factory",
 	Action:      ListGames,
-	Flags:       listGamesFlags,
+	Flags:       listGamesFlags(),
 	Hidden:      true,
 }
