@@ -1805,9 +1805,6 @@ workflows:
             - devnet-allocs
             - cannon-prestate
       - devnet:
-          requires:
-            - go-mod-download
-      - devnet:
           matrix:
             parameters:
               devnet_fpac: ["legacy", "fault-proofs"]
