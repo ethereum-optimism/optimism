@@ -280,6 +280,10 @@ const networks = {
   },
 }
 
+const topic_initialized = '0x7f26b83ff96e1f2b6a682f133852f6798a09c465da95921460cefb3847402498'
+
+const topic_upgraded = '0xbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b'
+
 type InitializedMonOptions = {
   rpc: Provider
   startBlockNumber: number
@@ -287,6 +291,7 @@ type InitializedMonOptions = {
 
 type InitializedMonMetrics = {
   initializedCalls: Counter
+  upgradedCalls: Counter
   unexpectedRpcErrors: Counter
 }
 
@@ -325,6 +330,11 @@ export class InitializedMonService extends BaseServiceV2<
         initializedCalls: {
           type: Gauge,
           desc: 'Successful transactions to tracked contracts emitting initialized event',
+          labels: ['label', 'address'],
+        },
+        upgradedCalls: {
+          type: Gauge,
+          desc: 'Successful transactions to tracked contracts emitting upgraded event',
           labels: ['label', 'address'],
         },
         unexpectedRpcErrors: {
@@ -387,13 +397,21 @@ export class InitializedMonService extends BaseServiceV2<
           try {
             const transactionReceipt = await transaction.wait()
             for (const log of transactionReceipt.logs) {
-              // keccak256("Initialized(suint8)") = 0x7f26b83ff96e1f2b6a682f133852f6798a09c465da95921460cefb3847402498
-              if (log.topics.includes('0x7f26b83ff96e1f2b6a682f133852f6798a09c465da95921460cefb3847402498')) {
+              if (log.topics.includes(topic_initialized)) {
                 this.metrics.initializedCalls.inc({
                   label: contract.label,
                   address: contract.address,
                 })
                 this.logger.info('initialized event', {
+                  label: contract.label,
+                  address: contract.address,
+                })
+              } else if (log.topics.includes(topic_upgraded)) {
+                this.metrics.upgradedCalls.inc({
+                  label: contract.label,
+                  address: contract.address,
+                })
+                this.logger.info('upgraded event', {
                   label: contract.label,
                   address: contract.address,
                 })
