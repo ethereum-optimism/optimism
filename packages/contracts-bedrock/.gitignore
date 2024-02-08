@@ -6,7 +6,6 @@ broadcast
 kout-deployment
 kout-proofs
 test/kontrol/logs
-slither-report.json
 
 # Metrics
 coverage.out
