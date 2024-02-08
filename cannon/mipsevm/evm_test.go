@@ -1,6 +1,5 @@
 package mipsevm
 
-/*
 import (
 	"bytes"
 	"debug/elf"
@@ -161,24 +160,33 @@ func TestEVM(t *testing.T) {
 			fn := path.Join("open_mips_tests/test/bin", f.Name())
 			programMem, err := os.ReadFile(fn)
 			require.NoError(t, err)
-			state := &State{PC: 0, NextPC: 4, Memory: NewMemory()}
+			state := &State{Threads: []ThreadContext{
+				{
+					State: &ThreadState{
+						FutexAddr: ^uint32(0),
+						PC:        0,
+						NextPC:    4,
+					},
+				},
+			}, Memory: NewMemory()}
 			err = state.Memory.SetMemoryRange(0, bytes.NewReader(programMem))
 			require.NoError(t, err, "load program into state")
 
 			// set the return address ($ra) to jump into when test completes
-			state.Registers[31] = endAddr
+			state.Threads[state.CurrentThread].State.Registers[31] = endAddr
 
 			goState := NewInstrumentedState(state, oracle, os.Stdout, os.Stderr)
 
 			for i := 0; i < 1000; i++ {
-				if goState.state.PC == endAddr {
+				threadState := goState.state.Threads[goState.state.CurrentThread].State
+				if threadState.PC == endAddr {
 					break
 				}
 				if exitGroup && goState.state.Exited {
 					break
 				}
-				insn := state.Memory.GetMemory(state.PC)
-				t.Logf("step: %4d pc: 0x%08x insn: 0x%08x", state.Step, state.PC, insn)
+				insn := state.Memory.GetMemory(threadState.PC)
+				t.Logf("step: %4d pc: 0x%08x insn: 0x%08x", state.Step, threadState.PC, insn)
 
 				stepWitness, err := goState.Step(true)
 				require.NoError(t, err)
@@ -189,12 +197,13 @@ func TestEVM(t *testing.T) {
 				require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
 					"mipsevm produced different state than EVM")
 			}
+			threadState := goState.state.Threads[goState.state.CurrentThread].State
 			if exitGroup {
-				require.NotEqual(t, uint32(endAddr), goState.state.PC, "must not reach end")
+				require.NotEqual(t, uint32(endAddr), threadState.PC, "must not reach end")
 				require.True(t, goState.state.Exited, "must set exited state")
 				require.Equal(t, uint8(1), goState.state.ExitCode, "must exit with 1")
 			} else {
-				require.Equal(t, uint32(endAddr), state.PC, "must reach end")
+				require.Equal(t, uint32(endAddr), threadState.PC, "must reach end")
 				// inspect test result
 				done, result := state.Memory.GetMemory(baseAddrEnd+4), state.Memory.GetMemory(baseAddrEnd+8)
 				require.Equal(t, done, uint32(1), "must be done")
@@ -222,7 +231,15 @@ func TestEVMSingleStep(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			state := &State{PC: tt.pc, NextPC: tt.nextPC, Memory: NewMemory()}
+			state := &State{Threads: []ThreadContext{
+				{
+					State: &ThreadState{
+						FutexAddr: ^uint32(0),
+						PC:        tt.pc,
+						NextPC:    tt.nextPC,
+					},
+				},
+			}, Memory: NewMemory()}
 			state.Memory.SetMemory(tt.pc, tt.insn)
 
 			us := NewInstrumentedState(state, nil, os.Stdout, os.Stderr)
@@ -259,12 +276,29 @@ func TestEVMFault(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			state := &State{PC: 0, NextPC: tt.nextPC, Memory: NewMemory()}
-			initialState := &State{PC: 0, NextPC: tt.nextPC, Memory: state.Memory}
+			state := &State{Threads: []ThreadContext{
+				{
+					State: &ThreadState{
+						FutexAddr: ^uint32(0),
+						PC:        0,
+						NextPC:    tt.nextPC,
+					},
+				},
+			}, Memory: NewMemory()}
+			initialState := &State{Threads: []ThreadContext{
+				{
+					State: &ThreadState{
+						FutexAddr: ^uint32(0),
+						PC:        0,
+						NextPC:    tt.nextPC,
+					},
+				},
+			}, Memory: state.Memory}
 			state.Memory.SetMemory(0, tt.insn)
 
+			threadState := state.Threads[state.CurrentThread].State
 			// set the return address ($ra) to jump into when test completes
-			state.Registers[31] = endAddr
+			threadState.Registers[31] = endAddr
 
 			us := NewInstrumentedState(state, nil, os.Stdout, os.Stderr)
 			require.Panics(t, func() { _, _ = us.Step(true) })
@@ -307,9 +341,10 @@ func TestHelloEVM(t *testing.T) {
 		if goState.state.Exited {
 			break
 		}
-		insn := state.Memory.GetMemory(state.PC)
+		threadState := goState.state.Threads[goState.state.CurrentThread].State
+		insn := state.Memory.GetMemory(threadState.PC)
 		if i%1000 == 0 { // avoid spamming test logs, we are executing many steps
-			t.Logf("step: %4d pc: 0x%08x insn: 0x%08x", state.Step, state.PC, insn)
+			t.Logf("step: %4d pc: 0x%08x insn: 0x%08x", state.Step, threadState.PC, insn)
 		}
 
 		evm := NewMIPSEVM(contracts, addrs)
@@ -359,9 +394,10 @@ func TestClaimEVM(t *testing.T) {
 			break
 		}
 
-		insn := state.Memory.GetMemory(state.PC)
+		threadState := goState.state.Threads[goState.state.CurrentThread].State
+		insn := state.Memory.GetMemory(threadState.PC)
 		if i%1000 == 0 { // avoid spamming test logs, we are executing many steps
-			t.Logf("step: %4d pc: 0x%08x insn: 0x%08x", state.Step, state.PC, insn)
+			t.Logf("step: %4d pc: 0x%08x insn: 0x%08x", state.Step, threadState.PC, insn)
 		}
 
 		stepWitness, err := goState.Step(true)
@@ -382,4 +418,3 @@ func TestClaimEVM(t *testing.T) {
 	require.Equal(t, expectedStdOut, stdOutBuf.String(), "stdout")
 	require.Equal(t, expectedStdErr, stdErrBuf.String(), "stderr")
 }
-*/
