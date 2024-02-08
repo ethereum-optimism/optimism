@@ -42,11 +42,11 @@ func InjectState(transitionState *core.Genesis, db ethdb.Database, deployConfig 
 	state := statedb.RawDump(config)
 	// Reset all acounts
 	for address := range state.Accounts {
-		statedb.SetNonce(address, 0)
-		statedb.SetBalance(address, common.Big0)
-		statedb.SetCode(address, nil)
+		statedb.SetNonce(common.HexToAddress(address), 0)
+		statedb.SetBalance(common.HexToAddress(address), common.Big0)
+		statedb.SetCode(common.HexToAddress(address), nil)
 		for k := range state.Accounts[address].Storage {
-			statedb.SetState(address, k, common.Hash{})
+			statedb.SetState(common.HexToAddress(address), k, common.Hash{})
 		}
 	}
 	// Add new accounts

@@ -14,13 +14,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/inject"
 
-	"github.com/mattn/go-isatty"
 	"github.com/urfave/cli/v2"
 )
 
 func main() {
-	log.Root().SetHandler(log.StreamHandler(os.Stderr, log.TerminalFormat(isatty.IsTerminal(os.Stderr.Fd()))))
-
 	app := &cli.App{
 		Name:  "inject-state",
 		Usage: "Inject state into the geth db",

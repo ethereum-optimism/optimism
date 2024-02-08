@@ -32,7 +32,13 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
 
     /// @notice Initializes the contract.
     /// @param _superchainConfig Address of the SuperchainConfig contract on this network.
-    function initialize(SuperchainConfig _superchainConfig) public reinitializer(Constants.INITIALIZER) {
+    function initialize(
+        SuperchainConfig _superchainConfig,
+        OptimismPortal _portal
+    )
+        public
+        reinitializer(Constants.INITIALIZER)
+    {
         superchainConfig = _superchainConfig;
         portal = _portal;
         __CrossDomainMessenger_init({ _otherMessenger: CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER) });

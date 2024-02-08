@@ -157,12 +157,12 @@ var Subcommands = cli.Commands{
 					return err
 				}
 			}
-			l1Genesis, err := genesis.BuildL1DeveloperGenesis(config, dump, &genesis.L1Deployments{}, false)
+			l1Genesis, err := genesis.BuildL1DeveloperGenesis(config, dump, &genesis.L1Deployments{})
 			if err != nil {
 				return err
 			}
 
-			return writeJSONFile(ctx.String("outfile.l1"), l1Genesis)
+			return jsonutil.WriteJSON(ctx.String("outfile.l1"), l1Genesis, 0o666)
 		},
 	},
 	{

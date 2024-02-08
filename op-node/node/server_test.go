@@ -198,7 +198,7 @@ func TestSyncStatus(t *testing.T) {
 }
 
 func TestTimeout(t *testing.T) {
-	log := testlog.Logger(t, log.LvlError)
+	log := testlog.Logger(t, log.LevelError)
 	l2Client := &testutils.MockL2Client{}
 	drClient := &mockDriverClient{}
 	rng := rand.New(rand.NewSource(1234))

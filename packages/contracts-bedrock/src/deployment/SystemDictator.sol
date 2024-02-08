@@ -71,10 +71,13 @@ contract SystemDictator is OwnableUpgradeable {
      * @notice Dynamic L2OutputOracle config.
      */
     struct L2OutputOracleDynamicConfig {
+        uint256 l2OutputOracleSubmissionInterval;
+        uint256 l2BlockTime;
         uint256 l2OutputOracleStartingBlockNumber;
         uint256 l2OutputOracleStartingTimestamp;
         address l2OutputOracleProposer;
         address l2OutputOracleChallenger;
+        uint256 finalizationPeriodSeconds;
     }
 
     /**
@@ -311,7 +314,9 @@ contract SystemDictator is OwnableUpgradeable {
                     config.systemConfigConfig.batcherHash,
                     config.systemConfigConfig.gasLimit,
                     config.systemConfigConfig.unsafeBlockSigner,
-                    Constants.DEFAULT_RESOURCE_CONFIG()
+                    Constants.DEFAULT_RESOURCE_CONFIG(),
+                    config.systemConfigConfig.batchInbox,
+                    config.systemConfigConfig.systemConfigAddressConfig
                 )
             )
         );
@@ -400,8 +405,13 @@ contract SystemDictator is OwnableUpgradeable {
             abi.encodeCall(
                 L2OutputOracle.initialize,
                 (
+                    l2OutputOracleDynamicConfig.l2OutputOracleSubmissionInterval,
+                    l2OutputOracleDynamicConfig.l2BlockTime,
                     l2OutputOracleDynamicConfig.l2OutputOracleStartingBlockNumber,
-                    l2OutputOracleDynamicConfig.l2OutputOracleStartingTimestamp
+                    l2OutputOracleDynamicConfig.l2OutputOracleStartingTimestamp,
+                    l2OutputOracleDynamicConfig.l2OutputOracleProposer,
+                    l2OutputOracleDynamicConfig.l2OutputOracleChallenger,
+                    l2OutputOracleDynamicConfig.finalizationPeriodSeconds
                 )
             )
         );
@@ -411,7 +421,12 @@ contract SystemDictator is OwnableUpgradeable {
             payable(config.proxyAddressConfig.optimismPortalProxy),
             address(config.implementationAddressConfig.optimismPortalImpl),
             abi.encodeCall(
-                OptimismPortal.initialize, (SuperchainConfig(config.proxyAddressConfig.superchainConfigProxy))
+                OptimismPortal.initialize,
+                (
+                    L2OutputOracle(config.proxyAddressConfig.l2OutputOracleProxy),
+                    SystemConfig(config.proxyAddressConfig.systemConfigProxy),
+                    SuperchainConfig(config.proxyAddressConfig.superchainConfigProxy)
+                )
             )
         );
 
@@ -423,7 +438,8 @@ contract SystemDictator is OwnableUpgradeable {
 
         // Try to initialize the L1CrossDomainMessenger, only fail if it's already been initialized.
         try L1CrossDomainMessenger(config.proxyAddressConfig.l1CrossDomainMessengerProxy).initialize(
-            SuperchainConfig(config.proxyAddressConfig.superchainConfigProxy)
+            SuperchainConfig(config.proxyAddressConfig.superchainConfigProxy),
+            OptimismPortal(payable(config.proxyAddressConfig.optimismPortalProxy))
         ) {
             // L1CrossDomainMessenger is the one annoying edge case difference between existing
             // networks and fresh networks because in existing networks it'll already be
@@ -477,6 +493,7 @@ contract SystemDictator is OwnableUpgradeable {
 
         // Try to initialize the L1StandardBridge, only fail if it's already been initialized.
         try L1StandardBridge(payable(config.proxyAddressConfig.l1StandardBridgeProxy)).initialize(
+            L1CrossDomainMessenger(config.proxyAddressConfig.l1CrossDomainMessengerProxy),
             SuperchainConfig(config.proxyAddressConfig.superchainConfigProxy)
         ) {
             // L1StandardBridge is the one annoying edge case difference between existing
@@ -512,6 +529,7 @@ contract SystemDictator is OwnableUpgradeable {
 
         // Try to initialize the L1ERC721Bridge, only fail if it's already been initialized.
         try L1ERC721Bridge(payable(config.proxyAddressConfig.l1ERC721BridgeProxy)).initialize(
+            L1CrossDomainMessenger(config.proxyAddressConfig.l1CrossDomainMessengerProxy),
             SuperchainConfig(config.proxyAddressConfig.superchainConfigProxy)
         ) {
             // L1ERC721Bridge is the one annoying edge case difference between existing
