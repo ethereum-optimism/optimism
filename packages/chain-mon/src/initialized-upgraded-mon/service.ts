@@ -284,31 +284,31 @@ const topic_initialized = '0x7f26b83ff96e1f2b6a682f133852f6798a09c465da95921460c
 
 const topic_upgraded = '0xbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b'
 
-type InitializedMonOptions = {
+type InitializedUpgradedMonOptions = {
   rpc: Provider
   startBlockNumber: number
 }
 
-type InitializedMonMetrics = {
+type InitializedUpgradedMonMetrics = {
   initializedCalls: Counter
   upgradedCalls: Counter
   unexpectedRpcErrors: Counter
 }
 
-type InitializedMonState = {
+type InitializedUpgradedMonState = {
   chainId: number
   highestUncheckedBlockNumber: number
 }
 
-export class InitializedMonService extends BaseServiceV2<
-  InitializedMonOptions,
-  InitializedMonMetrics,
-  InitializedMonState
+export class InitializedUpgradedMonService extends BaseServiceV2<
+  InitializedUpgradedMonOptions,
+  InitializedUpgradedMonMetrics,
+  InitializedUpgradedMonState
 > {
-  constructor(options?: Partial<InitializedMonOptions & StandardOptions>) {
+  constructor(options?: Partial<InitializedUpgradedMonOptions & StandardOptions>) {
     super({
       version,
-      name: 'initialized-mon',
+      name: 'initialized-upgraded-mon',
       loop: true,
       options: {
         loopIntervalMs: 1000,
@@ -447,6 +447,6 @@ export class InitializedMonService extends BaseServiceV2<
 }
 
 if (require.main === module) {
-  const service = new InitializedMonService()
+  const service = new InitializedUpgradedMonService()
   service.run()
 }
