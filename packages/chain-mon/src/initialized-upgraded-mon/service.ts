@@ -280,9 +280,11 @@ const networks = {
   },
 }
 
-const topic_initialized = '0x7f26b83ff96e1f2b6a682f133852f6798a09c465da95921460cefb3847402498'
+const topic_initialized =
+  '0x7f26b83ff96e1f2b6a682f133852f6798a09c465da95921460cefb3847402498'
 
-const topic_upgraded = '0xbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b'
+const topic_upgraded =
+  '0xbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b'
 
 type InitializedUpgradedMonOptions = {
   rpc: Provider
@@ -305,7 +307,9 @@ export class InitializedUpgradedMonService extends BaseServiceV2<
   InitializedUpgradedMonMetrics,
   InitializedUpgradedMonState
 > {
-  constructor(options?: Partial<InitializedUpgradedMonOptions & StandardOptions>) {
+  constructor(
+    options?: Partial<InitializedUpgradedMonOptions & StandardOptions>
+  ) {
     super({
       version,
       name: 'initialized-upgraded-mon',
@@ -358,7 +362,10 @@ export class InitializedUpgradedMonService extends BaseServiceV2<
     const l1StartingBlockTag = networks[this.state.chainId].l1StartingBlockTag
 
     if (this.options.startBlockNumber === -1) {
-      const block_number = l1StartingBlockTag != null ? (await this.options.rpc.getBlock(l1StartingBlockTag)).number : 0
+      const block_number =
+        l1StartingBlockTag != null
+          ? (await this.options.rpc.getBlock(l1StartingBlockTag)).number
+          : 0
       this.state.highestUncheckedBlockNumber = block_number
     } else {
       this.state.highestUncheckedBlockNumber = this.options.startBlockNumber
@@ -392,7 +399,8 @@ export class InitializedUpgradedMonService extends BaseServiceV2<
 
     for (const transaction of transactions) {
       for (const contract of contracts) {
-        const to = transaction.to != null ? transaction.to : transaction["creates"]
+        const to =
+          transaction.to != null ? transaction.to : transaction['creates']
         if (compareAddrs(contract.address, to)) {
           try {
             const transactionReceipt = await transaction.wait()
@@ -419,7 +427,10 @@ export class InitializedUpgradedMonService extends BaseServiceV2<
             }
           } catch (err) {
             // If error is due to transaction failing, ignore transaction
-            if (err.message.length >= 18 && err.message.slice(0, 18) === 'transaction failed') {
+            if (
+              err.message.length >= 18 &&
+              err.message.slice(0, 18) === 'transaction failed'
+            ) {
               break
             }
             // Otherwise, we have an unexpected RPC error
