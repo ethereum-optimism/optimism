@@ -19,7 +19,7 @@ import (
 
 func TestDAClient(t *testing.T) {
 	store := memorydb.New()
-	logger := testlog.Logger(t, log.LvlDebug)
+	logger := testlog.Logger(t, log.LevelDebug)
 
 	ctx := context.Background()
 

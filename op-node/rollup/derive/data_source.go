@@ -61,6 +61,8 @@ func NewDataSourceFactory(log log.Logger, cfg *rollup.Config, fetcher L1Transact
 
 // OpenData returns the appropriate data source for the L1 block `ref`.
 func (ds *DataSourceFactory) OpenData(ctx context.Context, ref eth.L1BlockRef, batcherAddr common.Address) (DataIter, error) {
+	// Creates a data iterator from blob or calldata source so we can forward it to the plasma source
+	// if enabled as it still requires an L1 data source for fetching input commmitments.
 	var src DataIter
 	if ds.ecotoneTime != nil && ref.Time >= *ds.ecotoneTime {
 		if ds.blobsFetcher == nil {
@@ -70,8 +72,8 @@ func (ds *DataSourceFactory) OpenData(ctx context.Context, ref eth.L1BlockRef, b
 	} else {
 		src = NewCalldataSource(ctx, ds.log, ds.dsCfg, ds.fetcher, ref, batcherAddr)
 	}
-	// plasma source does need access to the commitments onchain so we pass the source.
 	if ds.dsCfg.plasmaEnabled {
+		// plasma([calldata | blobdata](l1Ref)) -> data
 		return NewPlasmaDataSource(ds.log, src, ds.plasmaFetcher, ref.ID()), nil
 	}
 	return src, nil

@@ -24,7 +24,7 @@ import (
 // TestPlasmaDataSource verifies that commitments are correctly read from l1 and then
 // forwarded to the Plasma DA to return the correct inputs in the iterator.
 func TestPlasmaDataSource(t *testing.T) {
-	logger := testlog.Logger(t, log.LvlDebug)
+	logger := testlog.Logger(t, log.LevelDebug)
 	ctx := context.Background()
 
 	rng := rand.New(rand.NewSource(1234))
@@ -33,10 +33,7 @@ func TestPlasmaDataSource(t *testing.T) {
 
 	storage := plasma.NewMockDAClient(logger)
 
-	da := &plasma.DA{
-		Log:     logger,
-		Storage: storage,
-	}
+	da := plasma.NewPlasmaDAWithStorage(logger, storage)
 
 	// Create rollup genesis and config
 	l1Time := uint64(2)
