@@ -78,7 +78,7 @@
     }
   },
   "dependencies": {
-    "@testing-library/react": "^14.1.2",
+    "@testing-library/react": "^14.2.1",
     "@types/change-case": "^2.3.1",
     "change-case": "4.1.2",
     "react": "^18.2.0",
