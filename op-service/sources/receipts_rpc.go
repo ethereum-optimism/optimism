@@ -70,11 +70,12 @@ func NewRPCReceiptsFetcher(client rpcClient, log log.Logger, config RPCReceiptsC
 	}
 }
 
-func (f *RPCReceiptsFetcher) FetchReceipts(ctx context.Context, block eth.BlockID, txHashes []common.Hash) (result types.Receipts, err error) {
+func (f *RPCReceiptsFetcher) FetchReceipts(ctx context.Context, blockInfo eth.BlockInfo, txHashes []common.Hash) (result types.Receipts, err error) {
 	m := f.PickReceiptsMethod(len(txHashes))
+	block := eth.ToBlockID(blockInfo)
 	switch m {
 	case EthGetTransactionReceiptBatch:
-		result, err = f.basic.FetchReceipts(ctx, block, txHashes)
+		result, err = f.basic.FetchReceipts(ctx, blockInfo, txHashes)
 	case AlchemyGetTransactionReceipts:
 		var tmp receiptsWrapper
 		err = f.client.CallContext(ctx, &tmp, "alchemy_getTransactionReceipts", blockHashParameter{BlockHash: block.Hash})
@@ -101,6 +102,10 @@ func (f *RPCReceiptsFetcher) FetchReceipts(ctx context.Context, block eth.BlockI
 
 	if err != nil {
 		f.OnReceiptsMethodErr(m, err)
+		return nil, err
+	}
+
+	if err = validateReceipts(block, blockInfo.ReceiptHash(), txHashes, result); err != nil {
 		return nil, err
 	}
 

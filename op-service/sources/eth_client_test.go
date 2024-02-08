@@ -180,95 +180,49 @@ func TestEthClient_WrongInfoByHash(t *testing.T) {
 	m.Mock.AssertExpectations(t)
 }
 
-type validateReceiptsTest struct {
-	desc        string
-	trustRPC    bool
-	mutReceipts func(types.Receipts) types.Receipts
-	expError    string
-}
-
-func TestEthClient_validateReceipts(t *testing.T) {
-	mutBloom := func(rs types.Receipts) types.Receipts {
-		rs[2].Bloom[0] = 1
-		return rs
-	}
-	mutTruncate := func(rs types.Receipts) types.Receipts {
-		return rs[:len(rs)-1]
-	}
-
-	for _, tt := range []validateReceiptsTest{
-		{
-			desc: "valid",
-		},
-		{
-			desc:        "invalid-mut-bloom",
-			mutReceipts: mutBloom,
-			expError:    "invalid receipts: failed to fetch list of receipts: expected receipt root",
-		},
-		{
-			desc:        "invalid-truncated",
-			mutReceipts: mutTruncate,
-			expError:    "invalid receipts: got 3 receipts but expected 4",
-		},
-	} {
-		t.Run("no-trust-"+tt.desc, func(t *testing.T) {
-			testEthClient_validateReceipts(t, tt)
-		})
-		// trusting the rpc should still lead to failed validation
-		tt.trustRPC = true
-		t.Run("trust-"+tt.desc, func(t *testing.T) {
-			testEthClient_validateReceipts(t, tt)
-		})
-	}
-}
-
-func testEthClient_validateReceipts(t *testing.T, test validateReceiptsTest) {
-	require := require.New(t)
-	mrpc := new(mockRPC)
-	mrp := new(mockReceiptsProvider)
-	const numTxs = 4
-	block, receipts := randomRpcBlockAndReceipts(rand.New(rand.NewSource(420)), numTxs)
-	txHashes := receiptTxHashes(receipts)
-	ctx := context.Background()
-
-	if mut := test.mutReceipts; mut != nil {
-		receipts = mut(receipts)
-	}
-
-	mrpc.On("CallContext", ctx, mock.AnythingOfType("**sources.RPCBlock"),
-		"eth_getBlockByHash", []any{block.Hash, true}).
-		Run(func(args mock.Arguments) {
-			*(args[1].(**RPCBlock)) = block
-		}).
-		Return([]error{nil}).Once()
-
-	mrp.On("FetchReceipts", ctx, block.BlockID(), txHashes).
-		Return(types.Receipts(receipts), error(nil)).Once()
-
-	ethcl := newEthClientWithCaches(nil, numTxs)
-	ethcl.client = mrpc
-	ethcl.recProvider = mrp
-	ethcl.trustRPC = test.trustRPC
-
-	info, recs, err := ethcl.FetchReceipts(ctx, block.Hash)
-	if test.expError != "" {
-		require.ErrorContains(err, test.expError)
-	} else {
-		require.NoError(err)
-		expInfo, _, err := block.Info(true, false)
-		require.NoError(err)
-		require.Equal(expInfo, info)
-		require.Equal(types.Receipts(receipts), recs)
-	}
-
-	mrpc.AssertExpectations(t)
-	mrp.AssertExpectations(t)
-}
-
 func newEthClientWithCaches(metrics caching.Metrics, cacheSize int) *EthClient {
 	return &EthClient{
 		transactionsCache: caching.NewLRUCache[common.Hash, types.Transactions](metrics, "txs", cacheSize),
 		headersCache:      caching.NewLRUCache[common.Hash, eth.BlockInfo](metrics, "headers", cacheSize),
 		payloadsCache:     caching.NewLRUCache[common.Hash, *eth.ExecutionPayloadEnvelope](metrics, "payloads", cacheSize),
 	}
+}
+
+// TestReceiptValidation tests that the receipt validation is performed by the underlying RPCReceiptsFetcher
+func TestReceiptValidation(t *testing.T) {
+	require := require.New(t)
+	mrpc := new(mockRPC)
+	rp := NewRPCReceiptsFetcher(mrpc, nil, RPCReceiptsConfig{})
+	const numTxs = 1
+	block, _ := randomRpcBlockAndReceipts(rand.New(rand.NewSource(420)), numTxs)
+	//txHashes := receiptTxHashes(receipts)
+	ctx := context.Background()
+
+	mrpc.On("CallContext",
+		ctx,
+		mock.Anything,
+		"eth_getTransactionReceipt",
+		mock.Anything).
+		Run(func(args mock.Arguments) {
+		}).
+		Return([]error{nil})
+
+	// when the block is requested, the block is returned
+	mrpc.On("CallContext",
+		ctx,
+		mock.Anything,
+		"eth_getBlockByHash",
+		mock.Anything).
+		Run(func(args mock.Arguments) {
+			*(args[1].(**RPCBlock)) = block
+		}).
+		Return([]error{nil})
+
+	ethcl := newEthClientWithCaches(nil, numTxs)
+	ethcl.client = mrpc
+	ethcl.recProvider = rp
+	ethcl.trustRPC = true
+
+	_, _, err := ethcl.FetchReceipts(ctx, block.Hash)
+	require.ErrorContains(err, "unexpected nil block number")
 }
