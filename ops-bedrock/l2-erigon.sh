@@ -44,7 +44,7 @@ if [ -n "$CHAIN_NAME" ]; then
   exit 1
 fi
 
-if [ ! -z "$CHAIN_ID" ]; then
+if [ -n "$CHAIN_ID" ]; then
   ERIGON_FLAGS="${ERIGON_FLAGS} --networkid ${CHAIN_ID}"
 fi
 
