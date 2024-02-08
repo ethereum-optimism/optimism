@@ -1775,6 +1775,21 @@ workflows:
           context:
             - oplabs-gcr-release
       - docker-build:
+          name: op-dispute-mon-docker-release
+          filters:
+            tags:
+              only: /^op-dispute-mon\/v.*/
+            branches:
+              ignore: /.*/
+          docker_name: op-dispute-mon
+          docker_tags: <<pipeline.git.revision>>
+          requires: ['op-stack-go-docker-build-release']
+          platforms: "linux/amd64,linux/arm64"
+          publish: true
+          release: true
+          context:
+            - oplabs-gcr-release
+      - docker-build:
           name: op-conductor-docker-release
           filters:
             tags:
