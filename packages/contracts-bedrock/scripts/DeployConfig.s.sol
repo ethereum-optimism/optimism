@@ -74,6 +74,7 @@ contract DeployConfig is Script {
     uint256 public daResolveWindow;
     uint256 public daBondSize;
     uint256 public daResolverRefundPercentage;
+    bool public usePlasma;
 
     function read(string memory _path) public {
         console.log("DeployConfig: reading file %s", _path);
@@ -140,7 +141,9 @@ contract DeployConfig is Script {
         preimageOracleChallengePeriod = stdJson.readUint(_json, "$.preimageOracleChallengePeriod");
         preimageOracleCancunActivationTimestamp = stdJson.readUint(_json, "$.preimageOracleCancunActivationTimestamp");
 
-        if (vm.keyExists(_json, "$.daChallengeWindow")) {
+	usePlasma = stdJson.readBool(_json, "$.usePlasma");
+
+        if (usePlasma) {
             console.log("DeployConfig: initializing plasma parameters");
             daChallengeWindow = stdJson.readUint(_json, "$.daChallengeWindow");
             daResolveWindow = stdJson.readUint(_json, "$.daResolveWindow");

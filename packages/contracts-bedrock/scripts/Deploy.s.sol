@@ -283,7 +283,9 @@ contract Deploy is Deployer {
         deploySafe();
         setupSuperchain();
         setupOpChain();
-        setupOpPlasma();
+        if (cfg.usePlasma()) {
+            setupOpPlasma();
+	}
     }
 
     ////////////////////////////////////////////////////////////////
@@ -398,12 +400,10 @@ contract Deploy is Deployer {
 
     /// @notice Add Plasma setup to the OP chain
     function setupOpPlasma() public {
-        if (cfg.daChallengeWindow() > 0) {
-            console.log("Deploying OP Plasma");
-            deployDataAvailabilityChallengeProxy();
-            deployDataAvailabilityChallenge();
-            initializeDataAvailabilityChallenge();
-        }
+        console.log("Deploying OP Plasma");
+        deployDataAvailabilityChallengeProxy();
+        deployDataAvailabilityChallenge();
+        initializeDataAvailabilityChallenge();
     }
 
     ////////////////////////////////////////////////////////////////

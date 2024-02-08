@@ -247,7 +247,8 @@ type DeployConfig struct {
 	DaResolveWindow uint64 `json:"daResolveWindow"`
 	// DaBondSize represents the required bond size to initiate a data availability challenge.
 	DaBondSize uint64 `json:"daBondSize"`
-	// DaResolverRefundPercentage represents the percentage of the resolving cost to be refunded to the resolver.
+	// DaResolverRefundPercentage represents the percentage of the resolving cost to be refunded to the resolver
+	// such as 100 means 100% refund.
 	DaResolverRefundPercentage uint64 `json:"daResolverRefundPercentage"`
 
 	// When Cancun activates. Relative to L1 genesis.
@@ -626,6 +627,8 @@ type L1Deployments struct {
 	SystemConfigProxy                 common.Address `json:"SystemConfigProxy"`
 	ProtocolVersions                  common.Address `json:"ProtocolVersions"`
 	ProtocolVersionsProxy             common.Address `json:"ProtocolVersionsProxy"`
+	DataAvailabilityChallenge         common.Address `json:"DataAvailabilityChallenge"`
+	DataAvailabilityChallengeProxy    common.Address `json:"DataAvailabilityChallengeProxy"`
 }
 
 // GetName will return the name of the contract given an address.
