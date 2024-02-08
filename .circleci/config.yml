@@ -1791,14 +1791,14 @@ workflows:
           requires: ['op-stack-go-docker-build']
           save_image_tag: <<pipeline.git.revision>> # for devnet later
       - cannon-prestate:
-          requires: ["op-stack-go-lint"]
+          requires:
+            - go-mod-download
       - devnet-hardhat:
           requires:
-            - op-node-docker-build
+            - pnpm-monorepo
             - op-batcher-docker-build
             - op-proposer-docker-build
-            - l1-geth-version-check
-            - devnet-allocs
+            - op-node-docker-build
             - cannon-prestate
       - devnet:
           matrix:
