@@ -6,14 +6,13 @@ parameters:
     default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:v0.42.0
   base_image:
     type: string
-    default: ubuntu-2204:2022.07.1
+    default: ubuntu-2204:2024.01.1
 
 orbs:
   go: circleci/go@1.8.0
   gcp-cli: circleci/gcp-cli@3.0.1
   slack: circleci/slack@4.10.1
   shellcheck: circleci/shellcheck@3.2.0
-  python: circleci/python@2.1.1
 commands:
   gcp-oidc-authenticate:
     description: "Authenticate with GCP using a CircleCI OIDC token."
