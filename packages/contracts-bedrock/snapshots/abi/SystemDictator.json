@@ -151,6 +151,11 @@
             "type": "address"
           },
           {
+            "internalType": "contract AddressDeprecator",
+            "name": "addressDeprecatorImpl",
+            "type": "address"
+          },
+          {
             "internalType": "contract SystemConfig",
             "name": "systemConfigImpl",
             "type": "address"
@@ -499,6 +504,11 @@
                 "type": "address"
               },
               {
+                "internalType": "contract AddressDeprecator",
+                "name": "addressDeprecatorImpl",
+                "type": "address"
+              },
+              {
                 "internalType": "contract SystemConfig",
                 "name": "systemConfigImpl",
                 "type": "address"
@@ -729,23 +739,8 @@
     "outputs": [
       {
         "internalType": "address",
-        "name": "l2OutputOracle",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
         "name": "portalGuardian",
         "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "systemConfig",
-        "type": "address"
-      },
-      {
-        "internalType": "bool",
-        "name": "paused",
-        "type": "bool"
       }
     ],
     "stateMutability": "view",
@@ -881,23 +876,8 @@
         "components": [
           {
             "internalType": "address",
-            "name": "l2OutputOracle",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
             "name": "portalGuardian",
             "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "systemConfig",
-            "type": "address"
-          },
-          {
-            "internalType": "bool",
-            "name": "paused",
-            "type": "bool"
           }
         ],
         "internalType": "struct SystemDictator.OptimismPortalDynamicConfig",
