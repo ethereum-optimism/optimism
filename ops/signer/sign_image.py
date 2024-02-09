@@ -13,10 +13,6 @@ import re
 
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s',stream=sys.stdout,level=logging.INFO)
 
-
-script_path = os.path.realpath(__file__)
-script_dir = os.path.dirname(script_path)
-
 def send_request(url, method="GET", headers=None, data=None, access_token=None):
 
     """
