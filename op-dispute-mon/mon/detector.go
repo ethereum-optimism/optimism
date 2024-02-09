@@ -84,17 +84,20 @@ func (d *detector) fetchGameMetadata(ctx context.Context, game types.GameMetadat
 }
 
 func (d *detector) checkAgreement(ctx context.Context, addr common.Address, blockNum uint64, rootClaim common.Hash, status types.GameStatus) (detectionBatch, error) {
-	agree, expected, err := d.validator.CheckRootAgreement(ctx, blockNum, rootClaim)
+	agree, expectedClaim, err := d.validator.CheckRootAgreement(ctx, blockNum, rootClaim)
 	if err != nil {
 		return detectionBatch{}, err
 	}
 	batch := detectionBatch{}
 	batch.Update(status, agree)
-	if !agree && status == types.GameStatusChallengerWon {
-		d.logger.Error("Challenger won but expected defender to win", "gameAddr", addr, "rootClaim", rootClaim, "expected", expected)
-	}
-	if !agree && status == types.GameStatusDefenderWon {
-		d.logger.Error("Defender won but expected challenger to win", "gameAddr", addr, "rootClaim", rootClaim, "expected", expected)
+	if status != types.GameStatusInProgress {
+		expectedResult := types.GameStatusDefenderWon
+		if !agree {
+			expectedResult = types.GameStatusChallengerWon
+		}
+		if status != expectedResult {
+			d.logger.Error("Unexpected game result", "gameAddr", addr, "expectedResult", expectedResult, "actualResult", status, "rootClaim", rootClaim, "correctClaim", expectedClaim)
+		}
 	}
 	return batch, nil
 }
