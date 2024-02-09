@@ -111,6 +111,10 @@ const deployFn: DeployFunction = async (hre) => {
       ),
       l1ERC721BridgeImpl: await getDeploymentAddress(hre, 'L1ERC721Bridge'),
       portalSenderImpl: await getDeploymentAddress(hre, 'PortalSender'),
+      addressDeprecatorImpl: await getDeploymentAddress(
+        hre,
+        'AddressDeprecator'
+      ),
       systemConfigImpl: await getDeploymentAddress(hre, 'SystemConfig'),
       protocolVersionsImpl: await getDeploymentAddress(hre, 'ProtocolVersions'),
       superchainConfigImpl: await getDeploymentAddress(hre, 'SuperchainConfig'),

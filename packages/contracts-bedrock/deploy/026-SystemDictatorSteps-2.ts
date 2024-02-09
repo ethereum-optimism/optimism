@@ -134,20 +134,18 @@ const deployFn: DeployFunction = async (hre) => {
 
       await SystemDictator.updateDynamicConfig(
         {
+          l2OutputOracleSubmissionInterval:
+            hre.deployConfig.l2OutputOracleSubmissionInterval,
+          l2BlockTime: hre.deployConfig.l2BlockTime,
           l2OutputOracleStartingBlockNumber:
             hre.deployConfig.l2OutputOracleStartingBlockNumber,
           l2OutputOracleStartingTimestamp: deployL2StartingTimestamp,
           l2OutputOracleProposer: hre.deployConfig.l2OutputOracleProposer,
           l2OutputOracleChallenger: hre.deployConfig.l2OutputOracleChallenger,
+          finalizationPeriodSeconds: hre.deployConfig.finalizationPeriodSeconds,
         },
         {
-          l2OutputOracle: await getDeploymentAddress(
-            hre,
-            'L2OutputOracleProxy'
-          ),
           portalGuardian: hre.deployConfig.portalGuardian,
-          systemConfig: await getDeploymentAddress(hre, 'SystemConfigProxy'),
-          paused: false, // do not pause the the OptimismPortal when initializing
         }
       )
     } else {
