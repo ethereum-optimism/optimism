@@ -143,8 +143,10 @@ export class InitializedUpgradedMonService extends BaseServiceV2<
 
     try {
       this.state.contracts = JSON.parse(this.options.contracts)
-    } catch(e) {
-       throw new Error("unable to start service because provided options is not valid json")
+    } catch (e) {
+      throw new Error(
+        'unable to start service because provided options is not valid json'
+      )
     }
   }
 
