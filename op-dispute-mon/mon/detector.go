@@ -92,6 +92,7 @@ func (d *detector) Detect(ctx context.Context, games []types.GameMetadata) {
 	}
 	d.metrics.RecordGamesStatus(statBatch.inProgress, statBatch.defenderWon, statBatch.challengerWon)
 	d.recordBatch(detectBatch)
+	d.logger.Info("Completed updating games", "count", len(games))
 }
 
 func (d *detector) recordBatch(batch detectionBatch) {
