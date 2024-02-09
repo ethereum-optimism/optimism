@@ -1029,6 +1029,33 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
     }
 
+    /// @dev Tests that `finalizeWithdrawalTransaction` reverts if the respected game type was updated after the
+    ///      dispute game was created.
+    function test_finalizeWithdrawalTransaction_gameOlderThanRespectedGameTypeUpdate_reverts() external {
+        vm.expectEmit(true, true, true, true);
+        emit WithdrawalProven(_withdrawalHash, alice, bob);
+        optimismPortal2.proveWithdrawalTransaction({
+            _tx: _defaultTx,
+            _disputeGameIndex: _proposedGameIndex,
+            _outputRootProof: _outputRootProof,
+            _withdrawalProof: _withdrawalProof
+        });
+
+        // Warp past the finalization period.
+        vm.warp(block.timestamp + optimismPortal2.proofMaturityDelaySeconds() + 1);
+
+        // Resolve the dispute game.
+        game.resolveClaim(0);
+        game.resolve();
+
+        // Change the respected game type in the portal.
+        vm.prank(optimismPortal2.sauron());
+        optimismPortal2.setRespectedGameType(GameType.wrap(0xFF));
+
+        vm.expectRevert("OptimismPortal: dispute game created before respected game type was updated");
+        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
+    }
+
     /// @dev Tests an e2e prove -> finalize path, checking the edges of each delay for correctness.
     function test_finalizeWithdrawalTransaction_delayEdges_succeeds() external {
         // Prove the withdrawal transaction.
