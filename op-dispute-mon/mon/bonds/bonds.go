@@ -8,11 +8,10 @@ import (
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/holiman/uint256"
 	"golang.org/x/exp/maps"
 )
 
-var noBond = new(uint256.Int).Sub(uint256.NewInt(0), uint256.NewInt(1)).ToBig()
+var noBond = new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 128), big.NewInt(1))
 
 type BondContract interface {
 	GetCredits(ctx context.Context, block batching.Block, recipients ...common.Address) ([]*big.Int, error)
