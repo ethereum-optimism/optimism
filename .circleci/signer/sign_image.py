@@ -27,7 +27,8 @@ def send_request(url, method="GET", headers=None, data=None, access_token=None):
     :return: A dictionary with the status code, response data, and any error message.
     """
     try:
-
+        if not url.startswith("https://"):
+            raise ValueError("URL must start with https:// for security reasons")
         if not access_token:
             try:
                 access_token=print_access_token()
@@ -56,9 +57,13 @@ def send_request(url, method="GET", headers=None, data=None, access_token=None):
         response.raise_for_status()
 
         # Return the response status code and content
+        try:
+            response_data = response.json()
+        except ValueError:
+            response_data = response.text
         return {
             "status_code": response.status_code,
-            "data": response.json(),  # or response.text if expecting text
+            "data": response_data,  # or response.text if expecting text
             "error": None
         }
     except requests.RequestException as e:
