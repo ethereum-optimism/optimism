@@ -70,6 +70,7 @@ type TxManager interface {
 
 	// Close the underlying connection
 	Close()
+	IsClosed() bool
 }
 
 // ETHBackend is the set of methods that the transaction manager uses to resubmit gas & determine
@@ -785,6 +786,11 @@ func (m *SimpleTxManager) checkBlobFeeLimits(blobBaseFee, bumpedBlobFee *big.Int
 			bumpedBlobFee, m.cfg.FeeLimitMultiplier, ErrBlobFeeLimit)
 	}
 	return nil
+}
+
+// IsClosed returns true if the tx manager is closed.
+func (m *SimpleTxManager) IsClosed() bool {
+	return m.closed.Load()
 }
 
 // calcThresholdValue returns ceil(x * priceBumpPercent / 100) for non-blob txs, or
