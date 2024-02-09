@@ -12,7 +12,7 @@ import (
 )
 
 func TestMaxValue(t *testing.T) {
-	require.Equal(t, noBond.String(), "115792089237316195423570985008687907853269984665640564039457584007913129639935")
+	require.Equal(t, noBond.String(), "340282366920938463463374607431768211455")
 }
 
 func TestCalculateRequiredCollateral(t *testing.T) {
@@ -41,8 +41,8 @@ func TestCalculateRequiredCollateral(t *testing.T) {
 	}
 	contract := &stubBondContract{
 		credits: map[common.Address]*big.Int{
-			common.Address{0x01}: big.NewInt(3),
-			common.Address{0x03}: big.NewInt(8),
+			{0x01}: big.NewInt(3),
+			{0x03}: big.NewInt(8),
 		},
 	}
 	collateral, err := CalculateRequiredCollateral(context.Background(), contract, common.Hash{0xab}, claims)
