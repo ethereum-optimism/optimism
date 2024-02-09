@@ -338,9 +338,8 @@ jobs:
             - run:
                 name: Sign
                 command: |
-                  SIGNER_FOLDER="./.circleci/signer"
+                  SIGNER_FOLDER="./ops/signer"
                   export IMAGE_PATH="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>:<<parameters.docker_tags>>"
-                  export IMAGE_DIGEST=$( gcloud container images describe $IMAGE_PATH --format='get(image_summary.digest)' 2>/dev/null )
                   export ATTESTOR_PROJECT_NAME="${ATTESTOR_PROJECT_NAME}"
                   export ATTESTOR_NAME="${ATTESTOR_NAME}"
                   pip install -r ${SIGNER_FOLDER}/requirements.txt
