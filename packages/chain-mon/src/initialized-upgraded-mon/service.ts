@@ -139,7 +139,11 @@ export class InitializedUpgradedMonService extends BaseServiceV2<
       this.state.highestUncheckedBlockNumber = this.options.startBlockNumber
     }
 
-    this.state.contracts = JSON.parse(this.options.contracts)
+    try {
+      this.state.contracts = JSON.parse(this.options.contracts)
+    } catch(e) {
+       throw new Error("unable to start service because provided options is not valid json")
+    }
   }
 
   protected async main(): Promise<void> {
