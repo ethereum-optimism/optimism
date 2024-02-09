@@ -50,6 +50,9 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     /// @notice The global root claim's position is always at gindex 1.
     Position internal constant ROOT_POSITION = Position.wrap(1);
 
+    /// @notice The flag set in the `bond` field of a `ClaimData` struct to indicate that the bond has been claimed.
+    uint128 internal constant CLAIMED_BOND_FLAG = type(uint128).max;
+
     /// @notice The starting timestamp of the game
     Timestamp public createdAt;
 
@@ -81,8 +84,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     bool internal initialized;
 
     /// @notice Semantic version.
-    /// @custom:semver 0.2.1
-    string public constant version = "0.2.1";
+    /// @custom:semver 0.3.0
+    string public constant version = "0.3.0";
 
     /// @param _gameType The type ID of the game.
     /// @param _absolutePrestate The absolute prestate of the instruction trace.
@@ -550,6 +553,12 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         if (!success) revert BondTransferFailed();
     }
 
+    /// @notice Returns the flag set in the `bond` field of a `ClaimData` struct to indicate that the bond has been
+    ///         claimed.
+    function claimedBondFlag() external pure returns (uint128 claimedBondFlag_) {
+        claimedBondFlag_ = CLAIMED_BOND_FLAG;
+    }
+
     ////////////////////////////////////////////////////////////////
     //                     IMMUTABLE GETTERS                      //
     ////////////////////////////////////////////////////////////////
@@ -599,8 +608,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     function _distributeBond(address _recipient, ClaimData storage _bonded) internal {
         // Set all bits in the bond value to indicate that the bond has been paid out.
         uint256 bond = _bonded.bond;
-        if (bond == type(uint128).max) revert ClaimAlreadyResolved();
-        _bonded.bond = type(uint128).max;
+        if (bond == CLAIMED_BOND_FLAG) revert ClaimAlreadyResolved();
+        _bonded.bond = CLAIMED_BOND_FLAG;
 
         // Increase the recipient's credit.
         credit[_recipient] += bond;
