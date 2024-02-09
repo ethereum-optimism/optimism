@@ -2104,3 +2104,16 @@ workflows:
           context:
             - slack
             - oplabs-etherscan
+  test-image-sign:
+    when:
+      not:
+        equal: [ scheduled_pipeline, << pipeline.trigger_source >> ]
+    jobs:
+      - docker-build:
+          name: proxyd-docker-release
+          docker_name: proxyd
+          docker_tags: <<pipeline.git.revision>>
+          publish: true
+          release: true
+          context:
+            - oplabs-gcr-release
