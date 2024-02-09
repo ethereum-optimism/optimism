@@ -31,10 +31,6 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         uint64 timestamp;
     }
 
-    /// @dev Remove this in favor of a configurable sauron role. This should probably live in the superchain config,
-    ///      but need to confirm with security.
-    address internal constant SAURON = address(0xdead);
-
     /// @notice The delay between when a withdrawal transaction is proven and when it may be finalized.
     uint256 internal immutable PROOF_MATURITY_DELAY_SECONDS;
 
@@ -181,14 +177,6 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     /// @custom:legacy
     function guardian() public view returns (address) {
         return superchainConfig.guardian();
-    }
-
-    /// @notice Getter function for the address of the sauron role.
-    ///         Public getter is legacy and will be removed in the future. Use `SuperchainConfig.sauron()` instead
-    ///         once it's added.
-    /// @custom:deprecated
-    function sauron() public pure returns (address) {
-        return SAURON;
     }
 
     /// @notice Getter for the current paused status.
@@ -422,7 +410,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     /// @notice Blacklists a dispute game. Should only be used in the event that a dispute game resolves incorrectly.
     /// @param _disputeGame Dispute game to blacklist.
     function blacklistDisputeGame(IDisputeGame _disputeGame) external {
-        require(msg.sender == SAURON, "OptimismPortal: only sauron can blacklist dispute games");
+        require(msg.sender == guardian(), "OptimismPortal: only the guardian can blacklist dispute games");
         disputeGameBlacklist[_disputeGame] = true;
     }
 
@@ -430,7 +418,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     ///         incorrectly verified by the `MerkleTrie` verifier contract.
     /// @param _withdrawalHash Hash of the withdrawal transaction to delete from the `pendingWithdrawals` mapping.
     function deleteProvenWithdrawal(bytes32 _withdrawalHash) external {
-        require(msg.sender == SAURON, "OptimismPortal: only sauron can delete proven withdrawals");
+        require(msg.sender == guardian(), "OptimismPortal: only the guardian can delete proven withdrawals");
         delete provenWithdrawals[_withdrawalHash];
     }
 
@@ -438,7 +426,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     ///         depending on the new game's behavior.
     /// @param _gameType The game type to consult for output proposals.
     function setRespectedGameType(GameType _gameType) external {
-        require(msg.sender == SAURON, "OptimismPortal: only sauron can set the respected game type");
+        require(msg.sender == guardian(), "OptimismPortal: only the guardian can set the respected game type");
         respectedGameType = _gameType;
     }
 

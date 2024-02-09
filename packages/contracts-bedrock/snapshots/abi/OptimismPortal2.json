@@ -475,19 +475,6 @@
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "sauron",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "pure",
-    "type": "function"
-  },
-  {
     "inputs": [
       {
         "internalType": "GameType",
