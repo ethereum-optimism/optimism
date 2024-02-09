@@ -41,8 +41,8 @@ def send_request(url, method="GET", headers=None, data=None, access_token=None):
             headers = {}
         if data is None:
             data = {}
-        headers["Content-Type"]="application/json"
-        headers["Authorization"]=f"Bearer {access_token}"
+        headers['Content-Type']="application/json"
+        headers['Authorization']=f"Bearer {access_token}"
         # Choose the request method
         if method.upper() == "GET":
             response = requests.get(url, headers=headers)
@@ -107,18 +107,18 @@ def print_access_token():
 def get_current_user_email():
     url = "https://www.googleapis.com/oauth2/v1/userinfo?alt=json"
     response = send_request(url=url, method="GET", headers=None, data=None)
-    if response["data"] and  "email" in response["data"]:
-        return response["data"]["email"]
+    if response['data'] and  "email" in response['data']:
+        return response['data']['email']
     return None
 
 def generate_image_description_payload(image_info):
     payload = {
         "critical": {
             "identity": {
-                "docker-reference": image_info["path"]
+                "docker-reference": image_info['path']
             },
             "image": {
-                "docker-manifest-digest": image_info["digest"]
+                "docker-manifest-digest": image_info['digest']
             },
             "type": "Google cloud binauthz container signature"
         }
@@ -128,13 +128,13 @@ def generate_image_description_payload(image_info):
 
 def generate_attestation_payload(image_info,attestor_info,serialized_payload,payload_signature):
     payload = {
-    "resourceUri": image_info["fully_qualified_digest"],
-    "note_name": attestor_info["note_reference"],
+    "resourceUri": image_info['fully_qualified_digest'],
+    "note_name": attestor_info['note_reference'],
     "attestation": {
         "serialized_payload": serialized_payload,
         "signatures": [
             {
-                "public_key_id": attestor_info["key_id"],
+                "public_key_id": attestor_info['key_id'],
                 "signature": payload_signature
             }]
         }
@@ -153,30 +153,30 @@ def generate_image_payload_signature(base64_encoded_hash,key_info,attestor_info)
     for key, value in key_info.items():
         if not re.match(r'^[\w-]+$', value):
             raise ValueError(f"Invalid value for {key}: {value}")
-    url =f"https://cloudkms.googleapis.com/v1/projects/{key_info["project_id"]}/locations/{key_info["location"]}/keyRings/{key_info["keyring"]}/cryptoKeys/{key_info["key"]}/cryptoKeyVersions/{key_info["version"]}:asymmetricSign?alt=json"
+    url =f"https://cloudkms.googleapis.com/v1/projects/{key_info['project_id']}/locations/{key_info['location']}/keyRings/{key_info['keyring']}/cryptoKeys/{key_info['key']}/cryptoKeyVersions/{key_info['version']}:asymmetricSign?alt=json"
     headers = {
-        "x-goog-user-project": f"{attestor_info["project_id"]}"
+        "x-goog-user-project": f"{attestor_info['project_id']}"
     }
     data=json.dumps({"digest":{"sha512":base64_encoded_hash}})
     response = send_request(url=url, method="POST", headers=headers, data=data)
-    if response["error"] or not response["data"] or  "signature" not in response["data"] :
+    if response['error'] or not response['data'] or  "signature" not in response['data'] :
         return None
-    return response["data"]["signature"]
+    return response['data']['signature']
 
 def retrieve_attestor_info(attestor_info,current_user_email):
-    if not attestor_info["project_id"]:
+    if not attestor_info['project_id']:
         #assuming user email project as attestor project id
         project_id=current_user_email.split("@")[1].split(".")[0]
-        attestor_info["project_id"]=project_id
+        attestor_info['project_id']=project_id
 
-    url =f"https://binaryauthorization.googleapis.com/v1/projects/{attestor_info["project_id"]}/attestors/{attestor_info["attestor"]}"
+    url =f"https://binaryauthorization.googleapis.com/v1/projects/{attestor_info['project_id']}/attestors/{attestor_info['attestor']}"
     print(url)
     headers = {
-        "x-goog-user-project": f"{attestor_info["project_id"]}"
+        "x-goog-user-project": f"{attestor_info['project_id']}"
     }
     response = send_request(url=url, method="GET", headers=headers, data=None)
-    if response["data"]:
-        return response["data"]
+    if response['data']:
+        return response['data']
     return None
 
 
@@ -194,32 +194,32 @@ def retrieve_image_info(image_input):
     if match:
         image_info.update(match.groupdict())
 
-    if not image_info["digest"]:
-        cmd=f"gcloud container images describe {image_info["path"]}:{image_info["tag"]} --format=json"
+    if not image_info['digest']:
+        cmd=f"gcloud container images describe {image_info['path']}:{image_info['tag']} --format=json"
         stdout, stderr = execute_shell_command(cmd=cmd,timeout=2)
         try:
-            json_obj=json.loads(stdout.strip())["image_summary"]
-            image_info["fully_qualified_digest"]=json_obj["fully_qualified_digest"]
-            image_info["digest"]=json_obj["digest"]
+            json_obj=json.loads(stdout.strip())['image_summary']
+            image_info['fully_qualified_digest']=json_obj['fully_qualified_digest']
+            image_info['digest']=json_obj['digest']
         except:
             return None
     else:
-        image_info["fully_qualified_digest"]=f"{json_obj["path"]}@{json_obj["digest"]}"
+        image_info['fully_qualified_digest']=f"{json_obj['path']}@{json_obj['digest']}"
 
 
     return image_info
 
 def upload_attestation(attestor_info,attestation_payload):
 
-    url =f"https://containeranalysis.googleapis.com/v1/projects/{attestor_info["project_id"]}/occurrences/"
+    url =f"https://containeranalysis.googleapis.com/v1/projects/{attestor_info['project_id']}/occurrences/"
     headers = {
-        "x-goog-user-project": f"{attestor_info["project_id"]}"
+        "x-goog-user-project": f"{attestor_info['project_id']}"
     }
     data=attestation_payload
     response = send_request(url=url, method="POST", headers=headers, data=data)
-    if response["data"]:
-        return response["data"]
-    elif response["error"] and "Conflict for url" in response["error"]:
+    if response['data']:
+        return response['data']
+    elif response['error'] and "Conflict for url" in response['error']:
         logging.critical("Attestation not uploaded: Conflict for the attestation url, are you trying to upload the same attestation twice?")
     return None
 
@@ -236,19 +236,19 @@ def get_env():
 
     # Read environment variables and populate the config dictionary
     for var_name, env_var in env_variables.items():
-        env_var["value"]=os.environ.get(var_name)
-        if env_var["required"] and not env_var["value"]:
-            logging.critical(f"Error: The following environment variables are missing: {var_name}. A value in the format of {env_var["info"]} should be provided")
+        env_var['value']=os.environ.get(var_name)
+        if env_var['required'] and not env_var['value']:
+            logging.critical(f"Error: The following environment variables are missing: {var_name}. A value in the format of {env_var['info']} should be provided")
             sys.exit(1)
-        if not env_var["required"] and not env_var["value"]:
-            logging.info(f"{var_name} has not being set, a default value will be assumed in the format {env_var["info"]}")
-            env_var["value"]=env_var["default"]
+        if not env_var['required'] and not env_var['value']:
+            logging.info(f"{var_name} has not being set, a default value will be assumed in the format {env_var['info']}")
+            env_var['value']=env_var['default']
 
     return env_variables
 
 def get_key_info(attestor_info):
     #this assumes attestors has only one key id to use. In case of multiple keyid for the same attestor we need to choose the correct one.
-    key_id=attestor_info["key_id"]
+    key_id=attestor_info['key_id']
     parts=key_id.split("/")
     projects_index = parts.index('projects') + 1
     locations_index = parts.index('locations') + 1
@@ -273,15 +273,15 @@ def main():
 
     # Configure the logging system
     level=logging.INFO
-    if env_variables["SIGNER_LOGGING_LEVEL"] == "CRITICAL":
+    if env_variables['SIGNER_LOGGING_LEVEL'] == "CRITICAL":
         level = logging.CRITICAL
-    elif env_variables["SIGNER_LOGGING_LEVEL"] == "ERROR":
+    elif env_variables['SIGNER_LOGGING_LEVEL'] == "ERROR":
         level = logging.ERROR
-    elif env_variables["SIGNER_LOGGING_LEVEL"] == "WARNING":
+    elif env_variables['SIGNER_LOGGING_LEVEL'] == "WARNING":
         level = logging.WARNING
-    elif env_variables["SIGNER_LOGGING_LEVEL"] == "INFO":
+    elif env_variables['SIGNER_LOGGING_LEVEL'] == "INFO":
         level = logging.INFO
-    elif env_variables["SIGNER_LOGGING_LEVEL"] == "DEBUG":
+    elif env_variables['SIGNER_LOGGING_LEVEL'] == "DEBUG":
         level = logging.DEBUG
 
     logging.root.setLevel(level)
@@ -292,8 +292,8 @@ def main():
     key_info = None
 
     attestor_info={
-        "project_id":env_variables["ATTESTOR_PROJECT_NAME"]["value"],
-        "attestor": env_variables["ATTESTOR_NAME"]["value"],
+        "project_id":env_variables['ATTESTOR_PROJECT_NAME']['value'],
+        "attestor": env_variables['ATTESTOR_NAME']['value'],
         "key_id":None,
         "note_reference":None,
         "note_id":None
@@ -307,7 +307,7 @@ def main():
 
     #------ Retrieve initial image info ----------------------#
     logging.info("Retriving docker image")
-    image_info=retrieve_image_info(env_variables["IMAGE_PATH"]["value"])
+    image_info=retrieve_image_info(env_variables['IMAGE_PATH']['value'])
     if not image_info:
         logging.critical("it was not possible to retrive image digest. Please make sure to set the image digest or the image tag in the parameters")
         return
@@ -319,14 +319,14 @@ def main():
     if not attestor_retrieved_info:
         logging.critical(f"attestor {attestor_info} not present")
         return
-    if env_variables["ATTESTOR_KEY_ID"]["value"]:
+    if env_variables['ATTESTOR_KEY_ID']['value']:
         logging.info("Using user defined attetor key")
-        attestor_info["key_id"]=env_variables["ATTESTOR_KEY_ID"]["value"]
+        attestor_info['key_id']=env_variables['ATTESTOR_KEY_ID']['value']
     else:
        logging.warning("Using first attestor key id found in attestor key")
-       attestor_info["key_id"]=attestor_retrieved_info["userOwnedGrafeasNote"]["publicKeys"][0]["id"]
-    attestor_info["note_reference"]=attestor_retrieved_info["userOwnedGrafeasNote"]["noteReference"]
-    attestor_info["note_id"]=attestor_info["note_reference"].split("/")[-1]
+       attestor_info['key_id']=attestor_retrieved_info['userOwnedGrafeasNote']['publicKeys'][0]['id']
+    attestor_info['note_reference']=attestor_retrieved_info['userOwnedGrafeasNote']['noteReference']
+    attestor_info['note_id']=attestor_info['note_reference'].split("/")[-1]
 
     key_info=get_key_info(attestor_info=attestor_info)
 
