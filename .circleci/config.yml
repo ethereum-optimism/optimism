@@ -323,13 +323,13 @@ jobs:
                 root: /tmp/docker_images
                 paths:  # only write the one file, to avoid concurrent workspace-file additions
                   - "<<parameters.docker_name>>.tar"
-      - when:
-          condition: "<<parameters.release>>"
-          steps:
-            - run:
-                name: Tag
-                command: |
-                  ./ops/scripts/ci-docker-tag-op-stack-release.sh <<parameters.registry>>/<<parameters.repo>> $CIRCLE_TAG $CIRCLE_SHA1
+      # - when:
+      #     condition: "<<parameters.release>>"
+      #     steps:
+      #       - run:
+      #           name: Tag
+      #           command: |
+      #             ./ops/scripts/ci-docker-tag-op-stack-release.sh <<parameters.registry>>/<<parameters.repo>> $CIRCLE_TAG $CIRCLE_SHA1
       - when:
           condition: "<<parameters.release>>"
           steps:
