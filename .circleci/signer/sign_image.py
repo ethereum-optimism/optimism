@@ -226,8 +226,9 @@ def get_env():
         message="""ATTESTOR_KEY_ID was not set, one of the attestor key will be selected authomatically.
         You can pass a ATTESTOR_KEY_ID in the format: '//cloudkms.googleapis.com/v1/projects/<projectid>/locations/<location>/keyRings/<keyring>/cryptoKeys/<key>/cryptoKeyVersions/1'
         """
-        logging.info("message")
-        missing_vars=missing_vars.remove("ATTESTOR_KEY_ID")
+        logging.info(message)
+        if "ATTESTOR_KEY_ID" in missing_vars:
+            missing_vars.remove("ATTESTOR_KEY_ID")
 
 
     if missing_vars:
