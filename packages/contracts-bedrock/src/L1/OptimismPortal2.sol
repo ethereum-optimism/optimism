@@ -87,6 +87,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     /// @notice The game type that the OptimismPortal consults for output proposals.
     GameType public respectedGameType;
 
+    /// @notice The timestamp at which the respected game type was last updated.
+    uint64 public respectedGameTypeUpdatedAt;
+
     /// @notice Emitted when a transaction is deposited from L1 to L2.
     ///         The parameters of this event are read by the rollup node and used to derive deposit
     ///         transactions on L2.
@@ -114,8 +117,8 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 3.0.0
-    string public constant version = "3.0.0";
+    /// @custom:semver 3.1.0
+    string public constant version = "3.1.0";
 
     /// @notice Constructs the OptimismPortal contract.
     constructor(
@@ -428,6 +431,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     function setRespectedGameType(GameType _gameType) external {
         require(msg.sender == guardian(), "OptimismPortal: only the guardian can set the respected game type");
         respectedGameType = _gameType;
+        respectedGameTypeUpdatedAt = uint64(block.timestamp);
     }
 
     /// @notice Checks if a withdrawal can be finalized. This function will revert if the withdrawal cannot be
@@ -445,11 +449,13 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         // a timestamp of zero.
         require(provenWithdrawal.timestamp != 0, "OptimismPortal: withdrawal has not been proven yet");
 
+        uint64 createdAt = disputeGameProxy.createdAt().raw();
+
         // As a sanity check, we make sure that the proven withdrawal's timestamp is greater than
         // starting timestamp inside the Dispute Game. Not strictly necessary but extra layer of
         // safety against weird bugs in the proving step.
         require(
-            provenWithdrawal.timestamp > disputeGameProxy.createdAt().raw(),
+            provenWithdrawal.timestamp > createdAt,
             "OptimismPortal: withdrawal timestamp less than dispute game creation timestamp"
         );
 
@@ -471,6 +477,13 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         // `proveWithdrawalTransaction`, but we check it again in case the respected game type has changed since
         // the withdrawal was proven.
         require(disputeGameProxy.gameType().raw() == respectedGameType.raw(), "OptimismPortal: invalid game type");
+
+        // The game must have been created after `respectedGameTypeUpdatedAt`. This is to prevent users from creating
+        // invalid disputes against a deployed game type while the off-chain challenge agents are not watching.
+        require(
+            createdAt >= respectedGameTypeUpdatedAt,
+            "OptimismPortal: dispute game created before respected game type was updated"
+        );
 
         // Before a withdrawal can be finalized, the dispute game it was proven against must have been
         // resolved for at least `DISPUTE_GAME_FINALITY_DELAY_SECONDS`. This is to allow for manual
