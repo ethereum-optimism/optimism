@@ -338,12 +338,12 @@ jobs:
             - run:
                 name: Sign
                 command: |
-                  SIGNER_FOLDER="./ops/signer"
+                  cd ./ops/signer
                   export IMAGE_PATH="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>:<<parameters.docker_tags>>"
                   export ATTESTOR_PROJECT_NAME="${ATTESTOR_PROJECT_NAME}"
                   export ATTESTOR_NAME="${ATTESTOR_NAME}"
-                  pip3 install -r ${SIGNER_FOLDER}/requirements.txt
-                  python3 ${SIGNER_FOLDER}/sign_image.py
+                  pip3 install -r requirements.txt
+                  python3 sign_image.py
 
 
 
