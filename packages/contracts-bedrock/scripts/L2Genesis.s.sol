@@ -23,23 +23,28 @@ interface IInitializable {
 }
 
 /// @dev The general flow of adding a predeploy is:
-///      1. _setProxies uses vm.etch to set the Proxy.sol deployed bytecode for proxy address `0x420...000` to `0x420...000 + PROXY_COUNT - 1`.
+///      1. _setPredeployProxies uses vm.etch to set the Proxy.sol deployed bytecode for proxy address `0x420...000` to
+/// `0x420...000 + PROXY_COUNT - 1`.
 ///      Additionally, the PROXY_ADMIN_ADDRESS and PROXY_IMPLEMENTATION_ADDRESS storage slots are set for the proxy
 ///      address.
-///      2. vm.etch sets the deployed bytecode for each predeploy at the implementation address (i.e. `0xc0d3` namespace).
-///      3. The `initialize` method is called at the implementation address with zero/dummy vaules if it exists.
-///      4. The `initialize` method is called at the proxy address with actual vaules if it exists.
+///      2. `vm.etch` sets the deployed bytecode for each predeploy at the implementation address (i.e. `0xc0d3`
+/// namespace).
+///      3. The `initialize` method is called at the implementation address with zero/dummy vaules if the method exists.
+///      4. The `initialize` method is called at the proxy address with actual vaules if the method exists.
 ///      5. A `require` check to verify the expected implementation address is set for the proxy.
 /// @notice The following safety invariants are used when setting state:
 ///         1. `vm.getDeployedBytecode` can only be used with `vm.etch` when there are no side
 ///         effects in the constructor and no immutables in the bytecode.
 ///         2. A contract must be deployed using the `new` syntax if there are immutables in the code.
 ///         Any other side effects from the init code besides setting the immutables must be cleaned up afterwards.
-///         3. A contract is deployed using the `new` syntax because it's not proxied, but still needs to be set
-///         at a specific address. Because just deploying a new instance doesn't give us the contract at our desired
-///         address,
-///         we must use `vm.etch` to set the deployed bytecode, and `vm.store` to set any storage slots. Lastly, we reset
-///         the account the contract was initially deployed by so it's not included in the `vm.dumpState`.
+///         3. A contract is deployed using the `new` syntax, however it's not proxied and is still expected to exist at
+/// a
+///         specific implementation address (i.e. `0xc0d3` namespace). In this case we deploy an instance of the
+/// contract
+///         using `new` syntax, use `contract.code` to retrieve it's deployed bytecode, `vm.etch` the bytecode at the
+///         expected implementation address, and `vm.store` to set any storage slots that are
+///         expected to be set after a new deployment. Lastly, we reset the account code and storage slots the contract
+///         was initially deployed to so it's not included in the `vm.dumpState`.
 contract L2Genesis is Script, Artifacts {
     uint256 constant PROXY_COUNT = 2048;
     uint256 constant PRECOMPILE_COUNT = 256;
@@ -54,6 +59,20 @@ contract L2Genesis is Script, Artifacts {
     /// @notice The storage slot that holds the address of the owner.
     /// @dev `bytes32(uint256(keccak256('eip1967.proxy.admin')) - 1)`
     bytes32 internal constant PROXY_ADMIN_ADDRESS = 0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
+    uint80 internal constant DEV_ACCOUNT_FUND_AMT = 10_000 ether;
+    /// @notice Default Anvil dev accounts. Only funded if `cfg.fundDevAccounts == true`.
+    address[10] internal devAccounts = [
+        0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266,
+        0x70997970C51812dc3A010C7d01b50e0d17dc79C8,
+        0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC,
+        0x90F79bf6EB2c4f870365E785982E1f101E93b906,
+        0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65,
+        0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc,
+        0x976EA74026E726554dB657fA54763abd0C3a0aa9,
+        0x14dC79964da2C08b23698B3D3cc7Ca32193d9955,
+        0x23618e81E3f5cdF7f54C3d65f7FBc0aBf5B21E8f,
+        0xa0Ee7A142d267C1f36714E4a8F75612F20a79720
+    ];
 
     string internal outfile;
 
@@ -77,9 +96,13 @@ contract L2Genesis is Script, Artifacts {
     ///      to generate a L2 genesis alloc.
     /// @notice The alloc object is sorted numerically by address.
     function run() public {
-        _setPrecompiles();
-        _setProxies();
-        _setImplementations();
+        _dealEthToPrecompiles();
+        _setPredeployProxies();
+        _setPredeployImplementations();
+
+        if (cfg.fundDevAccounts()) {
+            _fundDevAccounts();
+        }
 
         /// Reset so its not included state dump
         vm.etch(address(cfg), "");
@@ -90,7 +113,7 @@ contract L2Genesis is Script, Artifacts {
 
     /// @notice Give all of the precompiles 1 wei so that they are
     ///         not considered empty accounts.
-    function _setPrecompiles() internal {
+    function _dealEthToPrecompiles() internal {
         for (uint256 i; i < PRECOMPILE_COUNT; i++) {
             vm.deal(address(uint160(i)), 1);
         }
@@ -100,7 +123,7 @@ contract L2Genesis is Script, Artifacts {
     ///      The Proxy bytecode should be set. All proxied predeploys should have
     ///      the 1967 admin slot set to the ProxyAdmin predeploy. All defined predeploys
     ///      should have their implementations set.
-    function _setProxies() internal {
+    function _setPredeployProxies() internal {
         bytes memory code = vm.getDeployedCode("Proxy.sol:Proxy");
         uint160 prefix = uint160(0x420) << 148;
 
@@ -129,7 +152,7 @@ contract L2Genesis is Script, Artifacts {
     /// @notice LEGACY_ERC20_ETH is not being predeployed since it's been deprecated.
     /// @dev Sets all the implementations for the predeploy proxies. For contracts without proxies,
     ///      sets the deployed bytecode at their expected predeploy address.
-    function _setImplementations() internal {
+    function _setPredeployImplementations() internal {
         _setLegacyMessagePasser();
         _setDeployerWhitelist();
         _setWETH9();
@@ -228,7 +251,7 @@ contract L2Genesis is Script, Artifacts {
         SequencerFeeVault vault = new SequencerFeeVault({
             _recipient: cfg.sequencerFeeVaultRecipient(),
             _minWithdrawalAmount: cfg.sequencerFeeVaultMinimumWithdrawalAmount(),
-            _withdrawalNetwork: FeeVault.WithdrawalNetwork.L1
+            _withdrawalNetwork: FeeVault.WithdrawalNetwork(cfg.sequencerFeeVaultWithdrawalNetwork())
         });
 
         address impl = _predeployToCodeNamespace(Predeploys.SEQUENCER_FEE_WALLET);
@@ -328,12 +351,12 @@ contract L2Genesis is Script, Artifacts {
         );
     }
 
-    function _setImplementationCode(address _predeployAddr, string memory _predeployName) internal returns (address) {
-        address impl = _predeployToCodeNamespace(_predeployAddr);
-        console.log("Setting %s implementation at: %s", _predeployName, impl);
-        vm.etch(impl, vm.getDeployedCode(string.concat(_predeployName, ".sol:", _predeployName)));
+    function _setImplementationCode(address _addr, string memory _name) internal returns (address) {
+        address impl = _predeployToCodeNamespace(_addr);
+        console.log("Setting %s implementation at: %s", _name, impl);
+        vm.etch(impl, vm.getDeployedCode(string.concat(_name, ".sol:", _name)));
 
-        _verifyProxyImplementationAddress(_predeployAddr, impl);
+        _verifyProxyImplementationAddress(_addr, impl);
 
         return impl;
     }
@@ -350,7 +373,7 @@ contract L2Genesis is Script, Artifacts {
     /// @notice There isn't a good way to know if the resulting revering is due to abi mismatch
     ///         or because it's already been initialized
     function _verifyCantReinitialize(address _contract, address _arg) internal {
-        vm.expectRevert();
+        vm.expectRevert("Initializable: contract is already initialized");
         IInitializable(_contract).initialize(_arg);
     }
 
@@ -361,6 +384,15 @@ contract L2Genesis is Script, Artifacts {
         commands[1] = "-c";
         commands[2] = string.concat("cat <<< $(jq -S '.' ", _path, ") > ", _path);
         vm.ffi(commands);
+    }
+
+    function _fundDevAccounts() internal {
+        for (uint256 i; i < devAccounts.length; i++) {
+            console.log("Funding dev account %s with %s ETH", devAccounts[i], DEV_ACCOUNT_FUND_AMT / 1e18);
+            vm.deal(devAccounts[i], DEV_ACCOUNT_FUND_AMT);
+        }
+
+        _checkDevAccountsFunded();
     }
 
     //////////////////////////////////////////////////////
@@ -383,5 +415,15 @@ contract L2Genesis is Script, Artifacts {
     function _checkOptimismMintableERC20Factory(address _impl) internal {
         _verifyCantReinitialize(_impl, address(0));
         _verifyCantReinitialize(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY, Predeploys.L2_STANDARD_BRIDGE);
+    }
+
+    function _checkDevAccountsFunded() internal view {
+        for (uint256 i; i < devAccounts.length; i++) {
+            if (devAccounts[i].balance != DEV_ACCOUNT_FUND_AMT) {
+                revert(
+                    string.concat("Dev account not funded with expected amount of ETH: ", vm.toString(devAccounts[i]))
+                );
+            }
+        }
     }
 }
