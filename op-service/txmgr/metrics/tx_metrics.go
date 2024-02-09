@@ -159,17 +159,11 @@ func (t *TxMetrics) TxPublished(errString string) {
 }
 
 func (t *TxMetrics) RecordBaseFee(baseFee *big.Int) {
-	if baseFee == nil {
-		t.baseFee.Set(0)
-	}
 	bff, _ := baseFee.Float64()
 	t.baseFee.Set(bff)
 }
 
 func (t *TxMetrics) RecordTipCap(tipcap *big.Int) {
-	if tipcap == nil {
-		t.tipCap.Set(0)
-	}
 	tcf, _ := tipcap.Float64()
 	t.tipCap.Set(tcf)
 }
