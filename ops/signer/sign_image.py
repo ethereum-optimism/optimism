@@ -307,7 +307,7 @@ def main():
     if not current_user_email:
         logging.critical("No user currently logged in. Make sure you have an active user in gcloud")
         return
-    logging.info(f"Acting as {current_user_email}")
+    logging.debug(f"Acting as {current_user_email}")
 
     #------ Retrieve initial image info ----------------------#
     logging.info("Retriving docker image")
