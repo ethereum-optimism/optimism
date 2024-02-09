@@ -150,6 +150,10 @@ def get_base64_encoded_hash(payload):
 
 def generate_image_payload_signature(base64_encoded_hash,key_info,attestor_info):
 
+    # Validate or sanitize key_info values before using them in URL construction
+    for key, value in key_info.items():
+        if not re.match(r'^[\w-]+$', value):
+            raise ValueError(f"Invalid value for {key}: {value}")
     url =f"https://cloudkms.googleapis.com/v1/projects/{key_info["project_id"]}/locations/{key_info["location"]}/keyRings/{key_info["keyring"]}/cryptoKeys/{key_info["key"]}/cryptoKeyVersions/{key_info["version"]}:asymmetricSign?alt=json"
     headers = {
         "x-goog-user-project": f"{attestor_info["project_id"]}" 
