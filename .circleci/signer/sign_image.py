@@ -103,7 +103,7 @@ def print_access_token():
     if stderr is None:
         return stdout.strip()
     else:
-        raise Exception("print_access_token fail, make sure you you are properly logged in")
+        raise Exception("Failed to print access token. Please ensure you are properly authenticated and try again.")
     
 def get_current_user_email():
     url = "https://www.googleapis.com/oauth2/v1/userinfo?alt=json"
