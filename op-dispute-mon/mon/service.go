@@ -78,9 +78,10 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 	if err := s.initOutputRollupClient(ctx, cfg); err != nil {
 		return fmt.Errorf("failed to init rollup client: %w", err)
 	}
+	s.initMetadataCreator()
 	s.initOutputValidator()
 	s.initDetector()
-	s.initMetadataCreator()
+	s.initDetector()
 	s.initMonitor(ctx, cfg)
 
 	s.metrics.RecordInfo(version.SimpleWithMeta)
@@ -186,10 +187,10 @@ func (s *Service) initMonitor(ctx context.Context, cfg *config.Config) {
 }
 
 func (s *Service) Start(ctx context.Context) error {
-	s.logger.Info("starting scheduler")
-	s.logger.Info("starting monitoring")
+	s.logger.Info("Starting scheduler")
+	s.logger.Info("Starting monitoring")
 	s.monitor.StartMonitoring()
-	s.logger.Info("dispute monitor game service start completed")
+	s.logger.Info("Dispute monitor game service start completed")
 	return nil
 }
 
@@ -198,7 +199,7 @@ func (s *Service) Stopped() bool {
 }
 
 func (s *Service) Stop(ctx context.Context) error {
-	s.logger.Info("stopping dispute mon service")
+	s.logger.Info("Stopping dispute mon service")
 
 	var result error
 	if s.pprofService != nil {
