@@ -34,7 +34,8 @@ func TestDetector_Detect(t *testing.T) {
 	t.Run("CheckAgreementFails", func(t *testing.T) {
 		detector, metrics, creator, rollup, _ := setupDetectorTest(t)
 		rollup.err = errors.New("boom")
-		creator.caller = &mockGameCaller{status: types.GameStatusInProgress}
+		creator.caller.status = []types.GameStatus{types.GameStatusInProgress}
+		creator.caller.rootClaim = []common.Hash{{}}
 		detector.Detect(context.Background(), []types.GameMetadata{{}})
 		metrics.Equals(t, 1, 0, 0) // Status should still be metriced here!
 		metrics.Mapped(t, map[string]int{})
@@ -42,7 +43,8 @@ func TestDetector_Detect(t *testing.T) {
 
 	t.Run("SingleGame", func(t *testing.T) {
 		detector, metrics, creator, _, _ := setupDetectorTest(t)
-		creator.caller = &mockGameCaller{status: types.GameStatusInProgress}
+		creator.caller.status = []types.GameStatus{types.GameStatusInProgress}
+		creator.caller.rootClaim = []common.Hash{{}}
 		detector.Detect(context.Background(), []types.GameMetadata{{}})
 		metrics.Equals(t, 1, 0, 0)
 		metrics.Mapped(t, map[string]int{"in_progress": 1})
@@ -50,7 +52,12 @@ func TestDetector_Detect(t *testing.T) {
 
 	t.Run("MultipleGames", func(t *testing.T) {
 		detector, metrics, creator, _, _ := setupDetectorTest(t)
-		creator.caller = &mockGameCaller{status: types.GameStatusInProgress}
+		creator.caller.status = []types.GameStatus{
+			types.GameStatusInProgress,
+			types.GameStatusInProgress,
+			types.GameStatusInProgress,
+		}
+		creator.caller.rootClaim = []common.Hash{{}, {}, {}}
 		detector.Detect(context.Background(), []types.GameMetadata{{}, {}, {}})
 		metrics.Equals(t, 3, 0, 0)
 		metrics.Mapped(t, map[string]int{"in_progress": 3})
@@ -128,13 +135,16 @@ func TestDetector_FetchGameMetadata(t *testing.T) {
 	t.Run("GetGameMetadataFails", func(t *testing.T) {
 		detector, _, creator, _, _ := setupDetectorTest(t)
 		creator.caller = &mockGameCaller{err: errors.New("boom")}
+		creator.caller.status = []types.GameStatus{types.GameStatusInProgress}
+		creator.caller.rootClaim = []common.Hash{{}}
 		_, _, _, err := detector.fetchGameMetadata(context.Background(), types.GameMetadata{})
 		require.Error(t, err)
 	})
 
 	t.Run("Success", func(t *testing.T) {
 		detector, _, creator, _, _ := setupDetectorTest(t)
-		creator.caller = &mockGameCaller{status: types.GameStatusInProgress}
+		creator.caller.status = []types.GameStatus{types.GameStatusInProgress}
+		creator.caller.rootClaim = []common.Hash{{}}
 		_, _, status, err := detector.fetchGameMetadata(context.Background(), types.GameMetadata{})
 		require.NoError(t, err)
 		require.Equal(t, types.GameStatusInProgress, status)
@@ -266,27 +276,29 @@ func (m *mockGameCallerCreator) CreateContract(game types.GameMetadata) (GameCal
 type mockGameCaller struct {
 	calls       int
 	claimsCalls int
-	claims      []faultTypes.Claim
-	status      types.GameStatus
-	rootClaim   common.Hash
+	claims      [][]faultTypes.Claim
+	status      []types.GameStatus
+	rootClaim   []common.Hash
 	err         error
 	claimsErr   error
 }
 
 func (m *mockGameCaller) GetGameMetadata(ctx context.Context) (uint64, common.Hash, types.GameStatus, error) {
+	idx := m.calls
 	m.calls++
 	if m.err != nil {
-		return 0, m.rootClaim, m.status, m.err
+		return 0, m.rootClaim[idx], m.status[idx], m.err
 	}
-	return 0, m.rootClaim, m.status, nil
+	return 0, m.rootClaim[idx], m.status[idx], nil
 }
 
 func (m *mockGameCaller) GetAllClaims(ctx context.Context) ([]faultTypes.Claim, error) {
+	idx := m.claimsCalls
 	m.claimsCalls++
 	if m.claimsErr != nil {
 		return nil, m.claimsErr
 	}
-	return m.claims, nil
+	return m.claims[idx], nil
 }
 
 type mockDetectorMetricer struct {
