@@ -323,13 +323,13 @@ jobs:
                 root: /tmp/docker_images
                 paths:  # only write the one file, to avoid concurrent workspace-file additions
                   - "<<parameters.docker_name>>.tar"
-      # - when:
-      #     condition: "<<parameters.release>>"
-      #     steps:
-      #       - run:
-      #           name: Tag
-      #           command: |
-      #             ./ops/scripts/ci-docker-tag-op-stack-release.sh <<parameters.registry>>/<<parameters.repo>> $CIRCLE_TAG $CIRCLE_SHA1
+      - when:
+          condition: "<<parameters.release>>"
+          steps:
+            - run:
+                name: Tag
+                command: |
+                  ./ops/scripts/ci-docker-tag-op-stack-release.sh <<parameters.registry>>/<<parameters.repo>> $CIRCLE_TAG $CIRCLE_SHA1
       - when:
           condition: "<<parameters.release>>"
           steps:
@@ -2104,16 +2104,3 @@ workflows:
           context:
             - slack
             - oplabs-etherscan
-  test-image-sign:
-    when:
-      not:
-        equal: [ scheduled_pipeline, << pipeline.trigger_source >> ]
-    jobs:
-      - docker-build:
-          name: proxyd-docker-release
-          docker_name: proxyd
-          docker_tags: <<pipeline.git.revision>>
-          publish: true
-          release: true
-          context:
-            - oplabs-gcr-release
