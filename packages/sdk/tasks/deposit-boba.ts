@@ -92,6 +92,7 @@ task('deposit-boba', 'Deposits BOBA onto L2.')
           BondManager: ethers.constants.AddressZero,
           OptimismPortal: json.OptimismPortalProxy,
           L2OutputOracle: json.L2OutputOracleProxy,
+          DisputeGameFactory: json?.DisputeGameFactoryProxy,
         },
         l2: DEFAULT_L2_CONTRACT_ADDRESSES,
       } as OEContractsLike
