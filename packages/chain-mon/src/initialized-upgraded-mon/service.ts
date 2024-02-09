@@ -41,9 +41,11 @@ const networks = {
   },
 }
 
+// keccak256("Initialized(uint8)") = 0x7f26b83ff96e1f2b6a682f133852f6798a09c465da95921460cefb3847402498
 const topic_initialized =
   '0x7f26b83ff96e1f2b6a682f133852f6798a09c465da95921460cefb3847402498'
 
+// keccak256("Upgraded(address)") = 0xbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b
 const topic_upgraded =
   '0xbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b'
 
