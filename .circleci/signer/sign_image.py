@@ -85,6 +85,8 @@ def execute_shell_command(cmd,timeout=5):
     Returns:
     - A tuple containing the command's standard output and standard error.
     """
+    if not isinstance(cmd, str) or ';' in cmd or '&&' in cmd or '||' in cmd:
+        raise ValueError("Invalid command. Command must be a safe string.")
     try:
         # Use shlex.split to handle command parsing.
         process = subprocess.run(shlex.split(cmd), check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,timeout=timeout)
