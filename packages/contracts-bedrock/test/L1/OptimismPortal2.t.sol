@@ -1049,8 +1049,11 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         game.resolve();
 
         // Change the respected game type in the portal.
-        vm.prank(optimismPortal2.sauron());
+        vm.prank(optimismPortal2.guardian());
         optimismPortal2.setRespectedGameType(GameType.wrap(0xFF));
+
+        // Mock the game's type so that we pass the correct game type check.
+        vm.mockCall(address(game), abi.encodeCall(game.gameType, ()), abi.encode(GameType.wrap(0xFF)));
 
         vm.expectRevert("OptimismPortal: dispute game created before respected game type was updated");
         optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
