@@ -56,32 +56,57 @@ func (c *CapturingHandler) Clear() {
 	*c.Logs = (*c.Logs)[:0] // reuse slice
 }
 
-func (c *CapturingHandler) FindLog(lvl slog.Level, msg string) *HelperRecord {
+func NewLevelFilter(level slog.Level) LogFilter {
+	return func(r *slog.Record) bool {
+		return r.Level == level
+	}
+}
+
+func NewMessageFilter(message string) LogFilter {
+	return func(r *slog.Record) bool {
+		return r.Message == message
+	}
+}
+
+func NewMessageContainsFilter(message string) LogFilter {
+	return func(r *slog.Record) bool {
+		return strings.Contains(r.Message, message)
+	}
+}
+
+type LogFilter func(*slog.Record) bool
+
+func (c *CapturingHandler) FindLog(filters ...LogFilter) *HelperRecord {
 	for _, record := range *c.Logs {
-		if record.Level == lvl && record.Message == msg {
+		match := true
+		for _, filter := range filters {
+			if !filter(record) {
+				match = false
+				break
+			}
+		}
+		if match {
 			return &HelperRecord{record}
 		}
 	}
 	return nil
 }
 
-func (c *CapturingHandler) FindLogsWithLevel(lvl slog.Level) []*HelperRecord {
+func (c *CapturingHandler) FindLogs(filters ...LogFilter) []*HelperRecord {
 	var logs []*HelperRecord
 	for _, record := range *c.Logs {
-		if record.Level == lvl {
+		match := true
+		for _, filter := range filters {
+			if !filter(record) {
+				match = false
+				break
+			}
+		}
+		if match {
 			logs = append(logs, &HelperRecord{record})
 		}
 	}
 	return logs
-}
-
-func (c *CapturingHandler) FindLogContaining(msg string) (*HelperRecord, bool) {
-	for _, record := range *c.Logs {
-		if strings.Contains(record.Message, msg) {
-			return &HelperRecord{record}, true
-		}
-	}
-	return nil, false
 }
 
 type HelperRecord struct {
