@@ -329,6 +329,52 @@ contract PreimageOracle is IPreimageOracle {
         preimageLengths[key] = 32;
     }
 
+
+    /// @inheritdoc IPreimageOracle
+    function loadKZGPointEvaluationPreimagePart(
+        bytes calldata _input
+    )
+        external
+    {
+        // Prior to Cancun activation, the blob preimage precompile is not available.
+        if (block.timestamp < CANCUN_ACTIVATION) revert CancunNotActive();
+
+        bytes32 key;
+        bytes32 part;
+        assembly {
+            // we leave solidity slots 0x40 and 0x60 untouched, and everything after as scratch-memory.
+            let ptr := 0x80
+
+            // copy input into memory
+            calldatacopy(ptr, _commitment.offset, _commitment.length)
+
+            // compute the hash
+            key := keccak256(ptr, _commitment.length)
+
+            // mask out prefix byte, replace with type 6 byte
+            key := or(and(h, not(shl(248, 0xFF))), shl(248, 0x06))
+
+            // Verify the KZG proof by calling the point evaluation precompile.
+            // Capture the verification result
+            part :=
+                staticcall(
+                    gas(), // forward all gas
+                    0x0A, // point evaluation precompile address
+                    ptr, // input ptr
+                    _commitment.length, // we may want to load differently sized point-evaluations calls in the future
+                    0x00, // output ptr
+                    0x00 // output size
+                )
+            // "part" will be 0 on error, and 1 on success, of the KZG Point-evaluation precompile call
+            // We do have to shift it to the left-most byte of the bytes32 however, since we only read that byte.
+            part := shl(248, part)
+        }
+        // the part offset is always 0
+        preimagePartOk[key][0] = true;
+        preimageParts[key][0] = part;
+        preimageLengths[key] = 32;
+    }
+
     ////////////////////////////////////////////////////////////////
     //            Large Preimage Proposals (External)             //
     ////////////////////////////////////////////////////////////////

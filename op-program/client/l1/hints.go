@@ -8,10 +8,11 @@ import (
 )
 
 const (
-	HintL1BlockHeader  = "l1-block-header"
-	HintL1Transactions = "l1-transactions"
-	HintL1Receipts     = "l1-receipts"
-	HintL1Blob         = "l1-blob"
+	HintL1BlockHeader        = "l1-block-header"
+	HintL1Transactions       = "l1-transactions"
+	HintL1Receipts           = "l1-receipts"
+	HintL1Blob               = "l1-blob"
+	HintL1KZGPointEvaluation = "l1-kzg-point-evaluation"
 )
 
 type BlockHeaderHint common.Hash
@@ -44,4 +45,12 @@ var _ preimage.Hint = BlobHint{}
 
 func (l BlobHint) Hint() string {
 	return HintL1Blob + " " + hexutil.Encode(l)
+}
+
+type KZGPointEvaluationHint []byte
+
+var _ preimage.Hint = KZGPointEvaluationHint{}
+
+func (l KZGPointEvaluationHint) Hint() string {
+	return HintL1KZGPointEvaluation + " " + hexutil.Encode(l)
 }
