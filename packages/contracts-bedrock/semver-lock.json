@@ -12,16 +12,16 @@
     "sourceCodeHash": "0xc59b8574531162e016d7342aeb6e79d05574e90dbea6c0e5ede35b65010ad894"
   },
   "src/L1/L1CrossDomainMessenger.sol": {
-    "initCodeHash": "0xb0b3273999191e4ff616509e3a368a9d89f7967c20ba73c1bc5bd72bd13acb16",
-    "sourceCodeHash": "0x6c86ba9f20f54ac834ad846e6302f892b7576dd407db595ebaba017971471eb4"
+    "initCodeHash": "0x6239a16731743a8265a352989c9e5ebae9b300ef115e46a26627519f46aee079",
+    "sourceCodeHash": "0x08f85bac2b1682b2fd154e2a17dc1d52a9ee7a55b20de347b17f2a4874a88979"
   },
   "src/L1/L1ERC721Bridge.sol": {
     "initCodeHash": "0xec73b46e68ea29298707f7b9709e7948afe303907b6c4e8b161e2ded2c85ee9c",
     "sourceCodeHash": "0xd57acdbd001941e75cf4326ba7c1bdad809912f10b1e44ffaebe073917cdd296"
   },
   "src/L1/L1StandardBridge.sol": {
-    "initCodeHash": "0xb0166b741e0b6938c004c19de78f347171e2656056a0363434ebd0f34a6a32ca",
-    "sourceCodeHash": "0x654f9490dd2d0bc9e92dc31781e62f106f6b7d8b6fca0cfe718cd2a599c1b18b"
+    "initCodeHash": "0x19958ae361c00578e86d8abc9bd0916a120be25e6f740f1fa38e8de49f7d2981",
+    "sourceCodeHash": "0x5b793e10296d92af348e1e0ff07bb01615381b50fd25250851d2cb5366d79486"
   },
   "src/L1/L2OutputOracle.sol": {
     "initCodeHash": "0x14c3a582ca46ef2a6abad5590323f4de26ff4de54415c927c62e131ccbf8d9ba",

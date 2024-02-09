@@ -673,6 +673,16 @@
     "outputs": [
       {
         "internalType": "uint256",
+        "name": "l2OutputOracleSubmissionInterval",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "l2BlockTime",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
         "name": "l2OutputOracleStartingBlockNumber",
         "type": "uint256"
       },
@@ -690,6 +700,11 @@
         "internalType": "address",
         "name": "l2OutputOracleChallenger",
         "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "finalizationPeriodSeconds",
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",
@@ -824,6 +839,16 @@
         "components": [
           {
             "internalType": "uint256",
+            "name": "l2OutputOracleSubmissionInterval",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "l2BlockTime",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
             "name": "l2OutputOracleStartingBlockNumber",
             "type": "uint256"
           },
@@ -841,6 +866,11 @@
             "internalType": "address",
             "name": "l2OutputOracleChallenger",
             "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "finalizationPeriodSeconds",
+            "type": "uint256"
           }
         ],
         "internalType": "struct SystemDictator.L2OutputOracleDynamicConfig",

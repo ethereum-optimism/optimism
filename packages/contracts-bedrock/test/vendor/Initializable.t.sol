@@ -310,7 +310,10 @@ contract Initializer_Test is Bridge_Initializer {
                 size := extcodesize(target)
             }
             // Assert that the contract is already initialized.
-            if (_contract.target == address(l1CrossDomainMessenger)) {
+            if (
+                (_contract.target == deploy.mustGetAddress("L1CrossDomainMessenger"))
+                    || (_contract.target == address(l1CrossDomainMessenger))
+            ) {
                 assertEq(_contract.initializedSlotVal, 3);
             } else {
                 assertEq(_contract.initializedSlotVal, 1);
