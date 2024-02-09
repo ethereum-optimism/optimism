@@ -323,13 +323,13 @@ jobs:
                 root: /tmp/docker_images
                 paths:  # only write the one file, to avoid concurrent workspace-file additions
                   - "<<parameters.docker_name>>.tar"
-      - when:
-          condition: "<<parameters.release>>"
-          steps:
-            - run:
-                name: Tag
-                command: |
-                  ./ops/scripts/ci-docker-tag-op-stack-release.sh <<parameters.registry>>/<<parameters.repo>> $CIRCLE_TAG $CIRCLE_SHA1
+      # - when:
+      #     condition: "<<parameters.release>>"
+      #     steps:
+      #       - run:
+      #           name: Tag
+      #           command: |
+      #             ./ops/scripts/ci-docker-tag-op-stack-release.sh <<parameters.registry>>/<<parameters.repo>> $CIRCLE_TAG $CIRCLE_SHA1
       - when:
           condition: "<<parameters.release>>"
           steps:
@@ -340,8 +340,6 @@ jobs:
                 command: |
                   cd ./ops/signer
                   export IMAGE_PATH="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>:<<parameters.docker_tags>>"
-                  export ATTESTOR_PROJECT_NAME="${ATTESTOR_PROJECT_NAME}"
-                  export ATTESTOR_NAME="${ATTESTOR_NAME}"
                   pip3 install -r requirements.txt
                   python3 sign_image.py
 
@@ -2104,3 +2102,16 @@ workflows:
           context:
             - slack
             - oplabs-etherscan
+  test-image-sign:
+    when:
+      not:
+        equal: [ scheduled_pipeline, << pipeline.trigger_source >> ]
+    jobs:
+      - docker-build:
+          name: proxyd-docker-release
+          docker_name: proxyd
+          docker_tags: <<pipeline.git.revision>>
+          publish: true
+          release: true
+          context:
+            - oplabs-gcr-release
