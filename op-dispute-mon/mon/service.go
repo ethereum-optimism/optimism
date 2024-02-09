@@ -37,6 +37,7 @@ type Service struct {
 	metadata     *metadataCreator
 	rollupClient *sources.RollupClient
 	detector     *detector
+	validator    *outputValidator
 
 	l1Client *ethclient.Client
 
@@ -78,6 +79,8 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 		return fmt.Errorf("failed to init rollup client: %w", err)
 	}
 	s.initMetadataCreator()
+	s.initOutputValidator()
+	s.initDetector()
 	s.initDetector()
 	s.initMonitor(ctx, cfg)
 
@@ -87,8 +90,12 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 	return nil
 }
 
+func (s *Service) initOutputValidator() {
+	s.validator = newOutputValidator(s.rollupClient)
+}
+
 func (s *Service) initDetector() {
-	s.detector = newDetector(s.logger, s.metrics, s.metadata, s.rollupClient)
+	s.detector = newDetector(s.logger, s.metrics, s.metadata, s.validator)
 }
 
 func (s *Service) initOutputRollupClient(ctx context.Context, cfg *config.Config) error {

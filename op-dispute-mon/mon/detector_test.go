@@ -6,15 +6,10 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
-)
-
-var (
-	mockRootClaim = common.HexToHash("0x10")
 )
 
 func TestDetector_Detect(t *testing.T) {
@@ -213,50 +208,25 @@ func TestDetector_CheckAgreement_Succeeds(t *testing.T) {
 	}
 }
 
-func TestDetector_CheckRootAgreement(t *testing.T) {
-	t.Parallel()
-
-	t.Run("OutputFetchFails", func(t *testing.T) {
-		detector, _, _, rollup := setupDetectorTest(t)
-		rollup.err = errors.New("boom")
-		agree, err := detector.checkRootAgreement(context.Background(), 0, mockRootClaim)
-		require.ErrorIs(t, err, rollup.err)
-		require.False(t, agree)
-	})
-
-	t.Run("OutputMismatch", func(t *testing.T) {
-		detector, _, _, _ := setupDetectorTest(t)
-		agree, err := detector.checkRootAgreement(context.Background(), 0, common.Hash{})
-		require.NoError(t, err)
-		require.False(t, agree)
-	})
-
-	t.Run("OutputMatches", func(t *testing.T) {
-		detector, _, _, _ := setupDetectorTest(t)
-		agree, err := detector.checkRootAgreement(context.Background(), 0, mockRootClaim)
-		require.NoError(t, err)
-		require.True(t, agree)
-	})
-}
-
-func setupDetectorTest(t *testing.T) (*detector, *mockDetectorMetricer, *mockMetadataCreator, *stubRollupClient) {
+func setupDetectorTest(t *testing.T) (*detector, *mockDetectorMetricer, *mockMetadataCreator, *stubOutputValidator) {
 	logger := testlog.Logger(t, log.LvlDebug)
 	metrics := &mockDetectorMetricer{}
 	loader := &mockMetadataLoader{}
 	creator := &mockMetadataCreator{loader: loader}
-	rollupClient := &stubRollupClient{}
-	detector := newDetector(logger, metrics, creator, rollupClient)
-	return detector, metrics, creator, rollupClient
+	validator := &stubOutputValidator{}
+	detector := newDetector(logger, metrics, creator, validator)
+	return detector, metrics, creator, validator
 }
 
-type stubRollupClient struct {
-	blockNum uint64
-	err      error
+type stubOutputValidator struct {
+	err error
 }
 
-func (s *stubRollupClient) OutputAtBlock(ctx context.Context, blockNum uint64) (*eth.OutputResponse, error) {
-	s.blockNum = blockNum
-	return &eth.OutputResponse{OutputRoot: eth.Bytes32(mockRootClaim)}, s.err
+func (s *stubOutputValidator) CheckRootAgreement(ctx context.Context, blockNum uint64, rootClaim common.Hash) (bool, common.Hash, error) {
+	if s.err != nil {
+		return false, common.Hash{}, s.err
+	}
+	return rootClaim == mockRootClaim, mockRootClaim, nil
 }
 
 type mockMetadataCreator struct {

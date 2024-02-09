@@ -5,45 +5,13 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
 
-type statusBatch struct {
-	inProgress, defenderWon, challengerWon int
-}
-
-func (s *statusBatch) Add(status types.GameStatus) {
-	switch status {
-	case types.GameStatusInProgress:
-		s.inProgress++
-	case types.GameStatusDefenderWon:
-		s.defenderWon++
-	case types.GameStatusChallengerWon:
-		s.challengerWon++
-	}
-}
-
-type detectionBatch struct {
-	inProgress             int
-	agreeDefenderWins      int
-	disagreeDefenderWins   int
-	agreeChallengerWins    int
-	disagreeChallengerWins int
-}
-
-func (d *detectionBatch) merge(other detectionBatch) {
-	d.inProgress += other.inProgress
-	d.agreeDefenderWins += other.agreeDefenderWins
-	d.disagreeDefenderWins += other.disagreeDefenderWins
-	d.agreeChallengerWins += other.agreeChallengerWins
-	d.disagreeChallengerWins += other.disagreeChallengerWins
-}
-
-type OutputRollupClient interface {
-	OutputAtBlock(ctx context.Context, blockNum uint64) (*eth.OutputResponse, error)
+type OutputValidator interface {
+	CheckRootAgreement(ctx context.Context, blockNum uint64, root common.Hash) (bool, common.Hash, error)
 }
 
 type MetadataCreator interface {
@@ -56,18 +24,18 @@ type DetectorMetrics interface {
 }
 
 type detector struct {
-	logger       log.Logger
-	metrics      DetectorMetrics
-	creator      MetadataCreator
-	outputClient OutputRollupClient
+	logger    log.Logger
+	metrics   DetectorMetrics
+	creator   MetadataCreator
+	validator OutputValidator
 }
 
-func newDetector(logger log.Logger, metrics DetectorMetrics, creator MetadataCreator, outputClient OutputRollupClient) *detector {
+func newDetector(logger log.Logger, metrics DetectorMetrics, creator MetadataCreator, validator OutputValidator) *detector {
 	return &detector{
-		logger:       logger,
-		metrics:      metrics,
-		creator:      creator,
-		outputClient: outputClient,
+		logger:    logger,
+		metrics:   metrics,
+		creator:   creator,
+		validator: validator,
 	}
 }
 
@@ -88,7 +56,7 @@ func (d *detector) Detect(ctx context.Context, games []types.GameMetadata) {
 			d.logger.Error("Failed to process game", "err", err)
 			continue
 		}
-		detectBatch.merge(processed)
+		detectBatch.Merge(processed)
 	}
 	d.metrics.RecordGamesStatus(statBatch.inProgress, statBatch.defenderWon, statBatch.challengerWon)
 	d.recordBatch(detectBatch)
@@ -116,36 +84,17 @@ func (d *detector) fetchGameMetadata(ctx context.Context, game types.GameMetadat
 }
 
 func (d *detector) checkAgreement(ctx context.Context, addr common.Address, blockNum uint64, rootClaim common.Hash, status types.GameStatus) (detectionBatch, error) {
-	agree, err := d.checkRootAgreement(ctx, blockNum, rootClaim)
+	agree, expected, err := d.validator.CheckRootAgreement(ctx, blockNum, rootClaim)
 	if err != nil {
 		return detectionBatch{}, err
 	}
 	batch := detectionBatch{}
-	switch status {
-	case types.GameStatusInProgress:
-		batch.inProgress++
-	case types.GameStatusDefenderWon:
-		if agree {
-			batch.agreeDefenderWins++
-		} else {
-			batch.disagreeDefenderWins++
-			d.logger.Error("Defender won but root claim does not match", "gameAddr", addr, "rootClaim", rootClaim)
-		}
-	case types.GameStatusChallengerWon:
-		if agree {
-			batch.agreeChallengerWins++
-		} else {
-			batch.disagreeChallengerWins++
-			d.logger.Error("Challenger won but root claim does not match", "gameAddr", addr, "rootClaim", rootClaim)
-		}
+	batch.Update(status, agree)
+	if !agree && status == types.GameStatusChallengerWon {
+		d.logger.Error("Challenger won but expected defender to win", "gameAddr", addr, "rootClaim", rootClaim, "expected", expected)
+	}
+	if !agree && status == types.GameStatusDefenderWon {
+		d.logger.Error("Defender won but expected challenger to win", "gameAddr", addr, "rootClaim", rootClaim, "expected", expected)
 	}
 	return batch, nil
-}
-
-func (d *detector) checkRootAgreement(ctx context.Context, blockNum uint64, rootClaim common.Hash) (bool, error) {
-	output, err := d.outputClient.OutputAtBlock(ctx, blockNum)
-	if err != nil {
-		return false, fmt.Errorf("failed to get output at block: %w", err)
-	}
-	return rootClaim == common.Hash(output.OutputRoot), nil
 }
