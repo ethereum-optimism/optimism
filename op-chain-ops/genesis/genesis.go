@@ -168,7 +168,7 @@ func NewL1Genesis(config *DeployConfig) (*core.Genesis, error) {
 	}
 	difficulty := config.L1GenesisBlockDifficulty
 	if difficulty == nil {
-		difficulty = newHexBig(1)
+		difficulty = newHexBig(0) // default to Merge-compatible difficulty value
 	}
 	timestamp := config.L1GenesisBlockTimestamp
 	if timestamp == 0 {

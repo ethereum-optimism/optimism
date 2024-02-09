@@ -4,15 +4,16 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/params"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/core"
 	gstate "github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis/beacondeposit"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/state"
 )
 
@@ -88,6 +89,17 @@ func BuildL1DeveloperGenesis(config *DeployConfig, dump *gstate.Dump, l1Deployme
 			}
 		}
 	}
+
+	beaconDepositAddr := common.HexToAddress("0x1111111111111111111111111111111111111111")
+	if err := beacondeposit.InsertEmptyBeaconDepositContract(memDB, beaconDepositAddr); err != nil {
+		return nil, fmt.Errorf("failed to insert beacon deposit contract into L1 dev genesis: %w", err)
+	}
+
+	// For 4788, make sure the 4788 beacon-roots contract is there.
+	// (required to be there before L1 Dencun activation)
+	memDB.CreateAccount(predeploys.EIP4788ContractAddr)
+	memDB.SetNonce(predeploys.EIP4788ContractAddr, 1)
+	memDB.SetCode(predeploys.EIP4788ContractAddr, predeploys.EIP4788ContractCode)
 
 	return memDB.Genesis(), nil
 }
