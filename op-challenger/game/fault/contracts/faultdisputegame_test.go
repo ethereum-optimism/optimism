@@ -333,6 +333,37 @@ func TestFaultDisputeGame_UpdateOracleTx(t *testing.T) {
 	})
 }
 
+func TestFaultDisputeGame_GetCredit(t *testing.T) {
+	stubRpc, game := setupFaultDisputeGameTest(t)
+	addr := common.Address{0x01}
+	expected := big.NewInt(4284)
+	stubRpc.SetResponse(fdgAddr, methodCredit, batching.BlockLatest, []interface{}{addr}, []interface{}{expected})
+
+	actual, err := game.GetCredit(context.Background(), addr)
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
+}
+
+func TestFaultDisputeGame_GetCredits(t *testing.T) {
+	stubRpc, game := setupFaultDisputeGameTest(t)
+
+	block := batching.BlockByNumber(482)
+
+	addrs := []common.Address{{0x01}, {0x02}, {0x03}}
+	expected := []*big.Int{big.NewInt(1), big.NewInt(2), big.NewInt(0)}
+
+	for i, addr := range addrs {
+		stubRpc.SetResponse(fdgAddr, methodCredit, block, []interface{}{addr}, []interface{}{expected[i]})
+	}
+
+	actual, err := game.GetCredits(context.Background(), block, addrs...)
+	require.NoError(t, err)
+	require.Equal(t, len(expected), len(actual))
+	for i := range expected {
+		require.Zerof(t, expected[i].Cmp(actual[i]), "expectd: %v actual: %v", expected[i], actual[i])
+	}
+}
+
 func setupFaultDisputeGameTest(t *testing.T) (*batchingTest.AbiBasedRpc, *FaultDisputeGameContract) {
 	fdgAbi, err := bindings.FaultDisputeGameMetaData.GetAbi()
 	require.NoError(t, err)
