@@ -28,7 +28,9 @@ func TestLogWriter(t *testing.T) {
 		count, err := writer.Write(line)
 		require.NoError(t, err)
 		require.Equal(t, len(line), count)
-		require.NotNil(t, logs.FindLog(log.LevelInfo, "Test line"))
+		levelFilter := testlog.NewLevelFilter(log.LevelInfo)
+		msgFilter := testlog.NewMessageFilter("Test line")
+		require.NotNil(t, logs.FindLog(levelFilter, msgFilter))
 	})
 
 	t.Run("LogMultipleLines", func(t *testing.T) {
@@ -37,8 +39,11 @@ func TestLogWriter(t *testing.T) {
 		count, err := writer.Write(line)
 		require.NoError(t, err)
 		require.Equal(t, len(line), count)
-		require.NotNil(t, logs.FindLog(log.LevelInfo, "Line 1"))
-		require.NotNil(t, logs.FindLog(log.LevelInfo, "Line 2"))
+		levelFilter := testlog.NewLevelFilter(log.LevelInfo)
+		lineOneFilter := testlog.NewMessageFilter("Line 1")
+		lineTwoFilter := testlog.NewMessageFilter("Line 2")
+		require.NotNil(t, logs.FindLog(levelFilter, lineOneFilter))
+		require.NotNil(t, logs.FindLog(levelFilter, lineTwoFilter))
 	})
 
 	t.Run("LogLineAcrossMultipleCalls", func(t *testing.T) {
@@ -47,14 +52,19 @@ func TestLogWriter(t *testing.T) {
 		count, err := writer.Write(line)
 		require.NoError(t, err)
 		require.Equal(t, len(line), count)
-		require.NotNil(t, logs.FindLog(log.LevelInfo, "First line"))
+		levelFilter := testlog.NewLevelFilter(log.LevelInfo)
+		msgFilter := testlog.NewMessageFilter("First line")
+		require.NotNil(t, logs.FindLog(levelFilter, msgFilter))
 
 		line = []byte("Line\nLast Line\n")
 		count, err = writer.Write(line)
 		require.NoError(t, err)
 		require.Equal(t, len(line), count)
-		require.NotNil(t, logs.FindLog(log.LevelInfo, "Split Line"))
-		require.NotNil(t, logs.FindLog(log.LevelInfo, "Last Line"))
+		levelFilter = testlog.NewLevelFilter(log.LevelInfo)
+		splitLineFilter := testlog.NewMessageFilter("Split Line")
+		lastLineFilter := testlog.NewMessageFilter("Last Line")
+		require.NotNil(t, logs.FindLog(levelFilter, splitLineFilter))
+		require.NotNil(t, logs.FindLog(levelFilter, lastLineFilter))
 	})
 
 	// Can't test LevelCrit or it will call os.Exit
@@ -66,7 +76,9 @@ func TestLogWriter(t *testing.T) {
 			count, err := writer.Write(line)
 			require.NoError(t, err)
 			require.Equal(t, len(line), count)
-			require.NotNil(t, logs.FindLog(lvl, "Log line"))
+			levelFilter := testlog.NewLevelFilter(lvl)
+			msgFilter := testlog.NewMessageFilter("Log line")
+			require.NotNil(t, logs.FindLog(levelFilter, msgFilter))
 		})
 	}
 
@@ -77,7 +89,10 @@ func TestLogWriter(t *testing.T) {
 		count, err := writer.Write(line)
 		require.NoError(t, err)
 		require.Equal(t, len(line), count)
-		require.NotNil(t, logs.FindLog(log.LevelError, "Unknown log level. Using Error"))
-		require.NotNil(t, logs.FindLog(log.LevelError, "Log line"))
+		levelFilter := testlog.NewLevelFilter(log.LevelError)
+		unknownFilter := testlog.NewMessageFilter("Unknown log level. Using Error")
+		logLineFilter := testlog.NewMessageFilter("Log line")
+		require.NotNil(t, logs.FindLog(levelFilter, unknownFilter))
+		require.NotNil(t, logs.FindLog(levelFilter, logLineFilter))
 	})
 }

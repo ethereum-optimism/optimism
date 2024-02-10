@@ -213,10 +213,12 @@ func TestDetector_CheckAgreement_Succeeds(t *testing.T) {
 			require.NoError(t, err)
 			test.expectBatch(&batch)
 
+			levelFilter := testlog.NewLevelFilter(log.LevelError)
 			if !test.expectErrorLog {
-				require.Empty(t, logs.FindLogsWithLevel(log.LevelError), "Should not log an error`")
+				require.Empty(t, logs.FindLogs(levelFilter), "Should not log an error")
 			} else {
-				l := logs.FindLog(log.LevelError, "Unexpected game result")
+				msgFilter := testlog.NewMessageFilter("Unexpected game result")
+				l := logs.FindLog(levelFilter, msgFilter)
 				require.NotNil(t, l, "Should have logged an error")
 				expectedResult := l.AttrValue("expectedResult")
 				require.Equal(t, test.expectStatus, expectedResult)
