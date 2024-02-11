@@ -460,8 +460,8 @@ func TestUnsafeAllowInvalidPrestate(t *testing.T) {
 	})
 
 	t.Run("DisabledWithFalse", func(t *testing.T) {
-		cfg := configForArgs(t, addRequiredArgs(config.TraceTypeCannon, "--unsafe-allow-invalid-prestate=true"))
-		require.True(t, cfg.AllowInvalidPrestate)
+		cfg := configForArgs(t, addRequiredArgs(config.TraceTypeCannon, "--unsafe-allow-invalid-prestate=false"))
+		require.False(t, cfg.AllowInvalidPrestate)
 	})
 }
 
