@@ -9,6 +9,7 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { IAddressManager } from "scripts/interfaces/IAddressManager.sol";
 import { LibString } from "solady/utils/LibString.sol";
 import { Artifacts, Deployment } from "scripts/Artifacts.s.sol";
+import { Config } from "scripts/Config.sol";
 
 /// @notice Contains information about a storage slot. Mirrors the layout of the storage
 ///         slot object in Forge artifacts so that we can deserialize JSON into this struct.
@@ -44,11 +45,11 @@ abstract contract Deployer is Script, Artifacts {
     function setUp() public virtual override {
         Artifacts.setUp();
 
-        deployScript = vm.envOr("DEPLOY_SCRIPT", name());
+        deployScript = Config.deployScript(name());
 
-        string memory sig = vm.envOr("SIG", string("run"));
-        string memory deployFile = vm.envOr("DEPLOY_FILE", string.concat(sig, "-latest.json"));
-        uint256 chainId = vm.envOr("CHAIN_ID", block.chainid);
+        string memory sig = Config.sig();
+        string memory deployFile = Config.deployFile(sig);
+        uint256 chainId = Config.chainID();
         deployPath = string.concat(
             vm.projectRoot(), "/broadcast/", deployScript, ".s.sol/", vm.toString(chainId), "/", deployFile
         );
