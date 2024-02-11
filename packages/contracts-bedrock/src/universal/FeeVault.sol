@@ -31,6 +31,8 @@ abstract contract FeeVault {
     /// @notice Total amount of wei processed by the contract.
     uint256 public totalProcessed;
 
+    uint256[49] private __gap;
+
     /// @notice Emitted each time a withdrawal occurs. This event will be deprecated
     ///         in favor of the Withdrawal event containing the WithdrawalNetwork parameter.
     /// @param value Amount that was withdrawn (in wei).
