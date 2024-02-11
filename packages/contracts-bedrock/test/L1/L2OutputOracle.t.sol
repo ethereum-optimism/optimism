@@ -452,7 +452,7 @@ contract L2OutputOracleUpgradeable_Test is CommonTest {
     }
 
     /// @dev Tests that initialize reverts if the l2BlockTime is invalid.
-    function test_initalize_l2BlockTimeZero_reverts() external {
+    function test_initialize_l2BlockTimeZero_reverts() external {
         // Reset the initialized field in the 0th storage slot
         // so that initialize can be called again.
         vm.store(address(l2OutputOracle), bytes32(uint256(0)), bytes32(uint256(0)));
