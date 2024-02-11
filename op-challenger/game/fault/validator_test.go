@@ -72,7 +72,7 @@ func newMockPrestateProvider(prestateErrors bool, prestate []byte) *mockPrestate
 	}
 }
 
-func (m *mockPrestateProvider) AbsolutePreStateCommitment(ctx context.Context) (common.Hash, error) {
+func (m *mockPrestateProvider) AbsolutePreStateCommitment(_ context.Context) (common.Hash, error) {
 	if m.prestateErrors {
 		return common.Hash{}, mockProviderError
 	}

@@ -68,6 +68,7 @@ def main():
     deploy_config_dir = pjoin(contracts_bedrock_dir, 'deploy-config')
     devnet_config_path = pjoin(deploy_config_dir, 'devnetL1.json')
     devnet_config_template_path = pjoin(deploy_config_dir, 'devnetL1-template.json')
+    cannon_absolute_prestate_path = pjoin(args.monorepo_dir, 'op-program', 'bin', 'prestate-proof.json')
     ops_chain_ops = pjoin(monorepo_dir, 'op-chain-ops')
     sdk_dir = pjoin(monorepo_dir, 'packages', 'sdk')
 
@@ -81,6 +82,7 @@ def main():
       deploy_config_dir=deploy_config_dir,
       devnet_config_path=devnet_config_path,
       devnet_config_template_path=devnet_config_template_path,
+      cannon_absolute_prestate_path=cannon_absolute_prestate_path,
       op_node_dir=op_node_dir,
       ops_bedrock_dir=ops_bedrock_dir,
       ops_chain_ops=ops_chain_ops,
@@ -125,6 +127,8 @@ def main():
 
 def init_devnet_l1_deploy_config(paths, update_timestamp=False):
     deploy_config = read_json(paths.devnet_config_template_path)
+    cannon_prestate = read_json(paths.cannon_absolute_prestate_path)
+    deploy_config['faultGameAbsolutePrestate'] = cannon_prestate['pre']
     if update_timestamp:
         deploy_config['l1GenesisBlockTimestamp'] = '{:#x}'.format(int(time.time()))
     if DEVNET_FPAC:

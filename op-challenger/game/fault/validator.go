@@ -19,14 +19,16 @@ type Validator interface {
 var _ Validator = (*PrestateValidator)(nil)
 
 type PrestateValidator struct {
-	load     PrestateLoader
-	provider types.PrestateProvider
+	valueName string
+	load      PrestateLoader
+	provider  types.PrestateProvider
 }
 
-func NewPrestateValidator(loader PrestateLoader, provider types.PrestateProvider) *PrestateValidator {
+func NewPrestateValidator(valueName string, contractProvider PrestateLoader, localProvider types.PrestateProvider) *PrestateValidator {
 	return &PrestateValidator{
-		load:     loader,
-		provider: provider,
+		valueName: valueName,
+		load:      contractProvider,
+		provider:  localProvider,
 	}
 }
 
@@ -40,7 +42,7 @@ func (v *PrestateValidator) Validate(ctx context.Context) error {
 		return fmt.Errorf("failed to fetch provider's prestate hash: %w", err)
 	}
 	if !bytes.Equal(prestateCommitment[:], prestateHash[:]) {
-		return fmt.Errorf("provider's absolute prestate does not match contract's absolute prestate: Provider: %s | Contract: %s", prestateCommitment.Hex(), prestateHash.Hex())
+		return fmt.Errorf("provider's %v absolute prestate does not match contract's absolute prestate: Provider: %s | Contract: %s", v.valueName, prestateCommitment.Hex(), prestateHash.Hex())
 	}
 	return nil
 }

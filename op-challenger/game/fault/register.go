@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/claims"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/alphabet"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/cannon"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
@@ -81,7 +82,7 @@ func registerAlphabet(
 		if err != nil {
 			return nil, err
 		}
-		prestateProvider := outputs.NewPrestateProvider(ctx, logger, rollupClient, prestateBlock)
+		prestateProvider := outputs.NewPrestateProvider(rollupClient, prestateBlock)
 		splitDepth, err := contract.GetSplitDepth(ctx)
 		if err != nil {
 			return nil, err
@@ -93,8 +94,8 @@ func registerAlphabet(
 			}
 			return accessor, nil
 		}
-		prestateValidator := NewPrestateValidator(contract.GetAbsolutePrestateHash, prestateProvider)
-		genesisValidator := NewPrestateValidator(contract.GetGenesisOutputRoot, prestateProvider)
+		prestateValidator := NewPrestateValidator("alphabet", contract.GetAbsolutePrestateHash, alphabet.PrestateProvider)
+		genesisValidator := NewPrestateValidator("output root", contract.GetGenesisOutputRoot, prestateProvider)
 		return NewGamePlayer(ctx, cl, logger, m, dir, game.Proxy, txSender, contract, []Validator{prestateValidator, genesisValidator}, creator)
 	}
 	oracle, err := createOracle(ctx, gameFactory, caller, faultTypes.AlphabetGameType)
@@ -148,7 +149,7 @@ func registerCannon(
 		if err != nil {
 			return nil, err
 		}
-		prestateProvider := outputs.NewPrestateProvider(ctx, logger, rollupClient, prestateBlock)
+		prestateProvider := outputs.NewPrestateProvider(rollupClient, prestateBlock)
 		creator := func(ctx context.Context, logger log.Logger, gameDepth faultTypes.Depth, dir string) (faultTypes.TraceAccessor, error) {
 			splitDepth, err := contract.GetSplitDepth(ctx)
 			if err != nil {
@@ -160,8 +161,8 @@ func registerCannon(
 			}
 			return accessor, nil
 		}
-		prestateValidator := NewPrestateValidator(contract.GetAbsolutePrestateHash, prestateProvider)
-		genesisValidator := NewPrestateValidator(contract.GetGenesisOutputRoot, prestateProvider)
+		prestateValidator := NewPrestateValidator("cannon", contract.GetAbsolutePrestateHash, cannon.NewPrestateProvider(cfg.CannonAbsolutePreState))
+		genesisValidator := NewPrestateValidator("output root", contract.GetGenesisOutputRoot, prestateProvider)
 		return NewGamePlayer(ctx, cl, logger, m, dir, game.Proxy, txSender, contract, []Validator{prestateValidator, genesisValidator}, creator)
 	}
 	oracle, err := createOracle(ctx, gameFactory, caller, faultTypes.CannonGameType)
