@@ -21,7 +21,7 @@ func TestSchedulerProcessesGames(t *testing.T) {
 	}
 	removeExceptCalls := make(chan []common.Address)
 	disk := &trackingDiskManager{removeExceptCalls: removeExceptCalls}
-	s := NewScheduler(logger, metrics.NoopMetrics, disk, 2, createPlayer)
+	s := NewScheduler(logger, metrics.NoopMetrics, disk, 2, createPlayer, false)
 	s.Start(ctx)
 
 	gameAddr1 := common.Address{0xaa}
@@ -49,7 +49,7 @@ func TestReturnBusyWhenScheduleQueueFull(t *testing.T) {
 	}
 	removeExceptCalls := make(chan []common.Address)
 	disk := &trackingDiskManager{removeExceptCalls: removeExceptCalls}
-	s := NewScheduler(logger, metrics.NoopMetrics, disk, 2, createPlayer)
+	s := NewScheduler(logger, metrics.NoopMetrics, disk, 2, createPlayer, false)
 
 	// Scheduler not started - first call fills the queue
 	require.NoError(t, s.Schedule(asGames(common.Address{0xaa}), 0))
