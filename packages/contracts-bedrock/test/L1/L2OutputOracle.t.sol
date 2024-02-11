@@ -51,6 +51,7 @@ contract L2OutputOracle_constructor_Test is CommonTest {
         assertEq(l2OutputOracle.submissionInterval(), submissionInterval);
         assertEq(l2OutputOracle.L2_BLOCK_TIME(), l2BlockTime);
         assertEq(l2OutputOracle.l2BlockTime(), l2BlockTime);
+        assertEq(l2OutputOracle.latestBlockNumber(), startingBlockNumber);
         assertEq(l2OutputOracle.startingBlockNumber(), startingBlockNumber);
         assertEq(l2OutputOracle.startingTimestamp(), startingTimestamp);
         assertEq(l2OutputOracle.finalizationPeriodSeconds(), finalizationPeriodSeconds);
