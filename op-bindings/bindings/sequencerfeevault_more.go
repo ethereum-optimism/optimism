@@ -9,7 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/solc"
 )
 
-const SequencerFeeVaultStorageLayoutJSON = "{\"storage\":[{\"astId\":1000,\"contract\":\"src/L2/SequencerFeeVault.sol:SequencerFeeVault\",\"label\":\"totalProcessed\",\"offset\":0,\"slot\":\"0\",\"type\":\"t_uint256\"}],\"types\":{\"t_uint256\":{\"encoding\":\"inplace\",\"label\":\"uint256\",\"numberOfBytes\":\"32\"}}}"
+const SequencerFeeVaultStorageLayoutJSON = "{\"storage\":[{\"astId\":1000,\"contract\":\"src/L2/SequencerFeeVault.sol:SequencerFeeVault\",\"label\":\"totalProcessed\",\"offset\":0,\"slot\":\"0\",\"type\":\"t_uint256\"},{\"astId\":1001,\"contract\":\"src/L2/SequencerFeeVault.sol:SequencerFeeVault\",\"label\":\"__gap\",\"offset\":0,\"slot\":\"1\",\"type\":\"t_array(t_uint256)49_storage\"}],\"types\":{\"t_array(t_uint256)49_storage\":{\"encoding\":\"inplace\",\"label\":\"uint256[49]\",\"numberOfBytes\":\"1568\",\"base\":\"t_uint256\"},\"t_uint256\":{\"encoding\":\"inplace\",\"label\":\"uint256\",\"numberOfBytes\":\"32\"}}}"
 
 var SequencerFeeVaultStorageLayout = new(solc.StorageLayout)
 
