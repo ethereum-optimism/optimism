@@ -58,6 +58,7 @@ func (f *fakePoS) Start() error {
 	f.sub = event.NewSubscription(func(quit <-chan struct{}) error {
 		// poll every half a second: enough to catch up with any block time when ticks are missed
 		t := f.clock.NewTicker(time.Second / 2)
+		defer t.Stop()
 		for {
 			select {
 			case now := <-t.Ch():

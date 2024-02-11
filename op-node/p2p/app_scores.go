@@ -111,6 +111,7 @@ func (s *peerApplicationScorer) start() {
 	go func() {
 		defer s.done.Done()
 		ticker := s.clock.NewTicker(s.params.DecayInterval)
+		defer ticker.Stop()
 		for {
 			select {
 			case <-s.ctx.Done():
