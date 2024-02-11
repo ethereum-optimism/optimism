@@ -717,6 +717,30 @@ func SystemConfig(batch *safe.Batch, implementations superchain.ImplementationLi
 		}
 	}
 
+	resourceConfig, err := systemConfig.ResourceConfig(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+
+	if resourceConfig.MaxResourceLimit != genesis.DefaultResourceConfig.MaxResourceLimit {
+		return fmt.Errorf("upgrading SystemConfig: DefaultResourceConfig MaxResourceLimit doesn't match MaxResourceLimit in contract")
+	}
+	if resourceConfig.ElasticityMultiplier != genesis.DefaultResourceConfig.ElasticityMultiplier {
+		return fmt.Errorf("upgrading SystemConfig: DefaultResourceConfig ElasticityMultiplier doesn't match ElasticityMultiplier in contract")
+	}
+	if resourceConfig.BaseFeeMaxChangeDenominator != genesis.DefaultResourceConfig.BaseFeeMaxChangeDenominator {
+		return fmt.Errorf("upgrading SystemConfig: DefaultResourceConfig BaseFeeMaxChangeDenominator doesn't match BaseFeeMaxChangeDenominator in contract")
+	}
+	if resourceConfig.MinimumBaseFee != genesis.DefaultResourceConfig.MinimumBaseFee {
+		return fmt.Errorf("upgrading SystemConfig: DefaultResourceConfig MinimumBaseFee doesn't match MinimumBaseFee in contract")
+	}
+	if resourceConfig.SystemTxMaxGas != genesis.DefaultResourceConfig.SystemTxMaxGas {
+		return fmt.Errorf("upgrading SystemConfig: DefaultResourceConfig SystemTxMaxGas doesn't match SystemTxMaxGas in contract")
+	}
+	if resourceConfig.MaximumBaseFee.Cmp(genesis.DefaultResourceConfig.MaximumBaseFee) != 0 {
+		return fmt.Errorf("upgrading SystemConfig: DefaultResourceConfig MaximumBaseFee doesn't match MaximumBaseFee in contract")
+	}
+
 	calldata, err := systemConfigABI.Pack(
 		"initialize",
 		finalSystemOwner,
