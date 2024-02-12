@@ -68,8 +68,16 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "DataAvailabilityChallenge", _sel: _getSel("balances(address)") });
         _addSpec({ _name: "DataAvailabilityChallenge", _sel: _getSel("challenges(uint256,bytes32)") });
         _addSpec({ _name: "DataAvailabilityChallenge", _sel: DataAvailabilityChallenge.initialize.selector });
-        _addSpec({ _name: "DataAvailabilityChallenge", _sel: DataAvailabilityChallenge.setBondSize.selector, _auth: Role.DATAAVAILABILITYCHALLENGEOWNER });
-        _addSpec({ _name: "DataAvailabilityChallenge", _sel: DataAvailabilityChallenge.setResolverRefundPercentage.selector, _auth: Role.DATAAVAILABILITYCHALLENGEOWNER });
+        _addSpec({
+            _name: "DataAvailabilityChallenge",
+            _sel: DataAvailabilityChallenge.setBondSize.selector,
+            _auth: Role.DATAAVAILABILITYCHALLENGEOWNER
+        });
+        _addSpec({
+            _name: "DataAvailabilityChallenge",
+            _sel: DataAvailabilityChallenge.setResolverRefundPercentage.selector,
+            _auth: Role.DATAAVAILABILITYCHALLENGEOWNER
+        });
         _addSpec({ _name: "DataAvailabilityChallenge", _sel: DataAvailabilityChallenge.deposit.selector });
         _addSpec({ _name: "DataAvailabilityChallenge", _sel: DataAvailabilityChallenge.withdraw.selector });
         _addSpec({ _name: "DataAvailabilityChallenge", _sel: DataAvailabilityChallenge.getChallengeStatus.selector });
