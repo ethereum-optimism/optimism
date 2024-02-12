@@ -40,8 +40,8 @@ const (
 	Sha256KeyType KeyType = 4
 	// BlobKeyType is for blob point pre-images.
 	BlobKeyType KeyType = 5
-	// KZGPointEvaluationType is for KZG point-evaluation pre-images.
-	KZGPointEvaluationType KeyType = 6
+	// KZGPointEvaluationKeyType is for KZG point-evaluation pre-images.
+	KZGPointEvaluationKeyType KeyType = 6
 )
 
 // LocalIndexKey is a key local to the program, indexing a special program input.
@@ -109,7 +109,7 @@ type KZGPointEvaluationKey [32]byte
 
 func (k KZGPointEvaluationKey) PreimageKey() (out [32]byte) {
 	out = k
-	out[0] = byte(KZGPointEvaluationType)
+	out[0] = byte(KZGPointEvaluationKeyType)
 	return
 }
 

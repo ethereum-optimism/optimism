@@ -26,12 +26,9 @@ import (
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 	"github.com/ethereum/go-ethereum/params"
 
-	preimage "github.com/ethereum-optimism/optimism/op-preimage"
-	"github.com/ethereum-optimism/optimism/op-program/client/l1"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -44,8 +41,12 @@ import (
 // OracleKZGPointEvaluation implements the EIP-4844 point evaluation precompile,
 // using the preimage-oracle to perform the evaluation.
 type OracleKZGPointEvaluation struct {
-	oracle preimage.Oracle
-	hint   preimage.Hinter
+	Oracle KZGPointEvaluationOracle
+}
+
+// KZGPointEvaluationOracle defines the high-level API used to retrieve the result of the KZG point evaluation precompile
+type KZGPointEvaluationOracle interface {
+	KZGPointEvaluation(input []byte) bool
 }
 
 // RequiredGas estimates the gas required for running the point evaluation precompile.
@@ -98,25 +99,9 @@ func (b *OracleKZGPointEvaluation) Run(input []byte) ([]byte, error) {
 	copy(proof[:], input[144:])
 
 	// Modification note: below replaces the kzg4844.VerifyProof call
-	// ------------------------------------------------------------------
-	// Now the custom OP-Stack Fault-proof part:
-	// 1) emit all the data we need to perform the point-evaluation-call
-	b.hint.Hint(l1.KZGPointEvaluationHint(input))
-
-	// 2) commit to all the input data
-	key := preimage.KZGPointEvaluationKey(crypto.Keccak256Hash(input[:]))
-
-	// 3) get back a 1 (valid) or 0 (invalid)
-	result := b.oracle.Get(key)
-	// anything else unexpected is simply invalid oracle behavior
-	if len(result) != 1 || result[0] > 1 {
-		panic(fmt.Errorf("unexpected preimage oracle KZGPointEvaluation behavior, got result: %x", result))
-	}
-	// 4) check the result
-	if result[0] == 0 {
+	ok := b.Oracle.KZGPointEvaluation(input)
+	if !ok {
 		return nil, fmt.Errorf("%w: invalid KZG point evaluation", errBlobVerifyKZGProof)
 	}
-	// ------------------------------------------------------------------
-
 	return common.Hex2Bytes(blobPrecompileReturnValue), nil
 }
