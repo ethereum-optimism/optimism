@@ -23,6 +23,7 @@
     "TestSystemE2EDencunAtGenesisWithBlobs": "TODO, this should be investigated, but likely is because our Erigon is out of date",
     "TestEcotone": "TODO, this should be investigated, but likely is because our Erigon is out of date",
     "TestSystem4844E2E": "TODO, this should be investigated, but likely is because our Erigon is out of date",
-    "TestFees/ecotone": "TODO, this should be investigated, but likely is because our Erigon is out of date"
+    "TestFees/ecotone": "TODO, this should be investigated, but likely is because our Erigon is out of date",
+    "TestSequencerFailover_SetupCluster": "TODO, this should be investigated, but likely is because our Erigon is out of date"
   }
 }
