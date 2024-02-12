@@ -62,9 +62,6 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     /// @inheritdoc IDisputeGame
     GameStatus public status;
 
-    /// @inheritdoc IFaultDisputeGame
-    Hash public l1Head;
-
     /// @notice An append-only array of all claims made during the dispute game.
     ClaimData[] public claimData;
 
@@ -84,8 +81,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     bool internal initialized;
 
     /// @notice Semantic version.
-    /// @custom:semver 0.3.0
-    string public constant version = "0.3.0";
+    /// @custom:semver 0.4.0
+    string public constant version = "0.4.0";
 
     /// @param _gameType The type ID of the game.
     /// @param _absolutePrestate The absolute prestate of the instruction trace.
@@ -318,7 +315,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         IPreimageOracle oracle = VM.oracle();
         if (_ident == LocalPreimageKey.L1_HEAD_HASH) {
             // Load the L1 head hash
-            oracle.loadLocalData(_ident, uuid.raw(), l1Head.raw(), 32, _partOffset);
+            oracle.loadLocalData(_ident, uuid.raw(), l1Head().raw(), 32, _partOffset);
         } else if (_ident == LocalPreimageKey.STARTING_OUTPUT_ROOT) {
             // Load the starting proposal's output root.
             oracle.loadLocalData(_ident, uuid.raw(), starting.raw(), 32, _partOffset);
@@ -345,8 +342,13 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     }
 
     /// @inheritdoc IFaultDisputeGame
+    function l1Head() public pure returns (Hash l1Head_) {
+        l1Head_ = Hash.wrap(_getArgFixedBytes(0x20));
+    }
+
+    /// @inheritdoc IFaultDisputeGame
     function l2BlockNumber() public pure returns (uint256 l2BlockNumber_) {
-        l2BlockNumber_ = _getArgUint256(0x20);
+        l2BlockNumber_ = _getArgUint256(0x40);
     }
 
     ////////////////////////////////////////////////////////////////
@@ -457,7 +459,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     function extraData() public pure returns (bytes memory extraData_) {
         // The extra data starts at the second word within the cwia calldata and
         // is 32 bytes long.
-        extraData_ = _getArgDynBytes(0x20, 0x20);
+        extraData_ = _getArgDynBytes(0x40, 0x20);
     }
 
     /// @inheritdoc IDisputeGame
@@ -495,9 +497,9 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         // This is to prevent adding extra bytes to the `extraData` that result in a different game UUID in the factory,
         // but are not used by the game, which would allow for multiple dispute games for the same output proposal to
         // be created.
-        // Expected length: 0x46 (0x04 selector + 0x20 root claim + 0x20 extraData + 0x02 CWIA bytes)
+        // Expected length: 0x66 (0x04 selector + 0x20 root claim + 0x20 l1 head + 0x20 extraData + 0x02 CWIA bytes)
         assembly {
-            if gt(calldatasize(), 0x46) {
+            if gt(calldatasize(), 0x66) {
                 // Store the selector for `ExtraDataTooLong()` & revert
                 mstore(0x00, 0xc407e025)
                 revert(0x1C, 0x04)
@@ -519,9 +521,6 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
 
         // Set the game's starting timestamp
         createdAt = Timestamp.wrap(uint64(block.timestamp));
-
-        // Persist the blockhash of the parent block.
-        l1Head = Hash.wrap(blockhash(block.number - 1));
 
         // Set the game as initialized.
         initialized = true;

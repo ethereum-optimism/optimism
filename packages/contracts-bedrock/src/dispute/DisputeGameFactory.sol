@@ -102,8 +102,11 @@ contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, ISemver 
         // If the required initialization bond is not met, revert.
         if (msg.value < initBonds[_gameType]) revert InsufficientBond();
 
+        // Get the hash of the parent block.
+        bytes32 parentHash = blockhash(block.number - 1);
+
         // Clone the implementation contract and initialize it with the given parameters.
-        proxy_ = IDisputeGame(address(impl).clone(abi.encodePacked(_rootClaim, _extraData)));
+        proxy_ = IDisputeGame(address(impl).clone(abi.encodePacked(_rootClaim, parentHash, _extraData)));
         proxy_.initialize{ value: msg.value }();
 
         // Compute the unique identifier for the dispute game.
