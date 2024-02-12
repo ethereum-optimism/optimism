@@ -152,6 +152,31 @@ func TestPreimageLoader_BlobPreimage(t *testing.T) {
 	})
 }
 
+func TestPreimageLoader_KZGPointEvaluationPreimage(t *testing.T) {
+	input := []byte("test input")
+	key := preimage.KZGPointEvaluationKey(crypto.Keccak256Hash(input)).PreimageKey()
+	proof := &proofData{
+		OracleKey: key[:],
+	}
+
+	t.Run("NoInputPreimage", func(t *testing.T) {
+		kv := kvstore.NewMemKV()
+		loader := newPreimageLoader(kv.Get)
+		_, err := loader.LoadPreimage(proof)
+		require.ErrorIs(t, err, kvstore.ErrNotFound)
+	})
+	t.Run("Valid", func(t *testing.T) {
+		kv := kvstore.NewMemKV()
+		loader := newPreimageLoader(kv.Get)
+		require.NoError(t, kv.Put(preimage.Keccak256Key(proof.OracleKey).PreimageKey(), input))
+		actual, err := loader.LoadPreimage(proof)
+		require.NoError(t, err)
+		inputWithLength := lengthPrefixed(input)
+		expected := types.NewPreimageOracleKZGPointEvaluationData(proof.OracleKey, inputWithLength)
+		require.Equal(t, expected, actual)
+	})
+}
+
 // Returns a serialized random field element in big-endian
 func fieldElement(val uint64) [32]byte {
 	r := fr.NewElement(val)

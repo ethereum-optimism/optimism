@@ -265,6 +265,10 @@ func FirstKeccakPreimageLoad() PreimageOpt {
 	return FirstPreimageLoadOfType("keccak")
 }
 
+func FirstKZGPointEvaluationPreimageLoad() PreimageOpt {
+	return FirstPreimageLoadOfType("kzg-point-evaluation")
+}
+
 func PreimageLargerThan(size int) PreimageOpt {
 	return func() preimageOpts {
 		return []string{"--stop-at-preimage-larger-than", strconv.Itoa(size)}
