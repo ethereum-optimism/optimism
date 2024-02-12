@@ -359,39 +359,7 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         assertFalse(optimismPortal2.finalizedWithdrawals(Hashing.hashWithdrawal(_defaultTx)));
     }
 
-    /// @dev Tests that `deleteProvenWithdrawal` reverts when called by a non-guardian.
-    function testFuzz_deleteProvenWithdrawal_onlyGuardian_reverts(address _act, bytes32 _wdHash) external {
-        vm.assume(_act != address(optimismPortal2.guardian()));
-
-        vm.expectRevert("OptimismPortal: only the guardian can delete proven withdrawals");
-        optimismPortal2.deleteProvenWithdrawal(_wdHash);
-    }
-
-    /// @dev Tests that the guardian role can delete any proven withdrawal.
-    function test_deleteProvenWithdrawal_guardian_succeeds() external {
-        vm.expectEmit(true, true, true, true);
-        emit WithdrawalProven(_withdrawalHash, alice, bob);
-        optimismPortal2.proveWithdrawalTransaction({
-            _tx: _defaultTx,
-            _disputeGameIndex: _proposedGameIndex,
-            _outputRootProof: _outputRootProof,
-            _withdrawalProof: _withdrawalProof
-        });
-
-        // Ensure the withdrawal has been proven.
-        (, uint64 timestamp) = optimismPortal2.provenWithdrawals(_withdrawalHash);
-        assertEq(timestamp, block.timestamp);
-
-        // Delete the proven withdrawal.
-        vm.prank(optimismPortal2.guardian());
-        optimismPortal2.deleteProvenWithdrawal(_withdrawalHash);
-
-        // Ensure the withdrawal has been deleted
-        (, timestamp) = optimismPortal2.provenWithdrawals(_withdrawalHash);
-        assertEq(timestamp, 0);
-    }
-
-    /// @dev Tests that `deleteProvenWithdrawal` reverts when called by a non-guardian.
+    /// @dev Tests that `blacklistDisputeGame` reverts when called by a non-guardian.
     function testFuzz_blacklist_onlyGuardian_reverts(address _act) external {
         vm.assume(_act != address(optimismPortal2.guardian()));
 

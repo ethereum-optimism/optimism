@@ -417,14 +417,6 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         disputeGameBlacklist[_disputeGame] = true;
     }
 
-    /// @notice Deletes a proven withdrawal from the `provenWithdrawals` mapping in the case that a MPT proof was
-    ///         incorrectly verified by the `MerkleTrie` verifier contract.
-    /// @param _withdrawalHash Hash of the withdrawal transaction to delete from the `pendingWithdrawals` mapping.
-    function deleteProvenWithdrawal(bytes32 _withdrawalHash) external {
-        require(msg.sender == guardian(), "OptimismPortal: only the guardian can delete proven withdrawals");
-        delete provenWithdrawals[_withdrawalHash];
-    }
-
     /// @notice Sets the respected game type. Changing this value can alter the security properties of the system,
     ///         depending on the new game's behavior.
     /// @param _gameType The game type to consult for output proposals.

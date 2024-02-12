@@ -79,19 +79,6 @@
   {
     "inputs": [
       {
-        "internalType": "bytes32",
-        "name": "_withdrawalHash",
-        "type": "bytes32"
-      }
-    ],
-    "name": "deleteProvenWithdrawal",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
         "internalType": "address",
         "name": "_to",
         "type": "address"
