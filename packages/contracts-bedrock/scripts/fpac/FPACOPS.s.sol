@@ -87,6 +87,9 @@ contract FPACOPS is Deploy, StdAssertions {
         Types.ContractSet memory contracts = _proxiesUnstrict();
         contracts.OptimismPortal2 = mustGetAddress("OptimismPortal2");
 
+        // Ensure that `useFaultProofs` is set to `true`.
+        assertTrue(cfg.useFaultProofs());
+
         // Ensure the contracts are owned by the correct entities.
         address dgfProxyAddr = mustGetAddress("DisputeGameFactoryProxy");
         DisputeGameFactory dgfProxy = DisputeGameFactory(dgfProxyAddr);
@@ -136,7 +139,7 @@ contract FPACOPS is Deploy, StdAssertions {
         console.log("    8. Dispute Game Finality Delay (seconds): ", cfg.disputeGameFinalityDelaySeconds());
         console.log("    9. Respected Game Type: ", cfg.respectedGameType());
         console.log("   10. Preimage Oracle Min Proposal Size (bytes): ", cfg.preimageOracleMinProposalSize());
-        console.log("   11. Preimage Oracle Challenge Period: ", cfg.preimageOracleChallengePeriod());
+        console.log("   11. Preimage Oracle Challenge Period (seconds): ", cfg.preimageOracleChallengePeriod());
         console.log("   12. Preimage Oracle Cancun Activation Timestamp: ", cfg.preimageOracleCancunActivationTimestamp());
     }
 }
