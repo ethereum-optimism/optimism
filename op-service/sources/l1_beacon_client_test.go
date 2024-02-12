@@ -150,13 +150,7 @@ func TestBeaconClientFallback(t *testing.T) {
 	p.EXPECT().BeaconBlobSideCars(ctx, false, uint64(1), hashes).Return(eth.APIGetBlobSidecarsResponse{}, errors.New("404 not found"))
 	f.EXPECT().BeaconBlobSideCars(ctx, false, uint64(1), hashes).Return(eth.APIGetBlobSidecarsResponse{Data: apiSidecars}, nil)
 
-	// First call is the the primary, should fail
 	resp, err := c.GetBlobSidecars(ctx, eth.L1BlockRef{Time: 12}, hashes)
-	require.Empty(t, resp)
-	require.Error(t, err)
-
-	// Second call to the secondary, should succeed
-	resp, err = c.GetBlobSidecars(ctx, eth.L1BlockRef{Time: 12}, hashes)
 	require.Equal(t, sidecars, resp)
 	require.NoError(t, err)
 
@@ -174,12 +168,6 @@ func TestBeaconClientFallback(t *testing.T) {
 	f.EXPECT().BeaconBlobSideCars(ctx, false, uint64(2), hashes).Return(eth.APIGetBlobSidecarsResponse{}, errors.New("404 not found"))
 	p.EXPECT().BeaconBlobSideCars(ctx, false, uint64(2), hashes).Return(eth.APIGetBlobSidecarsResponse{Data: apiSidecars}, nil)
 
-	// Third call is the the secondary, should fail
-	resp, err = c.GetBlobSidecars(ctx, eth.L1BlockRef{Time: 14}, hashes)
-	require.Empty(t, resp)
-	require.Error(t, err)
-
-	// Fourth call to the primary, should succeed
 	resp, err = c.GetBlobSidecars(ctx, eth.L1BlockRef{Time: 14}, hashes)
 	require.Equal(t, sidecars, resp)
 	require.NoError(t, err)

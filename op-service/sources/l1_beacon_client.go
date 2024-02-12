@@ -3,6 +3,7 @@ package sources
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -138,6 +139,10 @@ func NewClientPool[T any](clients ...T) *ClientPool[T] {
 	}
 }
 
+func (p *ClientPool[T]) Len() int {
+	return len(p.clients)
+}
+
 func (p *ClientPool[T]) Get() T {
 	return p.clients[p.index]
 }
@@ -194,6 +199,21 @@ func (cl *L1BeaconClient) GetTimeToSlotFn(ctx context.Context) (TimeToSlotFn, er
 	return cl.timeToSlotFn, nil
 }
 
+func (cl *L1BeaconClient) fetchSidecars(ctx context.Context, slot uint64, hashes []eth.IndexedBlobHash) (eth.APIGetBlobSidecarsResponse, error) {
+	var errs []error
+	for i := 0; i < cl.pool.Len(); i++ {
+		f := cl.pool.Get()
+		resp, err := f.BeaconBlobSideCars(ctx, cl.cfg.FetchAllSidecars, slot, hashes)
+		if err != nil {
+			cl.pool.MoveToNext()
+			errs = append(errs, err)
+		} else {
+			return resp, nil
+		}
+	}
+	return eth.APIGetBlobSidecarsResponse{}, errors.Join(errs...)
+}
+
 // GetBlobSidecars fetches blob sidecars that were confirmed in the specified
 // L1 block with the given indexed hashes.
 // Order of the returned sidecars is guaranteed to be that of the hashes.
@@ -211,10 +231,8 @@ func (cl *L1BeaconClient) GetBlobSidecars(ctx context.Context, ref eth.L1BlockRe
 		return nil, fmt.Errorf("error in converting ref.Time to slot: %w", err)
 	}
 
-	f := cl.pool.Get()
-	resp, err := f.BeaconBlobSideCars(ctx, cl.cfg.FetchAllSidecars, slot, hashes)
+	resp, err := cl.fetchSidecars(ctx, slot, hashes)
 	if err != nil {
-		cl.pool.MoveToNext()
 		return nil, fmt.Errorf("failed to fetch blob sidecars for slot %v block %v: %w", slot, ref, err)
 	}
 
