@@ -1,4 +1,3 @@
-
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
@@ -40,16 +39,10 @@ contract FPACOPS is Deploy, StdAssertions {
 
         // Transfer ownership of the DisputeGameFactory to the SystemOwnerSafe, and transfer the administrative rights
         // of the DisputeGameFactoryProxy to the ProxyAdmin.
-        transferDGFOwnershipFinal({
-            _proxyAdmin: _proxyAdmin,
-            _systemOwnerSafe: _systemOwnerSafe
-        });
+        transferDGFOwnershipFinal({ _proxyAdmin: _proxyAdmin, _systemOwnerSafe: _systemOwnerSafe });
 
         // Run post-deployment assertions.
-        postDeployAssertions({
-            _proxyAdmin: _proxyAdmin,
-            _systemOwnerSafe: _systemOwnerSafe
-        });
+        postDeployAssertions({ _proxyAdmin: _proxyAdmin, _systemOwnerSafe: _systemOwnerSafe });
 
         // Print overview
         printConfigReview();
@@ -116,7 +109,8 @@ contract FPACOPS is Deploy, StdAssertions {
         assertEq(gameImpl.genesisOutputRoot().raw(), cfg.faultGameGenesisOutputRoot());
 
         // Check the security override yoke configuration.
-        PermissionedDisputeGame soyGameImpl = PermissionedDisputeGame(address(dgfProxy.gameImpls(GameTypes.PERMISSIONED_CANNON)));
+        PermissionedDisputeGame soyGameImpl =
+            PermissionedDisputeGame(address(dgfProxy.gameImpls(GameTypes.PERMISSIONED_CANNON)));
         assertEq(soyGameImpl.maxGameDepth(), cfg.faultGameMaxDepth());
         assertEq(soyGameImpl.splitDepth(), cfg.faultGameSplitDepth());
         assertEq(soyGameImpl.gameDuration().raw(), cfg.faultGameMaxDuration());
@@ -140,6 +134,8 @@ contract FPACOPS is Deploy, StdAssertions {
         console.log("    9. Respected Game Type: ", cfg.respectedGameType());
         console.log("   10. Preimage Oracle Min Proposal Size (bytes): ", cfg.preimageOracleMinProposalSize());
         console.log("   11. Preimage Oracle Challenge Period (seconds): ", cfg.preimageOracleChallengePeriod());
-        console.log("   12. Preimage Oracle Cancun Activation Timestamp: ", cfg.preimageOracleCancunActivationTimestamp());
+        console.log(
+            "   12. Preimage Oracle Cancun Activation Timestamp: ", cfg.preimageOracleCancunActivationTimestamp()
+        );
     }
 }
