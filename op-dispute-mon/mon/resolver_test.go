@@ -85,30 +85,42 @@ func TestResolver_ResolveTree(t *testing.T) {
 	})
 
 	t.Run("SingleRootClaim", func(t *testing.T) {
-		claims := createDeepClaimList()[:1]
-		claims[0].CounteredBy = common.Address{}
-		tree, err := createBidirectionalTree(claims)
-		require.NoError(t, err)
-		status := resolveTree(tree)
+		list := createBidirectionalClaimList()[:1]
+		list[0].Claim.CounteredBy = common.Address{}
+		status := resolveTree(list)
 		require.Equal(t, types.GameStatusDefenderWon, status)
-	})
-
-	t.Run("DefenderWon", func(t *testing.T) {
-		claims := createDeepClaimList()[:2]
-		claims[1].CounteredBy = common.Address{}
-		tree, err := createBidirectionalTree(claims)
-		require.NoError(t, err)
-		status := resolveTree(tree)
-		require.Equal(t, types.GameStatusChallengerWon, status)
 	})
 
 	t.Run("ChallengerWon", func(t *testing.T) {
-		claims := createDeepClaimList()
-		tree, err := createBidirectionalTree(claims)
-		require.NoError(t, err)
-		status := resolveTree(tree)
+		list := createBidirectionalClaimList()[:2]
+		list[1].Claim.CounteredBy = common.Address{}
+		list[1].Children = make([]*BidirectionalClaim, 0)
+		status := resolveTree(list)
+		require.Equal(t, types.GameStatusChallengerWon, status)
+	})
+
+	t.Run("DefenderWon", func(t *testing.T) {
+		status := resolveTree(createBidirectionalClaimList())
 		require.Equal(t, types.GameStatusDefenderWon, status)
 	})
+}
+
+func createBidirectionalClaimList() []*BidirectionalClaim {
+	claimList := createDeepClaimList()
+	bidirectionalClaimList := make([]*BidirectionalClaim, len(claimList))
+	bidirectionalClaimList[2] = &BidirectionalClaim{
+		Claim:    &claimList[2],
+		Children: make([]*BidirectionalClaim, 0),
+	}
+	bidirectionalClaimList[1] = &BidirectionalClaim{
+		Claim:    &claimList[1],
+		Children: []*BidirectionalClaim{bidirectionalClaimList[2]},
+	}
+	bidirectionalClaimList[0] = &BidirectionalClaim{
+		Claim:    &claimList[0],
+		Children: []*BidirectionalClaim{bidirectionalClaimList[1]},
+	}
+	return bidirectionalClaimList
 }
 
 func createDeepClaimList() []faultTypes.Claim {
