@@ -2,7 +2,6 @@ package mon
 
 import (
 	"fmt"
-	"math"
 
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
@@ -50,14 +49,10 @@ func createBidirectionalTree(claims []faultTypes.Claim) ([]*BidirectionalClaim, 
 // claimant. Once the root claim is reached, the resolution game status is returned.
 func resolveTree(tree []*BidirectionalClaim) types.GameStatus {
 	for i := len(tree) - 1; i >= 0; i-- {
-		leftMostCounter := uint64(math.MaxUint64)
 		claim := tree[i]
 		counterClaimant := common.Address{}
 		for _, child := range claim.Children {
-			notCountered := child.Claim.CounteredBy == common.Address{}
-			moreLeft := child.Claim.Position.ToGIndex().Uint64() < leftMostCounter
-			if notCountered && moreLeft {
-				leftMostCounter = child.Claim.Position.IndexAtDepth().Uint64()
+			if child.Claim.CounteredBy == (common.Address{}) {
 				counterClaimant = child.Claim.Claimant
 			}
 		}
