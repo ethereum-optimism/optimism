@@ -285,7 +285,7 @@ contract Deploy is Deployer {
         setupOpChain();
         if (cfg.usePlasma()) {
             setupOpPlasma();
-	}
+	    }
     }
 
     ////////////////////////////////////////////////////////////////
