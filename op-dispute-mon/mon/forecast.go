@@ -66,7 +66,7 @@ func (f *forecast) forecastGame(ctx context.Context, game types.GameMetadata) er
 	}
 
 	// Compute the resolution status of the game.
-	status, err = NewResolver().Resolve(claims)
+	status, err = Resolve(claims)
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrResolver, err)
 	}

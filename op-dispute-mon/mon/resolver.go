@@ -9,32 +9,24 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-// Resolver is responsible for taking a list of claims and executing the fault dispute game
-// resolution process on them. It is stateless, and performs the resolution in a single pass.
-type Resolver struct{}
-
 type BidirectionalClaim struct {
 	Claim    *faultTypes.Claim
 	Children []*BidirectionalClaim
 }
 
-func NewResolver() *Resolver {
-	return &Resolver{}
-}
-
 // Resolve creates the bidirectional tree of claims and then computes the resolved game status.
-func (r *Resolver) Resolve(claims []faultTypes.Claim) (types.GameStatus, error) {
-	flatBidireactionalTree, err := r.createBidirectionalTree(claims)
+func Resolve(claims []faultTypes.Claim) (types.GameStatus, error) {
+	flatBidireactionalTree, err := createBidirectionalTree(claims)
 	if err != nil {
 		return 0, fmt.Errorf("failed to create bidirectional tree: %w", err)
 	}
-	return r.resolveTree(flatBidireactionalTree), nil
+	return resolveTree(flatBidireactionalTree), nil
 }
 
 // createBidirectionalTree walks backwards through the list of claims and creates a bidirectional
 // tree of claims. The root claim must be at index 0. The tree is returned as a flat array so it
 // can be easily traversed following the resolution process.
-func (r *Resolver) createBidirectionalTree(claims []faultTypes.Claim) ([]*BidirectionalClaim, error) {
+func createBidirectionalTree(claims []faultTypes.Claim) ([]*BidirectionalClaim, error) {
 	claimMap := make(map[int]*BidirectionalClaim)
 	res := make([]*BidirectionalClaim, 0, len(claims))
 	for i := len(claims) - 1; i >= 0; i-- {
@@ -74,7 +66,7 @@ func (r *Resolver) createBidirectionalTree(claims []faultTypes.Claim) ([]*Bidire
 // resolveTree iterates backwards over the bidirectional tree, iteratively
 // checking the leftmost counter of each claim, and updating the claim's counter
 // claimant. Once the root claim is reached, the resolution game status is returned.
-func (r *Resolver) resolveTree(tree []*BidirectionalClaim) types.GameStatus {
+func resolveTree(tree []*BidirectionalClaim) types.GameStatus {
 	for i := len(tree) - 1; i >= 0; i-- {
 		leftMostCounter := uint64(math.MaxUint64)
 		claim := tree[i]

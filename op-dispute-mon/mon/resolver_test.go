@@ -14,29 +14,25 @@ import (
 
 func TestResolver_Resolve(t *testing.T) {
 	t.Run("NoClaims", func(t *testing.T) {
-		r := NewResolver()
-		status, err := r.Resolve([]faultTypes.Claim{})
+		status, err := Resolve([]faultTypes.Claim{})
 		require.NoError(t, err)
 		require.Equal(t, types.GameStatusDefenderWon, status)
 	})
 
 	t.Run("SingleClaim", func(t *testing.T) {
-		r := NewResolver()
-		status, err := r.Resolve(createDeepClaimList()[:1])
+		status, err := Resolve(createDeepClaimList()[:1])
 		require.NoError(t, err)
 		require.Equal(t, types.GameStatusDefenderWon, status)
 	})
 
 	t.Run("MultipleClaims", func(t *testing.T) {
-		r := NewResolver()
-		status, err := r.Resolve(createDeepClaimList()[:2])
+		status, err := Resolve(createDeepClaimList()[:2])
 		require.NoError(t, err)
 		require.Equal(t, types.GameStatusChallengerWon, status)
 	})
 
 	t.Run("MultipleClaimsAndChildren", func(t *testing.T) {
-		r := NewResolver()
-		status, err := r.Resolve(createDeepClaimList())
+		status, err := Resolve(createDeepClaimList())
 		require.NoError(t, err)
 		require.Equal(t, types.GameStatusDefenderWon, status)
 	})
@@ -44,10 +40,9 @@ func TestResolver_Resolve(t *testing.T) {
 
 func TestResolver_CreateBidirectionalTree(t *testing.T) {
 	t.Run("SingleClaim", func(t *testing.T) {
-		r := NewResolver()
 		claims := createDeepClaimList()[:1]
 		claims[0].CounteredBy = common.Address{}
-		tree, err := r.createBidirectionalTree(claims)
+		tree, err := createBidirectionalTree(claims)
 		require.NoError(t, err)
 		require.Len(t, tree, 1)
 		require.Equal(t, claims[0], *tree[0].Claim)
@@ -55,10 +50,9 @@ func TestResolver_CreateBidirectionalTree(t *testing.T) {
 	})
 
 	t.Run("MultipleClaims", func(t *testing.T) {
-		r := NewResolver()
 		claims := createDeepClaimList()[:2]
 		claims[1].CounteredBy = common.Address{}
-		tree, err := r.createBidirectionalTree(claims)
+		tree, err := createBidirectionalTree(claims)
 		require.NoError(t, err)
 		require.Len(t, tree, 2)
 		require.Equal(t, claims[0], *tree[0].Claim)
@@ -69,9 +63,8 @@ func TestResolver_CreateBidirectionalTree(t *testing.T) {
 	})
 
 	t.Run("MultipleClaimsAndChildren", func(t *testing.T) {
-		r := NewResolver()
 		claims := createDeepClaimList()
-		tree, err := r.createBidirectionalTree(claims)
+		tree, err := createBidirectionalTree(claims)
 		require.NoError(t, err)
 		require.Len(t, tree, 3)
 		require.Equal(t, claims[0], *tree[0].Claim)
@@ -87,37 +80,33 @@ func TestResolver_CreateBidirectionalTree(t *testing.T) {
 
 func TestResolver_ResolveTree(t *testing.T) {
 	t.Run("NoClaims", func(t *testing.T) {
-		r := NewResolver()
-		status := r.resolveTree([]*BidirectionalClaim{})
+		status := resolveTree([]*BidirectionalClaim{})
 		require.Equal(t, types.GameStatusDefenderWon, status)
 	})
 
 	t.Run("SingleRootClaim", func(t *testing.T) {
-		r := NewResolver()
 		claims := createDeepClaimList()[:1]
 		claims[0].CounteredBy = common.Address{}
-		tree, err := r.createBidirectionalTree(claims)
+		tree, err := createBidirectionalTree(claims)
 		require.NoError(t, err)
-		status := r.resolveTree(tree)
+		status := resolveTree(tree)
 		require.Equal(t, types.GameStatusDefenderWon, status)
 	})
 
 	t.Run("DefenderWon", func(t *testing.T) {
-		r := NewResolver()
 		claims := createDeepClaimList()[:2]
 		claims[1].CounteredBy = common.Address{}
-		tree, err := r.createBidirectionalTree(claims)
+		tree, err := createBidirectionalTree(claims)
 		require.NoError(t, err)
-		status := r.resolveTree(tree)
+		status := resolveTree(tree)
 		require.Equal(t, types.GameStatusChallengerWon, status)
 	})
 
 	t.Run("ChallengerWon", func(t *testing.T) {
-		r := NewResolver()
 		claims := createDeepClaimList()
-		tree, err := r.createBidirectionalTree(claims)
+		tree, err := createBidirectionalTree(claims)
 		require.NoError(t, err)
-		status := r.resolveTree(tree)
+		status := resolveTree(tree)
 		require.Equal(t, types.GameStatusDefenderWon, status)
 	})
 }
