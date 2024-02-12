@@ -696,25 +696,23 @@ func SystemConfig(batch *safe.Batch, implementations superchain.ImplementationLi
 		return err
 	}
 
-	if config != nil {
-		if gasPriceOracleOverhead.Uint64() != config.GasPriceOracleOverhead {
-			return fmt.Errorf("GasPriceOracleOverhead address doesn't match config")
-		}
-		if gasPriceOracleScalar.Uint64() != config.GasPriceOracleScalar {
-			return fmt.Errorf("GasPriceOracleScalar address doesn't match config")
-		}
-		if batcherHash != common.BytesToHash(config.BatchSenderAddress.Bytes()) {
-			return fmt.Errorf("BatchSenderAddress address doesn't match config")
-		}
-		if l2GenesisBlockGasLimit != uint64(config.L2GenesisBlockGasLimit) {
-			return fmt.Errorf("L2GenesisBlockGasLimit address doesn't match config")
-		}
-		if p2pSequencerAddress != config.P2PSequencerAddress {
-			return fmt.Errorf("P2PSequencerAddress address doesn't match config")
-		}
-		if finalSystemOwner != config.FinalSystemOwner {
-			return fmt.Errorf("FinalSystemOwner address doesn't match config")
-		}
+	if gasPriceOracleOverhead.Uint64() != config.GasPriceOracleOverhead {
+		return fmt.Errorf("GasPriceOracleOverhead address doesn't match config")
+	}
+	if gasPriceOracleScalar.Uint64() != config.GasPriceOracleScalar {
+		return fmt.Errorf("GasPriceOracleScalar address doesn't match config")
+	}
+	if batcherHash != common.BytesToHash(config.BatchSenderAddress.Bytes()) {
+		return fmt.Errorf("BatchSenderAddress address doesn't match config")
+	}
+	if l2GenesisBlockGasLimit != uint64(config.L2GenesisBlockGasLimit) {
+		return fmt.Errorf("L2GenesisBlockGasLimit address doesn't match config")
+	}
+	if p2pSequencerAddress != config.P2PSequencerAddress {
+		return fmt.Errorf("P2PSequencerAddress address doesn't match config")
+	}
+	if finalSystemOwner != config.FinalSystemOwner {
+		return fmt.Errorf("FinalSystemOwner address doesn't match config")
 	}
 
 	resourceConfig, err := systemConfig.ResourceConfig(&bind.CallOpts{})
