@@ -288,6 +288,22 @@ contract Initializer_Test is Bridge_Initializer {
                 initializedSlotVal: deploy.loadInitializedSlot("OptimismMintableERC20FactoryProxy")
             })
         );
+        // DataAvailabilityChallengeImpl
+        contracts.push(
+            InitializeableContract({
+                target: deploy.mustGetAddress("DataAvailabilityChallenge"),
+                initCalldata: abi.encodeCall(dataAvailabilityChallenge.initialize, (address(0), 0, 0, 0, 0)),
+                initializedSlotVal: deploy.loadInitializedSlot("DataAvailabilityChallenge")
+            })
+        );
+        // OptimismMintableERC20FactoryProxy
+        contracts.push(
+            InitializeableContract({
+                target: address(dataAvailabilityChallenge),
+                initCalldata: abi.encodeCall(dataAvailabilityChallenge.initialize, (address(0), 0, 0, 0, 0)),
+                initializedSlotVal: deploy.loadInitializedSlot("DataAvailabilityChallengeProxy")
+            })
+        );
     }
 
     /// @notice Tests that:

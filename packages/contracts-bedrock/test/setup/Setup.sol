@@ -32,6 +32,7 @@ import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { Executables } from "scripts/Executables.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
+import { DataAvailabilityChallenge } from "src/L1/DataAvailabilityChallenge.sol";
 
 /// @title Setup
 /// @dev This contact is responsible for setting up the contracts in state. It currently
@@ -58,6 +59,7 @@ contract Setup {
     OptimismMintableERC20Factory l1OptimismMintableERC20Factory;
     ProtocolVersions protocolVersions;
     SuperchainConfig superchainConfig;
+    DataAvailabilityChallenge dataAvailabilityChallenge;
 
     L2CrossDomainMessenger l2CrossDomainMessenger =
         L2CrossDomainMessenger(payable(Predeploys.L2_CROSS_DOMAIN_MESSENGER));
@@ -109,6 +111,7 @@ contract Setup {
             OptimismMintableERC20Factory(deploy.mustGetAddress("OptimismMintableERC20FactoryProxy"));
         protocolVersions = ProtocolVersions(deploy.mustGetAddress("ProtocolVersionsProxy"));
         superchainConfig = SuperchainConfig(deploy.mustGetAddress("SuperchainConfigProxy"));
+        dataAvailabilityChallenge = DataAvailabilityChallenge(deploy.mustGetAddress("DataAvailabilityChallengeProxy"));
 
         vm.label(address(l2OutputOracle), "L2OutputOracle");
         vm.label(deploy.mustGetAddress("L2OutputOracleProxy"), "L2OutputOracleProxy");
