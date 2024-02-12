@@ -120,8 +120,8 @@ done
 #########################
 # kontrol prove options #
 #########################
-max_depth=1000000
-max_iterations=1000000
+max_depth=10000
+max_iterations=10000
 smt_timeout=100000
 max_workers=7 # Set to 7 since the CI machine has 8 CPUs
 # workers is the minimum between max_workers and the length of test_list
@@ -131,7 +131,7 @@ reinit=
 break_on_calls=--no-break-on-calls
 # break_on_calls=
 auto_abstract=--auto-abstract-gas
-# auto_abstract=
+auto_abstract=
 bug_report=--bug-report
 bug_report=
 use_booster=--use-booster
