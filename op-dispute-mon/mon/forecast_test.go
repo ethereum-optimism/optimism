@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"testing"
 
-	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
@@ -109,7 +108,7 @@ func TestForecast_Forecast_BasicTests(t *testing.T) {
 	t.Run("ChallengerWonGameSkipped", func(t *testing.T) {
 		forecast, creator, rollup, logs := setupForecastTest(t)
 		creator.caller = &mockGameCaller{status: types.GameStatusChallengerWon}
-		creator.caller.claims = []faultTypes.Claim{{}}
+		creator.caller.claims = createDeepClaimList()[:1]
 		expectedGame := types.GameMetadata{}
 		forecast.Forecast(context.Background(), []types.GameMetadata{expectedGame})
 		require.Equal(t, 1, creator.calls)
@@ -130,7 +129,7 @@ func TestForecast_Forecast_BasicTests(t *testing.T) {
 	t.Run("DefenderWonGameSkipped", func(t *testing.T) {
 		forecast, creator, rollup, logs := setupForecastTest(t)
 		creator.caller = &mockGameCaller{status: types.GameStatusDefenderWon}
-		creator.caller.claims = []faultTypes.Claim{{}}
+		creator.caller.claims = createDeepClaimList()[:1]
 		expectedGame := types.GameMetadata{}
 		forecast.Forecast(context.Background(), []types.GameMetadata{expectedGame})
 		require.Equal(t, 1, creator.calls)
@@ -151,7 +150,7 @@ func TestForecast_Forecast_BasicTests(t *testing.T) {
 	t.Run("SingleGame", func(t *testing.T) {
 		forecast, creator, rollup, logs := setupForecastTest(t)
 		creator.caller = &mockGameCaller{status: types.GameStatusInProgress}
-		creator.caller.claims = []faultTypes.Claim{{}}
+		creator.caller.claims = createDeepClaimList()[:1]
 		forecast.Forecast(context.Background(), []types.GameMetadata{{}})
 		require.Equal(t, 1, creator.calls)
 		require.Equal(t, 1, creator.caller.calls)
@@ -167,7 +166,7 @@ func TestForecast_Forecast_BasicTests(t *testing.T) {
 
 	t.Run("MultipleGames", func(t *testing.T) {
 		forecast, creator, rollup, logs := setupForecastTest(t)
-		creator.caller.claims = []faultTypes.Claim{{}}
+		creator.caller.claims = createDeepClaimList()[:1]
 		creator.caller = &mockGameCaller{status: types.GameStatusInProgress}
 		forecast.Forecast(context.Background(), []types.GameMetadata{{}, {}, {}})
 		require.Equal(t, 3, creator.calls)

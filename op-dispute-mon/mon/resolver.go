@@ -29,36 +29,18 @@ func Resolve(claims []faultTypes.Claim) (types.GameStatus, error) {
 func createBidirectionalTree(claims []faultTypes.Claim) ([]*BidirectionalClaim, error) {
 	claimMap := make(map[int]*BidirectionalClaim)
 	res := make([]*BidirectionalClaim, 0, len(claims))
-	for i := len(claims) - 1; i >= 0; i-- {
-		claim := claims[i]
-		// Update this claim if it exists, otherwise create a new claim.
-		var bidirectionalClaim *BidirectionalClaim
-		stored, ok := claimMap[claim.ContractIndex]
-		if ok {
-			// This is where we set the "parent" claim if it exists (i.e. the claim has children).
-			stored.Claim = &claim
-			bidirectionalClaim = stored
-		} else {
-			claimMap[claim.ContractIndex] = &BidirectionalClaim{
-				Claim:    &claim,
-				Children: []*BidirectionalClaim{},
-			}
-			bidirectionalClaim = claimMap[claim.ContractIndex]
+	for _, claim := range claims {
+		claim := claim
+		bidirectionalClaim := &BidirectionalClaim{
+			Claim: &claim,
 		}
-		// Update the parent if it exists, otherwise create a new parent.
-		parent, ok := claimMap[claim.ParentContractIndex]
-		if !ok {
-			// Do not set the claim since this is set when we iterate to the parent.
-			parent = &BidirectionalClaim{
-				Children: []*BidirectionalClaim{bidirectionalClaim},
-			}
-			claimMap[claim.ParentContractIndex] = parent
-		} else {
+		claimMap[claim.ContractIndex] = bidirectionalClaim
+		if !claim.IsRoot() {
+			// SAFETY: the parent must exist in the list prior to the current claim.
+			parent := claimMap[claim.ParentContractIndex]
 			parent.Children = append(parent.Children, bidirectionalClaim)
 		}
-
-		// Append the claim to the front of the res array
-		res = append([]*BidirectionalClaim{bidirectionalClaim}, res...)
+		res = append(res, bidirectionalClaim)
 	}
 	return res, nil
 }
