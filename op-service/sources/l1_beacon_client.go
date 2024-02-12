@@ -19,8 +19,8 @@ import (
 
 const (
 	versionMethod        = "eth/v1/node/version"
-	genesisMethod        = "eth/v1/beacon/genesis"
 	specMethod           = "eth/v1/config/spec"
+	genesisMethod        = "eth/v1/beacon/genesis"
 	sidecarsMethodPrefix = "eth/v1/beacon/blob_sidecars/"
 )
 
@@ -28,20 +28,43 @@ type L1BeaconClientConfig struct {
 	FetchAllSidecars bool
 }
 
+// L1BeaconClient is a high level golang client for the Beacon API.
 type L1BeaconClient struct {
-	cl  client.HTTP
-	cfg L1BeaconClientConfig
+	cl   BeaconClient
+	pool *ClientPool[BlobSideCarsFetcher]
+	cfg  L1BeaconClientConfig
 
 	initLock     sync.Mutex
 	timeToSlotFn TimeToSlotFn
 }
 
-// NewL1BeaconClient returns a client for making requests to an L1 consensus layer node.
-func NewL1BeaconClient(cl client.HTTP, cfg L1BeaconClientConfig) *L1BeaconClient {
-	return &L1BeaconClient{cl: cl, cfg: cfg}
+// BeaconClient is a thin wrapper over the Beacon APIs.
+//
+//go:generate mockery --name BeaconClient --with-expecter=true
+type BeaconClient interface {
+	NodeVersion(ctx context.Context) (string, error)
+	ConfigSpec(ctx context.Context) (eth.APIConfigResponse, error)
+	BeaconGenesis(ctx context.Context) (eth.APIGenesisResponse, error)
+	BeaconBlobSideCars(ctx context.Context, fetchAllSidecars bool, slot uint64, hashes []eth.IndexedBlobHash) (eth.APIGetBlobSidecarsResponse, error)
 }
 
-func (cl *L1BeaconClient) apiReq(ctx context.Context, dest any, reqPath string, reqQuery url.Values) error {
+// BlobSideCarsFetcher is a thin wrapper over the Beacon APIs.
+//
+//go:generate mockery --name BlobSideCarsFetcher --with-expecter=true
+type BlobSideCarsFetcher interface {
+	BeaconBlobSideCars(ctx context.Context, fetchAllSidecars bool, slot uint64, hashes []eth.IndexedBlobHash) (eth.APIGetBlobSidecarsResponse, error)
+}
+
+// BeaconHTTPClient implements BeaconClient. It provides golang types over the basic Beacon API.
+type BeaconHTTPClient struct {
+	cl client.HTTP
+}
+
+func NewBeaconHTTPClient(cl client.HTTP) *BeaconHTTPClient {
+	return &BeaconHTTPClient{cl}
+}
+
+func (cl *BeaconHTTPClient) apiReq(ctx context.Context, dest any, reqPath string, reqQuery url.Values) error {
 	headers := http.Header{}
 	headers.Add("Accept", "application/json")
 	resp, err := cl.cl.Get(ctx, reqPath, reqQuery, headers)
@@ -63,6 +86,80 @@ func (cl *L1BeaconClient) apiReq(ctx context.Context, dest any, reqPath string, 
 	return nil
 }
 
+func (cl *BeaconHTTPClient) NodeVersion(ctx context.Context) (string, error) {
+	var resp eth.APIVersionResponse
+	if err := cl.apiReq(ctx, &resp, versionMethod, nil); err != nil {
+		return "", err
+	}
+	return resp.Data.Version, nil
+}
+
+func (cl *BeaconHTTPClient) ConfigSpec(ctx context.Context) (eth.APIConfigResponse, error) {
+	var configResp eth.APIConfigResponse
+	if err := cl.apiReq(ctx, &configResp, specMethod, nil); err != nil {
+		return eth.APIConfigResponse{}, err
+	}
+	return configResp, nil
+}
+
+func (cl *BeaconHTTPClient) BeaconGenesis(ctx context.Context) (eth.APIGenesisResponse, error) {
+	var genesisResp eth.APIGenesisResponse
+	if err := cl.apiReq(ctx, &genesisResp, genesisMethod, nil); err != nil {
+		return eth.APIGenesisResponse{}, err
+	}
+	return genesisResp, nil
+}
+
+func (cl *BeaconHTTPClient) BeaconBlobSideCars(ctx context.Context, fetchAllSidecars bool, slot uint64, hashes []eth.IndexedBlobHash) (eth.APIGetBlobSidecarsResponse, error) {
+	reqPath := path.Join(sidecarsMethodPrefix, strconv.FormatUint(slot, 10))
+	var reqQuery url.Values
+	if !fetchAllSidecars {
+		reqQuery = url.Values{}
+		for i := range hashes {
+			reqQuery.Add("indices", strconv.FormatUint(hashes[i].Index, 10))
+		}
+	}
+	var resp eth.APIGetBlobSidecarsResponse
+	if err := cl.apiReq(ctx, &resp, reqPath, reqQuery); err != nil {
+		return eth.APIGetBlobSidecarsResponse{}, err
+	}
+	return resp, nil
+}
+
+type ClientPool[T any] struct {
+	clients []T
+	index   int
+}
+
+func NewClientPool[T any](clients ...T) *ClientPool[T] {
+	return &ClientPool[T]{
+		clients: clients,
+		index:   0,
+	}
+}
+
+func (p *ClientPool[T]) Get() T {
+	return p.clients[p.index]
+}
+
+func (p *ClientPool[T]) MoveToNext() {
+	p.index += 1
+	if p.index == len(p.clients) {
+		p.index = 0
+	}
+}
+
+// NewL1BeaconClient returns a client for making requests to an L1 consensus layer node.
+// Fallbacks are optional clients that will be used for fetching blobs. L1BeaconClient will rotate between
+// the `cl` and the fallbacks whenever a client runs into an error while fetching blobs.
+func NewL1BeaconClient(cl BeaconClient, cfg L1BeaconClientConfig, fallbacks ...BlobSideCarsFetcher) *L1BeaconClient {
+	cs := append([]BlobSideCarsFetcher{cl}, fallbacks...)
+	return &L1BeaconClient{
+		cl:   cl,
+		pool: NewClientPool[BlobSideCarsFetcher](cs...),
+		cfg:  cfg}
+}
+
 type TimeToSlotFn func(timestamp uint64) (uint64, error)
 
 // GetTimeToSlotFn returns a function that converts a timestamp to a slot number.
@@ -73,20 +170,20 @@ func (cl *L1BeaconClient) GetTimeToSlotFn(ctx context.Context) (TimeToSlotFn, er
 		return cl.timeToSlotFn, nil
 	}
 
-	var genesisResp eth.APIGenesisResponse
-	if err := cl.apiReq(ctx, &genesisResp, genesisMethod, nil); err != nil {
+	genesis, err := cl.cl.BeaconGenesis(ctx)
+	if err != nil {
 		return nil, err
 	}
 
-	var configResp eth.APIConfigResponse
-	if err := cl.apiReq(ctx, &configResp, specMethod, nil); err != nil {
+	config, err := cl.cl.ConfigSpec(ctx)
+	if err != nil {
 		return nil, err
 	}
 
-	genesisTime := uint64(genesisResp.Data.GenesisTime)
-	secondsPerSlot := uint64(configResp.Data.SecondsPerSlot)
+	genesisTime := uint64(genesis.Data.GenesisTime)
+	secondsPerSlot := uint64(config.Data.SecondsPerSlot)
 	if secondsPerSlot == 0 {
-		return nil, fmt.Errorf("got bad value for seconds per slot: %v", configResp.Data.SecondsPerSlot)
+		return nil, fmt.Errorf("got bad value for seconds per slot: %v", config.Data.SecondsPerSlot)
 	}
 	cl.timeToSlotFn = func(timestamp uint64) (uint64, error) {
 		if timestamp < genesisTime {
@@ -114,17 +211,10 @@ func (cl *L1BeaconClient) GetBlobSidecars(ctx context.Context, ref eth.L1BlockRe
 		return nil, fmt.Errorf("error in converting ref.Time to slot: %w", err)
 	}
 
-	reqPath := path.Join(sidecarsMethodPrefix, strconv.FormatUint(slot, 10))
-	var reqQuery url.Values
-	if !cl.cfg.FetchAllSidecars {
-		reqQuery = url.Values{}
-		for i := range hashes {
-			reqQuery.Add("indices", strconv.FormatUint(hashes[i].Index, 10))
-		}
-	}
-
-	var resp eth.APIGetBlobSidecarsResponse
-	if err := cl.apiReq(ctx, &resp, reqPath, reqQuery); err != nil {
+	f := cl.pool.Get()
+	resp, err := f.BeaconBlobSideCars(ctx, cl.cfg.FetchAllSidecars, slot, hashes)
+	if err != nil {
+		cl.pool.MoveToNext()
 		return nil, fmt.Errorf("failed to fetch blob sidecars for slot %v block %v: %w", slot, ref, err)
 	}
 
@@ -192,9 +282,5 @@ func blobsFromSidecars(blobSidecars []*eth.BlobSidecar, hashes []eth.IndexedBlob
 
 // GetVersion fetches the version of the Beacon-node.
 func (cl *L1BeaconClient) GetVersion(ctx context.Context) (string, error) {
-	var resp eth.APIVersionResponse
-	if err := cl.apiReq(ctx, &resp, versionMethod, nil); err != nil {
-		return "", err
-	}
-	return resp.Data.Version, nil
+	return cl.cl.NodeVersion(ctx)
 }

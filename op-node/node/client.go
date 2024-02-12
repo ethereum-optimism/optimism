@@ -30,7 +30,7 @@ type L1EndpointSetup interface {
 }
 
 type L1BeaconEndpointSetup interface {
-	Setup(ctx context.Context, log log.Logger) (cl client.HTTP, err error)
+	Setup(ctx context.Context, log log.Logger) (cl sources.BeaconClient, fb []sources.BlobSideCarsFetcher, err error)
 	// ShouldIgnoreBeaconCheck returns true if the Beacon-node version check should not halt startup.
 	ShouldIgnoreBeaconCheck() bool
 	ShouldFetchAllSidecars() bool
@@ -177,14 +177,20 @@ func (cfg *PreparedL1Endpoint) Check() error {
 
 type L1BeaconEndpointConfig struct {
 	BeaconAddr             string // Address of L1 User Beacon-API endpoint to use (beacon namespace required)
+	BeaconArchiverAddr     string // Address of L1 User Beacon-API Archive endpoint to use for expired blobs (beacon namespace required)
 	BeaconCheckIgnore      bool   // When false, halt startup if the beacon version endpoint fails
 	BeaconFetchAllSidecars bool   // Whether to fetch all blob sidecars and filter locally
 }
 
 var _ L1BeaconEndpointSetup = (*L1BeaconEndpointConfig)(nil)
 
-func (cfg *L1BeaconEndpointConfig) Setup(ctx context.Context, log log.Logger) (cl client.HTTP, err error) {
-	return client.NewBasicHTTPClient(cfg.BeaconAddr, log), nil
+func (cfg *L1BeaconEndpointConfig) Setup(ctx context.Context, log log.Logger) (cl sources.BeaconClient, fb []sources.BlobSideCarsFetcher, err error) {
+	a := client.NewBasicHTTPClient(cfg.BeaconAddr, log)
+	if cfg.BeaconArchiverAddr != "" {
+		b := client.NewBasicHTTPClient(cfg.BeaconArchiverAddr, log)
+		fb = append(fb, sources.NewBeaconHTTPClient(b))
+	}
+	return sources.NewBeaconHTTPClient(a), fb, nil
 }
 
 func (cfg *L1BeaconEndpointConfig) Check() error {
