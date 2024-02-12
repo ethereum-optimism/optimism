@@ -329,13 +329,8 @@ contract PreimageOracle is IPreimageOracle {
         preimageLengths[key] = 32;
     }
 
-
     /// @inheritdoc IPreimageOracle
-    function loadKZGPointEvaluationPreimagePart(
-        bytes calldata _input
-    )
-        external
-    {
+    function loadKZGPointEvaluationPreimage(bytes calldata _input) external {
         // Prior to Cancun activation, the blob preimage precompile is not available.
         if (block.timestamp < CANCUN_ACTIVATION) revert CancunNotActive();
 
@@ -346,11 +341,9 @@ contract PreimageOracle is IPreimageOracle {
             let ptr := 0x80
 
             // copy input into memory
-            calldatacopy(ptr, _commitment.offset, _commitment.length)
-
+            calldatacopy(ptr, _input.offset, _input.length)
             // compute the hash
-            key := keccak256(ptr, _commitment.length)
-
+            let h := keccak256(ptr, _input.length)
             // mask out prefix byte, replace with type 6 byte
             key := or(and(h, not(shl(248, 0xFF))), shl(248, 0x06))
 
@@ -361,7 +354,7 @@ contract PreimageOracle is IPreimageOracle {
                     gas(), // forward all gas
                     0x0A, // point evaluation precompile address
                     ptr, // input ptr
-                    _commitment.length, // we may want to load differently sized point-evaluations calls in the future
+                    _input.length, // we may want to load differently sized point-evaluation calls in the future
                     0x00, // output ptr
                     0x00 // output size
                 )
