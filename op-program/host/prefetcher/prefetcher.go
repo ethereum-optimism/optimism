@@ -176,8 +176,8 @@ func (p *Prefetcher) prefetch(ctx context.Context, hint string) error {
 		}
 		return nil
 	case l1.HintL1KZGPointEvaluation:
-		// KZG Point Evaluation precompile also verifies hintBytes length
 		precompile := vm.PrecompiledContractsCancun[common.BytesToAddress([]byte{0x0a})]
+		// KZG Point Evaluation precompile also verifies hintBytes length
 		_, err := precompile.Run(hintBytes)
 		var result [1]byte
 		if err == nil {
@@ -185,8 +185,12 @@ func (p *Prefetcher) prefetch(ctx context.Context, hint string) error {
 		} else {
 			result = kzgPointEvaluationFailure
 		}
-		key := preimage.KZGPointEvaluationKey(crypto.Keccak256Hash(hintBytes)).PreimageKey()
-		return p.kvStore.Put(key, result[:])
+		inputHash := crypto.Keccak256Hash(hintBytes)
+		// Put the input preimage so it can be loaded later
+		if err := p.kvStore.Put(preimage.Keccak256Key(inputHash).PreimageKey(), hintBytes); err != nil {
+			return err
+		}
+		return p.kvStore.Put(preimage.KZGPointEvaluationKey(inputHash).PreimageKey(), result[:])
 	case l2.HintL2BlockHeader, l2.HintL2Transactions:
 		if len(hintBytes) != 32 {
 			return fmt.Errorf("invalid L2 header/tx hint: %x", hint)

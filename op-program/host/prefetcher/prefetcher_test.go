@@ -231,7 +231,7 @@ func TestFetchL1Blob(t *testing.T) {
 	})
 }
 
-func TestKZGPointEvaluation(t *testing.T) {
+func TestFetchKZGPointEvaluation(t *testing.T) {
 	runTest := func(name string, input []byte, expected bool) {
 		t.Run(name, func(t *testing.T) {
 			prefetcher, _, _, _, _ := createPrefetcher(t)
@@ -240,8 +240,12 @@ func TestKZGPointEvaluation(t *testing.T) {
 			result := oracle.KZGPointEvaluation(input)
 			require.Equal(t, expected, result)
 
+			val, err := prefetcher.kvStore.Get(preimage.Keccak256Key(crypto.Keccak256Hash(input)).PreimageKey())
+			require.NoError(t, err)
+			require.EqualValues(t, input, val)
+
 			key := preimage.KZGPointEvaluationKey(crypto.Keccak256Hash(input)).PreimageKey()
-			val, err := prefetcher.kvStore.Get(key)
+			val, err = prefetcher.kvStore.Get(key)
 			require.NoError(t, err)
 			if expected {
 				require.EqualValues(t, kzgPointEvaluationSuccess[:], val)
