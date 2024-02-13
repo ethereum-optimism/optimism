@@ -357,11 +357,11 @@
     "outputs": [
       {
         "internalType": "Hash",
-        "name": "",
+        "name": "l1Head_",
         "type": "bytes32"
       }
     ],
-    "stateMutability": "view",
+    "stateMutability": "pure",
     "type": "function"
   },
   {
