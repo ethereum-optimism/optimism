@@ -19,8 +19,6 @@ contract L1ERC721BridgeKontrol is DeploymentSummary, KontrolUtils {
         superchainConfig = SuperchainConfig(superchainConfigProxyAddress);
     }
 
-    // ASSUME: Conservative upper bound on the `_extraData` length, since extra data is optional
-    // for convenience of off-chain tooling.
     function prove_finalizeBridgeERC721_paused(
         address _localToken,
         address _remoteToken,

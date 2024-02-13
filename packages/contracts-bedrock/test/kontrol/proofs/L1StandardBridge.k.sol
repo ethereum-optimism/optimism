@@ -19,8 +19,6 @@ contract L1StandardBridgeKontrol is DeploymentSummary, KontrolUtils {
         superchainConfig = SuperchainConfig(superchainConfigProxyAddress);
     }
 
-    // ASSUME: Conservative upper bound on the `_extraData` length, since extra data is optional
-    // for convenience of off-chain tooling.
     function prove_finalizeBridgeERC20_paused(
         address _localToken,
         address _remoteToken,
@@ -48,8 +46,6 @@ contract L1StandardBridgeKontrol is DeploymentSummary, KontrolUtils {
         l1standardBridge.finalizeBridgeERC20(_localToken, _remoteToken, _from, _to, _amount, _extraData);
     }
 
-    // ASSUME: Conservative upper bound on the `_extraData` length, since extra data is optional
-    // for convenience of off-chain tooling.
     function prove_finalizeBridgeETH_paused(
         address _from,
         address _to,
