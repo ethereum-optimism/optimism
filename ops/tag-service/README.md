@@ -15,7 +15,7 @@ It accepts:
 
 Tag Tool is meant to be run locally, and *does not* perform any write operations. Instead, it prints the git commands to console for the operator to use.
 
-Additionally, a special service name "full" is available, which will bump versions for `op-node`, `op-batcher` and `op-proposer` from the highest semver amongst them.
+Additionally, a special service name "op-stack" is available, which will bump versions for `op-node`, `op-batcher` and `op-proposer` from the highest semver amongst them.
 
 To run Tag Tool locally, the only dependency is `pip install semver`
 

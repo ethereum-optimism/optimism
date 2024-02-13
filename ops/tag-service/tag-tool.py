@@ -18,7 +18,8 @@ SERVICES  = [
     'op-heartbeat',
     'ufm-metamask',
     'op-contracts',
-    'full', # special case for tagging op-node, op-batcher, and op-proposer together
+    'test',
+    'op-stack', # special case for tagging op-node, op-batcher, and op-proposer together
 ]
 VERSION_PATTERN = '^{service}/v\\d+\\.\\d+\\.\\d+(-rc\\.\\d+)?$'
 GIT_TAG_COMMAND = 'git tag -a {tag} -m "{message}"'
@@ -41,10 +42,10 @@ def new_tag(service, version, bump):
 
 def latest_version(service):
     # Get the list of tags from the git repository.
-    tags = subprocess.run(['git', 'tag', '--list'], capture_output=True, check=True) \
+    tags = subprocess.run(['git', 'tag', '--list', f'{service}/v*'], capture_output=True, check=True) \
         .stdout.decode('utf-8').splitlines()
     # Filter out tags that don't match the service name, and tags for prerelease versions.
-    svc_versions = sorted([t.replace(f'{service}/v', '') for t in tags if re.match(VERSION_PATTERN.format(service=service), t)])
+    svc_versions = sorted([t.replace(f'{service}/v', '') for t in tags])
     if len(svc_versions) == 0:
         raise Exception(f'No tags found for service: {service}')
     return svc_versions[-1]
@@ -66,7 +67,7 @@ def main():
 
     service = args.service
 
-    if service == 'full':
+    if service == 'op-stack':
       latest = latest_among_services(['op-node', 'op-batcher', 'op-proposer'])
     else:
       latest = latest_version(service)
@@ -77,13 +78,13 @@ def main():
     print(f'new tag: {bumped}')
     print('run the following commands to create the new tag:\n')
     # special case for tagging op-node, op-batcher, and op-proposer together. All three would share the same semver
-    if args.service == 'full':
-        print(GIT_TAG_COMMAND.format(tag=bumped.replace('full', 'op-node'), message=args.message))
-        print(GIT_PUSH_COMMAND.format(tag=bumped.replace('full', 'op-node')))
-        print(GIT_TAG_COMMAND.format(tag=bumped.replace('full', 'op-batcher'), message=args.message))
-        print(GIT_PUSH_COMMAND.format(tag=bumped.replace('full', 'op-batcher')))
-        print(GIT_TAG_COMMAND.format(tag=bumped.replace('full', 'op-proposer'), message=args.message))
-        print(GIT_PUSH_COMMAND.format(tag=bumped.replace('full', 'op-proposer')))
+    if args.service == 'op-stack':
+        print(GIT_TAG_COMMAND.format(tag=bumped.replace('op-stack', 'op-node'), message=args.message))
+        print(GIT_PUSH_COMMAND.format(tag=bumped.replace('op-stack', 'op-node')))
+        print(GIT_TAG_COMMAND.format(tag=bumped.replace('op-stack', 'op-batcher'), message=args.message))
+        print(GIT_PUSH_COMMAND.format(tag=bumped.replace('op-stack', 'op-batcher')))
+        print(GIT_TAG_COMMAND.format(tag=bumped.replace('op-stack', 'op-proposer'), message=args.message))
+        print(GIT_PUSH_COMMAND.format(tag=bumped.replace('op-stack', 'op-proposer')))
     else:
         print(GIT_TAG_COMMAND.format(tag=bumped, message=args.message))
         print(GIT_PUSH_COMMAND.format(tag=bumped))
