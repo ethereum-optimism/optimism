@@ -1,12 +1,6 @@
 [
   {
-    "inputs": [
-      {
-        "internalType": "address payable",
-        "name": "_messenger",
-        "type": "address"
-      }
-    ],
+    "inputs": [],
     "stateMutability": "nonpayable",
     "type": "constructor"
   },
@@ -422,6 +416,11 @@
   },
   {
     "inputs": [
+      {
+        "internalType": "contract CrossDomainMessenger",
+        "name": "_messenger",
+        "type": "address"
+      },
       {
         "internalType": "contract SuperchainConfig",
         "name": "_superchainConfig",

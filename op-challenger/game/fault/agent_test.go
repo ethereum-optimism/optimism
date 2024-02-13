@@ -3,6 +3,7 @@ package fault
 import (
 	"context"
 	"errors"
+	"math/big"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace"
@@ -56,8 +57,8 @@ func TestLoadClaimsWhenGameNotResolvable(t *testing.T) {
 	agent, claimLoader, responder := setupTestAgent(t)
 	responder.callResolveErr = errors.New("game is not resolvable")
 	responder.callResolveClaimErr = errors.New("claim is not resolvable")
-	depth := 4
-	claimBuilder := test.NewClaimBuilder(t, depth, alphabet.NewTraceProvider("abcdefg", uint64(depth)))
+	depth := types.Depth(4)
+	claimBuilder := test.NewClaimBuilder(t, depth, alphabet.NewTraceProvider(big.NewInt(0), depth))
 
 	claimLoader.claims = []types.Claim{
 		claimBuilder.CreateRootClaim(true),
@@ -71,10 +72,10 @@ func TestLoadClaimsWhenGameNotResolvable(t *testing.T) {
 }
 
 func setupTestAgent(t *testing.T) (*Agent, *stubClaimLoader, *stubResponder) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	claimLoader := &stubClaimLoader{}
-	depth := 4
-	provider := alphabet.NewTraceProvider("abcd", uint64(depth))
+	depth := types.Depth(4)
+	provider := alphabet.NewTraceProvider(big.NewInt(0), depth)
 	responder := &stubResponder{}
 	agent := NewAgent(metrics.NoopMetrics, claimLoader, depth, trace.NewSimpleTraceAccessor(provider), responder, logger)
 	return agent, claimLoader, responder
@@ -108,7 +109,7 @@ func (s *stubResponder) CallResolve(ctx context.Context) (gameTypes.GameStatus, 
 	return s.callResolveStatus, s.callResolveErr
 }
 
-func (s *stubResponder) Resolve(ctx context.Context) error {
+func (s *stubResponder) Resolve() error {
 	s.resolveCount++
 	return s.resolveErr
 }
@@ -118,7 +119,7 @@ func (s *stubResponder) CallResolveClaim(ctx context.Context, clainIdx uint64) e
 	return s.callResolveClaimErr
 }
 
-func (s *stubResponder) ResolveClaim(ctx context.Context, clainIdx uint64) error {
+func (s *stubResponder) ResolveClaim(clainIdx uint64) error {
 	s.resolveClaimCount++
 	return nil
 }

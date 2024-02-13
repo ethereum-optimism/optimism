@@ -8,8 +8,8 @@ import { StdInvariant } from "forge-std/StdInvariant.sol";
 
 import { Arithmetic } from "src/libraries/Arithmetic.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
-import { Proxy } from "src/universal/Proxy.sol";
 import { Constants } from "src/libraries/Constants.sol";
+import { InvariantTest } from "test/invariants/InvariantTest.sol";
 
 contract ResourceMetering_User is StdUtils, ResourceMetering {
     bool public failedMaxGasPerBlock;
@@ -137,10 +137,11 @@ contract ResourceMetering_User is StdUtils, ResourceMetering {
     function _burnInternal(uint64 _gasToBurn) private metered(_gasToBurn) { }
 }
 
-contract ResourceMetering_Invariant is StdInvariant, Test {
+contract ResourceMetering_Invariant is StdInvariant, InvariantTest {
     ResourceMetering_User internal actor;
 
-    function setUp() public {
+    function setUp() public override {
+        super.setUp();
         // Create a actor.
         actor = new ResourceMetering_User();
 

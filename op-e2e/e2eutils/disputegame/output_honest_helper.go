@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/stretchr/testify/require"
 )
 
@@ -14,11 +15,30 @@ type OutputHonestHelper struct {
 	t            *testing.T
 	require      *require.Assertions
 	game         *OutputGameHelper
-	contract     *contracts.OutputBisectionGameContract
+	contract     *contracts.FaultDisputeGameContract
 	correctTrace types.TraceAccessor
 }
 
+func (h *OutputHonestHelper) AttackClaim(ctx context.Context, claim *ClaimHelper) *ClaimHelper {
+	h.Attack(ctx, claim.index)
+	return claim.WaitForCounterClaim(ctx)
+}
+
+func (h *OutputHonestHelper) AttackClaimWithTransactOpts(ctx context.Context, claim *ClaimHelper, opts *bind.TransactOpts) *ClaimHelper {
+	h.AttackWithTransactOpts(ctx, claim.index, opts)
+	return claim.WaitForCounterClaim(ctx)
+}
+
+func (h *OutputHonestHelper) DefendClaim(ctx context.Context, claim *ClaimHelper) *ClaimHelper {
+	h.Defend(ctx, claim.index)
+	return claim.WaitForCounterClaim(ctx)
+}
+
 func (h *OutputHonestHelper) Attack(ctx context.Context, claimIdx int64) {
+	h.AttackWithTransactOpts(ctx, claimIdx, h.game.opts)
+}
+
+func (h *OutputHonestHelper) AttackWithTransactOpts(ctx context.Context, claimIdx int64, opts *bind.TransactOpts) {
 	// Ensure the claim exists
 	h.game.WaitForClaimCount(ctx, claimIdx+1)
 
@@ -31,7 +51,7 @@ func (h *OutputHonestHelper) Attack(ctx context.Context, claimIdx int64) {
 	value, err := h.correctTrace.Get(ctx, game, claim, attackPos)
 	h.require.NoErrorf(err, "Get correct claim at position %v with g index %v", attackPos, attackPos.ToGIndex())
 	h.t.Log("Performing attack")
-	h.game.Attack(ctx, claimIdx, value)
+	h.game.AttackWithTransactOpts(ctx, claimIdx, value, opts)
 	h.t.Log("Attack complete")
 }
 
@@ -46,6 +66,10 @@ func (h *OutputHonestHelper) Defend(ctx context.Context, claimIdx int64) {
 	value, err := h.correctTrace.Get(ctx, game, claim, defendPos)
 	h.game.require.NoErrorf(err, "Get correct claim at position %v with g index %v", defendPos, defendPos.ToGIndex())
 	h.game.Defend(ctx, claimIdx, value)
+}
+
+func (h *OutputHonestHelper) StepClaimFails(ctx context.Context, claim *ClaimHelper, isAttack bool) {
+	h.StepFails(ctx, claim.index, isAttack)
 }
 
 func (h *OutputHonestHelper) StepFails(ctx context.Context, claimIdx int64, isAttack bool) {
@@ -69,7 +93,7 @@ func (h *OutputHonestHelper) StepFails(ctx context.Context, claimIdx int64, isAt
 func (h *OutputHonestHelper) loadState(ctx context.Context, claimIdx int64) (types.Game, types.Claim) {
 	claims, err := h.contract.GetAllClaims(ctx)
 	h.require.NoError(err, "Failed to load claims from game")
-	game := types.NewGameState(claims, uint64(h.game.MaxDepth(ctx)))
+	game := types.NewGameState(claims, h.game.MaxDepth(ctx))
 
 	claim := game.Claims()[claimIdx]
 	return game, claim

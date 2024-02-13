@@ -14,9 +14,9 @@ var (
 	errRefClaimNotDeepEnough = errors.New("reference claim is not deep enough")
 )
 
-type ProviderCreator func(ctx context.Context, depth uint64, pre types.Claim, post types.Claim) (types.TraceProvider, error)
+type ProviderCreator func(ctx context.Context, depth types.Depth, pre types.Claim, post types.Claim) (types.TraceProvider, error)
 
-func NewSplitProviderSelector(topProvider types.TraceProvider, topDepth int, bottomProviderCreator ProviderCreator) trace.ProviderSelector {
+func NewSplitProviderSelector(topProvider types.TraceProvider, topDepth types.Depth, bottomProviderCreator ProviderCreator) trace.ProviderSelector {
 	return func(ctx context.Context, game types.Game, ref types.Claim, pos types.Position) (types.TraceProvider, error) {
 		if pos.Depth() <= topDepth {
 			return topProvider, nil
@@ -58,17 +58,17 @@ func NewSplitProviderSelector(topProvider types.TraceProvider, topDepth int, bot
 		}
 		// The top game runs from depth 0 to split depth *inclusive*.
 		// The - 1 here accounts for the fact that the split depth is included in the top game.
-		bottomDepth := game.MaxDepth() - uint64(topDepth) - 1
+		bottomDepth := game.MaxDepth() - topDepth - 1
 		provider, err := bottomProviderCreator(ctx, bottomDepth, pre, post)
 		if err != nil {
 			return nil, err
 		}
 		// Translate such that the root of the bottom game is the level below the top game leaf
-		return trace.Translate(provider, uint64(topDepth)+1), nil
+		return trace.Translate(provider, topDepth+1), nil
 	}
 }
 
-func findAncestorAtDepth(game types.Game, claim types.Claim, depth int) (types.Claim, error) {
+func findAncestorAtDepth(game types.Game, claim types.Claim, depth types.Depth) (types.Claim, error) {
 	for claim.Depth() > depth {
 		parent, err := game.GetParent(claim)
 		if err != nil {
@@ -79,7 +79,7 @@ func findAncestorAtDepth(game types.Game, claim types.Claim, depth int) (types.C
 	return claim, nil
 }
 
-func findAncestorWithTraceIndex(game types.Game, ref types.Claim, depth int, traceIdx *big.Int) (types.Claim, error) {
+func findAncestorWithTraceIndex(game types.Game, ref types.Claim, depth types.Depth, traceIdx *big.Int) (types.Claim, error) {
 	candidate := ref
 	for candidate.TraceIndex(depth).Cmp(traceIdx) != 0 {
 		parent, err := game.GetParent(candidate)

@@ -18,16 +18,16 @@ func NewOutputAlphabetTraceAccessor(
 	m metrics.Metricer,
 	prestateProvider types.PrestateProvider,
 	rollupClient OutputRollupClient,
-	splitDepth uint64,
+	splitDepth types.Depth,
 	prestateBlock uint64,
 	poststateBlock uint64,
 ) (*trace.Accessor, error) {
 	outputProvider := NewTraceProviderFromInputs(logger, prestateProvider, rollupClient, splitDepth, prestateBlock, poststateBlock)
-	alphabetCreator := func(ctx context.Context, localContext common.Hash, depth uint64, agreed contracts.Proposal, claimed contracts.Proposal) (types.TraceProvider, error) {
-		provider := alphabet.NewTraceProvider(localContext.Hex(), depth)
+	alphabetCreator := func(ctx context.Context, localContext common.Hash, depth types.Depth, agreed contracts.Proposal, claimed contracts.Proposal) (types.TraceProvider, error) {
+		provider := alphabet.NewTraceProvider(agreed.L2BlockNumber, depth)
 		return provider, nil
 	}
 	cache := NewProviderCache(m, "output_alphabet_provider", alphabetCreator)
-	selector := split.NewSplitProviderSelector(outputProvider, int(splitDepth), OutputRootSplitAdapter(outputProvider, cache.GetOrCreate))
+	selector := split.NewSplitProviderSelector(outputProvider, splitDepth, OutputRootSplitAdapter(outputProvider, cache.GetOrCreate))
 	return trace.NewAccessor(selector), nil
 }

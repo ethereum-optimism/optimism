@@ -41,15 +41,24 @@ type BlockProcessor struct {
 
 func NewBlockProcessorFromPayloadAttributes(provider BlockDataProvider, parent common.Hash, params *eth.PayloadAttributes) (*BlockProcessor, error) {
 	header := &types.Header{
-		ParentHash: parent,
-		Coinbase:   params.SuggestedFeeRecipient,
-		Difficulty: common.Big0,
-		GasLimit:   uint64(*params.GasLimit),
-		Time:       uint64(params.Timestamp),
-		Extra:      nil,
-		MixDigest:  common.Hash(params.PrevRandao),
-		Nonce:      types.EncodeNonce(0),
+		ParentHash:       parent,
+		Coinbase:         params.SuggestedFeeRecipient,
+		Difficulty:       common.Big0,
+		GasLimit:         uint64(*params.GasLimit),
+		Time:             uint64(params.Timestamp),
+		Extra:            nil,
+		MixDigest:        common.Hash(params.PrevRandao),
+		Nonce:            types.EncodeNonce(0),
+		ParentBeaconRoot: params.ParentBeaconBlockRoot,
 	}
+
+	// Ecotone
+	if params.ParentBeaconBlockRoot != nil {
+		zero := uint64(0)
+		header.BlobGasUsed = &zero
+		header.ExcessBlobGas = &zero
+	}
+
 	return NewBlockProcessorFromHeader(provider, header)
 }
 
@@ -71,6 +80,13 @@ func NewBlockProcessorFromHeader(provider BlockDataProvider, h *types.Header) (*
 	header.BaseFee = eip1559.CalcBaseFee(provider.Config(), parentHeader, header.Time)
 	header.GasUsed = 0
 	gasPool := new(core.GasPool).AddGas(header.GasLimit)
+	if h.ParentBeaconRoot != nil {
+		// Unfortunately this is not part of any Geth environment setup,
+		// we just have to apply it, like how the Geth block-builder worker does.
+		context := core.NewEVMBlockContext(header, provider, nil, provider.Config(), statedb)
+		vmenv := vm.NewEVM(context, vm.TxContext{}, statedb, provider.Config(), vm.Config{})
+		core.ProcessBeaconBlockRoot(*header.ParentBeaconRoot, vmenv, statedb)
+	}
 	return &BlockProcessor{
 		header:       header,
 		state:        statedb,
@@ -95,7 +111,7 @@ func (b *BlockProcessor) AddTx(tx *types.Transaction) error {
 	receipt, err := core.ApplyTransaction(b.dataProvider.Config(), b.dataProvider, &b.header.Coinbase,
 		b.gasPool, b.state, b.header, tx, &b.header.GasUsed, *b.dataProvider.GetVMConfig())
 	if err != nil {
-		return fmt.Errorf("failed to apply deposit transaction to L2 block (tx %d): %w", txIndex, err)
+		return fmt.Errorf("failed to apply transaction to L2 block (tx %d): %w", txIndex, err)
 	}
 	b.receipts = append(b.receipts, receipt)
 	b.transactions = append(b.transactions, tx)

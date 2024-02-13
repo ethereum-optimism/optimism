@@ -15,6 +15,7 @@ import { CheckGelatoLow } from "src/periphery/drippie/dripchecks/CheckGelatoLow.
 import { CheckBalanceLow } from "src/periphery/drippie/dripchecks/CheckBalanceLow.sol";
 import { CheckTrue } from "src/periphery/drippie/dripchecks/CheckTrue.sol";
 import { AdminFaucetAuthModule } from "src/periphery/faucet/authmodules/AdminFaucetAuthModule.sol";
+import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
 /// @title DeployPeriphery
 /// @notice Script used to deploy periphery contracts.
@@ -113,8 +114,7 @@ contract DeployPeriphery is Deployer {
             addr_ = preComputedAddress;
         } else {
             Proxy proxy = new Proxy{ salt: salt }({ _admin: proxyAdmin });
-            address admin = address(uint160(uint256(vm.load(address(proxy), OWNER_KEY))));
-            require(admin == proxyAdmin);
+            require(EIP1967Helper.getAdmin(address(proxy)) == proxyAdmin);
 
             save("FaucetProxy", address(proxy));
             console.log("FaucetProxy deployed at %s", address(proxy));

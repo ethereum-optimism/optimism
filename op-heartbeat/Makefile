@@ -19,5 +19,4 @@ test:
 .PHONY: \
 	clean \
 	op-heartbeat \
-	test \
-	lint
+	test

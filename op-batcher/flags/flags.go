@@ -7,10 +7,12 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
+	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
+	openum "github.com/ethereum-optimism/optimism/op-service/enum"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
-	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
+	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
@@ -30,12 +32,12 @@ var (
 	}
 	L2EthRpcFlag = &cli.StringFlag{
 		Name:    "l2-eth-rpc",
-		Usage:   "HTTP provider URL for L2 execution engine",
+		Usage:   "HTTP provider URL for L2 execution engine. A comma-separated list enables the active L2 endpoint provider. Such a list needs to match the number of rollup-rpcs provided.",
 		EnvVars: prefixEnvVars("L2_ETH_RPC"),
 	}
 	RollupRpcFlag = &cli.StringFlag{
 		Name:    "rollup-rpc",
-		Usage:   "HTTP provider URL for Rollup node",
+		Usage:   "HTTP provider URL for Rollup node. A comma-separated list enables the active L2 endpoint provider. Such a list needs to match the number of l2-eth-rpcs provided.",
 		EnvVars: prefixEnvVars("ROLLUP_RPC"),
 	}
 	// Optional flags
@@ -82,6 +84,22 @@ var (
 		Value:   0,
 		EnvVars: prefixEnvVars("BATCH_TYPE"),
 	}
+	DataAvailabilityTypeFlag = &cli.GenericFlag{
+		Name: "data-availability-type",
+		Usage: "The data availability type to use for submitting batches to the L1. Valid options: " +
+			openum.EnumString(DataAvailabilityTypes),
+		Value: func() *DataAvailabilityType {
+			out := CalldataType
+			return &out
+		}(),
+		EnvVars: prefixEnvVars("DATA_AVAILABILITY_TYPE"),
+	}
+	ActiveSequencerCheckDurationFlag = &cli.DurationFlag{
+		Name:    "active-sequencer-check-duration",
+		Usage:   "The duration between checks to determine the active sequencer endpoint. ",
+		Value:   2 * time.Minute,
+		EnvVars: prefixEnvVars("ACTIVE_SEQUENCER_CHECK_DURATION"),
+	}
 	// Legacy Flags
 	SequencerHDPathFlag = txmgr.SequencerHDPathFlag
 )
@@ -101,6 +119,8 @@ var optionalFlags = []cli.Flag{
 	StoppedFlag,
 	SequencerHDPathFlag,
 	BatchTypeFlag,
+	DataAvailabilityTypeFlag,
+	ActiveSequencerCheckDurationFlag,
 }
 
 func init() {
@@ -110,6 +130,7 @@ func init() {
 	optionalFlags = append(optionalFlags, oppprof.CLIFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, txmgr.CLIFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, compressor.CLIFlags(EnvVarPrefix)...)
+	optionalFlags = append(optionalFlags, plasma.CLIFlags(EnvVarPrefix)...)
 
 	Flags = append(requiredFlags, optionalFlags...)
 }

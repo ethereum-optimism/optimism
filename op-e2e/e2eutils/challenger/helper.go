@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -25,6 +26,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
+
+type EndpointProvider interface {
+	NodeEndpoint(name string) string
+	L1BeaconEndpoint() string
+}
 
 type Helper struct {
 	log     log.Logger
@@ -54,28 +60,9 @@ func WithPrivKey(key *ecdsa.PrivateKey) Option {
 	}
 }
 
-func WithAlphabet(alphabet string) Option {
-	return func(c *config.Config) {
-		c.TraceTypes = append(c.TraceTypes, config.TraceTypeAlphabet)
-		c.AlphabetTrace = alphabet
-	}
-}
-
 func WithPollInterval(pollInterval time.Duration) Option {
 	return func(c *config.Config) {
 		c.PollInterval = pollInterval
-	}
-}
-
-func WithCannon(
-	t *testing.T,
-	rollupCfg *rollup.Config,
-	l2Genesis *core.Genesis,
-	l2Endpoint string,
-) Option {
-	return func(c *config.Config) {
-		c.TraceTypes = append(c.TraceTypes, config.TraceTypeCannon)
-		applyCannonConfig(c, t, rollupCfg, l2Genesis, l2Endpoint)
 	}
 }
 
@@ -96,41 +83,41 @@ func applyCannonConfig(
 	genesisBytes, err := json.Marshal(l2Genesis)
 	require.NoError(err, "marshall l2 genesis config")
 	genesisFile := filepath.Join(c.Datadir, "l2-genesis.json")
-	require.NoError(os.WriteFile(genesisFile, genesisBytes, 0644))
+	require.NoError(os.WriteFile(genesisFile, genesisBytes, 0o644))
 	c.CannonL2GenesisPath = genesisFile
 
 	rollupBytes, err := json.Marshal(rollupCfg)
 	require.NoError(err, "marshall rollup config")
 	rollupFile := filepath.Join(c.Datadir, "rollup.json")
-	require.NoError(os.WriteFile(rollupFile, rollupBytes, 0644))
+	require.NoError(os.WriteFile(rollupFile, rollupBytes, 0o644))
 	c.CannonRollupConfigPath = rollupFile
 }
 
-func WithOutputCannon(
+func WithCannon(
 	t *testing.T,
 	rollupCfg *rollup.Config,
 	l2Genesis *core.Genesis,
 	rollupEndpoint string,
-	l2Endpoint string) Option {
+	l2Endpoint string,
+) Option {
 	return func(c *config.Config) {
-		c.TraceTypes = append(c.TraceTypes, config.TraceTypeOutputCannon)
+		c.TraceTypes = append(c.TraceTypes, config.TraceTypeCannon)
 		c.RollupRpc = rollupEndpoint
 		applyCannonConfig(c, t, rollupCfg, l2Genesis, l2Endpoint)
 	}
 }
 
-func WithOutputAlphabet(alphabet string, rollupEndpoint string) Option {
+func WithAlphabet(rollupEndpoint string) Option {
 	return func(c *config.Config) {
-		c.TraceTypes = append(c.TraceTypes, config.TraceTypeOutputAlphabet)
+		c.TraceTypes = append(c.TraceTypes, config.TraceTypeAlphabet)
 		c.RollupRpc = rollupEndpoint
-		c.AlphabetTrace = alphabet
 	}
 }
 
-func NewChallenger(t *testing.T, ctx context.Context, l1Endpoint string, name string, options ...Option) *Helper {
-	log := testlog.Logger(t, log.LvlDebug).New("role", name)
-	log.Info("Creating challenger", "l1", l1Endpoint)
-	cfg := NewChallengerConfig(t, l1Endpoint, options...)
+func NewChallenger(t *testing.T, ctx context.Context, sys EndpointProvider, name string, options ...Option) *Helper {
+	log := testlog.Logger(t, log.LevelDebug).New("role", name)
+	log.Info("Creating challenger")
+	cfg := NewChallengerConfig(t, sys, options...)
 	chl, err := challenger.Main(ctx, log, cfg)
 	require.NoError(t, err, "must init challenger")
 	require.NoError(t, chl.Start(ctx), "must start challenger")
@@ -144,14 +131,21 @@ func NewChallenger(t *testing.T, ctx context.Context, l1Endpoint string, name st
 	}
 }
 
-func NewChallengerConfig(t *testing.T, l1Endpoint string, options ...Option) *config.Config {
+func NewChallengerConfig(t *testing.T, sys EndpointProvider, options ...Option) *config.Config {
 	// Use the NewConfig method to ensure we pick up any defaults that are set.
-	cfg := config.NewConfig(common.Address{}, l1Endpoint, t.TempDir())
+	l1Endpoint := sys.NodeEndpoint("l1")
+	l1Beacon := sys.L1BeaconEndpoint()
+	cfg := config.NewConfig(common.Address{}, l1Endpoint, l1Beacon, t.TempDir())
 	cfg.TxMgrConfig.NumConfirmations = 1
 	cfg.TxMgrConfig.ReceiptQueryInterval = 1 * time.Second
 	if cfg.MaxConcurrency > 4 {
 		// Limit concurrency to something more reasonable when there are also multiple tests executing in parallel
 		cfg.MaxConcurrency = 4
+	}
+	cfg.MetricsConfig = metrics.CLIConfig{
+		Enabled:    true,
+		ListenAddr: "127.0.0.1",
+		ListenPort: 0, // Find any available port (avoids conflicts)
 	}
 	for _, option := range options {
 		option(&cfg)

@@ -9,7 +9,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-program/chainconfig"
 	"github.com/ethereum-optimism/optimism/op-program/host/config"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/log"
@@ -48,7 +50,12 @@ func TestLogFormat(t *testing.T) {
 		verifyArgsInvalid(t, `unrecognized log-format: "foo"`, addRequiredArgs("--log.format=foo"))
 	})
 
-	for _, lvl := range []string{"json", "json-pretty", "terminal", "text", "logfmt"} {
+	for _, lvl := range []string{
+		oplog.FormatJSON.String(),
+		oplog.FormatTerminal.String(),
+		oplog.FormatText.String(),
+		oplog.FormatLogFmt.String(),
+	} {
 		lvl := lvl
 		t.Run("AcceptValid_"+lvl, func(t *testing.T) {
 			logger, _, err := runWithArgs(addRequiredArgs("--log.format", lvl))
@@ -238,6 +245,16 @@ func TestL2Claim(t *testing.T) {
 
 	t.Run("Invalid", func(t *testing.T) {
 		verifyArgsInvalid(t, config.ErrInvalidL2Claim.Error(), replaceRequiredArg("--l2.claim", "something"))
+	})
+
+	t.Run("Allows all zero without prefix", func(t *testing.T) {
+		cfg := configForArgs(t, replaceRequiredArg("--l2.claim", "0000000000000000000000000000000000000000000000000000000000000000"))
+		require.EqualValues(t, common.Hash{}, cfg.L2Claim)
+	})
+
+	t.Run("Allows all zero with prefix", func(t *testing.T) {
+		cfg := configForArgs(t, replaceRequiredArg("--l2.claim", "0x0000000000000000000000000000000000000000000000000000000000000000"))
+		require.EqualValues(t, common.Hash{}, cfg.L2Claim)
 	})
 }
 

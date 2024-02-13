@@ -1,4 +1,4 @@
-package main
+package bindgen
 
 import (
 	"context"
@@ -10,15 +10,15 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 )
 
-type bindGenGeneratorRemote struct {
-	bindGenGeneratorBase
-	contractDataClients struct {
-		eth contractDataClient
-		op  contractDataClient
+type BindGenGeneratorRemote struct {
+	BindGenGeneratorBase
+	ContractDataClients struct {
+		Eth contractDataClient
+		Op  contractDataClient
 	}
-	rpcClients struct {
-		eth *ethclient.Client
-		op  *ethclient.Client
+	RpcClients struct {
+		Eth *ethclient.Client
+		Op  *ethclient.Client
 	}
 	tempArtifactsDir string
 }
@@ -27,70 +27,70 @@ type contractDataClient interface {
 	FetchAbi(ctx context.Context, address string) (string, error)
 	FetchDeployedBytecode(ctx context.Context, address string) (string, error)
 	FetchDeploymentTxHash(ctx context.Context, address string) (string, error)
-	FetchDeploymentTx(ctx context.Context, txHash string) (etherscan.TxInfo, error)
+	FetchDeploymentTx(ctx context.Context, txHash string) (etherscan.Transaction, error)
 }
 
-type deployments struct {
+type Deployments struct {
 	Eth common.Address `json:"eth"`
 	Op  common.Address `json:"op"`
 }
 
-type remoteContract struct {
+type RemoteContract struct {
 	Name           string         `json:"name"`
 	Verified       bool           `json:"verified"`
-	Deployments    deployments    `json:"deployments"`
+	Deployments    Deployments    `json:"deployments"`
 	DeploymentSalt string         `json:"deploymentSalt"`
 	Deployer       common.Address `json:"deployer"`
 	ABI            string         `json:"abi"`
 	InitBytecode   string         `json:"initBytecode"`
 }
 
-type remoteContractMetadata struct {
-	remoteContract
+type RemoteContractMetadata struct {
+	RemoteContract
 	Package     string
 	InitBin     string
 	DeployedBin string
 }
 
-func (generator *bindGenGeneratorRemote) generateBindings() error {
-	contracts, err := readContractList(generator.logger, generator.contractsListPath)
+func (generator *BindGenGeneratorRemote) GenerateBindings() error {
+	contracts, err := readContractList(generator.Logger, generator.ContractsListPath)
 	if err != nil {
-		return fmt.Errorf("error reading contract list %s: %w", generator.contractsListPath, err)
+		return fmt.Errorf("error reading contract list %s: %w", generator.ContractsListPath, err)
 	}
 	if len(contracts.Remote) == 0 {
-		return fmt.Errorf("no contracts parsed from given contract list: %s", generator.contractsListPath)
+		return fmt.Errorf("no contracts parsed from given contract list: %s", generator.ContractsListPath)
 	}
 
 	return generator.processContracts(contracts.Remote)
 }
 
-func (generator *bindGenGeneratorRemote) processContracts(contracts []remoteContract) error {
+func (generator *BindGenGeneratorRemote) processContracts(contracts []RemoteContract) error {
 	var err error
-	generator.tempArtifactsDir, err = mkTempArtifactsDir(generator.logger)
+	generator.tempArtifactsDir, err = mkTempArtifactsDir(generator.Logger)
 	if err != nil {
 		return err
 	}
 	defer func() {
 		err := os.RemoveAll(generator.tempArtifactsDir)
 		if err != nil {
-			generator.logger.Error("Error removing temporary artifact directory", "path", generator.tempArtifactsDir, "err", err.Error())
+			generator.Logger.Error("Error removing temporary artifact directory", "path", generator.tempArtifactsDir, "err", err.Error())
 		} else {
-			generator.logger.Debug("Successfully removed temporary artifact directory")
+			generator.Logger.Debug("Successfully removed temporary artifact directory")
 		}
 	}()
 
 	for _, contract := range contracts {
-		generator.logger.Info("Generating bindings and metadata for remote contract", "contract", contract.Name)
+		generator.Logger.Info("Generating bindings and metadata for remote contract", "contract", contract.Name)
 
-		contractMetadata := remoteContractMetadata{
-			remoteContract: remoteContract{
+		contractMetadata := RemoteContractMetadata{
+			RemoteContract: RemoteContract{
 				Name:           contract.Name,
 				Deployments:    contract.Deployments,
 				DeploymentSalt: contract.DeploymentSalt,
 				ABI:            contract.ABI,
 				Verified:       contract.Verified,
 			},
-			Package: generator.bindingsPackageName,
+			Package: generator.BindingsPackageName,
 		}
 
 		var err error

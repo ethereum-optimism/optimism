@@ -3,6 +3,7 @@ package derive
 import (
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/fuzzerutils"
@@ -25,13 +26,14 @@ func FuzzParseL1InfoDepositTxDataValid(f *testing.F) {
 		typeProvider.Fuzz(&seqNr)
 		var sysCfg eth.SystemConfig
 		typeProvider.Fuzz(&sysCfg)
+		var rollupCfg rollup.Config
 
 		// Create our deposit tx from our info
-		depTx, err := L1InfoDeposit(seqNr, &l1Info, sysCfg, false)
+		depTx, err := L1InfoDeposit(&rollupCfg, sysCfg, seqNr, &l1Info, 0)
 		require.NoError(t, err, "error creating deposit tx from L1 info")
 
 		// Get our info from out deposit tx
-		res, err := L1InfoDepositTxData(depTx.Data)
+		res, err := L1BlockInfoFromBytes(&rollupCfg, l1Info.InfoTime, depTx.Data)
 		require.NoError(t, err, "expected valid deposit info")
 
 		// Verify all parameters match in our round trip deriving operations
@@ -50,9 +52,10 @@ func FuzzParseL1InfoDepositTxDataValid(f *testing.F) {
 // Reverse of the above test. Accepts a random byte string and attempts to extract L1Info from it,
 // then attempts to convert that info back into the tx data and compare it with the original input.
 func FuzzDecodeDepositTxDataToL1Info(f *testing.F) {
+	var rollupCfg rollup.Config
 	f.Fuzz(func(t *testing.T, fuzzedData []byte) {
 		// Get our info from out deposit tx
-		res, err := L1InfoDepositTxData(fuzzedData)
+		res, err := L1BlockInfoFromBytes(&rollupCfg, 0, fuzzedData)
 		if err != nil {
 			return
 		}
@@ -71,7 +74,7 @@ func FuzzDecodeDepositTxDataToL1Info(f *testing.F) {
 			GasLimit:    uint64(0),
 		}
 
-		depTx, err := L1InfoDeposit(res.SequenceNumber, &l1Info, sysCfg, false)
+		depTx, err := L1InfoDeposit(&rollupCfg, sysCfg, res.SequenceNumber, &l1Info, 0)
 		require.NoError(t, err, "error creating deposit tx from L1 info")
 		require.Equal(t, depTx.Data, fuzzedData)
 	})
@@ -81,10 +84,11 @@ func FuzzDecodeDepositTxDataToL1Info(f *testing.F) {
 // random L1 deposit tx info and derives a tx from it, then derives the info back from the tx, to ensure round-trip
 // derivation is upheld. This generates "invalid" data and ensures it always throws an error where expected.
 func FuzzParseL1InfoDepositTxDataBadLength(f *testing.F) {
+	var rollupCfg rollup.Config
 	const expectedDepositTxDataLength = 4 + 32 + 32 + 32 + 32 + 32
 	f.Fuzz(func(t *testing.T, fuzzedData []byte) {
 		// Derive a transaction from random fuzzed data
-		_, err := L1InfoDepositTxData(fuzzedData)
+		_, err := L1BlockInfoFromBytes(&rollupCfg, 0, fuzzedData)
 
 		// If the data is null, or too short or too long, we expect an error
 		if fuzzedData == nil || len(fuzzedData) != expectedDepositTxDataLength {

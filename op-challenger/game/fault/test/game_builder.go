@@ -16,7 +16,7 @@ type GameBuilder struct {
 func (c *ClaimBuilder) GameBuilder(rootCorrect bool) *GameBuilder {
 	return &GameBuilder{
 		builder: c,
-		Game:    types.NewGameState([]types.Claim{c.CreateRootClaim(rootCorrect)}, uint64(c.maxDepth)),
+		Game:    types.NewGameState([]types.Claim{c.CreateRootClaim(rootCorrect)}, c.maxDepth),
 	}
 }
 
@@ -43,7 +43,7 @@ func (g *GameBuilder) SeqFrom(claim types.Claim) *GameBuilderSeq {
 func (s *GameBuilderSeq) addClaimToGame(claim *types.Claim) {
 	claim.ContractIndex = len(s.gameBuilder.Game.Claims())
 	claims := append(s.gameBuilder.Game.Claims(), *claim)
-	s.gameBuilder.Game = types.NewGameState(claims, uint64(s.builder.maxDepth))
+	s.gameBuilder.Game = types.NewGameState(claims, s.builder.maxDepth)
 }
 
 func (s *GameBuilderSeq) AttackCorrect() *GameBuilderSeq {
@@ -90,10 +90,11 @@ func (s *GameBuilderSeq) ExpectAttack() *GameBuilderSeq {
 	newPos := s.lastClaim.Position.Attack()
 	value := s.builder.CorrectClaimAtPosition(newPos)
 	s.gameBuilder.ExpectedActions = append(s.gameBuilder.ExpectedActions, types.Action{
-		Type:      types.ActionTypeMove,
-		ParentIdx: s.lastClaim.ContractIndex,
-		IsAttack:  true,
-		Value:     value,
+		Type:           types.ActionTypeMove,
+		ParentIdx:      s.lastClaim.ContractIndex,
+		ParentPosition: s.lastClaim.Position,
+		IsAttack:       true,
+		Value:          value,
 	})
 	return s
 }
@@ -102,10 +103,11 @@ func (s *GameBuilderSeq) ExpectDefend() *GameBuilderSeq {
 	newPos := s.lastClaim.Position.Defend()
 	value := s.builder.CorrectClaimAtPosition(newPos)
 	s.gameBuilder.ExpectedActions = append(s.gameBuilder.ExpectedActions, types.Action{
-		Type:      types.ActionTypeMove,
-		ParentIdx: s.lastClaim.ContractIndex,
-		IsAttack:  false,
-		Value:     value,
+		Type:           types.ActionTypeMove,
+		ParentIdx:      s.lastClaim.ContractIndex,
+		ParentPosition: s.lastClaim.Position,
+		IsAttack:       false,
+		Value:          value,
 	})
 	return s
 }
@@ -113,12 +115,13 @@ func (s *GameBuilderSeq) ExpectDefend() *GameBuilderSeq {
 func (s *GameBuilderSeq) ExpectStepAttack() *GameBuilderSeq {
 	traceIdx := s.lastClaim.TraceIndex(s.builder.maxDepth)
 	s.gameBuilder.ExpectedActions = append(s.gameBuilder.ExpectedActions, types.Action{
-		Type:       types.ActionTypeStep,
-		ParentIdx:  s.lastClaim.ContractIndex,
-		IsAttack:   true,
-		PreState:   s.builder.CorrectPreState(traceIdx),
-		ProofData:  s.builder.CorrectProofData(traceIdx),
-		OracleData: s.builder.CorrectOracleData(traceIdx),
+		Type:           types.ActionTypeStep,
+		ParentIdx:      s.lastClaim.ContractIndex,
+		ParentPosition: s.lastClaim.Position,
+		IsAttack:       true,
+		PreState:       s.builder.CorrectPreState(traceIdx),
+		ProofData:      s.builder.CorrectProofData(traceIdx),
+		OracleData:     s.builder.CorrectOracleData(traceIdx),
 	})
 	return s
 }
@@ -126,12 +129,13 @@ func (s *GameBuilderSeq) ExpectStepAttack() *GameBuilderSeq {
 func (s *GameBuilderSeq) ExpectStepDefend() *GameBuilderSeq {
 	traceIdx := new(big.Int).Add(s.lastClaim.TraceIndex(s.builder.maxDepth), big.NewInt(1))
 	s.gameBuilder.ExpectedActions = append(s.gameBuilder.ExpectedActions, types.Action{
-		Type:       types.ActionTypeStep,
-		ParentIdx:  s.lastClaim.ContractIndex,
-		IsAttack:   false,
-		PreState:   s.builder.CorrectPreState(traceIdx),
-		ProofData:  s.builder.CorrectProofData(traceIdx),
-		OracleData: s.builder.CorrectOracleData(traceIdx),
+		Type:           types.ActionTypeStep,
+		ParentIdx:      s.lastClaim.ContractIndex,
+		ParentPosition: s.lastClaim.Position,
+		IsAttack:       false,
+		PreState:       s.builder.CorrectPreState(traceIdx),
+		ProofData:      s.builder.CorrectProofData(traceIdx),
+		OracleData:     s.builder.CorrectOracleData(traceIdx),
 	})
 	return s
 }

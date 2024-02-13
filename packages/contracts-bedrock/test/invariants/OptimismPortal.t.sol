@@ -6,8 +6,6 @@ import { Vm } from "forge-std/Vm.sol";
 
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
-import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
-import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { Constants } from "src/libraries/Constants.sol";
 

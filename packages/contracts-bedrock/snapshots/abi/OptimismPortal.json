@@ -1,17 +1,6 @@
 [
   {
-    "inputs": [
-      {
-        "internalType": "contract L2OutputOracle",
-        "name": "_l2Oracle",
-        "type": "address"
-      },
-      {
-        "internalType": "contract SystemConfig",
-        "name": "_systemConfig",
-        "type": "address"
-      }
-    ],
+    "inputs": [],
     "stateMutability": "nonpayable",
     "type": "constructor"
   },
@@ -177,6 +166,16 @@
   },
   {
     "inputs": [
+      {
+        "internalType": "contract L2OutputOracle",
+        "name": "_l2Oracle",
+        "type": "address"
+      },
+      {
+        "internalType": "contract SystemConfig",
+        "name": "_systemConfig",
+        "type": "address"
+      },
       {
         "internalType": "contract SuperchainConfig",
         "name": "_superchainConfig",
