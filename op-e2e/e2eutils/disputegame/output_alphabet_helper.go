@@ -5,10 +5,12 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs/loader"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -44,8 +46,11 @@ func (g *OutputAlphabetGameHelper) CreateHonestActor(ctx context.Context, l2Node
 	g.require.NoError(err, "Get block range")
 	splitDepth := g.SplitDepth(ctx)
 	rollupClient := g.system.RollupClient(l2Node)
-	prestateProvider := outputs.NewPrestateProvider(ctx, logger, rollupClient, prestateBlock)
-	correctTrace, err := outputs.NewOutputAlphabetTraceAccessor(logger, metrics.NoopMetrics, prestateProvider, rollupClient, splitDepth, prestateBlock, poststateBlock)
+	l1Head, err := g.game.L1Head(&bind.CallOpts{Context: ctx})
+	g.require.NoError(err, "Failed to load L1 head")
+	outputRootProvider := loader.NewUncheckedOutputRootProvider(rollupClient)
+	prestateProvider := outputs.NewPrestateProvider(ctx, logger, outputRootProvider, l1Head, prestateBlock)
+	correctTrace, err := outputs.NewOutputAlphabetTraceAccessor(logger, metrics.NoopMetrics, prestateProvider, outputRootProvider, l1Head, splitDepth, prestateBlock, poststateBlock)
 	g.require.NoError(err, "Create trace accessor")
 	return &OutputHonestHelper{
 		t:            g.t,

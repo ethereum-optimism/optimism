@@ -23,13 +23,14 @@ func NewOutputCannonTraceAccessor(
 	l2Client cannon.L2HeaderSource,
 	contract cannon.L1HeadSource,
 	prestateProvider types.PrestateProvider,
-	rollupClient OutputRollupClient,
+	rollupClient OutputRootProvider,
 	dir string,
+	l1Head common.Hash,
 	splitDepth types.Depth,
 	prestateBlock uint64,
 	poststateBlock uint64,
 ) (*trace.Accessor, error) {
-	outputProvider := NewTraceProviderFromInputs(logger, prestateProvider, rollupClient, splitDepth, prestateBlock, poststateBlock)
+	outputProvider := NewTraceProviderFromInputs(logger, prestateProvider, rollupClient, l1Head, splitDepth, prestateBlock, poststateBlock)
 	cannonCreator := func(ctx context.Context, localContext common.Hash, depth types.Depth, agreed contracts.Proposal, claimed contracts.Proposal) (types.TraceProvider, error) {
 		logger := logger.New("pre", agreed.OutputRoot, "post", claimed.OutputRoot, "localContext", localContext)
 		subdir := filepath.Join(dir, localContext.Hex())
