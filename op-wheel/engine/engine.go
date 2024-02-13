@@ -338,6 +338,13 @@ func SetForkchoice(ctx context.Context, client client.RPC, finalizedNum, safeNum
 	return nil
 }
 
+func SetForkchoiceByHash(ctx context.Context, client client.RPC, finalized, safe, unsafe common.Hash) error {
+	if err := updateForkchoice(ctx, client, unsafe, safe, finalized); err != nil {
+		return fmt.Errorf("failed to update forkchoice: %w", err)
+	}
+	return nil
+}
+
 func RawJSONInteraction(ctx context.Context, client client.RPC, method string, args []string, input io.Reader, output io.Writer) error {
 	var params []any
 	if input != nil {

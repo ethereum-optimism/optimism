@@ -496,6 +496,38 @@ var (
 		}),
 	}
 
+	EngineSetForkchoiceHashCmd = &cli.Command{
+		Name:        "set-forkchoice-by-hash",
+		Description: "Set forkchoice, specify unsafe, safe and finalized blocks by hash",
+		Flags: []cli.Flag{
+			EngineEndpoint, EngineJWTPath,
+			&cli.StringFlag{
+				Name:     "unsafe",
+				Usage:    "Block hash of block to set as latest block",
+				Required: true,
+				EnvVars:  prefixEnvVars("UNSAFE"),
+			},
+			&cli.StringFlag{
+				Name:     "safe",
+				Usage:    "Block hash of block to set as safe block",
+				Required: true,
+				EnvVars:  prefixEnvVars("SAFE"),
+			},
+			&cli.StringFlag{
+				Name:     "finalized",
+				Usage:    "Block hash of block to set as finalized block",
+				Required: true,
+				EnvVars:  prefixEnvVars("FINALIZED"),
+			},
+		},
+		Action: EngineAction(func(ctx *cli.Context, client client.RPC) error {
+			finalized := common.HexToHash(ctx.String("finalized"))
+			safe := common.HexToHash(ctx.String("safe"))
+			unsafe := common.HexToHash(ctx.String("unsafe"))
+			return engine.SetForkchoiceByHash(ctx.Context, client, finalized, safe, unsafe)
+		}),
+	}
+
 	EngineJSONCmd = &cli.Command{
 		Name:        "json",
 		Description: "read json values from remaining args, or STDIN, and use them as RPC params to call the engine RPC method (first arg)",
@@ -551,6 +583,7 @@ var EngineCmd = &cli.Command{
 		EngineStatusCmd,
 		EngineCopyCmd,
 		EngineSetForkchoiceCmd,
+		EngineSetForkchoiceHashCmd,
 		EngineJSONCmd,
 	},
 }
