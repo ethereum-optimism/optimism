@@ -24,10 +24,10 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
     /// @custom:kontrol-length-equals _withdrawalProof[]: 600,
     /// @custom:kontrol-length-equals data: 1000,
     function prove_proveWithdrawalTransaction_paused(
-                                                     Types.WithdrawalTransaction memory _tx,
-                                                     uint256 _l2OutputIndex,
-                                                     Types.OutputRootProof calldata _outputRootProof,
-                                                     bytes[] calldata _withdrawalProof
+        Types.WithdrawalTransaction memory _tx,
+        uint256 _l2OutputIndex,
+        Types.OutputRootProof calldata _outputRootProof,
+        bytes[] calldata _withdrawalProof
     )
         external
     {
@@ -41,9 +41,7 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
         optimismPortal.proveWithdrawalTransaction(_tx, _l2OutputIndex, _outputRootProof, _withdrawalProof);
     }
 
-    function prove_finalizeWithdrawalTransaction_paused(Types.WithdrawalTransaction calldata _tx)
-        external
-    {
+    function prove_finalizeWithdrawalTransaction_paused(Types.WithdrawalTransaction calldata _tx) external {
         setUpInlined();
 
         // Pause Optimism Portal

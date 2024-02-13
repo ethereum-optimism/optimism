@@ -6,9 +6,9 @@ import { KontrolUtils } from "./utils/KontrolUtils.sol";
 import { Types } from "src/libraries/Types.sol";
 import {
     IL1StandardBridge as L1StandardBridge,
-        IL1CrossDomainMessenger as CrossDomainMessenger,
-        ISuperchainConfig as SuperchainConfig
-        } from "./interfaces/KontrolInterfaces.sol";
+    IL1CrossDomainMessenger as CrossDomainMessenger,
+    ISuperchainConfig as SuperchainConfig
+} from "./interfaces/KontrolInterfaces.sol";
 
 contract L1StandardBridgeKontrol is DeploymentSummary, KontrolUtils {
     L1StandardBridge l1standardBridge;
@@ -38,9 +38,9 @@ contract L1StandardBridgeKontrol is DeploymentSummary, KontrolUtils {
         superchainConfig.pause("identifier");
 
         vm.mockCall(
-                    address(l1standardBridge.messenger()),
-                    abi.encodeWithSelector(CrossDomainMessenger.xDomainMessageSender.selector),
-                    abi.encode(address(l1standardBridge.otherBridge()))
+            address(l1standardBridge.messenger()),
+            abi.encodeWithSelector(CrossDomainMessenger.xDomainMessageSender.selector),
+            abi.encode(address(l1standardBridge.otherBridge()))
         );
 
         vm.prank(address(l1standardBridge.messenger()));
@@ -50,7 +50,14 @@ contract L1StandardBridgeKontrol is DeploymentSummary, KontrolUtils {
 
     // ASSUME: Conservative upper bound on the `_extraData` length, since extra data is optional
     // for convenience of off-chain tooling.
-    function prove_finalizeBridgeETH_paused(address _from, address _to, uint256 _amount, bytes calldata _extraData) public {
+    function prove_finalizeBridgeETH_paused(
+        address _from,
+        address _to,
+        uint256 _amount,
+        bytes calldata _extraData
+    )
+        public
+    {
         setUpInlined();
 
         // Pause Standard Bridge
@@ -58,9 +65,9 @@ contract L1StandardBridgeKontrol is DeploymentSummary, KontrolUtils {
         superchainConfig.pause("identifier");
 
         vm.mockCall(
-                    address(l1standardBridge.messenger()),
-                    abi.encodeWithSelector(CrossDomainMessenger.xDomainMessageSender.selector),
-                    abi.encode(address(l1standardBridge.otherBridge()))
+            address(l1standardBridge.messenger()),
+            abi.encodeWithSelector(CrossDomainMessenger.xDomainMessageSender.selector),
+            abi.encode(address(l1standardBridge.otherBridge()))
         );
 
         vm.prank(address(l1standardBridge.messenger()));
