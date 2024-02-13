@@ -1,4 +1,4 @@
-package mon
+package extract
 
 import (
 	"context"
@@ -13,25 +13,25 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/sources/caching"
 )
 
-const metricsLabel = "binding_creator"
+const metricsLabel = "game_caller_creator"
 
-type MetadataLoader interface {
+type GameCaller interface {
 	GetGameMetadata(context.Context) (uint64, common.Hash, types.GameStatus, error)
 }
 
-type metadataCreator struct {
+type GameCallerCreator struct {
 	cache  *caching.LRUCache[common.Address, *contracts.FaultDisputeGameContract]
 	caller *batching.MultiCaller
 }
 
-func NewMetadataCreator(m caching.Metrics, caller *batching.MultiCaller) *metadataCreator {
-	return &metadataCreator{
+func NewGameCallerCreator(m caching.Metrics, caller *batching.MultiCaller) *GameCallerCreator {
+	return &GameCallerCreator{
 		caller: caller,
 		cache:  caching.NewLRUCache[common.Address, *contracts.FaultDisputeGameContract](m, metricsLabel, 100),
 	}
 }
 
-func (m *metadataCreator) CreateContract(game types.GameMetadata) (MetadataLoader, error) {
+func (m *GameCallerCreator) CreateContract(game types.GameMetadata) (GameCaller, error) {
 	if fdg, ok := m.cache.Get(game.Proxy); ok {
 		return fdg, nil
 	}

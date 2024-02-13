@@ -2,9 +2,9 @@ package mon
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -12,10 +12,6 @@ import (
 
 type OutputValidator interface {
 	CheckRootAgreement(ctx context.Context, blockNum uint64, root common.Hash) (bool, common.Hash, error)
-}
-
-type MetadataCreator interface {
-	CreateContract(game types.GameMetadata) (MetadataLoader, error)
 }
 
 type DetectorMetrics interface {
@@ -26,77 +22,57 @@ type DetectorMetrics interface {
 type detector struct {
 	logger    log.Logger
 	metrics   DetectorMetrics
-	creator   MetadataCreator
 	validator OutputValidator
 }
 
-func newDetector(logger log.Logger, metrics DetectorMetrics, creator MetadataCreator, validator OutputValidator) *detector {
+func newDetector(logger log.Logger, metrics DetectorMetrics, validator OutputValidator) *detector {
 	return &detector{
 		logger:    logger,
 		metrics:   metrics,
-		creator:   creator,
 		validator: validator,
 	}
 }
 
-func (d *detector) Detect(ctx context.Context, games []types.GameMetadata) {
-	statBatch := statusBatch{}
-	detectBatch := detectionBatch{}
+func (d *detector) Detect(ctx context.Context, games []monTypes.EnrichedGameData) {
+	statBatch := monTypes.StatusBatch{}
+	detectBatch := monTypes.DetectionBatch{}
 	for _, game := range games {
-		// Fetch the game metadata to ensure the game status is recorded
-		// regardless of whether the game agreement is checked.
-		l2BlockNum, rootClaim, status, err := d.fetchGameMetadata(ctx, game)
-		if err != nil {
-			d.logger.Error("Failed to fetch game metadata", "err", err)
-			continue
-		}
-		statBatch.Add(status)
-		processed, err := d.checkAgreement(ctx, game.Proxy, l2BlockNum, rootClaim, status)
+		statBatch.Add(game.Status)
+		processed, err := d.checkAgreement(ctx, game)
 		if err != nil {
 			d.logger.Error("Failed to process game", "err", err)
 			continue
 		}
 		detectBatch.Merge(processed)
 	}
-	d.metrics.RecordGamesStatus(statBatch.inProgress, statBatch.defenderWon, statBatch.challengerWon)
+	d.metrics.RecordGamesStatus(statBatch.InProgress, statBatch.DefenderWon, statBatch.ChallengerWon)
 	d.recordBatch(detectBatch)
 	d.logger.Info("Completed updating games", "count", len(games))
 }
 
-func (d *detector) recordBatch(batch detectionBatch) {
-	d.metrics.RecordGameAgreement("in_progress", batch.inProgress)
-	d.metrics.RecordGameAgreement("agree_defender_wins", batch.agreeDefenderWins)
-	d.metrics.RecordGameAgreement("disagree_defender_wins", batch.disagreeDefenderWins)
-	d.metrics.RecordGameAgreement("agree_challenger_wins", batch.agreeChallengerWins)
-	d.metrics.RecordGameAgreement("disagree_challenger_wins", batch.disagreeChallengerWins)
+func (d *detector) recordBatch(batch monTypes.DetectionBatch) {
+	d.metrics.RecordGameAgreement("in_progress", batch.InProgress)
+	d.metrics.RecordGameAgreement("agree_defender_wins", batch.AgreeDefenderWins)
+	d.metrics.RecordGameAgreement("disagree_defender_wins", batch.DisagreeDefenderWins)
+	d.metrics.RecordGameAgreement("agree_challenger_wins", batch.AgreeChallengerWins)
+	d.metrics.RecordGameAgreement("disagree_challenger_wins", batch.DisagreeChallengerWins)
 }
 
-func (d *detector) fetchGameMetadata(ctx context.Context, game types.GameMetadata) (uint64, common.Hash, types.GameStatus, error) {
-	loader, err := d.creator.CreateContract(game)
+func (d *detector) checkAgreement(ctx context.Context, game monTypes.EnrichedGameData) (monTypes.DetectionBatch, error) {
+	agree, expectedClaim, err := d.validator.CheckRootAgreement(ctx, game.L2BlockNumber, game.RootClaim)
 	if err != nil {
-		return 0, common.Hash{}, 0, fmt.Errorf("failed to create contract: %w", err)
+		return monTypes.DetectionBatch{}, err
 	}
-	blockNum, rootClaim, status, err := loader.GetGameMetadata(ctx)
-	if err != nil {
-		return 0, common.Hash{}, 0, fmt.Errorf("failed to fetch game metadata: %w", err)
-	}
-	return blockNum, rootClaim, status, nil
-}
-
-func (d *detector) checkAgreement(ctx context.Context, addr common.Address, blockNum uint64, rootClaim common.Hash, status types.GameStatus) (detectionBatch, error) {
-	agree, expectedClaim, err := d.validator.CheckRootAgreement(ctx, blockNum, rootClaim)
-	if err != nil {
-		return detectionBatch{}, err
-	}
-	batch := detectionBatch{}
-	batch.Update(status, agree)
-	if status != types.GameStatusInProgress {
+	batch := monTypes.DetectionBatch{}
+	batch.Update(game.Status, agree)
+	if game.Status != types.GameStatusInProgress {
 		expectedResult := types.GameStatusDefenderWon
 		if !agree {
 			expectedResult = types.GameStatusChallengerWon
 		}
-		if status != expectedResult {
-			d.logger.Error("Unexpected game result", "gameAddr", addr, "expectedResult", expectedResult, "actualResult", status, "rootClaim", rootClaim, "correctClaim", expectedClaim)
+		if game.Status != expectedResult {
+			d.logger.Error("Unexpected game result", "gameAddr", game.Proxy, "expectedResult", expectedResult, "actualResult", game.Status, "rootClaim",
+				game.RootClaim, "correctClaim", expectedClaim)
 		}
 	}
 	return batch, nil

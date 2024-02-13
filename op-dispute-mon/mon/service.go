@@ -15,6 +15,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/config"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/metrics"
+	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/extract"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/version"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
@@ -34,7 +35,8 @@ type Service struct {
 
 	cl clock.Clock
 
-	metadata     *metadataCreator
+	extractor    *extract.Extractor
+	creator      *extract.GameCallerCreator
 	rollupClient *sources.RollupClient
 	detector     *detector
 	validator    *outputValidator
@@ -78,9 +80,9 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 	if err := s.initOutputRollupClient(ctx, cfg); err != nil {
 		return fmt.Errorf("failed to init rollup client: %w", err)
 	}
-	s.initMetadataCreator()
+	s.initGameCallerCreator()
 	s.initOutputValidator()
-	s.initDetector()
+	s.initExtractor()
 	s.initDetector()
 	s.initMonitor(ctx, cfg)
 
@@ -90,12 +92,20 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 	return nil
 }
 
+func (s *Service) initGameCallerCreator() {
+	s.creator = extract.NewGameCallerCreator(s.metrics, batching.NewMultiCaller(s.l1Client.Client(), batching.DefaultBatchSize))
+}
+
 func (s *Service) initOutputValidator() {
 	s.validator = newOutputValidator(s.rollupClient)
 }
 
+func (s *Service) initExtractor() {
+	s.extractor = extract.NewExtractor(s.logger, s.creator.CreateContract, s.factoryContract.GetGamesAtOrAfter)
+}
+
 func (s *Service) initDetector() {
-	s.detector = newDetector(s.logger, s.metrics, s.metadata, s.validator)
+	s.detector = newDetector(s.logger, s.metrics, s.validator)
 }
 
 func (s *Service) initOutputRollupClient(ctx context.Context, cfg *config.Config) error {
@@ -105,10 +115,6 @@ func (s *Service) initOutputRollupClient(ctx context.Context, cfg *config.Config
 	}
 	s.rollupClient = outputRollupClient
 	return nil
-}
-
-func (s *Service) initMetadataCreator() {
-	s.metadata = NewMetadataCreator(s.metrics, batching.NewMultiCaller(s.l1Client.Client(), batching.DefaultBatchSize))
 }
 
 func (s *Service) initL1Client(ctx context.Context, cfg *config.Config) error {
@@ -180,7 +186,7 @@ func (s *Service) initMonitor(ctx context.Context, cfg *config.Config) {
 		cfg.MonitorInterval,
 		cfg.GameWindow,
 		s.detector.Detect,
-		s.factoryContract.GetGamesAtOrAfter,
+		s.extractor.Extract,
 		s.l1Client.BlockNumber,
 		blockHashFetcher,
 	)
