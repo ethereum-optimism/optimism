@@ -255,6 +255,7 @@ jobs:
             export GIT_DATE="$(git show -s --format='%ct')"
             export GIT_VERSION="<<pipeline.git.tag>>"
             export PLATFORMS="<<parameters.platforms>>"
+            export VERSION="$(echo -ne "<<pipeline.git.tag>>" | sed "s#.*/\(.*\)#\1#")"
 
             # Create, start (bootstrap) and use a *named* docker builder
             # This allows us to cross-build multi-platform,
