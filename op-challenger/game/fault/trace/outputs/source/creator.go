@@ -1,4 +1,4 @@
-package loader
+package source
 
 import (
 	"context"
@@ -25,7 +25,7 @@ func NewOutputSourceCreator(logger log.Logger, rollupClient OutputRollupClient) 
 	}
 }
 
-func (l *OutputSourceCreator) ForL1Head(ctx context.Context, l1Head common.Hash) (*RestrictedOutputLoader, error) {
-	// TODO: Actually restrict the safe head
-	return NewRestrictedOutputLoader(l.rollupClient, math.MaxUint64), nil
+func (l *OutputSourceCreator) ForL1Head(ctx context.Context, l1Head common.Hash) (*RestrictedOutputSource, error) {
+	// TODO(client-pod#416): Run op-program to detect the latest safe head supported by l1Head
+	return NewRestrictedOutputSource(l.rollupClient, math.MaxUint64), nil
 }

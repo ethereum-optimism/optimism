@@ -9,7 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/cannon"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs/loader"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs/source"
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/scheduler"
@@ -34,7 +34,7 @@ func RegisterGameTypes(
 	logger log.Logger,
 	m metrics.Metricer,
 	cfg *config.Config,
-	rollupClient loader.OutputRollupClient,
+	rollupClient source.OutputRollupClient,
 	txSender types.TxSender,
 	gameFactory *contracts.DisputeGameFactoryContract,
 	caller *batching.MultiCaller,
@@ -49,7 +49,7 @@ func RegisterGameTypes(
 		l2Client = l2
 		closer = l2Client.Close
 	}
-	outputSourceCreator := loader.NewOutputSourceCreator(logger, rollupClient)
+	outputSourceCreator := source.NewOutputSourceCreator(logger, rollupClient)
 
 	if cfg.TraceTypeEnabled(config.TraceTypeCannon) {
 		if err := registerCannon(registry, ctx, cl, logger, m, cfg, outputSourceCreator, txSender, gameFactory, caller, l2Client); err != nil {
@@ -70,7 +70,7 @@ func registerAlphabet(
 	cl faultTypes.ClockReader,
 	logger log.Logger,
 	m metrics.Metricer,
-	outputSourceCreator *loader.OutputSourceCreator,
+	outputSourceCreator *source.OutputSourceCreator,
 	txSender types.TxSender,
 	gameFactory *contracts.DisputeGameFactoryContract,
 	caller *batching.MultiCaller,
@@ -144,7 +144,7 @@ func registerCannon(
 	logger log.Logger,
 	m metrics.Metricer,
 	cfg *config.Config,
-	outputSourceCreator *loader.OutputSourceCreator,
+	outputSourceCreator *source.OutputSourceCreator,
 	txSender types.TxSender,
 	gameFactory *contracts.DisputeGameFactoryContract,
 	caller *batching.MultiCaller,

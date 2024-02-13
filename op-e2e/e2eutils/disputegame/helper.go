@@ -12,7 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs/loader"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs/source"
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame/preimage"
@@ -155,7 +155,7 @@ func (h *FactoryHelper) StartOutputCannonGame(ctx context.Context, l2Node string
 	h.require.NoError(err, "Failed to load l2 block number")
 	splitDepth, err := game.SplitDepth(&bind.CallOpts{Context: ctx})
 	h.require.NoError(err, "Failed to load split depth")
-	outputRootProvider := loader.NewUncheckedOutputRootProvider(rollupClient)
+	outputRootProvider := source.NewUnrestrictedOutputSource(rollupClient)
 	prestateProvider := outputs.NewPrestateProvider(ctx, logger, outputRootProvider, prestateBlock.Uint64())
 	provider := outputs.NewTraceProviderFromInputs(logger, prestateProvider, outputRootProvider, faultTypes.Depth(splitDepth.Uint64()), prestateBlock.Uint64(), poststateBlock.Uint64())
 
@@ -208,7 +208,7 @@ func (h *FactoryHelper) StartOutputAlphabetGame(ctx context.Context, l2Node stri
 	h.require.NoError(err, "Failed to load l2 block number")
 	splitDepth, err := game.SplitDepth(&bind.CallOpts{Context: ctx})
 	h.require.NoError(err, "Failed to load split depth")
-	outputRootProvider := loader.NewUncheckedOutputRootProvider(rollupClient)
+	outputRootProvider := source.NewUnrestrictedOutputSource(rollupClient)
 	prestateProvider := outputs.NewPrestateProvider(ctx, logger, outputRootProvider, prestateBlock.Uint64())
 	provider := outputs.NewTraceProviderFromInputs(logger, prestateProvider, outputRootProvider, faultTypes.Depth(splitDepth.Uint64()), prestateBlock.Uint64(), poststateBlock.Uint64())
 

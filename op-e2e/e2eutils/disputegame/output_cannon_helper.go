@@ -11,7 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/cannon"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs/loader"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs/source"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/split"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
@@ -64,7 +64,7 @@ func (g *OutputCannonGameHelper) CreateHonestActor(ctx context.Context, l2Node s
 	dir := filepath.Join(cfg.Datadir, "honest")
 	splitDepth := g.SplitDepth(ctx)
 	rollupClient := g.system.RollupClient(l2Node)
-	outputRootProvider := loader.NewUncheckedOutputRootProvider(rollupClient)
+	outputRootProvider := source.NewUnrestrictedOutputSource(rollupClient)
 	prestateProvider := outputs.NewPrestateProvider(ctx, logger, outputRootProvider, prestateBlock)
 	accessor, err := outputs.NewOutputCannonTraceAccessor(
 		logger, metrics.NoopMetrics, cfg, l2Client, contract, prestateProvider, outputRootProvider, dir, splitDepth, prestateBlock, poststateBlock)
@@ -231,7 +231,7 @@ func (g *OutputCannonGameHelper) createCannonTraceProvider(ctx context.Context, 
 	prestateBlock, poststateBlock, err := contract.GetBlockRange(ctx)
 	g.require.NoError(err, "Failed to load block range")
 	rollupClient := g.system.RollupClient(l2Node)
-	outputRootProvider := loader.NewUncheckedOutputRootProvider(rollupClient)
+	outputRootProvider := source.NewUnrestrictedOutputSource(rollupClient)
 	prestateProvider := outputs.NewPrestateProvider(ctx, logger, outputRootProvider, prestateBlock)
 	outputProvider := outputs.NewTraceProviderFromInputs(logger, prestateProvider, outputRootProvider, splitDepth, prestateBlock, poststateBlock)
 
