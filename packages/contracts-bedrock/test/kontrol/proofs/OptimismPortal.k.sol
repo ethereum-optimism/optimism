@@ -37,12 +37,10 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
         vm.prank(optimismPortal.guardian());
         superchainConfig.pause("identifier");
 
-        // No one can call proveWithdrawalTransaction
         vm.expectRevert("OptimismPortal: paused");
         optimismPortal.proveWithdrawalTransaction(_tx, _l2OutputIndex, _outputRootProof, _withdrawalProof);
     }
 
-    /// @custom:kontrol-length-equals data: 1000,
     function prove_finalizeWithdrawalTransaction_paused(Types.WithdrawalTransaction calldata _tx)
         external
     {

@@ -21,7 +21,6 @@ contract L1CrossDomainMessengerKontrol is DeploymentSummary, KontrolUtils {
 
     // ASSUME: Conservative upper bound on the `_message` length. Most contract calls will have
     // a message length less than 600 bytes.
-    /// @custom:kontrol-length-equals _message: 600,
     function prove_relayMessage_paused(
         uint256 _nonce,
         address _sender,

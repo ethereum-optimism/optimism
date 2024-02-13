@@ -21,7 +21,6 @@ contract L1StandardBridgeKontrol is DeploymentSummary, KontrolUtils {
 
     // ASSUME: Conservative upper bound on the `_extraData` length, since extra data is optional
     // for convenience of off-chain tooling.
-    /// @custom:kontrol-length-equals _extraData: 64,
     function prove_finalizeBridgeERC20_paused(
         address _localToken,
         address _remoteToken,
@@ -51,7 +50,6 @@ contract L1StandardBridgeKontrol is DeploymentSummary, KontrolUtils {
 
     // ASSUME: Conservative upper bound on the `_extraData` length, since extra data is optional
     // for convenience of off-chain tooling.
-    /// @custom:kontrol-length-equals _extraData: 64,
     function prove_finalizeBridgeETH_paused(address _from, address _to, uint256 _amount, bytes calldata _extraData) public {
         setUpInlined();
 
