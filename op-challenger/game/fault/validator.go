@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
@@ -42,7 +43,8 @@ func (v *PrestateValidator) Validate(ctx context.Context) error {
 		return fmt.Errorf("failed to fetch provider's prestate hash: %w", err)
 	}
 	if !bytes.Equal(prestateCommitment[:], prestateHash[:]) {
-		return fmt.Errorf("%v provider's absolute prestate does not match contract's absolute prestate: Provider: %s | Contract: %s", v.valueName, prestateCommitment.Hex(), prestateHash.Hex())
+		return fmt.Errorf("%v %w: Provider: %s | Contract: %s",
+			v.valueName, gameTypes.ErrInvalidPrestate, prestateCommitment.Hex(), prestateHash.Hex())
 	}
 	return nil
 }

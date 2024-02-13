@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
@@ -54,7 +55,7 @@ func TestValidate(t *testing.T) {
 			provider: newMockPrestateProvider(false, prestate),
 		}
 		err := player.Validate(context.Background())
-		require.Error(t, err)
+		require.ErrorIs(t, err, gameTypes.ErrInvalidPrestate)
 	})
 }
 

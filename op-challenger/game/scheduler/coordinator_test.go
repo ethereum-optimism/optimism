@@ -64,7 +64,7 @@ func TestExitWhenContextDoneWhileSchedulingJob(t *testing.T) {
 
 func TestSchedule_PrestateValidationErrors(t *testing.T) {
 	c, _, _, games, _, _ := setupCoordinatorTest(t, 10)
-	games.PrestateErr = fmt.Errorf("prestate error")
+	games.PrestateErr = types.ErrInvalidPrestate
 	gameAddr1 := common.Address{0xaa}
 	ctx := context.Background()
 
@@ -75,7 +75,7 @@ func TestSchedule_PrestateValidationErrors(t *testing.T) {
 func TestSchedule_SkipPrestateValidationErrors(t *testing.T) {
 	c, _, _, games, _, logs := setupCoordinatorTest(t, 10)
 	c.allowInvalidPrestate = true
-	games.PrestateErr = fmt.Errorf("prestate error")
+	games.PrestateErr = types.ErrInvalidPrestate
 	gameAddr1 := common.Address{0xaa}
 	ctx := context.Background()
 
@@ -85,6 +85,17 @@ func TestSchedule_SkipPrestateValidationErrors(t *testing.T) {
 	require.NotNil(t, errLog)
 	require.Equal(t, errLog.AttrValue("game"), gameAddr1)
 	require.Equal(t, errLog.AttrValue("err"), games.PrestateErr)
+}
+
+func TestSchedule_PrestateValidationFailure(t *testing.T) {
+	c, _, _, games, _, _ := setupCoordinatorTest(t, 10)
+	c.allowInvalidPrestate = true
+	games.PrestateErr = fmt.Errorf("failed to fetch prestate")
+	gameAddr1 := common.Address{0xaa}
+	ctx := context.Background()
+
+	err := c.schedule(ctx, asGames(gameAddr1), 0)
+	require.ErrorIs(t, err, games.PrestateErr)
 }
 
 func TestScheduleGameAgainAfterCompletion(t *testing.T) {
