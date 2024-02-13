@@ -117,8 +117,8 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 3.1.0
-    string public constant version = "3.1.0";
+    /// @custom:semver 3.2.0
+    string public constant version = "3.2.0";
 
     /// @notice Constructs the OptimismPortal contract.
     constructor(
@@ -415,14 +415,6 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     function blacklistDisputeGame(IDisputeGame _disputeGame) external {
         require(msg.sender == guardian(), "OptimismPortal: only the guardian can blacklist dispute games");
         disputeGameBlacklist[_disputeGame] = true;
-    }
-
-    /// @notice Deletes a proven withdrawal from the `provenWithdrawals` mapping in the case that a MPT proof was
-    ///         incorrectly verified by the `MerkleTrie` verifier contract.
-    /// @param _withdrawalHash Hash of the withdrawal transaction to delete from the `pendingWithdrawals` mapping.
-    function deleteProvenWithdrawal(bytes32 _withdrawalHash) external {
-        require(msg.sender == guardian(), "OptimismPortal: only the guardian can delete proven withdrawals");
-        delete provenWithdrawals[_withdrawalHash];
     }
 
     /// @notice Sets the respected game type. Changing this value can alter the security properties of the system,
