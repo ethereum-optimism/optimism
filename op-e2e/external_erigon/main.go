@@ -135,6 +135,8 @@ func execute(binPath string, config external.Config) (*erigonSession, error) {
 		"--torrent.port", "0", // There doesn't seem to be an obvious way to disable torrent listening
 		"--log.console.verbosity", strconv.FormatUint(config.Verbosity, 10),
 	)
+
+	fmt.Printf("==================    op-erigon starting with args %q  ==========================\n", cmd.String())
 	// The order of messages for engine vs vanilla http API is inconsistent.  A
 	// quick hack is to simply write to two gbytes buffers
 	engineBuffer := gbytes.NewBuffer()
