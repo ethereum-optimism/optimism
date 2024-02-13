@@ -105,8 +105,8 @@ regen=
 #################################
 # Tests to symbolically execute #
 #################################
-# Missing: OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused
-test_list=( "OptimismPortalKontrol.prove_finalizeWithdrawalTransaction_paused" \
+test_list=( "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused" \
+            "OptimismPortalKontrol.prove_finalizeWithdrawalTransaction_paused" \
             "L1StandardBridgeKontrol.prove_finalizeBridgeERC20_paused" \
             "L1StandardBridgeKontrol.prove_finalizeBridgeETH_paused" \
             "L1ERC721BridgeKontrol.prove_finalizeBridgeERC721_paused" \
