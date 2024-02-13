@@ -6,8 +6,9 @@ import { KontrolUtils } from "./utils/KontrolUtils.sol";
 import { Types } from "src/libraries/Types.sol";
 import {
     IL1StandardBridge as L1StandardBridge,
-    ISuperchainConfig as SuperchainConfig
-} from "./interfaces/KontrolInterfaces.sol";
+        IL1CrossDomainMessenger as CrossDomainMessenger,
+        ISuperchainConfig as SuperchainConfig
+        } from "./interfaces/KontrolInterfaces.sol";
 
 contract L1StandardBridgeKontrol is DeploymentSummary, KontrolUtils {
     L1StandardBridge l1standardBridge;
@@ -33,18 +34,15 @@ contract L1StandardBridgeKontrol is DeploymentSummary, KontrolUtils {
     {
         setUpInlined();
 
-        // Current workaround to be replaced with `vm.mockCall`, once the cheatcode is implemented in Kontrol
-        // This overrides the storage slot read by `CrossDomainMessenger::xDomainMessageSender`
-        // Tracking issue: https://github.com/runtimeverification/kontrol/issues/285
-        vm.store(
-            l1CrossDomainMessengerProxyAddress,
-            hex"00000000000000000000000000000000000000000000000000000000000000cc",
-            bytes32(uint256(uint160(address(l1standardBridge.otherBridge()))))
-        );
-
         // Pause Standard Bridge
         vm.prank(superchainConfig.guardian());
         superchainConfig.pause("identifier");
+
+        vm.mockCall(
+                    address(l1standardBridge.messenger()),
+                    abi.encodeWithSelector(CrossDomainMessenger.xDomainMessageSender.selector),
+                    abi.encode(address(l1standardBridge.otherBridge()))
+        );
 
         vm.prank(address(l1standardBridge.messenger()));
         vm.expectRevert("StandardBridge: paused");
@@ -57,18 +55,15 @@ contract L1StandardBridgeKontrol is DeploymentSummary, KontrolUtils {
     function prove_finalizeBridgeETH_paused(address _from, address _to, uint256 _amount, bytes calldata _extraData) public {
         setUpInlined();
 
-        // Current workaround to be replaced with `vm.mockCall`, once the cheatcode is implemented in Kontrol
-        // This overrides the storage slot read by `CrossDomainMessenger::xDomainMessageSender`
-        // Tracking issue: https://github.com/runtimeverification/kontrol/issues/285
-        vm.store(
-            l1CrossDomainMessengerProxyAddress,
-            hex"00000000000000000000000000000000000000000000000000000000000000cc",
-            bytes32(uint256(uint160(address(l1standardBridge.otherBridge()))))
-        );
-
         // Pause Standard Bridge
         vm.prank(superchainConfig.guardian());
         superchainConfig.pause("identifier");
+
+        vm.mockCall(
+                    address(l1standardBridge.messenger()),
+                    abi.encodeWithSelector(CrossDomainMessenger.xDomainMessageSender.selector),
+                    abi.encode(address(l1standardBridge.otherBridge()))
+        );
 
         vm.prank(address(l1standardBridge.messenger()));
         vm.expectRevert("StandardBridge: paused");
