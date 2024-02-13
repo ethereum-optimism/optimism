@@ -172,8 +172,8 @@ func (g *OutputGameHelper) MaxDepth(ctx context.Context) types.Depth {
 	return types.Depth(depth.Uint64())
 }
 
-func (g *OutputGameHelper) waitForClaim(ctx context.Context, errorMsg string, predicate func(claimIdx int64, claim ContractClaim) bool) (int64, ContractClaim) {
-	timedCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
+func (g *OutputGameHelper) waitForClaim(ctx context.Context, timeout time.Duration, errorMsg string, predicate func(claimIdx int64, claim ContractClaim) bool) (int64, ContractClaim) {
+	timedCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	var matchedClaim ContractClaim
 	var matchClaimIdx int64
@@ -255,6 +255,7 @@ func (g *OutputGameHelper) getClaim(ctx context.Context, claimIdx int64) Contrac
 func (g *OutputGameHelper) WaitForClaimAtDepth(ctx context.Context, depth types.Depth) {
 	g.waitForClaim(
 		ctx,
+		defaultTimeout,
 		fmt.Sprintf("Could not find claim depth %v", depth),
 		func(_ int64, claim ContractClaim) bool {
 			pos := types.NewPositionFromGIndex(claim.Position)
@@ -266,6 +267,7 @@ func (g *OutputGameHelper) WaitForClaimAtMaxDepth(ctx context.Context, countered
 	maxDepth := g.MaxDepth(ctx)
 	g.waitForClaim(
 		ctx,
+		defaultTimeout,
 		fmt.Sprintf("Could not find claim depth %v with countered=%v", maxDepth, countered),
 		func(_ int64, claim ContractClaim) bool {
 			pos := types.NewPositionFromGIndex(claim.Position)
