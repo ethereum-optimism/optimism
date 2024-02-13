@@ -97,5 +97,5 @@ func (b *OracleKZGPointEvaluation) Run(input []byte) ([]byte, error) {
 	if !ok {
 		return nil, fmt.Errorf("%w: invalid KZG point evaluation", errBlobVerifyKZGProof)
 	}
-	return common.Hex2Bytes(blobPrecompileReturnValue), nil
+	return common.FromHex(blobPrecompileReturnValue), nil
 }
