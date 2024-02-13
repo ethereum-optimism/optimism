@@ -15,14 +15,20 @@ compile:
 
 bindings: compile bindings-build
 
-bindings-build:
-	go run ./gen/main.go \
-		-forge-artifacts $(contracts-dir)/forge-artifacts \
-		-out ./bindings \
-		-contracts ./artifacts.json \
-		-source-maps MIPS,PreimageOracle \
-		-package $(pkg) \
-		-monorepo-base $(monorepo-base)
+bindings-build: bindgen-generate-local
+
+bindgen-local: compile bindgen-generate-local
+
+bindgen-generate-local:
+	go run ./cmd/ \
+		generate \
+		--monorepo-base $(monorepo-base) \
+		--metadata-out ./$(pkg) \
+		--bindings-package $(pkg) \
+		--contracts-list ./artifacts.json \
+		local \
+		--forge-artifacts $(contracts-dir)/forge-artifacts \
+		--source-maps-list MIPS,PreimageOracle
 
 mkdir:
 	mkdir -p $(pkg)
