@@ -136,6 +136,9 @@ func NewChallengerConfig(t *testing.T, sys EndpointProvider, options ...Option) 
 	l1Endpoint := sys.NodeEndpoint("l1")
 	l1Beacon := sys.L1BeaconEndpoint()
 	cfg := config.NewConfig(common.Address{}, l1Endpoint, l1Beacon, t.TempDir())
+	// The devnet can't set the absolute prestate output root because the contracts are deployed in L1 genesis
+	// before the L2 genesis is known.
+	cfg.AllowInvalidPrestate = true
 	cfg.TxMgrConfig.NumConfirmations = 1
 	cfg.TxMgrConfig.ReceiptQueryInterval = 1 * time.Second
 	if cfg.MaxConcurrency > 4 {

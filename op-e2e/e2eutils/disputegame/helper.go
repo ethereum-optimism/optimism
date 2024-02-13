@@ -154,7 +154,7 @@ func (h *FactoryHelper) StartOutputCannonGame(ctx context.Context, l2Node string
 	h.require.NoError(err, "Failed to load l2 block number")
 	splitDepth, err := game.SplitDepth(&bind.CallOpts{Context: ctx})
 	h.require.NoError(err, "Failed to load split depth")
-	prestateProvider := outputs.NewPrestateProvider(ctx, logger, rollupClient, prestateBlock.Uint64())
+	prestateProvider := outputs.NewPrestateProvider(rollupClient, prestateBlock.Uint64())
 	provider := outputs.NewTraceProviderFromInputs(logger, prestateProvider, rollupClient, faultTypes.Depth(splitDepth.Uint64()), prestateBlock.Uint64(), poststateBlock.Uint64())
 
 	return &OutputCannonGameHelper{
@@ -206,7 +206,7 @@ func (h *FactoryHelper) StartOutputAlphabetGame(ctx context.Context, l2Node stri
 	h.require.NoError(err, "Failed to load l2 block number")
 	splitDepth, err := game.SplitDepth(&bind.CallOpts{Context: ctx})
 	h.require.NoError(err, "Failed to load split depth")
-	prestateProvider := outputs.NewPrestateProvider(ctx, logger, rollupClient, prestateBlock.Uint64())
+	prestateProvider := outputs.NewPrestateProvider(rollupClient, prestateBlock.Uint64())
 	provider := outputs.NewTraceProviderFromInputs(logger, prestateProvider, rollupClient, faultTypes.Depth(splitDepth.Uint64()), prestateBlock.Uint64(), poststateBlock.Uint64())
 
 	return &OutputAlphabetGameHelper{

@@ -100,14 +100,15 @@ const (
 // This also contains config options for auxiliary services.
 // It is used to initialize the challenger.
 type Config struct {
-	L1EthRpc           string           // L1 RPC Url
-	L1Beacon           string           // L1 Beacon API Url
-	GameFactoryAddress common.Address   // Address of the dispute game factory
-	GameAllowlist      []common.Address // Allowlist of fault game addresses
-	GameWindow         time.Duration    // Maximum time duration to look for games to progress
-	Datadir            string           // Data Directory
-	MaxConcurrency     uint             // Maximum number of threads to use when progressing games
-	PollInterval       time.Duration    // Polling interval for latest-block subscription when using an HTTP RPC provider
+	L1EthRpc             string           // L1 RPC Url
+	L1Beacon             string           // L1 Beacon API Url
+	GameFactoryAddress   common.Address   // Address of the dispute game factory
+	GameAllowlist        []common.Address // Allowlist of fault game addresses
+	GameWindow           time.Duration    // Maximum time duration to look for games to progress
+	Datadir              string           // Data Directory
+	MaxConcurrency       uint             // Maximum number of threads to use when progressing games
+	PollInterval         time.Duration    // Polling interval for latest-block subscription when using an HTTP RPC provider
+	AllowInvalidPrestate bool             // Whether to allow responding to games where the prestate does not match
 
 	TraceTypes []TraceType // Type of traces supported
 

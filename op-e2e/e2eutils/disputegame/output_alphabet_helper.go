@@ -44,7 +44,7 @@ func (g *OutputAlphabetGameHelper) CreateHonestActor(ctx context.Context, l2Node
 	g.require.NoError(err, "Get block range")
 	splitDepth := g.SplitDepth(ctx)
 	rollupClient := g.system.RollupClient(l2Node)
-	prestateProvider := outputs.NewPrestateProvider(ctx, logger, rollupClient, prestateBlock)
+	prestateProvider := outputs.NewPrestateProvider(rollupClient, prestateBlock)
 	correctTrace, err := outputs.NewOutputAlphabetTraceAccessor(logger, metrics.NoopMetrics, prestateProvider, rollupClient, splitDepth, prestateBlock, poststateBlock)
 	g.require.NoError(err, "Create trace accessor")
 	return &OutputHonestHelper{
