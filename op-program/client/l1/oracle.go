@@ -120,7 +120,6 @@ func (p *PreimageOracle) GetBlob(ref eth.L1BlockRef, blobHash eth.IndexedBlobHas
 }
 
 func (p *PreimageOracle) KZGPointEvaluation(input []byte) bool {
-	// TODO: specify chain spec for forwards compatibility
 	p.hint.Hint(KZGPointEvaluationHint(input))
 	key := preimage.KZGPointEvaluationKey(crypto.Keccak256Hash(input[:]))
 	result := p.oracle.Get(key)

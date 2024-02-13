@@ -32,12 +32,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
-// TODO: change the below function in op-geth to allow overriding of precompiles:
-// func (evm *EVM) precompile(addr common.Address) (PrecompiledContract, bool)
-// TODO: and then conditionally insert it into the execution-engine:
-// this execution-engine is used outside of the op-program too,
-// and we do not always want to use this precompile substitute.
-
 // OracleKZGPointEvaluation implements the EIP-4844 point evaluation precompile,
 // using the preimage-oracle to perform the evaluation.
 type OracleKZGPointEvaluation struct {

@@ -237,7 +237,7 @@ var kzgPointEvaluationPrecompileAddress = common.BytesToAddress([]byte{0xa})
 
 func precompileOverrides(kzgOracle engineapi.KZGPointEvaluationOracle) vm.PrecompileOverrides {
 	return func(rules params.Rules, address common.Address) (vm.PrecompiledContract, bool) {
-		// TODO: check current chain rules for forwards-compatibility
+		// NOTE: Ignoring chain rules for now. We assume that precompile behavior won't change for the forseeable future
 		if address != kzgPointEvaluationPrecompileAddress {
 			return nil, false
 		}
