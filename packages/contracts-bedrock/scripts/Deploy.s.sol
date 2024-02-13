@@ -125,7 +125,7 @@ contract Deploy is Deployer {
     }
 
     /// @notice Returns the proxy addresses. If a proxy is not found, it will have address(0).
-    function _proxies() private view returns (Types.ContractSet memory proxies_) {
+    function _proxies() internal view returns (Types.ContractSet memory proxies_) {
         proxies_ = Types.ContractSet({
             L1CrossDomainMessenger: mustGetAddress("L1CrossDomainMessengerProxy"),
             L1StandardBridge: mustGetAddress("L1StandardBridgeProxy"),
@@ -142,7 +142,7 @@ contract Deploy is Deployer {
     }
 
     /// @notice Returns the proxy addresses, not reverting if any are unset.
-    function _proxiesUnstrict() private view returns (Types.ContractSet memory proxies_) {
+    function _proxiesUnstrict() internal view returns (Types.ContractSet memory proxies_) {
         proxies_ = Types.ContractSet({
             L1CrossDomainMessenger: getAddress("L1CrossDomainMessengerProxy"),
             L1StandardBridge: getAddress("L1StandardBridgeProxy"),

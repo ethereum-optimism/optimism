@@ -19,7 +19,6 @@
     "L1FeeVault",
     "OptimismMintableERC20Factory",
     "OptimismMintableERC20",
-    "LegacyERC20ETH",
     "Proxy",
     "ProxyAdmin",
     "LegacyMessagePasser",

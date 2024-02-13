@@ -443,6 +443,28 @@ func TestCannonL2Genesis(t *testing.T) {
 	})
 }
 
+func TestUnsafeAllowInvalidPrestate(t *testing.T) {
+	t.Run("DefaultsToFalse", func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgsExcept(config.TraceTypeAlphabet, "--unsafe-allow-invalid-prestate"))
+		require.False(t, cfg.AllowInvalidPrestate)
+	})
+
+	t.Run("EnabledWithNoValue", func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgs(config.TraceTypeCannon, "--unsafe-allow-invalid-prestate"))
+		require.True(t, cfg.AllowInvalidPrestate)
+	})
+
+	t.Run("EnabledWithTrue", func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgs(config.TraceTypeCannon, "--unsafe-allow-invalid-prestate=true"))
+		require.True(t, cfg.AllowInvalidPrestate)
+	})
+
+	t.Run("DisabledWithFalse", func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgs(config.TraceTypeCannon, "--unsafe-allow-invalid-prestate=false"))
+		require.False(t, cfg.AllowInvalidPrestate)
+	})
+}
+
 func verifyArgsInvalid(t *testing.T, messageContains string, cliArgs []string) {
 	_, _, err := dryRunWithArgs(cliArgs)
 	require.ErrorContains(t, err, messageContains)

@@ -65,7 +65,7 @@ func (g *OutputCannonGameHelper) CreateHonestActor(ctx context.Context, l2Node s
 	splitDepth := g.SplitDepth(ctx)
 	rollupClient := g.system.RollupClient(l2Node)
 	outputRootProvider := source.NewUnrestrictedOutputSource(rollupClient)
-	prestateProvider := outputs.NewPrestateProvider(ctx, logger, outputRootProvider, prestateBlock)
+	prestateProvider := outputs.NewPrestateProvider(outputRootProvider, prestateBlock)
 	accessor, err := outputs.NewOutputCannonTraceAccessor(
 		logger, metrics.NoopMetrics, cfg, l2Client, contract, prestateProvider, outputRootProvider, dir, splitDepth, prestateBlock, poststateBlock)
 	g.require.NoError(err, "Failed to create output cannon trace accessor")
@@ -232,7 +232,7 @@ func (g *OutputCannonGameHelper) createCannonTraceProvider(ctx context.Context, 
 	g.require.NoError(err, "Failed to load block range")
 	rollupClient := g.system.RollupClient(l2Node)
 	outputRootProvider := source.NewUnrestrictedOutputSource(rollupClient)
-	prestateProvider := outputs.NewPrestateProvider(ctx, logger, outputRootProvider, prestateBlock)
+	prestateProvider := outputs.NewPrestateProvider(outputRootProvider, prestateBlock)
 	outputProvider := outputs.NewTraceProviderFromInputs(logger, prestateProvider, outputRootProvider, splitDepth, prestateBlock, poststateBlock)
 
 	selector := split.NewSplitProviderSelector(outputProvider, splitDepth, func(ctx context.Context, depth types.Depth, pre types.Claim, post types.Claim) (types.TraceProvider, error) {

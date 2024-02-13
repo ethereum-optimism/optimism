@@ -24,8 +24,8 @@ contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, ISemver 
     using ClonesWithImmutableArgs for address;
 
     /// @notice Semantic version.
-    /// @custom:semver 0.1.0
-    string public constant version = "0.1.0";
+    /// @custom:semver 0.2.0
+    string public constant version = "0.2.0";
 
     /// @inheritdoc IDisputeGameFactory
     mapping(GameType => IDisputeGame) public gameImpls;
@@ -102,8 +102,11 @@ contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, ISemver 
         // If the required initialization bond is not met, revert.
         if (msg.value < initBonds[_gameType]) revert InsufficientBond();
 
+        // Get the hash of the parent block.
+        bytes32 parentHash = blockhash(block.number - 1);
+
         // Clone the implementation contract and initialize it with the given parameters.
-        proxy_ = IDisputeGame(address(impl).clone(abi.encodePacked(_rootClaim, _extraData)));
+        proxy_ = IDisputeGame(address(impl).clone(abi.encodePacked(_rootClaim, parentHash, _extraData)));
         proxy_.initialize{ value: msg.value }();
 
         // Compute the unique identifier for the dispute game.

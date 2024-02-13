@@ -71,7 +71,7 @@ func (o *OutputTraceProvider) GetStepData(_ context.Context, _ types.Position) (
 func (o *OutputTraceProvider) outputAtBlock(ctx context.Context, block uint64) (common.Hash, error) {
 	root, err := o.rollupProvider.OutputAtBlock(ctx, block)
 	if err != nil {
-		return common.Hash{}, fmt.Errorf("failed to fetch output at block %v: %w", o.prestateBlock, err)
+		return common.Hash{}, fmt.Errorf("failed to fetch output at block %v: %w", block, err)
 	}
 	return root, err
 }
