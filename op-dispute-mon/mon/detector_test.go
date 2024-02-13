@@ -2,7 +2,6 @@ package mon
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
@@ -17,29 +16,21 @@ func TestDetector_Detect(t *testing.T) {
 	t.Parallel()
 
 	t.Run("NoGames", func(t *testing.T) {
-		detector, metrics, _, _ := setupDetectorTest(t)
+		detector, metrics, _ := setupDetectorTest(t)
 		detector.Detect(context.Background(), []monTypes.EnrichedGameData{})
 		metrics.Equals(t, 0, 0, 0)
 		metrics.Mapped(t, map[string]int{})
 	})
 
-	t.Run("CheckAgreementFails", func(t *testing.T) {
-		detector, metrics, rollup, _ := setupDetectorTest(t)
-		rollup.err = errors.New("boom")
-		detector.Detect(context.Background(), []monTypes.EnrichedGameData{{}})
-		metrics.Equals(t, 1, 0, 0) // Status should still be metriced here!
-		metrics.Mapped(t, map[string]int{})
-	})
-
 	t.Run("SingleGame", func(t *testing.T) {
-		detector, metrics, _, _ := setupDetectorTest(t)
+		detector, metrics, _ := setupDetectorTest(t)
 		detector.Detect(context.Background(), []monTypes.EnrichedGameData{{}})
 		metrics.Equals(t, 1, 0, 0)
 		metrics.Mapped(t, map[string]int{"in_progress": 1})
 	})
 
 	t.Run("MultipleGames", func(t *testing.T) {
-		detector, metrics, _, _ := setupDetectorTest(t)
+		detector, metrics, _ := setupDetectorTest(t)
 		detector.Detect(context.Background(), []monTypes.EnrichedGameData{{}, {}, {}})
 		metrics.Equals(t, 3, 0, 0)
 		metrics.Mapped(t, map[string]int{"in_progress": 3})
@@ -97,19 +88,11 @@ func TestDetector_RecordBatch(t *testing.T) {
 	for _, test := range tests {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
-			monitor, metrics, _, _ := setupDetectorTest(t)
+			monitor, metrics, _ := setupDetectorTest(t)
 			monitor.recordBatch(test.batch)
 			test.expect(t, metrics)
 		})
 	}
-}
-
-func TestDetector_CheckAgreement_Fails(t *testing.T) {
-	detector, _, rollup, _ := setupDetectorTest(t)
-	rollup.err = errors.New("boom")
-	game := monTypes.EnrichedGameData{Status: types.GameStatusInProgress}
-	_, err := detector.checkAgreement(context.Background(), game)
-	require.ErrorIs(t, err, rollup.err)
 }
 
 func TestDetector_CheckAgreement_Succeeds(t *testing.T) {
@@ -169,7 +152,7 @@ func TestDetector_CheckAgreement_Succeeds(t *testing.T) {
 	for _, test := range tests {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
-			detector, _, _, logs := setupDetectorTest(t)
+			detector, _, logs := setupDetectorTest(t)
 			game := monTypes.EnrichedGameData{Status: test.status, RootClaim: test.rootClaim}
 			batch, err := detector.checkAgreement(context.Background(), game)
 			require.NoError(t, err)
@@ -191,23 +174,13 @@ func TestDetector_CheckAgreement_Succeeds(t *testing.T) {
 	}
 }
 
-func setupDetectorTest(t *testing.T) (*detector, *mockDetectorMetricer, *stubOutputValidator, *testlog.CapturingHandler) {
+var mockRootClaim = common.Hash{0xaa}
+
+func setupDetectorTest(t *testing.T) (*detector, *mockDetectorMetricer, *testlog.CapturingHandler) {
 	logger, capturedLogs := testlog.CaptureLogger(t, log.LvlDebug)
 	metrics := &mockDetectorMetricer{}
-	validator := &stubOutputValidator{}
-	detector := newDetector(logger, metrics, validator)
-	return detector, metrics, validator, capturedLogs
-}
-
-type stubOutputValidator struct {
-	err error
-}
-
-func (s *stubOutputValidator) CheckRootAgreement(ctx context.Context, blockNum uint64, rootClaim common.Hash) (bool, common.Hash, error) {
-	if s.err != nil {
-		return false, common.Hash{}, s.err
-	}
-	return rootClaim == mockRootClaim, mockRootClaim, nil
+	detector := newDetector(logger, metrics)
+	return detector, metrics, capturedLogs
 }
 
 type mockDetectorMetricer struct {

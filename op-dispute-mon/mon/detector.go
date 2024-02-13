@@ -6,13 +6,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
-
-type OutputValidator interface {
-	CheckRootAgreement(ctx context.Context, blockNum uint64, root common.Hash) (bool, common.Hash, error)
-}
 
 type DetectorMetrics interface {
 	RecordGameAgreement(status string, count int)
@@ -20,16 +15,14 @@ type DetectorMetrics interface {
 }
 
 type detector struct {
-	logger    log.Logger
-	metrics   DetectorMetrics
-	validator OutputValidator
+	logger  log.Logger
+	metrics DetectorMetrics
 }
 
-func newDetector(logger log.Logger, metrics DetectorMetrics, validator OutputValidator) *detector {
+func newDetector(logger log.Logger, metrics DetectorMetrics) *detector {
 	return &detector{
-		logger:    logger,
-		metrics:   metrics,
-		validator: validator,
+		logger:  logger,
+		metrics: metrics,
 	}
 }
 
@@ -59,10 +52,7 @@ func (d *detector) recordBatch(batch monTypes.DetectionBatch) {
 }
 
 func (d *detector) checkAgreement(ctx context.Context, game monTypes.EnrichedGameData) (monTypes.DetectionBatch, error) {
-	agree, expectedClaim, err := d.validator.CheckRootAgreement(ctx, game.L2BlockNumber, game.RootClaim)
-	if err != nil {
-		return monTypes.DetectionBatch{}, err
-	}
+	agree := game.RootClaim == game.ExpectedRoot
 	batch := monTypes.DetectionBatch{}
 	batch.Update(game.Status, agree)
 	if game.Status != types.GameStatusInProgress {
@@ -71,8 +61,7 @@ func (d *detector) checkAgreement(ctx context.Context, game monTypes.EnrichedGam
 			expectedResult = types.GameStatusChallengerWon
 		}
 		if game.Status != expectedResult {
-			d.logger.Error("Unexpected game result", "gameAddr", game.Proxy, "expectedResult", expectedResult, "actualResult", game.Status, "rootClaim",
-				game.RootClaim, "correctClaim", expectedClaim)
+			d.logger.Error("Unexpected game result", "gameAddr", game.Proxy, "expectedResult", expectedResult, "actualResult", game.Status, "rootClaim", game.RootClaim, "correctClaim", game.ExpectedRoot)
 		}
 	}
 	return batch, nil

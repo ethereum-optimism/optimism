@@ -39,7 +39,6 @@ type Service struct {
 	creator      *extract.GameCallerCreator
 	rollupClient *sources.RollupClient
 	detector     *detector
-	validator    *outputValidator
 
 	l1Client *ethclient.Client
 
@@ -81,7 +80,6 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 		return fmt.Errorf("failed to init rollup client: %w", err)
 	}
 	s.initGameCallerCreator()
-	s.initOutputValidator()
 	s.initExtractor()
 	s.initDetector()
 	s.initMonitor(ctx, cfg)
@@ -96,16 +94,17 @@ func (s *Service) initGameCallerCreator() {
 	s.creator = extract.NewGameCallerCreator(s.metrics, batching.NewMultiCaller(s.l1Client.Client(), batching.DefaultBatchSize))
 }
 
-func (s *Service) initOutputValidator() {
-	s.validator = newOutputValidator(s.rollupClient)
-}
-
 func (s *Service) initExtractor() {
-	s.extractor = extract.NewExtractor(s.logger, s.creator.CreateContract, s.factoryContract.GetGamesAtOrAfter)
+	s.extractor = extract.NewExtractor(
+		s.logger,
+		s.creator.CreateContract,
+		s.factoryContract.GetGamesAtOrAfter,
+		s.rollupClient.OutputAtBlock,
+	)
 }
 
 func (s *Service) initDetector() {
-	s.detector = newDetector(s.logger, s.metrics, s.validator)
+	s.detector = newDetector(s.logger, s.metrics)
 }
 
 func (s *Service) initOutputRollupClient(ctx context.Context, cfg *config.Config) error {
