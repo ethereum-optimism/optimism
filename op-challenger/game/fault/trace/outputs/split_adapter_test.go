@@ -135,7 +135,7 @@ func setupAdapterTest(t *testing.T, topDepth types.Depth) (split.ProviderCreator
 	prestateProvider := &stubPrestateProvider{
 		absolutePrestate: prestateOutputRoot,
 	}
-	topProvider := NewTraceProviderFromInputs(testlog.Logger(t, log.LevelInfo), prestateProvider, loader.NewUncheckedOutputRootProvider(rollupClient), common.Hash{}, topDepth, prestateBlock, poststateBlock)
+	topProvider := NewTraceProviderFromInputs(testlog.Logger(t, log.LevelInfo), prestateProvider, loader.NewUncheckedOutputRootProvider(rollupClient), topDepth, prestateBlock, poststateBlock)
 	adapter := OutputRootSplitAdapter(topProvider, creator.Create)
 	return adapter, creator
 }

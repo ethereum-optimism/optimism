@@ -155,11 +155,9 @@ func (h *FactoryHelper) StartOutputCannonGame(ctx context.Context, l2Node string
 	h.require.NoError(err, "Failed to load l2 block number")
 	splitDepth, err := game.SplitDepth(&bind.CallOpts{Context: ctx})
 	h.require.NoError(err, "Failed to load split depth")
-	l1Head, err := game.L1Head(&bind.CallOpts{Context: ctx})
-	h.require.NoError(err, "Failed to load L1 head")
 	outputRootProvider := loader.NewUncheckedOutputRootProvider(rollupClient)
-	prestateProvider := outputs.NewPrestateProvider(ctx, logger, outputRootProvider, l1Head, prestateBlock.Uint64())
-	provider := outputs.NewTraceProviderFromInputs(logger, prestateProvider, outputRootProvider, l1Head, faultTypes.Depth(splitDepth.Uint64()), prestateBlock.Uint64(), poststateBlock.Uint64())
+	prestateProvider := outputs.NewPrestateProvider(ctx, logger, outputRootProvider, prestateBlock.Uint64())
+	provider := outputs.NewTraceProviderFromInputs(logger, prestateProvider, outputRootProvider, faultTypes.Depth(splitDepth.Uint64()), prestateBlock.Uint64(), poststateBlock.Uint64())
 
 	return &OutputCannonGameHelper{
 		OutputGameHelper: OutputGameHelper{
@@ -210,11 +208,9 @@ func (h *FactoryHelper) StartOutputAlphabetGame(ctx context.Context, l2Node stri
 	h.require.NoError(err, "Failed to load l2 block number")
 	splitDepth, err := game.SplitDepth(&bind.CallOpts{Context: ctx})
 	h.require.NoError(err, "Failed to load split depth")
-	l1Head, err := game.L1Head(&bind.CallOpts{Context: ctx})
-	h.require.NoError(err, "Failed to load L1 head")
 	outputRootProvider := loader.NewUncheckedOutputRootProvider(rollupClient)
-	prestateProvider := outputs.NewPrestateProvider(ctx, logger, outputRootProvider, l1Head, prestateBlock.Uint64())
-	provider := outputs.NewTraceProviderFromInputs(logger, prestateProvider, outputRootProvider, l1Head, faultTypes.Depth(splitDepth.Uint64()), prestateBlock.Uint64(), poststateBlock.Uint64())
+	prestateProvider := outputs.NewPrestateProvider(ctx, logger, outputRootProvider, prestateBlock.Uint64())
+	provider := outputs.NewTraceProviderFromInputs(logger, prestateProvider, outputRootProvider, faultTypes.Depth(splitDepth.Uint64()), prestateBlock.Uint64(), poststateBlock.Uint64())
 
 	return &OutputAlphabetGameHelper{
 		OutputGameHelper: OutputGameHelper{

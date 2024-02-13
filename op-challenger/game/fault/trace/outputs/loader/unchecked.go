@@ -15,7 +15,7 @@ func NewUncheckedOutputRootProvider(rollupClient OutputRollupClient) *UncheckedO
 	return &UncheckedOutputLoader{rollupClient: rollupClient}
 }
 
-func (l *UncheckedOutputLoader) OutputAtBlock(ctx context.Context, _ common.Hash, blockNum uint64) (common.Hash, error) {
+func (l *UncheckedOutputLoader) OutputAtBlock(ctx context.Context, blockNum uint64) (common.Hash, error) {
 	output, err := l.rollupClient.OutputAtBlock(ctx, blockNum)
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("failed to fetch output at block %v: %w", blockNum, err)

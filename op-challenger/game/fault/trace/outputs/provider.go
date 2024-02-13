@@ -18,7 +18,7 @@ var (
 var _ types.TraceProvider = (*OutputTraceProvider)(nil)
 
 type OutputRootProvider interface {
-	OutputAtBlock(ctx context.Context, l1Head common.Hash, blockNum uint64) (common.Hash, error)
+	OutputAtBlock(ctx context.Context, blockNum uint64) (common.Hash, error)
 }
 
 // OutputTraceProvider is a [types.TraceProvider] implementation that uses
@@ -26,18 +26,16 @@ type OutputRootProvider interface {
 type OutputTraceProvider struct {
 	types.PrestateProvider
 	logger         log.Logger
-	l1Head         common.Hash
 	rollupProvider OutputRootProvider
 	prestateBlock  uint64
 	poststateBlock uint64
 	gameDepth      types.Depth
 }
 
-func NewTraceProviderFromInputs(logger log.Logger, prestateProvider types.PrestateProvider, rollupProvider OutputRootProvider, l1Head common.Hash, gameDepth types.Depth, prestateBlock, poststateBlock uint64) *OutputTraceProvider {
+func NewTraceProviderFromInputs(logger log.Logger, prestateProvider types.PrestateProvider, rollupProvider OutputRootProvider, gameDepth types.Depth, prestateBlock, poststateBlock uint64) *OutputTraceProvider {
 	return &OutputTraceProvider{
 		PrestateProvider: prestateProvider,
 		logger:           logger,
-		l1Head:           l1Head,
 		rollupProvider:   rollupProvider,
 		prestateBlock:    prestateBlock,
 		poststateBlock:   poststateBlock,
@@ -71,7 +69,7 @@ func (o *OutputTraceProvider) GetStepData(_ context.Context, _ types.Position) (
 }
 
 func (o *OutputTraceProvider) outputAtBlock(ctx context.Context, block uint64) (common.Hash, error) {
-	root, err := o.rollupProvider.OutputAtBlock(ctx, o.l1Head, block)
+	root, err := o.rollupProvider.OutputAtBlock(ctx, block)
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("failed to fetch output at block %v: %w", o.prestateBlock, err)
 	}
