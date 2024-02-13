@@ -1280,8 +1280,16 @@ func testFees(t *testing.T, cfg SystemConfig) {
 
 	require.Equal(t, decimals.Uint64(), uint64(6), "wrong gpo decimals")
 
+	// Celo changes the base fee recipient
+	var baseFeeRecipient common.Address
+	if sys.RollupConfig.Cel2Time == nil {
+		baseFeeRecipient = predeploys.BaseFeeVaultAddr
+	} else {
+		baseFeeRecipient = predeploys.FeeHandlerAddr
+	}
+
 	// BaseFee Recipient
-	baseFeeRecipientStartBalance, err := l2Seq.BalanceAt(context.Background(), predeploys.BaseFeeVaultAddr, big.NewInt(rpc.EarliestBlockNumber.Int64()))
+	baseFeeRecipientStartBalance, err := l2Seq.BalanceAt(context.Background(), baseFeeRecipient, big.NewInt(rpc.EarliestBlockNumber.Int64()))
 	require.Nil(t, err)
 
 	// L1Fee Recipient
@@ -1324,7 +1332,7 @@ func testFees(t *testing.T, cfg SystemConfig) {
 	endBalance, err := l2Seq.BalanceAt(context.Background(), fromAddr, header.Number)
 	require.Nil(t, err)
 
-	baseFeeRecipientEndBalance, err := l2Seq.BalanceAt(context.Background(), predeploys.BaseFeeVaultAddr, header.Number)
+	baseFeeRecipientEndBalance, err := l2Seq.BalanceAt(context.Background(), baseFeeRecipient, header.Number)
 	require.Nil(t, err)
 
 	l1Header, err := l1.HeaderByNumber(context.Background(), nil)
