@@ -35,6 +35,12 @@ export class Logger {
 
       level: options.level || 'debug',
 
+      formatters: {
+        level: (label: string) => {
+          return { level: label.toUpperCase() };
+        },
+      },
+
       // Remove pid and hostname considering production runs inside docker
       base: null,
     }
