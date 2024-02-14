@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/cannon"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs/source"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/split"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
@@ -63,9 +64,10 @@ func (g *OutputCannonGameHelper) CreateHonestActor(ctx context.Context, l2Node s
 	dir := filepath.Join(cfg.Datadir, "honest")
 	splitDepth := g.SplitDepth(ctx)
 	rollupClient := g.system.RollupClient(l2Node)
-	prestateProvider := outputs.NewPrestateProvider(rollupClient, prestateBlock)
+	outputRootProvider := source.NewUnrestrictedOutputSource(rollupClient)
+	prestateProvider := outputs.NewPrestateProvider(outputRootProvider, prestateBlock)
 	accessor, err := outputs.NewOutputCannonTraceAccessor(
-		logger, metrics.NoopMetrics, cfg, l2Client, contract, prestateProvider, rollupClient, dir, splitDepth, prestateBlock, poststateBlock)
+		logger, metrics.NoopMetrics, cfg, l2Client, contract, prestateProvider, outputRootProvider, dir, splitDepth, prestateBlock, poststateBlock)
 	g.require.NoError(err, "Failed to create output cannon trace accessor")
 	return &OutputHonestHelper{
 		t:            g.t,
@@ -229,8 +231,9 @@ func (g *OutputCannonGameHelper) createCannonTraceProvider(ctx context.Context, 
 	prestateBlock, poststateBlock, err := contract.GetBlockRange(ctx)
 	g.require.NoError(err, "Failed to load block range")
 	rollupClient := g.system.RollupClient(l2Node)
-	prestateProvider := outputs.NewPrestateProvider(rollupClient, prestateBlock)
-	outputProvider := outputs.NewTraceProviderFromInputs(logger, prestateProvider, rollupClient, splitDepth, prestateBlock, poststateBlock)
+	outputRootProvider := source.NewUnrestrictedOutputSource(rollupClient)
+	prestateProvider := outputs.NewPrestateProvider(outputRootProvider, prestateBlock)
+	outputProvider := outputs.NewTraceProviderFromInputs(logger, prestateProvider, outputRootProvider, splitDepth, prestateBlock, poststateBlock)
 
 	selector := split.NewSplitProviderSelector(outputProvider, splitDepth, func(ctx context.Context, depth types.Depth, pre types.Claim, post types.Claim) (types.TraceProvider, error) {
 		agreed, disputed, err := outputs.FetchProposals(ctx, outputProvider, pre, post)

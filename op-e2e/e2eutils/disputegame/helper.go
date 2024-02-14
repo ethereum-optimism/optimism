@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs/source"
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame/preimage"
@@ -154,8 +155,9 @@ func (h *FactoryHelper) StartOutputCannonGame(ctx context.Context, l2Node string
 	h.require.NoError(err, "Failed to load l2 block number")
 	splitDepth, err := game.SplitDepth(&bind.CallOpts{Context: ctx})
 	h.require.NoError(err, "Failed to load split depth")
-	prestateProvider := outputs.NewPrestateProvider(rollupClient, prestateBlock.Uint64())
-	provider := outputs.NewTraceProviderFromInputs(logger, prestateProvider, rollupClient, faultTypes.Depth(splitDepth.Uint64()), prestateBlock.Uint64(), poststateBlock.Uint64())
+	outputRootProvider := source.NewUnrestrictedOutputSource(rollupClient)
+	prestateProvider := outputs.NewPrestateProvider(outputRootProvider, prestateBlock.Uint64())
+	provider := outputs.NewTraceProviderFromInputs(logger, prestateProvider, outputRootProvider, faultTypes.Depth(splitDepth.Uint64()), prestateBlock.Uint64(), poststateBlock.Uint64())
 
 	return &OutputCannonGameHelper{
 		OutputGameHelper: OutputGameHelper{
@@ -206,8 +208,9 @@ func (h *FactoryHelper) StartOutputAlphabetGame(ctx context.Context, l2Node stri
 	h.require.NoError(err, "Failed to load l2 block number")
 	splitDepth, err := game.SplitDepth(&bind.CallOpts{Context: ctx})
 	h.require.NoError(err, "Failed to load split depth")
-	prestateProvider := outputs.NewPrestateProvider(rollupClient, prestateBlock.Uint64())
-	provider := outputs.NewTraceProviderFromInputs(logger, prestateProvider, rollupClient, faultTypes.Depth(splitDepth.Uint64()), prestateBlock.Uint64(), poststateBlock.Uint64())
+	outputRootProvider := source.NewUnrestrictedOutputSource(rollupClient)
+	prestateProvider := outputs.NewPrestateProvider(outputRootProvider, prestateBlock.Uint64())
+	provider := outputs.NewTraceProviderFromInputs(logger, prestateProvider, outputRootProvider, faultTypes.Depth(splitDepth.Uint64()), prestateBlock.Uint64(), poststateBlock.Uint64())
 
 	return &OutputAlphabetGameHelper{
 		OutputGameHelper: OutputGameHelper{

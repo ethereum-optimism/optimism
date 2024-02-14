@@ -6,8 +6,6 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -19,8 +17,8 @@ var (
 
 var _ types.TraceProvider = (*OutputTraceProvider)(nil)
 
-type OutputRollupClient interface {
-	OutputAtBlock(ctx context.Context, blockNum uint64) (*eth.OutputResponse, error)
+type OutputRootProvider interface {
+	OutputAtBlock(ctx context.Context, blockNum uint64) (common.Hash, error)
 }
 
 // OutputTraceProvider is a [types.TraceProvider] implementation that uses
@@ -28,17 +26,17 @@ type OutputRollupClient interface {
 type OutputTraceProvider struct {
 	types.PrestateProvider
 	logger         log.Logger
-	rollupClient   OutputRollupClient
+	rollupProvider OutputRootProvider
 	prestateBlock  uint64
 	poststateBlock uint64
 	gameDepth      types.Depth
 }
 
-func NewTraceProviderFromInputs(logger log.Logger, prestateProvider types.PrestateProvider, rollupClient OutputRollupClient, gameDepth types.Depth, prestateBlock, poststateBlock uint64) *OutputTraceProvider {
+func NewTraceProviderFromInputs(logger log.Logger, prestateProvider types.PrestateProvider, rollupProvider OutputRootProvider, gameDepth types.Depth, prestateBlock, poststateBlock uint64) *OutputTraceProvider {
 	return &OutputTraceProvider{
 		PrestateProvider: prestateProvider,
 		logger:           logger,
-		rollupClient:     rollupClient,
+		rollupProvider:   rollupProvider,
 		prestateBlock:    prestateBlock,
 		poststateBlock:   poststateBlock,
 		gameDepth:        gameDepth,
@@ -71,9 +69,9 @@ func (o *OutputTraceProvider) GetStepData(_ context.Context, _ types.Position) (
 }
 
 func (o *OutputTraceProvider) outputAtBlock(ctx context.Context, block uint64) (common.Hash, error) {
-	output, err := o.rollupClient.OutputAtBlock(ctx, block)
+	root, err := o.rollupProvider.OutputAtBlock(ctx, block)
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("failed to fetch output at block %v: %w", block, err)
 	}
-	return common.Hash(output.OutputRoot), nil
+	return root, err
 }

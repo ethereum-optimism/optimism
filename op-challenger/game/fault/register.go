@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/alphabet"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/cannon"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs/source"
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/scheduler"
@@ -34,7 +35,7 @@ func RegisterGameTypes(
 	logger log.Logger,
 	m metrics.Metricer,
 	cfg *config.Config,
-	rollupClient outputs.OutputRollupClient,
+	rollupClient source.OutputRollupClient,
 	txSender types.TxSender,
 	gameFactory *contracts.DisputeGameFactoryContract,
 	caller *batching.MultiCaller,
@@ -49,13 +50,15 @@ func RegisterGameTypes(
 		l2Client = l2
 		closer = l2Client.Close
 	}
+	outputSourceCreator := source.NewOutputSourceCreator(logger, rollupClient)
+
 	if cfg.TraceTypeEnabled(config.TraceTypeCannon) {
-		if err := registerCannon(faultTypes.CannonGameType, registry, ctx, cl, logger, m, cfg, rollupClient, txSender, gameFactory, caller, l2Client); err != nil {
+		if err := registerCannon(faultTypes.CannonGameType, registry, ctx, cl, logger, m, cfg, outputSourceCreator, txSender, gameFactory, caller, l2Client); err != nil {
 			return nil, fmt.Errorf("failed to register cannon game type: %w", err)
 		}
 	}
 	if cfg.TraceTypeEnabled(config.TraceTypePermissioned) {
-		if err := registerCannon(faultTypes.PermissionedGameType, registry, ctx, cl, logger, m, cfg, rollupClient, txSender, gameFactory, caller, l2Client); err != nil {
+		if err := registerCannon(faultTypes.PermissionedGameType, registry, ctx, cl, logger, m, cfg, outputSourceCreator, txSender, gameFactory, caller, l2Client); err != nil {
 			return nil, fmt.Errorf("failed to register permissioned cannon game type: %w", err)
 		}
 	}
@@ -73,7 +76,7 @@ func registerAlphabet(
 	cl faultTypes.ClockReader,
 	logger log.Logger,
 	m metrics.Metricer,
-	rollupClient outputs.OutputRollupClient,
+	rollupClient source.OutputRollupClient,
 	txSender types.TxSender,
 	gameFactory *contracts.DisputeGameFactoryContract,
 	caller *batching.MultiCaller,
@@ -87,13 +90,14 @@ func registerAlphabet(
 		if err != nil {
 			return nil, err
 		}
-		prestateProvider := outputs.NewPrestateProvider(rollupClient, prestateBlock)
 		splitDepth, err := contract.GetSplitDepth(ctx)
 		if err != nil {
 			return nil, err
 		}
+		outputSource := source.NewUnrestrictedOutputSource(rollupClient)
+		prestateProvider := outputs.NewPrestateProvider(outputSource, prestateBlock)
 		creator := func(ctx context.Context, logger log.Logger, gameDepth faultTypes.Depth, dir string) (faultTypes.TraceAccessor, error) {
-			accessor, err := outputs.NewOutputAlphabetTraceAccessor(logger, m, prestateProvider, rollupClient, splitDepth, prestateBlock, poststateBlock)
+			accessor, err := outputs.NewOutputAlphabetTraceAccessor(logger, m, prestateProvider, outputSource, splitDepth, prestateBlock, poststateBlock)
 			if err != nil {
 				return nil, err
 			}
@@ -140,7 +144,7 @@ func registerCannon(
 	logger log.Logger,
 	m metrics.Metricer,
 	cfg *config.Config,
-	rollupClient outputs.OutputRollupClient,
+	outputSourceCreator *source.OutputSourceCreator,
 	txSender types.TxSender,
 	gameFactory *contracts.DisputeGameFactoryContract,
 	caller *batching.MultiCaller,
@@ -155,12 +159,20 @@ func registerCannon(
 		if err != nil {
 			return nil, err
 		}
+		splitDepth, err := contract.GetSplitDepth(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load split depth: %w", err)
+		}
+		l1Head, err := contract.GetL1Head(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load L1 head: %w", err)
+		}
+		rollupClient, err := outputSourceCreator.ForL1Head(ctx, l1Head)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create output root source: %w", err)
+		}
 		prestateProvider := outputs.NewPrestateProvider(rollupClient, prestateBlock)
 		creator := func(ctx context.Context, logger log.Logger, gameDepth faultTypes.Depth, dir string) (faultTypes.TraceAccessor, error) {
-			splitDepth, err := contract.GetSplitDepth(ctx)
-			if err != nil {
-				return nil, fmt.Errorf("failed to load split depth: %w", err)
-			}
 			accessor, err := outputs.NewOutputCannonTraceAccessor(logger, m, cfg, l2Client, contract, prestateProvider, rollupClient, dir, splitDepth, prestateBlock, poststateBlock)
 			if err != nil {
 				return nil, err
