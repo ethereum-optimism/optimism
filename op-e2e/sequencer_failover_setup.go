@@ -59,10 +59,12 @@ func setupSequencerFailoverTest(t *testing.T) (*System, map[string]*conductor) {
 	InitParallel(t)
 	ctx := context.Background()
 
+	sequencerPort := findAvailablePort(t)
+
 	conductorRpcPorts := map[string]int{
-		Sequencer1Name: findAvailablePort(t),
-		Sequencer2Name: findAvailablePort(t),
-		Sequencer3Name: findAvailablePort(t),
+		Sequencer1Name: sequencerPort,
+		Sequencer2Name: sequencerPort + 1,
+		Sequencer3Name: sequencerPort + 2,
 	}
 
 	// 3 sequencers, 1 verifier, 1 active sequencer.
@@ -346,9 +348,6 @@ func sequencerActive(t *testing.T, ctx context.Context, rollupClient *sources.Ro
 }
 
 func findAvailablePort(t *testing.T) int {
-	// Seed the random number generator to ensure different sequences of random numbers for each call
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	for {
@@ -357,7 +356,7 @@ func findAvailablePort(t *testing.T) int {
 			t.Error("Failed to find available port")
 		default:
 			// private / ephemeral ports are in the range 49152-65535
-			port := r.Intn(65535-49152) + 49152
+			port := rand.Intn(65535-49152) + 49152
 			addr := fmt.Sprintf("127.0.0.1:%d", port)
 			l, err := net.Listen("tcp", addr)
 			if err == nil {
