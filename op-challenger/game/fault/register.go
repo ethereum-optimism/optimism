@@ -41,7 +41,7 @@ func RegisterGameTypes(
 ) (CloseFunc, error) {
 	var closer CloseFunc
 	var l2Client *ethclient.Client
-	if cfg.TraceTypeEnabled(config.TraceTypeCannon) {
+	if cfg.TraceTypeEnabled(config.TraceTypeCannon) || cfg.TraceTypeEnabled(config.TraceTypePermissioned) {
 		l2, err := ethclient.DialContext(ctx, cfg.CannonL2)
 		if err != nil {
 			return nil, fmt.Errorf("dial l2 client %v: %w", cfg.CannonL2, err)
@@ -50,8 +50,13 @@ func RegisterGameTypes(
 		closer = l2Client.Close
 	}
 	if cfg.TraceTypeEnabled(config.TraceTypeCannon) {
-		if err := registerCannon(registry, ctx, cl, logger, m, cfg, rollupClient, txSender, gameFactory, caller, l2Client); err != nil {
+		if err := registerCannon(faultTypes.CannonGameType, registry, ctx, cl, logger, m, cfg, rollupClient, txSender, gameFactory, caller, l2Client); err != nil {
 			return nil, fmt.Errorf("failed to register cannon game type: %w", err)
+		}
+	}
+	if cfg.TraceTypeEnabled(config.TraceTypePermissioned) {
+		if err := registerCannon(faultTypes.PermissionedGameType, registry, ctx, cl, logger, m, cfg, rollupClient, txSender, gameFactory, caller, l2Client); err != nil {
+			return nil, fmt.Errorf("failed to register permissioned cannon game type: %w", err)
 		}
 	}
 	if cfg.TraceTypeEnabled(config.TraceTypeAlphabet) {
@@ -128,6 +133,7 @@ func createOracle(ctx context.Context, gameFactory *contracts.DisputeGameFactory
 }
 
 func registerCannon(
+	gameType uint32,
 	registry Registry,
 	ctx context.Context,
 	cl faultTypes.ClockReader,
@@ -165,15 +171,15 @@ func registerCannon(
 		genesisValidator := NewPrestateValidator("output root", contract.GetGenesisOutputRoot, prestateProvider)
 		return NewGamePlayer(ctx, cl, logger, m, dir, game.Proxy, txSender, contract, []Validator{prestateValidator, genesisValidator}, creator)
 	}
-	oracle, err := createOracle(ctx, gameFactory, caller, faultTypes.CannonGameType)
+	oracle, err := createOracle(ctx, gameFactory, caller, gameType)
 	if err != nil {
 		return err
 	}
-	registry.RegisterGameType(faultTypes.CannonGameType, playerCreator, oracle)
+	registry.RegisterGameType(gameType, playerCreator, oracle)
 
 	contractCreator := func(game types.GameMetadata) (claims.BondContract, error) {
 		return contracts.NewFaultDisputeGameContract(game.Proxy, caller)
 	}
-	registry.RegisterBondContract(faultTypes.CannonGameType, contractCreator)
+	registry.RegisterBondContract(gameType, contractCreator)
 	return nil
 }
