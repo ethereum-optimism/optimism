@@ -29,7 +29,7 @@ var Subcommands = []*cli.Command{
 				return errors.New("must specify a network name")
 			}
 
-			rCfg, err := opnode.NewRollupConfig(logger, ctx)
+			rCfg, err := opnode.NewRollupConfigFromCLI(logger, ctx)
 			if err != nil {
 				return err
 			}
