@@ -14,6 +14,7 @@ import { Hashing } from "src/libraries/Hashing.sol";
 import { Types } from "src/libraries/Types.sol";
 
 // Target contract dependencies
+import { L2StandardBridge } from "src/L2/L2StandardBridge.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { StandardBridge } from "src/universal/StandardBridge.sol";
 import { OptimismMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
@@ -21,11 +22,23 @@ import { OptimismMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
 contract L2StandardBridge_Test is Bridge_Initializer {
     using stdStorage for StdStorage;
 
+    /// @dev Test that the bridge's constructor sets the correct values.
+    function test_constructor_succeeds() external {
+        L2StandardBridge impl = L2StandardBridge(deploy.mustGetAddress("L2StandardBridge"));
+        assertEq(address(impl.MESSENGER()), address(l2CrossDomainMessenger));
+        assertEq(address(impl.messenger()), address(l2CrossDomainMessenger));
+        assertEq(l1StandardBridge.l2TokenBridge(), address(impl));
+        assertEq(address(impl.OTHER_BRIDGE()), address(l1StandardBridge));
+        assertEq(address(impl.otherBridge()), address(l1StandardBridge));
+    }
+
     /// @dev Tests that the bridge is initialized correctly.
     function test_initialize_succeeds() external {
+        assertEq(address(l2StandardBridge.MESSENGER()), address(l2CrossDomainMessenger));
         assertEq(address(l2StandardBridge.messenger()), address(l2CrossDomainMessenger));
         assertEq(l1StandardBridge.l2TokenBridge(), address(l2StandardBridge));
         assertEq(address(l2StandardBridge.OTHER_BRIDGE()), address(l1StandardBridge));
+        assertEq(address(l2StandardBridge.otherBridge()), address(l1StandardBridge));
     }
 
     /// @dev Ensures that the L2StandardBridge is always not paused. The pausability

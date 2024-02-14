@@ -141,7 +141,7 @@ func L1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metrics L1M
 	return nil
 }
 
-// L1ProcessFinalizedBridgeEvent will query the database for all the finalization markers for all initiated
+// L1ProcessFinalizedBridgeEvents will query the database for all the finalization markers for all initiated
 // bridge events. This covers every part of the multi-layered stack:
 //  1. OptimismPortal (Bedrock prove & finalize steps)
 //  2. L1CrossDomainMessenger (relayMessage marker)

@@ -12,30 +12,6 @@ import { Constants } from "src/libraries/Constants.sol";
 ///         commitment to the state of the L2 chain. Other contracts like the OptimismPortal use
 ///         these outputs to verify information about the state of L2.
 contract L2OutputOracle is Initializable, ISemver {
-    /// @notice The interval in L2 blocks at which checkpoints must be submitted.
-    ///         Although this is immutable, it can safely be modified by upgrading the
-    ///         implementation contract.
-    ///         Public getter is legacy and will be removed in the future. Use `submissionInterval`
-    ///         instead.
-    /// @custom:legacy
-    uint256 public immutable SUBMISSION_INTERVAL;
-
-    /// @notice The time between L2 blocks in seconds. Once set, this value MUST NOT be modified.
-    uint256 public immutable L2_BLOCK_TIME;
-
-    /// @notice The address of the challenger. Can be updated via upgrade. This will be removed in the
-    ///         future, use `challenger` instead.
-    /// @custom:legacy
-    address public immutable CHALLENGER;
-
-    /// @notice The address of the proposer. Can be updated via upgrade.  This will be removed in the
-    ///         future, use `proposer` instead.
-    /// @custom:legacy
-    address public immutable PROPOSER;
-
-    /// @notice The minimum time (in seconds) that must elapse before a withdrawal can be finalized.
-    uint256 public immutable FINALIZATION_PERIOD_SECONDS;
-
     /// @notice The number of the first L2 block recorded in this contract.
     uint256 public startingBlockNumber;
 
@@ -44,6 +20,26 @@ contract L2OutputOracle is Initializable, ISemver {
 
     /// @notice An array of L2 output proposals.
     Types.OutputProposal[] internal l2Outputs;
+
+    /// @notice The interval in L2 blocks at which checkpoints must be submitted.
+    /// @custom:network-specific
+    uint256 public submissionInterval;
+
+    /// @notice The time between L2 blocks in seconds. Once set, this value MUST NOT be modified.
+    /// @custom:network-specific
+    uint256 public l2BlockTime;
+
+    /// @notice The address of the challenger. Can be updated via upgrade.
+    /// @custom:network-specific
+    address public challenger;
+
+    /// @notice The address of the proposer. Can be updated via upgrade.
+    /// @custom:network-specific
+    address public proposer;
+
+    /// @notice The minimum time (in seconds) that must elapse before a withdrawal can be finalized.
+    /// @custom:network-specific
+    uint256 public finalizationPeriodSeconds;
 
     /// @notice Emitted when an output is proposed.
     /// @param outputRoot    The output root.
@@ -60,17 +56,33 @@ contract L2OutputOracle is Initializable, ISemver {
     event OutputsDeleted(uint256 indexed prevNextOutputIndex, uint256 indexed newNextOutputIndex);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.7.0
-    string public constant version = "1.7.0";
+    /// @custom:semver 1.8.0
+    string public constant version = "1.8.0";
 
-    /// @notice Constructs the L2OutputOracle contract.
+    /// @notice Constructs the L2OutputOracle contract. Initializes variables to the same values as
+    ///         in the getting-started config.
+    constructor() {
+        initialize({
+            _submissionInterval: 1,
+            _l2BlockTime: 1,
+            _startingBlockNumber: 0,
+            _startingTimestamp: 0,
+            _proposer: address(0),
+            _challenger: address(0),
+            _finalizationPeriodSeconds: 0
+        });
+    }
+
+    /// @notice Initializer.
     /// @param _submissionInterval  Interval in blocks at which checkpoints must be submitted.
     /// @param _l2BlockTime         The time per L2 block, in seconds.
     /// @param _startingBlockNumber The number of the first L2 block.
     /// @param _startingTimestamp   The timestamp of the first L2 block.
     /// @param _proposer            The address of the proposer.
     /// @param _challenger          The address of the challenger.
-    constructor(
+    /// @param _finalizationPeriodSeconds The minimum time (in seconds) that must elapse before a withdrawal
+    ///                                   can be finalized.
+    function initialize(
         uint256 _submissionInterval,
         uint256 _l2BlockTime,
         uint256 _startingBlockNumber,
@@ -78,55 +90,64 @@ contract L2OutputOracle is Initializable, ISemver {
         address _proposer,
         address _challenger,
         uint256 _finalizationPeriodSeconds
-    ) {
-        require(_l2BlockTime > 0, "L2OutputOracle: L2 block time must be greater than 0");
+    )
+        public
+        initializer
+    {
         require(_submissionInterval > 0, "L2OutputOracle: submission interval must be greater than 0");
-
-        SUBMISSION_INTERVAL = _submissionInterval;
-        L2_BLOCK_TIME = _l2BlockTime;
-        PROPOSER = _proposer;
-        CHALLENGER = _challenger;
-        FINALIZATION_PERIOD_SECONDS = _finalizationPeriodSeconds;
-
-        initialize({ _startingBlockNumber: _startingBlockNumber, _startingTimestamp: _startingTimestamp });
-    }
-
-    /// @notice Initializer.
-    /// @param _startingBlockNumber Block number for the first recoded L2 block.
-    /// @param _startingTimestamp   Timestamp for the first recoded L2 block.
-    function initialize(uint256 _startingBlockNumber, uint256 _startingTimestamp) public initializer {
+        require(_l2BlockTime > 0, "L2OutputOracle: L2 block time must be greater than 0");
         require(
             _startingTimestamp <= block.timestamp,
             "L2OutputOracle: starting L2 timestamp must be less than current time"
         );
 
-        startingTimestamp = _startingTimestamp;
+        submissionInterval = _submissionInterval;
+        l2BlockTime = _l2BlockTime;
         startingBlockNumber = _startingBlockNumber;
+        startingTimestamp = _startingTimestamp;
+        proposer = _proposer;
+        challenger = _challenger;
+        finalizationPeriodSeconds = _finalizationPeriodSeconds;
+    }
+
+    /// @notice Getter for the submissionInterval.
+    ///         Public getter is legacy and will be removed in the future. Use `submissionInterval` instead.
+    /// @return Submission interval.
+    /// @custom:legacy
+    function SUBMISSION_INTERVAL() external view returns (uint256) {
+        return submissionInterval;
+    }
+
+    /// @notice Getter for the l2BlockTime.
+    ///         Public getter is legacy and will be removed in the future. Use `l2BlockTime` instead.
+    /// @return L2 block time.
+    /// @custom:legacy
+    function L2_BLOCK_TIME() external view returns (uint256) {
+        return l2BlockTime;
     }
 
     /// @notice Getter for the challenger address.
-    function challenger() external view returns (address) {
-        return CHALLENGER;
+    ///         Public getter is legacy and will be removed in the future. Use `challenger` instead.
+    /// @return Address of the challenger.
+    /// @custom:legacy
+    function CHALLENGER() external view returns (address) {
+        return challenger;
     }
 
-    /// @notice Getter for the PROPOSER address.
-    function proposer() external view returns (address) {
-        return PROPOSER;
+    /// @notice Getter for the proposer address.
+    ///         Public getter is legacy and will be removed in the future. Use `proposer` instead.
+    /// @return Address of the proposer.
+    /// @custom:legacy
+    function PROPOSER() external view returns (address) {
+        return proposer;
     }
 
-    /// @notice Getter for the SUBMISSION_INTERVAL.
-    function submissionInterval() external view returns (uint256) {
-        return SUBMISSION_INTERVAL;
-    }
-
-    /// @notice Getter for the L2_BLOCK_TIME.
-    function l2BlockTime() external view returns (uint256) {
-        return L2_BLOCK_TIME;
-    }
-
-    /// @notice Getter for the FINALIZATION_PERIOD_SECONDS.
-    function finalizationPeriodSeconds() external view returns (uint256) {
-        return FINALIZATION_PERIOD_SECONDS;
+    /// @notice Getter for the finalizationPeriodSeconds.
+    ///         Public getter is legacy and will be removed in the future. Use `finalizationPeriodSeconds` instead.
+    /// @return Finalization period in seconds.
+    /// @custom:legacy
+    function FINALIZATION_PERIOD_SECONDS() external view returns (uint256) {
+        return finalizationPeriodSeconds;
     }
 
     /// @notice Deletes all output proposals after and including the proposal that corresponds to
@@ -135,7 +156,7 @@ contract L2OutputOracle is Initializable, ISemver {
     ///                       All outputs after this output will also be deleted.
     // solhint-disable-next-line ordering
     function deleteL2Outputs(uint256 _l2OutputIndex) external {
-        require(msg.sender == CHALLENGER, "L2OutputOracle: only the challenger address can delete outputs");
+        require(msg.sender == challenger, "L2OutputOracle: only the challenger address can delete outputs");
 
         // Make sure we're not *increasing* the length of the array.
         require(
@@ -144,7 +165,7 @@ contract L2OutputOracle is Initializable, ISemver {
 
         // Do not allow deleting any outputs that have already been finalized.
         require(
-            block.timestamp - l2Outputs[_l2OutputIndex].timestamp < FINALIZATION_PERIOD_SECONDS,
+            block.timestamp - l2Outputs[_l2OutputIndex].timestamp < finalizationPeriodSeconds,
             "L2OutputOracle: cannot delete outputs that have already been finalized"
         );
 
@@ -174,7 +195,7 @@ contract L2OutputOracle is Initializable, ISemver {
         external
         payable
     {
-        require(msg.sender == PROPOSER, "L2OutputOracle: only the proposer address can propose new outputs");
+        require(msg.sender == proposer, "L2OutputOracle: only the proposer address can propose new outputs");
 
         require(
             _l2BlockNumber == nextBlockNumber(),
@@ -284,13 +305,13 @@ contract L2OutputOracle is Initializable, ISemver {
     /// @notice Computes the block number of the next L2 block that needs to be checkpointed.
     /// @return Next L2 block number.
     function nextBlockNumber() public view returns (uint256) {
-        return latestBlockNumber() + SUBMISSION_INTERVAL;
+        return latestBlockNumber() + submissionInterval;
     }
 
     /// @notice Returns the L2 timestamp corresponding to a given L2 block number.
     /// @param _l2BlockNumber The L2 block number of the target block.
     /// @return L2 timestamp of the given block.
     function computeL2Timestamp(uint256 _l2BlockNumber) public view returns (uint256) {
-        return startingTimestamp + ((_l2BlockNumber - startingBlockNumber) * L2_BLOCK_TIME);
+        return startingTimestamp + ((_l2BlockNumber - startingBlockNumber) * l2BlockTime);
     }
 }

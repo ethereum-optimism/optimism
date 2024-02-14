@@ -2,14 +2,20 @@ package genesis
 
 import (
 	"fmt"
+	"math/big"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/immutables"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/squash"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/state"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -54,18 +60,51 @@ func BuildL2Genesis(config *DeployConfig, l1StartBlock *types.Block) (*core.Gene
 			log.Warn("Skipping disabled predeploy.", "name", name, "address", predeploy.Address)
 			continue
 		}
+
 		codeAddr := predeploy.Address
-		if !predeploy.ProxyDisabled {
-			codeAddr, err = AddressToCodeNamespace(predeploy.Address)
+		switch name {
+		case "Permit2":
+			deployerAddressBytes, err := bindings.GetDeployerAddress(name)
 			if err != nil {
-				return nil, fmt.Errorf("error converting to code namespace: %w", err)
+				return nil, err
 			}
+			deployerAddress := common.BytesToAddress(deployerAddressBytes)
+			predeploys := map[string]*common.Address{
+				"DeterministicDeploymentProxy": &deployerAddress,
+			}
+			backend, err := deployer.NewL2BackendWithChainIDAndPredeploys(
+				new(big.Int).SetUint64(config.L2ChainID),
+				predeploys,
+			)
+			if err != nil {
+				return nil, err
+			}
+			deployedBin, err := deployer.DeployWithDeterministicDeployer(backend, name)
+			if err != nil {
+				return nil, err
+			}
+			deployResults[name] = deployedBin
+			fallthrough
+		case "MultiCall3", "Create2Deployer", "Safe_v130",
+			"SafeL2_v130", "MultiSendCallOnly_v130", "SafeSingletonFactory",
+			"DeterministicDeploymentProxy", "MultiSend_v130", "SenderCreator", "EntryPoint":
 			db.CreateAccount(codeAddr)
-			db.SetState(predeploy.Address, ImplementationSlot, eth.AddressAsLeftPaddedHash(codeAddr))
-			log.Info("Set proxy", "name", name, "address", predeploy.Address, "implementation", codeAddr)
-		} else if db.Exist(predeploy.Address) {
+		default:
+			if !predeploy.ProxyDisabled {
+				codeAddr, err = AddressToCodeNamespace(predeploy.Address)
+				if err != nil {
+					return nil, fmt.Errorf("error converting to code namespace: %w", err)
+				}
+				db.CreateAccount(codeAddr)
+				db.SetState(predeploy.Address, ImplementationSlot, eth.AddressAsLeftPaddedHash(codeAddr))
+				log.Info("Set proxy", "name", name, "address", predeploy.Address, "implementation", codeAddr)
+			}
+		}
+
+		if predeploy.ProxyDisabled && db.Exist(predeploy.Address) {
 			db.DeleteState(predeploy.Address, AdminSlot)
 		}
+
 		if err := setupPredeploy(db, deployResults, storage, name, predeploy.Address, codeAddr); err != nil {
 			return nil, err
 		}
@@ -75,5 +114,25 @@ func BuildL2Genesis(config *DeployConfig, l1StartBlock *types.Block) (*core.Gene
 		}
 	}
 
+	if err := PerformUpgradeTxs(db); err != nil {
+		return nil, fmt.Errorf("failed to perform upgrade txs: %w", err)
+	}
+
 	return db.Genesis(), nil
+}
+
+func PerformUpgradeTxs(db *state.MemoryStateDB) error {
+	// Only the Ecotone upgrade is performed with upgrade-txs.
+	if !db.Genesis().Config.IsEcotone(db.Genesis().Timestamp) {
+		return nil
+	}
+	sim := squash.NewSimulator(db)
+	ecotone, err := derive.EcotoneNetworkUpgradeTransactions()
+	if err != nil {
+		return fmt.Errorf("failed to build ecotone upgrade txs: %w", err)
+	}
+	if err := sim.AddUpgradeTxs(ecotone); err != nil {
+		return fmt.Errorf("failed to apply ecotone upgrade txs: %w", err)
+	}
+	return nil
 }

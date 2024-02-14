@@ -19,6 +19,20 @@ interface IDisputeGameFactory {
     /// @param gameType The type of the DisputeGame.
     event ImplementationSet(address indexed impl, GameType indexed gameType);
 
+    /// @notice Emitted when a game type's initialization bond is updated
+    /// @param gameType The type of the DisputeGame.
+    /// @param newBond The new bond (in wei) for initializing the game type.
+    event InitBondUpdated(GameType indexed gameType, uint256 indexed newBond);
+
+    /// @notice Information about a dispute game found in a `findLatestGames` search.
+    struct GameSearchResult {
+        uint256 index;
+        GameId metadata;
+        Timestamp timestamp;
+        Claim rootClaim;
+        bytes extraData;
+    }
+
     /// @notice The total number of dispute games created by this factory.
     /// @return gameCount_ The total number of dispute games created by this factory.
     function gameCount() external view returns (uint256 gameCount_);
@@ -60,6 +74,11 @@ interface IDisputeGameFactory {
     ///         Will be cloned on creation of a new dispute game with the given `gameType`.
     function gameImpls(GameType _gameType) external view returns (IDisputeGame impl_);
 
+    /// @notice Returns the required bonds for initializing a dispute game of the given type.
+    /// @param _gameType The type of the dispute game.
+    /// @return bond_ The required bond for initializing a dispute game of the given type.
+    function initBonds(GameType _gameType) external view returns (uint256 bond_);
+
     /// @notice Creates a new DisputeGame proxy contract.
     /// @param _gameType The type of the DisputeGame - used to decide the proxy implementation.
     /// @param _rootClaim The root claim of the DisputeGame.
@@ -71,6 +90,7 @@ interface IDisputeGameFactory {
         bytes calldata _extraData
     )
         external
+        payable
         returns (IDisputeGame proxy_);
 
     /// @notice Sets the implementation contract for a specific `GameType`.
@@ -78,6 +98,12 @@ interface IDisputeGameFactory {
     /// @param _gameType The type of the DisputeGame.
     /// @param _impl The implementation contract for the given `GameType`.
     function setImplementation(GameType _gameType, IDisputeGame _impl) external;
+
+    /// @notice Sets the bond (in wei) for initializing a game type.
+    /// @dev May only be called by the `owner`.
+    /// @param _gameType The type of the DisputeGame.
+    /// @param _initBond The bond (in wei) for initializing a game type.
+    function setInitBond(GameType _gameType, uint256 _initBond) external;
 
     /// @notice Returns a unique identifier for the given dispute game parameters.
     /// @dev Hashes the concatenation of `gameType . rootClaim . extraData`
@@ -94,4 +120,18 @@ interface IDisputeGameFactory {
         external
         pure
         returns (Hash uuid_);
+
+    /// @notice Finds the `_n` most recent `GameId`'s of type `_gameType` starting at `_start`. If there are less than
+    ///         `_n` games of type `_gameType` starting at `_start`, then the returned array will be shorter than `_n`.
+    /// @param _gameType The type of game to find.
+    /// @param _start The index to start the reverse search from.
+    /// @param _n The number of games to find.
+    function findLatestGames(
+        GameType _gameType,
+        uint256 _start,
+        uint256 _n
+    )
+        external
+        view
+        returns (GameSearchResult[] memory games_);
 }

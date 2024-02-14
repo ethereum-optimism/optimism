@@ -6,10 +6,11 @@ import { MerkleTrie } from "src/libraries/trie/MerkleTrie.sol";
 import { FFIInterface } from "test/setup/FFIInterface.sol";
 
 contract MerkleTrie_get_Test is Test {
-    FFIInterface ffi;
+    FFIInterface constant ffi = FFIInterface(address(uint160(uint256(keccak256(abi.encode("optimism.ffi"))))));
 
     function setUp() public {
-        ffi = new FFIInterface();
+        vm.etch(address(ffi), vm.getDeployedCode("FFIInterface.sol:FFIInterface"));
+        vm.label(address(ffi), "FFIInterface");
     }
 
     function test_get_validProof1_succeeds() external {

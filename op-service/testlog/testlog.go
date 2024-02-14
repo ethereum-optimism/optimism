@@ -18,11 +18,16 @@
 package testlog
 
 import (
+	"bufio"
+	"bytes"
+	"context"
 	"os"
 	"runtime"
 	"strconv"
 	"strings"
 	"sync"
+
+	"golang.org/x/exp/slog"
 
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -42,52 +47,32 @@ type Testing interface {
 	Helper()
 }
 
-// Handler returns a log handler which logs to the unit test log of t.
-func Handler(t Testing, level log.Lvl, format log.Format) log.Handler {
-	return log.LvlFilterHandler(level, &handler{t, format})
-}
-
-type handler struct {
-	t   Testing
-	fmt log.Format
-}
-
-func (h *handler) Log(r *log.Record) error {
-	h.t.Logf("%s", h.fmt.Format(r))
-	return nil
-}
-
 // logger implements log.Logger such that all output goes to the unit test log via
 // t.Logf(). All methods in between logger.Trace, logger.Debug, etc. are marked as test
 // helpers, so the file and line number in unit test output correspond to the call site
 // which emitted the log message.
 type logger struct {
-	t  Testing
-	l  log.Logger
-	mu *sync.Mutex
-	h  *bufHandler
-}
-
-type bufHandler struct {
-	buf []*log.Record
-	fmt log.Format
-}
-
-func (h *bufHandler) Log(r *log.Record) error {
-	h.buf = append(h.buf, r)
-	return nil
+	t   Testing
+	l   log.Logger
+	mu  *sync.Mutex
+	buf *bytes.Buffer
 }
 
 // Logger returns a logger which logs to the unit test log of t.
-func Logger(t Testing, level log.Lvl) log.Logger {
-	l := &logger{
-		t:  t,
-		l:  log.New(),
-		mu: new(sync.Mutex),
-		h:  &bufHandler{fmt: log.TerminalFormat(useColorInTestLog)},
-	}
-	l.l.SetHandler(log.LvlFilterHandler(level, l.h))
+func Logger(t Testing, level slog.Level) log.Logger {
+	return LoggerWithHandlerMod(t, level, func(h slog.Handler) slog.Handler { return h })
+}
+
+func LoggerWithHandlerMod(t Testing, level slog.Level, handlerMod func(slog.Handler) slog.Handler) log.Logger {
+	l := &logger{t: t, mu: new(sync.Mutex), buf: new(bytes.Buffer)}
+	var handler slog.Handler = log.NewTerminalHandlerWithLevel(l.buf, level, useColorInTestLog)
+	handler = handlerMod(handler)
+	l.l = log.NewLogger(handler)
 	return l
+}
+
+func (l *logger) Handler() slog.Handler {
+	return l.l.Handler()
 }
 
 func (l *logger) Trace(msg string, ctx ...any) {
@@ -138,16 +123,28 @@ func (l *logger) Crit(msg string, ctx ...any) {
 	l.flush()
 }
 
+func (l *logger) Log(level slog.Level, msg string, ctx ...any) {
+	l.t.Helper()
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.l.Log(level, msg, ctx...)
+	l.flush()
+}
+
+func (l *logger) Write(level slog.Level, msg string, ctx ...any) {
+	l.Log(level, msg, ctx...)
+}
+
 func (l *logger) New(ctx ...any) log.Logger {
-	return &logger{l.t, l.l.New(ctx...), l.mu, l.h}
+	return &logger{l.t, l.l.New(ctx...), l.mu, l.buf}
 }
 
-func (l *logger) GetHandler() log.Handler {
-	return l.l.GetHandler()
+func (l *logger) With(ctx ...any) log.Logger {
+	return l.New(ctx...)
 }
 
-func (l *logger) SetHandler(h log.Handler) {
-	l.l.SetHandler(h)
+func (l *logger) Enabled(ctx context.Context, level slog.Level) bool {
+	return l.l.Enabled(ctx, level)
 }
 
 // flush writes all buffered messages and clears the buffer.
@@ -160,10 +157,12 @@ func (l *logger) flush() {
 	if decorationLen <= padLength {
 		padding = padLength - decorationLen
 	}
-	for _, r := range l.h.buf {
-		l.t.Logf("%*s%s", padding, "", l.h.fmt.Format(r))
+
+	scanner := bufio.NewScanner(l.buf)
+	for scanner.Scan() {
+		l.t.Logf("%*s%s", padding, "", scanner.Text())
 	}
-	l.h.buf = nil
+	l.buf.Reset()
 }
 
 // The Go testing lib uses the runtime package to get info about the calling site, and then decorates the line.

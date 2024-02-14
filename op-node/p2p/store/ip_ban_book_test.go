@@ -35,7 +35,7 @@ func TestRoundTripIPBan(t *testing.T) {
 
 func createMemoryIPBanBook(t *testing.T) *ipBanBook {
 	store := sync.MutexWrap(ds.NewMapDatastore())
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	c := clock.NewDeterministicClock(time.UnixMilli(100))
 	book, err := newIPBanBook(context.Background(), logger, c, store)
 	require.NoError(t, err)

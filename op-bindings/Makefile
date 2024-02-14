@@ -27,14 +27,13 @@ bindings-build: bindgen-generate-local
 bindgen: compile bindgen-generate-all
 
 bindgen-generate-all:
-	go run ./bindgen/ \
+	go run ./cmd/ \
 		generate \
 		--metadata-out ./$(pkg) \
 		--bindings-package $(pkg) \
 		--contracts-list $(contracts-list) \
 		--log.level $(log-level) \
 		all \
-		--source-maps-list MIPS,PreimageOracle \
 		--forge-artifacts $(contracts-dir)/forge-artifacts \
 		--etherscan.apikey.eth $(ETHERSCAN_APIKEY_ETH) \
 		--etherscan.apikey.op $(ETHERSCAN_APIKEY_OP) \
@@ -44,18 +43,17 @@ bindgen-generate-all:
 bindgen-local: compile bindgen-generate-local
 
 bindgen-generate-local:
-	go run ./bindgen/ \
+	go run ./cmd/ \
 		generate \
 		--metadata-out ./$(pkg) \
 		--bindings-package $(pkg) \
 		--contracts-list $(contracts-list) \
 		--log.level $(log-level) \
 		local \
-		--source-maps-list MIPS,PreimageOracle \
 		--forge-artifacts $(contracts-dir)/forge-artifacts
 
 bindgen-remote:
-	go run ./bindgen/ \
+	go run ./cmd/ \
 		generate \
 		--metadata-out ./$(pkg) \
 		--bindings-package $(pkg) \

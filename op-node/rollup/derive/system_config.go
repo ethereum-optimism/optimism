@@ -30,7 +30,7 @@ var (
 )
 
 // UpdateSystemConfigWithL1Receipts filters all L1 receipts to find config updates and applies the config updates to the given sysCfg
-func UpdateSystemConfigWithL1Receipts(sysCfg *eth.SystemConfig, receipts []*types.Receipt, cfg *rollup.Config) error {
+func UpdateSystemConfigWithL1Receipts(sysCfg *eth.SystemConfig, receipts []*types.Receipt, cfg *rollup.Config, l1Time uint64) error {
 	var result error
 	for i, rec := range receipts {
 		if rec.Status != types.ReceiptStatusSuccessful {
@@ -38,7 +38,7 @@ func UpdateSystemConfigWithL1Receipts(sysCfg *eth.SystemConfig, receipts []*type
 		}
 		for j, log := range rec.Logs {
 			if log.Address == cfg.L1SystemConfigAddress && len(log.Topics) > 0 && log.Topics[0] == ConfigUpdateEventABIHash {
-				if err := ProcessSystemConfigUpdateLogEvent(sysCfg, log); err != nil {
+				if err := ProcessSystemConfigUpdateLogEvent(sysCfg, log, cfg, l1Time); err != nil {
 					result = multierror.Append(result, fmt.Errorf("malformatted L1 system sysCfg log in receipt %d, log %d: %w", i, j, err))
 				}
 			}
@@ -56,7 +56,7 @@ func UpdateSystemConfigWithL1Receipts(sysCfg *eth.SystemConfig, receipts []*type
 //	    UpdateType indexed updateType,
 //	    bytes data
 //	);
-func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.Log) error {
+func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.Log, rollupCfg *rollup.Config, l1Time uint64) error {
 	if len(ev.Topics) != 3 {
 		return fmt.Errorf("expected 3 event topics (event identity, indexed version, indexed updateType), got %d", len(ev.Topics))
 	}
@@ -111,8 +111,18 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 		if !solabi.EmptyReader(reader) {
 			return NewCriticalError(errors.New("too many bytes"))
 		}
-		destSysCfg.Overhead = overhead
-		destSysCfg.Scalar = scalar
+		if rollupCfg.IsEcotone(l1Time) {
+			if err := eth.CheckEcotoneL1SystemConfigScalar(scalar); err != nil {
+				return nil // ignore invalid scalars, retain the old system-config scalar
+			}
+			// retain the scalar data in encoded form
+			destSysCfg.Scalar = scalar
+			// zero out the overhead, it will not affect the state-transition after Ecotone
+			destSysCfg.Overhead = eth.Bytes32{}
+		} else {
+			destSysCfg.Overhead = overhead
+			destSysCfg.Scalar = scalar
+		}
 		return nil
 	case SystemConfigUpdateGasLimit:
 		if pointer, err := solabi.ReadUint64(reader); err != nil || pointer != 32 {

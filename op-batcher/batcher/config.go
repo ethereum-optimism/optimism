@@ -3,15 +3,17 @@ package batcher
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	"github.com/ethereum-optimism/optimism/op-batcher/flags"
+	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
-	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
+	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
@@ -20,10 +22,10 @@ type CLIConfig struct {
 	// L1EthRpc is the HTTP provider URL for L1.
 	L1EthRpc string
 
-	// L2EthRpc is the HTTP provider URL for the L2 execution engine.
+	// L2EthRpc is the HTTP provider URL for the L2 execution engine. A comma-separated list enables the active L2 provider. Such a list needs to match the number of RollupRpcs provided.
 	L2EthRpc string
 
-	// RollupRpc is the HTTP provider URL for the L2 rollup node.
+	// RollupRpc is the HTTP provider URL for the L2 rollup node. A comma-separated list enables the active L2 provider. Such a list needs to match the number of L2EthRpcs provided.
 	RollupRpc string
 
 	// MaxChannelDuration is the maximum duration (in #L1-blocks) to keep a
@@ -56,12 +58,20 @@ type CLIConfig struct {
 
 	BatchType uint
 
+	// DataAvailabilityType is one of the values defined in op-batcher/flags/types.go and dictates
+	// the data availability type to use for posting batches, e.g. blobs vs calldata.
+	DataAvailabilityType flags.DataAvailabilityType
+
+	// ActiveSequencerCheckDuration is the duration between checks to determine the active sequencer endpoint.
+	ActiveSequencerCheckDuration time.Duration
+
 	TxMgrConfig      txmgr.CLIConfig
 	LogConfig        oplog.CLIConfig
 	MetricsConfig    opmetrics.CLIConfig
 	PprofConfig      oppprof.CLIConfig
 	CompressorConfig compressor.CLIConfig
 	RPC              oprpc.CLIConfig
+	PlasmaDA         plasma.CLIConfig
 }
 
 func (c *CLIConfig) Check() error {
@@ -74,6 +84,9 @@ func (c *CLIConfig) Check() error {
 	if c.RollupRpc == "" {
 		return errors.New("empty rollup RPC URL")
 	}
+	if strings.Count(c.RollupRpc, ",") != strings.Count(c.L2EthRpc, ",") {
+		return errors.New("number of rollup and eth URLs must match")
+	}
 	if c.PollInterval == 0 {
 		return errors.New("must set PollInterval")
 	}
@@ -83,7 +96,9 @@ func (c *CLIConfig) Check() error {
 	if c.BatchType > 1 {
 		return fmt.Errorf("unknown batch type: %v", c.BatchType)
 	}
-
+	if !flags.ValidDataAvailabilityType(c.DataAvailabilityType) {
+		return fmt.Errorf("unknown data availability type: %q", c.DataAvailabilityType)
+	}
 	if err := c.MetricsConfig.Check(); err != nil {
 		return err
 	}
@@ -110,16 +125,19 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 		PollInterval:    ctx.Duration(flags.PollIntervalFlag.Name),
 
 		/* Optional Flags */
-		MaxPendingTransactions: ctx.Uint64(flags.MaxPendingTransactionsFlag.Name),
-		MaxChannelDuration:     ctx.Uint64(flags.MaxChannelDurationFlag.Name),
-		MaxL1TxSize:            ctx.Uint64(flags.MaxL1TxSizeBytesFlag.Name),
-		Stopped:                ctx.Bool(flags.StoppedFlag.Name),
-		BatchType:              ctx.Uint(flags.BatchTypeFlag.Name),
-		TxMgrConfig:            txmgr.ReadCLIConfig(ctx),
-		LogConfig:              oplog.ReadCLIConfig(ctx),
-		MetricsConfig:          opmetrics.ReadCLIConfig(ctx),
-		PprofConfig:            oppprof.ReadCLIConfig(ctx),
-		CompressorConfig:       compressor.ReadCLIConfig(ctx),
-		RPC:                    oprpc.ReadCLIConfig(ctx),
+		MaxPendingTransactions:       ctx.Uint64(flags.MaxPendingTransactionsFlag.Name),
+		MaxChannelDuration:           ctx.Uint64(flags.MaxChannelDurationFlag.Name),
+		MaxL1TxSize:                  ctx.Uint64(flags.MaxL1TxSizeBytesFlag.Name),
+		Stopped:                      ctx.Bool(flags.StoppedFlag.Name),
+		BatchType:                    ctx.Uint(flags.BatchTypeFlag.Name),
+		DataAvailabilityType:         flags.DataAvailabilityType(ctx.String(flags.DataAvailabilityTypeFlag.Name)),
+		ActiveSequencerCheckDuration: ctx.Duration(flags.ActiveSequencerCheckDurationFlag.Name),
+		TxMgrConfig:                  txmgr.ReadCLIConfig(ctx),
+		LogConfig:                    oplog.ReadCLIConfig(ctx),
+		MetricsConfig:                opmetrics.ReadCLIConfig(ctx),
+		PprofConfig:                  oppprof.ReadCLIConfig(ctx),
+		CompressorConfig:             compressor.ReadCLIConfig(ctx),
+		RPC:                          oprpc.ReadCLIConfig(ctx),
+		PlasmaDA:                     plasma.ReadCLIConfig(ctx),
 	}
 }

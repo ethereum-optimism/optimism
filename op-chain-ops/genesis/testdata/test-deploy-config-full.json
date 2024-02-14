@@ -69,10 +69,17 @@
   "faultGameAbsolutePrestate": "0x0000000000000000000000000000000000000000000000000000000000000000",
   "faultGameMaxDepth": 63,
   "faultGameMaxDuration": 604800,
-  "outputBisectionGameGenesisBlock": 0,
-  "outputBisectionGameGenesisOutputRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
-  "outputBisectionGameSplitDepth": 0,
+  "faultGameGenesisBlock": 0,
+  "faultGameGenesisOutputRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
+  "faultGameSplitDepth": 0,
+  "preimageOracleMinProposalSize": 1800000,
+  "preimageOracleChallengePeriod": 86400,
+  "preimageOracleCancunActivationTimestamp": 0,
   "systemConfigStartBlock": 0,
   "requiredProtocolVersion": "0x0000000000000000000000000000000000000000000000000000000000000000",
-  "recommendedProtocolVersion": "0x0000000000000000000000000000000000000000000000000000000000000000"
+  "recommendedProtocolVersion": "0x0000000000000000000000000000000000000000000000000000000000000000",
+  "proofMaturityDelaySeconds": 12,
+  "disputeGameFinalityDelaySeconds": 6,
+  "respectedGameType": 0,
+  "useFaultProofs": false
 }

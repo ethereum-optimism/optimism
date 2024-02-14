@@ -5,6 +5,7 @@ import (
 	"math/big"
 	"math/rand"
 	"testing"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
@@ -53,7 +54,7 @@ func DerivationWithFlakyL1RPC(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	dp.DeployConfig.L2GenesisDeltaTimeOffset = deltaTimeOffset
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
-	log := testlog.Logger(t, log.LvlError) // mute all the temporary derivation errors that we forcefully create
+	log := testlog.Logger(t, log.LevelError) // mute all the temporary derivation errors that we forcefully create
 	_, _, miner, sequencer, _, verifier, _, batcher := setupReorgTestActors(t, dp, sd, log)
 
 	rng := rand.New(rand.NewSource(1234))
@@ -93,7 +94,7 @@ func FinalizeWhileSyncing(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	dp.DeployConfig.L2GenesisDeltaTimeOffset = deltaTimeOffset
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
-	log := testlog.Logger(t, log.LvlError) // mute all the temporary derivation errors that we forcefully create
+	log := testlog.Logger(t, log.LevelError) // mute all the temporary derivation errors that we forcefully create
 	_, _, miner, sequencer, _, verifier, _, batcher := setupReorgTestActors(t, dp, sd, log)
 
 	sequencer.ActL2PipelineFull(t)
@@ -132,11 +133,12 @@ func FinalizeWhileSyncing(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	require.Less(t, verifierStartStatus.FinalizedL2.Number, verifier.SyncStatus().FinalizedL2.Number, "verifier finalized L2 blocks during sync")
 }
 
+// TestUnsafeSync tests that a verifier properly imports unsafe blocks via gossip.
 func TestUnsafeSync(gt *testing.T) {
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
-	log := testlog.Logger(t, log.LvlInfo)
+	log := testlog.Logger(t, log.LevelInfo)
 
 	sd, _, _, sequencer, seqEng, verifier, _, _ := setupReorgTestActors(t, dp, sd, log)
 	seqEngCl, err := sources.NewEngineClient(seqEng.RPCClient(), log, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
@@ -155,52 +157,66 @@ func TestUnsafeSync(gt *testing.T) {
 		verifier.ActL2UnsafeGossipReceive(seqHead)(t)
 		// Handle unsafe payload
 		verifier.ActL2PipelineFull(t)
-		// Verifier must advance its unsafe head and engine sync target.
+		// Verifier must advance its unsafe head.
 		require.Equal(t, sequencer.L2Unsafe().Hash, verifier.L2Unsafe().Hash)
-		// Check engine sync target updated.
-		require.Equal(t, sequencer.L2Unsafe().Hash, sequencer.EngineSyncTarget().Hash)
-		require.Equal(t, verifier.L2Unsafe().Hash, verifier.EngineSyncTarget().Hash)
 	}
 }
 
-func TestEngineP2PSync(gt *testing.T) {
+// TestELSync tests that a verifier will have the EL import the full chain from the sequencer
+// when passed a single unsafe block. op-geth can either snap sync or full sync here.
+func TestELSync(gt *testing.T) {
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
-	log := testlog.Logger(t, log.LvlInfo)
+	log := testlog.Logger(t, log.LevelInfo)
 
 	miner, seqEng, sequencer := setupSequencerTest(t, sd, log)
 	// Enable engine P2P sync
-	_, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), &sync.Config{SyncMode: sync.ELSync})
+	verEng, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{SyncMode: sync.ELSync})
 
 	seqEngCl, err := sources.NewEngineClient(seqEng.RPCClient(), log, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
 	require.NoError(t, err)
 
 	sequencer.ActL2PipelineFull(t)
-	verifier.ActL2PipelineFull(t)
 
-	verifierUnsafeHead := verifier.L2Unsafe()
-
-	// Build a L2 block. This block will not be gossiped to verifier, so verifier can not advance chain by itself.
-	sequencer.ActL2StartBlock(t)
-	sequencer.ActL2EndBlock(t)
-
+	// Build 10 L1 blocks on the sequencer
 	for i := 0; i < 10; i++ {
 		// Build a L2 block
 		sequencer.ActL2StartBlock(t)
 		sequencer.ActL2EndBlock(t)
-		// Notify new L2 block to verifier by unsafe gossip
-		seqHead, err := seqEngCl.PayloadByLabel(t.Ctx(), eth.Unsafe)
-		require.NoError(t, err)
-		verifier.ActL2UnsafeGossipReceive(seqHead)(t)
-		// Handle unsafe payload
-		verifier.ActL2PipelineFull(t)
-		// Verifier must advance only engine sync target.
-		require.NotEqual(t, sequencer.L2Unsafe().Hash, verifier.L2Unsafe().Hash)
-		require.NotEqual(t, verifier.L2Unsafe().Hash, verifier.EngineSyncTarget().Hash)
-		require.Equal(t, verifier.L2Unsafe().Hash, verifierUnsafeHead.Hash)
-		require.Equal(t, sequencer.L2Unsafe().Hash, verifier.EngineSyncTarget().Hash)
 	}
+
+	// Wait longer to peer. This tests flakes or takes a long time when the op-geth instances are not able to peer.
+	verEng.AddPeers(seqEng.Enode())
+
+	// Insert it on the verifier
+	seqHead, err := seqEngCl.PayloadByLabel(t.Ctx(), eth.Unsafe)
+	require.NoError(t, err)
+	seqStart, err := seqEngCl.PayloadByNumber(t.Ctx(), 1)
+	require.NoError(t, err)
+	verifier.ActL2InsertUnsafePayload(seqHead)(t)
+
+	require.Eventually(t,
+		func() bool {
+			return seqEng.PeerCount() > 0 && verEng.PeerCount() > 0
+		},
+		120*time.Second, 1500*time.Millisecond,
+		"Sequencer & Verifier must peer with each other for snap sync to work",
+	)
+
+	// Expect snap sync to download & execute the entire chain
+	// Verify this by checking that the verifier has the correct value for block 1
+	require.Eventually(t,
+		func() bool {
+			block, err := verifier.eng.L2BlockRefByNumber(t.Ctx(), 1)
+			if err != nil {
+				return false
+			}
+			return seqStart.ExecutionPayload.BlockHash == block.Hash
+		},
+		60*time.Second, 1500*time.Millisecond,
+		"verifier did not snap sync",
+	)
 }
 
 func TestInvalidPayloadInSpanBatch(gt *testing.T) {
@@ -211,7 +227,7 @@ func TestInvalidPayloadInSpanBatch(gt *testing.T) {
 	dp.DeployConfig.L2GenesisDeltaTimeOffset = &minTs
 	dp.DeployConfig.L2BlockTime = 2
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
-	log := testlog.Logger(t, log.LvlInfo)
+	log := testlog.Logger(t, log.LevelInfo)
 	_, _, miner, sequencer, seqEng, verifier, _, batcher := setupReorgTestActors(t, dp, sd, log)
 	l2Cl := seqEng.EthClient()
 	rng := rand.New(rand.NewSource(1234))
@@ -246,7 +262,7 @@ func TestInvalidPayloadInSpanBatch(gt *testing.T) {
 			block = block.WithBody([]*types.Transaction{block.Transactions()[0], invalidTx}, []*types.Header{})
 		}
 		// Add A1 ~ A12 into the channel
-		_, err = channelOut.AddBlock(block)
+		_, err = channelOut.AddBlock(sd.RollupCfg, block)
 		require.NoError(t, err)
 	}
 
@@ -304,7 +320,7 @@ func TestInvalidPayloadInSpanBatch(gt *testing.T) {
 			block = block.WithBody([]*types.Transaction{block.Transactions()[0], tx}, []*types.Header{})
 		}
 		// Add B1, A2 ~ A12 into the channel
-		_, err = channelOut.AddBlock(block)
+		_, err = channelOut.AddBlock(sd.RollupCfg, block)
 		require.NoError(t, err)
 	}
 	// Submit span batch(B1, A2, ... A12)
@@ -334,7 +350,7 @@ func TestSpanBatchAtomicity_Consolidation(gt *testing.T) {
 	dp.DeployConfig.L2GenesisDeltaTimeOffset = &minTs
 	dp.DeployConfig.L2BlockTime = 2
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
-	log := testlog.Logger(t, log.LvlInfo)
+	log := testlog.Logger(t, log.LevelInfo)
 	_, _, miner, sequencer, seqEng, verifier, _, batcher := setupReorgTestActors(t, dp, sd, log)
 	seqEngCl, err := sources.NewEngineClient(seqEng.RPCClient(), log, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
 	require.NoError(t, err)
@@ -393,7 +409,7 @@ func TestSpanBatchAtomicity_ForceAdvance(gt *testing.T) {
 	dp.DeployConfig.L2GenesisDeltaTimeOffset = &minTs
 	dp.DeployConfig.L2BlockTime = 2
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
-	log := testlog.Logger(t, log.LvlInfo)
+	log := testlog.Logger(t, log.LevelInfo)
 	_, _, miner, sequencer, _, verifier, _, batcher := setupReorgTestActors(t, dp, sd, log)
 
 	targetHeadNumber := uint64(6) // L1 block time / L2 block time

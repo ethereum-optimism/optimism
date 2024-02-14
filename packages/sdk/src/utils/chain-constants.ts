@@ -1,49 +1,36 @@
 import { predeploys } from '@eth-optimism/core-utils'
 import { ethers } from 'ethers'
-import portalArtifactsMainnet from '@eth-optimism/contracts-bedrock/deployments/mainnet/OptimismPortalProxy.json'
-import portalArtifactsGoerli from '@eth-optimism/contracts-bedrock/deployments/goerli/OptimismPortalProxy.json'
-import portalArtifactsSepolia from '@eth-optimism/contracts-bedrock/deployments/sepolia/OptimismPortalProxy.json'
-import l2OutputOracleArtifactsMainnet from '@eth-optimism/contracts-bedrock/deployments/mainnet/L2OutputOracleProxy.json'
-import l2OutputOracleArtifactsGoerli from '@eth-optimism/contracts-bedrock/deployments/goerli/L2OutputOracleProxy.json'
-import l2OutputOracleArtifactsSepolia from '@eth-optimism/contracts-bedrock/deployments/sepolia/L2OutputOracleProxy.json'
-import addressManagerArtifactMainnet from '@eth-optimism/contracts-bedrock/deployments/mainnet/AddressManager.json'
-import addressManagerArtifactGoerli from '@eth-optimism/contracts-bedrock/deployments/goerli/AddressManager.json'
-import addressManagerArtifactSepolia from '@eth-optimism/contracts-bedrock/deployments/sepolia/AddressManager.json'
-import l1StandardBridgeArtifactMainnet from '@eth-optimism/contracts-bedrock/deployments/mainnet/L1StandardBridgeProxy.json'
-import l1StandardBridgeArtifactGoerli from '@eth-optimism/contracts-bedrock/deployments/goerli/L1StandardBridgeProxy.json'
-import l1StandardBridgeArtifactSepolia from '@eth-optimism/contracts-bedrock/deployments/sepolia/L1StandardBridgeProxy.json'
-import l1CrossDomainMessengerArtifactMainnet from '@eth-optimism/contracts-bedrock/deployments/mainnet/L1CrossDomainMessengerProxy.json'
-import l1CrossDomainMessengerArtifactGoerli from '@eth-optimism/contracts-bedrock/deployments/goerli/L1CrossDomainMessengerProxy.json'
-import l1CrossDomainMessengerArtifactSepolia from '@eth-optimism/contracts-bedrock/deployments/sepolia/L1CrossDomainMessengerProxy.json'
+
+// The addresses below should be for the proxy if it is a proxied contract.
 
 const portalAddresses = {
-  mainnet: portalArtifactsMainnet.address,
-  goerli: portalArtifactsGoerli.address,
-  sepolia: portalArtifactsSepolia.address,
+  mainnet: '0xbEb5Fc579115071764c7423A4f12eDde41f106Ed',
+  goerli: '0x5b47E1A08Ea6d985D6649300584e6722Ec4B1383',
+  sepolia: '0x16Fc5058F25648194471939df75CF27A2fdC48BC',
 }
 
 const l2OutputOracleAddresses = {
-  mainnet: l2OutputOracleArtifactsMainnet.address,
-  goerli: l2OutputOracleArtifactsGoerli.address,
-  sepolia: l2OutputOracleArtifactsSepolia.address,
+  mainnet: '0xdfe97868233d1aa22e815a266982f2cf17685a27',
+  goerli: '0xE6Dfba0953616Bacab0c9A8ecb3a9BBa77FC15c0',
+  sepolia: '0x90E9c4f8a994a250F6aEfd61CAFb4F2e895D458F',
 }
 
 const addressManagerAddresses = {
-  mainnet: addressManagerArtifactMainnet.address,
-  goerli: addressManagerArtifactGoerli.address,
-  sepolia: addressManagerArtifactSepolia.address,
+  mainnet: '0xdE1FCfB0851916CA5101820A69b13a4E276bd81F',
+  goerli: '0xa6f73589243a6A7a9023b1Fa0651b1d89c177111',
+  sepolia: '0x9bFE9c5609311DF1c011c47642253B78a4f33F4B',
 }
 
 const l1StandardBridgeAddresses = {
-  mainnet: l1StandardBridgeArtifactMainnet.address,
-  goerli: l1StandardBridgeArtifactGoerli.address,
-  sepolia: l1StandardBridgeArtifactSepolia.address,
+  mainnet: '0x99C9fc46f92E8a1c0deC1b1747d010903E884bE1',
+  goerli: '0x636Af16bf2f682dD3109e60102b8E1A089FedAa8',
+  sepolia: '0xFBb0621E0B23b5478B630BD55a5f21f67730B0F1',
 }
 
 const l1CrossDomainMessengerAddresses = {
-  mainnet: l1CrossDomainMessengerArtifactMainnet.address,
-  goerli: l1CrossDomainMessengerArtifactGoerli.address,
-  sepolia: l1CrossDomainMessengerArtifactSepolia.address,
+  mainnet: '0x25ace71c97B33Cc4729CF772ae268934F7ab5fA1',
+  goerli: '0x5086d1eEF304eb5284A0f6720f79403b4e9bE294',
+  sepolia: '0x58Cc85b8D04EA49cC6DBd3CbFFd00B4B8D6cb3ef',
 }
 
 // legacy
@@ -133,8 +120,15 @@ const getL1ContractsByNetworkName = (network: string): OEL1ContractsLike => {
     BondManager: ethers.constants.AddressZero,
     OptimismPortal: portalAddresses[network],
     L2OutputOracle: l2OutputOracleAddresses[network],
+    OptimismPortal2: portalAddresses[network],
+    DisputeGameFactory: ethers.constants.AddressZero,
   }
 }
+
+/**
+ * List of contracts that are ignorable when checking for contracts on a given network.
+ */
+export const IGNORABLE_CONTRACTS = ['OptimismPortal2', 'DisputeGameFactory']
 
 /**
  * Mapping of L1 chain IDs to the appropriate contract addresses for the OE deployments to the
@@ -170,6 +164,8 @@ export const CONTRACT_ADDRESSES: {
       // FIXME
       OptimismPortal: '0x0000000000000000000000000000000000000000' as const,
       L2OutputOracle: '0x0000000000000000000000000000000000000000' as const,
+      OptimismPortal2: '0x0000000000000000000000000000000000000000' as const,
+      DisputeGameFactory: '0x0000000000000000000000000000000000000000' as const,
     },
     l2: DEFAULT_L2_CONTRACT_ADDRESSES,
   },
@@ -186,6 +182,8 @@ export const CONTRACT_ADDRESSES: {
       BondManager: '0x5FC8d32690cc91D4c39d9d3abcBD16989F875707' as const,
       OptimismPortal: '0x0000000000000000000000000000000000000000' as const,
       L2OutputOracle: '0x0000000000000000000000000000000000000000' as const,
+      OptimismPortal2: '0x0000000000000000000000000000000000000000' as const,
+      DisputeGameFactory: '0x0000000000000000000000000000000000000000' as const,
     },
     l2: DEFAULT_L2_CONTRACT_ADDRESSES,
   },
@@ -202,6 +200,8 @@ export const CONTRACT_ADDRESSES: {
       BondManager: '0x0000000000000000000000000000000000000000' as const,
       OptimismPortal: '0xA581Ca3353DB73115C4625FFC7aDF5dB379434A8' as const,
       L2OutputOracle: '0x3A234299a14De50027eA65dCdf1c0DaC729e04A6' as const,
+      OptimismPortal2: '0x0000000000000000000000000000000000000000' as const,
+      DisputeGameFactory: '0x0000000000000000000000000000000000000000' as const,
     },
     l2: DEFAULT_L2_CONTRACT_ADDRESSES,
   },
@@ -218,6 +218,8 @@ export const CONTRACT_ADDRESSES: {
       BondManager: '0x0000000000000000000000000000000000000000' as const,
       OptimismPortal: '0xe93c8cD0D409341205A592f8c4Ac1A5fe5585cfA' as const,
       L2OutputOracle: '0x2A35891ff30313CcFa6CE88dcf3858bb075A2298' as const,
+      OptimismPortal2: '0x0000000000000000000000000000000000000000' as const,
+      DisputeGameFactory: '0x0000000000000000000000000000000000000000' as const,
     },
     l2: DEFAULT_L2_CONTRACT_ADDRESSES,
   },
@@ -234,6 +236,8 @@ export const CONTRACT_ADDRESSES: {
       BondManager: '0x0000000000000000000000000000000000000000' as const,
       OptimismPortal: '0x49f53e41452C74589E85cA1677426Ba426459e85' as const,
       L2OutputOracle: '0x84457ca9D0163FbC4bbfe4Dfbb20ba46e48DF254' as const,
+      OptimismPortal2: '0x0000000000000000000000000000000000000000' as const,
+      DisputeGameFactory: '0x0000000000000000000000000000000000000000' as const,
     },
     l2: DEFAULT_L2_CONTRACT_ADDRESSES,
   },
@@ -250,6 +254,8 @@ export const CONTRACT_ADDRESSES: {
       BondManager: '0x0000000000000000000000000000000000000000' as const,
       OptimismPortal: '0x49048044D57e1C92A77f79988d21Fa8fAF74E97e' as const,
       L2OutputOracle: '0x56315b90c40730925ec5485cf004d835058518A0' as const,
+      OptimismPortal2: '0x0000000000000000000000000000000000000000' as const,
+      DisputeGameFactory: '0x0000000000000000000000000000000000000000' as const,
     },
     l2: DEFAULT_L2_CONTRACT_ADDRESSES,
   },
@@ -267,6 +273,8 @@ export const CONTRACT_ADDRESSES: {
       BondManager: '0x0000000000000000000000000000000000000000' as const,
       OptimismPortal: '0xDb9F51790365e7dc196e7D072728df39Be958ACe' as const,
       L2OutputOracle: '0xdD292C9eEd00f6A32Ff5245d0BCd7f2a15f24e00' as const,
+      OptimismPortal2: '0x0000000000000000000000000000000000000000' as const,
+      DisputeGameFactory: '0x0000000000000000000000000000000000000000' as const,
     },
     l2: DEFAULT_L2_CONTRACT_ADDRESSES,
   },
@@ -283,6 +291,8 @@ export const CONTRACT_ADDRESSES: {
       BondManager: '0x0000000000000000000000000000000000000000' as const,
       OptimismPortal: '0x1a0ad011913A150f69f6A19DF447A0CfD9551054' as const,
       L2OutputOracle: '0x9E6204F750cD866b299594e2aC9eA824E2e5f95c' as const,
+      OptimismPortal2: '0x0000000000000000000000000000000000000000' as const,
+      DisputeGameFactory: '0x0000000000000000000000000000000000000000' as const,
     },
     l2: DEFAULT_L2_CONTRACT_ADDRESSES,
   },

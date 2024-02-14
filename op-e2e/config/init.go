@@ -10,13 +10,27 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/exp/slog"
+
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-e2e/external"
+	op_service "github.com/ethereum-optimism/optimism/op-service"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+)
+
+// legacy geth log levels - the geth command line --verbosity flag wasn't
+// migrated to use slog's numerical levels.
+const (
+	LegacyLevelCrit = iota
+	LegacyLevelError
+	LegacyLevelWarn
+	LegacyLevelInfo
+	LegacyLevelDebug
+	LegacyLevelTrace
 )
 
 var (
@@ -38,7 +52,7 @@ var (
 	// ExternalL2TestParms is additional metadata for executing external L2
 	// tests.
 	ExternalL2TestParms external.TestParms
-	// EthNodeVerbosity is the level of verbosity to output
+	// EthNodeVerbosity is the (legacy geth) level of verbosity to output
 	EthNodeVerbosity int
 )
 
@@ -49,7 +63,7 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
-	root, err := FindMonorepoRoot(cwd)
+	root, err := op_service.FindMonorepoRoot(cwd)
 	if err != nil {
 		panic(err)
 	}
@@ -62,26 +76,29 @@ func init() {
 	flag.StringVar(&l1DeploymentsPath, "l1-deployments", defaultL1DeploymentsPath, "")
 	flag.StringVar(&deployConfigPath, "deploy-config", defaultDeployConfigPath, "")
 	flag.StringVar(&externalL2, "externalL2", "", "Enable tests with external L2")
-	flag.IntVar(&EthNodeVerbosity, "ethLogVerbosity", int(log.LvlInfo), "The level of verbosity to use for the eth node logs")
+	flag.IntVar(&EthNodeVerbosity, "ethLogVerbosity", LegacyLevelInfo, "The (legacy geth) level of verbosity to use for the eth node logs")
 	testing.Init() // Register test flags before parsing
 	flag.Parse()
 
 	// Setup global logger
-	lvl := log.Lvl(EthNodeVerbosity)
-	if lvl < log.LvlCrit {
-		log.Root().SetHandler(log.DiscardHandler())
-	} else if lvl > log.LvlTrace { // clip to trace level
-		lvl = log.LvlTrace
+	lvl := log.FromLegacyLevel(EthNodeVerbosity)
+	var handler slog.Handler
+	if lvl > log.LevelCrit {
+		handler = log.DiscardHandler()
+	} else {
+		if lvl < log.LevelTrace { // clip to trace level
+			lvl = log.LevelTrace
+		}
+		// We cannot attach a testlog logger,
+		// because the global logger is shared between different independent parallel tests.
+		// Tests that write to a testlogger of another finished test fail.
+		handler = oplog.NewLogHandler(os.Stdout, oplog.CLIConfig{
+			Level:  lvl,
+			Color:  false, // some CI logs do not handle colors well
+			Format: oplog.FormatTerminal,
+		})
 	}
-	// We cannot attach a testlog logger,
-	// because the global logger is shared between different independent parallel tests.
-	// Tests that write to a testlogger of another finished test fail.
-	h := oplog.NewLogHandler(os.Stdout, oplog.CLIConfig{
-		Level:  lvl,
-		Color:  false, // some CI logs do not handle colors well
-		Format: oplog.FormatTerminal,
-	})
-	oplog.SetGlobalLogHandler(h)
+	oplog.SetGlobalLogHandler(handler)
 
 	if err := allExist(l1AllocsPath, l1DeploymentsPath, deployConfigPath); err != nil {
 		return
@@ -157,26 +174,4 @@ func allExist(filenames ...string) error {
 		}
 	}
 	return nil
-}
-
-// FindMonorepoRoot will recursively search upwards for a go.mod file.
-// This depends on the structure of the monorepo having a go.mod file at the root.
-func FindMonorepoRoot(startDir string) (string, error) {
-	dir, err := filepath.Abs(startDir)
-	if err != nil {
-		return "", err
-	}
-	for {
-		modulePath := filepath.Join(dir, "go.mod")
-		if _, err := os.Stat(modulePath); err == nil {
-			return dir, nil
-		}
-		parentDir := filepath.Dir(dir)
-		// Check if we reached the filesystem root
-		if parentDir == dir {
-			break
-		}
-		dir = parentDir
-	}
-	return "", fmt.Errorf("monorepo root not found")
 }

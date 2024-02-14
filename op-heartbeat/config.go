@@ -6,7 +6,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-heartbeat/flags"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
-	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
+	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/urfave/cli/v2"
 )
 

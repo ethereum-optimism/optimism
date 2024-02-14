@@ -34,8 +34,8 @@ type channel struct {
 	maxInclusionBlock uint64
 }
 
-func newChannel(log log.Logger, metr metrics.Metricer, cfg ChannelConfig, rcfg *rollup.Config) (*channel, error) {
-	cb, err := newChannelBuilder(cfg, rcfg)
+func newChannel(log log.Logger, metr metrics.Metricer, cfg ChannelConfig, rollupCfg *rollup.Config) (*channel, error) {
+	cb, err := newChannelBuilder(cfg, *rollupCfg)
 	if err != nil {
 		return nil, fmt.Errorf("creating new channel: %w", err)
 	}
@@ -174,7 +174,7 @@ func (s *channel) RegisterL1Block(l1BlockNum uint64) {
 	s.channelBuilder.RegisterL1Block(l1BlockNum)
 }
 
-func (s *channel) AddBlock(block *types.Block) (derive.L1BlockInfo, error) {
+func (s *channel) AddBlock(block *types.Block) (*derive.L1BlockInfo, error) {
 	return s.channelBuilder.AddBlock(block)
 }
 

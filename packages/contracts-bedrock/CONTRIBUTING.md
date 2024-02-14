@@ -55,7 +55,7 @@ Optimism's smart contracts are written in Solidity and we use [foundry](https://
   1. Make sure to `pnpm install`
 1. [foundry](https://getfoundry.sh)
   1. Foundry is built with [rust](https://www.rust-lang.org/tools/install), and this project uses a pinned version of foundry. Install the rust toolchain with `rustup`.
-  1. Make sure to install the version of foundry used by `ci-builder`, defined in the `.foundryrc` file in the root of this repo. Once you have `foundryup` installed, there is a helper to do this: `pnpm install:foundry`
+  1. Make sure to install the version of foundry used by `ci-builder`, defined in the `versions.json` file in the root of this repo under the `foundry` key. Once you have `foundryup` installed, there is a helper to do this: `pnpm install:foundry`
 1. [golang](https://golang.org/doc/install)
 1. [python](https://www.python.org/downloads/)
 

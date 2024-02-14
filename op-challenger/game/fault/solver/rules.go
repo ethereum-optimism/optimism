@@ -36,7 +36,7 @@ func onlyStepAtMaxDepth(game types.Game, action types.Action) error {
 	if action.Type == types.ActionTypeStep {
 		return nil
 	}
-	parentDepth := uint64(game.Claims()[action.ParentIdx].Position.Depth())
+	parentDepth := game.Claims()[action.ParentIdx].Position.Depth()
 	if parentDepth >= game.MaxDepth() {
 		return fmt.Errorf("parent at max depth (%v) but attempting to perform %v action instead of step",
 			parentDepth, action.Type)
@@ -48,7 +48,7 @@ func onlyMoveBeforeMaxDepth(game types.Game, action types.Action) error {
 	if action.Type == types.ActionTypeMove {
 		return nil
 	}
-	parentDepth := uint64(game.Claims()[action.ParentIdx].Position.Depth())
+	parentDepth := game.Claims()[action.ParentIdx].Position.Depth()
 	if parentDepth < game.MaxDepth() {
 		return fmt.Errorf("parent (%v) not at max depth (%v) but attempting to perform %v action instead of move",
 			parentDepth, game.MaxDepth(), action.Type)
