@@ -96,6 +96,8 @@ contract PermissionedDisputeGame_Init is DisputeGameFactory_Init {
 contract PermissionedDisputeGame_Test is PermissionedDisputeGame_Init {
     /// @dev The root claim of the game.
     Claim internal constant ROOT_CLAIM = Claim.wrap(bytes32((uint256(1) << 248) | uint256(10)));
+    /// @dev Minimum bond value that covers all possible moves.
+    uint256 internal constant MIN_BOND = 0.01 ether;
 
     /// @dev The preimage of the absolute prestate claim
     bytes internal absolutePrestateData;
@@ -134,18 +136,20 @@ contract PermissionedDisputeGame_Test is PermissionedDisputeGame_Init {
     /// @dev Tests that the challenger can participate in a permissioned dispute game.
     function test_participateInGame_challenger_succeeds() public {
         vm.startPrank(CHALLENGER, CHALLENGER);
-        gameProxy.attack(0, Claim.wrap(0));
-        gameProxy.defend(1, Claim.wrap(0));
-        gameProxy.move(2, Claim.wrap(0), true);
+        vm.deal(CHALLENGER, MIN_BOND * 3);
+        gameProxy.attack{ value: MIN_BOND }(0, Claim.wrap(0));
+        gameProxy.defend{ value: MIN_BOND }(1, Claim.wrap(0));
+        gameProxy.move{ value: MIN_BOND }(2, Claim.wrap(0), true);
         vm.stopPrank();
     }
 
     /// @dev Tests that the proposer can participate in a permissioned dispute game.
     function test_participateInGame_proposer_succeeds() public {
         vm.startPrank(PROPOSER, PROPOSER);
-        gameProxy.attack(0, Claim.wrap(0));
-        gameProxy.defend(1, Claim.wrap(0));
-        gameProxy.move(2, Claim.wrap(0), true);
+        vm.deal(PROPOSER, MIN_BOND * 3);
+        gameProxy.attack{ value: MIN_BOND }(0, Claim.wrap(0));
+        gameProxy.defend{ value: MIN_BOND }(1, Claim.wrap(0));
+        gameProxy.move{ value: MIN_BOND }(2, Claim.wrap(0), true);
         vm.stopPrank();
     }
 
