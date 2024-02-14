@@ -1,0 +1,944 @@
+{
+  "1": {
+    "L1": {
+      "0xd26114cd6EE289AccF82350c8d8487fedB8A0C07": {
+        "name": "OMGToken",
+        "symbol": "OMG",
+        "decimals": 18
+      },
+      "0xdAC17F958D2ee523a2206206994597C13D831ec7": {
+        "name": "Tether USD",
+        "symbol": "USDT",
+        "decimals": 6
+      },
+      "0x6B175474E89094C44Da98b954EedeAC495271d0F": {
+        "name": "Dai Stablecoin",
+        "symbol": "DAI",
+        "decimals": 18
+      },
+      "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48": {
+        "name": "USD Coin",
+        "symbol": "USDC",
+        "decimals": 6
+      },
+      "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599": {
+        "name": "Wrapped BTC",
+        "symbol": "WBTC",
+        "decimals": 8
+      },
+      "0x221657776846890989a759BA2973e427DfF5C9bB": {
+        "name": "Reputation",
+        "symbol": "REPv2",
+        "decimals": 18
+      },
+      "0x0D8775F648430679A709E98d2b0Cb6250d2887EF": {
+        "name": "Basic Attention Token",
+        "symbol": "BAT",
+        "decimals": 18
+      },
+      "0xE41d2489571d322189246DaFA5ebDe1F4699F498": {
+        "name": "0x Protocol Token",
+        "symbol": "ZRX",
+        "decimals": 18
+      },
+      "0x6B3595068778DD592e39A122f4f5a5cF09C90fE2": {
+        "name": "SushiToken",
+        "symbol": "SUSHI",
+        "decimals": 18
+      },
+      "0x514910771AF9Ca656af840dff83E8264EcF986CA": {
+        "name": "ChainLink Token",
+        "symbol": "LINK",
+        "decimals": 18
+      },
+      "0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984": {
+        "name": "Uniswap",
+        "symbol": "UNI",
+        "decimals": 18
+      },
+      "0x43Dfc4159D86F3A37A5A4B3D4580b888ad7d4DDd": {
+        "name": "DODO bird",
+        "symbol": "DODO",
+        "decimals": 18
+      },
+      "0x853d955aCEf822Db058eb8505911ED77F175b99e": {
+        "name": "Frax",
+        "symbol": "FRAX",
+        "decimals": 18
+      },
+      "0x3432B6A60D23Ca0dFCa7761B7ab56459D9C964D0": {
+        "name": "Frax Share",
+        "symbol": "FXS",
+        "decimals": 18
+      },
+      "0x42bBFa2e77757C645eeaAd1655E0911a7553Efbc": {
+        "name": "Boba Token",
+        "symbol": "BOBA",
+        "decimals": 18
+      },
+      "0xa47c8bf37f92aBed4A126BDA807A7b7498661acD": {
+        "name": "Wrapped UST Token",
+        "symbol": "UST",
+        "decimals": 18
+      },
+      "0x4Fabb145d64652a948d72533023f6E7A623C7C53": {
+        "name": "Binance USD",
+        "symbol": "BUSD",
+        "decimals": 18
+      },
+      "0xB8c77482e45F1F44dE1745F52C74426C631bDD52": {
+        "name": "BNB",
+        "symbol": "BNB",
+        "decimals": 18
+      },
+      "0x4E15361FD6b4BB609Fa63C81A2be19d873717870": {
+        "name": "Fantom Token",
+        "symbol": "FTM",
+        "decimals": 18
+      },
+      "0x7D1AfA7B718fb893dB30A3aBc0Cfc608AaCfeBB0": {
+        "name": "Matic Token",
+        "symbol": "MATIC",
+        "decimals": 18
+      },
+      "0x04Fa0d235C4abf4BcF4787aF4CF447DE572eF828": {
+        "name": "UMA Voting Token v1",
+        "symbol": "UMA",
+        "decimals": 18
+      },
+      "0xef5Fa9f3Dede72Ec306dfFf1A7eA0bB0A2F7046F": {
+        "name": "Domination Finance Token",
+        "symbol": "DOM",
+        "decimals": 18
+      },
+      "0xF56b164efd3CFc02BA739b719B6526A6FA1cA32a": {
+        "name": "Curio Governance Token",
+        "symbol": "CGT",
+        "decimals": 18
+      }
+    },
+    "L2": {
+      "0xe1E2ec9a85C607092668789581251115bCBD20de": {
+        "name": "OMGToken",
+        "symbol": "OMG",
+        "decimals": 18
+      },
+      "0x5DE1677344D3Cb0D7D465c10b72A8f60699C062d": {
+        "name": "Tether USD",
+        "symbol": "USDT",
+        "decimals": 6
+      },
+      "0xf74195Bb8a5cf652411867c5C2C5b8C2a402be35": {
+        "name": "Dai Stablecoin",
+        "symbol": "DAI",
+        "decimals": 18
+      },
+      "0x66a2A913e447d6b4BF33EFbec43aAeF87890FBbc": {
+        "name": "USD Coin",
+        "symbol": "USDC",
+        "decimals": 6
+      },
+      "0xdc0486f8bf31DF57a952bcd3c1d3e166e3d9eC8b": {
+        "name": "Wrapped BTC",
+        "symbol": "WBTC",
+        "decimals": 8
+      },
+      "0x8b5B1E971862015bc058234FC11ce6C4a4c536dD": {
+        "name": "Reputation",
+        "symbol": "REPv2",
+        "decimals": 18
+      },
+      "0xc0C16dF1ee7dcEFb88C55003C49F57AA416A3578": {
+        "name": "Basic Attention Token",
+        "symbol": "BAT",
+        "decimals": 18
+      },
+      "0xf135f13Db3B114107dCB0B32B6c9e10fFF5a6987": {
+        "name": "0x Protocol Token",
+        "symbol": "ZRX",
+        "decimals": 18
+      },
+      "0x5fFccc55C0d2fd6D3AC32C26C020B3267e933F1b": {
+        "name": "SushiToken",
+        "symbol": "SUSHI",
+        "decimals": 18
+      },
+      "0xD5D5030831eE83e22a2C9a5cF99931A50c676433": {
+        "name": "ChainLink Token",
+        "symbol": "LINK",
+        "decimals": 18
+      },
+      "0xDBDE1347fED5dC03C74059010D571a16417d307e": {
+        "name": "Uniswap",
+        "symbol": "UNI",
+        "decimals": 18
+      },
+      "0x572c5B5BF34f75FB62c39b9BFE9A75bb0bb47984": {
+        "name": "DODO bird",
+        "symbol": "DODO",
+        "decimals": 18
+      },
+      "0xAb2AF3A98D229b7dAeD7305Bb88aD0BA2c42f9cA": {
+        "name": "Frax",
+        "symbol": "FRAX",
+        "decimals": 18
+      },
+      "0xdc1664458d2f0B6090bEa60A8793A4E66c2F1c00": {
+        "name": "Frax Share",
+        "symbol": "FXS",
+        "decimals": 18
+      },
+      "0xa18bF3994C0Cc6E3b63ac420308E5383f53120D7": {
+        "name": "Boba Token",
+        "symbol": "BOBA",
+        "decimals": 18
+      },
+      "0xE5Ef1407928eBCe28a6f1a0759251b7187fEa726": {
+        "name": "Wrapped UST Token",
+        "symbol": "UST",
+        "decimals": 18
+      },
+      "0x352F2Fdf653A194B42e3311f869237c66309b69E": {
+        "name": "Binance USD",
+        "symbol": "BUSD",
+        "decimals": 18
+      },
+      "0x68ac1623ACf9eB9F88b65B5F229fE3e2c0d5789e": {
+        "name": "BNB",
+        "symbol": "BNB",
+        "decimals": 18
+      },
+      "0x841979bbC06Be7BFE28d9FadDac1A73e1Fb495C1": {
+        "name": "Fantom Token",
+        "symbol": "FTM",
+        "decimals": 18
+      },
+      "0x26b664736217407E0FA252b4578DB23B1E3819F3": {
+        "name": "Matic Token",
+        "symbol": "MATIC",
+        "decimals": 18
+      },
+      "0x5747a93C87943A9567c6db00b38F1E78bF14b7C0": {
+        "name": "xBOBA Token",
+        "symbol": "xBOBA",
+        "decimals": 18
+      },
+      "0x780f33Ad21314d9A1Ffb6867Fe53d48a76Ec0D16": {
+        "name": "UMA Voting Token v1",
+        "symbol": "UMA",
+        "decimals": 18
+      },
+      "0xF56FbEc7823260D7510D63B63533153b58A01921": {
+        "name": "Domination Finance Token",
+        "symbol": "DOM",
+        "decimals": 18
+      },
+      "0xF56b164efd3CFc02BA739b719B6526A6FA1cA32a": {
+        "name": "Curio Governance Token",
+        "symbol": "CGT",
+        "decimals": 18
+      },
+      "0x8493C4d9Cd1a79be0523791E3331c78Abb3f9672": {
+        "name": "Boba WAGMI v0 Option",
+        "symbol": "WAGMIv0",
+        "decimals": 18
+      },
+      "0xCe055Ea4f29fFB8bf35E852522B96aB67Cbe8197": {
+        "name": "Boba WAGMI v1 Option",
+        "symbol": "WAGMIv1",
+        "decimals": 18
+      },
+      "0x76B5908ecd0ae3DB23011ae96b7C1f803D63136c": {
+        "name": "Boba WAGMI v2 Option",
+        "symbol": "WAGMIv2",
+        "decimals": 18
+      },
+      "0x49a3e4a1284829160f95eE785a1A5FfE2DD5Eb1D": {
+        "name": "Boba WAGMI v2 Oolong Option",
+        "symbol": "WAGMIv2-Oolong",
+        "decimals": 18
+      },
+      "0xC6158B1989f89977bcc3150fC1F2eB2260F6cabE": {
+        "name": "Boba WAGMI v3 Option",
+        "symbol": "WAGMIv3",
+        "decimals": 18
+      },
+      "0x70bf3c5B5d80C4Fece8Bde0fCe7ef38B688463d4": {
+        "name": "Boba WAGMI v3 Oolong Option",
+        "symbol": "WAGMIv3-Oolong",
+        "decimals": 18
+      },
+      "0x5008F837883EA9a07271a1b5eB0658404F5a9610": {
+        "name": "OolongSwap Token",
+        "symbol": "OLO",
+        "decimals": 18
+      }
+    }
+  },
+  "4": {
+    "L1": {
+      "0x2B203de02AD6109521e09985b3aF9B8c62541Cd6": {
+        "name": "OMGToken",
+        "symbol": "OMG",
+        "decimals": 18
+      },
+      "0xD9BA894E0097f8cC2BBc9D24D308b98e36dc6D02": {
+        "name": "Tether USD",
+        "symbol": "USDT",
+        "decimals": 6
+      },
+      "0x5592EC0cfb4dbc12D3aB100b257153436a1f0FEa": {
+        "name": "Dai Stablecoin",
+        "symbol": "DAI",
+        "decimals": 18
+      },
+      "0x4DBCdF9B62e891a7cec5A2568C3F4FAF9E8Abe2b": {
+        "name": "USD Coin",
+        "symbol": "USDC",
+        "decimals": 6
+      },
+      "0x577D296678535e4903D59A4C929B718e1D575e0A": {
+        "name": "Wrapped BTC",
+        "symbol": "WBTC",
+        "decimals": 8
+      },
+      "0x6e894660985207feb7cf89Faf048998c71E8EE89": {
+        "name": "Reputation",
+        "symbol": "REPv2",
+        "decimals": 18
+      },
+      "0xbF7A7169562078c96f0eC1A8aFD6aE50f12e5A99": {
+        "name": "Basic Attention Token",
+        "symbol": "BAT",
+        "decimals": 18
+      },
+      "0xddea378A6dDC8AfeC82C36E9b0078826bf9e68B6": {
+        "name": "0x Protocol Token",
+        "symbol": "ZRX",
+        "decimals": 18
+      },
+      "0xA434947525699FfbbF74260947c2906831FafD98": {
+        "name": "SushiToken",
+        "symbol": "SUSHI",
+        "decimals": 18
+      },
+      "0x01BE23585060835E02B77ef475b0Cc51aA1e0709": {
+        "name": "ChainLink Token",
+        "symbol": "LINK",
+        "decimals": 18
+      },
+      "0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984": {
+        "name": "Uniswap",
+        "symbol": "UNI",
+        "decimals": 18
+      },
+      "0xa23A5D188C8E2f4b3E029815a793972C58D89890": {
+        "name": "Frax",
+        "symbol": "FRAX",
+        "decimals": 18
+      },
+      "0xb1efaEC30db0da6CD2ADbDE71D82A73DcA6aF182": {
+        "name": "Frax Share",
+        "symbol": "FXS",
+        "decimals": 18
+      },
+      "0x6A6676813d3D4317442CF84667425C13553F4a76": {
+        "name": "Boba Token",
+        "symbol": "BOBA",
+        "decimals": 18
+      },
+      "0x012e4C202b1153183F7B0e7A90348C4cCE15d2c9": {
+        "name": "Wrapped UST Token",
+        "symbol": "UST",
+        "decimals": 18
+      },
+      "0x697Eda570FE014832456b4B3d2Dff8591eA3f4fc": {
+        "name": "Binance USD",
+        "symbol": "BUSD",
+        "decimals": 18
+      },
+      "0xeB72FaBBEF4D4F59bCA384123977eD9529c9bd2e": {
+        "name": "BNB",
+        "symbol": "BNB",
+        "decimals": 18
+      },
+      "0x72fe8933fcA2C14a8E2b3BF050e3d81E90Efeb60": {
+        "name": "Fantom Token",
+        "symbol": "FTM",
+        "decimals": 18
+      },
+      "0x3aC6AFFeD629A16ffccD1C865ad6E10Dc0A1076A": {
+        "name": "Matic Token",
+        "symbol": "MATIC",
+        "decimals": 18
+      },
+      "0x3917C064E4Fcc25409C8415c75bf52709DB47358": {
+        "name": "Domination Finance Token",
+        "symbol": "DOM",
+        "decimals": 18
+      }
+    },
+    "L2": {
+      "0xC5086AA4BB6F18B3D966381E18Bcc317CeD9507c": {
+        "name": "OMGToken",
+        "symbol": "OMG",
+        "decimals": 18
+      },
+      "0x9d0364c866A73e34649869525CD7576080259A42": {
+        "name": "Tether USD",
+        "symbol": "USDT",
+        "decimals": 6
+      },
+      "0x0630f97C8938051a44b0A64e9D4d484295393Fe4": {
+        "name": "Dai Stablecoin",
+        "symbol": "DAI",
+        "decimals": 18
+      },
+      "0xB24898De59C8E259F9742bCF2C16Fd613DCeA8F7": {
+        "name": "USD Coin",
+        "symbol": "USDC",
+        "decimals": 6
+      },
+      "0x3074A3d2570e06F74F06913965adDcd1161D7fDC": {
+        "name": "Wrapped BTC",
+        "symbol": "WBTC",
+        "decimals": 8
+      },
+      "0x7896be8b69069bd39d71b3Fc987C6c0AFF7c3b95": {
+        "name": "Reputation",
+        "symbol": "REPv2",
+        "decimals": 18
+      },
+      "0x3C07C6627Aa879cD6988A5256E9A04D69DbD9530": {
+        "name": "Basic Attention Token",
+        "symbol": "BAT",
+        "decimals": 18
+      },
+      "0x23b274b0856C2F55C392d4F051BD252dF6C202D7": {
+        "name": "0x Protocol Token",
+        "symbol": "ZRX",
+        "decimals": 18
+      },
+      "0x799F1f4045AFd00DFaE47Ab01Fb94AdB2f120B2C": {
+        "name": "SushiToken",
+        "symbol": "SUSHI",
+        "decimals": 18
+      },
+      "0x1cC8d6d2f14ac432605558A30461ebF501EaE427": {
+        "name": "ChainLink Token",
+        "symbol": "LINK",
+        "decimals": 18
+      },
+      "0x803Ec6089Ab7CC320840EDBd4bB99399467E57E0": {
+        "name": "Uniswap",
+        "symbol": "UNI",
+        "decimals": 18
+      },
+      "0x6FF9c8FF8F0B6a0763a3030540c21aFC721A9148": {
+        "name": "Frax",
+        "symbol": "FRAX",
+        "decimals": 18
+      },
+      "0x991AaC49780774D1e358ceA459070f9351022139": {
+        "name": "Frax Share",
+        "symbol": "FXS",
+        "decimals": 18
+      },
+      "0xF5B97a4860c1D81A1e915C40EcCB5E4a5E6b8309": {
+        "name": "Boba Token",
+        "symbol": "BOBA",
+        "decimals": 18
+      },
+      "0x429582bDe1B0E011C48d883354050938f194743F": {
+        "name": "Wrapped UST Token",
+        "symbol": "UST",
+        "decimals": 18
+      },
+      "0x01c9DC8B9c66D61a56Db7bF3F5303Cd9E9c85B1F": {
+        "name": "Binance USD",
+        "symbol": "BUSD",
+        "decimals": 18
+      },
+      "0x42356f071B65FD0FBA2b74566EB1D3634F008CDa": {
+        "name": "BNB",
+        "symbol": "BNB",
+        "decimals": 18
+      },
+      "0xc346Ab3D382521296dB7b52d71b062dDEC54e9Db": {
+        "name": "Fantom Token",
+        "symbol": "FTM",
+        "decimals": 18
+      },
+      "0xbcA151440F29c10BeBA5a410c52914e236Fc9845": {
+        "name": "Matic Token",
+        "symbol": "MATIC",
+        "decimals": 18
+      },
+      "0xebE42F5cEA2184F6b416bFFAB0744b11281AE95b": {
+        "name": "xBOBA Token",
+        "symbol": "xBOBA",
+        "decimals": 18
+      },
+      "0x38e14a34D6A28B1d47A83F4B53a99007243C4310": {
+        "name": "Domination Finance Token",
+        "symbol": "DOM",
+        "decimals": 18
+      }
+    }
+  },
+  "5": {
+    "L1": {
+      "0xeCCD355862591CBB4bB7E7dD55072070ee3d0fC1": {
+        "name": "Boba Token",
+        "symbol": "BOBA",
+        "decimals": 18
+      },
+      "0x07865c6E87B9F70255377e024ace6630C1Eaa37F": {
+        "name": "USD Coin",
+        "symbol": "USDC",
+        "decimals": 6
+      },
+      "0xCb9b561c91dDA1A9bAc33F7716a4d5586B7F5649": {
+        "name": "OMG Token",
+        "symbol": "OMG",
+        "decimals": 18
+      }
+    },
+    "L2": {
+      "0x4200000000000000000000000000000000000023": {
+        "name": "Boba Token",
+        "symbol": "BOBA",
+        "decimals": 18
+      },
+      "0x429582bDe1B0E011C48d883354050938f194743F": {
+        "name": "USD Coin",
+        "symbol": "USDC",
+        "decimals": 6
+      },
+      "0x080bf38b43a1441873116002d36CCB583464cF45": {
+        "name": "OMG Token",
+        "symbol": "OMG",
+        "decimals": 18
+      },
+      "0x01c9DC8B9c66D61a56Db7bF3F5303Cd9E9c85B1F": {
+        "name": "xBOBA Token",
+        "symbol": "xBOBA",
+        "decimals": 18
+      }
+    }
+  },
+  "43114": {
+    "L1": {
+      "0x3cD790449CF7D187a143d4Bd7F4654d4f2403e02": {
+        "name": "BOBA Token",
+        "symbol": "BOBA",
+        "decimals": 18
+      },
+      "0x42006Ab57701251B580bDFc24778C43c9ff589A1": {
+        "name": "EVO",
+        "symbol": "EVO",
+        "decimals": 18
+      },
+      "0xc7198437980c041c805A1EDcbA50c1Ce5db95118": {
+        "name": "Tether USD",
+        "symbol": "USDT.e",
+        "decimals": 6
+      },
+      "0x9702230A8Ea53601f5cD2dc00fDBc13d4dF4A8c7": {
+        "name": "TetherToken",
+        "symbol": "USDt",
+        "decimals": 6
+      },
+      "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E": {
+        "name": "USD Coin",
+        "symbol": "USDC",
+        "decimals": 6
+      },
+      "0xA7D7079b0FEaD91F3e65f86E8915Cb59c1a4C664": {
+        "name": "USD Coin",
+        "symbol": "USDC.e",
+        "decimals": 6
+      },
+      "0x19860CCB0A68fd4213aB9D8266F7bBf05A8dDe98": {
+        "name": "Binance USD",
+        "symbol": "BUSD.e",
+        "decimals": 18
+      },
+      "0x9C9e5fD8bbc25984B178FdCE6117Defa39d2db39": {
+        "name": "BUSD Token",
+        "symbol": "BUSD",
+        "decimals": 18
+      },
+      "0xd586E7F844cEa2F87f50152665BCbc2C279D8d70": {
+        "name": "Dai Stablecoin",
+        "symbol": "DAI.e",
+        "decimals": 18
+      }
+    },
+    "L2": {
+      "0x4200000000000000000000000000000000000006": {
+        "name": "BOBA Token",
+        "symbol": "BOBA",
+        "decimals": 18
+      },
+      "0xc8849f32138de93F6097199C5721a9EfD91ceE01": {
+        "name": "EVO",
+        "symbol": "EVO",
+        "decimals": 18
+      },
+      "0x4ED96c1dc969d7E2310D9582A68c39556C005912": {
+        "name": "Tether USD",
+        "symbol": "USDT.e",
+        "decimals": 6
+      },
+      "0xfaA13D82756f1e0e4dec9416b83121db3Fc35199": {
+        "name": "TetherToken",
+        "symbol": "USDt",
+        "decimals": 6
+      },
+      "0x12bb1A120dcF8Cb7152eDAC9f04d176DD7f41F7e": {
+        "name": "USD Coin",
+        "symbol": "USDC",
+        "decimals": 6
+      },
+      "0x126969743a6d300bab08F303f104f0f7DBAfbe20": {
+        "name": "USD Coin",
+        "symbol": "USDC.e",
+        "decimals": 6
+      },
+      "0xb8B0034CFD89925944C07Ac6CcB2834d1774cfb6": {
+        "name": "Binance USD",
+        "symbol": "BUSD.e",
+        "decimals": 18
+      },
+      "0x87e062dE99Ed71aF9b22dDA63e1b6D43333798f8": {
+        "name": "BUSD Token",
+        "symbol": "BUSD",
+        "decimals": 18
+      },
+      "0x69B7d24f0E03Ff21949081C95dA7288fEa5C844D": {
+        "name": "Dai Stablecoin",
+        "symbol": "DAI.e",
+        "decimals": 18
+      },
+      "0x4200000000000000000000000000000000000023": {
+        "name": "Avalanche",
+        "symbol": "AVAX",
+        "decimals": 18
+      }
+    }
+  },
+  "43113": {
+    "L1": {
+      "0xEaE78E78cC22690719361F65a50734A15aaE698C": {
+        "name": "BOBA Token",
+        "symbol": "BOBA",
+        "decimals": 18
+      }
+    },
+    "L2": {
+      "0x4200000000000000000000000000000000000006": {
+        "name": "BOBA Token",
+        "symbol": "BOBA",
+        "decimals": 18
+      },
+      "0x4200000000000000000000000000000000000023": {
+        "name": "Avalanche",
+        "symbol": "AVAX",
+        "decimals": 18
+      }
+    }
+  },
+  "56": {
+    "L1": {
+      "0xE0DB679377A0F5Ae2BaE485DE475c9e1d8A4607D": {
+        "name": "BOBA Token",
+        "symbol": "BOBA",
+        "decimals": 18
+      },
+      "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d": {
+        "name": "USD Coin",
+        "symbol": "USDC",
+        "decimals": 18
+      },
+      "0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56": {
+        "name": "BUSD Token",
+        "symbol": "BUSD",
+        "decimals": 18
+      },
+      "0x55d398326f99059fF775485246999027B3197955": {
+        "name": "Tether USD",
+        "symbol": "USDT",
+        "decimals": 18
+      },
+      "0x986cdF0fd180b40c4D6aEAA01Ab740B996D8b782": {
+        "name": "SushiToken",
+        "symbol": "SUSHI",
+        "decimals": 18
+      },
+      "0x2170Ed0880ac9A755fd29B2688956BD959F933F8": {
+        "name": "Binance-Peg Ethereum Token",
+        "symbol": "ETH",
+        "decimals": 18
+      },
+      "0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c": {
+        "name": "Binance-Peg BTCB Token",
+        "symbol": "BTCB",
+        "decimals": 18
+      }
+    },
+    "L2": {
+      "0x4200000000000000000000000000000000000006": {
+        "name": "BOBA Token",
+        "symbol": "BOBA",
+        "decimals": 18
+      },
+      "0x9F98f9F312D23d078061962837042b8918e6aff2": {
+        "name": "USD Coin",
+        "symbol": "USDC",
+        "decimals": 18
+      },
+      "0x4a2c2838c3907D024916c3f4Fe07832745Ae4bec": {
+        "name": "BUSD Token",
+        "symbol": "BUSD",
+        "decimals": 18
+      },
+      "0x1E633Dcd0d3D349126983D58988051F7c62c543D": {
+        "name": "Tether USD",
+        "symbol": "USDT",
+        "decimals": 18
+      },
+      "0x4200000000000000000000000000000000000023": {
+        "name": "BNB",
+        "symbol": "BNB",
+        "decimals": 18
+      },
+      "0xa84D7c48602C898EC84C4cCA78651107B3625943": {
+        "name": "SushiToken",
+        "symbol": "SUSHI",
+        "decimals": 18
+      },
+      "0x38Ca7a190f57D38F4DC44413508e1078cD9E0045": {
+        "name": "Binance-Peg Ethereum Token",
+        "symbol": "ETH",
+        "decimals": 18
+      },
+      "0x876DF0D9582699541Caa1CD57b3a82Cd51c2AD5b": {
+        "name": "Binance-Peg BTCB Token",
+        "symbol": "BTCB",
+        "decimals": 18
+      }
+    }
+  },
+  "97": {
+    "L1": {
+      "0x875cD11fDf085e0E11B0EE6b814b6d0b38fA554C": {
+        "name": "BOBA Token",
+        "symbol": "BOBA",
+        "decimals": 18
+      },
+      "0x02Ed46AA41fcb4a6f06a5F2D43A958F1e8c0A4E6": {
+        "name": "Meta Token Test",
+        "symbol": "MTT",
+        "decimals": 18
+      }
+    },
+    "L2": {
+      "0x4200000000000000000000000000000000000006": {
+        "name": "BOBA Token",
+        "symbol": "BOBA",
+        "decimals": 18
+      },
+      "0x4200000000000000000000000000000000000023": {
+        "name": "tBNB",
+        "symbol": "tBNB",
+        "decimals": 18
+      },
+      "0xb3BE5C928E3ec6b11985753f7B3C43A8bB12Bc03": {
+        "name": "Meta Token Test",
+        "symbol": "MTT",
+        "decimals": 18
+      }
+    }
+  },
+  "1284": {
+    "L1": {
+      "0x18D17A9fD652D7d6a59903E23792ab97F832Ed6C": {
+        "name": "BOBA Token",
+        "symbol": "BOBA",
+        "decimals": 18
+      },
+      "0xfA9343C3897324496A05fC75abeD6bAC29f8A40f": {
+        "name": "Ethereum",
+        "symbol": "ETH.mc",
+        "decimals": 18
+      },
+      "0xab3f0245B83feB11d15AAffeFD7AD465a59817eD": {
+        "name": "Ethereum",
+        "symbol": "ETH.wh",
+        "decimals": 18
+      },
+      "0x922D641a426DcFFaeF11680e5358F34d97d112E1": {
+        "name": "Wrapped BTC",
+        "symbol": "WBTC.mc",
+        "decimals": 8
+      },
+      "0xE57eBd2d67B462E9926e04a8e33f01cD0D64346D": {
+        "name": "Wrapped BTC",
+        "symbol": "WBTC.wh",
+        "decimals": 8
+      },
+      "0x818ec0A7Fe18Ff94269904fCED6AE3DaE6d6dC0b": {
+        "name": "USD Coin",
+        "symbol": "USDC.mc",
+        "decimals": 6
+      },
+      "0x931715FEE2d06333043d11F658C8CE934aC61D0c": {
+        "name": "USD Coin",
+        "symbol": "USDC.wh",
+        "decimals": 6
+      }
+    },
+    "L2": {
+      "0x4200000000000000000000000000000000000006": {
+        "name": "BOBA Token",
+        "symbol": "BOBA",
+        "decimals": 18
+      },
+      "0x4200000000000000000000000000000000000023": {
+        "name": "GLMR",
+        "symbol": "GLMR",
+        "decimals": 18
+      },
+      "0x9790a5640c4cca26e8689CC4163d5719C1A79A03": {
+        "name": "Ethereum",
+        "symbol": "ETH.mc",
+        "decimals": 18
+      },
+      "0x03Ee748da8951c976BfC06190b7e646c8Cc3f2d1": {
+        "name": "Ethereum",
+        "symbol": "ETH.wh",
+        "decimals": 18
+      },
+      "0x7D669C169B7161511CE061da3ad986525Ea179D6": {
+        "name": "Wrapped BTC",
+        "symbol": "WBTC.mc",
+        "decimals": 8
+      },
+      "0x1c98d96cfcDc4599D5FbB61Aa30301d94fcA8002": {
+        "name": "Wrapped BTC",
+        "symbol": "WBTC.wh",
+        "decimals": 8
+      },
+      "0x078b2D8ce51eD85400959FC5c362d1c53A41C375": {
+        "name": "USD Coin",
+        "symbol": "USDC.mc",
+        "decimals": 6
+      },
+      "0xEa89117fC0150f9042b0aE0C3058ea6dB970A780": {
+        "name": "USD Coin",
+        "symbol": "USDC.wh",
+        "decimals": 6
+      }
+    }
+  },
+  "1287": {
+    "L1": {
+      "0x1365fd7BcEE84686DBCA71e1571C0d9ad9E64945": {
+        "name": "BOBA Token",
+        "symbol": "BOBA",
+        "decimals": 18
+      }
+    },
+    "L2": {
+      "0x4200000000000000000000000000000000000006": {
+        "name": "BOBA Token",
+        "symbol": "BOBA",
+        "decimals": 18
+      },
+      "0x4200000000000000000000000000000000000023": {
+        "name": "DEV",
+        "symbol": "DEV",
+        "decimals": 18
+      }
+    }
+  },
+  "250": {
+    "L1": {
+      "0x4389b230D15119c347B9E8BEA6d930A21aaDF6BA": {
+        "name": "BOBA Token",
+        "symbol": "BOBA",
+        "decimals": 18
+      },
+      "0x04068DA6C83AFCFA0e13ba15A6696662335D5B75": {
+        "name": "USD Coin",
+        "symbol": "USDC",
+        "decimals": 6
+      },
+      "0x8D11eC38a3EB5E956B052f67Da8Bdc9bef8Abf3E": {
+        "name": "Dai Stablecoin",
+        "symbol": "DAI",
+        "decimals": 18
+      }
+    },
+    "L2": {
+      "0x4200000000000000000000000000000000000006": {
+        "name": "BOBA Token",
+        "symbol": "BOBA",
+        "decimals": 18
+      },
+      "0x4200000000000000000000000000000000000023": {
+        "name": "FTM",
+        "symbol": "FTM",
+        "decimals": 18
+      },
+      "0xb7629EF94B991865940E8A840Aa7d68fa88c3Fe8": {
+        "name": "USD Coin",
+        "symbol": "USDC",
+        "decimals": 6
+      },
+      "0x31223A147fF76C3fC43d67F8BC36F11E034c484e": {
+        "name": "Dai Stablecoin",
+        "symbol": "DAI",
+        "decimals": 18
+      }
+    }
+  },
+  "4002": {
+    "L1": {
+      "0x5E747DfA79b8f9e46BE0CC67e378b7600350B2eF": {
+        "name": "BOBA Token",
+        "symbol": "BOBA",
+        "decimals": 18
+      }
+    },
+    "L2": {
+      "0x4200000000000000000000000000000000000006": {
+        "name": "BOBA Token",
+        "symbol": "BOBA",
+        "decimals": 18
+      },
+      "0x4200000000000000000000000000000000000023": {
+        "name": "FTM",
+        "symbol": "FTM",
+        "decimals": 18
+      }
+    }
+  },
+  "11155111": {
+    "L1": {
+      "0x33faF65b3DfcC6A1FccaD4531D9ce518F0FDc896": {
+        "name": "Boba Token",
+        "symbol": "BOBA",
+        "decimals": 18
+      }
+    },
+    "L2": {
+      "0x4200000000000000000000000000000000000023": {
+        "name": "Boba Token",
+        "symbol": "BOBA",
+        "decimals": 18
+      }
+    }
+  }
+}
