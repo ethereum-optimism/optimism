@@ -467,6 +467,33 @@ var (
 		}),
 	}
 
+	EngineCopyPayloadCmd = &cli.Command{
+		Name: "copy-payload",
+		Flags: []cli.Flag{
+			EngineEndpoint, EngineJWTPath,
+			&cli.StringFlag{
+				Name:     "source",
+				Usage:    "Unauthenticated regular eth JSON RPC to pull block data from, can be HTTP/WS/IPC.",
+				Required: true,
+				EnvVars:  prefixEnvVars("ENGINE"),
+			},
+			&cli.Uint64Flag{
+				Name:     "number",
+				Usage:    "Block number to copy from the source",
+				Required: true,
+				EnvVars:  prefixEnvVars("ENGINE"),
+			},
+		},
+		Action: EngineAction(func(ctx *cli.Context, dest client.RPC) error {
+			rpcClient, err := rpc.DialOptions(context.Background(), ctx.String("source"))
+			if err != nil {
+				return fmt.Errorf("failed to dial engine source endpoint: %w", err)
+			}
+			source := client.NewBaseRPCClient(rpcClient)
+			return engine.CopyPayload(context.Background(), ctx.Uint64("number"), source, dest)
+		}),
+	}
+
 	EngineSetForkchoiceCmd = &cli.Command{
 		Name:        "set-forkchoice",
 		Description: "Set forkchoice, specify unsafe, safe and finalized blocks by number",
@@ -582,6 +609,7 @@ var EngineCmd = &cli.Command{
 		EngineAutoCmd,
 		EngineStatusCmd,
 		EngineCopyCmd,
+		EngineCopyPayloadCmd,
 		EngineSetForkchoiceCmd,
 		EngineSetForkchoiceHashCmd,
 		EngineJSONCmd,

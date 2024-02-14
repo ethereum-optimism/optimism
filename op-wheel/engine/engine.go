@@ -310,6 +310,20 @@ func Copy(ctx context.Context, copyFrom client.RPC, copyTo client.RPC) error {
 	return nil
 }
 
+// CopyPaylod takes the execution payload at number & applies it via NewPayload to copyTo
+func CopyPayload(ctx context.Context, number uint64, copyFrom client.RPC, copyTo client.RPC) error {
+	copyHead, err := getBlock(ctx, copyFrom, "eth_getBlockByNumber", fmt.Sprintf("%#.6x", number))
+	if err != nil {
+		return err
+	}
+	payloadEnv := engine.BlockToExecutableData(copyHead, nil, nil)
+	payload := payloadEnv.ExecutionPayload
+	if err := insertBlock(ctx, copyTo, payload); err != nil {
+		return err
+	}
+	return nil
+}
+
 func SetForkchoice(ctx context.Context, client client.RPC, finalizedNum, safeNum, unsafeNum uint64) error {
 	if unsafeNum < safeNum {
 		return fmt.Errorf("cannot set unsafe (%d) < safe (%d)", unsafeNum, safeNum)
