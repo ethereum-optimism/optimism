@@ -1372,7 +1372,8 @@ jobs:
           command: |
             make verify-sepolia
           working_directory: op-program
-      - notify-failures-on-develop
+      - notify-failures-on-develop:
+          mentions: "@proofs-squad"
 
   op-program-compat:
     docker:
