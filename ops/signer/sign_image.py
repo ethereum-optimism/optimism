@@ -306,15 +306,15 @@ def main():
     logging.debug(f"Acting as {current_user_email}")
 
     #------ Retrieve initial image info ----------------------#
-    logging.info("Retriving docker image")
+    logging.info("Retrieving docker image")
     image_info=retrieve_image_info(env_variables['IMAGE_PATH']['value'])
     if not image_info:
-        logging.critical("it was not possible to retrive image digest. Please make sure to set the image digest or the image tag in the parameters")
+        logging.critical("it was not possible to retrieve image digest. Please make sure to set the image digest or the image tag in the parameters")
         return
 
 
     #------ Retrieve initial attestor key info ----------------------#
-    logging.info("Retriving attestor informations")
+    logging.info("Retrieving attestor information")
     attestor_retrieved_info=retrieve_attestor_info(attestor_info=attestor_info,current_user_email=current_user_email)
     if not attestor_retrieved_info:
         logging.critical(f"attestor {attestor_info} not present")
@@ -330,7 +330,7 @@ def main():
 
     key_info=get_key_info(attestor_info=attestor_info)
 
-    #------ Genereting payload ----------------------#
+    #------ Generating payload ----------------------#
     logging.info("Generating json docker_image_descriptiion with image url@sha256-digest")
     image_description_payload=generate_image_description_payload(image_info)
     logging.info("Generating docker_image_description in base64 of the docker_image_description_sha256")
