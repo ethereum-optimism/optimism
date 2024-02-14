@@ -111,7 +111,6 @@ contract Setup {
             OptimismMintableERC20Factory(deploy.mustGetAddress("OptimismMintableERC20FactoryProxy"));
         protocolVersions = ProtocolVersions(deploy.mustGetAddress("ProtocolVersionsProxy"));
         superchainConfig = SuperchainConfig(deploy.mustGetAddress("SuperchainConfigProxy"));
-        dataAvailabilityChallenge = DataAvailabilityChallenge(deploy.mustGetAddress("DataAvailabilityChallengeProxy"));
 
         vm.label(address(l2OutputOracle), "L2OutputOracle");
         vm.label(deploy.mustGetAddress("L2OutputOracleProxy"), "L2OutputOracleProxy");
@@ -135,6 +134,12 @@ contract Setup {
         vm.label(address(superchainConfig), "SuperchainConfig");
         vm.label(deploy.mustGetAddress("SuperchainConfigProxy"), "SuperchainConfigProxy");
         vm.label(AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger)), "L1CrossDomainMessenger_aliased");
+
+        if(deploy.cfg().usePlasma()) {
+            dataAvailabilityChallenge = DataAvailabilityChallenge(deploy.mustGetAddress("DataAvailabilityChallengeProxy"));
+            vm.label(address(dataAvailabilityChallenge), "DataAvailabilityChallenge");
+            vm.label(deploy.mustGetAddress("DataAvailabilityChallengeProxy"), "DataAvailabilityChallengeProxy");
+        }
     }
 
     /// @dev Sets up the L2 contracts. Depends on `L1()` being called first.

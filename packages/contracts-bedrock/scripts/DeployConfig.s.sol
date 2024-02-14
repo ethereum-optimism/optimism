@@ -141,14 +141,13 @@ contract DeployConfig is Script {
         preimageOracleChallengePeriod = stdJson.readUint(_json, "$.preimageOracleChallengePeriod");
         preimageOracleCancunActivationTimestamp = stdJson.readUint(_json, "$.preimageOracleCancunActivationTimestamp");
 
-        usePlasma = vm.keyExists(_json, "$.usePlasma") && stdJson.readBool(_json, "$.usePlasma");
-
-        if (usePlasma) {
-            console.log("DeployConfig: initializing plasma parameters");
-            daChallengeWindow = stdJson.readUint(_json, "$.daChallengeWindow");
-            daResolveWindow = stdJson.readUint(_json, "$.daResolveWindow");
-            daBondSize = stdJson.readUint(_json, "$.daBondSize");
-            daResolverRefundPercentage = stdJson.readUint(_json, "$.daResolverRefundPercentage");
+        if (vm.keyExists(_json, "$.usePlasma") && stdJson.readBool(_json, "$.usePlasma")) {
+            enablePlasma({
+                _daChallengeWindow: stdJson.readUint(_json, "$.daChallengeWindow"),
+                _daResolveWindow: stdJson.readUint(_json, "$.daResolveWindow"),
+                _daBondSize: stdJson.readUint(_json, "$.daBondSize"),
+                _daResolverRefundPercentage: stdJson.readUint(_json, "$.daResolverRefundPercentage")
+            });
         }
     }
 
@@ -187,5 +186,15 @@ contract DeployConfig is Script {
         cmd[2] = string.concat("cast block ", _tag, " --json | ", Executables.jq, " -r .hash");
         bytes memory res = vm.ffi(cmd);
         return abi.decode(res, (bytes32));
+    }
+
+    /// @notice Setter function to allow enabling plasma in testing environment even if it is not part of the config json
+    function enablePlasma(uint256 _daChallengeWindow, uint256 _daResolveWindow, uint256 _daBondSize, uint256 _daResolverRefundPercentage) public {
+        console.log("DeployConfig: initializing plasma parameters");
+        usePlasma = true;
+        daChallengeWindow = _daChallengeWindow;
+        daResolveWindow = _daResolveWindow;
+        daBondSize = _daBondSize;
+        daResolverRefundPercentage = _daResolverRefundPercentage;
     }
 }

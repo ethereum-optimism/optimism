@@ -103,4 +103,14 @@ contract CommonTest is Test, Setup, Events {
             bytes32(uint256(1))
         );
     }
+
+    function enablePlasma() public {
+        deploy.cfg().enablePlasma({
+            _daChallengeWindow: 1,
+            _daResolveWindow: 1,
+            _daBondSize: 1000,
+            _daResolverRefundPercentage: 0
+        });
+    }
+
 }
