@@ -58,7 +58,7 @@ func RegisterGameTypes(
 		}
 	}
 	if cfg.TraceTypeEnabled(config.TraceTypeAlphabet) {
-		if err := registerAlphabet(registry, ctx, cl, logger, m, outputSourceCreator, txSender, gameFactory, caller); err != nil {
+		if err := registerAlphabet(registry, ctx, cl, logger, m, rollupClient, txSender, gameFactory, caller); err != nil {
 			return nil, fmt.Errorf("failed to register alphabet game type: %w", err)
 		}
 	}
@@ -71,7 +71,7 @@ func registerAlphabet(
 	cl faultTypes.ClockReader,
 	logger log.Logger,
 	m metrics.Metricer,
-	outputSourceCreator *source.OutputSourceCreator,
+	rollupClient source.OutputRollupClient,
 	txSender types.TxSender,
 	gameFactory *contracts.DisputeGameFactoryContract,
 	caller *batching.MultiCaller,
@@ -89,17 +89,10 @@ func registerAlphabet(
 		if err != nil {
 			return nil, err
 		}
-		l1Head, err := contract.GetL1Head(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load L1 head: %w", err)
-		}
-		rollupClient, err := outputSourceCreator.ForL1Head(ctx, l1Head)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create output root source: %w", err)
-		}
-		prestateProvider := outputs.NewPrestateProvider(rollupClient, prestateBlock)
+		outputSource := source.NewUnrestrictedOutputSource(rollupClient)
+		prestateProvider := outputs.NewPrestateProvider(outputSource, prestateBlock)
 		creator := func(ctx context.Context, logger log.Logger, gameDepth faultTypes.Depth, dir string) (faultTypes.TraceAccessor, error) {
-			accessor, err := outputs.NewOutputAlphabetTraceAccessor(logger, m, prestateProvider, rollupClient, splitDepth, prestateBlock, poststateBlock)
+			accessor, err := outputs.NewOutputAlphabetTraceAccessor(logger, m, prestateProvider, outputSource, splitDepth, prestateBlock, poststateBlock)
 			if err != nil {
 				return nil, err
 			}
