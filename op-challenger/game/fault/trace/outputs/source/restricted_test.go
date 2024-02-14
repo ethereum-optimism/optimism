@@ -2,6 +2,7 @@ package source
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -75,10 +76,21 @@ func TestRestrictedOutputLoader(t *testing.T) {
 	}
 }
 
+func TestRestrictedOutputLoader_ReturnsError(t *testing.T) {
+	expectedErr := errors.New("boom")
+	loader := NewRestrictedOutputSource(&stubOutputRollupClient{err: expectedErr}, 6)
+	_, err := loader.OutputAtBlock(context.Background(), 4)
+	require.ErrorIs(t, err, expectedErr)
+}
+
 type stubOutputRollupClient struct {
+	err error
 }
 
 func (s *stubOutputRollupClient) OutputAtBlock(_ context.Context, blockNum uint64) (*eth.OutputResponse, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
 	return &eth.OutputResponse{
 		OutputRoot: eth.Bytes32{byte(blockNum)},
 	}, nil
