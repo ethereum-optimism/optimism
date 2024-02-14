@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -39,7 +40,7 @@ func newForecast(logger log.Logger, metrics ForecastMetrics, creator GameCallerC
 }
 
 func (f *forecast) Forecast(ctx context.Context, games []types.GameMetadata) {
-	batch := forecastBatch{}
+	batch := monTypes.ForecastBatch{}
 	for _, game := range games {
 		if err := f.forecastGame(ctx, game, &batch); err != nil {
 			f.logger.Error("Failed to forecast game", "err", err)
@@ -48,14 +49,14 @@ func (f *forecast) Forecast(ctx context.Context, games []types.GameMetadata) {
 	f.recordBatch(batch)
 }
 
-func (f *forecast) recordBatch(batch forecastBatch) {
+func (f *forecast) recordBatch(batch monTypes.ForecastBatch) {
 	f.metrics.RecordGameAgreement("agree_challenger_ahead", batch.AgreeChallengerAhead)
 	f.metrics.RecordGameAgreement("disagree_challenger_ahead", batch.DisagreeChallengerAhead)
 	f.metrics.RecordGameAgreement("agree_defender_ahead", batch.AgreeDefenderAhead)
 	f.metrics.RecordGameAgreement("disagree_defender_ahead", batch.DisagreeDefenderAhead)
 }
 
-func (f *forecast) forecastGame(ctx context.Context, game types.GameMetadata, metrics *forecastBatch) error {
+func (f *forecast) forecastGame(ctx context.Context, game types.GameMetadata, metrics *monTypes.ForecastBatch) error {
 	loader, err := f.creator.CreateContract(game)
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrContractCreation, err)
