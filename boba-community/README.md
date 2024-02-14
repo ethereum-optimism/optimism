@@ -30,18 +30,13 @@ Here are instructions if you want to run boba erigon version as the replica node
 
   The **erigon** db can be downloaded from [optimism sepolia erigon db](https://boba-db.s3.us-east-2.amazonaws.com/sepolia/optimism-sepolia-erigon-db.tgz).
 
-  Or you can generate the **erigon** db by downloading the genesis file from [Optimsim](https://networks.optimism.io/op-sepolia/genesis.json).
+  Or you can generate the **erigon** db by downloading the genesis file from [Optimsim](https://networks.optimism.io/op-sepolia/genesis.json) and initialize the data directory with it.
   
   ```bash
   curl -o op-sepolia-genesis.json -sL https://networks.optimism.io/op-sepolia/genesis.json
-  ```
-
-  Once the genesis file is downloaded to the local directory, you can initialize the data directory with the genesis file.
-  
-  ```bash
   erigon init --datadir=/db genesis.json
   ```
-
+  
   The erigon can be built from the [source](https://github.com/bobanetwork/v3-erigon) using `make erigon` .
   
   > You can verify the download by running the following command:
