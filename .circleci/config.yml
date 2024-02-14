@@ -81,12 +81,16 @@ commands:
       channel:
         type: string
         default: C03N11M0BBN
+      mentions:
+        type: string
+        default: ""
     steps:
       - slack/notify:
           channel: << parameters.channel >>
           event: fail
           template: basic_fail_1
           branch_pattern: develop
+          mentions: "<< parameters.mentions >>"
 
 jobs:
   cannon-go-lint-and-test:
@@ -837,6 +841,10 @@ jobs:
         description: Whether to notify on failure
         type: boolean
         default: false
+      mentions:
+        description: Slack user or group to mention when notifying of failures
+        type: string
+        default: ""
     environment:
       DEVNET_FPAC: 'false'
       OP_E2E_USE_FPAC: 'false'
@@ -907,7 +915,8 @@ jobs:
       - when:
           condition: "<<parameters.notify>>"
           steps:
-            - notify-failures-on-develop
+            - notify-failures-on-develop:
+                mentions: "<<parameters.mentions>>"
 
   go-lint-test-build:
     parameters:
@@ -1363,7 +1372,8 @@ jobs:
           command: |
             make verify-sepolia
           working_directory: op-program
-      - notify-failures-on-develop
+      - notify-failures-on-develop:
+          mentions: "@proofs-squad"
 
   op-program-compat:
     docker:
@@ -2016,6 +2026,7 @@ workflows:
           target: test-cannon
           parallelism: 4
           notify: true
+          mentions: "@proofs-squad"
           requires:
             - pnpm-monorepo
             - cannon-prestate
