@@ -17,6 +17,23 @@ bindings: compile bindings-build
 
 bindings-build: bindgen-generate-local
 
+bindgen: compile bindgen-generate-all
+
+bindgen-generate-all:
+	go run ./cmd/ \
+		generate \
+		--monorepo-base $(monorepo-base) \
+		--metadata-out ./$(pkg) \
+		--bindings-package $(pkg) \
+		--contracts-list ./artifacts.json \
+		all \
+		--forge-artifacts $(contracts-dir)/forge-artifacts \
+		--source-maps-list MIPS,PreimageOracle \
+		--etherscan.apikey.eth $(ETHERSCAN_APIKEY_ETH) \
+		--etherscan.apikey.op $(ETHERSCAN_APIKEY_OP) \
+		--rpc.url.eth $(RPC_URL_ETH) \
+		--rpc.url.op $(RPC_URL_OP)
+
 bindgen-local: compile bindgen-generate-local
 
 bindgen-generate-local:
@@ -29,6 +46,19 @@ bindgen-generate-local:
 		local \
 		--forge-artifacts $(contracts-dir)/forge-artifacts \
 		--source-maps-list MIPS,PreimageOracle
+
+bindgen-remote:
+	go run ./cmd/ \
+		generate \
+		--monorepo-base $(monorepo-base) \
+		--metadata-out ./$(pkg) \
+		--bindings-package $(pkg) \
+		--contracts-list ./artifacts.json \
+		remote \
+		--etherscan.apikey.eth $(ETHERSCAN_APIKEY_ETH) \
+		--etherscan.apikey.op $(ETHERSCAN_APIKEY_OP) \
+		--rpc.url.eth $(RPC_URL_ETH) \
+		--rpc.url.op $(RPC_URL_OP)
 
 mkdir:
 	mkdir -p $(pkg)
