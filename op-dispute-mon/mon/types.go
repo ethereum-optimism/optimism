@@ -19,6 +19,13 @@ func (s *statusBatch) Add(status types.GameStatus) {
 	}
 }
 
+type forecastBatch struct {
+	AgreeDefenderAhead      int
+	DisagreeDefenderAhead   int
+	AgreeChallengerAhead    int
+	DisagreeChallengerAhead int
+}
+
 type detectionBatch struct {
 	inProgress             int
 	agreeDefenderWins      int

@@ -18,32 +18,44 @@ var (
 	ErrRootAgreement    = errors.New("failed to check root agreement")
 )
 
+type ForecastMetrics interface {
+	RecordGameAgreement(status string, count int)
+}
+
 type forecast struct {
-	logger log.Logger
-	// TODO(client-pod#536): Add forecast metrics.
-	//                       These should only fire if a game is in progress.
-	//                       otherwise, the detector should record the game status.
+	logger    log.Logger
+	metrics   ForecastMetrics
 	creator   GameCallerCreator
 	validator OutputValidator
 }
 
-func newForecast(logger log.Logger, creator GameCallerCreator, validator OutputValidator) *forecast {
+func newForecast(logger log.Logger, metrics ForecastMetrics, creator GameCallerCreator, validator OutputValidator) *forecast {
 	return &forecast{
 		logger:    logger,
+		metrics:   metrics,
 		creator:   creator,
 		validator: validator,
 	}
 }
 
 func (f *forecast) Forecast(ctx context.Context, games []types.GameMetadata) {
+	batch := forecastBatch{}
 	for _, game := range games {
-		if err := f.forecastGame(ctx, game); err != nil {
+		if err := f.forecastGame(ctx, game, &batch); err != nil {
 			f.logger.Error("Failed to forecast game", "err", err)
 		}
 	}
+	f.recordBatch(batch)
 }
 
-func (f *forecast) forecastGame(ctx context.Context, game types.GameMetadata) error {
+func (f *forecast) recordBatch(batch forecastBatch) {
+	f.metrics.RecordGameAgreement("agree_challenger_ahead", batch.AgreeChallengerAhead)
+	f.metrics.RecordGameAgreement("disagree_challenger_ahead", batch.DisagreeChallengerAhead)
+	f.metrics.RecordGameAgreement("agree_defender_ahead", batch.AgreeDefenderAhead)
+	f.metrics.RecordGameAgreement("disagree_defender_ahead", batch.DisagreeDefenderAhead)
+}
+
+func (f *forecast) forecastGame(ctx context.Context, game types.GameMetadata, metrics *forecastBatch) error {
 	loader, err := f.creator.CreateContract(game)
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrContractCreation, err)
@@ -80,15 +92,19 @@ func (f *forecast) forecastGame(ctx context.Context, game types.GameMetadata) er
 	if agreement {
 		// If we agree with the output root proposal, the Defender should win, defending that claim.
 		if status == types.GameStatusChallengerWon {
+			metrics.AgreeChallengerAhead++
 			f.logger.Warn("Forecasting unexpected game result", "status", status, "game", game, "rootClaim", rootClaim, "expected", expected)
 		} else {
+			metrics.AgreeDefenderAhead++
 			f.logger.Debug("Forecasting expected game result", "status", status, "game", game, "rootClaim", rootClaim, "expected", expected)
 		}
 	} else {
 		// If we disagree with the output root proposal, the Challenger should win, challenging that claim.
 		if status == types.GameStatusDefenderWon {
+			metrics.DisagreeDefenderAhead++
 			f.logger.Warn("Forecasting unexpected game result", "status", status, "game", game, "rootClaim", rootClaim, "expected", expected)
 		} else {
+			metrics.DisagreeChallengerAhead++
 			f.logger.Debug("Forecasting expected game result", "status", status, "game", game, "rootClaim", rootClaim, "expected", expected)
 		}
 	}

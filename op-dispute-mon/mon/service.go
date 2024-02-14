@@ -79,11 +79,14 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 	if err := s.initOutputRollupClient(ctx, cfg); err != nil {
 		return fmt.Errorf("failed to init rollup client: %w", err)
 	}
-	s.initOutputValidator()
-	s.initGameCallerCreator()
+
+	s.initOutputValidator()   // Must be called before initForecast
+	s.initGameCallerCreator() // Must be called before initForecast
+
 	s.initForecast(cfg)
 	s.initDetector()
-	s.initMonitor(ctx, cfg)
+
+	s.initMonitor(ctx, cfg) // Monitor must be initialized last
 
 	s.metrics.RecordInfo(version.SimpleWithMeta)
 	s.metrics.RecordUp()
@@ -100,7 +103,7 @@ func (s *Service) initGameCallerCreator() {
 }
 
 func (s *Service) initForecast(cfg *config.Config) {
-	s.forecast = newForecast(s.logger, s.game, s.validator)
+	s.forecast = newForecast(s.logger, s.metrics, s.game, s.validator)
 }
 
 func (s *Service) initDetector() {
