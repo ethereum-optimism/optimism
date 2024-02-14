@@ -294,6 +294,46 @@ func TestOutputCannonStepWithPreimage(t *testing.T) {
 	})
 }
 
+func TestOutputCannonStepWithKZGPointEvaluation(t *testing.T) {
+	testPreimageStep := func(t *testing.T, preloadPreimage bool) {
+		op_e2e.InitParallel(t, op_e2e.UsesCannon)
+
+		ctx := context.Background()
+		sys, _ := startFaultDisputeSystem(t, withEcotone())
+		t.Cleanup(sys.Close)
+
+		receipt := sendKZGPointEvaluationTx(t, sys, "sequencer", sys.Cfg.Secrets.Alice)
+		precompileBlock := receipt.BlockNumber
+		t.Logf("KZG Point Evaluation block number: %d", precompileBlock)
+
+		disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
+		game := disputeGameFactory.StartOutputCannonGame(ctx, "sequencer", precompileBlock.Uint64(), common.Hash{0x01, 0xaa})
+		require.NotNil(t, game)
+		outputRootClaim := game.DisputeLastBlock(ctx)
+		game.LogGameData(ctx)
+
+		game.StartChallenger(ctx, "sequencer", "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
+
+		// Wait for the honest challenger to dispute the outputRootClaim. This creates a root of an execution game that we challenge by coercing
+		// a step at a preimage trace index.
+		outputRootClaim = outputRootClaim.WaitForCounterClaim(ctx)
+
+		// Now the honest challenger is positioned as the defender of the execution game
+		// We then move to challenge it to induce a preimage load
+		preimageLoadCheck := game.CreateStepPreimageLoadCheck(ctx)
+		game.ChallengeToPreimageLoad(ctx, outputRootClaim, sys.Cfg.Secrets.Alice, cannon.FirstKZGPointEvaluationPreimageLoad(), preimageLoadCheck, preloadPreimage)
+		// The above method already verified the image was uploaded and step called successfully
+		// So we don't waste time resolving the game - that's tested elsewhere.
+	}
+
+	t.Run("non-existing preimage", func(t *testing.T) {
+		testPreimageStep(t, false)
+	})
+	t.Run("preimage already exists", func(t *testing.T) {
+		testPreimageStep(t, true)
+	})
+}
+
 func TestOutputCannonProposedOutputRootValid(t *testing.T) {
 	// honestStepsFail attempts to perform both an attack and defend step using the correct trace.
 	honestStepsFail := func(ctx context.Context, game *disputegame.OutputCannonGameHelper, correctTrace *disputegame.OutputHonestHelper, parentClaimIdx int64) {
