@@ -552,6 +552,17 @@ jobs:
           command: make && git diff --exit-code
           working_directory: boba-bindings
 
+  boba-bindgen-remote:
+    docker:
+      - image: <<pipeline.parameters.ci_builder_image>>
+    resource_class: xlarge
+    steps:
+      - checkout
+      - run:
+          name: bindgen remote bindings
+          command: make bindgen-remote && git diff --exit-code
+          working_directory: boba-bindings
+
   js-lint-test:
     parameters:
       package_name:
@@ -1549,6 +1560,7 @@ workflows:
             - pnpm-monorepo
       - op-bindings-build
       - boba-bindings-build
+      - boba-bindgen-remote
       - js-lint-test:
           name: chain-mon-tests
           coverage_flag: chain-mon-tests
