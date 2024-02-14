@@ -3,7 +3,6 @@ package op_e2e
 import (
 	"context"
 	"fmt"
-	"math/rand"
 	"net"
 	"strings"
 	"testing"
@@ -59,12 +58,24 @@ func setupSequencerFailoverTest(t *testing.T) (*System, map[string]*conductor) {
 	InitParallel(t)
 	ctx := context.Background()
 
-	sequencerPort := findAvailablePort(t)
+	sequencerPort1 := findAvailablePort(t, 49152)
+	sequencerPort2 := findAvailablePort(t, sequencerPort1)
+	sequencerPort3 := findAvailablePort(t, sequencerPort2)
 
 	conductorRpcPorts := map[string]int{
-		Sequencer1Name: sequencerPort,
-		Sequencer2Name: sequencerPort + 1,
-		Sequencer3Name: sequencerPort + 2,
+		Sequencer1Name: sequencerPort1,
+		Sequencer2Name: sequencerPort2,
+		Sequencer3Name: sequencerPort3,
+	}
+
+	consensusPort1 := findAvailablePort(t, sequencerPort3)
+	consensusPort2 := findAvailablePort(t, consensusPort1)
+	consensusPort3 := findAvailablePort(t, consensusPort2)
+
+	consensusPorts := map[string]int{
+		Sequencer1Name: consensusPort1,
+		Sequencer2Name: consensusPort2,
+		Sequencer3Name: consensusPort3,
 	}
 
 	// 3 sequencers, 1 verifier, 1 active sequencer.
@@ -77,19 +88,20 @@ func setupSequencerFailoverTest(t *testing.T) (*System, map[string]*conductor) {
 
 	// initialize all conductors in paused mode
 	conductorCfgs := []struct {
-		name      string
-		port      int
-		bootstrap bool
+		name          string
+		sequencerPort int
+		consensusPort int
+		bootstrap     bool
 	}{
-		{Sequencer1Name, conductorRpcPorts[Sequencer1Name], true}, // one in bootstrap mode so that we can form a cluster.
-		{Sequencer2Name, conductorRpcPorts[Sequencer2Name], false},
-		{Sequencer3Name, conductorRpcPorts[Sequencer3Name], false},
+		{Sequencer1Name, conductorRpcPorts[Sequencer1Name], consensusPorts[Sequencer1Name], true}, // one in bootstrap mode so that we can form a cluster.
+		{Sequencer2Name, conductorRpcPorts[Sequencer2Name], consensusPorts[Sequencer2Name], false},
+		{Sequencer3Name, conductorRpcPorts[Sequencer3Name], consensusPorts[Sequencer3Name], false},
 	}
 	for _, cfg := range conductorCfgs {
 		cfg := cfg
 		nodePRC := sys.RollupNodes[cfg.name].HTTPEndpoint()
 		engineRPC := sys.EthInstances[cfg.name].HTTPEndpoint()
-		conductors[cfg.name] = setupConductor(t, cfg.name, t.TempDir(), nodePRC, engineRPC, cfg.port, cfg.bootstrap, *sys.RollupConfig)
+		conductors[cfg.name] = setupConductor(t, cfg.name, t.TempDir(), nodePRC, engineRPC, cfg.sequencerPort, cfg.consensusPort, cfg.bootstrap, *sys.RollupConfig)
 	}
 
 	// form a cluster
@@ -154,12 +166,12 @@ func setupConductor(
 	t *testing.T,
 	serverID, dir, nodeRPC, engineRPC string,
 	rpcPort int,
+	consensusPort int,
 	bootstrap bool,
 	rollupCfg rollup.Config,
 ) *conductor {
 	// it's unfortunate that it is not possible to pass 0 as consensus port and get back the actual assigned port from raft implementation.
 	// So we find an available port and pass it in to avoid test flakiness (avoid port already in use error).
-	consensusPort := findAvailablePort(t)
 	cfg := con.Config{
 		ConsensusAddr:  localhost,
 		ConsensusPort:  consensusPort,
@@ -347,8 +359,9 @@ func sequencerActive(t *testing.T, ctx context.Context, rollupClient *sources.Ro
 	return active
 }
 
-func findAvailablePort(t *testing.T) int {
+func findAvailablePort(t *testing.T, floor int) int {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	i := floor + 1
 	defer cancel()
 	for {
 		select {
@@ -356,13 +369,14 @@ func findAvailablePort(t *testing.T) int {
 			t.Error("Failed to find available port")
 		default:
 			// private / ephemeral ports are in the range 49152-65535
-			port := rand.Intn(65535-49152) + 49152
+			port := i
 			addr := fmt.Sprintf("127.0.0.1:%d", port)
 			l, err := net.Listen("tcp", addr)
 			if err == nil {
 				l.Close() // Close the listener and return the port if it's available
 				return port
 			}
+			i++
 		}
 	}
 }
