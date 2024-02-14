@@ -59,7 +59,7 @@
     "isomorphic-fetch": "^3.0.0",
     "jest-dom": "link:@types/@testing-library/jest-dom",
     "jsdom": "^24.0.0",
-    "tsup": "^8.0.1",
+    "tsup": "^8.0.2",
     "typescript": "^5.3.3",
     "vite": "^5.0.12",
     "wagmi": "^2.5.5",
