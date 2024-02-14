@@ -365,7 +365,7 @@ contract PreimageOracle is IPreimageOracle {
         // the part offset is always 0
         preimagePartOk[key][0] = true;
         preimageParts[key][0] = part;
-        preimageLengths[key] = 32;
+        preimageLengths[key] = 1;
     }
 
     ////////////////////////////////////////////////////////////////
