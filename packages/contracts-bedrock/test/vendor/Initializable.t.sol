@@ -30,8 +30,7 @@ contract Initializer_Test is Bridge_Initializer {
     InitializeableContract[] contracts;
 
     function setUp() public override {
-        // Override the config to enable plasma
-        enablePlasma();
+        super.enablePlasma();
         // Run the `Bridge_Initializer`'s `setUp()` function.
         super.setUp();
 

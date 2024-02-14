@@ -11,6 +11,10 @@ import { Chains } from "scripts/Chains.sol";
 // environment.
 bytes32 constant USE_FAULT_PROOFS_SLOT = bytes32(uint256(63));
 
+// Global constant for the `usePlasma` slot in the DeployConfig contract, which can be overridden in the testing
+// environment.
+bytes32 constant USE_PLASMA_SLOT = bytes32(uint256(62));
+
 /// @title DeployConfig
 /// @notice Represents the configuration required to deploy the system. It is expected
 ///         to read the file from JSON. A future improvement would be to have fallback
@@ -70,11 +74,11 @@ contract DeployConfig is Script {
     uint256 public disputeGameFinalityDelaySeconds;
     uint256 public respectedGameType;
     bool public useFaultProofs;
+    bool public usePlasma;
     uint256 public daChallengeWindow;
     uint256 public daResolveWindow;
     uint256 public daBondSize;
     uint256 public daResolverRefundPercentage;
-    bool public usePlasma;
 
     function read(string memory _path) public {
         console.log("DeployConfig: reading file %s", _path);
@@ -141,14 +145,11 @@ contract DeployConfig is Script {
         preimageOracleChallengePeriod = stdJson.readUint(_json, "$.preimageOracleChallengePeriod");
         preimageOracleCancunActivationTimestamp = stdJson.readUint(_json, "$.preimageOracleCancunActivationTimestamp");
 
-        if (vm.keyExists(_json, "$.usePlasma") && stdJson.readBool(_json, "$.usePlasma")) {
-            enablePlasma({
-                _daChallengeWindow: stdJson.readUint(_json, "$.daChallengeWindow"),
-                _daResolveWindow: stdJson.readUint(_json, "$.daResolveWindow"),
-                _daBondSize: stdJson.readUint(_json, "$.daBondSize"),
-                _daResolverRefundPercentage: stdJson.readUint(_json, "$.daResolverRefundPercentage")
-            });
-        }
+        usePlasma = _readOr(_json, "$.usePlasma", false);
+        daChallengeWindow = _readOr(_json, "$.daChallengeWindow", 0);
+        daResolveWindow = _readOr(_json, "$.daResolveWindow", 0);
+        daBondSize = _readOr(_json, "$.daBondSize", 0);
+        daResolverRefundPercentage= _readOr(_json, "$.daResolverRefundPercentage", 0);
     }
 
     function l1StartingBlockTag() public returns (bytes32) {
@@ -188,13 +189,11 @@ contract DeployConfig is Script {
         return abi.decode(res, (bytes32));
     }
 
-    /// @notice Setter function to allow enabling plasma in testing environment even if it is not part of the config json
-    function enablePlasma(uint256 _daChallengeWindow, uint256 _daResolveWindow, uint256 _daBondSize, uint256 _daResolverRefundPercentage) public {
-        console.log("DeployConfig: initializing plasma parameters");
-        usePlasma = true;
-        daChallengeWindow = _daChallengeWindow;
-        daResolveWindow = _daResolveWindow;
-        daBondSize = _daBondSize;
-        daResolverRefundPercentage = _daResolverRefundPercentage;
+    function _readOr(string memory json, string memory key, bool defaultValue) internal view returns (bool) {
+        return vm.keyExists(json, key) ? stdJson.readBool(json, key) : defaultValue;
+    }
+
+    function _readOr(string memory json, string memory key, uint256 defaultValue) internal view returns (uint256) {
+        return vm.keyExists(json, key) ? stdJson.readUint(json, key) : defaultValue;
     }
 }

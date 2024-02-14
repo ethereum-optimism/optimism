@@ -244,6 +244,10 @@ contract Deploy is Deployer {
         // config file. If this slot has already been set, it will override the preference in the deploy config.
         bytes32 useFaultProofsOverride = vm.load(address(cfg), USE_FAULT_PROOFS_SLOT);
 
+        // Load the `usePlasma` slot value prior to etching the DeployConfig's bytecode and reading the deploy
+        // config file. If this slot has already been set, it will override the preference in the deploy config.
+        bytes32 usePlasmaOverride = vm.load(address(cfg), USE_PLASMA_SLOT);
+
         string memory path = string.concat(vm.projectRoot(), "/deploy-config/", deploymentContext, ".json");
         vm.etch(address(cfg), vm.getDeployedCode("DeployConfig.s.sol:DeployConfig"));
         vm.label(address(cfg), "DeployConfig");
@@ -252,6 +256,10 @@ contract Deploy is Deployer {
 
         if (useFaultProofsOverride != 0) {
             vm.store(address(cfg), USE_FAULT_PROOFS_SLOT, useFaultProofsOverride);
+        }
+
+        if (usePlasmaOverride != 0) {
+            vm.store(address(cfg), USE_PLASMA_SLOT, usePlasmaOverride);
         }
 
         console.log("Deploying from %s", deployScript);

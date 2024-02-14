@@ -105,12 +105,19 @@ contract CommonTest is Test, Setup, Events {
     }
 
     function enablePlasma() public {
-        deploy.cfg().enablePlasma({
-            _daChallengeWindow: 1,
-            _daResolveWindow: 1,
-            _daBondSize: 1000,
-            _daResolverRefundPercentage: 0
-        });
+        // Check if the system has already been deployed, based off of the heuristic that alice and bob have not been
+        // set by the `setUp` function yet.
+        if (!(alice == address(0) && bob == address(0))) {
+            revert("CommonTest: Cannot enable plasma after deployment. Consider overriding `setUp`.");
+        }
+
+        // Set `usePlasma` to `true` in the deploy config so that the deploy script deploys the plasma contracts.
+        // This directly overrides the deploy config's `usePlasma` value, if the test requires it.
+        vm.store(
+            address(uint160(uint256(keccak256(abi.encode("optimism.deployconfig"))))),
+            USE_PLASMA_SLOT,
+            bytes32(uint256(1))
+        );
     }
 
 }
