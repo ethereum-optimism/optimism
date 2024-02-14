@@ -115,11 +115,11 @@ func L1CrossDomainMessenger(batch *safe.Batch, implementations superchain.Implem
 	}
 
 	if optimismPortal != common.Address(list.OptimismPortalProxy) {
-		return fmt.Errorf("upgrading L1CrossDomainMessenger: Portal address doesn't match config")
+		return fmt.Errorf("Portal address doesn't match config")
 	}
 
 	if otherMessenger != predeploys.L2CrossDomainMessengerAddr {
-		return fmt.Errorf("upgrading L1CrossDomainMessenger: OtherMessenger address doesn't match config")
+		return fmt.Errorf("OtherMessenger address doesn't match config")
 	}
 
 	calldata, err := l1CrossDomainMessengerABI.Pack("initialize", superchainConfigProxy, optimismPortal)
@@ -197,11 +197,11 @@ func L1ERC721Bridge(batch *safe.Batch, implementations superchain.Implementation
 	}
 
 	if messenger != common.Address(list.L1CrossDomainMessengerProxy) {
-		return fmt.Errorf("upgrading L1ERC721Bridge: Messenger address doesn't match config")
+		return fmt.Errorf("Messenger address doesn't match config")
 	}
 
 	if otherBridge != predeploys.L2ERC721BridgeAddr {
-		return fmt.Errorf("upgrading L1ERC721Bridge: OtherBridge address doesn't match config")
+		return fmt.Errorf("OtherBridge address doesn't match config")
 	}
 
 	calldata, err := l1ERC721BridgeABI.Pack("initialize", messenger, superchainConfigProxy)
@@ -281,11 +281,11 @@ func L1StandardBridge(batch *safe.Batch, implementations superchain.Implementati
 	}
 
 	if messenger != common.Address(list.L1CrossDomainMessengerProxy) {
-		return fmt.Errorf("upgrading L1StandardBridge: Messenger address doesn't match config")
+		return fmt.Errorf("Messenger address doesn't match config")
 	}
 
 	if otherBridge != predeploys.L2StandardBridgeAddr {
-		return fmt.Errorf("upgrading L1StandardBridge: OtherBridge address doesn't match config")
+		return fmt.Errorf("OtherBridge address doesn't match config")
 	}
 
 	calldata, err := l1StandardBridgeABI.Pack("initialize", messenger, superchainConfigProxy)
@@ -391,15 +391,15 @@ func L2OutputOracle(batch *safe.Batch, implementations superchain.Implementation
 
 	if config != nil {
 		if l2OutputOracleSubmissionInterval.Uint64() != config.L2OutputOracleSubmissionInterval {
-			return fmt.Errorf("upgrading L2OutputOracle: L2OutputOracleSubmissionInterval address doesn't match config")
+			return fmt.Errorf("L2OutputOracleSubmissionInterval address doesn't match config")
 		}
 
 		if l2BlockTime.Uint64() != config.L2BlockTime {
-			return fmt.Errorf("upgrading L2OutputOracle: L2BlockTime address doesn't match config")
+			return fmt.Errorf("L2BlockTime address doesn't match config")
 		}
 
 		if l2OutputOracleStartingBlockNumber.Uint64() != config.L2OutputOracleStartingBlockNumber {
-			return fmt.Errorf("upgrading L2OutputOracle: L2OutputOracleStartingBlockNumber address doesn't match config")
+			return fmt.Errorf("L2OutputOracleStartingBlockNumber address doesn't match config")
 		}
 
 		if config.L2OutputOracleStartingTimestamp < 0 {
@@ -407,19 +407,19 @@ func L2OutputOracle(batch *safe.Batch, implementations superchain.Implementation
 		}
 
 		if int(l2OutputOracleStartingTimestamp.Int64()) != config.L2OutputOracleStartingTimestamp {
-			return fmt.Errorf("upgrading L2OutputOracle: L2OutputOracleStartingTimestamp address doesn't match config")
+			return fmt.Errorf("L2OutputOracleStartingTimestamp address doesn't match config")
 		}
 
 		if l2OutputOracleProposer != config.L2OutputOracleProposer {
-			return fmt.Errorf("upgrading L2OutputOracle: L2OutputOracleProposer address doesn't match config")
+			return fmt.Errorf("L2OutputOracleProposer address doesn't match config")
 		}
 
 		if l2OutputOracleChallenger != config.L2OutputOracleChallenger {
-			return fmt.Errorf("upgrading L2OutputOracle: L2OutputOracleChallenger address doesn't match config")
+			return fmt.Errorf("L2OutputOracleChallenger address doesn't match config")
 		}
 
 		if finalizationPeriodSeconds.Uint64() != config.FinalizationPeriodSeconds {
-			return fmt.Errorf("upgrading L2OutputOracle: FinalizationPeriodSeconds address doesn't match config")
+			return fmt.Errorf("FinalizationPeriodSeconds address doesn't match config")
 		}
 	}
 
@@ -504,7 +504,7 @@ func OptimismMintableERC20Factory(batch *safe.Batch, implementations superchain.
 	}
 
 	if bridge != common.Address(list.L1StandardBridgeProxy) {
-		return fmt.Errorf("upgrading OptimismMintableERC20Factory: Bridge address doesn't match config")
+		return fmt.Errorf("Bridge address doesn't match config")
 	}
 
 	calldata, err := optimismMintableERC20FactoryABI.Pack("initialize", bridge)
@@ -582,11 +582,11 @@ func OptimismPortal(batch *safe.Batch, implementations superchain.Implementation
 	}
 
 	if l2OutputOracle != common.HexToAddress(list.L2OutputOracleProxy.String()) {
-		return fmt.Errorf("upgrading OptimismPortal: L2OutputOracle address doesn't match config")
+		return fmt.Errorf("L2OutputOracle address doesn't match config")
 	}
 
 	if systemConfig != common.HexToAddress(chainConfig.SystemConfigAddr.String()) {
-		return fmt.Errorf("upgrading OptimismPortal: SystemConfig address doesn't match config")
+		return fmt.Errorf("SystemConfig address doesn't match config")
 	}
 
 	calldata, err := optimismPortalABI.Pack("initialize", l2OutputOracle, systemConfig, superchainConfigProxy)
@@ -696,25 +696,47 @@ func SystemConfig(batch *safe.Batch, implementations superchain.ImplementationLi
 		return err
 	}
 
-	if config != nil {
-		if gasPriceOracleOverhead.Uint64() != config.GasPriceOracleOverhead {
-			return fmt.Errorf("upgrading SystemConfig: GasPriceOracleOverhead address doesn't match config")
-		}
-		if gasPriceOracleScalar.Uint64() != config.GasPriceOracleScalar {
-			return fmt.Errorf("upgrading SystemConfig: GasPriceOracleScalar address doesn't match config")
-		}
-		if batcherHash != common.BytesToHash(config.BatchSenderAddress.Bytes()) {
-			return fmt.Errorf("upgrading SystemConfig: BatchSenderAddress address doesn't match config")
-		}
-		if l2GenesisBlockGasLimit != uint64(config.L2GenesisBlockGasLimit) {
-			return fmt.Errorf("upgrading SystemConfig: L2GenesisBlockGasLimit address doesn't match config")
-		}
-		if p2pSequencerAddress != config.P2PSequencerAddress {
-			return fmt.Errorf("upgrading SystemConfig: P2PSequencerAddress address doesn't match config")
-		}
-		if finalSystemOwner != config.FinalSystemOwner {
-			return fmt.Errorf("upgrading SystemConfig: FinalSystemOwner address doesn't match config")
-		}
+	if gasPriceOracleOverhead.Uint64() != config.GasPriceOracleOverhead {
+		return fmt.Errorf("GasPriceOracleOverhead address doesn't match config")
+	}
+	if gasPriceOracleScalar.Uint64() != config.GasPriceOracleScalar {
+		return fmt.Errorf("GasPriceOracleScalar address doesn't match config")
+	}
+	if batcherHash != common.BytesToHash(config.BatchSenderAddress.Bytes()) {
+		return fmt.Errorf("BatchSenderAddress address doesn't match config")
+	}
+	if l2GenesisBlockGasLimit != uint64(config.L2GenesisBlockGasLimit) {
+		return fmt.Errorf("L2GenesisBlockGasLimit address doesn't match config")
+	}
+	if p2pSequencerAddress != config.P2PSequencerAddress {
+		return fmt.Errorf("P2PSequencerAddress address doesn't match config")
+	}
+	if finalSystemOwner != config.FinalSystemOwner {
+		return fmt.Errorf("FinalSystemOwner address doesn't match config")
+	}
+
+	resourceConfig, err := systemConfig.ResourceConfig(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+
+	if resourceConfig.MaxResourceLimit != genesis.DefaultResourceConfig.MaxResourceLimit {
+		return fmt.Errorf("DefaultResourceConfig MaxResourceLimit doesn't match contract MaxResourceLimit")
+	}
+	if resourceConfig.ElasticityMultiplier != genesis.DefaultResourceConfig.ElasticityMultiplier {
+		return fmt.Errorf("DefaultResourceConfig ElasticityMultiplier doesn't match contract ElasticityMultiplier")
+	}
+	if resourceConfig.BaseFeeMaxChangeDenominator != genesis.DefaultResourceConfig.BaseFeeMaxChangeDenominator {
+		return fmt.Errorf("DefaultResourceConfig BaseFeeMaxChangeDenominator doesn't match contract BaseFeeMaxChangeDenominator")
+	}
+	if resourceConfig.MinimumBaseFee != genesis.DefaultResourceConfig.MinimumBaseFee {
+		return fmt.Errorf("DefaultResourceConfig MinimumBaseFee doesn't match contract MinimumBaseFee")
+	}
+	if resourceConfig.SystemTxMaxGas != genesis.DefaultResourceConfig.SystemTxMaxGas {
+		return fmt.Errorf("DefaultResourceConfig SystemTxMaxGas doesn't match contract SystemTxMaxGas")
+	}
+	if resourceConfig.MaximumBaseFee.Cmp(genesis.DefaultResourceConfig.MaximumBaseFee) != 0 {
+		return fmt.Errorf("DefaultResourceConfig MaximumBaseFee doesn't match contract MaximumBaseFee")
 	}
 
 	calldata, err := systemConfigABI.Pack(

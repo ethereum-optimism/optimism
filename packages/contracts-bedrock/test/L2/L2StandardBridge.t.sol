@@ -2,6 +2,8 @@
 pragma solidity 0.8.15;
 
 // Testing utilities
+import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
+
 // Target contract is imported by the `Bridge_Initializer`
 import { Bridge_Initializer } from "test/setup/Bridge_Initializer.sol";
 import { stdStorage, StdStorage } from "forge-std/Test.sol";
@@ -24,12 +26,12 @@ contract L2StandardBridge_Test is Bridge_Initializer {
 
     /// @dev Test that the bridge's constructor sets the correct values.
     function test_constructor_succeeds() external {
-        L2StandardBridge impl = L2StandardBridge(deploy.mustGetAddress("L2StandardBridge"));
-        assertEq(address(impl.MESSENGER()), address(l2CrossDomainMessenger));
-        assertEq(address(impl.messenger()), address(l2CrossDomainMessenger));
-        assertEq(l1StandardBridge.l2TokenBridge(), address(impl));
-        assertEq(address(impl.OTHER_BRIDGE()), address(l1StandardBridge));
-        assertEq(address(impl.otherBridge()), address(l1StandardBridge));
+        L2StandardBridge impl =
+            L2StandardBridge(payable(EIP1967Helper.getImplementation(deploy.mustGetAddress("L2StandardBridge"))));
+        assertEq(address(impl.MESSENGER()), address(0));
+        assertEq(address(impl.messenger()), address(0));
+        assertEq(address(impl.OTHER_BRIDGE()), address(0));
+        assertEq(address(impl.otherBridge()), address(0));
     }
 
     /// @dev Tests that the bridge is initialized correctly.

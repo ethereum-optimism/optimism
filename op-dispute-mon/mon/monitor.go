@@ -14,6 +14,7 @@ import (
 )
 
 type Detect func(ctx context.Context, games []types.GameMetadata)
+type Forecast func(ctx context.Context, games []types.GameMetadata)
 type BlockHashFetcher func(ctx context.Context, number *big.Int) (common.Hash, error)
 type BlockNumberFetcher func(ctx context.Context) (uint64, error)
 type FactoryGameFetcher func(ctx context.Context, blockHash common.Hash, earliestTimestamp uint64) ([]types.GameMetadata, error)
@@ -30,6 +31,7 @@ type gameMonitor struct {
 	monitorInterval time.Duration
 
 	detect           Detect
+	forecast         Forecast
 	fetchGames       FactoryGameFetcher
 	fetchBlockHash   BlockHashFetcher
 	fetchBlockNumber BlockNumberFetcher
@@ -42,6 +44,7 @@ func newGameMonitor(
 	monitorInterval time.Duration,
 	gameWindow time.Duration,
 	detect Detect,
+	forecast Forecast,
 	factory FactoryGameFetcher,
 	fetchBlockNumber BlockNumberFetcher,
 	fetchBlockHash BlockHashFetcher,
@@ -54,6 +57,7 @@ func newGameMonitor(
 		monitorInterval:  monitorInterval,
 		gameWindow:       gameWindow,
 		detect:           detect,
+		forecast:         forecast,
 		fetchGames:       factory,
 		fetchBlockNumber: fetchBlockNumber,
 		fetchBlockHash:   fetchBlockHash,
@@ -87,6 +91,7 @@ func (m *gameMonitor) monitorGames() error {
 		return fmt.Errorf("failed to load games: %w", err)
 	}
 	m.detect(m.ctx, games)
+	m.forecast(m.ctx, games)
 	return nil
 }
 

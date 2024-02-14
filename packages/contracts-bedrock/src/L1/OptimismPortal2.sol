@@ -31,10 +31,6 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         uint64 timestamp;
     }
 
-    /// @dev Remove this in favor of a configurable sauron role. This should probably live in the superchain config,
-    ///      but need to confirm with security.
-    address internal constant SAURON = address(0xdead);
-
     /// @notice The delay between when a withdrawal transaction is proven and when it may be finalized.
     uint256 internal immutable PROOF_MATURITY_DELAY_SECONDS;
 
@@ -91,6 +87,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     /// @notice The game type that the OptimismPortal consults for output proposals.
     GameType public respectedGameType;
 
+    /// @notice The timestamp at which the respected game type was last updated.
+    uint64 public respectedGameTypeUpdatedAt;
+
     /// @notice Emitted when a transaction is deposited from L1 to L2.
     ///         The parameters of this event are read by the rollup node and used to derive deposit
     ///         transactions on L2.
@@ -118,8 +117,8 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 3.0.0
-    string public constant version = "3.0.0";
+    /// @custom:semver 3.2.0
+    string public constant version = "3.2.0";
 
     /// @notice Constructs the OptimismPortal contract.
     constructor(
@@ -181,14 +180,6 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     /// @custom:legacy
     function guardian() public view returns (address) {
         return superchainConfig.guardian();
-    }
-
-    /// @notice Getter function for the address of the sauron role.
-    ///         Public getter is legacy and will be removed in the future. Use `SuperchainConfig.sauron()` instead
-    ///         once it's added.
-    /// @custom:deprecated
-    function sauron() public pure returns (address) {
-        return SAURON;
     }
 
     /// @notice Getter for the current paused status.
@@ -422,24 +413,17 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     /// @notice Blacklists a dispute game. Should only be used in the event that a dispute game resolves incorrectly.
     /// @param _disputeGame Dispute game to blacklist.
     function blacklistDisputeGame(IDisputeGame _disputeGame) external {
-        require(msg.sender == SAURON, "OptimismPortal: only sauron can blacklist dispute games");
+        require(msg.sender == guardian(), "OptimismPortal: only the guardian can blacklist dispute games");
         disputeGameBlacklist[_disputeGame] = true;
-    }
-
-    /// @notice Deletes a proven withdrawal from the `provenWithdrawals` mapping in the case that a MPT proof was
-    ///         incorrectly verified by the `MerkleTrie` verifier contract.
-    /// @param _withdrawalHash Hash of the withdrawal transaction to delete from the `pendingWithdrawals` mapping.
-    function deleteProvenWithdrawal(bytes32 _withdrawalHash) external {
-        require(msg.sender == SAURON, "OptimismPortal: only sauron can delete proven withdrawals");
-        delete provenWithdrawals[_withdrawalHash];
     }
 
     /// @notice Sets the respected game type. Changing this value can alter the security properties of the system,
     ///         depending on the new game's behavior.
     /// @param _gameType The game type to consult for output proposals.
     function setRespectedGameType(GameType _gameType) external {
-        require(msg.sender == SAURON, "OptimismPortal: only sauron can set the respected game type");
+        require(msg.sender == guardian(), "OptimismPortal: only the guardian can set the respected game type");
         respectedGameType = _gameType;
+        respectedGameTypeUpdatedAt = uint64(block.timestamp);
     }
 
     /// @notice Checks if a withdrawal can be finalized. This function will revert if the withdrawal cannot be
@@ -457,11 +441,13 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         // a timestamp of zero.
         require(provenWithdrawal.timestamp != 0, "OptimismPortal: withdrawal has not been proven yet");
 
+        uint64 createdAt = disputeGameProxy.createdAt().raw();
+
         // As a sanity check, we make sure that the proven withdrawal's timestamp is greater than
         // starting timestamp inside the Dispute Game. Not strictly necessary but extra layer of
         // safety against weird bugs in the proving step.
         require(
-            provenWithdrawal.timestamp > disputeGameProxy.createdAt().raw(),
+            provenWithdrawal.timestamp > createdAt,
             "OptimismPortal: withdrawal timestamp less than dispute game creation timestamp"
         );
 
@@ -483,6 +469,13 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         // `proveWithdrawalTransaction`, but we check it again in case the respected game type has changed since
         // the withdrawal was proven.
         require(disputeGameProxy.gameType().raw() == respectedGameType.raw(), "OptimismPortal: invalid game type");
+
+        // The game must have been created after `respectedGameTypeUpdatedAt`. This is to prevent users from creating
+        // invalid disputes against a deployed game type while the off-chain challenge agents are not watching.
+        require(
+            createdAt >= respectedGameTypeUpdatedAt,
+            "OptimismPortal: dispute game created before respected game type was updated"
+        );
 
         // Before a withdrawal can be finalized, the dispute game it was proven against must have been
         // resolved for at least `DISPUTE_GAME_FINALITY_DELAY_SECONDS`. This is to allow for manual

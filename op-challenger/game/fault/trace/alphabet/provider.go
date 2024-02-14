@@ -28,7 +28,7 @@ var _ types.TraceProvider = (*AlphabetTraceProvider)(nil)
 // AlphabetTraceProvider is a [TraceProvider] that monotonically increments
 // the starting l2 block number as the claim value.
 type AlphabetTraceProvider struct {
-	AlphabetPrestateProvider
+	alphabetPrestateProvider
 	startingBlockNumber *big.Int
 	depth               types.Depth
 	maxLen              uint64

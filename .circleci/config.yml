@@ -338,6 +338,19 @@ jobs:
                 name: Tag
                 command: |
                   ./ops/scripts/ci-docker-tag-op-stack-release.sh <<parameters.registry>>/<<parameters.repo>> $CIRCLE_TAG $CIRCLE_SHA1
+      - when:
+          condition: "<<parameters.publish>>"
+          steps:
+            - gcp-oidc-authenticate:
+                service_account_email: GCP_SERVICE_ATTESTOR_ACCOUNT_EMAIL
+            - run:
+                name: Sign
+                command: |
+                  cd ./ops/signer
+                  export IMAGE_PATH="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>:<<pipeline.git.revision>>"
+                  pip3 install -r requirements.txt
+                  python3 sign_image.py
+
 
 
   contracts-bedrock-coverage:

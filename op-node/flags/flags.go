@@ -50,6 +50,12 @@ var (
 		Required: false,
 		EnvVars:  prefixEnvVars("L1_BEACON"),
 	}
+	BeaconArchiverAddr = &cli.StringFlag{
+		Name:     "l1.beacon-archiver",
+		Usage:    "Address of L1 Beacon-node compatible HTTP endpoint to use. This is used to fetch blobs that the --l1.beacon does not have (i.e expired blobs).",
+		Required: false,
+		EnvVars:  prefixEnvVars("L1_BEACON_ARCHIVER"),
+	}
 	BeaconCheckIgnore = &cli.BoolFlag{
 		Name:     "l1.beacon.ignore",
 		Usage:    "When false, halts op-node startup if the healthcheck to the Beacon-node endpoint fails.",
@@ -292,6 +298,7 @@ var requiredFlags = []cli.Flag{
 
 var optionalFlags = []cli.Flag{
 	BeaconAddr,
+	BeaconArchiverAddr,
 	BeaconCheckIgnore,
 	BeaconFetchAllSidecars,
 	SyncModeFlag,

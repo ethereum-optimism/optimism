@@ -19,8 +19,9 @@ var (
 )
 
 const (
-	CannonGameType   uint32 = 0
-	AlphabetGameType uint32 = 255
+	CannonGameType       uint32 = 0
+	PermissionedGameType uint32 = 1
+	AlphabetGameType     uint32 = 255
 )
 
 type ClockReader interface {

@@ -3,7 +3,9 @@ package faultproofs
 import (
 	"testing"
 
+	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/stretchr/testify/require"
 )
@@ -13,6 +15,17 @@ type faultDisputeConfigOpts func(cfg *op_e2e.SystemConfig)
 func withBatcherStopped() faultDisputeConfigOpts {
 	return func(cfg *op_e2e.SystemConfig) {
 		cfg.DisableBatcher = true
+	}
+}
+
+func withBlobBatches() faultDisputeConfigOpts {
+	return func(cfg *op_e2e.SystemConfig) {
+		cfg.DataAvailabilityType = batcherFlags.BlobsType
+
+		genesisActivation := hexutil.Uint64(0)
+		cfg.DeployConfig.L1CancunTimeOffset = &genesisActivation
+		cfg.DeployConfig.L2GenesisDeltaTimeOffset = &genesisActivation
+		cfg.DeployConfig.L2GenesisEcotoneTimeOffset = &genesisActivation
 	}
 }
 

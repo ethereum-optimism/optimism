@@ -303,14 +303,14 @@ func (n *OpNode) initL1BeaconAPI(ctx context.Context, cfg *Config) error {
 
 	// We always initialize a client. We will get an error on requests if the client does not work.
 	// This way the op-node can continue non-L1 functionality when the user chooses to ignore the Beacon API requirement.
-	httpClient, err := cfg.Beacon.Setup(ctx, n.log)
+	beaconClient, fallbacks, err := cfg.Beacon.Setup(ctx, n.log)
 	if err != nil {
 		return fmt.Errorf("failed to setup L1 Beacon API client: %w", err)
 	}
 	beaconCfg := sources.L1BeaconClientConfig{
 		FetchAllSidecars: cfg.Beacon.ShouldFetchAllSidecars(),
 	}
-	n.beacon = sources.NewL1BeaconClient(httpClient, beaconCfg)
+	n.beacon = sources.NewL1BeaconClient(beaconClient, beaconCfg, fallbacks...)
 
 	// Retry retrieval of the Beacon API version, to be more robust on startup against Beacon API connection issues.
 	beaconVersion, missingEndpoint, err := retry.Do2[string, bool](ctx, 5, retry.Exponential(), func() (string, bool, error) {

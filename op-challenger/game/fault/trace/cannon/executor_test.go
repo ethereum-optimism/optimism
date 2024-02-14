@@ -139,7 +139,9 @@ func TestRunCmdLogsOutput(t *testing.T) {
 	logger, logs := testlog.CaptureLogger(t, log.LevelInfo)
 	err := runCmd(ctx, logger, bin, "Hello World")
 	require.NoError(t, err)
-	require.NotNil(t, logs.FindLog(log.LevelInfo, "Hello World"))
+	levelFilter := testlog.NewLevelFilter(log.LevelInfo)
+	msgFilter := testlog.NewMessageFilter("Hello World")
+	require.NotNil(t, logs.FindLog(levelFilter, msgFilter))
 }
 
 func TestFindStartingSnapshot(t *testing.T) {
