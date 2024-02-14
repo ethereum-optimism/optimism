@@ -360,7 +360,7 @@ func TestFaultDisputeGame_GetCredits(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, len(expected), len(actual))
 	for i := range expected {
-		require.Zerof(t, expected[i].Cmp(actual[i]), "expectd: %v actual: %v", expected[i], actual[i])
+		require.Zerof(t, expected[i].Cmp(actual[i]), "expected: %v actual: %v", expected[i], actual[i])
 	}
 }
 

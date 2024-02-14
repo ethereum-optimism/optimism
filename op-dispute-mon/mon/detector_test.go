@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
@@ -33,7 +34,7 @@ func TestDetector_Detect(t *testing.T) {
 	t.Run("CheckAgreementFails", func(t *testing.T) {
 		detector, metrics, creator, rollup, _ := setupDetectorTest(t)
 		rollup.err = errors.New("boom")
-		creator.loader = &mockMetadataLoader{status: types.GameStatusInProgress}
+		creator.caller = &mockGameCaller{status: types.GameStatusInProgress}
 		detector.Detect(context.Background(), []types.GameMetadata{{}})
 		metrics.Equals(t, 1, 0, 0) // Status should still be metriced here!
 		metrics.Mapped(t, map[string]int{})
@@ -41,8 +42,7 @@ func TestDetector_Detect(t *testing.T) {
 
 	t.Run("SingleGame", func(t *testing.T) {
 		detector, metrics, creator, _, _ := setupDetectorTest(t)
-		loader := &mockMetadataLoader{status: types.GameStatusInProgress}
-		creator.loader = loader
+		creator.caller = &mockGameCaller{status: types.GameStatusInProgress}
 		detector.Detect(context.Background(), []types.GameMetadata{{}})
 		metrics.Equals(t, 1, 0, 0)
 		metrics.Mapped(t, map[string]int{"in_progress": 1})
@@ -50,8 +50,7 @@ func TestDetector_Detect(t *testing.T) {
 
 	t.Run("MultipleGames", func(t *testing.T) {
 		detector, metrics, creator, _, _ := setupDetectorTest(t)
-		loader := &mockMetadataLoader{status: types.GameStatusInProgress}
-		creator.loader = loader
+		creator.caller = &mockGameCaller{status: types.GameStatusInProgress}
 		detector.Detect(context.Background(), []types.GameMetadata{{}, {}, {}})
 		metrics.Equals(t, 3, 0, 0)
 		metrics.Mapped(t, map[string]int{"in_progress": 3})
@@ -128,16 +127,14 @@ func TestDetector_FetchGameMetadata(t *testing.T) {
 
 	t.Run("GetGameMetadataFails", func(t *testing.T) {
 		detector, _, creator, _, _ := setupDetectorTest(t)
-		loader := &mockMetadataLoader{err: errors.New("boom")}
-		creator.loader = loader
+		creator.caller = &mockGameCaller{err: errors.New("boom")}
 		_, _, _, err := detector.fetchGameMetadata(context.Background(), types.GameMetadata{})
 		require.Error(t, err)
 	})
 
 	t.Run("Success", func(t *testing.T) {
 		detector, _, creator, _, _ := setupDetectorTest(t)
-		loader := &mockMetadataLoader{status: types.GameStatusInProgress}
-		creator.loader = loader
+		creator.caller = &mockGameCaller{status: types.GameStatusInProgress}
 		_, _, status, err := detector.fetchGameMetadata(context.Background(), types.GameMetadata{})
 		require.NoError(t, err)
 		require.Equal(t, types.GameStatusInProgress, status)
@@ -229,53 +226,67 @@ func TestDetector_CheckAgreement_Succeeds(t *testing.T) {
 	}
 }
 
-func setupDetectorTest(t *testing.T) (*detector, *mockDetectorMetricer, *mockMetadataCreator, *stubOutputValidator, *testlog.CapturingHandler) {
+func setupDetectorTest(t *testing.T) (*detector, *mockDetectorMetricer, *mockGameCallerCreator, *stubOutputValidator, *testlog.CapturingHandler) {
 	logger, capturedLogs := testlog.CaptureLogger(t, log.LvlDebug)
 	metrics := &mockDetectorMetricer{}
-	loader := &mockMetadataLoader{}
-	creator := &mockMetadataCreator{loader: loader}
+	caller := &mockGameCaller{}
+	creator := &mockGameCallerCreator{caller: caller}
 	validator := &stubOutputValidator{}
 	detector := newDetector(logger, metrics, creator, validator)
 	return detector, metrics, creator, validator, capturedLogs
 }
 
 type stubOutputValidator struct {
-	err error
+	calls int
+	err   error
 }
 
 func (s *stubOutputValidator) CheckRootAgreement(ctx context.Context, blockNum uint64, rootClaim common.Hash) (bool, common.Hash, error) {
+	s.calls++
 	if s.err != nil {
 		return false, common.Hash{}, s.err
 	}
 	return rootClaim == mockRootClaim, mockRootClaim, nil
 }
 
-type mockMetadataCreator struct {
+type mockGameCallerCreator struct {
 	calls  int
 	err    error
-	loader *mockMetadataLoader
+	caller *mockGameCaller
 }
 
-func (m *mockMetadataCreator) CreateContract(game types.GameMetadata) (MetadataLoader, error) {
+func (m *mockGameCallerCreator) CreateContract(game types.GameMetadata) (GameCaller, error) {
 	m.calls++
 	if m.err != nil {
 		return nil, m.err
 	}
-	return m.loader, nil
+	return m.caller, nil
 }
 
-type mockMetadataLoader struct {
-	calls  int
-	status types.GameStatus
-	err    error
+type mockGameCaller struct {
+	calls       int
+	claimsCalls int
+	claims      []faultTypes.Claim
+	status      types.GameStatus
+	rootClaim   common.Hash
+	err         error
+	claimsErr   error
 }
 
-func (m *mockMetadataLoader) GetGameMetadata(ctx context.Context) (uint64, common.Hash, types.GameStatus, error) {
+func (m *mockGameCaller) GetGameMetadata(ctx context.Context) (uint64, common.Hash, types.GameStatus, error) {
 	m.calls++
 	if m.err != nil {
-		return 0, common.Hash{}, m.status, m.err
+		return 0, m.rootClaim, m.status, m.err
 	}
-	return 0, common.Hash{}, m.status, nil
+	return 0, m.rootClaim, m.status, nil
+}
+
+func (m *mockGameCaller) GetAllClaims(ctx context.Context) ([]faultTypes.Claim, error) {
+	m.claimsCalls++
+	if m.claimsErr != nil {
+		return nil, m.claimsErr
+	}
+	return m.claims, nil
 }
 
 type mockDetectorMetricer struct {

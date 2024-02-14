@@ -43,7 +43,7 @@ func TestMetadataCreator_CreateContract(t *testing.T) {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
 			caller, metrics := setupMetadataLoaderTest(t)
-			creator := NewMetadataCreator(metrics, caller)
+			creator := NewGameCallerCreator(metrics, caller)
 			_, err := creator.CreateContract(test.game)
 			require.Equal(t, test.expectedErr, err)
 			if test.expectedErr == nil {

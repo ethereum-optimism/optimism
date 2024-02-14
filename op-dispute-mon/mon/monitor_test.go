@@ -23,20 +23,20 @@ func TestMonitor_MinGameTimestamp(t *testing.T) {
 	t.Parallel()
 
 	t.Run("ZeroGameWindow", func(t *testing.T) {
-		monitor, _, _ := setupMonitorTest(t)
+		monitor, _, _, _ := setupMonitorTest(t)
 		monitor.gameWindow = time.Duration(0)
 		require.Equal(t, monitor.minGameTimestamp(), uint64(0))
 	})
 
 	t.Run("ZeroClock", func(t *testing.T) {
-		monitor, _, _ := setupMonitorTest(t)
+		monitor, _, _, _ := setupMonitorTest(t)
 		monitor.gameWindow = time.Minute
 		monitor.clock = clock.NewDeterministicClock(time.Unix(0, 0))
 		require.Equal(t, uint64(0), monitor.minGameTimestamp())
 	})
 
 	t.Run("ValidArithmetic", func(t *testing.T) {
-		monitor, _, _ := setupMonitorTest(t)
+		monitor, _, _, _ := setupMonitorTest(t)
 		monitor.gameWindow = time.Minute
 		frozen := time.Unix(int64(time.Hour.Seconds()), 0)
 		monitor.clock = clock.NewDeterministicClock(frozen)
@@ -49,7 +49,7 @@ func TestMonitor_MonitorGames(t *testing.T) {
 	t.Parallel()
 
 	t.Run("FailedFetchBlocknumber", func(t *testing.T) {
-		monitor, _, _ := setupMonitorTest(t)
+		monitor, _, _, _ := setupMonitorTest(t)
 		boom := errors.New("boom")
 		monitor.fetchBlockNumber = func(ctx context.Context) (uint64, error) {
 			return 0, boom
@@ -59,7 +59,7 @@ func TestMonitor_MonitorGames(t *testing.T) {
 	})
 
 	t.Run("FailedFetchBlockHash", func(t *testing.T) {
-		monitor, _, _ := setupMonitorTest(t)
+		monitor, _, _, _ := setupMonitorTest(t)
 		boom := errors.New("boom")
 		monitor.fetchBlockHash = func(ctx context.Context, number *big.Int) (common.Hash, error) {
 			return common.Hash{}, boom
@@ -69,7 +69,7 @@ func TestMonitor_MonitorGames(t *testing.T) {
 	})
 
 	t.Run("DetectsWithNoGames", func(t *testing.T) {
-		monitor, factory, detector := setupMonitorTest(t)
+		monitor, factory, detector, _ := setupMonitorTest(t)
 		factory.games = []types.GameMetadata{}
 		err := monitor.monitorGames()
 		require.NoError(t, err)
@@ -77,7 +77,7 @@ func TestMonitor_MonitorGames(t *testing.T) {
 	})
 
 	t.Run("DetectsMultipleGames", func(t *testing.T) {
-		monitor, factory, detector := setupMonitorTest(t)
+		monitor, factory, detector, _ := setupMonitorTest(t)
 		factory.games = []types.GameMetadata{{}, {}, {}}
 		err := monitor.monitorGames()
 		require.NoError(t, err)
@@ -89,7 +89,7 @@ func TestMonitor_StartMonitoring(t *testing.T) {
 	t.Run("MonitorsGames", func(t *testing.T) {
 		addr1 := common.Address{0xaa}
 		addr2 := common.Address{0xbb}
-		monitor, factory, detector := setupMonitorTest(t)
+		monitor, factory, detector, _ := setupMonitorTest(t)
 		factory.games = []types.GameMetadata{newFDG(addr1, 9999), newFDG(addr2, 9999)}
 		factory.maxSuccess = len(factory.games) // Only allow two successful fetches
 
@@ -102,7 +102,7 @@ func TestMonitor_StartMonitoring(t *testing.T) {
 	})
 
 	t.Run("FailsToFetchGames", func(t *testing.T) {
-		monitor, factory, detector := setupMonitorTest(t)
+		monitor, factory, detector, _ := setupMonitorTest(t)
 		factory.fetchErr = errors.New("boom")
 
 		monitor.StartMonitoring()
@@ -121,7 +121,7 @@ func newFDG(proxy common.Address, timestamp uint64) types.GameMetadata {
 	}
 }
 
-func setupMonitorTest(t *testing.T) (*gameMonitor, *mockFactory, *mockDetector) {
+func setupMonitorTest(t *testing.T) (*gameMonitor, *mockFactory, *mockDetector, *mockForecast) {
 	logger := testlog.Logger(t, log.LvlDebug)
 	fetchBlockNum := func(ctx context.Context) (uint64, error) {
 		return 1, nil
@@ -134,6 +134,7 @@ func setupMonitorTest(t *testing.T) (*gameMonitor, *mockFactory, *mockDetector) 
 	cl.Start()
 	factory := &mockFactory{}
 	detect := &mockDetector{}
+	forecast := &mockForecast{}
 	monitor := newGameMonitor(
 		context.Background(),
 		logger,
@@ -141,11 +142,20 @@ func setupMonitorTest(t *testing.T) (*gameMonitor, *mockFactory, *mockDetector) 
 		monitorInterval,
 		time.Duration(10*time.Second),
 		detect.Detect,
+		forecast.Forecast,
 		factory.GetGamesAtOrAfter,
 		fetchBlockNum,
 		fetchBlockHash,
 	)
-	return monitor, factory, detect
+	return monitor, factory, detect, forecast
+}
+
+type mockForecast struct {
+	calls int
+}
+
+func (m *mockForecast) Forecast(ctx context.Context, games []types.GameMetadata) {
+	m.calls++
 }
 
 type mockDetector struct {
