@@ -11,11 +11,12 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
-
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/config"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/metrics"
+	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/extract"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/version"
+
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
@@ -35,7 +36,7 @@ type Service struct {
 	cl clock.Clock
 
 	forecast     *forecast
-	game         *gameCallerCreator
+	game         *extract.GameCallerCreator
 	rollupClient *sources.RollupClient
 	detector     *detector
 	validator    *outputValidator
@@ -99,7 +100,7 @@ func (s *Service) initOutputValidator() {
 }
 
 func (s *Service) initGameCallerCreator() {
-	s.game = NewGameCallerCreator(s.metrics, batching.NewMultiCaller(s.l1Client.Client(), batching.DefaultBatchSize))
+	s.game = extract.NewGameCallerCreator(s.metrics, batching.NewMultiCaller(s.l1Client.Client(), batching.DefaultBatchSize))
 }
 
 func (s *Service) initForecast(cfg *config.Config) {

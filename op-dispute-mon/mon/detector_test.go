@@ -7,6 +7,7 @@ import (
 
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/extract"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
@@ -266,7 +267,7 @@ type mockGameCallerCreator struct {
 	caller *mockGameCaller
 }
 
-func (m *mockGameCallerCreator) CreateContract(game types.GameMetadata) (GameCaller, error) {
+func (m *mockGameCallerCreator) CreateContract(game types.GameMetadata) (extract.GameCaller, error) {
 	m.calls++
 	if m.err != nil {
 		return nil, m.err
