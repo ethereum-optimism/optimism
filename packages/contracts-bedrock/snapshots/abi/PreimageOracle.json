@@ -304,6 +304,19 @@
   {
     "inputs": [
       {
+        "internalType": "bytes",
+        "name": "_input",
+        "type": "bytes"
+      }
+    ],
+    "name": "loadKZGPointEvaluationPreimage",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "uint256",
         "name": "_partOffset",
         "type": "uint256"

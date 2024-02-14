@@ -70,6 +70,19 @@ func TestPreimageOracleContract_AddGlobalDataTx(t *testing.T) {
 		require.NoError(t, err)
 		stubRpc.VerifyTxCandidate(tx)
 	})
+
+	t.Run("KZGPointEvaluation", func(t *testing.T) {
+		stubRpc, oracle := setupPreimageOracleTest(t)
+		input := testutils.RandomData(rand.New(rand.NewSource(23)), 200)
+		data := types.NewPreimageOracleKZGPointEvaluationData(common.Hash{byte(preimage.KZGPointEvaluationKeyType), 0xcc}.Bytes(), input)
+		stubRpc.SetResponse(oracleAddr, methodLoadKZGPointEvaluationPreimage, batching.BlockLatest, []interface{}{
+			data.GetPreimageWithoutSize(),
+		}, nil)
+
+		tx, err := oracle.AddGlobalDataTx(data)
+		require.NoError(t, err)
+		stubRpc.VerifyTxCandidate(tx)
+	})
 }
 
 func TestPreimageOracleContract_ChallengePeriod(t *testing.T) {

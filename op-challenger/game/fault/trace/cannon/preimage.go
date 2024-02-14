@@ -46,6 +46,8 @@ func (l *preimageLoader) LoadPreimage(proof *proofData) (*types.PreimageOracleDa
 	switch preimage.KeyType(proof.OracleKey[0]) {
 	case preimage.BlobKeyType:
 		return l.loadBlobPreimage(proof)
+	case preimage.KZGPointEvaluationKeyType:
+		return l.loadKZGPointEvaluationPreimage(proof)
 	default:
 		return types.NewPreimageOracleData(proof.OracleKey, proof.OracleValue, proof.OracleOffset), nil
 	}
@@ -96,8 +98,23 @@ func (l *preimageLoader) loadBlobPreimage(proof *proofData) (*types.PreimageOrac
 		return nil, fmt.Errorf("failed to verify proof: %w", err)
 	}
 
-	claimWithLength := make([]byte, len(claim)+lengthPrefixSize)
-	binary.BigEndian.PutUint64(claimWithLength[:lengthPrefixSize], uint64(len(claim)))
-	copy(claimWithLength[lengthPrefixSize:], claim[:])
+	claimWithLength := lengthPrefixed(claim[:])
 	return types.NewPreimageOracleBlobData(proof.OracleKey, claimWithLength, proof.OracleOffset, requiredFieldElement, commitment, kzgProof[:]), nil
+}
+
+func (l *preimageLoader) loadKZGPointEvaluationPreimage(proof *proofData) (*types.PreimageOracleData, error) {
+	inputKey := preimage.Keccak256Key(proof.OracleKey).PreimageKey()
+	input, err := l.getPreimage(inputKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get key preimage: %w", err)
+	}
+	inputWithLength := lengthPrefixed(input)
+	return types.NewPreimageOracleKZGPointEvaluationData(proof.OracleKey, inputWithLength), nil
+}
+
+func lengthPrefixed(data []byte) []byte {
+	dataWithLength := make([]byte, len(data)+lengthPrefixSize)
+	binary.BigEndian.PutUint64(dataWithLength[:lengthPrefixSize], uint64(len(data)))
+	copy(dataWithLength[lengthPrefixSize:], data)
+	return dataWithLength
 }
