@@ -14,8 +14,8 @@ type OutputValidator interface {
 	CheckRootAgreement(ctx context.Context, blockNum uint64, root common.Hash) (bool, common.Hash, error)
 }
 
-type MetadataCreator interface {
-	CreateContract(game types.GameMetadata) (MetadataLoader, error)
+type GameCallerCreator interface {
+	CreateContract(game types.GameMetadata) (GameCaller, error)
 }
 
 type DetectorMetrics interface {
@@ -26,11 +26,11 @@ type DetectorMetrics interface {
 type detector struct {
 	logger    log.Logger
 	metrics   DetectorMetrics
-	creator   MetadataCreator
+	creator   GameCallerCreator
 	validator OutputValidator
 }
 
-func newDetector(logger log.Logger, metrics DetectorMetrics, creator MetadataCreator, validator OutputValidator) *detector {
+func newDetector(logger log.Logger, metrics DetectorMetrics, creator GameCallerCreator, validator OutputValidator) *detector {
 	return &detector{
 		logger:    logger,
 		metrics:   metrics,

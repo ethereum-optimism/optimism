@@ -13,35 +13,36 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/sources/caching"
 )
 
-const metricsLabel = "binding_creator"
+const metricsLabel = "game_caller_creator"
 
-type MetadataLoader interface {
+type GameCaller interface {
 	GetGameMetadata(context.Context) (uint64, common.Hash, types.GameStatus, error)
+	GetAllClaims(ctx context.Context) ([]faultTypes.Claim, error)
 }
 
-type metadataCreator struct {
+type gameCallerCreator struct {
 	cache  *caching.LRUCache[common.Address, *contracts.FaultDisputeGameContract]
 	caller *batching.MultiCaller
 }
 
-func NewMetadataCreator(m caching.Metrics, caller *batching.MultiCaller) *metadataCreator {
-	return &metadataCreator{
+func NewGameCallerCreator(m caching.Metrics, caller *batching.MultiCaller) *gameCallerCreator {
+	return &gameCallerCreator{
 		caller: caller,
 		cache:  caching.NewLRUCache[common.Address, *contracts.FaultDisputeGameContract](m, metricsLabel, 100),
 	}
 }
 
-func (m *metadataCreator) CreateContract(game types.GameMetadata) (MetadataLoader, error) {
-	if fdg, ok := m.cache.Get(game.Proxy); ok {
+func (g *gameCallerCreator) CreateContract(game types.GameMetadata) (GameCaller, error) {
+	if fdg, ok := g.cache.Get(game.Proxy); ok {
 		return fdg, nil
 	}
 	switch game.GameType {
 	case faultTypes.CannonGameType, faultTypes.AlphabetGameType:
-		fdg, err := contracts.NewFaultDisputeGameContract(game.Proxy, m.caller)
+		fdg, err := contracts.NewFaultDisputeGameContract(game.Proxy, g.caller)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create FaultDisputeGameContract: %w", err)
 		}
-		m.cache.Add(game.Proxy, fdg)
+		g.cache.Add(game.Proxy, fdg)
 		return fdg, nil
 	default:
 		return nil, fmt.Errorf("unsupported game type: %d", game.GameType)
