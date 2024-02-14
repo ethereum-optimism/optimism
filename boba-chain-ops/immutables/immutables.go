@@ -149,6 +149,12 @@ func BuildOptimism(immutable ImmutableConfig) (DeploymentResults, error) {
 			Name: "SchemaRegistry",
 		},
 		{
+			Name: "Create2Deployer",
+		},
+		{
+			Name: "DeterministicDeploymentProxy",
+		},
+		{
 			Name: "BobaL2",
 			Args: []interface{}{
 				immutable["BobaL2"]["l2Bridge"],
@@ -240,6 +246,10 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 		_, tx, _, err = bindings.DeployEAS(opts, backend)
 	case "SchemaRegistry":
 		_, tx, _, err = bindings.DeploySchemaRegistry(opts, backend)
+	case "Create2Deployer":
+		_, tx, _, err = bindings.DeployCreate2Deployer(opts, backend)
+	case "DeterministicDeploymentProxy":
+		_, tx, _, err = bindings.DeployDeterministicDeploymentProxy(opts, backend)
 	case "BobaL2":
 		l2Bridge, ok := deployment.Args[0].(common.Address)
 		if !ok {
