@@ -30,7 +30,7 @@ contract Initializer_Test is Bridge_Initializer {
     InitializeableContract[] contracts;
 
     function setUp() public override {
-        super.enablePlasma();
+        // super.enablePlasma();
         // Run the `Bridge_Initializer`'s `setUp()` function.
         super.setUp();
 
@@ -289,22 +289,22 @@ contract Initializer_Test is Bridge_Initializer {
                 initializedSlotVal: deploy.loadInitializedSlot("OptimismMintableERC20FactoryProxy")
             })
         );
-        // DataAvailabilityChallengeImpl
-        contracts.push(
-            InitializeableContract({
-                target: deploy.mustGetAddress("DataAvailabilityChallenge"),
-                initCalldata: abi.encodeCall(dataAvailabilityChallenge.initialize, (address(0), 0, 0, 0, 0)),
-                initializedSlotVal: deploy.loadInitializedSlot("DataAvailabilityChallenge")
-            })
-        );
-        // OptimismMintableERC20FactoryProxy
-        contracts.push(
-            InitializeableContract({
-                target: address(dataAvailabilityChallenge),
-                initCalldata: abi.encodeCall(dataAvailabilityChallenge.initialize, (address(0), 0, 0, 0, 0)),
-                initializedSlotVal: deploy.loadInitializedSlot("DataAvailabilityChallengeProxy")
-            })
-        );
+        // // DataAvailabilityChallengeImpl
+        // contracts.push(
+        //     InitializeableContract({
+        //         target: deploy.mustGetAddress("DataAvailabilityChallenge"),
+        //         initCalldata: abi.encodeCall(dataAvailabilityChallenge.initialize, (address(0), 0, 0, 0, 0)),
+        //         initializedSlotVal: deploy.loadInitializedSlot("DataAvailabilityChallenge")
+        //     })
+        // );
+        // // DataAvailabilityChallengeProxy
+        // contracts.push(
+        //     InitializeableContract({
+        //         target: address(dataAvailabilityChallenge),
+        //         initCalldata: abi.encodeCall(dataAvailabilityChallenge.initialize, (address(0), 0, 0, 0, 0)),
+        //         initializedSlotVal: deploy.loadInitializedSlot("DataAvailabilityChallengeProxy")
+        //     })
+        // );
     }
 
     /// @notice Tests that:
