@@ -162,26 +162,12 @@ func NewConfigFromCLI(log log.Logger, ctx *cli.Context) (*Config, error) {
 	if l1Head == (common.Hash{}) {
 		return nil, ErrInvalidL1Head
 	}
+
+	networkName := ctx.String(flags.Network.Name)
 	l2GenesisPath := ctx.String(flags.L2GenesisPath.Name)
-	var l2ChainConfig *params.ChainConfig
-	var isCustomConfig bool
-	if l2GenesisPath == "" {
-		networkName := ctx.String(flags.Network.Name)
-		ch := chaincfg.ChainByName(networkName)
-		if ch == nil {
-			return nil, fmt.Errorf("flag %s is required for network %s", flags.L2GenesisPath.Name, networkName)
-		}
-		cfg, err := params.LoadOPStackChainConfig(ch.ChainID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load chain config for chain %d: %w", ch.ChainID, err)
-		}
-		l2ChainConfig = cfg
-	} else {
-		l2ChainConfig, err = loadChainConfigFromGenesis(l2GenesisPath)
-		isCustomConfig = true
-	}
+	l2ChainConfig, isCustomConfig, err := LoadL2Genesis(networkName, l2GenesisPath)
 	if err != nil {
-		return nil, fmt.Errorf("invalid genesis: %w", err)
+		return nil, err
 	}
 	return &Config{
 		Rollup:              rollupCfg,
@@ -201,6 +187,26 @@ func NewConfigFromCLI(log log.Logger, ctx *cli.Context) (*Config, error) {
 		ServerMode:          ctx.Bool(flags.Server.Name),
 		IsCustomChainConfig: isCustomConfig,
 	}, nil
+}
+
+func LoadL2Genesis(networkName string, l2GenesisPath string) (*params.ChainConfig, bool, error) {
+	if l2GenesisPath == "" {
+		ch := chaincfg.ChainByName(networkName)
+		if ch == nil {
+			return nil, false, fmt.Errorf("flag %s is required for network %s", flags.L2GenesisPath.Name, networkName)
+		}
+		cfg, err := params.LoadOPStackChainConfig(ch.ChainID)
+		if err != nil {
+			return nil, false, fmt.Errorf("failed to load chain config for chain %d: %w", ch.ChainID, err)
+		}
+		return cfg, false, nil
+	} else {
+		l2ChainConfig, err := loadChainConfigFromGenesis(l2GenesisPath)
+		if err != nil {
+			return nil, false, fmt.Errorf("invalid genesis: %w", err)
+		}
+		return l2ChainConfig, true, nil
+	}
 }
 
 func loadChainConfigFromGenesis(path string) (*params.ChainConfig, error) {
