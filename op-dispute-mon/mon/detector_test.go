@@ -7,6 +7,7 @@ import (
 
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -67,45 +68,45 @@ func TestDetector_Detect(t *testing.T) {
 func TestDetector_RecordBatch(t *testing.T) {
 	tests := []struct {
 		name   string
-		batch  detectionBatch
+		batch  monTypes.DetectionBatch
 		expect func(*testing.T, *mockDetectorMetricer)
 	}{
 		{
 			name:   "no games",
-			batch:  detectionBatch{},
+			batch:  monTypes.DetectionBatch{},
 			expect: func(t *testing.T, metrics *mockDetectorMetricer) {},
 		},
 		{
 			name:  "in_progress",
-			batch: detectionBatch{inProgress: 1},
+			batch: monTypes.DetectionBatch{InProgress: 1},
 			expect: func(t *testing.T, metrics *mockDetectorMetricer) {
 				require.Equal(t, 1, metrics.gameAgreement["in_progress"])
 			},
 		},
 		{
 			name:  "agree_defender_wins",
-			batch: detectionBatch{agreeDefenderWins: 1},
+			batch: monTypes.DetectionBatch{AgreeDefenderWins: 1},
 			expect: func(t *testing.T, metrics *mockDetectorMetricer) {
 				require.Equal(t, 1, metrics.gameAgreement["agree_defender_wins"])
 			},
 		},
 		{
 			name:  "disagree_defender_wins",
-			batch: detectionBatch{disagreeDefenderWins: 1},
+			batch: monTypes.DetectionBatch{DisagreeDefenderWins: 1},
 			expect: func(t *testing.T, metrics *mockDetectorMetricer) {
 				require.Equal(t, 1, metrics.gameAgreement["disagree_defender_wins"])
 			},
 		},
 		{
 			name:  "agree_challenger_wins",
-			batch: detectionBatch{agreeChallengerWins: 1},
+			batch: monTypes.DetectionBatch{AgreeChallengerWins: 1},
 			expect: func(t *testing.T, metrics *mockDetectorMetricer) {
 				require.Equal(t, 1, metrics.gameAgreement["agree_challenger_wins"])
 			},
 		},
 		{
 			name:  "disagree_challenger_wins",
-			batch: detectionBatch{disagreeChallengerWins: 1},
+			batch: monTypes.DetectionBatch{DisagreeChallengerWins: 1},
 			expect: func(t *testing.T, metrics *mockDetectorMetricer) {
 				require.Equal(t, 1, metrics.gameAgreement["disagree_challenger_wins"])
 			},
@@ -163,15 +164,15 @@ func TestDetector_CheckAgreement_Succeeds(t *testing.T) {
 		name           string
 		rootClaim      common.Hash
 		status         types.GameStatus
-		expectBatch    func(*detectionBatch)
+		expectBatch    func(*monTypes.DetectionBatch)
 		expectErrorLog bool
 		expectStatus   types.GameStatus
 		err            error
 	}{
 		{
 			name: "in_progress",
-			expectBatch: func(batch *detectionBatch) {
-				require.Equal(t, 1, batch.inProgress)
+			expectBatch: func(batch *monTypes.DetectionBatch) {
+				require.Equal(t, 1, batch.InProgress)
 			},
 		},
 		{
@@ -179,16 +180,16 @@ func TestDetector_CheckAgreement_Succeeds(t *testing.T) {
 			rootClaim:    mockRootClaim,
 			status:       types.GameStatusDefenderWon,
 			expectStatus: types.GameStatusDefenderWon,
-			expectBatch: func(batch *detectionBatch) {
-				require.Equal(t, 1, batch.agreeDefenderWins)
+			expectBatch: func(batch *monTypes.DetectionBatch) {
+				require.Equal(t, 1, batch.AgreeDefenderWins)
 			},
 		},
 		{
 			name:         "disagree_defender_wins",
 			status:       types.GameStatusDefenderWon,
 			expectStatus: types.GameStatusChallengerWon,
-			expectBatch: func(batch *detectionBatch) {
-				require.Equal(t, 1, batch.disagreeDefenderWins)
+			expectBatch: func(batch *monTypes.DetectionBatch) {
+				require.Equal(t, 1, batch.DisagreeDefenderWins)
 			},
 			expectErrorLog: true,
 		},
@@ -197,8 +198,8 @@ func TestDetector_CheckAgreement_Succeeds(t *testing.T) {
 			rootClaim:    mockRootClaim,
 			status:       types.GameStatusChallengerWon,
 			expectStatus: types.GameStatusDefenderWon,
-			expectBatch: func(batch *detectionBatch) {
-				require.Equal(t, 1, batch.agreeChallengerWins)
+			expectBatch: func(batch *monTypes.DetectionBatch) {
+				require.Equal(t, 1, batch.AgreeChallengerWins)
 			},
 			expectErrorLog: true,
 		},
@@ -206,8 +207,8 @@ func TestDetector_CheckAgreement_Succeeds(t *testing.T) {
 			name:         "disagree_challenger_wins",
 			status:       types.GameStatusChallengerWon,
 			expectStatus: types.GameStatusChallengerWon,
-			expectBatch: func(batch *detectionBatch) {
-				require.Equal(t, 1, batch.disagreeChallengerWins)
+			expectBatch: func(batch *monTypes.DetectionBatch) {
+				require.Equal(t, 1, batch.DisagreeChallengerWins)
 			},
 		},
 	}
