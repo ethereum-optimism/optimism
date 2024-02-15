@@ -1,6 +1,7 @@
 package types
 
 import (
+	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -10,6 +11,17 @@ type EnrichedGameData struct {
 	L2BlockNumber uint64
 	RootClaim     common.Hash
 	Status        types.GameStatus
+}
+
+// BidirectionalTree is a tree of claims represented as a flat list of claims.
+// This keeps the tree structure identical to how claims are stored in the contract.
+type BidirectionalTree struct {
+	Claims []*BidirectionalClaim
+}
+
+type BidirectionalClaim struct {
+	Claim    *faultTypes.Claim
+	Children []*BidirectionalClaim
 }
 
 type StatusBatch struct {
