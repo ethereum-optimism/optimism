@@ -17,6 +17,8 @@ contract CommonTest is Test, Setup, Events {
 
     FFIInterface constant ffi = FFIInterface(address(uint160(uint256(keccak256(abi.encode("optimism.ffi"))))));
 
+    bool usePlasmaOverride;
+
     function setUp() public virtual override {
         alice = makeAddr("alice");
         bob = makeAddr("bob");
@@ -24,6 +26,12 @@ contract CommonTest is Test, Setup, Events {
         vm.deal(bob, 10000 ether);
 
         Setup.setUp();
+
+        // Override the plasma config after the deploy script initialized the config
+        if(usePlasmaOverride) {
+            deploy.cfg().setUsePlasma(true);
+        }
+
         vm.etch(address(ffi), vm.getDeployedCode("FFIInterface.sol:FFIInterface"));
         vm.label(address(ffi), "FFIInterface");
 
@@ -111,13 +119,7 @@ contract CommonTest is Test, Setup, Events {
             revert("CommonTest: Cannot enable plasma after deployment. Consider overriding `setUp`.");
         }
 
-        // Set `usePlasma` to `true` in the deploy config so that the deploy script deploys the plasma contracts.
-        // This directly overrides the deploy config's `usePlasma` value, if the test requires it.
-        vm.store(
-            address(uint160(uint256(keccak256(abi.encode("optimism.deployconfig"))))),
-            USE_PLASMA_SLOT,
-            bytes32(uint256(1))
-        );
+        usePlasmaOverride = true;
     }
 
 }

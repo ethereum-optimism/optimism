@@ -11,10 +11,6 @@ import { Chains } from "scripts/Chains.sol";
 // environment.
 bytes32 constant USE_FAULT_PROOFS_SLOT = bytes32(uint256(63));
 
-// Global constant for the `usePlasma` slot in the DeployConfig contract, which can be overridden in the testing
-// environment.
-bytes32 constant USE_PLASMA_SLOT = bytes32(uint256(62));
-
 /// @title DeployConfig
 /// @notice Represents the configuration required to deploy the system. It is expected
 ///         to read the file from JSON. A future improvement would be to have fallback
@@ -178,6 +174,11 @@ contract DeployConfig is Script {
             return stdJson.readUint(string(res), "");
         }
         return uint256(_l2OutputOracleStartingTimestamp);
+    }
+
+    /// @notice Allow the `usePlasma` config to be overridden in testing environments
+    function setUsePlasma(bool _usePlasma) public {
+        usePlasma = _usePlasma;
     }
 
     function _getBlockByTag(string memory _tag) internal returns (bytes32) {
