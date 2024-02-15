@@ -2,6 +2,7 @@
 pragma solidity 0.8.15;
 
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { Preinstalls } from "src/libraries/Preinstalls.sol";
 import { L2CrossDomainMessenger } from "src/L2/L2CrossDomainMessenger.sol";
 import { L2StandardBridge } from "src/L2/L2StandardBridge.sol";
 import { L2ToL1MessagePasser } from "src/L2/L2ToL1MessagePasser.sol";
@@ -171,5 +172,17 @@ contract Setup {
         vm.label(Predeploys.GOVERNANCE_TOKEN, "GovernanceToken");
         vm.label(Predeploys.EAS, "EAS");
         vm.label(Predeploys.SCHEMA_REGISTRY, "SchemaRegistry");
+
+        vm.label(Preinstalls.MULTICALL3, "Multicall3");
+        vm.label(Preinstalls.CREATE2_DEPLOYER, "Create2Deployer");
+        vm.label(Preinstalls.SAFE_V130, "Safe_v130");
+        vm.label(Preinstalls.SAFE_L2_V130, "SafeL2_v130");
+        vm.label(Preinstalls.MULTI_SEND_V130, "MultiSend_v130");
+        vm.label(Preinstalls.MULTI_SEND_CALL_ONLY_V130, "MultiSendCallOnly_v130");
+        vm.label(Preinstalls.SAFE_SINGLETON_FACTORY, "SafeSingletonFactor");
+        vm.label(Preinstalls.DETERMINISTIC_DEPLOYMENT_PROXY, "DeterministicProxyDeployer");
+        vm.label(Preinstalls.PERMIT2, "Permit2");
+        vm.label(Preinstalls.SENDER_CREATOR, "SenderCreator");
+        vm.label(Preinstalls.ENTRY_POINT, "EntryPoint");
     }
 }
