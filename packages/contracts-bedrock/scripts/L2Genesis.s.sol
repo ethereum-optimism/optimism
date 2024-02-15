@@ -7,15 +7,22 @@ import { console2 as console } from "forge-std/console2.sol";
 import { Artifacts } from "scripts/Artifacts.s.sol";
 import { DeployConfig } from "scripts/DeployConfig.s.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
-import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
-import { L2StandardBridge } from "src/L2/L2StandardBridge.sol";
+import { L2ToL1MessagePasser } from "src/L2/L2ToL1MessagePasser.sol";
 import { L2CrossDomainMessenger } from "src/L2/L2CrossDomainMessenger.sol";
+import { L2StandardBridge } from "src/L2/L2StandardBridge.sol";
+import { L2ERC721Bridge } from "src/L2/L2ERC721Bridge.sol";
 import { SequencerFeeVault } from "src/L2/SequencerFeeVault.sol";
-import { FeeVault } from "src/universal/FeeVault.sol";
 import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
+import { OptimismMintableERC721Factory } from "src/universal/OptimismMintableERC721Factory.sol";
 import { L1Block } from "src/L2/L1Block.sol";
+import { BaseFeeVault } from "src/L2/BaseFeeVault.sol";
+import { L1FeeVault } from "src/L2/L1FeeVault.sol";
 import { GovernanceToken } from "src/governance/GovernanceToken.sol";
+// import { EAS } from "src/EAS/EAS.sol";
+import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
+import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
+import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
+import { FeeVault } from "src/universal/FeeVault.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
 interface IInitializable {
@@ -154,60 +161,44 @@ contract L2Genesis is Script, Artifacts {
     /// @dev Sets all the implementations for the predeploy proxies. For contracts without proxies,
     ///      sets the deployed bytecode at their expected predeploy address.
     function _setPredeployImplementations() internal {
-        _setLegacyMessagePasser();
-        _setDeployerWhitelist();
-        _setWETH9();
-        _setL2StandardBridge();
+        _setL2ToL1MessagePasser();
         _setL2CrossDomainMessenger();
+        _setL2StandardBridge();
+        _setL2ERC721Bridge();
         _setSequencerFeeVault();
         _setOptimismMintableERC20Factory();
-        _setL1BlockNumber();
-        _setGasPriceOracle();
-        _setGovernanceToken();
+        _setOptimismMintableERC721Factory();
         _setL1Block();
+        _setGasPriceOracle();
+        _setDeployerWhitelist();
+        _setWETH9();
+        _setL1BlockNumber();
+        _setLegacyMessagePasser();
+        _setBaseFeeVault();
+        _setL1FeeVault();
+        _setGovernanceToken();
+        _setSchemaRegistry();
+        // _setEAS();
+    }
+
+    function _setL2ToL1MessagePasser() internal {
+        _setImplementationCode(Predeploys.L2_TO_L1_MESSAGE_PASSER, "L2ToL1MessagePasser");
     }
 
     /// @notice This predeploy is following the saftey invariant #1.
-    function _setLegacyMessagePasser() internal {
-        _setImplementationCode(Predeploys.LEGACY_MESSAGE_PASSER, "LegacyMessagePasser");
-    }
+    ///         We're initializing the implementation with `address(0)` so
+    ///         it's not left uninitialized. After `initialize` is called on the
+    ///         proxy to set the storage slot with the expected value.
+    function _setL2CrossDomainMessenger() internal {
+        address impl = _setImplementationCode(Predeploys.L2_CROSS_DOMAIN_MESSENGER, "L2CrossDomainMessenger");
 
-    /// @notice This predeploy is following the saftey invariant #1.
-    function _setDeployerWhitelist() internal {
-        _setImplementationCode(Predeploys.DEPLOYER_WHITELIST, "DeployerWhitelist");
-    }
+        L2CrossDomainMessenger(impl).initialize(L1CrossDomainMessenger(address(0)));
 
-    /// @notice This predeploy is following the saftey invariant #1.
-    ///         Contract metadata hash appended to deployed bytecode will differ
-    ///         from previous L2 genesis output.
-    ///         This contract is NOT proxied.
-    /// @dev We're manually setting storage slots because we need to deployment to be at
-    ///      the address `Predeploys.WETH9`, so we can't just deploy a new instance of `WETH9`.
-    function _setWETH9() internal {
-        console.log("Setting %s implementation at: %s", "WETH9", Predeploys.WETH9);
-        vm.etch(Predeploys.WETH9, vm.getDeployedCode("WETH9.sol:WETH9"));
+        L2CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER).initialize(
+            L1CrossDomainMessenger(mustGetAddress("L1CrossDomainMessengerProxy"))
+        );
 
-        vm.store(
-            Predeploys.WETH9,
-            /// string public name
-            hex"0000000000000000000000000000000000000000000000000000000000000000",
-            /// "Wrapped Ether"
-            hex"577261707065642045746865720000000000000000000000000000000000001a"
-        );
-        vm.store(
-            Predeploys.WETH9,
-            /// string public symbol
-            hex"0000000000000000000000000000000000000000000000000000000000000001",
-            /// "WETH"
-            hex"5745544800000000000000000000000000000000000000000000000000000008"
-        );
-        vm.store(
-            Predeploys.WETH9,
-            // uint8 public decimals
-            hex"0000000000000000000000000000000000000000000000000000000000000002",
-            /// 18
-            hex"0000000000000000000000000000000000000000000000000000000000000012"
-        );
+        _checkL2CrossDomainMessenger(impl);
     }
 
     /// @notice This predeploy is following the saftey invariant #1.
@@ -230,16 +221,17 @@ contract L2Genesis is Script, Artifacts {
     ///         We're initializing the implementation with `address(0)` so
     ///         it's not left uninitialized. After `initialize` is called on the
     ///         proxy to set the storage slot with the expected value.
-    function _setL2CrossDomainMessenger() internal {
-        address impl = _setImplementationCode(Predeploys.L2_CROSS_DOMAIN_MESSENGER, "L2CrossDomainMessenger");
+    function _setL2ERC721Bridge() internal {
+        address impl =
+            _setImplementationCode(Predeploys.L2_ERC721_BRIDGE, "L2ERC721Bridge");
 
-        L2CrossDomainMessenger(impl).initialize(L1CrossDomainMessenger(address(0)));
+        L2ERC721Bridge(impl).initialize(payable(address(0)));
 
-        L2CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER).initialize(
-            L1CrossDomainMessenger(mustGetAddress("L1CrossDomainMessengerProxy"))
+        L2ERC721Bridge(Predeploys.L2_ERC721_BRIDGE).initialize(
+            mustGetAddress("L1ERC721BridgeProxy")
         );
 
-        _checkL2CrossDomainMessenger(impl);
+        _checkL2ERC721Bridge(impl);
     }
 
     /// @notice This predeploy is following the saftey invariant #2,
@@ -283,6 +275,80 @@ contract L2Genesis is Script, Artifacts {
         _checkOptimismMintableERC20Factory(impl);
     }
 
+    /// @notice This predeploy is following the saftey invariant #2,
+    ///         because the constructor args are set as immutables and
+    ///         also includes a remote chain id which is read from the deploy config.
+    /// @dev Because the constructor args are stored as immutables,
+    ///      we don't have to worry about setting storage slots.
+    function _setOptimismMintableERC721Factory() internal {
+        OptimismMintableERC721Factory factory = new OptimismMintableERC721Factory({
+            _bridge: Predeploys.L2_ERC721_BRIDGE,
+            _remoteChainId: cfg.l1ChainID()
+        });
+
+        address impl = _predeployToCodeNamespace(Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY);
+        console.log("Setting %s implementation at: %s", "OptimismMintableERC721Factory", impl);
+        vm.etch(impl, address(factory).code);
+
+        /// Reset so its not included state dump
+        vm.etch(address(factory), "");
+        vm.resetNonce(address(factory));
+
+        _checkOptimismMintableERC721Factory(impl);
+    }
+
+    /// @notice This predeploy is following the saftey invariant #1.
+    ///         This contract has no initializer.
+    /// @dev Previously the initial L1 attributes was set at genesis, to simplify,
+    ///      they no longer are so the resulting storage slots are no longer set.
+    function _setL1Block() internal {
+        _setImplementationCode(Predeploys.L1_BLOCK_ATTRIBUTES, "L1Block");
+    }
+
+    /// @notice This predeploy is following the saftey invariant #1.
+    ///         This contract has no initializer.
+    function _setGasPriceOracle() internal {
+        _setImplementationCode(Predeploys.GAS_PRICE_ORACLE, "GasPriceOracle");
+    }
+
+    /// @notice This predeploy is following the saftey invariant #1.
+    function _setDeployerWhitelist() internal {
+        _setImplementationCode(Predeploys.DEPLOYER_WHITELIST, "DeployerWhitelist");
+    }
+
+    /// @notice This predeploy is following the saftey invariant #1.
+    ///         Contract metadata hash appended to deployed bytecode will differ
+    ///         from previous L2 genesis output.
+    ///         This contract is NOT proxied.
+    /// @dev We're manually setting storage slots because we need to deployment to be at
+    ///      the address `Predeploys.WETH9`, so we can't just deploy a new instance of `WETH9`.
+    function _setWETH9() internal {
+        console.log("Setting %s implementation at: %s", "WETH9", Predeploys.WETH9);
+        vm.etch(Predeploys.WETH9, vm.getDeployedCode("WETH9.sol:WETH9"));
+
+        vm.store(
+            Predeploys.WETH9,
+            /// string public name
+            hex"0000000000000000000000000000000000000000000000000000000000000000",
+            /// "Wrapped Ether"
+            hex"577261707065642045746865720000000000000000000000000000000000001a"
+        );
+        vm.store(
+            Predeploys.WETH9,
+            /// string public symbol
+            hex"0000000000000000000000000000000000000000000000000000000000000001",
+            /// "WETH"
+            hex"5745544800000000000000000000000000000000000000000000000000000008"
+        );
+        vm.store(
+            Predeploys.WETH9,
+            // uint8 public decimals
+            hex"0000000000000000000000000000000000000000000000000000000000000002",
+            /// 18
+            hex"0000000000000000000000000000000000000000000000000000000000000012"
+        );
+    }
+
     /// @notice This predeploy is following the saftey invariant #1.
     ///         This contract has no initializer.
     function _setL1BlockNumber() internal {
@@ -290,9 +356,48 @@ contract L2Genesis is Script, Artifacts {
     }
 
     /// @notice This predeploy is following the saftey invariant #1.
-    ///         This contract has no initializer.
-    function _setGasPriceOracle() internal {
-        _setImplementationCode(Predeploys.GAS_PRICE_ORACLE, "GasPriceOracle");
+    function _setLegacyMessagePasser() internal {
+        _setImplementationCode(Predeploys.LEGACY_MESSAGE_PASSER, "LegacyMessagePasser");
+    }
+
+    function _setBaseFeeVault() internal {
+        _setImplementationCode(Predeploys.BASE_FEE_VAULT, "BaseFeeVault");
+
+        BaseFeeVault vault = new BaseFeeVault({
+            _recipient: cfg.baseFeeVaultRecipient(),
+            _minWithdrawalAmount: cfg.baseFeeVaultMinimumWithdrawalAmount(),
+            _withdrawalNetwork: FeeVault.WithdrawalNetwork(cfg.baseFeeVaultWithdrawalNetwork())
+        });
+
+        address impl = _predeployToCodeNamespace(Predeploys.BASE_FEE_VAULT);
+        console.log("Setting %s implementation at: %s", "BaseFeeVault", impl);
+        vm.etch(impl, address(vault).code);
+
+        /// Reset so its not included state dump
+        vm.etch(address(vault), "");
+        vm.resetNonce(address(vault));
+
+        _checkBaseFeeVault(impl);
+    }
+
+    function _setL1FeeVault() internal {
+        _setImplementationCode(Predeploys.L1_FEE_VAULT, "L1FeeVault");
+
+        L1FeeVault vault = new L1FeeVault({
+            _recipient: cfg.l1FeeVaultRecipient(),
+            _minWithdrawalAmount: cfg.l1FeeVaultMinimumWithdrawalAmount(),
+            _withdrawalNetwork: FeeVault.WithdrawalNetwork(cfg.l1FeeVaultWithdrawalNetwork())
+        });
+
+        address impl = _predeployToCodeNamespace(Predeploys.L1_FEE_VAULT);
+        console.log("Setting %s implementation at: %s", "L1FeeVault", impl);
+        vm.etch(impl, address(vault).code);
+
+        /// Reset so its not included state dump
+        vm.etch(address(vault), "");
+        vm.resetNonce(address(vault));
+
+        _checkL1FeeVault(impl);
     }
 
     /// @notice This predeploy is following the saftey invariant #3.
@@ -320,12 +425,29 @@ contract L2Genesis is Script, Artifacts {
     }
 
     /// @notice This predeploy is following the saftey invariant #1.
-    ///         This contract has no initializer.
-    /// @dev Previously the initial L1 attributes was set at genesis, to simplify,
-    ///      they no longer are so the resulting storage slots are no longer set.
-    function _setL1Block() internal {
-        _setImplementationCode(Predeploys.L1_BLOCK_ATTRIBUTES, "L1Block");
+    function _setSchemaRegistry() internal {
+        _setImplementationCode(Predeploys.SCHEMA_REGISTRY, "SchemaRegistry");
     }
+
+    /// @notice This predeploy is following the saftey invariant #2,
+    ///         because the constructor args are set as immutables.
+    /// @dev Because the constructor args are stored as immutables,
+    ///      we don't have to worry about setting storage slots.
+    // function _setEAS() internal {
+    //     _setImplementationCode(Predeploys.EAS, "EAS");
+
+    //     EAS eas = new EAS();
+
+    //     address impl = _predeployToCodeNamespace(Predeploys.EAS);
+    //     console.log("Setting %s implementation at: %s", "EAS", impl);
+    //     vm.etch(impl, address(eas).code);
+
+    //     /// Reset so its not included state dump
+    //     vm.etch(address(eas), "");
+    //     vm.resetNonce(address(eas));
+
+    //     _checkEAS(impl);
+    // }
 
     /// @dev Returns true if the address is not proxied.
     function _notProxied(address _addr) internal pure returns (bool) {
@@ -399,9 +521,15 @@ contract L2Genesis is Script, Artifacts {
     //////////////////////////////////////////////////////
     /// Post Checks
     //////////////////////////////////////////////////////
+
     function _checkL2StandardBridge(address _impl) internal {
         _verifyCantReinitialize(_impl, address(0));
         _verifyCantReinitialize(Predeploys.L2_STANDARD_BRIDGE, mustGetAddress("L1StandardBridgeProxy"));
+    }
+
+    function _checkL2ERC721Bridge(address _impl) internal {
+        _verifyCantReinitialize(_impl, address(0));
+        _verifyCantReinitialize(Predeploys.L2_ERC721_BRIDGE, mustGetAddress("L1ERC721BridgeProxy"));
     }
 
     function _checkL2CrossDomainMessenger(address _impl) internal {
@@ -416,6 +544,22 @@ contract L2Genesis is Script, Artifacts {
     function _checkOptimismMintableERC20Factory(address _impl) internal {
         _verifyCantReinitialize(_impl, address(0));
         _verifyCantReinitialize(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY, Predeploys.L2_STANDARD_BRIDGE);
+    }
+
+    function _checkOptimismMintableERC721Factory(address _impl) internal view {
+        _verifyProxyImplementationAddress(Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY, _impl);
+    }
+
+    function _checkBaseFeeVault(address _impl) internal view {
+        _verifyProxyImplementationAddress(Predeploys.BASE_FEE_VAULT, _impl);
+    }
+
+    function _checkL1FeeVault(address _impl) internal view {
+        _verifyProxyImplementationAddress(Predeploys.L1_FEE_VAULT, _impl);
+    }
+
+    function _checkEAS(address _impl) internal view {
+        _verifyProxyImplementationAddress(Predeploys.EAS, _impl);
     }
 
     function _checkDevAccountsFunded() internal view {
