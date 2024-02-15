@@ -37,7 +37,7 @@ export class Logger {
 
       formatters: {
         level: (label: string) => {
-          return { level: label.toUpperCase() };
+          return { level: label.toUpperCase() }
         },
       },
 
