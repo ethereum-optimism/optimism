@@ -454,7 +454,7 @@ func (g *OutputGameHelper) AttackWithTransactOpts(ctx context.Context, claimIdx 
 	claimData, err := g.game.ClaimData(&bind.CallOpts{Context: ctx}, big.NewInt(claimIdx))
 	g.require.NoError(err, "Failed to get claim data")
 	pos := types.NewPositionFromGIndex(claimData.Position)
-	g.fillBondTransactOpts(ctx, pos.Attack().ToGIndex(), opts)
+	opts = g.makeBondedTransactOpts(ctx, pos.Attack().ToGIndex(), opts)
 
 	tx, err := g.game.Attack(opts, big.NewInt(claimIdx), claim)
 	if err != nil {
@@ -476,7 +476,7 @@ func (g *OutputGameHelper) DefendWithTransactOpts(ctx context.Context, claimIdx 
 	claimData, err := g.game.ClaimData(&bind.CallOpts{Context: ctx}, big.NewInt(claimIdx))
 	g.require.NoError(err, "Failed to get claim data")
 	pos := types.NewPositionFromGIndex(claimData.Position)
-	g.fillBondTransactOpts(ctx, pos.Defend().ToGIndex(), opts)
+	opts = g.makeBondedTransactOpts(ctx, pos.Defend().ToGIndex(), opts)
 
 	tx, err := g.game.Defend(opts, big.NewInt(claimIdx), claim)
 	if err != nil {
@@ -492,10 +492,12 @@ func (g *OutputGameHelper) Defend(ctx context.Context, claimIdx int64, claim com
 	g.DefendWithTransactOpts(ctx, claimIdx, claim, g.opts)
 }
 
-func (g *OutputGameHelper) fillBondTransactOpts(ctx context.Context, pos *big.Int, opts *bind.TransactOpts) {
+func (g *OutputGameHelper) makeBondedTransactOpts(ctx context.Context, pos *big.Int, opts *bind.TransactOpts) *bind.TransactOpts {
+	bopts := *opts
 	bond, err := g.game.GetRequiredBond(&bind.CallOpts{Context: ctx}, pos)
 	g.require.NoError(err, "Failed to get required bond")
-	opts.Value = bond
+	bopts.Value = bond
+	return &bopts
 }
 
 type ErrWithData interface {
