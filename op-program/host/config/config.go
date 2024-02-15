@@ -38,7 +38,7 @@ type Config struct {
 	// If not set, an in-memory key-value store is used and fetching data must be enabled
 	DataDir string
 
-	// L1Head is the block has of the L1 chain head block
+	// L1Head is the block hash of the L1 chain head block
 	L1Head      common.Hash
 	L1URL       string
 	L1BeaconURL string
