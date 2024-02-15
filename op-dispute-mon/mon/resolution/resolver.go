@@ -1,4 +1,4 @@
-package mon
+package resolution
 
 import (
 	"github.com/ethereum/go-ethereum/common"

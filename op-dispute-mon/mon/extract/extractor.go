@@ -44,7 +44,7 @@ func (e *Extractor) enrichGames(ctx context.Context, games []gameTypes.GameMetad
 			e.logger.Error("failed to create game caller", "err", err)
 			continue
 		}
-		l2BlockNum, rootClaim, status, err := caller.GetGameMetadata(ctx)
+		l2BlockNum, rootClaim, status, duration, err := caller.GetGameMetadata(ctx)
 		if err != nil {
 			e.logger.Error("failed to fetch game metadata", "err", err)
 			continue
@@ -59,6 +59,7 @@ func (e *Extractor) enrichGames(ctx context.Context, games []gameTypes.GameMetad
 			L2BlockNumber: l2BlockNum,
 			RootClaim:     rootClaim,
 			Status:        status,
+			Duration:      duration,
 			Claims:        claims,
 		})
 	}

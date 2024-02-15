@@ -80,25 +80,27 @@ func (c *FaultDisputeGameContract) GetBlockRange(ctx context.Context) (prestateB
 	return
 }
 
-// GetGameMetadata returns the game's L2 block number, root claim, and status.
-func (c *FaultDisputeGameContract) GetGameMetadata(ctx context.Context) (uint64, common.Hash, gameTypes.GameStatus, error) {
+// GetGameMetadata returns the game's L2 block number, root claim, status, and game duration.
+func (c *FaultDisputeGameContract) GetGameMetadata(ctx context.Context) (uint64, common.Hash, gameTypes.GameStatus, uint64, error) {
 	results, err := c.multiCaller.Call(ctx, batching.BlockLatest,
 		c.contract.Call(methodL2BlockNumber),
 		c.contract.Call(methodRootClaim),
-		c.contract.Call(methodStatus))
+		c.contract.Call(methodStatus),
+		c.contract.Call(methodGameDuration))
 	if err != nil {
-		return 0, common.Hash{}, 0, fmt.Errorf("failed to retrieve game metadata: %w", err)
+		return 0, common.Hash{}, 0, 0, fmt.Errorf("failed to retrieve game metadata: %w", err)
 	}
-	if len(results) != 3 {
-		return 0, common.Hash{}, 0, fmt.Errorf("expected 3 results but got %v", len(results))
+	if len(results) != 4 {
+		return 0, common.Hash{}, 0, 0, fmt.Errorf("expected 3 results but got %v", len(results))
 	}
 	l2BlockNumber := results[0].GetBigInt(0).Uint64()
 	rootClaim := results[1].GetHash(0)
+	duration := results[3].GetUint64(0)
 	status, err := gameTypes.GameStatusFromUint8(results[2].GetUint8(0))
 	if err != nil {
-		return 0, common.Hash{}, 0, fmt.Errorf("failed to convert game status: %w", err)
+		return 0, common.Hash{}, 0, 0, fmt.Errorf("failed to convert game status: %w", err)
 	}
-	return l2BlockNumber, rootClaim, status, nil
+	return l2BlockNumber, rootClaim, status, duration, nil
 }
 
 func (c *FaultDisputeGameContract) GetGenesisOutputRoot(ctx context.Context) (common.Hash, error) {

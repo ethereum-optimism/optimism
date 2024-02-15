@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/config"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/metrics"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/extract"
+	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/resolution"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/version"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
@@ -35,6 +36,7 @@ type Service struct {
 
 	cl clock.Clock
 
+	delays       *resolution.DelayCalculator
 	extractor    *extract.Extractor
 	forecast     *forecast
 	game         *extract.GameCallerCreator
@@ -85,6 +87,7 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 	s.initOutputValidator()   // Must be called before initForecast
 	s.initGameCallerCreator() // Must be called before initForecast
 
+	s.initDelayCalculator()
 	s.initExtractor()
 
 	s.initForecast(cfg)
@@ -104,6 +107,10 @@ func (s *Service) initOutputValidator() {
 
 func (s *Service) initGameCallerCreator() {
 	s.game = extract.NewGameCallerCreator(s.metrics, batching.NewMultiCaller(s.l1Client.Client(), batching.DefaultBatchSize))
+}
+
+func (s *Service) initDelayCalculator() {
+	s.delays = resolution.NewDelayCalculator(s.metrics, s.cl)
 }
 
 func (s *Service) initExtractor() {
@@ -195,6 +202,7 @@ func (s *Service) initMonitor(ctx context.Context, cfg *config.Config) {
 		s.cl,
 		cfg.MonitorInterval,
 		cfg.GameWindow,
+		s.delays.RecordClaimResolutionDelayMax,
 		s.detector.Detect,
 		s.forecast.Forecast,
 		s.extractor.Extract,

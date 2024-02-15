@@ -319,16 +319,19 @@ func TestGetSplitDepth(t *testing.T) {
 func TestGetGameMetadata(t *testing.T) {
 	stubRpc, contract := setupFaultDisputeGameTest(t)
 	expectedL2BlockNumber := uint64(123)
+	expectedGameDuration := uint64(456)
 	expectedRootClaim := common.Hash{0x01, 0x02}
 	expectedStatus := types.GameStatusChallengerWon
 	stubRpc.SetResponse(fdgAddr, methodL2BlockNumber, batching.BlockLatest, nil, []interface{}{new(big.Int).SetUint64(expectedL2BlockNumber)})
 	stubRpc.SetResponse(fdgAddr, methodRootClaim, batching.BlockLatest, nil, []interface{}{expectedRootClaim})
 	stubRpc.SetResponse(fdgAddr, methodStatus, batching.BlockLatest, nil, []interface{}{expectedStatus})
-	l2BlockNumber, rootClaim, status, err := contract.GetGameMetadata(context.Background())
+	stubRpc.SetResponse(fdgAddr, methodGameDuration, batching.BlockLatest, nil, []interface{}{expectedGameDuration})
+	l2BlockNumber, rootClaim, status, duration, err := contract.GetGameMetadata(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, expectedL2BlockNumber, l2BlockNumber)
 	require.Equal(t, expectedRootClaim, rootClaim)
 	require.Equal(t, expectedStatus, status)
+	require.Equal(t, expectedGameDuration, duration)
 }
 
 func TestGetGenesisOutputRoot(t *testing.T) {

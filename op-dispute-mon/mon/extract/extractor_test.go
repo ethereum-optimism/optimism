@@ -37,7 +37,7 @@ func TestExtractor_Extract(t *testing.T) {
 		require.Equal(t, 1, creator.calls)
 		require.Equal(t, 0, creator.caller.metadataCalls)
 		require.Equal(t, 0, creator.caller.claimsCalls)
-		verifyLogs(t, logs, 1, 0, 0)
+		verifyLogs(t, logs, 1, 0, 0, 0)
 	})
 
 	t.Run("MetadataFetchErrorLog", func(t *testing.T) {
@@ -51,7 +51,7 @@ func TestExtractor_Extract(t *testing.T) {
 		require.Equal(t, 1, creator.calls)
 		require.Equal(t, 1, creator.caller.metadataCalls)
 		require.Equal(t, 0, creator.caller.claimsCalls)
-		verifyLogs(t, logs, 0, 1, 0)
+		verifyLogs(t, logs, 0, 1, 0, 0)
 	})
 
 	t.Run("ClaimsFetchErrorLog", func(t *testing.T) {
@@ -65,7 +65,7 @@ func TestExtractor_Extract(t *testing.T) {
 		require.Equal(t, 1, creator.calls)
 		require.Equal(t, 1, creator.caller.metadataCalls)
 		require.Equal(t, 1, creator.caller.claimsCalls)
-		verifyLogs(t, logs, 0, 0, 1)
+		verifyLogs(t, logs, 0, 0, 1, 0)
 	})
 
 	t.Run("Success", func(t *testing.T) {
@@ -81,7 +81,7 @@ func TestExtractor_Extract(t *testing.T) {
 	})
 }
 
-func verifyLogs(t *testing.T, logs *testlog.CapturingHandler, createErr int, metadataErr int, claimsErr int) {
+func verifyLogs(t *testing.T, logs *testlog.CapturingHandler, createErr int, metadataErr int, claimsErr int, durationErr int) {
 	errorLevelFilter := testlog.NewLevelFilter(log.LevelError)
 	createMessageFilter := testlog.NewMessageFilter("failed to create game caller")
 	l := logs.FindLogs(errorLevelFilter, createMessageFilter)
@@ -92,6 +92,9 @@ func verifyLogs(t *testing.T, logs *testlog.CapturingHandler, createErr int, met
 	claimsMessageFilter := testlog.NewMessageFilter("failed to fetch game claims")
 	l = logs.FindLogs(errorLevelFilter, claimsMessageFilter)
 	require.Len(t, l, claimsErr)
+	durationMessageFilter := testlog.NewMessageFilter("failed to fetch game duration")
+	l = logs.FindLogs(errorLevelFilter, durationMessageFilter)
+	require.Len(t, l, durationErr)
 }
 
 func setupExtractorTest(t *testing.T) (*Extractor, *mockGameCallerCreator, *mockGameFetcher, *testlog.CapturingHandler) {
@@ -146,12 +149,12 @@ type mockGameCaller struct {
 	claims        []faultTypes.Claim
 }
 
-func (m *mockGameCaller) GetGameMetadata(_ context.Context) (uint64, common.Hash, types.GameStatus, error) {
+func (m *mockGameCaller) GetGameMetadata(_ context.Context) (uint64, common.Hash, types.GameStatus, uint64, error) {
 	m.metadataCalls++
 	if m.metadataErr != nil {
-		return 0, common.Hash{}, 0, m.metadataErr
+		return 0, common.Hash{}, 0, 0, m.metadataErr
 	}
-	return 0, mockRootClaim, 0, nil
+	return 0, mockRootClaim, 0, 0, nil
 }
 
 func (m *mockGameCaller) GetAllClaims(ctx context.Context) ([]faultTypes.Claim, error) {

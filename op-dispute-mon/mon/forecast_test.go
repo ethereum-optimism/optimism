@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
+	"math/big"
 	"testing"
 
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
@@ -267,6 +269,7 @@ type mockForecastMetrics struct {
 	disagreeDefenderAhead   int
 	agreeChallengerAhead    int
 	disagreeChallengerAhead int
+	claimResolutionDelayMax float64
 }
 
 func (m *mockForecastMetrics) RecordGameAgreement(status metrics.GameAgreementStatus, count int) {
@@ -279,5 +282,40 @@ func (m *mockForecastMetrics) RecordGameAgreement(status metrics.GameAgreementSt
 		m.agreeChallengerAhead = count
 	case metrics.DisagreeChallengerAhead:
 		m.disagreeChallengerAhead = count
+	}
+}
+
+func (m *mockForecastMetrics) RecordClaimResolutionDelayMax(delay float64) {
+	m.claimResolutionDelayMax = delay
+}
+
+func createDeepClaimList() []faultTypes.Claim {
+	return []faultTypes.Claim{
+		{
+			ClaimData: faultTypes.ClaimData{
+				Position: faultTypes.NewPosition(0, big.NewInt(0)),
+			},
+			ContractIndex:       0,
+			CounteredBy:         common.HexToAddress("0x222222"),
+			ParentContractIndex: math.MaxInt64,
+			Claimant:            common.HexToAddress("0x111111"),
+		},
+		{
+			ClaimData: faultTypes.ClaimData{
+				Position: faultTypes.NewPosition(1, big.NewInt(0)),
+			},
+			CounteredBy:         common.HexToAddress("0x111111"),
+			ContractIndex:       1,
+			ParentContractIndex: 0,
+			Claimant:            common.HexToAddress("0x222222"),
+		},
+		{
+			ClaimData: faultTypes.ClaimData{
+				Position: faultTypes.NewPosition(2, big.NewInt(0)),
+			},
+			ContractIndex:       2,
+			ParentContractIndex: 1,
+			Claimant:            common.HexToAddress("0x111111"),
+		},
 	}
 }

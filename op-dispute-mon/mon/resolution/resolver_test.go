@@ -1,4 +1,4 @@
-package mon
+package resolution
 
 import (
 	"math"

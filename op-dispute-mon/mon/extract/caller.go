@@ -16,8 +16,8 @@ import (
 const metricsLabel = "game_caller_creator"
 
 type GameCaller interface {
-	GetGameMetadata(context.Context) (uint64, common.Hash, types.GameStatus, error)
-	GetAllClaims(ctx context.Context) ([]faultTypes.Claim, error)
+	GetGameMetadata(context.Context) (uint64, common.Hash, types.GameStatus, uint64, error)
+	GetAllClaims(context.Context) ([]faultTypes.Claim, error)
 }
 
 type GameCallerCreator struct {
