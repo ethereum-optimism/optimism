@@ -177,7 +177,7 @@ func (e *EngineController) ConfirmPayload(ctx context.Context, agossip async.Asy
 		return nil, BlockInsertPrestateErr, fmt.Errorf("cannot complete payload building: not currently building a payload")
 	}
 	if p := agossip.Get(); p != nil && e.buildingOnto == (eth.L2BlockRef{}) {
-		e.log.Warn("found reusable payload from async gossiper, and buildingOnto is empty. Reusing payload",
+		e.log.Warn("Found reusable payload from async gossiper, and no block was being built. Reusing payload.",
 			"hash", p.ExecutionPayload.BlockHash,
 			"number", uint64(p.ExecutionPayload.BlockNumber),
 			"parent", p.ExecutionPayload.ParentHash)
