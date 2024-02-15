@@ -2009,8 +2009,8 @@ workflows:
             - oplabs-fpp-nodes
 
   develop-fault-proofs:
-    when:
-      equal: [ "develop", <<pipeline.git.branch>> ]
+    #when:
+      #equal: [ "develop", <<pipeline.git.branch>> ]
     jobs:
       - go-mod-download
       - cannon-prestate:
