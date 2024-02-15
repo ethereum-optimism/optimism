@@ -295,8 +295,6 @@ func TestOutputCannonStepWithPreimage(t *testing.T) {
 }
 
 func TestOutputCannonStepWithKZGPointEvaluation(t *testing.T) {
-	t.Skip("TODO: Fix flaky test")
-
 	testPreimageStep := func(t *testing.T, preloadPreimage bool) {
 		op_e2e.InitParallel(t, op_e2e.UsesCannon)
 
@@ -307,6 +305,7 @@ func TestOutputCannonStepWithKZGPointEvaluation(t *testing.T) {
 		receipt := sendKZGPointEvaluationTx(t, sys, "sequencer", sys.Cfg.Secrets.Alice)
 		precompileBlock := receipt.BlockNumber
 		t.Logf("KZG Point Evaluation block number: %d", precompileBlock)
+		require.NoError(t, wait.ForSafeBlock(ctx, sys.RollupClient("sequencer"), precompileBlock.Uint64()))
 
 		disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
 		game := disputeGameFactory.StartOutputCannonGame(ctx, "sequencer", precompileBlock.Uint64(), common.Hash{0x01, 0xaa})
