@@ -14,7 +14,20 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-var ErrClaimNotValid = errors.New("invalid claim")
+type ClaimNotValidError struct {
+	ClaimedOutputRoot eth.Bytes32
+	ActualOutputRoot  eth.Bytes32
+	SafeHead          eth.L2BlockRef
+}
+
+func (c ClaimNotValidError) Error() string {
+	return fmt.Sprintf("invalid claim: claim: %v actual: %v", c.ClaimedOutputRoot, c.ActualOutputRoot)
+}
+
+func IsClaimNotValidError(err error) bool {
+	var notValidErr ClaimNotValidError
+	return errors.As(err, &notValidErr)
+}
 
 type Derivation interface {
 	Step(ctx context.Context) error
@@ -88,7 +101,11 @@ func (d *Driver) ValidateClaim(l2ClaimBlockNum uint64, claimedOutputRoot eth.Byt
 	}
 	d.logger.Info("Validating claim", "head", d.SafeHead(), "output", outputRoot, "claim", claimedOutputRoot)
 	if claimedOutputRoot != outputRoot {
-		return fmt.Errorf("%w: claim: %v actual: %v", ErrClaimNotValid, claimedOutputRoot, outputRoot)
+		return ClaimNotValidError{
+			ClaimedOutputRoot: claimedOutputRoot,
+			ActualOutputRoot:  outputRoot,
+			SafeHead:          d.SafeHead(),
+		}
 	}
 	return nil
 }

@@ -81,12 +81,20 @@ func TestValidateClaim(t *testing.T) {
 	})
 
 	t.Run("Invalid", func(t *testing.T) {
-		driver := createDriver(t, io.EOF)
+		expectedSafeHeadNum := uint64(24)
+		driver := createDriverWithNextBlock(t, io.EOF, expectedSafeHeadNum)
+		actualOutput := eth.Bytes32{0x22}
 		driver.l2OutputRoot = func(_ uint64) (eth.Bytes32, error) {
-			return eth.Bytes32{0x22}, nil
+			return actualOutput, nil
 		}
-		err := driver.ValidateClaim(uint64(0), eth.Bytes32{0x11})
-		require.ErrorIs(t, err, ErrClaimNotValid)
+		claimedOutput := eth.Bytes32{0x11}
+		err := driver.ValidateClaim(uint64(0), claimedOutput)
+		require.True(t, IsClaimNotValidError(err))
+		var notValidErr ClaimNotValidError
+		require.ErrorAs(t, err, &notValidErr)
+		require.Equal(t, claimedOutput, notValidErr.ClaimedOutputRoot)
+		require.Equal(t, actualOutput, notValidErr.ActualOutputRoot)
+		require.Equal(t, expectedSafeHeadNum, notValidErr.SafeHead.Number)
 	})
 
 	t.Run("Error", func(t *testing.T) {

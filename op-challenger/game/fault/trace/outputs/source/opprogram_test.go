@@ -84,10 +84,11 @@ func TestRunOPProgram(t *testing.T) {
 	})
 
 	t.Run("InvalidOutputRoot", func(t *testing.T) {
-		maxSafeHead, valid, _, err := runProgram(t, driver.ErrClaimNotValid)
+		expectedMaxSafeHead := uint64(4444)
+		maxSafeHead, valid, _, err := runProgram(t, driver.ClaimNotValidError{SafeHead: eth.L2BlockRef{Number: expectedMaxSafeHead}})
 		require.NoError(t, err)
 		// TODO(client-pod#416): Verify the final safe head was returned
-		require.Equal(t, uint64(math.MaxUint64), maxSafeHead, "No need to restrict with valid output root")
+		require.Equal(t, expectedMaxSafeHead, maxSafeHead)
 		require.False(t, valid)
 	})
 

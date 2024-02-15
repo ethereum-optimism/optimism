@@ -320,7 +320,7 @@ func testFaultProofProgramScenario(t *testing.T, ctx context.Context, sys *Syste
 	if s.Detached {
 		require.Error(t, err, "exit status 1")
 	} else {
-		require.ErrorIs(t, err, driver.ErrClaimNotValid)
+		require.True(t, driver.IsClaimNotValidError(err))
 	}
 }
 

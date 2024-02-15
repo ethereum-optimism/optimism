@@ -2,7 +2,6 @@ package source
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math"
 	"path/filepath"
@@ -43,7 +42,7 @@ func (r *fppRunner) RunProgram(ctx context.Context, l1Head common.Hash, l2Start 
 		return 0, false, fmt.Errorf("invalid op-program config: %w", err)
 	}
 	err = r.runFPP(ctx, logger, fppConfig)
-	if errors.Is(err, driver.ErrClaimNotValid) {
+	if driver.IsClaimNotValidError(err) {
 		// Output root is invalid
 		// TODO(client-pod#416): Determine the safe head derivation stopped at and return it
 		return math.MaxUint64, false, nil
