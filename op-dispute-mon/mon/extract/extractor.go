@@ -54,11 +54,17 @@ func (e *Extractor) enrichGames(ctx context.Context, games []gameTypes.GameMetad
 			e.logger.Error("failed to fetch game claims", "err", err)
 			continue
 		}
+		gameDuration, err := caller.GetGameDuration(ctx)
+		if err != nil {
+			e.logger.Error("failed to fetch game duration", "err", err)
+			continue
+		}
 		enrichedGames = append(enrichedGames, &monTypes.EnrichedGameData{
 			GameMetadata:  game,
 			L2BlockNumber: l2BlockNum,
 			RootClaim:     rootClaim,
 			Status:        status,
+			Duration:      gameDuration,
 			Claims:        claims,
 		})
 	}

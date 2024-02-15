@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/resolution"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/transform"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 
@@ -20,6 +21,7 @@ var (
 )
 
 type ForecastMetrics interface {
+	RecordClaimResolutionDelayMax(delay float64)
 	RecordGameAgreement(status string, count int)
 }
 
@@ -64,7 +66,7 @@ func (f *forecast) forecastGame(ctx context.Context, game *monTypes.EnrichedGame
 	tree := transform.CreateBidirectionalTree(game.Claims)
 
 	// Compute the resolution status of the game.
-	status := Resolve(tree)
+	status := resolution.Resolve(tree)
 
 	// Check the root agreement.
 	agreement, expected, err := f.validator.CheckRootAgreement(ctx, game.L2BlockNumber, game.RootClaim)

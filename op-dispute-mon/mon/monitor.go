@@ -18,6 +18,7 @@ type Forecast func(ctx context.Context, games []*types.EnrichedGameData)
 type BlockHashFetcher func(ctx context.Context, number *big.Int) (common.Hash, error)
 type BlockNumberFetcher func(ctx context.Context) (uint64, error)
 type Extract func(ctx context.Context, blockHash common.Hash, minTimestamp uint64) ([]*types.EnrichedGameData, error)
+type RecordClaimResolutionDelayMax func([]*types.EnrichedGameData)
 
 type gameMonitor struct {
 	logger log.Logger
@@ -30,6 +31,7 @@ type gameMonitor struct {
 	gameWindow      time.Duration
 	monitorInterval time.Duration
 
+	delays           RecordClaimResolutionDelayMax
 	detect           Detect
 	forecast         Forecast
 	extract          Extract
@@ -43,6 +45,7 @@ func newGameMonitor(
 	cl clock.Clock,
 	monitorInterval time.Duration,
 	gameWindow time.Duration,
+	delays RecordClaimResolutionDelayMax,
 	detect Detect,
 	forecast Forecast,
 	extract Extract,
@@ -56,6 +59,7 @@ func newGameMonitor(
 		done:             make(chan struct{}),
 		monitorInterval:  monitorInterval,
 		gameWindow:       gameWindow,
+		delays:           delays,
 		detect:           detect,
 		forecast:         forecast,
 		extract:          extract,
@@ -90,6 +94,7 @@ func (m *gameMonitor) monitorGames() error {
 	if err != nil {
 		return fmt.Errorf("failed to load games: %w", err)
 	}
+	m.delays(enrichedGames)
 	m.detect(m.ctx, enrichedGames)
 	m.forecast(m.ctx, enrichedGames)
 	return nil

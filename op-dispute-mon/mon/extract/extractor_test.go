@@ -37,7 +37,7 @@ func TestExtractor_Extract(t *testing.T) {
 		require.Equal(t, 1, creator.calls)
 		require.Equal(t, 0, creator.caller.metadataCalls)
 		require.Equal(t, 0, creator.caller.claimsCalls)
-		verifyLogs(t, logs, 1, 0, 0)
+		verifyLogs(t, logs, 1, 0, 0, 0)
 	})
 
 	t.Run("MetadataFetchErrorLog", func(t *testing.T) {
@@ -51,7 +51,7 @@ func TestExtractor_Extract(t *testing.T) {
 		require.Equal(t, 1, creator.calls)
 		require.Equal(t, 1, creator.caller.metadataCalls)
 		require.Equal(t, 0, creator.caller.claimsCalls)
-		verifyLogs(t, logs, 0, 1, 0)
+		verifyLogs(t, logs, 0, 1, 0, 0)
 	})
 
 	t.Run("ClaimsFetchErrorLog", func(t *testing.T) {
@@ -65,7 +65,23 @@ func TestExtractor_Extract(t *testing.T) {
 		require.Equal(t, 1, creator.calls)
 		require.Equal(t, 1, creator.caller.metadataCalls)
 		require.Equal(t, 1, creator.caller.claimsCalls)
-		verifyLogs(t, logs, 0, 0, 1)
+		verifyLogs(t, logs, 0, 0, 1, 0)
+	})
+
+	t.Run("DurationFetchErrorLog", func(t *testing.T) {
+		extractor, creator, games, logs := setupExtractorTest(t)
+		games.games = []gameTypes.GameMetadata{{}}
+		creator.caller.claims = []faultTypes.Claim{{}}
+		creator.caller.durationErr = errors.New("boom")
+		enriched, err := extractor.Extract(context.Background(), common.Hash{}, 0)
+		require.NoError(t, err)
+		require.Len(t, enriched, 0)
+		require.Equal(t, 1, games.calls)
+		require.Equal(t, 1, creator.calls)
+		require.Equal(t, 1, creator.caller.metadataCalls)
+		require.Equal(t, 1, creator.caller.claimsCalls)
+		require.Equal(t, 1, creator.caller.durationCalls)
+		verifyLogs(t, logs, 0, 0, 0, 1)
 	})
 
 	t.Run("Success", func(t *testing.T) {
@@ -81,7 +97,7 @@ func TestExtractor_Extract(t *testing.T) {
 	})
 }
 
-func verifyLogs(t *testing.T, logs *testlog.CapturingHandler, createErr int, metadataErr int, claimsErr int) {
+func verifyLogs(t *testing.T, logs *testlog.CapturingHandler, createErr int, metadataErr int, claimsErr int, durationErr int) {
 	errorLevelFilter := testlog.NewLevelFilter(log.LevelError)
 	createMessageFilter := testlog.NewMessageFilter("failed to create game caller")
 	l := logs.FindLogs(errorLevelFilter, createMessageFilter)
@@ -92,6 +108,9 @@ func verifyLogs(t *testing.T, logs *testlog.CapturingHandler, createErr int, met
 	claimsMessageFilter := testlog.NewMessageFilter("failed to fetch game claims")
 	l = logs.FindLogs(errorLevelFilter, claimsMessageFilter)
 	require.Len(t, l, claimsErr)
+	durationMessageFilter := testlog.NewMessageFilter("failed to fetch game duration")
+	l = logs.FindLogs(errorLevelFilter, durationMessageFilter)
+	require.Len(t, l, durationErr)
 }
 
 func setupExtractorTest(t *testing.T) (*Extractor, *mockGameCallerCreator, *mockGameFetcher, *testlog.CapturingHandler) {
@@ -138,6 +157,8 @@ func (m *mockGameCallerCreator) CreateGameCaller(_ gameTypes.GameMetadata) (Game
 }
 
 type mockGameCaller struct {
+	durationCalls int
+	durationErr   error
 	metadataCalls int
 	metadataErr   error
 	claimsCalls   int
@@ -160,4 +181,12 @@ func (m *mockGameCaller) GetAllClaims(ctx context.Context) ([]faultTypes.Claim, 
 		return nil, m.claimsErr
 	}
 	return m.claims, nil
+}
+
+func (m *mockGameCaller) GetGameDuration(context.Context) (uint64, error) {
+	m.durationCalls++
+	if m.durationErr != nil {
+		return 0, m.durationErr
+	}
+	return 0, nil
 }
