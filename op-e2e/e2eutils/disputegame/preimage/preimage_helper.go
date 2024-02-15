@@ -82,10 +82,15 @@ func (h *Helper) UploadLargePreimage(ctx context.Context, dataSize int, modifier
 	data := testutils.RandomData(rand.New(rand.NewSource(1234)), dataSize)
 	s := matrix.NewStateMatrix()
 	uuid := big.NewInt(h.uuidProvider.Add(1))
+	bondValue, err := h.oracleBindings.MINBONDSIZE(&bind.CallOpts{})
+	h.require.NoError(err)
+	h.opts.Value = bondValue
 	tx, err := h.oracleBindings.InitLPP(h.opts, uuid, 32, uint32(len(data)))
 	h.require.NoError(err)
 	_, err = wait.ForReceiptOK(ctx, h.client, tx.Hash())
 	h.require.NoError(err)
+	h.opts.Value = big.NewInt(0)
+
 	startBlock := big.NewInt(0)
 	totalBlocks := len(data) / types.BlockSize
 	in := bytes.NewReader(data)
@@ -111,6 +116,7 @@ func (h *Helper) UploadLargePreimage(ctx context.Context, dataSize int, modifier
 			break
 		}
 	}
+
 	return types.LargePreimageIdent{
 		Claimant: h.opts.From,
 		UUID:     uuid,

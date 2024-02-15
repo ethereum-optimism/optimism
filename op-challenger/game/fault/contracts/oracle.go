@@ -38,6 +38,7 @@ const (
 	methodChallengeLPP                   = "challengeLPP"
 	methodChallengePeriod                = "challengePeriod"
 	methodGetTreeRootLPP                 = "getTreeRootLPP"
+	methodMinBondSizeLPP                 = "MIN_BOND_SIZE"
 )
 
 var (
@@ -316,6 +317,15 @@ func (c *PreimageOracleContract) ChallengeTx(ident keccakTypes.LargePreimageIden
 			challenge.PoststateProof)
 	}
 	return call.ToTxCandidate()
+}
+
+func (c *PreimageOracleContract) GetMinBondLPP(ctx context.Context) (*big.Int, error) {
+	call := c.contract.Call(methodMinBondSizeLPP)
+	result, err := c.multiCaller.SingleCall(ctx, batching.BlockLatest, call)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch min lpp bond: %w", err)
+	}
+	return result.GetBigInt(0), nil
 }
 
 func (c *PreimageOracleContract) decodePreimageIdent(result *batching.CallResult) keccakTypes.LargePreimageIdent {
