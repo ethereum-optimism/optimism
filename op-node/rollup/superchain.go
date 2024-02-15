@@ -114,7 +114,7 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 		FjordTime:              superChain.Config.FjordTime,
 		BatchInboxAddress:      common.Address(chConfig.BatchInboxAddr),
 		DepositContractAddress: depositContractAddress,
-		L1SystemConfigAddress:  common.Address(chConfig.SystemConfigAddr),
+		L1SystemConfigAddress:  common.Address(superchain.Addresses[chConfig.ChainID].SystemConfigProxy),
 	}
 	if superChain.Config.ProtocolVersionsAddr != nil { // Set optional protocol versions address
 		cfg.ProtocolVersionsAddress = common.Address(*superChain.Config.ProtocolVersionsAddr)
