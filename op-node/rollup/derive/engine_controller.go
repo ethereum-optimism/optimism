@@ -172,7 +172,8 @@ func (e *EngineController) StartPayload(ctx context.Context, parent eth.L2BlockR
 }
 
 func (e *EngineController) ConfirmPayload(ctx context.Context, agossip async.AsyncGossiper, sequencerConductor conductor.SequencerConductor) (out *eth.ExecutionPayloadEnvelope, errTyp BlockInsertionErrType, err error) {
-	if e.buildingInfo == (eth.PayloadInfo{}) {
+	// don't create a BlockInsertPrestateErr if we have a cached gossip payload
+	if e.buildingInfo == (eth.PayloadInfo{}) && agossip.Get() == nil {
 		return nil, BlockInsertPrestateErr, fmt.Errorf("cannot complete payload building: not currently building a payload")
 	}
 	if e.buildingOnto.Hash != e.unsafeHead.Hash { // E.g. when safe-attributes consolidation fails, it will drop the existing work.
