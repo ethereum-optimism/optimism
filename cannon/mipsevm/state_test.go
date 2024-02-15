@@ -31,10 +31,7 @@ func TestState(t *testing.T) {
 
 	for _, f := range testFiles {
 		t.Run(f.Name(), func(t *testing.T) {
-			var oracle PreimageOracle
-			if strings.HasPrefix(f.Name(), "oracle") {
-				oracle = staticOracle(t, []byte("hello world"))
-			}
+			oracle := selectOracleFixture(t, f.Name())
 			// Short-circuit early for exit_group.bin
 			exitGroup := f.Name() == "exit_group.bin"
 
@@ -267,5 +264,36 @@ func staticOracle(t *testing.T, preimageData []byte) *testOracle {
 			}
 			return preimageData
 		},
+	}
+}
+
+func staticPrecompileOracle(t *testing.T, preimageData []byte, result []byte) *testOracle {
+	return &testOracle{
+		hint: func(v []byte) {},
+		getPreimage: func(k [32]byte) []byte {
+			switch k[0] {
+			case byte(preimage.Keccak256KeyType):
+				if k != preimage.Keccak256Key(crypto.Keccak256Hash(preimageData)).PreimageKey() {
+					t.Fatalf("invalid preimage request for %x", k)
+				}
+				return preimageData
+			case byte(preimage.KZGPointEvaluationKeyType):
+				if k != preimage.KZGPointEvaluationKey(crypto.Keccak256Hash(preimageData)).PreimageKey() {
+					t.Fatalf("invalid preimage request for %x", k)
+				}
+				return result
+			}
+			panic("unreachable")
+		},
+	}
+}
+
+func selectOracleFixture(t *testing.T, programName string) PreimageOracle {
+	if strings.HasPrefix(programName, "oracle_kzg") {
+		return staticPrecompileOracle(t, []byte("hello world"), []byte{0x1})
+	} else if strings.HasPrefix(programName, "oracle") {
+		return staticOracle(t, []byte("hello world"))
+	} else {
+		return nil
 	}
 }

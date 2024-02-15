@@ -334,10 +334,11 @@ contract PreimageOracle is IPreimageOracle {
     }
 
     /// @inheritdoc IPreimageOracle
-    function loadKZGPointEvaluationPreimage(bytes calldata _input) external {
+    function loadKZGPointEvaluationPreimagePart(uint256 _partOffset, bytes calldata _input) external {
         // Prior to Cancun activation, the blob preimage precompile is not available.
         if (block.timestamp < CANCUN_ACTIVATION) revert CancunNotActive();
 
+        bytes32 res;
         bytes32 key;
         bytes32 part;
         assembly {
@@ -353,7 +354,7 @@ contract PreimageOracle is IPreimageOracle {
 
             // Verify the KZG proof by calling the point evaluation precompile.
             // Capture the verification result
-            part :=
+            res :=
                 staticcall(
                     gas(), // forward all gas
                     0x0A, // point evaluation precompile address
@@ -362,13 +363,21 @@ contract PreimageOracle is IPreimageOracle {
                     0x00, // output ptr
                     0x00 // output size
                 )
-            // "part" will be 0 on error, and 1 on success, of the KZG Point-evaluation precompile call
+            // "res" will be 0 on error, and 1 on success, of the KZG Point-evaluation precompile call
             // We do have to shift it to the left-most byte of the bytes32 however, since we only read that byte.
-            part := shl(248, part)
+            res := shl(248, res)
+
+            // Reuse the `ptr` to store the preimage part including size prefix.
+            // put size as big-endian uint64 at the start of pre-image
+            mstore(ptr, shl(192, 1))
+            ptr := add(ptr, 0x08)
+            mstore(ptr, res)
+            // compute part given ofset
+            part := mload(add(sub(ptr, 0x08), _partOffset))
         }
-        // the part offset is always 0
-        preimagePartOk[key][0] = true;
-        preimageParts[key][0] = part;
+        preimagePartOk[key][_partOffset] = true;
+        preimageParts[key][_partOffset] = part;
+        // size is always 1
         preimageLengths[key] = 1;
     }
 

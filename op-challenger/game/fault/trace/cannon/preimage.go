@@ -109,7 +109,7 @@ func (l *preimageLoader) loadKZGPointEvaluationPreimage(proof *proofData) (*type
 		return nil, fmt.Errorf("failed to get key preimage: %w", err)
 	}
 	inputWithLength := lengthPrefixed(input)
-	return types.NewPreimageOracleKZGPointEvaluationData(proof.OracleKey, inputWithLength), nil
+	return types.NewPreimageOracleData(proof.OracleKey, inputWithLength, proof.OracleOffset), nil
 }
 
 func lengthPrefixed(data []byte) []byte {

@@ -582,7 +582,7 @@ func (g *OutputGameHelper) uploadPreimage(ctx context.Context, data *types.Preim
 	var tx *gethtypes.Transaction
 	switch data.OracleKey[0] {
 	case byte(preimage.KZGPointEvaluationKeyType):
-		tx, err = boundOracle.LoadKZGPointEvaluationPreimage(g.opts, data.GetPreimageWithoutSize())
+		tx, err = boundOracle.LoadKZGPointEvaluationPreimagePart(g.opts, new(big.Int).SetUint64(uint64(data.OracleOffset)), data.GetPreimageWithoutSize())
 	default:
 		tx, err = boundOracle.LoadKeccak256PreimagePart(g.opts, new(big.Int).SetUint64(uint64(data.OracleOffset)), data.GetPreimageWithoutSize())
 	}

@@ -79,15 +79,6 @@ func NewPreimageOracleBlobData(key []byte, data []byte, offset uint32, fieldInde
 	}
 }
 
-func NewPreimageOracleKZGPointEvaluationData(key []byte, input []byte) *PreimageOracleData {
-	return &PreimageOracleData{
-		IsLocal:      false,
-		OracleKey:    key,
-		oracleData:   input,
-		OracleOffset: 0,
-	}
-}
-
 // StepCallData encapsulates the data needed to perform a step.
 type StepCallData struct {
 	ClaimIndex uint64

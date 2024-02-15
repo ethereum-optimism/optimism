@@ -172,7 +172,7 @@ func TestPreimageLoader_KZGPointEvaluationPreimage(t *testing.T) {
 		actual, err := loader.LoadPreimage(proof)
 		require.NoError(t, err)
 		inputWithLength := lengthPrefixed(input)
-		expected := types.NewPreimageOracleKZGPointEvaluationData(proof.OracleKey, inputWithLength)
+		expected := types.NewPreimageOracleData(proof.OracleKey, inputWithLength, proof.OracleOffset)
 		require.Equal(t, expected, actual)
 	})
 }
