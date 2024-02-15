@@ -50,7 +50,7 @@ func Main(cliCtx *cli.Context) error {
 	m := metrics.NewMetrics("default")
 	ctx := context.Background()
 
-	config, err := opnode.NewRollupConfig(logger, cliCtx)
+	config, err := opnode.NewRollupConfigFromCLI(logger, cliCtx)
 	if err != nil {
 		return err
 	}
