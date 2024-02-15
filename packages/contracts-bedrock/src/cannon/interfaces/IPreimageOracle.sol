@@ -72,5 +72,5 @@ interface IPreimageOracle {
 
     /// @notice Prepares a point evaluation precompile result to be read by the keccak256 of its input.
     /// @param _input The point evaluation precompile input.
-    function loadKZGPointEvaluationPreimage(bytes calldata _input) external;
+    function loadKZGPointEvaluationPreimagePart(uint256 _partOffset, bytes calldata _input) external;
 }
