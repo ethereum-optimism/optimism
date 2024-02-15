@@ -137,8 +137,8 @@ contract Setup {
 
         if(deploy.cfg().usePlasma()) {
             dataAvailabilityChallenge = DataAvailabilityChallenge(deploy.mustGetAddress("DataAvailabilityChallengeProxy"));
-            vm.label(address(dataAvailabilityChallenge), "DataAvailabilityChallenge");
-            vm.label(deploy.mustGetAddress("DataAvailabilityChallengeProxy"), "DataAvailabilityChallengeProxy");
+            vm.label(address(dataAvailabilityChallenge), "DataAvailabilityChallengeProxy");
+            vm.label(deploy.mustGetAddress("DataAvailabilityChallenge"), "DataAvailabilityChallenge");
         }
     }
 

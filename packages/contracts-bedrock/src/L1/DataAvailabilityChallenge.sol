@@ -105,8 +105,18 @@ contract DataAvailabilityChallenge is OwnableUpgradeable, ISemver {
     /// @notice A mapping from challenged block numbers to challenged hashes to challenges.
     mapping(uint256 => mapping(bytes32 => Challenge)) public challenges;
 
-    /// @notice constructs a new DataAvailabilityChallenge contract.
-    constructor() OwnableUpgradeable() { }
+    /// @notice Constructs the DataAvailabilityChallenge contract. Cannot set
+    ///         the owner to `address(0)` due to the Ownable contract's
+    ///         implementation, so set it to `address(0xdEaD)`.
+    constructor() OwnableUpgradeable() {
+        initialize({
+            _owner: address(0xdEaD),
+            _challengeWindow: 0,
+            _resolveWindow: 0,
+            _bondSize: 0,
+            _resolverRefundPercentage: 0
+        });
+    }
 
     /// @notice Initializes the contract.
     /// @param _owner The owner of the contract.
