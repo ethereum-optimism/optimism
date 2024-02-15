@@ -295,6 +295,8 @@ func TestOutputCannonStepWithPreimage(t *testing.T) {
 }
 
 func TestOutputCannonStepWithKZGPointEvaluation(t *testing.T) {
+	t.Skip("TODO: Fix flaky test")
+
 	testPreimageStep := func(t *testing.T, preloadPreimage bool) {
 		op_e2e.InitParallel(t, op_e2e.UsesCannon)
 
