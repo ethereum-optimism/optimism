@@ -20,6 +20,7 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
 interface IInitializable {
     function initialize(address _addr) external;
+    
 }
 
 /// @dev The general flow of adding a predeploy is:
