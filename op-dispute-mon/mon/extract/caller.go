@@ -1,4 +1,4 @@
-package mon
+package extract
 
 import (
 	"context"
@@ -20,19 +20,19 @@ type GameCaller interface {
 	GetAllClaims(ctx context.Context) ([]faultTypes.Claim, error)
 }
 
-type gameCallerCreator struct {
+type GameCallerCreator struct {
 	cache  *caching.LRUCache[common.Address, *contracts.FaultDisputeGameContract]
 	caller *batching.MultiCaller
 }
 
-func NewGameCallerCreator(m caching.Metrics, caller *batching.MultiCaller) *gameCallerCreator {
-	return &gameCallerCreator{
+func NewGameCallerCreator(m caching.Metrics, caller *batching.MultiCaller) *GameCallerCreator {
+	return &GameCallerCreator{
 		caller: caller,
 		cache:  caching.NewLRUCache[common.Address, *contracts.FaultDisputeGameContract](m, metricsLabel, 100),
 	}
 }
 
-func (g *gameCallerCreator) CreateContract(game types.GameMetadata) (GameCaller, error) {
+func (g *GameCallerCreator) CreateContract(game types.GameMetadata) (GameCaller, error) {
 	if fdg, ok := g.cache.Get(game.Proxy); ok {
 		return fdg, nil
 	}

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/extract"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -16,7 +17,7 @@ type OutputValidator interface {
 }
 
 type GameCallerCreator interface {
-	CreateContract(game types.GameMetadata) (GameCaller, error)
+	CreateContract(game types.GameMetadata) (extract.GameCaller, error)
 }
 
 type DetectorMetrics interface {
