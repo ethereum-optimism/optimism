@@ -2,6 +2,7 @@ package source
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"path/filepath"
@@ -24,7 +25,7 @@ type fppRunner struct {
 	runFPP func(context.Context, log.Logger, *fpp_config.Config) error
 }
 
-func newFPPRunner(logger log.Logger, cfg *config.Config) *fppRunner {
+func NewFPPRunner(logger log.Logger, cfg *config.Config) *fppRunner {
 	return &fppRunner{
 		logger: logger,
 		cfg:    cfg,
@@ -42,13 +43,15 @@ func (r *fppRunner) RunProgram(ctx context.Context, l1Head common.Hash, l2Start 
 		return 0, false, fmt.Errorf("invalid op-program config: %w", err)
 	}
 	err = r.runFPP(ctx, logger, fppConfig)
-	if driver.IsClaimNotValidError(err) {
-		// Output root is invalid
-		// TODO(client-pod#416): Determine the safe head derivation stopped at and return it
-		return math.MaxUint64, false, nil
-	} else if err != nil {
-		// Failed to determine validity
-		return 0, false, fmt.Errorf("failed to check claim validity: %w", err)
+	if err != nil {
+		var notValidErr driver.ClaimNotValidError
+		if errors.As(err, &notValidErr) {
+			// Output root is invalid, limit the safe head to what the L1 derivation reached
+			return notValidErr.SafeHead.Number, false, nil
+		} else {
+			// Failed to determine validity
+			return 0, false, fmt.Errorf("failed to check claim validity: %w", err)
+		}
 	}
 	// Output root is valid, no need to restrict our output root range
 	return math.MaxUint64, true, nil
