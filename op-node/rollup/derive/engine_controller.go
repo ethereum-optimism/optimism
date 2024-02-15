@@ -176,7 +176,12 @@ func (e *EngineController) ConfirmPayload(ctx context.Context, agossip async.Asy
 	if e.buildingInfo == (eth.PayloadInfo{}) && agossip.Get() == nil {
 		return nil, BlockInsertPrestateErr, fmt.Errorf("cannot complete payload building: not currently building a payload")
 	}
-	if e.buildingOnto.Hash != e.unsafeHead.Hash { // E.g. when safe-attributes consolidation fails, it will drop the existing work.
+	if p := agossip.Get(); p != nil && e.buildingOnto == (eth.L2BlockRef{}) {
+		e.log.Warn("Found reusable payload from async gossiper, and no block was being built. Reusing payload.",
+			"hash", p.ExecutionPayload.BlockHash,
+			"number", uint64(p.ExecutionPayload.BlockNumber),
+			"parent", p.ExecutionPayload.ParentHash)
+	} else if e.buildingOnto.Hash != e.unsafeHead.Hash { // E.g. when safe-attributes consolidation fails, it will drop the existing work.
 		e.log.Warn("engine is building block that reorgs previous unsafe head", "onto", e.buildingOnto, "unsafe", e.unsafeHead)
 	}
 	fc := eth.ForkchoiceState{
