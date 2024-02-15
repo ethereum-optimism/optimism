@@ -124,7 +124,7 @@ func TestPreimageOracleContract_MinBondSizeLPP(t *testing.T) {
 	require.Equal(t, big.NewInt(123), minBond)
 
 	// Should cache responses
-	stubRpc.ClearResponses(methodChallengePeriod)
+	stubRpc.ClearResponses(methodMinBondSizeLPP)
 	minBond, err = oracle.GetMinBondLPP(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, big.NewInt(123), minBond)
