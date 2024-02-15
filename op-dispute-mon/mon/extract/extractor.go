@@ -33,10 +33,10 @@ func (e *Extractor) Extract(ctx context.Context, blockHash common.Hash, minTimes
 	if err != nil {
 		return nil, fmt.Errorf("failed to load games: %w", err)
 	}
-	return e.enrichGameMetadata(ctx, games), nil
+	return e.enrichGames(ctx, games), nil
 }
 
-func (e *Extractor) enrichGameMetadata(ctx context.Context, games []gameTypes.GameMetadata) []monTypes.EnrichedGameData {
+func (e *Extractor) enrichGames(ctx context.Context, games []gameTypes.GameMetadata) []monTypes.EnrichedGameData {
 	var enrichedGames []monTypes.EnrichedGameData
 	for _, game := range games {
 		caller, err := e.createContract(game)
@@ -49,11 +49,17 @@ func (e *Extractor) enrichGameMetadata(ctx context.Context, games []gameTypes.Ga
 			e.logger.Error("failed to fetch game metadata", "err", err)
 			continue
 		}
+		claims, err := caller.GetAllClaims(ctx)
+		if err != nil {
+			e.logger.Error("failed to fetch game claims", "err", err)
+			continue
+		}
 		enrichedGames = append(enrichedGames, monTypes.EnrichedGameData{
 			GameMetadata:  game,
 			L2BlockNumber: l2BlockNum,
 			RootClaim:     rootClaim,
 			Status:        status,
+			Claims:        claims,
 		})
 	}
 	return enrichedGames

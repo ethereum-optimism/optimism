@@ -5,9 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
-	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/extract"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
@@ -19,39 +17,29 @@ func TestDetector_Detect(t *testing.T) {
 	t.Parallel()
 
 	t.Run("NoGames", func(t *testing.T) {
-		detector, metrics, _, _, _ := setupDetectorTest(t)
+		detector, metrics, _, _ := setupDetectorTest(t)
 		detector.Detect(context.Background(), []monTypes.EnrichedGameData{})
 		metrics.Equals(t, 0, 0, 0)
 		metrics.Mapped(t, map[string]int{})
 	})
 
 	t.Run("CheckAgreementFails", func(t *testing.T) {
-		detector, metrics, creator, rollup, _ := setupDetectorTest(t)
+		detector, metrics, rollup, _ := setupDetectorTest(t)
 		rollup.err = errors.New("boom")
-		creator.caller.status = []types.GameStatus{types.GameStatusInProgress}
-		creator.caller.rootClaim = []common.Hash{{}}
 		detector.Detect(context.Background(), []monTypes.EnrichedGameData{{}})
 		metrics.Equals(t, 1, 0, 0) // Status should still be metriced here!
 		metrics.Mapped(t, map[string]int{})
 	})
 
 	t.Run("SingleGame", func(t *testing.T) {
-		detector, metrics, creator, _, _ := setupDetectorTest(t)
-		creator.caller.status = []types.GameStatus{types.GameStatusInProgress}
-		creator.caller.rootClaim = []common.Hash{{}}
+		detector, metrics, _, _ := setupDetectorTest(t)
 		detector.Detect(context.Background(), []monTypes.EnrichedGameData{{}})
 		metrics.Equals(t, 1, 0, 0)
 		metrics.Mapped(t, map[string]int{"in_progress": 1})
 	})
 
 	t.Run("MultipleGames", func(t *testing.T) {
-		detector, metrics, creator, _, _ := setupDetectorTest(t)
-		creator.caller.status = []types.GameStatus{
-			types.GameStatusInProgress,
-			types.GameStatusInProgress,
-			types.GameStatusInProgress,
-		}
-		creator.caller.rootClaim = []common.Hash{{}, {}, {}}
+		detector, metrics, _, _ := setupDetectorTest(t)
 		detector.Detect(context.Background(), []monTypes.EnrichedGameData{{}, {}, {}})
 		metrics.Equals(t, 3, 0, 0)
 		metrics.Mapped(t, map[string]int{"in_progress": 3})
@@ -109,7 +97,7 @@ func TestDetector_RecordBatch(t *testing.T) {
 	for _, test := range tests {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
-			monitor, metrics, _, _, _ := setupDetectorTest(t)
+			monitor, metrics, _, _ := setupDetectorTest(t)
 			monitor.recordBatch(test.batch)
 			test.expect(t, metrics)
 		})
@@ -117,7 +105,7 @@ func TestDetector_RecordBatch(t *testing.T) {
 }
 
 func TestDetector_CheckAgreement_Fails(t *testing.T) {
-	detector, _, _, rollup, _ := setupDetectorTest(t)
+	detector, _, rollup, _ := setupDetectorTest(t)
 	rollup.err = errors.New("boom")
 	_, err := detector.checkAgreement(context.Background(), common.Address{}, 0, common.Hash{}, types.GameStatusInProgress)
 	require.ErrorIs(t, err, rollup.err)
@@ -180,7 +168,7 @@ func TestDetector_CheckAgreement_Succeeds(t *testing.T) {
 	for _, test := range tests {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
-			detector, _, _, _, logs := setupDetectorTest(t)
+			detector, _, _, logs := setupDetectorTest(t)
 			batch, err := detector.checkAgreement(context.Background(), common.Address{}, 0, test.rootClaim, test.status)
 			require.NoError(t, err)
 			test.expectBatch(&batch)
@@ -201,14 +189,12 @@ func TestDetector_CheckAgreement_Succeeds(t *testing.T) {
 	}
 }
 
-func setupDetectorTest(t *testing.T) (*detector, *mockDetectorMetricer, *mockGameCallerCreator, *stubOutputValidator, *testlog.CapturingHandler) {
+func setupDetectorTest(t *testing.T) (*detector, *mockDetectorMetricer, *stubOutputValidator, *testlog.CapturingHandler) {
 	logger, capturedLogs := testlog.CaptureLogger(t, log.LvlDebug)
 	metrics := &mockDetectorMetricer{}
-	caller := &mockGameCaller{}
-	creator := &mockGameCallerCreator{caller: caller}
 	validator := &stubOutputValidator{}
-	detector := newDetector(logger, metrics, creator, validator)
-	return detector, metrics, creator, validator, capturedLogs
+	detector := newDetector(logger, metrics, validator)
+	return detector, metrics, validator, capturedLogs
 }
 
 type stubOutputValidator struct {
@@ -222,48 +208,6 @@ func (s *stubOutputValidator) CheckRootAgreement(ctx context.Context, blockNum u
 		return false, common.Hash{}, s.err
 	}
 	return rootClaim == mockRootClaim, mockRootClaim, nil
-}
-
-type mockGameCallerCreator struct {
-	calls  int
-	err    error
-	caller *mockGameCaller
-}
-
-func (m *mockGameCallerCreator) CreateContract(game types.GameMetadata) (extract.GameCaller, error) {
-	m.calls++
-	if m.err != nil {
-		return nil, m.err
-	}
-	return m.caller, nil
-}
-
-type mockGameCaller struct {
-	calls       int
-	claimsCalls int
-	claims      [][]faultTypes.Claim
-	status      []types.GameStatus
-	rootClaim   []common.Hash
-	err         error
-	claimsErr   error
-}
-
-func (m *mockGameCaller) GetGameMetadata(ctx context.Context) (uint64, common.Hash, types.GameStatus, error) {
-	idx := m.calls
-	m.calls++
-	if m.err != nil {
-		return 0, m.rootClaim[idx], m.status[idx], m.err
-	}
-	return 0, m.rootClaim[idx], m.status[idx], nil
-}
-
-func (m *mockGameCaller) GetAllClaims(ctx context.Context) ([]faultTypes.Claim, error) {
-	idx := m.claimsCalls
-	m.claimsCalls++
-	if m.claimsErr != nil {
-		return nil, m.claimsErr
-	}
-	return m.claims[idx], nil
 }
 
 type mockDetectorMetricer struct {

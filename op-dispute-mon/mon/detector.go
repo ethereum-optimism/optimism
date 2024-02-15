@@ -27,15 +27,13 @@ type DetectorMetrics interface {
 type detector struct {
 	logger    log.Logger
 	metrics   DetectorMetrics
-	creator   GameCallerCreator
 	validator OutputValidator
 }
 
-func newDetector(logger log.Logger, metrics DetectorMetrics, creator GameCallerCreator, validator OutputValidator) *detector {
+func newDetector(logger log.Logger, metrics DetectorMetrics, validator OutputValidator) *detector {
 	return &detector{
 		logger:    logger,
 		metrics:   metrics,
-		creator:   creator,
 		validator: validator,
 	}
 }

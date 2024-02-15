@@ -11,6 +11,7 @@ type EnrichedGameData struct {
 	L2BlockNumber uint64
 	RootClaim     common.Hash
 	Status        types.GameStatus
+	Claims        []faultTypes.Claim
 }
 
 // BidirectionalTree is a tree of claims represented as a flat list of claims.
