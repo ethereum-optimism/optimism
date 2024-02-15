@@ -111,11 +111,11 @@ func (s *Service) initExtractor() {
 }
 
 func (s *Service) initForecast(cfg *config.Config) {
-	s.forecast = newForecast(s.logger, s.metrics, s.game, s.validator)
+	s.forecast = newForecast(s.logger, s.metrics, s.validator)
 }
 
 func (s *Service) initDetector() {
-	s.detector = newDetector(s.logger, s.metrics, s.game, s.validator)
+	s.detector = newDetector(s.logger, s.metrics, s.validator)
 }
 
 func (s *Service) initOutputRollupClient(ctx context.Context, cfg *config.Config) error {

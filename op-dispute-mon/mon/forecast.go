@@ -26,15 +26,13 @@ type ForecastMetrics interface {
 type forecast struct {
 	logger    log.Logger
 	metrics   ForecastMetrics
-	creator   GameCallerCreator
 	validator OutputValidator
 }
 
-func newForecast(logger log.Logger, metrics ForecastMetrics, creator GameCallerCreator, validator OutputValidator) *forecast {
+func newForecast(logger log.Logger, metrics ForecastMetrics, validator OutputValidator) *forecast {
 	return &forecast{
 		logger:    logger,
 		metrics:   metrics,
-		creator:   creator,
 		validator: validator,
 	}
 }
@@ -62,19 +60,8 @@ func (f *forecast) forecastGame(ctx context.Context, game monTypes.EnrichedGameD
 		return nil
 	}
 
-	loader, err := f.creator.CreateContract(game.GameMetadata)
-	if err != nil {
-		return fmt.Errorf("%w: %w", ErrContractCreation, err)
-	}
-
-	// Load all claims for the game.
-	claims, err := loader.GetAllClaims(ctx)
-	if err != nil {
-		return fmt.Errorf("%w: %w", ErrClaimFetch, err)
-	}
-
 	// Create the bidirectional tree of claims.
-	tree := transform.CreateBidirectionalTree(claims)
+	tree := transform.CreateBidirectionalTree(game.Claims)
 
 	// Compute the resolution status of the game.
 	status := Resolve(tree)
