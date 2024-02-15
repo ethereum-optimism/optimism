@@ -81,8 +81,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     bool internal initialized;
 
     /// @notice Semantic version.
-    /// @custom:semver 0.4.0
-    string public constant version = "0.4.0";
+    /// @custom:semver 0.5.0
+    string public constant version = "0.5.0";
 
     /// @param _gameType The type ID of the game.
     /// @param _absolutePrestate The absolute prestate of the instruction trace.
@@ -535,9 +535,9 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     /// @param _position The position of the bonded interaction.
     /// @return requiredBond_ The required ETH bond for the given move, in wei.
     function getRequiredBond(Position _position) public pure returns (uint256 requiredBond_) {
-        // TODO
+        // TODO(client-pod#551): For now use a non-zero bond amount to unblock functional tests.
         _position;
-        requiredBond_ = 0;
+        requiredBond_ = 0.01 ether;
     }
 
     /// @notice Claim the credit belonging to the recipient address.
