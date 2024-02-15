@@ -41,6 +41,16 @@ func TestDetector_CheckRootAgreement(t *testing.T) {
 		require.Equal(t, mockRootClaim, fetched)
 		require.True(t, agree)
 	})
+
+	t.Run("OutputNotFound", func(t *testing.T) {
+		validator, rollup := setupOutputValidatorTest(t)
+		// This crazy error is what we actually get back from the API
+		rollup.err = errors.New("failed to get L2 block ref with sync status: failed to determine L2BlockRef of height 42984924, could not get payload: not found")
+		agree, fetched, err := validator.CheckRootAgreement(context.Background(), 42984924, mockRootClaim)
+		require.NoError(t, err)
+		require.Equal(t, common.Hash{}, fetched)
+		require.False(t, agree)
+	})
 }
 
 func setupOutputValidatorTest(t *testing.T) (*outputValidator, *stubRollupClient) {
