@@ -35,6 +35,7 @@ type Service struct {
 
 	cl clock.Clock
 
+	extractor    *extract.Extractor
 	forecast     *forecast
 	game         *extract.GameCallerCreator
 	rollupClient *sources.RollupClient
@@ -84,6 +85,8 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 	s.initOutputValidator()   // Must be called before initForecast
 	s.initGameCallerCreator() // Must be called before initForecast
 
+	s.initExtractor()
+
 	s.initForecast(cfg)
 	s.initDetector()
 
@@ -101,6 +104,10 @@ func (s *Service) initOutputValidator() {
 
 func (s *Service) initGameCallerCreator() {
 	s.game = extract.NewGameCallerCreator(s.metrics, batching.NewMultiCaller(s.l1Client.Client(), batching.DefaultBatchSize))
+}
+
+func (s *Service) initExtractor() {
+	s.extractor = extract.NewExtractor(s.logger, s.game.CreateContract, s.factoryContract.GetGamesAtOrAfter)
 }
 
 func (s *Service) initForecast(cfg *config.Config) {
@@ -190,7 +197,7 @@ func (s *Service) initMonitor(ctx context.Context, cfg *config.Config) {
 		cfg.GameWindow,
 		s.detector.Detect,
 		s.forecast.Forecast,
-		s.factoryContract.GetGamesAtOrAfter,
+		s.extractor.Extract,
 		s.l1Client.BlockNumber,
 		blockHashFetcher,
 	)

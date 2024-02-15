@@ -20,15 +20,7 @@ func TestDetector_Detect(t *testing.T) {
 
 	t.Run("NoGames", func(t *testing.T) {
 		detector, metrics, _, _, _ := setupDetectorTest(t)
-		detector.Detect(context.Background(), []types.GameMetadata{})
-		metrics.Equals(t, 0, 0, 0)
-		metrics.Mapped(t, map[string]int{})
-	})
-
-	t.Run("MetadataFetchFails", func(t *testing.T) {
-		detector, metrics, creator, _, _ := setupDetectorTest(t)
-		creator.err = errors.New("boom")
-		detector.Detect(context.Background(), []types.GameMetadata{{}})
+		detector.Detect(context.Background(), []monTypes.EnrichedGameData{})
 		metrics.Equals(t, 0, 0, 0)
 		metrics.Mapped(t, map[string]int{})
 	})
@@ -38,7 +30,7 @@ func TestDetector_Detect(t *testing.T) {
 		rollup.err = errors.New("boom")
 		creator.caller.status = []types.GameStatus{types.GameStatusInProgress}
 		creator.caller.rootClaim = []common.Hash{{}}
-		detector.Detect(context.Background(), []types.GameMetadata{{}})
+		detector.Detect(context.Background(), []monTypes.EnrichedGameData{{}})
 		metrics.Equals(t, 1, 0, 0) // Status should still be metriced here!
 		metrics.Mapped(t, map[string]int{})
 	})
@@ -47,7 +39,7 @@ func TestDetector_Detect(t *testing.T) {
 		detector, metrics, creator, _, _ := setupDetectorTest(t)
 		creator.caller.status = []types.GameStatus{types.GameStatusInProgress}
 		creator.caller.rootClaim = []common.Hash{{}}
-		detector.Detect(context.Background(), []types.GameMetadata{{}})
+		detector.Detect(context.Background(), []monTypes.EnrichedGameData{{}})
 		metrics.Equals(t, 1, 0, 0)
 		metrics.Mapped(t, map[string]int{"in_progress": 1})
 	})
@@ -60,7 +52,7 @@ func TestDetector_Detect(t *testing.T) {
 			types.GameStatusInProgress,
 		}
 		creator.caller.rootClaim = []common.Hash{{}, {}, {}}
-		detector.Detect(context.Background(), []types.GameMetadata{{}, {}, {}})
+		detector.Detect(context.Background(), []monTypes.EnrichedGameData{{}, {}, {}})
 		metrics.Equals(t, 3, 0, 0)
 		metrics.Mapped(t, map[string]int{"in_progress": 3})
 	})
@@ -122,35 +114,6 @@ func TestDetector_RecordBatch(t *testing.T) {
 			test.expect(t, metrics)
 		})
 	}
-}
-
-func TestDetector_FetchGameMetadata(t *testing.T) {
-	t.Parallel()
-
-	t.Run("CreateContractFails", func(t *testing.T) {
-		detector, _, creator, _, _ := setupDetectorTest(t)
-		creator.err = errors.New("boom")
-		_, _, _, err := detector.fetchGameMetadata(context.Background(), types.GameMetadata{})
-		require.ErrorIs(t, err, creator.err)
-	})
-
-	t.Run("GetGameMetadataFails", func(t *testing.T) {
-		detector, _, creator, _, _ := setupDetectorTest(t)
-		creator.caller = &mockGameCaller{err: errors.New("boom")}
-		creator.caller.status = []types.GameStatus{types.GameStatusInProgress}
-		creator.caller.rootClaim = []common.Hash{{}}
-		_, _, _, err := detector.fetchGameMetadata(context.Background(), types.GameMetadata{})
-		require.Error(t, err)
-	})
-
-	t.Run("Success", func(t *testing.T) {
-		detector, _, creator, _, _ := setupDetectorTest(t)
-		creator.caller.status = []types.GameStatus{types.GameStatusInProgress}
-		creator.caller.rootClaim = []common.Hash{{}}
-		_, _, status, err := detector.fetchGameMetadata(context.Background(), types.GameMetadata{})
-		require.NoError(t, err)
-		require.Equal(t, types.GameStatusInProgress, status)
-	})
 }
 
 func TestDetector_CheckAgreement_Fails(t *testing.T) {

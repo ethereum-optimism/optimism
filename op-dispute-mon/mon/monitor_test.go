@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
@@ -70,7 +71,7 @@ func TestMonitor_MonitorGames(t *testing.T) {
 
 	t.Run("DetectsWithNoGames", func(t *testing.T) {
 		monitor, factory, detector, _ := setupMonitorTest(t)
-		factory.games = []types.GameMetadata{}
+		factory.games = []monTypes.EnrichedGameData{}
 		err := monitor.monitorGames()
 		require.NoError(t, err)
 		require.Equal(t, 1, detector.calls)
@@ -78,7 +79,7 @@ func TestMonitor_MonitorGames(t *testing.T) {
 
 	t.Run("DetectsMultipleGames", func(t *testing.T) {
 		monitor, factory, detector, _ := setupMonitorTest(t)
-		factory.games = []types.GameMetadata{{}, {}, {}}
+		factory.games = []monTypes.EnrichedGameData{{}, {}, {}}
 		err := monitor.monitorGames()
 		require.NoError(t, err)
 		require.Equal(t, 1, detector.calls)
@@ -90,7 +91,7 @@ func TestMonitor_StartMonitoring(t *testing.T) {
 		addr1 := common.Address{0xaa}
 		addr2 := common.Address{0xbb}
 		monitor, factory, detector, _ := setupMonitorTest(t)
-		factory.games = []types.GameMetadata{newFDG(addr1, 9999), newFDG(addr2, 9999)}
+		factory.games = []monTypes.EnrichedGameData{newFDG(addr1, 9999), newFDG(addr2, 9999)}
 		factory.maxSuccess = len(factory.games) // Only allow two successful fetches
 
 		monitor.StartMonitoring()
@@ -114,14 +115,17 @@ func TestMonitor_StartMonitoring(t *testing.T) {
 	})
 }
 
-func newFDG(proxy common.Address, timestamp uint64) types.GameMetadata {
-	return types.GameMetadata{
-		Proxy:     proxy,
-		Timestamp: timestamp,
+func newFDG(proxy common.Address, timestamp uint64) monTypes.EnrichedGameData {
+	return monTypes.EnrichedGameData{
+		GameMetadata: types.GameMetadata{
+			Proxy:     proxy,
+			Timestamp: timestamp,
+		},
+		Status: types.GameStatusInProgress,
 	}
 }
 
-func setupMonitorTest(t *testing.T) (*gameMonitor, *mockFactory, *mockDetector, *mockForecast) {
+func setupMonitorTest(t *testing.T) (*gameMonitor, *mockExtractor, *mockDetector, *mockForecast) {
 	logger := testlog.Logger(t, log.LvlDebug)
 	fetchBlockNum := func(ctx context.Context) (uint64, error) {
 		return 1, nil
@@ -132,7 +136,7 @@ func setupMonitorTest(t *testing.T) (*gameMonitor, *mockFactory, *mockDetector, 
 	monitorInterval := time.Duration(100 * time.Millisecond)
 	cl := clock.NewAdvancingClock(10 * time.Millisecond)
 	cl.Start()
-	factory := &mockFactory{}
+	extractor := &mockExtractor{}
 	detect := &mockDetector{}
 	forecast := &mockForecast{}
 	monitor := newGameMonitor(
@@ -143,18 +147,18 @@ func setupMonitorTest(t *testing.T) (*gameMonitor, *mockFactory, *mockDetector, 
 		time.Duration(10*time.Second),
 		detect.Detect,
 		forecast.Forecast,
-		factory.GetGamesAtOrAfter,
+		extractor.Extract,
 		fetchBlockNum,
 		fetchBlockHash,
 	)
-	return monitor, factory, detect, forecast
+	return monitor, extractor, detect, forecast
 }
 
 type mockForecast struct {
 	calls int
 }
 
-func (m *mockForecast) Forecast(ctx context.Context, games []types.GameMetadata) {
+func (m *mockForecast) Forecast(ctx context.Context, games []monTypes.EnrichedGameData) {
 	m.calls++
 }
 
@@ -162,22 +166,22 @@ type mockDetector struct {
 	calls int
 }
 
-func (m *mockDetector) Detect(ctx context.Context, games []types.GameMetadata) {
+func (m *mockDetector) Detect(ctx context.Context, games []monTypes.EnrichedGameData) {
 	m.calls++
 }
 
-type mockFactory struct {
+type mockExtractor struct {
 	fetchErr   error
 	calls      int
 	maxSuccess int
-	games      []types.GameMetadata
+	games      []monTypes.EnrichedGameData
 }
 
-func (m *mockFactory) GetGamesAtOrAfter(
+func (m *mockExtractor) Extract(
 	_ context.Context,
 	_ common.Hash,
 	_ uint64,
-) ([]types.GameMetadata, error) {
+) ([]monTypes.EnrichedGameData, error) {
 	m.calls++
 	if m.fetchErr != nil {
 		return nil, m.fetchErr

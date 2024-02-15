@@ -8,6 +8,7 @@ import (
 
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -26,7 +27,7 @@ func TestForecast_Forecast_BasicTests(t *testing.T) {
 
 	t.Run("NoGames", func(t *testing.T) {
 		forecast, _, creator, rollup, logs := setupForecastTest(t)
-		forecast.Forecast(context.Background(), []types.GameMetadata{})
+		forecast.Forecast(context.Background(), []monTypes.EnrichedGameData{})
 		require.Equal(t, 0, creator.calls)
 		require.Equal(t, 0, creator.caller.calls)
 		require.Equal(t, 0, creator.caller.claimsCalls)
@@ -39,7 +40,7 @@ func TestForecast_Forecast_BasicTests(t *testing.T) {
 	t.Run("ContractCreationFails", func(t *testing.T) {
 		forecast, _, creator, rollup, logs := setupForecastTest(t)
 		creator.err = errors.New("boom")
-		forecast.Forecast(context.Background(), []types.GameMetadata{{}})
+		forecast.Forecast(context.Background(), []monTypes.EnrichedGameData{{}})
 		require.Equal(t, 1, creator.calls)
 		require.Equal(t, 0, creator.caller.calls)
 		require.Equal(t, 0, creator.caller.claimsCalls)
@@ -53,33 +54,13 @@ func TestForecast_Forecast_BasicTests(t *testing.T) {
 		require.Equal(t, expectedErr, err)
 	})
 
-	t.Run("MetadataFetchFails", func(t *testing.T) {
-		forecast, _, creator, rollup, logs := setupForecastTest(t)
-		creator.caller.err = errors.New("boom")
-		creator.caller.rootClaim = []common.Hash{mockRootClaim}
-		creator.caller.status = []types.GameStatus{types.GameStatusInProgress}
-		forecast.Forecast(context.Background(), []types.GameMetadata{{}})
-		require.Equal(t, 1, creator.calls)
-		require.Equal(t, 1, creator.caller.calls)
-		require.Equal(t, 0, creator.caller.claimsCalls)
-		require.Equal(t, 0, rollup.calls)
-		levelFilter := testlog.NewLevelFilter(log.LevelError)
-		messageFilter := testlog.NewMessageFilter(failedForecastLog)
-		l := logs.FindLog(levelFilter, messageFilter)
-		require.NotNil(t, l)
-		err := l.AttrValue("err")
-		expectedErr := fmt.Errorf("%w: %w", ErrMetadataFetch, creator.caller.err)
-		require.Equal(t, expectedErr, err)
-	})
-
 	t.Run("ClaimsFetchFails", func(t *testing.T) {
 		forecast, _, creator, rollup, logs := setupForecastTest(t)
 		creator.caller.claimsErr = errors.New("boom")
 		creator.caller.rootClaim = []common.Hash{mockRootClaim}
 		creator.caller.status = []types.GameStatus{types.GameStatusInProgress}
-		forecast.Forecast(context.Background(), []types.GameMetadata{{}})
+		forecast.Forecast(context.Background(), []monTypes.EnrichedGameData{{}})
 		require.Equal(t, 1, creator.calls)
-		require.Equal(t, 1, creator.caller.calls)
 		require.Equal(t, 1, creator.caller.claimsCalls)
 		require.Equal(t, 0, rollup.calls)
 		levelFilter := testlog.NewLevelFilter(log.LevelError)
@@ -97,9 +78,8 @@ func TestForecast_Forecast_BasicTests(t *testing.T) {
 		creator.caller.claims = [][]faultTypes.Claim{createDeepClaimList()[:1]}
 		creator.caller.rootClaim = []common.Hash{mockRootClaim}
 		creator.caller.status = []types.GameStatus{types.GameStatusInProgress}
-		forecast.Forecast(context.Background(), []types.GameMetadata{{}})
+		forecast.Forecast(context.Background(), []monTypes.EnrichedGameData{{}})
 		require.Equal(t, 1, creator.calls)
-		require.Equal(t, 1, creator.caller.calls)
 		require.Equal(t, 1, creator.caller.claimsCalls)
 		require.Equal(t, 1, rollup.calls)
 		levelFilter := testlog.NewLevelFilter(log.LevelError)
@@ -113,12 +93,10 @@ func TestForecast_Forecast_BasicTests(t *testing.T) {
 
 	t.Run("ChallengerWonGameSkipped", func(t *testing.T) {
 		forecast, _, creator, rollup, logs := setupForecastTest(t)
-		creator.caller.status = []types.GameStatus{types.GameStatusChallengerWon}
 		creator.caller.claims = [][]faultTypes.Claim{createDeepClaimList()[:1]}
-		expectedGame := types.GameMetadata{}
-		forecast.Forecast(context.Background(), []types.GameMetadata{expectedGame})
-		require.Equal(t, 1, creator.calls)
-		require.Equal(t, 1, creator.caller.calls)
+		expectedGame := monTypes.EnrichedGameData{Status: types.GameStatusChallengerWon}
+		forecast.Forecast(context.Background(), []monTypes.EnrichedGameData{expectedGame})
+		require.Equal(t, 0, creator.calls)
 		require.Equal(t, 0, creator.caller.claimsCalls)
 		require.Equal(t, 0, rollup.calls)
 		levelFilter := testlog.NewLevelFilter(log.LevelError)
@@ -128,18 +106,16 @@ func TestForecast_Forecast_BasicTests(t *testing.T) {
 		messageFilter = testlog.NewMessageFilter(expectedInProgressLog)
 		l := logs.FindLog(levelFilter, messageFilter)
 		require.NotNil(t, l)
-		require.Equal(t, expectedGame, l.AttrValue("game"))
+		require.Equal(t, expectedGame.Proxy, l.AttrValue("game"))
 		require.Equal(t, types.GameStatusChallengerWon, l.AttrValue("status"))
 	})
 
 	t.Run("DefenderWonGameSkipped", func(t *testing.T) {
 		forecast, _, creator, rollup, logs := setupForecastTest(t)
-		creator.caller.status = []types.GameStatus{types.GameStatusDefenderWon}
 		creator.caller.claims = [][]faultTypes.Claim{createDeepClaimList()[:1]}
-		expectedGame := types.GameMetadata{}
-		forecast.Forecast(context.Background(), []types.GameMetadata{expectedGame})
-		require.Equal(t, 1, creator.calls)
-		require.Equal(t, 1, creator.caller.calls)
+		expectedGame := monTypes.EnrichedGameData{Status: types.GameStatusDefenderWon}
+		forecast.Forecast(context.Background(), []monTypes.EnrichedGameData{expectedGame})
+		require.Equal(t, 0, creator.calls)
 		require.Equal(t, 0, creator.caller.claimsCalls)
 		require.Equal(t, 0, rollup.calls)
 		levelFilter := testlog.NewLevelFilter(log.LevelError)
@@ -149,7 +125,7 @@ func TestForecast_Forecast_BasicTests(t *testing.T) {
 		messageFilter = testlog.NewMessageFilter(expectedInProgressLog)
 		l := logs.FindLog(levelFilter, messageFilter)
 		require.NotNil(t, l)
-		require.Equal(t, expectedGame, l.AttrValue("game"))
+		require.Equal(t, expectedGame.Proxy, l.AttrValue("game"))
 		require.Equal(t, types.GameStatusDefenderWon, l.AttrValue("status"))
 	})
 
@@ -157,9 +133,8 @@ func TestForecast_Forecast_BasicTests(t *testing.T) {
 		forecast, _, creator, rollup, logs := setupForecastTest(t)
 		creator.caller.status = []types.GameStatus{types.GameStatusInProgress}
 		creator.caller.claims = [][]faultTypes.Claim{createDeepClaimList()[:1]}
-		forecast.Forecast(context.Background(), []types.GameMetadata{{}})
+		forecast.Forecast(context.Background(), []monTypes.EnrichedGameData{{}})
 		require.Equal(t, 1, creator.calls)
-		require.Equal(t, 1, creator.caller.calls)
 		require.Equal(t, 1, creator.caller.claimsCalls)
 		require.Equal(t, 1, rollup.calls)
 		levelFilter := testlog.NewLevelFilter(log.LevelError)
@@ -175,9 +150,8 @@ func TestForecast_Forecast_BasicTests(t *testing.T) {
 		creator.caller.status = []types.GameStatus{types.GameStatusInProgress, types.GameStatusInProgress, types.GameStatusInProgress}
 		creator.caller.claims = [][]faultTypes.Claim{createDeepClaimList()[:1], createDeepClaimList()[:1], createDeepClaimList()[:1]}
 		creator.caller.rootClaim = []common.Hash{{}, {}, {}}
-		forecast.Forecast(context.Background(), []types.GameMetadata{{}, {}, {}})
+		forecast.Forecast(context.Background(), []monTypes.EnrichedGameData{{}, {}, {}})
 		require.Equal(t, 3, creator.calls)
-		require.Equal(t, 3, creator.caller.calls)
 		require.Equal(t, 3, creator.caller.claimsCalls)
 		require.Equal(t, 3, rollup.calls)
 		levelFilter := testlog.NewLevelFilter(log.LevelError)
@@ -194,11 +168,13 @@ func TestForecast_Forecast_EndLogs(t *testing.T) {
 
 	t.Run("AgreeDefenderWins", func(t *testing.T) {
 		forecast, _, creator, rollup, logs := setupForecastTest(t)
-		creator.caller.status = []types.GameStatus{types.GameStatusInProgress}
 		creator.caller.claims = [][]faultTypes.Claim{createDeepClaimList()[:1]}
-		forecast.Forecast(context.Background(), []types.GameMetadata{{}})
+		games := []monTypes.EnrichedGameData{{
+			Status:    types.GameStatusInProgress,
+			RootClaim: mockRootClaim,
+		}}
+		forecast.Forecast(context.Background(), games)
 		require.Equal(t, 1, creator.calls)
-		require.Equal(t, 1, creator.caller.calls)
 		require.Equal(t, 1, creator.caller.claimsCalls)
 		require.Equal(t, 1, rollup.calls)
 		levelFilter := testlog.NewLevelFilter(log.LevelError)
@@ -218,12 +194,13 @@ func TestForecast_Forecast_EndLogs(t *testing.T) {
 
 	t.Run("AgreeChallengerWins", func(t *testing.T) {
 		forecast, _, creator, rollup, logs := setupForecastTest(t)
-		creator.caller.status = []types.GameStatus{types.GameStatusInProgress}
 		creator.caller.claims = [][]faultTypes.Claim{createDeepClaimList()[:2]}
-		creator.caller.rootClaim = []common.Hash{mockRootClaim}
-		forecast.Forecast(context.Background(), []types.GameMetadata{{}})
+		games := []monTypes.EnrichedGameData{{
+			Status:    types.GameStatusInProgress,
+			RootClaim: mockRootClaim,
+		}}
+		forecast.Forecast(context.Background(), games)
 		require.Equal(t, 1, creator.calls)
-		require.Equal(t, 1, creator.caller.calls)
 		require.Equal(t, 1, creator.caller.claimsCalls)
 		require.Equal(t, 1, rollup.calls)
 		levelFilter := testlog.NewLevelFilter(log.LevelError)
@@ -246,9 +223,8 @@ func TestForecast_Forecast_EndLogs(t *testing.T) {
 		creator.caller = &mockGameCaller{status: []types.GameStatus{types.GameStatusInProgress}}
 		creator.caller.rootClaim = []common.Hash{{}}
 		creator.caller.claims = [][]faultTypes.Claim{createDeepClaimList()[:2]}
-		forecast.Forecast(context.Background(), []types.GameMetadata{{}})
+		forecast.Forecast(context.Background(), []monTypes.EnrichedGameData{{}})
 		require.Equal(t, 1, creator.calls)
-		require.Equal(t, 1, creator.caller.calls)
 		require.Equal(t, 1, creator.caller.claimsCalls)
 		require.Equal(t, 1, rollup.calls)
 		levelFilter := testlog.NewLevelFilter(log.LevelError)
@@ -271,9 +247,8 @@ func TestForecast_Forecast_EndLogs(t *testing.T) {
 		creator.caller = &mockGameCaller{status: []types.GameStatus{types.GameStatusInProgress}}
 		creator.caller.rootClaim = []common.Hash{{}}
 		creator.caller.claims = [][]faultTypes.Claim{createDeepClaimList()[:1]}
-		forecast.Forecast(context.Background(), []types.GameMetadata{{}})
+		forecast.Forecast(context.Background(), []monTypes.EnrichedGameData{{}})
 		require.Equal(t, 1, creator.calls)
-		require.Equal(t, 1, creator.caller.calls)
 		require.Equal(t, 1, creator.caller.claimsCalls)
 		require.Equal(t, 1, rollup.calls)
 		levelFilter := testlog.NewLevelFilter(log.LevelError)
@@ -310,6 +285,11 @@ func TestForecast_Forecast_MultipleGames(t *testing.T) {
 		createDeepClaimList()[:2],
 		createDeepClaimList()[:2],
 		createDeepClaimList()[:1],
+		createDeepClaimList()[:1],
+		createDeepClaimList()[:1],
+		createDeepClaimList()[:1],
+		createDeepClaimList()[:1],
+		createDeepClaimList()[:1],
 	}
 	creator.caller.rootClaim = []common.Hash{
 		{},
@@ -322,10 +302,13 @@ func TestForecast_Forecast_MultipleGames(t *testing.T) {
 		{},
 		{},
 	}
-	games := make([]types.GameMetadata, 9)
+	games := make([]monTypes.EnrichedGameData, 9)
+	for i := range games {
+		games[i].Status = creator.caller.status[i]
+		games[i].RootClaim = creator.caller.rootClaim[i]
+	}
 	forecast.Forecast(context.Background(), games)
-	require.Equal(t, 9, creator.calls)
-	require.Equal(t, 9, creator.caller.calls)
+	require.Equal(t, 4, creator.calls)
 	require.Equal(t, 4, creator.caller.claimsCalls)
 	require.Equal(t, 4, rollup.calls)
 	levelFilter := testlog.NewLevelFilter(log.LevelError)

@@ -39,7 +39,7 @@ func newForecast(logger log.Logger, metrics ForecastMetrics, creator GameCallerC
 	}
 }
 
-func (f *forecast) Forecast(ctx context.Context, games []types.GameMetadata) {
+func (f *forecast) Forecast(ctx context.Context, games []monTypes.EnrichedGameData) {
 	batch := monTypes.ForecastBatch{}
 	for _, game := range games {
 		if err := f.forecastGame(ctx, game, &batch); err != nil {
@@ -56,20 +56,15 @@ func (f *forecast) recordBatch(batch monTypes.ForecastBatch) {
 	f.metrics.RecordGameAgreement("disagree_defender_ahead", batch.DisagreeDefenderAhead)
 }
 
-func (f *forecast) forecastGame(ctx context.Context, game types.GameMetadata, metrics *monTypes.ForecastBatch) error {
-	loader, err := f.creator.CreateContract(game)
-	if err != nil {
-		return fmt.Errorf("%w: %w", ErrContractCreation, err)
+func (f *forecast) forecastGame(ctx context.Context, game monTypes.EnrichedGameData, metrics *monTypes.ForecastBatch) error {
+	if game.Status != types.GameStatusInProgress {
+		f.logger.Debug("Game is not in progress, skipping forecast", "game", game.Proxy, "status", game.Status)
+		return nil
 	}
 
-	// Get the game status, it must be in progress to forecast.
-	l2BlockNum, rootClaim, status, err := loader.GetGameMetadata(ctx)
+	loader, err := f.creator.CreateContract(game.GameMetadata)
 	if err != nil {
-		return fmt.Errorf("%w: %w", ErrMetadataFetch, err)
-	}
-	if status != types.GameStatusInProgress {
-		f.logger.Debug("Game is not in progress, skipping forecast", "game", game, "status", status)
-		return nil
+		return fmt.Errorf("%w: %w", ErrContractCreation, err)
 	}
 
 	// Load all claims for the game.
@@ -82,10 +77,10 @@ func (f *forecast) forecastGame(ctx context.Context, game types.GameMetadata, me
 	tree := transform.CreateBidirectionalTree(claims)
 
 	// Compute the resolution status of the game.
-	status = Resolve(tree)
+	status := Resolve(tree)
 
 	// Check the root agreement.
-	agreement, expected, err := f.validator.CheckRootAgreement(ctx, l2BlockNum, rootClaim)
+	agreement, expected, err := f.validator.CheckRootAgreement(ctx, game.L2BlockNumber, game.RootClaim)
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrRootAgreement, err)
 	}
@@ -94,19 +89,19 @@ func (f *forecast) forecastGame(ctx context.Context, game types.GameMetadata, me
 		// If we agree with the output root proposal, the Defender should win, defending that claim.
 		if status == types.GameStatusChallengerWon {
 			metrics.AgreeChallengerAhead++
-			f.logger.Warn("Forecasting unexpected game result", "status", status, "game", game, "rootClaim", rootClaim, "expected", expected)
+			f.logger.Warn("Forecasting unexpected game result", "status", status, "game", game.Proxy, "rootClaim", game.RootClaim, "expected", expected)
 		} else {
 			metrics.AgreeDefenderAhead++
-			f.logger.Debug("Forecasting expected game result", "status", status, "game", game, "rootClaim", rootClaim, "expected", expected)
+			f.logger.Debug("Forecasting expected game result", "status", status, "game", game.Proxy, "rootClaim", game.RootClaim, "expected", expected)
 		}
 	} else {
 		// If we disagree with the output root proposal, the Challenger should win, challenging that claim.
 		if status == types.GameStatusDefenderWon {
 			metrics.DisagreeDefenderAhead++
-			f.logger.Warn("Forecasting unexpected game result", "status", status, "game", game, "rootClaim", rootClaim, "expected", expected)
+			f.logger.Warn("Forecasting unexpected game result", "status", status, "game", game.Proxy, "rootClaim", game.RootClaim, "expected", expected)
 		} else {
 			metrics.DisagreeChallengerAhead++
-			f.logger.Debug("Forecasting expected game result", "status", status, "game", game, "rootClaim", rootClaim, "expected", expected)
+			f.logger.Debug("Forecasting expected game result", "status", status, "game", game.Proxy, "rootClaim", game.RootClaim, "expected", expected)
 		}
 	}
 
