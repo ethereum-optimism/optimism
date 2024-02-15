@@ -2,7 +2,15 @@ package types
 
 import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum/go-ethereum/common"
 )
+
+type EnrichedGameData struct {
+	types.GameMetadata
+	L2BlockNumber uint64
+	RootClaim     common.Hash
+	Status        types.GameStatus
+}
 
 type StatusBatch struct {
 	InProgress    int
