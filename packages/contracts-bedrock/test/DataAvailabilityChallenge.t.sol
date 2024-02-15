@@ -15,7 +15,9 @@ contract DataAvailabilityChallengeTest is Test {
     DataAvailabilityChallenge public dac;
 
     function setUp() public virtual {
-        dac = new DataAvailabilityChallenge();
+        Proxy proxy = new Proxy(address(this));
+        proxy.upgradeTo(address(new DataAvailabilityChallenge()));
+        dac = DataAvailabilityChallenge(payable(address(proxy)));
         dac.initialize(DAC_OWNER, CHALLENGE_WINDOW, RESOLVE_WINDOW, BOND_SIZE, RESOLVER_REFUND_PERCENTAGE);
     }
 
@@ -483,14 +485,5 @@ contract DataAvailabilityChallengeTest is Test {
         vm.prank(notOwner);
         vm.expectRevert("Ownable: caller is not the owner");
         dac.setBondSize(newBondSize);
-    }
-}
-
-contract DataAvailabilityChallengeProxyTest is DataAvailabilityChallengeTest {
-    function setUp() public virtual override {
-        Proxy proxy = new Proxy(address(this));
-        proxy.upgradeTo(address(new DataAvailabilityChallenge()));
-        dac = DataAvailabilityChallenge(payable(address(proxy)));
-        dac.initialize(DAC_OWNER, CHALLENGE_WINDOW, RESOLVE_WINDOW, BOND_SIZE, RESOLVER_REFUND_PERCENTAGE);
     }
 }
