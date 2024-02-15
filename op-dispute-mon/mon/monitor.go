@@ -6,18 +6,18 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
 
-type Detect func(ctx context.Context, games []types.GameMetadata)
-type Forecast func(ctx context.Context, games []types.GameMetadata)
+type Detect func(ctx context.Context, games []types.EnrichedGameData)
+type Forecast func(ctx context.Context, games []types.EnrichedGameData)
 type BlockHashFetcher func(ctx context.Context, number *big.Int) (common.Hash, error)
 type BlockNumberFetcher func(ctx context.Context) (uint64, error)
-type FactoryGameFetcher func(ctx context.Context, blockHash common.Hash, earliestTimestamp uint64) ([]types.GameMetadata, error)
+type Extract func(ctx context.Context, blockHash common.Hash, minTimestamp uint64) ([]types.EnrichedGameData, error)
 
 type gameMonitor struct {
 	logger log.Logger
@@ -32,7 +32,7 @@ type gameMonitor struct {
 
 	detect           Detect
 	forecast         Forecast
-	fetchGames       FactoryGameFetcher
+	extract          Extract
 	fetchBlockHash   BlockHashFetcher
 	fetchBlockNumber BlockNumberFetcher
 }
@@ -45,7 +45,7 @@ func newGameMonitor(
 	gameWindow time.Duration,
 	detect Detect,
 	forecast Forecast,
-	factory FactoryGameFetcher,
+	extract Extract,
 	fetchBlockNumber BlockNumberFetcher,
 	fetchBlockHash BlockHashFetcher,
 ) *gameMonitor {
@@ -58,7 +58,7 @@ func newGameMonitor(
 		gameWindow:       gameWindow,
 		detect:           detect,
 		forecast:         forecast,
-		fetchGames:       factory,
+		extract:          extract,
 		fetchBlockNumber: fetchBlockNumber,
 		fetchBlockHash:   fetchBlockHash,
 	}
@@ -86,12 +86,12 @@ func (m *gameMonitor) monitorGames() error {
 	if err != nil {
 		return fmt.Errorf("Failed to fetch block hash: %w", err)
 	}
-	games, err := m.fetchGames(m.ctx, blockHash, m.minGameTimestamp())
+	enrichedGames, err := m.extract(m.ctx, blockHash, m.minGameTimestamp())
 	if err != nil {
 		return fmt.Errorf("failed to load games: %w", err)
 	}
-	m.detect(m.ctx, games)
-	m.forecast(m.ctx, games)
+	m.detect(m.ctx, enrichedGames)
+	m.forecast(m.ctx, enrichedGames)
 	return nil
 }
 
