@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/transform"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -15,7 +16,6 @@ var (
 	ErrContractCreation = errors.New("failed to create contract")
 	ErrMetadataFetch    = errors.New("failed to fetch game metadata")
 	ErrClaimFetch       = errors.New("failed to fetch game claims")
-	ErrResolver         = errors.New("failed to resolve game")
 	ErrRootAgreement    = errors.New("failed to check root agreement")
 )
 
@@ -78,11 +78,11 @@ func (f *forecast) forecastGame(ctx context.Context, game types.GameMetadata, me
 		return fmt.Errorf("%w: %w", ErrClaimFetch, err)
 	}
 
+	// Create the bidirectional tree of claims.
+	tree := transform.CreateBidirectionalTree(claims)
+
 	// Compute the resolution status of the game.
-	status, err = Resolve(claims)
-	if err != nil {
-		return fmt.Errorf("%w: %w", ErrResolver, err)
-	}
+	status = Resolve(tree)
 
 	// Check the root agreement.
 	agreement, expected, err := f.validator.CheckRootAgreement(ctx, l2BlockNum, rootClaim)
