@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.24;
+pragma solidity ^0.8.24;
 
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { SafeCall } from "src/libraries/SafeCall.sol";
@@ -17,23 +17,32 @@ abstract contract CrossL2Inbox is Initializable {
         uint256 chainid;
     }
 
-    bytes32 public constant ORIGIN_SLOT = bytes32(uint256(keccak256("crossl2inbox.identifier.origin")) - 1);
+    // bytes32(uint256(keccak256("crossl2inbox.identifier.origin")) - 1)
+    bytes32 public constant ORIGIN_SLOT = 0xd2b7c5071ec59eb3ff0017d703a8ea513a7d0da4779b0dbefe845808c300c815;
 
-    bytes32 public constant BLOCKNUMBER_SLOT = bytes32(uint256(keccak256("crossl2inbox.identifier.blocknumber")) - 1);
+    // bytes32(uint256(keccak256("crossl2inbox.identifier.blocknumber")) - 1)
+    bytes32 public constant BLOCKNUMBER_SLOT = 0x5a1da0738b7fdc60047c07bb519beb02aa32a8619de57e6258da1f1c2e020ccc;
 
-    bytes32 public constant LOG_INDEX_SLOT = bytes32(uint256(keccak256("crossl2inbox.identifier.logindex")) - 1);
+    // bytes32(uint256(keccak256("crossl2inbox.identifier.logindex")) - 1)
+    bytes32 public constant LOG_INDEX_SLOT = 0xab8acc221aecea88a685fabca5b88bf3823b05f335b7b9f721ca7fe3ffb2c30d;
 
-    bytes32 public constant TIMESTAMP_SLOT = bytes32(uint256(keccak256("crossl2inbox.identifier.timestamp")) - 1);
+    // bytes32(uint256(keccak256("crossl2inbox.identifier.timestamp")) - 1)
+    bytes32 public constant TIMESTAMP_SLOT = 0x2e148a404a50bb94820b576997fd6450117132387be615e460fa8c5e11777e02;
 
-    bytes32 public constant CHAINID_SLOT = bytes32(uint256(keccak256("crossl2inbox.identifier.chainid")) - 1);
+    // bytes32(uint256(keccak256("crossl2inbox.identifier.chainid")) - 1)
+    bytes32 public constant CHAINID_SLOT = 0x6e0446e8b5098b8c8193f964f1b567ec3a2bdaeba33d36acb85c1f1d3f92d313;
 
-    function getIdentifier() public view returns (Identifier memory identifier) {
+    function getIdentifier()
+        public
+        view
+        returns (address _origin, uint256 _blocknumber, uint256 _logIndex, uint256 _timestamp, uint256 _chainid)
+    {
         assembly {
-            identifier.origin := TLOAD(ORIGIN_SLOT)
-            identifier.blocknumber := tload(BLOCKNUMBER_SLOT)
-            identifier.logIndex := tload(LOG_INDEX_SLOT)
-            identifier.timestamp := tload(TIMESTAMP_SLOT)
-            identifier.chainid := tload(CHAINID_SLOT)
+            _origin := tload(ORIGIN_SLOT)
+            _blocknumber := tload(BLOCKNUMBER_SLOT)
+            _logIndex := tload(LOG_INDEX_SLOT)
+            _timestamp := tload(TIMESTAMP_SLOT)
+            _chainid := tload(CHAINID_SLOT)
         }
     }
 
@@ -43,14 +52,14 @@ abstract contract CrossL2Inbox is Initializable {
         //require(L1Block.isInDependencySet(_id.chainid));
 
         assembly {
-            tstore(ORIGIN_SLOT, _id.origin)
-            tstore(BLOCKNUMBER_SLOT, _id.blocknumber)
-            tstore(LOG_INDEX_SLOT, _id.logIndex)
-            tstore(TIMESTAMP_SLOT, _id.timestamp)
-            tstore(CHAINID_SLOT, _id.chainid)
+            tstore(ORIGIN_SLOT, mload(_id))
+            tstore(BLOCKNUMBER_SLOT, mload(add(_id, 0x20)))
+            tstore(LOG_INDEX_SLOT, mload(add(_id, 0x40)))
+            tstore(TIMESTAMP_SLOT, mload(add(_id, 0x60)))
+            tstore(CHAINID_SLOT, mload(add(_id, 0x80)))
         }
 
-        bool success = SafeCall.call({ _target: _target, _value: msg.value, _calldata: _msg });
+        bool success = SafeCall.call({ _target: _target, _gas: gasleft(), _value: msg.value, _calldata: _msg });
 
         require(success);
     }
