@@ -95,7 +95,7 @@ func setupSequencerFailoverTest(t *testing.T) (*System, map[string]*conductor) {
 	c2 := conductors[Sequencer2Name]
 	c3 := conductors[Sequencer3Name]
 
-	require.NoError(t, waitForLeadershipChange(t, c1, true))
+	require.NoError(t, waitForLeadership(t, c1))
 	require.NoError(t, c1.client.AddServerAsVoter(ctx, Sequencer2Name, c2.ConsensusEndpoint()))
 	require.NoError(t, c1.client.AddServerAsVoter(ctx, Sequencer3Name, c3.ConsensusEndpoint()))
 	require.True(t, leader(t, ctx, c1))
@@ -301,18 +301,42 @@ func sequencerCfg(rpcPort int) *rollupNode.Config {
 	}
 }
 
-func waitForLeadershipChange(t *testing.T, c *conductor, leader bool) error {
+func waitForLeadership(t *testing.T, c *conductor) error {
 	condition := func() (bool, error) {
 		isLeader, err := c.client.Leader(context.Background())
 		if err != nil {
 			return false, err
 		}
-		return isLeader == leader, nil
+		return isLeader, nil
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	return wait.For(ctx, 10*time.Second, condition)
+}
+
+func waitForLeadershipChange(t *testing.T, prev *conductor, prevID string, conductors map[string]*conductor, sys *System) string {
+	condition := func() (bool, error) {
+		isLeader, err := prev.client.Leader(context.Background())
+		if err != nil {
+			return false, err
+		}
+		return !isLeader, nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	err := wait.For(ctx, 10*time.Second, condition)
+	require.NoError(t, err)
+
+	ensureOnlyOneLeader(t, sys, conductors)
+	newLeader, err := prev.client.LeaderWithID(ctx)
+	require.NoError(t, err)
+	require.NotEmpty(t, newLeader.ID)
+	require.NotEqual(t, prevID, newLeader.ID, "Expected a new leader")
+	require.NoError(t, waitForSequencerStatusChange(t, sys.RollupClient(newLeader.ID), true))
+
+	return newLeader.ID
 }
 
 func waitForSequencerStatusChange(t *testing.T, rollupClient *sources.RollupClient, active bool) error {

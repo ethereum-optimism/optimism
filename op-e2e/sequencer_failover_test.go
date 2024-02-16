@@ -75,13 +75,7 @@ func TestSequencerFailover_ConductorRPC(t *testing.T) {
 	lid, leader := findLeader(t, conductors)
 	err = leader.client.TransferLeader(ctx)
 	require.NoError(t, err, "Expected leader to transfer leadership to another node")
-	require.NoError(t, waitForLeadershipChange(t, leader, false))
-	ensureOnlyOneLeader(t, sys, conductors)
-	newLeader, err := leader.client.LeaderWithID(ctx)
-	require.NoError(t, err)
-	require.NotEmpty(t, newLeader.ID)
-	require.NotEqual(t, lid, newLeader.ID, "Expected a new leader")
-	require.NoError(t, waitForSequencerStatusChange(t, sys.RollupClient(newLeader.ID), true))
+	_ = waitForLeadershipChange(t, leader, lid, conductors, sys)
 
 	// old leader now became follower, we're trying to transfer leadership directly back to it.
 	t.Log("Testing TransferLeaderToServer")
@@ -89,8 +83,9 @@ func TestSequencerFailover_ConductorRPC(t *testing.T) {
 	_, leader = findLeader(t, conductors)
 	err = leader.client.TransferLeaderToServer(ctx, fid, follower.ConsensusEndpoint())
 	require.NoError(t, err, "Expected leader to transfer leadership to follower")
-	require.NoError(t, waitForLeadershipChange(t, follower, true))
-	require.NoError(t, waitForSequencerStatusChange(t, sys.RollupClient(fid), true))
+	newID := waitForLeadershipChange(t, leader, lid, conductors, sys)
+	require.Equal(t, fid, newID, "Expected leader to transfer to %s", fid)
+
 	leader = follower
 
 	// Test AddServerAsNonvoter, do not start a new sequencer just for this purpose, use Sequencer3's rpc to start conductor.
