@@ -312,7 +312,7 @@ func Copy(ctx context.Context, copyFrom client.RPC, copyTo client.RPC) error {
 
 // CopyPaylod takes the execution payload at number & applies it via NewPayload to copyTo
 func CopyPayload(ctx context.Context, number uint64, copyFrom client.RPC, copyTo client.RPC) error {
-	copyHead, err := getBlock(ctx, copyFrom, "eth_getBlockByNumber", fmt.Sprintf("%#.6x", number))
+	copyHead, err := getBlock(ctx, copyFrom, "eth_getBlockByNumber", hexutil.EncodeUint64(number))
 	if err != nil {
 		return err
 	}

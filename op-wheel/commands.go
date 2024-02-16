@@ -468,7 +468,8 @@ var (
 	}
 
 	EngineCopyPayloadCmd = &cli.Command{
-		Name: "copy-payload",
+		Name:        "copy-payload",
+		Description: "Take the block by number from source and insert it to the engine with NewPayload. No other calls are made.",
 		Flags: []cli.Flag{
 			EngineEndpoint, EngineJWTPath,
 			&cli.StringFlag{
