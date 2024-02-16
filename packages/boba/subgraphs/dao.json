@@ -6,13 +6,19 @@
       "path": "./abis/GovernorBravoDelegate.json"
     }
   },
-  "chains": ["boba-eth"],
+  "chains": ["boba-eth", "boba-goerli"],
   "instances": [
     {
       "abi": "GovernorBravoDelegate",
       "address": "0x2CC555B5B1a4Cf7fA5401B29ab46fc5ba2e205b0",
       "startBlock": 246717,
       "chain": "boba-eth"
+    },
+    {
+      "abi": "GovernorBravoDelegate",
+      "address": "0x22FDcc02fBBF24d829F7A0A69329d8d27477b0Df",
+      "startBlock": 115,
+      "chain": "boba-goerli"
     }
   ]
 }
