@@ -69,10 +69,10 @@ if mkdir -- "$LOCKDIR" > /dev/null 2>&1; then
       --l1-deployments "$DEPLOY_ARTIFACT" \
       --l1-starting-block "$L1_STARTING_BLOCK_PATH" \
       --outfile.l2 "$OUTFILE_L2" \
-      --outfile.rollup "$OUTFILE_ROLLUP" 2>$tempfile; then
-      cat $tempfile >&2
+      --outfile.rollup "$OUTFILE_ROLLUP" 2>"$tempfile"; then
+      cat "$tempfile" >&2
     fi
-    rm $tempfile
+    rm "$tempfile"
   fi
 else
   # Wait up to 5 minutes for the lock to be released
