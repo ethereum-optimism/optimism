@@ -23,6 +23,8 @@ contract PreimageOracle is IPreimageOracle {
     uint256 internal immutable CHALLENGE_PERIOD;
     /// @notice The minimum size of a preimage that can be proposed in the large preimage path.
     uint256 internal immutable MIN_LPP_SIZE_BYTES;
+    /// @notice The minimum bond size for large preimage proposals.
+    uint256 public constant MIN_BOND_SIZE = 0.25 ether;
     /// @notice The depth of the keccak256 merkle tree. Supports up to 65,536 keccak blocks, or ~8.91MB preimages.
     uint256 public constant KECCAK_TREE_DEPTH = 16;
     /// @notice The maximum number of keccak blocks that can fit into the merkle tree.
@@ -71,6 +73,8 @@ contract PreimageOracle is IPreimageOracle {
     /// @notice Mapping of claimants to proposal UUIDs to the timestamp of creation of the proposal as well as the
     /// challenged status.
     mapping(address => mapping(uint256 => LPPMetaData)) public proposalMetadata;
+    /// @notice Mapping of claimants to proposal UUIDs to bond amounts.
+    mapping(address => mapping(uint256 => uint256)) public proposalBonds;
     /// @notice Mapping of claimants to proposal UUIDs to the preimage part picked up during the absorbtion process.
     mapping(address => mapping(uint256 => bytes32)) public proposalParts;
     /// @notice Mapping of claimants to proposal UUIDs to blocks which leaves were added to the merkle tree.
@@ -394,8 +398,11 @@ contract PreimageOracle is IPreimageOracle {
     }
 
     /// @notice Initialize a large preimage proposal. Must be called before adding any leaves.
-    function initLPP(uint256 _uuid, uint32 _partOffset, uint32 _claimedSize) external {
-        // The caller of `addLeavesLPP` must be an EOA.
+    function initLPP(uint256 _uuid, uint32 _partOffset, uint32 _claimedSize) external payable {
+        // The bond provided must be at least `MIN_BOND_SIZE`.
+        if (msg.value < MIN_BOND_SIZE) revert InsufficientBond();
+
+        // The caller of `addLeavesLPP` must be an EOA, so that the call inputs are always available in block bodies.
         if (msg.sender != tx.origin) revert NotEOA();
 
         // The part offset must be within the bounds of the claimed size + 8.
@@ -404,9 +411,13 @@ contract PreimageOracle is IPreimageOracle {
         // The claimed size must be at least `MIN_LPP_SIZE_BYTES`.
         if (_claimedSize < MIN_LPP_SIZE_BYTES) revert InvalidInputSize();
 
+        // Initialize the proposal metadata.
         LPPMetaData metaData = proposalMetadata[msg.sender][_uuid];
         proposalMetadata[msg.sender][_uuid] = metaData.setPartOffset(_partOffset).setClaimedSize(_claimedSize);
         proposals.push(LargePreimageProposalKeys(msg.sender, _uuid));
+
+        // Assign the bond to the proposal.
+        proposalBonds[msg.sender][_uuid] = msg.value;
     }
 
     /// @notice Adds a contiguous list of keccak state matrices to the merkle tree.
@@ -563,6 +574,9 @@ contract PreimageOracle is IPreimageOracle {
 
         // Mark the keccak claim as countered.
         proposalMetadata[_claimant][_uuid] = proposalMetadata[_claimant][_uuid].setCountered(true);
+
+        // Pay out the bond to the challenger.
+        _payoutBond(_claimant, _uuid, msg.sender);
     }
 
     /// @notice Challenge the first keccak256 block that was absorbed.
@@ -591,6 +605,9 @@ contract PreimageOracle is IPreimageOracle {
 
         // Mark the keccak claim as countered.
         proposalMetadata[_claimant][_uuid] = proposalMetadata[_claimant][_uuid].setCountered(true);
+
+        // Pay out the bond to the challenger.
+        _payoutBond(_claimant, _uuid, msg.sender);
     }
 
     /// @notice Finalize a large preimage proposal after the challenge period has passed.
@@ -644,6 +661,9 @@ contract PreimageOracle is IPreimageOracle {
         preimagePartOk[finalDigest][partOffset] = true;
         preimageParts[finalDigest][partOffset] = proposalParts[_claimant][_uuid];
         preimageLengths[finalDigest] = metaData.claimedSize();
+
+        // Pay out the bond to the claimant.
+        _payoutBond(_claimant, _uuid, _claimant);
     }
 
     /// @notice Gets the current merkle root of the large preimage proposal tree.
@@ -705,7 +725,7 @@ contract PreimageOracle is IPreimageOracle {
         }
     }
 
-    /// Check if leaf` at `index` verifies against the Merkle `root` and `branch`.
+    /// @notice Check if leaf` at `index` verifies against the Merkle `root` and `branch`.
     /// https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/beacon-chain.md#is_valid_merkle_branch
     function _verify(
         bytes32[] calldata _proof,
@@ -736,6 +756,15 @@ contract PreimageOracle is IPreimageOracle {
 
             isValid_ := eq(value, _root)
         }
+    }
+
+    /// @notice Pay out a proposal's bond. Reverts if the transfer fails.
+    function _payoutBond(address _claimant, uint256 _uuid, address _to) internal {
+        // Pay out the bond to the claimant.
+        uint256 bond = proposalBonds[_claimant][_uuid];
+        proposalBonds[_claimant][_uuid] = 0;
+        (bool success,) = _to.call{ value: bond }("");
+        if (!success) revert BondTransferFailed();
     }
 
     /// @notice Hashes leaf data for the preimage proposals tree

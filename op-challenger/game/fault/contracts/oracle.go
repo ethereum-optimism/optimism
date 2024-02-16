@@ -38,6 +38,7 @@ const (
 	methodChallengeLPP                   = "challengeLPP"
 	methodChallengePeriod                = "challengePeriod"
 	methodGetTreeRootLPP                 = "getTreeRootLPP"
+	methodMinBondSizeLPP                 = "MIN_BOND_SIZE"
 )
 
 var (
@@ -55,6 +56,9 @@ type PreimageOracleContract struct {
 	// challengePeriod caches the challenge period from the contract once it has been loaded.
 	// 0 indicates the period has not been loaded yet.
 	challengePeriod atomic.Uint64
+	// minBondSizeLPP caches the minimum bond size for large preimages from the contract once it has been loaded.
+	// 0 indicates the value has not been loaded yet.
+	minBondSizeLPP atomic.Uint64
 }
 
 // toPreimageOracleLeaf converts a Leaf to the contract [bindings.PreimageOracleLeaf] type.
@@ -316,6 +320,19 @@ func (c *PreimageOracleContract) ChallengeTx(ident keccakTypes.LargePreimageIden
 			challenge.PoststateProof)
 	}
 	return call.ToTxCandidate()
+}
+
+func (c *PreimageOracleContract) GetMinBondLPP(ctx context.Context) (*big.Int, error) {
+	if bondSize := c.minBondSizeLPP.Load(); bondSize != 0 {
+		return big.NewInt(int64(bondSize)), nil
+	}
+	result, err := c.multiCaller.SingleCall(ctx, batching.BlockLatest, c.contract.Call(methodMinBondSizeLPP))
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch min bond size for LPPs: %w", err)
+	}
+	period := result.GetBigInt(0)
+	c.minBondSizeLPP.Store(period.Uint64())
+	return period, nil
 }
 
 func (c *PreimageOracleContract) decodePreimageIdent(result *batching.CallResult) keccakTypes.LargePreimageIdent {

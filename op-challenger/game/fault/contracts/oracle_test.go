@@ -113,6 +113,23 @@ func TestPreimageOracleContract_MinLargePreimageSize(t *testing.T) {
 	require.Equal(t, uint64(123), minProposalSize)
 }
 
+func TestPreimageOracleContract_MinBondSizeLPP(t *testing.T) {
+	stubRpc, oracle := setupPreimageOracleTest(t)
+	stubRpc.SetResponse(oracleAddr, methodMinBondSizeLPP, batching.BlockLatest,
+		[]interface{}{},
+		[]interface{}{big.NewInt(123)},
+	)
+	minBond, err := oracle.GetMinBondLPP(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, big.NewInt(123), minBond)
+
+	// Should cache responses
+	stubRpc.ClearResponses(methodMinBondSizeLPP)
+	minBond, err = oracle.GetMinBondLPP(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, big.NewInt(123), minBond)
+}
+
 func TestPreimageOracleContract_PreimageDataExists(t *testing.T) {
 	t.Run("exists", func(t *testing.T) {
 		stubRpc, oracle := setupPreimageOracleTest(t)
@@ -332,7 +349,6 @@ func setupPreimageOracleTestWithProposals(t *testing.T, block batching.Block) (*
 	}
 
 	return stubRpc, oracle, proposals
-
 }
 
 func setupPreimageOracleTest(t *testing.T) (*batchingTest.AbiBasedRpc, *PreimageOracleContract) {

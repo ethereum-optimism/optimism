@@ -47,6 +47,19 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "MIN_BOND_SIZE",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "uint256",
@@ -265,7 +278,7 @@
     ],
     "name": "initLPP",
     "outputs": [],
-    "stateMutability": "nonpayable",
+    "stateMutability": "payable",
     "type": "function"
   },
   {
@@ -516,6 +529,30 @@
       {
         "internalType": "uint256",
         "name": "len_",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "proposalBonds",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
         "type": "uint256"
       }
     ],
@@ -785,7 +822,17 @@
   },
   {
     "inputs": [],
+    "name": "BondTransferFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "CancunNotActive",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InsufficientBond",
     "type": "error"
   },
   {
