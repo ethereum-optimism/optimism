@@ -30,12 +30,14 @@ contract L1BlockBedrock_Test is L1BlockTest {
         uint64 s,
         bytes32 bt,
         uint256 fo,
-        uint256 fs
+        uint256 fs,
+        uint8 is,
+        uint256[] memory cis
     )
         external
     {
         vm.prank(depositor);
-        l1Block.setL1BlockValues(n, t, b, h, s, bt, fo, fs);
+        l1Block.setL1BlockValues(n, t, b, h, s, bt, fo, fs, is, cis);
         assertEq(l1Block.number(), n);
         assertEq(l1Block.timestamp(), t);
         assertEq(l1Block.basefee(), b);
@@ -57,7 +59,9 @@ contract L1BlockBedrock_Test is L1BlockTest {
             _sequenceNumber: type(uint64).max,
             _batcherHash: bytes32(type(uint256).max),
             _l1FeeOverhead: type(uint256).max,
-            _l1FeeScalar: type(uint256).max
+            _l1FeeScalar: type(uint256).max,
+            _interopSetSize: 0,
+            _chainIds: new uint256[](0)
         });
     }
 }
