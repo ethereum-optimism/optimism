@@ -648,7 +648,7 @@ func (d *L1Deployments) GetName(addr common.Address) string {
 }
 
 // Check will ensure that the L1Deployments are sane
-func (d *L1Deployments) Check() error {
+func (d *L1Deployments) Check(deployConfig *DeployConfig) error {
 	val := reflect.ValueOf(d)
 	if val.Kind() == reflect.Ptr {
 		val = val.Elem()
@@ -658,9 +658,12 @@ func (d *L1Deployments) Check() error {
 		// Skip the non production ready contracts
 		if name == "DisputeGameFactory" ||
 			name == "DisputeGameFactoryProxy" ||
-			name == "BlockOracle" ||
-			name == "DataAvailabilityChallenge" ||
-			name == "DataAvailabilityChallengeProxy" {
+			name == "BlockOracle" {
+			continue
+		}
+		if !deployConfig.UsePlasma &&
+			(name == "DataAvailabilityChallenge" ||
+				name == "DataAvailabilityChallengeProxy") {
 			continue
 		}
 		if val.Field(i).Interface().(common.Address) == (common.Address{}) {
