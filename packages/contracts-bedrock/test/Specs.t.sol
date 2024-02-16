@@ -59,9 +59,21 @@ contract Specification_Test is CommonTest {
         super.setUp();
 
         // DataAvailabilityChallenge
+        _addSpec({ _name: "DataAvailabilityChallenge", _sel: _getSel("owner()") });
+        _addSpec({
+            _name: "DataAvailabilityChallenge",
+            _sel: _getSel("renounceOwnership()"),
+            _auth: Role.DATAAVAILABILITYCHALLENGEOWNER
+        });
+        _addSpec({
+            _name: "DataAvailabilityChallenge",
+            _sel: _getSel("transferOwnership(address)"),
+            _auth: Role.DATAAVAILABILITYCHALLENGEOWNER
+        });
         _addSpec({ _name: "DataAvailabilityChallenge", _sel: _getSel("version()") });
         _addSpec({ _name: "DataAvailabilityChallenge", _sel: _getSel("fixedResolutionCost()") });
         _addSpec({ _name: "DataAvailabilityChallenge", _sel: _getSel("variableResolutionCost()") });
+        _addSpec({ _name: "DataAvailabilityChallenge", _sel: _getSel("bondSize()") });
         _addSpec({ _name: "DataAvailabilityChallenge", _sel: _getSel("challengeWindow()") });
         _addSpec({ _name: "DataAvailabilityChallenge", _sel: _getSel("resolveWindow()") });
         _addSpec({ _name: "DataAvailabilityChallenge", _sel: _getSel("resolverRefundPercentage()") });
