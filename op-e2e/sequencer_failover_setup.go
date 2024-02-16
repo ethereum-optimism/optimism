@@ -302,23 +302,31 @@ func sequencerCfg(rpcPort int) *rollupNode.Config {
 }
 
 func waitForLeadershipChange(t *testing.T, c *conductor, leader bool) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-			isLeader, err := c.client.Leader(ctx)
-			if err != nil {
-				return err
-			}
-			if isLeader == leader {
-				return nil
-			}
-			time.Sleep(500 * time.Millisecond)
+	condition := func() (bool, error) {
+		isLeader, err := c.client.Leader(context.Background())
+		if err != nil {
+			return false, err
 		}
+		return isLeader == leader, nil
 	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	return wait.For(ctx, 10*time.Second, condition)
+}
+
+func waitForSequencerStatusChange(t *testing.T, rollupClient *sources.RollupClient, active bool) error {
+	condition := func() (bool, error) {
+		isActive, err := rollupClient.SequencerActive(context.Background())
+		if err != nil {
+			return false, err
+		}
+		return isActive == active, nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	return wait.For(ctx, 5*time.Second, condition)
 }
 
 func leader(t *testing.T, ctx context.Context, con *conductor) bool {
@@ -384,7 +392,7 @@ func findFollower(t *testing.T, conductors map[string]*conductor) (string, *cond
 }
 
 func ensureOnlyOneLeader(t *testing.T, sys *System, conductors map[string]*conductor) {
-	condiction := func() bool {
+	condition := func() (bool, error) {
 		leaders := 0
 		ctx := context.Background()
 		for name, con := range conductors {
@@ -401,8 +409,10 @@ func ensureOnlyOneLeader(t *testing.T, sys *System, conductors map[string]*condu
 				leaders++
 			}
 		}
-		return leaders == 1
+		return leaders == 1, nil
 	}
 
-	require.NoError(t, waitFor(t, 10*time.Second, condiction))
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	require.NoError(t, wait.For(ctx, 10*time.Second, condition))
 }
