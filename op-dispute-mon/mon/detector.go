@@ -39,7 +39,7 @@ func newDetector(logger log.Logger, metrics DetectorMetrics, validator OutputVal
 	}
 }
 
-func (d *detector) Detect(ctx context.Context, games []monTypes.EnrichedGameData) {
+func (d *detector) Detect(ctx context.Context, games []*monTypes.EnrichedGameData) {
 	statBatch := monTypes.StatusBatch{}
 	detectBatch := monTypes.DetectionBatch{}
 	for _, game := range games {
