@@ -197,10 +197,6 @@ type DeployConfig struct {
 	// FaultGameAbsolutePrestate is the absolute prestate of Cannon. This is computed
 	// by generating a proof from the 0th -> 1st instruction and grabbing the prestate from
 	// the output JSON. All honest challengers should agree on the setup state of the program.
-	// TODO(clabby): Right now, the build of the `op-program` is nondeterministic, meaning that
-	// the binary must be distributed in order for honest actors to agree. In the future, we'll
-	// look to make the build deterministic so that users may build Cannon / the `op-program`
-	// from source.
 	FaultGameAbsolutePrestate common.Hash `json:"faultGameAbsolutePrestate"`
 	// FaultGameMaxDepth is the maximum depth of the position tree within the fault dispute game.
 	// `2^{FaultGameMaxDepth}` is how many instructions the execution trace bisection game
