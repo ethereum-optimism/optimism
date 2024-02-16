@@ -57,9 +57,9 @@
   "respectedGameType": 0,
   "useFaultProofs": false,
   "fundDevAccounts": false,
-  "usePlasma": true,
-  "daChallengeWindow": 1000,
-  "daResolveWindow": 1000,
-  "daBondSize": 1000000,
-  "daResolverRefundPercentage": 0
+  "usePlasma": false,
+  "daChallengeWindow": 100,
+  "daResolveWindow": 100,
+  "daBondSize": 1000,
+  "daResolverRefundPercentage": 50
 }

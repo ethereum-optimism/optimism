@@ -1,34 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Test } from "forge-std/Test.sol";
 import { DataAvailabilityChallenge, ChallengeStatus, Challenge } from "src/L1/DataAvailabilityChallenge.sol";
 import { Proxy } from "src/universal/Proxy.sol";
+import { CommonTest } from "test/setup/CommonTest.sol";
 
-address constant DAC_OWNER = address(1234);
-uint256 constant CHALLENGE_WINDOW = 1000;
-uint256 constant RESOLVE_WINDOW = 1000;
-uint256 constant BOND_SIZE = 1000000000;
-uint256 constant RESOLVER_REFUND_PERCENTAGE = 50;
-
-contract DataAvailabilityChallengeTest is Test {
+contract DataAvailabilityChallengeTest is CommonTest {
     DataAvailabilityChallenge public dac;
 
-    function setUp() public virtual {
-        Proxy proxy = new Proxy(address(this));
-        proxy.upgradeTo(address(new DataAvailabilityChallenge()));
-        dac = DataAvailabilityChallenge(payable(address(proxy)));
-        dac.initialize(DAC_OWNER, CHALLENGE_WINDOW, RESOLVE_WINDOW, BOND_SIZE, RESOLVER_REFUND_PERCENTAGE);
-    }
-
-    function testInitialize() public {
-        assertEq(dac.owner(), DAC_OWNER);
-        assertEq(dac.challengeWindow(), CHALLENGE_WINDOW);
-        assertEq(dac.resolveWindow(), RESOLVE_WINDOW);
-        assertEq(dac.bondSize(), BOND_SIZE);
-
-        vm.expectRevert("Initializable: contract is already initialized");
-        dac.initialize(DAC_OWNER, CHALLENGE_WINDOW, RESOLVE_WINDOW, BOND_SIZE, RESOLVER_REFUND_PERCENTAGE);
+    function setUp() public override virtual {
+        super.enablePlasma();
+        super.setUp();
+        dac = DataAvailabilityChallenge(deploy.mustGetAddress("DataAvailabilityChallengeProxy"));
     }
 
     function testDeposit() public {
@@ -214,7 +197,7 @@ contract DataAvailabilityChallengeTest is Test {
         vm.txGasPrice(txGasPrice);
 
         // Change the resolver refund percentage
-        vm.prank(DAC_OWNER);
+        vm.prank(dac.owner());
         dac.setResolverRefundPercentage(resolverRefundPercentage);
 
         // Assume the block number is not close to the max uint256 value
@@ -229,6 +212,9 @@ contract DataAvailabilityChallengeTest is Test {
         vm.deal(challenger, bondSize);
         vm.prank(challenger);
         dac.challenge{ value: bondSize }(challengedBlockNumber, challengedHash);
+
+        // Store the address(0) balance before resolving to assert the burned amount later
+        uint256 zeroAddressBalanceBeforeResolve = address(0).balance;
 
         // Resolve the challenge
         vm.prank(resolver);
@@ -260,7 +246,7 @@ contract DataAvailabilityChallengeTest is Test {
 
         // Assert burned amount after bond distribution
         uint256 burned = bondSize - challengerRefund - resolverRefund;
-        assertEq(address(0).balance, burned, "burned bond");
+        assertEq(address(0).balance - zeroAddressBalanceBeforeResolve, burned, "burned bond");
     }
 
     function testResolveFailNonExistentChallenge() public {
@@ -461,7 +447,7 @@ contract DataAvailabilityChallengeTest is Test {
         dac.challenge(0, "some hash");
 
         // Reduce the required bond
-        vm.prank(DAC_OWNER);
+        vm.prank(dac.owner());
         dac.setBondSize(actualBond);
 
         // Expect the challenge to succeed
@@ -470,19 +456,20 @@ contract DataAvailabilityChallengeTest is Test {
 
     function testSetResolverRefundPercentage(uint256 resolverRefundPercentage) public {
         resolverRefundPercentage = bound(resolverRefundPercentage, 0, 100);
-        vm.prank(DAC_OWNER);
+        vm.prank(dac.owner());
         dac.setResolverRefundPercentage(resolverRefundPercentage);
         assertEq(dac.resolverRefundPercentage(), resolverRefundPercentage);
     }
 
     function testSetResolverRefundPercentageFail() public {
+        address owner = dac.owner();
         vm.expectRevert(abi.encodeWithSelector(DataAvailabilityChallenge.InvalidResolverRefundPercentage.selector, 101));
-        vm.prank(DAC_OWNER);
+        vm.prank(owner);
         dac.setResolverRefundPercentage(101);
     }
 
     function testSetBondSizeFailOnlyOwner(address notOwner, uint256 newBondSize) public {
-        vm.assume(notOwner != DAC_OWNER);
+        vm.assume(notOwner != dac.owner());
 
         // Expect setting the bond size to fail because the sender is not the owner
         vm.prank(notOwner);
