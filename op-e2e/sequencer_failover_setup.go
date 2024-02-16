@@ -312,7 +312,7 @@ func waitForLeadership(t *testing.T, c *conductor) error {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	return wait.For(ctx, 10*time.Second, condition)
+	return wait.For(ctx, 1*time.Second, condition)
 }
 
 func waitForLeadershipChange(t *testing.T, prev *conductor, prevID string, conductors map[string]*conductor, sys *System) string {
@@ -324,9 +324,9 @@ func waitForLeadershipChange(t *testing.T, prev *conductor, prevID string, condu
 		return !isLeader, nil
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
-	err := wait.For(ctx, 10*time.Second, condition)
+	err := wait.For(ctx, 1*time.Second, condition)
 	require.NoError(t, err)
 
 	ensureOnlyOneLeader(t, sys, conductors)
@@ -350,7 +350,7 @@ func waitForSequencerStatusChange(t *testing.T, rollupClient *sources.RollupClie
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	return wait.For(ctx, 5*time.Second, condition)
+	return wait.For(ctx, 1*time.Second, condition)
 }
 
 func leader(t *testing.T, ctx context.Context, con *conductor) bool {
@@ -438,5 +438,5 @@ func ensureOnlyOneLeader(t *testing.T, sys *System, conductors map[string]*condu
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	require.NoError(t, wait.For(ctx, 10*time.Second, condition))
+	require.NoError(t, wait.For(ctx, 1*time.Second, condition))
 }
