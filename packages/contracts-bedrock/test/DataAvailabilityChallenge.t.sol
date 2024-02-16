@@ -207,8 +207,8 @@ contract DataAvailabilityChallengeTest is Test {
         vm.assume(challenger != address(0));
         vm.assume(resolver != address(0));
 
-        // Assume the resolver refund percentage is valid
-        vm.assume(resolverRefundPercentage <= 100);
+        // Bound the resolver refund percentage to 100
+        resolverRefundPercentage = bound(resolverRefundPercentage, 0, 100);
 
         // Set the gas price to a fuzzed value to test bond distribution logic
         vm.txGasPrice(txGasPrice);
@@ -469,7 +469,7 @@ contract DataAvailabilityChallengeTest is Test {
     }
 
     function testSetResolverRefundPercentage(uint256 resolverRefundPercentage) public {
-        vm.assume(resolverRefundPercentage <= 100);
+        resolverRefundPercentage = bound(resolverRefundPercentage, 0, 100);
         vm.prank(DAC_OWNER);
         dac.setResolverRefundPercentage(resolverRefundPercentage);
         assertEq(dac.resolverRefundPercentage(), resolverRefundPercentage);
