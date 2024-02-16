@@ -32,16 +32,32 @@ abstract contract CrossL2Inbox is Initializable {
     // bytes32(uint256(keccak256("crossl2inbox.identifier.chainid")) - 1)
     bytes32 public constant CHAINID_SLOT = 0x6e0446e8b5098b8c8193f964f1b567ec3a2bdaeba33d36acb85c1f1d3f92d313;
 
-    function getIdentifier()
-        public
-        view
-        returns (address _origin, uint256 _blocknumber, uint256 _logIndex, uint256 _timestamp, uint256 _chainid)
-    {
+    function origin() public view returns (address _origin) {
         assembly {
             _origin := tload(ORIGIN_SLOT)
+        }
+    }
+
+    function blocknumber() public view returns (uint256 _blocknumber) {
+        assembly {
             _blocknumber := tload(BLOCKNUMBER_SLOT)
+        }
+    }
+
+    function logIndex() public view returns (uint256 _logIndex) {
+        assembly {
             _logIndex := tload(LOG_INDEX_SLOT)
+        }
+    }
+
+    function timestamp() public view returns (uint256 _timestamp) {
+        assembly {
             _timestamp := tload(TIMESTAMP_SLOT)
+        }
+    }
+
+    function chainid() public view returns (uint256 _chainid) {
+        assembly {
             _chainid := tload(CHAINID_SLOT)
         }
     }
