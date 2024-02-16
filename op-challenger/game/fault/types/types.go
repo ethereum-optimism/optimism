@@ -146,7 +146,7 @@ type Claim struct {
 	//       to be changed/removed to avoid invalid/stale contract state.
 	CounteredBy common.Address
 	Claimant    common.Address
-	Clock       uint64
+	Clock       *Clock
 	// Location of the claim & it's parent inside the contract. Does not exist
 	// for claims that have not made it to the contract.
 	ContractIndex       int
@@ -156,4 +156,36 @@ type Claim struct {
 // IsRoot returns true if this claim is the root claim.
 func (c *Claim) IsRoot() bool {
 	return c.Position.IsRootPosition()
+}
+
+// ChessTime returns the amount of time accumulated in the chess clock.
+// Does not assume the claim is countered and uses the specified time
+// to calculate the time since the claim was posted.
+func (c *Claim) ChessTime(now time.Time) time.Duration {
+	timeSince := int64(0)
+	if now.Unix() > int64(c.Clock.Timestamp) {
+		timeSince = now.Unix() - int64(c.Clock.Timestamp)
+	}
+	return time.Duration(c.Clock.Duration) + time.Duration(timeSince)
+}
+
+// Clock is a packed uint128 with the upper 64 bits being the
+// duration and the lower 64 bits being the timestamp.
+// ┌────────────┬────────────────┐
+// │    Bits    │     Value      │
+// ├────────────┼────────────────┤
+// │ [0, 64)    │ Duration       │
+// │ [64, 128)  │ Timestamp      │
+// └────────────┴────────────────┘
+type Clock struct {
+	Duration  uint64
+	Timestamp uint64
+}
+
+// NewClock creates a new Clock instance.
+func NewClock(duration uint64, timestamp uint64) *Clock {
+	return &Clock{
+		Duration:  duration,
+		Timestamp: timestamp,
+	}
 }
