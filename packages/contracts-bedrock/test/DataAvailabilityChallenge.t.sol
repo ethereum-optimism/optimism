@@ -198,7 +198,8 @@ contract DataAvailabilityChallengeTest is Test {
         address resolver,
         bytes memory preImage,
         uint256 challengedBlockNumber,
-        uint256 resolverRefundPercentage
+        uint256 resolverRefundPercentage,
+        uint128 txGasPrice
     )
         public
     {
@@ -209,8 +210,8 @@ contract DataAvailabilityChallengeTest is Test {
         // Assume the resolver refund percentage is valid
         vm.assume(resolverRefundPercentage <= 100);
 
-        // Set the gas price to a non-zero value to test bond distribution logic
-        vm.txGasPrice(2);
+        // Set the gas price to a fuzzed value to test bond distribution logic
+        vm.txGasPrice(txGasPrice);
 
         // Change the resolver refund percentage
         vm.prank(DAC_OWNER);
@@ -233,15 +234,17 @@ contract DataAvailabilityChallengeTest is Test {
         vm.prank(resolver);
         dac.resolve(challengedBlockNumber, challengedHash, preImage);
 
-        // Expect the challenge to be resolved
-        (address _challenger, uint256 _lockedBond, uint256 _startBlock, uint256 _resolvedBlock) =
-            dac.challenges(challengedBlockNumber, challengedHash);
+        {
+            // Expect the challenge to be resolved
+            (address _challenger, uint256 _lockedBond, uint256 _startBlock, uint256 _resolvedBlock) =
+                dac.challenges(challengedBlockNumber, challengedHash);
 
-        assertEq(_challenger, challenger);
-        assertEq(_lockedBond, 0);
-        assertEq(_startBlock, block.number);
-        assertEq(_resolvedBlock, block.number);
-        assertEq(uint8(dac.getChallengeStatus(challengedBlockNumber, challengedHash)), uint8(ChallengeStatus.Resolved));
+            assertEq(_challenger, challenger);
+            assertEq(_lockedBond, 0);
+            assertEq(_startBlock, block.number);
+            assertEq(_resolvedBlock, block.number);
+            assertEq(uint8(dac.getChallengeStatus(challengedBlockNumber, challengedHash)), uint8(ChallengeStatus.Resolved));
+        }
 
         // Assert challenger balance after bond distribution
         uint256 resolutionCost =

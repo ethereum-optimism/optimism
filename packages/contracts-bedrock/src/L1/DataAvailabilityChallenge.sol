@@ -97,6 +97,7 @@ contract DataAvailabilityChallenge is OwnableUpgradeable, ISemver {
     uint256 public bondSize;
 
     /// @notice The percentage of the resolving cost to be refunded to the resolver.
+    /// @dev There are no decimals, ie a value of 50 corresponds to 50%.
     uint256 public resolverRefundPercentage;
 
     /// @notice A mapping from addresses to their bond balance in the contract.
@@ -149,7 +150,8 @@ contract DataAvailabilityChallenge is OwnableUpgradeable, ISemver {
     }
 
     /// @notice Sets the percentage of the resolving cost to be refunded to the resolver.
-    /// @dev The function reverts if the provided percentage is above 100.
+    /// @dev The function reverts if the provided percentage is above 100, since the refund logic
+    /// assumes a value smaller or equal to 100%.
     /// @param _resolverRefundPercentage The percentage of the resolving cost to be refunded to the resolver.
     function setResolverRefundPercentage(uint256 _resolverRefundPercentage) public onlyOwner {
         if (_resolverRefundPercentage > 100) {
