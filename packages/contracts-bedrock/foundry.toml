@@ -25,6 +25,8 @@ remappings = [
 extra_output = ['devdoc', 'userdoc', 'metadata', 'storageLayout']
 bytecode_hash = 'none'
 build_info_path = 'artifacts/build-info'
+evm_version = "cancun"
+ignored_error_codes = [2394]
 
 # Test / Script Runner Settings
 ffi = true
