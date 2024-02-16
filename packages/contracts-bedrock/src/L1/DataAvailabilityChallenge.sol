@@ -77,8 +77,8 @@ contract DataAvailabilityChallenge is OwnableUpgradeable, ISemver {
     event BalanceChanged(address account, uint256 balance);
 
     /// @notice Semantic version.
-    /// @custom:semver 0.0.0
-    string public constant version = "0.0.0";
+    /// @custom:semver 1.0.0
+    string public constant version = "1.0.0";
 
     /// @notice The fixed cost of resolving a challenge.
     uint256 public constant fixedResolutionCost = 44200;
