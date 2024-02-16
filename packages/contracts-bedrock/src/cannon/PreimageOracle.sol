@@ -73,7 +73,7 @@ contract PreimageOracle is IPreimageOracle {
     /// @notice Mapping of claimants to proposal UUIDs to the timestamp of creation of the proposal as well as the
     /// challenged status.
     mapping(address => mapping(uint256 => LPPMetaData)) public proposalMetadata;
-    /// @notice Mapping of claimants to proposal UUIds to bond amounts.
+    /// @notice Mapping of claimants to proposal UUIDs to bond amounts.
     mapping(address => mapping(uint256 => uint256)) public proposalBonds;
     /// @notice Mapping of claimants to proposal UUIDs to the preimage part picked up during the absorbtion process.
     mapping(address => mapping(uint256 => bytes32)) public proposalParts;
