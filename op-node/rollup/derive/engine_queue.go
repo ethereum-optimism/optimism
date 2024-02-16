@@ -92,6 +92,13 @@ type LocalEngineControl interface {
 	SetPendingSafeL2Head(eth.L2BlockRef)
 }
 
+// SafeHeadListener is called when the safe head is updated.
+// The safe head may advance by more than one block in a single update
+// The l1Block specified is the first L1 block that includes sufficient information to derive the new safe head
+type SafeHeadListener func(newSafeHead eth.L2BlockRef, l1Block eth.BlockID)
+
+var NoSafeHeadListener = func(_ eth.L2BlockRef, _ eth.BlockID) {}
+
 // Max memory used for buffering unsafe payloads
 const maxUnsafePayloadsMemory = 500 * 1024 * 1024
 
@@ -153,10 +160,12 @@ type EngineQueue struct {
 	l1Fetcher L1Fetcher
 
 	syncCfg *sync.Config
+
+	safeHeadNotifs SafeHeadListener // notified when safe head is updated
 }
 
 // NewEngineQueue creates a new EngineQueue, which should be Reset(origin) before use.
-func NewEngineQueue(log log.Logger, cfg *rollup.Config, l2Source L2Source, engine LocalEngineControl, metrics Metrics, prev NextAttributesProvider, l1Fetcher L1Fetcher, syncCfg *sync.Config) *EngineQueue {
+func NewEngineQueue(log log.Logger, cfg *rollup.Config, l2Source L2Source, engine LocalEngineControl, metrics Metrics, prev NextAttributesProvider, l1Fetcher L1Fetcher, syncCfg *sync.Config, safeHeadNotifs SafeHeadListener) *EngineQueue {
 	return &EngineQueue{
 		log:            log,
 		cfg:            cfg,
@@ -168,6 +177,7 @@ func NewEngineQueue(log log.Logger, cfg *rollup.Config, l2Source L2Source, engin
 		prev:           prev,
 		l1Fetcher:      l1Fetcher,
 		syncCfg:        syncCfg,
+		safeHeadNotifs: safeHeadNotifs,
 	}
 }
 
@@ -386,6 +396,9 @@ func (eq *EngineQueue) postProcessSafeL2() {
 	}
 	// remember the last L2 block that we fully derived from the given finality data
 	if len(eq.finalityData) == 0 || eq.finalityData[len(eq.finalityData)-1].L1Block.Number < eq.origin.Number {
+		// TODO(client-pod#593): Work out how to handle pipeline resets/startup
+		// Emitting a safe head notification here gives an incorrect L1 block
+		// But does not emitting an event risk missing an update?
 		// append entry for new L1 block
 		eq.finalityData = append(eq.finalityData, FinalityData{
 			L2Block: eq.ec.SafeL2Head(),
@@ -399,6 +412,8 @@ func (eq *EngineQueue) postProcessSafeL2() {
 		if last.L2Block != eq.ec.SafeL2Head() { // avoid logging if there are no changes
 			last.L2Block = eq.ec.SafeL2Head()
 			eq.log.Debug("updated finality-data", "last_l1", last.L1Block, "last_l2", last.L2Block)
+			// Notify the new safe head
+			eq.safeHeadNotifs(eq.ec.SafeL2Head(), eq.origin.ID())
 		}
 	}
 }

@@ -291,6 +291,12 @@ var (
 		EnvVars:  prefixEnvVars("ROLLUP_LOAD_PROTOCOL_VERSIONS"),
 		Category: RollupCategory,
 	}
+	SafeDBPath = &cli.StringFlag{
+		Name:    "safedb.path",
+		Usage:   "File path used to persist safe head update data. Disabled if not set.",
+		EnvVars: prefixEnvVars("SAFEDB_PATH"),
+		Hidden:  true,
+	}
 	/* Deprecated Flags */
 	L2EngineSyncEnabled = &cli.BoolFlag{
 		Name:    "l2.engine-sync",
@@ -392,6 +398,7 @@ var optionalFlags = []cli.Flag{
 	ConductorEnabledFlag,
 	ConductorRpcFlag,
 	ConductorRpcTimeoutFlag,
+	SafeDBPath,
 }
 
 var DeprecatedFlags = []cli.Flag{
