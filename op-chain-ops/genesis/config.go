@@ -242,7 +242,7 @@ type DeployConfig struct {
 	UseFaultProofs bool `json:"useFaultProofs"`
 
 	// UsePlasma is a flag that indicates if the system is using op-plasma
-	UsePlasma uint64 `json:"usePlasma"`
+	UsePlasma bool `json:"usePlasma"`
 	// DaChallengeWindow represents the block interval during which the availability of a data commitment can be challenged.
 	DaChallengeWindow uint64 `json:"daChallengeWindow"`
 	// DaResolveWindow represents the block interval during which a data availability challenge can be resolved.
