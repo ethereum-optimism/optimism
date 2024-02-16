@@ -202,7 +202,7 @@ func (s *Service) initMonitor(ctx context.Context, cfg *config.Config) {
 		s.cl,
 		cfg.MonitorInterval,
 		cfg.GameWindow,
-		s.delays.RecordClaimResolutionDelayMax,
+		s.delays.RecordResolutionDelays,
 		s.detector.Detect,
 		s.forecast.Forecast,
 		s.extractor.Extract,

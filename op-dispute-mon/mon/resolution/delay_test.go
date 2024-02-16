@@ -1,6 +1,7 @@
 package resolution
 
 import (
+	"math"
 	"math/big"
 	"testing"
 	"time"
@@ -67,16 +68,17 @@ func TestDelayCalculator_getRemainingTime(t *testing.T) {
 	})
 }
 
-func TestDelayCalculator_getMaxResolutionDelay(t *testing.T) {
+func TestDelayCalculator_getResolutionDelays(t *testing.T) {
 	tests := []struct {
-		name   string
-		claims []types.Claim
-		want   uint64
+		name     string
+		claims   []types.Claim
+		minDelay uint64
+		maxDelay uint64
 	}{
-		{"NoClaims", []types.Claim{}, 0},
-		{"SingleClaim", createClaimList()[:1], 180},
-		{"MultipleClaims", createClaimList()[:2], 300},
-		{"ClaimsWithMaxUint128", createClaimList(), 300},
+		{"NoClaims", []types.Claim{}, math.MaxUint64, 0},
+		{"SingleClaim", createClaimList()[:1], 180, 180},
+		{"MultipleClaims", createClaimList()[:2], 180, 300},
+		{"ClaimsWithMaxUint128", createClaimList(), 180, 300},
 	}
 
 	for _, test := range tests {
@@ -87,14 +89,15 @@ func TestDelayCalculator_getMaxResolutionDelay(t *testing.T) {
 				Claims:   test.claims,
 				Duration: maxGameDuration,
 			}
-			got := d.getMaxResolutionDelay(game)
+			minDelay, maxDelay := d.getResolutionDelays(game)
 			require.Equal(t, 0, metrics.calls)
-			require.Equal(t, test.want, got)
+			require.Equal(t, test.minDelay, minDelay)
+			require.Equal(t, test.maxDelay, maxDelay)
 		})
 	}
 }
 
-func TestDelayCalculator_RecordClaimResolutionDelayMax(t *testing.T) {
+func TestDelayCalculator_RecordResolutionDelays(t *testing.T) {
 	tests := []struct {
 		name  string
 		games []*monTypes.EnrichedGameData
@@ -110,8 +113,8 @@ func TestDelayCalculator_RecordClaimResolutionDelayMax(t *testing.T) {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
 			d, metrics, _ := setupDelayCalculatorTest(t)
-			d.RecordClaimResolutionDelayMax(test.games)
-			require.Equal(t, 1, metrics.calls)
+			d.RecordResolutionDelays(test.games)
+			require.Equal(t, 2, metrics.calls)
 			require.Equal(t, test.want, metrics.maxDelay)
 		})
 	}
@@ -178,11 +181,19 @@ func createClaimList() []types.Claim {
 type mockDelayMetrics struct {
 	calls    int
 	maxDelay float64
+	minDelay float64
 }
 
 func (m *mockDelayMetrics) RecordClaimResolutionDelayMax(delay float64) {
 	m.calls++
 	if delay > m.maxDelay {
 		m.maxDelay = delay
+	}
+}
+
+func (m *mockDelayMetrics) RecordClaimResolutionDelayMin(delay float64) {
+	m.calls++
+	if delay < m.minDelay {
+		m.minDelay = delay
 	}
 }

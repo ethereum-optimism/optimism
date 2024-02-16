@@ -20,6 +20,7 @@ type Metricer interface {
 	RecordUp()
 
 	RecordClaimResolutionDelayMax(delay float64)
+	RecordClaimResolutionDelayMin(delay float64)
 
 	RecordGamesStatus(inProgress, defenderWon, challengerWon int)
 	RecordGameAgreement(status string, count int)
@@ -41,6 +42,7 @@ type Metrics struct {
 	up   prometheus.Gauge
 
 	claimResolutionDelayMax prometheus.Gauge
+	claimResolutionDelayMin prometheus.Gauge
 
 	trackedGames   prometheus.GaugeVec
 	gamesAgreement prometheus.GaugeVec
@@ -79,6 +81,11 @@ func NewMetrics() *Metrics {
 			Namespace: Namespace,
 			Name:      "claim_resolution_delay_max",
 			Help:      "Maximum claim resolution delay in seconds",
+		}),
+		claimResolutionDelayMin: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "claim_resolution_delay_min",
+			Help:      "Minimum claim resolution delay in seconds",
 		}),
 		trackedGames: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: Namespace,
@@ -123,6 +130,10 @@ func (m *Metrics) RecordUp() {
 
 func (m *Metrics) RecordClaimResolutionDelayMax(delay float64) {
 	m.claimResolutionDelayMax.Set(delay)
+}
+
+func (m *Metrics) RecordClaimResolutionDelayMin(delay float64) {
+	m.claimResolutionDelayMin.Set(delay)
 }
 
 func (m *Metrics) Document() []opmetrics.DocumentedMetric {
