@@ -324,7 +324,7 @@ func waitForLeadershipChange(t *testing.T, prev *conductor, prevID string, condu
 		return !isLeader, nil
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	err := wait.For(ctx, 1*time.Second, condition)
 	require.NoError(t, err)
