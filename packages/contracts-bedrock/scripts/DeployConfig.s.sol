@@ -145,7 +145,7 @@ contract DeployConfig is Script {
         daChallengeWindow = _readOr(_json, "$.daChallengeWindow", 0);
         daResolveWindow = _readOr(_json, "$.daResolveWindow", 0);
         daBondSize = _readOr(_json, "$.daBondSize", 0);
-        daResolverRefundPercentage= _readOr(_json, "$.daResolverRefundPercentage", 0);
+        daResolverRefundPercentage = _readOr(_json, "$.daResolverRefundPercentage", 0);
     }
 
     function l1StartingBlockTag() public returns (bytes32) {

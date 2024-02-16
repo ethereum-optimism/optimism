@@ -135,8 +135,9 @@ contract Setup {
         vm.label(deploy.mustGetAddress("SuperchainConfigProxy"), "SuperchainConfigProxy");
         vm.label(AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger)), "L1CrossDomainMessenger_aliased");
 
-        if(deploy.cfg().usePlasma()) {
-            dataAvailabilityChallenge = DataAvailabilityChallenge(deploy.mustGetAddress("DataAvailabilityChallengeProxy"));
+        if (deploy.cfg().usePlasma()) {
+            dataAvailabilityChallenge =
+                DataAvailabilityChallenge(deploy.mustGetAddress("DataAvailabilityChallengeProxy"));
             vm.label(address(dataAvailabilityChallenge), "DataAvailabilityChallengeProxy");
             vm.label(deploy.mustGetAddress("DataAvailabilityChallenge"), "DataAvailabilityChallenge");
         }

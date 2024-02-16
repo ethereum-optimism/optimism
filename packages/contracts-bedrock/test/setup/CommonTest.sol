@@ -28,7 +28,7 @@ contract CommonTest is Test, Setup, Events {
         Setup.setUp();
 
         // Override the plasma config after the deploy script initialized the config
-        if(usePlasmaOverride) {
+        if (usePlasmaOverride) {
             deploy.cfg().setUsePlasma(true);
         }
 
@@ -121,5 +121,4 @@ contract CommonTest is Test, Setup, Events {
 
         usePlasmaOverride = true;
     }
-
 }
