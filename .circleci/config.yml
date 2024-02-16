@@ -7,13 +7,14 @@ parameters:
   base_image:
     type: string
     default: ubuntu-2204:2022.07.1
-  # The `manual_dispatch` parameter is used to manually dispatch a pipeline from
-  # the CircleCI UI. Example configuration:
+  # The `kontrol_dispatch` parameter is used to manually dispatch the
+  # `develop-kontrol-tests` pipeline from the CircleCI UI. Example configuration:
   #   when:
   #     or:
   #       - equal: [ "develop", <<pipeline.git.branch>> ]
-  #       - equal: [ true, <<pipeline.parameters.manual_dispatch>> ]
-  manual_dispatch:
+  #       - equal: [ true, <<pipeline.parameters.kontrol_dispatch>> ]
+  # Add a new `*_dispatch` parameter for any pipeline you want manual dispatch for.
+  kontrol_dispatch:
     type: boolean
     default: false
 
@@ -1945,7 +1946,7 @@ workflows:
     when:
       or:
         - equal: [ "develop", <<pipeline.git.branch>> ]
-        - equal: [ true, <<pipeline.parameters.manual_dispatch>> ]
+        - equal: [ true, <<pipeline.parameters.kontrol_dispatch>> ]
     jobs:
       - kontrol-tests:
           context:
