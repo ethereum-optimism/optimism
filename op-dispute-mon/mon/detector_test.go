@@ -18,7 +18,7 @@ func TestDetector_Detect(t *testing.T) {
 
 	t.Run("NoGames", func(t *testing.T) {
 		detector, metrics, _, _ := setupDetectorTest(t)
-		detector.Detect(context.Background(), []monTypes.EnrichedGameData{})
+		detector.Detect(context.Background(), []*monTypes.EnrichedGameData{})
 		metrics.Equals(t, 0, 0, 0)
 		metrics.Mapped(t, map[string]int{})
 	})
@@ -26,21 +26,21 @@ func TestDetector_Detect(t *testing.T) {
 	t.Run("CheckAgreementFails", func(t *testing.T) {
 		detector, metrics, rollup, _ := setupDetectorTest(t)
 		rollup.err = errors.New("boom")
-		detector.Detect(context.Background(), []monTypes.EnrichedGameData{{}})
+		detector.Detect(context.Background(), []*monTypes.EnrichedGameData{{}})
 		metrics.Equals(t, 1, 0, 0) // Status should still be metriced here!
 		metrics.Mapped(t, map[string]int{})
 	})
 
 	t.Run("SingleGame", func(t *testing.T) {
 		detector, metrics, _, _ := setupDetectorTest(t)
-		detector.Detect(context.Background(), []monTypes.EnrichedGameData{{}})
+		detector.Detect(context.Background(), []*monTypes.EnrichedGameData{{}})
 		metrics.Equals(t, 1, 0, 0)
 		metrics.Mapped(t, map[string]int{"in_progress": 1})
 	})
 
 	t.Run("MultipleGames", func(t *testing.T) {
 		detector, metrics, _, _ := setupDetectorTest(t)
-		detector.Detect(context.Background(), []monTypes.EnrichedGameData{{}, {}, {}})
+		detector.Detect(context.Background(), []*monTypes.EnrichedGameData{{}, {}, {}})
 		metrics.Equals(t, 3, 0, 0)
 		metrics.Mapped(t, map[string]int{"in_progress": 3})
 	})

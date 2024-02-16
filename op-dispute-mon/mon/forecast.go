@@ -37,7 +37,7 @@ func newForecast(logger log.Logger, metrics ForecastMetrics, validator OutputVal
 	}
 }
 
-func (f *forecast) Forecast(ctx context.Context, games []monTypes.EnrichedGameData) {
+func (f *forecast) Forecast(ctx context.Context, games []*monTypes.EnrichedGameData) {
 	batch := monTypes.ForecastBatch{}
 	for _, game := range games {
 		if err := f.forecastGame(ctx, game, &batch); err != nil {
@@ -54,7 +54,7 @@ func (f *forecast) recordBatch(batch monTypes.ForecastBatch) {
 	f.metrics.RecordGameAgreement("disagree_defender_ahead", batch.DisagreeDefenderAhead)
 }
 
-func (f *forecast) forecastGame(ctx context.Context, game monTypes.EnrichedGameData, metrics *monTypes.ForecastBatch) error {
+func (f *forecast) forecastGame(ctx context.Context, game *monTypes.EnrichedGameData, metrics *monTypes.ForecastBatch) error {
 	if game.Status != types.GameStatusInProgress {
 		f.logger.Debug("Game is not in progress, skipping forecast", "game", game.Proxy, "status", game.Status)
 		return nil
