@@ -49,6 +49,12 @@ contract L1Block is ISemver {
     /// @notice The latest L1 blob base fee.
     uint256 public blobBaseFee;
 
+    /// @notice The size of the interop dependency set.
+    uint8 public interopSetSize;
+
+    /// @notice The chain IDs in the interop dependency set.
+    uint256[] public chainIds;
+
     /// @custom:semver 1.2.0
     string public constant version = "1.2.0";
 
@@ -62,6 +68,8 @@ contract L1Block is ISemver {
     /// @param _batcherHash    Versioned hash to authenticate batcher by.
     /// @param _l1FeeOverhead  L1 fee overhead.
     /// @param _l1FeeScalar    L1 fee scalar.
+    /// @param _interopSetSize Size of the interop dependency set.
+    /// @param _chainIds       Array of chain IDs in the interop dependency set.
     function setL1BlockValues(
         uint64 _number,
         uint64 _timestamp,
@@ -70,7 +78,9 @@ contract L1Block is ISemver {
         uint64 _sequenceNumber,
         bytes32 _batcherHash,
         uint256 _l1FeeOverhead,
-        uint256 _l1FeeScalar
+        uint256 _l1FeeScalar,
+        uint8 _interopSetSize,
+        uint256[] calldata _chainIds
     )
         external
     {
@@ -84,6 +94,8 @@ contract L1Block is ISemver {
         batcherHash = _batcherHash;
         l1FeeOverhead = _l1FeeOverhead;
         l1FeeScalar = _l1FeeScalar;
+        interopSetSize = _interopSetSize;
+        chainIds = _chainIds;
     }
 
     /// @notice Updates the L1 block values for an Ecotone upgraded chain.
@@ -115,5 +127,30 @@ contract L1Block is ISemver {
             sstore(hash.slot, calldataload(100)) // bytes32
             sstore(batcherHash.slot, calldataload(132)) // bytes32
         }
+    }
+
+    /// @notice Updates the L1 block values for an interop upgraded chain.
+    /// @dev The interop upgrade block itself MUST include a call to setL1BlockValuesEcotone.
+    /// Params are packed and passed in as raw msg.data instead of ABI to reduce calldata size.
+    /// Params are expected to be in the following order:
+    ///   1. _interopSetSize     Size of the interop dependency set.
+    ///   2. _chainIds           Array of chain IDs in the interop dependency set.
+    function setL1BlockValuesInterop() external {
+        assembly {
+            sstore(interopSetSize.slot, calldataload(164)) // uint8
+            sstore(chainIds.slot, calldataload(165)) // uint256[interopSetSize]
+        }
+    }
+
+    /// @notice Returns true if and only if the given chain ID is in the interop dependency set.
+    /// @param _chainId The chain ID to check for.
+    /// @return True if the chain ID is in the interop dependency set. false otherwise.
+    function isInDependencySet(uint256 _chainId) external view returns (bool) {
+        for (uint256 i = 0; i < interopSetSize; i++) {
+            if (chainIds[i] == _chainId) {
+                return true;
+            }
+        }
+        return false;
     }
 }
