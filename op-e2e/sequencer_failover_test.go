@@ -80,7 +80,7 @@ func TestSequencerFailover_ConductorRPC(t *testing.T) {
 	// old leader now became follower, we're trying to transfer leadership directly back to it.
 	t.Log("Testing TransferLeaderToServer")
 	fid, follower := lid, leader
-	_, leader = findLeader(t, conductors)
+	lid, leader = findLeader(t, conductors)
 	err = leader.client.TransferLeaderToServer(ctx, fid, follower.ConsensusEndpoint())
 	require.NoError(t, err, "Expected leader to transfer leadership to follower")
 	newID := waitForLeadershipChange(t, leader, lid, conductors, sys)
