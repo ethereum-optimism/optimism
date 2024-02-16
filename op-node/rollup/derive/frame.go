@@ -142,9 +142,6 @@ func ParseFrames(data []byte) ([]Frame, error) {
 		}
 		frames = append(frames, f)
 	}
-	if buf.Len() != 0 {
-		return nil, fmt.Errorf("did not fully consume data: have %d frames and %d bytes left", len(frames), buf.Len())
-	}
 	if len(frames) == 0 {
 		return nil, errors.New("was not able to find any frames")
 	}
