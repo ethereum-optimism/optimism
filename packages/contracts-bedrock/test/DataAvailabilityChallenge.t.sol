@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 import { Test } from "forge-std/Test.sol";
-import { DataAvailabilityChallenge, ChallengeStatus, Challenge } from "../src/L1/DataAvailabilityChallenge.sol";
+import { DataAvailabilityChallenge, ChallengeStatus, Challenge } from "src/L1/DataAvailabilityChallenge.sol";
 import { Proxy } from "src/universal/Proxy.sol";
 
 address constant DAC_OWNER = address(1234);
