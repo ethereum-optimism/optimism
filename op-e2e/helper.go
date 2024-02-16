@@ -3,15 +3,48 @@ package op_e2e
 import (
 	"crypto/md5"
 	"os"
+	"regexp"
 	"strconv"
+	"sync"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/stretchr/testify/require"
 )
 
 var enableParallelTesting bool = os.Getenv("OP_E2E_DISABLE_PARALLEL") != "true"
 
 type testopts struct {
 	executor uint64
+}
+
+var (
+	testBaseExp      = regexp.MustCompile("^Test[^/]+")
+	testRegistryInst = testRegistry{
+		tests: map[string]uint64{},
+	}
+)
+
+type testRegistry struct {
+	tests map[string]uint64
+	mutex sync.Mutex
+}
+
+// registerTest ensures that if a test is assigned to an executor, that its
+// parent test is assigned to the same executor, or not assigned to an executor
+// at all
+func (tr *testRegistry) registerTest(t e2eutils.TestingBase, name string, executor uint64) {
+	baseName := testBaseExp.FindString(name)
+	tr.mutex.Lock()
+	defer tr.mutex.Unlock()
+	if baseExecutor, ok := tr.tests[baseName]; ok {
+		require.Equal(
+			t, baseExecutor, executor,
+			"base test for %s executes only on %d but %s requested to execute on %d",
+			baseName, baseExecutor, name, executor,
+		)
+	} else if name == baseName {
+		tr.tests[name] = executor
+	}
 }
 
 func InitParallel(t e2eutils.TestingBase, args ...func(t e2eutils.TestingBase, opts *testopts)) {
@@ -30,6 +63,7 @@ func InitParallel(t e2eutils.TestingBase, args ...func(t e2eutils.TestingBase, o
 	for _, arg := range args {
 		arg(t, opts)
 	}
+	testRegistryInst.registerTest(t, tName, opts.executor)
 	checkExecutor(t, info, opts.executor)
 }
 
