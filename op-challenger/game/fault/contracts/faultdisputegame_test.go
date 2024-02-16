@@ -136,7 +136,7 @@ func TestGetClaim(t *testing.T) {
 		},
 		CounteredBy:         counteredBy,
 		Claimant:            claimant,
-		Clock:               1234,
+		Clock:               faultTypes.NewClock(big.NewInt(1234)),
 		ContractIndex:       int(idx.Uint64()),
 		ParentContractIndex: 1,
 	}, status)
@@ -152,7 +152,7 @@ func TestGetAllClaims(t *testing.T) {
 		},
 		CounteredBy:         common.Address{0x01},
 		Claimant:            common.Address{0x02},
-		Clock:               1234,
+		Clock:               faultTypes.NewClock(big.NewInt(1234)),
 		ContractIndex:       0,
 		ParentContractIndex: math.MaxUint32,
 	}
@@ -164,7 +164,7 @@ func TestGetAllClaims(t *testing.T) {
 		},
 		CounteredBy:         common.Address{0x02},
 		Claimant:            common.Address{0x01},
-		Clock:               4455,
+		Clock:               faultTypes.NewClock(big.NewInt(4455)),
 		ContractIndex:       1,
 		ParentContractIndex: 0,
 	}
@@ -175,7 +175,7 @@ func TestGetAllClaims(t *testing.T) {
 			Bond:     big.NewInt(5),
 		},
 		Claimant:            common.Address{0x02},
-		Clock:               7777,
+		Clock:               faultTypes.NewClock(big.NewInt(7777)),
 		ContractIndex:       2,
 		ParentContractIndex: 1,
 	}
@@ -253,7 +253,7 @@ func expectGetClaim(stubRpc *batchingTest.AbiBasedRpc, claim faultTypes.Claim) {
 			claim.Bond,
 			claim.Value,
 			claim.Position.ToGIndex(),
-			big.NewInt(int64(claim.Clock)),
+			claim.Clock.Packed(),
 		})
 }
 

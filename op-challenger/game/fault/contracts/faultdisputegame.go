@@ -333,7 +333,7 @@ func (f *FaultDisputeGameContract) decodeClaim(result *batching.CallResult, cont
 		},
 		CounteredBy:         counteredBy,
 		Claimant:            claimant,
-		Clock:               clock.Uint64(),
+		Clock:               types.NewClock(clock),
 		ContractIndex:       contractIndex,
 		ParentContractIndex: int(parentIndex),
 	}
