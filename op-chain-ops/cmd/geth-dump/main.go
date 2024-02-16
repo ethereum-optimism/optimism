@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/trie"
-	"github.com/mattn/go-isatty"
 	"github.com/urfave/cli/v2"
 )
 
@@ -35,8 +34,6 @@ func dbOpen(path string, cache int, handles int) (ethdb.Database, error) {
 }
 
 func main() {
-	log.Root().SetHandler(log.StreamHandler(os.Stderr, log.TerminalFormat(isatty.IsTerminal(os.Stderr.Fd()))))
-
 	app := &cli.App{
 		Name:  "boba-migrate",
 		Usage: "Write allocation data from the legacy data to a json file for erigon",

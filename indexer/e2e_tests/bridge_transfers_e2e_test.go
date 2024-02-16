@@ -38,7 +38,9 @@ func TestE2EBridgeTransfersStandardBridgeETHDeposit(t *testing.T) {
 	l1Opts.Value = big.NewInt(params.Ether)
 
 	// (1) Test Deposit Initiation
-	depositTx, err := l1StandardBridge.DepositETH(l1Opts, 200_000, []byte{byte(1)})
+	depositTx, err := transactions.PadGasEstimate(l1Opts, 1.1, func(opts *bind.TransactOpts) (*types.Transaction, error) {
+		return l1StandardBridge.DepositETH(opts, 200_000, []byte{byte(1)})
+	})
 	require.NoError(t, err)
 	depositReceipt, err := wait.ForReceiptOK(context.Background(), testSuite.L1Client, depositTx.Hash())
 	require.NoError(t, err)
@@ -105,7 +107,9 @@ func TestE2EBridgeTransfersOptimismPortalETHReceive(t *testing.T) {
 	l1Opts.Value = big.NewInt(params.Ether)
 
 	// (1) Test Deposit Initiation
-	portalDepositTx, err := optimismPortal.Receive(l1Opts)
+	portalDepositTx, err := transactions.PadGasEstimate(l1Opts, 1.1, func(opts *bind.TransactOpts) (*types.Transaction, error) {
+		return optimismPortal.Receive(opts)
+	})
 	require.NoError(t, err)
 	portalDepositReceipt, err := wait.ForReceiptOK(context.Background(), testSuite.L1Client, portalDepositTx.Hash())
 	require.NoError(t, err)
@@ -238,13 +242,22 @@ func TestE2EBridgeTransfersStandardBridgeETHWithdrawal(t *testing.T) {
 	l1Opts, err := bind.NewKeyedTransactorWithChainID(testSuite.OpCfg.Secrets.Alice, testSuite.OpCfg.L1ChainIDBig())
 	require.NoError(t, err)
 	l1Opts.Value = l2Opts.Value
-	depositTx, err := optimismPortal.Receive(l1Opts)
+	depositTx, err := transactions.PadGasEstimate(l1Opts, 1.2, func(opts *bind.TransactOpts) (*types.Transaction, error) {
+		return optimismPortal.Receive(opts)
+	})
 	require.NoError(t, err)
-	_, err = wait.ForReceiptOK(context.Background(), testSuite.L1Client, depositTx.Hash())
+	depositReceipt, err := wait.ForReceiptOK(context.Background(), testSuite.L1Client, depositTx.Hash())
+	require.NoError(t, err)
+	depositInfo, err := e2etest_utils.ParseDepositInfo(depositReceipt)
+	require.NoError(t, err)
+	depositL2TxHash := types.NewTx(depositInfo.DepositTx).Hash()
+	_, err = wait.ForReceiptOK(context.Background(), testSuite.L2Client, depositL2TxHash)
 	require.NoError(t, err)
 
 	// (1) Test Withdrawal Initiation
-	withdrawTx, err := l2StandardBridge.Withdraw(l2Opts, predeploys.LegacyERC20ETHAddr, l2Opts.Value, 200_000, []byte{byte(1)})
+	withdrawTx, err := transactions.PadGasEstimate(l2Opts, 1.2, func(opts *bind.TransactOpts) (*types.Transaction, error) {
+		return l2StandardBridge.Withdraw(opts, predeploys.LegacyERC20ETHAddr, l2Opts.Value, 200_000, []byte{byte(1)})
+	})
 	require.NoError(t, err)
 	withdrawReceipt, err := wait.ForReceiptOK(context.Background(), testSuite.L2Client, withdrawTx.Hash())
 	require.NoError(t, err)
@@ -322,13 +335,22 @@ func TestE2EBridgeTransfersL2ToL1MessagePasserETHReceive(t *testing.T) {
 	l1Opts, err := bind.NewKeyedTransactorWithChainID(testSuite.OpCfg.Secrets.Alice, testSuite.OpCfg.L1ChainIDBig())
 	require.NoError(t, err)
 	l1Opts.Value = l2Opts.Value
-	depositTx, err := optimismPortal.Receive(l1Opts)
+	depositTx, err := transactions.PadGasEstimate(l1Opts, 1.2, func(opts *bind.TransactOpts) (*types.Transaction, error) {
+		return optimismPortal.Receive(opts)
+	})
 	require.NoError(t, err)
-	_, err = wait.ForReceiptOK(context.Background(), testSuite.L1Client, depositTx.Hash())
+	depositReceipt, err := wait.ForReceiptOK(context.Background(), testSuite.L1Client, depositTx.Hash())
+	require.NoError(t, err)
+	depositInfo, err := e2etest_utils.ParseDepositInfo(depositReceipt)
+	require.NoError(t, err)
+	depositL2TxHash := types.NewTx(depositInfo.DepositTx).Hash()
+	_, err = wait.ForReceiptOK(context.Background(), testSuite.L2Client, depositL2TxHash)
 	require.NoError(t, err)
 
 	// (1) Test Withdrawal Initiation
-	l2ToL1MessagePasserWithdrawTx, err := l2ToL1MessagePasser.Receive(l2Opts)
+	l2ToL1MessagePasserWithdrawTx, err := transactions.PadGasEstimate(l2Opts, 1.2, func(opts *bind.TransactOpts) (*types.Transaction, error) {
+		return l2ToL1MessagePasser.Receive(opts)
+	})
 	require.NoError(t, err)
 	l2ToL1WithdrawReceipt, err := wait.ForReceiptOK(context.Background(), testSuite.L2Client, l2ToL1MessagePasserWithdrawTx.Hash())
 	require.NoError(t, err)
@@ -507,15 +529,24 @@ func TestClientBridgeFunctions(t *testing.T) {
 		l1Opts, err := bind.NewKeyedTransactorWithChainID(actor.priv, testSuite.OpCfg.L1ChainIDBig())
 		require.NoError(t, err)
 		l1Opts.Value = l2Opts.Value
-		depositTx, err := optimismPortal.Receive(l1Opts)
+		depositTx, err := transactions.PadGasEstimate(l1Opts, 1.1, func(opts *bind.TransactOpts) (*types.Transaction, error) {
+			return optimismPortal.Receive(opts)
+		})
 		require.NoError(t, err)
 		depositReceipt, err := wait.ForReceiptOK(context.Background(), testSuite.L1Client, depositTx.Hash())
+		require.NoError(t, err)
+		depositInfo, err := e2etest_utils.ParseDepositInfo(depositReceipt)
+		require.NoError(t, err)
+		depositL2TxHash := types.NewTx(depositInfo.DepositTx).Hash()
+		_, err = wait.ForReceiptOK(context.Background(), testSuite.L2Client, depositL2TxHash)
 		require.NoError(t, err)
 
 		mintSum = new(big.Int).Add(mintSum, depositTx.Value())
 
 		// (3.b) Initiate withdrawal transaction via L2ToL1MessagePasser contract
-		l2ToL1MessagePasserWithdrawTx, err := l2ToL1MessagePasser.Receive(l2Opts)
+		l2ToL1MessagePasserWithdrawTx, err := transactions.PadGasEstimate(l2Opts, 1.1, func(opts *bind.TransactOpts) (*types.Transaction, error) {
+			return l2ToL1MessagePasser.Receive(opts)
+		})
 		require.NoError(t, err)
 		l2ToL1WithdrawReceipt, err := wait.ForReceiptOK(context.Background(), testSuite.L2Client, l2ToL1MessagePasserWithdrawTx.Hash())
 		require.NoError(t, err)

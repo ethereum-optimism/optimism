@@ -1,7 +1,11 @@
-all: check-l2
+op-version-check:
+	go build -o ./bin/op-version-check ./cmd/op-version-check/main.go
 
-check-l2:
-	go build -o ./bin/check-l2 ./cmd/check-l2/main.go
+ecotone-scalar:
+	go build -o ./bin/ecotone-scalar ./cmd/ecotone-scalar/main.go
+
+receipt-reference-builder:
+	go build -o ./bin/receipt-reference-builder ./cmd/receipt-reference-builder/*.go
 
 test:
 	go test ./...
@@ -12,4 +16,4 @@ fuzz:
 	go test -run NOTAREALTEST -v -fuzztime 10s -fuzz=FuzzAliasing ./crossdomain
 	go test -run NOTAREALTEST -v -fuzztime 10s -fuzz=FuzzVersionedNonce ./crossdomain
 
-.PHONY: check-l2 test fuzz
+.PHONY: test fuzz

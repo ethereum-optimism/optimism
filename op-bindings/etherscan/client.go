@@ -30,10 +30,10 @@ type rpcResponse struct {
 	Result  json.RawMessage `json:"result"`
 }
 
-type TxInfo struct {
-	TxHash string `json:"txHash"`
-	To     string `json:"to"`
-	Input  string `json:"input"`
+type Transaction struct {
+	Hash  string `json:"hash"`
+	Input string `json:"input"`
+	To    string `json:"to"`
 }
 
 const apiMaxRetries = 3
@@ -174,7 +174,9 @@ func (c *client) FetchDeploymentTxHash(ctx context.Context, address string) (str
 		return "", err
 	}
 
-	var results []TxInfo
+	var results []struct {
+		Hash string `json:"txHash"`
+	}
 	err = json.Unmarshal(response.Result, &results)
 	if err != nil {
 		return "", fmt.Errorf("failed to unmarshal API response as []txInfo: %w", err)
@@ -184,28 +186,28 @@ func (c *client) FetchDeploymentTxHash(ctx context.Context, address string) (str
 		return "", fmt.Errorf("API response result is an empty array")
 	}
 
-	return results[0].TxHash, nil
+	return results[0].Hash, nil
 }
 
-func (c *client) FetchDeploymentTx(ctx context.Context, txHash string) (TxInfo, error) {
+func (c *client) FetchDeploymentTx(ctx context.Context, txHash string) (Transaction, error) {
 	params := url.Values{}
 	params.Set("txHash", txHash)
 	params.Set("tag", "latest")
 	url := constructUrl(c.baseUrl, "eth_getTransactionByHash", "proxy", params)
 	response, err := c.fetchEtherscanRpc(ctx, url)
 	if err != nil {
-		return TxInfo{}, err
+		return Transaction{}, err
 	}
 
 	resultBytes, err := json.Marshal(response.Result)
 	if err != nil {
-		return TxInfo{}, fmt.Errorf("failed to marshal Result into JSON: %w", err)
+		return Transaction{}, fmt.Errorf("failed to marshal Result into JSON: %w", err)
 	}
 
-	var tx TxInfo
+	var tx Transaction
 	err = json.Unmarshal(resultBytes, &tx)
 	if err != nil {
-		return TxInfo{}, fmt.Errorf("API response result is not expected txInfo struct: %w", err)
+		return Transaction{}, fmt.Errorf("API response result is not expected txInfo struct: %w", err)
 	}
 
 	return tx, nil

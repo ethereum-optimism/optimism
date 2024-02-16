@@ -12,46 +12,53 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
-type ProposalTraceProviderCreator func(ctx context.Context, localContext common.Hash, depth uint64, agreed contracts.Proposal, claimed contracts.Proposal) (types.TraceProvider, error)
+type ProposalTraceProviderCreator func(ctx context.Context, localContext common.Hash, depth types.Depth, agreed contracts.Proposal, claimed contracts.Proposal) (types.TraceProvider, error)
 
 func OutputRootSplitAdapter(topProvider *OutputTraceProvider, creator ProposalTraceProviderCreator) split.ProviderCreator {
-	return func(ctx context.Context, depth uint64, pre types.Claim, post types.Claim) (types.TraceProvider, error) {
-		localContext := createLocalContext(pre, post)
-		usePrestateBlock := pre == (types.Claim{})
-		var agreed contracts.Proposal
-		if usePrestateBlock {
-			prestateRoot, err := topProvider.AbsolutePreStateCommitment(ctx)
-			if err != nil {
-				return nil, fmt.Errorf("failed to retrieve absolute prestate output root: %w", err)
-			}
-			agreed = contracts.Proposal{
-				L2BlockNumber: new(big.Int).SetUint64(topProvider.prestateBlock),
-				OutputRoot:    prestateRoot,
-			}
-		} else {
-			preBlockNum, err := topProvider.BlockNumber(pre.Position)
-			if err != nil {
-				return nil, fmt.Errorf("unable to calculate pre-claim block number: %w", err)
-			}
-			agreed = contracts.Proposal{
-				L2BlockNumber: new(big.Int).SetUint64(preBlockNum),
-				OutputRoot:    pre.Value,
-			}
-		}
-		postBlockNum, err := topProvider.BlockNumber(post.Position)
+	return func(ctx context.Context, depth types.Depth, pre types.Claim, post types.Claim) (types.TraceProvider, error) {
+		localContext := CreateLocalContext(pre, post)
+		agreed, disputed, err := FetchProposals(ctx, topProvider, pre, post)
 		if err != nil {
-			return nil, fmt.Errorf("unable to calculate post-claim block number: %w", err)
+			return nil, err
 		}
-		claimed := contracts.Proposal{
-			L2BlockNumber: new(big.Int).SetUint64(postBlockNum),
-			OutputRoot:    post.Value,
-		}
-
-		return creator(ctx, localContext, depth, agreed, claimed)
+		return creator(ctx, localContext, depth, agreed, disputed)
 	}
 }
 
-func createLocalContext(pre types.Claim, post types.Claim) common.Hash {
+func FetchProposals(ctx context.Context, topProvider *OutputTraceProvider, pre types.Claim, post types.Claim) (contracts.Proposal, contracts.Proposal, error) {
+	usePrestateBlock := pre == (types.Claim{})
+	var agreed contracts.Proposal
+	if usePrestateBlock {
+		prestateRoot, err := topProvider.AbsolutePreStateCommitment(ctx)
+		if err != nil {
+			return contracts.Proposal{}, contracts.Proposal{}, fmt.Errorf("failed to retrieve absolute prestate output root: %w", err)
+		}
+		agreed = contracts.Proposal{
+			L2BlockNumber: new(big.Int).SetUint64(topProvider.prestateBlock),
+			OutputRoot:    prestateRoot,
+		}
+	} else {
+		preBlockNum, err := topProvider.BlockNumber(pre.Position)
+		if err != nil {
+			return contracts.Proposal{}, contracts.Proposal{}, fmt.Errorf("unable to calculate pre-claim block number: %w", err)
+		}
+		agreed = contracts.Proposal{
+			L2BlockNumber: new(big.Int).SetUint64(preBlockNum),
+			OutputRoot:    pre.Value,
+		}
+	}
+	postBlockNum, err := topProvider.BlockNumber(post.Position)
+	if err != nil {
+		return contracts.Proposal{}, contracts.Proposal{}, fmt.Errorf("unable to calculate post-claim block number: %w", err)
+	}
+	claimed := contracts.Proposal{
+		L2BlockNumber: new(big.Int).SetUint64(postBlockNum),
+		OutputRoot:    post.Value,
+	}
+	return agreed, claimed, nil
+}
+
+func CreateLocalContext(pre types.Claim, post types.Claim) common.Hash {
 	return crypto.Keccak256Hash(localContextPreimage(pre, post))
 }
 

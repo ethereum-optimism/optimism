@@ -14,7 +14,7 @@ import (
 )
 
 func TestSchedulerProcessesGames(t *testing.T) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	ctx := context.Background()
 	createPlayer := func(g types.GameMetadata, dir string) (GamePlayer, error) {
 		return &test.StubGamePlayer{}, nil
@@ -29,7 +29,7 @@ func TestSchedulerProcessesGames(t *testing.T) {
 	gameAddr3 := common.Address{0xcc}
 	games := asGames(gameAddr1, gameAddr2, gameAddr3)
 
-	require.NoError(t, s.Schedule(games))
+	require.NoError(t, s.Schedule(games, 0))
 
 	// All jobs should be executed and completed, the last step being to clean up disk resources
 	for i := 0; i < len(games); i++ {
@@ -43,7 +43,7 @@ func TestSchedulerProcessesGames(t *testing.T) {
 }
 
 func TestReturnBusyWhenScheduleQueueFull(t *testing.T) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	createPlayer := func(game types.GameMetadata, dir string) (GamePlayer, error) {
 		return &test.StubGamePlayer{}, nil
 	}
@@ -52,10 +52,10 @@ func TestReturnBusyWhenScheduleQueueFull(t *testing.T) {
 	s := NewScheduler(logger, metrics.NoopMetrics, disk, 2, createPlayer)
 
 	// Scheduler not started - first call fills the queue
-	require.NoError(t, s.Schedule(asGames(common.Address{0xaa})))
+	require.NoError(t, s.Schedule(asGames(common.Address{0xaa}), 0))
 
 	// Second call should return busy
-	err := s.Schedule(asGames(common.Address{0xaa}))
+	err := s.Schedule(asGames(common.Address{0xaa}), 0)
 	require.ErrorIs(t, err, ErrBusy)
 }
 

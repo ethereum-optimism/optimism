@@ -63,7 +63,7 @@ func (a *appScoreTestData) WaitForNextScoreBookUpdate(t *testing.T) stubScoreBoo
 func setupPeerApplicationScorerTest(t *testing.T, params *ApplicationScoreParams) (*appScoreTestData, *peerApplicationScorer) {
 	data := &appScoreTestData{
 		ctx:    context.Background(),
-		logger: testlog.Logger(t, log.LvlInfo),
+		logger: testlog.Logger(t, log.LevelInfo),
 		clock:  clock.NewDeterministicClock(time.UnixMilli(1000)),
 		peers:  []peer.ID{},
 		scorebook: &stubScoreBook{

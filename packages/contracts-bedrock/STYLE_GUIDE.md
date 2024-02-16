@@ -55,7 +55,7 @@ Immutable variables:
 - should have a hand written getter function
 
 This approach clearly indicates to the developer that the value is immutable, without exposing
-the non-standard casing to the interface. It also ensure that we don’t need to break the ABIs if
+the non-standard casing to the interface. It also ensures that we don’t need to break the ABIs if
 we switch between values being in storage and immutable.
 
 #### Spacers
@@ -117,6 +117,11 @@ These guidelines are also encoded in a script which can be run with:
 ```
 tsx scripts/forge-test-names.ts
 ```
+
+#### Expect Revert with Low Level Calls
+
+There is a non-intuitive behavior in foundry tests, which is documented [here](https://book.getfoundry.sh/cheatcodes/expect-revert?highlight=expectrevert#expectrevert).
+When testing for a revert on a low-level call, please use the `revertsAsExpected` pattern suggested there.
 
 _Note: This is a work in progress, not all test files are compliant with these guidelines._
 

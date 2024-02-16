@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"reflect"
@@ -11,13 +12,8 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-const (
-	// default to 5 seconds
-	defaultLoopInterval     = 5000
-	defaultHeaderBufferSize = 500
-)
-
-// In the future, presets can just be onchain config and fetched on initialization
+// In the future, presets can just be onchain system config with everything else
+// fetched on initialization
 
 // Config represents the `indexer.toml` file used to configure the indexer
 type Config struct {
@@ -196,24 +192,21 @@ func LoadConfig(log log.Logger, path string) (Config, error) {
 		}
 	}
 
-	// Defaults for any unset options
-
+	// Check to make sure some required properties are set
+	var errs error
 	if cfg.Chain.L1PollingInterval == 0 {
-		cfg.Chain.L1PollingInterval = defaultLoopInterval
+		errs = errors.Join(err, errors.New("`l1-polling-interval` unset"))
 	}
-
 	if cfg.Chain.L2PollingInterval == 0 {
-		cfg.Chain.L2PollingInterval = defaultLoopInterval
+		errs = errors.Join(err, errors.New("`l2-polling-interval` unset"))
 	}
-
 	if cfg.Chain.L1HeaderBufferSize == 0 {
-		cfg.Chain.L1HeaderBufferSize = defaultHeaderBufferSize
+		errs = errors.Join(err, errors.New("`l1-header-buffer-size` unset"))
 	}
-
 	if cfg.Chain.L2HeaderBufferSize == 0 {
-		cfg.Chain.L2HeaderBufferSize = defaultHeaderBufferSize
+		errs = errors.Join(err, errors.New("`l2-header-buffer-size` unset"))
 	}
 
 	log.Info("loaded chain config", "config", cfg.Chain)
-	return cfg, nil
+	return cfg, errs
 }

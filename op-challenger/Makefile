@@ -10,6 +10,9 @@ LDFLAGS := -ldflags "$(LDFLAGSSTRING)"
 op-challenger:
 	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) go build -v $(LDFLAGS) -o ./bin/op-challenger ./cmd
 
+fuzz:
+	go test -run NOTAREALTEST -v -fuzztime 10s -fuzz FuzzKeccak ./game/keccak/matrix
+
 clean:
 	rm bin/op-challenger
 
@@ -19,20 +22,8 @@ test:
 visualize:
 	./scripts/visualize.sh
 
-alphabet:
-	./scripts/alphabet/init_game.sh
-	make alphabet-actors
-
-alphabet-actors:
-	@./scripts/parallel.sh \
-	./scripts/alphabet/mallory.sh 'mallory' \
-	./scripts/alphabet/charlie.sh 'charlie'
-
 .PHONY: \
-	clean \
 	op-challenger \
+	clean \
 	test \
-	lint \
-	visualize \
-	alphabet \
-	alphabet-actors
+	visualize

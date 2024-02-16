@@ -8,12 +8,11 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -26,7 +25,7 @@ import (
 )
 
 func TestOutputAtBlock(t *testing.T) {
-	log := testlog.Logger(t, log.LvlError)
+	log := testlog.Logger(t, log.LevelError)
 
 	// Test data for Merkle Patricia Trie: proof the eth2 deposit contract account contents (mainnet).
 	headerTestData := `
@@ -127,7 +126,7 @@ func TestOutputAtBlock(t *testing.T) {
 }
 
 func TestVersion(t *testing.T) {
-	log := testlog.Logger(t, log.LvlError)
+	log := testlog.Logger(t, log.LevelError)
 	l2Client := &testutils.MockL2Client{}
 	drClient := &mockDriverClient{}
 	rpcCfg := &RPCConfig{
@@ -164,13 +163,11 @@ func randomSyncStatus(rng *rand.Rand) *eth.SyncStatus {
 		SafeL2:             testutils.RandomL2BlockRef(rng),
 		FinalizedL2:        testutils.RandomL2BlockRef(rng),
 		PendingSafeL2:      testutils.RandomL2BlockRef(rng),
-		UnsafeL2SyncTarget: testutils.RandomL2BlockRef(rng),
-		EngineSyncTarget:   testutils.RandomL2BlockRef(rng),
 	}
 }
 
 func TestSyncStatus(t *testing.T) {
-	log := testlog.Logger(t, log.LvlError)
+	log := testlog.Logger(t, log.LevelError)
 	l2Client := &testutils.MockL2Client{}
 	drClient := &mockDriverClient{}
 	rng := rand.New(rand.NewSource(1234))
@@ -201,7 +198,7 @@ func TestSyncStatus(t *testing.T) {
 }
 
 func TestTimeout(t *testing.T) {
-	log := testlog.Logger(t, log.LvlError)
+	log := testlog.Logger(t, log.LevelError)
 	l2Client := &testutils.MockL2Client{}
 	drClient := &mockDriverClient{}
 	rng := rand.New(rand.NewSource(1234))
@@ -269,4 +266,8 @@ func (c *mockDriverClient) StopSequencer(ctx context.Context) (common.Hash, erro
 
 func (c *mockDriverClient) SequencerActive(ctx context.Context) (bool, error) {
 	return c.Mock.MethodCalled("SequencerActive").Get(0).(bool), nil
+}
+
+func (c *mockDriverClient) OnUnsafeL2Payload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) error {
+	return c.Mock.MethodCalled("OnUnsafeL2Payload").Get(0).(error)
 }

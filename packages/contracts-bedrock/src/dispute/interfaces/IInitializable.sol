@@ -6,5 +6,5 @@ pragma solidity ^0.8.15;
 interface IInitializable {
     /// @notice Initializes the contract.
     /// @dev This function may only be called once.
-    function initialize() external;
+    function initialize() external payable;
 }

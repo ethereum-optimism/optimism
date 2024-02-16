@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/common-ts",
-  "version": "0.8.7",
+  "version": "0.8.8",
   "description": "[Optimism] Advanced typescript tooling used by various services",
   "main": "dist/index",
   "types": "dist/index",
@@ -35,18 +35,18 @@
   },
   "dependencies": {
     "@eth-optimism/core-utils": "workspace:*",
-    "@sentry/node": "^7.86.0",
+    "@sentry/node": "^7.99.0",
     "bcfg": "^0.2.1",
     "body-parser": "^1.20.2",
     "commander": "^11.1.0",
-    "dotenv": "^16.3.1",
+    "dotenv": "^16.4.1",
     "envalid": "^8.0.0",
     "ethers": "^5.7.2",
     "express": "^4.18.2",
-    "express-prom-bundle": "^6.6.0",
+    "express-prom-bundle": "^7.0.0",
     "lodash": "^4.17.21",
     "morgan": "^1.10.0",
-    "pino": "^8.16.2",
+    "pino": "^8.17.2",
     "pino-multi-stream": "^6.0.0",
     "pino-sentry": "^0.14.0",
     "prom-client": "^14.2.0"
@@ -59,6 +59,6 @@
     "@types/pino": "^7.0.5",
     "@types/pino-multi-stream": "^5.1.6",
     "chai": "^4.3.10",
-    "supertest": "^6.3.3"
+    "supertest": "^6.3.4"
   }
 }

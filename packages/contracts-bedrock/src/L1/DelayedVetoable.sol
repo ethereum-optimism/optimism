@@ -11,14 +11,8 @@ import { ISemver } from "src/universal/ISemver.sol";
 ///         of the queuedAt(bytes32) function. This is because of input validation checks which solidity performs at
 ///         runtime on functions which take an argument.
 contract DelayedVetoable is ISemver {
-    /// @notice Error for when the delay has already been set.
-    error AlreadyDelayed();
-
     /// @notice Error for when attempting to forward too early.
     error ForwardingEarly();
-
-    /// @notice Error for the target is not set.
-    error TargetUnitialized();
 
     /// @notice Error for unauthorized calls.
     error Unauthorized(address expected, address actual);
@@ -170,7 +164,7 @@ contract DelayedVetoable is ISemver {
             revert Unauthorized(INITIATOR, msg.sender);
         }
 
-        if (_queuedAt[callHash] + _delay < block.timestamp) {
+        if (_queuedAt[callHash] + _delay > block.timestamp) {
             // Not enough time has passed, so we'll revert.
             revert ForwardingEarly();
         }

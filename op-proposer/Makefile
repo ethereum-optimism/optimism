@@ -19,5 +19,4 @@ test:
 .PHONY: \
 	clean \
 	op-proposer \
-	test \
-	lint
+	test

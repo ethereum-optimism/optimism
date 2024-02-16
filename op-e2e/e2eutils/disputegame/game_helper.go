@@ -33,7 +33,7 @@ func (g *FaultGameHelper) Addr() common.Address {
 }
 
 func (g *FaultGameHelper) GameDuration(ctx context.Context) time.Duration {
-	duration, err := g.game.GAMEDURATION(&bind.CallOpts{Context: ctx})
+	duration, err := g.game.GameDuration(&bind.CallOpts{Context: ctx})
 	g.require.NoError(err, "failed to get game duration")
 	return time.Duration(duration) * time.Second
 }
@@ -58,10 +58,10 @@ func (g *FaultGameHelper) WaitForClaimCount(ctx context.Context, count int64) {
 	}
 }
 
-func (g *FaultGameHelper) MaxDepth(ctx context.Context) int64 {
-	depth, err := g.game.MAXGAMEDEPTH(&bind.CallOpts{Context: ctx})
+func (g *FaultGameHelper) MaxDepth(ctx context.Context) types.Depth {
+	depth, err := g.game.MaxGameDepth(&bind.CallOpts{Context: ctx})
 	g.require.NoError(err, "Failed to load game depth")
-	return depth.Int64()
+	return types.Depth(depth.Uint64())
 }
 
 func (g *FaultGameHelper) waitForClaim(ctx context.Context, errorMsg string, predicate func(claim ContractClaim) bool) {
@@ -141,7 +141,7 @@ func (g *FaultGameHelper) getClaimPosition(ctx context.Context, claimIdx int64) 
 	return types.NewPositionFromGIndex(g.getClaim(ctx, claimIdx).Position)
 }
 
-func (g *FaultGameHelper) WaitForClaimAtDepth(ctx context.Context, depth int) {
+func (g *FaultGameHelper) WaitForClaimAtDepth(ctx context.Context, depth types.Depth) {
 	g.waitForClaim(
 		ctx,
 		fmt.Sprintf("Could not find claim depth %v", depth),
@@ -158,7 +158,7 @@ func (g *FaultGameHelper) WaitForClaimAtMaxDepth(ctx context.Context, countered 
 		fmt.Sprintf("Could not find claim depth %v with countered=%v", maxDepth, countered),
 		func(claim ContractClaim) bool {
 			pos := types.NewPositionFromGIndex(claim.Position)
-			return int64(pos.Depth()) == maxDepth && claim.Countered == countered
+			return pos.Depth() == maxDepth && (claim.CounteredBy != common.Address{}) == countered
 		})
 }
 
@@ -167,7 +167,7 @@ func (g *FaultGameHelper) WaitForAllClaimsCountered(ctx context.Context) {
 		ctx,
 		"Did not find all claims countered",
 		func(claim ContractClaim) bool {
-			return !claim.Countered
+			return claim.CounteredBy == common.Address{}
 		})
 }
 
@@ -246,9 +246,9 @@ func (g *FaultGameHelper) WaitForInactivity(ctx context.Context, numInactiveBloc
 // DefendRootClaim uses the supplied Mover to perform moves in an attempt to defend the root claim.
 // It is assumed that the output root being disputed is valid and that an honest op-challenger is already running.
 // When the game has reached the maximum depth it waits for the honest challenger to counter the leaf claim with step.
-func (g *FaultGameHelper) DefendRootClaim(ctx context.Context, performMove Mover) {
+func (g *FaultGameHelper) DefendRootClaim(ctx context.Context, performMove func(parentClaimIdx int64)) {
 	maxDepth := g.MaxDepth(ctx)
-	for claimCount := int64(1); claimCount < maxDepth; {
+	for claimCount := int64(1); types.Depth(claimCount) < maxDepth; {
 		g.LogGameData(ctx)
 		claimCount++
 		// Wait for the challenger to counter
@@ -268,9 +268,9 @@ func (g *FaultGameHelper) DefendRootClaim(ctx context.Context, performMove Mover
 // It is assumed that the output root being disputed is invalid and that an honest op-challenger is already running.
 // When the game has reached the maximum depth it calls the Stepper to attempt to counter the leaf claim.
 // Since the output root is invalid, it should not be possible for the Stepper to call step successfully.
-func (g *FaultGameHelper) ChallengeRootClaim(ctx context.Context, performMove Mover, attemptStep Stepper) {
+func (g *FaultGameHelper) ChallengeRootClaim(ctx context.Context, performMove func(parentClaimIdx int64), attemptStep Stepper) {
 	maxDepth := g.MaxDepth(ctx)
-	for claimCount := int64(1); claimCount < maxDepth; {
+	for claimCount := int64(1); types.Depth(claimCount) < maxDepth; {
 		g.LogGameData(ctx)
 		// Perform our move
 		performMove(claimCount - 1)
@@ -287,12 +287,13 @@ func (g *FaultGameHelper) ChallengeRootClaim(ctx context.Context, performMove Mo
 	g.LogGameData(ctx)
 
 	// It's on us to call step if we want to win but shouldn't be possible
-	attemptStep(maxDepth)
+	attemptStep(int64(maxDepth))
 }
 
 func (g *FaultGameHelper) WaitForNewClaim(ctx context.Context, checkPoint int64) (int64, error) {
 	return g.waitForNewClaim(ctx, checkPoint, defaultTimeout)
 }
+
 func (g *FaultGameHelper) waitForNewClaim(ctx context.Context, checkPoint int64, timeout time.Duration) (int64, error) {
 	timedCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -341,7 +342,7 @@ func (g *FaultGameHelper) ResolveClaim(ctx context.Context, claimIdx int64) {
 
 func (g *FaultGameHelper) gameData(ctx context.Context) string {
 	opts := &bind.CallOpts{Context: ctx}
-	maxDepth := int(g.MaxDepth(ctx))
+	maxDepth := g.MaxDepth(ctx)
 	claimCount, err := g.game.ClaimDataLen(opts)
 	info := fmt.Sprintf("Claim count: %v\n", claimCount)
 	g.require.NoError(err, "Fetching claim count")
@@ -351,7 +352,7 @@ func (g *FaultGameHelper) gameData(ctx context.Context) string {
 
 		pos := types.NewPositionFromGIndex(claim.Position)
 		info = info + fmt.Sprintf("%v - Position: %v, Depth: %v, IndexAtDepth: %v Trace Index: %v, Value: %v, Countered: %v, ParentIndex: %v\n",
-			i, claim.Position.Int64(), pos.Depth(), pos.IndexAtDepth(), pos.TraceIndex(maxDepth), common.Hash(claim.Claim).Hex(), claim.Countered, claim.ParentIndex)
+			i, claim.Position.Int64(), pos.Depth(), pos.IndexAtDepth(), pos.TraceIndex(maxDepth), common.Hash(claim.Claim).Hex(), claim.CounteredBy, claim.ParentIndex)
 	}
 	status, err := g.game.Status(opts)
 	g.require.NoError(err, "Load game status")

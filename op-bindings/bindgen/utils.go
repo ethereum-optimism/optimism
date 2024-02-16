@@ -1,6 +1,7 @@
-package main
+package bindgen
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"go/format"
 	"go/parser"
 	"go/token"
+	"io"
 	"os"
 	"os/exec"
 	"path"
@@ -18,9 +20,17 @@ import (
 	"golang.org/x/tools/go/ast/astutil"
 )
 
+type BindGenGeneratorBase struct {
+	MetadataOut         string
+	BindingsPackageName string
+	MonorepoBasePath    string
+	ContractsListPath   string
+	Logger              log.Logger
+}
+
 type contractsList struct {
 	Local  []string         `json:"local"`
-	Remote []remoteContract `json:"remote"`
+	Remote []RemoteContract `json:"remote"`
 }
 
 // readContractList reads a JSON file from the given `filePath` and unmarshals
@@ -119,7 +129,7 @@ func writeContractArtifacts(logger log.Logger, tempDirPath, contractName string,
 //
 // Note: This function relies on the external `abigen` tool, which should be
 // installed and available in the system's PATH.
-func genContractBindings(logger log.Logger, abiFilePath, bytecodeFilePath, goPackageName, contractName string) error {
+func genContractBindings(logger log.Logger, monorepoRootPath, abiFilePath, bytecodeFilePath, goPackageName, contractName string) error {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("error getting cwd: %w", err)
@@ -133,6 +143,31 @@ func genContractBindings(logger log.Logger, abiFilePath, bytecodeFilePath, goPac
 		if err != nil {
 			return fmt.Errorf("error reading existing bindings output file, outFilePath: %s err: %w", outFilePath, err)
 		}
+	}
+
+	if monorepoRootPath != "" {
+		logger.Debug("Checking abigen version")
+
+		// Fetch installed abigen version (format: abigen version X.Y.Z-<stable/nightly>-<commit_sha>)
+		cmd := exec.Command("abigen", "--version")
+		var versionBuf bytes.Buffer
+		cmd.Stdout = bufio.NewWriter(&versionBuf)
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("error fetching abigen version: %w", err)
+		}
+		abigenVersion := bytes.Trim(versionBuf.Bytes(), "\n")
+
+		// Fetch expected abigen version (format: vX.Y.Z)
+		expectedAbigenVersion, err := readExpectedAbigenVersion(monorepoRootPath)
+		if err != nil {
+			return fmt.Errorf("error fetching the expected abigen version: %w", err)
+		}
+
+		if !bytes.Contains(abigenVersion, []byte(expectedAbigenVersion)) {
+			return fmt.Errorf("abigen version mismatch, expected %s, got %s. Please run `pnpm install:abigen` in the monorepo root", expectedAbigenVersion, abigenVersion)
+		}
+	} else {
+		logger.Debug("No monorepo root path provided, skipping abigen version check")
 	}
 
 	logger.Debug("Generating contract bindings", "contractName", contractName, "outFilePath", outFilePath)
@@ -194,4 +229,43 @@ func genContractBindings(logger log.Logger, abiFilePath, bytecodeFilePath, goPac
 	}
 
 	return nil
+}
+
+// Versions is a struct for holding the versions of the tools used in the monorepo
+type Versions struct {
+	Abigen  string `json:"abigen"`
+	Foundry string `json:"foundry"`
+	Geth    string `json:"geth"`
+	Nvm     string `json:"nvm"`
+	Slither string `json:"slither"`
+	Kontrol string `json:"kontrol"`
+}
+
+// readExpectedAbigenVersion reads the expected abigen version from the monorepo's
+// versions.json file. This function will remove the 'v' prefix from the version
+// string.
+//
+// Parameters:
+// - monorepoRootPath: The path to the monorepo's root directory.
+//
+// Returns:
+// - The expected abigen version.
+// - An error if the versions.json file cannot be read or parsed, nil otherwise.
+func readExpectedAbigenVersion(monorepoRootPath string) (string, error) {
+	// Open the version control file
+	jsonFile, err := os.Open(path.Join(monorepoRootPath, "versions.json"))
+	if err != nil {
+		return "", fmt.Errorf("error reading versions.json file: %w", err)
+	}
+	defer jsonFile.Close()
+
+	// Parse the version control file
+	byteValue, _ := io.ReadAll(jsonFile)
+	var versions Versions
+	if err := json.Unmarshal(byteValue, &versions); err != nil {
+		return "", fmt.Errorf("error parsing versions.json file: %w", err)
+	}
+
+	// Trim the 'v' prefix from the version string
+	return strings.Trim(versions.Abigen, "v"), nil
 }

@@ -96,6 +96,7 @@ func TestSpanBatchTxRoundTrip(t *testing.T) {
 type spanBatchDummyTxData struct{}
 
 func (txData *spanBatchDummyTxData) txType() byte { return types.DepositTxType }
+
 func TestSpanBatchTxInvalidTxType(t *testing.T) {
 	// span batch never contain deposit tx
 	depositTx := types.NewTx(&types.DepositTx{})
@@ -111,7 +112,7 @@ func TestSpanBatchTxInvalidTxType(t *testing.T) {
 func TestSpanBatchTxDecodeInvalid(t *testing.T) {
 	var sbtx spanBatchTx
 	_, err := sbtx.decodeTyped([]byte{})
-	require.EqualError(t, err, "typed transaction too short")
+	require.ErrorIs(t, err, ErrTypedTxTooShort)
 
 	tx := types.NewTx(&types.LegacyTx{})
 	txEncoded, err := tx.MarshalBinary()

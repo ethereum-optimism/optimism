@@ -93,17 +93,23 @@ func (s *SignerClient) pingVersion() (string, error) {
 }
 
 func (s *SignerClient) SignTransaction(ctx context.Context, chainId *big.Int, from common.Address, tx *types.Transaction) (*types.Transaction, error) {
-	args := NewTransactionArgsFromTransaction(chainId, from, tx)
+	sidecar := tx.BlobTxSidecar()
+	args := NewTransactionArgsFromTransaction(chainId, &from, tx.WithoutBlobTxSidecar())
 
 	var result hexutil.Bytes
 	if err := s.client.CallContext(ctx, &result, "eth_signTransaction", args); err != nil {
 		return nil, fmt.Errorf("eth_signTransaction failed: %w", err)
 	}
 
-	signed := &types.Transaction{}
+	var signed types.Transaction
 	if err := signed.UnmarshalBinary(result); err != nil {
 		return nil, err
 	}
+	if sidecar != nil {
+		if err := signed.SetBlobTxSidecar(sidecar); err != nil {
+			return nil, fmt.Errorf("failed to attach sidecar to signed blob tx: %w", err)
+		}
+	}
 
-	return signed, nil
+	return &signed, nil
 }

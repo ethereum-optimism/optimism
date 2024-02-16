@@ -25,11 +25,11 @@ var ErrReorg = errors.New("block does not extend existing chain")
 // channel.
 // Public functions on channelManager are safe for concurrent access.
 type channelManager struct {
-	mu   sync.Mutex
-	log  log.Logger
-	metr metrics.Metricer
-	cfg  ChannelConfig
-	rcfg *rollup.Config
+	mu        sync.Mutex
+	log       log.Logger
+	metr      metrics.Metricer
+	cfg       ChannelConfig
+	rollupCfg *rollup.Config
 
 	// All blocks since the last request for new tx data.
 	blocks []*types.Block
@@ -47,12 +47,12 @@ type channelManager struct {
 	closed bool
 }
 
-func NewChannelManager(log log.Logger, metr metrics.Metricer, cfg ChannelConfig, rcfg *rollup.Config) *channelManager {
+func NewChannelManager(log log.Logger, metr metrics.Metricer, cfg ChannelConfig, rollupCfg *rollup.Config) *channelManager {
 	return &channelManager{
 		log:        log,
 		metr:       metr,
 		cfg:        cfg,
-		rcfg:       rcfg,
+		rollupCfg:  rollupCfg,
 		txChannels: make(map[txID]*channel),
 	}
 }
@@ -198,7 +198,7 @@ func (s *channelManager) ensureChannelWithSpace(l1Head eth.BlockID) error {
 		return nil
 	}
 
-	pc, err := newChannel(s.log, s.metr, s.cfg, s.rcfg)
+	pc, err := newChannel(s.log, s.metr, s.cfg, s.rollupCfg)
 	if err != nil {
 		return fmt.Errorf("creating new channel: %w", err)
 	}
@@ -209,6 +209,7 @@ func (s *channelManager) ensureChannelWithSpace(l1Head eth.BlockID) error {
 		"l1Head", l1Head,
 		"blocks_pending", len(s.blocks),
 		"batch_type", s.cfg.BatchType,
+		"max_frame_size", s.cfg.MaxFrameSize,
 	)
 	s.metr.RecordChannelOpened(pc.ID(), len(s.blocks))
 
@@ -241,7 +242,7 @@ func (s *channelManager) processBlocks() error {
 		} else if err != nil {
 			return fmt.Errorf("adding block[%d] to channel builder: %w", i, err)
 		}
-		s.log.Debug("Added block to channel", "id", s.currentChannel.ID(), "block", block)
+		s.log.Debug("Added block to channel", "id", s.currentChannel.ID(), "block", eth.ToBlockID(block))
 
 		blocksAdded += 1
 		latestL2ref = l2BlockRefFromBlockAndL1Info(block, l1info)
@@ -326,7 +327,7 @@ func (s *channelManager) AddL2Block(block *types.Block) error {
 	return nil
 }
 
-func l2BlockRefFromBlockAndL1Info(block *types.Block, l1info derive.L1BlockInfo) eth.L2BlockRef {
+func l2BlockRefFromBlockAndL1Info(block *types.Block, l1info *derive.L1BlockInfo) eth.L2BlockRef {
 	return eth.L2BlockRef{
 		Hash:           block.Hash(),
 		Number:         block.NumberU64(),
@@ -359,7 +360,7 @@ func (s *channelManager) Close() error {
 	// Any pending state can be proactively cleared if there are no submitted transactions
 	for _, ch := range s.channelQueue {
 		if ch.NoneSubmitted() {
-			s.log.Info("Channel has no past or pending submission - dropping", "id", ch.ID(), "")
+			s.log.Info("Channel has no past or pending submission - dropping", "id", ch.ID())
 			s.removePendingChannel(ch)
 		} else {
 			s.log.Info("Channel is in-flight and will need to be submitted after close", "id", ch.ID(), "confirmed", len(ch.confirmedTransactions), "pending", len(ch.pendingTransactions))

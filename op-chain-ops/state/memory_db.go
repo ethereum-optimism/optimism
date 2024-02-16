@@ -16,7 +16,10 @@ import (
 
 var _ vm.StateDB = (*MemoryStateDB)(nil)
 
-var emptyCodeHash = crypto.Keccak256(nil)
+var (
+	emptyCodeHash = crypto.Keccak256(nil)
+	zeroAddr      = common.Address{}
+)
 
 // MemoryStateDB implements geth's StateDB interface
 // but operates on a core.Genesis so that a genesis.json
@@ -28,7 +31,7 @@ type MemoryStateDB struct {
 
 func NewMemoryStateDB(genesis *core.Genesis) *MemoryStateDB {
 	if genesis == nil {
-		genesis = core.DeveloperGenesisBlock(15_000_000, common.Address{})
+		genesis = core.DeveloperGenesisBlock(15_000_000, &zeroAddr)
 	}
 
 	return &MemoryStateDB{
@@ -179,8 +182,8 @@ func (db *MemoryStateDB) SetCode(addr common.Address, code []byte) {
 }
 
 func (db *MemoryStateDB) GetCodeSize(addr common.Address) int {
-	db.rw.Lock()
-	defer db.rw.Unlock()
+	db.rw.RLock()
+	defer db.rw.RUnlock()
 
 	account, ok := db.genesis.Alloc[addr]
 	if !ok {
@@ -232,6 +235,9 @@ func (db *MemoryStateDB) SetState(addr common.Address, key, value common.Hash) {
 }
 
 func (db *MemoryStateDB) DeleteState(addr common.Address, key common.Hash) {
+	db.rw.Lock()
+	defer db.rw.Unlock()
+
 	account, ok := db.genesis.Alloc[addr]
 	if !ok {
 		panic(fmt.Sprintf("%s not in state", addr))

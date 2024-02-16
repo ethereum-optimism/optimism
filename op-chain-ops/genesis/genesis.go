@@ -64,7 +64,8 @@ func NewL2Genesis(config *DeployConfig, block *types.Block) (*core.Genesis, erro
 		RegolithTime:                  config.RegolithTime(block.Time()),
 		CanyonTime:                    config.CanyonTime(block.Time()),
 		ShanghaiTime:                  config.CanyonTime(block.Time()),
-		CancunTime:                    nil, // no Dencun on L2 yet.
+		CancunTime:                    config.EcotoneTime(block.Time()),
+		EcotoneTime:                   config.EcotoneTime(block.Time()),
 		InteropTime:                   config.InteropTime(block.Time()),
 		Optimism: &params.OptimismConfig{
 			EIP1559Denominator:       eip1559Denom,
@@ -154,6 +155,7 @@ func NewL1Genesis(config *DeployConfig) (*core.Genesis, error) {
 		chainConfig.TerminalTotalDifficulty = big.NewInt(0)
 		chainConfig.TerminalTotalDifficultyPassed = true
 		chainConfig.ShanghaiTime = u64ptr(0)
+		chainConfig.CancunTime = u64ptr(0)
 	}
 
 	gasLimit := config.L1GenesisBlockGasLimit
@@ -173,7 +175,7 @@ func NewL1Genesis(config *DeployConfig) (*core.Genesis, error) {
 		timestamp = hexutil.Uint64(time.Now().Unix())
 	}
 	if !config.L1UseClique && config.L1CancunTimeOffset != nil {
-		cancunTime := uint64(timestamp) + *config.L1CancunTimeOffset
+		cancunTime := uint64(timestamp) + uint64(*config.L1CancunTimeOffset)
 		chainConfig.CancunTime = &cancunTime
 	}
 

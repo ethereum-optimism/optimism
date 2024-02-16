@@ -510,10 +510,13 @@ func NewL2StorageConfig(config *DeployConfig, blockHeader *types.Header) (state.
 		"_initializing":    false,
 		"xDomainMsgSender": "0x000000000000000000000000000000000000dEaD",
 		"msgNonce":         0,
+		"otherMessenger":   config.L1CrossDomainMessengerProxy,
 	}
 	storage["L2StandardBridge"] = state.StorageValues{
 		"_initialized":  2,
 		"_initializing": false,
+		"otherBridge":   config.L1StandardBridgeProxy,
+		"messenger":     predeploys.L2CrossDomainMessengerAddr,
 	}
 	storage["L1Block"] = state.StorageValues{
 		"number":         blockHeader.Number,
@@ -540,6 +543,13 @@ func NewL2StorageConfig(config *DeployConfig, blockHeader *types.Header) (state.
 	storage["L2ERC721Bridge"] = state.StorageValues{
 		"_initialized":  2,
 		"_initializing": false,
+		"otherBridge":   config.L1ERC721BridgeProxy,
+		"messenger":     predeploys.L2CrossDomainMessengerAddr,
+	}
+	storage["OptimismMintableERC20Factory"] = state.StorageValues{
+		"_initialized":  1,
+		"_initializing": false,
+		"bridge":        predeploys.L2StandardBridgeAddr,
 	}
 	l1TokenAddr, err := config.GetL1BobaTokenAddress()
 	if err != nil {

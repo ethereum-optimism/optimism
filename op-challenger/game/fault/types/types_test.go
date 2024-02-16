@@ -12,7 +12,7 @@ func TestNewPreimageOracleData(t *testing.T) {
 		data := NewPreimageOracleData([]byte{1, 2, 3}, []byte{4, 5, 6}, 7)
 		require.True(t, data.IsLocal)
 		require.Equal(t, []byte{1, 2, 3}, data.OracleKey)
-		require.Equal(t, []byte{4, 5, 6}, data.OracleData)
+		require.Equal(t, []byte{4, 5, 6}, data.GetPreimageWithSize())
 		require.Equal(t, uint32(7), data.OracleOffset)
 	})
 
@@ -20,7 +20,7 @@ func TestNewPreimageOracleData(t *testing.T) {
 		data := NewPreimageOracleData([]byte{0, 2, 3}, []byte{4, 5, 6}, 7)
 		require.False(t, data.IsLocal)
 		require.Equal(t, []byte{0, 2, 3}, data.OracleKey)
-		require.Equal(t, []byte{4, 5, 6}, data.OracleData)
+		require.Equal(t, []byte{4, 5, 6}, data.GetPreimageWithSize())
 		require.Equal(t, uint32(7), data.OracleOffset)
 	})
 }

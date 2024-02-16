@@ -13,8 +13,9 @@ import (
 )
 
 func TestAttemptStep(t *testing.T) {
-	maxDepth := 3
-	claimBuilder := faulttest.NewAlphabetClaimBuilder(t, maxDepth)
+	maxDepth := types.Depth(3)
+	startingL2BlockNumber := big.NewInt(0)
+	claimBuilder := faulttest.NewAlphabetClaimBuilder(t, startingL2BlockNumber, maxDepth)
 
 	// Last accessible leaf is the second last trace index
 	// The root node is used for the last trace index and can only be attacked.
@@ -175,7 +176,7 @@ func TestAttemptStep(t *testing.T) {
 				require.Equal(t, tableTest.expectProofData, step.ProofData)
 				require.Equal(t, tableTest.expectedOracleData.IsLocal, step.OracleData.IsLocal)
 				require.Equal(t, tableTest.expectedOracleData.OracleKey, step.OracleData.OracleKey)
-				require.Equal(t, tableTest.expectedOracleData.OracleData, step.OracleData.OracleData)
+				require.Equal(t, tableTest.expectedOracleData.GetPreimageWithSize(), step.OracleData.GetPreimageWithSize())
 				require.Equal(t, tableTest.expectedOracleData.OracleOffset, step.OracleData.OracleOffset)
 			} else {
 				require.ErrorIs(t, err, tableTest.expectedErr)

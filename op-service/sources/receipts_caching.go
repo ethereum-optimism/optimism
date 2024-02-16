@@ -51,7 +51,10 @@ func (p *CachingReceiptsProvider) deleteFetchingLock(blockHash common.Hash) {
 	delete(p.fetching, blockHash)
 }
 
-func (p *CachingReceiptsProvider) FetchReceipts(ctx context.Context, block eth.BlockID, txHashes []common.Hash) (types.Receipts, error) {
+// FetchReceipts fetches receipts for the given block and transaction hashes
+// it expects that the inner FetchReceipts implementation handles validation
+func (p *CachingReceiptsProvider) FetchReceipts(ctx context.Context, blockInfo eth.BlockInfo, txHashes []common.Hash) (types.Receipts, error) {
+	block := eth.ToBlockID(blockInfo)
 	if r, ok := p.cache.Get(block.Hash); ok {
 		return r, nil
 	}
@@ -67,10 +70,11 @@ func (p *CachingReceiptsProvider) FetchReceipts(ctx context.Context, block eth.B
 		return r, nil
 	}
 
-	r, err := p.inner.FetchReceipts(ctx, block, txHashes)
+	r, err := p.inner.FetchReceipts(ctx, blockInfo, txHashes)
 	if err != nil {
 		return nil, err
 	}
+
 	p.cache.Add(block.Hash, r)
 	// result now in cache, can delete fetching lock
 	p.deleteFetchingLock(block.Hash)

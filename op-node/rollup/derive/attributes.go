@@ -25,16 +25,16 @@ type SystemConfigL2Fetcher interface {
 
 // FetchingAttributesBuilder fetches inputs for the building of L2 payload attributes on the fly.
 type FetchingAttributesBuilder struct {
-	cfg *rollup.Config
-	l1  L1ReceiptsFetcher
-	l2  SystemConfigL2Fetcher
+	rollupCfg *rollup.Config
+	l1        L1ReceiptsFetcher
+	l2        SystemConfigL2Fetcher
 }
 
-func NewFetchingAttributesBuilder(cfg *rollup.Config, l1 L1ReceiptsFetcher, l2 SystemConfigL2Fetcher) *FetchingAttributesBuilder {
+func NewFetchingAttributesBuilder(rollupCfg *rollup.Config, l1 L1ReceiptsFetcher, l2 SystemConfigL2Fetcher) *FetchingAttributesBuilder {
 	return &FetchingAttributesBuilder{
-		cfg: cfg,
-		l1:  l1,
-		l2:  l2,
+		rollupCfg: rollupCfg,
+		l1:        l1,
+		l2:        l2,
 	}
 }
 
@@ -53,7 +53,7 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 		return nil, NewTemporaryError(fmt.Errorf("failed to retrieve L2 parent block: %w", err))
 	}
 
-	// If the L1 origin changed this block, then we are in the first block of the epoch. In this
+	// If the L1 origin changed in this block, then we are in the first block of the epoch. In this
 	// case we need to fetch all transaction receipts from the L1 origin block so we can scan for
 	// user deposits.
 	if l2Parent.L1Origin.Number != epoch.Number {
@@ -67,13 +67,13 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 					epoch, info.ParentHash(), l2Parent.L1Origin))
 		}
 
-		deposits, err := DeriveDeposits(receipts, ba.cfg.DepositContractAddress)
+		deposits, err := DeriveDeposits(receipts, ba.rollupCfg.DepositContractAddress)
 		if err != nil {
 			// deposits may never be ignored. Failing to process them is a critical error.
 			return nil, NewCriticalError(fmt.Errorf("failed to derive some deposits: %w", err))
 		}
 		// apply sysCfg changes
-		if err := UpdateSystemConfigWithL1Receipts(&sysConfig, receipts, ba.cfg); err != nil {
+		if err := UpdateSystemConfigWithL1Receipts(&sysConfig, receipts, ba.rollupCfg, info.Time()); err != nil {
 			return nil, NewCriticalError(fmt.Errorf("failed to apply derived L1 sysCfg updates: %w", err))
 		}
 
@@ -94,24 +94,41 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 	}
 
 	// Sanity check the L1 origin was correctly selected to maintain the time invariant between L1 and L2
-	nextL2Time := l2Parent.Time + ba.cfg.BlockTime
+	nextL2Time := l2Parent.Time + ba.rollupCfg.BlockTime
 	if nextL2Time < l1Info.Time() {
 		return nil, NewResetError(fmt.Errorf("cannot build L2 block on top %s for time %d before L1 origin %s at time %d",
 			l2Parent, nextL2Time, eth.ToBlockID(l1Info), l1Info.Time()))
 	}
 
-	l1InfoTx, err := L1InfoDepositBytes(seqNumber, l1Info, sysConfig, ba.cfg.IsRegolith(nextL2Time))
+	var upgradeTxs []hexutil.Bytes
+	if ba.rollupCfg.IsEcotoneActivationBlock(nextL2Time) {
+		upgradeTxs, err = EcotoneNetworkUpgradeTransactions()
+		if err != nil {
+			return nil, NewCriticalError(fmt.Errorf("failed to build ecotone network upgrade txs: %w", err))
+		}
+	}
+
+	l1InfoTx, err := L1InfoDepositBytes(ba.rollupCfg, sysConfig, seqNumber, l1Info, nextL2Time)
 	if err != nil {
 		return nil, NewCriticalError(fmt.Errorf("failed to create l1InfoTx: %w", err))
 	}
 
-	txs := make([]hexutil.Bytes, 0, 1+len(depositTxs))
+	txs := make([]hexutil.Bytes, 0, 1+len(depositTxs)+len(upgradeTxs))
 	txs = append(txs, l1InfoTx)
 	txs = append(txs, depositTxs...)
+	txs = append(txs, upgradeTxs...)
 
 	var withdrawals *types.Withdrawals
-	if ba.cfg.IsCanyon(nextL2Time) {
+	if ba.rollupCfg.IsCanyon(nextL2Time) {
 		withdrawals = &types.Withdrawals{}
+	}
+
+	var parentBeaconRoot *common.Hash
+	if ba.rollupCfg.IsEcotone(nextL2Time) {
+		parentBeaconRoot = l1Info.ParentBeaconRoot()
+		if parentBeaconRoot == nil { // default to zero hash if there is no beacon-block-root available
+			parentBeaconRoot = new(common.Hash)
+		}
 	}
 
 	return &eth.PayloadAttributes{
@@ -122,5 +139,6 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 		NoTxPool:              true,
 		GasLimit:              (*eth.Uint64Quantity)(&sysConfig.GasLimit),
 		Withdrawals:           withdrawals,
+		ParentBeaconBlockRoot: parentBeaconRoot,
 	}, nil
 }
