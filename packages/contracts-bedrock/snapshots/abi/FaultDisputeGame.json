@@ -105,6 +105,19 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "bondPayoutDelay",
+    "outputs": [
+      {
+        "internalType": "Duration",
+        "name": "bondPayoutDelay_",
+        "type": "uint64"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "address",

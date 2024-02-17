@@ -58,7 +58,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     uint128 internal constant CLAIMED_BOND_FLAG = type(uint128).max;
 
     /// @notice The delay between the resolution of the game and the ability to claim bonds.
-    uint256 internal constant BOND_PAYOUT_DELAY = 1 days;
+    Duration internal constant BOND_PAYOUT_DELAY = Duration.wrap(1 days);
 
     /// @notice The starting timestamp of the game
     Timestamp public createdAt;
@@ -567,7 +567,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     /// @param _recipient The owner and recipient of the credit.
     function claimCredit(address _recipient) external {
         // Don't allow the credit to be claimed until bond delay has expired.
-        if (block.timestamp < resolvedAt.raw() + BOND_PAYOUT_DELAY) revert BondDelayNotExpired();
+        if (block.timestamp < resolvedAt.raw() + BOND_PAYOUT_DELAY.raw()) revert BondDelayNotExpired();
 
         // Remove the credit from the recipient prior to performing the external call.
         uint256 recipientCredit;
@@ -627,6 +627,11 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     /// @notice Returns the genesis output root.
     function genesisOutputRoot() external view returns (Hash genesisOutputRoot_) {
         genesisOutputRoot_ = GENESIS_OUTPUT_ROOT;
+    }
+
+    /// @notice Returns the bond payout delay.
+    function bondPayoutDelay() external pure returns (Duration bondPayoutDelay_) {
+        bondPayoutDelay_ = BOND_PAYOUT_DELAY;
     }
 
     ////////////////////////////////////////////////////////////////

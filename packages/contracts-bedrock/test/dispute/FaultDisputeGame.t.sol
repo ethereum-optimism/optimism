@@ -631,7 +631,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         }
         gameProxy.resolve();
 
-        vm.warp(block.timestamp + 1 days + 1 seconds);
+        vm.warp(block.timestamp + gameProxy.bondPayoutDelay().raw() + 1 seconds);
         gameProxy.claimCredit(address(this));
 
         // Ensure that bonds were paid out correctly.
@@ -692,7 +692,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         }
         gameProxy.resolve();
 
-        vm.warp(block.timestamp + 1 days + 1 seconds);
+        vm.warp(block.timestamp + gameProxy.bondPayoutDelay().raw() + 1 seconds);
         gameProxy.claimCredit(address(this));
         gameProxy.claimCredit(bob);
 
@@ -760,7 +760,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         vm.prank(superchainConfig.guardian());
         gameProxy.enableSafetyMode();
 
-        vm.warp(block.timestamp + 1 days + 1 seconds);
+        vm.warp(block.timestamp + gameProxy.bondPayoutDelay().raw() + 1 seconds);
         gameProxy.claimCredit(address(this));
         gameProxy.claimCredit(bob);
 
@@ -807,7 +807,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         }
         gameProxy.resolve();
 
-        vm.warp(block.timestamp + 1 days + 1 seconds);
+        vm.warp(block.timestamp + gameProxy.bondPayoutDelay().raw() + 1 seconds);
         gameProxy.claimCredit(address(this));
         gameProxy.claimCredit(alice);
         gameProxy.claimCredit(bob);
@@ -856,7 +856,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         assertEq(gameProxy.credit(address(reenter)), MIN_BOND);
 
         // Initiate the reentrant credit claim.
-        vm.warp(block.timestamp + 1 days + 1 seconds);
+        vm.warp(block.timestamp + gameProxy.bondPayoutDelay().raw() + 1 seconds);
         reenter.claimCredit(address(reenter));
 
         // The reenter contract should have performed 5 calls to `claimCredit`, but only received the amount bonded for
