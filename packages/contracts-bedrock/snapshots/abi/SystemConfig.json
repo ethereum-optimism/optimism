@@ -19,6 +19,19 @@
   },
   {
     "inputs": [],
+    "name": "DATA_AVAILABILITY_CHALLENGE_SLOT",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "L1_CROSS_DOMAIN_MESSENGER_SLOT",
     "outputs": [
       {
@@ -162,6 +175,19 @@
   },
   {
     "inputs": [],
+    "name": "dataAvailabilityChallenge",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "addr_",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "gasLimit",
     "outputs": [
       {
@@ -277,6 +303,11 @@
           {
             "internalType": "address",
             "name": "optimismMintableERC20Factory",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "dataAvailabilityChallenge",
             "type": "address"
           }
         ],
