@@ -78,7 +78,7 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "DataAvailabilityChallenge", _sel: _getSel("resolveWindow()") });
         _addSpec({ _name: "DataAvailabilityChallenge", _sel: _getSel("resolverRefundPercentage()") });
         _addSpec({ _name: "DataAvailabilityChallenge", _sel: _getSel("balances(address)") });
-        _addSpec({ _name: "DataAvailabilityChallenge", _sel: _getSel("challenges(uint256,bytes32)") });
+        _addSpec({ _name: "DataAvailabilityChallenge", _sel: _getSel("challenges(uint256,bytes)") });
         _addSpec({ _name: "DataAvailabilityChallenge", _sel: DataAvailabilityChallenge.initialize.selector });
         _addSpec({
             _name: "DataAvailabilityChallenge",
