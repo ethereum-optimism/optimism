@@ -155,7 +155,8 @@ contract Initializer_Test is Bridge_Initializer {
                             l1StandardBridge: address(0),
                             l2OutputOracle: address(0),
                             optimismPortal: address(0),
-                            optimismMintableERC20Factory: address(0)
+                            optimismMintableERC20Factory: address(0),
+                            dataAvailabilityChallenge: address(0)
                         })
                     )
                     ),
@@ -190,7 +191,8 @@ contract Initializer_Test is Bridge_Initializer {
                             l1StandardBridge: address(0),
                             l2OutputOracle: address(0),
                             optimismPortal: address(0),
-                            optimismMintableERC20Factory: address(0)
+                            optimismMintableERC20Factory: address(0),
+                            dataAvailabilityChallenge: address(0)
                         })
                     )
                     ),

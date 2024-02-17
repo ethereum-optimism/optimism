@@ -861,7 +861,10 @@ contract Deploy is Deployer {
                         l1StandardBridge: mustGetAddress("L1StandardBridgeProxy"),
                         l2OutputOracle: mustGetAddress("L2OutputOracleProxy"),
                         optimismPortal: mustGetAddress("OptimismPortalProxy"),
-                        optimismMintableERC20Factory: mustGetAddress("OptimismMintableERC20FactoryProxy")
+                        optimismMintableERC20Factory: mustGetAddress("OptimismMintableERC20FactoryProxy"),
+                        dataAvailabilityChallenge: cfg.usePlasma()
+                            ? mustGetAddress("DataAvailabilityChallengeProxy")
+                            : address(0)
                     })
                 )
                 )

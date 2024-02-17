@@ -239,7 +239,7 @@ contract DataAvailabilityChallenge is OwnableUpgradeable, ISemver {
     /// @param commitment The commitment for which to check the type.
     /// @return The commitment type of the given commitment.
     function _requireKnownCommitmentType(bytes calldata commitment) internal pure returns (CommitmentType) {
-        if(uint8(bytes1(commitment)) == uint8(CommitmentType.Keccak256)) {
+        if (uint8(bytes1(commitment)) == uint8(CommitmentType.Keccak256)) {
             return CommitmentType.Keccak256;
         }
 
@@ -287,13 +287,20 @@ contract DataAvailabilityChallenge is OwnableUpgradeable, ISemver {
     }
 
     /// @notice Resolve a challenge by providing the data corresponding to the challenged commitment.
-    /// @dev The function computes a commitment from the provided resolveData and verifies that it matches the challenged commitment.
+    /// @dev The function computes a commitment from the provided resolveData and verifies that it matches the
+    /// challenged commitment.
     ///      It reverts if the commitment type is unknown, if the data doesn't match the commitment,
     ///      if the challenge is not active or if the resolve window is not open.
     /// @param challengedBlockNumber The block number at which the commitment was made.
     /// @param challengedCommitment The challenged commitment that is being resolved.
     /// @param resolveData The pre-image data corresponding to the challenged commitment.
-    function resolve(uint256 challengedBlockNumber, bytes calldata challengedCommitment, bytes calldata resolveData) external {
+    function resolve(
+        uint256 challengedBlockNumber,
+        bytes calldata challengedCommitment,
+        bytes calldata resolveData
+    )
+        external
+    {
         // require the commitment type to be known
         CommitmentType commitmentType = _requireKnownCommitmentType(challengedCommitment);
 
@@ -304,7 +311,7 @@ contract DataAvailabilityChallenge is OwnableUpgradeable, ISemver {
 
         // compute the commitment corresponding to the given resolveData
         bytes memory computedCommitment;
-        if(commitmentType == CommitmentType.Keccak256) {
+        if (commitmentType == CommitmentType.Keccak256) {
             computedCommitment = computeCommitmentKeccak256(resolveData);
         }
 

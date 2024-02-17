@@ -1,14 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { DataAvailabilityChallenge, ChallengeStatus, Challenge, CommitmentType, computeCommitmentKeccak256 } from "src/L1/DataAvailabilityChallenge.sol";
+import {
+    DataAvailabilityChallenge,
+    ChallengeStatus,
+    Challenge,
+    CommitmentType,
+    computeCommitmentKeccak256
+} from "src/L1/DataAvailabilityChallenge.sol";
 import { Proxy } from "src/universal/Proxy.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
 
 contract DataAvailabilityChallengeTest is CommonTest {
     DataAvailabilityChallenge public dac;
 
-    function setUp() public override virtual {
+    function setUp() public virtual override {
         super.enablePlasma();
         super.setUp();
         dac = DataAvailabilityChallenge(deploy.mustGetAddress("DataAvailabilityChallengeProxy"));
@@ -67,7 +73,8 @@ contract DataAvailabilityChallengeTest is CommonTest {
 
         // Expect the challenge status to be uninitialized
         assertEq(
-            uint8(dac.getChallengeStatus(challengedBlockNumber, challengedCommitment)), uint8(ChallengeStatus.Uninitialized)
+            uint8(dac.getChallengeStatus(challengedBlockNumber, challengedCommitment)),
+            uint8(ChallengeStatus.Uninitialized)
         );
 
         // Challenge a (blockNumber,hash) tuple
@@ -81,7 +88,9 @@ contract DataAvailabilityChallengeTest is CommonTest {
         assertEq(_startBlock, block.number);
         assertEq(_resolvedBlock, 0);
         assertEq(_lockedBond, requiredBond);
-        assertEq(uint8(dac.getChallengeStatus(challengedBlockNumber, challengedCommitment)), uint8(ChallengeStatus.Active));
+        assertEq(
+            uint8(dac.getChallengeStatus(challengedBlockNumber, challengedCommitment)), uint8(ChallengeStatus.Active)
+        );
 
         // Challenge should have decreased the challenger's bond size
         assertEq(dac.balances(challenger), 0);
@@ -102,7 +111,8 @@ contract DataAvailabilityChallengeTest is CommonTest {
 
         // Expect the challenge status to be uninitialized
         assertEq(
-            uint8(dac.getChallengeStatus(challengedBlockNumber, challengedCommitment)), uint8(ChallengeStatus.Uninitialized)
+            uint8(dac.getChallengeStatus(challengedBlockNumber, challengedCommitment)),
+            uint8(ChallengeStatus.Uninitialized)
         );
 
         // Deposit the required bond as part of the challenge transaction
@@ -117,7 +127,9 @@ contract DataAvailabilityChallengeTest is CommonTest {
         assertEq(_startBlock, block.number);
         assertEq(_resolvedBlock, 0);
         assertEq(_lockedBond, requiredBond);
-        assertEq(uint8(dac.getChallengeStatus(challengedBlockNumber, challengedCommitment)), uint8(ChallengeStatus.Active));
+        assertEq(
+            uint8(dac.getChallengeStatus(challengedBlockNumber, challengedCommitment)), uint8(ChallengeStatus.Active)
+        );
 
         // Challenge should have decreased the challenger's bond size
         assertEq(dac.balances(challenger), 0);
@@ -234,7 +246,10 @@ contract DataAvailabilityChallengeTest is CommonTest {
             assertEq(_lockedBond, 0);
             assertEq(_startBlock, block.number);
             assertEq(_resolvedBlock, block.number);
-            assertEq(uint8(dac.getChallengeStatus(challengedBlockNumber, challengedCommitment)), uint8(ChallengeStatus.Resolved));
+            assertEq(
+                uint8(dac.getChallengeStatus(challengedBlockNumber, challengedCommitment)),
+                uint8(ChallengeStatus.Resolved)
+            );
         }
 
         // Assert challenger balance after bond distribution
@@ -358,7 +373,9 @@ contract DataAvailabilityChallengeTest is CommonTest {
         assertEq(_lockedBond, 0);
         assertEq(_startBlock, challengedBlockNumber + 1);
         assertEq(_resolvedBlock, 0);
-        assertEq(uint8(dac.getChallengeStatus(challengedBlockNumber, challengedCommitment)), uint8(ChallengeStatus.Expired));
+        assertEq(
+            uint8(dac.getChallengeStatus(challengedBlockNumber, challengedCommitment)), uint8(ChallengeStatus.Expired)
+        );
 
         // Unlock the bond again, expect the balance to remain the same
         dac.unlockBond(challengedBlockNumber, challengedCommitment);

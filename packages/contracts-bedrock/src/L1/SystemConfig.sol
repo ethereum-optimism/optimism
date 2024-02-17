@@ -34,6 +34,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         address l2OutputOracle;
         address optimismPortal;
         address optimismMintableERC20Factory;
+        address dataAvailabilityChallenge;
     }
 
     /// @notice Version identifier, used for upgrades.
@@ -68,6 +69,10 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @notice Storage slot that the OptimismMintableERC20Factory address is stored at.
     bytes32 public constant OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT =
         bytes32(uint256(keccak256("systemconfig.optimismmintableerc20factory")) - 1);
+
+    /// @notice Storage slot that the DataAvailabilityChallenge address is stored at.
+    bytes32 public constant DATA_AVAILABILITY_CHALLENGE_SLOT =
+        bytes32(uint256(keccak256("systemconfig.dataavailabilitychallenge")) - 1);
 
     /// @notice Storage slot that the batch inbox address is stored at.
     bytes32 public constant BATCH_INBOX_SLOT = bytes32(uint256(keccak256("systemconfig.batchinbox")) - 1);
@@ -133,7 +138,8 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
                 l1StandardBridge: address(0),
                 l2OutputOracle: address(0),
                 optimismPortal: address(0),
-                optimismMintableERC20Factory: address(0)
+                optimismMintableERC20Factory: address(0),
+                dataAvailabilityChallenge: address(0)
             })
         });
     }
@@ -180,6 +186,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         Storage.setAddress(L2_OUTPUT_ORACLE_SLOT, _addresses.l2OutputOracle);
         Storage.setAddress(OPTIMISM_PORTAL_SLOT, _addresses.optimismPortal);
         Storage.setAddress(OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT, _addresses.optimismMintableERC20Factory);
+        Storage.setAddress(DATA_AVAILABILITY_CHALLENGE_SLOT, _addresses.dataAvailabilityChallenge);
 
         _setStartBlock();
 
@@ -233,6 +240,11 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @notice Getter for the OptimismMintableERC20Factory address.
     function optimismMintableERC20Factory() external view returns (address addr_) {
         addr_ = Storage.getAddress(OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT);
+    }
+
+    /// @notice Getter for the DataAvailabilityChallenge address.
+    function dataAvailabilityChallenge() external view returns (address addr_) {
+        addr_ = Storage.getAddress(DATA_AVAILABILITY_CHALLENGE_SLOT);
     }
 
     /// @notice Getter for the BatchInbox address.
