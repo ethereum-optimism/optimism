@@ -88,6 +88,12 @@ error ClaimAboveSplit();
 ///         depth of the game.
 error InvalidSplitDepth();
 
+/// @notice Thrown when the bond delay has not yet expired.
+error BondDelayNotExpired();
+
+/// @notice Thrown when an unauthorized caller attempts to call a function.
+error UnauthorizedCaller();
+
 ////////////////////////////////////////////////////////////////
 //              `PermissionedDisputeGame` Errors              //
 ////////////////////////////////////////////////////////////////

@@ -5,6 +5,7 @@ import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
 import { IFaultDisputeGame } from "src/dispute/interfaces/IFaultDisputeGame.sol";
 import { IInitializable } from "src/dispute/interfaces/IInitializable.sol";
 import { IBigStepper, IPreimageOracle } from "src/dispute/interfaces/IBigStepper.sol";
+import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 
 import { Clone } from "src/libraries/Clone.sol";
 import { Types } from "src/libraries/Types.sol";
@@ -47,11 +48,17 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     /// @notice The game type ID
     GameType internal immutable GAME_TYPE;
 
+    /// @notice The superchain configuration
+    SuperchainConfig internal immutable SUPERCHAIN_CONFIG;
+
     /// @notice The global root claim's position is always at gindex 1.
     Position internal constant ROOT_POSITION = Position.wrap(1);
 
     /// @notice The flag set in the `bond` field of a `ClaimData` struct to indicate that the bond has been claimed.
     uint128 internal constant CLAIMED_BOND_FLAG = type(uint128).max;
+
+    /// @notice The delay between the resolution of the game and the ability to claim bonds.
+    uint256 internal constant BOND_PAYOUT_DELAY = 1 days;
 
     /// @notice The starting timestamp of the game
     Timestamp public createdAt;
@@ -74,11 +81,18 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     /// @notice An internal mapping of subgames rooted at a claim index to other claim indices in the subgame.
     mapping(uint256 => uint256[]) internal subgames;
 
+    /// @notice An internal mapping of claimants to the amounts of bonds they have placed. This is used in safety
+    ///         mode, where the bond is returned to the claimants upon resolution.
+    mapping(address => uint256) internal bonds;
+
     /// @notice Indicates whether the subgame rooted at the root claim has been resolved.
     bool internal subgameAtRootResolved;
 
     /// @notice Flag for the `initialize` function to prevent re-initialization.
     bool internal initialized;
+
+    /// @notice Flag for safety mode. If true, claimants bonds are returned to them  after calling `claimCredit`.
+    bool internal safetyMode;
 
     /// @notice Semantic version.
     /// @custom:semver 0.5.0
@@ -93,6 +107,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     /// @param _gameDuration The duration of the game.
     /// @param _vm An onchain VM that performs single instruction steps on a fault proof program
     ///            trace.
+    /// @param _superchainConfig The configuration of the superchain.
     constructor(
         GameType _gameType,
         Claim _absolutePrestate,
@@ -101,7 +116,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         uint256 _maxGameDepth,
         uint256 _splitDepth,
         Duration _gameDuration,
-        IBigStepper _vm
+        IBigStepper _vm,
+        SuperchainConfig _superchainConfig
     ) {
         // The split depth cannot be greater than or equal to the max game depth.
         if (_splitDepth >= _maxGameDepth) revert InvalidSplitDepth();
@@ -114,6 +130,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         SPLIT_DEPTH = _splitDepth;
         GAME_DURATION = _gameDuration;
         VM = _vm;
+        SUPERCHAIN_CONFIG = _superchainConfig;
     }
 
     ////////////////////////////////////////////////////////////////
@@ -285,6 +302,9 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
                 clock: nextClock
             })
         );
+
+        // Update the claimant's placed bonds.
+        bonds[msg.sender] += msg.value;
 
         // Update the subgame rooted at the parent claim.
         subgames[_challengeIndex].push(claimData.length - 1);
@@ -519,6 +539,9 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
             })
         );
 
+        // Update the claimant's placed bonds.
+        bonds[tx.origin] += msg.value;
+
         // Set the game's starting timestamp
         createdAt = Timestamp.wrap(uint64(block.timestamp));
 
@@ -543,9 +566,18 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     /// @notice Claim the credit belonging to the recipient address.
     /// @param _recipient The owner and recipient of the credit.
     function claimCredit(address _recipient) external {
+        // Don't allow the credit to be claimed until bond delay has expired.
+        if (block.timestamp < resolvedAt.raw() + BOND_PAYOUT_DELAY) revert BondDelayNotExpired();
+
         // Remove the credit from the recipient prior to performing the external call.
-        uint256 recipientCredit = credit[_recipient];
-        credit[_recipient] = 0;
+        uint256 recipientCredit;
+        if (safetyMode) {
+            recipientCredit = bonds[_recipient];
+            bonds[_recipient] = 0;
+        } else {
+            recipientCredit = credit[_recipient];
+            credit[_recipient] = 0;
+        }
 
         // Transfer the credit to the recipient.
         (bool success,) = _recipient.call{ value: recipientCredit }(hex"");
@@ -595,6 +627,21 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     /// @notice Returns the genesis output root.
     function genesisOutputRoot() external view returns (Hash genesisOutputRoot_) {
         genesisOutputRoot_ = GENESIS_OUTPUT_ROOT;
+    }
+
+    ////////////////////////////////////////////////////////////////
+    //                        BOND WATCHER                        //
+    ////////////////////////////////////////////////////////////////
+
+    /// @notice Enables safety mode, which returns the bonds to the claimants upon resolution. This is only to be called
+    ///         in the event of a bug in the system, where defenders of the honest L2 state are not being rewarded. This
+    ///         will be removed in the future.
+    function enableSafetyMode() external {
+        // INVARIANT: `enableSafetyMode` can only be called by the `GUARDIAN` role.
+        if (msg.sender != SUPERCHAIN_CONFIG.guardian()) revert UnauthorizedCaller();
+
+        // Enable safety mode. Once enabled, it cannot be disabled.
+        safetyMode = true;
     }
 
     ////////////////////////////////////////////////////////////////

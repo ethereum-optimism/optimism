@@ -1,7 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { FaultDisputeGame, IFaultDisputeGame, IBigStepper, IInitializable } from "src/dispute/FaultDisputeGame.sol";
+import {
+    FaultDisputeGame,
+    IFaultDisputeGame,
+    IBigStepper,
+    IInitializable,
+    SuperchainConfig
+} from "src/dispute/FaultDisputeGame.sol";
 import "src/libraries/DisputeTypes.sol";
 import "src/libraries/DisputeErrors.sol";
 
@@ -35,6 +41,7 @@ contract PermissionedDisputeGame is FaultDisputeGame {
     /// @param _gameDuration The duration of the game.
     /// @param _vm An onchain VM that performs single instruction steps on a fault proof program
     ///            trace.
+    /// @param _superchainConfig The configuration of the superchain.
     constructor(
         GameType _gameType,
         Claim _absolutePrestate,
@@ -44,6 +51,7 @@ contract PermissionedDisputeGame is FaultDisputeGame {
         uint256 _splitDepth,
         Duration _gameDuration,
         IBigStepper _vm,
+        SuperchainConfig _superchainConfig,
         address _proposer,
         address _challenger
     )
@@ -55,7 +63,8 @@ contract PermissionedDisputeGame is FaultDisputeGame {
             _maxGameDepth,
             _splitDepth,
             _gameDuration,
-            _vm
+            _vm,
+            _superchainConfig
         )
     {
         PROPOSER = _proposer;

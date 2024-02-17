@@ -65,6 +65,7 @@ contract PermissionedDisputeGame_Init is DisputeGameFactory_Init {
             _splitDepth: 2 ** 2,
             _gameDuration: Duration.wrap(7 days),
             _vm: _vm,
+            _superchainConfig: superchainConfig,
             _proposer: PROPOSER,
             _challenger: CHALLENGER
         });

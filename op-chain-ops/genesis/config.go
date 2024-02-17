@@ -194,6 +194,9 @@ type DeployConfig struct {
 	// from. It is an override to set this value on legacy networks where it is not set by
 	// default. It can be removed once all networks have this value set in their storage.
 	SystemConfigStartBlock uint64 `json:"systemConfigStartBlock"`
+	// FaultGameBondWatcher is the address of the bond watcher for the fault dispute game. This key can return all bonds
+	// to their original owners.
+	FaultGameBondWatcher common.Address `json:"faultGameBondWatcher"`
 	// FaultGameAbsolutePrestate is the absolute prestate of Cannon. This is computed
 	// by generating a proof from the 0th -> 1st instruction and grabbing the prestate from
 	// the output JSON. All honest challengers should agree on the setup state of the program.

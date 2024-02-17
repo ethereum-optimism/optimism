@@ -1205,7 +1205,8 @@ contract Deploy is Deployer {
                     _maxGameDepth: _maxGameDepth,
                     _splitDepth: cfg.faultGameSplitDepth(),
                     _gameDuration: Duration.wrap(uint64(cfg.faultGameMaxDuration())),
-                    _vm: _faultVm
+                    _vm: _faultVm,
+                    _superchainConfig: SuperchainConfig(mustGetAddress("SuperchainConfigProxy"))
                 })
             );
         } else {
@@ -1220,6 +1221,7 @@ contract Deploy is Deployer {
                     _splitDepth: cfg.faultGameSplitDepth(),
                     _gameDuration: Duration.wrap(uint64(cfg.faultGameMaxDuration())),
                     _vm: _faultVm,
+                    _superchainConfig: SuperchainConfig(mustGetAddress("SuperchainConfigProxy")),
                     _proposer: cfg.l2OutputOracleProposer(),
                     _challenger: cfg.l2OutputOracleChallenger()
                 })

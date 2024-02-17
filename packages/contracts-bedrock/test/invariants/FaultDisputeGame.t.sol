@@ -46,6 +46,7 @@ contract FaultDisputeGame_Solvency_Invariant is FaultDisputeGame_Init {
         }
         gameProxy.resolve();
 
+        vm.warp(block.timestamp + 1 days + 1 seconds);
         gameProxy.claimCredit(address(this));
         gameProxy.claimCredit(address(actor));
 
