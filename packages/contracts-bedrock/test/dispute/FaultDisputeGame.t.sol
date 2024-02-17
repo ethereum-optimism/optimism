@@ -854,6 +854,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
 
         // Ensure that the game registered the `reenter` contract's credit.
         assertEq(gameProxy.credit(address(reenter)), MIN_BOND);
+        assertEq(gameProxy.bonds(address(reenter)), MIN_BOND * 2);
 
         // Initiate the reentrant credit claim.
         vm.warp(block.timestamp + gameProxy.bondPayoutDelay().raw() + 1 seconds);
@@ -865,6 +866,58 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         assertEq(reenter.numCalls(), 5);
         assertEq(address(reenter).balance, MIN_BOND);
         assertEq(address(gameProxy).balance, 1 ether + MIN_BOND);
+
+        vm.stopPrank();
+    }
+
+    /// @dev Static unit test asserting that credit may not be drained past allowance through reentrancy.
+    function test_claimCredit_claimAlreadyResolved_safetyMode_reverts() public {
+        ClaimCreditReenter reenter = new ClaimCreditReenter(gameProxy);
+        vm.startPrank(address(reenter));
+
+        // Give the test contract some ether to bond.
+        vm.deal(address(reenter), MIN_BOND * 2);
+        // Give the game proxy 1 extra ether, unregistered.
+        vm.deal(address(gameProxy), 1 ether);
+
+        // Perform a bonded move.
+        Claim claim = _dummyClaim();
+        gameProxy.attack{ value: MIN_BOND }(0, claim);
+        gameProxy.attack{ value: MIN_BOND }(1, claim);
+
+        // Warp past the finalization period
+        vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
+
+        // Ensure that we bonded all the test contract's ETH
+        assertEq(address(reenter).balance, 0);
+        // Ensure the game proxy has 1 + 2 * MIN_BOND, 2*MIN_BOND from bonding and 1 unregistered.
+        assertEq(address(gameProxy).balance, 1 ether + MIN_BOND * 2);
+
+        // Resolve the claim at gindex 1 and claim the reenter contract's credit.
+        gameProxy.resolveClaim(1);
+
+        // Ensure that the game registered the `reenter` contract's credit.
+        assertEq(gameProxy.credit(address(reenter)), MIN_BOND);
+        assertEq(gameProxy.bonds(address(reenter)), MIN_BOND * 2);
+
+        vm.stopPrank();
+
+        // Enable safety mode.
+        vm.prank(superchainConfig.guardian());
+        gameProxy.enableSafetyMode();
+
+        vm.startPrank(address(reenter));
+
+        // Initiate the reentrant credit claim.
+        vm.warp(block.timestamp + gameProxy.bondPayoutDelay().raw() + 1 seconds);
+        reenter.claimCredit(address(reenter));
+
+        // The reenter contract should have performed 5 calls to `claimCredit`, but only received the amount they posted
+        // for bonds.
+        // The unregistered ETH should still exist in the game proxy.
+        assertEq(reenter.numCalls(), 5);
+        assertEq(address(reenter).balance, MIN_BOND * 2);
+        assertEq(address(gameProxy).balance, 1 ether);
 
         vm.stopPrank();
     }
@@ -982,6 +1035,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         vm.assume(_key != superchainConfig.guardian());
 
         vm.prank(_key);
+        vm.expectRevert(UnauthorizedCaller.selector);
         gameProxy.enableSafetyMode();
     }
 

@@ -75,15 +75,15 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     /// @notice Credited balances for winning participants.
     mapping(address => uint256) public credit;
 
+    /// @notice An internal mapping of claimants to the amounts of bonds they have placed. This is used in safety
+    ///         mode, where the bond is returned to the claimants upon resolution.
+    mapping(address => uint256) public bonds;
+
     /// @notice An internal mapping to allow for constant-time lookups of existing claims.
     mapping(ClaimHash => bool) internal claims;
 
     /// @notice An internal mapping of subgames rooted at a claim index to other claim indices in the subgame.
     mapping(uint256 => uint256[]) internal subgames;
-
-    /// @notice An internal mapping of claimants to the amounts of bonds they have placed. This is used in safety
-    ///         mode, where the bond is returned to the claimants upon resolution.
-    mapping(address => uint256) internal bonds;
 
     /// @notice Indicates whether the subgame rooted at the root claim has been resolved.
     bool internal subgameAtRootResolved;
