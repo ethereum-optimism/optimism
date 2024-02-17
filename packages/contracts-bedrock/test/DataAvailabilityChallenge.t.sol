@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { DataAvailabilityChallenge, ChallengeStatus, Challenge } from "src/L1/DataAvailabilityChallenge.sol";
+import { DataAvailabilityChallenge, ChallengeStatus, Challenge, CommitmentType, computeCommitmentKeccak256 } from "src/L1/DataAvailabilityChallenge.sol";
 import { Proxy } from "src/universal/Proxy.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
 
@@ -47,7 +47,9 @@ contract DataAvailabilityChallengeTest is CommonTest {
         assertEq(sender.balance, amount);
     }
 
-    function testChallengeSuccess(address challenger, uint256 challengedBlockNumber, bytes32 challengedHash) public {
+    function testChallengeSuccess(address challenger, uint256 challengedBlockNumber, bytes calldata preImage) public {
+        bytes memory challengedCommitment = computeCommitmentKeccak256(preImage);
+
         // Assume the challenger is not the 0 address
         vm.assume(challenger != address(0));
 
@@ -65,27 +67,29 @@ contract DataAvailabilityChallengeTest is CommonTest {
 
         // Expect the challenge status to be uninitialized
         assertEq(
-            uint8(dac.getChallengeStatus(challengedBlockNumber, challengedHash)), uint8(ChallengeStatus.Uninitialized)
+            uint8(dac.getChallengeStatus(challengedBlockNumber, challengedCommitment)), uint8(ChallengeStatus.Uninitialized)
         );
 
         // Challenge a (blockNumber,hash) tuple
         vm.prank(challenger);
-        dac.challenge(challengedBlockNumber, challengedHash);
+        dac.challenge(challengedBlockNumber, challengedCommitment);
 
         // Challenge should have been created
         (address _challenger, uint256 _lockedBond, uint256 _startBlock, uint256 _resolvedBlock) =
-            dac.challenges(challengedBlockNumber, challengedHash);
+            dac.challenges(challengedBlockNumber, challengedCommitment);
         assertEq(_challenger, challenger);
         assertEq(_startBlock, block.number);
         assertEq(_resolvedBlock, 0);
         assertEq(_lockedBond, requiredBond);
-        assertEq(uint8(dac.getChallengeStatus(challengedBlockNumber, challengedHash)), uint8(ChallengeStatus.Active));
+        assertEq(uint8(dac.getChallengeStatus(challengedBlockNumber, challengedCommitment)), uint8(ChallengeStatus.Active));
 
         // Challenge should have decreased the challenger's bond size
         assertEq(dac.balances(challenger), 0);
     }
 
-    function testChallengeDeposit(address challenger, uint256 challengedBlockNumber, bytes32 challengedHash) public {
+    function testChallengeDeposit(address challenger, uint256 challengedBlockNumber, bytes memory preImage) public {
+        bytes memory challengedCommitment = computeCommitmentKeccak256(preImage);
+
         // Assume the challenger is not the 0 address
         vm.assume(challenger != address(0));
 
@@ -98,22 +102,22 @@ contract DataAvailabilityChallengeTest is CommonTest {
 
         // Expect the challenge status to be uninitialized
         assertEq(
-            uint8(dac.getChallengeStatus(challengedBlockNumber, challengedHash)), uint8(ChallengeStatus.Uninitialized)
+            uint8(dac.getChallengeStatus(challengedBlockNumber, challengedCommitment)), uint8(ChallengeStatus.Uninitialized)
         );
 
         // Deposit the required bond as part of the challenge transaction
         vm.deal(challenger, requiredBond);
         vm.prank(challenger);
-        dac.challenge{ value: requiredBond }(challengedBlockNumber, challengedHash);
+        dac.challenge{ value: requiredBond }(challengedBlockNumber, challengedCommitment);
 
         // Challenge should have been created
         (address _challenger, uint256 _lockedBond, uint256 _startBlock, uint256 _resolvedBlock) =
-            dac.challenges(challengedBlockNumber, challengedHash);
+            dac.challenges(challengedBlockNumber, challengedCommitment);
         assertEq(_challenger, challenger);
         assertEq(_startBlock, block.number);
         assertEq(_resolvedBlock, 0);
         assertEq(_lockedBond, requiredBond);
-        assertEq(uint8(dac.getChallengeStatus(challengedBlockNumber, challengedHash)), uint8(ChallengeStatus.Active));
+        assertEq(uint8(dac.getChallengeStatus(challengedBlockNumber, challengedCommitment)), uint8(ChallengeStatus.Active));
 
         // Challenge should have decreased the challenger's bond size
         assertEq(dac.balances(challenger), 0);
@@ -125,7 +129,7 @@ contract DataAvailabilityChallengeTest is CommonTest {
         dac.deposit{ value: actualBond }();
 
         vm.expectRevert(abi.encodeWithSelector(DataAvailabilityChallenge.BondTooLow.selector, actualBond, requiredBond));
-        dac.challenge(0, "some hash");
+        dac.challenge(0, computeCommitmentKeccak256("some hash"));
     }
 
     function testChallengeFailChallengeExists() public {
@@ -133,26 +137,27 @@ contract DataAvailabilityChallengeTest is CommonTest {
         vm.roll(2);
 
         // First challenge succeeds
+        bytes memory challengedCommitment = computeCommitmentKeccak256("some data");
         dac.deposit{ value: dac.bondSize() }();
-        dac.challenge(0, "some hash");
+        dac.challenge(0, challengedCommitment);
 
         // Second challenge of the same hash/blockNumber fails
         dac.deposit{ value: dac.bondSize() }();
         vm.expectRevert(abi.encodeWithSelector(DataAvailabilityChallenge.ChallengeExists.selector));
-        dac.challenge(0, "some hash");
+        dac.challenge(0, challengedCommitment);
 
         // Challenge succeed if the challenged block number is different
         dac.deposit{ value: dac.bondSize() }();
-        dac.challenge(1, "some hash");
+        dac.challenge(1, challengedCommitment);
 
         // Challenge succeed if the challenged hash is different
         dac.deposit{ value: dac.bondSize() }();
-        dac.challenge(0, "some other hash");
+        dac.challenge(0, computeCommitmentKeccak256("some other hash"));
     }
 
     function testChallengeFailBeforeChallengeWindow() public {
         uint256 challengedBlockNumber = 1;
-        bytes32 challengedHash = "some hash";
+        bytes memory challengedCommitment = computeCommitmentKeccak256("some hash");
 
         // Move to challenged block
         vm.roll(challengedBlockNumber - 1);
@@ -160,12 +165,12 @@ contract DataAvailabilityChallengeTest is CommonTest {
         // Challenge fails because the current block number must be after the challenged block
         dac.deposit{ value: dac.bondSize() }();
         vm.expectRevert(abi.encodeWithSelector(DataAvailabilityChallenge.ChallengeWindowNotOpen.selector));
-        dac.challenge(challengedBlockNumber, challengedHash);
+        dac.challenge(challengedBlockNumber, challengedCommitment);
     }
 
     function testChallengeFailAfterChallengeWindow() public {
         uint256 challengedBlockNumber = 1;
-        bytes32 challengedHash = "some hash";
+        bytes memory challengedCommitment = computeCommitmentKeccak256("some hash");
 
         // Move to block after the challenge window
         vm.roll(challengedBlockNumber + dac.challengeWindow() + 1);
@@ -173,7 +178,7 @@ contract DataAvailabilityChallengeTest is CommonTest {
         // Challenge fails because the block number is after the challenge window
         dac.deposit{ value: dac.bondSize() }();
         vm.expectRevert(abi.encodeWithSelector(DataAvailabilityChallenge.ChallengeWindowNotOpen.selector));
-        dac.challenge(challengedBlockNumber, challengedHash);
+        dac.challenge(challengedBlockNumber, challengedCommitment);
     }
 
     function testResolveSuccess(
@@ -202,7 +207,7 @@ contract DataAvailabilityChallengeTest is CommonTest {
 
         // Assume the block number is not close to the max uint256 value
         vm.assume(challengedBlockNumber < type(uint256).max - dac.challengeWindow() - dac.resolveWindow());
-        bytes32 challengedHash = keccak256(preImage);
+        bytes memory challengedCommitment = computeCommitmentKeccak256(preImage);
 
         // Move to block after challenged block
         vm.roll(challengedBlockNumber + 1);
@@ -211,25 +216,25 @@ contract DataAvailabilityChallengeTest is CommonTest {
         uint256 bondSize = dac.bondSize();
         vm.deal(challenger, bondSize);
         vm.prank(challenger);
-        dac.challenge{ value: bondSize }(challengedBlockNumber, challengedHash);
+        dac.challenge{ value: bondSize }(challengedBlockNumber, challengedCommitment);
 
         // Store the address(0) balance before resolving to assert the burned amount later
         uint256 zeroAddressBalanceBeforeResolve = address(0).balance;
 
         // Resolve the challenge
         vm.prank(resolver);
-        dac.resolve(challengedBlockNumber, challengedHash, preImage);
+        dac.resolve(challengedBlockNumber, challengedCommitment, preImage);
 
         {
             // Expect the challenge to be resolved
             (address _challenger, uint256 _lockedBond, uint256 _startBlock, uint256 _resolvedBlock) =
-                dac.challenges(challengedBlockNumber, challengedHash);
+                dac.challenges(challengedBlockNumber, challengedCommitment);
 
             assertEq(_challenger, challenger);
             assertEq(_lockedBond, 0);
             assertEq(_startBlock, block.number);
             assertEq(_resolvedBlock, block.number);
-            assertEq(uint8(dac.getChallengeStatus(challengedBlockNumber, challengedHash)), uint8(ChallengeStatus.Resolved));
+            assertEq(uint8(dac.getChallengeStatus(challengedBlockNumber, challengedCommitment)), uint8(ChallengeStatus.Resolved));
         }
 
         // Assert challenger balance after bond distribution
@@ -258,12 +263,12 @@ contract DataAvailabilityChallengeTest is CommonTest {
 
         // Resolving a non-existent challenge fails
         vm.expectRevert(abi.encodeWithSelector(DataAvailabilityChallenge.ChallengeNotActive.selector));
-        dac.resolve(challengedBlockNumber, keccak256(preImage), preImage);
+        dac.resolve(challengedBlockNumber, computeCommitmentKeccak256(preImage), preImage);
     }
 
     function testResolveFailResolved() public {
         bytes memory preImage = "some preimage";
-        bytes32 challengedHash = keccak256(preImage);
+        bytes memory challengedCommitment = computeCommitmentKeccak256(preImage);
         uint256 challengedBlockNumber = 1;
 
         // Move to block after challenged block
@@ -271,19 +276,19 @@ contract DataAvailabilityChallengeTest is CommonTest {
 
         // Challenge the hash
         dac.deposit{ value: dac.bondSize() }();
-        dac.challenge(challengedBlockNumber, challengedHash);
+        dac.challenge(challengedBlockNumber, challengedCommitment);
 
         // Resolve the challenge
-        dac.resolve(challengedBlockNumber, challengedHash, preImage);
+        dac.resolve(challengedBlockNumber, challengedCommitment, preImage);
 
         // Resolving an already resolved challenge fails
         vm.expectRevert(abi.encodeWithSelector(DataAvailabilityChallenge.ChallengeNotActive.selector));
-        dac.resolve(challengedBlockNumber, challengedHash, preImage);
+        dac.resolve(challengedBlockNumber, challengedCommitment, preImage);
     }
 
     function testResolveFailExpired() public {
         bytes memory preImage = "some preimage";
-        bytes32 challengedHash = keccak256(preImage);
+        bytes memory challengedCommitment = computeCommitmentKeccak256(preImage);
         uint256 challengedBlockNumber = 1;
 
         // Move to block after challenged block
@@ -291,19 +296,19 @@ contract DataAvailabilityChallengeTest is CommonTest {
 
         // Challenge the hash
         dac.deposit{ value: dac.bondSize() }();
-        dac.challenge(challengedBlockNumber, challengedHash);
+        dac.challenge(challengedBlockNumber, challengedCommitment);
 
         // Move to a block after the resolve window
         vm.roll(block.number + dac.resolveWindow() + 1);
 
         // Resolving an expired challenge fails
         vm.expectRevert(abi.encodeWithSelector(DataAvailabilityChallenge.ChallengeNotActive.selector));
-        dac.resolve(challengedBlockNumber, challengedHash, preImage);
+        dac.resolve(challengedBlockNumber, challengedCommitment, preImage);
     }
 
     function testResolveFailAfterResolveWindow() public {
         bytes memory preImage = "some preimage";
-        bytes32 challengedHash = keccak256(preImage);
+        bytes memory challengedCommitment = computeCommitmentKeccak256(preImage);
         uint256 challengedBlockNumber = 1;
 
         // Move to block after challenged block
@@ -311,27 +316,27 @@ contract DataAvailabilityChallengeTest is CommonTest {
 
         // Challenge the hash
         dac.deposit{ value: dac.bondSize() }();
-        dac.challenge(challengedBlockNumber, challengedHash);
+        dac.challenge(challengedBlockNumber, challengedCommitment);
 
         // Move to block after resolve window
         vm.roll(block.number + dac.resolveWindow() + 1);
 
         // Resolve the challenge
         vm.expectRevert(abi.encodeWithSelector(DataAvailabilityChallenge.ChallengeNotActive.selector));
-        dac.resolve(challengedBlockNumber, challengedHash, preImage);
+        dac.resolve(challengedBlockNumber, challengedCommitment, preImage);
     }
 
     function testUnlockBondSuccess(bytes memory preImage, uint256 challengedBlockNumber) public {
         // Assume the block number is not close to the max uint256 value
         vm.assume(challengedBlockNumber < type(uint256).max - dac.challengeWindow() - dac.resolveWindow());
-        bytes32 challengedHash = keccak256(preImage);
+        bytes memory challengedCommitment = computeCommitmentKeccak256(preImage);
 
         // Move to block after challenged block
         vm.roll(challengedBlockNumber + 1);
 
         // Challenge the hash
         dac.deposit{ value: dac.bondSize() }();
-        dac.challenge(challengedBlockNumber, challengedHash);
+        dac.challenge(challengedBlockNumber, challengedCommitment);
 
         // Move to a block after the resolve window
         vm.roll(block.number + dac.resolveWindow() + 1);
@@ -339,7 +344,7 @@ contract DataAvailabilityChallengeTest is CommonTest {
         uint256 balanceBeforeUnlock = dac.balances(address(this));
 
         // Unlock the bond associated with the challenge
-        dac.unlockBond(challengedBlockNumber, challengedHash);
+        dac.unlockBond(challengedBlockNumber, challengedCommitment);
 
         // Expect the balance to be increased by the bond size
         uint256 balanceAfterUnlock = dac.balances(address(this));
@@ -347,22 +352,22 @@ contract DataAvailabilityChallengeTest is CommonTest {
 
         // Expect the bond to be unlocked
         (address _challenger, uint256 _lockedBond, uint256 _startBlock, uint256 _resolvedBlock) =
-            dac.challenges(challengedBlockNumber, challengedHash);
+            dac.challenges(challengedBlockNumber, challengedCommitment);
 
         assertEq(_challenger, address(this));
         assertEq(_lockedBond, 0);
         assertEq(_startBlock, challengedBlockNumber + 1);
         assertEq(_resolvedBlock, 0);
-        assertEq(uint8(dac.getChallengeStatus(challengedBlockNumber, challengedHash)), uint8(ChallengeStatus.Expired));
+        assertEq(uint8(dac.getChallengeStatus(challengedBlockNumber, challengedCommitment)), uint8(ChallengeStatus.Expired));
 
         // Unlock the bond again, expect the balance to remain the same
-        dac.unlockBond(challengedBlockNumber, challengedHash);
+        dac.unlockBond(challengedBlockNumber, challengedCommitment);
         assertEq(dac.balances(address(this)), balanceAfterUnlock);
     }
 
     function testUnlockBondFailNonExistentChallenge() public {
         bytes memory preImage = "some preimage";
-        bytes32 challengedHash = keccak256(preImage);
+        bytes memory challengedCommitment = computeCommitmentKeccak256(preImage);
         uint256 challengedBlockNumber = 1;
 
         // Move to block after challenged block
@@ -370,12 +375,12 @@ contract DataAvailabilityChallengeTest is CommonTest {
 
         // Unlock a bond of a non-existent challenge fails
         vm.expectRevert(abi.encodeWithSelector(DataAvailabilityChallenge.ChallengeNotExpired.selector));
-        dac.unlockBond(challengedBlockNumber, challengedHash);
+        dac.unlockBond(challengedBlockNumber, challengedCommitment);
     }
 
     function testUnlockBondFailResolvedChallenge() public {
         bytes memory preImage = "some preimage";
-        bytes32 challengedHash = keccak256(preImage);
+        bytes memory challengedCommitment = computeCommitmentKeccak256(preImage);
         uint256 challengedBlockNumber = 1;
 
         // Move to block after challenged block
@@ -383,19 +388,19 @@ contract DataAvailabilityChallengeTest is CommonTest {
 
         // Challenge the hash
         dac.deposit{ value: dac.bondSize() }();
-        dac.challenge(challengedBlockNumber, challengedHash);
+        dac.challenge(challengedBlockNumber, challengedCommitment);
 
         // Resolve the challenge
-        dac.resolve(challengedBlockNumber, challengedHash, preImage);
+        dac.resolve(challengedBlockNumber, challengedCommitment, preImage);
 
         // Attempting to unlock a bond of a resolved challenge fails
         vm.expectRevert(abi.encodeWithSelector(DataAvailabilityChallenge.ChallengeNotExpired.selector));
-        dac.unlockBond(challengedBlockNumber, challengedHash);
+        dac.unlockBond(challengedBlockNumber, challengedCommitment);
     }
 
     function testUnlockBondExpiredChallengeTwice() public {
         bytes memory preImage = "some preimage";
-        bytes32 challengedHash = keccak256(preImage);
+        bytes memory challengedCommitment = computeCommitmentKeccak256(preImage);
         uint256 challengedBlockNumber = 1;
 
         // Move to block after challenged block
@@ -403,24 +408,24 @@ contract DataAvailabilityChallengeTest is CommonTest {
 
         // Challenge the hash
         dac.deposit{ value: dac.bondSize() }();
-        dac.challenge(challengedBlockNumber, challengedHash);
+        dac.challenge(challengedBlockNumber, challengedCommitment);
 
         // Move to a block after the challenge window
         vm.roll(block.number + dac.resolveWindow() + 1);
 
         // Unlock the bond
-        dac.unlockBond(challengedBlockNumber, challengedHash);
+        dac.unlockBond(challengedBlockNumber, challengedCommitment);
 
         uint256 balanceAfterUnlock = dac.balances(address(this));
 
         // Unlock the bond again doesn't change the balance
-        dac.unlockBond(challengedBlockNumber, challengedHash);
+        dac.unlockBond(challengedBlockNumber, challengedCommitment);
         assertEq(dac.balances(address(this)), balanceAfterUnlock);
     }
 
     function testUnlockFailResolveWindowNotClosed() public {
         bytes memory preImage = "some preimage";
-        bytes32 challengedHash = keccak256(preImage);
+        bytes memory challengedCommitment = computeCommitmentKeccak256(preImage);
         uint256 challengedBlockNumber = 1;
 
         // Move to block after challenged block
@@ -428,13 +433,13 @@ contract DataAvailabilityChallengeTest is CommonTest {
 
         // Challenge the hash
         dac.deposit{ value: dac.bondSize() }();
-        dac.challenge(challengedBlockNumber, challengedHash);
+        dac.challenge(challengedBlockNumber, challengedCommitment);
 
         vm.roll(block.number + dac.resolveWindow() - 1);
 
         // Expiring the challenge before the resolve window closes fails
         vm.expectRevert(abi.encodeWithSelector(DataAvailabilityChallenge.ChallengeNotExpired.selector));
-        dac.unlockBond(challengedBlockNumber, challengedHash);
+        dac.unlockBond(challengedBlockNumber, challengedCommitment);
     }
 
     function testSetBondSize() public {
@@ -443,15 +448,16 @@ contract DataAvailabilityChallengeTest is CommonTest {
         dac.deposit{ value: actualBond }();
 
         // Expect the challenge to fail because the bond is too low
+        bytes memory challengedCommitment = computeCommitmentKeccak256("some hash");
         vm.expectRevert(abi.encodeWithSelector(DataAvailabilityChallenge.BondTooLow.selector, actualBond, requiredBond));
-        dac.challenge(0, "some hash");
+        dac.challenge(0, challengedCommitment);
 
         // Reduce the required bond
         vm.prank(dac.owner());
         dac.setBondSize(actualBond);
 
         // Expect the challenge to succeed
-        dac.challenge(0, "some hash");
+        dac.challenge(0, challengedCommitment);
     }
 
     function testSetResolverRefundPercentage(uint256 resolverRefundPercentage) public {
