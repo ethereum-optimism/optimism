@@ -74,6 +74,6 @@
     "label": "challenges",
     "offset": 0,
     "slot": "106",
-    "type": "mapping(uint256 => mapping(bytes32 => struct Challenge))"
+    "type": "mapping(uint256 => mapping(bytes => struct Challenge))"
   }
 ]

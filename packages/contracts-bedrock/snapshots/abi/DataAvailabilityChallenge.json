@@ -48,9 +48,9 @@
         "type": "uint256"
       },
       {
-        "internalType": "bytes32",
-        "name": "challengedHash",
-        "type": "bytes32"
+        "internalType": "bytes",
+        "name": "challengedCommitment",
+        "type": "bytes"
       }
     ],
     "name": "challenge",
@@ -79,9 +79,9 @@
         "type": "uint256"
       },
       {
-        "internalType": "bytes32",
+        "internalType": "bytes",
         "name": "",
-        "type": "bytes32"
+        "type": "bytes"
       }
     ],
     "name": "challenges",
@@ -138,9 +138,9 @@
         "type": "uint256"
       },
       {
-        "internalType": "bytes32",
-        "name": "challengedHash",
-        "type": "bytes32"
+        "internalType": "bytes",
+        "name": "challengedCommitment",
+        "type": "bytes"
       }
     ],
     "name": "getChallengeStatus",
@@ -215,13 +215,13 @@
         "type": "uint256"
       },
       {
-        "internalType": "bytes32",
-        "name": "challengedHash",
-        "type": "bytes32"
+        "internalType": "bytes",
+        "name": "challengedCommitment",
+        "type": "bytes"
       },
       {
         "internalType": "bytes",
-        "name": "preImage",
+        "name": "resolveData",
         "type": "bytes"
       }
     ],
@@ -303,9 +303,9 @@
         "type": "uint256"
       },
       {
-        "internalType": "bytes32",
-        "name": "challengedHash",
-        "type": "bytes32"
+        "internalType": "bytes",
+        "name": "challengedCommitment",
+        "type": "bytes"
       }
     ],
     "name": "unlockBond",
@@ -370,9 +370,9 @@
     "inputs": [
       {
         "indexed": true,
-        "internalType": "bytes32",
-        "name": "challengedHash",
-        "type": "bytes32"
+        "internalType": "bytes",
+        "name": "challengedCommitment",
+        "type": "bytes"
       },
       {
         "indexed": true,
@@ -487,14 +487,14 @@
   {
     "inputs": [
       {
-        "internalType": "bytes32",
-        "name": "providedDataHash",
-        "type": "bytes32"
+        "internalType": "bytes",
+        "name": "providedDataCommitment",
+        "type": "bytes"
       },
       {
-        "internalType": "bytes32",
-        "name": "expectedHash",
-        "type": "bytes32"
+        "internalType": "bytes",
+        "name": "expectedCommitment",
+        "type": "bytes"
       }
     ],
     "name": "InvalidInputData",
@@ -509,6 +509,17 @@
       }
     ],
     "name": "InvalidResolverRefundPercentage",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes1",
+        "name": "commitmentType",
+        "type": "bytes1"
+      }
+    ],
+    "name": "UnknownCommitmentType",
     "type": "error"
   },
   {
