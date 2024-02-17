@@ -42,6 +42,11 @@
         "type": "address"
       },
       {
+        "internalType": "contract SuperchainConfig",
+        "name": "_superchainConfig",
+        "type": "address"
+      },
+      {
         "internalType": "address",
         "name": "_proposer",
         "type": "address"
@@ -245,6 +250,13 @@
     "name": "defend",
     "outputs": [],
     "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "enableSafetyMode",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -605,6 +617,11 @@
   },
   {
     "inputs": [],
+    "name": "BondDelayNotExpired",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "BondTransferFailed",
     "type": "error"
   },
@@ -676,6 +693,11 @@
   {
     "inputs": [],
     "name": "OutOfOrderResolution",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "UnauthorizedCaller",
     "type": "error"
   },
   {
