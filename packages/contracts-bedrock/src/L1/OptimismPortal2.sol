@@ -212,7 +212,6 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     ///         funds be deposited to their address on L2. This is intended as a convenience
     ///         function for EOAs. Contracts should call the depositTransaction() function directly
     ///         otherwise any deposited funds will be lost due to address aliasing.
-    // solhint-disable-next-line ordering
     receive() external payable {
         depositTransaction(msg.sender, msg.value, RECEIVE_DEFAULT_GAS_LIMIT, false, bytes(""));
     }
