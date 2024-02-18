@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum/go-ethereum/log"
-
-	opnode "github.com/ethereum-optimism/optimism/op-node"
+	"github.com/ethereum-optimism/optimism/op-node"
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/cmd/genesis"
 	"github.com/ethereum-optimism/optimism/op-node/cmd/networks"
@@ -18,9 +19,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/version"
-	opservice "github.com/ethereum-optimism/optimism/op-service"
+	"github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/metrics/doc"
 	"github.com/ethereum-optimism/optimism/op-service/opio"
 )
@@ -36,7 +36,9 @@ var VersionWithMeta = opservice.FormatVersion(version.Version, GitCommit, GitDat
 func main() {
 	// Set up logger with a default INFO level in case we fail to parse flags,
 	// otherwise the final critical log won't show what the parsing error was.
-	oplog.SetupDefaults()
+	logrus.SetFormatter(&logrus.TextFormatter{
+		FullTimestamp: true,
+	})
 
 	app := cli.NewApp()
 	app.Version = VersionWithMeta
@@ -67,31 +69,29 @@ func main() {
 	ctx := opio.WithInterruptBlocker(context.Background())
 	err := app.RunContext(ctx, os.Args)
 	if err != nil {
-		log.Crit("Application failed", "message", err)
+		logrus.Fatal("Application failed", err)
 	}
 }
 
 func RollupNodeMain(ctx *cli.Context, closeApp context.CancelCauseFunc) (cliapp.Lifecycle, error) {
-	logCfg := oplog.ReadCLIConfig(ctx)
-	log := oplog.NewLogger(oplog.AppOut(ctx), logCfg)
-	oplog.SetGlobalLogHandler(log.Handler())
+	log := logrus.New()
 	opservice.ValidateEnvVars(flags.EnvVarPrefix, flags.Flags, log)
 	opservice.WarnOnDeprecatedFlags(ctx, flags.DeprecatedFlags, log)
 	m := metrics.NewMetrics("default")
 
 	cfg, err := opnode.NewConfig(ctx, log)
 	if err != nil {
-		return nil, fmt.Errorf("unable to create the rollup node config: %w", err)
+		return nil, errors.Wrap(err, "unable to create the rollup node config")
 	}
 	cfg.Cancel = closeApp
 
 	snapshotLog, err := opnode.NewSnapshotLogger(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("unable to create snapshot root logger: %w", err)
+		return nil, errors.Wrap(err, "unable to create snapshot root logger")
 	}
-
+	
 	// Only pretty-print the banner if it is a terminal log. Other log it as key-value pairs.
-	if logCfg.Format == "terminal" {
+	if log.Formatter.(*logrus.TextFormatter).ForceColors {
 		log.Info("rollup config:\n" + cfg.Rollup.Description(chaincfg.L2ChainIDToNetworkDisplayName))
 	} else {
 		cfg.Rollup.LogDescription(log, chaincfg.L2ChainIDToNetworkDisplayName)
@@ -99,7 +99,7 @@ func RollupNodeMain(ctx *cli.Context, closeApp context.CancelCauseFunc) (cliapp.
 
 	n, err := node.New(ctx.Context, cfg, log, snapshotLog, VersionWithMeta, m)
 	if err != nil {
-		return nil, fmt.Errorf("unable to create the rollup node: %w", err)
+		return nil, errors.Wrap(err, "unable to create the rollup node")
 	}
 
 	return n, nil
