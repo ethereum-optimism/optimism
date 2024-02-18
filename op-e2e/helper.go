@@ -4,6 +4,7 @@ import (
 	"crypto/md5"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 )
@@ -20,6 +21,21 @@ func InitParallel(t e2eutils.TestingBase, args ...func(t e2eutils.TestingBase, o
 		t.Parallel()
 	}
 
+	autoAllocateExecutor(t, args)
+}
+
+// isSubTest determines if the test is a sub-test or top level test.
+// It does this by checking if the test name contains /
+// This is not a particularly great way check, but appears to be the only option currently.
+func isSubTest(t e2eutils.TestingBase) bool {
+	return strings.Contains(t.Name(), "/")
+}
+
+func autoAllocateExecutor(t e2eutils.TestingBase, args []func(t e2eutils.TestingBase, opts *testopts)) {
+	if isSubTest(t) {
+		// Always run subtests, they only start on the same executor as their parent.
+		return
+	}
 	info := getExecutorInfo(t)
 	tName := t.Name()
 	tHash := md5.Sum([]byte(tName))
