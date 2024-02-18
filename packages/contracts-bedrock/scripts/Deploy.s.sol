@@ -282,10 +282,10 @@ contract Deploy is Deployer {
     function _run() internal {
         deploySafe();
         setupSuperchain();
-        setupOpChain();
         if (cfg.usePlasma()) {
             setupOpPlasma();
         }
+        setupOpChain();
     }
 
     ////////////////////////////////////////////////////////////////
