@@ -9,7 +9,7 @@
   },
   "src/L1/DataAvailabilityChallenge.sol": {
     "initCodeHash": "0x1a2775739aaf90c92eae0567d47c2437001179ca53ede6d5baddfab5be35ba0f",
-    "sourceCodeHash": "0x1257d0708e32b8cba3f7de8646d150e0712d7f6f7539df1b226268c1d0ee6850"
+    "sourceCodeHash": "0x3ebb4fd4dc043fc1a3dcca1fbd7b23dafcb36d8cb382bdb5cbbb1bd34576ae89"
   },
   "src/L1/DelayedVetoable.sol": {
     "initCodeHash": "0x84f78e56211500a768b2c5bbafde8e7b411bd64c237297370d7d22326b68357c",
