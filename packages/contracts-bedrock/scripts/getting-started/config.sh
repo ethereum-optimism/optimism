@@ -34,8 +34,8 @@ config=$(cat << EOL
 
   "l1ChainID": 11155111,
   "l2ChainID": 1988,
-  "l2BlockTime": 9,
-  "l1BlockTime": 10,
+  "l2BlockTime": 10,
+  "l1BlockTime": 12,
 
   "maxSequencerDrift": 600,
   "sequencerWindowSize": 3600,
