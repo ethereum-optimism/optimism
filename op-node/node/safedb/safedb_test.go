@@ -33,8 +33,8 @@ func TestStoreSafeHeads(t *testing.T) {
 		Hash:   common.Hash{0x01, 0xbb},
 		Number: 150,
 	}
-	db.SafeHeadUpdated(l2a, l1a)
-	db.SafeHeadUpdated(l2b, l1b)
+	require.NoError(t, db.SafeHeadUpdated(l2a, l1a))
+	require.NoError(t, db.SafeHeadUpdated(l2b, l1b))
 
 	verifySafeHeads := func(db *SafeDB) {
 		_, _, err = db.SafeHeadAtL1(context.Background(), l1a.Number-1)

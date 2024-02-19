@@ -95,9 +95,11 @@ type LocalEngineControl interface {
 // SafeHeadListener is called when the safe head is updated.
 // The safe head may advance by more than one block in a single update
 // The l1Block specified is the first L1 block that includes sufficient information to derive the new safe head
-type SafeHeadListener func(newSafeHead eth.L2BlockRef, l1Block eth.BlockID)
+type SafeHeadListener func(newSafeHead eth.L2BlockRef, l1Block eth.BlockID) error
 
-var NoSafeHeadListener = func(_ eth.L2BlockRef, _ eth.BlockID) {}
+var NoSafeHeadListener = func(_ eth.L2BlockRef, _ eth.BlockID) error {
+	return nil
+}
 
 // Max memory used for buffering unsafe payloads
 const maxUnsafePayloadsMemory = 500 * 1024 * 1024
@@ -281,7 +283,10 @@ func (eq *EngineQueue) Step(ctx context.Context) error {
 		return err
 	}
 	eq.origin = newOrigin
-	eq.postProcessSafeL2() // make sure we track the last L2 safe head for every new L1 block
+	// make sure we track the last L2 safe head for every new L1 block
+	if err := eq.postProcessSafeL2(); err != nil {
+		return err
+	}
 	// try to finalize the L2 blocks we have synced so far (no-op if L1 finality is behind)
 	if err := eq.tryFinalizePastL2Blocks(ctx); err != nil {
 		return err
@@ -389,7 +394,7 @@ func (eq *EngineQueue) tryFinalizeL2() {
 
 // postProcessSafeL2 buffers the L1 block the safe head was fully derived from,
 // to finalize it once the L1 block, or later, finalizes.
-func (eq *EngineQueue) postProcessSafeL2() {
+func (eq *EngineQueue) postProcessSafeL2() error {
 	// prune finality data if necessary
 	if len(eq.finalityData) >= finalityLookback {
 		eq.finalityData = append(eq.finalityData[:0], eq.finalityData[1:finalityLookback]...)
@@ -413,9 +418,14 @@ func (eq *EngineQueue) postProcessSafeL2() {
 			last.L2Block = eq.ec.SafeL2Head()
 			eq.log.Debug("updated finality-data", "last_l1", last.L1Block, "last_l2", last.L2Block)
 			// Notify the new safe head
-			eq.safeHeadNotifs(eq.ec.SafeL2Head(), eq.origin.ID())
+			if err := eq.safeHeadNotifs(eq.ec.SafeL2Head(), eq.origin.ID()); err != nil {
+				// At this point our state is in a potentially inconsistent state as we've updated the safe head
+				// in the execution client but failed to post process it. Reset the pipeline to load the right state
+				return NewResetError(fmt.Errorf("safe head notifications failed: %w", err))
+			}
 		}
 	}
+	return nil
 }
 
 func (eq *EngineQueue) logSyncProgress(reason string) {
@@ -535,7 +545,9 @@ func (eq *EngineQueue) consolidateNextSafeAttributes(ctx context.Context) error 
 	eq.ec.SetPendingSafeL2Head(ref)
 	if eq.safeAttributes.isLastInSpan {
 		eq.ec.SetSafeHead(ref)
-		eq.postProcessSafeL2()
+		if err := eq.postProcessSafeL2(); err != nil {
+			return err
+		}
 	}
 	// unsafe head stays the same, we did not reorg the chain.
 	eq.safeAttributes = nil
@@ -596,7 +608,9 @@ func (eq *EngineQueue) forceNextSafeAttributes(ctx context.Context) error {
 	eq.safeAttributes = nil
 	eq.logSyncProgress("processed safe block derived from L1")
 	if lastInSpan {
-		eq.postProcessSafeL2()
+		if err := eq.postProcessSafeL2(); err != nil {
+			return err
+		}
 	}
 
 	return nil

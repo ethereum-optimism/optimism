@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"math"
 	"sync/atomic"
 
@@ -60,12 +61,13 @@ func NewSafeDB(logger log.Logger, path string) (*SafeDB, error) {
 	}, nil
 }
 
-func (d *SafeDB) SafeHeadUpdated(safeHead eth.L2BlockRef, l1Head eth.BlockID) {
+func (d *SafeDB) SafeHeadUpdated(safeHead eth.L2BlockRef, l1Head eth.BlockID) error {
 	d.log.Debug("Update safe head", "l2", safeHead.ID(), "l1", l1Head)
 	if err := d.db.Set(KeyL1BlockNum(l1Head.Number), ValueL1BlockNum(l1Head.Hash, safeHead.Hash), &pebble.WriteOptions{Sync: true}); err != nil {
-		// TODO(client-pod#593): Need to work out how to not drop the update and lose data here.
-		d.log.Error("Failed to record safe head update", "err", err)
+		// TODO(client-pod#593): Add tests to ensure we don't lose data here
+		return fmt.Errorf("failed to record safe head update: %w", err)
 	}
+	return nil
 }
 
 func (d *SafeDB) SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (l1Hash common.Hash, l2Hash common.Hash, err error) {
