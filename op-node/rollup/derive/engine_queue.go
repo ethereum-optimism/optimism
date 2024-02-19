@@ -163,7 +163,8 @@ type EngineQueue struct {
 
 	syncCfg *sync.Config
 
-	safeHeadNotifs SafeHeadListener // notified when safe head is updated
+	safeHeadNotifs       SafeHeadListener // notified when safe head is updated
+	lastNotifiedSafeHead eth.L2BlockRef
 }
 
 // NewEngineQueue creates a new EngineQueue, which should be Reset(origin) before use.
@@ -395,6 +396,9 @@ func (eq *EngineQueue) tryFinalizeL2() {
 // postProcessSafeL2 buffers the L1 block the safe head was fully derived from,
 // to finalize it once the L1 block, or later, finalizes.
 func (eq *EngineQueue) postProcessSafeL2() error {
+	if err := eq.notifyNewSafeHead(eq.ec.SafeL2Head()); err != nil {
+		return err
+	}
 	// prune finality data if necessary
 	if len(eq.finalityData) >= finalityLookback {
 		eq.finalityData = append(eq.finalityData[:0], eq.finalityData[1:finalityLookback]...)
@@ -418,14 +422,23 @@ func (eq *EngineQueue) postProcessSafeL2() error {
 		if last.L2Block != eq.ec.SafeL2Head() { // avoid logging if there are no changes
 			last.L2Block = eq.ec.SafeL2Head()
 			eq.log.Debug("updated finality-data", "last_l1", last.L1Block, "last_l2", last.L2Block)
-			// Notify the new safe head
-			if err := eq.safeHeadNotifs(eq.ec.SafeL2Head(), eq.origin.ID()); err != nil {
-				// At this point our state is in a potentially inconsistent state as we've updated the safe head
-				// in the execution client but failed to post process it. Reset the pipeline to load the right state
-				return NewResetError(fmt.Errorf("safe head notifications failed: %w", err))
-			}
 		}
 	}
+	return nil
+}
+
+// notifyNewSafeHead calls the safe head listener with the current safe head and l1 origin information.
+func (eq *EngineQueue) notifyNewSafeHead(safeHead eth.L2BlockRef) error {
+	if eq.lastNotifiedSafeHead == safeHead {
+		// No change, no need to notify
+		return nil
+	}
+	if err := eq.safeHeadNotifs(safeHead, eq.origin.ID()); err != nil {
+		// At this point our state is in a potentially inconsistent state as we've updated the safe head
+		// in the execution client but failed to post process it. Reset the pipeline to load the right state
+		return NewResetError(fmt.Errorf("safe head notifications failed: %w", err))
+	}
+	eq.lastNotifiedSafeHead = safeHead
 	return nil
 }
 
@@ -686,6 +699,7 @@ func (eq *EngineQueue) Reset(ctx context.Context, _ eth.L1BlockRef, _ eth.System
 	// note: we do not clear the unsafe payloads queue; if the payloads are not applicable anymore the parent hash checks will clear out the old payloads.
 	eq.origin = pipelineOrigin
 	eq.sysCfg = l1Cfg
+	eq.lastNotifiedSafeHead = safe
 	eq.logSyncProgress("reset derivation work")
 	return io.EOF
 }

@@ -74,6 +74,8 @@ func (d *SafeDB) SafeHeadUpdated(safeHead eth.L2BlockRef, l1Head eth.BlockID) er
 	}
 	if err := d.db.Set(KeyL1BlockNum(l1Head.Number), ValueL1BlockNum(l1Head.Hash, safeHead.Hash), d.writeOpts); err != nil {
 		// TODO(client-pod#593): Add tests to ensure we don't lose data here
+		// We do in fact lose this update here. Even if we didn't the correct behaviour is to retry the exact same write
+		// so maybe we should just keep retrying here instead of returning an error?
 		return fmt.Errorf("failed to record safe head update: %w", err)
 	}
 	return nil
