@@ -15,6 +15,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
@@ -654,12 +656,19 @@ func TestMixedWithdrawalValidity(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 
+				if e2eutils.UseFPAC() {
+					// Start a challenger to resolve claims and games once the clock expires
+					factoryHelper := disputegame.NewFactoryHelper(t, ctx, sys)
+					factoryHelper.StartChallenger(ctx, "Challenger",
+						challenger.WithCannon(t, sys.RollupConfig, sys.L2GenesisCfg, sys.RollupEndpoint("sequencer"), sys.NodeEndpoint("sequencer")),
+						challenger.WithPrivKey(sys.Cfg.Secrets.Mallory))
+				}
 				receipt, err = wait.ForReceiptOK(ctx, l1Client, tx.Hash())
-				require.Nil(t, err, "finalize withdrawal")
+				require.NoError(t, err, "finalize withdrawal")
 
 				// Verify balance after withdrawal
 				header, err = l1Client.HeaderByNumber(ctx, receipt.BlockNumber)
-				require.Nil(t, err)
+				require.NoError(t, err)
 
 				// Ensure that withdrawal - gas fees are added to the L1 balance
 				// Fun fact, the fee is greater than the withdrawal amount
@@ -670,17 +679,17 @@ func TestMixedWithdrawalValidity(t *testing.T) {
 
 				// Ensure that our withdrawal was proved successfully
 				_, err := wait.ForReceiptOK(ctx, l1Client, tx.Hash())
-				require.Nil(t, err, "prove withdrawal")
+				require.NoError(t, err, "prove withdrawal")
 
 				// Wait for finalization and then create the Finalized Withdrawal Transaction
 				ctx, withdrawalCancel := context.WithTimeout(context.Background(), 60*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 				defer withdrawalCancel()
 				if e2eutils.UseFPAC() {
 					err = wait.ForWithdrawalCheck(ctx, l1Client, withdrawal, cfg.L1Deployments.OptimismPortalProxy)
-					require.Nil(t, err)
+					require.NoError(t, err)
 				} else {
 					err = wait.ForFinalizationPeriod(ctx, l1Client, header.Number, cfg.L1Deployments.L2OutputOracleProxy)
-					require.Nil(t, err)
+					require.NoError(t, err)
 				}
 
 				// Finalize withdrawal

@@ -13,7 +13,6 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 // ForOutputRootPublished waits until there is an output published for an L2 block number larger than the supplied l2BlockNumber
@@ -112,6 +111,8 @@ func ForGamePublished(ctx context.Context, client *ethclient.Client, optimismPor
 
 // ForWithdrawalCheck waits until the withdrawal check in the portal succeeds.
 func ForWithdrawalCheck(ctx context.Context, client *ethclient.Client, withdrawal crossdomain.Withdrawal, optimismPortalAddr common.Address) error {
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	defer cancel()
 	opts := &bind.CallOpts{Context: ctx}
 	portal, err := bindingspreview.NewOptimismPortal2Caller(optimismPortalAddr, client)
 	if err != nil {
@@ -119,14 +120,12 @@ func ForWithdrawalCheck(ctx context.Context, client *ethclient.Client, withdrawa
 	}
 
 	return For(ctx, time.Second, func() (bool, error) {
-		log.Warn("checking withdrawal!")
 		wdHash, err := withdrawal.Hash()
 		if err != nil {
 			return false, fmt.Errorf("hash withdrawal: %w", err)
 		}
 
 		err = portal.CheckWithdrawal(opts, wdHash)
-		log.Warn("checking withdrawal", "hash", wdHash, "err", err)
 		return err == nil, nil
 	})
 }
