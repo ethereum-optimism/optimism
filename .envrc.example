@@ -2,21 +2,9 @@
 #                 Getting Started                #
 ##################################################
 
-# Admin account
-export GS_ADMIN_ADDRESS=
-export GS_ADMIN_PRIVATE_KEY=
-
-# Batcher account
-export GS_BATCHER_ADDRESS=
-export GS_BATCHER_PRIVATE_KEY=
-
-# Proposer account
-export GS_PROPOSER_ADDRESS=
-export GS_PROPOSER_PRIVATE_KEY=
-
-# Sequencer account
-export GS_SEQUENCER_ADDRESS=
-export GS_SEQUENCER_PRIVATE_KEY=
+# Broadcaster account
+export GS_BROADCASTER_ADDRESS=0xd32E287C582c49026D5F701bb276F01A76567a9e
+export GS_BROADCASTER_PRIVATE_KEY=0x23f636cea8813a7166aa288a94c96058a2a165faa58c99811371c3059be792aa
 
 ##################################################
 #              op-node Configuration             #
