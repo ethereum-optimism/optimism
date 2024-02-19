@@ -80,3 +80,50 @@ func TestSafeHeadAtL1_EmptyDatabase(t *testing.T) {
 	_, _, err = db.SafeHeadAtL1(context.Background(), 100)
 	require.ErrorIs(t, err, ErrNotFound)
 }
+
+func TestTruncateDataWhenSafeHeadGoesBackwards(t *testing.T) {
+	logger := testlog.Logger(t, log.LvlInfo)
+	dir := t.TempDir()
+	db, err := NewSafeDB(logger, dir)
+	require.NoError(t, err)
+	defer db.Close()
+
+	l2a := eth.L2BlockRef{
+		Hash:   common.Hash{0x02, 0xaa},
+		Number: 20,
+	}
+	l2b := eth.L2BlockRef{
+		Hash:   common.Hash{0x02, 0xbb},
+		Number: 25,
+	}
+	l2c := eth.L2BlockRef{
+		Hash:   common.Hash{0x02, 0xcc},
+		Number: 21,
+	}
+	l1a := eth.BlockID{
+		Hash:   common.Hash{0x01, 0xaa},
+		Number: 100,
+	}
+	l1b := eth.BlockID{
+		Hash:   common.Hash{0x01, 0xbb},
+		Number: 150,
+	}
+	l1c := eth.BlockID{
+		Hash:   common.Hash{0x01, 0xcc},
+		Number: 148,
+	}
+	require.NoError(t, db.SafeHeadUpdated(l2a, l1a))
+	require.NoError(t, db.SafeHeadUpdated(l2b, l1b))
+
+	actualL1, actualL2, err := db.SafeHeadAtL1(context.Background(), l1b.Number)
+	require.NoError(t, err)
+	require.Equal(t, l1b.Hash, actualL1)
+	require.Equal(t, l2b.Hash, actualL2)
+
+	require.NoError(t, db.SafeHeadUpdated(l2c, l1c))
+
+	actualL1, actualL2, err = db.SafeHeadAtL1(context.Background(), l1b.Number)
+	require.NoError(t, err)
+	require.Equal(t, l1c.Hash, actualL1)
+	require.Equal(t, l2c.Hash, actualL2)
+}

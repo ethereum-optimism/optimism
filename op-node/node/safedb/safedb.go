@@ -23,6 +23,8 @@ type SafeDB struct {
 	log log.Logger
 	db  *pebble.DB
 
+	writeOpts *pebble.WriteOptions
+
 	closed atomic.Bool
 }
 
@@ -56,14 +58,21 @@ func NewSafeDB(logger log.Logger, path string) (*SafeDB, error) {
 		return nil, err
 	}
 	return &SafeDB{
-		log: logger,
-		db:  db,
+		log:       logger,
+		db:        db,
+		writeOpts: &pebble.WriteOptions{Sync: true},
 	}, nil
 }
 
 func (d *SafeDB) SafeHeadUpdated(safeHead eth.L2BlockRef, l1Head eth.BlockID) error {
 	d.log.Debug("Update safe head", "l2", safeHead.ID(), "l1", l1Head)
-	if err := d.db.Set(KeyL1BlockNum(l1Head.Number), ValueL1BlockNum(l1Head.Hash, safeHead.Hash), &pebble.WriteOptions{Sync: true}); err != nil {
+	// Delete any entries after this L1 block. Normally the l1Head continuously increases and this does nothing
+	// However when the pipeline resets the L1 head may drop back and we need to remove later entries and allow them
+	// to be repopulated as derivation progresses again. The resulting data may be different if L1 reorged.
+	if err := d.db.DeleteRange(KeyL1BlockNum(l1Head.Number+1), KeyL1BlockNum(math.MaxUint64), d.writeOpts); err != nil {
+		return fmt.Errorf("failed to truncate safe head entries: %w", err)
+	}
+	if err := d.db.Set(KeyL1BlockNum(l1Head.Number), ValueL1BlockNum(l1Head.Hash, safeHead.Hash), d.writeOpts); err != nil {
 		// TODO(client-pod#593): Add tests to ensure we don't lose data here
 		return fmt.Errorf("failed to record safe head update: %w", err)
 	}

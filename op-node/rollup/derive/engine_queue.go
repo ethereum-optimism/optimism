@@ -404,6 +404,7 @@ func (eq *EngineQueue) postProcessSafeL2() error {
 		// TODO(client-pod#593): Work out how to handle pipeline resets/startup
 		// Emitting a safe head notification here gives an incorrect L1 block
 		// But does not emitting an event risk missing an update?
+
 		// append entry for new L1 block
 		eq.finalityData = append(eq.finalityData, FinalityData{
 			L2Block: eq.ec.SafeL2Head(),
