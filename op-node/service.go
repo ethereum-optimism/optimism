@@ -10,8 +10,6 @@ import (
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
-	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
@@ -46,8 +44,6 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 	}
 
 	configPersistence := NewConfigPersistence(ctx)
-
-	safeHeadListener := NewSafeHeadListener(ctx, log)
 
 	driverConfig := NewDriverConfig(ctx)
 
@@ -105,7 +101,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 			URL:     ctx.String(flags.HeartbeatURLFlag.Name),
 		},
 		ConfigPersistence: configPersistence,
-		SafeHeadListener:  safeHeadListener,
+		SafeDBPath:        ctx.String(flags.SafeDBPath.Name),
 		Sync:              *syncConfig,
 		RollupHalt:        haltOption,
 		RethDBPath:        ctx.String(flags.L1RethDBPath.Name),
@@ -190,14 +186,6 @@ func NewConfigPersistence(ctx *cli.Context) node.ConfigPersistence {
 		return node.DisabledConfigPersistence{}
 	}
 	return node.NewConfigPersistence(stateFile)
-}
-
-func NewSafeHeadListener(ctx *cli.Context, log log.Logger) derive.SafeHeadListener {
-	path := ctx.String(flags.SafeDBPath.Name)
-	if path == "" {
-		return derive.NoSafeHeadListener
-	}
-	return safedb.NewSafeDB(log, path).SafeHeadUpdated
 }
 
 func NewDriverConfig(ctx *cli.Context) *driver.Config {

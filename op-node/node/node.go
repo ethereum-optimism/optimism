@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
@@ -51,6 +52,8 @@ type OpNode struct {
 	p2pSigner p2p.Signer            // p2p gogssip application messages will be signed with this signer
 	tracer    Tracer                // tracer to get events for testing/debugging
 	runCfg    *RuntimeConfig        // runtime configurables
+
+	safeDB *safedb.SafeDB
 
 	rollupHalt string // when to halt the rollup, disabled if empty
 
@@ -380,14 +383,17 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config, snapshotLog log.Logger
 	if cfg.Plasma.Enabled {
 		n.log.Info("Plasma DA enabled", "da_server", cfg.Plasma.DAServerURL)
 	}
-	safeHeadListener := cfg.SafeHeadListener
-	if safeHeadListener != nil {
-		n.log.Info("Safe head database enabled")
-	} else {
-		safeHeadListener = derive.NoSafeHeadListener
+	safeHeadListener := derive.NoSafeHeadListener
+	if cfg.SafeDBPath != "" {
+		n.log.Info("Safe head database enabled", "path", cfg.SafeDBPath)
+		safeDB, err := safedb.NewSafeDB(n.log, cfg.SafeDBPath)
+		if err != nil {
+			return fmt.Errorf("failed to create safe head database at %v: %w", cfg.SafeDBPath, err)
+		}
+		n.safeDB = safeDB
+		safeHeadListener = safeDB.SafeHeadUpdated
 	}
 	n.l2Driver = driver.NewDriver(&cfg.Driver, &cfg.Rollup, n.l2Source, n.l1Source, n.beacon, n, n, n.log, snapshotLog, n.metrics, cfg.ConfigPersistence, safeHeadListener, &cfg.Sync, sequencerConductor, plasmaDA)
-
 	return nil
 }
 
@@ -652,6 +658,12 @@ func (n *OpNode) Stop(ctx context.Context) error {
 	if n.l2Driver != nil {
 		if err := n.l2Driver.Close(); err != nil {
 			result = multierror.Append(result, fmt.Errorf("failed to close L2 engine driver cleanly: %w", err))
+		}
+	}
+
+	if n.safeDB != nil {
+		if err := n.safeDB.Close(); err != nil {
+			result = multierror.Append(result, fmt.Errorf("failed to close safe head db: %w", err))
 		}
 	}
 

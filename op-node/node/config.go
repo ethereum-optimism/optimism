@@ -10,7 +10,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/flags"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	plasma "github.com/ethereum-optimism/optimism/op-plasma"
@@ -45,7 +44,8 @@ type Config struct {
 
 	ConfigPersistence ConfigPersistence
 
-	SafeHeadListener derive.SafeHeadListener
+	// Path to store safe head database. Disabled when set to empty string
+	SafeDBPath string
 
 	// RuntimeConfigReloadInterval defines the interval between runtime config reloads.
 	// Disabled if <= 0.
