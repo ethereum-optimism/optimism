@@ -73,6 +73,7 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "DataAvailabilityChallenge", _sel: _getSel("version()") });
         _addSpec({ _name: "DataAvailabilityChallenge", _sel: _getSel("fixedResolutionCost()") });
         _addSpec({ _name: "DataAvailabilityChallenge", _sel: _getSel("variableResolutionCost()") });
+        _addSpec({ _name: "DataAvailabilityChallenge", _sel: _getSel("variableResolutionCostPrecision()") });
         _addSpec({ _name: "DataAvailabilityChallenge", _sel: _getSel("bondSize()") });
         _addSpec({ _name: "DataAvailabilityChallenge", _sel: _getSel("challengeWindow()") });
         _addSpec({ _name: "DataAvailabilityChallenge", _sel: _getSel("resolveWindow()") });

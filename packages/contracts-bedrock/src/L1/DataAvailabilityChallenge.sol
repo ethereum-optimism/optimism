@@ -91,9 +91,12 @@ contract DataAvailabilityChallenge is OwnableUpgradeable, ISemver {
     /// @notice The fixed cost of resolving a challenge.
     uint256 public constant fixedResolutionCost = 44200;
 
-    /// @notice The variable cost of resolving a callenge per byte of calldata.
+    /// @notice The variable cost of resolving a callenge per byte scaled by the variableResolutionCostPrecision.
     /// @dev upper limit; 16 gas per non-zero calldata byte, 4 gas variable execution cost per byte.
-    uint256 public constant variableResolutionCost = 16 + 4;
+    uint256 public constant variableResolutionCost = 1600 + 4000;
+
+    /// @dev The precision of the variable resolution cost.
+    uint256 public constant variableResolutionCostPrecision = 1000;
 
     /// @notice The block interval during which a commitment can be challenged.
     uint256 public challengeWindow;
@@ -348,7 +351,7 @@ contract DataAvailabilityChallenge is OwnableUpgradeable, ISemver {
         address challenger = resolvedChallenge.challenger;
 
         // approximate the cost of resolving a challenge with the provided pre-image size
-        uint256 resolutionCost = (fixedResolutionCost + preImageLength * variableResolutionCost) * tx.gasprice;
+        uint256 resolutionCost = (fixedResolutionCost + preImageLength * variableResolutionCost / variableResolutionCostPrecision) * tx.gasprice;
 
         // refund bond exceeding the resolution cost to the challenger
         if (lockedBond > resolutionCost) {
