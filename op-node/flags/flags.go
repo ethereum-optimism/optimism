@@ -78,13 +78,12 @@ var (
 	}
 	SyncModeFlag = &cli.GenericFlag{
 		Name:    "syncmode",
-		Usage:   fmt.Sprintf("IN DEVELOPMENT: Options are: %s", openum.EnumString(sync.ModeStrings)),
+		Usage:   fmt.Sprintf("Blockchain sync mode (options: %s)", openum.EnumString(sync.ModeStrings)),
 		EnvVars: prefixEnvVars("SYNCMODE"),
 		Value: func() *sync.Mode {
 			out := sync.CLSync
 			return &out
 		}(),
-		Hidden: true,
 	}
 	RPCListenAddr = &cli.StringFlag{
 		Name:    "rpc.addr",
