@@ -69,12 +69,18 @@ abstract contract CrossL2Inbox is Initializable {
         }
     }
 
-    function executeMessage(address _target, bytes calldata _msg, Identifier calldata _id) public payable {
+    /// @notice Executes a cross chain message on the destination chain
+    /// @param _msg The message payload, matching the initiating message.
+    /// @param _id A Identifier pointing to the initiating message.
+    /// @param _target Account that is called with _msg.
+    function executeMessage(bytes calldata _msg, Identifier calldata _id, address _target) public payable {
         require(msg.sender == tx.origin);
         require(_id.timestamp <= block.timestamp);
-
-        // same size in memory as chainId in Identifier
         uint256 chainId_;
+        assembly {
+            chainId_ := mload(add(_id, 0x80))
+        }
+        require(l1Block.isInDependencySet(chainId_));
 
         assembly {
             tstore(ORIGIN_SLOT, mload(_id))
