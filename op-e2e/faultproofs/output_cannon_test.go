@@ -296,7 +296,7 @@ func TestOutputCannonStepWithPreimage(t *testing.T) {
 
 func TestOutputCannonStepWithKZGPointEvaluation(t *testing.T) {
 	testPreimageStep := func(t *testing.T, preloadPreimage bool) {
-		op_e2e.InitParallel(t /* op_e2e.UsesCannon */)
+		//op_e2e.InitParallel(t /* op_e2e.UsesCannon */)
 
 		ctx := context.Background()
 		sys, _ := startFaultDisputeSystem(t, withEcotone())
