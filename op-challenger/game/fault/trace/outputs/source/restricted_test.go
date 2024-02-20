@@ -64,7 +64,11 @@ func TestRestrictedOutputLoader(t *testing.T) {
 	for _, test := range tests {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
-			loader := NewRestrictedOutputSource(&stubOutputRollupClient{}, test.maxSafeHead)
+			l1Head := eth.BlockID{Number: 3428}
+			rollupClient := &stubOutputRollupClient{
+				safeHead: test.maxSafeHead,
+			}
+			loader := NewRestrictedOutputSource(rollupClient, l1Head)
 			result, err := loader.OutputAtBlock(context.Background(), test.blockNum)
 			if test.expectedErr == nil {
 				require.NoError(t, err)
@@ -72,26 +76,56 @@ func TestRestrictedOutputLoader(t *testing.T) {
 			} else {
 				require.ErrorIs(t, err, test.expectedErr)
 			}
+			require.Equal(t, l1Head.Number, rollupClient.requestedL1BlockNum)
 		})
 	}
 }
 
-func TestRestrictedOutputLoader_ReturnsError(t *testing.T) {
+func TestRestrictedOutputLoader_GetOutputRootErrors(t *testing.T) {
 	expectedErr := errors.New("boom")
-	loader := NewRestrictedOutputSource(&stubOutputRollupClient{err: expectedErr}, 6)
+	client := &stubOutputRollupClient{outputErr: expectedErr, safeHead: 884}
+	loader := NewRestrictedOutputSource(client, eth.BlockID{Number: 1234})
+	_, err := loader.OutputAtBlock(context.Background(), 4)
+	require.ErrorIs(t, err, expectedErr)
+}
+
+func TestRestrictedOutputLoader_SafeHeadAtL1BlockErrors(t *testing.T) {
+	expectedErr := errors.New("boom")
+	client := &stubOutputRollupClient{safeHeadErr: expectedErr, safeHead: 884}
+	loader := NewRestrictedOutputSource(client, eth.BlockID{Number: 1234})
 	_, err := loader.OutputAtBlock(context.Background(), 4)
 	require.ErrorIs(t, err, expectedErr)
 }
 
 type stubOutputRollupClient struct {
-	err error
+	outputErr           error
+	safeHeadErr         error
+	safeHead            uint64
+	requestedL1BlockNum uint64
 }
 
 func (s *stubOutputRollupClient) OutputAtBlock(_ context.Context, blockNum uint64) (*eth.OutputResponse, error) {
-	if s.err != nil {
-		return nil, s.err
+	if s.outputErr != nil {
+		return nil, s.outputErr
 	}
 	return &eth.OutputResponse{
 		OutputRoot: eth.Bytes32{byte(blockNum)},
+	}, nil
+}
+
+func (s *stubOutputRollupClient) SafeHeadAtL1Block(_ context.Context, l1BlockNum uint64) (*eth.SafeHeadResponse, error) {
+	s.requestedL1BlockNum = l1BlockNum
+	if s.safeHeadErr != nil {
+		return nil, s.safeHeadErr
+	}
+	return &eth.SafeHeadResponse{
+		L1Block: eth.BlockID{
+			Hash:   common.Hash{0x11},
+			Number: 4824,
+		},
+		SafeHead: eth.BlockID{
+			Hash:   common.Hash{0x22},
+			Number: s.safeHead,
+		},
 	}, nil
 }

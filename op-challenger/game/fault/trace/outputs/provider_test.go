@@ -142,3 +142,7 @@ func (s *stubRollupClient) OutputAtBlock(_ context.Context, blockNum uint64) (*e
 	}
 	return output, nil
 }
+
+func (s *stubRollupClient) SafeHeadAtL1Block(_ context.Context, l1BlockNum uint64) (*eth.SafeHeadResponse, error) {
+	return nil, errors.New("not supported")
+}

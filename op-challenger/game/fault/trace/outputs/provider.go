@@ -32,7 +32,7 @@ type OutputTraceProvider struct {
 	gameDepth      types.Depth
 }
 
-func NewTraceProviderFromInputs(logger log.Logger, prestateProvider types.PrestateProvider, rollupProvider OutputRootProvider, gameDepth types.Depth, prestateBlock, poststateBlock uint64) *OutputTraceProvider {
+func NewTraceProvider(logger log.Logger, prestateProvider types.PrestateProvider, rollupProvider OutputRootProvider, gameDepth types.Depth, prestateBlock, poststateBlock uint64) *OutputTraceProvider {
 	return &OutputTraceProvider{
 		PrestateProvider: prestateProvider,
 		logger:           logger,
