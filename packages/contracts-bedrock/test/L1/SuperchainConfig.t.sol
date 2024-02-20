@@ -97,3 +97,26 @@ contract SuperchainConfig_Unpause_Test is CommonTest {
         assertFalse(superchainConfig.paused());
     }
 }
+
+contract SuperchainConfig_SetFDGSafetyMode_Test is CommonTest {
+    event ConfigUpdate(SuperchainConfig.UpdateType indexed updateType, bytes data);
+
+    /// @dev Tests that `setFDGSafetyMode` successfully sets the safety mode value.
+    function test_setFDGSafetyMode_succeeds() external {
+        assertFalse(superchainConfig.fdgSafetyMode());
+        vm.expectEmit(address(superchainConfig));
+        emit ConfigUpdate(SuperchainConfig.UpdateType.FDG_SAFETY_MODE, abi.encode(true));
+
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.setFDGSafetyMode(true);
+        assertTrue(superchainConfig.fdgSafetyMode());
+    }
+
+    /// @dev Tests that `setFDGSafetyMode` reverts when called by a non-guardian.
+    function test_setFDGSafetyMode_notGuardian_reverts() external {
+        assertTrue(superchainConfig.guardian() != alice);
+        vm.expectRevert("SuperchainConfig: only guardian can enable safety mode");
+        vm.prank(alice);
+        superchainConfig.setFDGSafetyMode(true);
+    }
+}

@@ -91,9 +91,6 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     /// @notice Flag for the `initialize` function to prevent re-initialization.
     bool internal initialized;
 
-    /// @notice Flag for safety mode. If true, claimants bonds are returned to them  after calling `claimCredit`.
-    bool internal safetyMode;
-
     /// @notice Semantic version.
     /// @custom:semver 0.6.0
     string public constant version = "0.6.0";
@@ -571,7 +568,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
 
         // Remove the credit from the recipient prior to performing the external call.
         uint256 recipientCredit;
-        if (safetyMode) {
+        if (SUPERCHAIN_CONFIG.fdgSafetyMode()) {
             recipientCredit = bonds[_recipient];
             bonds[_recipient] = 0;
         } else {
@@ -632,21 +629,6 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     /// @notice Returns the bond payout delay.
     function bondPayoutDelay() external pure returns (Duration bondPayoutDelay_) {
         bondPayoutDelay_ = BOND_PAYOUT_DELAY;
-    }
-
-    ////////////////////////////////////////////////////////////////
-    //                        BOND WATCHER                        //
-    ////////////////////////////////////////////////////////////////
-
-    /// @notice Enables safety mode, which returns the bonds to the claimants upon resolution. This is only to be called
-    ///         in the event of a bug in the system, where defenders of the honest L2 state are not being rewarded. This
-    ///         will be removed in the future.
-    function enableSafetyMode() external {
-        // INVARIANT: `enableSafetyMode` can only be called by the `GUARDIAN` role.
-        if (msg.sender != SUPERCHAIN_CONFIG.guardian()) revert UnauthorizedCaller();
-
-        // Enable safety mode. Once enabled, it cannot be disabled.
-        safetyMode = true;
     }
 
     ////////////////////////////////////////////////////////////////

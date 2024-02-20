@@ -289,6 +289,8 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "SuperchainConfig", _sel: _getSel("paused()") });
         _addSpec({ _name: "SuperchainConfig", _sel: _getSel("unpause()"), _auth: Role.GUARDIAN });
         _addSpec({ _name: "SuperchainConfig", _sel: _getSel("version()") });
+        _addSpec({ _name: "SuperchainConfig", _sel: _getSel("setFDGSafetyMode(bool)"), _auth: Role.GUARDIAN });
+        _addSpec({ _name: "SuperchainConfig", _sel: _getSel("fdgSafetyMode()") });
 
         // SystemConfig
         _addSpec({ _name: "SystemConfig", _sel: _getSel("UNSAFE_BLOCK_SIGNER_SLOT()") });

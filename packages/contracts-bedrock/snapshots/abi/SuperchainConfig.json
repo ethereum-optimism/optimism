@@ -32,6 +32,19 @@
   },
   {
     "inputs": [],
+    "name": "fdgSafetyMode",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "guardian",
     "outputs": [
       {
@@ -85,6 +98,19 @@
       }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bool",
+        "name": "_isEnabled",
+        "type": "bool"
+      }
+    ],
+    "name": "setFDGSafetyMode",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {

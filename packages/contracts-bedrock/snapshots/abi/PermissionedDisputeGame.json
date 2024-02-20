@@ -286,13 +286,6 @@
   },
   {
     "inputs": [],
-    "name": "enableSafetyMode",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
     "name": "extraData",
     "outputs": [
       {
@@ -725,11 +718,6 @@
   {
     "inputs": [],
     "name": "OutOfOrderResolution",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "UnauthorizedCaller",
     "type": "error"
   },
   {

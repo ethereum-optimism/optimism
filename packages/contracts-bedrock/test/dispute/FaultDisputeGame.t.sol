@@ -758,7 +758,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
 
         // Enable safety mode
         vm.prank(superchainConfig.guardian());
-        gameProxy.enableSafetyMode();
+        superchainConfig.setFDGSafetyMode(true);
 
         vm.warp(block.timestamp + gameProxy.bondPayoutDelay().raw() + 1 seconds);
         gameProxy.claimCredit(address(this));
@@ -904,7 +904,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
 
         // Enable safety mode.
         vm.prank(superchainConfig.guardian());
-        gameProxy.enableSafetyMode();
+        superchainConfig.setFDGSafetyMode(true);
 
         vm.startPrank(address(reenter));
 
@@ -1022,21 +1022,6 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
             assertEq(dat, data[i - 1]);
             assertEq(datLen, expectedLen);
         }
-    }
-
-    /// @notice Tests that `enableSafetyMode` can always be called by the guardian.
-    function test_enableSafetyMode_guardian_succeeds() public {
-        vm.prank(superchainConfig.guardian());
-        gameProxy.enableSafetyMode();
-    }
-
-    /// @notice Tests that `enableSafetyMode` can never be called by a key that is not the guardian.
-    function test_enableSafetyMode_notGuardian_reverts(address _key) public {
-        vm.assume(_key != superchainConfig.guardian());
-
-        vm.prank(_key);
-        vm.expectRevert(UnauthorizedCaller.selector);
-        gameProxy.enableSafetyMode();
     }
 
     /// @dev Helper to return a pseudo-random claim

@@ -11,8 +11,10 @@ import { Storage } from "src/libraries/Storage.sol";
 contract SuperchainConfig is Initializable, ISemver {
     /// @notice Enum representing different types of updates.
     /// @custom:value GUARDIAN            Represents an update to the guardian.
+    /// @custom:value FDG_SAFETY_MODE     Represents an update to the FDG safety mode.
     enum UpdateType {
-        GUARDIAN
+        GUARDIAN,
+        FDG_SAFETY_MODE
     }
 
     /// @notice Whether or not the Superchain is paused.
@@ -35,8 +37,13 @@ contract SuperchainConfig is Initializable, ISemver {
     event ConfigUpdate(UpdateType indexed updateType, bytes data);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.1.0
-    string public constant version = "1.1.0";
+    /// @custom:semver 1.2.0
+    string public constant version = "1.2.0";
+
+    /// @notice Whether or not the dispute game is in safety mode. If true, claimants bonds are returned to them
+    ///         after calling `claimCredit`. This flag is global to allow for a single-step process to send the bonds
+    ///         back to the claimants.
+    bool public fdgSafetyMode;
 
     /// @notice Constructs the SuperchainConfig contract.
     constructor() {
@@ -90,5 +97,15 @@ contract SuperchainConfig is Initializable, ISemver {
     function _setGuardian(address _guardian) internal {
         Storage.setAddress(GUARDIAN_SLOT, _guardian);
         emit ConfigUpdate(UpdateType.GUARDIAN, abi.encode(_guardian));
+    }
+
+    /// @notice Enables safety mode, which returns the bonds to the claimants upon resolution in dispute games. This is
+    ///         only to be called in the event of a bug in the system, where defenders of the honest L2 state are not
+    ///         being rewarded. This will be removed in the future.
+    function setFDGSafetyMode(bool _isEnabled) external {
+        require(msg.sender == guardian(), "SuperchainConfig: only guardian can enable safety mode");
+
+        fdgSafetyMode = _isEnabled;
+        emit ConfigUpdate(UpdateType.FDG_SAFETY_MODE, abi.encode(_isEnabled));
     }
 }

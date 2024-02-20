@@ -68,12 +68,5 @@
     "offset": 1,
     "slot": "6",
     "type": "bool"
-  },
-  {
-    "bytes": "1",
-    "label": "safetyMode",
-    "offset": 2,
-    "slot": "6",
-    "type": "bool"
   }
 ]

@@ -40,8 +40,8 @@
     "sourceCodeHash": "0xbd56a23cd3221cb9d25029e80cd9f2afe2c615ae9c0b3956bf6ed373b8b805b6"
   },
   "src/L1/SuperchainConfig.sol": {
-    "initCodeHash": "0xa71c67640d6a25c750fef910a5fe85776ebb7bb18c677bb1b9b95c2f3f561b0c",
-    "sourceCodeHash": "0xd6a894e371c2c7182b5960c507491f81c3775dda0efedd29475f7c30ca07b004"
+    "initCodeHash": "0xcc4bfa31661922d8a9e1892583af1852514bee9fc48c0084ee9244151a3f64d7",
+    "sourceCodeHash": "0x7ac713f0b1ad521de11950f1b7b8e5cdced562710c3378f41d7f5fd904f5c257"
   },
   "src/L1/SystemConfig.sol": {
     "initCodeHash": "0xa14bfe090e923acbacb361d9aa60e0d56fc1dff158ddbd1dc221a5380679f37f",
@@ -96,8 +96,8 @@
     "sourceCodeHash": "0x1e5a6deded88804971fc1847c9eac65921771bff353437c0b29ed2f55513b984"
   },
   "src/dispute/FaultDisputeGame.sol": {
-    "initCodeHash": "0x24a823a762d873a53928d75e7c4e9af2bf8893a35674b3bf028feccd8b3a378f",
-    "sourceCodeHash": "0xeb1e7824d8771d225a67ce85c10a9216c5d5b420e71a0c89aca16e4b488f73e9"
+    "initCodeHash": "0xe53d43cf2463a4471ac0c572c6d517dfdb4e197c37d8aae7289779ebf724e962",
+    "sourceCodeHash": "0x4ef0f683863c37fd4c112d1b47e99e4f7174e963009516318b049bd415fc9d34"
   },
   "src/legacy/DeployerWhitelist.sol": {
     "initCodeHash": "0x8de80fb23b26dd9d849f6328e56ea7c173cd9e9ce1f05c9beea559d1720deb3d",
