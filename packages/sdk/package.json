@@ -48,7 +48,7 @@
     "@types/semver": "^7.5.6",
     "chai-as-promised": "^7.1.1",
     "ethereum-waffle": "^4.0.10",
-    "ethers": "^5.7.2",
+    "ethers": "^6.11.1",
     "hardhat": "^2.19.5",
     "hardhat-deploy": "^0.11.44",
     "isomorphic-fetch": "^3.0.0",
