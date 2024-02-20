@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
+	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -172,8 +173,8 @@ func (g *OutputGameHelper) MaxDepth(ctx context.Context) types.Depth {
 	return types.Depth(depth.Uint64())
 }
 
-func (g *OutputGameHelper) waitForClaim(ctx context.Context, errorMsg string, predicate func(claimIdx int64, claim ContractClaim) bool) (int64, ContractClaim) {
-	timedCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
+func (g *OutputGameHelper) waitForClaim(ctx context.Context, timeout time.Duration, errorMsg string, predicate func(claimIdx int64, claim ContractClaim) bool) (int64, ContractClaim) {
+	timedCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	var matchedClaim ContractClaim
 	var matchClaimIdx int64
@@ -255,6 +256,7 @@ func (g *OutputGameHelper) getClaim(ctx context.Context, claimIdx int64) Contrac
 func (g *OutputGameHelper) WaitForClaimAtDepth(ctx context.Context, depth types.Depth) {
 	g.waitForClaim(
 		ctx,
+		defaultTimeout,
 		fmt.Sprintf("Could not find claim depth %v", depth),
 		func(_ int64, claim ContractClaim) bool {
 			pos := types.NewPositionFromGIndex(claim.Position)
@@ -266,6 +268,7 @@ func (g *OutputGameHelper) WaitForClaimAtMaxDepth(ctx context.Context, countered
 	maxDepth := g.MaxDepth(ctx)
 	g.waitForClaim(
 		ctx,
+		defaultTimeout,
 		fmt.Sprintf("Could not find claim depth %v with countered=%v", maxDepth, countered),
 		func(_ int64, claim ContractClaim) bool {
 			pos := types.NewPositionFromGIndex(claim.Position)
@@ -448,6 +451,12 @@ func (g *OutputGameHelper) waitForNewClaim(ctx context.Context, checkPoint int64
 
 func (g *OutputGameHelper) AttackWithTransactOpts(ctx context.Context, claimIdx int64, claim common.Hash, opts *bind.TransactOpts) {
 	g.t.Logf("Attacking claim %v with value %v", claimIdx, claim)
+
+	claimData, err := g.game.ClaimData(&bind.CallOpts{Context: ctx}, big.NewInt(claimIdx))
+	g.require.NoError(err, "Failed to get claim data")
+	pos := types.NewPositionFromGIndex(claimData.Position)
+	opts = g.makeBondedTransactOpts(ctx, pos.Attack().ToGIndex(), opts)
+
 	tx, err := g.game.Attack(opts, big.NewInt(claimIdx), claim)
 	if err != nil {
 		g.require.NoErrorf(err, "Attack transaction did not send. Game state: \n%v", g.gameData(ctx))
@@ -464,7 +473,13 @@ func (g *OutputGameHelper) Attack(ctx context.Context, claimIdx int64, claim com
 
 func (g *OutputGameHelper) DefendWithTransactOpts(ctx context.Context, claimIdx int64, claim common.Hash, opts *bind.TransactOpts) {
 	g.t.Logf("Defending claim %v with value %v", claimIdx, claim)
-	tx, err := g.game.Defend(g.opts, big.NewInt(claimIdx), claim)
+
+	claimData, err := g.game.ClaimData(&bind.CallOpts{Context: ctx}, big.NewInt(claimIdx))
+	g.require.NoError(err, "Failed to get claim data")
+	pos := types.NewPositionFromGIndex(claimData.Position)
+	opts = g.makeBondedTransactOpts(ctx, pos.Defend().ToGIndex(), opts)
+
+	tx, err := g.game.Defend(opts, big.NewInt(claimIdx), claim)
 	if err != nil {
 		g.require.NoErrorf(err, "Defend transaction did not send. Game state: \n%v", g.gameData(ctx))
 	}
@@ -476,6 +491,14 @@ func (g *OutputGameHelper) DefendWithTransactOpts(ctx context.Context, claimIdx 
 
 func (g *OutputGameHelper) Defend(ctx context.Context, claimIdx int64, claim common.Hash) {
 	g.DefendWithTransactOpts(ctx, claimIdx, claim, g.opts)
+}
+
+func (g *OutputGameHelper) makeBondedTransactOpts(ctx context.Context, pos *big.Int, opts *bind.TransactOpts) *bind.TransactOpts {
+	bopts := *opts
+	bond, err := g.game.GetRequiredBond(&bind.CallOpts{Context: ctx}, pos)
+	g.require.NoError(err, "Failed to get required bond")
+	bopts.Value = bond
+	return &bopts
 }
 
 type ErrWithData interface {
@@ -556,7 +579,13 @@ func (g *OutputGameHelper) uploadPreimage(ctx context.Context, data *types.Preim
 	oracle := g.oracle(ctx)
 	boundOracle, err := bindings.NewPreimageOracle(oracle.Addr(), g.client)
 	g.require.NoError(err)
-	tx, err := boundOracle.LoadKeccak256PreimagePart(g.opts, new(big.Int).SetUint64(uint64(data.OracleOffset)), data.GetPreimageWithoutSize())
+	var tx *gethtypes.Transaction
+	switch data.OracleKey[0] {
+	case byte(preimage.KZGPointEvaluationKeyType):
+		tx, err = boundOracle.LoadKZGPointEvaluationPreimage(g.opts, data.GetPreimageWithoutSize())
+	default:
+		tx, err = boundOracle.LoadKeccak256PreimagePart(g.opts, new(big.Int).SetUint64(uint64(data.OracleOffset)), data.GetPreimageWithoutSize())
+	}
 	g.require.NoError(err, "Failed to load preimage part")
 	_, err = wait.ForReceiptOK(ctx, g.client, tx.Hash())
 	g.require.NoError(err)

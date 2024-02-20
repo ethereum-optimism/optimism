@@ -6,15 +6,11 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
+	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
-)
-
-var (
-	mockRootClaim = common.HexToHash("0x10")
 )
 
 func TestDetector_Detect(t *testing.T) {
@@ -22,42 +18,29 @@ func TestDetector_Detect(t *testing.T) {
 
 	t.Run("NoGames", func(t *testing.T) {
 		detector, metrics, _, _ := setupDetectorTest(t)
-		detector.Detect(context.Background(), []types.GameMetadata{})
-		metrics.Equals(t, 0, 0, 0)
-		metrics.Mapped(t, map[string]int{})
-	})
-
-	t.Run("MetadataFetchFails", func(t *testing.T) {
-		detector, metrics, creator, _ := setupDetectorTest(t)
-		creator.err = errors.New("boom")
-		detector.Detect(context.Background(), []types.GameMetadata{{}})
+		detector.Detect(context.Background(), []monTypes.EnrichedGameData{})
 		metrics.Equals(t, 0, 0, 0)
 		metrics.Mapped(t, map[string]int{})
 	})
 
 	t.Run("CheckAgreementFails", func(t *testing.T) {
-		detector, metrics, creator, rollup := setupDetectorTest(t)
+		detector, metrics, rollup, _ := setupDetectorTest(t)
 		rollup.err = errors.New("boom")
-		creator.loader = &mockMetadataLoader{status: types.GameStatusInProgress}
-		detector.Detect(context.Background(), []types.GameMetadata{{}})
+		detector.Detect(context.Background(), []monTypes.EnrichedGameData{{}})
 		metrics.Equals(t, 1, 0, 0) // Status should still be metriced here!
 		metrics.Mapped(t, map[string]int{})
 	})
 
 	t.Run("SingleGame", func(t *testing.T) {
-		detector, metrics, creator, _ := setupDetectorTest(t)
-		loader := &mockMetadataLoader{status: types.GameStatusInProgress}
-		creator.loader = loader
-		detector.Detect(context.Background(), []types.GameMetadata{{}})
+		detector, metrics, _, _ := setupDetectorTest(t)
+		detector.Detect(context.Background(), []monTypes.EnrichedGameData{{}})
 		metrics.Equals(t, 1, 0, 0)
 		metrics.Mapped(t, map[string]int{"in_progress": 1})
 	})
 
 	t.Run("MultipleGames", func(t *testing.T) {
-		detector, metrics, creator, _ := setupDetectorTest(t)
-		loader := &mockMetadataLoader{status: types.GameStatusInProgress}
-		creator.loader = loader
-		detector.Detect(context.Background(), []types.GameMetadata{{}, {}, {}})
+		detector, metrics, _, _ := setupDetectorTest(t)
+		detector.Detect(context.Background(), []monTypes.EnrichedGameData{{}, {}, {}})
 		metrics.Equals(t, 3, 0, 0)
 		metrics.Mapped(t, map[string]int{"in_progress": 3})
 	})
@@ -66,45 +49,45 @@ func TestDetector_Detect(t *testing.T) {
 func TestDetector_RecordBatch(t *testing.T) {
 	tests := []struct {
 		name   string
-		batch  detectionBatch
+		batch  monTypes.DetectionBatch
 		expect func(*testing.T, *mockDetectorMetricer)
 	}{
 		{
 			name:   "no games",
-			batch:  detectionBatch{},
+			batch:  monTypes.DetectionBatch{},
 			expect: func(t *testing.T, metrics *mockDetectorMetricer) {},
 		},
 		{
 			name:  "in_progress",
-			batch: detectionBatch{inProgress: 1},
+			batch: monTypes.DetectionBatch{InProgress: 1},
 			expect: func(t *testing.T, metrics *mockDetectorMetricer) {
 				require.Equal(t, 1, metrics.gameAgreement["in_progress"])
 			},
 		},
 		{
 			name:  "agree_defender_wins",
-			batch: detectionBatch{agreeDefenderWins: 1},
+			batch: monTypes.DetectionBatch{AgreeDefenderWins: 1},
 			expect: func(t *testing.T, metrics *mockDetectorMetricer) {
 				require.Equal(t, 1, metrics.gameAgreement["agree_defender_wins"])
 			},
 		},
 		{
 			name:  "disagree_defender_wins",
-			batch: detectionBatch{disagreeDefenderWins: 1},
+			batch: monTypes.DetectionBatch{DisagreeDefenderWins: 1},
 			expect: func(t *testing.T, metrics *mockDetectorMetricer) {
 				require.Equal(t, 1, metrics.gameAgreement["disagree_defender_wins"])
 			},
 		},
 		{
 			name:  "agree_challenger_wins",
-			batch: detectionBatch{agreeChallengerWins: 1},
+			batch: monTypes.DetectionBatch{AgreeChallengerWins: 1},
 			expect: func(t *testing.T, metrics *mockDetectorMetricer) {
 				require.Equal(t, 1, metrics.gameAgreement["agree_challenger_wins"])
 			},
 		},
 		{
 			name:  "disagree_challenger_wins",
-			batch: detectionBatch{disagreeChallengerWins: 1},
+			batch: monTypes.DetectionBatch{DisagreeChallengerWins: 1},
 			expect: func(t *testing.T, metrics *mockDetectorMetricer) {
 				require.Equal(t, 1, metrics.gameAgreement["disagree_challenger_wins"])
 			},
@@ -121,36 +104,8 @@ func TestDetector_RecordBatch(t *testing.T) {
 	}
 }
 
-func TestDetector_FetchGameMetadata(t *testing.T) {
-	t.Parallel()
-
-	t.Run("CreateContractFails", func(t *testing.T) {
-		detector, _, creator, _ := setupDetectorTest(t)
-		creator.err = errors.New("boom")
-		_, _, _, err := detector.fetchGameMetadata(context.Background(), types.GameMetadata{})
-		require.ErrorIs(t, err, creator.err)
-	})
-
-	t.Run("GetGameMetadataFails", func(t *testing.T) {
-		detector, _, creator, _ := setupDetectorTest(t)
-		loader := &mockMetadataLoader{err: errors.New("boom")}
-		creator.loader = loader
-		_, _, _, err := detector.fetchGameMetadata(context.Background(), types.GameMetadata{})
-		require.Error(t, err)
-	})
-
-	t.Run("Success", func(t *testing.T) {
-		detector, _, creator, _ := setupDetectorTest(t)
-		loader := &mockMetadataLoader{status: types.GameStatusInProgress}
-		creator.loader = loader
-		_, _, status, err := detector.fetchGameMetadata(context.Background(), types.GameMetadata{})
-		require.NoError(t, err)
-		require.Equal(t, types.GameStatusInProgress, status)
-	})
-}
-
 func TestDetector_CheckAgreement_Fails(t *testing.T) {
-	detector, _, _, rollup := setupDetectorTest(t)
+	detector, _, rollup, _ := setupDetectorTest(t)
 	rollup.err = errors.New("boom")
 	_, err := detector.checkAgreement(context.Background(), common.Address{}, 0, common.Hash{}, types.GameStatusInProgress)
 	require.ErrorIs(t, err, rollup.err)
@@ -158,46 +113,54 @@ func TestDetector_CheckAgreement_Fails(t *testing.T) {
 
 func TestDetector_CheckAgreement_Succeeds(t *testing.T) {
 	tests := []struct {
-		name        string
-		rootClaim   common.Hash
-		status      types.GameStatus
-		expectBatch func(*detectionBatch)
-		err         error
+		name           string
+		rootClaim      common.Hash
+		status         types.GameStatus
+		expectBatch    func(*monTypes.DetectionBatch)
+		expectErrorLog bool
+		expectStatus   types.GameStatus
+		err            error
 	}{
 		{
 			name: "in_progress",
-			expectBatch: func(batch *detectionBatch) {
-				require.Equal(t, 1, batch.inProgress)
+			expectBatch: func(batch *monTypes.DetectionBatch) {
+				require.Equal(t, 1, batch.InProgress)
 			},
 		},
 		{
-			name:      "agree_defender_wins",
-			rootClaim: mockRootClaim,
-			status:    types.GameStatusDefenderWon,
-			expectBatch: func(batch *detectionBatch) {
-				require.Equal(t, 1, batch.agreeDefenderWins)
+			name:         "agree_defender_wins",
+			rootClaim:    mockRootClaim,
+			status:       types.GameStatusDefenderWon,
+			expectStatus: types.GameStatusDefenderWon,
+			expectBatch: func(batch *monTypes.DetectionBatch) {
+				require.Equal(t, 1, batch.AgreeDefenderWins)
 			},
 		},
 		{
-			name:   "disagree_defender_wins",
-			status: types.GameStatusDefenderWon,
-			expectBatch: func(batch *detectionBatch) {
-				require.Equal(t, 1, batch.disagreeDefenderWins)
+			name:         "disagree_defender_wins",
+			status:       types.GameStatusDefenderWon,
+			expectStatus: types.GameStatusChallengerWon,
+			expectBatch: func(batch *monTypes.DetectionBatch) {
+				require.Equal(t, 1, batch.DisagreeDefenderWins)
 			},
+			expectErrorLog: true,
 		},
 		{
-			name:      "agree_challenger_wins",
-			rootClaim: mockRootClaim,
-			status:    types.GameStatusChallengerWon,
-			expectBatch: func(batch *detectionBatch) {
-				require.Equal(t, 1, batch.agreeChallengerWins)
+			name:         "agree_challenger_wins",
+			rootClaim:    mockRootClaim,
+			status:       types.GameStatusChallengerWon,
+			expectStatus: types.GameStatusDefenderWon,
+			expectBatch: func(batch *monTypes.DetectionBatch) {
+				require.Equal(t, 1, batch.AgreeChallengerWins)
 			},
+			expectErrorLog: true,
 		},
 		{
-			name:   "disagree_challenger_wins",
-			status: types.GameStatusChallengerWon,
-			expectBatch: func(batch *detectionBatch) {
-				require.Equal(t, 1, batch.disagreeChallengerWins)
+			name:         "disagree_challenger_wins",
+			status:       types.GameStatusChallengerWon,
+			expectStatus: types.GameStatusChallengerWon,
+			expectBatch: func(batch *monTypes.DetectionBatch) {
+				require.Equal(t, 1, batch.DisagreeChallengerWins)
 			},
 		},
 	}
@@ -205,86 +168,46 @@ func TestDetector_CheckAgreement_Succeeds(t *testing.T) {
 	for _, test := range tests {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
-			detector, _, _, _ := setupDetectorTest(t)
+			detector, _, _, logs := setupDetectorTest(t)
 			batch, err := detector.checkAgreement(context.Background(), common.Address{}, 0, test.rootClaim, test.status)
 			require.NoError(t, err)
 			test.expectBatch(&batch)
+
+			levelFilter := testlog.NewLevelFilter(log.LevelError)
+			if !test.expectErrorLog {
+				require.Empty(t, logs.FindLogs(levelFilter), "Should not log an error")
+			} else {
+				msgFilter := testlog.NewMessageFilter("Unexpected game result")
+				l := logs.FindLog(levelFilter, msgFilter)
+				require.NotNil(t, l, "Should have logged an error")
+				expectedResult := l.AttrValue("expectedResult")
+				require.Equal(t, test.expectStatus, expectedResult)
+				actualResult := l.AttrValue("actualResult")
+				require.Equal(t, test.status, actualResult)
+			}
 		})
 	}
 }
 
-func TestDetector_CheckRootAgreement(t *testing.T) {
-	t.Parallel()
-
-	t.Run("OutputFetchFails", func(t *testing.T) {
-		detector, _, _, rollup := setupDetectorTest(t)
-		rollup.err = errors.New("boom")
-		agree, err := detector.checkRootAgreement(context.Background(), 0, mockRootClaim)
-		require.ErrorIs(t, err, rollup.err)
-		require.False(t, agree)
-	})
-
-	t.Run("OutputMismatch", func(t *testing.T) {
-		detector, _, _, _ := setupDetectorTest(t)
-		agree, err := detector.checkRootAgreement(context.Background(), 0, common.Hash{})
-		require.NoError(t, err)
-		require.False(t, agree)
-	})
-
-	t.Run("OutputMatches", func(t *testing.T) {
-		detector, _, _, _ := setupDetectorTest(t)
-		agree, err := detector.checkRootAgreement(context.Background(), 0, mockRootClaim)
-		require.NoError(t, err)
-		require.True(t, agree)
-	})
-}
-
-func setupDetectorTest(t *testing.T) (*detector, *mockDetectorMetricer, *mockMetadataCreator, *stubRollupClient) {
-	logger := testlog.Logger(t, log.LvlDebug)
+func setupDetectorTest(t *testing.T) (*detector, *mockDetectorMetricer, *stubOutputValidator, *testlog.CapturingHandler) {
+	logger, capturedLogs := testlog.CaptureLogger(t, log.LvlDebug)
 	metrics := &mockDetectorMetricer{}
-	loader := &mockMetadataLoader{}
-	creator := &mockMetadataCreator{loader: loader}
-	rollupClient := &stubRollupClient{}
-	detector := newDetector(logger, metrics, creator, rollupClient)
-	return detector, metrics, creator, rollupClient
+	validator := &stubOutputValidator{}
+	detector := newDetector(logger, metrics, validator)
+	return detector, metrics, validator, capturedLogs
 }
 
-type stubRollupClient struct {
-	blockNum uint64
-	err      error
+type stubOutputValidator struct {
+	calls int
+	err   error
 }
 
-func (s *stubRollupClient) OutputAtBlock(ctx context.Context, blockNum uint64) (*eth.OutputResponse, error) {
-	s.blockNum = blockNum
-	return &eth.OutputResponse{OutputRoot: eth.Bytes32(mockRootClaim)}, s.err
-}
-
-type mockMetadataCreator struct {
-	calls  int
-	err    error
-	loader *mockMetadataLoader
-}
-
-func (m *mockMetadataCreator) CreateContract(game types.GameMetadata) (MetadataLoader, error) {
-	m.calls++
-	if m.err != nil {
-		return nil, m.err
+func (s *stubOutputValidator) CheckRootAgreement(ctx context.Context, blockNum uint64, rootClaim common.Hash) (bool, common.Hash, error) {
+	s.calls++
+	if s.err != nil {
+		return false, common.Hash{}, s.err
 	}
-	return m.loader, nil
-}
-
-type mockMetadataLoader struct {
-	calls  int
-	status types.GameStatus
-	err    error
-}
-
-func (m *mockMetadataLoader) GetGameMetadata(ctx context.Context) (uint64, common.Hash, types.GameStatus, error) {
-	m.calls++
-	if m.err != nil {
-		return 0, common.Hash{}, m.status, m.err
-	}
-	return 0, common.Hash{}, m.status, nil
+	return rootClaim == mockRootClaim, mockRootClaim, nil
 }
 
 type mockDetectorMetricer struct {

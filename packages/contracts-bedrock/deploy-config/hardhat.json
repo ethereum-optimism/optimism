@@ -55,5 +55,6 @@
   "proofMaturityDelaySeconds": 12,
   "disputeGameFinalityDelaySeconds": 6,
   "respectedGameType": 0,
-  "useFaultProofs": false
+  "useFaultProofs": false,
+  "fundDevAccounts": false
 }

@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -103,7 +104,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestL2OutputSubmitter(t *testing.T) {
-	InitParallel(t)
+	InitParallel(t, SkipOnFPAC)
 
 	cfg := DefaultSystemConfig(t)
 	cfg.NonFinalizedProposals = true // speed up the time till we see output proposals
@@ -155,11 +156,71 @@ func TestL2OutputSubmitter(t *testing.T) {
 			//
 			// NOTE: This assertion will change once the L2 output format is
 			// finalized.
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 			l2Output, err := rollupClient.OutputAtBlock(ctx, l2ooBlockNumber.Uint64())
 			require.Nil(t, err)
 			require.Equal(t, l2Output.OutputRoot[:], committedL2Output.OutputRoot[:])
+			break
+		}
+
+		select {
+		case <-timeoutCh:
+			t.Fatalf("State root oracle not updated")
+		case <-ticker.C:
+		}
+	}
+}
+
+func TestL2OutputSubmitterFPAC(t *testing.T) {
+	InitParallel(t, SkipOnNotFPAC)
+
+	cfg := DefaultSystemConfig(t)
+	cfg.NonFinalizedProposals = true // speed up the time till we see output proposals
+
+	sys, err := cfg.Start(t)
+	require.Nil(t, err, "Error starting up system")
+	defer sys.Close()
+
+	l1Client := sys.Clients["l1"]
+
+	rollupRPCClient, err := rpc.DialContext(context.Background(), sys.RollupNodes["sequencer"].HTTPEndpoint())
+	require.Nil(t, err)
+	rollupClient := sources.NewRollupClient(client.NewBaseRPCClient(rollupRPCClient))
+
+	disputeGameFactory, err := bindings.NewDisputeGameFactoryCaller(cfg.L1Deployments.DisputeGameFactoryProxy, l1Client)
+	require.Nil(t, err)
+
+	initialGameCount, err := disputeGameFactory.GameCount(&bind.CallOpts{})
+	require.Nil(t, err)
+
+	l2Verif := sys.Clients["verifier"]
+	_, err = geth.WaitForBlock(big.NewInt(6), l2Verif, 10*time.Duration(cfg.DeployConfig.L2BlockTime)*time.Second)
+	require.Nil(t, err)
+
+	timeoutCh := time.After(15 * time.Second)
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+	for {
+		latestGameCount, err := disputeGameFactory.GameCount(&bind.CallOpts{})
+		require.Nil(t, err)
+
+		if latestGameCount.Cmp(initialGameCount) > 0 {
+			committedL2Output, err := disputeGameFactory.GameAtIndex(&bind.CallOpts{}, new(big.Int).Sub(latestGameCount, common.Big1))
+			require.Nil(t, err)
+			proxy, err := bindings.NewFaultDisputeGameCaller(committedL2Output.Proxy, l1Client)
+			require.Nil(t, err)
+			committedOutputRoot, err := proxy.RootClaim(&bind.CallOpts{})
+			require.Nil(t, err)
+
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			extradata, err := proxy.ExtraData(&bind.CallOpts{})
+			require.Nil(t, err)
+			gameBlockNumber := new(big.Int).SetBytes(extradata[0:32])
+			l2Output, err := rollupClient.OutputAtBlock(ctx, gameBlockNumber.Uint64())
+			require.Nil(t, err)
+			require.Equal(t, l2Output.OutputRoot[:], committedOutputRoot[:])
 			break
 		}
 
@@ -335,7 +396,7 @@ func TestConfirmationDepth(t *testing.T) {
 	<-time.After(time.Duration((cfg.DeployConfig.SequencerWindowSize+verConfDepth+3)*cfg.DeployConfig.L1BlockTime) * time.Second)
 
 	// within a second, get both L1 and L2 verifier and sequencer block heads
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	l1Head, err := l1Client.BlockByNumber(ctx, nil)
 	require.NoError(t, err)
@@ -388,7 +449,7 @@ func TestPendingGasLimit(t *testing.T) {
 	l2Seq := sys.Clients["sequencer"]
 
 	checkGasLimit := func(client *ethclient.Client, number *big.Int, expected uint64) *types.Header {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		header, err := client.HeaderByNumber(ctx, number)
 		cancel()
 		require.NoError(t, err)
@@ -467,7 +528,7 @@ func TestMissingBatchE2E(t *testing.T) {
 	require.Nil(t, err, "Waiting for block on verifier")
 
 	// Assert that the transaction is not found on the verifier
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	_, err = l2Verif.TransactionReceipt(ctx, receipt.TxHash)
 	require.Equal(t, ethereum.NotFound, err, "Found transaction in verifier when it should not have been included")
@@ -477,7 +538,7 @@ func TestMissingBatchE2E(t *testing.T) {
 	require.Nil(t, err, "timeout waiting for L2 reorg on sequencer safe head")
 
 	// Assert that the reconciliation process did an L2 reorg on the sequencer to remove the invalid block
-	ctx2, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx2, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	block, err := l2Seq.BlockByNumber(ctx2, receipt.BlockNumber)
 	if err != nil {
@@ -1030,7 +1091,7 @@ func TestWithdrawals(t *testing.T) {
 	require.Nil(t, err)
 
 	// Start L2 balance
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	startBalanceBeforeDeposit, err := l2Verif.BalanceAt(ctx, fromAddr, nil)
 	require.Nil(t, err)
@@ -1043,7 +1104,7 @@ func TestWithdrawals(t *testing.T) {
 	})
 
 	// Confirm L2 balance
-	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	endBalanceAfterDeposit, err := wait.ForBalanceChange(ctx, l2Verif, fromAddr, startBalanceBeforeDeposit)
 	require.Nil(t, err)
@@ -1053,7 +1114,7 @@ func TestWithdrawals(t *testing.T) {
 	require.Equal(t, mintAmount, diff, "Did not get expected balance change after mint")
 
 	// Start L2 balance for withdrawal
-	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	startBalanceBeforeWithdrawal, err := l2Seq.BalanceAt(ctx, fromAddr, nil)
 	require.Nil(t, err)
@@ -1065,12 +1126,12 @@ func TestWithdrawals(t *testing.T) {
 	})
 
 	// Verify L2 balance after withdrawal
-	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	header, err := l2Verif.HeaderByNumber(ctx, receipt.BlockNumber)
 	require.Nil(t, err)
 
-	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	endBalanceAfterWithdrawal, err := wait.ForBalanceChange(ctx, l2Seq, fromAddr, startBalanceBeforeWithdrawal)
 	require.Nil(t, err)
@@ -1083,15 +1144,15 @@ func TestWithdrawals(t *testing.T) {
 	require.Equal(t, withdrawAmount, diff)
 
 	// Take start balance on L1
-	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	startBalanceBeforeFinalize, err := l1Client.BalanceAt(ctx, fromAddr, nil)
 	require.Nil(t, err)
 
-	proveReceipt, finalizeReceipt := ProveAndFinalizeWithdrawal(t, cfg, sys, "verifier", ethPrivKey, receipt)
+	proveReceipt, finalizeReceipt, resolveClaimReceipt, resolveReceipt := ProveAndFinalizeWithdrawal(t, cfg, sys, "verifier", ethPrivKey, receipt)
 
 	// Verify balance after withdrawal
-	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	endBalanceAfterFinalize, err := wait.ForBalanceChange(ctx, l1Client, fromAddr, startBalanceBeforeFinalize)
 	require.Nil(t, err)
@@ -1103,6 +1164,12 @@ func TestWithdrawals(t *testing.T) {
 	proveFee := new(big.Int).Mul(new(big.Int).SetUint64(proveReceipt.GasUsed), proveReceipt.EffectiveGasPrice)
 	finalizeFee := new(big.Int).Mul(new(big.Int).SetUint64(finalizeReceipt.GasUsed), finalizeReceipt.EffectiveGasPrice)
 	fees = new(big.Int).Add(proveFee, finalizeFee)
+	if e2eutils.UseFPAC() {
+		resolveClaimFee := new(big.Int).Mul(new(big.Int).SetUint64(resolveClaimReceipt.GasUsed), resolveClaimReceipt.EffectiveGasPrice)
+		resolveFee := new(big.Int).Mul(new(big.Int).SetUint64(resolveReceipt.GasUsed), resolveReceipt.EffectiveGasPrice)
+		fees = new(big.Int).Add(fees, resolveClaimFee)
+		fees = new(big.Int).Add(fees, resolveFee)
+	}
 	withdrawAmount = withdrawAmount.Sub(withdrawAmount, fees)
 	require.Equal(t, withdrawAmount, diff)
 }
@@ -1426,7 +1493,7 @@ func TestBatcherMultiTx(t *testing.T) {
 	_, err = geth.WaitForBlock(big.NewInt(10), l2Seq, time.Duration(cfg.DeployConfig.L2BlockTime*15)*time.Second)
 	require.Nil(t, err, "Waiting for L2 blocks")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	l1Number, err := l1Client.BlockNumber(ctx)
 	require.Nil(t, err)
@@ -1453,7 +1520,7 @@ func TestBatcherMultiTx(t *testing.T) {
 }
 
 func latestBlock(t *testing.T, client *ethclient.Client) uint64 {
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	blockAfter, err := client.BlockNumber(ctx)
 	require.Nil(t, err, "Error getting latest block")
@@ -1649,7 +1716,7 @@ func TestRequiredProtocolVersionChangeAndHalt(t *testing.T) {
 	// Checking if the engine is down is not trivial in op-e2e.
 	// In op-geth we have halting tests covering the Engine API, in op-e2e we instead check if the API stops.
 	_, err = retry.Do(context.Background(), 10, retry.Fixed(time.Second*10), func() (struct{}, error) {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		_, err := sys.Clients["verifier"].ChainID(ctx)
 		cancel()
 		if err != nil && !errors.Is(err, ctx.Err()) { // waiting for client to stop responding to chainID requests

@@ -35,6 +35,6 @@ func main() {
 	fmt.Println("# base fee scalar     :", scalar)
 	fmt.Println("# blob base fee scalar:", blobScalar)
 	fmt.Printf("# v1 hex encoding  : 0x%x\n", n[:])
-	fmt.Println("# uint value for the 'scalar' parameter in SystemConfig.setGasConfig():")
+	fmt.Println("# uint value for the 'scalar' parameter in SystemConfigProxy.setGasConfig():")
 	fmt.Println(i)
 }

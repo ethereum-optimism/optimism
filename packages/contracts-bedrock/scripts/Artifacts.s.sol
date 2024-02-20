@@ -72,7 +72,7 @@ abstract contract Artifacts {
 
     /// @notice Populates the addresses to be used in a script based on a JSON file.
     ///         The format of the JSON file is the same that it output by this script
-    ///         as well as the JSON files that contain addresses in the `superchain-ops`
+    ///         as well as the JSON files that contain addresses in the `superchain-registry`
     ///         repo. The JSON key is the name of the contract and the value is an address.
     function _loadAddresses(string memory _path) internal {
         string[] memory commands = new string[](3);

@@ -62,4 +62,19 @@ func TestPreimageKeyTypes(t *testing.T) {
 		// String encoding
 		require.Equal(t, "0x00000000000000000000000000000000000000000000000000000000000000ff", actual.String())
 	})
+
+	t.Run("KZGPointEvaluationKey", func(t *testing.T) {
+		fauxHash := [32]byte{}
+		fauxHash[31] = 0xFF
+		actual := KZGPointEvaluationKey(fauxHash)
+
+		// PreimageKey encoding
+		expected := [32]byte{}
+		expected[0] = byte(KZGPointEvaluationKeyType)
+		expected[31] = 0xFF
+		require.Equal(t, expected, actual.PreimageKey())
+
+		// String encoding
+		require.Equal(t, "0x00000000000000000000000000000000000000000000000000000000000000ff", actual.String())
+	})
 }

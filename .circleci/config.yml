@@ -12,7 +12,7 @@ parameters:
     default: ${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images
   base_image:
     type: string
-    default: ubuntu-2204:2022.07.1
+    default: default
 
 orbs:
   go: circleci/go@1.8.0
@@ -87,12 +87,16 @@ commands:
       channel:
         type: string
         default: C03N11M0BBN
+      mentions:
+        type: string
+        default: ""
     steps:
       - slack/notify:
           channel: << parameters.channel >>
           event: fail
           template: basic_fail_1
           branch_pattern: develop
+          mentions: "<< parameters.mentions >>"
 
 jobs:
   cannon-go-lint-and-test:
@@ -184,7 +188,13 @@ jobs:
             FOUNDRY_PROFILE: ci
           command: pnpm build
       - run:
-          name: Generate allocs
+          name: Generate FPAC allocs
+          command: DEVNET_FPAC="true" make devnet-allocs
+      - run:
+          name: Copy FPAC allocs to .devnet-fpac
+          command: cp -r .devnet/ .devnet-fault-proofs/
+      - run:
+          name: Generate non-FPAC allocs
           command: make devnet-allocs
       - persist_to_workspace:
           root: "."
@@ -197,6 +207,8 @@ jobs:
             - "packages/contracts-bedrock/tsconfig.build.tsbuildinfo"
             - ".devnet/allocs-l1.json"
             - ".devnet/addresses.json"
+            - ".devnet-fault-proofs/allocs-l1.json"
+            - ".devnet-fault-proofs/addresses.json"
             - "packages/contracts-bedrock/deploy-config/devnetL1.json"
             - "packages/contracts-bedrock/deployments/devnetL1"
 
@@ -329,6 +341,19 @@ jobs:
                 name: Tag
                 command: |
                   ./ops/scripts/ci-docker-tag-op-stack-release.sh <<pipeline.parameters.registry>>/<<pipeline.parameters.repo>> $CIRCLE_TAG $CIRCLE_SHA1
+      # TODO -- setup image signing
+      #- when:
+      #    condition: "<<parameters.publish>>"
+      #steps:
+      #  - gcp-oidc-authenticate:
+      #      service_account_email: GCP_SERVICE_ATTESTOR_ACCOUNT_EMAIL
+      #  - run:
+      #      name: Sign
+      #      command: |
+      #        cd ./ops/signer
+      #        export IMAGE_PATH="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>:<<pipeline.git.revision>>"
+      #        pip3 install -r requirements.txt
+      #        python3 sign_image.py
 
   contracts-bedrock-coverage:
     docker:
@@ -811,6 +836,9 @@ jobs:
 
   go-e2e-test:
     parameters:
+      fpac:
+        type: string
+        default: ''
       module:
         description: Go Module Name
         type: string
@@ -825,6 +853,13 @@ jobs:
         description: Whether to notify on failure
         type: boolean
         default: false
+      mentions:
+        description: Slack user or group to mention when notifying of failures
+        type: string
+        default: ""
+    environment:
+      DEVNET_FPAC: 'false'
+      OP_E2E_USE_FPAC: 'false'
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: xlarge
@@ -836,6 +871,16 @@ jobs:
     parallelism: <<parameters.parallelism>>
     steps:
       - checkout
+      - when:
+          condition:
+            equal: ['-fault-proofs', <<parameters.fpac>>]
+          steps:
+            - run:
+                name: Set DEVNET_FPAC = true
+                command: echo 'export DEVNET_FPAC=true' >> $BASH_ENV
+            - run:
+                name: Set OP_E2E_USE_FPAC = true
+                command: echo 'export OP_E2E_USE_FPAC=true' >> $BASH_ENV
       - check-changed:
           patterns: op-(.+),cannon,contracts-bedrock
       - run:
@@ -853,8 +898,8 @@ jobs:
           name: Load devnet-allocs
           command: |
             mkdir -p .devnet
-            cp /tmp/workspace/.devnet/allocs-l1.json .devnet/allocs-l1.json
-            cp /tmp/workspace/.devnet/addresses.json .devnet/addresses.json
+            cp /tmp/workspace/.devnet<<parameters.fpac>>/allocs-l1.json .devnet/allocs-l1.json
+            cp /tmp/workspace/.devnet<<parameters.fpac>>/addresses.json .devnet/addresses.json
             cp /tmp/workspace/packages/contracts-bedrock/deploy-config/devnetL1.json packages/contracts-bedrock/deploy-config/devnetL1.json
             cp -r /tmp/workspace/packages/contracts-bedrock/deployments/devnetL1 packages/contracts-bedrock/deployments/devnetL1
       - run:
@@ -882,7 +927,8 @@ jobs:
       - when:
           condition: "<<parameters.notify>>"
           steps:
-            - notify-failures-on-develop
+            - notify-failures-on-develop:
+                mentions: "<<parameters.mentions>>"
 
   go-lint-test-build:
     parameters:
@@ -929,12 +975,29 @@ jobs:
                 working_directory: <<parameters.working_directory>>
 
   indexer-tests:
+    parameters:
+      fpac:
+        type: string
+        default: ''
+    environment:
+      DEVNET_FPAC: 'false'
+      OP_E2E_USE_FPAC: 'false'
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
       - image: cimg/postgres:14.1
     resource_class: xlarge
     steps:
       - checkout
+      - when:
+          condition:
+            equal: ['fault-proofs', <<parameters.fpac>>]
+          steps:
+            - run:
+                name: Set DEVNET_FPAC = true
+                command: echo 'export DEVNET_FPAC=true' >> $BASH_ENV
+            - run:
+                name: Set OP_E2E_USE_FPAC = true
+                command: echo 'export OP_E2E_USE_FPAC=true' >> $BASH_ENV
       - check-changed:
           patterns: indexer
       - run:
@@ -1033,7 +1096,7 @@ jobs:
     machine:
       image: <<pipeline.parameters.base_image>>
     parameters:
-      devnet_fpac:
+      fpac:
         type: string
     environment:
       DOCKER_BUILDKIT: 1
@@ -1044,7 +1107,7 @@ jobs:
       - checkout
       - when:
           condition:
-            equal: ['fault-proofs', <<parameters.devnet_fpac>>]
+            equal: ['-fault-proofs', <<parameters.fpac>>]
           steps:
             - run:
                 name: Set DEVNET_FPAC = true
@@ -1432,7 +1495,8 @@ jobs:
           command: |
             make verify-sepolia
           working_directory: op-program
-      - notify-failures-on-develop
+      - notify-failures-on-develop:
+          mentions: "@proofs-squad"
 
   op-program-compat:
     docker:
@@ -1584,7 +1648,11 @@ workflows:
           name: proxyd-tests
           binary_name: proxyd
           working_directory: proxyd
-      - indexer-tests
+      - indexer-tests:
+          name: indexer-tests<< matrix.fpac >>
+          matrix:
+            parameters:
+              fpac: ["", "-fault-proofs"]
       - semgrep-scan
       - go-mod-download
       - fuzz-golang:
@@ -1663,7 +1731,10 @@ workflows:
           module: op-service
           requires: ["go-mod-download"]
       - go-e2e-test:
-          name: op-e2e-HTTP-tests
+          name: op-e2e-HTTP-tests<< matrix.fpac >>
+          matrix:
+            parameters:
+              fpac: ["", "-fault-proofs"]
           module: op-e2e
           target: test-http
           parallelism: 4
@@ -1671,7 +1742,10 @@ workflows:
             - go-mod-download
             - pnpm-monorepo
       - go-e2e-test:
-          name: op-e2e-action-tests
+          name: op-e2e-action-tests<< matrix.fpac >>
+          matrix:
+            parameters:
+              fpac: ["", "-fault-proofs"]
           module: op-e2e
           target: test-actions
           parallelism: 1
@@ -1687,7 +1761,10 @@ workflows:
             - pnpm-monorepo
             - cannon-prestate
       - go-e2e-test:
-          name: op-e2e-ext-geth-tests
+          name: op-e2e-ext-geth-tests<< matrix.fpac >>
+          matrix:
+            parameters:
+              fpac: ["", "-fault-proofs"]
           module: op-e2e
           target: test-external-geth
           requires:
@@ -1796,7 +1873,7 @@ workflows:
       - devnet:
           matrix:
             parameters:
-              devnet_fpac: ["legacy", "fault-proofs"]
+              fpac: ["legacy", "fault-proofs"]
           requires:
             - pnpm-monorepo
             - op-batcher-docker-build
@@ -1914,6 +1991,21 @@ workflows:
             branches:
               ignore: /.*/
           docker_name: op-challenger
+          docker_tags: <<pipeline.git.revision>>
+          requires: ['op-stack-go-docker-build-release']
+          platforms: "linux/amd64,linux/arm64"
+          publish: true
+          release: true
+          context:
+            - oplabs-gcr-release
+      - docker-build:
+          name: op-dispute-mon-docker-release
+          filters:
+            tags:
+              only: /^op-dispute-mon\/v.*/
+            branches:
+              ignore: /.*/
+          docker_name: op-dispute-mon
           docker_tags: <<pipeline.git.revision>>
           requires: ['op-stack-go-docker-build-release']
           platforms: "linux/amd64,linux/arm64"
@@ -2081,6 +2173,7 @@ workflows:
           target: test-cannon
           parallelism: 4
           notify: true
+          mentions: "@proofs-squad"
           requires:
             - pnpm-monorepo
             - cannon-prestate

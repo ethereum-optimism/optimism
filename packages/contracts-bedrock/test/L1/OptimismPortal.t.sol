@@ -43,6 +43,10 @@ contract OptimismPortal_Test is CommonTest {
         assertEq(address(opImpl.systemConfig()), address(0));
         assertEq(address(opImpl.superchainConfig()), address(0));
         assertEq(opImpl.l2Sender(), Constants.DEFAULT_L2_SENDER);
+        (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum) = opImpl.params();
+        assertEq(prevBaseFee, 1 gwei);
+        assertEq(prevBoughtGas, 0);
+        assertEq(prevBlockNum, uint64(block.number));
     }
 
     /// @dev Tests that the initializer sets the correct values.
@@ -59,6 +63,10 @@ contract OptimismPortal_Test is CommonTest {
         assertEq(address(optimismPortal.superchainConfig()), address(superchainConfig));
         assertEq(optimismPortal.l2Sender(), Constants.DEFAULT_L2_SENDER);
         assertEq(optimismPortal.paused(), false);
+        (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum) = optimismPortal.params();
+        assertEq(prevBaseFee, 1 gwei);
+        assertEq(prevBoughtGas, 0);
+        assertEq(prevBlockNum, uint64(block.number));
     }
 
     /// @dev Tests that `pause` successfully pauses

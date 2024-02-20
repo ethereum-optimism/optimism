@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-program/client/l1/test"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
 )
 
@@ -90,4 +91,21 @@ func TestCachingOracle_GetBlobs(t *testing.T) {
 	delete(stub.Blobs[l1BlockRef], indexedBlobHash)
 	actualBlob = oracle.GetBlob(l1BlockRef, indexedBlobHash)
 	require.Equal(t, &blob, actualBlob)
+}
+
+func TestCachingOracle_KZGPointEvaluation(t *testing.T) {
+	stub := test.NewStubOracle(t)
+	oracle := NewCachingOracle(stub)
+
+	input := []byte{0x01, 0x02, 0x03, 0x04}
+
+	// Initial call retrieves from the stub
+	stub.PtEvals[crypto.Keccak256Hash(input)] = true
+	actualPtEval := oracle.KZGPointEvaluation(input)
+	require.True(t, actualPtEval)
+
+	// Later calls should retrieve from cache
+	delete(stub.PtEvals, crypto.Keccak256Hash(input))
+	actualPtEval = oracle.KZGPointEvaluation(input)
+	require.True(t, actualPtEval)
 }

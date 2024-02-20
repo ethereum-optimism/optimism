@@ -9,7 +9,7 @@ import { Chains } from "scripts/Chains.sol";
 
 // Global constant for the `useFaultProofs` slot in the DeployConfig contract, which can be overridden in the testing
 // environment.
-bytes32 constant USE_FAULT_PROOFS_SLOT = bytes32(uint256(61));
+bytes32 constant USE_FAULT_PROOFS_SLOT = bytes32(uint256(63));
 
 /// @title DeployConfig
 /// @notice Represents the configuration required to deploy the system. It is expected
@@ -35,6 +35,7 @@ contract DeployConfig is Script {
     address public l2OutputOracleProposer;
     address public l2OutputOracleChallenger;
     uint256 public finalizationPeriodSeconds;
+    bool public fundDevAccounts;
     address public proxyAdminOwner;
     address public baseFeeVaultRecipient;
     uint256 public baseFeeVaultMinimumWithdrawalAmount;
@@ -42,6 +43,7 @@ contract DeployConfig is Script {
     uint256 public l1FeeVaultMinimumWithdrawalAmount;
     address public sequencerFeeVaultRecipient;
     uint256 public sequencerFeeVaultMinimumWithdrawalAmount;
+    uint256 public sequencerFeeVaultWithdrawalNetwork;
     string public governanceTokenName;
     string public governanceTokenSymbol;
     address public governanceTokenOwner;
@@ -49,6 +51,7 @@ contract DeployConfig is Script {
     uint256 public l2GenesisBlockBaseFeePerGas;
     uint256 public gasPriceOracleOverhead;
     uint256 public gasPriceOracleScalar;
+    bool public enableGovernance;
     uint256 public eip1559Denominator;
     uint256 public eip1559Elasticity;
     uint256 public faultGameAbsolutePrestate;
@@ -94,6 +97,7 @@ contract DeployConfig is Script {
         l2OutputOracleProposer = stdJson.readAddress(_json, "$.l2OutputOracleProposer");
         l2OutputOracleChallenger = stdJson.readAddress(_json, "$.l2OutputOracleChallenger");
         finalizationPeriodSeconds = stdJson.readUint(_json, "$.finalizationPeriodSeconds");
+        fundDevAccounts = stdJson.readBool(_json, "$.fundDevAccounts");
         proxyAdminOwner = stdJson.readAddress(_json, "$.proxyAdminOwner");
         baseFeeVaultRecipient = stdJson.readAddress(_json, "$.baseFeeVaultRecipient");
         baseFeeVaultMinimumWithdrawalAmount = stdJson.readUint(_json, "$.baseFeeVaultMinimumWithdrawalAmount");
@@ -101,6 +105,7 @@ contract DeployConfig is Script {
         l1FeeVaultMinimumWithdrawalAmount = stdJson.readUint(_json, "$.l1FeeVaultMinimumWithdrawalAmount");
         sequencerFeeVaultRecipient = stdJson.readAddress(_json, "$.sequencerFeeVaultRecipient");
         sequencerFeeVaultMinimumWithdrawalAmount = stdJson.readUint(_json, "$.sequencerFeeVaultMinimumWithdrawalAmount");
+        sequencerFeeVaultWithdrawalNetwork = stdJson.readUint(_json, "$.sequencerFeeVaultWithdrawalNetwork");
         governanceTokenName = stdJson.readString(_json, "$.governanceTokenName");
         governanceTokenSymbol = stdJson.readString(_json, "$.governanceTokenSymbol");
         governanceTokenOwner = stdJson.readAddress(_json, "$.governanceTokenOwner");
@@ -108,6 +113,7 @@ contract DeployConfig is Script {
         l2GenesisBlockBaseFeePerGas = stdJson.readUint(_json, "$.l2GenesisBlockBaseFeePerGas");
         gasPriceOracleOverhead = stdJson.readUint(_json, "$.gasPriceOracleOverhead");
         gasPriceOracleScalar = stdJson.readUint(_json, "$.gasPriceOracleScalar");
+        enableGovernance = stdJson.readBool(_json, "$.enableGovernance");
         eip1559Denominator = stdJson.readUint(_json, "$.eip1559Denominator");
         eip1559Elasticity = stdJson.readUint(_json, "$.eip1559Elasticity");
         systemConfigStartBlock = stdJson.readUint(_json, "$.systemConfigStartBlock");

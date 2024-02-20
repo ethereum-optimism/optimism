@@ -6,6 +6,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 type StubOracle struct {
@@ -22,15 +23,19 @@ type StubOracle struct {
 
 	// Blobs maps indexed blob hash to l1 block ref to blob
 	Blobs map[eth.L1BlockRef]map[eth.IndexedBlobHash]*eth.Blob
+
+	// PtEvals maps hashed input to whether the KZG point evaluation was successful
+	PtEvals map[common.Hash]bool
 }
 
 func NewStubOracle(t *testing.T) *StubOracle {
 	return &StubOracle{
-		t:      t,
-		Blocks: make(map[common.Hash]eth.BlockInfo),
-		Txs:    make(map[common.Hash]types.Transactions),
-		Rcpts:  make(map[common.Hash]types.Receipts),
-		Blobs:  make(map[eth.L1BlockRef]map[eth.IndexedBlobHash]*eth.Blob),
+		t:       t,
+		Blocks:  make(map[common.Hash]eth.BlockInfo),
+		Txs:     make(map[common.Hash]types.Transactions),
+		Rcpts:   make(map[common.Hash]types.Receipts),
+		Blobs:   make(map[eth.L1BlockRef]map[eth.IndexedBlobHash]*eth.Blob),
+		PtEvals: make(map[common.Hash]bool),
 	}
 }
 
@@ -68,4 +73,12 @@ func (o StubOracle) GetBlob(ref eth.L1BlockRef, blobHash eth.IndexedBlobHash) *e
 		o.t.Fatalf("unknown blob hash %s %d", blobHash.Hash, blobHash.Index)
 	}
 	return blob
+}
+
+func (o StubOracle) KZGPointEvaluation(input []byte) bool {
+	result, ok := o.PtEvals[crypto.Keccak256Hash(input)]
+	if !ok {
+		o.t.Fatalf("unknown kzg point evaluation %x", input)
+	}
+	return result
 }

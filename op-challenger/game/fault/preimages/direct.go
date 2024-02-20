@@ -33,7 +33,7 @@ func (d *DirectPreimageUploader) UploadPreimage(ctx context.Context, claimIdx ui
 	if data == nil {
 		return ErrNilPreimageData
 	}
-	d.log.Info("Updating oracle data", "key", data.OracleKey)
+	d.log.Info("Updating oracle data", "key", fmt.Sprintf("%x", data.OracleKey))
 	candidate, err := d.contract.UpdateOracleTx(ctx, claimIdx, data)
 	if err != nil {
 		return fmt.Errorf("failed to create pre-image oracle tx: %w", err)

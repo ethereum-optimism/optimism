@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
 )
 
@@ -121,4 +122,19 @@ func (o *StubStateOracle) CodeByHash(hash common.Hash) []byte {
 		o.t.Fatalf("no value for code %v", hash)
 	}
 	return data
+}
+
+type StubKZGOracle struct {
+	t       *testing.T
+	PtEvals map[common.Hash]bool
+	Calls   int
+}
+
+func (o *StubKZGOracle) KZGPointEvaluation(input []byte) bool {
+	result, ok := o.PtEvals[crypto.Keccak256Hash(input)]
+	if !ok {
+		o.t.Fatalf("no value for point evaluation %v", input)
+	}
+	o.Calls++
+	return result
 }
