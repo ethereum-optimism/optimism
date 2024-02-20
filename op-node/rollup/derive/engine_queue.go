@@ -95,10 +95,8 @@ type LocalEngineControl interface {
 // SafeHeadListener is called when the safe head is updated.
 // The safe head may advance by more than one block in a single update
 // The l1Block specified is the first L1 block that includes sufficient information to derive the new safe head
-type SafeHeadListener func(newSafeHead eth.L2BlockRef, l1Block eth.BlockID) error
-
-var NoSafeHeadListener = func(_ eth.L2BlockRef, _ eth.BlockID) error {
-	return nil
+type SafeHeadListener interface {
+	SafeHeadUpdated(newSafeHead eth.L2BlockRef, l1Block eth.BlockID) error
 }
 
 // Max memory used for buffering unsafe payloads
@@ -433,7 +431,7 @@ func (eq *EngineQueue) notifyNewSafeHead(safeHead eth.L2BlockRef) error {
 		// No change, no need to notify
 		return nil
 	}
-	if err := eq.safeHeadNotifs(safeHead, eq.origin.ID()); err != nil {
+	if err := eq.safeHeadNotifs.SafeHeadUpdated(safeHead, eq.origin.ID()); err != nil {
 		// At this point our state is in a potentially inconsistent state as we've updated the safe head
 		// in the execution client but failed to post process it. Reset the pipeline to load the right state
 		return NewResetError(fmt.Errorf("safe head notifications failed: %w", err))

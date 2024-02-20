@@ -16,6 +16,11 @@ type OutputResponse struct {
 	Status                *SyncStatus `json:"syncStatus"`
 }
 
+type SafeHeadResponse struct {
+	L1Hash   common.Hash `json:"earliestL1Hash"`
+	SafeHead BlockID     `json:"safeHead"`
+}
+
 var (
 	ErrInvalidOutput        = errors.New("invalid output")
 	ErrInvalidOutputVersion = errors.New("invalid output version")

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"sync/atomic"
 	"time"
 
@@ -35,6 +36,12 @@ import (
 
 var ErrAlreadyClosed = errors.New("node is already closed")
 
+type closableSafeDB interface {
+	derive.SafeHeadListener
+	safeDBReader
+	io.Closer
+}
+
 type OpNode struct {
 	log        log.Logger
 	appVersion string
@@ -53,7 +60,7 @@ type OpNode struct {
 	tracer    Tracer                // tracer to get events for testing/debugging
 	runCfg    *RuntimeConfig        // runtime configurables
 
-	safeDB *safedb.SafeDB
+	safeDB closableSafeDB
 
 	rollupHalt string // when to halt the rollup, disabled if empty
 
@@ -134,7 +141,7 @@ func (n *OpNode) init(ctx context.Context, cfg *Config, snapshotLog log.Logger) 
 		return fmt.Errorf("failed to init the P2P stack: %w", err)
 	}
 	// Only expose the server at the end, ensuring all RPC backend components are initialized.
-	if err := n.initRPCServer(ctx, cfg); err != nil {
+	if err := n.initRPCServer(cfg); err != nil {
 		return fmt.Errorf("failed to init the RPC server: %w", err)
 	}
 	if err := n.initMetricsServer(cfg); err != nil {
@@ -383,7 +390,6 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config, snapshotLog log.Logger
 	if cfg.Plasma.Enabled {
 		n.log.Info("Plasma DA enabled", "da_server", cfg.Plasma.DAServerURL)
 	}
-	safeHeadListener := derive.NoSafeHeadListener
 	if cfg.SafeDBPath != "" {
 		n.log.Info("Safe head database enabled", "path", cfg.SafeDBPath)
 		safeDB, err := safedb.NewSafeDB(n.log, cfg.SafeDBPath)
@@ -391,14 +397,15 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config, snapshotLog log.Logger
 			return fmt.Errorf("failed to create safe head database at %v: %w", cfg.SafeDBPath, err)
 		}
 		n.safeDB = safeDB
-		safeHeadListener = safeDB.SafeHeadUpdated
+	} else {
+		n.safeDB = safedb.Disabled
 	}
-	n.l2Driver = driver.NewDriver(&cfg.Driver, &cfg.Rollup, n.l2Source, n.l1Source, n.beacon, n, n, n.log, snapshotLog, n.metrics, cfg.ConfigPersistence, safeHeadListener, &cfg.Sync, sequencerConductor, plasmaDA)
+	n.l2Driver = driver.NewDriver(&cfg.Driver, &cfg.Rollup, n.l2Source, n.l1Source, n.beacon, n, n, n.log, snapshotLog, n.metrics, cfg.ConfigPersistence, n.safeDB, &cfg.Sync, sequencerConductor, plasmaDA)
 	return nil
 }
 
-func (n *OpNode) initRPCServer(ctx context.Context, cfg *Config) error {
-	server, err := newRPCServer(ctx, &cfg.RPC, &cfg.Rollup, n.l2Source.L2Client, n.l2Driver, n.log, n.appVersion, n.metrics)
+func (n *OpNode) initRPCServer(cfg *Config) error {
+	server, err := newRPCServer(&cfg.RPC, &cfg.Rollup, n.l2Source.L2Client, n.l2Driver, n.safeDB, n.log, n.appVersion, n.metrics)
 	if err != nil {
 		return err
 	}

@@ -33,6 +33,10 @@ type driverClient interface {
 	OnUnsafeL2Payload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) error
 }
 
+type safeDBReader interface {
+	SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (l1Hash common.Hash, l2Hash eth.BlockID, err error)
+}
+
 type adminAPI struct {
 	*rpc.CommonAdminAPI
 	dr driverClient
@@ -89,15 +93,17 @@ type nodeAPI struct {
 	config *rollup.Config
 	client l2EthClient
 	dr     driverClient
+	safeDB safeDBReader
 	log    log.Logger
 	m      metrics.RPCMetricer
 }
 
-func NewNodeAPI(config *rollup.Config, l2Client l2EthClient, dr driverClient, log log.Logger, m metrics.RPCMetricer) *nodeAPI {
+func NewNodeAPI(config *rollup.Config, l2Client l2EthClient, dr driverClient, safeDB safeDBReader, log log.Logger, m metrics.RPCMetricer) *nodeAPI {
 	return &nodeAPI{
 		config: config,
 		client: l2Client,
 		dr:     dr,
+		safeDB: safeDB,
 		log:    log,
 		m:      m,
 	}
@@ -123,6 +129,19 @@ func (n *nodeAPI) OutputAtBlock(ctx context.Context, number hexutil.Uint64) (*et
 		WithdrawalStorageRoot: common.Hash(output.MessagePasserStorageRoot),
 		StateRoot:             common.Hash(output.StateRoot),
 		Status:                status,
+	}, nil
+}
+
+func (n *nodeAPI) SafeHeadAtL1Block(ctx context.Context, number hexutil.Uint64) (*eth.SafeHeadResponse, error) {
+	recordDur := n.m.RecordRPCServerRequest("optimism_safeHeadAtL1Block")
+	defer recordDur()
+	l1Hash, safeHead, err := n.safeDB.SafeHeadAtL1(ctx, uint64(number))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get safe head at l1 block %s: %w", number, err)
+	}
+	return &eth.SafeHeadResponse{
+		L1Hash:   l1Hash,
+		SafeHead: safeHead,
 	}, nil
 }
 

@@ -46,14 +46,14 @@ func ValueL1BlockNum(l1Hash common.Hash, l2Hash common.Hash, l2BlockNum uint64) 
 	return val
 }
 
-func DecodeValueL1BlockNum(val []byte) (l1Hash common.Hash, l2Hash common.Hash, l2BlockNum uint64, err error) {
+func DecodeValueL1BlockNum(val []byte) (l1Hash common.Hash, l2 eth.BlockID, err error) {
 	if len(val) != 72 {
 		err = ErrInvalidEntry
 		return
 	}
 	copy(l1Hash[:], val[:32])
-	copy(l2Hash[:], val[32:64])
-	l2BlockNum = binary.BigEndian.Uint64(val[64:])
+	copy(l2.Hash[:], val[32:64])
+	l2.Number = binary.BigEndian.Uint64(val[64:])
 	return
 }
 
@@ -93,7 +93,7 @@ func (d *SafeDB) SafeHeadUpdated(safeHead eth.L2BlockRef, l1Head eth.BlockID) er
 	return nil
 }
 
-func (d *SafeDB) SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (l1Hash common.Hash, l2Hash common.Hash, l2BlockNum uint64, err error) {
+func (d *SafeDB) SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (l1Hash common.Hash, safeHead eth.BlockID, err error) {
 	d.m.RLock()
 	defer d.m.RUnlock()
 	iter, err := d.db.NewIterWithContext(ctx, &pebble.IterOptions{
@@ -113,7 +113,7 @@ func (d *SafeDB) SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (l1Hash co
 	if err != nil {
 		return
 	}
-	l1Hash, l2Hash, l2BlockNum, err = DecodeValueL1BlockNum(val)
+	l1Hash, safeHead, err = DecodeValueL1BlockNum(val)
 	return
 }
 
