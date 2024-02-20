@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { SafeCall } from "src/libraries/SafeCall.sol";
+import { L1Block } from "src/L2/L1Block.sol";
 
 /// @custom:upgradeable
 /// @title CrossL2Inbox
@@ -14,7 +15,7 @@ abstract contract CrossL2Inbox is Initializable {
         uint256 blocknumber;
         uint256 logIndex;
         uint256 timestamp;
-        uint256 chainid;
+        uint256 chainId;
     }
 
     // bytes32(uint256(keccak256("crossl2inbox.identifier.origin")) - 1)
@@ -31,6 +32,12 @@ abstract contract CrossL2Inbox is Initializable {
 
     // bytes32(uint256(keccak256("crossl2inbox.identifier.chainid")) - 1)
     bytes32 public constant CHAINID_SLOT = 0x6e0446e8b5098b8c8193f964f1b567ec3a2bdaeba33d36acb85c1f1d3f92d313;
+
+    L1Block public l1Block;
+
+    function initialize(address _l1Block) public initializer {
+        l1Block = L1Block(_l1Block);
+    }
 
     function origin() public view returns (address _origin) {
         assembly {
@@ -56,24 +63,29 @@ abstract contract CrossL2Inbox is Initializable {
         }
     }
 
-    function chainid() public view returns (uint256 _chainid) {
+    function chainId() public view returns (uint256 _chainId) {
         assembly {
-            _chainid := tload(CHAINID_SLOT)
+            _chainId := tload(CHAINID_SLOT)
         }
     }
 
     function executeMessage(address _target, bytes calldata _msg, Identifier calldata _id) public payable {
         require(msg.sender == tx.origin);
         require(_id.timestamp <= block.timestamp);
-        //require(L1Block.isInDependencySet(_id.chainid));
+
+        // same size in memory as chainId in Identifier
+        uint256 chainId_;
 
         assembly {
             tstore(ORIGIN_SLOT, mload(_id))
             tstore(BLOCKNUMBER_SLOT, mload(add(_id, 0x20)))
             tstore(LOG_INDEX_SLOT, mload(add(_id, 0x40)))
             tstore(TIMESTAMP_SLOT, mload(add(_id, 0x60)))
-            tstore(CHAINID_SLOT, mload(add(_id, 0x80)))
+            chainId_ := mload(add(_id, 0x80))
+            tstore(CHAINID_SLOT, chainId_)
         }
+
+        require(l1Block.isInDependencySet(chainId_));
 
         bool success = SafeCall.call({ _target: _target, _gas: gasleft(), _value: msg.value, _calldata: _msg });
 
