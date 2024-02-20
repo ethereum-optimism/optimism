@@ -305,7 +305,11 @@ func TestOutputCannonStepWithKZGPointEvaluation(t *testing.T) {
 		receipt := sendKZGPointEvaluationTx(t, sys, "sequencer", sys.Cfg.Secrets.Alice)
 		precompileBlock := receipt.BlockNumber
 		t.Logf("KZG Point Evaluation block number: %d", precompileBlock)
-		//require.NoError(t, wait.ForSafeBlock(ctx, sys.RollupClient("sequencer"), precompileBlock.Uint64()))
+		require.NoError(t, wait.ForSafeBlock(ctx, sys.RollupClient("sequencer"), precompileBlock.Uint64()))
+		rc := sys.RollupClient("sequencer")
+		output, err := rc.OutputAtBlock(ctx, precompileBlock.Uint64())
+		require.NoError(t, err)
+		t.Logf("KZG Point Evaluation output L1 origin=%v", output.BlockRef.L1Origin)
 
 		disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
 		game := disputeGameFactory.StartOutputCannonGame(ctx, "sequencer", precompileBlock.Uint64(), common.Hash{0x01, 0xaa})
