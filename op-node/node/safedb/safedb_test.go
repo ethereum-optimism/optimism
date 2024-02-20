@@ -2,6 +2,8 @@ package safedb
 
 import (
 	"context"
+	"math"
+	"slices"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -126,4 +128,13 @@ func TestTruncateDataWhenSafeHeadGoesBackwards(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, l1c.Hash, actualL1)
 	require.Equal(t, l2c.ID(), actualL2)
+}
+
+func TestKeysFollowNaturalByteOrdering(t *testing.T) {
+	vals := []uint64{0, 1, math.MaxUint32 - 1, math.MaxUint32, math.MaxUint32 + 1, math.MaxUint64 - 1, math.MaxUint64}
+	for i := 1; i < len(vals); i++ {
+		prev := SafeByL1BlockNumKey.Of(vals[i-1])
+		cur := SafeByL1BlockNumKey.Of(vals[i])
+		require.True(t, slices.Compare(prev, cur) < 0, "Expected %v key %x to be less than %v key %x", vals[i-1], prev, vals[i], cur)
+	}
 }
