@@ -56,8 +56,10 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 	}
 
 	var depositContractAddress common.Address
+	var systemConfigProxyAddress common.Address
 	if addrs, ok := superchain.Addresses[chainID]; ok {
 		depositContractAddress = common.Address(addrs.OptimismPortalProxy)
+		systemConfigProxyAddress = common.Address(addrs.SystemConfigProxy)
 	} else {
 		return nil, fmt.Errorf("unable to retrieve deposit contract address")
 	}
@@ -114,7 +116,7 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 		FjordTime:              superChain.Config.FjordTime,
 		BatchInboxAddress:      common.Address(chConfig.BatchInboxAddr),
 		DepositContractAddress: depositContractAddress,
-		L1SystemConfigAddress:  common.Address(chConfig.SystemConfigAddr),
+		L1SystemConfigAddress:  systemConfigProxyAddress,
 	}
 	if superChain.Config.ProtocolVersionsAddr != nil { // Set optional protocol versions address
 		cfg.ProtocolVersionsAddress = common.Address(*superChain.Config.ProtocolVersionsAddr)

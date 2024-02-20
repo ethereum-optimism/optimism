@@ -89,7 +89,7 @@ func GetContractVersions(ctx context.Context, addresses *superchain.AddressList,
 	if err != nil {
 		return versions, fmt.Errorf("OptimismPortal: %w", err)
 	}
-	versions.SystemConfig, err = getVersion(ctx, common.Address(chainConfig.SystemConfigAddr), backend)
+	versions.SystemConfig, err = getVersion(ctx, common.Address(addresses.SystemConfigProxy), backend)
 	if err != nil {
 		return versions, fmt.Errorf("SystemConfig: %w", err)
 	}
