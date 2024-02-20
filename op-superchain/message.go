@@ -21,11 +21,6 @@ type MessageIdentifier struct {
 	ChainId     uint64
 }
 
-type MessagePayload struct {
-	// changes: not the entire log
-	Log *types.Log
-}
-
 func MessagePayloadBytes(log *types.Log) []byte {
 	msg := []byte{}
 	for _, topic := range log.Topics {
