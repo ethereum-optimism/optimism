@@ -2,8 +2,10 @@ package node
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
@@ -136,7 +138,9 @@ func (n *nodeAPI) SafeHeadAtL1Block(ctx context.Context, number hexutil.Uint64) 
 	recordDur := n.m.RecordRPCServerRequest("optimism_safeHeadAtL1Block")
 	defer recordDur()
 	l1Hash, safeHead, err := n.safeDB.SafeHeadAtL1(ctx, uint64(number))
-	if err != nil {
+	if errors.Is(err, safedb.ErrNotFound) {
+		return nil, err
+	} else if err != nil {
 		return nil, fmt.Errorf("failed to get safe head at l1 block %s: %w", number, err)
 	}
 	return &eth.SafeHeadResponse{
