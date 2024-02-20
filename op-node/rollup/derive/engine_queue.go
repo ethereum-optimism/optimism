@@ -108,7 +108,7 @@ const maxUnsafePayloadsMemory = 500 * 1024 * 1024
 // The beacon chain on mainnet has 32 slots per epoch,
 // and new finalization events happen at most 4 epochs behind the head.
 // And then we add 1 to make pruning easier by leaving room for a new item without pruning the 32*4.
-const finalityLookback = 4*32 + 1
+const finalityLookback = 8*4*32 + 1
 
 // finalityDelay is the number of L1 blocks to traverse before trying to finalize L2 blocks again.
 // We do not want to do this too often, since it requires fetching a L1 block by number, so no cache data.

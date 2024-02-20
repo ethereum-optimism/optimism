@@ -99,6 +99,10 @@ func (f *RPCReceiptsFetcher) FetchReceipts(ctx context.Context, block eth.BlockI
 		err = fmt.Errorf("unknown receipt fetching method: %d", uint64(m))
 	}
 
+	if len(result) != len(txHashes) {
+		err = fmt.Errorf("got %d receipts, but expected %d", len(result), len(txHashes))
+	}
+
 	if err != nil {
 		f.OnReceiptsMethodErr(m, err)
 		return nil, err

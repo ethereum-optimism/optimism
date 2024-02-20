@@ -281,6 +281,12 @@ var (
 		EnvVars: prefixEnvVars("CONDUCTOR_RPC_TIMEOUT"),
 		Value:   time.Second * 1,
 	}
+	FinalityLookBack = &cli.Uint64Flag{
+		Name:    "sequencer.finality-look-back",
+		Usage:   "Number parent chain blocks of to keep in memory to determine finality.",
+		EnvVars: prefixEnvVars("SEQUENCER_FINALITY_LOOK_BACK"),
+		Value:   8*4*32 + 1,
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -324,6 +330,7 @@ var optionalFlags = []cli.Flag{
 	ConductorEnabledFlag,
 	ConductorRpcFlag,
 	ConductorRpcTimeoutFlag,
+	FinalityLookBack,
 }
 
 var DeprecatedFlags = []cli.Flag{
