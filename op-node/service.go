@@ -279,8 +279,9 @@ func NewSyncConfig(ctx *cli.Context, log log.Logger) (*sync.Config, error) {
 		return nil, err
 	}
 	cfg := &sync.Config{
-		SyncMode:           mode,
-		SkipSyncStartCheck: ctx.Bool(flags.SkipSyncStartCheck.Name),
+		SyncMode:                  mode,
+		SkipSyncStartCheck:        ctx.Bool(flags.SkipSyncStartCheck.Name),
+		SequencerFinalityLookback: ctx.Uint64(flags.SequencerFinalityLookback.Name),
 	}
 	if ctx.Bool(flags.L2EngineSyncEnabled.Name) {
 		cfg.SyncMode = sync.ELSync

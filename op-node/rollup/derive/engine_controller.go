@@ -45,14 +45,15 @@ type ExecEngine interface {
 }
 
 type EngineController struct {
-	engine     ExecEngine // Underlying execution engine RPC
-	log        log.Logger
-	metrics    Metrics
-	syncMode   sync.Mode
-	syncStatus syncStatusEnum
-	rollupCfg  *rollup.Config
-	elStart    time.Time
-	clock      clock.Clock
+	engine                    ExecEngine // Underlying execution engine RPC
+	log                       log.Logger
+	metrics                   Metrics
+	syncMode                  sync.Mode
+	syncStatus                syncStatusEnum
+	rollupCfg                 *rollup.Config
+	elStart                   time.Time
+	clock                     clock.Clock
+	sequencerFinalityLookback uint64
 
 	// Block Head State
 	unsafeHead      eth.L2BlockRef
@@ -68,20 +69,21 @@ type EngineController struct {
 	safeAttrs    *AttributesWithParent
 }
 
-func NewEngineController(engine ExecEngine, log log.Logger, metrics Metrics, rollupCfg *rollup.Config, syncMode sync.Mode) *EngineController {
+func NewEngineController(engine ExecEngine, log log.Logger, metrics Metrics, rollupCfg *rollup.Config, syncConfig *sync.Config) *EngineController {
 	syncStatus := syncStatusCL
-	if syncMode == sync.ELSync {
+	if syncConfig.SyncMode == sync.ELSync {
 		syncStatus = syncStatusWillStartEL
 	}
 
 	return &EngineController{
-		engine:     engine,
-		log:        log,
-		metrics:    metrics,
-		rollupCfg:  rollupCfg,
-		syncMode:   syncMode,
-		syncStatus: syncStatus,
-		clock:      clock.SystemClock,
+		engine:                    engine,
+		log:                       log,
+		metrics:                   metrics,
+		rollupCfg:                 rollupCfg,
+		syncMode:                  syncConfig.SyncMode,
+		syncStatus:                syncStatus,
+		clock:                     clock.SystemClock,
+		sequencerFinalityLookback: syncConfig.SequencerFinalityLookback,
 	}
 }
 

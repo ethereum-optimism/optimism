@@ -180,6 +180,12 @@ var (
 		EnvVars: prefixEnvVars("SEQUENCER_L1_CONFS"),
 		Value:   4,
 	}
+	SequencerFinalityLookback = &cli.Uint64Flag{
+		Name:    "sequencer.finality-lookback",
+		Usage:   "The amount of L1<>L2 relations to track for finalization purposes, one per L1 block.",
+		EnvVars: prefixEnvVars("SEQUENCER_FINALITY_LOOKBACK"),
+		Value:   4*32 + 1,
+	}
 	L1EpochPollIntervalFlag = &cli.DurationFlag{
 		Name:    "l1.epoch-poll-interval",
 		Usage:   "Poll interval for retrieving new L1 epoch updates such as safe and finalized block changes. Disabled if 0 or negative.",
@@ -321,6 +327,7 @@ var optionalFlags = []cli.Flag{
 	SequencerStoppedFlag,
 	SequencerMaxSafeLagFlag,
 	SequencerL1Confs,
+	SequencerFinalityLookback,
 	L1EpochPollIntervalFlag,
 	RuntimeConfigReloadIntervalFlag,
 	RPCEnableAdmin,

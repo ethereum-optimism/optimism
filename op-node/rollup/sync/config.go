@@ -70,4 +70,19 @@ type Config struct {
 	// Note: We probably need to detect the condition that snap sync has not complete when we do a restart prior to running sync-start if we are doing
 	// snap sync with a genesis finalization data.
 	SkipSyncStartCheck bool `json:"skip_sync_start_check"`
+
+	// SequencerFinalityLookback defines the amount of L1<>L2 relations to track for finalization purposes, one per L1 block.
+	//
+	// When L1 finalizes blocks, it finalizes finalityLookback blocks behind the L1 head.
+	// Non-finality may take longer, but when it does finalize again, it is within this range of the L1 head.
+	// Thus we only need to retain the L1<>L2 derivation relation data of this many L1 blocks.
+	//
+	// In the event of older finalization signals, misconfiguration, or insufficient L1<>L2 derivation relation data,
+	// then we may miss the opportunity to finalize more L2 blocks.
+	// This does not cause any divergence, it just causes lagging finalization status.
+	//
+	// The beacon chain on mainnet has 32 slots per epoch,
+	// and new finalization events happen at most 4 epochs behind the head.
+	// And then we add 1 to make pruning easier by leaving room for a new item without pruning the 32*4.
+	SequencerFinalityLookback uint64 `json:"sequencer_finality_lookback"`
 }
