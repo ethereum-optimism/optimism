@@ -22,7 +22,7 @@ var (
 type SafeDB struct {
 	// m ensures all read iterators are closed before closing the database by preventing concurrent read and write
 	// operations (with close considered a write operation).
-	m   *sync.RWMutex
+	m   sync.RWMutex
 	log log.Logger
 	db  *pebble.DB
 
@@ -34,24 +34,26 @@ type SafeDB struct {
 func KeyL1BlockNum(num uint64) []byte {
 	key := make([]byte, 0, 9)
 	key = append(key, 0)
-	key = binary.LittleEndian.AppendUint64(key, num)
+	key = binary.BigEndian.AppendUint64(key, num)
 	return key
 }
 
-func ValueL1BlockNum(l1Hash common.Hash, l2Hash common.Hash) []byte {
-	val := make([]byte, 0, 64)
+func ValueL1BlockNum(l1Hash common.Hash, l2Hash common.Hash, l2BlockNum uint64) []byte {
+	val := make([]byte, 0, 72)
 	val = append(val, l1Hash.Bytes()...)
 	val = append(val, l2Hash.Bytes()...)
+	val = binary.BigEndian.AppendUint64(val, l2BlockNum)
 	return val
 }
 
-func DecodeValueL1BlockNum(val []byte) (l1Hash common.Hash, l2Hash common.Hash, err error) {
-	if len(val) != 64 {
+func DecodeValueL1BlockNum(val []byte) (l1Hash common.Hash, l2Hash common.Hash, l2BlockNum uint64, err error) {
+	if len(val) != 72 {
 		err = ErrInvalidEntry
 		return
 	}
 	copy(l1Hash[:], val[:32])
-	copy(l2Hash[:], val[32:])
+	copy(l2Hash[:], val[32:64])
+	l2BlockNum = binary.BigEndian.Uint64(val[64:])
 	return
 }
 
@@ -79,7 +81,7 @@ func (d *SafeDB) SafeHeadUpdated(safeHead eth.L2BlockRef, l1Head eth.BlockID) er
 	if err := batch.DeleteRange(KeyL1BlockNum(l1Head.Number+1), KeyL1BlockNum(math.MaxUint64), d.writeOpts); err != nil {
 		return fmt.Errorf("failed to truncate safe head entries: %w", err)
 	}
-	if err := batch.Set(KeyL1BlockNum(l1Head.Number), ValueL1BlockNum(l1Head.Hash, safeHead.Hash), d.writeOpts); err != nil {
+	if err := batch.Set(KeyL1BlockNum(l1Head.Number), ValueL1BlockNum(l1Head.Hash, safeHead.Hash, safeHead.Number), d.writeOpts); err != nil {
 		// TODO(client-pod#593): Add tests to ensure we don't lose data here
 		// We do in fact lose this update here. Even if we didn't the correct behaviour is to retry the exact same write
 		// so maybe we should just keep retrying here instead of returning an error?
@@ -91,7 +93,7 @@ func (d *SafeDB) SafeHeadUpdated(safeHead eth.L2BlockRef, l1Head eth.BlockID) er
 	return nil
 }
 
-func (d *SafeDB) SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (l1Hash common.Hash, l2Hash common.Hash, err error) {
+func (d *SafeDB) SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (l1Hash common.Hash, l2Hash common.Hash, l2BlockNum uint64, err error) {
 	d.m.RLock()
 	defer d.m.RUnlock()
 	iter, err := d.db.NewIterWithContext(ctx, &pebble.IterOptions{
@@ -111,7 +113,7 @@ func (d *SafeDB) SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (l1Hash co
 	if err != nil {
 		return
 	}
-	l1Hash, l2Hash, err = DecodeValueL1BlockNum(val)
+	l1Hash, l2Hash, l2BlockNum, err = DecodeValueL1BlockNum(val)
 	return
 }
 
