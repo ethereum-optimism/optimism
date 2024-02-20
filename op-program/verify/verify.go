@@ -7,16 +7,19 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-program/host"
 	"github.com/ethereum-optimism/optimism/op-program/host/config"
+	"github.com/ethereum-optimism/optimism/op-service/dial"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -24,18 +27,18 @@ import (
 
 func Run(l1RpcUrl string, l1RpcKind string, l2RpcUrl string, l2OracleAddr common.Address, dataDir string, network string, chainCfg *params.ChainConfig) error {
 	ctx := context.Background()
-	l1RpcClient, err := rpc.Dial(l1RpcUrl)
+	logger := oplog.DefaultCLIConfig()
+	logger.Level = log.LevelDebug
+
+	setupLog := oplog.NewLogger(os.Stderr, logger)
+	l1Client, err := dial.DialEthClientWithTimeout(ctx, dial.DefaultDialTimeout, setupLog, l1RpcUrl)
 	if err != nil {
 		return fmt.Errorf("dial L1 client: %w", err)
 	}
-	l1Client := ethclient.NewClient(l1RpcClient)
-
-	l2RpcClient, err := rpc.Dial(l2RpcUrl)
+	l2Client, err := dial.DialEthClientWithTimeout(ctx, dial.DefaultDialTimeout, setupLog, l2RpcUrl)
 	if err != nil {
 		return fmt.Errorf("dial L2 client: %w", err)
 	}
-	l2Client := ethclient.NewClient(l2RpcClient)
-
 	outputOracle, err := bindings.NewL2OutputOracle(l2OracleAddr, l1Client)
 	if err != nil {
 		return fmt.Errorf("create output oracle bindings: %w", err)
@@ -43,7 +46,9 @@ func Run(l1RpcUrl string, l1RpcKind string, l2RpcUrl string, l2OracleAddr common
 
 	// Find L1 finalized block. Can't be re-orged.
 	l1BlockNum := big.NewInt(int64(rpc.FinalizedBlockNumber))
-	l1HeadBlock, err := l1Client.BlockByNumber(ctx, l1BlockNum)
+	l1HeadBlock, err := retryOp(ctx, func() (*types.Block, error) {
+		return l1Client.BlockByNumber(ctx, l1BlockNum)
+	})
 	if err != nil {
 		return fmt.Errorf("find L1 head: %w", err)
 	}
@@ -52,21 +57,27 @@ func Run(l1RpcUrl string, l1RpcKind string, l2RpcUrl string, l2OracleAddr common
 	l1CallOpts := &bind.CallOpts{Context: ctx, BlockNumber: l1BlockNum}
 
 	// Find the latest output root published in this finalized block
-	latestOutputIndex, err := outputOracle.LatestOutputIndex(l1CallOpts)
+	latestOutputIndex, err := retryOp(ctx, func() (*big.Int, error) {
+		return outputOracle.LatestOutputIndex(l1CallOpts)
+	})
 	if err != nil {
 		return fmt.Errorf("fetch latest output index: %w", err)
 	}
-	output, err := outputOracle.GetL2Output(l1CallOpts, latestOutputIndex)
+	output, err := retryOp(ctx, func() (bindings.TypesOutputProposal, error) {
+		return outputOracle.GetL2Output(l1CallOpts, latestOutputIndex)
+	})
 	if err != nil {
 		return fmt.Errorf("fetch l2 output %v: %w", latestOutputIndex, err)
 	}
 
 	// Use the previous output as the agreed starting point
-	agreedOutput, err := outputOracle.GetL2Output(l1CallOpts, new(big.Int).Sub(latestOutputIndex, common.Big1))
+	agreedOutput, err := retryOp(ctx, func() (bindings.TypesOutputProposal, error) {
+		return outputOracle.GetL2Output(l1CallOpts, new(big.Int).Sub(latestOutputIndex, common.Big1))
+	})
 	if err != nil {
 		return fmt.Errorf("fetch l2 output before %v: %w", latestOutputIndex, err)
 	}
-	l2BlockAtOutput, err := l2Client.BlockByNumber(ctx, agreedOutput.L2BlockNumber)
+	l2BlockAtOutput, err := retryOp(ctx, func() (*types.Block, error) { return l2Client.BlockByNumber(ctx, agreedOutput.L2BlockNumber) })
 	if err != nil {
 		return fmt.Errorf("retrieve agreed block: %w", err)
 	}
@@ -113,8 +124,6 @@ func Run(l1RpcUrl string, l1RpcKind string, l2RpcUrl string, l2OracleAddr common
 	}
 	fmt.Printf("Configuration: %s\n", argsStr)
 
-	logger := oplog.DefaultCLIConfig()
-	logger.Level = log.LevelDebug
 	rollupCfg, err := rollup.LoadOPStackRollupConfig(chainCfg.ChainID.Uint64())
 	if err != nil {
 		return fmt.Errorf("failed to load rollup config: %w", err)
@@ -146,4 +155,8 @@ func Run(l1RpcUrl string, l1RpcKind string, l2RpcUrl string, l2OracleAddr common
 		return fmt.Errorf("offline mode failed: %w", err)
 	}
 	return nil
+}
+
+func retryOp[T any](ctx context.Context, op func() (T, error)) (T, error) {
+	return retry.Do(ctx, 10, retry.Fixed(time.Second*2), op)
 }
