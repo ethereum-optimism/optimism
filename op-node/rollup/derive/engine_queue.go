@@ -95,21 +95,6 @@ type LocalEngineControl interface {
 // Max memory used for buffering unsafe payloads
 const maxUnsafePayloadsMemory = 500 * 1024 * 1024
 
-// finalityLookback defines the amount of L1<>L2 relations to track for finalization purposes, one per L1 block.
-//
-// When L1 finalizes blocks, it finalizes finalityLookback blocks behind the L1 head.
-// Non-finality may take longer, but when it does finalize again, it is within this range of the L1 head.
-// Thus we only need to retain the L1<>L2 derivation relation data of this many L1 blocks.
-//
-// In the event of older finalization signals, misconfiguration, or insufficient L1<>L2 derivation relation data,
-// then we may miss the opportunity to finalize more L2 blocks.
-// This does not cause any divergence, it just causes lagging finalization status.
-//
-// The beacon chain on mainnet has 32 slots per epoch,
-// and new finalization events happen at most 4 epochs behind the head.
-// And then we add 1 to make pruning easier by leaving room for a new item without pruning the 32*4.
-const finalityLookback = 4*32 + 1
-
 // finalityDelay is the number of L1 blocks to traverse before trying to finalize L2 blocks again.
 // We do not want to do this too often, since it requires fetching a L1 block by number, so no cache data.
 const finalityDelay = 64
@@ -163,7 +148,7 @@ func NewEngineQueue(log log.Logger, cfg *rollup.Config, l2Source L2Source, engin
 		ec:             engine,
 		engine:         l2Source,
 		metrics:        metrics,
-		finalityData:   make([]FinalityData, 0, finalityLookback),
+		finalityData:   make([]FinalityData, 0, syncCfg.SequencerFinalityLookback),
 		unsafePayloads: NewPayloadsQueue(maxUnsafePayloadsMemory, payloadMemSize),
 		prev:           prev,
 		l1Fetcher:      l1Fetcher,
@@ -381,8 +366,8 @@ func (eq *EngineQueue) tryFinalizeL2() {
 // to finalize it once the L1 block, or later, finalizes.
 func (eq *EngineQueue) postProcessSafeL2() {
 	// prune finality data if necessary
-	if len(eq.finalityData) >= finalityLookback {
-		eq.finalityData = append(eq.finalityData[:0], eq.finalityData[1:finalityLookback]...)
+	if len(eq.finalityData) >= int(eq.syncCfg.SequencerFinalityLookback) {
+		eq.finalityData = append(eq.finalityData[:0], eq.finalityData[1:eq.syncCfg.SequencerFinalityLookback]...)
 	}
 	// remember the last L2 block that we fully derived from the given finality data
 	if len(eq.finalityData) == 0 || eq.finalityData[len(eq.finalityData)-1].L1Block.Number < eq.origin.Number {
