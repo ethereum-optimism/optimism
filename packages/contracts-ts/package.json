@@ -80,7 +80,7 @@
   "dependencies": {
     "@testing-library/react": "^14.2.1",
     "@types/change-case": "^2.3.1",
-    "change-case": "4.1.2",
+    "change-case": "5.4.3",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "viem": "^2.7.6"
