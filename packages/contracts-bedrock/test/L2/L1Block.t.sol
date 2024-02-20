@@ -31,13 +31,13 @@ contract L1BlockBedrock_Test is L1BlockTest {
         bytes32 bt,
         uint256 fo,
         uint256 fs,
-        uint8 is,
-        uint256[] memory cis
+        uint8 isz,
+        uint256[] calldata cis
     )
         external
     {
         vm.prank(depositor);
-        l1Block.setL1BlockValues(n, t, b, h, s, bt, fo, fs, is, cis);
+        l1Block.setL1BlockValues(n, t, b, h, s, bt, fo, fs, isz, cis);
         assertEq(l1Block.number(), n);
         assertEq(l1Block.timestamp(), t);
         assertEq(l1Block.basefee(), b);
@@ -46,10 +46,14 @@ contract L1BlockBedrock_Test is L1BlockTest {
         assertEq(l1Block.batcherHash(), bt);
         assertEq(l1Block.l1FeeOverhead(), fo);
         assertEq(l1Block.l1FeeScalar(), fs);
+        assertEq(l1Block.interopSetSize(), isz);
+        for (uint256 i = 0; i < cis.length; i++) {
+            assertEq(l1Block.chainIds(i), cis[i]);
+        }
     }
 
     /// @dev Tests that `setL1BlockValues` can set max values.
-    function test_updateValues_succeeds() external {
+    function test_updateValues_succeeds(uint256[] calldata _chainIds) external {
         vm.prank(depositor);
         l1Block.setL1BlockValues({
             _number: type(uint64).max,
@@ -60,8 +64,8 @@ contract L1BlockBedrock_Test is L1BlockTest {
             _batcherHash: bytes32(type(uint256).max),
             _l1FeeOverhead: type(uint256).max,
             _l1FeeScalar: type(uint256).max,
-            _interopSetSize: 0,
-            _chainIds: new uint256[](0)
+            _interopSetSize: uint8(_chainIds.length),
+            _chainIds: _chainIds
         });
     }
 }
