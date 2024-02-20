@@ -409,10 +409,6 @@ func (eq *EngineQueue) postProcessSafeL2() error {
 	}
 	// remember the last L2 block that we fully derived from the given finality data
 	if len(eq.finalityData) == 0 || eq.finalityData[len(eq.finalityData)-1].L1Block.Number < eq.origin.Number {
-		// TODO(client-pod#593): Work out how to handle pipeline resets/startup
-		// Emitting a safe head notification here gives an incorrect L1 block
-		// But does not emitting an event risk missing an update?
-
 		// append entry for new L1 block
 		eq.finalityData = append(eq.finalityData, FinalityData{
 			L2Block: eq.ec.SafeL2Head(),
@@ -439,7 +435,8 @@ func (eq *EngineQueue) notifyNewSafeHead(safeHead eth.L2BlockRef) error {
 	}
 	if err := eq.safeHeadNotifs.SafeHeadUpdated(safeHead, eq.origin.ID()); err != nil {
 		// At this point our state is in a potentially inconsistent state as we've updated the safe head
-		// in the execution client but failed to post process it. Reset the pipeline to load the right state
+		// in the execution client but failed to post process it. Reset the pipeline so the safe head rolls back
+		// a little (it always rolls back at least 1 block) and then it will retry storing the entry
 		return NewResetError(fmt.Errorf("safe head notifications failed: %w", err))
 	}
 	eq.lastNotifiedSafeHead = safeHead

@@ -144,8 +144,8 @@ func (n *nodeAPI) SafeHeadAtL1Block(ctx context.Context, number hexutil.Uint64) 
 		return nil, fmt.Errorf("failed to get safe head at l1 block %s: %w", number, err)
 	}
 	return &eth.SafeHeadResponse{
-		L1Hash:   l1Hash,
-		SafeHead: safeHead,
+		EarliestL1Hash: l1Hash,
+		SafeHead:       safeHead,
 	}, nil
 }
 

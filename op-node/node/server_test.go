@@ -211,8 +211,8 @@ func TestSafeHeadAtL1Block(t *testing.T) {
 		Number: 223,
 	}
 	expected := &eth.SafeHeadResponse{
-		L1Hash:   expectedL1Hash,
-		SafeHead: expectedSafeHead,
+		EarliestL1Hash: expectedL1Hash,
+		SafeHead:       expectedSafeHead,
 	}
 	safeReader.ExpectSafeHeadAtL1(l1BlockNum, expectedL1Hash, expectedSafeHead, nil)
 

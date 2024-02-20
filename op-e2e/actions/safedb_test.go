@@ -50,13 +50,13 @@ func TestRecordSafeHeadUpdates(gt *testing.T) {
 	firstSafeHeadUpdateL1Block := l1Head.Number.Uint64()
 	response, err := verifier.RollupClient().SafeHeadAtL1Block(context.Background(), firstSafeHeadUpdateL1Block)
 	require.NoError(t, err)
-	require.Equal(t, l1Head.Hash(), response.L1Hash)
+	require.Equal(t, l1Head.Hash(), response.EarliestL1Hash)
 	require.Equal(t, verifier.L2Unsafe().ID(), response.SafeHead)
 
 	// Should get the same result for anything after that L1 block too
 	response, err = verifier.RollupClient().SafeHeadAtL1Block(context.Background(), firstSafeHeadUpdateL1Block+1)
 	require.NoError(t, err)
-	require.Equal(t, l1Head.Hash(), response.L1Hash)
+	require.Equal(t, l1Head.Hash(), response.EarliestL1Hash)
 	require.Equal(t, verifier.L2Unsafe().ID(), response.SafeHead)
 
 	// Should get not found error before the L1 block because we have no earlier safe head recorded
@@ -105,7 +105,7 @@ func TestRecordSafeHeadUpdates(gt *testing.T) {
 	firstSafeHeadUpdateL1Block = l1Head.Number.Uint64()
 	response, err = verifier.RollupClient().SafeHeadAtL1Block(context.Background(), firstSafeHeadUpdateL1Block)
 	require.NoError(t, err)
-	require.Equal(t, l1Head.Hash(), response.L1Hash)
+	require.Equal(t, l1Head.Hash(), response.EarliestL1Hash)
 	require.Equal(t, verifier.L2Unsafe().ID(), response.SafeHead)
 }
 

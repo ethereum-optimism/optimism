@@ -17,8 +17,8 @@ type OutputResponse struct {
 }
 
 type SafeHeadResponse struct {
-	L1Hash   common.Hash `json:"earliestL1Hash"`
-	SafeHead BlockID     `json:"safeHead"`
+	EarliestL1Hash common.Hash `json:"earliestL1Hash"`
+	SafeHead       BlockID     `json:"safeHead"`
 }
 
 var (
