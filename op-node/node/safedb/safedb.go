@@ -96,7 +96,7 @@ func NewSafeDB(logger log.Logger, path string) (*SafeDB, error) {
 func (d *SafeDB) SafeHeadUpdated(safeHead eth.L2BlockRef, l1Head eth.BlockID) error {
 	d.m.Lock()
 	defer d.m.Unlock()
-	d.log.Info("Update safe head", "l2", safeHead.ID(), "l1", l1Head)
+	d.log.Info("Record safe head", "l2", safeHead.ID(), "l1", l1Head)
 	batch := d.db.NewBatch()
 	defer batch.Close()
 	if err := batch.Set(SafeByL1BlockNumKey.Of(l1Head.Number), ValueL1BlockNum(l1Head.Hash, safeHead.Hash, safeHead.Number), d.writeOpts); err != nil {
