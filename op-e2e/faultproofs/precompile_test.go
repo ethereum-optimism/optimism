@@ -27,6 +27,7 @@ import (
 )
 
 func TestPrecompiles(t *testing.T) {
+	op_e2e.InitParallel(t, op_e2e.UsesCannon)
 	// precompile test vectors copied from go-ethereum
 	tests := []struct {
 		name    string

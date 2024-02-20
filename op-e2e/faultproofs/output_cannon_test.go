@@ -101,6 +101,7 @@ func TestOutputCannon_ChallengeAllZeroClaim(t *testing.T) {
 }
 
 func TestOutputCannon_PublishCannonRootClaim(t *testing.T) {
+	op_e2e.InitParallel(t, op_e2e.UsesCannon)
 	tests := []struct {
 		disputeL2BlockNumber uint64
 	}{
@@ -129,6 +130,7 @@ func TestOutputCannon_PublishCannonRootClaim(t *testing.T) {
 }
 
 func TestOutputCannonDisputeGame(t *testing.T) {
+	op_e2e.InitParallel(t, op_e2e.UsesCannon)
 	tests := []struct {
 		name             string
 		defendClaimDepth types.Depth
@@ -254,6 +256,7 @@ func TestOutputCannonStepWithLargePreimage(t *testing.T) {
 }
 
 func TestOutputCannonStepWithPreimage(t *testing.T) {
+	op_e2e.InitParallel(t, op_e2e.UsesCannon)
 	testPreimageStep := func(t *testing.T, preimageType cannon.PreimageOpt, preloadPreimage bool) {
 		op_e2e.InitParallel(t, op_e2e.UsesCannon)
 
@@ -296,6 +299,7 @@ func TestOutputCannonStepWithPreimage(t *testing.T) {
 
 func TestOutputCannonStepWithKZGPointEvaluation(t *testing.T) {
 	t.Skip("TODO: Fix flaky test")
+	op_e2e.InitParallel(t, op_e2e.UsesCannon)
 
 	testPreimageStep := func(t *testing.T, preloadPreimage bool) {
 		op_e2e.InitParallel(t, op_e2e.UsesCannon)
@@ -337,6 +341,7 @@ func TestOutputCannonStepWithKZGPointEvaluation(t *testing.T) {
 }
 
 func TestOutputCannonProposedOutputRootValid(t *testing.T) {
+	op_e2e.InitParallel(t, op_e2e.UsesCannon)
 	// honestStepsFail attempts to perform both an attack and defend step using the correct trace.
 	honestStepsFail := func(ctx context.Context, game *disputegame.OutputCannonGameHelper, correctTrace *disputegame.OutputHonestHelper, parentClaimIdx int64) {
 		// Attack step should fail

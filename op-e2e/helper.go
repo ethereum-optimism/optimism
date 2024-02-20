@@ -4,62 +4,58 @@ import (
 	"crypto/md5"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 )
 
 var enableParallelTesting bool = os.Getenv("OP_E2E_DISABLE_PARALLEL") != "true"
 
-type testopts struct {
-	executor uint64
-}
-
-func InitParallel(t e2eutils.TestingBase, args ...func(t e2eutils.TestingBase, opts *testopts)) {
+func InitParallel(t e2eutils.TestingBase, args ...func(t e2eutils.TestingBase)) {
 	t.Helper()
 	if enableParallelTesting {
 		t.Parallel()
 	}
+	for _, arg := range args {
+		arg(t)
+	}
+	autoAllocateExecutor(t)
+}
 
+// isSubTest determines if the test is a sub-test or top level test.
+// It does this by checking if the test name contains /
+// This is not a particularly great way check, but appears to be the only option currently.
+func isSubTest(t e2eutils.TestingBase) bool {
+	return strings.Contains(t.Name(), "/")
+}
+
+func autoAllocateExecutor(t e2eutils.TestingBase) {
+	if isSubTest(t) {
+		// Always run subtests, they only start on the same executor as their parent.
+		return
+	}
 	info := getExecutorInfo(t)
 	tName := t.Name()
 	tHash := md5.Sum([]byte(tName))
 	executor := uint64(tHash[0]) % info.total
-	opts := &testopts{
-		executor: executor,
-	}
-	for _, arg := range args {
-		arg(t, opts)
-	}
-	checkExecutor(t, info, opts.executor)
+	checkExecutor(t, info, executor)
 }
 
-func UsesCannon(t e2eutils.TestingBase, opts *testopts) {
+func UsesCannon(t e2eutils.TestingBase) {
 	if os.Getenv("OP_E2E_CANNON_ENABLED") == "false" {
 		t.Skip("Skipping cannon test")
 	}
 }
 
-func SkipOnFPAC(t e2eutils.TestingBase, opts *testopts) {
+func SkipOnFPAC(t e2eutils.TestingBase) {
 	if e2eutils.UseFPAC() {
 		t.Skip("Skipping test for FPAC")
 	}
 }
 
-func SkipOnNotFPAC(t e2eutils.TestingBase, opts *testopts) {
+func SkipOnNotFPAC(t e2eutils.TestingBase) {
 	if !e2eutils.UseFPAC() {
 		t.Skip("Skipping test for non-FPAC")
-	}
-}
-
-//	UseExecutor allows manually splitting tests between circleci executors
-//
-// Tests default to run on the first executor but can be moved to the second with:
-// InitParallel(t, UseExecutor(1))
-// Any tests assigned to an executor greater than the number available automatically use the last executor.
-// Executor indexes start from 0
-func UseExecutor(assignedIdx uint64) func(t e2eutils.TestingBase, opts *testopts) {
-	return func(t e2eutils.TestingBase, opts *testopts) {
-		opts.executor = assignedIdx
 	}
 }
 

@@ -66,6 +66,25 @@ func WithPollInterval(pollInterval time.Duration) Option {
 	}
 }
 
+// findMonorepoRoot finds the relative path to the monorepo root
+// Different tests might be nested in subdirectories of the op-e2e dir.
+func findMonorepoRoot(t *testing.T) string {
+	path := "./"
+	// Only search up 5 directories
+	// Avoids infinite recursion if the root isn't found for some reason
+	for i := 0; i < 5; i++ {
+		_, err := os.Stat(path + "op-e2e")
+		if errors.Is(err, os.ErrNotExist) {
+			path = path + "../"
+			continue
+		}
+		require.NoErrorf(t, err, "Failed to stat %v even though it existed", path)
+		return path
+	}
+	t.Fatalf("Could not find monorepo root, trying up to %v", path)
+	return ""
+}
+
 func applyCannonConfig(
 	c *config.Config,
 	t *testing.T,
@@ -75,9 +94,10 @@ func applyCannonConfig(
 ) {
 	require := require.New(t)
 	c.CannonL2 = l2Endpoint
-	c.CannonBin = "../../cannon/bin/cannon"
-	c.CannonServer = "../../op-program/bin/op-program"
-	c.CannonAbsolutePreState = "../../op-program/bin/prestate.json"
+	root := findMonorepoRoot(t)
+	c.CannonBin = root + "cannon/bin/cannon"
+	c.CannonServer = root + "op-program/bin/op-program"
+	c.CannonAbsolutePreState = root + "op-program/bin/prestate.json"
 	c.CannonSnapshotFreq = 10_000_000
 
 	genesisBytes, err := json.Marshal(l2Genesis)
