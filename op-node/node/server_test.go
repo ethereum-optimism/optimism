@@ -205,16 +205,19 @@ func TestSafeHeadAtL1Block(t *testing.T) {
 	drClient := &mockDriverClient{}
 	safeReader := &mockSafeDBReader{}
 	l1BlockNum := uint64(5223)
-	expectedL1Hash := common.Hash{0xdd}
+	expectedL1 := eth.BlockID{
+		Hash:   common.Hash{0xdd},
+		Number: l1BlockNum - 2,
+	}
 	expectedSafeHead := eth.BlockID{
 		Hash:   common.Hash{0xee},
 		Number: 223,
 	}
 	expected := &eth.SafeHeadResponse{
-		EarliestL1Hash: expectedL1Hash,
-		SafeHead:       expectedSafeHead,
+		L1Block:  expectedL1,
+		SafeHead: expectedSafeHead,
 	}
-	safeReader.ExpectSafeHeadAtL1(l1BlockNum, expectedL1Hash, expectedSafeHead, nil)
+	safeReader.ExpectSafeHeadAtL1(l1BlockNum, expectedL1, expectedSafeHead, nil)
 
 	rpcCfg := &RPCConfig{
 		ListenAddr: "localhost",
@@ -280,11 +283,11 @@ type mockSafeDBReader struct {
 	mock.Mock
 }
 
-func (m *mockSafeDBReader) SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (l1Hash common.Hash, l2Hash eth.BlockID, err error) {
+func (m *mockSafeDBReader) SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (l1Hash eth.BlockID, l2Hash eth.BlockID, err error) {
 	r := m.Mock.MethodCalled("SafeHeadAtL1", l1BlockNum)
-	return r[0].(common.Hash), r[1].(eth.BlockID), *r[2].(*error)
+	return r[0].(eth.BlockID), r[1].(eth.BlockID), *r[2].(*error)
 }
 
-func (m *mockSafeDBReader) ExpectSafeHeadAtL1(l1BlockNum uint64, l1Hash common.Hash, safeHead eth.BlockID, err error) {
-	m.Mock.On("SafeHeadAtL1", l1BlockNum).Return(l1Hash, safeHead, &err)
+func (m *mockSafeDBReader) ExpectSafeHeadAtL1(l1BlockNum uint64, l1 eth.BlockID, safeHead eth.BlockID, err error) {
+	m.Mock.On("SafeHeadAtL1", l1BlockNum).Return(l1, safeHead, &err)
 }

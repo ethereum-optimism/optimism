@@ -11,7 +11,6 @@ import (
 
 	"github.com/cockroachdb/pebble"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -62,20 +61,21 @@ type SafeDB struct {
 	closed bool
 }
 
-func ValueL1BlockNum(l1Hash common.Hash, l2Hash common.Hash, l2BlockNum uint64) []byte {
+func SafeByL1BlockNumValue(l1 eth.BlockID, l2 eth.BlockID) []byte {
 	val := make([]byte, 0, 72)
-	val = append(val, l1Hash.Bytes()...)
-	val = append(val, l2Hash.Bytes()...)
-	val = binary.BigEndian.AppendUint64(val, l2BlockNum)
+	val = append(val, l1.Hash.Bytes()...)
+	val = append(val, l2.Hash.Bytes()...)
+	val = binary.BigEndian.AppendUint64(val, l2.Number)
 	return val
 }
 
-func DecodeValueL1BlockNum(val []byte) (l1Hash common.Hash, l2 eth.BlockID, err error) {
-	if len(val) != 72 {
+func DecodeSafeByL1BlockNum(key []byte, val []byte) (l1 eth.BlockID, l2 eth.BlockID, err error) {
+	if len(key) != 9 || len(val) != 72 {
 		err = ErrInvalidEntry
 		return
 	}
-	copy(l1Hash[:], val[:32])
+	copy(l1.Hash[:], val[:32])
+	l1.Number = binary.BigEndian.Uint64(key[1:])
 	copy(l2.Hash[:], val[32:64])
 	l2.Number = binary.BigEndian.Uint64(val[64:])
 	return
@@ -99,7 +99,7 @@ func (d *SafeDB) SafeHeadUpdated(safeHead eth.L2BlockRef, l1Head eth.BlockID) er
 	d.log.Info("Record safe head", "l2", safeHead.ID(), "l1", l1Head)
 	batch := d.db.NewBatch()
 	defer batch.Close()
-	if err := batch.Set(SafeByL1BlockNumKey.Of(l1Head.Number), ValueL1BlockNum(l1Head.Hash, safeHead.Hash, safeHead.Number), d.writeOpts); err != nil {
+	if err := batch.Set(SafeByL1BlockNumKey.Of(l1Head.Number), SafeByL1BlockNumValue(l1Head, safeHead.ID()), d.writeOpts); err != nil {
 		return fmt.Errorf("failed to record safe head update: %w", err)
 	}
 	if err := batch.Commit(d.writeOpts); err != nil {
@@ -125,7 +125,7 @@ func (d *SafeDB) SafeHeadReset(safeHead eth.L2BlockRef) error {
 		if err != nil {
 			return fmt.Errorf("reset failed to read entry: %w", err)
 		}
-		l1Hash, l2Block, err := DecodeValueL1BlockNum(val)
+		l1Block, l2Block, err := DecodeSafeByL1BlockNum(iter.Key(), val)
 		if err != nil {
 			return fmt.Errorf("reset encountered invalid entry: %w", err)
 		}
@@ -143,7 +143,7 @@ func (d *SafeDB) SafeHeadReset(safeHead eth.L2BlockRef) error {
 			// safe in that L1 block or if it was just before our records start, so don't record it as safe at the
 			// specified L1 block.
 			if hasPrevEntry {
-				if err := batch.Set(l1HeadKey, ValueL1BlockNum(l1Hash, safeHead.Hash, safeHead.Number), d.writeOpts); err != nil {
+				if err := batch.Set(l1HeadKey, SafeByL1BlockNumValue(l1Block, safeHead.ID()), d.writeOpts); err != nil {
 					return fmt.Errorf("reset failed to record safe head update: %w", err)
 				}
 			}
@@ -159,7 +159,7 @@ func (d *SafeDB) SafeHeadReset(safeHead eth.L2BlockRef) error {
 	}
 }
 
-func (d *SafeDB) SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (l1Hash common.Hash, safeHead eth.BlockID, err error) {
+func (d *SafeDB) SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (l1Block eth.BlockID, safeHead eth.BlockID, err error) {
 	d.m.RLock()
 	defer d.m.RUnlock()
 	iter, err := d.db.NewIterWithContext(ctx, SafeByL1BlockNumKey.IterRange())
@@ -176,7 +176,7 @@ func (d *SafeDB) SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (l1Hash co
 	if err != nil {
 		return
 	}
-	l1Hash, safeHead, err = DecodeValueL1BlockNum(val)
+	l1Block, safeHead, err = DecodeSafeByL1BlockNum(iter.Key(), val)
 	return
 }
 

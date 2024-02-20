@@ -44,22 +44,22 @@ func TestStoreSafeHeads(t *testing.T) {
 
 		actualL1, actualL2, err := db.SafeHeadAtL1(context.Background(), l1a.Number)
 		require.NoError(t, err)
-		require.Equal(t, l1a.Hash, actualL1)
+		require.Equal(t, l1a, actualL1)
 		require.Equal(t, l2a.ID(), actualL2)
 
 		actualL1, actualL2, err = db.SafeHeadAtL1(context.Background(), l1a.Number+1)
 		require.NoError(t, err)
-		require.Equal(t, l1a.Hash, actualL1)
+		require.Equal(t, l1a, actualL1)
 		require.Equal(t, l2a.ID(), actualL2)
 
 		actualL1, actualL2, err = db.SafeHeadAtL1(context.Background(), l1b.Number)
 		require.NoError(t, err)
-		require.Equal(t, l1b.Hash, actualL1)
+		require.Equal(t, l1b, actualL1)
 		require.Equal(t, l2b.ID(), actualL2)
 
 		actualL1, actualL2, err = db.SafeHeadAtL1(context.Background(), l1b.Number+1)
 		require.NoError(t, err)
-		require.Equal(t, l1b.Hash, actualL1)
+		require.Equal(t, l1b, actualL1)
 		require.Equal(t, l2b.ID(), actualL2)
 	}
 	// Verify loading the safe heads with the already open DB
@@ -142,18 +142,18 @@ func TestTruncateOnSafeHeadReset(t *testing.T) {
 	// Only the reset safe head is now safe at the previous L1 block number
 	actualL1, actualL2, err := db.SafeHeadAtL1(context.Background(), l1b.Number)
 	require.NoError(t, err)
-	require.Equal(t, l1b.Hash, actualL1)
+	require.Equal(t, l1b, actualL1)
 	require.Equal(t, l2b.ID(), actualL2)
 
 	actualL1, actualL2, err = db.SafeHeadAtL1(context.Background(), l1c.Number)
 	require.NoError(t, err)
-	require.Equal(t, l1b.Hash, actualL1)
+	require.Equal(t, l1b, actualL1)
 	require.Equal(t, l2b.ID(), actualL2)
 
 	// l2a is still safe from its original update
 	actualL1, actualL2, err = db.SafeHeadAtL1(context.Background(), l1a.Number)
 	require.NoError(t, err)
-	require.Equal(t, l1a.Hash, actualL1)
+	require.Equal(t, l1a, actualL1)
 	require.Equal(t, l2a.ID(), actualL2)
 }
 

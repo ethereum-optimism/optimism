@@ -36,7 +36,7 @@ type driverClient interface {
 }
 
 type SafeDBReader interface {
-	SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (l1Hash common.Hash, l2Hash eth.BlockID, err error)
+	SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (l1 eth.BlockID, l2 eth.BlockID, err error)
 }
 
 type adminAPI struct {
@@ -137,15 +137,15 @@ func (n *nodeAPI) OutputAtBlock(ctx context.Context, number hexutil.Uint64) (*et
 func (n *nodeAPI) SafeHeadAtL1Block(ctx context.Context, number hexutil.Uint64) (*eth.SafeHeadResponse, error) {
 	recordDur := n.m.RecordRPCServerRequest("optimism_safeHeadAtL1Block")
 	defer recordDur()
-	l1Hash, safeHead, err := n.safeDB.SafeHeadAtL1(ctx, uint64(number))
+	l1Block, safeHead, err := n.safeDB.SafeHeadAtL1(ctx, uint64(number))
 	if errors.Is(err, safedb.ErrNotFound) {
 		return nil, err
 	} else if err != nil {
 		return nil, fmt.Errorf("failed to get safe head at l1 block %s: %w", number, err)
 	}
 	return &eth.SafeHeadResponse{
-		EarliestL1Hash: l1Hash,
-		SafeHead:       safeHead,
+		L1Block:  l1Block,
+		SafeHead: safeHead,
 	}, nil
 }
 
