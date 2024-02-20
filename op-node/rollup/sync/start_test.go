@@ -119,8 +119,10 @@ func TestFindSyncStart(t *testing.T) {
 			GenesisL2:      'A',
 			UnsafeL2Head:   'J',
 			SeqWindowSize:  2,
-			SafeL2Head:     'B',
-			ExpectedErr:    nil,
+			// Important this steps back at least one safe block so the safedb is sent the latest safe head
+			// again - we may be resetting because the safedb failed to write the previous entry
+			SafeL2Head:  'C',
+			ExpectedErr: nil,
 		},
 		{
 			Name:           "small reorg long chain",
