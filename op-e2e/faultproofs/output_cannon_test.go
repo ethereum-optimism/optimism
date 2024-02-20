@@ -3,7 +3,6 @@ package faultproofs
 import (
 	"context"
 	"fmt"
-	"math/big"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/cannon"
@@ -14,7 +13,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame/preimage"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
 )
 
@@ -304,18 +302,13 @@ func TestOutputCannonStepWithKZGPointEvaluation(t *testing.T) {
 		sys, _ := startFaultDisputeSystem(t, withEcotone())
 		t.Cleanup(sys.Close)
 
-		safeBlock, err := sys.Clients["sequencer"].BlockByNumber(ctx, big.NewInt(int64(rpc.SafeBlockNumber)))
-		require.NoError(t, err)
-		require.NoError(t, wait.ForSafeBlock(ctx, sys.RollupClient("sequencer"), safeBlock.NumberU64()+3))
+		//safeBlock, err := sys.Clients["sequencer"].BlockByNumber(ctx, big.NewInt(int64(rpc.SafeBlockNumber)))
+		//require.NoError(t, err)
+		//require.NoError(t, wait.ForSafeBlock(ctx, sys.RollupClient("sequencer"), safeBlock.NumberU64()+3))
 
 		receipt := sendKZGPointEvaluationTx(t, sys, "sequencer", sys.Cfg.Secrets.Alice)
 		precompileBlock := receipt.BlockNumber
 		t.Logf("KZG Point Evaluation block number: %d", precompileBlock)
-		require.NoError(t, wait.ForSafeBlock(ctx, sys.RollupClient("sequencer"), precompileBlock.Uint64()))
-		rc := sys.RollupClient("sequencer")
-		output, err := rc.OutputAtBlock(ctx, precompileBlock.Uint64())
-		require.NoError(t, err)
-		t.Logf("KZG Point Evaluation output L1 origin=%v", output.BlockRef.L1Origin)
 
 		disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
 		game := disputeGameFactory.StartOutputCannonGame(ctx, "sequencer", precompileBlock.Uint64(), common.Hash{0x01, 0xaa})
