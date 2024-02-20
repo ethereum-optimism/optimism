@@ -47,7 +47,7 @@ func startFaultDisputeSystem(t *testing.T, opts ...faultDisputeConfigOpts) (*op_
 	for _, opt := range opts {
 		opt(&cfg)
 	}
-	cfg.DeployConfig.SequencerWindowSize = 4
+	cfg.DeployConfig.SequencerWindowSize = 16
 	cfg.DeployConfig.FinalizationPeriodSeconds = 2
 	cfg.SupportL1TimeTravel = true
 	cfg.DeployConfig.L2OutputOracleSubmissionInterval = 1
