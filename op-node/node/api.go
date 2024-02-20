@@ -33,7 +33,7 @@ type driverClient interface {
 	OnUnsafeL2Payload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) error
 }
 
-type safeDBReader interface {
+type SafeDBReader interface {
 	SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (l1Hash common.Hash, l2Hash eth.BlockID, err error)
 }
 
@@ -93,12 +93,12 @@ type nodeAPI struct {
 	config *rollup.Config
 	client l2EthClient
 	dr     driverClient
-	safeDB safeDBReader
+	safeDB SafeDBReader
 	log    log.Logger
 	m      metrics.RPCMetricer
 }
 
-func NewNodeAPI(config *rollup.Config, l2Client l2EthClient, dr driverClient, safeDB safeDBReader, log log.Logger, m metrics.RPCMetricer) *nodeAPI {
+func NewNodeAPI(config *rollup.Config, l2Client l2EthClient, dr driverClient, safeDB SafeDBReader, log log.Logger, m metrics.RPCMetricer) *nodeAPI {
 	return &nodeAPI{
 		config: config,
 		client: l2Client,

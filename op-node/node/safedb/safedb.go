@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 	"sync"
 
 	"github.com/cockroachdb/pebble"
@@ -98,22 +99,64 @@ func (d *SafeDB) SafeHeadUpdated(safeHead eth.L2BlockRef, l1Head eth.BlockID) er
 	d.log.Info("Update safe head", "l2", safeHead.ID(), "l1", l1Head)
 	batch := d.db.NewBatch()
 	defer batch.Close()
-	// Delete any entries after this L1 block. Normally the l1Head continuously increases and this does nothing
-	// However when the pipeline resets the L1 head may drop back and we need to remove later entries and allow them
-	// to be repopulated as derivation progresses again. The resulting data may be different if L1 reorged.
-	if err := batch.DeleteRange(SafeByL1BlockNumKey.Of(l1Head.Number+1), SafeByL1BlockNumKey.Max(), d.writeOpts); err != nil {
-		return fmt.Errorf("failed to truncate safe head entries: %w", err)
-	}
 	if err := batch.Set(SafeByL1BlockNumKey.Of(l1Head.Number), ValueL1BlockNum(l1Head.Hash, safeHead.Hash, safeHead.Number), d.writeOpts); err != nil {
-		// TODO(client-pod#593): Add tests to ensure we don't lose data here
-		// We do in fact lose this update here. Even if we didn't the correct behaviour is to retry the exact same write
-		// so maybe we should just keep retrying here instead of returning an error?
 		return fmt.Errorf("failed to record safe head update: %w", err)
 	}
 	if err := batch.Commit(d.writeOpts); err != nil {
 		return fmt.Errorf("failed to commit safe head update: %w", err)
 	}
 	return nil
+}
+
+func (d *SafeDB) SafeHeadReset(safeHead eth.L2BlockRef) error {
+	d.m.Lock()
+	defer d.m.Unlock()
+	iter, err := d.db.NewIter(SafeByL1BlockNumKey.IterRange())
+	if err != nil {
+		return fmt.Errorf("reset failed to create iterator: %w", err)
+	}
+	defer iter.Close()
+	if valid := iter.SeekGE(SafeByL1BlockNumKey.Of(safeHead.L1Origin.Number)); !valid {
+		// Reached end of column without finding any entries to delete
+		return nil
+	}
+	for {
+		val, err := iter.ValueAndErr()
+		if err != nil {
+			return fmt.Errorf("reset failed to read entry: %w", err)
+		}
+		l1Hash, l2Block, err := DecodeValueL1BlockNum(val)
+		if err != nil {
+			return fmt.Errorf("reset encountered invalid entry: %w", err)
+		}
+		if l2Block.Number >= safeHead.Number {
+			// Keep a copy of this key - it may be modified when calling Prev()
+			l1HeadKey := slices.Clone(iter.Key())
+			hasPrevEntry := iter.Prev()
+			// Found the first entry that made the new safe head safe.
+			batch := d.db.NewBatch()
+			if err := batch.DeleteRange(l1HeadKey, SafeByL1BlockNumKey.Max(), d.writeOpts); err != nil {
+				return fmt.Errorf("reset failed to delete entries after %v: %w", l1HeadKey, err)
+			}
+
+			// If we reset to a safe head before the first entry, we don't know if the new safe head actually became
+			// safe in that L1 block or if it was just before our records start, so don't record it as safe at the
+			// specified L1 block.
+			if hasPrevEntry {
+				if err := batch.Set(l1HeadKey, ValueL1BlockNum(l1Hash, safeHead.Hash, safeHead.Number), d.writeOpts); err != nil {
+					return fmt.Errorf("reset failed to record safe head update: %w", err)
+				}
+			}
+			if err := batch.Commit(d.writeOpts); err != nil {
+				return fmt.Errorf("reset failed to commit batch: %w", err)
+			}
+			return nil
+		}
+		if valid := iter.Next(); !valid {
+			// Reached end of column without finding any entries to delete
+			return nil
+		}
+	}
 }
 
 func (d *SafeDB) SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (l1Hash common.Hash, safeHead eth.BlockID, err error) {

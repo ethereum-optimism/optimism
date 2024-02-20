@@ -83,7 +83,7 @@ func TestSafeHeadAtL1_EmptyDatabase(t *testing.T) {
 	require.ErrorIs(t, err, ErrNotFound)
 }
 
-func TestTruncateDataWhenSafeHeadGoesBackwards(t *testing.T) {
+func TestTruncateOnSafeHeadReset(t *testing.T) {
 	logger := testlog.Logger(t, log.LvlInfo)
 	dir := t.TempDir()
 	db, err := NewSafeDB(logger, dir)
@@ -93,14 +93,30 @@ func TestTruncateDataWhenSafeHeadGoesBackwards(t *testing.T) {
 	l2a := eth.L2BlockRef{
 		Hash:   common.Hash{0x02, 0xaa},
 		Number: 20,
+		L1Origin: eth.BlockID{
+			Number: 60,
+		},
 	}
 	l2b := eth.L2BlockRef{
 		Hash:   common.Hash{0x02, 0xbb},
-		Number: 25,
+		Number: 22,
+		L1Origin: eth.BlockID{
+			Number: 90,
+		},
 	}
 	l2c := eth.L2BlockRef{
 		Hash:   common.Hash{0x02, 0xcc},
-		Number: 21,
+		Number: 25,
+		L1Origin: eth.BlockID{
+			Number: 110,
+		},
+	}
+	l2d := eth.L2BlockRef{
+		Hash:   common.Hash{0x02, 0xcc},
+		Number: 30,
+		L1Origin: eth.BlockID{
+			Number: 120,
+		},
 	}
 	l1a := eth.BlockID{
 		Hash:   common.Hash{0x01, 0xaa},
@@ -112,22 +128,90 @@ func TestTruncateDataWhenSafeHeadGoesBackwards(t *testing.T) {
 	}
 	l1c := eth.BlockID{
 		Hash:   common.Hash{0x01, 0xcc},
-		Number: 148,
+		Number: 160,
 	}
-	require.NoError(t, db.SafeHeadUpdated(l2a, l1a))
-	require.NoError(t, db.SafeHeadUpdated(l2b, l1b))
 
+	// Add some entries
+	require.NoError(t, db.SafeHeadUpdated(l2a, l1a))
+	require.NoError(t, db.SafeHeadUpdated(l2c, l1b))
+	require.NoError(t, db.SafeHeadUpdated(l2d, l1c))
+
+	// Then reset to between the two existing entries
+	require.NoError(t, db.SafeHeadReset(l2b))
+
+	// Only the reset safe head is now safe at the previous L1 block number
 	actualL1, actualL2, err := db.SafeHeadAtL1(context.Background(), l1b.Number)
 	require.NoError(t, err)
 	require.Equal(t, l1b.Hash, actualL1)
 	require.Equal(t, l2b.ID(), actualL2)
 
-	require.NoError(t, db.SafeHeadUpdated(l2c, l1c))
-
-	actualL1, actualL2, err = db.SafeHeadAtL1(context.Background(), l1b.Number)
+	actualL1, actualL2, err = db.SafeHeadAtL1(context.Background(), l1c.Number)
 	require.NoError(t, err)
-	require.Equal(t, l1c.Hash, actualL1)
-	require.Equal(t, l2c.ID(), actualL2)
+	require.Equal(t, l1b.Hash, actualL1)
+	require.Equal(t, l2b.ID(), actualL2)
+
+	// l2a is still safe from its original update
+	actualL1, actualL2, err = db.SafeHeadAtL1(context.Background(), l1a.Number)
+	require.NoError(t, err)
+	require.Equal(t, l1a.Hash, actualL1)
+	require.Equal(t, l2a.ID(), actualL2)
+}
+
+func TestTruncateOnSafeHeadReset_BeforeFirstEntry(t *testing.T) {
+	logger := testlog.Logger(t, log.LvlInfo)
+	dir := t.TempDir()
+	db, err := NewSafeDB(logger, dir)
+	require.NoError(t, err)
+	defer db.Close()
+
+	l2b := eth.L2BlockRef{
+		Hash:   common.Hash{0x02, 0xbb},
+		Number: 22,
+		L1Origin: eth.BlockID{
+			Number: 90,
+		},
+	}
+	l2c := eth.L2BlockRef{
+		Hash:   common.Hash{0x02, 0xcc},
+		Number: 25,
+		L1Origin: eth.BlockID{
+			Number: 110,
+		},
+	}
+	l2d := eth.L2BlockRef{
+		Hash:   common.Hash{0x02, 0xcc},
+		Number: 30,
+		L1Origin: eth.BlockID{
+			Number: 120,
+		},
+	}
+	l1a := eth.BlockID{
+		Hash:   common.Hash{0x01, 0xaa},
+		Number: 100,
+	}
+	l1b := eth.BlockID{
+		Hash:   common.Hash{0x01, 0xbb},
+		Number: 150,
+	}
+	l1c := eth.BlockID{
+		Hash:   common.Hash{0x01, 0xcc},
+		Number: 160,
+	}
+
+	// Add some entries
+	require.NoError(t, db.SafeHeadUpdated(l2c, l1b))
+	require.NoError(t, db.SafeHeadUpdated(l2d, l1c))
+
+	// Then reset to between the two existing entries
+	require.NoError(t, db.SafeHeadReset(l2b))
+
+	// All entries got removed
+	_, _, err = db.SafeHeadAtL1(context.Background(), l1a.Number)
+	require.ErrorIs(t, err, ErrNotFound)
+	_, _, err = db.SafeHeadAtL1(context.Background(), l1b.Number)
+	require.ErrorIs(t, err, ErrNotFound)
+	_, _, err = db.SafeHeadAtL1(context.Background(), l1c.Number)
+	require.ErrorIs(t, err, ErrNotFound)
 }
 
 func TestKeysFollowNaturalByteOrdering(t *testing.T) {

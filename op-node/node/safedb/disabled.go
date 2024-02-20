@@ -24,6 +24,10 @@ func (d *DisabledDB) SafeHeadAtL1(_ context.Context, _ uint64) (l1Hash common.Ha
 	return
 }
 
+func (d *DisabledDB) SafeHeadReset(_ eth.L2BlockRef) error {
+	return nil
+}
+
 func (d *DisabledDB) Close() error {
 	return nil
 }

@@ -96,7 +96,13 @@ type LocalEngineControl interface {
 // The safe head may advance by more than one block in a single update
 // The l1Block specified is the first L1 block that includes sufficient information to derive the new safe head
 type SafeHeadListener interface {
+	// SafeHeadUpdated indicates that the safe head has been updated in response to processing batch data
+	// The l1Block specified is the first L1 block containing all required batch data to derive newSafeHead
 	SafeHeadUpdated(newSafeHead eth.L2BlockRef, l1Block eth.BlockID) error
+
+	// SafeHeadReset indicates that the derivation pipeline reset back to the specified safe head
+	// The L1 block that made the new safe head safe is unknown.
+	SafeHeadReset(resetSafeHead eth.L2BlockRef) error
 }
 
 // Max memory used for buffering unsafe payloads
@@ -698,6 +704,9 @@ func (eq *EngineQueue) Reset(ctx context.Context, _ eth.L1BlockRef, _ eth.System
 	eq.origin = pipelineOrigin
 	eq.sysCfg = l1Cfg
 	eq.lastNotifiedSafeHead = safe
+	if err := eq.safeHeadNotifs.SafeHeadReset(safe); err != nil {
+		return err
+	}
 	eq.logSyncProgress("reset derivation work")
 	return io.EOF
 }

@@ -38,7 +38,7 @@ var ErrAlreadyClosed = errors.New("node is already closed")
 
 type closableSafeDB interface {
 	derive.SafeHeadListener
-	safeDBReader
+	SafeDBReader
 	io.Closer
 }
 
