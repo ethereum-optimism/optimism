@@ -66,6 +66,9 @@ contract DataAvailabilityChallenge is OwnableUpgradeable, ISemver {
     /// @notice Error for when a the type of a given commitment is unknown
     error UnknownCommitmentType(bytes1 commitmentType);
 
+    /// @notice Error for when the commitment length does not match the commitment type
+    error InvalidCommitmentLength(uint8 commitmentType, uint256 expectedLength, uint256 actualLength);
+
     /// @notice An event that is emitted when the status of a challenge changes.
     /// @param challengedCommitment The commitment that is being challenged.
     /// @param challengedBlockNumber The block number at which the commitment was made.
@@ -237,12 +240,17 @@ contract DataAvailabilityChallenge is OwnableUpgradeable, ISemver {
         return ChallengeStatus.Expired;
     }
 
-    /// @notice Require the type of a commitment to be known.
+    /// @notice Validate that a given commitment has a known type and the expected length for this type.
     /// @dev The type of a commitment is stored in its first byte.
+    ///      The function reverts with `UnknownCommitmentType` if the type is not known and
+    ///      with `InvalidCommitmentLength` if the commitment has an unexpected length.
     /// @param commitment The commitment for which to check the type.
     /// @return The commitment type of the given commitment.
-    function _requireKnownCommitmentType(bytes calldata commitment) internal pure returns (CommitmentType) {
+    function _validateCommitment(bytes calldata commitment) internal pure returns (CommitmentType) {
         if (uint8(bytes1(commitment)) == uint8(CommitmentType.Keccak256)) {
+            if (commitment.length != 33) {
+                revert InvalidCommitmentLength(uint8(CommitmentType.Keccak256), 33, commitment.length);
+            }
             return CommitmentType.Keccak256;
         }
 
@@ -258,7 +266,7 @@ contract DataAvailabilityChallenge is OwnableUpgradeable, ISemver {
     /// @param challengedCommitment The commitment that is being challenged.
     function challenge(uint256 challengedBlockNumber, bytes calldata challengedCommitment) external payable {
         // require the commitment type to be known
-        _requireKnownCommitmentType(challengedCommitment);
+        _validateCommitment(challengedCommitment);
 
         // deposit value sent with the transaction as bond
         deposit();
@@ -305,7 +313,7 @@ contract DataAvailabilityChallenge is OwnableUpgradeable, ISemver {
         external
     {
         // require the commitment type to be known
-        CommitmentType commitmentType = _requireKnownCommitmentType(challengedCommitment);
+        CommitmentType commitmentType = _validateCommitment(challengedCommitment);
 
         // require the challenge to be active (started, not resolved, and resolve window still open)
         if (getChallengeStatus(challengedBlockNumber, challengedCommitment) != ChallengeStatus.Active) {

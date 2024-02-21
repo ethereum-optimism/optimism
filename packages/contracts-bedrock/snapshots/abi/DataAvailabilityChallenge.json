@@ -500,6 +500,27 @@
   {
     "inputs": [
       {
+        "internalType": "uint8",
+        "name": "commitmentType",
+        "type": "uint8"
+      },
+      {
+        "internalType": "uint256",
+        "name": "expectedLength",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "actualLength",
+        "type": "uint256"
+      }
+    ],
+    "name": "InvalidCommitmentLength",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "bytes",
         "name": "providedDataCommitment",
         "type": "bytes"
