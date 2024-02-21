@@ -304,6 +304,7 @@ func TestOutputCannonStepWithKZGPointEvaluation(t *testing.T) {
 		sys, _ := startFaultDisputeSystem(t, withEcotone())
 		t.Cleanup(sys.Close)
 
+		// Wait for safe head to start advancing again when the sequencing window elapses, for at least three blocks
 		safeBlock, err := sys.Clients["sequencer"].BlockByNumber(ctx, big.NewInt(int64(rpc.SafeBlockNumber)))
 		require.NoError(t, err)
 		require.NoError(t, wait.ForSafeBlock(ctx, sys.RollupClient("sequencer"), safeBlock.NumberU64()+3))
