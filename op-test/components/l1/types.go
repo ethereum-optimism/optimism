@@ -1,29 +1,17 @@
 package l1
 
 import (
+	"github.com/ethereum/go-ethereum/common"
 	"math/big"
 
-	test "github.com/ethereum-optimism/optimism/op-test"
+	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
+
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	test "github.com/ethereum-optimism/optimism/op-test"
 )
-
-type Name string
-
-type Request struct {
-	ActiveFork L1Fork
-}
-
-type Option interface {
-	Apply(req *Request) error
-}
-
-type OptionFn func(req *Request) error
-
-func (fn OptionFn) Apply(req *Request) error {
-	return fn(req)
-}
 
 type L1Fork string
 
@@ -41,33 +29,35 @@ var Forks = []L1Fork{
 	Dencun,
 }
 
-func ActiveFork(fork L1Fork) Option {
-	return OptionFn(func(req *Request) error {
-		req.ActiveFork = fork
-		return nil
-	})
-}
-
 type L1 interface {
 	ChainID() *big.Int
 	ChainConfig() *params.ChainConfig
 	Signer() *types.Signer
+	TargetBlockTime() uint64
+	NetworkName() string
+	GenesisELHeader() *types.Header
+	GenesisCL() eth.Bytes32
+
+	// Fund an account, if not already funded. Abstracts away test-account funding.
+	Fund(addr common.Address, amount *big.Int)
+	// Lock the chain for breaking changes
+	Lock()
+	Unlock()
 }
 
-type Backend interface {
-	RequestL1(Name, ...Option) L1
-}
-
-func NewBackend(t test.Testing, kind test.BackendKind) Backend {
-	switch kind {
+func Request(t test.Testing, opts ...Option) L1 {
+	var settings Settings
+	for i, opt := range opts {
+		require.NoError(t, opt.Apply(&settings), "must apply option %d", i)
+	}
+	switch settings.Kind {
 	case test.Live:
-		return &LiveBackend{T: t}
+		return nil
 	case test.Managed:
-		return &ManagedBackend{T: t}
+		return nil
 	case test.Instant:
-		return &InstantBackend{T: t}
+		return nil
 	default:
-		t.Fatalf("unrecognized L1 backend type: %q", kind)
 		return nil
 	}
 }

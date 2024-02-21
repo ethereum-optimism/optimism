@@ -1,22 +1,23 @@
-package l1el
+package l1cl
 
 import (
 	"github.com/ethereum-optimism/optimism/op-test/components/l1"
+	"github.com/ethereum-optimism/optimism/op-test/components/l1el"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/op-service/client"
-	"github.com/ethereum-optimism/optimism/op-service/sources"
 	test "github.com/ethereum-optimism/optimism/op-test"
 )
 
-type L1EL interface {
-	L1() l1.L1
+type L1CL interface {
+	EL() l1el.L1EL
+	Chain() l1.L1
 
-	RPC() client.RPC
-	L1Client() *sources.L1Client
+	// controls below should require the L1 chain to have a Lock
+	// TODO time travel (gap in chain to skip ahead to block with future timestamp)
+	// TODO block building controls
 }
 
-func Request(t test.Testing, opts ...Option) L1EL {
+func Request(t test.Testing, opts ...Option) L1CL {
 	var settings Settings
 	for i, opt := range opts {
 		require.NoError(t, opt.Apply(&settings), "must apply option %d", i)
