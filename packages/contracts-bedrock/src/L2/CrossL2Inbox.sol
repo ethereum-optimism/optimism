@@ -9,7 +9,7 @@ import { L1Block } from "src/L2/L1Block.sol";
 /// @title CrossL2Inbox
 /// @notice The CrossL2Inbox is responsible for executing a cross chain message on the destination
 ///         chain. It is permissionless to execute a cross chain message on behalf of any user.
-abstract contract CrossL2Inbox is Initializable {
+contract CrossL2Inbox is Initializable {
     struct Identifier {
         address origin;
         uint256 blocknumber;
@@ -87,7 +87,6 @@ abstract contract CrossL2Inbox is Initializable {
             tstore(BLOCKNUMBER_SLOT, mload(add(_id, 0x20)))
             tstore(LOG_INDEX_SLOT, mload(add(_id, 0x40)))
             tstore(TIMESTAMP_SLOT, mload(add(_id, 0x60)))
-            chainId_ := mload(add(_id, 0x80))
             tstore(CHAINID_SLOT, chainId_)
         }
 
