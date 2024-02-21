@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-dispute-mon/metrics"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
@@ -17,32 +18,36 @@ func TestDetector_Detect(t *testing.T) {
 	t.Parallel()
 
 	t.Run("NoGames", func(t *testing.T) {
-		detector, metrics, _, _ := setupDetectorTest(t)
+		detector, m, _, _ := setupDetectorTest(t)
 		detector.Detect(context.Background(), []monTypes.EnrichedGameData{})
-		metrics.Equals(t, 0, 0, 0)
-		metrics.Mapped(t, map[string]int{})
+		m.Equals(t, 0, 0, 0)
+		m.Mapped(t, map[metrics.GameAgreementStatus]int{})
 	})
 
 	t.Run("CheckAgreementFails", func(t *testing.T) {
-		detector, metrics, rollup, _ := setupDetectorTest(t)
+		detector, m, rollup, _ := setupDetectorTest(t)
 		rollup.err = errors.New("boom")
 		detector.Detect(context.Background(), []monTypes.EnrichedGameData{{}})
-		metrics.Equals(t, 1, 0, 0) // Status should still be metriced here!
-		metrics.Mapped(t, map[string]int{})
+		m.Equals(t, 1, 0, 0) // Status should still be metriced here!
+		m.Mapped(t, map[metrics.GameAgreementStatus]int{})
 	})
 
 	t.Run("SingleGame", func(t *testing.T) {
-		detector, metrics, _, _ := setupDetectorTest(t)
-		detector.Detect(context.Background(), []monTypes.EnrichedGameData{{}})
-		metrics.Equals(t, 1, 0, 0)
-		metrics.Mapped(t, map[string]int{"in_progress": 1})
+		detector, m, _, _ := setupDetectorTest(t)
+		detector.Detect(context.Background(), []monTypes.EnrichedGameData{{Status: types.GameStatusChallengerWon}})
+		m.Equals(t, 0, 0, 1)
+		m.Mapped(t, map[metrics.GameAgreementStatus]int{metrics.DisagreeChallengerWins: 1})
 	})
 
 	t.Run("MultipleGames", func(t *testing.T) {
-		detector, metrics, _, _ := setupDetectorTest(t)
-		detector.Detect(context.Background(), []monTypes.EnrichedGameData{{}, {}, {}})
-		metrics.Equals(t, 3, 0, 0)
-		metrics.Mapped(t, map[string]int{"in_progress": 3})
+		detector, m, _, _ := setupDetectorTest(t)
+		detector.Detect(context.Background(), []monTypes.EnrichedGameData{
+			{Status: types.GameStatusChallengerWon},
+			{Status: types.GameStatusChallengerWon},
+			{Status: types.GameStatusChallengerWon},
+		})
+		m.Equals(t, 0, 0, 3)
+		m.Mapped(t, map[metrics.GameAgreementStatus]int{metrics.DisagreeChallengerWins: 3})
 	})
 }
 
@@ -60,36 +65,38 @@ func TestDetector_RecordBatch(t *testing.T) {
 		{
 			name:  "in_progress",
 			batch: monTypes.DetectionBatch{InProgress: 1},
-			expect: func(t *testing.T, metrics *mockDetectorMetricer) {
-				require.Equal(t, 1, metrics.gameAgreement["in_progress"])
+			expect: func(t *testing.T, m *mockDetectorMetricer) {
+				for status, count := range m.gameAgreement {
+					require.Zerof(t, count, "incorrectly reported in progress game as %v", status)
+				}
 			},
 		},
 		{
 			name:  "agree_defender_wins",
 			batch: monTypes.DetectionBatch{AgreeDefenderWins: 1},
-			expect: func(t *testing.T, metrics *mockDetectorMetricer) {
-				require.Equal(t, 1, metrics.gameAgreement["agree_defender_wins"])
+			expect: func(t *testing.T, m *mockDetectorMetricer) {
+				require.Equal(t, 1, m.gameAgreement[metrics.AgreeDefenderWins])
 			},
 		},
 		{
 			name:  "disagree_defender_wins",
 			batch: monTypes.DetectionBatch{DisagreeDefenderWins: 1},
-			expect: func(t *testing.T, metrics *mockDetectorMetricer) {
-				require.Equal(t, 1, metrics.gameAgreement["disagree_defender_wins"])
+			expect: func(t *testing.T, m *mockDetectorMetricer) {
+				require.Equal(t, 1, m.gameAgreement[metrics.DisagreeDefenderWins])
 			},
 		},
 		{
 			name:  "agree_challenger_wins",
 			batch: monTypes.DetectionBatch{AgreeChallengerWins: 1},
-			expect: func(t *testing.T, metrics *mockDetectorMetricer) {
-				require.Equal(t, 1, metrics.gameAgreement["agree_challenger_wins"])
+			expect: func(t *testing.T, m *mockDetectorMetricer) {
+				require.Equal(t, 1, m.gameAgreement[metrics.AgreeChallengerWins])
 			},
 		},
 		{
 			name:  "disagree_challenger_wins",
 			batch: monTypes.DetectionBatch{DisagreeChallengerWins: 1},
-			expect: func(t *testing.T, metrics *mockDetectorMetricer) {
-				require.Equal(t, 1, metrics.gameAgreement["disagree_challenger_wins"])
+			expect: func(t *testing.T, m *mockDetectorMetricer) {
+				require.Equal(t, 1, m.gameAgreement[metrics.DisagreeChallengerWins])
 			},
 		},
 	}
@@ -214,7 +221,7 @@ type mockDetectorMetricer struct {
 	inProgress    int
 	defenderWon   int
 	challengerWon int
-	gameAgreement map[string]int
+	gameAgreement map[metrics.GameAgreementStatus]int
 }
 
 func (m *mockDetectorMetricer) Equals(t *testing.T, inProgress, defenderWon, challengerWon int) {
@@ -223,7 +230,7 @@ func (m *mockDetectorMetricer) Equals(t *testing.T, inProgress, defenderWon, cha
 	require.Equal(t, challengerWon, m.challengerWon)
 }
 
-func (m *mockDetectorMetricer) Mapped(t *testing.T, expected map[string]int) {
+func (m *mockDetectorMetricer) Mapped(t *testing.T, expected map[metrics.GameAgreementStatus]int) {
 	for k, v := range m.gameAgreement {
 		require.Equal(t, expected[k], v)
 	}
@@ -235,9 +242,9 @@ func (m *mockDetectorMetricer) RecordGamesStatus(inProgress, defenderWon, challe
 	m.challengerWon = challengerWon
 }
 
-func (m *mockDetectorMetricer) RecordGameAgreement(status string, count int) {
+func (m *mockDetectorMetricer) RecordGameAgreement(status metrics.GameAgreementStatus, count int) {
 	if m.gameAgreement == nil {
-		m.gameAgreement = make(map[string]int)
+		m.gameAgreement = make(map[metrics.GameAgreementStatus]int)
 	}
 	m.gameAgreement[status] += count
 }

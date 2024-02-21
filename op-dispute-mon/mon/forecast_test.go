@@ -8,6 +8,7 @@ import (
 
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-dispute-mon/metrics"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
@@ -266,15 +267,15 @@ type mockForecastMetrics struct {
 	disagreeChallengerAhead int
 }
 
-func (m *mockForecastMetrics) RecordGameAgreement(status string, count int) {
+func (m *mockForecastMetrics) RecordGameAgreement(status metrics.GameAgreementStatus, count int) {
 	switch status {
-	case "agree_defender_ahead":
+	case metrics.AgreeDefenderAhead:
 		m.agreeDefenderAhead = count
-	case "disagree_defender_ahead":
+	case metrics.DisagreeDefenderAhead:
 		m.disagreeDefenderAhead = count
-	case "agree_challenger_ahead":
+	case metrics.AgreeChallengerAhead:
 		m.agreeChallengerAhead = count
-	case "disagree_challenger_ahead":
+	case metrics.DisagreeChallengerAhead:
 		m.disagreeChallengerAhead = count
 	}
 }

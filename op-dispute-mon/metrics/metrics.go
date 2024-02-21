@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"fmt"
 	"io"
 
 	"github.com/ethereum-optimism/optimism/op-service/sources/caching"
@@ -15,12 +16,28 @@ import (
 
 const Namespace = "op_dispute_mon"
 
+type GameAgreementStatus uint8
+
+const (
+	// In progress
+	AgreeChallengerAhead GameAgreementStatus = iota
+	DisagreeChallengerAhead
+	AgreeDefenderAhead
+	DisagreeDefenderAhead
+
+	// Completed
+	AgreeDefenderWins
+	DisagreeDefenderWins
+	AgreeChallengerWins
+	DisagreeChallengerWins
+)
+
 type Metricer interface {
 	RecordInfo(version string)
 	RecordUp()
 
 	RecordGamesStatus(inProgress, defenderWon, challengerWon int)
-	RecordGameAgreement(status string, count int)
+	RecordGameAgreement(status GameAgreementStatus, count int)
 
 	caching.Metrics
 }
@@ -84,6 +101,9 @@ func NewMetrics() *Metrics {
 			Help:      "Number of games broken down by whether the result agrees with the reference node",
 		}, []string{
 			"status",
+			"completion",
+			"result_correctness",
+			"root_agreement",
 		}),
 	}
 }
@@ -122,6 +142,52 @@ func (m *Metrics) RecordGamesStatus(inProgress, defenderWon, challengerWon int) 
 	m.trackedGames.WithLabelValues("challenger_won").Set(float64(challengerWon))
 }
 
-func (m *Metrics) RecordGameAgreement(status string, count int) {
-	m.gamesAgreement.WithLabelValues(status).Set(float64(count))
+func (m *Metrics) RecordGameAgreement(status GameAgreementStatus, count int) {
+	m.gamesAgreement.WithLabelValues(labelValuesFor(status)...).Set(float64(count))
+}
+
+const (
+	inProgress = true
+	correct    = true
+	agree      = true
+)
+
+func labelValuesFor(status GameAgreementStatus) []string {
+	asStrings := func(status string, inProgress bool, correct bool, agree bool) []string {
+		inProgressStr := "in_progress"
+		if !inProgress {
+			inProgressStr = "complete"
+		}
+		correctStr := "correct"
+		if !correct {
+			correctStr = "incorrect"
+		}
+		agreeStr := "agree"
+		if !agree {
+			agreeStr = "disagree"
+		}
+		return []string{status, inProgressStr, correctStr, agreeStr}
+	}
+	switch status {
+	case AgreeChallengerAhead:
+		return asStrings("agree_challenger_ahead", inProgress, !correct, agree)
+	case DisagreeChallengerAhead:
+		return asStrings("disagree_challenger_ahead", inProgress, correct, !agree)
+	case AgreeDefenderAhead:
+		return asStrings("agree_defender_ahead", inProgress, correct, agree)
+	case DisagreeDefenderAhead:
+		return asStrings("disagree_defender_ahead", inProgress, !correct, !agree)
+
+	// Completed
+	case AgreeDefenderWins:
+		return asStrings("agree_defender_wins", !inProgress, correct, agree)
+	case DisagreeDefenderWins:
+		return asStrings("disagree_defender_wins", !inProgress, !correct, !agree)
+	case AgreeChallengerWins:
+		return asStrings("agree_challenger_wins", !inProgress, !correct, agree)
+	case DisagreeChallengerWins:
+		return asStrings("disagree_challenger_wins", !inProgress, correct, !agree)
+	default:
+		panic(fmt.Errorf("unknown game agreement status: %v", status))
+	}
 }
