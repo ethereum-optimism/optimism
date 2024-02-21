@@ -6,16 +6,12 @@ import (
 
 	"github.com/ethereum/go-ethereum/rpc"
 
+	"github.com/ethereum-optimism/optimism/op-conductor/consensus"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 var ErrNotLeader = errors.New("refusing to proxy request to non-leader sequencer")
-
-type ServerInfo struct {
-	ID   string `json:"id"`
-	Addr string `json:"addr"`
-}
 
 // API defines the interface for the op-conductor API.
 type API interface {
@@ -30,7 +26,7 @@ type API interface {
 	// Leader returns true if the server is the leader.
 	Leader(ctx context.Context) (bool, error)
 	// LeaderWithID returns the current leader's server info.
-	LeaderWithID(ctx context.Context) (*ServerInfo, error)
+	LeaderWithID(ctx context.Context) (*consensus.ServerInfo, error)
 	// AddServerAsVoter adds a server as a voter to the cluster.
 	AddServerAsVoter(ctx context.Context, id string, addr string) error
 	// AddServerAsNonvoter adds a server as a non-voter to the cluster. non-voter will not participate in leader election.
@@ -41,6 +37,8 @@ type API interface {
 	TransferLeader(ctx context.Context) error
 	// TransferLeaderToServer transfers leadership to a specific server.
 	TransferLeaderToServer(ctx context.Context, id string, addr string) error
+	// ClusterMembership returns the current cluster membership configuration.
+	ClusterMembership(ctx context.Context) ([]*consensus.ServerInfo, error)
 
 	// APIs called by op-node
 	// Active returns true if op-conductor is active.
