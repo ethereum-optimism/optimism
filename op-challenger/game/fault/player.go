@@ -10,7 +10,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
+	gethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -21,12 +23,22 @@ type GameInfo interface {
 	GetClaimCount(context.Context) (uint64, error)
 }
 
+type SyncValidator interface {
+	ValidateNodeSynced(ctx context.Context, gameL1Head eth.BlockID) error
+}
+
+type L1HeaderSource interface {
+	HeaderByHash(context.Context, common.Hash) (*gethTypes.Header, error)
+}
+
 type GamePlayer struct {
 	act                actor
 	loader             GameInfo
 	logger             log.Logger
+	syncValidator      SyncValidator
 	prestateValidators []Validator
 	status             gameTypes.GameStatus
+	gameL1Head         eth.BlockID
 }
 
 type GameContract interface {
@@ -37,6 +49,7 @@ type GameContract interface {
 	GetStatus(ctx context.Context) (gameTypes.GameStatus, error)
 	GetMaxGameDepth(ctx context.Context) (types.Depth, error)
 	GetOracle(ctx context.Context) (*contracts.PreimageOracleContract, error)
+	GetL1Head(ctx context.Context) (common.Hash, error)
 }
 
 type resourceCreator func(ctx context.Context, logger log.Logger, gameDepth types.Depth, dir string) (types.TraceAccessor, error)
@@ -50,8 +63,10 @@ func NewGamePlayer(
 	addr common.Address,
 	txSender gameTypes.TxSender,
 	loader GameContract,
+	syncValidator SyncValidator,
 	validators []Validator,
 	creator resourceCreator,
+	l1HeaderSource L1HeaderSource,
 ) (*GamePlayer, error) {
 	logger = logger.New("game", addr)
 
@@ -89,6 +104,16 @@ func NewGamePlayer(
 		return nil, fmt.Errorf("failed to load oracle: %w", err)
 	}
 
+	l1HeadHash, err := loader.GetL1Head(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load game L1 head: %w", err)
+	}
+	l1Header, err := l1HeaderSource.HeaderByHash(ctx, l1HeadHash)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load L1 header %v: %w", l1HeadHash, err)
+	}
+	l1Head := eth.HeaderBlockID(l1Header)
+
 	minLargePreimageSize, err := oracle.MinLargePreimageSize(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load min large preimage size: %w", err)
@@ -107,6 +132,8 @@ func NewGamePlayer(
 		loader:             loader,
 		logger:             logger,
 		status:             status,
+		gameL1Head:         l1Head,
+		syncValidator:      syncValidator,
 		prestateValidators: validators,
 	}, nil
 }
@@ -130,13 +157,17 @@ func (g *GamePlayer) ProgressGame(ctx context.Context) gameTypes.GameStatus {
 		g.logger.Trace("Skipping completed game")
 		return g.status
 	}
+	if err := g.syncValidator.ValidateNodeSynced(ctx, g.gameL1Head); err != nil {
+		g.logger.Error("Local node not sufficiently up to date", "err", err)
+		return g.status
+	}
 	g.logger.Trace("Checking if actions are required")
 	if err := g.act(ctx); err != nil {
 		g.logger.Error("Error when acting on game", "err", err)
 	}
 	status, err := g.loader.GetStatus(ctx)
 	if err != nil {
-		g.logger.Warn("Unable to retrieve game status", "err", err)
+		g.logger.Error("Unable to retrieve game status", "err", err)
 		return gameTypes.GameStatusInProgress
 	}
 	g.logGameStatus(ctx, status)
