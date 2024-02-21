@@ -34,7 +34,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		return nil, err
 	}
 
-	rollupConfig, err := NewRollupConfig(log, ctx)
+	rollupConfig, err := NewRollupConfigFromCLI(log, ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -137,6 +137,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 func NewBeaconEndpointConfig(ctx *cli.Context) node.L1BeaconEndpointSetup {
 	return &node.L1BeaconEndpointConfig{
 		BeaconAddr:             ctx.String(flags.BeaconAddr.Name),
+		BeaconArchiverAddr:     ctx.String(flags.BeaconArchiverAddr.Name),
 		BeaconCheckIgnore:      ctx.Bool(flags.BeaconCheckIgnore.Name),
 		BeaconFetchAllSidecars: ctx.Bool(flags.BeaconFetchAllSidecars.Name),
 	}
@@ -204,12 +205,21 @@ func NewDriverConfig(ctx *cli.Context) *driver.Config {
 	}
 }
 
-func NewRollupConfig(log log.Logger, ctx *cli.Context) (*rollup.Config, error) {
+func NewRollupConfigFromCLI(log log.Logger, ctx *cli.Context) (*rollup.Config, error) {
 	network := ctx.String(opflags.NetworkFlagName)
 	rollupConfigPath := ctx.String(opflags.RollupConfigFlagName)
 	if ctx.Bool(flags.BetaExtraNetworks.Name) {
 		log.Warn("The beta.extra-networks flag is deprecated and can be omitted safely.")
 	}
+	rollupConfig, err := NewRollupConfig(log, network, rollupConfigPath)
+	if err != nil {
+		return nil, err
+	}
+	applyOverrides(ctx, rollupConfig)
+	return rollupConfig, nil
+}
+
+func NewRollupConfig(log log.Logger, network string, rollupConfigPath string) (*rollup.Config, error) {
 	if network != "" {
 		if rollupConfigPath != "" {
 			log.Error(`Cannot configure network and rollup-config at the same time.
@@ -221,7 +231,6 @@ Conflicting configuration is deprecated, and will stop the op-node from starting
 		if err != nil {
 			return nil, err
 		}
-		applyOverrides(ctx, rollupConfig)
 		return rollupConfig, nil
 	}
 
@@ -235,7 +244,6 @@ Conflicting configuration is deprecated, and will stop the op-node from starting
 	if err := json.NewDecoder(file).Decode(&rollupConfig); err != nil {
 		return nil, fmt.Errorf("failed to decode rollup config: %w", err)
 	}
-	applyOverrides(ctx, &rollupConfig)
 	return &rollupConfig, nil
 }
 

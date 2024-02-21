@@ -19,8 +19,9 @@ var (
 )
 
 const (
-	CannonGameType   uint32 = 0
-	AlphabetGameType uint32 = 255
+	CannonGameType       uint32 = 0
+	PermissionedGameType uint32 = 1
+	AlphabetGameType     uint32 = 255
 )
 
 type ClockReader interface {
@@ -75,6 +76,15 @@ func NewPreimageOracleBlobData(key []byte, data []byte, offset uint32, fieldInde
 		BlobFieldIndex: fieldIndex,
 		BlobCommitment: commitment,
 		BlobProof:      proof,
+	}
+}
+
+func NewPreimageOracleKZGPointEvaluationData(key []byte, input []byte) *PreimageOracleData {
+	return &PreimageOracleData{
+		IsLocal:      false,
+		OracleKey:    key,
+		oracleData:   input,
+		OracleOffset: 0,
 	}
 }
 

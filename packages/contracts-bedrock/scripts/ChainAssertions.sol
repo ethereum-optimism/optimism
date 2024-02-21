@@ -172,6 +172,9 @@ library ChainAssertions {
         console.log("Running chain assertions on the DisputeGameFactory");
         DisputeGameFactory factory = DisputeGameFactory(_contracts.DisputeGameFactory);
 
+        // Check that the contract is initialized
+        assertSlotValueIsOne({ _contractAddress: address(factory), _slot: 0, _offset: 0 });
+
         require(factory.owner() == _expectedOwner);
     }
 

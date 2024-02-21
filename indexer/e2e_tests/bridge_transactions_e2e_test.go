@@ -163,7 +163,7 @@ func TestE2EBridgeTransactionsL2ToL1MessagePasserWithdrawal(t *testing.T) {
 	// Test Withdrawal Finalized
 	require.Nil(t, withdraw.FinalizedL1EventGUID)
 
-	finalizeReceipt := op_e2e.FinalizeWithdrawal(t, *testSuite.OpCfg, testSuite.L1Client, testSuite.OpCfg.Secrets.Alice, proveReceipt, withdrawParams)
+	finalizeReceipt, _, _ := op_e2e.FinalizeWithdrawal(t, *testSuite.OpCfg, testSuite.L1Client, testSuite.OpCfg.Secrets.Alice, proveReceipt, withdrawParams)
 	require.NoError(t, wait.For(context.Background(), 500*time.Millisecond, func() (bool, error) {
 		l1Header := testSuite.Indexer.BridgeProcessor.LastFinalizedL1Header
 		return l1Header != nil && l1Header.Number.Uint64() >= finalizeReceipt.BlockNumber.Uint64(), nil
@@ -207,7 +207,7 @@ func TestE2EBridgeTransactionsL2ToL1MessagePasserFailedWithdrawal(t *testing.T) 
 	require.NoError(t, err)
 
 	// Prove&Finalize withdrawal
-	_, finalizeReceipt := op_e2e.ProveAndFinalizeWithdrawal(t, *testSuite.OpCfg, testSuite.OpSys, "sequencer", testSuite.OpCfg.Secrets.Alice, withdrawReceipt)
+	_, finalizeReceipt, _, _ := op_e2e.ProveAndFinalizeWithdrawal(t, *testSuite.OpCfg, testSuite.OpSys, "sequencer", testSuite.OpCfg.Secrets.Alice, withdrawReceipt)
 	require.NoError(t, wait.For(context.Background(), 500*time.Millisecond, func() (bool, error) {
 		l1Header := testSuite.Indexer.BridgeProcessor.LastFinalizedL1Header
 		return l1Header != nil && l1Header.Number.Uint64() >= finalizeReceipt.BlockNumber.Uint64(), nil

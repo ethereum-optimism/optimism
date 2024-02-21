@@ -16,9 +16,15 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+)
+
+var (
+	kzgPointEvaluationSuccess = [1]byte{1}
+	kzgPointEvaluationFailure = [1]byte{0}
 )
 
 type L1Source interface {
@@ -30,6 +36,10 @@ type L1Source interface {
 type L1BlobSource interface {
 	GetBlobSidecars(ctx context.Context, ref eth.L1BlockRef, hashes []eth.IndexedBlobHash) ([]*eth.BlobSidecar, error)
 	GetBlobs(ctx context.Context, ref eth.L1BlockRef, hashes []eth.IndexedBlobHash) ([]*eth.Blob, error)
+}
+
+type L1PrecompileSource interface {
+	KZGPointEvaluation(input []byte) ([]byte, error)
 }
 
 type L2Source interface {
@@ -165,6 +175,22 @@ func (p *Prefetcher) prefetch(ctx context.Context, hint string) error {
 			}
 		}
 		return nil
+	case l1.HintL1KZGPointEvaluation:
+		precompile := vm.PrecompiledContractsCancun[common.BytesToAddress([]byte{0x0a})]
+		// KZG Point Evaluation precompile also verifies hintBytes length
+		_, err := precompile.Run(hintBytes)
+		var result [1]byte
+		if err == nil {
+			result = kzgPointEvaluationSuccess
+		} else {
+			result = kzgPointEvaluationFailure
+		}
+		inputHash := crypto.Keccak256Hash(hintBytes)
+		// Put the input preimage so it can be loaded later
+		if err := p.kvStore.Put(preimage.Keccak256Key(inputHash).PreimageKey(), hintBytes); err != nil {
+			return err
+		}
+		return p.kvStore.Put(preimage.KZGPointEvaluationKey(inputHash).PreimageKey(), result[:])
 	case l2.HintL2BlockHeader, l2.HintL2Transactions:
 		if len(hintBytes) != 32 {
 			return fmt.Errorf("invalid L2 header/tx hint: %x", hint)

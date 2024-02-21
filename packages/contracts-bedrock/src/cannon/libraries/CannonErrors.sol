@@ -42,3 +42,9 @@ error NotEOA();
 
 /// @notice Thrown when a function that requires Cancun EVM features is called on at a time where Cancun is not enabled.
 error CancunNotActive();
+
+/// @notice Thrown when an insufficient bond is provided for a large preimage proposal.
+error InsufficientBond();
+
+/// @notice Thrown when a bond transfer fails.
+error BondTransferFailed();

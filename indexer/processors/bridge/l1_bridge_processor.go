@@ -170,6 +170,10 @@ func L1ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, metrics L1M
 			return fmt.Errorf("missing indexed withdrawal! tx_hash = %s", provenWithdrawal.Event.TransactionHash)
 		}
 
+		if withdrawal.ProvenL1EventGUID != nil && withdrawal.ProvenL1EventGUID.ID() != provenWithdrawals[i].Event.GUID.ID() {
+			log.Info("detected re-proven withdrawal", "tx_hash", provenWithdrawal.Event.TransactionHash.String())
+		}
+
 		if err := db.BridgeTransactions.MarkL2TransactionWithdrawalProvenEvent(provenWithdrawal.WithdrawalHash, provenWithdrawals[i].Event.GUID); err != nil {
 			return fmt.Errorf("failed to mark withdrawal as proven. tx_hash = %s: %w", provenWithdrawal.Event.TransactionHash, err)
 		}

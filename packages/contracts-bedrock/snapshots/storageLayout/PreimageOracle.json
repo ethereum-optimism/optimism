@@ -50,16 +50,23 @@
   },
   {
     "bytes": "32",
-    "label": "proposalParts",
+    "label": "proposalBonds",
     "offset": 0,
     "slot": "22",
+    "type": "mapping(address => mapping(uint256 => uint256))"
+  },
+  {
+    "bytes": "32",
+    "label": "proposalParts",
+    "offset": 0,
+    "slot": "23",
     "type": "mapping(address => mapping(uint256 => bytes32))"
   },
   {
     "bytes": "32",
     "label": "proposalBlocks",
     "offset": 0,
-    "slot": "23",
+    "slot": "24",
     "type": "mapping(address => mapping(uint256 => uint64[]))"
   }
 ]

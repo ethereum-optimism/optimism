@@ -114,7 +114,6 @@ abstract contract StandardBridge is Initializable {
     /// @notice Initializer.
     /// @param _messenger   Contract for CrossDomainMessenger on this network.
     /// @param _otherBridge Contract for the other StandardBridge contract.
-    // solhint-disable-next-line func-name-mixedcase
     function __StandardBridge_init(
         CrossDomainMessenger _messenger,
         StandardBridge _otherBridge

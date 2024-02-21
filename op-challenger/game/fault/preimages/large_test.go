@@ -338,6 +338,11 @@ func (s *mockPreimageOracleContract) GetProposalMetadata(_ context.Context, _ ba
 	s.squeezeCallClaimSize = 1
 	return []keccakTypes.LargePreimageMetaData{{LargePreimageIdent: idents[0]}}, nil
 }
+
+func (s *mockPreimageOracleContract) GetMinBondLPP(_ context.Context) (*big.Int, error) {
+	return big.NewInt(0), nil
+}
+
 func (s *mockPreimageOracleContract) CallSqueeze(_ context.Context, _ common.Address, _ *big.Int, _ keccakTypes.StateSnapshot, _ keccakTypes.Leaf, _ merkle.Proof, _ keccakTypes.Leaf, _ merkle.Proof) error {
 	if s.squeezeCallFails {
 		return mockSqueezeCallError

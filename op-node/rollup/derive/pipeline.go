@@ -139,7 +139,7 @@ func (dp *DerivationPipeline) LowestQueuedUnsafeBlock() eth.L2BlockRef {
 }
 
 // Step tries to progress the buffer.
-// An EOF is returned if there pipeline is blocked by waiting for new L1 data.
+// An EOF is returned if the pipeline is blocked by waiting for new L1 data.
 // If ctx errors no error is returned, but the step may exit early in a state that can still be continued.
 // Any other error is critical and the derivation pipeline should be reset.
 // An error is expected when the underlying source closes.

@@ -17,11 +17,12 @@ const cacheSize = 2000
 
 // CachingOracle is an implementation of Oracle that delegates to another implementation, adding caching of all results
 type CachingOracle struct {
-	oracle Oracle
-	blocks *simplelru.LRU[common.Hash, eth.BlockInfo]
-	txs    *simplelru.LRU[common.Hash, types.Transactions]
-	rcpts  *simplelru.LRU[common.Hash, types.Receipts]
-	blobs  *simplelru.LRU[common.Hash, *eth.Blob]
+	oracle  Oracle
+	blocks  *simplelru.LRU[common.Hash, eth.BlockInfo]
+	txs     *simplelru.LRU[common.Hash, types.Transactions]
+	rcpts   *simplelru.LRU[common.Hash, types.Receipts]
+	blobs   *simplelru.LRU[common.Hash, *eth.Blob]
+	ptEvals *simplelru.LRU[common.Hash, bool]
 }
 
 func NewCachingOracle(oracle Oracle) *CachingOracle {
@@ -29,12 +30,14 @@ func NewCachingOracle(oracle Oracle) *CachingOracle {
 	txsLRU, _ := simplelru.NewLRU[common.Hash, types.Transactions](cacheSize, nil)
 	rcptsLRU, _ := simplelru.NewLRU[common.Hash, types.Receipts](cacheSize, nil)
 	blobsLRU, _ := simplelru.NewLRU[common.Hash, *eth.Blob](cacheSize, nil)
+	ptEvals, _ := simplelru.NewLRU[common.Hash, bool](cacheSize, nil)
 	return &CachingOracle{
-		oracle: oracle,
-		blocks: blockLRU,
-		txs:    txsLRU,
-		rcpts:  rcptsLRU,
-		blobs:  blobsLRU,
+		oracle:  oracle,
+		blocks:  blockLRU,
+		txs:     txsLRU,
+		rcpts:   rcptsLRU,
+		blobs:   blobsLRU,
+		ptEvals: ptEvals,
 	}
 }
 
@@ -85,4 +88,15 @@ func (o *CachingOracle) GetBlob(ref eth.L1BlockRef, blobHash eth.IndexedBlobHash
 	blob = o.oracle.GetBlob(ref, blobHash)
 	o.blobs.Add(cacheKey, blob)
 	return blob
+}
+
+func (o *CachingOracle) KZGPointEvaluation(input []byte) bool {
+	cacheKey := crypto.Keccak256Hash(input)
+	ptEval, ok := o.ptEvals.Get(cacheKey)
+	if ok {
+		return ptEval
+	}
+	ptEval = o.oracle.KZGPointEvaluation(input)
+	o.ptEvals.Add(cacheKey, ptEval)
+	return ptEval
 }

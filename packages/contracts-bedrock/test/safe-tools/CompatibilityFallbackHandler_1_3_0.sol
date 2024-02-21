@@ -162,7 +162,6 @@ contract CompatibilityFallbackHandler is DefaultCallbackHandler, ISignatureValid
         targetContract;
         calldataPayload;
 
-        // solhint-disable-next-line no-inline-assembly
         assembly {
             let internalCalldata := mload(0x40)
             // Store `simulateAndRevert.selector`.

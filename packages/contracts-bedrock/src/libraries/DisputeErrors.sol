@@ -87,3 +87,10 @@ error ClaimAboveSplit();
 /// @notice Thrown on deployment if the split depth is greater than or equal to the max
 ///         depth of the game.
 error InvalidSplitDepth();
+
+////////////////////////////////////////////////////////////////
+//              `PermissionedDisputeGame` Errors              //
+////////////////////////////////////////////////////////////////
+
+/// @notice Thrown when an unauthorized address attempts to interact with the game.
+error BadAuth();

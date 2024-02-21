@@ -27,6 +27,9 @@ type Oracle interface {
 
 	// GetBlobField retrieves the field element at the given index from the blob with the given hash.
 	GetBlob(ref eth.L1BlockRef, blobHash eth.IndexedBlobHash) *eth.Blob
+
+	// KZGPointEvaluation retriees the result of the Cancun KZG point evaluation precompile for the given input.
+	KZGPointEvaluation(input []byte) bool
 }
 
 // PreimageOracle implements Oracle using by interfacing with the pure preimage.Oracle
@@ -114,4 +117,14 @@ func (p *PreimageOracle) GetBlob(ref eth.L1BlockRef, blobHash eth.IndexedBlobHas
 	}
 
 	return &blob
+}
+
+func (p *PreimageOracle) KZGPointEvaluation(input []byte) bool {
+	p.hint.Hint(KZGPointEvaluationHint(input))
+	key := preimage.KZGPointEvaluationKey(crypto.Keccak256Hash(input[:]))
+	result := p.oracle.Get(key)
+	if len(result) != 1 || result[0] > 1 {
+		panic(fmt.Errorf("unexpected preimage oracle KZGPointEvaluation behavior, got result: %x", result))
+	}
+	return result[0] == 1
 }

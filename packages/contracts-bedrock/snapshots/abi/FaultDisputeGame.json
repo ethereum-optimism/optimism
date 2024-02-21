@@ -176,6 +176,19 @@
   },
   {
     "inputs": [],
+    "name": "claimedBondFlag",
+    "outputs": [
+      {
+        "internalType": "uint128",
+        "name": "claimedBondFlag_",
+        "type": "uint128"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "createdAt",
     "outputs": [
       {
@@ -344,11 +357,11 @@
     "outputs": [
       {
         "internalType": "Hash",
-        "name": "",
+        "name": "l1Head_",
         "type": "bytes32"
       }
     ],
-    "stateMutability": "view",
+    "stateMutability": "pure",
     "type": "function"
   },
   {
