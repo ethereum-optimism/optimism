@@ -482,7 +482,7 @@ var (
 				Name:     "number",
 				Usage:    "Block number to copy from the source",
 				Required: true,
-				EnvVars:  prefixEnvVars("ENGINE"),
+				EnvVars:  prefixEnvVars("NUMBER"),
 			},
 		},
 		Action: EngineAction(func(ctx *cli.Context, dest client.RPC) error {
