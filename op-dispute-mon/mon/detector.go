@@ -76,7 +76,10 @@ func (d *detector) checkAgreement(ctx context.Context, addr common.Address, bloc
 			expectedResult = types.GameStatusChallengerWon
 		}
 		if status != expectedResult {
-			d.logger.Error("Unexpected game result", "gameAddr", addr, "expectedResult", expectedResult, "actualResult", status, "rootClaim", rootClaim, "correctClaim", expectedClaim)
+			d.logger.Error("Unexpected game result",
+				"gameAddr", addr, "blockNum", blockNum,
+				"expectedResult", expectedResult, "actualResult", status,
+				"rootClaim", rootClaim, "correctClaim", expectedClaim)
 		}
 	}
 	return batch, nil
