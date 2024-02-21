@@ -75,8 +75,10 @@ func (a *Agent) Act(ctx context.Context) error {
 				"proof", common.Bytes2Hex(action.ProofData),
 				"containsOracleData", containsOracleData,
 				"isLocalPreimage", isLocal,
-				"oracleKey", common.Bytes2Hex(action.OracleData.OracleKey),
 			)
+			if action.OracleData != nil {
+				actionLog = actionLog.New("oracleKey", common.Bytes2Hex(action.OracleData.OracleKey))
+			}
 		} else {
 			actionLog = actionLog.New("value", action.Value)
 		}
