@@ -92,11 +92,13 @@ contract DataAvailabilityChallenge is OwnableUpgradeable, ISemver {
     string public constant version = "1.0.0";
 
     /// @notice The fixed cost of resolving a challenge.
-    uint256 public constant fixedResolutionCost = 44200;
+    /// @dev The value is estimated by measuring the cost of resolving with `bytes(0)`
+    uint256 public constant fixedResolutionCost = 72925;
 
     /// @notice The variable cost of resolving a callenge per byte scaled by the variableResolutionCostPrecision.
-    /// @dev upper limit; 16 gas per non-zero calldata byte, 4 gas variable execution cost per byte.
-    uint256 public constant variableResolutionCost = 1600 + 4000;
+    /// @dev upper limit; The value is estimated by measuring the cost of resolving with variable size data where each
+    /// byte is non-zero.
+    uint256 public constant variableResolutionCost = 16640;
 
     /// @dev The precision of the variable resolution cost.
     uint256 public constant variableResolutionCostPrecision = 1000;
