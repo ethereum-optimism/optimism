@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-dispute-mon/metrics"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/transform"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 
@@ -20,7 +21,7 @@ var (
 )
 
 type ForecastMetrics interface {
-	RecordGameAgreement(status string, count int)
+	RecordGameAgreement(status metrics.GameAgreementStatus, count int)
 }
 
 type forecast struct {
@@ -48,10 +49,10 @@ func (f *forecast) Forecast(ctx context.Context, games []monTypes.EnrichedGameDa
 }
 
 func (f *forecast) recordBatch(batch monTypes.ForecastBatch) {
-	f.metrics.RecordGameAgreement("agree_challenger_ahead", batch.AgreeChallengerAhead)
-	f.metrics.RecordGameAgreement("disagree_challenger_ahead", batch.DisagreeChallengerAhead)
-	f.metrics.RecordGameAgreement("agree_defender_ahead", batch.AgreeDefenderAhead)
-	f.metrics.RecordGameAgreement("disagree_defender_ahead", batch.DisagreeDefenderAhead)
+	f.metrics.RecordGameAgreement(metrics.AgreeChallengerAhead, batch.AgreeChallengerAhead)
+	f.metrics.RecordGameAgreement(metrics.DisagreeChallengerAhead, batch.DisagreeChallengerAhead)
+	f.metrics.RecordGameAgreement(metrics.AgreeDefenderAhead, batch.AgreeDefenderAhead)
+	f.metrics.RecordGameAgreement(metrics.DisagreeDefenderAhead, batch.DisagreeDefenderAhead)
 }
 
 func (f *forecast) forecastGame(ctx context.Context, game monTypes.EnrichedGameData, metrics *monTypes.ForecastBatch) error {

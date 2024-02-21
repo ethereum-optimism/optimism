@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-dispute-mon/metrics"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/extract"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 
@@ -20,7 +21,7 @@ type GameCallerCreator interface {
 }
 
 type DetectorMetrics interface {
-	RecordGameAgreement(status string, count int)
+	RecordGameAgreement(status metrics.GameAgreementStatus, count int)
 	RecordGamesStatus(inProgress, defenderWon, challengerWon int)
 }
 
@@ -56,11 +57,10 @@ func (d *detector) Detect(ctx context.Context, games []monTypes.EnrichedGameData
 }
 
 func (d *detector) recordBatch(batch monTypes.DetectionBatch) {
-	d.metrics.RecordGameAgreement("in_progress", batch.InProgress)
-	d.metrics.RecordGameAgreement("agree_defender_wins", batch.AgreeDefenderWins)
-	d.metrics.RecordGameAgreement("disagree_defender_wins", batch.DisagreeDefenderWins)
-	d.metrics.RecordGameAgreement("agree_challenger_wins", batch.AgreeChallengerWins)
-	d.metrics.RecordGameAgreement("disagree_challenger_wins", batch.DisagreeChallengerWins)
+	d.metrics.RecordGameAgreement(metrics.AgreeDefenderWins, batch.AgreeDefenderWins)
+	d.metrics.RecordGameAgreement(metrics.DisagreeDefenderWins, batch.DisagreeDefenderWins)
+	d.metrics.RecordGameAgreement(metrics.AgreeChallengerWins, batch.AgreeChallengerWins)
+	d.metrics.RecordGameAgreement(metrics.DisagreeChallengerWins, batch.DisagreeChallengerWins)
 }
 
 func (d *detector) checkAgreement(ctx context.Context, addr common.Address, blockNum uint64, rootClaim common.Hash, status types.GameStatus) (monTypes.DetectionBatch, error) {
