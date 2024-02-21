@@ -55,12 +55,8 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 		return nil, fmt.Errorf("unable to retrieve genesis SystemConfig of chain %d", chainID)
 	}
 
-	var depositContractAddress common.Address
-	var systemConfigProxyAddress common.Address
-	if addrs, ok := superchain.Addresses[chainID]; ok {
-		depositContractAddress = common.Address(addrs.OptimismPortalProxy)
-		systemConfigProxyAddress = common.Address(addrs.SystemConfigProxy)
-	} else {
+	addrs, ok := superchain.Addresses[chainID]
+	if !ok {
 		return nil, fmt.Errorf("unable to retrieve deposit contract address")
 	}
 
@@ -115,8 +111,8 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 		EcotoneTime:            superChain.Config.EcotoneTime,
 		FjordTime:              superChain.Config.FjordTime,
 		BatchInboxAddress:      common.Address(chConfig.BatchInboxAddr),
-		DepositContractAddress: depositContractAddress,
-		L1SystemConfigAddress:  systemConfigProxyAddress,
+		DepositContractAddress: common.Address(addrs.OptimismPortalProxy),
+		L1SystemConfigAddress:  common.Address(addrs.SystemConfigProxy),
 	}
 	if superChain.Config.ProtocolVersionsAddr != nil { // Set optional protocol versions address
 		cfg.ProtocolVersionsAddress = common.Address(*superChain.Config.ProtocolVersionsAddr)
