@@ -2010,7 +2010,10 @@ workflows:
 
   develop-fault-proofs:
     when:
-      equal: [ "develop", <<pipeline.git.branch>> ]
+      and:
+        - equal: [ "develop", <<pipeline.git.branch>> ]
+        - not:
+            equal: [ scheduled_pipeline, << pipeline.trigger_source >> ]
     jobs:
       - go-mod-download
       - cannon-prestate:
