@@ -3,6 +3,7 @@ package contracts
 import (
 	"context"
 	"fmt"
+	"math"
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
@@ -317,6 +318,21 @@ func (f *FaultDisputeGameContract) resolveCall() *batching.ContractCall {
 	return f.contract.Call(methodResolve)
 }
 
+// decodeClock decodes a uint128 into a Clock duration and timestamp.
+func decodeClock(clock *big.Int) *types.Clock {
+	maxUint64 := new(big.Int).Add(new(big.Int).SetUint64(math.MaxUint64), big.NewInt(1))
+	remainder := new(big.Int)
+	quotient, _ := new(big.Int).QuoRem(clock, maxUint64, remainder)
+	return types.NewClock(quotient.Uint64(), remainder.Uint64())
+}
+
+// packClock packs the Clock duration and timestamp into a uint128.
+func packClock(c *types.Clock) *big.Int {
+	duration := new(big.Int).SetUint64(c.Duration)
+	encoded := new(big.Int).Lsh(duration, 64)
+	return new(big.Int).Or(encoded, new(big.Int).SetUint64(c.Timestamp))
+}
+
 func (f *FaultDisputeGameContract) decodeClaim(result *batching.CallResult, contractIndex int) types.Claim {
 	parentIndex := result.GetUint32(0)
 	counteredBy := result.GetAddress(1)
@@ -333,7 +349,7 @@ func (f *FaultDisputeGameContract) decodeClaim(result *batching.CallResult, cont
 		},
 		CounteredBy:         counteredBy,
 		Claimant:            claimant,
-		Clock:               clock.Uint64(),
+		Clock:               decodeClock(clock),
 		ContractIndex:       contractIndex,
 		ParentContractIndex: int(parentIndex),
 	}

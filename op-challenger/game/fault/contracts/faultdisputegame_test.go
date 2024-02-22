@@ -105,6 +105,44 @@ func TestSimpleGetters(t *testing.T) {
 	}
 }
 
+func TestClock_EncodingDecoding(t *testing.T) {
+	t.Run("DurationAndTimestamp", func(t *testing.T) {
+		by := common.Hex2Bytes("00000000000000050000000000000002")
+		encoded := new(big.Int).SetBytes(by)
+		clock := decodeClock(encoded)
+		require.Equal(t, uint64(5), clock.Duration)
+		require.Equal(t, uint64(2), clock.Timestamp)
+		require.Equal(t, encoded, packClock(clock))
+	})
+
+	t.Run("ZeroDuration", func(t *testing.T) {
+		by := common.Hex2Bytes("00000000000000000000000000000002")
+		encoded := new(big.Int).SetBytes(by)
+		clock := decodeClock(encoded)
+		require.Equal(t, uint64(0), clock.Duration)
+		require.Equal(t, uint64(2), clock.Timestamp)
+		require.Equal(t, encoded, packClock(clock))
+	})
+
+	t.Run("ZeroTimestamp", func(t *testing.T) {
+		by := common.Hex2Bytes("00000000000000050000000000000000")
+		encoded := new(big.Int).SetBytes(by)
+		clock := decodeClock(encoded)
+		require.Equal(t, uint64(5), clock.Duration)
+		require.Equal(t, uint64(0), clock.Timestamp)
+		require.Equal(t, encoded, packClock(clock))
+	})
+
+	t.Run("ZeroClock", func(t *testing.T) {
+		by := common.Hex2Bytes("00000000000000000000000000000000")
+		encoded := new(big.Int).SetBytes(by)
+		clock := decodeClock(encoded)
+		require.Equal(t, uint64(0), clock.Duration)
+		require.Equal(t, uint64(0), clock.Timestamp)
+		require.Equal(t, encoded.Uint64(), packClock(clock).Uint64())
+	})
+}
+
 func TestGetOracleAddr(t *testing.T) {
 	stubRpc, game := setupFaultDisputeGameTest(t)
 	stubRpc.SetResponse(fdgAddr, methodVM, batching.BlockLatest, nil, []interface{}{vmAddr})
@@ -136,7 +174,7 @@ func TestGetClaim(t *testing.T) {
 		},
 		CounteredBy:         counteredBy,
 		Claimant:            claimant,
-		Clock:               1234,
+		Clock:               decodeClock(big.NewInt(1234)),
 		ContractIndex:       int(idx.Uint64()),
 		ParentContractIndex: 1,
 	}, status)
@@ -152,7 +190,7 @@ func TestGetAllClaims(t *testing.T) {
 		},
 		CounteredBy:         common.Address{0x01},
 		Claimant:            common.Address{0x02},
-		Clock:               1234,
+		Clock:               decodeClock(big.NewInt(1234)),
 		ContractIndex:       0,
 		ParentContractIndex: math.MaxUint32,
 	}
@@ -164,7 +202,7 @@ func TestGetAllClaims(t *testing.T) {
 		},
 		CounteredBy:         common.Address{0x02},
 		Claimant:            common.Address{0x01},
-		Clock:               4455,
+		Clock:               decodeClock(big.NewInt(4455)),
 		ContractIndex:       1,
 		ParentContractIndex: 0,
 	}
@@ -175,7 +213,7 @@ func TestGetAllClaims(t *testing.T) {
 			Bond:     big.NewInt(5),
 		},
 		Claimant:            common.Address{0x02},
-		Clock:               7777,
+		Clock:               decodeClock(big.NewInt(7777)),
 		ContractIndex:       2,
 		ParentContractIndex: 1,
 	}
@@ -253,7 +291,7 @@ func expectGetClaim(stubRpc *batchingTest.AbiBasedRpc, claim faultTypes.Claim) {
 			claim.Bond,
 			claim.Value,
 			claim.Position.ToGIndex(),
-			big.NewInt(int64(claim.Clock)),
+			packClock(claim.Clock),
 		})
 }
 
