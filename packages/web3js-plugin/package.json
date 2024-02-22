@@ -43,7 +43,7 @@
     "zod": "^3.22.4"
   },
   "dependencies": {
-    "@ethereumjs/rlp": "^5.0.1",
+    "@ethereumjs/rlp": "^5.0.2",
     "web3-eth": "^4.0.3",
     "web3-eth-accounts": "^4.0.3"
   },

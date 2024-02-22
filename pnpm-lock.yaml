@@ -530,8 +530,8 @@ importers:
   packages/web3js-plugin:
     dependencies:
       '@ethereumjs/rlp':
-        specifier: ^5.0.1
-        version: 5.0.1
+        specifier: ^5.0.2
+        version: 5.0.2
       web3:
         specifier: '>= 4.0.3 < 5.x'
         version: 4.0.3
@@ -3073,8 +3073,8 @@ packages:
     engines: {node: '>=14'}
     hasBin: true
 
-  /@ethereumjs/rlp@5.0.1:
-    resolution: {integrity: sha512-Ab/Hfzz+T9Zl+65Nkg+9xAmwKPLicsnQ4NW49pgvJp9ovefuic95cgOS9CbPc9izIEgsqm1UitV0uNveCvud9w==}
+  /@ethereumjs/rlp@5.0.2:
+    resolution: {integrity: sha512-DziebCdg4JpGlEqEdGgXmjqcFoJi+JGulUXwEjsZGAscAQ7MyD/7LE/GVCP29vEQxKc7AAwjT3A2ywHp2xfoCA==}
     engines: {node: '>=18'}
     hasBin: true
     dev: false
@@ -9871,7 +9871,6 @@ packages:
       is-hex-prefixed: 1.0.0
       strip-hex-prefix: 1.0.0
     dev: true
-    bundledDependencies: false
 
   /event-target-shim@5.0.1:
     resolution: {integrity: sha512-i/2XbnSz/uxRCU6+NdVJgKWDTM427+MqYbkQzD321DuCQJUqOuJKIA0IM2+W2xtYHdKOmZ4dR6fExsd4SXL+WQ==}
