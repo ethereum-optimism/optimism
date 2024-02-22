@@ -208,9 +208,10 @@ contract DataAvailabilityChallengeTest is CommonTest {
     )
         public
     {
-        // Assume neither the challenger nor resolver is address(0)
+        // Assume neither the challenger nor resolver is address(0) and that they're not the same entity
         vm.assume(challenger != address(0));
         vm.assume(resolver != address(0));
+        vm.assume(challenger != resolver);
 
         // Bound the resolver refund percentage to 100
         resolverRefundPercentage = bound(resolverRefundPercentage, 0, 100);
