@@ -70,7 +70,15 @@ func (a *Agent) Act(ctx context.Context) error {
 		if action.Type == types.ActionTypeStep {
 			containsOracleData := action.OracleData != nil
 			isLocal := containsOracleData && action.OracleData.IsLocal
-			actionLog = actionLog.New("prestate", common.Bytes2Hex(action.PreState), "proof", common.Bytes2Hex(action.ProofData), "containsOracleData", containsOracleData, "isLocalPreimage", isLocal)
+			actionLog = actionLog.New(
+				"prestate", common.Bytes2Hex(action.PreState),
+				"proof", common.Bytes2Hex(action.ProofData),
+				"containsOracleData", containsOracleData,
+				"isLocalPreimage", isLocal,
+			)
+			if action.OracleData != nil {
+				actionLog = actionLog.New("oracleKey", common.Bytes2Hex(action.OracleData.OracleKey))
+			}
 		} else {
 			actionLog = actionLog.New("value", action.Value)
 		}

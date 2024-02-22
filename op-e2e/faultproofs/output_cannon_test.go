@@ -3,6 +3,7 @@ package faultproofs
 import (
 	"context"
 	"fmt"
+	"math/big"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/cannon"
@@ -13,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame/preimage"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
 )
 
@@ -298,7 +300,6 @@ func TestOutputCannonStepWithPreimage(t *testing.T) {
 }
 
 func TestOutputCannonStepWithKZGPointEvaluation(t *testing.T) {
-	t.Skip("TODO: Fix flaky test")
 	op_e2e.InitParallel(t, op_e2e.UsesCannon)
 
 	testPreimageStep := func(t *testing.T, preloadPreimage bool) {
@@ -307,6 +308,12 @@ func TestOutputCannonStepWithKZGPointEvaluation(t *testing.T) {
 		ctx := context.Background()
 		sys, _ := startFaultDisputeSystem(t, withEcotone())
 		t.Cleanup(sys.Close)
+
+		// NOTE: Flake prevention
+		// Ensure that the L1 origin including the point eval tx isn't on the genesis epoch.
+		safeBlock, err := sys.Clients["sequencer"].BlockByNumber(ctx, big.NewInt(int64(rpc.SafeBlockNumber)))
+		require.NoError(t, err)
+		require.NoError(t, wait.ForSafeBlock(ctx, sys.RollupClient("sequencer"), safeBlock.NumberU64()+3))
 
 		receipt := sendKZGPointEvaluationTx(t, sys, "sequencer", sys.Cfg.Secrets.Alice)
 		precompileBlock := receipt.BlockNumber
