@@ -142,9 +142,9 @@ contract DeployConfig is Script {
         preimageOracleCancunActivationTimestamp = stdJson.readUint(_json, "$.preimageOracleCancunActivationTimestamp");
 
         usePlasma = _readOr(_json, "$.usePlasma", false);
-        daChallengeWindow = _readOr(_json, "$.daChallengeWindow", 0);
-        daResolveWindow = _readOr(_json, "$.daResolveWindow", 0);
-        daBondSize = _readOr(_json, "$.daBondSize", 0);
+        daChallengeWindow = _readOr(_json, "$.daChallengeWindow", 1000);
+        daResolveWindow = _readOr(_json, "$.daResolveWindow", 1000);
+        daBondSize = _readOr(_json, "$.daBondSize", 1000000000);
         daResolverRefundPercentage = _readOr(_json, "$.daResolverRefundPercentage", 0);
     }
 
