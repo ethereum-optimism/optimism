@@ -12,7 +12,6 @@ import { Proxy } from "src/universal/Proxy.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
 
 contract DataAvailabilityChallengeTest is CommonTest {
-
     function setUp() public virtual override {
         super.enablePlasma();
         super.setUp();
@@ -58,7 +57,11 @@ contract DataAvailabilityChallengeTest is CommonTest {
         vm.assume(challenger != address(0));
 
         // Assume the block number is not close to the max uint256 value
-        vm.assume(challengedBlockNumber < type(uint256).max - dataAvailabilityChallenge.challengeWindow() - dataAvailabilityChallenge.resolveWindow());
+        vm.assume(
+            challengedBlockNumber
+                < type(uint256).max - dataAvailabilityChallenge.challengeWindow()
+                    - dataAvailabilityChallenge.resolveWindow()
+        );
         uint256 requiredBond = dataAvailabilityChallenge.bondSize();
 
         // Move to a block after the challenged block
@@ -86,7 +89,8 @@ contract DataAvailabilityChallengeTest is CommonTest {
         assertEq(challenge.resolvedBlock, 0);
         assertEq(challenge.lockedBond, requiredBond);
         assertEq(
-            uint8(dataAvailabilityChallenge.getChallengeStatus(challengedBlockNumber, challengedCommitment)), uint8(ChallengeStatus.Active)
+            uint8(dataAvailabilityChallenge.getChallengeStatus(challengedBlockNumber, challengedCommitment)),
+            uint8(ChallengeStatus.Active)
         );
 
         // Challenge should have decreased the challenger's bond size
@@ -100,7 +104,11 @@ contract DataAvailabilityChallengeTest is CommonTest {
         vm.assume(challenger != address(0));
 
         // Assume the block number is not close to the max uint256 value
-        vm.assume(challengedBlockNumber < type(uint256).max - dataAvailabilityChallenge.challengeWindow() - dataAvailabilityChallenge.resolveWindow());
+        vm.assume(
+            challengedBlockNumber
+                < type(uint256).max - dataAvailabilityChallenge.challengeWindow()
+                    - dataAvailabilityChallenge.resolveWindow()
+        );
         uint256 requiredBond = dataAvailabilityChallenge.bondSize();
 
         // Move to a block after the challenged block
@@ -124,7 +132,8 @@ contract DataAvailabilityChallengeTest is CommonTest {
         assertEq(challenge.resolvedBlock, 0);
         assertEq(challenge.lockedBond, requiredBond);
         assertEq(
-            uint8(dataAvailabilityChallenge.getChallengeStatus(challengedBlockNumber, challengedCommitment)), uint8(ChallengeStatus.Active)
+            uint8(dataAvailabilityChallenge.getChallengeStatus(challengedBlockNumber, challengedCommitment)),
+            uint8(ChallengeStatus.Active)
         );
 
         // Challenge should have decreased the challenger's bond size
@@ -214,7 +223,11 @@ contract DataAvailabilityChallengeTest is CommonTest {
         dataAvailabilityChallenge.setResolverRefundPercentage(resolverRefundPercentage);
 
         // Assume the block number is not close to the max uint256 value
-        vm.assume(challengedBlockNumber < type(uint256).max - dataAvailabilityChallenge.challengeWindow() - dataAvailabilityChallenge.resolveWindow());
+        vm.assume(
+            challengedBlockNumber
+                < type(uint256).max - dataAvailabilityChallenge.challengeWindow()
+                    - dataAvailabilityChallenge.resolveWindow()
+        );
         bytes memory challengedCommitment = computeCommitmentKeccak256(preImage);
 
         // Move to block after challenged block
@@ -241,13 +254,15 @@ contract DataAvailabilityChallengeTest is CommonTest {
         assertEq(challenge.startBlock, block.number);
         assertEq(challenge.resolvedBlock, block.number);
         assertEq(
-            uint8(dataAvailabilityChallenge.getChallengeStatus(challengedBlockNumber, challengedCommitment)), uint8(ChallengeStatus.Resolved)
+            uint8(dataAvailabilityChallenge.getChallengeStatus(challengedBlockNumber, challengedCommitment)),
+            uint8(ChallengeStatus.Resolved)
         );
 
         // Assert challenger balance after bond distribution
         uint256 resolutionCost = (
             dataAvailabilityChallenge.fixedResolutionCost()
-                + preImage.length * dataAvailabilityChallenge.variableResolutionCost() / dataAvailabilityChallenge.variableResolutionCostPrecision()
+                + preImage.length * dataAvailabilityChallenge.variableResolutionCost()
+                    / dataAvailabilityChallenge.variableResolutionCostPrecision()
         ) * block.basefee;
         uint256 challengerRefund = bondSize > resolutionCost ? bondSize - resolutionCost : 0;
         assertEq(dataAvailabilityChallenge.balances(challenger), challengerRefund, "challenger refund");
@@ -337,7 +352,11 @@ contract DataAvailabilityChallengeTest is CommonTest {
 
     function testUnlockBondSuccess(bytes memory preImage, uint256 challengedBlockNumber) public {
         // Assume the block number is not close to the max uint256 value
-        vm.assume(challengedBlockNumber < type(uint256).max - dataAvailabilityChallenge.challengeWindow() - dataAvailabilityChallenge.resolveWindow());
+        vm.assume(
+            challengedBlockNumber
+                < type(uint256).max - dataAvailabilityChallenge.challengeWindow()
+                    - dataAvailabilityChallenge.resolveWindow()
+        );
         bytes memory challengedCommitment = computeCommitmentKeccak256(preImage);
 
         // Move to block after challenged block
@@ -367,7 +386,8 @@ contract DataAvailabilityChallengeTest is CommonTest {
         assertEq(challenge.startBlock, challengedBlockNumber + 1);
         assertEq(challenge.resolvedBlock, 0);
         assertEq(
-            uint8(dataAvailabilityChallenge.getChallengeStatus(challengedBlockNumber, challengedCommitment)), uint8(ChallengeStatus.Expired)
+            uint8(dataAvailabilityChallenge.getChallengeStatus(challengedBlockNumber, challengedCommitment)),
+            uint8(ChallengeStatus.Expired)
         );
 
         // Unlock the bond again, expect the balance to remain the same

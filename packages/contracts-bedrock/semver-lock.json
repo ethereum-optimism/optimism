@@ -8,8 +8,8 @@
     "sourceCodeHash": "0x2ed7a2d6d66839fb3d207952f44b001bce349334adc40ce66d0503ce64e48548"
   },
   "src/L1/DataAvailabilityChallenge.sol": {
-    "initCodeHash": "0x59861d897995481a87835962decd0d9f16107bf0fd2f313d8b690a5cdb4c72e7",
-    "sourceCodeHash": "0xd5f3166de525ae51ded37ae006c985b4863230b937a112995584e45b2a5daeec"
+    "initCodeHash": "0x03aa43436a116d299b508199f6c583433fc5b9b48e7972e0cff708ae83e9e0dc",
+    "sourceCodeHash": "0xb94510d4ca990a026d49644d05a66a287919dfbe9ed9b81db9fd95c3da1b5fd3"
   },
   "src/L1/DelayedVetoable.sol": {
     "initCodeHash": "0x84f78e56211500a768b2c5bbafde8e7b411bd64c237297370d7d22326b68357c",
