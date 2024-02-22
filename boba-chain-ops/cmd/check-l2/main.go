@@ -12,6 +12,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/ledgerwatch/erigon/accounts/abi/bind"
+	"github.com/ledgerwatch/erigon/crypto"
 
 	"github.com/bobanetwork/v3-anchorage/boba-bindings/bindings"
 	"github.com/bobanetwork/v3-anchorage/boba-bindings/predeploys"
@@ -56,6 +57,7 @@ func main() {
 
 	if err := app.Run(os.Args); err != nil {
 		log.Crit("error checking l2", "err", err)
+		os.Exit(1)
 	}
 }
 
@@ -265,6 +267,16 @@ func checkPredeployConfig(client *clients.RpcClient, name string) error {
 
 		case predeploys.BobaL2Addr:
 			if err := checkBobaL2(p, client); err != nil {
+				return err
+			}
+
+		case predeploys.Create2DeployerAddr:
+			if err := checkCreate2Deployer(p, client); err != nil {
+				return err
+			}
+
+		case predeploys.DeterministicDeploymentProxyAddr:
+			if err := checkDeterministicDeploymentProxy(p, client); err != nil {
 				return err
 			}
 
@@ -858,6 +870,34 @@ func checkBobaL2(addr libcommon.Address, client *clients.RpcClient) error {
 		return err
 	}
 	log.Info("BobaL2", "decimals", decimals)
+
+	return nil
+}
+
+func checkCreate2Deployer(addr libcommon.Address, client *clients.RpcClient) error {
+	code, err := client.CodeAt(context.Background(), addr, nil)
+	if err != nil {
+		return err
+	}
+	codeHash := crypto.Keccak256Hash(code)
+	expectedCodeHash := libcommon.HexToHash("0xb0550b5b431e30d38000efb7107aaa0ade03d48a7198a140edda9d27134468b2")
+	if codeHash != expectedCodeHash {
+		return fmt.Errorf("Create2Deployer code hash is incorrect, expected %s, got %s", expectedCodeHash, codeHash)
+	}
+
+	return nil
+}
+
+func checkDeterministicDeploymentProxy(addr libcommon.Address, client *clients.RpcClient) error {
+	code, err := client.CodeAt(context.Background(), addr, nil)
+	if err != nil {
+		return err
+	}
+	codeHash := crypto.Keccak256Hash(code)
+	expectedCodeHash := libcommon.HexToHash("0x2fa86add0aed31f33a762c9d88e807c475bd51d0f52bd0955754b2608f7e4989")
+	if codeHash != expectedCodeHash {
+		return fmt.Errorf("DeterministicDeploymentProxy code hash is incorrect, expected %s, got %s", expectedCodeHash, codeHash)
+	}
 
 	return nil
 }

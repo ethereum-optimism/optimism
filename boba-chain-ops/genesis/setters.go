@@ -162,23 +162,32 @@ func SetImplementations(g *types.Genesis, storage state.StorageConfig, immutable
 			continue
 		}
 
-		codeAddr, err := AddressToCodeNamespace(*address)
-		if err != nil {
-			return fmt.Errorf("error converting to code namespace: %w", err)
+		var (
+			codeAddr        common.Address
+			withoutImplSlot bool
+		)
+		switch name {
+		case "Create2Deployer", "DeterministicDeploymentProxy":
+			codeAddr = *address
+			withoutImplSlot = true
+		default:
+			codeAddr, err = AddressToCodeNamespace(*address)
+			if err != nil {
+				return fmt.Errorf("error converting to code namespace: %w", err)
+			}
 		}
 
 		if g.Alloc[*address].Storage == nil {
 			genesisAccount := types.GenesisAccount{
 				Constructor: g.Alloc[*address].Constructor,
 				Code:        g.Alloc[*address].Code,
-				Storage: map[common.Hash]common.Hash{
-					ImplementationSlot: codeAddr.Hash(),
-				},
-				Balance: g.Alloc[*address].Balance,
-				Nonce:   g.Alloc[*address].Nonce,
+				Storage:     map[common.Hash]common.Hash{},
+				Balance:     g.Alloc[*address].Balance,
+				Nonce:       g.Alloc[*address].Nonce,
 			}
 			g.Alloc[*address] = genesisAccount
-		} else {
+		}
+		if !withoutImplSlot {
 			g.Alloc[*address].Storage[ImplementationSlot] = codeAddr.Hash()
 		}
 
