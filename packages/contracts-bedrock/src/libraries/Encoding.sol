@@ -203,8 +203,6 @@ library Encoding {
         pure
         returns (bytes memory)
     {
-        require(interopSetSize == chainIds.length, "Encoding: interopSetSize does not match chainIds length");
-
         bytes4 functionSignature = bytes4(keccak256("setL1BlockValuesInterop()"));
         return abi.encodePacked(
             functionSignature,
