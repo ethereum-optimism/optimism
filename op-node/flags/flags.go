@@ -20,13 +20,19 @@ import (
 const EnvVarPrefix = "OP_NODE"
 
 const (
-	RollupCategory     = "ROLLUP"
-	L1RPCCategory      = "L1 RPC"
-	SequencerCategory  = "SEQUENCER"
-	P2PCategory        = "NETWORKING"
-	OperationsCategory = "LOGGING, METRICS, DEBUGGING, AND API"
-	PlasmaCategory     = "PLASMA (EXPERIMENTAL)"
+	RollupCategory     = "1. ROLLUP"
+	L1RPCCategory      = "2. L1 RPC"
+	SequencerCategory  = "3. SEQUENCER"
+	OperationsCategory = "4. LOGGING, METRICS, DEBUGGING, AND API"
+	P2PCategory        = "5. PEER-TO-PEER"
+	PlasmaCategory     = "6. PLASMA (EXPERIMENTAL)"
+	MiscCategory       = "7. MISC"
 )
+
+func init() {
+	cli.HelpFlag.(*cli.BoolFlag).Category = MiscCategory
+	cli.VersionFlag.(*cli.BoolFlag).Category = MiscCategory
+}
 
 func prefixEnvVars(name string) []string {
 	return []string{EnvVarPrefix + "_" + name}
@@ -55,7 +61,6 @@ var (
 		Destination: new(string),
 		Category:    RollupCategory,
 	}
-	/* Optional Flags */
 	BeaconAddr = &cli.StringFlag{
 		Name:     "l1.beacon",
 		Usage:    "Address of L1 Beacon-node HTTP endpoint to use.",
@@ -63,19 +68,20 @@ var (
 		EnvVars:  prefixEnvVars("L1_BEACON"),
 		Category: RollupCategory,
 	}
+	/* Optional Flags */
 	BeaconHeader = &cli.StringFlag{
 		Name:     "l1.beacon-header",
 		Usage:    "Optional HTTP header to add to all requests to the L1 Beacon endpoint. Format: 'X-Key: Value'",
 		Required: false,
 		EnvVars:  prefixEnvVars("L1_BEACON_HEADER"),
-		Category: RollupCategory,
+		Category: L1RPCCategory,
 	}
 	BeaconArchiverAddr = &cli.StringFlag{
 		Name:     "l1.beacon-archiver",
 		Usage:    "Address of L1 Beacon-node compatible HTTP endpoint to use. This is used to fetch blobs that the --l1.beacon does not have (i.e expired blobs).",
 		Required: false,
 		EnvVars:  prefixEnvVars("L1_BEACON_ARCHIVER"),
-		Category: RollupCategory,
+		Category: L1RPCCategory,
 	}
 	BeaconCheckIgnore = &cli.BoolFlag{
 		Name:     "l1.beacon.ignore",
@@ -83,7 +89,7 @@ var (
 		Required: false,
 		Value:    false,
 		EnvVars:  prefixEnvVars("L1_BEACON_IGNORE"),
-		Category: RollupCategory,
+		Category: L1RPCCategory,
 	}
 	BeaconFetchAllSidecars = &cli.BoolFlag{
 		Name:     "l1.beacon.fetch-all-sidecars",
@@ -91,7 +97,7 @@ var (
 		Required: false,
 		Value:    false,
 		EnvVars:  prefixEnvVars("L1_BEACON_FETCH_ALL_SIDECARS"),
-		Category: RollupCategory,
+		Category: L1RPCCategory,
 	}
 	SyncModeFlag = &cli.GenericFlag{
 		Name:    "syncmode",
