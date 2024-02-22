@@ -77,19 +77,27 @@ func (f *forecast) forecastGame(ctx context.Context, game monTypes.EnrichedGameD
 		// If we agree with the output root proposal, the Defender should win, defending that claim.
 		if status == types.GameStatusChallengerWon {
 			metrics.AgreeChallengerAhead++
-			f.logger.Warn("Forecasting unexpected game result", "status", status, "game", game.Proxy, "rootClaim", game.RootClaim, "expected", expected)
+			f.logger.Warn("Forecasting unexpected game result", "status", status,
+				"game", game.Proxy, "blockNum", game.L2BlockNumber,
+				"rootClaim", game.RootClaim, "expected", expected)
 		} else {
 			metrics.AgreeDefenderAhead++
-			f.logger.Debug("Forecasting expected game result", "status", status, "game", game.Proxy, "rootClaim", game.RootClaim, "expected", expected)
+			f.logger.Debug("Forecasting expected game result", "status", status,
+				"game", game.Proxy, "blockNum", game.L2BlockNumber,
+				"rootClaim", game.RootClaim, "expected", expected)
 		}
 	} else {
 		// If we disagree with the output root proposal, the Challenger should win, challenging that claim.
 		if status == types.GameStatusDefenderWon {
 			metrics.DisagreeDefenderAhead++
-			f.logger.Warn("Forecasting unexpected game result", "status", status, "game", game.Proxy, "rootClaim", game.RootClaim, "expected", expected)
+			f.logger.Warn("Forecasting unexpected game result", "status", status,
+				"game", game.Proxy, "blockNum", game.L2BlockNumber,
+				"rootClaim", game.RootClaim, "expected", expected)
 		} else {
 			metrics.DisagreeChallengerAhead++
-			f.logger.Debug("Forecasting expected game result", "status", status, "game", game.Proxy, "rootClaim", game.RootClaim, "expected", expected)
+			f.logger.Debug("Forecasting expected game result", "status", status,
+				"game", game.Proxy, "blockNum", game.L2BlockNumber,
+				"rootClaim", game.RootClaim, "expected", expected)
 		}
 	}
 
