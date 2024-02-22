@@ -112,18 +112,6 @@ func (s *claimSolver) respond(ctx context.Context, claim types.Claim, game types
 	}
 }
 
-func (s *claimSolver) respondToClaim(ctx context.Context, claim types.Claim, game types.Game) (*types.Claim, error) {
-	agree, err := s.agreeWithClaim(ctx, game, claim)
-	if err != nil {
-		return nil, err
-	}
-	if agree {
-		return s.defend(ctx, game, claim)
-	} else {
-		return s.attack(ctx, game, claim)
-	}
-}
-
 // NextMove returns the next move to make given the current state of the game.
 func (s *claimSolver) NextMove(ctx context.Context, claim types.Claim, game types.Game, agreedClaims *agreedClaimTracker) (*types.Claim, error) {
 	if claim.Depth() == s.gameDepth {
