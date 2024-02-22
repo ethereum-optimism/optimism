@@ -130,7 +130,7 @@ func init() {
 	optionalFlags = append(optionalFlags, oppprof.CLIFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, txmgr.CLIFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, compressor.CLIFlags(EnvVarPrefix)...)
-	optionalFlags = append(optionalFlags, plasma.CLIFlags(EnvVarPrefix)...)
+	optionalFlags = append(optionalFlags, plasma.CLIFlags(EnvVarPrefix, "")...)
 
 	Flags = append(requiredFlags, optionalFlags...)
 }
