@@ -144,8 +144,6 @@ contract L1Block is ISemver {
     ///   9. _batcherHash        Versioned hash to authenticate batcher by.
     ///  10. _interopSetSize     Size of the interop dependency set.
     ///  11. _chainIds           Array of chain IDs in the interop dependency set.
-    /// TODO: should we enforce that _interopSetSize matches the length of _chainIds? maybe not necessary because the
-    ///       caller is the depositor account
     function setL1BlockValuesInterop() external {
         assembly {
             // Revert if the caller is not the depositor account.
@@ -156,6 +154,13 @@ contract L1Block is ISemver {
 
             // Load interopSetSize from calldata
             let interopSetSize_ := shr(248, calldataload(164))
+
+            // Revert if interopSetSize_ doesn't match the length of chainIds in calldata
+            if xor(add(165, mul(interopSetSize_, 0x20)), calldatasize()) {
+                mstore(0x00, 0x613457f2) // 0x613457f2 is the 4-byte selector of "NotInteropSetSize()"
+                revert(0x1C, 0x04) // returns the stored 4-byte selector from above
+            }
+
             sstore(interopSetSize.slot, interopSetSize_)
 
             // Use memory to hash and get the start index of chainIds

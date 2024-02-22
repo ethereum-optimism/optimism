@@ -275,16 +275,71 @@ contract L1BlockInterop_Test is L1BlockTest {
         assertEq(data, expReturn);
     }
 
+    /// @dev Tests that `setL1BlockValuesInterop` fails if sender address is not the depositor
+    function testFuzz_setL1BlockValuesInterop_interopLengthsMatch_succeeds(
+        uint8 interopSetSize,
+        uint256[] calldata chainIds
+    )
+        external
+    {
+        vm.assume(interopSetSize == chainIds.length);
+
+        bytes memory functionCallDataPacked = Encoding.encodeSetL1BlockValuesInterop(
+            type(uint32).max,
+            type(uint32).max,
+            type(uint64).max,
+            type(uint64).max,
+            type(uint64).max,
+            type(uint256).max,
+            type(uint256).max,
+            bytes32(type(uint256).max),
+            bytes32(type(uint256).max),
+            interopSetSize,
+            chainIds
+        );
+
+        vm.prank(depositor);
+        (bool success,) = address(l1Block).call(functionCallDataPacked);
+        assertTrue(success, "function call failed");
+    }
+
+    /// @dev Tests that `setL1BlockValuesInterop` fails if sender address is not the depositor
+    function testFuzz_setL1BlockValuesInterop_interopLengthsNotMatch_fails(
+        uint8 interopSetSize,
+        uint256[] calldata chainIds
+    )
+        external
+    {
+        vm.assume(interopSetSize != chainIds.length);
+
+        bytes memory functionCallDataPacked = Encoding.encodeSetL1BlockValuesInterop(
+            type(uint32).max,
+            type(uint32).max,
+            type(uint64).max,
+            type(uint64).max,
+            type(uint64).max,
+            type(uint256).max,
+            type(uint256).max,
+            bytes32(type(uint256).max),
+            bytes32(type(uint256).max),
+            interopSetSize,
+            chainIds
+        );
+
+        vm.prank(depositor);
+        (bool success, bytes memory data) = address(l1Block).call(functionCallDataPacked);
+        assertTrue(!success, "function call should have failed");
+        // make sure return value is the expected function selector for "NotInteropSetSize()"
+        bytes memory expReturn = hex"613457f2";
+        assertEq(data, expReturn);
+    }
+
     function testFuzz_isInDependencySet_succeeds(uint256[] calldata chainIds) external {
         vm.prank(depositor);
         l1Block.setL1BlockValues(0, 0, 0, bytes32(0), 0, bytes32(0), 0, 0, uint8(chainIds.length), chainIds);
         for (uint256 i = 0; i < chainIds.length; i++) {
             assertTrue(l1Block.isInDependencySet(chainIds[i]));
         }
-    }
-
-    function testFuzz_isInDependencySet_isChainId_succeeds() external {
-        assertTrue(l1Block.isInDependencySet(block.chainid));
     }
 
     function test_isInDependencySet_fails() external {
@@ -294,6 +349,10 @@ contract L1BlockInterop_Test is L1BlockTest {
         vm.prank(depositor);
         l1Block.setL1BlockValues(0, 0, 0, bytes32(0), 0, bytes32(0), 0, 0, uint8(chainIds.length), chainIds);
         assertFalse(l1Block.isInDependencySet(3));
+    }
+
+    function test_isInDependencySet_isChainId_succeeds() external {
+        assertTrue(l1Block.isInDependencySet(block.chainid));
     }
 
     function test_isInDependencySet_isDependencySetEmpty_fails() external {
