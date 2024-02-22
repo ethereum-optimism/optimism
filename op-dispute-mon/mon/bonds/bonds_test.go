@@ -6,20 +6,17 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
 
-func TestMaxValue(t *testing.T) {
-	require.Equal(t, noBond.String(), "340282366920938463463374607431768211455")
-}
-
 func TestCalculateRequiredCollateral(t *testing.T) {
 	claims := []types.Claim{
 		{
 			ClaimData: types.ClaimData{
-				Bond: noBond,
+				Bond: monTypes.ResolvedBondAmount,
 			},
 			Claimant:    common.Address{0x01},
 			CounteredBy: common.Address{0x02},

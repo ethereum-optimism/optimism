@@ -8,6 +8,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestMaxValue(t *testing.T) {
+	require.Equal(t, ResolvedBondAmount.String(), "340282366920938463463374607431768211455")
+}
+
 func TestStatusBatch_Add(t *testing.T) {
 	statusExpectations := []struct {
 		status types.GameStatus

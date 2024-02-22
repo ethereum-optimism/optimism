@@ -1,16 +1,22 @@
 package types
 
 import (
+	"math/big"
+
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum/go-ethereum/common"
 )
+
+// ResolvedBondAmount is the uint128 value where a bond is considered claimed.
+var ResolvedBondAmount = new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 128), big.NewInt(1))
 
 type EnrichedGameData struct {
 	types.GameMetadata
 	L2BlockNumber uint64
 	RootClaim     common.Hash
 	Status        types.GameStatus
+	Duration      uint64
 	Claims        []faultTypes.Claim
 }
 
