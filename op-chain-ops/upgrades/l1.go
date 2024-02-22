@@ -585,7 +585,7 @@ func OptimismPortal(batch *safe.Batch, implementations superchain.Implementation
 		return fmt.Errorf("L2OutputOracle address doesn't match config")
 	}
 
-	if systemConfig != common.Address(chainConfig.SystemConfigAddr) {
+	if systemConfig != common.Address(list.SystemConfigProxy) {
 		return fmt.Errorf("SystemConfig address doesn't match config")
 	}
 
@@ -646,7 +646,7 @@ func SystemConfig(batch *safe.Batch, implementations superchain.ImplementationLi
 			return err
 		}
 		args := []any{
-			common.Address(chainConfig.SystemConfigAddr),
+			common.Address(list.SystemConfigProxy),
 			storageSetterAddr,
 			calldata,
 		}
@@ -661,7 +661,7 @@ func SystemConfig(batch *safe.Batch, implementations superchain.ImplementationLi
 		return err
 	}
 
-	systemConfig, err := bindings.NewSystemConfigCaller(common.Address(chainConfig.SystemConfigAddr), backend)
+	systemConfig, err := bindings.NewSystemConfigCaller(common.Address(list.SystemConfigProxy), backend)
 	if err != nil {
 		return err
 	}
@@ -763,7 +763,7 @@ func SystemConfig(batch *safe.Batch, implementations superchain.ImplementationLi
 	}
 
 	args := []any{
-		common.Address(chainConfig.SystemConfigAddr),
+		common.Address(list.SystemConfigProxy),
 		common.Address(implementations.SystemConfig.Address),
 		calldata,
 	}
