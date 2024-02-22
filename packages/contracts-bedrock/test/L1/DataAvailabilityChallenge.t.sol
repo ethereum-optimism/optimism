@@ -250,7 +250,7 @@ contract DataAvailabilityChallengeTest is CommonTest {
         uint256 resolutionCost = (
             dac.fixedResolutionCost()
                 + preImage.length * dac.variableResolutionCost() / dac.variableResolutionCostPrecision()
-        ) * tx.gasprice;
+        ) * block.basefee;
         uint256 challengerRefund = bondSize > resolutionCost ? bondSize - resolutionCost : 0;
         assertEq(dac.balances(challenger), challengerRefund, "challenger refund");
 

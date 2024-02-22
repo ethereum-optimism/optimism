@@ -380,7 +380,7 @@ contract DataAvailabilityChallenge is OwnableUpgradeable, ISemver {
         // approximate the cost of resolving a challenge with the provided pre-image size
         uint256 resolutionCost = (
             fixedResolutionCost + preImageLength * variableResolutionCost / variableResolutionCostPrecision
-        ) * tx.gasprice;
+        ) * block.basefee;
 
         // refund bond exceeding the resolution cost to the challenger
         if (lockedBond > resolutionCost) {
