@@ -71,7 +71,7 @@ func TestMonitor_MonitorGames(t *testing.T) {
 
 	t.Run("DetectsWithNoGames", func(t *testing.T) {
 		monitor, factory, detector, _ := setupMonitorTest(t)
-		factory.games = []monTypes.EnrichedGameData{}
+		factory.games = []*monTypes.EnrichedGameData{}
 		err := monitor.monitorGames()
 		require.NoError(t, err)
 		require.Equal(t, 1, detector.calls)
@@ -79,7 +79,7 @@ func TestMonitor_MonitorGames(t *testing.T) {
 
 	t.Run("DetectsMultipleGames", func(t *testing.T) {
 		monitor, factory, detector, _ := setupMonitorTest(t)
-		factory.games = []monTypes.EnrichedGameData{{}, {}, {}}
+		factory.games = []*monTypes.EnrichedGameData{{}, {}, {}}
 		err := monitor.monitorGames()
 		require.NoError(t, err)
 		require.Equal(t, 1, detector.calls)
@@ -91,7 +91,7 @@ func TestMonitor_StartMonitoring(t *testing.T) {
 		addr1 := common.Address{0xaa}
 		addr2 := common.Address{0xbb}
 		monitor, factory, detector, _ := setupMonitorTest(t)
-		factory.games = []monTypes.EnrichedGameData{newFDG(addr1, 9999), newFDG(addr2, 9999)}
+		factory.games = []*monTypes.EnrichedGameData{newEnrichedGameData(addr1, 9999), newEnrichedGameData(addr2, 9999)}
 		factory.maxSuccess = len(factory.games) // Only allow two successful fetches
 
 		monitor.StartMonitoring()
@@ -115,8 +115,8 @@ func TestMonitor_StartMonitoring(t *testing.T) {
 	})
 }
 
-func newFDG(proxy common.Address, timestamp uint64) monTypes.EnrichedGameData {
-	return monTypes.EnrichedGameData{
+func newEnrichedGameData(proxy common.Address, timestamp uint64) *monTypes.EnrichedGameData {
+	return &monTypes.EnrichedGameData{
 		GameMetadata: types.GameMetadata{
 			Proxy:     proxy,
 			Timestamp: timestamp,
@@ -158,7 +158,7 @@ type mockForecast struct {
 	calls int
 }
 
-func (m *mockForecast) Forecast(ctx context.Context, games []monTypes.EnrichedGameData) {
+func (m *mockForecast) Forecast(ctx context.Context, games []*monTypes.EnrichedGameData) {
 	m.calls++
 }
 
@@ -166,7 +166,7 @@ type mockDetector struct {
 	calls int
 }
 
-func (m *mockDetector) Detect(ctx context.Context, games []monTypes.EnrichedGameData) {
+func (m *mockDetector) Detect(ctx context.Context, games []*monTypes.EnrichedGameData) {
 	m.calls++
 }
 
@@ -174,14 +174,14 @@ type mockExtractor struct {
 	fetchErr   error
 	calls      int
 	maxSuccess int
-	games      []monTypes.EnrichedGameData
+	games      []*monTypes.EnrichedGameData
 }
 
 func (m *mockExtractor) Extract(
 	_ context.Context,
 	_ common.Hash,
 	_ uint64,
-) ([]monTypes.EnrichedGameData, error) {
+) ([]*monTypes.EnrichedGameData, error) {
 	m.calls++
 	if m.fetchErr != nil {
 		return nil, m.fetchErr

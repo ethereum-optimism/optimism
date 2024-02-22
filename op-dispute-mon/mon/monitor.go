@@ -13,11 +13,11 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-type Detect func(ctx context.Context, games []types.EnrichedGameData)
-type Forecast func(ctx context.Context, games []types.EnrichedGameData)
+type Detect func(ctx context.Context, games []*types.EnrichedGameData)
+type Forecast func(ctx context.Context, games []*types.EnrichedGameData)
 type BlockHashFetcher func(ctx context.Context, number *big.Int) (common.Hash, error)
 type BlockNumberFetcher func(ctx context.Context) (uint64, error)
-type Extract func(ctx context.Context, blockHash common.Hash, minTimestamp uint64) ([]types.EnrichedGameData, error)
+type Extract func(ctx context.Context, blockHash common.Hash, minTimestamp uint64) ([]*types.EnrichedGameData, error)
 
 type gameMonitor struct {
 	logger log.Logger
