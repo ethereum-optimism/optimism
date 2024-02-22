@@ -203,6 +203,96 @@ func (g *OutputGameHelper) waitForClaim(ctx context.Context, timeout time.Durati
 	return matchClaimIdx, matchedClaim
 }
 
+func (g *OutputGameHelper) StreamClaims(ctx context.Context, fn func(claimIdx int64, claim ContractClaim) bool) {
+	var start int64
+	err := wait.For(ctx, time.Second, func() (bool, error) {
+		count, err := g.game.ClaimDataLen(&bind.CallOpts{Context: ctx})
+		if err != nil {
+			return false, fmt.Errorf("retrieve number of claims: %w", err)
+		}
+		g.LogGameData(ctx)
+		for i := start; i < count.Int64(); i++ {
+			claimData, err := g.game.ClaimData(&bind.CallOpts{Context: ctx}, big.NewInt(i))
+			if err != nil {
+				return false, fmt.Errorf("retrieve claim %v: %w", i, err)
+			}
+			if !fn(i, claimData) {
+				return false, nil
+			}
+		}
+		start = count.Int64()
+		return false, nil
+	})
+	if err != nil {
+		g.require.NoErrorf(err, "StreamClaims failed:\n%v", g.gameData(ctx))
+	}
+}
+
+func (g *OutputGameHelper) Freeloader(ctx context.Context, correct *OutputHonestHelper, opts *bind.TransactOpts, honestAddr common.Address) {
+	g.StreamClaims(ctx, func(claimIdx int64, claim ContractClaim) bool {
+		pos := types.NewPositionFromGIndex(claim.Position)
+		if pos.Depth() == g.MaxDepth(ctx) {
+			return false
+		}
+		splitDepth := g.SplitDepth(ctx)
+		if pos.Depth() <= splitDepth+1 {
+			return true
+		}
+		if claim.Claimant != honestAddr {
+			return true
+		}
+		// freeload on parent
+		parent, err := g.game.ClaimData(&bind.CallOpts{Context: ctx}, big.NewInt(int64(claim.ParentIndex)))
+		if err != nil {
+			g.require.NoError(err, "retrieve parent claim")
+		}
+		parentPos := types.NewPositionFromGIndex(parent.Position)
+		// ensure we don't dup attack/defend
+		g.t.Logf("Comparing pos=%v to parentPos=%v", pos, parentPos)
+		if parentPos.Attack() == pos && parentPos.Depth() != splitDepth+1 {
+			g.t.Logf("Freeloader defends %v correctly", claim.ParentIndex)
+			correct.DefendWithTransactOpts(ctx, int64(claim.ParentIndex), opts)
+		} else if parentPos.Defend() == pos {
+			g.t.Logf("Freeloader attacks %v correctly", claim.ParentIndex)
+			correct.AttackWithTransactOpts(ctx, int64(claim.ParentIndex), opts)
+		}
+		g.t.Logf("Freeloader attacks %v incorrectly", claim.ParentIndex)
+		g.AttackWithTransactOpts(ctx, int64(claim.ParentIndex), common.Hash{0xaa}, opts)
+		if parentPos.Depth() != splitDepth+1 {
+			g.t.Logf("Freeloader defends %v incorrectly", claim.ParentIndex)
+			g.DefendWithTransactOpts(ctx, int64(claim.ParentIndex), common.Hash{0xbb}, opts)
+		}
+
+		// challenge honest
+		g.t.Logf("Freeloader attacks %v incorrectly", claimIdx)
+		g.AttackWithTransactOpts(ctx, claimIdx, common.Hash{0xcc}, opts)
+		g.t.Logf("Freeloader defends %v incorrectly", claimIdx)
+		g.DefendWithTransactOpts(ctx, claimIdx, common.Hash{0xdd}, opts)
+		g.t.Logf("Freeloader attacks %v correctly", claimIdx)
+		correct.AttackWithTransactOpts(ctx, claimIdx, opts)
+		g.t.Logf("Freeloader defends %v correctly", claimIdx)
+		correct.DefendWithTransactOpts(ctx, claimIdx, opts)
+		return true
+	})
+
+	// TODO: this should ignore freeloaders that are positioned to the right of the honest claims
+	g.WaitForCounteredClaimant(ctx, opts.From)
+}
+
+func (g *OutputGameHelper) WaitForCounteredClaimant(ctx context.Context, addr common.Address) {
+	count, err := g.game.ClaimDataLen(&bind.CallOpts{Context: ctx})
+	g.require.NoError(err, "retrieve number of claims")
+
+	for i := int64(0); i < count.Int64(); i++ {
+		claimData, err := g.game.ClaimData(&bind.CallOpts{Context: ctx}, big.NewInt(i))
+		g.require.NoErrorf(err, "retrieve claim %v", i)
+		if claimData.Claimant == addr {
+			g.t.Logf("Waiting for %d to be countered", i)
+			newClaimHelper(g, i, claimData).WaitForCounterClaim(ctx)
+		}
+	}
+}
+
 func (g *OutputGameHelper) waitForNoClaim(ctx context.Context, errorMsg string, predicate func(claim ContractClaim) bool) {
 	timedCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
 	defer cancel()

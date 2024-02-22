@@ -56,6 +56,10 @@ func (h *OutputHonestHelper) AttackWithTransactOpts(ctx context.Context, claimId
 }
 
 func (h *OutputHonestHelper) Defend(ctx context.Context, claimIdx int64) {
+	h.DefendWithTransactOpts(ctx, claimIdx, h.game.opts)
+}
+
+func (h *OutputHonestHelper) DefendWithTransactOpts(ctx context.Context, claimIdx int64, opts *bind.TransactOpts) {
 	// Ensure the claim exists
 	h.game.WaitForClaimCount(ctx, claimIdx+1)
 
@@ -65,7 +69,7 @@ func (h *OutputHonestHelper) Defend(ctx context.Context, claimIdx int64) {
 	defendPos := claim.Position.Defend()
 	value, err := h.correctTrace.Get(ctx, game, claim, defendPos)
 	h.game.require.NoErrorf(err, "Get correct claim at position %v with g index %v", defendPos, defendPos.ToGIndex())
-	h.game.Defend(ctx, claimIdx, value)
+	h.game.DefendWithTransactOpts(ctx, claimIdx, value, opts)
 }
 
 func (h *OutputHonestHelper) StepClaimFails(ctx context.Context, claim *ClaimHelper, isAttack bool) {

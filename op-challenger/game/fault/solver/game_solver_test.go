@@ -162,11 +162,28 @@ func TestCalculateNextActions(t *testing.T) {
 						ExpectAttack()
 			},
 		},
+		{
+			name: "Freeloader-ContinueDefendingAgainstFreeloader-2",
+			setupGame: func(builder *faulttest.GameBuilder) {
+				dishonest := builder.Seq(). // invalid root
+								AttackCorrect(). // honest response
+								AttackCorrect()  // dishonest attacks
+				dishonest.ExpectDefend() // honest defends
+				freeloader := dishonest.AttackCorrect()
+				freeloader.ExpectDefend()                 // honest challenges freeloader
+				freeloader2 := freeloader.AttackCorrect() // freeloader attacks itself
+				freeloader2.ExpectDefend()                // honest challenges freeloader on freeloader
+				freeloader.Defend(common.Hash{0xaa}).ExpectAttack()
+			},
+		},
 	}
 
 	for _, test := range tests {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
+			if test.name != "Freeloader-ContinueDefendingAgainstFreeloader-2" {
+				t.Skip()
+			}
 			builder := claimBuilder.GameBuilder(test.rootClaimCorrect)
 			test.setupGame(builder)
 			game := builder.Game

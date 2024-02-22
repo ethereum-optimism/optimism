@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
 )
 
@@ -222,6 +223,42 @@ func TestOutputAlphabetGame_FreeloaderEarnsNothing(t *testing.T) {
 	}
 
 	game.LogGameData(ctx)
+	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
+	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
+	game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
+	game.LogGameData(ctx)
+
+	amt := game.Credit(ctx, freeloaderOpts.From)
+	require.Truef(t, amt.BitLen() == 0, "freeloader (%v) should not be rewarded but got %v", freeloaderOpts.From, amt)
+}
+
+func TestOutputAlphabetGame_SpammyFreeloaderEarnsNothing(t *testing.T) {
+	//t.Skip("CLI-103")
+
+	op_e2e.InitParallel(t)
+	ctx := context.Background()
+	sys, l1Client := startFaultDisputeSystem(t)
+	t.Cleanup(sys.Close)
+
+	// freeloader 0x23618e81E3f5cdF7f54C3d65f7FBc0aBf5B21E8f
+	t.Logf("Freeloader address: %v", crypto.PubkeyToAddress(sys.Cfg.Secrets.Mallory.PublicKey))
+	// honest 0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65
+	t.Logf("Honest address: %v", crypto.PubkeyToAddress(sys.Cfg.Secrets.Alice.PublicKey))
+
+	freeloaderOpts, err := bind.NewKeyedTransactorWithChainID(sys.Cfg.Secrets.Mallory, sys.Cfg.L1ChainIDBig())
+	require.Nil(t, err)
+
+	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
+	game := disputeGameFactory.StartOutputAlphabetGame(ctx, "sequencer", 2, common.Hash{0x01})
+	correctTrace := game.CreateHonestActor(ctx, "sequencer")
+	claim := game.DisputeLastBlock(ctx)
+	claim.Attack(ctx, common.Hash{0x01}) // invalid root claim
+
+	game.LogGameData(ctx)
+
+	game.StartChallenger(ctx, "sequencer", "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
+	game.Freeloader(ctx, correctTrace, freeloaderOpts, crypto.PubkeyToAddress(sys.Cfg.Secrets.Alice.PublicKey))
+
 	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
 	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 	game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
