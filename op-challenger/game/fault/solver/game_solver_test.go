@@ -150,6 +150,18 @@ func TestCalculateNextActions(t *testing.T) {
 					DefendCorrect()                 // We do defend and we shouldn't counter our own claim
 			},
 		},
+		{
+			name: "Freeloader-ContinueDefendingAgainstFreeloader",
+			setupGame: func(builder *faulttest.GameBuilder) {
+				builder.Seq(). // invalid root
+						AttackCorrect().                // Honest response to invalid root
+						AttackCorrect().ExpectDefend(). // Defender attacks with correct value, we should defend
+						AttackCorrect().                // Freeloader attacks instead, we should defend
+						DefendCorrect().                // We do defend
+						Attack(common.Hash{0xaa}).      // freeloader attacks our defense, we should attack
+						ExpectAttack()
+			},
+		},
 	}
 
 	for _, test := range tests {

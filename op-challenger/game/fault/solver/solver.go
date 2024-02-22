@@ -48,7 +48,7 @@ func (s *claimSolver) respondClaim(ctx context.Context, claim types.Claim, game 
 	}
 }
 
-func isChallengingClaim(claim types.Claim, game types.Game, agreedClaims *agreedClaimTracker) (bool, error) {
+func isChallengingClaim(claim types.Claim, game types.Game, agreedClaims *agreedClaimTracker) (types.Claim, bool, error) {
 	levelsToAgreedClaim := 0
 	var err error
 	for {
@@ -61,10 +61,10 @@ func isChallengingClaim(claim types.Claim, game types.Game, agreedClaims *agreed
 		}
 		claim, err = game.GetParent(claim)
 		if err != nil {
-			return false, err
+			return types.Claim{}, false, err
 		}
 	}
-	return levelsToAgreedClaim%2 == 1, nil
+	return claim, levelsToAgreedClaim%2 == 1, nil
 }
 
 func (s *claimSolver) respond(ctx context.Context, claim types.Claim, game types.Game, agreedClaims *agreedClaimTracker) (moveType, error) {
@@ -80,12 +80,12 @@ func (s *claimSolver) respond(ctx context.Context, claim types.Claim, game types
 	if err != nil {
 		return moveNop, err
 	}
-	challenging, err := isChallengingClaim(claim, game, agreedClaims)
+	subGameRoot, challenging, err := isChallengingClaim(claim, game, agreedClaims)
 	if err != nil {
 		return moveNop, nil
 	}
 	if challenging {
-		agreeWithParent, err := s.agreeWithClaimPath(ctx, game, parent)
+		agreeWithParent, err := s.agreeWithClaimPath(ctx, game, parent, subGameRoot)
 		if err != nil {
 			return moveNop, err
 		}
@@ -217,7 +217,7 @@ func (s *claimSolver) agreeWithClaim(ctx context.Context, game types.Game, claim
 }
 
 // agreeWithClaimPath returns true if the every other claim in the path to root is correct according to the internal [TraceProvider].
-func (s *claimSolver) agreeWithClaimPath(ctx context.Context, game types.Game, claim types.Claim) (bool, error) {
+func (s *claimSolver) agreeWithClaimPath(ctx context.Context, game types.Game, claim types.Claim, subGameRoot types.Claim) (bool, error) {
 	agree, err := s.agreeWithClaim(ctx, game, claim)
 	if err != nil {
 		return false, err
@@ -225,19 +225,19 @@ func (s *claimSolver) agreeWithClaimPath(ctx context.Context, game types.Game, c
 	if !agree {
 		return false, nil
 	}
-	if claim.IsRoot() {
+	if claim.IsRoot() || claim == subGameRoot {
 		return true, nil
 	}
 	parent, err := game.GetParent(claim)
 	if err != nil {
 		return false, fmt.Errorf("failed to get parent of claim %v: %w", claim.ContractIndex, err)
 	}
-	if parent.IsRoot() {
+	if parent.IsRoot() || claim == subGameRoot {
 		return true, nil
 	}
 	grandParent, err := game.GetParent(parent)
 	if err != nil {
 		return false, err
 	}
-	return s.agreeWithClaimPath(ctx, game, grandParent)
+	return s.agreeWithClaimPath(ctx, game, grandParent, subGameRoot)
 }
