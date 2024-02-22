@@ -228,7 +228,7 @@ func (s *Service) registerGameTypes(ctx context.Context, cfg *config.Config) err
 
 func (s *Service) initScheduler(cfg *config.Config) error {
 	disk := newDiskManager(cfg.Datadir)
-	s.sched = scheduler.NewScheduler(s.logger, s.metrics, disk, cfg.MaxConcurrency, s.registry.CreatePlayer)
+	s.sched = scheduler.NewScheduler(s.logger, s.metrics, disk, cfg.MaxConcurrency, s.registry.CreatePlayer, cfg.AllowInvalidPrestate)
 	return nil
 }
 

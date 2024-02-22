@@ -22,13 +22,5 @@ cannon-prestate: # Generate the cannon prestate, and tar the `op-program` + `can
 	@rm -rf prestate-artifacts
 
 .PHONY: deploy-fresh
-deploy-fresh: # Deploy a fresh version of the FPAC contracts. Pass `--broadcast` to send to the network.
-	forge script FPACOPS.sol --sig "deployFPAC()" --chain $(chain) -vvv $(args)
-
-.PHONY: upgrade-game-impl
-upgrade-game-impl: # Upgrades a dispute game implementation in the deployed `DisputeGameFactory` contract for the configured chain. Pass `--broadcast` to send to the network.
-	forge script FPACOPS.sol --sig "upgradeGameImpl(address,address)" --chain $(chain) -vvv $(dgf) $(vm) $(args)
-
-.PHONY: update-init-bond
-update-init-bond: # Upgrades a dispute game's init bond in the deployed `DisputeGameFactory` contract for the configured chain. Pass `--broadcast` to send to the network.
-	forge script FPACOPS.sol --sig "updateInitBond(address,uint8,uint256)" --chain $(chain) -vvv $(dgf) $(game-type) $(new-init-bond) $(args)
+deploy-fresh: cannon-prestate # Deploy a fresh version of the FPAC contracts. Pass `--broadcast` to send to the network.
+	forge script FPACOPS.sol --sig "deployFPAC(address,address)" $(proxy-admin) $(system-owner-safe) --chain $(chain) -vvv $(args)

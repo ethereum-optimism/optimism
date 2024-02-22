@@ -140,6 +140,12 @@ var (
 		EnvVars: prefixEnvVars("GAME_WINDOW"),
 		Value:   config.DefaultGameWindow,
 	}
+	UnsafeAllowInvalidPrestate = &cli.BoolFlag{
+		Name:    "unsafe-allow-invalid-prestate",
+		Usage:   "Allow responding to games where the absolute prestate is configured incorrectly. THIS IS UNSAFE!",
+		EnvVars: prefixEnvVars("UNSAFE_ALLOW_INVALID_PRESTATE"),
+		Hidden:  true, // Hidden as this is an unsafe flag added only for testing purposes
+	}
 )
 
 // requiredFlags are checked by [CheckRequired]
@@ -168,6 +174,7 @@ var optionalFlags = []cli.Flag{
 	CannonSnapshotFreqFlag,
 	CannonInfoFreqFlag,
 	GameWindowFlag,
+	UnsafeAllowInvalidPrestate,
 }
 
 func init() {
@@ -216,7 +223,7 @@ func CheckRequired(ctx *cli.Context, traceTypes []config.TraceType) error {
 	}
 	for _, traceType := range traceTypes {
 		switch traceType {
-		case config.TraceTypeCannon:
+		case config.TraceTypeCannon, config.TraceTypePermissioned:
 			if err := CheckCannonFlags(ctx); err != nil {
 				return err
 			}
@@ -299,5 +306,6 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 		TxMgrConfig:            txMgrConfig,
 		MetricsConfig:          metricsConfig,
 		PprofConfig:            pprofConfig,
+		AllowInvalidPrestate:   ctx.Bool(UnsafeAllowInvalidPrestate.Name),
 	}, nil
 }

@@ -103,10 +103,11 @@ func NewGamePlayer(
 
 	agent := NewAgent(m, loader, gameDepth, accessor, responder, logger)
 	return &GamePlayer{
-		act:    agent.Act,
-		loader: loader,
-		logger: logger,
-		status: status,
+		act:                agent.Act,
+		loader:             loader,
+		logger:             logger,
+		status:             status,
+		prestateValidators: validators,
 	}, nil
 }
 

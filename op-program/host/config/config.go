@@ -38,7 +38,7 @@ type Config struct {
 	// If not set, an in-memory key-value store is used and fetching data must be enabled
 	DataDir string
 
-	// L1Head is the block has of the L1 chain head block
+	// L1Head is the block hash of the L1 chain head block
 	L1Head      common.Hash
 	L1URL       string
 	L1BeaconURL string
@@ -46,7 +46,6 @@ type Config struct {
 	L1RPCKind   sources.RPCProviderKind
 
 	// L2Head is the l2 block hash contained in the L2 Output referenced by the L2OutputRoot
-	// TODO(inphi): This can be made optional with hardcoded rollup configs and output oracle addresses by searching the oracle for the l2 output root
 	L2Head common.Hash
 	// L2OutputRoot is the agreed L2 output root to start derivation from
 	L2OutputRoot common.Hash
@@ -138,7 +137,7 @@ func NewConfigFromCLI(log log.Logger, ctx *cli.Context) (*Config, error) {
 	if err := flags.CheckRequired(ctx); err != nil {
 		return nil, err
 	}
-	rollupCfg, err := opnode.NewRollupConfig(log, ctx)
+	rollupCfg, err := opnode.NewRollupConfigFromCLI(log, ctx)
 	if err != nil {
 		return nil, err
 	}

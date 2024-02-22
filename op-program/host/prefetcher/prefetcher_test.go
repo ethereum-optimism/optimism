@@ -231,6 +231,45 @@ func TestFetchL1Blob(t *testing.T) {
 	})
 }
 
+func TestFetchKZGPointEvaluation(t *testing.T) {
+	runTest := func(name string, input []byte, expected bool) {
+		t.Run(name, func(t *testing.T) {
+			prefetcher, _, _, _, _ := createPrefetcher(t)
+			oracle := l1.NewPreimageOracle(asOracleFn(t, prefetcher), asHinter(t, prefetcher))
+
+			result := oracle.KZGPointEvaluation(input)
+			require.Equal(t, expected, result)
+
+			val, err := prefetcher.kvStore.Get(preimage.Keccak256Key(crypto.Keccak256Hash(input)).PreimageKey())
+			require.NoError(t, err)
+			require.EqualValues(t, input, val)
+
+			key := preimage.KZGPointEvaluationKey(crypto.Keccak256Hash(input)).PreimageKey()
+			val, err = prefetcher.kvStore.Get(key)
+			require.NoError(t, err)
+			if expected {
+				require.EqualValues(t, kzgPointEvaluationSuccess[:], val)
+			} else {
+				require.EqualValues(t, kzgPointEvaluationFailure[:], val)
+			}
+		})
+	}
+	validInput := common.FromHex("01e798154708fe7789429634053cbf9f99b619f9f084048927333fce637f549b564c0a11a0f704f4fc3e8acfe0f8245f0ad1347b378fbf96e206da11a5d3630624d25032e67a7e6a4910df5834b8fe70e6bcfeeac0352434196bdf4b2485d5a18f59a8d2a1a625a17f3fea0fe5eb8c896db3764f3185481bc22f91b4aaffcca25f26936857bc3a7c2539ea8ec3a952b7873033e038326e87ed3e1276fd140253fa08e9fc25fb2d9a98527fc22a2c9612fbeafdad446cbc7bcdbdcd780af2c16a")
+	runTest("Valid input", validInput, true)
+	runTest("Invalid input", []byte{0x00}, false)
+
+	t.Run("Already Known", func(t *testing.T) {
+		input := []byte("test input")
+		prefetcher, _, _, _, kv := createPrefetcher(t)
+		err := kv.Put(preimage.KZGPointEvaluationKey(crypto.Keccak256Hash(input)).PreimageKey(), kzgPointEvaluationSuccess[:])
+		require.NoError(t, err)
+
+		oracle := l1.NewPreimageOracle(asOracleFn(t, prefetcher), asHinter(t, prefetcher))
+		result := oracle.KZGPointEvaluation(input)
+		require.True(t, result)
+	})
+}
+
 func TestFetchL2Block(t *testing.T) {
 	rng := rand.New(rand.NewSource(123))
 	block, rcpts := testutils.RandomBlock(rng, 10)

@@ -17,7 +17,7 @@ func NewOutputAlphabetTraceAccessor(
 	logger log.Logger,
 	m metrics.Metricer,
 	prestateProvider types.PrestateProvider,
-	rollupClient OutputRollupClient,
+	rollupClient OutputRootProvider,
 	splitDepth types.Depth,
 	prestateBlock uint64,
 	poststateBlock uint64,

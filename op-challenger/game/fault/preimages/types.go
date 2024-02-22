@@ -29,4 +29,5 @@ type PreimageOracleContract interface {
 	CallSqueeze(ctx context.Context, claimant common.Address, uuid *big.Int, prestateMatrix keccakTypes.StateSnapshot, preState keccakTypes.Leaf, preStateProof merkle.Proof, postState keccakTypes.Leaf, postStateProof merkle.Proof) error
 	GetProposalMetadata(ctx context.Context, block batching.Block, idents ...keccakTypes.LargePreimageIdent) ([]keccakTypes.LargePreimageMetaData, error)
 	ChallengePeriod(ctx context.Context) (uint64, error)
+	GetMinBondLPP(ctx context.Context) (*big.Int, error)
 }

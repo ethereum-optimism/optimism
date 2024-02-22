@@ -172,10 +172,16 @@ func (e *EngineController) StartPayload(ctx context.Context, parent eth.L2BlockR
 }
 
 func (e *EngineController) ConfirmPayload(ctx context.Context, agossip async.AsyncGossiper, sequencerConductor conductor.SequencerConductor) (out *eth.ExecutionPayloadEnvelope, errTyp BlockInsertionErrType, err error) {
-	if e.buildingInfo == (eth.PayloadInfo{}) {
+	// don't create a BlockInsertPrestateErr if we have a cached gossip payload
+	if e.buildingInfo == (eth.PayloadInfo{}) && agossip.Get() == nil {
 		return nil, BlockInsertPrestateErr, fmt.Errorf("cannot complete payload building: not currently building a payload")
 	}
-	if e.buildingOnto.Hash != e.unsafeHead.Hash { // E.g. when safe-attributes consolidation fails, it will drop the existing work.
+	if p := agossip.Get(); p != nil && e.buildingOnto == (eth.L2BlockRef{}) {
+		e.log.Warn("Found reusable payload from async gossiper, and no block was being built. Reusing payload.",
+			"hash", p.ExecutionPayload.BlockHash,
+			"number", uint64(p.ExecutionPayload.BlockNumber),
+			"parent", p.ExecutionPayload.ParentHash)
+	} else if e.buildingOnto.Hash != e.unsafeHead.Hash { // E.g. when safe-attributes consolidation fails, it will drop the existing work.
 		e.log.Warn("engine is building block that reorgs previous unsafe head", "onto", e.buildingOnto, "unsafe", e.unsafeHead)
 	}
 	fc := eth.ForkchoiceState{
@@ -298,7 +304,8 @@ func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *et
 	// Check if there is a finalized head once when doing EL sync. If so, transition to CL sync
 	if e.syncStatus == syncStatusWillStartEL {
 		b, err := e.engine.L2BlockRefByLabel(ctx, eth.Finalized)
-		if errors.Is(err, ethereum.NotFound) {
+		isTransitionBlock := e.rollupCfg.Genesis.L2.Number != 0 && b.Hash == e.rollupCfg.Genesis.L2.Hash
+		if errors.Is(err, ethereum.NotFound) || isTransitionBlock {
 			e.syncStatus = syncStatusStartedEL
 			e.log.Info("Starting EL sync")
 			e.elStart = e.clock.Now()

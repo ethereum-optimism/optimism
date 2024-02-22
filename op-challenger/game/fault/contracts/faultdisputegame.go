@@ -116,12 +116,28 @@ func (c *FaultDisputeGameContract) GetSplitDepth(ctx context.Context) (types.Dep
 	return types.Depth(splitDepth.GetBigInt(0).Uint64()), nil
 }
 
-func (c *FaultDisputeGameContract) GetCredit(ctx context.Context, receipient common.Address) (*big.Int, error) {
-	credit, err := c.multiCaller.SingleCall(ctx, batching.BlockLatest, c.contract.Call(methodCredit, receipient))
+func (c *FaultDisputeGameContract) GetCredit(ctx context.Context, recipient common.Address) (*big.Int, error) {
+	if credits, err := c.GetCredits(ctx, batching.BlockLatest, recipient); err != nil {
+		return nil, err
+	} else {
+		return credits[0], nil
+	}
+}
+
+func (c *FaultDisputeGameContract) GetCredits(ctx context.Context, block batching.Block, recipients ...common.Address) ([]*big.Int, error) {
+	calls := make([]*batching.ContractCall, 0, len(recipients))
+	for _, recipient := range recipients {
+		calls = append(calls, c.contract.Call(methodCredit, recipient))
+	}
+	results, err := c.multiCaller.Call(ctx, block, calls...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve credit: %w", err)
 	}
-	return credit.GetBigInt(0), nil
+	credits := make([]*big.Int, 0, len(recipients))
+	for _, result := range results {
+		credits = append(credits, result.GetBigInt(0))
+	}
+	return credits, nil
 }
 
 func (f *FaultDisputeGameContract) ClaimCredit(recipient common.Address) (txmgr.TxCandidate, error) {

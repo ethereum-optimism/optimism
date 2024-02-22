@@ -40,6 +40,33 @@ func TestDynamicLogHandler_SetLogLevel(t *testing.T) {
 	require.Equal(t, h.records[5].Message, "another error")
 }
 
+func TestDynamicLogHandler_WithAttrs(t *testing.T) {
+	h := new(testRecorder)
+	d := NewDynamicLogHandler(log.LevelInfo, h)
+	logger := log.NewLogger(d)
+	logwith := logger.With("a", 1) // derived logger
+
+	// increase log level
+	d.SetLogLevel(log.LevelDebug)
+
+	logwith.Info("info0")   // y
+	logwith.Debug("debug0") // y
+	logwith.Trace("trace0") // n
+
+	// and decrease log level
+	d.SetLogLevel(log.LevelWarn)
+
+	logwith.Info("info1")   // n
+	logwith.Warn("warn1")   // y
+	logwith.Error("error1") // y
+
+	require.Len(t, h.records, 2+2)
+	require.Equal(t, h.records[0].Message, "info0")
+	require.Equal(t, h.records[1].Message, "debug0")
+	require.Equal(t, h.records[2].Message, "warn1")
+	require.Equal(t, h.records[3].Message, "error1")
+}
+
 type testRecorder struct {
 	records []slog.Record
 }

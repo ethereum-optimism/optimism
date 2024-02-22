@@ -23,7 +23,7 @@ func NewOutputCannonTraceAccessor(
 	l2Client cannon.L2HeaderSource,
 	contract cannon.L1HeadSource,
 	prestateProvider types.PrestateProvider,
-	rollupClient OutputRollupClient,
+	rollupClient OutputRootProvider,
 	dir string,
 	splitDepth types.Depth,
 	prestateBlock uint64,
