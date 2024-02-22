@@ -68,13 +68,12 @@ func isChallengingClaim(claim types.Claim, game types.Game, agreedClaims *agreed
 }
 
 func (s *claimSolver) respond(ctx context.Context, claim types.Claim, game types.Game, agreedClaims *agreedClaimTracker) (moveType, error) {
-	// Root case is simple - attack if we disagree, do nothing if we agree
+	if agreedClaims.IsAgreed(claim) {
+		return moveNop, nil
+	}
+	// Root case is simple - attack since we have established it's not a claim we'd post
 	if claim.IsRoot() {
-		if !agreedClaims.IsAgreed(claim) {
-			return moveAttack, nil
-		} else {
-			return moveNop, nil
-		}
+		return moveAttack, nil
 	}
 
 	parent, err := game.GetParent(claim)
@@ -105,21 +104,6 @@ func (s *claimSolver) respond(ctx context.Context, claim types.Claim, game types
 			claimResponse = moveAttack
 		}
 		invalidDefense := claimResponse == moveDefend && correctResponse == moveAttack
-
-		// Note this check for a claim that matches what we'd do is not in the spec
-		claimIsCorrectMove := correctResponse == claimResponse
-		if claimIsCorrectMove {
-			agreeWithClaim, err := s.agreeWithClaim(ctx, game, claim)
-			if err != nil {
-				return moveNop, err
-			}
-			if agreeWithClaim {
-				// Don't counter moves that we would have made.
-				return moveNop, nil
-			}
-		}
-
-		// Resume bits that are in the spec
 		if !invalidDefense {
 			return s.respondClaim(ctx, claim, game)
 		} else {
