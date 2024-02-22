@@ -16,6 +16,7 @@ import { CheckBalanceLow } from "src/periphery/drippie/dripchecks/CheckBalanceLo
 import { CheckTrue } from "src/periphery/drippie/dripchecks/CheckTrue.sol";
 import { AdminFaucetAuthModule } from "src/periphery/faucet/authmodules/AdminFaucetAuthModule.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
+import { Config } from "scripts/Config.sol";
 
 /// @title DeployPeriphery
 /// @notice Script used to deploy periphery contracts.
@@ -250,7 +251,7 @@ contract DeployPeriphery is Deployer {
     /// @notice installs drip configs that deposit funds to all OP Chain faucets. This function
     /// should only be called on an L1 testnet.
     function installOpChainFaucetsDrippieConfigs() public {
-        uint256 drippieOwnerPrivateKey = vm.envUint("DRIPPIE_OWNER_PRIVATE_KEY");
+        uint256 drippieOwnerPrivateKey = Config.drippieOwnerPrivateKey();
         vm.startBroadcast(drippieOwnerPrivateKey);
 
         Drippie drippie = Drippie(mustGetAddress("FaucetDrippie"));
@@ -267,7 +268,7 @@ contract DeployPeriphery is Deployer {
 
     /// @notice archives the previous OP Chain drip configs.
     function archivePreviousOpChainFaucetsDrippieConfigs() public {
-        uint256 drippieOwnerPrivateKey = vm.envUint("DRIPPIE_OWNER_PRIVATE_KEY");
+        uint256 drippieOwnerPrivateKey = Config.drippieOwnerPrivateKey();
         vm.startBroadcast(drippieOwnerPrivateKey);
 
         Drippie drippie = Drippie(mustGetAddress("FaucetDrippie"));

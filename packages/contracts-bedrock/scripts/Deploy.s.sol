@@ -40,6 +40,7 @@ import { ProtocolVersions, ProtocolVersion } from "src/L1/ProtocolVersions.sol";
 import { StorageSetter } from "src/universal/StorageSetter.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Chains } from "scripts/Chains.sol";
+import { Config } from "scripts/Config.sol";
 
 import { IBigStepper } from "src/dispute/interfaces/IBigStepper.sol";
 import { IPreimageOracle } from "src/cannon/interfaces/IPreimageOracle.sol";
@@ -121,7 +122,7 @@ contract Deploy is Deployer {
     ///         Using this helps to reduce config across networks as the implementation
     ///         addresses will be the same across networks when deployed with create2.
     function _implSalt() internal view returns (bytes32) {
-        return keccak256(bytes(vm.envOr("IMPL_SALT", string("ethers phoenix"))));
+        return keccak256(bytes(Config.implSalt()));
     }
 
     /// @notice Returns the proxy addresses. If a proxy is not found, it will have address(0).
@@ -266,10 +267,7 @@ contract Deploy is Deployer {
     function runWithStateDump() public {
         _run();
 
-        string memory path = vm.envOr(
-            "STATE_DUMP_PATH", string.concat(vm.projectRoot(), "/", name(), "-", vm.toString(block.chainid), ".json")
-        );
-        vm.dumpState(path);
+        vm.dumpState(Config.stateDumpPath(name()));
     }
 
     /// @notice Deploy all L1 contracts and write the state diff to a file.

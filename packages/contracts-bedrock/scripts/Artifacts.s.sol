@@ -7,6 +7,7 @@ import { Vm } from "forge-std/Vm.sol";
 import { Executables } from "scripts/Executables.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Chains } from "scripts/Chains.sol";
+import { Config } from "scripts/Config.sol";
 
 /// @notice Represents a deployment. Is serialized to JSON as a key/value
 ///         pair. Can be accessed from within scripts.
@@ -49,7 +50,7 @@ abstract contract Artifacts {
             vm.createDir(deploymentsDir, true);
         }
 
-        deployArtifactPath = vm.envOr("DEPLOYMENT_OUTFILE", string.concat(deploymentsDir, "/.deploy"));
+        deployArtifactPath = Config.deployArtifactPath(deploymentsDir);
         try vm.readFile(deployArtifactPath) returns (string memory) { }
         catch {
             vm.writeJson("{}", deployArtifactPath);
@@ -58,12 +59,12 @@ abstract contract Artifacts {
 
         try vm.createDir(deploymentsDir, true) { } catch (bytes memory) { }
 
-        uint256 chainId = vm.envOr("CHAIN_ID", block.chainid);
+        uint256 chainId = Config.chainID();
         console.log("Connected to network with chainid %s", chainId);
 
         // Load addresses from a JSON file if the CONTRACT_ADDRESSES_PATH environment variable
         // is set. Great for loading addresses from `superchain-registry`.
-        string memory addresses = vm.envOr("CONTRACT_ADDRESSES_PATH", string(""));
+        string memory addresses = Config.contractAddressesPath();
         if (bytes(addresses).length > 0) {
             console.log("Loading addresses from %s", addresses);
             _loadAddresses(addresses);
@@ -269,12 +270,12 @@ abstract contract Artifacts {
     ///         An unknown context will use the chainid as the context name.
     ///         This is legacy code and should be removed in the future.
     function _getDeploymentContext() private view returns (string memory) {
-        string memory context = vm.envOr("DEPLOYMENT_CONTEXT", string(""));
+        string memory context = Config.deploymentContext();
         if (bytes(context).length > 0) {
             return context;
         }
 
-        uint256 chainid = vm.envOr("CHAIN_ID", block.chainid);
+        uint256 chainid = Config.chainID();
         if (chainid == Chains.Mainnet) {
             return "mainnet";
         } else if (chainid == Chains.Goerli) {
