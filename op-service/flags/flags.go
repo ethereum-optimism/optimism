@@ -18,44 +18,49 @@ const (
 	EcotoneOverrideFlagName = "override.ecotone"
 )
 
-func CLIFlags(envPrefix string) []cli.Flag {
+func CLIFlags(envPrefix string, category string) []cli.Flag {
 	return []cli.Flag{
 		&cli.Uint64Flag{
-			Name:    CanyonOverrideFlagName,
-			Usage:   "Manually specify the Canyon fork timestamp, overriding the bundled setting",
-			EnvVars: opservice.PrefixEnvVar(envPrefix, "OVERRIDE_CANYON"),
-			Hidden:  false,
+			Name:     CanyonOverrideFlagName,
+			Usage:    "Manually specify the Canyon fork timestamp, overriding the bundled setting",
+			EnvVars:  opservice.PrefixEnvVar(envPrefix, "OVERRIDE_CANYON"),
+			Hidden:   false,
+			Category: category,
 		},
 		&cli.Uint64Flag{
-			Name:    DeltaOverrideFlagName,
-			Usage:   "Manually specify the Delta fork timestamp, overriding the bundled setting",
-			EnvVars: opservice.PrefixEnvVar(envPrefix, "OVERRIDE_DELTA"),
-			Hidden:  false,
+			Name:     DeltaOverrideFlagName,
+			Usage:    "Manually specify the Delta fork timestamp, overriding the bundled setting",
+			EnvVars:  opservice.PrefixEnvVar(envPrefix, "OVERRIDE_DELTA"),
+			Hidden:   false,
+			Category: category,
 		},
 		&cli.Uint64Flag{
-			Name:    EcotoneOverrideFlagName,
-			Usage:   "Manually specify the Ecotone fork timestamp, overriding the bundled setting",
-			EnvVars: opservice.PrefixEnvVar(envPrefix, "OVERRIDE_ECOTONE"),
-			Hidden:  false,
+			Name:     EcotoneOverrideFlagName,
+			Usage:    "Manually specify the Ecotone fork timestamp, overriding the bundled setting",
+			EnvVars:  opservice.PrefixEnvVar(envPrefix, "OVERRIDE_ECOTONE"),
+			Hidden:   false,
+			Category: category,
 		},
-		CLINetworkFlag(envPrefix),
-		CLIRollupConfigFlag(envPrefix),
+		CLINetworkFlag(envPrefix, category),
+		CLIRollupConfigFlag(envPrefix, category),
 	}
 }
 
-func CLINetworkFlag(envPrefix string) cli.Flag {
+func CLINetworkFlag(envPrefix string, category string) cli.Flag {
 	return &cli.StringFlag{
-		Name:    NetworkFlagName,
-		Usage:   fmt.Sprintf("Predefined network selection. Available networks: %s", strings.Join(chaincfg.AvailableNetworks(), ", ")),
-		EnvVars: opservice.PrefixEnvVar(envPrefix, "NETWORK"),
+		Name:     NetworkFlagName,
+		Usage:    fmt.Sprintf("Predefined network selection. Available networks: %s", strings.Join(chaincfg.AvailableNetworks(), ", ")),
+		EnvVars:  opservice.PrefixEnvVar(envPrefix, "NETWORK"),
+		Category: category,
 	}
 }
 
-func CLIRollupConfigFlag(envPrefix string) cli.Flag {
+func CLIRollupConfigFlag(envPrefix string, category string) cli.Flag {
 	return &cli.StringFlag{
-		Name:    RollupConfigFlagName,
-		Usage:   "Rollup chain parameters",
-		EnvVars: opservice.PrefixEnvVar(envPrefix, "ROLLUP_CONFIG"),
+		Name:     RollupConfigFlagName,
+		Usage:    "Rollup chain parameters",
+		EnvVars:  opservice.PrefixEnvVar(envPrefix, "ROLLUP_CONFIG"),
+		Category: category,
 	}
 }
 

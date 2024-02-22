@@ -17,24 +17,27 @@ func plasmaEnv(envprefix, v string) []string {
 	return []string{envprefix + "_PLASMA_" + v}
 }
 
-func CLIFlags(envPrefix string) []cli.Flag {
+func CLIFlags(envPrefix string, category string) []cli.Flag {
 	return []cli.Flag{
 		&cli.BoolFlag{
-			Name:    EnabledFlagName,
-			Usage:   "Enable plasma mode",
-			Value:   false,
-			EnvVars: plasmaEnv(envPrefix, "ENABLED"),
+			Name:     EnabledFlagName,
+			Usage:    "Enable plasma mode",
+			Value:    false,
+			EnvVars:  plasmaEnv(envPrefix, "ENABLED"),
+			Category: category,
 		},
 		&cli.StringFlag{
-			Name:    DaServerAddressFlagName,
-			Usage:   "HTTP address of a DA Server",
-			EnvVars: plasmaEnv(envPrefix, "DA_SERVER"),
+			Name:     DaServerAddressFlagName,
+			Usage:    "HTTP address of a DA Server",
+			EnvVars:  plasmaEnv(envPrefix, "DA_SERVER"),
+			Category: category,
 		},
 		&cli.BoolFlag{
-			Name:    VerifyOnReadFlagName,
-			Usage:   "Verify input data matches the commitments from the DA storage service",
-			Value:   true,
-			EnvVars: plasmaEnv(envPrefix, "VERIFY_ON_READ"),
+			Name:     VerifyOnReadFlagName,
+			Usage:    "Verify input data matches the commitments from the DA storage service",
+			Value:    true,
+			EnvVars:  plasmaEnv(envPrefix, "VERIFY_ON_READ"),
+			Category: category,
 		},
 	}
 }
