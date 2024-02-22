@@ -133,8 +133,17 @@ contract L1Block is ISemver {
     /// @dev The interop upgrade block itself MUST include a call to setL1BlockValuesEcotone.
     /// Params are packed and passed in as raw msg.data instead of ABI to reduce calldata size.
     /// Params are expected to be in the following order:
-    ///   1. _interopSetSize     Size of the interop dependency set.
-    ///   2. _chainIds           Array of chain IDs in the interop dependency set.
+    ///   1. _baseFeeScalar      L1 base fee scalar
+    ///   2. _blobBaseFeeScalar  L1 blob base fee scalar
+    ///   3. _sequenceNumber     Number of L2 blocks since epoch start.
+    ///   4. _timestamp          L1 timestamp.
+    ///   5. _number             L1 blocknumber.
+    ///   6. _basefee            L1 base fee.
+    ///   7. _blobBaseFee        L1 blob base fee.
+    ///   8. _hash               L1 blockhash.
+    ///   9. _batcherHash        Versioned hash to authenticate batcher by.
+    ///  10. _interopSetSize     Size of the interop dependency set.
+    ///  11. _chainIds           Array of chain IDs in the interop dependency set.
     function setL1BlockValuesInterop() external {
         assembly {
             // Revert if the caller is not the depositor account.
@@ -143,23 +152,21 @@ contract L1Block is ISemver {
                 revert(0x1C, 0x04) // returns the stored 4-byte selector from above
             }
 
-            let slot := chainIds.slot
-            // Load the interopSetSize from calldata
+            // Load interopSetSize from calldata
             let interopSetSize_ := shr(248, calldataload(164))
             sstore(interopSetSize.slot, interopSetSize_)
 
-            slot := chainIds.slot
-            mstore(0x00, slot)
+            // Use memory to hash and get the start index of chainIds
+            mstore(0x00, chainIds.slot)
+            let chainIdsStartIndex := keccak256(0x00, 0x20)
 
-            // Iterate over chainIds based on interopSetSize
+            // Iterate over calldata chainIds and write to store chainIds
             for { let i := 0 } lt(i, interopSetSize_) { i := add(i, 1) } {
-                let chainId := calldataload(add(165, mul(i, 0x20)))
-
-                let r := sload(slot)
-                let new_r := add(r, 1)
-                sstore(slot, new_r)
-
-                sstore(add(keccak256(0x00, 0x20), i), chainId)
+                // Increase length of chainIds array
+                sstore(chainIds.slot, add(sload(chainIds.slot), 1))
+                // Load value from calldata and write to storage (chainIds) at index
+                let val := calldataload(add(165, mul(i, 0x20)))
+                sstore(add(chainIdsStartIndex, i), val)
             }
         }
     }
