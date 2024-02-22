@@ -137,6 +137,12 @@ contract L1Block is ISemver {
     ///   2. _chainIds           Array of chain IDs in the interop dependency set.
     function setL1BlockValuesInterop() external {
         assembly {
+            // Revert if the caller is not the depositor account.
+            if xor(caller(), DEPOSITOR_ACCOUNT) {
+                mstore(0x00, 0x3cc50b45) // 0x3cc50b45 is the 4-byte selector of "NotDepositor()"
+                revert(0x1C, 0x04) // returns the stored 4-byte selector from above
+            }
+            let data := calldataload(4)
             sstore(interopSetSize.slot, calldataload(164)) // uint8
             sstore(chainIds.slot, calldataload(165)) // uint256[interopSetSize]
         }
@@ -146,6 +152,9 @@ contract L1Block is ISemver {
     /// @param _chainId The chain ID to check for.
     /// @return True if the chain ID is in the interop dependency set. false otherwise.
     function isInDependencySet(uint256 _chainId) external view returns (bool) {
+        if (_chainId == block.chainid) {
+            return true;
+        }
         for (uint256 i = 0; i < interopSetSize; i++) {
             if (chainIds[i] == _chainId) {
                 return true;
