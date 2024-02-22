@@ -334,12 +334,17 @@ contract L1BlockInterop_Test is L1BlockTest {
         assertEq(data, expReturn);
     }
 
-    function testFuzz_isInDependencySet_succeeds(uint256[] calldata chainIds) external {
+    function testFuzz_isInDependencySet_succeeds(uint8 interopSetSize, uint256[] calldata chainIds) external {
+        vm.assume(interopSetSize == chainIds.length);
         vm.prank(depositor);
-        l1Block.setL1BlockValues(0, 0, 0, bytes32(0), 0, bytes32(0), 0, 0, uint8(chainIds.length), chainIds);
+        l1Block.setL1BlockValues(0, 0, 0, bytes32(0), 0, bytes32(0), 0, 0, interopSetSize, chainIds);
         for (uint256 i = 0; i < chainIds.length; i++) {
             assertTrue(l1Block.isInDependencySet(chainIds[i]));
         }
+    }
+
+    function test_isInDependencySet_isChainId_succeeds() external {
+        assertTrue(l1Block.isInDependencySet(block.chainid));
     }
 
     function test_isInDependencySet_fails() external {
@@ -349,10 +354,6 @@ contract L1BlockInterop_Test is L1BlockTest {
         vm.prank(depositor);
         l1Block.setL1BlockValues(0, 0, 0, bytes32(0), 0, bytes32(0), 0, 0, uint8(chainIds.length), chainIds);
         assertFalse(l1Block.isInDependencySet(3));
-    }
-
-    function test_isInDependencySet_isChainId_succeeds() external {
-        assertTrue(l1Block.isInDependencySet(block.chainid));
     }
 
     function test_isInDependencySet_isDependencySetEmpty_fails() external {
