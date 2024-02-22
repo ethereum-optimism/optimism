@@ -194,6 +194,7 @@ contract DataAvailabilityChallenge is OwnableUpgradeable, ISemver {
 
         // set caller's balance to 0
         balances[msg.sender] = 0;
+        emit BalanceChanged(msg.sender, 0);
 
         // send caller's balance to caller
         bool success = SafeCall.send(msg.sender, gasleft(), balance);
