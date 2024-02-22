@@ -10,9 +10,8 @@ import (
 )
 
 var (
-	ErrStepNonLeafNode       = errors.New("cannot step on non-leaf claims")
-	ErrStepAgreedClaim       = errors.New("cannot step on claims we agree with")
-	ErrStepIgnoreInvalidPath = errors.New("cannot step on claims that dispute invalid paths")
+	ErrStepNonLeafNode = errors.New("cannot step on non-leaf claims")
+	ErrStepIgnoreClaim = errors.New("cannot step on ignored claims")
 )
 
 // claimSolver uses a [TraceProvider] to determine the moves to make in a dispute game.
@@ -30,9 +29,23 @@ func newClaimSolver(gameDepth types.Depth, trace types.TraceAccessor) *claimSolv
 }
 
 // NextMove returns the next move to make given the current state of the game.
-func (s *claimSolver) NextMove(ctx context.Context, claim types.Claim, game types.Game) (*types.Claim, error) {
+func (s *claimSolver) NextMove(ctx context.Context, agreeWithRootClaim bool, claim types.Claim, game types.Game) (*types.Claim, error) {
 	if claim.Depth() == s.gameDepth {
 		return nil, types.ErrGameDepthReached
+	}
+	if game.AgreeWithClaimLevel(claim, agreeWithRootClaim) {
+		if claim.IsRoot() {
+			// Freeloaders cannot exist at root
+			return nil, nil
+		} else {
+			if shouldMove, err := s.shouldCounterFreeloader(ctx, claim, game); err != nil {
+				return nil, err
+			} else if shouldMove {
+				return s.move(ctx, claim, game)
+			} else {
+				return nil, nil
+			}
+		}
 	}
 
 	// Before challenging this claim, first check that the move wasn't warranted.
@@ -52,6 +65,30 @@ func (s *claimSolver) NextMove(ctx context.Context, claim types.Claim, game type
 		}
 	}
 
+	return s.move(ctx, claim, game)
+}
+
+func (s *claimSolver) shouldCounterFreeloader(ctx context.Context, claim types.Claim, game types.Game) (bool, error) {
+	parent, err := game.GetParent(claim)
+	if err != nil {
+		return false, err
+	}
+	// Compute the correct response to the freeloader's parent
+	correctClaim, err := s.move(ctx, parent, game)
+	if err != nil {
+		return false, err
+	}
+	if correctClaim.ClaimData.Value == claim.ClaimData.Value && correctClaim.Position.ToGIndex().Cmp(claim.Position.ToGIndex()) == 0 {
+		return false, nil
+	}
+	if correctClaim.Position.IndexAtDepth().Cmp(claim.Position.IndexAtDepth()) >= 0 {
+		return true, nil
+	}
+	// Freeloaders strictly to the right cannot be countered. It's fine to ignore these because the left-most honest claim wins the subgamne.
+	return false, nil
+}
+
+func (s *claimSolver) move(ctx context.Context, claim types.Claim, game types.Game) (*types.Claim, error) {
 	agree, err := s.agreeWithClaim(ctx, game, claim)
 	if err != nil {
 		return nil, err
@@ -73,10 +110,20 @@ type StepData struct {
 
 // AttemptStep determines what step should occur for a given leaf claim.
 // An error will be returned if the claim is not at the max depth.
-// Returns ErrStepIgnoreInvalidPath if the claim disputes an invalid path
-func (s *claimSolver) AttemptStep(ctx context.Context, game types.Game, claim types.Claim) (StepData, error) {
+// Returns ErrStepIgnoreClaim if the claim disputes an invalid path
+func (s *claimSolver) AttemptStep(ctx context.Context, agreeWithRootClaim bool, game types.Game, claim types.Claim) (StepData, error) {
 	if claim.Depth() != s.gameDepth {
 		return StepData{}, ErrStepNonLeafNode
+	}
+
+	if game.AgreeWithClaimLevel(claim, agreeWithRootClaim) {
+		if shouldStep, err := s.shouldCounterFreeloader(ctx, claim, game); err != nil {
+			return StepData{}, err
+		} else if shouldStep {
+			return s.step(ctx, game, claim)
+		} else {
+			return StepData{}, ErrStepIgnoreClaim
+		}
 	}
 
 	// Step only on claims that dispute a valid path
@@ -89,9 +136,13 @@ func (s *claimSolver) AttemptStep(ctx context.Context, game types.Game, claim ty
 		return StepData{}, err
 	}
 	if !parentValid {
-		return StepData{}, ErrStepIgnoreInvalidPath
+		return StepData{}, ErrStepIgnoreClaim
 	}
 
+	return s.step(ctx, game, claim)
+}
+
+func (s *claimSolver) step(ctx context.Context, game types.Game, claim types.Claim) (StepData, error) {
 	claimCorrect, err := s.agreeWithClaim(ctx, game, claim)
 	if err != nil {
 		return StepData{}, err

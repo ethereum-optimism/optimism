@@ -56,6 +56,56 @@ func TestCalculateNextActions(t *testing.T) {
 			},
 		},
 		{
+			name:             "RespondToFreeloaders_CorrectAttack",
+			rootClaimCorrect: true,
+			setupGame: func(builder *faulttest.GameBuilder) {
+				dishonest := builder.Seq().Attack(common.Hash{0xaa})
+				// honest
+				dishonest.AttackCorrect()
+				// freeloaders
+				dishonest.Attack(common.Hash{0xbb}).ExpectAttack()
+				dishonest.Attack(common.Hash{0xcc}).ExpectAttack()
+				dishonest.Defend(common.Hash{0xdd})
+				dishonest.DefendCorrect()
+			},
+		},
+		{
+			name:             "RespondToFreeloaders_CorrectDefend",
+			rootClaimCorrect: true,
+			setupGame: func(builder *faulttest.GameBuilder) {
+				dishonest := builder.Seq().AttackCorrect()
+				// honest
+				dishonest.DefendCorrect()
+				// freeloaders
+				dishonest.AttackCorrect().ExpectDefend()
+				dishonest.Attack(common.Hash{0xaa}).ExpectAttack()
+				dishonest.Attack(common.Hash{0xbb}).ExpectAttack()
+				dishonest.Defend(common.Hash{0xcc}).ExpectAttack()
+				dishonest.Defend(common.Hash{0xdd}).ExpectAttack()
+			},
+		},
+		{
+			name:             "IgnoreFreeloadersOnInvalidPath",
+			rootClaimCorrect: true,
+			setupGame: func(builder *faulttest.GameBuilder) {
+				dishonest := builder.Seq().AttackCorrect()
+				// honest
+				dishonest.DefendCorrect()
+				// freeloader
+				dishonest.AttackCorrect().ExpectDefend()
+				// freeloader
+				invalidPath := dishonest.Attack(common.Hash{0xaa})
+				invalidPath.ExpectAttack()
+				// dishonest attacks freeloader on invalid path
+				dishonestOnInvalidPath := invalidPath.Attack(common.Hash{0xbb})
+				// invalid path freeloaders should be completely ignored
+				dishonestOnInvalidPath.AttackCorrect()
+				dishonestOnInvalidPath.Attack(common.Hash{0xcc})
+				dishonestOnInvalidPath.Defend(common.Hash{0xdd})
+				dishonestOnInvalidPath.DefendCorrect()
+			},
+		},
+		{
 			name: "StepAtMaxDepth",
 			setupGame: func(builder *faulttest.GameBuilder) {
 				lastHonestClaim := builder.Seq().
