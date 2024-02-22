@@ -184,6 +184,8 @@ library Encoding {
     /// @param blobBaseFee         L1 blob base fee.
     /// @param hash                L1 blockhash.
     /// @param batcherHash         Versioned hash to authenticate batcher by.
+    /// @param interopSetSize      Size of the interop dependency set.
+    /// @param chainIds            Array of chain IDs in the interop dependency set.
     function encodeSetL1BlockValuesInterop(
         uint32 baseFeeScalar,
         uint32 blobBaseFeeScalar,
