@@ -11,8 +11,15 @@ import (
 
 var (
 	ErrStepNonLeafNode       = errors.New("cannot step on non-leaf claims")
-	ErrStepAgreedClaim       = errors.New("cannot step on claims we agree with")
 	ErrStepIgnoreInvalidPath = errors.New("cannot step on claims that dispute invalid paths")
+)
+
+type moveType uint8
+
+const (
+	moveAttack moveType = iota
+	moveDefend
+	moveNop
 )
 
 // claimSolver uses a [TraceProvider] to determine the moves to make in a dispute game.
@@ -29,29 +36,76 @@ func newClaimSolver(gameDepth types.Depth, trace types.TraceAccessor) *claimSolv
 	}
 }
 
-// NextMove returns the next move to make given the current state of the game.
-func (s *claimSolver) NextMove(ctx context.Context, claim types.Claim, game types.Game) (*types.Claim, error) {
-	if claim.Depth() == s.gameDepth {
-		return nil, types.ErrGameDepthReached
+func (s *claimSolver) respondClaim(ctx context.Context, claim types.Claim, game types.Game) (moveType, error) {
+	agree, err := s.agreeWithClaim(ctx, game, claim)
+	if err != nil {
+		return moveNop, err
+	}
+	if agree {
+		return moveDefend, nil
+	} else {
+		return moveAttack, nil
+	}
+}
+
+func (s *claimSolver) respond(ctx context.Context, claim types.Claim, game types.Game, agreeWithRootClaim bool) (moveType, error) {
+	// Root case is simple - attack if we disagree, do nothing if we agree
+	if claim.IsRoot() {
+		if !game.AgreeWithClaimLevel(claim, agreeWithRootClaim) {
+			return moveAttack, nil
+		} else {
+			return moveNop, nil
+		}
 	}
 
-	// Before challenging this claim, first check that the move wasn't warranted.
-	// If the parent claim is on a dishonest path, then we would have moved against it anyways. So we don't move.
-	// Avoiding dishonest paths ensures that there's always a valid claim available to support ours during step.
-	if !claim.IsRoot() {
-		parent, err := game.GetParent(claim)
-		if err != nil {
-			return nil, err
-		}
+	parent, err := game.GetParent(claim)
+	if err != nil {
+		return moveNop, err
+	}
+	if !game.AgreeWithClaimLevel(claim, agreeWithRootClaim) {
 		agreeWithParent, err := s.agreeWithClaimPath(ctx, game, parent)
 		if err != nil {
-			return nil, err
+			return moveNop, err
 		}
-		if !agreeWithParent {
-			return nil, nil
+		if agreeWithParent {
+			return s.respondClaim(ctx, claim, game)
+		} else {
+			return moveNop, nil
+		}
+	} else {
+		correctResponse, err := s.respond(ctx, parent, game, agreeWithRootClaim)
+		if err != nil {
+			return moveNop, err
+		}
+		claimResponse := moveDefend
+		if !game.DefendsParent(claim) {
+			claimResponse = moveAttack
+		}
+		invalidDefense := claimResponse == moveDefend && correctResponse == moveAttack
+
+		// Note this check for a claim that matches what we'd do is not in the spec
+		claimIsCorrectMove := correctResponse == claimResponse
+		if claimIsCorrectMove {
+			agreeWithClaim, err := s.agreeWithClaim(ctx, game, claim)
+			if err != nil {
+				return moveNop, err
+			}
+			if agreeWithClaim {
+				// Don't counter moves that we would have made.
+				return moveNop, nil
+			}
+		}
+
+		// Resume bits that are in the spec
+		if !invalidDefense {
+			return s.respondClaim(ctx, claim, game)
+		} else {
+			return moveNop, nil
 		}
 	}
+}
 
+func (s *claimSolver) respondToClaim(ctx context.Context, claim types.Claim, game types.Game) (*types.Claim, error) {
 	agree, err := s.agreeWithClaim(ctx, game, claim)
 	if err != nil {
 		return nil, err
@@ -60,6 +114,27 @@ func (s *claimSolver) NextMove(ctx context.Context, claim types.Claim, game type
 		return s.defend(ctx, game, claim)
 	} else {
 		return s.attack(ctx, game, claim)
+	}
+}
+
+// NextMove returns the next move to make given the current state of the game.
+func (s *claimSolver) NextMove(ctx context.Context, claim types.Claim, game types.Game, agreeWithRootClaim bool) (*types.Claim, error) {
+	if claim.Depth() == s.gameDepth {
+		return nil, types.ErrGameDepthReached
+	}
+	responseType, err := s.respond(ctx, claim, game, agreeWithRootClaim)
+	if err != nil {
+		return nil, fmt.Errorf("failed to determine correct move type: %w", err)
+	}
+	switch responseType {
+	case moveNop:
+		return nil, nil
+	case moveAttack:
+		return s.attack(ctx, game, claim)
+	case moveDefend:
+		return s.defend(ctx, game, claim)
+	default:
+		panic(fmt.Errorf("unknown move type: %v", responseType))
 	}
 }
 

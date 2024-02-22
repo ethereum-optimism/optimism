@@ -170,7 +170,7 @@ func TestChallengerCompleteExhaustiveDisputeGame(t *testing.T) {
 }
 
 func TestOutputAlphabetGame_FreeloaderEarnsNothing(t *testing.T) {
-	t.Skip("CLI-103")
+	//t.Skip("CLI-103")
 
 	op_e2e.InitParallel(t)
 	ctx := context.Background()
@@ -181,12 +181,11 @@ func TestOutputAlphabetGame_FreeloaderEarnsNothing(t *testing.T) {
 	require.Nil(t, err)
 
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
-	game := disputeGameFactory.StartOutputAlphabetGameWithCorrectRoot(ctx, "sequencer", 2)
+	game := disputeGameFactory.StartOutputAlphabetGame(ctx, "sequencer", 2, common.Hash{0x01})
 	correctTrace := game.CreateHonestActor(ctx, "sequencer")
 	game.LogGameData(ctx)
-	claim := game.DisputeLastBlock(ctx)
-	// Invalid root claim of the alphabet game
-	claim = claim.Attack(ctx, common.Hash{0x01})
+	// Invalid root claim of game
+	claim := game.RootClaim(ctx)
 
 	// Chronology of claims:
 	// dishonest root claim:
@@ -216,6 +215,7 @@ func TestOutputAlphabetGame_FreeloaderEarnsNothing(t *testing.T) {
 	// Freeloaders after the honest challenger
 	freeloaders = append(freeloaders, dishonest.AttackWithTransactOpts(ctx, common.Hash{0x04}, freeloaderOpts))
 	freeloaders = append(freeloaders, dishonest.DefendWithTransactOpts(ctx, common.Hash{0x05}, freeloaderOpts))
+	game.LogGameData(ctx)
 
 	for _, freeloader := range freeloaders {
 		freeloader.WaitForCounterClaim(ctx)
@@ -224,8 +224,9 @@ func TestOutputAlphabetGame_FreeloaderEarnsNothing(t *testing.T) {
 	game.LogGameData(ctx)
 	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
 	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
-	game.WaitForGameStatus(ctx, disputegame.StatusDefenderWins)
+	game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
+	game.LogGameData(ctx)
 
 	amt := game.Credit(ctx, freeloaderOpts.From)
-	require.True(t, amt.BitLen() == 0, "freeloaders should not be rewarded")
+	require.Truef(t, amt.BitLen() == 0, "freeloader (%v) should not be rewarded but got %v", freeloaderOpts.From, amt)
 }

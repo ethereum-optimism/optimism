@@ -14,7 +14,7 @@ import (
 )
 
 func TestCalculateNextActions(t *testing.T) {
-	maxDepth := types.Depth(4)
+	maxDepth := types.Depth(6)
 	startingL2BlockNumber := big.NewInt(0)
 	claimBuilder := faulttest.NewAlphabetClaimBuilder(t, startingL2BlockNumber, maxDepth)
 
@@ -61,6 +61,8 @@ func TestCalculateNextActions(t *testing.T) {
 				lastHonestClaim := builder.Seq().
 					AttackCorrect().
 					AttackCorrect().
+					DefendCorrect().
+					DefendCorrect().
 					DefendCorrect()
 				lastHonestClaim.AttackCorrect().ExpectStepDefend()
 				lastHonestClaim.Attack(common.Hash{0xdd}).ExpectStepAttack()
@@ -84,6 +86,70 @@ func TestCalculateNextActions(t *testing.T) {
 					Attack(maliciousStateHash)
 			},
 		},
+		{
+			name: "Freeloader-ValidClaimAtInvalidAttackPosition",
+			setupGame: func(builder *faulttest.GameBuilder) {
+				builder.Seq().
+					AttackCorrect().                // Honest response to invalid root
+					DefendCorrect().ExpectDefend(). // Defender agrees at this point, we should defend
+					AttackCorrect().ExpectDefend()  // Freeloader attacks instead of defends
+			},
+		},
+		{
+			name: "Freeloader-InvalidClaimAtInvalidAttackPosition",
+			setupGame: func(builder *faulttest.GameBuilder) {
+				builder.Seq().
+					AttackCorrect().                         // Honest response to invalid root
+					DefendCorrect().ExpectDefend().          // Defender agrees at this point, we should defend
+					Attack(common.Hash{0xbb}).ExpectAttack() // Freeloader attacks with wrong claim instead of defends
+			},
+		},
+		{
+			name: "Freeloader-InvalidClaimAtValidDefensePosition",
+			setupGame: func(builder *faulttest.GameBuilder) {
+				builder.Seq().
+					AttackCorrect().                         // Honest response to invalid root
+					DefendCorrect().ExpectDefend().          // Defender agrees at this point, we should defend
+					Defend(common.Hash{0xbb}).ExpectAttack() // Freeloader defends with wrong claim, we should attack
+			},
+		},
+		{
+			name: "Freeloader-InvalidClaimAtValidAttackPosition",
+			setupGame: func(builder *faulttest.GameBuilder) {
+				builder.Seq().
+					AttackCorrect().                          // Honest response to invalid root
+					Defend(common.Hash{0xaa}).ExpectAttack(). // Defender disagrees at this point, we should attack
+					Attack(common.Hash{0xbb}).ExpectAttack()  // Freeloader attacks with wrong claim instead of defends
+			},
+		},
+		{
+			name: "Freeloader-InvalidClaimAtInvalidDefensePosition",
+			setupGame: func(builder *faulttest.GameBuilder) {
+				builder.Seq().
+					AttackCorrect().                          // Honest response to invalid root
+					Defend(common.Hash{0xaa}).ExpectAttack(). // Defender disagrees at this point, we should attack
+					Defend(common.Hash{0xbb})                 // Freeloader defends with wrong claim but we must not respond to avoid poisoning
+			},
+		},
+		{
+			name: "Freeloader-ValidClaimAtInvalidAttackPosition-RespondingToDishonestButCorrectAttack",
+			setupGame: func(builder *faulttest.GameBuilder) {
+				builder.Seq().
+					AttackCorrect().                // Honest response to invalid root
+					AttackCorrect().ExpectDefend(). // Defender attacks with correct value, we should defend
+					AttackCorrect().ExpectDefend()  // Freeloader attacks with wrong claim, we should defend
+			},
+		},
+		{
+			name: "Freeloader-DoNotCounterOwnClaim",
+			setupGame: func(builder *faulttest.GameBuilder) {
+				builder.Seq().
+					AttackCorrect().                // Honest response to invalid root
+					AttackCorrect().ExpectDefend(). // Defender attacks with correct value, we should defend
+					AttackCorrect().                // Freeloader attacks instead, we should defend
+					DefendCorrect()                 // We do defend and we shouldn't counter our own claim
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -93,8 +159,8 @@ func TestCalculateNextActions(t *testing.T) {
 			test.setupGame(builder)
 			game := builder.Game
 			for i, claim := range game.Claims() {
-				t.Logf("Claim %v: Pos: %v TraceIdx: %v ParentIdx: %v, CounteredBy: %v, Value: %v",
-					i, claim.Position.ToGIndex(), claim.Position.TraceIndex(maxDepth), claim.ParentContractIndex, claim.CounteredBy, claim.Value)
+				t.Logf("Claim %v: Pos: %v TraceIdx: %v Depth: %v IndexAtDepth: %v ParentIdx: %v Value: %v",
+					i, claim.Position.ToGIndex(), claim.Position.TraceIndex(maxDepth), claim.Position.Depth(), claim.Position.IndexAtDepth(), claim.ParentContractIndex, claim.Value)
 			}
 
 			solver := NewGameSolver(maxDepth, trace.NewSimpleTraceAccessor(claimBuilder.CorrectTraceProvider()))

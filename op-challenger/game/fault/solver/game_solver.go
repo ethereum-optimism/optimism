@@ -76,10 +76,7 @@ func (s *GameSolver) calculateStep(ctx context.Context, game types.Game, agreeWi
 }
 
 func (s *GameSolver) calculateMove(ctx context.Context, game types.Game, agreeWithRootClaim bool, claim types.Claim) (*types.Action, error) {
-	if game.AgreeWithClaimLevel(claim, agreeWithRootClaim) {
-		return nil, nil
-	}
-	move, err := s.claimSolver.NextMove(ctx, claim, game)
+	move, err := s.claimSolver.NextMove(ctx, claim, game, agreeWithRootClaim)
 	if err != nil {
 		return nil, fmt.Errorf("failed to calculate next move for claim index %v: %w", claim.ContractIndex, err)
 	}

@@ -179,13 +179,13 @@ func (g *OutputGameHelper) waitForClaim(ctx context.Context, timeout time.Durati
 	var matchedClaim ContractClaim
 	var matchClaimIdx int64
 	err := wait.For(timedCtx, time.Second, func() (bool, error) {
-		count, err := g.game.ClaimDataLen(&bind.CallOpts{Context: timedCtx})
+		count, err := g.game.ClaimDataLen(&bind.CallOpts{Context: ctx})
 		if err != nil {
 			return false, fmt.Errorf("retrieve number of claims: %w", err)
 		}
 		// Search backwards because the new claims are at the end and more likely the ones we want.
 		for i := count.Int64() - 1; i >= 0; i-- {
-			claimData, err := g.game.ClaimData(&bind.CallOpts{Context: timedCtx}, big.NewInt(i))
+			claimData, err := g.game.ClaimData(&bind.CallOpts{Context: ctx}, big.NewInt(i))
 			if err != nil {
 				return false, fmt.Errorf("retrieve claim %v: %w", i, err)
 			}
