@@ -92,6 +92,19 @@ type LocalEngineControl interface {
 	SetPendingSafeL2Head(eth.L2BlockRef)
 }
 
+// SafeHeadListener is called when the safe head is updated.
+// The safe head may advance by more than one block in a single update
+// The l1Block specified is the first L1 block that includes sufficient information to derive the new safe head
+type SafeHeadListener interface {
+	// SafeHeadUpdated indicates that the safe head has been updated in response to processing batch data
+	// The l1Block specified is the first L1 block containing all required batch data to derive newSafeHead
+	SafeHeadUpdated(newSafeHead eth.L2BlockRef, l1Block eth.BlockID) error
+
+	// SafeHeadReset indicates that the derivation pipeline reset back to the specified safe head
+	// The L1 block that made the new safe head safe is unknown.
+	SafeHeadReset(resetSafeHead eth.L2BlockRef) error
+}
+
 // Max memory used for buffering unsafe payloads
 const maxUnsafePayloadsMemory = 500 * 1024 * 1024
 
@@ -153,10 +166,13 @@ type EngineQueue struct {
 	l1Fetcher L1Fetcher
 
 	syncCfg *sync.Config
+
+	safeHeadNotifs       SafeHeadListener // notified when safe head is updated
+	lastNotifiedSafeHead eth.L2BlockRef
 }
 
 // NewEngineQueue creates a new EngineQueue, which should be Reset(origin) before use.
-func NewEngineQueue(log log.Logger, cfg *rollup.Config, l2Source L2Source, engine LocalEngineControl, metrics Metrics, prev NextAttributesProvider, l1Fetcher L1Fetcher, syncCfg *sync.Config) *EngineQueue {
+func NewEngineQueue(log log.Logger, cfg *rollup.Config, l2Source L2Source, engine LocalEngineControl, metrics Metrics, prev NextAttributesProvider, l1Fetcher L1Fetcher, syncCfg *sync.Config, safeHeadNotifs SafeHeadListener) *EngineQueue {
 	return &EngineQueue{
 		log:            log,
 		cfg:            cfg,
@@ -168,6 +184,7 @@ func NewEngineQueue(log log.Logger, cfg *rollup.Config, l2Source L2Source, engin
 		prev:           prev,
 		l1Fetcher:      l1Fetcher,
 		syncCfg:        syncCfg,
+		safeHeadNotifs: safeHeadNotifs,
 	}
 }
 
@@ -271,7 +288,10 @@ func (eq *EngineQueue) Step(ctx context.Context) error {
 		return err
 	}
 	eq.origin = newOrigin
-	eq.postProcessSafeL2() // make sure we track the last L2 safe head for every new L1 block
+	// make sure we track the last L2 safe head for every new L1 block
+	if err := eq.postProcessSafeL2(); err != nil {
+		return err
+	}
 	// try to finalize the L2 blocks we have synced so far (no-op if L1 finality is behind)
 	if err := eq.tryFinalizePastL2Blocks(ctx); err != nil {
 		return err
@@ -379,7 +399,10 @@ func (eq *EngineQueue) tryFinalizeL2() {
 
 // postProcessSafeL2 buffers the L1 block the safe head was fully derived from,
 // to finalize it once the L1 block, or later, finalizes.
-func (eq *EngineQueue) postProcessSafeL2() {
+func (eq *EngineQueue) postProcessSafeL2() error {
+	if err := eq.notifyNewSafeHead(eq.ec.SafeL2Head()); err != nil {
+		return err
+	}
 	// prune finality data if necessary
 	if len(eq.finalityData) >= finalityLookback {
 		eq.finalityData = append(eq.finalityData[:0], eq.finalityData[1:finalityLookback]...)
@@ -401,6 +424,23 @@ func (eq *EngineQueue) postProcessSafeL2() {
 			eq.log.Debug("updated finality-data", "last_l1", last.L1Block, "last_l2", last.L2Block)
 		}
 	}
+	return nil
+}
+
+// notifyNewSafeHead calls the safe head listener with the current safe head and l1 origin information.
+func (eq *EngineQueue) notifyNewSafeHead(safeHead eth.L2BlockRef) error {
+	if eq.lastNotifiedSafeHead == safeHead {
+		// No change, no need to notify
+		return nil
+	}
+	if err := eq.safeHeadNotifs.SafeHeadUpdated(safeHead, eq.origin.ID()); err != nil {
+		// At this point our state is in a potentially inconsistent state as we've updated the safe head
+		// in the execution client but failed to post process it. Reset the pipeline so the safe head rolls back
+		// a little (it always rolls back at least 1 block) and then it will retry storing the entry
+		return NewResetError(fmt.Errorf("safe head notifications failed: %w", err))
+	}
+	eq.lastNotifiedSafeHead = safeHead
+	return nil
 }
 
 func (eq *EngineQueue) logSyncProgress(reason string) {
@@ -520,7 +560,9 @@ func (eq *EngineQueue) consolidateNextSafeAttributes(ctx context.Context) error 
 	eq.ec.SetPendingSafeL2Head(ref)
 	if eq.safeAttributes.isLastInSpan {
 		eq.ec.SetSafeHead(ref)
-		eq.postProcessSafeL2()
+		if err := eq.postProcessSafeL2(); err != nil {
+			return err
+		}
 	}
 	// unsafe head stays the same, we did not reorg the chain.
 	eq.safeAttributes = nil
@@ -581,7 +623,9 @@ func (eq *EngineQueue) forceNextSafeAttributes(ctx context.Context) error {
 	eq.safeAttributes = nil
 	eq.logSyncProgress("processed safe block derived from L1")
 	if lastInSpan {
-		eq.postProcessSafeL2()
+		if err := eq.postProcessSafeL2(); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -656,6 +700,10 @@ func (eq *EngineQueue) Reset(ctx context.Context, _ eth.L1BlockRef, _ eth.System
 	// note: we do not clear the unsafe payloads queue; if the payloads are not applicable anymore the parent hash checks will clear out the old payloads.
 	eq.origin = pipelineOrigin
 	eq.sysCfg = l1Cfg
+	eq.lastNotifiedSafeHead = safe
+	if err := eq.safeHeadNotifs.SafeHeadReset(safe); err != nil {
+		return err
+	}
 	eq.logSyncProgress("reset derivation work")
 	return io.EOF
 }

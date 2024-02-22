@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 
@@ -251,7 +252,7 @@ func TestEngineQueue_Finalize(t *testing.T) {
 	prev := &fakeAttributesQueue{}
 
 	ec := NewEngineController(eng, logger, metrics, &rollup.Config{}, sync.CLSync)
-	eq := NewEngineQueue(logger, cfg, eng, ec, metrics, prev, l1F, &sync.Config{})
+	eq := NewEngineQueue(logger, cfg, eng, ec, metrics, prev, l1F, &sync.Config{}, safedb.Disabled)
 	require.ErrorIs(t, eq.Reset(context.Background(), eth.L1BlockRef{}, eth.SystemConfig{}), io.EOF)
 
 	require.Equal(t, refB1, ec.SafeL2Head(), "L2 reset should go back to sequence window ago: blocks with origin E and D are not safe until we reconcile, C is extra, and B1 is the end we look for")
@@ -262,13 +263,13 @@ func TestEngineQueue_Finalize(t *testing.T) {
 	eq.origin = refD
 	prev.origin = refD
 	eq.ec.SetSafeHead(refC1)
-	eq.postProcessSafeL2()
+	require.NoError(t, eq.postProcessSafeL2())
 
 	// now say D0 was included in E and became the new safe head
 	eq.origin = refE
 	prev.origin = refE
 	eq.ec.SetSafeHead(refD0)
-	eq.postProcessSafeL2()
+	require.NoError(t, eq.postProcessSafeL2())
 
 	// let's finalize D (current L1), from which we fully derived C1 (it was safe head), but not D0 (included in E)
 	eq.Finalize(refD)
@@ -487,7 +488,7 @@ func TestEngineQueue_ResetWhenUnsafeOriginNotCanonical(t *testing.T) {
 	prev := &fakeAttributesQueue{origin: refE}
 
 	ec := NewEngineController(eng, logger, metrics, &rollup.Config{}, sync.CLSync)
-	eq := NewEngineQueue(logger, cfg, eng, ec, metrics, prev, l1F, &sync.Config{})
+	eq := NewEngineQueue(logger, cfg, eng, ec, metrics, prev, l1F, &sync.Config{}, safedb.Disabled)
 	require.ErrorIs(t, eq.Reset(context.Background(), eth.L1BlockRef{}, eth.SystemConfig{}), io.EOF)
 
 	require.Equal(t, refB1, ec.SafeL2Head(), "L2 reset should go back to sequence window ago: blocks with origin E and D are not safe until we reconcile, C is extra, and B1 is the end we look for")
@@ -817,7 +818,7 @@ func TestVerifyNewL1Origin(t *testing.T) {
 
 			prev := &fakeAttributesQueue{origin: refE}
 			ec := NewEngineController(eng, logger, metrics, &rollup.Config{}, sync.CLSync)
-			eq := NewEngineQueue(logger, cfg, eng, ec, metrics, prev, l1F, &sync.Config{})
+			eq := NewEngineQueue(logger, cfg, eng, ec, metrics, prev, l1F, &sync.Config{}, safedb.Disabled)
 			require.ErrorIs(t, eq.Reset(context.Background(), eth.L1BlockRef{}, eth.SystemConfig{}), io.EOF)
 
 			require.Equal(t, refB1, ec.SafeL2Head(), "L2 reset should go back to sequence window ago: blocks with origin E and D are not safe until we reconcile, C is extra, and B1 is the end we look for")
@@ -914,7 +915,7 @@ func TestBlockBuildingRace(t *testing.T) {
 
 	prev := &fakeAttributesQueue{origin: refA, attrs: attrs, islastInSpan: true}
 	ec := NewEngineController(eng, logger, metrics, &rollup.Config{}, sync.CLSync)
-	eq := NewEngineQueue(logger, cfg, eng, ec, metrics, prev, l1F, &sync.Config{})
+	eq := NewEngineQueue(logger, cfg, eng, ec, metrics, prev, l1F, &sync.Config{}, safedb.Disabled)
 	require.ErrorIs(t, eq.Reset(context.Background(), eth.L1BlockRef{}, eth.SystemConfig{}), io.EOF)
 
 	id := eth.PayloadID{0xff}
@@ -1086,7 +1087,7 @@ func TestResetLoop(t *testing.T) {
 	prev := &fakeAttributesQueue{origin: refA, attrs: attrs, islastInSpan: true}
 
 	ec := NewEngineController(eng, logger, metrics.NoopMetrics, &rollup.Config{}, sync.CLSync)
-	eq := NewEngineQueue(logger, cfg, eng, ec, metrics.NoopMetrics, prev, l1F, &sync.Config{})
+	eq := NewEngineQueue(logger, cfg, eng, ec, metrics.NoopMetrics, prev, l1F, &sync.Config{}, safedb.Disabled)
 	eq.ec.SetUnsafeHead(refA2)
 	eq.ec.SetSafeHead(refA1)
 	eq.ec.SetFinalizedHead(refA0)
@@ -1192,7 +1193,7 @@ func TestEngineQueue_StepPopOlderUnsafe(t *testing.T) {
 	prev := &fakeAttributesQueue{origin: refA}
 
 	ec := NewEngineController(eng, logger, metrics.NoopMetrics, &rollup.Config{}, sync.CLSync)
-	eq := NewEngineQueue(logger, cfg, eng, ec, metrics.NoopMetrics, prev, l1F, &sync.Config{})
+	eq := NewEngineQueue(logger, cfg, eng, ec, metrics.NoopMetrics, prev, l1F, &sync.Config{}, safedb.Disabled)
 	eq.ec.SetUnsafeHead(refA2)
 	eq.ec.SetSafeHead(refA0)
 	eq.ec.SetFinalizedHead(refA0)

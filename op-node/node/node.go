@@ -4,9 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"sync/atomic"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
 
@@ -33,6 +36,12 @@ import (
 
 var ErrAlreadyClosed = errors.New("node is already closed")
 
+type closableSafeDB interface {
+	derive.SafeHeadListener
+	SafeDBReader
+	io.Closer
+}
+
 type OpNode struct {
 	log        log.Logger
 	appVersion string
@@ -50,6 +59,8 @@ type OpNode struct {
 	p2pSigner p2p.Signer            // p2p gogssip application messages will be signed with this signer
 	tracer    Tracer                // tracer to get events for testing/debugging
 	runCfg    *RuntimeConfig        // runtime configurables
+
+	safeDB closableSafeDB
 
 	rollupHalt string // when to halt the rollup, disabled if empty
 
@@ -130,7 +141,7 @@ func (n *OpNode) init(ctx context.Context, cfg *Config, snapshotLog log.Logger) 
 		return fmt.Errorf("failed to init the P2P stack: %w", err)
 	}
 	// Only expose the server at the end, ensuring all RPC backend components are initialized.
-	if err := n.initRPCServer(ctx, cfg); err != nil {
+	if err := n.initRPCServer(cfg); err != nil {
 		return fmt.Errorf("failed to init the RPC server: %w", err)
 	}
 	if err := n.initMetricsServer(cfg); err != nil {
@@ -379,13 +390,22 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config, snapshotLog log.Logger
 	if cfg.Plasma.Enabled {
 		n.log.Info("Plasma DA enabled", "da_server", cfg.Plasma.DAServerURL)
 	}
-	n.l2Driver = driver.NewDriver(&cfg.Driver, &cfg.Rollup, n.l2Source, n.l1Source, n.beacon, n, n, n.log, snapshotLog, n.metrics, cfg.ConfigPersistence, &cfg.Sync, sequencerConductor, plasmaDA)
-
+	if cfg.SafeDBPath != "" {
+		n.log.Info("Safe head database enabled", "path", cfg.SafeDBPath)
+		safeDB, err := safedb.NewSafeDB(n.log, cfg.SafeDBPath)
+		if err != nil {
+			return fmt.Errorf("failed to create safe head database at %v: %w", cfg.SafeDBPath, err)
+		}
+		n.safeDB = safeDB
+	} else {
+		n.safeDB = safedb.Disabled
+	}
+	n.l2Driver = driver.NewDriver(&cfg.Driver, &cfg.Rollup, n.l2Source, n.l1Source, n.beacon, n, n, n.log, snapshotLog, n.metrics, cfg.ConfigPersistence, n.safeDB, &cfg.Sync, sequencerConductor, plasmaDA)
 	return nil
 }
 
-func (n *OpNode) initRPCServer(ctx context.Context, cfg *Config) error {
-	server, err := newRPCServer(ctx, &cfg.RPC, &cfg.Rollup, n.l2Source.L2Client, n.l2Driver, n.log, n.appVersion, n.metrics)
+func (n *OpNode) initRPCServer(cfg *Config) error {
+	server, err := newRPCServer(&cfg.RPC, &cfg.Rollup, n.l2Source.L2Client, n.l2Driver, n.safeDB, n.log, n.appVersion, n.metrics)
 	if err != nil {
 		return err
 	}
@@ -645,6 +665,12 @@ func (n *OpNode) Stop(ctx context.Context) error {
 	if n.l2Driver != nil {
 		if err := n.l2Driver.Close(); err != nil {
 			result = multierror.Append(result, fmt.Errorf("failed to close L2 engine driver cleanly: %w", err))
+		}
+	}
+
+	if n.safeDB != nil {
+		if err := n.safeDB.Close(); err != nil {
+			result = multierror.Append(result, fmt.Errorf("failed to close safe head db: %w", err))
 		}
 	}
 

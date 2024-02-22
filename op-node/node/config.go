@@ -44,6 +44,9 @@ type Config struct {
 
 	ConfigPersistence ConfigPersistence
 
+	// Path to store safe head database. Disabled when set to empty string
+	SafeDBPath string
+
 	// RuntimeConfigReloadInterval defines the interval between runtime config reloads.
 	// Disabled if <= 0.
 	// Runtime config changes should be picked up from log-events,
