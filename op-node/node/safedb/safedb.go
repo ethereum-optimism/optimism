@@ -70,7 +70,7 @@ func SafeByL1BlockNumValue(l1 eth.BlockID, l2 eth.BlockID) []byte {
 }
 
 func DecodeSafeByL1BlockNum(key []byte, val []byte) (l1 eth.BlockID, l2 eth.BlockID, err error) {
-	if len(key) != 9 || len(val) != 72 {
+	if len(key) != 9 || len(val) != 72 || key[0] != keyPrefixSafeByL1BlockNum {
 		err = ErrInvalidEntry
 		return
 	}
