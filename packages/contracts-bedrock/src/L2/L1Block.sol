@@ -142,15 +142,24 @@ contract L1Block is ISemver {
                 mstore(0x00, 0x3cc50b45) // 0x3cc50b45 is the 4-byte selector of "NotDepositor()"
                 revert(0x1C, 0x04) // returns the stored 4-byte selector from above
             }
-            // interopSetSize (uint8)
-            sstore(interopSetSize.slot, shr(248, calldataload(164)))
-            // chainIds (uint256[])
-            let size := sload(interopSetSize.slot)
-            let dataOffset := add(165, 32) // Starting point for chainIds data
 
-            for { let i := 0 } lt(i, size) { i := add(i, 1) } {
-                let chainId := calldataload(add(dataOffset, mul(i, 32)))
-                sstore(add(chainIds.slot, i), chainId)
+            let slot := chainIds.slot
+            // Load the interopSetSize from calldata
+            let interopSetSize_ := shr(248, calldataload(164))
+            sstore(interopSetSize.slot, interopSetSize_)
+
+            slot := chainIds.slot
+            mstore(0x00, slot)
+
+            // Iterate over chainIds based on interopSetSize
+            for { let i := 0 } lt(i, interopSetSize_) { i := add(i, 1) } {
+                let chainId := calldataload(add(165, mul(i, 0x20)))
+
+                let r := sload(slot)
+                let new_r := add(r, 1)
+                sstore(slot, new_r)
+
+                sstore(add(keccak256(0x00, 0x20), i), chainId)
             }
         }
     }
