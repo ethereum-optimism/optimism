@@ -1131,7 +1131,7 @@ contract OptimismPortal2_ResourceFuzz_Test is CommonTest {
         uint128 _prevBaseFee,
         uint8 _blockDiff
     )
-        external
+       public
     {
         // Get the set system gas limit
         uint64 gasLimit = systemConfig.gasLimit();
@@ -1185,5 +1185,9 @@ contract OptimismPortal2_ResourceFuzz_Test is CommonTest {
             _isCreation: false,
             _data: hex""
         });
+    }
+
+    function test_systemConfigDeposit_succeeds() public {
+        testFuzz_systemConfigDeposit_succeeds(2966796, 63, 2, 0, 0, 16851605702, 9151313882054968926, 30303547637468620, 16799277414268473013999209100, 1);
     }
 }
