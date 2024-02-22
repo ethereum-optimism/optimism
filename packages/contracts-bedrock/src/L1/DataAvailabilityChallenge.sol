@@ -74,7 +74,7 @@ contract DataAvailabilityChallenge is OwnableUpgradeable, ISemver {
     /// @param challengedBlockNumber The block number at which the commitment was made.
     /// @param status The new status of the challenge.
     event ChallengeStatusChanged(
-        bytes indexed challengedCommitment, uint256 indexed challengedBlockNumber, ChallengeStatus status
+        uint256 indexed challengedBlockNumber, bytes challengedCommitment, ChallengeStatus status
     );
 
     /// @notice An event that is emitted when the bond size required to initiate a challenge changes.
@@ -296,7 +296,7 @@ contract DataAvailabilityChallenge is OwnableUpgradeable, ISemver {
             Challenge({ challenger: msg.sender, lockedBond: bondSize, startBlock: block.number, resolvedBlock: 0 });
 
         // emit an event to notify that the challenge status is now active
-        emit ChallengeStatusChanged(challengedCommitment, challengedBlockNumber, ChallengeStatus.Active);
+        emit ChallengeStatusChanged(challengedBlockNumber, challengedCommitment, ChallengeStatus.Active);
     }
 
     /// @notice Resolve a challenge by providing the data corresponding to the challenged commitment.
@@ -338,7 +338,7 @@ contract DataAvailabilityChallenge is OwnableUpgradeable, ISemver {
         activeChallenge.resolvedBlock = block.number;
 
         // emit an event to notify that the challenge status is now resolved
-        emit ChallengeStatusChanged(challengedCommitment, challengedBlockNumber, ChallengeStatus.Resolved);
+        emit ChallengeStatusChanged(challengedBlockNumber, challengedCommitment, ChallengeStatus.Resolved);
 
         // distribute the bond among challenger, resolver and address(0)
         _distributeBond(activeChallenge, resolveData.length, msg.sender);

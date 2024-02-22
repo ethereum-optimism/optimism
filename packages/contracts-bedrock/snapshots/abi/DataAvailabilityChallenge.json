@@ -383,15 +383,15 @@
     "inputs": [
       {
         "indexed": true,
-        "internalType": "bytes",
-        "name": "challengedCommitment",
-        "type": "bytes"
-      },
-      {
-        "indexed": true,
         "internalType": "uint256",
         "name": "challengedBlockNumber",
         "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "bytes",
+        "name": "challengedCommitment",
+        "type": "bytes"
       },
       {
         "indexed": false,
