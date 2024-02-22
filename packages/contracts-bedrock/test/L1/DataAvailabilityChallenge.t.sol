@@ -12,44 +12,42 @@ import { Proxy } from "src/universal/Proxy.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
 
 contract DataAvailabilityChallengeTest is CommonTest {
-    DataAvailabilityChallenge public dac;
 
     function setUp() public virtual override {
         super.enablePlasma();
         super.setUp();
-        dac = DataAvailabilityChallenge(deploy.mustGetAddress("DataAvailabilityChallengeProxy"));
     }
 
     function testDeposit() public {
-        assertEq(dac.balances(address(this)), 0);
-        dac.deposit{ value: 1000 }();
-        assertEq(dac.balances(address(this)), 1000);
+        assertEq(dataAvailabilityChallenge.balances(address(this)), 0);
+        dataAvailabilityChallenge.deposit{ value: 1000 }();
+        assertEq(dataAvailabilityChallenge.balances(address(this)), 1000);
     }
 
     function testReceive() public {
-        assertEq(dac.balances(address(this)), 0);
-        (bool success,) = payable(address(dac)).call{ value: 1000 }("");
+        assertEq(dataAvailabilityChallenge.balances(address(this)), 0);
+        (bool success,) = payable(address(dataAvailabilityChallenge)).call{ value: 1000 }("");
         assertTrue(success);
-        assertEq(dac.balances(address(this)), 1000);
+        assertEq(dataAvailabilityChallenge.balances(address(this)), 1000);
     }
 
     function testWithdraw(address sender, uint256 amount) public {
         assumePayable(sender);
         assumeNotPrecompile(sender);
-        vm.assume(sender != address(dac));
+        vm.assume(sender != address(dataAvailabilityChallenge));
         vm.assume(sender.balance == 0);
         vm.deal(sender, amount);
 
         vm.prank(sender);
-        dac.deposit{ value: amount }();
+        dataAvailabilityChallenge.deposit{ value: amount }();
 
-        assertEq(dac.balances(sender), amount);
+        assertEq(dataAvailabilityChallenge.balances(sender), amount);
         assertEq(sender.balance, 0);
 
         vm.prank(sender);
-        dac.withdraw();
+        dataAvailabilityChallenge.withdraw();
 
-        assertEq(dac.balances(sender), 0);
+        assertEq(dataAvailabilityChallenge.balances(sender), 0);
         assertEq(sender.balance, amount);
     }
 
@@ -60,8 +58,8 @@ contract DataAvailabilityChallengeTest is CommonTest {
         vm.assume(challenger != address(0));
 
         // Assume the block number is not close to the max uint256 value
-        vm.assume(challengedBlockNumber < type(uint256).max - dac.challengeWindow() - dac.resolveWindow());
-        uint256 requiredBond = dac.bondSize();
+        vm.assume(challengedBlockNumber < type(uint256).max - dataAvailabilityChallenge.challengeWindow() - dataAvailabilityChallenge.resolveWindow());
+        uint256 requiredBond = dataAvailabilityChallenge.bondSize();
 
         // Move to a block after the challenged block
         vm.roll(challengedBlockNumber + 1);
@@ -69,30 +67,30 @@ contract DataAvailabilityChallengeTest is CommonTest {
         // Deposit the required bond
         vm.deal(challenger, requiredBond);
         vm.prank(challenger);
-        dac.deposit{ value: requiredBond }();
+        dataAvailabilityChallenge.deposit{ value: requiredBond }();
 
         // Expect the challenge status to be uninitialized
         assertEq(
-            uint8(dac.getChallengeStatus(challengedBlockNumber, challengedCommitment)),
+            uint8(dataAvailabilityChallenge.getChallengeStatus(challengedBlockNumber, challengedCommitment)),
             uint8(ChallengeStatus.Uninitialized)
         );
 
         // Challenge a (blockNumber,hash) tuple
         vm.prank(challenger);
-        dac.challenge(challengedBlockNumber, challengedCommitment);
+        dataAvailabilityChallenge.challenge(challengedBlockNumber, challengedCommitment);
 
         // Challenge should have been created
-        Challenge memory challenge = dac.getChallenge(challengedBlockNumber, challengedCommitment);
+        Challenge memory challenge = dataAvailabilityChallenge.getChallenge(challengedBlockNumber, challengedCommitment);
         assertEq(challenge.challenger, challenger);
         assertEq(challenge.startBlock, block.number);
         assertEq(challenge.resolvedBlock, 0);
         assertEq(challenge.lockedBond, requiredBond);
         assertEq(
-            uint8(dac.getChallengeStatus(challengedBlockNumber, challengedCommitment)), uint8(ChallengeStatus.Active)
+            uint8(dataAvailabilityChallenge.getChallengeStatus(challengedBlockNumber, challengedCommitment)), uint8(ChallengeStatus.Active)
         );
 
         // Challenge should have decreased the challenger's bond size
-        assertEq(dac.balances(challenger), 0);
+        assertEq(dataAvailabilityChallenge.balances(challenger), 0);
     }
 
     function testChallengeDeposit(address challenger, uint256 challengedBlockNumber, bytes memory preImage) public {
@@ -102,44 +100,44 @@ contract DataAvailabilityChallengeTest is CommonTest {
         vm.assume(challenger != address(0));
 
         // Assume the block number is not close to the max uint256 value
-        vm.assume(challengedBlockNumber < type(uint256).max - dac.challengeWindow() - dac.resolveWindow());
-        uint256 requiredBond = dac.bondSize();
+        vm.assume(challengedBlockNumber < type(uint256).max - dataAvailabilityChallenge.challengeWindow() - dataAvailabilityChallenge.resolveWindow());
+        uint256 requiredBond = dataAvailabilityChallenge.bondSize();
 
         // Move to a block after the challenged block
         vm.roll(challengedBlockNumber + 1);
 
         // Expect the challenge status to be uninitialized
         assertEq(
-            uint8(dac.getChallengeStatus(challengedBlockNumber, challengedCommitment)),
+            uint8(dataAvailabilityChallenge.getChallengeStatus(challengedBlockNumber, challengedCommitment)),
             uint8(ChallengeStatus.Uninitialized)
         );
 
         // Deposit the required bond as part of the challenge transaction
         vm.deal(challenger, requiredBond);
         vm.prank(challenger);
-        dac.challenge{ value: requiredBond }(challengedBlockNumber, challengedCommitment);
+        dataAvailabilityChallenge.challenge{ value: requiredBond }(challengedBlockNumber, challengedCommitment);
 
         // Challenge should have been created
-        Challenge memory challenge = dac.getChallenge(challengedBlockNumber, challengedCommitment);
+        Challenge memory challenge = dataAvailabilityChallenge.getChallenge(challengedBlockNumber, challengedCommitment);
         assertEq(challenge.challenger, challenger);
         assertEq(challenge.startBlock, block.number);
         assertEq(challenge.resolvedBlock, 0);
         assertEq(challenge.lockedBond, requiredBond);
         assertEq(
-            uint8(dac.getChallengeStatus(challengedBlockNumber, challengedCommitment)), uint8(ChallengeStatus.Active)
+            uint8(dataAvailabilityChallenge.getChallengeStatus(challengedBlockNumber, challengedCommitment)), uint8(ChallengeStatus.Active)
         );
 
         // Challenge should have decreased the challenger's bond size
-        assertEq(dac.balances(challenger), 0);
+        assertEq(dataAvailabilityChallenge.balances(challenger), 0);
     }
 
     function testChallengeFailBondTooLow() public {
-        uint256 requiredBond = dac.bondSize();
+        uint256 requiredBond = dataAvailabilityChallenge.bondSize();
         uint256 actualBond = requiredBond - 1;
-        dac.deposit{ value: actualBond }();
+        dataAvailabilityChallenge.deposit{ value: actualBond }();
 
         vm.expectRevert(abi.encodeWithSelector(DataAvailabilityChallenge.BondTooLow.selector, actualBond, requiredBond));
-        dac.challenge(0, computeCommitmentKeccak256("some hash"));
+        dataAvailabilityChallenge.challenge(0, computeCommitmentKeccak256("some hash"));
     }
 
     function testChallengeFailChallengeExists() public {
@@ -148,21 +146,21 @@ contract DataAvailabilityChallengeTest is CommonTest {
 
         // First challenge succeeds
         bytes memory challengedCommitment = computeCommitmentKeccak256("some data");
-        dac.deposit{ value: dac.bondSize() }();
-        dac.challenge(0, challengedCommitment);
+        dataAvailabilityChallenge.deposit{ value: dataAvailabilityChallenge.bondSize() }();
+        dataAvailabilityChallenge.challenge(0, challengedCommitment);
 
         // Second challenge of the same hash/blockNumber fails
-        dac.deposit{ value: dac.bondSize() }();
+        dataAvailabilityChallenge.deposit{ value: dataAvailabilityChallenge.bondSize() }();
         vm.expectRevert(abi.encodeWithSelector(DataAvailabilityChallenge.ChallengeExists.selector));
-        dac.challenge(0, challengedCommitment);
+        dataAvailabilityChallenge.challenge(0, challengedCommitment);
 
         // Challenge succeed if the challenged block number is different
-        dac.deposit{ value: dac.bondSize() }();
-        dac.challenge(1, challengedCommitment);
+        dataAvailabilityChallenge.deposit{ value: dataAvailabilityChallenge.bondSize() }();
+        dataAvailabilityChallenge.challenge(1, challengedCommitment);
 
         // Challenge succeed if the challenged hash is different
-        dac.deposit{ value: dac.bondSize() }();
-        dac.challenge(0, computeCommitmentKeccak256("some other hash"));
+        dataAvailabilityChallenge.deposit{ value: dataAvailabilityChallenge.bondSize() }();
+        dataAvailabilityChallenge.challenge(0, computeCommitmentKeccak256("some other hash"));
     }
 
     function testChallengeFailBeforeChallengeWindow() public {
@@ -173,9 +171,9 @@ contract DataAvailabilityChallengeTest is CommonTest {
         vm.roll(challengedBlockNumber - 1);
 
         // Challenge fails because the current block number must be after the challenged block
-        dac.deposit{ value: dac.bondSize() }();
+        dataAvailabilityChallenge.deposit{ value: dataAvailabilityChallenge.bondSize() }();
         vm.expectRevert(abi.encodeWithSelector(DataAvailabilityChallenge.ChallengeWindowNotOpen.selector));
-        dac.challenge(challengedBlockNumber, challengedCommitment);
+        dataAvailabilityChallenge.challenge(challengedBlockNumber, challengedCommitment);
     }
 
     function testChallengeFailAfterChallengeWindow() public {
@@ -183,12 +181,12 @@ contract DataAvailabilityChallengeTest is CommonTest {
         bytes memory challengedCommitment = computeCommitmentKeccak256("some hash");
 
         // Move to block after the challenge window
-        vm.roll(challengedBlockNumber + dac.challengeWindow() + 1);
+        vm.roll(challengedBlockNumber + dataAvailabilityChallenge.challengeWindow() + 1);
 
         // Challenge fails because the block number is after the challenge window
-        dac.deposit{ value: dac.bondSize() }();
+        dataAvailabilityChallenge.deposit{ value: dataAvailabilityChallenge.bondSize() }();
         vm.expectRevert(abi.encodeWithSelector(DataAvailabilityChallenge.ChallengeWindowNotOpen.selector));
-        dac.challenge(challengedBlockNumber, challengedCommitment);
+        dataAvailabilityChallenge.challenge(challengedBlockNumber, challengedCommitment);
     }
 
     function testResolveSuccess(
@@ -212,53 +210,53 @@ contract DataAvailabilityChallengeTest is CommonTest {
         vm.txGasPrice(txGasPrice);
 
         // Change the resolver refund percentage
-        vm.prank(dac.owner());
-        dac.setResolverRefundPercentage(resolverRefundPercentage);
+        vm.prank(dataAvailabilityChallenge.owner());
+        dataAvailabilityChallenge.setResolverRefundPercentage(resolverRefundPercentage);
 
         // Assume the block number is not close to the max uint256 value
-        vm.assume(challengedBlockNumber < type(uint256).max - dac.challengeWindow() - dac.resolveWindow());
+        vm.assume(challengedBlockNumber < type(uint256).max - dataAvailabilityChallenge.challengeWindow() - dataAvailabilityChallenge.resolveWindow());
         bytes memory challengedCommitment = computeCommitmentKeccak256(preImage);
 
         // Move to block after challenged block
         vm.roll(challengedBlockNumber + 1);
 
         // Challenge the hash
-        uint256 bondSize = dac.bondSize();
+        uint256 bondSize = dataAvailabilityChallenge.bondSize();
         vm.deal(challenger, bondSize);
         vm.prank(challenger);
-        dac.challenge{ value: bondSize }(challengedBlockNumber, challengedCommitment);
+        dataAvailabilityChallenge.challenge{ value: bondSize }(challengedBlockNumber, challengedCommitment);
 
         // Store the address(0) balance before resolving to assert the burned amount later
         uint256 zeroAddressBalanceBeforeResolve = address(0).balance;
 
         // Resolve the challenge
         vm.prank(resolver);
-        dac.resolve(challengedBlockNumber, challengedCommitment, preImage);
+        dataAvailabilityChallenge.resolve(challengedBlockNumber, challengedCommitment, preImage);
 
         // Expect the challenge to be resolved
-        Challenge memory challenge = dac.getChallenge(challengedBlockNumber, challengedCommitment);
+        Challenge memory challenge = dataAvailabilityChallenge.getChallenge(challengedBlockNumber, challengedCommitment);
 
         assertEq(challenge.challenger, challenger);
         assertEq(challenge.lockedBond, 0);
         assertEq(challenge.startBlock, block.number);
         assertEq(challenge.resolvedBlock, block.number);
         assertEq(
-            uint8(dac.getChallengeStatus(challengedBlockNumber, challengedCommitment)), uint8(ChallengeStatus.Resolved)
+            uint8(dataAvailabilityChallenge.getChallengeStatus(challengedBlockNumber, challengedCommitment)), uint8(ChallengeStatus.Resolved)
         );
 
         // Assert challenger balance after bond distribution
         uint256 resolutionCost = (
-            dac.fixedResolutionCost()
-                + preImage.length * dac.variableResolutionCost() / dac.variableResolutionCostPrecision()
+            dataAvailabilityChallenge.fixedResolutionCost()
+                + preImage.length * dataAvailabilityChallenge.variableResolutionCost() / dataAvailabilityChallenge.variableResolutionCostPrecision()
         ) * block.basefee;
         uint256 challengerRefund = bondSize > resolutionCost ? bondSize - resolutionCost : 0;
-        assertEq(dac.balances(challenger), challengerRefund, "challenger refund");
+        assertEq(dataAvailabilityChallenge.balances(challenger), challengerRefund, "challenger refund");
 
         // Assert resolver balance after bond distribution
-        uint256 resolverRefund = resolutionCost * dac.resolverRefundPercentage() / 100;
+        uint256 resolverRefund = resolutionCost * dataAvailabilityChallenge.resolverRefundPercentage() / 100;
         resolverRefund = resolverRefund > resolutionCost ? resolutionCost : resolverRefund;
         resolverRefund = resolverRefund > bondSize ? bondSize : resolverRefund;
-        assertEq(dac.balances(resolver), resolverRefund, "resolver refund");
+        assertEq(dataAvailabilityChallenge.balances(resolver), resolverRefund, "resolver refund");
 
         // Assert burned amount after bond distribution
         uint256 burned = bondSize - challengerRefund - resolverRefund;
@@ -274,7 +272,7 @@ contract DataAvailabilityChallengeTest is CommonTest {
 
         // Resolving a non-existent challenge fails
         vm.expectRevert(abi.encodeWithSelector(DataAvailabilityChallenge.ChallengeNotActive.selector));
-        dac.resolve(challengedBlockNumber, computeCommitmentKeccak256(preImage), preImage);
+        dataAvailabilityChallenge.resolve(challengedBlockNumber, computeCommitmentKeccak256(preImage), preImage);
     }
 
     function testResolveFailResolved() public {
@@ -286,15 +284,15 @@ contract DataAvailabilityChallengeTest is CommonTest {
         vm.roll(challengedBlockNumber + 1);
 
         // Challenge the hash
-        dac.deposit{ value: dac.bondSize() }();
-        dac.challenge(challengedBlockNumber, challengedCommitment);
+        dataAvailabilityChallenge.deposit{ value: dataAvailabilityChallenge.bondSize() }();
+        dataAvailabilityChallenge.challenge(challengedBlockNumber, challengedCommitment);
 
         // Resolve the challenge
-        dac.resolve(challengedBlockNumber, challengedCommitment, preImage);
+        dataAvailabilityChallenge.resolve(challengedBlockNumber, challengedCommitment, preImage);
 
         // Resolving an already resolved challenge fails
         vm.expectRevert(abi.encodeWithSelector(DataAvailabilityChallenge.ChallengeNotActive.selector));
-        dac.resolve(challengedBlockNumber, challengedCommitment, preImage);
+        dataAvailabilityChallenge.resolve(challengedBlockNumber, challengedCommitment, preImage);
     }
 
     function testResolveFailExpired() public {
@@ -306,15 +304,15 @@ contract DataAvailabilityChallengeTest is CommonTest {
         vm.roll(challengedBlockNumber + 1);
 
         // Challenge the hash
-        dac.deposit{ value: dac.bondSize() }();
-        dac.challenge(challengedBlockNumber, challengedCommitment);
+        dataAvailabilityChallenge.deposit{ value: dataAvailabilityChallenge.bondSize() }();
+        dataAvailabilityChallenge.challenge(challengedBlockNumber, challengedCommitment);
 
         // Move to a block after the resolve window
-        vm.roll(block.number + dac.resolveWindow() + 1);
+        vm.roll(block.number + dataAvailabilityChallenge.resolveWindow() + 1);
 
         // Resolving an expired challenge fails
         vm.expectRevert(abi.encodeWithSelector(DataAvailabilityChallenge.ChallengeNotActive.selector));
-        dac.resolve(challengedBlockNumber, challengedCommitment, preImage);
+        dataAvailabilityChallenge.resolve(challengedBlockNumber, challengedCommitment, preImage);
     }
 
     function testResolveFailAfterResolveWindow() public {
@@ -326,55 +324,55 @@ contract DataAvailabilityChallengeTest is CommonTest {
         vm.roll(challengedBlockNumber + 1);
 
         // Challenge the hash
-        dac.deposit{ value: dac.bondSize() }();
-        dac.challenge(challengedBlockNumber, challengedCommitment);
+        dataAvailabilityChallenge.deposit{ value: dataAvailabilityChallenge.bondSize() }();
+        dataAvailabilityChallenge.challenge(challengedBlockNumber, challengedCommitment);
 
         // Move to block after resolve window
-        vm.roll(block.number + dac.resolveWindow() + 1);
+        vm.roll(block.number + dataAvailabilityChallenge.resolveWindow() + 1);
 
         // Resolve the challenge
         vm.expectRevert(abi.encodeWithSelector(DataAvailabilityChallenge.ChallengeNotActive.selector));
-        dac.resolve(challengedBlockNumber, challengedCommitment, preImage);
+        dataAvailabilityChallenge.resolve(challengedBlockNumber, challengedCommitment, preImage);
     }
 
     function testUnlockBondSuccess(bytes memory preImage, uint256 challengedBlockNumber) public {
         // Assume the block number is not close to the max uint256 value
-        vm.assume(challengedBlockNumber < type(uint256).max - dac.challengeWindow() - dac.resolveWindow());
+        vm.assume(challengedBlockNumber < type(uint256).max - dataAvailabilityChallenge.challengeWindow() - dataAvailabilityChallenge.resolveWindow());
         bytes memory challengedCommitment = computeCommitmentKeccak256(preImage);
 
         // Move to block after challenged block
         vm.roll(challengedBlockNumber + 1);
 
         // Challenge the hash
-        dac.deposit{ value: dac.bondSize() }();
-        dac.challenge(challengedBlockNumber, challengedCommitment);
+        dataAvailabilityChallenge.deposit{ value: dataAvailabilityChallenge.bondSize() }();
+        dataAvailabilityChallenge.challenge(challengedBlockNumber, challengedCommitment);
 
         // Move to a block after the resolve window
-        vm.roll(block.number + dac.resolveWindow() + 1);
+        vm.roll(block.number + dataAvailabilityChallenge.resolveWindow() + 1);
 
-        uint256 balanceBeforeUnlock = dac.balances(address(this));
+        uint256 balanceBeforeUnlock = dataAvailabilityChallenge.balances(address(this));
 
         // Unlock the bond associated with the challenge
-        dac.unlockBond(challengedBlockNumber, challengedCommitment);
+        dataAvailabilityChallenge.unlockBond(challengedBlockNumber, challengedCommitment);
 
         // Expect the balance to be increased by the bond size
-        uint256 balanceAfterUnlock = dac.balances(address(this));
-        assertEq(balanceAfterUnlock, balanceBeforeUnlock + dac.bondSize());
+        uint256 balanceAfterUnlock = dataAvailabilityChallenge.balances(address(this));
+        assertEq(balanceAfterUnlock, balanceBeforeUnlock + dataAvailabilityChallenge.bondSize());
 
         // Expect the bond to be unlocked
-        Challenge memory challenge = dac.getChallenge(challengedBlockNumber, challengedCommitment);
+        Challenge memory challenge = dataAvailabilityChallenge.getChallenge(challengedBlockNumber, challengedCommitment);
 
         assertEq(challenge.challenger, address(this));
         assertEq(challenge.lockedBond, 0);
         assertEq(challenge.startBlock, challengedBlockNumber + 1);
         assertEq(challenge.resolvedBlock, 0);
         assertEq(
-            uint8(dac.getChallengeStatus(challengedBlockNumber, challengedCommitment)), uint8(ChallengeStatus.Expired)
+            uint8(dataAvailabilityChallenge.getChallengeStatus(challengedBlockNumber, challengedCommitment)), uint8(ChallengeStatus.Expired)
         );
 
         // Unlock the bond again, expect the balance to remain the same
-        dac.unlockBond(challengedBlockNumber, challengedCommitment);
-        assertEq(dac.balances(address(this)), balanceAfterUnlock);
+        dataAvailabilityChallenge.unlockBond(challengedBlockNumber, challengedCommitment);
+        assertEq(dataAvailabilityChallenge.balances(address(this)), balanceAfterUnlock);
     }
 
     function testUnlockBondFailNonExistentChallenge() public {
@@ -387,7 +385,7 @@ contract DataAvailabilityChallengeTest is CommonTest {
 
         // Unlock a bond of a non-existent challenge fails
         vm.expectRevert(abi.encodeWithSelector(DataAvailabilityChallenge.ChallengeNotExpired.selector));
-        dac.unlockBond(challengedBlockNumber, challengedCommitment);
+        dataAvailabilityChallenge.unlockBond(challengedBlockNumber, challengedCommitment);
     }
 
     function testUnlockBondFailResolvedChallenge() public {
@@ -399,15 +397,15 @@ contract DataAvailabilityChallengeTest is CommonTest {
         vm.roll(challengedBlockNumber + 1);
 
         // Challenge the hash
-        dac.deposit{ value: dac.bondSize() }();
-        dac.challenge(challengedBlockNumber, challengedCommitment);
+        dataAvailabilityChallenge.deposit{ value: dataAvailabilityChallenge.bondSize() }();
+        dataAvailabilityChallenge.challenge(challengedBlockNumber, challengedCommitment);
 
         // Resolve the challenge
-        dac.resolve(challengedBlockNumber, challengedCommitment, preImage);
+        dataAvailabilityChallenge.resolve(challengedBlockNumber, challengedCommitment, preImage);
 
         // Attempting to unlock a bond of a resolved challenge fails
         vm.expectRevert(abi.encodeWithSelector(DataAvailabilityChallenge.ChallengeNotExpired.selector));
-        dac.unlockBond(challengedBlockNumber, challengedCommitment);
+        dataAvailabilityChallenge.unlockBond(challengedBlockNumber, challengedCommitment);
     }
 
     function testUnlockBondExpiredChallengeTwice() public {
@@ -419,20 +417,20 @@ contract DataAvailabilityChallengeTest is CommonTest {
         vm.roll(challengedBlockNumber + 1);
 
         // Challenge the hash
-        dac.deposit{ value: dac.bondSize() }();
-        dac.challenge(challengedBlockNumber, challengedCommitment);
+        dataAvailabilityChallenge.deposit{ value: dataAvailabilityChallenge.bondSize() }();
+        dataAvailabilityChallenge.challenge(challengedBlockNumber, challengedCommitment);
 
         // Move to a block after the challenge window
-        vm.roll(block.number + dac.resolveWindow() + 1);
+        vm.roll(block.number + dataAvailabilityChallenge.resolveWindow() + 1);
 
         // Unlock the bond
-        dac.unlockBond(challengedBlockNumber, challengedCommitment);
+        dataAvailabilityChallenge.unlockBond(challengedBlockNumber, challengedCommitment);
 
-        uint256 balanceAfterUnlock = dac.balances(address(this));
+        uint256 balanceAfterUnlock = dataAvailabilityChallenge.balances(address(this));
 
         // Unlock the bond again doesn't change the balance
-        dac.unlockBond(challengedBlockNumber, challengedCommitment);
-        assertEq(dac.balances(address(this)), balanceAfterUnlock);
+        dataAvailabilityChallenge.unlockBond(challengedBlockNumber, challengedCommitment);
+        assertEq(dataAvailabilityChallenge.balances(address(this)), balanceAfterUnlock);
     }
 
     function testUnlockFailResolveWindowNotClosed() public {
@@ -444,54 +442,54 @@ contract DataAvailabilityChallengeTest is CommonTest {
         vm.roll(challengedBlockNumber + 1);
 
         // Challenge the hash
-        dac.deposit{ value: dac.bondSize() }();
-        dac.challenge(challengedBlockNumber, challengedCommitment);
+        dataAvailabilityChallenge.deposit{ value: dataAvailabilityChallenge.bondSize() }();
+        dataAvailabilityChallenge.challenge(challengedBlockNumber, challengedCommitment);
 
-        vm.roll(block.number + dac.resolveWindow() - 1);
+        vm.roll(block.number + dataAvailabilityChallenge.resolveWindow() - 1);
 
         // Expiring the challenge before the resolve window closes fails
         vm.expectRevert(abi.encodeWithSelector(DataAvailabilityChallenge.ChallengeNotExpired.selector));
-        dac.unlockBond(challengedBlockNumber, challengedCommitment);
+        dataAvailabilityChallenge.unlockBond(challengedBlockNumber, challengedCommitment);
     }
 
     function testSetBondSize() public {
-        uint256 requiredBond = dac.bondSize();
+        uint256 requiredBond = dataAvailabilityChallenge.bondSize();
         uint256 actualBond = requiredBond - 1;
-        dac.deposit{ value: actualBond }();
+        dataAvailabilityChallenge.deposit{ value: actualBond }();
 
         // Expect the challenge to fail because the bond is too low
         bytes memory challengedCommitment = computeCommitmentKeccak256("some hash");
         vm.expectRevert(abi.encodeWithSelector(DataAvailabilityChallenge.BondTooLow.selector, actualBond, requiredBond));
-        dac.challenge(0, challengedCommitment);
+        dataAvailabilityChallenge.challenge(0, challengedCommitment);
 
         // Reduce the required bond
-        vm.prank(dac.owner());
-        dac.setBondSize(actualBond);
+        vm.prank(dataAvailabilityChallenge.owner());
+        dataAvailabilityChallenge.setBondSize(actualBond);
 
         // Expect the challenge to succeed
-        dac.challenge(0, challengedCommitment);
+        dataAvailabilityChallenge.challenge(0, challengedCommitment);
     }
 
     function testSetResolverRefundPercentage(uint256 resolverRefundPercentage) public {
         resolverRefundPercentage = bound(resolverRefundPercentage, 0, 100);
-        vm.prank(dac.owner());
-        dac.setResolverRefundPercentage(resolverRefundPercentage);
-        assertEq(dac.resolverRefundPercentage(), resolverRefundPercentage);
+        vm.prank(dataAvailabilityChallenge.owner());
+        dataAvailabilityChallenge.setResolverRefundPercentage(resolverRefundPercentage);
+        assertEq(dataAvailabilityChallenge.resolverRefundPercentage(), resolverRefundPercentage);
     }
 
     function testSetResolverRefundPercentageFail() public {
-        address owner = dac.owner();
+        address owner = dataAvailabilityChallenge.owner();
         vm.expectRevert(abi.encodeWithSelector(DataAvailabilityChallenge.InvalidResolverRefundPercentage.selector, 101));
         vm.prank(owner);
-        dac.setResolverRefundPercentage(101);
+        dataAvailabilityChallenge.setResolverRefundPercentage(101);
     }
 
     function testSetBondSizeFailOnlyOwner(address notOwner, uint256 newBondSize) public {
-        vm.assume(notOwner != dac.owner());
+        vm.assume(notOwner != dataAvailabilityChallenge.owner());
 
         // Expect setting the bond size to fail because the sender is not the owner
         vm.prank(notOwner);
         vm.expectRevert("Ownable: caller is not the owner");
-        dac.setBondSize(newBondSize);
+        dataAvailabilityChallenge.setBondSize(newBondSize);
     }
 }
