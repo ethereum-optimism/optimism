@@ -108,6 +108,14 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 		}
 	}
 
+	if ba.rollupCfg.IsFjordActivationBlock(nextL2Time) {
+		fjord, err := FjordNetworkUpgradeTransactions()
+		if err != nil {
+			return nil, NewCriticalError(fmt.Errorf("failed to build fjord network upgrade txs: %w", err))
+		}
+		upgradeTxs = append(upgradeTxs, fjord...)
+	}
+
 	l1InfoTx, err := L1InfoDepositBytes(ba.rollupCfg, sysConfig, seqNumber, l1Info, nextL2Time)
 	if err != nil {
 		return nil, NewCriticalError(fmt.Errorf("failed to create l1InfoTx: %w", err))

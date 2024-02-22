@@ -351,6 +351,14 @@ func (c *Config) IsFjord(timestamp uint64) bool {
 	return c.FjordTime != nil && timestamp >= *c.FjordTime
 }
 
+// IsFjordActivationBlock returns whether the specified block is the first block subject to the
+// Fjord upgrade.
+func (c *Config) IsFjordActivationBlock(l2BlockTime uint64) bool {
+	return c.IsFjord(l2BlockTime) &&
+		l2BlockTime >= c.BlockTime &&
+		!c.IsFjord(l2BlockTime-c.BlockTime)
+}
+
 // IsInterop returns true if the Interop hardfork is active at or past the given timestamp.
 func (c *Config) IsInterop(timestamp uint64) bool {
 	return c.InteropTime != nil && timestamp >= *c.InteropTime

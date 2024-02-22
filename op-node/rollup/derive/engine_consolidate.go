@@ -134,7 +134,21 @@ func logL1InfoTxns(rollupCfg *rollup.Config, l log.Logger, l2Number, l2Timestamp
 		"unsafe_l1_time", unsafeInfo.Time, "unsafe_seq_num", unsafeInfo.SequenceNumber,
 		"unsafe_l1_basefee", unsafeInfo.BaseFee, "unsafe_batcher_addr", unsafeInfo.BatcherAddr,
 	)
-	if bytes.HasPrefix(safeTxValue.Data(), types.EcotoneL1AttributesSelector) {
+	if bytes.HasPrefix(safeTxValue.Data(), types.FjordL1AttributesSelector) {
+		l.Error("L1 Info transaction differs",
+			"safe_l1_blob_basefee", safeInfo.BlobBaseFee,
+			"safe_l1_basefee_scalar", safeInfo.BaseFeeScalar,
+			"safe_l1_blob_basefee_scalar", safeInfo.BlobBaseFeeScalar,
+			"safe_cost_intercept", safeInfo.CostIntercept,
+			"safe_cost_fastlz_coef", safeInfo.CostFastLZCoef,
+			"safe_cost_txsize_coef", safeInfo.CostTxSizeCoef,
+			"unsafe_l1_blob_basefee", unsafeInfo.BlobBaseFee,
+			"unsafe_l1_basefee_scalar", unsafeInfo.BaseFeeScalar,
+			"unsafe_l1_blob_basefee_scalar", unsafeInfo.BlobBaseFeeScalar,
+			"unsafe_cost_intercept", unsafeInfo.CostIntercept,
+			"unsafe_cost_fastlz_coef", unsafeInfo.CostFastLZCoef,
+			"unsafe_cost_txsize_coef", unsafeInfo.CostTxSizeCoef)
+	} else if bytes.HasPrefix(safeTxValue.Data(), types.EcotoneL1AttributesSelector) {
 		l.Error("L1 Info transaction differs",
 			"safe_l1_blob_basefee", safeInfo.BlobBaseFee,
 			"safe_l1_basefee_scalar", safeInfo.BaseFeeScalar,

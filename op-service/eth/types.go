@@ -375,7 +375,31 @@ const (
 	L1ScalarBedrock = byte(0)
 	// L1ScalarEcotone is new in Ecotone, allowing configuration of both a regular and a blobs scalar.
 	L1ScalarEcotone = byte(1)
+	// L1ScalarFjord is new in Fjord, allowing the configuration of the linear regression formula.
+	L1ScalarFjord = byte(2)
 )
+
+func (sysCfg *SystemConfig) FjordScalars() (blobBaseFeeScalar, baseFeeScalar uint32, costIntercept, costFastLzCoef, costTxSizeCoef int32, err error) {
+	if err := CheckFjordL1SystemConfigScalar(sysCfg.Scalar); err != nil {
+		if errors.Is(err, ErrBedrockScalarPaddingNotEmpty) {
+			// L2 spec mandates we set baseFeeScalar to MaxUint32 if there are non-zero bytes in
+			// the padding area.
+			return 0, math.MaxUint32, 0, 0, 0, nil
+		}
+		return 0, 0, 0, 0, 0, err
+	}
+	if sysCfg.Scalar[0] == L1ScalarFjord {
+		costTxSizeCoef = int32(binary.BigEndian.Uint32(sysCfg.Scalar[12:16]))
+		costFastLzCoef = int32(binary.BigEndian.Uint32(sysCfg.Scalar[16:20]))
+		costIntercept = int32(binary.BigEndian.Uint32(sysCfg.Scalar[20:24]))
+		blobBaseFeeScalar = binary.BigEndian.Uint32(sysCfg.Scalar[24:28])
+		baseFeeScalar = binary.BigEndian.Uint32(sysCfg.Scalar[28:32])
+	} else {
+		costTxSizeCoef = 1_000_000
+		blobBaseFeeScalar, baseFeeScalar, err = sysCfg.EcotoneScalars()
+	}
+	return
+}
 
 func (sysCfg *SystemConfig) EcotoneScalars() (blobBaseFeeScalar, baseFeeScalar uint32, err error) {
 	if err := CheckEcotoneL1SystemConfigScalar(sysCfg.Scalar); err != nil {
@@ -416,6 +440,17 @@ func CheckEcotoneL1SystemConfigScalar(scalar [32]byte) error {
 		// ignore the event if it's an unknown scalar format
 		return fmt.Errorf("unrecognized scalar version: %d", versionByte)
 	}
+}
+
+func CheckFjordL1SystemConfigScalar(scalar [32]byte) error {
+	versionByte := scalar[0]
+	if versionByte == L1ScalarFjord {
+		if ([11]byte)(scalar[1:12]) != ([11]byte{}) { // check padding
+			return fmt.Errorf("invalid version 2 scalar padding: %x", scalar[1:12])
+		}
+		return nil
+	}
+	return CheckEcotoneL1SystemConfigScalar(scalar)
 }
 
 type Bytes48 [48]byte

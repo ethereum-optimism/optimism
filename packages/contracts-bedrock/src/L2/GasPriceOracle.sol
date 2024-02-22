@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 import { ISemver } from "src/universal/ISemver.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { L1Block } from "src/L2/L1Block.sol";
+import { LibZip } from "solady/utils/LibZip.sol";
 
 /// @custom:proxied
 /// @custom:predeploy 0x420000000000000000000000000000000000000F
@@ -24,17 +25,23 @@ contract GasPriceOracle is ISemver {
     uint256 public constant DECIMALS = 6;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.2.0
-    string public constant version = "1.2.0";
+    /// @custom:semver 1.3.0
+    string public constant version = "1.3.0";
 
     /// @notice Indicates whether the network has gone through the Ecotone upgrade.
     bool public isEcotone;
+
+    /// @notice Indicates whether the network has gone through the Fjord upgrade.
+    bool public isFjord;
 
     /// @notice Computes the L1 portion of the fee based on the size of the rlp encoded input
     ///         transaction, the current L1 base fee, and the various dynamic parameters.
     /// @param _data Unsigned fully RLP-encoded transaction to get the L1 fee for.
     /// @return L1 fee that should be paid for the tx
     function getL1Fee(bytes memory _data) external view returns (uint256) {
+        if (isFjord) {
+            return _getL1FeeFjord(_data);
+        }
         if (isEcotone) {
             return _getL1FeeEcotone(_data);
         }
@@ -49,6 +56,16 @@ contract GasPriceOracle is ISemver {
         );
         require(isEcotone == false, "GasPriceOracle: Ecotone already active");
         isEcotone = true;
+    }
+
+    /// @notice Set chain to be Fjord chain (callable by depositor account)
+    function setFjord() external {
+        require(
+            msg.sender == L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).DEPOSITOR_ACCOUNT(),
+            "GasPriceOracle: only the depositor account can set isFjord flag"
+        );
+        require(isFjord == false, "GasPriceOracle: Fjord already active");
+        isFjord = true;
     }
 
     /// @notice Retrieves the current gas price (base fee).
@@ -103,6 +120,24 @@ contract GasPriceOracle is ISemver {
         return L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).blobBaseFeeScalar();
     }
 
+    /// @notice Retrieves the current cost intercept.
+    /// @return Current cost intercept.
+    function costIntercept() public view returns (int32) {
+        return L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).costIntercept();
+    }
+
+    /// @notice Retrieves the current cost FastLZ coefficient.
+    /// @return Current cost FastLZ coefficient.
+    function costFastlzCoef() public view returns (int32) {
+        return L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).costFastlzCoef();
+    }
+
+    /// @notice Retrieves the current cost TxSize coefficient.
+    /// @return Current cost TxSize coefficient.
+    function costTxSizeCoef() public view returns (int32) {
+        return L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).costTxSizeCoef();
+    }
+
     /// @custom:legacy
     /// @notice Retrieves the number of decimals used in the scalar.
     /// @return Number of decimals used in the scalar.
@@ -143,10 +178,25 @@ contract GasPriceOracle is ISemver {
         return fee / (16 * 10 ** DECIMALS);
     }
 
+    /// @notice L1 portion of the fee after Fjord.
+    /// @param _data Unsigned fully RLP-encoded transaction to get the L1 fee for.
+    /// @return L1 fee that should be paid for the tx
+    function _getL1FeeFjord(bytes memory _data) internal view returns (uint256) {
+        uint256 feeScaled = baseFeeScalar() * 16 * l1BaseFee() + blobBaseFeeScalar() * blobBaseFee();
+        // add 68 to both size values to account for unsigned tx:
+        uint256 fastlzSize = LibZip.flzCompress(_data).length + 68;
+        uint256 txSize = _data.length + 68;
+        int256 cost = costIntercept() + costFastlzCoef() * int256(fastlzSize) + costTxSizeCoef() * int256(txSize);
+        if (cost < 0) {
+            cost = 0;
+        }
+        return uint256(cost) * feeScaled / (10 ** (DECIMALS * 2));
+    }
+
     /// @notice L1 gas estimation calculation.
     /// @param _data Unsigned fully RLP-encoded transaction to get the L1 gas for.
     /// @return Amount of L1 gas used to publish the transaction.
-    function _getCalldataGas(bytes memory _data) internal pure returns (uint256) {
+    function _getCalldataGas(bytes memory _data) internal view returns (uint256) {
         uint256 total = 0;
         uint256 length = _data.length;
         for (uint256 i = 0; i < length; i++) {

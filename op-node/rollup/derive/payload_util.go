@@ -74,7 +74,15 @@ func PayloadToSystemConfig(rollupCfg *rollup.Config, payload *eth.ExecutionPaylo
 		if err != nil {
 			return eth.SystemConfig{}, fmt.Errorf("failed to parse L1 info deposit tx from L2 block: %w", err)
 		}
-		if isEcotoneButNotFirstBlock(rollupCfg, uint64(payload.Timestamp)) {
+		if isFjordButNotFirstBlock(rollupCfg, uint64(payload.Timestamp)) {
+			// Translate Fjord values back into encoded scalar if needed.
+			info.L1FeeScalar[0] = 2
+			binary.BigEndian.PutUint32(info.L1FeeScalar[12:16], uint32(info.CostTxSizeCoef))
+			binary.BigEndian.PutUint32(info.L1FeeScalar[16:20], uint32(info.CostFastLZCoef))
+			binary.BigEndian.PutUint32(info.L1FeeScalar[20:24], uint32(info.CostIntercept))
+			binary.BigEndian.PutUint32(info.L1FeeScalar[24:28], info.BlobBaseFeeScalar)
+			binary.BigEndian.PutUint32(info.L1FeeScalar[28:32], info.BaseFeeScalar)
+		} else if isEcotoneButNotFirstBlock(rollupCfg, uint64(payload.Timestamp)) {
 			// Translate Ecotone values back into encoded scalar if needed.
 			// We do not know if it was derived from a v0 or v1 scalar,
 			// but v1 is fine, a 0 blob base fee has the same effect.
