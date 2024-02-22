@@ -123,6 +123,7 @@ func TestOutputAtBlock(t *testing.T) {
 	require.Equal(t, *status, *out.Status)
 	l2Client.Mock.AssertExpectations(t)
 	drClient.Mock.AssertExpectations(t)
+	safeReader.Mock.AssertExpectations(t)
 }
 
 func TestVersion(t *testing.T) {
@@ -240,6 +241,9 @@ func TestSafeHeadAtL1Block(t *testing.T) {
 	err = client.CallContext(context.Background(), &out, "optimism_safeHeadAtL1Block", hexutil.Uint64(l1BlockNum).String())
 	require.NoError(t, err)
 	require.Equal(t, expected, out)
+	l2Client.Mock.AssertExpectations(t)
+	drClient.Mock.AssertExpectations(t)
+	safeReader.Mock.AssertExpectations(t)
 }
 
 type mockDriverClient struct {
