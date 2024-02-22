@@ -167,7 +167,11 @@ func TestAttemptStep(t *testing.T) {
 			game := builder.Game
 			claims := game.Claims()
 			lastClaim := claims[len(claims)-1]
-			step, err := alphabetSolver.AttemptStep(ctx, game, lastClaim)
+			agreedClaims := newAgreedClaimTracker()
+			if tableTest.agreeWithOutputRoot {
+				agreedClaims.MarkAgreed(claims[0])
+			}
+			step, err := alphabetSolver.AttemptStep(ctx, game, lastClaim, agreedClaims)
 			if tableTest.expectedErr == nil {
 				require.NoError(t, err)
 				require.Equal(t, lastClaim, step.LeafClaim)

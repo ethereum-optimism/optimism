@@ -48,10 +48,29 @@ func (s *claimSolver) respondClaim(ctx context.Context, claim types.Claim, game 
 	}
 }
 
-func (s *claimSolver) respond(ctx context.Context, claim types.Claim, game types.Game, agreeWithRootClaim bool) (moveType, error) {
+func isChallengingClaim(claim types.Claim, game types.Game, agreedClaims *agreedClaimTracker) (bool, error) {
+	levelsToAgreedClaim := 0
+	var err error
+	for {
+		if agreedClaims.IsAgreed(claim) {
+			break
+		}
+		levelsToAgreedClaim++
+		if claim.IsRoot() {
+			break
+		}
+		claim, err = game.GetParent(claim)
+		if err != nil {
+			return false, err
+		}
+	}
+	return levelsToAgreedClaim%2 == 1, nil
+}
+
+func (s *claimSolver) respond(ctx context.Context, claim types.Claim, game types.Game, agreedClaims *agreedClaimTracker) (moveType, error) {
 	// Root case is simple - attack if we disagree, do nothing if we agree
 	if claim.IsRoot() {
-		if !game.AgreeWithClaimLevel(claim, agreeWithRootClaim) {
+		if !agreedClaims.IsAgreed(claim) {
 			return moveAttack, nil
 		} else {
 			return moveNop, nil
@@ -62,7 +81,11 @@ func (s *claimSolver) respond(ctx context.Context, claim types.Claim, game types
 	if err != nil {
 		return moveNop, err
 	}
-	if !game.AgreeWithClaimLevel(claim, agreeWithRootClaim) {
+	challenging, err := isChallengingClaim(claim, game, agreedClaims)
+	if err != nil {
+		return moveNop, nil
+	}
+	if challenging {
 		agreeWithParent, err := s.agreeWithClaimPath(ctx, game, parent)
 		if err != nil {
 			return moveNop, err
@@ -73,7 +96,7 @@ func (s *claimSolver) respond(ctx context.Context, claim types.Claim, game types
 			return moveNop, nil
 		}
 	} else {
-		correctResponse, err := s.respond(ctx, parent, game, agreeWithRootClaim)
+		correctResponse, err := s.respond(ctx, parent, game, agreedClaims)
 		if err != nil {
 			return moveNop, err
 		}
@@ -118,11 +141,11 @@ func (s *claimSolver) respondToClaim(ctx context.Context, claim types.Claim, gam
 }
 
 // NextMove returns the next move to make given the current state of the game.
-func (s *claimSolver) NextMove(ctx context.Context, claim types.Claim, game types.Game, agreeWithRootClaim bool) (*types.Claim, error) {
+func (s *claimSolver) NextMove(ctx context.Context, claim types.Claim, game types.Game, agreedClaims *agreedClaimTracker) (*types.Claim, error) {
 	if claim.Depth() == s.gameDepth {
 		return nil, types.ErrGameDepthReached
 	}
-	responseType, err := s.respond(ctx, claim, game, agreeWithRootClaim)
+	responseType, err := s.respond(ctx, claim, game, agreedClaims)
 	if err != nil {
 		return nil, fmt.Errorf("failed to determine correct move type: %w", err)
 	}
@@ -149,31 +172,21 @@ type StepData struct {
 // AttemptStep determines what step should occur for a given leaf claim.
 // An error will be returned if the claim is not at the max depth.
 // Returns ErrStepIgnoreInvalidPath if the claim disputes an invalid path
-func (s *claimSolver) AttemptStep(ctx context.Context, game types.Game, claim types.Claim) (StepData, error) {
+func (s *claimSolver) AttemptStep(ctx context.Context, game types.Game, claim types.Claim, agreedClaims *agreedClaimTracker) (*StepData, error) {
 	if claim.Depth() != s.gameDepth {
-		return StepData{}, ErrStepNonLeafNode
+		return nil, ErrStepNonLeafNode
 	}
 
-	// Step only on claims that dispute a valid path
-	parent, err := game.GetParent(claim)
+	responseType, err := s.respond(ctx, claim, game, agreedClaims)
 	if err != nil {
-		return StepData{}, err
+		return nil, fmt.Errorf("failed to determine correct step type: %w", err)
 	}
-	parentValid, err := s.agreeWithClaimPath(ctx, game, parent)
-	if err != nil {
-		return StepData{}, err
-	}
-	if !parentValid {
-		return StepData{}, ErrStepIgnoreInvalidPath
-	}
-
-	claimCorrect, err := s.agreeWithClaim(ctx, game, claim)
-	if err != nil {
-		return StepData{}, err
+	if responseType == moveNop {
+		return nil, nil
 	}
 
 	var position types.Position
-	if !claimCorrect {
+	if responseType == moveAttack {
 		// Attack the claim by executing step index, so we need to get the pre-state of that index
 		position = claim.Position
 	} else {
@@ -184,12 +197,12 @@ func (s *claimSolver) AttemptStep(ctx context.Context, game types.Game, claim ty
 
 	preState, proofData, oracleData, err := s.trace.GetStepData(ctx, game, claim, position)
 	if err != nil {
-		return StepData{}, err
+		return nil, err
 	}
 
-	return StepData{
+	return &StepData{
 		LeafClaim:  claim,
-		IsAttack:   !claimCorrect,
+		IsAttack:   responseType == moveAttack,
 		PreState:   preState,
 		ProofData:  proofData,
 		OracleData: oracleData,

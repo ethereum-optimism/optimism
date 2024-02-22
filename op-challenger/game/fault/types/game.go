@@ -25,9 +25,9 @@ type Game interface {
 	// its parent.
 	DefendsParent(claim Claim) bool
 
-	// IsDuplicate returns true if the provided [Claim] already exists in the game state
-	// referencing the same parent claim
-	IsDuplicate(claim Claim) bool
+	// IsDuplicate returns the duplicate claim and true if the provided [Claim] already exists in the game state
+	// referencing the same parent claim. If the claim is not a duplicate, an empty claim and false is returned
+	IsDuplicate(claim Claim) (Claim, bool)
 
 	// AgreeWithClaimLevel returns if the game state agrees with the provided claim level.
 	AgreeWithClaimLevel(claim Claim, agreeWithRootClaim bool) bool
@@ -50,16 +50,16 @@ func computeClaimID(claim Claim) claimID {
 type gameState struct {
 	// claims is the list of claims in the same order as the contract
 	claims   []Claim
-	claimIDs map[claimID]bool
+	claimIDs map[claimID]int
 	depth    Depth
 }
 
 // NewGameState returns a new game state.
 // The provided [Claim] is used as the root node.
 func NewGameState(claims []Claim, depth Depth) *gameState {
-	claimIDs := make(map[claimID]bool)
+	claimIDs := make(map[claimID]int)
 	for _, claim := range claims {
-		claimIDs[computeClaimID(claim)] = true
+		claimIDs[computeClaimID(claim)] = claim.ContractIndex
 	}
 	return &gameState{
 		claims:   claims,
@@ -80,8 +80,12 @@ func (g *gameState) AgreeWithClaimLevel(claim Claim, agreeWithRootClaim bool) bo
 	}
 }
 
-func (g *gameState) IsDuplicate(claim Claim) bool {
-	return g.claimIDs[computeClaimID(claim)]
+func (g *gameState) IsDuplicate(claim Claim) (Claim, bool) {
+	dupeIdx, ok := g.claimIDs[computeClaimID(claim)]
+	if !ok {
+		return Claim{}, false
+	}
+	return g.claims[dupeIdx], true
 }
 
 func (g *gameState) Claims() []Claim {

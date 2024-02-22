@@ -30,13 +30,17 @@ func (s *GameSolver) CalculateNextActions(ctx context.Context, game types.Game) 
 	}
 	var errs []error
 	var actions []types.Action
+	agreedClaims := newAgreedClaimTracker()
+	if agreeWithRootClaim {
+		agreedClaims.MarkAgreed(game.Claims()[0])
+	}
 	for _, claim := range game.Claims() {
 		var action *types.Action
 		var err error
 		if claim.Depth() == game.MaxDepth() {
-			action, err = s.calculateStep(ctx, game, agreeWithRootClaim, claim)
+			action, err = s.calculateStep(ctx, game, claim, agreedClaims)
 		} else {
-			action, err = s.calculateMove(ctx, game, agreeWithRootClaim, claim)
+			action, err = s.calculateMove(ctx, game, claim, agreedClaims)
 		}
 		if err != nil {
 			errs = append(errs, err)
@@ -50,19 +54,16 @@ func (s *GameSolver) CalculateNextActions(ctx context.Context, game types.Game) 
 	return actions, errors.Join(errs...)
 }
 
-func (s *GameSolver) calculateStep(ctx context.Context, game types.Game, agreeWithRootClaim bool, claim types.Claim) (*types.Action, error) {
+func (s *GameSolver) calculateStep(ctx context.Context, game types.Game, claim types.Claim, agreedClaims *agreedClaimTracker) (*types.Action, error) {
 	if claim.CounteredBy != (common.Address{}) {
 		return nil, nil
 	}
-	if game.AgreeWithClaimLevel(claim, agreeWithRootClaim) {
-		return nil, nil
-	}
-	step, err := s.claimSolver.AttemptStep(ctx, game, claim)
-	if errors.Is(err, ErrStepIgnoreInvalidPath) {
-		return nil, nil
-	}
+	step, err := s.claimSolver.AttemptStep(ctx, game, claim, agreedClaims)
 	if err != nil {
 		return nil, err
+	}
+	if step == nil {
+		return nil, nil
 	}
 	return &types.Action{
 		Type:           types.ActionTypeStep,
@@ -75,12 +76,18 @@ func (s *GameSolver) calculateStep(ctx context.Context, game types.Game, agreeWi
 	}, nil
 }
 
-func (s *GameSolver) calculateMove(ctx context.Context, game types.Game, agreeWithRootClaim bool, claim types.Claim) (*types.Action, error) {
-	move, err := s.claimSolver.NextMove(ctx, claim, game, agreeWithRootClaim)
+func (s *GameSolver) calculateMove(ctx context.Context, game types.Game, claim types.Claim, agreedClaims *agreedClaimTracker) (*types.Action, error) {
+	move, err := s.claimSolver.NextMove(ctx, claim, game, agreedClaims)
 	if err != nil {
 		return nil, fmt.Errorf("failed to calculate next move for claim index %v: %w", claim.ContractIndex, err)
 	}
-	if move == nil || game.IsDuplicate(*move) {
+	if move == nil {
+		return nil, nil
+	}
+	duplicate, isDupe := game.IsDuplicate(*move)
+	if isDupe {
+		fmt.Printf("Marking %v as agreed\n", duplicate.ContractIndex)
+		agreedClaims.MarkAgreed(duplicate)
 		return nil, nil
 	}
 	return &types.Action{

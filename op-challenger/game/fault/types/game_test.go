@@ -54,12 +54,22 @@ func TestIsDuplicate(t *testing.T) {
 	g := NewGameState([]Claim{root, top}, testMaxDepth)
 
 	// Root + Top should be duplicates
-	require.True(t, g.IsDuplicate(root))
-	require.True(t, g.IsDuplicate(top))
+	dupeClaim, isDupe := g.IsDuplicate(root)
+	require.True(t, isDupe)
+	require.Equal(t, root, dupeClaim)
+
+	dupeClaim, isDupe = g.IsDuplicate(top)
+	require.True(t, isDupe)
+	require.Equal(t, top, dupeClaim)
 
 	// Middle + Bottom should not be a duplicate
-	require.False(t, g.IsDuplicate(middle))
-	require.False(t, g.IsDuplicate(bottom))
+
+	dupeClaim, isDupe = g.IsDuplicate(middle)
+	require.False(t, isDupe)
+	require.Equal(t, Claim{}, dupeClaim)
+	dupeClaim, isDupe = g.IsDuplicate(bottom)
+	require.False(t, isDupe)
+	require.Equal(t, Claim{}, dupeClaim)
 }
 
 func TestGame_Claims(t *testing.T) {

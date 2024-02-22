@@ -61,7 +61,7 @@ func doNotDuplicateExistingMoves(game types.Game, action types.Action) error {
 		Value:    action.Value,
 		Position: resultingPosition(game, action),
 	}
-	if game.IsDuplicate(types.Claim{ClaimData: newClaimData, ParentContractIndex: action.ParentIdx}) {
+	if _, dupe := game.IsDuplicate(types.Claim{ClaimData: newClaimData, ParentContractIndex: action.ParentIdx}); dupe {
 		return fmt.Errorf("creating duplicate claim at %v with value %v", newClaimData.Position.ToGIndex(), newClaimData.Value)
 	}
 	return nil
