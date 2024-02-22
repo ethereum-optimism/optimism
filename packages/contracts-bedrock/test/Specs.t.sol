@@ -79,7 +79,6 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "DataAvailabilityChallenge", _sel: _getSel("resolveWindow()") });
         _addSpec({ _name: "DataAvailabilityChallenge", _sel: _getSel("resolverRefundPercentage()") });
         _addSpec({ _name: "DataAvailabilityChallenge", _sel: _getSel("balances(address)") });
-        _addSpec({ _name: "DataAvailabilityChallenge", _sel: _getSel("challenges(uint256,bytes)") });
         _addSpec({ _name: "DataAvailabilityChallenge", _sel: DataAvailabilityChallenge.initialize.selector });
         _addSpec({
             _name: "DataAvailabilityChallenge",
@@ -93,6 +92,7 @@ contract Specification_Test is CommonTest {
         });
         _addSpec({ _name: "DataAvailabilityChallenge", _sel: DataAvailabilityChallenge.deposit.selector });
         _addSpec({ _name: "DataAvailabilityChallenge", _sel: DataAvailabilityChallenge.withdraw.selector });
+        _addSpec({ _name: "DataAvailabilityChallenge", _sel: DataAvailabilityChallenge.getChallenge.selector });
         _addSpec({ _name: "DataAvailabilityChallenge", _sel: DataAvailabilityChallenge.getChallengeStatus.selector });
         _addSpec({ _name: "DataAvailabilityChallenge", _sel: DataAvailabilityChallenge.challenge.selector });
         _addSpec({ _name: "DataAvailabilityChallenge", _sel: DataAvailabilityChallenge.resolve.selector });

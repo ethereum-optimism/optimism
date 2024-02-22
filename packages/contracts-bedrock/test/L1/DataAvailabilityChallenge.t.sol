@@ -82,12 +82,11 @@ contract DataAvailabilityChallengeTest is CommonTest {
         dac.challenge(challengedBlockNumber, challengedCommitment);
 
         // Challenge should have been created
-        (address _challenger, uint256 _lockedBond, uint256 _startBlock, uint256 _resolvedBlock) =
-            dac.challenges(challengedBlockNumber, challengedCommitment);
-        assertEq(_challenger, challenger);
-        assertEq(_startBlock, block.number);
-        assertEq(_resolvedBlock, 0);
-        assertEq(_lockedBond, requiredBond);
+        Challenge memory challenge = dac.getChallenge(challengedBlockNumber, challengedCommitment);
+        assertEq(challenge.challenger, challenger);
+        assertEq(challenge.startBlock, block.number);
+        assertEq(challenge.resolvedBlock, 0);
+        assertEq(challenge.lockedBond, requiredBond);
         assertEq(
             uint8(dac.getChallengeStatus(challengedBlockNumber, challengedCommitment)), uint8(ChallengeStatus.Active)
         );
@@ -121,12 +120,11 @@ contract DataAvailabilityChallengeTest is CommonTest {
         dac.challenge{ value: requiredBond }(challengedBlockNumber, challengedCommitment);
 
         // Challenge should have been created
-        (address _challenger, uint256 _lockedBond, uint256 _startBlock, uint256 _resolvedBlock) =
-            dac.challenges(challengedBlockNumber, challengedCommitment);
-        assertEq(_challenger, challenger);
-        assertEq(_startBlock, block.number);
-        assertEq(_resolvedBlock, 0);
-        assertEq(_lockedBond, requiredBond);
+        Challenge memory challenge = dac.getChallenge(challengedBlockNumber, challengedCommitment);
+        assertEq(challenge.challenger, challenger);
+        assertEq(challenge.startBlock, block.number);
+        assertEq(challenge.resolvedBlock, 0);
+        assertEq(challenge.lockedBond, requiredBond);
         assertEq(
             uint8(dac.getChallengeStatus(challengedBlockNumber, challengedCommitment)), uint8(ChallengeStatus.Active)
         );
@@ -237,20 +235,16 @@ contract DataAvailabilityChallengeTest is CommonTest {
         vm.prank(resolver);
         dac.resolve(challengedBlockNumber, challengedCommitment, preImage);
 
-        {
-            // Expect the challenge to be resolved
-            (address _challenger, uint256 _lockedBond, uint256 _startBlock, uint256 _resolvedBlock) =
-                dac.challenges(challengedBlockNumber, challengedCommitment);
+        // Expect the challenge to be resolved
+        Challenge memory challenge = dac.getChallenge(challengedBlockNumber, challengedCommitment);
 
-            assertEq(_challenger, challenger);
-            assertEq(_lockedBond, 0);
-            assertEq(_startBlock, block.number);
-            assertEq(_resolvedBlock, block.number);
-            assertEq(
-                uint8(dac.getChallengeStatus(challengedBlockNumber, challengedCommitment)),
-                uint8(ChallengeStatus.Resolved)
-            );
-        }
+        assertEq(challenge.challenger, challenger);
+        assertEq(challenge.lockedBond, 0);
+        assertEq(challenge.startBlock, block.number);
+        assertEq(challenge.resolvedBlock, block.number);
+        assertEq(
+            uint8(dac.getChallengeStatus(challengedBlockNumber, challengedCommitment)), uint8(ChallengeStatus.Resolved)
+        );
 
         // Assert challenger balance after bond distribution
         uint256 resolutionCost = (
@@ -368,13 +362,12 @@ contract DataAvailabilityChallengeTest is CommonTest {
         assertEq(balanceAfterUnlock, balanceBeforeUnlock + dac.bondSize());
 
         // Expect the bond to be unlocked
-        (address _challenger, uint256 _lockedBond, uint256 _startBlock, uint256 _resolvedBlock) =
-            dac.challenges(challengedBlockNumber, challengedCommitment);
+        Challenge memory challenge = dac.getChallenge(challengedBlockNumber, challengedCommitment);
 
-        assertEq(_challenger, address(this));
-        assertEq(_lockedBond, 0);
-        assertEq(_startBlock, challengedBlockNumber + 1);
-        assertEq(_resolvedBlock, 0);
+        assertEq(challenge.challenger, address(this));
+        assertEq(challenge.lockedBond, 0);
+        assertEq(challenge.startBlock, challengedBlockNumber + 1);
+        assertEq(challenge.resolvedBlock, 0);
         assertEq(
             uint8(dac.getChallengeStatus(challengedBlockNumber, challengedCommitment)), uint8(ChallengeStatus.Expired)
         );

@@ -72,45 +72,6 @@
     "type": "function"
   },
   {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      },
-      {
-        "internalType": "bytes",
-        "name": "",
-        "type": "bytes"
-      }
-    ],
-    "name": "challenges",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "challenger",
-        "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "lockedBond",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "startBlock",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "resolvedBlock",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
     "inputs": [],
     "name": "deposit",
     "outputs": [],
@@ -125,6 +86,52 @@
         "internalType": "uint256",
         "name": "",
         "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "challengedBlockNumber",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bytes",
+        "name": "challengedCommitment",
+        "type": "bytes"
+      }
+    ],
+    "name": "getChallenge",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "challenger",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "lockedBond",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "startBlock",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "resolvedBlock",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct Challenge",
+        "name": "",
+        "type": "tuple"
       }
     ],
     "stateMutability": "view",

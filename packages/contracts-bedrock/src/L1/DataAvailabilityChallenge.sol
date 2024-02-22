@@ -120,7 +120,7 @@ contract DataAvailabilityChallenge is OwnableUpgradeable, ISemver {
     mapping(address => uint256) public balances;
 
     /// @notice A mapping from challenged block numbers to challenged commitments to challenges.
-    mapping(uint256 => mapping(bytes => Challenge)) public challenges;
+    mapping(uint256 => mapping(bytes => Challenge)) internal challenges;
 
     /// @notice Constructs the DataAvailabilityChallenge contract. Cannot set
     ///         the owner to `address(0)` due to the Ownable contract's
@@ -215,6 +215,22 @@ contract DataAvailabilityChallenge is OwnableUpgradeable, ISemver {
     /// @return True if the current block is within the resolve window, false otherwise.
     function _isInResolveWindow(uint256 challengeStartBlockNumber) internal view returns (bool) {
         return block.number <= challengeStartBlockNumber + resolveWindow;
+    }
+
+    /// @notice Returns a challenge for the given block number and commitment.
+    /// @dev Unlike with a public `challenges` mapping, we can return a Challenge struct instead of tuple.
+    /// @param challengedBlockNumber The block number at which the commitment was made.
+    /// @param challengedCommitment The commitment that is being challenged.
+    /// @return The challenge struct.
+    function getChallenge(
+        uint256 challengedBlockNumber,
+        bytes calldata challengedCommitment
+    )
+        public
+        view
+        returns (Challenge memory)
+    {
+        return challenges[challengedBlockNumber][challengedCommitment];
     }
 
     /// @notice Returns the status of a challenge for a given challenged block number and challenged commitment.
