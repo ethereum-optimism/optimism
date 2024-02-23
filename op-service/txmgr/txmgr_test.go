@@ -13,7 +13,6 @@ import (
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
 	"github.com/ethereum/go-ethereum/core"
@@ -305,7 +304,7 @@ func (*mockBackend) ChainID(ctx context.Context) (*big.Int, error) {
 
 // TransactionReceipt queries the mockBackend for a mined txHash. If none is found, nil is returned
 // for both return values. Otherwise, it returns a receipt containing the txHash, the gasFeeCap
-// used in GasUsed, and the blobFeeCap in CumuluativeGasUsed to make the values accessible from our
+// used in GasUsed, and the blobFeeCap in CumulativeGasUsed to make the values accessible from our
 // test framework.
 func (b *mockBackend) TransactionReceipt(ctx context.Context, txHash common.Hash) (*types.Receipt, error) {
 	b.mu.RLock()

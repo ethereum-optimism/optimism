@@ -123,10 +123,10 @@ func (s stubPreimageOracle) GetActivePreimages(_ context.Context, _ common.Hash)
 
 type stubBondContract struct{}
 
-func (s *stubBondContract) GetCredit(ctx context.Context, receipient common.Address) (*big.Int, error) {
+func (s *stubBondContract) GetCredit(ctx context.Context, recipient common.Address) (*big.Int, error) {
 	panic("not supported")
 }
 
-func (s *stubBondContract) ClaimCredit(receipient common.Address) (txmgr.TxCandidate, error) {
+func (s *stubBondContract) ClaimCredit(recipient common.Address) (txmgr.TxCandidate, error) {
 	panic("not supported")
 }

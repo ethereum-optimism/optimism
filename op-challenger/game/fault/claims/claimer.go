@@ -17,8 +17,8 @@ type BondClaimMetrics interface {
 }
 
 type BondContract interface {
-	GetCredit(ctx context.Context, receipient common.Address) (*big.Int, error)
-	ClaimCredit(receipient common.Address) (txmgr.TxCandidate, error)
+	GetCredit(ctx context.Context, recipient common.Address) (*big.Int, error)
+	ClaimCredit(recipient common.Address) (txmgr.TxCandidate, error)
 }
 
 type BondContractCreator func(game types.GameMetadata) (BondContract, error)
