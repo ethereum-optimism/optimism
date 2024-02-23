@@ -15,16 +15,9 @@ import (
 var OPStackSupport = params.ProtocolVersionV0{Build: [8]byte{}, Major: 6, Minor: 0, Patch: 0, PreRelease: 0}.Encode()
 
 const (
-	opMainnet = 10
-	opGoerli  = 420
-	opSepolia = 11155420
-
 	labsGoerliDevnet   = 997
 	labsGoerliChaosnet = 888
 	labsSepoliaDevnet0 = 11155421
-
-	baseGoerli  = 84531
-	baseMainnet = 8453
 
 	pgnMainnet = 424
 	pgnSepolia = 58008
