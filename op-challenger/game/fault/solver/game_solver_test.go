@@ -184,6 +184,16 @@ func TestCalculateNextActions(t *testing.T) {
 			},
 			runCondition: RunFreeloadersCountered,
 		},
+		{
+			name: "Freeloader-FreeloaderCountersRootClaim",
+			setupGame: func(builder *faulttest.GameBuilder) {
+				builder.Seq().
+					ExpectAttack().            // Honest response to invalid root
+					Attack(common.Hash{0xaa}). // freeloader
+					ExpectAttack()             // Honest response to freeloader
+			},
+			runCondition: RunFreeloadersCountered,
+		},
 	}
 
 	for _, test := range tests {
