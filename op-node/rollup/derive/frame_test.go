@@ -224,7 +224,7 @@ func randomFrame(rng *rand.Rand, opts ...frameOpt) *Frame {
 		IsLast:      testutils.RandomBool(rng),
 	}
 
-	// evaulaute options
+	// evaluate options
 	for _, opt := range opts {
 		opt(rng, frame)
 	}
