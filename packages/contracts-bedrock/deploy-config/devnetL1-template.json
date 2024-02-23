@@ -61,5 +61,10 @@
   "proofMaturityDelaySeconds": 12,
   "disputeGameFinalityDelaySeconds": 6,
   "respectedGameType": 0,
-  "useFaultProofs": false
+  "useFaultProofs": false,
+  "usePlasma": false,
+  "daChallengeWindow": 1000,
+  "daResolveWindow": 1000,
+  "daBondSize": 1000000,
+  "daResolverRefundPercentage": 0
 }

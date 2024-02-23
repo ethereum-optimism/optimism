@@ -7,6 +7,10 @@
     "initCodeHash": "0xf4c3155413be4a4ebaaba66b9f9daaf12db7b090afdea739dfb8a543df357289",
     "sourceCodeHash": "0x2ed7a2d6d66839fb3d207952f44b001bce349334adc40ce66d0503ce64e48548"
   },
+  "src/L1/DataAvailabilityChallenge.sol": {
+    "initCodeHash": "0x39d938938b13abb2455959960c2ee96d48149fd16a7fb69f1f6699460d5019be",
+    "sourceCodeHash": "0xf6c72a2cca24cfa7c9274d720e93b05d665a2751cca3d747105e6c511ccffc73"
+  },
   "src/L1/DelayedVetoable.sol": {
     "initCodeHash": "0x84f78e56211500a768b2c5bbafde8e7b411bd64c237297370d7d22326b68357c",
     "sourceCodeHash": "0xc59b8574531162e016d7342aeb6e79d05574e90dbea6c0e5ede35b65010ad894"

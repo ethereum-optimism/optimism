@@ -241,6 +241,18 @@ type DeployConfig struct {
 	// proofs instead of the older output oracle mechanism.
 	UseFaultProofs bool `json:"useFaultProofs"`
 
+	// UsePlasma is a flag that indicates if the system is using op-plasma
+	UsePlasma bool `json:"usePlasma"`
+	// DaChallengeWindow represents the block interval during which the availability of a data commitment can be challenged.
+	DaChallengeWindow uint64 `json:"daChallengeWindow"`
+	// DaResolveWindow represents the block interval during which a data availability challenge can be resolved.
+	DaResolveWindow uint64 `json:"daResolveWindow"`
+	// DaBondSize represents the required bond size to initiate a data availability challenge.
+	DaBondSize uint64 `json:"daBondSize"`
+	// DaResolverRefundPercentage represents the percentage of the resolving cost to be refunded to the resolver
+	// such as 100 means 100% refund.
+	DaResolverRefundPercentage uint64 `json:"daResolverRefundPercentage"`
+
 	// When Cancun activates. Relative to L1 genesis.
 	L1CancunTimeOffset *hexutil.Uint64 `json:"l1CancunTimeOffset,omitempty"`
 }
@@ -617,6 +629,8 @@ type L1Deployments struct {
 	SystemConfigProxy                 common.Address `json:"SystemConfigProxy"`
 	ProtocolVersions                  common.Address `json:"ProtocolVersions"`
 	ProtocolVersionsProxy             common.Address `json:"ProtocolVersionsProxy"`
+	DataAvailabilityChallenge         common.Address `json:"DataAvailabilityChallenge"`
+	DataAvailabilityChallengeProxy    common.Address `json:"DataAvailabilityChallengeProxy"`
 }
 
 // GetName will return the name of the contract given an address.
@@ -634,7 +648,7 @@ func (d *L1Deployments) GetName(addr common.Address) string {
 }
 
 // Check will ensure that the L1Deployments are sane
-func (d *L1Deployments) Check() error {
+func (d *L1Deployments) Check(deployConfig *DeployConfig) error {
 	val := reflect.ValueOf(d)
 	if val.Kind() == reflect.Ptr {
 		val = val.Elem()
@@ -642,7 +656,14 @@ func (d *L1Deployments) Check() error {
 	for i := 0; i < val.NumField(); i++ {
 		name := val.Type().Field(i).Name
 		// Skip the non production ready contracts
-		if name == "DisputeGameFactory" || name == "DisputeGameFactoryProxy" || name == "BlockOracle" {
+		if name == "DisputeGameFactory" ||
+			name == "DisputeGameFactoryProxy" ||
+			name == "BlockOracle" {
+			continue
+		}
+		if !deployConfig.UsePlasma &&
+			(name == "DataAvailabilityChallenge" ||
+				name == "DataAvailabilityChallengeProxy") {
 			continue
 		}
 		if val.Field(i).Interface().(common.Address) == (common.Address{}) {

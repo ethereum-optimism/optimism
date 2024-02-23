@@ -70,6 +70,11 @@ contract DeployConfig is Script {
     uint256 public disputeGameFinalityDelaySeconds;
     uint256 public respectedGameType;
     bool public useFaultProofs;
+    bool public usePlasma;
+    uint256 public daChallengeWindow;
+    uint256 public daResolveWindow;
+    uint256 public daBondSize;
+    uint256 public daResolverRefundPercentage;
 
     function read(string memory _path) public {
         console.log("DeployConfig: reading file %s", _path);
@@ -135,6 +140,12 @@ contract DeployConfig is Script {
         preimageOracleMinProposalSize = stdJson.readUint(_json, "$.preimageOracleMinProposalSize");
         preimageOracleChallengePeriod = stdJson.readUint(_json, "$.preimageOracleChallengePeriod");
         preimageOracleCancunActivationTimestamp = stdJson.readUint(_json, "$.preimageOracleCancunActivationTimestamp");
+
+        usePlasma = _readOr(_json, "$.usePlasma", false);
+        daChallengeWindow = _readOr(_json, "$.daChallengeWindow", 1000);
+        daResolveWindow = _readOr(_json, "$.daResolveWindow", 1000);
+        daBondSize = _readOr(_json, "$.daBondSize", 1000000000);
+        daResolverRefundPercentage = _readOr(_json, "$.daResolverRefundPercentage", 0);
     }
 
     function l1StartingBlockTag() public returns (bytes32) {
@@ -165,6 +176,11 @@ contract DeployConfig is Script {
         return uint256(_l2OutputOracleStartingTimestamp);
     }
 
+    /// @notice Allow the `usePlasma` config to be overridden in testing environments
+    function setUsePlasma(bool _usePlasma) public {
+        usePlasma = _usePlasma;
+    }
+
     function _getBlockByTag(string memory _tag) internal returns (bytes32) {
         string[] memory cmd = new string[](3);
         cmd[0] = Executables.bash;
@@ -172,5 +188,13 @@ contract DeployConfig is Script {
         cmd[2] = string.concat("cast block ", _tag, " --json | ", Executables.jq, " -r .hash");
         bytes memory res = vm.ffi(cmd);
         return abi.decode(res, (bytes32));
+    }
+
+    function _readOr(string memory json, string memory key, bool defaultValue) internal view returns (bool) {
+        return vm.keyExists(json, key) ? stdJson.readBool(json, key) : defaultValue;
+    }
+
+    function _readOr(string memory json, string memory key, uint256 defaultValue) internal view returns (uint256) {
+        return vm.keyExists(json, key) ? stdJson.readUint(json, key) : defaultValue;
     }
 }

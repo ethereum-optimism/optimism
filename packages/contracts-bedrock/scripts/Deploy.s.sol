@@ -29,6 +29,7 @@ import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC2
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
+import { DataAvailabilityChallenge } from "src/L1/DataAvailabilityChallenge.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
 import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
@@ -279,6 +280,9 @@ contract Deploy is Deployer {
     function _run() internal {
         deploySafe();
         setupSuperchain();
+        if (cfg.usePlasma()) {
+            setupOpPlasma();
+        }
         setupOpChain();
     }
 
@@ -390,6 +394,14 @@ contract Deploy is Deployer {
         } else {
             initializeOptimismPortal();
         }
+    }
+
+    /// @notice Add Plasma setup to the OP chain
+    function setupOpPlasma() public {
+        console.log("Deploying OP Plasma");
+        deployDataAvailabilityChallengeProxy();
+        deployDataAvailabilityChallenge();
+        initializeDataAvailabilityChallenge();
     }
 
     ////////////////////////////////////////////////////////////////
@@ -508,6 +520,20 @@ contract Deploy is Deployer {
 
         save(_name, address(proxy));
         console.log("   at %s", address(proxy));
+        addr_ = address(proxy);
+    }
+
+    /// @notice Deploy the DataAvailabilityChallengeProxy
+    function deployDataAvailabilityChallengeProxy() public broadcast returns (address addr_) {
+        console.log("Deploying proxy for DataAvailabilityChallenge");
+        address proxyAdmin = mustGetAddress("ProxyAdmin");
+        Proxy proxy = new Proxy({ _admin: proxyAdmin });
+
+        require(EIP1967Helper.getAdmin(address(proxy)) == proxyAdmin);
+
+        save("DataAvailabilityChallengeProxy", address(proxy));
+        console.log("DataAvailabilityChallengeProxy deployed at %s", address(proxy));
+
         addr_ = address(proxy);
     }
 
@@ -758,6 +784,16 @@ contract Deploy is Deployer {
         }
 
         require(addressManager.owner() == proxyAdmin);
+    }
+
+    /// @notice Deploy the DataAvailabilityChallenge
+    function deployDataAvailabilityChallenge() public broadcast returns (address addr_) {
+        console.log("Deploying DataAvailabilityChallenge implementation");
+        DataAvailabilityChallenge dac = new DataAvailabilityChallenge();
+        save("DataAvailabilityChallenge", address(dac));
+        console.log("DataAvailabilityChallenge deployed at %s", address(dac));
+
+        addr_ = address(dac);
     }
 
     ////////////////////////////////////////////////////////////////
@@ -1240,5 +1276,37 @@ contract Deploy is Deployer {
             gameTypeString,
             vm.toString(rawGameType)
         );
+    }
+
+    /// @notice Initialize the DataAvailabilityChallenge
+    function initializeDataAvailabilityChallenge() public broadcast {
+        console.log("Upgrading and initializing DataAvailabilityChallenge proxy");
+        address dataAvailabilityChallengeProxy = mustGetAddress("DataAvailabilityChallengeProxy");
+        address dataAvailabilityChallenge = mustGetAddress("DataAvailabilityChallenge");
+
+        address finalSystemOwner = cfg.finalSystemOwner();
+        uint256 daChallengeWindow = cfg.daChallengeWindow();
+        uint256 daResolveWindow = cfg.daResolveWindow();
+        uint256 daBondSize = cfg.daBondSize();
+        uint256 daResolverRefundPercentage = cfg.daResolverRefundPercentage();
+
+        _upgradeAndCallViaSafe({
+            _proxy: payable(dataAvailabilityChallengeProxy),
+            _implementation: dataAvailabilityChallenge,
+            _innerCallData: abi.encodeCall(
+                DataAvailabilityChallenge.initialize,
+                (finalSystemOwner, daChallengeWindow, daResolveWindow, daBondSize, daResolverRefundPercentage)
+                )
+        });
+
+        DataAvailabilityChallenge dac = DataAvailabilityChallenge(payable(dataAvailabilityChallengeProxy));
+        string memory version = dac.version();
+        console.log("DataAvailabilityChallenge version: %s", version);
+
+        require(dac.owner() == finalSystemOwner);
+        require(dac.challengeWindow() == daChallengeWindow);
+        require(dac.resolveWindow() == daResolveWindow);
+        require(dac.bondSize() == daBondSize);
+        require(dac.resolverRefundPercentage() == daResolverRefundPercentage);
     }
 }
