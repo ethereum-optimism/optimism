@@ -213,8 +213,9 @@ func (eq *EngineQueue) AddUnsafePayload(envelope *eth.ExecutionPayloadEnvelope) 
 }
 
 func (eq *EngineQueue) Finalize(l1Origin eth.L1BlockRef) {
+	prevFinalizedL1 := eq.finalizedL1
 	if l1Origin.Number < eq.finalizedL1.Number {
-		eq.log.Error("ignoring old L1 finalized block signal! Is the L1 provider corrupted?", "prev_finalized_l1", eq.finalizedL1, "signaled_finalized_l1", l1Origin)
+		eq.log.Error("ignoring old L1 finalized block signal! Is the L1 provider corrupted?", "prev_finalized_l1", prevFinalizedL1, "signaled_finalized_l1", l1Origin)
 		return
 	}
 
@@ -233,7 +234,7 @@ func (eq *EngineQueue) Finalize(l1Origin eth.L1BlockRef) {
 		}
 	}
 
-	eq.log.Info("received L1 finality signal, but missing data for immediate L2 finalization", "prev_finalized_l1", eq.finalizedL1, "signaled_finalized_l1", l1Origin)
+	eq.log.Info("received L1 finality signal, but missing data for immediate L2 finalization", "prev_finalized_l1", prevFinalizedL1, "signaled_finalized_l1", l1Origin)
 }
 
 // FinalizedL1 identifies the L1 chain (incl.) that included and/or produced all the finalized L2 blocks.
