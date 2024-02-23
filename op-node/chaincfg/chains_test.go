@@ -131,9 +131,9 @@ var sepoliaCfg = rollup.Config{
 	DepositContractAddress:  common.HexToAddress("0x16fc5058f25648194471939df75cf27a2fdc48bc"),
 	L1SystemConfigAddress:   common.HexToAddress("0x034edd2a225f7f429a63e0f1d2084b9e0a93b538"),
 	RegolithTime:            u64Ptr(0),
-	CanyonTime:              u64Ptr(1705600788),
-	DeltaTime:               u64Ptr(1709078400),
-	EcotoneTime:             u64Ptr(1709078400),
+	CanyonTime:              u64Ptr(1699981200),
+	DeltaTime:               u64Ptr(1703203200),
+	EcotoneTime:             u64Ptr(1708534800),
 	ProtocolVersionsAddress: common.HexToAddress("0x79ADD5713B383DAa0a138d3C4780C7A1804a8090"),
 }
 
