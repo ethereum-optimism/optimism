@@ -35,7 +35,7 @@ contract Proxy {
     /// @notice Sets the initial admin during contract deployment. Admin address is stored at the
     ///         EIP-1967 admin storage slot so that accidental storage collision with the
     ///         implementation is not possible.
-    /// @param _admin Address of the initial contract admin. Admin as the ability to access the
+    /// @param _admin Address of the initial contract admin. Admin has the ability to access the
     ///               transparent proxy interface.
     constructor(address _admin) {
         _changeAdmin(_admin);
