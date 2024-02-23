@@ -296,7 +296,6 @@ func createDeepClaimList() []faultTypes.Claim {
 				Position: faultTypes.NewPosition(0, big.NewInt(0)),
 			},
 			ContractIndex:       0,
-			CounteredBy:         common.HexToAddress("0x222222"),
 			ParentContractIndex: math.MaxInt64,
 			Claimant:            common.HexToAddress("0x111111"),
 		},
@@ -304,7 +303,6 @@ func createDeepClaimList() []faultTypes.Claim {
 			ClaimData: faultTypes.ClaimData{
 				Position: faultTypes.NewPosition(1, big.NewInt(0)),
 			},
-			CounteredBy:         common.HexToAddress("0x111111"),
 			ContractIndex:       1,
 			ParentContractIndex: 0,
 			Claimant:            common.HexToAddress("0x222222"),
