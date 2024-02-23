@@ -152,11 +152,13 @@ type Uint256Quantity = hexutil.U256
 
 type Data = hexutil.Bytes
 
-type PayloadID = engine.PayloadID
-type PayloadInfo struct {
-	ID        PayloadID
-	Timestamp uint64
-}
+type (
+	PayloadID   = engine.PayloadID
+	PayloadInfo struct {
+		ID        PayloadID
+		Timestamp uint64
+	}
+)
 
 type ExecutionPayloadEnvelope struct {
 	ParentBeaconBlockRoot *common.Hash      `json:"parentBeaconBlockRoot,omitempty"`
@@ -296,14 +298,17 @@ type PayloadAttributes struct {
 	SuggestedFeeRecipient common.Address `json:"suggestedFeeRecipient"`
 	// Withdrawals to include into the block -- should be nil or empty depending on Shanghai enablement
 	Withdrawals *types.Withdrawals `json:"withdrawals,omitempty"`
+	// parentBeaconBlockRoot optional extension in Dencun
+	ParentBeaconBlockRoot *common.Hash `json:"parentBeaconBlockRoot,omitempty"`
+
+	// Optimism additions
+
 	// Transactions to force into the block (always at the start of the transactions list).
 	Transactions []Data `json:"transactions,omitempty"`
 	// NoTxPool to disable adding any transactions from the transaction-pool.
 	NoTxPool bool `json:"noTxPool,omitempty"`
 	// GasLimit override
 	GasLimit *Uint64Quantity `json:"gasLimit,omitempty"`
-	// parentBeaconBlockRoot optional extension in Dencun
-	ParentBeaconBlockRoot *common.Hash `json:"parentBeaconBlockRoot,omitempty"`
 }
 
 type ExecutePayloadStatus string
