@@ -172,8 +172,8 @@ github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.3 h1:RWHKLhCrQThMfch+QJ1Z
 github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.3/go.mod h1:QziizLAiF0KqyLdNJYD7O5cpDlaFMNZzlxYNcWsJUxs=
 github.com/ethereum-optimism/op-geth v1.101308.3-0.20240305151625-7c19ab73a4b3 h1:jFLkp8h3cA8w80tCuuAJAS7L4dTT1yD1vYCqeIljGz0=
 github.com/ethereum-optimism/op-geth v1.101308.3-0.20240305151625-7c19ab73a4b3/go.mod h1:RPqVhnX00rJNys/YRDK4Wl4PvS6dgFrLqhsopIZOhEw=
-github.com/ethereum-optimism/superchain-registry/superchain v0.0.0-20240222155908-ab073f6aa74f h1:L2ub0d0iW2Nqwh1r9WxMqebgZf7rU+wHuVCv21uAGx8=
-github.com/ethereum-optimism/superchain-registry/superchain v0.0.0-20240222155908-ab073f6aa74f/go.mod h1:7xh2awFQqsiZxFrHKTgEd+InVfDRrkKVUIuK8SAFHp0=
+github.com/ethereum-optimism/superchain-registry/superchain v0.0.0-20240223113841-1203fe72c5dc h1:ELuRENfnx0JN/BeHVdXEOTzLQ/DLt5RP9oa245kAEyY=
+github.com/ethereum-optimism/superchain-registry/superchain v0.0.0-20240223113841-1203fe72c5dc/go.mod h1:7xh2awFQqsiZxFrHKTgEd+InVfDRrkKVUIuK8SAFHp0=
 github.com/ethereum/c-kzg-4844 v0.4.0 h1:3MS1s4JtA868KpJxroZoepdV0ZKBp3u/O5HcZ7R3nlY=
 github.com/ethereum/c-kzg-4844 v0.4.0/go.mod h1:VewdlzQmpT5QSrVhbBuGoCdFJkpaJlO1aQputP83wc0=
 github.com/fatih/color v1.13.0 h1:8LOYc1KYPPmyKMuN8QV2DNRWNbLo6LZ0iLs8+mlH53w=
