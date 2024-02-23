@@ -60,28 +60,6 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 		return nil, fmt.Errorf("unable to retrieve deposit contract address")
 	}
 
-	regolithTime := uint64(0)
-	// three goerli testnets test-ran Bedrock and later upgraded to Regolith.
-	// All other OP-Stack chains have Regolith enabled from the start.
-	switch chainID {
-	case baseGoerli:
-		regolithTime = 1683219600
-	case opGoerli:
-		regolithTime = 1679079600
-	case labsGoerliDevnet:
-		regolithTime = 1677984480
-	case labsGoerliChaosnet:
-		regolithTime = 1692156862
-	}
-
-	deltaTime := superChain.Config.DeltaTime
-	// OP Labs Sepolia devnet 0 activated delta at genesis, slightly earlier than
-	// Base Sepolia devnet 0 on the same superchain.
-	switch chainID {
-	case labsSepoliaDevnet0:
-		deltaTime = new(uint64)
-	}
-
 	cfg := &Config{
 		Genesis: Genesis{
 			L1: eth.BlockID{
@@ -105,11 +83,11 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 		ChannelTimeout:         300,
 		L1ChainID:              new(big.Int).SetUint64(superChain.Config.L1.ChainID),
 		L2ChainID:              new(big.Int).SetUint64(chConfig.ChainID),
-		RegolithTime:           &regolithTime,
-		CanyonTime:             superChain.Config.CanyonTime,
-		DeltaTime:              deltaTime,
-		EcotoneTime:            superChain.Config.EcotoneTime,
-		FjordTime:              superChain.Config.FjordTime,
+		RegolithTime:           chConfig.RegolithTime,
+		CanyonTime:             chConfig.CanyonTime,
+		DeltaTime:              chConfig.DeltaTime,
+		EcotoneTime:            chConfig.EcotoneTime,
+		FjordTime:              chConfig.FjordTime,
 		BatchInboxAddress:      common.Address(chConfig.BatchInboxAddr),
 		DepositContractAddress: common.Address(addrs.OptimismPortalProxy),
 		L1SystemConfigAddress:  common.Address(addrs.SystemConfigProxy),
