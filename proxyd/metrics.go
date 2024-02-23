@@ -264,7 +264,7 @@ var (
 		"backend_group_name",
 	})
 
-	consensusHAError = promauto.NewGaugeVec(prometheus.GaugeOpts{
+	consensusHAError = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: MetricsNamespace,
 		Name:      "group_consensus_ha_error",
 		Help:      "Consensus HA error count",
