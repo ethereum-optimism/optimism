@@ -3,12 +3,18 @@
 
 notif() { echo "== $0: $*" >&2 ; }
 usage() {
-  echo "Usage: $0 [-h|--help] [container|local|dev]" 1>&2
-  echo "Options:" 1>&2
+  echo "Usage: $0 [-h|--help] [container|local|dev] [script|TESTS]" 1>&2
+  echo "" 1>&2
   echo "  -h, --help         Display this help message." 1>&2
+  echo "" 1>&2
+  echo "Execution modes:"
   echo "  container          Run in docker container. Reproduce CI execution. (Default)" 1>&2
   echo "  local              Run locally, enforces registered versions.json version for better reproducibility. (Recommended)" 1>&2
   echo "  dev                Run locally, does NOT enforce registered version. (Useful for developing with new versions and features)" 1>&2
+  echo "" 1>&2
+  echo "Tests executed:"
+  echo "  script             Execute the tests recorded in run-kontrol.sh" 1>&2
+  echo "  TESTS              Execute the tests provided as arguments" 1>&2
   exit 0
 }
 
@@ -20,25 +26,72 @@ export CONTAINER_NAME=kontrol-tests
 KONTROLRC=$(jq -r .kontrol < "$WORKSPACE_DIR/../../versions.json")
 export KONTROL_RELEASE=$KONTROLRC
 export LOCAL=false
+export SCRIPT_TESTS=false
+SCRIPT_OPTION=false
+export CUSTOM_TESTS=0 # Store the position where custom tests start, interpreting 0 as no tests
+CUSTOM_OPTION=0
 
 # Argument Parsing
+# The logic behind argument parsing is the following (in order):
+# - Execution mode argument: container (or empty), local, dev
+# - Tests arguments (first if execution mode empty): script, specific test names
 parse_args() {
-  if [ $# -gt 1 ]; then
+  if [ $# -eq 0 ]; then
+    export LOCAL=false
+    export SCRIPT_TESTS=false
+    export CUSTOM_TESTS=0
+  # `script` argument caps the total possible arguments to its position
+  elif ([ $# -gt 1 ] && [ "$1" == "script" ]) || ([ $# -gt 2 ] && [ "$2" == "script" ]); then
     usage
-  elif [ $# -eq 0 ] || [ "$1" == "container" ]; then
+  elif [ $# -eq 1 ]; then
+    SCRIPT_OPTION=false
+    CUSTOM_OPTION=0
+    parse_first_arg "$1"
+  elif [ $# -eq 2 ] && [ "$2" == "script" ]; then
+    if [ "$1" != "container" ] && [ "$1" != "local" ] && [ "$1" != "dev" ]; then
+      notif "Invalid first argument. Must be \`container\`, \`local\` or \`dev\`"
+      exit 1
+    fi
+    SCRIPT_OPTION=true
+    CUSTOM_OPTION=0
+    parse_first_arg "$1"
+  else
+    SCRIPT_OPTION=false
+    CUSTOM_OPTION=2
+    parse_first_arg "$1"
+  fi
+}
+
+# Parse the first argument passed to `run-kontrol.sh`
+parse_first_arg() {
+  if [ "$1" == "container" ]; then
     notif "Running in docker container (DEFAULT)"
     export LOCAL=false
+    export SCRIPT_TESTS=$SCRIPT_OPTION
+    export CUSTOM_TESTS=$CUSTOM_OPTION
   elif [ "$1" == "-h" ] || [ "$1" == "--help" ]; then
     usage
   elif [ "$1" == "local" ]; then
     notif "Running with LOCAL install, .kontrolrc CI version ENFORCED"
+    export SCRIPT_TESTS=$SCRIPT_OPTION
+    export CUSTOM_TESTS=$CUSTOM_OPTION
     check_kontrol_version
   elif [ "$1" == "dev" ]; then
     notif "Running with LOCAL install, IGNORING .kontrolrc version"
     export LOCAL=true
+    export SCRIPT_TESTS=$SCRIPT_OPTION
+    export CUSTOM_TESTS=$CUSTOM_OPTION
     pushd "$WORKSPACE_DIR" > /dev/null || exit
+  elif [ "$1" == "script" ]; then
+    notif "Running in docker container (DEFAULT)"
+    export LOCAL=false
+    export SCRIPT_TESTS=$([[ "${SCRIPT_OPTION}" == "true" ]] && echo false || echo true)
+    export CUSTOM_TESTS=$CUSTOM_OPTION
   else
-    usage
+    notif "Running in docker container (DEFAULT)"
+    export LOCAL=false
+    export SCRIPT_TESTS=$SCRIPT_OPTION
+    export CUSTOM_TESTS=1 # Store the position where custom tests start
   fi
 }
 
