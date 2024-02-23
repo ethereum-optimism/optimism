@@ -13,7 +13,7 @@ import (
 func Resolve(tree *monTypes.BidirectionalTree) gameTypes.GameStatus {
 	for i := len(tree.Claims) - 1; i >= 0; i-- {
 		claim := tree.Claims[i]
-		counterClaimant := common.Address{}
+		counterClaimant := claim.Claim.CounteredBy
 		for _, child := range claim.Children {
 			if child.Claim.CounteredBy == (common.Address{}) {
 				counterClaimant = child.Claim.Claimant

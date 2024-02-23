@@ -10,6 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var DefaultClaimant = common.Address{0x09, 0x23, 0x34, 0x45, 0x13, 0xb3}
+
 // ClaimBuilder is a test utility to enable creating claims in a wide range of situations
 type ClaimBuilder struct {
 	require  *require.Assertions
@@ -80,6 +82,7 @@ func (c *ClaimBuilder) CreateRootClaim(correct bool) types.Claim {
 			Value:    value,
 			Position: types.NewPosition(0, common.Big0),
 		},
+		Claimant: DefaultClaimant,
 	}
 	return claim
 }
@@ -91,6 +94,7 @@ func (c *ClaimBuilder) CreateLeafClaim(traceIndex *big.Int, correct bool) types.
 			Value:    c.claim(pos, correct),
 			Position: pos,
 		},
+		Claimant: DefaultClaimant,
 	}
 }
 
@@ -102,6 +106,7 @@ func (c *ClaimBuilder) AttackClaim(claim types.Claim, correct bool) types.Claim 
 			Position: pos,
 		},
 		ParentContractIndex: claim.ContractIndex,
+		Claimant:            DefaultClaimant,
 	}
 }
 
@@ -113,6 +118,7 @@ func (c *ClaimBuilder) AttackClaimWithValue(claim types.Claim, value common.Hash
 			Position: pos,
 		},
 		ParentContractIndex: claim.ContractIndex,
+		Claimant:            DefaultClaimant,
 	}
 }
 
@@ -124,6 +130,7 @@ func (c *ClaimBuilder) DefendClaim(claim types.Claim, correct bool) types.Claim 
 			Position: pos,
 		},
 		ParentContractIndex: claim.ContractIndex,
+		Claimant:            DefaultClaimant,
 	}
 }
 
@@ -135,5 +142,6 @@ func (c *ClaimBuilder) DefendClaimWithValue(claim types.Claim, value common.Hash
 			Position: pos,
 		},
 		ParentContractIndex: claim.ContractIndex,
+		Claimant:            DefaultClaimant,
 	}
 }

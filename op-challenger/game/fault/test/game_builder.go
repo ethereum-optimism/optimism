@@ -86,6 +86,12 @@ func (s *GameBuilderSeq) Defend(value common.Hash) *GameBuilderSeq {
 	}
 }
 
+func (s *GameBuilderSeq) Step() {
+	claims := s.gameBuilder.Game.Claims()
+	claims[len(claims)-1].CounteredBy = DefaultClaimant
+	s.gameBuilder.Game = types.NewGameState(claims, s.builder.maxDepth)
+}
+
 func (s *GameBuilderSeq) ExpectAttack() *GameBuilderSeq {
 	newPos := s.lastClaim.Position.Attack()
 	value := s.builder.CorrectClaimAtPosition(newPos)
