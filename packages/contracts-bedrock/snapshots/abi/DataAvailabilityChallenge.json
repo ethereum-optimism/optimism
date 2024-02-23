@@ -321,6 +321,19 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "bytes",
+        "name": "commitment",
+        "type": "bytes"
+      }
+    ],
+    "name": "validateCommitment",
+    "outputs": [],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "variableResolutionCost",
     "outputs": [
@@ -555,9 +568,9 @@
   {
     "inputs": [
       {
-        "internalType": "bytes1",
+        "internalType": "uint8",
         "name": "commitmentType",
-        "type": "bytes1"
+        "type": "uint8"
       }
     ],
     "name": "UnknownCommitmentType",

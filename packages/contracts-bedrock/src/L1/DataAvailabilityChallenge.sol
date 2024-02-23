@@ -64,7 +64,7 @@ contract DataAvailabilityChallenge is OwnableUpgradeable, ISemver {
     error WithdrawalFailed();
 
     /// @notice Error for when a the type of a given commitment is unknown
-    error UnknownCommitmentType(bytes1 commitmentType);
+    error UnknownCommitmentType(uint8 commitmentType);
 
     /// @notice Error for when the commitment length does not match the commitment type
     error InvalidCommitmentLength(uint8 commitmentType, uint256 expectedLength, uint256 actualLength);
@@ -259,21 +259,29 @@ contract DataAvailabilityChallenge is OwnableUpgradeable, ISemver {
         return ChallengeStatus.Expired;
     }
 
+    /// @notice Extract the commitment type from a given commitment.
+    /// @dev The commitment type is located in the first byte of the commitment.
+    /// @param commitment The commitment from which to extract the commitment type.
+    /// @return The commitment type of the given commitment.
+    function _getCommitmentType(bytes calldata commitment) internal pure returns (uint8) {
+        return uint8(bytes1(commitment));
+    }
+
     /// @notice Validate that a given commitment has a known type and the expected length for this type.
     /// @dev The type of a commitment is stored in its first byte.
     ///      The function reverts with `UnknownCommitmentType` if the type is not known and
     ///      with `InvalidCommitmentLength` if the commitment has an unexpected length.
     /// @param commitment The commitment for which to check the type.
-    /// @return The commitment type of the given commitment.
-    function _validateCommitment(bytes calldata commitment) internal pure returns (CommitmentType) {
-        if (uint8(bytes1(commitment)) == uint8(CommitmentType.Keccak256)) {
+    function validateCommitment(bytes calldata commitment) public pure {
+        uint8 commitmentType = _getCommitmentType(commitment);
+        if (commitmentType == uint8(CommitmentType.Keccak256)) {
             if (commitment.length != 33) {
                 revert InvalidCommitmentLength(uint8(CommitmentType.Keccak256), 33, commitment.length);
             }
-            return CommitmentType.Keccak256;
+            return;
         }
 
-        revert UnknownCommitmentType(bytes1(commitment));
+        revert UnknownCommitmentType(commitmentType);
     }
 
     /// @notice Challenge a commitment at a given block number.
@@ -285,7 +293,7 @@ contract DataAvailabilityChallenge is OwnableUpgradeable, ISemver {
     /// @param challengedCommitment The commitment that is being challenged.
     function challenge(uint256 challengedBlockNumber, bytes calldata challengedCommitment) external payable {
         // require the commitment type to be known
-        _validateCommitment(challengedCommitment);
+        validateCommitment(challengedCommitment);
 
         // deposit value sent with the transaction as bond
         deposit();
@@ -332,7 +340,7 @@ contract DataAvailabilityChallenge is OwnableUpgradeable, ISemver {
         external
     {
         // require the commitment type to be known
-        CommitmentType commitmentType = _validateCommitment(challengedCommitment);
+        validateCommitment(challengedCommitment);
 
         // require the challenge to be active (started, not resolved, and resolve window still open)
         if (getChallengeStatus(challengedBlockNumber, challengedCommitment) != ChallengeStatus.Active) {
@@ -340,8 +348,9 @@ contract DataAvailabilityChallenge is OwnableUpgradeable, ISemver {
         }
 
         // compute the commitment corresponding to the given resolveData
+        uint8 commitmentType = _getCommitmentType(challengedCommitment);
         bytes memory computedCommitment;
-        if (commitmentType == CommitmentType.Keccak256) {
+        if (commitmentType == uint8(CommitmentType.Keccak256)) {
             computedCommitment = computeCommitmentKeccak256(resolveData);
         }
 

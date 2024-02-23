@@ -513,4 +513,22 @@ contract DataAvailabilityChallengeTest is CommonTest {
         vm.expectRevert("Ownable: caller is not the owner");
         dataAvailabilityChallenge.setBondSize(newBondSize);
     }
+
+    function testValidateCommitment() public {
+        // Should not revert given a valid commitment
+        bytes memory validCommitment = abi.encodePacked(CommitmentType.Keccak256, keccak256("test"));
+        dataAvailabilityChallenge.validateCommitment(validCommitment);
+
+        // Should revert if the commitment type is unknown
+        vm.expectRevert(abi.encodeWithSelector(DataAvailabilityChallenge.UnknownCommitmentType.selector, uint8(1)));
+        bytes memory unknownType = abi.encodePacked(uint8(1), keccak256("test"));
+        dataAvailabilityChallenge.validateCommitment(unknownType);
+
+        // Should revert if the commitment length does not match
+        vm.expectRevert(
+            abi.encodeWithSelector(DataAvailabilityChallenge.InvalidCommitmentLength.selector, uint8(0), 33, 34)
+        );
+        bytes memory invalidLength = abi.encodePacked(CommitmentType.Keccak256, keccak256("test"), "x");
+        dataAvailabilityChallenge.validateCommitment(invalidLength);
+    }
 }

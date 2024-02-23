@@ -94,6 +94,7 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "DataAvailabilityChallenge", _sel: DataAvailabilityChallenge.withdraw.selector });
         _addSpec({ _name: "DataAvailabilityChallenge", _sel: DataAvailabilityChallenge.getChallenge.selector });
         _addSpec({ _name: "DataAvailabilityChallenge", _sel: DataAvailabilityChallenge.getChallengeStatus.selector });
+        _addSpec({ _name: "DataAvailabilityChallenge", _sel: DataAvailabilityChallenge.validateCommitment.selector });
         _addSpec({ _name: "DataAvailabilityChallenge", _sel: DataAvailabilityChallenge.challenge.selector });
         _addSpec({ _name: "DataAvailabilityChallenge", _sel: DataAvailabilityChallenge.resolve.selector });
         _addSpec({ _name: "DataAvailabilityChallenge", _sel: DataAvailabilityChallenge.unlockBond.selector });
