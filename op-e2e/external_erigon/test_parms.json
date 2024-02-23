@@ -19,11 +19,6 @@
     "TestCannonPoisonedPostState": "TODO, this should be investigated, is probably the debug_dbGet though",
     "TestPreregolith/UnusedGasConsumed_RegolithNotScheduled": "Erigon doesn't reject building the block when the gas exceeds the block gas limit; instead, it discards transactions until they fit within the block",
     "TestPreregolith/UnusedGasConsumed_RegolithNotYetActive": "Erigon doesn't reject building the block when the gas exceeds the block gas limit; instead, it discards transactions until they fit within the block",
-    "TestMultipleGameTypes": "TODO, this should be investigated, is probably the debug_dbGet though",
-    "TestSystemE2EDencunAtGenesisWithBlobs": "TODO, this should be investigated, but likely is because our Erigon is out of date",
-    "TestEcotone": "TODO, this should be investigated, but likely is because our Erigon is out of date",
-    "TestSystem4844E2E": "TODO, this should be investigated, but likely is because our Erigon is out of date",
-    "TestFees/ecotone": "TODO, this should be investigated, but likely is because our Erigon is out of date",
-    "TestSequencerFailover_SetupCluster": "TODO, this should be investigated, but likely is because our Erigon is out of date"
+    "TestMultipleGameTypes": "TODO, this should be investigated, is probably the debug_dbGet though"
   }
 }

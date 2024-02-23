@@ -165,6 +165,12 @@ func execute(binPath string, config external.Config) (*erigonSession, error) {
 		return nil, fmt.Errorf("started did not finish in time")
 	}
 
+	// TODO(jky) this is a horrible hack, but giving Erigon just a little extra
+	// time to stabilize seems to drastically improve the reliability of these
+	// tests in CI, ideally we should add in a log message we can scrape once the
+	// system is 'really' up, but there's not one that's readily apparent.
+	time.Sleep(5 * time.Second)
+
 	return &erigonSession{
 		session: sess,
 		endpoints: &external.Endpoints{
