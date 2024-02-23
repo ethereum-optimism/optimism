@@ -26,7 +26,6 @@ func TestGetRollupConfig(t *testing.T) {
 		"sepolia":      sepoliaCfg,
 		"boba-sepolia": bobaSepoliaCfg,
 	}
-	_ = mainnetCfg
 
 	for name, expectedCfg := range configsByName {
 		gotCfg, err := GetRollupConfig(name)
