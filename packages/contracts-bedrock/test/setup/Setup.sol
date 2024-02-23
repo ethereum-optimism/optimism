@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Predeploys } from "src/libraries/Predeploys.sol";
+import { Predeploys, ICrossL2Inbox, IL2ToL2CrossDomainMessenger } from "src/libraries/Predeploys.sol";
 import { L2CrossDomainMessenger } from "src/L2/L2CrossDomainMessenger.sol";
 import { L2StandardBridge } from "src/L2/L2StandardBridge.sol";
 import { L2ToL1MessagePasser } from "src/L2/L2ToL1MessagePasser.sol";
@@ -75,6 +75,9 @@ contract Setup {
     L1FeeVault l1FeeVault = L1FeeVault(payable(Predeploys.L1_FEE_VAULT));
     GasPriceOracle gasPriceOracle = GasPriceOracle(Predeploys.GAS_PRICE_ORACLE);
     L1Block l1Block = L1Block(Predeploys.L1_BLOCK_ATTRIBUTES);
+    ICrossL2Inbox crossL2Inbox = ICrossL2Inbox(Predeploys.CROSS_L2_INBOX);
+    IL2ToL2CrossDomainMessenger l2ToL2CrossDomainMessenger =
+        IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
     LegacyMessagePasser legacyMessagePasser = LegacyMessagePasser(Predeploys.LEGACY_MESSAGE_PASSER);
     GovernanceToken governanceToken = GovernanceToken(Predeploys.GOVERNANCE_TOKEN);
 
@@ -180,6 +183,8 @@ contract Setup {
         vm.label(Predeploys.BASE_FEE_VAULT, "BaseFeeVault");
         vm.label(Predeploys.L1_FEE_VAULT, "L1FeeVault");
         vm.label(Predeploys.L1_BLOCK_ATTRIBUTES, "L1Block");
+        vm.label(Predeploys.CROSS_L2_INBOX, "CrossL2Inbox");
+        vm.label(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, "L2ToL2CrossDomainMessenger");
         vm.label(Predeploys.GAS_PRICE_ORACLE, "GasPriceOracle");
         vm.label(Predeploys.LEGACY_MESSAGE_PASSER, "LegacyMessagePasser");
         vm.label(Predeploys.GOVERNANCE_TOKEN, "GovernanceToken");

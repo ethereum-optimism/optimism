@@ -1,6 +1,74 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+interface ICrossL2Inbox {
+    struct Identifier {
+        address origin;
+        uint256 blocknumber;
+        uint256 logIndex;
+        uint256 timestamp;
+        uint256 chainId;
+    }
+
+    function ORIGIN_SLOT() external view returns (bytes32);
+
+    function BLOCKNUMBER_SLOT() external view returns (bytes32);
+
+    function LOG_INDEX_SLOT() external view returns (bytes32);
+
+    function TIMESTAMP_SLOT() external view returns (bytes32);
+
+    function CHAINID_SLOT() external view returns (bytes32);
+
+    function initialize(address _l1Block) external;
+
+    function origin() external view returns (address _origin);
+
+    function blocknumber() external view returns (uint256 _blocknumber);
+
+    function logIndex() external view returns (uint256 _logIndex);
+
+    function timestamp() external view returns (uint256 _timestamp);
+
+    function chainId() external view returns (uint256 _chainId);
+
+    function executeMessage(
+        bytes calldata _msg,
+        ICrossL2Inbox.Identifier calldata _id,
+        address _target
+    )
+        external
+        payable;
+}
+
+interface IL2ToL2CrossDomainMessenger {
+    function CROSS_DOMAIN_MESSAGE_SENDER_SLOT(address) external view returns (bytes32);
+
+    function MESSAGE_VERSION() external view returns (uint16);
+
+    function INITIAL_BALANCE() external view returns (uint248);
+
+    function CROSS_L2_INBOX() external view returns (ICrossL2Inbox);
+
+    function successfulMessages(bytes32) external view returns (bool);
+
+    function msgNonce() external view returns (uint240);
+
+    function messageNonce() external view returns (uint256);
+
+    function sendMessage(uint256 _destination, address _target, bytes calldata _message) external payable;
+
+    function relayMessage(
+        uint256 _destination,
+        uint256 _nonce,
+        address _sender,
+        address _target,
+        uint256 _value,
+        bytes calldata _message
+    )
+        external;
+}
+
 /// @title Predeploys
 /// @notice Contains constant addresses for contracts that are pre-deployed to the L2 system.
 library Predeploys {
@@ -27,6 +95,12 @@ library Predeploys {
 
     /// @notice Address of the L1Block predeploy.
     address internal constant L1_BLOCK_ATTRIBUTES = 0x4200000000000000000000000000000000000015;
+
+    /// @notice Address of the CrossL2Inbox predeploy.
+    address internal constant CROSS_L2_INBOX = 0x4200000000000000000000000000000000000022;
+
+    /// @notice Address of the L2ToL2CrossDomainMessenger predeploy.
+    address internal constant L2_TO_L2_CROSS_DOMAIN_MESSENGER = 0x4200000000000000000000000000000000000023;
 
     /// @notice Address of the GasPriceOracle predeploy. Includes fee information
     ///         and helpers for computing the L1 portion of the transaction fee.

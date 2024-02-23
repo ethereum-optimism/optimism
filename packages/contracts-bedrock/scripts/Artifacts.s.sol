@@ -137,6 +137,10 @@ abstract contract Artifacts {
             return payable(Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY);
         } else if (digest == keccak256(bytes("L1Block"))) {
             return payable(Predeploys.L1_BLOCK_ATTRIBUTES);
+        } else if (digest == keccak256(bytes("CrossL2Inbox"))) {
+            return payable(Predeploys.CROSS_L2_INBOX);
+        } else if (digest == keccak256(bytes("L2ToL2CrossDomainMessenger"))) {
+            return payable(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
         } else if (digest == keccak256(bytes("GasPriceOracle"))) {
             return payable(Predeploys.GAS_PRICE_ORACLE);
         } else if (digest == keccak256(bytes("L1MessageSender"))) {
