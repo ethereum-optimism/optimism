@@ -28,7 +28,7 @@ type Oracle interface {
 	// GetBlobField retrieves the field element at the given index from the blob with the given hash.
 	GetBlob(ref eth.L1BlockRef, blobHash eth.IndexedBlobHash) *eth.Blob
 
-	// KZGPointEvaluation retriees the result of the Cancun KZG point evaluation precompile for the given input.
+	// KZGPointEvaluation retrieves the result of the Cancun KZG point evaluation precompile for the given input.
 	KZGPointEvaluation(input []byte) bool
 }
 
