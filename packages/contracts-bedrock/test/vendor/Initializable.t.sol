@@ -334,7 +334,7 @@ contract Initializer_Test is Bridge_Initializer {
         // Ensure that all L1, L2 `Initializable` contracts are accounted for, in addition to
         // OptimismMintableERC20FactoryImpl, OptimismMintableERC20FactoryProxy, OptimismPortal2, DisputeGameFactoryImpl
         // and DisputeGameFactoryProxy
-        assertEq(_getNumInitializable() + 1, contracts.length);
+        assertEq(_getNumInitializable() + 2, contracts.length);
 
         // Attempt to re-initialize all contracts within the `contracts` array.
         for (uint256 i; i < contracts.length; i++) {
