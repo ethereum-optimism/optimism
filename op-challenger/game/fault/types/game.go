@@ -33,6 +33,10 @@ type Game interface {
 	AgreeWithClaimLevel(claim Claim, agreeWithRootClaim bool) bool
 
 	MaxDepth() Depth
+
+	// AncestorWithTraceIndex finds the ancestor of claim with trace index idx if present.
+	// Returns the claim and true if the ancestor is found, or Claim{}, false if not.
+	AncestorWithTraceIndex(claim Claim, idx *big.Int) (Claim, bool)
 }
 
 type claimID common.Hash
@@ -118,4 +122,20 @@ func (g *gameState) getParent(claim Claim) *Claim {
 	}
 	parent := g.claims[claim.ParentContractIndex]
 	return &parent
+}
+
+func (g *gameState) AncestorWithTraceIndex(claim Claim, idx *big.Int) (Claim, bool) {
+	for {
+		if claim.Position.TraceIndex(g.depth).Cmp(idx) == 0 {
+			return claim, true
+		}
+		if claim.IsRoot() {
+			return Claim{}, false
+		}
+		next := g.getParent(claim)
+		if next == nil {
+			return Claim{}, false
+		}
+		claim = *next
+	}
 }

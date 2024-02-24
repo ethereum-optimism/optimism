@@ -131,6 +131,92 @@ func TestGame_DefendsParent(t *testing.T) {
 	}
 }
 
+func TestAncestorWithTraceIndex(t *testing.T) {
+	depth := Depth(4)
+	claims := []Claim{
+		{
+			ClaimData: ClaimData{
+				Position: NewPositionFromGIndex(big.NewInt(0)),
+			},
+			ContractIndex:       0,
+			ParentContractIndex: 0,
+		},
+	}
+	addClaimAtPos := func(parent Claim, pos Position) Claim {
+		claim := Claim{
+			ClaimData: ClaimData{
+				Position: pos,
+			},
+			ParentContractIndex: parent.ContractIndex,
+			ContractIndex:       len(claims),
+		}
+		claims = append(claims, claim)
+		return claim
+	}
+	attack := func(claim Claim) Claim {
+		return addClaimAtPos(claim, claim.Position.Attack())
+	}
+	defend := func(claim Claim) Claim {
+		return addClaimAtPos(claim, claim.Position.Defend())
+	}
+	// Create a variety of paths to leaf nodes
+	attack(attack(attack(attack(claims[0]))))
+	defend(defend(defend(defend(claims[0]))))
+	defend(attack(defend(attack(claims[0]))))
+	attack(defend(attack(defend(claims[0]))))
+	attack(attack(defend(defend(claims[0]))))
+	defend(defend(attack(attack(claims[0]))))
+
+	game := NewGameState(claims, depth)
+	// Every claim should be able to find the root's trace index
+	for _, claim := range claims {
+		actual, ok := game.AncestorWithTraceIndex(claim, claims[0].TraceIndex(depth))
+		require.True(t, ok)
+		require.Equal(t, claims[0], actual)
+	}
+
+	// Leaf claims should be able to find the trace index before and after
+	for _, claim := range game.Claims() {
+		if claim.Depth() != depth {
+			// Only leaf nodes are guaranteed to have the pre and post states available
+			continue
+		}
+		claimIdx := claim.TraceIndex(depth)
+
+		actual, ok := game.AncestorWithTraceIndex(claim, claimIdx)
+		require.True(t, ok)
+		require.Equal(t, claim, actual, "Should get leaf claim for its own trace index")
+
+		// The right most claim doesn't have
+		if claim.IndexAtDepth().Cmp(big.NewInt(30)) < 0 {
+			idx := new(big.Int).Add(claimIdx, big.NewInt(1))
+			actual, ok = game.AncestorWithTraceIndex(claim, idx)
+			require.Truef(t, ok, "Should find claim with next trace index for claim %v index at depth %v", claim.ContractIndex, claim.IndexAtDepth())
+			require.Equalf(t, idx, actual.TraceIndex(depth), "Should find claim with next trace index for claim %v index at depth %v", claim.ContractIndex, claim.IndexAtDepth())
+		}
+
+		if claimIdx.Cmp(big.NewInt(0)) == 0 {
+			continue
+		}
+		idx := new(big.Int).Sub(claimIdx, big.NewInt(1))
+		actual, ok = game.AncestorWithTraceIndex(claim, idx)
+		require.True(t, ok)
+		require.Equal(t, idx, actual.TraceIndex(depth), "Should find claim with previous trace index")
+	}
+
+	actual, ok := game.AncestorWithTraceIndex(claims[0], big.NewInt(0))
+	require.False(t, ok)
+	require.Equal(t, Claim{}, actual)
+
+	actual, ok = game.AncestorWithTraceIndex(claims[1], big.NewInt(1))
+	require.False(t, ok)
+	require.Equal(t, Claim{}, actual)
+
+	actual, ok = game.AncestorWithTraceIndex(claims[3], big.NewInt(1))
+	require.True(t, ok)
+	require.Equal(t, claims[3], actual)
+}
+
 func buildGameWithClaim(claimGIndex *big.Int, parentGIndex *big.Int) *gameState {
 	parentClaim := Claim{
 		ClaimData: ClaimData{
