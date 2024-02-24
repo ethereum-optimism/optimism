@@ -61,7 +61,7 @@ func TestLoadClaimsWhenGameNotResolvable(t *testing.T) {
 	claimBuilder := test.NewClaimBuilder(t, depth, alphabet.NewTraceProvider(big.NewInt(0), depth))
 
 	claimLoader.claims = []types.Claim{
-		claimBuilder.CreateRootClaim(true),
+		claimBuilder.CreateRootClaim(),
 	}
 
 	require.NoError(t, agent.Act(context.Background()))

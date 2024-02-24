@@ -41,9 +41,9 @@ func TestAttemptStep(t *testing.T) {
 			expectedOracleData: claimBuilder.CorrectOracleData(common.Big0),
 			setupGame: func(builder *faulttest.GameBuilder) {
 				builder.Seq().
-					Attack(common.Hash{0xaa}).
-					AttackCorrect().
-					Attack(common.Hash{0xbb})
+					Attack(faulttest.WithValue(common.Hash{0xaa})).
+					Attack().
+					Attack(faulttest.WithValue(common.Hash{0xbb}))
 			},
 		},
 		{
@@ -54,9 +54,9 @@ func TestAttemptStep(t *testing.T) {
 			expectedOracleData: claimBuilder.CorrectOracleData(big.NewInt(1)),
 			setupGame: func(builder *faulttest.GameBuilder) {
 				builder.Seq().
-					Attack(common.Hash{0xaa}).
-					AttackCorrect().
-					AttackCorrect()
+					Attack(faulttest.WithValue(common.Hash{0xaa})).
+					Attack().
+					Attack()
 			},
 		},
 		{
@@ -67,9 +67,9 @@ func TestAttemptStep(t *testing.T) {
 			expectedOracleData: claimBuilder.CorrectOracleData(big.NewInt(4)),
 			setupGame: func(builder *faulttest.GameBuilder) {
 				builder.Seq().
-					AttackCorrect().
-					DefendCorrect().
-					Attack(common.Hash{0xaa})
+					Attack().
+					Defend().
+					Attack(faulttest.WithValue(common.Hash{0xaa}))
 			},
 		},
 		{
@@ -80,9 +80,9 @@ func TestAttemptStep(t *testing.T) {
 			expectedOracleData: claimBuilder.CorrectOracleData(big.NewInt(5)),
 			setupGame: func(builder *faulttest.GameBuilder) {
 				builder.Seq().
-					AttackCorrect().
-					DefendCorrect().
-					AttackCorrect()
+					Attack().
+					Defend().
+					Attack()
 			},
 		},
 		{
@@ -93,9 +93,9 @@ func TestAttemptStep(t *testing.T) {
 			expectedOracleData: claimBuilder.CorrectOracleData(lastLeafTraceIndex),
 			setupGame: func(builder *faulttest.GameBuilder) {
 				builder.Seq().
-					AttackCorrect().
-					DefendCorrect().
-					Defend(common.Hash{0xaa})
+					Attack().
+					Defend().
+					Defend(faulttest.WithValue(common.Hash{0xaa}))
 			},
 		},
 		{
@@ -106,15 +106,15 @@ func TestAttemptStep(t *testing.T) {
 			expectedOracleData: claimBuilder.CorrectOracleData(lastLeafTraceIndexPlusOne),
 			setupGame: func(builder *faulttest.GameBuilder) {
 				builder.Seq().
-					AttackCorrect().
-					DefendCorrect().
-					DefendCorrect()
+					Attack().
+					Defend().
+					Defend()
 			},
 		},
 		{
 			name: "CannotStepNonLeaf",
 			setupGame: func(builder *faulttest.GameBuilder) {
-				builder.Seq().AttackCorrect().AttackCorrect()
+				builder.Seq().Attack().Attack()
 			},
 			expectedErr:         ErrStepNonLeafNode,
 			agreeWithOutputRoot: true,
@@ -123,9 +123,9 @@ func TestAttemptStep(t *testing.T) {
 			name: "CannotStepAgreedNode",
 			setupGame: func(builder *faulttest.GameBuilder) {
 				builder.Seq().
-					AttackCorrect().
-					Attack(common.Hash{0xaa}).
-					AttackCorrect()
+					Attack().
+					Attack(faulttest.WithValue(common.Hash{0xaa})).
+					Attack()
 			},
 			expectedErr:         ErrStepIgnoreInvalidPath,
 			agreeWithOutputRoot: true,
@@ -134,9 +134,9 @@ func TestAttemptStep(t *testing.T) {
 			name: "CannotStepInvalidPath",
 			setupGame: func(builder *faulttest.GameBuilder) {
 				builder.Seq().
-					Attack(common.Hash{0xaa}).
-					Attack(common.Hash{0xbb}).
-					Attack(common.Hash{0xcc})
+					Attack(faulttest.WithValue(common.Hash{0xaa})).
+					Attack(faulttest.WithValue(common.Hash{0xbb})).
+					Attack(faulttest.WithValue(common.Hash{0xcc}))
 			},
 			expectedErr:         ErrStepIgnoreInvalidPath,
 			agreeWithOutputRoot: true,
@@ -149,9 +149,9 @@ func TestAttemptStep(t *testing.T) {
 			expectedOracleData: claimBuilder.CorrectOracleData(big.NewInt(4)),
 			setupGame: func(builder *faulttest.GameBuilder) {
 				builder.Seq().
-					AttackCorrect().
-					DefendCorrect().
-					DefendCorrect()
+					Attack().
+					Defend().
+					Defend()
 			},
 			expectedErr:         ErrStepIgnoreInvalidPath,
 			agreeWithOutputRoot: true,
@@ -161,7 +161,7 @@ func TestAttemptStep(t *testing.T) {
 	for _, tableTest := range tests {
 		tableTest := tableTest
 		t.Run(tableTest.name, func(t *testing.T) {
-			builder := claimBuilder.GameBuilder(!tableTest.agreeWithOutputRoot)
+			builder := claimBuilder.GameBuilder(faulttest.WithInvalidValue(tableTest.agreeWithOutputRoot))
 			tableTest.setupGame(builder)
 			alphabetSolver := newClaimSolver(maxDepth, trace.NewSimpleTraceAccessor(claimBuilder.CorrectTraceProvider()))
 			game := builder.Game

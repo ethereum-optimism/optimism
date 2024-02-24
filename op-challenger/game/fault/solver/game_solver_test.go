@@ -55,32 +55,32 @@ func TestCalculateNextActions(t *testing.T) {
 			name: "DoNotPerformDuplicateMoves",
 			setupGame: func(builder *faulttest.GameBuilder) {
 				// Expected move has already been made.
-				builder.Seq().AttackCorrect()
+				builder.Seq().Attack()
 			},
 		},
 		{
 			name: "RespondToAllClaimsAtDisagreeingLevel",
 			setupGame: func(builder *faulttest.GameBuilder) {
-				honestClaim := builder.Seq().AttackCorrect()
-				honestClaim.AttackCorrect().ExpectDefend()
-				honestClaim.DefendCorrect().ExpectDefend()
-				honestClaim.Attack(common.Hash{0xaa}).ExpectAttack()
-				honestClaim.Attack(common.Hash{0xbb}).ExpectAttack()
-				honestClaim.Defend(common.Hash{0xcc}).ExpectAttack()
-				honestClaim.Defend(common.Hash{0xdd}).ExpectAttack()
+				honestClaim := builder.Seq().Attack()
+				honestClaim.Attack().ExpectDefend()
+				honestClaim.Defend().ExpectDefend()
+				honestClaim.Attack(faulttest.WithValue(common.Hash{0xaa})).ExpectAttack()
+				honestClaim.Attack(faulttest.WithValue(common.Hash{0xbb})).ExpectAttack()
+				honestClaim.Defend(faulttest.WithValue(common.Hash{0xcc})).ExpectAttack()
+				honestClaim.Defend(faulttest.WithValue(common.Hash{0xdd})).ExpectAttack()
 			},
 		},
 		{
 			name: "StepAtMaxDepth",
 			setupGame: func(builder *faulttest.GameBuilder) {
 				lastHonestClaim := builder.Seq().
-					AttackCorrect().
-					AttackCorrect().
-					DefendCorrect().
-					DefendCorrect().
-					DefendCorrect()
-				lastHonestClaim.AttackCorrect().ExpectStepDefend()
-				lastHonestClaim.Attack(common.Hash{0xdd}).ExpectStepAttack()
+					Attack().
+					Attack().
+					Defend().
+					Defend().
+					Defend()
+				lastHonestClaim.Attack().ExpectStepDefend()
+				lastHonestClaim.Attack(faulttest.WithValue(common.Hash{0xdd})).ExpectStepAttack()
 			},
 		},
 		{
@@ -91,23 +91,23 @@ func TestCalculateNextActions(t *testing.T) {
 
 				// Dishonest actor counters their own claims to set up a situation with an invalid prestate
 				// The honest actor should ignore path created by the dishonest actor, only supporting its own attack on the root claim
-				honestMove := builder.Seq().AttackCorrect() // This expected action is the winning move.
-				dishonestMove := honestMove.Attack(maliciousStateHash)
+				honestMove := builder.Seq().Attack() // This expected action is the winning move.
+				dishonestMove := honestMove.Attack(faulttest.WithValue(maliciousStateHash))
 				// The expected action by the honest actor
 				dishonestMove.ExpectAttack()
 				// The honest actor will ignore this poisoned path
 				dishonestMove.
-					Defend(maliciousStateHash).
-					Attack(maliciousStateHash)
+					Defend(faulttest.WithValue(maliciousStateHash)).
+					Attack(faulttest.WithValue(maliciousStateHash))
 			},
 		},
 		{
 			name: "Freeloader-ValidClaimAtInvalidAttackPosition",
 			setupGame: func(builder *faulttest.GameBuilder) {
 				builder.Seq().
-					AttackCorrect().                // Honest response to invalid root
-					DefendCorrect().ExpectDefend(). // Defender agrees at this point, we should defend
-					AttackCorrect().ExpectDefend()  // Freeloader attacks instead of defends
+					Attack().                // Honest response to invalid root
+					Defend().ExpectDefend(). // Defender agrees at this point, we should defend
+					Attack().ExpectDefend()  // Freeloader attacks instead of defends
 			},
 			runCondition: RunFreeloadersCountered,
 		},
@@ -115,9 +115,9 @@ func TestCalculateNextActions(t *testing.T) {
 			name: "Freeloader-InvalidClaimAtInvalidAttackPosition",
 			setupGame: func(builder *faulttest.GameBuilder) {
 				builder.Seq().
-					AttackCorrect().                         // Honest response to invalid root
-					DefendCorrect().ExpectDefend().          // Defender agrees at this point, we should defend
-					Attack(common.Hash{0xbb}).ExpectAttack() // Freeloader attacks with wrong claim instead of defends
+					Attack().                                                     // Honest response to invalid root
+					Defend().ExpectDefend().                                      // Defender agrees at this point, we should defend
+					Attack(faulttest.WithValue(common.Hash{0xbb})).ExpectAttack() // Freeloader attacks with wrong claim instead of defends
 			},
 			runCondition: RunFreeloadersCountered,
 		},
@@ -125,9 +125,9 @@ func TestCalculateNextActions(t *testing.T) {
 			name: "Freeloader-InvalidClaimAtValidDefensePosition",
 			setupGame: func(builder *faulttest.GameBuilder) {
 				builder.Seq().
-					AttackCorrect().                         // Honest response to invalid root
-					DefendCorrect().ExpectDefend().          // Defender agrees at this point, we should defend
-					Defend(common.Hash{0xbb}).ExpectAttack() // Freeloader defends with wrong claim, we should attack
+					Attack().                                                     // Honest response to invalid root
+					Defend().ExpectDefend().                                      // Defender agrees at this point, we should defend
+					Defend(faulttest.WithValue(common.Hash{0xbb})).ExpectAttack() // Freeloader defends with wrong claim, we should attack
 			},
 			runCondition: RunFreeloadersCountered,
 		},
@@ -135,9 +135,9 @@ func TestCalculateNextActions(t *testing.T) {
 			name: "Freeloader-InvalidClaimAtValidAttackPosition",
 			setupGame: func(builder *faulttest.GameBuilder) {
 				builder.Seq().
-					AttackCorrect().                          // Honest response to invalid root
-					Defend(common.Hash{0xaa}).ExpectAttack(). // Defender disagrees at this point, we should attack
-					Attack(common.Hash{0xbb}).ExpectAttack()  // Freeloader attacks with wrong claim instead of defends
+					Attack().                                                      // Honest response to invalid root
+					Defend(faulttest.WithValue(common.Hash{0xaa})).ExpectAttack(). // Defender disagrees at this point, we should attack
+					Attack(faulttest.WithValue(common.Hash{0xbb})).ExpectAttack()  // Freeloader attacks with wrong claim instead of defends
 			},
 			runCondition: RunFreeloadersCountered,
 		},
@@ -145,18 +145,18 @@ func TestCalculateNextActions(t *testing.T) {
 			name: "Freeloader-InvalidClaimAtInvalidDefensePosition",
 			setupGame: func(builder *faulttest.GameBuilder) {
 				builder.Seq().
-					AttackCorrect().                          // Honest response to invalid root
-					Defend(common.Hash{0xaa}).ExpectAttack(). // Defender disagrees at this point, we should attack
-					Defend(common.Hash{0xbb})                 // Freeloader defends with wrong claim but we must not respond to avoid poisoning
+					Attack().                                                      // Honest response to invalid root
+					Defend(faulttest.WithValue(common.Hash{0xaa})).ExpectAttack(). // Defender disagrees at this point, we should attack
+					Defend(faulttest.WithValue(common.Hash{0xbb}))                 // Freeloader defends with wrong claim but we must not respond to avoid poisoning
 			},
 		},
 		{
 			name: "Freeloader-ValidClaimAtInvalidAttackPosition-RespondingToDishonestButCorrectAttack",
 			setupGame: func(builder *faulttest.GameBuilder) {
 				builder.Seq().
-					AttackCorrect().                // Honest response to invalid root
-					AttackCorrect().ExpectDefend(). // Defender attacks with correct value, we should defend
-					AttackCorrect().ExpectDefend()  // Freeloader attacks with wrong claim, we should defend
+					Attack().                // Honest response to invalid root
+					Attack().ExpectDefend(). // Defender attacks with correct value, we should defend
+					Attack().ExpectDefend()  // Freeloader attacks with wrong claim, we should defend
 			},
 			runCondition: RunFreeloadersCountered,
 		},
@@ -164,10 +164,10 @@ func TestCalculateNextActions(t *testing.T) {
 			name: "Freeloader-DoNotCounterOwnClaim",
 			setupGame: func(builder *faulttest.GameBuilder) {
 				builder.Seq().
-					AttackCorrect().                // Honest response to invalid root
-					AttackCorrect().ExpectDefend(). // Defender attacks with correct value, we should defend
-					AttackCorrect().                // Freeloader attacks instead, we should defend
-					DefendCorrect()                 // We do defend and we shouldn't counter our own claim
+					Attack().                // Honest response to invalid root
+					Attack().ExpectDefend(). // Defender attacks with correct value, we should defend
+					Attack().                // Freeloader attacks instead, we should defend
+					Defend()                 // We do defend and we shouldn't counter our own claim
 			},
 			runCondition: RunFreeloadersCountered,
 		},
@@ -175,11 +175,11 @@ func TestCalculateNextActions(t *testing.T) {
 			name: "Freeloader-ContinueDefendingAgainstFreeloader",
 			setupGame: func(builder *faulttest.GameBuilder) {
 				builder.Seq(). // invalid root
-						AttackCorrect().                // Honest response to invalid root
-						AttackCorrect().ExpectDefend(). // Defender attacks with correct value, we should defend
-						AttackCorrect().                // Freeloader attacks instead, we should defend
-						DefendCorrect().                // We do defend
-						Attack(common.Hash{0xaa}).      // freeloader attacks our defense, we should attack
+						Attack().                                       // Honest response to invalid root
+						Attack().ExpectDefend().                        // Defender attacks with correct value, we should defend
+						Attack().                                       // Freeloader attacks instead, we should defend
+						Defend().                                       // We do defend
+						Attack(faulttest.WithValue(common.Hash{0xaa})). // freeloader attacks our defense, we should attack
 						ExpectAttack()
 			},
 			runCondition: RunFreeloadersCountered,
@@ -188,9 +188,9 @@ func TestCalculateNextActions(t *testing.T) {
 			name: "Freeloader-FreeloaderCountersRootClaim",
 			setupGame: func(builder *faulttest.GameBuilder) {
 				builder.Seq().
-					ExpectAttack().            // Honest response to invalid root
-					Attack(common.Hash{0xaa}). // freeloader
-					ExpectAttack()             // Honest response to freeloader
+					ExpectAttack().                                 // Honest response to invalid root
+					Attack(faulttest.WithValue(common.Hash{0xaa})). // freeloader
+					ExpectAttack()                                  // Honest response to freeloader
 			},
 			runCondition: RunFreeloadersCountered,
 		},
@@ -210,7 +210,7 @@ func TestCalculateNextActions(t *testing.T) {
 					t.Skip("Freeloader countering enabled")
 				}
 			}
-			builder := claimBuilder.GameBuilder(test.rootClaimCorrect)
+			builder := claimBuilder.GameBuilder(faulttest.WithInvalidValue(!test.rootClaimCorrect))
 			test.setupGame(builder)
 			game := builder.Game
 			logClaims(t, game)
