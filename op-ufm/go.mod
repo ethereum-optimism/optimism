@@ -7,7 +7,7 @@ toolchain go1.21.6
 require (
 	cloud.google.com/go/kms v1.12.1
 	github.com/BurntSushi/toml v1.3.2
-	github.com/ethereum-optimism/optimism v1.5.0-rc.3.0.20240131131533-152d1e0a458d
+	github.com/ethereum-optimism/optimism v1.6.2-0.20240222202618-f707883038d5
 	github.com/ethereum/go-ethereum v1.13.8
 	github.com/gorilla/mux v1.8.0
 	github.com/pkg/errors v0.9.1
@@ -99,6 +99,4 @@ require (
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
 
-replace github.com/ethereum/go-ethereum v1.13.8 => github.com/ethereum-optimism/op-geth v1.101308.0-rc.1
-
-replace github.com/ethereum-optimism/optimism => ../.
+replace github.com/ethereum/go-ethereum v1.13.8 => github.com/ethereum-optimism/op-geth v1.101308.2-rc.2
