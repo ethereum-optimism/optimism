@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var DefaultClaimant = common.Address{0x09, 0x23, 0x34, 0x45, 0x13, 0xb3}
+var DefaultClaimant = common.Address{0xba, 0xdb, 0xad, 0xba, 0xdb, 0xad}
 
 type claimCfg struct {
 	value        common.Hash

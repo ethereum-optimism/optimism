@@ -10,9 +10,6 @@ import (
 	faulttest "github.com/ethereum-optimism/optimism/op-challenger/game/fault/test"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
-	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
-	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/resolution"
-	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/transform"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
@@ -199,31 +196,14 @@ func TestCalculateNextActions(t *testing.T) {
 	for _, test := range tests {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
-			switch test.runCondition {
-			case RunAlways:
-			case RunFreeloadersCountered:
-				if !expectFreeloaderCounters {
-					t.Skip("Freeloader countering not enabled")
-				}
-			case RunFreeloadersNotCountered:
-				if expectFreeloaderCounters {
-					t.Skip("Freeloader countering enabled")
-				}
-			}
+			enforceRunConditions(t, test.runCondition)
 			builder := claimBuilder.GameBuilder(faulttest.WithInvalidValue(!test.rootClaimCorrect))
 			test.setupGame(builder)
 			game := builder.Game
 			logClaims(t, game)
 
 			solver := NewGameSolver(maxDepth, trace.NewSimpleTraceAccessor(claimBuilder.CorrectTraceProvider()))
-			actions, err := solver.CalculateNextActions(context.Background(), game)
-			require.NoError(t, err)
-			for i, action := range actions {
-				t.Logf("Move %v: Type: %v, ParentIdx: %v, Attack: %v, Value: %v, PreState: %v, ProofData: %v",
-					i, action.Type, action.ParentIdx, action.IsAttack, action.Value, hex.EncodeToString(action.PreState), hex.EncodeToString(action.ProofData))
-				// Check that every move the solver returns meets the generic validation rules
-				require.NoError(t, checkRules(game, action), "Attempting to perform invalid action")
-			}
+			postState, actions := runStep(t, solver, game, claimBuilder.CorrectTraceProvider())
 			for i, action := range builder.ExpectedActions {
 				t.Logf("Expect %v: Type: %v, ParentIdx: %v, Attack: %v, Value: %v, PreState: %v, ProofData: %v",
 					i, action.Type, action.ParentIdx, action.IsAttack, action.Value, hex.EncodeToString(action.PreState), hex.EncodeToString(action.ProofData))
@@ -231,24 +211,126 @@ func TestCalculateNextActions(t *testing.T) {
 			}
 			require.Len(t, actions, len(builder.ExpectedActions), "Incorrect number of actions")
 
-			challengerAddr := common.Address{0xaa, 0xbb, 0xcc, 0xdd}
-			postState := applyActions(game, challengerAddr, actions)
-			t.Log("Post game state:")
-			logClaims(t, postState)
-			actualResult := gameResult(postState)
-			expectedResult := gameTypes.GameStatusChallengerWon
-			if test.rootClaimCorrect {
-				expectedResult = gameTypes.GameStatusDefenderWon
-			}
-			require.Equalf(t, expectedResult, actualResult, "Game should resolve correctly expected %v but was %v", expectedResult, actualResult)
+			verifyGameRules(t, postState, test.rootClaimCorrect)
 		})
 	}
 }
 
-func logClaims(t *testing.T, game types.Game) {
-	for i, claim := range game.Claims() {
-		t.Logf("Claim %v: Pos: %v TraceIdx: %v Depth: %v IndexAtDepth: %v ParentIdx: %v Value: %v Claimant: %v CounteredBy: %v",
-			i, claim.Position.ToGIndex(), claim.Position.TraceIndex(game.MaxDepth()), claim.Position.Depth(), claim.Position.IndexAtDepth(), claim.ParentContractIndex, claim.Value, claim.Claimant, claim.CounteredBy)
+func runStep(t *testing.T, solver *GameSolver, game types.Game, correctTraceProvider types.TraceProvider) (types.Game, []types.Action) {
+	actions, err := solver.CalculateNextActions(context.Background(), game)
+	require.NoError(t, err)
+
+	postState := applyActions(game, challengerAddr, actions)
+	t.Log("Post state:")
+	logClaims(t, postState)
+
+	for i, action := range actions {
+		t.Logf("Move %v: Type: %v, ParentIdx: %v, Attack: %v, Value: %v, PreState: %v, ProofData: %v",
+			i, action.Type, action.ParentIdx, action.IsAttack, action.Value, hex.EncodeToString(action.PreState), hex.EncodeToString(action.ProofData))
+		// Check that every move the solver returns meets the generic validation rules
+		require.NoError(t, checkRules(game, action, correctTraceProvider), "Attempting to perform invalid action")
+	}
+	return postState, actions
+}
+
+func TestMultipleRounds(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name         string
+		actor        actor
+		runCondition RunCondition
+	}{
+		{
+			name:  "SingleRoot",
+			actor: doNothingActor,
+		},
+		{
+			name:  "LinearAttackCorrect",
+			actor: correctAttackLastClaim,
+		},
+		{
+			name:  "LinearDefendCorrect",
+			actor: correctDefendLastClaim,
+		},
+		{
+			name:  "LinearAttackIncorrect",
+			actor: incorrectAttackLastClaim,
+		},
+		{
+			name:  "LinearDefendInorrect",
+			actor: incorrectDefendLastClaim,
+		},
+		{
+			name:  "LinearDefendIncorrectDefendCorrect",
+			actor: combineActors(incorrectDefendLastClaim, correctDefendLastClaim),
+		},
+		{
+			name:  "LinearAttackIncorrectDefendCorrect",
+			actor: combineActors(incorrectAttackLastClaim, correctDefendLastClaim),
+		},
+		{
+			name:  "LinearDefendIncorrectDefendIncorrect",
+			actor: combineActors(incorrectDefendLastClaim, incorrectDefendLastClaim),
+		},
+		{
+			name:  "LinearAttackIncorrectDefendIncorrect",
+			actor: combineActors(incorrectAttackLastClaim, incorrectDefendLastClaim),
+		},
+		{
+			name:         "AttackEverythingCorrect",
+			actor:        attackEverythingCorrect,
+			runCondition: RunFreeloadersCountered,
+		},
+		{
+			name:  "DefendEverythingCorrect",
+			actor: defendEverythingCorrect,
+		},
+		{
+			name:  "AttackEverythingIncorrect",
+			actor: attackEverythingIncorrect,
+		},
+		{
+			name:  "DefendEverythingIncorrect",
+			actor: defendEverythingIncorrect,
+		},
+		{
+			name:  "Exhaustive",
+			actor: exhaustive,
+			// TODO(client-pod#611): We attempt to step even though the prestate is invalid
+			// The step call would fail to estimate gas so not even send, but the challenger shouldn't try
+			runCondition: RunFreeloadersCountered,
+		},
+	}
+	for _, test := range tests {
+		test := test
+		for _, rootClaimCorrect := range []bool{true, false} {
+			rootClaimCorrect := rootClaimCorrect
+			t.Run(fmt.Sprintf("%v-%v", test.name, rootClaimCorrect), func(t *testing.T) {
+				t.Parallel()
+				enforceRunConditions(t, test.runCondition)
+
+				maxDepth := types.Depth(6)
+				startingL2BlockNumber := big.NewInt(50)
+				claimBuilder := faulttest.NewAlphabetClaimBuilder(t, startingL2BlockNumber, maxDepth)
+				builder := claimBuilder.GameBuilder(faulttest.WithInvalidValue(!rootClaimCorrect))
+				game := builder.Game
+				logClaims(t, game)
+
+				correctTrace := claimBuilder.CorrectTraceProvider()
+				solver := NewGameSolver(maxDepth, trace.NewSimpleTraceAccessor(correctTrace))
+
+				roundNum := 0
+				done := false
+				for !done {
+					t.Logf("------ ROUND %v ------", roundNum)
+					game, _ = runStep(t, solver, game, correctTrace)
+					verifyGameRules(t, game, rootClaimCorrect)
+
+					game, done = test.actor.Apply(t, game, correctTrace)
+					roundNum++
+				}
+			})
+		}
 	}
 }
 
@@ -284,7 +366,16 @@ func applyActions(game types.Game, claimant common.Address, actions []types.Acti
 	return types.NewGameState(claims, game.MaxDepth())
 }
 
-func gameResult(game types.Game) gameTypes.GameStatus {
-	tree := transform.CreateBidirectionalTree(game.Claims())
-	return resolution.Resolve(tree)
+func enforceRunConditions(t *testing.T, runCondition RunCondition) {
+	switch runCondition {
+	case RunAlways:
+	case RunFreeloadersCountered:
+		if !expectFreeloaderCounters {
+			t.Skip("Freeloader countering not enabled")
+		}
+	case RunFreeloadersNotCountered:
+		if expectFreeloaderCounters {
+			t.Skip("Freeloader countering enabled")
+		}
+	}
 }
