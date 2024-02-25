@@ -2,7 +2,6 @@ package solver
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
@@ -28,7 +27,6 @@ func (s *GameSolver) CalculateNextActions(ctx context.Context, game types.Game) 
 	if err != nil {
 		return nil, fmt.Errorf("failed to determine if root claim is correct: %w", err)
 	}
-	var errs []error
 	var actions []types.Action
 	agreedClaims := newHonestClaimTracker()
 	if agreeWithRootClaim {
@@ -36,22 +34,23 @@ func (s *GameSolver) CalculateNextActions(ctx context.Context, game types.Game) 
 	}
 	for _, claim := range game.Claims() {
 		var action *types.Action
-		var err error
 		if claim.Depth() == game.MaxDepth() {
 			action, err = s.calculateStep(ctx, game, claim, agreedClaims)
 		} else {
 			action, err = s.calculateMove(ctx, game, claim, agreedClaims)
 		}
 		if err != nil {
-			errs = append(errs, err)
-			continue
+			// Unable to continue iterating claims safely because we may not have tracked the required honest moves
+			// for this claim which affects the response to later claims.
+			// Any actions we've already identified are still safe to apply.
+			return actions, fmt.Errorf("failed to determine response to claim %v: %w", claim.ContractIndex, err)
 		}
 		if action == nil {
 			continue
 		}
 		actions = append(actions, *action)
 	}
-	return actions, errors.Join(errs...)
+	return actions, nil
 }
 
 func (s *GameSolver) calculateStep(ctx context.Context, game types.Game, claim types.Claim, agreedClaims *honestClaimTracker) (*types.Action, error) {
