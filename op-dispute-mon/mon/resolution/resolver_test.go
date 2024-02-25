@@ -95,6 +95,45 @@ func TestResolver_Resolve(t *testing.T) {
 		require.Equal(t, gameTypes.GameStatusDefenderWon, status)
 	})
 
+	t.Run("UseLeftMostUncounteredClaim", func(t *testing.T) {
+		builder := test.NewAlphabetClaimBuilder(t, big.NewInt(10), 5).GameBuilder()
+		expectedRootCounteredBy := common.Address{0xaa}
+		forkPoint := builder.Seq(). // Defender winning
+						Attack(test.WithClaimant(expectedRootCounteredBy)). // Challenger winning
+						Attack()                                            // Defender winning
+
+		// Left most child of forkPoint, but has been countered
+		forkPoint.
+			Attack(test.WithValue(common.Hash{0xaa}), test.WithClaimant(common.Address{0xbb})).
+			Defend()
+
+		// Uncountered child, but not leftmost
+		forkPoint.
+			Defend(test.WithValue(common.Hash{0xbb}), test.WithClaimant(common.Address{0xcc})). // Challenger winning
+			Defend().                                                                           // Defender winning
+			Defend()                                                                            // Challenger winning
+
+		// Left most child that is ultimately uncountered and should be used as CounteredBy
+		expectedCounteredBy := common.Address{0xdd}
+		forkPoint.
+			Attack(test.WithClaimant(expectedCounteredBy)).
+			Defend().
+			Defend()
+
+		// Uncountered child,
+		forkPoint.
+			Defend(test.WithClaimant(common.Address{0xee})). // Challenger winning
+			Defend().                                        // Defender winning
+			Defend()                                         // Challenger winning
+		tree := transform.CreateBidirectionalTree(builder.Game.Claims())
+		status := Resolve(tree)
+		// Defender won all forks
+		require.Equal(t, gameTypes.GameStatusChallengerWon, status)
+		forkPointClaim := tree.Claims[2].Claim
+		require.Equal(t, expectedCounteredBy, forkPointClaim.CounteredBy)
+		require.Equal(t, expectedRootCounteredBy, tree.Claims[0].Claim.CounteredBy)
+	})
+
 	t.Run("SteppedClaimed_ChallengerWon", func(t *testing.T) {
 		builder := test.NewAlphabetClaimBuilder(t, big.NewInt(10), 4).GameBuilder()
 		builder.Seq(). // Defender winning
