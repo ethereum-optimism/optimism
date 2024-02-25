@@ -442,6 +442,27 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         gameProxy.attack{ value: 0 }(0, _dummyClaim());
     }
 
+    /// @dev Tests that a claim cannot be stepped against twice.
+    function test_step_duplicateStep_reverts() public {
+        // Give the test contract some ether
+        vm.deal(address(this), 100 ether);
+
+        // Make claims all the way down the tree.
+        gameProxy.attack{ value: 1 ether }(0, _dummyClaim());
+        gameProxy.attack{ value: 1 ether }(1, _dummyClaim());
+        gameProxy.attack{ value: 1 ether }(2, _dummyClaim());
+        gameProxy.attack{ value: 1 ether }(3, _dummyClaim());
+        gameProxy.attack{ value: 1 ether }(4, _changeClaimStatus(_dummyClaim(), VMStatuses.PANIC));
+        gameProxy.attack{ value: 1 ether }(5, _dummyClaim());
+        gameProxy.attack{ value: 1 ether }(6, _dummyClaim());
+        gameProxy.attack{ value: 1 ether }(7, _dummyClaim());
+        gameProxy.addLocalData(LocalPreimageKey.STARTING_L2_BLOCK_NUMBER, 8, 0);
+        gameProxy.step(8, true, absolutePrestateData, hex"");
+
+        vm.expectRevert(DuplicateStep.selector);
+        gameProxy.step(8, true, absolutePrestateData, hex"");
+    }
+
     /// @dev Static unit test for the correctness an uncontested root resolution.
     function test_resolve_rootUncontested_succeeds() public {
         vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
