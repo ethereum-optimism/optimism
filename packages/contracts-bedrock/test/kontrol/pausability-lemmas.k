@@ -1,7 +1,7 @@
 requires "evm.md"
 requires "foundry.md"
 
-module PAUSABILITY-LEMMAS [symbolic]
+module PAUSABILITY-LEMMAS
     imports BOOL
     imports FOUNDRY
     // imports INFINITE-GAS
@@ -25,12 +25,6 @@ module PAUSABILITY-LEMMAS [symbolic]
     syntax Int ::= "maxBytesLength" [alias]
     rule maxBytesLength => 9223372036854775808
 
-    // Deconstruction of <<Int into #buf
-    rule X <<Int Y => #asWord ( #buf ( 32 -Int (Y /Int 8) , X ) +Bytes #buf ( Y /Int 8 , 0 ) )
-      requires 0 <=Int X andBool X <Int 2 ^Int (256 -Int Y)
-       andBool 0 <=Int Y andBool Y <=Int 256 andBool Y modInt 8 ==Int 0
-      [simplification, concrete(Y)]
-
     //
     // Arithmetic
     //
@@ -40,6 +34,14 @@ module PAUSABILITY-LEMMAS [symbolic]
 
     // Cancellativity #2
     rule (A -Int B) -Int (C -Int B) => A -Int C [simplification]
+
+    // Cancellativity #3
+    rule A -Int (A +Int B) => 0 -Int B [simplification]
+
+    // Various inequalities
+    rule X  <Int A &Int B => true requires X <Int 0 andBool 0 <=Int A andBool 0 <=Int B [concrete(X), simplification]
+    rule X  <Int A +Int B => true requires X <Int 0 andBool 0 <=Int A andBool 0 <=Int B [concrete(X), simplification]
+    rule X <=Int A +Int B => true requires X <Int 0 andBool 0 <=Int A andBool 0 <=Int B [concrete(X), simplification]
 
     //
     // lengthBytes
@@ -135,6 +137,11 @@ module PAUSABILITY-LEMMAS [symbolic]
       requires 0 <=Int START andBool START <=Int lengthBytes(B)
       [simplification]
 
+    // Update of tail
+    rule ( B1:Bytes +Bytes B2:Bytes ) [ S:Int := B ] => B1 +Bytes ( B2 [ S -Int lengthBytes(B1) := B ] )
+      requires lengthBytes(B1) <=Int S
+      [simplification]
+
     // Consecutive quasi-contiguous byte-array update
     rule B [ S1 := B1 ] [ S2 := B2 ] => B [ S1 := #range(B1, 0, S2 -Int S1) +Bytes B2 ]
       requires 0 <=Int S1 andBool S1 <=Int S2 andBool S2 <=Int S1 +Int lengthBytes(B1)
@@ -159,40 +166,25 @@ module PAUSABILITY-LEMMAS [symbolic]
       <useGas> false </useGas>
       <schedule> SHANGHAI </schedule>
       <jumpDests> JUMPDESTS </jumpDests>
-      // The whole program is fully symbolic, and the executed portion is determined from the original program
+      // The program and program counter are symbolic, focusing on the part we will be executing (CP)
       <program> PROGRAM </program>
-      <pc> PCOUNT => PCOUNT +Int lengthBytes(CP) </pc>
+      <pc> PCOUNT => PCOUNT +Int 53 </pc>
       // The word stack has the appropriate form, as per the compiled code
-      <wordStack> LENGTH : SRC : STEP : DEST : WS => LENGTH : SRC : STEP : 0 : DEST : WS </wordStack>
+      <wordStack> LENGTH : _ : SRC : DEST : WS </wordStack>
       // The program copies LENGTH bytes of memory from SRC +Int 32 to DEST +Int OFFSET,
       // padded with 32 zeros in case LENGTH is not divisible by 32
       <localMem>
-        LM => LM [ DEST +Int OFFSET := #range ( LM, SRC +Int 32, LENGTH ) +Bytes
-                                       #buf ( ( ( notMaxUInt5 &Int ( LENGTH +Int maxUInt5 ) ) -Int LENGTH ) , 0 ) +Bytes
-                                       #buf ( ( ( ( 32 -Int ( ( notMaxUInt5 &Int ( LENGTH +Int maxUInt5 ) ) -Int LENGTH ) ) ) modInt 32 ), 0 ) ]
+        LM => LM [ DEST +Int 32 := #range ( LM, SRC +Int 32, LENGTH ) +Bytes
+                                   #buf ( ( ( notMaxUInt5 &Int ( LENGTH +Int maxUInt5 ) ) -Int LENGTH ) , 0 ) +Bytes
+                                   #buf ( ( ( ( 32 -Int ( ( notMaxUInt5 &Int ( LENGTH +Int maxUInt5 ) ) -Int LENGTH ) ) ) modInt 32 ), 0 ) ]
       </localMem>
-      // OP is the program corresponding to the original compiled EVM bytecode, starting from program counter 1427
-      requires OP ==K b"`\x00\x92\x91\x90\x83[\x81\x81\x10\x15a\x05\xb6W\x82\x81\x01\x84\x01Q\x86\x82\x01a\x01\xc0\x01R\x83\x01a\x05\x99V[\x81\x81\x11\x15a\x05\xc9W`\x00a\x01\xc0\x83\x88\x01\x01R[P"
-       // The execution effectively starts from CP
-       andBool CP ==K #range(PROGRAM, PCOUNT, lengthBytes(OP))
-       // OFFSET_BYTES and OFFSET represent a symbolic offset, generalizing the concrete hardcoded offset (448).
-       andBool OFFSET_BYTES ==K #range(CP, 25, 2)
-       andBool OFFSET ==Int #asWord ( OFFSET_BYTES )
-
+      requires
        // The current program we are executing differs from the original one only in the hardcoded jump addresses,
        // which are now relative to PCOUNT, and the hardcoded offset, which is now symbolic.
-       andBool CP ==K OP
-                      [ 12 := #buf(2, PCOUNT +Int 35) ]
-                      [ 25 := OFFSET_BYTES ]
-                      [ 32 := #buf(2, PCOUNT +Int  6) ]
-                      [ 41 := #buf(2, PCOUNT +Int 54) ]
-                      [ 47 := OFFSET_BYTES ]
-
-       // STEP always equals 32 as the memory is copied in chunks of 32 bytes
-       // This equality is placed in the requires clause instead of in the LHS
-       // of the config directly to enable unification of the LHS to pass trivially,
-       // speeding up the execution
-       andBool STEP ==Int 32
+               #range(PROGRAM, PCOUNT, 53) ==K b"`\x00[\x81\x81\x10\x15b\x00\x81`W` \x81\x85\x01\x81\x01Q\x86\x83\x01\x82\x01R\x01b\x00\x81BV[\x81\x81\x11\x15b\x00\x81sW`\x00` \x83\x87\x01\x01R[P"
+                                               [ 08 := #buf(3, PCOUNT +Int 32) ]
+                                               [ 28 := #buf(3, PCOUNT +Int  2) ]
+                                               [ 38 := #buf(3, PCOUNT +Int 51) ]
 
        // Various well-formedness constraints. In particular, the maxBytesLength-related ones are present to
        // remove various chops that would otherwise creep into the execution, and are reasonable since byte
@@ -201,14 +193,13 @@ module PAUSABILITY-LEMMAS [symbolic]
        andBool 0 <=Int LENGTH andBool LENGTH <Int maxBytesLength
        andBool 0 <=Int SRC    andBool SRC    <Int maxBytesLength
        andBool 0 <=Int DEST   andBool DEST   <Int maxBytesLength
-       andBool 0 <=Int OFFSET andBool OFFSET <Int maxBytesLength
-       andBool #sizeWordStack(WS) <=Int 1014
+       andBool #sizeWordStack(WS) <=Int 1015
 
-       andBool SRC +Int 32 +Int LENGTH <=Int DEST +Int OFFSET // No overlap between source and destination
-       andBool DEST +Int OFFSET <=Int lengthBytes(LM)         // Destination starts within current memory
+       andBool SRC +Int LENGTH <=Int DEST // No overlap between source and destination
+       andBool DEST <=Int lengthBytes(LM) // Destination starts within current memory
        // All JUMPDESTs in the program are valid
-       andBool (PCOUNT +Int 6) in JUMPDESTS andBool (PCOUNT +Int 35) in JUMPDESTS andBool (PCOUNT +Int 54) in JUMPDESTS
-       andBool PCOUNT +Int 55 <Int 2 ^Int 16  // and fit into two bytes
+       andBool (PCOUNT +Int 2) in JUMPDESTS andBool (PCOUNT +Int 32) in JUMPDESTS andBool (PCOUNT +Int 51) in JUMPDESTS
+       andBool PCOUNT +Int 51 <Int 2 ^Int 16  // and fit into two bytes
       [priority(30), concrete(JUMPDESTS, PROGRAM, PCOUNT), preserves-definedness]
 
 endmodule

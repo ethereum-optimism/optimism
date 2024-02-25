@@ -54,7 +54,6 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
 
     /// @custom:kontrol-length-equals _withdrawalProof: 10,
     /// @custom:kontrol-length-equals _withdrawalProof[]: 600,
-    /// @custom:kontrol-length-equals data: 1000,
     function prove_proveWithdrawalTransaction_paused10(
         Types.WithdrawalTransaction memory _tx,
         uint256 _l2OutputIndex,
@@ -68,7 +67,6 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
 
     /// @custom:kontrol-length-equals _withdrawalProof: 9,
     /// @custom:kontrol-length-equals _withdrawalProof[]: 600,
-    /// @custom:kontrol-length-equals data: 1000,
     function prove_proveWithdrawalTransaction_paused9(
         Types.WithdrawalTransaction memory _tx,
         uint256 _l2OutputIndex,
@@ -82,7 +80,6 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
 
     /// @custom:kontrol-length-equals _withdrawalProof: 8,
     /// @custom:kontrol-length-equals _withdrawalProof[]: 600,
-    /// @custom:kontrol-length-equals data: 1000,
     function prove_proveWithdrawalTransaction_paused8(
         Types.WithdrawalTransaction memory _tx,
         uint256 _l2OutputIndex,
@@ -96,7 +93,6 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
 
     /// @custom:kontrol-length-equals _withdrawalProof: 7,
     /// @custom:kontrol-length-equals _withdrawalProof[]: 600,
-    /// @custom:kontrol-length-equals data: 1000,
     function prove_proveWithdrawalTransaction_paused7(
         Types.WithdrawalTransaction memory _tx,
         uint256 _l2OutputIndex,
@@ -110,7 +106,6 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
 
     /// @custom:kontrol-length-equals _withdrawalProof: 6,
     /// @custom:kontrol-length-equals _withdrawalProof[]: 600,
-    /// @custom:kontrol-length-equals data: 1000,
     function prove_proveWithdrawalTransaction_paused6(
         Types.WithdrawalTransaction memory _tx,
         uint256 _l2OutputIndex,
@@ -124,7 +119,6 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
 
     /// @custom:kontrol-length-equals _withdrawalProof: 5,
     /// @custom:kontrol-length-equals _withdrawalProof[]: 600,
-    /// @custom:kontrol-length-equals data: 1000,
     function prove_proveWithdrawalTransaction_paused5(
         Types.WithdrawalTransaction memory _tx,
         uint256 _l2OutputIndex,
@@ -138,7 +132,6 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
 
     /// @custom:kontrol-length-equals _withdrawalProof: 4,
     /// @custom:kontrol-length-equals _withdrawalProof[]: 600,
-    /// @custom:kontrol-length-equals data: 1000,
     function prove_proveWithdrawalTransaction_paused4(
         Types.WithdrawalTransaction memory _tx,
         uint256 _l2OutputIndex,
@@ -152,7 +145,6 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
 
     /// @custom:kontrol-length-equals _withdrawalProof: 3,
     /// @custom:kontrol-length-equals _withdrawalProof[]: 600,
-    /// @custom:kontrol-length-equals data: 1000,
     function prove_proveWithdrawalTransaction_paused3(
         Types.WithdrawalTransaction memory _tx,
         uint256 _l2OutputIndex,
@@ -166,7 +158,6 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
 
     /// @custom:kontrol-length-equals _withdrawalProof: 2,
     /// @custom:kontrol-length-equals _withdrawalProof[]: 600,
-    /// @custom:kontrol-length-equals data: 1000,
     function prove_proveWithdrawalTransaction_paused2(
         Types.WithdrawalTransaction memory _tx,
         uint256 _l2OutputIndex,
@@ -180,7 +171,6 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
 
     /// @custom:kontrol-length-equals _withdrawalProof: 1,
     /// @custom:kontrol-length-equals _withdrawalProof[]: 600,
-    /// @custom:kontrol-length-equals data: 1000,
     function prove_proveWithdrawalTransaction_paused1(
         Types.WithdrawalTransaction memory _tx,
         uint256 _l2OutputIndex,
