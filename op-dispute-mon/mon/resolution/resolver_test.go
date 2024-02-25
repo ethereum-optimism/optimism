@@ -21,7 +21,7 @@ func TestResolver_Resolve(t *testing.T) {
 	})
 
 	t.Run("SingleRootClaim", func(t *testing.T) {
-		builder := test.NewAlphabetClaimBuilder(t, big.NewInt(10), 4).GameBuilder(true)
+		builder := test.NewAlphabetClaimBuilder(t, big.NewInt(10), 4).GameBuilder()
 		tree := transform.CreateBidirectionalTree(builder.Game.Claims())
 		tree.Claims[0].Claim.CounteredBy = common.Address{}
 		status := Resolve(tree)
@@ -29,45 +29,45 @@ func TestResolver_Resolve(t *testing.T) {
 	})
 
 	t.Run("ManyClaims_ChallengerWon", func(t *testing.T) {
-		builder := test.NewAlphabetClaimBuilder(t, big.NewInt(10), 5).GameBuilder(true)
+		builder := test.NewAlphabetClaimBuilder(t, big.NewInt(10), 5).GameBuilder()
 		builder.Seq(). // Defender winning
-				AttackCorrect(). // Challenger winning
-				AttackCorrect(). // Defender winning
-				DefendCorrect(). // Challenger winning
-				DefendCorrect(). // Defender winning
-				AttackCorrect()  // Challenger winning
+				Attack(). // Challenger winning
+				Attack(). // Defender winning
+				Defend(). // Challenger winning
+				Defend(). // Defender winning
+				Attack()  // Challenger winning
 		tree := transform.CreateBidirectionalTree(builder.Game.Claims())
 		status := Resolve(tree)
 		require.Equal(t, gameTypes.GameStatusChallengerWon, status)
 	})
 
 	t.Run("ManyClaims_DefenderWon", func(t *testing.T) {
-		builder := test.NewAlphabetClaimBuilder(t, big.NewInt(10), 5).GameBuilder(true)
+		builder := test.NewAlphabetClaimBuilder(t, big.NewInt(10), 5).GameBuilder()
 		builder.Seq(). // Defender winning
-				AttackCorrect(). // Challenger winning
-				AttackCorrect(). // Defender winning
-				DefendCorrect(). // Challenger winning
-				DefendCorrect()  // Defender winning
+				Attack(). // Challenger winning
+				Attack(). // Defender winning
+				Defend(). // Challenger winning
+				Defend()  // Defender winning
 		tree := transform.CreateBidirectionalTree(builder.Game.Claims())
 		status := Resolve(tree)
 		require.Equal(t, gameTypes.GameStatusDefenderWon, status)
 	})
 
 	t.Run("MultipleBranches_ChallengerWon", func(t *testing.T) {
-		builder := test.NewAlphabetClaimBuilder(t, big.NewInt(10), 5).GameBuilder(true)
+		builder := test.NewAlphabetClaimBuilder(t, big.NewInt(10), 5).GameBuilder()
 		forkPoint := builder.Seq(). // Defender winning
-						AttackCorrect(). // Challenger winning
-						AttackCorrect()  // Defender winning
+						Attack(). // Challenger winning
+						Attack()  // Defender winning
 		forkPoint.
-			DefendCorrect(). // Challenger winning
-			DefendCorrect(). // Defender winning
-			AttackCorrect()  // Challenger winning
-		forkPoint.Defend(common.Hash{0xbb}). // Challenger winning
-							DefendCorrect(). // Defender winning
-							AttackCorrect(). // Challenger winning
-							Step()           // Defender winning
-		forkPoint.Defend(common.Hash{0xcc}). // Challenger winning
-							DefendCorrect() // Defender winning
+			Defend(). // Challenger winning
+			Defend(). // Defender winning
+			Attack()  // Challenger winning
+		forkPoint.Defend(test.WithValue(common.Hash{0xbb})). // Challenger winning
+									Defend(). // Defender winning
+									Attack(). // Challenger winning
+									Step()    // Defender winning
+		forkPoint.Defend(test.WithValue(common.Hash{0xcc})). // Challenger winning
+									Defend() // Defender winning
 		tree := transform.CreateBidirectionalTree(builder.Game.Claims())
 		status := Resolve(tree)
 		// First fork has an uncountered claim with challenger winning so that invalidates the parent and wins the game
@@ -75,19 +75,20 @@ func TestResolver_Resolve(t *testing.T) {
 	})
 
 	t.Run("MultipleBranches_DefenderWon", func(t *testing.T) {
-		builder := test.NewAlphabetClaimBuilder(t, big.NewInt(10), 5).GameBuilder(true)
+		builder := test.NewAlphabetClaimBuilder(t, big.NewInt(10), 5).GameBuilder()
 		forkPoint := builder.Seq(). // Defender winning
-						AttackCorrect(). // Challenger winning
-						AttackCorrect()  // Defender winning
+						Attack(). // Challenger winning
+						Attack()  // Defender winning
 		forkPoint.
-			DefendCorrect(). // Challenger winning
-			DefendCorrect()  // Defender winning
-		forkPoint.Defend(common.Hash{0xbb}). // Challenger winning
-							DefendCorrect(). // Defender winning
-							AttackCorrect(). // Challenger winning
-							Step()           // Defender winning
-		forkPoint.Defend(common.Hash{0xcc}). // Challenger winning
-							DefendCorrect() // Defender winning
+			Defend(). // Challenger winning
+			Defend()  // Defender winning
+		forkPoint.Defend(test.WithValue(common.Hash{0xbb})). // Challenger winning
+									Defend(). // Defender winning
+									Attack(). // Challenger winning
+									Step()    // Defender winning
+		forkPoint.Defend(test.WithValue(common.Hash{0xcc})). // Challenger winning
+									Defend() // Defender winning
+
 		tree := transform.CreateBidirectionalTree(builder.Game.Claims())
 		status := Resolve(tree)
 		// Defender won all forks
@@ -95,13 +96,13 @@ func TestResolver_Resolve(t *testing.T) {
 	})
 
 	t.Run("SteppedClaimed_ChallengerWon", func(t *testing.T) {
-		builder := test.NewAlphabetClaimBuilder(t, big.NewInt(10), 4).GameBuilder(true)
+		builder := test.NewAlphabetClaimBuilder(t, big.NewInt(10), 4).GameBuilder()
 		builder.Seq(). // Defender winning
-				AttackCorrect(). // Challenger winning
-				AttackCorrect(). // Defender winning
-				DefendCorrect(). // Challenger winning
-				DefendCorrect(). // Defender winning
-				Step()           // Challenger winning
+				Attack(). // Challenger winning
+				Attack(). // Defender winning
+				Defend(). // Challenger winning
+				Defend(). // Defender winning
+				Step()    // Challenger winning
 		claims := builder.Game.Claims()
 		// Successful step so mark as countered
 		claims[len(claims)-1].CounteredBy = common.Address{0xaa}
@@ -111,14 +112,14 @@ func TestResolver_Resolve(t *testing.T) {
 	})
 
 	t.Run("SteppedClaimed_DefenderWon", func(t *testing.T) {
-		builder := test.NewAlphabetClaimBuilder(t, big.NewInt(10), 5).GameBuilder(true)
+		builder := test.NewAlphabetClaimBuilder(t, big.NewInt(10), 5).GameBuilder()
 		builder.Seq(). // Defender winning
-				AttackCorrect(). // Challenger winning
-				AttackCorrect(). // Defender winning
-				DefendCorrect(). // Challenger winning
-				DefendCorrect(). // Defender winning
-				AttackCorrect(). // Challenger winning
-				Step()           // Defender winning
+				Attack(). // Challenger winning
+				Attack(). // Defender winning
+				Defend(). // Challenger winning
+				Defend(). // Defender winning
+				Attack(). // Challenger winning
+				Step()    // Defender winning
 		claims := builder.Game.Claims()
 		// Successful step so mark as countered
 		claims[len(claims)-1].CounteredBy = common.Address{0xaa}
