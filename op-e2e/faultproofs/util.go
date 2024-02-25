@@ -47,6 +47,7 @@ func startFaultDisputeSystem(t *testing.T, opts ...faultDisputeConfigOpts) (*op_
 	for _, opt := range opts {
 		opt(&cfg)
 	}
+	cfg.Nodes["sequencer"].SafeDBPath = t.TempDir()
 	cfg.DeployConfig.SequencerWindowSize = 4
 	cfg.DeployConfig.FinalizationPeriodSeconds = 2
 	cfg.SupportL1TimeTravel = true
