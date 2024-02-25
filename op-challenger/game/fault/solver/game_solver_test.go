@@ -14,16 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const expectFreeloaderCounters = false
-
-type RunCondition uint8
-
-const (
-	RunAlways RunCondition = iota
-	RunFreeloadersCountered
-	RunFreeloadersNotCountered
-)
-
 func TestCalculateNextActions(t *testing.T) {
 	maxDepth := types.Depth(6)
 	startingL2BlockNumber := big.NewInt(0)
@@ -33,7 +23,6 @@ func TestCalculateNextActions(t *testing.T) {
 		name             string
 		rootClaimCorrect bool
 		setupGame        func(builder *faulttest.GameBuilder)
-		runCondition     RunCondition
 	}{
 		{
 			name: "AttackRootClaim",
@@ -106,7 +95,6 @@ func TestCalculateNextActions(t *testing.T) {
 					Defend().ExpectDefend(). // Defender agrees at this point, we should defend
 					Attack().ExpectDefend()  // Freeloader attacks instead of defends
 			},
-			runCondition: RunFreeloadersCountered,
 		},
 		{
 			name: "Freeloader-InvalidClaimAtInvalidAttackPosition",
@@ -116,7 +104,6 @@ func TestCalculateNextActions(t *testing.T) {
 					Defend().ExpectDefend().                                      // Defender agrees at this point, we should defend
 					Attack(faulttest.WithValue(common.Hash{0xbb})).ExpectAttack() // Freeloader attacks with wrong claim instead of defends
 			},
-			runCondition: RunFreeloadersCountered,
 		},
 		{
 			name: "Freeloader-InvalidClaimAtValidDefensePosition",
@@ -126,7 +113,6 @@ func TestCalculateNextActions(t *testing.T) {
 					Defend().ExpectDefend().                                      // Defender agrees at this point, we should defend
 					Defend(faulttest.WithValue(common.Hash{0xbb})).ExpectAttack() // Freeloader defends with wrong claim, we should attack
 			},
-			runCondition: RunFreeloadersCountered,
 		},
 		{
 			name: "Freeloader-InvalidClaimAtValidAttackPosition",
@@ -136,7 +122,6 @@ func TestCalculateNextActions(t *testing.T) {
 					Defend(faulttest.WithValue(common.Hash{0xaa})).ExpectAttack(). // Defender disagrees at this point, we should attack
 					Attack(faulttest.WithValue(common.Hash{0xbb})).ExpectAttack()  // Freeloader attacks with wrong claim instead of defends
 			},
-			runCondition: RunFreeloadersCountered,
 		},
 		{
 			name: "Freeloader-InvalidClaimAtInvalidDefensePosition",
@@ -155,7 +140,6 @@ func TestCalculateNextActions(t *testing.T) {
 					Attack().ExpectDefend(). // Defender attacks with correct value, we should defend
 					Attack().ExpectDefend()  // Freeloader attacks with wrong claim, we should defend
 			},
-			runCondition: RunFreeloadersCountered,
 		},
 		{
 			name: "Freeloader-DoNotCounterOwnClaim",
@@ -166,7 +150,6 @@ func TestCalculateNextActions(t *testing.T) {
 					Attack().                // Freeloader attacks instead, we should defend
 					Defend()                 // We do defend and we shouldn't counter our own claim
 			},
-			runCondition: RunFreeloadersCountered,
 		},
 		{
 			name: "Freeloader-ContinueDefendingAgainstFreeloader",
@@ -179,7 +162,6 @@ func TestCalculateNextActions(t *testing.T) {
 						Attack(faulttest.WithValue(common.Hash{0xaa})). // freeloader attacks our defense, we should attack
 						ExpectAttack()
 			},
-			runCondition: RunFreeloadersCountered,
 		},
 		{
 			name: "Freeloader-FreeloaderCountersRootClaim",
@@ -189,14 +171,12 @@ func TestCalculateNextActions(t *testing.T) {
 					Attack(faulttest.WithValue(common.Hash{0xaa})). // freeloader
 					ExpectAttack()                                  // Honest response to freeloader
 			},
-			runCondition: RunFreeloadersCountered,
 		},
 	}
 
 	for _, test := range tests {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
-			enforceRunConditions(t, test.runCondition)
 			builder := claimBuilder.GameBuilder(faulttest.WithInvalidValue(!test.rootClaimCorrect))
 			test.setupGame(builder)
 			game := builder.Game
@@ -236,9 +216,8 @@ func runStep(t *testing.T, solver *GameSolver, game types.Game, correctTraceProv
 func TestMultipleRounds(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name         string
-		actor        actor
-		runCondition RunCondition
+		name  string
+		actor actor
 	}{
 		{
 			name:  "SingleRoot",
@@ -277,9 +256,8 @@ func TestMultipleRounds(t *testing.T) {
 			actor: combineActors(incorrectAttackLastClaim, incorrectDefendLastClaim),
 		},
 		{
-			name:         "AttackEverythingCorrect",
-			actor:        attackEverythingCorrect,
-			runCondition: RunFreeloadersCountered,
+			name:  "AttackEverythingCorrect",
+			actor: attackEverythingCorrect,
 		},
 		{
 			name:  "DefendEverythingCorrect",
@@ -296,9 +274,6 @@ func TestMultipleRounds(t *testing.T) {
 		{
 			name:  "Exhaustive",
 			actor: exhaustive,
-			// TODO(client-pod#611): We attempt to step even though the prestate is invalid
-			// The step call would fail to estimate gas so not even send, but the challenger shouldn't try
-			runCondition: RunFreeloadersCountered,
 		},
 	}
 	for _, test := range tests {
@@ -307,7 +282,6 @@ func TestMultipleRounds(t *testing.T) {
 			rootClaimCorrect := rootClaimCorrect
 			t.Run(fmt.Sprintf("%v-%v", test.name, rootClaimCorrect), func(t *testing.T) {
 				t.Parallel()
-				enforceRunConditions(t, test.runCondition)
 
 				maxDepth := types.Depth(6)
 				startingL2BlockNumber := big.NewInt(50)
@@ -364,18 +338,4 @@ func applyActions(game types.Game, claimant common.Address, actions []types.Acti
 		}
 	}
 	return types.NewGameState(claims, game.MaxDepth())
-}
-
-func enforceRunConditions(t *testing.T, runCondition RunCondition) {
-	switch runCondition {
-	case RunAlways:
-	case RunFreeloadersCountered:
-		if !expectFreeloaderCounters {
-			t.Skip("Freeloader countering not enabled")
-		}
-	case RunFreeloadersNotCountered:
-		if expectFreeloaderCounters {
-			t.Skip("Freeloader countering enabled")
-		}
-	}
 }

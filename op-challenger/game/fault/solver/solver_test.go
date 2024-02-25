@@ -27,6 +27,7 @@ func TestAttemptStep(t *testing.T) {
 		name                string
 		agreeWithOutputRoot bool
 		expectedErr         error
+		expectNoStep        bool
 		expectAttack        bool
 		expectPreState      []byte
 		expectProofData     []byte
@@ -127,7 +128,7 @@ func TestAttemptStep(t *testing.T) {
 					Attack(faulttest.WithValue(common.Hash{0xaa})).
 					Attack()
 			},
-			expectedErr:         ErrStepIgnoreInvalidPath,
+			expectNoStep:        true,
 			agreeWithOutputRoot: true,
 		},
 		{
@@ -138,7 +139,7 @@ func TestAttemptStep(t *testing.T) {
 					Attack(faulttest.WithValue(common.Hash{0xbb})).
 					Attack(faulttest.WithValue(common.Hash{0xcc}))
 			},
-			expectedErr:         ErrStepIgnoreInvalidPath,
+			expectNoStep:        true,
 			agreeWithOutputRoot: true,
 		},
 		{
@@ -153,7 +154,7 @@ func TestAttemptStep(t *testing.T) {
 					Defend().
 					Defend()
 			},
-			expectedErr:         ErrStepIgnoreInvalidPath,
+			expectNoStep:        true,
 			agreeWithOutputRoot: true,
 		},
 	}
@@ -167,9 +168,19 @@ func TestAttemptStep(t *testing.T) {
 			game := builder.Game
 			claims := game.Claims()
 			lastClaim := claims[len(claims)-1]
-			step, err := alphabetSolver.AttemptStep(ctx, game, lastClaim)
-			if tableTest.expectedErr == nil {
-				require.NoError(t, err)
+			agreedClaims := newHonestClaimTracker()
+			if tableTest.agreeWithOutputRoot {
+				agreedClaims.AddHonestClaim(types.Claim{}, claims[0])
+			}
+			if (lastClaim.Depth()%2 == 0) == tableTest.agreeWithOutputRoot {
+				parentClaim := claims[lastClaim.ParentContractIndex]
+				grandParentClaim := claims[parentClaim.ParentContractIndex]
+				agreedClaims.AddHonestClaim(grandParentClaim, parentClaim)
+			}
+			step, err := alphabetSolver.AttemptStep(ctx, game, lastClaim, agreedClaims)
+			require.ErrorIs(t, err, tableTest.expectedErr)
+			if !tableTest.expectNoStep && tableTest.expectedErr == nil {
+				require.NotNil(t, step)
 				require.Equal(t, lastClaim, step.LeafClaim)
 				require.Equal(t, tableTest.expectAttack, step.IsAttack)
 				require.Equal(t, tableTest.expectPreState, step.PreState)
@@ -179,8 +190,7 @@ func TestAttemptStep(t *testing.T) {
 				require.Equal(t, tableTest.expectedOracleData.GetPreimageWithSize(), step.OracleData.GetPreimageWithSize())
 				require.Equal(t, tableTest.expectedOracleData.OracleOffset, step.OracleData.OracleOffset)
 			} else {
-				require.ErrorIs(t, err, tableTest.expectedErr)
-				require.Equal(t, StepData{}, step)
+				require.Nil(t, step)
 			}
 		})
 	}
