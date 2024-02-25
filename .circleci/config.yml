@@ -12,9 +12,12 @@ parameters:
   #   when:
   #     or:
   #       - equal: [ "develop", <<pipeline.git.branch>> ]
-  #       - equal: [ true, <<pipeline.parameters.cannon_dispatch>> ]
+  #       - equal: [ true, <<pipeline.parameters.main_dispatch>> ]
   # Add a new `*_dispatch` parameter for any pipeline you want manual dispatch for.
-  cannon_dispatch:
+  main_dispatch:
+    type: boolean
+    default: false # main workflow will still trigger in response to changes being pushed
+  fault_proofs_dispatch:
     type: boolean
     default: false
 
@@ -1466,8 +1469,11 @@ jobs:
 workflows:
   main:
     when:
-      not:
-        equal: [ scheduled_pipeline, << pipeline.trigger_source >> ]
+      or:
+          # Trigger on new commits
+        - equal: [ webhook, << pipeline.trigger_source >> ]
+          # Trigger on manual triggers if explicitly requested
+        - equal: [ true, << pipeline.parameters.main_dispatch >> ]
     jobs:
       - pnpm-monorepo:
           name: pnpm-monorepo
@@ -2018,7 +2024,7 @@ workflows:
       and:
         - or:
           - equal: [ "develop", <<pipeline.git.branch>> ]
-          - equal: [ true, <<pipeline.parameters.cannon_dispatch>> ]
+          - equal: [ true, <<pipeline.parameters.fault_proofs_dispatch>> ]
         - not:
             equal: [ scheduled_pipeline, << pipeline.trigger_source >> ]
     jobs:
