@@ -2,6 +2,7 @@ package test
 
 import (
 	"math/big"
+	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum/go-ethereum/common"
@@ -11,6 +12,14 @@ type GameBuilder struct {
 	builder         *ClaimBuilder
 	Game            types.Game
 	ExpectedActions []types.Action
+}
+
+func NewGameBuilderFromGame(t *testing.T, provider types.TraceProvider, game types.Game) *GameBuilder {
+	claimBuilder := NewClaimBuilder(t, game.MaxDepth(), provider)
+	return &GameBuilder{
+		builder: claimBuilder,
+		Game:    types.NewGameState(game.Claims(), game.MaxDepth()),
+	}
 }
 
 func (c *ClaimBuilder) GameBuilder(rootOpts ...ClaimOpt) *GameBuilder {
@@ -38,9 +47,21 @@ func (g *GameBuilder) SeqFrom(claim types.Claim) *GameBuilderSeq {
 	}
 }
 
+func (g *GameBuilderSeq) IsMaxDepth() bool {
+	return g.lastClaim.Depth() == g.gameBuilder.Game.MaxDepth()
+}
+
+func (g *GameBuilderSeq) IsRoot() bool {
+	return g.lastClaim.IsRoot()
+}
+
 // addClaimToGame replaces the game being built with a new instance that has claim as the latest claim.
 // The ContractIndex in claim is updated with its position in the game's claim array.
+// Does nothing if the claim already exists
 func (s *GameBuilderSeq) addClaimToGame(claim *types.Claim) {
+	if s.gameBuilder.Game.IsDuplicate(*claim) {
+		return
+	}
 	claim.ContractIndex = len(s.gameBuilder.Game.Claims())
 	claims := append(s.gameBuilder.Game.Claims(), *claim)
 	s.gameBuilder.Game = types.NewGameState(claims, s.builder.maxDepth)
