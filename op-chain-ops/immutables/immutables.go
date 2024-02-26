@@ -67,6 +67,8 @@ type PredeploysImmutableConfig struct {
 	Permit2                      struct{}
 	SenderCreator                struct{}
 	EntryPoint                   struct{}
+	CrossL2Inbox                 struct{}
+	L2ToL2CrossDomainMessenger   struct{}
 }
 
 // Check will ensure that the required fields are set on the config.
