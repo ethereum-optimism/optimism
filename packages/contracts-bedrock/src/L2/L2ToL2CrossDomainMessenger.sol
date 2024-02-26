@@ -20,7 +20,7 @@ contract L2ToL2CrossDomainMessenger {
     uint248 public constant INITIAL_BALANCE = type(uint248).max;
 
     /// @notice Contract of the L2 Cross Domain Messenger on this chain.
-    CrossL2Inbox public immutable CROSS_L2_INBOX;
+    CrossL2Inbox public CROSS_L2_INBOX;
 
     /// @notice Mapping of message hashes to boolean receipt values. Note that a message will only
     ///         be present in this mapping if it has successfully been relayed on this chain, and
