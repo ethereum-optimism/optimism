@@ -490,7 +490,7 @@ func (m *SimpleTxManager) publishTx(ctx context.Context, tx *types.Transaction, 
 
 		if err == nil {
 			m.metr.TxPublished("")
-			log.Info("Transaction successfully published")
+			l.Info("Transaction successfully published")
 			return tx, true
 		}
 
