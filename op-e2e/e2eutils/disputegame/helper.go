@@ -157,7 +157,7 @@ func (h *FactoryHelper) StartOutputCannonGame(ctx context.Context, l2Node string
 	h.require.NoError(err, "Failed to load split depth")
 	outputRootProvider := source.NewUnrestrictedOutputSource(rollupClient)
 	prestateProvider := outputs.NewPrestateProvider(outputRootProvider, prestateBlock.Uint64())
-	provider := outputs.NewTraceProviderFromInputs(logger, prestateProvider, outputRootProvider, faultTypes.Depth(splitDepth.Uint64()), prestateBlock.Uint64(), poststateBlock.Uint64())
+	provider := outputs.NewTraceProvider(logger, prestateProvider, outputRootProvider, faultTypes.Depth(splitDepth.Uint64()), prestateBlock.Uint64(), poststateBlock.Uint64())
 
 	return &OutputCannonGameHelper{
 		OutputGameHelper: OutputGameHelper{
@@ -210,7 +210,7 @@ func (h *FactoryHelper) StartOutputAlphabetGame(ctx context.Context, l2Node stri
 	h.require.NoError(err, "Failed to load split depth")
 	outputRootProvider := source.NewUnrestrictedOutputSource(rollupClient)
 	prestateProvider := outputs.NewPrestateProvider(outputRootProvider, prestateBlock.Uint64())
-	provider := outputs.NewTraceProviderFromInputs(logger, prestateProvider, outputRootProvider, faultTypes.Depth(splitDepth.Uint64()), prestateBlock.Uint64(), poststateBlock.Uint64())
+	provider := outputs.NewTraceProvider(logger, prestateProvider, outputRootProvider, faultTypes.Depth(splitDepth.Uint64()), prestateBlock.Uint64(), poststateBlock.Uint64())
 
 	return &OutputAlphabetGameHelper{
 		OutputGameHelper: OutputGameHelper{

@@ -233,7 +233,7 @@ func (g *OutputCannonGameHelper) createCannonTraceProvider(ctx context.Context, 
 	rollupClient := g.system.RollupClient(l2Node)
 	outputRootProvider := source.NewUnrestrictedOutputSource(rollupClient)
 	prestateProvider := outputs.NewPrestateProvider(outputRootProvider, prestateBlock)
-	outputProvider := outputs.NewTraceProviderFromInputs(logger, prestateProvider, outputRootProvider, splitDepth, prestateBlock, poststateBlock)
+	outputProvider := outputs.NewTraceProvider(logger, prestateProvider, outputRootProvider, splitDepth, prestateBlock, poststateBlock)
 
 	selector := split.NewSplitProviderSelector(outputProvider, splitDepth, func(ctx context.Context, depth types.Depth, pre types.Claim, post types.Claim) (types.TraceProvider, error) {
 		agreed, disputed, err := outputs.FetchProposals(ctx, outputProvider, pre, post)
