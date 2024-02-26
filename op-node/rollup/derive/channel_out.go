@@ -22,7 +22,7 @@ var ErrChannelOutAlreadyClosed = errors.New("channel-out already closed")
 // This is the fixed overhead frame size, calculated as specified
 // in the [Frame Format] specs: 16 + 2 + 4 + 1 = 23 bytes.
 //
-// [Frame Format]: https://github.com/ethereum-optimism/optimism/blob/develop/specs/derivation.md#frame-format
+// [Frame Format]: https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/derivation.md#frame-format
 const FrameV0OverHeadSize = 23
 
 var CompressorFullErr = errors.New("compressor is full")
