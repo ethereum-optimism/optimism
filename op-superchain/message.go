@@ -1,6 +1,8 @@
 package superchain
 
 import (
+	"math/big"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 )
@@ -15,10 +17,10 @@ const (
 
 type MessageIdentifier struct {
 	Origin      common.Address
-	BlockNumber uint64
+	BlockNumber *big.Int
 	LogIndex    uint64
 	Timestamp   uint64
-	ChainId     uint64
+	ChainId     *big.Int
 }
 
 func MessagePayloadBytes(log *types.Log) []byte {

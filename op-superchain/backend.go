@@ -96,7 +96,8 @@ func (b *backend) MessageSafety(ctx context.Context, id MessageIdentifier, paylo
 	// ChainID Invariant.
 	//   TODO: Assumption here that the configured peers exactly maps to the registered dependency set.
 	//   When the predeploy is added, this needs to be tied to the dependency set registered on-chain
-	l2Node, ok := b.l2PeerNodes[id.ChainId]
+	//   TODO: Either assume chain id never exceeds uint64 or handle this appropriately
+	l2Node, ok := b.l2PeerNodes[id.ChainId.Uint64()]
 	if !ok {
 		return Invalid, fmt.Errorf("peer with chain id %d is not configured", id.ChainId)
 	}
@@ -107,7 +108,7 @@ func (b *backend) MessageSafety(ctx context.Context, id MessageIdentifier, paylo
 	// Since eth_getLogs doesn't support specifying the log index, we fetch
 	// all the outbox reciepts for this block (TODO: add address filter). The
 	// timestamp is grabbed via the block header as getLogs omits this
-	blockNumber := hexutil.EncodeUint64(id.BlockNumber)
+	blockNumber := hexutil.EncodeBig(id.BlockNumber)
 	filterArgs := map[string]interface{}{"fromBlock": blockNumber, "toBlock": blockNumber}
 	batchElems := make([]rpc.BatchElem, 2)
 	batchElems[0] = rpc.BatchElem{Method: "eth_getBlockByNumber", Args: []interface{}{blockNumber, false}, Result: &header}
