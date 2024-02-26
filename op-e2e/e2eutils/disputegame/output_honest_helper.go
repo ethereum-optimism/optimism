@@ -18,13 +18,24 @@ type OutputHonestHelper struct {
 	correctTrace types.TraceAccessor
 }
 
+func (h *OutputHonestHelper) CounterClaim(ctx context.Context, claim *ClaimHelper, opts ...MoveOpt) *ClaimHelper {
+	game, target := h.loadState(ctx, claim.index)
+	value, err := h.correctTrace.Get(ctx, game, target, target.Position)
+	h.require.NoErrorf(err, "Failed to determine correct claim at position %v with g index %v", target.Position, target.Position.ToGIndex())
+	if value == claim.claim {
+		return h.DefendClaim(ctx, claim, opts...)
+	} else {
+		return h.AttackClaim(ctx, claim, opts...)
+	}
+}
+
 func (h *OutputHonestHelper) AttackClaim(ctx context.Context, claim *ClaimHelper, opts ...MoveOpt) *ClaimHelper {
 	h.Attack(ctx, claim.index, opts...)
 	return claim.WaitForCounterClaim(ctx)
 }
 
-func (h *OutputHonestHelper) DefendClaim(ctx context.Context, claim *ClaimHelper) *ClaimHelper {
-	h.Defend(ctx, claim.index)
+func (h *OutputHonestHelper) DefendClaim(ctx context.Context, claim *ClaimHelper, opts ...MoveOpt) *ClaimHelper {
+	h.Defend(ctx, claim.index, opts...)
 	return claim.WaitForCounterClaim(ctx)
 }
 

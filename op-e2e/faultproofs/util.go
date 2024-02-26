@@ -41,6 +41,12 @@ func withEcotone() faultDisputeConfigOpts {
 	}
 }
 
+func withSequencerWindowSize(size uint64) faultDisputeConfigOpts {
+	return func(cfg *op_e2e.SystemConfig) {
+		cfg.DeployConfig.SequencerWindowSize = size
+	}
+}
+
 func startFaultDisputeSystem(t *testing.T, opts ...faultDisputeConfigOpts) (*op_e2e.System, *ethclient.Client) {
 	cfg := op_e2e.DefaultSystemConfig(t)
 	delete(cfg.Nodes, "verifier")
