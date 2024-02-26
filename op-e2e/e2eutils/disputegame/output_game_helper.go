@@ -38,6 +38,33 @@ type OutputGameHelper struct {
 	system                DisputeSystem
 }
 
+type moveCfg struct {
+	opts        *bind.TransactOpts
+	ignoreDupes bool
+}
+
+type MoveOpt interface {
+	Apply(cfg *moveCfg)
+}
+
+type moveOptFn func(c *moveCfg)
+
+func (f moveOptFn) Apply(c *moveCfg) {
+	f(c)
+}
+
+func WithTransactOpts(opts *bind.TransactOpts) MoveOpt {
+	return moveOptFn(func(c *moveCfg) {
+		c.opts = opts
+	})
+}
+
+func WithIgnoreDuplicates() MoveOpt {
+	return moveOptFn(func(c *moveCfg) {
+		c.ignoreDupes = true
+	})
+}
+
 func (g *OutputGameHelper) Addr() common.Address {
 	return g.addr
 }
@@ -449,48 +476,78 @@ func (g *OutputGameHelper) waitForNewClaim(ctx context.Context, checkPoint int64
 	return newClaimLen, err
 }
 
-func (g *OutputGameHelper) AttackWithTransactOpts(ctx context.Context, claimIdx int64, claim common.Hash, opts *bind.TransactOpts) {
+func (g *OutputGameHelper) moveCfg(opts ...MoveOpt) *moveCfg {
+	cfg := &moveCfg{
+		opts: g.opts,
+	}
+	for _, opt := range opts {
+		opt.Apply(cfg)
+	}
+	return cfg
+}
+
+func (g *OutputGameHelper) Attack(ctx context.Context, claimIdx int64, claim common.Hash, opts ...MoveOpt) {
 	g.t.Logf("Attacking claim %v with value %v", claimIdx, claim)
+	cfg := g.moveCfg(opts...)
 
 	claimData, err := g.game.ClaimData(&bind.CallOpts{Context: ctx}, big.NewInt(claimIdx))
 	g.require.NoError(err, "Failed to get claim data")
 	pos := types.NewPositionFromGIndex(claimData.Position)
-	opts = g.makeBondedTransactOpts(ctx, pos.Attack().ToGIndex(), opts)
+	attackPos := pos.Attack()
+	transactOpts := g.makeBondedTransactOpts(ctx, pos.Attack().ToGIndex(), cfg.opts)
 
-	tx, err := g.game.Attack(opts, big.NewInt(claimIdx), claim)
+	err = g.sendMove(ctx, func() (*gethtypes.Transaction, error) {
+		return g.game.Attack(transactOpts, big.NewInt(claimIdx), claim)
+	})
 	if err != nil {
-		g.require.NoErrorf(err, "Attack transaction did not send. Game state: \n%v", g.gameData(ctx))
-	}
-	_, err = wait.ForReceiptOK(ctx, g.client, tx.Hash())
-	if err != nil {
-		g.require.NoErrorf(err, "Attack transaction was not OK. Game state: \n%v", g.gameData(ctx))
+		if cfg.ignoreDupes && g.hasClaim(ctx, claimIdx, attackPos, claim) {
+			return
+		}
+		g.require.NoErrorf(err, "Defend transaction failed. Game state: \n%v", g.gameData(ctx))
 	}
 }
 
-func (g *OutputGameHelper) Attack(ctx context.Context, claimIdx int64, claim common.Hash) {
-	g.AttackWithTransactOpts(ctx, claimIdx, claim, g.opts)
-}
-
-func (g *OutputGameHelper) DefendWithTransactOpts(ctx context.Context, claimIdx int64, claim common.Hash, opts *bind.TransactOpts) {
+func (g *OutputGameHelper) Defend(ctx context.Context, claimIdx int64, claim common.Hash, opts ...MoveOpt) {
 	g.t.Logf("Defending claim %v with value %v", claimIdx, claim)
+	cfg := g.moveCfg(opts...)
 
 	claimData, err := g.game.ClaimData(&bind.CallOpts{Context: ctx}, big.NewInt(claimIdx))
 	g.require.NoError(err, "Failed to get claim data")
 	pos := types.NewPositionFromGIndex(claimData.Position)
-	opts = g.makeBondedTransactOpts(ctx, pos.Defend().ToGIndex(), opts)
+	defendPos := pos.Defend()
+	transactOpts := g.makeBondedTransactOpts(ctx, defendPos.ToGIndex(), cfg.opts)
 
-	tx, err := g.game.Defend(opts, big.NewInt(claimIdx), claim)
+	err = g.sendMove(ctx, func() (*gethtypes.Transaction, error) {
+		return g.game.Defend(transactOpts, big.NewInt(claimIdx), claim)
+	})
 	if err != nil {
-		g.require.NoErrorf(err, "Defend transaction did not send. Game state: \n%v", g.gameData(ctx))
-	}
-	_, err = wait.ForReceiptOK(ctx, g.client, tx.Hash())
-	if err != nil {
-		g.require.NoErrorf(err, "Defend transaction was not OK. Game state: \n%v", g.gameData(ctx))
+		if cfg.ignoreDupes && g.hasClaim(ctx, claimIdx, defendPos, claim) {
+			return
+		}
+		g.require.NoErrorf(err, "Defend transaction failed. Game state: \n%v", g.gameData(ctx))
 	}
 }
 
-func (g *OutputGameHelper) Defend(ctx context.Context, claimIdx int64, claim common.Hash) {
-	g.DefendWithTransactOpts(ctx, claimIdx, claim, g.opts)
+func (g *OutputGameHelper) hasClaim(ctx context.Context, parentIdx int64, pos types.Position, value common.Hash) bool {
+	claims := g.getAllClaims(ctx)
+	for _, claim := range claims {
+		if int64(claim.ParentIndex) == parentIdx && claim.Position.Cmp(pos.ToGIndex()) == 0 && claim.Claim == value {
+			return true
+		}
+	}
+	return false
+}
+
+func (g *OutputGameHelper) sendMove(ctx context.Context, send func() (*gethtypes.Transaction, error)) error {
+	tx, err := send()
+	if err != nil {
+		return fmt.Errorf("transaction did not send: %w", err)
+	}
+	_, err = wait.ForReceiptOK(ctx, g.client, tx.Hash())
+	if err != nil {
+		return fmt.Errorf("transaction was not ok: %w", err)
+	}
+	return nil
 }
 
 func (g *OutputGameHelper) makeBondedTransactOpts(ctx context.Context, pos *big.Int, opts *bind.TransactOpts) *bind.TransactOpts {
