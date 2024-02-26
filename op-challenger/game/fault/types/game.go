@@ -3,9 +3,6 @@ package types
 import (
 	"errors"
 	"math/big"
-
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
 )
 
 var (
@@ -39,31 +36,21 @@ type Game interface {
 	AncestorWithTraceIndex(claim Claim, idx *big.Int) (Claim, bool)
 }
 
-type claimID common.Hash
-
-func computeClaimID(claim Claim) claimID {
-	return claimID(crypto.Keccak256Hash(
-		claim.Position.ToGIndex().Bytes(),
-		claim.Value.Bytes(),
-		big.NewInt(int64(claim.ParentContractIndex)).Bytes(),
-	))
-}
-
 // gameState is a struct that represents the state of a dispute game.
 // The game state implements the [Game] interface.
 type gameState struct {
 	// claims is the list of claims in the same order as the contract
 	claims   []Claim
-	claimIDs map[claimID]bool
+	claimIDs map[ClaimID]bool
 	depth    Depth
 }
 
 // NewGameState returns a new game state.
 // The provided [Claim] is used as the root node.
 func NewGameState(claims []Claim, depth Depth) *gameState {
-	claimIDs := make(map[claimID]bool)
+	claimIDs := make(map[ClaimID]bool)
 	for _, claim := range claims {
-		claimIDs[computeClaimID(claim)] = true
+		claimIDs[claim.ID()] = true
 	}
 	return &gameState{
 		claims:   claims,
@@ -85,7 +72,7 @@ func (g *gameState) AgreeWithClaimLevel(claim Claim, agreeWithRootClaim bool) bo
 }
 
 func (g *gameState) IsDuplicate(claim Claim) bool {
-	return g.claimIDs[computeClaimID(claim)]
+	return g.claimIDs[claim.ID()]
 }
 
 func (g *gameState) Claims() []Claim {
