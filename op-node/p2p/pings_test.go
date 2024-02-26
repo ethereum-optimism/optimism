@@ -20,10 +20,10 @@ func TestPingService(t *testing.T) {
 	peers := []peer.ID{"a", "b", "c"}
 	log, captLog := testlog.CaptureLogger(t, slog.LevelDebug)
 
-	testCase := 0
+	pingCount := 0
 	pingFn := PingFn(func(ctx context.Context, peerID peer.ID) <-chan ping.Result {
 		out := make(chan ping.Result, 1)
-		switch testCase % 3 {
+		switch pingCount % 3 {
 		case 0:
 			// success
 			out <- ping.Result{
@@ -40,7 +40,7 @@ func TestPingService(t *testing.T) {
 			}
 		}
 		close(out)
-		testCase += 1
+		pingCount += 1
 		return out
 	})
 
@@ -56,23 +56,28 @@ func TestPingService(t *testing.T) {
 		trace <- work
 	}
 
+	// wait for ping service to get online
 	require.Equal(t, "started", <-trace)
 	fakeClock.AdvanceTime(pingRound)
+	// wait for first round to start and complete
 	require.Equal(t, "pingPeers start", <-trace)
 	require.Equal(t, "pingPeers end", <-trace)
-	require.Equal(t, 3, testCase, "pinged 3 peers")
-	require.NotNil(t, captLog.FindLog(testlog.NewMessageContainsFilter("ping-pong")))
-	require.NotNil(t, captLog.FindLog(testlog.NewMessageContainsFilter("failed to ping peer, context cancelled")))
-	require.NotNil(t, captLog.FindLog(testlog.NewMessageContainsFilter("failed to ping peer, communication error")))
+	// see if client has hit all 3 cases we simulated on the server-side
+	require.Equal(t, 3, pingCount, "pinged 3 peers")
+	require.NotNil(t, captLog.FindLog(testlog.NewMessageContainsFilter("case 0: ping-pong")))
+	require.NotNil(t, captLog.FindLog(testlog.NewMessageContainsFilter("case 1: failed to ping peer, context cancelled")))
+	require.NotNil(t, captLog.FindLog(testlog.NewMessageContainsFilter("case 2: failed to ping peer, communication error")))
 	captLog.Clear()
 
+	// advance clock again to proceed to second round, and wait for the round to start and complete
 	fakeClock.AdvanceTime(pingRound)
 	require.Equal(t, "pingPeers start", <-trace)
 	require.Equal(t, "pingPeers end", <-trace)
-	require.Equal(t, 6, testCase, "pinged 3 peers again")
-	require.NotNil(t, captLog.FindLog(testlog.NewMessageContainsFilter("ping-pong")))
-	require.NotNil(t, captLog.FindLog(testlog.NewMessageContainsFilter("failed to ping peer, context cancelled")))
-	require.NotNil(t, captLog.FindLog(testlog.NewMessageContainsFilter("failed to ping peer, communication error")))
+	// see if client has hit all 3 cases we simulated on the server-side
+	require.Equal(t, 6, pingCount, "pinged 3 peers again")
+	require.NotNil(t, captLog.FindLog(testlog.NewMessageContainsFilter("case 0: ping-pong")))
+	require.NotNil(t, captLog.FindLog(testlog.NewMessageContainsFilter("case 1: failed to ping peer, context cancelled")))
+	require.NotNil(t, captLog.FindLog(testlog.NewMessageContainsFilter("case 2: failed to ping peer, communication error")))
 	captLog.Clear()
 
 	srv.Close()

@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	pingRound                 = 10 * time.Minute
+	pingRound                 = 3 * time.Minute
 	pingsPerSecond rate.Limit = 1
 	pingsBurst                = 10
 )
