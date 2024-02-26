@@ -16,7 +16,7 @@ parameters:
   # Add a new `*_dispatch` parameter for any pipeline you want manual dispatch for.
   main_dispatch:
     type: boolean
-    default: false # main workflow will still trigger in response to changes being pushed
+    default: true # default to running main in case the manual run cancelled an automatic run
   fault_proofs_dispatch:
     type: boolean
     default: false
