@@ -122,6 +122,8 @@ func InjectState(transitionState *core.Genesis, db ethdb.Database, deployConfig 
 	cfg.RegolithTime = transitionState.Config.RegolithTime
 	cfg.CanyonTime = transitionState.Config.CanyonTime
 	cfg.ShanghaiTime = transitionState.Config.ShanghaiTime
+	cfg.CancunTime = transitionState.Config.CancunTime
+	cfg.EcotoneTime = transitionState.Config.EcotoneTime
 
 	cfg.Optimism = &params.OptimismConfig{
 		EIP1559Denominator:       transitionState.Config.Optimism.EIP1559Denominator,
