@@ -640,6 +640,11 @@
   },
   {
     "inputs": [],
+    "name": "DuplicateStep",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "GameDepthExceeded",
     "type": "error"
   },
