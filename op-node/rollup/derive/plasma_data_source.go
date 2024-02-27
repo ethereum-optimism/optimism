@@ -69,6 +69,12 @@ func (s *PlasmaDataSource) Next(ctx context.Context) (eth.Data, error) {
 		// return temporary error so we can keep retrying.
 		return nil, NewTemporaryError(fmt.Errorf("failed to fetch input data with comm %x from da service: %w", s.comm, err))
 	}
+	// inputs are limited to a max size to ensure they can be challenged in the DA contract.
+	if len(data) > plasma.MaxInputSize {
+		s.log.Warn("input data exceeds max size", "size", len(data), "max", plasma.MaxInputSize)
+		s.comm = nil
+		return s.Next(ctx)
+	}
 	// reset the commitment so we can fetch the next one from the source at the next iteration.
 	s.comm = nil
 	return data, nil
