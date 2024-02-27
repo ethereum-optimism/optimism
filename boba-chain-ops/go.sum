@@ -175,6 +175,8 @@ github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6r
 github.com/bits-and-blooms/bitset v1.2.0/go.mod h1:gIdJ4wp64HaoK2YrL1Q5/N7Y16edYb8uY+O0FJTyyDA=
 github.com/bits-and-blooms/bitset v1.7.0 h1:YjAGVd3XmtK9ktAbX8Zg2g2PwLIMjGREZJHlV4j7NEo=
 github.com/bits-and-blooms/bitset v1.7.0/go.mod h1:gIdJ4wp64HaoK2YrL1Q5/N7Y16edYb8uY+O0FJTyyDA=
+github.com/bobanetwork/superchain-registry/superchain v0.0.0-20240223212802-3cf921f7ab5c h1:IU4ydQNQcDZTms37yPy97jinnOgQ6fTvkd5Dgzz24Dw=
+github.com/bobanetwork/superchain-registry/superchain v0.0.0-20240223212802-3cf921f7ab5c/go.mod h1:7xh2awFQqsiZxFrHKTgEd+InVfDRrkKVUIuK8SAFHp0=
 github.com/bobanetwork/v3-erigon v1.1.0 h1:4jZ5Ey0bJoK4ZSFzQJx81wHgZyPDTp4tYO3jzlZBct4=
 github.com/bobanetwork/v3-erigon v1.1.0/go.mod h1:9zpw6oDz32UJMt2tlJGCQzgRTh8jHX9IZxus1twwUVM=
 github.com/bobanetwork/v3-erigon/erigon-lib v0.0.0-20240223222735-55b4885d2ef7 h1:LKBsMJTePRCkNyneS/+H0Rat/kcPhWXAhYuq8YFEkmQ=
@@ -256,8 +258,6 @@ github.com/erigontech/mdbx-go v0.35.2-0.20231101074031-9f999220e9ed h1:i1xZSrLxi
 github.com/erigontech/mdbx-go v0.35.2-0.20231101074031-9f999220e9ed/go.mod h1:FAMxbOgqOnRDx51j8HjuJZIgznbDwjX7LItd+/UWyA4=
 github.com/erigontech/silkworm-go v0.10.0 h1:oAoptLtJbQXk63mrKYs6qliQlbDrXTSNiZfzv1OMp+Q=
 github.com/erigontech/silkworm-go v0.10.0/go.mod h1:O50ux0apICEVEGyRWiE488K8qz8lc3PA/SXbQQAc8SU=
-github.com/ethereum-optimism/superchain-registry/superchain v0.0.0-20240201223137-d57c2429e4fc h1:JrlLPZebl3VtBl4G1+ePS7S35CdHF4CdkENzp7Qu/Sg=
-github.com/ethereum-optimism/superchain-registry/superchain v0.0.0-20240201223137-d57c2429e4fc/go.mod h1:7xh2awFQqsiZxFrHKTgEd+InVfDRrkKVUIuK8SAFHp0=
 github.com/fjl/gencodec v0.0.0-20220412091415-8bb9e558978c h1:CndMRAH4JIwxbW8KYq6Q+cGWcGHz0FjGR3QqcInWcW0=
 github.com/fjl/gencodec v0.0.0-20220412091415-8bb9e558978c/go.mod h1:AzA8Lj6YtixmJWL+wkKoBGsLWy9gFrAzi4g+5bCKwpY=
 github.com/frankban/quicktest v1.9.0/go.mod h1:ui7WezCLWMWxVWr1GETZY3smRy0G4KWq9vcPtJmFl7Y=
