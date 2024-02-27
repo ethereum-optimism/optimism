@@ -31,6 +31,7 @@ func TestConfigMarshalUnmarshal(t *testing.T) {
 	require.Equal(t, *decoded.L2GenesisRegolithTimeOffset, hexutil.Uint64(1))
 	require.Equal(t, *decoded.L2GenesisCanyonTimeOffset, hexutil.Uint64(1))
 	require.Equal(t, *decoded.L2GenesisEcotoneTimeOffset, hexutil.Uint64(1))
+	require.Equal(t, *decoded.L2GenesisEcotoneTimeOffset, hexutil.Uint64(1))
 }
 
 func TestUnmarshalL1StartingBlockTag(t *testing.T) {
