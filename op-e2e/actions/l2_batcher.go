@@ -42,6 +42,10 @@ type L1TxAPI interface {
 	SendTransaction(ctx context.Context, tx *types.Transaction) error
 }
 
+type PlasmaInputSetter interface {
+	SetInput(ctx context.Context, img []byte) ([]byte, error)
+}
+
 type BatcherCfg struct {
 	// Limit the size of txs
 	MinL1TxSize uint64
@@ -53,8 +57,10 @@ type BatcherCfg struct {
 
 	ForceSubmitSingularBatch bool
 	ForceSubmitSpanBatch     bool
+	UsePlasma                bool
 
 	DataAvailabilityType batcherFlags.DataAvailabilityType
+	PlasmaDA             PlasmaInputSetter
 }
 
 func DefaultBatcherCfg(dp *e2eutils.DeployParams) *BatcherCfg {
@@ -63,6 +69,17 @@ func DefaultBatcherCfg(dp *e2eutils.DeployParams) *BatcherCfg {
 		MaxL1TxSize:          128_000,
 		BatcherKey:           dp.Secrets.Batcher,
 		DataAvailabilityType: batcherFlags.CalldataType,
+	}
+}
+
+func PlasmaBatcherCfg(dp *e2eutils.DeployParams, plasmaDa PlasmaInputSetter) *BatcherCfg {
+	return &BatcherCfg{
+		MinL1TxSize:          0,
+		MaxL1TxSize:          128_000,
+		BatcherKey:           dp.Secrets.Batcher,
+		DataAvailabilityType: batcherFlags.CalldataType,
+		PlasmaDA:             plasmaDa,
+		UsePlasma:            true,
 	}
 }
 
@@ -231,6 +248,13 @@ func (s *L2Batcher) ActL2BatchSubmit(t Testing, txOpts ...func(tx *types.Dynamic
 		t.Fatalf("failed to output channel data to frame: %v", err)
 	}
 
+	payload := data.Bytes()
+	if s.l2BatcherCfg.UsePlasma {
+		var err error
+		payload, err = s.l2BatcherCfg.PlasmaDA.SetInput(context.TODO(), payload)
+		require.NoError(t, err, "failed to set input for plasma")
+	}
+
 	nonce, err := s.l1.PendingNonceAt(t.Ctx(), s.batcherAddr)
 	require.NoError(t, err, "need batcher nonce")
 
@@ -247,7 +271,7 @@ func (s *L2Batcher) ActL2BatchSubmit(t Testing, txOpts ...func(tx *types.Dynamic
 			To:        &s.rollupCfg.BatchInboxAddress,
 			GasTipCap: gasTipCap,
 			GasFeeCap: gasFeeCap,
-			Data:      data.Bytes(),
+			Data:      payload,
 		}
 		for _, opt := range txOpts {
 			opt(rawTx)
@@ -259,7 +283,7 @@ func (s *L2Batcher) ActL2BatchSubmit(t Testing, txOpts ...func(tx *types.Dynamic
 		txData = rawTx
 	} else if s.l2BatcherCfg.DataAvailabilityType == batcherFlags.BlobsType {
 		var b eth.Blob
-		require.NoError(t, b.FromData(data.Bytes()), "must turn data into blob")
+		require.NoError(t, b.FromData(payload), "must turn data into blob")
 		sidecar, blobHashes, err := txmgr.MakeSidecar([]*eth.Blob{&b})
 		require.NoError(t, err)
 		require.NotNil(t, pendingHeader.ExcessBlobGas, "need L1 header with 4844 properties")

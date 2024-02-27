@@ -12,17 +12,35 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
+type MockFinalitySignal struct {
+	mock.Mock
+}
+
+func (m *MockFinalitySignal) OnNewL1Finalized(ctx context.Context, blockRef eth.L1BlockRef) {
+	m.MethodCalled("OnNewL1Finalized", blockRef)
+}
+
+func (m *MockFinalitySignal) ExpectL1Finalized(blockRef eth.L1BlockRef) {
+	m.On("OnNewL1Finalized", blockRef).Once()
+}
+
 // TestPlasmaDataSource verifies that commitments are correctly read from l1 and then
 // forwarded to the Plasma DA to return the correct inputs in the iterator.
+// First it generates some L1 refs containing a random number of commitments, challenges
+// the first 4 commitments then generates enough blocks to expire the challenge.
+// Then it simulates rederiving while verifying it does skip the expired input until the next
+// challenge expires.
 func TestPlasmaDataSource(t *testing.T) {
 	logger := testlog.Logger(t, log.LevelDebug)
 	ctx := context.Background()
@@ -33,7 +51,14 @@ func TestPlasmaDataSource(t *testing.T) {
 
 	storage := plasma.NewMockDAClient(logger)
 
-	da := plasma.NewPlasmaDAWithStorage(logger, storage)
+	pcfg := plasma.Config{
+		ChallengeWindow: 90, ResolveWindow: 90,
+	}
+
+	da := plasma.NewPlasmaDAWithStorage(logger, pcfg, storage, l1F, &plasma.NoopMetrics{})
+
+	finalitySignal := &MockFinalitySignal{}
+	da.OnFinalizedHeadSignal(finalitySignal.OnNewL1Finalized)
 
 	// Create rollup genesis and config
 	l1Time := uint64(2)
@@ -64,12 +89,15 @@ func TestPlasmaDataSource(t *testing.T) {
 	}
 	// keep track of random input data to validate against
 	var inputs [][]byte
+	var comms [][]byte
 
 	signer := cfg.L1Signer()
 
 	factory := NewDataSourceFactory(logger, cfg, l1F, nil, da)
 
-	for i := uint64(0); i <= 18; i++ {
+	nc := 0
+
+	for i := uint64(0); i <= pcfg.ChallengeWindow+pcfg.ResolveWindow; i++ {
 		parent := l1Refs[len(l1Refs)-1]
 		// create a new mock l1 ref
 		ref := eth.L1BlockRef{
@@ -80,6 +108,8 @@ func TestPlasmaDataSource(t *testing.T) {
 		}
 		l1Refs = append(l1Refs, ref)
 		logger.Info("new l1 block", "ref", ref)
+		// called for each l1 block to sync challenges
+		l1F.ExpectFetchReceipts(ref.Hash, nil, types.Receipts{}, nil)
 
 		// pick a random number of commitments to include in the l1 block
 		c := rng.Intn(4)
@@ -90,6 +120,7 @@ func TestPlasmaDataSource(t *testing.T) {
 			input := testutils.RandomData(rng, 2000)
 			comm, _ := storage.SetInput(ctx, input)
 			inputs = append(inputs, input)
+			comms = append(comms, comm)
 
 			tx, err := types.SignNewTx(batcherPriv, signer, &types.DynamicFeeTx{
 				ChainID:   signer.ChainID(),
@@ -104,13 +135,39 @@ func TestPlasmaDataSource(t *testing.T) {
 			require.NoError(t, err)
 
 			txs = append(txs, tx)
+
 		}
 		logger.Info("included commitments", "count", c)
 		l1F.ExpectInfoAndTxsByHash(ref.Hash, testutils.RandomBlockInfo(rng), txs, nil)
+		// called once per derivation
+		l1F.ExpectInfoAndTxsByHash(ref.Hash, testutils.RandomBlockInfo(rng), txs, nil)
+
+		if ref.Number == 2 {
+			l1F.ExpectL1BlockRefByNumber(ref.Number, ref, nil)
+			finalitySignal.ExpectL1Finalized(ref)
+		}
+
+		// challenge the first 4 commitments as soon as we have collected them all
+		if len(comms) >= 4 && nc < 7 {
+			// skip a block between each challenge transaction
+			if nc%2 == 0 {
+				da.State().SetActiveChallenge(comms[nc/2], ref.Number, pcfg.ResolveWindow)
+				logger.Info("setting active challenge", "comm", comms[nc/2])
+			}
+			nc++
+		}
 
 		// create a new data source for each block
 		src, err := factory.OpenData(ctx, ref, batcherAddr)
 		require.NoError(t, err)
+
+		// first challenge expires
+		if i == 95 {
+			_, err := src.Next(ctx)
+			require.ErrorIs(t, err, ErrReset)
+			break
+		}
+
 		for j := 0; j < c; j++ {
 			data, err := src.Next(ctx)
 			// check that each commitment is resolved
@@ -121,4 +178,194 @@ func TestPlasmaDataSource(t *testing.T) {
 		_, err = src.Next(ctx)
 		require.ErrorIs(t, err, io.EOF)
 	}
+
+	logger.Info("pipeline reset ..................................")
+
+	// start at 1 since first input should be skipped
+	nc = 1
+
+	for i := 1; i <= len(l1Refs)+2; i++ {
+
+		var ref eth.L1BlockRef
+		// first we run through all the existing l1 blocks
+		if i < len(l1Refs) {
+			ref = l1Refs[i]
+			logger.Info("re deriving block", "ref", ref, "i", i)
+
+			if i == len(l1Refs)-1 {
+				l1F.ExpectFetchReceipts(ref.Hash, nil, types.Receipts{}, nil)
+			}
+			// once past the l1 head, continue generating new l1 refs
+		} else {
+			parent := l1Refs[len(l1Refs)-1]
+			// create a new mock l1 ref
+			ref = eth.L1BlockRef{
+				Hash:       testutils.RandomHash(rng),
+				Number:     parent.Number + 1,
+				ParentHash: parent.Hash,
+				Time:       parent.Time + l1Time,
+			}
+			l1Refs = append(l1Refs, ref)
+			logger.Info("new l1 block", "ref", ref)
+			// called for each l1 block to sync challenges
+			l1F.ExpectFetchReceipts(ref.Hash, nil, types.Receipts{}, nil)
+
+			// pick a random number of commitments to include in the l1 block
+			c := rng.Intn(4)
+			var txs []*types.Transaction
+
+			for j := 0; j < c; j++ {
+				// mock input commitments in l1 transactions
+				input := testutils.RandomData(rng, 2000)
+				comm, _ := storage.SetInput(ctx, input)
+				inputs = append(inputs, input)
+				comms = append(comms, comm)
+
+				tx, err := types.SignNewTx(batcherPriv, signer, &types.DynamicFeeTx{
+					ChainID:   signer.ChainID(),
+					Nonce:     0,
+					GasTipCap: big.NewInt(2 * params.GWei),
+					GasFeeCap: big.NewInt(30 * params.GWei),
+					Gas:       100_000,
+					To:        &batcherInbox,
+					Value:     big.NewInt(int64(0)),
+					Data:      comm,
+				})
+				require.NoError(t, err)
+
+				txs = append(txs, tx)
+
+			}
+			logger.Info("included commitments", "count", c)
+			l1F.ExpectInfoAndTxsByHash(ref.Hash, testutils.RandomBlockInfo(rng), txs, nil)
+		}
+
+		// create a new data source for each block
+		src, err := factory.OpenData(ctx, ref, batcherAddr)
+		require.NoError(t, err)
+
+		// next challenge expires
+		if i == 98 {
+			_, err := src.Next(ctx)
+			require.ErrorIs(t, err, ErrReset)
+			break
+		}
+
+		for data, err := src.Next(ctx); err != io.EOF; data, err = src.Next(ctx) {
+			logger.Info("yielding data")
+			// check that each commitment is resolved
+			require.NoError(t, err)
+			require.Equal(t, hexutil.Bytes(inputs[nc]), data)
+
+			nc++
+		}
+
+	}
+	finalitySignal.AssertExpectations(t)
+	l1F.AssertExpectations(t)
+}
+
+// This tests makes sure the pipeline returns a temporary error if data is not found.
+func TestPlasmaDataSourceStall(t *testing.T) {
+	logger := testlog.Logger(t, log.LevelDebug)
+	ctx := context.Background()
+
+	rng := rand.New(rand.NewSource(1234))
+
+	l1F := &testutils.MockL1Source{}
+
+	storage := plasma.NewMockDAClient(logger)
+
+	pcfg := plasma.Config{
+		ChallengeWindow: 90, ResolveWindow: 90,
+	}
+
+	da := plasma.NewPlasmaDAWithStorage(logger, pcfg, storage, l1F, &plasma.NoopMetrics{})
+
+	finalitySignal := &MockFinalitySignal{}
+	da.OnFinalizedHeadSignal(finalitySignal.OnNewL1Finalized)
+
+	// Create rollup genesis and config
+	l1Time := uint64(2)
+	refA := testutils.RandomBlockRef(rng)
+	refA.Number = 1
+	l1Refs := []eth.L1BlockRef{refA}
+	refA0 := eth.L2BlockRef{
+		Hash:           testutils.RandomHash(rng),
+		Number:         0,
+		ParentHash:     common.Hash{},
+		Time:           refA.Time,
+		L1Origin:       refA.ID(),
+		SequenceNumber: 0,
+	}
+	batcherPriv := testutils.RandomKey()
+	batcherAddr := crypto.PubkeyToAddress(batcherPriv.PublicKey)
+	batcherInbox := common.Address{42}
+	cfg := &rollup.Config{
+		Genesis: rollup.Genesis{
+			L1:     refA.ID(),
+			L2:     refA0.ID(),
+			L2Time: refA0.Time,
+		},
+		BlockTime:          1,
+		SeqWindowSize:      20,
+		BatchInboxAddress:  batcherInbox,
+		DAChallengeAddress: common.Address{43},
+	}
+
+	signer := cfg.L1Signer()
+
+	factory := NewDataSourceFactory(logger, cfg, l1F, nil, da)
+
+	parent := l1Refs[0]
+	// create a new mock l1 ref
+	ref := eth.L1BlockRef{
+		Hash:       testutils.RandomHash(rng),
+		Number:     parent.Number + 1,
+		ParentHash: parent.Hash,
+		Time:       parent.Time + l1Time,
+	}
+	l1F.ExpectFetchReceipts(ref.Hash, nil, types.Receipts{}, nil)
+	// mock input commitments in l1 transactions
+	input := testutils.RandomData(rng, 2000)
+	comm, _ := storage.SetInput(ctx, input)
+
+	tx, err := types.SignNewTx(batcherPriv, signer, &types.DynamicFeeTx{
+		ChainID:   signer.ChainID(),
+		Nonce:     0,
+		GasTipCap: big.NewInt(2 * params.GWei),
+		GasFeeCap: big.NewInt(30 * params.GWei),
+		Gas:       100_000,
+		To:        &batcherInbox,
+		Value:     big.NewInt(int64(0)),
+		Data:      comm,
+	})
+	require.NoError(t, err)
+
+	txs := []*types.Transaction{tx}
+
+	l1F.ExpectInfoAndTxsByHash(ref.Hash, testutils.RandomBlockInfo(rng), txs, nil)
+
+	// delete the input from the DA provider so it returns not found
+	storage.DeleteData(comm)
+
+	// next block is fetched to look ahead challenges but is not yet available
+	l1F.ExpectL1BlockRefByNumber(ref.Number+1, eth.L1BlockRef{}, ethereum.NotFound)
+
+	src, err := factory.OpenData(ctx, ref, batcherAddr)
+	require.NoError(t, err)
+
+	// data is not found so we return a temporary error
+	_, err = src.Next(ctx)
+	require.ErrorIs(t, err, ErrTemporary)
+
+	// now challenge is resolved
+	da.State().SetResolvedChallenge(comm, input, ref.Number+2)
+
+	// derivation can resume
+	data, err := src.Next(ctx)
+	require.NoError(t, err)
+	require.Equal(t, hexutil.Bytes(input), data)
+
+	l1F.AssertExpectations(t)
 }

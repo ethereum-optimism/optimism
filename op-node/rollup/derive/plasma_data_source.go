@@ -2,8 +2,10 @@ package derive
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
+	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -29,6 +31,17 @@ func NewPlasmaDataSource(log log.Logger, src DataIter, fetcher PlasmaInputFetche
 }
 
 func (s *PlasmaDataSource) Next(ctx context.Context) (eth.Data, error) {
+	// Process origin syncs the challenge contract events and updates the local challenge states
+	// before we can proceed to fetch the input data. This function can be called multiple times
+	// for the same origin and noop if the origin was already processed. It is also called if
+	// there is not commitment in the current origin.
+	if err := s.fetcher.AdvanceL1Origin(ctx, s.id); err != nil {
+		if errors.Is(err, plasma.ErrReorgRequired) {
+			return nil, NewResetError(fmt.Errorf("new expired challenge"))
+		}
+		return nil, NewTemporaryError(fmt.Errorf("failed to advance plasma L1 origin: %w", err))
+	}
+
 	if s.comm == nil {
 		var err error
 		// the l1 source returns the input commitment for the batch.
@@ -38,12 +51,25 @@ func (s *PlasmaDataSource) Next(ctx context.Context) (eth.Data, error) {
 		}
 	}
 	// use the commitment to fetch the input from the plasma DA provider.
-	resp, err := s.fetcher.GetInput(ctx, s.comm, s.id.Number)
-	if err != nil {
+	data, err := s.fetcher.GetInput(ctx, s.comm, s.id)
+	// GetInput may call for a reorg if the pipeline is stalled and the plasma DA manager
+	// continued syncing origins detached from the pipeline origin.
+	if errors.Is(err, plasma.ErrReorgRequired) {
+		// challenge for a new previously derived commitment expired.
+		return nil, NewResetError(err)
+	} else if errors.Is(err, plasma.ErrExpiredChallenge) {
+		// this commitment was challenged and the challenge expired.
+		s.log.Warn("challenge expired, skipping batch", "comm", fmt.Sprintf("%x", s.comm))
+		s.comm = nil
+		// skip the input
+		return s.Next(ctx)
+	} else if errors.Is(err, plasma.ErrMissingPastWindow) {
+		return nil, NewCriticalError(fmt.Errorf("data for comm %x not available: %w", s.comm, err))
+	} else if err != nil {
 		// return temporary error so we can keep retrying.
 		return nil, NewTemporaryError(fmt.Errorf("failed to fetch input data with comm %x from da service: %w", s.comm, err))
 	}
 	// reset the commitment so we can fetch the next one from the source at the next iteration.
 	s.comm = nil
-	return resp.Data, nil
+	return data, nil
 }

@@ -62,9 +62,9 @@
   "disputeGameFinalityDelaySeconds": 6,
   "respectedGameType": 0,
   "useFaultProofs": false,
-  "usePlasma": false,
-  "daChallengeWindow": 1000,
-  "daResolveWindow": 1000,
+  "usePlasma": true,
+  "daChallengeWindow": 6,
+  "daResolveWindow": 6,
   "daBondSize": 1000000,
   "daResolverRefundPercentage": 0
 }

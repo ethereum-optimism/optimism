@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/ethdb/memorydb"
 	"github.com/ethereum/go-ethereum/log"
@@ -25,6 +24,11 @@ func NewMockDAClient(log log.Logger) *MockDAClient {
 }
 
 func (c *MockDAClient) GetInput(ctx context.Context, key []byte) ([]byte, error) {
+	// Validate the commitment to make sure we only pass encoded types.
+	_, err := DecodeKeccak256(key)
+	if err != nil {
+		return nil, err
+	}
 	bytes, err := c.store.Get(key)
 	if err != nil {
 		return nil, ErrNotFound
@@ -33,7 +37,7 @@ func (c *MockDAClient) GetInput(ctx context.Context, key []byte) ([]byte, error)
 }
 
 func (c *MockDAClient) SetInput(ctx context.Context, data []byte) ([]byte, error) {
-	key := crypto.Keccak256(data)
+	key := Keccak256(data).Encode()
 	return key, c.store.Put(key, data)
 }
 
@@ -56,7 +60,7 @@ func (f *DAErrFaker) GetInput(ctx context.Context, key []byte) ([]byte, error) {
 	return f.Client.GetInput(ctx, key)
 }
 
-func (f *DAErrFaker) SetPreImage(ctx context.Context, data []byte) ([]byte, error) {
+func (f *DAErrFaker) SetInput(ctx context.Context, data []byte) ([]byte, error) {
 	if err := f.setInputErr; err != nil {
 		f.setInputErr = nil
 		return nil, err

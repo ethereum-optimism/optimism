@@ -188,7 +188,7 @@ func NewEngineQueue(log log.Logger, cfg *rollup.Config, l2Source L2Source, engin
 		ec:             engine,
 		engine:         l2Source,
 		metrics:        metrics,
-		finalityData:   make([]FinalityData, 0, finalityLookback),
+		finalityData:   make([]FinalityData, 0, cfg.FinalityLookback()),
 		unsafePayloads: NewPayloadsQueue(log, maxUnsafePayloadsMemory, payloadMemSize),
 		prev:           prev,
 		l1Fetcher:      l1Fetcher,
@@ -424,8 +424,8 @@ func (eq *EngineQueue) postProcessSafeL2() error {
 		return err
 	}
 	// prune finality data if necessary
-	if len(eq.finalityData) >= finalityLookback {
-		eq.finalityData = append(eq.finalityData[:0], eq.finalityData[1:finalityLookback]...)
+	if uint64(len(eq.finalityData)) >= eq.cfg.FinalityLookback() {
+		eq.finalityData = append(eq.finalityData[:0], eq.finalityData[1:eq.cfg.FinalityLookback()]...)
 	}
 	// remember the last L2 block that we fully derived from the given finality data
 	if len(eq.finalityData) == 0 || eq.finalityData[len(eq.finalityData)-1].L1Block.Number < eq.origin.Number {

@@ -203,8 +203,10 @@ func (n *OpNode) initL1(ctx context.Context, cfg *Config) error {
 	// which only change once per epoch at most and may be delayed.
 	n.l1SafeSub = eth.PollBlockChanges(n.log, n.l1Source, n.OnNewL1Safe, eth.Safe,
 		cfg.L1EpochPollInterval, time.Second*10)
-	n.l1FinalizedSub = eth.PollBlockChanges(n.log, n.l1Source, n.OnNewL1Finalized, eth.Finalized,
-		cfg.L1EpochPollInterval, time.Second*10)
+	if !cfg.Plasma.Enabled {
+		n.l1FinalizedSub = eth.PollBlockChanges(n.log, n.l1Source, n.OnNewL1Finalized, eth.Finalized,
+			cfg.L1EpochPollInterval, time.Second*10)
+	}
 	return nil
 }
 
@@ -386,9 +388,17 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config, snapshotLog log.Logger
 		sequencerConductor = NewConductorClient(cfg, n.log, n.metrics)
 	}
 
-	plasmaDA := plasma.NewPlasmaDA(n.log, cfg.Plasma)
+	// if plasma is not explicitly activated in the node CLI, the config + any error will be ignored.
+	rpCfg, err := cfg.Rollup.PlasmaConfig()
+	if cfg.Plasma.Enabled && err != nil {
+		return fmt.Errorf("failed to get plasma config: %w", err)
+	}
+	plasmaDA := plasma.NewPlasmaDA(n.log, cfg.Plasma, rpCfg, n.l1Source, &plasma.NoopMetrics{})
 	if cfg.Plasma.Enabled {
 		n.log.Info("Plasma DA enabled", "da_server", cfg.Plasma.DAServerURL)
+		// Plasma takes control of the engine finalization signal callback only when enabled
+		// on the CLI.
+		plasmaDA.OnFinalizedHeadSignal(n.OnNewL1Finalized)
 	}
 	if cfg.SafeDBPath != "" {
 		n.log.Info("Safe head database enabled", "path", cfg.SafeDBPath)

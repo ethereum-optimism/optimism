@@ -9,9 +9,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb/memorydb"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
@@ -80,17 +78,22 @@ func TestDAClient(t *testing.T) {
 
 	rng := rand.New(rand.NewSource(1234))
 
-	input := testutils.RandomData(rng, 2000)
+	input := RandomData(rng, 2000)
 
 	comm, err := client.SetInput(ctx, input)
 	require.NoError(t, err)
 
-	require.Equal(t, comm, crypto.Keccak256(input))
+	require.Equal(t, comm, Keccak256(input).Encode())
 
 	stored, err := client.GetInput(ctx, comm)
 	require.NoError(t, err)
 
 	require.Equal(t, input, stored)
+
+	// test validate commitment
+	badcomm := RandomData(rng, 32)
+	_, err = client.GetInput(ctx, badcomm)
+	require.ErrorIs(t, err, ErrInvalidCommitment)
 
 	// set a bad commitment in the store
 	require.NoError(t, store.Put(comm, []byte("bad data")))
@@ -99,7 +102,7 @@ func TestDAClient(t *testing.T) {
 	require.ErrorIs(t, err, ErrCommitmentMismatch)
 
 	// test not found error
-	comm = crypto.Keccak256(testutils.RandomData(rng, 32))
+	comm = Keccak256(RandomData(rng, 32)).Encode()
 	_, err = client.GetInput(ctx, comm)
 	require.ErrorIs(t, err, ErrNotFound)
 
@@ -112,6 +115,6 @@ func TestDAClient(t *testing.T) {
 	_, err = client.SetInput(ctx, input)
 	require.Error(t, err)
 
-	_, err = client.GetInput(ctx, crypto.Keccak256(input))
+	_, err = client.GetInput(ctx, Keccak256(input).Encode())
 	require.Error(t, err)
 }

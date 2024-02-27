@@ -161,6 +161,10 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 		EcotoneTime:            deployConf.EcotoneTime(uint64(deployConf.L1GenesisBlockTimestamp)),
 		FjordTime:              deployConf.FjordTime(uint64(deployConf.L1GenesisBlockTimestamp)),
 		InteropTime:            deployConf.InteropTime(uint64(deployConf.L1GenesisBlockTimestamp)),
+		DAChallengeAddress:     l1Deployments.DataAvailabilityChallengeProxy,
+		DAChallengeWindow:      deployConf.DaChallengeWindow,
+		DAResolveWindow:        deployConf.DaResolveWindow,
+		UsePlasma:              deployConf.UsePlasma,
 	}
 
 	require.NoError(t, rollupCfg.Check())
