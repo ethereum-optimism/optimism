@@ -47,7 +47,7 @@ type DriverSetup struct {
 	L1Client         L1Client
 	EndpointProvider dial.L2EndpointProvider
 	ChannelConfig    ChannelConfig
-	PlasmaDA         *plasma.DAClient
+	PlasmaDA         plasma.DataClient
 }
 
 // BatchSubmitter encapsulates a service responsible for submitting L2 tx

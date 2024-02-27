@@ -46,6 +46,7 @@ type CLIConfig struct {
 	Enabled      bool
 	DAServerURL  string
 	VerifyOnRead bool
+	UseAvailDA   bool
 }
 
 func (c CLIConfig) Check() error {
@@ -60,8 +61,14 @@ func (c CLIConfig) Check() error {
 	return nil
 }
 
-func (c CLIConfig) NewDAClient() *DAClient {
-	return &DAClient{url: c.DAServerURL, verify: c.VerifyOnRead}
+func (c CLIConfig) NewDAClient() DataClient {
+	baseClient := &DAClient{url: c.DAServerURL, verify: c.VerifyOnRead}
+
+	if c.UseAvailDA {
+		return &AvailDAClient{DAClient: daClient}
+	} else {
+		return baseClient
+	}
 }
 
 func ReadCLIConfig(c *cli.Context) CLIConfig {

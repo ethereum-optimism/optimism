@@ -52,7 +52,7 @@ type BatcherService struct {
 	L1Client         *ethclient.Client
 	EndpointProvider dial.L2EndpointProvider
 	TxManager        txmgr.TxManager
-	PlasmaDA         *plasma.DAClient
+	PlasmaDA         plasma.DataClient
 
 	BatcherConfig
 
