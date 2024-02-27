@@ -217,11 +217,9 @@ require (
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
 
-replace github.com/ledgerwatch/erigon => github.com/bobanetwork/v3-erigon v1.1.0
+replace github.com/ledgerwatch/erigon => github.com/bobanetwork/v3-erigon v0.0.0-20240223222735-55b4885d2ef7
 
 replace github.com/ledgerwatch/erigon-lib => github.com/bobanetwork/v3-erigon/erigon-lib v0.0.0-20240223222735-55b4885d2ef7
-
-replace github.com/ethereum-optimism/superchain-registry/superchain => github.com/bobanetwork/superchain-registry/superchain v0.0.0-20240223212802-3cf921f7ab5c
 
 replace github.com/bobanetwork/v3-anchorage/boba-bindings => ../boba-bindings
 
