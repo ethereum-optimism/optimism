@@ -20,6 +20,8 @@ interface ICrossL2Inbox {
 
     function CHAINID_SLOT() external view returns (bytes32);
 
+    function L1_BLOCK() external view returns (address);
+
     function initialize(address _l1Block) external;
 
     function origin() external view returns (address _origin);
@@ -48,7 +50,7 @@ interface IL2ToL2CrossDomainMessenger {
 
     function INITIAL_BALANCE() external view returns (uint248);
 
-    function CROSS_L2_INBOX() external view returns (ICrossL2Inbox);
+    function CROSS_L2_INBOX() external view returns (address);
 
     function successfulMessages(bytes32) external view returns (bool);
 
