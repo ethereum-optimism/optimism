@@ -348,7 +348,7 @@ func (s *Driver) eventLoop() {
 				if err := s.engineController.InsertUnsafePayload(s.driverCtx, envelope, ref); err != nil {
 					s.log.Warn("Failed to insert unsafe payload for EL sync", "id", envelope.ExecutionPayload.ID(), "err", err)
 				}
-				s.logSyncProgress("unsafe payload from sequencer")
+				s.logSyncProgress("unsafe payload from sequencer while in EL sync")
 			}
 		case newL1Head := <-s.l1HeadSig:
 			s.l1State.HandleNewL1HeadBlock(newL1Head)

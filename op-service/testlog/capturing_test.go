@@ -41,3 +41,20 @@ func TestCaptureLogger(t *testing.T) {
 	require.EqualValues(t, 3, recOp.AttrValue("c"))
 	// Note: "b" attributes won't be visible on captured record
 }
+
+func TestCaptureLoggerAttributesFilter(t *testing.T) {
+	lgr, logs := testlog.CaptureLogger(t, log.LevelInfo)
+	msg := "foo bar"
+	lgr.Info(msg, "a", "test")
+	lgr.Info(msg, "a", "test 2")
+	lgr.Info(msg, "a", "random")
+	msgFilter := testlog.NewMessageFilter(msg)
+	attrFilter := testlog.NewAttributesFilter("a", "random")
+
+	rec := logs.FindLog(msgFilter, attrFilter)
+	require.Equal(t, msg, rec.Message)
+	require.EqualValues(t, "random", rec.AttrValue("a"))
+
+	recs := logs.FindLogs(msgFilter, attrFilter)
+	require.Len(t, recs, 1)
+}

@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -217,6 +218,163 @@ func TestELSync(gt *testing.T) {
 		60*time.Second, 1500*time.Millisecond,
 		"verifier did not snap sync",
 	)
+}
+
+// TestELSyncTransitionstoCL tests that a verifier which starts with EL sync can switch back to a proper CL sync.
+// It takes a sequencer & verifier through the following:
+//  1. Build 10 unsafe blocks on the sequencer
+//  2. Snap sync those blocks to the verifier
+//  3. Build & insert 1 unsafe block from the sequencer to the verifier to end snap sync
+//  4. Batch submit everything
+//  5. Build 10 more unsafe blocks on the sequencer
+//  6. Gossip in the highest block to the verifier. **Expect that it does not snap sync**
+//  7. Then gossip the rest of the blocks to the verifier. Once this is complete it should pick up all of the unsafe blocks.
+//     Prior to this PR, the test would fail at this point.
+//  8. Create 1 more block & batch submit everything & assert that the verifier picked up those blocks
+func TestELSyncTransitionstoCL(gt *testing.T) {
+	t := NewDefaultTesting(gt)
+	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
+	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	logger := testlog.Logger(t, log.LevelInfo)
+
+	captureLog, captureLogHandler := testlog.CaptureLogger(t, log.LevelInfo)
+
+	miner, seqEng, sequencer := setupSequencerTest(t, sd, logger)
+	batcher := NewL2Batcher(logger, sd.RollupCfg, DefaultBatcherCfg(dp), sequencer.RollupClient(), miner.EthClient(), seqEng.EthClient(), seqEng.EngineClient(t, sd.RollupCfg))
+	// Enable engine P2P sync
+	verEng, verifier := setupVerifier(t, sd, captureLog, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{SyncMode: sync.ELSync})
+
+	seqEngCl, err := sources.NewEngineClient(seqEng.RPCClient(), logger, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
+	require.NoError(t, err)
+
+	miner.ActEmptyBlock(t)
+	sequencer.ActL2PipelineFull(t)
+
+	// Build 10 L1 blocks on the sequencer
+	for i := 0; i < 10; i++ {
+		// Build a L2 block
+		sequencer.ActL2StartBlock(t)
+		sequencer.ActL2EndBlock(t)
+	}
+
+	// Wait longer to peer. This tests flakes or takes a long time when the op-geth instances are not able to peer.
+	verEng.AddPeers(seqEng.Enode())
+
+	// Insert it on the verifier
+	seqHead, err := seqEngCl.PayloadByLabel(t.Ctx(), eth.Unsafe)
+	require.NoError(t, err)
+	seqStart, err := seqEngCl.PayloadByNumber(t.Ctx(), 1)
+	require.NoError(t, err)
+	verifier.ActL2InsertUnsafePayload(seqHead)(t)
+
+	require.Eventually(t,
+		func() bool {
+			return seqEng.PeerCount() > 0 && verEng.PeerCount() > 0
+		},
+		120*time.Second, 1500*time.Millisecond,
+		"Sequencer & Verifier must peer with each other for snap sync to work",
+	)
+
+	// Expect snap sync to download & execute the entire chain
+	// Verify this by checking that the verifier has the correct value for block 1
+	require.Eventually(t,
+		func() bool {
+			block, err := verifier.eng.L2BlockRefByNumber(t.Ctx(), 1)
+			if err != nil {
+				return false
+			}
+			return seqStart.ExecutionPayload.BlockHash == block.Hash
+		},
+		60*time.Second, 1500*time.Millisecond,
+		"verifier did not snap sync",
+	)
+	// Despite downloading the blocks, it has not finished finalizing
+	_, err = verifier.eng.L2BlockRefByLabel(t.Ctx(), "safe")
+	require.ErrorIs(t, err, ethereum.NotFound)
+
+	// Insert a block on the verifier to end snap sync
+	sequencer.ActL2StartBlock(t)
+	sequencer.ActL2EndBlock(t)
+	seqHead, err = seqEngCl.PayloadByLabel(t.Ctx(), eth.Unsafe)
+	require.NoError(t, err)
+	verifier.ActL2InsertUnsafePayload(seqHead)(t)
+
+	// Check that safe + finalized are there
+	id, err := verifier.eng.L2BlockRefByLabel(t.Ctx(), eth.Safe)
+	require.Equal(t, uint64(11), id.Number)
+	require.NoError(t, err)
+	id, err = verifier.eng.L2BlockRefByLabel(t.Ctx(), eth.Finalized)
+	require.Equal(t, uint64(11), id.Number)
+	require.NoError(t, err)
+
+	// Batch submit everything
+	sequencer.ActL2StartBlock(t)
+	sequencer.ActL2EndBlock(t)
+	batcher.ActSubmitAll(t)
+	miner.ActL1StartBlock(12)(t)
+	miner.ActL1IncludeTx(dp.Addresses.Batcher)(t)
+	miner.ActL1EndBlock(t)
+	sequencer.ActL2PipelineFull(t)
+	verifier.ActL2PipelineFull(t)
+
+	// Verify that the batch submitted blocks are there now
+	id, err = sequencer.eng.L2BlockRefByLabel(t.Ctx(), eth.Safe)
+	require.NoError(t, err)
+	require.Equal(t, uint64(12), id.Number)
+	id, err = verifier.eng.L2BlockRefByLabel(t.Ctx(), eth.Safe)
+	require.NoError(t, err)
+	require.Equal(t, uint64(12), id.Number)
+
+	// Build another 10 L1 blocks on the sequencer
+	for i := 0; i < 10; i++ {
+		// Build a L2 block
+		sequencer.ActL2StartBlock(t)
+		sequencer.ActL2EndBlock(t)
+	}
+
+	// Now pass payloads to the derivation pipeline
+	// This is a little hacky that we have to manually switch between InsertBlock
+	// and UnsafeGossipReceive in the tests
+	seqHead, err = seqEngCl.PayloadByLabel(t.Ctx(), eth.Unsafe)
+	require.NoError(t, err)
+	verifier.ActL2UnsafeGossipReceive(seqHead)(t)
+	verifier.ActL2PipelineFull(t)
+	// Verify that the derivation pipeline did not request a sync to the new head. This is the core of the test, but a little fragile.
+	record := captureLogHandler.FindLog(testlog.NewMessageFilter("Forkchoice requested sync to new head"), testlog.NewAttributesFilter("number", "22"))
+	require.Nil(t, record, "The verifier should not request to sync to block number 22 because it is in CL mode, not EL mode at this point.")
+
+	for i := 13; i < 23; i++ {
+		seqHead, err = seqEngCl.PayloadByNumber(t.Ctx(), uint64(i))
+		require.NoError(t, err)
+		verifier.ActL2UnsafeGossipReceive(seqHead)(t)
+	}
+	verifier.ActL2PipelineFull(t)
+
+	// Verify that the unsafe blocks are there now
+	// This was failing prior to PR 9661 because op-node would attempt to immediately insert blocks into the EL inside the engine queue. op-geth
+	// would not be able to fetch the second range of blocks & it would wipe out the unsafe payloads queue because op-node thought that it had a
+	// higher unsafe block but op-geth did not.
+	id, err = verifier.eng.L2BlockRefByLabel(t.Ctx(), eth.Unsafe)
+	require.NoError(t, err)
+	require.Equal(t, uint64(22), id.Number)
+
+	// Create 1 more block & batch submit everything
+	sequencer.ActL2StartBlock(t)
+	sequencer.ActL2EndBlock(t)
+	batcher.ActSubmitAll(t)
+	miner.ActL1StartBlock(12)(t)
+	miner.ActL1IncludeTx(dp.Addresses.Batcher)(t)
+	miner.ActL1EndBlock(t)
+	sequencer.ActL2PipelineFull(t)
+	verifier.ActL2PipelineFull(t)
+
+	// Verify that the batch submitted blocks are there now
+	id, err = sequencer.eng.L2BlockRefByLabel(t.Ctx(), eth.Safe)
+	require.NoError(t, err)
+	require.Equal(t, uint64(23), id.Number)
+	id, err = verifier.eng.L2BlockRefByLabel(t.Ctx(), eth.Safe)
+	require.NoError(t, err)
+	require.Equal(t, uint64(23), id.Number)
 }
 
 func TestInvalidPayloadInSpanBatch(gt *testing.T) {
