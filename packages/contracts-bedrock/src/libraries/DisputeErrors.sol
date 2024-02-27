@@ -30,6 +30,9 @@ error AlreadyInitialized();
 /// @notice Thrown when a supplied bond is too low to cover the cost of the interaction.
 error InsufficientBond();
 
+/// @notice Thrown when a credit claim is attempted for a value of 0.
+error NoCreditToClaim();
+
 /// @notice Thrown when the transfer of credit to a recipient account reverts.
 error BondTransferFailed();
 

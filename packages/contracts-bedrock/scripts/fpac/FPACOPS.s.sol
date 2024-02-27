@@ -18,19 +18,22 @@ contract FPACOPS is Deploy, StdAssertions {
         prankDeployment("ProxyAdmin", msg.sender);
         prankDeployment("SystemOwnerSafe", msg.sender);
 
-        // Deploy the DisputeGameFactoryProxy.
+        // Deploy the proxies.
         deployERC1967Proxy("DisputeGameFactoryProxy");
+        deployERC1967Proxy("DelayedWETHProxy");
 
         // Deploy implementations.
         deployDisputeGameFactory();
+        deployDelayedWETH();
         deployPreimageOracle();
         deployMips();
 
         // Deploy the new `OptimismPortal` implementation.
         deployOptimismPortal2();
 
-        // Initialize the DisputeGameFactoryProxy.
+        // Initialize the proxies.
         initializeDisputeGameFactoryProxy();
+        initializeDelayedWETHProxy();
 
         // Deploy the Cannon Fault game implementation and set it as game ID = 0.
         setCannonFaultGameImplementation({ _allowUpgrade: false });
@@ -40,6 +43,7 @@ contract FPACOPS is Deploy, StdAssertions {
         // Transfer ownership of the DisputeGameFactory to the SystemOwnerSafe, and transfer the administrative rights
         // of the DisputeGameFactoryProxy to the ProxyAdmin.
         transferDGFOwnershipFinal({ _proxyAdmin: _proxyAdmin, _systemOwnerSafe: _systemOwnerSafe });
+        transferWethOwnershipFinal({ _proxyAdmin: _proxyAdmin, _systemOwnerSafe: _systemOwnerSafe });
 
         // Run post-deployment assertions.
         postDeployAssertions({ _proxyAdmin: _proxyAdmin, _systemOwnerSafe: _systemOwnerSafe });
@@ -62,6 +66,17 @@ contract FPACOPS is Deploy, StdAssertions {
         );
     }
 
+    function initializeDelayedWETHProxy() internal broadcast {
+        console.log("Initializing DelayedWETHProxy with DelayedWETH.");
+
+        address wethProxy = mustGetAddress("DelayedWETHProxy");
+        address systemConfigProxy = mustGetAddress("SystemConfigProxy");
+        Proxy(payable(wethProxy)).upgradeToAndCall(
+            mustGetAddress("DelayedWETH"),
+            abi.encodeWithSignature("initialize(address,address)", msg.sender, systemConfigProxy)
+        );
+    }
+
     /// @notice Transfers admin rights of the `DisputeGameFactoryProxy` to the `ProxyAdmin` and sets the
     ///         `DisputeGameFactory` owner to the `SystemOwnerSafe`.
     function transferDGFOwnershipFinal(address _proxyAdmin, address _systemOwnerSafe) internal broadcast {
@@ -72,6 +87,19 @@ contract FPACOPS is Deploy, StdAssertions {
 
         // Transfer the admin rights of the DisputeGameFactoryProxy to the ProxyAdmin.
         Proxy prox = Proxy(payable(address(dgf)));
+        prox.changeAdmin(_proxyAdmin);
+    }
+
+    /// @notice Transfers admin rights of the `DelayedWETHProxy` to the `ProxyAdmin` and sets the
+    ///         `DelayedWETH` owner to the `SystemOwnerSafe`.
+    function transferWethOwnershipFinal(address _proxyAdmin, address _systemOwnerSafe) internal broadcast {
+        DelayedWETH weth = DelayedWETH(mustGetAddress("DelayedWETHProxy"));
+
+        // Transfer the ownership of the DelayedWETH to the SystemOwnerSafe.
+        weth.transferOwnership(_systemOwnerSafe);
+
+        // Transfer the admin rights of the DelayedWETHProxy to the ProxyAdmin.
+        Proxy prox = Proxy(payable(address(weth)));
         prox.changeAdmin(_proxyAdmin);
     }
 
@@ -88,6 +116,9 @@ contract FPACOPS is Deploy, StdAssertions {
         DisputeGameFactory dgfProxy = DisputeGameFactory(dgfProxyAddr);
         assertEq(address(uint160(uint256(vm.load(dgfProxyAddr, Constants.PROXY_OWNER_ADDRESS)))), _proxyAdmin);
         ChainAssertions.checkDisputeGameFactory(contracts, _systemOwnerSafe);
+        address wethProxyAddr = mustGetAddress("DelayedWETHProxy");
+        assertEq(address(uint160(uint256(vm.load(wethProxyAddr, Constants.PROXY_OWNER_ADDRESS)))), _proxyAdmin);
+        ChainAssertions.checkDelayedWETH(contracts, cfg, true, _systemOwnerSafe);
 
         // Check the config elements in the deployed contracts.
         ChainAssertions.checkOptimismPortal2(contracts, cfg, false);
@@ -100,7 +131,7 @@ contract FPACOPS is Deploy, StdAssertions {
         assertEq(address(mips.oracle()), address(oracle));
 
         // Check the FaultDisputeGame configuration.
-        FaultDisputeGame gameImpl = FaultDisputeGame(address(dgfProxy.gameImpls(GameTypes.CANNON)));
+        FaultDisputeGame gameImpl = FaultDisputeGame(payable(address(dgfProxy.gameImpls(GameTypes.CANNON))));
         assertEq(gameImpl.maxGameDepth(), cfg.faultGameMaxDepth());
         assertEq(gameImpl.splitDepth(), cfg.faultGameSplitDepth());
         assertEq(gameImpl.gameDuration().raw(), cfg.faultGameMaxDuration());
@@ -110,7 +141,7 @@ contract FPACOPS is Deploy, StdAssertions {
 
         // Check the security override yoke configuration.
         PermissionedDisputeGame soyGameImpl =
-            PermissionedDisputeGame(address(dgfProxy.gameImpls(GameTypes.PERMISSIONED_CANNON)));
+            PermissionedDisputeGame(payable(address(dgfProxy.gameImpls(GameTypes.PERMISSIONED_CANNON))));
         assertEq(soyGameImpl.maxGameDepth(), cfg.faultGameMaxDepth());
         assertEq(soyGameImpl.splitDepth(), cfg.faultGameSplitDepth());
         assertEq(soyGameImpl.gameDuration().raw(), cfg.faultGameMaxDuration());

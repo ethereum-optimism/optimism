@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+import { IDelayedWETH } from "src/dispute/interfaces/IDelayedWETH.sol";
 import { FaultDisputeGame, IFaultDisputeGame, IBigStepper, IInitializable } from "src/dispute/FaultDisputeGame.sol";
 import "src/libraries/DisputeTypes.sol";
 import "src/libraries/DisputeErrors.sol";
@@ -44,6 +45,7 @@ contract PermissionedDisputeGame is FaultDisputeGame {
         uint256 _splitDepth,
         Duration _gameDuration,
         IBigStepper _vm,
+        IDelayedWETH _weth,
         address _proposer,
         address _challenger
     )
@@ -55,7 +57,8 @@ contract PermissionedDisputeGame is FaultDisputeGame {
             _maxGameDepth,
             _splitDepth,
             _gameDuration,
-            _vm
+            _vm,
+            _weth
         )
     {
         PROPOSER = _proposer;

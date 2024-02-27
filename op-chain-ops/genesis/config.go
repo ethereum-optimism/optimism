@@ -213,6 +213,8 @@ type DeployConfig struct {
 	FaultGameGenesisOutputRoot common.Hash `json:"faultGameGenesisOutputRoot"`
 	// FaultGameSplitDepth is the depth at which the fault dispute game splits from output roots to execution trace claims.
 	FaultGameSplitDepth uint64 `json:"faultGameSplitDepth"`
+	// FaultGameWithdrawalDelay is the number of seconds that users must wait before withdrawing ETH from a fault game.
+	FaultGameWithdrawalDelay uint64 `json:"faultGameWithdrawalDelay"`
 	// PreimageOracleMinProposalSize is the minimum number of bytes that a large preimage oracle proposal can be.
 	PreimageOracleMinProposalSize uint64 `json:"preimageOracleMinProposalSize"`
 	// PreimageOracleChallengePeriod is the number of seconds that challengers have to challenge a large preimage proposal.

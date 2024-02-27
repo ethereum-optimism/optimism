@@ -42,6 +42,11 @@
         "type": "address"
       },
       {
+        "internalType": "contract IDelayedWETH",
+        "name": "_weth",
+        "type": "address"
+      },
+      {
         "internalType": "address",
         "name": "_proposer",
         "type": "address"
@@ -54,6 +59,14 @@
     ],
     "stateMutability": "nonpayable",
     "type": "constructor"
+  },
+  {
+    "stateMutability": "payable",
+    "type": "fallback"
+  },
+  {
+    "stateMutability": "payable",
+    "type": "receive"
   },
   {
     "inputs": [],
@@ -556,6 +569,19 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "weth",
+    "outputs": [
+      {
+        "internalType": "contract IDelayedWETH",
+        "name": "weth_",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "anonymous": false,
     "inputs": [
       {
@@ -676,6 +702,11 @@
   {
     "inputs": [],
     "name": "InvalidSplitDepth",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NoCreditToClaim",
     "type": "error"
   },
   {
