@@ -62,6 +62,8 @@ func TestInjectState(t *testing.T) {
 			RegolithTime:                  &hardforkTime,
 			CanyonTime:                    &hardforkTime,
 			ShanghaiTime:                  &hardforkTime,
+			CancunTime:                    &hardforkTime,
+			EcotoneTime:                   &hardforkTime,
 			Optimism: &params.OptimismConfig{
 				EIP1559Elasticity:        1,
 				EIP1559Denominator:       1,

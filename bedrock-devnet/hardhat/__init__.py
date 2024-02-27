@@ -29,6 +29,7 @@ DEV_ACCOUNTS = [
 L1STARTINGBLOCKTAG = '0xb21fa192d3169c824801af37775514f246d96b906eff24849c5bd240ccb23557'
 L2OUTPUTORACLESTARTINGTIMESTAMP = 1693950295
 L1BOBATOKENADDRESS = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
+UPGRADETIMEOFFSET = '0x0'
 
 class Bunch:
     def __init__(self, **kwds):
@@ -137,6 +138,12 @@ ENABLE_BOBA_TOKEN_DEPLOYMENT=true
         config['l2OutputOracleStartingTimestamp'] = int(block_result['timestamp'], 0)
         config['controller'] = DEV_ACCOUNTS[0]
         config['l1BobaTokenAddress'] = DEV_ACCOUNTS[0]
+        config['l2GenesisRegolithTimeOffset'] = block_result['timestamp']
+        config['l2GenesisCanyonTimeOffset'] = block_result['timestamp']
+        config['l2GenesisDeltaTimeOffset'] = block_result['timestamp']
+        # L1 beacon endpoint is not available in the devnet
+        if 'l2GenesisEcotoneTimeOffset' in config:
+            del config['l2GenesisEcotoneTimeOffset']
     write_json(paths.devnet_config_path, config)
 
     with open(paths.devnet_config_export_path, 'w+') as f:
@@ -254,6 +261,10 @@ def devent_restore_configurations(paths):
         config['l1StartingBlockTag'] = L1STARTINGBLOCKTAG
         config['l2OutputOracleStartingTimestamp'] = L2OUTPUTORACLESTARTINGTIMESTAMP
         config['l1BobaTokenAddress'] = L1BOBATOKENADDRESS
+        config['l2GenesisRegolithTimeOffset'] = UPGRADETIMEOFFSET
+        config['l2GenesisCanyonTimeOffset'] = UPGRADETIMEOFFSET
+        config['l2GenesisDeltaTimeOffset'] = UPGRADETIMEOFFSET
+        config['l2GenesisEcotoneTimeOffset'] = UPGRADETIMEOFFSET
     write_json(paths.devnet_config_path, config)
 
 def eth_block(url):
