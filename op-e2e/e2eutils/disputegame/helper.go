@@ -58,6 +58,24 @@ func (s Status) String() string {
 	}
 }
 
+type gameCfg struct {
+	allowUnsafe bool
+}
+type GameOpt interface {
+	Apply(cfg *gameCfg)
+}
+type gameOptFn func(c *gameCfg)
+
+func (g gameOptFn) Apply(cfg *gameCfg) {
+	g(cfg)
+}
+
+func WithUnsafeProposal() GameOpt {
+	return gameOptFn(func(c *gameCfg) {
+		c.allowUnsafe = true
+	})
+}
+
 type DisputeSystem interface {
 	L1BeaconEndpoint() string
 	NodeEndpoint(name string) string
@@ -121,18 +139,28 @@ func (h *FactoryHelper) PreimageHelper(ctx context.Context) *preimage.Helper {
 	return preimage.NewHelper(h.t, h.opts, h.client, oracleAddr)
 }
 
-func (h *FactoryHelper) StartOutputCannonGameWithCorrectRoot(ctx context.Context, l2Node string, l2BlockNumber uint64) *OutputCannonGameHelper {
-	h.waitForBlockToBeSafe(l2Node, l2BlockNumber)
-	output, err := h.system.RollupClient(l2Node).OutputAtBlock(ctx, l2BlockNumber)
-	h.require.NoErrorf(err, "Failed to get output at block %v", l2BlockNumber)
-	return h.StartOutputCannonGame(ctx, l2Node, l2BlockNumber, common.Hash(output.OutputRoot))
+func newGameCfg(opts ...GameOpt) *gameCfg {
+	cfg := &gameCfg{}
+	for _, opt := range opts {
+		opt.Apply(cfg)
+	}
+	return cfg
 }
 
-func (h *FactoryHelper) StartOutputCannonGame(ctx context.Context, l2Node string, l2BlockNumber uint64, rootClaim common.Hash) *OutputCannonGameHelper {
+func (h *FactoryHelper) StartOutputCannonGameWithCorrectRoot(ctx context.Context, l2Node string, l2BlockNumber uint64, opts ...GameOpt) *OutputCannonGameHelper {
+	cfg := newGameCfg(opts...)
+	h.waitForBlock(l2Node, l2BlockNumber, cfg)
+	output, err := h.system.RollupClient(l2Node).OutputAtBlock(ctx, l2BlockNumber)
+	h.require.NoErrorf(err, "Failed to get output at block %v", l2BlockNumber)
+	return h.StartOutputCannonGame(ctx, l2Node, l2BlockNumber, common.Hash(output.OutputRoot), opts...)
+}
+
+func (h *FactoryHelper) StartOutputCannonGame(ctx context.Context, l2Node string, l2BlockNumber uint64, rootClaim common.Hash, opts ...GameOpt) *OutputCannonGameHelper {
+	cfg := newGameCfg(opts...)
 	logger := testlog.Logger(h.t, log.LevelInfo).New("role", "OutputCannonGameHelper")
 	rollupClient := h.system.RollupClient(l2Node)
 
-	extraData := h.createBisectionGameExtraData(l2Node, l2BlockNumber)
+	extraData := h.createBisectionGameExtraData(l2Node, l2BlockNumber, cfg)
 
 	ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
 	defer cancel()
@@ -174,18 +202,20 @@ func (h *FactoryHelper) StartOutputCannonGame(ctx context.Context, l2Node string
 	}
 }
 
-func (h *FactoryHelper) StartOutputAlphabetGameWithCorrectRoot(ctx context.Context, l2Node string, l2BlockNumber uint64) *OutputAlphabetGameHelper {
-	h.waitForBlockToBeSafe(l2Node, l2BlockNumber)
+func (h *FactoryHelper) StartOutputAlphabetGameWithCorrectRoot(ctx context.Context, l2Node string, l2BlockNumber uint64, opts ...GameOpt) *OutputAlphabetGameHelper {
+	cfg := newGameCfg(opts...)
+	h.waitForBlock(l2Node, l2BlockNumber, cfg)
 	output, err := h.system.RollupClient(l2Node).OutputAtBlock(ctx, l2BlockNumber)
 	h.require.NoErrorf(err, "Failed to get output at block %v", l2BlockNumber)
 	return h.StartOutputAlphabetGame(ctx, l2Node, l2BlockNumber, common.Hash(output.OutputRoot))
 }
 
-func (h *FactoryHelper) StartOutputAlphabetGame(ctx context.Context, l2Node string, l2BlockNumber uint64, rootClaim common.Hash) *OutputAlphabetGameHelper {
+func (h *FactoryHelper) StartOutputAlphabetGame(ctx context.Context, l2Node string, l2BlockNumber uint64, rootClaim common.Hash, opts ...GameOpt) *OutputAlphabetGameHelper {
+	cfg := newGameCfg(opts...)
 	logger := testlog.Logger(h.t, log.LevelInfo).New("role", "OutputAlphabetGameHelper")
 	rollupClient := h.system.RollupClient(l2Node)
 
-	extraData := h.createBisectionGameExtraData(l2Node, l2BlockNumber)
+	extraData := h.createBisectionGameExtraData(l2Node, l2BlockNumber, cfg)
 
 	ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
 	defer cancel()
@@ -227,18 +257,23 @@ func (h *FactoryHelper) StartOutputAlphabetGame(ctx context.Context, l2Node stri
 	}
 }
 
-func (h *FactoryHelper) createBisectionGameExtraData(l2Node string, l2BlockNumber uint64) []byte {
-	h.waitForBlockToBeSafe(l2Node, l2BlockNumber)
+func (h *FactoryHelper) createBisectionGameExtraData(l2Node string, l2BlockNumber uint64, cfg *gameCfg) []byte {
+	h.waitForBlock(l2Node, l2BlockNumber, cfg)
 	h.t.Logf("Creating game with l2 block number: %v", l2BlockNumber)
 	extraData := make([]byte, 32)
 	binary.BigEndian.PutUint64(extraData[24:], l2BlockNumber)
 	return extraData
 }
 
-func (h *FactoryHelper) waitForBlockToBeSafe(l2Node string, l2BlockNumber uint64) {
+func (h *FactoryHelper) waitForBlock(l2Node string, l2BlockNumber uint64, cfg *gameCfg) {
 	l2Client := h.system.NodeClient(l2Node)
-	_, err := geth.WaitForBlockToBeSafe(new(big.Int).SetUint64(l2BlockNumber), l2Client, 1*time.Minute)
-	h.require.NoErrorf(err, "Block number %v did not become safe", l2BlockNumber)
+	if cfg.allowUnsafe {
+		_, err := geth.WaitForBlock(new(big.Int).SetUint64(l2BlockNumber), l2Client, 1*time.Minute)
+		h.require.NoErrorf(err, "Block number %v did not become unsafe", l2BlockNumber)
+	} else {
+		_, err := geth.WaitForBlockToBeSafe(new(big.Int).SetUint64(l2BlockNumber), l2Client, 1*time.Minute)
+		h.require.NoErrorf(err, "Block number %v did not become safe", l2BlockNumber)
+	}
 }
 
 func (h *FactoryHelper) StartChallenger(ctx context.Context, name string, options ...challenger.Option) *challenger.Helper {
