@@ -865,9 +865,17 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (*immutables
 		}{
 			Name: "EAS",
 		},
-		Create2Deployer:            struct{}{},
-		CrossL2Inbox:               struct{}{},
-		L2ToL2CrossDomainMessenger: struct{}{},
+		Create2Deployer: struct{}{},
+		CrossL2Inbox: struct {
+			L1Block common.Address
+		}{
+			L1Block: predeploys.L1BlockAddr,
+		},
+		L2ToL2CrossDomainMessenger: struct {
+			CrossL2Inbox common.Address
+		}{
+			CrossL2Inbox: predeploys.CrossL2InboxAddr,
+		},
 	}
 
 	if err := cfg.Check(); err != nil {
