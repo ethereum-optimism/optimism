@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { SafeCall } from "src/libraries/SafeCall.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
 import { L1Block } from "src/L2/L1Block.sol";
 
 /// @custom:upgradeable
@@ -33,10 +34,10 @@ contract CrossL2Inbox is Initializable {
     // bytes32(uint256(keccak256("crossl2inbox.identifier.chainid")) - 1)
     bytes32 public constant CHAINID_SLOT = 0x6e0446e8b5098b8c8193f964f1b567ec3a2bdaeba33d36acb85c1f1d3f92d313;
 
-    L1Block public l1Block;
+    address public immutable L1_BLOCK;
 
-    function initialize(address _l1Block) public initializer {
-        l1Block = L1Block(_l1Block);
+    constructor() {
+        L1_BLOCK = Predeploys.L1_BLOCK_ATTRIBUTES;
     }
 
     function origin() public view returns (address _origin) {
@@ -74,13 +75,13 @@ contract CrossL2Inbox is Initializable {
     /// @param _id A Identifier pointing to the initiating message.
     /// @param _target Account that is called with _msg.
     function executeMessage(bytes calldata _msg, Identifier calldata _id, address _target) public payable {
-        require(_id.timestamp <= block.timestamp); // timestamp invariant
+        require(_id.timestamp <= block.timestamp, "Invalid timestamp"); // timestamp invariant
         uint256 chainId_;
         assembly {
             chainId_ := mload(add(_id, 0x80))
         }
-        require(l1Block.isInDependencySet(chainId_)); // chainId invariant
-        require(msg.sender == tx.origin); // only EOA invariant
+        require(L1Block(L1_BLOCK).isInDependencySet(chainId_), "Invalid chainId"); // chainId invariant
+        require(msg.sender == tx.origin, "Not EOA"); // only EOA invariant
 
         assembly {
             tstore(ORIGIN_SLOT, mload(_id))
@@ -89,8 +90,6 @@ contract CrossL2Inbox is Initializable {
             tstore(TIMESTAMP_SLOT, mload(add(_id, 0x60)))
             tstore(CHAINID_SLOT, chainId_)
         }
-
-        require(l1Block.isInDependencySet(chainId_));
 
         bool success = SafeCall.call({ _target: _target, _gas: gasleft(), _value: msg.value, _calldata: _msg });
 
