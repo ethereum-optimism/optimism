@@ -59,6 +59,7 @@ func (s Status) String() string {
 }
 
 type gameCfg struct {
+	allowFuture bool
 	allowUnsafe bool
 }
 type GameOpt interface {
@@ -73,6 +74,12 @@ func (g gameOptFn) Apply(cfg *gameCfg) {
 func WithUnsafeProposal() GameOpt {
 	return gameOptFn(func(c *gameCfg) {
 		c.allowUnsafe = true
+	})
+}
+
+func WithFutureProposal() GameOpt {
+	return gameOptFn(func(c *gameCfg) {
+		c.allowFuture = true
 	})
 }
 
@@ -279,6 +286,11 @@ func (h *FactoryHelper) createBisectionGameExtraData(l2Node string, l2BlockNumbe
 }
 
 func (h *FactoryHelper) waitForBlock(l2Node string, l2BlockNumber uint64, cfg *gameCfg) {
+	if cfg.allowFuture {
+		// Proposing a block that doesn't exist yet, so don't perform any checks
+		return
+	}
+
 	l2Client := h.system.NodeClient(l2Node)
 	if cfg.allowUnsafe {
 		_, err := geth.WaitForBlock(new(big.Int).SetUint64(l2BlockNumber), l2Client, 1*time.Minute)
