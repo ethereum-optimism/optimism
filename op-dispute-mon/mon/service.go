@@ -41,7 +41,6 @@ type Service struct {
 	forecast     *forecast
 	game         *extract.GameCallerCreator
 	rollupClient *sources.RollupClient
-	detector     *detector
 	validator    *outputValidator
 
 	l1Client *ethclient.Client
@@ -91,7 +90,6 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 	s.initExtractor()
 
 	s.initForecast(cfg)
-	s.initDetector()
 
 	s.initMonitor(ctx, cfg) // Monitor must be initialized last
 
@@ -119,10 +117,6 @@ func (s *Service) initExtractor() {
 
 func (s *Service) initForecast(cfg *config.Config) {
 	s.forecast = newForecast(s.logger, s.metrics, s.validator)
-}
-
-func (s *Service) initDetector() {
-	s.detector = newDetector(s.logger, s.metrics, s.validator)
 }
 
 func (s *Service) initOutputRollupClient(ctx context.Context, cfg *config.Config) error {
@@ -203,7 +197,6 @@ func (s *Service) initMonitor(ctx context.Context, cfg *config.Config) {
 		cfg.MonitorInterval,
 		cfg.GameWindow,
 		s.delays.RecordClaimResolutionDelayMax,
-		s.detector.Detect,
 		s.forecast.Forecast,
 		s.extractor.Extract,
 		s.l1Client.BlockNumber,
