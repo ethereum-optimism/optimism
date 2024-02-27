@@ -180,7 +180,7 @@ func NewEngineQueue(log log.Logger, cfg *rollup.Config, l2Source L2Source, engin
 		engine:         l2Source,
 		metrics:        metrics,
 		finalityData:   make([]FinalityData, 0, finalityLookback),
-		unsafePayloads: NewPayloadsQueue(maxUnsafePayloadsMemory, payloadMemSize),
+		unsafePayloads: NewPayloadsQueue(log, maxUnsafePayloadsMemory, payloadMemSize),
 		prev:           prev,
 		l1Fetcher:      l1Fetcher,
 		syncCfg:        syncCfg,
@@ -472,7 +472,7 @@ func (eq *EngineQueue) tryNextUnsafePayload(ctx context.Context) error {
 	}
 
 	// Ensure that the unsafe payload builds upon the current unsafe head
-	if eq.syncCfg.SyncMode != sync.ELSync && first.ParentHash != eq.ec.UnsafeL2Head().Hash {
+	if first.ParentHash != eq.ec.UnsafeL2Head().Hash {
 		if uint64(first.BlockNumber) == eq.ec.UnsafeL2Head().Number+1 {
 			eq.log.Info("skipping unsafe payload, since it does not build onto the existing unsafe chain", "safe", eq.ec.SafeL2Head().ID(), "unsafe", first.ID(), "payload", first.ID())
 			eq.unsafePayloads.Pop()
