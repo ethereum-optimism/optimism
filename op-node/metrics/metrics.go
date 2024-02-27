@@ -10,8 +10,8 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
+	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 
-	// plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	ophttp "github.com/ethereum-optimism/optimism/op-service/httputil"
 	"github.com/ethereum-optimism/optimism/op-service/metrics"
 
@@ -124,7 +124,7 @@ type Metrics struct {
 
 	TransactionsSequencedTotal prometheus.Counter
 
-	// PlasmaMetrics plasma.Metricer
+	PlasmaMetrics plasma.Metricer
 
 	// Channel Bank Metrics
 	headChannelOpenedEvent *metrics.Event
@@ -388,7 +388,7 @@ func NewMetrics(procName string) *Metrics {
 			"required",
 		}),
 
-		// PlasmaMetrics: plasma.MakeMetrics(ns, factory),
+		PlasmaMetrics: plasma.MakeMetrics(ns, factory),
 
 		registry: registry,
 		factory:  factory,

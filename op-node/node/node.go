@@ -393,7 +393,7 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config, snapshotLog log.Logger
 	if cfg.Plasma.Enabled && err != nil {
 		return fmt.Errorf("failed to get plasma config: %w", err)
 	}
-	plasmaDA := plasma.NewPlasmaDA(n.log, cfg.Plasma, rpCfg, n.l1Source, &plasma.NoopMetrics{})
+	plasmaDA := plasma.NewPlasmaDA(n.log, cfg.Plasma, rpCfg, n.l1Source, n.metrics.PlasmaMetrics)
 	if cfg.Plasma.Enabled {
 		n.log.Info("Plasma DA enabled", "da_server", cfg.Plasma.DAServerURL)
 		// Plasma takes control of the engine finalization signal callback only when enabled
