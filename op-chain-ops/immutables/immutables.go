@@ -236,6 +236,18 @@ func l2ImmutableDeployer(backend *backends.SimulatedBackend, opts *bind.Transact
 		_, tx, _, err = bindings.DeployOptimismMintableERC721Factory(opts, backend, bridge, remoteChainId)
 	case "EAS":
 		_, tx, _, err = bindings.DeployEAS(opts, backend)
+	case "CrossL2Inbox":
+		l1Block, ok := deployment.Args[0].(common.Address)
+		if !ok {
+			return nil, fmt.Errorf("invalid type for l1Block")
+		}
+		_, tx, _, err = bindings.DeployCrossL2Inbox(opts, backend, l1Block)
+	case "L2ToL2CrossDomainMessenger":
+		crossL2Inbox, ok := deployment.Args[0].(common.Address)
+		if !ok {
+			return nil, fmt.Errorf("invalid type for crossL2Inbox")
+		}
+		_, tx, _, err = bindings.DeployL2ToL2CrossDomainMessenger(opts, backend, crossL2Inbox)
 	default:
 		return tx, fmt.Errorf("unknown contract: %s", deployment.Name)
 	}
