@@ -74,7 +74,7 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 		regolithTime = 1692156862
 	}
 
-	deltaTime := superChain.Config.DeltaTime
+	deltaTime := chConfig.DeltaTime
 	// OP Labs Sepolia devnet 0 activated delta at genesis, slightly earlier than
 	// Base Sepolia devnet 0 on the same superchain.
 	switch chainID {
@@ -106,10 +106,10 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 		L1ChainID:              new(big.Int).SetUint64(superChain.Config.L1.ChainID),
 		L2ChainID:              new(big.Int).SetUint64(chConfig.ChainID),
 		RegolithTime:           &regolithTime,
-		CanyonTime:             superChain.Config.CanyonTime,
+		CanyonTime:             chConfig.CanyonTime,
 		DeltaTime:              deltaTime,
-		EcotoneTime:            superChain.Config.EcotoneTime,
-		FjordTime:              superChain.Config.FjordTime,
+		EcotoneTime:            chConfig.EcotoneTime,
+		FjordTime:              chConfig.FjordTime,
 		BatchInboxAddress:      common.Address(chConfig.BatchInboxAddr),
 		DepositContractAddress: common.Address(addrs.OptimismPortalProxy),
 		L1SystemConfigAddress:  common.Address(addrs.SystemConfigProxy),
