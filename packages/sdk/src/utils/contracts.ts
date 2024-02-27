@@ -16,6 +16,8 @@ import l2ToL1MessagePasser from '@eth-optimism/contracts-bedrock/forge-artifacts
 import gasPriceOracle from '@eth-optimism/contracts-bedrock/forge-artifacts/GasPriceOracle.sol/GasPriceOracle.json'
 import disputeGameFactory from '@eth-optimism/contracts-bedrock/forge-artifacts/DisputeGameFactory.sol/DisputeGameFactory.json'
 import optimismPortal2 from '@eth-optimism/contracts-bedrock/forge-artifacts/OptimismPortal2.sol/OptimismPortal2.json'
+import crossL2Inbox from '@eth-optimism/contracts-bedrock/forge-artifacts/CrossL2Inbox.sol/CrossL2Inbox.json'
+import l2ToL2CrossDomainMessenger from '@eth-optimism/contracts-bedrock/forge-artifacts/L2ToL2CrossDomainMessenger.sol/L2ToL2CrossDomainMessenger.json'
 
 import { toAddress } from './coercion'
 import { DeepPartial } from './type-utils'
@@ -103,6 +105,10 @@ const getContractInterfaceBedrock = (name: string): ethers.utils.Interface => {
     case 'OptimismPortal2':
       artifact = optimismPortal2
       break
+    case 'CrossL2Inbox':
+      artifact = crossL2Inbox
+    case 'L2ToL2CrossDomainMessenger':
+      artifact = l2ToL2CrossDomainMessenger
   }
   return new ethers.utils.Interface(artifact.abi)
 }
