@@ -1,6 +1,8 @@
 module github.com/bobanetwork/v3-anchorage/boba-chain-ops
 
-go 1.19
+go 1.21
+
+toolchain go1.21.1
 
 require (
 	github.com/bobanetwork/v3-anchorage/boba-bindings v0.0.0-00010101000000-000000000000
