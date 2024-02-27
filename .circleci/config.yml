@@ -808,6 +808,36 @@ jobs:
           paths:
             - "/root/.cache/golangci-lint"
 
+  boba-go-test:
+    parameters:
+      module:
+        description: Go Module Name
+        type: string
+    docker:
+      - image: <<pipeline.parameters.ci_builder_image>> # only used to enable codecov.
+    resource_class: xlarge
+    steps:
+      - checkout
+      - run:
+          name: prep results dir
+          command: mkdir -p /tmp/test-results
+      - run:
+          name: run tests
+          command: |
+            gotestsum --format=standard-verbose --junitfile=/tmp/test-results/<<parameters.module>>.xml \
+            -- -parallel=8 -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out ./...
+          working_directory: <<parameters.module>>
+      - save_cache:
+          key: golang-build-cache-<<parameters.module>>
+          paths:
+            - "/root/.cache/go-build"
+      # TODO(CLI-148): Fix codecov
+      #- run:
+          #name: upload coverage
+          #command: codecov --verbose --clean --flags bedrock-go-tests
+      - store_test_results:
+          path: /tmp/test-results
+
   go-test:
     parameters:
       module:
@@ -1699,7 +1729,7 @@ workflows:
           name: op-heartbeat-tests
           module: op-heartbeat
           requires: [ "go-mod-download" ]
-      - go-test:
+      - boba-go-test:
           name: boba-chain-ops-tests
           module: boba-chain-ops
       - go-test:
