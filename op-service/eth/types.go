@@ -289,6 +289,17 @@ func BlockAsPayload(bl *types.Block, canyonForkTime *uint64) (*ExecutionPayload,
 	return payload, nil
 }
 
+func BlockAsPayloadEnv(bl *types.Block, canyonForkTime *uint64) (*ExecutionPayloadEnvelope, error) {
+	payload, err := BlockAsPayload(bl, canyonForkTime)
+	if err != nil {
+		return nil, err
+	}
+	return &ExecutionPayloadEnvelope{
+		ExecutionPayload:      payload,
+		ParentBeaconBlockRoot: bl.BeaconRoot(),
+	}, nil
+}
+
 type PayloadAttributes struct {
 	// value for the timestamp field of the new payload
 	Timestamp Uint64Quantity `json:"timestamp"`
