@@ -35,8 +35,8 @@ contract CrossL2Inbox {
 
     address public immutable L1_BLOCK;
 
-    constructor() {
-        L1_BLOCK = Predeploys.L1_BLOCK_ATTRIBUTES;
+    constructor(address _l1Block) {
+        L1_BLOCK = _l1Block;
     }
 
     function origin() public view returns (address _origin) {
