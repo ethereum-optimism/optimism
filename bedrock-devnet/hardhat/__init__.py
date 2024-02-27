@@ -140,6 +140,7 @@ ENABLE_BOBA_TOKEN_DEPLOYMENT=true
         config['l1BobaTokenAddress'] = DEV_ACCOUNTS[0]
         config['l2GenesisRegolithTimeOffset'] = block_result['timestamp']
         config['l2GenesisCanyonTimeOffset'] = block_result['timestamp']
+        config['l2GenesisDeltaTimeOffset'] = block_result['timestamp']
         config['l2GenesisEcotoneTimeOffset'] = block_result['timestamp']
     write_json(paths.devnet_config_path, config)
 
@@ -260,6 +261,7 @@ def devent_restore_configurations(paths):
         config['l1BobaTokenAddress'] = L1BOBATOKENADDRESS
         config['l2GenesisRegolithTimeOffset'] = UPGRADETIMEOFFSET
         config['l2GenesisCanyonTimeOffset'] = UPGRADETIMEOFFSET
+        config['l2GenesisDeltaTimeOffset'] = UPGRADETIMEOFFSET
         config['l2GenesisEcotoneTimeOffset'] = UPGRADETIMEOFFSET
     write_json(paths.devnet_config_path, config)
 

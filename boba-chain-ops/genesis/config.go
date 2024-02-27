@@ -76,6 +76,8 @@ type DeployConfig struct {
 	L2GenesisRegolithTimeOffset *hexutil.Uint64 `json:"l2GenesisRegolithTimeOffset,omitempty"`
 	// Seconds after genesis block that Canyon hard fork activates. 0 to activate at genesis. Nil to disable canyon
 	L2GenesisCanyonTimeOffset *hexutil.Uint64 `json:"l2GenesisCanyonTimeOffset,omitempty"`
+	// L2GenesisDeltaTimeOffset is the number of seconds after genesis block that Delta hard fork activates. 0 to activate at genesis. Nil to disable delta
+	L2GenesisDeltaTimeOffset *hexutil.Uint64 `json:"l2GenesisDeltaTimeOffset,omitempty"`
 	// Seconds after genesis block that Ecotone hard fork activates. 0 to activate at genesis. Nil to disable ecotone
 	L2GenesisEcotoneTimeOffset *hexutil.Uint64 `json:"l2GenesisEcotoneTimeOffset,omitempty"`
 	// Owner of the ProxyAdmin predeploy
@@ -245,9 +247,6 @@ func (d *DeployConfig) Check() error {
 	if d.L2GenesisCanyonTimeOffset != nil && d.EIP1559DenominatorCanyon == 0 {
 		return fmt.Errorf("%w: EIP1559DenominatorCanyon cannot be 0 if Canyon is activated", ErrInvalidDeployConfig)
 	}
-	if d.L2GenesisEcotoneTimeOffset != nil && d.L2GenesisCanyonTimeOffset == nil {
-		return fmt.Errorf("%w: Ecotone cannot be activated without Canyon", ErrInvalidDeployConfig)
-	}
 	if d.L2GenesisBlockGasLimit == 0 {
 		return fmt.Errorf("%w: L2 genesis block gas limit cannot be 0", ErrInvalidDeployConfig)
 	}
@@ -258,6 +257,31 @@ func (d *DeployConfig) Check() error {
 	}
 	if d.L2GenesisBlockBaseFeePerGas == nil {
 		return fmt.Errorf("%w: L2 genesis block base fee per gas cannot be nil", ErrInvalidDeployConfig)
+	}
+	// checkFork checks that fork A is before or at the same time as fork B
+	checkFork := func(a, b *hexutil.Uint64, aName, bName string) error {
+		if a == nil && b == nil {
+			return nil
+		}
+		if a == nil && b != nil {
+			return fmt.Errorf("fork %s set (to %d), but prior fork %s missing", bName, *b, aName)
+		}
+		if a != nil && b == nil {
+			return nil
+		}
+		if *a > *b {
+			return fmt.Errorf("fork %s set to %d, but prior fork %s has higher offset %d", bName, *b, aName, *a)
+		}
+		return nil
+	}
+	if err := checkFork(d.L2GenesisRegolithTimeOffset, d.L2GenesisCanyonTimeOffset, "regolith", "canyon"); err != nil {
+		return err
+	}
+	if err := checkFork(d.L2GenesisCanyonTimeOffset, d.L2GenesisDeltaTimeOffset, "canyon", "delta"); err != nil {
+		return err
+	}
+	if err := checkFork(d.L2GenesisDeltaTimeOffset, d.L2GenesisEcotoneTimeOffset, "delta", "ecotone"); err != nil {
+		return err
 	}
 	// l1 Boba token address is optional, if not provided, use the default address for the chain ID
 	// but if provided, it must be a valid address
@@ -375,6 +399,7 @@ func (d *DeployConfig) RollupConfig(l1StartHeader *types.Header, l2GenesisBlockH
 		L1SystemConfigAddress:  d.SystemConfigProxy,
 		RegolithTime:           d.RegolithTime(l1StartHeader.Time),
 		CanyonTime:             d.CanyonTime(l1StartHeader.Time),
+		DeltaTime:              d.DeltaTime(l1StartHeader.Time),
 		EcotoneTime:            d.EcotoneTime(l1StartHeader.Time),
 	}, nil
 }
@@ -424,6 +449,17 @@ func (d *DeployConfig) CanyonTime(genesisTime uint64) *uint64 {
 	}
 	v := uint64(0)
 	if offset := *d.L2GenesisCanyonTimeOffset; offset >= 0 {
+		v = genesisTime + uint64(offset)
+	}
+	return &v
+}
+
+func (d *DeployConfig) DeltaTime(genesisTime uint64) *uint64 {
+	if d.L2GenesisDeltaTimeOffset == nil {
+		return nil
+	}
+	v := uint64(0)
+	if offset := *d.L2GenesisDeltaTimeOffset; offset > 0 {
 		v = genesisTime + uint64(offset)
 	}
 	return &v
