@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import { SafeCall } from "src/libraries/SafeCall.sol";
 import { CrossL2Inbox } from "src/L2/CrossL2Inbox.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
 
 /// @custom:upgradeable
 /// @title L2ToL2CrossDomainMessenger
@@ -19,8 +20,8 @@ contract L2ToL2CrossDomainMessenger {
     /// @notice Initial balance for the contract.
     uint248 public constant INITIAL_BALANCE = type(uint248).max;
 
-    /// @notice Contract of the L2 Cross Domain Messenger on this chain.
-    CrossL2Inbox public CROSS_L2_INBOX;
+    /// @notice Address of the L2 Cross Domain Messenger on this chain.
+    address public immutable CROSS_L2_INBOX;
 
     /// @notice Mapping of message hashes to boolean receipt values. Note that a message will only
     ///         be present in this mapping if it has successfully been relayed on this chain, and
@@ -39,8 +40,8 @@ contract L2ToL2CrossDomainMessenger {
     /// @param data        Data to be sent with the message.
     event SentMessage(uint256 destination, address target, bytes message, bytes data) anonymous;
 
-    constructor(address _crossDomainMessenger) {
-        CROSS_L2_INBOX = CrossL2Inbox(_crossDomainMessenger);
+    constructor() {
+        CROSS_L2_INBOX = Predeploys.CROSS_L2_INBOX;
     }
 
     /// @notice Retrieves the next message nonce. Message version will be added to the upper two
@@ -88,8 +89,8 @@ contract L2ToL2CrossDomainMessenger {
     )
         external
     {
-        require(msg.sender == address(CROSS_L2_INBOX));
-        require(CROSS_L2_INBOX.origin() == address(this));
+        require(msg.sender == CROSS_L2_INBOX);
+        require(CrossL2Inbox(CROSS_L2_INBOX).origin() == address(this));
         require(_destination == block.chainid);
         require(_target != address(this));
 
