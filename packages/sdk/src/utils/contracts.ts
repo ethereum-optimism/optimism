@@ -11,7 +11,7 @@ import proxyAdmin from '@eth-optimism/contracts-bedrock/forge-artifacts/ProxyAdm
 import l2OutputOracle from '@eth-optimism/contracts-bedrock/forge-artifacts/L2OutputOracle.sol/L2OutputOracle.json'
 import l1ERC721Bridge from '@eth-optimism/contracts-bedrock/forge-artifacts/L1ERC721Bridge.sol/L1ERC721Bridge.json'
 import l2ERC721Bridge from '@eth-optimism/contracts-bedrock/forge-artifacts/L2ERC721Bridge.sol/L2ERC721Bridge.json'
-import l1Block from '@eth-optimism/contracts-bedrock/forge-artifacts/L1Block.sol/L1Block.json'
+import l1Block from '@eth-optimism/contracts-bedrock/forge-artifacts/L1Block.sol/L1Block.0.8.15.json'
 import l2ToL1MessagePasser from '@eth-optimism/contracts-bedrock/forge-artifacts/L2ToL1MessagePasser.sol/L2ToL1MessagePasser.json'
 import gasPriceOracle from '@eth-optimism/contracts-bedrock/forge-artifacts/GasPriceOracle.sol/GasPriceOracle.json'
 import disputeGameFactory from '@eth-optimism/contracts-bedrock/forge-artifacts/DisputeGameFactory.sol/DisputeGameFactory.json'
