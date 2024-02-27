@@ -108,8 +108,7 @@ regen=
 #################################
 
 test_list=()
-
-if [ $SCRIPT_TESTS == true ]; then
+if [ "$SCRIPT_TESTS" == true ]; then
   test_list=( # "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused0" \
               # "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused1" \
               "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused2" \
@@ -127,7 +126,7 @@ if [ $SCRIPT_TESTS == true ]; then
               # "L1ERC721BridgeKontrol.prove_finalizeBridgeERC721_paused" \
               # "L1CrossDomainMessengerKontrol.prove_relayMessage_paused"
   )
-elif [ $CUSTOM_TESTS != 0 ]; then
+elif [ "$CUSTOM_TESTS" != 0 ]; then
   test_list=( "${@:${CUSTOM_TESTS}}" )
 fi
 tests=""
@@ -144,7 +143,7 @@ smt_timeout=100000
 max_workers=7 # Set to 7 since the CI machine has 8 CPUs
 # workers is the minimum between max_workers and the length of test_list
 # unless no test arguments are provided, in which case we default to max_workers
-if [ $CUSTOM_TESTS == 0 ] && [ $SCRIPT_TESTS == false ]; then
+if [ "$CUSTOM_TESTS" == 0 ] && [ "$SCRIPT_TESTS" == false ]; then
   workers=${max_workers}
 else
   workers=$((${#test_list[@]}>max_workers ? max_workers : ${#test_list[@]}))

@@ -41,7 +41,7 @@ parse_args() {
     export SCRIPT_TESTS=false
     export CUSTOM_TESTS=0
   # `script` argument caps the total possible arguments to its position
-  elif ([ $# -gt 1 ] && [ "$1" == "script" ]) || ([ $# -gt 2 ] && [ "$2" == "script" ]); then
+  elif { [ $# -gt 1 ] && [ "$1" == "script" ]; } || { [ $# -gt 2 ] && [ "$2" == "script" ]; }; then
     usage
   elif [ $# -eq 1 ]; then
     SCRIPT_OPTION=false
@@ -85,7 +85,8 @@ parse_first_arg() {
   elif [ "$1" == "script" ]; then
     notif "Running in docker container (DEFAULT)"
     export LOCAL=false
-    export SCRIPT_TESTS=$([[ "${SCRIPT_OPTION}" == "true" ]] && echo false || echo true)
+    NEGATED_SCRIPT_TESTS=$([[ "${SCRIPT_OPTION}" == "true" ]] && echo false || echo true)
+    export SCRIPT_TESTS=$NEGATED_SCRIPT_TESTS
     export CUSTOM_TESTS=$CUSTOM_OPTION
   else
     notif "Running in docker container (DEFAULT)"
