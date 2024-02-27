@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/cannon"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs/source"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/split"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
@@ -64,10 +63,10 @@ func (g *OutputCannonGameHelper) CreateHonestActor(ctx context.Context, l2Node s
 	dir := filepath.Join(cfg.Datadir, "honest")
 	splitDepth := g.SplitDepth(ctx)
 	rollupClient := g.system.RollupClient(l2Node)
-	outputRootProvider := source.NewUnrestrictedOutputSource(rollupClient)
-	prestateProvider := outputs.NewPrestateProvider(outputRootProvider, prestateBlock)
+	prestateProvider := outputs.NewPrestateProvider(rollupClient, prestateBlock)
+	l1Head := g.getL1Head(ctx)
 	accessor, err := outputs.NewOutputCannonTraceAccessor(
-		logger, metrics.NoopMetrics, cfg, l2Client, contract, prestateProvider, outputRootProvider, dir, splitDepth, prestateBlock, poststateBlock)
+		logger, metrics.NoopMetrics, cfg, l2Client, prestateProvider, rollupClient, dir, l1Head, splitDepth, prestateBlock, poststateBlock)
 	g.require.NoError(err, "Failed to create output cannon trace accessor")
 	return &OutputHonestHelper{
 		t:            g.t,
@@ -231,15 +230,15 @@ func (g *OutputCannonGameHelper) createCannonTraceProvider(ctx context.Context, 
 	prestateBlock, poststateBlock, err := contract.GetBlockRange(ctx)
 	g.require.NoError(err, "Failed to load block range")
 	rollupClient := g.system.RollupClient(l2Node)
-	outputRootProvider := source.NewUnrestrictedOutputSource(rollupClient)
-	prestateProvider := outputs.NewPrestateProvider(outputRootProvider, prestateBlock)
-	outputProvider := outputs.NewTraceProvider(logger, prestateProvider, outputRootProvider, splitDepth, prestateBlock, poststateBlock)
+	prestateProvider := outputs.NewPrestateProvider(rollupClient, prestateBlock)
+	l1Head := g.getL1Head(ctx)
+	outputProvider := outputs.NewTraceProvider(logger, prestateProvider, rollupClient, l1Head, splitDepth, prestateBlock, poststateBlock)
 
 	selector := split.NewSplitProviderSelector(outputProvider, splitDepth, func(ctx context.Context, depth types.Depth, pre types.Claim, post types.Claim) (types.TraceProvider, error) {
 		agreed, disputed, err := outputs.FetchProposals(ctx, outputProvider, pre, post)
 		g.require.NoError(err)
 		g.t.Logf("Using trace between blocks %v and %v\n", agreed.L2BlockNumber, disputed.L2BlockNumber)
-		localInputs, err := cannon.FetchLocalInputsFromProposals(ctx, contract, l2Client, agreed, disputed)
+		localInputs, err := cannon.FetchLocalInputsFromProposals(ctx, l1Head.Hash, l2Client, agreed, disputed)
 		g.require.NoError(err, "Failed to fetch local inputs")
 		localContext := outputs.CreateLocalContext(pre, post)
 		dir := filepath.Join(cfg.Datadir, "cannon-trace")

@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/split"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -21,19 +22,19 @@ func NewOutputCannonTraceAccessor(
 	m metrics.Metricer,
 	cfg *config.Config,
 	l2Client cannon.L2HeaderSource,
-	contract cannon.L1HeadSource,
 	prestateProvider types.PrestateProvider,
-	rollupClient OutputRootProvider,
+	rollupClient OutputRollupClient,
 	dir string,
+	l1Head eth.BlockID,
 	splitDepth types.Depth,
 	prestateBlock uint64,
 	poststateBlock uint64,
 ) (*trace.Accessor, error) {
-	outputProvider := NewTraceProvider(logger, prestateProvider, rollupClient, splitDepth, prestateBlock, poststateBlock)
+	outputProvider := NewTraceProvider(logger, prestateProvider, rollupClient, l1Head, splitDepth, prestateBlock, poststateBlock)
 	cannonCreator := func(ctx context.Context, localContext common.Hash, depth types.Depth, agreed contracts.Proposal, claimed contracts.Proposal) (types.TraceProvider, error) {
 		logger := logger.New("pre", agreed.OutputRoot, "post", claimed.OutputRoot, "localContext", localContext)
 		subdir := filepath.Join(dir, localContext.Hex())
-		localInputs, err := cannon.FetchLocalInputsFromProposals(ctx, contract, l2Client, agreed, claimed)
+		localInputs, err := cannon.FetchLocalInputsFromProposals(ctx, l1Head.Hash, l2Client, agreed, claimed)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch cannon local inputs: %w", err)
 		}

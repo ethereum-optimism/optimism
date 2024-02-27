@@ -10,12 +10,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/alphabet"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/cannon"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs/source"
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/scheduler"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
@@ -29,7 +29,7 @@ type Registry interface {
 }
 
 type RollupClient interface {
-	source.OutputRollupClient
+	outputs.OutputRollupClient
 	SyncStatusProvider
 }
 
@@ -48,7 +48,6 @@ func RegisterGameTypes(
 ) (CloseFunc, error) {
 	var closer CloseFunc
 	var l2Client *ethclient.Client
-	var outputSourceCreator *source.OutputSourceCreator
 	if cfg.TraceTypeEnabled(config.TraceTypeCannon) || cfg.TraceTypeEnabled(config.TraceTypePermissioned) {
 		l2, err := ethclient.DialContext(ctx, cfg.CannonL2)
 		if err != nil {
@@ -56,17 +55,16 @@ func RegisterGameTypes(
 		}
 		l2Client = l2
 		closer = l2Client.Close
-		outputSourceCreator = source.NewOutputSourceCreator(logger, rollupClient, l1HeaderSource)
 	}
 	syncValidator := newSyncStatusValidator(rollupClient)
 
 	if cfg.TraceTypeEnabled(config.TraceTypeCannon) {
-		if err := registerCannon(faultTypes.CannonGameType, registry, ctx, cl, logger, m, cfg, syncValidator, outputSourceCreator, txSender, gameFactory, caller, l2Client, l1HeaderSource); err != nil {
+		if err := registerCannon(faultTypes.CannonGameType, registry, ctx, cl, logger, m, cfg, syncValidator, rollupClient, txSender, gameFactory, caller, l2Client, l1HeaderSource); err != nil {
 			return nil, fmt.Errorf("failed to register cannon game type: %w", err)
 		}
 	}
 	if cfg.TraceTypeEnabled(config.TraceTypePermissioned) {
-		if err := registerCannon(faultTypes.PermissionedGameType, registry, ctx, cl, logger, m, cfg, syncValidator, outputSourceCreator, txSender, gameFactory, caller, l2Client, l1HeaderSource); err != nil {
+		if err := registerCannon(faultTypes.PermissionedGameType, registry, ctx, cl, logger, m, cfg, syncValidator, rollupClient, txSender, gameFactory, caller, l2Client, l1HeaderSource); err != nil {
 			return nil, fmt.Errorf("failed to register permissioned cannon game type: %w", err)
 		}
 	}
@@ -85,7 +83,7 @@ func registerAlphabet(
 	logger log.Logger,
 	m metrics.Metricer,
 	syncValidator SyncValidator,
-	rollupClient source.OutputRollupClient,
+	rollupClient RollupClient,
 	txSender types.TxSender,
 	gameFactory *contracts.DisputeGameFactoryContract,
 	caller *batching.MultiCaller,
@@ -104,10 +102,13 @@ func registerAlphabet(
 		if err != nil {
 			return nil, err
 		}
-		outputSource := source.NewUnrestrictedOutputSource(rollupClient)
-		prestateProvider := outputs.NewPrestateProvider(outputSource, prestateBlock)
+		l1Head, err := loadL1Head(contract, ctx, l1HeaderSource)
+		if err != nil {
+			return nil, err
+		}
+		prestateProvider := outputs.NewPrestateProvider(rollupClient, prestateBlock)
 		creator := func(ctx context.Context, logger log.Logger, gameDepth faultTypes.Depth, dir string) (faultTypes.TraceAccessor, error) {
-			accessor, err := outputs.NewOutputAlphabetTraceAccessor(logger, m, prestateProvider, outputSource, splitDepth, prestateBlock, poststateBlock)
+			accessor, err := outputs.NewOutputAlphabetTraceAccessor(logger, m, prestateProvider, rollupClient, l1Head, splitDepth, prestateBlock, poststateBlock)
 			if err != nil {
 				return nil, err
 			}
@@ -155,7 +156,7 @@ func registerCannon(
 	m metrics.Metricer,
 	cfg *config.Config,
 	syncValidator SyncValidator,
-	outputSourceCreator *source.OutputSourceCreator,
+	rollupClient outputs.OutputRollupClient,
 	txSender types.TxSender,
 	gameFactory *contracts.DisputeGameFactoryContract,
 	caller *batching.MultiCaller,
@@ -175,17 +176,13 @@ func registerCannon(
 		if err != nil {
 			return nil, fmt.Errorf("failed to load split depth: %w", err)
 		}
-		l1Head, err := contract.GetL1Head(ctx)
+		l1HeadID, err := loadL1Head(contract, ctx, l1HeaderSource)
 		if err != nil {
-			return nil, fmt.Errorf("failed to load L1 head: %w", err)
-		}
-		rollupClient, err := outputSourceCreator.ForL1Head(ctx, l1Head)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create output root source: %w", err)
+			return nil, err
 		}
 		prestateProvider := outputs.NewPrestateProvider(rollupClient, prestateBlock)
 		creator := func(ctx context.Context, logger log.Logger, gameDepth faultTypes.Depth, dir string) (faultTypes.TraceAccessor, error) {
-			accessor, err := outputs.NewOutputCannonTraceAccessor(logger, m, cfg, l2Client, contract, prestateProvider, rollupClient, dir, splitDepth, prestateBlock, poststateBlock)
+			accessor, err := outputs.NewOutputCannonTraceAccessor(logger, m, cfg, l2Client, prestateProvider, rollupClient, dir, l1HeadID, splitDepth, prestateBlock, poststateBlock)
 			if err != nil {
 				return nil, err
 			}
@@ -206,4 +203,16 @@ func registerCannon(
 	}
 	registry.RegisterBondContract(gameType, contractCreator)
 	return nil
+}
+
+func loadL1Head(contract *contracts.FaultDisputeGameContract, ctx context.Context, l1HeaderSource L1HeaderSource) (eth.BlockID, error) {
+	l1Head, err := contract.GetL1Head(ctx)
+	if err != nil {
+		return eth.BlockID{}, fmt.Errorf("failed to load L1 head: %w", err)
+	}
+	l1Header, err := l1HeaderSource.HeaderByHash(ctx, l1Head)
+	if err != nil {
+		return eth.BlockID{}, fmt.Errorf("failed to load L1 header: %w", err)
+	}
+	return eth.HeaderBlockID(l1Header), nil
 }
