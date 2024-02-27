@@ -1,0 +1,16 @@
+[
+  {
+    "bytes": "32",
+    "label": "successfulMessages",
+    "offset": 0,
+    "slot": "0",
+    "type": "mapping(bytes32 => bool)"
+  },
+  {
+    "bytes": "30",
+    "label": "msgNonce",
+    "offset": 0,
+    "slot": "1",
+    "type": "uint240"
+  }
+]
