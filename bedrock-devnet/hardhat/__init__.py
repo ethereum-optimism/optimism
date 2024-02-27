@@ -141,8 +141,9 @@ ENABLE_BOBA_TOKEN_DEPLOYMENT=true
         config['l2GenesisRegolithTimeOffset'] = block_result['timestamp']
         config['l2GenesisCanyonTimeOffset'] = block_result['timestamp']
         config['l2GenesisDeltaTimeOffset'] = block_result['timestamp']
-        # L1 beacon endpoint is not used in the devnet
-        del config['l2GenesisEcotoneTimeOffset']
+        # L1 beacon endpoint is not available in the devnet
+        if 'l2GenesisEcotoneTimeOffset' in config:
+            del config['l2GenesisEcotoneTimeOffset']
     write_json(paths.devnet_config_path, config)
 
     with open(paths.devnet_config_export_path, 'w+') as f:
