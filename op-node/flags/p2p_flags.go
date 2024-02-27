@@ -53,6 +53,7 @@ var (
 	GossipMeshDlazyName    = "p2p.gossip.mesh.dlazy"
 	GossipFloodPublishName = "p2p.gossip.mesh.floodpublish"
 	SyncReqRespName        = "p2p.sync.req-resp"
+	P2PPingName            = "p2p.ping"
 )
 
 func deprecatedP2PFlags(envPrefix string) []cli.Flag {
@@ -391,6 +392,14 @@ func P2PFlags(envPrefix string) []cli.Flag {
 			Required: false,
 			EnvVars:  p2pEnv(envPrefix, "SYNC_REQ_RESP"),
 			Category: P2PCategory,
+		},
+		&cli.BoolFlag{
+			Name:     P2PPingName,
+			Usage:    "Enables P2P ping-pong background service",
+			Value:    true, // on by default
+			Hidden:   true, // hidden, only here to disable in case of bugs.
+			Required: false,
+			EnvVars:  p2pEnv(envPrefix, "PING"),
 		},
 	}
 }
