@@ -55,6 +55,10 @@ type Config struct {
 	// Active if CanyonTime != nil && L2 block timestamp >= *CanyonTime, inactive otherwise.
 	CanyonTime *uint64 `json:"canyon_time,omitempty"`
 
+	// EcotoneTime sets the activation time of the Ecotone network upgrade.
+	// Active if EcotoneTime != nil && L2 block timestamp >= *EcotoneTime, inactive otherwise.
+	EcotoneTime *uint64 `json:"ecotone_time,omitempty"`
+
 	// Note: below addresses are part of the block-derivation process,
 	// and required to be the same network-wide to stay in consensus.
 

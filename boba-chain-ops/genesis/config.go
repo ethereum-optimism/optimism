@@ -76,6 +76,8 @@ type DeployConfig struct {
 	L2GenesisRegolithTimeOffset *hexutil.Uint64 `json:"l2GenesisRegolithTimeOffset,omitempty"`
 	// Seconds after genesis block that Canyon hard fork activates. 0 to activate at genesis. Nil to disable canyon
 	L2GenesisCanyonTimeOffset *hexutil.Uint64 `json:"l2GenesisCanyonTimeOffset,omitempty"`
+	// Seconds after genesis block that Ecotone hard fork activates. 0 to activate at genesis. Nil to disable ecotone
+	L2GenesisEcotoneTimeOffset *hexutil.Uint64 `json:"l2GenesisEcotoneTimeOffset,omitempty"`
 	// Owner of the ProxyAdmin predeploy
 	ProxyAdminOwner common.Address `json:"proxyAdminOwner"`
 	// Owner of the system on L1
@@ -243,6 +245,9 @@ func (d *DeployConfig) Check() error {
 	if d.L2GenesisCanyonTimeOffset != nil && d.EIP1559DenominatorCanyon == 0 {
 		return fmt.Errorf("%w: EIP1559DenominatorCanyon cannot be 0 if Canyon is activated", ErrInvalidDeployConfig)
 	}
+	if d.L2GenesisEcotoneTimeOffset != nil && d.L2GenesisCanyonTimeOffset == nil {
+		return fmt.Errorf("%w: Ecotone cannot be activated without Canyon", ErrInvalidDeployConfig)
+	}
 	if d.L2GenesisBlockGasLimit == 0 {
 		return fmt.Errorf("%w: L2 genesis block gas limit cannot be 0", ErrInvalidDeployConfig)
 	}
@@ -370,6 +375,7 @@ func (d *DeployConfig) RollupConfig(l1StartHeader *types.Header, l2GenesisBlockH
 		L1SystemConfigAddress:  d.SystemConfigProxy,
 		RegolithTime:           d.RegolithTime(l1StartHeader.Time),
 		CanyonTime:             d.CanyonTime(l1StartHeader.Time),
+		EcotoneTime:            d.EcotoneTime(l1StartHeader.Time),
 	}, nil
 }
 
@@ -418,6 +424,18 @@ func (d *DeployConfig) CanyonTime(genesisTime uint64) *uint64 {
 	}
 	v := uint64(0)
 	if offset := *d.L2GenesisCanyonTimeOffset; offset >= 0 {
+		v = genesisTime + uint64(offset)
+	}
+	return &v
+}
+
+func (d *DeployConfig) EcotoneTime(genesisTime uint64) *uint64 {
+	fmt.Println("EcotoneTime", d.L2GenesisEcotoneTimeOffset)
+	if d.L2GenesisEcotoneTimeOffset == nil {
+		return nil
+	}
+	v := uint64(0)
+	if offset := *d.L2GenesisEcotoneTimeOffset; offset >= 0 {
 		v = genesisTime + uint64(offset)
 	}
 	return &v
