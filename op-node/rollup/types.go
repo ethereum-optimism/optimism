@@ -405,11 +405,6 @@ func (c *Config) GetPayloadVersion(timestamp uint64) eth.EngineAPIMethod {
 	}
 }
 
-// IsPlasmaEnabled returns true if a DA Challenge proxy Address is provided in the rollup config.
-func (c *Config) IsPlasmaEnabled() bool {
-	return c.DAChallengeAddress != (common.Address{})
-}
-
 // PlasmaConfig validates and returns the plasma config from the rollup config.
 func (c *Config) PlasmaConfig() (plasma.Config, error) {
 	if c.DAChallengeAddress == (common.Address{}) {
@@ -428,18 +423,13 @@ func (c *Config) PlasmaConfig() (plasma.Config, error) {
 	}, nil
 }
 
-// FinalityLookback computes the number of l2 blocks to keep track of for finality.
-func (c *Config) FinalityLookback() uint64 {
+// SyncLookback computes the number of blocks to walk back in order to find the correct L1 origin.
+// In plasma mode longest possible window is challenge + resolve windows.
+func (c *Config) SyncLookback() uint64 {
 	if c.UsePlasma {
-		return c.DAChallengeWindow + c.DAResolveWindow
-	}
-	return 4*32 + 1
-}
-
-// ReorgWindowSize computes the max number of blocks to walk back in case of reset.
-func (c *Config) ReorgWindowSize() uint64 {
-	if c.UsePlasma {
-		return c.DAChallengeWindow + c.DAResolveWindow + c.SeqWindowSize
+		if win := (c.DAChallengeWindow + c.DAResolveWindow); win > c.SeqWindowSize {
+			return win
+		}
 	}
 	return c.SeqWindowSize
 }

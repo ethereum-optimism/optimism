@@ -40,7 +40,22 @@ type L2PlasmaDA struct {
 	lastCommBn uint64
 }
 
-func NewL2AltDA(log log.Logger, p *e2eutils.TestParams, t Testing) *L2PlasmaDA {
+type PlasmaParam func(p *e2eutils.TestParams)
+
+func NewL2AltDA(t Testing, params ...PlasmaParam) *L2PlasmaDA {
+	p := &e2eutils.TestParams{
+		MaxSequencerDrift:   2,
+		SequencerWindowSize: 4,
+		ChannelTimeout:      4,
+		L1BlockTime:         3,
+		UsePlasma:           true,
+	}
+	for _, apply := range params {
+		apply(p)
+	}
+	log := testlog.Logger(t, log.LvlDebug)
+
+	p.UsePlasma = true
 	dp := e2eutils.MakeDeployParams(t, p)
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 
@@ -237,17 +252,7 @@ func (a *L2PlasmaDA) GetLastTxBlock(t Testing) *types.Block {
 // Commitment is challenged but never resolved, chain reorgs when challenge window expires.
 func TestPlasma_ChallengeExpired(gt *testing.T) {
 	t := NewDefaultTesting(gt)
-
-	p := &e2eutils.TestParams{
-		MaxSequencerDrift:   2,
-		SequencerWindowSize: 4,
-		ChannelTimeout:      4,
-		L1BlockTime:         3,
-	}
-
-	log := testlog.Logger(t, log.LevelDebug)
-
-	harness := NewL2AltDA(log, p, t)
+	harness := NewL2AltDA(t)
 
 	// generate enough initial l1 blocks to have a finalized head.
 	harness.ActL1Blocks(t, 5)
@@ -299,14 +304,7 @@ func TestPlasma_ChallengeExpired(gt *testing.T) {
 // derivation pipeline stalls until the challenge is resolved and then resumes with data from the contract.
 func TestPlasma_ChallengeResolved(gt *testing.T) {
 	t := NewDefaultTesting(gt)
-	p := &e2eutils.TestParams{
-		MaxSequencerDrift:   2,
-		SequencerWindowSize: 4,
-		ChannelTimeout:      4,
-		L1BlockTime:         3,
-	}
-	log := testlog.Logger(t, log.LvlDebug)
-	harness := NewL2AltDA(log, p, t)
+	harness := NewL2AltDA(t)
 
 	// include a new l2 transaction, submitting an input commitment to the l1.
 	harness.ActNewL2Tx(t)
@@ -346,14 +344,7 @@ func TestPlasma_ChallengeResolved(gt *testing.T) {
 // DA storage service goes offline while sequencer keeps making blocks. When storage comes back online, it should be able to catch up.
 func TestAltDA_StorageError(gt *testing.T) {
 	t := NewDefaultTesting(gt)
-	p := &e2eutils.TestParams{
-		MaxSequencerDrift:   2,
-		SequencerWindowSize: 4,
-		ChannelTimeout:      4,
-		L1BlockTime:         3,
-	}
-	log := testlog.Logger(t, log.LvlDebug)
-	harness := NewL2AltDA(log, p, t)
+	harness := NewL2AltDA(t)
 
 	// include a new l2 transaction, submitting an input commitment to the l1.
 	harness.ActNewL2Tx(t)
@@ -377,14 +368,7 @@ func TestAltDA_StorageError(gt *testing.T) {
 // Commitment is challenged but with a wrong block number.
 func TestAltDA_ChallengeBadBlockNumber(gt *testing.T) {
 	t := NewDefaultTesting(gt)
-	p := &e2eutils.TestParams{
-		MaxSequencerDrift:   2,
-		SequencerWindowSize: 4,
-		ChannelTimeout:      4,
-		L1BlockTime:         3,
-	}
-	log := testlog.Logger(t, log.LvlDebug)
-	harness := NewL2AltDA(log, p, t)
+	harness := NewL2AltDA(t)
 
 	// generate 3 blocks of l1 chain
 	harness.ActL1Blocks(t, 3)

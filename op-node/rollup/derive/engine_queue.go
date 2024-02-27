@@ -136,6 +136,18 @@ const finalityLookback = 4*32 + 1
 // We do not want to do this too often, since it requires fetching a L1 block by number, so no cache data.
 const finalityDelay = 64
 
+// calcFinalityLookback calculates the default finality lookback based on DA challenge window if plasma
+// mode is activated or L1 finality lookback.
+func calcFinalityLookback(cfg *rollup.Config) uint64 {
+	// in plasma mode the longest finality lookback is a commitment is challenged on the last block of
+	// the challenge window in which case it will be challenge + resolve window.
+	if cfg.UsePlasma {
+		return cfg.DAChallengeWindow + cfg.DAResolveWindow
+	} else {
+		return finalityLookback
+	}
+}
+
 type FinalityData struct {
 	// The last L2 block that was fully derived and inserted into the L2 engine while processing this L1 block.
 	L2Block eth.L2BlockRef
@@ -188,7 +200,7 @@ func NewEngineQueue(log log.Logger, cfg *rollup.Config, l2Source L2Source, engin
 		ec:             engine,
 		engine:         l2Source,
 		metrics:        metrics,
-		finalityData:   make([]FinalityData, 0, cfg.FinalityLookback()),
+		finalityData:   make([]FinalityData, 0, calcFinalityLookback(cfg)),
 		unsafePayloads: NewPayloadsQueue(log, maxUnsafePayloadsMemory, payloadMemSize),
 		prev:           prev,
 		l1Fetcher:      l1Fetcher,
@@ -424,8 +436,8 @@ func (eq *EngineQueue) postProcessSafeL2() error {
 		return err
 	}
 	// prune finality data if necessary
-	if uint64(len(eq.finalityData)) >= eq.cfg.FinalityLookback() {
-		eq.finalityData = append(eq.finalityData[:0], eq.finalityData[1:eq.cfg.FinalityLookback()]...)
+	if uint64(len(eq.finalityData)) >= calcFinalityLookback(eq.cfg) {
+		eq.finalityData = append(eq.finalityData[:0], eq.finalityData[1:calcFinalityLookback(eq.cfg)]...)
 	}
 	// remember the last L2 block that we fully derived from the given finality data
 	if len(eq.finalityData) == 0 || eq.finalityData[len(eq.finalityData)-1].L1Block.Number < eq.origin.Number {
