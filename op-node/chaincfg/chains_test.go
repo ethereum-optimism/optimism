@@ -167,7 +167,7 @@ var sepoliaDev0Cfg = rollup.Config{
 	L1SystemConfigAddress:   common.HexToAddress("0xa6b72407e2dc9EBF84b839B69A24C88929cf20F7"),
 	RegolithTime:            u64Ptr(0),
 	CanyonTime:              u64Ptr(1698436800),
-	DeltaTime:               u64Ptr(1706555000),
+	DeltaTime:               u64Ptr(0),
 	EcotoneTime:             u64Ptr(1706634000),
 	ProtocolVersionsAddress: common.HexToAddress("0x252CbE9517F731C618961D890D534183822dcC8d"),
 }
