@@ -206,6 +206,9 @@ func (bs *BatcherService) initChannelConfig(cfg *CLIConfig) error {
 		return fmt.Errorf("unknown data availability type: %v", cfg.DataAvailabilityType)
 	}
 	bs.ChannelConfig.MaxFrameSize-- // subtract 1 byte for version
+	if bs.ChannelConfig.CompressorConfig.TargetNumFrames == 1 && bs.ChannelConfig.CompressorConfig.TargetFrameSize < bs.ChannelConfig.MaxFrameSize {
+		bs.ChannelConfig.CompressorConfig.TargetFrameSize = bs.ChannelConfig.MaxFrameSize
+	}
 
 	if bs.UseBlobs && !bs.RollupConfig.IsEcotone(uint64(time.Now().Unix())) {
 		bs.Log.Error("Cannot use Blob data before Ecotone!") // log only, the batcher may not be actively running.
