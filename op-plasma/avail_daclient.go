@@ -70,50 +70,70 @@ func SubmitDataAndWatch(ctx context.Context, data []byte) (types.AvailBlockRef, 
 		return types.AvailBlockRef{}, fmt.Errorf("creating data availability call: %w", err)
 	}
 
-	signedExt, err := prepareAndSignExtrinsic(api, call, meta, Seed, appID)
+	signedExt, sender, nonce, err := prepareAndSignExtrinsic(api, call, meta, Seed, appID)
 	if err != nil {
 		return types.AvailBlockRef{}, fmt.Errorf("preparing and signing extrinsic: %w", err)
 	}
 
-	return waitForExtrinsicFinalization(ctx, api, signedExt)
+	return waitForExtrinsicFinalization(ctx, api, signedExt, sender, nonce)
 }
-
-func prepareAndSignExtrinsic(api *gsrpc.SubstrateAPI, c gsrpc_types.Call, meta *gsrpc_types.Metadata, Seed string, appID int) (gsrpc_types.Extrinsic, error) {
-	ext := gsrpc_types.NewExtrinsic(c)
-
-	genesisHash, err := api.RPC.Chain.GetBlockHash(0)
+func prepareAndSignExtrinsic(api *gsrpc.SubstrateAPI, call gsrpc_types.Call, meta *gsrpc_types.Metadata, seed string, appID int) (gsrpc_types.Extrinsic, string, uint32, error) {
+	genesisHash, rv, err := fetchChainData(api)
 	if err != nil {
-		fmt.Printf("cannot get block hash: error:%v", err)
-		return gsrpc_types.Extrinsic{}, err
+		return gsrpc_types.Extrinsic{}, "", 0, err
 	}
 
-	rv, err := api.RPC.State.GetRuntimeVersionLatest()
+	keyringPair, err := signature.KeyringPairFromSecret(seed, 42)
 	if err != nil {
-		fmt.Printf("cannot get runtime version: error:%v", err)
-		return gsrpc_types.Extrinsic{}, err
+		return gsrpc_types.Extrinsic{}, "", 0, fmt.Errorf("cannot create key pair: %w", err)
 	}
 
-	keyringPair, err := signature.KeyringPairFromSecret(Seed, 42)
+	_, accountInfo, err := fetchAccountInfo(api, meta, keyringPair)
 	if err != nil {
-		fmt.Printf("cannot create LeyPair: error:%v", err)
-		return gsrpc_types.Extrinsic{}, err
-	}
-
-	key, err := gsrpc_types.CreateStorageKey(meta, "System", "Account", keyringPair.PublicKey)
-	if err != nil {
-		fmt.Printf("cannot create storage key: error:%v", err)
-		return gsrpc_types.Extrinsic{}, err
-	}
-
-	var accountInfo gsrpc_types.AccountInfo
-	ok, err := api.RPC.State.GetStorageLatest(key, &accountInfo)
-	if err != nil || !ok {
-		fmt.Printf("cannot get latest storage: error:%v", err)
-		return gsrpc_types.Extrinsic{}, err
+		return gsrpc_types.Extrinsic{}, keyringPair.Address, 0, err
 	}
 
 	nonce := utils.GetAccountNonce(uint32(accountInfo.Nonce))
-	o := gsrpc_types.SignatureOptions{
+	ext := gsrpc_types.NewExtrinsic(call)
+
+	err = signExtrinsic(&ext, keyringPair, genesisHash, rv, nonce, appID)
+	if err != nil {
+		return gsrpc_types.Extrinsic{}, keyringPair.Address, nonce, err
+	}
+
+	return ext, keyringPair.Address, nonce, nil
+}
+
+func fetchChainData(api *gsrpc.SubstrateAPI) (genesisHash gsrpc_types.Hash, rv *gsrpc_types.RuntimeVersion, err error) {
+	genesisHash, err = api.RPC.Chain.GetBlockHash(0)
+	if err != nil {
+		return genesisHash, nil, fmt.Errorf("cannot get block hash: %w", err)
+	}
+
+	rv, err = api.RPC.State.GetRuntimeVersionLatest()
+	if err != nil {
+		return genesisHash, nil, fmt.Errorf("cannot get runtime version: %w", err)
+	}
+
+	return genesisHash, rv, nil
+}
+
+func fetchAccountInfo(api *gsrpc.SubstrateAPI, meta *gsrpc_types.Metadata, keyringPair signature.KeyringPair) (storageKey gsrpc_types.StorageKey, accountInfo gsrpc_types.AccountInfo, err error) {
+	storageKey, err = gsrpc_types.CreateStorageKey(meta, "System", "Account", keyringPair.PublicKey)
+	if err != nil {
+		return storageKey, accountInfo, fmt.Errorf("cannot create storage key: %w", err)
+	}
+
+	ok, err := api.RPC.State.GetStorageLatest(storageKey, &accountInfo)
+	if err != nil || !ok {
+		return storageKey, accountInfo, fmt.Errorf("cannot get latest storage: %w", err)
+	}
+
+	return storageKey, accountInfo, nil
+}
+
+func signExtrinsic(ext *gsrpc_types.Extrinsic, keyringPair signature.KeyringPair, genesisHash gsrpc_types.Hash, rv *gsrpc_types.RuntimeVersion, nonce uint32, appID int) error {
+	options := gsrpc_types.SignatureOptions{
 		BlockHash:          genesisHash,
 		Era:                gsrpc_types.ExtrinsicEra{IsMortalEra: false},
 		GenesisHash:        genesisHash,
@@ -124,13 +144,12 @@ func prepareAndSignExtrinsic(api *gsrpc.SubstrateAPI, c gsrpc_types.Call, meta *
 		TransactionVersion: rv.TransactionVersion,
 	}
 
-	err = ext.Sign(keyringPair, o)
+	err := ext.Sign(keyringPair, options)
 	if err != nil {
-		fmt.Printf("cannot sign: error:%v", err)
-		return gsrpc_types.Extrinsic{}, err
+		return fmt.Errorf("cannot sign extrinsic: %w", err)
 	}
 
-	return ext, nil
+	return nil
 }
 
 func createDataAvailabilityCall(meta *gsrpc_types.Metadata, data []byte, appID int) (gsrpc_types.Call, error) {
@@ -149,7 +168,6 @@ func ensureValidAppID(appID int) int {
 }
 
 func getSubstrateApiAndMeta(ApiURL string) (*gsrpc.SubstrateAPI, *gsrpc_types.Metadata, error) {
-	//Creating new substrate api
 	api, err := gsrpc.NewSubstrateAPI(ApiURL)
 	if err != nil {
 		fmt.Printf("cannot create api: error:%v", err)
@@ -165,7 +183,7 @@ func getSubstrateApiAndMeta(ApiURL string) (*gsrpc.SubstrateAPI, *gsrpc_types.Me
 	return api, meta, err
 }
 
-func waitForExtrinsicFinalization(ctx context.Context, api *gsrpc.SubstrateAPI, ext gsrpc_types.Extrinsic) (types.AvailBlockRef, error) {
+func waitForExtrinsicFinalization(ctx context.Context, api *gsrpc.SubstrateAPI, ext gsrpc_types.Extrinsic, sender string, nonce uint32) (types.AvailBlockRef, error) {
 	sub, err := api.RPC.Author.SubmitAndWatchExtrinsic(ext)
 	if err != nil {
 		return types.AvailBlockRef{}, fmt.Errorf("cannot submit extrinsic: %w", err)
@@ -175,8 +193,7 @@ func waitForExtrinsicFinalization(ctx context.Context, api *gsrpc.SubstrateAPI, 
 	select {
 	case status := <-sub.Chan():
 		if status.IsFinalized {
-			// Omitted: Conversion from status to types.AvailBlockRef as it's similar to the original code.
-			return types.AvailBlockRef{}, nil // Placeholder return
+			return types.AvailBlockRef{BlockHash: string(status.AsFinalized.Hex()), Sender: sender, Nonce: int64(nonce)}, nil
 		}
 	case <-ctx.Done():
 		return types.AvailBlockRef{}, ctx.Err()
