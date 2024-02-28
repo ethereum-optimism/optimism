@@ -42,7 +42,7 @@ func Keccak256(input []byte) Keccak256Commitment {
 
 // DecodeKeccak256 validates and casts the commitment into a Keccak256Commitment.
 func DecodeKeccak256(commitment []byte) (Keccak256Commitment, error) {
-	if commitment == nil || len(commitment) == 0 {
+	if len(commitment) == 0 {
 		return nil, ErrInvalidCommitment
 	}
 	if commitment[0] != byte(Keccak256CommitmentType) {

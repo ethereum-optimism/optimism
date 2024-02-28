@@ -76,7 +76,6 @@ func TestDAChallengeState(t *testing.T) {
 	// finalized head hasn't moved
 	require.Equal(t, uint64(16), bn)
 
-	i = 22
 	// add one more commitment and challenge it
 	c = RandomData(rng, 32)
 	state.SetInputCommitment(c, 22, challengeWindow)
@@ -146,7 +145,7 @@ func TestExpireChallenges(t *testing.T) {
 		}
 	}
 
-	// activate a couple of subsquent challenges
+	// activate a couple of subsequent challenges
 	state.SetActiveChallenge(comms[3713926], 3713948, resolveWindow)
 
 	state.SetActiveChallenge(comms[3713932], 3713950, resolveWindow)
@@ -187,7 +186,7 @@ func TestExpireChallenges(t *testing.T) {
 	require.Equal(t, uint64(3713920), bn)
 
 	// lastly we get to the resolve window and trigger a reorg
-	bn, err = state.ExpireChallenges(3714038)
+	_, err = state.ExpireChallenges(3714038)
 	require.ErrorIs(t, err, ErrReorgRequired)
 
 	// this is simulating a pipeline reset where it walks back challenge + resolve window

@@ -96,7 +96,7 @@ func (d *DA) OnFinalizedHeadSignal(f eth.HeadSignalFn) {
 // the challenge status in the DataAvailabilityChallenge L1 contract.
 func (d *DA) GetInput(ctx context.Context, commitment []byte, blockId eth.BlockID) (eth.Data, error) {
 	// If the challenge head is ahead in the case of a pipeline reset or stall, we might have synced a
-	// challenge event for this commitment. Otherwise we mark the commitment as part of the cannonical
+	// challenge event for this commitment. Otherwise we mark the commitment as part of the canonical
 	// chain so potential future challenge events can be selected.
 	ch := d.state.GetOrTrackChallenge(commitment, blockId.Number, d.cfg.ChallengeWindow)
 

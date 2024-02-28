@@ -177,7 +177,7 @@ func (a *L2PlasmaDA) ActNewL2Tx(t Testing) {
 }
 
 func (a *L2PlasmaDA) ActDeleteLastInput(t Testing) {
-	a.storage.Client.DeleteData(a.lastComm)
+	require.NoError(t, a.storage.Client.DeleteData(a.lastComm))
 }
 
 func (a *L2PlasmaDA) ActChallengeLastInput(t Testing) {
@@ -225,6 +225,7 @@ func (a *L2PlasmaDA) ActResolveLastChallenge(t Testing) {
 	require.NoError(t, err)
 
 	txOpts, err := bind.NewKeyedTransactorWithChainID(a.dp.Secrets.Alice, a.sd.L1Cfg.Config.ChainID)
+	require.NoError(t, err)
 
 	_, err = a.contract.Resolve(txOpts, big.NewInt(int64(a.lastCommBn)), a.lastComm, input)
 	require.NoError(t, err)

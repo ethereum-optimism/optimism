@@ -347,7 +347,7 @@ func TestPlasmaDataSourceStall(t *testing.T) {
 	l1F.ExpectInfoAndTxsByHash(ref.Hash, testutils.RandomBlockInfo(rng), txs, nil)
 
 	// delete the input from the DA provider so it returns not found
-	storage.DeleteData(comm)
+	require.NoError(t, storage.DeleteData(comm))
 
 	// next block is fetched to look ahead challenges but is not yet available
 	l1F.ExpectL1BlockRefByNumber(ref.Number+1, eth.L1BlockRef{}, ethereum.NotFound)
