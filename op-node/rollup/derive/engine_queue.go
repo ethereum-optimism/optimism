@@ -705,6 +705,20 @@ func (eq *EngineQueue) Reset(ctx context.Context, _ eth.L1BlockRef, _ eth.System
 	if err := eq.safeHeadNotifs.SafeHeadReset(safe); err != nil {
 		return err
 	}
+	if safe.Number == eq.cfg.Genesis.L2.Number && safe.Hash == eq.cfg.Genesis.L2.Hash {
+		// The rollup genesis block is always safe by definition. So if the pipeline resets this far back we know
+		// we will process all safe head updates and can record genesis as always safe from L1 genesis.
+		// Note that it is not safe to use cfg.Genesis.L1 here as it is the block immediately before the L2 genesis
+		// but the contracts may have been deployed earlier than that, allowing creating a dispute game
+		// with a L1 head prior to cfg.Genesis.L1
+		l1Genesis, err := eq.l1Fetcher.L1BlockRefByNumber(ctx, 0)
+		if err != nil {
+			return fmt.Errorf("failed to retrieve L1 genesis: %w", err)
+		}
+		if err := eq.safeHeadNotifs.SafeHeadUpdated(safe, l1Genesis.ID()); err != nil {
+			return err
+		}
+	}
 	eq.logSyncProgress("reset derivation work")
 	return io.EOF
 }
