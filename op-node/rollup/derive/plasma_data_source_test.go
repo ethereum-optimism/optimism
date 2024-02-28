@@ -82,10 +82,10 @@ func TestPlasmaDataSource(t *testing.T) {
 			L2:     refA0.ID(),
 			L2Time: refA0.Time,
 		},
-		BlockTime:          1,
-		SeqWindowSize:      20,
-		BatchInboxAddress:  batcherInbox,
-		DAChallengeAddress: common.Address{43},
+		BlockTime:         1,
+		SeqWindowSize:     20,
+		BatchInboxAddress: batcherInbox,
+		UsePlasma:         true,
 	}
 	// keep track of random input data to validate against
 	var inputs [][]byte
@@ -307,10 +307,10 @@ func TestPlasmaDataSourceStall(t *testing.T) {
 			L2:     refA0.ID(),
 			L2Time: refA0.Time,
 		},
-		BlockTime:          1,
-		SeqWindowSize:      20,
-		BatchInboxAddress:  batcherInbox,
-		DAChallengeAddress: common.Address{43},
+		BlockTime:         1,
+		SeqWindowSize:     20,
+		BatchInboxAddress: batcherInbox,
+		UsePlasma:         true,
 	}
 
 	signer := cfg.L1Signer()
@@ -408,10 +408,10 @@ func TestPlasmaDataSourceOversizedInput(t *testing.T) {
 			L2:     refA0.ID(),
 			L2Time: refA0.Time,
 		},
-		BlockTime:          1,
-		SeqWindowSize:      20,
-		BatchInboxAddress:  batcherInbox,
-		DAChallengeAddress: common.Address{43},
+		BlockTime:         1,
+		SeqWindowSize:     20,
+		BatchInboxAddress: batcherInbox,
+		UsePlasma:         true,
 	}
 
 	signer := cfg.L1Signer()
