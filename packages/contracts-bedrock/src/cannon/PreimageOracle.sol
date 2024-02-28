@@ -334,51 +334,63 @@ contract PreimageOracle is IPreimageOracle {
     }
 
     /// @inheritdoc IPreimageOracle
-    function loadKZGPointEvaluationPreimagePart(uint256 _partOffset, bytes calldata _input) external {
+    function loadPrecompilePreimagePart(uint256 _partOffset, address _precompile, bytes calldata _input) external {
         // Prior to Cancun activation, the blob preimage precompile is not available.
         if (block.timestamp < CANCUN_ACTIVATION) revert CancunNotActive();
 
         bytes32 res;
         bytes32 key;
         bytes32 part;
+        uint256 size;
         assembly {
             // we leave solidity slots 0x40 and 0x60 untouched, and everything after as scratch-memory.
             let ptr := 0x80
 
-            // copy input into memory
-            calldatacopy(ptr, _input.offset, _input.length)
+            // copy precompile address and input into memory
+            // len(sig) + len(_partOffset) + address-offset-in-slot
+            calldatacopy(ptr, 48, 20)
+            calldatacopy(add(20, ptr), _input.offset, _input.length)
             // compute the hash
-            let h := keccak256(ptr, _input.length)
+            let h := keccak256(ptr, add(20, _input.length))
             // mask out prefix byte, replace with type 6 byte
             key := or(and(h, not(shl(248, 0xFF))), shl(248, 0x06))
 
-            // Verify the KZG proof by calling the point evaluation precompile.
-            // Capture the verification result
+            // Call the precompile to get the result.
             res :=
                 staticcall(
                     gas(), // forward all gas
-                    0x0A, // point evaluation precompile address
-                    ptr, // input ptr
-                    _input.length, // we may want to load differently sized point-evaluation calls in the future
-                    0x00, // output ptr
-                    0x00 // output size
+                    _precompile,
+                    add(20, ptr), // input ptr
+                    _input.length,
+                    0x0, // Unused as we don't copy anything
+                    0x00 // don't copy anything
                 )
-            // "res" will be 0 on error, and 1 on success, of the KZG Point-evaluation precompile call
-            // We do have to shift it to the left-most byte of the bytes32 however, since we only read that byte.
-            res := shl(248, res)
 
-            // Reuse the `ptr` to store the preimage part including size prefix.
-            // put size as big-endian uint64 at the start of pre-image
-            mstore(ptr, shl(192, 1))
+            size := add(1, returndatasize())
+            // revert if part offset >= size+8 (i.e. parts must be within bounds)
+            if iszero(lt(_partOffset, add(size, 8))) {
+                // Store "PartOffsetOOB()"
+                mstore(0, 0xfe254987)
+                // Revert with "PartOffsetOOB()"
+                revert(0x1c, 4)
+            }
+
+            // Reuse the `ptr` to store the preimage part: <sizePrefix ++ precompileStatus ++ returrnData>
+            // put size as big-endian uint64 at start of pre-image
+            mstore(ptr, shl(192, size))
             ptr := add(ptr, 0x08)
-            mstore(ptr, res)
+
+            // write precompile result status to the first byte of `ptr`
+            mstore8(ptr, res)
+            // write precompile return data to the rest of `ptr`
+            returndatacopy(add(ptr, 0x01), 0x0, returndatasize())
+
             // compute part given ofset
             part := mload(add(sub(ptr, 0x08), _partOffset))
         }
         preimagePartOk[key][_partOffset] = true;
         preimageParts[key][_partOffset] = part;
-        // size is always 1
-        preimageLengths[key] = 1;
+        preimageLengths[key] = size;
     }
 
     ////////////////////////////////////////////////////////////////

@@ -38,8 +38,8 @@ func WithVerification(source PreimageGetter) PreimageGetter {
 		case BlobKeyType:
 			// Can't verify an individual field element without having a kzg proof
 			return data, nil
-		case KZGPointEvaluationKeyType:
-			// Can't verify the KZG point evaluation result without having a kzg proof
+		case PrecompileKeyType:
+			// Can't verify precompile result without knowing the input preimage
 			return data, nil
 		default:
 			return nil, fmt.Errorf("%w: %v", ErrUnsupportedKeyType, key[0])

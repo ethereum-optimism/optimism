@@ -124,17 +124,22 @@ func (o *StubStateOracle) CodeByHash(hash common.Hash) []byte {
 	return data
 }
 
-type StubKZGOracle struct {
+type StubPrecompileOracle struct {
 	t       *testing.T
-	PtEvals map[common.Hash]bool
+	Results map[common.Hash]PrecompileResult
 	Calls   int
 }
 
-func (o *StubKZGOracle) KZGPointEvaluation(input []byte) bool {
-	result, ok := o.PtEvals[crypto.Keccak256Hash(input)]
+type PrecompileResult struct {
+	Result []byte
+	Ok     bool
+}
+
+func (o *StubPrecompileOracle) Precompile(address common.Address, input []byte) ([]byte, bool) {
+	result, ok := o.Results[crypto.Keccak256Hash(append(address.Bytes(), input...))]
 	if !ok {
 		o.t.Fatalf("no value for point evaluation %v", input)
 	}
 	o.Calls++
-	return result
+	return result.Result, result.Ok
 }

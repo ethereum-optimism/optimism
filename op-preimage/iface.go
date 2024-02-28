@@ -40,8 +40,8 @@ const (
 	Sha256KeyType KeyType = 4
 	// BlobKeyType is for blob point pre-images.
 	BlobKeyType KeyType = 5
-	// KZGPointEvaluationKeyType is for KZG point-evaluation pre-images.
-	KZGPointEvaluationKeyType KeyType = 6
+	// PrecompileKeyType is for precompile result pre-images.
+	PrecompileKeyType KeyType = 6
 )
 
 // LocalIndexKey is a key local to the program, indexing a special program input.
@@ -104,20 +104,20 @@ func (k BlobKey) TerminalString() string {
 	return "0x" + hex.EncodeToString(k[:])
 }
 
-// KZGPointEvaluationKey is the hash of a KZG point-evaluation EVM call input-data
-type KZGPointEvaluationKey [32]byte
+// PrecompileKey is the hash of precompile address and its input data
+type PrecompileKey [32]byte
 
-func (k KZGPointEvaluationKey) PreimageKey() (out [32]byte) {
+func (k PrecompileKey) PreimageKey() (out [32]byte) {
 	out = k
-	out[0] = byte(KZGPointEvaluationKeyType)
+	out[0] = byte(PrecompileKeyType)
 	return
 }
 
-func (k KZGPointEvaluationKey) String() string {
+func (k PrecompileKey) String() string {
 	return "0x" + hex.EncodeToString(k[:])
 }
 
-func (k KZGPointEvaluationKey) TerminalString() string {
+func (k PrecompileKey) TerminalString() string {
 	return "0x" + hex.EncodeToString(k[:])
 }
 

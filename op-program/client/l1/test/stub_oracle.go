@@ -24,18 +24,18 @@ type StubOracle struct {
 	// Blobs maps indexed blob hash to l1 block ref to blob
 	Blobs map[eth.L1BlockRef]map[eth.IndexedBlobHash]*eth.Blob
 
-	// PtEvals maps hashed input to whether the KZG point evaluation was successful
-	PtEvals map[common.Hash]bool
+	// PcmpResults maps hashed input to the results of precompile calls
+	PcmpResults map[common.Hash][]byte
 }
 
 func NewStubOracle(t *testing.T) *StubOracle {
 	return &StubOracle{
-		t:       t,
-		Blocks:  make(map[common.Hash]eth.BlockInfo),
-		Txs:     make(map[common.Hash]types.Transactions),
-		Rcpts:   make(map[common.Hash]types.Receipts),
-		Blobs:   make(map[eth.L1BlockRef]map[eth.IndexedBlobHash]*eth.Blob),
-		PtEvals: make(map[common.Hash]bool),
+		t:           t,
+		Blocks:      make(map[common.Hash]eth.BlockInfo),
+		Txs:         make(map[common.Hash]types.Transactions),
+		Rcpts:       make(map[common.Hash]types.Receipts),
+		Blobs:       make(map[eth.L1BlockRef]map[eth.IndexedBlobHash]*eth.Blob),
+		PcmpResults: make(map[common.Hash][]byte),
 	}
 }
 
@@ -75,10 +75,10 @@ func (o StubOracle) GetBlob(ref eth.L1BlockRef, blobHash eth.IndexedBlobHash) *e
 	return blob
 }
 
-func (o StubOracle) KZGPointEvaluation(input []byte) bool {
-	result, ok := o.PtEvals[crypto.Keccak256Hash(input)]
+func (o StubOracle) Precompile(addr common.Address, input []byte) ([]byte, bool) {
+	result, ok := o.PcmpResults[crypto.Keccak256Hash(append(addr.Bytes(), input...))]
 	if !ok {
 		o.t.Fatalf("unknown kzg point evaluation %x", input)
 	}
-	return result
+	return result, true
 }
