@@ -149,12 +149,10 @@ func init() {
 		ProxyDisabled: true,
 	}
 	Predeploys["CrossL2Inbox"] = &Predeploy{
-		Address:       CrossL2InboxAddr,
-		ProxyDisabled: true,
+		Address: CrossL2InboxAddr,
 	}
 	Predeploys["L2ToL2CrossDomainMessenger"] = &Predeploy{
-		Address:       L2ToL2CrossDomainMessengerAddr,
-		ProxyDisabled: true,
+		Address: L2ToL2CrossDomainMessengerAddr,
 	}
 
 	for _, predeploy := range Predeploys {
