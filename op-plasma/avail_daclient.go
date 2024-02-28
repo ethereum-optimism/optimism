@@ -49,7 +49,7 @@ func (c *AvailDAClient) SetInput(ctx context.Context, img []byte) ([]byte, error
 func SubmitDataAndWatch(ctx context.Context, data []byte) (types.AvailBlockRef, error) {
 	//Load variables
 	var config config.Config
-	err := config.GetConfig("../op-avail/config.json")
+	err := config.GetConfig(cfgPath)
 	if err != nil {
 		panic(fmt.Sprintf("cannot get config:%v", err))
 	}
