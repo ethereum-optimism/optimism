@@ -311,16 +311,17 @@ func (l *BatchSubmitter) publishStateToL1(queue *txmgr.Queue[txData], receiptsCh
 			close(txDone)
 		}()
 		for {
+			// errors from Txmgr are only seen by the goroutine that sends the tx
+			// so we need to check if the txmgr is closed here to avoid retrying forever
+			if l.Txmgr.IsClosed() {
+				l.Log.Info("Txmgr is closed, stopping transaction sending")
+				return
+			}
 			err := l.publishTxToL1(l.killCtx, queue, receiptsCh)
 			if err != nil {
 				if drain && err != io.EOF {
 					l.Log.Error("error sending tx while draining state", "err", err)
 				}
-				return
-			}
-			// errors from Txmgr are only seen by the goroutine that sends the tx
-			// so we need to check if the txmgr is closed here to avoid retrying forever
-			if l.Txmgr.IsClosed() {
 				return
 			}
 		}
