@@ -15,9 +15,6 @@ COMMON_FLAGS=" \
 
 ERIGON_FLAGS=" \
   ${COMMON_FLAGS} \
-  --mine \
-  --miner.etherbase=${BLOCK_SIGNER_ADDRESS} \
-  --miner.sigfile=${DATADIR}/nodekey \
   --http.port=8545 \
   --http.addr=0.0.0.0 \
   --http.vhosts=* \
