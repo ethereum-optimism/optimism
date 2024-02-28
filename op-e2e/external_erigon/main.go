@@ -158,10 +158,6 @@ func execute(binPath string, config external.Config) (*erigonSession, error) {
 	}
 	fmt.Fscanf(sess.Err, "%d", &enginePort)
 	fmt.Printf("==================    op-erigon shim got engine port %d  ==========================\n", enginePort)
-	gm.Eventually(sess.Err, time.Minute).Should(gbytes.Say("Regeneration ended"))
-	if err != nil {
-		return nil, fmt.Errorf("started did not finish in time")
-	}
 
 	// TODO(jky) this is a horrible hack, but giving Erigon just a little extra
 	// time to stabilize seems to drastically improve the reliability of these
