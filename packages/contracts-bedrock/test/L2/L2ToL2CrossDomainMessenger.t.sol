@@ -25,18 +25,16 @@ contract L2ToL2ToL2CrossDomainMessengerTest is Bridge_Initializer {
 
     /// @dev Tests that the implementation is initialized correctly.
     function test_constructor_succeeds() external {
-        IL2ToL2CrossDomainMessenger impl = IL2ToL2CrossDomainMessenger(
-            EIP1967Helper.getImplementation(deploy.mustGetAddress("L2ToL2CrossDomainMessenger"))
-        );
-        assertEq(impl.MESSAGE_VERSION(), uint16(0));
-        assertEq(impl.INITIAL_BALANCE(), uint248(0));
-        assertEq(address(impl.CROSS_L2_INBOX()), address(l2CrossDomainMessenger));
-        assertEq(impl.msgNonce(), uint240(0));
-        assertEq(impl.messageNonce(), uint256(0));
+        assertEq(l2ToL2CrossDomainMessenger.MESSAGE_VERSION(), uint16(0));
+        assertEq(l2ToL2CrossDomainMessenger.INITIAL_BALANCE(), type(uint248).max);
+        assertEq(l2ToL2CrossDomainMessenger.CROSS_L2_INBOX(), address(l2CrossDomainMessenger));
+        assertEq(l2ToL2CrossDomainMessenger.msgNonce(), uint240(0));
+        assertEq(l2ToL2CrossDomainMessenger.messageNonce(), uint256(0));
     }
 
     /// @dev Tests that `messageNonce` can be decoded correctly.
     function test_messageVersion_succeeds() external {
+        assertEq(address(l2ToL2CrossDomainMessenger), 0x4200000000000000000000000000000000000023);
         (, uint16 version) = Encoding.decodeVersionedNonce(l2ToL2CrossDomainMessenger.messageNonce());
         assertEq(version, l2ToL2CrossDomainMessenger.MESSAGE_VERSION());
     }
