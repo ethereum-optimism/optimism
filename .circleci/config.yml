@@ -6,7 +6,7 @@ parameters:
     default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:v0.43.0
   ci_builder_rust_image:
     type: string
-    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder-rust:v0.3.0
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder-rust:latest
   base_image:
     type: string
     default: default
@@ -1656,7 +1656,7 @@ workflows:
             - pnpm-monorepo
       - op-service-rethdb-tests:
           requires:
-            - op-stack-go-lint
+            - go-mod-download
       - op-program-compat:
           requires:
             - op-program-tests
