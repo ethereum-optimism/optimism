@@ -7,6 +7,19 @@ parameters:
   base_image:
     type: string
     default: default
+  # The dispatch parameters are used to manually dispatch pipelines that normally only run post-merge on develop
+  # from the CircleCI UI. Example configuration:
+  #   when:
+  #     or:
+  #       - equal: [ "develop", <<pipeline.git.branch>> ]
+  #       - equal: [ true, <<pipeline.parameters.main_dispatch>> ]
+  # Add a new `*_dispatch` parameter for any pipeline you want manual dispatch for.
+  main_dispatch:
+    type: boolean
+    default: true # default to running main in case the manual run cancelled an automatic run
+  fault_proofs_dispatch:
+    type: boolean
+    default: false
 
 orbs:
   go: circleci/go@1.8.0
@@ -851,11 +864,6 @@ jobs:
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: xlarge
-    # Note: Tests are split between runs manually.
-    # Tests default to run on the first executor but can be moved to the second with:
-    # InitParallel(t, UseExecutor(1))
-    # Any tests assigned to an executor greater than the number available automatically use the last executor.
-    # Executor indexes start from 0
     parallelism: <<parameters.parallelism>>
     steps:
       - checkout
@@ -1461,8 +1469,11 @@ jobs:
 workflows:
   main:
     when:
-      not:
-        equal: [ scheduled_pipeline, << pipeline.trigger_source >> ]
+      or:
+          # Trigger on new commits
+        - equal: [ webhook, << pipeline.trigger_source >> ]
+          # Trigger on manual triggers if explicitly requested
+        - equal: [ true, << pipeline.parameters.main_dispatch >> ]
     jobs:
       - pnpm-monorepo:
           name: pnpm-monorepo
@@ -2011,7 +2022,9 @@ workflows:
   develop-fault-proofs:
     when:
       and:
-        - equal: [ "develop", <<pipeline.git.branch>> ]
+        - or:
+          - equal: [ "develop", <<pipeline.git.branch>> ]
+          - equal: [ true, <<pipeline.parameters.fault_proofs_dispatch>> ]
         - not:
             equal: [ scheduled_pipeline, << pipeline.trigger_source >> ]
     jobs:
