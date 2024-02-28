@@ -662,8 +662,6 @@ func TestDisputeOutputRoot_ChangeClaimedOutputRoot(t *testing.T) {
 }
 
 func TestInvalidateUnsafeProposal(t *testing.T) {
-	// TODO(client-pod#540) Fix and enable TestInvalidateUnsafeProposal
-	t.Skip("Agreed head not correctly restricted yet")
 	op_e2e.InitParallel(t, op_e2e.UsesCannon)
 	ctx := context.Background()
 
@@ -695,7 +693,7 @@ func TestInvalidateUnsafeProposal(t *testing.T) {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
 			op_e2e.InitParallel(t, op_e2e.UsesCannon)
-			sys, l1Client := startFaultDisputeSystem(t, withSequencerWindowSize(1000))
+			sys, l1Client := startFaultDisputeSystem(t, withSequencerWindowSize(100000))
 			t.Cleanup(sys.Close)
 
 			// Wait for the safe head to advance at least one block to init the safe head database
@@ -712,6 +710,71 @@ func TestInvalidateUnsafeProposal(t *testing.T) {
 			disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
 			// Root claim is _dishonest_ because the required data is not available on L1
 			game := disputeGameFactory.StartOutputCannonGameWithCorrectRoot(ctx, "sequencer", blockNum, disputegame.WithUnsafeProposal())
+
+			correctTrace := game.CreateHonestActor(ctx, "sequencer", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
+
+			// Start the honest challenger
+			game.StartChallenger(ctx, "sequencer", "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Bob))
+
+			game.DefendClaim(ctx, game.RootClaim(ctx), func(parent *disputegame.ClaimHelper) *disputegame.ClaimHelper {
+				if parent.IsBottomGameRoot(ctx) {
+					return correctTrace.AttackClaim(ctx, parent)
+				}
+				return test.strategy(correctTrace, parent)
+			})
+
+			// Time travel past when the game will be resolvable.
+			sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
+			require.NoError(t, wait.ForNextBlock(ctx, l1Client))
+
+			game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
+			game.LogGameData(ctx)
+		})
+	}
+}
+
+func TestInvalidateProposalForFutureBlock(t *testing.T) {
+	op_e2e.InitParallel(t, op_e2e.UsesCannon)
+	ctx := context.Background()
+
+	tests := []struct {
+		name     string
+		strategy func(correctTrace *disputegame.OutputHonestHelper, parent *disputegame.ClaimHelper) *disputegame.ClaimHelper
+	}{
+		{
+			name: "Attack",
+			strategy: func(correctTrace *disputegame.OutputHonestHelper, parent *disputegame.ClaimHelper) *disputegame.ClaimHelper {
+				return correctTrace.AttackClaim(ctx, parent)
+			},
+		},
+		{
+			name: "Defend",
+			strategy: func(correctTrace *disputegame.OutputHonestHelper, parent *disputegame.ClaimHelper) *disputegame.ClaimHelper {
+				return correctTrace.DefendClaim(ctx, parent)
+			},
+		},
+		{
+			name: "Counter",
+			strategy: func(correctTrace *disputegame.OutputHonestHelper, parent *disputegame.ClaimHelper) *disputegame.ClaimHelper {
+				return correctTrace.CounterClaim(ctx, parent)
+			},
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			op_e2e.InitParallel(t, op_e2e.UsesCannon)
+			sys, l1Client := startFaultDisputeSystem(t, withSequencerWindowSize(100000))
+			t.Cleanup(sys.Close)
+
+			// Wait for the safe head to advance at least one block to init the safe head database
+			require.NoError(t, wait.ForSafeBlock(ctx, sys.RollupClient("sequencer"), 1))
+
+			farFutureBlockNum := uint64(10_000_000)
+			disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
+			// Root claim is _dishonest_ because the required data is not available on L1
+			game := disputeGameFactory.StartOutputCannonGame(ctx, "sequencer", farFutureBlockNum, common.Hash{0xaa}, disputegame.WithFutureProposal())
 
 			correctTrace := game.CreateHonestActor(ctx, "sequencer", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
 

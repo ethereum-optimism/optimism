@@ -36,15 +36,15 @@ func FetchLocalInputs(ctx context.Context, caller GameInputsSource, l2Client L2H
 	if err != nil {
 		return LocalGameInputs{}, fmt.Errorf("fetch proposals: %w", err)
 	}
-	return FetchLocalInputsFromProposals(ctx, caller, l2Client, agreedOutput, claimedOutput)
-}
-
-func FetchLocalInputsFromProposals(ctx context.Context, caller L1HeadSource, l2Client L2HeaderSource, agreedOutput contracts.Proposal, claimedOutput contracts.Proposal) (LocalGameInputs, error) {
 	l1Head, err := caller.GetL1Head(ctx)
 	if err != nil {
 		return LocalGameInputs{}, fmt.Errorf("fetch L1 head: %w", err)
 	}
 
+	return FetchLocalInputsFromProposals(ctx, l1Head, l2Client, agreedOutput, claimedOutput)
+}
+
+func FetchLocalInputsFromProposals(ctx context.Context, l1Head common.Hash, l2Client L2HeaderSource, agreedOutput contracts.Proposal, claimedOutput contracts.Proposal) (LocalGameInputs, error) {
 	agreedHeader, err := l2Client.HeaderByNumber(ctx, agreedOutput.L2BlockNumber)
 	if err != nil {
 		return LocalGameInputs{}, fmt.Errorf("fetch L2 block header %v: %w", agreedOutput.L2BlockNumber, err)

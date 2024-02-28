@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs/source"
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame/preimage"
@@ -20,6 +19,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/transactions"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -59,6 +59,7 @@ func (s Status) String() string {
 }
 
 type gameCfg struct {
+	allowFuture bool
 	allowUnsafe bool
 }
 type GameOpt interface {
@@ -73,6 +74,12 @@ func (g gameOptFn) Apply(cfg *gameCfg) {
 func WithUnsafeProposal() GameOpt {
 	return gameOptFn(func(c *gameCfg) {
 		c.allowUnsafe = true
+	})
+}
+
+func WithFutureProposal() GameOpt {
+	return gameOptFn(func(c *gameCfg) {
+		c.allowFuture = true
 	})
 }
 
@@ -177,15 +184,17 @@ func (h *FactoryHelper) StartOutputCannonGame(ctx context.Context, l2Node string
 	game, err := bindings.NewFaultDisputeGame(createdEvent.DisputeProxy, h.client)
 	h.require.NoError(err)
 
-	prestateBlock, err := game.GenesisBlockNumber(&bind.CallOpts{Context: ctx})
+	callOpts := &bind.CallOpts{Context: ctx}
+	prestateBlock, err := game.GenesisBlockNumber(callOpts)
 	h.require.NoError(err, "Failed to load genesis block number")
-	poststateBlock, err := game.L2BlockNumber(&bind.CallOpts{Context: ctx})
+	poststateBlock, err := game.L2BlockNumber(callOpts)
 	h.require.NoError(err, "Failed to load l2 block number")
-	splitDepth, err := game.SplitDepth(&bind.CallOpts{Context: ctx})
+	splitDepth, err := game.SplitDepth(callOpts)
 	h.require.NoError(err, "Failed to load split depth")
-	outputRootProvider := source.NewUnrestrictedOutputSource(rollupClient)
-	prestateProvider := outputs.NewPrestateProvider(outputRootProvider, prestateBlock.Uint64())
-	provider := outputs.NewTraceProvider(logger, prestateProvider, outputRootProvider, faultTypes.Depth(splitDepth.Uint64()), prestateBlock.Uint64(), poststateBlock.Uint64())
+	l1Head := h.getL1Head(ctx, game)
+
+	prestateProvider := outputs.NewPrestateProvider(rollupClient, prestateBlock.Uint64())
+	provider := outputs.NewTraceProvider(logger, prestateProvider, rollupClient, l1Head, faultTypes.Depth(splitDepth.Uint64()), prestateBlock.Uint64(), poststateBlock.Uint64())
 
 	return &OutputCannonGameHelper{
 		OutputGameHelper: OutputGameHelper{
@@ -200,6 +209,15 @@ func (h *FactoryHelper) StartOutputCannonGame(ctx context.Context, l2Node string
 			system:                h.system,
 		},
 	}
+}
+
+func (h *FactoryHelper) getL1Head(ctx context.Context, game *bindings.FaultDisputeGame) eth.BlockID {
+	l1HeadHash, err := game.L1Head(&bind.CallOpts{Context: ctx})
+	h.require.NoError(err, "Failed to load L1 head")
+	l1Header, err := h.client.HeaderByHash(ctx, l1HeadHash)
+	h.require.NoError(err, "Failed to load L1 header")
+	l1Head := eth.HeaderBlockID(l1Header)
+	return l1Head
 }
 
 func (h *FactoryHelper) StartOutputAlphabetGameWithCorrectRoot(ctx context.Context, l2Node string, l2BlockNumber uint64, opts ...GameOpt) *OutputAlphabetGameHelper {
@@ -232,15 +250,17 @@ func (h *FactoryHelper) StartOutputAlphabetGame(ctx context.Context, l2Node stri
 	game, err := bindings.NewFaultDisputeGame(createdEvent.DisputeProxy, h.client)
 	h.require.NoError(err)
 
-	prestateBlock, err := game.GenesisBlockNumber(&bind.CallOpts{Context: ctx})
+	callOpts := &bind.CallOpts{Context: ctx}
+	prestateBlock, err := game.GenesisBlockNumber(callOpts)
 	h.require.NoError(err, "Failed to load genesis block number")
-	poststateBlock, err := game.L2BlockNumber(&bind.CallOpts{Context: ctx})
+	poststateBlock, err := game.L2BlockNumber(callOpts)
 	h.require.NoError(err, "Failed to load l2 block number")
-	splitDepth, err := game.SplitDepth(&bind.CallOpts{Context: ctx})
+	splitDepth, err := game.SplitDepth(callOpts)
 	h.require.NoError(err, "Failed to load split depth")
-	outputRootProvider := source.NewUnrestrictedOutputSource(rollupClient)
-	prestateProvider := outputs.NewPrestateProvider(outputRootProvider, prestateBlock.Uint64())
-	provider := outputs.NewTraceProvider(logger, prestateProvider, outputRootProvider, faultTypes.Depth(splitDepth.Uint64()), prestateBlock.Uint64(), poststateBlock.Uint64())
+	l1Head := h.getL1Head(ctx, game)
+	prestateProvider := outputs.NewPrestateProvider(rollupClient, prestateBlock.Uint64())
+
+	provider := outputs.NewTraceProvider(logger, prestateProvider, rollupClient, l1Head, faultTypes.Depth(splitDepth.Uint64()), prestateBlock.Uint64(), poststateBlock.Uint64())
 
 	return &OutputAlphabetGameHelper{
 		OutputGameHelper: OutputGameHelper{
@@ -266,6 +286,11 @@ func (h *FactoryHelper) createBisectionGameExtraData(l2Node string, l2BlockNumbe
 }
 
 func (h *FactoryHelper) waitForBlock(l2Node string, l2BlockNumber uint64, cfg *gameCfg) {
+	if cfg.allowFuture {
+		// Proposing a block that doesn't exist yet, so don't perform any checks
+		return
+	}
+
 	l2Client := h.system.NodeClient(l2Node)
 	if cfg.allowUnsafe {
 		_, err := geth.WaitForBlock(new(big.Int).SetUint64(l2BlockNumber), l2Client, 1*time.Minute)

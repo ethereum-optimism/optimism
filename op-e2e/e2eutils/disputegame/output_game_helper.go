@@ -16,6 +16,7 @@ import (
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -109,7 +110,7 @@ func (g *OutputGameHelper) DisputeBlock(ctx context.Context, disputeBlockNum uin
 	}
 	pos := types.NewPositionFromGIndex(big.NewInt(1))
 	getClaimValue := func(parentClaim *ClaimHelper, claimPos types.Position) common.Hash {
-		claimBlockNum, err := g.correctOutputProvider.BlockNumber(claimPos)
+		claimBlockNum, err := g.correctOutputProvider.ClaimedBlockNumber(claimPos)
 		g.require.NoError(err, "failed to calculate claim block number")
 		if claimBlockNum < disputeBlockNum {
 			// Use the correct output root for all claims prior to the dispute block number
@@ -127,7 +128,7 @@ func (g *OutputGameHelper) DisputeBlock(ctx context.Context, disputeBlockNum uin
 
 	claim := g.RootClaim(ctx)
 	for !claim.IsOutputRootLeaf(ctx) {
-		parentClaimBlockNum, err := g.correctOutputProvider.BlockNumber(pos)
+		parentClaimBlockNum, err := g.correctOutputProvider.ClaimedBlockNumber(pos)
 		g.require.NoError(err, "failed to calculate parent claim block number")
 		if parentClaimBlockNum >= disputeBlockNum {
 			pos = pos.Attack()
@@ -671,7 +672,7 @@ func (g *OutputGameHelper) gameData(ctx context.Context) string {
 		pos := types.NewPositionFromGIndex(claim.Position)
 		extra := ""
 		if pos.Depth() <= splitDepth {
-			blockNum, err := g.correctOutputProvider.BlockNumber(pos)
+			blockNum, err := g.correctOutputProvider.ClaimedBlockNumber(pos)
 			if err != nil {
 			} else {
 				extra = fmt.Sprintf("Block num: %v", blockNum)
@@ -696,4 +697,13 @@ func (g *OutputGameHelper) Credit(ctx context.Context, addr common.Address) *big
 	amt, err := g.game.Credit(opts, addr)
 	g.require.NoError(err)
 	return amt
+}
+
+func (g *OutputGameHelper) getL1Head(ctx context.Context) eth.BlockID {
+	l1HeadHash, err := g.game.L1Head(&bind.CallOpts{Context: ctx})
+	g.require.NoError(err, "Failed to load L1 head")
+	l1Header, err := g.client.HeaderByHash(ctx, l1HeadHash)
+	g.require.NoError(err, "Failed to load L1 header")
+	l1Head := eth.HeaderBlockID(l1Header)
+	return l1Head
 }
