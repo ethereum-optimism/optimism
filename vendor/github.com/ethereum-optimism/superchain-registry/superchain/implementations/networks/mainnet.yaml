@@ -1,0 +1,8 @@
+l1_cross_domain_messenger:
+l1_erc721_bridge:
+l1_standard_bridge:
+l2_output_oracle:
+  1.6.0: 0xB48B1827BC7218b1aB7B000b4f0416DF8F14B16A
+optimism_mintable_erc20_factory:
+optimism_portal:
+system_config:

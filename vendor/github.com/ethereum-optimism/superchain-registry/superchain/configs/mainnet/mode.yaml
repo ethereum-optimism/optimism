@@ -1,0 +1,17 @@
+name: Mode
+chain_id: 34443
+public_rpc: https://mainnet.mode.network
+sequencer_rpc: https://mainnet-sequencer.mode.network
+explorer: https://explorer.mode.network
+
+system_config_addr: "0x5e6432f18bc5d497b1ab2288a025fbf9d69e2221"
+batch_inbox_addr: "0x24e59d9d3bd73ccc28dc54062af7ef7bff58bd67"
+
+genesis:  
+  l1:  # L1 anchor-point of the rollup
+    hash: "0xf9b1b22a7ef9d13f063ea467bcb70fb6e9f29698ecb7366a2cdf5af2165cacee"
+    number: 18586927
+  l2:
+    hash: "0xb0f682e12fc555fd5ce8fce51a59a67d66a5b46be28611a168260a549dac8a9b"
+    number: 0
+  l2_time: 1700167583

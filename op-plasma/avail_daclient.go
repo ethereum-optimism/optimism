@@ -2,17 +2,16 @@ package plasma
 
 import (
 	"context"
+	"errors"
 	"fmt"
-    "errors"
 	"time"
-
 
 	gsrpc "github.com/centrifuge/go-substrate-rpc-client/v4"
 	"github.com/centrifuge/go-substrate-rpc-client/v4/signature"
 	gsrpc_types "github.com/centrifuge/go-substrate-rpc-client/v4/types"
+	"github.com/ethereum-optimism/optimism/op-plasma/avail/config"
 	"github.com/ethereum-optimism/optimism/op-plasma/avail/types"
-    "github.com/ethereum-optimism/optimism/op-plasma/avail/config"
-    "github.com/ethereum-optimism/optimism/op-plasma/avail/utils"
+	"github.com/ethereum-optimism/optimism/op-plasma/avail/utils"
 )
 
 const cfgPath = "../"
@@ -45,6 +44,7 @@ func (c *AvailDAClient) SetInput(ctx context.Context, img []byte) ([]byte, error
 	}
 	return ref_bytes_data, nil
 }
+
 // submitData creates a transaction and makes a Avail data submission
 func SubmitDataAndWatch(data []byte) (types.AvailBlockRef, error) {
 
@@ -55,22 +55,13 @@ func SubmitDataAndWatch(data []byte) (types.AvailBlockRef, error) {
 		panic(fmt.Sprintf("cannot get config:%v", err))
 	}
 
-	//Intitializing variables
 	ApiURL := config.ApiURL
 	Seed := config.Seed
 	AppID := config.AppID
 
-	//Creating new substrate api
-	api, err := gsrpc.NewSubstrateAPI(ApiURL)
+	api, meta, err := getSubstrateApiAndMeta(ApiURL)
 	if err != nil {
-		fmt.Printf("cannot create api: error:%v", err)
-		return types.AvailBlockRef{}, err
-	}
-
-	meta, err := api.RPC.State.GetMetadataLatest()
-	if err != nil {
-		fmt.Printf("cannot get metadata: error:%v", err)
-		return types.AvailBlockRef{}, err
+		fmt.Printf("cannot get substrate API and meta %v", err)
 	}
 
 	appID := 0
@@ -158,4 +149,21 @@ func SubmitDataAndWatch(data []byte) (types.AvailBlockRef, error) {
 			return types.AvailBlockRef{}, errors.New("Timitout before getting finalized status")
 		}
 	}
+}
+
+func getSubstrateApiAndMeta(ApiURL string) (*gsrpc.SubstrateAPI, *gsrpc_types.Metadata, error) {
+	//Creating new substrate api
+	api, err := gsrpc.NewSubstrateAPI(ApiURL)
+	if err != nil {
+		fmt.Printf("cannot create api: error:%v", err)
+		return &gsrpc.SubstrateAPI{}, &gsrpc_types.Metadata{}, err
+	}
+
+	meta, err := api.RPC.State.GetMetadataLatest()
+	if err != nil {
+		fmt.Printf("cannot get metadata: error:%v", err)
+		return &gsrpc.SubstrateAPI{}, &gsrpc_types.Metadata{}, err
+	}
+
+	return api, meta, err
 }

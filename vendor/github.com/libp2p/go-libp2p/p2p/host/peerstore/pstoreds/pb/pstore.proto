@@ -1,0 +1,35 @@
+syntax = "proto3";
+package pstore.pb;
+
+// AddrBookRecord represents a record for a peer in the address book.
+message AddrBookRecord {
+	// The peer ID.
+	bytes id = 1;
+
+	// The multiaddresses. This is a sorted list where element 0 expires the soonest.
+	repeated AddrEntry addrs = 2;
+
+	// The most recently received signed PeerRecord.
+	CertifiedRecord certified_record = 3;
+
+	// AddrEntry represents a single multiaddress.
+	message AddrEntry {
+		bytes addr = 1;
+
+		// The point in time when this address expires.
+		int64 expiry = 2;
+
+		// The original TTL of this address.
+		int64 ttl = 3;
+	}
+
+	// CertifiedRecord contains a serialized signed PeerRecord used to
+	// populate the signedAddrs list.
+	message CertifiedRecord {
+		// The Seq counter from the signed PeerRecord envelope
+		uint64 seq = 1;
+
+		// The serialized bytes of the SignedEnvelope containing the PeerRecord.
+		bytes raw = 2;
+	}
+}

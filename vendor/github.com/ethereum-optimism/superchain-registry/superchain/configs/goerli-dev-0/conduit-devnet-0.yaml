@@ -1,0 +1,16 @@
+name: Conduit devnet 0
+chain_id: 129831238013
+public_rpc: "https://l2-conduit-superchain-dev-0.t.conduit.xyz/"
+sequencer_rpc: "https://l2-conduit-superchain-dev-0.t.conduit.xyz/"
+explorer: "https://explorerl2new-conduit-superchain-dev-0.t.conduit.xyz/"
+
+batch_inbox_addr: "0xF986574B7d9877e9454236Eee38c1e233588Da36"
+
+genesis:
+  l1:
+    hash: "0x758cd138ee63586b25eb03da37c5891f64f66fc50518a7fe3170a51de60245e7"
+    number: 9896149
+  l2:
+    hash: "0xf8eabf71fbb403e778c0efa7f07ceea5dc70a5c53c35693b4adf87500dd845e0"
+    number: 0
+  l2_time: 1697750040

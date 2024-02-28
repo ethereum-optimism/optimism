@@ -1,0 +1,16 @@
+name: OP Labs devnet 0
+chain_id: 997
+public_rpc: ""
+sequencer_rpc: ""
+explorer: ""
+
+batch_inbox_addr: "0xff00000000000000000000000000000000000997"
+
+genesis:
+  l1:
+    hash: "0xe0473633677bd7a134925b00f86e688655c28352b81d76a966b7a813e0bc4fce"
+    number: 8598297
+  l2:
+    hash: "0x742e03d9c8fe4dfd96f8e2d53d3815ec5537cbe3d88ad28cbb75c17ff2672867"
+    number: 0
+  l2_time: 1677973680

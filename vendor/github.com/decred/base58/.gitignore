@@ -1,0 +1,4 @@
+Gopkg.lock
+*~
+*.orig
+vendor/

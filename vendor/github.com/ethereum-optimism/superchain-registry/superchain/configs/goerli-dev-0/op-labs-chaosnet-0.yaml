@@ -1,0 +1,16 @@
+name: OP Labs chaosnet 0
+chain_id: 888
+public_rpc: ""
+sequencer_rpc: ""
+explorer: ""
+
+batch_inbox_addr: "0xff00000000000000000000000000000000000888"
+
+genesis:
+  l1:
+    hash: "0xe3689afa9af88cee6c7a4b00703ba1e5a0ea3de9a76286ada90ee7368dc95e52"
+    number: 8578807
+  l2:
+    hash: "0x92e26b8a6b0e0939d8e50844deec6890c8b7925f39c921e91944dcb9a87217f8"
+    number: 0
+  l2_time: 1677688044

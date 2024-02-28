@@ -1,0 +1,17 @@
+name: OP-Goerli
+chain_id: 420
+public_rpc: https://goerli.optimism.io
+sequencer_rpc: https://goerli-sequencer.optimism.io
+explorer: https://goerli-explorer.optimism.io
+
+system_config_addr: "0xAe851f927Ee40dE99aaBb7461C00f9622ab91d60"
+batch_inbox_addr: "0xff00000000000000000000000000000000000420"
+
+genesis:
+  l1:
+    hash: "0x6ffc1bf3754c01f6bb9fe057c1578b87a8571ce2e9be5ca14bace6eccfd336c7"
+    number: 8300214
+  l2:
+    hash: "0x0f783549ea4313b784eadd9b8e8a69913b368b7366363ea814d7707ac505175f"
+    number: 4061224
+  l2_time: 1673550516

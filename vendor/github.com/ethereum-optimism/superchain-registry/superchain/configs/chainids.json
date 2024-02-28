@@ -1,0 +1,21 @@
+{
+  "goerli/base": 84531,
+  "goerli/op": 420,
+  "goerli-dev-0/base-devnet-0": 11763071,
+  "goerli-dev-0/conduit-devnet-0": 129831238013,
+  "goerli-dev-0/op-labs-chaosnet-0": 888,
+  "goerli-dev-0/op-labs-devnet-0": 997,
+  "mainnet/base": 8453,
+  "mainnet/lyra": 957,
+  "mainnet/mode": 34443,
+  "mainnet/op": 10,
+  "mainnet/orderly": 291,
+  "mainnet/pgn": 424,
+  "mainnet/zora": 7777777,
+  "sepolia/base": 84532,
+  "sepolia/op": 11155420,
+  "sepolia/pgn": 58008,
+  "sepolia/zora": 999999999,
+  "sepolia-dev-0/base-devnet-0": 11763072,
+  "sepolia-dev-0/oplabs-devnet-0": 11155421
+}

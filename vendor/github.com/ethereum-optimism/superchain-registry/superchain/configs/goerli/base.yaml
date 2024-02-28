@@ -1,0 +1,18 @@
+name: Base Goerli
+chain_id: 84531
+public_rpc: https://goerli.base.org
+sequencer_rpc: https://goerli-sequencer.base.org
+explorer: https://goerli-explorer.base.org
+
+system_config_addr: "0xb15eea247ece011c68a614e4a77ad648ff495bc1"
+batch_inbox_addr: "0x8453100000000000000000000000000000000000"
+
+genesis:
+  l1:
+    hash: "0x73d89754a1e0387b89520d989d3be9c37c1f32495a88faf1ea05c61121ab0d19"
+    number: 8410981
+  l2:
+    hash: "0xa3ab140f15ea7f7443a4702da64c10314eb04d488e72974e02e2d728096b4f76"
+    number: 0
+  l2_time: 1675193616
+

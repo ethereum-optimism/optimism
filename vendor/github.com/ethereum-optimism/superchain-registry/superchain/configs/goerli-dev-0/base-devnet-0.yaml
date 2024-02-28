@@ -1,0 +1,16 @@
+name: Base devnet 0
+chain_id: 11763071
+public_rpc: ""
+sequencer_rpc: ""
+explorer: ""
+
+batch_inbox_addr: "0x1176307100000000000000000000000000000000"
+
+genesis:
+  l1:
+    hash: "0x02578eb559ac846feaeb0a8fdf1f19de9965fc59e1a38ebba9ff93ed4e21c99a"
+    number: 9015915
+  l2:
+    hash: "0x5216ec29e8cc4fc890c31cc70c72be3c61dd9a43cfffb63385be17a56eae4c68"
+    number: 0
+  l2_time: 1684327104

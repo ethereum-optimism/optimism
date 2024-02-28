@@ -1,0 +1,11 @@
+name: Goerli Dev 0
+l1:
+  chain_id: 5
+  public_rpc: https://goerli.gateway.tenderly.co	
+  explorer: https://goerli.etherscan.io
+
+protocol_versions_addr: "0x79ADD5713B383DAa0a138d3C4780C7A1804a8090"
+canyon_time: 1698436800 # October 27, 2023 8:00:00 PM UTC
+delta_time: 1701993600 # December 8, 2023 12:00:00 AM UTC, i.e. midnight Dec 7 to Dec 8
+ecotone_time: 1706126400 # Wed Jan 24 20:00:00 UTC 2024
+

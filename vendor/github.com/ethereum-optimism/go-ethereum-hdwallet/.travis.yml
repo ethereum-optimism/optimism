@@ -1,0 +1,8 @@
+language: go
+
+go:
+  - "master"
+
+script:
+  - go get ./
+  - make test

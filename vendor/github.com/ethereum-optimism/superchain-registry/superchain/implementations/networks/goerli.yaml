@@ -1,0 +1,14 @@
+l1_cross_domain_messenger:
+  1.5.1: 0xb5df97bB67f5AA7254d40E1B7034bBFF7F183a38
+l1_erc721_bridge:
+  1.2.1: 0x53C115eD8D9902f4999fDBd8B93Ea79BF37cb588
+l1_standard_bridge:
+  1.2.1: 0xd9aA10f75a2a93Bfc73AaDD41ae777e900CEdBc9
+l2_output_oracle:
+  1.4.1: 0xaBd96C062c6B640d5670455E9d1cD98383Dd23CA
+optimism_mintable_erc20_factory:
+  1.3.0: 0xdfe97868233d1aa22e815a266982f2cf17685a27
+optimism_portal:
+  1.8.1: 0x345D27c7B6C90fef5beA9631037C36119f4bF93e
+system_config:
+  1.6.0: 0x543bA4AADBAb8f9025686Bd03993043599c6fB04

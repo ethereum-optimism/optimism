@@ -1,0 +1,11 @@
+{
+  "AddressManager": "0x41E2A82Ddf1311D74c898Bb825c8D0eafaea2432",
+  "L1CrossDomainMessengerProxy": "0xfc428D28D197fFf99A5EbAc6be8B761FEd8718Da",
+  "L1ERC721BridgeProxy": "0x058BBf091232afE99BC2481F809254cD15e64Df5",
+  "L1StandardBridgeProxy": "0x60859421Ed85C0B11071230cf61dcEeEf54630Ff",
+  "L2OutputOracleProxy": "0x7D00A03f180d8C07B88d8c1384a15326c38FF9Ff",
+  "OptimismMintableERC20FactoryProxy": "0x526920419b61153c1F80fD306B5Ab52b69110A6C",
+  "OptimismPortalProxy": "0x1566c8Eea4A255C07Ef58edF91431c8A73ae0B62",
+  "ProxyAdmin": "0x64d1E91BD7B80354e77C05c7FBff3Ad00E05946a",
+  "SystemConfigProxy": "0xf2fa3621caa534a2ae9eb36667da57890e5c9e6a"
+}
