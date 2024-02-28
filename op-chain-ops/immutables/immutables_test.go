@@ -77,16 +77,8 @@ func TestBuildOptimism(t *testing.T) {
 		Permit2:                      struct{}{},
 		SenderCreator:                struct{}{},
 		EntryPoint:                   struct{}{},
-		CrossL2Inbox: struct {
-			L1Block common.Address
-		}{
-			L1Block: predeploys.L1BlockAddr,
-		},
-		L2ToL2CrossDomainMessenger: struct {
-			CrossL2Inbox common.Address
-		}{
-			CrossL2Inbox: predeploys.CrossL2InboxAddr,
-		},
+		CrossL2Inbox:                 struct{}{},
+		L2ToL2CrossDomainMessenger:   struct{}{},
 	}
 
 	require.NoError(t, cfg.Check())
