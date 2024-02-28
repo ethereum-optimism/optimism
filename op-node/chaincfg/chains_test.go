@@ -137,7 +137,6 @@ var sepoliaCfg = rollup.Config{
 	ProtocolVersionsAddress: common.HexToAddress("0x79ADD5713B383DAa0a138d3C4780C7A1804a8090"),
 }
 
-// TODO fill this out
 var sepoliaDev0Cfg = rollup.Config{
 	Genesis: rollup.Genesis{
 		L1: eth.BlockID{
