@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
-	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
 )
 
@@ -234,9 +233,9 @@ func l2ImmutableDeployer(backend *backends.SimulatedBackend, opts *bind.Transact
 	case "EAS":
 		_, tx, _, err = bindings.DeployEAS(opts, backend)
 	case "CrossL2Inbox":
-		_, tx, _, err = bindings.DeployCrossL2Inbox(opts, backend, predeploys.L1BlockAddr)
+		_, tx, _, err = bindings.DeployCrossL2Inbox(opts, backend)
 	case "L2ToL2CrossDomainMessenger":
-		_, tx, _, err = bindings.DeployL2ToL2CrossDomainMessenger(opts, backend, predeploys.CrossL2InboxAddr)
+		_, tx, _, err = bindings.DeployL2ToL2CrossDomainMessenger(opts, backend)
 	default:
 		return tx, fmt.Errorf("unknown contract: %s", deployment.Name)
 	}
