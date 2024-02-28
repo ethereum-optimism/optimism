@@ -117,8 +117,6 @@ func execute(binPath string, config external.Config) (*erigonSession, error) {
 		"--db.size.limit", "8TB",
 		"--ws",
 		"--ws.port", "0",
-		"--mine",
-		"--miner.gaslimit", strconv.FormatUint(config.GasCeil, 10),
 		"--http=true",
 		"--http.port", "0",
 		"--http.addr", "127.0.0.1",
