@@ -52,7 +52,7 @@
     "hardhat": "^2.20.1",
     "hardhat-deploy": "^0.11.44",
     "isomorphic-fetch": "^3.0.0",
-    "mocha": "^10.2.0",
+    "mocha": "^10.3.0",
     "nyc": "^15.1.0",
     "ts-node": "^10.9.2",
     "typedoc": "^0.25.7",
