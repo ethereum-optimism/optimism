@@ -147,7 +147,7 @@ func P2PFlags(envPrefix string) []cli.Flag {
 		&cli.StringFlag{
 			// sometimes it may be ok to not persist the peer priv key as file, and instead pass it directly.
 			Name:     P2PPrivRawName,
-			Usage:    "The hex-encoded 32-byte private key for the peer ID",
+			Usage:    "The hex-encoded 32-byte private key for the peer ID.",
 			Required: false,
 			Hidden:   true,
 			Value:    "",
