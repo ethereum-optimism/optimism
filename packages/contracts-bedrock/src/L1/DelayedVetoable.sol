@@ -91,13 +91,13 @@ contract DelayedVetoable is ISemver {
         initiator_ = INITIATOR;
     }
 
-    //// @notice Queries the vetoer address.
+    /// @notice Queries the vetoer address.
     /// @return vetoer_ Vetoer address.
     function vetoer() external virtual readOrHandle returns (address vetoer_) {
         vetoer_ = VETOER;
     }
 
-    //// @notice Queries the target address.
+    /// @notice Queries the target address.
     /// @return target_ Target address.
     function target() external readOrHandle returns (address target_) {
         target_ = TARGET;
