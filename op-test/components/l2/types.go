@@ -1,12 +1,14 @@
 package l2
 
 import (
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/params"
-	"github.com/stretchr/testify/require"
 	"math/big"
 
+	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/params"
+
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	test "github.com/ethereum-optimism/optimism/op-test"
 )
 

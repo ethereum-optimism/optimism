@@ -1,11 +1,11 @@
 package l1
 
 import (
-	"github.com/ethereum/go-ethereum/common"
 	"math/big"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 

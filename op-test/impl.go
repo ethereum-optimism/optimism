@@ -24,9 +24,10 @@ func Test(t *testing.T, fn func(t Testing)) {
 	ctx = context.WithValue(ctx, parameterManagerCtxKey{}, selector)
 
 	imp := &testImpl{
-		T:      t,
-		ctx:    ctx,
-		logLvl: slog.LevelError,
+		T:        t,
+		ctx:      ctx,
+		logLvl:   slog.LevelError,
+		registry: &registry{},
 	}
 	imp.Run("default", fn)
 	imp.exhaust(fn)
@@ -47,6 +48,8 @@ type testImpl struct {
 	// ctx contains all parametrization choices made thus far.
 	// ctx is updated with default-choices the test may make along the way.
 	ctx context.Context
+	// we substitute the context when selecting parameters/values
+	ctxLock sync.RWMutex
 
 	logLvl slog.Level
 
@@ -55,13 +58,19 @@ type testImpl struct {
 
 	// First-seen parameterSelection, which can be exhausted at the end of the test.
 	parameterSelection *parameterSelection
+
+	// registry of test actors, inherited from parent test
+	registry *registry
 }
 
 var _ Testing = (*testImpl)(nil)
 
 // Ctx implements Testing.Ctx
 func (imp *testImpl) Ctx() context.Context {
-	return imp.ctx
+	imp.ctxLock.RLock()
+	v := imp.ctx
+	imp.ctxLock.RUnlock()
+	return v
 }
 
 // Logger implements Testing.Logger
@@ -74,7 +83,7 @@ func (imp *testImpl) Logger() log.Logger {
 
 // Parameter implements Testing.Parameter
 func (imp *testImpl) Parameter(name string) (value string, ok bool) {
-	v := imp.ctx.Value(parameterCtxKey(name))
+	v := imp.Ctx().Value(parameterCtxKey(name))
 	if v == nil {
 		return "", false
 	}
@@ -83,7 +92,7 @@ func (imp *testImpl) Parameter(name string) (value string, ok bool) {
 
 // Run implements Testing.Run
 func (imp *testImpl) Run(name string, fn func(t Testing)) {
-	imp.runCtx(imp.ctx, name, fn)
+	imp.runCtx(imp.Ctx(), name, fn)
 }
 
 // runCtx runs a sub-test with a custom context
@@ -93,9 +102,10 @@ func (imp *testImpl) runCtx(ctx context.Context, name string, fn func(t Testing)
 		t.Cleanup(cancel)
 
 		subScope := &testImpl{
-			T:      t,
-			ctx:    ctx,
-			logLvl: imp.logLvl,
+			T:        t,
+			ctx:      ctx,
+			logLvl:   imp.logLvl,
+			registry: imp.registry,
 		}
 		fn(subScope)
 
@@ -110,13 +120,14 @@ func (imp *testImpl) exhaust(fn func(t Testing)) {
 		return
 	}
 
+	ctx := imp.Ctx()
 	for _, opt := range imp.parameterSelection.options {
 		key := parameterCtxKey(imp.parameterSelection.name)
 
 		// If choice already matches the context, then we already made it in the default path.
-		current := imp.ctx.Value(key)
+		current := ctx.Value(key)
 		if current == nil {
-			imp.T.Fatalf("test framework error: seing a choice of %q, "+
+			imp.T.Fatalf("test framework error: selecting %q, "+
 				"but exhaust-path is not running after default path", imp.parameterSelection.name)
 		}
 		if current.(string) == opt {
@@ -124,8 +135,8 @@ func (imp *testImpl) exhaust(fn func(t Testing)) {
 		}
 
 		// Run a sub-test that overrides the default choice we may have made (if any).
-		ctx := context.WithValue(imp.ctx, key, opt)
-		imp.runCtx(ctx, "exhaust_"+imp.parameterSelection.name+"_"+opt, fn)
+		subCtx := context.WithValue(ctx, key, opt)
+		imp.runCtx(subCtx, "exhaust_"+imp.parameterSelection.name+"_"+opt, fn)
 	}
 }
 
@@ -149,6 +160,8 @@ func (imp *testImpl) selected(name string, options ...string) {
 // Select implements Testing.Select
 func (imp *testImpl) Select(name string, options ...string) string {
 	// Check if the choice was already made
+	imp.ctxLock.Lock()
+	defer imp.ctxLock.Unlock()
 	current := imp.ctx.Value(parameterCtxKey(name))
 	if current != nil {
 		i := slices.Index(options, current.(string))
@@ -184,6 +197,8 @@ func (imp *testImpl) Select(name string, options ...string) string {
 
 // Value implements Testing.Value
 func (imp *testImpl) Value(name string) string {
+	imp.ctxLock.Lock()
+	defer imp.ctxLock.Unlock()
 	// Check if the choice was already made
 	current := imp.ctx.Value(parameterCtxKey(name))
 	if current != nil {

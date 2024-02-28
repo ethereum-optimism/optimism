@@ -32,10 +32,14 @@ type Testing interface {
 	Run(name string, fn func(t Testing))
 
 	// Parameter returns what the currently configured parameter value is for the given parameter name, if any.
+	//
+	// A parameter value is scoped to the sub-test it was set in.
 	Parameter(name string) (value string, ok bool)
 
 	// Select selects a parameter from the given options, based on the test ParameterSelector.
 	// Options may restrict what the test is able to run.
+	//
+	// The selected parameter value is scoped to the sub-test it was selected from.
 	//
 	// The ParameterSelector may return a subset of the options:
 	// the first is continued with as default, and the current test will be repeated with the others, if any.
@@ -44,9 +48,17 @@ type Testing interface {
 	// Value requests the ParameterSelector to pick a value for the given parameter,
 	// or retrieves the paramter if it is already set.
 	//
+	// A parameter value is scoped to the sub-test it was set in.
+	//
 	// The ParameterSelector may return more than 1 value:
 	// the first is continued with as default, and the current test will be repeated with the others, if any.
 	Value(name string) string
+
+	// SetGlobal sets a global value, accessible from the top-most sub-test, but not to other tests.
+	SetGlobal(name string, value any)
+
+	// GetGlobal gets a global value, accessible from the top-most sub-test, but not to other tests.
+	GetGlobal(name string) any
 }
 
 type ParameterSelector interface {
