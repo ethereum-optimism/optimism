@@ -40,8 +40,8 @@ contract L2ToL2CrossDomainMessenger {
     /// @param data        Data to be sent with the message.
     event SentMessage(uint256 destination, address target, bytes message, bytes data) anonymous;
 
-    constructor(address _crossL2Inbox) {
-        CROSS_L2_INBOX = _crossL2Inbox;
+    constructor() {
+        CROSS_L2_INBOX = Predeploys.CROSS_L2_INBOX;
     }
 
     /// @notice Retrieves the next message nonce. Message version will be added to the upper two
