@@ -65,7 +65,7 @@ func (c CLIConfig) NewDAClient() DataClient {
 	baseClient := &DAClient{url: c.DAServerURL, verify: c.VerifyOnRead}
 
 	if c.UseAvailDA {
-		return &AvailDAClient{DAClient: daClient}
+		return &AvailDAClient{DAClient: baseClient}
 	} else {
 		return baseClient
 	}
