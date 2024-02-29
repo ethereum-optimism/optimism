@@ -93,7 +93,7 @@ func main() {
 
 	err := app.Run(os.Args)
 	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "Application failed: %v", err)
+		_, _ = fmt.Fprintf(os.Stderr, "Application failed: %v\n", err)
 		os.Exit(1)
 	}
 }
@@ -594,9 +594,12 @@ func checkBeaconBlockRoot(ctx context.Context, env *actionEnv) error {
 	if err != nil {
 		return fmt.Errorf("failed to convert to block-ref: %w", err)
 	}
-	l1Header, err := env.l1.HeaderByHash(ctx, headRef.L1Origin.Hash)
+	l1Header, err := retry.Do(ctx, 5, retry.Fixed(time.Second*12), func() (*types.Header, error) {
+		env.log.Info("retrieving L1 origin...", "l1", headRef.L1Origin)
+		return env.l1.HeaderByHash(ctx, headRef.L1Origin.Hash)
+	})
 	if err != nil {
-		return fmt.Errorf("failed to retrieve matching L1 block %s: %w", headRef, err)
+		return fmt.Errorf("failed to retrieve L1 origin %s of L2 block %s: %w", headRef.L1Origin, headRef, err)
 	}
 	var l1ParentBeaconBlockRoot common.Hash // zero before Dencun activates on L1
 	if l1Header.ParentBeaconRoot != nil {
@@ -761,9 +764,12 @@ func checkL1Fees(ctx context.Context, env *actionEnv) error {
 	if err != nil {
 		return fmt.Errorf("failed to convert to block-ref: %w", err)
 	}
-	l1Header, err := env.l1.HeaderByHash(ctx, headRef.L1Origin.Hash)
+	l1Header, err := retry.Do(ctx, 5, retry.Fixed(time.Second*12), func() (*types.Header, error) {
+		env.log.Info("retrieving L1 origin...", "l1", headRef.L1Origin)
+		return env.l1.HeaderByHash(ctx, headRef.L1Origin.Hash)
+	})
 	if err != nil {
-		return fmt.Errorf("failed to retrieve matching L1 block %s: %w", headRef, err)
+		return fmt.Errorf("failed to retrieve L1 origin %s of L2 block %s: %w", headRef.L1Origin, headRef, err)
 	}
 	gasTip := big.NewInt(2 * params.GWei)
 	baseFee := (*uint256.Int)(&payload.ExecutionPayload.BaseFeePerGas).ToBig()
@@ -789,7 +795,7 @@ func checkL1Fees(ctx context.Context, env *actionEnv) error {
 	if err := env.l2.SendTransaction(ctx, tx); err != nil {
 		return fmt.Errorf("failed to send test tx: %w", err)
 	}
-	receipt, err := retry.Do[*types.Receipt](ctx, 20, retry.Fixed(time.Second*2), func() (*types.Receipt, error) {
+	receipt, err := retry.Do(ctx, 20, retry.Fixed(time.Second*2), func() (*types.Receipt, error) {
 		return env.l2.TransactionReceipt(ctx, tx.Hash())
 	})
 	if err != nil {
