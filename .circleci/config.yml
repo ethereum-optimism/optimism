@@ -4,6 +4,9 @@ parameters:
   ci_builder_image:
     type: string
     default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:v0.43.0
+  ci_builder_rust_image:
+    type: string
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder-rust:latest
   base_image:
     type: string
     default: default
@@ -1323,7 +1326,7 @@ jobs:
 
   op-service-rethdb-tests:
     docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
+      - image: <<pipeline.parameters.ci_builder_rust_image>>
     steps:
       - checkout
       - check-changed:
@@ -1651,6 +1654,9 @@ workflows:
           requires:
             - go-mod-download
             - pnpm-monorepo
+      - op-service-rethdb-tests:
+          requires:
+            - go-mod-download
       - op-program-compat:
           requires:
             - op-program-tests
@@ -1674,6 +1680,7 @@ workflows:
             - op-program-tests
             - op-program-compat
             - op-service-tests
+            - op-service-rethdb-tests
             - op-e2e-HTTP-tests
             - op-e2e-fault-proof-tests
             - op-e2e-action-tests

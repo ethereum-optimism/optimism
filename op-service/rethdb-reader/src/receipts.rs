@@ -3,7 +3,7 @@
 
 use anyhow::{anyhow, Result};
 use reth_blockchain_tree::noop::NoopBlockchainTree;
-use reth_db::open_db_read_only;
+use reth_db::{mdbx::DatabaseArguments, open_db_read_only};
 use reth_primitives::{
     BlockHashOrNumber, Receipt, TransactionKind, TransactionMeta, TransactionSigned, MAINNET, U128,
     U256, U64,
@@ -66,7 +66,8 @@ pub(crate) unsafe fn read_receipts_inner(
     }
     .to_str()?;
 
-    let db = open_db_read_only(Path::new(db_path_str), None).map_err(|e| anyhow!(e))?;
+    let db = open_db_read_only(Path::new(db_path_str), DatabaseArguments::default())
+        .map_err(|e| anyhow!(e))?;
     let factory = ProviderFactory::new(db, MAINNET.clone());
 
     // Create a read-only BlockChainProvider
@@ -159,6 +160,9 @@ fn build_transaction_receipt_with_block_receipts(
         // EIP-4844 fields
         blob_gas_price: None,
         blob_gas_used: None,
+
+        // Other:
+        other: Default::default(),
     };
 
     match tx.transaction.kind() {
@@ -199,7 +203,7 @@ fn build_transaction_receipt_with_block_receipts(
 mod test {
     use super::*;
     use alloy_rlp::Decodable;
-    use reth_db::database::Database;
+    use reth_db::{database::Database, mdbx::DatabaseArguments};
     use reth_primitives::{
         address, b256, bloom, hex, Address, Block, Bytes, ReceiptWithBloom, Receipts,
         SealedBlockWithSenders, U8,
@@ -235,11 +239,12 @@ mod test {
     #[inline]
     fn open_receipts_testdata_db() -> Result<()> {
         if File::open("testdata/db").is_ok() {
-            return Ok(())
+            return Ok(());
         }
 
         // Open a RW handle to the MDBX database
-        let db = reth_db::init_db(Path::new("testdata/db"), None).map_err(|e| anyhow!(e))?;
+        let db = reth_db::init_db(Path::new("testdata/db"), DatabaseArguments::default())
+            .map_err(|e| anyhow!(e))?;
         let pr = DatabaseProvider::new_rw(db.tx_mut()?, MAINNET.clone());
 
         // Grab the dummy block and receipts
@@ -260,13 +265,15 @@ mod test {
             .ok_or(anyhow!("Failed to recover signers"))?;
 
         // Commit the bundle state to the database
-        pr.append_blocks_with_bundle_state(
+        pr.append_blocks_with_state(
             vec![SealedBlockWithSenders { block: block.seal_slow(), senders }],
             BundleStateWithReceipts::new(
                 BundleState::default(),
                 Receipts::from_block_receipt(receipts),
                 block_number,
             ),
+            Default::default(),
+            Default::default(),
             None,
         )?;
         pr.commit()?;
