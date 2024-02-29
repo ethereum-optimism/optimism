@@ -18,12 +18,15 @@ import (
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-wheel/cheat"
 	"github.com/ethereum-optimism/optimism/op-wheel/engine"
 )
@@ -61,6 +64,12 @@ var (
 		TakesFile: true,
 		EnvVars:   prefixEnvVars("ENGINE_JWT_SECRET"),
 	}
+	EngineVersion = &cli.IntFlag{
+		Name:    "engine.version",
+		Usage:   "Engine API version to use for Engine calls (1, 2, or 3) (default: 3)",
+		EnvVars: prefixEnvVars("ENGINE_VERSION"),
+		Value:   3,
+	}
 	FeeRecipientFlag = &cli.GenericFlag{
 		Name:    "fee-recipient",
 		Usage:   "fee-recipient of the block building",
@@ -91,6 +100,12 @@ var (
 		EnvVars: prefixEnvVars("ALLOW_GAPS"),
 	}
 )
+
+func withEngineFlags(flags ...cli.Flag) []cli.Flag {
+	return append(append(flags,
+		EngineEndpoint, EngineJWTPath, EngineVersion),
+		oplog.CLIFlags(envVarPrefix)...)
+}
 
 func ParseBuildingArgs(ctx *cli.Context) *engine.BlockBuildingSettings {
 	return &engine.BlockBuildingSettings{
@@ -124,19 +139,68 @@ func CheatRawDBAction(readOnly bool, fn func(ctx *cli.Context, db ethdb.Database
 	}
 }
 
-func EngineAction(fn func(ctx *cli.Context, client client.RPC) error) cli.ActionFunc {
+func EngineAction(fn func(ctx *cli.Context, client *sources.EngineAPIClient, lgr log.Logger) error) cli.ActionFunc {
 	return func(ctx *cli.Context) error {
+		lgr := initLogger(ctx)
 		jwtData, err := os.ReadFile(ctx.String(EngineJWTPath.Name))
 		if err != nil {
 			return fmt.Errorf("failed to read jwt: %w", err)
 		}
 		secret := common.HexToHash(strings.TrimSpace(string(jwtData)))
 		endpoint := ctx.String(EngineEndpoint.Name)
-		client, err := engine.DialClient(context.Background(), endpoint, secret)
+		rpc, err := engine.DialRPC(context.Background(), endpoint, secret)
 		if err != nil {
 			return fmt.Errorf("failed to dial Engine API endpoint %q: %w", endpoint, err)
 		}
-		return fn(ctx, client)
+
+		evp, err := initVersionProvider(ctx, rpc)
+		if err != nil {
+			return fmt.Errorf("failed to init Engine version provider: %w", err)
+		}
+		client := sources.NewEngineAPIClient(rpc, lgr, evp)
+		return fn(ctx, client, lgr)
+	}
+}
+
+func initLogger(ctx *cli.Context) log.Logger {
+	logCfg := oplog.ReadCLIConfig(ctx)
+	lgr := oplog.NewLogger(oplog.AppOut(ctx), logCfg)
+	oplog.SetGlobalLogHandler(lgr.Handler())
+	return lgr
+}
+
+func initVersionProvider(ctx *cli.Context, rpc client.RPC) (sources.EngineVersionProvider, error) {
+	// static configuration takes precedent, if set
+	if ctx.IsSet(EngineVersion.Name) {
+		ev := ctx.Int(EngineVersion.Name)
+		if ev < 1 || ev > 3 {
+			return nil, fmt.Errorf("invalid Engine API version: %d", ev)
+		}
+		return engine.StaticVersionProvider(ev), nil
+	}
+
+	// otherwise get config from EL
+	cfg, err := engine.GetChainConfig(context.TODO(), (client.RPC)(nil))
+	if err != nil {
+		return nil, err
+	}
+	return rollupFromGethConfig(cfg), nil
+}
+
+// rollupFromGethConfig returns a very imcomplete rollup config with only the
+// L2ChainID and (most) fork activation timestamps set.
+//
+// Because Delta was a pure CL fork, its time isn't set either.
+//
+// This incomplete [rollup.Config] can be used as an [EngineVersionProvider].
+func rollupFromGethConfig(cfg *params.ChainConfig) *rollup.Config {
+	return &rollup.Config{
+		L2ChainID: cfg.ChainID,
+
+		RegolithTime: cfg.RegolithTime,
+		CanyonTime:   cfg.CanyonTime,
+		EcotoneTime:  cfg.EcotoneTime,
+		InteropTime:  cfg.InteropTime,
 	}
 }
 
@@ -374,41 +438,35 @@ var (
 	EngineBlockCmd = &cli.Command{
 		Name:  "block",
 		Usage: "build the next block using the Engine API",
-		Flags: []cli.Flag{
-			EngineEndpoint, EngineJWTPath,
+		Flags: withEngineFlags(
 			FeeRecipientFlag, RandaoFlag, BlockTimeFlag, BuildingTime, AllowGaps,
-		},
+		),
 		// TODO: maybe support transaction and tx pool engine flags, since we use op-geth?
 		// TODO: reorg flag
 		// TODO: finalize/safe flag
 
-		Action: EngineAction(func(ctx *cli.Context, client client.RPC) error {
+		Action: EngineAction(func(ctx *cli.Context, client *sources.EngineAPIClient, _ log.Logger) error {
 			settings := ParseBuildingArgs(ctx)
-			status, err := engine.Status(context.Background(), client)
+			status, err := engine.Status(context.Background(), client.RPC)
 			if err != nil {
 				return err
 			}
-			payload, err := engine.BuildBlock(context.Background(), client, status, settings)
+			payloadEnv, err := engine.BuildBlock(context.Background(), client, status, settings)
 			if err != nil {
 				return err
 			}
-			_, err = io.WriteString(ctx.App.Writer, payload.BlockHash.String())
-			return err
+			fmt.Fprintln(ctx.App.Writer, payloadEnv.ExecutionPayload.BlockHash)
+			return nil
 		}),
 	}
 	EngineAutoCmd = &cli.Command{
 		Name:        "auto",
 		Usage:       "Run a proof-of-nothing chain with fixed block time.",
 		Description: "The block time can be changed. The execution engine must be synced to a post-Merge state first.",
-		Flags: append(append([]cli.Flag{
-			EngineEndpoint, EngineJWTPath,
-			FeeRecipientFlag, RandaoFlag, BlockTimeFlag, BuildingTime, AllowGaps,
-		}, oplog.CLIFlags(envVarPrefix)...), opmetrics.CLIFlags(envVarPrefix)...),
-		Action: EngineAction(func(ctx *cli.Context, client client.RPC) error {
-			logCfg := oplog.ReadCLIConfig(ctx)
-			l := oplog.NewLogger(oplog.AppOut(ctx), logCfg)
-			oplog.SetGlobalLogHandler(l.Handler())
-
+		Flags: append(withEngineFlags(
+			FeeRecipientFlag, RandaoFlag, BlockTimeFlag, BuildingTime, AllowGaps),
+			opmetrics.CLIFlags(envVarPrefix)...),
+		Action: EngineAction(func(ctx *cli.Context, client *sources.EngineAPIClient, l log.Logger) error {
 			settings := ParseBuildingArgs(ctx)
 			// TODO: finalize/safe flag
 
@@ -435,9 +493,9 @@ var (
 	}
 	EngineStatusCmd = &cli.Command{
 		Name:  "status",
-		Flags: []cli.Flag{EngineEndpoint, EngineJWTPath},
-		Action: EngineAction(func(ctx *cli.Context, client client.RPC) error {
-			stat, err := engine.Status(context.Background(), client)
+		Flags: withEngineFlags(),
+		Action: EngineAction(func(ctx *cli.Context, client *sources.EngineAPIClient, _ log.Logger) error {
+			stat, err := engine.Status(context.Background(), client.RPC)
 			if err != nil {
 				return err
 			}
@@ -448,16 +506,15 @@ var (
 	}
 	EngineCopyCmd = &cli.Command{
 		Name: "copy",
-		Flags: []cli.Flag{
-			EngineEndpoint, EngineJWTPath,
+		Flags: withEngineFlags(
 			&cli.StringFlag{
 				Name:     "source",
 				Usage:    "Unauthenticated regular eth JSON RPC to pull block data from, can be HTTP/WS/IPC.",
 				Required: true,
-				EnvVars:  prefixEnvVars("ENGINE"),
+				EnvVars:  prefixEnvVars("SOURCE"),
 			},
-		},
-		Action: EngineAction(func(ctx *cli.Context, dest client.RPC) error {
+		),
+		Action: EngineAction(func(ctx *cli.Context, dest *sources.EngineAPIClient, _ log.Logger) error {
 			rpcClient, err := rpc.DialOptions(context.Background(), ctx.String("source"))
 			if err != nil {
 				return fmt.Errorf("failed to dial engine source endpoint: %w", err)
@@ -470,13 +527,12 @@ var (
 	EngineCopyPayloadCmd = &cli.Command{
 		Name:        "copy-payload",
 		Description: "Take the block by number from source and insert it to the engine with NewPayload. No other calls are made.",
-		Flags: []cli.Flag{
-			EngineEndpoint, EngineJWTPath,
+		Flags: withEngineFlags(
 			&cli.StringFlag{
 				Name:     "source",
 				Usage:    "Unauthenticated regular eth JSON RPC to pull block data from, can be HTTP/WS/IPC.",
 				Required: true,
-				EnvVars:  prefixEnvVars("ENGINE"),
+				EnvVars:  prefixEnvVars("SOURCE"),
 			},
 			&cli.Uint64Flag{
 				Name:     "number",
@@ -484,8 +540,8 @@ var (
 				Required: true,
 				EnvVars:  prefixEnvVars("NUMBER"),
 			},
-		},
-		Action: EngineAction(func(ctx *cli.Context, dest client.RPC) error {
+		),
+		Action: EngineAction(func(ctx *cli.Context, dest *sources.EngineAPIClient, _ log.Logger) error {
 			rpcClient, err := rpc.DialOptions(context.Background(), ctx.String("source"))
 			if err != nil {
 				return fmt.Errorf("failed to dial engine source endpoint: %w", err)
@@ -498,8 +554,7 @@ var (
 	EngineSetForkchoiceCmd = &cli.Command{
 		Name:        "set-forkchoice",
 		Description: "Set forkchoice, specify unsafe, safe and finalized blocks by number",
-		Flags: []cli.Flag{
-			EngineEndpoint, EngineJWTPath,
+		Flags: withEngineFlags(
 			&cli.Uint64Flag{
 				Name:     "unsafe",
 				Usage:    "Block number of block to set as latest block",
@@ -518,8 +573,8 @@ var (
 				Required: true,
 				EnvVars:  prefixEnvVars("FINALIZED"),
 			},
-		},
-		Action: EngineAction(func(ctx *cli.Context, client client.RPC) error {
+		),
+		Action: EngineAction(func(ctx *cli.Context, client *sources.EngineAPIClient, _ log.Logger) error {
 			return engine.SetForkchoice(ctx.Context, client, ctx.Uint64("finalized"), ctx.Uint64("safe"), ctx.Uint64("unsafe"))
 		}),
 	}
@@ -527,8 +582,7 @@ var (
 	EngineSetForkchoiceHashCmd = &cli.Command{
 		Name:        "set-forkchoice-by-hash",
 		Description: "Set forkchoice, specify unsafe, safe and finalized blocks by hash",
-		Flags: []cli.Flag{
-			EngineEndpoint, EngineJWTPath,
+		Flags: withEngineFlags(
 			&cli.StringFlag{
 				Name:     "unsafe",
 				Usage:    "Block hash of block to set as latest block",
@@ -547,8 +601,8 @@ var (
 				Required: true,
 				EnvVars:  prefixEnvVars("FINALIZED"),
 			},
-		},
-		Action: EngineAction(func(ctx *cli.Context, client client.RPC) error {
+		),
+		Action: EngineAction(func(ctx *cli.Context, client *sources.EngineAPIClient, _ log.Logger) error {
 			finalized := common.HexToHash(ctx.String("finalized"))
 			safe := common.HexToHash(ctx.String("safe"))
 			unsafe := common.HexToHash(ctx.String("unsafe"))
@@ -559,17 +613,16 @@ var (
 	EngineJSONCmd = &cli.Command{
 		Name:        "json",
 		Description: "read json values from remaining args, or STDIN, and use them as RPC params to call the engine RPC method (first arg)",
-		Flags: []cli.Flag{
-			EngineEndpoint, EngineJWTPath,
+		Flags: withEngineFlags(
 			&cli.BoolFlag{
 				Name:     "stdin",
 				Usage:    "Read params from stdin instead",
 				Required: false,
 				EnvVars:  prefixEnvVars("STDIN"),
 			},
-		},
+		),
 		ArgsUsage: "<rpc-method-name> [params...]",
-		Action: EngineAction(func(ctx *cli.Context, client client.RPC) error {
+		Action: EngineAction(func(ctx *cli.Context, client *sources.EngineAPIClient, _ log.Logger) error {
 			if ctx.NArg() == 0 {
 				return fmt.Errorf("expected at least 1 argument: RPC method name")
 			}
@@ -580,7 +633,7 @@ var (
 			} else {
 				args = ctx.Args().Tail()
 			}
-			return engine.RawJSONInteraction(ctx.Context, client, ctx.Args().Get(0), args, r, ctx.App.Writer)
+			return engine.RawJSONInteraction(ctx.Context, client.RPC, ctx.Args().Get(0), args, r, ctx.App.Writer)
 		}),
 	}
 )
