@@ -131,8 +131,8 @@ library LocalPreimageKey {
     /// @notice The identifier for the disputed output root.
     uint256 internal constant DISPUTED_OUTPUT_ROOT = 0x03;
 
-    /// @notice The identifier for the starting L2 block number.
-    uint256 internal constant STARTING_L2_BLOCK_NUMBER = 0x04;
+    /// @notice The identifier for the disputed L2 block number.
+    uint256 internal constant DISPUTED_L2_BLOCK_NUMBER = 0x04;
 
     /// @notice The identifier for the chain ID.
     uint256 internal constant CHAIN_ID = 0x05;
