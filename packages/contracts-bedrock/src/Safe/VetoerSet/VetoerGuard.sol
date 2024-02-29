@@ -14,7 +14,7 @@ contract VetoerGuard is ISemver, BaseGuard {
     string public constant version = "1.0.0";
 
     /// @notice The maximum number of vetoers in the VetoerSet. May be changed by supermajority.
-    uint8 internal maxCount = 7;
+    uint8 public maxCount = 7;
 
     /// @notice The safe account for which this contract will be the guard.
     Safe internal immutable SAFE;
@@ -25,17 +25,42 @@ contract VetoerGuard is ISemver, BaseGuard {
         SAFE = _safe;
     }
 
+    function checkTransaction(
+        address,
+        uint256,
+        bytes memory,
+        Enum.Operation,
+        uint256,
+        uint256,
+        uint256,
+        address,
+        address payable,
+        bytes memory,
+        address
+    ) external {
+    }
+
     function checkAfterExecution(bytes32, bool) external {
         _requireOnlySafe();
         // Get the current set of owners
         address[] memory ownersAfter = SAFE.getOwners();
 
-        // TODO: require owners to be less than or equal to maxCount
-        // TODO: require threshold to owners ratio to equal 66%
+        uint256 threshold_ = checkNewOwnerCount(ownersAfter.length);
+        require(
+            SAFE.getThreshold() == threshold_,
+            "VetoerGuard: Safe must have a threshold of at least 66% of the number of owners"
+        );
+    }
+
+    function checkNewOwnerCount(uint256 _newCount) public view returns (uint256 threshold_) {
+        require(_newCount <= maxCount, "VetoerGuard: too many owners");
+        // require the threshold be ceil(66%) of the owners
+        threshold_ = (_newCount * 66 + 99) / 100;
     }
 
     function increaseMaxCount(uint8 _newCount) external {
-    // TODO: add function to increase maxCount, authed on Safe itself
+        _requireOnlySafe();
+        maxCount = _newCount;
     }
 
     /// @notice Getter function for the Safe contract instance

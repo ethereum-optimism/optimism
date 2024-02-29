@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 import { Safe } from "safe-contracts/Safe.sol";
 import { ISemver } from "src/universal/ISemver.sol";
+import { VetoerGuard } from "./VetoerGuard.sol";
 
 /// @title AddVetoerModule
 /// @notice This module allows any specifically designated address to add vetoers to the Safe.
@@ -28,6 +29,8 @@ contract AddVetoerModule is ISemver {
     }
 
     function addVetoer(address _addr) external {
-        // TODO: allow OP Foundation only to add vetoers to the Safe, up to the maxCount set in the Guard
+        require(msg.sender == OP_FOUNDATION, "AddVetoerModule: only OP Foundation can call addVetoer");
+        uint256 threshold = VETOER_GUARD.checkNewOwnerCount(SAFE.getOwners().length + 1);
+        SAFE.addOwnerWithThreshold(_addr, threshold);
     }
 }
