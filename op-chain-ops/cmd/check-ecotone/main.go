@@ -754,12 +754,15 @@ func checkL1Fees(ctx context.Context, env *actionEnv) error {
 	l2EthCl, err := sources.NewL2Client(l2RPC, env.log, nil,
 		sources.L2ClientDefaultConfig(rollupCfg, false))
 	if err != nil {
-		return fmt.Errorf("failed to create eth client")
+		return fmt.Errorf("failed to create eth client: %w", err)
+	}
+	head, err := env.l2.HeaderByNumber(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to get head: %w", err)
 	}
 	gasTip := big.NewInt(2 * params.GWei)
-	baseFee := (*uint256.Int)(&payload.ExecutionPayload.BaseFeePerGas).ToBig()
 	gasMaxFee := new(big.Int).Add(
-		new(big.Int).Mul(big.NewInt(2), baseFee), gasTip)
+		new(big.Int).Mul(big.NewInt(2), head.BaseFee), gasTip)
 	to := common.Address{1, 2, 3, 5}
 	txData := &types.DynamicFeeTx{
 		ChainID:    rollupCfg.L2ChainID,
