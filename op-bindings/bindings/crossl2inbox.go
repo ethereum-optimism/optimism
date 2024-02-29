@@ -39,8 +39,8 @@ type CrossL2InboxIdentifier struct {
 
 // CrossL2InboxMetaData contains all meta data concerning the CrossL2Inbox contract.
 var CrossL2InboxMetaData = &bind.MetaData{
-	ABI: "[{\"type\":\"constructor\",\"inputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"BLOCKNUMBER_SLOT\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"CHAINID_SLOT\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"L1_BLOCK\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"LOG_INDEX_SLOT\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"ORIGIN_SLOT\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"TIMESTAMP_SLOT\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"blocknumber\",\"inputs\":[],\"outputs\":[{\"name\":\"_blocknumber\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"chainId\",\"inputs\":[],\"outputs\":[{\"name\":\"_chainId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"executeMessage\",\"inputs\":[{\"name\":\"_msg\",\"type\":\"bytes\",\"internalType\":\"bytes\"},{\"name\":\"_id\",\"type\":\"tuple\",\"internalType\":\"structCrossL2Inbox.Identifier\",\"components\":[{\"name\":\"origin\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"blocknumber\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"logIndex\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"timestamp\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"chainId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"name\":\"_target\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[],\"stateMutability\":\"payable\"},{\"type\":\"function\",\"name\":\"logIndex\",\"inputs\":[],\"outputs\":[{\"name\":\"_logIndex\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"origin\",\"inputs\":[],\"outputs\":[{\"name\":\"_origin\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"timestamp\",\"inputs\":[],\"outputs\":[{\"name\":\"_timestamp\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"}]",
-	Bin: "0x60a060405234801561000f575f80fd5b507342000000000000000000000000000000000000156080526080516107616100475f395f81816101e601526103e801526107615ff3fe6080604052600436106100c3575f3560e01c806379d6268011610071578063a19f75271161004c578063a19f7527146102c6578063b80777ea146102db578063da99f7291461030e575f80fd5b806379d626801461022d578063938b5f32146102605780639a8a059214610293575f80fd5b8063122f8b66116100a1578063122f8b661461016f578063260e6413146101a257806347718590146101d5575f80fd5b806305062247146100c757806307049933146101095780630f04cf1b1461013c575b5f80fd5b3480156100d2575f80fd5b507f5a1da0738b7fdc60047c07bb519beb02aa32a8619de57e6258da1f1c2e020ccc5c5b6040519081526020015b60405180910390f35b348015610114575f80fd5b506100f67f6e0446e8b5098b8c8193f964f1b567ec3a2bdaeba33d36acb85c1f1d3f92d31381565b348015610147575f80fd5b506100f67f5a1da0738b7fdc60047c07bb519beb02aa32a8619de57e6258da1f1c2e020ccc81565b34801561017a575f80fd5b506100f67f2e148a404a50bb94820b576997fd6450117132387be615e460fa8c5e11777e0281565b3480156101ad575f80fd5b506100f67fd2b7c5071ec59eb3ff0017d703a8ea513a7d0da4779b0dbefe845808c300c81581565b3480156101e0575f80fd5b506102087f000000000000000000000000000000000000000000000000000000000000000081565b60405173ffffffffffffffffffffffffffffffffffffffff9091168152602001610100565b348015610238575f80fd5b506100f67fab8acc221aecea88a685fabca5b88bf3823b05f335b7b9f721ca7fe3ffb2c30d81565b34801561026b575f80fd5b507fd2b7c5071ec59eb3ff0017d703a8ea513a7d0da4779b0dbefe845808c300c8155c610208565b34801561029e575f80fd5b507f6e0446e8b5098b8c8193f964f1b567ec3a2bdaeba33d36acb85c1f1d3f92d3135c6100f6565b6102d96102d436600461065e565b610341565b005b3480156102e6575f80fd5b507f2e148a404a50bb94820b576997fd6450117132387be615e460fa8c5e11777e025c6100f6565b348015610319575f80fd5b507fab8acc221aecea88a685fabca5b88bf3823b05f335b7b9f721ca7fe3ffb2c30d5c6100f6565b42826060013511156103b4576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152601160248201527f496e76616c69642074696d657374616d7000000000000000000000000000000060448201526064015b60405180910390fd5b60808201516040517fe38bbc32000000000000000000000000000000000000000000000000000000008152600481018290527f000000000000000000000000000000000000000000000000000000000000000073ffffffffffffffffffffffffffffffffffffffff169063e38bbc3290602401602060405180830381865afa158015610442573d5f803e3d5ffd5b505050506040513d601f19601f82011682018060405250810190610466919061072e565b6104cc576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152600f60248201527f496e76616c696420636861696e4964000000000000000000000000000000000060448201526064016103ab565b333214610535576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152600760248201527f4e6f7420454f410000000000000000000000000000000000000000000000000060448201526064016103ab565b82517fd2b7c5071ec59eb3ff0017d703a8ea513a7d0da4779b0dbefe845808c300c8155d60208301517f5a1da0738b7fdc60047c07bb519beb02aa32a8619de57e6258da1f1c2e020ccc5d60408301517fab8acc221aecea88a685fabca5b88bf3823b05f335b7b9f721ca7fe3ffb2c30d5d60608301517f2e148a404a50bb94820b576997fd6450117132387be615e460fa8c5e11777e025d807f6e0446e8b5098b8c8193f964f1b567ec3a2bdaeba33d36acb85c1f1d3f92d3135d5f610633835a3489898080601f0160208091040260200160405190810160405280939291908181526020018383808284375f9201919091525061064692505050565b90508061063e575f80fd5b505050505050565b5f805f80845160208601878a8af19695505050505050565b5f805f8084860360e0811215610672575f80fd5b853567ffffffffffffffff80821115610689575f80fd5b818801915088601f83011261069c575f80fd5b8135818111156106aa575f80fd5b8960208285010111156106bb575f80fd5b60208301975080965050505060a07fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0820112156106f6575f80fd5b5060208501915060c085013573ffffffffffffffffffffffffffffffffffffffff81168114610723575f80fd5b939692955090935050565b5f6020828403121561073e575f80fd5b8151801515811461074d575f80fd5b939250505056fea164736f6c6343000818000a",
+	ABI: "[{\"type\":\"function\",\"name\":\"BLOCKNUMBER_SLOT\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"CHAINID_SLOT\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"LOG_INDEX_SLOT\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"ORIGIN_SLOT\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"TIMESTAMP_SLOT\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"blocknumber\",\"inputs\":[],\"outputs\":[{\"name\":\"_blocknumber\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"chainId\",\"inputs\":[],\"outputs\":[{\"name\":\"_chainId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"executeMessage\",\"inputs\":[{\"name\":\"_msg\",\"type\":\"bytes\",\"internalType\":\"bytes\"},{\"name\":\"_id\",\"type\":\"tuple\",\"internalType\":\"structCrossL2Inbox.Identifier\",\"components\":[{\"name\":\"origin\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"blocknumber\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"logIndex\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"timestamp\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"chainId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"name\":\"_target\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[],\"stateMutability\":\"payable\"},{\"type\":\"function\",\"name\":\"l1Block\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"logIndex\",\"inputs\":[],\"outputs\":[{\"name\":\"_logIndex\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"origin\",\"inputs\":[],\"outputs\":[{\"name\":\"_origin\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"timestamp\",\"inputs\":[],\"outputs\":[{\"name\":\"_timestamp\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"}]",
+	Bin: "0x608060405234801561000f575f80fd5b506107378061001d5f395ff3fe6080604052600436106100c3575f3560e01c8063938b5f3211610071578063a783302a1161004c578063a783302a146102a4578063b80777ea146102cf578063da99f72914610302575f80fd5b8063938b5f32146102085780639a8a05921461025c578063a19f75271461028f575f80fd5b8063122f8b66116100a1578063122f8b661461016f578063260e6413146101a257806379d62680146101d5575f80fd5b806305062247146100c757806307049933146101095780630f04cf1b1461013c575b5f80fd5b3480156100d2575f80fd5b507f5a1da0738b7fdc60047c07bb519beb02aa32a8619de57e6258da1f1c2e020ccc5c5b6040519081526020015b60405180910390f35b348015610114575f80fd5b506100f67f6e0446e8b5098b8c8193f964f1b567ec3a2bdaeba33d36acb85c1f1d3f92d31381565b348015610147575f80fd5b506100f67f5a1da0738b7fdc60047c07bb519beb02aa32a8619de57e6258da1f1c2e020ccc81565b34801561017a575f80fd5b506100f67f2e148a404a50bb94820b576997fd6450117132387be615e460fa8c5e11777e0281565b3480156101ad575f80fd5b506100f67fd2b7c5071ec59eb3ff0017d703a8ea513a7d0da4779b0dbefe845808c300c81581565b3480156101e0575f80fd5b506100f67fab8acc221aecea88a685fabca5b88bf3823b05f335b7b9f721ca7fe3ffb2c30d81565b348015610213575f80fd5b507fd2b7c5071ec59eb3ff0017d703a8ea513a7d0da4779b0dbefe845808c300c8155c5b60405173ffffffffffffffffffffffffffffffffffffffff9091168152602001610100565b348015610267575f80fd5b507f6e0446e8b5098b8c8193f964f1b567ec3a2bdaeba33d36acb85c1f1d3f92d3135c6100f6565b6102a261029d366004610634565b610335565b005b3480156102af575f80fd5b505f546102379073ffffffffffffffffffffffffffffffffffffffff1681565b3480156102da575f80fd5b507f2e148a404a50bb94820b576997fd6450117132387be615e460fa8c5e11777e025c6100f6565b34801561030d575f80fd5b507fab8acc221aecea88a685fabca5b88bf3823b05f335b7b9f721ca7fe3ffb2c30d5c6100f6565b42826060013511156103a8576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152601160248201527f496e76616c69642074696d657374616d7000000000000000000000000000000060448201526064015b60405180910390fd5b5f546040517fe38bbc320000000000000000000000000000000000000000000000000000000081526080840135600482018190529173ffffffffffffffffffffffffffffffffffffffff169063e38bbc3290602401602060405180830381865afa158015610418573d5f803e3d5ffd5b505050506040513d601f19601f8201168201806040525081019061043c9190610704565b6104a2576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152600f60248201527f496e76616c696420636861696e49640000000000000000000000000000000000604482015260640161039f565b33321461050b576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152600760248201527f4e6f7420454f4100000000000000000000000000000000000000000000000000604482015260640161039f565b82517fd2b7c5071ec59eb3ff0017d703a8ea513a7d0da4779b0dbefe845808c300c8155d60208301517f5a1da0738b7fdc60047c07bb519beb02aa32a8619de57e6258da1f1c2e020ccc5d60408301517fab8acc221aecea88a685fabca5b88bf3823b05f335b7b9f721ca7fe3ffb2c30d5d60608301517f2e148a404a50bb94820b576997fd6450117132387be615e460fa8c5e11777e025d807f6e0446e8b5098b8c8193f964f1b567ec3a2bdaeba33d36acb85c1f1d3f92d3135d5f610609835a3489898080601f0160208091040260200160405190810160405280939291908181526020018383808284375f9201919091525061061c92505050565b905080610614575f80fd5b505050505050565b5f805f80845160208601878a8af19695505050505050565b5f805f8084860360e0811215610648575f80fd5b853567ffffffffffffffff8082111561065f575f80fd5b818801915088601f830112610672575f80fd5b813581811115610680575f80fd5b896020828501011115610691575f80fd5b60208301975080965050505060a07fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0820112156106cc575f80fd5b5060208501915060c085013573ffffffffffffffffffffffffffffffffffffffff811681146106f9575f80fd5b939692955090935050565b5f60208284031215610714575f80fd5b81518015158114610723575f80fd5b939250505056fea164736f6c6343000818000a",
 }
 
 // CrossL2InboxABI is the input ABI used to generate the binding from.
@@ -272,37 +272,6 @@ func (_CrossL2Inbox *CrossL2InboxCallerSession) CHAINIDSLOT() ([32]byte, error) 
 	return _CrossL2Inbox.Contract.CHAINIDSLOT(&_CrossL2Inbox.CallOpts)
 }
 
-// L1BLOCK is a free data retrieval call binding the contract method 0x47718590.
-//
-// Solidity: function L1_BLOCK() view returns(address)
-func (_CrossL2Inbox *CrossL2InboxCaller) L1BLOCK(opts *bind.CallOpts) (common.Address, error) {
-	var out []interface{}
-	err := _CrossL2Inbox.contract.Call(opts, &out, "L1_BLOCK")
-
-	if err != nil {
-		return *new(common.Address), err
-	}
-
-	out0 := *abi.ConvertType(out[0], new(common.Address)).(*common.Address)
-
-	return out0, err
-
-}
-
-// L1BLOCK is a free data retrieval call binding the contract method 0x47718590.
-//
-// Solidity: function L1_BLOCK() view returns(address)
-func (_CrossL2Inbox *CrossL2InboxSession) L1BLOCK() (common.Address, error) {
-	return _CrossL2Inbox.Contract.L1BLOCK(&_CrossL2Inbox.CallOpts)
-}
-
-// L1BLOCK is a free data retrieval call binding the contract method 0x47718590.
-//
-// Solidity: function L1_BLOCK() view returns(address)
-func (_CrossL2Inbox *CrossL2InboxCallerSession) L1BLOCK() (common.Address, error) {
-	return _CrossL2Inbox.Contract.L1BLOCK(&_CrossL2Inbox.CallOpts)
-}
-
 // LOGINDEXSLOT is a free data retrieval call binding the contract method 0x79d62680.
 //
 // Solidity: function LOG_INDEX_SLOT() view returns(bytes32)
@@ -456,6 +425,37 @@ func (_CrossL2Inbox *CrossL2InboxSession) ChainId() (*big.Int, error) {
 // Solidity: function chainId() view returns(uint256 _chainId)
 func (_CrossL2Inbox *CrossL2InboxCallerSession) ChainId() (*big.Int, error) {
 	return _CrossL2Inbox.Contract.ChainId(&_CrossL2Inbox.CallOpts)
+}
+
+// L1Block is a free data retrieval call binding the contract method 0xa783302a.
+//
+// Solidity: function l1Block() view returns(address)
+func (_CrossL2Inbox *CrossL2InboxCaller) L1Block(opts *bind.CallOpts) (common.Address, error) {
+	var out []interface{}
+	err := _CrossL2Inbox.contract.Call(opts, &out, "l1Block")
+
+	if err != nil {
+		return *new(common.Address), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(common.Address)).(*common.Address)
+
+	return out0, err
+
+}
+
+// L1Block is a free data retrieval call binding the contract method 0xa783302a.
+//
+// Solidity: function l1Block() view returns(address)
+func (_CrossL2Inbox *CrossL2InboxSession) L1Block() (common.Address, error) {
+	return _CrossL2Inbox.Contract.L1Block(&_CrossL2Inbox.CallOpts)
+}
+
+// L1Block is a free data retrieval call binding the contract method 0xa783302a.
+//
+// Solidity: function l1Block() view returns(address)
+func (_CrossL2Inbox *CrossL2InboxCallerSession) L1Block() (common.Address, error) {
+	return _CrossL2Inbox.Contract.L1Block(&_CrossL2Inbox.CallOpts)
 }
 
 // LogIndex is a free data retrieval call binding the contract method 0xda99f729.
