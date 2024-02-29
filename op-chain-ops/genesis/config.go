@@ -943,6 +943,9 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 	storage["ProxyAdmin"] = state.StorageValues{
 		"_owner": config.ProxyAdminOwner,
 	}
+	storage["CrossL2Inbox"] = state.StorageValues{
+		"l1Block": predeploys.L1BlockAddr,
+	}
 	return storage, nil
 }
 

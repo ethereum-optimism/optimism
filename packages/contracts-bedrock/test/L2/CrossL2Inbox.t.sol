@@ -12,9 +12,16 @@ import { SafeCall } from "src/libraries/SafeCall.sol";
 import { L1Block } from "src/L2/L1Block.sol";
 
 contract CrossL2InboxTest is CommonTest {
+    address depositor;
+
+    function setUp() public virtual override {
+        super.setUp();
+        depositor = l1Block.DEPOSITOR_ACCOUNT();
+    }
+
     /// @dev Tests that the implementation is constructed correctly.
     function test_constructor_succeeds() external {
-        assertEq(crossL2Inbox.L1_BLOCK(), address(l1Block));
+        assertEq(crossL2Inbox.l1Block(), address(l1Block));
     }
 
     function testFuzz_executeMessage_succeeds(
@@ -36,8 +43,9 @@ contract CrossL2InboxTest is CommonTest {
         // chainId invariant
         uint256[] memory chainIds = new uint256[](1);
         chainIds[0] = _id.chainId;
+        vm.prank(depositor);
         l1Block.setL1BlockValues(0, 0, 0, bytes32(0), 0, bytes32(0), 0, 0, 1, chainIds);
-        vm.assume(L1Block(crossL2Inbox.L1_BLOCK()).isInDependencySet(_id.chainId));
+        vm.assume(L1Block(crossL2Inbox.l1Block()).isInDependencySet(_id.chainId));
 
         // only EOA invariant
         vm.prank(tx.origin);
@@ -49,6 +57,7 @@ contract CrossL2InboxTest is CommonTest {
     function test_executeMessage_invalidTimestamp_fails() external {
         uint256[] memory chainIds = new uint256[](1);
         chainIds[0] = 1;
+        vm.prank(depositor);
         l1Block.setL1BlockValues(0, 0, 0, bytes32(0), 0, bytes32(0), 0, 0, 1, chainIds);
 
         ICrossL2Inbox.Identifier memory id = ICrossL2Inbox.Identifier({
@@ -87,6 +96,7 @@ contract CrossL2InboxTest is CommonTest {
     function test_executeMessage_invalidSender_fails() external {
         uint256[] memory chainIds = new uint256[](1);
         chainIds[0] = 1;
+        vm.prank(depositor);
         l1Block.setL1BlockValues(0, 0, 0, bytes32(0), 0, bytes32(0), 0, 0, 1, chainIds);
 
         ICrossL2Inbox.Identifier memory id = ICrossL2Inbox.Identifier({
@@ -106,6 +116,7 @@ contract CrossL2InboxTest is CommonTest {
     function test_executeMessage_unsuccessfullSafeCall_fails() external {
         uint256[] memory chainIds = new uint256[](1);
         chainIds[0] = 1;
+        vm.prank(depositor);
         l1Block.setL1BlockValues(0, 0, 0, bytes32(0), 0, bytes32(0), 0, 0, 1, chainIds);
 
         ICrossL2Inbox.Identifier memory id = ICrossL2Inbox.Identifier({

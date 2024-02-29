@@ -20,7 +20,7 @@ interface ICrossL2Inbox {
 
     function CHAINID_SLOT() external view returns (bytes32);
 
-    function L1_BLOCK() external view returns (address);
+    function l1Block() external view returns (address);
 
     function initialize(address _l1Block) external;
 
