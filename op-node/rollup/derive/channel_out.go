@@ -157,6 +157,9 @@ func (co *SingularChannelOut) AddSingularBatch(batch *SingularBatch, _ uint64) (
 
 	// avoid using io.Copy here, because we need all or nothing
 	written, err := co.compress.Write(buf.Bytes())
+	if err != nil {
+		co.rlpLength -= buf.Len()
+	}
 	return uint64(written), err
 }
 
