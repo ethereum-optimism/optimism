@@ -351,7 +351,7 @@ func check4788Contract(ctx context.Context, env *actionEnv) error {
 			if err != nil {
 				return fmt.Errorf("failed to check code: %w", err)
 			}
-			revert = revert || len(code) > 0
+			revert = revert || len(code) == 0
 		}
 		input := new(uint256.Int).SetUint64(ti).Bytes32()
 		if err := execTx(ctx, &predeploys.EIP4788ContractAddr, input[:], revert, env); err != nil {
