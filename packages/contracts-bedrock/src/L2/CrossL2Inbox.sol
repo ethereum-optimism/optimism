@@ -33,11 +33,7 @@ contract CrossL2Inbox {
     // bytes32(uint256(keccak256("crossl2inbox.identifier.chainid")) - 1)
     bytes32 public constant CHAINID_SLOT = 0x6e0446e8b5098b8c8193f964f1b567ec3a2bdaeba33d36acb85c1f1d3f92d313;
 
-    address public immutable L1_BLOCK;
-
-    constructor() {
-        L1_BLOCK = Predeploys.L1_BLOCK_ATTRIBUTES;
-    }
+    address public l1Block;
 
     function origin() public view returns (address _origin) {
         assembly {
@@ -75,11 +71,8 @@ contract CrossL2Inbox {
     /// @param _target Account that is called with _msg.
     function executeMessage(bytes calldata _msg, Identifier calldata _id, address _target) public payable {
         require(_id.timestamp <= block.timestamp, "Invalid timestamp"); // timestamp invariant
-        uint256 chainId_;
-        assembly {
-            chainId_ := mload(add(_id, 0x80))
-        }
-        require(L1Block(L1_BLOCK).isInDependencySet(chainId_), "Invalid chainId"); // chainId invariant
+        uint256 chainId_ = _id.chainId;
+        require(L1Block(l1Block).isInDependencySet(chainId_), "Invalid chainId"); // chainId invariant
         require(msg.sender == tx.origin, "Not EOA"); // only EOA invariant
 
         assembly {
