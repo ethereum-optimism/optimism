@@ -83,6 +83,7 @@
   "useFaultProofs": false,
   "usePlasma": false,
   "daBondSize": 0,
+  "daChallengeProxy": "0x0000000000000000000000000000000000000000",
   "daChallengeWindow": 0,
   "daResolveWindow": 0,
   "daResolverRefundPercentage": 0

@@ -164,8 +164,8 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 		FjordTime:              deployConf.FjordTime(uint64(deployConf.L1GenesisBlockTimestamp)),
 		InteropTime:            deployConf.InteropTime(uint64(deployConf.L1GenesisBlockTimestamp)),
 		DAChallengeAddress:     l1Deployments.DataAvailabilityChallengeProxy,
-		DAChallengeWindow:      deployConf.DaChallengeWindow,
-		DAResolveWindow:        deployConf.DaResolveWindow,
+		DAChallengeWindow:      deployConf.DAChallengeWindow,
+		DAResolveWindow:        deployConf.DAResolveWindow,
 		UsePlasma:              deployConf.UsePlasma,
 	}
 
