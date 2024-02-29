@@ -101,15 +101,17 @@ Please read this section if you're planning to fork this repository, or make fre
 ### Production Releases
 
 Production releases are always tags, versioned as `<component-name>/v<semver>`.
-For example, an `op-node` release might be versioned as `op-node/v1.1.2`, and an L1 smart contract release might be versioned as `contracts-L1/v1.0.0`.
+For example, an `op-node` release might be versioned as `op-node/v1.1.2`, and  smart contract releases might be versioned as `op-contracts/v1.0.0`.
 Release candidates are versioned in the format `op-node/v1.1.2-rc.1`.
 We always start with `rc.1` rather than `rc`.
+
+For contract releases, refer to the GitHub release notes for a given release, which will list the specific contracts being released—not all contracts are considered production ready within a release, and many are under active development.
 
 Tags of the form `v<semver>`, such as `v1.1.4`, indicate releases of all Go code only, and **DO NOT** include smart contracts.
 This naming scheme is required by Golang.
 In the above list, this means these `v<semver` releases contain all `op-*` components, and exclude all `contracts-*` components.
 
-`op-geth` embeds upsteam geth’s version inside it’s own version as follows: `vMAJOR.GETH_MAJOR GETH_MINOR GETH_PATCH.PATCH`.
+`op-geth` embeds upstream geth’s version inside it’s own version as follows: `vMAJOR.GETH_MAJOR GETH_MINOR GETH_PATCH.PATCH`.
 Basically, geth’s version is our minor version.
 For example if geth is at `v1.12.0`, the corresponding op-geth version would be `v1.101200.0`.
 *Note that we pad out to three characters for the geth minor version and two characters for the geth patch version.
@@ -121,10 +123,9 @@ The full set of components that have releases are:
 - `chain-mon`
 - `ci-builder`
 - `ci-builder`
-- `contracts-L1`
-- `contracts-L2`
 - `indexer`
 - `op-batcher`
+- `op-contracts`
 - `op-challenger`
 - `op-heartbeat`
 - `op-node`
