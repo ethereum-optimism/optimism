@@ -320,7 +320,7 @@ func createEmptyFrame(id ChannelID, frame uint64, readyBytes int, closed bool, m
 
 	// Copy data from the local buffer into the frame data buffer
 	maxDataSize := maxSize - FrameV0OverHeadSize
-	if maxDataSize > uint64(readyBytes) {
+	if maxDataSize >= uint64(readyBytes) {
 		maxDataSize = uint64(readyBytes)
 		// If we are closed & will not spill past the current frame
 		// mark it is the final frame of the channel.
