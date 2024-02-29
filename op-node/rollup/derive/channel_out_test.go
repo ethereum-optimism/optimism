@@ -79,14 +79,14 @@ func TestOutputFrameNoEmptyLastFrame(t *testing.T) {
 	txCount := 1
 	singularBatch := RandomSingularBatch(rng, txCount, chainID)
 
-	writen, err := cout.AddSingularBatch(singularBatch, 0)
+	written, err := cout.AddSingularBatch(singularBatch, 0)
 	require.NoError(t, err)
 
 	require.NoError(t, cout.Close())
 
 	var buf bytes.Buffer
-	// Output a frame which needs exactly `writen` bytes. This frame is expected to be the last frame.
-	_, err = cout.OutputFrame(&buf, writen+FrameV0OverHeadSize)
+	// Output a frame which needs exactly `written` bytes. This frame is expected to be the last frame.
+	_, err = cout.OutputFrame(&buf, written+FrameV0OverHeadSize)
 	require.ErrorIs(t, err, io.EOF)
 
 }
