@@ -158,6 +158,8 @@ task('deposit-erc20', 'Deposits WETH9 onto L2.')
           BondManager: ethers.constants.AddressZero,
           OptimismPortal: json.OptimismPortalProxy,
           L2OutputOracle: json.L2OutputOracleProxy,
+          OptimismPortal2: json.OptimismPortalProxy,
+          DisputeGameFactory: json.DisputeGameFactoryProxy,
         },
         l2: DEFAULT_L2_CONTRACT_ADDRESSES,
       } as OEContractsLike

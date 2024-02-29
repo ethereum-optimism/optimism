@@ -10,8 +10,10 @@ import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 // Target contract dependencies
+import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 
@@ -21,6 +23,27 @@ contract L1CrossDomainMessenger_Test is Bridge_Initializer {
 
     /// @dev The storage slot of the l2Sender
     uint256 constant senderSlotIndex = 50;
+
+    /// @dev Tests that the implementation is initialized correctly.
+    /// @notice Marked virtual to be overridden in
+    ///         test/kontrol/deployment/DeploymentSummary.t.sol
+    function test_constructor_succeeds() external virtual {
+        L1CrossDomainMessenger impl = L1CrossDomainMessenger(deploy.mustGetAddress("L1CrossDomainMessenger"));
+        assertEq(address(impl.superchainConfig()), address(0));
+        assertEq(address(impl.PORTAL()), address(0));
+        assertEq(address(impl.portal()), address(0));
+        assertEq(address(impl.OTHER_MESSENGER()), Predeploys.L2_CROSS_DOMAIN_MESSENGER);
+        assertEq(address(impl.otherMessenger()), Predeploys.L2_CROSS_DOMAIN_MESSENGER);
+    }
+
+    /// @dev Tests that the proxy is initialized correctly.
+    function test_initialize_succeeds() external {
+        assertEq(address(l1CrossDomainMessenger.superchainConfig()), address(superchainConfig));
+        assertEq(address(l1CrossDomainMessenger.PORTAL()), address(optimismPortal));
+        assertEq(address(l1CrossDomainMessenger.portal()), address(optimismPortal));
+        assertEq(address(l1CrossDomainMessenger.OTHER_MESSENGER()), Predeploys.L2_CROSS_DOMAIN_MESSENGER);
+        assertEq(address(l1CrossDomainMessenger.otherMessenger()), Predeploys.L2_CROSS_DOMAIN_MESSENGER);
+    }
 
     /// @dev Tests that the version can be decoded from the message nonce.
     function test_messageVersion_succeeds() external {
@@ -89,7 +112,9 @@ contract L1CrossDomainMessenger_Test is Bridge_Initializer {
 
     /// @dev Tests that the relayMessage function reverts when
     ///      the message version is not 0 or 1.
-    function test_relayMessage_v2_reverts() external {
+    /// @notice Marked virtual to be overridden in
+    ///         test/kontrol/deployment/DeploymentSummary.t.sol
+    function test_relayMessage_v2_reverts() external virtual {
         address target = address(0xabcd);
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
 
@@ -596,8 +621,8 @@ contract L1CrossDomainMessenger_Test is Bridge_Initializer {
     }
 }
 
-/// @dev A test demonstarting a reentrancy vulnerability in the CrossDomainMessenger contract, which
-///      is possible by intercepting and sandwhiching a signed Safe Transaction to upgrade it.
+/// @dev A regression test against a reentrancy vulnerability in the CrossDomainMessenger contract, which
+///      was possible by intercepting and sandwhiching a signed Safe Transaction to upgrade it.
 contract L1CrossDomainMessenger_ReinitReentryTest is Bridge_Initializer {
     bool attacked;
 
@@ -628,9 +653,11 @@ contract L1CrossDomainMessenger_ReinitReentryTest is Bridge_Initializer {
             vm.store(address(l1CrossDomainMessenger), 0, bytes32(uint256(0)));
 
             // call the initializer function
-            l1CrossDomainMessenger.initialize(SuperchainConfig(superchainConfig));
+            l1CrossDomainMessenger.initialize(SuperchainConfig(superchainConfig), OptimismPortal(optimismPortal));
 
             // attempt to re-replay the withdrawal
+            vm.expectEmit(address(l1CrossDomainMessenger));
+            emit FailedRelayedMessage(hash);
             l1CrossDomainMessenger.relayMessage(
                 Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }), // nonce
                 sender,
@@ -642,23 +669,19 @@ contract L1CrossDomainMessenger_ReinitReentryTest is Bridge_Initializer {
         }
     }
 
-    /// @dev A test showing that the relayMessage function cannot be reentered by calling the `initialize()` function
-    /// within the relayed message.
-    function test_relayMessage_replayStraddlingReinit_succeeds() external {
+    /// @dev Tests that the relayMessage function cannot be reentered by calling the `initialize()` function within the
+    ///      relayed message.
+    function test_relayMessage_replayStraddlingReinit_reverts() external {
         uint256 balanceBeforeThis = address(this).balance;
         uint256 balanceBeforeMessenger = address(l1CrossDomainMessenger).balance;
 
         // A requisite for the attack is that the message has already been attempted and written to the failedMessages
         // mapping, so that it can be replayed.
         vm.store(address(l1CrossDomainMessenger), keccak256(abi.encode(hash, 206)), bytes32(uint256(1)));
-        assert(l1CrossDomainMessenger.failedMessages(hash));
+        assertTrue(l1CrossDomainMessenger.failedMessages(hash));
 
-        // Expect to see the message relayed twice.
         vm.expectEmit(address(l1CrossDomainMessenger));
-        emit RelayedMessage(hash);
-        vm.expectEmit(address(l1CrossDomainMessenger));
-        emit RelayedMessage(hash);
-
+        emit FailedRelayedMessage(hash);
         l1CrossDomainMessenger.relayMessage(
             Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }), // nonce
             sender,
@@ -668,12 +691,11 @@ contract L1CrossDomainMessenger_ReinitReentryTest is Bridge_Initializer {
             selector
         );
 
-        // the message hash is now in the successfulMessages mapping
-        assert(l1CrossDomainMessenger.successfulMessages(hash));
-
-        // The balance of this contract was increased by twice the value of the message, and the messenger's
-        // balance was decreased by the same amount.
-        assertEq(address(this).balance, balanceBeforeThis + 2 * messageValue);
-        assertEq(address(l1CrossDomainMessenger).balance, balanceBeforeMessenger - 2 * messageValue);
+        // The message hash is not in the successfulMessages mapping.
+        assertFalse(l1CrossDomainMessenger.successfulMessages(hash));
+        // The balance of this contract is unchanged.
+        assertEq(address(this).balance, balanceBeforeThis);
+        // The balance of the messenger contract is unchanged.
+        assertEq(address(l1CrossDomainMessenger).balance, balanceBeforeMessenger);
     }
 }

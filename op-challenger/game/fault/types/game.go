@@ -3,9 +3,6 @@ package types
 import (
 	"errors"
 	"math/big"
-
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
 )
 
 var (
@@ -33,16 +30,10 @@ type Game interface {
 	AgreeWithClaimLevel(claim Claim, agreeWithRootClaim bool) bool
 
 	MaxDepth() Depth
-}
 
-type claimID common.Hash
-
-func computeClaimID(claim Claim) claimID {
-	return claimID(crypto.Keccak256Hash(
-		claim.Position.ToGIndex().Bytes(),
-		claim.Value.Bytes(),
-		big.NewInt(int64(claim.ParentContractIndex)).Bytes(),
-	))
+	// AncestorWithTraceIndex finds the ancestor of claim with trace index idx if present.
+	// Returns the claim and true if the ancestor is found, or Claim{}, false if not.
+	AncestorWithTraceIndex(claim Claim, idx *big.Int) (Claim, bool)
 }
 
 // gameState is a struct that represents the state of a dispute game.
@@ -50,16 +41,16 @@ func computeClaimID(claim Claim) claimID {
 type gameState struct {
 	// claims is the list of claims in the same order as the contract
 	claims   []Claim
-	claimIDs map[claimID]bool
+	claimIDs map[ClaimID]bool
 	depth    Depth
 }
 
 // NewGameState returns a new game state.
 // The provided [Claim] is used as the root node.
 func NewGameState(claims []Claim, depth Depth) *gameState {
-	claimIDs := make(map[claimID]bool)
+	claimIDs := make(map[ClaimID]bool)
 	for _, claim := range claims {
-		claimIDs[computeClaimID(claim)] = true
+		claimIDs[claim.ID()] = true
 	}
 	return &gameState{
 		claims:   claims,
@@ -81,7 +72,7 @@ func (g *gameState) AgreeWithClaimLevel(claim Claim, agreeWithRootClaim bool) bo
 }
 
 func (g *gameState) IsDuplicate(claim Claim) bool {
-	return g.claimIDs[computeClaimID(claim)]
+	return g.claimIDs[claim.ID()]
 }
 
 func (g *gameState) Claims() []Claim {
@@ -118,4 +109,20 @@ func (g *gameState) getParent(claim Claim) *Claim {
 	}
 	parent := g.claims[claim.ParentContractIndex]
 	return &parent
+}
+
+func (g *gameState) AncestorWithTraceIndex(claim Claim, idx *big.Int) (Claim, bool) {
+	for {
+		if claim.Position.TraceIndex(g.depth).Cmp(idx) == 0 {
+			return claim, true
+		}
+		if claim.IsRoot() {
+			return Claim{}, false
+		}
+		next := g.getParent(claim)
+		if next == nil {
+			return Claim{}, false
+		}
+		claim = *next
+	}
 }

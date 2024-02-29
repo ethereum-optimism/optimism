@@ -66,6 +66,8 @@ type BlocksDB interface {
 
 	StoreL1BlockHeaders([]L1BlockHeader) error
 	StoreL2BlockHeaders([]L2BlockHeader) error
+
+	DeleteReorgedState(uint64) error
 }
 
 /**
@@ -172,4 +174,25 @@ func (db *blocksDB) L2LatestBlockHeader() (*L2BlockHeader, error) {
 	}
 
 	return &l2Header, nil
+}
+
+// Reorgs
+
+func (db *blocksDB) DeleteReorgedState(timestamp uint64) error {
+	db.log.Info("deleting reorg'd state", "from_timestamp", timestamp)
+
+	// Delete reorg'd state. Block deletes cascades to all tables
+	l1Result := db.gorm.Delete(&L1BlockHeader{}, "timestamp >= ?", timestamp)
+	if l1Result.Error != nil {
+		return fmt.Errorf("unable to delete l1 state: %w", l1Result.Error)
+	}
+	db.log.Info("L1 blocks (& derived events/tables) deleted", "block_count", l1Result.RowsAffected)
+
+	l2Result := db.gorm.Delete(&L2BlockHeader{}, "timestamp >= ?", timestamp)
+	if l2Result.Error != nil {
+		return fmt.Errorf("unable to delete l2 state: %w", l2Result.Error)
+	}
+	db.log.Info("L2 blocks (& derived events/tables) deleted", "block_count", l2Result.RowsAffected)
+
+	return nil
 }

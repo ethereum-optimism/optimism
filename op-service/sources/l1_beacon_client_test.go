@@ -1,9 +1,12 @@
 package sources
 
 import (
+	"context"
+	"errors"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/sources/mocks"
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 	"github.com/stretchr/testify/require"
 )
@@ -41,9 +44,18 @@ func TestBlobsFromSidecars(t *testing.T) {
 
 	hashes := []eth.IndexedBlobHash{index0, index1, index2}
 
-	// put the sidecars in scrambled order of expectation to confirm function appropriately
-	// reorders the output to match that of the blob hashes
+	// put the sidecars in scrambled order to confirm error
 	sidecars := []*eth.BlobSidecar{sidecar2, sidecar0, sidecar1}
+	_, err := blobsFromSidecars(sidecars, hashes)
+	require.Error(t, err)
+
+	// too few sidecars should error
+	sidecars = []*eth.BlobSidecar{sidecar0, sidecar1}
+	_, err = blobsFromSidecars(sidecars, hashes)
+	require.Error(t, err)
+
+	// correct order should work
+	sidecars = []*eth.BlobSidecar{sidecar0, sidecar1, sidecar2}
 	blobs, err := blobsFromSidecars(sidecars, hashes)
 	require.NoError(t, err)
 	// confirm order by checking first blob byte against expected index
@@ -78,4 +90,101 @@ func TestBlobsFromSidecars_EmptySidecarList(t *testing.T) {
 	blobs, err := blobsFromSidecars(sidecars, hashes)
 	require.NoError(t, err)
 	require.Empty(t, blobs, "blobs should be empty when no sidecars are provided")
+}
+
+func toAPISideCars(sidecars []*eth.BlobSidecar) []*eth.APIBlobSidecar {
+	var out []*eth.APIBlobSidecar
+	for _, s := range sidecars {
+		out = append(out, &eth.APIBlobSidecar{
+			Index:             s.Index,
+			Blob:              s.Blob,
+			KZGCommitment:     s.KZGCommitment,
+			KZGProof:          s.KZGProof,
+			SignedBlockHeader: eth.SignedBeaconBlockHeader{},
+		})
+	}
+	return out
+}
+
+func TestBeaconClientNoErrorPrimary(t *testing.T) {
+	indices := []uint64{5, 7, 2}
+	index0, sidecar0 := makeTestBlobSidecar(indices[0])
+	index1, sidecar1 := makeTestBlobSidecar(indices[1])
+	index2, sidecar2 := makeTestBlobSidecar(indices[2])
+
+	hashes := []eth.IndexedBlobHash{index0, index1, index2}
+	sidecars := []*eth.BlobSidecar{sidecar0, sidecar1, sidecar2}
+	apiSidecars := toAPISideCars(sidecars)
+
+	ctx := context.Background()
+	p := mocks.NewBeaconClient(t)
+	f := mocks.NewBlobSideCarsFetcher(t)
+	c := NewL1BeaconClient(p, L1BeaconClientConfig{}, f)
+	p.EXPECT().BeaconGenesis(ctx).Return(eth.APIGenesisResponse{Data: eth.ReducedGenesisData{GenesisTime: 10}}, nil)
+	p.EXPECT().ConfigSpec(ctx).Return(eth.APIConfigResponse{Data: eth.ReducedConfigData{SecondsPerSlot: 2}}, nil)
+	// Timestamp 12 = Slot 1
+	p.EXPECT().BeaconBlobSideCars(ctx, false, uint64(1), hashes).Return(eth.APIGetBlobSidecarsResponse{Data: apiSidecars}, nil)
+
+	resp, err := c.GetBlobSidecars(ctx, eth.L1BlockRef{Time: 12}, hashes)
+	require.Equal(t, sidecars, resp)
+	require.NoError(t, err)
+}
+
+func TestBeaconClientFallback(t *testing.T) {
+	indices := []uint64{5, 7, 2}
+	index0, sidecar0 := makeTestBlobSidecar(indices[0])
+	index1, sidecar1 := makeTestBlobSidecar(indices[1])
+	index2, sidecar2 := makeTestBlobSidecar(indices[2])
+
+	hashes := []eth.IndexedBlobHash{index0, index1, index2}
+	sidecars := []*eth.BlobSidecar{sidecar0, sidecar1, sidecar2}
+	apiSidecars := toAPISideCars(sidecars)
+
+	ctx := context.Background()
+	p := mocks.NewBeaconClient(t)
+	f := mocks.NewBlobSideCarsFetcher(t)
+	c := NewL1BeaconClient(p, L1BeaconClientConfig{}, f)
+	p.EXPECT().BeaconGenesis(ctx).Return(eth.APIGenesisResponse{Data: eth.ReducedGenesisData{GenesisTime: 10}}, nil)
+	p.EXPECT().ConfigSpec(ctx).Return(eth.APIConfigResponse{Data: eth.ReducedConfigData{SecondsPerSlot: 2}}, nil)
+	// Timestamp 12 = Slot 1
+	p.EXPECT().BeaconBlobSideCars(ctx, false, uint64(1), hashes).Return(eth.APIGetBlobSidecarsResponse{}, errors.New("404 not found"))
+	f.EXPECT().BeaconBlobSideCars(ctx, false, uint64(1), hashes).Return(eth.APIGetBlobSidecarsResponse{Data: apiSidecars}, nil)
+
+	resp, err := c.GetBlobSidecars(ctx, eth.L1BlockRef{Time: 12}, hashes)
+	require.Equal(t, sidecars, resp)
+	require.NoError(t, err)
+
+	// Second set of calls. This time rotate back to the primary
+	indices = []uint64{3, 9, 11}
+	index0, sidecar0 = makeTestBlobSidecar(indices[0])
+	index1, sidecar1 = makeTestBlobSidecar(indices[1])
+	index2, sidecar2 = makeTestBlobSidecar(indices[2])
+
+	hashes = []eth.IndexedBlobHash{index0, index1, index2}
+	sidecars = []*eth.BlobSidecar{sidecar0, sidecar1, sidecar2}
+	apiSidecars = toAPISideCars(sidecars)
+
+	// Timestamp 14 = Slot 2
+	f.EXPECT().BeaconBlobSideCars(ctx, false, uint64(2), hashes).Return(eth.APIGetBlobSidecarsResponse{}, errors.New("404 not found"))
+	p.EXPECT().BeaconBlobSideCars(ctx, false, uint64(2), hashes).Return(eth.APIGetBlobSidecarsResponse{Data: apiSidecars}, nil)
+
+	resp, err = c.GetBlobSidecars(ctx, eth.L1BlockRef{Time: 14}, hashes)
+	require.Equal(t, sidecars, resp)
+	require.NoError(t, err)
+
+}
+
+func TestClientPoolSingle(t *testing.T) {
+	p := NewClientPool[int](1)
+	for i := 0; i < 10; i++ {
+		require.Equal(t, 1, p.Get())
+		p.MoveToNext()
+	}
+}
+func TestClientPoolSeveral(t *testing.T) {
+	p := NewClientPool[int](0, 1, 2, 3)
+	for i := 0; i < 25; i++ {
+		require.Equal(t, i%4, p.Get())
+		p.MoveToNext()
+	}
 }

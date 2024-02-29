@@ -310,6 +310,20 @@ func Copy(ctx context.Context, copyFrom client.RPC, copyTo client.RPC) error {
 	return nil
 }
 
+// CopyPaylod takes the execution payload at number & applies it via NewPayload to copyTo
+func CopyPayload(ctx context.Context, number uint64, copyFrom client.RPC, copyTo client.RPC) error {
+	copyHead, err := getBlock(ctx, copyFrom, "eth_getBlockByNumber", hexutil.EncodeUint64(number))
+	if err != nil {
+		return err
+	}
+	payloadEnv := engine.BlockToExecutableData(copyHead, nil, nil)
+	payload := payloadEnv.ExecutionPayload
+	if err := insertBlock(ctx, copyTo, payload); err != nil {
+		return err
+	}
+	return nil
+}
+
 func SetForkchoice(ctx context.Context, client client.RPC, finalizedNum, safeNum, unsafeNum uint64) error {
 	if unsafeNum < safeNum {
 		return fmt.Errorf("cannot set unsafe (%d) < safe (%d)", unsafeNum, safeNum)
@@ -333,6 +347,13 @@ func SetForkchoice(ctx context.Context, client client.RPC, finalizedNum, safeNum
 		return fmt.Errorf("failed to get block %d to mark safe: %w", safeNum, err)
 	}
 	if err := updateForkchoice(ctx, client, head.Hash(), safeHeader.Hash(), finalizedHeader.Hash()); err != nil {
+		return fmt.Errorf("failed to update forkchoice: %w", err)
+	}
+	return nil
+}
+
+func SetForkchoiceByHash(ctx context.Context, client client.RPC, finalized, safe, unsafe common.Hash) error {
+	if err := updateForkchoice(ctx, client, unsafe, safe, finalized); err != nil {
 		return fmt.Errorf("failed to update forkchoice: %w", err)
 	}
 	return nil

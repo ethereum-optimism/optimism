@@ -235,7 +235,11 @@ func Start(config *Config) (*Server, func(), error) {
 			log.Warn("redis is not configured, using in-memory cache")
 			cache = newMemoryCache()
 		} else {
-			cache = newRedisCache(redisClient, config.Redis.Namespace)
+			ttl := defaultCacheTtl
+			if config.Cache.TTL != 0 {
+				ttl = time.Duration(config.Cache.TTL)
+			}
+			cache = newRedisCache(redisClient, config.Redis.Namespace, ttl)
 		}
 		rpcCache = newRPCCache(newCacheWithCompression(cache))
 	}

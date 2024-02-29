@@ -18,7 +18,7 @@ var Subcommands = []*cli.Command{
 		Name:  "dump-rollup-config",
 		Usage: "Dumps network configs",
 		Flags: []cli.Flag{
-			opflags.CLINetworkFlag(flags.EnvVarPrefix),
+			opflags.CLINetworkFlag(flags.EnvVarPrefix, ""),
 		},
 		Action: func(ctx *cli.Context) error {
 			logCfg := oplog.ReadCLIConfig(ctx)
@@ -29,7 +29,7 @@ var Subcommands = []*cli.Command{
 				return errors.New("must specify a network name")
 			}
 
-			rCfg, err := opnode.NewRollupConfig(logger, ctx)
+			rCfg, err := opnode.NewRollupConfigFromCLI(logger, ctx)
 			if err != nil {
 				return err
 			}

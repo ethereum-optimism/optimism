@@ -80,6 +80,10 @@ func (ix *Indexer) Start(ctx context.Context) error {
 }
 
 func (ix *Indexer) Stop(ctx context.Context) error {
+	if ix.stopped.Load() {
+		return nil
+	}
+
 	var result error
 
 	if ix.L1ETL != nil {
@@ -128,9 +132,7 @@ func (ix *Indexer) Stop(ctx context.Context) error {
 	}
 
 	ix.stopped.Store(true)
-
 	ix.log.Info("indexer stopped")
-
 	return result
 }
 

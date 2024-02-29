@@ -74,15 +74,14 @@ type Clock is uint128;
 type Position is uint128;
 
 /// @notice A `GameType` represents the type of game being played.
-type GameType is uint8;
+type GameType is uint32;
 
 /// @notice A `VMStatus` represents the status of a VM execution.
 type VMStatus is uint8;
 
 /// @notice The current status of the dispute game.
-enum GameStatus
-// The game is currently in progress, and has not been resolved.
-{
+enum GameStatus {
+    // The game is currently in progress, and has not been resolved.
     IN_PROGRESS,
     // The game has concluded, and the `rootClaim` was challenged successfully.
     CHALLENGER_WINS,
@@ -95,6 +94,9 @@ enum GameStatus
 library GameTypes {
     /// @dev A dispute game type the uses the cannon vm.
     GameType internal constant CANNON = GameType.wrap(0);
+
+    /// @dev A permissioned dispute game type the uses the cannon vm.
+    GameType internal constant PERMISSIONED_CANNON = GameType.wrap(1);
 
     /// @notice A dispute game type that uses an alphabet vm.
     ///         Not intended for production use.

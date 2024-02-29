@@ -2,6 +2,8 @@
 pragma solidity 0.8.15;
 
 // Testing utilities
+import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
+
 // Target contract is imported by the `Bridge_Initializer`
 import { Bridge_Initializer } from "test/setup/Bridge_Initializer.sol";
 import { stdStorage, StdStorage } from "forge-std/Test.sol";
@@ -14,6 +16,7 @@ import { Hashing } from "src/libraries/Hashing.sol";
 import { Types } from "src/libraries/Types.sol";
 
 // Target contract dependencies
+import { L2StandardBridge } from "src/L2/L2StandardBridge.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { StandardBridge } from "src/universal/StandardBridge.sol";
 import { OptimismMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
@@ -21,11 +24,23 @@ import { OptimismMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
 contract L2StandardBridge_Test is Bridge_Initializer {
     using stdStorage for StdStorage;
 
+    /// @dev Test that the bridge's constructor sets the correct values.
+    function test_constructor_succeeds() external {
+        L2StandardBridge impl =
+            L2StandardBridge(payable(EIP1967Helper.getImplementation(deploy.mustGetAddress("L2StandardBridge"))));
+        assertEq(address(impl.MESSENGER()), address(0));
+        assertEq(address(impl.messenger()), address(0));
+        assertEq(address(impl.OTHER_BRIDGE()), address(0));
+        assertEq(address(impl.otherBridge()), address(0));
+    }
+
     /// @dev Tests that the bridge is initialized correctly.
     function test_initialize_succeeds() external {
+        assertEq(address(l2StandardBridge.MESSENGER()), address(l2CrossDomainMessenger));
         assertEq(address(l2StandardBridge.messenger()), address(l2CrossDomainMessenger));
         assertEq(l1StandardBridge.l2TokenBridge(), address(l2StandardBridge));
         assertEq(address(l2StandardBridge.OTHER_BRIDGE()), address(l1StandardBridge));
+        assertEq(address(l2StandardBridge.otherBridge()), address(l1StandardBridge));
     }
 
     /// @dev Ensures that the L2StandardBridge is always not paused. The pausability

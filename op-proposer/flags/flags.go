@@ -9,7 +9,7 @@ import (
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
-	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
+	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
@@ -51,23 +51,26 @@ var (
 		EnvVars: prefixEnvVars("ALLOW_NON_FINALIZED"),
 	}
 	DisputeGameFactoryAddressFlag = &cli.StringFlag{
-		Name:    "dgf-address",
+		Name:    "game-factory-address",
 		Usage:   "Address of the DisputeGameFactory contract",
-		EnvVars: prefixEnvVars("DGF_ADDRESS"),
-		Hidden:  true,
+		EnvVars: prefixEnvVars("GAME_FACTORY_ADDRESS"),
 	}
 	ProposalIntervalFlag = &cli.DurationFlag{
 		Name:    "proposal-interval",
-		Usage:   "Interval between submitting L2 output proposals when the DGFAddress is set",
+		Usage:   "Interval between submitting L2 output proposals when the dispute game factory address is set",
 		EnvVars: prefixEnvVars("PROPOSAL_INTERVAL"),
-		Hidden:  true,
 	}
 	DisputeGameTypeFlag = &cli.UintFlag{
-		Name:    "dg-type",
+		Name:    "game-type",
 		Usage:   "Dispute game type to create via the configured DisputeGameFactory",
 		Value:   0,
-		EnvVars: prefixEnvVars("DG_TYPE"),
-		Hidden:  true,
+		EnvVars: prefixEnvVars("GAME_TYPE"),
+	}
+	ActiveSequencerCheckDurationFlag = &cli.DurationFlag{
+		Name:    "active-sequencer-check-duration",
+		Usage:   "The duration between checks to determine the active sequencer endpoint.",
+		Value:   2 * time.Minute,
+		EnvVars: prefixEnvVars("ACTIVE_SEQUENCER_CHECK_DURATION"),
 	}
 	// Legacy Flags
 	L2OutputHDPathFlag = txmgr.L2OutputHDPathFlag
@@ -86,6 +89,7 @@ var optionalFlags = []cli.Flag{
 	DisputeGameFactoryAddressFlag,
 	ProposalIntervalFlag,
 	DisputeGameTypeFlag,
+	ActiveSequencerCheckDurationFlag,
 }
 
 func init() {

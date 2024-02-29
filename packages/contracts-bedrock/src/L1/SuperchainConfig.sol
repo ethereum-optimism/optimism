@@ -11,7 +11,9 @@ import { Storage } from "src/libraries/Storage.sol";
 contract SuperchainConfig is Initializable, ISemver {
     /// @notice Enum representing different types of updates.
     /// @custom:value GUARDIAN            Represents an update to the guardian.
-    enum UpdateType { GUARDIAN }
+    enum UpdateType {
+        GUARDIAN
+    }
 
     /// @notice Whether or not the Superchain is paused.
     bytes32 public constant PAUSED_SLOT = bytes32(uint256(keccak256("superchainConfig.paused")) - 1);

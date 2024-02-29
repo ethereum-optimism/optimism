@@ -9,7 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-proposer/flags"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
-	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
+	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
@@ -54,7 +54,10 @@ type CLIConfig struct {
 	ProposalInterval time.Duration
 
 	// DisputeGameType is the type of dispute game to create when submitting an output proposal.
-	DisputeGameType uint8
+	DisputeGameType uint32
+
+	// ActiveSequencerCheckDuration is the duration between checks to determine the active sequencer endpoint.
+	ActiveSequencerCheckDuration time.Duration
 }
 
 func (c *CLIConfig) Check() error {
@@ -94,13 +97,14 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 		PollInterval: ctx.Duration(flags.PollIntervalFlag.Name),
 		TxMgrConfig:  txmgr.ReadCLIConfig(ctx),
 		// Optional Flags
-		AllowNonFinalized: ctx.Bool(flags.AllowNonFinalizedFlag.Name),
-		RPCConfig:         oprpc.ReadCLIConfig(ctx),
-		LogConfig:         oplog.ReadCLIConfig(ctx),
-		MetricsConfig:     opmetrics.ReadCLIConfig(ctx),
-		PprofConfig:       oppprof.ReadCLIConfig(ctx),
-		DGFAddress:        ctx.String(flags.DisputeGameFactoryAddressFlag.Name),
-		ProposalInterval:  ctx.Duration(flags.ProposalIntervalFlag.Name),
-		DisputeGameType:   uint8(ctx.Uint(flags.DisputeGameTypeFlag.Name)),
+		AllowNonFinalized:            ctx.Bool(flags.AllowNonFinalizedFlag.Name),
+		RPCConfig:                    oprpc.ReadCLIConfig(ctx),
+		LogConfig:                    oplog.ReadCLIConfig(ctx),
+		MetricsConfig:                opmetrics.ReadCLIConfig(ctx),
+		PprofConfig:                  oppprof.ReadCLIConfig(ctx),
+		DGFAddress:                   ctx.String(flags.DisputeGameFactoryAddressFlag.Name),
+		ProposalInterval:             ctx.Duration(flags.ProposalIntervalFlag.Name),
+		DisputeGameType:              uint32(ctx.Uint(flags.DisputeGameTypeFlag.Name)),
+		ActiveSequencerCheckDuration: ctx.Duration(flags.ActiveSequencerCheckDurationFlag.Name),
 	}
 }

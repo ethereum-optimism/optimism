@@ -1,6 +1,6 @@
 # op-node
 
-This is the reference implementation of the [rollup-node spec](../specs/rollup-node.md).
+This is the reference implementation of the [rollup-node spec](https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/rollup-node.md).
 
 ## Compiling
 

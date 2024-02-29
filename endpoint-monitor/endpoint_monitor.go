@@ -36,7 +36,7 @@ func Main(version string) func(cliCtx *cli.Context) error {
 		}
 
 		l := oplog.NewLogger(oplog.AppOut(cliCtx), cfg.LogConfig)
-		oplog.SetGlobalLogHandler(l.GetHandler())
+		oplog.SetGlobalLogHandler(l.Handler())
 
 		endpointMonitor := NewEndpointMonitor(cfg, l)
 		l.Info(fmt.Sprintf("starting endpoint monitor with checkInterval=%s checkDuration=%s", cfg.CheckInterval, cfg.CheckDuration))

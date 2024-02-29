@@ -84,9 +84,9 @@ func TestGetStepData(t *testing.T) {
 		provider, generator := setupWithTestData(t, dataDir, prestate)
 		value, proof, data, err := provider.GetStepData(context.Background(), PositionFromTraceIndex(provider, new(big.Int)))
 		require.NoError(t, err)
-		expected := common.Hex2Bytes("b8f068de604c85ea0e2acd437cdb47add074a2d70b81d018390c504b71fe26f400000000000000000000000000000000000000000000000000000000000000000000000000")
+		expected := common.FromHex("b8f068de604c85ea0e2acd437cdb47add074a2d70b81d018390c504b71fe26f400000000000000000000000000000000000000000000000000000000000000000000000000")
 		require.Equal(t, expected, value)
-		expectedProof := common.Hex2Bytes("08028e3c0000000000000000000000003c01000a24210b7c00200008000000008fa40004")
+		expectedProof := common.FromHex("08028e3c0000000000000000000000003c01000a24210b7c00200008000000008fa40004")
 		require.Equal(t, expectedProof, proof)
 		// TODO: Need to add some oracle data
 		require.Nil(t, data)
@@ -207,9 +207,9 @@ func TestGetStepData(t *testing.T) {
 		provider, generator := setupWithTestData(t, dataDir, prestate)
 		value, proof, data, err := provider.GetStepData(context.Background(), PositionFromTraceIndex(provider, big.NewInt(2)))
 		require.NoError(t, err)
-		expected := common.Hex2Bytes("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc")
+		expected := common.FromHex("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc")
 		require.Equal(t, expected, value)
-		expectedProof := common.Hex2Bytes("dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd")
+		expectedProof := common.FromHex("dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd")
 		require.Equal(t, expectedProof, proof)
 		require.Empty(t, generator.generated)
 		require.Nil(t, data)
@@ -235,7 +235,7 @@ func setupTestData(t *testing.T) (string, string) {
 func setupWithTestData(t *testing.T, dataDir string, prestate string) (*CannonTraceProvider, *stubGenerator) {
 	generator := &stubGenerator{}
 	return &CannonTraceProvider{
-		logger:    testlog.Logger(t, log.LvlInfo),
+		logger:    testlog.Logger(t, log.LevelInfo),
 		dir:       dataDir,
 		generator: generator,
 		prestate:  filepath.Join(dataDir, prestate),

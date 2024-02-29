@@ -18,9 +18,9 @@ import (
 // For full op-challenger this means executing the transaction on chain.
 type Responder interface {
 	CallResolve(ctx context.Context) (gameTypes.GameStatus, error)
-	Resolve(ctx context.Context) error
+	Resolve() error
 	CallResolveClaim(ctx context.Context, claimIdx uint64) error
-	ResolveClaim(ctx context.Context, claimIdx uint64) error
+	ResolveClaim(claimIdx uint64) error
 	PerformAction(ctx context.Context, action types.Action) error
 }
 
@@ -61,16 +61,26 @@ func (a *Agent) Act(ctx context.Context) error {
 	// Calculate the actions to take
 	actions, err := a.solver.CalculateNextActions(ctx, game)
 	if err != nil {
-		log.Error("Failed to calculate all required moves", "err", err)
+		a.log.Error("Failed to calculate all required moves", "err", err)
 	}
 
 	// Perform the actions
 	for _, action := range actions {
-		log := a.log.New("action", action.Type, "is_attack", action.IsAttack, "parent", action.ParentIdx)
+		actionLog := a.log.New("action", action.Type, "is_attack", action.IsAttack, "parent", action.ParentIdx)
 		if action.Type == types.ActionTypeStep {
-			log = log.New("prestate", common.Bytes2Hex(action.PreState), "proof", common.Bytes2Hex(action.ProofData))
+			containsOracleData := action.OracleData != nil
+			isLocal := containsOracleData && action.OracleData.IsLocal
+			actionLog = actionLog.New(
+				"prestate", common.Bytes2Hex(action.PreState),
+				"proof", common.Bytes2Hex(action.ProofData),
+				"containsOracleData", containsOracleData,
+				"isLocalPreimage", isLocal,
+			)
+			if action.OracleData != nil {
+				actionLog = actionLog.New("oracleKey", common.Bytes2Hex(action.OracleData.OracleKey))
+			}
 		} else {
-			log = log.New("value", action.Value)
+			actionLog = actionLog.New("value", action.Value)
 		}
 
 		switch action.Type {
@@ -79,10 +89,10 @@ func (a *Agent) Act(ctx context.Context) error {
 		case types.ActionTypeStep:
 			a.metrics.RecordGameStep()
 		}
-		log.Info("Performing action")
+		actionLog.Info("Performing action")
 		err := a.responder.PerformAction(ctx, action)
 		if err != nil {
-			log.Error("Action failed", "err", err)
+			actionLog.Error("Action failed", "err", err)
 		}
 	}
 	return nil
@@ -100,7 +110,7 @@ func (a *Agent) tryResolve(ctx context.Context) bool {
 		return false
 	}
 	a.log.Info("Resolving game")
-	if err := a.responder.Resolve(ctx); err != nil {
+	if err := a.responder.Resolve(); err != nil {
 		a.log.Error("Failed to resolve the game", "err", err)
 	}
 	return true
@@ -136,7 +146,7 @@ func (a *Agent) tryResolveClaims(ctx context.Context) error {
 		claimIdx := claimIdx
 		go func() {
 			defer wg.Done()
-			err := a.responder.ResolveClaim(ctx, uint64(claimIdx))
+			err := a.responder.ResolveClaim(uint64(claimIdx))
 			if err != nil {
 				a.log.Error("Failed to resolve claim", "err", err)
 			}

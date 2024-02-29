@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.15;
 
-import "./DisputeTypes.sol";
+import "src/libraries/DisputeTypes.sol";
 
 ////////////////////////////////////////////////////////////////
 //                `DisputeGameFactory` Errors                 //
@@ -87,3 +87,14 @@ error ClaimAboveSplit();
 /// @notice Thrown on deployment if the split depth is greater than or equal to the max
 ///         depth of the game.
 error InvalidSplitDepth();
+
+/// @notice Thrown when trying to step against a claim for a second time, after it has already been countered with
+///         an instruction step.
+error DuplicateStep();
+
+////////////////////////////////////////////////////////////////
+//              `PermissionedDisputeGame` Errors              //
+////////////////////////////////////////////////////////////////
+
+/// @notice Thrown when an unauthorized address attempts to interact with the game.
+error BadAuth();

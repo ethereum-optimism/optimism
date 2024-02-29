@@ -10,6 +10,57 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var DefaultClaimant = common.Address{0xba, 0xdb, 0xad, 0xba, 0xdb, 0xad}
+
+type claimCfg struct {
+	value        common.Hash
+	invalidValue bool
+	claimant     common.Address
+	parentIdx    int
+}
+
+func newClaimCfg(opts ...ClaimOpt) *claimCfg {
+	cfg := &claimCfg{}
+	for _, opt := range opts {
+		opt.Apply(cfg)
+	}
+	return cfg
+}
+
+type ClaimOpt interface {
+	Apply(cfg *claimCfg)
+}
+
+type claimOptFn func(cfg *claimCfg)
+
+func (c claimOptFn) Apply(cfg *claimCfg) {
+	c(cfg)
+}
+
+func WithValue(value common.Hash) ClaimOpt {
+	return claimOptFn(func(cfg *claimCfg) {
+		cfg.value = value
+	})
+}
+
+func WithInvalidValue(invalid bool) ClaimOpt {
+	return claimOptFn(func(cfg *claimCfg) {
+		cfg.invalidValue = invalid
+	})
+}
+
+func WithClaimant(claimant common.Address) ClaimOpt {
+	return claimOptFn(func(cfg *claimCfg) {
+		cfg.claimant = claimant
+	})
+}
+
+func WithParent(claim types.Claim) ClaimOpt {
+	return claimOptFn(func(cfg *claimCfg) {
+		cfg.parentIdx = claim.ContractIndex
+	})
+}
+
 // ClaimBuilder is a test utility to enable creating claims in a wide range of situations
 type ClaimBuilder struct {
 	require  *require.Assertions
@@ -65,75 +116,44 @@ func (c *ClaimBuilder) incorrectClaim(pos types.Position) common.Hash {
 	return common.BigToHash(pos.TraceIndex(c.maxDepth))
 }
 
-func (c *ClaimBuilder) claim(pos types.Position, correct bool) common.Hash {
-	if correct {
-		return c.CorrectClaimAtPosition(pos)
-	} else {
-		return c.incorrectClaim(pos)
-	}
-}
-
-func (c *ClaimBuilder) CreateRootClaim(correct bool) types.Claim {
-	value := c.claim(types.NewPositionFromGIndex(big.NewInt(1)), correct)
+func (c *ClaimBuilder) claim(pos types.Position, opts ...ClaimOpt) types.Claim {
+	cfg := newClaimCfg(opts...)
 	claim := types.Claim{
 		ClaimData: types.ClaimData{
-			Value:    value,
-			Position: types.NewPosition(0, common.Big0),
+			Position: pos,
 		},
+		Claimant: DefaultClaimant,
 	}
+	if cfg.claimant != (common.Address{}) {
+		claim.Claimant = cfg.claimant
+	}
+	if cfg.value != (common.Hash{}) {
+		claim.Value = cfg.value
+	} else if cfg.invalidValue {
+		claim.Value = c.incorrectClaim(pos)
+	} else {
+		claim.Value = c.CorrectClaimAtPosition(pos)
+	}
+	claim.ParentContractIndex = cfg.parentIdx
 	return claim
 }
 
-func (c *ClaimBuilder) CreateLeafClaim(traceIndex *big.Int, correct bool) types.Claim {
+func (c *ClaimBuilder) CreateRootClaim(opts ...ClaimOpt) types.Claim {
+	pos := types.NewPositionFromGIndex(big.NewInt(1))
+	return c.claim(pos, opts...)
+}
+
+func (c *ClaimBuilder) CreateLeafClaim(traceIndex *big.Int, opts ...ClaimOpt) types.Claim {
 	pos := types.NewPosition(c.maxDepth, traceIndex)
-	return types.Claim{
-		ClaimData: types.ClaimData{
-			Value:    c.claim(pos, correct),
-			Position: pos,
-		},
-	}
+	return c.claim(pos, opts...)
 }
 
-func (c *ClaimBuilder) AttackClaim(claim types.Claim, correct bool) types.Claim {
+func (c *ClaimBuilder) AttackClaim(claim types.Claim, opts ...ClaimOpt) types.Claim {
 	pos := claim.Position.Attack()
-	return types.Claim{
-		ClaimData: types.ClaimData{
-			Value:    c.claim(pos, correct),
-			Position: pos,
-		},
-		ParentContractIndex: claim.ContractIndex,
-	}
+	return c.claim(pos, append([]ClaimOpt{WithParent(claim)}, opts...)...)
 }
 
-func (c *ClaimBuilder) AttackClaimWithValue(claim types.Claim, value common.Hash) types.Claim {
-	pos := claim.Position.Attack()
-	return types.Claim{
-		ClaimData: types.ClaimData{
-			Value:    value,
-			Position: pos,
-		},
-		ParentContractIndex: claim.ContractIndex,
-	}
-}
-
-func (c *ClaimBuilder) DefendClaim(claim types.Claim, correct bool) types.Claim {
+func (c *ClaimBuilder) DefendClaim(claim types.Claim, opts ...ClaimOpt) types.Claim {
 	pos := claim.Position.Defend()
-	return types.Claim{
-		ClaimData: types.ClaimData{
-			Value:    c.claim(pos, correct),
-			Position: pos,
-		},
-		ParentContractIndex: claim.ContractIndex,
-	}
-}
-
-func (c *ClaimBuilder) DefendClaimWithValue(claim types.Claim, value common.Hash) types.Claim {
-	pos := claim.Position.Defend()
-	return types.Claim{
-		ClaimData: types.ClaimData{
-			Value:    value,
-			Position: pos,
-		},
-		ParentContractIndex: claim.ContractIndex,
-	}
+	return c.claim(pos, append([]ClaimOpt{WithParent(claim)}, opts...)...)
 }

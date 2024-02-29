@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -51,9 +52,9 @@ type OpGeth struct {
 }
 
 func NewOpGeth(t *testing.T, ctx context.Context, cfg *SystemConfig) (*OpGeth, error) {
-	logger := testlog.Logger(t, log.LvlCrit)
+	logger := testlog.Logger(t, log.LevelCrit)
 
-	l1Genesis, err := genesis.BuildL1DeveloperGenesis(cfg.DeployConfig, config.L1Allocs, config.L1Deployments, true)
+	l1Genesis, err := genesis.BuildL1DeveloperGenesis(cfg.DeployConfig, config.L1Allocs, config.L1Deployments)
 	require.Nil(t, err)
 	l1Block := l1Genesis.ToBlock()
 
@@ -92,14 +93,17 @@ func NewOpGeth(t *testing.T, ctx context.Context, cfg *SystemConfig) (*OpGeth, e
 
 	auth := rpc.WithHTTPAuth(gn.NewJWTAuth(cfg.JWTSecret))
 	l2Node, err := client.NewRPC(ctx, logger, node.WSAuthEndpoint(), client.WithGethRPCOptions(auth))
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	// Finally create the engine client
+	rollupCfg, err := cfg.DeployConfig.RollupConfig(l1Block, l2GenesisBlock.Hash(), l2GenesisBlock.NumberU64())
+	require.NoError(t, err)
+	rollupCfg.Genesis = rollupGenesis
 	l2Engine, err := sources.NewEngineClient(
 		l2Node,
 		logger,
 		nil,
-		sources.EngineClientDefaultConfig(&rollup.Config{Genesis: rollupGenesis}),
+		sources.EngineClientDefaultConfig(rollupCfg),
 	)
 	require.Nil(t, err)
 
@@ -132,7 +136,7 @@ func (d *OpGeth) Close() {
 
 // AddL2Block Appends a new L2 block to the current chain including the specified transactions
 // The L1Info transaction is automatically prepended to the created block
-func (d *OpGeth) AddL2Block(ctx context.Context, txs ...*types.Transaction) (*eth.ExecutionPayload, error) {
+func (d *OpGeth) AddL2Block(ctx context.Context, txs ...*types.Transaction) (*eth.ExecutionPayloadEnvelope, error) {
 	attrs, err := d.CreatePayloadAttributes(txs...)
 	if err != nil {
 		return nil, err
@@ -142,7 +146,9 @@ func (d *OpGeth) AddL2Block(ctx context.Context, txs ...*types.Transaction) (*et
 		return nil, err
 	}
 
-	payload, err := d.l2Engine.GetPayload(ctx, *res.PayloadID)
+	envelope, err := d.l2Engine.GetPayload(ctx, eth.PayloadInfo{ID: *res.PayloadID, Timestamp: uint64(attrs.Timestamp)})
+	payload := envelope.ExecutionPayload
+
 	if err != nil {
 		return nil, err
 	}
@@ -150,7 +156,7 @@ func (d *OpGeth) AddL2Block(ctx context.Context, txs ...*types.Transaction) (*et
 		return nil, errors.New("required transactions were not included")
 	}
 
-	status, err := d.l2Engine.NewPayload(ctx, payload)
+	status, err := d.l2Engine.NewPayload(ctx, payload, envelope.ParentBeaconBlockRoot)
 	if err != nil {
 		return nil, err
 	}
@@ -171,7 +177,7 @@ func (d *OpGeth) AddL2Block(ctx context.Context, txs ...*types.Transaction) (*et
 	}
 	d.L2Head = payload
 	d.sequenceNum = d.sequenceNum + 1
-	return payload, nil
+	return envelope, nil
 }
 
 // StartBlockBuilding begins block building for the specified PayloadAttributes by sending a engine_forkChoiceUpdated call.
@@ -198,8 +204,7 @@ func (d *OpGeth) StartBlockBuilding(ctx context.Context, attrs *eth.PayloadAttri
 // CreatePayloadAttributes creates a valid PayloadAttributes containing a L1Info deposit transaction followed by the supplied transactions.
 func (d *OpGeth) CreatePayloadAttributes(txs ...*types.Transaction) (*eth.PayloadAttributes, error) {
 	timestamp := d.L2Head.Timestamp + 2
-	regolith := d.L2ChainConfig.IsRegolith(uint64(timestamp))
-	l1Info, err := derive.L1InfoDepositBytes(d.sequenceNum, d.L1Head, d.SystemConfig, regolith)
+	l1Info, err := derive.L1InfoDepositBytes(d.l2Engine.RollupConfig(), d.SystemConfig, d.sequenceNum, d.L1Head, uint64(timestamp))
 	if err != nil {
 		return nil, err
 	}
@@ -219,12 +224,18 @@ func (d *OpGeth) CreatePayloadAttributes(txs ...*types.Transaction) (*eth.Payloa
 		withdrawals = &types.Withdrawals{}
 	}
 
+	var parentBeaconBlockRoot *common.Hash
+	if d.L2ChainConfig.IsEcotone(uint64(timestamp)) {
+		parentBeaconBlockRoot = d.L1Head.ParentBeaconRoot()
+	}
+
 	attrs := eth.PayloadAttributes{
-		Timestamp:    timestamp,
-		Transactions: txBytes,
-		NoTxPool:     true,
-		GasLimit:     (*eth.Uint64Quantity)(&d.SystemConfig.GasLimit),
-		Withdrawals:  withdrawals,
+		Timestamp:             timestamp,
+		Transactions:          txBytes,
+		NoTxPool:              true,
+		GasLimit:              (*eth.Uint64Quantity)(&d.SystemConfig.GasLimit),
+		Withdrawals:           withdrawals,
+		ParentBeaconBlockRoot: parentBeaconBlockRoot,
 	}
 	return &attrs, nil
 }

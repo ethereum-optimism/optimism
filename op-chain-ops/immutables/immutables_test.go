@@ -15,19 +15,11 @@ import (
 
 func TestBuildOptimism(t *testing.T) {
 	cfg := immutables.PredeploysImmutableConfig{
-		L2ToL1MessagePasser: struct{}{},
-		DeployerWhitelist:   struct{}{},
-		WETH9:               struct{}{},
-		L2CrossDomainMessenger: struct{ OtherMessenger common.Address }{
-			OtherMessenger: common.HexToAddress("0x1234567890123456789012345678901234567890"),
-		},
-		L2StandardBridge: struct {
-			OtherBridge common.Address
-			Messenger   common.Address
-		}{
-			OtherBridge: common.HexToAddress("0x1234567890123456789012345678901234567890"),
-			Messenger:   predeploys.L2CrossDomainMessengerAddr,
-		},
+		L2ToL1MessagePasser:    struct{}{},
+		DeployerWhitelist:      struct{}{},
+		WETH9:                  struct{}{},
+		L2CrossDomainMessenger: struct{}{},
+		L2StandardBridge:       struct{}{},
 		SequencerFeeVault: struct {
 			Recipient           common.Address
 			MinWithdrawalAmount *big.Int
@@ -42,13 +34,7 @@ func TestBuildOptimism(t *testing.T) {
 		L1Block:             struct{}{},
 		GovernanceToken:     struct{}{},
 		LegacyMessagePasser: struct{}{},
-		L2ERC721Bridge: struct {
-			OtherBridge common.Address
-			Messenger   common.Address
-		}{
-			OtherBridge: common.HexToAddress("0x1234567890123456789012345678901234567890"),
-			Messenger:   predeploys.L2CrossDomainMessengerAddr,
-		},
+		L2ERC721Bridge:      struct{}{},
 		OptimismMintableERC721Factory: struct {
 			Bridge        common.Address
 			RemoteChainId *big.Int
@@ -56,12 +42,8 @@ func TestBuildOptimism(t *testing.T) {
 			Bridge:        predeploys.L2StandardBridgeAddr,
 			RemoteChainId: big.NewInt(1),
 		},
-		OptimismMintableERC20Factory: struct {
-			Bridge common.Address
-		}{
-			Bridge: predeploys.L2StandardBridgeAddr,
-		},
-		ProxyAdmin: struct{}{},
+		OptimismMintableERC20Factory: struct{}{},
+		ProxyAdmin:                   struct{}{},
 		BaseFeeVault: struct {
 			Recipient           common.Address
 			MinWithdrawalAmount *big.Int

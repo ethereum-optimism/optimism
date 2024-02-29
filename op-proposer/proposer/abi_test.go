@@ -39,17 +39,7 @@ func setupL2OutputOracle() (common.Address, *bind.TransactOpts, *backends.Simula
 	if err != nil {
 		return common.Address{}, nil, nil, nil, err
 	}
-
-	_, _, contract, err := bindings.DeployL2OutputOracle(
-		opts,
-		backend,
-		big.NewInt(10),
-		big.NewInt(2),
-		big.NewInt(0),
-		big.NewInt(0),
-		from,
-		common.Address{0xdd},
-		big.NewInt(100))
+	_, _, contract, err := bindings.DeployL2OutputOracle(opts, backend)
 	if err != nil {
 		return common.Address{}, nil, nil, nil, err
 	}
@@ -113,13 +103,13 @@ func TestManualABIPacking(t *testing.T) {
 
 	output = testutils.RandomOutputResponse(rng)
 
-	txData, err = proposeL2OutputDGFTxData(dgfAbi, uint8(0), output)
+	txData, err = proposeL2OutputDGFTxData(dgfAbi, uint32(0), output)
 	require.NoError(t, err)
 
 	opts.GasLimit = 100_000
 	dgfTx, err := dgf.Create(
 		opts,
-		uint8(0),
+		uint32(0),
 		output.OutputRoot,
 		math.U256Bytes(new(big.Int).SetUint64(output.BlockRef.Number)),
 	)

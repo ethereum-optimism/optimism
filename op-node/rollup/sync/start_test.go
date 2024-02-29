@@ -23,7 +23,7 @@ var _ L2Chain = (*testutils.FakeChainSource)(nil)
 // - Both heads are at the tip of their respective chains
 func (c *syncStartTestCase) generateFakeL2(t *testing.T) (*testutils.FakeChainSource, rollup.Genesis) {
 	t.Helper()
-	log := testlog.Logger(t, log.LvlError)
+	log := testlog.Logger(t, log.LevelError)
 	chain := testutils.NewFakeChainSource([]string{c.L1, c.NewL1}, []string{c.L2}, int(c.GenesisL1Num), log)
 	chain.SetL2Head(len(c.L2) - 1)
 	genesis := testutils.FakeGenesis(c.GenesisL1, c.GenesisL2, int(c.GenesisL1Num))
@@ -74,8 +74,7 @@ func (c *syncStartTestCase) Run(t *testing.T) {
 		Genesis:       genesis,
 		SeqWindowSize: c.SeqWindowSize,
 	}
-	lgr := log.New()
-	lgr.SetHandler(log.DiscardHandler())
+	lgr := log.NewLogger(log.DiscardHandler())
 	result, err := FindL2Heads(context.Background(), cfg, chain, chain, lgr, &Config{})
 	if c.ExpectedErr != nil {
 		require.ErrorIs(t, err, c.ExpectedErr, "expected error")
@@ -107,6 +106,23 @@ func TestFindSyncStart(t *testing.T) {
 			SeqWindowSize:  2,
 			SafeL2Head:     'A',
 			ExpectedErr:    nil,
+		},
+		{
+			Name:           "already synced with safe head after genesis",
+			GenesisL1Num:   0,
+			L1:             "abcdefghijkj",
+			L2:             "ABCDEFGHIJKJ",
+			NewL1:          "abcdefghijkj",
+			PreFinalizedL2: 'B',
+			PreSafeL2:      'D',
+			GenesisL1:      'a',
+			GenesisL2:      'A',
+			UnsafeL2Head:   'J',
+			SeqWindowSize:  2,
+			// Important this steps back at least one safe block so the safedb is sent the latest safe head
+			// again - we may be resetting because the safedb failed to write the previous entry
+			SafeL2Head:  'C',
+			ExpectedErr: nil,
 		},
 		{
 			Name:           "small reorg long chain",

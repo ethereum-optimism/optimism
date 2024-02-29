@@ -141,7 +141,7 @@ func L1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metrics L1M
 	return nil
 }
 
-// L1ProcessFinalizedBridgeEvent will query the database for all the finalization markers for all initiated
+// L1ProcessFinalizedBridgeEvents will query the database for all the finalization markers for all initiated
 // bridge events. This covers every part of the multi-layered stack:
 //  1. OptimismPortal (Bedrock prove & finalize steps)
 //  2. L1CrossDomainMessenger (relayMessage marker)
@@ -168,6 +168,10 @@ func L1ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, metrics L1M
 				continue
 			}
 			return fmt.Errorf("missing indexed withdrawal! tx_hash = %s", provenWithdrawal.Event.TransactionHash)
+		}
+
+		if withdrawal.ProvenL1EventGUID != nil && withdrawal.ProvenL1EventGUID.ID() != provenWithdrawals[i].Event.GUID.ID() {
+			log.Info("detected re-proven withdrawal", "tx_hash", provenWithdrawal.Event.TransactionHash.String())
 		}
 
 		if err := db.BridgeTransactions.MarkL2TransactionWithdrawalProvenEvent(provenWithdrawal.WithdrawalHash, provenWithdrawals[i].Event.GUID); err != nil {

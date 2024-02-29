@@ -1,42 +1,6 @@
 [
   {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "_submissionInterval",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_l2BlockTime",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_startingBlockNumber",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_startingTimestamp",
-        "type": "uint256"
-      },
-      {
-        "internalType": "address",
-        "name": "_proposer",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_challenger",
-        "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_finalizationPeriodSeconds",
-        "type": "uint256"
-      }
-    ],
+    "inputs": [],
     "stateMutability": "nonpayable",
     "type": "constructor"
   },
@@ -258,12 +222,37 @@
     "inputs": [
       {
         "internalType": "uint256",
+        "name": "_submissionInterval",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_l2BlockTime",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
         "name": "_startingBlockNumber",
         "type": "uint256"
       },
       {
         "internalType": "uint256",
         "name": "_startingTimestamp",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "_proposer",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_challenger",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_finalizationPeriodSeconds",
         "type": "uint256"
       }
     ],

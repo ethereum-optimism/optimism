@@ -133,7 +133,7 @@ contract L2ERC721Bridge_Test is Bridge_Initializer {
     function test_bridgeERC721_localTokenZeroAddress_reverts() external {
         // Bridge the token.
         vm.prank(alice);
-        vm.expectRevert();
+        vm.expectRevert(bytes(""));
         l2ERC721Bridge.bridgeERC721(address(0), address(remoteToken), tokenId, 1234, hex"5678");
 
         // Token is not locked in the bridge.
@@ -198,7 +198,7 @@ contract L2ERC721Bridge_Test is Bridge_Initializer {
     function test_bridgeERC721To_localTokenZeroAddress_reverts() external {
         // Bridge the token.
         vm.prank(alice);
-        vm.expectRevert();
+        vm.expectRevert(bytes(""));
         l2ERC721Bridge.bridgeERC721To(address(0), address(l1ERC721Bridge), bob, tokenId, 1234, hex"5678");
 
         // Token is not locked in the bridge.

@@ -231,15 +231,13 @@ describe('OptimismPlugin', () => {
 
       test('estimateFees', async () =>
         expect(
-          await web3.op.estimateFees(
-            {
-              chainId: 10,
-              data: encodedBurnMethod,
-              type: 2,
-              to: optimistAddress[10],
-              from: '0x77194aa25a06f932c10c0f25090f3046af2c85a6',
-            }
-          )
+          await web3.op.estimateFees({
+            chainId: 10,
+            data: encodedBurnMethod,
+            type: 2,
+            to: optimistAddress[10],
+            from: '0x77194aa25a06f932c10c0f25090f3046af2c85a6',
+          })
         ).toBeTypeOf('bigint'))
     })
 

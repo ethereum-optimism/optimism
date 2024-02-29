@@ -84,7 +84,7 @@ func TestOutputRootSplitAdapter(t *testing.T) {
 
 			_, err := adapter(context.Background(), 5, preClaim, postClaim)
 			require.ErrorIs(t, err, creatorError)
-			require.Equal(t, createLocalContext(preClaim, postClaim), creator.localContext)
+			require.Equal(t, CreateLocalContext(preClaim, postClaim), creator.localContext)
 			require.Equal(t, expectedAgreed, creator.agreed)
 			require.Equal(t, expectedClaimed, creator.claimed)
 		})
@@ -115,7 +115,7 @@ func TestOutputRootSplitAdapter_FromAbsolutePrestate(t *testing.T) {
 
 	_, err := adapter(context.Background(), 5, types.Claim{}, postClaim)
 	require.ErrorIs(t, err, creatorError)
-	require.Equal(t, createLocalContext(types.Claim{}, postClaim), creator.localContext)
+	require.Equal(t, CreateLocalContext(types.Claim{}, postClaim), creator.localContext)
 	require.Equal(t, expectedAgreed, creator.agreed)
 	require.Equal(t, expectedClaimed, creator.claimed)
 }
@@ -124,17 +124,22 @@ func setupAdapterTest(t *testing.T, topDepth types.Depth) (split.ProviderCreator
 	prestateBlock := uint64(20)
 	poststateBlock := uint64(40)
 	creator := &capturingCreator{}
+	l1Head := eth.BlockID{
+		Hash:   common.Hash{0x11, 0x11},
+		Number: 11,
+	}
 	rollupClient := &stubRollupClient{
 		outputs: map[uint64]*eth.OutputResponse{
 			prestateBlock: {
 				OutputRoot: eth.Bytes32(prestateOutputRoot),
 			},
 		},
+		maxSafeHead: math.MaxUint64,
 	}
 	prestateProvider := &stubPrestateProvider{
 		absolutePrestate: prestateOutputRoot,
 	}
-	topProvider := NewTraceProviderFromInputs(testlog.Logger(t, log.LvlInfo), prestateProvider, rollupClient, topDepth, prestateBlock, poststateBlock)
+	topProvider := NewTraceProvider(testlog.Logger(t, log.LevelInfo), prestateProvider, rollupClient, l1Head, topDepth, prestateBlock, poststateBlock)
 	adapter := OutputRootSplitAdapter(topProvider, creator.Create)
 	return adapter, creator
 }
@@ -167,15 +172,15 @@ func TestCreateLocalContext(t *testing.T) {
 			prePosition:  types.NewPositionFromGIndex(big.NewInt(2)),
 			postValue:    common.HexToHash("cc00000000000000000000000000000000000000000000000000000000000000"),
 			postPosition: types.NewPositionFromGIndex(big.NewInt(3)),
-			expected:     common.Hex2Bytes("abcdef0123456789abcdef0123456789abcdef0123456789abcdef01234567890000000000000000000000000000000000000000000000000000000000000002cc000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000003"),
+			expected:     common.FromHex("abcdef0123456789abcdef0123456789abcdef0123456789abcdef01234567890000000000000000000000000000000000000000000000000000000000000002cc000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000003"),
 		},
 		{
 			name:         "LargePositions",
 			preValue:     common.HexToHash("abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"),
-			prePosition:  types.NewPositionFromGIndex(new(big.Int).SetBytes(common.Hex2Bytes("cbcdef0123456789abcdef0123456789abcdef0123456789abcdef012345678c"))),
+			prePosition:  types.NewPositionFromGIndex(new(big.Int).SetBytes(common.FromHex("cbcdef0123456789abcdef0123456789abcdef0123456789abcdef012345678c"))),
 			postValue:    common.HexToHash("dd00000000000000000000000000000000000000000000000000000000000000"),
 			postPosition: types.NewPositionFromGIndex(new(big.Int).SetUint64(math.MaxUint64)),
-			expected:     common.Hex2Bytes("abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789cbcdef0123456789abcdef0123456789abcdef0123456789abcdef012345678cdd00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000ffffffffffffffff"),
+			expected:     common.FromHex("abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789cbcdef0123456789abcdef0123456789abcdef0123456789abcdef012345678cdd00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000ffffffffffffffff"),
 		},
 		{
 			name:         "AbsolutePreState",
@@ -183,7 +188,7 @@ func TestCreateLocalContext(t *testing.T) {
 			prePosition:  types.Position{},
 			postValue:    common.HexToHash("cc00000000000000000000000000000000000000000000000000000000000000"),
 			postPosition: types.NewPositionFromGIndex(big.NewInt(3)),
-			expected:     common.Hex2Bytes("cc000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000003"),
+			expected:     common.FromHex("cc000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000003"),
 		},
 	}
 
@@ -204,7 +209,7 @@ func TestCreateLocalContext(t *testing.T) {
 			}
 			actualPreimage := localContextPreimage(pre, post)
 			require.Equal(t, test.expected, actualPreimage)
-			localContext := createLocalContext(pre, post)
+			localContext := CreateLocalContext(pre, post)
 			require.Equal(t, crypto.Keccak256Hash(test.expected), localContext)
 		})
 	}

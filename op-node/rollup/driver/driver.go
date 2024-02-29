@@ -8,6 +8,8 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/async"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -18,7 +20,7 @@ type Metrics interface {
 	RecordPublishingError()
 	RecordDerivationError()
 
-	RecordReceivedUnsafePayload(payload *eth.ExecutionPayload)
+	RecordReceivedUnsafePayload(payload *eth.ExecutionPayloadEnvelope)
 
 	RecordL1Ref(name string, ref eth.L1BlockRef)
 	RecordL2Ref(name string, ref eth.L2BlockRef)
@@ -55,17 +57,12 @@ type L2Chain interface {
 type DerivationPipeline interface {
 	Reset()
 	Step(ctx context.Context) error
-	AddUnsafePayload(payload *eth.ExecutionPayload)
-	UnsafeL2SyncTarget() eth.L2BlockRef
+	AddUnsafePayload(payload *eth.ExecutionPayloadEnvelope)
 	Finalize(ref eth.L1BlockRef)
 	FinalizedL1() eth.L1BlockRef
-	Finalized() eth.L2BlockRef
-	SafeL2Head() eth.L2BlockRef
-	UnsafeL2Head() eth.L2BlockRef
-	PendingSafeL2Head() eth.L2BlockRef
 	Origin() eth.L1BlockRef
 	EngineReady() bool
-	EngineSyncTarget() eth.L2BlockRef
+	LowestQueuedUnsafeBlock() eth.L2BlockRef
 }
 
 type L1StateIface interface {
@@ -80,16 +77,16 @@ type L1StateIface interface {
 
 type SequencerIface interface {
 	StartBuildingBlock(ctx context.Context) error
-	CompleteBuildingBlock(ctx context.Context) (*eth.ExecutionPayload, error)
+	CompleteBuildingBlock(ctx context.Context, agossip async.AsyncGossiper, sequencerConductor conductor.SequencerConductor) (*eth.ExecutionPayloadEnvelope, error)
 	PlanNextSequencerAction() time.Duration
-	RunNextSequencerAction(ctx context.Context) (*eth.ExecutionPayload, error)
+	RunNextSequencerAction(ctx context.Context, agossip async.AsyncGossiper, sequencerConductor conductor.SequencerConductor) (*eth.ExecutionPayloadEnvelope, error)
 	BuildingOnto() eth.L2BlockRef
 	CancelBuildingBlock(ctx context.Context)
 }
 
 type Network interface {
 	// PublishL2Payload is called by the driver whenever there is a new payload to publish, synchronously with the driver main loop.
-	PublishL2Payload(ctx context.Context, payload *eth.ExecutionPayload) error
+	PublishL2Payload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) error
 }
 
 type AltSync interface {
@@ -117,42 +114,63 @@ type SequencerStateListener interface {
 }
 
 // NewDriver composes an events handler that tracks L1 state, triggers L2 derivation, and optionally sequences new L2 blocks.
-func NewDriver(driverCfg *Config, cfg *rollup.Config, l2 L2Chain, l1 L1Chain, altSync AltSync, network Network, log log.Logger, snapshotLog log.Logger, metrics Metrics, sequencerStateListener SequencerStateListener, syncCfg *sync.Config) *Driver {
+func NewDriver(
+	driverCfg *Config,
+	cfg *rollup.Config,
+	l2 L2Chain,
+	l1 L1Chain,
+	l1Blobs derive.L1BlobsFetcher,
+	altSync AltSync,
+	network Network,
+	log log.Logger,
+	snapshotLog log.Logger,
+	metrics Metrics,
+	sequencerStateListener SequencerStateListener,
+	safeHeadListener derive.SafeHeadListener,
+	syncCfg *sync.Config,
+	sequencerConductor conductor.SequencerConductor,
+	plasma derive.PlasmaInputFetcher,
+) *Driver {
 	l1 = NewMeteredL1Fetcher(l1, metrics)
 	l1State := NewL1State(log, metrics)
 	sequencerConfDepth := NewConfDepth(driverCfg.SequencerConfDepth, l1State.L1Head, l1)
 	findL1Origin := NewL1OriginSelector(log, cfg, sequencerConfDepth)
 	verifConfDepth := NewConfDepth(driverCfg.VerifierConfDepth, l1State.L1Head, l1)
-	derivationPipeline := derive.NewDerivationPipeline(log, cfg, verifConfDepth, l2, metrics, syncCfg)
+	engine := derive.NewEngineController(l2, log, metrics, cfg, syncCfg.SyncMode)
+	derivationPipeline := derive.NewDerivationPipeline(log, cfg, verifConfDepth, l1Blobs, plasma, l2, engine, metrics, syncCfg, safeHeadListener)
 	attrBuilder := derive.NewFetchingAttributesBuilder(cfg, l1, l2)
-	engine := derivationPipeline
-	meteredEngine := NewMeteredEngine(cfg, engine, metrics, log)
+	meteredEngine := NewMeteredEngine(cfg, engine, metrics, log) // Only use the metered engine in the sequencer b/c it records sequencing metrics.
 	sequencer := NewSequencer(log, cfg, meteredEngine, attrBuilder, findL1Origin, metrics)
 	driverCtx, driverCancel := context.WithCancel(context.Background())
+	asyncGossiper := async.NewAsyncGossiper(driverCtx, network, log, metrics)
 	return &Driver{
-		l1State:          l1State,
-		derivation:       derivationPipeline,
-		stateReq:         make(chan chan struct{}),
-		forceReset:       make(chan chan struct{}, 10),
-		startSequencer:   make(chan hashAndErrorChannel, 10),
-		stopSequencer:    make(chan chan hashAndError, 10),
-		sequencerActive:  make(chan chan bool, 10),
-		sequencerNotifs:  sequencerStateListener,
-		config:           cfg,
-		driverConfig:     driverCfg,
-		driverCtx:        driverCtx,
-		driverCancel:     driverCancel,
-		log:              log,
-		snapshotLog:      snapshotLog,
-		l1:               l1,
-		l2:               l2,
-		sequencer:        sequencer,
-		network:          network,
-		metrics:          metrics,
-		l1HeadSig:        make(chan eth.L1BlockRef, 10),
-		l1SafeSig:        make(chan eth.L1BlockRef, 10),
-		l1FinalizedSig:   make(chan eth.L1BlockRef, 10),
-		unsafeL2Payloads: make(chan *eth.ExecutionPayload, 10),
-		altSync:          altSync,
+		l1State:            l1State,
+		derivation:         derivationPipeline,
+		engineController:   engine,
+		stateReq:           make(chan chan struct{}),
+		forceReset:         make(chan chan struct{}, 10),
+		startSequencer:     make(chan hashAndErrorChannel, 10),
+		stopSequencer:      make(chan chan hashAndError, 10),
+		sequencerActive:    make(chan chan bool, 10),
+		sequencerNotifs:    sequencerStateListener,
+		config:             cfg,
+		syncCfg:            syncCfg,
+		driverConfig:       driverCfg,
+		driverCtx:          driverCtx,
+		driverCancel:       driverCancel,
+		log:                log,
+		snapshotLog:        snapshotLog,
+		l1:                 l1,
+		l2:                 l2,
+		sequencer:          sequencer,
+		network:            network,
+		metrics:            metrics,
+		l1HeadSig:          make(chan eth.L1BlockRef, 10),
+		l1SafeSig:          make(chan eth.L1BlockRef, 10),
+		l1FinalizedSig:     make(chan eth.L1BlockRef, 10),
+		unsafeL2Payloads:   make(chan *eth.ExecutionPayloadEnvelope, 10),
+		altSync:            altSync,
+		asyncGossiper:      asyncGossiper,
+		sequencerConductor: sequencerConductor,
 	}
 }

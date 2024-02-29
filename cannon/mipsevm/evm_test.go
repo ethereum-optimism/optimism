@@ -9,7 +9,6 @@ import (
 	"math/big"
 	"os"
 	"path"
-	"strings"
 	"testing"
 	"time"
 
@@ -21,8 +20,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/eth/tracers/logger"
 	"github.com/stretchr/testify/require"
-
-	"github.com/ethereum-optimism/optimism/op-chain-ops/srcmap"
 )
 
 func testContractsSetup(t require.TestingT) (*Contracts, *Addresses) {
@@ -39,35 +36,28 @@ func testContractsSetup(t require.TestingT) (*Contracts, *Addresses) {
 	return contracts, addrs
 }
 
-func SourceMapTracer(t *testing.T, contracts *Contracts, addrs *Addresses) vm.EVMLogger {
-	t.Fatal("TODO(clabby): The source map tracer is disabled until source IDs have been added to foundry artifacts.")
-
-	contractsDir := "../../packages/contracts-bedrock"
-	mipsSrcMap, err := contracts.MIPS.SourceMap([]string{path.Join(contractsDir, "src/cannon/MIPS.sol")})
-	require.NoError(t, err)
-	oracleSrcMap, err := contracts.Oracle.SourceMap([]string{path.Join(contractsDir, "src/cannon/PreimageOracle.sol")})
-	require.NoError(t, err)
-
-	return srcmap.NewSourceMapTracer(map[common.Address]*srcmap.SourceMap{addrs.MIPS: mipsSrcMap, addrs.Oracle: oracleSrcMap}, os.Stdout)
-}
-
 func MarkdownTracer() vm.EVMLogger {
 	return logger.NewMarkdownLogger(&logger.Config{}, os.Stdout)
 }
 
 type MIPSEVM struct {
-	env      *vm.EVM
-	evmState *state.StateDB
-	addrs    *Addresses
+	env         *vm.EVM
+	evmState    *state.StateDB
+	addrs       *Addresses
+	localOracle PreimageOracle
 }
 
 func NewMIPSEVM(contracts *Contracts, addrs *Addresses) *MIPSEVM {
 	env, evmState := NewEVMEnv(contracts, addrs)
-	return &MIPSEVM{env, evmState, addrs}
+	return &MIPSEVM{env, evmState, addrs, nil}
 }
 
 func (m *MIPSEVM) SetTracer(tracer vm.EVMLogger) {
 	m.env.Config.Tracer = tracer
+}
+
+func (m *MIPSEVM) SetLocalOracle(oracle PreimageOracle) {
+	m.localOracle = oracle
 }
 
 // Step is a pure function that computes the poststate from the VM state encoded in the StepWitness.
@@ -80,7 +70,7 @@ func (m *MIPSEVM) Step(t *testing.T, stepWitness *StepWitness) []byte {
 
 	if stepWitness.HasPreimage() {
 		t.Logf("reading preimage key %x at offset %d", stepWitness.PreimageKey, stepWitness.PreimageOffset)
-		poInput, err := encodePreimageOracleInput(t, stepWitness, LocalContext{})
+		poInput, err := encodePreimageOracleInput(t, stepWitness, LocalContext{}, m.localOracle)
 		require.NoError(t, err, "encode preimage oracle input")
 		_, leftOverGas, err := m.env.Call(vm.AccountRef(sender), m.addrs.Oracle, poInput, startingGas, big.NewInt(0))
 		require.NoErrorf(t, err, "evm should not fail, took %d gas", startingGas-leftOverGas)
@@ -114,7 +104,7 @@ func encodeStepInput(t *testing.T, wit *StepWitness, localContext LocalContext) 
 	return input
 }
 
-func encodePreimageOracleInput(t *testing.T, wit *StepWitness, localContext LocalContext) ([]byte, error) {
+func encodePreimageOracleInput(t *testing.T, wit *StepWitness, localContext LocalContext, localOracle PreimageOracle) ([]byte, error) {
 	if wit.PreimageKey == ([32]byte{}) {
 		return nil, errors.New("cannot encode pre-image oracle input, witness has no pre-image to proof")
 	}
@@ -146,6 +136,18 @@ func encodePreimageOracleInput(t *testing.T, wit *StepWitness, localContext Loca
 			wit.PreimageValue[8:])
 		require.NoError(t, err)
 		return input, nil
+	case preimage.KZGPointEvaluationKeyType:
+		if localOracle == nil {
+			return nil, fmt.Errorf("local oracle is required for point evaluation preimages")
+		}
+		preimage := localOracle.GetPreimage(preimage.Keccak256Key(wit.PreimageKey).PreimageKey())
+		input, err := preimageAbi.Pack(
+			"loadKZGPointEvaluationPreimagePart",
+			new(big.Int).SetUint64(uint64(wit.PreimageOffset)),
+			preimage,
+		)
+		require.NoError(t, err)
+		return input, nil
 	default:
 		return nil, fmt.Errorf("unsupported pre-image type %d, cannot prepare preimage with key %x offset %d for oracle",
 			wit.PreimageKey[0], wit.PreimageKey, wit.PreimageOffset)
@@ -157,20 +159,17 @@ func TestEVM(t *testing.T) {
 	require.NoError(t, err)
 
 	contracts, addrs := testContractsSetup(t)
-	var tracer vm.EVMLogger // no-tracer by default, but see SourceMapTracer and MarkdownTracer
-	//tracer = SourceMapTracer(t, contracts, addrs)
+	var tracer vm.EVMLogger // no-tracer by default, but MarkdownTracer
 
 	for _, f := range testFiles {
 		t.Run(f.Name(), func(t *testing.T) {
-			var oracle PreimageOracle
-			if strings.HasPrefix(f.Name(), "oracle") {
-				oracle = staticOracle(t, []byte("hello world"))
-			}
+			oracle := selectOracleFixture(t, f.Name())
 			// Short-circuit early for exit_group.bin
 			exitGroup := f.Name() == "exit_group.bin"
 
 			evm := NewMIPSEVM(contracts, addrs)
 			evm.SetTracer(tracer)
+			evm.SetLocalOracle(oracle)
 
 			fn := path.Join("open_mips_tests/test/bin", f.Name())
 			programMem, err := os.ReadFile(fn)
@@ -221,7 +220,6 @@ func TestEVM(t *testing.T) {
 func TestEVMSingleStep(t *testing.T) {
 	contracts, addrs := testContractsSetup(t)
 	var tracer vm.EVMLogger
-	//tracer = SourceMapTracer(t, contracts, addrs)
 
 	cases := []struct {
 		name   string
@@ -256,8 +254,7 @@ func TestEVMSingleStep(t *testing.T) {
 
 func TestEVMFault(t *testing.T) {
 	contracts, addrs := testContractsSetup(t)
-	var tracer vm.EVMLogger // no-tracer by default, but see SourceMapTracer and MarkdownTracer
-	//tracer = SourceMapTracer(t, contracts, addrs)
+	var tracer vm.EVMLogger // no-tracer by default, but see MarkdownTracer
 	sender := common.Address{0x13, 0x37}
 
 	env, evmState := NewEVMEnv(contracts, addrs)
@@ -303,8 +300,7 @@ func TestEVMFault(t *testing.T) {
 
 func TestHelloEVM(t *testing.T) {
 	contracts, addrs := testContractsSetup(t)
-	var tracer vm.EVMLogger // no-tracer by default, but see SourceMapTracer and MarkdownTracer
-	//tracer = SourceMapTracer(t, contracts, addrs)
+	var tracer vm.EVMLogger // no-tracer by default, but see MarkdownTracer
 
 	elfProgram, err := elf.Open("../example/bin/hello.elf")
 	require.NoError(t, err, "open ELF file")
@@ -354,8 +350,7 @@ func TestHelloEVM(t *testing.T) {
 
 func TestClaimEVM(t *testing.T) {
 	contracts, addrs := testContractsSetup(t)
-	var tracer vm.EVMLogger // no-tracer by default, but see SourceMapTracer and MarkdownTracer
-	//tracer = SourceMapTracer(t, contracts, addrs)
+	var tracer vm.EVMLogger // no-tracer by default, but see MarkdownTracer
 
 	elfProgram, err := elf.Open("../example/bin/claim.elf")
 	require.NoError(t, err, "open ELF file")

@@ -200,12 +200,9 @@ func TestPostUnsafePayload(t *testing.T) {
 	require.NoError(t, err)
 	payload, err := eth.BlockAsPayload(blockNumberOne, sys.RollupConfig.CanyonTime)
 	require.NoError(t, err)
-	err = rollupClient.PostUnsafePayload(ctx, payload)
+	err = rollupClient.PostUnsafePayload(ctx, &eth.ExecutionPayloadEnvelope{ExecutionPayload: payload})
 	require.NoError(t, err)
-
-	ss, err := rollupClient.SyncStatus(ctx)
-	require.NoError(t, err)
-	require.Equal(t, uint64(1), ss.UnsafeL2.Number)
+	require.NoError(t, wait.ForUnsafeBlock(ctx, rollupClient, 1), "Chain did not advance after posting payload")
 
 	// Test validation
 	blockNumberTwo, err := l2Seq.BlockByNumber(ctx, big.NewInt(2))
@@ -213,7 +210,7 @@ func TestPostUnsafePayload(t *testing.T) {
 	payload, err = eth.BlockAsPayload(blockNumberTwo, sys.RollupConfig.CanyonTime)
 	require.NoError(t, err)
 	payload.BlockHash = common.Hash{0xaa}
-	err = rollupClient.PostUnsafePayload(ctx, payload)
+	err = rollupClient.PostUnsafePayload(ctx, &eth.ExecutionPayloadEnvelope{ExecutionPayload: payload})
 	require.ErrorContains(t, err, "payload has bad block hash")
 }
 

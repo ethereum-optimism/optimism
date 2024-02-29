@@ -12,7 +12,7 @@ import (
 )
 
 func TestLoadConfig(t *testing.T) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	tmpfile, err := os.CreateTemp("", "test.toml")
 	require.NoError(t, err)
 	defer os.Remove(tmpfile.Name())
@@ -98,6 +98,7 @@ func TestLoadConfigWithoutPreset(t *testing.T) {
 		l2-output-oracle = "0x42097868233d1aa22e815a266982f2cf17685a27"
 		l1-cross-domain-messenger = "0x420ce71c97B33Cc4729CF772ae268934F7ab5fA1"
 		l1-standard-bridge = "0x4209fc46f92E8a1c0deC1b1747d010903E884bE1"
+		dispute-game-factory = "0x4209fc46f92E8a1c0deC1b1747d010903E884bE1"
 
         [rpcs]
         l1-rpc = "https://l1.example.com"
@@ -112,7 +113,7 @@ func TestLoadConfigWithoutPreset(t *testing.T) {
 	err = tmpfile.Close()
 	require.NoError(t, err)
 
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	conf, err := LoadConfig(logger, tmpfile.Name())
 	require.NoError(t, err)
 
@@ -146,7 +147,7 @@ func TestLoadConfigWithUnknownPreset(t *testing.T) {
 	err = tmpfile.Close()
 	require.NoError(t, err)
 
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	conf, err := LoadConfig(logger, tmpfile.Name())
 	require.Error(t, err)
 
@@ -178,7 +179,7 @@ func TestLoadConfigPollingValues(t *testing.T) {
 	err = tmpfile.Close()
 	require.NoError(t, err)
 
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	conf, err := LoadConfig(logger, tmpfile.Name())
 	require.NoError(t, err)
 
@@ -224,7 +225,7 @@ func TestLoadedConfigPresetPrecendence(t *testing.T) {
 	err = tmpfile.Close()
 	require.NoError(t, err)
 
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	conf, err := LoadConfig(logger, tmpfile.Name())
 	require.NoError(t, err)
 
@@ -265,7 +266,7 @@ func TestLocalDevnet(t *testing.T) {
 	err = tmpfile.Close()
 	require.NoError(t, err)
 
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	conf, err := LoadConfig(logger, tmpfile.Name())
 	require.NoError(t, err)
 
@@ -276,7 +277,7 @@ func TestLocalDevnet(t *testing.T) {
 }
 
 func TestThrowsOnUnknownKeys(t *testing.T) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	tmpfile, err := os.CreateTemp("", "test.toml")
 	require.NoError(t, err)
 	defer os.Remove(tmpfile.Name())

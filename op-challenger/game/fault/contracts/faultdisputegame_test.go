@@ -105,6 +105,54 @@ func TestSimpleGetters(t *testing.T) {
 	}
 }
 
+func TestClock_EncodingDecoding(t *testing.T) {
+	t.Run("DurationAndTimestamp", func(t *testing.T) {
+		by := common.Hex2Bytes("00000000000000050000000000000002")
+		encoded := new(big.Int).SetBytes(by)
+		clock := decodeClock(encoded)
+		require.Equal(t, uint64(5), clock.Duration)
+		require.Equal(t, uint64(2), clock.Timestamp)
+		require.Equal(t, encoded, packClock(clock))
+	})
+
+	t.Run("ZeroDuration", func(t *testing.T) {
+		by := common.Hex2Bytes("00000000000000000000000000000002")
+		encoded := new(big.Int).SetBytes(by)
+		clock := decodeClock(encoded)
+		require.Equal(t, uint64(0), clock.Duration)
+		require.Equal(t, uint64(2), clock.Timestamp)
+		require.Equal(t, encoded, packClock(clock))
+	})
+
+	t.Run("ZeroTimestamp", func(t *testing.T) {
+		by := common.Hex2Bytes("00000000000000050000000000000000")
+		encoded := new(big.Int).SetBytes(by)
+		clock := decodeClock(encoded)
+		require.Equal(t, uint64(5), clock.Duration)
+		require.Equal(t, uint64(0), clock.Timestamp)
+		require.Equal(t, encoded, packClock(clock))
+	})
+
+	t.Run("ZeroClock", func(t *testing.T) {
+		by := common.Hex2Bytes("00000000000000000000000000000000")
+		encoded := new(big.Int).SetBytes(by)
+		clock := decodeClock(encoded)
+		require.Equal(t, uint64(0), clock.Duration)
+		require.Equal(t, uint64(0), clock.Timestamp)
+		require.Equal(t, encoded.Uint64(), packClock(clock).Uint64())
+	})
+}
+
+func TestGetOracleAddr(t *testing.T) {
+	stubRpc, game := setupFaultDisputeGameTest(t)
+	stubRpc.SetResponse(fdgAddr, methodVM, batching.BlockLatest, nil, []interface{}{vmAddr})
+	stubRpc.SetResponse(vmAddr, methodOracle, batching.BlockLatest, nil, []interface{}{oracleAddr})
+
+	actual, err := game.GetOracle(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, oracleAddr, actual.Addr())
+}
+
 func TestGetClaim(t *testing.T) {
 	stubRpc, game := setupFaultDisputeGameTest(t)
 	idx := big.NewInt(2)
@@ -126,7 +174,7 @@ func TestGetClaim(t *testing.T) {
 		},
 		CounteredBy:         counteredBy,
 		Claimant:            claimant,
-		Clock:               1234,
+		Clock:               decodeClock(big.NewInt(1234)),
 		ContractIndex:       int(idx.Uint64()),
 		ParentContractIndex: 1,
 	}, status)
@@ -142,7 +190,7 @@ func TestGetAllClaims(t *testing.T) {
 		},
 		CounteredBy:         common.Address{0x01},
 		Claimant:            common.Address{0x02},
-		Clock:               1234,
+		Clock:               decodeClock(big.NewInt(1234)),
 		ContractIndex:       0,
 		ParentContractIndex: math.MaxUint32,
 	}
@@ -154,7 +202,7 @@ func TestGetAllClaims(t *testing.T) {
 		},
 		CounteredBy:         common.Address{0x02},
 		Claimant:            common.Address{0x01},
-		Clock:               4455,
+		Clock:               decodeClock(big.NewInt(4455)),
 		ContractIndex:       1,
 		ParentContractIndex: 0,
 	}
@@ -165,7 +213,7 @@ func TestGetAllClaims(t *testing.T) {
 			Bond:     big.NewInt(5),
 		},
 		Claimant:            common.Address{0x02},
-		Clock:               7777,
+		Clock:               decodeClock(big.NewInt(7777)),
 		ContractIndex:       2,
 		ParentContractIndex: 1,
 	}
@@ -243,7 +291,7 @@ func expectGetClaim(stubRpc *batchingTest.AbiBasedRpc, claim faultTypes.Claim) {
 			claim.Bond,
 			claim.Value,
 			claim.Position.ToGIndex(),
-			big.NewInt(int64(claim.Clock)),
+			packClock(claim.Clock),
 		})
 }
 
@@ -268,6 +316,24 @@ func TestGetSplitDepth(t *testing.T) {
 	require.Equal(t, expectedSplitDepth, splitDepth)
 }
 
+func TestGetGameMetadata(t *testing.T) {
+	stubRpc, contract := setupFaultDisputeGameTest(t)
+	expectedL2BlockNumber := uint64(123)
+	expectedGameDuration := uint64(456)
+	expectedRootClaim := common.Hash{0x01, 0x02}
+	expectedStatus := types.GameStatusChallengerWon
+	stubRpc.SetResponse(fdgAddr, methodL2BlockNumber, batching.BlockLatest, nil, []interface{}{new(big.Int).SetUint64(expectedL2BlockNumber)})
+	stubRpc.SetResponse(fdgAddr, methodRootClaim, batching.BlockLatest, nil, []interface{}{expectedRootClaim})
+	stubRpc.SetResponse(fdgAddr, methodStatus, batching.BlockLatest, nil, []interface{}{expectedStatus})
+	stubRpc.SetResponse(fdgAddr, methodGameDuration, batching.BlockLatest, nil, []interface{}{expectedGameDuration})
+	l2BlockNumber, rootClaim, status, duration, err := contract.GetGameMetadata(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, expectedL2BlockNumber, l2BlockNumber)
+	require.Equal(t, expectedRootClaim, rootClaim)
+	require.Equal(t, expectedStatus, status)
+	require.Equal(t, expectedGameDuration, duration)
+}
+
 func TestGetGenesisOutputRoot(t *testing.T) {
 	stubRpc, contract := setupFaultDisputeGameTest(t)
 	expectedOutputRoot := common.HexToHash("0x1234")
@@ -280,12 +346,7 @@ func TestGetGenesisOutputRoot(t *testing.T) {
 func TestFaultDisputeGame_UpdateOracleTx(t *testing.T) {
 	t.Run("Local", func(t *testing.T) {
 		stubRpc, game := setupFaultDisputeGameTest(t)
-		data := &faultTypes.PreimageOracleData{
-			IsLocal:      true,
-			OracleKey:    common.Hash{0xbc}.Bytes(),
-			OracleData:   []byte{1, 2, 3, 4, 5, 6, 7},
-			OracleOffset: 16,
-		}
+		data := faultTypes.NewPreimageOracleData(common.Hash{0x01, 0xbc}.Bytes(), []byte{1, 2, 3, 4, 5, 6, 7}, 16)
 		claimIdx := uint64(6)
 		stubRpc.SetResponse(fdgAddr, methodAddLocalData, batching.BlockLatest, []interface{}{
 			data.GetIdent(),
@@ -299,12 +360,7 @@ func TestFaultDisputeGame_UpdateOracleTx(t *testing.T) {
 
 	t.Run("Global", func(t *testing.T) {
 		stubRpc, game := setupFaultDisputeGameTest(t)
-		data := &faultTypes.PreimageOracleData{
-			IsLocal:      false,
-			OracleKey:    common.Hash{0xbc}.Bytes(),
-			OracleData:   []byte{1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15},
-			OracleOffset: 16,
-		}
+		data := faultTypes.NewPreimageOracleData(common.Hash{0x02, 0xbc}.Bytes(), []byte{1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15}, 16)
 		claimIdx := uint64(6)
 		stubRpc.SetResponse(fdgAddr, methodVM, batching.BlockLatest, nil, []interface{}{vmAddr})
 		stubRpc.SetResponse(vmAddr, methodOracle, batching.BlockLatest, nil, []interface{}{oracleAddr})
@@ -316,6 +372,37 @@ func TestFaultDisputeGame_UpdateOracleTx(t *testing.T) {
 		require.NoError(t, err)
 		stubRpc.VerifyTxCandidate(tx)
 	})
+}
+
+func TestFaultDisputeGame_GetCredit(t *testing.T) {
+	stubRpc, game := setupFaultDisputeGameTest(t)
+	addr := common.Address{0x01}
+	expected := big.NewInt(4284)
+	stubRpc.SetResponse(fdgAddr, methodCredit, batching.BlockLatest, []interface{}{addr}, []interface{}{expected})
+
+	actual, err := game.GetCredit(context.Background(), addr)
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
+}
+
+func TestFaultDisputeGame_GetCredits(t *testing.T) {
+	stubRpc, game := setupFaultDisputeGameTest(t)
+
+	block := batching.BlockByNumber(482)
+
+	addrs := []common.Address{{0x01}, {0x02}, {0x03}}
+	expected := []*big.Int{big.NewInt(1), big.NewInt(2), big.NewInt(0)}
+
+	for i, addr := range addrs {
+		stubRpc.SetResponse(fdgAddr, methodCredit, block, []interface{}{addr}, []interface{}{expected[i]})
+	}
+
+	actual, err := game.GetCredits(context.Background(), block, addrs...)
+	require.NoError(t, err)
+	require.Equal(t, len(expected), len(actual))
+	for i := range expected {
+		require.Zerof(t, expected[i].Cmp(actual[i]), "expected: %v actual: %v", expected[i], actual[i])
+	}
 }
 
 func setupFaultDisputeGameTest(t *testing.T) (*batchingTest.AbiBasedRpc, *FaultDisputeGameContract) {

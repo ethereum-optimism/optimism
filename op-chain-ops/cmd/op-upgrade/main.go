@@ -18,12 +18,15 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/safe"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/upgrades"
+	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 
 	"github.com/ethereum-optimism/superchain-registry/superchain"
 )
 
 func main() {
-	log.Root().SetHandler(log.StreamHandler(os.Stderr, log.TerminalFormat(isatty.IsTerminal(os.Stderr.Fd()))))
+	color := isatty.IsTerminal(os.Stderr.Fd())
+	oplog.SetGlobalLogHandler(log.NewTerminalHandler(os.Stderr, color))
 
 	app := &cli.App{
 		Name:  "op-upgrade",
@@ -78,11 +81,16 @@ func entrypoint(ctx *cli.Context) error {
 	}
 
 	superchainName := ctx.String("superchain-target")
-	if superchainName == "" {
-		superchainName, err = toSuperchainName(l1ChainID.Uint64())
-		if err != nil {
-			return err
-		}
+	sc, ok := superchain.Superchains[superchainName]
+	if !ok {
+		return fmt.Errorf("superchain name %s not registered", superchainName)
+	}
+
+	declaredChainID := sc.Config.L1.ChainID
+
+	if declaredChainID != l1ChainID.Uint64() {
+		return fmt.Errorf("superchain %s has chainID %d, but the l1-rpc-url returned a chainId of %d",
+			superchainName, declaredChainID, l1ChainID.Uint64())
 	}
 
 	chainIDs := ctx.Uint64Slice("chain-ids")
@@ -167,14 +175,14 @@ func entrypoint(ctx *cli.Context) error {
 		log.Info("L2OutputOracle", "version", versions.L2OutputOracle, "address", addresses.L2OutputOracleProxy)
 		log.Info("OptimismMintableERC20Factory", "version", versions.OptimismMintableERC20Factory, "address", addresses.OptimismMintableERC20FactoryProxy)
 		log.Info("OptimismPortal", "version", versions.OptimismPortal, "address", addresses.OptimismPortalProxy)
-		log.Info("SystemConfig", "version", versions.SystemConfig, "address", chainConfig.SystemConfigAddr)
+		log.Info("SystemConfig", "version", versions.SystemConfig, "address", addresses.SystemConfigProxy)
 
 		implementations, ok := superchain.Implementations[l1ChainID.Uint64()]
 		if !ok {
 			return fmt.Errorf("no implementations for chain ID %d", l1ChainID.Uint64())
 		}
 
-		list, err := implementations.Resolve(superchain.SuperchainSemver)
+		list, err := implementations.Resolve(superchain.SuperchainSemver[superchainName])
 		if err != nil {
 			return err
 		}
@@ -202,7 +210,7 @@ func entrypoint(ctx *cli.Context) error {
 
 	// Write the batch to disk or stdout
 	if outfile := ctx.Path("outfile"); outfile != "" {
-		if err := writeJSON(outfile, batch); err != nil {
+		if err := jsonutil.WriteJSON(outfile, batch, 0o666); err != nil {
 			return err
 		}
 	} else {
@@ -239,31 +247,4 @@ func toDeployConfigName(cfg *superchain.ChainConfig) (string, error) {
 		return "zora-goerli", nil
 	}
 	return "", fmt.Errorf("unsupported chain name %s", cfg.Name)
-}
-
-// toSuperchainName turns a base layer chain id into a superchain
-// network name.
-func toSuperchainName(chainID uint64) (string, error) {
-	if chainID == 1 {
-		return "mainnet", nil
-	}
-	if chainID == 5 {
-		return "goerli", nil
-	}
-	if chainID == 11155111 {
-		return "sepolia", nil
-	}
-	return "", fmt.Errorf("unsupported chain ID %d", chainID)
-}
-
-func writeJSON(outfile string, input interface{}) error {
-	f, err := os.OpenFile(outfile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o666)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	enc := json.NewEncoder(f)
-	enc.SetIndent("", "  ")
-	return enc.Encode(input)
 }

@@ -1,6 +1,7 @@
 package derive
 
 import (
+	"encoding/binary"
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/core/types"
@@ -11,7 +12,8 @@ import (
 
 // PayloadToBlockRef extracts the essential L2BlockRef information from an execution payload,
 // falling back to genesis information if necessary.
-func PayloadToBlockRef(payload *eth.ExecutionPayload, genesis *rollup.Genesis) (eth.L2BlockRef, error) {
+func PayloadToBlockRef(rollupCfg *rollup.Config, payload *eth.ExecutionPayload) (eth.L2BlockRef, error) {
+	genesis := &rollupCfg.Genesis
 	var l1Origin eth.BlockID
 	var sequenceNumber uint64
 	if uint64(payload.BlockNumber) == genesis.L2.Number {
@@ -31,7 +33,7 @@ func PayloadToBlockRef(payload *eth.ExecutionPayload, genesis *rollup.Genesis) (
 		if tx.Type() != types.DepositTxType {
 			return eth.L2BlockRef{}, fmt.Errorf("first payload tx has unexpected tx type: %d", tx.Type())
 		}
-		info, err := L1InfoDepositTxData(tx.Data())
+		info, err := L1BlockInfoFromBytes(rollupCfg, uint64(payload.Timestamp), tx.Data())
 		if err != nil {
 			return eth.L2BlockRef{}, fmt.Errorf("failed to parse L1 info deposit tx from L2 block: %w", err)
 		}
@@ -49,12 +51,14 @@ func PayloadToBlockRef(payload *eth.ExecutionPayload, genesis *rollup.Genesis) (
 	}, nil
 }
 
-func PayloadToSystemConfig(payload *eth.ExecutionPayload, cfg *rollup.Config) (eth.SystemConfig, error) {
-	if uint64(payload.BlockNumber) == cfg.Genesis.L2.Number {
-		if payload.BlockHash != cfg.Genesis.L2.Hash {
-			return eth.SystemConfig{}, fmt.Errorf("expected L2 genesis hash to match L2 block at genesis block number %d: %s <> %s", cfg.Genesis.L2.Number, payload.BlockHash, cfg.Genesis.L2.Hash)
+func PayloadToSystemConfig(rollupCfg *rollup.Config, payload *eth.ExecutionPayload) (eth.SystemConfig, error) {
+	if uint64(payload.BlockNumber) == rollupCfg.Genesis.L2.Number {
+		if payload.BlockHash != rollupCfg.Genesis.L2.Hash {
+			return eth.SystemConfig{}, fmt.Errorf(
+				"expected L2 genesis hash to match L2 block at genesis block number %d: %s <> %s",
+				rollupCfg.Genesis.L2.Number, payload.BlockHash, rollupCfg.Genesis.L2.Hash)
 		}
-		return cfg.Genesis.SystemConfig, nil
+		return rollupCfg.Genesis.SystemConfig, nil
 	} else {
 		if len(payload.Transactions) == 0 {
 			return eth.SystemConfig{}, fmt.Errorf("l2 block is missing L1 info deposit tx, block hash: %s", payload.BlockHash)
@@ -66,9 +70,17 @@ func PayloadToSystemConfig(payload *eth.ExecutionPayload, cfg *rollup.Config) (e
 		if tx.Type() != types.DepositTxType {
 			return eth.SystemConfig{}, fmt.Errorf("first payload tx has unexpected tx type: %d", tx.Type())
 		}
-		info, err := L1InfoDepositTxData(tx.Data())
+		info, err := L1BlockInfoFromBytes(rollupCfg, uint64(payload.Timestamp), tx.Data())
 		if err != nil {
 			return eth.SystemConfig{}, fmt.Errorf("failed to parse L1 info deposit tx from L2 block: %w", err)
+		}
+		if isEcotoneButNotFirstBlock(rollupCfg, uint64(payload.Timestamp)) {
+			// Translate Ecotone values back into encoded scalar if needed.
+			// We do not know if it was derived from a v0 or v1 scalar,
+			// but v1 is fine, a 0 blob base fee has the same effect.
+			info.L1FeeScalar[0] = 1
+			binary.BigEndian.PutUint32(info.L1FeeScalar[24:28], info.BlobBaseFeeScalar)
+			binary.BigEndian.PutUint32(info.L1FeeScalar[28:32], info.BaseFeeScalar)
 		}
 		return eth.SystemConfig{
 			BatcherAddr: info.BatcherAddr,

@@ -13,15 +13,17 @@ import (
 	"github.com/ethereum-optimism/optimism/indexer/client"
 	"github.com/ethereum-optimism/optimism/indexer/config"
 	"github.com/ethereum-optimism/optimism/indexer/database"
-	"github.com/prometheus/client_golang/prometheus"
 
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
+
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 )
 
@@ -56,7 +58,7 @@ func init() {
 	// Disable the global logger. Ideally we'd like to dump geth
 	// logs per-test but that's possible when running tests in
 	// parallel as the root logger is shared.
-	log.Root().SetHandler(log.DiscardHandler())
+	oplog.SetGlobalLogHandler(log.DiscardHandler())
 }
 
 // createE2ETestSuite ... Create a new E2E test suite
@@ -69,8 +71,6 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 	// to reduce that number of idle routines when paused.
 	t.Parallel()
 
-	// Bump up the block times to try minimize resource
-	// contention when parallel devnets are running
 	opCfg := op_e2e.DefaultSystemConfig(t)
 
 	// Unless specified, omit logs emitted by the various components
@@ -78,8 +78,7 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 		t.Log("set env 'ENABLE_ROLLUP_LOGS' to show rollup logs")
 		for name := range opCfg.Loggers {
 			t.Logf("discarding logs for %s", name)
-			noopLog := log.New()
-			noopLog.SetHandler(log.DiscardHandler())
+			noopLog := log.NewLogger(log.DiscardHandler())
 			opCfg.Loggers[name] = noopLog
 		}
 	}
@@ -108,13 +107,14 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 				L1CrossDomainMessengerProxy: opCfg.L1Deployments.L1CrossDomainMessengerProxy,
 				L1StandardBridgeProxy:       opCfg.L1Deployments.L1StandardBridgeProxy,
 				L1ERC721BridgeProxy:         opCfg.L1Deployments.L1ERC721BridgeProxy,
+				DisputeGameFactoryProxy:     opCfg.L1Deployments.DisputeGameFactoryProxy,
 			},
 		},
 		HTTPServer:    config.ServerConfig{Host: "127.0.0.1", Port: 0},
 		MetricsServer: config.ServerConfig{Host: "127.0.0.1", Port: 0},
 	}
 
-	indexerLog := testlog.Logger(t, log.LvlInfo).New("role", "indexer")
+	indexerLog := testlog.Logger(t, log.LevelInfo).New("role", "indexer")
 	ix, err := indexer.NewIndexer(context.Background(), indexerLog, indexerCfg, func(cause error) {
 		if cause != nil {
 			t.Fatalf("indexer shut down with critical error: %v", cause)
@@ -122,14 +122,17 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 	})
 	require.NoError(t, err)
 	require.NoError(t, ix.Start(context.Background()), "cleanly start indexer")
-	t.Cleanup(func() {
-		require.NoError(t, ix.Stop(context.Background()), "cleanly shut down indexer")
-	})
+	t.Cleanup(func() { require.NoError(t, ix.Stop(context.Background())) })
+
+	dbLog := testlog.Logger(t, log.LvlInfo).New("role", "db")
+	db, err := database.NewDB(context.Background(), dbLog, indexerCfg.DB)
+	require.NoError(t, err)
+	t.Cleanup(func() { db.Close() })
 
 	// API Configuration and Start
-	apiLog := testlog.Logger(t, log.LvlInfo).New("role", "indexer_api")
+	apiLog := testlog.Logger(t, log.LevelInfo).New("role", "indexer_api")
 	apiCfg := &api.Config{
-		DB:            &api.TestDBConnector{BridgeTransfers: ix.DB.BridgeTransfers}, // reuse the same DB
+		DB:            &api.TestDBConnector{BridgeTransfers: db.BridgeTransfers}, // reuse the same DB
 		HTTPServer:    config.ServerConfig{Host: "127.0.0.1", Port: 0},
 		MetricsServer: config.ServerConfig{Host: "127.0.0.1", Port: 0},
 	}
@@ -151,7 +154,7 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 		t:               t,
 		MetricsRegistry: metrics.NewRegistry(),
 		Client:          client,
-		DB:              ix.DB,
+		DB:              db,
 		Indexer:         ix,
 		OpCfg:           &opCfg,
 		OpSys:           opSys,
@@ -186,8 +189,7 @@ func setupTestDatabase(t *testing.T) string {
 		Password: "",
 	}
 
-	noopLog := log.New()
-	noopLog.SetHandler(log.DiscardHandler())
+	noopLog := log.NewLogger(log.DiscardHandler())
 	db, err := database.NewDB(context.Background(), noopLog, dbConfig)
 	require.NoError(t, err)
 	defer db.Close()

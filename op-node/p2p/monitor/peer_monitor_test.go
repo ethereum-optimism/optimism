@@ -18,7 +18,7 @@ import (
 const testBanDuration = 2 * time.Hour
 
 func peerMonitorSetup(t *testing.T) (*PeerMonitor, *clock2.DeterministicClock, *mocks.PeerManager) {
-	l := testlog.Logger(t, log.LvlInfo)
+	l := testlog.Logger(t, log.LevelInfo)
 	clock := clock2.NewDeterministicClock(time.UnixMilli(10000))
 	manager := mocks.NewPeerManager(t)
 	monitor := NewPeerMonitor(context.Background(), l, clock, manager, -100, testBanDuration)
