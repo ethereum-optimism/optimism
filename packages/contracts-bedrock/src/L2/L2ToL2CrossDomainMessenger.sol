@@ -21,7 +21,7 @@ contract L2ToL2CrossDomainMessenger {
     uint248 public constant INITIAL_BALANCE = type(uint248).max;
 
     /// @notice Address of the L2 Cross Domain Messenger on this chain.
-    address public immutable CROSS_L2_INBOX;
+    address public crossL2Inbox;
 
     /// @notice Mapping of message hashes to boolean receipt values. Note that a message will only
     ///         be present in this mapping if it has successfully been relayed on this chain, and
@@ -39,10 +39,6 @@ contract L2ToL2CrossDomainMessenger {
     /// @param message     Message to trigger the target address with.
     /// @param data        Data to be sent with the message.
     event SentMessage(uint256 destination, address target, bytes message, bytes data) anonymous;
-
-    constructor() {
-        CROSS_L2_INBOX = Predeploys.CROSS_L2_INBOX;
-    }
 
     /// @notice Retrieves the next message nonce. Message version will be added to the upper two
     ///         bytes of the message nonce. Message version allows us to treat messages as having
@@ -89,13 +85,13 @@ contract L2ToL2CrossDomainMessenger {
     )
         external
     {
-        require(msg.sender == CROSS_L2_INBOX);
-        require(CrossL2Inbox(CROSS_L2_INBOX).origin() == address(this));
-        require(_destination == block.chainid);
-        require(_target != address(this));
+        require(msg.sender == crossL2Inbox, "Not cross domain messenger");
+        require(CrossL2Inbox(crossL2Inbox).origin() == address(this), "Not from this L2ToL2CrossDomainMessenger");
+        require(_destination == block.chainid, "Not for this chain");
+        require(_target != address(this), "Unsafe target");
 
         bytes32 messageHash = keccak256(abi.encode(_destination, _nonce, _sender, _target, _value, _message));
-        require(successfulMessages[messageHash] == false);
+        require(successfulMessages[messageHash] == false, "Message already relayed");
 
         assembly {
             tstore(CROSS_DOMAIN_MESSAGE_SENDER_SLOT, _sender)
@@ -103,7 +99,7 @@ contract L2ToL2CrossDomainMessenger {
 
         bool success = SafeCall.call({ _target: _target, _gas: gasleft(), _value: _value, _calldata: _message });
 
-        require(success);
+        require(success, "Call failed");
 
         successfulMessages[messageHash] = true;
     }

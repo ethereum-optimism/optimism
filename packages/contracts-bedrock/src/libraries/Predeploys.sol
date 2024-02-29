@@ -50,11 +50,9 @@ interface IL2ToL2CrossDomainMessenger {
 
     function INITIAL_BALANCE() external view returns (uint248);
 
-    function CROSS_L2_INBOX() external view returns (address);
+    function crossL2Inbox() external view returns (address);
 
     function successfulMessages(bytes32) external view returns (bool);
-
-    function msgNonce() external view returns (uint240);
 
     function messageNonce() external view returns (uint256);
 
