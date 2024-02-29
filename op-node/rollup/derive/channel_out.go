@@ -224,6 +224,10 @@ func (co *SingularChannelOut) OutputFrame(w *bytes.Buffer, maxSize uint64) (uint
 
 // BlockToSingularBatch transforms a block into a batch object that can easily be RLP encoded.
 func BlockToSingularBatch(rollupCfg *rollup.Config, block *types.Block) (*SingularBatch, *L1BlockInfo, error) {
+	if len(block.Transactions()) == 0 {
+		return nil, nil, fmt.Errorf("block %v has no transactions", block.Hash())
+	}
+
 	opaqueTxs := make([]hexutil.Bytes, 0, len(block.Transactions()))
 	for i, tx := range block.Transactions() {
 		if tx.Type() == types.DepositTxType {
@@ -235,9 +239,7 @@ func BlockToSingularBatch(rollupCfg *rollup.Config, block *types.Block) (*Singul
 		}
 		opaqueTxs = append(opaqueTxs, otx)
 	}
-	if len(block.Transactions()) == 0 {
-		return nil, nil, fmt.Errorf("block %v has no transactions", block.Hash())
-	}
+
 	l1InfoTx := block.Transactions()[0]
 	if l1InfoTx.Type() != types.DepositTxType {
 		return nil, nil, ErrNotDepositTx
