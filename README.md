@@ -13,6 +13,7 @@
 
 - [What is Optimism?](#what-is-optimism)
 - [Documentation](#documentation)
+- [Specification](#specification)
 - [Community](#community)
 - [Contributing](#contributing)
 - [Security Policy and Vulnerability Reporting](#security-policy-and-vulnerability-reporting)
