@@ -329,11 +329,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
             // Load the disputed proposal's L2 block number as a big-endian uint64 in the
             // high order 8 bytes of the word.
 
-            // If the starting position is 0 (invalid), the disputed output root is at genesis + 1. Otherwise,
-            // we add the index at depth + 2 to the genesis block number to get the disputed L2 block number.
-            uint256 l2Number = startingPos.raw() == 0
-                ? GENESIS_BLOCK_NUMBER + 1
-                : GENESIS_BLOCK_NUMBER + startingPos.traceIndex(SPLIT_DEPTH) + 2;
+            // We add the index at depth + 1 to the genesis block number to get the disputed L2 block number.
+            uint256 l2Number = GENESIS_BLOCK_NUMBER + disputedPos.traceIndex(SPLIT_DEPTH) + 1;
 
             oracle.loadLocalData(_ident, uuid.raw(), bytes32(l2Number << 0xC0), 8, _partOffset);
         } else if (_ident == LocalPreimageKey.CHAIN_ID) {
