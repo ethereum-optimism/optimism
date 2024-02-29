@@ -5,7 +5,6 @@ DATADIR=/db
 VERBOSITY=${VERBOSITY:-3}
 CHAIN_NAME=${CHAIN_NAME:-dev}
 BLOCK_SIGNER_PRIVATE_KEY="2e0834786285daccd064ca17f1654f67b4aef298acbb82cef9ec422fb4975622"
-BLOCK_SIGNER_ADDRESS="0x123463a4B065722E99115D6c222f267d9cABb524"
 
 COMMON_FLAGS=" \
   --chain ${CHAIN_NAME} \
@@ -15,9 +14,6 @@ COMMON_FLAGS=" \
 
 ERIGON_FLAGS=" \
   ${COMMON_FLAGS} \
-  --mine \
-  --miner.etherbase=${BLOCK_SIGNER_ADDRESS} \
-  --miner.sigfile=${DATADIR}/nodekey \
   --http.port=8545 \
   --http.addr=0.0.0.0 \
   --http.vhosts=* \

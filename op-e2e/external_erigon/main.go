@@ -117,8 +117,6 @@ func execute(binPath string, config external.Config) (*erigonSession, error) {
 		"--db.size.limit", "8TB",
 		"--ws",
 		"--ws.port", "0",
-		"--mine",
-		"--miner.gaslimit", strconv.FormatUint(config.GasCeil, 10),
 		"--http=true",
 		"--http.port", "0",
 		"--http.addr", "127.0.0.1",
@@ -160,10 +158,6 @@ func execute(binPath string, config external.Config) (*erigonSession, error) {
 	}
 	fmt.Fscanf(sess.Err, "%d", &enginePort)
 	fmt.Printf("==================    op-erigon shim got engine port %d  ==========================\n", enginePort)
-	gm.Eventually(sess.Err, time.Minute).Should(gbytes.Say("Regeneration ended"))
-	if err != nil {
-		return nil, fmt.Errorf("started did not finish in time")
-	}
 
 	// TODO(jky) this is a horrible hack, but giving Erigon just a little extra
 	// time to stabilize seems to drastically improve the reliability of these
