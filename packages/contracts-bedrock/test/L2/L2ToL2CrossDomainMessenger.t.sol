@@ -27,8 +27,7 @@ contract L2ToL2ToL2CrossDomainMessengerTest is Bridge_Initializer {
     function test_constructor_succeeds() external {
         assertEq(l2ToL2CrossDomainMessenger.MESSAGE_VERSION(), uint16(0));
         assertEq(l2ToL2CrossDomainMessenger.INITIAL_BALANCE(), type(uint248).max);
-        assertEq(l2ToL2CrossDomainMessenger.CROSS_L2_INBOX(), address(l2CrossDomainMessenger));
-        assertEq(l2ToL2CrossDomainMessenger.msgNonce(), uint240(0));
+        assertEq(l2ToL2CrossDomainMessenger.crossL2Inbox(), address(crossL2Inbox));
         assertEq(l2ToL2CrossDomainMessenger.messageNonce(), uint256(0));
     }
 
@@ -56,26 +55,6 @@ contract L2ToL2ToL2CrossDomainMessengerTest is Bridge_Initializer {
         assertEq(nonce + 2, l2ToL2CrossDomainMessenger.messageNonce());
     }
 
-    /// @dev Tests that `sendMessage` reverts if the message version is not supported.
-    function test_relayMessage_v2_reverts() external {
-        address sender = address(l1CrossDomainMessenger);
-        address caller = AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger));
-
-        // Expect a revert.
-        vm.expectRevert("CrossDomainMessenger: only version 0 or 1 messages are supported at this time");
-
-        // Try to relay a v2 message.
-        vm.prank(caller);
-        l2ToL2CrossDomainMessenger.relayMessage(
-            destination,
-            Encoding.encodeVersionedNonce(0, 2), // nonce
-            sender,
-            target,
-            0, // value
-            hex"1111"
-        );
-    }
-
     /// @dev Tests that `relayMessage` executes successfully.
     function test_relayMessage_succeeds() external {
         address sender = address(l1CrossDomainMessenger);
@@ -92,6 +71,7 @@ contract L2ToL2ToL2CrossDomainMessengerTest is Bridge_Initializer {
 
         emit RelayedMessage(hash);
 
+        vm.prank(l2ToL2CrossDomainMessenger.crossL2Inbox());
         l2ToL2CrossDomainMessenger.relayMessage(
             destination,
             Encoding.encodeVersionedNonce(0, 1), // nonce
