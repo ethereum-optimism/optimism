@@ -54,6 +54,14 @@ func (p *PreimageOracleData) GetPreimageWithSize() []byte {
 	return p.oracleData
 }
 
+func (p *PreimageOracleData) GetPrecompileAddress() common.Address {
+	return common.BytesToAddress(p.oracleData[8:28])
+}
+
+func (p *PreimageOracleData) GetPrecompileInput() []byte {
+	return p.oracleData[28:]
+}
+
 // NewPreimageOracleData creates a new [PreimageOracleData] instance.
 func NewPreimageOracleData(key []byte, data []byte, offset uint32) *PreimageOracleData {
 	return &PreimageOracleData{
