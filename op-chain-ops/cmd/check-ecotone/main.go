@@ -756,21 +756,6 @@ func checkL1Fees(ctx context.Context, env *actionEnv) error {
 	if err != nil {
 		return fmt.Errorf("failed to create eth client")
 	}
-	payload, err := l2EthCl.PayloadByLabel(ctx, eth.Unsafe)
-	if err != nil {
-		return fmt.Errorf("failed to get head ref: %w", err)
-	}
-	headRef, err := derive.PayloadToBlockRef(rollupCfg, payload.ExecutionPayload)
-	if err != nil {
-		return fmt.Errorf("failed to convert to block-ref: %w", err)
-	}
-	l1Header, err := retry.Do(ctx, 5, retry.Fixed(time.Second*12), func() (*types.Header, error) {
-		env.log.Info("retrieving L1 origin...", "l1", headRef.L1Origin)
-		return env.l1.HeaderByHash(ctx, headRef.L1Origin.Hash)
-	})
-	if err != nil {
-		return fmt.Errorf("failed to retrieve L1 origin %s of L2 block %s: %w", headRef.L1Origin, headRef, err)
-	}
 	gasTip := big.NewInt(2 * params.GWei)
 	baseFee := (*uint256.Int)(&payload.ExecutionPayload.BaseFeePerGas).ToBig()
 	gasMaxFee := new(big.Int).Add(
@@ -804,9 +789,24 @@ func checkL1Fees(ctx context.Context, env *actionEnv) error {
 	if receipt.Status != types.ReceiptStatusSuccessful {
 		return fmt.Errorf("transaction failed, gas used: %d", receipt.L1GasUsed)
 	}
-	env.log.Info("got receipt")
+	env.log.Info("got receipt", "hash", tx.Hash(), "block", receipt.BlockHash)
 	if receipt.FeeScalar != nil {
 		return fmt.Errorf("expected fee scalar attribute to be deprecated, but got %v", receipt.FeeScalar)
+	}
+	payload, err := l2EthCl.PayloadByHash(ctx, receipt.BlockHash)
+	if err != nil {
+		return fmt.Errorf("failed to get head ref: %w", err)
+	}
+	headRef, err := derive.PayloadToBlockRef(rollupCfg, payload.ExecutionPayload)
+	if err != nil {
+		return fmt.Errorf("failed to convert to block-ref: %w", err)
+	}
+	l1Header, err := retry.Do(ctx, 5, retry.Fixed(time.Second*12), func() (*types.Header, error) {
+		env.log.Info("retrieving L1 origin...", "l1", headRef.L1Origin)
+		return env.l1.HeaderByHash(ctx, headRef.L1Origin.Hash)
+	})
+	if err != nil {
+		return fmt.Errorf("failed to retrieve L1 origin %s of L2 block %s: %w", headRef.L1Origin, headRef, err)
 	}
 	if receipt.L1GasPrice.Cmp(l1Header.BaseFee) != 0 {
 		return fmt.Errorf("L1 gas price does not include blob fee component: %d != %d", receipt.L1GasPrice, l1Header.BaseFee)
