@@ -378,5 +378,9 @@ func (s *APIBackend) ConnectPeer(ctx context.Context, addr string) error {
 func (s *APIBackend) DisconnectPeer(_ context.Context, id peer.ID) error {
 	recordDur := s.m.RecordRPCServerRequest("opp2p_disconnectPeer")
 	defer recordDur()
-	return s.node.Host().Network().ClosePeer(id)
+	err := s.node.Host().Network().ClosePeer(id)
+	ps := s.node.Host().Peerstore()
+	ps.RemovePeer(id)
+	ps.ClearAddrs(id)
+	return err
 }
