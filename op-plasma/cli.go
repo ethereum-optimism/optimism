@@ -11,6 +11,7 @@ const (
 	EnabledFlagName         = "plasma.enabled"
 	DaServerAddressFlagName = "plasma.da-server"
 	VerifyOnReadFlagName    = "plasma.verify-on-read"
+	UseAvail                = "plasma.use-avail"
 )
 
 func plasmaEnv(envprefix, v string) []string {
@@ -30,6 +31,12 @@ func CLIFlags(envPrefix string, category string) []cli.Flag {
 			Name:     DaServerAddressFlagName,
 			Usage:    "HTTP address of a DA Server",
 			EnvVars:  plasmaEnv(envPrefix, "DA_SERVER"),
+			Category: category,
+		},
+		&cli.BoolFlag{
+			Name:     UseAvail,
+			Usage:    "Enable Avail DA",
+			EnvVars:  plasmaEnv(envPrefix, "USE_AVAIL"),
 			Category: category,
 		},
 		&cli.BoolFlag{

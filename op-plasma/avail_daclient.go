@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-plasma/avail/types"
 	"github.com/ethereum-optimism/optimism/op-plasma/avail/utils"
 )
 
@@ -12,8 +13,18 @@ type AvailDAClient struct {
 }
 
 // GetInput returns the input data corresponding to a given commitment bytes
-func (c *AvailDAClient) GetInput(ctx context.Context, key []byte) ([]byte, error) {
-	return nil, nil
+func (c *AvailDAClient) GetInput(ctx context.Context, refKey []byte) ([]byte, error) {
+	avail_blk_ref := types.AvailBlockRef{}
+	err := avail_blk_ref.UnmarshalFromBinary(refKey)
+	if err != nil {
+		return []byte{}, fmt.Errorf("failed to unmarshal the etehreum tx data to avail block reference, error: %v", err)
+	}
+
+	txData, err := utils.GetBlockExtrinsicData(avail_blk_ref)
+	if err != nil {
+		return []byte{}, fmt.Errorf("failed to get block extrinsic data: %v", err)
+	}
+	return txData, nil
 }
 
 // SetInput sets the input data and returns the KZG commitment hash from Avail DA
