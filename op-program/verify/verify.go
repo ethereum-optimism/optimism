@@ -142,7 +142,9 @@ func Run(l1RpcUrl string, l1RpcKind string, l1BeaconUrl string, l2RpcUrl string,
 	onlineCfg.L1URL = l1RpcUrl
 	onlineCfg.L1BeaconURL = l1BeaconUrl
 	onlineCfg.L2URL = l2RpcUrl
-	onlineCfg.L1RPCKind = sources.RPCProviderKind(l1RpcKind)
+	if l1RpcKind != "" {
+		onlineCfg.L1RPCKind = sources.RPCProviderKind(l1RpcKind)
+	}
 
 	fmt.Println("Running in online mode")
 	err = host.Main(oplog.NewLogger(os.Stderr, logger), &onlineCfg)
