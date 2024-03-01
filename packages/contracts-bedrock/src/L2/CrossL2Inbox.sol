@@ -69,7 +69,7 @@ contract CrossL2Inbox {
     /// @param _msg The message payload, matching the initiating message.
     /// @param _id A Identifier pointing to the initiating message.
     /// @param _target Account that is called with _msg.
-    function executeMessage(bytes calldata _msg, Identifier calldata _id, address _target) public payable {
+    function executeMessage(address _target, bytes calldata _msg, Identifier calldata _id) public payable {
         require(_id.timestamp <= block.timestamp, "CrossL2Inbox: invalid id timestamp"); // timestamp invariant
         uint256 chainId_ = _id.chainId;
         require(L1Block(l1Block).isInDependencySet(chainId_), "CrossL2Inbox: invalid id chainId"); // chainId invariant
@@ -88,7 +88,7 @@ contract CrossL2Inbox {
             tstore(CHAINID_SLOT, chainId_)
         }
 
-        bool success = SafeCall.call({ _target: _target, _gas: gasleft(), _value: msg.value, _calldata: _msg });
+        bool success = SafeCall.callWithAllGas({ _target: _target, _value: msg.value, _calldata: _msg });
 
         require(success, "CrossL2Inbox: call failed");
     }
