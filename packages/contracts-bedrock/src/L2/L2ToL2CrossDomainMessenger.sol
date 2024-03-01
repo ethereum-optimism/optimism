@@ -9,6 +9,14 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 /// @custom:upgradeable
 /// @title L2ToL2CrossDomainMessenger
 contract L2ToL2CrossDomainMessenger {
+    /// @notice Emitted whenever a message is successfully relayed on this chain.
+    /// @param msgHash Hash of the message that was relayed.
+    event RelayedMessage(bytes32 indexed msgHash);
+
+    /// @notice Emitted whenever a message fails to be relayed on this chain.
+    /// @param msgHash Hash of the message that failed to be relayed.
+    event FailedRelayedMessage(bytes32 indexed msgHash);
+
     /// @notice Slot for the sender of the current cross domain message.
     /// @dev Equal to bytes32(uint256(keccak256("l2tol2crossdomainmessenger.sender")) - 1)
     bytes32 public constant CROSS_DOMAIN_MESSAGE_SENDER_SLOT =
@@ -27,6 +35,11 @@ contract L2ToL2CrossDomainMessenger {
     ///         be present in this mapping if it has successfully been relayed on this chain, and
     ///         can therefore not be relayed again.
     mapping(bytes32 => bool) public successfulMessages;
+
+    /// @notice Mapping of message hashes to a boolean if and only if the message has failed to be
+    ///         executed at least once. A message will not be present in this mapping if it
+    ///         successfully executed on the first attempt.
+    mapping(bytes32 => bool) public failedMessages;
 
     /// @notice Nonce for the next message to be sent, without the message version applied. Use the
     ///         messageNonce getter which will insert the message version into the nonce to give you
@@ -56,7 +69,7 @@ contract L2ToL2CrossDomainMessenger {
     /// @param _target      Target contract or wallet address.
     /// @param _message     Message to trigger the target address with.
     function sendMessage(uint256 _destination, address _target, bytes calldata _message) external payable {
-        require(_destination != block.chainid);
+        require(_destination != block.chainid, "Cannot send message to self");
 
         bytes memory data = abi.encodeCall(
             L2ToL2CrossDomainMessenger.relayMessage,
