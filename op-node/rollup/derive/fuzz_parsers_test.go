@@ -131,6 +131,8 @@ func FuzzL1InfoBedrockAgainstContract(f *testing.F) {
 			eth.AddressAsLeftPaddedHash(common.BytesToAddress(batcherHash)),
 			common.BytesToHash(l1FeeOverhead).Big(),
 			common.BytesToHash(l1FeeScalar).Big(),
+			0,
+			[]*big.Int{},
 		)
 		if err != nil {
 			t.Fatalf("Failed to create the transaction: %v", err)
