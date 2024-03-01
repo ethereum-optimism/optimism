@@ -5,6 +5,7 @@ package sources
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"unsafe"
 
@@ -37,7 +38,7 @@ import "C"
 // and populates the given results slice pointer with the receipts that were found.
 func FetchRethReceipts(dbPath string, blockHash *common.Hash) (types.Receipts, error) {
 	if blockHash == nil {
-		return nil, fmt.Errorf("Must provide a block hash to fetch receipts for.")
+		return nil, errors.New("Must provide a block hash to fetch receipts for.")
 	}
 
 	// Convert the block hash to a C byte array and defer its deallocation

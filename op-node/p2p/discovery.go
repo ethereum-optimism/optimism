@@ -5,6 +5,7 @@ import (
 	"context"
 	secureRand "crypto/rand"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"math/rand"
@@ -74,7 +75,7 @@ func (conf *Config) Discovery(log log.Logger, rollupCfg *rollup.Config, tcpPort 
 	} else if conf.ListenTCPPort != 0 { // otherwise default to the port we configured it to listen on
 		localNode.Set(enr.TCP(conf.ListenTCPPort))
 	} else {
-		return nil, nil, fmt.Errorf("no TCP port to put in discovery record")
+		return nil, nil, errors.New("no TCP port to put in discovery record")
 	}
 	dat := OpStackENRData{
 		chainID: rollupCfg.L2ChainID.Uint64(),
@@ -155,7 +156,7 @@ func enrToAddrInfo(r *enode.Node) (*peer.AddrInfo, *crypto.Secp256k1PublicKey, e
 	}
 	var enrPub Secp256k1
 	if err := r.Load(&enrPub); err != nil {
-		return nil, nil, fmt.Errorf("failed to load pubkey as libp2p pubkey type from ENR")
+		return nil, nil, errors.New("failed to load pubkey as libp2p pubkey type from ENR")
 	}
 	pub := (*crypto.Secp256k1PublicKey)(&enrPub)
 	peerID, err := peer.IDFromPublicKey(pub)

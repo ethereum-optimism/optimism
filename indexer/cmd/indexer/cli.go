@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/big"
 
@@ -120,7 +121,7 @@ func runReorgDeletion(ctx *cli.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to query L1 header at height: %w", err)
 	} else if l1Header == nil {
-		return fmt.Errorf("no header found at height")
+		return errors.New("no header found at height")
 	}
 
 	db, err := database.NewDB(ctx.Context, log, cfg.DB)

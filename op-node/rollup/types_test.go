@@ -3,6 +3,7 @@ package rollup
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/big"
 	"math/rand"
@@ -420,7 +421,7 @@ func TestConfig_Check(t *testing.T) {
 				ecotoneTime := uint64(1)
 				cfg.EcotoneTime = &ecotoneTime
 			},
-			expectedErr: fmt.Errorf("fork ecotone set (to 1), but prior fork delta missing"),
+			expectedErr: errors.New("fork ecotone set (to 1), but prior fork delta missing"),
 		},
 		{
 			name: "PriorForkHasHigherOffset",
@@ -430,7 +431,7 @@ func TestConfig_Check(t *testing.T) {
 				cfg.RegolithTime = &regolithTime
 				cfg.CanyonTime = &canyonTime
 			},
-			expectedErr: fmt.Errorf("fork canyon set to 1, but prior fork regolith has higher offset 2"),
+			expectedErr: errors.New("fork canyon set to 1, but prior fork regolith has higher offset 2"),
 		},
 		{
 			name: "PriorForkOK",

@@ -154,7 +154,7 @@ func (db *bridgeTransfersDB) L1TxDepositSum() (float64, error) {
 // coupled with the L1/L2 transaction hashes that complete the bridge transaction.
 func (db *bridgeTransfersDB) L1BridgeDepositsByAddress(address common.Address, cursor string, limit int) (*L1BridgeDepositsResponse, error) {
 	if limit <= 0 {
-		return nil, fmt.Errorf("limit must be greater than 0")
+		return nil, errors.New("limit must be greater than 0")
 	}
 
 	cursorClause := ""
@@ -311,7 +311,7 @@ type L2BridgeWithdrawalsResponse struct {
 // that complete the bridge transaction. The hashes that correspond with the Bedrock multi-step withdrawal process are also surfaced
 func (db *bridgeTransfersDB) L2BridgeWithdrawalsByAddress(address common.Address, cursor string, limit int) (*L2BridgeWithdrawalsResponse, error) {
 	if limit <= 0 {
-		return nil, fmt.Errorf("limit must be greater than 0")
+		return nil, errors.New("limit must be greater than 0")
 	}
 
 	// (1) Generate cursor clause provided a cursor tx hash

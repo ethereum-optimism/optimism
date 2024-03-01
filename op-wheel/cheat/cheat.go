@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"math/big"
@@ -148,10 +149,10 @@ func (ch *Cheater) RunAndClose(fn HeadFn) error {
 	oldBody := rawdb.ReadBodyRLP(ch.DB, preID.Hash, preID.Number)
 	newKey := blockBodyKey(preID.Number, blockHash)
 	if err := batch.Delete(oldKey); err != nil {
-		return fmt.Errorf("error deleting old block body key")
+		return errors.New("error deleting old block body key")
 	}
 	if err := batch.Put(newKey, oldBody); err != nil {
-		return fmt.Errorf("error setting new block body key")
+		return errors.New("error setting new block body key")
 	}
 
 	// Flush the whole batch into the disk, exit the node if failed
@@ -320,7 +321,7 @@ func StoragePatch(patch io.Reader, address common.Address) HeadFn {
 			case '-':
 				headState.SetState(address, key, common.Hash{})
 			default:
-				return fmt.Errorf("unrecognized line diff token")
+				return errors.New("unrecognized line diff token")
 			}
 			i += 1
 			if i%1000 == 0 { // for every 1000 values, commit to disk

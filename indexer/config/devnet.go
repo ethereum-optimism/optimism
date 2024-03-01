@@ -31,7 +31,7 @@ func DevnetPreset() (*Preset, error) {
 
 	content, err := os.ReadFile(devnetFilepath)
 	if err != nil {
-		return nil, fmt.Errorf("unable to read .devnet/addressees.json")
+		return nil, errors.New("unable to read .devnet/addressees.json")
 	}
 
 	var l1Contracts L1Contracts

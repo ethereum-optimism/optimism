@@ -138,7 +138,7 @@ func encodePreimageOracleInput(t *testing.T, wit *StepWitness, localContext Loca
 		return input, nil
 	case preimage.KZGPointEvaluationKeyType:
 		if localOracle == nil {
-			return nil, fmt.Errorf("local oracle is required for point evaluation preimages")
+			return nil, errors.New("local oracle is required for point evaluation preimages")
 		}
 		preimage := localOracle.GetPreimage(preimage.Keccak256Key(wit.PreimageKey).PreimageKey())
 		input, err := preimageAbi.Pack(

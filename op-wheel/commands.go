@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math/big"
@@ -571,7 +572,7 @@ var (
 		ArgsUsage: "<rpc-method-name> [params...]",
 		Action: EngineAction(func(ctx *cli.Context, client client.RPC) error {
 			if ctx.NArg() == 0 {
-				return fmt.Errorf("expected at least 1 argument: RPC method name")
+				return errors.New("expected at least 1 argument: RPC method name")
 			}
 			var r io.Reader
 			var args []string

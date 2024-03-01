@@ -197,7 +197,7 @@ func (bt *BatchTransaction) Check() error {
 		sig := bt.Signature()
 		selector := crypto.Keccak256([]byte(sig))[0:4]
 		if !bytes.Equal(bt.Data[0:4], selector) {
-			return fmt.Errorf("data does not match signature")
+			return errors.New("data does not match signature")
 		}
 
 		// Check the calldata

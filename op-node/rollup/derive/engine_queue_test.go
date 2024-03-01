@@ -2,6 +2,7 @@ package derive
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"math/big"
@@ -941,7 +942,7 @@ func TestBlockBuildingRace(t *testing.T) {
 	// Expect initial building update, to process the attributes we queued up
 	eng.ExpectForkchoiceUpdate(preFc, attrs, preFcRes, nil)
 	// Don't let the payload be confirmed straight away
-	mockErr := fmt.Errorf("mock error")
+	mockErr := errors.New("mock error")
 	eng.ExpectGetPayload(id, nil, mockErr)
 	// The job will be not be cancelled, the untyped error is a temporary error
 

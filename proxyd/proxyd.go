@@ -204,7 +204,7 @@ func Start(config *Config) (*Server, func(), error) {
 	}
 
 	if wsBackendGroup == nil && config.Server.WSPort != 0 {
-		return nil, nil, fmt.Errorf("a ws port was defined, but no ws group was defined")
+		return nil, nil, errors.New("a ws port was defined, but no ws group was defined")
 	}
 
 	for _, bg := range config.RPCMethodMappings {

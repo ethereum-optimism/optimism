@@ -1,6 +1,7 @@
 package immutables
 
 import (
+	"errors"
 	"fmt"
 	"math/big"
 	"reflect"
@@ -221,11 +222,11 @@ func l2ImmutableDeployer(backend *backends.SimulatedBackend, opts *bind.Transact
 	case "OptimismMintableERC721Factory":
 		bridge, ok := deployment.Args[0].(common.Address)
 		if !ok {
-			return nil, fmt.Errorf("invalid type for bridge")
+			return nil, errors.New("invalid type for bridge")
 		}
 		remoteChainId, ok := deployment.Args[1].(*big.Int)
 		if !ok {
-			return nil, fmt.Errorf("invalid type for remoteChainId")
+			return nil, errors.New("invalid type for remoteChainId")
 		}
 		_, tx, _, err = bindings.DeployOptimismMintableERC721Factory(opts, backend, bridge, remoteChainId)
 	case "EAS":
@@ -241,15 +242,15 @@ func l2ImmutableDeployer(backend *backends.SimulatedBackend, opts *bind.Transact
 func prepareFeeVaultArguments(deployment deployer.Constructor) (common.Address, *big.Int, uint8, error) {
 	recipient, ok := deployment.Args[0].(common.Address)
 	if !ok {
-		return common.Address{}, nil, 0, fmt.Errorf("invalid type for recipient")
+		return common.Address{}, nil, 0, errors.New("invalid type for recipient")
 	}
 	minimumWithdrawalAmountHex, ok := deployment.Args[1].(*big.Int)
 	if !ok {
-		return common.Address{}, nil, 0, fmt.Errorf("invalid type for minimumWithdrawalAmount")
+		return common.Address{}, nil, 0, errors.New("invalid type for minimumWithdrawalAmount")
 	}
 	withdrawalNetwork, ok := deployment.Args[2].(uint8)
 	if !ok {
-		return common.Address{}, nil, 0, fmt.Errorf("invalid type for withdrawalNetwork")
+		return common.Address{}, nil, 0, errors.New("invalid type for withdrawalNetwork")
 	}
 	return recipient, minimumWithdrawalAmountHex, withdrawalNetwork, nil
 }

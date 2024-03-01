@@ -269,7 +269,7 @@ func readBlockJSON(path string) (*types.Block, error) {
 	}
 
 	if len(body.UncleHashes) > 0 {
-		return nil, fmt.Errorf("cannot unmarshal block with uncles")
+		return nil, errors.New("cannot unmarshal block with uncles")
 	}
 
 	txs := make([]*types.Transaction, len(body.Transactions))

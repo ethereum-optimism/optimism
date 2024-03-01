@@ -140,7 +140,7 @@ func (cfg *Config) Check() error {
 	}
 	if cfg.Rollup.EcotoneTime != nil {
 		if cfg.Beacon == nil {
-			return fmt.Errorf("the Ecotone upgrade is scheduled but no L1 Beacon API endpoint is configured")
+			return errors.New("the Ecotone upgrade is scheduled but no L1 Beacon API endpoint is configured")
 		}
 		if err := cfg.Beacon.Check(); err != nil {
 			return fmt.Errorf("misconfigured L1 Beacon API endpoint: %w", err)
@@ -165,10 +165,10 @@ func (cfg *Config) Check() error {
 	}
 	if cfg.ConductorEnabled {
 		if state, _ := cfg.ConfigPersistence.SequencerState(); state != StateUnset {
-			return fmt.Errorf("config persistence must be disabled when conductor is enabled")
+			return errors.New("config persistence must be disabled when conductor is enabled")
 		}
 		if !cfg.Driver.SequencerEnabled {
-			return fmt.Errorf("sequencer must be enabled when conductor is enabled")
+			return errors.New("sequencer must be enabled when conductor is enabled")
 		}
 	}
 	if err := cfg.Plasma.Check(); err != nil {

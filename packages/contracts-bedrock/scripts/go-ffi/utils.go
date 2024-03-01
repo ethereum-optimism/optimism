@@ -19,7 +19,7 @@ var UnknownNonceVersion = errors.New("Unknown nonce version")
 // Shorthand to ease go's god awful error handling
 func checkOk(ok bool) {
 	if !ok {
-		panic(fmt.Errorf("checkOk failed"))
+		panic(errors.New("checkOk failed"))
 	}
 }
 

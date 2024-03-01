@@ -3,7 +3,6 @@ package fault
 import (
 	"context"
 	"errors"
-	"fmt"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
@@ -14,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var mockValidatorError = fmt.Errorf("mock validator error")
+var mockValidatorError = errors.New("mock validator error")
 
 func TestProgressGame_LogErrorFromAct(t *testing.T) {
 	handler, game, actor, _ := setupProgressGameTest(t)

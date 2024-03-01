@@ -2,6 +2,7 @@ package serializers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -67,7 +68,7 @@ func (BytesSerializer) Value(ctx context.Context, field *schema.Field, dst refle
 
 	fieldBytes, ok := fieldValue.(BytesInterface)
 	if !ok {
-		return nil, fmt.Errorf("field does not satisfy the `Bytes() []byte` interface")
+		return nil, errors.New("field does not satisfy the `Bytes() []byte` interface")
 	}
 
 	hexStr := hexutil.Encode(fieldBytes.Bytes())

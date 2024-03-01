@@ -72,12 +72,12 @@ func Main(cliCtx *cli.Context) error {
 		return err
 	}
 	if p2pNode.Dv5Udp() == nil {
-		return fmt.Errorf("uninitialized discovery service")
+		return errors.New("uninitialized discovery service")
 	}
 
 	rpcCfg := oprpc.ReadCLIConfig(cliCtx)
 	if err := rpcCfg.Check(); err != nil {
-		return fmt.Errorf("failed to validate RPC config")
+		return errors.New("failed to validate RPC config")
 	}
 	rpcServer := oprpc.NewServer(rpcCfg.ListenAddr, rpcCfg.ListenPort, "", oprpc.WithLogger(logger))
 	if rpcCfg.EnableAdmin {

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/flags"
@@ -43,7 +44,7 @@ func Move(ctx *cli.Context) error {
 	claim := common.HexToHash(ctx.String(ClaimFlag.Name))
 
 	if attack && defend {
-		return fmt.Errorf("both attack and defense flags cannot be set")
+		return errors.New("both attack and defense flags cannot be set")
 	}
 
 	contract, txMgr, err := NewContractWithTxMgr[*contracts.FaultDisputeGameContract](ctx, GameAddressFlag.Name, contracts.NewFaultDisputeGameContract)
@@ -63,7 +64,7 @@ func Move(ctx *cli.Context) error {
 			return fmt.Errorf("failed to create defense tx: %w", err)
 		}
 	} else {
-		return fmt.Errorf("either attack or defense flag must be set")
+		return errors.New("either attack or defense flag must be set")
 	}
 
 	rct, err := txMgr.Send(context.Background(), tx)

@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -90,7 +91,7 @@ func TestSchedule_SkipPrestateValidationErrors(t *testing.T) {
 func TestSchedule_PrestateValidationFailure(t *testing.T) {
 	c, _, _, games, _, _ := setupCoordinatorTest(t, 10)
 	c.allowInvalidPrestate = true
-	games.PrestateErr = fmt.Errorf("failed to fetch prestate")
+	games.PrestateErr = errors.New("failed to fetch prestate")
 	gameAddr1 := common.Address{0xaa}
 	ctx := context.Background()
 

@@ -2,6 +2,7 @@ package consensus
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"sync"
@@ -23,7 +24,7 @@ type unsafeHeadTracker struct {
 // Apply implements raft.FSM, it applies the latest change (latest unsafe head payload) to FSM.
 func (t *unsafeHeadTracker) Apply(l *raft.Log) interface{} {
 	if l.Data == nil || len(l.Data) == 0 {
-		return fmt.Errorf("log data is nil or empty")
+		return errors.New("log data is nil or empty")
 	}
 
 	data := &eth.ExecutionPayloadEnvelope{}

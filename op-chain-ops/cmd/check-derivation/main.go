@@ -202,7 +202,7 @@ func getSenderAddress(privateKey *ecdsa.PrivateKey) (common.Address, error) {
 	publicKey := privateKey.Public()
 	publicKeyECDSA, ok := publicKey.(*ecdsa.PublicKey)
 	if !ok {
-		return common.Address{}, fmt.Errorf("error casting public key to ECDSA")
+		return common.Address{}, errors.New("error casting public key to ECDSA")
 	}
 	from := crypto.PubkeyToAddress(*publicKeyECDSA)
 	return from, nil

@@ -572,11 +572,11 @@ func checkBeaconBlockRoot(ctx context.Context, env *actionEnv) error {
 	l2EthCl, err := sources.NewL2Client(l2RPC, env.log, nil,
 		sources.L2ClientDefaultConfig(rollupCfg, false))
 	if err != nil {
-		return fmt.Errorf("failed to create eth client")
+		return errors.New("failed to create eth client")
 	}
 	result, err := l2EthCl.GetProof(ctx, predeploys.EIP4788ContractAddr, nil, eth.Unsafe)
 	if err != nil {
-		return fmt.Errorf("failed to get account proof to inspect storage-root")
+		return errors.New("failed to get account proof to inspect storage-root")
 	}
 	if result.StorageHash == types.EmptyRootHash {
 		return fmt.Errorf("expected contract storage to be set, but got none (%s)",
@@ -655,7 +655,7 @@ func checkUpgradeTxs(ctx context.Context, env *actionEnv) error {
 	l2EthCl, err := sources.NewL2Client(l2RPC, env.log, nil,
 		sources.L2ClientDefaultConfig(rollupCfg, false))
 	if err != nil {
-		return fmt.Errorf("failed to create eth client")
+		return errors.New("failed to create eth client")
 	}
 	activBlock, txs, err := l2EthCl.InfoAndTxsByNumber(ctx, activationBlockNum)
 	if err != nil {
@@ -680,11 +680,11 @@ func checkUpgradeTxs(ctx context.Context, env *actionEnv) error {
 		switch i {
 		case 1, 2, 6: // 2 implementations + 4788 contract deployment
 			if rec.ContractAddress == (common.Address{}) {
-				return fmt.Errorf("expected contract deployment, but got none")
+				return errors.New("expected contract deployment, but got none")
 			}
 		case 3, 4, 5: // proxy upgrades and setEcotone call
 			if rec.ContractAddress != (common.Address{}) {
-				return fmt.Errorf("unexpected contract deployment")
+				return errors.New("unexpected contract deployment")
 			}
 		}
 	}

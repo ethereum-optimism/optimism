@@ -356,7 +356,7 @@ func (l *L2OutputSubmitter) waitForL1Head(ctx context.Context, blockNum uint64) 
 				return err
 			}
 		case <-l.done:
-			return fmt.Errorf("L2OutputSubmitter is done()")
+			return errors.New("L2OutputSubmitter is done()")
 		}
 	}
 	return nil

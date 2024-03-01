@@ -2,7 +2,7 @@ package preimages
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
@@ -13,7 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-var ErrNilPreimageData = fmt.Errorf("cannot upload nil preimage data")
+var ErrNilPreimageData = errors.New("cannot upload nil preimage data")
 
 // PreimageUploader is responsible for posting preimages.
 type PreimageUploader interface {
