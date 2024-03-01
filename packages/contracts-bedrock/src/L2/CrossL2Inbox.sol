@@ -90,6 +90,6 @@ contract CrossL2Inbox {
 
         bool success = SafeCall.call({ _target: _target, _gas: gasleft(), _value: msg.value, _calldata: _msg });
 
-        require(success);
+        require(success, "CrossL2Inbox: call failed");
     }
 }

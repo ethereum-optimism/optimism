@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 // Testing utilities
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
+import { Reverter, ConfigurableCaller } from "test/mocks/Callers.sol";
 
 // Libraries
 import { ICrossL2Inbox } from "src/libraries/Predeploys.sol";
@@ -78,7 +79,7 @@ contract CrossL2InboxTest is CommonTest {
 
         bytes memory msg_ = abi.encode("");
 
-        vm.expectRevert("Invalid timestamp");
+        vm.expectRevert("CrossL2Inbox: invalid id timestamp");
         crossL2Inbox.executeMessage(msg_, id, address(0));
     }
 
@@ -95,7 +96,7 @@ contract CrossL2InboxTest is CommonTest {
 
         bytes memory msg_ = abi.encode("");
 
-        vm.expectRevert("Invalid chainId");
+        vm.expectRevert("CrossL2Inbox: invalid id chainId");
         crossL2Inbox.executeMessage(msg_, id, address(0));
     }
 
@@ -131,13 +132,13 @@ contract CrossL2InboxTest is CommonTest {
 
         bytes memory msg_ = abi.encode("");
 
-        vm.expectRevert("Not EOA");
+        vm.expectRevert("CrossL2Inbox: Not EOA sender");
         crossL2Inbox.executeMessage(msg_, id, address(0));
     }
 
     function test_executeMessage_unsuccessfullSafeCall_fails() external {
         uint256[] memory chainIds = new uint256[](1);
-        chainIds[0] = 1;
+        chainIds[0] = block.chainid;
         vm.prank(depositor);
         l1Block.setL1BlockValues(0, 0, 0, bytes32(0), 0, bytes32(0), 0, 0, 1, chainIds);
 
@@ -149,9 +150,10 @@ contract CrossL2InboxTest is CommonTest {
             chainId: chainIds[0]
         });
 
-        bytes memory msg_ = abi.encode("");
+        vm.etch(address(0), address(new Reverter()).code);
 
-        vm.expectRevert("Not EOA");
-        crossL2Inbox.executeMessage(msg_, id, address(0));
+        vm.prank(tx.origin);
+        vm.expectRevert("CrossL2Inbox: call failed");
+        crossL2Inbox.executeMessage(hex"1111", id, address(0));
     }
 }
