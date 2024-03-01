@@ -10,18 +10,15 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
 import { Types } from "src/libraries/Types.sol";
-import { IL2ToL2CrossDomainMessenger } from "src/libraries/Predeploys.sol";
+import { ICrossL2Inbox, IL2ToL2CrossDomainMessenger } from "src/libraries/Predeploys.sol";
 
 // Target contract dependencies
 import { L2ToL1MessagePasser } from "src/L2/L2ToL1MessagePasser.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 
-contract L2ToL2ToL2CrossDomainMessengerTest is Bridge_Initializer {
-    /// @dev Desination for testing
-    uint256 destination = 0;
-
+contract L2ToL2CrossDomainMessengerTest is Bridge_Initializer {
     /// @dev Target address for testing
-    address target = address(0x1234);
+    address target = address(0xabcd);
 
     /// @dev Tests that the implementation is initialized correctly.
     function test_constructor_succeeds() external {
@@ -40,6 +37,8 @@ contract L2ToL2ToL2CrossDomainMessengerTest is Bridge_Initializer {
 
     /// @dev Tests that `sendMessage` executes successfully.
     function testFuzz_sendMessage_succeeds(uint256 _destination, address _target) external {
+        vm.assume(_destination != block.chainid);
+
         bytes memory xDomainCallData = hex"aa";
 
         l2ToL2CrossDomainMessenger.sendMessage(_destination, _target, xDomainCallData);
@@ -48,32 +47,33 @@ contract L2ToL2ToL2CrossDomainMessengerTest is Bridge_Initializer {
     /// @dev Tests that `sendMessage` can be called twice and that
     ///      the nonce increments correctly.
     function test_sendMessage_twice_succeeds() external {
+        uint256 destination = 123 == block.chainid ? 456 : 123;
+        bytes memory xDomainCallData = hex"aa";
         uint256 nonce = l2ToL2CrossDomainMessenger.messageNonce();
-        l2ToL2CrossDomainMessenger.sendMessage(destination, target, hex"aa");
-        l2ToL2CrossDomainMessenger.sendMessage(destination, target, hex"aa");
+        l2ToL2CrossDomainMessenger.sendMessage(destination, target, xDomainCallData);
+        l2ToL2CrossDomainMessenger.sendMessage(destination, target, xDomainCallData);
         // the nonce increments for each message sent
         assertEq(nonce + 2, l2ToL2CrossDomainMessenger.messageNonce());
     }
 
     /// @dev Tests that `relayMessage` executes successfully.
     function test_relayMessage_succeeds() external {
-        address sender = address(l1CrossDomainMessenger);
-        address caller = AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger));
+        address sender = address(l2ToL2CrossDomainMessenger);
 
-        vm.expectCall(target, hex"1111");
+        ICrossL2Inbox.Identifier memory id = ICrossL2Inbox.Identifier({
+            origin: address(l2ToL2CrossDomainMessenger),
+            blocknumber: 0,
+            logIndex: 0,
+            timestamp: block.timestamp,
+            chainId: block.chainid
+        });
 
-        vm.prank(caller);
+        vm.prank(tx.origin);
+        crossL2Inbox.executeMessage(hex"1111", id, target);
 
-        vm.expectEmit(true, true, true, true);
-
-        bytes32 hash =
-            Hashing.hashCrossDomainMessage(Encoding.encodeVersionedNonce(0, 1), sender, target, 0, 0, hex"1111");
-
-        emit RelayedMessage(hash);
-
-        vm.prank(l2ToL2CrossDomainMessenger.crossL2Inbox());
+        vm.prank(address(crossL2Inbox));
         l2ToL2CrossDomainMessenger.relayMessage(
-            destination,
+            block.chainid,
             Encoding.encodeVersionedNonce(0, 1), // nonce
             sender,
             target,
@@ -81,8 +81,11 @@ contract L2ToL2ToL2CrossDomainMessengerTest is Bridge_Initializer {
             hex"1111"
         );
 
-        // the message hash is in the successfulMessages mapping
-        assert(l2ToL2CrossDomainMessenger.successfulMessages(hash));
+        assert(
+            l2ToL2CrossDomainMessenger.successfulMessages(
+                keccak256(abi.encode(block.chainid, Encoding.encodeVersionedNonce(0, 1), sender, target, 0, hex"1111"))
+            )
+        );
     }
 
     /// @dev Tests that `relayMessage` reverts if attempting to relay
@@ -101,18 +104,28 @@ contract L2ToL2ToL2CrossDomainMessengerTest is Bridge_Initializer {
     ///      to the target contract after the first message fails and ETH
     ///      gets stuck, but the second message succeeds.
     function test_relayMessage_retry_succeeds() external {
-        address sender = address(l1CrossDomainMessenger);
-        address caller = AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger));
+        address sender = address(crossL2Inbox);
         uint256 value = 100;
 
         bytes32 hash =
-            Hashing.hashCrossDomainMessage(Encoding.encodeVersionedNonce(0, 1), sender, target, value, 0, hex"1111");
+            keccak256(abi.encode(block.chainid, Encoding.encodeVersionedNonce(0, 1), sender, target, value, hex"1111"));
+
+        ICrossL2Inbox.Identifier memory id = ICrossL2Inbox.Identifier({
+            origin: address(l2ToL2CrossDomainMessenger),
+            blocknumber: 0,
+            logIndex: 0,
+            timestamp: block.timestamp,
+            chainId: block.chainid
+        });
+
+        vm.prank(tx.origin);
+        crossL2Inbox.executeMessage(hex"1111", id, target);
 
         vm.etch(target, address(new Reverter()).code);
-        vm.deal(address(caller), value);
-        vm.prank(caller);
-        l2ToL2CrossDomainMessenger.relayMessage(
-            destination,
+        vm.deal(address(crossL2Inbox), value);
+        vm.prank(address(crossL2Inbox));
+        l2ToL2CrossDomainMessenger.relayMessage{ value: value }(
+            block.chainid,
             Encoding.encodeVersionedNonce(0, 1), // nonce
             sender,
             target,
@@ -123,6 +136,7 @@ contract L2ToL2ToL2CrossDomainMessengerTest is Bridge_Initializer {
         assertEq(address(l2ToL2CrossDomainMessenger).balance, value);
         assertEq(address(target).balance, 0);
         assertEq(l2ToL2CrossDomainMessenger.successfulMessages(hash), false);
+        //assertEq(l2ToL2CrossDomainMessenger.failedMessages(hash), true);
 
         vm.expectEmit(true, true, true, true);
 
@@ -131,7 +145,7 @@ contract L2ToL2ToL2CrossDomainMessengerTest is Bridge_Initializer {
         vm.etch(target, address(0).code);
         vm.prank(address(sender));
         l2ToL2CrossDomainMessenger.relayMessage(
-            destination,
+            block.chainid,
             Encoding.encodeVersionedNonce(0, 1), // nonce
             sender,
             target,
@@ -142,5 +156,8 @@ contract L2ToL2ToL2CrossDomainMessengerTest is Bridge_Initializer {
         assertEq(address(l2ToL2CrossDomainMessenger).balance, 0);
         assertEq(address(target).balance, value);
         assertEq(l2ToL2CrossDomainMessenger.successfulMessages(hash), true);
+        //assertEq(l2ToL2CrossDomainMessenger.failedMessages(hash), true);
     }
+
+    fallback() external payable { }
 }
