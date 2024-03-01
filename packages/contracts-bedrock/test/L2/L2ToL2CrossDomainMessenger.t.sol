@@ -69,7 +69,7 @@ contract L2ToL2CrossDomainMessengerTest is Bridge_Initializer {
         });
 
         vm.prank(tx.origin);
-        crossL2Inbox.executeMessage(hex"1111", id, target);
+        crossL2Inbox.executeMessage(id, target, hex"1111");
 
         vm.prank(address(crossL2Inbox));
         l2ToL2CrossDomainMessenger.relayMessage(
@@ -119,7 +119,7 @@ contract L2ToL2CrossDomainMessengerTest is Bridge_Initializer {
         });
 
         vm.prank(tx.origin);
-        crossL2Inbox.executeMessage(hex"1111", id, target);
+        crossL2Inbox.executeMessage(id, target, hex"1111");
 
         vm.etch(target, address(new Reverter()).code);
         vm.deal(address(crossL2Inbox), value);
