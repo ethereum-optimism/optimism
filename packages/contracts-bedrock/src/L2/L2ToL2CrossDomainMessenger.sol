@@ -113,8 +113,15 @@ contract L2ToL2CrossDomainMessenger {
 
         bool success = SafeCall.call({ _target: _target, _gas: gasleft(), _value: _value, _calldata: _message });
 
-        require(success, "Call failed");
-
-        successfulMessages[messageHash] = true;
+        if (success) {
+            // This check is identical to one above, but it ensures that the same message cannot be relayed
+            // twice, and adds a layer of protection against rentrancy.
+            assert(successfulMessages[messageHash] == false);
+            successfulMessages[messageHash] = true;
+            emit RelayedMessage(messageHash);
+        } else {
+            failedMessages[messageHash] = true;
+            emit FailedRelayedMessage(messageHash);
+        }
     }
 }
