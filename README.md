@@ -115,7 +115,7 @@ In the above list, this means these `v<semver` releases contain all `op-*` compo
 `op-geth` embeds upstream geth’s version inside it’s own version as follows: `vMAJOR.GETH_MAJOR GETH_MINOR GETH_PATCH.PATCH`.
 Basically, geth’s version is our minor version.
 For example if geth is at `v1.12.0`, the corresponding op-geth version would be `v1.101200.0`.
-*Note that we pad out to three characters for the geth minor version and two characters for the geth patch version.
+Note that we pad out to three characters for the geth minor version and two characters for the geth patch version.
 Since we cannot left-pad with zeroes, the geth major version is not padded.
 
 See the [Node Software Releases](https://docs.optimism.io/builders/node-operators/releases) page of the documentation for more information about releases for the latest node components.
@@ -143,7 +143,7 @@ The primary development branch is [`develop`](https://github.com/ethereum-optimi
 `develop` contains the most up-to-date software that remains backwards compatible with the latest experimental [network deployments](https://community.optimism.io/docs/useful-tools/networks/).
 If you're making a backwards compatible change, please direct your pull request towards `develop`.
 
-**Changes to contracts within `packages/contracts-bedrock/src` are usually NOT considered backwards compatible.**.
+**Changes to contracts within `packages/contracts-bedrock/src` are usually NOT considered backwards compatible.**
 Some exceptions to this rule exist for cases in which we absolutely must deploy some new contract after a tag has already been fully deployed.
 If you're changing or adding a contract and you're unsure about which branch to make a PR into, default to using a feature branch.
 Feature branches are typically used when there are conflicts between 2 projects touching the same code, to avoid conflicts from merging both into `develop`.
