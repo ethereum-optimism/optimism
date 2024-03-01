@@ -48,6 +48,27 @@ library SafeCall {
         return _success;
     }
 
+    /// @notice Perform a low level call without copying any returndata and passing all available gas
+    /// @param _target   Address to call
+    /// @param _value    Amount of value to pass to the call
+    /// @param _calldata Calldata to pass to the call
+    function callWithAllGas(address _target, uint256 _value, bytes memory _calldata) internal returns (bool) {
+        bool _success;
+        assembly {
+            _success :=
+                call(
+                    gas(), // gas
+                    _target, // recipient
+                    _value, // ether value
+                    add(_calldata, 32), // inloc
+                    mload(_calldata), // inlen
+                    0, // outloc
+                    0 // outlen
+                )
+        }
+        return _success;
+    }
+
     /// @notice Helper function to determine if there is sufficient gas remaining within the context
     ///         to guarantee that the minimum gas requirement for a call will be met as well as
     ///         optionally reserving a specified amount of gas for after the call has concluded.
