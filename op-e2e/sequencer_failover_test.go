@@ -136,3 +136,29 @@ func TestSequencerFailover_ConductorRPC(t *testing.T) {
 	require.Equal(t, 2, len(membership), "Expected 2 members in cluster after removal")
 	require.NotContains(t, membership, fid, "Expected follower to be removed from cluster")
 }
+
+// [Category: Sequencer Failover]
+// Test that the sequencer can successfully failover to a new sequencer once the active sequencer goes down.
+func TestSequencerFailover_ActiveSequencerDown(t *testing.T) {
+	sys, conductors := setupSequencerFailoverTest(t)
+	defer sys.Close()
+
+	ctx := context.Background()
+	leaderId, _ := findLeader(t, conductors)
+	sys.RollupNodes[leaderId].Stop(ctx) // Stop the current leader sequencer
+
+	// The leadership change should occur with no errors
+	require.NoError(t, waitForLeadershipChange(t, conductors[leaderId], false))
+
+	// Confirm the new leader is different from the old leader
+	newLeaderId, _ := findLeader(t, conductors)
+	require.NotEqual(t, leaderId, newLeaderId, "Expected leader to change")
+
+	// Check that the sequencer is healthy
+	require.True(t, healthy(t, ctx, conductors[newLeaderId]))
+
+	// Check if the new leader is sequencing
+	active, err := sys.RollupClient(newLeaderId).SequencerActive(ctx)
+	require.NoError(t, err)
+	require.True(t, active, "Expected new leader to be sequencing")
+}
