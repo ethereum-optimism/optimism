@@ -210,6 +210,7 @@ func TestP2PFull(t *testing.T) {
 	// disconnect
 	hostBId := hostB.ID().String()
 	peerDump, err = p2pClientA.Peers(ctx, false)
+	require.Nil(t, err)
 	data = peerDump.Peers[hostBId]
 	require.NotNil(t, data)
 	require.NoError(t, p2pClientA.DisconnectPeer(ctx, hostB.ID()))
