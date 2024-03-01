@@ -59,7 +59,7 @@ capture-chain-test-data: capture-sepolia-verify
 
 run-sepolia-verify: op-program-host op-program-client
 	mkdir -p "$(COMPAT_DIR)"
-	curl -L -o "$(COMPAT_DIR)/sepolia.tar.bz" https://github.com/ethereum-optimism/chain-test-data/releases/download/2023-10-11/sepolia.tar.bz
+	curl -L -o "$(COMPAT_DIR)/sepolia.tar.bz" https://github.com/ethereum-optimism/chain-test-data/releases/download/2024-03-01.2-branch/sepolia.tar.bz
 	tar jxf "$(COMPAT_DIR)/sepolia.tar.bz" -C "$(COMPAT_DIR)"
 	./bin/op-program `cat "$(COMPAT_DIR)/sepolia/args.txt"`
 
