@@ -323,7 +323,7 @@ func createEmptyFrame(id ChannelID, frame uint64, readyBytes int, closed bool, m
 	if maxDataSize >= uint64(readyBytes) {
 		maxDataSize = uint64(readyBytes)
 		// If we are closed & will not spill past the current frame
-		// mark it is the final frame of the channel.
+		// mark it as the final frame of the channel.
 		if closed {
 			f.IsLast = true
 		}
