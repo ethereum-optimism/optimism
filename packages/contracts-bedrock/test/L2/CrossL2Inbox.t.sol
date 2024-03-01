@@ -52,6 +52,12 @@ contract CrossL2InboxTest is CommonTest {
 
         vm.expectCall(_target, _msg);
         crossL2Inbox.executeMessage{ value: msg.value }(_msg, _id, _target);
+
+        assertEq(crossL2Inbox.origin(), _id.origin);
+        assertEq(crossL2Inbox.blocknumber(), _id.blocknumber);
+        assertEq(crossL2Inbox.logIndex(), _id.logIndex);
+        assertEq(crossL2Inbox.timestamp(), _id.timestamp);
+        assertEq(crossL2Inbox.chainId(), _id.chainId);
     }
 
     function test_executeMessage_invalidTimestamp_fails() external {
@@ -93,6 +99,22 @@ contract CrossL2InboxTest is CommonTest {
         crossL2Inbox.executeMessage(msg_, id, address(0));
     }
 
+    function test_executeMessage_sameChainId_succeeds() external {
+        ICrossL2Inbox.Identifier memory id = ICrossL2Inbox.Identifier({
+            origin: address(0),
+            blocknumber: 0,
+            logIndex: 0,
+            timestamp: block.timestamp,
+            chainId: block.chainid
+        });
+
+        vm.prank(tx.origin);
+
+        bytes memory msg_ = abi.encode("");
+
+        crossL2Inbox.executeMessage(msg_, id, address(0));
+    }
+
     function test_executeMessage_invalidSender_fails() external {
         uint256[] memory chainIds = new uint256[](1);
         chainIds[0] = 1;
@@ -127,13 +149,9 @@ contract CrossL2InboxTest is CommonTest {
             chainId: chainIds[0]
         });
 
-        vm.prank(tx.origin);
-
         bytes memory msg_ = abi.encode("");
 
         vm.expectRevert("Not EOA");
         crossL2Inbox.executeMessage(msg_, id, address(0));
     }
-
-    // TODO: verify that tvalues are updated correctly (maybe do a test for each?)
 }
