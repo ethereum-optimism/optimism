@@ -144,11 +144,12 @@ func TestSequencerFailover_ActiveSequencerDown(t *testing.T) {
 	defer sys.Close()
 
 	ctx := context.Background()
-	leaderId, _ := findLeader(t, conductors)
+	leaderId, leader := findLeader(t, conductors)
 	sys.RollupNodes[leaderId].Stop(ctx) // Stop the current leader sequencer
 
 	// The leadership change should occur with no errors
-	require.NoError(t, waitForLeadershipChange(t, conductors[leaderId], false))
+	newID := waitForLeadershipChange(t, leader, leaderId, conductors, sys)
+	require.NotEqual(t, leaderId, newID, "Expected leader to change")
 
 	// Confirm the new leader is different from the old leader
 	newLeaderId, _ := findLeader(t, conductors)
