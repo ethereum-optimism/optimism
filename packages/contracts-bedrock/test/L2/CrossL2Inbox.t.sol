@@ -52,7 +52,7 @@ contract CrossL2InboxTest is CommonTest {
         vm.prank(tx.origin);
 
         vm.expectCall(_target, _msg);
-        crossL2Inbox.executeMessage{ value: msg.value }(_msg, _id, _target);
+        crossL2Inbox.executeMessage{ value: msg.value }(_id, _target, _msg);
 
         assertEq(crossL2Inbox.origin(), _id.origin);
         assertEq(crossL2Inbox.blocknumber(), _id.blocknumber);
@@ -80,7 +80,7 @@ contract CrossL2InboxTest is CommonTest {
         bytes memory msg_ = abi.encode("");
 
         vm.expectRevert("CrossL2Inbox: invalid id timestamp");
-        crossL2Inbox.executeMessage(msg_, id, address(0));
+        crossL2Inbox.executeMessage(id, address(0), msg_);
     }
 
     function test_executeMessage_invalidChainId_fails() external {
@@ -97,7 +97,7 @@ contract CrossL2InboxTest is CommonTest {
         bytes memory msg_ = abi.encode("");
 
         vm.expectRevert("CrossL2Inbox: invalid id chainId");
-        crossL2Inbox.executeMessage(msg_, id, address(0));
+        crossL2Inbox.executeMessage(id, address(0), msg_);
     }
 
     function test_executeMessage_sameChainId_succeeds() external {
@@ -113,7 +113,7 @@ contract CrossL2InboxTest is CommonTest {
 
         bytes memory msg_ = abi.encode("");
 
-        crossL2Inbox.executeMessage(msg_, id, address(0));
+        crossL2Inbox.executeMessage(id, address(0), msg_);
     }
 
     function test_executeMessage_invalidSender_fails() external {
@@ -133,7 +133,7 @@ contract CrossL2InboxTest is CommonTest {
         bytes memory msg_ = abi.encode("");
 
         vm.expectRevert("CrossL2Inbox: Not EOA sender");
-        crossL2Inbox.executeMessage(msg_, id, address(0));
+        crossL2Inbox.executeMessage(id, address(0), msg_);
     }
 
     function test_executeMessage_unsuccessfullSafeCall_fails() external {
@@ -154,6 +154,6 @@ contract CrossL2InboxTest is CommonTest {
 
         vm.prank(tx.origin);
         vm.expectRevert("CrossL2Inbox: call failed");
-        crossL2Inbox.executeMessage(hex"1111", id, address(0));
+        crossL2Inbox.executeMessage(id, address(0), hex"1111");
     }
 }

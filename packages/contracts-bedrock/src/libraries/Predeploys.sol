@@ -35,9 +35,9 @@ interface ICrossL2Inbox {
     function chainId() external view returns (uint256 _chainId);
 
     function executeMessage(
-        bytes calldata _msg,
         ICrossL2Inbox.Identifier calldata _id,
-        address _target
+        address _target,
+        bytes calldata _msg
     )
         external
         payable;
