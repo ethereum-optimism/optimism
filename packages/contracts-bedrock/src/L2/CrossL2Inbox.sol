@@ -75,11 +75,16 @@ contract CrossL2Inbox {
         require(L1Block(l1Block).isInDependencySet(chainId_), "CrossL2Inbox: invalid id chainId"); // chainId invariant
         require(msg.sender == tx.origin, "CrossL2Inbox: Not EOA sender"); // only EOA invariant
 
+        address origin_ = _id.origin;
+        uint256 blocknumber = _id.blocknumber;
+        uint256 logIndex = _id.logIndex;
+        uint256 timestamp_ = _id.timestamp;
+
         assembly {
-            tstore(ORIGIN_SLOT, mload(_id))
-            tstore(BLOCKNUMBER_SLOT, mload(add(_id, 0x20)))
-            tstore(LOG_INDEX_SLOT, mload(add(_id, 0x40)))
-            tstore(TIMESTAMP_SLOT, mload(add(_id, 0x60)))
+            tstore(ORIGIN_SLOT, origin_)
+            tstore(BLOCKNUMBER_SLOT, blocknumber)
+            tstore(LOG_INDEX_SLOT, logIndex)
+            tstore(TIMESTAMP_SLOT, timestamp_)
             tstore(CHAINID_SLOT, chainId_)
         }
 
