@@ -70,10 +70,10 @@ contract CrossL2Inbox {
     /// @param _id A Identifier pointing to the initiating message.
     /// @param _target Account that is called with _msg.
     function executeMessage(bytes calldata _msg, Identifier calldata _id, address _target) public payable {
-        require(_id.timestamp <= block.timestamp, "Invalid timestamp"); // timestamp invariant
+        require(_id.timestamp <= block.timestamp, "CrossL2Inbox: invalid id timestamp"); // timestamp invariant
         uint256 chainId_ = _id.chainId;
-        require(L1Block(l1Block).isInDependencySet(chainId_), "Invalid chainId"); // chainId invariant
-        require(msg.sender == tx.origin, "Not EOA"); // only EOA invariant
+        require(L1Block(l1Block).isInDependencySet(chainId_), "CrossL2Inbox: invalid id chainId"); // chainId invariant
+        require(msg.sender == tx.origin, "CrossL2Inbox: Not EOA sender"); // only EOA invariant
 
         assembly {
             tstore(ORIGIN_SLOT, mload(_id))
