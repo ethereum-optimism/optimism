@@ -69,7 +69,7 @@ contract L2ToL2CrossDomainMessenger {
     /// @param _target      Target contract or wallet address.
     /// @param _message     Message to trigger the target address with.
     function sendMessage(uint256 _destination, address _target, bytes calldata _message) external payable {
-        require(_destination != block.chainid, "Cannot send message to self");
+        require(_destination != block.chainid, "L2ToL2CrossDomainMessenger: cannot send message to self");
 
         bytes memory data = abi.encodeCall(
             L2ToL2CrossDomainMessenger.relayMessage,
@@ -99,13 +99,16 @@ contract L2ToL2CrossDomainMessenger {
         external
         payable
     {
-        require(msg.sender == crossL2Inbox, "Not cross domain messenger");
-        require(CrossL2Inbox(crossL2Inbox).origin() == address(this), "Not from this L2ToL2CrossDomainMessenger");
-        require(_destination == block.chainid, "Not for this chain");
-        require(_target != address(this), "Unsafe target");
+        require(msg.sender == crossL2Inbox, "L2ToL2CrossDomainMessenger: sender not CrossL2Inbox");
+        require(
+            CrossL2Inbox(crossL2Inbox).origin() == address(this),
+            "L2ToL2CrossDomainMessenger: CrossL2Inbox origin not this contract"
+        );
+        require(_destination == block.chainid, "L2ToL2CrossDomainMessenger: destination not this chain");
+        require(_target != address(this), "L2ToL2CrossDomainMessenger: target not this contract");
 
         bytes32 messageHash = keccak256(abi.encode(_destination, _nonce, _sender, _target, _value, _message));
-        require(successfulMessages[messageHash] == false, "Message already relayed");
+        require(successfulMessages[messageHash] == false, "L2ToL2CrossDomainMessenger: message already relayed");
 
         assembly {
             tstore(CROSS_DOMAIN_MESSAGE_SENDER_SLOT, _sender)
