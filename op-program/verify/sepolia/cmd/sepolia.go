@@ -12,8 +12,8 @@ import (
 
 func main() {
 	var l1RpcUrl string
-	var l1BeaconUrl string
 	var l1RpcKind string
+	var l1BeaconUrl string
 	var l2RpcUrl string
 	var dataDir string
 	flag.StringVar(&l1RpcUrl, "l1", "", "L1 RPC URL to use")
@@ -38,7 +38,7 @@ func main() {
 	}
 
 	sepoliaOutputAddress := common.HexToAddress("0x90E9c4f8a994a250F6aEfd61CAFb4F2e895D458F")
-	err := verify.Run(l1RpcUrl, l1RpcKind, l2RpcUrl, sepoliaOutputAddress, dataDir, "sepolia", chainconfig.OPSepoliaChainConfig)
+	err := verify.Run(l1RpcUrl, l1RpcKind, l1BeaconUrl, l2RpcUrl, sepoliaOutputAddress, dataDir, "sepolia", chainconfig.OPSepoliaChainConfig)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "Failed: %v\n", err.Error())
 		os.Exit(1)

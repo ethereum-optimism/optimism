@@ -25,7 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
-func Run(l1RpcUrl string, l1RpcKind string, l2RpcUrl string, l2OracleAddr common.Address, dataDir string, network string, chainCfg *params.ChainConfig) error {
+func Run(l1RpcUrl string, l1RpcKind string, l1BeaconUrl string, l2RpcUrl string, l2OracleAddr common.Address, dataDir string, network string, chainCfg *params.ChainConfig) error {
 	ctx := context.Background()
 	logger := oplog.DefaultCLIConfig()
 	logger.Level = log.LevelDebug
@@ -140,6 +140,7 @@ func Run(l1RpcUrl string, l1RpcKind string, l2RpcUrl string, l2OracleAddr common
 	}
 	onlineCfg := offlineCfg
 	onlineCfg.L1URL = l1RpcUrl
+	onlineCfg.L1BeaconURL = l1BeaconUrl
 	onlineCfg.L2URL = l2RpcUrl
 	onlineCfg.L1RPCKind = sources.RPCProviderKind(l1RpcKind)
 
