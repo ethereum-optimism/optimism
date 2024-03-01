@@ -81,9 +81,10 @@ contract L2ToL2CrossDomainMessenger {
         address _sender,
         address _target,
         uint256 _value,
-        bytes memory _message
+        bytes calldata _message
     )
         external
+        payable
     {
         require(msg.sender == crossL2Inbox, "Not cross domain messenger");
         require(CrossL2Inbox(crossL2Inbox).origin() == address(this), "Not from this L2ToL2CrossDomainMessenger");
