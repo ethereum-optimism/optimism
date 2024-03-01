@@ -271,7 +271,7 @@ func (eq *EngineQueue) isEngineSyncing() bool {
 func (eq *EngineQueue) Step(ctx context.Context) error {
 	// If we don't need to call FCU to restore unsafeHead using backupUnsafe, keep going b/c
 	// this was a no-op(except correcting invalid state when backupUnsafe is empty but TryBackupUnsafeReorg called).
-	if FCUcalled, err := eq.ec.TryBackupUnsafeReorg(ctx); FCUcalled {
+	if fcuCalled, err := eq.ec.TryBackupUnsafeReorg(ctx); fcuCalled {
 		// If we needed to perform a network call, then we should yield even if we did not encounter an error.
 		return err
 	}
