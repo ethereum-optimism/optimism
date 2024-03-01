@@ -30,8 +30,8 @@ var (
 
 // L2ToL2CrossDomainMessengerMetaData contains all meta data concerning the L2ToL2CrossDomainMessenger contract.
 var L2ToL2CrossDomainMessengerMetaData = &bind.MetaData{
-	ABI: "[{\"type\":\"function\",\"name\":\"CROSS_DOMAIN_MESSAGE_SENDER_SLOT\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"INITIAL_BALANCE\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint248\",\"internalType\":\"uint248\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"MESSAGE_VERSION\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint16\",\"internalType\":\"uint16\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"crossL2Inbox\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"messageNonce\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"relayMessage\",\"inputs\":[{\"name\":\"_destination\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"_nonce\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"_sender\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"_target\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"_value\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"_message\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"sendMessage\",\"inputs\":[{\"name\":\"_destination\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"_target\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"_message\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"outputs\":[],\"stateMutability\":\"payable\"},{\"type\":\"function\",\"name\":\"successfulMessages\",\"inputs\":[{\"name\":\"\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"outputs\":[{\"name\":\"\",\"type\":\"bool\",\"internalType\":\"bool\"}],\"stateMutability\":\"view\"},{\"type\":\"event\",\"name\":\"SentMessage\",\"inputs\":[{\"name\":\"destination\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"target\",\"type\":\"address\",\"indexed\":false,\"internalType\":\"address\"},{\"name\":\"message\",\"type\":\"bytes\",\"indexed\":false,\"internalType\":\"bytes\"},{\"name\":\"data\",\"type\":\"bytes\",\"indexed\":false,\"internalType\":\"bytes\"}],\"anonymous\":true}]",
-	Bin: "0x608060405234801561000f575f80fd5b50610c2d8061001d5f395ff3fe608060405260043610610079575f3560e01c8063b1f35f2c1161004c578063b1f35f2c1461015d578063c155fa651461019e578063ecc70428146101bd578063fd2c723e146101f1575f80fd5b806314525bce1461007d5780633f827a5a146100e45780637056f41f1461010a578063b1b1b2091461011f575b5f80fd5b348015610088575f80fd5b506100af7effffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff81565b6040517effffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff90911681526020015b60405180910390f35b3480156100ef575f80fd5b506100f75f81565b60405161ffff90911681526020016100db565b61011d610118366004610832565b610241565b005b34801561012a575f80fd5b5061014d6101393660046108b4565b60016020525f908152604090205460ff1681565b60405190151581526020016100db565b348015610168575f80fd5b506101907fb83444d07072b122e2e72a669ce32857d892345c19856f4e7142d06a167ab3f381565b6040519081526020016100db565b3480156101a9575f80fd5b5061011d6101b83660046108f8565b6103b0565b3480156101c8575f80fd5b506002547dffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff16610190565b3480156101fc575f80fd5b505f5461021c9073ffffffffffffffffffffffffffffffffffffffff1681565b60405173ffffffffffffffffffffffffffffffffffffffff90911681526020016100db565b46840361024c575f80fd5b5f846102776002547dffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff1690565b33863487876040516024016102929796959493929190610a47565b604080517fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe08184030181529181526020820180517bffffffffffffffffffffffffffffffffffffffffffffffffffffffff167fc155fa65000000000000000000000000000000000000000000000000000000001790525190915061031f9086908690869086908690610b00565b60405180910390a0600280547dffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff16905f61035683610b53565b91906101000a8154817dffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff02191690837dffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff160217905550505050505050565b5f5473ffffffffffffffffffffffffffffffffffffffff163314610435576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152601a60248201527f4e6f742063726f737320646f6d61696e206d657373656e67657200000000000060448201526064015b60405180910390fd5b5f54604080517f938b5f320000000000000000000000000000000000000000000000000000000081529051309273ffffffffffffffffffffffffffffffffffffffff169163938b5f329160048083019260209291908290030181865afa1580156104a1573d5f803e3d5ffd5b505050506040513d601f19601f820116820180604052508101906104c59190610bb4565b73ffffffffffffffffffffffffffffffffffffffff1614610568576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602860248201527f4e6f742066726f6d2074686973204c32546f4c3243726f7373446f6d61696e4d60448201527f657373656e676572000000000000000000000000000000000000000000000000606482015260840161042c565b4686146105d1576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152601260248201527f4e6f7420666f72207468697320636861696e0000000000000000000000000000604482015260640161042c565b3073ffffffffffffffffffffffffffffffffffffffff841603610650576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152600d60248201527f556e736166652074617267657400000000000000000000000000000000000000604482015260640161042c565b5f86868686868660405160200161066c96959493929190610bd6565b604080517fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe081840301815291815281516020928301205f818152600190935291205490915060ff161561071b576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152601760248201527f4d65737361676520616c72656164792072656c61796564000000000000000000604482015260640161042c565b847fb83444d07072b122e2e72a669ce32857d892345c19856f4e7142d06a167ab3f35d5f61074b855a86866107f6565b9050806107b4576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152600b60248201527f43616c6c206661696c6564000000000000000000000000000000000000000000604482015260640161042c565b505f90815260016020819052604090912080547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00169091179055505050505050565b5f805f80845160208601878a8af19695505050505050565b73ffffffffffffffffffffffffffffffffffffffff8116811461082f575f80fd5b50565b5f805f8060608587031215610845575f80fd5b8435935060208501356108578161080e565b9250604085013567ffffffffffffffff80821115610873575f80fd5b818701915087601f830112610886575f80fd5b813581811115610894575f80fd5b8860208285010111156108a5575f80fd5b95989497505060200194505050565b5f602082840312156108c4575f80fd5b5035919050565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52604160045260245ffd5b5f805f805f8060c0878903121561090d575f80fd5b863595506020870135945060408701356109268161080e565b935060608701356109368161080e565b92506080870135915060a087013567ffffffffffffffff80821115610959575f80fd5b818901915089601f83011261096c575f80fd5b81358181111561097e5761097e6108cb565b604051601f82017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0908116603f011681019083821181831017156109c4576109c46108cb565b816040528281528c60208487010111156109dc575f80fd5b826020860160208301375f6020848301015280955050505050509295509295509295565b81835281816020850137505f602082840101525f60207fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0601f840116840101905092915050565b8781528660208201525f73ffffffffffffffffffffffffffffffffffffffff808816604084015280871660608401525084608083015260c060a0830152610a9260c083018486610a00565b9998505050505050505050565b5f81518084525f5b81811015610ac357602081850181015186830182015201610aa7565b505f6020828601015260207fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0601f83011685010191505092915050565b85815273ffffffffffffffffffffffffffffffffffffffff85166020820152608060408201525f610b35608083018587610a00565b8281036060840152610b478185610a9f565b98975050505050505050565b5f7dffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff808316818103610baa577f4e487b71000000000000000000000000000000000000000000000000000000005f52601160045260245ffd5b6001019392505050565b5f60208284031215610bc4575f80fd5b8151610bcf8161080e565b9392505050565b8681528560208201525f73ffffffffffffffffffffffffffffffffffffffff808716604084015280861660608401525083608083015260c060a0830152610b4760c0830184610a9f56fea164736f6c6343000818000a",
+	ABI: "[{\"type\":\"function\",\"name\":\"CROSS_DOMAIN_MESSAGE_SENDER_SLOT\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"INITIAL_BALANCE\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint248\",\"internalType\":\"uint248\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"MESSAGE_VERSION\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint16\",\"internalType\":\"uint16\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"crossL2Inbox\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"failedMessages\",\"inputs\":[{\"name\":\"\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"outputs\":[{\"name\":\"\",\"type\":\"bool\",\"internalType\":\"bool\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"messageNonce\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"relayMessage\",\"inputs\":[{\"name\":\"_destination\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"_nonce\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"_sender\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"_target\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"_value\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"_message\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"outputs\":[],\"stateMutability\":\"payable\"},{\"type\":\"function\",\"name\":\"sendMessage\",\"inputs\":[{\"name\":\"_destination\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"_target\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"_message\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"outputs\":[],\"stateMutability\":\"payable\"},{\"type\":\"function\",\"name\":\"successfulMessages\",\"inputs\":[{\"name\":\"\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"outputs\":[{\"name\":\"\",\"type\":\"bool\",\"internalType\":\"bool\"}],\"stateMutability\":\"view\"},{\"type\":\"event\",\"name\":\"FailedRelayedMessage\",\"inputs\":[{\"name\":\"msgHash\",\"type\":\"bytes32\",\"indexed\":true,\"internalType\":\"bytes32\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"RelayedMessage\",\"inputs\":[{\"name\":\"msgHash\",\"type\":\"bytes32\",\"indexed\":true,\"internalType\":\"bytes32\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"SentMessage\",\"inputs\":[{\"name\":\"destination\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"target\",\"type\":\"address\",\"indexed\":false,\"internalType\":\"address\"},{\"name\":\"message\",\"type\":\"bytes\",\"indexed\":false,\"internalType\":\"bytes\"},{\"name\":\"data\",\"type\":\"bytes\",\"indexed\":false,\"internalType\":\"bytes\"}],\"anonymous\":true}]",
+	Bin: "0x608060405234801561000f575f80fd5b50610d5a8061001d5f395ff3fe608060405260043610610093575f3560e01c8063b1b1b20911610066578063c155fa651161004c578063c155fa65146101e6578063ecc70428146101f9578063fd2c723e1461022d575f80fd5b8063b1b1b20914610177578063b1f35f2c146101a5575f80fd5b806314525bce146100975780633f827a5a146100fe5780637056f41f14610124578063a4e7f8bd14610139575b5f80fd5b3480156100a2575f80fd5b506100c97effffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff81565b6040517effffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff90911681526020015b60405180910390f35b348015610109575f80fd5b506101115f81565b60405161ffff90911681526020016100f5565b610137610132366004610a75565b61027d565b005b348015610144575f80fd5b50610167610153366004610acd565b60026020525f908152604090205460ff1681565b60405190151581526020016100f5565b348015610182575f80fd5b50610167610191366004610acd565b60016020525f908152604090205460ff1681565b3480156101b0575f80fd5b506101d87fb83444d07072b122e2e72a669ce32857d892345c19856f4e7142d06a167ab3f381565b6040519081526020016100f5565b6101376101f4366004610ae4565b610475565b348015610204575f80fd5b506003547dffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff166101d8565b348015610238575f80fd5b505f546102589073ffffffffffffffffffffffffffffffffffffffff1681565b60405173ffffffffffffffffffffffffffffffffffffffff90911681526020016100f5565b468403610311576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603760248201527f4c32546f4c3243726f7373446f6d61696e4d657373656e6765723a2063616e6e60448201527f6f742073656e64206d65737361676520746f2073656c6600000000000000000060648201526084015b60405180910390fd5b5f8461033c6003547dffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff1690565b33863487876040516024016103579796959493929190610bab565b604080517fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe08184030181529181526020820180517bffffffffffffffffffffffffffffffffffffffffffffffffffffffff167fc155fa6500000000000000000000000000000000000000000000000000000000179052519091506103e49086908690869086908690610c03565b60405180910390a0600380547dffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff16905f61041b83610c9d565b91906101000a8154817dffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff02191690837dffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff160217905550505050505050565b5f5473ffffffffffffffffffffffffffffffffffffffff16331461051b576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603360248201527f4c32546f4c3243726f7373446f6d61696e4d657373656e6765723a2073656e6460448201527f6572206e6f742043726f73734c32496e626f78000000000000000000000000006064820152608401610308565b5f54604080517f938b5f320000000000000000000000000000000000000000000000000000000081529051309273ffffffffffffffffffffffffffffffffffffffff169163938b5f329160048083019260209291908290030181865afa158015610587573d5f803e3d5ffd5b505050506040513d601f19601f820116820180604052508101906105ab9190610cfe565b73ffffffffffffffffffffffffffffffffffffffff1614610674576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152604160248201527f4c32546f4c3243726f7373446f6d61696e4d657373656e6765723a2043726f7360448201527f734c32496e626f78206f726967696e206e6f74207468697320636f6e7472616360648201527f7400000000000000000000000000000000000000000000000000000000000000608482015260a401610308565b468714610703576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603660248201527f4c32546f4c3243726f7373446f6d61696e4d657373656e6765723a206465737460448201527f696e6174696f6e206e6f74207468697320636861696e000000000000000000006064820152608401610308565b3073ffffffffffffffffffffffffffffffffffffffff8516036107a8576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603460248201527f4c32546f4c3243726f7373446f6d61696e4d657373656e6765723a207461726760448201527f6574206e6f74207468697320636f6e74726163740000000000000000000000006064820152608401610308565b5f878787878787876040516020016107c69796959493929190610bab565b604080517fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe081840301815291815281516020928301205f818152600190935291205490915060ff161561089b576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603360248201527f4c32546f4c3243726f7373446f6d61696e4d657373656e6765723a206d65737360448201527f61676520616c72656164792072656c61796564000000000000000000000000006064820152608401610308565b857fb83444d07072b122e2e72a669ce32857d892345c19856f4e7142d06a167ab3f35d5f610900865a8787878080601f0160208091040260200160405190810160405280939291908181526020018383808284375f920191909152506109f492505050565b9050801561098b575f8281526001602052604090205460ff161561092657610926610d20565b5f82815260016020819052604080832080547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00169092179091555183917f4641df4a962071e12719d8c8c8e5ac7fc4d97b927346a3d7a335b1f7517e133c91a26109e9565b5f8281526002602052604080822080547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff001660011790555183917f99d0e048484baa1b1540b1367cb128acd7ab2946d1ed91ec10e3c85e4bf51b8f91a25b505050505050505050565b5f805f80845160208601878a8af19695505050505050565b73ffffffffffffffffffffffffffffffffffffffff81168114610a2d575f80fd5b50565b5f8083601f840112610a40575f80fd5b50813567ffffffffffffffff811115610a57575f80fd5b602083019150836020828501011115610a6e575f80fd5b9250929050565b5f805f8060608587031215610a88575f80fd5b843593506020850135610a9a81610a0c565b9250604085013567ffffffffffffffff811115610ab5575f80fd5b610ac187828801610a30565b95989497509550505050565b5f60208284031215610add575f80fd5b5035919050565b5f805f805f805f60c0888a031215610afa575f80fd5b87359650602088013595506040880135610b1381610a0c565b94506060880135610b2381610a0c565b93506080880135925060a088013567ffffffffffffffff811115610b45575f80fd5b610b518a828b01610a30565b989b979a50959850939692959293505050565b81835281816020850137505f602082840101525f60207fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0601f840116840101905092915050565b8781528660208201525f73ffffffffffffffffffffffffffffffffffffffff808816604084015280871660608401525084608083015260c060a0830152610bf660c083018486610b64565b9998505050505050505050565b8581525f602073ffffffffffffffffffffffffffffffffffffffff87168184015260806040840152610c39608084018688610b64565b838103606085015284518082525f5b81811015610c63578681018401518382018501528301610c48565b505f828201840152601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0160101979650505050505050565b5f7dffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff808316818103610cf4577f4e487b71000000000000000000000000000000000000000000000000000000005f52601160045260245ffd5b6001019392505050565b5f60208284031215610d0e575f80fd5b8151610d1981610a0c565b9392505050565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52600160045260245ffdfea164736f6c6343000818000a",
 }
 
 // L2ToL2CrossDomainMessengerABI is the input ABI used to generate the binding from.
@@ -325,6 +325,37 @@ func (_L2ToL2CrossDomainMessenger *L2ToL2CrossDomainMessengerCallerSession) Cros
 	return _L2ToL2CrossDomainMessenger.Contract.CrossL2Inbox(&_L2ToL2CrossDomainMessenger.CallOpts)
 }
 
+// FailedMessages is a free data retrieval call binding the contract method 0xa4e7f8bd.
+//
+// Solidity: function failedMessages(bytes32 ) view returns(bool)
+func (_L2ToL2CrossDomainMessenger *L2ToL2CrossDomainMessengerCaller) FailedMessages(opts *bind.CallOpts, arg0 [32]byte) (bool, error) {
+	var out []interface{}
+	err := _L2ToL2CrossDomainMessenger.contract.Call(opts, &out, "failedMessages", arg0)
+
+	if err != nil {
+		return *new(bool), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(bool)).(*bool)
+
+	return out0, err
+
+}
+
+// FailedMessages is a free data retrieval call binding the contract method 0xa4e7f8bd.
+//
+// Solidity: function failedMessages(bytes32 ) view returns(bool)
+func (_L2ToL2CrossDomainMessenger *L2ToL2CrossDomainMessengerSession) FailedMessages(arg0 [32]byte) (bool, error) {
+	return _L2ToL2CrossDomainMessenger.Contract.FailedMessages(&_L2ToL2CrossDomainMessenger.CallOpts, arg0)
+}
+
+// FailedMessages is a free data retrieval call binding the contract method 0xa4e7f8bd.
+//
+// Solidity: function failedMessages(bytes32 ) view returns(bool)
+func (_L2ToL2CrossDomainMessenger *L2ToL2CrossDomainMessengerCallerSession) FailedMessages(arg0 [32]byte) (bool, error) {
+	return _L2ToL2CrossDomainMessenger.Contract.FailedMessages(&_L2ToL2CrossDomainMessenger.CallOpts, arg0)
+}
+
 // MessageNonce is a free data retrieval call binding the contract method 0xecc70428.
 //
 // Solidity: function messageNonce() view returns(uint256)
@@ -389,21 +420,21 @@ func (_L2ToL2CrossDomainMessenger *L2ToL2CrossDomainMessengerCallerSession) Succ
 
 // RelayMessage is a paid mutator transaction binding the contract method 0xc155fa65.
 //
-// Solidity: function relayMessage(uint256 _destination, uint256 _nonce, address _sender, address _target, uint256 _value, bytes _message) returns()
+// Solidity: function relayMessage(uint256 _destination, uint256 _nonce, address _sender, address _target, uint256 _value, bytes _message) payable returns()
 func (_L2ToL2CrossDomainMessenger *L2ToL2CrossDomainMessengerTransactor) RelayMessage(opts *bind.TransactOpts, _destination *big.Int, _nonce *big.Int, _sender common.Address, _target common.Address, _value *big.Int, _message []byte) (*types.Transaction, error) {
 	return _L2ToL2CrossDomainMessenger.contract.Transact(opts, "relayMessage", _destination, _nonce, _sender, _target, _value, _message)
 }
 
 // RelayMessage is a paid mutator transaction binding the contract method 0xc155fa65.
 //
-// Solidity: function relayMessage(uint256 _destination, uint256 _nonce, address _sender, address _target, uint256 _value, bytes _message) returns()
+// Solidity: function relayMessage(uint256 _destination, uint256 _nonce, address _sender, address _target, uint256 _value, bytes _message) payable returns()
 func (_L2ToL2CrossDomainMessenger *L2ToL2CrossDomainMessengerSession) RelayMessage(_destination *big.Int, _nonce *big.Int, _sender common.Address, _target common.Address, _value *big.Int, _message []byte) (*types.Transaction, error) {
 	return _L2ToL2CrossDomainMessenger.Contract.RelayMessage(&_L2ToL2CrossDomainMessenger.TransactOpts, _destination, _nonce, _sender, _target, _value, _message)
 }
 
 // RelayMessage is a paid mutator transaction binding the contract method 0xc155fa65.
 //
-// Solidity: function relayMessage(uint256 _destination, uint256 _nonce, address _sender, address _target, uint256 _value, bytes _message) returns()
+// Solidity: function relayMessage(uint256 _destination, uint256 _nonce, address _sender, address _target, uint256 _value, bytes _message) payable returns()
 func (_L2ToL2CrossDomainMessenger *L2ToL2CrossDomainMessengerTransactorSession) RelayMessage(_destination *big.Int, _nonce *big.Int, _sender common.Address, _target common.Address, _value *big.Int, _message []byte) (*types.Transaction, error) {
 	return _L2ToL2CrossDomainMessenger.Contract.RelayMessage(&_L2ToL2CrossDomainMessenger.TransactOpts, _destination, _nonce, _sender, _target, _value, _message)
 }
@@ -427,4 +458,292 @@ func (_L2ToL2CrossDomainMessenger *L2ToL2CrossDomainMessengerSession) SendMessag
 // Solidity: function sendMessage(uint256 _destination, address _target, bytes _message) payable returns()
 func (_L2ToL2CrossDomainMessenger *L2ToL2CrossDomainMessengerTransactorSession) SendMessage(_destination *big.Int, _target common.Address, _message []byte) (*types.Transaction, error) {
 	return _L2ToL2CrossDomainMessenger.Contract.SendMessage(&_L2ToL2CrossDomainMessenger.TransactOpts, _destination, _target, _message)
+}
+
+// L2ToL2CrossDomainMessengerFailedRelayedMessageIterator is returned from FilterFailedRelayedMessage and is used to iterate over the raw logs and unpacked data for FailedRelayedMessage events raised by the L2ToL2CrossDomainMessenger contract.
+type L2ToL2CrossDomainMessengerFailedRelayedMessageIterator struct {
+	Event *L2ToL2CrossDomainMessengerFailedRelayedMessage // Event containing the contract specifics and raw log
+
+	contract *bind.BoundContract // Generic contract to use for unpacking event data
+	event    string              // Event name to use for unpacking event data
+
+	logs chan types.Log        // Log channel receiving the found contract events
+	sub  ethereum.Subscription // Subscription for errors, completion and termination
+	done bool                  // Whether the subscription completed delivering logs
+	fail error                 // Occurred error to stop iteration
+}
+
+// Next advances the iterator to the subsequent event, returning whether there
+// are any more events found. In case of a retrieval or parsing error, false is
+// returned and Error() can be queried for the exact failure.
+func (it *L2ToL2CrossDomainMessengerFailedRelayedMessageIterator) Next() bool {
+	// If the iterator failed, stop iterating
+	if it.fail != nil {
+		return false
+	}
+	// If the iterator completed, deliver directly whatever's available
+	if it.done {
+		select {
+		case log := <-it.logs:
+			it.Event = new(L2ToL2CrossDomainMessengerFailedRelayedMessage)
+			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+				it.fail = err
+				return false
+			}
+			it.Event.Raw = log
+			return true
+
+		default:
+			return false
+		}
+	}
+	// Iterator still in progress, wait for either a data or an error event
+	select {
+	case log := <-it.logs:
+		it.Event = new(L2ToL2CrossDomainMessengerFailedRelayedMessage)
+		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+			it.fail = err
+			return false
+		}
+		it.Event.Raw = log
+		return true
+
+	case err := <-it.sub.Err():
+		it.done = true
+		it.fail = err
+		return it.Next()
+	}
+}
+
+// Error returns any retrieval or parsing error occurred during filtering.
+func (it *L2ToL2CrossDomainMessengerFailedRelayedMessageIterator) Error() error {
+	return it.fail
+}
+
+// Close terminates the iteration process, releasing any pending underlying
+// resources.
+func (it *L2ToL2CrossDomainMessengerFailedRelayedMessageIterator) Close() error {
+	it.sub.Unsubscribe()
+	return nil
+}
+
+// L2ToL2CrossDomainMessengerFailedRelayedMessage represents a FailedRelayedMessage event raised by the L2ToL2CrossDomainMessenger contract.
+type L2ToL2CrossDomainMessengerFailedRelayedMessage struct {
+	MsgHash [32]byte
+	Raw     types.Log // Blockchain specific contextual infos
+}
+
+// FilterFailedRelayedMessage is a free log retrieval operation binding the contract event 0x99d0e048484baa1b1540b1367cb128acd7ab2946d1ed91ec10e3c85e4bf51b8f.
+//
+// Solidity: event FailedRelayedMessage(bytes32 indexed msgHash)
+func (_L2ToL2CrossDomainMessenger *L2ToL2CrossDomainMessengerFilterer) FilterFailedRelayedMessage(opts *bind.FilterOpts, msgHash [][32]byte) (*L2ToL2CrossDomainMessengerFailedRelayedMessageIterator, error) {
+
+	var msgHashRule []interface{}
+	for _, msgHashItem := range msgHash {
+		msgHashRule = append(msgHashRule, msgHashItem)
+	}
+
+	logs, sub, err := _L2ToL2CrossDomainMessenger.contract.FilterLogs(opts, "FailedRelayedMessage", msgHashRule)
+	if err != nil {
+		return nil, err
+	}
+	return &L2ToL2CrossDomainMessengerFailedRelayedMessageIterator{contract: _L2ToL2CrossDomainMessenger.contract, event: "FailedRelayedMessage", logs: logs, sub: sub}, nil
+}
+
+// WatchFailedRelayedMessage is a free log subscription operation binding the contract event 0x99d0e048484baa1b1540b1367cb128acd7ab2946d1ed91ec10e3c85e4bf51b8f.
+//
+// Solidity: event FailedRelayedMessage(bytes32 indexed msgHash)
+func (_L2ToL2CrossDomainMessenger *L2ToL2CrossDomainMessengerFilterer) WatchFailedRelayedMessage(opts *bind.WatchOpts, sink chan<- *L2ToL2CrossDomainMessengerFailedRelayedMessage, msgHash [][32]byte) (event.Subscription, error) {
+
+	var msgHashRule []interface{}
+	for _, msgHashItem := range msgHash {
+		msgHashRule = append(msgHashRule, msgHashItem)
+	}
+
+	logs, sub, err := _L2ToL2CrossDomainMessenger.contract.WatchLogs(opts, "FailedRelayedMessage", msgHashRule)
+	if err != nil {
+		return nil, err
+	}
+	return event.NewSubscription(func(quit <-chan struct{}) error {
+		defer sub.Unsubscribe()
+		for {
+			select {
+			case log := <-logs:
+				// New log arrived, parse the event and forward to the user
+				event := new(L2ToL2CrossDomainMessengerFailedRelayedMessage)
+				if err := _L2ToL2CrossDomainMessenger.contract.UnpackLog(event, "FailedRelayedMessage", log); err != nil {
+					return err
+				}
+				event.Raw = log
+
+				select {
+				case sink <- event:
+				case err := <-sub.Err():
+					return err
+				case <-quit:
+					return nil
+				}
+			case err := <-sub.Err():
+				return err
+			case <-quit:
+				return nil
+			}
+		}
+	}), nil
+}
+
+// ParseFailedRelayedMessage is a log parse operation binding the contract event 0x99d0e048484baa1b1540b1367cb128acd7ab2946d1ed91ec10e3c85e4bf51b8f.
+//
+// Solidity: event FailedRelayedMessage(bytes32 indexed msgHash)
+func (_L2ToL2CrossDomainMessenger *L2ToL2CrossDomainMessengerFilterer) ParseFailedRelayedMessage(log types.Log) (*L2ToL2CrossDomainMessengerFailedRelayedMessage, error) {
+	event := new(L2ToL2CrossDomainMessengerFailedRelayedMessage)
+	if err := _L2ToL2CrossDomainMessenger.contract.UnpackLog(event, "FailedRelayedMessage", log); err != nil {
+		return nil, err
+	}
+	event.Raw = log
+	return event, nil
+}
+
+// L2ToL2CrossDomainMessengerRelayedMessageIterator is returned from FilterRelayedMessage and is used to iterate over the raw logs and unpacked data for RelayedMessage events raised by the L2ToL2CrossDomainMessenger contract.
+type L2ToL2CrossDomainMessengerRelayedMessageIterator struct {
+	Event *L2ToL2CrossDomainMessengerRelayedMessage // Event containing the contract specifics and raw log
+
+	contract *bind.BoundContract // Generic contract to use for unpacking event data
+	event    string              // Event name to use for unpacking event data
+
+	logs chan types.Log        // Log channel receiving the found contract events
+	sub  ethereum.Subscription // Subscription for errors, completion and termination
+	done bool                  // Whether the subscription completed delivering logs
+	fail error                 // Occurred error to stop iteration
+}
+
+// Next advances the iterator to the subsequent event, returning whether there
+// are any more events found. In case of a retrieval or parsing error, false is
+// returned and Error() can be queried for the exact failure.
+func (it *L2ToL2CrossDomainMessengerRelayedMessageIterator) Next() bool {
+	// If the iterator failed, stop iterating
+	if it.fail != nil {
+		return false
+	}
+	// If the iterator completed, deliver directly whatever's available
+	if it.done {
+		select {
+		case log := <-it.logs:
+			it.Event = new(L2ToL2CrossDomainMessengerRelayedMessage)
+			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+				it.fail = err
+				return false
+			}
+			it.Event.Raw = log
+			return true
+
+		default:
+			return false
+		}
+	}
+	// Iterator still in progress, wait for either a data or an error event
+	select {
+	case log := <-it.logs:
+		it.Event = new(L2ToL2CrossDomainMessengerRelayedMessage)
+		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+			it.fail = err
+			return false
+		}
+		it.Event.Raw = log
+		return true
+
+	case err := <-it.sub.Err():
+		it.done = true
+		it.fail = err
+		return it.Next()
+	}
+}
+
+// Error returns any retrieval or parsing error occurred during filtering.
+func (it *L2ToL2CrossDomainMessengerRelayedMessageIterator) Error() error {
+	return it.fail
+}
+
+// Close terminates the iteration process, releasing any pending underlying
+// resources.
+func (it *L2ToL2CrossDomainMessengerRelayedMessageIterator) Close() error {
+	it.sub.Unsubscribe()
+	return nil
+}
+
+// L2ToL2CrossDomainMessengerRelayedMessage represents a RelayedMessage event raised by the L2ToL2CrossDomainMessenger contract.
+type L2ToL2CrossDomainMessengerRelayedMessage struct {
+	MsgHash [32]byte
+	Raw     types.Log // Blockchain specific contextual infos
+}
+
+// FilterRelayedMessage is a free log retrieval operation binding the contract event 0x4641df4a962071e12719d8c8c8e5ac7fc4d97b927346a3d7a335b1f7517e133c.
+//
+// Solidity: event RelayedMessage(bytes32 indexed msgHash)
+func (_L2ToL2CrossDomainMessenger *L2ToL2CrossDomainMessengerFilterer) FilterRelayedMessage(opts *bind.FilterOpts, msgHash [][32]byte) (*L2ToL2CrossDomainMessengerRelayedMessageIterator, error) {
+
+	var msgHashRule []interface{}
+	for _, msgHashItem := range msgHash {
+		msgHashRule = append(msgHashRule, msgHashItem)
+	}
+
+	logs, sub, err := _L2ToL2CrossDomainMessenger.contract.FilterLogs(opts, "RelayedMessage", msgHashRule)
+	if err != nil {
+		return nil, err
+	}
+	return &L2ToL2CrossDomainMessengerRelayedMessageIterator{contract: _L2ToL2CrossDomainMessenger.contract, event: "RelayedMessage", logs: logs, sub: sub}, nil
+}
+
+// WatchRelayedMessage is a free log subscription operation binding the contract event 0x4641df4a962071e12719d8c8c8e5ac7fc4d97b927346a3d7a335b1f7517e133c.
+//
+// Solidity: event RelayedMessage(bytes32 indexed msgHash)
+func (_L2ToL2CrossDomainMessenger *L2ToL2CrossDomainMessengerFilterer) WatchRelayedMessage(opts *bind.WatchOpts, sink chan<- *L2ToL2CrossDomainMessengerRelayedMessage, msgHash [][32]byte) (event.Subscription, error) {
+
+	var msgHashRule []interface{}
+	for _, msgHashItem := range msgHash {
+		msgHashRule = append(msgHashRule, msgHashItem)
+	}
+
+	logs, sub, err := _L2ToL2CrossDomainMessenger.contract.WatchLogs(opts, "RelayedMessage", msgHashRule)
+	if err != nil {
+		return nil, err
+	}
+	return event.NewSubscription(func(quit <-chan struct{}) error {
+		defer sub.Unsubscribe()
+		for {
+			select {
+			case log := <-logs:
+				// New log arrived, parse the event and forward to the user
+				event := new(L2ToL2CrossDomainMessengerRelayedMessage)
+				if err := _L2ToL2CrossDomainMessenger.contract.UnpackLog(event, "RelayedMessage", log); err != nil {
+					return err
+				}
+				event.Raw = log
+
+				select {
+				case sink <- event:
+				case err := <-sub.Err():
+					return err
+				case <-quit:
+					return nil
+				}
+			case err := <-sub.Err():
+				return err
+			case <-quit:
+				return nil
+			}
+		}
+	}), nil
+}
+
+// ParseRelayedMessage is a log parse operation binding the contract event 0x4641df4a962071e12719d8c8c8e5ac7fc4d97b927346a3d7a335b1f7517e133c.
+//
+// Solidity: event RelayedMessage(bytes32 indexed msgHash)
+func (_L2ToL2CrossDomainMessenger *L2ToL2CrossDomainMessengerFilterer) ParseRelayedMessage(log types.Log) (*L2ToL2CrossDomainMessengerRelayedMessage, error) {
+	event := new(L2ToL2CrossDomainMessengerRelayedMessage)
+	if err := _L2ToL2CrossDomainMessenger.contract.UnpackLog(event, "RelayedMessage", log); err != nil {
+		return nil, err
+	}
+	event.Raw = log
+	return event, nil
 }
