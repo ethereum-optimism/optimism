@@ -158,6 +158,4 @@ contract L2ToL2CrossDomainMessengerTest is Bridge_Initializer {
         assertEq(l2ToL2CrossDomainMessenger.successfulMessages(hash), true);
         //assertEq(l2ToL2CrossDomainMessenger.failedMessages(hash), true);
     }
-
-    fallback() external payable { }
 }
