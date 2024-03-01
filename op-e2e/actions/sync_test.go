@@ -9,7 +9,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -25,10 +24,6 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
-)
-
-var (
-	rollupCfg rollup.Config
 )
 
 // TestSyncBatchType run each sync test case in singular batch mode and span batch mode.
@@ -252,7 +247,7 @@ func TestBackupUnsafe(gt *testing.T) {
 			block = block.WithBody([]*types.Transaction{block.Transactions()[0], invalidTx}, []*types.Header{})
 		}
 		// Add A1, B2, B3, B4, B5 into the channel
-		_, err = channelOut.AddBlock(&rollupCfg, block)
+		_, err = channelOut.AddBlock(sd.RollupCfg, block)
 		require.NoError(t, err)
 	}
 
@@ -424,7 +419,7 @@ func TestBackupUnsafeReorgForkChoiceInputError(gt *testing.T) {
 			block = block.WithBody([]*types.Transaction{block.Transactions()[0], invalidTx}, []*types.Header{})
 		}
 		// Add A1, B2, B3, B4, B5 into the channel
-		_, err = channelOut.AddBlock(&rollupCfg, block)
+		_, err = channelOut.AddBlock(sd.RollupCfg, block)
 		require.NoError(t, err)
 	}
 
@@ -572,7 +567,7 @@ func TestBackupUnsafeReorgForkChoiceNotInputError(gt *testing.T) {
 			block = block.WithBody([]*types.Transaction{block.Transactions()[0], invalidTx}, []*types.Header{})
 		}
 		// Add A1, B2, B3, B4, B5 into the channel
-		_, err = channelOut.AddBlock(&rollupCfg, block)
+		_, err = channelOut.AddBlock(sd.RollupCfg, block)
 		require.NoError(t, err)
 	}
 
