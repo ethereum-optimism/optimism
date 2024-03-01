@@ -66,7 +66,8 @@ interface IL2ToL2CrossDomainMessenger {
         uint256 _value,
         bytes calldata _message
     )
-        external;
+        external
+        payable;
 }
 
 /// @title Predeploys
