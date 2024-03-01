@@ -1397,9 +1397,9 @@ jobs:
       - restore_cache:
           key: golang-build-cache
       - run:
-          name: compat-goerli
+          name: compat-sepolia
           command: |
-            make run-goerli-verify
+            make run-sepolia-verify
           working_directory: op-program
 
   check-generated-mocks-op-node:
