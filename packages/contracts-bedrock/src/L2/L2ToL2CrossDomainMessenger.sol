@@ -94,7 +94,7 @@ contract L2ToL2CrossDomainMessenger {
         address _sender,
         address _target,
         uint256 _value,
-        bytes calldata _message
+        bytes memory _message
     )
         external
         payable
@@ -114,7 +114,7 @@ contract L2ToL2CrossDomainMessenger {
             tstore(CROSS_DOMAIN_MESSAGE_SENDER_SLOT, _sender)
         }
 
-        bool success = SafeCall.call({ _target: _target, _gas: gasleft(), _value: _value, _calldata: _message });
+        bool success = SafeCall.callWithAllGas({ _target: _target, _value: _value, _calldata: _message });
 
         if (success) {
             // This check is identical to one above, but it ensures that the same message cannot be relayed
