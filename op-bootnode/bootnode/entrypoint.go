@@ -90,7 +90,7 @@ func Main(cliCtx *cli.Context) error {
 		Authenticated: false,
 	})
 	if err := rpcServer.Start(); err != nil {
-		return fmt.Errorf("failed to start the RPC server")
+		return errors.New("failed to start the RPC server")
 	}
 	defer func() {
 		if err := rpcServer.Stop(); err != nil {

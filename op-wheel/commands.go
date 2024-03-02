@@ -154,7 +154,7 @@ type TextFlag[T Text] struct {
 func (a *TextFlag[T]) Set(value string) error {
 	var defaultValue T
 	if a.Value == defaultValue {
-		return fmt.Errorf("cannot unmarshal into nil value")
+		return errors.New("cannot unmarshal into nil value")
 	}
 	return a.Value.UnmarshalText([]byte(value))
 }

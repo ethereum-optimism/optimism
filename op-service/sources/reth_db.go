@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"unsafe"
 
 	"github.com/ethereum-optimism/optimism/op-service/client"
@@ -53,7 +52,7 @@ func FetchRethReceipts(dbPath string, blockHash *common.Hash) (types.Receipts, e
 	receiptsResult := C.rdb_read_receipts((*C.uint8_t)(cBlockHash), C.size_t(len(blockHash)), cDbPath)
 
 	if receiptsResult.error {
-		return nil, fmt.Errorf("Error fetching receipts from Reth Database.")
+		return nil, errors.New("Error fetching receipts from Reth Database.")
 	}
 
 	// Free the memory allocated by the C code

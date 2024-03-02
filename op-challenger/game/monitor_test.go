@@ -3,7 +3,6 @@ package game
 import (
 	"context"
 	"errors"
-	"fmt"
 	"math/big"
 	"sync"
 	"testing"
@@ -112,7 +111,7 @@ func TestMonitorGames(t *testing.T) {
 				return mockHeadSource.Sub() != nil, nil
 			})
 			require.NoError(t, waitErr)
-			mockHeadSource.Sub().errChan <- fmt.Errorf("test error")
+			mockHeadSource.Sub().errChan <- errors.New("test error")
 			for {
 				if len(sched.Scheduled()) >= 1 {
 					break

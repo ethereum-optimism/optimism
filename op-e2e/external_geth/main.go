@@ -31,7 +31,7 @@ func main() {
 
 func run(configPath string) error {
 	if configPath == "" {
-		return fmt.Errorf("must supply a '--config <path>' flag")
+		return errors.New("must supply a '--config <path>' flag")
 	}
 
 	configFile, err := os.Open(configPath)

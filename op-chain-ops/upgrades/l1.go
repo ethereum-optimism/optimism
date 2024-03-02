@@ -198,11 +198,11 @@ func L1ERC721Bridge(batch *safe.Batch, implementations superchain.Implementation
 	}
 
 	if messenger != common.Address(list.L1CrossDomainMessengerProxy) {
-		return fmt.Errorf("Messenger address doesn't match config")
+		return errors.New("Messenger address doesn't match config")
 	}
 
 	if otherBridge != predeploys.L2ERC721BridgeAddr {
-		return fmt.Errorf("OtherBridge address doesn't match config")
+		return errors.New("OtherBridge address doesn't match config")
 	}
 
 	calldata, err := l1ERC721BridgeABI.Pack("initialize", messenger, superchainConfigProxy)
@@ -282,11 +282,11 @@ func L1StandardBridge(batch *safe.Batch, implementations superchain.Implementati
 	}
 
 	if messenger != common.Address(list.L1CrossDomainMessengerProxy) {
-		return fmt.Errorf("Messenger address doesn't match config")
+		return errors.New("Messenger address doesn't match config")
 	}
 
 	if otherBridge != predeploys.L2StandardBridgeAddr {
-		return fmt.Errorf("OtherBridge address doesn't match config")
+		return errors.New("OtherBridge address doesn't match config")
 	}
 
 	calldata, err := l1StandardBridgeABI.Pack("initialize", messenger, superchainConfigProxy)
@@ -505,7 +505,7 @@ func OptimismMintableERC20Factory(batch *safe.Batch, implementations superchain.
 	}
 
 	if bridge != common.Address(list.L1StandardBridgeProxy) {
-		return fmt.Errorf("Bridge address doesn't match config")
+		return errors.New("Bridge address doesn't match config")
 	}
 
 	calldata, err := optimismMintableERC20FactoryABI.Pack("initialize", bridge)
@@ -583,11 +583,11 @@ func OptimismPortal(batch *safe.Batch, implementations superchain.Implementation
 	}
 
 	if l2OutputOracle != common.Address(list.L2OutputOracleProxy) {
-		return fmt.Errorf("L2OutputOracle address doesn't match config")
+		return errors.New("L2OutputOracle address doesn't match config")
 	}
 
 	if systemConfig != common.Address(list.SystemConfigProxy) {
-		return fmt.Errorf("SystemConfig address doesn't match config")
+		return errors.New("SystemConfig address doesn't match config")
 	}
 
 	calldata, err := optimismPortalABI.Pack("initialize", l2OutputOracle, systemConfig, superchainConfigProxy)

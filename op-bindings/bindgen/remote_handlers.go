@@ -222,7 +222,7 @@ func (generator *BindGenGeneratorRemote) removeDeploymentSalt(deploymentData, de
 
 func (generator *BindGenGeneratorRemote) CompareInitBytecodeWithOp(contractMetadataEth *RemoteContractMetadata, initCodeShouldMatch bool) error {
 	if contractMetadataEth.InitBin == "" {
-		return fmt.Errorf("no initialization bytecode provided for ETH deployment for comparison")
+		return errors.New("no initialization bytecode provided for ETH deployment for comparison")
 	}
 
 	var zeroAddress common.Address
