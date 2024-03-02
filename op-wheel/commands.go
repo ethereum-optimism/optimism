@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 
@@ -53,8 +54,9 @@ var (
 	}
 	EngineEndpoint = &cli.StringFlag{
 		Name:     "engine",
-		Usage:    "Engine API RPC endpoint, can be HTTP/WS/IPC",
+		Usage:    "Authenticated Engine API RPC endpoint, can be HTTP/WS/IPC",
 		Required: true,
+		Value:    "http://localhost:8551/",
 		EnvVars:  prefixEnvVars("ENGINE"),
 	}
 	EngineJWTPath = &cli.StringFlag{
@@ -64,11 +66,16 @@ var (
 		TakesFile: true,
 		EnvVars:   prefixEnvVars("ENGINE_JWT_SECRET"),
 	}
+	EngineOpenEndpoint = &cli.StringFlag{
+		Name:    "engine.open",
+		Usage:   "Open Engine API RPC endpoint, can be HTTP/WS/IPC",
+		Value:   "http://localhost:8545/",
+		EnvVars: prefixEnvVars("ENGINE_OPEN"),
+	}
 	EngineVersion = &cli.IntFlag{
 		Name:    "engine.version",
-		Usage:   "Engine API version to use for Engine calls (1, 2, or 3) (default: 3)",
+		Usage:   "Engine API version to use for Engine calls (1, 2, or 3)",
 		EnvVars: prefixEnvVars("ENGINE_VERSION"),
-		Value:   3,
 	}
 	FeeRecipientFlag = &cli.GenericFlag{
 		Name:    "fee-recipient",
@@ -103,7 +110,7 @@ var (
 
 func withEngineFlags(flags ...cli.Flag) []cli.Flag {
 	return append(append(flags,
-		EngineEndpoint, EngineJWTPath, EngineVersion),
+		EngineEndpoint, EngineJWTPath, EngineOpenEndpoint, EngineVersion),
 		oplog.CLIFlags(envVarPrefix)...)
 }
 
@@ -142,18 +149,12 @@ func CheatRawDBAction(readOnly bool, fn func(ctx *cli.Context, db ethdb.Database
 func EngineAction(fn func(ctx *cli.Context, client *sources.EngineAPIClient, lgr log.Logger) error) cli.ActionFunc {
 	return func(ctx *cli.Context) error {
 		lgr := initLogger(ctx)
-		jwtData, err := os.ReadFile(ctx.String(EngineJWTPath.Name))
+		rpc, err := initEngineRPC(ctx, lgr)
 		if err != nil {
-			return fmt.Errorf("failed to read jwt: %w", err)
+			return fmt.Errorf("failed to dial Engine API endpoint %q: %w",
+				ctx.String(EngineEndpoint.Name), err)
 		}
-		secret := common.HexToHash(strings.TrimSpace(string(jwtData)))
-		endpoint := ctx.String(EngineEndpoint.Name)
-		rpc, err := engine.DialRPC(context.Background(), endpoint, secret)
-		if err != nil {
-			return fmt.Errorf("failed to dial Engine API endpoint %q: %w", endpoint, err)
-		}
-
-		evp, err := initVersionProvider(ctx, rpc)
+		evp, err := initVersionProvider(ctx, lgr)
 		if err != nil {
 			return fmt.Errorf("failed to init Engine version provider: %w", err)
 		}
@@ -169,7 +170,18 @@ func initLogger(ctx *cli.Context) log.Logger {
 	return lgr
 }
 
-func initVersionProvider(ctx *cli.Context, rpc client.RPC) (sources.EngineVersionProvider, error) {
+func initEngineRPC(ctx *cli.Context, lgr log.Logger) (client.RPC, error) {
+	jwtData, err := os.ReadFile(ctx.String(EngineJWTPath.Name))
+	if err != nil {
+		return nil, fmt.Errorf("failed to read jwt: %w", err)
+	}
+	secret := common.HexToHash(strings.TrimSpace(string(jwtData)))
+	endpoint := ctx.String(EngineEndpoint.Name)
+	return client.NewRPC(ctx.Context, lgr, endpoint,
+		client.WithGethRPCOptions(rpc.WithHTTPAuth(node.NewJWTAuth(secret))))
+}
+
+func initVersionProvider(ctx *cli.Context, lgr log.Logger) (sources.EngineVersionProvider, error) {
 	// static configuration takes precedent, if set
 	if ctx.IsSet(EngineVersion.Name) {
 		ev := ctx.Int(EngineVersion.Name)
@@ -180,19 +192,33 @@ func initVersionProvider(ctx *cli.Context, rpc client.RPC) (sources.EngineVersio
 	}
 
 	// otherwise get config from EL
-	cfg, err := engine.GetChainConfig(context.TODO(), (client.RPC)(nil))
+	rpc, err := initOpenEngineRPC(ctx, lgr)
+	if err != nil {
+		return nil, err
+	}
+
+	cfg, err := engine.GetChainConfig(ctx.Context, rpc)
 	if err != nil {
 		return nil, err
 	}
 	return rollupFromGethConfig(cfg), nil
 }
 
-// rollupFromGethConfig returns a very imcomplete rollup config with only the
+func initOpenEngineRPC(ctx *cli.Context, lgr log.Logger) (client.RPC, error) {
+	openEP := ctx.String(EngineOpenEndpoint.Name)
+	rpc, err := client.NewRPC(ctx.Context, lgr, openEP)
+	if err != nil {
+		return nil, fmt.Errorf("failed to dial open Engine endpoint %q: %w", openEP, err)
+	}
+	return rpc, nil
+}
+
+// rollupFromGethConfig returns a very incomplete rollup config with only the
 // L2ChainID and (most) fork activation timestamps set.
 //
 // Because Delta was a pure CL fork, its time isn't set either.
 //
-// This incomplete [rollup.Config] can be used as an [EngineVersionProvider].
+// This incomplete [rollup.Config] can be used as a [sources.EngineVersionProvider].
 func rollupFromGethConfig(cfg *params.ChainConfig) *rollup.Config {
 	return &rollup.Config{
 		L2ChainID: cfg.ChainID,
@@ -610,6 +636,26 @@ var (
 		}),
 	}
 
+	EngineRewindCmd = &cli.Command{
+		Name:        "rewind",
+		Description: "Rewind chain by number (destructive!)",
+		Flags: withEngineFlags(
+			&cli.Uint64Flag{
+				Name:     "to",
+				Usage:    "Block number to rewind chain to",
+				Required: true,
+				EnvVars:  prefixEnvVars("REWIND_TO"),
+			},
+		),
+		Action: EngineAction(func(ctx *cli.Context, client *sources.EngineAPIClient, lgr log.Logger) error {
+			open, err := initOpenEngineRPC(ctx, lgr)
+			if err != nil {
+				return fmt.Errorf("failed to dial open RPC endpoint: %w", err)
+			}
+			return engine.Rewind(ctx.Context, lgr, client, open, ctx.Uint64("to"))
+		}),
+	}
+
 	EngineJSONCmd = &cli.Command{
 		Name:        "json",
 		Description: "read json values from remaining args, or STDIN, and use them as RPC params to call the engine RPC method (first arg)",
@@ -656,7 +702,7 @@ var CheatCmd = &cli.Command{
 
 var EngineCmd = &cli.Command{
 	Name:        "engine",
-	Usage:       "Engine API commands to build/reorg/finalize blocks.",
+	Usage:       "Engine API commands to build/reorg/rewind/finalize/copy blocks.",
 	Description: "Each sub-command dials the engine API endpoint (with provided JWT secret) and then runs the action",
 	Subcommands: []*cli.Command{
 		EngineBlockCmd,
@@ -666,6 +712,7 @@ var EngineCmd = &cli.Command{
 		EngineCopyPayloadCmd,
 		EngineSetForkchoiceCmd,
 		EngineSetForkchoiceHashCmd,
+		EngineRewindCmd,
 		EngineJSONCmd,
 	},
 }

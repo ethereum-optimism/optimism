@@ -14,9 +14,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/holiman/uint256"
 
 	"github.com/ethereum-optimism/optimism/op-service/client"
@@ -27,20 +25,11 @@ import (
 const (
 	methodEthGetBlockByNumber = "eth_getBlockByNumber"
 	methodDebugChainConfig    = "debug_chainConfig"
+	methodDebugSetHead        = "debug_setHead"
 )
 
-func DialRPC(ctx context.Context, endpoint string, jwtSecret [32]byte) (client.RPC, error) {
-	auth := node.NewJWTAuth(jwtSecret)
-
-	rpcClient, err := rpc.DialOptions(ctx, endpoint, rpc.WithHTTPAuth(auth))
-	if err != nil {
-		return nil, fmt.Errorf("failed to dial engine endpoint: %w", err)
-	}
-	return client.NewBaseRPCClient(rpcClient), nil
-}
-
-func GetChainConfig(ctx context.Context, cl client.RPC) (cfg *params.ChainConfig, err error) {
-	err = cl.CallContext(ctx, &cfg, methodDebugChainConfig)
+func GetChainConfig(ctx context.Context, open client.RPC) (cfg *params.ChainConfig, err error) {
+	err = open.CallContext(ctx, &cfg, methodDebugChainConfig)
 	return
 }
 
@@ -108,6 +97,10 @@ func updateForkchoice(ctx context.Context, client *sources.EngineAPIClient, head
 		return fmt.Errorf("forkchoice update was not valid: %v", res.PayloadStatus.ValidationError)
 	}
 	return nil
+}
+
+func debugSetHead(ctx context.Context, open client.RPC, head uint64) error {
+	return open.CallContext(ctx, nil, methodDebugSetHead, hexutil.Uint64(head))
 }
 
 type BlockBuildingSettings struct {
@@ -382,6 +375,19 @@ func SetForkchoiceByHash(ctx context.Context, client *sources.EngineAPIClient, f
 		return fmt.Errorf("failed to update forkchoice: %w", err)
 	}
 	return nil
+}
+
+func Rewind(ctx context.Context, lgr log.Logger, client *sources.EngineAPIClient, open client.RPC, to uint64) error {
+	header, err := getHeader(ctx, open, methodEthGetBlockByNumber, hexutil.Uint64(to).String())
+	if err != nil {
+		return fmt.Errorf("failed to get header %d: %w", to, err)
+	}
+	lgr.Info("Rewinding chain", "number", to, "hash", header.Hash())
+	if err := debugSetHead(ctx, open, to); err != nil {
+		return fmt.Errorf("failed to setHead %d: %w", to, err)
+	}
+	hash := header.Hash()
+	return SetForkchoiceByHash(ctx, client, hash, hash, hash)
 }
 
 func RawJSONInteraction(ctx context.Context, client client.RPC, method string, args []string, input io.Reader, output io.Writer) error {
