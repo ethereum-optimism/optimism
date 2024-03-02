@@ -10,7 +10,7 @@ SHELL ["/bin/bash", "-c"]
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && \
-  apt-get install -y curl build-essential git clang lld curl jq
+  apt-get install -y build-essential git clang lld curl jq
 
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs > rustup.sh && \
   chmod +x ./rustup.sh && \
@@ -144,6 +144,9 @@ ENV BASH=/bin/bash
 ENTRYPOINT ["/bin/bash", "-c"]
 
 FROM base-builder as rust-builder
+
+# Install clang & lld
+RUN apt-get update && apt-get install -y clang lld
 
 # Copy the rust installation, alongside the installed toolchains
 COPY --from=rust-build /root/.cargo /root/.cargo

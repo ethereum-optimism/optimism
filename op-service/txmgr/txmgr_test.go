@@ -392,6 +392,23 @@ func TestTxMgrNeverConfirmCancel(t *testing.T) {
 	require.Nil(t, receipt)
 }
 
+// TestAlreadyReserved tests that AlreadyReserved error results in immediate abort of transaction
+// sending.
+func TestAlreadyReserved(t *testing.T) {
+	conf := configWithNumConfs(1)
+	h := newTestHarnessWithConfig(t, conf)
+
+	sendTx := func(ctx context.Context, tx *types.Transaction) error {
+		return ErrAlreadyReserved
+	}
+	h.backend.setTxSender(sendTx)
+
+	_, err := h.mgr.Send(context.Background(), TxCandidate{
+		To: &common.Address{},
+	})
+	require.ErrorIs(t, err, ErrAlreadyReserved)
+}
+
 // TestTxMgrConfirmsAtMaxGasPrice asserts that Send properly returns the max gas
 // price receipt if none of the lower gas price txs were mined.
 func TestTxMgrConfirmsAtHigherGasPrice(t *testing.T) {

@@ -83,11 +83,12 @@ func (d *Driver) SafeHead() eth.L2BlockRef {
 }
 
 func (d *Driver) ValidateClaim(l2ClaimBlockNum uint64, claimedOutputRoot eth.Bytes32) error {
-	outputRoot, err := d.l2OutputRoot(l2ClaimBlockNum)
+	l2Head := d.SafeHead()
+	outputRoot, err := d.l2OutputRoot(min(l2ClaimBlockNum, l2Head.Number))
 	if err != nil {
 		return fmt.Errorf("calculate L2 output root: %w", err)
 	}
-	d.logger.Info("Validating claim", "head", d.SafeHead(), "output", outputRoot, "claim", claimedOutputRoot)
+	d.logger.Info("Validating claim", "head", l2Head, "output", outputRoot, "claim", claimedOutputRoot)
 	if claimedOutputRoot != outputRoot {
 		return fmt.Errorf("%w: claim: %v actual: %v", ErrClaimNotValid, claimedOutputRoot, outputRoot)
 	}

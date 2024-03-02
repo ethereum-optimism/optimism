@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs/source"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/split"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -125,17 +124,22 @@ func setupAdapterTest(t *testing.T, topDepth types.Depth) (split.ProviderCreator
 	prestateBlock := uint64(20)
 	poststateBlock := uint64(40)
 	creator := &capturingCreator{}
+	l1Head := eth.BlockID{
+		Hash:   common.Hash{0x11, 0x11},
+		Number: 11,
+	}
 	rollupClient := &stubRollupClient{
 		outputs: map[uint64]*eth.OutputResponse{
 			prestateBlock: {
 				OutputRoot: eth.Bytes32(prestateOutputRoot),
 			},
 		},
+		maxSafeHead: math.MaxUint64,
 	}
 	prestateProvider := &stubPrestateProvider{
 		absolutePrestate: prestateOutputRoot,
 	}
-	topProvider := NewTraceProvider(testlog.Logger(t, log.LevelInfo), prestateProvider, source.NewUnrestrictedOutputSource(rollupClient), topDepth, prestateBlock, poststateBlock)
+	topProvider := NewTraceProvider(testlog.Logger(t, log.LevelInfo), prestateProvider, rollupClient, l1Head, topDepth, prestateBlock, poststateBlock)
 	adapter := OutputRootSplitAdapter(topProvider, creator.Create)
 	return adapter, creator
 }

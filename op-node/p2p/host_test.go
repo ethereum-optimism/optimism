@@ -208,11 +208,16 @@ func TestP2PFull(t *testing.T) {
 	require.Equal(t, uint(1), stats.Connected)
 
 	// disconnect
+	hostBId := hostB.ID().String()
+	peerDump, err = p2pClientA.Peers(ctx, false)
+	require.Nil(t, err)
+	data = peerDump.Peers[hostBId]
+	require.NotNil(t, data)
 	require.NoError(t, p2pClientA.DisconnectPeer(ctx, hostB.ID()))
 	peerDump, err = p2pClientA.Peers(ctx, false)
 	require.Nil(t, err)
-	data = peerDump.Peers[hostB.ID().String()]
-	require.Equal(t, data.Connectedness, network.NotConnected)
+	data = peerDump.Peers[hostBId]
+	require.Nil(t, data)
 
 	// reconnect
 	addrsB, err := peer.AddrInfoToP2pAddrs(&peer.AddrInfo{ID: hostB.ID(), Addrs: hostB.Addrs()})

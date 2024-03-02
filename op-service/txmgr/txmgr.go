@@ -59,6 +59,10 @@ type TxManager interface {
 	// may be included on L1 even if the context is cancelled.
 	//
 	// NOTE: Send can be called concurrently, the nonce will be managed internally.
+	//
+	// Callers using both Blob and non-Blob transactions should check to see if the returned error
+	// is ErrAlreadyReserved, which indicates an incompatible transaction may be stuck in the
+	// mempool and is in need of replacement or cancellation.
 	Send(ctx context.Context, candidate TxCandidate) (*types.Receipt, error)
 
 	// From returns the sending address associated with the instance of the transaction manager.
@@ -421,16 +425,15 @@ func (m *SimpleTxManager) sendTx(ctx context.Context, tx *types.Transaction) (*t
 	defer ticker.Stop()
 
 	for {
+		if err := sendState.CriticalError(); err != nil {
+			m.txLogger(tx, false).Warn("Aborting transaction submission", "err", err)
+			return nil, fmt.Errorf("aborted tx send due to critical error: %w", err)
+		}
 		select {
 		case <-ticker.C:
 			// Don't resubmit a transaction if it has been mined, but we are waiting for the conf depth.
 			if sendState.IsWaitingForConfirmation() {
 				continue
-			}
-			// If we see lots of unrecoverable errors (and no pending transactions) abort sending the transaction.
-			if sendState.ShouldAbortImmediately() {
-				m.txLogger(tx, false).Warn("Aborting transaction submission")
-				return nil, errors.New("aborted transaction sending")
 			}
 			// if the tx manager closed while we were waiting for the tx, give up
 			if m.closed.Load() {
@@ -495,9 +498,14 @@ func (m *SimpleTxManager) publishTx(ctx context.Context, tx *types.Transaction, 
 		}
 
 		switch {
+		case errStringMatch(err, ErrAlreadyReserved):
+			// this can happen if, say, a blob transaction is stuck in the mempool and we try to
+			// send a non-blob transaction (and vice-versa).
+			l.Warn("txpool contains pending tx of incompatible type", "err", err)
+			m.metr.TxPublished("pending_tx_of_incompatible_type")
 		case errStringMatch(err, core.ErrNonceTooLow):
 			l.Warn("nonce too low", "err", err)
-			m.metr.TxPublished("nonce_to_low")
+			m.metr.TxPublished("nonce_too_low")
 		case errStringMatch(err, context.Canceled):
 			m.metr.RPCError()
 			l.Warn("transaction send cancelled", "err", err)

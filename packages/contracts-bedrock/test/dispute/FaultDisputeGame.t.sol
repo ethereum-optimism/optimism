@@ -456,7 +456,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         gameProxy.attack{ value: 1 ether }(5, _dummyClaim());
         gameProxy.attack{ value: 1 ether }(6, _dummyClaim());
         gameProxy.attack{ value: 1 ether }(7, _dummyClaim());
-        gameProxy.addLocalData(LocalPreimageKey.STARTING_L2_BLOCK_NUMBER, 8, 0);
+        gameProxy.addLocalData(LocalPreimageKey.DISPUTED_L2_BLOCK_NUMBER, 8, 0);
         gameProxy.step(8, true, absolutePrestateData, hex"");
 
         vm.expectRevert(DuplicateStep.selector);
@@ -630,7 +630,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         gameProxy.attack{ value: 1 ether }(5, _dummyClaim());
         gameProxy.attack{ value: 1 ether }(6, _dummyClaim());
         gameProxy.attack{ value: 1 ether }(7, _dummyClaim());
-        gameProxy.addLocalData(LocalPreimageKey.STARTING_L2_BLOCK_NUMBER, 8, 0);
+        gameProxy.addLocalData(LocalPreimageKey.DISPUTED_L2_BLOCK_NUMBER, 8, 0);
         gameProxy.step(8, true, absolutePrestateData, hex"");
 
         // Ensure that the step successfully countered the leaf claim.
@@ -689,7 +689,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         vm.prank(bob);
         gameProxy.attack{ value: 1 ether }(7, _dummyClaim());
 
-        gameProxy.addLocalData(LocalPreimageKey.STARTING_L2_BLOCK_NUMBER, 8, 0);
+        gameProxy.addLocalData(LocalPreimageKey.DISPUTED_L2_BLOCK_NUMBER, 8, 0);
         gameProxy.step(8, true, absolutePrestateData, hex"");
 
         // Ensure that the step successfully countered the leaf claim.
@@ -848,8 +848,13 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         Position disputedPos = LibPosition.wrap(4, 0);
 
         // Expected local data
-        bytes32[5] memory data =
-            [gameProxy.l1Head().raw(), startingClaim, disputedClaim, bytes32(0), bytes32(block.chainid << 0xC0)];
+        bytes32[5] memory data = [
+            gameProxy.l1Head().raw(),
+            startingClaim,
+            disputedClaim,
+            bytes32(uint256(1) << 0xC0),
+            bytes32(block.chainid << 0xC0)
+        ];
 
         for (uint256 i = 1; i <= 5; i++) {
             uint256 expectedLen = i > 3 ? 8 : 32;
@@ -893,7 +898,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
             gameProxy.l1Head().raw(),
             startingClaim,
             disputedClaim,
-            bytes32(uint256(1) << 0xC0),
+            bytes32(uint256(2) << 0xC0),
             bytes32(block.chainid << 0xC0)
         ];
 
