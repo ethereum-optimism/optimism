@@ -323,24 +323,6 @@
       },
       {
         "internalType": "bytes",
-        "name": "_input",
-        "type": "bytes"
-      }
-    ],
-    "name": "loadKZGPointEvaluationPreimagePart",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "_partOffset",
-        "type": "uint256"
-      },
-      {
-        "internalType": "bytes",
         "name": "_preimage",
         "type": "bytes"
       }
@@ -386,6 +368,29 @@
         "type": "bytes32"
       }
     ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_partOffset",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "_precompile",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes",
+        "name": "_input",
+        "type": "bytes"
+      }
+    ],
+    "name": "loadPrecompilePreimagePart",
+    "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
   },
