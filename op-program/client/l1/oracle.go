@@ -25,10 +25,10 @@ type Oracle interface {
 	// ReceiptsByBlockHash retrieves the receipts from the block with the given hash.
 	ReceiptsByBlockHash(blockHash common.Hash) (eth.BlockInfo, types.Receipts)
 
-	// GetBlobField retrieves the field element at the given index from the blob with the given hash.
+	// GetBlob retrieves the blob with the given hash.
 	GetBlob(ref eth.L1BlockRef, blobHash eth.IndexedBlobHash) *eth.Blob
 
-	// Precompile retriees the result and success indicator of a precompile call for the given input.
+	// Precompile retrieves the result and success indicator of a precompile call for the given input.
 	Precompile(precompileAddress common.Address, input []byte) ([]byte, bool)
 }
 
