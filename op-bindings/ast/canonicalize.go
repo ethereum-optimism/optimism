@@ -63,7 +63,7 @@ func CanonicalizeASTIDs(in *solc.StorageLayout, monorepoBase string) *solc.Stora
 			continue
 		}
 
-		// The storage types include the size when its a fixed size.
+		// The storage types include the size when it's a fixed size.
 		// This is subject to breaking in the future if a type with
 		// an ast id is added in a fixed storage type. We don't want
 		// to skip a type with `_storage` in it if it has a subtype
