@@ -122,12 +122,11 @@ type bn256PairingOracle struct {
 }
 
 func (b *bn256PairingOracle) RequiredGas(input []byte) uint64 {
-	// Future EVM upgrades will use the gas schedule introduced in Istanbul
-	// TODO: this should be more robust. If the gas schedule changes, we should detect this.
-	switch {
-	case b.rules.IsCancun, b.rules.IsBerlin, b.rules.IsIstanbul:
+	// Required gas changed in Istanbul. Note that IsIstanbul is true for Istanbul and all forks after it
+	// TODO(client-pod#628): Investigate delegating this to the original precompile implementation to avoid reimplementing.
+	if b.rules.IsIstanbul {
 		return params.Bn256PairingBaseGasIstanbul + uint64(len(input)/192)*params.Bn256PairingPerPointGasIstanbul
-	default:
+	} else {
 		return params.Bn256PairingBaseGasByzantium + uint64(len(input)/192)*params.Bn256PairingPerPointGasByzantium
 	}
 }
@@ -167,7 +166,7 @@ type kzgPointEvaluationOracle struct {
 }
 
 // RequiredGas estimates the gas required for running the point evaluation precompile.
-func (b *kzgPointEvaluationOracle) RequiredGas(input []byte) uint64 {
+func (b *kzgPointEvaluationOracle) RequiredGas(_ []byte) uint64 {
 	return params.BlobTxPointEvaluationPrecompileGas
 }
 
@@ -220,7 +219,7 @@ func (b *kzgPointEvaluationOracle) Run(input []byte) ([]byte, error) {
 	if !ok {
 		return nil, fmt.Errorf("%w: invalid KZG point evaluation", errBlobVerifyKZGProof)
 	}
-	if !bytes.Equal(result, common.Hex2Bytes(blobPrecompileReturnValue)) {
+	if !bytes.Equal(result, common.FromHex(blobPrecompileReturnValue)) {
 		panic("unexpected result from KZG point evaluation check")
 	}
 	return result, nil

@@ -52,9 +52,14 @@ type Addresses struct {
 }
 
 func NewEVMEnv(contracts *Contracts, addrs *Addresses) (*vm.EVM, *state.StateDB) {
-	chainCfg := params.MainnetChainConfig
-	offsetBlocks := uint64(1000) // blocks after shanghai fork
-	bc := &testChain{startTime: *chainCfg.ShanghaiTime + offsetBlocks*12}
+	// Temporary hack until Cancun is activated on mainnet
+	cpy := *params.MainnetChainConfig
+	chainCfg := &cpy // don't modify the global chain config
+	// Activate Cancun for EIP-4844 KZG point evaluation precompile
+	cancunActivation := *chainCfg.ShanghaiTime + 10
+	chainCfg.CancunTime = &cancunActivation
+	offsetBlocks := uint64(1000) // blocks after cancun fork
+	bc := &testChain{startTime: *chainCfg.CancunTime + offsetBlocks*12}
 	header := bc.GetHeader(common.Hash{}, 17034870+offsetBlocks)
 	db := rawdb.NewMemoryDatabase()
 	statedb := state.NewDatabase(db)

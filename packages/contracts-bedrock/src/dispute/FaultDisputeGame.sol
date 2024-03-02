@@ -81,8 +81,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     bool internal initialized;
 
     /// @notice Semantic version.
-    /// @custom:semver 0.6.0
-    string public constant version = "0.6.0";
+    /// @custom:semver 0.7.0
+    string public constant version = "0.7.0";
 
     /// @param _gameType The type ID of the game.
     /// @param _absolutePrestate The absolute prestate of the instruction trace.
@@ -325,15 +325,12 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         } else if (_ident == LocalPreimageKey.DISPUTED_OUTPUT_ROOT) {
             // Load the disputed proposal's output root
             oracle.loadLocalData(_ident, uuid.raw(), disputed.raw(), 32, _partOffset);
-        } else if (_ident == LocalPreimageKey.STARTING_L2_BLOCK_NUMBER) {
-            // Load the starting proposal's L2 block number as a big-endian uint64 in the
+        } else if (_ident == LocalPreimageKey.DISPUTED_L2_BLOCK_NUMBER) {
+            // Load the disputed proposal's L2 block number as a big-endian uint64 in the
             // high order 8 bytes of the word.
 
-            // If the starting position is 0 (invalid), the starting output root is genesis. Otherwise,
-            // we add the index at depth + 1 to the genesis block number to get the L2 block number.
-            uint256 l2Number = startingPos.raw() == 0
-                ? GENESIS_BLOCK_NUMBER
-                : GENESIS_BLOCK_NUMBER + startingPos.traceIndex(SPLIT_DEPTH) + 1;
+            // We add the index at depth + 1 to the genesis block number to get the disputed L2 block number.
+            uint256 l2Number = GENESIS_BLOCK_NUMBER + disputedPos.traceIndex(SPLIT_DEPTH) + 1;
 
             oracle.loadLocalData(_ident, uuid.raw(), bytes32(l2Number << 0xC0), 8, _partOffset);
         } else if (_ident == LocalPreimageKey.CHAIN_ID) {

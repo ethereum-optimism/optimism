@@ -46,8 +46,8 @@ func (l *preimageLoader) LoadPreimage(proof *proofData) (*types.PreimageOracleDa
 	switch preimage.KeyType(proof.OracleKey[0]) {
 	case preimage.BlobKeyType:
 		return l.loadBlobPreimage(proof)
-	case preimage.KZGPointEvaluationKeyType:
-		return l.loadKZGPointEvaluationPreimage(proof)
+	case preimage.PrecompileKeyType:
+		return l.loadPrecompilePreimage(proof)
 	default:
 		return types.NewPreimageOracleData(proof.OracleKey, proof.OracleValue, proof.OracleOffset), nil
 	}
@@ -102,7 +102,7 @@ func (l *preimageLoader) loadBlobPreimage(proof *proofData) (*types.PreimageOrac
 	return types.NewPreimageOracleBlobData(proof.OracleKey, claimWithLength, proof.OracleOffset, requiredFieldElement, commitment, kzgProof[:]), nil
 }
 
-func (l *preimageLoader) loadKZGPointEvaluationPreimage(proof *proofData) (*types.PreimageOracleData, error) {
+func (l *preimageLoader) loadPrecompilePreimage(proof *proofData) (*types.PreimageOracleData, error) {
 	inputKey := preimage.Keccak256Key(proof.OracleKey).PreimageKey()
 	input, err := l.getPreimage(inputKey)
 	if err != nil {

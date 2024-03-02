@@ -38,7 +38,7 @@ func FetchProposals(ctx context.Context, topProvider *OutputTraceProvider, pre t
 			OutputRoot:    prestateRoot,
 		}
 	} else {
-		preBlockNum, err := topProvider.BlockNumber(pre.Position)
+		preBlockNum, err := topProvider.HonestBlockNumber(ctx, pre.Position)
 		if err != nil {
 			return contracts.Proposal{}, contracts.Proposal{}, fmt.Errorf("unable to calculate pre-claim block number: %w", err)
 		}
@@ -47,7 +47,7 @@ func FetchProposals(ctx context.Context, topProvider *OutputTraceProvider, pre t
 			OutputRoot:    pre.Value,
 		}
 	}
-	postBlockNum, err := topProvider.BlockNumber(post.Position)
+	postBlockNum, err := topProvider.ClaimedBlockNumber(post.Position)
 	if err != nil {
 		return contracts.Proposal{}, contracts.Proposal{}, fmt.Errorf("unable to calculate post-claim block number: %w", err)
 	}

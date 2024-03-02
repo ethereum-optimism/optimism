@@ -77,14 +77,17 @@ type RethDBReceiptsFetcher struct {
 	//   into NewRethDBReceiptsFetcher.
 }
 
+var _ ReceiptsProvider = (*RethDBReceiptsFetcher)(nil)
+
 func NewRethDBReceiptsFetcher(dbPath string) *RethDBReceiptsFetcher {
 	return &RethDBReceiptsFetcher{
 		dbPath: dbPath,
 	}
 }
 
-func (f *RethDBReceiptsFetcher) FetchReceipts(ctx context.Context, block eth.BlockID, txHashes []common.Hash) (types.Receipts, error) {
-	return FetchRethReceipts(f.dbPath, &block.Hash)
+func (f *RethDBReceiptsFetcher) FetchReceipts(ctx context.Context, block eth.BlockInfo, txHashes []common.Hash) (types.Receipts, error) {
+	hash := block.Hash()
+	return FetchRethReceipts(f.dbPath, &hash)
 }
 
 func NewCachingRethDBReceiptsFetcher(dbPath string, m caching.Metrics, cacheSize int) *CachingReceiptsProvider {

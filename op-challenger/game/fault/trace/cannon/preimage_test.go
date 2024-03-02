@@ -152,9 +152,9 @@ func TestPreimageLoader_BlobPreimage(t *testing.T) {
 	})
 }
 
-func TestPreimageLoader_KZGPointEvaluationPreimage(t *testing.T) {
+func TestPreimageLoader_PrecompilePreimage(t *testing.T) {
 	input := []byte("test input")
-	key := preimage.KZGPointEvaluationKey(crypto.Keccak256Hash(input)).PreimageKey()
+	key := preimage.PrecompileKey(crypto.Keccak256Hash(input)).PreimageKey()
 	proof := &proofData{
 		OracleKey: key[:],
 	}
