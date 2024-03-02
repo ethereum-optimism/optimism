@@ -13,7 +13,7 @@ import (
 
 func GetBlockExtrinsicData(avail_blk_ref types.AvailBlockRef) ([]byte, error) {
 
-	config := getConfig()
+	config := GetConfig()
 
 	ApiURL := config.ApiURL
 	Hash := avail_blk_ref.BlockHash

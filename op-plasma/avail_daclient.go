@@ -29,6 +29,7 @@ func (c *AvailDAClient) GetInput(ctx context.Context, refKey []byte) ([]byte, er
 
 // SetInput sets the input data and returns the KZG commitment hash from Avail DA
 func (c *AvailDAClient) SetInput(ctx context.Context, img []byte) ([]byte, error) {
+
 	if len(img) >= 512000 {
 		return []byte{}, fmt.Errorf("size of TxData is more than 512KB, it is higher than a single data submit transaction supports on avail")
 	}

@@ -12,9 +12,8 @@ type Config struct {
 	AppID  int    `json:"app_id"`
 }
 
-func (c *Config) GetConfig(configFileName string) error {
-
-	jsonFile, err := os.Open(configFileName)
+func (c *Config) GetConfig() error {
+	jsonFile, err := os.Open("config.json")
 	if err != nil {
 		return err
 	}

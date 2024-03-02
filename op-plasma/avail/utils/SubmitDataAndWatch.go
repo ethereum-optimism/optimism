@@ -13,17 +13,24 @@ import (
 )
 
 func SubmitDataAndWatch(ctx context.Context, data []byte) (types.AvailBlockRef, error) {
-	config := getConfig()
+	config := GetConfig()
 	ApiURL := config.ApiURL
 	Seed := config.Seed
 	AppID := config.AppID
-
-	api, meta, err := getSubstrateApiAndMeta(ApiURL)
+	api, err := getSubstrateApi(ApiURL)
 	if err != nil {
-		fmt.Printf("cannot get substrate API and meta %v", err)
+		return types.AvailBlockRef{}, err
 	}
+	return SubmitAndWait(ctx, api, data, ApiURL, Seed, AppID)
+}
 
-	appID := ensureValidAppID(AppID)
+func SubmitAndWait(ctx context.Context, api *gsrpc.SubstrateAPI, data []byte, ApiURL string, Seed string, AppId int) (types.AvailBlockRef, error) {
+
+	meta, err := getMetadataLatest(api, ApiURL)
+	if err != nil {
+		return types.AvailBlockRef{}, fmt.Errorf("cannot get substrate API and meta %v", err)
+	}
+	appID := ensureValidAppID(AppId)
 
 	call, err := createDataAvailabilityCall(meta, data, appID)
 	if err != nil {
@@ -36,8 +43,8 @@ func SubmitDataAndWatch(ctx context.Context, data []byte) (types.AvailBlockRef, 
 	}
 
 	return waitForExtrinsicFinalization(ctx, api, signedExt, sender, nonce)
-}
 
+}
 func prepareAndSignExtrinsic(api *gsrpc.SubstrateAPI, call gsrpc_types.Call, meta *gsrpc_types.Metadata, seed string, appID int) (gsrpc_types.Extrinsic, string, uint32, error) {
 	genesisHash, rv, err := fetchChainData(api)
 	if err != nil {
@@ -65,13 +72,13 @@ func prepareAndSignExtrinsic(api *gsrpc.SubstrateAPI, call gsrpc_types.Call, met
 	return ext, keyringPair.Address, nonce, nil
 }
 
-func fetchChainData(api *gsrpc.SubstrateAPI) (genesisHash gsrpc_types.Hash, rv *gsrpc_types.RuntimeVersion, err error) {
-	genesisHash, err = api.RPC.Chain.GetBlockHash(0)
+func fetchChainData(api *gsrpc.SubstrateAPI) (gsrpc_types.Hash, *gsrpc_types.RuntimeVersion, error) {
+	genesisHash, err := api.RPC.Chain.GetBlockHash(0)
 	if err != nil {
 		return genesisHash, nil, fmt.Errorf("cannot get block hash: %w", err)
 	}
 
-	rv, err = api.RPC.State.GetRuntimeVersionLatest()
+	rv, err := api.RPC.State.GetRuntimeVersionLatest()
 	if err != nil {
 		return genesisHash, nil, fmt.Errorf("cannot get runtime version: %w", err)
 	}
@@ -79,8 +86,10 @@ func fetchChainData(api *gsrpc.SubstrateAPI) (genesisHash gsrpc_types.Hash, rv *
 	return genesisHash, rv, nil
 }
 
-func fetchAccountInfo(api *gsrpc.SubstrateAPI, meta *gsrpc_types.Metadata, keyringPair signature.KeyringPair) (storageKey gsrpc_types.StorageKey, accountInfo gsrpc_types.AccountInfo, err error) {
-	storageKey, err = gsrpc_types.CreateStorageKey(meta, "System", "Account", keyringPair.PublicKey)
+func fetchAccountInfo(api *gsrpc.SubstrateAPI, meta *gsrpc_types.Metadata, keyringPair signature.KeyringPair) (gsrpc_types.StorageKey, gsrpc_types.AccountInfo, error) {
+	storageKey, err := gsrpc_types.CreateStorageKey(meta, "System", "Account", keyringPair.PublicKey)
+	var accountInfo gsrpc_types.AccountInfo
+
 	if err != nil {
 		return storageKey, accountInfo, fmt.Errorf("cannot create storage key: %w", err)
 	}
@@ -128,18 +137,16 @@ func ensureValidAppID(appID int) int {
 	return 0
 }
 
-func getSubstrateApiAndMeta(ApiURL string) (*gsrpc.SubstrateAPI, *gsrpc_types.Metadata, error) {
-	api, err := getSubstrateApi(ApiURL)
-	if err != nil {
-		return &gsrpc.SubstrateAPI{}, &gsrpc_types.Metadata{}, err
-	}
+func getMetadataLatest(api *gsrpc.SubstrateAPI, ApiURL string) (*gsrpc_types.Metadata, error) {
+
 	meta, err := api.RPC.State.GetMetadataLatest()
+
 	if err != nil {
 		fmt.Printf("cannot get metadata: error:%v", err)
-		return &gsrpc.SubstrateAPI{}, &gsrpc_types.Metadata{}, err
+		return &gsrpc_types.Metadata{}, err
 	}
 
-	return api, meta, err
+	return meta, err
 }
 
 func waitForExtrinsicFinalization(ctx context.Context, api *gsrpc.SubstrateAPI, ext gsrpc_types.Extrinsic, sender string, nonce uint32) (types.AvailBlockRef, error) {

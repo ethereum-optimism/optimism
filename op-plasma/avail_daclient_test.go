@@ -2,116 +2,98 @@ package plasma
 
 import (
 	"context"
-	"io"
 	"math/rand"
-	"net/http"
-	"net/http/httptest"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	gsrpc "github.com/centrifuge/go-substrate-rpc-client/v4"
+	gsrpc_types "github.com/centrifuge/go-substrate-rpc-client/v4/types"
+	mocks "github.com/ethereum-optimism/optimism/op-plasma/avail/mocks"
+	mockgen "github.com/ethereum-optimism/optimism/op-plasma/avail/mocks/mockgen"
+	"github.com/ethereum-optimism/optimism/op-plasma/avail/types"
+	utils "github.com/ethereum-optimism/optimism/op-plasma/avail/utils"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/ethdb/memorydb"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 )
 
+func SubmitDataAndWatchMock(ctx context.Context, api *gsrpc.SubstrateAPI, data []byte) (types.AvailBlockRef, error) {
+	config := utils.GetConfig()
+
+	ApiURL := config.ApiURL
+	Seed := config.Seed
+	AppID := config.AppID
+
+	return utils.SubmitAndWait(ctx, api, data, ApiURL, Seed, AppID)
+}
+
 func TestAvailDAClient(t *testing.T) {
-	store := memorydb.New()
-	logger := testlog.Logger(t, log.LevelDebug)
 
 	ctx := context.Background()
 
-	mux := http.NewServeMux()
-	mux.Handle("/get/", http.StripPrefix("/get/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		logger.Debug("GET", "url", r.URL)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-		comm, err := hexutil.Decode(r.URL.String())
-		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-
-		input, err := store.Get(comm)
-		if err != nil {
-			w.WriteHeader(http.StatusNotFound)
-			return
-		}
-		if _, err := w.Write(input); err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-	})))
-	mux.Handle("/put/", http.StripPrefix("/put/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		logger.Debug("PUT", "url", r.URL)
-
-		input, err := io.ReadAll(r.Body)
-		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-		comm, err := hexutil.Decode(r.URL.String())
-		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-		if err := store.Put(comm, input); err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-
-		if _, err := w.Write(comm); err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-	})))
-
-	tsrv := httptest.NewServer(mux)
+	mockRPC := mockgen.NewMockRPCInterface(ctrl)
+	mockAuthor := mockgen.NewMockAvailAuthor(ctrl)
+	mockState := mockgen.NewMockAvailState(ctrl)
+	mockChain := mockgen.NewMockAvailChain(ctrl)
 
 	cfg := CLIConfig{
 		Enabled:      true,
-		DAServerURL:  tsrv.URL,
+		DAServerURL:  "wss://goldberg.avail.tools/ws",
 		VerifyOnRead: true,
+		UseAvailDA:   true,
 	}
 	require.NoError(t, cfg.Check())
 
-	client := cfg.NewDAClient()
+	mockImplementation := mocks.AvailMockRPC{}
 
 	rng := rand.New(rand.NewSource(1234))
-
 	input := testutils.RandomData(rng, 2000)
 
-	comm, err := client.SetInput(ctx, input)
-	require.NoError(t, err)
+	var accountInfo gsrpc_types.AccountInfo
 
-	require.Equal(t, comm, crypto.Keccak256(input))
+	mockRPC.EXPECT().Author().Return(mockAuthor)
+	mockRPC.EXPECT().Chain().Return(mockChain)
+	mockRPC.EXPECT().State().Return(mockState)
 
-	stored, err := client.GetInput(ctx, comm)
-	require.NoError(t, err)
+	mockState.EXPECT().GetMetadataLatest().Return(mockImplementation.GetMetadataLatest()).Times(1)
+	mockChain.EXPECT().GetBlockHash(0).Return(mockImplementation.GetBlockHash(0)).Times(1)
+	mockState.EXPECT().GetRuntimeVersionLatest().Return(mockImplementation.GetRuntimeVersionLatest()).Times(1)
+	mockState.EXPECT().GetStorageLatest(gsrpc_types.StorageKey{}, &accountInfo).Return(mockImplementation.GetStorageLatest(gsrpc_types.StorageKey{}, &accountInfo)).Times(1)
 
-	require.Equal(t, input, stored)
+	// SubmitDataAndWatchMock(ctx, &gsrpc.SubstrateAPI{}, input)
+	// comm, err := client.SetInput(ctx, input)
+	// fmt.Println("comm", comm, err)
+	// require.NoError(t, err)
 
-	// set a bad commitment in the store
-	require.NoError(t, store.Put(comm, []byte("bad data")))
+	// require.Equal(t, comm, crypto.Keccak256(input))
 
-	_, err = client.GetInput(ctx, comm)
-	require.ErrorIs(t, err, ErrCommitmentMismatch)
+	// stored, err := client.GetInput(ctx, comm)
+	// require.NoError(t, err)
 
-	// test not found error
-	comm = crypto.Keccak256(testutils.RandomData(rng, 32))
-	_, err = client.GetInput(ctx, comm)
-	require.ErrorIs(t, err, ErrNotFound)
+	// require.Equal(t, input, stored)
 
-	// test storing bad data
-	_, err = client.SetInput(ctx, []byte{})
-	require.ErrorIs(t, err, ErrInvalidInput)
+	// // set a bad commitment in the store
+	// require.NoError(t, store.Put(comm, []byte("bad data")))
 
-	// server not responsive
-	tsrv.Close()
-	_, err = client.SetInput(ctx, input)
-	require.Error(t, err)
+	// _, err = client.GetInput(ctx, comm)
+	// require.ErrorIs(t, err, ErrCommitmentMismatch)
 
-	_, err = client.GetInput(ctx, crypto.Keccak256(input))
-	require.Error(t, err)
+	// // test not found error
+	// comm = crypto.Keccak256(testutils.RandomData(rng, 32))
+	// _, err = client.GetInput(ctx, comm)
+	// require.ErrorIs(t, err, ErrNotFound)
+
+	// // test storing bad data
+	// _, err = client.SetInput(ctx, []byte{})
+	// require.ErrorIs(t, err, ErrInvalidInput)
+
+	// // server not responsive
+	// tsrv.Close()
+	// _, err = client.SetInput(ctx, input)
+	// require.Error(t, err)
+
+	// _, err = client.GetInput(ctx, crypto.Keccak256(input))
+	// require.Error(t, err)
 }

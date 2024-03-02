@@ -9,8 +9,6 @@ import (
 
 var localNonce uint32 = 0
 
-const cfgPath = "../"
-
 func GetAccountNonce(accountNonce uint32) uint32 {
 	if accountNonce > localNonce {
 		localNonce = accountNonce
@@ -29,10 +27,10 @@ func getSubstrateApi(ApiURL string) (*gsrpc.SubstrateAPI, error) {
 	return api, nil
 }
 
-func getConfig() config.Config {
+func GetConfig() config.Config {
 	//Load variables
 	var config config.Config
-	err := config.GetConfig(cfgPath)
+	err := config.GetConfig()
 	if err != nil {
 		panic(fmt.Sprintf("cannot get config:%v", err))
 	}

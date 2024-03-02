@@ -83,6 +83,7 @@ func TestDAClient(t *testing.T) {
 	input := testutils.RandomData(rng, 2000)
 
 	comm, err := client.SetInput(ctx, input)
+
 	require.NoError(t, err)
 
 	require.Equal(t, comm, crypto.Keccak256(input))
