@@ -11,7 +11,8 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
 )
-
+// Client defines an interface for an Ethereum client with methods for interacting
+// with the Ethereum blockchain.
 type Client interface {
 	Close()
 	ChainID(ctx context.Context) (*big.Int, error)
@@ -65,11 +66,14 @@ func NewInstrumentedClient(c *rpc.Client, m *metrics.Metrics) *InstrumentedClien
 		m: m,
 	}
 }
+// The following methods implement the Client interface, wrapping each ethclient call
+// with instrumentation logic. This is achieved by using the instrument1 and instrument2
+// helper functions, which execute the provided callback and record the Prometheus metric.
 
 func (ic *InstrumentedClient) Close() {
 	ic.c.Close()
 }
-
+// ChainID retrieves the current chain ID for transaction replay protection.
 func (ic *InstrumentedClient) ChainID(ctx context.Context) (*big.Int, error) {
 	return instrument2[*big.Int](ic.m, "eth_chainId", func() (*big.Int, error) {
 		return ic.c.ChainID(ctx)
