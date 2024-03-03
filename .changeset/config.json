@@ -1,12 +1,31 @@
+```json
 {
   "$schema": "https://unpkg.com/@changesets/config@2.3.0/schema.json",
+  // Specify the changelog configuration using the GitHub plugin for @changesets
   "changelog": ["@changesets/changelog-github", { "repo": "ethereum-optimism/optimism" }],
+  
+  // Disable automatic commit creation
   "commit": false,
+  
+  // Specify an array for fixed issues, currently empty
   "fixed": [],
+  
+  // Link internal dependencies for versioning, here linking contracts-bedrock and contracts-ts
   "linked": [["@eth-optimism/contracts-bedrock", "@eth-optimism/contracts-ts"]],
+  
+  // Set access level to public
   "access": "public",
+  
+  // Specify the base branch for the changeset
   "baseBranch": "develop",
+  
+  // Update internal dependencies with a patch version bump
   "updateInternalDependencies": "patch",
+  
+  // Enable versioning and tagging for private packages
   "privatePackages": { "version": true, "tag": true },
+  
+  // Specify an array for packages to ignore during the changeset
   "ignore": []
 }
+```
