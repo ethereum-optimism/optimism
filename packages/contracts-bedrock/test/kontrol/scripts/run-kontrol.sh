@@ -107,24 +107,26 @@ regen=
 # Tests to symbolically execute #
 #################################
 
+# Temporarily unexecuted lemmas
+# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused0" \
+# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused1" \
+# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused2" \
+# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused3" \
+# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused4" \
+# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused5" \
+# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused6" \
+# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused7" \
+# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused8" \
+# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused9" \
+
 test_list=()
 if [ "$SCRIPT_TESTS" == true ]; then
-  test_list=( # "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused0" \
-              # "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused1" \
-              "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused2" \
-              # "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused3" \
-              # "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused4" \
-              # "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused5" \
-              # "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused6" \
-              # "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused7" \
-              # "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused8" \
-              # "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused9" \
-              # "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused10" \
-              # "OptimismPortalKontrol.prove_finalizeWithdrawalTransaction_paused" \
-              # "L1StandardBridgeKontrol.prove_finalizeBridgeERC20_paused" \
-              # "L1StandardBridgeKontrol.prove_finalizeBridgeETH_paused" \
-              # "L1ERC721BridgeKontrol.prove_finalizeBridgeERC721_paused" \
-              # "L1CrossDomainMessengerKontrol.prove_relayMessage_paused"
+  test_list=( "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused10" \
+              "OptimismPortalKontrol.prove_finalizeWithdrawalTransaction_paused" \
+              "L1StandardBridgeKontrol.prove_finalizeBridgeERC20_paused" \
+              "L1StandardBridgeKontrol.prove_finalizeBridgeETH_paused" \
+              "L1ERC721BridgeKontrol.prove_finalizeBridgeERC721_paused" \
+              "L1CrossDomainMessengerKontrol.prove_relayMessage_paused"
   )
 elif [ "$CUSTOM_TESTS" != 0 ]; then
   test_list=( "${@:${CUSTOM_TESTS}}" )
