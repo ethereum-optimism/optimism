@@ -152,7 +152,7 @@ Lemmas about [`#range(M, START, WIDTH)`](https://github.com/runtimeverification/
 Summaries
 ---------
 
-Summary functions are rewrite rules that encapsulate the effects of executing a function. Thus, instead of executing the function itslef, Kontrol will just apply the summary rule.
+Summary functions are rewrite rules that encapsulate the effects of executing a function. Thus, instead of executing the function itself, Kontrol will just apply the summary rule.
 
 ## `copy_memory_to_memory` summary
 
