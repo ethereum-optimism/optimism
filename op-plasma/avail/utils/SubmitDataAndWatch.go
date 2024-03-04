@@ -26,12 +26,14 @@ func SubmitDataAndWatch(ctx context.Context, data []byte) (types.AvailBlockRef, 
 
 func SubmitAndWait(ctx context.Context, api *gsrpc.SubstrateAPI, data []byte, ApiURL string, Seed string, AppId int) (types.AvailBlockRef, error) {
 
+	fmt.Print(api)
 	meta, err := getMetadataLatest(api, ApiURL)
+	fmt.Print("f21")
 	if err != nil {
 		return types.AvailBlockRef{}, fmt.Errorf("cannot get substrate API and meta %v", err)
 	}
 	appID := ensureValidAppID(AppId)
-
+	fmt.Print("working 1")
 	call, err := createDataAvailabilityCall(meta, data, appID)
 	if err != nil {
 		return types.AvailBlockRef{}, fmt.Errorf("creating data availability call: %w", err)
@@ -41,6 +43,7 @@ func SubmitAndWait(ctx context.Context, api *gsrpc.SubstrateAPI, data []byte, Ap
 	if err != nil {
 		return types.AvailBlockRef{}, fmt.Errorf("preparing and signing extrinsic: %w", err)
 	}
+	fmt.Print("working 2")
 
 	return waitForExtrinsicFinalization(ctx, api, signedExt, sender, nonce)
 
@@ -138,7 +141,7 @@ func ensureValidAppID(appID int) int {
 }
 
 func getMetadataLatest(api *gsrpc.SubstrateAPI, ApiURL string) (*gsrpc_types.Metadata, error) {
-
+	fmt.Println(api)
 	meta, err := api.RPC.State.GetMetadataLatest()
 
 	if err != nil {
@@ -150,7 +153,9 @@ func getMetadataLatest(api *gsrpc.SubstrateAPI, ApiURL string) (*gsrpc_types.Met
 }
 
 func waitForExtrinsicFinalization(ctx context.Context, api *gsrpc.SubstrateAPI, ext gsrpc_types.Extrinsic, sender string, nonce uint32) (types.AvailBlockRef, error) {
+	fmt.Print("test1")
 	sub, err := api.RPC.Author.SubmitAndWatchExtrinsic(ext)
+	fmt.Print("test 2")
 	if err != nil {
 		return types.AvailBlockRef{}, fmt.Errorf("cannot submit extrinsic: %w", err)
 	}

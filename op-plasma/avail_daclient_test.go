@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"testing"
 
+	mockServer "github.com/centrifuge/go-substrate-rpc-client/rpcmocksrv"
 	gsrpc "github.com/centrifuge/go-substrate-rpc-client/v4"
 	gsrpc_types "github.com/centrifuge/go-substrate-rpc-client/v4/types"
 	mocks "github.com/ethereum-optimism/optimism/op-plasma/avail/mocks"
@@ -27,6 +28,8 @@ func SubmitDataAndWatchMock(ctx context.Context, api *gsrpc.SubstrateAPI, data [
 }
 
 func TestAvailDAClient(t *testing.T) {
+
+	server := mockServer.New()
 
 	ctx := context.Background()
 
@@ -61,8 +64,10 @@ func TestAvailDAClient(t *testing.T) {
 	mockChain.EXPECT().GetBlockHash(0).Return(mockImplementation.GetBlockHash(0)).Times(1)
 	mockState.EXPECT().GetRuntimeVersionLatest().Return(mockImplementation.GetRuntimeVersionLatest()).Times(1)
 	mockState.EXPECT().GetStorageLatest(gsrpc_types.StorageKey{}, &accountInfo).Return(mockImplementation.GetStorageLatest(gsrpc_types.StorageKey{}, &accountInfo)).Times(1)
+	// mockAuthor.EXPECT().SubmitAndWatchExtrinsic()
+	rpc := &gsrpc.SubstrateAPI{RPC: mockRPC}
 
-	// SubmitDataAndWatchMock(ctx, &gsrpc.SubstrateAPI{}, input)
+	SubmitDataAndWatchMock(ctx, rpc, input)
 	// comm, err := client.SetInput(ctx, input)
 	// fmt.Println("comm", comm, err)
 	// require.NoError(t, err)
