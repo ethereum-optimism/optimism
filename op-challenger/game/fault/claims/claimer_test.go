@@ -40,6 +40,17 @@ func TestClaimer_ClaimBonds(t *testing.T) {
 		require.Equal(t, 1, m.RecordBondClaimedCalls)
 	})
 
+	t.Run("BondClaimSkippedForInProgressGame", func(t *testing.T) {
+		gameAddr := common.HexToAddress("0x1234")
+		c, m, contract, txSender := newTestClaimer(t, gameAddr)
+		contract.credit = 1
+		contract.status = types.GameStatusInProgress
+		err := c.ClaimBonds(context.Background(), []types.GameMetadata{{Proxy: gameAddr}})
+		require.NoError(t, err)
+		require.Equal(t, 0, txSender.sends)
+		require.Equal(t, 0, m.RecordBondClaimedCalls)
+	})
+
 	t.Run("BondClaimFails", func(t *testing.T) {
 		gameAddr := common.HexToAddress("0x1234")
 		c, m, contract, txSender := newTestClaimer(t, gameAddr)
@@ -77,7 +88,7 @@ func newTestClaimer(t *testing.T, gameAddr common.Address) (*Claimer, *mockClaim
 	logger := testlog.Logger(t, log.LvlDebug)
 	m := &mockClaimMetrics{}
 	txSender := &mockTxSender{}
-	bondContract := &stubBondContract{}
+	bondContract := &stubBondContract{status: types.GameStatusChallengerWon}
 	contractCreator := func(game types.GameMetadata) (BondContract, error) {
 		return bondContract, nil
 	}
@@ -116,10 +127,11 @@ func (s *mockTxSender) SendAndWait(_ string, _ ...txmgr.TxCandidate) ([]*ethtype
 
 type stubBondContract struct {
 	credit int64
+	status types.GameStatus
 }
 
-func (s *stubBondContract) GetCredit(_ context.Context, _ common.Address) (*big.Int, error) {
-	return big.NewInt(s.credit), nil
+func (s *stubBondContract) GetCredit(_ context.Context, _ common.Address) (*big.Int, types.GameStatus, error) {
+	return big.NewInt(s.credit), s.status, nil
 }
 
 func (s *stubBondContract) ClaimCredit(_ common.Address) (txmgr.TxCandidate, error) {
