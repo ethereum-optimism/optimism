@@ -578,7 +578,6 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         uint256 c = MAX_GAME_DEPTH * FixedPointMathLib.WAD;
 
         // Compute ln(a).
-        // slither-disable-next-line divide-before-multiply
         uint256 lnA = uint256(FixedPointMathLib.lnWad(int256(a * FixedPointMathLib.WAD)));
 
         // Computes (b / c) with full precision using WAD = 1e18.
