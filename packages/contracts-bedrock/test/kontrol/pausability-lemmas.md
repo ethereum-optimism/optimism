@@ -7,7 +7,7 @@ This file contains the necessary lemmas to run the proofs included in the [proof
 
 ## Imports
 
-For writing the lemmas we use the [`foundry.md`](https://github.com/runtimeverification/kontrol/blob/master/src/kontrol/kdist/foundry.md) file. This file contains and imports all necessary definitions to write the lemmas.
+For writing the lemmas, we use the [`foundry.md`](https://github.com/runtimeverification/kontrol/blob/master/src/kontrol/kdist/foundry.md) file. This file contains and imports all necessary definitions to write the lemmas.
 
 ```k
 requires "foundry.md"
@@ -85,7 +85,7 @@ Lemmas about [`#asInteger`](https://github.com/runtimeverification/evm-semantics
 
 ## `#padRightToWidth`
 
-Lemmas about [`#padRightToWidth`](https://github.com/runtimeverification/evm-semantics/blob/master/kevm-pyk/src/kevm_pyk/kproj/evm-semantics/evm-types.md#bytes-helper-functions). `#padToWidth(N, WS)` and `#padRightToWidth` make sure that a Bytes is the correct size.
+Lemmas about [`#padRightToWidth`](https://github.com/runtimeverification/evm-semantics/blob/master/kevm-pyk/src/kevm_pyk/kproj/evm-semantics/evm-types.md#bytes-helper-functions). `#padToWidth(N, WS)` and `#padRightToWidth` make sure that a `Bytes` is the correct size.
 
 ```k
     rule #padRightToWidth (W, X) => X +Bytes #buf(W -Int lengthBytes(X), 0)

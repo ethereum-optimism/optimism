@@ -8,7 +8,7 @@ SCRIPT_HOME="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 source "$SCRIPT_HOME/common.sh"
 # Sanity check on arguments
 if [ $# -gt 1 ]; then
-  echo "At most one agrument can be provided. Instead $# were provided" 1>&2
+  echo "At most one argument can be provided. Instead $# were provided" 1>&2
   exit 1
 elif [ $# -eq 1 ]; then
   if [ "$1" != "container" ] && [ "$1" != "local" ] && [ "$1" != "dev" ]; then
