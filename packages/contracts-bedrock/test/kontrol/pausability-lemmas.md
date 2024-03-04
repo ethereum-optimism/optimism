@@ -94,7 +94,7 @@ Lemmas about [`#asWord`](https://github.com/runtimeverification/evm-semantics/bl
 
 ## `#asInteger`
 
-Lemmas about [`#asInteger`](https://github.com/runtimeverification/evm-semantics/blob/master/kevm-pyk/src/kevm_pyk/kproj/evm-semantics/evm-types.md#bytes-helper-functions). `#asInteger` will interperet a stack of bytes as a single arbitrary-precision integer (with MSB first).
+Lemmas about [`#asInteger`](https://github.com/runtimeverification/evm-semantics/blob/master/kevm-pyk/src/kevm_pyk/kproj/evm-semantics/evm-types.md#bytes-helper-functions). `#asInteger` will interpret a stack of bytes as a single arbitrary-precision integer (with MSB first).
 
 ```k
     // Conversion from bytes always yields a non-negative integer
