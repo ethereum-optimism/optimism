@@ -76,6 +76,12 @@ var (
 		Name:    "engine.version",
 		Usage:   "Engine API version to use for Engine calls (1, 2, or 3)",
 		EnvVars: prefixEnvVars("ENGINE_VERSION"),
+		Action: func(ctx *cli.Context, ev int) error {
+			if ev < 1 || ev > 3 {
+				return fmt.Errorf("invalid Engine API version: %d", ev)
+			}
+			return nil
+		},
 	}
 	FeeRecipientFlag = &cli.GenericFlag{
 		Name:    "fee-recipient",
@@ -185,9 +191,6 @@ func initVersionProvider(ctx *cli.Context, lgr log.Logger) (sources.EngineVersio
 	// static configuration takes precedent, if set
 	if ctx.IsSet(EngineVersion.Name) {
 		ev := ctx.Int(EngineVersion.Name)
-		if ev < 1 || ev > 3 {
-			return nil, fmt.Errorf("invalid Engine API version: %d", ev)
-		}
 		return engine.StaticVersionProvider(ev), nil
 	}
 

@@ -91,7 +91,7 @@ func updateForkchoice(ctx context.Context, client *sources.EngineAPIClient, head
 		FinalizedBlockHash: finalized,
 	}, nil)
 	if err != nil {
-		return fmt.Errorf("failed to udpate forkchoice with new head %s: %w", head, err)
+		return fmt.Errorf("failed to update forkchoice with new head %s: %w", head, err)
 	}
 	if res.PayloadStatus.Status != eth.ExecutionValid {
 		return fmt.Errorf("forkchoice update was not valid: %v", res.PayloadStatus.ValidationError)
