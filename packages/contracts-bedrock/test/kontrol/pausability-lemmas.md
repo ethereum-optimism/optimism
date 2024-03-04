@@ -18,9 +18,6 @@ module PAUSABILITY-LEMMAS
     imports INT-SYMBOLIC
 ```
 
-Lemmas
-------
-
 ## Arithmetic
 
 Lemmas on arithmetic reasoning.
