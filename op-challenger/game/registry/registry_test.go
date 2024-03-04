@@ -123,7 +123,7 @@ func (s stubPreimageOracle) GetActivePreimages(_ context.Context, _ common.Hash)
 
 type stubBondContract struct{}
 
-func (s *stubBondContract) GetCredit(ctx context.Context, receipient common.Address) (*big.Int, error) {
+func (s *stubBondContract) GetCredit(ctx context.Context, receipient common.Address) (*big.Int, types.GameStatus, error) {
 	panic("not supported")
 }
 

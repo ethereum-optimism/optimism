@@ -119,12 +119,22 @@ func (c *FaultDisputeGameContract) GetSplitDepth(ctx context.Context) (types.Dep
 	return types.Depth(splitDepth.GetBigInt(0).Uint64()), nil
 }
 
-func (c *FaultDisputeGameContract) GetCredit(ctx context.Context, recipient common.Address) (*big.Int, error) {
-	if credits, err := c.GetCredits(ctx, batching.BlockLatest, recipient); err != nil {
-		return nil, err
-	} else {
-		return credits[0], nil
+func (c *FaultDisputeGameContract) GetCredit(ctx context.Context, recipient common.Address) (*big.Int, gameTypes.GameStatus, error) {
+	results, err := c.multiCaller.Call(ctx, batching.BlockLatest,
+		c.contract.Call(methodCredit, recipient),
+		c.contract.Call(methodStatus))
+	if err != nil {
+		return nil, gameTypes.GameStatusInProgress, err
 	}
+	if len(results) != 2 {
+		return nil, gameTypes.GameStatusInProgress, fmt.Errorf("expected 2 results but got %v", len(results))
+	}
+	credit := results[0].GetBigInt(0)
+	status, err := gameTypes.GameStatusFromUint8(results[1].GetUint8(0))
+	if err != nil {
+		return nil, gameTypes.GameStatusInProgress, fmt.Errorf("invalid game status %v: %w", status, err)
+	}
+	return credit, status, nil
 }
 
 func (c *FaultDisputeGameContract) GetCredits(ctx context.Context, block batching.Block, recipients ...common.Address) ([]*big.Int, error) {
