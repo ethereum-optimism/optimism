@@ -52,8 +52,8 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
         optimismPortal.proveWithdrawalTransaction(_tx, _l2OutputIndex, _outputRootProof, _withdrawalProof);
     }
 
-    /// @custom:kontrol-length-equals _withdrawalProof: 10,
-    /// @custom:kontrol-length-equals _withdrawalProof[]: 600,
+    /// @custom:kontrol-array-length-equals _withdrawalProof: 10,
+    /// @custom:kontrol-bytes-length-equals _withdrawalProof: 600,
     function prove_proveWithdrawalTransaction_paused10(
         Types.WithdrawalTransaction memory _tx,
         uint256 _l2OutputIndex,
@@ -65,8 +65,8 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
         prove_proveWithdrawalTransaction_paused_internal(_tx, _l2OutputIndex, _outputRootProof, _withdrawalProof);
     }
 
-    /// @custom:kontrol-length-equals _withdrawalProof: 9,
-    /// @custom:kontrol-length-equals _withdrawalProof[]: 600,
+    /// @custom:kontrol-array-length-equals _withdrawalProof: 9,
+    /// @custom:kontrol-bytes-length-equals _withdrawalProof: 600,
     function prove_proveWithdrawalTransaction_paused9(
         Types.WithdrawalTransaction memory _tx,
         uint256 _l2OutputIndex,
@@ -78,8 +78,8 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
         prove_proveWithdrawalTransaction_paused_internal(_tx, _l2OutputIndex, _outputRootProof, _withdrawalProof);
     }
 
-    /// @custom:kontrol-length-equals _withdrawalProof: 8,
-    /// @custom:kontrol-length-equals _withdrawalProof[]: 600,
+    /// @custom:kontrol-array-length-equals _withdrawalProof: 8,
+    /// @custom:kontrol-bytes-length-equals _withdrawalProof: 600,
     function prove_proveWithdrawalTransaction_paused8(
         Types.WithdrawalTransaction memory _tx,
         uint256 _l2OutputIndex,
@@ -91,8 +91,8 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
         prove_proveWithdrawalTransaction_paused_internal(_tx, _l2OutputIndex, _outputRootProof, _withdrawalProof);
     }
 
-    /// @custom:kontrol-length-equals _withdrawalProof: 7,
-    /// @custom:kontrol-length-equals _withdrawalProof[]: 600,
+    /// @custom:kontrol-array-length-equals _withdrawalProof: 7,
+    /// @custom:kontrol-bytes-length-equals _withdrawalProof: 600,
     function prove_proveWithdrawalTransaction_paused7(
         Types.WithdrawalTransaction memory _tx,
         uint256 _l2OutputIndex,
@@ -104,8 +104,8 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
         prove_proveWithdrawalTransaction_paused_internal(_tx, _l2OutputIndex, _outputRootProof, _withdrawalProof);
     }
 
-    /// @custom:kontrol-length-equals _withdrawalProof: 6,
-    /// @custom:kontrol-length-equals _withdrawalProof[]: 600,
+    /// @custom:kontrol-array-length-equals _withdrawalProof: 6,
+    /// @custom:kontrol-bytes-length-equals _withdrawalProof: 600,
     function prove_proveWithdrawalTransaction_paused6(
         Types.WithdrawalTransaction memory _tx,
         uint256 _l2OutputIndex,
@@ -117,8 +117,8 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
         prove_proveWithdrawalTransaction_paused_internal(_tx, _l2OutputIndex, _outputRootProof, _withdrawalProof);
     }
 
-    /// @custom:kontrol-length-equals _withdrawalProof: 5,
-    /// @custom:kontrol-length-equals _withdrawalProof[]: 600,
+    /// @custom:kontrol-array-length-equals _withdrawalProof: 5,
+    /// @custom:kontrol-bytes-length-equals _withdrawalProof: 600,
     function prove_proveWithdrawalTransaction_paused5(
         Types.WithdrawalTransaction memory _tx,
         uint256 _l2OutputIndex,
@@ -130,8 +130,8 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
         prove_proveWithdrawalTransaction_paused_internal(_tx, _l2OutputIndex, _outputRootProof, _withdrawalProof);
     }
 
-    /// @custom:kontrol-length-equals _withdrawalProof: 4,
-    /// @custom:kontrol-length-equals _withdrawalProof[]: 600,
+    /// @custom:kontrol-array-length-equals _withdrawalProof: 4,
+    /// @custom:kontrol-bytes-length-equals _withdrawalProof: 600,
     function prove_proveWithdrawalTransaction_paused4(
         Types.WithdrawalTransaction memory _tx,
         uint256 _l2OutputIndex,
@@ -143,8 +143,8 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
         prove_proveWithdrawalTransaction_paused_internal(_tx, _l2OutputIndex, _outputRootProof, _withdrawalProof);
     }
 
-    /// @custom:kontrol-length-equals _withdrawalProof: 3,
-    /// @custom:kontrol-length-equals _withdrawalProof[]: 600,
+    /// @custom:kontrol-array-length-equals _withdrawalProof: 3,
+    /// @custom:kontrol-bytes-length-equals _withdrawalProof: 600,
     function prove_proveWithdrawalTransaction_paused3(
         Types.WithdrawalTransaction memory _tx,
         uint256 _l2OutputIndex,
@@ -156,8 +156,8 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
         prove_proveWithdrawalTransaction_paused_internal(_tx, _l2OutputIndex, _outputRootProof, _withdrawalProof);
     }
 
-    /// @custom:kontrol-length-equals _withdrawalProof: 2,
-    /// @custom:kontrol-length-equals _withdrawalProof[]: 600,
+    /// @custom:kontrol-array-length-equals _withdrawalProof: 2,
+    /// @custom:kontrol-bytes-length-equals _withdrawalProof: 600,
     function prove_proveWithdrawalTransaction_paused2(
         Types.WithdrawalTransaction memory _tx,
         uint256 _l2OutputIndex,
@@ -169,8 +169,8 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
         prove_proveWithdrawalTransaction_paused_internal(_tx, _l2OutputIndex, _outputRootProof, _withdrawalProof);
     }
 
-    /// @custom:kontrol-length-equals _withdrawalProof: 1,
-    /// @custom:kontrol-length-equals _withdrawalProof[]: 600,
+    /// @custom:kontrol-array-length-equals _withdrawalProof: 1,
+    /// @custom:kontrol-bytes-length-equals _withdrawalProof: 600,
     function prove_proveWithdrawalTransaction_paused1(
         Types.WithdrawalTransaction memory _tx,
         uint256 _l2OutputIndex,
