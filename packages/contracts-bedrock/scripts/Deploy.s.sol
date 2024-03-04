@@ -34,6 +34,7 @@ import { Constants } from "src/libraries/Constants.sol";
 import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
 import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
 import { PermissionedDisputeGame } from "src/dispute/PermissionedDisputeGame.sol";
+import { DelayedWETH } from "src/dispute/weth/DelayedWETH.sol";
 import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
 import { MIPS } from "src/cannon/MIPS.sol";
 import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
@@ -65,6 +66,18 @@ contract Deploy is Deployer {
         DeployConfig(address(uint160(uint256(keccak256(abi.encode("optimism.deployconfig"))))));
 
     using stdJson for string;
+
+    /// @notice FaultDisputeGameParams is a struct that contains the parameters necessary to call
+    ///         the function _setFaultGameImplementation. This struct exists because the EVM needs
+    ///         to finally adopt PUSHN and get rid of stack too deep once and for all.
+    ///         Someday we will look back and laugh about stack too deep, today is not that day.
+    struct FaultDisputeGameParams {
+        DelayedWETH weth;
+        GameType gameType;
+        Claim absolutePrestate;
+        IBigStepper faultVm;
+        uint256 maxGameDepth;
+    }
 
     ////////////////////////////////////////////////////////////////
     //                        Modifiers                           //
@@ -133,6 +146,7 @@ contract Deploy is Deployer {
             L1StandardBridge: mustGetAddress("L1StandardBridgeProxy"),
             L2OutputOracle: mustGetAddress("L2OutputOracleProxy"),
             DisputeGameFactory: mustGetAddress("DisputeGameFactoryProxy"),
+            DelayedWETH: mustGetAddress("DelayedWETHProxy"),
             OptimismMintableERC20Factory: mustGetAddress("OptimismMintableERC20FactoryProxy"),
             OptimismPortal: mustGetAddress("OptimismPortalProxy"),
             OptimismPortal2: mustGetAddress("OptimismPortalProxy"),
@@ -150,6 +164,7 @@ contract Deploy is Deployer {
             L1StandardBridge: getAddress("L1StandardBridgeProxy"),
             L2OutputOracle: getAddress("L2OutputOracleProxy"),
             DisputeGameFactory: getAddress("DisputeGameFactoryProxy"),
+            DelayedWETH: getAddress("DelayedWETHProxy"),
             OptimismMintableERC20Factory: getAddress("OptimismMintableERC20FactoryProxy"),
             OptimismPortal: getAddress("OptimismPortalProxy"),
             OptimismPortal2: getAddress("OptimismPortalProxy"),
@@ -334,6 +349,7 @@ contract Deploy is Deployer {
         setPermissionedCannonFaultGameImplementation({ _allowUpgrade: false });
 
         transferDisputeGameFactoryOwnership();
+        transferDelayedWETHOwnership();
     }
 
     /// @notice Deploy all of the proxies
@@ -352,6 +368,7 @@ contract Deploy is Deployer {
         // fault proofs are not enabled, the DisputeGameFactory proxy will be unused.
         deployERC1967Proxy("DisputeGameFactoryProxy");
         deployERC1967Proxy("L2OutputOracleProxy");
+        deployERC1967Proxy("DelayedWETHProxy");
 
         transferAddressManagerOwnership(); // to the ProxyAdmin
     }
@@ -370,6 +387,7 @@ contract Deploy is Deployer {
         // Fault proofs
         deployOptimismPortal2();
         deployDisputeGameFactory();
+        deployDelayedWETH();
         deployPreimageOracle();
         deployMips();
     }
@@ -384,6 +402,7 @@ contract Deploy is Deployer {
         initializeL1CrossDomainMessenger();
         initializeL2OutputOracle();
         initializeDisputeGameFactory();
+        initializeDelayedWETH();
 
         // Selectively initialize either the original OptimismPortal or the new OptimismPortal2. Since this will upgrade
         // the proxy, we cannot initialize both. FPAC warning can be removed once we're done with the old OptimismPortal
@@ -675,6 +694,27 @@ contract Deploy is Deployer {
         addr_ = address(factory);
     }
 
+    function deployDelayedWETH() public broadcast returns (address addr_) {
+        console.log("Deploying DelayedWETH implementation");
+        DelayedWETH weth = new DelayedWETH{ salt: _implSalt() }(cfg.faultGameWithdrawalDelay());
+        save("DelayedWETH", address(weth));
+        console.log("DelayedWETH deployed at %s", address(weth));
+
+        // Override the `DelayedWETH` contract to the deployed implementation. This is necessary
+        // to check the `DelayedWETH` implementation alongside dependent contracts, which are
+        // always proxies.
+        Types.ContractSet memory contracts = _proxiesUnstrict();
+        contracts.DelayedWETH = address(weth);
+        ChainAssertions.checkDelayedWETH({
+            _contracts: contracts,
+            _cfg: cfg,
+            _isProxy: false,
+            _expectedOwner: address(0)
+        });
+
+        addr_ = address(weth);
+    }
+
     /// @notice Deploy the ProtocolVersions
     function deployProtocolVersions() public broadcast returns (address addr_) {
         console.log("Deploying ProtocolVersions implementation");
@@ -829,6 +869,29 @@ contract Deploy is Deployer {
         console.log("DisputeGameFactory version: %s", version);
 
         ChainAssertions.checkDisputeGameFactory({ _contracts: _proxiesUnstrict(), _expectedOwner: msg.sender });
+    }
+
+    function initializeDelayedWETH() public broadcast {
+        console.log("Upgrading and initializing DelayedWETH proxy");
+        address delayedWETHProxy = mustGetAddress("DelayedWETHProxy");
+        address delayedWETH = mustGetAddress("DelayedWETH");
+        address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
+
+        _upgradeAndCallViaSafe({
+            _proxy: payable(delayedWETHProxy),
+            _implementation: delayedWETH,
+            _innerCallData: abi.encodeCall(DelayedWETH.initialize, (msg.sender, SuperchainConfig(superchainConfigProxy)))
+        });
+
+        string memory version = DelayedWETH(payable(delayedWETHProxy)).version();
+        console.log("DelayedWETH version: %s", version);
+
+        ChainAssertions.checkDelayedWETH({
+            _contracts: _proxiesUnstrict(),
+            _cfg: cfg,
+            _isProxy: true,
+            _expectedOwner: msg.sender
+        });
     }
 
     /// @notice Initialize the SystemConfig
@@ -1132,6 +1195,20 @@ contract Deploy is Deployer {
         ChainAssertions.checkDisputeGameFactory({ _contracts: _proxies(), _expectedOwner: safe });
     }
 
+    /// @notice Transfer ownership of the DelayedWETH contract to the final system owner
+    function transferDelayedWETHOwnership() public broadcast {
+        console.log("Transferring DelayedWETH ownership to Safe");
+        DelayedWETH weth = DelayedWETH(mustGetAddress("DelayedWETHProxy"));
+        address owner = weth.owner();
+
+        address safe = mustGetAddress("SystemOwnerSafe");
+        if (owner != safe) {
+            weth.transferOwnership(safe);
+            console.log("DelayedWETH ownership transferred to Safe at: %s", safe);
+        }
+        ChainAssertions.checkDelayedWETH({ _contracts: _proxies(), _cfg: cfg, _isProxy: true, _expectedOwner: safe });
+    }
+
     /// @notice Loads the mips absolute prestate from the prestate-proof for devnets otherwise
     ///         from the config.
     function loadMipsAbsolutePrestate() internal returns (Claim mipsAbsolutePrestate_) {
@@ -1163,15 +1240,19 @@ contract Deploy is Deployer {
     function setCannonFaultGameImplementation(bool _allowUpgrade) public broadcast {
         console.log("Setting Cannon FaultDisputeGame implementation");
         DisputeGameFactory factory = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
+        DelayedWETH weth = DelayedWETH(mustGetAddress("DelayedWETHProxy"));
 
         // Set the Cannon FaultDisputeGame implementation in the factory.
         _setFaultGameImplementation({
             _factory: factory,
-            _gameType: GameTypes.CANNON,
-            _absolutePrestate: loadMipsAbsolutePrestate(),
-            _faultVm: IBigStepper(mustGetAddress("Mips")),
-            _maxGameDepth: cfg.faultGameMaxDepth(),
-            _allowUpgrade: _allowUpgrade
+            _allowUpgrade: _allowUpgrade,
+            _params: FaultDisputeGameParams({
+                weth: weth,
+                gameType: GameTypes.CANNON,
+                absolutePrestate: loadMipsAbsolutePrestate(),
+                faultVm: IBigStepper(mustGetAddress("Mips")),
+                maxGameDepth: cfg.faultGameMaxDepth()
+            })
         });
     }
 
@@ -1179,15 +1260,19 @@ contract Deploy is Deployer {
     function setPermissionedCannonFaultGameImplementation(bool _allowUpgrade) public broadcast {
         console.log("Setting Cannon PermissionedDisputeGame implementation");
         DisputeGameFactory factory = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
+        DelayedWETH weth = DelayedWETH(mustGetAddress("DelayedWETHProxy"));
 
         // Set the Cannon FaultDisputeGame implementation in the factory.
         _setFaultGameImplementation({
             _factory: factory,
-            _gameType: GameTypes.PERMISSIONED_CANNON,
-            _absolutePrestate: loadMipsAbsolutePrestate(),
-            _faultVm: IBigStepper(mustGetAddress("Mips")),
-            _maxGameDepth: cfg.faultGameMaxDepth(),
-            _allowUpgrade: _allowUpgrade
+            _allowUpgrade: _allowUpgrade,
+            _params: FaultDisputeGameParams({
+                weth: weth,
+                gameType: GameTypes.PERMISSIONED_CANNON,
+                absolutePrestate: loadMipsAbsolutePrestate(),
+                faultVm: IBigStepper(mustGetAddress("Mips")),
+                maxGameDepth: cfg.faultGameMaxDepth()
+            })
         });
     }
 
@@ -1195,65 +1280,68 @@ contract Deploy is Deployer {
     function setAlphabetFaultGameImplementation(bool _allowUpgrade) public onlyDevnet broadcast {
         console.log("Setting Alphabet FaultDisputeGame implementation");
         DisputeGameFactory factory = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
+        DelayedWETH weth = DelayedWETH(mustGetAddress("DelayedWETHProxy"));
 
         Claim outputAbsolutePrestate = Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()));
         _setFaultGameImplementation({
             _factory: factory,
-            _gameType: GameTypes.ALPHABET,
-            _absolutePrestate: outputAbsolutePrestate,
-            _faultVm: IBigStepper(new AlphabetVM(outputAbsolutePrestate, PreimageOracle(mustGetAddress("PreimageOracle")))),
-            // The max depth for the alphabet trace is always 3. Add 1 because split depth is fully inclusive.
-            _maxGameDepth: cfg.faultGameSplitDepth() + 3 + 1,
-            _allowUpgrade: _allowUpgrade
+            _allowUpgrade: _allowUpgrade,
+            _params: FaultDisputeGameParams({
+                weth: weth,
+                gameType: GameTypes.ALPHABET,
+                absolutePrestate: outputAbsolutePrestate,
+                faultVm: IBigStepper(new AlphabetVM(outputAbsolutePrestate, PreimageOracle(mustGetAddress("PreimageOracle")))),
+                // The max depth for the alphabet trace is always 3. Add 1 because split depth is fully inclusive.
+                maxGameDepth: cfg.faultGameSplitDepth() + 3 + 1
+            })
         });
     }
 
     /// @notice Sets the implementation for the given fault game type in the `DisputeGameFactory`.
     function _setFaultGameImplementation(
         DisputeGameFactory _factory,
-        GameType _gameType,
-        Claim _absolutePrestate,
-        IBigStepper _faultVm,
-        uint256 _maxGameDepth,
-        bool _allowUpgrade
+        bool _allowUpgrade,
+        FaultDisputeGameParams memory _params
     )
         internal
     {
-        if (address(_factory.gameImpls(_gameType)) != address(0) && !_allowUpgrade) {
+        if (address(_factory.gameImpls(_params.gameType)) != address(0) && !_allowUpgrade) {
             console.log(
                 "[WARN] DisputeGameFactoryProxy: `FaultDisputeGame` implementation already set for game type: %s",
-                vm.toString(GameType.unwrap(_gameType))
+                vm.toString(GameType.unwrap(_params.gameType))
             );
             return;
         }
 
-        uint32 rawGameType = GameType.unwrap(_gameType);
+        uint32 rawGameType = GameType.unwrap(_params.gameType);
         if (rawGameType != GameTypes.PERMISSIONED_CANNON.raw()) {
             _factory.setImplementation(
-                _gameType,
+                _params.gameType,
                 new FaultDisputeGame({
-                    _gameType: _gameType,
-                    _absolutePrestate: _absolutePrestate,
+                    _gameType: _params.gameType,
+                    _absolutePrestate: _params.absolutePrestate,
                     _genesisBlockNumber: cfg.faultGameGenesisBlock(),
                     _genesisOutputRoot: Hash.wrap(cfg.faultGameGenesisOutputRoot()),
-                    _maxGameDepth: _maxGameDepth,
+                    _maxGameDepth: _params.maxGameDepth,
                     _splitDepth: cfg.faultGameSplitDepth(),
                     _gameDuration: Duration.wrap(uint64(cfg.faultGameMaxDuration())),
-                    _vm: _faultVm
+                    _vm: _params.faultVm,
+                    _weth: _params.weth
                 })
             );
         } else {
             _factory.setImplementation(
-                _gameType,
+                _params.gameType,
                 new PermissionedDisputeGame({
-                    _gameType: _gameType,
-                    _absolutePrestate: _absolutePrestate,
+                    _gameType: _params.gameType,
+                    _absolutePrestate: _params.absolutePrestate,
                     _genesisBlockNumber: cfg.faultGameGenesisBlock(),
                     _genesisOutputRoot: Hash.wrap(cfg.faultGameGenesisOutputRoot()),
-                    _maxGameDepth: _maxGameDepth,
+                    _maxGameDepth: _params.maxGameDepth,
                     _splitDepth: cfg.faultGameSplitDepth(),
                     _gameDuration: Duration.wrap(uint64(cfg.faultGameMaxDuration())),
-                    _vm: _faultVm,
+                    _vm: _params.faultVm,
+                    _weth: _params.weth,
                     _proposer: cfg.l2OutputOracleProposer(),
                     _challenger: cfg.l2OutputOracleChallenger()
                 })

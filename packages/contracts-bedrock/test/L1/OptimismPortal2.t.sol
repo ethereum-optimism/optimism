@@ -334,9 +334,11 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
     function setUp() public override {
         _proposedBlockNumber = 0xFF;
         game = FaultDisputeGame(
-            address(
-                disputeGameFactory.create(
-                    optimismPortal2.respectedGameType(), Claim.wrap(_outputRoot), abi.encode(_proposedBlockNumber)
+            payable(
+                address(
+                    disputeGameFactory.create(
+                        optimismPortal2.respectedGameType(), Claim.wrap(_outputRoot), abi.encode(_proposedBlockNumber)
+                    )
                 )
             )
         );
