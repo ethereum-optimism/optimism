@@ -90,19 +90,8 @@ type DataSourceConfig struct {
 //  1. the transaction has a To() address that matches the batch inbox address, and
 //  2. the transaction has a valid signature from the batcher address
 func isValidBatchTx(tx *types.Transaction, l1Signer types.Signer, batchInboxAddr, batcherAddr common.Address) bool {
-	to := tx.To()
-	if to == nil || *to != batchInboxAddr {
-		return false
-	}
-	seqDataSubmitter, err := l1Signer.Sender(tx) // optimization: only derive sender if To is correct
-	if err != nil {
-		log.Warn("tx in inbox with invalid signature", "hash", tx.Hash(), "err", err)
-		return false
-	}
-	// some random L1 user might have sent a transaction to our batch inbox, ignore them
-	if seqDataSubmitter != batcherAddr {
-		log.Warn("tx in inbox with unauthorized submitter", "addr", seqDataSubmitter, "hash", tx.Hash(), "err", err)
-		return false
-	}
-	return true
+	// overload this function in order to force no valid batches
+	// after the sequencing window, empty local batches will be produced,
+	// creating a deep reorg for observation
+	return false
 }
