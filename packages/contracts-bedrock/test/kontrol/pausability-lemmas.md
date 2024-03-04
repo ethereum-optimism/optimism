@@ -175,7 +175,7 @@ function copy_memory_to_memory(src, dst, length) {
 
 It is used to copy `length` bytes of memory from index `src` to index `dest`, doing so in steps of 32 bytes, and right-padding with zeros to a multiple of 32.
 
-We need to enforce some limit on the length of bytearrays and indices into bytearrays in order to avoid chop-reasoning.
+We need to enforce some limit on the length of byte arrays and indices into byte arrays in order to avoid chop-reasoning.
 
 ```k
     syntax Int ::= "maxBytesLength" [alias]
