@@ -50,16 +50,6 @@ Lemmas on arithmetic reasoning.
     rule notMaxUInt5 &Int X +Int 31 <Int Y => true requires 0 <=Int X andBool X +Int 32 <=Int Y [simplification, concrete(Y)]
 
     rule notMaxUInt5 &Int X +Int 31 <Int X +Int 32 => true requires 0 <=Int X [simplification]
-
-    //
-    // #buf
-    //
-
-    // Invertibility of #buf and #asWord
-    // TODO: remove once the KEVM PR is merged
-    //rule #buf ( WIDTH , #asWord ( BA:Bytes ) ) => BA
-    //  requires lengthBytes(BA) ==K WIDTH
-    //  [simplification]
 ```
 
 ## `#asWord`
@@ -82,14 +72,6 @@ Lemmas about [`#asWord`](https://github.com/runtimeverification/evm-semantics/bl
         requires S +Int W <=Int 32
          andBool (2 ^Int (8 *Int W)) <=Int Y
         [concrete(S, W, Y), simplification]
-
-    // #asWord is equality
-    // TODO: remove once the KEVM PR is merged
-    //rule #asWord ( #range ( #buf (SIZE, X), START, WIDTH) ) => X
-    //  requires 0 <=Int SIZE andBool 0 <=Int X andBool 0 <=Int START andBool 0 <=Int WIDTH
-    //   andBool SIZE ==Int START +Int WIDTH
-    //   andBool X <Int 2 ^Int (8 *Int WIDTH)
-    //  [simplification, concrete(SIZE, START, WIDTH)]
 ```
 
 ## `#asInteger`
