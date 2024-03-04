@@ -537,13 +537,13 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     /// @param _position The position of the bonded interaction.
     /// @return requiredBond_ The required ETH bond for the given move, in wei.
     function getRequiredBond(Position _position) public view returns (uint256 requiredBond_) {
-        int256 depth = int256(uint256(_position.depth()));
-        if (depth > int256(MAX_GAME_DEPTH)) revert GameDepthExceeded();
+        uint256 depth = uint256(_position.depth());
+        if (depth > MAX_GAME_DEPTH) revert GameDepthExceeded();
 
         // Values taken from Big Bonds v1.5 (TM) spec.
-        int256 assumedBaseFee = 200 gwei;
-        int256 baseGasCharged = 400_000;
-        int256 highGasCharged = 200_000_000;
+        uint256 assumedBaseFee = 200 gwei;
+        uint256 baseGasCharged = 400_000;
+        uint256 highGasCharged = 200_000_000;
 
         // Goal here is to compute the fixed multiplier that will be applied to the base gas
         // charged to get the required gas amount for the given depth. We apply this multiplier
@@ -555,28 +555,27 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         // We can compute e ** (ln(a) * (b/c)) quite easily with FixedPointMathLib.
 
         // Set up a, b, and c.
-        int256 a = highGasCharged / baseGasCharged;
-        int256 b = 1e18;
-        int256 c = int256(MAX_GAME_DEPTH) * int256(FixedPointMathLib.WAD);
+        uint256 a = highGasCharged / baseGasCharged;
+        uint256 b = FixedPointMathLib.WAD;
+        uint256 c = MAX_GAME_DEPTH * FixedPointMathLib.WAD;
 
         // Compute ln(a).
-        // slither-disable-next-line divide-before-multiply
-        int256 lnA = FixedPointMathLib.lnWad(a * int256(FixedPointMathLib.WAD));
+        uint256 lnA = uint256(FixedPointMathLib.lnWad(int256(a * FixedPointMathLib.WAD)));
 
         // Computes (b / c) with full precision using WAD = 1e18.
-        int256 bOverC = FixedPointMathLib.sDivWad(b, c);
+        uint256 bOverC = FixedPointMathLib.divWad(b, c);
 
         // Compute e ** (ln(a) * (b/c))
         // sMulWad can be used here since WAD = 1e18 maintains the same precision.
-        int256 numerator = FixedPointMathLib.sMulWad(lnA, bOverC);
-        int256 base = FixedPointMathLib.expWad(numerator);
+        uint256 numerator = FixedPointMathLib.mulWad(lnA, bOverC);
+        int256 base = FixedPointMathLib.expWad(int256(numerator));
 
         // Compute the required gas amount.
-        int256 rawGas = FixedPointMathLib.powWad(base, depth * int256(FixedPointMathLib.WAD));
-        int256 requiredGas = FixedPointMathLib.sMulWad(baseGasCharged, rawGas);
+        int256 rawGas = FixedPointMathLib.powWad(base, int256(depth * FixedPointMathLib.WAD));
+        uint256 requiredGas = FixedPointMathLib.mulWad(baseGasCharged, uint256(rawGas));
 
         // Compute the required bond.
-        requiredBond_ = uint256(assumedBaseFee * requiredGas);
+        requiredBond_ = assumedBaseFee * requiredGas;
     }
 
     /// @notice Claim the credit belonging to the recipient address.
