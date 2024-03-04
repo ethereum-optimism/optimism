@@ -50,15 +50,15 @@ type PrecompileOracle interface {
 }
 
 func CreatePrecompileOverrides(precompileOracle PrecompileOracle) vm.PrecompileOverrides {
-	return func(rules params.Rules, address common.Address) (vm.PrecompiledContract, bool) {
+	return func(rules params.Rules, orig vm.PrecompiledContract, address common.Address) (vm.PrecompiledContract, bool) {
 		// NOTE: Ignoring chain rules for now. We assume that precompile behavior won't change for the foreseeable future
 		switch address {
 		case ecrecoverPrecompileAddress:
-			return &ecrecoverOracle{Oracle: precompileOracle}, true
+			return &ecrecoverOracle{Orig: orig, Oracle: precompileOracle}, true
 		case bn256PairingPrecompileAddress:
-			return &bn256PairingOracle{Oracle: precompileOracle, rules: rules}, true
+			return &bn256PairingOracle{Orig: orig, Oracle: precompileOracle}, true
 		case kzgPointEvaluationPrecompileAddress:
-			return &kzgPointEvaluationOracle{Oracle: precompileOracle}, true
+			return &kzgPointEvaluationOracle{Orig: orig, Oracle: precompileOracle}, true
 		default:
 			return nil, false
 		}
@@ -66,11 +66,12 @@ func CreatePrecompileOverrides(precompileOracle PrecompileOracle) vm.PrecompileO
 }
 
 type ecrecoverOracle struct {
+	Orig   vm.PrecompiledContract
 	Oracle PrecompileOracle
 }
 
 func (c *ecrecoverOracle) RequiredGas(input []byte) uint64 {
-	return params.EcrecoverGas
+	return c.Orig.RequiredGas(input)
 }
 
 func (c *ecrecoverOracle) Run(input []byte) ([]byte, error) {
@@ -117,18 +118,12 @@ func allZero(b []byte) bool {
 }
 
 type bn256PairingOracle struct {
-	rules  params.Rules
+	Orig   vm.PrecompiledContract
 	Oracle PrecompileOracle
 }
 
 func (b *bn256PairingOracle) RequiredGas(input []byte) uint64 {
-	// Required gas changed in Istanbul. Note that IsIstanbul is true for Istanbul and all forks after it
-	// TODO(client-pod#628): Investigate delegating this to the original precompile implementation to avoid reimplementing.
-	if b.rules.IsIstanbul {
-		return params.Bn256PairingBaseGasIstanbul + uint64(len(input)/192)*params.Bn256PairingPerPointGasIstanbul
-	} else {
-		return params.Bn256PairingBaseGasByzantium + uint64(len(input)/192)*params.Bn256PairingPerPointGasByzantium
-	}
+	return b.Orig.RequiredGas(input)
 }
 
 var (
@@ -162,12 +157,13 @@ func (b *bn256PairingOracle) Run(input []byte) ([]byte, error) {
 // kzgPointEvaluationOracle implements the EIP-4844 point evaluation precompile,
 // using the preimage-oracle to perform the evaluation.
 type kzgPointEvaluationOracle struct {
+	Orig   vm.PrecompiledContract
 	Oracle PrecompileOracle
 }
 
 // RequiredGas estimates the gas required for running the point evaluation precompile.
-func (b *kzgPointEvaluationOracle) RequiredGas(_ []byte) uint64 {
-	return params.BlobTxPointEvaluationPrecompileGas
+func (b *kzgPointEvaluationOracle) RequiredGas(input []byte) uint64 {
+	return b.Orig.RequiredGas(input)
 }
 
 const (
