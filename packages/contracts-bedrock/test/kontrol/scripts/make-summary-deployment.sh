@@ -85,7 +85,7 @@ SUMMARY_NAME=DeploymentSummary
 LICENSE=MIT
 
 copy_to_docker # Copy the newly generated files to the docker container
-run kontrol summary $SUMMARY_NAME snapshots/state-diff/$STATEDIFF --contract-names $CONTRACT_NAMES --output-dir $SUMMARY_DIR --license $LICENSE
+run kontrol load-state-diff $SUMMARY_NAME snapshots/state-diff/$STATEDIFF --contract-names $CONTRACT_NAMES --output-dir $SUMMARY_DIR --license $LICENSE
 forge fmt $SUMMARY_DIR/$SUMMARY_NAME.sol
 forge fmt $SUMMARY_DIR/${SUMMARY_NAME}Code.sol
 echo "Added state updates to $SUMMARY_DIR/$SUMMARY_NAME.sol"
