@@ -278,7 +278,7 @@ contract Specification_Test is CommonTest {
         });
         _addSpec({ _name: "OptimismPortal2", _sel: _getSel("finalizedWithdrawals(bytes32)") });
         _addSpec({ _name: "OptimismPortal2", _sel: _getSel("guardian()") });
-        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("initialize(address,address,address)") });
+        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("initialize(address,address,address,uint32)") });
         _addSpec({ _name: "OptimismPortal2", _sel: _getSel("l2Sender()") });
         _addSpec({ _name: "OptimismPortal2", _sel: _getSel("minimumGasLimit(uint64)") });
         _addSpec({ _name: "OptimismPortal2", _sel: _getSel("params()") });
@@ -290,13 +290,18 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "OptimismPortal2", _sel: _getSel("version()") });
         _addSpec({ _name: "OptimismPortal2", _sel: _getSel("disputeGameFactory()") });
         _addSpec({ _name: "OptimismPortal2", _sel: _getSel("disputeGameBlacklist(address)") });
-        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("respectedGameType()") });
+        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("respectedGameSpans(uint32)") });
+        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("latestRespectedGameType()") });
         _addSpec({ _name: "OptimismPortal2", _sel: _getSel("blacklistDisputeGame(address)"), _auth: Role.GUARDIAN });
-        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("setRespectedGameType(uint32)"), _auth: Role.GUARDIAN });
+        _addSpec({
+            _name: "OptimismPortal2",
+            _sel: _getSel("setRespectedGameTypeSpan(uint32,uint64,uint64)"),
+            _auth: Role.GUARDIAN
+        });
         _addSpec({ _name: "OptimismPortal2", _sel: _getSel("checkWithdrawal(bytes32)") });
         _addSpec({ _name: "OptimismPortal2", _sel: _getSel("proofMaturityDelaySeconds()") });
         _addSpec({ _name: "OptimismPortal2", _sel: _getSel("disputeGameFinalityDelaySeconds()") });
-        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("respectedGameTypeUpdatedAt()") });
+        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("isGameTypeRespected(uint32,uint64)") });
 
         // ProtocolVersions
         _addSpec({ _name: "ProtocolVersions", _sel: _getSel("RECOMMENDED_SLOT()") });

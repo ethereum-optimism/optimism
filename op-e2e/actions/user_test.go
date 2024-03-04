@@ -134,11 +134,13 @@ func runCrossLayerUserTest(gt *testing.T, test hardforkScheduledTest) {
 		seq.RollupClient(), miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
 
 	var proposer *L2Proposer
+	var respectedGameType uint32
 	if e2eutils.UseFPAC() {
+		respectedGameType = dp.DeployConfig.RespectedGameType
 		proposer = NewL2Proposer(t, log, &ProposerCfg{
 			DisputeGameFactoryAddr: &sd.DeploymentsL1.DisputeGameFactoryProxy,
 			ProposalInterval:       6 * time.Second,
-			DisputeGameType:        0,
+			DisputeGameType:        respectedGameType,
 			ProposerKey:            dp.Secrets.Proposer,
 			AllowNonFinalized:      true,
 		}, miner.EthClient(), seq.RollupClient())
@@ -265,7 +267,7 @@ func runCrossLayerUserTest(gt *testing.T, test hardforkScheduledTest) {
 	}
 
 	// prove our withdrawal on L1
-	alice.ActProveWithdrawal(t)
+	alice.ActProveWithdrawal(t, &respectedGameType)
 	// include proved withdrawal in new L1 block
 	miner.ActL1StartBlock(12)(t)
 	miner.ActL1IncludeTx(alice.Address())(t)
@@ -282,13 +284,13 @@ func runCrossLayerUserTest(gt *testing.T, test hardforkScheduledTest) {
 	// If using FPAC we need to resolve the game
 	if e2eutils.UseFPAC() {
 		// Resolve the root claim
-		alice.ActResolveClaim(t)
+		alice.ActResolveClaim(t, &respectedGameType)
 		miner.ActL1StartBlock(12)(t)
 		miner.ActL1IncludeTx(alice.Address())(t)
 		miner.ActL1EndBlock(t)
 		// Resolve the game
 		alice.L1.ActCheckReceiptStatusOfLastTx(true)(t)
-		alice.ActResolve(t)
+		alice.ActResolve(t, &respectedGameType)
 		miner.ActL1StartBlock(12)(t)
 		miner.ActL1IncludeTx(alice.Address())(t)
 		miner.ActL1EndBlock(t)
@@ -299,7 +301,7 @@ func runCrossLayerUserTest(gt *testing.T, test hardforkScheduledTest) {
 	}
 
 	// make the L1 finalize withdrawal tx
-	alice.ActCompleteWithdrawal(t)
+	alice.ActCompleteWithdrawal(t, &respectedGameType)
 	// include completed withdrawal in new L1 block
 	miner.ActL1StartBlock(12)(t)
 	miner.ActL1IncludeTx(alice.Address())(t)

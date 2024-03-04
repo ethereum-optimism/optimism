@@ -76,7 +76,7 @@ func ForFinalizationPeriod(ctx context.Context, client *ethclient.Client, l1Prov
 }
 
 // ForGamePublished waits until a game is published on L1 for the given l2BlockNumber.
-func ForGamePublished(ctx context.Context, client *ethclient.Client, optimismPortalAddr common.Address, disputeGameFactoryAddr common.Address, l2BlockNumber *big.Int) (uint64, error) {
+func ForGamePublished(ctx context.Context, client *ethclient.Client, optimismPortalAddr common.Address, disputeGameFactoryAddr common.Address, l2BlockNumber *big.Int, gameType uint32) (uint64, error) {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 	l2BlockNumber = new(big.Int).Set(l2BlockNumber) // Don't clobber caller owned l2BlockNumber
@@ -92,7 +92,7 @@ func ForGamePublished(ctx context.Context, client *ethclient.Client, optimismPor
 	}
 
 	getL2BlockFromLatestGame := func() (*big.Int, error) {
-		latestGame, err := withdrawals.FindLatestGame(ctx, disputeGameFactoryContract, optimismPortal2Contract)
+		latestGame, err := withdrawals.FindLatestGame(ctx, disputeGameFactoryContract, optimismPortal2Contract, gameType)
 		if err != nil {
 			return big.NewInt(-1), nil
 		}

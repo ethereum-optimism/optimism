@@ -552,7 +552,7 @@ func TestMixedWithdrawalValidity(t *testing.T) {
 			require.NotEqual(t, cfg.L1Deployments.L2OutputOracleProxy, common.Address{})
 			var blockNumber uint64
 			if e2eutils.UseFPAC() {
-				blockNumber, err = wait.ForGamePublished(ctx, l1Client, cfg.L1Deployments.OptimismPortalProxy, cfg.L1Deployments.DisputeGameFactoryProxy, receipt.BlockNumber)
+				blockNumber, err = wait.ForGamePublished(ctx, l1Client, cfg.L1Deployments.OptimismPortalProxy, cfg.L1Deployments.DisputeGameFactoryProxy, receipt.BlockNumber, cfg.DeployConfig.RespectedGameType)
 			} else {
 				blockNumber, err = wait.ForOutputRootPublished(ctx, l1Client, cfg.L1Deployments.L2OutputOracleProxy, receipt.BlockNumber)
 			}
@@ -568,7 +568,7 @@ func TestMixedWithdrawalValidity(t *testing.T) {
 			blockCl := ethclient.NewClient(rpcClient)
 
 			// Now create the withdrawal
-			params, err := withdrawals.ProveWithdrawalParameters(context.Background(), proofCl, receiptCl, blockCl, tx.Hash(), header, l2OutputOracle, disputeGameFactory, optimismPortal, optimismPortal2)
+			params, err := withdrawals.ProveWithdrawalParameters(context.Background(), proofCl, receiptCl, blockCl, tx.Hash(), header, l2OutputOracle, disputeGameFactory, &cfg.DeployConfig.RespectedGameType, optimismPortal, optimismPortal2)
 			require.Nil(t, err)
 
 			// Obtain our withdrawal parameters

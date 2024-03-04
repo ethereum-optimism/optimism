@@ -85,13 +85,13 @@ func defaultWithdrawalTxOpts() *WithdrawalTxOpts {
 	}
 }
 
-func ProveAndFinalizeWithdrawal(t *testing.T, cfg SystemConfig, clients ClientProvider, l2NodeName string, ethPrivKey *ecdsa.PrivateKey, l2WithdrawalReceipt *types.Receipt) (*types.Receipt, *types.Receipt, *types.Receipt, *types.Receipt) {
-	params, proveReceipt := ProveWithdrawal(t, cfg, clients, l2NodeName, ethPrivKey, l2WithdrawalReceipt)
+func ProveAndFinalizeWithdrawal(t *testing.T, cfg SystemConfig, clients ClientProvider, l2NodeName string, ethPrivKey *ecdsa.PrivateKey, l2WithdrawalReceipt *types.Receipt, gameType *uint32) (*types.Receipt, *types.Receipt, *types.Receipt, *types.Receipt) {
+	params, proveReceipt := ProveWithdrawal(t, cfg, clients, l2NodeName, ethPrivKey, l2WithdrawalReceipt, gameType)
 	finalizeReceipt, resolveClaimReceipt, resolveReceipt := FinalizeWithdrawal(t, cfg, clients.NodeClient("l1"), ethPrivKey, proveReceipt, params)
 	return proveReceipt, finalizeReceipt, resolveClaimReceipt, resolveReceipt
 }
 
-func ProveWithdrawal(t *testing.T, cfg SystemConfig, clients ClientProvider, l2NodeName string, ethPrivKey *ecdsa.PrivateKey, l2WithdrawalReceipt *types.Receipt) (withdrawals.ProvenWithdrawalParameters, *types.Receipt) {
+func ProveWithdrawal(t *testing.T, cfg SystemConfig, clients ClientProvider, l2NodeName string, ethPrivKey *ecdsa.PrivateKey, l2WithdrawalReceipt *types.Receipt, gameType *uint32) (withdrawals.ProvenWithdrawalParameters, *types.Receipt) {
 	// Get l2BlockNumber for proof generation
 	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 	defer cancel()
@@ -100,7 +100,8 @@ func ProveWithdrawal(t *testing.T, cfg SystemConfig, clients ClientProvider, l2N
 	var blockNumber uint64
 	var err error
 	if e2eutils.UseFPAC() {
-		blockNumber, err = wait.ForGamePublished(ctx, l1Client, config.L1Deployments.OptimismPortalProxy, config.L1Deployments.DisputeGameFactoryProxy, l2WithdrawalReceipt.BlockNumber)
+		require.NotNil(t, gameType, "gameType must be set when using FPAC")
+		blockNumber, err = wait.ForGamePublished(ctx, l1Client, config.L1Deployments.OptimismPortalProxy, config.L1Deployments.DisputeGameFactoryProxy, l2WithdrawalReceipt.BlockNumber, *gameType)
 		require.Nil(t, err)
 	} else {
 		blockNumber, err = wait.ForOutputRootPublished(ctx, l1Client, config.L1Deployments.L2OutputOracleProxy, l2WithdrawalReceipt.BlockNumber)
@@ -129,7 +130,7 @@ func ProveWithdrawal(t *testing.T, cfg SystemConfig, clients ClientProvider, l2N
 	portal2, err := bindingspreview.NewOptimismPortal2Caller(config.L1Deployments.OptimismPortalProxy, l1Client)
 	require.Nil(t, err)
 
-	params, err := withdrawals.ProveWithdrawalParameters(context.Background(), proofCl, receiptCl, blockCl, l2WithdrawalReceipt.TxHash, header, oracle, factory, portal1, portal2)
+	params, err := withdrawals.ProveWithdrawalParameters(context.Background(), proofCl, receiptCl, blockCl, l2WithdrawalReceipt.TxHash, header, oracle, factory, gameType, portal1, portal2)
 	require.Nil(t, err)
 
 	portal, err := bindings.NewOptimismPortal(config.L1Deployments.OptimismPortalProxy, l1Client)

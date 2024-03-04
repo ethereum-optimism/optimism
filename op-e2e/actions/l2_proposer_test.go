@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
-	"github.com/ethereum-optimism/optimism/op-bindings/bindingspreview"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -56,11 +55,13 @@ func RunProposerTest(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 		rollupSeqCl, miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
 
 	var proposer *L2Proposer
+	var respectedGameType uint32
 	if e2eutils.UseFPAC() {
+		respectedGameType = dp.DeployConfig.RespectedGameType
 		proposer = NewL2Proposer(t, log, &ProposerCfg{
 			DisputeGameFactoryAddr: &sd.DeploymentsL1.DisputeGameFactoryProxy,
 			ProposalInterval:       6 * time.Second,
-			DisputeGameType:        0,
+			DisputeGameType:        respectedGameType,
 			ProposerKey:            dp.Secrets.Proposer,
 			AllowNonFinalized:      true,
 		}, miner.EthClient(), rollupSeqCl)
@@ -110,10 +111,6 @@ func RunProposerTest(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 
 	// check that L1 stored the expected output root
 	if e2eutils.UseFPAC() {
-		optimismPortal2Contract, err := bindingspreview.NewOptimismPortal2(sd.DeploymentsL1.OptimismPortalProxy, miner.EthClient())
-		require.NoError(t, err)
-		respectedGameType, err := optimismPortal2Contract.RespectedGameType(&bind.CallOpts{})
-		require.NoError(t, err)
 		disputeGameFactoryContract, err := bindings.NewDisputeGameFactory(sd.DeploymentsL1.DisputeGameFactoryProxy, miner.EthClient())
 		require.NoError(t, err)
 		gameCount, err := disputeGameFactoryContract.GameCount(&bind.CallOpts{})

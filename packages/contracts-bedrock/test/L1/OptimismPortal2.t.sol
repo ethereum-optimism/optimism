@@ -44,7 +44,11 @@ contract OptimismPortal2_Test is CommonTest {
         assertEq(address(opImpl.systemConfig()), address(0));
         assertEq(address(opImpl.superchainConfig()), address(0));
         assertEq(opImpl.l2Sender(), Constants.DEFAULT_L2_SENDER);
-        assertEq(opImpl.respectedGameType().raw(), deploy.cfg().respectedGameType());
+        (uint256 startAt, uint256 endAt, uint256 lastUpdatedAt) =
+            opImpl.respectedGameSpans(GameType.wrap(uint32(deploy.cfg().respectedGameType())));
+        assertEq(startAt, block.timestamp);
+        assertEq(endAt, type(uint64).max);
+        assertEq(lastUpdatedAt, block.timestamp);
     }
 
     /// @dev Tests that the initializer sets the correct values.
@@ -60,7 +64,11 @@ contract OptimismPortal2_Test is CommonTest {
         assertEq(address(optimismPortal2.superchainConfig()), address(superchainConfig));
         assertEq(optimismPortal2.l2Sender(), Constants.DEFAULT_L2_SENDER);
         assertEq(optimismPortal2.paused(), false);
-        assertEq(optimismPortal2.respectedGameType().raw(), deploy.cfg().respectedGameType());
+        (uint256 startAt, uint256 endAt, uint256 lastUpdatedAt) =
+            optimismPortal2.respectedGameSpans(GameType.wrap(uint32(deploy.cfg().respectedGameType())));
+        assertEq(startAt, block.timestamp);
+        assertEq(endAt, type(uint64).max);
+        assertEq(lastUpdatedAt, block.timestamp);
     }
 
     /// @dev Tests that `pause` successfully pauses
@@ -328,6 +336,9 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
             messagePasserStorageRoot: _storageRoot,
             latestBlockhash: bytes32(uint256(0))
         });
+
+        // Warp 1s in the future, to get past the `_isGameTypeRespected` check.
+        vm.warp(block.timestamp + 1);
     }
 
     /// @dev Setup the system for a ready-to-use state.
@@ -337,7 +348,9 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
             payable(
                 address(
                     disputeGameFactory.create(
-                        optimismPortal2.respectedGameType(), Claim.wrap(_outputRoot), abi.encode(_proposedBlockNumber)
+                        GameType.wrap(uint32(deploy.cfg().respectedGameType())),
+                        Claim.wrap(_outputRoot),
+                        abi.encode(_proposedBlockNumber)
                     )
                 )
             )
@@ -377,21 +390,46 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         assertTrue(optimismPortal2.disputeGameBlacklist(IDisputeGame(_addr)));
     }
 
-    /// @dev Tests that `setRespectedGameType` reverts when called by a non-guardian.
-    function testFuzz_setRespectedGameType_onlyGuardian_reverts(address _act, GameType _ty) external {
-        vm.assume(_act != address(optimismPortal2.guardian()));
+    /// @dev Tests that the guardian role can set a respected game type timespan to anything they want.
+    function testFuzz_setRespectedGameTypeSpan_guardian_succeeds(GameType _ty, uint64 _start, uint64 _end) external {
+        _end = uint64(bound(_end, _start, type(uint64).max));
 
-        vm.prank(_act);
-        vm.expectRevert("OptimismPortal: only the guardian can set the respected game type");
-        optimismPortal2.setRespectedGameType(_ty);
+        vm.prank(optimismPortal2.guardian());
+        optimismPortal2.setRespectedGameTypeSpan(_ty, _start, _end);
+
+        (uint256 startAt, uint256 endAt, uint256 lastUpdatedAt) = optimismPortal2.respectedGameSpans(_ty);
+        assertEq(startAt, _start);
+        assertEq(endAt, _end);
+        assertEq(lastUpdatedAt, block.timestamp);
     }
 
-    /// @dev Tests that the guardian role can set the respected game type to anything they want.
-    function testFuzz_setRespectedGameType_guardian_succeeds(GameType _ty) external {
-        vm.prank(optimismPortal2.guardian());
-        optimismPortal2.setRespectedGameType(_ty);
+    /// @dev Tests that the guardian role can set a respected game type timespan to anything they want, and that it will
+    ///      update the latest respected game type.
+    function testFuzz_setRespectedGameTypeSpanUpdateLatest_guardian_succeeds(
+        GameType _ty,
+        uint64 _start,
+        uint64 _end
+    )
+        external
+    {
+        _ty = GameType.wrap(uint32(bound(_ty.raw(), 1, type(uint32).max)));
+        _start = uint64(bound(_start, 1, type(uint64).max));
+        _end = uint64(bound(_end, _start, type(uint64).max));
 
-        assertEq(optimismPortal2.respectedGameType().raw(), _ty.raw());
+        // Set a mock respected game type that ends 1 second before the new respected game type span starts.
+        GameType mock = GameType.wrap(0);
+        vm.startPrank(optimismPortal2.guardian());
+        optimismPortal2.setRespectedGameTypeSpan(mock, 0, _start - 1);
+        assertEq(optimismPortal2.latestRespectedGameType().raw(), mock.raw());
+
+        // Set the respected game type to the new value and assert that it updates the latest respected game type.
+        optimismPortal2.setRespectedGameTypeSpan(_ty, _start, _end);
+        vm.stopPrank();
+        (uint256 startAt, uint256 endAt, uint256 lastUpdatedAt) = optimismPortal2.respectedGameSpans(_ty);
+        assertEq(startAt, _start);
+        assertEq(endAt, _end);
+        assertEq(lastUpdatedAt, block.timestamp);
+        assertEq(optimismPortal2.latestRespectedGameType().raw(), _ty.raw());
     }
 
     /// @dev Tests that `proveWithdrawalTransaction` reverts when paused.
@@ -549,8 +587,13 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         });
 
         // Update the respected game type to 0xbeef.
-        vm.prank(optimismPortal2.guardian());
-        optimismPortal2.setRespectedGameType(GameType.wrap(0xbeef));
+        vm.startPrank(optimismPortal2.guardian());
+        optimismPortal2.setRespectedGameTypeSpan(GameType.wrap(uint32(deploy.cfg().respectedGameType())), 0, 0);
+        optimismPortal2.setRespectedGameTypeSpan(GameType.wrap(0xbeef), uint64(block.timestamp), type(uint64).max);
+        vm.stopPrank();
+
+        // Warp 1s in the future, to get past the `_isGameTypeRespected` check.
+        vm.warp(block.timestamp + 1);
 
         // Create a new game and mock the game type as 0xbeef in the factory.
         IDisputeGame newGame =
@@ -992,40 +1035,12 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         game.resolve();
 
         // Change the respected game type in the portal.
-        vm.prank(optimismPortal2.guardian());
-        optimismPortal2.setRespectedGameType(GameType.wrap(0xFF));
+        vm.startPrank(optimismPortal2.guardian());
+        optimismPortal2.setRespectedGameTypeSpan(GameType.wrap(uint32(deploy.cfg().respectedGameType())), 0, 0);
+        optimismPortal2.setRespectedGameTypeSpan(GameType.wrap(0xFF), uint64(block.timestamp), type(uint64).max);
+        vm.stopPrank();
 
         vm.expectRevert("OptimismPortal: invalid game type");
-        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
-    }
-
-    /// @dev Tests that `finalizeWithdrawalTransaction` reverts if the respected game type was updated after the
-    ///      dispute game was created.
-    function test_finalizeWithdrawalTransaction_gameOlderThanRespectedGameTypeUpdate_reverts() external {
-        vm.expectEmit(true, true, true, true);
-        emit WithdrawalProven(_withdrawalHash, alice, bob);
-        optimismPortal2.proveWithdrawalTransaction({
-            _tx: _defaultTx,
-            _disputeGameIndex: _proposedGameIndex,
-            _outputRootProof: _outputRootProof,
-            _withdrawalProof: _withdrawalProof
-        });
-
-        // Warp past the finalization period.
-        vm.warp(block.timestamp + optimismPortal2.proofMaturityDelaySeconds() + 1);
-
-        // Resolve the dispute game.
-        game.resolveClaim(0);
-        game.resolve();
-
-        // Change the respected game type in the portal.
-        vm.prank(optimismPortal2.guardian());
-        optimismPortal2.setRespectedGameType(GameType.wrap(0xFF));
-
-        // Mock the game's type so that we pass the correct game type check.
-        vm.mockCall(address(game), abi.encodeCall(game.gameType, ()), abi.encode(GameType.wrap(0xFF)));
-
-        vm.expectRevert("OptimismPortal: dispute game created before respected game type was updated");
         optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
     }
 

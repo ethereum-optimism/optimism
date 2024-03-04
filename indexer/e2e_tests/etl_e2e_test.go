@@ -44,7 +44,7 @@ func TestE2EETL(t *testing.T) {
 				return false, nil
 			}
 
-			latestGame, err := withdrawals.FindLatestGame(context.Background(), disputeGameFactory, optimismPortal)
+			latestGame, err := withdrawals.FindLatestGame(context.Background(), disputeGameFactory, optimismPortal, testSuite.OpCfg.DeployConfig.RespectedGameType)
 			require.NoError(t, err)
 			l2Height = new(big.Int).SetBytes(latestGame.ExtraData[0:32])
 		} else {

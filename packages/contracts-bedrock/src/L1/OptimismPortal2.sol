@@ -31,6 +31,14 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         uint64 timestamp;
     }
 
+    /// @notice Represents the span of time over which the `OptimismPortal` respects a game type as a source of output
+    ///         proposals.
+    struct RespectedGameSpan {
+        uint64 startAt;
+        uint64 endAt;
+        uint64 lastUpdatedAt;
+    }
+
     /// @notice The delay between when a withdrawal transaction is proven and when it may be finalized.
     uint256 internal immutable PROOF_MATURITY_DELAY_SECONDS;
 
@@ -84,11 +92,11 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     /// @notice A mapping of dispute game addresses to whether or not they are blacklisted.
     mapping(IDisputeGame => bool) public disputeGameBlacklist;
 
-    /// @notice The game type that the OptimismPortal consults for output proposals.
-    GameType public respectedGameType;
+    /// @notice A mapping of known game types to whether they are currently respected as a source of output proposals.
+    mapping(GameType => RespectedGameSpan) public respectedGameSpans;
 
-    /// @notice The timestamp at which the respected game type was last updated.
-    uint64 public respectedGameTypeUpdatedAt;
+    /// @notice The latest game type that is respected as a source of output proposals.
+    GameType public latestRespectedGameType;
 
     /// @notice Emitted when a transaction is deposited from L1 to L2.
     ///         The parameters of this event are read by the rollup node and used to derive deposit
@@ -117,23 +125,19 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 3.2.0
-    string public constant version = "3.2.0";
+    /// @custom:semver 3.3.0
+    string public constant version = "3.3.0";
 
     /// @notice Constructs the OptimismPortal contract.
-    constructor(
-        uint256 _proofMaturityDelaySeconds,
-        uint256 _disputeGameFinalityDelaySeconds,
-        GameType _initialRespectedGameType
-    ) {
+    constructor(uint256 _proofMaturityDelaySeconds, uint256 _disputeGameFinalityDelaySeconds) {
         PROOF_MATURITY_DELAY_SECONDS = _proofMaturityDelaySeconds;
         DISPUTE_GAME_FINALITY_DELAY_SECONDS = _disputeGameFinalityDelaySeconds;
-        respectedGameType = _initialRespectedGameType;
 
         initialize({
             _disputeGameFactory: DisputeGameFactory(address(0)),
             _systemConfig: SystemConfig(address(0)),
-            _superchainConfig: SuperchainConfig(address(0))
+            _superchainConfig: SuperchainConfig(address(0)),
+            _initialRespectedGameType: GameType.wrap(0)
         });
     }
 
@@ -144,7 +148,8 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     function initialize(
         DisputeGameFactory _disputeGameFactory,
         SystemConfig _systemConfig,
-        SuperchainConfig _superchainConfig
+        SuperchainConfig _superchainConfig,
+        GameType _initialRespectedGameType
     )
         public
         initializer
@@ -152,6 +157,12 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         disputeGameFactory = _disputeGameFactory;
         systemConfig = _systemConfig;
         superchainConfig = _superchainConfig;
+        respectedGameSpans[_initialRespectedGameType] = RespectedGameSpan({
+            startAt: uint64(block.timestamp),
+            endAt: type(uint64).max,
+            lastUpdatedAt: uint64(block.timestamp)
+        });
+        latestRespectedGameType = _initialRespectedGameType;
         if (l2Sender == address(0)) {
             l2Sender = Constants.DEFAULT_L2_SENDER;
         }
@@ -251,11 +262,12 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         require(_tx.target != address(this), "OptimismPortal: you cannot send messages to the portal contract");
 
         // Fetch the dispute game proxy from the `DisputeGameFactory` contract.
-        (GameType gameType,, IDisputeGame gameProxy) = disputeGameFactory.gameAtIndex(_disputeGameIndex);
+        (GameType gameType, Timestamp createdAt, IDisputeGame gameProxy) =
+            disputeGameFactory.gameAtIndex(_disputeGameIndex);
         Claim outputRoot = gameProxy.rootClaim();
 
         // The game type of the dispute game must be the respected game type.
-        require(gameType.raw() == respectedGameType.raw(), "OptimismPortal: invalid game type");
+        require(isGameTypeRespected(gameType, createdAt.raw()), "OptimismPortal: invalid game type");
 
         // Verify that the output root can be generated with the elements in the proof.
         require(
@@ -276,7 +288,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         IDisputeGame game = provenWithdrawal.disputeGameProxy;
         require(
             provenWithdrawal.timestamp == 0 || gameProxy.status() == GameStatus.CHALLENGER_WINS
-                || disputeGameBlacklist[gameProxy] || game.gameType().raw() != respectedGameType.raw(),
+                || disputeGameBlacklist[gameProxy] || !isGameTypeRespected(game.gameType(), game.createdAt().raw()),
             "OptimismPortal: withdrawal hash has already been proven, and dispute game is not invalid"
         );
 
@@ -416,13 +428,23 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         disputeGameBlacklist[_disputeGame] = true;
     }
 
-    /// @notice Sets the respected game type. Changing this value can alter the security properties of the system,
-    ///         depending on the new game's behavior.
-    /// @param _gameType The game type to consult for output proposals.
-    function setRespectedGameType(GameType _gameType) external {
+    /// @notice Adds the game type as a respected source of output proposals. Changing this value can alter the
+    ///         security properties of the system, depending on the new game's behavior.
+    /// @param _gameType The game type to add as a source for output proposals.
+    /// @param _startAt The timestamp that the portal will start considering this game type as respected (exclusive.)
+    /// @param _endAt The timestamp that the portal will stop considering this game type as respected (exclusive.)
+    function setRespectedGameTypeSpan(GameType _gameType, uint64 _startAt, uint64 _endAt) external {
         require(msg.sender == guardian(), "OptimismPortal: only the guardian can set the respected game type");
-        respectedGameType = _gameType;
-        respectedGameTypeUpdatedAt = uint64(block.timestamp);
+        require(_startAt <= _endAt, "OptimismPortal: startAt must be less than or equal to endAt");
+        respectedGameSpans[_gameType] =
+            RespectedGameSpan({ startAt: _startAt, endAt: _endAt, lastUpdatedAt: uint64(block.timestamp) });
+
+        // If the new game type has a later endAt than the current latest game type, update the latest respected game
+        // type.
+        RespectedGameSpan storage currentLatestSpan = respectedGameSpans[latestRespectedGameType];
+        if (_endAt > currentLatestSpan.endAt) {
+            latestRespectedGameType = _gameType;
+        }
     }
 
     /// @notice Checks if a withdrawal can be finalized. This function will revert if the withdrawal cannot be
@@ -467,14 +489,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         // The game type of the dispute game must be the respected game type. This was also checked in
         // `proveWithdrawalTransaction`, but we check it again in case the respected game type has changed since
         // the withdrawal was proven.
-        require(disputeGameProxy.gameType().raw() == respectedGameType.raw(), "OptimismPortal: invalid game type");
-
-        // The game must have been created after `respectedGameTypeUpdatedAt`. This is to prevent users from creating
-        // invalid disputes against a deployed game type while the off-chain challenge agents are not watching.
-        require(
-            createdAt >= respectedGameTypeUpdatedAt,
-            "OptimismPortal: dispute game created before respected game type was updated"
-        );
+        require(isGameTypeRespected(disputeGameProxy.gameType(), createdAt), "OptimismPortal: invalid game type");
 
         // Before a withdrawal can be finalized, the dispute game it was proven against must have been
         // resolved for at least `DISPUTE_GAME_FINALITY_DELAY_SECONDS`. This is to allow for manual
@@ -486,5 +501,12 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
 
         // Check that this withdrawal has not already been finalized, this is replay protection.
         require(!finalizedWithdrawals[_withdrawalHash], "OptimismPortal: withdrawal has already been finalized");
+    }
+
+    /// @notice Returns whether or not the passed `_gameType` is currently respected by the `OptimismPortal`.
+    /// @param _gameType The game type to check.
+    function isGameTypeRespected(GameType _gameType, uint64 _createdAt) public view returns (bool respected_) {
+        RespectedGameSpan memory span = respectedGameSpans[_gameType];
+        respected_ = span.startAt < _createdAt && _createdAt < span.endAt && _createdAt > span.lastUpdatedAt;
     }
 }

@@ -243,7 +243,7 @@ func TestSystemE2EDencunAtGenesisWithBlobs(t *testing.T) {
 	InitParallel(t)
 
 	cfg := DefaultSystemConfig(t)
-	//cancun is on from genesis:
+	// cancun is on from genesis:
 	genesisActivation := hexutil.Uint64(0)
 	cfg.DeployConfig.L1CancunTimeOffset = &genesisActivation // i.e. turn cancun on at genesis time + 0
 
@@ -1136,7 +1136,7 @@ func TestWithdrawals(t *testing.T) {
 	startBalanceBeforeFinalize, err := l1Client.BalanceAt(ctx, fromAddr, nil)
 	require.Nil(t, err)
 
-	proveReceipt, finalizeReceipt, resolveClaimReceipt, resolveReceipt := ProveAndFinalizeWithdrawal(t, cfg, sys, "verifier", ethPrivKey, receipt)
+	proveReceipt, finalizeReceipt, resolveClaimReceipt, resolveReceipt := ProveAndFinalizeWithdrawal(t, cfg, sys, "verifier", ethPrivKey, receipt, &cfg.DeployConfig.RespectedGameType)
 
 	// Verify balance after withdrawal
 	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)

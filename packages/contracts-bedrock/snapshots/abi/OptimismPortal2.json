@@ -10,11 +10,6 @@
         "internalType": "uint256",
         "name": "_disputeGameFinalityDelaySeconds",
         "type": "uint256"
-      },
-      {
-        "internalType": "GameType",
-        "name": "_initialRespectedGameType",
-        "type": "uint32"
       }
     ],
     "stateMutability": "nonpayable",
@@ -254,11 +249,40 @@
         "internalType": "contract SuperchainConfig",
         "name": "_superchainConfig",
         "type": "address"
+      },
+      {
+        "internalType": "GameType",
+        "name": "_initialRespectedGameType",
+        "type": "uint32"
       }
     ],
     "name": "initialize",
     "outputs": [],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "GameType",
+        "name": "_gameType",
+        "type": "uint32"
+      },
+      {
+        "internalType": "uint64",
+        "name": "_createdAt",
+        "type": "uint64"
+      }
+    ],
+    "name": "isGameTypeRespected",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "respected_",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -269,6 +293,19 @@
         "internalType": "address",
         "name": "",
         "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "latestRespectedGameType",
+    "outputs": [
+      {
+        "internalType": "GameType",
+        "name": "",
+        "type": "uint32"
       }
     ],
     "stateMutability": "view",
@@ -449,25 +486,28 @@
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "respectedGameType",
-    "outputs": [
+    "inputs": [
       {
         "internalType": "GameType",
         "name": "",
         "type": "uint32"
       }
     ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "respectedGameTypeUpdatedAt",
+    "name": "respectedGameSpans",
     "outputs": [
       {
         "internalType": "uint64",
-        "name": "",
+        "name": "startAt",
+        "type": "uint64"
+      },
+      {
+        "internalType": "uint64",
+        "name": "endAt",
+        "type": "uint64"
+      },
+      {
+        "internalType": "uint64",
+        "name": "lastUpdatedAt",
         "type": "uint64"
       }
     ],
@@ -480,9 +520,19 @@
         "internalType": "GameType",
         "name": "_gameType",
         "type": "uint32"
+      },
+      {
+        "internalType": "uint64",
+        "name": "_startAt",
+        "type": "uint64"
+      },
+      {
+        "internalType": "uint64",
+        "name": "_endAt",
+        "type": "uint64"
       }
     ],
-    "name": "setRespectedGameType",
+    "name": "setRespectedGameTypeSpan",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

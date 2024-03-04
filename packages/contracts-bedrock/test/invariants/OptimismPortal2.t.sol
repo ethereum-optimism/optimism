@@ -93,6 +93,9 @@ contract OptimismPortal2_Invariant_Harness is CommonTest {
         super.enableFaultProofs();
         super.setUp();
 
+        // Warp 1s in the future, to get past the `_isGameTypeRespected` check.
+        vm.warp(block.timestamp + 1);
+
         _defaultTx = Types.WithdrawalTransaction({
             nonce: 0,
             sender: alice,
@@ -119,7 +122,9 @@ contract OptimismPortal2_Invariant_Harness is CommonTest {
             payable(
                 address(
                     disputeGameFactory.create(
-                        optimismPortal2.respectedGameType(), Claim.wrap(_outputRoot), abi.encode(_proposedBlockNumber)
+                        GameType.wrap(uint32(deploy.cfg().respectedGameType())),
+                        Claim.wrap(_outputRoot),
+                        abi.encode(_proposedBlockNumber)
                     )
                 )
             )

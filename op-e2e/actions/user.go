@@ -405,7 +405,7 @@ func (s *CrossLayerUser) Address() common.Address {
 	return s.L1.address
 }
 
-func (s *CrossLayerUser) getLatestWithdrawalParams(t Testing) (*withdrawals.ProvenWithdrawalParameters, error) {
+func (s *CrossLayerUser) getLatestWithdrawalParams(t Testing, gameType *uint32) (*withdrawals.ProvenWithdrawalParameters, error) {
 	receipt := s.L2.CheckReceipt(t, true, s.lastL2WithdrawalTxHash)
 	l2WithdrawalBlock, err := s.L2.env.EthCl.BlockByNumber(t.Ctx(), receipt.BlockNumber)
 	require.NoError(t, err)
@@ -413,7 +413,8 @@ func (s *CrossLayerUser) getLatestWithdrawalParams(t Testing) (*withdrawals.Prov
 	var l2OutputBlockNr *big.Int
 	var l2OutputBlock *types.Block
 	if e2eutils.UseFPAC() {
-		latestGame, err := withdrawals.FindLatestGame(t.Ctx(), &s.L1.env.Bindings.DisputeGameFactory.DisputeGameFactoryCaller, &s.L1.env.Bindings.OptimismPortal2.OptimismPortal2Caller)
+		require.NotNil(t, gameType, "gameType must be set when using FPAC")
+		latestGame, err := withdrawals.FindLatestGame(t.Ctx(), &s.L1.env.Bindings.DisputeGameFactory.DisputeGameFactoryCaller, &s.L1.env.Bindings.OptimismPortal2.OptimismPortal2Caller, *gameType)
 		require.NoError(t, err)
 		l2OutputBlockNr = new(big.Int).SetBytes(latestGame.ExtraData[0:32])
 		l2OutputBlock, err = s.L2.env.EthCl.BlockByNumber(t.Ctx(), l2OutputBlockNr)
@@ -442,7 +443,7 @@ func (s *CrossLayerUser) getLatestWithdrawalParams(t Testing) (*withdrawals.Prov
 
 	header, err := s.L2.env.EthCl.HeaderByNumber(t.Ctx(), l2OutputBlockNr)
 	require.NoError(t, err)
-	params, err := withdrawals.ProveWithdrawalParameters(t.Ctx(), s.L2.env.Bindings.ProofClient, s.L2.env.EthCl, s.L2.env.EthCl, s.lastL2WithdrawalTxHash, header, &s.L1.env.Bindings.L2OutputOracle.L2OutputOracleCaller, &s.L1.env.Bindings.DisputeGameFactory.DisputeGameFactoryCaller, &s.L1.env.Bindings.OptimismPortal.OptimismPortalCaller, &s.L1.env.Bindings.OptimismPortal2.OptimismPortal2Caller)
+	params, err := withdrawals.ProveWithdrawalParameters(t.Ctx(), s.L2.env.Bindings.ProofClient, s.L2.env.EthCl, s.L2.env.EthCl, s.lastL2WithdrawalTxHash, header, &s.L1.env.Bindings.L2OutputOracle.L2OutputOracleCaller, &s.L1.env.Bindings.DisputeGameFactory.DisputeGameFactoryCaller, gameType, &s.L1.env.Bindings.OptimismPortal.OptimismPortalCaller, &s.L1.env.Bindings.OptimismPortal2.OptimismPortal2Caller)
 	require.NoError(t, err)
 
 	return &params, nil
@@ -476,13 +477,13 @@ func (s *CrossLayerUser) getDisputeGame(t Testing, params withdrawals.ProvenWith
 
 // ActCompleteWithdrawal creates a L1 proveWithdrawal tx for latest withdrawal.
 // The tx hash is remembered as the last L1 tx, to check as L1 actor.
-func (s *CrossLayerUser) ActProveWithdrawal(t Testing) {
-	s.L1.lastTxHash = s.ProveWithdrawal(t, s.lastL2WithdrawalTxHash)
+func (s *CrossLayerUser) ActProveWithdrawal(t Testing, gameType *uint32) {
+	s.L1.lastTxHash = s.ProveWithdrawal(t, s.lastL2WithdrawalTxHash, gameType)
 }
 
 // ProveWithdrawal creates a L1 proveWithdrawal tx for the given L2 withdrawal tx, returning the tx hash.
-func (s *CrossLayerUser) ProveWithdrawal(t Testing, l2TxHash common.Hash) common.Hash {
-	params, err := s.getLatestWithdrawalParams(t)
+func (s *CrossLayerUser) ProveWithdrawal(t Testing, l2TxHash common.Hash, gameType *uint32) common.Hash {
+	params, err := s.getLatestWithdrawalParams(t, gameType)
 	if err != nil {
 		t.InvalidAction("cannot prove withdrawal: %v", err)
 		return common.Hash{}
@@ -514,14 +515,14 @@ func (s *CrossLayerUser) ProveWithdrawal(t Testing, l2TxHash common.Hash) common
 // ActCompleteWithdrawal creates a L1 withdrawal finalization tx for latest withdrawal.
 // The tx hash is remembered as the last L1 tx, to check as L1 actor.
 // The withdrawal functions like CompleteWithdrawal
-func (s *CrossLayerUser) ActCompleteWithdrawal(t Testing) {
-	s.L1.lastTxHash = s.CompleteWithdrawal(t, s.lastL2WithdrawalTxHash)
+func (s *CrossLayerUser) ActCompleteWithdrawal(t Testing, gameType *uint32) {
+	s.L1.lastTxHash = s.CompleteWithdrawal(t, s.lastL2WithdrawalTxHash, gameType)
 }
 
 // CompleteWithdrawal creates a L1 withdrawal finalization tx for the given L2 withdrawal tx, returning the tx hash.
 // It's an invalid action to attempt to complete a withdrawal that has not passed the L1 finalization period yet
-func (s *CrossLayerUser) CompleteWithdrawal(t Testing, l2TxHash common.Hash) common.Hash {
-	params, err := s.getLatestWithdrawalParams(t)
+func (s *CrossLayerUser) CompleteWithdrawal(t Testing, l2TxHash common.Hash, gameType *uint32) common.Hash {
+	params, err := s.getLatestWithdrawalParams(t, gameType)
 	if err != nil {
 		t.InvalidAction("cannot complete withdrawal: %v", err)
 		return common.Hash{}
@@ -548,13 +549,13 @@ func (s *CrossLayerUser) CompleteWithdrawal(t Testing, l2TxHash common.Hash) com
 }
 
 // ActResolveClaim creates a L1 resolveClaim tx for the latest withdrawal.
-func (s *CrossLayerUser) ActResolveClaim(t Testing) {
-	s.L1.lastTxHash = s.ResolveClaim(t, s.lastL2WithdrawalTxHash)
+func (s *CrossLayerUser) ActResolveClaim(t Testing, gameType *uint32) {
+	s.L1.lastTxHash = s.ResolveClaim(t, s.lastL2WithdrawalTxHash, gameType)
 }
 
 // ResolveClaim creates a L1 resolveClaim tx for the given L2 withdrawal tx, returning the tx hash.
-func (s *CrossLayerUser) ResolveClaim(t Testing, l2TxHash common.Hash) common.Hash {
-	params, err := s.getLatestWithdrawalParams(t)
+func (s *CrossLayerUser) ResolveClaim(t Testing, l2TxHash common.Hash, gameType *uint32) common.Hash {
+	params, err := s.getLatestWithdrawalParams(t, gameType)
 	if err != nil {
 		t.InvalidAction("cannot resolve claim: %v", err)
 		return common.Hash{}
@@ -578,13 +579,13 @@ func (s *CrossLayerUser) ResolveClaim(t Testing, l2TxHash common.Hash) common.Ha
 // ActResolve creates a L1 resolve tx for the latest withdrawal.
 // Resolve is different than resolving a claim, the root claim must be resolved first and then
 // the game itself can be resolved.
-func (s *CrossLayerUser) ActResolve(t Testing) {
-	s.L1.lastTxHash = s.Resolve(t, s.lastL2WithdrawalTxHash)
+func (s *CrossLayerUser) ActResolve(t Testing, gameType *uint32) {
+	s.L1.lastTxHash = s.Resolve(t, s.lastL2WithdrawalTxHash, gameType)
 }
 
 // Resolve creates a L1 resolve tx for the given L2 withdrawal tx, returning the tx hash.
-func (s *CrossLayerUser) Resolve(t Testing, l2TxHash common.Hash) common.Hash {
-	params, err := s.getLatestWithdrawalParams(t)
+func (s *CrossLayerUser) Resolve(t Testing, l2TxHash common.Hash, gameType *uint32) common.Hash {
+	params, err := s.getLatestWithdrawalParams(t, gameType)
 	if err != nil {
 		t.InvalidAction("cannot resolve game: %v", err)
 		return common.Hash{}

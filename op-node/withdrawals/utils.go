@@ -51,7 +51,7 @@ type ProvenWithdrawalParameters struct {
 // ProveWithdrawalParameters queries L1 & L2 to generate all withdrawal parameters and proof necessary to prove a withdrawal on L1.
 // The header provided is very important. It should be a block (timestamp) for which there is a submitted output in the L2 Output Oracle
 // contract. If not, the withdrawal will fail as it the storage proof cannot be verified if there is no submitted state root.
-func ProveWithdrawalParameters(ctx context.Context, proofCl ProofClient, l2ReceiptCl ReceiptClient, l2BlockCl BlockClient, txHash common.Hash, header *types.Header, l2OutputOracleContract *bindings.L2OutputOracleCaller, disputeGameFactoryContract *bindings.DisputeGameFactoryCaller, optimismPortalContract *bindings.OptimismPortalCaller, optimismPortal2Contract *bindingspreview.OptimismPortal2Caller) (ProvenWithdrawalParameters, error) {
+func ProveWithdrawalParameters(ctx context.Context, proofCl ProofClient, l2ReceiptCl ReceiptClient, l2BlockCl BlockClient, txHash common.Hash, header *types.Header, l2OutputOracleContract *bindings.L2OutputOracleCaller, disputeGameFactoryContract *bindings.DisputeGameFactoryCaller, gameType *uint32, optimismPortalContract *bindings.OptimismPortalCaller, optimismPortal2Contract *bindingspreview.OptimismPortal2Caller) (ProvenWithdrawalParameters, error) {
 	// Transaction receipt
 	receipt, err := l2ReceiptCl.TransactionReceipt(ctx, txHash)
 	if err != nil {
@@ -75,7 +75,10 @@ func ProveWithdrawalParameters(ctx context.Context, proofCl ProofClient, l2Recei
 	var l2OutputIndex *big.Int
 	var l2BlockNumber *big.Int
 	if e2eutils.UseFPAC() {
-		latestGame, err := FindLatestGame(ctx, disputeGameFactoryContract, optimismPortal2Contract)
+		if gameType == nil {
+			return ProvenWithdrawalParameters{}, errors.New("gameType must be set when using FPAC")
+		}
+		latestGame, err := FindLatestGame(ctx, disputeGameFactoryContract, optimismPortal2Contract, *gameType)
 		if err != nil {
 			return ProvenWithdrawalParameters{}, fmt.Errorf("failed to find latest game: %w", err)
 		}
@@ -135,12 +138,7 @@ func ProveWithdrawalParameters(ctx context.Context, proofCl ProofClient, l2Recei
 }
 
 // FindLatestGame finds the latest game in the DisputeGameFactory contract.
-func FindLatestGame(ctx context.Context, disputeGameFactoryContract *bindings.DisputeGameFactoryCaller, optimismPortal2Contract *bindingspreview.OptimismPortal2Caller) (*bindings.IDisputeGameFactoryGameSearchResult, error) {
-	respectedGameType, err := optimismPortal2Contract.RespectedGameType(&bind.CallOpts{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to get respected game type: %w", err)
-	}
-
+func FindLatestGame(ctx context.Context, disputeGameFactoryContract *bindings.DisputeGameFactoryCaller, optimismPortal2Contract *bindingspreview.OptimismPortal2Caller, respectedGameType uint32) (*bindings.IDisputeGameFactoryGameSearchResult, error) {
 	gameCount, err := disputeGameFactoryContract.GameCount(&bind.CallOpts{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get game count: %w", err)
