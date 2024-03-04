@@ -15,7 +15,7 @@ contract PreimageOracle_Test is Test {
 
     /// @notice Sets up the testing suite.
     function setUp() public {
-        oracle = new PreimageOracle(0, 0);
+        oracle = new PreimageOracle(0, 0, 0);
         vm.label(address(oracle), "PreimageOracle");
     }
 
@@ -182,11 +182,18 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
 
     /// @notice Sets up the testing suite.
     function setUp() public {
-        oracle = new PreimageOracle({ _minProposalSize: MIN_SIZE_BYTES, _challengePeriod: CHALLENGE_PERIOD });
+        oracle = new PreimageOracle({
+            _minProposalSize: MIN_SIZE_BYTES,
+            _challengePeriod: CHALLENGE_PERIOD,
+            _cancunActivation: 0
+        });
         vm.label(address(oracle), "PreimageOracle");
 
         // Set `tx.origin` and `msg.sender` to `address(this)` so that it may behave like an EOA for `addLeavesLPP`.
         vm.startPrank(address(this), address(this));
+
+        // Give this address some ETH to work with.
+        vm.deal(address(this), 100 ether);
     }
 
     /// @notice Tests that the `initLPP` function reverts when the part offset is out of bounds of the full preimage.
@@ -198,13 +205,15 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         }
 
         // Initialize the proposal.
+        uint256 bondSize = oracle.MIN_BOND_SIZE();
         vm.expectRevert(PartOffsetOOB.selector);
-        oracle.initLPP(TEST_UUID, 136 + 8, uint32(data.length));
+        oracle.initLPP{ value: bondSize }(TEST_UUID, 136 + 8, uint32(data.length));
     }
 
     /// @notice Tests that the `initLPP` function reverts when the part offset is out of bounds of the full preimage.
     function test_initLPP_sizeTooSmall_reverts() public {
-        oracle = new PreimageOracle({ _minProposalSize: 1000, _challengePeriod: CHALLENGE_PERIOD });
+        oracle =
+            new PreimageOracle({ _minProposalSize: 1000, _challengePeriod: CHALLENGE_PERIOD, _cancunActivation: 0 });
 
         // Allocate the preimage data.
         bytes memory data = new bytes(136);
@@ -213,8 +222,9 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         }
 
         // Initialize the proposal.
+        uint256 bondSize = oracle.MIN_BOND_SIZE();
         vm.expectRevert(InvalidInputSize.selector);
-        oracle.initLPP(TEST_UUID, 0, uint32(data.length));
+        oracle.initLPP{ value: bondSize }(TEST_UUID, 0, uint32(data.length));
     }
 
     /// @notice Gas snapshot for `addLeaves`
@@ -226,7 +236,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         }
 
         // Initialize the proposal.
-        oracle.initLPP(TEST_UUID, 0, uint32(data.length));
+        oracle.initLPP{ value: oracle.MIN_BOND_SIZE() }(TEST_UUID, 0, uint32(data.length));
 
         // Add the leaves to the tree (2 keccak blocks.)
         LibKeccak.StateMatrix memory stateMatrix;
@@ -245,13 +255,33 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         console.log("Gas for 4MB: %d", (gasUsed / data.length) * 4000000);
     }
 
+    /// @notice Tests that `addLeavesLPP` sets the proposal as countered when `_finalize = true` and the number of
+    ///         bytes processed is less than the claimed size.
+    function test_addLeaves_mismatchedSize_succeeds() public {
+        // Allocate the preimage data.
+        bytes memory data = new bytes(136);
+        for (uint256 i; i < data.length; i++) {
+            data[i] = 0xFF;
+        }
+
+        // Initialize the proposal.
+        oracle.initLPP{ value: oracle.MIN_BOND_SIZE() }(TEST_UUID, 0, uint32(data.length + 1));
+
+        // Add the leaves to the tree (2 keccak blocks.)
+        LibKeccak.StateMatrix memory stateMatrix;
+        bytes32[] memory stateCommitments = _generateStateCommitments(stateMatrix, data);
+
+        vm.expectRevert(InvalidInputSize.selector);
+        oracle.addLeavesLPP(TEST_UUID, 0, data, stateCommitments, true);
+    }
+
     /// @notice Tests that the `addLeavesLPP` function may never be called when `tx.origin != msg.sender`
     function test_addLeaves_notEOA_reverts() public {
         // Allocate the preimage data.
         bytes memory data = new bytes(136 * 500);
 
         // Initialize the proposal.
-        oracle.initLPP(TEST_UUID, 0, uint32(data.length));
+        oracle.initLPP{ value: oracle.MIN_BOND_SIZE() }(TEST_UUID, 0, uint32(data.length));
 
         // Add the leaves to the tree (2 keccak blocks.)
         LibKeccak.StateMatrix memory stateMatrix;
@@ -271,7 +301,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         bytes memory data = new bytes(136 * 500);
 
         // Initialize the proposal.
-        oracle.initLPP(TEST_UUID, 0, uint32(data.length));
+        oracle.initLPP{ value: oracle.MIN_BOND_SIZE() }(TEST_UUID, 0, uint32(data.length));
 
         // Add the leaves to the tree (2 keccak blocks.)
         LibKeccak.StateMatrix memory stateMatrix;
@@ -291,7 +321,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         }
 
         // Initialize the proposal.
-        oracle.initLPP(TEST_UUID, 0, uint32(data.length));
+        oracle.initLPP{ value: oracle.MIN_BOND_SIZE() }(TEST_UUID, 0, uint32(data.length));
         // Ensure that the proposal keys are present in the array.
         (address claimant, uint256 uuid) = oracle.proposals(0);
         assertEq(oracle.proposalCount(), 1);
@@ -371,7 +401,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         }
 
         // Initialize the proposal.
-        oracle.initLPP(TEST_UUID, 0, uint32(data.length));
+        oracle.initLPP{ value: oracle.MIN_BOND_SIZE() }(TEST_UUID, 0, uint32(data.length));
 
         // Add the leaves to the tree (2 keccak blocks.)
         LibKeccak.StateMatrix memory stateMatrix;
@@ -396,6 +426,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         vm.warp(block.timestamp + oracle.challengePeriod() + 1 seconds);
 
         // Finalize the proposal.
+        uint256 balanceBefore = address(this).balance;
         oracle.squeezeLPP({
             _claimant: address(this),
             _uuid: TEST_UUID,
@@ -405,8 +436,10 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
             _postState: leaves[1],
             _postStateProof: postProof
         });
+        assertEq(address(this).balance, balanceBefore + oracle.MIN_BOND_SIZE());
+        assertEq(oracle.proposalBonds(address(this), TEST_UUID), 0);
 
-        bytes32 finalDigest = keccak256(data);
+        bytes32 finalDigest = _setStatusByte(keccak256(data), 2);
         bytes32 expectedPart = bytes32((~uint256(0) & ~(uint256(type(uint64).max) << 192)) | (data.length << 192));
         assertTrue(oracle.preimagePartOk(finalDigest, 0));
         assertEq(oracle.preimageLengths(finalDigest), data.length);
@@ -423,7 +456,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         bytes memory phonyData = new bytes(136);
 
         // Initialize the proposal.
-        oracle.initLPP(TEST_UUID, 0, uint32(data.length));
+        oracle.initLPP{ value: oracle.MIN_BOND_SIZE() }(TEST_UUID, 0, uint32(data.length));
 
         // Add the leaves to the tree with mismatching state commitments.
         LibKeccak.StateMatrix memory stateMatrix;
@@ -482,7 +515,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         }
 
         // Initialize the proposal.
-        oracle.initLPP(TEST_UUID, 0, uint32(data.length));
+        oracle.initLPP{ value: oracle.MIN_BOND_SIZE() }(TEST_UUID, 0, uint32(data.length));
 
         // Add the leaves to the tree (2 keccak blocks.)
         LibKeccak.StateMatrix memory stateMatrix;
@@ -515,7 +548,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         }
 
         // Initialize the proposal.
-        oracle.initLPP(TEST_UUID, 0, uint32(data.length));
+        oracle.initLPP{ value: oracle.MIN_BOND_SIZE() }(TEST_UUID, 0, uint32(data.length));
 
         // Construct the leaf preimage data for the blocks added.
         LibKeccak.StateMatrix memory matrix;
@@ -543,7 +576,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         }
 
         // Initialize the proposal.
-        oracle.initLPP(TEST_UUID, 0, uint32(data.length));
+        oracle.initLPP{ value: oracle.MIN_BOND_SIZE() }(TEST_UUID, 0, uint32(data.length));
 
         // Add the leaves to the tree (2 keccak blocks.)
         LibKeccak.StateMatrix memory stateMatrix;
@@ -589,7 +622,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         }
 
         // Initialize the proposal.
-        oracle.initLPP(TEST_UUID, 0, uint32(data.length));
+        oracle.initLPP{ value: oracle.MIN_BOND_SIZE() }(TEST_UUID, 0, uint32(data.length));
 
         // Add the leaves to the tree (2 keccak blocks.)
         LibKeccak.StateMatrix memory stateMatrix;
@@ -626,49 +659,77 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         });
     }
 
-    /// @notice Tests that the `squeeze` function reverts when the claimed size is not equal to the bytes processed.
-    function test_squeeze_invalidClaimedSize_reverts() public {
+    /// @notice Tests that squeezing a large preimage proposal after the challenge period has passed always succeeds and
+    ///         persists the correct data.
+    function testFuzz_squeeze_succeeds(uint256 _numBlocks, uint32 _partOffset) public {
+        _numBlocks = bound(_numBlocks, 1, 2 ** 8);
+        _partOffset = uint32(bound(_partOffset, 0, _numBlocks * LibKeccak.BLOCK_SIZE_BYTES + 8 - 1));
+
         // Allocate the preimage data.
-        bytes memory data = new bytes(136);
+        bytes memory data = new bytes(136 * _numBlocks);
         for (uint256 i; i < data.length; i++) {
-            data[i] = 0xFF;
+            data[i] = bytes1(uint8(i % 256));
         }
 
-        // Initialize the proposal.
-        oracle.initLPP(TEST_UUID, 0, uint32(data.length) - 1);
+        // Propose and squeeze a large preimage.
+        {
+            // Initialize the proposal.
+            oracle.initLPP{ value: oracle.MIN_BOND_SIZE() }(TEST_UUID, _partOffset, uint32(data.length));
 
-        // Add the leaves to the tree (2 keccak blocks.)
-        LibKeccak.StateMatrix memory stateMatrix;
-        bytes32[] memory stateCommitments = _generateStateCommitments(stateMatrix, data);
-        oracle.addLeavesLPP(TEST_UUID, 0, data, stateCommitments, true);
+            // Add the leaves to the tree with correct state commitments.
+            LibKeccak.StateMatrix memory matrixA;
+            bytes32[] memory stateCommitments = _generateStateCommitments(matrixA, data);
+            oracle.addLeavesLPP(TEST_UUID, 0, data, stateCommitments, true);
 
-        // Construct the leaf preimage data for the blocks added.
-        LibKeccak.StateMatrix memory matrix;
-        PreimageOracle.Leaf[] memory leaves = _generateLeaves(matrix, data);
+            // Construct the leaf preimage data for the blocks added.
+            LibKeccak.StateMatrix memory matrixB;
+            PreimageOracle.Leaf[] memory leaves = _generateLeaves(matrixB, data);
 
-        // Create a proof array with 16 elements.
-        bytes32[] memory preProof = new bytes32[](16);
-        preProof[0] = _hashLeaf(leaves[1]);
-        bytes32[] memory postProof = new bytes32[](16);
-        postProof[0] = _hashLeaf(leaves[0]);
-        for (uint256 i = 1; i < preProof.length; i++) {
-            bytes32 zeroHash = oracle.zeroHashes(i);
-            preProof[i] = zeroHash;
-            postProof[i] = zeroHash;
+            // Fetch the merkle proofs for the pre/post state leaves in the proposal tree.
+            bytes32 canonicalRoot = oracle.getTreeRootLPP(address(this), TEST_UUID);
+            (bytes32 rootA, bytes32[] memory preProof) = _generateProof(leaves.length - 2, leaves);
+            assertEq(rootA, canonicalRoot);
+            (bytes32 rootB, bytes32[] memory postProof) = _generateProof(leaves.length - 1, leaves);
+            assertEq(rootB, canonicalRoot);
+
+            // Warp past the challenge period.
+            vm.warp(block.timestamp + CHALLENGE_PERIOD + 1 seconds);
+
+            // Squeeze the LPP.
+            LibKeccak.StateMatrix memory preMatrix = _stateMatrixAtBlockIndex(data, leaves.length - 1);
+            oracle.squeezeLPP({
+                _claimant: address(this),
+                _uuid: TEST_UUID,
+                _stateMatrix: preMatrix,
+                _preState: leaves[leaves.length - 2],
+                _preStateProof: preProof,
+                _postState: leaves[leaves.length - 1],
+                _postStateProof: postProof
+            });
         }
 
-        vm.warp(block.timestamp + oracle.challengePeriod() + 1 seconds);
+        // Validate the preimage part
+        {
+            bytes32 finalDigest = _setStatusByte(keccak256(data), 2);
+            bytes32 expectedPart;
+            assembly {
+                switch lt(_partOffset, 0x08)
+                case true {
+                    mstore(0x00, shl(192, mload(data)))
+                    mstore(0x08, mload(add(data, 0x20)))
+                    expectedPart := mload(_partOffset)
+                }
+                default {
+                    // Clean the word after `data` so we don't get any dirty bits.
+                    mstore(add(add(data, 0x20), mload(data)), 0x00)
+                    expectedPart := mload(add(add(data, 0x20), sub(_partOffset, 0x08)))
+                }
+            }
 
-        vm.expectRevert(InvalidInputSize.selector);
-        oracle.squeezeLPP({
-            _claimant: address(this),
-            _uuid: TEST_UUID,
-            _stateMatrix: _stateMatrixAtBlockIndex(data, 1),
-            _preState: leaves[0],
-            _preStateProof: preProof,
-            _postState: leaves[1],
-            _postStateProof: postProof
-        });
+            assertTrue(oracle.preimagePartOk(finalDigest, _partOffset));
+            assertEq(oracle.preimageLengths(finalDigest), data.length);
+            assertEq(oracle.preimageParts(finalDigest, _partOffset), expectedPart);
+        }
     }
 
     /// @notice Tests that a valid leaf cannot be countered with the `challengeFirst` function.
@@ -680,7 +741,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         }
 
         // Initialize the proposal.
-        oracle.initLPP(TEST_UUID, 0, uint32(data.length));
+        oracle.initLPP{ value: oracle.MIN_BOND_SIZE() }(TEST_UUID, 0, uint32(data.length));
 
         // Add the leaves to the tree with mismatching state commitments.
         LibKeccak.StateMatrix memory stateMatrix;
@@ -720,7 +781,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         bytes memory phonyData = new bytes(136);
 
         // Initialize the proposal.
-        oracle.initLPP(TEST_UUID, 0, uint32(data.length));
+        oracle.initLPP{ value: oracle.MIN_BOND_SIZE() }(TEST_UUID, 0, uint32(data.length));
 
         // Add the leaves to the tree with mismatching state commitments.
         LibKeccak.StateMatrix memory stateMatrix;
@@ -760,7 +821,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         bytes memory phonyData = new bytes(136);
 
         // Initialize the proposal.
-        oracle.initLPP(TEST_UUID, 0, uint32(data.length));
+        oracle.initLPP{ value: oracle.MIN_BOND_SIZE() }(TEST_UUID, 0, uint32(data.length));
 
         // Add the leaves to the tree with mismatching state commitments.
         LibKeccak.StateMatrix memory stateMatrix;
@@ -781,11 +842,107 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         }
 
         // Should succeed since the commitment was wrong.
+        uint256 balanceBefore = address(this).balance;
         oracle.challengeFirstLPP({
             _claimant: address(this),
             _uuid: TEST_UUID,
             _postState: leaves[0],
             _postStateProof: p
+        });
+        assertEq(address(this).balance, balanceBefore + oracle.MIN_BOND_SIZE());
+        assertEq(oracle.proposalBonds(address(this), TEST_UUID), 0);
+
+        LPPMetaData metaData = oracle.proposalMetadata(address(this), TEST_UUID);
+        assertTrue(metaData.countered());
+    }
+
+    /// @notice Tests that challenging the first divergence in a large preimage proposal at an arbitrary location
+    ///         in the leaf values always succeeds.
+    function testFuzz_challenge_arbitraryLocation_succeeds(uint256 _lastCorrectLeafIdx, uint256 _numBlocks) public {
+        _numBlocks = bound(_numBlocks, 1, 2 ** 8);
+        _lastCorrectLeafIdx = bound(_lastCorrectLeafIdx, 0, _numBlocks - 1);
+
+        // Allocate the preimage data.
+        bytes memory data = new bytes(136 * _numBlocks);
+
+        // Initialize the proposal.
+        oracle.initLPP{ value: oracle.MIN_BOND_SIZE() }(TEST_UUID, 0, uint32(data.length));
+
+        // Add the leaves to the tree with corrupted state commitments.
+        LibKeccak.StateMatrix memory matrixA;
+        bytes32[] memory stateCommitments = _generateStateCommitments(matrixA, data);
+        for (uint256 i = _lastCorrectLeafIdx + 1; i < stateCommitments.length; i++) {
+            stateCommitments[i] = 0;
+        }
+        oracle.addLeavesLPP(TEST_UUID, 0, data, stateCommitments, true);
+
+        // Construct the leaf preimage data for the blocks added and corrupt the state commitments.
+        LibKeccak.StateMatrix memory matrixB;
+        PreimageOracle.Leaf[] memory leaves = _generateLeaves(matrixB, data);
+        for (uint256 i = _lastCorrectLeafIdx + 1; i < leaves.length; i++) {
+            leaves[i].stateCommitment = 0;
+        }
+
+        // Avoid stack too deep
+        uint256 agreedLeafIdx = _lastCorrectLeafIdx;
+        uint256 disputedLeafIdx = agreedLeafIdx + 1;
+
+        // Fetch the merkle proofs for the pre/post state leaves in the proposal tree.
+        bytes32 canonicalRoot = oracle.getTreeRootLPP(address(this), TEST_UUID);
+        (bytes32 rootA, bytes32[] memory preProof) = _generateProof(agreedLeafIdx, leaves);
+        assertEq(rootA, canonicalRoot);
+        (bytes32 rootB, bytes32[] memory postProof) = _generateProof(disputedLeafIdx, leaves);
+        assertEq(rootB, canonicalRoot);
+
+        LibKeccak.StateMatrix memory preMatrix = _stateMatrixAtBlockIndex(data, disputedLeafIdx);
+        oracle.challengeLPP({
+            _claimant: address(this),
+            _uuid: TEST_UUID,
+            _stateMatrix: preMatrix,
+            _preState: leaves[agreedLeafIdx],
+            _preStateProof: preProof,
+            _postState: leaves[disputedLeafIdx],
+            _postStateProof: postProof
+        });
+
+        LPPMetaData metaData = oracle.proposalMetadata(address(this), TEST_UUID);
+        assertTrue(metaData.countered());
+    }
+
+    /// @notice Tests that challenging the a divergence in a large preimage proposal at the first leaf always succeeds.
+    function testFuzz_challengeFirst_succeeds(uint256 _numBlocks) public {
+        _numBlocks = bound(_numBlocks, 1, 2 ** 8);
+
+        // Allocate the preimage data.
+        bytes memory data = new bytes(136 * _numBlocks);
+
+        // Initialize the proposal.
+        oracle.initLPP{ value: oracle.MIN_BOND_SIZE() }(TEST_UUID, 0, uint32(data.length));
+
+        // Add the leaves to the tree with corrupted state commitments.
+        bytes32[] memory stateCommitments = new bytes32[](_numBlocks + 1);
+        for (uint256 i = 0; i < stateCommitments.length; i++) {
+            stateCommitments[i] = 0;
+        }
+        oracle.addLeavesLPP(TEST_UUID, 0, data, stateCommitments, true);
+
+        // Construct the leaf preimage data for the blocks added and corrupt the state commitments.
+        LibKeccak.StateMatrix memory matrixB;
+        PreimageOracle.Leaf[] memory leaves = _generateLeaves(matrixB, data);
+        for (uint256 i = 0; i < leaves.length; i++) {
+            leaves[i].stateCommitment = 0;
+        }
+
+        // Fetch the merkle proofs for the pre/post state leaves in the proposal tree.
+        bytes32 canonicalRoot = oracle.getTreeRootLPP(address(this), TEST_UUID);
+        (bytes32 rootA, bytes32[] memory postProof) = _generateProof(0, leaves);
+        assertEq(rootA, canonicalRoot);
+
+        oracle.challengeFirstLPP({
+            _claimant: address(this),
+            _uuid: TEST_UUID,
+            _postState: leaves[0],
+            _postStateProof: postProof
         });
 
         LPPMetaData metaData = oracle.proposalMetadata(address(this), TEST_UUID);
@@ -801,7 +958,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         }
 
         // Initialize the proposal.
-        oracle.initLPP(TEST_UUID, 0, uint32(data.length));
+        oracle.initLPP{ value: oracle.MIN_BOND_SIZE() }(TEST_UUID, 0, uint32(data.length));
 
         // Add the leaves to the tree with mismatching state commitments.
         LibKeccak.StateMatrix memory stateMatrix;
@@ -853,7 +1010,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         }
 
         // Initialize the proposal.
-        oracle.initLPP(TEST_UUID, 0, uint32(data.length));
+        oracle.initLPP{ value: oracle.MIN_BOND_SIZE() }(TEST_UUID, 0, uint32(data.length));
 
         // Add the leaves to the tree with mismatching state commitments.
         LibKeccak.StateMatrix memory stateMatrix;
@@ -907,7 +1064,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         }
 
         // Initialize the proposal.
-        oracle.initLPP(TEST_UUID, 0, uint32(data.length));
+        oracle.initLPP{ value: oracle.MIN_BOND_SIZE() }(TEST_UUID, 0, uint32(data.length));
 
         // Add the leaves to the tree with mismatching state commitments.
         LibKeccak.StateMatrix memory stateMatrix;
@@ -961,7 +1118,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         }
 
         // Initialize the proposal.
-        oracle.initLPP(TEST_UUID, 0, uint32(data.length));
+        oracle.initLPP{ value: oracle.MIN_BOND_SIZE() }(TEST_UUID, 0, uint32(data.length));
 
         // Add the leaves to the tree with mismatching state commitments.
         LibKeccak.StateMatrix memory stateMatrix;
@@ -988,8 +1145,8 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
             postProof[i] = zeroHash;
         }
 
+        uint256 balanceBefore = address(this).balance;
         LibKeccak.StateMatrix memory preMatrix = _stateMatrixAtBlockIndex(data, 1);
-
         oracle.challengeLPP({
             _claimant: address(this),
             _uuid: TEST_UUID,
@@ -999,6 +1156,8 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
             _postState: leaves[1],
             _postStateProof: postProof
         });
+        assertEq(address(this).balance, balanceBefore + oracle.MIN_BOND_SIZE());
+        assertEq(oracle.proposalBonds(address(this), TEST_UUID), 0);
 
         LPPMetaData metaData = oracle.proposalMetadata(address(this), TEST_UUID);
         assertTrue(metaData.countered());
@@ -1019,16 +1178,19 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         returns (PreimageOracle.Leaf[] memory leaves_)
     {
         bytes memory data = LibKeccak.padMemory(_data);
-        uint256 numLeaves = data.length / LibKeccak.BLOCK_SIZE_BYTES;
+        uint256 numCommitments = data.length / LibKeccak.BLOCK_SIZE_BYTES;
 
-        leaves_ = new PreimageOracle.Leaf[](numLeaves);
-        for (uint256 i = 0; i < numLeaves; i++) {
+        leaves_ = new PreimageOracle.Leaf[](numCommitments);
+        for (uint256 i = 0; i < numCommitments; i++) {
             bytes memory blockSlice = Bytes.slice(data, i * LibKeccak.BLOCK_SIZE_BYTES, LibKeccak.BLOCK_SIZE_BYTES);
             LibKeccak.absorb(_stateMatrix, blockSlice);
             LibKeccak.permutation(_stateMatrix);
-            bytes32 stateCommitment = keccak256(abi.encode(_stateMatrix));
 
-            leaves_[i] = PreimageOracle.Leaf({ input: blockSlice, index: i, stateCommitment: stateCommitment });
+            leaves_[i] = PreimageOracle.Leaf({
+                input: blockSlice,
+                index: uint32(i),
+                stateCommitment: keccak256(abi.encode(_stateMatrix))
+            });
         }
     }
 
@@ -1070,5 +1232,39 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
 
             stateCommitments_[i] = keccak256(abi.encode(_stateMatrix));
         }
+    }
+
+    /// @notice Calls out to the `go-ffi` tool to generate a merkle proof for the leaf at `_leafIdx` in a merkle tree
+    ///         constructed with `_leaves`.
+    function _generateProof(
+        uint256 _leafIdx,
+        PreimageOracle.Leaf[] memory _leaves
+    )
+        internal
+        returns (bytes32 root_, bytes32[] memory proof_)
+    {
+        bytes32[] memory leaves = new bytes32[](_leaves.length);
+        for (uint256 i = 0; i < _leaves.length; i++) {
+            leaves[i] = _hashLeaf(_leaves[i]);
+        }
+
+        string[] memory commands = new string[](5);
+        commands[0] = "scripts/go-ffi/go-ffi";
+        commands[1] = "merkle";
+        commands[2] = "gen_proof";
+        commands[3] = vm.toString(abi.encodePacked(leaves));
+        commands[4] = vm.toString(_leafIdx);
+        (root_, proof_) = abi.decode(vm.ffi(commands), (bytes32, bytes32[]));
+    }
+
+    fallback() external payable { }
+
+    receive() external payable { }
+}
+
+/// @notice Sets the status byte of a hash.
+function _setStatusByte(bytes32 _hash, uint8 _status) pure returns (bytes32 out_) {
+    assembly {
+        out_ := or(and(not(shl(248, 0xFF)), _hash), shl(248, _status))
     }
 }

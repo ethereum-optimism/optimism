@@ -84,11 +84,22 @@ func ForUnsafeBlock(ctx context.Context, rollupCl *sources.RollupClient, n uint6
 	return err
 }
 
-func ForNextSafeBlock(ctx context.Context, client BlockCaller) error {
+func ForSafeBlock(ctx context.Context, rollupClient *sources.RollupClient, n uint64) error {
+	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	defer cancel()
+	_, err := AndGet(ctx, time.Second, func() (*eth.SyncStatus, error) {
+		return rollupClient.SyncStatus(ctx)
+	}, func(syncStatus *eth.SyncStatus) bool {
+		return syncStatus.SafeL2.Number >= n
+	})
+	return err
+}
+
+func ForNextSafeBlock(ctx context.Context, client BlockCaller) (*types.Block, error) {
 	safeBlockNumber := big.NewInt(rpc.SafeBlockNumber.Int64())
 	current, err := client.BlockByNumber(ctx, safeBlockNumber)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Long timeout so we don't have to care what the block time is. If the test passes this will complete early anyway.
@@ -97,14 +108,14 @@ func ForNextSafeBlock(ctx context.Context, client BlockCaller) error {
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return nil, ctx.Err()
 		default:
 			next, err := client.BlockByNumber(ctx, safeBlockNumber)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if next.NumberU64() > current.NumberU64() {
-				return nil
+				return next, nil
 			}
 			time.Sleep(500 * time.Millisecond)
 		}

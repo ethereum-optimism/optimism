@@ -16,7 +16,10 @@ import (
 
 var _ vm.StateDB = (*MemoryStateDB)(nil)
 
-var emptyCodeHash = crypto.Keccak256(nil)
+var (
+	emptyCodeHash = crypto.Keccak256(nil)
+	zeroAddr      = common.Address{}
+)
 
 // MemoryStateDB implements geth's StateDB interface
 // but operates on a core.Genesis so that a genesis.json
@@ -28,7 +31,7 @@ type MemoryStateDB struct {
 
 func NewMemoryStateDB(genesis *core.Genesis) *MemoryStateDB {
 	if genesis == nil {
-		genesis = core.DeveloperGenesisBlock(15_000_000, common.Address{})
+		genesis = core.DeveloperGenesisBlock(15_000_000, &zeroAddr)
 	}
 
 	return &MemoryStateDB{

@@ -26,6 +26,10 @@ parser.add_argument('--test', help='Tests the deployment, must already be deploy
 
 log = logging.getLogger()
 
+# Global environment variables
+DEVNET_NO_BUILD = os.getenv('DEVNET_NO_BUILD') == "true"
+DEVNET_FPAC = os.getenv('DEVNET_FPAC') == "true"
+
 class Bunch:
     def __init__(self, **kwds):
         self.__dict__.update(kwds)
@@ -104,7 +108,7 @@ def main():
     git_date = subprocess.run(['git', 'show', '-s', "--format=%ct"], capture_output=True, text=True).stdout.strip()
 
     # CI loads the images from workspace, and does not otherwise know the images are good as-is
-    if os.getenv('DEVNET_NO_BUILD') == "true":
+    if DEVNET_NO_BUILD:
         log.info('Skipping docker images build')
     else:
         log.info(f'Building docker images for git commit {git_commit} ({git_date})')
@@ -119,42 +123,13 @@ def main():
     log.info('Devnet starting')
     devnet_deploy(paths)
 
-
-def deploy_contracts(paths):
-    wait_up(8545)
-    wait_for_rpc_server('127.0.0.1:8545')
-    res = eth_accounts('127.0.0.1:8545')
-
-    response = json.loads(res)
-    account = response['result'][0]
-    log.info(f'Deploying with {account}')
-
-    # send some ether to the create2 deployer account
-    run_command([
-        'cast', 'send', '--from', account,
-        '--rpc-url', 'http://127.0.0.1:8545',
-        '--unlocked', '--value', '5ether', '0x3fAB184622Dc19b6109349B94811493BF2a45362'
-    ], env={}, cwd=paths.contracts_bedrock_dir)
-
-    # deploy the create2 deployer
-    run_command([
-      'cast', 'publish', '--rpc-url', 'http://127.0.0.1:8545',
-      '0xf8a58085174876e800830186a08080b853604580600e600039806000f350fe7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf31ba02222222222222222222222222222222222222222222222222222222222222222a02222222222222222222222222222222222222222222222222222222222222222'
-    ], env={}, cwd=paths.contracts_bedrock_dir)
-
-    fqn = 'scripts/Deploy.s.sol:Deploy'
-    run_command([
-        'forge', 'script', fqn, '--sender', account,
-        '--rpc-url', 'http://127.0.0.1:8545', '--broadcast',
-        '--unlocked', '--with-gas-price', '100000000000'
-    ], env={}, cwd=paths.contracts_bedrock_dir)
-
-    shutil.copy(paths.l1_deployments_path, paths.addresses_json_path)
-
 def init_devnet_l1_deploy_config(paths, update_timestamp=False):
     deploy_config = read_json(paths.devnet_config_template_path)
     if update_timestamp:
         deploy_config['l1GenesisBlockTimestamp'] = '{:#x}'.format(int(time.time()))
+    if DEVNET_FPAC:
+        deploy_config['useFaultProofs'] = True
+        deploy_config['faultGameMaxDuration'] = 10
     write_json(paths.devnet_config_path, deploy_config)
 
 def devnet_l1_genesis(paths):
@@ -172,14 +147,17 @@ def devnet_l1_genesis(paths):
 
     shutil.copy(paths.l1_deployments_path, paths.addresses_json_path)
 
-
 # Bring up the devnet where the contracts are deployed to L1
 def devnet_deploy(paths):
     if os.path.exists(paths.genesis_l1_path):
         log.info('L1 genesis already generated.')
     else:
         log.info('Generating L1 genesis.')
-        if os.path.exists(paths.allocs_path) == False:
+        if os.path.exists(paths.allocs_path) == False or DEVNET_FPAC == True:
+            # If this is the FPAC devnet then we need to generate the allocs
+            # file here always. This is because CI will run devnet-allocs
+            # without DEVNET_FPAC=true which means the allocs will be wrong.
+            # Re-running this step means the allocs will be correct.
             devnet_l1_genesis(paths)
 
         # It's odd that we want to regenerate the devnetL1.json file with
@@ -219,46 +197,50 @@ def devnet_deploy(paths):
     rollup_config = read_json(paths.rollup_config_path)
     addresses = read_json(paths.addresses_json_path)
 
+    # Start the L2.
     log.info('Bringing up L2.')
     run_command(['docker', 'compose', 'up', '-d', 'l2'], cwd=paths.ops_bedrock_dir, env={
         'PWD': paths.ops_bedrock_dir
     })
+
+    # Wait for the L2 to be available.
     wait_up(9545)
     wait_for_rpc_server('127.0.0.1:9545')
 
+    # Print out the addresses being used for easier debugging.
     l2_output_oracle = addresses['L2OutputOracleProxy']
-    log.info(f'Using L2OutputOracle {l2_output_oracle}')
+    dispute_game_factory = addresses['DisputeGameFactoryProxy']
     batch_inbox_address = rollup_config['batch_inbox_address']
+    log.info(f'Using L2OutputOracle {l2_output_oracle}')
+    log.info(f'Using DisputeGameFactory {dispute_game_factory}')
     log.info(f'Using batch inbox {batch_inbox_address}')
 
-    log.info('Bringing up `op-node`, `op-proposer` and `op-batcher`.')
-    run_command(['docker', 'compose', 'up', '-d', 'op-node', 'op-proposer', 'op-batcher'], cwd=paths.ops_bedrock_dir, env={
+    # Set up the base docker environment.
+    docker_env = {
         'PWD': paths.ops_bedrock_dir,
-        'L2OO_ADDRESS': l2_output_oracle,
         'SEQUENCER_BATCH_INBOX_ADDRESS': batch_inbox_address
-    })
+    }
 
-    log.info('Bringing up `artifact-server`')
-    run_command(['docker', 'compose', 'up', '-d', 'artifact-server'], cwd=paths.ops_bedrock_dir, env={
-        'PWD': paths.ops_bedrock_dir
-    })
+    # Selectively set the L2OO_ADDRESS or DGF_ADDRESS if using FPAC.
+    # Must be done selectively because op-proposer throws if both are set.
+    if DEVNET_FPAC:
+        docker_env['DGF_ADDRESS'] = dispute_game_factory
+        docker_env['DG_TYPE'] = '0'
+        docker_env['PROPOSAL_INTERVAL'] = '10s'
+    else:
+        docker_env['L2OO_ADDRESS'] = l2_output_oracle
 
+    # Bring up the rest of the services.
+    log.info('Bringing up `op-node`, `op-proposer` and `op-batcher`.')
+    run_command(['docker', 'compose', 'up', '-d', 'op-node', 'op-proposer', 'op-batcher', 'artifact-server'], cwd=paths.ops_bedrock_dir, env=docker_env)
+
+    # Optionally bring up op-challenger.
+    if DEVNET_FPAC:
+        log.info('Bringing up `op-challenger`.')
+        run_command(['docker', 'compose', 'up', '-d', 'op-challenger'], cwd=paths.ops_bedrock_dir, env=docker_env)
+
+    # Fin.
     log.info('Devnet ready.')
-
-
-def eth_accounts(url):
-    log.info(f'Fetch eth_accounts {url}')
-    conn = http.client.HTTPConnection(url)
-    headers = {'Content-type': 'application/json'}
-    body = '{"id":2, "jsonrpc":"2.0", "method": "eth_accounts", "params":[]}'
-    conn.request('POST', '/', body, headers)
-    response = conn.getresponse()
-    data = response.read().decode()
-    conn.close()
-    return data
-
-def pad_hex(input):
-    return '0x' + input.replace('0x', '').zfill(64)
 
 def wait_for_rpc_server(url):
     log.info(f'Waiting for RPC server at {url}')

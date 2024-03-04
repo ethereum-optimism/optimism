@@ -28,7 +28,7 @@ func (g *OutputAlphabetGameHelper) StartChallenger(
 		challenger.WithGameAddress(g.addr),
 	}
 	opts = append(opts, options...)
-	c := challenger.NewChallenger(g.t, ctx, g.system.NodeEndpoint("l1"), name, opts...)
+	c := challenger.NewChallenger(g.t, ctx, g.system, name, opts...)
 	g.t.Cleanup(func() {
 		_ = c.Close()
 	})
@@ -36,16 +36,17 @@ func (g *OutputAlphabetGameHelper) StartChallenger(
 }
 
 func (g *OutputAlphabetGameHelper) CreateHonestActor(ctx context.Context, l2Node string) *OutputHonestHelper {
-	logger := testlog.Logger(g.t, log.LvlInfo).New("role", "HonestHelper", "game", g.addr)
+	logger := testlog.Logger(g.t, log.LevelInfo).New("role", "HonestHelper", "game", g.addr)
 	caller := batching.NewMultiCaller(g.system.NodeClient("l1").Client(), batching.DefaultBatchSize)
 	contract, err := contracts.NewFaultDisputeGameContract(g.addr, caller)
 	g.require.NoError(err, "Failed to create game contact")
 	prestateBlock, poststateBlock, err := contract.GetBlockRange(ctx)
 	g.require.NoError(err, "Get block range")
 	splitDepth := g.SplitDepth(ctx)
+	l1Head := g.getL1Head(ctx)
 	rollupClient := g.system.RollupClient(l2Node)
-	prestateProvider := outputs.NewPrestateProvider(ctx, logger, rollupClient, prestateBlock)
-	correctTrace, err := outputs.NewOutputAlphabetTraceAccessor(logger, metrics.NoopMetrics, prestateProvider, rollupClient, splitDepth, prestateBlock, poststateBlock)
+	prestateProvider := outputs.NewPrestateProvider(rollupClient, prestateBlock)
+	correctTrace, err := outputs.NewOutputAlphabetTraceAccessor(logger, metrics.NoopMetrics, prestateProvider, rollupClient, l1Head, splitDepth, prestateBlock, poststateBlock)
 	g.require.NoError(err, "Create trace accessor")
 	return &OutputHonestHelper{
 		t:            g.t,

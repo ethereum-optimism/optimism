@@ -67,7 +67,7 @@ func FuzzExecutionPayloadMarshalUnmarshalV1(f *testing.F) {
 			extraData = extraData[:32]
 		}
 		payload.ExtraData = extraData
-		payload.BaseFeePerGas.SetBytes(data[:32])
+		(*uint256.Int)(&payload.BaseFeePerGas).SetBytes(data[:32])
 		payload.BlockHash = *(*common.Hash)(data[:32])
 		payload.Transactions = make([]Data, txs)
 		for i := 0; i < int(txs); i++ {
@@ -124,7 +124,7 @@ func FuzzExecutionPayloadMarshalUnmarshalV2(f *testing.F) {
 			extraData = extraData[:32]
 		}
 		payload.ExtraData = extraData
-		payload.BaseFeePerGas.SetBytes(data[:32])
+		(*uint256.Int)(&payload.BaseFeePerGas).SetBytes(data[:32])
 		payload.BlockHash = *(*common.Hash)(data[:32])
 		payload.Transactions = make([]Data, txs)
 		for i := 0; i < int(txs); i++ {
@@ -196,7 +196,7 @@ func FuzzExecutionPayloadMarshalUnmarshalV3(f *testing.F) {
 			extraData = extraData[:32]
 		}
 		payload.ExtraData = extraData
-		payload.BaseFeePerGas.SetBytes(data[:32])
+		(*uint256.Int)(&payload.BaseFeePerGas).SetBytes(data[:32])
 		payload.BlockHash = *(*common.Hash)(data[:32])
 		payload.Transactions = make([]Data, txs)
 		for i := 0; i < int(txs); i++ {
@@ -319,7 +319,6 @@ func TestOPB04(t *testing.T) {
 		require.Error(t, err)
 		require.Equal(t, ErrExtraDataTooLarge, err)
 	}
-
 }
 
 func createPayloadWithWithdrawals(w *types.Withdrawals) *ExecutionPayload {
@@ -334,11 +333,11 @@ func createPayloadWithWithdrawals(w *types.Withdrawals) *ExecutionPayload {
 		GasLimit:      Uint64Quantity(333),
 		GasUsed:       Uint64Quantity(444),
 		Timestamp:     Uint64Quantity(555),
-		ExtraData:     common.Hex2Bytes("6666"),
-		BaseFeePerGas: *uint256.NewInt(777),
+		ExtraData:     common.FromHex("6666"),
+		BaseFeePerGas: Uint256Quantity(*uint256.NewInt(777)),
 		BlockHash:     common.HexToHash("0x888"),
 		Withdrawals:   w,
-		Transactions:  []Data{common.Hex2Bytes("9999")},
+		Transactions:  []Data{common.FromHex("9999")},
 	}
 }
 

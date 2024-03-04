@@ -10,7 +10,7 @@ SHELL ["/bin/bash", "-c"]
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && \
-  apt-get install -y curl build-essential git clang lld curl jq
+  apt-get install -y build-essential git clang lld curl jq
 
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs > rustup.sh && \
   chmod +x ./rustup.sh && \
@@ -28,15 +28,18 @@ COPY ./versions.json ./versions.json
 COPY ./ops/scripts/install-foundry.sh ./install-foundry.sh
 
 RUN curl -L https://foundry.paradigm.xyz | bash
-RUN source $HOME/.profile && ./install-foundry.sh
+RUN source $HOME/.profile && \
+    ./install-foundry.sh && \
+    cargo install svm-rs
 
 RUN strip /root/.foundry/bin/forge && \
   strip /root/.foundry/bin/cast && \
-  strip /root/.foundry/bin/anvil
+  strip /root/.foundry/bin/anvil && \
+  strip /root/.cargo/bin/svm
 
 FROM --platform=linux/amd64 debian:bullseye-slim as go-build
 
-RUN apt-get update && apt-get install -y curl ca-certificates jq
+RUN apt-get update && apt-get install -y curl ca-certificates jq binutils
 
 ENV GO_VERSION=1.21.1
 
@@ -56,15 +59,19 @@ RUN go install gotest.tools/gotestsum@latest
 RUN go install github.com/vektra/mockery/v2@v2.28.1
 RUN go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.54.2
 
-FROM --platform=linux/amd64 debian:bullseye-slim
+# Strip binaries to reduce size
+RUN strip /go/bin/gotestsum && \
+  strip /go/bin/mockery && \
+  strip /go/bin/golangci-lint && \
+  strip /go/bin/abigen && \
+  strip /go/bin/geth
+
+FROM --platform=linux/amd64 debian:bullseye-slim as base-builder
 
 ENV GOPATH=/go
 ENV PATH=/usr/local/go/bin:$GOPATH/bin:$PATH
 ENV PATH=/root/.cargo/bin:$PATH
 ENV DEBIAN_FRONTEND=noninteractive
-
-# Create rust directories for copying the installation into
-RUN mkdir /root/.cargo && mkdir /root/.cargo/bin && mkdir /root/.rustup
 
 # copy the go installation, but not the module cache (cache will get stale, and would add a lot of weight)
 COPY --from=go-build /usr/local/go /usr/local/go
@@ -76,14 +83,11 @@ COPY --from=go-build /go/bin/golangci-lint /go/bin/golangci-lint
 COPY --from=go-build /go/bin/abigen /usr/local/bin/abigen
 COPY --from=go-build /go/bin/geth /usr/local/bin/geth
 
-# copy the rust installation, alongside the installed toolchains
-COPY --from=rust-build /root/.cargo/bin /root/.cargo/bin
-COPY --from=rust-build /root/.rustup /root/.rustup
-
 # copy tools
 COPY --from=rust-build /root/.foundry/bin/forge /usr/local/bin/forge
 COPY --from=rust-build /root/.foundry/bin/cast /usr/local/bin/cast
 COPY --from=rust-build /root/.foundry/bin/anvil /usr/local/bin/anvil
+COPY --from=rust-build /root/.cargo/bin/svm /usr/local/bin/svm
 
 COPY .nvmrc .nvmrc
 COPY ./versions.json ./versions.json
@@ -92,7 +96,7 @@ ENV NODE_MAJOR=20
 
 RUN /bin/sh -c set -eux; \
   apt-get update; \
-  apt-get install -y --no-install-recommends bash curl openssh-client git build-essential pkg-config libssl-dev clang lld libclang-dev ca-certificates jq gnupg binutils-mips-linux-gnu python3 python3-pip; \
+  apt-get install -y --no-install-recommends bash curl openssh-client git build-essential ca-certificates jq gnupg binutils-mips-linux-gnu python3 python3-pip; \
   mkdir -p /etc/apt/keyrings; \
   curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg; \
   echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_$NODE_MAJOR.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list; \
@@ -103,7 +107,7 @@ RUN /bin/sh -c set -eux; \
   apt-get install -y nodejs docker-ce-cli; \
   ln -s /usr/local/go/bin/gofmt /usr/local/bin/gofmt; \
   npm i -g depcheck; \
-  pip install slither-analyzer==$(jq -r .slither < versions.json) capstone pyelftools; \
+  pip install capstone pyelftools; \
   curl -fLSs https://raw.githubusercontent.com/CircleCI-Public/circleci-cli/master/install.sh | bash; \
   apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false; \
   rm -rf /var/lib/apt/lists/*; \
@@ -138,3 +142,16 @@ ENV SHELL=/bin/bash
 ENV BASH=/bin/bash
 
 ENTRYPOINT ["/bin/bash", "-c"]
+
+FROM base-builder as rust-builder
+
+# Install clang & lld
+RUN apt-get update && apt-get install -y clang lld
+
+# Copy the rust installation, alongside the installed toolchains
+COPY --from=rust-build /root/.cargo /root/.cargo
+COPY --from=rust-build /root/.rustup /root/.rustup
+
+# copy the rust installation, alongside the installed toolchains
+COPY --from=rust-build /root/.cargo/bin /root/.cargo/bin
+COPY --from=rust-build /root/.rustup /root/.rustup

@@ -5,9 +5,11 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
 func TestPayloadsByNumber(t *testing.T) {
@@ -81,7 +83,7 @@ func envelope(payload *eth.ExecutionPayload) *eth.ExecutionPayloadEnvelope {
 }
 
 func TestPayloadsQueue(t *testing.T) {
-	pq := NewPayloadsQueue(payloadMemFixedCost*3, payloadMemSize)
+	pq := NewPayloadsQueue(testlog.Logger(t, log.LvlInfo), payloadMemFixedCost*3, payloadMemSize)
 	require.Equal(t, 0, pq.Len())
 	require.Nil(t, pq.Peek())
 	require.Nil(t, pq.Pop())

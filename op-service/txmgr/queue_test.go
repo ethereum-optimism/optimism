@@ -158,7 +158,7 @@ func TestQueue_Send(t *testing.T) {
 				{},
 			},
 			nonces: []uint64{0, 1},
-			total:  3 * time.Second,
+			total:  1 * time.Second,
 		},
 	}
 	for _, test := range testCases {
@@ -176,7 +176,7 @@ func TestQueue_Send(t *testing.T) {
 				name:    "TEST",
 				cfg:     conf,
 				backend: backend,
-				l:       testlog.Logger(t, log.LvlCrit),
+				l:       testlog.Logger(t, log.LevelCrit),
 				metr:    &metrics.NoopTxMetrics{},
 			}
 

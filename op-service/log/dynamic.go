@@ -1,31 +1,53 @@
 package log
 
-import "github.com/ethereum/go-ethereum/log"
+import (
+	"context"
+
+	"golang.org/x/exp/slog"
+)
 
 type LvlSetter interface {
-	SetLogLevel(lvl log.Lvl)
+	SetLogLevel(lvl slog.Level)
 }
 
 // DynamicLogHandler allow runtime-configuration of the log handler.
 type DynamicLogHandler struct {
-	log.Handler // embedded, to expose any extra methods the underlying handler might provide
-	maxLvl      log.Lvl
+	h      slog.Handler
+	minLvl *slog.Level // shared with derived dynamic handlers
 }
 
-func NewDynamicLogHandler(lvl log.Lvl, h log.Handler) *DynamicLogHandler {
+func NewDynamicLogHandler(lvl slog.Level, h slog.Handler) *DynamicLogHandler {
 	return &DynamicLogHandler{
-		Handler: h,
-		maxLvl:  lvl,
+		h:      h,
+		minLvl: &lvl,
 	}
 }
 
-func (d *DynamicLogHandler) SetLogLevel(lvl log.Lvl) {
-	d.maxLvl = lvl
+func (d *DynamicLogHandler) SetLogLevel(lvl slog.Level) {
+	*d.minLvl = lvl
 }
 
-func (d *DynamicLogHandler) Log(r *log.Record) error {
-	if r.Lvl > d.maxLvl { // lower log level values are more critical
+func (d *DynamicLogHandler) Handle(ctx context.Context, r slog.Record) error {
+	if r.Level < *d.minLvl { // higher log level values are more critical
 		return nil
 	}
-	return d.Handler.Log(r) // process the log
+	return d.h.Handle(ctx, r) // process the log
+}
+
+func (d *DynamicLogHandler) Enabled(ctx context.Context, lvl slog.Level) bool {
+	return (lvl >= *d.minLvl) && d.h.Enabled(ctx, lvl)
+}
+
+func (d *DynamicLogHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return &DynamicLogHandler{
+		h:      d.h.WithAttrs(attrs),
+		minLvl: d.minLvl,
+	}
+}
+
+func (d *DynamicLogHandler) WithGroup(name string) slog.Handler {
+	return &DynamicLogHandler{
+		h:      d.h.WithGroup(name),
+		minLvl: d.minLvl,
+	}
 }

@@ -2,33 +2,42 @@ package keccak
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"sync"
+	"time"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/fetcher"
+	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
 
-type Verifier interface {
-	Verify(ctx context.Context, blockHash common.Hash, oracle fetcher.Oracle, preimage keccakTypes.LargePreimageMetaData) error
+type Challenger interface {
+	Challenge(ctx context.Context, blockHash common.Hash, oracle Oracle, preimages []keccakTypes.LargePreimageMetaData) error
 }
 
 type LargePreimageScheduler struct {
-	log      log.Logger
-	ch       chan common.Hash
-	oracles  []keccakTypes.LargePreimageOracle
-	verifier Verifier
-	cancel   func()
-	wg       sync.WaitGroup
+	log        log.Logger
+	cl         faultTypes.ClockReader
+	ch         chan common.Hash
+	oracles    []keccakTypes.LargePreimageOracle
+	challenger Challenger
+	cancel     func()
+	wg         sync.WaitGroup
 }
 
-func NewLargePreimageScheduler(logger log.Logger, oracles []keccakTypes.LargePreimageOracle, verifier Verifier) *LargePreimageScheduler {
+func NewLargePreimageScheduler(
+	logger log.Logger,
+	cl faultTypes.ClockReader,
+	oracles []keccakTypes.LargePreimageOracle,
+	challenger Challenger) *LargePreimageScheduler {
 	return &LargePreimageScheduler{
-		log:      logger,
-		ch:       make(chan common.Hash, 1),
-		oracles:  oracles,
-		verifier: verifier,
+		log:        logger,
+		cl:         cl,
+		ch:         make(chan common.Hash, 1),
+		oracles:    oracles,
+		challenger: challenger,
 	}
 }
 
@@ -53,7 +62,7 @@ func (s *LargePreimageScheduler) run(ctx context.Context) {
 			return
 		case blockHash := <-s.ch:
 			if err := s.verifyPreimages(ctx, blockHash); err != nil {
-				s.log.Error("Failed to verify large preimages", "err", err)
+				s.log.Error("Failed to verify large preimages", "blockHash", blockHash, "err", err)
 			}
 		}
 	}
@@ -63,28 +72,33 @@ func (s *LargePreimageScheduler) Schedule(blockHash common.Hash, _ uint64) error
 	select {
 	case s.ch <- blockHash:
 	default:
-		// Already busy processing, skip this update
+		s.log.Trace("Skipping preimage check while already processing")
 	}
 	return nil
 }
 
 func (s *LargePreimageScheduler) verifyPreimages(ctx context.Context, blockHash common.Hash) error {
+	var err error
 	for _, oracle := range s.oracles {
-		if err := s.verifyOraclePreimages(ctx, oracle, blockHash); err != nil {
-			s.log.Error("Failed to verify preimages in oracle %v: %w", oracle.Addr(), err)
-		}
+		err = errors.Join(err, s.verifyOraclePreimages(ctx, oracle, blockHash))
 	}
-	return nil
+	return err
 }
 
 func (s *LargePreimageScheduler) verifyOraclePreimages(ctx context.Context, oracle keccakTypes.LargePreimageOracle, blockHash common.Hash) error {
 	preimages, err := oracle.GetActivePreimages(ctx, blockHash)
+	if err != nil {
+		return err
+	}
+	period, err := oracle.ChallengePeriod(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to load challenge period: %w", err)
+	}
+	toVerify := make([]keccakTypes.LargePreimageMetaData, 0, len(preimages))
 	for _, preimage := range preimages {
-		if preimage.ShouldVerify() {
-			if err := s.verifier.Verify(ctx, blockHash, oracle, preimage); err != nil {
-				s.log.Error("Failed to verify large preimage", "oracle", oracle.Addr(), "claimant", preimage.Claimant, "uuid", preimage.UUID, "err", err)
-			}
+		if preimage.ShouldVerify(s.cl.Now(), time.Duration(period)*time.Second) {
+			toVerify = append(toVerify, preimage)
 		}
 	}
-	return err
+	return s.challenger.Challenge(ctx, blockHash, oracle, toVerify)
 }

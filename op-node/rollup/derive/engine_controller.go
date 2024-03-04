@@ -38,7 +38,7 @@ var _ EngineControl = (*EngineController)(nil)
 var _ LocalEngineControl = (*EngineController)(nil)
 
 type ExecEngine interface {
-	GetPayload(ctx context.Context, payloadId eth.PayloadID) (*eth.ExecutionPayloadEnvelope, error)
+	GetPayload(ctx context.Context, payloadInfo eth.PayloadInfo) (*eth.ExecutionPayloadEnvelope, error)
 	ForkchoiceUpdate(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error)
 	NewPayload(ctx context.Context, payload *eth.ExecutionPayload, parentBeaconBlockRoot *common.Hash) (*eth.PayloadStatusV1, error)
 	L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error)
@@ -63,7 +63,7 @@ type EngineController struct {
 
 	// Building State
 	buildingOnto eth.L2BlockRef
-	buildingID   eth.PayloadID
+	buildingInfo eth.PayloadInfo
 	buildingSafe bool
 	safeAttrs    *AttributesWithParent
 }
@@ -104,7 +104,7 @@ func (e *EngineController) Finalized() eth.L2BlockRef {
 }
 
 func (e *EngineController) BuildingPayload() (eth.L2BlockRef, eth.PayloadID, bool) {
-	return e.buildingOnto, e.buildingID, e.buildingSafe
+	return e.buildingOnto, e.buildingInfo.ID, e.buildingSafe
 }
 
 func (e *EngineController) IsEngineSyncing() bool {
@@ -146,8 +146,8 @@ func (e *EngineController) StartPayload(ctx context.Context, parent eth.L2BlockR
 	if e.IsEngineSyncing() {
 		return BlockInsertTemporaryErr, fmt.Errorf("engine is in progess of p2p sync")
 	}
-	if e.buildingID != (eth.PayloadID{}) {
-		e.log.Warn("did not finish previous block building, starting new building now", "prev_onto", e.buildingOnto, "prev_payload_id", e.buildingID, "new_onto", parent)
+	if e.buildingInfo != (eth.PayloadInfo{}) {
+		e.log.Warn("did not finish previous block building, starting new building now", "prev_onto", e.buildingOnto, "prev_payload_id", e.buildingInfo.ID, "new_onto", parent)
 		// TODO(8841): maybe worth it to force-cancel the old payload ID here.
 	}
 	fc := eth.ForkchoiceState{
@@ -161,7 +161,7 @@ func (e *EngineController) StartPayload(ctx context.Context, parent eth.L2BlockR
 		return errTyp, err
 	}
 
-	e.buildingID = id
+	e.buildingInfo = eth.PayloadInfo{ID: id, Timestamp: uint64(attrs.attributes.Timestamp)}
 	e.buildingSafe = updateSafe
 	e.buildingOnto = parent
 	if updateSafe {
@@ -172,10 +172,16 @@ func (e *EngineController) StartPayload(ctx context.Context, parent eth.L2BlockR
 }
 
 func (e *EngineController) ConfirmPayload(ctx context.Context, agossip async.AsyncGossiper, sequencerConductor conductor.SequencerConductor) (out *eth.ExecutionPayloadEnvelope, errTyp BlockInsertionErrType, err error) {
-	if e.buildingID == (eth.PayloadID{}) {
+	// don't create a BlockInsertPrestateErr if we have a cached gossip payload
+	if e.buildingInfo == (eth.PayloadInfo{}) && agossip.Get() == nil {
 		return nil, BlockInsertPrestateErr, fmt.Errorf("cannot complete payload building: not currently building a payload")
 	}
-	if e.buildingOnto.Hash != e.unsafeHead.Hash { // E.g. when safe-attributes consolidation fails, it will drop the existing work.
+	if p := agossip.Get(); p != nil && e.buildingOnto == (eth.L2BlockRef{}) {
+		e.log.Warn("Found reusable payload from async gossiper, and no block was being built. Reusing payload.",
+			"hash", p.ExecutionPayload.BlockHash,
+			"number", uint64(p.ExecutionPayload.BlockNumber),
+			"parent", p.ExecutionPayload.ParentHash)
+	} else if e.buildingOnto.Hash != e.unsafeHead.Hash { // E.g. when safe-attributes consolidation fails, it will drop the existing work.
 		e.log.Warn("engine is building block that reorgs previous unsafe head", "onto", e.buildingOnto, "unsafe", e.unsafeHead)
 	}
 	fc := eth.ForkchoiceState{
@@ -185,9 +191,9 @@ func (e *EngineController) ConfirmPayload(ctx context.Context, agossip async.Asy
 	}
 	// Update the safe head if the payload is built with the last attributes in the batch.
 	updateSafe := e.buildingSafe && e.safeAttrs != nil && e.safeAttrs.isLastInSpan
-	envelope, errTyp, err := confirmPayload(ctx, e.log, e.engine, fc, e.buildingID, updateSafe, agossip, sequencerConductor)
+	envelope, errTyp, err := confirmPayload(ctx, e.log, e.engine, fc, e.buildingInfo, updateSafe, agossip, sequencerConductor)
 	if err != nil {
-		return nil, errTyp, fmt.Errorf("failed to complete building on top of L2 chain %s, id: %s, error (%d): %w", e.buildingOnto, e.buildingID, errTyp, err)
+		return nil, errTyp, fmt.Errorf("failed to complete building on top of L2 chain %s, id: %s, error (%d): %w", e.buildingOnto, e.buildingInfo.ID, errTyp, err)
 	}
 	ref, err := PayloadToBlockRef(e.rollupCfg, envelope.ExecutionPayload)
 	if err != nil {
@@ -211,14 +217,14 @@ func (e *EngineController) ConfirmPayload(ctx context.Context, agossip async.Asy
 }
 
 func (e *EngineController) CancelPayload(ctx context.Context, force bool) error {
-	if e.buildingID == (eth.PayloadID{}) { // only cancel if there is something to cancel.
+	if e.buildingInfo == (eth.PayloadInfo{}) { // only cancel if there is something to cancel.
 		return nil
 	}
 	// the building job gets wrapped up as soon as the payload is retrieved, there's no explicit cancel in the Engine API
-	e.log.Error("cancelling old block sealing job", "payload", e.buildingID)
-	_, err := e.engine.GetPayload(ctx, e.buildingID)
+	e.log.Error("cancelling old block sealing job", "payload", e.buildingInfo.ID)
+	_, err := e.engine.GetPayload(ctx, e.buildingInfo)
 	if err != nil {
-		e.log.Error("failed to cancel block building job", "payload", e.buildingID, "err", err)
+		e.log.Error("failed to cancel block building job", "payload", e.buildingInfo.ID, "err", err)
 		if !force {
 			return err
 		}
@@ -228,7 +234,7 @@ func (e *EngineController) CancelPayload(ctx context.Context, force bool) error 
 }
 
 func (e *EngineController) resetBuildingState() {
-	e.buildingID = eth.PayloadID{}
+	e.buildingInfo = eth.PayloadInfo{}
 	e.buildingOnto = eth.L2BlockRef{}
 	e.buildingSafe = false
 	e.safeAttrs = nil
@@ -298,7 +304,8 @@ func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *et
 	// Check if there is a finalized head once when doing EL sync. If so, transition to CL sync
 	if e.syncStatus == syncStatusWillStartEL {
 		b, err := e.engine.L2BlockRefByLabel(ctx, eth.Finalized)
-		if errors.Is(err, ethereum.NotFound) {
+		isTransitionBlock := e.rollupCfg.Genesis.L2.Number != 0 && b.Hash == e.rollupCfg.Genesis.L2.Hash
+		if errors.Is(err, ethereum.NotFound) || isTransitionBlock {
 			e.syncStatus = syncStatusStartedEL
 			e.log.Info("Starting EL sync")
 			e.elStart = e.clock.Now()
@@ -356,7 +363,7 @@ func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *et
 	e.needFCUCall = false
 
 	if e.syncStatus == syncStatusFinishedELButNotFinalized {
-		e.log.Info("Finished EL sync", "sync_duration", e.clock.Since(e.elStart))
+		e.log.Info("Finished EL sync", "sync_duration", e.clock.Since(e.elStart), "finalized_block", ref.ID().String())
 		e.syncStatus = syncStatusFinishedEL
 	}
 

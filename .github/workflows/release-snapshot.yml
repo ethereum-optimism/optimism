@@ -29,6 +29,11 @@ jobs:
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+      - name: Verify NPM Token is valid
+        run: npm whoami
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
       - name: Publish snapshots
         uses: seek-oss/changesets-snapshot@v0
         with:

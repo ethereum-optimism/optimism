@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
+	"strings"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -30,7 +32,7 @@ type L1EndpointSetup interface {
 }
 
 type L1BeaconEndpointSetup interface {
-	Setup(ctx context.Context, log log.Logger) (cl client.HTTP, err error)
+	Setup(ctx context.Context, log log.Logger) (cl sources.BeaconClient, fb []sources.BlobSideCarsFetcher, err error)
 	// ShouldIgnoreBeaconCheck returns true if the Beacon-node version check should not halt startup.
 	ShouldIgnoreBeaconCheck() bool
 	ShouldFetchAllSidecars() bool
@@ -177,14 +179,30 @@ func (cfg *PreparedL1Endpoint) Check() error {
 
 type L1BeaconEndpointConfig struct {
 	BeaconAddr             string // Address of L1 User Beacon-API endpoint to use (beacon namespace required)
+	BeaconHeader           string // Optional HTTP header for all requests to L1 Beacon
+	BeaconArchiverAddr     string // Address of L1 User Beacon-API Archive endpoint to use for expired blobs (beacon namespace required)
 	BeaconCheckIgnore      bool   // When false, halt startup if the beacon version endpoint fails
 	BeaconFetchAllSidecars bool   // Whether to fetch all blob sidecars and filter locally
 }
 
 var _ L1BeaconEndpointSetup = (*L1BeaconEndpointConfig)(nil)
 
-func (cfg *L1BeaconEndpointConfig) Setup(ctx context.Context, log log.Logger) (cl client.HTTP, err error) {
-	return client.NewBasicHTTPClient(cfg.BeaconAddr, log), nil
+func (cfg *L1BeaconEndpointConfig) Setup(ctx context.Context, log log.Logger) (cl sources.BeaconClient, fb []sources.BlobSideCarsFetcher, err error) {
+	var opts []client.BasicHTTPClientOption
+	if cfg.BeaconHeader != "" {
+		hdr, err := parseHTTPHeader(cfg.BeaconHeader)
+		if err != nil {
+			return nil, nil, fmt.Errorf("parsing beacon header: %w", err)
+		}
+		opts = append(opts, client.WithHeader(hdr))
+	}
+
+	a := client.NewBasicHTTPClient(cfg.BeaconAddr, log, opts...)
+	if cfg.BeaconArchiverAddr != "" {
+		b := client.NewBasicHTTPClient(cfg.BeaconArchiverAddr, log)
+		fb = append(fb, sources.NewBeaconHTTPClient(b))
+	}
+	return sources.NewBeaconHTTPClient(a), fb, nil
 }
 
 func (cfg *L1BeaconEndpointConfig) Check() error {
@@ -200,4 +218,14 @@ func (cfg *L1BeaconEndpointConfig) ShouldIgnoreBeaconCheck() bool {
 
 func (cfg *L1BeaconEndpointConfig) ShouldFetchAllSidecars() bool {
 	return cfg.BeaconFetchAllSidecars
+}
+
+func parseHTTPHeader(headerStr string) (http.Header, error) {
+	h := make(http.Header, 1)
+	s := strings.SplitN(headerStr, ": ", 2)
+	if len(s) != 2 {
+		return nil, errors.New("invalid header format")
+	}
+	h.Add(s[0], s[1])
+	return h, nil
 }

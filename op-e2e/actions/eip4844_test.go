@@ -45,7 +45,7 @@ func setupBatcher(t Testing, log log.Logger, sd *e2eutils.SetupData, dp *e2eutil
 func TestEIP4844DataAvailability(gt *testing.T) {
 	t := NewDefaultTesting(gt)
 
-	log := testlog.Logger(t, log.LvlDebug)
+	log := testlog.Logger(t, log.LevelDebug)
 	sd, dp, miner, sequencer, seqEngine, verifier, _ := setupEIP4844Test(t, log)
 
 	batcher := setupBatcher(t, log, sd, dp, miner, sequencer, seqEngine, batcherFlags.BlobsType)
@@ -84,7 +84,7 @@ func TestEIP4844DataAvailability(gt *testing.T) {
 func TestEIP4844DataAvailabilitySwitch(gt *testing.T) {
 	t := NewDefaultTesting(gt)
 
-	log := testlog.Logger(t, log.LvlDebug)
+	log := testlog.Logger(t, log.LevelDebug)
 	sd, dp, miner, sequencer, seqEngine, verifier, _ := setupEIP4844Test(t, log)
 
 	oldBatcher := setupBatcher(t, log, sd, dp, miner, sequencer, seqEngine, batcherFlags.CalldataType)

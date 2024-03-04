@@ -28,7 +28,6 @@ contract L1BlockNumber is ISemver {
     }
 
     /// @notice Returns the L1 block number.
-    // solhint-disable-next-line no-complex-fallback
     fallback() external payable {
         uint256 l1BlockNumber = getL1BlockNumber();
         assembly {

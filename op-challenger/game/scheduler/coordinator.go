@@ -46,6 +46,8 @@ type coordinator struct {
 	states       map[common.Address]*gameState
 	disk         DiskManager
 
+	allowInvalidPrestate bool
+
 	// lastScheduledBlockNum is the highest block number that the coordinator has seen and scheduled jobs.
 	lastScheduledBlockNum uint64
 }
@@ -133,7 +135,10 @@ func (c *coordinator) createJob(ctx context.Context, game types.GameMetadata, bl
 			return nil, fmt.Errorf("failed to create game player: %w", err)
 		}
 		if err := player.ValidatePrestate(ctx); err != nil {
-			return nil, fmt.Errorf("failed to validate prestate: %w", err)
+			if !c.allowInvalidPrestate || !errors.Is(err, types.ErrInvalidPrestate) {
+				return nil, fmt.Errorf("failed to validate prestate: %w", err)
+			}
+			c.logger.Error("Invalid prestate", "game", game.Proxy, "err", err)
 		}
 		state.player = player
 		state.status = player.Status()
@@ -186,14 +191,15 @@ func (c *coordinator) deleteResolvedGameFiles() {
 	}
 }
 
-func newCoordinator(logger log.Logger, m CoordinatorMetricer, jobQueue chan<- job, resultQueue <-chan job, createPlayer PlayerCreator, disk DiskManager) *coordinator {
+func newCoordinator(logger log.Logger, m CoordinatorMetricer, jobQueue chan<- job, resultQueue <-chan job, createPlayer PlayerCreator, disk DiskManager, allowInvalidPrestate bool) *coordinator {
 	return &coordinator{
-		logger:       logger,
-		m:            m,
-		jobQueue:     jobQueue,
-		resultQueue:  resultQueue,
-		createPlayer: createPlayer,
-		disk:         disk,
-		states:       make(map[common.Address]*gameState),
+		logger:               logger,
+		m:                    m,
+		jobQueue:             jobQueue,
+		resultQueue:          resultQueue,
+		createPlayer:         createPlayer,
+		disk:                 disk,
+		states:               make(map[common.Address]*gameState),
+		allowInvalidPrestate: allowInvalidPrestate,
 	}
 }

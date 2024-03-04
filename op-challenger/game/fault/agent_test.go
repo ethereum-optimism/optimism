@@ -61,7 +61,7 @@ func TestLoadClaimsWhenGameNotResolvable(t *testing.T) {
 	claimBuilder := test.NewClaimBuilder(t, depth, alphabet.NewTraceProvider(big.NewInt(0), depth))
 
 	claimLoader.claims = []types.Claim{
-		claimBuilder.CreateRootClaim(true),
+		claimBuilder.CreateRootClaim(),
 	}
 
 	require.NoError(t, agent.Act(context.Background()))
@@ -72,7 +72,7 @@ func TestLoadClaimsWhenGameNotResolvable(t *testing.T) {
 }
 
 func setupTestAgent(t *testing.T) (*Agent, *stubClaimLoader, *stubResponder) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	claimLoader := &stubClaimLoader{}
 	depth := types.Depth(4)
 	provider := alphabet.NewTraceProvider(big.NewInt(0), depth)
@@ -109,7 +109,7 @@ func (s *stubResponder) CallResolve(ctx context.Context) (gameTypes.GameStatus, 
 	return s.callResolveStatus, s.callResolveErr
 }
 
-func (s *stubResponder) Resolve(ctx context.Context) error {
+func (s *stubResponder) Resolve() error {
 	s.resolveCount++
 	return s.resolveErr
 }
@@ -119,7 +119,7 @@ func (s *stubResponder) CallResolveClaim(ctx context.Context, clainIdx uint64) e
 	return s.callResolveClaimErr
 }
 
-func (s *stubResponder) ResolveClaim(ctx context.Context, clainIdx uint64) error {
+func (s *stubResponder) ResolveClaim(clainIdx uint64) error {
 	s.resolveClaimCount++
 	return nil
 }

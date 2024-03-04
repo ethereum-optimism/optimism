@@ -101,7 +101,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*Config, error) {
 		return nil, errors.Wrap(err, "missing required flags")
 	}
 
-	rollupCfg, err := opnode.NewRollupConfig(log, ctx)
+	rollupCfg, err := opnode.NewRollupConfigFromCLI(log, ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to load rollup config")
 	}
@@ -109,6 +109,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*Config, error) {
 	return &Config{
 		ConsensusAddr:  ctx.String(flags.ConsensusAddr.Name),
 		ConsensusPort:  ctx.Int(flags.ConsensusPort.Name),
+		RaftBootstrap:  ctx.Bool(flags.RaftBootstrap.Name),
 		RaftServerID:   ctx.String(flags.RaftServerID.Name),
 		RaftStorageDir: ctx.String(flags.RaftStorageDir.Name),
 		NodeRPC:        ctx.String(flags.NodeRPC.Name),

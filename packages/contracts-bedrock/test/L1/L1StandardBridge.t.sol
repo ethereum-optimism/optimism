@@ -8,7 +8,6 @@ import { Bridge_Initializer } from "test/setup/Bridge_Initializer.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { Constants } from "src/libraries/Constants.sol";
 
 // Target contract dependencies
 import { StandardBridge } from "src/universal/StandardBridge.sol";
@@ -33,7 +32,9 @@ contract L1StandardBridge_Getter_Test is Bridge_Initializer {
 
 contract L1StandardBridge_Initialize_Test is Bridge_Initializer {
     /// @dev Test that the constructor sets the correct values.
-    function test_constructor_succeeds() external {
+    /// @notice Marked virtual to be overridden in
+    ///         test/kontrol/deployment/DeploymentSummary.t.sol
+    function test_constructor_succeeds() external virtual {
         L1StandardBridge impl = L1StandardBridge(deploy.mustGetAddress("L1StandardBridge"));
         assertEq(address(impl.superchainConfig()), address(0));
         assertEq(address(impl.MESSENGER()), address(0));

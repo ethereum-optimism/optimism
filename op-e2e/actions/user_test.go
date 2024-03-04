@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 	"testing"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -123,7 +124,7 @@ func runCrossLayerUserTest(gt *testing.T, test hardforkScheduledTest) {
 	}
 
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
-	log := testlog.Logger(t, log.LvlDebug)
+	log := testlog.Logger(t, log.LevelDebug)
 
 	require.Equal(t, dp.Secrets.Addresses().Batcher, dp.DeployConfig.BatchSenderAddress)
 	require.Equal(t, dp.Secrets.Addresses().Proposer, dp.DeployConfig.L2OutputOracleProposer)
@@ -131,11 +132,23 @@ func runCrossLayerUserTest(gt *testing.T, test hardforkScheduledTest) {
 	miner, seqEngine, seq := setupSequencerTest(t, sd, log)
 	batcher := NewL2Batcher(log, sd.RollupCfg, DefaultBatcherCfg(dp),
 		seq.RollupClient(), miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
-	proposer := NewL2Proposer(t, log, &ProposerCfg{
-		OutputOracleAddr:  &sd.DeploymentsL1.L2OutputOracleProxy,
-		ProposerKey:       dp.Secrets.Proposer,
-		AllowNonFinalized: true,
-	}, miner.EthClient(), seq.RollupClient())
+
+	var proposer *L2Proposer
+	if e2eutils.UseFPAC() {
+		proposer = NewL2Proposer(t, log, &ProposerCfg{
+			DisputeGameFactoryAddr: &sd.DeploymentsL1.DisputeGameFactoryProxy,
+			ProposalInterval:       6 * time.Second,
+			DisputeGameType:        0,
+			ProposerKey:            dp.Secrets.Proposer,
+			AllowNonFinalized:      true,
+		}, miner.EthClient(), seq.RollupClient())
+	} else {
+		proposer = NewL2Proposer(t, log, &ProposerCfg{
+			OutputOracleAddr:  &sd.DeploymentsL1.L2OutputOracleProxy,
+			ProposerKey:       dp.Secrets.Proposer,
+			AllowNonFinalized: true,
+		}, miner.EthClient(), seq.RollupClient())
+	}
 
 	// need to start derivation before we can make L2 blocks
 	seq.ActL2PipelineFull(t)
@@ -265,6 +278,25 @@ func runCrossLayerUserTest(gt *testing.T, test hardforkScheduledTest) {
 	// withdrawal to be finalized successfully.
 	miner.ActL1StartBlock(13)(t)
 	miner.ActL1EndBlock(t)
+
+	// If using FPAC we need to resolve the game
+	if e2eutils.UseFPAC() {
+		// Resolve the root claim
+		alice.ActResolveClaim(t)
+		miner.ActL1StartBlock(12)(t)
+		miner.ActL1IncludeTx(alice.Address())(t)
+		miner.ActL1EndBlock(t)
+		// Resolve the game
+		alice.L1.ActCheckReceiptStatusOfLastTx(true)(t)
+		alice.ActResolve(t)
+		miner.ActL1StartBlock(12)(t)
+		miner.ActL1IncludeTx(alice.Address())(t)
+		miner.ActL1EndBlock(t)
+		// Create an empty block to pass the air-gap window
+		alice.L1.ActCheckReceiptStatusOfLastTx(true)(t)
+		miner.ActL1StartBlock(13)(t)
+		miner.ActL1EndBlock(t)
+	}
 
 	// make the L1 finalize withdrawal tx
 	alice.ActCompleteWithdrawal(t)

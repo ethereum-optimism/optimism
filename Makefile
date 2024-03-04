@@ -82,6 +82,10 @@ op-challenger:
 	make -C ./op-challenger op-challenger
 .PHONY: op-challenger
 
+op-dispute-mon:
+	make -C ./op-dispute-mon op-dispute-mon
+.PHONY: op-dispute-mon
+
 op-program:
 	make -C ./op-program op-program
 .PHONY: op-program
@@ -131,9 +135,6 @@ devnet-up: pre-devnet
 		|| make devnet-allocs
 	PYTHONPATH=./bedrock-devnet $(PYTHON) ./bedrock-devnet/main.py --monorepo-dir=.
 .PHONY: devnet-up
-
-# alias for devnet-up
-devnet-up-deploy: devnet-up
 
 devnet-test: pre-devnet
 	PYTHONPATH=./bedrock-devnet $(PYTHON) ./bedrock-devnet/main.py --monorepo-dir=. --test

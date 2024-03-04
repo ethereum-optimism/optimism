@@ -408,6 +408,54 @@ func TestConfig_Check(t *testing.T) {
 			assert.Same(t, err, test.expectedErr)
 		})
 	}
+
+	forkTests := []struct {
+		name        string
+		modifier    func(cfg *Config)
+		expectedErr error
+	}{
+		{
+			name: "PriorForkMissing",
+			modifier: func(cfg *Config) {
+				ecotoneTime := uint64(1)
+				cfg.EcotoneTime = &ecotoneTime
+			},
+			expectedErr: fmt.Errorf("fork ecotone set (to 1), but prior fork delta missing"),
+		},
+		{
+			name: "PriorForkHasHigherOffset",
+			modifier: func(cfg *Config) {
+				regolithTime := uint64(2)
+				canyonTime := uint64(1)
+				cfg.RegolithTime = &regolithTime
+				cfg.CanyonTime = &canyonTime
+			},
+			expectedErr: fmt.Errorf("fork canyon set to 1, but prior fork regolith has higher offset 2"),
+		},
+		{
+			name: "PriorForkOK",
+			modifier: func(cfg *Config) {
+				regolithTime := uint64(1)
+				canyonTime := uint64(2)
+				deltaTime := uint64(3)
+				ecotoneTime := uint64(4)
+				cfg.RegolithTime = &regolithTime
+				cfg.CanyonTime = &canyonTime
+				cfg.DeltaTime = &deltaTime
+				cfg.EcotoneTime = &ecotoneTime
+			},
+			expectedErr: nil,
+		},
+	}
+
+	for _, test := range forkTests {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := randConfig()
+			test.modifier(cfg)
+			err := cfg.Check()
+			assert.Equal(t, err, test.expectedErr)
+		})
+	}
 }
 
 func TestTimestampForBlock(t *testing.T) {
@@ -459,4 +507,119 @@ func TestTimestampForBlock(t *testing.T) {
 		})
 	}
 
+}
+
+func TestForkchoiceUpdatedVersion(t *testing.T) {
+	config := randConfig()
+	tests := []struct {
+		name           string
+		canyonTime     uint64
+		ecotoneTime    uint64
+		attrs          *eth.PayloadAttributes
+		expectedMethod eth.EngineAPIMethod
+	}{
+		{
+			name:           "NoAttrs",
+			canyonTime:     10,
+			ecotoneTime:    20,
+			attrs:          nil,
+			expectedMethod: eth.FCUV3,
+		},
+		{
+			name:           "BeforeCanyon",
+			canyonTime:     10,
+			ecotoneTime:    20,
+			attrs:          &eth.PayloadAttributes{Timestamp: 5},
+			expectedMethod: eth.FCUV1,
+		},
+		{
+			name:           "Canyon",
+			canyonTime:     10,
+			ecotoneTime:    20,
+			attrs:          &eth.PayloadAttributes{Timestamp: 15},
+			expectedMethod: eth.FCUV2,
+		},
+		{
+			name:           "Ecotone",
+			canyonTime:     10,
+			ecotoneTime:    20,
+			attrs:          &eth.PayloadAttributes{Timestamp: 25},
+			expectedMethod: eth.FCUV3,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(fmt.Sprintf("TestForkchoiceUpdatedVersion_%s", test.name), func(t *testing.T) {
+			config.CanyonTime = &test.canyonTime
+			config.EcotoneTime = &test.ecotoneTime
+			assert.Equal(t, config.ForkchoiceUpdatedVersion(test.attrs), test.expectedMethod)
+		})
+	}
+}
+
+func TestNewPayloadVersion(t *testing.T) {
+	config := randConfig()
+	canyonTime := uint64(0)
+	config.CanyonTime = &canyonTime
+	tests := []struct {
+		name           string
+		ecotoneTime    uint64
+		payloadTime    uint64
+		expectedMethod eth.EngineAPIMethod
+	}{
+		{
+			name:           "BeforeEcotone",
+			ecotoneTime:    10,
+			payloadTime:    5,
+			expectedMethod: eth.NewPayloadV2,
+		},
+		{
+			name:           "Ecotone",
+			ecotoneTime:    10,
+			payloadTime:    15,
+			expectedMethod: eth.NewPayloadV3,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(fmt.Sprintf("TestNewPayloadVersion_%s", test.name), func(t *testing.T) {
+			config.EcotoneTime = &test.ecotoneTime
+			assert.Equal(t, config.NewPayloadVersion(test.payloadTime), test.expectedMethod)
+		})
+	}
+}
+
+func TestGetPayloadVersion(t *testing.T) {
+	config := randConfig()
+	canyonTime := uint64(0)
+	config.CanyonTime = &canyonTime
+	tests := []struct {
+		name           string
+		ecotoneTime    uint64
+		payloadTime    uint64
+		expectedMethod eth.EngineAPIMethod
+	}{
+		{
+			name:           "BeforeEcotone",
+			ecotoneTime:    10,
+			payloadTime:    5,
+			expectedMethod: eth.GetPayloadV2,
+		},
+		{
+			name:           "Ecotone",
+			ecotoneTime:    10,
+			payloadTime:    15,
+			expectedMethod: eth.GetPayloadV3,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(fmt.Sprintf("TestGetPayloadVersion_%s", test.name), func(t *testing.T) {
+			config.EcotoneTime = &test.ecotoneTime
+			assert.Equal(t, config.GetPayloadVersion(test.payloadTime), test.expectedMethod)
+		})
+	}
 }

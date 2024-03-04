@@ -9,9 +9,12 @@ import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
 import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
+import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
+import { DelayedWETH } from "src/dispute/weth/DelayedWETH.sol";
 import { ProtocolVersion, ProtocolVersions } from "src/L1/ProtocolVersions.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
+import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
 import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
 import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
 import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
@@ -22,6 +25,8 @@ import { ISystemConfigV0 } from "scripts/interfaces/ISystemConfigV0.sol";
 import { console2 as console } from "forge-std/console2.sol";
 
 library ChainAssertions {
+    Vm internal constant vm = Vm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
+
     /// @notice Asserts the correctness of an L1 deployment. This function expects that all contracts
     ///         within the `prox` ContractSet are proxies that have been setup and initialized.
     function postDeployAssertions(
@@ -50,6 +55,7 @@ library ChainAssertions {
         checkOptimismMintableERC20Factory({ _contracts: _prox, _isProxy: true });
         checkL1ERC721Bridge({ _contracts: _prox, _isProxy: true });
         checkOptimismPortal({ _contracts: _prox, _cfg: _cfg, _isProxy: true });
+        checkOptimismPortal2({ _contracts: _prox, _cfg: _cfg, _isProxy: true });
         checkProtocolVersions({ _contracts: _prox, _cfg: _cfg, _isProxy: true });
     }
 
@@ -57,6 +63,9 @@ library ChainAssertions {
     function checkSystemConfig(Types.ContractSet memory _contracts, DeployConfig _cfg, bool _isProxy) internal view {
         console.log("Running chain assertions on the SystemConfig");
         SystemConfig config = SystemConfig(_contracts.SystemConfig);
+
+        // Check that the contract is initialized
+        assertSlotValueIsOne({ _contractAddress: address(config), _slot: 0, _offset: 0 });
 
         ResourceMetering.ResourceConfig memory resourceConfig = config.resourceConfig();
 
@@ -117,6 +126,9 @@ library ChainAssertions {
         console.log("Running chain assertions on the L1CrossDomainMessenger");
         L1CrossDomainMessenger messenger = L1CrossDomainMessenger(_contracts.L1CrossDomainMessenger);
 
+        // Check that the contract is initialized
+        assertSlotValueIsOne({ _contractAddress: address(messenger), _slot: 0, _offset: 20 });
+
         require(address(messenger.OTHER_MESSENGER()) == Predeploys.L2_CROSS_DOMAIN_MESSENGER);
         require(address(messenger.otherMessenger()) == Predeploys.L2_CROSS_DOMAIN_MESSENGER);
 
@@ -138,6 +150,9 @@ library ChainAssertions {
         console.log("Running chain assertions on the L1StandardBridge");
         L1StandardBridge bridge = L1StandardBridge(payable(_contracts.L1StandardBridge));
 
+        // Check that the contract is initialized
+        assertSlotValueIsOne({ _contractAddress: address(bridge), _slot: 0, _offset: 0 });
+
         if (_isProxy) {
             require(address(bridge.MESSENGER()) == _contracts.L1CrossDomainMessenger);
             require(address(bridge.messenger()) == _contracts.L1CrossDomainMessenger);
@@ -153,6 +168,43 @@ library ChainAssertions {
         }
     }
 
+    /// @notice Asserts that the DisputeGameFactory is setup correctly
+    function checkDisputeGameFactory(Types.ContractSet memory _contracts, address _expectedOwner) internal view {
+        console.log("Running chain assertions on the DisputeGameFactory");
+        DisputeGameFactory factory = DisputeGameFactory(_contracts.DisputeGameFactory);
+
+        // Check that the contract is initialized
+        assertSlotValueIsOne({ _contractAddress: address(factory), _slot: 0, _offset: 0 });
+
+        require(factory.owner() == _expectedOwner);
+    }
+
+    /// @notice Asserts that the DelayedWETH is setup correctly
+    function checkDelayedWETH(
+        Types.ContractSet memory _contracts,
+        DeployConfig _cfg,
+        bool _isProxy,
+        address _expectedOwner
+    )
+        internal
+        view
+    {
+        console.log("Running chain assertions on the DelayedWETH");
+        DelayedWETH weth = DelayedWETH(payable(_contracts.DelayedWETH));
+
+        // Check that the contract is initialized
+        assertSlotValueIsOne({ _contractAddress: address(weth), _slot: 0, _offset: 0 });
+
+        if (_isProxy) {
+            require(weth.owner() == _expectedOwner);
+            require(weth.delay() == _cfg.faultGameWithdrawalDelay());
+            require(weth.config() == SuperchainConfig(_contracts.SuperchainConfig));
+        } else {
+            require(weth.owner() == _expectedOwner);
+            require(weth.delay() == _cfg.faultGameWithdrawalDelay());
+        }
+    }
+
     /// @notice Asserts that the L2OutputOracle is setup correctly
     function checkL2OutputOracle(
         Types.ContractSet memory _contracts,
@@ -165,6 +217,9 @@ library ChainAssertions {
     {
         console.log("Running chain assertions on the L2OutputOracle");
         L2OutputOracle oracle = L2OutputOracle(_contracts.L2OutputOracle);
+
+        // Check that the contract is initialized
+        assertSlotValueIsOne({ _contractAddress: address(oracle), _slot: 0, _offset: 0 });
 
         if (_isProxy) {
             require(oracle.SUBMISSION_INTERVAL() == _cfg.l2OutputOracleSubmissionInterval());
@@ -200,6 +255,9 @@ library ChainAssertions {
         console.log("Running chain assertions on the OptimismMintableERC20Factory");
         OptimismMintableERC20Factory factory = OptimismMintableERC20Factory(_contracts.OptimismMintableERC20Factory);
 
+        // Check that the contract is initialized
+        assertSlotValueIsOne({ _contractAddress: address(factory), _slot: 0, _offset: 0 });
+
         if (_isProxy) {
             require(factory.BRIDGE() == _contracts.L1StandardBridge);
             require(factory.bridge() == _contracts.L1StandardBridge);
@@ -213,6 +271,9 @@ library ChainAssertions {
     function checkL1ERC721Bridge(Types.ContractSet memory _contracts, bool _isProxy) internal view {
         console.log("Running chain assertions on the L1ERC721Bridge");
         L1ERC721Bridge bridge = L1ERC721Bridge(_contracts.L1ERC721Bridge);
+
+        // Check that the contract is initialized
+        assertSlotValueIsOne({ _contractAddress: address(bridge), _slot: 0, _offset: 0 });
 
         require(address(bridge.OTHER_BRIDGE()) == Predeploys.L2_ERC721_BRIDGE);
         require(address(bridge.otherBridge()) == Predeploys.L2_ERC721_BRIDGE);
@@ -233,6 +294,9 @@ library ChainAssertions {
         console.log("Running chain assertions on the OptimismPortal");
 
         OptimismPortal portal = OptimismPortal(payable(_contracts.OptimismPortal));
+
+        // Check that the contract is initialized
+        assertSlotValueIsOne({ _contractAddress: address(portal), _slot: 0, _offset: 0 });
 
         address guardian = _cfg.superchainConfigGuardian();
         if (guardian.code.length == 0) {
@@ -259,6 +323,45 @@ library ChainAssertions {
         }
     }
 
+    /// @notice Asserts the OptimismPortal2 is setup correctly
+    function checkOptimismPortal2(
+        Types.ContractSet memory _contracts,
+        DeployConfig _cfg,
+        bool _isProxy
+    )
+        internal
+        view
+    {
+        console.log("Running chain assertions on the OptimismPortal2");
+
+        OptimismPortal2 portal = OptimismPortal2(payable(_contracts.OptimismPortal2));
+
+        // Check that the contract is initialized
+        assertSlotValueIsOne({ _contractAddress: address(portal), _slot: 0, _offset: 0 });
+
+        address guardian = _cfg.superchainConfigGuardian();
+        if (guardian.code.length == 0) {
+            console.log("Guardian has no code: %s", guardian);
+        }
+
+        if (_isProxy) {
+            require(address(portal.disputeGameFactory()) == _contracts.DisputeGameFactory);
+            require(address(portal.SYSTEM_CONFIG()) == _contracts.SystemConfig);
+            require(address(portal.systemConfig()) == _contracts.SystemConfig);
+            require(portal.GUARDIAN() == guardian);
+            require(portal.guardian() == guardian);
+            require(address(portal.superchainConfig()) == address(_contracts.SuperchainConfig));
+            require(portal.paused() == SuperchainConfig(_contracts.SuperchainConfig).paused());
+            require(portal.l2Sender() == Constants.DEFAULT_L2_SENDER);
+        } else {
+            require(address(portal.disputeGameFactory()) == address(0));
+            require(address(portal.SYSTEM_CONFIG()) == address(0));
+            require(address(portal.systemConfig()) == address(0));
+            require(address(portal.superchainConfig()) == address(0));
+            require(portal.l2Sender() == Constants.DEFAULT_L2_SENDER);
+        }
+    }
+
     /// @notice Asserts that the ProtocolVersions is setup correctly
     function checkProtocolVersions(
         Types.ContractSet memory _contracts,
@@ -270,6 +373,10 @@ library ChainAssertions {
     {
         console.log("Running chain assertions on the ProtocolVersions");
         ProtocolVersions versions = ProtocolVersions(_contracts.ProtocolVersions);
+
+        // Check that the contract is initialized
+        assertSlotValueIsOne({ _contractAddress: address(versions), _slot: 0, _offset: 0 });
+
         if (_isProxy) {
             require(versions.owner() == _cfg.finalSystemOwner());
             require(ProtocolVersion.unwrap(versions.required()) == _cfg.requiredProtocolVersion());
@@ -292,7 +399,20 @@ library ChainAssertions {
     {
         console.log("Running chain assertions on the SuperchainConfig");
         SuperchainConfig superchainConfig = SuperchainConfig(_contracts.SuperchainConfig);
+
+        // Check that the contract is initialized
+        assertSlotValueIsOne({ _contractAddress: address(superchainConfig), _slot: 0, _offset: 0 });
+
         require(superchainConfig.guardian() == _cfg.superchainConfigGuardian());
         require(superchainConfig.paused() == _isPaused);
+    }
+
+    /// @dev Asserts that for a given contract the value of a storage slot at an offset is 1.
+    function assertSlotValueIsOne(address _contractAddress, uint256 _slot, uint256 _offset) internal view {
+        bytes32 slotVal = vm.load(_contractAddress, bytes32(_slot));
+        require(
+            uint8((uint256(slotVal) >> (_offset * 8)) & 0xFF) == uint8(1),
+            "Storage value is not 1 at the given slot and offset"
+        );
     }
 }

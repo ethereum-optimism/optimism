@@ -39,7 +39,7 @@ var (
 		Name:    "geth-log-level",
 		Usage:   "Set the global geth logging level",
 		EnvVars: prefixEnvVars("GETH_LOG_LEVEL"),
-		Value:   oplog.NewLvlFlagValue(log.LvlError),
+		Value:   oplog.NewLevelFlagValue(log.LevelError),
 	}
 	DataDirFlag = &cli.StringFlag{
 		Name:      "data-dir",
@@ -407,7 +407,7 @@ var (
 		Action: EngineAction(func(ctx *cli.Context, client client.RPC) error {
 			logCfg := oplog.ReadCLIConfig(ctx)
 			l := oplog.NewLogger(oplog.AppOut(ctx), logCfg)
-			oplog.SetGlobalLogHandler(l.GetHandler())
+			oplog.SetGlobalLogHandler(l.Handler())
 
 			settings := ParseBuildingArgs(ctx)
 			// TODO: finalize/safe flag
@@ -467,6 +467,34 @@ var (
 		}),
 	}
 
+	EngineCopyPayloadCmd = &cli.Command{
+		Name:        "copy-payload",
+		Description: "Take the block by number from source and insert it to the engine with NewPayload. No other calls are made.",
+		Flags: []cli.Flag{
+			EngineEndpoint, EngineJWTPath,
+			&cli.StringFlag{
+				Name:     "source",
+				Usage:    "Unauthenticated regular eth JSON RPC to pull block data from, can be HTTP/WS/IPC.",
+				Required: true,
+				EnvVars:  prefixEnvVars("ENGINE"),
+			},
+			&cli.Uint64Flag{
+				Name:     "number",
+				Usage:    "Block number to copy from the source",
+				Required: true,
+				EnvVars:  prefixEnvVars("NUMBER"),
+			},
+		},
+		Action: EngineAction(func(ctx *cli.Context, dest client.RPC) error {
+			rpcClient, err := rpc.DialOptions(context.Background(), ctx.String("source"))
+			if err != nil {
+				return fmt.Errorf("failed to dial engine source endpoint: %w", err)
+			}
+			source := client.NewBaseRPCClient(rpcClient)
+			return engine.CopyPayload(context.Background(), ctx.Uint64("number"), source, dest)
+		}),
+	}
+
 	EngineSetForkchoiceCmd = &cli.Command{
 		Name:        "set-forkchoice",
 		Description: "Set forkchoice, specify unsafe, safe and finalized blocks by number",
@@ -493,6 +521,38 @@ var (
 		},
 		Action: EngineAction(func(ctx *cli.Context, client client.RPC) error {
 			return engine.SetForkchoice(ctx.Context, client, ctx.Uint64("finalized"), ctx.Uint64("safe"), ctx.Uint64("unsafe"))
+		}),
+	}
+
+	EngineSetForkchoiceHashCmd = &cli.Command{
+		Name:        "set-forkchoice-by-hash",
+		Description: "Set forkchoice, specify unsafe, safe and finalized blocks by hash",
+		Flags: []cli.Flag{
+			EngineEndpoint, EngineJWTPath,
+			&cli.StringFlag{
+				Name:     "unsafe",
+				Usage:    "Block hash of block to set as latest block",
+				Required: true,
+				EnvVars:  prefixEnvVars("UNSAFE"),
+			},
+			&cli.StringFlag{
+				Name:     "safe",
+				Usage:    "Block hash of block to set as safe block",
+				Required: true,
+				EnvVars:  prefixEnvVars("SAFE"),
+			},
+			&cli.StringFlag{
+				Name:     "finalized",
+				Usage:    "Block hash of block to set as finalized block",
+				Required: true,
+				EnvVars:  prefixEnvVars("FINALIZED"),
+			},
+		},
+		Action: EngineAction(func(ctx *cli.Context, client client.RPC) error {
+			finalized := common.HexToHash(ctx.String("finalized"))
+			safe := common.HexToHash(ctx.String("safe"))
+			unsafe := common.HexToHash(ctx.String("unsafe"))
+			return engine.SetForkchoiceByHash(ctx.Context, client, finalized, safe, unsafe)
 		}),
 	}
 
@@ -550,7 +610,9 @@ var EngineCmd = &cli.Command{
 		EngineAutoCmd,
 		EngineStatusCmd,
 		EngineCopyCmd,
+		EngineCopyPayloadCmd,
 		EngineSetForkchoiceCmd,
+		EngineSetForkchoiceHashCmd,
 		EngineJSONCmd,
 	},
 }

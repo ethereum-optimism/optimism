@@ -9,7 +9,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/scheduler"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
-	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 
 	"github.com/ethereum/go-ethereum"
@@ -23,7 +22,12 @@ type blockNumberFetcher func(ctx context.Context) (uint64, error)
 
 // gameSource loads information about the games available to play
 type gameSource interface {
-	FetchAllGamesAtBlock(ctx context.Context, earliest uint64, blockHash common.Hash) ([]types.GameMetadata, error)
+	GetGamesAtOrAfter(ctx context.Context, blockHash common.Hash, earliestTimestamp uint64) ([]types.GameMetadata, error)
+}
+
+type RWClock interface {
+	SetTime(uint64)
+	Now() time.Time
 }
 
 type gameScheduler interface {
@@ -34,13 +38,18 @@ type preimageScheduler interface {
 	Schedule(blockHash common.Hash, blockNumber uint64) error
 }
 
+type claimer interface {
+	Schedule(blockNumber uint64, games []types.GameMetadata) error
+}
+
 type gameMonitor struct {
 	logger           log.Logger
-	clock            clock.Clock
+	clock            RWClock
 	source           gameSource
 	scheduler        gameScheduler
 	preimages        preimageScheduler
 	gameWindow       time.Duration
+	claimer          claimer
 	fetchBlockNumber blockNumberFetcher
 	allowedGames     []common.Address
 	l1HeadsSub       ethereum.Subscription
@@ -62,11 +71,12 @@ func (s *headSource) SubscribeNewHead(ctx context.Context, ch chan<- *ethTypes.H
 
 func newGameMonitor(
 	logger log.Logger,
-	cl clock.Clock,
+	cl RWClock,
 	source gameSource,
 	scheduler gameScheduler,
 	preimages preimageScheduler,
 	gameWindow time.Duration,
+	claimer claimer,
 	fetchBlockNumber blockNumberFetcher,
 	allowedGames []common.Address,
 	l1Source MinimalSubscriber,
@@ -78,6 +88,7 @@ func newGameMonitor(
 		preimages:        preimages,
 		source:           source,
 		gameWindow:       gameWindow,
+		claimer:          claimer,
 		fetchBlockNumber: fetchBlockNumber,
 		allowedGames:     allowedGames,
 		l1Source:         &headSource{inner: l1Source},
@@ -109,9 +120,12 @@ func (m *gameMonitor) minGameTimestamp() uint64 {
 }
 
 func (m *gameMonitor) progressGames(ctx context.Context, blockHash common.Hash, blockNumber uint64) error {
-	games, err := m.source.FetchAllGamesAtBlock(ctx, m.minGameTimestamp(), blockHash)
+	games, err := m.source.GetGamesAtOrAfter(ctx, blockHash, m.minGameTimestamp())
 	if err != nil {
 		return fmt.Errorf("failed to load games: %w", err)
+	}
+	if err := m.claimer.Schedule(blockNumber, games); err != nil {
+		return fmt.Errorf("failed to schedule bond claims: %w", err)
 	}
 	var gamesToPlay []types.GameMetadata
 	for _, game := range games {
@@ -130,6 +144,7 @@ func (m *gameMonitor) progressGames(ctx context.Context, blockHash common.Hash, 
 }
 
 func (m *gameMonitor) onNewL1Head(ctx context.Context, sig eth.L1BlockRef) {
+	m.clock.SetTime(sig.Time)
 	if err := m.progressGames(ctx, sig.Hash, sig.Number); err != nil {
 		m.logger.Error("Failed to progress games", "err", err)
 	}

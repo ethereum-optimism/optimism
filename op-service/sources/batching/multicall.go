@@ -29,6 +29,10 @@ func NewMultiCaller(rpc EthRpc, batchSize int) *MultiCaller {
 	}
 }
 
+func (m *MultiCaller) BatchSize() int {
+	return m.batchSize
+}
+
 func (m *MultiCaller) SingleCall(ctx context.Context, block Block, call *ContractCall) (*CallResult, error) {
 	results, err := m.Call(ctx, block, call)
 	if err != nil {
@@ -63,7 +67,7 @@ func (m *MultiCaller) Call(ctx context.Context, block Block, calls ...*ContractC
 		if err := fetcher.Fetch(ctx); err == io.EOF {
 			break
 		} else if err != nil {
-			return nil, fmt.Errorf("failed to fetch claims: %w", err)
+			return nil, fmt.Errorf("failed to fetch batch: %w", err)
 		}
 	}
 	results, err := fetcher.Result()

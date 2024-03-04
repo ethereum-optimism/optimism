@@ -6,7 +6,9 @@ import { Executables } from "scripts/Executables.sol";
 import { console2 as console } from "forge-std/console2.sol";
 import { ProtocolVersions } from "src/L1/ProtocolVersions.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
+import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
+import { DataAvailabilityChallenge } from "src/L1/DataAvailabilityChallenge.sol";
 
 /// @title Specification_Test
 /// @dev Specifies common security properties of entrypoints to L1 contracts, including authorization and
@@ -34,7 +36,8 @@ contract Specification_Test is CommonTest {
         MESSENGER,
         L1PROXYADMINOWNER,
         GOVERNANCETOKENOWNER,
-        MINTMANAGEROWNER
+        MINTMANAGEROWNER,
+        DATAAVAILABILITYCHALLENGEOWNER
     }
 
     /// @notice Represents the specification of a function.
@@ -54,6 +57,47 @@ contract Specification_Test is CommonTest {
 
     function setUp() public override {
         super.setUp();
+
+        // DataAvailabilityChallenge
+        _addSpec({ _name: "DataAvailabilityChallenge", _sel: _getSel("owner()") });
+        _addSpec({
+            _name: "DataAvailabilityChallenge",
+            _sel: _getSel("renounceOwnership()"),
+            _auth: Role.DATAAVAILABILITYCHALLENGEOWNER
+        });
+        _addSpec({
+            _name: "DataAvailabilityChallenge",
+            _sel: _getSel("transferOwnership(address)"),
+            _auth: Role.DATAAVAILABILITYCHALLENGEOWNER
+        });
+        _addSpec({ _name: "DataAvailabilityChallenge", _sel: _getSel("version()") });
+        _addSpec({ _name: "DataAvailabilityChallenge", _sel: _getSel("fixedResolutionCost()") });
+        _addSpec({ _name: "DataAvailabilityChallenge", _sel: _getSel("variableResolutionCost()") });
+        _addSpec({ _name: "DataAvailabilityChallenge", _sel: _getSel("variableResolutionCostPrecision()") });
+        _addSpec({ _name: "DataAvailabilityChallenge", _sel: _getSel("bondSize()") });
+        _addSpec({ _name: "DataAvailabilityChallenge", _sel: _getSel("challengeWindow()") });
+        _addSpec({ _name: "DataAvailabilityChallenge", _sel: _getSel("resolveWindow()") });
+        _addSpec({ _name: "DataAvailabilityChallenge", _sel: _getSel("resolverRefundPercentage()") });
+        _addSpec({ _name: "DataAvailabilityChallenge", _sel: _getSel("balances(address)") });
+        _addSpec({ _name: "DataAvailabilityChallenge", _sel: DataAvailabilityChallenge.initialize.selector });
+        _addSpec({
+            _name: "DataAvailabilityChallenge",
+            _sel: DataAvailabilityChallenge.setBondSize.selector,
+            _auth: Role.DATAAVAILABILITYCHALLENGEOWNER
+        });
+        _addSpec({
+            _name: "DataAvailabilityChallenge",
+            _sel: DataAvailabilityChallenge.setResolverRefundPercentage.selector,
+            _auth: Role.DATAAVAILABILITYCHALLENGEOWNER
+        });
+        _addSpec({ _name: "DataAvailabilityChallenge", _sel: DataAvailabilityChallenge.deposit.selector });
+        _addSpec({ _name: "DataAvailabilityChallenge", _sel: DataAvailabilityChallenge.withdraw.selector });
+        _addSpec({ _name: "DataAvailabilityChallenge", _sel: DataAvailabilityChallenge.getChallenge.selector });
+        _addSpec({ _name: "DataAvailabilityChallenge", _sel: DataAvailabilityChallenge.getChallengeStatus.selector });
+        _addSpec({ _name: "DataAvailabilityChallenge", _sel: DataAvailabilityChallenge.validateCommitment.selector });
+        _addSpec({ _name: "DataAvailabilityChallenge", _sel: DataAvailabilityChallenge.challenge.selector });
+        _addSpec({ _name: "DataAvailabilityChallenge", _sel: DataAvailabilityChallenge.resolve.selector });
+        _addSpec({ _name: "DataAvailabilityChallenge", _sel: DataAvailabilityChallenge.unlockBond.selector });
 
         // DelayedVetoable
         _addSpec({ _name: "DelayedVetoable", _sel: _getSel("delay()") });
@@ -221,6 +265,38 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "OptimismPortal", _sel: _getSel("superchainConfig()") });
         _addSpec({ _name: "OptimismPortal", _sel: _getSel("systemConfig()") });
         _addSpec({ _name: "OptimismPortal", _sel: _getSel("version()") });
+
+        // OptimismPortal2
+        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("GUARDIAN()") });
+        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("SYSTEM_CONFIG()") });
+        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("depositTransaction(address,uint256,uint64,bool,bytes)") });
+        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("donateETH()") });
+        _addSpec({
+            _name: "OptimismPortal2",
+            _sel: OptimismPortal2.finalizeWithdrawalTransaction.selector,
+            _pausable: true
+        });
+        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("finalizedWithdrawals(bytes32)") });
+        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("guardian()") });
+        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("initialize(address,address,address)") });
+        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("l2Sender()") });
+        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("minimumGasLimit(uint64)") });
+        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("params()") });
+        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("paused()") });
+        _addSpec({ _name: "OptimismPortal2", _sel: OptimismPortal2.proveWithdrawalTransaction.selector, _pausable: true });
+        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("provenWithdrawals(bytes32)") });
+        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("superchainConfig()") });
+        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("systemConfig()") });
+        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("version()") });
+        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("disputeGameFactory()") });
+        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("disputeGameBlacklist(address)") });
+        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("respectedGameType()") });
+        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("blacklistDisputeGame(address)"), _auth: Role.GUARDIAN });
+        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("setRespectedGameType(uint32)"), _auth: Role.GUARDIAN });
+        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("checkWithdrawal(bytes32)") });
+        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("proofMaturityDelaySeconds()") });
+        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("disputeGameFinalityDelaySeconds()") });
+        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("respectedGameTypeUpdatedAt()") });
 
         // ProtocolVersions
         _addSpec({ _name: "ProtocolVersions", _sel: _getSel("RECOMMENDED_SLOT()") });

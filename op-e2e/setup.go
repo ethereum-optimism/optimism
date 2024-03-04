@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/batcher"
 	ds "github.com/ipfs/go-datastore"
 	dsSync "github.com/ipfs/go-datastore/sync"
 	ic "github.com/libp2p/go-libp2p/core/crypto"
@@ -94,7 +95,7 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 	e2eutils.ApplyDeployConfigForks(deployConfig)
 	require.NoError(t, deployConfig.Check(), "Deploy config is invalid, do you need to run make devnet-allocs?")
 	l1Deployments := config.L1Deployments.Copy()
-	require.NoError(t, l1Deployments.Check())
+	require.NoError(t, l1Deployments.Check(deployConfig))
 
 	require.Equal(t, secrets.Addresses().Batcher, deployConfig.BatchSenderAddress)
 	require.Equal(t, secrets.Addresses().SequencerP2P, deployConfig.P2PSequencerAddress)
@@ -146,10 +147,10 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 			},
 		},
 		Loggers: map[string]log.Logger{
-			"verifier":  testlog.Logger(t, log.LvlInfo).New("role", "verifier"),
-			"sequencer": testlog.Logger(t, log.LvlInfo).New("role", "sequencer"),
-			"batcher":   testlog.Logger(t, log.LvlInfo).New("role", "batcher"),
-			"proposer":  testlog.Logger(t, log.LvlCrit).New("role", "proposer"),
+			"verifier":  testlog.Logger(t, log.LevelInfo).New("role", "verifier"),
+			"sequencer": testlog.Logger(t, log.LevelInfo).New("role", "sequencer"),
+			"batcher":   testlog.Logger(t, log.LevelInfo).New("role", "batcher"),
+			"proposer":  testlog.Logger(t, log.LevelCrit).New("role", "proposer"),
 		},
 		GethOptions:                map[string][]geth.GethOption{},
 		P2PTopology:                nil, // no P2P connectivity by default
@@ -289,6 +290,18 @@ type System struct {
 	rollupClients map[string]*sources.RollupClient
 }
 
+// AdvanceTime advances the system clock by the given duration.
+// If the [System.TimeTravelClock] is nil, this is a no-op.
+func (sys *System) AdvanceTime(d time.Duration) {
+	if sys.TimeTravelClock != nil {
+		sys.TimeTravelClock.AdvanceTime(d)
+	}
+}
+
+func (sys *System) L1BeaconEndpoint() string {
+	return sys.L1BeaconAPIAddr
+}
+
 func (sys *System) NodeEndpoint(name string) string {
 	return selectEndpoint(sys.EthInstances[name])
 }
@@ -306,7 +319,7 @@ func (sys *System) RollupClient(name string) *sources.RollupClient {
 	if ok {
 		return client
 	}
-	logger := testlog.Logger(sys.t, log.LvlInfo).New("rollupClient", name)
+	logger := testlog.Logger(sys.t, log.LevelInfo).New("rollupClient", name)
 	endpoint := sys.RollupEndpoint(name)
 	client, err := dial.DialRollupClientWithTimeout(context.Background(), 30*time.Second, logger, endpoint)
 	require.NoErrorf(sys.t, err, "Failed to dial rollup client %v", name)
@@ -426,7 +439,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 		return nil, err
 	}
 
-	l1Genesis, err := genesis.BuildL1DeveloperGenesis(cfg.DeployConfig, config.L1Allocs, config.L1Deployments, true)
+	l1Genesis, err := genesis.BuildL1DeveloperGenesis(cfg.DeployConfig, config.L1Allocs, config.L1Deployments)
 	if err != nil {
 		return nil, err
 	}
@@ -508,7 +521,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	sys.RollupConfig = &defaultConfig
 
 	// Create a fake Beacon node to hold on to blobs created by the L1 miner, and to serve them to L2
-	bcn := fakebeacon.NewBeacon(testlog.Logger(t, log.LvlInfo).New("role", "l1_cl"),
+	bcn := fakebeacon.NewBeacon(testlog.Logger(t, log.LevelInfo).New("role", "l1_cl"),
 		path.Join(cfg.BlobsPath, "l1_cl"), l1Genesis.Timestamp, cfg.DeployConfig.L1BlockTime)
 	t.Cleanup(func() {
 		_ = bcn.Close()
@@ -649,8 +662,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	}
 
 	// Don't log state snapshots in test output
-	snapLog := log.New()
-	snapLog.SetHandler(log.DiscardHandler())
+	snapLog := log.NewLogger(log.DiscardHandler())
 
 	// Rollup nodes
 
@@ -735,17 +747,35 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	}
 
 	// L2Output Submitter
-	proposerCLIConfig := &l2os.CLIConfig{
-		L1EthRpc:          sys.EthInstances["l1"].WSEndpoint(),
-		RollupRpc:         sys.RollupNodes["sequencer"].HTTPEndpoint(),
-		L2OOAddress:       config.L1Deployments.L2OutputOracleProxy.Hex(),
-		PollInterval:      50 * time.Millisecond,
-		TxMgrConfig:       newTxMgrConfig(sys.EthInstances["l1"].WSEndpoint(), cfg.Secrets.Proposer),
-		AllowNonFinalized: cfg.NonFinalizedProposals,
-		LogConfig: oplog.CLIConfig{
-			Level:  log.LvlInfo,
-			Format: oplog.FormatText,
-		},
+	var proposerCLIConfig *l2os.CLIConfig
+	if e2eutils.UseFPAC() {
+		proposerCLIConfig = &l2os.CLIConfig{
+			L1EthRpc:          sys.EthInstances["l1"].WSEndpoint(),
+			RollupRpc:         sys.RollupNodes["sequencer"].HTTPEndpoint(),
+			DGFAddress:        config.L1Deployments.DisputeGameFactoryProxy.Hex(),
+			ProposalInterval:  6 * time.Second,
+			DisputeGameType:   0,
+			PollInterval:      50 * time.Millisecond,
+			TxMgrConfig:       newTxMgrConfig(sys.EthInstances["l1"].WSEndpoint(), cfg.Secrets.Proposer),
+			AllowNonFinalized: cfg.NonFinalizedProposals,
+			LogConfig: oplog.CLIConfig{
+				Level:  log.LvlInfo,
+				Format: oplog.FormatText,
+			},
+		}
+	} else {
+		proposerCLIConfig = &l2os.CLIConfig{
+			L1EthRpc:          sys.EthInstances["l1"].WSEndpoint(),
+			RollupRpc:         sys.RollupNodes["sequencer"].HTTPEndpoint(),
+			L2OOAddress:       config.L1Deployments.L2OutputOracleProxy.Hex(),
+			PollInterval:      50 * time.Millisecond,
+			TxMgrConfig:       newTxMgrConfig(sys.EthInstances["l1"].WSEndpoint(), cfg.Secrets.Proposer),
+			AllowNonFinalized: cfg.NonFinalizedProposals,
+			LogConfig: oplog.CLIConfig{
+				Level:  log.LvlInfo,
+				Format: oplog.FormatText,
+			},
+		}
 	}
 	proposer, err := l2os.ProposerServiceFromCLIConfig(context.Background(), "0.0.1", proposerCLIConfig, sys.Cfg.Loggers["proposer"])
 	if err != nil {
@@ -780,7 +810,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 		PollInterval:    50 * time.Millisecond,
 		TxMgrConfig:     newTxMgrConfig(sys.EthInstances["l1"].WSEndpoint(), cfg.Secrets.Batcher),
 		LogConfig: oplog.CLIConfig{
-			Level:  log.LvlInfo,
+			Level:  log.LevelInfo,
 			Format: oplog.FormatText,
 		},
 		Stopped:              sys.Cfg.DisableBatcher, // Batch submitter may be enabled later
@@ -843,6 +873,10 @@ func (sys *System) newMockNetPeer() (host.Host, error) {
 		return nil, err
 	}
 	return sys.Mocknet.AddPeerWithPeerstore(p, eps)
+}
+
+func (sys *System) BatcherHelper() *batcher.Helper {
+	return batcher.NewHelper(sys.t, sys.Cfg.Secrets.Batcher, sys.RollupConfig, sys.NodeClient("l1"))
 }
 
 func UseHTTP() bool {

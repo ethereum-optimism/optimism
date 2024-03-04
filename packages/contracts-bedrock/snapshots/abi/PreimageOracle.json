@@ -10,6 +10,11 @@
         "internalType": "uint256",
         "name": "_challengePeriod",
         "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_cancunActivation",
+        "type": "uint256"
       }
     ],
     "stateMutability": "nonpayable",
@@ -31,6 +36,19 @@
   {
     "inputs": [],
     "name": "MAX_LEAF_COUNT",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "MIN_BOND_SIZE",
     "outputs": [
       {
         "internalType": "uint256",
@@ -260,6 +278,57 @@
     ],
     "name": "initLPP",
     "outputs": [],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_z",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_y",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bytes",
+        "name": "_commitment",
+        "type": "bytes"
+      },
+      {
+        "internalType": "bytes",
+        "name": "_proof",
+        "type": "bytes"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_partOffset",
+        "type": "uint256"
+      }
+    ],
+    "name": "loadBlobPreimagePart",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_partOffset",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bytes",
+        "name": "_input",
+        "type": "bytes"
+      }
+    ],
+    "name": "loadKZGPointEvaluationPreimagePart",
+    "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
   },
@@ -465,6 +534,30 @@
       {
         "internalType": "uint256",
         "name": "len_",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "proposalBonds",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
         "type": "uint256"
       }
     ],
@@ -730,6 +823,21 @@
   {
     "inputs": [],
     "name": "BadProposal",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "BondTransferFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "CancunNotActive",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InsufficientBond",
     "type": "error"
   },
   {

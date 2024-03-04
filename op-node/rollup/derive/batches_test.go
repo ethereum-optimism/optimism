@@ -1,12 +1,10 @@
 package derive
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"math/big"
 	"math/rand"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -29,16 +27,6 @@ type ValidBatchTestCase struct {
 	ExpectedLog    string // log message that must be included
 	NotExpectedLog string // log message that must not be included
 	DeltaTime      *uint64
-}
-
-type TestLogHandler struct {
-	handler log.Handler
-	logs    *bytes.Buffer
-}
-
-func (th *TestLogHandler) Log(r *log.Record) error {
-	th.logs.WriteString(r.Msg + "\n")
-	return th.handler.Log(r)
 }
 
 func TestValidBatch(t *testing.T) {
@@ -1498,12 +1486,7 @@ func TestValidBatch(t *testing.T) {
 	}
 
 	// Log level can be increased for debugging purposes
-	logger := testlog.Logger(t, log.LvlError)
-
-	// Create a test log handler to check expected logs
-	var logBuf bytes.Buffer
-	handler := TestLogHandler{handler: logger.GetHandler(), logs: &logBuf}
-	logger.SetHandler(&handler)
+	logger, logs := testlog.CaptureLogger(t, log.LevelDebug)
 
 	l2Client := testutils.MockL2Client{}
 	var nilErr error
@@ -1538,19 +1521,21 @@ func TestValidBatch(t *testing.T) {
 		}
 		validity := CheckBatch(ctx, &rcfg, logger, testCase.L1Blocks, testCase.L2SafeHead, &testCase.Batch, &l2Client)
 		require.Equal(t, testCase.Expected, validity, "batch check must return expected validity level")
-		if testCase.ExpectedLog != "" {
+		if expLog := testCase.ExpectedLog; expLog != "" {
 			// Check if ExpectedLog is contained in the log buffer
-			if !strings.Contains(logBuf.String(), testCase.ExpectedLog) {
-				t.Errorf("Expected log message was not found in the buffer: %s", testCase.ExpectedLog)
+			containsFilter := testlog.NewMessageContainsFilter(expLog)
+			if l := logs.FindLog(containsFilter); l == nil {
+				t.Errorf("Expected log message was not logged: %q", expLog)
 			}
 		}
-		if testCase.NotExpectedLog != "" {
+		if notExpLog := testCase.NotExpectedLog; notExpLog != "" {
 			// Check if NotExpectedLog is contained in the log buffer
-			if strings.Contains(logBuf.String(), testCase.NotExpectedLog) {
-				t.Errorf("Not expected log message was found in the buffer: %s", testCase.NotExpectedLog)
+			containsFilter := testlog.NewMessageContainsFilter(notExpLog)
+			if l := logs.FindLog(containsFilter); l != nil {
+				t.Errorf("Unexpected log message containing %q was logged: %q", notExpLog, l.Message)
 			}
 		}
-		logBuf.Reset()
+		logs.Clear()
 	}
 
 	// Run singular batch test cases

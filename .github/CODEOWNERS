@@ -12,6 +12,7 @@
 /op-bootnode    @ethereum-optimism/go-reviewers
 /op-chain-ops   @ethereum-optimism/go-reviewers
 /op-challenger  @ethereum-optimism/go-reviewers
+/op-dispute-mon  @ethereum-optimism/go-reviewers
 /op-e2e         @ethereum-optimism/go-reviewers
 /op-heartbeat   @ethereum-optimism/go-reviewers
 /op-node        @ethereum-optimism/go-reviewers
@@ -22,12 +23,13 @@
 /op-service     @ethereum-optimism/go-reviewers
 /op-wheel       @ethereum-optimism/go-reviewers
 /ops-bedrock    @ethereum-optimism/go-reviewers
+/op-conductor   @0x00101010 @zhwrd @mslipper
 
 # Ops
-/.circleci       @ethereum-optimism/infra-reviewers
-/.github         @ethereum-optimism/infra-reviewers
-/ops             @ethereum-optimism/infra-reviewers
-/docker-bake.hcl @ethereum-optimism/infra-reviewers
+/.circleci       @ethereum-optimism/monorepo-ops-reviewers
+/.github         @ethereum-optimism/monorepo-ops-reviewers
+/ops             @ethereum-optimism/monorepo-ops-reviewers
+/docker-bake.hcl @ethereum-optimism/monorepo-ops-reviewers
 
 # Misc
 /proxyd           @ethereum-optimism/infra-reviewers

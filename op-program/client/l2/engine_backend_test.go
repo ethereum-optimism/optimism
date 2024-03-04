@@ -28,6 +28,9 @@ var fundedKey, _ = crypto.GenerateKey()
 var fundedAddress = crypto.PubkeyToAddress(fundedKey.PublicKey)
 var targetAddress = common.HexToAddress("0x001122334455")
 
+// Also a valid input to the kzg point evaluation precompile
+var inputData = common.FromHex("01e798154708fe7789429634053cbf9f99b619f9f084048927333fce637f549b564c0a11a0f704f4fc3e8acfe0f8245f0ad1347b378fbf96e206da11a5d3630624d25032e67a7e6a4910df5834b8fe70e6bcfeeac0352434196bdf4b2485d5a18f59a8d2a1a625a17f3fea0fe5eb8c896db3764f3185481bc22f91b4aaffcca25f26936857bc3a7c2539ea8ec3a952b7873033e038326e87ed3e1276fd140253fa08e9fc25fb2d9a98527fc22a2c9612fbeafdad446cbc7bcdbdcd780af2c16a")
+
 func TestInitialState(t *testing.T) {
 	blocks, chain := setupOracleBackedChain(t, 5)
 	head := blocks[5]
@@ -186,6 +189,25 @@ func TestGetHeaderByNumber(t *testing.T) {
 	})
 }
 
+func TestKZGPointEvaluationPrecompile(t *testing.T) {
+	blockCount := 3
+	headBlockNumber := 3
+	logger := testlog.Logger(t, log.LevelDebug)
+	chainCfg, blocks, oracle := setupOracle(t, blockCount, headBlockNumber, true)
+	head := blocks[headBlockNumber].Hash()
+	stubOutput := eth.OutputV0{BlockHash: head}
+	kzgOracle := new(l2test.StubKZGOracle)
+	kzgOracle.PtEvals = map[common.Hash]bool{
+		crypto.Keccak256Hash(inputData): true,
+	}
+	chain, err := NewOracleBackedL2Chain(logger, oracle, kzgOracle, chainCfg, common.Hash(eth.OutputRoot(&stubOutput)))
+	require.NoError(t, err)
+
+	newBlock := createKZGBlock(t, chain)
+	require.NoError(t, chain.InsertBlockWithoutSetHead(newBlock))
+	require.Equal(t, 1, kzgOracle.Calls)
+}
+
 func assertBlockDataAvailable(t *testing.T, chain *OracleBackedL2Chain, block *types.Block, blockNumber uint64) {
 	require.Equal(t, block, chain.GetBlockByHash(block.Hash()), "get block %v by hash", blockNumber)
 	require.Equal(t, block.Header(), chain.GetHeaderByHash(block.Hash()), "get header %v by hash", blockNumber)
@@ -199,16 +221,17 @@ func setupOracleBackedChain(t *testing.T, blockCount int) ([]*types.Block, *Orac
 }
 
 func setupOracleBackedChainWithLowerHead(t *testing.T, blockCount int, headBlockNumber int) ([]*types.Block, *OracleBackedL2Chain) {
-	logger := testlog.Logger(t, log.LvlDebug)
-	chainCfg, blocks, oracle := setupOracle(t, blockCount, headBlockNumber)
+	logger := testlog.Logger(t, log.LevelDebug)
+	chainCfg, blocks, oracle := setupOracle(t, blockCount, headBlockNumber, false)
 	head := blocks[headBlockNumber].Hash()
 	stubOutput := eth.OutputV0{BlockHash: head}
-	chain, err := NewOracleBackedL2Chain(logger, oracle, chainCfg, common.Hash(eth.OutputRoot(&stubOutput)))
+	kzgOracle := new(l2test.StubKZGOracle)
+	chain, err := NewOracleBackedL2Chain(logger, oracle, kzgOracle, chainCfg, common.Hash(eth.OutputRoot(&stubOutput)))
 	require.NoError(t, err)
 	return blocks, chain
 }
 
-func setupOracle(t *testing.T, blockCount int, headBlockNumber int) (*params.ChainConfig, []*types.Block, *l2test.StubBlockOracle) {
+func setupOracle(t *testing.T, blockCount int, headBlockNumber int, enableEcotone bool) (*params.ChainConfig, []*types.Block, *l2test.StubBlockOracle) {
 	deployConfig := &genesis.DeployConfig{
 		L1ChainID:              900,
 		L2ChainID:              901,
@@ -218,6 +241,13 @@ func setupOracle(t *testing.T, blockCount int, headBlockNumber int) (*params.Cha
 		// Arbitrary non-zero difficulty in genesis.
 		// This is slightly weird for a chain starting post-merge but it happens so need to make sure it works
 		L2GenesisBlockDifficulty: (*hexutil.Big)(big.NewInt(100)),
+	}
+	if enableEcotone {
+		ts := hexutil.Uint64(0)
+		deployConfig.L2GenesisRegolithTimeOffset = &ts
+		deployConfig.L2GenesisCanyonTimeOffset = &ts
+		deployConfig.L2GenesisDeltaTimeOffset = &ts
+		deployConfig.L2GenesisEcotoneTimeOffset = &ts
 	}
 	l1Genesis, err := genesis.NewL1Genesis(deployConfig)
 	require.NoError(t, err)
@@ -246,7 +276,7 @@ func setupOracle(t *testing.T, blockCount int, headBlockNumber int) (*params.Cha
 	return chainCfg, blocks, oracle
 }
 
-func createBlock(t *testing.T, chain *OracleBackedL2Chain) *types.Block {
+func createBlockWithTargetAddress(t *testing.T, chain *OracleBackedL2Chain, target *common.Address) *types.Block {
 	parent := chain.GetBlockByHash(chain.CurrentHeader().Hash())
 	parentDB, err := chain.StateAt(parent.Root())
 	require.NoError(t, err)
@@ -257,16 +287,25 @@ func createBlock(t *testing.T, chain *OracleBackedL2Chain) *types.Block {
 		rawTx := &types.DynamicFeeTx{
 			ChainID:   config.ChainID,
 			Nonce:     nonce,
-			To:        &targetAddress,
+			To:        target,
 			GasTipCap: big.NewInt(0),
 			GasFeeCap: parent.BaseFee(),
-			Gas:       21_000,
+			Gas:       210_000,
+			Data:      inputData,
 			Value:     big.NewInt(1),
 		}
 		tx := types.MustSignNewTx(fundedKey, types.NewLondonSigner(config.ChainID), rawTx)
 		gen.AddTx(tx)
 	})
 	return blocks[0]
+}
+
+func createBlock(t *testing.T, chain *OracleBackedL2Chain) *types.Block {
+	return createBlockWithTargetAddress(t, chain, &targetAddress)
+}
+
+func createKZGBlock(t *testing.T, chain *OracleBackedL2Chain) *types.Block {
+	return createBlockWithTargetAddress(t, chain, &kzgPointEvaluationPrecompileAddress)
 }
 
 func TestEngineAPITests(t *testing.T) {

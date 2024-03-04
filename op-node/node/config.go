@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
+	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -43,6 +44,9 @@ type Config struct {
 
 	ConfigPersistence ConfigPersistence
 
+	// Path to store safe head database. Disabled when set to empty string
+	SafeDBPath string
+
 	// RuntimeConfigReloadInterval defines the interval between runtime config reloads.
 	// Disabled if <= 0.
 	// Runtime config changes should be picked up from log-events,
@@ -69,6 +73,9 @@ type Config struct {
 	ConductorEnabled    bool
 	ConductorRpc        string
 	ConductorRpcTimeout time.Duration
+
+	// Plasma DA config
+	Plasma plasma.CLIConfig
 }
 
 type RPCConfig struct {
@@ -163,6 +170,9 @@ func (cfg *Config) Check() error {
 		if !cfg.Driver.SequencerEnabled {
 			return fmt.Errorf("sequencer must be enabled when conductor is enabled")
 		}
+	}
+	if err := cfg.Plasma.Check(); err != nil {
+		return fmt.Errorf("plasma config error: %w", err)
 	}
 	return nil
 }

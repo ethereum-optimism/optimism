@@ -1,5 +1,11 @@
 # @eth-optimism/common-ts
 
+## 0.8.8
+
+### Patch Changes
+
+- [#9334](https://github.com/ethereum-optimism/optimism/pull/9334) [`1ed50c44a5c4fb7244ede3b4c45ea7bbf144c1e5`](https://github.com/ethereum-optimism/optimism/commit/1ed50c44a5c4fb7244ede3b4c45ea7bbf144c1e5) Thanks [@smartcontracts](https://github.com/smartcontracts)! - Adds a new validator for address types.
+
 ## 0.8.7
 
 ### Patch Changes

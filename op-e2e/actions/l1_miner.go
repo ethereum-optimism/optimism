@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/trie"
 
@@ -94,7 +95,8 @@ func (s *L1Miner) ActL1StartBlock(timeDelta uint64) Action {
 		if s.l1Cfg.Config.IsCancun(header.Number, header.Time) {
 			header.BlobGasUsed = new(uint64)
 			header.ExcessBlobGas = new(uint64)
-			header.ParentBeaconRoot = new(common.Hash)
+			root := crypto.Keccak256Hash([]byte("fake-beacon-block-root"), header.Number.Bytes())
+			header.ParentBeaconRoot = &root
 		}
 
 		s.l1Building = true

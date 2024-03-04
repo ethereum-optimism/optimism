@@ -15,9 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-var (
-	ErrNotFound = errors.New("not found")
-)
+var ErrNotFound = errors.New("not found")
 
 type OracleEngine struct {
 	api       *engineapi.L2EngineAPI
@@ -43,15 +41,24 @@ func (o *OracleEngine) L2OutputRoot(l2ClaimBlockNum uint64) (eth.Bytes32, error)
 	if err != nil {
 		return eth.Bytes32{}, fmt.Errorf("failed to open L2 state db at block %s: %w", outBlock.Hash(), err)
 	}
-	withdrawalsTrie, err := stateDB.Database().OpenStorageTrie(outBlock.Root, predeploys.L2ToL1MessagePasserAddr, stateDB.GetStorageRoot(predeploys.L2ToL1MessagePasserAddr))
+	withdrawalsTrie, err := stateDB.OpenStorageTrie(predeploys.L2ToL1MessagePasserAddr)
 	if err != nil {
 		return eth.Bytes32{}, fmt.Errorf("withdrawals trie unavailable at block %v: %w", outBlock.Hash(), err)
 	}
 	return rollup.ComputeL2OutputRootV0(eth.HeaderBlockInfo(outBlock), withdrawalsTrie.Hash())
 }
 
-func (o *OracleEngine) GetPayload(ctx context.Context, payloadId eth.PayloadID) (*eth.ExecutionPayloadEnvelope, error) {
-	res, err := o.api.GetPayloadV3(ctx, payloadId)
+func (o *OracleEngine) GetPayload(ctx context.Context, payloadInfo eth.PayloadInfo) (*eth.ExecutionPayloadEnvelope, error) {
+	var res *eth.ExecutionPayloadEnvelope
+	var err error
+	switch method := o.rollupCfg.GetPayloadVersion(payloadInfo.Timestamp); method {
+	case eth.GetPayloadV3:
+		res, err = o.api.GetPayloadV3(ctx, payloadInfo.ID)
+	case eth.GetPayloadV2:
+		res, err = o.api.GetPayloadV2(ctx, payloadInfo.ID)
+	default:
+		return nil, fmt.Errorf("unsupported GetPayload version: %s", method)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -59,14 +66,26 @@ func (o *OracleEngine) GetPayload(ctx context.Context, payloadId eth.PayloadID) 
 }
 
 func (o *OracleEngine) ForkchoiceUpdate(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
-	return o.api.ForkchoiceUpdatedV3(ctx, state, attr)
+	switch method := o.rollupCfg.ForkchoiceUpdatedVersion(attr); method {
+	case eth.FCUV3:
+		return o.api.ForkchoiceUpdatedV3(ctx, state, attr)
+	case eth.FCUV2:
+		return o.api.ForkchoiceUpdatedV2(ctx, state, attr)
+	case eth.FCUV1:
+		return o.api.ForkchoiceUpdatedV1(ctx, state, attr)
+	default:
+		return nil, fmt.Errorf("unsupported ForkchoiceUpdated version: %s", method)
+	}
 }
 
 func (o *OracleEngine) NewPayload(ctx context.Context, payload *eth.ExecutionPayload, parentBeaconBlockRoot *common.Hash) (*eth.PayloadStatusV1, error) {
-	if o.rollupCfg.IsEcotone(uint64(payload.Timestamp)) {
+	switch method := o.rollupCfg.NewPayloadVersion(uint64(payload.Timestamp)); method {
+	case eth.NewPayloadV3:
 		return o.api.NewPayloadV3(ctx, payload, []common.Hash{}, parentBeaconBlockRoot)
-	} else {
+	case eth.NewPayloadV2:
 		return o.api.NewPayloadV2(ctx, payload)
+	default:
+		return nil, fmt.Errorf("unsupported NewPayload version: %s", method)
 	}
 }
 

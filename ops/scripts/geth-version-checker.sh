@@ -7,7 +7,7 @@ MONOREPO_DIR=$(cd "$SCRIPTS_DIR/../../" && pwd)
 GETH_VERSION="v$(geth version | grep '^Version:' | awk '{print $2}')"
 
 # Read the version from the versions file
-EXPECTED_GETH_VERSION=$(jq -r .geth < $MONOREPO_DIR/versions.json)
+EXPECTED_GETH_VERSION=$(jq -r .geth < "$MONOREPO_DIR"/versions.json)
 
 # Check if EXPECTED_GETH_VERSION contains a '-'. If not, append '-stable'.
 if [[ $EXPECTED_GETH_VERSION != *-* ]]; then

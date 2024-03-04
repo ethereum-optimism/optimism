@@ -83,7 +83,7 @@ func NewRaftConsensus(log log.Logger, serverID, serverAddr, storageDir string, b
 		return nil, errors.Wrap(err, "failed to create raft")
 	}
 
-	// If boostrap = true, start raft in bootstrap mode, this will allow the current node to elect itself as leader when there's no other participants
+	// If bootstrap = true, start raft in bootstrap mode, this will allow the current node to elect itself as leader when there's no other participants
 	// and allow other nodes to join the cluster.
 	if bootstrap {
 		cfg := raft.Configuration{
@@ -145,9 +145,13 @@ func (rc *RaftConsensus) Leader() bool {
 }
 
 // LeaderWithID implements Consensus, it returns the leader's server ID and address.
-func (rc *RaftConsensus) LeaderWithID() (string, string) {
+func (rc *RaftConsensus) LeaderWithID() *ServerInfo {
 	addr, id := rc.r.LeaderWithID()
-	return string(id), string(addr)
+	return &ServerInfo{
+		ID:       string(id),
+		Addr:     string(addr),
+		Suffrage: Voter, // leader will always be Voter
+	}
 }
 
 // LeaderCh implements Consensus, it returns a channel that will be notified when leadership status changes (true = leader, false = follower).
@@ -220,4 +224,22 @@ func (rc *RaftConsensus) CommitUnsafePayload(payload *eth.ExecutionPayloadEnvelo
 func (rc *RaftConsensus) LatestUnsafePayload() *eth.ExecutionPayloadEnvelope {
 	payload := rc.unsafeTracker.UnsafeHead()
 	return payload
+}
+
+// ClusterMembership implements Consensus, it returns the current cluster membership configuration.
+func (rc *RaftConsensus) ClusterMembership() ([]*ServerInfo, error) {
+	var future raft.ConfigurationFuture
+	if future = rc.r.GetConfiguration(); future.Error() != nil {
+		return nil, future.Error()
+	}
+
+	var servers []*ServerInfo
+	for _, srv := range future.Configuration().Servers {
+		servers = append(servers, &ServerInfo{
+			ID:       string(srv.ID),
+			Addr:     string(srv.Address),
+			Suffrage: ServerSuffrage(srv.Suffrage),
+		})
+	}
+	return servers, nil
 }

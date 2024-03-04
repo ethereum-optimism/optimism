@@ -28,6 +28,12 @@ var (
 		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "CONSENSUS_PORT"),
 		Value:   50050,
 	}
+	RaftBootstrap = &cli.BoolFlag{
+		Name:    "raft.bootstrap",
+		Usage:   "If this node should bootstrap a new raft cluster",
+		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "RAFT_BOOTSTRAP"),
+		Value:   false,
+	}
 	RaftServerID = &cli.StringFlag{
 		Name:    "raft.server.id",
 		Usage:   "Unique ID for this server used by raft consensus",
@@ -90,6 +96,7 @@ var requiredFlags = []cli.Flag{
 	NodeRPC,
 	ExecutionRPC,
 	HealthCheckInterval,
+	HealthCheckUnsafeInterval,
 	HealthCheckSafeInterval,
 	HealthCheckMinPeerCount,
 }
@@ -97,6 +104,7 @@ var requiredFlags = []cli.Flag{
 var optionalFlags = []cli.Flag{
 	Paused,
 	RPCEnableProxy,
+	RaftBootstrap,
 }
 
 func init() {
@@ -104,7 +112,7 @@ func init() {
 	optionalFlags = append(optionalFlags, oplog.CLIFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, opmetrics.CLIFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, oppprof.CLIFlags(EnvVarPrefix)...)
-	optionalFlags = append(optionalFlags, opflags.CLIFlags(EnvVarPrefix)...)
+	optionalFlags = append(optionalFlags, opflags.CLIFlags(EnvVarPrefix, "")...)
 
 	Flags = append(requiredFlags, optionalFlags...)
 }

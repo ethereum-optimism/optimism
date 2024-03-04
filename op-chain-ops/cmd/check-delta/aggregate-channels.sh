@@ -33,6 +33,7 @@ singular_batch_count=0
 
 channels_with_invalid_batches=()
 
+# shellcheck disable=SC2016
 batch_type_counter_jq_script='reduce .batch_types[] as $batch_type (
     {"span_batch_count": 0, "singular_batch_count": 0};
     if $batch_type == 1 then
@@ -50,7 +51,7 @@ for file in "$directory_path"/*.json; do
         continue
     fi
     # check channels are ready
-    if [ $(jq -r ".is_ready" "$file") == "false" ] ; then
+    if [ "$(jq -r ".is_ready" "$file")" == "false" ] ; then
         # not ready channel have no batches so invalid_batches field is always false
         ((not_ready_channel_count++))
         not_ready_channels+=("$file")
@@ -59,12 +60,13 @@ for file in "$directory_path"/*.json; do
         ((ready_channel_count++))
     fi
     # check channels contain invalid batches
-    if [ $(jq -r ".invalid_batches" "$file") == "true" ] ; then
+    if [ "$(jq -r ".invalid_batches" "$file")" == "true" ] ; then
         channels_with_invalid_batches+=("$file")
     fi
     # count singular batch count and span batch count
     jq_result=$(jq "$batch_type_counter_jq_script" "$file")
-    read span_batch_count_per_channel singular_batch_count_per_channel <<< $jq_result
+    # shellcheck disable=SC2162
+    read span_batch_count_per_channel singular_batch_count_per_channel <<< "$jq_result"
     span_batch_count=$((span_batch_count+span_batch_count_per_channel))
     singular_batch_count=$((singular_batch_count+singular_batch_count_per_channel))
 done

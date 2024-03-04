@@ -58,7 +58,7 @@ const knownChains = [
 type ClientOptions =
   // for known chains like base don't require an rpcUrl
   | {
-      chainId: typeof knownChains[number]
+      chainId: (typeof knownChains)[number]
       rpcUrl?: string
       nativeCurrency?: chains.Chain['nativeCurrency']
     }

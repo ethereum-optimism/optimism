@@ -322,6 +322,7 @@ func FuzzStateHintRead(f *testing.F) {
 		require.Equal(t, preStateRoot, state.Memory.MerkleRoot())
 		require.Equal(t, uint64(1), state.Step)
 		require.Equal(t, preStatePreimageKey, state.PreimageKey)
+		require.Equal(t, expectedRegisters, state.Registers)
 
 		evm := NewMIPSEVM(contracts, addrs)
 		evmPost := evm.Step(t, stepWitness)
@@ -439,6 +440,7 @@ func FuzzStateHintWrite(f *testing.F) {
 		require.Equal(t, preStateRoot, state.Memory.MerkleRoot())
 		require.Equal(t, uint64(1), state.Step)
 		require.Equal(t, preStatePreimageKey, state.PreimageKey)
+		require.Equal(t, expectedRegisters, state.Registers)
 
 		evm := NewMIPSEVM(contracts, addrs)
 		evmPost := evm.Step(t, stepWitness)
@@ -471,9 +473,9 @@ func FuzzStatePreimageWrite(f *testing.F) {
 		expectedRegisters := state.Registers
 		sz := 4 - (addr & 0x3)
 		if sz < count {
-			sz = count
+			count = sz
 		}
-		expectedRegisters[2] = sz
+		expectedRegisters[2] = count
 
 		oracle := staticOracle(t, preimageData)
 		goState := NewInstrumentedState(state, oracle, os.Stdout, os.Stderr)
@@ -491,6 +493,7 @@ func FuzzStatePreimageWrite(f *testing.F) {
 		require.Equal(t, preStateRoot, state.Memory.MerkleRoot())
 		require.Equal(t, uint64(1), state.Step)
 		require.Equal(t, uint32(0), state.PreimageOffset)
+		require.Equal(t, expectedRegisters, state.Registers)
 
 		evm := NewMIPSEVM(contracts, addrs)
 		evmPost := evm.Step(t, stepWitness)

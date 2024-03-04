@@ -74,7 +74,7 @@ type Clock is uint128;
 type Position is uint128;
 
 /// @notice A `GameType` represents the type of game being played.
-type GameType is uint8;
+type GameType is uint32;
 
 /// @notice A `VMStatus` represents the status of a VM execution.
 type VMStatus is uint8;
@@ -94,6 +94,9 @@ enum GameStatus {
 library GameTypes {
     /// @dev A dispute game type the uses the cannon vm.
     GameType internal constant CANNON = GameType.wrap(0);
+
+    /// @dev A permissioned dispute game type the uses the cannon vm.
+    GameType internal constant PERMISSIONED_CANNON = GameType.wrap(1);
 
     /// @notice A dispute game type that uses an alphabet vm.
     ///         Not intended for production use.
@@ -128,8 +131,8 @@ library LocalPreimageKey {
     /// @notice The identifier for the disputed output root.
     uint256 internal constant DISPUTED_OUTPUT_ROOT = 0x03;
 
-    /// @notice The identifier for the starting L2 block number.
-    uint256 internal constant STARTING_L2_BLOCK_NUMBER = 0x04;
+    /// @notice The identifier for the disputed L2 block number.
+    uint256 internal constant DISPUTED_L2_BLOCK_NUMBER = 0x04;
 
     /// @notice The identifier for the chain ID.
     uint256 internal constant CHAIN_ID = 0x05;

@@ -7,31 +7,44 @@ import (
 	"fmt"
 	"math"
 	"math/big"
+	"sync/atomic"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/matrix"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/merkle"
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
+	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
 )
 
 const (
-	methodInitLPP                   = "initLPP"
-	methodAddLeavesLPP              = "addLeavesLPP"
-	methodSqueezeLPP                = "squeezeLPP"
-	methodLoadKeccak256PreimagePart = "loadKeccak256PreimagePart"
-	methodProposalCount             = "proposalCount"
-	methodProposals                 = "proposals"
-	methodProposalMetadata          = "proposalMetadata"
-	methodProposalBlocksLen         = "proposalBlocksLen"
-	methodProposalBlocks            = "proposalBlocks"
+	methodInitLPP                            = "initLPP"
+	methodAddLeavesLPP                       = "addLeavesLPP"
+	methodSqueezeLPP                         = "squeezeLPP"
+	methodLoadKeccak256PreimagePart          = "loadKeccak256PreimagePart"
+	methodLoadSha256PreimagePart             = "loadSha256PreimagePart"
+	methodLoadBlobPreimagePart               = "loadBlobPreimagePart"
+	methodLoadKZGPointEvaluationPreimagePart = "loadKZGPointEvaluationPreimagePart"
+	methodProposalCount                      = "proposalCount"
+	methodProposals                          = "proposals"
+	methodProposalMetadata                   = "proposalMetadata"
+	methodProposalBlocksLen                  = "proposalBlocksLen"
+	methodProposalBlocks                     = "proposalBlocks"
+	methodPreimagePartOk                     = "preimagePartOk"
+	methodMinProposalSize                    = "minProposalSize"
+	methodChallengeFirstLPP                  = "challengeFirstLPP"
+	methodChallengeLPP                       = "challengeLPP"
+	methodChallengePeriod                    = "challengePeriod"
+	methodGetTreeRootLPP                     = "getTreeRootLPP"
+	methodMinBondSizeLPP                     = "MIN_BOND_SIZE"
 )
 
 var (
 	ErrInvalidAddLeavesCall = errors.New("tx is not a valid addLeaves call")
+	ErrInvalidPreimageKey   = errors.New("invalid preimage key")
+	ErrUnsupportedKeyType   = errors.New("unsupported preimage key type")
 )
 
 // PreimageOracleContract is a binding that works with contracts implementing the IPreimageOracle interface
@@ -39,13 +52,20 @@ type PreimageOracleContract struct {
 	addr        common.Address
 	multiCaller *batching.MultiCaller
 	contract    *batching.BoundContract
+
+	// challengePeriod caches the challenge period from the contract once it has been loaded.
+	// 0 indicates the period has not been loaded yet.
+	challengePeriod atomic.Uint64
+	// minBondSizeLPP caches the minimum bond size for large preimages from the contract once it has been loaded.
+	// 0 indicates the value has not been loaded yet.
+	minBondSizeLPP atomic.Uint64
 }
 
 // toPreimageOracleLeaf converts a Leaf to the contract [bindings.PreimageOracleLeaf] type.
 func toPreimageOracleLeaf(l keccakTypes.Leaf) bindings.PreimageOracleLeaf {
 	return bindings.PreimageOracleLeaf{
 		Input:           l.Input[:],
-		Index:           l.Index,
+		Index:           new(big.Int).SetUint64(l.Index),
 		StateCommitment: l.StateCommitment,
 	}
 }
@@ -68,8 +88,31 @@ func (c *PreimageOracleContract) Addr() common.Address {
 }
 
 func (c *PreimageOracleContract) AddGlobalDataTx(data *types.PreimageOracleData) (txmgr.TxCandidate, error) {
-	call := c.contract.Call(methodLoadKeccak256PreimagePart, new(big.Int).SetUint64(uint64(data.OracleOffset)), data.GetPreimageWithoutSize())
-	return call.ToTxCandidate()
+	if len(data.OracleKey) == 0 {
+		return txmgr.TxCandidate{}, ErrInvalidPreimageKey
+	}
+	keyType := preimage.KeyType(data.OracleKey[0])
+	switch keyType {
+	case preimage.Keccak256KeyType:
+		call := c.contract.Call(methodLoadKeccak256PreimagePart, new(big.Int).SetUint64(uint64(data.OracleOffset)), data.GetPreimageWithoutSize())
+		return call.ToTxCandidate()
+	case preimage.Sha256KeyType:
+		call := c.contract.Call(methodLoadSha256PreimagePart, new(big.Int).SetUint64(uint64(data.OracleOffset)), data.GetPreimageWithoutSize())
+		return call.ToTxCandidate()
+	case preimage.BlobKeyType:
+		call := c.contract.Call(methodLoadBlobPreimagePart,
+			new(big.Int).SetUint64(data.BlobFieldIndex),
+			new(big.Int).SetBytes(data.GetPreimageWithoutSize()),
+			data.BlobCommitment,
+			data.BlobProof,
+			new(big.Int).SetUint64(uint64(data.OracleOffset)))
+		return call.ToTxCandidate()
+	case preimage.KZGPointEvaluationKeyType:
+		call := c.contract.Call(methodLoadKZGPointEvaluationPreimagePart, new(big.Int).SetUint64(uint64(data.OracleOffset)), data.GetPreimageWithoutSize())
+		return call.ToTxCandidate()
+	default:
+		return txmgr.TxCandidate{}, fmt.Errorf("%w: %v", ErrUnsupportedKeyType, keyType)
+	}
 }
 
 func (c *PreimageOracleContract) InitLargePreimage(uuid *big.Int, partOffset uint32, claimedSize uint32) (txmgr.TxCandidate, error) {
@@ -82,10 +125,51 @@ func (c *PreimageOracleContract) AddLeaves(uuid *big.Int, startingBlockIndex *bi
 	return call.ToTxCandidate()
 }
 
+// MinLargePreimageSize returns the minimum size of a large preimage.
+func (c *PreimageOracleContract) MinLargePreimageSize(ctx context.Context) (uint64, error) {
+	result, err := c.multiCaller.SingleCall(ctx, batching.BlockLatest, c.contract.Call(methodMinProposalSize))
+	if err != nil {
+		return 0, fmt.Errorf("failed to fetch min lpp size bytes: %w", err)
+	}
+	return result.GetBigInt(0).Uint64(), nil
+}
+
+// ChallengePeriod returns the challenge period for large preimages.
+func (c *PreimageOracleContract) ChallengePeriod(ctx context.Context) (uint64, error) {
+	if period := c.challengePeriod.Load(); period != 0 {
+		return period, nil
+	}
+	result, err := c.multiCaller.SingleCall(ctx, batching.BlockLatest, c.contract.Call(methodChallengePeriod))
+	if err != nil {
+		return 0, fmt.Errorf("failed to fetch challenge period: %w", err)
+	}
+	period := result.GetBigInt(0).Uint64()
+	c.challengePeriod.Store(period)
+	return period, nil
+}
+
+func (c *PreimageOracleContract) CallSqueeze(
+	ctx context.Context,
+	claimant common.Address,
+	uuid *big.Int,
+	prestateMatrix keccakTypes.StateSnapshot,
+	preState keccakTypes.Leaf,
+	preStateProof merkle.Proof,
+	postState keccakTypes.Leaf,
+	postStateProof merkle.Proof,
+) error {
+	call := c.contract.Call(methodSqueezeLPP, claimant, uuid, abiEncodeSnapshot(prestateMatrix), toPreimageOracleLeaf(preState), preStateProof, toPreimageOracleLeaf(postState), postStateProof)
+	_, err := c.multiCaller.SingleCall(ctx, batching.BlockLatest, call)
+	if err != nil {
+		return fmt.Errorf("failed to call squeeze: %w", err)
+	}
+	return nil
+}
+
 func (c *PreimageOracleContract) Squeeze(
 	claimant common.Address,
 	uuid *big.Int,
-	stateMatrix *matrix.StateMatrix,
+	prestateMatrix keccakTypes.StateSnapshot,
 	preState keccakTypes.Leaf,
 	preStateProof merkle.Proof,
 	postState keccakTypes.Leaf,
@@ -95,7 +179,7 @@ func (c *PreimageOracleContract) Squeeze(
 		methodSqueezeLPP,
 		claimant,
 		uuid,
-		abiEncodeStateMatrix(stateMatrix),
+		abiEncodeSnapshot(prestateMatrix),
 		toPreimageOracleLeaf(preState),
 		preStateProof,
 		toPreimageOracleLeaf(postState),
@@ -104,15 +188,8 @@ func (c *PreimageOracleContract) Squeeze(
 	return call.ToTxCandidate()
 }
 
-// abiEncodeStateMatrix encodes the state matrix for the contract ABI
-func abiEncodeStateMatrix(stateMatrix *matrix.StateMatrix) bindings.LibKeccakStateMatrix {
-	packedState := stateMatrix.PackState()
-	stateSlice := new([25]uint64)
-	// SAFETY: a maximum of 25 * 8 bytes will be read from packedState and written to stateSlice
-	for i := 0; i < min(len(packedState), 25*8); i += 8 {
-		stateSlice[i/8] = new(big.Int).SetBytes(packedState[i : i+8]).Uint64()
-	}
-	return bindings.LibKeccakStateMatrix{State: *stateSlice}
+func abiEncodeSnapshot(packedState keccakTypes.StateSnapshot) bindings.LibKeccakStateMatrix {
+	return bindings.LibKeccakStateMatrix{State: packedState}
 }
 
 func (c *PreimageOracleContract) GetActivePreimages(ctx context.Context, blockHash common.Hash) ([]keccakTypes.LargePreimageMetaData, error) {
@@ -155,6 +232,15 @@ func (c *PreimageOracleContract) GetProposalMetadata(ctx context.Context, block 
 		})
 	}
 	return proposals, nil
+}
+
+func (c *PreimageOracleContract) GetProposalTreeRoot(ctx context.Context, block batching.Block, ident keccakTypes.LargePreimageIdent) (common.Hash, error) {
+	call := c.contract.Call(methodGetTreeRootLPP, ident.Claimant, ident.UUID)
+	result, err := c.multiCaller.SingleCall(ctx, block, call)
+	if err != nil {
+		return common.Hash{}, fmt.Errorf("failed to get tree root: %w", err)
+	}
+	return result.GetHash(0), nil
 }
 
 func (c *PreimageOracleContract) GetInputDataBlocks(ctx context.Context, block batching.Block, ident keccakTypes.LargePreimageIdent) ([]uint64, error) {
@@ -202,6 +288,51 @@ func (c *PreimageOracleContract) DecodeInputData(data []byte) (*big.Int, keccakT
 		Commitments: commitments,
 		Finalize:    finalize,
 	}, nil
+}
+
+func (c *PreimageOracleContract) GlobalDataExists(ctx context.Context, data *types.PreimageOracleData) (bool, error) {
+	call := c.contract.Call(methodPreimagePartOk, common.Hash(data.OracleKey), new(big.Int).SetUint64(uint64(data.OracleOffset)))
+	results, err := c.multiCaller.SingleCall(ctx, batching.BlockLatest, call)
+	if err != nil {
+		return false, fmt.Errorf("failed to get preimagePartOk: %w", err)
+	}
+	return results.GetBool(0), nil
+}
+
+func (c *PreimageOracleContract) ChallengeTx(ident keccakTypes.LargePreimageIdent, challenge keccakTypes.Challenge) (txmgr.TxCandidate, error) {
+	var call *batching.ContractCall
+	if challenge.Prestate == (keccakTypes.Leaf{}) {
+		call = c.contract.Call(
+			methodChallengeFirstLPP,
+			ident.Claimant,
+			ident.UUID,
+			toPreimageOracleLeaf(challenge.Poststate),
+			challenge.PoststateProof)
+	} else {
+		call = c.contract.Call(
+			methodChallengeLPP,
+			ident.Claimant,
+			ident.UUID,
+			abiEncodeSnapshot(challenge.StateMatrix),
+			toPreimageOracleLeaf(challenge.Prestate),
+			challenge.PrestateProof,
+			toPreimageOracleLeaf(challenge.Poststate),
+			challenge.PoststateProof)
+	}
+	return call.ToTxCandidate()
+}
+
+func (c *PreimageOracleContract) GetMinBondLPP(ctx context.Context) (*big.Int, error) {
+	if bondSize := c.minBondSizeLPP.Load(); bondSize != 0 {
+		return big.NewInt(int64(bondSize)), nil
+	}
+	result, err := c.multiCaller.SingleCall(ctx, batching.BlockLatest, c.contract.Call(methodMinBondSizeLPP))
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch min bond size for LPPs: %w", err)
+	}
+	period := result.GetBigInt(0)
+	c.minBondSizeLPP.Store(period.Uint64())
+	return period, nil
 }
 
 func (c *PreimageOracleContract) decodePreimageIdent(result *batching.CallResult) keccakTypes.LargePreimageIdent {

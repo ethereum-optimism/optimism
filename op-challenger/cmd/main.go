@@ -48,6 +48,9 @@ func run(ctx context.Context, args []string, action ConfiguredLifecycle) error {
 	app.Commands = []*cli.Command{
 		ListGamesCommand,
 		ListClaimsCommand,
+		CreateGameCommand,
+		MoveCommand,
+		ResolveCommand,
 	}
 	app.Action = cliapp.LifecycleCmd(func(ctx *cli.Context, close context.CancelCauseFunc) (cliapp.Lifecycle, error) {
 		logger, err := setupLogging(ctx)
@@ -68,6 +71,6 @@ func run(ctx context.Context, args []string, action ConfiguredLifecycle) error {
 func setupLogging(ctx *cli.Context) (log.Logger, error) {
 	logCfg := oplog.ReadCLIConfig(ctx)
 	logger := oplog.NewLogger(oplog.AppOut(ctx), logCfg)
-	oplog.SetGlobalLogHandler(logger.GetHandler())
+	oplog.SetGlobalLogHandler(logger.Handler())
 	return logger, nil
 }

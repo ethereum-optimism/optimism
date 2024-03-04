@@ -201,7 +201,6 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     ///         Unsafe blocks can be propagated across the p2p network if they are signed by the
     ///         key corresponding to this address.
     /// @return addr_ Address of the unsafe block signer.
-    // solhint-disable-next-line ordering
     function unsafeBlockSigner() public view returns (address addr_) {
         addr_ = Storage.getAddress(UNSAFE_BLOCK_SIGNER_SLOT);
     }

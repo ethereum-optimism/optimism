@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 // Testing utilities
 import { Bridge_Initializer } from "test/setup/Bridge_Initializer.sol";
 import { Reverter, ConfigurableCaller } from "test/mocks/Callers.sol";
+import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
 // Libraries
 import { Hashing } from "src/libraries/Hashing.sol";
@@ -21,10 +22,11 @@ contract L2CrossDomainMessenger_Test is Bridge_Initializer {
 
     /// @dev Tests that the implementation is initialized correctly.
     function test_constructor_succeeds() external {
-        L2CrossDomainMessenger impl = L2CrossDomainMessenger(deploy.mustGetAddress("L2CrossDomainMessenger"));
-        assertEq(address(impl.OTHER_MESSENGER()), address(l1CrossDomainMessenger));
-        assertEq(address(impl.otherMessenger()), address(l1CrossDomainMessenger));
-        assertEq(address(impl.l1CrossDomainMessenger()), address(l1CrossDomainMessenger));
+        L2CrossDomainMessenger impl =
+            L2CrossDomainMessenger(EIP1967Helper.getImplementation(deploy.mustGetAddress("L2CrossDomainMessenger")));
+        assertEq(address(impl.OTHER_MESSENGER()), address(0));
+        assertEq(address(impl.otherMessenger()), address(0));
+        assertEq(address(impl.l1CrossDomainMessenger()), address(0));
     }
 
     /// @dev Tests that the proxy is initialized correctly.

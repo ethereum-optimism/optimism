@@ -15,7 +15,7 @@ import (
 )
 
 func TestScheduleNewGames(t *testing.T) {
-	c, workQueue, _, games, disk := setupCoordinatorTest(t, 10)
+	c, workQueue, _, games, disk, _ := setupCoordinatorTest(t, 10)
 	gameAddr1 := common.Address{0xaa}
 	gameAddr2 := common.Address{0xbb}
 	gameAddr3 := common.Address{0xcc}
@@ -36,7 +36,7 @@ func TestScheduleNewGames(t *testing.T) {
 }
 
 func TestSkipSchedulingInflightGames(t *testing.T) {
-	c, workQueue, _, _, _ := setupCoordinatorTest(t, 10)
+	c, workQueue, _, _, _, _ := setupCoordinatorTest(t, 10)
 	gameAddr1 := common.Address{0xaa}
 	ctx := context.Background()
 
@@ -51,7 +51,7 @@ func TestSkipSchedulingInflightGames(t *testing.T) {
 
 func TestExitWhenContextDoneWhileSchedulingJob(t *testing.T) {
 	// No space in buffer to schedule a job
-	c, workQueue, _, _, _ := setupCoordinatorTest(t, 0)
+	c, workQueue, _, _, _, _ := setupCoordinatorTest(t, 0)
 	gameAddr1 := common.Address{0xaa}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Context is cancelled
@@ -63,8 +63,8 @@ func TestExitWhenContextDoneWhileSchedulingJob(t *testing.T) {
 }
 
 func TestSchedule_PrestateValidationErrors(t *testing.T) {
-	c, _, _, games, _ := setupCoordinatorTest(t, 10)
-	games.PrestateErr = fmt.Errorf("prestate error")
+	c, _, _, games, _, _ := setupCoordinatorTest(t, 10)
+	games.PrestateErr = types.ErrInvalidPrestate
 	gameAddr1 := common.Address{0xaa}
 	ctx := context.Background()
 
@@ -72,8 +72,34 @@ func TestSchedule_PrestateValidationErrors(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestSchedule_SkipPrestateValidationErrors(t *testing.T) {
+	c, _, _, games, _, logs := setupCoordinatorTest(t, 10)
+	c.allowInvalidPrestate = true
+	games.PrestateErr = types.ErrInvalidPrestate
+	gameAddr1 := common.Address{0xaa}
+	ctx := context.Background()
+
+	err := c.schedule(ctx, asGames(gameAddr1), 0)
+	require.NoError(t, err)
+	errLog := logs.FindLog(testlog.NewLevelFilter(log.LevelError), testlog.NewMessageFilter("Invalid prestate"))
+	require.NotNil(t, errLog)
+	require.Equal(t, errLog.AttrValue("game"), gameAddr1)
+	require.Equal(t, errLog.AttrValue("err"), games.PrestateErr)
+}
+
+func TestSchedule_PrestateValidationFailure(t *testing.T) {
+	c, _, _, games, _, _ := setupCoordinatorTest(t, 10)
+	c.allowInvalidPrestate = true
+	games.PrestateErr = fmt.Errorf("failed to fetch prestate")
+	gameAddr1 := common.Address{0xaa}
+	ctx := context.Background()
+
+	err := c.schedule(ctx, asGames(gameAddr1), 0)
+	require.ErrorIs(t, err, games.PrestateErr)
+}
+
 func TestScheduleGameAgainAfterCompletion(t *testing.T) {
-	c, workQueue, _, _, _ := setupCoordinatorTest(t, 10)
+	c, workQueue, _, _, _, _ := setupCoordinatorTest(t, 10)
 	gameAddr1 := common.Address{0xaa}
 	ctx := context.Background()
 
@@ -94,13 +120,13 @@ func TestScheduleGameAgainAfterCompletion(t *testing.T) {
 }
 
 func TestResultForUnknownGame(t *testing.T) {
-	c, _, _, _, _ := setupCoordinatorTest(t, 10)
+	c, _, _, _, _, _ := setupCoordinatorTest(t, 10)
 	err := c.processResult(job{addr: common.Address{0xaa}})
 	require.ErrorIs(t, err, errUnknownGame)
 }
 
 func TestProcessResultsWhileJobQueueFull(t *testing.T) {
-	c, workQueue, resultQueue, games, disk := setupCoordinatorTest(t, 0)
+	c, workQueue, resultQueue, games, disk, _ := setupCoordinatorTest(t, 0)
 	gameAddr1 := common.Address{0xaa}
 	gameAddr2 := common.Address{0xbb}
 	gameAddr3 := common.Address{0xcc}
@@ -142,7 +168,7 @@ loop:
 }
 
 func TestDeleteDataForResolvedGames(t *testing.T) {
-	c, workQueue, _, _, disk := setupCoordinatorTest(t, 10)
+	c, workQueue, _, _, disk, _ := setupCoordinatorTest(t, 10)
 	gameAddr1 := common.Address{0xaa}
 	gameAddr2 := common.Address{0xbb}
 	gameAddr3 := common.Address{0xcc}
@@ -182,7 +208,7 @@ func TestDeleteDataForResolvedGames(t *testing.T) {
 }
 
 func TestSchedule_RecordActedL1Block(t *testing.T) {
-	c, workQueue, _, _, _ := setupCoordinatorTest(t, 10)
+	c, workQueue, _, _, _, _ := setupCoordinatorTest(t, 10)
 	gameAddr3 := common.Address{0xcc}
 	ctx := context.Background()
 
@@ -203,7 +229,7 @@ func TestSchedule_RecordActedL1Block(t *testing.T) {
 }
 
 func TestSchedule_RecordActedL1BlockMultipleGames(t *testing.T) {
-	c, workQueue, _, _, _ := setupCoordinatorTest(t, 10)
+	c, workQueue, _, _, _, _ := setupCoordinatorTest(t, 10)
 	gameAddr1 := common.Address{0xaa}
 	gameAddr2 := common.Address{0xbb}
 	gameAddr3 := common.Address{0xcc}
@@ -247,7 +273,7 @@ func TestSchedule_RecordActedL1BlockMultipleGames(t *testing.T) {
 }
 
 func TestSchedule_RecordActedL1BlockNewGame(t *testing.T) {
-	c, workQueue, _, _, _ := setupCoordinatorTest(t, 10)
+	c, workQueue, _, _, _, _ := setupCoordinatorTest(t, 10)
 	gameAddr1 := common.Address{0xaa}
 	gameAddr2 := common.Address{0xbb}
 	gameAddr3 := common.Address{0xcc}
@@ -276,7 +302,7 @@ func TestSchedule_RecordActedL1BlockNewGame(t *testing.T) {
 }
 
 func TestDoNotDeleteDataForGameThatFailedToCreatePlayer(t *testing.T) {
-	c, workQueue, _, games, disk := setupCoordinatorTest(t, 10)
+	c, workQueue, _, games, disk, _ := setupCoordinatorTest(t, 10)
 	gameAddr1 := common.Address{0xaa}
 	gameAddr2 := common.Address{0xbb}
 	ctx := context.Background()
@@ -307,7 +333,7 @@ func TestDoNotDeleteDataForGameThatFailedToCreatePlayer(t *testing.T) {
 }
 
 func TestDropOldGameStates(t *testing.T) {
-	c, workQueue, _, _, _ := setupCoordinatorTest(t, 10)
+	c, workQueue, _, _, _, _ := setupCoordinatorTest(t, 10)
 	gameAddr1 := common.Address{0xaa}
 	gameAddr2 := common.Address{0xbb}
 	gameAddr3 := common.Address{0xcc}
@@ -331,8 +357,8 @@ func TestDropOldGameStates(t *testing.T) {
 	require.Contains(t, c.states, gameAddr4, "should create state for game 4")
 }
 
-func setupCoordinatorTest(t *testing.T, bufferSize int) (*coordinator, <-chan job, chan job, *createdGames, *stubDiskManager) {
-	logger := testlog.Logger(t, log.LvlInfo)
+func setupCoordinatorTest(t *testing.T, bufferSize int) (*coordinator, <-chan job, chan job, *createdGames, *stubDiskManager, *testlog.CapturingHandler) {
+	logger, logs := testlog.CaptureLogger(t, log.LevelInfo)
 	workQueue := make(chan job, bufferSize)
 	resultQueue := make(chan job, bufferSize)
 	games := &createdGames{
@@ -340,8 +366,8 @@ func setupCoordinatorTest(t *testing.T, bufferSize int) (*coordinator, <-chan jo
 		created: make(map[common.Address]*test.StubGamePlayer),
 	}
 	disk := &stubDiskManager{gameDirExists: make(map[common.Address]bool)}
-	c := newCoordinator(logger, &stubSchedulerMetrics{}, workQueue, resultQueue, games.CreateGame, disk)
-	return c, workQueue, resultQueue, games, disk
+	c := newCoordinator(logger, &stubSchedulerMetrics{}, workQueue, resultQueue, games.CreateGame, disk, false)
+	return c, workQueue, resultQueue, games, disk, logs
 }
 
 type createdGames struct {

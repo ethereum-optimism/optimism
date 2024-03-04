@@ -142,6 +142,10 @@ func (s *L2Engine) AddPeers(peers ...*enode.Node) {
 	}
 }
 
+func (s *L2Engine) PeerCount() int {
+	return s.node.Server().PeerCount()
+}
+
 func (s *L2Engine) EthClient() *ethclient.Client {
 	cl := s.node.Attach()
 	return ethclient.NewClient(cl)

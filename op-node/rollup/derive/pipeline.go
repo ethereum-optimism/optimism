@@ -68,11 +68,11 @@ type DerivationPipeline struct {
 
 // NewDerivationPipeline creates a derivation pipeline, which should be reset before use.
 
-func NewDerivationPipeline(log log.Logger, rollupCfg *rollup.Config, l1Fetcher L1Fetcher, l1Blobs L1BlobsFetcher, l2Source L2Source, engine LocalEngineControl, metrics Metrics, syncCfg *sync.Config) *DerivationPipeline {
+func NewDerivationPipeline(log log.Logger, rollupCfg *rollup.Config, l1Fetcher L1Fetcher, l1Blobs L1BlobsFetcher, plasmaInputs PlasmaInputFetcher, l2Source L2Source, engine LocalEngineControl, metrics Metrics, syncCfg *sync.Config, safeHeadListener SafeHeadListener) *DerivationPipeline {
 
 	// Pull stages
 	l1Traversal := NewL1Traversal(log, rollupCfg, l1Fetcher)
-	dataSrc := NewDataSourceFactory(log, rollupCfg, l1Fetcher, l1Blobs) // auxiliary stage for L1Retrieval
+	dataSrc := NewDataSourceFactory(log, rollupCfg, l1Fetcher, l1Blobs, plasmaInputs) // auxiliary stage for L1Retrieval
 	l1Src := NewL1Retrieval(log, dataSrc, l1Traversal)
 	frameQueue := NewFrameQueue(log, l1Src)
 	bank := NewChannelBank(log, rollupCfg, frameQueue, l1Fetcher, metrics)
@@ -82,7 +82,7 @@ func NewDerivationPipeline(log log.Logger, rollupCfg *rollup.Config, l1Fetcher L
 	attributesQueue := NewAttributesQueue(log, rollupCfg, attrBuilder, batchQueue)
 
 	// Step stages
-	eng := NewEngineQueue(log, rollupCfg, l2Source, engine, metrics, attributesQueue, l1Fetcher, syncCfg)
+	eng := NewEngineQueue(log, rollupCfg, l2Source, engine, metrics, attributesQueue, l1Fetcher, syncCfg, safeHeadListener)
 
 	// Reset from engine queue then up from L1 Traversal. The stages do not talk to each other during
 	// the reset, but after the engine queue, this is the order in which the stages could talk to each other.
@@ -139,7 +139,7 @@ func (dp *DerivationPipeline) LowestQueuedUnsafeBlock() eth.L2BlockRef {
 }
 
 // Step tries to progress the buffer.
-// An EOF is returned if there pipeline is blocked by waiting for new L1 data.
+// An EOF is returned if the pipeline is blocked by waiting for new L1 data.
 // If ctx errors no error is returned, but the step may exit early in a state that can still be continued.
 // Any other error is critical and the derivation pipeline should be reset.
 // An error is expected when the underlying source closes.

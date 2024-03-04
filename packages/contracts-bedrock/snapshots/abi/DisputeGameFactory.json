@@ -9,7 +9,7 @@
       {
         "internalType": "GameType",
         "name": "_gameType",
-        "type": "uint8"
+        "type": "uint32"
       },
       {
         "internalType": "Claim",
@@ -36,6 +36,62 @@
   {
     "inputs": [
       {
+        "internalType": "GameType",
+        "name": "_gameType",
+        "type": "uint32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_start",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_n",
+        "type": "uint256"
+      }
+    ],
+    "name": "findLatestGames",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "index",
+            "type": "uint256"
+          },
+          {
+            "internalType": "GameId",
+            "name": "metadata",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "Timestamp",
+            "name": "timestamp",
+            "type": "uint64"
+          },
+          {
+            "internalType": "Claim",
+            "name": "rootClaim",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes",
+            "name": "extraData",
+            "type": "bytes"
+          }
+        ],
+        "internalType": "struct IDisputeGameFactory.GameSearchResult[]",
+        "name": "games_",
+        "type": "tuple[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "uint256",
         "name": "_index",
         "type": "uint256"
@@ -46,7 +102,7 @@
       {
         "internalType": "GameType",
         "name": "gameType_",
-        "type": "uint8"
+        "type": "uint32"
       },
       {
         "internalType": "Timestamp",
@@ -80,7 +136,7 @@
       {
         "internalType": "GameType",
         "name": "",
-        "type": "uint8"
+        "type": "uint32"
       }
     ],
     "name": "gameImpls",
@@ -99,7 +155,7 @@
       {
         "internalType": "GameType",
         "name": "_gameType",
-        "type": "uint8"
+        "type": "uint32"
       },
       {
         "internalType": "Claim",
@@ -133,7 +189,7 @@
       {
         "internalType": "GameType",
         "name": "_gameType",
-        "type": "uint8"
+        "type": "uint32"
       },
       {
         "internalType": "Claim",
@@ -162,7 +218,7 @@
       {
         "internalType": "GameType",
         "name": "",
-        "type": "uint8"
+        "type": "uint32"
       }
     ],
     "name": "initBonds",
@@ -214,7 +270,7 @@
       {
         "internalType": "GameType",
         "name": "_gameType",
-        "type": "uint8"
+        "type": "uint32"
       },
       {
         "internalType": "contract IDisputeGame",
@@ -232,7 +288,7 @@
       {
         "internalType": "GameType",
         "name": "_gameType",
-        "type": "uint8"
+        "type": "uint32"
       },
       {
         "internalType": "uint256",
@@ -284,7 +340,7 @@
         "indexed": true,
         "internalType": "GameType",
         "name": "gameType",
-        "type": "uint8"
+        "type": "uint32"
       },
       {
         "indexed": true,
@@ -309,7 +365,7 @@
         "indexed": true,
         "internalType": "GameType",
         "name": "gameType",
-        "type": "uint8"
+        "type": "uint32"
       }
     ],
     "name": "ImplementationSet",
@@ -322,7 +378,7 @@
         "indexed": true,
         "internalType": "GameType",
         "name": "gameType",
-        "type": "uint8"
+        "type": "uint32"
       },
       {
         "indexed": true,
@@ -387,7 +443,7 @@
       {
         "internalType": "GameType",
         "name": "gameType",
-        "type": "uint8"
+        "type": "uint32"
       }
     ],
     "name": "NoImplementation",

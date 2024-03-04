@@ -53,34 +53,9 @@ func TestDirectPreimageUploader_UploadPreimage(t *testing.T) {
 	})
 }
 
-func TestDirectPreimageUploader_SendTxAndWait(t *testing.T) {
-	t.Run("SendFails", func(t *testing.T) {
-		oracle, txMgr, _ := newTestDirectPreimageUploader(t)
-		txMgr.sendFails = true
-		err := oracle.sendTxAndWait(context.Background(), txmgr.TxCandidate{})
-		require.ErrorIs(t, err, mockTxMgrSendError)
-		require.Equal(t, 1, txMgr.sends)
-	})
-
-	t.Run("ReceiptStatusFailed", func(t *testing.T) {
-		oracle, txMgr, _ := newTestDirectPreimageUploader(t)
-		txMgr.statusFail = true
-		err := oracle.sendTxAndWait(context.Background(), txmgr.TxCandidate{})
-		require.NoError(t, err)
-		require.Equal(t, 1, txMgr.sends)
-	})
-
-	t.Run("Success", func(t *testing.T) {
-		oracle, txMgr, _ := newTestDirectPreimageUploader(t)
-		err := oracle.sendTxAndWait(context.Background(), txmgr.TxCandidate{})
-		require.NoError(t, err)
-		require.Equal(t, 1, txMgr.sends)
-	})
-}
-
-func newTestDirectPreimageUploader(t *testing.T) (*DirectPreimageUploader, *mockTxMgr, *mockPreimageGameContract) {
-	logger := testlog.Logger(t, log.LvlError)
-	txMgr := &mockTxMgr{}
+func newTestDirectPreimageUploader(t *testing.T) (*DirectPreimageUploader, *mockTxSender, *mockPreimageGameContract) {
+	logger := testlog.Logger(t, log.LevelError)
+	txMgr := &mockTxSender{}
 	contract := &mockPreimageGameContract{}
 	return NewDirectPreimageUploader(logger, txMgr, contract), txMgr, contract
 }
@@ -98,23 +73,23 @@ func (s *mockPreimageGameContract) UpdateOracleTx(_ context.Context, _ uint64, _
 	return txmgr.TxCandidate{}, nil
 }
 
-type mockTxMgr struct {
+type mockTxSender struct {
 	sends      int
 	sendFails  bool
 	statusFail bool
 }
 
-func (s *mockTxMgr) Send(_ context.Context, _ txmgr.TxCandidate) (*ethtypes.Receipt, error) {
+func (s *mockTxSender) From() common.Address {
+	return common.Address{}
+}
+
+func (s *mockTxSender) SendAndWait(_ string, _ ...txmgr.TxCandidate) ([]*ethtypes.Receipt, error) {
 	s.sends++
 	if s.sendFails {
 		return nil, mockTxMgrSendError
 	}
 	if s.statusFail {
-		return &ethtypes.Receipt{Status: ethtypes.ReceiptStatusFailed}, nil
+		return []*ethtypes.Receipt{{Status: ethtypes.ReceiptStatusFailed}}, nil
 	}
-	return &ethtypes.Receipt{Status: ethtypes.ReceiptStatusSuccessful}, nil
+	return []*ethtypes.Receipt{{Status: ethtypes.ReceiptStatusSuccessful}}, nil
 }
-
-func (s *mockTxMgr) BlockNumber(_ context.Context) (uint64, error) { return 0, nil }
-func (s *mockTxMgr) From() common.Address                          { return common.Address{} }
-func (s *mockTxMgr) Close()                                        {}
