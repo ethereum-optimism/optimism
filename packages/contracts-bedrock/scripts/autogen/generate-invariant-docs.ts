@@ -1,8 +1,9 @@
 import fs from 'fs'
 import path from 'path'
 
-const BASE_INVARIANTS_DIR = path.join(__dirname, '..', 'test', 'invariants')
-const BASE_DOCS_DIR = path.join(__dirname, '..', 'invariant-docs')
+const ROOT_DIR = path.join(__dirname, '..', '..')
+const BASE_INVARIANTS_DIR = path.join(ROOT_DIR, 'test', 'invariants')
+const BASE_DOCS_DIR = path.join(ROOT_DIR, 'invariant-docs')
 const BASE_INVARIANT_GH_URL = '../test/invariants/'
 const NATSPEC_INV = '@custom:invariant'
 

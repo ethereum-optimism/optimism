@@ -28,7 +28,7 @@ To auto-generate documentation for invariant tests, run `pnpm autogen:invariant-
 
 ## Documentation Standard
 
-In order for an invariant test file to be picked up by the [docgen script](../scripts/invariant-doc-gen.ts), it must
+In order for an invariant test file to be picked up by the [docgen script](../scripts/autogen/generate-invariant-docs.ts), it must
 adhere to the following conventions:
 
 ### Forge Invariants
