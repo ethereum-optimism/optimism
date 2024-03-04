@@ -64,7 +64,7 @@ Lemmas on arithmetic reasoning.
 
 ## `#asWord`
 
-Lemmas about [`#asWord`](https://github.com/runtimeverification/evm-semantics/blob/master/kevm-pyk/src/kevm_pyk/kproj/evm-semantics/evm-types.md#bytes-helper-functions). `#asWord` will interperet a stack of bytes as a single word (with MSB first).
+Lemmas about [`#asWord`](https://github.com/runtimeverification/evm-semantics/blob/master/kevm-pyk/src/kevm_pyk/kproj/evm-semantics/evm-types.md#bytes-helper-functions). `#asWord` will interpret a stack of bytes as a single word (with MSB first).
 
 ```k
     // Move to function parameters
