@@ -332,7 +332,7 @@ Not every contract can be added as a preinstall, and some contracts have nuances
 Once you've configured the `contracts-list` to include the contracts you'd like to add as preinstalls, the next step is utilizing the BindGen outputs to configure the L2 genesis.
 
 1. First we must update the [addresses.go](../predeploys/addresses.go) file to include the address we're preinstalling our contracts to
-2. Update the `switch` case found in [layer_two.go](../../op-chain-ops/genesis/layer_two.go) to include the `name` of your contracts
-3. Update [immutables.go](../../op-chain-ops/immutables/immutables.go) to include your added contracts
-4. Update [Predeploys.sol](../../packages/contracts-bedrock/src/libraries/Predeploys.sol) to include your added contracts at their expected addresses
-5. Update [Predeploys.t.sol](../../packages/contracts-bedrock/test/Predeploys.t.sol) to include the `name` of your contracts to avoid being tested for `Predeploys.PROXY_ADMIN`
+1. Update the `switch` case found in [layer_two.go](../../op-chain-ops/genesis/layer_two.go) to include the `name` of your contracts
+1. Update [immutables.go](../../op-chain-ops/immutables/immutables.go) to include your added contracts
+1. Update [Predeploys.sol](../../packages/contracts-bedrock/src/libraries/Predeploys.sol) to include your added contracts at their expected addresses
+1. Update [Predeploys.t.sol](../../packages/contracts-bedrock/test/Predeploys.t.sol) to include the `name` of your contracts to avoid being tested for `Predeploys.PROXY_ADMIN`
