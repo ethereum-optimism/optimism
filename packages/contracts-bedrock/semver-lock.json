@@ -95,6 +95,14 @@
     "initCodeHash": "0x0da844fb4dd22f252ff631524f01f45edf43bca7558fe45f71d711b79af01742",
     "sourceCodeHash": "0x1afb1d392e8f6a58ff86ea7f648e0d1756d4ba8d0d964279d58a390deaa53b7e"
   },
+  "src/cannon/MIPS.sol": {
+    "initCodeHash": "0xaf2ac814f64ccf12e9c6738db7cef865f51f9e39f39105adef9fba11465f6ee1",
+    "sourceCodeHash": "0x6ab593a4b87007c000c254b2c4ff0507683600f48b60e453148e44bee30030f6"
+  },
+  "src/cannon/PreimageOracle.sol": {
+    "initCodeHash": "0x8d192f5aa374c4c150126c3781fc49d00f76deefd46013a4e624543cddac9119",
+    "sourceCodeHash": "0xca1bb167715602501438bb7bd6229d460ee47d70d55a4c76989df29ef62a97bb"
+  },
   "src/dispute/DisputeGameFactory.sol": {
     "initCodeHash": "0x80d749a56c1776930fe0deb5c3c646217716e5875ace99c4d036af0452236476",
     "sourceCodeHash": "0x1e5a6deded88804971fc1847c9eac65921771bff353437c0b29ed2f55513b984"

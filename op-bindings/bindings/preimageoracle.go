@@ -799,6 +799,37 @@ func (_PreimageOracle *PreimageOracleCallerSession) ReadPreimage(_key [32]byte, 
 	return _PreimageOracle.Contract.ReadPreimage(&_PreimageOracle.CallOpts, _key, _offset)
 }
 
+// Version is a free data retrieval call binding the contract method 0x54fd4d50.
+//
+// Solidity: function version() view returns(string)
+func (_PreimageOracle *PreimageOracleCaller) Version(opts *bind.CallOpts) (string, error) {
+	var out []interface{}
+	err := _PreimageOracle.contract.Call(opts, &out, "version")
+
+	if err != nil {
+		return *new(string), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(string)).(*string)
+
+	return out0, err
+
+}
+
+// Version is a free data retrieval call binding the contract method 0x54fd4d50.
+//
+// Solidity: function version() view returns(string)
+func (_PreimageOracle *PreimageOracleSession) Version() (string, error) {
+	return _PreimageOracle.Contract.Version(&_PreimageOracle.CallOpts)
+}
+
+// Version is a free data retrieval call binding the contract method 0x54fd4d50.
+//
+// Solidity: function version() view returns(string)
+func (_PreimageOracle *PreimageOracleCallerSession) Version() (string, error) {
+	return _PreimageOracle.Contract.Version(&_PreimageOracle.CallOpts)
+}
+
 // ZeroHashes is a free data retrieval call binding the contract method 0x7ac54767.
 //
 // Solidity: function zeroHashes(uint256 ) view returns(bytes32)

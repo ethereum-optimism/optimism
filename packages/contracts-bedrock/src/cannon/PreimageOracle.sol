@@ -2,6 +2,7 @@
 pragma solidity 0.8.15;
 
 import { IPreimageOracle } from "./interfaces/IPreimageOracle.sol";
+import { ISemver } from "src/universal/ISemver.sol";
 import { PreimageKeyLib } from "./PreimageKeyLib.sol";
 import { LibKeccak } from "@lib-keccak/LibKeccak.sol";
 import "src/cannon/libraries/CannonErrors.sol";
@@ -11,7 +12,7 @@ import "src/cannon/libraries/CannonTypes.sol";
 /// @notice A contract for storing permissioned pre-images.
 /// @custom:attribution Solady <https://github.com/Vectorized/solady/blob/main/src/utils/MerkleProofLib.sol#L13-L43>
 /// @custom:attribution Beacon Deposit Contract <0x00000000219ab540356cbb839cbe05303d7705fa>
-contract PreimageOracle is IPreimageOracle {
+contract PreimageOracle is IPreimageOracle, ISemver {
     ////////////////////////////////////////////////////////////////
     //                   Constants & Immutables                   //
     ////////////////////////////////////////////////////////////////
@@ -29,6 +30,10 @@ contract PreimageOracle is IPreimageOracle {
     uint256 public constant KECCAK_TREE_DEPTH = 16;
     /// @notice The maximum number of keccak blocks that can fit into the merkle tree.
     uint256 public constant MAX_LEAF_COUNT = 2 ** KECCAK_TREE_DEPTH - 1;
+
+    /// @notice The semantic version of the Preimage Oracle contract.
+    /// @custom:semver 0.1.0
+    string public constant version = "0.1.0";
 
     ////////////////////////////////////////////////////////////////
     //                 Authorized Preimage Parts                  //

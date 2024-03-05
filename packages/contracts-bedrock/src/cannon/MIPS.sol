@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+import { ISemver } from "src/universal/ISemver.sol";
 import { IPreimageOracle } from "./interfaces/IPreimageOracle.sol";
 import { PreimageKeyLib } from "./PreimageKeyLib.sol";
 
@@ -19,7 +20,7 @@ import { PreimageKeyLib } from "./PreimageKeyLib.sol";
 /// @dev https://en.wikibooks.org/wiki/MIPS_Assembly/Instruction_Formats
 /// @dev https://github.com/golang/go/blob/master/src/syscall/zerrors_linux_mips.go
 ///      MIPS linux kernel errors used by Go runtime
-contract MIPS {
+contract MIPS is ISemver {
     /// @notice Stores the VM state.
     ///         Total state size: 32 + 32 + 6 * 4 + 1 + 1 + 8 + 32 * 4 = 226 bytes
     ///         If nextPC != pc + 4, then the VM is executing a branch/jump delay slot.
@@ -41,16 +42,20 @@ contract MIPS {
     /// @notice Start of the data segment.
     uint32 public constant BRK_START = 0x40000000;
 
-    uint32 constant FD_STDIN = 0;
-    uint32 constant FD_STDOUT = 1;
-    uint32 constant FD_STDERR = 2;
-    uint32 constant FD_HINT_READ = 3;
-    uint32 constant FD_HINT_WRITE = 4;
-    uint32 constant FD_PREIMAGE_READ = 5;
-    uint32 constant FD_PREIMAGE_WRITE = 6;
+    /// @notice The semantic version of the MIPS contract.
+    /// @custom:semver 0.1.0
+    string public constant version = "0.1.0";
 
-    uint32 constant EBADF = 0x9;
-    uint32 constant EINVAL = 0x16;
+    uint32 internal constant FD_STDIN = 0;
+    uint32 internal constant FD_STDOUT = 1;
+    uint32 internal constant FD_STDERR = 2;
+    uint32 internal constant FD_HINT_READ = 3;
+    uint32 internal constant FD_HINT_WRITE = 4;
+    uint32 internal constant FD_PREIMAGE_READ = 5;
+    uint32 internal constant FD_PREIMAGE_WRITE = 6;
+
+    uint32 internal constant EBADF = 0x9;
+    uint32 internal constant EINVAL = 0x16;
 
     /// @notice The preimage oracle contract.
     IPreimageOracle internal immutable ORACLE;
