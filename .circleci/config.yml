@@ -116,7 +116,7 @@ jobs:
     steps:
       - checkout
       - check-changed:
-          patterns: cannon,packages/contracts-bedrock/src/cannon,op-preimage
+          patterns: cannon,packages/contracts-bedrock/src/cannon,op-preimage,go.mod
       - run:
           name: prep Cannon results dir
           command: mkdir -p /tmp/test-results
