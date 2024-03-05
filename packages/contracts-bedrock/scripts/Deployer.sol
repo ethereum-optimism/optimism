@@ -25,16 +25,8 @@ struct StorageSlot {
 /// @title Deployer
 /// @author tynes
 /// @notice A contract that can make deploying and interacting with deployments easy.
-///         When a contract is deployed, call the `save` function to write its name and
-///         contract address to disk. Inspired by `forge-deploy`.
 abstract contract Deployer is Script, Artifacts {
-    /// @notice Create the global variables and set up the filesystem.
-    ///         Forge script will create a file where the prefix is the
-    ///         name of the function that runs with the suffix `-latest.json`.
-    ///         By default, `run()` is called. Allow the user to use the SIG
-    ///         env var to specify what function signature was called so that
-    ///         the `sync()` method can be used to create hardhat deploy style
-    ///         artifacts.
+    /// @notice Sets up the artifacts contract.
     function setUp() public virtual override {
         Artifacts.setUp();
     }

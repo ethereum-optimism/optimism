@@ -18,6 +18,8 @@ struct Deployment {
 
 /// @title Artifacts
 /// @notice Useful for accessing deployment artifacts from within scripts.
+///         When a contract is deployed, call the `save` function to write its name and
+///         contract address to disk. Inspired by `forge-deploy`.
 abstract contract Artifacts {
     /// @notice Foundry cheatcode VM.
     Vm private constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
