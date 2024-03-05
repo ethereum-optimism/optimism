@@ -100,7 +100,7 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 }
 
 func (s *Service) initOutputValidator() {
-	s.validator = newOutputValidator(s.rollupClient)
+	s.validator = newOutputValidator(s.metrics, s.rollupClient)
 }
 
 func (s *Service) initGameCallerCreator() {

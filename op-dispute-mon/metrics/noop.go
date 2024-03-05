@@ -12,5 +12,7 @@ func (*NoopMetricsImpl) CacheGet(_ string, _ bool)        {}
 
 func (*NoopMetricsImpl) RecordClaimResolutionDelayMax(delay float64) {}
 
+func (*NoopMetricsImpl) RecordOutputFetchTime(timestamp float64) {}
+
 func (*NoopMetricsImpl) RecordGamesStatus(inProgress, defenderWon, challengerWon int) {}
 func (*NoopMetricsImpl) RecordGameAgreement(status GameAgreementStatus, count int)    {}
