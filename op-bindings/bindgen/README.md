@@ -291,7 +291,7 @@ switch contract.Name {
 ...
 ```
 
-If you contract is verified on Etherscan, doesn't contain any Solidity `immutable`s, and doesn't require any special handling, then you most likely can add your contract's `name` to the first switch case. Then will use the `standardHandler` which:
+If your contract is verified on Etherscan, doesn't contain any Solidity `immutable`s, and doesn't require any special handling, then you most likely can add your contract's `name` to the first switch case. Then will use the `standardHandler` which:
 
 1. Fetches the required contract metadata from Etherscan (i.e. initialization and deployed bytecode, ABI, deployment transaction hash, etc.)
 2. Compares the retrieved deployed bytecode from Etherscan against the response of `eth_codeAt` from an RPC node for each network specified in `RemoteContract.deployments` (this is a sanity check to verify Etherscan is returning correct data)
