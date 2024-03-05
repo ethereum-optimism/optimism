@@ -104,7 +104,7 @@ contract PermissionedDisputeGame_Test is PermissionedDisputeGame_Init {
     /// @dev The root claim of the game.
     Claim internal constant ROOT_CLAIM = Claim.wrap(bytes32((uint256(1) << 248) | uint256(10)));
     /// @dev Minimum bond value that covers all possible moves.
-    uint256 internal constant MIN_BOND = 0.01 ether;
+    uint256 internal constant MIN_BOND = 50 ether;
 
     /// @dev The preimage of the absolute prestate claim
     bytes internal absolutePrestateData;
