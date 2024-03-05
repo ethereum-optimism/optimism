@@ -1312,18 +1312,6 @@ jobs:
           paths:
             - "/go/pkg/mod"
 
-  go-mod-tidy:
-    docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
-    steps:
-      - checkout
-      - restore_cache:
-          name: Restore Go modules cache
-          key: gomod-{{ checksum "go.sum" }}
-      - run:
-          name: "Go mod tidy"
-          command: make mod-tidy && git diff --exit-code
-
   op-service-rethdb-tests:
     docker:
       - image: <<pipeline.parameters.ci_builder_rust_image>>
