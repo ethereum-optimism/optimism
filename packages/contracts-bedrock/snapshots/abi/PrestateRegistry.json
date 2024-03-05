@@ -1,0 +1,181 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "contract SuperchainConfig",
+        "name": "_superchainConfig",
+        "type": "address"
+      },
+      {
+        "internalType": "Timestamp",
+        "name": "_l2GenesisBlockTimestamp",
+        "type": "uint64"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_l2GenesisBlock",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_l2ChainId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_l2BlockTime",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_l2BlockNumber",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_vmID",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_programID",
+        "type": "uint256"
+      }
+    ],
+    "name": "activePrestate",
+    "outputs": [
+      {
+        "internalType": "Hash",
+        "name": "_prestate",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "hardforks",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "l2ActivationBlock",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_l2BlockNumber",
+        "type": "uint256"
+      }
+    ],
+    "name": "l2BlockToTimestamp",
+    "outputs": [
+      {
+        "internalType": "Timestamp",
+        "name": "_timestamp",
+        "type": "uint64"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "Timestamp",
+        "name": "_l2Timestamp",
+        "type": "uint64"
+      }
+    ],
+    "name": "l2TimestampToBlock",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "l2BlockNumber_",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "Timestamp",
+        "name": "_l2ActivationTime",
+        "type": "uint64"
+      },
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "vmID",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "programID",
+            "type": "uint256"
+          },
+          {
+            "internalType": "Hash",
+            "name": "prestateHash",
+            "type": "bytes32"
+          }
+        ],
+        "internalType": "struct PrestateRegistry.PrestateInformation[]",
+        "name": "_prestates",
+        "type": "tuple[]"
+      }
+    ],
+    "name": "registerHardfork",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "revokePendingFork",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "BadAuth",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ForkAlreadyActivated",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NoRegisteredForks",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OutOfOrderHardfork",
+    "type": "error"
+  }
+]

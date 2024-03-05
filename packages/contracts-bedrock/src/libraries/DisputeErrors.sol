@@ -101,3 +101,16 @@ error DuplicateStep();
 
 /// @notice Thrown when an unauthorized address attempts to interact with the game.
 error BadAuth();
+
+////////////////////////////////////////////////////////////////
+//                  PrestateRegistry Errors                   //
+////////////////////////////////////////////////////////////////
+
+/// @notice Thrown when a hardfork is attempted to be registered out of order.
+error OutOfOrderHardfork();
+
+/// @notice Thrown when a hardfork is attempted to be deleted, but it has already been activated.
+error ForkAlreadyActivated();
+
+/// @notice Thrown when the `hardforks` array is empty.
+error NoRegisteredForks();

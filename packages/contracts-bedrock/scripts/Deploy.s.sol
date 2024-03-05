@@ -37,6 +37,7 @@ import { PermissionedDisputeGame } from "src/dispute/PermissionedDisputeGame.sol
 import { DelayedWETH } from "src/dispute/weth/DelayedWETH.sol";
 import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
 import { MIPS } from "src/cannon/MIPS.sol";
+import { PrestateRegistry } from "src/dispute/PrestateRegistry.sol";
 import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
 import { ProtocolVersions, ProtocolVersion } from "src/L1/ProtocolVersions.sol";
 import { StorageSetter } from "src/universal/StorageSetter.sol";
@@ -389,6 +390,7 @@ contract Deploy is Deployer {
         deployDelayedWETH();
         deployPreimageOracle();
         deployMips();
+        deployPrestateRegistry();
     }
 
     /// @notice Initialize all of the implementations
@@ -753,6 +755,22 @@ contract Deploy is Deployer {
         console.log("MIPS deployed at %s", address(mips));
 
         addr_ = address(mips);
+    }
+
+    /// @notice Deploy PrestateRegistry
+    function deployPrestateRegistry() public broadcast returns (address addr_) {
+        console.log("Deploying PrestateRegistry implementation");
+        PrestateRegistry prestateRegistry = new PrestateRegistry{ salt: _implSalt() }({
+            _superchainConfig: SuperchainConfig(mustGetAddress("SuperchainConfigProxy")),
+            _l2GenesisBlockTimestamp: Timestamp.wrap(uint64(cfg.l2GenesisBlockTimestamp())),
+            _l2GenesisBlock: cfg.l2GenesisBlockNumber(),
+            _l2ChainId: cfg.l2ChainID(),
+            _l2BlockTime: cfg.l2BlockTime()
+        });
+        save("PrestateRegistry", address(prestateRegistry));
+        console.log("PrestateRegistry deployed at %s", address(prestateRegistry));
+
+        addr_ = address(prestateRegistry);
     }
 
     /// @notice Deploy the SystemConfig

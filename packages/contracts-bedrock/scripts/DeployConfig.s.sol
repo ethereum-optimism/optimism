@@ -47,6 +47,8 @@ contract DeployConfig is Script {
     string public governanceTokenName;
     string public governanceTokenSymbol;
     address public governanceTokenOwner;
+    uint256 public l2GenesisBlockNumber;
+    uint256 public l2GenesisBlockTimestamp;
     uint256 public l2GenesisBlockGasLimit;
     uint256 public l2GenesisBlockBaseFeePerGas;
     uint256 public gasPriceOracleOverhead;
@@ -115,6 +117,8 @@ contract DeployConfig is Script {
         governanceTokenName = stdJson.readString(_json, "$.governanceTokenName");
         governanceTokenSymbol = stdJson.readString(_json, "$.governanceTokenSymbol");
         governanceTokenOwner = stdJson.readAddress(_json, "$.governanceTokenOwner");
+        l2GenesisBlockNumber = stdJson.readUint(_json, "$.l2GenesisBlockNumber");
+        l2GenesisBlockTimestamp = stdJson.readUint(_json, "$.l2GenesisBlockTimestamp");
         l2GenesisBlockGasLimit = stdJson.readUint(_json, "$.l2GenesisBlockGasLimit");
         l2GenesisBlockBaseFeePerGas = stdJson.readUint(_json, "$.l2GenesisBlockBaseFeePerGas");
         gasPriceOracleOverhead = stdJson.readUint(_json, "$.gasPriceOracleOverhead");
