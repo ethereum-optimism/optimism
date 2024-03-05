@@ -39,7 +39,7 @@ func (f *fakeAttributesQueue) NextAttributes(_ context.Context, safeHead eth.L2B
 	if f.attrs == nil {
 		return nil, io.EOF
 	}
-	return &AttributesWithParent{f.attrs, safeHead, f.islastInSpan}, nil
+	return &AttributesWithParent{f.attrs, safeHead, f.islastInSpan, false}, nil
 }
 
 var _ NextAttributesProvider = (*fakeAttributesQueue)(nil)

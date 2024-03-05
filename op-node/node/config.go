@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
+	superchain "github.com/ethereum-optimism/optimism/op-superchain"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -76,6 +77,9 @@ type Config struct {
 
 	// Plasma DA config
 	Plasma plasma.CLIConfig
+
+	// Superchain config
+	Superchain superchain.CLIConfig
 }
 
 type RPCConfig struct {
@@ -173,6 +177,9 @@ func (cfg *Config) Check() error {
 	}
 	if err := cfg.Plasma.Check(); err != nil {
 		return fmt.Errorf("plasma config error: %w", err)
+	}
+	if err := cfg.Superchain.Check(); err != nil {
+		return fmt.Errorf("superchain config error: %w", err)
 	}
 	return nil
 }

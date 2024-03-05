@@ -27,21 +27,27 @@ type AttributesBuilder interface {
 	PreparePayloadAttributes(ctx context.Context, l2Parent eth.L2BlockRef, epoch eth.BlockID) (attrs *eth.PayloadAttributes, err error)
 }
 
+type AttributesFilterer interface {
+	FilterAttributes(ctx context.Context, attrs *eth.PayloadAttributes) (*eth.PayloadAttributes, bool, error)
+}
+
 type AttributesQueue struct {
 	log          log.Logger
 	config       *rollup.Config
 	builder      AttributesBuilder
+	filterer     AttributesFilterer
 	prev         *BatchQueue
 	batch        *SingularBatch
 	isLastInSpan bool
 }
 
-func NewAttributesQueue(log log.Logger, cfg *rollup.Config, builder AttributesBuilder, prev *BatchQueue) *AttributesQueue {
+func NewAttributesQueue(log log.Logger, cfg *rollup.Config, builder AttributesBuilder, filterer AttributesFilterer, prev *BatchQueue) *AttributesQueue {
 	return &AttributesQueue{
-		log:     log,
-		config:  cfg,
-		builder: builder,
-		prev:    prev,
+		log:      log,
+		config:   cfg,
+		builder:  builder,
+		filterer: filterer,
+		prev:     prev,
 	}
 }
 
@@ -61,16 +67,23 @@ func (aq *AttributesQueue) NextAttributes(ctx context.Context, parent eth.L2Bloc
 	}
 
 	// Actually generate the next attributes
-	if attrs, err := aq.createNextAttributes(ctx, aq.batch, parent); err != nil {
+	attrs, err := aq.createNextAttributes(ctx, aq.batch, parent)
+	if err != nil {
 		return nil, err
-	} else {
-		// Clear out the local state once we will succeed
-		attr := AttributesWithParent{attrs, parent, aq.isLastInSpan}
-		aq.batch = nil
-		aq.isLastInSpan = false
-		return &attr, nil
 	}
 
+	// Pass attributes through the filterer. Original attributes may be
+	// mutated so any prior state is unreliable after the filter is applied.
+	attrs, forceProgressSafe, err := aq.filterer.FilterAttributes(ctx, attrs)
+	if err != nil {
+		return nil, err
+	}
+
+	// Clear out the local state once we will succeed
+	attr := AttributesWithParent{attrs, parent, aq.isLastInSpan, forceProgressSafe}
+	aq.batch = nil
+	aq.isLastInSpan = false
+	return &attr, nil
 }
 
 // createNextAttributes transforms a batch into a payload attributes. This sets `NoTxPool` and appends the batched transactions

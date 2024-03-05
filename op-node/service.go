@@ -13,6 +13,7 @@ import (
 	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
+	superchain "github.com/ethereum-optimism/optimism/op-superchain"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
@@ -74,6 +75,10 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		haltOption = ""
 	}
 
+	// L2PCUrl hydrated from the L2EndpointConfig, not from flags
+	superchainCfg := superchain.ReadCLIConfig(ctx)
+	superchainCfg.L2RPCUrl = l2Endpoint.L2EngineAddr
+
 	cfg := &node.Config{
 		L1:     l1Endpoint,
 		L2:     l2Endpoint,
@@ -111,6 +116,8 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		ConductorRpcTimeout: ctx.Duration(flags.ConductorRpcTimeoutFlag.Name),
 
 		Plasma: plasma.ReadCLIConfig(ctx),
+
+		Superchain: superchainCfg,
 	}
 
 	if err := cfg.LoadPersisted(log); err != nil {

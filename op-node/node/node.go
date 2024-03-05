@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
+	superchain "github.com/ethereum-optimism/optimism/op-superchain"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -59,6 +60,8 @@ type OpNode struct {
 	p2pSigner p2p.Signer            // p2p gogssip application messages will be signed with this signer
 	tracer    Tracer                // tracer to get events for testing/debugging
 	runCfg    *RuntimeConfig        // runtime configurables
+
+	superchain superchain.Backend
 
 	safeDB closableSafeDB
 
@@ -130,6 +133,9 @@ func (n *OpNode) init(ctx context.Context, cfg *Config, snapshotLog log.Logger) 
 	}
 	if err := n.initL2(ctx, cfg, snapshotLog); err != nil {
 		return fmt.Errorf("failed to init L2: %w", err)
+	}
+	if err := n.initSuperchain(ctx, cfg); err != nil {
+		return fmt.Errorf("failed to init Superchain: %w", err)
 	}
 	if err := n.initRuntimeConfig(ctx, cfg); err != nil { // depends on L2, to signal initial runtime values to
 		return fmt.Errorf("failed to init the runtime config: %w", err)
@@ -400,7 +406,22 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config, snapshotLog log.Logger
 	} else {
 		n.safeDB = safedb.Disabled
 	}
-	n.l2Driver = driver.NewDriver(&cfg.Driver, &cfg.Rollup, n.l2Source, n.l1Source, n.beacon, n, n, n.log, snapshotLog, n.metrics, cfg.ConfigPersistence, n.safeDB, &cfg.Sync, sequencerConductor, plasmaDA)
+	n.l2Driver = driver.NewDriver(&cfg.Driver, &cfg.Rollup, n.l2Source, n.l1Source, n.superchain, n.beacon, n, n, n.log, snapshotLog, n.metrics, cfg.ConfigPersistence, n.safeDB, &cfg.Sync, sequencerConductor, plasmaDA)
+	return nil
+}
+
+func (n *OpNode) initSuperchain(ctx context.Context, cfg *Config) error {
+	superchainCfg, err := cfg.Superchain.Config()
+	if err != nil {
+		return fmt.Errorf("failed to create superchain backend cfg: %w", err)
+	}
+
+	superchain, err := superchain.NewBackend(ctx, n.log, n.metrics.Factory(), superchainCfg)
+	if err != nil {
+		return fmt.Errorf("failed to start up superchain backend: %w", err)
+	}
+
+	n.superchain = superchain
 	return nil
 }
 
