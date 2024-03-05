@@ -100,8 +100,8 @@
     "sourceCodeHash": "0x6ab593a4b87007c000c254b2c4ff0507683600f48b60e453148e44bee30030f6"
   },
   "src/cannon/PreimageOracle.sol": {
-    "initCodeHash": "0x8d192f5aa374c4c150126c3781fc49d00f76deefd46013a4e624543cddac9119",
-    "sourceCodeHash": "0xca1bb167715602501438bb7bd6229d460ee47d70d55a4c76989df29ef62a97bb"
+    "initCodeHash": "0x7998712f9dd5848f33184ede984c0843917cc176562006479e1dbb26b0be0ff6",
+    "sourceCodeHash": "0x2f5d84ed4a807cb7e7354514f53445995fc2f0836abd1ca7cfa34599d9031d9a"
   },
   "src/dispute/DisputeGameFactory.sol": {
     "initCodeHash": "0x80d749a56c1776930fe0deb5c3c646217716e5875ace99c4d036af0452236476",
