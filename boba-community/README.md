@@ -75,9 +75,10 @@ Create a  `.env` file in `boba-community`.
 ERIGON_VERSION=
 OP_NODE_VERSION=
 ETH1_HTTP=
+ETH2_HTTP=
 ```
 
-> This step is optional, but we recommand you to use a latest release image for `ERIGON_VERSION` and `OP_NODE_VERSION`. Otherwise, it pulls the image with the `latest` tag.
+> `ETH2_HTTP` is mandatory as it is the L1 beacon endpoint. The other variables are optional, but we recommend using the latest release images for `ERIGON_VERSION` and `OP_NODE_VERSION`. Otherwise, it will pull the image with the `latest` tag.
 
 ### Modify volume location
 
