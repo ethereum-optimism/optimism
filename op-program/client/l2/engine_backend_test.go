@@ -28,8 +28,17 @@ var fundedKey, _ = crypto.GenerateKey()
 var fundedAddress = crypto.PubkeyToAddress(fundedKey.PublicKey)
 var targetAddress = common.HexToAddress("0x001122334455")
 
-// Also a valid input to the kzg point evaluation precompile
-var inputData = common.FromHex("01e798154708fe7789429634053cbf9f99b619f9f084048927333fce637f549b564c0a11a0f704f4fc3e8acfe0f8245f0ad1347b378fbf96e206da11a5d3630624d25032e67a7e6a4910df5834b8fe70e6bcfeeac0352434196bdf4b2485d5a18f59a8d2a1a625a17f3fea0fe5eb8c896db3764f3185481bc22f91b4aaffcca25f26936857bc3a7c2539ea8ec3a952b7873033e038326e87ed3e1276fd140253fa08e9fc25fb2d9a98527fc22a2c9612fbeafdad446cbc7bcdbdcd780af2c16a")
+var (
+	kzgInputData          = common.FromHex("01e798154708fe7789429634053cbf9f99b619f9f084048927333fce637f549b564c0a11a0f704f4fc3e8acfe0f8245f0ad1347b378fbf96e206da11a5d3630624d25032e67a7e6a4910df5834b8fe70e6bcfeeac0352434196bdf4b2485d5a18f59a8d2a1a625a17f3fea0fe5eb8c896db3764f3185481bc22f91b4aaffcca25f26936857bc3a7c2539ea8ec3a952b7873033e038326e87ed3e1276fd140253fa08e9fc25fb2d9a98527fc22a2c9612fbeafdad446cbc7bcdbdcd780af2c16a")
+	ecRecoverInputData    = common.FromHex("18c547e4f7b0f325ad1e56f57e26c745b09a3e503d86e00e5255ff7f715d3d1c000000000000000000000000000000000000000000000000000000000000001c73b1693892219d736caba55bdb67216e485557ea6b6af75f37096c9aa6a5a75feeb940b1d03b21e36b0e47e79769f095fe2ab855bd91e3a38756b7d75a9c4549")
+	bn256PairingInputData = common.FromHex("1c76476f4def4bb94541d57ebba1193381ffa7aa76ada664dd31c16024c43f593034dd2920f673e204fee2811c678745fc819b55d3e9d294e45c9b03a76aef41209dd15ebff5d46c4bd888e51a93cf99a7329636c63514396b4a452003a35bf704bf11ca01483bfa8b34b43561848d28905960114c8ac04049af4b6315a416782bb8324af6cfc93537a2ad1a445cfd0ca2a71acd7ac41fadbf933c2a51be344d120a2a4cf30c1bf9845f20c6fe39e07ea2cce61f0c9bb048165fe5e4de877550111e129f1cf1097710d41c4ac70fcdfa5ba2023c6ff1cbeac322de49d1b6df7c2032c61a830e3c17286de9462bf242fca2883585b93870a73853face6a6bf411198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c21800deef121f1e76426a00665e5c4479674322d4f75edadd46debd5cd992f6ed090689d0585ff075ec9e99ad690c3395bc4b313370b38ef355acdadcd122975b12c85ea5db8c6deb4aab71808dcb408fe3d1e7690c43d37b4ce6cc0166fa7daa")
+)
+
+var (
+	ecRecoverReturnValue      = []byte{0x1, 0x2}
+	bn256PairingReturnValue   = []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}
+	blobPrecompileReturnValue = common.FromHex("000000000000000000000000000000000000000000000000000000000000100073eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001")
+)
 
 func TestInitialState(t *testing.T) {
 	blocks, chain := setupOracleBackedChain(t, 5)
@@ -189,23 +198,54 @@ func TestGetHeaderByNumber(t *testing.T) {
 	})
 }
 
-func TestKZGPointEvaluationPrecompile(t *testing.T) {
-	blockCount := 3
-	headBlockNumber := 3
-	logger := testlog.Logger(t, log.LevelDebug)
-	chainCfg, blocks, oracle := setupOracle(t, blockCount, headBlockNumber, true)
-	head := blocks[headBlockNumber].Hash()
-	stubOutput := eth.OutputV0{BlockHash: head}
-	kzgOracle := new(l2test.StubKZGOracle)
-	kzgOracle.PtEvals = map[common.Hash]bool{
-		crypto.Keccak256Hash(inputData): true,
+func TestPrecompileOracle(t *testing.T) {
+	tests := []struct {
+		name   string
+		input  []byte
+		target common.Address
+		result []byte
+	}{
+		{
+			name:   "EcRecover",
+			input:  ecRecoverInputData,
+			target: common.BytesToAddress([]byte{0x1}),
+			result: ecRecoverReturnValue,
+		},
+		{
+			name:   "Bn256Pairing",
+			input:  bn256PairingInputData,
+			target: common.BytesToAddress([]byte{0x8}),
+			result: bn256PairingReturnValue,
+		},
+		{
+			name:   "KZGPointEvaluation",
+			input:  kzgInputData,
+			target: common.BytesToAddress([]byte{0xa}),
+			result: blobPrecompileReturnValue,
+		},
 	}
-	chain, err := NewOracleBackedL2Chain(logger, oracle, kzgOracle, chainCfg, common.Hash(eth.OutputRoot(&stubOutput)))
-	require.NoError(t, err)
 
-	newBlock := createKZGBlock(t, chain)
-	require.NoError(t, chain.InsertBlockWithoutSetHead(newBlock))
-	require.Equal(t, 1, kzgOracle.Calls)
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			blockCount := 3
+			headBlockNumber := 3
+			logger := testlog.Logger(t, log.LevelDebug)
+			chainCfg, blocks, oracle := setupOracle(t, blockCount, headBlockNumber, true)
+			head := blocks[headBlockNumber].Hash()
+			stubOutput := eth.OutputV0{BlockHash: head}
+			precompileOracle := new(l2test.StubPrecompileOracle)
+			precompileOracle.Results = map[common.Hash]l2test.PrecompileResult{
+				crypto.Keccak256Hash(append(test.target.Bytes(), test.input...)): {Result: test.result, Ok: true},
+			}
+			chain, err := NewOracleBackedL2Chain(logger, oracle, precompileOracle, chainCfg, common.Hash(eth.OutputRoot(&stubOutput)))
+			require.NoError(t, err)
+
+			newBlock := createBlock(t, chain, WithInput(test.input), WithTargetAddress(test.target))
+			require.NoError(t, chain.InsertBlockWithoutSetHead(newBlock))
+			require.Equal(t, 1, precompileOracle.Calls)
+		})
+	}
 }
 
 func assertBlockDataAvailable(t *testing.T, chain *OracleBackedL2Chain, block *types.Block, blockNumber uint64) {
@@ -225,8 +265,8 @@ func setupOracleBackedChainWithLowerHead(t *testing.T, blockCount int, headBlock
 	chainCfg, blocks, oracle := setupOracle(t, blockCount, headBlockNumber, false)
 	head := blocks[headBlockNumber].Hash()
 	stubOutput := eth.OutputV0{BlockHash: head}
-	kzgOracle := new(l2test.StubKZGOracle)
-	chain, err := NewOracleBackedL2Chain(logger, oracle, kzgOracle, chainCfg, common.Hash(eth.OutputRoot(&stubOutput)))
+	precompileOracle := new(l2test.StubPrecompileOracle)
+	chain, err := NewOracleBackedL2Chain(logger, oracle, precompileOracle, chainCfg, common.Hash(eth.OutputRoot(&stubOutput)))
 	require.NoError(t, err)
 	return blocks, chain
 }
@@ -276,7 +316,33 @@ func setupOracle(t *testing.T, blockCount int, headBlockNumber int, enableEcoton
 	return chainCfg, blocks, oracle
 }
 
-func createBlockWithTargetAddress(t *testing.T, chain *OracleBackedL2Chain, target *common.Address) *types.Block {
+type blockCreateConfig struct {
+	input  []byte
+	target *common.Address
+}
+
+type blockCreateOption func(*blockCreateConfig)
+
+func WithInput(input []byte) blockCreateOption {
+	return func(opts *blockCreateConfig) {
+		opts.input = input
+	}
+}
+
+func WithTargetAddress(target common.Address) blockCreateOption {
+	return func(opts *blockCreateConfig) {
+		opts.target = &target
+	}
+}
+
+func createBlock(t *testing.T, chain *OracleBackedL2Chain, opts ...blockCreateOption) *types.Block {
+	cfg := blockCreateConfig{}
+	for _, o := range opts {
+		o(&cfg)
+	}
+	if cfg.target == nil {
+		cfg.target = &targetAddress
+	}
 	parent := chain.GetBlockByHash(chain.CurrentHeader().Hash())
 	parentDB, err := chain.StateAt(parent.Root())
 	require.NoError(t, err)
@@ -287,25 +353,17 @@ func createBlockWithTargetAddress(t *testing.T, chain *OracleBackedL2Chain, targ
 		rawTx := &types.DynamicFeeTx{
 			ChainID:   config.ChainID,
 			Nonce:     nonce,
-			To:        target,
+			To:        cfg.target,
 			GasTipCap: big.NewInt(0),
 			GasFeeCap: parent.BaseFee(),
-			Gas:       210_000,
-			Data:      inputData,
+			Gas:       2_000_000,
+			Data:      cfg.input,
 			Value:     big.NewInt(1),
 		}
 		tx := types.MustSignNewTx(fundedKey, types.NewLondonSigner(config.ChainID), rawTx)
 		gen.AddTx(tx)
 	})
 	return blocks[0]
-}
-
-func createBlock(t *testing.T, chain *OracleBackedL2Chain) *types.Block {
-	return createBlockWithTargetAddress(t, chain, &targetAddress)
-}
-
-func createKZGBlock(t *testing.T, chain *OracleBackedL2Chain) *types.Block {
-	return createBlockWithTargetAddress(t, chain, &kzgPointEvaluationPrecompileAddress)
 }
 
 func TestEngineAPITests(t *testing.T) {

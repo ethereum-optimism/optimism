@@ -20,25 +20,25 @@ import (
 )
 
 const (
-	methodInitLPP                            = "initLPP"
-	methodAddLeavesLPP                       = "addLeavesLPP"
-	methodSqueezeLPP                         = "squeezeLPP"
-	methodLoadKeccak256PreimagePart          = "loadKeccak256PreimagePart"
-	methodLoadSha256PreimagePart             = "loadSha256PreimagePart"
-	methodLoadBlobPreimagePart               = "loadBlobPreimagePart"
-	methodLoadKZGPointEvaluationPreimagePart = "loadKZGPointEvaluationPreimagePart"
-	methodProposalCount                      = "proposalCount"
-	methodProposals                          = "proposals"
-	methodProposalMetadata                   = "proposalMetadata"
-	methodProposalBlocksLen                  = "proposalBlocksLen"
-	methodProposalBlocks                     = "proposalBlocks"
-	methodPreimagePartOk                     = "preimagePartOk"
-	methodMinProposalSize                    = "minProposalSize"
-	methodChallengeFirstLPP                  = "challengeFirstLPP"
-	methodChallengeLPP                       = "challengeLPP"
-	methodChallengePeriod                    = "challengePeriod"
-	methodGetTreeRootLPP                     = "getTreeRootLPP"
-	methodMinBondSizeLPP                     = "MIN_BOND_SIZE"
+	methodInitLPP                    = "initLPP"
+	methodAddLeavesLPP               = "addLeavesLPP"
+	methodSqueezeLPP                 = "squeezeLPP"
+	methodLoadKeccak256PreimagePart  = "loadKeccak256PreimagePart"
+	methodLoadSha256PreimagePart     = "loadSha256PreimagePart"
+	methodLoadBlobPreimagePart       = "loadBlobPreimagePart"
+	methodLoadPrecompilePreimagePart = "loadPrecompilePreimagePart"
+	methodProposalCount              = "proposalCount"
+	methodProposals                  = "proposals"
+	methodProposalMetadata           = "proposalMetadata"
+	methodProposalBlocksLen          = "proposalBlocksLen"
+	methodProposalBlocks             = "proposalBlocks"
+	methodPreimagePartOk             = "preimagePartOk"
+	methodMinProposalSize            = "minProposalSize"
+	methodChallengeFirstLPP          = "challengeFirstLPP"
+	methodChallengeLPP               = "challengeLPP"
+	methodChallengePeriod            = "challengePeriod"
+	methodGetTreeRootLPP             = "getTreeRootLPP"
+	methodMinBondSizeLPP             = "MIN_BOND_SIZE"
 )
 
 var (
@@ -107,8 +107,11 @@ func (c *PreimageOracleContract) AddGlobalDataTx(data *types.PreimageOracleData)
 			data.BlobProof,
 			new(big.Int).SetUint64(uint64(data.OracleOffset)))
 		return call.ToTxCandidate()
-	case preimage.KZGPointEvaluationKeyType:
-		call := c.contract.Call(methodLoadKZGPointEvaluationPreimagePart, new(big.Int).SetUint64(uint64(data.OracleOffset)), data.GetPreimageWithoutSize())
+	case preimage.PrecompileKeyType:
+		call := c.contract.Call(methodLoadPrecompilePreimagePart,
+			new(big.Int).SetUint64(uint64(data.OracleOffset)),
+			data.GetPrecompileAddress(),
+			data.GetPrecompileInput())
 		return call.ToTxCandidate()
 	default:
 		return txmgr.TxCandidate{}, fmt.Errorf("%w: %v", ErrUnsupportedKeyType, keyType)

@@ -171,6 +171,95 @@ contract PreimageOracle_Test is Test {
         vm.expectRevert("pre-image must exist");
         oracle.readPreimage(key, offset);
     }
+
+    /// @notice Tests that a precompile pre-image result is correctly set.
+    function test_loadPrecompilePreimagePart_succeeds() public {
+        bytes memory input = hex"deadbeef";
+        uint256 offset = 0;
+        address precompile = address(bytes20(uint160(0x02))); // sha256
+        bytes32 key = precompilePreimageKey(precompile, input);
+        oracle.loadPrecompilePreimagePart(offset, precompile, input);
+
+        bytes32 part = oracle.preimageParts(key, offset);
+        // size prefix - 1-byte result + 32-byte sha return data
+        assertEq(hex"0000000000000021", bytes8(part));
+        // precompile result
+        assertEq(bytes1(0x01), bytes1(part << 64));
+        // precompile call return data
+        assertEq(bytes23(sha256(input)), bytes23(part << 72));
+
+        // Validate the local data length
+        uint256 length = oracle.preimageLengths(key);
+        assertEq(length, 1 + 32);
+
+        // Validate that the first local data part is set
+        bool ok = oracle.preimagePartOk(key, offset);
+        assertTrue(ok);
+    }
+
+    /// @notice Tests that a precompile pre-image result is correctly set at its return data offset.
+    function test_loadPrecompilePreimagePart_atReturnOffset_succeeds() public {
+        bytes memory input = hex"deadbeef";
+        uint256 offset = 9;
+        address precompile = address(bytes20(uint160(0x02))); // sha256
+        bytes32 key = precompilePreimageKey(precompile, input);
+        oracle.loadPrecompilePreimagePart(offset, precompile, input);
+
+        bytes32 part = oracle.preimageParts(key, offset);
+        // 32-byte sha return data
+        assertEq(sha256(input), part);
+
+        // Validate the local data length
+        uint256 length = oracle.preimageLengths(key);
+        assertEq(length, 1 + 32);
+
+        // Validate that the first local data part is set
+        bool ok = oracle.preimagePartOk(key, offset);
+        assertTrue(ok);
+    }
+
+    /// @notice Tests that a failed precompile call has a zero status byte in preimage
+    function test_loadPrecompilePreimagePart_failedCall_succeeds() public {
+        bytes memory input = new bytes(193); // invalid input to induce a failed precompile call
+        uint256 offset = 0;
+        address precompile = address(bytes20(uint160(0x08))); // bn256Pairing
+        bytes32 key = precompilePreimageKey(precompile, input);
+        oracle.loadPrecompilePreimagePart(offset, precompile, input);
+
+        bytes32 part = oracle.preimageParts(key, offset);
+        // size prefix - 1-byte result + 0-byte sha return data
+        assertEq(hex"0000000000000001", bytes8(part));
+        // precompile result
+        assertEq(bytes1(0x00), bytes1(part << 64));
+        // precompile call return data
+        assertEq(bytes23(0), bytes23(part << 72));
+
+        // Validate the local data length
+        uint256 length = oracle.preimageLengths(key);
+        assertEq(length, 1);
+
+        // Validate that the first local data part is set
+        bool ok = oracle.preimagePartOk(key, offset);
+        assertTrue(ok);
+    }
+
+    /// @notice Tests that adding a global precompile result at the part boundary reverts.
+    function test_loadPrecompilePreimagePart_partBoundary_reverts() public {
+        bytes memory input = hex"deadbeef";
+        uint256 offset = 41; // 8-byte prefix + 1-byte result + 32-byte sha return data
+        address precompile = address(bytes20(uint160(0x02))); // sha256
+        vm.expectRevert(PartOffsetOOB.selector);
+        oracle.loadPrecompilePreimagePart(offset, precompile, input);
+    }
+
+    /// @notice Tests that a global precompile result cannot be set with an out-of-bounds offset.
+    function test_loadPrecompilePreimagePart_outOfBoundsOffset_reverts() public {
+        bytes memory input = hex"deadbeef";
+        uint256 offset = 42;
+        address precompile = address(bytes20(uint160(0x02))); // sha256
+        vm.expectRevert(PartOffsetOOB.selector);
+        oracle.loadPrecompilePreimagePart(offset, precompile, input);
+    }
 }
 
 contract PreimageOracle_LargePreimageProposals_Test is Test {
@@ -1266,5 +1355,16 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
 function _setStatusByte(bytes32 _hash, uint8 _status) pure returns (bytes32 out_) {
     assembly {
         out_ := or(and(not(shl(248, 0xFF)), _hash), shl(248, _status))
+    }
+}
+
+/// @notice Computes a precompile key for a given precompile address and input.
+function precompilePreimageKey(address _precompile, bytes memory _input) pure returns (bytes32 key_) {
+    bytes memory p = abi.encodePacked(_precompile, _input);
+    uint256 sz = 20 + _input.length;
+    assembly {
+        let h := keccak256(add(0x20, p), sz)
+        // Mask out prefix byte, replace with type 6 byte
+        key_ := or(and(h, not(shl(248, 0xFF))), shl(248, 6))
     }
 }
