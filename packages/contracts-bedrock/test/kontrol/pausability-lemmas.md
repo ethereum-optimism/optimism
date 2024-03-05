@@ -217,3 +217,9 @@ The summary lemma is as follows, with commentary inlined:
 
 endmodule
 ```
+
+This summary is required to enable reasoning about byte arrays or arbitrary (symbolic) length. Otherwise, we would have to deal with a loop as the Solidity compiler copies memory to memory in chunks of 32 bytes at a time, and as this loop would have a symbolic bound, the symbolic execution would either have to be bounded or would not terminate.
+
+Unfortunately, the Solidity compiler optimizes the compiled bytecode in unpredictable ways, meaning that changes in the test suite can affect the compilation of `copy_memory_to_memory`. In light of this, and in order to be able to use our summary, we opt against using the `Test` contract of `forge-std`.
+
+The looping issue has been recognized as such by the Solidity developers, and starting from version [0.8.24](https://soliditylang.org/blog/2024/01/26/solidity-0.8.24-release-announcement/) EVM comes with an `MCOPY` instruction ((EIP-5656))[https://eips.ethereum.org/EIPS/eip-5656], which copies a part of memory to another part of memory as an atomic action. If the development were to move to this (or higher) version of the compiler, there would be no need for this summary.
