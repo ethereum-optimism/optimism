@@ -4,11 +4,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	test "github.com/ethereum-optimism/optimism/op-test"
+	"github.com/ethereum-optimism/optimism/op-test/components/l1"
 )
 
 type Superchain interface {
-	// Members()
-	// L1ContractAddrs()
+	L1() l1.L1
 }
 
 func Request(t test.Testing, opts ...Option) Superchain {

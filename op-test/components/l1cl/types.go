@@ -1,16 +1,18 @@
 package l1cl
 
 import (
-	"github.com/ethereum-optimism/optimism/op-test/components/l1"
-	"github.com/ethereum-optimism/optimism/op-test/components/l1el"
 	"github.com/stretchr/testify/require"
 
 	test "github.com/ethereum-optimism/optimism/op-test"
+	"github.com/ethereum-optimism/optimism/op-test/components/l1"
+	"github.com/ethereum-optimism/optimism/op-test/components/l1el"
 )
 
 type L1CL interface {
 	EL() l1el.L1EL
 	Chain() l1.L1
+
+	BeaconEndpoint() string
 
 	// controls below should require the L1 chain to have a Lock
 	// TODO time travel (gap in chain to skip ahead to block with future timestamp)

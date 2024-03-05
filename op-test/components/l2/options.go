@@ -43,6 +43,8 @@ func Superchain(ch superchain.Superchain) Option {
 
 // TODO L2 contract settings / constraints options
 
+// TODO genesis account funding option
+
 // TODO reservation type option (similar to L1 chain reservation type option)
 // hands-off: work against any system, no config changes
 // temp: temporary config changes

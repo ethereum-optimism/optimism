@@ -5,11 +5,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 	test "github.com/ethereum-optimism/optimism/op-test"
 )
 
@@ -32,17 +30,10 @@ var Forks = []L1Fork{
 type L1 interface {
 	ChainID() *big.Int
 	ChainConfig() *params.ChainConfig
-	Signer() *types.Signer
+	Signer() types.Signer
 	TargetBlockTime() uint64
 	NetworkName() string
 	GenesisELHeader() *types.Header
-	GenesisCL() eth.Bytes32
-
-	// Fund an account, if not already funded. Abstracts away test-account funding.
-	Fund(addr common.Address, amount *big.Int)
-	// Lock the chain for breaking changes
-	Lock()
-	Unlock()
 }
 
 func Request(t test.Testing, opts ...Option) L1 {

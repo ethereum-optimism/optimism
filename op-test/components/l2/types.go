@@ -5,26 +5,24 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/params"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	test "github.com/ethereum-optimism/optimism/op-test"
+	"github.com/ethereum-optimism/optimism/op-test/components/superchain"
 )
 
 type L2 interface {
 	ChainID() *big.Int
 	ChainConfig() *params.ChainConfig
 	RollupConfig() *rollup.Config
+	Genesis() *core.Genesis
 	Name() string
-	L1ContractAddrs() struct{} // TODO
+	L1Deployments() *genesis.L1Deployments
 
-	// Fund an account, if not already funded. Abstracts away test-account funding.
-	Fund(addr common.Address, amount *big.Int)
-
-	// Lock the chain for breaking changes
-	Lock()
-	Unlock()
+	Superchain() superchain.Superchain
 }
 
 func Request(t test.Testing, opts ...Option) L2 {

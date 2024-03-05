@@ -1,12 +1,12 @@
 package l2cl
 
 import (
-	"github.com/ethereum-optimism/optimism/op-service/sources"
-	"github.com/ethereum-optimism/optimism/op-test/components/l2"
-	"github.com/ethereum-optimism/optimism/op-test/components/l2el"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	test "github.com/ethereum-optimism/optimism/op-test"
+	"github.com/ethereum-optimism/optimism/op-test/components/l2"
+	"github.com/ethereum-optimism/optimism/op-test/components/l2el"
 )
 
 type L2CL interface {
@@ -14,6 +14,8 @@ type L2CL interface {
 	L2() l2.L2
 
 	RollupClient() *sources.RollupClient
+
+	Close()
 
 	// TODO sequencer actions (requires L2-chain lock)
 }
