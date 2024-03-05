@@ -14,9 +14,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
-// Test is the default entry-point to use for op-test tests.
+// Plan is the default entry-point to use for op-test tests.
 // It wraps the Go test framework to provide test utils and parametrization features.
-func Test(t *testing.T, fn func(t Testing)) {
+func Plan(t *testing.T, fn func(t Planner)) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
@@ -24,12 +24,11 @@ func Test(t *testing.T, fn func(t Testing)) {
 	ctx = context.WithValue(ctx, parameterManagerCtxKey{}, selector)
 
 	imp := &testImpl{
-		T:        t,
-		ctx:      ctx,
-		logLvl:   slog.LevelError,
-		registry: &registry{},
+		T:      t,
+		ctx:    ctx,
+		logLvl: slog.LevelError,
 	}
-	imp.Run("default", fn)
+	imp.Plan("default", fn)
 	imp.exhaust(fn)
 }
 
@@ -58,12 +57,9 @@ type testImpl struct {
 
 	// First-seen parameterSelection, which can be exhausted at the end of the test.
 	parameterSelection *parameterSelection
-
-	// registry of test actors, inherited from parent test
-	registry *registry
 }
 
-var _ Testing = (*testImpl)(nil)
+var _ Planner = (*testImpl)(nil)
 
 // Ctx implements Testing.Ctx
 func (imp *testImpl) Ctx() context.Context {
@@ -90,22 +86,41 @@ func (imp *testImpl) Parameter(name string) (value string, ok bool) {
 	return v.(string), true
 }
 
-// Run implements Testing.Run
-func (imp *testImpl) Run(name string, fn func(t Testing)) {
-	imp.runCtx(imp.Ctx(), name, fn)
-}
+// Run implements Planner.Run
+func (imp *testImpl) Run(name string, fn func(t Executor)) {
+	// TODO check if in immediate (execute now) or deferred (persist test-plan) mode
 
-// runCtx runs a sub-test with a custom context
-func (imp *testImpl) runCtx(ctx context.Context, name string, fn func(t Testing)) {
+	ctx := imp.Ctx()
+
+	// immediate
 	imp.T.Run(name, func(t *testing.T) {
 		ctx, cancel := context.WithCancel(ctx)
 		t.Cleanup(cancel)
 
 		subScope := &testImpl{
-			T:        t,
-			ctx:      ctx,
-			logLvl:   imp.logLvl,
-			registry: imp.registry,
+			T:      t,
+			ctx:    ctx,
+			logLvl: imp.logLvl,
+		}
+		fn(subScope)
+	})
+}
+
+// Plan implements Planner.Plan
+func (imp *testImpl) Plan(name string, fn func(t Planner)) {
+	imp.planCtx(imp.Ctx(), name, fn)
+}
+
+// planCtx runs a sub-test with a custom context
+func (imp *testImpl) planCtx(ctx context.Context, name string, fn func(t Planner)) {
+	imp.T.Run(name, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(ctx)
+		t.Cleanup(cancel)
+
+		subScope := &testImpl{
+			T:      t,
+			ctx:    ctx,
+			logLvl: imp.logLvl,
 		}
 		fn(subScope)
 
@@ -115,7 +130,7 @@ func (imp *testImpl) runCtx(ctx context.Context, name string, fn func(t Testing)
 }
 
 // exhaust reviews if any options were seen in the current test-scope, and then exhausts these.
-func (imp *testImpl) exhaust(fn func(t Testing)) {
+func (imp *testImpl) exhaust(fn func(t Planner)) {
 	if imp.parameterSelection == nil { // no parameters to exhaust
 		return
 	}
@@ -136,7 +151,7 @@ func (imp *testImpl) exhaust(fn func(t Testing)) {
 
 		// Run a sub-test that overrides the default choice we may have made (if any).
 		subCtx := context.WithValue(ctx, key, opt)
-		imp.runCtx(subCtx, "exhaust_"+imp.parameterSelection.name+"_"+opt, fn)
+		imp.planCtx(subCtx, "exhaust_"+imp.parameterSelection.name+"_"+opt, fn)
 	}
 }
 
@@ -163,13 +178,13 @@ func (imp *testImpl) Select(name string, options ...string) string {
 	imp.ctxLock.Lock()
 	defer imp.ctxLock.Unlock()
 	current := imp.ctx.Value(parameterCtxKey(name))
+	hasWildcard := slices.Contains(options, "*")
 	if current != nil {
-		i := slices.Index(options, current.(string))
-		if i < 0 {
+		if !hasWildcard && !slices.Contains(options, current.(string)) {
 			imp.T.Fatalf("presented with choice %q, with options %q, but already assumed %q",
 				name, strings.Join(options, ", "), current.(string))
 		}
-		return options[i]
+		return current.(string)
 	}
 
 	// get the parameter selector
@@ -179,40 +194,20 @@ func (imp *testImpl) Select(name string, options ...string) string {
 	if len(selectedOptions) == 0 {
 		imp.T.Skipf("None of the options for parameter %q where selected, skipping test!", name)
 	}
-	// verify the selected options are valid (a subset of the suggested options)
-	seen := make(map[string]struct{})
-	for _, opt := range options {
-		seen[opt] = struct{}{}
-	}
-	for _, opt := range selectedOptions {
-		if _, ok := seen[opt]; !ok {
-			imp.T.Fatalf("Test selector selected option %q for %q, but it is was not in the set of selectable options!", opt, name)
+	if !hasWildcard {
+		// verify the selected options are valid (a subset of the suggested options)
+		seen := make(map[string]struct{})
+		for _, opt := range options {
+			seen[opt] = struct{}{}
+		}
+		for _, opt := range selectedOptions {
+			if _, ok := seen[opt]; !ok {
+				imp.T.Fatalf("Test selector selected option %q for %q, but it is was not in the set of selectable options!", opt, name)
+			}
 		}
 	}
 	// register what options we selected
 	imp.selected(name, selectedOptions...)
 	// return the option we went with as default
 	return selectedOptions[0]
-}
-
-// Value implements Testing.Value
-func (imp *testImpl) Value(name string) string {
-	imp.ctxLock.Lock()
-	defer imp.ctxLock.Unlock()
-	// Check if the choice was already made
-	current := imp.ctx.Value(parameterCtxKey(name))
-	if current != nil {
-		return current.(string)
-	}
-	// get the parameter selector
-	selector := imp.ctx.Value(parameterManagerCtxKey{}).(ParameterSelector)
-	// determine what value(s) we should go with
-	selectedValues := selector.Values(name)
-	if len(selectedValues) == 0 {
-		imp.T.Skipf("No values for parameter %q where provided, skipping test!", name)
-	}
-	// register what values we selected
-	imp.selected(name, selectedValues...)
-	// return the value we went with as default
-	return selectedValues[0]
 }
