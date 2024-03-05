@@ -4,19 +4,21 @@ pragma solidity 0.8.15;
 import { Script } from "forge-std/Script.sol";
 import { console2 as console } from "forge-std/console2.sol";
 
-import { Artifacts } from "scripts/Artifacts.s.sol";
-import { DeployConfig } from "scripts/DeployConfig.s.sol";
+import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
+
+import { Artifacts } from "scripts/deploy/Artifacts.s.sol";
+import { DeployConfig } from "scripts/deploy/DeployConfig.s.sol";
+
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
 import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
 import { L2StandardBridge } from "src/L2/L2StandardBridge.sol";
 import { L2CrossDomainMessenger } from "src/L2/L2CrossDomainMessenger.sol";
 import { SequencerFeeVault } from "src/L2/SequencerFeeVault.sol";
+import { L1Block } from "src/L2/L1Block.sol";
 import { FeeVault } from "src/universal/FeeVault.sol";
 import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
-import { L1Block } from "src/L2/L1Block.sol";
 import { GovernanceToken } from "src/governance/GovernanceToken.sol";
-import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
 interface IInitializable {
     function initialize(address _addr) external;

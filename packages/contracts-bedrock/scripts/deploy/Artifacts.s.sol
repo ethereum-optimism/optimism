@@ -4,10 +4,12 @@ pragma solidity ^0.8.0;
 import { console2 as console } from "forge-std/console2.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 import { Vm } from "forge-std/Vm.sol";
-import { Executables } from "scripts/Executables.sol";
+
+import { Executables } from "scripts/deploy/Executables.sol";
+import { Chains } from "scripts/deploy/Chains.sol";
+import { Config } from "scripts/deploy/Config.sol";
+
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { Chains } from "scripts/Chains.sol";
-import { Config } from "scripts/Config.sol";
 
 /// @notice Represents a deployment. Is serialized to JSON as a key/value
 ///         pair. Can be accessed from within scripts.

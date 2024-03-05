@@ -5,13 +5,14 @@ import { Script } from "forge-std/Script.sol";
 import { console2 as console } from "forge-std/console2.sol";
 
 import { FaultDisputeGame_Init } from "test/dispute/FaultDisputeGame.t.sol";
+
 import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
 import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
 import { IFaultDisputeGame } from "src/dispute/interfaces/IFaultDisputeGame.sol";
 
+import { LibPosition } from "src/dispute/lib/LibPosition.sol";
 import "src/libraries/DisputeTypes.sol";
 import "src/libraries/DisputeErrors.sol";
-import { LibPosition } from "src/dispute/lib/LibPosition.sol";
 
 /**
  * @title FaultDisputeGameViz
@@ -84,7 +85,7 @@ contract FaultDisputeGameViz is Script, FaultDisputeGame_Init {
 
         string[] memory commands = new string[](3);
         commands[0] = "python3";
-        commands[1] = "scripts/dag-viz.py";
+        commands[1] = "scripts/fpac/dag-viz.py";
         commands[2] = vm.toString(abi.encode(gameData));
         vm.ffi(commands);
     }

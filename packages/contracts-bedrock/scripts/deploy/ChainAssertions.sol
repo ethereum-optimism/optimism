@@ -1,28 +1,30 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+import { Vm } from "forge-std/Vm.sol";
+import { console2 as console } from "forge-std/console2.sol";
+
+import { DeployConfig } from "scripts/deploy/DeployConfig.s.sol";
+import { Deployer } from "scripts/deploy/Deployer.sol";
+import { Types } from "scripts/deploy/Types.sol";
+import { ISystemConfigV0 } from "scripts/interfaces/ISystemConfigV0.sol";
+
 import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
+import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
-import { DeployConfig } from "scripts/DeployConfig.s.sol";
-import { Deployer } from "scripts/Deployer.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
-import { Constants } from "src/libraries/Constants.sol";
 import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
 import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
-import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
-import { DelayedWETH } from "src/dispute/weth/DelayedWETH.sol";
 import { ProtocolVersion, ProtocolVersions } from "src/L1/ProtocolVersions.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
 import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
-import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
 import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
+import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
+import { DelayedWETH } from "src/dispute/weth/DelayedWETH.sol";
+import { Constants } from "src/libraries/Constants.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { Types } from "scripts/Types.sol";
-import { Vm } from "forge-std/Vm.sol";
-import { ISystemConfigV0 } from "scripts/interfaces/ISystemConfigV0.sol";
-import { console2 as console } from "forge-std/console2.sol";
 
 library ChainAssertions {
     Vm internal constant vm = Vm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);

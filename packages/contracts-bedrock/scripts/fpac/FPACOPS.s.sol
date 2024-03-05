@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+import { StdAssertions } from "forge-std/StdAssertions.sol";
+
+import "scripts/deploy/Deploy.s.sol";
+
 import { Proxy } from "src/universal/Proxy.sol";
 import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
-import { StdAssertions } from "forge-std/StdAssertions.sol";
-import "scripts/Deploy.s.sol";
 
 /// @notice Deploys the Fault Proof Alpha Chad contracts.
 contract FPACOPS is Deploy, StdAssertions {

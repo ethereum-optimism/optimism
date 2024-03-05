@@ -2,7 +2,10 @@
 pragma solidity 0.8.15;
 
 import { Bridge_Initializer } from "test/setup/Bridge_Initializer.sol";
-import { Executables } from "scripts/Executables.sol";
+
+import { Executables } from "scripts/deploy/Executables.sol";
+import "scripts/deploy/Deployer.sol";
+
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
@@ -10,7 +13,6 @@ import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 import "src/L1/ProtocolVersions.sol";
-import "scripts/Deployer.sol";
 
 /// @title Initializer_Test
 /// @dev Ensures that the `initialize()` function on contracts cannot be called more than

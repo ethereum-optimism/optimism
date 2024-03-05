@@ -136,7 +136,7 @@ def devnet_l1_genesis(paths):
     log.info('Generating L1 genesis state')
     init_devnet_l1_deploy_config(paths)
 
-    fqn = 'scripts/Deploy.s.sol:Deploy'
+    fqn = 'scripts/deploy/Deploy.s.sol:Deploy'
     run_command([
         'forge', 'script', '--chain-id', '900', fqn, "--sig", "runWithStateDump()"
     ], env={}, cwd=paths.contracts_bedrock_dir)

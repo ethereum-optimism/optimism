@@ -3,14 +3,15 @@ pragma solidity 0.8.15;
 
 import { console } from "forge-std/console.sol";
 import { Script } from "forge-std/Script.sol";
-import { Predeploys } from "../src/libraries/Predeploys.sol";
-import { FeeVault } from "../src/universal/FeeVault.sol";
 import { IMulticall3 } from "forge-std/interfaces/IMulticall3.sol";
+
+import { Predeploys } from "src/libraries/Predeploys.sol";
+import { FeeVault } from "src/universal/FeeVault.sol";
 
 /// @title FeeVaultWithdrawal
 /// @notice A script to make it very simple to withdraw from the fee vaults.
 ///         The usage is as follows:
-///         $ forge script scripts/FeeVaultWithdrawal.s.sol \
+///         $ forge script scripts/misc/FeeVaultWithdrawal.s.sol \
 ///             --rpc-url $ETH_RPC_URL --broadcast \
 ///             --private-key $PRIVATE_KEY
 contract FeeVaultWithdrawal is Script {

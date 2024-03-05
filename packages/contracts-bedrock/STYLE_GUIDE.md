@@ -161,5 +161,5 @@ To minimize clutter, getter functions can be grouped together into a single test
 
 ## Withdrawing From Fee Vaults
 
-See the file `scripts/FeeVaultWithdrawal.s.sol` to withdraw from the L2 fee vaults. It includes
+See the file `scripts/misc/FeeVaultWithdrawal.s.sol` to withdraw from the L2 fee vaults. It includes
 instructions on how to run it. `foundry` is required.

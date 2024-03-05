@@ -8,7 +8,7 @@ set -euo pipefail
 # contracts-bedrock
 
 SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" > /dev/null && pwd)"
-CONTRACTS_DIR="$(realpath "$SCRIPTS_DIR/..")"
+CONTRACTS_DIR="$(realpath "$SCRIPTS_DIR/../..")"
 MONOREPO_BASE="$(realpath "$CONTRACTS_DIR/../..")"
 
 DEPLOY_ARTIFACT="$CONTRACTS_DIR/deployments/hardhat/.deploy"
@@ -59,7 +59,7 @@ if mkdir -- "$LOCKDIR" > /dev/null 2>&1; then
   mkdir -p "$TESTDATA_DIR"
 
   if [ ! -f "$DEPLOY_ARTIFACT" ]; then
-    forge script "$CONTRACTS_DIR"/scripts/Deploy.s.sol:Deploy > /dev/null 2>&1
+    forge script "$CONTRACTS_DIR"/scripts/deploy/Deploy.s.sol:Deploy > /dev/null 2>&1
   fi
 
   if [ ! -f "$OUTFILE_L2" ]; then

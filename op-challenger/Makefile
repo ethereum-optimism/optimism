@@ -20,7 +20,7 @@ test:
 	go test -v ./...
 
 visualize:
-	./scripts/visualize.sh
+	./scripts/fpac/visualize.sh
 
 .PHONY: \
 	op-challenger \

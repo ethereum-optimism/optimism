@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 import { FFIInterface } from "test/setup/FFIInterface.sol";
-import { Deploy } from "scripts/Deploy.s.sol";
+import { Deploy } from "scripts/deploy/Deploy.s.sol";
 import { Test } from "forge-std/Test.sol";
 
 /// @title InvariantTest

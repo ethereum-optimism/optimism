@@ -1,6 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+import { Vm } from "forge-std/Vm.sol";
+
+import { DeployConfig } from "scripts/deploy/DeployConfig.s.sol";
+import { Deploy } from "scripts/deploy/Deploy.s.sol";
+import { Executables } from "scripts/deploy/Executables.sol";
+
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { L2CrossDomainMessenger } from "src/L2/L2CrossDomainMessenger.sol";
 import { L2StandardBridge } from "src/L2/L2StandardBridge.sol";
@@ -21,8 +27,6 @@ import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
 import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
 import { DelayedWETH } from "src/dispute/weth/DelayedWETH.sol";
 import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
-import { DeployConfig } from "scripts/DeployConfig.s.sol";
-import { Deploy } from "scripts/Deploy.s.sol";
 import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
 import { ProtocolVersions } from "src/L1/ProtocolVersions.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
@@ -30,8 +34,6 @@ import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
 import { AddressManager } from "src/legacy/AddressManager.sol";
 import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
-import { Executables } from "scripts/Executables.sol";
-import { Vm } from "forge-std/Vm.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { DataAvailabilityChallenge } from "src/L1/DataAvailabilityChallenge.sol";
 
@@ -155,7 +157,7 @@ contract Setup {
             string[] memory args = new string[](3);
             args[0] = Executables.bash;
             args[1] = "-c";
-            args[2] = string.concat(vm.projectRoot(), "/scripts/generate-l2-genesis.sh");
+            args[2] = string.concat(vm.projectRoot(), "/scripts/genesis/generate-l2-genesis.sh");
             vm.ffi(args);
         }
 

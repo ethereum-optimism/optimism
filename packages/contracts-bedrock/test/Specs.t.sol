@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.15;
 
-import { CommonTest } from "test/setup/CommonTest.sol";
-import { Executables } from "scripts/Executables.sol";
 import { console2 as console } from "forge-std/console2.sol";
+
+import { CommonTest } from "test/setup/CommonTest.sol";
+
+import { Executables } from "scripts/deploy/Executables.sol";
+
 import { ProtocolVersions } from "src/L1/ProtocolVersions.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";

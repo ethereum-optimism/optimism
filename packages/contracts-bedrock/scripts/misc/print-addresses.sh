@@ -25,7 +25,7 @@ if [[ "$2" == "--sdk" ]]; then
 fi
 
 # Full directory path, relative from the script's location
-DIR="$SCRIPT_DIR/../deployments/$DIR_NAME"
+DIR="$SCRIPT_DIR/../../deployments/$DIR_NAME"
 
 # Check if the directory exists
 if [ ! -d "$DIR" ]; then

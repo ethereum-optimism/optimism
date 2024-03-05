@@ -3,20 +3,20 @@ pragma solidity ^0.8.0;
 
 import { console2 as console } from "forge-std/console2.sol";
 
-import { Deployer } from "./Deployer.sol";
-import { PeripheryDeployConfig } from "./PeripheryDeployConfig.s.sol";
+import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
+
+import { Deployer } from "scripts/deploy/Deployer.sol";
+import { PeripheryDeployConfig } from "scripts/deploy/PeripheryDeployConfig.s.sol";
+import { Config } from "scripts/deploy/Config.sol";
 
 import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
 import { Proxy } from "src/universal/Proxy.sol";
-
 import { Faucet } from "src/periphery/faucet/Faucet.sol";
 import { Drippie } from "src/periphery/drippie/Drippie.sol";
 import { CheckGelatoLow } from "src/periphery/drippie/dripchecks/CheckGelatoLow.sol";
 import { CheckBalanceLow } from "src/periphery/drippie/dripchecks/CheckBalanceLow.sol";
 import { CheckTrue } from "src/periphery/drippie/dripchecks/CheckTrue.sol";
 import { AdminFaucetAuthModule } from "src/periphery/faucet/authmodules/AdminFaucetAuthModule.sol";
-import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
-import { Config } from "scripts/Config.sol";
 
 /// @title DeployPeriphery
 /// @notice Script used to deploy periphery contracts.
