@@ -1326,7 +1326,8 @@ contract Deploy is Deployer {
                     _splitDepth: cfg.faultGameSplitDepth(),
                     _gameDuration: Duration.wrap(uint64(cfg.faultGameMaxDuration())),
                     _vm: _params.faultVm,
-                    _weth: _params.weth
+                    _weth: _params.weth,
+                    _l2ChainId: cfg.l2ChainID()
                 })
             );
         } else {
@@ -1342,6 +1343,7 @@ contract Deploy is Deployer {
                     _gameDuration: Duration.wrap(uint64(cfg.faultGameMaxDuration())),
                     _vm: _params.faultVm,
                     _weth: _params.weth,
+                    _l2ChainId: cfg.l2ChainID(),
                     _proposer: cfg.l2OutputOracleProposer(),
                     _challenger: cfg.l2OutputOracleChallenger()
                 })

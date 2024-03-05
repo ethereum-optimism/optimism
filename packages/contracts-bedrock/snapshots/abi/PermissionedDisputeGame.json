@@ -47,6 +47,11 @@
         "type": "address"
       },
       {
+        "internalType": "uint256",
+        "name": "_l2ChainId",
+        "type": "uint256"
+      },
+      {
         "internalType": "address",
         "name": "_proposer",
         "type": "address"
@@ -398,6 +403,19 @@
       }
     ],
     "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "l2ChainId",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "l2ChainId_",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {

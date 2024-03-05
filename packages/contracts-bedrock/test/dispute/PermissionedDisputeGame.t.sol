@@ -70,6 +70,7 @@ contract PermissionedDisputeGame_Init is DisputeGameFactory_Init {
             _gameDuration: Duration.wrap(7 days),
             _vm: _vm,
             _weth: _weth,
+            _l2ChainId: 10,
             _proposer: PROPOSER,
             _challenger: CHALLENGER
         });
