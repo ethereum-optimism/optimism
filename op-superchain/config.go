@@ -1,6 +1,6 @@
 package superchain
 
-type SuperchainConfig struct {
+type Config struct {
 	// Simply take in the node addresses directly for now. We
 	// may want to expand and accept more general endpoint
 	// configuration like RateLimits, MaxConcurrency, etc

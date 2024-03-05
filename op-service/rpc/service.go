@@ -18,7 +18,7 @@ func NewService(log log.Logger, srv *Server) *Service {
 }
 
 func (s *Service) Start(_ context.Context) error {
-	log.Info("starting rpc server")
+	s.log.Info("starting rpc server")
 	return s.srv.Start()
 }
 
@@ -27,7 +27,7 @@ func (s *Service) Stop(_ context.Context) error {
 		return nil
 	}
 
-	log.Info("stopping rpc server")
+	s.log.Info("stopping rpc server")
 	err := s.srv.Stop()
 	if err == nil {
 		s.stopped.Store(true)
