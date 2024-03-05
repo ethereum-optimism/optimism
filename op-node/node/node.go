@@ -203,6 +203,8 @@ func (n *OpNode) initL1(ctx context.Context, cfg *Config) error {
 	// which only change once per epoch at most and may be delayed.
 	n.l1SafeSub = eth.PollBlockChanges(n.log, n.l1Source, n.OnNewL1Safe, eth.Safe,
 		cfg.L1EpochPollInterval, time.Second*10)
+	// In Plasma mode, OnNewL1Finalized is driven by plasma manager that updates the finalized head based on
+	// DA challenge and resolution windows. It is set in initL2().
 	if !cfg.Plasma.Enabled {
 		n.l1FinalizedSub = eth.PollBlockChanges(n.log, n.l1Source, n.OnNewL1Finalized, eth.Finalized,
 			cfg.L1EpochPollInterval, time.Second*10)

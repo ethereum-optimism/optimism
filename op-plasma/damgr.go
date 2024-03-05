@@ -28,6 +28,10 @@ var ErrExpiredChallenge = errors.New("challenge expired")
 // This is a protocol fatal error.
 var ErrMissingPastWindow = errors.New("data missing past window")
 
+// ErrInvalidChallenge is returned when a challenge event does is decoded but does not
+// relate to the actual chain commitments.
+var ErrInvalidChallenge = errors.New("invalid challenge")
+
 // L1Fetcher is the required interface for syncing the DA challenge contract state.
 type L1Fetcher interface {
 	InfoAndTxsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, types.Transactions, error)
@@ -83,6 +87,18 @@ func NewPlasmaDAWithStorage(log log.Logger, cfg Config, storage DAStorage, l1f L
 		l1:      l1f,
 		metrics: metrics,
 		state:   NewState(log, metrics),
+	}
+}
+
+// NewPlasmaWithState creates a plasma storage from initial state used for testing in isolation.
+func NewPlasmaDAWithState(log log.Logger, cfg Config, storage DAStorage, l1f L1Fetcher, metrics Metricer, state *State) *DA {
+	return &DA{
+		log:     log,
+		cfg:     cfg,
+		storage: storage,
+		l1:      l1f,
+		metrics: metrics,
+		state:   state,
 	}
 }
 
@@ -182,6 +198,7 @@ func (d *DA) AdvanceL1Origin(ctx context.Context, block eth.BlockID) error {
 		return err
 	}
 
+	// finalized head signal is called only when the finalized head number increases.
 	if bn > d.finalizedHead.Number {
 		ref, err := d.l1.L1BlockRefByNumber(ctx, bn)
 		if err != nil {
@@ -208,72 +225,102 @@ func (d *DA) AdvanceL1Origin(ctx context.Context, block eth.BlockID) error {
 
 // LoadChallengeEvents fetches the l1 block receipts and updates the challenge status
 func (d *DA) LoadChallengeEvents(ctx context.Context, block eth.BlockID) error {
-	//cached with deposits events call so not expensive
-	_, receipts, err := d.l1.FetchReceipts(ctx, block.Hash)
+	// filter any challenge event logs in the block
+	logs, err := d.fetchChallengeLogs(ctx, block)
 	if err != nil {
 		return err
 	}
-	d.log.Info("updating challenges", "epoch", block.Number, "numReceipts", len(receipts))
-	for i, rec := range receipts {
+
+	for _, log := range logs {
+		i := log.TxIndex
+		status, comm, err := d.decodeChallengeStatus(log)
+		if err != nil {
+			d.log.Error("failed to decode challenge event", "block", block.Number, "tx", i, "log", log.Index, "err", err)
+			continue
+		}
+		switch status {
+		case ChallengeResolved:
+			// cached with input resolution call so not expensive
+			_, txs, err := d.l1.InfoAndTxsByHash(ctx, block.Hash)
+			if err != nil {
+				d.log.Error("failed to fetch l1 block", "block", block.Number, "err", err)
+				continue
+			}
+			// avoid panic in black swan case of faulty rpc
+			if uint(len(txs)) <= i {
+				d.log.Error("tx/receipt mismatch in InfoAndTxsByHash")
+				continue
+			}
+			// select the transaction corresponding to the receipt
+			tx := txs[i]
+			// txs and receipts must be in the same order
+			if tx.Hash() != log.TxHash {
+				d.log.Error("tx hash mismatch", "block", block.Number, "tx", i, "log", log.Index, "txHash", tx.Hash(), "receiptTxHash", log.TxHash)
+				continue
+			}
+			// Decode the input from resolver tx calldata
+			input, err := DecodeResolvedInput(tx.Data())
+			if err != nil {
+				d.log.Error("failed to decode resolved input", "block", block.Number, "tx", i, "err", err)
+				continue
+			}
+			if err := comm.Verify(input); err != nil {
+				d.log.Error("failed to verify commitment", "block", block.Number, "tx", i, "err", err)
+				continue
+			}
+			d.log.Debug("resolved input", "block", block.Number, "tx", i)
+			d.state.SetResolvedChallenge(comm.Encode(), input, log.BlockNumber)
+		case ChallengeActive:
+			d.state.SetActiveChallenge(comm.Encode(), log.BlockNumber, d.cfg.ResolveWindow)
+		default:
+			d.log.Warn("skipping unknown challenge status", "block", block.Number, "tx", i, "log", log.Index, "status", status)
+		}
+	}
+	return nil
+}
+
+// fetchChallengeLogs returns logs for challenge events if any for the given block
+func (d *DA) fetchChallengeLogs(ctx context.Context, block eth.BlockID) ([]*types.Log, error) { //cached with deposits events call so not expensive
+	var logs []*types.Log
+	_, receipts, err := d.l1.FetchReceipts(ctx, block.Hash)
+	if err != nil {
+		return logs, err
+	}
+	d.log.Info("loading challenges", "epoch", block.Number, "numReceipts", len(receipts))
+	for _, rec := range receipts {
+		// skip error logs
 		if rec.Status != types.ReceiptStatusSuccessful {
 			continue
 		}
-		for j, log := range rec.Logs {
+		for _, log := range rec.Logs {
 			if log.Address == d.cfg.DAChallengeContractAddress && len(log.Topics) > 0 && log.Topics[0] == ChallengeStatusEventABIHash {
-				event, err := DecodeChallengeStatusEvent(log)
-				if err != nil {
-					d.log.Error("failed to decode challenge event", "block", block.Number, "tx", i, "log", j, "err", err)
-					continue
-				}
-				d.log.Info("decoded challenge status event", "block", block.Number, "tx", i, "log", j, "event", event)
-				comm, err := DecodeKeccak256(event.ChallengedCommitment)
-				if err != nil {
-					d.log.Error("failed to decode commitment", "block", block.Number, "tx", i, "err", err)
-					continue
-				}
-
-				bn := event.ChallengedBlockNumber.Uint64()
-				// if we are not tracking the commitment from processing the l1 origin in derivation,
-				// i.e. someone challenged garbage data, this challenge is invalid.
-				if !d.state.IsTracking(comm.Encode(), bn) {
-					d.log.Warn("skipping invalid challenge", "block", bn)
-					continue
-				}
-				switch ChallengeStatus(event.Status) {
-				case ChallengeResolved:
-					// cached with input resolution call so not expensive
-					_, txs, err := d.l1.InfoAndTxsByHash(ctx, block.Hash)
-					if err != nil {
-						d.log.Error("failed to fetch l1 block", "block", block.Number, "err", err)
-						continue
-					}
-					tx := txs[i]
-					// txs and receipts must be in the same order
-					if tx.Hash() != rec.TxHash {
-						d.log.Error("tx hash mismatch", "block", block.Number, "tx", i, "log", j, "txHash", tx.Hash(), "receiptTxHash", rec.TxHash)
-						continue
-					}
-					input, err := DecodeResolvedInput(tx.Data())
-					if err != nil {
-						d.log.Error("failed to decode resolved input", "block", block.Number, "tx", i, "err", err)
-						continue
-					}
-					if err := comm.Verify(input); err != nil {
-						d.log.Error("failed to verify commitment", "block", block.Number, "tx", i, "err", err)
-						continue
-					}
-					d.log.Debug("resolved input", "block", block.Number, "tx", i)
-					d.state.SetResolvedChallenge(comm.Encode(), input, log.BlockNumber)
-				case ChallengeActive:
-					d.state.SetActiveChallenge(comm.Encode(), log.BlockNumber, d.cfg.ResolveWindow)
-				default:
-					d.log.Warn("skipping unknown challenge status", "block", block.Number, "tx", i, "log", j, "status", event.Status)
-				}
+				logs = append(logs, log)
 			}
 		}
-
 	}
-	return nil
+
+	return logs, nil
+}
+
+// decodeChallengeStatus decodes and validates a challenge event from a transaction log, returning the associated commitment bytes.
+func (d *DA) decodeChallengeStatus(log *types.Log) (ChallengeStatus, Keccak256Commitment, error) {
+	event, err := DecodeChallengeStatusEvent(log)
+	if err != nil {
+		return 0, nil, err
+	}
+	d.log.Debug("decoded challenge status event", "log", log, "event", event)
+	comm, err := DecodeKeccak256(event.ChallengedCommitment)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	bn := event.ChallengedBlockNumber.Uint64()
+	// if we are not tracking the commitment from processing the l1 origin in derivation,
+	// i.e. someone challenged garbage data, this challenge is invalid.
+	if !d.state.IsTracking(comm.Encode(), bn) {
+		return 0, nil, fmt.Errorf("%w: %x at block %d", ErrInvalidChallenge, comm.Encode(), bn)
+	}
+	return ChallengeStatus(event.Status), comm, nil
 }
 
 // LookAhead increments the challenges head and process the new block if it exists.
@@ -296,11 +343,6 @@ var (
 	ChallengeStatusEventABI     = "ChallengeStatusChanged(uint256,bytes,uint8)"
 	ChallengeStatusEventABIHash = crypto.Keccak256Hash([]byte(ChallengeStatusEventABI))
 )
-
-// State getter for inspecting
-func (d *DA) State() *State {
-	return d.state
-}
 
 // DecodeChallengeStatusEvent decodes the challenge status event from the log data and the indexed challenged
 // hash and block number from the topics.

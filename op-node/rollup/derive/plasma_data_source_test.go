@@ -54,8 +54,11 @@ func TestPlasmaDataSource(t *testing.T) {
 	pcfg := plasma.Config{
 		ChallengeWindow: 90, ResolveWindow: 90,
 	}
+	metrics := &plasma.NoopMetrics{}
 
-	da := plasma.NewPlasmaDAWithStorage(logger, pcfg, storage, l1F, &plasma.NoopMetrics{})
+	daState := plasma.NewState(logger, metrics)
+
+	da := plasma.NewPlasmaDAWithState(logger, pcfg, storage, l1F, metrics, daState)
 
 	finalitySignal := &MockFinalitySignal{}
 	da.OnFinalizedHeadSignal(finalitySignal.OnNewL1Finalized)
@@ -96,6 +99,7 @@ func TestPlasmaDataSource(t *testing.T) {
 	factory := NewDataSourceFactory(logger, cfg, l1F, nil, da)
 
 	nc := 0
+	firstChallengeExpirationBlock := uint64(95)
 
 	for i := uint64(0); i <= pcfg.ChallengeWindow+pcfg.ResolveWindow; i++ {
 		parent := l1Refs[len(l1Refs)-1]
@@ -151,7 +155,7 @@ func TestPlasmaDataSource(t *testing.T) {
 		if len(comms) >= 4 && nc < 7 {
 			// skip a block between each challenge transaction
 			if nc%2 == 0 {
-				da.State().SetActiveChallenge(comms[nc/2], ref.Number, pcfg.ResolveWindow)
+				daState.SetActiveChallenge(comms[nc/2], ref.Number, pcfg.ResolveWindow)
 				logger.Info("setting active challenge", "comm", comms[nc/2])
 			}
 			nc++
@@ -162,7 +166,7 @@ func TestPlasmaDataSource(t *testing.T) {
 		require.NoError(t, err)
 
 		// first challenge expires
-		if i == 95 {
+		if i == firstChallengeExpirationBlock {
 			_, err := src.Next(ctx)
 			require.ErrorIs(t, err, ErrReset)
 			break
@@ -183,6 +187,7 @@ func TestPlasmaDataSource(t *testing.T) {
 
 	// start at 1 since first input should be skipped
 	nc = 1
+	secondChallengeExpirationBlock := 98
 
 	for i := 1; i <= len(l1Refs)+2; i++ {
 
@@ -245,7 +250,7 @@ func TestPlasmaDataSource(t *testing.T) {
 		require.NoError(t, err)
 
 		// next challenge expires
-		if i == 98 {
+		if i == secondChallengeExpirationBlock {
 			_, err := src.Next(ctx)
 			require.ErrorIs(t, err, ErrReset)
 			break
@@ -280,7 +285,11 @@ func TestPlasmaDataSourceStall(t *testing.T) {
 		ChallengeWindow: 90, ResolveWindow: 90,
 	}
 
-	da := plasma.NewPlasmaDAWithStorage(logger, pcfg, storage, l1F, &plasma.NoopMetrics{})
+	metrics := &plasma.NoopMetrics{}
+
+	daState := plasma.NewState(logger, metrics)
+
+	da := plasma.NewPlasmaDAWithState(logger, pcfg, storage, l1F, metrics, daState)
 
 	finalitySignal := &MockFinalitySignal{}
 	da.OnFinalizedHeadSignal(finalitySignal.OnNewL1Finalized)
@@ -360,7 +369,7 @@ func TestPlasmaDataSourceStall(t *testing.T) {
 	require.ErrorIs(t, err, ErrTemporary)
 
 	// now challenge is resolved
-	da.State().SetResolvedChallenge(comm, input, ref.Number+2)
+	daState.SetResolvedChallenge(comm, input, ref.Number+2)
 
 	// derivation can resume
 	data, err := src.Next(ctx)

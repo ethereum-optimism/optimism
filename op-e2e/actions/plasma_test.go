@@ -55,7 +55,6 @@ func NewL2AltDA(t Testing, params ...PlasmaParam) *L2PlasmaDA {
 	}
 	log := testlog.Logger(t, log.LvlDebug)
 
-	p.UsePlasma = true
 	dp := e2eutils.MakeDeployParams(t, p)
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 
@@ -343,7 +342,7 @@ func TestPlasma_ChallengeResolved(gt *testing.T) {
 }
 
 // DA storage service goes offline while sequencer keeps making blocks. When storage comes back online, it should be able to catch up.
-func TestAltDA_StorageError(gt *testing.T) {
+func TestPlasma_StorageError(gt *testing.T) {
 	t := NewDefaultTesting(gt)
 	harness := NewL2AltDA(t)
 
@@ -364,33 +363,4 @@ func TestAltDA_StorageError(gt *testing.T) {
 	syncStatus := harness.sequencer.SyncStatus()
 	require.Equal(t, uint64(1), syncStatus.SafeL2.Number)
 	require.Equal(t, txBlk.Hash(), syncStatus.SafeL2.Hash)
-}
-
-// Commitment is challenged but with a wrong block number.
-func TestAltDA_ChallengeBadBlockNumber(gt *testing.T) {
-	t := NewDefaultTesting(gt)
-	harness := NewL2AltDA(t)
-
-	// generate 3 blocks of l1 chain
-	harness.ActL1Blocks(t, 3)
-
-	// include a new transaction on l2
-	harness.ActNewL2Tx(t)
-
-	// move the l1 chain so the challenge window expires
-	harness.ActExpireLastInput(t)
-
-	// catch up derivation
-	harness.sequencer.ActL2PipelineFull(t)
-
-	// challenge the input but with a wrong block number
-	// in the current challenge window
-	harness.ActChallengeInput(t, harness.lastComm, 14)
-
-	// catch up derivation
-	harness.sequencer.ActL2PipelineFull(t)
-
-	// da mgr should not have save the challenge
-	found := harness.daMgr.State().IsTracking(harness.lastComm, 14)
-	require.False(t, found)
 }

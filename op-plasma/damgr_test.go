@@ -1,11 +1,17 @@
 package plasma
 
 import (
+	"context"
+	"math/big"
 	"math/rand"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -205,4 +211,94 @@ func TestExpireChallenges(t *testing.T) {
 
 	// finalized at last
 	require.Equal(t, uint64(3713926), bn)
+}
+
+// cannot import from testutils at this time because of import cycle
+type mockL1Fetcher struct {
+	mock.Mock
+}
+
+func (m *mockL1Fetcher) InfoAndTxsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, types.Transactions, error) {
+	out := m.Mock.Called(hash)
+	return out.Get(0).(eth.BlockInfo), out.Get(1).(types.Transactions), out.Error(2)
+}
+
+func (m *mockL1Fetcher) ExpectInfoAndTxsByHash(hash common.Hash, info eth.BlockInfo, transactions types.Transactions, err error) {
+	m.Mock.On("InfoAndTxsByHash", hash).Once().Return(info, transactions, err)
+}
+
+func (m *mockL1Fetcher) FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error) {
+	out := m.Mock.Called(blockHash)
+	return *out.Get(0).(*eth.BlockInfo), out.Get(1).(types.Receipts), out.Error(2)
+}
+
+func (m *mockL1Fetcher) ExpectFetchReceipts(hash common.Hash, info eth.BlockInfo, receipts types.Receipts, err error) {
+	m.Mock.On("FetchReceipts", hash).Once().Return(&info, receipts, err)
+}
+
+func (m *mockL1Fetcher) L1BlockRefByNumber(ctx context.Context, num uint64) (eth.L1BlockRef, error) {
+	out := m.Mock.Called(num)
+	return out.Get(0).(eth.L1BlockRef), out.Error(1)
+}
+
+func (m *mockL1Fetcher) ExpectL1BlockRefByNumber(num uint64, ref eth.L1BlockRef, err error) {
+	m.Mock.On("L1BlockRefByNumber", num).Once().Return(ref, err)
+}
+
+func TestFilterInvalidBlockNumber(t *testing.T) {
+	logger := testlog.Logger(t, log.LevelDebug)
+	ctx := context.Background()
+
+	l1F := &mockL1Fetcher{}
+
+	storage := NewMockDAClient(logger)
+
+	daddr := common.HexToAddress("0x978e3286eb805934215a88694d80b09aded68d90")
+	pcfg := Config{
+		ChallengeWindow: 90, ResolveWindow: 90, DAChallengeContractAddress: daddr,
+	}
+
+	bn := uint64(19)
+	bhash := common.HexToHash("0xd438144ffab918b1349e7cd06889c26800c26d8edc34d64f750e3e097166a09c")
+
+	da := NewPlasmaDAWithStorage(logger, pcfg, storage, l1F, &NoopMetrics{})
+
+	receipts := types.Receipts{&types.Receipt{
+		Type:   2,
+		Status: 1,
+		Logs: []*types.Log{
+			{
+				BlockNumber: bn,
+				Address:     daddr,
+				Topics: []common.Hash{
+					common.HexToHash("0xa448afda7ea1e3a7a10fcab0c29fe9a9dd85791503bf0171f281521551c7ec05"),
+				},
+			},
+			{
+				BlockNumber: bn,
+				Address:     daddr,
+				Topics: []common.Hash{
+					common.HexToHash("0xc5d8c630ba2fdacb1db24c4599df78c7fb8cf97b5aecde34939597f6697bb1ad"),
+					common.HexToHash("0x000000000000000000000000000000000000000000000000000000000000000e"),
+				},
+				Data: common.FromHex("0x00000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000002100eed82c1026bdd0f23461dd6ca515ef677624e63e6fc0ff91e3672af8eddf579d00000000000000000000000000000000000000000000000000000000000000"),
+			},
+		},
+		BlockNumber: big.NewInt(int64(bn)),
+	}}
+	id := eth.BlockID{
+		Number: bn,
+		Hash:   bhash,
+	}
+	l1F.ExpectFetchReceipts(bhash, nil, receipts, nil)
+
+	// we get 1 logs successfully filtered as valid status updated contract event
+	logs, err := da.fetchChallengeLogs(ctx, id)
+	require.NoError(t, err)
+	require.Equal(t, len(logs), 1)
+
+	_, _, err = da.decodeChallengeStatus(logs[0])
+	// challenge was successfully decoded but is invalid because it does not belong
+	// to any known commitment previously submitted onchain.
+	require.ErrorIs(t, err, ErrInvalidChallenge)
 }

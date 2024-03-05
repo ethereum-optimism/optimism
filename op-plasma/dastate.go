@@ -22,7 +22,7 @@ const (
 
 // Commitment keeps track of the onchain state of an input commitment.
 type Commitment struct {
-	hash            []byte          // the keccak256 hash of the input
+	key             []byte          // the encoded commitment
 	input           []byte          // the input itself if it was resolved onchain
 	expiresAt       uint64          // represents the block number after which the commitment can no longer be challenged or if challenged no longer be resolved.
 	blockNumber     uint64          // block where the commitment is included as calldata to the batcher inbox
@@ -59,24 +59,24 @@ func (c *CommQueue) Pop() any {
 
 // State tracks the commitment and their challenges in order of l1 inclusion.
 type State struct {
-	comms       CommQueue
-	commsByHash map[string]*Commitment
-	log         log.Logger
-	metrics     Metricer
+	comms      CommQueue
+	commsByKey map[string]*Commitment
+	log        log.Logger
+	metrics    Metricer
 }
 
 func NewState(log log.Logger, m Metricer) *State {
 	return &State{
-		comms:       make(CommQueue, 0),
-		commsByHash: make(map[string]*Commitment),
-		log:         log,
-		metrics:     m,
+		comms:      make(CommQueue, 0),
+		commsByKey: make(map[string]*Commitment),
+		log:        log,
+		metrics:    m,
 	}
 }
 
-// IsTracking returns whether we currently have a commitment for the given hash.
-func (s *State) IsTracking(comm []byte, bn uint64) bool {
-	if c, ok := s.commsByHash[string(comm)]; ok {
+// IsTracking returns whether we currently have a commitment for the given key.
+func (s *State) IsTracking(key []byte, bn uint64) bool {
+	if c, ok := s.commsByKey[string(key)]; ok {
 		return c.blockNumber == bn
 	}
 	return false
@@ -84,52 +84,54 @@ func (s *State) IsTracking(comm []byte, bn uint64) bool {
 
 // SetActiveChallenge switches the state of a given commitment to active challenge. Noop if
 // the commitment is not tracked as we don't want to track challenges for invalid commitments.
-func (s *State) SetActiveChallenge(comm []byte, challengedAt uint64, resolveWindow uint64) {
-	if c, ok := s.commsByHash[string(comm)]; ok {
+func (s *State) SetActiveChallenge(key []byte, challengedAt uint64, resolveWindow uint64) {
+	if c, ok := s.commsByKey[string(key)]; ok {
 		c.expiresAt = challengedAt + resolveWindow
 		c.challengeStatus = ChallengeActive
-		s.metrics.RecordActiveChallenge(c.blockNumber, challengedAt, comm)
+		s.metrics.RecordActiveChallenge(c.blockNumber, challengedAt, key)
 	}
 }
 
 // SetResolvedChallenge switches the state of a given commitment to resolved. Noop if
 // the commitment is not tracked as we don't want to track challenges for invalid commitments.
 // The input posted onchain is stored in the state for later retrieval.
-func (s *State) SetResolvedChallenge(comm []byte, input []byte, resolvedAt uint64) {
-	if c, ok := s.commsByHash[string(comm)]; ok {
+func (s *State) SetResolvedChallenge(key []byte, input []byte, resolvedAt uint64) {
+	if c, ok := s.commsByKey[string(key)]; ok {
 		c.challengeStatus = ChallengeResolved
 		c.expiresAt = resolvedAt
 		c.input = input
-		s.metrics.RecordResolvedChallenge(comm)
+		s.metrics.RecordResolvedChallenge(key)
 	}
 }
 
 // SetInputCommitment initializes a new commitment and adds it to the state.
-func (s *State) SetInputCommitment(comm []byte, committedAt uint64, challengeWindow uint64) *Commitment {
+// This is called when we see a commitment during derivation so we can refer to it later in
+// challenges.
+func (s *State) SetInputCommitment(key []byte, committedAt uint64, challengeWindow uint64) *Commitment {
 	c := &Commitment{
-		hash:        comm,
+		key:         key,
 		expiresAt:   committedAt + challengeWindow,
 		blockNumber: committedAt,
 	}
 	s.log.Debug("append commitment", "expiresAt", c.expiresAt, "blockNumber", c.blockNumber)
 	heap.Push(&s.comms, c)
-	s.commsByHash[string(comm)] = c
+	s.commsByKey[string(key)] = c
 
 	return c
 }
 
-// GetOrTrackChallenge returns the commitment for the given hash if it is already tracked, or
+// GetOrTrackChallenge returns the commitment for the given key if it is already tracked, or
 // initializes a new commitment and adds it to the state.
-func (s *State) GetOrTrackChallenge(comm []byte, bn uint64, challengeWindow uint64) *Commitment {
-	if c, ok := s.commsByHash[string(comm)]; ok {
+func (s *State) GetOrTrackChallenge(key []byte, bn uint64, challengeWindow uint64) *Commitment {
+	if c, ok := s.commsByKey[string(key)]; ok {
 		return c
 	}
-	return s.SetInputCommitment(comm, bn, challengeWindow)
+	return s.SetInputCommitment(key, bn, challengeWindow)
 }
 
 // GetResolvedInput returns the input bytes if the commitment was resolved onchain.
-func (s *State) GetResolvedInput(comm []byte) ([]byte, error) {
-	if c, ok := s.commsByHash[string(comm)]; ok {
+func (s *State) GetResolvedInput(key []byte) ([]byte, error) {
+	if c, ok := s.commsByKey[string(key)]; ok {
 		return c.input, nil
 	}
 	return nil, errors.New("commitment not found")
@@ -149,7 +151,7 @@ func (s *State) ExpireChallenges(bn uint64) (uint64, error) {
 
 			if c.challengeStatus == ChallengeActive {
 				c.challengeStatus = ChallengeExpired
-				s.metrics.RecordExpiredChallenge(c.hash)
+				s.metrics.RecordExpiredChallenge(c.key)
 				err = ErrReorgRequired
 			}
 		} else {
@@ -173,7 +175,7 @@ func (s *State) Prune(bn uint64) {
 		c := s.comms[i]
 		if c.blockNumber < bn {
 			s.log.Debug("prune commitment", "expiresAt", c.expiresAt, "blockNumber", c.blockNumber)
-			delete(s.commsByHash, string(c.hash))
+			delete(s.commsByKey, string(c.key))
 		} else {
 			s.comms = s.comms[i:]
 			break

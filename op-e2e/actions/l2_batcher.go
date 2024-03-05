@@ -251,7 +251,7 @@ func (s *L2Batcher) ActL2BatchSubmit(t Testing, txOpts ...func(tx *types.Dynamic
 	payload := data.Bytes()
 	if s.l2BatcherCfg.UsePlasma {
 		var err error
-		payload, err = s.l2BatcherCfg.PlasmaDA.SetInput(context.TODO(), payload)
+		payload, err = s.l2BatcherCfg.PlasmaDA.SetInput(t.Ctx(), payload)
 		require.NoError(t, err, "failed to set input for plasma")
 	}
 
