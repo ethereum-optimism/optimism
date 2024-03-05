@@ -87,7 +87,7 @@ func EncodeStorageKeyValue(value any, entry solc.StorageLayoutEntry, storageType
 
 		values, ok := value.(map[any]any)
 		if !ok {
-			return nil, fmt.Errorf("mapping must be map[any]any")
+			return nil, errors.New("mapping must be map[any]any")
 		}
 
 		keyEncoder, err := getElementEncoder(storageType, "key")

@@ -2,7 +2,7 @@ package game
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"math/big"
 	"sync"
 	"testing"
@@ -84,7 +84,7 @@ func TestMonitorGames(t *testing.T) {
 				// Just to avoid a tight loop
 				time.Sleep(100 * time.Millisecond)
 			}
-			mockHeadSource.SetErr(fmt.Errorf("eth subscribe test error"))
+			mockHeadSource.SetErr(errors.New("eth subscribe test error"))
 			cancel()
 		}()
 
@@ -111,7 +111,7 @@ func TestMonitorGames(t *testing.T) {
 				return mockHeadSource.Sub() != nil, nil
 			})
 			require.NoError(t, waitErr)
-			mockHeadSource.Sub().errChan <- fmt.Errorf("test error")
+			mockHeadSource.Sub().errChan <- errors.New("test error")
 			for {
 				if len(sched.Scheduled()) >= 1 {
 					break
@@ -132,7 +132,7 @@ func TestMonitorGames(t *testing.T) {
 				time.Sleep(100 * time.Millisecond)
 			}
 			require.NoError(t, waitErr)
-			mockHeadSource.SetErr(fmt.Errorf("eth subscribe test error"))
+			mockHeadSource.SetErr(errors.New("eth subscribe test error"))
 			cancel()
 		}()
 

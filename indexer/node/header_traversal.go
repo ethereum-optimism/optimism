@@ -54,7 +54,7 @@ func (f *HeaderTraversal) NextHeaders(maxSize uint64) ([]types.Header, error) {
 	if err != nil {
 		return nil, fmt.Errorf("unable to query latest block: %w", err)
 	} else if latestHeader == nil {
-		return nil, fmt.Errorf("latest header unreported")
+		return nil, errors.New("latest header unreported")
 	} else {
 		f.latestHeader = latestHeader
 	}

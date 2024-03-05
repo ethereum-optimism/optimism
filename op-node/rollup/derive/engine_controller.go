@@ -144,7 +144,7 @@ func (e *EngineController) SetUnsafeHead(r eth.L2BlockRef) {
 
 func (e *EngineController) StartPayload(ctx context.Context, parent eth.L2BlockRef, attrs *AttributesWithParent, updateSafe bool) (errType BlockInsertionErrType, err error) {
 	if e.IsEngineSyncing() {
-		return BlockInsertTemporaryErr, fmt.Errorf("engine is in progess of p2p sync")
+		return BlockInsertTemporaryErr, errors.New("engine is in progess of p2p sync")
 	}
 	if e.buildingInfo != (eth.PayloadInfo{}) {
 		e.log.Warn("did not finish previous block building, starting new building now", "prev_onto", e.buildingOnto, "prev_payload_id", e.buildingInfo.ID, "new_onto", parent)
@@ -174,7 +174,7 @@ func (e *EngineController) StartPayload(ctx context.Context, parent eth.L2BlockR
 func (e *EngineController) ConfirmPayload(ctx context.Context, agossip async.AsyncGossiper, sequencerConductor conductor.SequencerConductor) (out *eth.ExecutionPayloadEnvelope, errTyp BlockInsertionErrType, err error) {
 	// don't create a BlockInsertPrestateErr if we have a cached gossip payload
 	if e.buildingInfo == (eth.PayloadInfo{}) && agossip.Get() == nil {
-		return nil, BlockInsertPrestateErr, fmt.Errorf("cannot complete payload building: not currently building a payload")
+		return nil, BlockInsertPrestateErr, errors.New("cannot complete payload building: not currently building a payload")
 	}
 	if p := agossip.Get(); p != nil && e.buildingOnto == (eth.L2BlockRef{}) {
 		e.log.Warn("Found reusable payload from async gossiper, and no block was being built. Reusing payload.",

@@ -1,7 +1,7 @@
 package extract
 
 import (
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -35,7 +35,7 @@ func TestMetadataCreator_CreateContract(t *testing.T) {
 		{
 			name:        "InvalidGameType",
 			game:        types.GameMetadata{GameType: 2, Proxy: fdgAddr},
-			expectedErr: fmt.Errorf("unsupported game type: 2"),
+			expectedErr: errors.New("unsupported game type: 2"),
 		},
 	}
 

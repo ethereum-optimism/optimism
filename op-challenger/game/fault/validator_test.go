@@ -2,7 +2,7 @@ package fault
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
@@ -15,8 +15,8 @@ import (
 
 var (
 	prestate          = []byte{0x00, 0x01, 0x02, 0x03}
-	mockProviderError = fmt.Errorf("mock provider error")
-	mockLoaderError   = fmt.Errorf("mock loader error")
+	mockProviderError = errors.New("mock provider error")
+	mockLoaderError   = errors.New("mock loader error")
 )
 
 func TestValidate(t *testing.T) {

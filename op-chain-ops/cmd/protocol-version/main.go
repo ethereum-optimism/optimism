@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 
@@ -110,7 +111,7 @@ func encodeProtocolVersion(ctx *cli.Context) error {
 	}
 	buildVal := ctx.String(BuildFlag.Name)
 	if len(buildVal) != 16 {
-		return fmt.Errorf("build flag value must be 16 characters")
+		return errors.New("build flag value must be 16 characters")
 	}
 	var build [8]byte
 	if _, err := hex.Decode(build[:], []byte(buildVal)); err != nil {
@@ -130,7 +131,7 @@ func encodeProtocolVersion(ctx *cli.Context) error {
 
 func decodeProtocolVersion(ctx *cli.Context) error {
 	if ctx.NArg() != 1 {
-		return fmt.Errorf("expected 1 argument: protocol version")
+		return errors.New("expected 1 argument: protocol version")
 	}
 	hexVersion := ctx.Args().Get(0)
 	var v params.ProtocolVersion

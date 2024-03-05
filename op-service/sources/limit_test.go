@@ -2,7 +2,7 @@ package sources
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"net"
 	"sync/atomic"
 	"testing"
@@ -97,10 +97,10 @@ func TestLimitClient(t *testing.T) {
 		// None of the clients should return yet
 	}
 
-	m.errC <- fmt.Errorf("fake-error")
-	m.errC <- fmt.Errorf("fake-error")
+	m.errC <- errors.New("fake-error")
+	m.errC <- errors.New("fake-error")
 	require.Eventually(t, func() bool { return m.blockedCallers.Load() == 1 }, time.Second, 10*time.Millisecond)
-	m.errC <- fmt.Errorf("fake-error")
+	m.errC <- errors.New("fake-error")
 
 	require.ErrorContains(t, <-errC1, "fake-error")
 	require.ErrorContains(t, <-errC2, "fake-error")

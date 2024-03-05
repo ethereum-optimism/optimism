@@ -640,7 +640,7 @@ func (s *SyncClient) doRequest(ctx context.Context, id peer.ID, expectedBlockNum
 	}
 
 	if err := str.CloseRead(); err != nil {
-		return fmt.Errorf("failed to close reading side")
+		return errors.New("failed to close reading side")
 	}
 	if err := verifyBlock(envelope, expectedBlockNum); err != nil {
 		return fmt.Errorf("received execution payload is invalid: %w", err)

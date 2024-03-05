@@ -273,7 +273,7 @@ func (b *BridgeProcessor) processInitiatedL2Events(latestL2Header *types.Header)
 	if err != nil {
 		return fmt.Errorf("failed to query new L2 state: %w", err)
 	} else if toL2Header == nil {
-		return fmt.Errorf("no new L2 state found")
+		return errors.New("no new L2 state found")
 	}
 
 	fromL2Height, toL2Height := new(big.Int).Add(lastL2BlockNumber, bigint.One), toL2Header.Number

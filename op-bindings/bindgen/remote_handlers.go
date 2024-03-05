@@ -3,6 +3,7 @@ package bindgen
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -221,7 +222,7 @@ func (generator *BindGenGeneratorRemote) removeDeploymentSalt(deploymentData, de
 
 func (generator *BindGenGeneratorRemote) CompareInitBytecodeWithOp(contractMetadataEth *RemoteContractMetadata, initCodeShouldMatch bool) error {
 	if contractMetadataEth.InitBin == "" {
-		return fmt.Errorf("no initialization bytecode provided for ETH deployment for comparison")
+		return errors.New("no initialization bytecode provided for ETH deployment for comparison")
 	}
 
 	var zeroAddress common.Address
@@ -261,7 +262,7 @@ func (generator *BindGenGeneratorRemote) CompareInitBytecodeWithOp(contractMetad
 
 func (generator *BindGenGeneratorRemote) CompareDeployedBytecodeWithOp(contractMetadataEth *RemoteContractMetadata, deployedCodeShouldMatch bool) error {
 	if contractMetadataEth.DeployedBin == "" {
-		return fmt.Errorf("no deployed bytecode provided for ETH deployment for comparison")
+		return errors.New("no deployed bytecode provided for ETH deployment for comparison")
 	}
 
 	var zeroAddress common.Address

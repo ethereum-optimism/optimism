@@ -1,6 +1,7 @@
 package rollup
 
 import (
+	"errors"
 	"fmt"
 	"math/big"
 
@@ -57,7 +58,7 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 
 	addrs, ok := superchain.Addresses[chainID]
 	if !ok {
-		return nil, fmt.Errorf("unable to retrieve deposit contract address")
+		return nil, errors.New("unable to retrieve deposit contract address")
 	}
 
 	regolithTime := uint64(0)

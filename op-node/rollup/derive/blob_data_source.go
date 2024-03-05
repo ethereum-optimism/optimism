@@ -158,16 +158,16 @@ func fillBlobPointers(data []blobOrCalldata, blobs []*eth.Blob) error {
 			continue
 		}
 		if blobIndex >= len(blobs) {
-			return fmt.Errorf("didn't get enough blobs")
+			return errors.New("didn't get enough blobs")
 		}
 		if blobs[blobIndex] == nil {
-			return fmt.Errorf("found a nil blob")
+			return errors.New("found a nil blob")
 		}
 		data[i].blob = blobs[blobIndex]
 		blobIndex++
 	}
 	if blobIndex != len(blobs) {
-		return fmt.Errorf("got too many blobs")
+		return errors.New("got too many blobs")
 	}
 	return nil
 }

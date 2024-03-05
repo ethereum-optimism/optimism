@@ -183,7 +183,7 @@ func (c *client) FetchDeploymentTxHash(ctx context.Context, address string) (str
 	}
 
 	if len(results) == 0 {
-		return "", fmt.Errorf("API response result is an empty array")
+		return "", errors.New("API response result is an empty array")
 	}
 
 	return results[0].Hash, nil

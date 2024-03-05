@@ -129,7 +129,7 @@ func (cfg *L1EndpointConfig) Check() error {
 		return fmt.Errorf("batch size is invalid or unreasonable: %d", cfg.BatchSize)
 	}
 	if cfg.RateLimit < 0 {
-		return fmt.Errorf("rate limit cannot be negative")
+		return errors.New("rate limit cannot be negative")
 	}
 	if cfg.MaxConcurrency < 1 {
 		return fmt.Errorf("max concurrent requests cannot be less than 1, was %d", cfg.MaxConcurrency)

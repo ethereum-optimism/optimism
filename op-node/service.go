@@ -156,7 +156,7 @@ func NewL2EndpointConfig(ctx *cli.Context, log log.Logger) (*node.L2EndpointConf
 	var secret [32]byte
 	fileName = strings.TrimSpace(fileName)
 	if fileName == "" {
-		return nil, fmt.Errorf("file-name of jwt secret is empty")
+		return nil, errors.New("file-name of jwt secret is empty")
 	}
 	if data, err := os.ReadFile(fileName); err == nil {
 		jwtSecret := common.FromHex(strings.TrimSpace(string(data)))

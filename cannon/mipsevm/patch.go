@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"debug/elf"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 )
@@ -100,7 +101,7 @@ func PatchStack(st *State) error {
 	sp := uint32(0x7f_ff_d0_00)
 	// allocate 1 page for the initial stack data, and 16KB = 4 pages for the stack to grow
 	if err := st.Memory.SetMemoryRange(sp-4*PageSize, bytes.NewReader(make([]byte, 5*PageSize))); err != nil {
-		return fmt.Errorf("failed to allocate page for stack content")
+		return errors.New("failed to allocate page for stack content")
 	}
 	st.Registers[29] = sp
 

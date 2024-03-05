@@ -1,6 +1,7 @@
 package plasma
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 
@@ -51,7 +52,7 @@ type CLIConfig struct {
 func (c CLIConfig) Check() error {
 	if c.Enabled {
 		if c.DAServerURL == "" {
-			return fmt.Errorf("DA server URL is required when plasma da is enabled")
+			return errors.New("DA server URL is required when plasma da is enabled")
 		}
 		if _, err := url.Parse(c.DAServerURL); err != nil {
 			return fmt.Errorf("DA server URL is invalid: %w", err)

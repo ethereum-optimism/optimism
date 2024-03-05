@@ -212,7 +212,7 @@ func (l *L2OutputSubmitter) StopL2OutputSubmitting() error {
 // It returns: the next block number, if the proposal should be made, error
 func (l *L2OutputSubmitter) FetchNextOutputInfo(ctx context.Context) (*eth.OutputResponse, bool, error) {
 	if l.l2ooContract == nil {
-		return nil, false, fmt.Errorf("L2OutputOracle contract not set, cannot fetch next output info")
+		return nil, false, errors.New("L2OutputOracle contract not set, cannot fetch next output info")
 	}
 
 	cCtx, cancel := context.WithTimeout(ctx, l.Cfg.NetworkTimeout)
@@ -356,7 +356,7 @@ func (l *L2OutputSubmitter) waitForL1Head(ctx context.Context, blockNum uint64) 
 				return err
 			}
 		case <-l.done:
-			return fmt.Errorf("L2OutputSubmitter is done()")
+			return errors.New("L2OutputSubmitter is done()")
 		}
 	}
 	return nil

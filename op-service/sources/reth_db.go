@@ -5,7 +5,7 @@ package sources
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"unsafe"
 
 	"github.com/ethereum-optimism/optimism/op-service/client"
@@ -37,7 +37,7 @@ import "C"
 // and populates the given results slice pointer with the receipts that were found.
 func FetchRethReceipts(dbPath string, blockHash *common.Hash) (types.Receipts, error) {
 	if blockHash == nil {
-		return nil, fmt.Errorf("Must provide a block hash to fetch receipts for.")
+		return nil, errors.New("Must provide a block hash to fetch receipts for.")
 	}
 
 	// Convert the block hash to a C byte array and defer its deallocation
@@ -52,7 +52,7 @@ func FetchRethReceipts(dbPath string, blockHash *common.Hash) (types.Receipts, e
 	receiptsResult := C.rdb_read_receipts((*C.uint8_t)(cBlockHash), C.size_t(len(blockHash)), cDbPath)
 
 	if receiptsResult.error {
-		return nil, fmt.Errorf("Error fetching receipts from Reth Database.")
+		return nil, errors.New("Error fetching receipts from Reth Database.")
 	}
 
 	// Free the memory allocated by the C code

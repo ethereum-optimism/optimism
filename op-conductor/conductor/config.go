@@ -1,7 +1,6 @@
 package conductor
 
 import (
-	"fmt"
 	"math"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -60,22 +59,22 @@ type Config struct {
 // Check validates the CLIConfig.
 func (c *Config) Check() error {
 	if c.ConsensusAddr == "" {
-		return fmt.Errorf("missing consensus address")
+		return errors.New("missing consensus address")
 	}
 	if c.ConsensusPort < 0 || c.ConsensusPort > math.MaxUint16 {
-		return fmt.Errorf("invalid RPC port")
+		return errors.New("invalid RPC port")
 	}
 	if c.RaftServerID == "" {
-		return fmt.Errorf("missing raft server ID")
+		return errors.New("missing raft server ID")
 	}
 	if c.RaftStorageDir == "" {
-		return fmt.Errorf("missing raft storage directory")
+		return errors.New("missing raft storage directory")
 	}
 	if c.NodeRPC == "" {
-		return fmt.Errorf("missing node RPC")
+		return errors.New("missing node RPC")
 	}
 	if c.ExecutionRPC == "" {
-		return fmt.Errorf("missing geth RPC")
+		return errors.New("missing geth RPC")
 	}
 	if err := c.HealthCheck.Check(); err != nil {
 		return errors.Wrap(err, "invalid health check config")
@@ -147,13 +146,13 @@ type HealthCheckConfig struct {
 
 func (c *HealthCheckConfig) Check() error {
 	if c.Interval == 0 {
-		return fmt.Errorf("missing health check interval")
+		return errors.New("missing health check interval")
 	}
 	if c.SafeInterval == 0 {
-		return fmt.Errorf("missing safe interval")
+		return errors.New("missing safe interval")
 	}
 	if c.MinPeerCount == 0 {
-		return fmt.Errorf("missing minimum peer count")
+		return errors.New("missing minimum peer count")
 	}
 	return nil
 }
