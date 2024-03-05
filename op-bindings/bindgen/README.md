@@ -33,7 +33,7 @@ If you're running the CLI inside the Optimism monorepo, please make sure you've 
 
 # Running BindGen
 
-BindGen can be ran in one of two ways:
+BindGen can be run in one of two ways:
 
 1. Using the provided [Makefile](../Makefile) which defaults some of the required flags
 2. Executing the CLI directly with `go run`, or building a Go binary and executing it
