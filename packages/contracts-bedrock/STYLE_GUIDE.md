@@ -115,7 +115,7 @@ All test contracts and functions should be organized and named according to the 
 These guidelines are also encoded in a script which can be run with:
 
 ```
-tsx scripts/forge-test-names.ts
+tsx scripts/checks/check-test-names.ts
 ```
 
 #### Expect Revert with Low Level Calls

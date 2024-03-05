@@ -49,6 +49,7 @@
   "faultGameGenesisBlock": 4061224,
   "faultGameGenesisOutputRoot": "0xd08055c58b2c5149565c636b44fad2c25b5ccddef1385a2cb721529d7480b242",
   "faultGameSplitDepth": 32,
+  "faultGameWithdrawalDelay": 604800,
   "preimageOracleMinProposalSize": 1800000,
   "preimageOracleChallengePeriod": 86400,
   "preimageOracleCancunActivationTimestamp": 1705473120,

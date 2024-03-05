@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
+
+import { IDelayedWETH } from "src/dispute/interfaces/IDelayedWETH.sol";
 import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
 import { IFaultDisputeGame } from "src/dispute/interfaces/IFaultDisputeGame.sol";
 import { IInitializable } from "src/dispute/interfaces/IInitializable.sol";
@@ -38,14 +41,20 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     /// @notice An onchain VM that performs single instruction steps on a fault proof program trace.
     IBigStepper internal immutable VM;
 
-    /// @notice The genesis block number
+    /// @notice The genesis block number.
     uint256 internal immutable GENESIS_BLOCK_NUMBER;
 
-    /// @notice The genesis output root
+    /// @notice The genesis output root.
     Hash internal immutable GENESIS_OUTPUT_ROOT;
 
-    /// @notice The game type ID
+    /// @notice The game type ID.
     GameType internal immutable GAME_TYPE;
+
+    /// @notice WETH contract for holding ETH.
+    IDelayedWETH internal immutable WETH;
+
+    /// @notice The chain ID of the L2 network this contract argues about.
+    uint256 internal immutable L2_CHAIN_ID;
 
     /// @notice The global root claim's position is always at gindex 1.
     Position internal constant ROOT_POSITION = Position.wrap(1);
@@ -81,8 +90,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     bool internal initialized;
 
     /// @notice Semantic version.
-    /// @custom:semver 0.7.0
-    string public constant version = "0.7.0";
+    /// @custom:semver 0.7.1
+    string public constant version = "0.7.1";
 
     /// @param _gameType The type ID of the game.
     /// @param _absolutePrestate The absolute prestate of the instruction trace.
@@ -91,8 +100,9 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     /// @param _maxGameDepth The maximum depth of bisection.
     /// @param _splitDepth The final depth of the output bisection portion of the game.
     /// @param _gameDuration The duration of the game.
-    /// @param _vm An onchain VM that performs single instruction steps on a fault proof program
-    ///            trace.
+    /// @param _vm An onchain VM that performs single instruction steps on an FPP trace.
+    /// @param _weth WETH contract for holding ETH.
+    /// @param _l2ChainId Chain ID of the L2 network this contract argues about.
     constructor(
         GameType _gameType,
         Claim _absolutePrestate,
@@ -101,7 +111,9 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         uint256 _maxGameDepth,
         uint256 _splitDepth,
         Duration _gameDuration,
-        IBigStepper _vm
+        IBigStepper _vm,
+        IDelayedWETH _weth,
+        uint256 _l2ChainId
     ) {
         // The split depth cannot be greater than or equal to the max game depth.
         if (_splitDepth >= _maxGameDepth) revert InvalidSplitDepth();
@@ -114,7 +126,15 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         SPLIT_DEPTH = _splitDepth;
         GAME_DURATION = _gameDuration;
         VM = _vm;
+        WETH = _weth;
+        L2_CHAIN_ID = _l2ChainId;
     }
+
+    /// @notice Receive function to allow the contract to receive ETH.
+    receive() external payable { }
+
+    /// @notice Fallback function to allow the contract to receive ETH.
+    fallback() external payable { }
 
     ////////////////////////////////////////////////////////////////
     //                  `IFaultDisputeGame` impl                  //
@@ -292,6 +312,9 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         // Update the subgame rooted at the parent claim.
         subgames[_challengeIndex].push(claimData.length - 1);
 
+        // Deposit the bond.
+        WETH.deposit{ value: msg.value }();
+
         // Emit the appropriate event for the attack or defense.
         emit Move(_challengeIndex, _claim, msg.sender);
     }
@@ -335,7 +358,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
             oracle.loadLocalData(_ident, uuid.raw(), bytes32(l2Number << 0xC0), 8, _partOffset);
         } else if (_ident == LocalPreimageKey.CHAIN_ID) {
             // Load the chain ID as a big-endian uint64 in the high order 8 bytes of the word.
-            oracle.loadLocalData(_ident, uuid.raw(), bytes32(block.chainid << 0xC0), 8, _partOffset);
+            oracle.loadLocalData(_ident, uuid.raw(), bytes32(L2_CHAIN_ID << 0xC0), 8, _partOffset);
         } else {
             revert InvalidLocalIdent();
         }
@@ -519,6 +542,9 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
             })
         );
 
+        // Deposit the bond.
+        WETH.deposit{ value: msg.value }();
+
         // Set the game's starting timestamp
         createdAt = Timestamp.wrap(uint64(block.timestamp));
 
@@ -534,10 +560,47 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     /// @notice Returns the required bond for a given move kind.
     /// @param _position The position of the bonded interaction.
     /// @return requiredBond_ The required ETH bond for the given move, in wei.
-    function getRequiredBond(Position _position) public pure returns (uint256 requiredBond_) {
-        // TODO(client-pod#551): For now use a non-zero bond amount to unblock functional tests.
-        _position;
-        requiredBond_ = 0.01 ether;
+    function getRequiredBond(Position _position) public view returns (uint256 requiredBond_) {
+        uint256 depth = uint256(_position.depth());
+        if (depth > MAX_GAME_DEPTH) revert GameDepthExceeded();
+
+        // Values taken from Big Bonds v1.5 (TM) spec.
+        uint256 assumedBaseFee = 200 gwei;
+        uint256 baseGasCharged = 400_000;
+        uint256 highGasCharged = 200_000_000;
+
+        // Goal here is to compute the fixed multiplier that will be applied to the base gas
+        // charged to get the required gas amount for the given depth. We apply this multiplier
+        // some `n` times where `n` is the depth of the position. We are looking for some number
+        // that, when multiplied by itself `MAX_GAME_DEPTH` times and then multiplied by the base
+        // gas charged, will give us the maximum gas that we want to charge.
+        // We want to solve for (highGasCharged/baseGasCharged) ** (1/MAX_GAME_DEPTH).
+        // We know that a ** (b/c) is equal to e ** (ln(a) * (b/c)).
+        // We can compute e ** (ln(a) * (b/c)) quite easily with FixedPointMathLib.
+
+        // Set up a, b, and c.
+        uint256 a = highGasCharged / baseGasCharged;
+        uint256 b = FixedPointMathLib.WAD;
+        uint256 c = MAX_GAME_DEPTH * FixedPointMathLib.WAD;
+
+        // Compute ln(a).
+        // slither-disable-next-line divide-before-multiply
+        uint256 lnA = uint256(FixedPointMathLib.lnWad(int256(a * FixedPointMathLib.WAD)));
+
+        // Computes (b / c) with full precision using WAD = 1e18.
+        uint256 bOverC = FixedPointMathLib.divWad(b, c);
+
+        // Compute e ** (ln(a) * (b/c))
+        // sMulWad can be used here since WAD = 1e18 maintains the same precision.
+        uint256 numerator = FixedPointMathLib.mulWad(lnA, bOverC);
+        int256 base = FixedPointMathLib.expWad(int256(numerator));
+
+        // Compute the required gas amount.
+        int256 rawGas = FixedPointMathLib.powWad(base, int256(depth * FixedPointMathLib.WAD));
+        uint256 requiredGas = FixedPointMathLib.mulWad(baseGasCharged, uint256(rawGas));
+
+        // Compute the required bond.
+        requiredBond_ = assumedBaseFee * requiredGas;
     }
 
     /// @notice Claim the credit belonging to the recipient address.
@@ -546,6 +609,14 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         // Remove the credit from the recipient prior to performing the external call.
         uint256 recipientCredit = credit[_recipient];
         credit[_recipient] = 0;
+
+        // Revert if the recipient has no credit to claim.
+        if (recipientCredit == 0) {
+            revert NoCreditToClaim();
+        }
+
+        // Try to withdraw the WETH amount so it can be used here.
+        WETH.withdraw(_recipient, recipientCredit);
 
         // Transfer the credit to the recipient.
         (bool success,) = _recipient.call{ value: recipientCredit }(hex"");
@@ -597,6 +668,16 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         genesisOutputRoot_ = GENESIS_OUTPUT_ROOT;
     }
 
+    /// @notice Returns the WETH contract for holding ETH.
+    function weth() external view returns (IDelayedWETH weth_) {
+        weth_ = WETH;
+    }
+
+    /// @notice Returns the chain ID of the L2 network this contract argues about.
+    function l2ChainId() external view returns (uint256 l2ChainId_) {
+        l2ChainId_ = L2_CHAIN_ID;
+    }
+
     ////////////////////////////////////////////////////////////////
     //                          HELPERS                           //
     ////////////////////////////////////////////////////////////////
@@ -612,6 +693,9 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
 
         // Increase the recipient's credit.
         credit[_recipient] += bond;
+
+        // Unlock the bond.
+        WETH.unlock(_recipient, bond);
     }
 
     /// @notice Verifies the integrity of an execution bisection subgame's root claim. Reverts if the claim

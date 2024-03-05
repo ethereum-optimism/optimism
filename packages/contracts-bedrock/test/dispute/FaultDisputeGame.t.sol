@@ -6,6 +6,7 @@ import { Vm } from "forge-std/Vm.sol";
 import { DisputeGameFactory_Init } from "test/dispute/DisputeGameFactory.t.sol";
 import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
 import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
+import { DelayedWETH } from "src/dispute/weth/DelayedWETH.sol";
 import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
 
 import "src/libraries/DisputeTypes.sol";
@@ -57,12 +58,14 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
             _maxGameDepth: 2 ** 3,
             _splitDepth: 2 ** 2,
             _gameDuration: Duration.wrap(7 days),
-            _vm: _vm
+            _vm: _vm,
+            _weth: delayedWeth,
+            _l2ChainId: 10
         });
         // Register the game implementation with the factory.
         disputeGameFactory.setImplementation(GAME_TYPE, gameImpl);
         // Create a new game.
-        gameProxy = FaultDisputeGame(address(disputeGameFactory.create(GAME_TYPE, rootClaim, extraData)));
+        gameProxy = FaultDisputeGame(payable(address(disputeGameFactory.create(GAME_TYPE, rootClaim, extraData))));
 
         // Check immutables
         assertEq(gameProxy.gameType().raw(), GAME_TYPE.raw());
@@ -93,7 +96,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     Claim internal absolutePrestate;
 
     /// @dev Minimum bond value that covers all possible moves.
-    uint256 internal constant MIN_BOND = 0.01 ether;
+    uint256 internal constant MIN_BOND = 50 ether;
 
     function setUp() public override {
         absolutePrestateData = abi.encode(0);
@@ -130,7 +133,9 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
             _maxGameDepth: 2 ** 3,
             _splitDepth: _splitDepth,
             _gameDuration: Duration.wrap(7 days),
-            _vm: alphabetVM
+            _vm: alphabetVM,
+            _weth: DelayedWETH(payable(address(0))),
+            _l2ChainId: 10
         });
     }
 
@@ -174,7 +179,8 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
 
         Claim claim = _dummyClaim();
         vm.expectRevert(abi.encodeWithSelector(UnexpectedRootClaim.selector, claim));
-        gameProxy = FaultDisputeGame(address(disputeGameFactory.create(GAME_TYPE, claim, abi.encode(_blockNumber))));
+        gameProxy =
+            FaultDisputeGame(payable(address(disputeGameFactory.create(GAME_TYPE, claim, abi.encode(_blockNumber)))));
     }
 
     /// @dev Tests that the proxy receives ETH from the dispute game factory.
@@ -183,9 +189,11 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         vm.deal(address(this), _value);
 
         assertEq(address(gameProxy).balance, 0);
-        gameProxy =
-            FaultDisputeGame(address(disputeGameFactory.create{ value: _value }(GAME_TYPE, ROOT_CLAIM, abi.encode(1))));
-        assertEq(address(gameProxy).balance, _value);
+        gameProxy = FaultDisputeGame(
+            payable(address(disputeGameFactory.create{ value: _value }(GAME_TYPE, ROOT_CLAIM, abi.encode(1))))
+        );
+        assertEq(address(gameProxy).balance, 0);
+        assertEq(delayedWeth.balanceOf(address(gameProxy)), _value);
     }
 
     /// @dev Tests that the game cannot be initialized with extra data > 64 bytes long (root claim + l2 block number
@@ -207,7 +215,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
 
         Claim claim = _dummyClaim();
         vm.expectRevert(abi.encodeWithSelector(ExtraDataTooLong.selector));
-        gameProxy = FaultDisputeGame(address(disputeGameFactory.create(GAME_TYPE, claim, _extraData)));
+        gameProxy = FaultDisputeGame(payable(address(disputeGameFactory.create(GAME_TYPE, claim, _extraData))));
     }
 
     /// @dev Tests that the game is initialized with the correct data.
@@ -241,6 +249,30 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     function test_initialize_onlyOnce_succeeds() public {
         vm.expectRevert(AlreadyInitialized.selector);
         gameProxy.initialize();
+    }
+
+    /// @dev Tests that the bond during the bisection game depths is correct.
+    function test_getRequiredBond_succeeds() public {
+        for (uint64 i = 0; i < uint64(gameProxy.splitDepth()); i++) {
+            Position pos = LibPosition.wrap(i, 0);
+            uint256 bond = gameProxy.getRequiredBond(pos);
+
+            // Reasonable approximation for a max depth of 8.
+            uint256 expected = 0.08 ether;
+            for (uint64 j = 0; j < i; j++) {
+                expected = expected * 217456;
+                expected = expected / 100000;
+            }
+
+            assertApproxEqAbs(bond, expected, 0.01 ether);
+        }
+    }
+
+    /// @dev Tests that the bond at a depth greater than the maximum game depth reverts.
+    function test_getRequiredBond_outOfBounds_reverts() public {
+        Position pos = LibPosition.wrap(uint64(gameProxy.maxGameDepth() + 1), 0);
+        vm.expectRevert(GameDepthExceeded.selector);
+        gameProxy.getRequiredBond(pos);
     }
 
     /// @dev Tests that a move while the game status is not `IN_PROGRESS` causes the call to revert
@@ -445,17 +477,17 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     /// @dev Tests that a claim cannot be stepped against twice.
     function test_step_duplicateStep_reverts() public {
         // Give the test contract some ether
-        vm.deal(address(this), 100 ether);
+        vm.deal(address(this), 1000 ether);
 
         // Make claims all the way down the tree.
-        gameProxy.attack{ value: 1 ether }(0, _dummyClaim());
-        gameProxy.attack{ value: 1 ether }(1, _dummyClaim());
-        gameProxy.attack{ value: 1 ether }(2, _dummyClaim());
-        gameProxy.attack{ value: 1 ether }(3, _dummyClaim());
-        gameProxy.attack{ value: 1 ether }(4, _changeClaimStatus(_dummyClaim(), VMStatuses.PANIC));
-        gameProxy.attack{ value: 1 ether }(5, _dummyClaim());
-        gameProxy.attack{ value: 1 ether }(6, _dummyClaim());
-        gameProxy.attack{ value: 1 ether }(7, _dummyClaim());
+        gameProxy.attack{ value: MIN_BOND }(0, _dummyClaim());
+        gameProxy.attack{ value: MIN_BOND }(1, _dummyClaim());
+        gameProxy.attack{ value: MIN_BOND }(2, _dummyClaim());
+        gameProxy.attack{ value: MIN_BOND }(3, _dummyClaim());
+        gameProxy.attack{ value: MIN_BOND }(4, _changeClaimStatus(_dummyClaim(), VMStatuses.PANIC));
+        gameProxy.attack{ value: MIN_BOND }(5, _dummyClaim());
+        gameProxy.attack{ value: MIN_BOND }(6, _dummyClaim());
+        gameProxy.attack{ value: MIN_BOND }(7, _dummyClaim());
         gameProxy.addLocalData(LocalPreimageKey.DISPUTED_L2_BLOCK_NUMBER, 8, 0);
         gameProxy.step(8, true, absolutePrestateData, hex"");
 
@@ -571,6 +603,10 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
 
         assertEq(address(this).balance, 0);
         gameProxy.resolveClaim(1);
+
+        // Wait for the withdrawal delay.
+        vm.warp(block.timestamp + delayedWeth.delay() + 1 seconds);
+
         gameProxy.claimCredit(address(this));
         assertEq(address(this).balance, MIN_BOND);
 
@@ -586,7 +622,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
             gameProxy.attack{ value: MIN_BOND }(i, claim);
         }
 
-        vm.deal(address(this), 100 ether);
+        vm.deal(address(this), 10000 ether);
         claim = _changeClaimStatus(claim, VMStatuses.PANIC);
         for (uint256 i = gameProxy.claimDataLen() - 1; i < gameProxy.maxGameDepth(); i++) {
             gameProxy.attack{ value: MIN_BOND }(i, claim);
@@ -597,6 +633,10 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         // Resolve to claim bond
         uint256 balanceBefore = address(this).balance;
         gameProxy.resolveClaim(8);
+
+        // Wait for the withdrawal delay.
+        vm.warp(block.timestamp + delayedWeth.delay() + 1 seconds);
+
         gameProxy.claimCredit(address(this));
         assertEq(address(this).balance, balanceBefore + MIN_BOND);
 
@@ -619,17 +659,18 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     /// moves.
     function test_resolve_bondPayouts_succeeds() public {
         // Give the test contract some ether
-        vm.deal(address(this), 100 ether);
+        uint256 bal = 1000 ether;
+        vm.deal(address(this), bal);
 
         // Make claims all the way down the tree.
-        gameProxy.attack{ value: 1 ether }(0, _dummyClaim());
-        gameProxy.attack{ value: 1 ether }(1, _dummyClaim());
-        gameProxy.attack{ value: 1 ether }(2, _dummyClaim());
-        gameProxy.attack{ value: 1 ether }(3, _dummyClaim());
-        gameProxy.attack{ value: 1 ether }(4, _changeClaimStatus(_dummyClaim(), VMStatuses.PANIC));
-        gameProxy.attack{ value: 1 ether }(5, _dummyClaim());
-        gameProxy.attack{ value: 1 ether }(6, _dummyClaim());
-        gameProxy.attack{ value: 1 ether }(7, _dummyClaim());
+        gameProxy.attack{ value: MIN_BOND }(0, _dummyClaim());
+        gameProxy.attack{ value: MIN_BOND }(1, _dummyClaim());
+        gameProxy.attack{ value: MIN_BOND }(2, _dummyClaim());
+        gameProxy.attack{ value: MIN_BOND }(3, _dummyClaim());
+        gameProxy.attack{ value: MIN_BOND }(4, _changeClaimStatus(_dummyClaim(), VMStatuses.PANIC));
+        gameProxy.attack{ value: MIN_BOND }(5, _dummyClaim());
+        gameProxy.attack{ value: MIN_BOND }(6, _dummyClaim());
+        gameProxy.attack{ value: MIN_BOND }(7, _dummyClaim());
         gameProxy.addLocalData(LocalPreimageKey.DISPUTED_L2_BLOCK_NUMBER, 8, 0);
         gameProxy.step(8, true, absolutePrestateData, hex"");
 
@@ -638,9 +679,10 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         assertEq(counteredBy, address(this));
 
         // Ensure we bonded the correct amounts
-        uint256 bonded = (gameProxy.claimDataLen() - 1) * 1 ether;
-        assertEq(address(this).balance, 100 ether - bonded);
-        assertEq(address(gameProxy).balance, bonded);
+        uint256 bonded = (gameProxy.claimDataLen() - 1) * MIN_BOND;
+        assertEq(address(this).balance, bal - bonded);
+        assertEq(address(gameProxy).balance, 0);
+        assertEq(delayedWeth.balanceOf(address(gameProxy)), bonded);
 
         // Resolve all claims
         vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
@@ -650,11 +692,15 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         }
         gameProxy.resolve();
 
+        // Wait for the withdrawal delay.
+        vm.warp(block.timestamp + delayedWeth.delay() + 1 seconds);
+
         gameProxy.claimCredit(address(this));
 
         // Ensure that bonds were paid out correctly.
-        assertEq(address(this).balance, 100 ether);
+        assertEq(address(this).balance, bal);
         assertEq(address(gameProxy).balance, 0);
+        assertEq(delayedWeth.balanceOf(address(gameProxy)), 0);
 
         // Ensure that the init bond for the game is 0, in case we change it in the test suite in the future.
         assertEq(disputeGameFactory.initBonds(GAME_TYPE), 0);
@@ -664,30 +710,31 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     /// moves with 2 actors and a dishonest root claim.
     function test_resolve_bondPayoutsSeveralActors_succeeds() public {
         // Give the test contract and bob some ether
+        uint256 bal = 1000 ether;
         address bob = address(0xb0b);
-        vm.deal(address(this), 100 ether);
-        vm.deal(bob, 100 ether);
+        vm.deal(address(this), bal);
+        vm.deal(bob, bal);
 
         // Make claims all the way down the tree, trading off between bob and the test contract.
-        gameProxy.attack{ value: 1 ether }(0, _dummyClaim());
+        gameProxy.attack{ value: MIN_BOND }(0, _dummyClaim());
 
         vm.prank(bob);
-        gameProxy.attack{ value: 1 ether }(1, _dummyClaim());
+        gameProxy.attack{ value: MIN_BOND }(1, _dummyClaim());
 
-        gameProxy.attack{ value: 1 ether }(2, _dummyClaim());
-
-        vm.prank(bob);
-        gameProxy.attack{ value: 1 ether }(3, _dummyClaim());
-
-        gameProxy.attack{ value: 1 ether }(4, _changeClaimStatus(_dummyClaim(), VMStatuses.PANIC));
+        gameProxy.attack{ value: MIN_BOND }(2, _dummyClaim());
 
         vm.prank(bob);
-        gameProxy.attack{ value: 1 ether }(5, _dummyClaim());
+        gameProxy.attack{ value: MIN_BOND }(3, _dummyClaim());
 
-        gameProxy.attack{ value: 1 ether }(6, _dummyClaim());
+        gameProxy.attack{ value: MIN_BOND }(4, _changeClaimStatus(_dummyClaim(), VMStatuses.PANIC));
 
         vm.prank(bob);
-        gameProxy.attack{ value: 1 ether }(7, _dummyClaim());
+        gameProxy.attack{ value: MIN_BOND }(5, _dummyClaim());
+
+        gameProxy.attack{ value: MIN_BOND }(6, _dummyClaim());
+
+        vm.prank(bob);
+        gameProxy.attack{ value: MIN_BOND }(7, _dummyClaim());
 
         gameProxy.addLocalData(LocalPreimageKey.DISPUTED_L2_BLOCK_NUMBER, 8, 0);
         gameProxy.step(8, true, absolutePrestateData, hex"");
@@ -697,10 +744,11 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         assertEq(counteredBy, address(this));
 
         // Ensure we bonded the correct amounts
-        uint256 bonded = ((gameProxy.claimDataLen() - 1) / 2) * 1 ether;
-        assertEq(address(this).balance, 100 ether - bonded);
-        assertEq(bob.balance, 100 ether - bonded);
-        assertEq(address(gameProxy).balance, bonded * 2);
+        uint256 bonded = ((gameProxy.claimDataLen() - 1) / 2) * MIN_BOND;
+        assertEq(address(this).balance, bal - bonded);
+        assertEq(bob.balance, bal - bonded);
+        assertEq(address(gameProxy).balance, 0);
+        assertEq(delayedWeth.balanceOf(address(gameProxy)), bonded * 2);
 
         // Resolve all claims
         vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
@@ -710,13 +758,20 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         }
         gameProxy.resolve();
 
+        // Wait for the withdrawal delay.
+        vm.warp(block.timestamp + delayedWeth.delay() + 1 seconds);
+
         gameProxy.claimCredit(address(this));
+
+        // Bob's claim should revert since it's value is 0
+        vm.expectRevert(NoCreditToClaim.selector);
         gameProxy.claimCredit(bob);
 
         // Ensure that bonds were paid out correctly.
-        assertEq(address(this).balance, 100 ether + bonded);
-        assertEq(bob.balance, 100 ether - bonded);
+        assertEq(address(this).balance, bal + bonded);
+        assertEq(bob.balance, bal - bonded);
         assertEq(address(gameProxy).balance, 0);
+        assertEq(delayedWeth.balanceOf(address(gameProxy)), 0);
 
         // Ensure that the init bond for the game is 0, in case we change it in the test suite in the future.
         assertEq(disputeGameFactory.initBonds(GAME_TYPE), 0);
@@ -725,28 +780,29 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     /// @dev Static unit test asserting that resolve pays out bonds on moves to the leftmost actor
     /// in subgames containing successful counters.
     function test_resolve_leftmostBondPayout_succeeds() public {
+        uint256 bal = 1000 ether;
         address alice = address(0xa11ce);
         address bob = address(0xb0b);
         address charlie = address(0xc0c);
-        vm.deal(address(this), 100 ether);
-        vm.deal(alice, 100 ether);
-        vm.deal(bob, 100 ether);
-        vm.deal(charlie, 100 ether);
+        vm.deal(address(this), bal);
+        vm.deal(alice, bal);
+        vm.deal(bob, bal);
+        vm.deal(charlie, bal);
 
         // Make claims with bob, charlie and the test contract on defense, and alice as the challenger
         // charlie is successfully countered by alice
         // alice is successfully countered by both bob and the test contract
         vm.prank(alice);
-        gameProxy.attack{ value: 1 ether }(0, _dummyClaim());
+        gameProxy.attack{ value: MIN_BOND }(0, _dummyClaim());
 
         vm.prank(bob);
-        gameProxy.defend{ value: 1 ether }(1, _dummyClaim());
+        gameProxy.defend{ value: MIN_BOND }(1, _dummyClaim());
         vm.prank(charlie);
-        gameProxy.attack{ value: 1 ether }(1, _dummyClaim());
-        gameProxy.attack{ value: 1 ether }(1, _dummyClaim());
+        gameProxy.attack{ value: MIN_BOND }(1, _dummyClaim());
+        gameProxy.attack{ value: MIN_BOND }(1, _dummyClaim());
 
         vm.prank(alice);
-        gameProxy.attack{ value: 1 ether }(3, _dummyClaim());
+        gameProxy.attack{ value: MIN_BOND }(3, _dummyClaim());
 
         // Resolve all claims
         vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
@@ -756,18 +812,24 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         }
         gameProxy.resolve();
 
+        // Wait for the withdrawal delay.
+        vm.warp(block.timestamp + delayedWeth.delay() + 1 seconds);
+
         gameProxy.claimCredit(address(this));
         gameProxy.claimCredit(alice);
         gameProxy.claimCredit(bob);
+
+        // Charlie's claim should revert since it's value is 0
+        vm.expectRevert(NoCreditToClaim.selector);
         gameProxy.claimCredit(charlie);
 
         // Ensure that bonds were paid out correctly.
-        uint256 aliceLosses = 1 ether;
-        uint256 charlieLosses = 1 ether;
-        assertEq(address(this).balance, 100 ether + aliceLosses, "incorrect this balance");
-        assertEq(alice.balance, 100 ether - aliceLosses + charlieLosses, "incorrect alice balance");
-        assertEq(bob.balance, 100 ether, "incorrect bob balance");
-        assertEq(charlie.balance, 100 ether - charlieLosses, "incorrect charlie balance");
+        uint256 aliceLosses = MIN_BOND;
+        uint256 charlieLosses = MIN_BOND;
+        assertEq(address(this).balance, bal + aliceLosses, "incorrect this balance");
+        assertEq(alice.balance, bal - aliceLosses + charlieLosses, "incorrect alice balance");
+        assertEq(bob.balance, bal, "incorrect bob balance");
+        assertEq(charlie.balance, bal - charlieLosses, "incorrect charlie balance");
         assertEq(address(gameProxy).balance, 0);
 
         // Ensure that the init bond for the game is 0, in case we change it in the test suite in the future.
@@ -776,7 +838,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
 
     /// @dev Static unit test asserting that credit may not be drained past allowance through reentrancy.
     function test_claimCredit_claimAlreadyResolved_reverts() public {
-        ClaimCreditReenter reenter = new ClaimCreditReenter(gameProxy);
+        ClaimCreditReenter reenter = new ClaimCreditReenter(gameProxy, vm);
         vm.startPrank(address(reenter));
 
         // Give the test contract some ether to bond.
@@ -794,8 +856,10 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
 
         // Ensure that we bonded all the test contract's ETH
         assertEq(address(reenter).balance, 0);
-        // Ensure the game proxy has 1 + 2 * MIN_BOND, 2*MIN_BOND from bonding and 1 unregistered.
-        assertEq(address(gameProxy).balance, 1 ether + MIN_BOND * 2);
+        // Ensure the game proxy has 1 ether in it.
+        assertEq(address(gameProxy).balance, 1 ether);
+        // Ensure the game has a balance of 2 * MIN_BOND in the delayedWeth contract.
+        assertEq(delayedWeth.balanceOf(address(gameProxy)), MIN_BOND * 2);
 
         // Resolve the claim at gindex 1 and claim the reenter contract's credit.
         gameProxy.resolveClaim(1);
@@ -803,15 +867,20 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         // Ensure that the game registered the `reenter` contract's credit.
         assertEq(gameProxy.credit(address(reenter)), MIN_BOND);
 
+        // Wait for the withdrawal delay.
+        vm.warp(block.timestamp + delayedWeth.delay() + 1 seconds);
+
         // Initiate the reentrant credit claim.
         reenter.claimCredit(address(reenter));
 
-        // The reenter contract should have performed 5 calls to `claimCredit`, but only received the amount bonded for
-        // the gindex 1 subgame.
+        // The reenter contract should have performed 2 calls to `claimCredit`.
+        // Once all the credit is claimed, all subsequent calls will revert since there is 0 credit left to claim.
+        // The claimant must only have received the amount bonded for the gindex 1 subgame.
         // The root claim bond and the unregistered ETH should still exist in the game proxy.
-        assertEq(reenter.numCalls(), 5);
+        assertEq(reenter.numCalls(), 2);
         assertEq(address(reenter).balance, MIN_BOND);
-        assertEq(address(gameProxy).balance, 1 ether + MIN_BOND);
+        assertEq(address(gameProxy).balance, 1 ether);
+        assertEq(delayedWeth.balanceOf(address(gameProxy)), MIN_BOND);
 
         vm.stopPrank();
     }
@@ -853,7 +922,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
             startingClaim,
             disputedClaim,
             bytes32(uint256(1) << 0xC0),
-            bytes32(block.chainid << 0xC0)
+            bytes32(gameProxy.l2ChainId() << 0xC0)
         ];
 
         for (uint256 i = 1; i <= 5; i++) {
@@ -899,7 +968,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
             startingClaim,
             disputedClaim,
             bytes32(uint256(2) << 0xC0),
-            bytes32(block.chainid << 0xC0)
+            bytes32(gameProxy.l2ChainId() << 0xC0)
         ];
 
         for (uint256 i = 1; i <= 5; i++) {
@@ -1478,15 +1547,20 @@ contract FaultDispute_1v1_Actors_Test is FaultDisputeGame_Init {
 }
 
 contract ClaimCreditReenter {
+    Vm internal immutable vm;
     FaultDisputeGame internal immutable GAME;
     uint256 public numCalls;
 
-    constructor(FaultDisputeGame _gameProxy) {
+    constructor(FaultDisputeGame _gameProxy, Vm _vm) {
         GAME = _gameProxy;
+        vm = _vm;
     }
 
     function claimCredit(address _recipient) public {
         numCalls += 1;
+        if (numCalls > 1) {
+            vm.expectRevert(NoCreditToClaim.selector);
+        }
         GAME.claimCredit(_recipient);
     }
 

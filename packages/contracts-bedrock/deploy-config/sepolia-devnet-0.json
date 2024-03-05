@@ -73,6 +73,7 @@
   "faultGameMaxDuration": 86400,
   "faultGameGenesisBlock": 0,
   "faultGameSplitDepth": 0,
+  "faultGameWithdrawalDelay": 604800,
   "fundDevAccounts": false,
   "requiredProtocolVersion": "0x0000000000000000000000000000000000000005000000000000000000000000",
   "recommendedProtocolVersion": "0x0000000000000000000000000000000000000005000000000000000000000000"

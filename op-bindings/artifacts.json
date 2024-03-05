@@ -26,6 +26,7 @@
     "WETH9",
     "DeployerWhitelist",
     "L1BlockNumber",
+    "DelayedWETH",
     "DisputeGameFactory",
     "FaultDisputeGame",
     "AlphabetVM",

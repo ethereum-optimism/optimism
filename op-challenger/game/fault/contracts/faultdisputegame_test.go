@@ -377,12 +377,15 @@ func TestFaultDisputeGame_UpdateOracleTx(t *testing.T) {
 func TestFaultDisputeGame_GetCredit(t *testing.T) {
 	stubRpc, game := setupFaultDisputeGameTest(t)
 	addr := common.Address{0x01}
-	expected := big.NewInt(4284)
-	stubRpc.SetResponse(fdgAddr, methodCredit, batching.BlockLatest, []interface{}{addr}, []interface{}{expected})
+	expectedCredit := big.NewInt(4284)
+	expectedStatus := types.GameStatusChallengerWon
+	stubRpc.SetResponse(fdgAddr, methodCredit, batching.BlockLatest, []interface{}{addr}, []interface{}{expectedCredit})
+	stubRpc.SetResponse(fdgAddr, methodStatus, batching.BlockLatest, nil, []interface{}{expectedStatus})
 
-	actual, err := game.GetCredit(context.Background(), addr)
+	actualCredit, actualStatus, err := game.GetCredit(context.Background(), addr)
 	require.NoError(t, err)
-	require.Equal(t, expected, actual)
+	require.Equal(t, expectedCredit, actualCredit)
+	require.Equal(t, expectedStatus, actualStatus)
 }
 
 func TestFaultDisputeGame_GetCredits(t *testing.T) {

@@ -93,6 +93,10 @@ type stubTxMgr struct {
 	sending map[byte]chan *types.Receipt
 }
 
+func (s *stubTxMgr) IsClosed() bool {
+	return false
+}
+
 func (s *stubTxMgr) Send(ctx context.Context, candidate txmgr.TxCandidate) (*types.Receipt, error) {
 	ch := s.recordTx(candidate)
 	return <-ch, nil

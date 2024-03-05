@@ -280,6 +280,12 @@ func (l *BatchSubmitter) loop() {
 		case r := <-receiptsCh:
 			l.handleReceipt(r)
 		case <-l.shutdownCtx.Done():
+			// if the txmgr is closed, we stop the transaction sending
+			// don't even bother draining the queue, as all sending will fail
+			if l.Txmgr.IsClosed() {
+				l.Log.Info("Txmgr is closed, remaining channel data won't be sent")
+				return
+			}
 			// This removes any never-submitted pending channels, so these do not have to be drained with transactions.
 			// Any remaining unfinished channel is terminated, so its data gets submitted.
 			err := l.state.Close()
@@ -304,13 +310,19 @@ func (l *BatchSubmitter) publishStateToL1(queue *txmgr.Queue[txData], receiptsCh
 	// send/wait and receipt reading must be on a separate goroutines to avoid deadlocks
 	go func() {
 		defer func() {
-			if drain {
-				// if draining, we wait for all transactions to complete
+			// if draining, we wait for all transactions to complete
+			// if the txmgr is closed, there is no need to wait as all transactions will fail
+			if drain && !l.Txmgr.IsClosed() {
 				queue.Wait()
 			}
 			close(txDone)
 		}()
 		for {
+			// if the txmgr is closed, we stop the transaction sending
+			if l.Txmgr.IsClosed() {
+				l.Log.Info("Txmgr is closed, no further receipts expected")
+				return
+			}
 			err := l.publishTxToL1(l.killCtx, queue, receiptsCh)
 			if err != nil {
 				if drain && err != io.EOF {

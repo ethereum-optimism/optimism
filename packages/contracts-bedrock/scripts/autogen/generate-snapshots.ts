@@ -1,8 +1,9 @@
 import fs from 'fs'
 import path from 'path'
 
-const outdir = process.argv[2] || path.join(__dirname, '..', 'snapshots')
-const forgeArtifactsDir = path.join(__dirname, '..', 'forge-artifacts')
+const root = path.join(__dirname, '..', '..')
+const outdir = process.argv[2] || path.join(root, 'snapshots')
+const forgeArtifactsDir = path.join(root, 'forge-artifacts')
 
 const getAllContractsSources = (): Array<string> => {
   const paths = []
@@ -20,7 +21,7 @@ const getAllContractsSources = (): Array<string> => {
       }
     }
   }
-  readFilesRecursively(path.join(__dirname, '..', 'src'))
+  readFilesRecursively(path.join(root, 'src'))
 
   return paths
     .filter((x) => x.endsWith('.sol'))

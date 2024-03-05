@@ -49,7 +49,7 @@ contract FaultDisputeGameViz is Script, FaultDisputeGame_Init {
      * @dev Entry point
      */
     function remote(address _addr) public {
-        gameProxy = FaultDisputeGame(_addr);
+        gameProxy = FaultDisputeGame(payable(_addr));
         buildGraph();
         console.log("Saved graph to `./dispute_game.svg");
     }
