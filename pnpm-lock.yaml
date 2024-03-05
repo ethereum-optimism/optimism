@@ -512,8 +512,8 @@ importers:
         specifier: ^10.9.2
         version: 10.9.2(@types/node@20.11.17)(typescript@5.3.3)
       typedoc:
-        specifier: ^0.25.7
-        version: 0.25.7(typescript@5.3.3)
+        specifier: ^0.25.10
+        version: 0.25.10(typescript@5.3.3)
       typescript:
         specifier: ^5.3.3
         version: 5.3.3
@@ -16700,8 +16700,8 @@ packages:
       is-typedarray: 1.0.0
     dev: true
 
-  /typedoc@0.25.7(typescript@5.3.3):
-    resolution: {integrity: sha512-m6A6JjQRg39p2ZVRIN3NKXgrN8vzlHhOS+r9ymUYtcUP/TIQPvWSq7YgE5ZjASfv5Vd5BW5xrir6Gm2XNNcOow==}
+  /typedoc@0.25.10(typescript@5.3.3):
+    resolution: {integrity: sha512-v10rtOFojrjW9og3T+6wAKeJaGMuojU87DXGZ33sfs+554wgPTRG+s07Ag1BjPZI85Y5QPVouPI63JQ6fcQM5w==}
     engines: {node: '>= 16'}
     hasBin: true
     peerDependencies:
