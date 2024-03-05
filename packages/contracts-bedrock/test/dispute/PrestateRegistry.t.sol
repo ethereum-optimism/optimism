@@ -69,7 +69,7 @@ contract PrestateRegistry_Test is CommonTest {
         registry.registerHardfork(Timestamp.wrap(0), new PrestateRegistry.PrestateInformation[](0));
     }
 
-    /// @dev Tests that a hardfork may not be registered by any other address than the guardian.
+    /// @dev Tests that a hardfork may not be registered out of order.
     function test_registerHardfork_outOfOrder_reverts() public {
         vm.prank(superchainConfig.guardian());
         registry.registerHardfork(Timestamp.wrap(10), new PrestateRegistry.PrestateInformation[](0));

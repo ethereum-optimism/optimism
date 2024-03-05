@@ -26,16 +26,20 @@ contract PrestateRegistry {
         Hash prestateHash;
     }
 
-    /// @notice The superchian configuration.
+    /// @notice The superchain configuration.
     SuperchainConfig internal immutable SUPERCHAIN_CONFIG;
     /// @notice The L2 genesis block timestamp.
     Timestamp internal immutable L2_GENESIS_BLOCK_TIMESTAMP;
-    /// @notice The L2 genesis block.
-    uint256 internal immutable L2_GENESIS_BLOCK;
+    /// @notice The L2 genesis block number.
+    uint256 internal immutable L2_GENESIS_BLOCK_NUMBER;
     /// @notice The L2 chain id.
     uint256 internal immutable L2_CHAIN_ID;
     /// @notice The L2 block time.
     uint256 internal immutable L2_BLOCK_TIME;
+
+    /// @notice The semantic version of the contract.
+    /// @custom:semver 0.1.0
+    string public constant version = "0.1.0";
 
     /// @notice A list of L2 hardforks, in ascending order. This list does not have to be exhaustive, but it must be
     ///         sorted and contain upgrades that alter the Fault Proof Program prestate hashes.
@@ -49,7 +53,7 @@ contract PrestateRegistry {
         uint256 _l2BlockTime
     ) {
         L2_CHAIN_ID = _l2ChainId;
-        L2_GENESIS_BLOCK = _l2GenesisBlock;
+        L2_GENESIS_BLOCK_NUMBER = _l2GenesisBlock;
         L2_GENESIS_BLOCK_TIMESTAMP = _l2GenesisBlockTimestamp;
         L2_BLOCK_TIME = _l2BlockTime;
         SUPERCHAIN_CONFIG = _superchainConfig;
@@ -95,10 +99,12 @@ contract PrestateRegistry {
         }
 
         // Remove the latest hardfork.
+        // NOTE: Because we are deleting a structure with a mapping, the mapping will not be cleared. It is expected
+        // that, when the next hardfork is registered, the old prestate mapping will have important values overwritten.
         hardforks.pop();
     }
 
-    /// @notice Returns the absolute prestate in tthe latest active hardfork for a given VM and program.
+    /// @notice Returns the absolute prestate in the latest active hardfork for a given VM and program.
     /// @param _l2BlockNumber The L2 block number at which the program is being ran until.
     /// @param _vmID The VM ID.
     /// @param _programID The program ID.
@@ -136,10 +142,10 @@ contract PrestateRegistry {
 
     /// @notice Converts an L2 block number to an L2 timestamp, based off of the L2 genesis block number
     /// @param _l2BlockNumber The L2 block number
-    /// @return _timestamp The L2 block number's timestamp
-    function l2BlockToTimestamp(uint256 _l2BlockNumber) public view returns (Timestamp _timestamp) {
-        _timestamp = Timestamp.wrap(
-            L2_GENESIS_BLOCK_TIMESTAMP.raw() + uint64((_l2BlockNumber - L2_GENESIS_BLOCK) * L2_BLOCK_TIME)
+    /// @return timestamp_ The L2 block number's timestamp
+    function l2BlockToTimestamp(uint256 _l2BlockNumber) public view returns (Timestamp timestamp_) {
+        timestamp_ = Timestamp.wrap(
+            L2_GENESIS_BLOCK_TIMESTAMP.raw() + uint64((_l2BlockNumber - L2_GENESIS_BLOCK_NUMBER) * L2_BLOCK_TIME)
         );
     }
 
@@ -147,6 +153,7 @@ contract PrestateRegistry {
     /// @param _l2Timestamp The L2 block timestamp
     /// @return l2BlockNumber_ The L2 block number
     function l2TimestampToBlock(Timestamp _l2Timestamp) public view returns (uint256 l2BlockNumber_) {
-        l2BlockNumber_ = L2_GENESIS_BLOCK + ((_l2Timestamp.raw() - L2_GENESIS_BLOCK_TIMESTAMP.raw()) / L2_BLOCK_TIME);
+        l2BlockNumber_ =
+            L2_GENESIS_BLOCK_NUMBER + ((_l2Timestamp.raw() - L2_GENESIS_BLOCK_TIMESTAMP.raw()) / L2_BLOCK_TIME);
     }
 }

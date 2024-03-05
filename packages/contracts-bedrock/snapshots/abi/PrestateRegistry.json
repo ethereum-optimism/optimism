@@ -90,7 +90,7 @@
     "outputs": [
       {
         "internalType": "Timestamp",
-        "name": "_timestamp",
+        "name": "timestamp_",
         "type": "uint64"
       }
     ],
@@ -156,6 +156,19 @@
     "name": "revokePendingFork",
     "outputs": [],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "version",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {

@@ -103,6 +103,10 @@
     "initCodeHash": "0x9f8e47a4073639af201991a075c7eb03a73055750b3808281e7615b46d47a104",
     "sourceCodeHash": "0xef3dee1a6dd89270b67c7e6a54862de9d11b9059cf053127bd26704e7e6b1fbf"
   },
+  "src/dispute/PrestateRegistry.sol": {
+    "initCodeHash": "0x13f7fcee39ccd8a7cbd4427235130e09cb74bf83d4fbb59bd60ae323029144a6",
+    "sourceCodeHash": "0xa3b7bff7e7431d6a87159efdb6f7f5267f2371eb35230901cf4d11eff0d3b10e"
+  },
   "src/dispute/weth/DelayedWETH.sol": {
     "initCodeHash": "0x41e274b12dc48658d073dfea67ef694c5cce3963757911ee4cecc9f4c312e4bb",
     "sourceCodeHash": "0xb357a0d4b815ea9528cfb6d83aaa1e62cd0352223432d4f3e23bc09ae62691b8"
