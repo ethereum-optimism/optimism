@@ -270,7 +270,6 @@ contract Deploy is Deployer {
             vm.store(address(cfg), USE_FAULT_PROOFS_SLOT, useFaultProofsOverride);
         }
 
-        console.log("Deploying from %s", deployScript);
         console.log("Deployment context: %s", deploymentContext);
     }
 

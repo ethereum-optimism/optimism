@@ -35,7 +35,6 @@ contract DeployPeriphery is Deployer {
         string memory path = string.concat(vm.projectRoot(), "/periphery-deploy-config/", deploymentContext, ".json");
         cfg = new PeripheryDeployConfig(path);
 
-        console.log("Deploying from %s", deployScript);
         console.log("Deployment context: %s", deploymentContext);
     }
 

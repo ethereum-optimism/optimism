@@ -48,13 +48,6 @@ library Config {
         );
     }
 
-    /// @notice Returns the name of the script used for deployment. This was useful for parsing the
-    ///         foundry deploy artifacts to turn them into hardhat deploy style artifacts. It is now
-    ///         DEPRECATED and will be removed in the future.
-    function deployScript(string memory _name) internal view returns (string memory _env) {
-        _env = vm.envOr("DEPLOY_SCRIPT", _name);
-    }
-
     /// @notice Returns the sig of the entrypoint to the deploy script. By default, it is `run`.
     ///         This was useful for creating hardhat deploy style artifacts and will be removed in a future release.
     function sig() internal view returns (string memory _env) {
