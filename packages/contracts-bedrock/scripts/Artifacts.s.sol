@@ -22,10 +22,12 @@ abstract contract Artifacts {
     /// @notice Foundry cheatcode VM.
     Vm private constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
     /// @notice Error for when attempting to fetch a deployment and it does not exist
+
     error DeploymentDoesNotExist(string);
     /// @notice Error for when trying to save an invalid deployment
     error InvalidDeployment(string);
     /// @notice The set of deployments that have been done during execution.
+
     mapping(string => Deployment) internal _namedDeployments;
     /// @notice The same as `_namedDeployments` but as an array.
     Deployment[] internal _newDeployments;
