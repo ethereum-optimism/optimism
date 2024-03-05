@@ -207,7 +207,7 @@ Below is a condensed version of the default [artifacts.json](../artifacts.json) 
 
 ### `"local"` Contracts
 
-The first property of this JSON object, `"local"`, specifies the name of the contracts that have locally available Forge artifacts which BindGen will use to generate Go bindings and metadata files. This property specifies an array of strings where each string corresponds to the name of the contract which is used in the name of it's corresponding Forge artifact.
+The first property of this JSON object, `"local"`, specifies the name of the contracts that have locally available Forge artifacts which BindGen will use to generate Go bindings and metadata files. This property specifies an array of strings where each string corresponds to the name of the contract which is used in the name of its corresponding Forge artifact.
 
 For example, the first contract listed in the default contract list is `SystemConfig`. After running `pnpm build` in the [contract-bedrock](../../packages/contracts-bedrock/), you'll have a [forge-artifacts](../../packages/contracts-bedrock/forge-artifacts/) directory where you can find [SystemConfig.sol](../../packages/contracts-bedrock/forge-artifacts/SystemConfig.sol/). Inside is the Forge artifacts BindGen will use to generate the Go bindings and metadata file.
 
