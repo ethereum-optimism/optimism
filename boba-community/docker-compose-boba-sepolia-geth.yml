@@ -38,6 +38,7 @@ services:
     command: >
       op-node
       --l1=${ETH1_HTTP:-https://sepolia.gateway.tenderly.co}
+      --l1.beacon=${ETH2_HTTP}
       --l2=http://l2:8551
       --l2.jwt-secret=/config/jwt-secret.txt
       --network=boba-sepolia

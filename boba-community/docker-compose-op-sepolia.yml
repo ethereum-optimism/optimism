@@ -20,7 +20,7 @@ services:
       --authrpc.vhosts=*
       --authrpc.jwtsecret=/config/jwt-secret.txt
       --http.api=eth,debug,net,engine,web3
-      --rollup.disabletxpoolgossip=true
+      --txpool.gossip.disable=true
       --rollup.sequencerhttp=https://sepolia.optimism.io
       --db.size.limit=8TB
     ports:
@@ -36,6 +36,7 @@ services:
     command: >
       op-node
       --l1=${ETH1_HTTP:-https://sepolia.gateway.tenderly.co}
+      --l1.beacon=${ETH2_HTTP}
       --l2=http://l2:8551
       --l2.jwt-secret=/config/jwt-secret.txt
       --network=sepolia
