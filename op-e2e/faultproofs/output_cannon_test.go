@@ -334,7 +334,7 @@ func TestOutputCannonStepWithKZGPointEvaluation(t *testing.T) {
 		// Now the honest challenger is positioned as the defender of the execution game
 		// We then move to challenge it to induce a preimage load
 		preimageLoadCheck := game.CreateStepPreimageLoadCheck(ctx)
-		game.ChallengeToPreimageLoad(ctx, outputRootClaim, sys.Cfg.Secrets.Alice, cannon.FirstKZGPointEvaluationPreimageLoad(), preimageLoadCheck, preloadPreimage)
+		game.ChallengeToPreimageLoad(ctx, outputRootClaim, sys.Cfg.Secrets.Alice, cannon.FirstPrecompilePreimageLoad(), preimageLoadCheck, preloadPreimage)
 		// The above method already verified the image was uploaded and step called successfully
 		// So we don't waste time resolving the game - that's tested elsewhere.
 	}
@@ -693,20 +693,10 @@ func TestInvalidateUnsafeProposal(t *testing.T) {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
 			op_e2e.InitParallel(t, op_e2e.UsesCannon)
-			sys, l1Client := startFaultDisputeSystem(t, withSequencerWindowSize(100000))
+			sys, l1Client := startFaultDisputeSystem(t, withSequencerWindowSize(100000), withBatcherStopped())
 			t.Cleanup(sys.Close)
 
-			// Wait for the safe head to advance at least one block to init the safe head database
-			require.NoError(t, wait.ForSafeBlock(ctx, sys.RollupClient("sequencer"), 1))
-
-			// Now stop the batcher so the safe head doesn't advance any further
-			require.NoError(t, sys.BatchSubmitter.Stop(ctx))
-
-			// Wait for the unsafe head to advance to be sure it is beyond the safe head
-			require.NoError(t, wait.ForNextBlock(ctx, sys.NodeClient("sequencer")))
-			blockNum, err := sys.NodeClient("sequencer").BlockNumber(ctx)
-			require.NoError(t, err)
-
+			blockNum := uint64(1)
 			disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
 			// Root claim is _dishonest_ because the required data is not available on L1
 			game := disputeGameFactory.StartOutputCannonGameWithCorrectRoot(ctx, "sequencer", blockNum, disputegame.WithUnsafeProposal())
@@ -767,9 +757,6 @@ func TestInvalidateProposalForFutureBlock(t *testing.T) {
 			op_e2e.InitParallel(t, op_e2e.UsesCannon)
 			sys, l1Client := startFaultDisputeSystem(t, withSequencerWindowSize(100000))
 			t.Cleanup(sys.Close)
-
-			// Wait for the safe head to advance at least one block to init the safe head database
-			require.NoError(t, wait.ForSafeBlock(ctx, sys.RollupClient("sequencer"), 1))
 
 			farFutureBlockNum := uint64(10_000_000)
 			disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)

@@ -21,6 +21,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
@@ -60,7 +61,8 @@ func main() {
 				makeCommand("eip-5656-mcopy", checkMcopy),
 				makeCommand("eip-6780-selfdestruct", checkSelfdestruct),
 				makeCommand("eip-4844-blobtx", checkBlobTxDenial),
-				makeCommand("eip-4788", checkBeaconBlockRoot),
+				makeCommand("eip-4788-root", checkBeaconBlockRoot),
+				makeCommand("eip-4788-contract", check4788Contract),
 				makeCommand("all", checkAllCancun),
 			},
 			Flags:  makeFlags(),
@@ -91,7 +93,7 @@ func main() {
 
 	err := app.Run(os.Args)
 	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "Application failed: %v", err)
+		_, _ = fmt.Fprintf(os.Stderr, "Application failed: %v\n", err)
 		os.Exit(1)
 	}
 }
@@ -229,7 +231,11 @@ func checkEIP1153(ctx context.Context, env *actionEnv) error {
 		0xc0, 0xff, 0xee,
 		byte(vm.EQ),
 	})
-	return execTx(ctx, nil, input, false, env)
+	if err := execTx(ctx, nil, input, false, env); err != nil {
+		return err
+	}
+	env.log.Info("eip-1153 transient storage test: success")
+	return nil
 }
 
 func checkBlobDataHash(ctx context.Context, env *actionEnv) error {
@@ -237,10 +243,82 @@ func checkBlobDataHash(ctx context.Context, env *actionEnv) error {
 	input := []byte{
 		byte(vm.BLOBHASH),
 	}
-	return execTx(ctx, nil, input, true, env)
+	if err := execTx(ctx, nil, input, true, env); err != nil {
+		return err
+	}
+	env.log.Info("4844 blob-data-hash test: success")
+	return nil
 }
 
+// Deploy a contract that calls the EIP-4844 blob verification precompile with valid proof,
+// and check if it verifies the proof successfully.
 func check4844Precompile(ctx context.Context, env *actionEnv) error {
+	var x eth.Blob
+	if err := x.FromData(eth.Data("remember ethers phoenix")); err != nil {
+		return fmt.Errorf("failed to construct blob: %w", err)
+	}
+	commitment, err := x.ComputeKZGCommitment()
+	if err != nil {
+		return fmt.Errorf("failed to compute commitment: %w", err)
+	}
+	point := kzg4844.Point{}
+	proof, claim, err := kzg4844.ComputeProof(kzg4844.Blob(x), point)
+	if err != nil {
+		return fmt.Errorf("failed to compute proof: %w", err)
+	}
+	versionedHash := eth.KZGToVersionedHash(commitment)
+
+	var inner []byte
+	mstore32 := func(v []byte, offset uint8) {
+		if len(v) != 32 {
+			panic("invalid v")
+		}
+		inner = append(inner, byte(vm.PUSH32))
+		inner = append(inner, v...)
+		inner = append(inner, byte(vm.PUSH1), offset, byte(vm.MSTORE))
+	}
+
+	// prepare input in memory, following EIP-4844:
+	//    versioned_hash = input[:32]
+	//    z = input[32:64]
+	//    y = input[64:96]
+	//    commitment = input[96:144]
+	//    proof = input[144:192]
+	//
+	// the call verify p(z) = y
+	mstore32(versionedHash[:], 0) // versioned hash
+	mstore32(point[:], 32)        // z
+	mstore32(claim[:], 64)        // y
+	mstore32(commitment[0:32], 96)
+	mstore32(append(append([]byte{}, commitment[32:48]...), proof[0:16]...), 96+32)
+	mstore32(proof[16:48], 144+16)
+	env.log.Info(fmt.Sprintf("4844 precompile test: verifying p(%x) == %x for commitment %x proof %x", point[:], claim[:], commitment[:], proof[:]))
+
+	inner = append(inner, []byte{
+		byte(vm.PUSH0), // retSize
+		byte(vm.PUSH0), // retOffset
+		byte(vm.PUSH1), // argsSize
+		byte(192),
+		byte(vm.PUSH0), // argsOffset
+		byte(vm.PUSH1), // precompile address
+		byte(0x0A),
+		byte(vm.GAS),        // gas (supply all gas)
+		byte(vm.STATICCALL), // run call
+		// 0 will be on stack if call reverts, 1 otherwise
+		// now get the return-data size, and multiply it. To ensure size == 0 counts as failed call.
+		byte(vm.RETURNDATASIZE),
+		byte(vm.MUL),
+	}...)
+
+	input := conditionalCode(inner)
+	if err := execTx(ctx, nil, input, false, env); err != nil {
+		return fmt.Errorf("precompile check failed: %w", err)
+	}
+	env.log.Info("eip-4844 precompile test: success")
+	return nil
+}
+
+func check4788Contract(ctx context.Context, env *actionEnv) error {
 	head, err := env.l2.HeaderByNumber(ctx, nil)
 	if err != nil {
 		return err
@@ -262,12 +340,25 @@ func check4844Precompile(ctx context.Context, env *actionEnv) error {
 			continue
 		}
 		env.log.Info("Beacon block root query timestamp", "query_timestamp", ti)
-		// revert when timestamp doesn't exist (when not aligned it won't exist)
+		// revert when timestamp doesn't exist (when not aligned it won't exist),
+		// or when we call it at the activation block and the contract was newly deployed
+		// (the beacon block root is processed at the start of the block,
+		// but the contract might not exist yet, during activation).
+		revert := ti%conf.BlockTime != alignment
+		if conf.IsEcotoneActivationBlock(ti) {
+			// if the contract already existed, then we deployed the nonce=1 contract during upgrade
+			code, err := env.l2.CodeAt(ctx, crypto.CreateAddress(derive.EIP4788From, 1), nil)
+			if err != nil {
+				return fmt.Errorf("failed to check code: %w", err)
+			}
+			revert = revert || len(code) == 0
+		}
 		input := new(uint256.Int).SetUint64(ti).Bytes32()
-		if err := execTx(ctx, &predeploys.EIP4788ContractAddr, input[:], ti%conf.BlockTime != alignment, env); err != nil {
+		if err := execTx(ctx, &predeploys.EIP4788ContractAddr, input[:], revert, env); err != nil {
 			return fmt.Errorf("failed at t = %d", ti)
 		}
 	}
+	env.log.Info("eip-4788 beacon block-roots contract test: success")
 	return nil
 }
 
@@ -294,7 +385,11 @@ func checkMcopy(ctx context.Context, env *actionEnv) error {
 		0xc0, 0xff, 0x00,
 		byte(vm.EQ),
 	})
-	return execTx(ctx, nil, input, false, env)
+	if err := execTx(ctx, nil, input, false, env); err != nil {
+		return err
+	}
+	env.log.Info("eip-5656 mcopy test: success")
+	return nil
 }
 
 func checkSelfdestruct(ctx context.Context, env *actionEnv) error {
@@ -314,7 +409,11 @@ func checkSelfdestruct(ctx context.Context, env *actionEnv) error {
 		byte(vm.EXTCODESIZE), // size should be 0
 		byte(vm.ISZERO),      // check that it is
 	})
-	return execTx(ctx, nil, input, false, env)
+	if err := execTx(ctx, nil, input, false, env); err != nil {
+		return err
+	}
+	env.log.Info("eip-6780 self-destruct test: success")
+	return nil
 }
 
 func execTx(ctx context.Context, to *common.Address, data []byte, expectRevert bool, env *actionEnv) error {
@@ -444,6 +543,7 @@ func checkBlobTxDenial(ctx context.Context, env *actionEnv) error {
 	if !strings.Contains(err.Error(), "transaction type not supported") {
 		return fmt.Errorf("unexpected tx submission error: %w", err)
 	}
+	env.log.Info("blob-tx denial test: success")
 	return nil
 }
 
@@ -494,9 +594,12 @@ func checkBeaconBlockRoot(ctx context.Context, env *actionEnv) error {
 	if err != nil {
 		return fmt.Errorf("failed to convert to block-ref: %w", err)
 	}
-	l1Header, err := env.l1.HeaderByHash(ctx, headRef.L1Origin.Hash)
+	l1Header, err := retry.Do(ctx, 5, retry.Fixed(time.Second*12), func() (*types.Header, error) {
+		env.log.Info("retrieving L1 origin...", "l1", headRef.L1Origin)
+		return env.l1.HeaderByHash(ctx, headRef.L1Origin.Hash)
+	})
 	if err != nil {
-		return fmt.Errorf("failed to retrieve matching L1 block %s: %w", headRef, err)
+		return fmt.Errorf("failed to retrieve L1 origin %s of L2 block %s: %w", headRef.L1Origin, headRef, err)
 	}
 	var l1ParentBeaconBlockRoot common.Hash // zero before Dencun activates on L1
 	if l1Header.ParentBeaconRoot != nil {
@@ -506,6 +609,7 @@ func checkBeaconBlockRoot(ctx context.Context, env *actionEnv) error {
 		return fmt.Errorf("parent beacon block root mismatch, L1: %s, L2: %s",
 			l1ParentBeaconBlockRoot, *payload.ParentBeaconBlockRoot)
 	}
+	env.log.Info("beacon-block-root block-content test: success")
 	return nil
 }
 
@@ -531,7 +635,10 @@ func checkAllCancun(ctx context.Context, env *actionEnv) error {
 	if err := checkBeaconBlockRoot(ctx, env); err != nil {
 		return fmt.Errorf("eip-4788 beacon-block-roots error: %w", err)
 	}
-
+	if err := check4788Contract(ctx, env); err != nil {
+		return fmt.Errorf("eip-4788 contract check error: %w", err)
+	}
+	env.log.Info("completed Cancun feature tests successfully")
 	return nil
 }
 
@@ -581,6 +688,7 @@ func checkUpgradeTxs(ctx context.Context, env *actionEnv) error {
 			}
 		}
 	}
+	env.log.Info("upgrade-txs receipts test: success")
 	return nil
 }
 
@@ -596,6 +704,7 @@ func checkL1Block(ctx context.Context, env *actionEnv) error {
 	if big.NewInt(0).Cmp(blobBaseFee) == 0 {
 		return errors.New("blob basefee must never be 0, EIP specifies minimum of 1")
 	}
+	env.log.Info("l1-block-info test: success")
 	return nil
 }
 
@@ -626,6 +735,7 @@ func checkGPO(ctx context.Context, env *actionEnv) error {
 	if blobBaseFeeScalar == 0 {
 		env.log.Warn("blob basefee scalar is set to 0. SystemConfig needs to emit scalar change to update.")
 	}
+	env.log.Info("GPO test: success")
 	return nil
 }
 
@@ -644,24 +754,15 @@ func checkL1Fees(ctx context.Context, env *actionEnv) error {
 	l2EthCl, err := sources.NewL2Client(l2RPC, env.log, nil,
 		sources.L2ClientDefaultConfig(rollupCfg, false))
 	if err != nil {
-		return fmt.Errorf("failed to create eth client")
+		return fmt.Errorf("failed to create eth client: %w", err)
 	}
-	payload, err := l2EthCl.PayloadByLabel(ctx, eth.Unsafe)
+	head, err := env.l2.HeaderByNumber(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("failed to get head ref: %w", err)
-	}
-	headRef, err := derive.PayloadToBlockRef(rollupCfg, payload.ExecutionPayload)
-	if err != nil {
-		return fmt.Errorf("failed to convert to block-ref: %w", err)
-	}
-	l1Header, err := env.l1.HeaderByHash(ctx, headRef.L1Origin.Hash)
-	if err != nil {
-		return fmt.Errorf("failed to retrieve matching L1 block %s: %w", headRef, err)
+		return fmt.Errorf("failed to get head: %w", err)
 	}
 	gasTip := big.NewInt(2 * params.GWei)
-	baseFee := (*uint256.Int)(&payload.ExecutionPayload.BaseFeePerGas).ToBig()
 	gasMaxFee := new(big.Int).Add(
-		new(big.Int).Mul(big.NewInt(2), baseFee), gasTip)
+		new(big.Int).Mul(big.NewInt(2), head.BaseFee), gasTip)
 	to := common.Address{1, 2, 3, 5}
 	txData := &types.DynamicFeeTx{
 		ChainID:    rollupCfg.L2ChainID,
@@ -682,7 +783,7 @@ func checkL1Fees(ctx context.Context, env *actionEnv) error {
 	if err := env.l2.SendTransaction(ctx, tx); err != nil {
 		return fmt.Errorf("failed to send test tx: %w", err)
 	}
-	receipt, err := retry.Do[*types.Receipt](ctx, 20, retry.Fixed(time.Second*2), func() (*types.Receipt, error) {
+	receipt, err := retry.Do(ctx, 20, retry.Fixed(time.Second*2), func() (*types.Receipt, error) {
 		return env.l2.TransactionReceipt(ctx, tx.Hash())
 	})
 	if err != nil {
@@ -691,9 +792,24 @@ func checkL1Fees(ctx context.Context, env *actionEnv) error {
 	if receipt.Status != types.ReceiptStatusSuccessful {
 		return fmt.Errorf("transaction failed, gas used: %d", receipt.L1GasUsed)
 	}
-	env.log.Info("got receipt")
+	env.log.Info("got receipt", "hash", tx.Hash(), "block", receipt.BlockHash)
 	if receipt.FeeScalar != nil {
 		return fmt.Errorf("expected fee scalar attribute to be deprecated, but got %v", receipt.FeeScalar)
+	}
+	payload, err := l2EthCl.PayloadByHash(ctx, receipt.BlockHash)
+	if err != nil {
+		return fmt.Errorf("failed to get head ref: %w", err)
+	}
+	headRef, err := derive.PayloadToBlockRef(rollupCfg, payload.ExecutionPayload)
+	if err != nil {
+		return fmt.Errorf("failed to convert to block-ref: %w", err)
+	}
+	l1Header, err := retry.Do(ctx, 5, retry.Fixed(time.Second*12), func() (*types.Header, error) {
+		env.log.Info("retrieving L1 origin...", "l1", headRef.L1Origin)
+		return env.l1.HeaderByHash(ctx, headRef.L1Origin.Hash)
+	})
+	if err != nil {
+		return fmt.Errorf("failed to retrieve L1 origin %s of L2 block %s: %w", headRef.L1Origin, headRef, err)
 	}
 	if receipt.L1GasPrice.Cmp(l1Header.BaseFee) != 0 {
 		return fmt.Errorf("L1 gas price does not include blob fee component: %d != %d", receipt.L1GasPrice, l1Header.BaseFee)
@@ -719,10 +835,16 @@ func checkL1Fees(ctx context.Context, env *actionEnv) error {
 	if big.NewInt(0).Cmp(receipt.L1Fee) >= 0 {
 		return fmt.Errorf("calculated to low L1 fee: %d", receipt.L1Fee)
 	}
+	env.log.Info("L1 fees test: success")
 	return nil
 }
 
 func checkALL(ctx context.Context, env *actionEnv) error {
+	bal, err := env.l2.BalanceAt(ctx, env.addr, nil)
+	if err != nil {
+		return fmt.Errorf("failed to check balance of account: %w", err)
+	}
+	env.log.Info("starting checks, tx account", "addr", env.addr, "balance_wei", bal)
 	if err := checkAllCancun(ctx, env); err != nil {
 		return fmt.Errorf("failed: Cancun error: %w", err)
 	}
@@ -738,5 +860,6 @@ func checkALL(ctx context.Context, env *actionEnv) error {
 	if err := checkL1Fees(ctx, env); err != nil {
 		return fmt.Errorf("failed: L1 fees error: %w", err)
 	}
+	env.log.Info("completed all tests successfully!")
 	return nil
 }

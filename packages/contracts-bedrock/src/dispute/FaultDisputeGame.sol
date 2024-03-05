@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+import { IDelayedWETH } from "src/dispute/interfaces/IDelayedWETH.sol";
 import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
 import { IFaultDisputeGame } from "src/dispute/interfaces/IFaultDisputeGame.sol";
 import { IInitializable } from "src/dispute/interfaces/IInitializable.sol";
@@ -47,6 +48,9 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     /// @notice The game type ID
     GameType internal immutable GAME_TYPE;
 
+    /// @notice WETH contract for holding ETH
+    IDelayedWETH internal immutable WETH;
+
     /// @notice The global root claim's position is always at gindex 1.
     Position internal constant ROOT_POSITION = Position.wrap(1);
 
@@ -91,8 +95,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     /// @param _maxGameDepth The maximum depth of bisection.
     /// @param _splitDepth The final depth of the output bisection portion of the game.
     /// @param _gameDuration The duration of the game.
-    /// @param _vm An onchain VM that performs single instruction steps on a fault proof program
-    ///            trace.
+    /// @param _vm An onchain VM that performs single instruction steps on an FPP trace.
+    /// @param _weth WETH contract for holding ETH.
     constructor(
         GameType _gameType,
         Claim _absolutePrestate,
@@ -101,7 +105,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         uint256 _maxGameDepth,
         uint256 _splitDepth,
         Duration _gameDuration,
-        IBigStepper _vm
+        IBigStepper _vm,
+        IDelayedWETH _weth
     ) {
         // The split depth cannot be greater than or equal to the max game depth.
         if (_splitDepth >= _maxGameDepth) revert InvalidSplitDepth();
@@ -114,7 +119,14 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         SPLIT_DEPTH = _splitDepth;
         GAME_DURATION = _gameDuration;
         VM = _vm;
+        WETH = _weth;
     }
+
+    /// @notice Receive function to allow the contract to receive ETH.
+    receive() external payable { }
+
+    /// @notice Fallback function to allow the contract to receive ETH.
+    fallback() external payable { }
 
     ////////////////////////////////////////////////////////////////
     //                  `IFaultDisputeGame` impl                  //
@@ -291,6 +303,9 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
 
         // Update the subgame rooted at the parent claim.
         subgames[_challengeIndex].push(claimData.length - 1);
+
+        // Deposit the bond.
+        WETH.deposit{ value: msg.value }();
 
         // Emit the appropriate event for the attack or defense.
         emit Move(_challengeIndex, _claim, msg.sender);
@@ -519,6 +534,9 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
             })
         );
 
+        // Deposit the bond.
+        WETH.deposit{ value: msg.value }();
+
         // Set the game's starting timestamp
         createdAt = Timestamp.wrap(uint64(block.timestamp));
 
@@ -546,6 +564,14 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         // Remove the credit from the recipient prior to performing the external call.
         uint256 recipientCredit = credit[_recipient];
         credit[_recipient] = 0;
+
+        // Revert if the recipient has no credit to claim.
+        if (recipientCredit == 0) {
+            revert NoCreditToClaim();
+        }
+
+        // Try to withdraw the WETH amount so it can be used here.
+        WETH.withdraw(_recipient, recipientCredit);
 
         // Transfer the credit to the recipient.
         (bool success,) = _recipient.call{ value: recipientCredit }(hex"");
@@ -597,6 +623,11 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         genesisOutputRoot_ = GENESIS_OUTPUT_ROOT;
     }
 
+    /// @notice Returns the WETH contract for holding ETH.
+    function weth() external view returns (IDelayedWETH weth_) {
+        weth_ = WETH;
+    }
+
     ////////////////////////////////////////////////////////////////
     //                          HELPERS                           //
     ////////////////////////////////////////////////////////////////
@@ -612,6 +643,9 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
 
         // Increase the recipient's credit.
         credit[_recipient] += bond;
+
+        // Unlock the bond.
+        WETH.unlock(_recipient, bond);
     }
 
     /// @notice Verifies the integrity of an execution bisection subgame's root claim. Reverts if the claim

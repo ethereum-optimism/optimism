@@ -7,6 +7,7 @@ import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
 import { FaultDisputeGame_Init } from "test/dispute/FaultDisputeGame.t.sol";
 
 import "src/libraries/DisputeTypes.sol";
+import "src/libraries/DisputeErrors.sol";
 
 contract FaultDisputeGame_Solvency_Invariant is FaultDisputeGame_Init {
     Claim internal constant ROOT_CLAIM = Claim.wrap(bytes32(uint256(10)));
@@ -46,8 +47,22 @@ contract FaultDisputeGame_Solvency_Invariant is FaultDisputeGame_Init {
         }
         gameProxy.resolve();
 
-        gameProxy.claimCredit(address(this));
-        gameProxy.claimCredit(address(actor));
+        // Wait for the withdrawal delay.
+        vm.warp(block.timestamp + 7 days + 1 seconds);
+
+        if (gameProxy.credit(address(this)) == 0) {
+            vm.expectRevert(NoCreditToClaim.selector);
+            gameProxy.claimCredit(address(this));
+        } else {
+            gameProxy.claimCredit(address(this));
+        }
+
+        if (gameProxy.credit(address(actor)) == 0) {
+            vm.expectRevert(NoCreditToClaim.selector);
+            gameProxy.claimCredit(address(actor));
+        } else {
+            gameProxy.claimCredit(address(actor));
+        }
 
         if (gameProxy.status() == GameStatus.DEFENDER_WINS) {
             assertEq(address(this).balance, type(uint96).max);

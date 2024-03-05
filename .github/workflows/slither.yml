@@ -16,7 +16,7 @@ jobs:
       - uses: actions/checkout@v4
 
       # Workaround to prevent slither-action from trying to install JS deps.
-      # Without this step, it detects the `package.json``, and since there is no
+      # Without this step, it detects the `package.json`, and since there is no
       # lockfile it defaults `npm install` which fails due to the preinstall
       # script to enforce pnpm. https://github.com/crytic/slither-action/issues/44#issuecomment-1338183656
       - name: Remove package.json
@@ -30,8 +30,6 @@ jobs:
           slither-config: packages/contracts-bedrock/slither.config.json
           fail-on: config
           sarif: results.sarif
-          # https://github.com/crytic/slither-action/issues/70#issuecomment-1932948435
-          slither-version: dev-triage-db
           slither-args: --triage-database packages/contracts-bedrock/slither.db.json
 
       - name: Upload SARIF file

@@ -272,8 +272,8 @@ func FirstKeccakPreimageLoad() PreimageOpt {
 	return FirstPreimageLoadOfType("keccak")
 }
 
-func FirstKZGPointEvaluationPreimageLoad() PreimageOpt {
-	return FirstPreimageLoadOfType("kzg-point-evaluation")
+func FirstPrecompilePreimageLoad() PreimageOpt {
+	return FirstPreimageLoadOfType("precompile")
 }
 
 func PreimageLargerThan(size int) PreimageOpt {

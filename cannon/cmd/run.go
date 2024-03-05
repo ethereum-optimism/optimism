@@ -281,8 +281,8 @@ func Run(ctx *cli.Context) error {
 			stopAtPreimageKeyPrefix = []byte{byte(preimage.Sha256KeyType)}
 		case "blob":
 			stopAtPreimageKeyPrefix = []byte{byte(preimage.BlobKeyType)}
-		case "kzg-point-evaluation":
-			stopAtPreimageKeyPrefix = []byte{byte(preimage.KZGPointEvaluationKeyType)}
+		case "precompile":
+			stopAtPreimageKeyPrefix = []byte{byte(preimage.PrecompileKeyType)}
 		case "any":
 			stopAtAnyPreimage = true
 		case "":

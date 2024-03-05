@@ -41,7 +41,7 @@ func TestWithVerification(t *testing.T) {
 		},
 		{
 			name:         "KZGPointEvaluationKey NoVerification",
-			key:          KZGPointEvaluationKey([32]byte{1, 2, 3, 4}),
+			key:          PrecompileKey([32]byte{1, 2, 3, 4}),
 			data:         []byte{4, 3, 5, 7, 3},
 			expectedData: []byte{4, 3, 5, 7, 3},
 		},

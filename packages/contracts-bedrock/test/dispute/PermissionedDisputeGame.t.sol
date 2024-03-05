@@ -6,6 +6,7 @@ import { Vm } from "forge-std/Vm.sol";
 import { DisputeGameFactory_Init } from "test/dispute/DisputeGameFactory.t.sol";
 import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
 import { PermissionedDisputeGame } from "src/dispute/PermissionedDisputeGame.sol";
+import { DelayedWETH } from "src/dispute/weth/DelayedWETH.sol";
 import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
 import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
 import { PreimageKeyLib } from "src/cannon/PreimageKeyLib.sol";
@@ -55,6 +56,9 @@ contract PermissionedDisputeGame_Init is DisputeGameFactory_Init {
 
         AlphabetVM _vm = new AlphabetVM(absolutePrestate, new PreimageOracle(0, 0, 0));
 
+        // Use a 7 day delayed WETH to simulate withdrawals.
+        DelayedWETH _weth = new DelayedWETH(7 days);
+
         // Deploy an implementation of the fault game
         gameImpl = new PermissionedDisputeGame({
             _gameType: GAME_TYPE,
@@ -65,6 +69,7 @@ contract PermissionedDisputeGame_Init is DisputeGameFactory_Init {
             _splitDepth: 2 ** 2,
             _gameDuration: Duration.wrap(7 days),
             _vm: _vm,
+            _weth: _weth,
             _proposer: PROPOSER,
             _challenger: CHALLENGER
         });
@@ -72,7 +77,8 @@ contract PermissionedDisputeGame_Init is DisputeGameFactory_Init {
         disputeGameFactory.setImplementation(GAME_TYPE, gameImpl);
         // Create a new game.
         vm.prank(PROPOSER, PROPOSER);
-        gameProxy = PermissionedDisputeGame(address(disputeGameFactory.create(GAME_TYPE, rootClaim, extraData)));
+        gameProxy =
+            PermissionedDisputeGame(payable(address(disputeGameFactory.create(GAME_TYPE, rootClaim, extraData))));
 
         // Check immutables
         assertEq(gameProxy.gameType().raw(), GAME_TYPE.raw());

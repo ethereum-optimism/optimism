@@ -98,21 +98,39 @@ func (g *ExpiryConnectionGater) InterceptPeerDial(p peer.ID) (allow bool) {
 	if !g.BlockingConnectionGater.InterceptPeerDial(p) {
 		return false
 	}
-	return g.peerBanExpiryCheck(p)
+	peerBan := g.peerBanExpiryCheck(p)
+	if !peerBan {
+		log.Warn("peer is temporarily banned", "peer_id", p)
+	}
+	return peerBan
 }
 
 func (g *ExpiryConnectionGater) InterceptAddrDial(id peer.ID, ma multiaddr.Multiaddr) (allow bool) {
 	if !g.BlockingConnectionGater.InterceptAddrDial(id, ma) {
 		return false
 	}
-	return g.peerBanExpiryCheck(id) && g.addrBanExpiryCheck(ma)
+	peerBan := g.peerBanExpiryCheck(id)
+	if !peerBan {
+		log.Warn("peer id is temporarily banned", "peer_id", id, "multi_addr", ma)
+		return false
+	}
+	addrBan := g.addrBanExpiryCheck(ma)
+	if !addrBan {
+		log.Warn("peer address is temporarily banned", "peer_id", id, "multi_addr", ma)
+		return false
+	}
+	return true
 }
 
 func (g *ExpiryConnectionGater) InterceptAccept(mas network.ConnMultiaddrs) (allow bool) {
 	if !g.BlockingConnectionGater.InterceptAccept(mas) {
 		return false
 	}
-	return g.addrBanExpiryCheck(mas.RemoteMultiaddr())
+	addrBan := g.addrBanExpiryCheck(mas.RemoteMultiaddr())
+	if !addrBan {
+		log.Warn("peer address is temporarily banned", "multi_addr", mas.RemoteMultiaddr())
+	}
+	return addrBan
 }
 
 func (g *ExpiryConnectionGater) InterceptSecured(direction network.Direction, id peer.ID, mas network.ConnMultiaddrs) (allow bool) {
@@ -125,5 +143,9 @@ func (g *ExpiryConnectionGater) InterceptSecured(direction network.Direction, id
 	}
 	// InterceptSecured is called after InterceptAccept, we already checked the addrs.
 	// This leaves just the peer-ID expiry to check on inbound connections.
-	return g.peerBanExpiryCheck(id)
+	peerBan := g.peerBanExpiryCheck(id)
+	if !peerBan {
+		log.Warn("peer id is temporarily banned", "peer_id", id, "multi_addr", mas.RemoteMultiaddr())
+	}
+	return peerBan
 }

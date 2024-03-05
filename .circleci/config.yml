@@ -4,6 +4,9 @@ parameters:
   ci_builder_image:
     type: string
     default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:v0.43.0
+  ci_builder_rust_image:
+    type: string
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder-rust:latest
   base_image:
     type: string
     default: default
@@ -113,7 +116,7 @@ jobs:
     steps:
       - checkout
       - check-changed:
-          patterns: cannon,packages/contracts-bedrock/src/cannon,op-preimage
+          patterns: cannon,packages/contracts-bedrock/src/cannon,op-preimage,go.mod
       - run:
           name: prep Cannon results dir
           command: mkdir -p /tmp/test-results
@@ -1309,21 +1312,9 @@ jobs:
           paths:
             - "/go/pkg/mod"
 
-  go-mod-tidy:
-    docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
-    steps:
-      - checkout
-      - restore_cache:
-          name: Restore Go modules cache
-          key: gomod-{{ checksum "go.sum" }}
-      - run:
-          name: "Go mod tidy"
-          command: make mod-tidy && git diff --exit-code
-
   op-service-rethdb-tests:
     docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
+      - image: <<pipeline.parameters.ci_builder_rust_image>>
     steps:
       - checkout
       - check-changed:
@@ -1394,9 +1385,9 @@ jobs:
       - restore_cache:
           key: golang-build-cache
       - run:
-          name: compat-goerli
+          name: compat-sepolia
           command: |
-            make run-goerli-verify
+            make run-sepolia-verify
           working_directory: op-program
 
   check-generated-mocks-op-node:
@@ -1469,11 +1460,14 @@ jobs:
 workflows:
   main:
     when:
-      or:
-          # Trigger on new commits
-        - equal: [ webhook, << pipeline.trigger_source >> ]
-          # Trigger on manual triggers if explicitly requested
-        - equal: [ true, << pipeline.parameters.main_dispatch >> ]
+      and:
+        - or:
+            # Trigger on new commits
+          - equal: [ webhook, << pipeline.trigger_source >> ]
+            # Trigger on manual triggers if explicitly requested
+          - equal: [ true, << pipeline.parameters.main_dispatch >> ]
+        - not:
+            equal: [ scheduled_pipeline, << pipeline.trigger_source >> ]
     jobs:
       - pnpm-monorepo:
           name: pnpm-monorepo
@@ -1651,6 +1645,9 @@ workflows:
           requires:
             - go-mod-download
             - pnpm-monorepo
+      - op-service-rethdb-tests:
+          requires:
+            - go-mod-download
       - op-program-compat:
           requires:
             - op-program-tests
@@ -1674,6 +1671,7 @@ workflows:
             - op-program-tests
             - op-program-compat
             - op-service-tests
+            - op-service-rethdb-tests
             - op-e2e-HTTP-tests
             - op-e2e-fault-proof-tests
             - op-e2e-action-tests

@@ -25,11 +25,11 @@ type Oracle interface {
 	// ReceiptsByBlockHash retrieves the receipts from the block with the given hash.
 	ReceiptsByBlockHash(blockHash common.Hash) (eth.BlockInfo, types.Receipts)
 
-	// GetBlobField retrieves the field element at the given index from the blob with the given hash.
+	// GetBlob retrieves the blob with the given hash.
 	GetBlob(ref eth.L1BlockRef, blobHash eth.IndexedBlobHash) *eth.Blob
 
-	// KZGPointEvaluation retriees the result of the Cancun KZG point evaluation precompile for the given input.
-	KZGPointEvaluation(input []byte) bool
+	// Precompile retrieves the result and success indicator of a precompile call for the given input.
+	Precompile(precompileAddress common.Address, input []byte) ([]byte, bool)
 }
 
 // PreimageOracle implements Oracle using by interfacing with the pure preimage.Oracle
@@ -119,12 +119,13 @@ func (p *PreimageOracle) GetBlob(ref eth.L1BlockRef, blobHash eth.IndexedBlobHas
 	return &blob
 }
 
-func (p *PreimageOracle) KZGPointEvaluation(input []byte) bool {
-	p.hint.Hint(KZGPointEvaluationHint(input))
-	key := preimage.KZGPointEvaluationKey(crypto.Keccak256Hash(input[:]))
+func (p *PreimageOracle) Precompile(address common.Address, input []byte) ([]byte, bool) {
+	hintBytes := append(address.Bytes(), input...)
+	p.hint.Hint(PrecompileHint(hintBytes))
+	key := preimage.PrecompileKey(crypto.Keccak256Hash(hintBytes))
 	result := p.oracle.Get(key)
-	if len(result) != 1 || result[0] > 1 {
-		panic(fmt.Errorf("unexpected preimage oracle KZGPointEvaluation behavior, got result: %x", result))
+	if len(result) == 0 { // must contain at least the status code
+		panic(fmt.Errorf("unexpected precompile oracle behavior, got result: %x", result))
 	}
-	return result[0] == 1
+	return result[1:], result[0] == 1
 }

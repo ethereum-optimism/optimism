@@ -40,7 +40,7 @@ type OracleBackedL2Chain struct {
 
 var _ engineapi.EngineBackend = (*OracleBackedL2Chain)(nil)
 
-func NewOracleBackedL2Chain(logger log.Logger, oracle Oracle, kzgOracle engineapi.KZGPointEvaluationOracle, chainCfg *params.ChainConfig, l2OutputRoot common.Hash) (*OracleBackedL2Chain, error) {
+func NewOracleBackedL2Chain(logger log.Logger, oracle Oracle, precompileOracle engineapi.PrecompileOracle, chainCfg *params.ChainConfig, l2OutputRoot common.Hash) (*OracleBackedL2Chain, error) {
 	output := oracle.OutputByRoot(l2OutputRoot)
 	outputV0, ok := output.(*eth.OutputV0)
 	if !ok {
@@ -67,7 +67,7 @@ func NewOracleBackedL2Chain(logger log.Logger, oracle Oracle, kzgOracle engineap
 		blocks:     make(map[common.Hash]*types.Block),
 		db:         NewOracleBackedDB(oracle),
 		vmCfg: vm.Config{
-			OptimismPrecompileOverrides: precompileOverrides(kzgOracle),
+			OptimismPrecompileOverrides: engineapi.CreatePrecompileOverrides(precompileOracle),
 		},
 	}, nil
 }
@@ -231,16 +231,4 @@ func (o *OracleBackedL2Chain) SetFinalized(header *types.Header) {
 
 func (o *OracleBackedL2Chain) SetSafe(header *types.Header) {
 	o.safe = header
-}
-
-var kzgPointEvaluationPrecompileAddress = common.BytesToAddress([]byte{0xa})
-
-func precompileOverrides(kzgOracle engineapi.KZGPointEvaluationOracle) vm.PrecompileOverrides {
-	return func(rules params.Rules, address common.Address) (vm.PrecompiledContract, bool) {
-		// NOTE: Ignoring chain rules for now. We assume that precompile behavior won't change for the foreseeable future
-		if address != kzgPointEvaluationPrecompileAddress {
-			return nil, false
-		}
-		return &engineapi.OracleKZGPointEvaluation{Oracle: kzgOracle}, true
-	}
 }
