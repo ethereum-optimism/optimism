@@ -1472,11 +1472,14 @@ jobs:
 workflows:
   main:
     when:
-      or:
-          # Trigger on new commits
-        - equal: [ webhook, << pipeline.trigger_source >> ]
-          # Trigger on manual triggers if explicitly requested
-        - equal: [ true, << pipeline.parameters.main_dispatch >> ]
+      and:
+        - or:
+            # Trigger on new commits
+          - equal: [ webhook, << pipeline.trigger_source >> ]
+            # Trigger on manual triggers if explicitly requested
+          - equal: [ true, << pipeline.parameters.main_dispatch >> ]
+        - not:
+            equal: [ scheduled_pipeline, << pipeline.trigger_source >> ]
     jobs:
       - pnpm-monorepo:
           name: pnpm-monorepo
