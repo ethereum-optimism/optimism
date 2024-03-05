@@ -379,7 +379,8 @@ func DecodeResolvedInput(data []byte) ([]byte, error) {
 		return nil, err
 	}
 	rd := args["resolveData"].([]byte)
-	if rd == nil {
+	rd, ok := args["resolveData"].([]byte)
+	if !ok || len(rd) == 0 {
 		return nil, fmt.Errorf("invalid resolve data")
 	}
 	return rd, nil

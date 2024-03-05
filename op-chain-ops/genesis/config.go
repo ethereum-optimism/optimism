@@ -406,6 +406,12 @@ func (d *DeployConfig) Check() error {
 		log.Warn("DisputeGameFinalityDelaySeconds is 0")
 	}
 	if d.UsePlasma {
+		if d.DAChallengeWindow == 0 {
+			return fmt.Errorf("%w: DAChallengeWindow cannot be 0 when using plasma mode", ErrInvalidDeployConfig)
+		}
+		if d.DAResolveWindow == 0 {
+			return fmt.Errorf("%w: DAResolveWindow cannot be 0 when using plasma mode", ErrInvalidDeployConfig)
+		}
 		if d.DAChallengeProxy == (common.Address{}) {
 			return fmt.Errorf("%w: DAChallengeContract cannot be empty when using plasma mode", ErrInvalidDeployConfig)
 		}
