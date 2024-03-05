@@ -8,7 +8,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
@@ -99,23 +98,13 @@ func (c *ClaimHelper) RequireCorrectOutputRoot(ctx context.Context) {
 	c.require.Equalf(expected, c.claim, "Should have correct output root in claim %v and position %v", c.index, c.position)
 }
 
-func (c *ClaimHelper) Attack(ctx context.Context, value common.Hash) *ClaimHelper {
-	c.game.Attack(ctx, c.index, value)
+func (c *ClaimHelper) Attack(ctx context.Context, value common.Hash, opts ...MoveOpt) *ClaimHelper {
+	c.game.Attack(ctx, c.index, value, opts...)
 	return c.WaitForCounterClaim(ctx)
 }
 
-func (c *ClaimHelper) AttackWithTransactOpts(ctx context.Context, value common.Hash, opts *bind.TransactOpts) *ClaimHelper {
-	c.game.AttackWithTransactOpts(ctx, c.index, value, opts)
-	return c.WaitForCounterClaim(ctx)
-}
-
-func (c *ClaimHelper) Defend(ctx context.Context, value common.Hash) *ClaimHelper {
-	c.game.Defend(ctx, c.index, value)
-	return c.WaitForCounterClaim(ctx)
-}
-
-func (c *ClaimHelper) DefendWithTransactOpts(ctx context.Context, value common.Hash, opts *bind.TransactOpts) *ClaimHelper {
-	c.game.DefendWithTransactOpts(ctx, c.index, value, opts)
+func (c *ClaimHelper) Defend(ctx context.Context, value common.Hash, opts ...MoveOpt) *ClaimHelper {
+	c.game.Defend(ctx, c.index, value, opts...)
 	return c.WaitForCounterClaim(ctx)
 }
 

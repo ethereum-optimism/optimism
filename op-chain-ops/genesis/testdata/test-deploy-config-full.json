@@ -71,6 +71,7 @@
   "faultGameGenesisBlock": 0,
   "faultGameGenesisOutputRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
   "faultGameSplitDepth": 0,
+  "faultGameWithdrawalDelay": 604800,
   "preimageOracleMinProposalSize": 1800000,
   "preimageOracleChallengePeriod": 86400,
   "preimageOracleCancunActivationTimestamp": 0,
@@ -80,5 +81,10 @@
   "proofMaturityDelaySeconds": 12,
   "disputeGameFinalityDelaySeconds": 6,
   "respectedGameType": 0,
-  "useFaultProofs": false
+  "useFaultProofs": false,
+  "usePlasma": false,
+  "daBondSize": 0,
+  "daChallengeWindow": 0,
+  "daResolveWindow": 0,
+  "daResolverRefundPercentage": 0
 }

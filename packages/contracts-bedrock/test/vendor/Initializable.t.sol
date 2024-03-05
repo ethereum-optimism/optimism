@@ -6,6 +6,7 @@ import { Executables } from "scripts/Executables.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
+import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 import "src/L1/ProtocolVersions.sol";
@@ -30,6 +31,7 @@ contract Initializer_Test is Bridge_Initializer {
     InitializeableContract[] contracts;
 
     function setUp() public override {
+        super.enablePlasma();
         // Run the `Bridge_Initializer`'s `setUp()` function.
         super.setUp();
 
@@ -82,6 +84,22 @@ contract Initializer_Test is Bridge_Initializer {
                 target: address(disputeGameFactory),
                 initCalldata: abi.encodeCall(disputeGameFactory.initialize, (address(0))),
                 initializedSlotVal: deploy.loadInitializedSlot("DisputeGameFactoryProxy")
+            })
+        );
+        // DelayedWETHImpl
+        contracts.push(
+            InitializeableContract({
+                target: deploy.mustGetAddress("DelayedWETH"),
+                initCalldata: abi.encodeCall(delayedWeth.initialize, (address(0), SuperchainConfig(address(0)))),
+                initializedSlotVal: deploy.loadInitializedSlot("DelayedWETH")
+            })
+        );
+        // DelayedWETHProxy
+        contracts.push(
+            InitializeableContract({
+                target: address(delayedWeth),
+                initCalldata: abi.encodeCall(delayedWeth.initialize, (address(0), SuperchainConfig(address(0)))),
+                initializedSlotVal: deploy.loadInitializedSlot("DelayedWETHProxy")
             })
         );
         // L2OutputOracleImpl
@@ -288,6 +306,22 @@ contract Initializer_Test is Bridge_Initializer {
                 initializedSlotVal: deploy.loadInitializedSlot("OptimismMintableERC20FactoryProxy")
             })
         );
+        // DataAvailabilityChallengeImpl
+        contracts.push(
+            InitializeableContract({
+                target: deploy.mustGetAddress("DataAvailabilityChallenge"),
+                initCalldata: abi.encodeCall(dataAvailabilityChallenge.initialize, (address(0), 0, 0, 0, 0)),
+                initializedSlotVal: deploy.loadInitializedSlot("DataAvailabilityChallenge")
+            })
+        );
+        // DataAvailabilityChallengeProxy
+        contracts.push(
+            InitializeableContract({
+                target: address(dataAvailabilityChallenge),
+                initCalldata: abi.encodeCall(dataAvailabilityChallenge.initialize, (address(0), 0, 0, 0, 0)),
+                initializedSlotVal: deploy.loadInitializedSlot("DataAvailabilityChallengeProxy")
+            })
+        );
     }
 
     /// @notice Tests that:
@@ -297,9 +331,9 @@ contract Initializer_Test is Bridge_Initializer {
     ///         3. The `initialize()` function of each contract cannot be called more than once.
     function test_cannotReinitialize_succeeds() public {
         // Ensure that all L1, L2 `Initializable` contracts are accounted for, in addition to
-        // OptimismMintableERC20FactoryImpl, OptimismMintableERC20FactoryProxy, OptimismPortal2, DisputeGameFactoryImpl
-        // and DisputeGameFactoryProxy
-        assertEq(_getNumInitializable() + 3, contracts.length);
+        // OptimismMintableERC20FactoryImpl, OptimismMintableERC20FactoryProxy, OptimismPortal2,
+        // DisputeGameFactoryImpl, DisputeGameFactoryProxy, DelayedWETHImpl, DelayedWETHProxy.
+        assertEq(_getNumInitializable() + 5, contracts.length);
 
         // Attempt to re-initialize all contracts within the `contracts` array.
         for (uint256 i; i < contracts.length; i++) {

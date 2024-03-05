@@ -24,8 +24,6 @@ type GameContract interface {
 	DefendTx(parentContractIndex uint64, pivot common.Hash) (txmgr.TxCandidate, error)
 	StepTx(claimIdx uint64, isAttack bool, stateData []byte, proof []byte) (txmgr.TxCandidate, error)
 	GetRequiredBond(ctx context.Context, position types.Position) (*big.Int, error)
-	GetCredit(ctx context.Context, recipient common.Address) (*big.Int, error)
-	ClaimCredit(recipient common.Address) (txmgr.TxCandidate, error)
 }
 
 type Oracle interface {

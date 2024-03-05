@@ -4,9 +4,25 @@ parameters:
   ci_builder_image:
     type: string
     default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:v0.43.0
+  ci_builder_rust_image:
+    type: string
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder-rust:latest
   base_image:
     type: string
     default: default
+  # The dispatch parameters are used to manually dispatch pipelines that normally only run post-merge on develop
+  # from the CircleCI UI. Example configuration:
+  #   when:
+  #     or:
+  #       - equal: [ "develop", <<pipeline.git.branch>> ]
+  #       - equal: [ true, <<pipeline.parameters.main_dispatch>> ]
+  # Add a new `*_dispatch` parameter for any pipeline you want manual dispatch for.
+  main_dispatch:
+    type: boolean
+    default: true # default to running main in case the manual run cancelled an automatic run
+  fault_proofs_dispatch:
+    type: boolean
+    default: false
 
 orbs:
   go: circleci/go@1.8.0
@@ -100,7 +116,7 @@ jobs:
     steps:
       - checkout
       - check-changed:
-          patterns: cannon,packages/contracts-bedrock/src/cannon,op-preimage
+          patterns: cannon,packages/contracts-bedrock/src/cannon,op-preimage,go.mod
       - run:
           name: prep Cannon results dir
           command: mkdir -p /tmp/test-results
@@ -851,11 +867,6 @@ jobs:
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: xlarge
-    # Note: Tests are split between runs manually.
-    # Tests default to run on the first executor but can be moved to the second with:
-    # InitParallel(t, UseExecutor(1))
-    # Any tests assigned to an executor greater than the number available automatically use the last executor.
-    # Executor indexes start from 0
     parallelism: <<parameters.parallelism>>
     steps:
       - checkout
@@ -1301,21 +1312,9 @@ jobs:
           paths:
             - "/go/pkg/mod"
 
-  go-mod-tidy:
-    docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
-    steps:
-      - checkout
-      - restore_cache:
-          name: Restore Go modules cache
-          key: gomod-{{ checksum "go.sum" }}
-      - run:
-          name: "Go mod tidy"
-          command: make mod-tidy && git diff --exit-code
-
   op-service-rethdb-tests:
     docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
+      - image: <<pipeline.parameters.ci_builder_rust_image>>
     steps:
       - checkout
       - check-changed:
@@ -1386,9 +1385,9 @@ jobs:
       - restore_cache:
           key: golang-build-cache
       - run:
-          name: compat-goerli
+          name: compat-sepolia
           command: |
-            make run-goerli-verify
+            make run-sepolia-verify
           working_directory: op-program
 
   check-generated-mocks-op-node:
@@ -1461,8 +1460,14 @@ jobs:
 workflows:
   main:
     when:
-      not:
-        equal: [ scheduled_pipeline, << pipeline.trigger_source >> ]
+      and:
+        - or:
+            # Trigger on new commits
+          - equal: [ webhook, << pipeline.trigger_source >> ]
+            # Trigger on manual triggers if explicitly requested
+          - equal: [ true, << pipeline.parameters.main_dispatch >> ]
+        - not:
+            equal: [ scheduled_pipeline, << pipeline.trigger_source >> ]
     jobs:
       - pnpm-monorepo:
           name: pnpm-monorepo
@@ -1640,6 +1645,9 @@ workflows:
           requires:
             - go-mod-download
             - pnpm-monorepo
+      - op-service-rethdb-tests:
+          requires:
+            - go-mod-download
       - op-program-compat:
           requires:
             - op-program-tests
@@ -1663,6 +1671,7 @@ workflows:
             - op-program-tests
             - op-program-compat
             - op-service-tests
+            - op-service-rethdb-tests
             - op-e2e-HTTP-tests
             - op-e2e-fault-proof-tests
             - op-e2e-action-tests
@@ -1768,7 +1777,7 @@ workflows:
           name: op-stack-go-docker-build-release
           filters:
             tags:
-              only: /^(proxyd|chain-mon|indexer|ci-builder|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/
+              only: /^(proxyd|chain-mon|indexer|ci-builder(-rust)?|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/
             branches:
               ignore: /.*/
           docker_name: op-stack-go
@@ -2011,7 +2020,9 @@ workflows:
   develop-fault-proofs:
     when:
       and:
-        - equal: [ "develop", <<pipeline.git.branch>> ]
+        - or:
+          - equal: [ "develop", <<pipeline.git.branch>> ]
+          - equal: [ true, <<pipeline.parameters.fault_proofs_dispatch>> ]
         - not:
             equal: [ scheduled_pipeline, << pipeline.trigger_source >> ]
     jobs:

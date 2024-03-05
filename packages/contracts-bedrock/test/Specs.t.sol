@@ -8,6 +8,7 @@ import { ProtocolVersions } from "src/L1/ProtocolVersions.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
+import { DataAvailabilityChallenge } from "src/L1/DataAvailabilityChallenge.sol";
 
 /// @title Specification_Test
 /// @dev Specifies common security properties of entrypoints to L1 contracts, including authorization and
@@ -35,7 +36,8 @@ contract Specification_Test is CommonTest {
         MESSENGER,
         L1PROXYADMINOWNER,
         GOVERNANCETOKENOWNER,
-        MINTMANAGEROWNER
+        MINTMANAGEROWNER,
+        DATAAVAILABILITYCHALLENGEOWNER
     }
 
     /// @notice Represents the specification of a function.
@@ -55,6 +57,47 @@ contract Specification_Test is CommonTest {
 
     function setUp() public override {
         super.setUp();
+
+        // DataAvailabilityChallenge
+        _addSpec({ _name: "DataAvailabilityChallenge", _sel: _getSel("owner()") });
+        _addSpec({
+            _name: "DataAvailabilityChallenge",
+            _sel: _getSel("renounceOwnership()"),
+            _auth: Role.DATAAVAILABILITYCHALLENGEOWNER
+        });
+        _addSpec({
+            _name: "DataAvailabilityChallenge",
+            _sel: _getSel("transferOwnership(address)"),
+            _auth: Role.DATAAVAILABILITYCHALLENGEOWNER
+        });
+        _addSpec({ _name: "DataAvailabilityChallenge", _sel: _getSel("version()") });
+        _addSpec({ _name: "DataAvailabilityChallenge", _sel: _getSel("fixedResolutionCost()") });
+        _addSpec({ _name: "DataAvailabilityChallenge", _sel: _getSel("variableResolutionCost()") });
+        _addSpec({ _name: "DataAvailabilityChallenge", _sel: _getSel("variableResolutionCostPrecision()") });
+        _addSpec({ _name: "DataAvailabilityChallenge", _sel: _getSel("bondSize()") });
+        _addSpec({ _name: "DataAvailabilityChallenge", _sel: _getSel("challengeWindow()") });
+        _addSpec({ _name: "DataAvailabilityChallenge", _sel: _getSel("resolveWindow()") });
+        _addSpec({ _name: "DataAvailabilityChallenge", _sel: _getSel("resolverRefundPercentage()") });
+        _addSpec({ _name: "DataAvailabilityChallenge", _sel: _getSel("balances(address)") });
+        _addSpec({ _name: "DataAvailabilityChallenge", _sel: DataAvailabilityChallenge.initialize.selector });
+        _addSpec({
+            _name: "DataAvailabilityChallenge",
+            _sel: DataAvailabilityChallenge.setBondSize.selector,
+            _auth: Role.DATAAVAILABILITYCHALLENGEOWNER
+        });
+        _addSpec({
+            _name: "DataAvailabilityChallenge",
+            _sel: DataAvailabilityChallenge.setResolverRefundPercentage.selector,
+            _auth: Role.DATAAVAILABILITYCHALLENGEOWNER
+        });
+        _addSpec({ _name: "DataAvailabilityChallenge", _sel: DataAvailabilityChallenge.deposit.selector });
+        _addSpec({ _name: "DataAvailabilityChallenge", _sel: DataAvailabilityChallenge.withdraw.selector });
+        _addSpec({ _name: "DataAvailabilityChallenge", _sel: DataAvailabilityChallenge.getChallenge.selector });
+        _addSpec({ _name: "DataAvailabilityChallenge", _sel: DataAvailabilityChallenge.getChallengeStatus.selector });
+        _addSpec({ _name: "DataAvailabilityChallenge", _sel: DataAvailabilityChallenge.validateCommitment.selector });
+        _addSpec({ _name: "DataAvailabilityChallenge", _sel: DataAvailabilityChallenge.challenge.selector });
+        _addSpec({ _name: "DataAvailabilityChallenge", _sel: DataAvailabilityChallenge.resolve.selector });
+        _addSpec({ _name: "DataAvailabilityChallenge", _sel: DataAvailabilityChallenge.unlockBond.selector });
 
         // DelayedVetoable
         _addSpec({ _name: "DelayedVetoable", _sel: _getSel("delay()") });

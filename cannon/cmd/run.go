@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"slices"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -63,6 +66,11 @@ var (
 		Name:     "stop-at",
 		Usage:    "step pattern to stop at: " + patternHelp,
 		Value:    new(StepMatcherFlag),
+		Required: false,
+	}
+	RunStopAtPreimageFlag = &cli.StringFlag{
+		Name:     "stop-at-preimage",
+		Usage:    "stop at the first preimage request matching this key",
 		Required: false,
 	}
 	RunStopAtPreimageTypeFlag = &cli.StringFlag{
@@ -247,24 +255,41 @@ func Run(ctx *cli.Context) error {
 	errLog := &mipsevm.LoggingWriter{Name: "program std-err", Log: l}
 
 	stopAtAnyPreimage := false
-	var stopAtPreimageTypeByte preimage.KeyType
-	switch ctx.String(RunStopAtPreimageTypeFlag.Name) {
-	case "local":
-		stopAtPreimageTypeByte = preimage.LocalKeyType
-	case "keccak":
-		stopAtPreimageTypeByte = preimage.Keccak256KeyType
-	case "sha256":
-		stopAtPreimageTypeByte = preimage.Sha256KeyType
-	case "blob":
-		stopAtPreimageTypeByte = preimage.BlobKeyType
-	case "kzg-point-evaluation":
-		stopAtPreimageTypeByte = preimage.KZGPointEvaluationKeyType
-	case "any":
-		stopAtAnyPreimage = true
-	case "":
-		// 0 preimage type is forbidden so will not stop at any preimage
-	default:
-		return fmt.Errorf("invalid preimage type %q", ctx.String(RunStopAtPreimageTypeFlag.Name))
+	var stopAtPreimageKeyPrefix []byte
+	stopAtPreimageOffset := uint32(0)
+	if ctx.IsSet(RunStopAtPreimageFlag.Name) {
+		val := ctx.String(RunStopAtPreimageFlag.Name)
+		parts := strings.Split(val, "@")
+		if len(parts) > 2 {
+			return fmt.Errorf("invalid %v: %v", RunStopAtPreimageFlag.Name, val)
+		}
+		stopAtPreimageKeyPrefix = common.FromHex(parts[0])
+		if len(parts) == 2 {
+			x, err := strconv.ParseUint(parts[1], 10, 32)
+			if err != nil {
+				return fmt.Errorf("invalid preimage offset: %w", err)
+			}
+			stopAtPreimageOffset = uint32(x)
+		}
+	} else {
+		switch ctx.String(RunStopAtPreimageTypeFlag.Name) {
+		case "local":
+			stopAtPreimageKeyPrefix = []byte{byte(preimage.LocalKeyType)}
+		case "keccak":
+			stopAtPreimageKeyPrefix = []byte{byte(preimage.Keccak256KeyType)}
+		case "sha256":
+			stopAtPreimageKeyPrefix = []byte{byte(preimage.Sha256KeyType)}
+		case "blob":
+			stopAtPreimageKeyPrefix = []byte{byte(preimage.BlobKeyType)}
+		case "precompile":
+			stopAtPreimageKeyPrefix = []byte{byte(preimage.PrecompileKeyType)}
+		case "any":
+			stopAtAnyPreimage = true
+		case "":
+			// 0 preimage type is forbidden so will not stop at any preimage
+		default:
+			return fmt.Errorf("invalid preimage type %q", ctx.String(RunStopAtPreimageTypeFlag.Name))
+		}
 	}
 	stopAtPreimageLargerThan := ctx.Int(RunStopAtPreimageLargerThanFlag.Name)
 
@@ -362,8 +387,6 @@ func Run(ctx *cli.Context) error {
 			}
 		}
 
-		prevPreimageOffset := state.PreimageOffset
-
 		if proofAt(state) {
 			preStateHash, err := state.EncodeWitness().StateHash()
 			if err != nil {
@@ -399,17 +422,21 @@ func Run(ctx *cli.Context) error {
 			}
 		}
 
-		if preimageRead := state.PreimageOffset > prevPreimageOffset; preimageRead {
+		lastPreimageKey, lastPreimageValue, lastPreimageOffset := us.LastPreimage()
+		if lastPreimageOffset != ^uint32(0) {
 			if stopAtAnyPreimage {
 				l.Info("Stopping at preimage read")
 				break
 			}
-			if state.PreimageKey.Bytes()[0] == byte(stopAtPreimageTypeByte) {
-				l.Info("Stopping at preimage read", "type", stopAtPreimageTypeByte)
-				break
+			if len(stopAtPreimageKeyPrefix) > 0 &&
+				slices.Equal(lastPreimageKey[:len(stopAtPreimageKeyPrefix)], stopAtPreimageKeyPrefix) {
+				if stopAtPreimageOffset == lastPreimageOffset {
+					l.Info("Stopping at preimage read", "keyPrefix", common.Bytes2Hex(stopAtPreimageKeyPrefix), "offset", lastPreimageOffset)
+					break
+				}
 			}
-			if stopAtPreimageLargerThan != 0 && len(us.LastPreimage()) > stopAtPreimageLargerThan {
-				l.Info("Stopping at preimage read", "size", len(us.LastPreimage()), "min", stopAtPreimageLargerThan)
+			if stopAtPreimageLargerThan != 0 && len(lastPreimageValue) > stopAtPreimageLargerThan {
+				l.Info("Stopping at preimage read", "size", len(lastPreimageValue), "min", stopAtPreimageLargerThan)
 				break
 			}
 		}
@@ -435,6 +462,7 @@ var RunCommand = &cli.Command{
 		RunSnapshotAtFlag,
 		RunSnapshotFmtFlag,
 		RunStopAtFlag,
+		RunStopAtPreimageFlag,
 		RunStopAtPreimageTypeFlag,
 		RunStopAtPreimageLargerThanFlag,
 		RunMetaFlag,

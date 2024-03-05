@@ -7,7 +7,7 @@ import path from 'path'
  * defaults to the forge-artifacts directory.
  */
 const directoryPath =
-  process.argv[2] || path.join(__dirname, '..', 'forge-artifacts')
+  process.argv[2] || path.join(__dirname, '..', '..', 'forge-artifacts')
 
 /**
  * Returns true if the contract should be skipped when inspecting its storage layout.

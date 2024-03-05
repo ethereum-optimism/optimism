@@ -170,8 +170,6 @@ func TestChallengerCompleteExhaustiveDisputeGame(t *testing.T) {
 }
 
 func TestOutputAlphabetGame_FreeloaderEarnsNothing(t *testing.T) {
-	t.Skip("CLI-103")
-
 	op_e2e.InitParallel(t)
 	ctx := context.Background()
 	sys, l1Client := startFaultDisputeSystem(t)
@@ -205,20 +203,24 @@ func TestOutputAlphabetGame_FreeloaderEarnsNothing(t *testing.T) {
 	// dishonest
 	dishonest := correctTrace.AttackClaim(ctx, claim)
 
-	freeloaders = append(freeloaders, correctTrace.AttackClaimWithTransactOpts(ctx, dishonest, freeloaderOpts))
-	freeloaders = append(freeloaders, dishonest.AttackWithTransactOpts(ctx, common.Hash{0x02}, freeloaderOpts))
-	freeloaders = append(freeloaders, dishonest.DefendWithTransactOpts(ctx, common.Hash{0x03}, freeloaderOpts))
+	freeloaders = append(freeloaders, correctTrace.AttackClaim(ctx, dishonest, disputegame.WithTransactOpts(freeloaderOpts)))
+	freeloaders = append(freeloaders, dishonest.Attack(ctx, common.Hash{0x02}, disputegame.WithTransactOpts(freeloaderOpts)))
+	freeloaders = append(freeloaders, dishonest.Defend(ctx, common.Hash{0x03}, disputegame.WithTransactOpts(freeloaderOpts)))
 
 	// Ensure freeloaders respond before the honest challenger
 	game.StartChallenger(ctx, "sequencer", "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
 	dishonest.WaitForCounterClaim(ctx, freeloaders...)
 
 	// Freeloaders after the honest challenger
-	freeloaders = append(freeloaders, dishonest.AttackWithTransactOpts(ctx, common.Hash{0x04}, freeloaderOpts))
-	freeloaders = append(freeloaders, dishonest.DefendWithTransactOpts(ctx, common.Hash{0x05}, freeloaderOpts))
+	freeloaders = append(freeloaders, dishonest.Attack(ctx, common.Hash{0x04}, disputegame.WithTransactOpts(freeloaderOpts)))
+	freeloaders = append(freeloaders, dishonest.Defend(ctx, common.Hash{0x05}, disputegame.WithTransactOpts(freeloaderOpts)))
 
 	for _, freeloader := range freeloaders {
-		freeloader.WaitForCounterClaim(ctx)
+		if freeloader.IsMaxDepth(ctx) {
+			freeloader.WaitForCountered(ctx)
+		} else {
+			freeloader.WaitForCounterClaim(ctx)
+		}
 	}
 
 	game.LogGameData(ctx)

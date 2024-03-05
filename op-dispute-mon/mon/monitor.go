@@ -13,7 +13,6 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-type Detect func(ctx context.Context, games []*types.EnrichedGameData)
 type Forecast func(ctx context.Context, games []*types.EnrichedGameData)
 type BlockHashFetcher func(ctx context.Context, number *big.Int) (common.Hash, error)
 type BlockNumberFetcher func(ctx context.Context) (uint64, error)
@@ -32,7 +31,6 @@ type gameMonitor struct {
 	monitorInterval time.Duration
 
 	delays           RecordClaimResolutionDelayMax
-	detect           Detect
 	forecast         Forecast
 	extract          Extract
 	fetchBlockHash   BlockHashFetcher
@@ -46,7 +44,6 @@ func newGameMonitor(
 	monitorInterval time.Duration,
 	gameWindow time.Duration,
 	delays RecordClaimResolutionDelayMax,
-	detect Detect,
 	forecast Forecast,
 	extract Extract,
 	fetchBlockNumber BlockNumberFetcher,
@@ -60,7 +57,6 @@ func newGameMonitor(
 		monitorInterval:  monitorInterval,
 		gameWindow:       gameWindow,
 		delays:           delays,
-		detect:           detect,
 		forecast:         forecast,
 		extract:          extract,
 		fetchBlockNumber: fetchBlockNumber,
@@ -83,19 +79,18 @@ func (m *gameMonitor) minGameTimestamp() uint64 {
 func (m *gameMonitor) monitorGames() error {
 	blockNumber, err := m.fetchBlockNumber(m.ctx)
 	if err != nil {
-		return fmt.Errorf("Failed to fetch block number: %w", err)
+		return fmt.Errorf("failed to fetch block number: %w", err)
 	}
 	m.logger.Debug("Fetched block number", "blockNumber", blockNumber)
 	blockHash, err := m.fetchBlockHash(context.Background(), new(big.Int).SetUint64(blockNumber))
 	if err != nil {
-		return fmt.Errorf("Failed to fetch block hash: %w", err)
+		return fmt.Errorf("failed to fetch block hash: %w", err)
 	}
 	enrichedGames, err := m.extract(m.ctx, blockHash, m.minGameTimestamp())
 	if err != nil {
 		return fmt.Errorf("failed to load games: %w", err)
 	}
 	m.delays(enrichedGames)
-	m.detect(m.ctx, enrichedGames)
 	m.forecast(m.ctx, enrichedGames)
 	return nil
 }

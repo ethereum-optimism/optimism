@@ -59,9 +59,11 @@ func TestRecordSafeHeadUpdates(gt *testing.T) {
 	require.Equal(t, eth.HeaderBlockID(l1Head), response.L1Block)
 	require.Equal(t, verifier.L2Unsafe().ID(), response.SafeHead)
 
-	// Should get not found error before the L1 block because we have no earlier safe head recorded
-	_, err = verifier.RollupClient().SafeHeadAtL1Block(context.Background(), firstSafeHeadUpdateL1Block-1)
-	require.ErrorContains(t, err, safedb.ErrNotFound.Error())
+	// Only genesis is safe at this point
+	response, err = verifier.RollupClient().SafeHeadAtL1Block(context.Background(), firstSafeHeadUpdateL1Block-1)
+	require.NoError(t, err)
+	require.Equal(t, eth.HeaderBlockID(miner.l1Chain.Genesis().Header()), response.L1Block)
+	require.Equal(t, sd.RollupCfg.Genesis.L2, response.SafeHead)
 
 	// orphan the L1 block that included the batch tx, and build a new different L1 block
 	miner.ActL1RewindToParent(t)
@@ -78,9 +80,11 @@ func TestRecordSafeHeadUpdates(gt *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, verifier.L2Safe(), ref, "verifier engine matches rollup client")
 
-	// The safe head has been reorged so the record should have been deleted
+	// The safe head has been reorged so the record should have been deleted, leaving us back with just genesis safe
 	response, err = verifier.RollupClient().SafeHeadAtL1Block(context.Background(), firstSafeHeadUpdateL1Block)
-	require.ErrorContainsf(t, err, safedb.ErrNotFound.Error(), "Expected error but got %v", response)
+	require.NoError(t, err)
+	require.Equal(t, eth.HeaderBlockID(miner.l1Chain.Genesis().Header()), response.L1Block)
+	require.Equal(t, sd.RollupCfg.Genesis.L2, response.SafeHead)
 
 	// Now replay the batch tx in a new L1 block
 	miner.ActL1StartBlock(12)(t)

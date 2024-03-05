@@ -1,5 +1,11 @@
 # @eth-optimism/sdk
 
+## 3.2.1
+
+### Patch Changes
+
+- [#9663](https://github.com/ethereum-optimism/optimism/pull/9663) [`a1329f21f33ecafe409990964d3af7bf05a8a756`](https://github.com/ethereum-optimism/optimism/commit/a1329f21f33ecafe409990964d3af7bf05a8a756) Thanks [@smartcontracts](https://github.com/smartcontracts)! - Fixes a bug in the SDK that would sometimes cause proof submission reverts.
+
 ## 3.2.0
 
 ### Minor Changes

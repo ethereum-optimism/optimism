@@ -95,7 +95,7 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 	e2eutils.ApplyDeployConfigForks(deployConfig)
 	require.NoError(t, deployConfig.Check(), "Deploy config is invalid, do you need to run make devnet-allocs?")
 	l1Deployments := config.L1Deployments.Copy()
-	require.NoError(t, l1Deployments.Check())
+	require.NoError(t, l1Deployments.Check(deployConfig))
 
 	require.Equal(t, secrets.Addresses().Batcher, deployConfig.BatchSenderAddress)
 	require.Equal(t, secrets.Addresses().SequencerP2P, deployConfig.P2PSequencerAddress)

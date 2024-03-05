@@ -292,10 +292,11 @@ var (
 		Category: RollupCategory,
 	}
 	SafeDBPath = &cli.StringFlag{
-		Name:    "safedb.path",
-		Usage:   "File path used to persist safe head update data. Disabled if not set.",
-		EnvVars: prefixEnvVars("SAFEDB_PATH"),
-		Hidden:  true,
+		Name:     "safedb.path",
+		Usage:    "File path used to persist safe head update data. Disabled if not set.",
+		EnvVars:  prefixEnvVars("SAFEDB_PATH"),
+		Hidden:   true,
+		Category: OperationsCategory,
 	}
 	/* Deprecated Flags */
 	L2EngineSyncEnabled = &cli.BoolFlag{

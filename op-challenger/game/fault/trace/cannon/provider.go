@@ -13,6 +13,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum-optimism/optimism/op-program/host/kvstore"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum/go-ethereum/common"
@@ -255,6 +256,12 @@ type preimageOpts []string
 
 type PreimageOpt func() preimageOpts
 
+func PreimageLoad(key preimage.Key, offset uint32) PreimageOpt {
+	return func() preimageOpts {
+		return []string{"--stop-at-preimage", fmt.Sprintf("%v@%v", common.Hash(key.PreimageKey()).Hex(), offset)}
+	}
+}
+
 func FirstPreimageLoadOfType(preimageType string) PreimageOpt {
 	return func() preimageOpts {
 		return []string{"--stop-at-preimage-type", preimageType}
@@ -265,8 +272,8 @@ func FirstKeccakPreimageLoad() PreimageOpt {
 	return FirstPreimageLoadOfType("keccak")
 }
 
-func FirstKZGPointEvaluationPreimageLoad() PreimageOpt {
-	return FirstPreimageLoadOfType("kzg-point-evaluation")
+func FirstPrecompilePreimageLoad() PreimageOpt {
+	return FirstPreimageLoadOfType("precompile")
 }
 
 func PreimageLargerThan(size int) PreimageOpt {
@@ -287,28 +294,20 @@ func NewTraceProviderForTest(logger log.Logger, m CannonMetricer, cfg *config.Co
 	return &CannonTraceProviderForTest{p}
 }
 
-func (p *CannonTraceProviderForTest) FindStep(ctx context.Context, start uint64, preimage PreimageOpt) (uint64, common.Hash, error) {
-	// First generate a snapshot of the starting state, so we can snap to it later for the full trace search
-	prestateProof, err := p.loadProof(ctx, start)
+func (p *CannonTraceProviderForTest) FindStep(ctx context.Context, start uint64, preimage PreimageOpt) (uint64, error) {
+	// Run cannon to find the step that meets the preimage conditions
+	if err := p.generator.(*Executor).generateProof(ctx, p.dir, start, math.MaxUint64, preimage()...); err != nil {
+		return 0, fmt.Errorf("generate cannon trace (until preimage read): %w", err)
+	}
+	// Load the step from the state cannon finished with
+	state, err := p.finalState()
 	if err != nil {
-		return 0, common.Hash{}, err
+		return 0, fmt.Errorf("failed to load final state: %w", err)
 	}
-	start += 1
-	for {
-		if err := p.generator.(*Executor).generateProof(ctx, p.dir, start, math.MaxUint64, preimage()...); err != nil {
-			return 0, common.Hash{}, fmt.Errorf("generate cannon trace (until preimage read) with proof at %d: %w", start, err)
-		}
-		state, err := p.finalState()
-		if err != nil {
-			return 0, common.Hash{}, err
-		}
-		if state.Exited {
-			break
-		}
-		if state.PreimageOffset != 0 && state.PreimageOffset != prestateProof.OracleOffset {
-			return state.Step - 1, state.PreimageKey, nil
-		}
-		start = state.Step
+	// Check we didn't get to the end of the trace without finding the preimage read we were looking for
+	if state.Exited {
+		return 0, fmt.Errorf("preimage read not found: %w", io.EOF)
 	}
-	return 0, common.Hash{}, io.EOF
+	// The state is the post-state so the step we want to execute to read the preimage is step - 1.
+	return state.Step - 1, nil
 }

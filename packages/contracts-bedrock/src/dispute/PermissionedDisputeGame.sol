@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+import { IDelayedWETH } from "src/dispute/interfaces/IDelayedWETH.sol";
 import { FaultDisputeGame, IFaultDisputeGame, IBigStepper, IInitializable } from "src/dispute/FaultDisputeGame.sol";
 import "src/libraries/DisputeTypes.sol";
 import "src/libraries/DisputeErrors.sol";
@@ -33,8 +34,11 @@ contract PermissionedDisputeGame is FaultDisputeGame {
     /// @param _maxGameDepth The maximum depth of bisection.
     /// @param _splitDepth The final depth of the output bisection portion of the game.
     /// @param _gameDuration The duration of the game.
-    /// @param _vm An onchain VM that performs single instruction steps on a fault proof program
-    ///            trace.
+    /// @param _vm An onchain VM that performs single instruction steps on an FPP trace.
+    /// @param _weth WETH contract for holding ETH.
+    /// @param _l2ChainId Chain ID of the L2 network this contract argues about.
+    /// @param _proposer Address that is allowed to create instances of this contract.
+    /// @param _challenger Address that is allowed to challenge instances of this contract.
     constructor(
         GameType _gameType,
         Claim _absolutePrestate,
@@ -44,6 +48,8 @@ contract PermissionedDisputeGame is FaultDisputeGame {
         uint256 _splitDepth,
         Duration _gameDuration,
         IBigStepper _vm,
+        IDelayedWETH _weth,
+        uint256 _l2ChainId,
         address _proposer,
         address _challenger
     )
@@ -55,7 +61,9 @@ contract PermissionedDisputeGame is FaultDisputeGame {
             _maxGameDepth,
             _splitDepth,
             _gameDuration,
-            _vm
+            _vm,
+            _weth,
+            _l2ChainId
         )
     {
         PROPOSER = _proposer;

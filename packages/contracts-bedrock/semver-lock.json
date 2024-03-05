@@ -7,6 +7,10 @@
     "initCodeHash": "0xf4c3155413be4a4ebaaba66b9f9daaf12db7b090afdea739dfb8a543df357289",
     "sourceCodeHash": "0x2ed7a2d6d66839fb3d207952f44b001bce349334adc40ce66d0503ce64e48548"
   },
+  "src/L1/DataAvailabilityChallenge.sol": {
+    "initCodeHash": "0x39d938938b13abb2455959960c2ee96d48149fd16a7fb69f1f6699460d5019be",
+    "sourceCodeHash": "0xf6c72a2cca24cfa7c9274d720e93b05d665a2751cca3d747105e6c511ccffc73"
+  },
   "src/L1/DelayedVetoable.sol": {
     "initCodeHash": "0x84f78e56211500a768b2c5bbafde8e7b411bd64c237297370d7d22326b68357c",
     "sourceCodeHash": "0xc59b8574531162e016d7342aeb6e79d05574e90dbea6c0e5ede35b65010ad894"
@@ -96,8 +100,12 @@
     "sourceCodeHash": "0x1e5a6deded88804971fc1847c9eac65921771bff353437c0b29ed2f55513b984"
   },
   "src/dispute/FaultDisputeGame.sol": {
-    "initCodeHash": "0x44969c83852ed72e3152bcd98533fefa7b88116a939bf7ee4ad0f87dc9091ea2",
-    "sourceCodeHash": "0x47a93c22df3b8481be0a553ba0ecccfc63cccf1ce7a5d908f11c940f4924b09a"
+    "initCodeHash": "0x9f8e47a4073639af201991a075c7eb03a73055750b3808281e7615b46d47a104",
+    "sourceCodeHash": "0xef3dee1a6dd89270b67c7e6a54862de9d11b9059cf053127bd26704e7e6b1fbf"
+  },
+  "src/dispute/weth/DelayedWETH.sol": {
+    "initCodeHash": "0x41e274b12dc48658d073dfea67ef694c5cce3963757911ee4cecc9f4c312e4bb",
+    "sourceCodeHash": "0xb357a0d4b815ea9528cfb6d83aaa1e62cd0352223432d4f3e23bc09ae62691b8"
   },
   "src/legacy/DeployerWhitelist.sol": {
     "initCodeHash": "0x8de80fb23b26dd9d849f6328e56ea7c173cd9e9ce1f05c9beea559d1720deb3d",

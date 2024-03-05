@@ -2,8 +2,10 @@ package fault
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/claims"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/preimages"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/responder"
@@ -44,6 +46,7 @@ type GamePlayer struct {
 type GameContract interface {
 	preimages.PreimageGameContract
 	responder.GameContract
+	claims.BondContract
 	GameInfo
 	ClaimLoader
 	GetStatus(ctx context.Context) (gameTypes.GameStatus, error)
@@ -157,8 +160,11 @@ func (g *GamePlayer) ProgressGame(ctx context.Context) gameTypes.GameStatus {
 		g.logger.Trace("Skipping completed game")
 		return g.status
 	}
-	if err := g.syncValidator.ValidateNodeSynced(ctx, g.gameL1Head); err != nil {
-		g.logger.Error("Local node not sufficiently up to date", "err", err)
+	if err := g.syncValidator.ValidateNodeSynced(ctx, g.gameL1Head); errors.Is(err, ErrNotInSync) {
+		g.logger.Warn("Local node not sufficiently up to date", "err", err)
+		return g.status
+	} else if err != nil {
+		g.logger.Error("Could not check local node was in sync", "err", err)
 		return g.status
 	}
 	g.logger.Trace("Checking if actions are required")

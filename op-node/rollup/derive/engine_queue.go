@@ -180,7 +180,7 @@ func NewEngineQueue(log log.Logger, cfg *rollup.Config, l2Source L2Source, engin
 		engine:         l2Source,
 		metrics:        metrics,
 		finalityData:   make([]FinalityData, 0, finalityLookback),
-		unsafePayloads: NewPayloadsQueue(maxUnsafePayloadsMemory, payloadMemSize),
+		unsafePayloads: NewPayloadsQueue(log, maxUnsafePayloadsMemory, payloadMemSize),
 		prev:           prev,
 		l1Fetcher:      l1Fetcher,
 		syncCfg:        syncCfg,
@@ -213,8 +213,9 @@ func (eq *EngineQueue) AddUnsafePayload(envelope *eth.ExecutionPayloadEnvelope) 
 }
 
 func (eq *EngineQueue) Finalize(l1Origin eth.L1BlockRef) {
+	prevFinalizedL1 := eq.finalizedL1
 	if l1Origin.Number < eq.finalizedL1.Number {
-		eq.log.Error("ignoring old L1 finalized block signal! Is the L1 provider corrupted?", "prev_finalized_l1", eq.finalizedL1, "signaled_finalized_l1", l1Origin)
+		eq.log.Error("ignoring old L1 finalized block signal! Is the L1 provider corrupted?", "prev_finalized_l1", prevFinalizedL1, "signaled_finalized_l1", l1Origin)
 		return
 	}
 
@@ -233,7 +234,7 @@ func (eq *EngineQueue) Finalize(l1Origin eth.L1BlockRef) {
 		}
 	}
 
-	eq.log.Info("received L1 finality signal, but missing data for immediate L2 finalization", "prev_finalized_l1", eq.finalizedL1, "signaled_finalized_l1", l1Origin)
+	eq.log.Info("received L1 finality signal, but missing data for immediate L2 finalization", "prev_finalized_l1", prevFinalizedL1, "signaled_finalized_l1", l1Origin)
 }
 
 // FinalizedL1 identifies the L1 chain (incl.) that included and/or produced all the finalized L2 blocks.
@@ -471,7 +472,7 @@ func (eq *EngineQueue) tryNextUnsafePayload(ctx context.Context) error {
 	}
 
 	// Ensure that the unsafe payload builds upon the current unsafe head
-	if eq.syncCfg.SyncMode != sync.ELSync && first.ParentHash != eq.ec.UnsafeL2Head().Hash {
+	if first.ParentHash != eq.ec.UnsafeL2Head().Hash {
 		if uint64(first.BlockNumber) == eq.ec.UnsafeL2Head().Number+1 {
 			eq.log.Info("skipping unsafe payload, since it does not build onto the existing unsafe chain", "safe", eq.ec.SafeL2Head().ID(), "unsafe", first.ID(), "payload", first.ID())
 			eq.unsafePayloads.Pop()
@@ -703,6 +704,20 @@ func (eq *EngineQueue) Reset(ctx context.Context, _ eth.L1BlockRef, _ eth.System
 	eq.lastNotifiedSafeHead = safe
 	if err := eq.safeHeadNotifs.SafeHeadReset(safe); err != nil {
 		return err
+	}
+	if safe.Number == eq.cfg.Genesis.L2.Number && safe.Hash == eq.cfg.Genesis.L2.Hash {
+		// The rollup genesis block is always safe by definition. So if the pipeline resets this far back we know
+		// we will process all safe head updates and can record genesis as always safe from L1 genesis.
+		// Note that it is not safe to use cfg.Genesis.L1 here as it is the block immediately before the L2 genesis
+		// but the contracts may have been deployed earlier than that, allowing creating a dispute game
+		// with a L1 head prior to cfg.Genesis.L1
+		l1Genesis, err := eq.l1Fetcher.L1BlockRefByNumber(ctx, 0)
+		if err != nil {
+			return fmt.Errorf("failed to retrieve L1 genesis: %w", err)
+		}
+		if err := eq.safeHeadNotifs.SafeHeadUpdated(safe, l1Genesis.ID()); err != nil {
+			return err
+		}
 	}
 	eq.logSyncProgress("reset derivation work")
 	return io.EOF

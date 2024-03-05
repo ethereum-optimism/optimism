@@ -136,15 +136,18 @@ func encodePreimageOracleInput(t *testing.T, wit *StepWitness, localContext Loca
 			wit.PreimageValue[8:])
 		require.NoError(t, err)
 		return input, nil
-	case preimage.KZGPointEvaluationKeyType:
+	case preimage.PrecompileKeyType:
 		if localOracle == nil {
-			return nil, fmt.Errorf("local oracle is required for point evaluation preimages")
+			return nil, fmt.Errorf("local oracle is required for precompile preimages")
 		}
 		preimage := localOracle.GetPreimage(preimage.Keccak256Key(wit.PreimageKey).PreimageKey())
+		precompile := common.BytesToAddress(preimage[:20])
+		callInput := preimage[20:]
 		input, err := preimageAbi.Pack(
-			"loadKZGPointEvaluationPreimagePart",
+			"loadPrecompilePreimagePart",
 			new(big.Int).SetUint64(uint64(wit.PreimageOffset)),
-			preimage,
+			precompile,
+			callInput,
 		)
 		require.NoError(t, err)
 		return input, nil
@@ -199,8 +202,8 @@ func TestEVM(t *testing.T) {
 				// verify the post-state matches.
 				// TODO: maybe more readable to decode the evmPost state, and do attribute-wise comparison.
 				goPost := goState.state.EncodeWitness()
-				require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
-					"mipsevm produced different state than EVM")
+				require.Equalf(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
+					"mipsevm produced different state than EVM at step %d", state.Step)
 			}
 			if exitGroup {
 				require.NotEqual(t, uint32(endAddr), goState.state.PC, "must not reach end")

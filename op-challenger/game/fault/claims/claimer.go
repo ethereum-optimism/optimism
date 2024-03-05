@@ -17,7 +17,7 @@ type BondClaimMetrics interface {
 }
 
 type BondContract interface {
-	GetCredit(ctx context.Context, recipient common.Address) (*big.Int, error)
+	GetCredit(ctx context.Context, recipient common.Address) (*big.Int, types.GameStatus, error)
 	ClaimCredit(recipient common.Address) (txmgr.TxCandidate, error)
 }
 
@@ -55,11 +55,15 @@ func (c *Claimer) claimBond(ctx context.Context, game types.GameMetadata) error 
 	if err != nil {
 		return fmt.Errorf("failed to create bond contract bindings: %w", err)
 	}
-	credit, err := contract.GetCredit(ctx, c.txSender.From())
+	credit, status, err := contract.GetCredit(ctx, c.txSender.From())
 	if err != nil {
 		return fmt.Errorf("failed to get credit: %w", err)
 	}
 
+	if status == types.GameStatusInProgress {
+		c.logger.Debug("Not claiming credit from in progress game", "game", game.Proxy, "status", status)
+		return nil
+	}
 	if credit.Cmp(big.NewInt(0)) == 0 {
 		c.logger.Debug("No credit to claim", "game", game.Proxy)
 		return nil

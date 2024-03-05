@@ -12,10 +12,10 @@ var _ types.PrestateProvider = (*OutputPrestateProvider)(nil)
 
 type OutputPrestateProvider struct {
 	prestateBlock uint64
-	rollupClient  OutputRootProvider
+	rollupClient  OutputRollupClient
 }
 
-func NewPrestateProvider(rollupClient OutputRootProvider, prestateBlock uint64) *OutputPrestateProvider {
+func NewPrestateProvider(rollupClient OutputRollupClient, prestateBlock uint64) *OutputPrestateProvider {
 	return &OutputPrestateProvider{
 		prestateBlock: prestateBlock,
 		rollupClient:  rollupClient,
@@ -27,9 +27,9 @@ func (o *OutputPrestateProvider) AbsolutePreStateCommitment(ctx context.Context)
 }
 
 func (o *OutputPrestateProvider) outputAtBlock(ctx context.Context, block uint64) (common.Hash, error) {
-	root, err := o.rollupClient.OutputAtBlock(ctx, block)
+	output, err := o.rollupClient.OutputAtBlock(ctx, block)
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("failed to fetch output at block %v: %w", block, err)
 	}
-	return root, nil
+	return common.Hash(output.OutputRoot), nil
 }

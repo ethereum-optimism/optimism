@@ -103,7 +103,7 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 	require.NoError(t, deployConf.Check())
 
 	l1Deployments := config.L1Deployments.Copy()
-	require.NoError(t, l1Deployments.Check())
+	require.NoError(t, l1Deployments.Check(deployConf))
 
 	l1Genesis, err := genesis.BuildL1DeveloperGenesis(deployConf, config.L1Allocs, l1Deployments)
 	require.NoError(t, err, "failed to create l1 genesis")

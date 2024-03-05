@@ -2,7 +2,9 @@ package derive
 
 import (
 	"bytes"
+	"io"
 	"math/big"
+	"math/rand"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -66,6 +68,27 @@ func TestOutputFrameSmallMaxSize(t *testing.T) {
 		require.ErrorIs(t, err, ErrMaxFrameSizeTooSmall)
 		require.Zero(t, fid)
 	}
+}
+
+func TestOutputFrameNoEmptyLastFrame(t *testing.T) {
+	cout, err := NewChannelOut(SingularBatchType, &nonCompressor{}, nil)
+	require.NoError(t, err)
+
+	rng := rand.New(rand.NewSource(0x543331))
+	chainID := big.NewInt(rng.Int63n(1000))
+	txCount := 1
+	singularBatch := RandomSingularBatch(rng, txCount, chainID)
+
+	written, err := cout.AddSingularBatch(singularBatch, 0)
+	require.NoError(t, err)
+
+	require.NoError(t, cout.Close())
+
+	var buf bytes.Buffer
+	// Output a frame which needs exactly `written` bytes. This frame is expected to be the last frame.
+	_, err = cout.OutputFrame(&buf, written+FrameV0OverHeadSize)
+	require.ErrorIs(t, err, io.EOF)
+
 }
 
 // TestRLPByteLimit ensures that stream encoder is properly limiting the length.

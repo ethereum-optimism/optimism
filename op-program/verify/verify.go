@@ -25,7 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
-func Run(l1RpcUrl string, l1RpcKind string, l2RpcUrl string, l2OracleAddr common.Address, dataDir string, network string, chainCfg *params.ChainConfig) error {
+func Run(l1RpcUrl string, l1RpcKind string, l1BeaconUrl string, l2RpcUrl string, l2OracleAddr common.Address, dataDir string, network string, chainCfg *params.ChainConfig) error {
 	ctx := context.Background()
 	logger := oplog.DefaultCLIConfig()
 	logger.Level = log.LevelDebug
@@ -128,20 +128,16 @@ func Run(l1RpcUrl string, l1RpcKind string, l2RpcUrl string, l2OracleAddr common
 	if err != nil {
 		return fmt.Errorf("failed to load rollup config: %w", err)
 	}
-	offlineCfg := config.Config{
-		Rollup:             rollupCfg,
-		DataDir:            dataDir,
-		L2ChainConfig:      chainCfg,
-		L2Head:             l2Head,
-		L2OutputRoot:       agreedOutput.OutputRoot,
-		L2Claim:            l2Claim,
-		L2ClaimBlockNumber: l2BlockNumber.Uint64(),
-		L1Head:             l1Head,
-	}
-	onlineCfg := offlineCfg
+	offlineCfg := config.NewConfig(
+		rollupCfg, chainCfg, l1Head, l2Head, agreedOutput.OutputRoot, l2Claim, l2BlockNumber.Uint64())
+	offlineCfg.DataDir = dataDir
+	onlineCfg := *offlineCfg
 	onlineCfg.L1URL = l1RpcUrl
+	onlineCfg.L1BeaconURL = l1BeaconUrl
 	onlineCfg.L2URL = l2RpcUrl
-	onlineCfg.L1RPCKind = sources.RPCProviderKind(l1RpcKind)
+	if l1RpcKind != "" {
+		onlineCfg.L1RPCKind = sources.RPCProviderKind(l1RpcKind)
+	}
 
 	fmt.Println("Running in online mode")
 	err = host.Main(oplog.NewLogger(os.Stderr, logger), &onlineCfg)
@@ -150,7 +146,7 @@ func Run(l1RpcUrl string, l1RpcKind string, l2RpcUrl string, l2OracleAddr common
 	}
 
 	fmt.Println("Running in offline mode")
-	err = host.Main(oplog.NewLogger(os.Stderr, logger), &offlineCfg)
+	err = host.Main(oplog.NewLogger(os.Stderr, logger), offlineCfg)
 	if err != nil {
 		return fmt.Errorf("offline mode failed: %w", err)
 	}

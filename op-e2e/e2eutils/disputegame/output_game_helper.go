@@ -16,6 +16,7 @@ import (
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -36,6 +37,33 @@ type OutputGameHelper struct {
 	addr                  common.Address
 	correctOutputProvider *outputs.OutputTraceProvider
 	system                DisputeSystem
+}
+
+type moveCfg struct {
+	opts        *bind.TransactOpts
+	ignoreDupes bool
+}
+
+type MoveOpt interface {
+	Apply(cfg *moveCfg)
+}
+
+type moveOptFn func(c *moveCfg)
+
+func (f moveOptFn) Apply(c *moveCfg) {
+	f(c)
+}
+
+func WithTransactOpts(opts *bind.TransactOpts) MoveOpt {
+	return moveOptFn(func(c *moveCfg) {
+		c.opts = opts
+	})
+}
+
+func WithIgnoreDuplicates() MoveOpt {
+	return moveOptFn(func(c *moveCfg) {
+		c.ignoreDupes = true
+	})
 }
 
 func (g *OutputGameHelper) Addr() common.Address {
@@ -82,7 +110,7 @@ func (g *OutputGameHelper) DisputeBlock(ctx context.Context, disputeBlockNum uin
 	}
 	pos := types.NewPositionFromGIndex(big.NewInt(1))
 	getClaimValue := func(parentClaim *ClaimHelper, claimPos types.Position) common.Hash {
-		claimBlockNum, err := g.correctOutputProvider.BlockNumber(claimPos)
+		claimBlockNum, err := g.correctOutputProvider.ClaimedBlockNumber(claimPos)
 		g.require.NoError(err, "failed to calculate claim block number")
 		if claimBlockNum < disputeBlockNum {
 			// Use the correct output root for all claims prior to the dispute block number
@@ -100,7 +128,7 @@ func (g *OutputGameHelper) DisputeBlock(ctx context.Context, disputeBlockNum uin
 
 	claim := g.RootClaim(ctx)
 	for !claim.IsOutputRootLeaf(ctx) {
-		parentClaimBlockNum, err := g.correctOutputProvider.BlockNumber(pos)
+		parentClaimBlockNum, err := g.correctOutputProvider.ClaimedBlockNumber(pos)
 		g.require.NoError(err, "failed to calculate parent claim block number")
 		if parentClaimBlockNum >= disputeBlockNum {
 			pos = pos.Attack()
@@ -449,48 +477,78 @@ func (g *OutputGameHelper) waitForNewClaim(ctx context.Context, checkPoint int64
 	return newClaimLen, err
 }
 
-func (g *OutputGameHelper) AttackWithTransactOpts(ctx context.Context, claimIdx int64, claim common.Hash, opts *bind.TransactOpts) {
+func (g *OutputGameHelper) moveCfg(opts ...MoveOpt) *moveCfg {
+	cfg := &moveCfg{
+		opts: g.opts,
+	}
+	for _, opt := range opts {
+		opt.Apply(cfg)
+	}
+	return cfg
+}
+
+func (g *OutputGameHelper) Attack(ctx context.Context, claimIdx int64, claim common.Hash, opts ...MoveOpt) {
 	g.t.Logf("Attacking claim %v with value %v", claimIdx, claim)
+	cfg := g.moveCfg(opts...)
 
 	claimData, err := g.game.ClaimData(&bind.CallOpts{Context: ctx}, big.NewInt(claimIdx))
 	g.require.NoError(err, "Failed to get claim data")
 	pos := types.NewPositionFromGIndex(claimData.Position)
-	opts = g.makeBondedTransactOpts(ctx, pos.Attack().ToGIndex(), opts)
+	attackPos := pos.Attack()
+	transactOpts := g.makeBondedTransactOpts(ctx, pos.Attack().ToGIndex(), cfg.opts)
 
-	tx, err := g.game.Attack(opts, big.NewInt(claimIdx), claim)
+	err = g.sendMove(ctx, func() (*gethtypes.Transaction, error) {
+		return g.game.Attack(transactOpts, big.NewInt(claimIdx), claim)
+	})
 	if err != nil {
-		g.require.NoErrorf(err, "Attack transaction did not send. Game state: \n%v", g.gameData(ctx))
-	}
-	_, err = wait.ForReceiptOK(ctx, g.client, tx.Hash())
-	if err != nil {
-		g.require.NoErrorf(err, "Attack transaction was not OK. Game state: \n%v", g.gameData(ctx))
+		if cfg.ignoreDupes && g.hasClaim(ctx, claimIdx, attackPos, claim) {
+			return
+		}
+		g.require.NoErrorf(err, "Defend transaction failed. Game state: \n%v", g.gameData(ctx))
 	}
 }
 
-func (g *OutputGameHelper) Attack(ctx context.Context, claimIdx int64, claim common.Hash) {
-	g.AttackWithTransactOpts(ctx, claimIdx, claim, g.opts)
-}
-
-func (g *OutputGameHelper) DefendWithTransactOpts(ctx context.Context, claimIdx int64, claim common.Hash, opts *bind.TransactOpts) {
+func (g *OutputGameHelper) Defend(ctx context.Context, claimIdx int64, claim common.Hash, opts ...MoveOpt) {
 	g.t.Logf("Defending claim %v with value %v", claimIdx, claim)
+	cfg := g.moveCfg(opts...)
 
 	claimData, err := g.game.ClaimData(&bind.CallOpts{Context: ctx}, big.NewInt(claimIdx))
 	g.require.NoError(err, "Failed to get claim data")
 	pos := types.NewPositionFromGIndex(claimData.Position)
-	opts = g.makeBondedTransactOpts(ctx, pos.Defend().ToGIndex(), opts)
+	defendPos := pos.Defend()
+	transactOpts := g.makeBondedTransactOpts(ctx, defendPos.ToGIndex(), cfg.opts)
 
-	tx, err := g.game.Defend(opts, big.NewInt(claimIdx), claim)
+	err = g.sendMove(ctx, func() (*gethtypes.Transaction, error) {
+		return g.game.Defend(transactOpts, big.NewInt(claimIdx), claim)
+	})
 	if err != nil {
-		g.require.NoErrorf(err, "Defend transaction did not send. Game state: \n%v", g.gameData(ctx))
-	}
-	_, err = wait.ForReceiptOK(ctx, g.client, tx.Hash())
-	if err != nil {
-		g.require.NoErrorf(err, "Defend transaction was not OK. Game state: \n%v", g.gameData(ctx))
+		if cfg.ignoreDupes && g.hasClaim(ctx, claimIdx, defendPos, claim) {
+			return
+		}
+		g.require.NoErrorf(err, "Defend transaction failed. Game state: \n%v", g.gameData(ctx))
 	}
 }
 
-func (g *OutputGameHelper) Defend(ctx context.Context, claimIdx int64, claim common.Hash) {
-	g.DefendWithTransactOpts(ctx, claimIdx, claim, g.opts)
+func (g *OutputGameHelper) hasClaim(ctx context.Context, parentIdx int64, pos types.Position, value common.Hash) bool {
+	claims := g.getAllClaims(ctx)
+	for _, claim := range claims {
+		if int64(claim.ParentIndex) == parentIdx && claim.Position.Cmp(pos.ToGIndex()) == 0 && claim.Claim == value {
+			return true
+		}
+	}
+	return false
+}
+
+func (g *OutputGameHelper) sendMove(ctx context.Context, send func() (*gethtypes.Transaction, error)) error {
+	tx, err := send()
+	if err != nil {
+		return fmt.Errorf("transaction did not send: %w", err)
+	}
+	_, err = wait.ForReceiptOK(ctx, g.client, tx.Hash())
+	if err != nil {
+		return fmt.Errorf("transaction was not ok: %w", err)
+	}
+	return nil
 }
 
 func (g *OutputGameHelper) makeBondedTransactOpts(ctx context.Context, pos *big.Int, opts *bind.TransactOpts) *bind.TransactOpts {
@@ -581,8 +639,13 @@ func (g *OutputGameHelper) uploadPreimage(ctx context.Context, data *types.Preim
 	g.require.NoError(err)
 	var tx *gethtypes.Transaction
 	switch data.OracleKey[0] {
-	case byte(preimage.KZGPointEvaluationKeyType):
-		tx, err = boundOracle.LoadKZGPointEvaluationPreimagePart(g.opts, new(big.Int).SetUint64(uint64(data.OracleOffset)), data.GetPreimageWithoutSize())
+	case byte(preimage.PrecompileKeyType):
+		tx, err = boundOracle.LoadPrecompilePreimagePart(
+			g.opts,
+			new(big.Int).SetUint64(uint64(data.OracleOffset)),
+			data.GetPrecompileAddress(),
+			data.GetPrecompileInput(),
+		)
 	default:
 		tx, err = boundOracle.LoadKeccak256PreimagePart(g.opts, new(big.Int).SetUint64(uint64(data.OracleOffset)), data.GetPreimageWithoutSize())
 	}
@@ -614,7 +677,7 @@ func (g *OutputGameHelper) gameData(ctx context.Context) string {
 		pos := types.NewPositionFromGIndex(claim.Position)
 		extra := ""
 		if pos.Depth() <= splitDepth {
-			blockNum, err := g.correctOutputProvider.BlockNumber(pos)
+			blockNum, err := g.correctOutputProvider.ClaimedBlockNumber(pos)
 			if err != nil {
 			} else {
 				extra = fmt.Sprintf("Block num: %v", blockNum)
@@ -639,4 +702,13 @@ func (g *OutputGameHelper) Credit(ctx context.Context, addr common.Address) *big
 	amt, err := g.game.Credit(opts, addr)
 	g.require.NoError(err)
 	return amt
+}
+
+func (g *OutputGameHelper) getL1Head(ctx context.Context) eth.BlockID {
+	l1HeadHash, err := g.game.L1Head(&bind.CallOpts{Context: ctx})
+	g.require.NoError(err, "Failed to load L1 head")
+	l1Header, err := g.client.HeaderByHash(ctx, l1HeadHash)
+	g.require.NoError(err, "Failed to load L1 header")
+	l1Head := eth.HeaderBlockID(l1Header)
+	return l1Head
 }

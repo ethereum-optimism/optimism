@@ -8,14 +8,11 @@ import (
 
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 var (
 	ErrGameDepthReached = errors.New("game depth reached")
-
-	// NoLocalContext is the LocalContext value used when the cannon trace provider is used alone instead of as part
-	// of a split game.
-	NoLocalContext = common.Hash{}
 )
 
 const (
@@ -55,6 +52,14 @@ func (p *PreimageOracleData) GetPreimageWithoutSize() []byte {
 // GetPreimageWithSize returns the preimage with its length prefix.
 func (p *PreimageOracleData) GetPreimageWithSize() []byte {
 	return p.oracleData
+}
+
+func (p *PreimageOracleData) GetPrecompileAddress() common.Address {
+	return common.BytesToAddress(p.oracleData[8:28])
+}
+
+func (p *PreimageOracleData) GetPrecompileInput() []byte {
+	return p.oracleData[28:]
 }
 
 // NewPreimageOracleData creates a new [PreimageOracleData] instance.
@@ -134,6 +139,8 @@ func (c *ClaimData) ValueBytes() [32]byte {
 	return responseArr
 }
 
+type ClaimID common.Hash
+
 // Claim extends ClaimData with information about the relationship between two claims.
 // It uses ClaimData to break cyclicity without using pointers.
 // If the position of the game is Depth 0, IndexAtDepth 0 it is the root claim
@@ -151,6 +158,14 @@ type Claim struct {
 	// for claims that have not made it to the contract.
 	ContractIndex       int
 	ParentContractIndex int
+}
+
+func (c Claim) ID() ClaimID {
+	return ClaimID(crypto.Keccak256Hash(
+		c.Position.ToGIndex().Bytes(),
+		c.Value.Bytes(),
+		big.NewInt(int64(c.ParentContractIndex)).Bytes(),
+	))
 }
 
 // IsRoot returns true if this claim is the root claim.

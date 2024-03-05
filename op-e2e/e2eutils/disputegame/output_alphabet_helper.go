@@ -5,7 +5,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs/source"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
@@ -44,10 +43,10 @@ func (g *OutputAlphabetGameHelper) CreateHonestActor(ctx context.Context, l2Node
 	prestateBlock, poststateBlock, err := contract.GetBlockRange(ctx)
 	g.require.NoError(err, "Get block range")
 	splitDepth := g.SplitDepth(ctx)
+	l1Head := g.getL1Head(ctx)
 	rollupClient := g.system.RollupClient(l2Node)
-	outputRootProvider := source.NewUnrestrictedOutputSource(rollupClient)
-	prestateProvider := outputs.NewPrestateProvider(outputRootProvider, prestateBlock)
-	correctTrace, err := outputs.NewOutputAlphabetTraceAccessor(logger, metrics.NoopMetrics, prestateProvider, outputRootProvider, splitDepth, prestateBlock, poststateBlock)
+	prestateProvider := outputs.NewPrestateProvider(rollupClient, prestateBlock)
+	correctTrace, err := outputs.NewOutputAlphabetTraceAccessor(logger, metrics.NoopMetrics, prestateProvider, rollupClient, l1Head, splitDepth, prestateBlock, poststateBlock)
 	g.require.NoError(err, "Create trace accessor")
 	return &OutputHonestHelper{
 		t:            g.t,
