@@ -1,13 +1,15 @@
 Kontrol Lemmas
 ==============
 
-Lemmas are K rewrite rules that enhance the reasoning power of Kontrol. For more information on lemmas, consult [this section](https://docs.runtimeverification.com/kontrol/guides/advancing-proofs) of the Kontrol documentation.
+Lemmas are K rewrite rules that enhance the reasoning power of Kontrol. For more information on lemmas, please consult [this section](https://docs.runtimeverification.com/kontrol/guides/advancing-proofs) of the Kontrol documentation.
 
-This file contains the necessary lemmas to run the proofs included in the [proofs](./proofs) folder. Similarly to other files such as [`cheatcodes.md`](https://github.com/runtimeverification/kontrol/blob/master/src/kontrol/kdist/cheatcodes.md) in Kontrol, an idiomatic way of programming in K is with [literate programming](https://en.wikipedia.org/wiki/Literate_programming), allowing to better document the code.
+This file contains the lemmas required to run the proofs included in the [proofs](./proofs) folder. Some of these lemmas are general enough to likely be incorporated into future versions of Kontrol, while others are specific to the challenges presented by the proofs.
+
+Similarly to other files such as [`cheatcodes.md`](https://github.com/runtimeverification/kontrol/blob/master/src/kontrol/kdist/cheatcodes.md), we use the idiomatic way of programming in Kontrol, which is [literate programming](https://en.wikipedia.org/wiki/Literate_programming), allowing for better documentation of the code.
 
 ## Imports
 
-For writing the lemmas, we use the [`foundry.md`](https://github.com/runtimeverification/kontrol/blob/master/src/kontrol/kdist/foundry.md) file. This file contains and imports all necessary definitions to write the lemmas.
+For writing the lemmas, we use the [`foundry.md`](https://github.com/runtimeverification/kontrol/blob/master/src/kontrol/kdist/foundry.md) file. This file contains and imports all of the definitions from KEVM and Kontrol on top of which we write the lemmas.
 
 ```k
 requires "foundry.md"
@@ -20,7 +22,7 @@ module PAUSABILITY-LEMMAS
 
 ## Arithmetic
 
-Lemmas on arithmetic reasoning.
+Lemmas on arithmetic reasoning. Specifically, on: cancellativity, inequalites in which the two sides are of different signs; and the rounding-up mechanism of the Solidity compiler (expressed through `notMaxUInt5 &Int ( X +Int 31 )`, which rounds up `X` to the nearest multiple of 32).
 
 ```k
     // Cancellativity #1
@@ -54,12 +56,12 @@ Lemmas on arithmetic reasoning.
 
 ## `#asWord`
 
-Lemmas about [`#asWord`](https://github.com/runtimeverification/evm-semantics/blob/master/kevm-pyk/src/kevm_pyk/kproj/evm-semantics/evm-types.md#bytes-helper-functions). `#asWord` will interpret a stack of bytes as a single word (with MSB first).
+Lemmas about [`#asWord`](https://github.com/runtimeverification/evm-semantics/blob/master/kevm-pyk/src/kevm_pyk/kproj/evm-semantics/evm-types.md#bytes-helper-functions). `#asWord(B)` interprets the byte array `B` as a single word (with MSB first).
 
 ```k
     // Move to function parameters
-    rule { #asWord ( X ) #Equals #asWord ( Y ) } => #Top
-      requires X ==K Y
+    rule { #asWord ( BA1 ) #Equals #asWord ( BA2 ) } => #Top
+      requires BA1 ==K BA2
       [simplification]
 
     // #asWord ignores leading zeros
@@ -67,16 +69,16 @@ Lemmas about [`#asWord`](https://github.com/runtimeverification/evm-semantics/bl
       requires #asInteger(BA1) ==Int 0
       [simplification, concrete(BA1)]
 
-    // Equality and #range
-    rule #asWord ( #range ( #buf ( 32 , _X:Int ) , S:Int , W:Int ) ) ==Int Y:Int => false
-        requires S +Int W <=Int 32
-         andBool (2 ^Int (8 *Int W)) <=Int Y
-        [concrete(S, W, Y), simplification]
+    // `#asWord` of a byte array cannot equal a number that cannot fit within the byte array
+    rule #asWord ( BA ) ==Int Y => false
+        requires lengthBytes(BA) <=Int 32
+         andBool (2 ^Int (8 *Int lengthBytes(BA))) <=Int Y
+        [concrete(Y), simplification]
 ```
 
 ## `#asInteger`
 
-Lemmas about [`#asInteger`](https://github.com/runtimeverification/evm-semantics/blob/master/kevm-pyk/src/kevm_pyk/kproj/evm-semantics/evm-types.md#bytes-helper-functions). `#asInteger` will interpret a stack of bytes as a single arbitrary-precision integer (with MSB first).
+Lemmas about [`#asInteger`](https://github.com/runtimeverification/evm-semantics/blob/master/kevm-pyk/src/kevm_pyk/kproj/evm-semantics/evm-types.md#bytes-helper-functions). `#asInteger(X)` interprets the byte array `X` as a single arbitrary-precision integer (with MSB first).
 
 ```k
     // Conversion from bytes always yields a non-negative integer
@@ -85,60 +87,65 @@ Lemmas about [`#asInteger`](https://github.com/runtimeverification/evm-semantics
 
 ## `#padRightToWidth`
 
-Lemmas about [`#padRightToWidth`](https://github.com/runtimeverification/evm-semantics/blob/master/kevm-pyk/src/kevm_pyk/kproj/evm-semantics/evm-types.md#bytes-helper-functions). `#padToWidth(N, WS)` and `#padRightToWidth` make sure that a `Bytes` is the correct size.
+Lemmas about [`#padRightToWidth`](https://github.com/runtimeverification/evm-semantics/blob/master/kevm-pyk/src/kevm_pyk/kproj/evm-semantics/evm-types.md#bytes-helper-functions). `#padRightToWidth(W, BA)` right-pads the byte array `BA` with zeros so that the resulting byte array has length `W`.
 
 ```k
-    rule #padRightToWidth (W, X) => X +Bytes #buf(W -Int lengthBytes(X), 0)
+    // Definitional expansion
+    rule #padRightToWidth (W, BA) => BA +Bytes #buf(W -Int lengthBytes(BA), 0)
       [concrete(W), simplification]
 ```
 
-## `#range(M, START, WIDTH)`
+## `#range(BA, START, WIDTH)`
 
-Lemmas about [`#range(M, START, WIDTH)`](https://github.com/runtimeverification/evm-semantics/blob/master/kevm-pyk/src/kevm_pyk/kproj/evm-semantics/evm-types.md#bytes-helper-functions). `#range(M, START, WIDTH)` access the range of `M` beginning with `START` of width `WIDTH`.
+Lemmas about [`#range(BA, START, WIDTH)`](https://github.com/runtimeverification/evm-semantics/blob/master/kevm-pyk/src/kevm_pyk/kproj/evm-semantics/evm-types.md#bytes-helper-functions). `#range(BA, START, WIDTH)` returns the range of `BA` from index `START` of width `WIDTH`.
 
 ```k
     // Parameter equality
-    rule { #range (A, B, C) #Equals #range (A, B, D) } => #Top
-      requires C ==Int D
+    rule { #range (BA, S, W1) #Equals #range (BA, S, W2) } => #Top
+      requires W1 ==Int W2
       [simplification]
 ```
 
-## Bytes indexing and update
+## Byte array indexing and update
+
+Lemmas about [`BA [ I ]` and `BA1 [ S := BA2 ]`](https://github.com/runtimeverification/evm-semantics/blob/master/kevm-pyk/src/kevm_pyk/kproj/evm-semantics/evm-types.md#element-access). `BA [ I ]` returns the integer representation of the `I`-th byte of byte array `BA`. `BA1 [ S := BA2 ]` updates the byte array `BA1` with byte array `BA2` from index `S`.
+
 
 ```k
-    rule B:Bytes [ X:Int ] => #asWord ( #range (B, X, 1) )
-      requires X <=Int lengthBytes(B)
+    // Byte indexing in terms of #asWord
+    rule BA [ X ] => #asWord ( #range (BA, X, 1) )
+      requires X <=Int lengthBytes(BA)
       [simplification(40)]
 
     // Empty update has no effect
-    rule B:Bytes [ START:Int := b"" ] => B
-      requires 0 <=Int START andBool START <=Int lengthBytes(B)
+    rule BA [ START := b"" ] => BA
+      requires 0 <=Int START andBool START <=Int lengthBytes(BA)
       [simplification]
 
-    // Update of tail
-    rule ( B1:Bytes +Bytes B2:Bytes ) [ S:Int := B ] => B1 +Bytes ( B2 [ S -Int lengthBytes(B1) := B ] )
-      requires lengthBytes(B1) <=Int S
+    // Update passes to right operand of concat if start position is beyond the left operand
+    rule ( BA1 +Bytes BA2 ) [ S := BA ] => BA1 +Bytes ( BA2 [ S -Int lengthBytes(BA1) := BA ] )
+      requires lengthBytes(BA1) <=Int S
       [simplification]
 
     // Consecutive quasi-contiguous byte-array update
-    rule B [ S1 := B1 ] [ S2 := B2 ] => B [ S1 := #range(B1, 0, S2 -Int S1) +Bytes B2 ]
-      requires 0 <=Int S1 andBool S1 <=Int S2 andBool S2 <=Int S1 +Int lengthBytes(B1)
+    rule BA [ S1 := BA1 ] [ S2 := BA2 ] => BA [ S1 := #range(BA1, 0, S2 -Int S1) +Bytes BA2 ]
+      requires 0 <=Int S1 andBool S1 <=Int S2 andBool S2 <=Int S1 +Int lengthBytes(BA1)
       [simplification]
 
     // Parameter equality: byte-array update
-    rule { B1:Bytes [ S1:Int := B2:Bytes ] #Equals B3:Bytes [ S2:Int := B4:Bytes ] } => #Top
-      requires B1 ==K B3 andBool S1 ==Int S2 andBool B2 ==K B4
+    rule { BA1:Bytes [ S1 := BA2 ] #Equals BA3:Bytes [ S2 := BA4 ] } => #Top
+      requires BA1 ==K BA3 andBool S1 ==Int S2 andBool BA2 ==K BA4
       [simplification]
 ```
 
 Summaries
 ---------
 
-Summary functions are rewrite rules that encapsulate the effects of executing a function. Thus, instead of executing the function itself, Kontrol will just apply the summary rule.
+Functions summaries are rewrite rules that capture (summarize) the effects of executing a function. Such rules allow Kontrol to, instead of executing the function itself, just apply the summary rule.
 
 ## `copy_memory_to_memory` summary
 
-The following rule is a summarization of the `copy_memory_to_memory` function. This function is automatically generated by the Solidity compiler. In its Yul form, it is as follows:
+The following rule summarises the behavior of the `copy_memory_to_memory` function. This function is automatically generated by the Solidity compiler. In its Yul form, it is as follows:
 
 ```solidity
 function copy_memory_to_memory(src, dst, length) {
@@ -157,15 +164,14 @@ function copy_memory_to_memory(src, dst, length) {
 
 It is used to copy `length` bytes of memory from index `src` to index `dest`, doing so in steps of 32 bytes, and right-padding with zeros to a multiple of 32.
 
-We need to enforce some limit on the length of byte arrays and indices into byte arrays in order to avoid chop-reasoning.
+Following the compiler constraints, we enforce a limit on the length of byte arrays and indices into byte arrays.
 
 ```k
     syntax Int ::= "maxBytesLength" [alias]
     rule maxBytesLength => 9223372036854775808
 ```
 
-
-This rule cannot be used without the `[symbolic]` tag because it uses "existentials", which is not correct, it uses variables that are learnt from the requires and not from the structure.
+The summary lemma is as follows, with commentary inlined:
 
 ```k
     rule [copy-memory-to-memory-summary]:

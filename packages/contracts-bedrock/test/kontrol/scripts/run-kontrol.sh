@@ -107,7 +107,7 @@ regen=
 # Tests to symbolically execute #
 #################################
 
-# Temporarily unexecuted lemmas
+# Temporarily unexecuted tests
 # "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused0" \
 # "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused1" \
 # "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused2" \
