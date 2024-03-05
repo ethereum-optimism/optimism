@@ -12,7 +12,7 @@ library Config {
 
     /// @notice Returns the path on the local filesystem where the deployment artifact is
     ///         written to disk after doing a deployment.
-    function deployArtifactPath(string memory _deploymentsDir) internal view returns (string memory _env) {
+    function deploymentOutfile(string memory _deploymentsDir) internal view returns (string memory _env) {
         _env = vm.envOr("DEPLOYMENT_OUTFILE", string.concat(_deploymentsDir, "/.deploy"));
     }
 

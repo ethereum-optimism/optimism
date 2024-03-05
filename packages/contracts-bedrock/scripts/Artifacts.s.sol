@@ -36,7 +36,7 @@ abstract contract Artifacts {
     /// @notice Path to the directory containing the hh deploy style artifacts
     string internal deploymentsDir;
     /// @notice The path to the deployment artifact that is being written to.
-    string internal deployArtifactPath;
+    string internal deploymentOutfile;
     /// @notice The namespace for the deployment. Can be set with the env var DEPLOYMENT_CONTEXT.
     string internal deploymentContext;
 
@@ -52,12 +52,12 @@ abstract contract Artifacts {
             vm.createDir(deploymentsDir, true);
         }
 
-        deployArtifactPath = Config.deployArtifactPath(deploymentsDir);
-        try vm.readFile(deployArtifactPath) returns (string memory) { }
+        deploymentOutfile = Config.deploymentOutfile(deploymentsDir);
+        try vm.readFile(deploymentOutfile) returns (string memory) { }
         catch {
-            vm.writeJson("{}", deployArtifactPath);
+            vm.writeJson("{}", deploymentOutfile);
         }
-        console.log("Using deploy artifact %s", deployArtifactPath);
+        console.log("Using deploy artifact %s", deploymentOutfile);
 
         try vm.createDir(deploymentsDir, true) { } catch (bytes memory) { }
 
@@ -101,10 +101,7 @@ abstract contract Artifacts {
     /// @return Whether the deployment exists or not.
     function has(string memory _name) public view returns (bool) {
         Deployment memory existing = _namedDeployments[_name];
-        if (existing.addr != address(0)) {
-            return bytes(existing.name).length > 0;
-        }
-        return _getExistingDeploymentAddress(_name) != address(0);
+        return bytes(existing.name).length > 0;
     }
 
     /// @notice Returns the address of a deployment. Also handles the predeploys.
@@ -119,8 +116,6 @@ abstract contract Artifacts {
             }
             return existing.addr;
         }
-        address addr = _getExistingDeploymentAddress(_name);
-        if (addr != address(0)) return payable(addr);
 
         bytes32 digest = keccak256(bytes(_name));
         if (digest == keccak256(bytes("L2CrossDomainMessenger"))) {
@@ -184,12 +179,7 @@ abstract contract Artifacts {
     /// @param _name The name of the deployment.
     /// @return The deployment.
     function get(string memory _name) public view returns (Deployment memory) {
-        Deployment memory deployment = _namedDeployments[_name];
-        if (deployment.addr != address(0)) {
-            return deployment;
-        } else {
-            return _getExistingDeployment(_name);
-        }
+        return _namedDeployments[_name];
     }
 
     /// @notice Appends a deployment to disk as a JSON deploy artifact.
@@ -214,7 +204,7 @@ abstract contract Artifacts {
     ///         by the deploy script.
     /// @return An array of deployments.
     function _getDeployments() internal returns (Deployment[] memory) {
-        string memory json = vm.readFile(deployArtifactPath);
+        string memory json = vm.readFile(deploymentOutfile);
         string[] memory cmd = new string[](3);
         cmd[0] = Executables.bash;
         cmd[1] = "-c";
@@ -233,27 +223,7 @@ abstract contract Artifacts {
 
     /// @notice Adds a deployment to the temp deployments file
     function _appendDeployment(string memory _name, address _deployed) internal {
-        vm.writeJson({ json: stdJson.serialize("", _name, _deployed), path: deployArtifactPath });
-    }
-
-    /// @notice Reads the artifact from the filesystem by name and returns the address.
-    /// @param _name The name of the artifact to read.
-    /// @return The address of the artifact.
-    function _getExistingDeploymentAddress(string memory _name) internal view returns (address payable) {
-        return _getExistingDeployment(_name).addr;
-    }
-
-    /// @notice Reads the artifact from the filesystem by name and returns the Deployment.
-    /// @param _name The name of the artifact to read.
-    /// @return The deployment corresponding to the name.
-    function _getExistingDeployment(string memory _name) internal view returns (Deployment memory) {
-        string memory path = string.concat(deploymentsDir, "/", _name, ".json");
-        try vm.readFile(path) returns (string memory json) {
-            address addr = stdJson.readAddress(json, "$.address");
-            return Deployment({ addr: payable(addr), name: _name });
-        } catch {
-            return Deployment({ addr: payable(address(0)), name: "" });
-        }
+        vm.writeJson({ json: stdJson.serialize("", _name, _deployed), path: deploymentOutfile });
     }
 
     /// @notice Stubs a deployment retrieved through `get`.
