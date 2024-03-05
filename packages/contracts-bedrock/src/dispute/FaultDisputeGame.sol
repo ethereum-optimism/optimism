@@ -39,17 +39,20 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     /// @notice An onchain VM that performs single instruction steps on a fault proof program trace.
     IBigStepper internal immutable VM;
 
-    /// @notice The genesis block number
+    /// @notice The genesis block number.
     uint256 internal immutable GENESIS_BLOCK_NUMBER;
 
-    /// @notice The genesis output root
+    /// @notice The genesis output root.
     Hash internal immutable GENESIS_OUTPUT_ROOT;
 
-    /// @notice The game type ID
+    /// @notice The game type ID.
     GameType internal immutable GAME_TYPE;
 
-    /// @notice WETH contract for holding ETH
+    /// @notice WETH contract for holding ETH.
     IDelayedWETH internal immutable WETH;
+
+    /// @notice The chain ID of the L2 network this contract argues about.
+    uint256 internal immutable L2_CHAIN_ID;
 
     /// @notice The global root claim's position is always at gindex 1.
     Position internal constant ROOT_POSITION = Position.wrap(1);
@@ -97,6 +100,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     /// @param _gameDuration The duration of the game.
     /// @param _vm An onchain VM that performs single instruction steps on an FPP trace.
     /// @param _weth WETH contract for holding ETH.
+    /// @param _l2ChainId Chain ID of the L2 network this contract argues about.
     constructor(
         GameType _gameType,
         Claim _absolutePrestate,
@@ -106,7 +110,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         uint256 _splitDepth,
         Duration _gameDuration,
         IBigStepper _vm,
-        IDelayedWETH _weth
+        IDelayedWETH _weth,
+        uint256 _l2ChainId
     ) {
         // The split depth cannot be greater than or equal to the max game depth.
         if (_splitDepth >= _maxGameDepth) revert InvalidSplitDepth();
@@ -120,6 +125,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         GAME_DURATION = _gameDuration;
         VM = _vm;
         WETH = _weth;
+        L2_CHAIN_ID = _l2ChainId;
     }
 
     /// @notice Receive function to allow the contract to receive ETH.
@@ -350,7 +356,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
             oracle.loadLocalData(_ident, uuid.raw(), bytes32(l2Number << 0xC0), 8, _partOffset);
         } else if (_ident == LocalPreimageKey.CHAIN_ID) {
             // Load the chain ID as a big-endian uint64 in the high order 8 bytes of the word.
-            oracle.loadLocalData(_ident, uuid.raw(), bytes32(block.chainid << 0xC0), 8, _partOffset);
+            oracle.loadLocalData(_ident, uuid.raw(), bytes32(L2_CHAIN_ID << 0xC0), 8, _partOffset);
         } else {
             revert InvalidLocalIdent();
         }
@@ -626,6 +632,11 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     /// @notice Returns the WETH contract for holding ETH.
     function weth() external view returns (IDelayedWETH weth_) {
         weth_ = WETH;
+    }
+
+    /// @notice Returns the chain ID of the L2 network this contract argues about.
+    function l2ChainId() external view returns (uint256 l2ChainId_) {
+        l2ChainId_ = L2_CHAIN_ID;
     }
 
     ////////////////////////////////////////////////////////////////

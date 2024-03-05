@@ -98,17 +98,17 @@
     "type": "mapping(contract IDisputeGame => bool)"
   },
   {
-    "bytes": "4",
-    "label": "respectedGameType",
+    "bytes": "32",
+    "label": "respectedGameSpans",
     "offset": 0,
     "slot": "59",
-    "type": "GameType"
+    "type": "mapping(GameType => struct OptimismPortal2.RespectedGameSpan)"
   },
   {
-    "bytes": "8",
-    "label": "respectedGameTypeUpdatedAt",
-    "offset": 4,
-    "slot": "59",
-    "type": "uint64"
+    "bytes": "4",
+    "label": "latestRespectedGameType",
+    "offset": 0,
+    "slot": "60",
+    "type": "GameType"
   }
 ]

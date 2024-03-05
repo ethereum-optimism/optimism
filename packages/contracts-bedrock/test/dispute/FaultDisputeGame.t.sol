@@ -59,7 +59,8 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
             _splitDepth: 2 ** 2,
             _gameDuration: Duration.wrap(7 days),
             _vm: _vm,
-            _weth: delayedWeth
+            _weth: delayedWeth,
+            _l2ChainId: 10
         });
         // Register the game implementation with the factory.
         disputeGameFactory.setImplementation(GAME_TYPE, gameImpl);
@@ -133,7 +134,8 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
             _splitDepth: _splitDepth,
             _gameDuration: Duration.wrap(7 days),
             _vm: alphabetVM,
-            _weth: DelayedWETH(payable(address(0)))
+            _weth: DelayedWETH(payable(address(0))),
+            _l2ChainId: 10
         });
     }
 
@@ -893,7 +895,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
             startingClaim,
             disputedClaim,
             bytes32(uint256(1) << 0xC0),
-            bytes32(block.chainid << 0xC0)
+            bytes32(gameProxy.l2ChainId() << 0xC0)
         ];
 
         for (uint256 i = 1; i <= 5; i++) {
@@ -939,7 +941,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
             startingClaim,
             disputedClaim,
             bytes32(uint256(2) << 0xC0),
-            bytes32(block.chainid << 0xC0)
+            bytes32(gameProxy.l2ChainId() << 0xC0)
         ];
 
         for (uint256 i = 1; i <= 5; i++) {
