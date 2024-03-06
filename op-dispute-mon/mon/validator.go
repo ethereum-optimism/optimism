@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 
@@ -14,13 +15,19 @@ type OutputRollupClient interface {
 	OutputAtBlock(ctx context.Context, blockNum uint64) (*eth.OutputResponse, error)
 }
 
-type outputValidator struct {
-	client OutputRollupClient
+type OutputMetrics interface {
+	RecordOutputFetchTime(float64)
 }
 
-func newOutputValidator(client OutputRollupClient) *outputValidator {
+type outputValidator struct {
+	metrics OutputMetrics
+	client  OutputRollupClient
+}
+
+func newOutputValidator(metrics OutputMetrics, client OutputRollupClient) *outputValidator {
 	return &outputValidator{
-		client: client,
+		metrics: metrics,
+		client:  client,
 	}
 }
 
@@ -35,6 +42,7 @@ func (o *outputValidator) CheckRootAgreement(ctx context.Context, blockNum uint6
 		}
 		return false, common.Hash{}, fmt.Errorf("failed to get output at block: %w", err)
 	}
+	o.metrics.RecordOutputFetchTime(float64(time.Now().Unix()))
 	expected := common.Hash(output.OutputRoot)
 	return rootClaim == expected, expected, nil
 }
