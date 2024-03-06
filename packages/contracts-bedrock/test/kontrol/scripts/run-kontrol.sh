@@ -6,6 +6,7 @@ export FOUNDRY_PROFILE=kprove
 SCRIPT_HOME="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 # shellcheck source=/dev/null
 source "$SCRIPT_HOME/common.sh"
+export RUN_KONTROL=true
 parse_args "$@"
 
 #############

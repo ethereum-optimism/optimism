@@ -11,8 +11,8 @@ if [ $# -gt 1 ]; then
   echo "At most one argument can be provided. Instead $# were provided" 1>&2
   exit 1
 elif [ $# -eq 1 ]; then
-  if [ "$1" != "container" ] && [ "$1" != "local" ] && [ "$1" != "dev" ]; then
-    notif "Invalid argument. Must be \`container\`, \`local\` or \`dev\`"
+  if [ "$1" != "-h" ] && [ "$1" != "--help" ] && [ "$1" != "container" ] && [ "$1" != "local" ] && [ "$1" != "dev" ]; then
+    notif "Invalid argument. Must be \`container\`, \`local\`, \`dev\`, \`-h\` or \`--help\`"
     exit 1
   else
     parse_first_arg "$@"

@@ -2,7 +2,9 @@
 # Common functions and variables for run-kontrol.sh and make-summary-deployment.sh
 
 notif() { echo "== $0: $*" >&2 ; }
-usage() {
+
+# usage function for the run-kontrol.sh script
+usage_run_kontrol() {
   echo "Usage: $0 [-h|--help] [container|local|dev] [script|TESTS]" 1>&2
   echo "" 1>&2
   echo "  -h, --help         Display this help message." 1>&2
@@ -18,6 +20,19 @@ usage() {
   exit 0
 }
 
+# usage function for the make-summary-deployment.sh script
+usage_make_summary() {
+  echo "Usage: $0 [-h|--help] [container|local|dev]" 1>&2
+  echo "" 1>&2
+  echo "  -h, --help         Display this help message." 1>&2
+  echo "" 1>&2
+  echo "Execution modes:"
+  echo "  container          Run in docker container. Reproduce CI execution. (Default)" 1>&2
+  echo "  local              Run locally, enforces registered versions.json version for better reproducibility. (Recommended)" 1>&2
+  echo "  dev                Run locally, does NOT enforce registered version. (Useful for developing with new versions and features)" 1>&2
+  exit 0
+}
+
 # Set Run Directory <root>/packages/contracts-bedrock
 WORKSPACE_DIR=$( cd "$SCRIPT_HOME/../../.." >/dev/null 2>&1 && pwd )
 
@@ -30,6 +45,17 @@ export SCRIPT_TESTS=false
 SCRIPT_OPTION=false
 export CUSTOM_TESTS=0 # Store the position where custom tests start, interpreting 0 as no tests
 CUSTOM_OPTION=0
+export RUN_KONTROL=false # true if any functions are called from run-kontrol.sh
+
+# General usage function, which discerns from which script is being called and displays the appropriate message
+usage() {
+  if [ "$RUN_KONTROL" = "true" ]; then
+    usage_run_kontrol
+  else
+    usage_make_summary
+  fi
+}
+
 
 # Argument Parsing
 # The logic behind argument parsing is the following (in order):
