@@ -8,7 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 
-	test "github.com/ethereum-optimism/optimism/op-test"
+	"github.com/ethereum-optimism/optimism/op-test/test"
 )
 
 type L1Fork string

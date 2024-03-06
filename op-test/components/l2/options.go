@@ -1,8 +1,8 @@
 package l2
 
 import (
-	test "github.com/ethereum-optimism/optimism/op-test"
 	"github.com/ethereum-optimism/optimism/op-test/components/superchain"
+	"github.com/ethereum-optimism/optimism/op-test/test"
 )
 
 type Settings struct {

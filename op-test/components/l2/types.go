@@ -10,8 +10,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	test "github.com/ethereum-optimism/optimism/op-test"
 	"github.com/ethereum-optimism/optimism/op-test/components/superchain"
+	"github.com/ethereum-optimism/optimism/op-test/test"
 )
 
 type L2 interface {

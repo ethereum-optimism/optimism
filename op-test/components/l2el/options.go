@@ -1,8 +1,8 @@
 package l2el
 
 import (
-	test "github.com/ethereum-optimism/optimism/op-test"
 	"github.com/ethereum-optimism/optimism/op-test/components/l2"
+	"github.com/ethereum-optimism/optimism/op-test/test"
 )
 
 type Settings struct {

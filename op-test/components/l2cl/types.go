@@ -4,9 +4,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-service/sources"
-	test "github.com/ethereum-optimism/optimism/op-test"
 	"github.com/ethereum-optimism/optimism/op-test/components/l2"
 	"github.com/ethereum-optimism/optimism/op-test/components/l2el"
+	"github.com/ethereum-optimism/optimism/op-test/test"
 )
 
 type L2CL interface {

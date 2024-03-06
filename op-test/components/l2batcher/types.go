@@ -1,10 +1,10 @@
 package l2batcher
 
 import (
-	"github.com/ethereum-optimism/optimism/op-test/components/l2cl"
 	"github.com/stretchr/testify/require"
 
-	test "github.com/ethereum-optimism/optimism/op-test"
+	"github.com/ethereum-optimism/optimism/op-test/components/l2cl"
+	"github.com/ethereum-optimism/optimism/op-test/test"
 )
 
 type L2Batcher interface {

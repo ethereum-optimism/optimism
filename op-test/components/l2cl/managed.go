@@ -15,11 +15,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
-	test "github.com/ethereum-optimism/optimism/op-test"
 	"github.com/ethereum-optimism/optimism/op-test/components/l1cl"
 	"github.com/ethereum-optimism/optimism/op-test/components/l1el"
 	"github.com/ethereum-optimism/optimism/op-test/components/l2"
 	"github.com/ethereum-optimism/optimism/op-test/components/l2el"
+	"github.com/ethereum-optimism/optimism/op-test/test"
 )
 
 type ManagedOpNode struct {

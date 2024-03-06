@@ -13,8 +13,8 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
-	test "github.com/ethereum-optimism/optimism/op-test"
 	"github.com/ethereum-optimism/optimism/op-test/components/l2"
+	"github.com/ethereum-optimism/optimism/op-test/test"
 )
 
 type ManagedOpGeth struct {

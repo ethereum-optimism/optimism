@@ -3,8 +3,8 @@ package superchain
 import (
 	"github.com/stretchr/testify/require"
 
-	test "github.com/ethereum-optimism/optimism/op-test"
 	"github.com/ethereum-optimism/optimism/op-test/components/l1"
+	"github.com/ethereum-optimism/optimism/op-test/test"
 )
 
 type Superchain interface {

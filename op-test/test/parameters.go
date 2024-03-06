@@ -1,4 +1,4 @@
-package op_test
+package test
 
 type testParameters struct {
 	// TODO CLI flag definitions for most common options; L1 forks, L2 forks, etc.

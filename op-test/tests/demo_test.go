@@ -5,7 +5,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	test "github.com/ethereum-optimism/optimism/op-test"
 	"github.com/ethereum-optimism/optimism/op-test/components/l1"
 	"github.com/ethereum-optimism/optimism/op-test/components/l1cl"
 	"github.com/ethereum-optimism/optimism/op-test/components/l1el"
@@ -13,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-test/components/l2cl"
 	"github.com/ethereum-optimism/optimism/op-test/components/l2el"
 	"github.com/ethereum-optimism/optimism/op-test/components/superchain"
+	"github.com/ethereum-optimism/optimism/op-test/test"
 )
 
 func TestDemo(t *testing.T) {

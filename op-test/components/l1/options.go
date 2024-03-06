@@ -1,6 +1,8 @@
 package l1
 
-import test "github.com/ethereum-optimism/optimism/op-test"
+import (
+	"github.com/ethereum-optimism/optimism/op-test/test"
+)
 
 type Settings struct {
 	ActiveFork L1Fork

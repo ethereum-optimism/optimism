@@ -2,9 +2,8 @@ package l2proposer
 
 import (
 	"github.com/ethereum-optimism/optimism/op-test/components/l2cl"
+	"github.com/ethereum-optimism/optimism/op-test/test"
 	"github.com/stretchr/testify/require"
-
-	test "github.com/ethereum-optimism/optimism/op-test"
 )
 
 type L2Proposer interface {

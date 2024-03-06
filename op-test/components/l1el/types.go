@@ -5,8 +5,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
-	test "github.com/ethereum-optimism/optimism/op-test"
 	"github.com/ethereum-optimism/optimism/op-test/components/l1"
+	"github.com/ethereum-optimism/optimism/op-test/test"
 )
 
 type L1EL interface {

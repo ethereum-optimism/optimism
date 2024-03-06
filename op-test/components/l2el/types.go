@@ -5,8 +5,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/rpc"
 
-	test "github.com/ethereum-optimism/optimism/op-test"
 	"github.com/ethereum-optimism/optimism/op-test/components/l2"
+	"github.com/ethereum-optimism/optimism/op-test/test"
 )
 
 type L2EL interface {
