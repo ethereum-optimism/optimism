@@ -379,8 +379,15 @@ func (s *APIBackend) DisconnectPeer(_ context.Context, id peer.ID) error {
 	recordDur := s.m.RecordRPCServerRequest("opp2p_disconnectPeer")
 	defer recordDur()
 	err := s.node.Host().Network().ClosePeer(id)
+	if err != nil {
+		return err
+	}
 	ps := s.node.Host().Peerstore()
 	ps.RemovePeer(id)
 	ps.ClearAddrs(id)
-	return err
+	err = s.node.ConnectionGater().UnblockPeer(id)
+	if err != nil {
+		return fmt.Errorf("closed peer but failed to unblock: %w", err)
+	}
+	return nil
 }
