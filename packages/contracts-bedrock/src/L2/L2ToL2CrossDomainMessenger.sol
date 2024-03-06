@@ -5,10 +5,12 @@ import { SafeCall } from "src/libraries/SafeCall.sol";
 import { CrossL2Inbox } from "src/L2/CrossL2Inbox.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { ISemver } from "src/universal/ISemver.sol";
 
-/// @custom:upgradeable
+/// @custom:proxied
+/// @custom:predeploy 0x4200000000000000000000000000000000000023
 /// @title L2ToL2CrossDomainMessenger
-contract L2ToL2CrossDomainMessenger {
+contract L2ToL2CrossDomainMessenger is ISemver {
     /// @notice Emitted whenever a message is successfully relayed on this chain.
     /// @param msgHash Hash of the message that was relayed.
     event RelayedMessage(bytes32 indexed msgHash);
@@ -40,6 +42,9 @@ contract L2ToL2CrossDomainMessenger {
     ///         executed at least once. A message will not be present in this mapping if it
     ///         successfully executed on the first attempt.
     mapping(bytes32 => bool) public failedMessages;
+
+    /// @custom:semver 1.0.0
+    string public constant version = "1.0.0";
 
     /// @notice Nonce for the next message to be sent, without the message version applied. Use the
     ///         messageNonce getter which will insert the message version into the nonce to give you
