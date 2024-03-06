@@ -46,7 +46,12 @@ func AddBanExpiry(gater BlockingConnectionGater, store ExpiryStore, log log.Logg
 }
 
 func (g *ExpiryConnectionGater) UnblockPeer(p peer.ID) error {
+	if err := g.BlockingConnectionGater.UnblockPeer(p); err != nil {
+		log.Warn("failed to unblock peer from underlying gater", "method", "UnblockPeer", "peer_id", p, "err", err)
+		return err
+	}
 	if err := g.store.SetPeerBanExpiration(p, time.Time{}); err != nil {
+		log.Warn("failed to unblock peer from expiry gater", "method", "UnblockPeer", "peer_id", p, "err", err)
 		return err
 	}
 	g.m.RecordPeerUnban()
