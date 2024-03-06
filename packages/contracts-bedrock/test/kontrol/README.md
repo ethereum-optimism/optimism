@@ -34,7 +34,7 @@ This document details the Kontrol setup used in this repo to run various proofs 
 The directory is structured as follows
 
 <pre>
-├── <a href="./pausability-lemmas.k">pausability-lemmas.k</a>: File containing the necessary lemmas for this project
+├── <a href="./pausability-lemmas.md">pausability-lemmas.md</a>: File containing the necessary lemmas for this project
 ├── <a href="./deployment">deployment</a>: Custom deploy sequence for Kontrol proofs and tests for its <a href="https://github.com/runtimeverification/kontrol/pull/271">fast summarization</a>
 │   ├── <a href="./deployment/KontrolDeployment.sol">KontrolDeployment.sol</a>: Simplified deployment sequence for Kontrol proofs
 │   └── <a href="./deployment/DeploymentSummary.t.sol">DeploymentSummary.t.sol</a>: Tests for the summarization of custom deployment
@@ -64,8 +64,10 @@ Verifying proofs has two steps: build, and execute.
 First, generate a deployment summary contract from the deploy script in [`KontrolDeployment.sol`](./deployment/KontrolDeployment.sol) by running the following command:
 
 ```bash
-./test/kontrol/scripts/make-summary-deployment.sh
+./test/kontrol/scripts/make-summary-deployment.sh [container|local|dev]
 ```
+
+The [`make-summary-deployment.sh`](./scripts/make-summary-deployment.sh) supports the same execution modes as `run-kontrol.sh` below.
 
 [`KontrolDeployment.sol`](./deployment/KontrolDeployment.sol) contains the minimal deployment sequence required by the proofs.
 The [`make-summary-deployment.sh`](./scripts/make-summary-deployment.sh) script will generate a JSON state diff. This state diff is used in two ways by Kontrol.
@@ -82,7 +84,7 @@ The summary contract can be found in [`DeploymentSummary.sol`](./proofs/utils/De
 Use the [`run-kontrol.sh`](./scripts/run-kontrol.sh) script to runs the proofs in all `*.k.sol` files.
 
 ```
-./test/kontrol/scripts/run-kontrol.sh [container|local|dev]
+./test/kontrol/scripts/run-kontrol.sh [container|local|dev] [script|TESTS]
 ```
 
 The `run-kontrol.sh` script supports three modes of proof execution:
@@ -90,6 +92,13 @@ The `run-kontrol.sh` script supports three modes of proof execution:
 - `container`: Runs the proofs using the same Docker image used in CI. This is the default execution mode—if no arguments are provided, the proofs will be executed in this mode.
 - `local`: Runs the proofs with your local Kontrol install, and enforces that the Kontrol version matches the one used in CI, which is specified in [`versions.json`](../../../../versions.json).
 - `dev`: Run the proofs with your local Kontrol install, without enforcing any version in particular. The intended use case is proof development and related matters.
+
+It also supports two methods for specifying which tests to execute:
+
+- `script`: Runs the tests specified in the `test_list` variable
+- `TESTS`: Names of the tests to be executed. `TESTS` can have two forms:
+    - `ContractName.testName`: e.g., `run-kontrol.sh ContractName.test1 ContractName.test2`
+    - Empty, executing all the functions starting with `test`, `prove` or `check` present in the defined `out` directory. For instance, `./test/kontrol/scripts/run-kontrol.sh` will execute all `prove_*` functions in the [proofs](./proofs/) directory using the same Docker image as in CI. [Warning: executing all proofs in parallel is _very_ resoure intensive]
 
 For a similar description of the options run `run-kontrol.sh --help`.
 
@@ -110,9 +119,9 @@ The summary is:
    Currently, this is partly enforced by running some of the standard post-`setUp` deployment assertions in `DeploymentSummary.t.sol`.
    A more rigorous approach may be to leverage the `ChainAssertions` library, but more investigation is required to determine if this is feasible without large changes to the deploy script.
 
-2. Until symbolic bytes are natively supported in Kontrol, we must make assumptions about the length of `bytes` parameters.
-   All current assumptions can be found by searching for `// ASSUME:` comments in the files.
-   Some of this assumptions can be lifted once [symbolic bytes](https://github.com/runtimeverification/kontrol/issues/272) are supported in Kontrol.
+2. Size of `bytes[]` arguments. In [`OptimismPortal.k.sol`](./proofs/OptimismPortal.k.sol), the `prove_proveWithdrawalTransaction_paused` proof is broken down into 11 different proofs, each corresponding to a different size of the `_withdrawalProof` argument, which is of type `bytes[]`. We execute the same logic for lengths of `_withdrawalProof` ranging from 0 to 10, setting the length of each symbolic `bytes` element to 600.
+   The reason for choosing 600 as the length for the elements of `_withdrawalProof` is that each element is `17 * 32 = 544` bytes long, so adding a 10% margin for RLP encoding and rounding up yields 600 bytes.
+   All other symbolic `bytes` arguments that are not part of a `bytes` array have a symbolic length bounded by `2^63`.
 
 ### Deployment Summary Process
 
@@ -120,13 +129,13 @@ As mentioned above, a deployment summary contract is first generated before exec
 This is because the proof execution leverages Kontrol's [fast summarization](https://github.com/runtimeverification/kontrol/pull/271) feature, which allows loading the post-`setUp` state directly into Kontrol.
 This provides a significant reduction in proof execution time, as it avoids the need to execute the deployment script every time the proofs are run.
 
-All code executed in Kontrol—even when execution is concrete and not symbolic—is significantly slower than in Foundry, due to the mathematical representation of the EVM in Kontrol.
+All code executed in Kontrol —even when execution is concrete and not symbolic— is significantly slower than in Foundry, due to the mathematical representation of the EVM in Kontrol.
 Therefore we want to minimize the amount of code executed in Kontrol, and the fast summarization feature allows us to reduce `setUp` execution time.
 
 This project uses two different [`foundry.toml` profiles](../../foundry.toml), `kdeploy` and `kprove`, to facilitate usage of this fast summarization feature.:
 
-- `kdeploy`: Used by [`make-summary-deployment.sh`](./scripts/make-summary-deployment.sh) to generate the `DeploymentSummary.sol` contract based on execution of the `KontrolDeployment.sol` contract using Foundry's state diff recording cheatcodes.
-  This is where all necessary [`src/L1`](../../src/L1) files are compiled with their bytecode saved into the `DeploymentSummaryCode.sol` file, which is inherited by `DeploymentSummary`.
+- `kdeploy`: Used by [`make-summary-deployment.sh`](./scripts/make-summary-deployment.sh) to generate the [`DeploymentSummary.sol`](./proofs/utils/DeploymentSummary.sol) contract based on execution of the [`KontrolDeployment.sol`](./deployment/KontrolDeployment.sol) contract using Foundry's state diff recording cheatcodes.
+  This is where all necessary [`src/L1`](../../src/L1) files are compiled with their bytecode saved into the [`DeploymentSummaryCode.sol`](./proofs/utils/DeploymentSummaryCode.sol) file, which is inherited by `DeploymentSummary`.
 
 - `kprove`: Used by the [`run-kontrol.sh`](./scrpts/run-kontrol.sh) script to execute proofs, which can be run once a `DeploymentSummary.sol` contract is present. This profile's `src` and `script` paths point to a test folder because we only want to compile what is in the `test/kontrol/proofs` folder, since that folder contains all bytecode and proofs.
 
