@@ -47,7 +47,7 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
         // Set the extra data for the game creation
         extraData = abi.encode(l2BlockNumber);
 
-        AlphabetVM _vm = new AlphabetVM(absolutePrestate, new PreimageOracle(0, 0, 0));
+        AlphabetVM _vm = new AlphabetVM(absolutePrestate, new PreimageOracle(0, 0));
 
         // Deploy an implementation of the fault game
         gameImpl = new FaultDisputeGame({
@@ -119,7 +119,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     /// @dev Tests that the constructor of the `FaultDisputeGame` reverts when the `_splitDepth`
     ///      parameter is greater than or equal to the `MAX_GAME_DEPTH`
     function test_constructor_wrongArgs_reverts(uint256 _splitDepth) public {
-        AlphabetVM alphabetVM = new AlphabetVM(absolutePrestate, new PreimageOracle(0, 0, 0));
+        AlphabetVM alphabetVM = new AlphabetVM(absolutePrestate, new PreimageOracle(0, 0));
 
         // Test that the constructor reverts when the `_splitDepth` parameter is greater than or equal
         // to the `MAX_GAME_DEPTH` parameter.

@@ -9,7 +9,7 @@ import { Chains } from "scripts/Chains.sol";
 
 // Global constant for the `useFaultProofs` slot in the DeployConfig contract, which can be overridden in the testing
 // environment.
-bytes32 constant USE_FAULT_PROOFS_SLOT = bytes32(uint256(64));
+bytes32 constant USE_FAULT_PROOFS_SLOT = bytes32(uint256(63));
 
 /// @title DeployConfig
 /// @notice Represents the configuration required to deploy the system. It is expected
@@ -63,7 +63,6 @@ contract DeployConfig is Script {
     uint256 public faultGameWithdrawalDelay;
     uint256 public preimageOracleMinProposalSize;
     uint256 public preimageOracleChallengePeriod;
-    uint256 public preimageOracleCancunActivationTimestamp;
     uint256 public systemConfigStartBlock;
     uint256 public requiredProtocolVersion;
     uint256 public recommendedProtocolVersion;
@@ -140,7 +139,6 @@ contract DeployConfig is Script {
 
         preimageOracleMinProposalSize = stdJson.readUint(_json, "$.preimageOracleMinProposalSize");
         preimageOracleChallengePeriod = stdJson.readUint(_json, "$.preimageOracleChallengePeriod");
-        preimageOracleCancunActivationTimestamp = stdJson.readUint(_json, "$.preimageOracleCancunActivationTimestamp");
 
         usePlasma = _readOr(_json, "$.usePlasma", false);
         daChallengeWindow = _readOr(_json, "$.daChallengeWindow", 1000);

@@ -165,8 +165,5 @@ contract FPACOPS is Deploy, StdAssertions {
         console.log("    9. Respected Game Type: ", cfg.respectedGameType());
         console.log("   10. Preimage Oracle Min Proposal Size (bytes): ", cfg.preimageOracleMinProposalSize());
         console.log("   11. Preimage Oracle Challenge Period (seconds): ", cfg.preimageOracleChallengePeriod());
-        console.log(
-            "   12. Preimage Oracle Cancun Activation Timestamp: ", cfg.preimageOracleCancunActivationTimestamp()
-        );
     }
 }
