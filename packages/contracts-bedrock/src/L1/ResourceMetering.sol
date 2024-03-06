@@ -76,10 +76,11 @@ abstract contract ResourceMetering is Initializable {
         uint256 blockDiff = block.number - params.prevBlockNum;
 
         ResourceConfig memory config = _resourceConfig();
-        int256 targetResourceLimit =
-            int256(uint256(config.maxResourceLimit)) / int256(uint256(config.elasticityMultiplier));
 
         if (blockDiff > 0) {
+            int256 targetResourceLimit =
+ 	               int256(uint256(config.maxResourceLimit)) / int256(uint256(config.elasticityMultiplier));
+
             // Handle updating EIP-1559 style gas parameters. We use EIP-1559 to restrict the rate
             // at which deposits can be created and therefore limit the potential for deposits to
             // spam the L2 system. Fee scheme is very similar to EIP-1559 with minor changes.
