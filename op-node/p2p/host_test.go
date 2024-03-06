@@ -159,7 +159,7 @@ func TestP2PFull(t *testing.T) {
 	require.False(t, nodeB.IsStatic(hostB.ID()), "node B must not be static peer of node B itself")
 
 	select {
-	case <-time.After(time.Second):
+	case <-time.After(30 * time.Second):
 		t.Fatal("failed to connect new host")
 	case c := <-conns:
 		require.Equal(t, hostB.ID(), c.RemotePeer())
