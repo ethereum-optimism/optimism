@@ -16,7 +16,7 @@ func ReadArray(ctx context.Context, caller *MultiCaller, block Block, countCall 
 		return nil, fmt.Errorf("failed to load array length: %w", err)
 	}
 	count := result.GetBigInt(0).Uint64()
-	calls := make([]*ContractCall, count)
+	calls := make([]Call, count)
 	for i := uint64(0); i < count; i++ {
 		calls[i] = getCall(new(big.Int).SetUint64(i))
 	}

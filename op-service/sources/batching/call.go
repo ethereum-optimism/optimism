@@ -8,7 +8,16 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/rpc"
 )
+
+type BatchElementCreator func(block Block) (any, rpc.BatchElem)
+
+type Call interface {
+	CallMethod() string
+	ToBatchElemCreator() (BatchElementCreator, error)
+	HandleResult(interface{}) (*CallResult, error)
+}
 
 type ContractCall struct {
 	Abi    *abi.ABI
@@ -31,6 +40,26 @@ func (c *ContractCall) Pack() ([]byte, error) {
 	return c.Abi.Pack(c.Method, c.Args...)
 }
 
+func (c *ContractCall) CallMethod() string {
+	return "eth_call"
+}
+
+func (c *ContractCall) ToBatchElemCreator() (BatchElementCreator, error) {
+	args, err := c.ToCallArgs()
+	if err != nil {
+		return nil, err
+	}
+	f := func(block Block) (any, rpc.BatchElem) {
+		out := new(hexutil.Bytes)
+		return out, rpc.BatchElem{
+			Method: "eth_call",
+			Args:   []interface{}{args, block.value},
+			Result: &out,
+		}
+	}
+	return f, nil
+}
+
 func (c *ContractCall) ToCallArgs() (interface{}, error) {
 	data, err := c.Pack()
 	if err != nil {
@@ -43,6 +72,15 @@ func (c *ContractCall) ToCallArgs() (interface{}, error) {
 		"input": hexutil.Bytes(data),
 	}
 	return arg, nil
+}
+
+func (c *ContractCall) CreateResult() interface{} {
+	return new(hexutil.Bytes)
+}
+
+func (c *ContractCall) HandleResult(result interface{}) (*CallResult, error) {
+	out, err := c.Unpack(*result.(*hexutil.Bytes))
+	return out, err
 }
 
 func (c *ContractCall) Unpack(hex hexutil.Bytes) (*CallResult, error) {

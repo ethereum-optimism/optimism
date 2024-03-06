@@ -142,6 +142,6 @@ func (l *AbiBasedRpc) findExpectedCall(to common.Address, data []byte, actualBlo
 		}
 	}
 	require.NotNilf(l.t, call, "No expected calls to %v at block %v with to: %v, arguments: %v\nExpected calls: %v",
-		to, abiMethod.Name, actualBlockRef, args, expectedCalls)
+		abiMethod.Name, actualBlockRef, to, args, expectedCalls)
 	return call, abiMethod
 }
