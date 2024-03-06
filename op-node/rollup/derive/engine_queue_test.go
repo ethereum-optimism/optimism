@@ -1281,7 +1281,7 @@ func TestPlasmaFinalityData(t *testing.T) {
 	l2parent := refA1
 
 	ec.SetSafeHead(l2parent)
-	eq.postProcessSafeL2()
+	require.NoError(t, eq.postProcessSafeL2())
 
 	// advance over 50 l1 origins each time incrementing new l2 safe heads
 	// and post processing.
@@ -1306,7 +1306,7 @@ func TestPlasmaFinalityData(t *testing.T) {
 				SequenceNumber: j,
 			}
 			ec.SetSafeHead(l2parent)
-			eq.postProcessSafeL2()
+			require.NoError(t, eq.postProcessSafeL2())
 		}
 	}
 

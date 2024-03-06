@@ -1,7 +1,6 @@
 package actions
 
 import (
-	"context"
 	"math/big"
 	"math/rand"
 	"testing"
@@ -20,6 +19,8 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
+
+// Devnet allocs should have plasma mode enabled for these tests to pass
 
 // L2PlasmaDA is a test harness for manipulating plasma DA state.
 type L2PlasmaDA struct {
@@ -42,7 +43,7 @@ type L2PlasmaDA struct {
 
 type PlasmaParam func(p *e2eutils.TestParams)
 
-func NewL2AltDA(t Testing, params ...PlasmaParam) *L2PlasmaDA {
+func NewL2PlasmaDA(t Testing, params ...PlasmaParam) *L2PlasmaDA {
 	p := &e2eutils.TestParams{
 		MaxSequencerDrift:   2,
 		SequencerWindowSize: 4,
@@ -80,10 +81,6 @@ func NewL2AltDA(t Testing, params ...PlasmaParam) *L2PlasmaDA {
 	sequencer := NewL2Sequencer(t, log, l1F, nil, daMgr, engCl, sd.RollupCfg, 0)
 	miner.ActL1SetFeeRecipient(common.Address{'A'})
 	sequencer.ActL2PipelineFull(t)
-
-	daMgr.OnFinalizedHeadSignal(func(ctx context.Context, ref eth.L1BlockRef) {
-		sequencer.derivation.Finalize(ref)
-	})
 
 	batcher := NewL2Batcher(log, sd.RollupCfg, PlasmaBatcherCfg(dp, storage), sequencer.RollupClient(), l1Client, engine.EthClient(), engCl)
 
@@ -140,9 +137,6 @@ func (a *L2PlasmaDA) NewVerifier(t Testing) *L2Verifier {
 	daMgr := plasma.NewPlasmaDAWithStorage(a.log, a.plasmaCfg, a.storage, l1F, &plasma.NoopMetrics{})
 
 	verifier := NewL2Verifier(t, a.log, l1F, nil, daMgr, engCl, a.sd.RollupCfg, &sync.Config{}, safedb.Disabled)
-	daMgr.OnFinalizedHeadSignal(func(ctx context.Context, ref eth.L1BlockRef) {
-		verifier.derivation.Finalize(ref)
-	})
 
 	return verifier
 }
@@ -249,16 +243,27 @@ func (a *L2PlasmaDA) GetLastTxBlock(t Testing) *types.Block {
 	return blk
 }
 
+func (a *L2PlasmaDA) ActL1Finalized(t Testing) {
+	latest := a.miner.l1Chain.CurrentBlock().Number.Uint64()
+	a.miner.ActL1Safe(t, latest)
+	a.miner.ActL1Finalize(t, latest)
+	a.sequencer.ActL1FinalizedSignal(t)
+}
+
 // Commitment is challenged but never resolved, chain reorgs when challenge window expires.
 func TestPlasma_ChallengeExpired(gt *testing.T) {
 	t := NewDefaultTesting(gt)
-	harness := NewL2AltDA(t)
+	harness := NewL2PlasmaDA(t)
 
 	// generate enough initial l1 blocks to have a finalized head.
 	harness.ActL1Blocks(t, 5)
 
 	// Include a new l2 transaction, submitting an input commitment to the l1.
 	harness.ActNewL2Tx(t)
+
+	// L1 must be finalized for plasma to be finalized. This is only necessary
+	// when the challenge/resolve window is shorter than l1 finality.
+	harness.ActL1Finalized(t)
 
 	// Challenge the input commitment on the l1 challenge contract.
 	harness.ActChallengeLastInput(t)
@@ -293,6 +298,7 @@ func TestPlasma_ChallengeExpired(gt *testing.T) {
 
 	// verifier is able to sync with expired missing data
 	verifier := harness.NewVerifier(t)
+	verifier.ActL1FinalizedSignal(t)
 	verifier.ActL2PipelineFull(t)
 
 	verifSyncStatus := verifier.SyncStatus()
@@ -304,7 +310,7 @@ func TestPlasma_ChallengeExpired(gt *testing.T) {
 // derivation pipeline stalls until the challenge is resolved and then resumes with data from the contract.
 func TestPlasma_ChallengeResolved(gt *testing.T) {
 	t := NewDefaultTesting(gt)
-	harness := NewL2AltDA(t)
+	harness := NewL2PlasmaDA(t)
 
 	// include a new l2 transaction, submitting an input commitment to the l1.
 	harness.ActNewL2Tx(t)
@@ -312,10 +318,13 @@ func TestPlasma_ChallengeResolved(gt *testing.T) {
 	// generate 3 l1 blocks.
 	harness.ActL1Blocks(t, 3)
 
+	// finalize them on L1
+	harness.ActL1Finalized(t)
+
 	// challenge the input commitment for that l2 transaction on the l1 challenge contract.
 	harness.ActChallengeLastInput(t)
 
-	// catch up sequencer derivatio pipeline.
+	// catch up sequencer derivation pipeline.
 	// this syncs the latest event within the AltDA manager.
 	harness.sequencer.ActL2PipelineFull(t)
 
@@ -334,6 +343,7 @@ func TestPlasma_ChallengeResolved(gt *testing.T) {
 
 	// new verifier is able to sync and resolve the input from calldata
 	verifier := harness.NewVerifier(t)
+	verifier.ActL1FinalizedSignal(t)
 	verifier.ActL2PipelineFull(t)
 
 	verifSyncStatus := verifier.SyncStatus()
@@ -344,7 +354,7 @@ func TestPlasma_ChallengeResolved(gt *testing.T) {
 // DA storage service goes offline while sequencer keeps making blocks. When storage comes back online, it should be able to catch up.
 func TestPlasma_StorageError(gt *testing.T) {
 	t := NewDefaultTesting(gt)
-	harness := NewL2AltDA(t)
+	harness := NewL2PlasmaDA(t)
 
 	// include a new l2 transaction, submitting an input commitment to the l1.
 	harness.ActNewL2Tx(t)
@@ -363,4 +373,48 @@ func TestPlasma_StorageError(gt *testing.T) {
 	syncStatus := harness.sequencer.SyncStatus()
 	require.Equal(t, uint64(1), syncStatus.SafeL2.Number)
 	require.Equal(t, txBlk.Hash(), syncStatus.SafeL2.Hash)
+}
+
+// L1 chain reorgs a resolved challenge so it expires instead causing
+// the l2 chain to reorg as well.
+func TestPlasma_ChallengeReorg(gt *testing.T) {
+	t := NewDefaultTesting(gt)
+	harness := NewL2PlasmaDA(t)
+
+	// New L2 tx added to a batch and committed to L1
+	harness.ActNewL2Tx(t)
+
+	// add a buffer of L1 blocks
+	harness.ActL1Blocks(t, 3)
+
+	// challenge the input commitment
+	harness.ActChallengeLastInput(t)
+
+	// keep track of the block where the L2 tx was included
+	blk := harness.GetLastTxBlock(t)
+
+	// progress derivation pipeline
+	harness.sequencer.ActL2PipelineFull(t)
+
+	// resolve the challenge so pipeline can progress
+	harness.ActResolveLastChallenge(t)
+
+	// derivation marks the challenge as resolve, chain is not impacted
+	harness.sequencer.ActL2PipelineFull(t)
+
+	// Rewind the L1, essentially reorging the challenge resolution
+	harness.miner.ActL1RewindToParent(t)
+
+	// Now the L1 chain advances without the challenge resolution
+	// so the challenge is expired.
+	harness.ActExpireLastInput(t)
+
+	// derivation pipeline reorgs the commitment out of the chain
+	harness.sequencer.ActL2PipelineFull(t)
+
+	newBlk, err := harness.engine.EthClient().BlockByNumber(t.Ctx(), blk.Number())
+	require.NoError(t, err)
+
+	// confirm the reorg did happen
+	require.NotEqual(t, blk.Hash(), newBlk.Hash())
 }

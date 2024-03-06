@@ -17,7 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
-// ErrPendingChallenge is return when data is not available but can still be challenged/resolved
+// ErrPendingChallenge is returned when data is not available but can still be challenged/resolved
 // so derivation should halt temporarily.
 var ErrPendingChallenge = errors.New("not found, pending challenge")
 
@@ -69,6 +69,10 @@ type DA struct {
 	origin eth.BlockID
 	// the latest recorded finalized head as per the challenge contract
 	finalizedHead eth.L1BlockRef
+	// the latest recorded finalized head as per the l1 finalization signal
+	l1FinalizedHead eth.L1BlockRef
+	// flag the reset function we are resetting because of an expired challenge
+	resetting int
 
 	finalizedHeadSignalFunc eth.HeadSignalFn
 }
@@ -106,6 +110,44 @@ func NewPlasmaDAWithState(log log.Logger, cfg Config, storage DAStorage, l1f L1F
 // This will signal to the engine queue that will set the proper L2 block as finalized.
 func (d *DA) OnFinalizedHeadSignal(f eth.HeadSignalFn) {
 	d.finalizedHeadSignalFunc = f
+}
+
+// FinalizeL1 advances l1 finalized head in case l1 finalization signal is behind DA finality.
+// If DA challenge params define a shorter finality period, the finalized head will update based on
+// L1 finality.
+func (d *DA) FinalizeL1(ref eth.L1BlockRef) {
+	d.log.Warn("l1 finalized", "ref", ref)
+	if ref.Number > d.l1FinalizedHead.Number {
+		d.l1FinalizedHead = ref
+	}
+}
+
+// LookAhead increments the challenges origin and process the new block if it exists.
+// It is used when the derivation pipeline stalls due to missing data and we need to continue
+// syncing challenge events until the challenge is resolved or expires.
+func (d *DA) LookAhead(ctx context.Context) error {
+	blkRef, err := d.l1.L1BlockRefByNumber(ctx, d.origin.Number+1)
+	if errors.Is(err, ethereum.NotFound) {
+		return io.EOF
+	}
+	if err != nil {
+		d.log.Error("failed to fetch l1 head", "err", err)
+		return err
+	}
+	return d.AdvanceL1Origin(ctx, blkRef.ID())
+}
+
+// Reset the challenge event derivation origin in case of L1 reorg
+func (d *DA) Reset(ctx context.Context, base eth.L1BlockRef, baseCfg eth.SystemConfig) error {
+	// resetting due to expired challenge, do not clear state
+	if d.resetting > 0 {
+		d.resetting--
+	} else {
+		// resetting due to L1 reorg, clear state
+		d.origin = base.ID()
+		d.state.Reset()
+	}
+	return io.EOF
 }
 
 // GetInput returns the input data for the given commitment bytes. blockNumber is required to lookup
@@ -195,11 +237,14 @@ func (d *DA) AdvanceL1Origin(ctx context.Context, block eth.BlockID) error {
 	// advance challenge window, computing the finalized head
 	bn, err := d.state.ExpireChallenges(block.Number)
 	if err != nil {
+		// warn the reset function not to clear the state
+		d.resetting++
 		return err
 	}
 
-	// finalized head signal is called only when the finalized head number increases.
-	if bn > d.finalizedHead.Number {
+	// finalized head signal is called only when the finalized head number increases
+	// and the l1 finalized head ahead of the DA finalized head.
+	if bn > d.finalizedHead.Number && bn <= d.l1FinalizedHead.Number {
 		ref, err := d.l1.L1BlockRefByNumber(ctx, bn)
 		if err != nil {
 			return err
@@ -219,7 +264,7 @@ func (d *DA) AdvanceL1Origin(ctx context.Context, block eth.BlockID) error {
 	d.origin = block
 	d.metrics.RecordChallengesHead("latest", d.origin.Number)
 
-	d.log.Info("processed plasma l1 origin", "origin", block, "next-finalized", bn, "finalized", d.finalizedHead.Number)
+	d.log.Info("processed plasma l1 origin", "origin", block, "next-finalized", bn, "finalized", d.finalizedHead.Number, "l1-finalize", d.l1FinalizedHead.Number)
 	return nil
 }
 
@@ -255,22 +300,23 @@ func (d *DA) LoadChallengeEvents(ctx context.Context, block eth.BlockID) error {
 			tx := txs[i]
 			// txs and receipts must be in the same order
 			if tx.Hash() != log.TxHash {
-				d.log.Error("tx hash mismatch", "block", block.Number, "tx", i, "log", log.Index, "txHash", tx.Hash(), "receiptTxHash", log.TxHash)
+				d.log.Error("tx hash mismatch", "block", block.Number, "txIdx", i, "log", log.Index, "txHash", tx.Hash(), "receiptTxHash", log.TxHash)
 				continue
 			}
 			// Decode the input from resolver tx calldata
 			input, err := DecodeResolvedInput(tx.Data())
 			if err != nil {
-				d.log.Error("failed to decode resolved input", "block", block.Number, "tx", i, "err", err)
+				d.log.Error("failed to decode resolved input", "block", block.Number, "txIdx", i, "err", err)
 				continue
 			}
 			if err := comm.Verify(input); err != nil {
-				d.log.Error("failed to verify commitment", "block", block.Number, "tx", i, "err", err)
+				d.log.Error("failed to verify commitment", "block", block.Number, "txIdx", i, "err", err)
 				continue
 			}
-			d.log.Debug("resolved input", "block", block.Number, "tx", i)
+			d.log.Debug("challenge resolved", "block", block, "txIdx", i)
 			d.state.SetResolvedChallenge(comm.Encode(), input, log.BlockNumber)
 		case ChallengeActive:
+			d.log.Info("detected new active challenge", "block", block)
 			d.state.SetActiveChallenge(comm.Encode(), log.BlockNumber, d.cfg.ResolveWindow)
 		default:
 			d.log.Warn("skipping unknown challenge status", "block", block.Number, "tx", i, "log", log.Index, "status", status)
@@ -284,7 +330,7 @@ func (d *DA) fetchChallengeLogs(ctx context.Context, block eth.BlockID) ([]*type
 	var logs []*types.Log
 	_, receipts, err := d.l1.FetchReceipts(ctx, block.Hash)
 	if err != nil {
-		return logs, err
+		return nil, err
 	}
 	d.log.Info("loading challenges", "epoch", block.Number, "numReceipts", len(receipts))
 	for _, rec := range receipts {
@@ -321,21 +367,6 @@ func (d *DA) decodeChallengeStatus(log *types.Log) (ChallengeStatus, Keccak256Co
 		return 0, nil, fmt.Errorf("%w: %x at block %d", ErrInvalidChallenge, comm.Encode(), bn)
 	}
 	return ChallengeStatus(event.Status), comm, nil
-}
-
-// LookAhead increments the challenges head and process the new block if it exists.
-// It is only used if the derivation pipeline stalls and we need to wait for a challenge to be resolved
-// to get the next input.
-func (d *DA) LookAhead(ctx context.Context) error {
-	blkRef, err := d.l1.L1BlockRefByNumber(ctx, d.origin.Number+1)
-	if errors.Is(err, ethereum.NotFound) {
-		return io.EOF
-	}
-	if err != nil {
-		d.log.Error("failed to fetch l1 head", "err", err)
-		return err
-	}
-	return d.AdvanceL1Origin(ctx, blkRef.ID())
 }
 
 var (
@@ -378,7 +409,6 @@ func DecodeResolvedInput(data []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	rd := args["resolveData"].([]byte)
 	rd, ok := args["resolveData"].([]byte)
 	if !ok || len(rd) == 0 {
 		return nil, fmt.Errorf("invalid resolve data")

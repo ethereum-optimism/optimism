@@ -177,8 +177,16 @@ func (s *State) Prune(bn uint64) {
 			s.log.Debug("prune commitment", "expiresAt", c.expiresAt, "blockNumber", c.blockNumber)
 			delete(s.commsByKey, string(c.key))
 		} else {
+			// once we're past the given index, remove all commitments
 			s.comms = s.comms[i:]
 			break
 		}
 	}
+}
+
+// In case of L1 reorg, state should be cleared so we can sync all the challenge events
+// from scratch.
+func (s *State) Reset() {
+	s.comms = s.comms[:0]
+	clear(s.commsByKey)
 }

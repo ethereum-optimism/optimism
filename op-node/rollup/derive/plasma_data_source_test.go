@@ -115,6 +115,9 @@ func TestPlasmaDataSource(t *testing.T) {
 		// called for each l1 block to sync challenges
 		l1F.ExpectFetchReceipts(ref.Hash, nil, types.Receipts{}, nil)
 
+		// need to finalized l1 or else plasma DA will wait for it to signal.
+		da.FinalizeL1(ref)
+
 		// pick a random number of commitments to include in the l1 block
 		c := rng.Intn(4)
 		var txs []*types.Transaction

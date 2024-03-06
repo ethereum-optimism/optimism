@@ -427,7 +427,7 @@ func (c *Config) PlasmaConfig() (plasma.Config, error) {
 // In plasma mode longest possible window is challenge + resolve windows.
 func (c *Config) SyncLookback() uint64 {
 	if c.UsePlasma {
-		if win := (c.DAChallengeWindow + c.DAResolveWindow); win > c.SeqWindowSize {
+		if win := (c.DAChallengeWindow + c.DAResolveWindow + c.SeqWindowSize); win > c.SeqWindowSize {
 			return win
 		}
 	}
