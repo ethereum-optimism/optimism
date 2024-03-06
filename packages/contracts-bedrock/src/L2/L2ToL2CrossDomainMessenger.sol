@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import { SafeCall } from "src/libraries/SafeCall.sol";
 import { CrossL2Inbox } from "src/L2/CrossL2Inbox.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
@@ -119,7 +118,8 @@ contract L2ToL2CrossDomainMessenger is ISemver {
             tstore(CROSS_DOMAIN_MESSAGE_SENDER_SLOT, _sender)
         }
 
-        bool success = SafeCall.callWithAllGas({ _target: _target, _value: _value, _calldata: _message });
+        bool success =
+            CrossL2Inbox(crossL2Inbox).callWithAllGas({ _target: _target, _value: _value, _calldata: _message });
 
         if (success) {
             // This check is identical to one above, but it ensures that the same message cannot be relayed
