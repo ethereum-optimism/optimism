@@ -115,3 +115,13 @@ INFO [08-04|16:36:01.204] Found next batch                         epoch=44e203.
 INFO [08-04|16:36:01.205] generated attributes in payload queue    txs=2  timestamp=1,673,567,518
 INFO [08-04|16:36:01.265] inserted block                           hash=ee61ee..256300 number=4,069,725 state_root=a582ae..33a7c5 timestamp=1,673,567,518 parent=5b102e..13196c prev_randao=4758ca..11ff3a fee_recipient=0x4200000000000000000000000000000000000011 txs=2  update_safe=true
 ```
+
+### Optional: Run the legacy node
+
+Due to the anchorage migration, the new client does not support some RPC requests for the legacy blocks, such as `debug_transaction`. You can start the legacy node by running:
+
+```bash
+docker-compose -f docker-compose-boba-sepolia-legacy.yml
+```
+
+The legacy Geth database can be downloaded from the [snapshot page](https://docs.boba.network/for-developers/node-operators/snapshot-downloads).
