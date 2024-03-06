@@ -6,8 +6,12 @@ import { stdJson } from "forge-std/StdJson.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { Executables } from "scripts/Executables.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { Chains } from "scripts/Chains.sol";
 import { Config } from "scripts/Config.sol";
+import { StorageSlot } from "scripts/ForgeArtifacts.sol";
+import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
+import { LibString } from "solady/utils/LibString.sol";
+import { ForgeArtifacts } from "scripts/ForgeArtifacts.sol";
+import { IAddressManager } from "scripts/interfaces/IAddressManager.sol";
 
 /// @notice Represents a deployment. Is serialized to JSON as a key/value
 ///         pair. Can be accessed from within scripts.
@@ -42,24 +46,9 @@ abstract contract Artifacts {
 
     /// @notice Setup function. The arguments here
     function setUp() public virtual {
-        string memory root = vm.projectRoot();
-
-        // The `deploymentContext` should match the name of the deploy-config file.
-        deploymentContext = _getDeploymentContext();
-        deploymentsDir = string.concat(root, "/deployments/", deploymentContext);
-
-        if (!vm.isDir(deploymentsDir)) {
-            vm.createDir(deploymentsDir, true);
-        }
-
-        deploymentOutfile = Config.deploymentOutfile(deploymentsDir);
-        try vm.readFile(deploymentOutfile) returns (string memory) { }
-        catch {
-            vm.writeJson("{}", deploymentOutfile);
-        }
-        console.log("Using deploy artifact %s", deploymentOutfile);
-
-        try vm.createDir(deploymentsDir, true) { } catch (bytes memory) { }
+        deploymentOutfile = Config.deploymentOutfile();
+        console.log("Writing artifact to %s", deploymentOutfile);
+        ForgeArtifacts.ensurePath(deploymentOutfile);
 
         uint256 chainId = Config.chainID();
         console.log("Connected to network with chainid %s", chainId);
@@ -238,34 +227,24 @@ abstract contract Artifacts {
         _namedDeployments[_name] = deployment;
     }
 
-    /// @notice The context of the deployment is used to namespace the artifacts.
-    ///         An unknown context will use the chainid as the context name.
-    ///         This is legacy code and should be removed in the future.
-    function _getDeploymentContext() private view returns (string memory) {
-        string memory context = Config.deploymentContext();
-        if (bytes(context).length > 0) {
-            return context;
-        }
-
-        uint256 chainid = Config.chainID();
-        if (chainid == Chains.Mainnet) {
-            return "mainnet";
-        } else if (chainid == Chains.Goerli) {
-            return "goerli";
-        } else if (chainid == Chains.OPGoerli) {
-            return "optimism-goerli";
-        } else if (chainid == Chains.OPMainnet) {
-            return "optimism-mainnet";
-        } else if (chainid == Chains.LocalDevnet || chainid == Chains.GethDevnet) {
-            return "devnetL1";
-        } else if (chainid == Chains.Hardhat) {
-            return "hardhat";
-        } else if (chainid == Chains.Sepolia) {
-            return "sepolia";
-        } else if (chainid == Chains.OPSepolia) {
-            return "optimism-sepolia";
+    /// @notice Returns the value of the internal `_initialized` storage slot for a given contract.
+    function loadInitializedSlot(string memory _contractName) public returns (uint8 initialized_) {
+        address contractAddress;
+        // Check if the contract name ends with `Proxy` and, if so, get the implementation address
+        if (LibString.endsWith(_contractName, "Proxy")) {
+            contractAddress = EIP1967Helper.getImplementation(getAddress(_contractName));
+            _contractName = LibString.slice(_contractName, 0, bytes(_contractName).length - 5);
+            // If the EIP1967 implementation address is 0, we try to get the implementation address from legacy
+            // AddressManager, which would work if the proxy is ResolvedDelegateProxy like L1CrossDomainMessengerProxy.
+            if (contractAddress == address(0)) {
+                contractAddress =
+                    IAddressManager(mustGetAddress("AddressManager")).getAddress(string.concat("OVM_", _contractName));
+            }
         } else {
-            return vm.toString(chainid);
+            contractAddress = mustGetAddress(_contractName);
         }
+        StorageSlot memory slot = ForgeArtifacts.getInitializedSlot(_contractName);
+        bytes32 slotVal = vm.load(contractAddress, bytes32(vm.parseUint(slot.slot)));
+        initialized_ = uint8((uint256(slotVal) >> (slot.offset * 8)) & 0xFF);
     }
 }

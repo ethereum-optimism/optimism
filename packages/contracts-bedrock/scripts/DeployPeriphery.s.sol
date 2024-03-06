@@ -3,8 +3,9 @@ pragma solidity ^0.8.0;
 
 import { console2 as console } from "forge-std/console2.sol";
 
-import { Deployer } from "./Deployer.sol";
-import { PeripheryDeployConfig } from "./PeripheryDeployConfig.s.sol";
+import { Script } from "forge-std/Script.sol";
+import { Artifacts } from "scripts/Artifacts.s.sol";
+import { PeripheryDeployConfig } from "scripts/PeripheryDeployConfig.s.sol";
 
 import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
 import { Proxy } from "src/universal/Proxy.sol";
@@ -20,17 +21,17 @@ import { Config } from "scripts/Config.sol";
 
 /// @title DeployPeriphery
 /// @notice Script used to deploy periphery contracts.
-contract DeployPeriphery is Deployer {
+contract DeployPeriphery is Script, Artifacts {
     PeripheryDeployConfig cfg;
 
     /// @notice The name of the script, used to ensure the right deploy artifacts
     ///         are used.
-    function name() public pure override returns (string memory) {
-        return "DeployPeriphery";
+    function name() public pure returns (string memory name_) {
+        name_ = "DeployPeriphery";
     }
 
     function setUp() public override {
-        super.setUp();
+        Artifacts.setUp();
 
         string memory path = string.concat(vm.projectRoot(), "/periphery-deploy-config/", deploymentContext, ".json");
         cfg = new PeripheryDeployConfig(path);

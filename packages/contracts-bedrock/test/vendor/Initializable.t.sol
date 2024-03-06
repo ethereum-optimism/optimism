@@ -9,6 +9,7 @@ import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
+import { ForgeArtifacts } from "scripts/ForgeArtifacts.sol";
 import "src/L1/ProtocolVersions.sol";
 import "scripts/Deployer.sol";
 
@@ -374,7 +375,7 @@ contract Initializer_Test is Bridge_Initializer {
 
         for (uint256 i; i < l1ContractNames.length; i++) {
             string memory contractName = l1ContractNames[i];
-            string memory contractAbi = deploy.getAbi(contractName);
+            string memory contractAbi = ForgeArtifacts.getAbi(contractName);
 
             // Query the contract's ABI for an `initialize()` function.
             command[2] = string.concat(
@@ -411,7 +412,7 @@ contract Initializer_Test is Bridge_Initializer {
 
         for (uint256 i; i < l2ContractNames.length; i++) {
             string memory contractName = l2ContractNames[i];
-            string memory contractAbi = deploy.getAbi(contractName);
+            string memory contractAbi = ForgeArtifacts.getAbi(contractName);
 
             // Query the contract's ABI for an `initialize()` function.
             command[2] = string.concat(
