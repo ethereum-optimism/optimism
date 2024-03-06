@@ -21,29 +21,29 @@ func SubmitDataAndWatch(ctx context.Context, data []byte) (types.AvailBlockRef, 
 	if err != nil {
 		return types.AvailBlockRef{}, err
 	}
-	return SubmitAndWait(ctx, api, data, ApiURL, Seed, AppID)
+	return SubmitAndWait(ctx, api, data, Seed, AppID)
 }
 
-func SubmitAndWait(ctx context.Context, api *gsrpc.SubstrateAPI, data []byte, ApiURL string, Seed string, AppId int) (types.AvailBlockRef, error) {
+func SubmitAndWait(ctx context.Context, api *gsrpc.SubstrateAPI, data []byte, Seed string, AppId int) (types.AvailBlockRef, error) {
 
-	fmt.Print(api)
-	meta, err := getMetadataLatest(api, ApiURL)
-	fmt.Print("f21")
+	meta, err := getMetadataLatest(api)
+
 	if err != nil {
 		return types.AvailBlockRef{}, fmt.Errorf("cannot get substrate API and meta %v", err)
 	}
 	appID := ensureValidAppID(AppId)
-	fmt.Print("working 1")
+
 	call, err := createDataAvailabilityCall(meta, data, appID)
 	if err != nil {
+
 		return types.AvailBlockRef{}, fmt.Errorf("creating data availability call: %w", err)
 	}
 
 	signedExt, sender, nonce, err := prepareAndSignExtrinsic(api, call, meta, Seed, appID)
 	if err != nil {
+		fmt.Println(err)
 		return types.AvailBlockRef{}, fmt.Errorf("preparing and signing extrinsic: %w", err)
 	}
-	fmt.Print("working 2")
 
 	return waitForExtrinsicFinalization(ctx, api, signedExt, sender, nonce)
 
@@ -126,6 +126,7 @@ func signExtrinsic(ext *gsrpc_types.Extrinsic, keyringPair signature.KeyringPair
 }
 
 func createDataAvailabilityCall(meta *gsrpc_types.Metadata, data []byte, appID int) (gsrpc_types.Call, error) {
+
 	c, err := gsrpc_types.NewCall(meta, "DataAvailability.submit_data", gsrpc_types.NewBytes(data))
 	if err != nil {
 		return gsrpc_types.Call{}, fmt.Errorf("cannot create new call: %w", err)
@@ -140,8 +141,8 @@ func ensureValidAppID(appID int) int {
 	return 0
 }
 
-func getMetadataLatest(api *gsrpc.SubstrateAPI, ApiURL string) (*gsrpc_types.Metadata, error) {
-	fmt.Println(api)
+func getMetadataLatest(api *gsrpc.SubstrateAPI) (*gsrpc_types.Metadata, error) {
+
 	meta, err := api.RPC.State.GetMetadataLatest()
 
 	if err != nil {
@@ -153,23 +154,23 @@ func getMetadataLatest(api *gsrpc.SubstrateAPI, ApiURL string) (*gsrpc_types.Met
 }
 
 func waitForExtrinsicFinalization(ctx context.Context, api *gsrpc.SubstrateAPI, ext gsrpc_types.Extrinsic, sender string, nonce uint32) (types.AvailBlockRef, error) {
-	fmt.Print("test1")
+
 	sub, err := api.RPC.Author.SubmitAndWatchExtrinsic(ext)
-	fmt.Print("test 2")
 	if err != nil {
 		return types.AvailBlockRef{}, fmt.Errorf("cannot submit extrinsic: %w", err)
 	}
 	defer sub.Unsubscribe()
 
-	select {
-	case status := <-sub.Chan():
-		if status.IsFinalized {
-			return types.AvailBlockRef{BlockHash: string(status.AsFinalized.Hex()), Sender: sender, Nonce: int64(nonce)}, nil
+	defer sub.Unsubscribe()
+	timeout := time.After(100 * time.Second)
+	for {
+		select {
+		case status := <-sub.Chan():
+			if status.IsFinalized {
+				return types.AvailBlockRef{BlockHash: string(status.AsFinalized.Hex()), Sender: sender, Nonce: int64(nonce)}, nil
+			}
+		case <-timeout:
+			return types.AvailBlockRef{}, errors.New("timitout before getting finalized status")
 		}
-	case <-ctx.Done():
-		return types.AvailBlockRef{}, ctx.Err()
-	case <-time.After(100 * time.Second):
-		return types.AvailBlockRef{}, errors.New("timeout before getting finalized status")
 	}
-	return types.AvailBlockRef{}, errors.New("unexpected error waiting for extrinsic finalization")
 }

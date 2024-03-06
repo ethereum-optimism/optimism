@@ -5,41 +5,53 @@ import (
 	"math/rand"
 	"testing"
 
-	mockServer "github.com/centrifuge/go-substrate-rpc-client/rpcmocksrv"
-	gsrpc "github.com/centrifuge/go-substrate-rpc-client/v4"
-	gsrpc_types "github.com/centrifuge/go-substrate-rpc-client/v4/types"
-	mocks "github.com/ethereum-optimism/optimism/op-plasma/avail/mocks"
-	mockgen "github.com/ethereum-optimism/optimism/op-plasma/avail/mocks/mockgen"
-	"github.com/ethereum-optimism/optimism/op-plasma/avail/types"
 	utils "github.com/ethereum-optimism/optimism/op-plasma/avail/utils"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 )
-
-func SubmitDataAndWatchMock(ctx context.Context, api *gsrpc.SubstrateAPI, data []byte) (types.AvailBlockRef, error) {
-	config := utils.GetConfig()
-
-	ApiURL := config.ApiURL
-	Seed := config.Seed
-	AppID := config.AppID
-
-	return utils.SubmitAndWait(ctx, api, data, ApiURL, Seed, AppID)
-}
 
 func TestAvailDAClient(t *testing.T) {
 
-	server := mockServer.New()
+	//server := mockServer.New()
 
 	ctx := context.Background()
 
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+	// ctrl := gomock.NewController(t)
+	// defer ctrl.Finish()
 
-	mockRPC := mockgen.NewMockRPCInterface(ctrl)
-	mockAuthor := mockgen.NewMockAvailAuthor(ctrl)
-	mockState := mockgen.NewMockAvailState(ctrl)
-	mockChain := mockgen.NewMockAvailChain(ctrl)
+	// Author := mocks.NewAuthor(t)
+	// Beefy := mocks.NewBeefy(t)
+	// Chain := mocks.NewChain(t)
+	// MMR := mocks.NewMMR(t)
+	// Offchain := mocks.NewOffchain(t)
+	// State := mocks.NewState(t)
+	// System := mocks.NewSystem(t)
+
+	// rpc := rpc.RPC{
+	// 	Author:   Author,
+	// 	Beefy:    Beefy,
+	// 	Chain:    Chain,
+	// 	MMR:      MMR,
+	// 	Offchain: Offchain,
+	// 	State:    State,
+	// 	System:   System,
+	// }
+
+	// mockData, err := mocks.GenerateMockMetadata()
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// // Author.On("SubmitAndWatchExtrinsic").Return()
+	// State.On("GetMetadataLatest").Return(mockData, nil)
+
+	// // gs.AsMetadataV10.Modules[0].
+
+	// State.On("GetRuntimeVersionLatest").Return(gsrpc_types.NewRuntimeVersion(), nil).Times(3)
+	// State.On("GetStorageLatest", gsrpc_types.StorageKey{}, &gsrpc_types.AccountInfo{}).Return(func(key gsrpc_types.StorageKey, target *gsrpc_types.AccountInfo) bool {
+	// 	target.Nonce = 10
+	// 	return true
+	// }, nil).Times(3)
+	// Chain.On("GetBlockHash", uint64(0)).Return(gsrpc_types.NewHashFromHexString("0xb226886ccc5595edc7a54458183c9c487dc7df8da255455fb97a0dc79588b839"))
 
 	cfg := CLIConfig{
 		Enabled:      true,
@@ -49,25 +61,12 @@ func TestAvailDAClient(t *testing.T) {
 	}
 	require.NoError(t, cfg.Check())
 
-	mockImplementation := mocks.AvailMockRPC{}
-
 	rng := rand.New(rand.NewSource(1234))
 	input := testutils.RandomData(rng, 2000)
 
-	var accountInfo gsrpc_types.AccountInfo
+	_, err := utils.SubmitDataAndWatch(ctx, input)
+	require.NoError(t, err)
 
-	mockRPC.EXPECT().Author().Return(mockAuthor)
-	mockRPC.EXPECT().Chain().Return(mockChain)
-	mockRPC.EXPECT().State().Return(mockState)
-
-	mockState.EXPECT().GetMetadataLatest().Return(mockImplementation.GetMetadataLatest()).Times(1)
-	mockChain.EXPECT().GetBlockHash(0).Return(mockImplementation.GetBlockHash(0)).Times(1)
-	mockState.EXPECT().GetRuntimeVersionLatest().Return(mockImplementation.GetRuntimeVersionLatest()).Times(1)
-	mockState.EXPECT().GetStorageLatest(gsrpc_types.StorageKey{}, &accountInfo).Return(mockImplementation.GetStorageLatest(gsrpc_types.StorageKey{}, &accountInfo)).Times(1)
-	// mockAuthor.EXPECT().SubmitAndWatchExtrinsic()
-	rpc := &gsrpc.SubstrateAPI{RPC: mockRPC}
-
-	SubmitDataAndWatchMock(ctx, rpc, input)
 	// comm, err := client.SetInput(ctx, input)
 	// fmt.Println("comm", comm, err)
 	// require.NoError(t, err)
