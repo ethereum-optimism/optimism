@@ -14,12 +14,16 @@ library Config {
     /// @notice Returns the path on the local filesystem where the deployment artifact is
     ///         written to disk after doing a deployment.
     function deploymentOutfile() internal view returns (string memory _env) {
-        _env = vm.envOr("DEPLOYMENT_OUTFILE", string.concat(vm.projectRoot(), "/deployments/", _getDeploymentContext(), "/.deploy"));
+        _env = vm.envOr(
+            "DEPLOYMENT_OUTFILE", string.concat(vm.projectRoot(), "/deployments/", _getDeploymentContext(), "/.deploy")
+        );
     }
 
     /// @notice Returns the path on the local filesystem where the deploy config is
     function deployConfigPath() internal view returns (string memory _env) {
-        _env = vm.envOr("DEPLOY_CONFIG_PATH", string.concat(vm.projectRoot(), "/deploy-config/", _getDeploymentContext(), ".json"));
+        _env = vm.envOr(
+            "DEPLOY_CONFIG_PATH", string.concat(vm.projectRoot(), "/deploy-config/", _getDeploymentContext(), ".json")
+        );
     }
 
     /// @notice Returns the chainid from the EVM context or the value of the CHAIN_ID env var as
