@@ -158,6 +158,7 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 		ExternalL2Shim:             config.ExternalL2Shim,
 		BatcherTargetL1TxSizeBytes: 100_000,
 		DataAvailabilityType:       batcherFlags.CalldataType,
+		MaxPendingTransactions:     1,
 	}
 }
 
@@ -221,6 +222,10 @@ type SystemConfig struct {
 
 	// SupportL1TimeTravel determines if the L1 node supports quickly skipping forward in time
 	SupportL1TimeTravel bool
+
+	// MaxPendingTransactions determines how many transactions the batcher will try to send
+	// concurrently. 0 means unlimited.
+	MaxPendingTransactions uint64
 }
 
 type GethInstance struct {
@@ -798,7 +803,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 		L1EthRpc:               sys.EthInstances["l1"].WSEndpoint(),
 		L2EthRpc:               sys.EthInstances["sequencer"].WSEndpoint(),
 		RollupRpc:              sys.RollupNodes["sequencer"].HTTPEndpoint(),
-		MaxPendingTransactions: 0,
+		MaxPendingTransactions: cfg.MaxPendingTransactions,
 		MaxChannelDuration:     1,
 		MaxL1TxSize:            batcherMaxL1TxSizeBytes,
 		CompressorConfig: compressor.CLIConfig{
