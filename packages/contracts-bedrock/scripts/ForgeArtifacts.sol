@@ -113,7 +113,7 @@ library ForgeArtifacts {
         out_ = vm.readFile(forgeArtifactPath);
     }
 
-    /// @dev Pulls the `_initialized` storage slot information from the Forge artifacts for a given contract.
+    /// @notice Pulls the `_initialized` storage slot information from the Forge artifacts for a given contract.
     function getInitializedSlot(string memory _contractName) internal returns (StorageSlot memory slot_) {
         string memory storageLayout = getStorageLayout(_contractName);
 

@@ -82,7 +82,7 @@ contract DeployConfig is Script {
         try vm.readFile(_path) returns (string memory data) {
             _json = data;
         } catch {
-            revert("Cannot find deploy config file");
+            require(false, string.concat("Cannot find deploy config file at ", _path));
         }
 
         finalSystemOwner = stdJson.readAddress(_json, "$.finalSystemOwner");

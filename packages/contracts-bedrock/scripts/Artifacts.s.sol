@@ -227,7 +227,7 @@ abstract contract Artifacts {
         _namedDeployments[_name] = deployment;
     }
 
-    /// @dev Returns the value of the internal `_initialized` storage slot for a given contract.
+    /// @notice Returns the value of the internal `_initialized` storage slot for a given contract.
     function loadInitializedSlot(string memory _contractName) public returns (uint8 initialized_) {
         address contractAddress;
         // Check if the contract name ends with `Proxy` and, if so, get the implementation address
