@@ -116,10 +116,18 @@ contract L2ToL2CrossDomainMessenger is ISemver {
 
         assembly {
             tstore(CROSS_DOMAIN_MESSAGE_SENDER_SLOT, _sender)
-        }
 
-        bool success =
-            CrossL2Inbox(crossL2Inbox).callWithAllGas({ _target: _target, _value: _value, _calldata: _message });
+            success :=
+                call(
+                    gas(), // gas
+                    _target, // recipient
+                    _value, // ether value
+                    add(_message, 32), // inloc
+                    mload(_message), // inlen
+                    0, // outloc
+                    0 // outlen
+                )
+        }
 
         if (success) {
             // This check is identical to one above, but it ensures that the same message cannot be relayed

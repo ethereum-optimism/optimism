@@ -78,41 +78,30 @@ contract CrossL2Inbox is ISemver {
     /// @param _target Account that is called with _msg.
     function executeMessage(Identifier calldata _id, address _target, bytes calldata _msg) public payable {
         require(_id.timestamp <= block.timestamp, "CrossL2Inbox: invalid id timestamp"); // timestamp invariant
-        uint256 chainId_ = _id.chainId;
-        require(IL1Block(l1Block).isInDependencySet(chainId_), "CrossL2Inbox: invalid id chainId"); // chainId invariant
+        require(IL1Block(l1Block).isInDependencySet(_id.chainId), "CrossL2Inbox: invalid id chainId"); // invariant
         require(msg.sender == tx.origin, "CrossL2Inbox: Not EOA sender"); // only EOA invariant
+
+        bool success;
 
         assembly {
             tstore(ORIGIN_SLOT, calldataload(4))
             tstore(BLOCKNUMBER_SLOT, calldataload(36))
             tstore(LOG_INDEX_SLOT, calldataload(68))
             tstore(TIMESTAMP_SLOT, calldataload(100))
-            tstore(CHAINID_SLOT, chainId_)
-        }
+            tstore(CHAINID_SLOT, calldataload(132))
 
-        bool success = callWithAllGas({ _target: _target, _value: msg.value, _calldata: _msg });
-
-        require(success, "CrossL2Inbox: call failed");
-    }
-
-    /// @notice Perform a low level call without copying any returndata and passing all available gas
-    /// @param _target   Address to call
-    /// @param _value    Amount of value to pass to the call
-    /// @param _calldata Calldata to pass to the call
-    function callWithAllGas(address _target, uint256 _value, bytes memory _calldata) public returns (bool) {
-        bool _success;
-        assembly {
-            _success :=
+            success :=
                 call(
                     gas(), // gas
                     _target, // recipient
-                    _value, // ether value
-                    add(_calldata, 32), // inloc
-                    mload(_calldata), // inlen
+                    msg.value, // ether value
+                    add(_msg, 32), // inloc
+                    mload(_msg), // inlen
                     0, // outloc
                     0 // outlen
                 )
         }
-        return _success;
+
+        require(success, "CrossL2Inbox: call failed");
     }
 }
