@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import { SafeCall } from "src/libraries/SafeCall.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { L1Block } from "src/L2/L1Block.sol";
 import { ISemver } from "src/universal/ISemver.sol";
+
+interface IL1Block {
+    function isInDependencySet(uint256 _chainId) external view returns (bool);
+}
 
 /// @custom:proxied
 /// @custom:predeploy 0x4200000000000000000000000000000000000022
@@ -77,7 +79,7 @@ contract CrossL2Inbox is ISemver {
     function executeMessage(Identifier calldata _id, address _target, bytes calldata _msg) public payable {
         require(_id.timestamp <= block.timestamp, "CrossL2Inbox: invalid id timestamp"); // timestamp invariant
         uint256 chainId_ = _id.chainId;
-        require(L1Block(l1Block).isInDependencySet(chainId_), "CrossL2Inbox: invalid id chainId"); // chainId invariant
+        require(IL1Block(l1Block).isInDependencySet(chainId_), "CrossL2Inbox: invalid id chainId"); // chainId invariant
         require(msg.sender == tx.origin, "CrossL2Inbox: Not EOA sender"); // only EOA invariant
 
         assembly {
@@ -88,8 +90,29 @@ contract CrossL2Inbox is ISemver {
             tstore(CHAINID_SLOT, chainId_)
         }
 
-        bool success = SafeCall.callWithAllGas({ _target: _target, _value: msg.value, _calldata: _msg });
+        bool success = _callWithAllGas({ _target: _target, _value: msg.value, _calldata: _msg });
 
         require(success, "CrossL2Inbox: call failed");
+    }
+
+    /// @notice Perform a low level call without copying any returndata and passing all available gas
+    /// @param _target   Address to call
+    /// @param _value    Amount of value to pass to the call
+    /// @param _calldata Calldata to pass to the call
+    function _callWithAllGas(address _target, uint256 _value, bytes memory _calldata) internal returns (bool) {
+        bool _success;
+        assembly {
+            _success :=
+                call(
+                    gas(), // gas
+                    _target, // recipient
+                    _value, // ether value
+                    add(_calldata, 32), // inloc
+                    mload(_calldata), // inlen
+                    0, // outloc
+                    0 // outlen
+                )
+        }
+        return _success;
     }
 }
