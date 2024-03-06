@@ -9,6 +9,7 @@ import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { DataAvailabilityChallenge } from "src/L1/DataAvailabilityChallenge.sol";
+import { ForgeArtifacts } from "scripts/ForgeArtifacts.sol";
 
 /// @title Specification_Test
 /// @dev Specifies common security properties of entrypoints to L1 contracts, including authorization and
@@ -523,7 +524,7 @@ contract Specification_Test is CommonTest {
 
         for (uint256 i; i < contractNames.length; i++) {
             string memory contractName = contractNames[i];
-            string[] memory methodIdentifiers = deploy.getMethodIdentifiers(contractName);
+            string[] memory methodIdentifiers = ForgeArtifacts.getMethodIdentifiers(contractName);
             abis_[i].contractName = contractName;
             abis_[i].entries = new AbiEntry[](methodIdentifiers.length);
             for (uint256 j; j < methodIdentifiers.length; j++) {
