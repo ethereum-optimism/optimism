@@ -219,8 +219,6 @@ type DeployConfig struct {
 	PreimageOracleMinProposalSize uint64 `json:"preimageOracleMinProposalSize"`
 	// PreimageOracleChallengePeriod is the number of seconds that challengers have to challenge a large preimage proposal.
 	PreimageOracleChallengePeriod uint64 `json:"preimageOracleChallengePeriod"`
-	// PreimageOracleCancunActivationTimestamp is the timestamp at which blob preimages are able to be loaded into the preimage oracle.
-	PreimageOracleCancunActivationTimestamp uint64 `json:"preimageOracleCancunActivationTimestamp"`
 	// FundDevAccounts configures whether or not to fund the dev accounts. Should only be used
 	// during devnet deployments.
 	FundDevAccounts bool `json:"fundDevAccounts"`

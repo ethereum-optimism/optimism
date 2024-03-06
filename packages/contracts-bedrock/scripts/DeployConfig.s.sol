@@ -9,7 +9,7 @@ import { Chains } from "scripts/Chains.sol";
 
 // Global constant for the `useFaultProofs` slot in the DeployConfig contract, which can be overridden in the testing
 // environment.
-bytes32 constant USE_FAULT_PROOFS_SLOT = bytes32(uint256(64));
+bytes32 constant USE_FAULT_PROOFS_SLOT = bytes32(uint256(63));
 
 /// @title DeployConfig
 /// @notice Represents the configuration required to deploy the system. It is expected
