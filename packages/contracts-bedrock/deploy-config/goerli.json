@@ -52,7 +52,6 @@
   "faultGameWithdrawalDelay": 604800,
   "preimageOracleMinProposalSize": 1800000,
   "preimageOracleChallengePeriod": 86400,
-  "preimageOracleCancunActivationTimestamp": 1705473120,
   "proofMaturityDelaySeconds": 604800,
   "disputeGameFinalityDelaySeconds": 302400,
   "respectedGameType": 0,

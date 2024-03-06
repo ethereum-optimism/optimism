@@ -17,9 +17,6 @@ contract PreimageOracle is IPreimageOracle, ISemver {
     //                   Constants & Immutables                   //
     ////////////////////////////////////////////////////////////////
 
-    /// @notice The timestamp of Cancun activation on the current chain.
-    /// @custom:network-specific
-    uint256 internal immutable CANCUN_ACTIVATION;
     /// @notice The duration of the large preimage proposal challenge period.
     uint256 internal immutable CHALLENGE_PERIOD;
     /// @notice The minimum size of a preimage that can be proposed in the large preimage path.
@@ -89,10 +86,9 @@ contract PreimageOracle is IPreimageOracle, ISemver {
     //                        Constructor                         //
     ////////////////////////////////////////////////////////////////
 
-    constructor(uint256 _minProposalSize, uint256 _challengePeriod, uint256 _cancunActivation) {
+    constructor(uint256 _minProposalSize, uint256 _challengePeriod) {
         MIN_LPP_SIZE_BYTES = _minProposalSize;
         CHALLENGE_PERIOD = _challengePeriod;
-        CANCUN_ACTIVATION = _cancunActivation;
 
         // Compute hashes in empty sparse Merkle tree. The first hash is not set, and kept as zero as the identity.
         for (uint256 height = 0; height < KECCAK_TREE_DEPTH - 1; height++) {
@@ -254,9 +250,6 @@ contract PreimageOracle is IPreimageOracle, ISemver {
     )
         external
     {
-        // Prior to Cancun activation, the blob preimage precompile is not available.
-        if (block.timestamp < CANCUN_ACTIVATION) revert CancunNotActive();
-
         bytes32 key;
         bytes32 part;
         assembly {
@@ -340,9 +333,6 @@ contract PreimageOracle is IPreimageOracle, ISemver {
 
     /// @inheritdoc IPreimageOracle
     function loadPrecompilePreimagePart(uint256 _partOffset, address _precompile, bytes calldata _input) external {
-        // Prior to Cancun activation, the blob preimage precompile is not available.
-        if (block.timestamp < CANCUN_ACTIVATION) revert CancunNotActive();
-
         bytes32 res;
         bytes32 key;
         bytes32 part;
