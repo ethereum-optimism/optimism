@@ -86,8 +86,8 @@ github.com/envoyproxy/go-control-plane v0.9.10-0.20210907150352-cf90f659a021/go.
 github.com/envoyproxy/protoc-gen-validate v0.1.0/go.mod h1:iSmxcyjqTsJpI2R4NaDN7+kN2VEUnK/pcBlmesArF7c=
 github.com/ethereum-optimism/op-geth v1.101308.2-rc.2 h1:Tjm2n7/actyINbRIbqeDS+SyWAcIl+pRfOHODwW7lpQ=
 github.com/ethereum-optimism/op-geth v1.101308.2-rc.2/go.mod h1:RPqVhnX00rJNys/YRDK4Wl4PvS6dgFrLqhsopIZOhEw=
-github.com/ethereum-optimism/superchain-registry/superchain v0.0.0-20240222155908-ab073f6aa74f h1:L2ub0d0iW2Nqwh1r9WxMqebgZf7rU+wHuVCv21uAGx8=
-github.com/ethereum-optimism/superchain-registry/superchain v0.0.0-20240222155908-ab073f6aa74f/go.mod h1:7xh2awFQqsiZxFrHKTgEd+InVfDRrkKVUIuK8SAFHp0=
+github.com/ethereum-optimism/superchain-registry/superchain v0.0.0-20240306093353-c557df8e6f41 h1:WKJvsRyW/YNgyT0P2x5U530ITOY8Dv9TrZnbliqSXd8=
+github.com/ethereum-optimism/superchain-registry/superchain v0.0.0-20240306093353-c557df8e6f41/go.mod h1:7xh2awFQqsiZxFrHKTgEd+InVfDRrkKVUIuK8SAFHp0=
 github.com/ethereum/c-kzg-4844 v0.4.0 h1:3MS1s4JtA868KpJxroZoepdV0ZKBp3u/O5HcZ7R3nlY=
 github.com/ethereum/c-kzg-4844 v0.4.0/go.mod h1:VewdlzQmpT5QSrVhbBuGoCdFJkpaJlO1aQputP83wc0=
 github.com/fjl/memsize v0.0.1 h1:+zhkb+dhUgx0/e+M8sF0QqiouvMQUiKR+QYvdxIOKcQ=
