@@ -649,13 +649,18 @@ var (
 				Required: true,
 				EnvVars:  prefixEnvVars("REWIND_TO"),
 			},
+			&cli.BoolFlag{
+				Name:    "set-head",
+				Usage:   "Whether to also call debug_setHead when rewinding",
+				EnvVars: prefixEnvVars("REWIND_SET_HEAD"),
+			},
 		),
 		Action: EngineAction(func(ctx *cli.Context, client *sources.EngineAPIClient, lgr log.Logger) error {
 			open, err := initOpenEngineRPC(ctx, lgr)
 			if err != nil {
 				return fmt.Errorf("failed to dial open RPC endpoint: %w", err)
 			}
-			return engine.Rewind(ctx.Context, lgr, client, open, ctx.Uint64("to"))
+			return engine.Rewind(ctx.Context, lgr, client, open, ctx.Uint64("to"), ctx.Bool("set-head"))
 		}),
 	}
 

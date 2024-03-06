@@ -56,20 +56,34 @@ func getHeader(ctx context.Context, client client.RPC, method string, tag string
 	return header, nil
 }
 
-func headSafeFinalized(ctx context.Context, client client.RPC) (head *types.Block, safe, finalized *types.Header, err error) {
+func headSafeFinalized(ctx context.Context, client client.RPC) (head, safe, finalized *types.Header, err error) {
+	head, err = getHeader(ctx, client, methodEthGetBlockByNumber, "latest")
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to get latest: %w", err)
+	}
+	safe, fin, err := safeFinalized(ctx, client)
+	return head, safe, fin, err
+}
+
+func headBlockSafeFinalized(ctx context.Context, client client.RPC) (head *types.Block, safe, finalized *types.Header, err error) {
 	head, err = getBlock(ctx, client, methodEthGetBlockByNumber, "latest")
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to get block: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed to get latest: %w", err)
 	}
+	safe, fin, err := safeFinalized(ctx, client)
+	return head, safe, fin, err
+}
+
+func safeFinalized(ctx context.Context, client client.RPC) (safe, finalized *types.Header, err error) {
 	safe, err = getHeader(ctx, client, methodEthGetBlockByNumber, "safe")
 	if err != nil {
-		return head, nil, nil, fmt.Errorf("failed to get safe block: %w", err)
+		return nil, nil, fmt.Errorf("failed to get safe: %w", err)
 	}
 	finalized, err = getHeader(ctx, client, methodEthGetBlockByNumber, "finalized")
 	if err != nil {
-		return head, safe, nil, fmt.Errorf("failed to get finalized block: %w", err)
+		return safe, nil, fmt.Errorf("failed to get finalized: %w", err)
 	}
-	return head, safe, finalized, nil
+	return safe, finalized, nil
 }
 
 func insertBlock(ctx context.Context, client *sources.EngineAPIClient, payloadEnv *eth.ExecutionPayloadEnvelope) error {
@@ -277,7 +291,7 @@ type StatusData struct {
 }
 
 func Status(ctx context.Context, client client.RPC) (*StatusData, error) {
-	head, safe, finalized, err := headSafeFinalized(ctx, client)
+	head, safe, finalized, err := headBlockSafeFinalized(ctx, client)
 	if err != nil {
 		return nil, err
 	}
@@ -295,7 +309,7 @@ func Status(ctx context.Context, client client.RPC) (*StatusData, error) {
 // Copy takes the forkchoice state of copyFrom, and applies it to copyTo, and inserts the head-block.
 // The destination engine should then start syncing to this new chain if it has peers to do so.
 func Copy(ctx context.Context, copyFrom client.RPC, copyTo *sources.EngineAPIClient) error {
-	copyHead, copySafe, copyFinalized, err := headSafeFinalized(ctx, copyFrom)
+	copyHead, copySafe, copyFinalized, err := headBlockSafeFinalized(ctx, copyFrom)
 	if err != nil {
 		return err
 	}
@@ -377,17 +391,41 @@ func SetForkchoiceByHash(ctx context.Context, client *sources.EngineAPIClient, f
 	return nil
 }
 
-func Rewind(ctx context.Context, lgr log.Logger, client *sources.EngineAPIClient, open client.RPC, to uint64) error {
-	header, err := getHeader(ctx, open, methodEthGetBlockByNumber, hexutil.Uint64(to).String())
+func Rewind(ctx context.Context, lgr log.Logger, client *sources.EngineAPIClient, open client.RPC, to uint64, setHead bool) error {
+	unsafe, err := getHeader(ctx, open, methodEthGetBlockByNumber, hexutil.Uint64(to).String())
 	if err != nil {
 		return fmt.Errorf("failed to get header %d: %w", to, err)
 	}
-	lgr.Info("Rewinding chain", "number", to, "hash", header.Hash())
-	if err := debugSetHead(ctx, open, to); err != nil {
-		return fmt.Errorf("failed to setHead %d: %w", to, err)
+	toUnsafe := eth.HeaderBlockID(unsafe)
+
+	latest, safe, finalized, err := headSafeFinalized(ctx, open)
+	if err != nil {
+		return fmt.Errorf("failed to get current heads: %w", err)
 	}
-	hash := header.Hash()
-	return SetForkchoiceByHash(ctx, client, hash, hash, hash)
+
+	// when rewinding, don't increase unsafe/finalized tags
+	toSafe, toFinalized := toUnsafe, toUnsafe
+	if safe.Number.Uint64() < to {
+		toSafe = eth.HeaderBlockID(safe)
+	}
+	if finalized.Number.Uint64() < to {
+		toFinalized = eth.HeaderBlockID(finalized)
+	}
+
+	lgr.Info("Rewinding chain",
+		"setHead", setHead,
+		"latest", eth.HeaderBlockID(latest),
+		"unsafe", toUnsafe,
+		"safe", toSafe,
+		"finalized", toFinalized,
+	)
+	if setHead {
+		lgr.Debug("Calling "+methodDebugSetHead, "head", to)
+		if err := debugSetHead(ctx, open, to); err != nil {
+			return fmt.Errorf("failed to setHead %d: %w", to, err)
+		}
+	}
+	return SetForkchoiceByHash(ctx, client, toFinalized.Hash, toSafe.Hash, toUnsafe.Hash)
 }
 
 func RawJSONInteraction(ctx context.Context, client client.RPC, method string, args []string, input io.Reader, output io.Writer) error {
