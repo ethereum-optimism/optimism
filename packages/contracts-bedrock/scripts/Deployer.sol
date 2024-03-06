@@ -2,14 +2,10 @@
 pragma solidity ^0.8.0;
 
 import { Script } from "forge-std/Script.sol";
-import { stdJson } from "forge-std/StdJson.sol";
-import { console2 as console } from "forge-std/console2.sol";
-import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
-import { IAddressManager } from "scripts/interfaces/IAddressManager.sol";
-import { LibString } from "solady/utils/LibString.sol";
-import { Artifacts, Deployment } from "scripts/Artifacts.s.sol";
+import { Artifacts } from "scripts/Artifacts.s.sol";
 import { Config } from "scripts/Config.sol";
-import "scripts/DeployConfig.s.sol";
+import { DeployConfig } from "scripts/DeployConfig.s.sol";
+import { USE_FAULT_PROOFS_SLOT } from "scripts/DeployConfig.s.sol";
 
 /// @title Deployer
 /// @author tynes
