@@ -86,7 +86,7 @@ func (f *DisputeGameFactoryContract) GetGamesAtOrAfter(ctx context.Context, bloc
 		if rangeEnd > batchSize {
 			rangeStart = rangeEnd - batchSize
 		}
-		calls := make([]*batching.ContractCall, 0, rangeEnd-rangeStart)
+		calls := make([]batching.Call, 0, rangeEnd-rangeStart)
 		for i := rangeEnd - 1; ; i-- {
 			calls = append(calls, f.contract.Call(methodGameAtIndex, new(big.Int).SetUint64(i)))
 			// Break once we've added the last call to avoid underflow when rangeStart == 0
@@ -117,7 +117,7 @@ func (f *DisputeGameFactoryContract) GetAllGames(ctx context.Context, blockHash 
 		return nil, err
 	}
 
-	calls := make([]*batching.ContractCall, count)
+	calls := make([]batching.Call, count)
 	for i := uint64(0); i < count; i++ {
 		calls[i] = f.contract.Call(methodGameAtIndex, new(big.Int).SetUint64(i))
 	}

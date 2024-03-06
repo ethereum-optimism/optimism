@@ -138,7 +138,7 @@ func (c *FaultDisputeGameContract) GetCredit(ctx context.Context, recipient comm
 }
 
 func (c *FaultDisputeGameContract) GetCredits(ctx context.Context, block batching.Block, recipients ...common.Address) ([]*big.Int, error) {
-	calls := make([]*batching.ContractCall, 0, len(recipients))
+	calls := make([]batching.Call, 0, len(recipients))
 	for _, recipient := range recipients {
 		calls = append(calls, c.contract.Call(methodCredit, recipient))
 	}
