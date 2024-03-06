@@ -47,7 +47,8 @@ abstract contract Artifacts {
     /// @notice Setup function. The arguments here
     function setUp() public virtual {
         deploymentOutfile = Config.deploymentOutfile();
-        console.log("Using deploy artifact %s", deploymentOutfile);
+        console.log("Writing artifact to %s", deploymentOutfile);
+        ForgeArtifacts.ensurePath(deploymentOutfile);
 
         uint256 chainId = Config.chainID();
         console.log("Connected to network with chainid %s", chainId);

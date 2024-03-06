@@ -24,7 +24,7 @@ library ForgeArtifacts {
 
     /// @notice Removes the semantic versioning from a contract name. The semver will exist if the contract is compiled
     /// more than once with different versions of the compiler.
-    function _stripSemver(string memory _name) internal returns (string memory) {
+    function _stripSemver(string memory _name) internal returns (string memory out_) {
         string[] memory cmd = new string[](3);
         cmd[0] = Executables.bash;
         cmd[1] = "-c";
@@ -32,14 +32,14 @@ library ForgeArtifacts {
             Executables.echo, " ", _name, " | ", Executables.sed, " -E 's/[.][0-9]+\\.[0-9]+\\.[0-9]+//g'"
         );
         bytes memory res = vm.ffi(cmd);
-        return string(res);
+        out_ = string(res);
     }
 
     /// @notice Builds the fully qualified name of a contract. Assumes that the
     ///         file name is the same as the contract name but strips semver for the file name.
-    function _getFullyQualifiedName(string memory _name) internal returns (string memory) {
+    function _getFullyQualifiedName(string memory _name) internal returns (string memory out_) {
         string memory sanitized = _stripSemver(_name);
-        return string.concat(sanitized, ".sol:", _name);
+        out_ = string.concat(sanitized, ".sol:", _name);
     }
 
     /// @notice Returns the storage layout for a deployed contract.
@@ -84,10 +84,12 @@ library ForgeArtifacts {
 
     /// @notice Returns the filesystem path to the artifact path. If the contract was compiled
     ///         with multiple solidity versions then return the first one based on the result of `ls`.
-    function _getForgeArtifactPath(string memory _name) internal returns (string memory) {
+    function _getForgeArtifactPath(string memory _name) internal returns (string memory out_) {
         string memory directory = _getForgeArtifactDirectory(_name);
         string memory path = string.concat(directory, "/", _name, ".json");
-        if (vm.exists(path)) return path;
+        if (vm.exists(path)) {
+            return path;
+        }
 
         string[] memory cmd = new string[](3);
         cmd[0] = Executables.bash;
@@ -102,13 +104,13 @@ library ForgeArtifacts {
         );
         bytes memory res = vm.ffi(cmd);
         string[] memory files = stdJson.readStringArray(string(res), "");
-        return string.concat(directory, "/", files[0]);
+        out_ = string.concat(directory, "/", files[0]);
     }
 
     /// @notice Returns the forge artifact given a contract name.
-    function _getForgeArtifact(string memory _name) internal returns (string memory) {
+    function _getForgeArtifact(string memory _name) internal returns (string memory out_) {
         string memory forgeArtifactPath = _getForgeArtifactPath(_name);
-        return vm.readFile(forgeArtifactPath);
+        out_ = vm.readFile(forgeArtifactPath);
     }
 
     /// @dev Pulls the `_initialized` storage slot information from the Forge artifacts for a given contract.
@@ -129,5 +131,18 @@ library ForgeArtifacts {
         );
         bytes memory rawSlot = vm.parseJson(string(vm.ffi(command)));
         slot_ = abi.decode(rawSlot, (StorageSlot));
+    }
+
+    /// @notice Accepts a filepath and then ensures that the directory
+    ///         exists for the file to live in.
+    function ensurePath(string memory _path) internal {
+        (, bytes memory returndata) = address(vm).call(abi.encodeWithSignature("split(string,string)", _path, string("/")));
+        string[] memory outputs = abi.decode(returndata, (string[]));
+
+        string memory path = "";
+        for (uint256 i = 0; i < outputs.length - 1; i++) {
+            path = string.concat(path, outputs[i], "/");
+        }
+        vm.createDir(path, true);
     }
 }

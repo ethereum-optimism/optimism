@@ -26,8 +26,8 @@ contract DeployPeriphery is Script, Artifacts {
 
     /// @notice The name of the script, used to ensure the right deploy artifacts
     ///         are used.
-    function name() public pure returns (string memory) {
-        return "DeployPeriphery";
+    function name() public pure returns (string memory name_) {
+        name_ = "DeployPeriphery";
     }
 
     function setUp() public override {
