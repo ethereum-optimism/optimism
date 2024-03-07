@@ -141,23 +141,17 @@ func (a *Agent) tryResolveClaims(ctx context.Context) error {
 		return errNoResolvableClaims
 	}
 
-	// If claim resolving is selective, only resolve claims that are incentivized
-	if a.selective {
-		allClaims := claims
-		claims = claims[:0]
-		for _, c := range allClaims {
-			isUncounteredClaim := slices.Contains(a.claimants, c.Claimant) && c.CounteredBy == common.Address{}
-			ourCounter := slices.Contains(a.claimants, c.CounteredBy)
-			if isUncounteredClaim || ourCounter {
-				claims = append(claims, c)
-			} else {
-				a.log.Debug("Skipping claim to check resolution", "claimIdx", c.ContractIndex)
-			}
-		}
-	}
-
 	var resolvableClaims []int64
 	for _, claim := range claims {
+		if a.selective {
+			a.log.Trace("Selective claim resolution, checking if claim is incentivized", "claimIdx", claim.ContractIndex)
+			isUncounteredClaim := slices.Contains(a.claimants, claim.Claimant) && claim.CounteredBy == common.Address{}
+			ourCounter := slices.Contains(a.claimants, claim.CounteredBy)
+			if !isUncounteredClaim && !ourCounter {
+				a.log.Debug("Skipping claim to check resolution", "claimIdx", claim.ContractIndex)
+				continue
+			}
+		}
 		a.log.Trace("Checking if claim is resolvable", "claimIdx", claim.ContractIndex)
 		if err := a.responder.CallResolveClaim(ctx, uint64(claim.ContractIndex)); err == nil {
 			a.log.Info("Resolving claim", "claimIdx", claim.ContractIndex)

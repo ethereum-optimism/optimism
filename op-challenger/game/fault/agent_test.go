@@ -53,6 +53,80 @@ func TestDoNotMakeMovesWhenGameIsResolvable(t *testing.T) {
 	}
 }
 
+func createClaimsWithClaimants(t *testing.T, d types.Depth) []types.Claim {
+	claimBuilder := test.NewClaimBuilder(t, d, alphabet.NewTraceProvider(big.NewInt(0), d))
+	rootClaim := claimBuilder.CreateRootClaim()
+	claim1 := rootClaim
+	claim1.Claimant = common.BigToAddress(big.NewInt(1))
+	claim2 := claimBuilder.AttackClaim(claim1)
+	claim2.Claimant = common.BigToAddress(big.NewInt(2))
+	claim3 := claimBuilder.AttackClaim(claim2)
+	claim3.Claimant = common.BigToAddress(big.NewInt(3))
+	return []types.Claim{claim1, claim2, claim3}
+}
+
+func TestAgent_SelectiveClaimResolution(t *testing.T) {
+	ctx := context.Background()
+
+	tests := []struct {
+		name                 string
+		callResolveStatus    gameTypes.GameStatus
+		selective            bool
+		claimants            []common.Address
+		claims               []types.Claim
+		expectedResolveCount int
+	}{
+		{
+			name:                 "NonSelectiveEmptyClaimants",
+			callResolveStatus:    gameTypes.GameStatusDefenderWon,
+			selective:            false,
+			claimants:            []common.Address{},
+			claims:               createClaimsWithClaimants(t, types.Depth(4)),
+			expectedResolveCount: 3,
+		},
+		{
+			name:                 "NonSelectiveWithClaimants",
+			callResolveStatus:    gameTypes.GameStatusDefenderWon,
+			selective:            false,
+			claimants:            []common.Address{common.BigToAddress(big.NewInt(1))},
+			claims:               createClaimsWithClaimants(t, types.Depth(4)),
+			expectedResolveCount: 3,
+		},
+		{
+			name:              "SelectiveEmptyClaimants",
+			callResolveStatus: gameTypes.GameStatusDefenderWon,
+			selective:         true,
+			claimants:         []common.Address{},
+			claims:            createClaimsWithClaimants(t, types.Depth(4)),
+		},
+		{
+			name:                 "SelectiveWithClaimants",
+			callResolveStatus:    gameTypes.GameStatusDefenderWon,
+			selective:            true,
+			claimants:            []common.Address{common.BigToAddress(big.NewInt(1))},
+			claims:               createClaimsWithClaimants(t, types.Depth(4)),
+			expectedResolveCount: 1,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			agent, claimLoader, responder := setupTestAgent(t)
+			agent.selective = test.selective
+			agent.claimants = test.claimants
+			claimLoader.maxLoads = 1
+			claimLoader.claims = test.claims
+			responder.callResolveStatus = test.callResolveStatus
+
+			require.NoError(t, agent.Act(ctx))
+
+			require.Equal(t, test.expectedResolveCount, responder.callResolveClaimCount, "should check if game is resolvable")
+			require.Equal(t, test.expectedResolveCount, responder.resolveClaimCount, "should check if game is resolvable")
+		})
+	}
+}
+
 func TestLoadClaimsWhenGameNotResolvable(t *testing.T) {
 	// Checks that if the game isn't resolvable, that the agent continues on to start checking claims
 	agent, claimLoader, responder := setupTestAgent(t)
@@ -84,11 +158,15 @@ func setupTestAgent(t *testing.T) (*Agent, *stubClaimLoader, *stubResponder) {
 
 type stubClaimLoader struct {
 	callCount int
+	maxLoads  int
 	claims    []types.Claim
 }
 
 func (s *stubClaimLoader) GetAllClaims(ctx context.Context) ([]types.Claim, error) {
 	s.callCount++
+	if s.callCount > s.maxLoads && s.maxLoads != 0 {
+		return []types.Claim{}, nil
+	}
 	return s.claims, nil
 }
 
