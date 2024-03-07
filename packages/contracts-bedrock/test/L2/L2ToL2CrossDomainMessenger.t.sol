@@ -74,30 +74,22 @@ contract L2ToL2CrossDomainMessengerTest is Bridge_Initializer {
         vm.prank(address(crossL2Inbox));
         l2ToL2CrossDomainMessenger.relayMessage(
             block.chainid,
+            block.chainid,
             Encoding.encodeVersionedNonce(0, 1), // nonce
             sender,
             target,
-            0, // value
             hex"1111"
         );
 
         assert(
             l2ToL2CrossDomainMessenger.successfulMessages(
-                keccak256(abi.encode(block.chainid, Encoding.encodeVersionedNonce(0, 1), sender, target, 0, hex"1111"))
+                keccak256(
+                    abi.encode(
+                        block.chainid, block.chainid, Encoding.encodeVersionedNonce(0, 1), sender, target, hex"1111"
+                    )
+                )
             )
         );
-    }
-
-    /// @dev Tests that `relayMessage` reverts if attempting to relay
-    ///      a message sent to an L1 system contract.
-    function test_relayMessage_toSystemContract_reverts() external {
-        address sender = address(l1CrossDomainMessenger);
-        address caller = AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger));
-        bytes memory message = hex"1111";
-
-        vm.prank(caller);
-        vm.expectRevert("CrossDomainMessenger: message cannot be replayed");
-        l1CrossDomainMessenger.relayMessage(Encoding.encodeVersionedNonce(0, 1), sender, target, 0, 0, message);
     }
 
     /// @dev Tests that `relayMessage` is able to send a successful call
@@ -107,8 +99,9 @@ contract L2ToL2CrossDomainMessengerTest is Bridge_Initializer {
         address sender = address(crossL2Inbox);
         uint256 value = 100;
 
-        bytes32 hash =
-            keccak256(abi.encode(block.chainid, Encoding.encodeVersionedNonce(0, 1), sender, target, value, hex"1111"));
+        bytes32 hash = keccak256(
+            abi.encode(block.chainid, block.chainid, Encoding.encodeVersionedNonce(0, 1), sender, target, hex"1111")
+        );
 
         ICrossL2Inbox.Identifier memory id = ICrossL2Inbox.Identifier({
             origin: address(l2ToL2CrossDomainMessenger),
@@ -126,10 +119,10 @@ contract L2ToL2CrossDomainMessengerTest is Bridge_Initializer {
         vm.prank(address(crossL2Inbox));
         l2ToL2CrossDomainMessenger.relayMessage{ value: value }(
             block.chainid,
+            block.chainid,
             Encoding.encodeVersionedNonce(0, 1), // nonce
             sender,
             target,
-            value,
             hex"1111"
         );
 
@@ -146,10 +139,10 @@ contract L2ToL2CrossDomainMessengerTest is Bridge_Initializer {
         vm.prank(address(sender));
         l2ToL2CrossDomainMessenger.relayMessage(
             block.chainid,
+            block.chainid,
             Encoding.encodeVersionedNonce(0, 1), // nonce
             sender,
             target,
-            value,
             hex"1111"
         );
 

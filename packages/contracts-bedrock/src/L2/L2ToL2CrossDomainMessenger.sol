@@ -114,7 +114,7 @@ contract L2ToL2CrossDomainMessenger is ISemver {
         require(_destination == block.chainid, "L2ToL2CrossDomainMessenger: destination not this chain");
         require(_target != address(this), "L2ToL2CrossDomainMessenger: target not this contract");
 
-        bytes32 messageHash = keccak256(abi.encode(_destination, _nonce, _sender, _target, _value, _message));
+        bytes32 messageHash = keccak256(abi.encode(_destination, _source, _nonce, _sender, _target, _message));
         require(successfulMessages[messageHash] == false, "L2ToL2CrossDomainMessenger: message already relayed");
 
         bool success;
