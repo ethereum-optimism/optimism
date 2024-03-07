@@ -3,7 +3,9 @@ package plasma
 import (
 	"context"
 	"errors"
+	"io"
 
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/ethdb/memorydb"
 	"github.com/ethereum/go-ethereum/log"
@@ -74,4 +76,29 @@ func (f *DAErrFaker) ActGetPreImageFail() {
 
 func (f *DAErrFaker) ActSetPreImageFail() {
 	f.setInputErr = errors.New("set input failed")
+}
+
+var Disabled = &PlasmaDisabled{}
+
+var ErrNotEnabled = errors.New("plasma not enabled")
+
+// PlasmaDisabled is a noop plasma DA implementation for stubbing.
+type PlasmaDisabled struct{}
+
+func (d *PlasmaDisabled) GetInput(ctx context.Context, commitment []byte, blockId eth.BlockID) (eth.Data, error) {
+	return nil, ErrNotEnabled
+}
+
+func (d *PlasmaDisabled) Reset(ctx context.Context, base eth.L1BlockRef, baseCfg eth.SystemConfig) error {
+	return io.EOF
+}
+
+func (d *PlasmaDisabled) FinalizeL1(ref eth.L1BlockRef) {
+}
+
+func (d *PlasmaDisabled) OnFinalizedHeadSignal(f eth.HeadSignalFn) {
+}
+
+func (d *PlasmaDisabled) AdvanceL1Origin(ctx context.Context, blockId eth.BlockID) error {
+	return ErrNotEnabled
 }
