@@ -26,9 +26,6 @@ contract L2ToL2CrossDomainMessenger is ISemver {
     /// @notice Current message version identifier.
     uint16 public constant MESSAGE_VERSION = uint16(0);
 
-    /// @notice Address of the L2 Cross Domain Messenger on this chain.
-    address public crossL2Inbox;
-
     /// @notice Mapping of message hashes to boolean receipt values. Note that a message will only
     ///         be present in this mapping if it has successfully been relayed on this chain, and
     ///         can therefore not be relayed again.
@@ -93,9 +90,9 @@ contract L2ToL2CrossDomainMessenger is ISemver {
         external
         payable
     {
-        require(msg.sender == crossL2Inbox, "L2ToL2CrossDomainMessenger: sender not CrossL2Inbox");
+        require(msg.sender == Predeploys.CROSS_L2_INBOX, "L2ToL2CrossDomainMessenger: sender not CrossL2Inbox");
         require(
-            CrossL2Inbox(crossL2Inbox).origin() == address(this),
+            CrossL2Inbox(Predeploys.CROSS_L2_INBOX).origin() == address(this),
             "L2ToL2CrossDomainMessenger: CrossL2Inbox origin not this contract"
         );
         require(_destination == block.chainid, "L2ToL2CrossDomainMessenger: destination not this chain");
