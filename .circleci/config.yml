@@ -366,10 +366,21 @@ jobs:
             - run:
                 name: Sign
                 command: |
-                  cd ./ops/signer
-                  export IMAGE_PATH="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>:<<pipeline.git.revision>>"
+                  git clone https://github.com/ethereum-optimism/binary_signer
+                  cd binary_signer/signer
+                  git checkout tags/v1.0.3
+
+                  IMAGE_PATH="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>:<<pipeline.git.revision>>"
+                  echo $IMAGE_PATH
                   pip3 install -r requirements.txt
-                  python3 sign_image.py
+
+                  python3 ./sign_image.py --command="sign"\
+                      --attestor-project-name="$ATTESTOR_PROJECT_NAME"\
+                      --attestor-name="$ATTESTOR_NAME"\
+                      --image-path="$IMAGE_PATH"\
+                      --signer-logging-level="INFO"\
+                      --attestor-key-id="//cloudkms.googleapis.com/v1/projects/$ATTESTOR_PROJECT_NAME/locations/global/keyRings/$ATTESTOR_NAME-key-ring/cryptoKeys/$ATTESTOR_NAME-key/cryptoKeyVersions/1"
+
 
 
 
