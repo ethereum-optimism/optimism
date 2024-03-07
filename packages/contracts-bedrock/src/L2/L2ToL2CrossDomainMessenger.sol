@@ -123,9 +123,6 @@ contract L2ToL2CrossDomainMessenger is ISemver {
         }
 
         if (success) {
-            // This check is identical to one above, but it ensures that the same message cannot be relayed
-            // twice, and adds a layer of protection against rentrancy.
-            assert(successfulMessages[messageHash] == false);
             successfulMessages[messageHash] = true;
             emit RelayedMessage(messageHash);
         } else {
