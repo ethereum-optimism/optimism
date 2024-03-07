@@ -33,7 +33,7 @@ contract DeployPeriphery is Script, Artifacts {
     function setUp() public override {
         Artifacts.setUp();
 
-        string memory path = string.concat(vm.projectRoot(), "/periphery-deploy-config/", deploymentContext, ".json");
+        string memory path = Config.peripheryDeployConfigPath();
         cfg = new PeripheryDeployConfig(path);
 
         console.log("Deployment context: %s", deploymentContext);

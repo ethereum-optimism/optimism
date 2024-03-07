@@ -26,6 +26,13 @@ library Config {
         );
     }
 
+        /// @notice Returns the path on the local filesystem where the deploy config is
+    function peripheryDeployConfigPath() internal view returns (string memory _env) {
+        _env = vm.envOr(
+            "DEPLOY_CONFIG_PATH", string.concat(vm.projectRoot(), "/periphery-deploy-config/", _getDeploymentContext(), ".json")
+        );
+    }
+
     /// @notice Returns the chainid from the EVM context or the value of the CHAIN_ID env var as
     ///         an override.
     function chainID() internal view returns (uint256 _env) {
