@@ -19,7 +19,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
-	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/fuzzerutils"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -454,9 +453,6 @@ func TestMixedWithdrawalValidity(t *testing.T) {
 			disputeGameFactory, err := bindings.NewDisputeGameFactoryCaller(cfg.L1Deployments.DisputeGameFactoryProxy, l1Client)
 			require.NoError(t, err)
 
-			optimismPortal, err := bindings.NewOptimismPortalCaller(cfg.L1Deployments.OptimismPortalProxy, l1Client)
-			require.NoError(t, err)
-
 			optimismPortal2, err := bindingspreview.NewOptimismPortal2Caller(cfg.L1Deployments.OptimismPortalProxy, l1Client)
 			require.NoError(t, err)
 
@@ -568,7 +564,7 @@ func TestMixedWithdrawalValidity(t *testing.T) {
 			blockCl := ethclient.NewClient(rpcClient)
 
 			// Now create the withdrawal
-			params, err := withdrawals.ProveWithdrawalParameters(context.Background(), proofCl, receiptCl, blockCl, tx.Hash(), header, l2OutputOracle, disputeGameFactory, optimismPortal, optimismPortal2)
+			params, err := ProveWithdrawalParameters(context.Background(), proofCl, receiptCl, blockCl, tx.Hash(), header, l2OutputOracle, disputeGameFactory, optimismPortal2)
 			require.Nil(t, err)
 
 			// Obtain our withdrawal parameters
