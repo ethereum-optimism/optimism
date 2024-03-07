@@ -1,4 +1,4 @@
-package txmgr_test
+package txmgr
 
 import (
 	"errors"
@@ -7,7 +7,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 )
@@ -18,15 +17,15 @@ var (
 
 const testSafeAbortNonceTooLowCount = 3
 
-func newSendState() *txmgr.SendState {
+func newSendState() *SendState {
 	return newSendStateWithTimeout(time.Hour, time.Now)
 }
 
-func newSendStateWithTimeout(t time.Duration, now func() time.Time) *txmgr.SendState {
-	return txmgr.NewSendStateWithNow(testSafeAbortNonceTooLowCount, t, now)
+func newSendStateWithTimeout(t time.Duration, now func() time.Time) *SendState {
+	return NewSendStateWithNow(testSafeAbortNonceTooLowCount, t, now)
 }
 
-func processNSendErrors(sendState *txmgr.SendState, err error, n int) {
+func processNSendErrors(sendState *SendState, err error, n int) {
 	for i := 0; i < n; i++ {
 		sendState.ProcessSendError(err)
 	}
@@ -36,7 +35,7 @@ func processNSendErrors(sendState *txmgr.SendState, err error, n int) {
 // trigger an abort even after the safe abort interval has elapsed.
 func TestSendStateNoAbortAfterInit(t *testing.T) {
 	sendState := newSendState()
-	require.False(t, sendState.ShouldAbortImmediately())
+	require.Nil(t, sendState.CriticalError())
 	require.False(t, sendState.IsWaitingForConfirmation())
 }
 
@@ -46,7 +45,7 @@ func TestSendStateNoAbortAfterProcessNilError(t *testing.T) {
 	sendState := newSendState()
 
 	processNSendErrors(sendState, nil, testSafeAbortNonceTooLowCount)
-	require.False(t, sendState.ShouldAbortImmediately())
+	require.Nil(t, sendState.CriticalError())
 }
 
 // TestSendStateNoAbortAfterProcessOtherError asserts that non-nil errors other
@@ -56,7 +55,7 @@ func TestSendStateNoAbortAfterProcessOtherError(t *testing.T) {
 
 	otherError := errors.New("other error")
 	processNSendErrors(sendState, otherError, testSafeAbortNonceTooLowCount)
-	require.False(t, sendState.ShouldAbortImmediately())
+	require.Nil(t, sendState.CriticalError())
 }
 
 // TestSendStateAbortSafelyAfterNonceTooLowButNoTxMined asserts that we will
@@ -65,11 +64,11 @@ func TestSendStateAbortSafelyAfterNonceTooLowButNoTxMined(t *testing.T) {
 	sendState := newSendState()
 
 	sendState.ProcessSendError(core.ErrNonceTooLow)
-	require.False(t, sendState.ShouldAbortImmediately())
+	require.Nil(t, sendState.CriticalError())
 	sendState.ProcessSendError(core.ErrNonceTooLow)
-	require.False(t, sendState.ShouldAbortImmediately())
+	require.Nil(t, sendState.CriticalError())
 	sendState.ProcessSendError(core.ErrNonceTooLow)
-	require.True(t, sendState.ShouldAbortImmediately())
+	require.ErrorIs(t, sendState.CriticalError(), core.ErrNonceTooLow)
 }
 
 // TestSendStateMiningTxCancelsAbort asserts that a tx getting mined after
@@ -80,9 +79,9 @@ func TestSendStateMiningTxCancelsAbort(t *testing.T) {
 	sendState.ProcessSendError(core.ErrNonceTooLow)
 	sendState.ProcessSendError(core.ErrNonceTooLow)
 	sendState.TxMined(testHash)
-	require.False(t, sendState.ShouldAbortImmediately())
+	require.Nil(t, sendState.CriticalError())
 	sendState.ProcessSendError(core.ErrNonceTooLow)
-	require.False(t, sendState.ShouldAbortImmediately())
+	require.Nil(t, sendState.CriticalError())
 }
 
 // TestSendStateReorgingTxResetsAbort asserts that unmining a tx does not
@@ -96,7 +95,7 @@ func TestSendStateReorgingTxResetsAbort(t *testing.T) {
 	sendState.TxMined(testHash)
 	sendState.TxNotMined(testHash)
 	sendState.ProcessSendError(core.ErrNonceTooLow)
-	require.False(t, sendState.ShouldAbortImmediately())
+	require.Nil(t, sendState.CriticalError())
 }
 
 // TestSendStateNoAbortEvenIfNonceTooLowAfterTxMined asserts that we will not
@@ -112,7 +111,7 @@ func TestSendStateNoAbortEvenIfNonceTooLowAfterTxMined(t *testing.T) {
 	processNSendErrors(
 		sendState, core.ErrNonceTooLow, testSafeAbortNonceTooLowCount,
 	)
-	require.False(t, sendState.ShouldAbortImmediately())
+	require.Nil(t, sendState.CriticalError())
 }
 
 // TestSendStateSafeAbortIfNonceTooLowPersistsAfterUnmine asserts that we will
@@ -125,9 +124,9 @@ func TestSendStateSafeAbortIfNonceTooLowPersistsAfterUnmine(t *testing.T) {
 	sendState.TxNotMined(testHash)
 	sendState.ProcessSendError(core.ErrNonceTooLow)
 	sendState.ProcessSendError(core.ErrNonceTooLow)
-	require.False(t, sendState.ShouldAbortImmediately())
+	require.Nil(t, sendState.CriticalError())
 	sendState.ProcessSendError(core.ErrNonceTooLow)
-	require.True(t, sendState.ShouldAbortImmediately())
+	require.ErrorIs(t, sendState.CriticalError(), core.ErrNonceTooLow)
 }
 
 // TestSendStateSafeAbortWhileCallingNotMinedOnUnminedTx asserts that we will
@@ -140,7 +139,7 @@ func TestSendStateSafeAbortWhileCallingNotMinedOnUnminedTx(t *testing.T) {
 		sendState, core.ErrNonceTooLow, testSafeAbortNonceTooLowCount,
 	)
 	sendState.TxNotMined(testHash)
-	require.True(t, sendState.ShouldAbortImmediately())
+	require.ErrorIs(t, sendState.CriticalError(), core.ErrNonceTooLow)
 }
 
 // TestSendStateIsWaitingForConfirmationAfterTxMined asserts that we are waiting
@@ -179,7 +178,7 @@ func stepClock(step time.Duration) func() time.Time {
 // when no successful transactions have been recorded
 func TestSendStateTimeoutAbort(t *testing.T) {
 	sendState := newSendStateWithTimeout(10*time.Millisecond, stepClock(20*time.Millisecond))
-	require.True(t, sendState.ShouldAbortImmediately(), "Should abort after timing out")
+	require.ErrorIs(t, sendState.CriticalError(), ErrMempoolDeadlineExpired, "Should abort after timing out")
 }
 
 // TestSendStateNoTimeoutAbortIfPublishedTx ensure that this will not abort if there is
@@ -187,5 +186,5 @@ func TestSendStateTimeoutAbort(t *testing.T) {
 func TestSendStateNoTimeoutAbortIfPublishedTx(t *testing.T) {
 	sendState := newSendStateWithTimeout(10*time.Millisecond, stepClock(20*time.Millisecond))
 	sendState.ProcessSendError(nil)
-	require.False(t, sendState.ShouldAbortImmediately(), "Should not abort if published transaction successfully")
+	require.Nil(t, sendState.CriticalError(), "Should not abort if published transaction successfully")
 }

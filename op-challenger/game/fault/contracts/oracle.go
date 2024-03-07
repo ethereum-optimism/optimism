@@ -20,22 +20,25 @@ import (
 )
 
 const (
-	methodInitLPP                   = "initLPP"
-	methodAddLeavesLPP              = "addLeavesLPP"
-	methodSqueezeLPP                = "squeezeLPP"
-	methodLoadKeccak256PreimagePart = "loadKeccak256PreimagePart"
-	methodLoadSha256PreimagePart    = "loadSha256PreimagePart"
-	methodProposalCount             = "proposalCount"
-	methodProposals                 = "proposals"
-	methodProposalMetadata          = "proposalMetadata"
-	methodProposalBlocksLen         = "proposalBlocksLen"
-	methodProposalBlocks            = "proposalBlocks"
-	methodPreimagePartOk            = "preimagePartOk"
-	methodMinProposalSize           = "minProposalSize"
-	methodChallengeFirstLPP         = "challengeFirstLPP"
-	methodChallengeLPP              = "challengeLPP"
-	methodChallengePeriod           = "challengePeriod"
-	methodGetTreeRootLPP            = "getTreeRootLPP"
+	methodInitLPP                    = "initLPP"
+	methodAddLeavesLPP               = "addLeavesLPP"
+	methodSqueezeLPP                 = "squeezeLPP"
+	methodLoadKeccak256PreimagePart  = "loadKeccak256PreimagePart"
+	methodLoadSha256PreimagePart     = "loadSha256PreimagePart"
+	methodLoadBlobPreimagePart       = "loadBlobPreimagePart"
+	methodLoadPrecompilePreimagePart = "loadPrecompilePreimagePart"
+	methodProposalCount              = "proposalCount"
+	methodProposals                  = "proposals"
+	methodProposalMetadata           = "proposalMetadata"
+	methodProposalBlocksLen          = "proposalBlocksLen"
+	methodProposalBlocks             = "proposalBlocks"
+	methodPreimagePartOk             = "preimagePartOk"
+	methodMinProposalSize            = "minProposalSize"
+	methodChallengeFirstLPP          = "challengeFirstLPP"
+	methodChallengeLPP               = "challengeLPP"
+	methodChallengePeriod            = "challengePeriod"
+	methodGetTreeRootLPP             = "getTreeRootLPP"
+	methodMinBondSizeLPP             = "MIN_BOND_SIZE"
 )
 
 var (
@@ -53,6 +56,9 @@ type PreimageOracleContract struct {
 	// challengePeriod caches the challenge period from the contract once it has been loaded.
 	// 0 indicates the period has not been loaded yet.
 	challengePeriod atomic.Uint64
+	// minBondSizeLPP caches the minimum bond size for large preimages from the contract once it has been loaded.
+	// 0 indicates the value has not been loaded yet.
+	minBondSizeLPP atomic.Uint64
 }
 
 // toPreimageOracleLeaf converts a Leaf to the contract [bindings.PreimageOracleLeaf] type.
@@ -92,6 +98,20 @@ func (c *PreimageOracleContract) AddGlobalDataTx(data *types.PreimageOracleData)
 		return call.ToTxCandidate()
 	case preimage.Sha256KeyType:
 		call := c.contract.Call(methodLoadSha256PreimagePart, new(big.Int).SetUint64(uint64(data.OracleOffset)), data.GetPreimageWithoutSize())
+		return call.ToTxCandidate()
+	case preimage.BlobKeyType:
+		call := c.contract.Call(methodLoadBlobPreimagePart,
+			new(big.Int).SetUint64(data.BlobFieldIndex),
+			new(big.Int).SetBytes(data.GetPreimageWithoutSize()),
+			data.BlobCommitment,
+			data.BlobProof,
+			new(big.Int).SetUint64(uint64(data.OracleOffset)))
+		return call.ToTxCandidate()
+	case preimage.PrecompileKeyType:
+		call := c.contract.Call(methodLoadPrecompilePreimagePart,
+			new(big.Int).SetUint64(uint64(data.OracleOffset)),
+			data.GetPrecompileAddress(),
+			data.GetPrecompileInput())
 		return call.ToTxCandidate()
 	default:
 		return txmgr.TxCandidate{}, fmt.Errorf("%w: %v", ErrUnsupportedKeyType, keyType)
@@ -303,6 +323,19 @@ func (c *PreimageOracleContract) ChallengeTx(ident keccakTypes.LargePreimageIden
 			challenge.PoststateProof)
 	}
 	return call.ToTxCandidate()
+}
+
+func (c *PreimageOracleContract) GetMinBondLPP(ctx context.Context) (*big.Int, error) {
+	if bondSize := c.minBondSizeLPP.Load(); bondSize != 0 {
+		return big.NewInt(int64(bondSize)), nil
+	}
+	result, err := c.multiCaller.SingleCall(ctx, batching.BlockLatest, c.contract.Call(methodMinBondSizeLPP))
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch min bond size for LPPs: %w", err)
+	}
+	period := result.GetBigInt(0)
+	c.minBondSizeLPP.Store(period.Uint64())
+	return period, nil
 }
 
 func (c *PreimageOracleContract) decodePreimageIdent(result *batching.CallResult) keccakTypes.LargePreimageIdent {

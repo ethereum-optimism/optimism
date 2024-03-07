@@ -153,7 +153,6 @@ abstract contract ResourceMetering is Initializable {
     /// @notice Sets initial resource parameter values.
     ///         This function must either be called by the initializer function of an upgradeable
     ///         child contract.
-    // solhint-disable-next-line func-name-mixedcase
     function __ResourceMetering_init() internal onlyInitializing {
         if (params.prevBlockNum == 0) {
             params = ResourceParams({ prevBaseFee: 1 gwei, prevBoughtGas: 0, prevBlockNum: uint64(block.number) });

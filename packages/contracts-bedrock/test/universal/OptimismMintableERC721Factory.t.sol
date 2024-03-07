@@ -59,7 +59,7 @@ contract OptimismMintableERC721Factory_Test is Bridge_Initializer {
         vm.prank(alice);
         factory.createOptimismMintableERC721(remote, "L2Token", "L2T");
 
-        vm.expectRevert();
+        vm.expectRevert(bytes(""));
 
         vm.prank(alice);
         factory.createOptimismMintableERC721(remote, "L2Token", "L2T");

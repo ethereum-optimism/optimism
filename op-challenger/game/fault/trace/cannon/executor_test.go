@@ -24,7 +24,7 @@ func TestGenerateProof(t *testing.T) {
 	input := "starting.json"
 	tempDir := t.TempDir()
 	dir := filepath.Join(tempDir, "gameDir")
-	cfg := config.NewConfig(common.Address{0xbb}, "http://localhost:8888", tempDir, config.TraceTypeCannon)
+	cfg := config.NewConfig(common.Address{0xbb}, "http://localhost:8888", "http://localhost:9000", tempDir, config.TraceTypeCannon)
 	cfg.CannonAbsolutePreState = "pre.json"
 	cfg.CannonBin = "./bin/cannon"
 	cfg.CannonServer = "./bin/op-program"
@@ -91,6 +91,7 @@ func TestGenerateProof(t *testing.T) {
 		// Then everything else pairs off correctly again
 		require.Equal(t, "--server", args[cfg.CannonServer])
 		require.Equal(t, cfg.L1EthRpc, args["--l1"])
+		require.Equal(t, cfg.L1Beacon, args["--l1.beacon"])
 		require.Equal(t, cfg.CannonL2, args["--l2"])
 		require.Equal(t, filepath.Join(dir, preimagesDir), args["--datadir"])
 		require.Equal(t, filepath.Join(dir, proofsDir, "%d.json.gz"), args["--proof-fmt"])
@@ -138,7 +139,9 @@ func TestRunCmdLogsOutput(t *testing.T) {
 	logger, logs := testlog.CaptureLogger(t, log.LevelInfo)
 	err := runCmd(ctx, logger, bin, "Hello World")
 	require.NoError(t, err)
-	require.NotNil(t, logs.FindLog(log.LevelInfo, "Hello World"))
+	levelFilter := testlog.NewLevelFilter(log.LevelInfo)
+	msgFilter := testlog.NewMessageFilter("Hello World")
+	require.NotNil(t, logs.FindLog(levelFilter, msgFilter))
 }
 
 func TestFindStartingSnapshot(t *testing.T) {

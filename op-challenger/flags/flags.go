@@ -32,6 +32,16 @@ var (
 		Usage:   "HTTP provider URL for L1.",
 		EnvVars: prefixEnvVars("L1_ETH_RPC"),
 	}
+	L1BeaconFlag = &cli.StringFlag{
+		Name:    "l1-beacon",
+		Usage:   "Address of L1 Beacon API endpoint to use",
+		EnvVars: prefixEnvVars("L1_BEACON"),
+	}
+	RollupRpcFlag = &cli.StringFlag{
+		Name:    "rollup-rpc",
+		Usage:   "HTTP provider URL for the rollup node",
+		EnvVars: prefixEnvVars("ROLLUP_RPC"),
+	}
 	FactoryAddressFlag = &cli.StringFlag{
 		Name:    "game-factory-address",
 		Usage:   "Address of the fault game factory contract.",
@@ -72,11 +82,6 @@ var (
 		Usage:   "Polling interval for latest-block subscription when using an HTTP RPC provider.",
 		EnvVars: prefixEnvVars("HTTP_POLL_INTERVAL"),
 		Value:   config.DefaultPollInterval,
-	}
-	RollupRpcFlag = &cli.StringFlag{
-		Name:    "rollup-rpc",
-		Usage:   "HTTP provider URL for the rollup node",
-		EnvVars: prefixEnvVars("ROLLUP_RPC"),
 	}
 	CannonNetworkFlag = &cli.StringFlag{
 		Name: "cannon-network",
@@ -135,6 +140,12 @@ var (
 		EnvVars: prefixEnvVars("GAME_WINDOW"),
 		Value:   config.DefaultGameWindow,
 	}
+	UnsafeAllowInvalidPrestate = &cli.BoolFlag{
+		Name:    "unsafe-allow-invalid-prestate",
+		Usage:   "Allow responding to games where the absolute prestate is configured incorrectly. THIS IS UNSAFE!",
+		EnvVars: prefixEnvVars("UNSAFE_ALLOW_INVALID_PRESTATE"),
+		Hidden:  true, // Hidden as this is an unsafe flag added only for testing purposes
+	}
 )
 
 // requiredFlags are checked by [CheckRequired]
@@ -142,6 +153,8 @@ var requiredFlags = []cli.Flag{
 	L1EthRpcFlag,
 	FactoryAddressFlag,
 	DatadirFlag,
+	RollupRpcFlag,
+	L1BeaconFlag,
 }
 
 // optionalFlags is a list of unchecked cli flags
@@ -150,7 +163,6 @@ var optionalFlags = []cli.Flag{
 	MaxConcurrencyFlag,
 	MaxPendingTransactionsFlag,
 	HTTPPollInterval,
-	RollupRpcFlag,
 	GameAllowlistFlag,
 	CannonNetworkFlag,
 	CannonRollupConfigFlag,
@@ -162,6 +174,7 @@ var optionalFlags = []cli.Flag{
 	CannonSnapshotFreqFlag,
 	CannonInfoFreqFlag,
 	GameWindowFlag,
+	UnsafeAllowInvalidPrestate,
 }
 
 func init() {
@@ -210,17 +223,11 @@ func CheckRequired(ctx *cli.Context, traceTypes []config.TraceType) error {
 	}
 	for _, traceType := range traceTypes {
 		switch traceType {
-		case config.TraceTypeCannon:
+		case config.TraceTypeCannon, config.TraceTypePermissioned:
 			if err := CheckCannonFlags(ctx); err != nil {
 				return err
 			}
-			if !ctx.IsSet(RollupRpcFlag.Name) {
-				return fmt.Errorf("flag %s is required", RollupRpcFlag.Name)
-			}
 		case config.TraceTypeAlphabet:
-			if !ctx.IsSet(RollupRpcFlag.Name) {
-				return fmt.Errorf("flag %s is required", RollupRpcFlag.Name)
-			}
 		default:
 			return fmt.Errorf("invalid trace type. must be one of %v", config.TraceTypes)
 		}
@@ -277,6 +284,7 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 	return &config.Config{
 		// Required Flags
 		L1EthRpc:               ctx.String(L1EthRpcFlag.Name),
+		L1Beacon:               ctx.String(L1BeaconFlag.Name),
 		TraceTypes:             traceTypes,
 		GameFactoryAddress:     gameFactoryAddress,
 		GameAllowlist:          allowedGames,
@@ -298,5 +306,6 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 		TxMgrConfig:            txMgrConfig,
 		MetricsConfig:          metricsConfig,
 		PprofConfig:            pprofConfig,
+		AllowInvalidPrestate:   ctx.Bool(UnsafeAllowInvalidPrestate.Name),
 	}, nil
 }

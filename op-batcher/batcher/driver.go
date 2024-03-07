@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
@@ -46,6 +47,7 @@ type DriverSetup struct {
 	L1Client         L1Client
 	EndpointProvider dial.L2EndpointProvider
 	ChannelConfig    ChannelConfig
+	PlasmaDA         *plasma.DAClient
 }
 
 // BatchSubmitter encapsulates a service responsible for submitting L2 tx
@@ -278,6 +280,12 @@ func (l *BatchSubmitter) loop() {
 		case r := <-receiptsCh:
 			l.handleReceipt(r)
 		case <-l.shutdownCtx.Done():
+			// if the txmgr is closed, we stop the transaction sending
+			// don't even bother draining the queue, as all sending will fail
+			if l.Txmgr.IsClosed() {
+				l.Log.Info("Txmgr is closed, remaining channel data won't be sent")
+				return
+			}
 			// This removes any never-submitted pending channels, so these do not have to be drained with transactions.
 			// Any remaining unfinished channel is terminated, so its data gets submitted.
 			err := l.state.Close()
@@ -302,13 +310,19 @@ func (l *BatchSubmitter) publishStateToL1(queue *txmgr.Queue[txData], receiptsCh
 	// send/wait and receipt reading must be on a separate goroutines to avoid deadlocks
 	go func() {
 		defer func() {
-			if drain {
-				// if draining, we wait for all transactions to complete
+			// if draining, we wait for all transactions to complete
+			// if the txmgr is closed, there is no need to wait as all transactions will fail
+			if drain && !l.Txmgr.IsClosed() {
 				queue.Wait()
 			}
 			close(txDone)
 		}()
 		for {
+			// if the txmgr is closed, we stop the transaction sending
+			if l.Txmgr.IsClosed() {
+				l.Log.Info("Txmgr is closed, no further receipts expected")
+				return
+			}
 			err := l.publishTxToL1(l.killCtx, queue, receiptsCh)
 			if err != nil {
 				if drain && err != io.EOF {
@@ -349,7 +363,7 @@ func (l *BatchSubmitter) publishTxToL1(ctx context.Context, queue *txmgr.Queue[t
 		return err
 	}
 
-	if err = l.sendTransaction(txdata, queue, receiptsCh); err != nil {
+	if err = l.sendTransaction(ctx, txdata, queue, receiptsCh); err != nil {
 		return fmt.Errorf("BatchSubmitter.sendTransaction failed: %w", err)
 	}
 	return nil
@@ -358,13 +372,23 @@ func (l *BatchSubmitter) publishTxToL1(ctx context.Context, queue *txmgr.Queue[t
 // sendTransaction creates & submits a transaction to the batch inbox address with the given `txData`.
 // It currently uses the underlying `txmgr` to handle transaction sending & price management.
 // This is a blocking method. It should not be called concurrently.
-func (l *BatchSubmitter) sendTransaction(txdata txData, queue *txmgr.Queue[txData], receiptsCh chan txmgr.TxReceipt[txData]) error {
+func (l *BatchSubmitter) sendTransaction(ctx context.Context, txdata txData, queue *txmgr.Queue[txData], receiptsCh chan txmgr.TxReceipt[txData]) error {
+	var err error
 	// Do the gas estimation offline. A value of 0 will cause the [txmgr] to estimate the gas limit.
 	data := txdata.Bytes()
+	// if plasma DA is enabled we post the txdata to the DA Provider and replace it with the commitment.
+	if l.Config.UsePlasma {
+		data, err = l.PlasmaDA.SetInput(ctx, data)
+		if err != nil {
+			l.Log.Error("Failed to post input to Plasma DA", "error", err)
+			// requeue frame if we fail to post to the DA Provider so it can be retried
+			l.recordFailedTx(txdata, err)
+			return nil
+		}
+	}
 
 	var candidate *txmgr.TxCandidate
 	if l.Config.UseBlobs {
-		var err error
 		if candidate, err = l.blobTxCandidate(data); err != nil {
 			// We could potentially fall through and try a calldata tx instead, but this would
 			// likely result in the chain spending more in gas fees than it is tuned for, so best

@@ -195,7 +195,7 @@ func FindL2Heads(ctx context.Context, cfg *rollup.Config, l1 L1Chain, l2 L2Chain
 				highestL2WithCanonicalL1Origin = n
 			}
 		} else {
-			// L1 origin not ahead of L1 head nor canonical, discard previous candidate and keep looking.
+			// L1 origin neither ahead of L1 head nor canonical, discard previous candidate and keep looking.
 			result.Unsafe = eth.L2BlockRef{}
 			highestL2WithCanonicalL1Origin = eth.L2BlockRef{}
 		}

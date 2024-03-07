@@ -4,23 +4,44 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/big"
 	"sync/atomic"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/config"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/metrics"
+	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/extract"
+	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/resolution"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/version"
+
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 )
 
 type Service struct {
 	logger  log.Logger
 	metrics metrics.Metricer
+	monitor *gameMonitor
+
+	factoryContract *contracts.DisputeGameFactoryContract
+
+	cl clock.Clock
+
+	delays       *resolution.DelayCalculator
+	extractor    *extract.Extractor
+	forecast     *forecast
+	game         *extract.GameCallerCreator
+	rollupClient *sources.RollupClient
+	validator    *outputValidator
 
 	l1Client *ethclient.Client
 
@@ -33,6 +54,7 @@ type Service struct {
 // NewService creates a new Service.
 func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*Service, error) {
 	s := &Service{
+		cl:      clock.SystemClock,
 		logger:  logger,
 		metrics: metrics.NewMetrics(),
 	}
@@ -54,9 +76,55 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 	if err := s.initMetricsServer(&cfg.MetricsConfig); err != nil {
 		return fmt.Errorf("failed to init metrics server: %w", err)
 	}
+	if err := s.initFactoryContract(cfg); err != nil {
+		return fmt.Errorf("failed to create factory contract bindings: %w", err)
+	}
+	if err := s.initOutputRollupClient(ctx, cfg); err != nil {
+		return fmt.Errorf("failed to init rollup client: %w", err)
+	}
+
+	s.initOutputValidator()   // Must be called before initForecast
+	s.initGameCallerCreator() // Must be called before initForecast
+
+	s.initDelayCalculator()
+	s.initExtractor()
+
+	s.initForecast(cfg)
+
+	s.initMonitor(ctx, cfg) // Monitor must be initialized last
 
 	s.metrics.RecordInfo(version.SimpleWithMeta)
 	s.metrics.RecordUp()
+
+	return nil
+}
+
+func (s *Service) initOutputValidator() {
+	s.validator = newOutputValidator(s.metrics, s.rollupClient)
+}
+
+func (s *Service) initGameCallerCreator() {
+	s.game = extract.NewGameCallerCreator(s.metrics, batching.NewMultiCaller(s.l1Client.Client(), batching.DefaultBatchSize))
+}
+
+func (s *Service) initDelayCalculator() {
+	s.delays = resolution.NewDelayCalculator(s.metrics, s.cl)
+}
+
+func (s *Service) initExtractor() {
+	s.extractor = extract.NewExtractor(s.logger, s.game.CreateContract, s.factoryContract.GetGamesAtOrAfter)
+}
+
+func (s *Service) initForecast(cfg *config.Config) {
+	s.forecast = newForecast(s.logger, s.metrics, s.validator)
+}
+
+func (s *Service) initOutputRollupClient(ctx context.Context, cfg *config.Config) error {
+	outputRollupClient, err := dial.DialRollupClientWithTimeout(ctx, dial.DefaultDialTimeout, s.logger, cfg.RollupRpc)
+	if err != nil {
+		return fmt.Errorf("failed to dial rollup client: %w", err)
+	}
+	s.rollupClient = outputRollupClient
 	return nil
 }
 
@@ -104,10 +172,43 @@ func (s *Service) initMetricsServer(cfg *opmetrics.CLIConfig) error {
 	return nil
 }
 
+func (s *Service) initFactoryContract(cfg *config.Config) error {
+	factoryContract, err := contracts.NewDisputeGameFactoryContract(cfg.GameFactoryAddress,
+		batching.NewMultiCaller(s.l1Client.Client(), batching.DefaultBatchSize))
+	if err != nil {
+		return fmt.Errorf("failed to bind the fault dispute game factory contract: %w", err)
+	}
+	s.factoryContract = factoryContract
+	return nil
+}
+
+func (s *Service) initMonitor(ctx context.Context, cfg *config.Config) {
+	blockHashFetcher := func(ctx context.Context, blockNumber *big.Int) (common.Hash, error) {
+		block, err := s.l1Client.BlockByNumber(ctx, blockNumber)
+		if err != nil {
+			return common.Hash{}, fmt.Errorf("failed to fetch block by number: %w", err)
+		}
+		return block.Hash(), nil
+	}
+	s.monitor = newGameMonitor(
+		ctx,
+		s.logger,
+		s.cl,
+		cfg.MonitorInterval,
+		cfg.GameWindow,
+		s.delays.RecordClaimResolutionDelayMax,
+		s.forecast.Forecast,
+		s.extractor.Extract,
+		s.l1Client.BlockNumber,
+		blockHashFetcher,
+	)
+}
+
 func (s *Service) Start(ctx context.Context) error {
-	s.logger.Info("starting scheduler")
-	s.logger.Info("starting monitoring")
-	s.logger.Info("dispute monitor game service start completed")
+	s.logger.Info("Starting scheduler")
+	s.logger.Info("Starting monitoring")
+	s.monitor.StartMonitoring()
+	s.logger.Info("Dispute monitor game service start completed")
 	return nil
 }
 
@@ -116,7 +217,7 @@ func (s *Service) Stopped() bool {
 }
 
 func (s *Service) Stop(ctx context.Context) error {
-	s.logger.Info("stopping dispute mon service")
+	s.logger.Info("Stopping dispute mon service")
 
 	var result error
 	if s.pprofService != nil {

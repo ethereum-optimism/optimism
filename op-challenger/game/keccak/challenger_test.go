@@ -73,7 +73,9 @@ func TestChallenge(t *testing.T) {
 		err := challenger.Challenge(context.Background(), common.Hash{0xaa}, oracle, preimages)
 		require.NoError(t, err)
 
-		errLog := logs.FindLog(log.LevelError, "Failed to create challenge transaction")
+		levelFilter := testlog.NewLevelFilter(log.LevelError)
+		msgFilter := testlog.NewMessageFilter("Failed to create challenge transaction")
+		errLog := logs.FindLog(levelFilter, msgFilter)
 		require.ErrorIs(t, errLog.AttrValue("err").(error), oracle.err)
 	})
 
@@ -86,7 +88,9 @@ func TestChallenge(t *testing.T) {
 		err := challenger.Challenge(context.Background(), common.Hash{0xaa}, oracle, preimages)
 		require.NoError(t, err)
 
-		errLog := logs.FindLog(log.LevelError, "Failed to verify large preimage")
+		levelFilter := testlog.NewLevelFilter(log.LevelError)
+		msgFilter := testlog.NewMessageFilter("Failed to verify large preimage")
+		errLog := logs.FindLog(levelFilter, msgFilter)
 		require.ErrorIs(t, errLog.AttrValue("err").(error), verifier.err)
 	})
 
@@ -98,10 +102,14 @@ func TestChallenge(t *testing.T) {
 		err := challenger.Challenge(context.Background(), common.Hash{0xaa}, oracle, preimages)
 		require.NoError(t, err)
 
-		errLog := logs.FindLog(log.LevelError, "Failed to verify large preimage")
+		levelFilter := testlog.NewLevelFilter(log.LevelError)
+		msgFilter := testlog.NewMessageFilter("Failed to verify large preimage")
+		errLog := logs.FindLog(levelFilter, msgFilter)
 		require.Nil(t, errLog)
 
-		dbgLog := logs.FindLog(log.LevelDebug, "Preimage is valid")
+		levelFilter = testlog.NewLevelFilter(log.LevelDebug)
+		msgFilter = testlog.NewMessageFilter("Preimage is valid")
+		dbgLog := logs.FindLog(levelFilter, msgFilter)
 		require.NotNil(t, dbgLog)
 	})
 }

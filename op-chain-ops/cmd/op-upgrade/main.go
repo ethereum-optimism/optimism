@@ -175,7 +175,7 @@ func entrypoint(ctx *cli.Context) error {
 		log.Info("L2OutputOracle", "version", versions.L2OutputOracle, "address", addresses.L2OutputOracleProxy)
 		log.Info("OptimismMintableERC20Factory", "version", versions.OptimismMintableERC20Factory, "address", addresses.OptimismMintableERC20FactoryProxy)
 		log.Info("OptimismPortal", "version", versions.OptimismPortal, "address", addresses.OptimismPortalProxy)
-		log.Info("SystemConfig", "version", versions.SystemConfig, "address", chainConfig.SystemConfigAddr)
+		log.Info("SystemConfig", "version", versions.SystemConfig, "address", addresses.SystemConfigProxy)
 
 		implementations, ok := superchain.Implementations[l1ChainID.Uint64()]
 		if !ok {
@@ -210,7 +210,7 @@ func entrypoint(ctx *cli.Context) error {
 
 	// Write the batch to disk or stdout
 	if outfile := ctx.Path("outfile"); outfile != "" {
-		if err := jsonutil.WriteJSON(outfile, batch); err != nil {
+		if err := jsonutil.WriteJSON(outfile, batch, 0o666); err != nil {
 			return err
 		}
 	} else {

@@ -399,7 +399,7 @@ contract HonestDisputeActor is DisputeActor {
                     challengeIndex := mload(add(moveData, 0x24))
                 }
                 GAME.addLocalData({
-                    _ident: LocalPreimageKey.STARTING_L2_BLOCK_NUMBER,
+                    _ident: LocalPreimageKey.DISPUTED_L2_BLOCK_NUMBER,
                     _execLeafIdx: challengeIndex,
                     _partOffset: 0
                 });

@@ -12,7 +12,7 @@ import (
 	"github.com/ethereum-optimism/superchain-registry/superchain"
 )
 
-var OPStackSupport = params.ProtocolVersionV0{Build: [8]byte{}, Major: 6, Minor: 0, Patch: 0, PreRelease: 2}.Encode()
+var OPStackSupport = params.ProtocolVersionV0{Build: [8]byte{}, Major: 6, Minor: 0, Patch: 0, PreRelease: 0}.Encode()
 
 const (
 	opMainnet = 10
@@ -55,10 +55,8 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 		return nil, fmt.Errorf("unable to retrieve genesis SystemConfig of chain %d", chainID)
 	}
 
-	var depositContractAddress common.Address
-	if addrs, ok := superchain.Addresses[chainID]; ok {
-		depositContractAddress = common.Address(addrs.OptimismPortalProxy)
-	} else {
+	addrs, ok := superchain.Addresses[chainID]
+	if !ok {
 		return nil, fmt.Errorf("unable to retrieve deposit contract address")
 	}
 
@@ -74,14 +72,6 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 		regolithTime = 1677984480
 	case labsGoerliChaosnet:
 		regolithTime = 1692156862
-	}
-
-	deltaTime := superChain.Config.DeltaTime
-	// OP Labs Sepolia devnet 0 activated delta at genesis, slightly earlier than
-	// Base Sepolia devnet 0 on the same superchain.
-	switch chainID {
-	case labsSepoliaDevnet0:
-		deltaTime = new(uint64)
 	}
 
 	cfg := &Config{
@@ -108,13 +98,13 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 		L1ChainID:              new(big.Int).SetUint64(superChain.Config.L1.ChainID),
 		L2ChainID:              new(big.Int).SetUint64(chConfig.ChainID),
 		RegolithTime:           &regolithTime,
-		CanyonTime:             superChain.Config.CanyonTime,
-		DeltaTime:              deltaTime,
-		EcotoneTime:            superChain.Config.EcotoneTime,
-		FjordTime:              superChain.Config.FjordTime,
+		CanyonTime:             chConfig.CanyonTime,
+		DeltaTime:              chConfig.DeltaTime,
+		EcotoneTime:            chConfig.EcotoneTime,
+		FjordTime:              chConfig.FjordTime,
 		BatchInboxAddress:      common.Address(chConfig.BatchInboxAddr),
-		DepositContractAddress: depositContractAddress,
-		L1SystemConfigAddress:  common.Address(chConfig.SystemConfigAddr),
+		DepositContractAddress: common.Address(addrs.OptimismPortalProxy),
+		L1SystemConfigAddress:  common.Address(addrs.SystemConfigProxy),
 	}
 	if superChain.Config.ProtocolVersionsAddr != nil { // Set optional protocol versions address
 		cfg.ProtocolVersionsAddress = common.Address(*superChain.Config.ProtocolVersionsAddr)

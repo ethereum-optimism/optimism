@@ -1,12 +1,15 @@
 package types
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 )
+
+var ErrInvalidPrestate = errors.New("absolute prestate does not match")
 
 type GameStatus uint8
 

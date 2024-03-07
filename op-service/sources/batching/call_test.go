@@ -15,11 +15,12 @@ func TestContractCall_ToCallArgs(t *testing.T) {
 	testAbi, err := bindings.ERC20MetaData.GetAbi()
 	require.NoError(t, err)
 	call := NewContractCall(testAbi, addr, "approve", common.Address{0xcc}, big.NewInt(1234444))
+	call.From = common.Address{0xab}
 	args, err := call.ToCallArgs()
 	require.NoError(t, err)
 	argMap, ok := args.(map[string]interface{})
 	require.True(t, ok)
-	require.Equal(t, argMap["from"], common.Address{})
+	require.Equal(t, argMap["from"], call.From)
 	require.Equal(t, argMap["to"], &addr)
 	expectedData, err := call.Pack()
 	require.NoError(t, err)

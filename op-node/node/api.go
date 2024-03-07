@@ -2,8 +2,10 @@ package node
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
@@ -31,6 +33,10 @@ type driverClient interface {
 	StopSequencer(context.Context) (common.Hash, error)
 	SequencerActive(context.Context) (bool, error)
 	OnUnsafeL2Payload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) error
+}
+
+type SafeDBReader interface {
+	SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (l1 eth.BlockID, l2 eth.BlockID, err error)
 }
 
 type adminAPI struct {
@@ -89,15 +95,17 @@ type nodeAPI struct {
 	config *rollup.Config
 	client l2EthClient
 	dr     driverClient
+	safeDB SafeDBReader
 	log    log.Logger
 	m      metrics.RPCMetricer
 }
 
-func NewNodeAPI(config *rollup.Config, l2Client l2EthClient, dr driverClient, log log.Logger, m metrics.RPCMetricer) *nodeAPI {
+func NewNodeAPI(config *rollup.Config, l2Client l2EthClient, dr driverClient, safeDB SafeDBReader, log log.Logger, m metrics.RPCMetricer) *nodeAPI {
 	return &nodeAPI{
 		config: config,
 		client: l2Client,
 		dr:     dr,
+		safeDB: safeDB,
 		log:    log,
 		m:      m,
 	}
@@ -123,6 +131,21 @@ func (n *nodeAPI) OutputAtBlock(ctx context.Context, number hexutil.Uint64) (*et
 		WithdrawalStorageRoot: common.Hash(output.MessagePasserStorageRoot),
 		StateRoot:             common.Hash(output.StateRoot),
 		Status:                status,
+	}, nil
+}
+
+func (n *nodeAPI) SafeHeadAtL1Block(ctx context.Context, number hexutil.Uint64) (*eth.SafeHeadResponse, error) {
+	recordDur := n.m.RecordRPCServerRequest("optimism_safeHeadAtL1Block")
+	defer recordDur()
+	l1Block, safeHead, err := n.safeDB.SafeHeadAtL1(ctx, uint64(number))
+	if errors.Is(err, safedb.ErrNotFound) {
+		return nil, err
+	} else if err != nil {
+		return nil, fmt.Errorf("failed to get safe head at l1 block %s: %w", number, err)
+	}
+	return &eth.SafeHeadResponse{
+		L1Block:  l1Block,
+		SafeHead: safeHead,
 	}, nil
 }
 

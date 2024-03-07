@@ -42,6 +42,8 @@ type State struct {
 	LastHint hexutil.Bytes `json:"lastHint,omitempty"`
 }
 
+func (s *State) GetStep() uint64 { return s.Step }
+
 func (s *State) VMStatus() uint8 {
 	return vmStatus(s.Exited, s.ExitCode)
 }

@@ -1523,14 +1523,16 @@ func TestValidBatch(t *testing.T) {
 		require.Equal(t, testCase.Expected, validity, "batch check must return expected validity level")
 		if expLog := testCase.ExpectedLog; expLog != "" {
 			// Check if ExpectedLog is contained in the log buffer
-			if _, ok := logs.FindLogContaining(expLog); !ok {
+			containsFilter := testlog.NewMessageContainsFilter(expLog)
+			if l := logs.FindLog(containsFilter); l == nil {
 				t.Errorf("Expected log message was not logged: %q", expLog)
 			}
 		}
 		if notExpLog := testCase.NotExpectedLog; notExpLog != "" {
 			// Check if NotExpectedLog is contained in the log buffer
-			if rec, ok := logs.FindLogContaining(notExpLog); ok {
-				t.Errorf("Unexpected log message containing %q was logged: %q", notExpLog, rec.Message)
+			containsFilter := testlog.NewMessageContainsFilter(notExpLog)
+			if l := logs.FindLog(containsFilter); l != nil {
+				t.Errorf("Unexpected log message containing %q was logged: %q", notExpLog, l.Message)
 			}
 		}
 		logs.Clear()

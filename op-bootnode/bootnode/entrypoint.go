@@ -10,6 +10,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rpc"
 
 	opnode "github.com/ethereum-optimism/optimism/op-node"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
@@ -20,6 +21,7 @@ import (
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/opio"
+	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 )
 
 type gossipNoop struct{}
@@ -48,7 +50,7 @@ func Main(cliCtx *cli.Context) error {
 	m := metrics.NewMetrics("default")
 	ctx := context.Background()
 
-	config, err := opnode.NewRollupConfig(logger, cliCtx)
+	config, err := opnode.NewRollupConfigFromCLI(logger, cliCtx)
 	if err != nil {
 		return err
 	}
@@ -72,6 +74,29 @@ func Main(cliCtx *cli.Context) error {
 	if p2pNode.Dv5Udp() == nil {
 		return fmt.Errorf("uninitialized discovery service")
 	}
+
+	rpcCfg := oprpc.ReadCLIConfig(cliCtx)
+	if err := rpcCfg.Check(); err != nil {
+		return fmt.Errorf("failed to validate RPC config")
+	}
+	rpcServer := oprpc.NewServer(rpcCfg.ListenAddr, rpcCfg.ListenPort, "", oprpc.WithLogger(logger))
+	if rpcCfg.EnableAdmin {
+		logger.Info("Admin RPC enabled but does nothing for the bootnode")
+	}
+	rpcServer.AddAPI(rpc.API{
+		Namespace:     p2p.NamespaceRPC,
+		Version:       "",
+		Service:       p2p.NewP2PAPIBackend(p2pNode, logger, m),
+		Authenticated: false,
+	})
+	if err := rpcServer.Start(); err != nil {
+		return fmt.Errorf("failed to start the RPC server")
+	}
+	defer func() {
+		if err := rpcServer.Stop(); err != nil {
+			log.Error("failed to stop RPC server", "err", err)
+		}
+	}()
 
 	go p2pNode.DiscoveryProcess(ctx, logger, config, p2pConfig.TargetPeers())
 

@@ -17,5 +17,6 @@
 !/op-proposer
 !/op-service
 !/op-wheel
+!/op-plasma
 !/go.mod
 !/go.sum

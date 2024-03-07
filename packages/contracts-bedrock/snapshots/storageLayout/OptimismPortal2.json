@@ -103,5 +103,12 @@
     "offset": 0,
     "slot": "59",
     "type": "GameType"
+  },
+  {
+    "bytes": "8",
+    "label": "respectedGameTypeUpdatedAt",
+    "offset": 4,
+    "slot": "59",
+    "type": "uint64"
   }
 ]

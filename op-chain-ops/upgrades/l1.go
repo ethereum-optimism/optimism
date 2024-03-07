@@ -86,11 +86,11 @@ func L1CrossDomainMessenger(batch *safe.Batch, implementations superchain.Implem
 			return err
 		}
 		args := []any{
-			common.HexToAddress(list.L1CrossDomainMessengerProxy.String()),
+			common.Address(list.L1CrossDomainMessengerProxy),
 			storageSetterAddr,
 			calldata,
 		}
-		proxyAdmin := common.HexToAddress(list.ProxyAdmin.String())
+		proxyAdmin := common.Address(list.ProxyAdmin)
 		if err := batch.AddCall(proxyAdmin, common.Big0, upgradeAndCall, args, proxyAdminABI); err != nil {
 			return err
 		}
@@ -101,7 +101,7 @@ func L1CrossDomainMessenger(batch *safe.Batch, implementations superchain.Implem
 		return err
 	}
 
-	l1CrossDomainMessenger, err := bindings.NewL1CrossDomainMessengerCaller(common.HexToAddress(list.L1CrossDomainMessengerProxy.String()), backend)
+	l1CrossDomainMessenger, err := bindings.NewL1CrossDomainMessengerCaller(common.Address(list.L1CrossDomainMessengerProxy), backend)
 	if err != nil {
 		return err
 	}
@@ -115,11 +115,11 @@ func L1CrossDomainMessenger(batch *safe.Batch, implementations superchain.Implem
 	}
 
 	if optimismPortal != common.Address(list.OptimismPortalProxy) {
-		return fmt.Errorf("upgrading L1CrossDomainMessenger: Portal address doesn't match config")
+		return fmt.Errorf("Portal address doesn't match config")
 	}
 
 	if otherMessenger != predeploys.L2CrossDomainMessengerAddr {
-		return fmt.Errorf("upgrading L1CrossDomainMessenger: OtherMessenger address doesn't match config")
+		return fmt.Errorf("OtherMessenger address doesn't match config")
 	}
 
 	calldata, err := l1CrossDomainMessengerABI.Pack("initialize", superchainConfigProxy, optimismPortal)
@@ -128,12 +128,12 @@ func L1CrossDomainMessenger(batch *safe.Batch, implementations superchain.Implem
 	}
 
 	args := []any{
-		common.HexToAddress(list.L1CrossDomainMessengerProxy.String()),
-		common.HexToAddress(implementations.L1CrossDomainMessenger.Address.String()),
+		common.Address(list.L1CrossDomainMessengerProxy),
+		common.Address(implementations.L1CrossDomainMessenger.Address),
 		calldata,
 	}
 
-	proxyAdmin := common.HexToAddress(list.ProxyAdmin.String())
+	proxyAdmin := common.Address(list.ProxyAdmin)
 	if err := batch.AddCall(proxyAdmin, common.Big0, upgradeAndCall, args, proxyAdminABI); err != nil {
 		return err
 	}
@@ -168,11 +168,11 @@ func L1ERC721Bridge(batch *safe.Batch, implementations superchain.Implementation
 			return fmt.Errorf("setBytes32: %w", err)
 		}
 		args := []any{
-			common.HexToAddress(list.L1ERC721BridgeProxy.String()),
+			common.Address(list.L1ERC721BridgeProxy),
 			storageSetterAddr,
 			calldata,
 		}
-		proxyAdmin := common.HexToAddress(list.ProxyAdmin.String())
+		proxyAdmin := common.Address(list.ProxyAdmin)
 		if err := batch.AddCall(proxyAdmin, common.Big0, upgradeAndCall, args, proxyAdminABI); err != nil {
 			return err
 		}
@@ -183,7 +183,7 @@ func L1ERC721Bridge(batch *safe.Batch, implementations superchain.Implementation
 		return err
 	}
 
-	l1ERC721Bridge, err := bindings.NewL1ERC721BridgeCaller(common.HexToAddress(list.L1ERC721BridgeProxy.String()), backend)
+	l1ERC721Bridge, err := bindings.NewL1ERC721BridgeCaller(common.Address(list.L1ERC721BridgeProxy), backend)
 	if err != nil {
 		return err
 	}
@@ -197,11 +197,11 @@ func L1ERC721Bridge(batch *safe.Batch, implementations superchain.Implementation
 	}
 
 	if messenger != common.Address(list.L1CrossDomainMessengerProxy) {
-		return fmt.Errorf("upgrading L1ERC721Bridge: Messenger address doesn't match config")
+		return fmt.Errorf("Messenger address doesn't match config")
 	}
 
 	if otherBridge != predeploys.L2ERC721BridgeAddr {
-		return fmt.Errorf("upgrading L1ERC721Bridge: OtherBridge address doesn't match config")
+		return fmt.Errorf("OtherBridge address doesn't match config")
 	}
 
 	calldata, err := l1ERC721BridgeABI.Pack("initialize", messenger, superchainConfigProxy)
@@ -210,12 +210,12 @@ func L1ERC721Bridge(batch *safe.Batch, implementations superchain.Implementation
 	}
 
 	args := []any{
-		common.HexToAddress(list.L1ERC721BridgeProxy.String()),
-		common.HexToAddress(implementations.L1ERC721Bridge.Address.String()),
+		common.Address(list.L1ERC721BridgeProxy),
+		common.Address(implementations.L1ERC721Bridge.Address),
 		calldata,
 	}
 
-	proxyAdmin := common.HexToAddress(list.ProxyAdmin.String())
+	proxyAdmin := common.Address(list.ProxyAdmin)
 	if err := batch.AddCall(proxyAdmin, common.Big0, upgradeAndCall, args, proxyAdminABI); err != nil {
 		return err
 	}
@@ -250,11 +250,11 @@ func L1StandardBridge(batch *safe.Batch, implementations superchain.Implementati
 			return err
 		}
 		args := []any{
-			common.HexToAddress(list.L1StandardBridgeProxy.String()),
+			common.Address(list.L1StandardBridgeProxy),
 			storageSetterAddr,
 			calldata,
 		}
-		proxyAdmin := common.HexToAddress(list.ProxyAdmin.String())
+		proxyAdmin := common.Address(list.ProxyAdmin)
 		if err := batch.AddCall(proxyAdmin, common.Big0, upgradeAndCall, args, proxyAdminABI); err != nil {
 			return err
 		}
@@ -265,7 +265,7 @@ func L1StandardBridge(batch *safe.Batch, implementations superchain.Implementati
 		return err
 	}
 
-	l1StandardBridge, err := bindings.NewL1StandardBridgeCaller(common.HexToAddress(list.L1StandardBridgeProxy.String()), backend)
+	l1StandardBridge, err := bindings.NewL1StandardBridgeCaller(common.Address(list.L1StandardBridgeProxy), backend)
 	if err != nil {
 		return err
 	}
@@ -281,11 +281,11 @@ func L1StandardBridge(batch *safe.Batch, implementations superchain.Implementati
 	}
 
 	if messenger != common.Address(list.L1CrossDomainMessengerProxy) {
-		return fmt.Errorf("upgrading L1StandardBridge: Messenger address doesn't match config")
+		return fmt.Errorf("Messenger address doesn't match config")
 	}
 
 	if otherBridge != predeploys.L2StandardBridgeAddr {
-		return fmt.Errorf("upgrading L1StandardBridge: OtherBridge address doesn't match config")
+		return fmt.Errorf("OtherBridge address doesn't match config")
 	}
 
 	calldata, err := l1StandardBridgeABI.Pack("initialize", messenger, superchainConfigProxy)
@@ -294,12 +294,12 @@ func L1StandardBridge(batch *safe.Batch, implementations superchain.Implementati
 	}
 
 	args := []any{
-		common.HexToAddress(list.L1StandardBridgeProxy.String()),
-		common.HexToAddress(implementations.L1StandardBridge.Address.String()),
+		common.Address(list.L1StandardBridgeProxy),
+		common.Address(implementations.L1StandardBridge.Address),
 		calldata,
 	}
 
-	proxyAdmin := common.HexToAddress(list.ProxyAdmin.String())
+	proxyAdmin := common.Address(list.ProxyAdmin)
 	if err := batch.AddCall(proxyAdmin, common.Big0, upgradeAndCall, args, proxyAdminABI); err != nil {
 		return err
 	}
@@ -334,11 +334,11 @@ func L2OutputOracle(batch *safe.Batch, implementations superchain.Implementation
 			return err
 		}
 		args := []any{
-			common.HexToAddress(list.L2OutputOracleProxy.String()),
+			common.Address(list.L2OutputOracleProxy),
 			storageSetterAddr,
 			calldata,
 		}
-		proxyAdmin := common.HexToAddress(list.ProxyAdmin.String())
+		proxyAdmin := common.Address(list.ProxyAdmin)
 		if err := batch.AddCall(proxyAdmin, common.Big0, upgradeAndCall, args, proxyAdminABI); err != nil {
 			return err
 		}
@@ -349,7 +349,7 @@ func L2OutputOracle(batch *safe.Batch, implementations superchain.Implementation
 		return err
 	}
 
-	l2OutputOracle, err := bindings.NewL2OutputOracleCaller(common.HexToAddress(list.L2OutputOracleProxy.String()), backend)
+	l2OutputOracle, err := bindings.NewL2OutputOracleCaller(common.Address(list.L2OutputOracleProxy), backend)
 	if err != nil {
 		return err
 	}
@@ -391,15 +391,15 @@ func L2OutputOracle(batch *safe.Batch, implementations superchain.Implementation
 
 	if config != nil {
 		if l2OutputOracleSubmissionInterval.Uint64() != config.L2OutputOracleSubmissionInterval {
-			return fmt.Errorf("upgrading L2OutputOracle: L2OutputOracleSubmissionInterval address doesn't match config")
+			return fmt.Errorf("L2OutputOracleSubmissionInterval address doesn't match config")
 		}
 
 		if l2BlockTime.Uint64() != config.L2BlockTime {
-			return fmt.Errorf("upgrading L2OutputOracle: L2BlockTime address doesn't match config")
+			return fmt.Errorf("L2BlockTime address doesn't match config")
 		}
 
 		if l2OutputOracleStartingBlockNumber.Uint64() != config.L2OutputOracleStartingBlockNumber {
-			return fmt.Errorf("upgrading L2OutputOracle: L2OutputOracleStartingBlockNumber address doesn't match config")
+			return fmt.Errorf("L2OutputOracleStartingBlockNumber address doesn't match config")
 		}
 
 		if config.L2OutputOracleStartingTimestamp < 0 {
@@ -407,19 +407,19 @@ func L2OutputOracle(batch *safe.Batch, implementations superchain.Implementation
 		}
 
 		if int(l2OutputOracleStartingTimestamp.Int64()) != config.L2OutputOracleStartingTimestamp {
-			return fmt.Errorf("upgrading L2OutputOracle: L2OutputOracleStartingTimestamp address doesn't match config")
+			return fmt.Errorf("L2OutputOracleStartingTimestamp address doesn't match config")
 		}
 
 		if l2OutputOracleProposer != config.L2OutputOracleProposer {
-			return fmt.Errorf("upgrading L2OutputOracle: L2OutputOracleProposer address doesn't match config")
+			return fmt.Errorf("L2OutputOracleProposer address doesn't match config")
 		}
 
 		if l2OutputOracleChallenger != config.L2OutputOracleChallenger {
-			return fmt.Errorf("upgrading L2OutputOracle: L2OutputOracleChallenger address doesn't match config")
+			return fmt.Errorf("L2OutputOracleChallenger address doesn't match config")
 		}
 
 		if finalizationPeriodSeconds.Uint64() != config.FinalizationPeriodSeconds {
-			return fmt.Errorf("upgrading L2OutputOracle: FinalizationPeriodSeconds address doesn't match config")
+			return fmt.Errorf("FinalizationPeriodSeconds address doesn't match config")
 		}
 	}
 
@@ -438,12 +438,12 @@ func L2OutputOracle(batch *safe.Batch, implementations superchain.Implementation
 	}
 
 	args := []any{
-		common.HexToAddress(list.L2OutputOracleProxy.String()),
-		common.HexToAddress(implementations.L2OutputOracle.Address.String()),
+		common.Address(list.L2OutputOracleProxy),
+		common.Address(implementations.L2OutputOracle.Address),
 		calldata,
 	}
 
-	proxyAdmin := common.HexToAddress(list.ProxyAdmin.String())
+	proxyAdmin := common.Address(list.ProxyAdmin)
 	if err := batch.AddCall(proxyAdmin, common.Big0, upgradeAndCall, args, proxyAdminABI); err != nil {
 		return err
 	}
@@ -478,11 +478,11 @@ func OptimismMintableERC20Factory(batch *safe.Batch, implementations superchain.
 			return err
 		}
 		args := []any{
-			common.HexToAddress(list.OptimismMintableERC20FactoryProxy.String()),
+			common.Address(list.OptimismMintableERC20FactoryProxy),
 			storageSetterAddr,
 			calldata,
 		}
-		proxyAdmin := common.HexToAddress(list.ProxyAdmin.String())
+		proxyAdmin := common.Address(list.ProxyAdmin)
 		if err := batch.AddCall(proxyAdmin, common.Big0, upgradeAndCall, args, proxyAdminABI); err != nil {
 			return err
 		}
@@ -493,7 +493,7 @@ func OptimismMintableERC20Factory(batch *safe.Batch, implementations superchain.
 		return err
 	}
 
-	optimismMintableERC20Factory, err := bindings.NewOptimismMintableERC20FactoryCaller(common.HexToAddress(list.OptimismMintableERC20FactoryProxy.String()), backend)
+	optimismMintableERC20Factory, err := bindings.NewOptimismMintableERC20FactoryCaller(common.Address(list.OptimismMintableERC20FactoryProxy), backend)
 	if err != nil {
 		return err
 	}
@@ -504,7 +504,7 @@ func OptimismMintableERC20Factory(batch *safe.Batch, implementations superchain.
 	}
 
 	if bridge != common.Address(list.L1StandardBridgeProxy) {
-		return fmt.Errorf("upgrading OptimismMintableERC20Factory: Bridge address doesn't match config")
+		return fmt.Errorf("Bridge address doesn't match config")
 	}
 
 	calldata, err := optimismMintableERC20FactoryABI.Pack("initialize", bridge)
@@ -513,12 +513,12 @@ func OptimismMintableERC20Factory(batch *safe.Batch, implementations superchain.
 	}
 
 	args := []any{
-		common.HexToAddress(list.OptimismMintableERC20FactoryProxy.String()),
-		common.HexToAddress(implementations.OptimismMintableERC20Factory.Address.String()),
+		common.Address(list.OptimismMintableERC20FactoryProxy),
+		common.Address(implementations.OptimismMintableERC20Factory.Address),
 		calldata,
 	}
 
-	proxyAdmin := common.HexToAddress(list.ProxyAdmin.String())
+	proxyAdmin := common.Address(list.ProxyAdmin)
 	if err := batch.AddCall(proxyAdmin, common.Big0, upgradeAndCall, args, proxyAdminABI); err != nil {
 		return err
 	}
@@ -553,11 +553,11 @@ func OptimismPortal(batch *safe.Batch, implementations superchain.Implementation
 			return err
 		}
 		args := []any{
-			common.HexToAddress(list.OptimismPortalProxy.String()),
+			common.Address(list.OptimismPortalProxy),
 			storageSetterAddr,
 			calldata,
 		}
-		proxyAdmin := common.HexToAddress(list.ProxyAdmin.String())
+		proxyAdmin := common.Address(list.ProxyAdmin)
 		if err := batch.AddCall(proxyAdmin, common.Big0, upgradeAndCall, args, proxyAdminABI); err != nil {
 			return err
 		}
@@ -568,7 +568,7 @@ func OptimismPortal(batch *safe.Batch, implementations superchain.Implementation
 		return err
 	}
 
-	optimismPortal, err := bindings.NewOptimismPortalCaller(common.HexToAddress(list.OptimismPortalProxy.String()), backend)
+	optimismPortal, err := bindings.NewOptimismPortalCaller(common.Address(list.OptimismPortalProxy), backend)
 	if err != nil {
 		return err
 	}
@@ -581,12 +581,12 @@ func OptimismPortal(batch *safe.Batch, implementations superchain.Implementation
 		return err
 	}
 
-	if l2OutputOracle != common.HexToAddress(list.L2OutputOracleProxy.String()) {
-		return fmt.Errorf("upgrading OptimismPortal: L2OutputOracle address doesn't match config")
+	if l2OutputOracle != common.Address(list.L2OutputOracleProxy) {
+		return fmt.Errorf("L2OutputOracle address doesn't match config")
 	}
 
-	if systemConfig != common.HexToAddress(chainConfig.SystemConfigAddr.String()) {
-		return fmt.Errorf("upgrading OptimismPortal: SystemConfig address doesn't match config")
+	if systemConfig != common.Address(list.SystemConfigProxy) {
+		return fmt.Errorf("SystemConfig address doesn't match config")
 	}
 
 	calldata, err := optimismPortalABI.Pack("initialize", l2OutputOracle, systemConfig, superchainConfigProxy)
@@ -595,12 +595,12 @@ func OptimismPortal(batch *safe.Batch, implementations superchain.Implementation
 	}
 
 	args := []any{
-		common.HexToAddress(list.OptimismPortalProxy.String()),
-		common.HexToAddress(implementations.OptimismPortal.Address.String()),
+		common.Address(list.OptimismPortalProxy),
+		common.Address(implementations.OptimismPortal.Address),
 		calldata,
 	}
 
-	proxyAdmin := common.HexToAddress(list.ProxyAdmin.String())
+	proxyAdmin := common.Address(list.ProxyAdmin)
 	if err := batch.AddCall(proxyAdmin, common.Big0, upgradeAndCall, args, proxyAdminABI); err != nil {
 		return err
 	}
@@ -646,11 +646,11 @@ func SystemConfig(batch *safe.Batch, implementations superchain.ImplementationLi
 			return err
 		}
 		args := []any{
-			common.HexToAddress(chainConfig.SystemConfigAddr.String()),
+			common.Address(list.SystemConfigProxy),
 			storageSetterAddr,
 			calldata,
 		}
-		proxyAdmin := common.HexToAddress(list.ProxyAdmin.String())
+		proxyAdmin := common.Address(list.ProxyAdmin)
 		if err := batch.AddCall(proxyAdmin, common.Big0, upgradeAndCall, args, proxyAdminABI); err != nil {
 			return err
 		}
@@ -661,7 +661,7 @@ func SystemConfig(batch *safe.Batch, implementations superchain.ImplementationLi
 		return err
 	}
 
-	systemConfig, err := bindings.NewSystemConfigCaller(common.HexToAddress(chainConfig.SystemConfigAddr.String()), backend)
+	systemConfig, err := bindings.NewSystemConfigCaller(common.Address(list.SystemConfigProxy), backend)
 	if err != nil {
 		return err
 	}
@@ -696,25 +696,47 @@ func SystemConfig(batch *safe.Batch, implementations superchain.ImplementationLi
 		return err
 	}
 
-	if config != nil {
-		if gasPriceOracleOverhead.Uint64() != config.GasPriceOracleOverhead {
-			return fmt.Errorf("upgrading SystemConfig: GasPriceOracleOverhead address doesn't match config")
-		}
-		if gasPriceOracleScalar.Uint64() != config.GasPriceOracleScalar {
-			return fmt.Errorf("upgrading SystemConfig: GasPriceOracleScalar address doesn't match config")
-		}
-		if batcherHash != common.BytesToHash(config.BatchSenderAddress.Bytes()) {
-			return fmt.Errorf("upgrading SystemConfig: BatchSenderAddress address doesn't match config")
-		}
-		if l2GenesisBlockGasLimit != uint64(config.L2GenesisBlockGasLimit) {
-			return fmt.Errorf("upgrading SystemConfig: L2GenesisBlockGasLimit address doesn't match config")
-		}
-		if p2pSequencerAddress != config.P2PSequencerAddress {
-			return fmt.Errorf("upgrading SystemConfig: P2PSequencerAddress address doesn't match config")
-		}
-		if finalSystemOwner != config.FinalSystemOwner {
-			return fmt.Errorf("upgrading SystemConfig: FinalSystemOwner address doesn't match config")
-		}
+	if gasPriceOracleOverhead.Uint64() != config.GasPriceOracleOverhead {
+		return fmt.Errorf("GasPriceOracleOverhead address doesn't match config")
+	}
+	if gasPriceOracleScalar.Uint64() != config.GasPriceOracleScalar {
+		return fmt.Errorf("GasPriceOracleScalar address doesn't match config")
+	}
+	if batcherHash != common.BytesToHash(config.BatchSenderAddress.Bytes()) {
+		return fmt.Errorf("BatchSenderAddress address doesn't match config")
+	}
+	if l2GenesisBlockGasLimit != uint64(config.L2GenesisBlockGasLimit) {
+		return fmt.Errorf("L2GenesisBlockGasLimit address doesn't match config")
+	}
+	if p2pSequencerAddress != config.P2PSequencerAddress {
+		return fmt.Errorf("P2PSequencerAddress address doesn't match config")
+	}
+	if finalSystemOwner != config.FinalSystemOwner {
+		return fmt.Errorf("FinalSystemOwner address doesn't match config")
+	}
+
+	resourceConfig, err := systemConfig.ResourceConfig(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+
+	if resourceConfig.MaxResourceLimit != genesis.DefaultResourceConfig.MaxResourceLimit {
+		return fmt.Errorf("DefaultResourceConfig MaxResourceLimit doesn't match contract MaxResourceLimit")
+	}
+	if resourceConfig.ElasticityMultiplier != genesis.DefaultResourceConfig.ElasticityMultiplier {
+		return fmt.Errorf("DefaultResourceConfig ElasticityMultiplier doesn't match contract ElasticityMultiplier")
+	}
+	if resourceConfig.BaseFeeMaxChangeDenominator != genesis.DefaultResourceConfig.BaseFeeMaxChangeDenominator {
+		return fmt.Errorf("DefaultResourceConfig BaseFeeMaxChangeDenominator doesn't match contract BaseFeeMaxChangeDenominator")
+	}
+	if resourceConfig.MinimumBaseFee != genesis.DefaultResourceConfig.MinimumBaseFee {
+		return fmt.Errorf("DefaultResourceConfig MinimumBaseFee doesn't match contract MinimumBaseFee")
+	}
+	if resourceConfig.SystemTxMaxGas != genesis.DefaultResourceConfig.SystemTxMaxGas {
+		return fmt.Errorf("DefaultResourceConfig SystemTxMaxGas doesn't match contract SystemTxMaxGas")
+	}
+	if resourceConfig.MaximumBaseFee.Cmp(genesis.DefaultResourceConfig.MaximumBaseFee) != 0 {
+		return fmt.Errorf("DefaultResourceConfig MaximumBaseFee doesn't match contract MaximumBaseFee")
 	}
 
 	calldata, err := systemConfigABI.Pack(
@@ -741,12 +763,12 @@ func SystemConfig(batch *safe.Batch, implementations superchain.ImplementationLi
 	}
 
 	args := []any{
-		common.HexToAddress(chainConfig.SystemConfigAddr.String()),
-		common.HexToAddress(implementations.SystemConfig.Address.String()),
+		common.Address(list.SystemConfigProxy),
+		common.Address(implementations.SystemConfig.Address),
 		calldata,
 	}
 
-	proxyAdmin := common.HexToAddress(list.ProxyAdmin.String())
+	proxyAdmin := common.Address(list.ProxyAdmin)
 	if err := batch.AddCall(proxyAdmin, common.Big0, upgradeAndCall, args, proxyAdminABI); err != nil {
 		return err
 	}

@@ -90,7 +90,7 @@ contract OptimismMintableTokenFactory_Test is Bridge_Initializer {
         vm.prank(alice);
         l2OptimismMintableERC20Factory.createStandardL2Token(remote, "Beep", "BOOP");
 
-        vm.expectRevert();
+        vm.expectRevert(bytes(""));
 
         vm.prank(alice);
         l2OptimismMintableERC20Factory.createStandardL2Token(remote, "Beep", "BOOP");

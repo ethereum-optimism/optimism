@@ -238,7 +238,7 @@ func (l *L2OutputSubmitter) FetchNextOutputInfo(ctx context.Context) (*eth.Outpu
 		return nil, false, nil
 	}
 
-	return l.fetchOutput(ctx, nextCheckpointBlock)
+	return l.FetchOutput(ctx, nextCheckpointBlock)
 }
 
 // FetchCurrentBlockNumber gets the current block number from the [L2OutputSubmitter]'s [RollupClient]. If the `AllowNonFinalized` configuration
@@ -267,7 +267,7 @@ func (l *L2OutputSubmitter) FetchCurrentBlockNumber(ctx context.Context) (*big.I
 	return currentBlockNumber, nil
 }
 
-func (l *L2OutputSubmitter) fetchOutput(ctx context.Context, block *big.Int) (*eth.OutputResponse, bool, error) {
+func (l *L2OutputSubmitter) FetchOutput(ctx context.Context, block *big.Int) (*eth.OutputResponse, bool, error) {
 	ctx, cancel := context.WithTimeout(ctx, l.Cfg.NetworkTimeout)
 	defer cancel()
 
@@ -451,7 +451,7 @@ func (l *L2OutputSubmitter) loopDGF(ctx context.Context) {
 				break
 			}
 
-			output, shouldPropose, err := l.fetchOutput(ctx, blockNumber)
+			output, shouldPropose, err := l.FetchOutput(ctx, blockNumber)
 			if err != nil || !shouldPropose {
 				break
 			}

@@ -360,7 +360,6 @@ abstract contract CrossDomainMessenger is
 
     /// @notice Initializer.
     /// @param _otherMessenger CrossDomainMessenger contract on the other chain.
-    // solhint-disable-next-line func-name-mixedcase
     function __CrossDomainMessenger_init(CrossDomainMessenger _otherMessenger) internal onlyInitializing {
         // We only want to set the xDomainMsgSender to the default value if it hasn't been initialized yet,
         // meaning that this is a fresh contract deployment.

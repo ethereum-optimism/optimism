@@ -1,5 +1,11 @@
 # @eth-optimism/contracts-bedrock
 
+## 0.17.1
+
+### Patch Changes
+
+- [#9415](https://github.com/ethereum-optimism/optimism/pull/9415) [`79effc52e8b82d15b5eda43acf540ac6c5f8d5d7`](https://github.com/ethereum-optimism/optimism/commit/79effc52e8b82d15b5eda43acf540ac6c5f8d5d7) Thanks [@nitaliano](https://github.com/nitaliano)! - Bumps version so fpac contracts exist for SDK to consume
+
 ## 0.16.2
 
 ### Patch Changes

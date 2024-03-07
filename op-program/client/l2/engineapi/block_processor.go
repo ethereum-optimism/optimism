@@ -84,7 +84,12 @@ func NewBlockProcessorFromHeader(provider BlockDataProvider, h *types.Header) (*
 		// Unfortunately this is not part of any Geth environment setup,
 		// we just have to apply it, like how the Geth block-builder worker does.
 		context := core.NewEVMBlockContext(header, provider, nil, provider.Config(), statedb)
-		vmenv := vm.NewEVM(context, vm.TxContext{}, statedb, provider.Config(), vm.Config{})
+		// NOTE: Unlikely to be needed for the beacon block root, but we setup any precompile overrides anyways for forwards-compatibility
+		var precompileOverrides vm.PrecompileOverrides
+		if vmConfig := provider.GetVMConfig(); vmConfig != nil && vmConfig.OptimismPrecompileOverrides != nil {
+			precompileOverrides = vmConfig.OptimismPrecompileOverrides
+		}
+		vmenv := vm.NewEVM(context, vm.TxContext{}, statedb, provider.Config(), vm.Config{OptimismPrecompileOverrides: precompileOverrides})
 		core.ProcessBeaconBlockRoot(*header.ParentBeaconRoot, vmenv, statedb)
 	}
 	return &BlockProcessor{

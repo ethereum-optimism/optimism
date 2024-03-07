@@ -1,12 +1,23 @@
 package txmgr
 
 import (
-	"strings"
+	"errors"
 	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
+)
+
+var (
+	// Returned by CriticalError when there is an incompatible tx type already in the mempool.
+	// geth defines this error as txpool.ErrAlreadyReserved in v1.13.14 so we can remove this
+	// declaration once op-geth is updated to this version.
+	ErrAlreadyReserved = errors.New("address already reserved")
+
+	// Returned by CriticalError when the system is unable to get the tx into the mempool in the
+	// alloted time
+	ErrMempoolDeadlineExpired = errors.New("failed to get tx into the mempool")
 )
 
 // SendState tracks information about the publication state of a given txn. In
@@ -26,6 +37,9 @@ type SendState struct {
 	// Counts of the different types of errors
 	successFullPublishCount   uint64 // nil error => tx made it to the mempool
 	safeAbortNonceTooLowCount uint64 // nonce too low error
+
+	// Whether any attempt to send the tx resulted in ErrAlreadyReserved
+	alreadyReserved bool
 
 	// Miscellaneous tracking
 	bumpCount int // number of times we have bumped the gas price
@@ -60,8 +74,10 @@ func (s *SendState) ProcessSendError(err error) {
 	switch {
 	case err == nil:
 		s.successFullPublishCount++
-	case strings.Contains(err.Error(), core.ErrNonceTooLow.Error()):
+	case errStringMatch(err, core.ErrNonceTooLow):
 		s.nonceTooLowCount++
+	case errStringMatch(err, ErrAlreadyReserved):
+		s.alreadyReserved = true
 	}
 }
 
@@ -93,27 +109,29 @@ func (s *SendState) TxNotMined(txHash common.Hash) {
 	}
 }
 
-// ShouldAbortImmediately returns true if the txmgr should give up on trying a
-// given txn with the target nonce.
-// This occurs when the set of errors recorded indicates that no further progress can be made
-// on this transaction.
-func (s *SendState) ShouldAbortImmediately() bool {
+// CriticalError returns a non-nil error if the txmgr should give up on trying a given txn with the
+// target nonce.  This occurs when the set of errors recorded indicates that no further progress
+// can be made on this transaction, or if there is an incompatible tx type currently in the
+// mempool.
+func (s *SendState) CriticalError() error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	// Never abort if our latest sample reports having at least one mined txn.
-	if len(s.minedTxs) > 0 {
-		return false
+	switch {
+	case len(s.minedTxs) > 0:
+		// Never abort if our latest sample reports having at least one mined txn.
+		return nil
+	case s.nonceTooLowCount >= s.safeAbortNonceTooLowCount:
+		// we have exceeded the nonce too low count
+		return core.ErrNonceTooLow
+	case s.successFullPublishCount == 0 && s.now().After(s.txInMempoolDeadline):
+		// unable to get the tx into the mempool in the alloted time
+		return ErrMempoolDeadlineExpired
+	case s.alreadyReserved:
+		// incompatible tx type in mempool
+		return ErrAlreadyReserved
 	}
-
-	// If we have exceeded the nonce too low count, abort
-	if s.nonceTooLowCount >= s.safeAbortNonceTooLowCount ||
-		// If we have not published a transaction in the allotted time, abort
-		(s.successFullPublishCount == 0 && s.now().After(s.txInMempoolDeadline)) {
-		return true
-	}
-
-	return false
+	return nil
 }
 
 // IsWaitingForConfirmation returns true if we have at least one confirmation on

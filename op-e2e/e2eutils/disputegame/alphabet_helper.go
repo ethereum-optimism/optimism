@@ -13,14 +13,14 @@ type AlphabetGameHelper struct {
 	FaultGameHelper
 }
 
-func (g *AlphabetGameHelper) StartChallenger(ctx context.Context, l1Endpoint string, name string, options ...challenger.Option) *challenger.Helper {
+func (g *AlphabetGameHelper) StartChallenger(ctx context.Context, sys challenger.EndpointProvider, name string, options ...challenger.Option) *challenger.Helper {
 	opts := []challenger.Option{
 		challenger.WithFactoryAddress(g.factoryAddr),
 		challenger.WithGameAddress(g.addr),
 		challenger.WithAlphabet(g.system.RollupEndpoint("sequencer")),
 	}
 	opts = append(opts, options...)
-	c := challenger.NewChallenger(g.t, ctx, l1Endpoint, name, opts...)
+	c := challenger.NewChallenger(g.t, ctx, sys, name, opts...)
 	g.t.Cleanup(func() {
 		_ = c.Close()
 	})

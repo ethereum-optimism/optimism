@@ -3,8 +3,9 @@ pragma solidity ^0.8.0;
 
 import { console2 as console } from "forge-std/console2.sol";
 
-import { Deployer } from "./Deployer.sol";
-import { PeripheryDeployConfig } from "./PeripheryDeployConfig.s.sol";
+import { Script } from "forge-std/Script.sol";
+import { Artifacts } from "scripts/Artifacts.s.sol";
+import { PeripheryDeployConfig } from "scripts/PeripheryDeployConfig.s.sol";
 
 import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
 import { Proxy } from "src/universal/Proxy.sol";
@@ -16,25 +17,25 @@ import { CheckBalanceLow } from "src/periphery/drippie/dripchecks/CheckBalanceLo
 import { CheckTrue } from "src/periphery/drippie/dripchecks/CheckTrue.sol";
 import { AdminFaucetAuthModule } from "src/periphery/faucet/authmodules/AdminFaucetAuthModule.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
+import { Config } from "scripts/Config.sol";
 
 /// @title DeployPeriphery
 /// @notice Script used to deploy periphery contracts.
-contract DeployPeriphery is Deployer {
+contract DeployPeriphery is Script, Artifacts {
     PeripheryDeployConfig cfg;
 
     /// @notice The name of the script, used to ensure the right deploy artifacts
     ///         are used.
-    function name() public pure override returns (string memory) {
-        return "DeployPeriphery";
+    function name() public pure returns (string memory name_) {
+        name_ = "DeployPeriphery";
     }
 
     function setUp() public override {
-        super.setUp();
+        Artifacts.setUp();
 
         string memory path = string.concat(vm.projectRoot(), "/periphery-deploy-config/", deploymentContext, ".json");
         cfg = new PeripheryDeployConfig(path);
 
-        console.log("Deploying from %s", deployScript);
         console.log("Deployment context: %s", deploymentContext);
     }
 
@@ -250,7 +251,7 @@ contract DeployPeriphery is Deployer {
     /// @notice installs drip configs that deposit funds to all OP Chain faucets. This function
     /// should only be called on an L1 testnet.
     function installOpChainFaucetsDrippieConfigs() public {
-        uint256 drippieOwnerPrivateKey = vm.envUint("DRIPPIE_OWNER_PRIVATE_KEY");
+        uint256 drippieOwnerPrivateKey = Config.drippieOwnerPrivateKey();
         vm.startBroadcast(drippieOwnerPrivateKey);
 
         Drippie drippie = Drippie(mustGetAddress("FaucetDrippie"));
@@ -267,7 +268,7 @@ contract DeployPeriphery is Deployer {
 
     /// @notice archives the previous OP Chain drip configs.
     function archivePreviousOpChainFaucetsDrippieConfigs() public {
-        uint256 drippieOwnerPrivateKey = vm.envUint("DRIPPIE_OWNER_PRIVATE_KEY");
+        uint256 drippieOwnerPrivateKey = Config.drippieOwnerPrivateKey();
         vm.startBroadcast(drippieOwnerPrivateKey);
 
         Drippie drippie = Drippie(mustGetAddress("FaucetDrippie"));

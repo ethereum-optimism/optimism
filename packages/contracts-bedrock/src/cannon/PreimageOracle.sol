@@ -2,6 +2,7 @@
 pragma solidity 0.8.15;
 
 import { IPreimageOracle } from "./interfaces/IPreimageOracle.sol";
+import { ISemver } from "src/universal/ISemver.sol";
 import { PreimageKeyLib } from "./PreimageKeyLib.sol";
 import { LibKeccak } from "@lib-keccak/LibKeccak.sol";
 import "src/cannon/libraries/CannonErrors.sol";
@@ -11,22 +12,25 @@ import "src/cannon/libraries/CannonTypes.sol";
 /// @notice A contract for storing permissioned pre-images.
 /// @custom:attribution Solady <https://github.com/Vectorized/solady/blob/main/src/utils/MerkleProofLib.sol#L13-L43>
 /// @custom:attribution Beacon Deposit Contract <0x00000000219ab540356cbb839cbe05303d7705fa>
-contract PreimageOracle is IPreimageOracle {
+contract PreimageOracle is IPreimageOracle, ISemver {
     ////////////////////////////////////////////////////////////////
     //                   Constants & Immutables                   //
     ////////////////////////////////////////////////////////////////
 
-    /// @notice The timestamp of Cancun activation on the current chain.
-    /// @custom:network-specific
-    uint256 internal immutable CANCUN_ACTIVATION;
     /// @notice The duration of the large preimage proposal challenge period.
     uint256 internal immutable CHALLENGE_PERIOD;
     /// @notice The minimum size of a preimage that can be proposed in the large preimage path.
     uint256 internal immutable MIN_LPP_SIZE_BYTES;
+    /// @notice The minimum bond size for large preimage proposals.
+    uint256 public constant MIN_BOND_SIZE = 0.25 ether;
     /// @notice The depth of the keccak256 merkle tree. Supports up to 65,536 keccak blocks, or ~8.91MB preimages.
     uint256 public constant KECCAK_TREE_DEPTH = 16;
     /// @notice The maximum number of keccak blocks that can fit into the merkle tree.
     uint256 public constant MAX_LEAF_COUNT = 2 ** KECCAK_TREE_DEPTH - 1;
+
+    /// @notice The semantic version of the Preimage Oracle contract.
+    /// @custom:semver 0.1.0
+    string public constant version = "0.1.0";
 
     ////////////////////////////////////////////////////////////////
     //                 Authorized Preimage Parts                  //
@@ -71,6 +75,8 @@ contract PreimageOracle is IPreimageOracle {
     /// @notice Mapping of claimants to proposal UUIDs to the timestamp of creation of the proposal as well as the
     /// challenged status.
     mapping(address => mapping(uint256 => LPPMetaData)) public proposalMetadata;
+    /// @notice Mapping of claimants to proposal UUIDs to bond amounts.
+    mapping(address => mapping(uint256 => uint256)) public proposalBonds;
     /// @notice Mapping of claimants to proposal UUIDs to the preimage part picked up during the absorbtion process.
     mapping(address => mapping(uint256 => bytes32)) public proposalParts;
     /// @notice Mapping of claimants to proposal UUIDs to blocks which leaves were added to the merkle tree.
@@ -80,10 +86,9 @@ contract PreimageOracle is IPreimageOracle {
     //                        Constructor                         //
     ////////////////////////////////////////////////////////////////
 
-    constructor(uint256 _minProposalSize, uint256 _challengePeriod, uint256 _cancunActivation) {
+    constructor(uint256 _minProposalSize, uint256 _challengePeriod) {
         MIN_LPP_SIZE_BYTES = _minProposalSize;
         CHALLENGE_PERIOD = _challengePeriod;
-        CANCUN_ACTIVATION = _cancunActivation;
 
         // Compute hashes in empty sparse Merkle tree. The first hash is not set, and kept as zero as the identity.
         for (uint256 height = 0; height < KECCAK_TREE_DEPTH - 1; height++) {
@@ -245,9 +250,6 @@ contract PreimageOracle is IPreimageOracle {
     )
         external
     {
-        // Prior to Cancun activation, the blob preimage precompile is not available.
-        if (block.timestamp < CANCUN_ACTIVATION) revert CancunNotActive();
-
         bytes32 key;
         bytes32 part;
         assembly {
@@ -329,6 +331,63 @@ contract PreimageOracle is IPreimageOracle {
         preimageLengths[key] = 32;
     }
 
+    /// @inheritdoc IPreimageOracle
+    function loadPrecompilePreimagePart(uint256 _partOffset, address _precompile, bytes calldata _input) external {
+        bytes32 res;
+        bytes32 key;
+        bytes32 part;
+        uint256 size;
+        assembly {
+            // we leave solidity slots 0x40 and 0x60 untouched, and everything after as scratch-memory.
+            let ptr := 0x80
+
+            // copy precompile address and input into memory
+            // len(sig) + len(_partOffset) + address-offset-in-slot
+            calldatacopy(ptr, 48, 20)
+            calldatacopy(add(20, ptr), _input.offset, _input.length)
+            // compute the hash
+            let h := keccak256(ptr, add(20, _input.length))
+            // mask out prefix byte, replace with type 6 byte
+            key := or(and(h, not(shl(248, 0xFF))), shl(248, 0x06))
+
+            // Call the precompile to get the result.
+            res :=
+                staticcall(
+                    gas(), // forward all gas
+                    _precompile,
+                    add(20, ptr), // input ptr
+                    _input.length,
+                    0x0, // Unused as we don't copy anything
+                    0x00 // don't copy anything
+                )
+
+            size := add(1, returndatasize())
+            // revert if part offset >= size+8 (i.e. parts must be within bounds)
+            if iszero(lt(_partOffset, add(size, 8))) {
+                // Store "PartOffsetOOB()"
+                mstore(0, 0xfe254987)
+                // Revert with "PartOffsetOOB()"
+                revert(0x1c, 4)
+            }
+
+            // Reuse the `ptr` to store the preimage part: <sizePrefix ++ precompileStatus ++ returrnData>
+            // put size as big-endian uint64 at start of pre-image
+            mstore(ptr, shl(192, size))
+            ptr := add(ptr, 0x08)
+
+            // write precompile result status to the first byte of `ptr`
+            mstore8(ptr, res)
+            // write precompile return data to the rest of `ptr`
+            returndatacopy(add(ptr, 0x01), 0x0, returndatasize())
+
+            // compute part given ofset
+            part := mload(add(sub(ptr, 0x08), _partOffset))
+        }
+        preimagePartOk[key][_partOffset] = true;
+        preimageParts[key][_partOffset] = part;
+        preimageLengths[key] = size;
+    }
+
     ////////////////////////////////////////////////////////////////
     //            Large Preimage Proposals (External)             //
     ////////////////////////////////////////////////////////////////
@@ -355,8 +414,11 @@ contract PreimageOracle is IPreimageOracle {
     }
 
     /// @notice Initialize a large preimage proposal. Must be called before adding any leaves.
-    function initLPP(uint256 _uuid, uint32 _partOffset, uint32 _claimedSize) external {
-        // The caller of `addLeavesLPP` must be an EOA.
+    function initLPP(uint256 _uuid, uint32 _partOffset, uint32 _claimedSize) external payable {
+        // The bond provided must be at least `MIN_BOND_SIZE`.
+        if (msg.value < MIN_BOND_SIZE) revert InsufficientBond();
+
+        // The caller of `addLeavesLPP` must be an EOA, so that the call inputs are always available in block bodies.
         if (msg.sender != tx.origin) revert NotEOA();
 
         // The part offset must be within the bounds of the claimed size + 8.
@@ -365,9 +427,13 @@ contract PreimageOracle is IPreimageOracle {
         // The claimed size must be at least `MIN_LPP_SIZE_BYTES`.
         if (_claimedSize < MIN_LPP_SIZE_BYTES) revert InvalidInputSize();
 
+        // Initialize the proposal metadata.
         LPPMetaData metaData = proposalMetadata[msg.sender][_uuid];
         proposalMetadata[msg.sender][_uuid] = metaData.setPartOffset(_partOffset).setClaimedSize(_claimedSize);
         proposals.push(LargePreimageProposalKeys(msg.sender, _uuid));
+
+        // Assign the bond to the proposal.
+        proposalBonds[msg.sender][_uuid] = msg.value;
     }
 
     /// @notice Adds a contiguous list of keccak state matrices to the merkle tree.
@@ -524,6 +590,9 @@ contract PreimageOracle is IPreimageOracle {
 
         // Mark the keccak claim as countered.
         proposalMetadata[_claimant][_uuid] = proposalMetadata[_claimant][_uuid].setCountered(true);
+
+        // Pay out the bond to the challenger.
+        _payoutBond(_claimant, _uuid, msg.sender);
     }
 
     /// @notice Challenge the first keccak256 block that was absorbed.
@@ -552,6 +621,9 @@ contract PreimageOracle is IPreimageOracle {
 
         // Mark the keccak claim as countered.
         proposalMetadata[_claimant][_uuid] = proposalMetadata[_claimant][_uuid].setCountered(true);
+
+        // Pay out the bond to the challenger.
+        _payoutBond(_claimant, _uuid, msg.sender);
     }
 
     /// @notice Finalize a large preimage proposal after the challenge period has passed.
@@ -605,6 +677,9 @@ contract PreimageOracle is IPreimageOracle {
         preimagePartOk[finalDigest][partOffset] = true;
         preimageParts[finalDigest][partOffset] = proposalParts[_claimant][_uuid];
         preimageLengths[finalDigest] = metaData.claimedSize();
+
+        // Pay out the bond to the claimant.
+        _payoutBond(_claimant, _uuid, _claimant);
     }
 
     /// @notice Gets the current merkle root of the large preimage proposal tree.
@@ -666,7 +741,7 @@ contract PreimageOracle is IPreimageOracle {
         }
     }
 
-    /// Check if leaf` at `index` verifies against the Merkle `root` and `branch`.
+    /// @notice Check if leaf` at `index` verifies against the Merkle `root` and `branch`.
     /// https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/beacon-chain.md#is_valid_merkle_branch
     function _verify(
         bytes32[] calldata _proof,
@@ -697,6 +772,15 @@ contract PreimageOracle is IPreimageOracle {
 
             isValid_ := eq(value, _root)
         }
+    }
+
+    /// @notice Pay out a proposal's bond. Reverts if the transfer fails.
+    function _payoutBond(address _claimant, uint256 _uuid, address _to) internal {
+        // Pay out the bond to the claimant.
+        uint256 bond = proposalBonds[_claimant][_uuid];
+        proposalBonds[_claimant][_uuid] = 0;
+        (bool success,) = _to.call{ value: bond }("");
+        if (!success) revert BondTransferFailed();
     }
 
     /// @notice Hashes leaf data for the preimage proposals tree

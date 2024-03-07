@@ -31,10 +31,6 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         uint64 timestamp;
     }
 
-    /// @dev Remove this in favor of a configurable sauron role. This should probably live in the superchain config,
-    ///      but need to confirm with security.
-    address internal constant SAURON = address(0xdead);
-
     /// @notice The delay between when a withdrawal transaction is proven and when it may be finalized.
     uint256 internal immutable PROOF_MATURITY_DELAY_SECONDS;
 
@@ -91,6 +87,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     /// @notice The game type that the OptimismPortal consults for output proposals.
     GameType public respectedGameType;
 
+    /// @notice The timestamp at which the respected game type was last updated.
+    uint64 public respectedGameTypeUpdatedAt;
+
     /// @notice Emitted when a transaction is deposited from L1 to L2.
     ///         The parameters of this event are read by the rollup node and used to derive deposit
     ///         transactions on L2.
@@ -118,8 +117,8 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 3.0.0
-    string public constant version = "3.0.0";
+    /// @custom:semver 3.2.0
+    string public constant version = "3.2.0";
 
     /// @notice Constructs the OptimismPortal contract.
     constructor(
@@ -184,9 +183,18 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     }
 
     /// @notice Getter for the current paused status.
-    /// @return paused_ Whether or not the contract is paused.
-    function paused() public view returns (bool paused_) {
-        paused_ = superchainConfig.paused();
+    function paused() public view returns (bool) {
+        return superchainConfig.paused();
+    }
+
+    /// @notice Getter for the proof maturity delay.
+    function proofMaturityDelaySeconds() public view returns (uint256) {
+        return PROOF_MATURITY_DELAY_SECONDS;
+    }
+
+    /// @notice Getter for the dispute game finality delay.
+    function disputeGameFinalityDelaySeconds() public view returns (uint256) {
+        return DISPUTE_GAME_FINALITY_DELAY_SECONDS;
     }
 
     /// @notice Computes the minimum gas limit for a deposit.
@@ -204,7 +212,6 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     ///         funds be deposited to their address on L2. This is intended as a convenience
     ///         function for EOAs. Contracts should call the depositTransaction() function directly
     ///         otherwise any deposited funds will be lost due to address aliasing.
-    // solhint-disable-next-line ordering
     receive() external payable {
         depositTransaction(msg.sender, msg.value, RECEIVE_DEFAULT_GAS_LIMIT, false, bytes(""));
     }
@@ -266,9 +273,10 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         // in the case that an honest user proves their withdrawal against a dispute game that
         // resolves against the root claim, or the dispute game is blacklisted, we allow
         // re-proving the withdrawal against a new proposal.
+        IDisputeGame game = provenWithdrawal.disputeGameProxy;
         require(
             provenWithdrawal.timestamp == 0 || gameProxy.status() == GameStatus.CHALLENGER_WINS
-                || disputeGameBlacklist[gameProxy],
+                || disputeGameBlacklist[gameProxy] || game.gameType().raw() != respectedGameType.raw(),
             "OptimismPortal: withdrawal hash has already been proven, and dispute game is not invalid"
         );
 
@@ -404,29 +412,21 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     /// @notice Blacklists a dispute game. Should only be used in the event that a dispute game resolves incorrectly.
     /// @param _disputeGame Dispute game to blacklist.
     function blacklistDisputeGame(IDisputeGame _disputeGame) external {
-        require(msg.sender == SAURON, "OptimismPortal: only sauron can blacklist dispute games");
+        require(msg.sender == guardian(), "OptimismPortal: only the guardian can blacklist dispute games");
         disputeGameBlacklist[_disputeGame] = true;
-    }
-
-    /// @notice Deletes a proven withdrawal from the `provenWithdrawals` mapping in the case that a MPT proof was
-    ///         incorrectly verified by the `MerkleTrie` verifier contract.
-    /// @param _withdrawalHash Hash of the withdrawal transaction to delete from the `pendingWithdrawals` mapping.
-    function deleteProvenWithdrawal(bytes32 _withdrawalHash) external {
-        require(msg.sender == SAURON, "OptimismPortal: only sauron can delete proven withdrawals");
-        delete provenWithdrawals[_withdrawalHash];
     }
 
     /// @notice Sets the respected game type. Changing this value can alter the security properties of the system,
     ///         depending on the new game's behavior.
     /// @param _gameType The game type to consult for output proposals.
     function setRespectedGameType(GameType _gameType) external {
-        require(msg.sender == SAURON, "OptimismPortal: only sauron can set the respected game type");
+        require(msg.sender == guardian(), "OptimismPortal: only the guardian can set the respected game type");
         respectedGameType = _gameType;
+        respectedGameTypeUpdatedAt = uint64(block.timestamp);
     }
 
-    /// @notice Checks if a withdrawal can be finalized. NOTE: Decision was made to have this
-    ///         function revert rather than returning a boolean so that was more obvious why the
-    ///         function failed.
+    /// @notice Checks if a withdrawal can be finalized. This function will revert if the withdrawal cannot be
+    ///         finalized, and otherwise has no side-effects.
     /// @param _withdrawalHash Hash of the withdrawal to check.
     function checkWithdrawal(bytes32 _withdrawalHash) public view {
         ProvenWithdrawal memory provenWithdrawal = provenWithdrawals[_withdrawalHash];
@@ -440,12 +440,14 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         // a timestamp of zero.
         require(provenWithdrawal.timestamp != 0, "OptimismPortal: withdrawal has not been proven yet");
 
+        uint64 createdAt = disputeGameProxy.createdAt().raw();
+
         // As a sanity check, we make sure that the proven withdrawal's timestamp is greater than
         // starting timestamp inside the Dispute Game. Not strictly necessary but extra layer of
         // safety against weird bugs in the proving step.
         require(
-            provenWithdrawal.timestamp > disputeGameProxy.createdAt().raw(),
-            "OptimismPortal: withdrawal timestamp less than L2 Oracle starting timestamp"
+            provenWithdrawal.timestamp > createdAt,
+            "OptimismPortal: withdrawal timestamp less than dispute game creation timestamp"
         );
 
         // A proven withdrawal must wait at least `PROOF_MATURITY_DELAY_SECONDS` before finalizing.
@@ -460,6 +462,18 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         require(
             disputeGameProxy.status() == GameStatus.DEFENDER_WINS,
             "OptimismPortal: output proposal has not been finalized yet"
+        );
+
+        // The game type of the dispute game must be the respected game type. This was also checked in
+        // `proveWithdrawalTransaction`, but we check it again in case the respected game type has changed since
+        // the withdrawal was proven.
+        require(disputeGameProxy.gameType().raw() == respectedGameType.raw(), "OptimismPortal: invalid game type");
+
+        // The game must have been created after `respectedGameTypeUpdatedAt`. This is to prevent users from creating
+        // invalid disputes against a deployed game type while the off-chain challenge agents are not watching.
+        require(
+            createdAt >= respectedGameTypeUpdatedAt,
+            "OptimismPortal: dispute game created before respected game type was updated"
         );
 
         // Before a withdrawal can be finalized, the dispute game it was proven against must have been

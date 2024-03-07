@@ -101,7 +101,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*Config, error) {
 		return nil, errors.Wrap(err, "missing required flags")
 	}
 
-	rollupCfg, err := opnode.NewRollupConfig(log, ctx)
+	rollupCfg, err := opnode.NewRollupConfigFromCLI(log, ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to load rollup config")
 	}

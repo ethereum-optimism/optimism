@@ -79,7 +79,6 @@ var (
 		Name:    "l1.beacon",
 		Usage:   "Address of L1 Beacon API endpoint to use",
 		EnvVars: prefixEnvVars("L1_BEACON_API"),
-		Hidden:  true,
 	}
 	L1TrustRPC = &cli.BoolFlag{
 		Name:    "l1.trustrpc",

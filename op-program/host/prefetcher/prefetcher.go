@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
@@ -16,10 +17,22 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
+
+var (
+	precompileSuccess = [1]byte{1}
+	precompileFailure = [1]byte{0}
+)
+
+var acceleratedPrecompiles = []common.Address{
+	common.BytesToAddress([]byte{0x1}),  // ecrecover
+	common.BytesToAddress([]byte{0x8}),  // bn256Pairing
+	common.BytesToAddress([]byte{0x0a}), // KZG Point Evaluation
+}
 
 type L1Source interface {
 	InfoByHash(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, error)
@@ -157,11 +170,41 @@ func (p *Prefetcher) prefetch(ctx context.Context, hint string) error {
 		for i := 0; i < params.BlobTxFieldElementsPerBlob; i++ {
 			binary.BigEndian.PutUint64(blobKey[72:], uint64(i))
 			blobKeyHash := crypto.Keccak256Hash(blobKey)
+			if err := p.kvStore.Put(preimage.Keccak256Key(blobKeyHash).PreimageKey(), blobKey); err != nil {
+				return err
+			}
 			if err = p.kvStore.Put(preimage.BlobKey(blobKeyHash).PreimageKey(), sidecar.Blob[i<<5:(i+1)<<5]); err != nil {
 				return err
 			}
 		}
 		return nil
+	case l1.HintL1Precompile:
+		if len(hintBytes) < 20 {
+			return fmt.Errorf("invalid precompile hint: %x", hint)
+		}
+		precompileAddress := common.BytesToAddress(hintBytes[:20])
+		// For extra safety, avoid accelerating unexpected precompiles
+		if !slices.Contains(acceleratedPrecompiles, precompileAddress) {
+			return fmt.Errorf("unsupported precompile address: %s", precompileAddress)
+		}
+		// NOTE: We use the precompiled contracts from Cancun because it's the only set that contains the addresses of all accelerated precompiles
+		// We assume the precompile Run function behavior does not change across EVM upgrades.
+		// As such, we must not rely on upgrade-specific behavior such as precompile.RequiredGas.
+		precompile := getPrecompiledContract(precompileAddress)
+
+		// KZG Point Evaluation precompile also verifies its input
+		result, err := precompile.Run(hintBytes[20:])
+		if err == nil {
+			result = append(precompileSuccess[:], result...)
+		} else {
+			result = append(precompileFailure[:], result...)
+		}
+		inputHash := crypto.Keccak256Hash(hintBytes)
+		// Put the input preimage so it can be loaded later
+		if err := p.kvStore.Put(preimage.Keccak256Key(inputHash).PreimageKey(), hintBytes); err != nil {
+			return err
+		}
+		return p.kvStore.Put(preimage.PrecompileKey(inputHash).PreimageKey(), result)
 	case l2.HintL2BlockHeader, l2.HintL2Transactions:
 		if len(hintBytes) != 32 {
 			return fmt.Errorf("invalid L2 header/tx hint: %x", hint)
@@ -253,4 +296,8 @@ func parseHint(hint string) (string, []byte, error) {
 		return "", make([]byte, 0), fmt.Errorf("invalid bytes: %s", bytesStr)
 	}
 	return hintType, hintBytes, nil
+}
+
+func getPrecompiledContract(address common.Address) vm.PrecompiledContract {
+	return vm.PrecompiledContractsCancun[address]
 }

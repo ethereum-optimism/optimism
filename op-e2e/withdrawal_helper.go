@@ -8,8 +8,11 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-bindings/bindingspreview"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
@@ -82,10 +85,10 @@ func defaultWithdrawalTxOpts() *WithdrawalTxOpts {
 	}
 }
 
-func ProveAndFinalizeWithdrawal(t *testing.T, cfg SystemConfig, clients ClientProvider, l2NodeName string, ethPrivKey *ecdsa.PrivateKey, l2WithdrawalReceipt *types.Receipt) (*types.Receipt, *types.Receipt) {
+func ProveAndFinalizeWithdrawal(t *testing.T, cfg SystemConfig, clients ClientProvider, l2NodeName string, ethPrivKey *ecdsa.PrivateKey, l2WithdrawalReceipt *types.Receipt) (*types.Receipt, *types.Receipt, *types.Receipt, *types.Receipt) {
 	params, proveReceipt := ProveWithdrawal(t, cfg, clients, l2NodeName, ethPrivKey, l2WithdrawalReceipt)
-	finalizeReceipt := FinalizeWithdrawal(t, cfg, clients.NodeClient("l1"), ethPrivKey, proveReceipt, params)
-	return proveReceipt, finalizeReceipt
+	finalizeReceipt, resolveClaimReceipt, resolveReceipt := FinalizeWithdrawal(t, cfg, clients.NodeClient("l1"), ethPrivKey, proveReceipt, params)
+	return proveReceipt, finalizeReceipt, resolveClaimReceipt, resolveReceipt
 }
 
 func ProveWithdrawal(t *testing.T, cfg SystemConfig, clients ClientProvider, l2NodeName string, ethPrivKey *ecdsa.PrivateKey, l2WithdrawalReceipt *types.Receipt) (withdrawals.ProvenWithdrawalParameters, *types.Receipt) {
@@ -94,10 +97,18 @@ func ProveWithdrawal(t *testing.T, cfg SystemConfig, clients ClientProvider, l2N
 	defer cancel()
 
 	l1Client := clients.NodeClient("l1")
-	blockNumber, err := wait.ForOutputRootPublished(ctx, l1Client, config.L1Deployments.L2OutputOracleProxy, l2WithdrawalReceipt.BlockNumber)
-	require.Nil(t, err)
+	var blockNumber uint64
+	var err error
+	if e2eutils.UseFPAC() {
+		blockNumber, err = wait.ForGamePublished(ctx, l1Client, config.L1Deployments.OptimismPortalProxy, config.L1Deployments.DisputeGameFactoryProxy, l2WithdrawalReceipt.BlockNumber)
+		require.Nil(t, err)
+	} else {
+		blockNumber, err = wait.ForOutputRootPublished(ctx, l1Client, config.L1Deployments.L2OutputOracleProxy, l2WithdrawalReceipt.BlockNumber)
+		require.Nil(t, err)
+	}
 
 	receiptCl := clients.NodeClient(l2NodeName)
+	blockCl := clients.NodeClient(l2NodeName)
 	proofCl := gethclient.New(receiptCl.Client())
 
 	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
@@ -106,11 +117,16 @@ func ProveWithdrawal(t *testing.T, cfg SystemConfig, clients ClientProvider, l2N
 	header, err := receiptCl.HeaderByNumber(ctx, new(big.Int).SetUint64(blockNumber))
 	require.Nil(t, err)
 
-	// Now create withdrawal
 	oracle, err := bindings.NewL2OutputOracleCaller(config.L1Deployments.L2OutputOracleProxy, l1Client)
 	require.Nil(t, err)
 
-	params, err := withdrawals.ProveWithdrawalParameters(context.Background(), proofCl, receiptCl, l2WithdrawalReceipt.TxHash, header, oracle)
+	factory, err := bindings.NewDisputeGameFactoryCaller(config.L1Deployments.DisputeGameFactoryProxy, l1Client)
+	require.Nil(t, err)
+
+	portal2, err := bindingspreview.NewOptimismPortal2Caller(config.L1Deployments.OptimismPortalProxy, l1Client)
+	require.Nil(t, err)
+
+	params, err := ProveWithdrawalParameters(context.Background(), proofCl, receiptCl, blockCl, l2WithdrawalReceipt.TxHash, header, oracle, factory, portal2)
 	require.Nil(t, err)
 
 	portal, err := bindings.NewOptimismPortal(config.L1Deployments.OptimismPortalProxy, l1Client)
@@ -143,35 +159,84 @@ func ProveWithdrawal(t *testing.T, cfg SystemConfig, clients ClientProvider, l2N
 	return params, proveReceipt
 }
 
-func FinalizeWithdrawal(t *testing.T, cfg SystemConfig, l1Client *ethclient.Client, privKey *ecdsa.PrivateKey, withdrawalProofReceipt *types.Receipt, params withdrawals.ProvenWithdrawalParameters) *types.Receipt {
+func ProveWithdrawalParameters(ctx context.Context, proofCl withdrawals.ProofClient, l2ReceiptCl withdrawals.ReceiptClient, l2BlockCl withdrawals.BlockClient, txHash common.Hash, header *types.Header, l2OutputOracleContract *bindings.L2OutputOracleCaller, disputeGameFactoryContract *bindings.DisputeGameFactoryCaller, optimismPortal2Contract *bindingspreview.OptimismPortal2Caller) (withdrawals.ProvenWithdrawalParameters, error) {
+	if e2eutils.UseFPAC() {
+		return withdrawals.ProveWithdrawalParametersFPAC(ctx, proofCl, l2ReceiptCl, l2BlockCl, txHash, disputeGameFactoryContract, optimismPortal2Contract)
+	} else {
+		return withdrawals.ProveWithdrawalParameters(ctx, proofCl, l2ReceiptCl, l2BlockCl, txHash, header, l2OutputOracleContract)
+	}
+}
+
+func FinalizeWithdrawal(t *testing.T, cfg SystemConfig, l1Client *ethclient.Client, privKey *ecdsa.PrivateKey, withdrawalProofReceipt *types.Receipt, params withdrawals.ProvenWithdrawalParameters) (*types.Receipt, *types.Receipt, *types.Receipt) {
 	// Wait for finalization and then create the Finalized Withdrawal Transaction
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 	defer cancel()
 
-	err := wait.ForFinalizationPeriod(ctx, l1Client, withdrawalProofReceipt.BlockNumber, config.L1Deployments.L2OutputOracleProxy)
-	require.Nil(t, err)
+	wd := crossdomain.Withdrawal{
+		Nonce:    params.Nonce,
+		Sender:   &params.Sender,
+		Target:   &params.Target,
+		Value:    params.Value,
+		GasLimit: params.GasLimit,
+		Data:     params.Data,
+	}
 
 	opts, err := bind.NewKeyedTransactorWithChainID(privKey, cfg.L1ChainIDBig())
 	require.Nil(t, err)
+
+	var resolveClaimReceipt *types.Receipt
+	var resolveReceipt *types.Receipt
+	if e2eutils.UseFPAC() {
+		portal2, err := bindingspreview.NewOptimismPortal2(config.L1Deployments.OptimismPortalProxy, l1Client)
+		require.Nil(t, err)
+
+		wdHash, err := wd.Hash()
+		require.Nil(t, err)
+
+		game, err := portal2.ProvenWithdrawals(&bind.CallOpts{}, wdHash)
+		require.Nil(t, err)
+		require.NotNil(t, game, "withdrawal should be proven")
+
+		proxy, err := bindings.NewFaultDisputeGame(game.DisputeGameProxy, l1Client)
+		require.Nil(t, err)
+
+		expiry, err := proxy.GameDuration(&bind.CallOpts{})
+		require.Nil(t, err)
+
+		time.Sleep(time.Duration(expiry) * time.Second)
+		resolveClaimTx, err := proxy.ResolveClaim(opts, common.Big0)
+		require.Nil(t, err)
+
+		resolveClaimReceipt, err = wait.ForReceiptOK(ctx, l1Client, resolveClaimTx.Hash())
+		require.Nil(t, err, "resolve claim")
+		require.Equal(t, types.ReceiptStatusSuccessful, resolveClaimReceipt.Status)
+
+		resolveTx, err := proxy.Resolve(opts)
+		require.Nil(t, err)
+
+		resolveReceipt, err = wait.ForReceiptOK(ctx, l1Client, resolveTx.Hash())
+		require.Nil(t, err, "resolve")
+		require.Equal(t, types.ReceiptStatusSuccessful, resolveReceipt.Status)
+	}
+
+	if e2eutils.UseFPAC() {
+		err := wait.ForWithdrawalCheck(ctx, l1Client, wd, config.L1Deployments.OptimismPortalProxy)
+		require.Nil(t, err)
+	} else {
+		err := wait.ForFinalizationPeriod(ctx, l1Client, withdrawalProofReceipt.BlockNumber, config.L1Deployments.L2OutputOracleProxy)
+		require.Nil(t, err)
+	}
+
 	portal, err := bindings.NewOptimismPortal(config.L1Deployments.OptimismPortalProxy, l1Client)
 	require.Nil(t, err)
+
 	// Finalize withdrawal
-	tx, err := portal.FinalizeWithdrawalTransaction(
-		opts,
-		bindings.TypesWithdrawalTransaction{
-			Nonce:    params.Nonce,
-			Sender:   params.Sender,
-			Target:   params.Target,
-			Value:    params.Value,
-			GasLimit: params.GasLimit,
-			Data:     params.Data,
-		},
-	)
+	tx, err := portal.FinalizeWithdrawalTransaction(opts, wd.WithdrawalTransaction())
 	require.Nil(t, err)
 
 	// Ensure that our withdrawal was finalized successfully
-	finalizeReceipt, err := geth.WaitForTransaction(tx.Hash(), l1Client, 3*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+	finalizeReceipt, err := wait.ForReceiptOK(ctx, l1Client, tx.Hash())
 	require.Nil(t, err, "finalize withdrawal")
 	require.Equal(t, types.ReceiptStatusSuccessful, finalizeReceipt.Status)
-	return finalizeReceipt
+	return finalizeReceipt, resolveClaimReceipt, resolveReceipt
 }

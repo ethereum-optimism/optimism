@@ -5,7 +5,6 @@ import (
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
-	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -16,6 +15,7 @@ type ContractCall struct {
 	Addr   common.Address
 	Method string
 	Args   []interface{}
+	From   common.Address
 }
 
 func NewContractCall(abi *abi.ABI, addr common.Address, method string, args ...interface{}) *ContractCall {
@@ -36,11 +36,13 @@ func (c *ContractCall) ToCallArgs() (interface{}, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to pack arguments: %w", err)
 	}
-	msg := ethereum.CallMsg{
-		To:   &c.Addr,
-		Data: data,
+
+	arg := map[string]interface{}{
+		"from":  c.From,
+		"to":    &c.Addr,
+		"input": hexutil.Bytes(data),
 	}
-	return toCallArg(msg), nil
+	return arg, nil
 }
 
 func (c *ContractCall) Unpack(hex hexutil.Bytes) (*CallResult, error) {
@@ -49,26 +51,6 @@ func (c *ContractCall) Unpack(hex hexutil.Bytes) (*CallResult, error) {
 		return nil, fmt.Errorf("failed to unpack data: %w", err)
 	}
 	return &CallResult{out: out}, nil
-}
-
-func toCallArg(msg ethereum.CallMsg) interface{} {
-	arg := map[string]interface{}{
-		"from": msg.From,
-		"to":   msg.To,
-	}
-	if len(msg.Data) > 0 {
-		arg["input"] = hexutil.Bytes(msg.Data)
-	}
-	if msg.Value != nil {
-		arg["value"] = (*hexutil.Big)(msg.Value)
-	}
-	if msg.Gas != 0 {
-		arg["gas"] = hexutil.Uint64(msg.Gas)
-	}
-	if msg.GasPrice != nil {
-		arg["gasPrice"] = (*hexutil.Big)(msg.GasPrice)
-	}
-	return arg
 }
 
 func (c *ContractCall) ToTxCandidate() (txmgr.TxCandidate, error) {

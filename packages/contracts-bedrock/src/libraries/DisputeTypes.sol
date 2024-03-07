@@ -95,6 +95,9 @@ library GameTypes {
     /// @dev A dispute game type the uses the cannon vm.
     GameType internal constant CANNON = GameType.wrap(0);
 
+    /// @dev A permissioned dispute game type the uses the cannon vm.
+    GameType internal constant PERMISSIONED_CANNON = GameType.wrap(1);
+
     /// @notice A dispute game type that uses an alphabet vm.
     ///         Not intended for production use.
     GameType internal constant ALPHABET = GameType.wrap(255);
@@ -128,8 +131,8 @@ library LocalPreimageKey {
     /// @notice The identifier for the disputed output root.
     uint256 internal constant DISPUTED_OUTPUT_ROOT = 0x03;
 
-    /// @notice The identifier for the starting L2 block number.
-    uint256 internal constant STARTING_L2_BLOCK_NUMBER = 0x04;
+    /// @notice The identifier for the disputed L2 block number.
+    uint256 internal constant DISPUTED_L2_BLOCK_NUMBER = 0x04;
 
     /// @notice The identifier for the chain ID.
     uint256 internal constant CHAIN_ID = 0x05;

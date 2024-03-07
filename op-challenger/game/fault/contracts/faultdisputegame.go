@@ -3,6 +3,7 @@ package contracts
 import (
 	"context"
 	"fmt"
+	"math"
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
@@ -18,6 +19,7 @@ var (
 	methodMaxGameDepth       = "maxGameDepth"
 	methodAbsolutePrestate   = "absolutePrestate"
 	methodStatus             = "status"
+	methodRootClaim          = "rootClaim"
 	methodClaimCount         = "claimDataLen"
 	methodClaim              = "claimData"
 	methodL1Head             = "l1Head"
@@ -78,6 +80,29 @@ func (c *FaultDisputeGameContract) GetBlockRange(ctx context.Context) (prestateB
 	return
 }
 
+// GetGameMetadata returns the game's L2 block number, root claim, status, and game duration.
+func (c *FaultDisputeGameContract) GetGameMetadata(ctx context.Context) (uint64, common.Hash, gameTypes.GameStatus, uint64, error) {
+	results, err := c.multiCaller.Call(ctx, batching.BlockLatest,
+		c.contract.Call(methodL2BlockNumber),
+		c.contract.Call(methodRootClaim),
+		c.contract.Call(methodStatus),
+		c.contract.Call(methodGameDuration))
+	if err != nil {
+		return 0, common.Hash{}, 0, 0, fmt.Errorf("failed to retrieve game metadata: %w", err)
+	}
+	if len(results) != 4 {
+		return 0, common.Hash{}, 0, 0, fmt.Errorf("expected 3 results but got %v", len(results))
+	}
+	l2BlockNumber := results[0].GetBigInt(0).Uint64()
+	rootClaim := results[1].GetHash(0)
+	duration := results[3].GetUint64(0)
+	status, err := gameTypes.GameStatusFromUint8(results[2].GetUint8(0))
+	if err != nil {
+		return 0, common.Hash{}, 0, 0, fmt.Errorf("failed to convert game status: %w", err)
+	}
+	return l2BlockNumber, rootClaim, status, duration, nil
+}
+
 func (c *FaultDisputeGameContract) GetGenesisOutputRoot(ctx context.Context) (common.Hash, error) {
 	genesisOutputRoot, err := c.multiCaller.SingleCall(ctx, batching.BlockLatest, c.contract.Call(methodGenesisOutputRoot))
 	if err != nil {
@@ -94,12 +119,38 @@ func (c *FaultDisputeGameContract) GetSplitDepth(ctx context.Context) (types.Dep
 	return types.Depth(splitDepth.GetBigInt(0).Uint64()), nil
 }
 
-func (c *FaultDisputeGameContract) GetCredit(ctx context.Context, receipient common.Address) (*big.Int, error) {
-	credit, err := c.multiCaller.SingleCall(ctx, batching.BlockLatest, c.contract.Call(methodCredit, receipient))
+func (c *FaultDisputeGameContract) GetCredit(ctx context.Context, recipient common.Address) (*big.Int, gameTypes.GameStatus, error) {
+	results, err := c.multiCaller.Call(ctx, batching.BlockLatest,
+		c.contract.Call(methodCredit, recipient),
+		c.contract.Call(methodStatus))
+	if err != nil {
+		return nil, gameTypes.GameStatusInProgress, err
+	}
+	if len(results) != 2 {
+		return nil, gameTypes.GameStatusInProgress, fmt.Errorf("expected 2 results but got %v", len(results))
+	}
+	credit := results[0].GetBigInt(0)
+	status, err := gameTypes.GameStatusFromUint8(results[1].GetUint8(0))
+	if err != nil {
+		return nil, gameTypes.GameStatusInProgress, fmt.Errorf("invalid game status %v: %w", status, err)
+	}
+	return credit, status, nil
+}
+
+func (c *FaultDisputeGameContract) GetCredits(ctx context.Context, block batching.Block, recipients ...common.Address) ([]*big.Int, error) {
+	calls := make([]*batching.ContractCall, 0, len(recipients))
+	for _, recipient := range recipients {
+		calls = append(calls, c.contract.Call(methodCredit, recipient))
+	}
+	results, err := c.multiCaller.Call(ctx, block, calls...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve credit: %w", err)
 	}
-	return credit.GetBigInt(0), nil
+	credits := make([]*big.Int, 0, len(recipients))
+	for _, result := range results {
+		credits = append(credits, result.GetBigInt(0))
+	}
+	return credits, nil
 }
 
 func (f *FaultDisputeGameContract) ClaimCredit(recipient common.Address) (txmgr.TxCandidate, error) {
@@ -279,6 +330,21 @@ func (f *FaultDisputeGameContract) resolveCall() *batching.ContractCall {
 	return f.contract.Call(methodResolve)
 }
 
+// decodeClock decodes a uint128 into a Clock duration and timestamp.
+func decodeClock(clock *big.Int) *types.Clock {
+	maxUint64 := new(big.Int).Add(new(big.Int).SetUint64(math.MaxUint64), big.NewInt(1))
+	remainder := new(big.Int)
+	quotient, _ := new(big.Int).QuoRem(clock, maxUint64, remainder)
+	return types.NewClock(quotient.Uint64(), remainder.Uint64())
+}
+
+// packClock packs the Clock duration and timestamp into a uint128.
+func packClock(c *types.Clock) *big.Int {
+	duration := new(big.Int).SetUint64(c.Duration)
+	encoded := new(big.Int).Lsh(duration, 64)
+	return new(big.Int).Or(encoded, new(big.Int).SetUint64(c.Timestamp))
+}
+
 func (f *FaultDisputeGameContract) decodeClaim(result *batching.CallResult, contractIndex int) types.Claim {
 	parentIndex := result.GetUint32(0)
 	counteredBy := result.GetAddress(1)
@@ -295,7 +361,7 @@ func (f *FaultDisputeGameContract) decodeClaim(result *batching.CallResult, cont
 		},
 		CounteredBy:         counteredBy,
 		Claimant:            claimant,
-		Clock:               clock.Uint64(),
+		Clock:               decodeClock(clock),
 		ContractIndex:       contractIndex,
 		ParentContractIndex: int(parentIndex),
 	}

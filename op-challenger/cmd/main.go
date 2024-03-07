@@ -48,6 +48,9 @@ func run(ctx context.Context, args []string, action ConfiguredLifecycle) error {
 	app.Commands = []*cli.Command{
 		ListGamesCommand,
 		ListClaimsCommand,
+		CreateGameCommand,
+		MoveCommand,
+		ResolveCommand,
 	}
 	app.Action = cliapp.LifecycleCmd(func(ctx *cli.Context, close context.CancelCauseFunc) (cliapp.Lifecycle, error) {
 		logger, err := setupLogging(ctx)

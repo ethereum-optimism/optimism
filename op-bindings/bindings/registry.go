@@ -10,7 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-// layouts respresents the set of storage layouts. It is populated in an init function.
+// layouts represents the set of storage layouts. It is populated in an init function.
 var layouts = make(map[string]*solc.StorageLayout)
 
 // deployedBytecodes represents the set of deployed bytecodes. It is populated

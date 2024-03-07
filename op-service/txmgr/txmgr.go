@@ -59,6 +59,10 @@ type TxManager interface {
 	// may be included on L1 even if the context is cancelled.
 	//
 	// NOTE: Send can be called concurrently, the nonce will be managed internally.
+	//
+	// Callers using both Blob and non-Blob transactions should check to see if the returned error
+	// is ErrAlreadyReserved, which indicates an incompatible transaction may be stuck in the
+	// mempool and is in need of replacement or cancellation.
 	Send(ctx context.Context, candidate TxCandidate) (*types.Receipt, error)
 
 	// From returns the sending address associated with the instance of the transaction manager.
@@ -70,6 +74,7 @@ type TxManager interface {
 
 	// Close the underlying connection
 	Close()
+	IsClosed() bool
 }
 
 // ETHBackend is the set of methods that the transaction manager uses to resubmit gas & determine
@@ -170,7 +175,7 @@ func (m *SimpleTxManager) txLogger(tx *types.Transaction, logGas bool) log.Logge
 	}
 	if len(tx.BlobHashes()) != 0 {
 		// log the number of blobs a tx has only if it's a blob tx
-		fields = append(fields, "blobs", len(tx.BlobHashes()))
+		fields = append(fields, "blobs", len(tx.BlobHashes()), "blobFeeCap", tx.BlobGasFeeCap())
 	}
 	return m.l.New(fields...)
 }
@@ -421,16 +426,15 @@ func (m *SimpleTxManager) sendTx(ctx context.Context, tx *types.Transaction) (*t
 	defer ticker.Stop()
 
 	for {
+		if err := sendState.CriticalError(); err != nil {
+			m.txLogger(tx, false).Warn("Aborting transaction submission", "err", err)
+			return nil, fmt.Errorf("aborted tx send due to critical error: %w", err)
+		}
 		select {
 		case <-ticker.C:
 			// Don't resubmit a transaction if it has been mined, but we are waiting for the conf depth.
 			if sendState.IsWaitingForConfirmation() {
 				continue
-			}
-			// If we see lots of unrecoverable errors (and no pending transactions) abort sending the transaction.
-			if sendState.ShouldAbortImmediately() {
-				m.txLogger(tx, false).Warn("Aborting transaction submission")
-				return nil, errors.New("aborted transaction sending")
 			}
 			// if the tx manager closed while we were waiting for the tx, give up
 			if m.closed.Load() {
@@ -490,14 +494,19 @@ func (m *SimpleTxManager) publishTx(ctx context.Context, tx *types.Transaction, 
 
 		if err == nil {
 			m.metr.TxPublished("")
-			log.Info("Transaction successfully published")
+			l.Info("Transaction successfully published")
 			return tx, true
 		}
 
 		switch {
+		case errStringMatch(err, ErrAlreadyReserved):
+			// this can happen if, say, a blob transaction is stuck in the mempool and we try to
+			// send a non-blob transaction (and vice-versa).
+			l.Warn("txpool contains pending tx of incompatible type", "err", err)
+			m.metr.TxPublished("pending_tx_of_incompatible_type")
 		case errStringMatch(err, core.ErrNonceTooLow):
 			l.Warn("nonce too low", "err", err)
-			m.metr.TxPublished("nonce_to_low")
+			m.metr.TxPublished("nonce_too_low")
 		case errStringMatch(err, context.Canceled):
 			m.metr.RPCError()
 			l.Warn("transaction send cancelled", "err", err)
@@ -651,7 +660,10 @@ func (m *SimpleTxManager) increaseGasPrice(ctx context.Context, tx *types.Transa
 		return nil, err
 	}
 	if tx.Gas() != gas {
-		m.l.Info("re-estimated gas differs", "tx", tx.Hash(), "oldgas", tx.Gas(), "newgas", gas,
+		// non-determinism in gas limit estimation happens regularly due to underlying state
+		// changes across calls, and is even more common now that geth uses an in-exact estimation
+		// approach as of v1.13.6.
+		m.l.Debug("re-estimated gas differs", "tx", tx.Hash(), "oldgas", tx.Gas(), "newgas", gas,
 			"gasFeeCap", bumpedFee, "gasTipCap", bumpedTip)
 	}
 
@@ -782,6 +794,11 @@ func (m *SimpleTxManager) checkBlobFeeLimits(blobBaseFee, bumpedBlobFee *big.Int
 			bumpedBlobFee, m.cfg.FeeLimitMultiplier, ErrBlobFeeLimit)
 	}
 	return nil
+}
+
+// IsClosed returns true if the tx manager is closed.
+func (m *SimpleTxManager) IsClosed() bool {
+	return m.closed.Load()
 }
 
 // calcThresholdValue returns ceil(x * priceBumpPercent / 100) for non-blob txs, or

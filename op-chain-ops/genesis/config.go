@@ -18,7 +18,6 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/hardhat"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/immutables"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/state"
@@ -198,10 +197,6 @@ type DeployConfig struct {
 	// FaultGameAbsolutePrestate is the absolute prestate of Cannon. This is computed
 	// by generating a proof from the 0th -> 1st instruction and grabbing the prestate from
 	// the output JSON. All honest challengers should agree on the setup state of the program.
-	// TODO(clabby): Right now, the build of the `op-program` is nondeterministic, meaning that
-	// the binary must be distributed in order for honest actors to agree. In the future, we'll
-	// look to make the build deterministic so that users may build Cannon / the `op-program`
-	// from source.
 	FaultGameAbsolutePrestate common.Hash `json:"faultGameAbsolutePrestate"`
 	// FaultGameMaxDepth is the maximum depth of the position tree within the fault dispute game.
 	// `2^{FaultGameMaxDepth}` is how many instructions the execution trace bisection game
@@ -218,12 +213,12 @@ type DeployConfig struct {
 	FaultGameGenesisOutputRoot common.Hash `json:"faultGameGenesisOutputRoot"`
 	// FaultGameSplitDepth is the depth at which the fault dispute game splits from output roots to execution trace claims.
 	FaultGameSplitDepth uint64 `json:"faultGameSplitDepth"`
+	// FaultGameWithdrawalDelay is the number of seconds that users must wait before withdrawing ETH from a fault game.
+	FaultGameWithdrawalDelay uint64 `json:"faultGameWithdrawalDelay"`
 	// PreimageOracleMinProposalSize is the minimum number of bytes that a large preimage oracle proposal can be.
 	PreimageOracleMinProposalSize uint64 `json:"preimageOracleMinProposalSize"`
 	// PreimageOracleChallengePeriod is the number of seconds that challengers have to challenge a large preimage proposal.
 	PreimageOracleChallengePeriod uint64 `json:"preimageOracleChallengePeriod"`
-	// PreimageOracleCancunActivationTimestamp is the timestamp at which blob preimages are able to be loaded into the preimage oracle.
-	PreimageOracleCancunActivationTimestamp uint64 `json:"preimageOracleCancunActivationTimestamp"`
 	// FundDevAccounts configures whether or not to fund the dev accounts. Should only be used
 	// during devnet deployments.
 	FundDevAccounts bool `json:"fundDevAccounts"`
@@ -245,6 +240,18 @@ type DeployConfig struct {
 	// UseFaultProofs is a flag that indicates if the system is using fault
 	// proofs instead of the older output oracle mechanism.
 	UseFaultProofs bool `json:"useFaultProofs"`
+
+	// UsePlasma is a flag that indicates if the system is using op-plasma
+	UsePlasma bool `json:"usePlasma"`
+	// DaChallengeWindow represents the block interval during which the availability of a data commitment can be challenged.
+	DaChallengeWindow uint64 `json:"daChallengeWindow"`
+	// DaResolveWindow represents the block interval during which a data availability challenge can be resolved.
+	DaResolveWindow uint64 `json:"daResolveWindow"`
+	// DaBondSize represents the required bond size to initiate a data availability challenge.
+	DaBondSize uint64 `json:"daBondSize"`
+	// DaResolverRefundPercentage represents the percentage of the resolving cost to be refunded to the resolver
+	// such as 100 means 100% refund.
+	DaResolverRefundPercentage uint64 `json:"daResolverRefundPercentage"`
 
 	// When Cancun activates. Relative to L1 genesis.
 	L1CancunTimeOffset *hexutil.Uint64 `json:"l1CancunTimeOffset,omitempty"`
@@ -458,52 +465,6 @@ func (d *DeployConfig) SetDeployments(deployments *L1Deployments) {
 	d.OptimismPortalProxy = deployments.OptimismPortalProxy
 }
 
-// GetDeployedAddresses will get the deployed addresses of deployed L1 contracts
-// required for the L2 genesis creation.
-func (d *DeployConfig) GetDeployedAddresses(hh *hardhat.Hardhat) error {
-	if d.L1StandardBridgeProxy == (common.Address{}) {
-		l1StandardBridgeProxyDeployment, err := hh.GetDeployment("L1StandardBridgeProxy")
-		if err != nil {
-			return fmt.Errorf("cannot find L1StandardBridgeProxy artifact: %w", err)
-		}
-		d.L1StandardBridgeProxy = l1StandardBridgeProxyDeployment.Address
-	}
-
-	if d.L1CrossDomainMessengerProxy == (common.Address{}) {
-		l1CrossDomainMessengerProxyDeployment, err := hh.GetDeployment("L1CrossDomainMessengerProxy")
-		if err != nil {
-			return fmt.Errorf("cannot find L1CrossDomainMessengerProxy artifact: %w", err)
-		}
-		d.L1CrossDomainMessengerProxy = l1CrossDomainMessengerProxyDeployment.Address
-	}
-
-	if d.L1ERC721BridgeProxy == (common.Address{}) {
-		l1ERC721BridgeProxyDeployment, err := hh.GetDeployment("L1ERC721BridgeProxy")
-		if err != nil {
-			return fmt.Errorf("cannot find L1ERC721BridgeProxy artifact: %w", err)
-		}
-		d.L1ERC721BridgeProxy = l1ERC721BridgeProxyDeployment.Address
-	}
-
-	if d.SystemConfigProxy == (common.Address{}) {
-		systemConfigProxyDeployment, err := hh.GetDeployment("SystemConfigProxy")
-		if err != nil {
-			return fmt.Errorf("cannot find SystemConfigProxy artifact: %w", err)
-		}
-		d.SystemConfigProxy = systemConfigProxyDeployment.Address
-	}
-
-	if d.OptimismPortalProxy == (common.Address{}) {
-		optimismPortalProxyDeployment, err := hh.GetDeployment("OptimismPortalProxy")
-		if err != nil {
-			return fmt.Errorf("cannot find OptimismPortalProxy artifact: %w", err)
-		}
-		d.OptimismPortalProxy = optimismPortalProxyDeployment.Address
-	}
-
-	return nil
-}
-
 func (d *DeployConfig) GovernanceEnabled() bool {
 	return d.EnableGovernance
 }
@@ -668,6 +629,8 @@ type L1Deployments struct {
 	SystemConfigProxy                 common.Address `json:"SystemConfigProxy"`
 	ProtocolVersions                  common.Address `json:"ProtocolVersions"`
 	ProtocolVersionsProxy             common.Address `json:"ProtocolVersionsProxy"`
+	DataAvailabilityChallenge         common.Address `json:"DataAvailabilityChallenge"`
+	DataAvailabilityChallengeProxy    common.Address `json:"DataAvailabilityChallengeProxy"`
 }
 
 // GetName will return the name of the contract given an address.
@@ -685,7 +648,7 @@ func (d *L1Deployments) GetName(addr common.Address) string {
 }
 
 // Check will ensure that the L1Deployments are sane
-func (d *L1Deployments) Check() error {
+func (d *L1Deployments) Check(deployConfig *DeployConfig) error {
 	val := reflect.ValueOf(d)
 	if val.Kind() == reflect.Ptr {
 		val = val.Elem()
@@ -693,7 +656,14 @@ func (d *L1Deployments) Check() error {
 	for i := 0; i < val.NumField(); i++ {
 		name := val.Type().Field(i).Name
 		// Skip the non production ready contracts
-		if name == "DisputeGameFactory" || name == "DisputeGameFactoryProxy" || name == "BlockOracle" {
+		if name == "DisputeGameFactory" ||
+			name == "DisputeGameFactoryProxy" ||
+			name == "BlockOracle" {
+			continue
+		}
+		if !deployConfig.UsePlasma &&
+			(name == "DataAvailabilityChallenge" ||
+				name == "DataAvailabilityChallengeProxy") {
 			continue
 		}
 		if val.Field(i).Interface().(common.Address) == (common.Address{}) {
@@ -885,8 +855,7 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (*immutables
 	return &cfg, nil
 }
 
-// NewL2StorageConfig will create a StorageConfig given an instance of a
-// Hardhat and a DeployConfig.
+// NewL2StorageConfig will create a StorageConfig given an instance of a DeployConfig and genesis block.
 func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.StorageConfig, error) {
 	storage := make(state.StorageConfig)
 

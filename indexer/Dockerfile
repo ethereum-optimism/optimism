@@ -14,6 +14,7 @@ COPY ./indexer /app/indexer
 COPY ./op-bindings /app/op-bindings
 COPY ./op-service /app/op-service
 COPY ./op-node /app/op-node
+COPY ./op-plasma /app/op-plasma
 COPY ./op-chain-ops /app/op-chain-ops
 COPY ./go.mod /app/go.mod
 COPY ./go.sum /app/go.sum

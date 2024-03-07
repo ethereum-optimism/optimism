@@ -217,7 +217,7 @@ func (s *Service) initRollupClient(ctx context.Context, cfg *config.Config) erro
 func (s *Service) registerGameTypes(ctx context.Context, cfg *config.Config) error {
 	gameTypeRegistry := registry.NewGameTypeRegistry()
 	caller := batching.NewMultiCaller(s.l1Client.Client(), batching.DefaultBatchSize)
-	closer, err := fault.RegisterGameTypes(gameTypeRegistry, ctx, s.cl, s.logger, s.metrics, cfg, s.rollupClient, s.txSender, s.factoryContract, caller)
+	closer, err := fault.RegisterGameTypes(gameTypeRegistry, ctx, s.cl, s.logger, s.metrics, cfg, s.rollupClient, s.txSender, s.factoryContract, caller, s.l1Client)
 	if err != nil {
 		return err
 	}
@@ -228,7 +228,7 @@ func (s *Service) registerGameTypes(ctx context.Context, cfg *config.Config) err
 
 func (s *Service) initScheduler(cfg *config.Config) error {
 	disk := newDiskManager(cfg.Datadir)
-	s.sched = scheduler.NewScheduler(s.logger, s.metrics, disk, cfg.MaxConcurrency, s.registry.CreatePlayer)
+	s.sched = scheduler.NewScheduler(s.logger, s.metrics, disk, cfg.MaxConcurrency, s.registry.CreatePlayer, cfg.AllowInvalidPrestate)
 	return nil
 }
 

@@ -6,6 +6,7 @@ import {
   toRpcHexString,
 } from '@eth-optimism/core-utils'
 import { MerkleTree } from 'merkletreejs'
+import * as rlp from 'rlp'
 
 /**
  * Generates a Merkle proof (using the particular scheme we use within Lib_MerkleTree).
@@ -45,6 +46,42 @@ export const makeMerkleTreeProof = (
 }
 
 /**
+ * Fix for the case where the final proof element is less than 32 bytes and the element exists
+ * inside of a branch node. Current implementation of the onchain MPT contract can't handle this
+ * natively so we instead append an extra proof element to handle it instead.
+ *
+ * @param key Key that the proof is for.
+ * @param proof Proof to potentially modify.
+ * @returns Modified proof.
+ */
+export const maybeAddProofNode = (key: string, proof: string[]) => {
+  const modifiedProof = [...proof]
+  const finalProofEl = modifiedProof[modifiedProof.length - 1]
+  const finalProofElDecoded = rlp.decode(finalProofEl) as any
+  if (finalProofElDecoded.length === 17) {
+    for (const item of finalProofElDecoded) {
+      // Find any nodes located inside of the branch node.
+      if (Array.isArray(item)) {
+        // Check if the key inside the node matches the key we're looking for. We remove the first
+        // two characters (0x) and then we remove one more character (the first nibble) since this
+        // is the identifier for the type of node we're looking at. In this case we don't actually
+        // care what type of node it is because a branch node would only ever be the final proof
+        // element if (1) it includes the leaf node we're looking for or (2) it stores the value
+        // within itself. If (1) then this logic will work, if (2) then this won't find anything
+        // and we won't append any proof elements, which is exactly what we would want.
+        const suffix = toHexString(item[0]).slice(3)
+        if (key.endsWith(suffix)) {
+          modifiedProof.push(toHexString(rlp.encode(item)))
+        }
+      }
+    }
+  }
+
+  // Return the modified proof.
+  return modifiedProof
+}
+
+/**
  * Generates a Merkle-Patricia trie proof for a given account and storage slot.
  *
  * @param provider RPC provider attached to an EVM-compatible chain.
@@ -69,6 +106,11 @@ export const makeStateTrieProof = async (
     [slot],
     toRpcHexString(blockNumber),
   ])
+
+  proof.storageProof[0].proof = maybeAddProofNode(
+    ethers.utils.keccak256(slot),
+    proof.storageProof[0].proof
+  )
 
   return {
     accountProof: proof.accountProof,

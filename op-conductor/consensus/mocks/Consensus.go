@@ -3,7 +3,9 @@
 package mocks
 
 import (
+	consensus "github.com/ethereum-optimism/optimism/op-conductor/consensus"
 	eth "github.com/ethereum-optimism/optimism/op-service/eth"
+
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -110,6 +112,63 @@ func (_c *Consensus_AddVoter_Call) Return(_a0 error) *Consensus_AddVoter_Call {
 }
 
 func (_c *Consensus_AddVoter_Call) RunAndReturn(run func(string, string) error) *Consensus_AddVoter_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ClusterMembership provides a mock function with given fields:
+func (_m *Consensus) ClusterMembership() ([]*consensus.ServerInfo, error) {
+	ret := _m.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for ClusterMembership")
+	}
+
+	var r0 []*consensus.ServerInfo
+	var r1 error
+	if rf, ok := ret.Get(0).(func() ([]*consensus.ServerInfo, error)); ok {
+		return rf()
+	}
+	if rf, ok := ret.Get(0).(func() []*consensus.ServerInfo); ok {
+		r0 = rf()
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*consensus.ServerInfo)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func() error); ok {
+		r1 = rf()
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// Consensus_ClusterMembership_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ClusterMembership'
+type Consensus_ClusterMembership_Call struct {
+	*mock.Call
+}
+
+// ClusterMembership is a helper method to define mock.On call
+func (_e *Consensus_Expecter) ClusterMembership() *Consensus_ClusterMembership_Call {
+	return &Consensus_ClusterMembership_Call{Call: _e.mock.On("ClusterMembership")}
+}
+
+func (_c *Consensus_ClusterMembership_Call) Run(run func()) *Consensus_ClusterMembership_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *Consensus_ClusterMembership_Call) Return(_a0 []*consensus.ServerInfo, _a1 error) *Consensus_ClusterMembership_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *Consensus_ClusterMembership_Call) RunAndReturn(run func() ([]*consensus.ServerInfo, error)) *Consensus_ClusterMembership_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -346,31 +405,23 @@ func (_c *Consensus_LeaderCh_Call) RunAndReturn(run func() <-chan bool) *Consens
 }
 
 // LeaderWithID provides a mock function with given fields:
-func (_m *Consensus) LeaderWithID() (string, string) {
+func (_m *Consensus) LeaderWithID() *consensus.ServerInfo {
 	ret := _m.Called()
 
 	if len(ret) == 0 {
 		panic("no return value specified for LeaderWithID")
 	}
 
-	var r0 string
-	var r1 string
-	if rf, ok := ret.Get(0).(func() (string, string)); ok {
-		return rf()
-	}
-	if rf, ok := ret.Get(0).(func() string); ok {
+	var r0 *consensus.ServerInfo
+	if rf, ok := ret.Get(0).(func() *consensus.ServerInfo); ok {
 		r0 = rf()
 	} else {
-		r0 = ret.Get(0).(string)
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*consensus.ServerInfo)
+		}
 	}
 
-	if rf, ok := ret.Get(1).(func() string); ok {
-		r1 = rf()
-	} else {
-		r1 = ret.Get(1).(string)
-	}
-
-	return r0, r1
+	return r0
 }
 
 // Consensus_LeaderWithID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'LeaderWithID'
@@ -390,12 +441,12 @@ func (_c *Consensus_LeaderWithID_Call) Run(run func()) *Consensus_LeaderWithID_C
 	return _c
 }
 
-func (_c *Consensus_LeaderWithID_Call) Return(_a0 string, _a1 string) *Consensus_LeaderWithID_Call {
-	_c.Call.Return(_a0, _a1)
+func (_c *Consensus_LeaderWithID_Call) Return(_a0 *consensus.ServerInfo) *Consensus_LeaderWithID_Call {
+	_c.Call.Return(_a0)
 	return _c
 }
 
-func (_c *Consensus_LeaderWithID_Call) RunAndReturn(run func() (string, string)) *Consensus_LeaderWithID_Call {
+func (_c *Consensus_LeaderWithID_Call) RunAndReturn(run func() *consensus.ServerInfo) *Consensus_LeaderWithID_Call {
 	_c.Call.Return(run)
 	return _c
 }

@@ -39,7 +39,7 @@ type Scheduler struct {
 	cancel         func()
 }
 
-func NewScheduler(logger log.Logger, m SchedulerMetricer, disk DiskManager, maxConcurrency uint, createPlayer PlayerCreator) *Scheduler {
+func NewScheduler(logger log.Logger, m SchedulerMetricer, disk DiskManager, maxConcurrency uint, createPlayer PlayerCreator, allowInvalidPrestate bool) *Scheduler {
 	// Size job and results queues to be fairly small so backpressure is applied early
 	// but with enough capacity to keep the workers busy
 	jobQueue := make(chan job, maxConcurrency*2)
@@ -52,7 +52,7 @@ func NewScheduler(logger log.Logger, m SchedulerMetricer, disk DiskManager, maxC
 	return &Scheduler{
 		logger:         logger,
 		m:              m,
-		coordinator:    newCoordinator(logger, m, jobQueue, resultQueue, createPlayer, disk),
+		coordinator:    newCoordinator(logger, m, jobQueue, resultQueue, createPlayer, disk, allowInvalidPrestate),
 		maxConcurrency: maxConcurrency,
 		scheduleQueue:  scheduleQueue,
 		jobQueue:       jobQueue,

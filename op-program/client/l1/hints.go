@@ -12,6 +12,7 @@ const (
 	HintL1Transactions = "l1-transactions"
 	HintL1Receipts     = "l1-receipts"
 	HintL1Blob         = "l1-blob"
+	HintL1Precompile   = "l1-precompile"
 )
 
 type BlockHeaderHint common.Hash
@@ -44,4 +45,12 @@ var _ preimage.Hint = BlobHint{}
 
 func (l BlobHint) Hint() string {
 	return HintL1Blob + " " + hexutil.Encode(l)
+}
+
+type PrecompileHint []byte
+
+var _ preimage.Hint = PrecompileHint{}
+
+func (l PrecompileHint) Hint() string {
+	return HintL1Precompile + " " + hexutil.Encode(l)
 }

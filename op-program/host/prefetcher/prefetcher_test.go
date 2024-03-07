@@ -214,7 +214,107 @@ func TestFetchL1Blob(t *testing.T) {
 
 		blobs := oracle.GetBlob(l1Ref, blobHash)
 		require.EqualValues(t, blobs[:], blob[:])
+
+		// Check that the preimages of field element keys are also stored
+		// This makes it possible for the challenger to extract the commitment and required field from the
+		// oracle key rather than needing the hint data.
+
+		fieldElemKey := make([]byte, 80)
+		copy(fieldElemKey[:48], commitment[:])
+		for i := 0; i < params.BlobTxFieldElementsPerBlob; i++ {
+			binary.BigEndian.PutUint64(fieldElemKey[72:], uint64(i))
+			key := preimage.Keccak256Key(crypto.Keccak256(fieldElemKey)).PreimageKey()
+			actual, err := prefetcher.kvStore.Get(key)
+			require.NoError(t, err)
+			require.Equal(t, fieldElemKey, actual)
+		}
 	})
+}
+
+func TestFetchPrecompileResult(t *testing.T) {
+	ecRecoverInput := common.FromHex("18c547e4f7b0f325ad1e56f57e26c745b09a3e503d86e00e5255ff7f715d3d1c000000000000000000000000000000000000000000000000000000000000001c73b1693892219d736caba55bdb67216e485557ea6b6af75f37096c9aa6a5a75feeb940b1d03b21e36b0e47e79769f095fe2ab855bd91e3a38756b7d75a9c4549")
+	kzgPointEvalInput := common.FromHex("01e798154708fe7789429634053cbf9f99b619f9f084048927333fce637f549b564c0a11a0f704f4fc3e8acfe0f8245f0ad1347b378fbf96e206da11a5d3630624d25032e67a7e6a4910df5834b8fe70e6bcfeeac0352434196bdf4b2485d5a18f59a8d2a1a625a17f3fea0fe5eb8c896db3764f3185481bc22f91b4aaffcca25f26936857bc3a7c2539ea8ec3a952b7873033e038326e87ed3e1276fd140253fa08e9fc25fb2d9a98527fc22a2c9612fbeafdad446cbc7bcdbdcd780af2c16a")
+
+	failure := []byte{0}
+	success := []byte{1}
+
+	tests := []struct {
+		name   string
+		addr   common.Address
+		input  []byte
+		result []byte
+	}{
+		{
+			name:   "EcRecover-Valid",
+			addr:   common.BytesToAddress([]byte{0x1}),
+			input:  ecRecoverInput,
+			result: append(success, common.FromHex("000000000000000000000000a94f5374fce5edbc8e2a8697c15331677e6ebf0b")...),
+		},
+		{
+			name:   "Bn256Pairing-Valid",
+			addr:   common.BytesToAddress([]byte{0x8}),
+			input:  []byte{}, // empty is valid
+			result: append(success, common.FromHex("0000000000000000000000000000000000000000000000000000000000000001")...),
+		},
+		{
+			name:   "Bn256Pairing-Invalid",
+			addr:   common.BytesToAddress([]byte{0x8}),
+			input:  []byte{0x1},
+			result: failure,
+		},
+		{
+			name:   "KzgPointEvaluation-Valid",
+			addr:   common.BytesToAddress([]byte{0xa}),
+			input:  kzgPointEvalInput,
+			result: append(success, common.FromHex("000000000000000000000000000000000000000000000000000000000000100073eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001")...),
+		},
+		{
+			name:   "KzgPointEvaluation-Invalid",
+			addr:   common.BytesToAddress([]byte{0xa}),
+			input:  []byte{0x0},
+			result: failure,
+		},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			prefetcher, _, _, _, _ := createPrefetcher(t)
+			oracle := l1.NewPreimageOracle(asOracleFn(t, prefetcher), asHinter(t, prefetcher))
+
+			result, ok := oracle.Precompile(test.addr, test.input)
+			require.Equal(t, test.result[0] == 1, ok)
+			require.EqualValues(t, test.result[1:], result)
+
+			key := crypto.Keccak256Hash(append(test.addr.Bytes(), test.input...))
+			val, err := prefetcher.kvStore.Get(preimage.Keccak256Key(key).PreimageKey())
+			require.NoError(t, err)
+			require.NotEmpty(t, val)
+
+			val, err = prefetcher.kvStore.Get(preimage.PrecompileKey(key).PreimageKey())
+			require.NoError(t, err)
+			require.EqualValues(t, test.result, val)
+		})
+	}
+
+	t.Run("Already Known", func(t *testing.T) {
+		input := []byte("test input")
+		addr := common.BytesToAddress([]byte{0x1})
+		result := []byte{0x1}
+		prefetcher, _, _, _, kv := createPrefetcher(t)
+		err := kv.Put(preimage.PrecompileKey(crypto.Keccak256Hash(append(addr.Bytes(), input...))).PreimageKey(), append([]byte{1}, result...))
+		require.NoError(t, err)
+
+		oracle := l1.NewPreimageOracle(asOracleFn(t, prefetcher), asHinter(t, prefetcher))
+		actualResult, status := oracle.Precompile(addr, input)
+		require.EqualValues(t, actualResult, result)
+		require.True(t, status)
+	})
+}
+
+func TestRestrictedPrecompileContracts(t *testing.T) {
+	for _, addr := range acceleratedPrecompiles {
+		require.NotNil(t, getPrecompiledContract(addr))
+	}
 }
 
 func TestFetchL2Block(t *testing.T) {

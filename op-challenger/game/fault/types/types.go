@@ -8,14 +8,17 @@ import (
 
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 var (
 	ErrGameDepthReached = errors.New("game depth reached")
+)
 
-	// NoLocalContext is the LocalContext value used when the cannon trace provider is used alone instead of as part
-	// of a split game.
-	NoLocalContext = common.Hash{}
+const (
+	CannonGameType       uint32 = 0
+	PermissionedGameType uint32 = 1
+	AlphabetGameType     uint32 = 255
 )
 
 type ClockReader interface {
@@ -29,6 +32,11 @@ type PreimageOracleData struct {
 	OracleKey    []byte
 	oracleData   []byte
 	OracleOffset uint32
+
+	// 4844 blob data
+	BlobFieldIndex uint64
+	BlobCommitment []byte
+	BlobProof      []byte
 }
 
 // GetIdent returns the ident for the preimage oracle data.
@@ -46,6 +54,14 @@ func (p *PreimageOracleData) GetPreimageWithSize() []byte {
 	return p.oracleData
 }
 
+func (p *PreimageOracleData) GetPrecompileAddress() common.Address {
+	return common.BytesToAddress(p.oracleData[8:28])
+}
+
+func (p *PreimageOracleData) GetPrecompileInput() []byte {
+	return p.oracleData[28:]
+}
+
 // NewPreimageOracleData creates a new [PreimageOracleData] instance.
 func NewPreimageOracleData(key []byte, data []byte, offset uint32) *PreimageOracleData {
 	return &PreimageOracleData{
@@ -53,6 +69,18 @@ func NewPreimageOracleData(key []byte, data []byte, offset uint32) *PreimageOrac
 		OracleKey:    key,
 		oracleData:   data,
 		OracleOffset: offset,
+	}
+}
+
+func NewPreimageOracleBlobData(key []byte, data []byte, offset uint32, fieldIndex uint64, commitment []byte, proof []byte) *PreimageOracleData {
+	return &PreimageOracleData{
+		IsLocal:        false,
+		OracleKey:      key,
+		oracleData:     data,
+		OracleOffset:   offset,
+		BlobFieldIndex: fieldIndex,
+		BlobCommitment: commitment,
+		BlobProof:      proof,
 	}
 }
 
@@ -111,6 +139,8 @@ func (c *ClaimData) ValueBytes() [32]byte {
 	return responseArr
 }
 
+type ClaimID common.Hash
+
 // Claim extends ClaimData with information about the relationship between two claims.
 // It uses ClaimData to break cyclicity without using pointers.
 // If the position of the game is Depth 0, IndexAtDepth 0 it is the root claim
@@ -123,14 +153,54 @@ type Claim struct {
 	//       to be changed/removed to avoid invalid/stale contract state.
 	CounteredBy common.Address
 	Claimant    common.Address
-	Clock       uint64
+	Clock       *Clock
 	// Location of the claim & it's parent inside the contract. Does not exist
 	// for claims that have not made it to the contract.
 	ContractIndex       int
 	ParentContractIndex int
 }
 
+func (c Claim) ID() ClaimID {
+	return ClaimID(crypto.Keccak256Hash(
+		c.Position.ToGIndex().Bytes(),
+		c.Value.Bytes(),
+		big.NewInt(int64(c.ParentContractIndex)).Bytes(),
+	))
+}
+
 // IsRoot returns true if this claim is the root claim.
 func (c *Claim) IsRoot() bool {
 	return c.Position.IsRootPosition()
+}
+
+// ChessTime returns the amount of time accumulated in the chess clock.
+// Does not assume the claim is countered and uses the specified time
+// to calculate the time since the claim was posted.
+func (c *Claim) ChessTime(now time.Time) time.Duration {
+	timeSince := int64(0)
+	if now.Unix() > int64(c.Clock.Timestamp) {
+		timeSince = now.Unix() - int64(c.Clock.Timestamp)
+	}
+	return time.Duration(c.Clock.Duration) + time.Duration(timeSince)
+}
+
+// Clock is a packed uint128 with the upper 64 bits being the
+// duration and the lower 64 bits being the timestamp.
+// ┌────────────┬────────────────┐
+// │    Bits    │     Value      │
+// ├────────────┼────────────────┤
+// │ [0, 64)    │ Duration       │
+// │ [64, 128)  │ Timestamp      │
+// └────────────┴────────────────┘
+type Clock struct {
+	Duration  uint64
+	Timestamp uint64
+}
+
+// NewClock creates a new Clock instance.
+func NewClock(duration uint64, timestamp uint64) *Clock {
+	return &Clock{
+		Duration:  duration,
+		Timestamp: timestamp,
+	}
 }

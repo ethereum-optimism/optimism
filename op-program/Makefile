@@ -48,18 +48,18 @@ run-goerli-verify: op-program-host op-program-client
 	./bin/op-program `cat "$(COMPAT_DIR)/goerli/args.txt"`
 
 verify-sepolia: op-program-host op-program-client
-	env GO111MODULE=on go run ./verify/sepolia/cmd/sepolia.go --l1 $$SEPOLIA_L1URL --l2 $$SEPOLIA_L2URL
+	env GO111MODULE=on go run ./verify/sepolia/cmd/sepolia.go --l1 $$SEPOLIA_L1URL --l1.beacon $$SEPOLIA_BEACON_URL --l2 $$SEPOLIA_L2URL
 
 capture-sepolia-verify: op-program-host op-program-client
 	rm -rf "$(COMPAT_DIR)/sepolia" "$(COMPAT_DIR)/sepolia.tar.bz"
-	env GO111MODULE=on go run ./verify/sepolia/cmd/sepolia.go --l1 $$SEPOLIA_L1URL --l2 $$SEPOLIA_L2URL --datadir "$(COMPAT_DIR)/sepolia"
+	env GO111MODULE=on go run ./verify/sepolia/cmd/sepolia.go --l1 $$SEPOLIA_L1URL --l1.beacon $$SEPOLIA_BEACON_URL --l2 $$SEPOLIA_L2URL --datadir "$(COMPAT_DIR)/sepolia"
 	tar jcf "$(COMPAT_DIR)/sepolia.tar.bz" -C "$(COMPAT_DIR)" sepolia
 
 capture-chain-test-data: capture-sepolia-verify
 
 run-sepolia-verify: op-program-host op-program-client
 	mkdir -p "$(COMPAT_DIR)"
-	curl -L -o "$(COMPAT_DIR)/sepolia.tar.bz" https://github.com/ethereum-optimism/chain-test-data/releases/download/2023-10-11/sepolia.tar.bz
+	curl -L -o "$(COMPAT_DIR)/sepolia.tar.bz" https://github.com/ethereum-optimism/chain-test-data/releases/download/2024-03-01.2-branch/sepolia.tar.bz
 	tar jxf "$(COMPAT_DIR)/sepolia.tar.bz" -C "$(COMPAT_DIR)"
 	./bin/op-program `cat "$(COMPAT_DIR)/sepolia/args.txt"`
 

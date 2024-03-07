@@ -98,6 +98,7 @@ func TestLoadConfigWithoutPreset(t *testing.T) {
 		l2-output-oracle = "0x42097868233d1aa22e815a266982f2cf17685a27"
 		l1-cross-domain-messenger = "0x420ce71c97B33Cc4729CF772ae268934F7ab5fA1"
 		l1-standard-bridge = "0x4209fc46f92E8a1c0deC1b1747d010903E884bE1"
+		dispute-game-factory = "0x4209fc46f92E8a1c0deC1b1747d010903E884bE1"
 
         [rpcs]
         l1-rpc = "https://l1.example.com"

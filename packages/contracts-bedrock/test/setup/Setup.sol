@@ -14,10 +14,12 @@ import { L1Block } from "src/L2/L1Block.sol";
 import { LegacyMessagePasser } from "src/legacy/LegacyMessagePasser.sol";
 import { GovernanceToken } from "src/governance/GovernanceToken.sol";
 import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
-import { LegacyERC20ETH } from "src/legacy/LegacyERC20ETH.sol";
 import { StandardBridge } from "src/universal/StandardBridge.sol";
 import { FeeVault } from "src/universal/FeeVault.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
+import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
+import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
+import { DelayedWETH } from "src/dispute/weth/DelayedWETH.sol";
 import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
 import { DeployConfig } from "scripts/DeployConfig.s.sol";
 import { Deploy } from "scripts/Deploy.s.sol";
@@ -31,6 +33,7 @@ import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { Executables } from "scripts/Executables.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
+import { DataAvailabilityChallenge } from "src/L1/DataAvailabilityChallenge.sol";
 
 /// @title Setup
 /// @dev This contact is responsible for setting up the contracts in state. It currently
@@ -46,6 +49,9 @@ contract Setup {
     Deploy internal constant deploy = Deploy(address(uint160(uint256(keccak256(abi.encode("optimism.deploy"))))));
 
     OptimismPortal optimismPortal;
+    OptimismPortal2 optimismPortal2;
+    DisputeGameFactory disputeGameFactory;
+    DelayedWETH delayedWeth;
     L2OutputOracle l2OutputOracle;
     SystemConfig systemConfig;
     L1StandardBridge l1StandardBridge;
@@ -55,6 +61,7 @@ contract Setup {
     OptimismMintableERC20Factory l1OptimismMintableERC20Factory;
     ProtocolVersions protocolVersions;
     SuperchainConfig superchainConfig;
+    DataAvailabilityChallenge dataAvailabilityChallenge;
 
     L2CrossDomainMessenger l2CrossDomainMessenger =
         L2CrossDomainMessenger(payable(Predeploys.L2_CROSS_DOMAIN_MESSENGER));
@@ -70,7 +77,6 @@ contract Setup {
     L1Block l1Block = L1Block(Predeploys.L1_BLOCK_ATTRIBUTES);
     LegacyMessagePasser legacyMessagePasser = LegacyMessagePasser(Predeploys.LEGACY_MESSAGE_PASSER);
     GovernanceToken governanceToken = GovernanceToken(Predeploys.GOVERNANCE_TOKEN);
-    LegacyERC20ETH legacyERC20ETH = LegacyERC20ETH(Predeploys.LEGACY_ERC20_ETH);
 
     /// @dev Deploys the Deploy contract without including its bytecode in the bytecode
     ///      of this contract by fetching the bytecode dynamically using `vm.getCode()`.
@@ -95,6 +101,9 @@ contract Setup {
         deploy.run();
 
         optimismPortal = OptimismPortal(deploy.mustGetAddress("OptimismPortalProxy"));
+        optimismPortal2 = OptimismPortal2(deploy.mustGetAddress("OptimismPortalProxy"));
+        disputeGameFactory = DisputeGameFactory(deploy.mustGetAddress("DisputeGameFactoryProxy"));
+        delayedWeth = DelayedWETH(deploy.mustGetAddress("DelayedWETHProxy"));
         l2OutputOracle = L2OutputOracle(deploy.mustGetAddress("L2OutputOracleProxy"));
         systemConfig = SystemConfig(deploy.mustGetAddress("SystemConfigProxy"));
         l1StandardBridge = L1StandardBridge(deploy.mustGetAddress("L1StandardBridgeProxy"));
@@ -110,6 +119,10 @@ contract Setup {
         vm.label(deploy.mustGetAddress("L2OutputOracleProxy"), "L2OutputOracleProxy");
         vm.label(address(optimismPortal), "OptimismPortal");
         vm.label(deploy.mustGetAddress("OptimismPortalProxy"), "OptimismPortalProxy");
+        vm.label(address(disputeGameFactory), "DisputeGameFactory");
+        vm.label(deploy.mustGetAddress("DisputeGameFactoryProxy"), "DisputeGameFactoryProxy");
+        vm.label(address(delayedWeth), "DelayedWETH");
+        vm.label(deploy.mustGetAddress("DelayedWETHProxy"), "DelayedWETHProxy");
         vm.label(address(systemConfig), "SystemConfig");
         vm.label(deploy.mustGetAddress("SystemConfigProxy"), "SystemConfigProxy");
         vm.label(address(l1StandardBridge), "L1StandardBridge");
@@ -126,6 +139,13 @@ contract Setup {
         vm.label(address(superchainConfig), "SuperchainConfig");
         vm.label(deploy.mustGetAddress("SuperchainConfigProxy"), "SuperchainConfigProxy");
         vm.label(AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger)), "L1CrossDomainMessenger_aliased");
+
+        if (deploy.cfg().usePlasma()) {
+            dataAvailabilityChallenge =
+                DataAvailabilityChallenge(deploy.mustGetAddress("DataAvailabilityChallengeProxy"));
+            vm.label(address(dataAvailabilityChallenge), "DataAvailabilityChallengeProxy");
+            vm.label(deploy.mustGetAddress("DataAvailabilityChallenge"), "DataAvailabilityChallenge");
+        }
     }
 
     /// @dev Sets up the L2 contracts. Depends on `L1()` being called first.
@@ -152,7 +172,6 @@ contract Setup {
         governanceToken.transferOwnership(finalSystemOwner);
 
         vm.label(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY, "OptimismMintableERC20Factory");
-        vm.label(Predeploys.LEGACY_ERC20_ETH, "LegacyERC20ETH");
         vm.label(Predeploys.L2_STANDARD_BRIDGE, "L2StandardBridge");
         vm.label(Predeploys.L2_CROSS_DOMAIN_MESSENGER, "L2CrossDomainMessenger");
         vm.label(Predeploys.L2_TO_L1_MESSAGE_PASSER, "L2ToL1MessagePasser");

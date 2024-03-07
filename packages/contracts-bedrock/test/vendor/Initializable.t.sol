@@ -6,8 +6,10 @@ import { Executables } from "scripts/Executables.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
+import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
+import { ForgeArtifacts } from "scripts/ForgeArtifacts.sol";
 import "src/L1/ProtocolVersions.sol";
 import "scripts/Deployer.sol";
 
@@ -30,6 +32,7 @@ contract Initializer_Test is Bridge_Initializer {
     InitializeableContract[] contracts;
 
     function setUp() public override {
+        super.enablePlasma();
         // Run the `Bridge_Initializer`'s `setUp()` function.
         super.setUp();
 
@@ -68,6 +71,38 @@ contract Initializer_Test is Bridge_Initializer {
                 initializedSlotVal: deploy.loadInitializedSlot("L1CrossDomainMessengerProxy")
             })
         );
+        // DisputeGameFactoryImpl
+        contracts.push(
+            InitializeableContract({
+                target: deploy.mustGetAddress("DisputeGameFactory"),
+                initCalldata: abi.encodeCall(disputeGameFactory.initialize, (address(0))),
+                initializedSlotVal: deploy.loadInitializedSlot("DisputeGameFactory")
+            })
+        );
+        // DisputeGameFactoryProxy
+        contracts.push(
+            InitializeableContract({
+                target: address(disputeGameFactory),
+                initCalldata: abi.encodeCall(disputeGameFactory.initialize, (address(0))),
+                initializedSlotVal: deploy.loadInitializedSlot("DisputeGameFactoryProxy")
+            })
+        );
+        // DelayedWETHImpl
+        contracts.push(
+            InitializeableContract({
+                target: deploy.mustGetAddress("DelayedWETH"),
+                initCalldata: abi.encodeCall(delayedWeth.initialize, (address(0), SuperchainConfig(address(0)))),
+                initializedSlotVal: deploy.loadInitializedSlot("DelayedWETH")
+            })
+        );
+        // DelayedWETHProxy
+        contracts.push(
+            InitializeableContract({
+                target: address(delayedWeth),
+                initCalldata: abi.encodeCall(delayedWeth.initialize, (address(0), SuperchainConfig(address(0)))),
+                initializedSlotVal: deploy.loadInitializedSlot("DelayedWETHProxy")
+            })
+        );
         // L2OutputOracleImpl
         contracts.push(
             InitializeableContract({
@@ -90,6 +125,16 @@ contract Initializer_Test is Bridge_Initializer {
                 target: deploy.mustGetAddress("OptimismPortal"),
                 initCalldata: abi.encodeCall(optimismPortal.initialize, (l2OutputOracle, systemConfig, superchainConfig)),
                 initializedSlotVal: deploy.loadInitializedSlot("OptimismPortal")
+            })
+        );
+        // OptimismPortal2Impl
+        contracts.push(
+            InitializeableContract({
+                target: deploy.mustGetAddress("OptimismPortal2"),
+                initCalldata: abi.encodeCall(
+                    optimismPortal2.initialize, (disputeGameFactory, systemConfig, superchainConfig)
+                    ),
+                initializedSlotVal: deploy.loadInitializedSlot("OptimismPortal2")
             })
         );
         // OptimismPortalProxy
@@ -262,6 +307,22 @@ contract Initializer_Test is Bridge_Initializer {
                 initializedSlotVal: deploy.loadInitializedSlot("OptimismMintableERC20FactoryProxy")
             })
         );
+        // DataAvailabilityChallengeImpl
+        contracts.push(
+            InitializeableContract({
+                target: deploy.mustGetAddress("DataAvailabilityChallenge"),
+                initCalldata: abi.encodeCall(dataAvailabilityChallenge.initialize, (address(0), 0, 0, 0, 0)),
+                initializedSlotVal: deploy.loadInitializedSlot("DataAvailabilityChallenge")
+            })
+        );
+        // DataAvailabilityChallengeProxy
+        contracts.push(
+            InitializeableContract({
+                target: address(dataAvailabilityChallenge),
+                initCalldata: abi.encodeCall(dataAvailabilityChallenge.initialize, (address(0), 0, 0, 0, 0)),
+                initializedSlotVal: deploy.loadInitializedSlot("DataAvailabilityChallengeProxy")
+            })
+        );
     }
 
     /// @notice Tests that:
@@ -271,9 +332,9 @@ contract Initializer_Test is Bridge_Initializer {
     ///         3. The `initialize()` function of each contract cannot be called more than once.
     function test_cannotReinitialize_succeeds() public {
         // Ensure that all L1, L2 `Initializable` contracts are accounted for, in addition to
-        // OptimismMintableERC20FactoryImpl and OptimismMintableERC20FactoryProxy.
-        // TODO: Add `OptimismPortal2` and `OptimismPortal2Proxy` once the deployment scripts are updated.
-        assertEq(_getNumInitializable(), contracts.length);
+        // OptimismMintableERC20FactoryImpl, OptimismMintableERC20FactoryProxy, OptimismPortal2,
+        // DisputeGameFactoryImpl, DisputeGameFactoryProxy, DelayedWETHImpl, DelayedWETHProxy.
+        assertEq(_getNumInitializable() + 5, contracts.length);
 
         // Attempt to re-initialize all contracts within the `contracts` array.
         for (uint256 i; i < contracts.length; i++) {
@@ -314,7 +375,7 @@ contract Initializer_Test is Bridge_Initializer {
 
         for (uint256 i; i < l1ContractNames.length; i++) {
             string memory contractName = l1ContractNames[i];
-            string memory contractAbi = deploy.getAbi(contractName);
+            string memory contractAbi = ForgeArtifacts.getAbi(contractName);
 
             // Query the contract's ABI for an `initialize()` function.
             command[2] = string.concat(
@@ -351,7 +412,7 @@ contract Initializer_Test is Bridge_Initializer {
 
         for (uint256 i; i < l2ContractNames.length; i++) {
             string memory contractName = l2ContractNames[i];
-            string memory contractAbi = deploy.getAbi(contractName);
+            string memory contractAbi = ForgeArtifacts.getAbi(contractName);
 
             // Query the contract's ABI for an `initialize()` function.
             command[2] = string.concat(

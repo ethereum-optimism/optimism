@@ -1,7 +1,6 @@
 package l1
 
 import (
-	"bytes"
 	"encoding/binary"
 	"fmt"
 
@@ -26,8 +25,11 @@ type Oracle interface {
 	// ReceiptsByBlockHash retrieves the receipts from the block with the given hash.
 	ReceiptsByBlockHash(blockHash common.Hash) (eth.BlockInfo, types.Receipts)
 
-	// GetBlobField retrieves the field element at the given index from the blob with the given hash.
+	// GetBlob retrieves the blob with the given hash.
 	GetBlob(ref eth.L1BlockRef, blobHash eth.IndexedBlobHash) *eth.Blob
+
+	// Precompile retrieves the result and success indicator of a precompile call for the given input.
+	Precompile(precompileAddress common.Address, input []byte) ([]byte, bool)
 }
 
 // PreimageOracle implements Oracle using by interfacing with the pure preimage.Oracle
@@ -114,10 +116,16 @@ func (p *PreimageOracle) GetBlob(ref eth.L1BlockRef, blobHash eth.IndexedBlobHas
 		copy(blob[i<<5:(i+1)<<5], fieldElement[:])
 	}
 
-	blobCommitment, err := blob.ComputeKZGCommitment()
-	if err != nil || !bytes.Equal(blobCommitment[:], commitment[:]) {
-		panic(fmt.Errorf("invalid blob commitment: %w", err))
-	}
-
 	return &blob
+}
+
+func (p *PreimageOracle) Precompile(address common.Address, input []byte) ([]byte, bool) {
+	hintBytes := append(address.Bytes(), input...)
+	p.hint.Hint(PrecompileHint(hintBytes))
+	key := preimage.PrecompileKey(crypto.Keccak256Hash(hintBytes))
+	result := p.oracle.Get(key)
+	if len(result) == 0 { // must contain at least the status code
+		panic(fmt.Errorf("unexpected precompile oracle behavior, got result: %x", result))
+	}
+	return result[1:], result[0] == 1
 }

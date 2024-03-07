@@ -29,7 +29,8 @@ type ServerConfig struct {
 }
 
 type CacheConfig struct {
-	Enabled bool `toml:"enabled"`
+	Enabled bool         `toml:"enabled"`
+	TTL     TOMLDuration `toml:"ttl"`
 }
 
 type RedisConfig struct {

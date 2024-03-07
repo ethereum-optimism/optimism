@@ -71,8 +71,6 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 	// to reduce that number of idle routines when paused.
 	t.Parallel()
 
-	// Bump up the block times to try minimize resource
-	// contention when parallel devnets are running
 	opCfg := op_e2e.DefaultSystemConfig(t)
 
 	// Unless specified, omit logs emitted by the various components
@@ -109,6 +107,7 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 				L1CrossDomainMessengerProxy: opCfg.L1Deployments.L1CrossDomainMessengerProxy,
 				L1StandardBridgeProxy:       opCfg.L1Deployments.L1StandardBridgeProxy,
 				L1ERC721BridgeProxy:         opCfg.L1Deployments.L1ERC721BridgeProxy,
+				DisputeGameFactoryProxy:     opCfg.L1Deployments.DisputeGameFactoryProxy,
 			},
 		},
 		HTTPServer:    config.ServerConfig{Host: "127.0.0.1", Port: 0},
@@ -123,14 +122,17 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 	})
 	require.NoError(t, err)
 	require.NoError(t, ix.Start(context.Background()), "cleanly start indexer")
-	t.Cleanup(func() {
-		require.NoError(t, ix.Stop(context.Background()), "cleanly shut down indexer")
-	})
+	t.Cleanup(func() { require.NoError(t, ix.Stop(context.Background())) })
+
+	dbLog := testlog.Logger(t, log.LvlInfo).New("role", "db")
+	db, err := database.NewDB(context.Background(), dbLog, indexerCfg.DB)
+	require.NoError(t, err)
+	t.Cleanup(func() { db.Close() })
 
 	// API Configuration and Start
 	apiLog := testlog.Logger(t, log.LevelInfo).New("role", "indexer_api")
 	apiCfg := &api.Config{
-		DB:            &api.TestDBConnector{BridgeTransfers: ix.DB.BridgeTransfers}, // reuse the same DB
+		DB:            &api.TestDBConnector{BridgeTransfers: db.BridgeTransfers}, // reuse the same DB
 		HTTPServer:    config.ServerConfig{Host: "127.0.0.1", Port: 0},
 		MetricsServer: config.ServerConfig{Host: "127.0.0.1", Port: 0},
 	}
@@ -152,7 +154,7 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 		t:               t,
 		MetricsRegistry: metrics.NewRegistry(),
 		Client:          client,
-		DB:              ix.DB,
+		DB:              db,
 		Indexer:         ix,
 		OpCfg:           &opCfg,
 		OpSys:           opSys,

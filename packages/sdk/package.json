@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/sdk",
-  "version": "3.1.8",
+  "version": "3.2.1",
   "description": "[Optimism] Tools for working with Optimism",
   "main": "dist/index",
   "types": "dist/index",
@@ -44,12 +44,12 @@
     "@types/chai": "^4.3.11",
     "@types/chai-as-promised": "^7.1.8",
     "@types/mocha": "^10.0.6",
-    "@types/node": "^20.11.13",
-    "@types/semver": "^7.5.6",
+    "@types/node": "^20.11.17",
+    "@types/semver": "^7.5.7",
     "chai-as-promised": "^7.1.1",
     "ethereum-waffle": "^4.0.10",
     "ethers": "^5.7.2",
-    "hardhat": "^2.19.5",
+    "hardhat": "^2.20.1",
     "hardhat-deploy": "^0.11.44",
     "isomorphic-fetch": "^3.0.0",
     "mocha": "^10.2.0",
@@ -57,7 +57,7 @@
     "ts-node": "^10.9.2",
     "typedoc": "^0.25.7",
     "typescript": "^5.3.3",
-    "viem": "^2.5.0",
+    "viem": "^2.7.19",
     "vitest": "^1.2.2",
     "zod": "^3.22.4"
   },
@@ -68,7 +68,7 @@
     "lodash": "^4.17.21",
     "merkletreejs": "^0.3.11",
     "rlp": "^2.2.7",
-    "semver": "^7.5.4"
+    "semver": "^7.6.0"
   },
   "peerDependencies": {
     "ethers": "^5"

@@ -9,7 +9,6 @@ import (
 	"math/big"
 	"os"
 	"path"
-	"strings"
 	"testing"
 	"time"
 
@@ -42,18 +41,23 @@ func MarkdownTracer() vm.EVMLogger {
 }
 
 type MIPSEVM struct {
-	env      *vm.EVM
-	evmState *state.StateDB
-	addrs    *Addresses
+	env         *vm.EVM
+	evmState    *state.StateDB
+	addrs       *Addresses
+	localOracle PreimageOracle
 }
 
 func NewMIPSEVM(contracts *Contracts, addrs *Addresses) *MIPSEVM {
 	env, evmState := NewEVMEnv(contracts, addrs)
-	return &MIPSEVM{env, evmState, addrs}
+	return &MIPSEVM{env, evmState, addrs, nil}
 }
 
 func (m *MIPSEVM) SetTracer(tracer vm.EVMLogger) {
 	m.env.Config.Tracer = tracer
+}
+
+func (m *MIPSEVM) SetLocalOracle(oracle PreimageOracle) {
+	m.localOracle = oracle
 }
 
 // Step is a pure function that computes the poststate from the VM state encoded in the StepWitness.
@@ -66,7 +70,7 @@ func (m *MIPSEVM) Step(t *testing.T, stepWitness *StepWitness) []byte {
 
 	if stepWitness.HasPreimage() {
 		t.Logf("reading preimage key %x at offset %d", stepWitness.PreimageKey, stepWitness.PreimageOffset)
-		poInput, err := encodePreimageOracleInput(t, stepWitness, LocalContext{})
+		poInput, err := encodePreimageOracleInput(t, stepWitness, LocalContext{}, m.localOracle)
 		require.NoError(t, err, "encode preimage oracle input")
 		_, leftOverGas, err := m.env.Call(vm.AccountRef(sender), m.addrs.Oracle, poInput, startingGas, big.NewInt(0))
 		require.NoErrorf(t, err, "evm should not fail, took %d gas", startingGas-leftOverGas)
@@ -100,7 +104,7 @@ func encodeStepInput(t *testing.T, wit *StepWitness, localContext LocalContext) 
 	return input
 }
 
-func encodePreimageOracleInput(t *testing.T, wit *StepWitness, localContext LocalContext) ([]byte, error) {
+func encodePreimageOracleInput(t *testing.T, wit *StepWitness, localContext LocalContext, localOracle PreimageOracle) ([]byte, error) {
 	if wit.PreimageKey == ([32]byte{}) {
 		return nil, errors.New("cannot encode pre-image oracle input, witness has no pre-image to proof")
 	}
@@ -132,6 +136,21 @@ func encodePreimageOracleInput(t *testing.T, wit *StepWitness, localContext Loca
 			wit.PreimageValue[8:])
 		require.NoError(t, err)
 		return input, nil
+	case preimage.PrecompileKeyType:
+		if localOracle == nil {
+			return nil, fmt.Errorf("local oracle is required for precompile preimages")
+		}
+		preimage := localOracle.GetPreimage(preimage.Keccak256Key(wit.PreimageKey).PreimageKey())
+		precompile := common.BytesToAddress(preimage[:20])
+		callInput := preimage[20:]
+		input, err := preimageAbi.Pack(
+			"loadPrecompilePreimagePart",
+			new(big.Int).SetUint64(uint64(wit.PreimageOffset)),
+			precompile,
+			callInput,
+		)
+		require.NoError(t, err)
+		return input, nil
 	default:
 		return nil, fmt.Errorf("unsupported pre-image type %d, cannot prepare preimage with key %x offset %d for oracle",
 			wit.PreimageKey[0], wit.PreimageKey, wit.PreimageOffset)
@@ -147,15 +166,13 @@ func TestEVM(t *testing.T) {
 
 	for _, f := range testFiles {
 		t.Run(f.Name(), func(t *testing.T) {
-			var oracle PreimageOracle
-			if strings.HasPrefix(f.Name(), "oracle") {
-				oracle = staticOracle(t, []byte("hello world"))
-			}
+			oracle := selectOracleFixture(t, f.Name())
 			// Short-circuit early for exit_group.bin
 			exitGroup := f.Name() == "exit_group.bin"
 
 			evm := NewMIPSEVM(contracts, addrs)
 			evm.SetTracer(tracer)
+			evm.SetLocalOracle(oracle)
 
 			fn := path.Join("open_mips_tests/test/bin", f.Name())
 			programMem, err := os.ReadFile(fn)
@@ -185,8 +202,8 @@ func TestEVM(t *testing.T) {
 				// verify the post-state matches.
 				// TODO: maybe more readable to decode the evmPost state, and do attribute-wise comparison.
 				goPost := goState.state.EncodeWitness()
-				require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
-					"mipsevm produced different state than EVM")
+				require.Equalf(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
+					"mipsevm produced different state than EVM at step %d", state.Step)
 			}
 			if exitGroup {
 				require.NotEqual(t, uint32(endAddr), goState.state.PC, "must not reach end")

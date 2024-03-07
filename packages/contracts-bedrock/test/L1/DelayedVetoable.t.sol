@@ -150,7 +150,7 @@ contract DelayedVetoable_HandleCall_Test is DelayedVetoable_Init {
 contract DelayedVetoable_HandleCall_TestFail is DelayedVetoable_Init {
     /// @dev Only the initiator can initiate a call.
     function test_handleCall_unauthorizedInitiation_reverts() external {
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSelector(DelayedVetoable.Unauthorized.selector, initiator, address(this)));
         (bool revertsAsExpected,) = address(delayedVetoable).call(hex"00001234");
         assertTrue(revertsAsExpected);
     }
@@ -160,9 +160,9 @@ contract DelayedVetoable_HandleCall_TestFail is DelayedVetoable_Init {
         assumeNoClash(data);
         vm.prank(initiator);
         (bool success,) = address(delayedVetoable).call(data);
-        success;
+        assertTrue(success);
 
-        vm.expectRevert();
+        vm.expectRevert(DelayedVetoable.ForwardingEarly.selector);
         (bool revertsAsExpected,) = address(delayedVetoable).call(data);
         assertTrue(revertsAsExpected);
     }
@@ -185,8 +185,8 @@ contract DelayedVetoable_HandleCall_TestFail is DelayedVetoable_Init {
         (success,) = address(delayedVetoable).call(data);
         assertTrue(success);
 
-        // Attempt to foward the same call again.
-        vm.expectRevert();
+        // Attempt to forward the same call again.
+        vm.expectRevert(abi.encodeWithSelector(DelayedVetoable.Unauthorized.selector, initiator, address(this)));
         (bool revertsAsExpected,) = address(delayedVetoable).call(data);
         assertTrue(revertsAsExpected);
     }
@@ -203,7 +203,7 @@ contract DelayedVetoable_HandleCall_TestFail is DelayedVetoable_Init {
         // Initiate the call
         vm.prank(initiator);
         (bool success,) = address(delayedVetoable).call(inData);
-        success;
+        assertTrue(success);
 
         vm.warp(block.timestamp + operatingDelay);
         vm.expectEmit(true, false, false, true, address(delayedVetoable));
@@ -212,7 +212,7 @@ contract DelayedVetoable_HandleCall_TestFail is DelayedVetoable_Init {
         vm.mockCallRevert(target, inData, outData);
 
         // Forward the call
-        vm.expectRevert();
+        vm.expectRevert(outData);
         (bool revertsAsExpected,) = address(delayedVetoable).call(inData);
         assertTrue(revertsAsExpected);
     }
@@ -228,7 +228,7 @@ contract DelayedVetoable_HandleCall_TestFail is DelayedVetoable_Init {
         // Initiate the call
         vm.prank(initiator);
         (bool success,) = address(delayedVetoable).call(inData);
-        success;
+        assertTrue(success);
 
         vm.warp(block.timestamp + operatingDelay);
         vm.expectEmit(true, false, false, true, address(delayedVetoable));
@@ -252,7 +252,7 @@ contract DelayedVetoable_HandleCall_TestFail is DelayedVetoable_Init {
         vm.store(address(delayedVetoable), bytes32(uint256(0)), bytes32(uint256(0)));
 
         vm.prank(initiator);
-        vm.expectRevert();
+        vm.expectRevert(bytes(""));
         (bool revertsAsExpected,) = address(delayedVetoable).call(inData);
         assertTrue(revertsAsExpected);
     }

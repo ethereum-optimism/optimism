@@ -22,6 +22,12 @@ type CachingOracle struct {
 	txs    *simplelru.LRU[common.Hash, types.Transactions]
 	rcpts  *simplelru.LRU[common.Hash, types.Receipts]
 	blobs  *simplelru.LRU[common.Hash, *eth.Blob]
+	pcmps  *simplelru.LRU[common.Hash, precompileResult]
+}
+
+type precompileResult struct {
+	result []byte
+	ok     bool
 }
 
 func NewCachingOracle(oracle Oracle) *CachingOracle {
@@ -29,12 +35,14 @@ func NewCachingOracle(oracle Oracle) *CachingOracle {
 	txsLRU, _ := simplelru.NewLRU[common.Hash, types.Transactions](cacheSize, nil)
 	rcptsLRU, _ := simplelru.NewLRU[common.Hash, types.Receipts](cacheSize, nil)
 	blobsLRU, _ := simplelru.NewLRU[common.Hash, *eth.Blob](cacheSize, nil)
+	pcmps, _ := simplelru.NewLRU[common.Hash, precompileResult](cacheSize, nil)
 	return &CachingOracle{
 		oracle: oracle,
 		blocks: blockLRU,
 		txs:    txsLRU,
 		rcpts:  rcptsLRU,
 		blobs:  blobsLRU,
+		pcmps:  pcmps,
 	}
 }
 
@@ -85,4 +93,14 @@ func (o *CachingOracle) GetBlob(ref eth.L1BlockRef, blobHash eth.IndexedBlobHash
 	blob = o.oracle.GetBlob(ref, blobHash)
 	o.blobs.Add(cacheKey, blob)
 	return blob
+}
+
+func (o *CachingOracle) Precompile(address common.Address, input []byte) ([]byte, bool) {
+	cacheKey := crypto.Keccak256Hash(append(address.Bytes(), input...))
+	if val, ok := o.pcmps.Get(cacheKey); ok {
+		return val.result, val.ok
+	}
+	res, ok := o.oracle.Precompile(address, input)
+	o.pcmps.Add(cacheKey, precompileResult{res, ok})
+	return res, ok
 }

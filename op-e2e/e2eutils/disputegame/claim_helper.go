@@ -67,7 +67,12 @@ func (c *ClaimHelper) Depth() types.Depth {
 // WaitForCounterClaim waits for the claim to be countered by another claim being posted.
 // It returns a helper for the claim that countered this one.
 func (c *ClaimHelper) WaitForCounterClaim(ctx context.Context, ignoreClaims ...*ClaimHelper) *ClaimHelper {
-	counterIdx, counterClaim := c.game.waitForClaim(ctx, fmt.Sprintf("failed to find claim with parent idx %v", c.index), func(claimIdx int64, claim ContractClaim) bool {
+	timeout := defaultTimeout
+	if c.IsOutputRootLeaf(ctx) {
+		// This is the first claim we need to run cannon on, so give it more time
+		timeout = timeout * 2
+	}
+	counterIdx, counterClaim := c.game.waitForClaim(ctx, timeout, fmt.Sprintf("failed to find claim with parent idx %v", c.index), func(claimIdx int64, claim ContractClaim) bool {
 		return int64(claim.ParentIndex) == c.index && !containsClaim(claimIdx, ignoreClaims)
 	})
 	return newClaimHelper(c.game, counterIdx, counterClaim)
@@ -93,13 +98,13 @@ func (c *ClaimHelper) RequireCorrectOutputRoot(ctx context.Context) {
 	c.require.Equalf(expected, c.claim, "Should have correct output root in claim %v and position %v", c.index, c.position)
 }
 
-func (c *ClaimHelper) Attack(ctx context.Context, value common.Hash) *ClaimHelper {
-	c.game.Attack(ctx, c.index, value)
+func (c *ClaimHelper) Attack(ctx context.Context, value common.Hash, opts ...MoveOpt) *ClaimHelper {
+	c.game.Attack(ctx, c.index, value, opts...)
 	return c.WaitForCounterClaim(ctx)
 }
 
-func (c *ClaimHelper) Defend(ctx context.Context, value common.Hash) *ClaimHelper {
-	c.game.Defend(ctx, c.index, value)
+func (c *ClaimHelper) Defend(ctx context.Context, value common.Hash, opts ...MoveOpt) *ClaimHelper {
+	c.game.Defend(ctx, c.index, value, opts...)
 	return c.WaitForCounterClaim(ctx)
 }
 
