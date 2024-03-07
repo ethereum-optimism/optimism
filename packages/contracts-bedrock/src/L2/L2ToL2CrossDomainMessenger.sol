@@ -120,17 +120,6 @@ contract L2ToL2CrossDomainMessenger is ISemver {
         bool success;
         assembly {
             tstore(CROSS_DOMAIN_MESSAGE_SENDER_SLOT, _sender)
-
-            success :=
-                call(
-                    gas(), // gas
-                    _target, // recipient
-                    callvalue(), // ether value
-                    add(_message, 32), // inloc
-                    mload(_message), // inlen
-                    0, // outloc
-                    0 // outlen
-                )
         }
 
         if (success) {
