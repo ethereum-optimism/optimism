@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
@@ -32,7 +32,7 @@ func (m *MultiCaller) BatchSize() int {
 	return m.batchSize
 }
 
-func (m *MultiCaller) SingleCall(ctx context.Context, block Block, call Call) (*CallResult, error) {
+func (m *MultiCaller) SingleCall(ctx context.Context, block rpcblock.Block, call Call) (*CallResult, error) {
 	results, err := m.Call(ctx, block, call)
 	if err != nil {
 		return nil, err
@@ -40,7 +40,7 @@ func (m *MultiCaller) SingleCall(ctx context.Context, block Block, call Call) (*
 	return results[0], nil
 }
 
-func (m *MultiCaller) Call(ctx context.Context, block Block, calls ...Call) ([]*CallResult, error) {
+func (m *MultiCaller) Call(ctx context.Context, block rpcblock.Block, calls ...Call) ([]*CallResult, error) {
 	keys := make([]BatchElementCreator, len(calls))
 	for i := 0; i < len(calls); i++ {
 		creator, err := calls[i].ToBatchElemCreator()
@@ -79,31 +79,4 @@ func (m *MultiCaller) Call(ctx context.Context, block Block, calls ...Call) ([]*
 		callResults[i] = out
 	}
 	return callResults, nil
-}
-
-// Block represents the block ref value in RPC calls.
-// It can be either a label (e.g. latest), a block number or block hash.
-type Block struct {
-	value any
-}
-
-func (b Block) ArgValue() any {
-	return b.value
-}
-
-var (
-	BlockPending   = Block{"pending"}
-	BlockLatest    = Block{"latest"}
-	BlockSafe      = Block{"safe"}
-	BlockFinalized = Block{"finalized"}
-)
-
-// BlockByNumber references a canonical block by number.
-func BlockByNumber(blockNum uint64) Block {
-	return Block{rpc.BlockNumber(blockNum)}
-}
-
-// BlockByHash references a block by hash. Canonical or non-canonical blocks may be referenced.
-func BlockByHash(hash common.Hash) Block {
-	return Block{rpc.BlockNumberOrHashWithHash(hash, false)}
 }

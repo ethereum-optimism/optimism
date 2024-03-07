@@ -8,7 +8,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
-	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -26,7 +26,7 @@ type L1Source interface {
 
 type Oracle interface {
 	Addr() common.Address
-	GetInputDataBlocks(ctx context.Context, block batching.Block, ident keccakTypes.LargePreimageIdent) ([]uint64, error)
+	GetInputDataBlocks(ctx context.Context, block rpcblock.Block, ident keccakTypes.LargePreimageIdent) ([]uint64, error)
 	DecodeInputData(data []byte) (*big.Int, keccakTypes.InputData, error)
 }
 
@@ -36,7 +36,7 @@ type InputFetcher struct {
 }
 
 func (f *InputFetcher) FetchInputs(ctx context.Context, blockHash common.Hash, oracle Oracle, ident keccakTypes.LargePreimageIdent) ([]keccakTypes.InputData, error) {
-	blockNums, err := oracle.GetInputDataBlocks(ctx, batching.BlockByHash(blockHash), ident)
+	blockNums, err := oracle.GetInputDataBlocks(ctx, rpcblock.ByHash(blockHash), ident)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve leaf block nums: %w", err)
 	}

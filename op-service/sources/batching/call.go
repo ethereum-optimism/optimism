@@ -3,12 +3,13 @@ package batching
 import (
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
-type BatchElementCreator func(block Block) (any, rpc.BatchElem)
+type BatchElementCreator func(block rpcblock.Block) (any, rpc.BatchElem)
 
 type Call interface {
 	ToBatchElemCreator() (BatchElementCreator, error)

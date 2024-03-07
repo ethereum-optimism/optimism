@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -20,11 +21,11 @@ func NewBalanceCall(addr common.Address) *BalanceCall {
 }
 
 func (b *BalanceCall) ToBatchElemCreator() (BatchElementCreator, error) {
-	return func(block Block) (any, rpc.BatchElem) {
+	return func(block rpcblock.Block) (any, rpc.BatchElem) {
 		out := new(hexutil.Big)
 		return out, rpc.BatchElem{
 			Method: "eth_getBalance",
-			Args:   []interface{}{b.addr, block.value},
+			Args:   []interface{}{b.addr, block.ArgValue()},
 			Result: &out,
 		}
 	}, nil

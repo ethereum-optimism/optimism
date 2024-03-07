@@ -22,6 +22,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -267,7 +268,7 @@ func (g *OutputCannonGameHelper) VerifyPreimage(ctx context.Context, outputRootC
 		abi, err := bindings.MIPSMetaData.GetAbi()
 		g.require.NoError(err, "Failed to load MIPS ABI")
 		caller := batching.NewMultiCaller(g.client.Client(), batching.DefaultBatchSize)
-		result, err := caller.SingleCall(ctx, batching.BlockLatest, &batching.ContractCall{
+		result, err := caller.SingleCall(ctx, rpcblock.Latest, &batching.ContractCall{
 			Abi:    abi,
 			Addr:   vmAddr,
 			Method: "step",

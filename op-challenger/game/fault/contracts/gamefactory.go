@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -37,7 +38,7 @@ func NewDisputeGameFactoryContract(addr common.Address, caller *batching.MultiCa
 }
 
 func (f *DisputeGameFactoryContract) GetGameFromParameters(ctx context.Context, traceType uint32, outputRoot common.Hash, l2BlockNum uint64) (common.Address, error) {
-	result, err := f.multiCaller.SingleCall(ctx, batching.BlockLatest, f.contract.Call(methodGames, traceType, outputRoot, common.BigToHash(big.NewInt(int64(l2BlockNum))).Bytes()))
+	result, err := f.multiCaller.SingleCall(ctx, rpcblock.Latest, f.contract.Call(methodGames, traceType, outputRoot, common.BigToHash(big.NewInt(int64(l2BlockNum))).Bytes()))
 	if err != nil {
 		return common.Address{}, fmt.Errorf("failed to fetch game from parameters: %w", err)
 	}
@@ -45,7 +46,7 @@ func (f *DisputeGameFactoryContract) GetGameFromParameters(ctx context.Context, 
 }
 
 func (f *DisputeGameFactoryContract) GetGameCount(ctx context.Context, blockHash common.Hash) (uint64, error) {
-	result, err := f.multiCaller.SingleCall(ctx, batching.BlockByHash(blockHash), f.contract.Call(methodGameCount))
+	result, err := f.multiCaller.SingleCall(ctx, rpcblock.ByHash(blockHash), f.contract.Call(methodGameCount))
 	if err != nil {
 		return 0, fmt.Errorf("failed to load game count: %w", err)
 	}
@@ -53,7 +54,7 @@ func (f *DisputeGameFactoryContract) GetGameCount(ctx context.Context, blockHash
 }
 
 func (f *DisputeGameFactoryContract) GetGame(ctx context.Context, idx uint64, blockHash common.Hash) (types.GameMetadata, error) {
-	result, err := f.multiCaller.SingleCall(ctx, batching.BlockByHash(blockHash), f.contract.Call(methodGameAtIndex, new(big.Int).SetUint64(idx)))
+	result, err := f.multiCaller.SingleCall(ctx, rpcblock.ByHash(blockHash), f.contract.Call(methodGameAtIndex, new(big.Int).SetUint64(idx)))
 	if err != nil {
 		return types.GameMetadata{}, fmt.Errorf("failed to load game %v: %w", idx, err)
 	}
@@ -61,7 +62,7 @@ func (f *DisputeGameFactoryContract) GetGame(ctx context.Context, idx uint64, bl
 }
 
 func (f *DisputeGameFactoryContract) GetGameImpl(ctx context.Context, gameType uint32) (common.Address, error) {
-	result, err := f.multiCaller.SingleCall(ctx, batching.BlockLatest, f.contract.Call(methodGameImpls, gameType))
+	result, err := f.multiCaller.SingleCall(ctx, rpcblock.Latest, f.contract.Call(methodGameImpls, gameType))
 	if err != nil {
 		return common.Address{}, fmt.Errorf("failed to load game impl for type %v: %w", gameType, err)
 	}
@@ -95,7 +96,7 @@ func (f *DisputeGameFactoryContract) GetGamesAtOrAfter(ctx context.Context, bloc
 			}
 		}
 
-		results, err := f.multiCaller.Call(ctx, batching.BlockByHash(blockHash), calls...)
+		results, err := f.multiCaller.Call(ctx, rpcblock.ByHash(blockHash), calls...)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch games: %w", err)
 		}
@@ -122,7 +123,7 @@ func (f *DisputeGameFactoryContract) GetAllGames(ctx context.Context, blockHash 
 		calls[i] = f.contract.Call(methodGameAtIndex, new(big.Int).SetUint64(i))
 	}
 
-	results, err := f.multiCaller.Call(ctx, batching.BlockByHash(blockHash), calls...)
+	results, err := f.multiCaller.Call(ctx, rpcblock.ByHash(blockHash), calls...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch games: %w", err)
 	}
