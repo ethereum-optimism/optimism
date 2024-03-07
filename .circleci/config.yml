@@ -204,6 +204,12 @@ jobs:
           name: Copy FPAC allocs to .devnet-fpac
           command: cp -r .devnet/ .devnet-fault-proofs/
       - run:
+          name: Generate Plasma allocs
+          command: DEVNET_PLASMA="true" make devnet-allocs
+      - run:
+          name: Copy Plasma allocs to .devnet-plasma
+          command: cp -r .devnet/ .devnet-plasma/
+      - run:
           name: Generate non-FPAC allocs
           command: make devnet-allocs
       - persist_to_workspace:
@@ -219,6 +225,8 @@ jobs:
             - ".devnet/addresses.json"
             - ".devnet-fault-proofs/allocs-l1.json"
             - ".devnet-fault-proofs/addresses.json"
+            - ".devnet-plasma/allocs-l1.json"
+            - ".devnet-plasma/addresses.json"
             - "packages/contracts-bedrock/deploy-config/devnetL1.json"
             - "packages/contracts-bedrock/deployments/devnetL1"
 
@@ -896,6 +904,13 @@ jobs:
             - run:
                 name: Set OP_E2E_USE_FPAC = true
                 command: echo 'export OP_E2E_USE_FPAC=true' >> $BASH_ENV
+      - when:
+          condition:
+            equal: ['-plasma', <<parameters.fpac>>]
+          steps:
+            - run:
+                name: Set OP_E2E_USE_PLASMA = true
+                command: echo 'export OP_E2E_USE_PLASMA=true' >> $BASH_ENV
       - check-changed:
           patterns: op-(.+),cannon,contracts-bedrock
       - run:
@@ -1636,7 +1651,7 @@ workflows:
           name: op-e2e-action-tests<< matrix.fpac >>
           matrix:
             parameters:
-              fpac: ["", "-fault-proofs"]
+              fpac: ["", "-fault-proofs", "-plasma"]
           module: op-e2e
           target: test-actions
           parallelism: 1

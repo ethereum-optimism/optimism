@@ -252,6 +252,10 @@ func (a *L2PlasmaDA) ActL1Finalized(t Testing) {
 
 // Commitment is challenged but never resolved, chain reorgs when challenge window expires.
 func TestPlasma_ChallengeExpired(gt *testing.T) {
+	if !e2eutils.UsePlasma() {
+		gt.Skip("Plasma is not enabled")
+	}
+
 	t := NewDefaultTesting(gt)
 	harness := NewL2PlasmaDA(t)
 
@@ -309,6 +313,10 @@ func TestPlasma_ChallengeExpired(gt *testing.T) {
 // Commitment is challenged after sequencer derived the chain but data disappears. A verifier
 // derivation pipeline stalls until the challenge is resolved and then resumes with data from the contract.
 func TestPlasma_ChallengeResolved(gt *testing.T) {
+	if !e2eutils.UsePlasma() {
+		gt.Skip("Plasma is not enabled")
+	}
+
 	t := NewDefaultTesting(gt)
 	harness := NewL2PlasmaDA(t)
 
@@ -353,6 +361,10 @@ func TestPlasma_ChallengeResolved(gt *testing.T) {
 
 // DA storage service goes offline while sequencer keeps making blocks. When storage comes back online, it should be able to catch up.
 func TestPlasma_StorageError(gt *testing.T) {
+	if !e2eutils.UsePlasma() {
+		gt.Skip("Plasma is not enabled")
+	}
+
 	t := NewDefaultTesting(gt)
 	harness := NewL2PlasmaDA(t)
 
@@ -378,6 +390,10 @@ func TestPlasma_StorageError(gt *testing.T) {
 // L1 chain reorgs a resolved challenge so it expires instead causing
 // the l2 chain to reorg as well.
 func TestPlasma_ChallengeReorg(gt *testing.T) {
+	if !e2eutils.UsePlasma() {
+		gt.Skip("Plasma is not enabled")
+	}
+
 	t := NewDefaultTesting(gt)
 	harness := NewL2PlasmaDA(t)
 

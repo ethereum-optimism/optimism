@@ -214,3 +214,7 @@ func ApplyDeployConfigForks(deployConfig *genesis.DeployConfig) {
 func UseFPAC() bool {
 	return os.Getenv("OP_E2E_USE_FPAC") == "true"
 }
+
+func UsePlasma() bool {
+	return os.Getenv("OP_E2E_USE_PLASMA") == "true"
+}
