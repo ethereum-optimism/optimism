@@ -80,17 +80,5 @@ contract CrossL2Inbox is ISemver {
             IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isInDependencySet(_id.chainId), "CrossL2Inbox: invalid id chainId"
         ); // invariant
         require(msg.sender == tx.origin, "CrossL2Inbox: Not EOA sender"); // only EOA invariant
-
-        _tstoreCalldataID();
-    }
-
-    function _tstoreCalldataID() internal {
-        assembly ("memory-safe") {
-            tstore(ORIGIN_SLOT, calldataload(4))
-            tstore(BLOCKNUMBER_SLOT, calldataload(36))
-            tstore(LOG_INDEX_SLOT, calldataload(68))
-            tstore(TIMESTAMP_SLOT, calldataload(100))
-            tstore(CHAINID_SLOT, calldataload(132))
-        }
     }
 }
