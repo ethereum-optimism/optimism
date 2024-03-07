@@ -42,14 +42,14 @@ var (
 	/* Required Flags */
 	L1NodeAddr = &cli.StringFlag{
 		Name:     "l1",
-		Usage:    "Address of L1 User JSON-RPC endpoint to use (eth namespace required)",
+		Usage:    "Address of L1 User JSON-RPC endpoint to use (eth namespace required).",
 		Value:    "http://127.0.0.1:8545",
 		EnvVars:  prefixEnvVars("L1_ETH_RPC"),
 		Category: RollupCategory,
 	}
 	L2EngineAddr = &cli.StringFlag{
 		Name:     "l2",
-		Usage:    "Address of L2 Engine JSON-RPC endpoints to use (engine and eth namespace required)",
+		Usage:    "Address of L2 Engine JSON-RPC endpoints to use (engine and eth namespace required).",
 		EnvVars:  prefixEnvVars("L2_ENGINE_RPC"),
 		Category: RollupCategory,
 	}
@@ -71,7 +71,7 @@ var (
 	/* Optional Flags */
 	BeaconHeader = &cli.StringFlag{
 		Name:     "l1.beacon-header",
-		Usage:    "Optional HTTP header to add to all requests to the L1 Beacon endpoint. Format: 'X-Key: Value'",
+		Usage:    "Optional HTTP header to add to all requests to the L1 Beacon endpoint. Format: 'X-Key: Value'.",
 		Required: false,
 		EnvVars:  prefixEnvVars("L1_BEACON_HEADER"),
 		Category: L1RPCCategory,
@@ -137,7 +137,7 @@ var (
 	}
 	L1TrustRPC = &cli.BoolFlag{
 		Name:     "l1.trustrpc",
-		Usage:    "Trust the L1 RPC, sync faster at risk of malicious/buggy RPC providing bad or inconsistent L1 data",
+		Usage:    "Trust the L1 RPC, sync faster at risk of malicious/buggy RPC providing bad or inconsistent L1 data.",
 		EnvVars:  prefixEnvVars("L1_TRUST_RPC"),
 		Category: L1RPCCategory,
 	}
@@ -202,7 +202,7 @@ var (
 	}
 	SequencerStoppedFlag = &cli.BoolFlag{
 		Name:     "sequencer.stopped",
-		Usage:    "Initialize the sequencer in a stopped state. The sequencer can be started using the admin_startSequencer RPC",
+		Usage:    "Initialize the sequencer in a stopped state. The sequencer can be started using the admin_startSequencer RPC.",
 		EnvVars:  prefixEnvVars("SEQUENCER_STOPPED"),
 		Category: SequencerCategory,
 	}
@@ -281,13 +281,13 @@ var (
 	}
 	RollupHalt = &cli.StringFlag{
 		Name:     "rollup.halt",
-		Usage:    "Opt-in option to halt on incompatible protocol version requirements of the given level (major/minor/patch/none), as signaled onchain in L1",
+		Usage:    "Opt-in option to halt on incompatible protocol version requirements of the given level (major/minor/patch/none), as signaled onchain in L1.",
 		EnvVars:  prefixEnvVars("ROLLUP_HALT"),
 		Category: RollupCategory,
 	}
 	RollupLoadProtocolVersions = &cli.BoolFlag{
 		Name:     "rollup.load-protocol-versions",
-		Usage:    "Load protocol versions from the superchain L1 ProtocolVersions contract (if available), and report in logs and metrics",
+		Usage:    "Load protocol versions from the superchain L1 ProtocolVersions contract (if available), and report in logs and metrics.",
 		EnvVars:  prefixEnvVars("ROLLUP_LOAD_PROTOCOL_VERSIONS"),
 		Category: RollupCategory,
 	}
@@ -309,7 +309,7 @@ var (
 	SkipSyncStartCheck = &cli.BoolFlag{
 		Name: "l2.skip-sync-start-check",
 		Usage: "Skip sanity check of consistency of L1 origins of the unsafe L2 blocks when determining the sync-starting point. " +
-			"This defers the L1-origin verification, and is recommended to use in when utilizing l2.engine-sync",
+			"This defers the L1-origin verification, and is recommended to use in when utilizing l2.engine-sync.",
 		EnvVars: prefixEnvVars("L2_SKIP_SYNC_START_CHECK"),
 		Value:   false,
 		Hidden:  true,
