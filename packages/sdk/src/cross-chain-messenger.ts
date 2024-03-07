@@ -1263,13 +1263,13 @@ export class CrossChainMessenger {
     let proposal: any
     let l2OutputIndex: BigNumber
     if (await this.fpac()) {
-      // Get the respected game type from the portal.
-      const gameType =
-        await this.contracts.l1.OptimismPortal2.respectedGameType()
-
-      // Get the total game count from the DisputeGameFactory since that will give us the end of
-      // the array that we're searching over. We'll then use that to find the latest games.
-      const gameCount = await this.contracts.l1.DisputeGameFactory.gameCount()
+      const [gameType, gameCount] = await Promise.all([
+        // Get the respected game type from the portal.
+        this.contracts.l1.OptimismPortal2.respectedGameType(),
+        // Get the total game count from the DisputeGameFactory since that will give us the end of
+        // the array that we're searching over. We'll then use that to find the latest games.
+        this.contracts.l1.DisputeGameFactory.gameCount()
+      ])
 
       // Find the latest 100 games (or as many as we can up to 100).
       const latestGames =
