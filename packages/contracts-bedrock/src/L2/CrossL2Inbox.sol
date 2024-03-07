@@ -73,18 +73,19 @@ contract CrossL2Inbox is ISemver {
     }
 
     /// @notice Executes a cross chain message on the destination chain
-    /// @param _msg The message payload, matching the initiating message.
     /// @param _id A Identifier pointing to the initiating message.
     /// @param _target Account that is called with _msg.
+    /// @param _msg The message payload, matching the initiating message.
     function executeMessage(Identifier calldata _id, address _target, bytes memory _msg) public payable {
         require(_id.timestamp <= block.timestamp, "CrossL2Inbox: invalid id timestamp"); // timestamp invariant
         require(IL1Block(l1Block).isInDependencySet(_id.chainId), "CrossL2Inbox: invalid id chainId"); // invariant
         require(msg.sender == tx.origin, "CrossL2Inbox: Not EOA sender"); // only EOA invariant
 
-        _executeMessage();
+        _tstoreCalldataID();
 
+        bool success;
         assembly {
-            let success :=
+            success :=
                 call(
                     gas(), // gas
                     _target, // recipient
@@ -94,15 +95,12 @@ contract CrossL2Inbox is ISemver {
                     0, // outloc
                     0 // outlen
                 )
-
-            if !success {
-                mstore(0x00, 0xeda86850) // 0xeda86850 is the 4-byte selector of "TargetCallFailed()"
-                revert(0x1C, 0x04) // returns the stored 4-byte selector from above
-            }
         }
+
+        require(success, "CrossL2Inbox: failed to execute message");
     }
 
-    function _executeMessage() internal {
+    function _tstoreCalldataID() internal {
         assembly {
             tstore(ORIGIN_SLOT, calldataload(4))
             tstore(BLOCKNUMBER_SLOT, calldataload(36))
