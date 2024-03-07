@@ -191,6 +191,7 @@ func (bs *BatcherService) initChannelConfig(cfg *CLIConfig) error {
 		SeqWindowSize:      bs.RollupConfig.SeqWindowSize,
 		ChannelTimeout:     bs.RollupConfig.ChannelTimeout,
 		MaxChannelDuration: cfg.MaxChannelDuration,
+		MaxFrameSize:       cfg.MaxL1TxSize, // reset for blobs
 		SubSafetyMargin:    cfg.SubSafetyMargin,
 		CompressorConfig:   cfg.CompressorConfig.Config(),
 		BatchType:          cfg.BatchType,
@@ -198,11 +199,12 @@ func (bs *BatcherService) initChannelConfig(cfg *CLIConfig) error {
 
 	switch cfg.DataAvailabilityType {
 	case flags.BlobsType:
-		bs.ChannelConfig.MaxFrameSize = eth.MaxBlobDataSize
+		if !cfg.TestUseMaxTxSizeForBlobs {
+			bs.ChannelConfig.MaxFrameSize = eth.MaxBlobDataSize
+		}
 		bs.ChannelConfig.MultiFrameTxs = true
 		bs.UseBlobs = true
 	case flags.CalldataType:
-		bs.ChannelConfig.MaxFrameSize = cfg.MaxL1TxSize
 		bs.UseBlobs = false
 	default:
 		return fmt.Errorf("unknown data availability type: %v", cfg.DataAvailabilityType)

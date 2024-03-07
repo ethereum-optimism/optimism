@@ -52,6 +52,7 @@ type CLIConfig struct {
 	MaxPendingTransactions uint64
 
 	// MaxL1TxSize is the maximum size of a batch tx submitted to L1.
+	// If using blobs, this setting is ignored and the max blob size is used.
 	MaxL1TxSize uint64
 
 	Stopped bool
@@ -61,6 +62,10 @@ type CLIConfig struct {
 	// DataAvailabilityType is one of the values defined in op-batcher/flags/types.go and dictates
 	// the data availability type to use for posting batches, e.g. blobs vs calldata.
 	DataAvailabilityType flags.DataAvailabilityType
+
+	// TestUseMaxTxSizeForBlobs allows to set the blob size with MaxL1TxSize.
+	// Should only be used for testing purposes.
+	TestUseMaxTxSizeForBlobs bool
 
 	// ActiveSequencerCheckDuration is the duration between checks to determine the active sequencer endpoint.
 	ActiveSequencerCheckDuration time.Duration
@@ -91,7 +96,10 @@ func (c *CLIConfig) Check() error {
 		return errors.New("must set PollInterval")
 	}
 	if c.MaxL1TxSize <= 1 {
-		return errors.New("MaxL1TxSize must be greater than 0")
+		return errors.New("MaxL1TxSize must be greater than 1")
+	}
+	if target, max := c.CompressorConfig.TargetL1TxSizeBytes, c.MaxL1TxSize; target > max {
+		return fmt.Errorf("target tx size > max, %d > %d", target, max)
 	}
 	if c.BatchType > 1 {
 		return fmt.Errorf("unknown batch type: %v", c.BatchType)

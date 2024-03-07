@@ -422,8 +422,10 @@ func (l *BatchSubmitter) blobTxCandidate(data txData) (*txmgr.TxCandidate, error
 		return nil, fmt.Errorf("generating blobs for tx data: %w", err)
 	}
 	size := data.Len()
-	l.Log.Info("building Blob transaction candidate", "size", size, "num_blobs", len(blobs))
-	l.Metr.RecordBlobUsedBytes(size)
+	lastSize := len(data.frames[len(data.frames)-1].data)
+	l.Log.Info("building Blob transaction candidate",
+		"size", size, "last_size", lastSize, "num_blobs", len(blobs))
+	l.Metr.RecordBlobUsedBytes(lastSize)
 	// TODO(Seb) record number of blobs
 	return &txmgr.TxCandidate{
 		To:    &l.RollupConfig.BatchInboxAddress,
