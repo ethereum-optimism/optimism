@@ -26,9 +26,6 @@ contract L2ToL2CrossDomainMessenger is ISemver {
     /// @notice Current message version identifier.
     uint16 public constant MESSAGE_VERSION = uint16(0);
 
-    /// @notice Initial balance for the contract.
-    uint248 public constant INITIAL_BALANCE = type(uint248).max;
-
     /// @notice Address of the L2 Cross Domain Messenger on this chain.
     address public crossL2Inbox;
 
