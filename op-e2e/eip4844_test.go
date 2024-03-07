@@ -11,10 +11,13 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 
 	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
+	gethutils "github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -23,10 +26,21 @@ import (
 // TestSystem4844E2E runs the SystemE2E test with 4844 enabled on L1,
 // and active on the rollup in the op-batcher and verifier.
 func TestSystem4844E2E(t *testing.T) {
+	t.Run("single-blob", func(t *testing.T) { testSystem4844E2E(t, false) })
+	t.Run("multi-blob", func(t *testing.T) { testSystem4844E2E(t, true) })
+}
+
+func testSystem4844E2E(t *testing.T, multiBlob bool) {
 	InitParallel(t)
 
 	cfg := DefaultSystemConfig(t)
 	cfg.DataAvailabilityType = batcherFlags.BlobsType
+	if multiBlob {
+		cfg.BatcherTargetNumFrames = 6
+		cfg.BatcherUseMaxTxSizeForBlobs = true
+		// guarantees 2-6 blobs for an L2 block with a single tx
+		cfg.BatcherMaxL1TxSizeBytes = derive.FrameV0OverHeadSize + 50
+	}
 
 	genesisActivation := hexutil.Uint64(0)
 	cfg.DeployConfig.L1CancunTimeOffset = &genesisActivation
@@ -108,11 +122,37 @@ func TestSystem4844E2E(t *testing.T) {
 		// wait for chain to be marked as "safe" (i.e. confirm batch-submission works)
 		stat, err := rollupClient.SyncStatus(context.Background())
 		require.NoError(t, err)
-		return stat.SafeL2.Number > 0
+		return stat.SafeL2.Number >= receipt.BlockNumber.Uint64()
 	}, time.Second*20, time.Second, "expected L2 to be batch-submitted and labeled as safe")
 
 	// check that the L2 tx is still canonical
 	seqBlock, err = l2Seq.BlockByNumber(context.Background(), receipt.BlockNumber)
 	require.NoError(t, err)
 	require.Equal(t, seqBlock.Hash(), receipt.BlockHash, "receipt block must match canonical block at tx inclusion height")
+
+	// find L1 block that contained the blob(s) batch tx
+	tip, err := l1Client.HeaderByNumber(context.Background(), nil)
+	require.NoError(t, err)
+	var numBlobs int
+	_, err = gethutils.FindBlock(l1Client, int(tip.Number.Int64()), 0, 5*time.Second,
+		func(b *types.Block) (bool, error) {
+			for _, tx := range b.Transactions() {
+				if tx.Type() != types.BlobTxType {
+					continue
+				}
+				numBlobs = len(tx.BlobHashes())
+				// expect to find at least one tx with more than 1 blob in multi-blob case
+				if !multiBlob || numBlobs > 1 {
+					return true, nil
+				}
+			}
+			return false, nil
+		})
+	require.NoError(t, err)
+
+	if !multiBlob {
+		require.NotZero(t, numBlobs, "single-blob: expected to find L1 blob tx")
+	} else {
+		require.Greater(t, numBlobs, 1, "multi-blob: expected to find L1 blob tx with more than 1 blob")
+	}
 }

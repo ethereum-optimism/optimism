@@ -67,9 +67,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
-var (
-	testingJWTSecret = [32]byte{123}
-)
+var testingJWTSecret = [32]byte{123}
 
 func newTxMgrConfig(l1Addr string, privKey *ecdsa.PrivateKey) txmgr.CLIConfig {
 	return txmgr.CLIConfig{
@@ -218,6 +216,14 @@ type SystemConfig struct {
 
 	// Max L1 tx size for the batcher transactions
 	BatcherMaxL1TxSizeBytes uint64
+
+	// Target number of frames to create per channel. Can be used to create
+	// multi-blob transactions.
+	// Default is 1 if unset.
+	BatcherTargetNumFrames uint64
+
+	// whether to actually use BatcherMaxL1TxSizeBytes for blobs, insteaf of max blob size
+	BatcherUseMaxTxSizeForBlobs bool
 
 	// SupportL1TimeTravel determines if the L1 node supports quickly skipping forward in time
 	SupportL1TimeTravel bool
@@ -790,20 +796,26 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	if cfg.DeployConfig.L2GenesisDeltaTimeOffset != nil && *cfg.DeployConfig.L2GenesisDeltaTimeOffset == hexutil.Uint64(0) {
 		batchType = derive.SpanBatchType
 	}
+	// batcher defaults if unset
 	batcherMaxL1TxSizeBytes := cfg.BatcherMaxL1TxSizeBytes
 	if batcherMaxL1TxSizeBytes == 0 {
 		batcherMaxL1TxSizeBytes = 240_000
 	}
+	batcherTargetNumFrames := cfg.BatcherTargetNumFrames
+	if batcherTargetNumFrames == 0 {
+		batcherTargetNumFrames = 1
+	}
 	batcherCLIConfig := &bss.CLIConfig{
-		L1EthRpc:               sys.EthInstances["l1"].WSEndpoint(),
-		L2EthRpc:               sys.EthInstances["sequencer"].WSEndpoint(),
-		RollupRpc:              sys.RollupNodes["sequencer"].HTTPEndpoint(),
-		MaxPendingTransactions: 0,
-		MaxChannelDuration:     1,
-		MaxL1TxSize:            batcherMaxL1TxSizeBytes,
+		L1EthRpc:                 sys.EthInstances["l1"].WSEndpoint(),
+		L2EthRpc:                 sys.EthInstances["sequencer"].WSEndpoint(),
+		RollupRpc:                sys.RollupNodes["sequencer"].HTTPEndpoint(),
+		MaxPendingTransactions:   0,
+		MaxChannelDuration:       1,
+		MaxL1TxSize:              batcherMaxL1TxSizeBytes,
+		TestUseMaxTxSizeForBlobs: cfg.BatcherUseMaxTxSizeForBlobs,
 		CompressorConfig: compressor.CLIConfig{
 			TargetL1TxSizeBytes: cfg.BatcherTargetL1TxSizeBytes,
-			TargetNumFrames:     1,
+			TargetNumFrames:     int(batcherTargetNumFrames),
 			ApproxComprRatio:    0.4,
 		},
 		SubSafetyMargin: 4,
