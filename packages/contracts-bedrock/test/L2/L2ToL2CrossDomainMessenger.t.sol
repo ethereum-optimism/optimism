@@ -10,7 +10,7 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
 import { Types } from "src/libraries/Types.sol";
-import { ICrossL2Inbox, IL2ToL2CrossDomainMessenger } from "src/libraries/Predeploys.sol";
+import { ICrossL2Inbox } from "src/libraries/Predeploys.sol";
 
 // Target contract dependencies
 import { L2ToL1MessagePasser } from "src/L2/L2ToL1MessagePasser.sol";
@@ -88,5 +88,9 @@ contract L2ToL2CrossDomainMessengerTest is Bridge_Initializer {
                 )
             )
         );
+
+        assertEq(l2ToL2CrossDomainMessenger.crossDomainMessageSender(), sender);
+
+        assertEq(l2ToL2CrossDomainMessenger.crossDomainMessageSource(), block.chainid);
     }
 }

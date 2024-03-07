@@ -56,6 +56,10 @@ interface IL2ToL2CrossDomainMessenger {
 
     function messageNonce() external view returns (uint256);
 
+    function crossDomainMessageSender() external view returns (address _sender);
+
+    function crossDomainMessageSource() external view returns (uint256 _source);
+
     function sendMessage(uint256 _destination, address _target, bytes calldata _message) external payable;
 
     function relayMessage(
