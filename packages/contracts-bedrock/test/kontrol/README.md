@@ -63,7 +63,7 @@ Verifying proofs has two steps: build, and execute.
 
 First, generate a deployment summary contract from the deploy script in [`KontrolDeployment.sol`](./deployment/KontrolDeployment.sol) by running the following command:
 
-```bash
+```
 ./test/kontrol/scripts/make-summary-deployment.sh [container|local|dev]
 ```
 
