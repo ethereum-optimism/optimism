@@ -71,6 +71,12 @@ func (g *OutputGameHelper) Addr() common.Address {
 	return g.addr
 }
 
+func (g *OutputGameHelper) Balance(ctx context.Context, addr common.Address) *big.Int {
+	balance, err := g.client.BalanceAt(ctx, addr, nil)
+	g.require.NoError(err, "Failed to get balance")
+	return balance
+}
+
 func (g *OutputGameHelper) SplitDepth(ctx context.Context) types.Depth {
 	splitDepth, err := g.game.SplitDepth(&bind.CallOpts{Context: ctx})
 	g.require.NoError(err, "failed to load split depth")
@@ -164,6 +170,50 @@ func (g *OutputGameHelper) GameDuration(ctx context.Context) time.Duration {
 	duration, err := g.game.GameDuration(&bind.CallOpts{Context: ctx})
 	g.require.NoError(err, "failed to get game duration")
 	return time.Duration(duration) * time.Second
+}
+
+func (g *OutputGameHelper) WaitForNoAvailableCredit(ctx context.Context, addr common.Address) {
+	timedCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
+	defer cancel()
+	err := wait.For(timedCtx, time.Second, func() (bool, error) {
+		bal, err := g.game.Credit(&bind.CallOpts{Context: timedCtx}, addr)
+		if err != nil {
+			return false, err
+		}
+		g.t.Log("Waiting for zero available credit", "current", bal, "addr", addr)
+		return bal.Cmp(big.NewInt(0)) == 0, nil
+	})
+	if err != nil {
+		g.LogGameData(ctx)
+		g.require.NoError(err, "Failed to wait for zero available credit")
+	}
+}
+
+func (g *OutputGameHelper) AvailableCredit(ctx context.Context, addr common.Address) *big.Int {
+	credit, err := g.game.Credit(&bind.CallOpts{Context: ctx}, addr)
+	g.require.NoErrorf(err, "Failed to fetch available credit for %v", addr)
+	return credit
+}
+
+func (g *OutputGameHelper) CreditUnlockDuration(ctx context.Context) time.Duration {
+	weth, err := g.game.Weth(&bind.CallOpts{Context: ctx})
+	g.require.NoError(err, "Failed to get WETH contract")
+	contract, err := bindings.NewDelayedWETH(weth, g.client)
+	g.require.NoError(err)
+	period, err := contract.Delay(&bind.CallOpts{Context: ctx})
+	g.require.NoError(err, "Failed to get WETH unlock period")
+	float, _ := period.Float64()
+	return time.Duration(float) * time.Second
+}
+
+func (g *OutputGameHelper) WethBalance(ctx context.Context, addr common.Address) *big.Int {
+	weth, err := g.game.Weth(&bind.CallOpts{Context: ctx})
+	g.require.NoError(err, "Failed to get WETH contract")
+	contract, err := bindings.NewDelayedWETH(weth, g.client)
+	g.require.NoError(err)
+	balance, err := contract.BalanceOf(&bind.CallOpts{Context: ctx}, addr)
+	g.require.NoError(err, "Failed to get WETH balance")
+	return balance
 }
 
 // WaitForClaimCount waits until there are at least count claims in the game.

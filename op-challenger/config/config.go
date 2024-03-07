@@ -79,9 +79,9 @@ const (
 	DefaultCannonInfoFreq     = uint(10_000_000)
 	// DefaultGameWindow is the default maximum time duration in the past
 	// that the challenger will look for games to progress.
-	// The default value is 11 days, which is a 4 day resolution buffer
+	// The default value is 15 days, which is an 8 day resolution buffer
 	// and bond claiming buffer plus the 7 day game finalization window.
-	DefaultGameWindow   = time.Duration(11 * 24 * time.Hour)
+	DefaultGameWindow   = time.Duration(15 * 24 * time.Hour)
 	DefaultMaxPendingTx = 10
 )
 
