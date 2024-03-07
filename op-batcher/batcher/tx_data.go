@@ -17,6 +17,10 @@ type txData struct {
 	frames []frameData
 }
 
+func singleFrameTxData(frame frameData) txData {
+	return txData{[]frameData{frame}}
+}
+
 // ID returns the id for this transaction data. Its String() can be used as a map key.
 func (td *txData) ID() txID {
 	id := make(txID, 0, len(td.frames))
@@ -62,8 +66,8 @@ func (td *txData) Frames() []frameData {
 }
 
 // txID is an opaque identifier for a transaction.
-// It's internal fields should not be inspected after creation & are subject to change.
-// This ID must be trivially comparable & work as a map key.
+// Its internal fields should not be inspected after creation & are subject to change.
+// Its String() can be used for comparisons and works as a map key.
 type txID []frameID
 
 func (id txID) String() string {

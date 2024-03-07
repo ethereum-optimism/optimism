@@ -14,6 +14,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func singleFrameTxID(cid derive.ChannelID, fn uint16) txID {
+	return txID{frameID{chID: cid, frameNumber: fn}}
+}
+
+func zeroFrameTxID(fn uint16) txID {
+	return txID{frameID{frameNumber: fn}}
+}
+
 // TestChannelTimeout tests that the channel manager
 // correctly identifies when a pending channel is timed out.
 func TestChannelTimeout(t *testing.T) {
@@ -39,8 +47,8 @@ func TestChannelTimeout(t *testing.T) {
 
 	// Manually set a confirmed transactions
 	// To avoid other methods clearing state
-	channel.confirmedTransactions[frameID{frameNumber: 0}] = eth.BlockID{Number: 0}
-	channel.confirmedTransactions[frameID{frameNumber: 1}] = eth.BlockID{Number: 99}
+	channel.confirmedTransactions[zeroFrameTxID(0).String()] = eth.BlockID{Number: 0}
+	channel.confirmedTransactions[zeroFrameTxID(1).String()] = eth.BlockID{Number: 99}
 	channel.confirmedTxUpdated = true
 
 	// Since the ChannelTimeout is 100, the
@@ -50,9 +58,7 @@ func TestChannelTimeout(t *testing.T) {
 
 	// Add a confirmed transaction with a higher number
 	// than the ChannelTimeout
-	channel.confirmedTransactions[frameID{
-		frameNumber: 2,
-	}] = eth.BlockID{
+	channel.confirmedTransactions[zeroFrameTxID(2).String()] = eth.BlockID{
 		Number: 101,
 	}
 	channel.confirmedTxUpdated = true
@@ -97,8 +103,8 @@ func TestChannelNextTxData(t *testing.T) {
 
 	// Now the nextTxData function should return the frame
 	returnedTxData, err = m.nextTxData(channel)
-	expectedTxData := txData{frame}
-	expectedChannelID := expectedTxData.ID()
+	expectedTxData := singleFrameTxData(frame)
+	expectedChannelID := expectedTxData.ID().String()
 	require.NoError(t, err)
 	require.Equal(t, expectedTxData, returnedTxData)
 	require.Equal(t, 0, channel.PendingFrames())
@@ -131,12 +137,12 @@ func TestChannelTxConfirmed(t *testing.T) {
 	m.currentChannel.channelBuilder.PushFrame(frame)
 	require.Equal(t, 1, m.currentChannel.PendingFrames())
 	returnedTxData, err := m.nextTxData(m.currentChannel)
-	expectedTxData := txData{frame}
+	expectedTxData := singleFrameTxData(frame)
 	expectedChannelID := expectedTxData.ID()
 	require.NoError(t, err)
 	require.Equal(t, expectedTxData, returnedTxData)
 	require.Equal(t, 0, m.currentChannel.PendingFrames())
-	require.Equal(t, expectedTxData, m.currentChannel.pendingTransactions[expectedChannelID])
+	require.Equal(t, expectedTxData, m.currentChannel.pendingTransactions[expectedChannelID.String()])
 	require.Len(t, m.currentChannel.pendingTransactions, 1)
 
 	// An unknown pending transaction should not be marked as confirmed
@@ -144,7 +150,7 @@ func TestChannelTxConfirmed(t *testing.T) {
 	actualChannelID := m.currentChannel.ID()
 	unknownChannelID := derive.ChannelID([derive.ChannelIDLength]byte{0x69})
 	require.NotEqual(t, actualChannelID, unknownChannelID)
-	unknownTxID := frameID{chID: unknownChannelID, frameNumber: 0}
+	unknownTxID := singleFrameTxID(unknownChannelID, 0)
 	blockID := eth.BlockID{Number: 0, Hash: common.Hash{0x69}}
 	m.TxConfirmed(unknownTxID, blockID)
 	require.Empty(t, m.currentChannel.confirmedTransactions)
@@ -156,7 +162,7 @@ func TestChannelTxConfirmed(t *testing.T) {
 	m.TxConfirmed(expectedChannelID, blockID)
 	require.Empty(t, m.currentChannel.pendingTransactions)
 	require.Len(t, m.currentChannel.confirmedTransactions, 1)
-	require.Equal(t, blockID, m.currentChannel.confirmedTransactions[expectedChannelID])
+	require.Equal(t, blockID, m.currentChannel.confirmedTransactions[expectedChannelID.String()])
 }
 
 // TestChannelTxFailed checks the [ChannelManager.TxFailed] function.
@@ -180,19 +186,19 @@ func TestChannelTxFailed(t *testing.T) {
 	m.currentChannel.channelBuilder.PushFrame(frame)
 	require.Equal(t, 1, m.currentChannel.PendingFrames())
 	returnedTxData, err := m.nextTxData(m.currentChannel)
-	expectedTxData := txData{frame}
+	expectedTxData := singleFrameTxData(frame)
 	expectedChannelID := expectedTxData.ID()
 	require.NoError(t, err)
 	require.Equal(t, expectedTxData, returnedTxData)
 	require.Equal(t, 0, m.currentChannel.PendingFrames())
-	require.Equal(t, expectedTxData, m.currentChannel.pendingTransactions[expectedChannelID])
+	require.Equal(t, expectedTxData, m.currentChannel.pendingTransactions[expectedChannelID.String()])
 	require.Len(t, m.currentChannel.pendingTransactions, 1)
 
 	// Trying to mark an unknown pending transaction as failed
 	// shouldn't modify state
-	m.TxFailed(frameID{})
+	m.TxFailed(zeroFrameTxID(0))
 	require.Equal(t, 0, m.currentChannel.PendingFrames())
-	require.Equal(t, expectedTxData, m.currentChannel.pendingTransactions[expectedChannelID])
+	require.Equal(t, expectedTxData, m.currentChannel.pendingTransactions[expectedChannelID.String()])
 
 	// Now we still have a pending transaction
 	// Let's mark it as failed

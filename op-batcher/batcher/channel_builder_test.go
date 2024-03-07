@@ -410,7 +410,7 @@ func TestChannelBuilder_NextFrame(t *testing.T) {
 	require.NoError(t, err)
 
 	// Push one frame into to the channel builder
-	expectedTx := txID{chID: co.ID(), frameNumber: fn}
+	expectedTx := txID{frameID{chID: co.ID(), frameNumber: fn}}
 	expectedBytes := buf.Bytes()
 	frameData := frameData{
 		id: frameID{
@@ -426,7 +426,7 @@ func TestChannelBuilder_NextFrame(t *testing.T) {
 
 	// We should be able to increment to the next frame
 	constructedFrame := cb.NextFrame()
-	require.Equal(t, expectedTx, constructedFrame.id)
+	require.Equal(t, expectedTx[0], constructedFrame.id)
 	require.Equal(t, expectedBytes, constructedFrame.data)
 	require.Equal(t, 0, cb.PendingFrames())
 
