@@ -82,14 +82,17 @@ type LocalEngineControl interface {
 	ResetBuildingState()
 	IsEngineSyncing() bool
 	TryUpdateEngine(ctx context.Context) error
+	TryBackupUnsafeReorg(ctx context.Context) (bool, error)
 	InsertUnsafePayload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope, ref eth.L2BlockRef) error
 
 	PendingSafeL2Head() eth.L2BlockRef
+	BackupUnsafeL2Head() eth.L2BlockRef
 
 	SetUnsafeHead(eth.L2BlockRef)
 	SetSafeHead(eth.L2BlockRef)
 	SetFinalizedHead(eth.L2BlockRef)
 	SetPendingSafeL2Head(eth.L2BlockRef)
+	SetBackupUnsafeL2Head(block eth.L2BlockRef, triggerReorg bool)
 }
 
 // SafeHeadListener is called when the safe head is updated.
@@ -256,12 +259,22 @@ func (eq *EngineQueue) LowestQueuedUnsafeBlock() eth.L2BlockRef {
 	return ref
 }
 
+func (eq *EngineQueue) BackupUnsafeL2Head() eth.L2BlockRef {
+	return eq.ec.BackupUnsafeL2Head()
+}
+
 // Determine if the engine is syncing to the target block
 func (eq *EngineQueue) isEngineSyncing() bool {
 	return eq.ec.IsEngineSyncing()
 }
 
 func (eq *EngineQueue) Step(ctx context.Context) error {
+	// If we don't need to call FCU to restore unsafeHead using backupUnsafe, keep going b/c
+	// this was a no-op(except correcting invalid state when backupUnsafe is empty but TryBackupUnsafeReorg called).
+	if fcuCalled, err := eq.ec.TryBackupUnsafeReorg(ctx); fcuCalled {
+		// If we needed to perform a network call, then we should yield even if we did not encounter an error.
+		return err
+	}
 	// If we don't need to call FCU, keep going b/c this was a no-op. If we needed to
 	// perform a network call, then we should yield even if we did not encounter an error.
 	if err := eq.ec.TryUpdateEngine(ctx); !errors.Is(err, errNoFCUNeeded) {
@@ -451,6 +464,7 @@ func (eq *EngineQueue) logSyncProgress(reason string) {
 		"l2_safe", eq.ec.SafeL2Head(),
 		"l2_pending_safe", eq.ec.PendingSafeL2Head(),
 		"l2_unsafe", eq.ec.UnsafeL2Head(),
+		"l2_backup_unsafe", eq.ec.BackupUnsafeL2Head(),
 		"l2_time", eq.ec.UnsafeL2Head().Time,
 		"l1_derived", eq.origin,
 	)
@@ -615,8 +629,11 @@ func (eq *EngineQueue) forceNextSafeAttributes(ctx context.Context) error {
 			// suppress the error b/c we want to retry with the next batch from the batch queue
 			// If there is no valid batch the node will eventually force a deposit only block. If
 			// the deposit only block fails, this will return the critical error above.
-			return nil
 
+			// Try to restore to previous known unsafe chain.
+			eq.ec.SetBackupUnsafeL2Head(eq.ec.BackupUnsafeL2Head(), true)
+
+			return nil
 		default:
 			return NewCriticalError(fmt.Errorf("unknown InsertHeadBlock error type %d: %w", errType, err))
 		}
@@ -694,6 +711,7 @@ func (eq *EngineQueue) Reset(ctx context.Context, _ eth.L1BlockRef, _ eth.System
 	eq.ec.SetSafeHead(safe)
 	eq.ec.SetPendingSafeL2Head(safe)
 	eq.ec.SetFinalizedHead(finalized)
+	eq.ec.SetBackupUnsafeL2Head(eth.L2BlockRef{}, false)
 	eq.safeAttributes = nil
 	eq.ec.ResetBuildingState()
 	eq.finalityData = eq.finalityData[:0]
