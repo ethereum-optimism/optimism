@@ -114,6 +114,7 @@ contract L2ToL2CrossDomainMessenger is ISemver {
         bytes32 messageHash = keccak256(abi.encode(_destination, _nonce, _sender, _target, _value, _message));
         require(successfulMessages[messageHash] == false, "L2ToL2CrossDomainMessenger: message already relayed");
 
+        bool success;
         assembly {
             tstore(CROSS_DOMAIN_MESSAGE_SENDER_SLOT, _sender)
 
