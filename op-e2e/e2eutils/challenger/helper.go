@@ -42,12 +42,6 @@ type Helper struct {
 
 type Option func(config2 *config.Config)
 
-func WithClaimants(claimants ...common.Address) Option {
-	return func(c *config.Config) {
-		c.AdditionalBondClaimants = append(c.AdditionalBondClaimants, claimants...)
-	}
-}
-
 func WithFactoryAddress(addr common.Address) Option {
 	return func(c *config.Config) {
 		c.GameFactoryAddress = addr

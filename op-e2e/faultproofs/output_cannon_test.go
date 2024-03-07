@@ -95,13 +95,7 @@ func TestOutputCannon_ReclaimBond(t *testing.T) {
 
 	// Grab the root claim
 	claim := game.RootClaim(ctx)
-	game.StartChallenger(
-		ctx,
-		"sequencer",
-		"Challenger",
-		challenger.WithPrivKey(sys.Cfg.Secrets.Alice),
-		challenger.WithClaimants(alice),
-	)
+	game.StartChallenger(ctx, "sequencer", "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
 
 	// Perform a few moves
 	claim = claim.WaitForCounterClaim(ctx)
@@ -139,9 +133,6 @@ func TestOutputCannon_ReclaimBond(t *testing.T) {
 	// Wait for alice to have no available credit
 	// aka, wait for the challenger to claim its credit
 	game.WaitForNoAvailableCredit(ctx, alice)
-
-	// Alice should have no available credit since it's been claimed
-	require.True(t, game.AvailableCredit(ctx, alice).Cmp(big.NewInt(0)) == 0)
 
 	// The dispute game delayed weth balance should be zero since it's all claimed
 	require.True(t, game.WethBalance(ctx, game.Addr()).Cmp(big.NewInt(0)) == 0)
