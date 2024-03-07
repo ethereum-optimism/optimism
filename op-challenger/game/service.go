@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/fetcher"
 	"github.com/ethereum-optimism/optimism/op-challenger/sender"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 
@@ -105,7 +106,7 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 	if err := s.registerGameTypes(ctx, cfg); err != nil {
 		return fmt.Errorf("failed to register game types: %w", err)
 	}
-	if err := s.initBondClaims(); err != nil {
+	if err := s.initBondClaims(cfg); err != nil {
 		return fmt.Errorf("failed to init bond claiming: %w", err)
 	}
 	if err := s.initScheduler(cfg); err != nil {
@@ -196,8 +197,10 @@ func (s *Service) initFactoryContract(cfg *config.Config) error {
 	return nil
 }
 
-func (s *Service) initBondClaims() error {
-	claimer := claims.NewBondClaimer(s.logger, s.metrics, s.registry.CreateBondContract, s.txSender)
+func (s *Service) initBondClaims(cfg *config.Config) error {
+	claimants := []common.Address{s.txSender.From()}
+	claimants = append(claimants, cfg.AdditionalBondClaimants...)
+	claimer := claims.NewBondClaimer(s.logger, s.metrics, s.registry.CreateBondContract, s.txSender, claimants...)
 	s.claimer = claims.NewBondClaimScheduler(s.logger, s.metrics, claimer)
 	return nil
 }

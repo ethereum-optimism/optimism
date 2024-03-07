@@ -12,7 +12,6 @@ import { SafeProxyFactory } from "safe-contracts/proxies/SafeProxyFactory.sol";
 import { Enum as SafeOps } from "safe-contracts/common/Enum.sol";
 
 import { Deployer } from "scripts/Deployer.sol";
-import "scripts/DeployConfig.s.sol";
 
 import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
 import { AddressManager } from "src/legacy/AddressManager.sol";
@@ -52,6 +51,7 @@ import { ChainAssertions } from "scripts/ChainAssertions.sol";
 import { Types } from "scripts/Types.sol";
 import { LibStateDiff } from "scripts/libraries/LibStateDiff.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
+import { ForgeArtifacts } from "scripts/ForgeArtifacts.sol";
 
 /// @title Deploy
 /// @notice Script used to deploy a bedrock system. The entire system is deployed within the `run` function.
@@ -62,9 +62,6 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 ///         contract name to address pairs. That enables this script to be much more flexible in the way it is used.
 ///         This contract must not have constructor logic because it is set into state using `etch`.
 contract Deploy is Deployer {
-    DeployConfig public constant cfg =
-        DeployConfig(address(uint160(uint256(keccak256(abi.encode("optimism.deployconfig"))))));
-
     using stdJson for string;
 
     /// @notice FaultDisputeGameParams is a struct that contains the parameters necessary to call
@@ -252,26 +249,6 @@ contract Deploy is Deployer {
     ////////////////////////////////////////////////////////////////
     //                    SetUp and Run                           //
     ////////////////////////////////////////////////////////////////
-
-    function setUp() public virtual override {
-        super.setUp();
-
-        // Load the `useFaultProofs` slot value prior to etching the DeployConfig's bytecode and reading the deploy
-        // config file. If this slot has already been set, it will override the preference in the deploy config.
-        bytes32 useFaultProofsOverride = vm.load(address(cfg), USE_FAULT_PROOFS_SLOT);
-
-        string memory path = string.concat(vm.projectRoot(), "/deploy-config/", deploymentContext, ".json");
-        vm.etch(address(cfg), vm.getDeployedCode("DeployConfig.s.sol:DeployConfig"));
-        vm.label(address(cfg), "DeployConfig");
-        vm.allowCheatcodes(address(cfg));
-        cfg.read(path);
-
-        if (useFaultProofsOverride != 0) {
-            vm.store(address(cfg), USE_FAULT_PROOFS_SLOT, useFaultProofsOverride);
-        }
-
-        console.log("Deployment context: %s", deploymentContext);
-    }
 
     /// @notice Deploy all of the L1 contracts necessary for a full Superchain with a single Op Chain.
     function run() public {
@@ -736,8 +713,7 @@ contract Deploy is Deployer {
         console.log("Deploying PreimageOracle implementation");
         PreimageOracle preimageOracle = new PreimageOracle{ salt: _implSalt() }({
             _minProposalSize: cfg.preimageOracleMinProposalSize(),
-            _challengePeriod: cfg.preimageOracleChallengePeriod(),
-            _cancunActivation: cfg.preimageOracleCancunActivationTimestamp()
+            _challengePeriod: cfg.preimageOracleChallengePeriod()
         });
         save("PreimageOracle", address(preimageOracle));
         console.log("PreimageOracle deployed at %s", address(preimageOracle));

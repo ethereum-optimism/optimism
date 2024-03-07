@@ -38,6 +38,8 @@ type Metricer interface {
 
 	RecordClaimResolutionDelayMax(delay float64)
 
+	RecordOutputFetchTime(timestamp float64)
+
 	RecordGamesStatus(inProgress, defenderWon, challengerWon int)
 	RecordGameAgreement(status GameAgreementStatus, count int)
 
@@ -56,6 +58,8 @@ type Metrics struct {
 
 	info prometheus.GaugeVec
 	up   prometheus.Gauge
+
+	lastOutputFetch prometheus.Gauge
 
 	claimResolutionDelayMax prometheus.Gauge
 
@@ -91,6 +95,11 @@ func NewMetrics() *Metrics {
 			Namespace: Namespace,
 			Name:      "up",
 			Help:      "1 if the op-challenger has finished starting up",
+		}),
+		lastOutputFetch: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "last_output_fetch",
+			Help:      "Timestamp of the last output fetch",
 		}),
 		claimResolutionDelayMax: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: Namespace,
@@ -153,6 +162,10 @@ func (m *Metrics) RecordGamesStatus(inProgress, defenderWon, challengerWon int) 
 	m.trackedGames.WithLabelValues("in_progress").Set(float64(inProgress))
 	m.trackedGames.WithLabelValues("defender_won").Set(float64(defenderWon))
 	m.trackedGames.WithLabelValues("challenger_won").Set(float64(challengerWon))
+}
+
+func (m *Metrics) RecordOutputFetchTime(timestamp float64) {
+	m.lastOutputFetch.Set(timestamp)
 }
 
 func (m *Metrics) RecordGameAgreement(status GameAgreementStatus, count int) {

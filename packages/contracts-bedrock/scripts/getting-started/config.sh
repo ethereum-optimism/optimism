@@ -98,7 +98,6 @@ config=$(cat << EOL
 
   "preimageOracleMinProposalSize": 1800000,
   "preimageOracleChallengePeriod": 86400,
-  "preimageOracleCancunActivationTimestamp": 0
 }
 EOL
 )

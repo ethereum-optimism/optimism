@@ -94,14 +94,7 @@ func (o *OracleEngine) PayloadByHash(ctx context.Context, hash common.Hash) (*et
 	if block == nil {
 		return nil, ErrNotFound
 	}
-	payload, err := eth.BlockAsPayload(block, o.rollupCfg.CanyonTime)
-	if err != nil {
-		return nil, err
-	}
-	return &eth.ExecutionPayloadEnvelope{
-		ParentBeaconBlockRoot: block.BeaconRoot(),
-		ExecutionPayload:      payload,
-	}, nil
+	return eth.BlockAsPayloadEnv(block, o.rollupCfg.CanyonTime)
 }
 
 func (o *OracleEngine) PayloadByNumber(ctx context.Context, n uint64) (*eth.ExecutionPayloadEnvelope, error) {

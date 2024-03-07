@@ -12,11 +12,12 @@ contract FPACOPS is Deploy, StdAssertions {
     //                        ENTRYPOINTS                         //
     ////////////////////////////////////////////////////////////////
 
-    function deployFPAC(address _proxyAdmin, address _systemOwnerSafe) public {
+    function deployFPAC(address _proxyAdmin, address _systemOwnerSafe, address _superchainConfigProxy) public {
         console.log("Deploying a fresh FPAC system and OptimismPortal2 implementation.");
 
         prankDeployment("ProxyAdmin", msg.sender);
         prankDeployment("SystemOwnerSafe", msg.sender);
+        prankDeployment("SuperchainConfigProxy", _superchainConfigProxy);
 
         // Deploy the proxies.
         deployERC1967Proxy("DisputeGameFactoryProxy");
@@ -62,7 +63,7 @@ contract FPACOPS is Deploy, StdAssertions {
 
         address dgfProxy = mustGetAddress("DisputeGameFactoryProxy");
         Proxy(payable(dgfProxy)).upgradeToAndCall(
-            mustGetAddress("DisputeGameFactory"), abi.encodeWithSignature("initialize(address)", msg.sender)
+            mustGetAddress("DisputeGameFactory"), abi.encodeCall(DisputeGameFactory.initialize, msg.sender)
         );
     }
 
@@ -70,10 +71,10 @@ contract FPACOPS is Deploy, StdAssertions {
         console.log("Initializing DelayedWETHProxy with DelayedWETH.");
 
         address wethProxy = mustGetAddress("DelayedWETHProxy");
-        address systemConfigProxy = mustGetAddress("SystemConfigProxy");
+        address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
         Proxy(payable(wethProxy)).upgradeToAndCall(
             mustGetAddress("DelayedWETH"),
-            abi.encodeWithSignature("initialize(address,address)", msg.sender, systemConfigProxy)
+            abi.encodeCall(DelayedWETH.initialize, (msg.sender, SuperchainConfig(superchainConfigProxy)))
         );
     }
 
@@ -165,8 +166,5 @@ contract FPACOPS is Deploy, StdAssertions {
         console.log("    9. Respected Game Type: ", cfg.respectedGameType());
         console.log("   10. Preimage Oracle Min Proposal Size (bytes): ", cfg.preimageOracleMinProposalSize());
         console.log("   11. Preimage Oracle Challenge Period (seconds): ", cfg.preimageOracleChallengePeriod());
-        console.log(
-            "   12. Preimage Oracle Cancun Activation Timestamp: ", cfg.preimageOracleCancunActivationTimestamp()
-        );
     }
 }

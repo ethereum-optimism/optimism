@@ -10,11 +10,6 @@
         "internalType": "uint256",
         "name": "_challengePeriod",
         "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_cancunActivation",
-        "type": "uint256"
       }
     ],
     "stateMutability": "nonpayable",
@@ -846,11 +841,6 @@
   {
     "inputs": [],
     "name": "BondTransferFailed",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "CancunNotActive",
     "type": "error"
   },
   {

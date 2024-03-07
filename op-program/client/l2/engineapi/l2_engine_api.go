@@ -316,12 +316,7 @@ func (ea *L2EngineAPI) getPayload(ctx context.Context, payloadId eth.PayloadID) 
 		return nil, engine.UnknownPayload
 	}
 
-	payload, err := eth.BlockAsPayload(bl, ea.config().CanyonTime)
-	if err != nil {
-		return nil, err
-	}
-
-	return &eth.ExecutionPayloadEnvelope{ExecutionPayload: payload, ParentBeaconBlockRoot: bl.BeaconRoot()}, nil
+	return eth.BlockAsPayloadEnv(bl, ea.config().CanyonTime)
 }
 
 func (ea *L2EngineAPI) forkchoiceUpdated(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {

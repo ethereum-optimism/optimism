@@ -163,6 +163,7 @@ func registerCannon(
 	l2Client cannon.L2HeaderSource,
 	l1HeaderSource L1HeaderSource,
 ) error {
+	cannonPrestateProvider := cannon.NewPrestateProvider(cfg.CannonAbsolutePreState)
 	playerCreator := func(game types.GameMetadata, dir string) (scheduler.GamePlayer, error) {
 		contract, err := contracts.NewFaultDisputeGameContract(game.Proxy, caller)
 		if err != nil {
@@ -188,7 +189,7 @@ func registerCannon(
 			}
 			return accessor, nil
 		}
-		prestateValidator := NewPrestateValidator("cannon", contract.GetAbsolutePrestateHash, cannon.NewPrestateProvider(cfg.CannonAbsolutePreState))
+		prestateValidator := NewPrestateValidator("cannon", contract.GetAbsolutePrestateHash, cannonPrestateProvider)
 		genesisValidator := NewPrestateValidator("output root", contract.GetGenesisOutputRoot, prestateProvider)
 		return NewGamePlayer(ctx, cl, logger, m, dir, game.Proxy, txSender, contract, syncValidator, []Validator{prestateValidator, genesisValidator}, creator, l1HeaderSource)
 	}

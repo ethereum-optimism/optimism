@@ -83,6 +83,11 @@ var (
 		EnvVars: prefixEnvVars("HTTP_POLL_INTERVAL"),
 		Value:   config.DefaultPollInterval,
 	}
+	AdditionalBondClaimants = &cli.StringSliceFlag{
+		Name:    "additional-bond-claimants",
+		Usage:   "List of addresses to claim bonds for, in addition to the configured transaction sender",
+		EnvVars: prefixEnvVars("ADDITIONAL_BOND_CLAIMANTS"),
+	}
 	CannonNetworkFlag = &cli.StringFlag{
 		Name: "cannon-network",
 		Usage: fmt.Sprintf(
@@ -163,6 +168,7 @@ var optionalFlags = []cli.Flag{
 	MaxConcurrencyFlag,
 	MaxPendingTransactionsFlag,
 	HTTPPollInterval,
+	AdditionalBondClaimants,
 	GameAllowlistFlag,
 	CannonNetworkFlag,
 	CannonRollupConfigFlag,
@@ -281,31 +287,42 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 	if maxConcurrency == 0 {
 		return nil, fmt.Errorf("%v must not be 0", MaxConcurrencyFlag.Name)
 	}
+	var claimants []common.Address
+	if ctx.IsSet(AdditionalBondClaimants.Name) {
+		for _, addrStr := range ctx.StringSlice(AdditionalBondClaimants.Name) {
+			claimant, err := opservice.ParseAddress(addrStr)
+			if err != nil {
+				return nil, fmt.Errorf("invalid additional claimant: %w", err)
+			}
+			claimants = append(claimants, claimant)
+		}
+	}
 	return &config.Config{
 		// Required Flags
-		L1EthRpc:               ctx.String(L1EthRpcFlag.Name),
-		L1Beacon:               ctx.String(L1BeaconFlag.Name),
-		TraceTypes:             traceTypes,
-		GameFactoryAddress:     gameFactoryAddress,
-		GameAllowlist:          allowedGames,
-		GameWindow:             ctx.Duration(GameWindowFlag.Name),
-		MaxConcurrency:         maxConcurrency,
-		MaxPendingTx:           ctx.Uint64(MaxPendingTransactionsFlag.Name),
-		PollInterval:           ctx.Duration(HTTPPollInterval.Name),
-		RollupRpc:              ctx.String(RollupRpcFlag.Name),
-		CannonNetwork:          ctx.String(CannonNetworkFlag.Name),
-		CannonRollupConfigPath: ctx.String(CannonRollupConfigFlag.Name),
-		CannonL2GenesisPath:    ctx.String(CannonL2GenesisFlag.Name),
-		CannonBin:              ctx.String(CannonBinFlag.Name),
-		CannonServer:           ctx.String(CannonServerFlag.Name),
-		CannonAbsolutePreState: ctx.String(CannonPreStateFlag.Name),
-		Datadir:                ctx.String(DatadirFlag.Name),
-		CannonL2:               ctx.String(CannonL2Flag.Name),
-		CannonSnapshotFreq:     ctx.Uint(CannonSnapshotFreqFlag.Name),
-		CannonInfoFreq:         ctx.Uint(CannonInfoFreqFlag.Name),
-		TxMgrConfig:            txMgrConfig,
-		MetricsConfig:          metricsConfig,
-		PprofConfig:            pprofConfig,
-		AllowInvalidPrestate:   ctx.Bool(UnsafeAllowInvalidPrestate.Name),
+		L1EthRpc:                ctx.String(L1EthRpcFlag.Name),
+		L1Beacon:                ctx.String(L1BeaconFlag.Name),
+		TraceTypes:              traceTypes,
+		GameFactoryAddress:      gameFactoryAddress,
+		GameAllowlist:           allowedGames,
+		GameWindow:              ctx.Duration(GameWindowFlag.Name),
+		MaxConcurrency:          maxConcurrency,
+		MaxPendingTx:            ctx.Uint64(MaxPendingTransactionsFlag.Name),
+		PollInterval:            ctx.Duration(HTTPPollInterval.Name),
+		AdditionalBondClaimants: claimants,
+		RollupRpc:               ctx.String(RollupRpcFlag.Name),
+		CannonNetwork:           ctx.String(CannonNetworkFlag.Name),
+		CannonRollupConfigPath:  ctx.String(CannonRollupConfigFlag.Name),
+		CannonL2GenesisPath:     ctx.String(CannonL2GenesisFlag.Name),
+		CannonBin:               ctx.String(CannonBinFlag.Name),
+		CannonServer:            ctx.String(CannonServerFlag.Name),
+		CannonAbsolutePreState:  ctx.String(CannonPreStateFlag.Name),
+		Datadir:                 ctx.String(DatadirFlag.Name),
+		CannonL2:                ctx.String(CannonL2Flag.Name),
+		CannonSnapshotFreq:      ctx.Uint(CannonSnapshotFreqFlag.Name),
+		CannonInfoFreq:          ctx.Uint(CannonInfoFreqFlag.Name),
+		TxMgrConfig:             txMgrConfig,
+		MetricsConfig:           metricsConfig,
+		PprofConfig:             pprofConfig,
+		AllowInvalidPrestate:    ctx.Bool(UnsafeAllowInvalidPrestate.Name),
 	}, nil
 }
