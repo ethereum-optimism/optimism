@@ -54,6 +54,12 @@ contract L2ToL2CrossDomainMessenger is ISemver {
         return Encoding.encodeVersionedNonce(msgNonce, MESSAGE_VERSION);
     }
 
+    function crossDomainMessageSender() public view returns (address _sender) {
+        assembly {
+            _sender := tload(CROSS_DOMAIN_MESSAGE_SENDER_SLOT)
+        }
+    }
+
     /// @notice Sends a message to some target address on a destination chain. Note that if the call
     ///         always reverts, then the message will be unrelayable, and any ETH sent will be
     ///         permanently locked. The same will occur if the target on the other chain is
