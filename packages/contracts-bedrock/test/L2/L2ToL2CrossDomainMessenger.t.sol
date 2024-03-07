@@ -57,6 +57,7 @@ contract L2ToL2CrossDomainMessengerTest is Bridge_Initializer {
     /// @dev Tests that `relayMessage` executes successfully.
     function test_relayMessage_succeeds() external {
         address sender = address(l2ToL2CrossDomainMessenger);
+        uint256 source = block.chainid;
 
         ICrossL2Inbox.Identifier memory id = ICrossL2Inbox.Identifier({
             origin: address(l2ToL2CrossDomainMessenger),
@@ -72,7 +73,7 @@ contract L2ToL2CrossDomainMessengerTest is Bridge_Initializer {
         vm.prank(address(crossL2Inbox));
         l2ToL2CrossDomainMessenger.relayMessage(
             block.chainid,
-            block.chainid,
+            source,
             Encoding.encodeVersionedNonce(0, 1), // nonce
             sender,
             target,

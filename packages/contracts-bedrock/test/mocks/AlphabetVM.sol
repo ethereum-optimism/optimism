@@ -14,7 +14,6 @@ contract AlphabetVM is IBigStepper {
 
     constructor(Claim _absolutePrestate, PreimageOracle _oracle) {
         ABSOLUTE_PRESTATE = _absolutePrestate;
-        oracle = _oracle;
     }
 
     /// @inheritdoc IBigStepper

@@ -118,7 +118,7 @@ contract L2ToL2CrossDomainMessenger is ISemver {
         require(successfulMessages[messageHash] == false, "L2ToL2CrossDomainMessenger: message already relayed");
 
         bool success;
-        assembly {
+        assembly ("memory-safe") {
             tstore(CROSS_DOMAIN_MESSAGE_SENDER_SLOT, _sender)
             tstore(CROSS_DOMAIN_MESSAGE_SOURCE_SLOT, _source)
 
