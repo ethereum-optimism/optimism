@@ -30,8 +30,8 @@ var (
 
 // L2ToL2CrossDomainMessengerMetaData contains all meta data concerning the L2ToL2CrossDomainMessenger contract.
 var L2ToL2CrossDomainMessengerMetaData = &bind.MetaData{
-	ABI: "[{\"type\":\"function\",\"name\":\"CROSS_DOMAIN_MESSAGE_SENDER_SLOT\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"INITIAL_BALANCE\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint248\",\"internalType\":\"uint248\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"MESSAGE_VERSION\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint16\",\"internalType\":\"uint16\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"crossL2Inbox\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"failedMessages\",\"inputs\":[{\"name\":\"\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"outputs\":[{\"name\":\"\",\"type\":\"bool\",\"internalType\":\"bool\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"messageNonce\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"relayMessage\",\"inputs\":[{\"name\":\"_destination\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"_nonce\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"_sender\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"_target\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"_value\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"_message\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"outputs\":[],\"stateMutability\":\"payable\"},{\"type\":\"function\",\"name\":\"sendMessage\",\"inputs\":[{\"name\":\"_destination\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"_target\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"_message\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"outputs\":[],\"stateMutability\":\"payable\"},{\"type\":\"function\",\"name\":\"successfulMessages\",\"inputs\":[{\"name\":\"\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"outputs\":[{\"name\":\"\",\"type\":\"bool\",\"internalType\":\"bool\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"version\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"string\",\"internalType\":\"string\"}],\"stateMutability\":\"view\"},{\"type\":\"event\",\"name\":\"FailedRelayedMessage\",\"inputs\":[{\"name\":\"msgHash\",\"type\":\"bytes32\",\"indexed\":true,\"internalType\":\"bytes32\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"RelayedMessage\",\"inputs\":[{\"name\":\"msgHash\",\"type\":\"bytes32\",\"indexed\":true,\"internalType\":\"bytes32\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"SentMessage\",\"inputs\":[{\"name\":\"destination\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"target\",\"type\":\"address\",\"indexed\":false,\"internalType\":\"address\"},{\"name\":\"message\",\"type\":\"bytes\",\"indexed\":false,\"internalType\":\"bytes\"},{\"name\":\"data\",\"type\":\"bytes\",\"indexed\":false,\"internalType\":\"bytes\"}],\"anonymous\":true}]",
-	Bin: "0x608060405234801561000f575f80fd5b50610e9f8061001d5f395ff3fe6080604052600436106100ad575f3560e01c8063b1b1b20911610066578063c155fa651161004c578063c155fa6514610255578063ecc7042814610268578063fd2c723e1461029c575f80fd5b8063b1b1b209146101e6578063b1f35f2c14610214575f80fd5b806354fd4d501161009657806354fd4d501461013e5780637056f41f14610193578063a4e7f8bd146101a8575f80fd5b806314525bce146100b15780633f827a5a14610118575b5f80fd5b3480156100bc575f80fd5b506100e37effffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff81565b6040517effffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff90911681526020015b60405180910390f35b348015610123575f80fd5b5061012b5f81565b60405161ffff909116815260200161010f565b348015610149575f80fd5b506101866040518060400160405280600581526020017f312e302e3000000000000000000000000000000000000000000000000000000081525081565b60405161010f9190610aa2565b6101a66101a1366004610adf565b6102ec565b005b3480156101b3575f80fd5b506101d66101c2366004610b61565b60026020525f908152604090205460ff1681565b604051901515815260200161010f565b3480156101f1575f80fd5b506101d6610200366004610b61565b60016020525f908152604090205460ff1681565b34801561021f575f80fd5b506102477fb83444d07072b122e2e72a669ce32857d892345c19856f4e7142d06a167ab3f381565b60405190815260200161010f565b6101a6610263366004610ba5565b6104e4565b348015610273575f80fd5b506003547dffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff16610247565b3480156102a7575f80fd5b505f546102c79073ffffffffffffffffffffffffffffffffffffffff1681565b60405173ffffffffffffffffffffffffffffffffffffffff909116815260200161010f565b468403610380576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603760248201527f4c32546f4c3243726f7373446f6d61696e4d657373656e6765723a2063616e6e60448201527f6f742073656e64206d65737361676520746f2073656c6600000000000000000060648201526084015b60405180910390fd5b5f846103ab6003547dffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff1690565b33863487876040516024016103c69796959493929190610cf4565b604080517fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe08184030181529181526020820180517bffffffffffffffffffffffffffffffffffffffffffffffffffffffff167fc155fa6500000000000000000000000000000000000000000000000000000000179052519091506104539086908690869086908690610d4c565b60405180910390a0600380547dffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff16905f61048a83610d9f565b91906101000a8154817dffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff02191690837dffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff160217905550505050505050565b5f5473ffffffffffffffffffffffffffffffffffffffff16331461058a576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603360248201527f4c32546f4c3243726f7373446f6d61696e4d657373656e6765723a2073656e6460448201527f6572206e6f742043726f73734c32496e626f78000000000000000000000000006064820152608401610377565b5f54604080517f938b5f320000000000000000000000000000000000000000000000000000000081529051309273ffffffffffffffffffffffffffffffffffffffff169163938b5f329160048083019260209291908290030181865afa1580156105f6573d5f803e3d5ffd5b505050506040513d601f19601f8201168201806040525081019061061a9190610e00565b73ffffffffffffffffffffffffffffffffffffffff16146106e3576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152604160248201527f4c32546f4c3243726f7373446f6d61696e4d657373656e6765723a2043726f7360448201527f734c32496e626f78206f726967696e206e6f74207468697320636f6e7472616360648201527f7400000000000000000000000000000000000000000000000000000000000000608482015260a401610377565b468614610772576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603660248201527f4c32546f4c3243726f7373446f6d61696e4d657373656e6765723a206465737460448201527f696e6174696f6e206e6f74207468697320636861696e000000000000000000006064820152608401610377565b3073ffffffffffffffffffffffffffffffffffffffff841603610817576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603460248201527f4c32546f4c3243726f7373446f6d61696e4d657373656e6765723a207461726760448201527f6574206e6f74207468697320636f6e74726163740000000000000000000000006064820152608401610377565b5f86868686868660405160200161083396959493929190610e1b565b604080517fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe081840301815291815281516020928301205f818152600190935291205490915060ff1615610908576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603360248201527f4c32546f4c3243726f7373446f6d61696e4d657373656e6765723a206d65737360448201527f61676520616c72656164792072656c61796564000000000000000000000000006064820152608401610377565b847fb83444d07072b122e2e72a669ce32857d892345c19856f4e7142d06a167ab3f35d5f610937858585610a2a565b905080156109c2575f8281526001602052604090205460ff161561095d5761095d610e65565b5f82815260016020819052604080832080547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00169092179091555183917f4641df4a962071e12719d8c8c8e5ac7fc4d97b927346a3d7a335b1f7517e133c91a2610a20565b5f8281526002602052604080822080547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff001660011790555183917f99d0e048484baa1b1540b1367cb128acd7ab2946d1ed91ec10e3c85e4bf51b8f91a25b5050505050505050565b5f805f8084516020860187895af195945050505050565b5f81518084525f5b81811015610a6557602081850181015186830182015201610a49565b505f6020828601015260207fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0601f83011685010191505092915050565b602081525f610ab46020830184610a41565b9392505050565b73ffffffffffffffffffffffffffffffffffffffff81168114610adc575f80fd5b50565b5f805f8060608587031215610af2575f80fd5b843593506020850135610b0481610abb565b9250604085013567ffffffffffffffff80821115610b20575f80fd5b818701915087601f830112610b33575f80fd5b813581811115610b41575f80fd5b886020828501011115610b52575f80fd5b95989497505060200194505050565b5f60208284031215610b71575f80fd5b5035919050565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52604160045260245ffd5b5f805f805f8060c08789031215610bba575f80fd5b86359550602087013594506040870135610bd381610abb565b93506060870135610be381610abb565b92506080870135915060a087013567ffffffffffffffff80821115610c06575f80fd5b818901915089601f830112610c19575f80fd5b813581811115610c2b57610c2b610b78565b604051601f82017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0908116603f01168101908382118183101715610c7157610c71610b78565b816040528281528c6020848701011115610c89575f80fd5b826020860160208301375f6020848301015280955050505050509295509295509295565b81835281816020850137505f602082840101525f60207fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0601f840116840101905092915050565b8781528660208201525f73ffffffffffffffffffffffffffffffffffffffff808816604084015280871660608401525084608083015260c060a0830152610d3f60c083018486610cad565b9998505050505050505050565b85815273ffffffffffffffffffffffffffffffffffffffff85166020820152608060408201525f610d81608083018587610cad565b8281036060840152610d938185610a41565b98975050505050505050565b5f7dffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff808316818103610df6577f4e487b71000000000000000000000000000000000000000000000000000000005f52601160045260245ffd5b6001019392505050565b5f60208284031215610e10575f80fd5b8151610ab481610abb565b8681528560208201525f73ffffffffffffffffffffffffffffffffffffffff808716604084015280861660608401525083608083015260c060a0830152610d9360c0830184610a41565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52600160045260245ffdfea164736f6c6343000818000a",
+	ABI: "[{\"type\":\"function\",\"name\":\"CROSS_DOMAIN_MESSAGE_SENDER_SLOT\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"CROSS_DOMAIN_MESSAGE_SOURCE_SLOT\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"MESSAGE_VERSION\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint16\",\"internalType\":\"uint16\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"crossDomainMessageSender\",\"inputs\":[],\"outputs\":[{\"name\":\"_sender\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"crossDomainMessageSource\",\"inputs\":[],\"outputs\":[{\"name\":\"_source\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"messageNonce\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"relayMessage\",\"inputs\":[{\"name\":\"_destination\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"_source\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"_nonce\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"_sender\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"_target\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"_message\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"outputs\":[],\"stateMutability\":\"payable\"},{\"type\":\"function\",\"name\":\"sendMessage\",\"inputs\":[{\"name\":\"_destination\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"_target\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"_message\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"outputs\":[],\"stateMutability\":\"payable\"},{\"type\":\"function\",\"name\":\"successfulMessages\",\"inputs\":[{\"name\":\"\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"outputs\":[{\"name\":\"\",\"type\":\"bool\",\"internalType\":\"bool\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"version\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"string\",\"internalType\":\"string\"}],\"stateMutability\":\"view\"},{\"type\":\"event\",\"name\":\"FailedRelayedMessage\",\"inputs\":[{\"name\":\"msgHash\",\"type\":\"bytes32\",\"indexed\":true,\"internalType\":\"bytes32\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"RelayedMessage\",\"inputs\":[{\"name\":\"msgHash\",\"type\":\"bytes32\",\"indexed\":true,\"internalType\":\"bytes32\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"SentMessage\",\"inputs\":[{\"name\":\"data\",\"type\":\"bytes\",\"indexed\":false,\"internalType\":\"bytes\"}],\"anonymous\":true}]",
+	Bin: "0x608060405234801561000f575f80fd5b50610d9f8061001d5f395ff3fe6080604052600436106100ad575f3560e01c80637056f41f11610066578063b1b1b2091161004c578063b1b1b2091461021a578063b1f35f2c14610258578063ecc704281461028b575f80fd5b80637056f41f146101d45780638fe5a280146101e7575f80fd5b806338ffde181161009657806338ffde18146101085780633f827a5a1461015957806354fd4d501461017f575f80fd5b80631ecd26f2146100b157806324794462146100c6575b5f80fd5b6100c46100bf366004610a1a565b6102bf565b005b3480156100d1575f80fd5b507f711dfa3259c842fffc17d6e1f1e0fc5927756133a2345ca56b4cb8178589fee75c5b6040519081526020015b60405180910390f35b348015610113575f80fd5b5060405173ffffffffffffffffffffffffffffffffffffffff7fb83444d07072b122e2e72a669ce32857d892345c19856f4e7142d06a167ab3f35c1681526020016100ff565b348015610164575f80fd5b5061016c5f81565b60405161ffff90911681526020016100ff565b34801561018a575f80fd5b506101c76040518060400160405280600581526020017f312e302e3000000000000000000000000000000000000000000000000000000081525081565b6040516100ff9190610b83565b6100c46101e2366004610b9c565b6107de565b3480156101f2575f80fd5b506100f57f711dfa3259c842fffc17d6e1f1e0fc5927756133a2345ca56b4cb8178589fee781565b348015610225575f80fd5b50610248610234366004610c1e565b5f6020819052908152604090205460ff1681565b60405190151581526020016100ff565b348015610263575f80fd5b506100f57fb83444d07072b122e2e72a669ce32857d892345c19856f4e7142d06a167ab3f381565b348015610296575f80fd5b506001547dffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff166100f5565b3373420000000000000000000000000000000000002214610367576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603360248201527f4c32546f4c3243726f7373446f6d61696e4d657373656e6765723a2073656e6460448201527f6572206e6f742043726f73734c32496e626f780000000000000000000000000060648201526084015b60405180910390fd5b3073ffffffffffffffffffffffffffffffffffffffff1673420000000000000000000000000000000000002273ffffffffffffffffffffffffffffffffffffffff1663938b5f326040518163ffffffff1660e01b8152600401602060405180830381865afa1580156103db573d5f803e3d5ffd5b505050506040513d601f19601f820116820180604052508101906103ff9190610c35565b73ffffffffffffffffffffffffffffffffffffffff16146104c8576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152604160248201527f4c32546f4c3243726f7373446f6d61696e4d657373656e6765723a2043726f7360448201527f734c32496e626f78206f726967696e206e6f74207468697320636f6e7472616360648201527f7400000000000000000000000000000000000000000000000000000000000000608482015260a40161035e565b468614610557576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603660248201527f4c32546f4c3243726f7373446f6d61696e4d657373656e6765723a206465737460448201527f696e6174696f6e206e6f74207468697320636861696e00000000000000000000606482015260840161035e565b3073ffffffffffffffffffffffffffffffffffffffff8316036105fc576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603460248201527f4c32546f4c3243726f7373446f6d61696e4d657373656e6765723a207461726760448201527f6574206e6f74207468697320636f6e7472616374000000000000000000000000606482015260840161035e565b5f86868686868660405160200161061896959493929190610c50565b604080517fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe081840301815291815281516020928301205f8181529283905291205490915060ff16156106ec576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603360248201527f4c32546f4c3243726f7373446f6d61696e4d657373656e6765723a206d65737360448201527f61676520616c72656164792072656c6179656400000000000000000000000000606482015260840161035e565b5f847fb83444d07072b122e2e72a669ce32857d892345c19856f4e7142d06a167ab3f35d867f711dfa3259c842fffc17d6e1f1e0fc5927756133a2345ca56b4cb8178589fee75d5f8084516020860134885af1905080156107a9575f8281526020819052604080822080547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff001660011790555183917f4641df4a962071e12719d8c8c8e5ac7fc4d97b927346a3d7a335b1f7517e133c91a26107d4565b60405182907f99d0e048484baa1b1540b1367cb128acd7ab2946d1ed91ec10e3c85e4bf51b8f905f90a25b5050505050505050565b46840361086d576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603760248201527f4c32546f4c3243726f7373446f6d61696e4d657373656e6765723a2063616e6e60448201527f6f742073656e64206d65737361676520746f2073656c66000000000000000000606482015260840161035e565b5f84466108996001547dffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff1690565b338787876040516024016108b39796959493929190610ca6565b604080517fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe08184030181529181526020820180517bffffffffffffffffffffffffffffffffffffffffffffffffffffffff167f1ecd26f20000000000000000000000000000000000000000000000000000000017905251909150610938908290610b83565b60405180910390a0600180547dffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff16905f61096f83610d31565b91906101000a8154817dffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff02191690837dffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff160217905550505050505050565b73ffffffffffffffffffffffffffffffffffffffff811681146109ea575f80fd5b50565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52604160045260245ffd5b5f805f805f8060c08789031215610a2f575f80fd5b8635955060208701359450604087013593506060870135610a4f816109c9565b92506080870135610a5f816109c9565b915060a087013567ffffffffffffffff80821115610a7b575f80fd5b818901915089601f830112610a8e575f80fd5b813581811115610aa057610aa06109ed565b604051601f82017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0908116603f01168101908382118183101715610ae657610ae66109ed565b816040528281528c6020848701011115610afe575f80fd5b826020860160208301375f6020848301015280955050505050509295509295509295565b5f81518084525f5b81811015610b4657602081850181015186830182015201610b2a565b505f6020828601015260207fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0601f83011685010191505092915050565b602081525f610b956020830184610b22565b9392505050565b5f805f8060608587031215610baf575f80fd5b843593506020850135610bc1816109c9565b9250604085013567ffffffffffffffff80821115610bdd575f80fd5b818701915087601f830112610bf0575f80fd5b813581811115610bfe575f80fd5b886020828501011115610c0f575f80fd5b95989497505060200194505050565b5f60208284031215610c2e575f80fd5b5035919050565b5f60208284031215610c45575f80fd5b8151610b95816109c9565b8681528560208201528460408201525f73ffffffffffffffffffffffffffffffffffffffff808616606084015280851660808401525060c060a0830152610c9a60c0830184610b22565b98975050505050505050565b8781528660208201528560408201525f73ffffffffffffffffffffffffffffffffffffffff808716606084015280861660808401525060c060a08301528260c0830152828460e08401375f60e0848401015260e07fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0601f850116830101905098975050505050505050565b5f7dffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff808316818103610d88577f4e487b71000000000000000000000000000000000000000000000000000000005f52601160045260245ffd5b600101939250505056fea164736f6c6343000818000a",
 }
 
 // L2ToL2CrossDomainMessengerABI is the input ABI used to generate the binding from.
@@ -232,35 +232,35 @@ func (_L2ToL2CrossDomainMessenger *L2ToL2CrossDomainMessengerCallerSession) CROS
 	return _L2ToL2CrossDomainMessenger.Contract.CROSSDOMAINMESSAGESENDERSLOT(&_L2ToL2CrossDomainMessenger.CallOpts)
 }
 
-// INITIALBALANCE is a free data retrieval call binding the contract method 0x14525bce.
+// CROSSDOMAINMESSAGESOURCESLOT is a free data retrieval call binding the contract method 0x8fe5a280.
 //
-// Solidity: function INITIAL_BALANCE() view returns(uint248)
-func (_L2ToL2CrossDomainMessenger *L2ToL2CrossDomainMessengerCaller) INITIALBALANCE(opts *bind.CallOpts) (*big.Int, error) {
+// Solidity: function CROSS_DOMAIN_MESSAGE_SOURCE_SLOT() view returns(bytes32)
+func (_L2ToL2CrossDomainMessenger *L2ToL2CrossDomainMessengerCaller) CROSSDOMAINMESSAGESOURCESLOT(opts *bind.CallOpts) ([32]byte, error) {
 	var out []interface{}
-	err := _L2ToL2CrossDomainMessenger.contract.Call(opts, &out, "INITIAL_BALANCE")
+	err := _L2ToL2CrossDomainMessenger.contract.Call(opts, &out, "CROSS_DOMAIN_MESSAGE_SOURCE_SLOT")
 
 	if err != nil {
-		return *new(*big.Int), err
+		return *new([32]byte), err
 	}
 
-	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+	out0 := *abi.ConvertType(out[0], new([32]byte)).(*[32]byte)
 
 	return out0, err
 
 }
 
-// INITIALBALANCE is a free data retrieval call binding the contract method 0x14525bce.
+// CROSSDOMAINMESSAGESOURCESLOT is a free data retrieval call binding the contract method 0x8fe5a280.
 //
-// Solidity: function INITIAL_BALANCE() view returns(uint248)
-func (_L2ToL2CrossDomainMessenger *L2ToL2CrossDomainMessengerSession) INITIALBALANCE() (*big.Int, error) {
-	return _L2ToL2CrossDomainMessenger.Contract.INITIALBALANCE(&_L2ToL2CrossDomainMessenger.CallOpts)
+// Solidity: function CROSS_DOMAIN_MESSAGE_SOURCE_SLOT() view returns(bytes32)
+func (_L2ToL2CrossDomainMessenger *L2ToL2CrossDomainMessengerSession) CROSSDOMAINMESSAGESOURCESLOT() ([32]byte, error) {
+	return _L2ToL2CrossDomainMessenger.Contract.CROSSDOMAINMESSAGESOURCESLOT(&_L2ToL2CrossDomainMessenger.CallOpts)
 }
 
-// INITIALBALANCE is a free data retrieval call binding the contract method 0x14525bce.
+// CROSSDOMAINMESSAGESOURCESLOT is a free data retrieval call binding the contract method 0x8fe5a280.
 //
-// Solidity: function INITIAL_BALANCE() view returns(uint248)
-func (_L2ToL2CrossDomainMessenger *L2ToL2CrossDomainMessengerCallerSession) INITIALBALANCE() (*big.Int, error) {
-	return _L2ToL2CrossDomainMessenger.Contract.INITIALBALANCE(&_L2ToL2CrossDomainMessenger.CallOpts)
+// Solidity: function CROSS_DOMAIN_MESSAGE_SOURCE_SLOT() view returns(bytes32)
+func (_L2ToL2CrossDomainMessenger *L2ToL2CrossDomainMessengerCallerSession) CROSSDOMAINMESSAGESOURCESLOT() ([32]byte, error) {
+	return _L2ToL2CrossDomainMessenger.Contract.CROSSDOMAINMESSAGESOURCESLOT(&_L2ToL2CrossDomainMessenger.CallOpts)
 }
 
 // MESSAGEVERSION is a free data retrieval call binding the contract method 0x3f827a5a.
@@ -294,12 +294,12 @@ func (_L2ToL2CrossDomainMessenger *L2ToL2CrossDomainMessengerCallerSession) MESS
 	return _L2ToL2CrossDomainMessenger.Contract.MESSAGEVERSION(&_L2ToL2CrossDomainMessenger.CallOpts)
 }
 
-// CrossL2Inbox is a free data retrieval call binding the contract method 0xfd2c723e.
+// CrossDomainMessageSender is a free data retrieval call binding the contract method 0x38ffde18.
 //
-// Solidity: function crossL2Inbox() view returns(address)
-func (_L2ToL2CrossDomainMessenger *L2ToL2CrossDomainMessengerCaller) CrossL2Inbox(opts *bind.CallOpts) (common.Address, error) {
+// Solidity: function crossDomainMessageSender() view returns(address _sender)
+func (_L2ToL2CrossDomainMessenger *L2ToL2CrossDomainMessengerCaller) CrossDomainMessageSender(opts *bind.CallOpts) (common.Address, error) {
 	var out []interface{}
-	err := _L2ToL2CrossDomainMessenger.contract.Call(opts, &out, "crossL2Inbox")
+	err := _L2ToL2CrossDomainMessenger.contract.Call(opts, &out, "crossDomainMessageSender")
 
 	if err != nil {
 		return *new(common.Address), err
@@ -311,49 +311,49 @@ func (_L2ToL2CrossDomainMessenger *L2ToL2CrossDomainMessengerCaller) CrossL2Inbo
 
 }
 
-// CrossL2Inbox is a free data retrieval call binding the contract method 0xfd2c723e.
+// CrossDomainMessageSender is a free data retrieval call binding the contract method 0x38ffde18.
 //
-// Solidity: function crossL2Inbox() view returns(address)
-func (_L2ToL2CrossDomainMessenger *L2ToL2CrossDomainMessengerSession) CrossL2Inbox() (common.Address, error) {
-	return _L2ToL2CrossDomainMessenger.Contract.CrossL2Inbox(&_L2ToL2CrossDomainMessenger.CallOpts)
+// Solidity: function crossDomainMessageSender() view returns(address _sender)
+func (_L2ToL2CrossDomainMessenger *L2ToL2CrossDomainMessengerSession) CrossDomainMessageSender() (common.Address, error) {
+	return _L2ToL2CrossDomainMessenger.Contract.CrossDomainMessageSender(&_L2ToL2CrossDomainMessenger.CallOpts)
 }
 
-// CrossL2Inbox is a free data retrieval call binding the contract method 0xfd2c723e.
+// CrossDomainMessageSender is a free data retrieval call binding the contract method 0x38ffde18.
 //
-// Solidity: function crossL2Inbox() view returns(address)
-func (_L2ToL2CrossDomainMessenger *L2ToL2CrossDomainMessengerCallerSession) CrossL2Inbox() (common.Address, error) {
-	return _L2ToL2CrossDomainMessenger.Contract.CrossL2Inbox(&_L2ToL2CrossDomainMessenger.CallOpts)
+// Solidity: function crossDomainMessageSender() view returns(address _sender)
+func (_L2ToL2CrossDomainMessenger *L2ToL2CrossDomainMessengerCallerSession) CrossDomainMessageSender() (common.Address, error) {
+	return _L2ToL2CrossDomainMessenger.Contract.CrossDomainMessageSender(&_L2ToL2CrossDomainMessenger.CallOpts)
 }
 
-// FailedMessages is a free data retrieval call binding the contract method 0xa4e7f8bd.
+// CrossDomainMessageSource is a free data retrieval call binding the contract method 0x24794462.
 //
-// Solidity: function failedMessages(bytes32 ) view returns(bool)
-func (_L2ToL2CrossDomainMessenger *L2ToL2CrossDomainMessengerCaller) FailedMessages(opts *bind.CallOpts, arg0 [32]byte) (bool, error) {
+// Solidity: function crossDomainMessageSource() view returns(uint256 _source)
+func (_L2ToL2CrossDomainMessenger *L2ToL2CrossDomainMessengerCaller) CrossDomainMessageSource(opts *bind.CallOpts) (*big.Int, error) {
 	var out []interface{}
-	err := _L2ToL2CrossDomainMessenger.contract.Call(opts, &out, "failedMessages", arg0)
+	err := _L2ToL2CrossDomainMessenger.contract.Call(opts, &out, "crossDomainMessageSource")
 
 	if err != nil {
-		return *new(bool), err
+		return *new(*big.Int), err
 	}
 
-	out0 := *abi.ConvertType(out[0], new(bool)).(*bool)
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
 
 	return out0, err
 
 }
 
-// FailedMessages is a free data retrieval call binding the contract method 0xa4e7f8bd.
+// CrossDomainMessageSource is a free data retrieval call binding the contract method 0x24794462.
 //
-// Solidity: function failedMessages(bytes32 ) view returns(bool)
-func (_L2ToL2CrossDomainMessenger *L2ToL2CrossDomainMessengerSession) FailedMessages(arg0 [32]byte) (bool, error) {
-	return _L2ToL2CrossDomainMessenger.Contract.FailedMessages(&_L2ToL2CrossDomainMessenger.CallOpts, arg0)
+// Solidity: function crossDomainMessageSource() view returns(uint256 _source)
+func (_L2ToL2CrossDomainMessenger *L2ToL2CrossDomainMessengerSession) CrossDomainMessageSource() (*big.Int, error) {
+	return _L2ToL2CrossDomainMessenger.Contract.CrossDomainMessageSource(&_L2ToL2CrossDomainMessenger.CallOpts)
 }
 
-// FailedMessages is a free data retrieval call binding the contract method 0xa4e7f8bd.
+// CrossDomainMessageSource is a free data retrieval call binding the contract method 0x24794462.
 //
-// Solidity: function failedMessages(bytes32 ) view returns(bool)
-func (_L2ToL2CrossDomainMessenger *L2ToL2CrossDomainMessengerCallerSession) FailedMessages(arg0 [32]byte) (bool, error) {
-	return _L2ToL2CrossDomainMessenger.Contract.FailedMessages(&_L2ToL2CrossDomainMessenger.CallOpts, arg0)
+// Solidity: function crossDomainMessageSource() view returns(uint256 _source)
+func (_L2ToL2CrossDomainMessenger *L2ToL2CrossDomainMessengerCallerSession) CrossDomainMessageSource() (*big.Int, error) {
+	return _L2ToL2CrossDomainMessenger.Contract.CrossDomainMessageSource(&_L2ToL2CrossDomainMessenger.CallOpts)
 }
 
 // MessageNonce is a free data retrieval call binding the contract method 0xecc70428.
@@ -449,25 +449,25 @@ func (_L2ToL2CrossDomainMessenger *L2ToL2CrossDomainMessengerCallerSession) Vers
 	return _L2ToL2CrossDomainMessenger.Contract.Version(&_L2ToL2CrossDomainMessenger.CallOpts)
 }
 
-// RelayMessage is a paid mutator transaction binding the contract method 0xc155fa65.
+// RelayMessage is a paid mutator transaction binding the contract method 0x1ecd26f2.
 //
-// Solidity: function relayMessage(uint256 _destination, uint256 _nonce, address _sender, address _target, uint256 _value, bytes _message) payable returns()
-func (_L2ToL2CrossDomainMessenger *L2ToL2CrossDomainMessengerTransactor) RelayMessage(opts *bind.TransactOpts, _destination *big.Int, _nonce *big.Int, _sender common.Address, _target common.Address, _value *big.Int, _message []byte) (*types.Transaction, error) {
-	return _L2ToL2CrossDomainMessenger.contract.Transact(opts, "relayMessage", _destination, _nonce, _sender, _target, _value, _message)
+// Solidity: function relayMessage(uint256 _destination, uint256 _source, uint256 _nonce, address _sender, address _target, bytes _message) payable returns()
+func (_L2ToL2CrossDomainMessenger *L2ToL2CrossDomainMessengerTransactor) RelayMessage(opts *bind.TransactOpts, _destination *big.Int, _source *big.Int, _nonce *big.Int, _sender common.Address, _target common.Address, _message []byte) (*types.Transaction, error) {
+	return _L2ToL2CrossDomainMessenger.contract.Transact(opts, "relayMessage", _destination, _source, _nonce, _sender, _target, _message)
 }
 
-// RelayMessage is a paid mutator transaction binding the contract method 0xc155fa65.
+// RelayMessage is a paid mutator transaction binding the contract method 0x1ecd26f2.
 //
-// Solidity: function relayMessage(uint256 _destination, uint256 _nonce, address _sender, address _target, uint256 _value, bytes _message) payable returns()
-func (_L2ToL2CrossDomainMessenger *L2ToL2CrossDomainMessengerSession) RelayMessage(_destination *big.Int, _nonce *big.Int, _sender common.Address, _target common.Address, _value *big.Int, _message []byte) (*types.Transaction, error) {
-	return _L2ToL2CrossDomainMessenger.Contract.RelayMessage(&_L2ToL2CrossDomainMessenger.TransactOpts, _destination, _nonce, _sender, _target, _value, _message)
+// Solidity: function relayMessage(uint256 _destination, uint256 _source, uint256 _nonce, address _sender, address _target, bytes _message) payable returns()
+func (_L2ToL2CrossDomainMessenger *L2ToL2CrossDomainMessengerSession) RelayMessage(_destination *big.Int, _source *big.Int, _nonce *big.Int, _sender common.Address, _target common.Address, _message []byte) (*types.Transaction, error) {
+	return _L2ToL2CrossDomainMessenger.Contract.RelayMessage(&_L2ToL2CrossDomainMessenger.TransactOpts, _destination, _source, _nonce, _sender, _target, _message)
 }
 
-// RelayMessage is a paid mutator transaction binding the contract method 0xc155fa65.
+// RelayMessage is a paid mutator transaction binding the contract method 0x1ecd26f2.
 //
-// Solidity: function relayMessage(uint256 _destination, uint256 _nonce, address _sender, address _target, uint256 _value, bytes _message) payable returns()
-func (_L2ToL2CrossDomainMessenger *L2ToL2CrossDomainMessengerTransactorSession) RelayMessage(_destination *big.Int, _nonce *big.Int, _sender common.Address, _target common.Address, _value *big.Int, _message []byte) (*types.Transaction, error) {
-	return _L2ToL2CrossDomainMessenger.Contract.RelayMessage(&_L2ToL2CrossDomainMessenger.TransactOpts, _destination, _nonce, _sender, _target, _value, _message)
+// Solidity: function relayMessage(uint256 _destination, uint256 _source, uint256 _nonce, address _sender, address _target, bytes _message) payable returns()
+func (_L2ToL2CrossDomainMessenger *L2ToL2CrossDomainMessengerTransactorSession) RelayMessage(_destination *big.Int, _source *big.Int, _nonce *big.Int, _sender common.Address, _target common.Address, _message []byte) (*types.Transaction, error) {
+	return _L2ToL2CrossDomainMessenger.Contract.RelayMessage(&_L2ToL2CrossDomainMessenger.TransactOpts, _destination, _source, _nonce, _sender, _target, _message)
 }
 
 // SendMessage is a paid mutator transaction binding the contract method 0x7056f41f.
