@@ -13,7 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/matrix"
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
-	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -60,7 +60,7 @@ func (p *LargePreimageUploader) UploadPreimage(ctx context.Context, parent uint6
 
 	// Fetch the current metadata for this preimage data, if it exists.
 	ident := keccakTypes.LargePreimageIdent{Claimant: p.txSender.From(), UUID: uuid}
-	metadata, err := p.contract.GetProposalMetadata(ctx, batching.BlockLatest, ident)
+	metadata, err := p.contract.GetProposalMetadata(ctx, rpcblock.Latest, ident)
 	if err != nil {
 		return fmt.Errorf("failed to get pre-image oracle metadata: %w", err)
 	}
@@ -132,7 +132,7 @@ func (p *LargePreimageUploader) Squeeze(ctx context.Context, uuid *big.Int, stat
 	}
 	currentTimestamp := p.clock.Now().Unix()
 	ident := keccakTypes.LargePreimageIdent{Claimant: p.txSender.From(), UUID: uuid}
-	metadata, err := p.contract.GetProposalMetadata(ctx, batching.BlockLatest, ident)
+	metadata, err := p.contract.GetProposalMetadata(ctx, rpcblock.Latest, ident)
 	if err != nil {
 		return fmt.Errorf("failed to get pre-image oracle metadata: %w", err)
 	}

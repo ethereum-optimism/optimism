@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
@@ -19,7 +19,7 @@ import (
 type expectedCall struct {
 	abiMethod  abi.Method
 	to         common.Address
-	block      batching.Block
+	block      rpcblock.Block
 	args       []interface{}
 	packedArgs []byte
 	outputs    []interface{}
@@ -107,7 +107,7 @@ func (l *AbiBasedRpc) abi(to common.Address) *abi.ABI {
 	return abi
 }
 
-func (l *AbiBasedRpc) SetResponse(to common.Address, method string, block batching.Block, expected []interface{}, output []interface{}) {
+func (l *AbiBasedRpc) SetResponse(to common.Address, method string, block rpcblock.Block, expected []interface{}, output []interface{}) {
 	if expected == nil {
 		expected = []interface{}{}
 	}
@@ -134,5 +134,5 @@ func (l *AbiBasedRpc) VerifyTxCandidate(candidate txmgr.TxCandidate) {
 		"to":    candidate.To,
 		"input": hexutil.Bytes(candidate.TxData),
 		"value": candidate.Value,
-	}, batching.BlockLatest.ArgValue())
+	}, rpcblock.Latest.ArgValue())
 }

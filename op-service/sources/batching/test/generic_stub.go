@@ -8,7 +8,7 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -73,7 +73,7 @@ type GenericExpectedCall struct {
 	result interface{}
 }
 
-func NewGetBalanceCall(addr common.Address, block batching.Block, balance *big.Int) ExpectedRpcCall {
+func NewGetBalanceCall(addr common.Address, block rpcblock.Block, balance *big.Int) ExpectedRpcCall {
 	return &GenericExpectedCall{
 		method: "eth_getBalance",
 		args:   []interface{}{addr, block.ArgValue()},

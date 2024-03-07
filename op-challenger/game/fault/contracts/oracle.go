@@ -15,6 +15,7 @@ import (
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -130,7 +131,7 @@ func (c *PreimageOracleContract) AddLeaves(uuid *big.Int, startingBlockIndex *bi
 
 // MinLargePreimageSize returns the minimum size of a large preimage.
 func (c *PreimageOracleContract) MinLargePreimageSize(ctx context.Context) (uint64, error) {
-	result, err := c.multiCaller.SingleCall(ctx, batching.BlockLatest, c.contract.Call(methodMinProposalSize))
+	result, err := c.multiCaller.SingleCall(ctx, rpcblock.Latest, c.contract.Call(methodMinProposalSize))
 	if err != nil {
 		return 0, fmt.Errorf("failed to fetch min lpp size bytes: %w", err)
 	}
@@ -142,7 +143,7 @@ func (c *PreimageOracleContract) ChallengePeriod(ctx context.Context) (uint64, e
 	if period := c.challengePeriod.Load(); period != 0 {
 		return period, nil
 	}
-	result, err := c.multiCaller.SingleCall(ctx, batching.BlockLatest, c.contract.Call(methodChallengePeriod))
+	result, err := c.multiCaller.SingleCall(ctx, rpcblock.Latest, c.contract.Call(methodChallengePeriod))
 	if err != nil {
 		return 0, fmt.Errorf("failed to fetch challenge period: %w", err)
 	}
@@ -162,7 +163,7 @@ func (c *PreimageOracleContract) CallSqueeze(
 	postStateProof merkle.Proof,
 ) error {
 	call := c.contract.Call(methodSqueezeLPP, claimant, uuid, abiEncodeSnapshot(prestateMatrix), toPreimageOracleLeaf(preState), preStateProof, toPreimageOracleLeaf(postState), postStateProof)
-	_, err := c.multiCaller.SingleCall(ctx, batching.BlockLatest, call)
+	_, err := c.multiCaller.SingleCall(ctx, rpcblock.Latest, call)
 	if err != nil {
 		return fmt.Errorf("failed to call squeeze: %w", err)
 	}
@@ -196,7 +197,7 @@ func abiEncodeSnapshot(packedState keccakTypes.StateSnapshot) bindings.LibKeccak
 }
 
 func (c *PreimageOracleContract) GetActivePreimages(ctx context.Context, blockHash common.Hash) ([]keccakTypes.LargePreimageMetaData, error) {
-	block := batching.BlockByHash(blockHash)
+	block := rpcblock.ByHash(blockHash)
 	results, err := batching.ReadArray(ctx, c.multiCaller, block, c.contract.Call(methodProposalCount), func(i *big.Int) *batching.ContractCall {
 		return c.contract.Call(methodProposals, i)
 	})
@@ -212,7 +213,7 @@ func (c *PreimageOracleContract) GetActivePreimages(ctx context.Context, blockHa
 	return c.GetProposalMetadata(ctx, block, idents...)
 }
 
-func (c *PreimageOracleContract) GetProposalMetadata(ctx context.Context, block batching.Block, idents ...keccakTypes.LargePreimageIdent) ([]keccakTypes.LargePreimageMetaData, error) {
+func (c *PreimageOracleContract) GetProposalMetadata(ctx context.Context, block rpcblock.Block, idents ...keccakTypes.LargePreimageIdent) ([]keccakTypes.LargePreimageMetaData, error) {
 	var calls []batching.Call
 	for _, ident := range idents {
 		calls = append(calls, c.contract.Call(methodProposalMetadata, ident.Claimant, ident.UUID))
@@ -237,7 +238,7 @@ func (c *PreimageOracleContract) GetProposalMetadata(ctx context.Context, block 
 	return proposals, nil
 }
 
-func (c *PreimageOracleContract) GetProposalTreeRoot(ctx context.Context, block batching.Block, ident keccakTypes.LargePreimageIdent) (common.Hash, error) {
+func (c *PreimageOracleContract) GetProposalTreeRoot(ctx context.Context, block rpcblock.Block, ident keccakTypes.LargePreimageIdent) (common.Hash, error) {
 	call := c.contract.Call(methodGetTreeRootLPP, ident.Claimant, ident.UUID)
 	result, err := c.multiCaller.SingleCall(ctx, block, call)
 	if err != nil {
@@ -246,7 +247,7 @@ func (c *PreimageOracleContract) GetProposalTreeRoot(ctx context.Context, block 
 	return result.GetHash(0), nil
 }
 
-func (c *PreimageOracleContract) GetInputDataBlocks(ctx context.Context, block batching.Block, ident keccakTypes.LargePreimageIdent) ([]uint64, error) {
+func (c *PreimageOracleContract) GetInputDataBlocks(ctx context.Context, block rpcblock.Block, ident keccakTypes.LargePreimageIdent) ([]uint64, error) {
 	results, err := batching.ReadArray(ctx, c.multiCaller, block,
 		c.contract.Call(methodProposalBlocksLen, ident.Claimant, ident.UUID),
 		func(i *big.Int) *batching.ContractCall {
@@ -295,7 +296,7 @@ func (c *PreimageOracleContract) DecodeInputData(data []byte) (*big.Int, keccakT
 
 func (c *PreimageOracleContract) GlobalDataExists(ctx context.Context, data *types.PreimageOracleData) (bool, error) {
 	call := c.contract.Call(methodPreimagePartOk, common.Hash(data.OracleKey), new(big.Int).SetUint64(uint64(data.OracleOffset)))
-	results, err := c.multiCaller.SingleCall(ctx, batching.BlockLatest, call)
+	results, err := c.multiCaller.SingleCall(ctx, rpcblock.Latest, call)
 	if err != nil {
 		return false, fmt.Errorf("failed to get preimagePartOk: %w", err)
 	}
@@ -329,7 +330,7 @@ func (c *PreimageOracleContract) GetMinBondLPP(ctx context.Context) (*big.Int, e
 	if bondSize := c.minBondSizeLPP.Load(); bondSize != 0 {
 		return big.NewInt(int64(bondSize)), nil
 	}
-	result, err := c.multiCaller.SingleCall(ctx, batching.BlockLatest, c.contract.Call(methodMinBondSizeLPP))
+	result, err := c.multiCaller.SingleCall(ctx, rpcblock.Latest, c.contract.Call(methodMinBondSizeLPP))
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch min bond size for LPPs: %w", err)
 	}

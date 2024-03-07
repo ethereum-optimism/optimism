@@ -10,7 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/fetcher"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/matrix"
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
-	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	lru "github.com/hashicorp/golang-lru/v2"
@@ -20,7 +20,7 @@ const validPreimageCacheSize = 500
 
 type VerifierPreimageOracle interface {
 	fetcher.Oracle
-	GetProposalTreeRoot(ctx context.Context, block batching.Block, ident keccakTypes.LargePreimageIdent) (common.Hash, error)
+	GetProposalTreeRoot(ctx context.Context, block rpcblock.Block, ident keccakTypes.LargePreimageIdent) (common.Hash, error)
 }
 
 type Fetcher interface {
@@ -47,7 +47,7 @@ func NewPreimageVerifier(logger log.Logger, fetcher Fetcher) *PreimageVerifier {
 }
 
 func (v *PreimageVerifier) CreateChallenge(ctx context.Context, blockHash common.Hash, oracle VerifierPreimageOracle, preimage keccakTypes.LargePreimageMetaData) (keccakTypes.Challenge, error) {
-	root, err := oracle.GetProposalTreeRoot(ctx, batching.BlockByHash(blockHash), preimage.LargePreimageIdent)
+	root, err := oracle.GetProposalTreeRoot(ctx, rpcblock.ByHash(blockHash), preimage.LargePreimageIdent)
 	if err != nil {
 		return keccakTypes.Challenge{}, fmt.Errorf("failed to get proposal merkle root: %w", err)
 	}

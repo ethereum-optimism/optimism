@@ -10,7 +10,7 @@ import (
 
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
-	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
@@ -77,7 +77,7 @@ func (s *stubOracle) ChallengePeriod(_ context.Context) (uint64, error) {
 	return stubChallengePeriod, nil
 }
 
-func (s *stubOracle) GetInputDataBlocks(_ context.Context, _ batching.Block, _ keccakTypes.LargePreimageIdent) ([]uint64, error) {
+func (s *stubOracle) GetInputDataBlocks(_ context.Context, _ rpcblock.Block, _ keccakTypes.LargePreimageIdent) ([]uint64, error) {
 	panic("not supported")
 }
 
@@ -106,7 +106,7 @@ func (s *stubOracle) ChallengeTx(_ keccakTypes.LargePreimageIdent, _ keccakTypes
 	panic("not supported")
 }
 
-func (s *stubOracle) GetProposalTreeRoot(_ context.Context, _ batching.Block, ident keccakTypes.LargePreimageIdent) (common.Hash, error) {
+func (s *stubOracle) GetProposalTreeRoot(_ context.Context, _ rpcblock.Block, ident keccakTypes.LargePreimageIdent) (common.Hash, error) {
 	root, ok := s.treeRoots[ident]
 	if ok {
 		return root, nil

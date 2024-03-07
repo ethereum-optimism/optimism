@@ -3,6 +3,7 @@ package batching
 import (
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
@@ -40,11 +41,11 @@ func (c *ContractCall) ToBatchElemCreator() (BatchElementCreator, error) {
 	if err != nil {
 		return nil, err
 	}
-	f := func(block Block) (any, rpc.BatchElem) {
+	f := func(block rpcblock.Block) (any, rpc.BatchElem) {
 		out := new(hexutil.Bytes)
 		return out, rpc.BatchElem{
 			Method: "eth_call",
-			Args:   []interface{}{args, block.value},
+			Args:   []interface{}{args, block.ArgValue()},
 			Result: &out,
 		}
 	}

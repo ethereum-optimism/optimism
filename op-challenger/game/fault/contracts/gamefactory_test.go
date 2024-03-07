@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	batchingTest "github.com/ethereum-optimism/optimism/op-service/sources/batching/test"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
@@ -42,7 +43,7 @@ func TestDisputeGameFactorySimpleGetters(t *testing.T) {
 		test := test
 		t.Run(test.method, func(t *testing.T) {
 			stubRpc, factory := setupDisputeGameFactoryTest(t)
-			stubRpc.SetResponse(factoryAddr, test.method, batching.BlockByHash(blockHash), nil, []interface{}{test.result})
+			stubRpc.SetResponse(factoryAddr, test.method, rpcblock.ByHash(blockHash), nil, []interface{}{test.result})
 			status, err := test.call(factory)
 			require.NoError(t, err)
 			expected := test.expected
@@ -101,7 +102,7 @@ func TestGetAllGames(t *testing.T) {
 	}
 
 	expectedGames := []types.GameMetadata{game0, game1, game2}
-	stubRpc.SetResponse(factoryAddr, methodGameCount, batching.BlockByHash(blockHash), nil, []interface{}{big.NewInt(int64(len(expectedGames)))})
+	stubRpc.SetResponse(factoryAddr, methodGameCount, rpcblock.ByHash(blockHash), nil, []interface{}{big.NewInt(int64(len(expectedGames)))})
 	for idx, expected := range expectedGames {
 		expectGetGame(stubRpc, idx, blockHash, expected)
 	}
@@ -138,7 +139,7 @@ func TestGetAllGamesAtOrAfter(t *testing.T) {
 				})
 			}
 
-			stubRpc.SetResponse(factoryAddr, methodGameCount, batching.BlockByHash(blockHash), nil, []interface{}{big.NewInt(int64(len(allGames)))})
+			stubRpc.SetResponse(factoryAddr, methodGameCount, rpcblock.ByHash(blockHash), nil, []interface{}{big.NewInt(int64(len(allGames)))})
 			for idx, expected := range allGames {
 				expectGetGame(stubRpc, idx, blockHash, expected)
 			}
@@ -169,7 +170,7 @@ func TestGetGameFromParameters(t *testing.T) {
 	stubRpc.SetResponse(
 		factoryAddr,
 		methodGames,
-		batching.BlockLatest,
+		rpcblock.Latest,
 		[]interface{}{traceType, outputRoot, l2BlockNum},
 		[]interface{}{common.Address{0xaa}, uint64(1)},
 	)
@@ -185,7 +186,7 @@ func TestGetGameImpl(t *testing.T) {
 	stubRpc.SetResponse(
 		factoryAddr,
 		methodGameImpls,
-		batching.BlockLatest,
+		rpcblock.Latest,
 		[]interface{}{gameType},
 		[]interface{}{gameImplAddr})
 	actual, err := factory.GetGameImpl(context.Background(), gameType)
@@ -197,7 +198,7 @@ func expectGetGame(stubRpc *batchingTest.AbiBasedRpc, idx int, blockHash common.
 	stubRpc.SetResponse(
 		factoryAddr,
 		methodGameAtIndex,
-		batching.BlockByHash(blockHash),
+		rpcblock.ByHash(blockHash),
 		[]interface{}{big.NewInt(int64(idx))},
 		[]interface{}{
 			game.GameType,
@@ -211,7 +212,7 @@ func TestCreateTx(t *testing.T) {
 	traceType := uint32(123)
 	outputRoot := common.Hash{0x01}
 	l2BlockNum := common.BigToHash(big.NewInt(456)).Bytes()
-	stubRpc.SetResponse(factoryAddr, methodCreateGame, batching.BlockLatest, []interface{}{traceType, outputRoot, l2BlockNum}, nil)
+	stubRpc.SetResponse(factoryAddr, methodCreateGame, rpcblock.Latest, []interface{}{traceType, outputRoot, l2BlockNum}, nil)
 	tx, err := factory.CreateTx(traceType, outputRoot, uint64(456))
 	require.NoError(t, err)
 	stubRpc.VerifyTxCandidate(tx)
