@@ -62,6 +62,17 @@ type ChannelConfig struct {
 
 	// BatchType indicates whether the channel uses SingularBatch or SpanBatch.
 	BatchType uint
+
+	// Whether to put all frames of a channel inside a single tx.
+	// Should only be used for blob transactions.
+	MultiFrameTxs bool
+}
+
+func (cc *ChannelConfig) MaxFramesPerTx() int {
+	if !cc.MultiFrameTxs {
+		return 1
+	}
+	return cc.CompressorConfig.TargetNumFrames
 }
 
 // Check validates the [ChannelConfig] parameters.
@@ -89,6 +100,10 @@ func (cc *ChannelConfig) Check() error {
 
 	if cc.BatchType > derive.SpanBatchType {
 		return fmt.Errorf("unrecognized batch type: %d", cc.BatchType)
+	}
+
+	if nf := cc.CompressorConfig.TargetNumFrames; nf < 1 {
+		return fmt.Errorf("invalid number of frames %d", nf)
 	}
 
 	return nil

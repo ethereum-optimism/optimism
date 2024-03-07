@@ -96,6 +96,9 @@ func (c *CLIConfig) Check() error {
 	if c.BatchType > 1 {
 		return fmt.Errorf("unknown batch type: %v", c.BatchType)
 	}
+	if c.DataAvailabilityType == flags.BlobsType && c.CompressorConfig.TargetNumFrames > 6 {
+		return errors.New("too many frames for blob transactions, max 6")
+	}
 	if !flags.ValidDataAvailabilityType(c.DataAvailabilityType) {
 		return fmt.Errorf("unknown data availability type: %q", c.DataAvailabilityType)
 	}

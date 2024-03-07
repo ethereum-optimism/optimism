@@ -386,6 +386,10 @@ func (l *BatchSubmitter) sendTransaction(ctx context.Context, txdata txData, que
 			return fmt.Errorf("could not create blob tx candidate: %w", err)
 		}
 	} else {
+		// sanity check
+		if nf := len(txdata.frames); nf != 1 {
+			l.Log.Crit("unexpected number of frames in calldata tx", "num_frames", nf)
+		}
 		data := txdata.Bytes()
 		// if plasma DA is enabled we post the txdata to the DA Provider and replace it with the commitment.
 		if l.Config.UsePlasma {
@@ -413,7 +417,10 @@ func (l *BatchSubmitter) sendTransaction(ctx context.Context, txdata txData, que
 }
 
 func (l *BatchSubmitter) blobTxCandidate(data txData) (*txmgr.TxCandidate, error) {
-	blobs := data.Blobs()
+	blobs, err := data.Blobs()
+	if err != nil {
+		return nil, fmt.Errorf("generating blobs for tx data: %w", err)
+	}
 	size := data.Len()
 	l.Log.Info("building Blob transaction candidate", "size", size, "num_blobs", len(blobs))
 	l.Metr.RecordBlobUsedBytes(size)

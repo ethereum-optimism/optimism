@@ -21,7 +21,7 @@ type channel struct {
 
 	// pending channel builder
 	channelBuilder *channelBuilder
-	// Set of unconfirmed txID -> frame data. For tx resubmission
+	// Set of unconfirmed txID -> tx data. For tx resubmission
 	pendingTransactions map[string]txData
 	// Set of confirmed txID -> inclusion block. For determining if the channel is timed out
 	confirmedTransactions map[string]eth.BlockID
@@ -146,21 +146,31 @@ func (s *channel) ID() derive.ChannelID {
 	return s.channelBuilder.ID()
 }
 
+// NextTxData returns the next tx data packet.
+// If cfg.MultiFrameTxs is false, it returns txData with a single frame.
+// If cfg.MultiFrameTxs is true, it will read frames from its channel builder
+// until it either doesn't have more frames or the target number of frames is reached.
 func (s *channel) NextTxData() txData {
-	frame := s.channelBuilder.NextFrame()
+	nf := s.cfg.MaxFramesPerTx()
+	txdata := txData{frames: make([]frameData, 0, nf)}
+	for i := 0; i < nf && s.channelBuilder.HasFrame(); i++ {
+		frame := s.channelBuilder.NextFrame()
+		txdata.frames = append(txdata.frames, frame)
+	}
 
-	// TODO(Seb) multi-frame logic
-	txdata := txData{[]frameData{frame}}
 	id := txdata.ID().String()
-
-	s.log.Trace("returning next tx data", "id", id)
+	s.log.Debug("returning next tx data", "id", id, "num_frames", len(txdata.frames))
 	s.pendingTransactions[id] = txdata
 
 	return txdata
 }
 
-func (s *channel) HasFrame() bool {
-	return s.channelBuilder.HasFrame()
+func (s *channel) HasTxData() bool {
+	if s.IsFull() || !s.cfg.MultiFrameTxs {
+		return s.channelBuilder.HasFrame()
+	}
+	// collect enough frames if channel is not full yet
+	return s.channelBuilder.PendingFrames() >= int(s.cfg.MaxFramesPerTx())
 }
 
 func (s *channel) IsFull() bool {

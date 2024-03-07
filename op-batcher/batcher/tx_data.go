@@ -42,14 +42,16 @@ func (td *txData) Bytes() []byte {
 	return data
 }
 
-func (td *txData) Blobs() []*eth.Blob {
+func (td *txData) Blobs() ([]*eth.Blob, error) {
 	blobs := make([]*eth.Blob, 0, len(td.frames))
 	for _, f := range td.frames {
 		var blob eth.Blob
-		blob.FromData(append([]byte{derive.DerivationVersion0}, f.data...))
+		if err := blob.FromData(append([]byte{derive.DerivationVersion0}, f.data...)); err != nil {
+			return nil, err
+		}
 		blobs = append(blobs, &blob)
 	}
-	return blobs
+	return blobs, nil
 }
 
 // TODO(Seb) check all uses of Len for right dimension
