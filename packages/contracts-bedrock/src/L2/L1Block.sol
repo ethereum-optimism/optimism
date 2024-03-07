@@ -49,8 +49,14 @@ contract L1Block is ISemver {
     /// @notice The latest L1 blob base fee.
     uint256 public blobBaseFee;
 
-    /// @custom:semver 1.2.0
-    string public constant version = "1.2.0";
+    /// @notice The size of the interop dependency set.
+    uint8 public interopSetSize;
+
+    /// @notice The chain IDs in the interop dependency set.
+    uint256[] public chainIds;
+
+    /// @custom:semver 1.2.1
+    string public constant version = "1.2.1";
 
     /// @custom:legacy
     /// @notice Updates the L1 block values.
@@ -62,6 +68,8 @@ contract L1Block is ISemver {
     /// @param _batcherHash    Versioned hash to authenticate batcher by.
     /// @param _l1FeeOverhead  L1 fee overhead.
     /// @param _l1FeeScalar    L1 fee scalar.
+    /// @param _interopSetSize Size of the interop dependency set.
+    /// @param _chainIds       Array of chain IDs in the interop dependency set.
     function setL1BlockValues(
         uint64 _number,
         uint64 _timestamp,
@@ -70,7 +78,9 @@ contract L1Block is ISemver {
         uint64 _sequenceNumber,
         bytes32 _batcherHash,
         uint256 _l1FeeOverhead,
-        uint256 _l1FeeScalar
+        uint256 _l1FeeScalar,
+        uint8 _interopSetSize,
+        uint256[] calldata _chainIds
     )
         external
     {
@@ -84,6 +94,8 @@ contract L1Block is ISemver {
         batcherHash = _batcherHash;
         l1FeeOverhead = _l1FeeOverhead;
         l1FeeScalar = _l1FeeScalar;
+        interopSetSize = _interopSetSize;
+        chainIds = _chainIds;
     }
 
     /// @notice Updates the L1 block values for an Ecotone upgraded chain.
@@ -115,5 +127,69 @@ contract L1Block is ISemver {
             sstore(hash.slot, calldataload(100)) // bytes32
             sstore(batcherHash.slot, calldataload(132)) // bytes32
         }
+    }
+
+    /// @notice Updates the L1 block values for an interop upgraded chain.
+    /// @dev The interop upgrade block itself MUST include a call to setL1BlockValuesEcotone.
+    /// Params are packed and passed in as raw msg.data instead of ABI to reduce calldata size.
+    /// Params are expected to be in the following order:
+    ///   1. _baseFeeScalar      L1 base fee scalar
+    ///   2. _blobBaseFeeScalar  L1 blob base fee scalar
+    ///   3. _sequenceNumber     Number of L2 blocks since epoch start.
+    ///   4. _timestamp          L1 timestamp.
+    ///   5. _number             L1 blocknumber.
+    ///   6. _basefee            L1 base fee.
+    ///   7. _blobBaseFee        L1 blob base fee.
+    ///   8. _hash               L1 blockhash.
+    ///   9. _batcherHash        Versioned hash to authenticate batcher by.
+    ///  10. _interopSetSize     Size of the interop dependency set.
+    ///  11. _chainIds           Array of chain IDs in the interop dependency set.
+    function setL1BlockValuesInterop() external {
+        assembly {
+            // Revert if the caller is not the depositor account.
+            if xor(caller(), DEPOSITOR_ACCOUNT) {
+                mstore(0x00, 0x3cc50b45) // 0x3cc50b45 is the 4-byte selector of "NotDepositor()"
+                revert(0x1C, 0x04) // returns the stored 4-byte selector from above
+            }
+
+            // Load interopSetSize from calldata
+            let interopSetSize_ := shr(248, calldataload(164))
+
+            // Revert if interopSetSize_ doesn't match the length of chainIds in calldata
+            if xor(add(165, mul(interopSetSize_, 0x20)), calldatasize()) {
+                mstore(0x00, 0x613457f2) // 0x613457f2 is the 4-byte selector of "NotInteropSetSize()"
+                revert(0x1C, 0x04) // returns the stored 4-byte selector from above
+            }
+
+            sstore(interopSetSize.slot, interopSetSize_)
+
+            // Use memory to hash and get the start index of chainIds
+            mstore(0x00, chainIds.slot)
+            let chainIdsStartIndex := keccak256(0x00, 0x20)
+
+            // Iterate over calldata chainIds and write to store chainIds
+            for { let i := 0 } lt(i, interopSetSize_) { i := add(i, 1) } {
+                // Increase length of chainIds array
+                sstore(chainIds.slot, add(sload(chainIds.slot), 1))
+                // Load value from calldata and write to storage (chainIds) at index
+                let val := calldataload(add(165, mul(i, 0x20)))
+                sstore(add(chainIdsStartIndex, i), val)
+            }
+        }
+    }
+
+    /// @notice Returns true if and only if the given chain ID is in the interop dependency set.
+    /// @param _chainId The chain ID to check for.
+    /// @return True if the chain ID is in the interop dependency set. false otherwise.
+    function isInDependencySet(uint256 _chainId) external view returns (bool) {
+        if (_chainId == block.chainid) {
+            return true;
+        }
+        for (uint256 i = 0; i < interopSetSize; i++) {
+            if (chainIds[i] == _chainId) {
+                return true;
+            }
+        }
+        return false;
     }
 }

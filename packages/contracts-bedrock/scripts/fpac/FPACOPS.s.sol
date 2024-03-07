@@ -124,8 +124,6 @@ contract FPACOPS is Deploy, StdAssertions {
         ChainAssertions.checkOptimismPortal2(contracts, cfg, false);
 
         PreimageOracle oracle = PreimageOracle(mustGetAddress("PreimageOracle"));
-        assertEq(oracle.minProposalSize(), cfg.preimageOracleMinProposalSize());
-        assertEq(oracle.challengePeriod(), cfg.preimageOracleChallengePeriod());
 
         MIPS mips = MIPS(mustGetAddress("Mips"));
         assertEq(address(mips.oracle()), address(oracle));

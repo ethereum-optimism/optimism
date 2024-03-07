@@ -11,11 +11,13 @@ import proxyAdmin from '@eth-optimism/contracts-bedrock/forge-artifacts/ProxyAdm
 import l2OutputOracle from '@eth-optimism/contracts-bedrock/forge-artifacts/L2OutputOracle.sol/L2OutputOracle.json'
 import l1ERC721Bridge from '@eth-optimism/contracts-bedrock/forge-artifacts/L1ERC721Bridge.sol/L1ERC721Bridge.json'
 import l2ERC721Bridge from '@eth-optimism/contracts-bedrock/forge-artifacts/L2ERC721Bridge.sol/L2ERC721Bridge.json'
-import l1Block from '@eth-optimism/contracts-bedrock/forge-artifacts/L1Block.sol/L1Block.json'
+import l1Block from '@eth-optimism/contracts-bedrock/forge-artifacts/L1Block.sol/L1Block.0.8.15.json'
 import l2ToL1MessagePasser from '@eth-optimism/contracts-bedrock/forge-artifacts/L2ToL1MessagePasser.sol/L2ToL1MessagePasser.json'
 import gasPriceOracle from '@eth-optimism/contracts-bedrock/forge-artifacts/GasPriceOracle.sol/GasPriceOracle.json'
 import disputeGameFactory from '@eth-optimism/contracts-bedrock/forge-artifacts/DisputeGameFactory.sol/DisputeGameFactory.json'
 import optimismPortal2 from '@eth-optimism/contracts-bedrock/forge-artifacts/OptimismPortal2.sol/OptimismPortal2.json'
+import crossL2Inbox from '@eth-optimism/contracts-bedrock/forge-artifacts/CrossL2Inbox.sol/CrossL2Inbox.json'
+import l2ToL2CrossDomainMessenger from '@eth-optimism/contracts-bedrock/forge-artifacts/L2ToL2CrossDomainMessenger.sol/L2ToL2CrossDomainMessenger.json'
 
 import { toAddress } from './coercion'
 import { DeepPartial } from './type-utils'
@@ -103,6 +105,10 @@ const getContractInterfaceBedrock = (name: string): ethers.utils.Interface => {
     case 'OptimismPortal2':
       artifact = optimismPortal2
       break
+    case 'CrossL2Inbox':
+      artifact = crossL2Inbox
+    case 'L2ToL2CrossDomainMessenger':
+      artifact = l2ToL2CrossDomainMessenger
   }
   return new ethers.utils.Interface(artifact.abi)
 }

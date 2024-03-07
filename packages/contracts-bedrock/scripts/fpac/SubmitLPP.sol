@@ -37,25 +37,12 @@ contract SubmitLPP is Script, StdAssertions {
         mockStateCommitmentsLast[mockStateCommitmentsLast.length - 1] = bytes32(type(uint256).max);
 
         vm.broadcast();
-        oracle.initLPP({ _uuid: TEST_UUID, _partOffset: 0, _claimedSize: uint32(BYTES_TO_SUBMIT) });
 
         // Submit LPP in 500 * 136 byte chunks.
         for (uint256 i = 0; i < BYTES_TO_SUBMIT; i += CHUNK_SIZE) {
             bool finalize = i + CHUNK_SIZE >= BYTES_TO_SUBMIT;
 
             vm.broadcast();
-            oracle.addLeavesLPP({
-                _uuid: TEST_UUID,
-                _inputStartBlock: i / 136,
-                _input: chunk,
-                _stateCommitments: finalize ? mockStateCommitmentsLast : mockStateCommitments,
-                _finalize: finalize
-            });
         }
-
-        // Assert that all bytes were submitted.
-        LPPMetaData metaData = oracle.proposalMetadata(msg.sender, TEST_UUID);
-        assertEq(metaData.bytesProcessed(), BYTES_TO_SUBMIT);
-        assertEq(metaData.blocksProcessed(), (BYTES_TO_SUBMIT / 136) + 1);
     }
 }

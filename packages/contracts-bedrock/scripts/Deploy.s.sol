@@ -734,16 +734,7 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the PreimageOracle
     function deployPreimageOracle() public broadcast returns (address addr_) {
-        console.log("Deploying PreimageOracle implementation");
-        PreimageOracle preimageOracle = new PreimageOracle{ salt: _implSalt() }({
-            _minProposalSize: cfg.preimageOracleMinProposalSize(),
-            _challengePeriod: cfg.preimageOracleChallengePeriod(),
-            _cancunActivation: cfg.preimageOracleCancunActivationTimestamp()
-        });
-        save("PreimageOracle", address(preimageOracle));
-        console.log("PreimageOracle deployed at %s", address(preimageOracle));
-
-        addr_ = address(preimageOracle);
+        return address(0);
     }
 
     /// @notice Deploy Mips

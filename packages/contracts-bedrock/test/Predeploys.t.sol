@@ -29,6 +29,7 @@ contract PredeploysTest is CommonTest {
             || _addr == Predeploys.L2_STANDARD_BRIDGE || _addr == Predeploys.L2_ERC721_BRIDGE
             || _addr == Predeploys.SEQUENCER_FEE_WALLET || _addr == Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY
             || _addr == Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY || _addr == Predeploys.L1_BLOCK_ATTRIBUTES
+            || _addr == Predeploys.CROSS_L2_INBOX || _addr == Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER
             || _addr == Predeploys.GAS_PRICE_ORACLE || _addr == Predeploys.DEPLOYER_WHITELIST || _addr == Predeploys.WETH9
             || _addr == Predeploys.L1_BLOCK_NUMBER || _addr == Predeploys.LEGACY_MESSAGE_PASSER
             || _addr == Predeploys.PROXY_ADMIN || _addr == Predeploys.BASE_FEE_VAULT || _addr == Predeploys.L1_FEE_VAULT
@@ -42,7 +43,8 @@ contract PredeploysTest is CommonTest {
             || _addr == Predeploys.SafeL2_v130 || _addr == Predeploys.MultiSendCallOnly_v130
             || _addr == Predeploys.SafeSingletonFactory || _addr == Predeploys.DeterministicDeploymentProxy
             || _addr == Predeploys.MultiSend_v130 || _addr == Predeploys.Permit2 || _addr == Predeploys.SenderCreator
-            || _addr == Predeploys.EntryPoint;
+            || _addr == Predeploys.EntryPoint || _addr == Predeploys.CROSS_L2_INBOX
+            || _addr == Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER;
     }
 
     /// @dev Tests that the predeploy addresses are set correctly. They have code
