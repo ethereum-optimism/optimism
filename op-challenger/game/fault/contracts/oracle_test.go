@@ -98,7 +98,7 @@ func TestPreimageOracleContract_ChallengePeriod(t *testing.T) {
 	require.Equal(t, uint64(123), challengePeriod)
 
 	// Should cache responses
-	stubRpc.ClearResponses(methodChallengePeriod)
+	stubRpc.ClearResponses()
 	challengePeriod, err = oracle.ChallengePeriod(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, uint64(123), challengePeriod)
@@ -126,7 +126,7 @@ func TestPreimageOracleContract_MinBondSizeLPP(t *testing.T) {
 	require.Equal(t, big.NewInt(123), minBond)
 
 	// Should cache responses
-	stubRpc.ClearResponses(methodMinBondSizeLPP)
+	stubRpc.ClearResponses()
 	minBond, err = oracle.GetMinBondLPP(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, big.NewInt(123), minBond)

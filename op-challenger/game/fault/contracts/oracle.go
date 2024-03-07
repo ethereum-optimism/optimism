@@ -213,7 +213,7 @@ func (c *PreimageOracleContract) GetActivePreimages(ctx context.Context, blockHa
 }
 
 func (c *PreimageOracleContract) GetProposalMetadata(ctx context.Context, block batching.Block, idents ...keccakTypes.LargePreimageIdent) ([]keccakTypes.LargePreimageMetaData, error) {
-	var calls []*batching.ContractCall
+	var calls []batching.Call
 	for _, ident := range idents {
 		calls = append(calls, c.contract.Call(methodProposalMetadata, ident.Claimant, ident.UUID))
 	}
