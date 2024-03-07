@@ -99,6 +99,8 @@ type Config struct {
 	PollInterval         time.Duration    // Polling interval for latest-block subscription when using an HTTP RPC provider
 	AllowInvalidPrestate bool             // Whether to allow responding to games where the prestate does not match
 
+	AdditionalBondClaimants []common.Address // List of addresses to claim bonds for in addition to the tx manager sender
+
 	TraceTypes []TraceType // Type of traces supported
 
 	// Specific to the output cannon trace type
