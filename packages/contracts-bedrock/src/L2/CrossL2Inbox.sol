@@ -37,8 +37,6 @@ contract CrossL2Inbox is ISemver {
     // bytes32(uint256(keccak256("crossl2inbox.identifier.chainid")) - 1)
     bytes32 public constant CHAINID_SLOT = 0x6e0446e8b5098b8c8193f964f1b567ec3a2bdaeba33d36acb85c1f1d3f92d313;
 
-    address public l1Block;
-
     /// @custom:semver 1.0.0
     string public constant version = "1.0.0";
 
@@ -78,7 +76,7 @@ contract CrossL2Inbox is ISemver {
     /// @param _msg The message payload, matching the initiating message.
     function executeMessage(Identifier calldata _id, address _target, bytes memory _msg) public payable {
         require(_id.timestamp <= block.timestamp, "CrossL2Inbox: invalid id timestamp"); // timestamp invariant
-        require(IL1Block(l1Block).isInDependencySet(_id.chainId), "CrossL2Inbox: invalid id chainId"); // invariant
+        require(IL1Block(Predeploys.L1_BLOCK).isInDependencySet(_id.chainId), "CrossL2Inbox: invalid id chainId"); // invariant
         require(msg.sender == tx.origin, "CrossL2Inbox: Not EOA sender"); // only EOA invariant
 
         _tstoreCalldataID();
