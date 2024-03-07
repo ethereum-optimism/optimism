@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/solver"
@@ -33,16 +34,29 @@ type Agent struct {
 	solver    *solver.GameSolver
 	loader    ClaimLoader
 	responder Responder
+	selective bool
+	claimants []common.Address
 	maxDepth  types.Depth
 	log       log.Logger
 }
 
-func NewAgent(m metrics.Metricer, loader ClaimLoader, maxDepth types.Depth, trace types.TraceAccessor, responder Responder, log log.Logger) *Agent {
+func NewAgent(
+	m metrics.Metricer,
+	loader ClaimLoader,
+	maxDepth types.Depth,
+	trace types.TraceAccessor,
+	responder Responder,
+	log log.Logger,
+	selective bool,
+	claimants []common.Address,
+) *Agent {
 	return &Agent{
 		metrics:   m,
 		solver:    solver.NewGameSolver(maxDepth, trace),
 		loader:    loader,
 		responder: responder,
+		selective: selective,
+		claimants: claimants,
 		maxDepth:  maxDepth,
 		log:       log,
 	}
@@ -125,6 +139,21 @@ func (a *Agent) tryResolveClaims(ctx context.Context) error {
 	}
 	if len(claims) == 0 {
 		return errNoResolvableClaims
+	}
+
+	// If claim resolving is selective, only resolve claims that are incentivized
+	if a.selective {
+		allClaims := claims
+		claims = claims[:0]
+		for _, c := range allClaims {
+			isUncounteredClaim := slices.Contains(a.claimants, c.Claimant) && c.CounteredBy == common.Address{}
+			ourCounter := slices.Contains(a.claimants, c.CounteredBy)
+			if isUncounteredClaim || ourCounter {
+				claims = append(claims, c)
+			} else {
+				a.log.Debug("Skipping claim to check resolution", "claimIdx", c.ContractIndex)
+			}
+		}
 	}
 
 	var resolvableClaims []int64

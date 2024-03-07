@@ -48,7 +48,8 @@ type Service struct {
 
 	cl *clock.SimpleClock
 
-	claimer *claims.BondClaimScheduler
+	claimants []common.Address
+	claimer   *claims.BondClaimScheduler
 
 	factoryContract *contracts.DisputeGameFactoryContract
 	registry        *registry.GameTypeRegistry
@@ -85,6 +86,7 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 	if err := s.initTxManager(ctx, cfg); err != nil {
 		return fmt.Errorf("failed to init tx manager: %w", err)
 	}
+	s.initClaimants(cfg)
 	if err := s.initL1Client(ctx, cfg); err != nil {
 		return fmt.Errorf("failed to init l1 client: %w", err)
 	}
@@ -121,6 +123,11 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 	s.metrics.RecordInfo(version.SimpleWithMeta)
 	s.metrics.RecordUp()
 	return nil
+}
+
+func (s *Service) initClaimants(cfg *config.Config) {
+	claimants := []common.Address{s.txSender.From()}
+	s.claimants = append(claimants, cfg.AdditionalBondClaimants...)
 }
 
 func (s *Service) initTxManager(ctx context.Context, cfg *config.Config) error {
@@ -198,9 +205,7 @@ func (s *Service) initFactoryContract(cfg *config.Config) error {
 }
 
 func (s *Service) initBondClaims(cfg *config.Config) error {
-	claimants := []common.Address{s.txSender.From()}
-	claimants = append(claimants, cfg.AdditionalBondClaimants...)
-	claimer := claims.NewBondClaimer(s.logger, s.metrics, s.registry.CreateBondContract, s.txSender, claimants...)
+	claimer := claims.NewBondClaimer(s.logger, s.metrics, s.registry.CreateBondContract, s.txSender, s.claimants...)
 	s.claimer = claims.NewBondClaimScheduler(s.logger, s.metrics, claimer)
 	return nil
 }
@@ -220,7 +225,7 @@ func (s *Service) initRollupClient(ctx context.Context, cfg *config.Config) erro
 func (s *Service) registerGameTypes(ctx context.Context, cfg *config.Config) error {
 	gameTypeRegistry := registry.NewGameTypeRegistry()
 	caller := batching.NewMultiCaller(s.l1Client.Client(), batching.DefaultBatchSize)
-	closer, err := fault.RegisterGameTypes(gameTypeRegistry, ctx, s.cl, s.logger, s.metrics, cfg, s.rollupClient, s.txSender, s.factoryContract, caller, s.l1Client)
+	closer, err := fault.RegisterGameTypes(gameTypeRegistry, ctx, s.cl, s.logger, s.metrics, cfg, s.rollupClient, s.txSender, s.factoryContract, caller, s.l1Client, cfg.SelectiveClaimResolution, s.claimants)
 	if err != nil {
 		return err
 	}

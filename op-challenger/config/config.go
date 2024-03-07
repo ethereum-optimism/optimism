@@ -101,6 +101,8 @@ type Config struct {
 
 	AdditionalBondClaimants []common.Address // List of addresses to claim bonds for in addition to the tx manager sender
 
+	SelectiveClaimResolution bool // Whether to only resolve claims for the claimants in AdditionalBondClaimants union [TxSender.From()]
+
 	TraceTypes []TraceType // Type of traces supported
 
 	// Specific to the output cannon trace type
