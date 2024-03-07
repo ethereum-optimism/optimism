@@ -60,10 +60,10 @@ interface IL2ToL2CrossDomainMessenger {
 
     function relayMessage(
         uint256 _destination,
+        uint256 _source,
         uint256 _nonce,
         address _sender,
         address _target,
-        uint256 _value,
         bytes calldata _message
     )
         external
