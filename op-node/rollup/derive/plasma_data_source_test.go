@@ -134,7 +134,7 @@ func TestPlasmaDataSource(t *testing.T) {
 				Gas:       100_000,
 				To:        &batcherInbox,
 				Value:     big.NewInt(int64(0)),
-				Data:      comm.Encode(),
+				Data:      comm.TxData(TxDataVersion1),
 			})
 			require.NoError(t, err)
 
@@ -234,7 +234,7 @@ func TestPlasmaDataSource(t *testing.T) {
 					Gas:       100_000,
 					To:        &batcherInbox,
 					Value:     big.NewInt(int64(0)),
-					Data:      comm.Encode(),
+					Data:      comm.TxData(TxDataVersion1),
 				})
 				require.NoError(t, err)
 
@@ -351,7 +351,7 @@ func TestPlasmaDataSourceStall(t *testing.T) {
 		Gas:       100_000,
 		To:        &batcherInbox,
 		Value:     big.NewInt(int64(0)),
-		Data:      comm.Encode(),
+		Data:      comm.TxData(TxDataVersion1),
 	})
 	require.NoError(t, err)
 
@@ -466,7 +466,7 @@ func TestPlasmaDataSourceInvalidData(t *testing.T) {
 		Gas:       100_000,
 		To:        &batcherInbox,
 		Value:     big.NewInt(int64(0)),
-		Data:      comm.Encode(),
+		Data:      comm.TxData(TxDataVersion1),
 	})
 	require.NoError(t, err)
 
@@ -481,11 +481,11 @@ func TestPlasmaDataSourceInvalidData(t *testing.T) {
 		Gas:       100_000,
 		To:        &batcherInbox,
 		Value:     big.NewInt(int64(0)),
-		Data:      comm2.Encode(),
+		Data:      comm2.TxData(TxDataVersion1),
 	})
 	require.NoError(t, err)
 
-	// invalid commitment
+	// regular input instead of commitment
 	input3 := testutils.RandomData(rng, 32)
 	tx3, err := types.SignNewTx(batcherPriv, signer, &types.DynamicFeeTx{
 		ChainID:   signer.ChainID(),
@@ -506,12 +506,16 @@ func TestPlasmaDataSourceInvalidData(t *testing.T) {
 	src, err := factory.OpenData(ctx, ref, batcherAddr)
 	require.NoError(t, err)
 
-	// oversized input should be skipped
+	// oversized input is skipped and returns input2 directly
 	data, err := src.Next(ctx)
 	require.NoError(t, err)
 	require.Equal(t, hexutil.Bytes(input2), data)
 
-	// invalid commitment is skipped so should return an EOF
+	// regular input is passed through
+	data, err = src.Next(ctx)
+	require.NoError(t, err)
+	require.Equal(t, hexutil.Bytes(input3), data)
+
 	_, err = src.Next(ctx)
 	require.ErrorIs(t, err, io.EOF)
 

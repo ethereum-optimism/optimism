@@ -27,6 +27,11 @@ func (c Keccak256Commitment) Encode() []byte {
 	return append([]byte{byte(Keccak256CommitmentType)}, c...)
 }
 
+// TxData adds an extra version byte to signal it's a commitment.
+func (c Keccak256Commitment) TxData(version uint8) []byte {
+	return append([]byte{version}, c.Encode()...)
+}
+
 // Verify checks if the commitment matches the given input.
 func (c Keccak256Commitment) Verify(input []byte) error {
 	if !bytes.Equal(c, crypto.Keccak256(input)) {

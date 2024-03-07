@@ -159,7 +159,8 @@ func (a *L2PlasmaDA) ActNewL2Tx(t Testing) {
 	a.batcher.ActL2BatchBuffer(t)
 	a.batcher.ActL2ChannelClose(t)
 	a.batcher.ActL2BatchSubmit(t, func(tx *types.DynamicFeeTx) {
-		a.lastComm = tx.Data
+		// skip txdata version byte
+		a.lastComm = tx.Data[1:]
 	})
 
 	a.miner.ActL1StartBlock(3)(t)
