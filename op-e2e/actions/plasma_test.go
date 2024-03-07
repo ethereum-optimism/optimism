@@ -214,7 +214,8 @@ func (a *L2PlasmaDA) ActExpireLastInput(t Testing) {
 }
 
 func (a *L2PlasmaDA) ActResolveLastChallenge(t Testing) {
-	input, err := a.storage.GetInput(t.Ctx(), a.lastComm)
+	// remove commitment byte prefix
+	input, err := a.storage.GetInput(t.Ctx(), a.lastComm[1:])
 	require.NoError(t, err)
 
 	txOpts, err := bind.NewKeyedTransactorWithChainID(a.dp.Secrets.Alice, a.sd.L1Cfg.Config.ChainID)
