@@ -472,6 +472,44 @@ func TestUnsafeAllowInvalidPrestate(t *testing.T) {
 	})
 }
 
+func TestAdditionalBondClaimants(t *testing.T) {
+	t.Run("DefaultsToEmpty", func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgsExcept(config.TraceTypeAlphabet, "--additional-bond-claimants"))
+		require.Empty(t, cfg.AdditionalBondClaimants)
+	})
+
+	t.Run("Valid-Single", func(t *testing.T) {
+		claimant := common.Address{0xaa}
+		cfg := configForArgs(t, addRequiredArgs(config.TraceTypeAlphabet, "--additional-bond-claimants", claimant.Hex()))
+		require.Contains(t, cfg.AdditionalBondClaimants, claimant)
+		require.Len(t, cfg.AdditionalBondClaimants, 1)
+	})
+
+	t.Run("Valid-Multiple", func(t *testing.T) {
+		claimant1 := common.Address{0xaa}
+		claimant2 := common.Address{0xbb}
+		claimant3 := common.Address{0xcc}
+		cfg := configForArgs(t, addRequiredArgs(config.TraceTypeAlphabet,
+			"--additional-bond-claimants", fmt.Sprintf("%v,%v,%v", claimant1.Hex(), claimant2.Hex(), claimant3.Hex())))
+		require.Contains(t, cfg.AdditionalBondClaimants, claimant1)
+		require.Contains(t, cfg.AdditionalBondClaimants, claimant2)
+		require.Contains(t, cfg.AdditionalBondClaimants, claimant3)
+		require.Len(t, cfg.AdditionalBondClaimants, 3)
+	})
+
+	t.Run("Invalid-Single", func(t *testing.T) {
+		verifyArgsInvalid(t, "invalid additional claimant",
+			addRequiredArgs(config.TraceTypeAlphabet, "--additional-bond-claimants", "nope"))
+	})
+
+	t.Run("Invalid-Multiple", func(t *testing.T) {
+		claimant1 := common.Address{0xaa}
+		claimant2 := common.Address{0xbb}
+		verifyArgsInvalid(t, "invalid additional claimant",
+			addRequiredArgs(config.TraceTypeAlphabet, "--additional-bond-claimants", fmt.Sprintf("%v,nope,%v", claimant1.Hex(), claimant2.Hex())))
+	})
+}
+
 func verifyArgsInvalid(t *testing.T, messageContains string, cliArgs []string) {
 	_, _, err := dryRunWithArgs(cliArgs)
 	require.ErrorContains(t, err, messageContains)
