@@ -40,11 +40,8 @@ contract L2ToL2CrossDomainMessenger is ISemver {
     uint240 internal msgNonce;
 
     /// @notice Emitted whenever a message is sent to the other chain.
-    /// @param destination Chain ID of the destination chain.
-    /// @param target      Target contract or wallet address.
-    /// @param message     Message to trigger the target address with.
-    /// @param data        Data to be sent with the message.
-    event SentMessage(uint256 destination, address target, bytes message, bytes data) anonymous;
+    /// @param data Encoded data of the message that was sent.
+    event SentMessage(bytes data) anonymous;
 
     /// @notice Retrieves the next message nonce. Message version will be added to the upper two
     ///         bytes of the message nonce. Message version allows us to treat messages as having
@@ -72,9 +69,9 @@ contract L2ToL2CrossDomainMessenger is ISemver {
 
         bytes memory data = abi.encodeCall(
             L2ToL2CrossDomainMessenger.relayMessage,
-            (_destination, messageNonce(), msg.sender, _target, msg.value, _message)
+            (_destination, block.chainid, messageNonce(), msg.sender, _target, _message)
         );
-        emit SentMessage(_destination, _target, _message, data);
+        emit SentMessage(data);
         msgNonce++;
     }
 
