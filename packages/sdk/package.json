@@ -36,6 +36,7 @@
     "url": "https://github.com/ethereum-optimism/optimism.git"
   },
   "devDependencies": {
+    "@eth-optimism/common-ts": "workspace:^",
     "@ethersproject/abstract-provider": "^5.7.0",
     "@ethersproject/abstract-signer": "^5.7.0",
     "@ethersproject/transactions": "^5.7.0",

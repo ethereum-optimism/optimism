@@ -151,7 +151,7 @@ export abstract class BaseServiceV2<
      */
     const opSnakeCase = (str: string) => {
       const reg = /l_1|l_2/g
-      const repl = str.includes('l1') ? 'l1' : 'l2'
+      const repl = str.toLowerCase().includes('l1') ? 'l1' : 'l2'
       return snakeCase(str).replace(reg, repl)
     }
 
