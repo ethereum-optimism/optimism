@@ -82,14 +82,12 @@ contract L2ToL2CrossDomainMessenger is ISemver {
     /// @param _nonce       Nonce of the message being relayed.
     /// @param _sender      Address of the user who sent the message.
     /// @param _target      Address that the message is targeted at.
-    /// @param _value       ETH value to send with the message.
     /// @param _message     Message to send to the target.
     function relayMessage(
         uint256 _destination,
         uint256 _nonce,
         address _sender,
         address _target,
-        uint256 _value,
         bytes memory _message
     )
         external
@@ -114,7 +112,7 @@ contract L2ToL2CrossDomainMessenger is ISemver {
                 call(
                     gas(), // gas
                     _target, // recipient
-                    _value, // ether value
+                    callvalue(), // ether value
                     add(_message, 32), // inloc
                     mload(_message), // inlen
                     0, // outloc
