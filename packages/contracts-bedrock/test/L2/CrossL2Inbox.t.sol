@@ -20,11 +20,6 @@ contract CrossL2InboxTest is CommonTest {
         depositor = l1Block.DEPOSITOR_ACCOUNT();
     }
 
-    /// @dev Tests that the implementation is constructed correctly.
-    function test_constructor_succeeds() external {
-        assertEq(crossL2Inbox.l1Block(), address(l1Block));
-    }
-
     function testFuzz_executeMessage_succeeds(
         bytes calldata _msg,
         ICrossL2Inbox.Identifier calldata _id,
@@ -46,7 +41,7 @@ contract CrossL2InboxTest is CommonTest {
         chainIds[0] = _id.chainId;
         vm.prank(depositor);
         l1Block.setL1BlockValues(0, 0, 0, bytes32(0), 0, bytes32(0), 0, 0, 1, chainIds);
-        vm.assume(L1Block(crossL2Inbox.l1Block()).isInDependencySet(_id.chainId));
+        vm.assume(l1Block.isInDependencySet(_id.chainId));
 
         // only EOA invariant
         vm.prank(tx.origin);
