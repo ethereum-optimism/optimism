@@ -451,9 +451,12 @@ func (c *channelBuilder) NextFrame() frameData {
 
 // PushFrame adds the frame back to the internal frames queue. Panics if not of
 // the same channel.
-func (c *channelBuilder) PushFrame(frame frameData) {
-	if frame.id.chID != c.ID() {
-		panic("wrong channel")
+// TODO(Seb) rename PushFrames
+func (c *channelBuilder) PushFrame(frames ...frameData) {
+	for _, f := range frames {
+		if f.id.chID != c.ID() {
+			panic("wrong channel")
+		}
+		c.frames = append(c.frames, f)
 	}
-	c.frames = append(c.frames, frame)
 }

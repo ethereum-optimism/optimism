@@ -22,9 +22,9 @@ type channel struct {
 	// pending channel builder
 	channelBuilder *channelBuilder
 	// Set of unconfirmed txID -> frame data. For tx resubmission
-	pendingTransactions map[txID]txData
+	pendingTransactions map[string]txData
 	// Set of confirmed txID -> inclusion block. For determining if the channel is timed out
-	confirmedTransactions map[txID]eth.BlockID
+	confirmedTransactions map[string]eth.BlockID
 
 	// True if confirmed TX list is updated. Set to false after updated min/max inclusion blocks.
 	confirmedTxUpdated bool
@@ -44,20 +44,20 @@ func newChannel(log log.Logger, metr metrics.Metricer, cfg ChannelConfig, rollup
 		metr:                  metr,
 		cfg:                   cfg,
 		channelBuilder:        cb,
-		pendingTransactions:   make(map[txID]txData),
-		confirmedTransactions: make(map[txID]eth.BlockID),
+		pendingTransactions:   make(map[string]txData),
+		confirmedTransactions: make(map[string]eth.BlockID),
 	}, nil
 }
 
 // TxFailed records a transaction as failed. It will attempt to resubmit the data
 // in the failed transaction.
-func (s *channel) TxFailed(id txID) {
+func (s *channel) TxFailed(id string) {
 	if data, ok := s.pendingTransactions[id]; ok {
 		s.log.Trace("marked transaction as failed", "id", id)
 		// Note: when the batcher is changed to send multiple frames per tx,
 		// this needs to be changed to iterate over all frames of the tx data
 		// and re-queue them.
-		s.channelBuilder.PushFrame(data.Frame())
+		s.channelBuilder.PushFrame(data.Frames()...)
 		delete(s.pendingTransactions, id)
 	} else {
 		s.log.Warn("unknown transaction marked as failed", "id", id)
@@ -70,7 +70,7 @@ func (s *channel) TxFailed(id txID) {
 // a channel have been marked as confirmed on L1 the channel may be invalid & need to be
 // resubmitted.
 // This function may reset the pending channel if the pending channel has timed out.
-func (s *channel) TxConfirmed(id txID, inclusionBlock eth.BlockID) (bool, []*types.Block) {
+func (s *channel) TxConfirmed(id string, inclusionBlock eth.BlockID) (bool, []*types.Block) {
 	s.metr.RecordBatchTxSubmitted()
 	s.log.Debug("marked transaction as confirmed", "id", id, "block", inclusionBlock)
 	if _, ok := s.pendingTransactions[id]; !ok {
@@ -149,8 +149,9 @@ func (s *channel) ID() derive.ChannelID {
 func (s *channel) NextTxData() txData {
 	frame := s.channelBuilder.NextFrame()
 
-	txdata := txData{frame}
-	id := txdata.ID()
+	// TODO(Seb) multi-frame logic
+	txdata := txData{[]frameData{frame}}
+	id := txdata.ID().String()
 
 	s.log.Trace("returning next tx data", "id", id)
 	s.pendingTransactions[id] = txdata

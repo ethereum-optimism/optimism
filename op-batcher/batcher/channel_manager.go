@@ -41,7 +41,7 @@ type channelManager struct {
 	// channels to read frame data from, for writing batches onchain
 	channelQueue []*channel
 	// used to lookup channels by tx ID upon tx success / failure
-	txChannels map[txID]*channel
+	txChannels map[string]*channel
 
 	// if set to true, prevents production of any new channel frames
 	closed bool
@@ -53,7 +53,7 @@ func NewChannelManager(log log.Logger, metr metrics.Metricer, cfg ChannelConfig,
 		metr:       metr,
 		cfg:        cfg,
 		rollupCfg:  rollupCfg,
-		txChannels: make(map[txID]*channel),
+		txChannels: make(map[string]*channel),
 	}
 }
 
@@ -68,14 +68,15 @@ func (s *channelManager) Clear() {
 	s.closed = false
 	s.currentChannel = nil
 	s.channelQueue = nil
-	s.txChannels = make(map[txID]*channel)
+	s.txChannels = make(map[string]*channel)
 }
 
 // TxFailed records a transaction as failed. It will attempt to resubmit the data
 // in the failed transaction.
-func (s *channelManager) TxFailed(id txID) {
+func (s *channelManager) TxFailed(_id txID) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	id := _id.String()
 	if channel, ok := s.txChannels[id]; ok {
 		delete(s.txChannels, id)
 		channel.TxFailed(id)
@@ -92,9 +93,10 @@ func (s *channelManager) TxFailed(id txID) {
 // a channel have been marked as confirmed on L1 the channel may be invalid & need to be
 // resubmitted.
 // This function may reset the pending channel if the pending channel has timed out.
-func (s *channelManager) TxConfirmed(id txID, inclusionBlock eth.BlockID) {
+func (s *channelManager) TxConfirmed(_id txID, inclusionBlock eth.BlockID) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	id := _id.String()
 	if channel, ok := s.txChannels[id]; ok {
 		delete(s.txChannels, id)
 		done, blocks := channel.TxConfirmed(id, inclusionBlock)
@@ -135,7 +137,7 @@ func (s *channelManager) nextTxData(channel *channel) (txData, error) {
 		return txData{}, io.EOF // TODO: not enough data error instead
 	}
 	tx := channel.NextTxData()
-	s.txChannels[tx.ID()] = channel
+	s.txChannels[tx.ID().String()] = channel
 	return tx, nil
 }
 

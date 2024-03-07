@@ -375,29 +375,28 @@ func (l *BatchSubmitter) publishTxToL1(ctx context.Context, queue *txmgr.Queue[t
 func (l *BatchSubmitter) sendTransaction(ctx context.Context, txdata txData, queue *txmgr.Queue[txData], receiptsCh chan txmgr.TxReceipt[txData]) error {
 	var err error
 	// Do the gas estimation offline. A value of 0 will cause the [txmgr] to estimate the gas limit.
-	data := txdata.Bytes()
-	// if plasma DA is enabled we post the txdata to the DA Provider and replace it with the commitment.
-	if l.Config.UsePlasma {
-		data, err = l.PlasmaDA.SetInput(ctx, data)
-		if err != nil {
-			l.Log.Error("Failed to post input to Plasma DA", "error", err)
-			// requeue frame if we fail to post to the DA Provider so it can be retried
-			l.recordFailedTx(txdata, err)
-			return nil
-		}
-	}
 
 	var candidate *txmgr.TxCandidate
 	if l.Config.UseBlobs {
-		if candidate, err = l.blobTxCandidate(data); err != nil {
+		if candidate, err = l.blobTxCandidate(txdata); err != nil {
 			// We could potentially fall through and try a calldata tx instead, but this would
 			// likely result in the chain spending more in gas fees than it is tuned for, so best
 			// to just fail. We do not expect this error to trigger unless there is a serious bug
 			// or configuration issue.
 			return fmt.Errorf("could not create blob tx candidate: %w", err)
 		}
-		l.Metr.RecordBlobUsedBytes(len(data))
 	} else {
+		data := txdata.Bytes()
+		// if plasma DA is enabled we post the txdata to the DA Provider and replace it with the commitment.
+		if l.Config.UsePlasma {
+			data, err = l.PlasmaDA.SetInput(ctx, data)
+			if err != nil {
+				l.Log.Error("Failed to post input to Plasma DA", "error", err)
+				// requeue frame if we fail to post to the DA Provider so it can be retried
+				l.recordFailedTx(txdata, err)
+				return nil
+			}
+		}
 		candidate = l.calldataTxCandidate(data)
 	}
 
@@ -413,15 +412,15 @@ func (l *BatchSubmitter) sendTransaction(ctx context.Context, txdata txData, que
 	return nil
 }
 
-func (l *BatchSubmitter) blobTxCandidate(data []byte) (*txmgr.TxCandidate, error) {
-	l.Log.Info("building Blob transaction candidate", "size", len(data))
-	var b eth.Blob
-	if err := b.FromData(data); err != nil {
-		return nil, fmt.Errorf("data could not be converted to blob: %w", err)
-	}
+func (l *BatchSubmitter) blobTxCandidate(data txData) (*txmgr.TxCandidate, error) {
+	blobs := data.Blobs()
+	size := data.Len()
+	l.Log.Info("building Blob transaction candidate", "size", size, "num_blobs", len(blobs))
+	l.Metr.RecordBlobUsedBytes(size)
+	// TODO(Seb) record number of blobs
 	return &txmgr.TxCandidate{
 		To:    &l.RollupConfig.BatchInboxAddress,
-		Blobs: []*eth.Blob{&b},
+		Blobs: blobs,
 	}, nil
 }
 
