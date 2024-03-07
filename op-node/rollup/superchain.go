@@ -82,6 +82,12 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 		deltaTime = new(uint64)
 	}
 
+	ecotoneTime := superChain.Config.EcotoneTime
+
+	if chainID == opMainnet {
+		ecotoneTime = nil // The Ecotone upgrade was vetoed
+	}
+
 	cfg := &Config{
 		Genesis: Genesis{
 			L1: eth.BlockID{
@@ -108,7 +114,7 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 		RegolithTime:           &regolithTime,
 		CanyonTime:             superChain.Config.CanyonTime,
 		DeltaTime:              deltaTime,
-		EcotoneTime:            superChain.Config.EcotoneTime,
+		EcotoneTime:            ecotoneTime,
 		FjordTime:              superChain.Config.FjordTime,
 		BatchInboxAddress:      common.Address(chConfig.BatchInboxAddr),
 		DepositContractAddress: common.Address(addrs.OptimismPortalProxy),
