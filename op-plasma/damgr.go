@@ -41,8 +41,8 @@ type L1Fetcher interface {
 
 // DAStorage interface for calling the DA storage server.
 type DAStorage interface {
-	GetInput(ctx context.Context, key []byte) ([]byte, error)
-	SetInput(ctx context.Context, img []byte) ([]byte, error)
+	GetInput(ctx context.Context, key Keccak256Commitment) ([]byte, error)
+	SetInput(ctx context.Context, img []byte) (Keccak256Commitment, error)
 }
 
 // Config is the relevant subset of rollup config for plasma DA.
@@ -152,14 +152,14 @@ func (d *DA) Reset(ctx context.Context, base eth.L1BlockRef, baseCfg eth.SystemC
 
 // GetInput returns the input data for the given commitment bytes. blockNumber is required to lookup
 // the challenge status in the DataAvailabilityChallenge L1 contract.
-func (d *DA) GetInput(ctx context.Context, commitment []byte, blockId eth.BlockID) (eth.Data, error) {
+func (d *DA) GetInput(ctx context.Context, comm Keccak256Commitment, blockId eth.BlockID) (eth.Data, error) {
 	// If the challenge head is ahead in the case of a pipeline reset or stall, we might have synced a
 	// challenge event for this commitment. Otherwise we mark the commitment as part of the canonical
 	// chain so potential future challenge events can be selected.
-	ch := d.state.GetOrTrackChallenge(commitment, blockId.Number, d.cfg.ChallengeWindow)
+	ch := d.state.GetOrTrackChallenge(comm.Encode(), blockId.Number, d.cfg.ChallengeWindow)
 
 	// Fetch the input from the DA storage.
-	data, err := d.storage.GetInput(ctx, commitment)
+	data, err := d.storage.GetInput(ctx, comm)
 
 	// data is not found in storage but may be available if the challenge was resolved.
 	notFound := errors.Is(ErrNotFound, err)
@@ -193,7 +193,7 @@ func (d *DA) GetInput(ctx context.Context, commitment []byte, blockId eth.BlockI
 			return data, nil
 		}
 		// data not found in storage, return from challenge resolved input
-		resolvedInput, err := d.state.GetResolvedInput(commitment)
+		resolvedInput, err := d.state.GetResolvedInput(comm.Encode())
 		if err != nil {
 			return nil, err
 		}

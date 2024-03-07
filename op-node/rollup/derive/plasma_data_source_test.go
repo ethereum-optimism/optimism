@@ -92,7 +92,7 @@ func TestPlasmaDataSource(t *testing.T) {
 	}
 	// keep track of random input data to validate against
 	var inputs [][]byte
-	var comms [][]byte
+	var comms []plasma.Keccak256Commitment
 
 	signer := cfg.L1Signer()
 
@@ -137,7 +137,7 @@ func TestPlasmaDataSource(t *testing.T) {
 				Gas:       100_000,
 				To:        &batcherInbox,
 				Value:     big.NewInt(int64(0)),
-				Data:      comm,
+				Data:      comm.Encode(),
 			})
 			require.NoError(t, err)
 
@@ -158,7 +158,7 @@ func TestPlasmaDataSource(t *testing.T) {
 		if len(comms) >= 4 && nc < 7 {
 			// skip a block between each challenge transaction
 			if nc%2 == 0 {
-				daState.SetActiveChallenge(comms[nc/2], ref.Number, pcfg.ResolveWindow)
+				daState.SetActiveChallenge(comms[nc/2].Encode(), ref.Number, pcfg.ResolveWindow)
 				logger.Info("setting active challenge", "comm", comms[nc/2])
 			}
 			nc++
@@ -237,7 +237,7 @@ func TestPlasmaDataSource(t *testing.T) {
 					Gas:       100_000,
 					To:        &batcherInbox,
 					Value:     big.NewInt(int64(0)),
-					Data:      comm,
+					Data:      comm.Encode(),
 				})
 				require.NoError(t, err)
 
@@ -350,7 +350,7 @@ func TestPlasmaDataSourceStall(t *testing.T) {
 		Gas:       100_000,
 		To:        &batcherInbox,
 		Value:     big.NewInt(int64(0)),
-		Data:      comm,
+		Data:      comm.Encode(),
 	})
 	require.NoError(t, err)
 
@@ -359,7 +359,7 @@ func TestPlasmaDataSourceStall(t *testing.T) {
 	l1F.ExpectInfoAndTxsByHash(ref.Hash, testutils.RandomBlockInfo(rng), txs, nil)
 
 	// delete the input from the DA provider so it returns not found
-	require.NoError(t, storage.DeleteData(comm))
+	require.NoError(t, storage.DeleteData(comm.Encode()))
 
 	// next block is fetched to look ahead challenges but is not yet available
 	l1F.ExpectL1BlockRefByNumber(ref.Number+1, eth.L1BlockRef{}, ethereum.NotFound)
@@ -372,7 +372,7 @@ func TestPlasmaDataSourceStall(t *testing.T) {
 	require.ErrorIs(t, err, ErrTemporary)
 
 	// now challenge is resolved
-	daState.SetResolvedChallenge(comm, input, ref.Number+2)
+	daState.SetResolvedChallenge(comm.Encode(), input, ref.Number+2)
 
 	// derivation can resume
 	data, err := src.Next(ctx)
@@ -382,7 +382,9 @@ func TestPlasmaDataSourceStall(t *testing.T) {
 	l1F.AssertExpectations(t)
 }
 
-func TestPlasmaDataSourceOversizedInput(t *testing.T) {
+// TestPlasmaDataSourceInvalidData tests that the pipeline skips invalid data and continues
+// this includes invalid commitments and oversized inputs.
+func TestPlasmaDataSourceInvalidData(t *testing.T) {
 	logger := testlog.Logger(t, log.LevelDebug)
 	ctx := context.Background()
 
@@ -443,7 +445,7 @@ func TestPlasmaDataSourceOversizedInput(t *testing.T) {
 	input := testutils.RandomData(rng, plasma.MaxInputSize+1)
 	comm, _ := storage.SetInput(ctx, input)
 
-	tx, err := types.SignNewTx(batcherPriv, signer, &types.DynamicFeeTx{
+	tx1, err := types.SignNewTx(batcherPriv, signer, &types.DynamicFeeTx{
 		ChainID:   signer.ChainID(),
 		Nonce:     0,
 		GasTipCap: big.NewInt(2 * params.GWei),
@@ -451,18 +453,52 @@ func TestPlasmaDataSourceOversizedInput(t *testing.T) {
 		Gas:       100_000,
 		To:        &batcherInbox,
 		Value:     big.NewInt(int64(0)),
-		Data:      comm,
+		Data:      comm.Encode(),
 	})
 	require.NoError(t, err)
 
-	txs := []*types.Transaction{tx}
+	// valid data
+	input2 := testutils.RandomData(rng, 2000)
+	comm2, _ := storage.SetInput(ctx, input2)
+	tx2, err := types.SignNewTx(batcherPriv, signer, &types.DynamicFeeTx{
+		ChainID:   signer.ChainID(),
+		Nonce:     0,
+		GasTipCap: big.NewInt(2 * params.GWei),
+		GasFeeCap: big.NewInt(30 * params.GWei),
+		Gas:       100_000,
+		To:        &batcherInbox,
+		Value:     big.NewInt(int64(0)),
+		Data:      comm2.Encode(),
+	})
+	require.NoError(t, err)
+
+	// invalid commitment
+	input3 := testutils.RandomData(rng, 32)
+	tx3, err := types.SignNewTx(batcherPriv, signer, &types.DynamicFeeTx{
+		ChainID:   signer.ChainID(),
+		Nonce:     0,
+		GasTipCap: big.NewInt(2 * params.GWei),
+		GasFeeCap: big.NewInt(30 * params.GWei),
+		Gas:       100_000,
+		To:        &batcherInbox,
+		Value:     big.NewInt(int64(0)),
+		Data:      input3,
+	})
+	require.NoError(t, err)
+
+	txs := []*types.Transaction{tx1, tx2, tx3}
 
 	l1F.ExpectInfoAndTxsByHash(ref.Hash, testutils.RandomBlockInfo(rng), txs, nil)
 
 	src, err := factory.OpenData(ctx, ref, batcherAddr)
 	require.NoError(t, err)
 
-	// data is skipped so should return an EOF
+	// oversized input should be skipped
+	data, err := src.Next(ctx)
+	require.NoError(t, err)
+	require.Equal(t, hexutil.Bytes(input2), data)
+
+	// invalid commitment is skipped so should return an EOF
 	_, err = src.Next(ctx)
 	require.ErrorIs(t, err, io.EOF)
 

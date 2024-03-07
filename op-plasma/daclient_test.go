@@ -83,26 +83,21 @@ func TestDAClient(t *testing.T) {
 	comm, err := client.SetInput(ctx, input)
 	require.NoError(t, err)
 
-	require.Equal(t, comm, Keccak256(input).Encode())
+	require.Equal(t, comm, Keccak256(input))
 
 	stored, err := client.GetInput(ctx, comm)
 	require.NoError(t, err)
 
 	require.Equal(t, input, stored)
 
-	// test validate commitment
-	badcomm := RandomData(rng, 32)
-	_, err = client.GetInput(ctx, badcomm)
-	require.ErrorIs(t, err, ErrInvalidCommitment)
-
 	// set a bad commitment in the store
-	require.NoError(t, store.Put(comm, []byte("bad data")))
+	require.NoError(t, store.Put(comm.Encode(), []byte("bad data")))
 
 	_, err = client.GetInput(ctx, comm)
 	require.ErrorIs(t, err, ErrCommitmentMismatch)
 
 	// test not found error
-	comm = Keccak256(RandomData(rng, 32)).Encode()
+	comm = Keccak256(RandomData(rng, 32))
 	_, err = client.GetInput(ctx, comm)
 	require.ErrorIs(t, err, ErrNotFound)
 
@@ -115,6 +110,6 @@ func TestDAClient(t *testing.T) {
 	_, err = client.SetInput(ctx, input)
 	require.Error(t, err)
 
-	_, err = client.GetInput(ctx, Keccak256(input).Encode())
+	_, err = client.GetInput(ctx, Keccak256(input))
 	require.Error(t, err)
 }

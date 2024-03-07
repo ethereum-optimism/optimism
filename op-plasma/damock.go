@@ -25,22 +25,17 @@ func NewMockDAClient(log log.Logger) *MockDAClient {
 	}
 }
 
-func (c *MockDAClient) GetInput(ctx context.Context, key []byte) ([]byte, error) {
-	// Validate the commitment to make sure we only pass encoded types.
-	_, err := DecodeKeccak256(key)
-	if err != nil {
-		return nil, err
-	}
-	bytes, err := c.store.Get(key)
+func (c *MockDAClient) GetInput(ctx context.Context, key Keccak256Commitment) ([]byte, error) {
+	bytes, err := c.store.Get(key.Encode())
 	if err != nil {
 		return nil, ErrNotFound
 	}
 	return bytes, nil
 }
 
-func (c *MockDAClient) SetInput(ctx context.Context, data []byte) ([]byte, error) {
-	key := Keccak256(data).Encode()
-	return key, c.store.Put(key, data)
+func (c *MockDAClient) SetInput(ctx context.Context, data []byte) (Keccak256Commitment, error) {
+	key := Keccak256(data)
+	return key, c.store.Put(key.Encode(), data)
 }
 
 func (c *MockDAClient) DeleteData(key []byte) error {
@@ -54,7 +49,7 @@ type DAErrFaker struct {
 	setInputErr error
 }
 
-func (f *DAErrFaker) GetInput(ctx context.Context, key []byte) ([]byte, error) {
+func (f *DAErrFaker) GetInput(ctx context.Context, key Keccak256Commitment) ([]byte, error) {
 	if err := f.getInputErr; err != nil {
 		f.getInputErr = nil
 		return nil, err
@@ -62,7 +57,7 @@ func (f *DAErrFaker) GetInput(ctx context.Context, key []byte) ([]byte, error) {
 	return f.Client.GetInput(ctx, key)
 }
 
-func (f *DAErrFaker) SetInput(ctx context.Context, data []byte) ([]byte, error) {
+func (f *DAErrFaker) SetInput(ctx context.Context, data []byte) (Keccak256Commitment, error) {
 	if err := f.setInputErr; err != nil {
 		f.setInputErr = nil
 		return nil, err
@@ -85,7 +80,7 @@ var ErrNotEnabled = errors.New("plasma not enabled")
 // PlasmaDisabled is a noop plasma DA implementation for stubbing.
 type PlasmaDisabled struct{}
 
-func (d *PlasmaDisabled) GetInput(ctx context.Context, commitment []byte, blockId eth.BlockID) (eth.Data, error) {
+func (d *PlasmaDisabled) GetInput(ctx context.Context, commitment Keccak256Commitment, blockId eth.BlockID) (eth.Data, error) {
 	return nil, ErrNotEnabled
 }
 

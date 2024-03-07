@@ -18,7 +18,7 @@ type PlasmaDataSource struct {
 	fetcher PlasmaInputFetcher
 	id      eth.BlockID
 	// keep track of a pending commitment so we can keep trying to fetch the input.
-	comm []byte
+	comm plasma.Keccak256Commitment
 }
 
 func NewPlasmaDataSource(log log.Logger, src DataIter, fetcher PlasmaInputFetcher, id eth.BlockID) *PlasmaDataSource {
@@ -45,10 +45,17 @@ func (s *PlasmaDataSource) Next(ctx context.Context) (eth.Data, error) {
 	if s.comm == nil {
 		var err error
 		// the l1 source returns the input commitment for the batch.
-		s.comm, err = s.src.Next(ctx)
+		data, err := s.src.Next(ctx)
 		if err != nil {
 			return nil, err
 		}
+		// validate batcher inbox data is a commitment.
+		comm, err := plasma.DecodeKeccak256(data)
+		if err != nil {
+			s.log.Warn("invalid commitment", "data", fmt.Sprintf("%x", data), "err", err)
+			return s.Next(ctx)
+		}
+		s.comm = comm
 	}
 	// use the commitment to fetch the input from the plasma DA provider.
 	data, err := s.fetcher.GetInput(ctx, s.comm, s.id)

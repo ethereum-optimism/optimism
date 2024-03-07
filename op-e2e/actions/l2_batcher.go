@@ -24,6 +24,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
@@ -43,7 +44,7 @@ type L1TxAPI interface {
 }
 
 type PlasmaInputSetter interface {
-	SetInput(ctx context.Context, img []byte) ([]byte, error)
+	SetInput(ctx context.Context, img []byte) (plasma.Keccak256Commitment, error)
 }
 
 type BatcherCfg struct {
@@ -250,9 +251,9 @@ func (s *L2Batcher) ActL2BatchSubmit(t Testing, txOpts ...func(tx *types.Dynamic
 
 	payload := data.Bytes()
 	if s.l2BatcherCfg.UsePlasma {
-		var err error
-		payload, err = s.l2BatcherCfg.PlasmaDA.SetInput(t.Ctx(), payload)
+		comm, err := s.l2BatcherCfg.PlasmaDA.SetInput(t.Ctx(), payload)
 		require.NoError(t, err, "failed to set input for plasma")
+		payload = comm.Encode()
 	}
 
 	nonce, err := s.l1.PendingNonceAt(t.Ctx(), s.batcherAddr)
