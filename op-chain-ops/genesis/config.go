@@ -943,12 +943,8 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 	storage["ProxyAdmin"] = state.StorageValues{
 		"_owner": config.ProxyAdminOwner,
 	}
-	storage["CrossL2Inbox"] = state.StorageValues{
-		"l1Block": predeploys.L1BlockAddr,
-	}
 	storage["L2ToL2CrossDomainMessenger"] = state.StorageValues{
-		"crossL2Inbox": predeploys.CrossL2InboxAddr,
-		"msgNonce":     0,
+		"msgNonce": 0,
 	}
 	return storage, nil
 }
