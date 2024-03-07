@@ -1,6 +1,9 @@
 package batching
 
 import (
+	"fmt"
+	"math/big"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -28,6 +31,9 @@ func (b *BalanceCall) ToBatchElemCreator() (BatchElementCreator, error) {
 }
 
 func (b *BalanceCall) HandleResult(result interface{}) (*CallResult, error) {
-	//balance := (*big.Int)(&result)
-	return &CallResult{out: []interface{}{result}}, nil
+	val, ok := result.(*hexutil.Big)
+	if !ok {
+		return nil, fmt.Errorf("response %v was not a *big.Int", result)
+	}
+	return &CallResult{out: []interface{}{(*big.Int)(val)}}, nil
 }
