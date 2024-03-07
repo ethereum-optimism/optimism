@@ -97,7 +97,7 @@ contract CrossL2Inbox is ISemver {
                 )
         }
 
-        require(success, "CrossL2Inbox: failed to execute message");
+        require(success, "CrossL2Inbox: call failed");
     }
 
     function _tstoreCalldataID() internal {
