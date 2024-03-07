@@ -34,11 +34,6 @@ contract L2ToL2CrossDomainMessenger is ISemver {
     ///         can therefore not be relayed again.
     mapping(bytes32 => bool) public successfulMessages;
 
-    /// @notice Mapping of message hashes to a boolean if and only if the message has failed to be
-    ///         executed at least once. A message will not be present in this mapping if it
-    ///         successfully executed on the first attempt.
-    mapping(bytes32 => bool) public failedMessages;
-
     /// @custom:semver 1.0.0
     string public constant version = "1.0.0";
 
@@ -134,7 +129,6 @@ contract L2ToL2CrossDomainMessenger is ISemver {
             successfulMessages[messageHash] = true;
             emit RelayedMessage(messageHash);
         } else {
-            failedMessages[messageHash] = true;
             emit FailedRelayedMessage(messageHash);
         }
     }
