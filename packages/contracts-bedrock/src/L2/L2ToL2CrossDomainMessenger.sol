@@ -23,6 +23,11 @@ contract L2ToL2CrossDomainMessenger is ISemver {
     bytes32 public constant CROSS_DOMAIN_MESSAGE_SENDER_SLOT =
         0xb83444d07072b122e2e72a669ce32857d892345c19856f4e7142d06a167ab3f3;
 
+    /// @notice Slot for the source of the current cross domain message.
+    /// @dev Equal to bytes32(uint256(keccak256("l2tol2crossdomainmessenger.source")) - 1)
+    bytes32 public constant CROSS_DOMAIN_MESSAGE_SOURCE_SLOT =
+        0x711dfa3259c842fffc17d6e1f1e0fc5927756133a2345ca56b4cb8178589fee7;
+
     /// @notice Current message version identifier.
     uint16 public constant MESSAGE_VERSION = uint16(0);
 
@@ -57,6 +62,12 @@ contract L2ToL2CrossDomainMessenger is ISemver {
         }
     }
 
+    function crossDomainMessageSource() public view returns (uint256 _source) {
+        assembly {
+            _source := tload(CROSS_DOMAIN_MESSAGE_SOURCE_SLOT)
+        }
+    }
+
     /// @notice Sends a message to some target address on a destination chain. Note that if the call
     ///         always reverts, then the message will be unrelayable, and any ETH sent will be
     ///         permanently locked. The same will occur if the target on the other chain is
@@ -81,10 +92,12 @@ contract L2ToL2CrossDomainMessenger is ISemver {
     /// @param _destination Chain ID of the destination chain.
     /// @param _nonce       Nonce of the message being relayed.
     /// @param _sender      Address of the user who sent the message.
+    /// @param _source      Chain ID of the source chain.
     /// @param _target      Address that the message is targeted at.
     /// @param _message     Message to send to the target.
     function relayMessage(
         uint256 _destination,
+        uint256 _source,
         uint256 _nonce,
         address _sender,
         address _target,
@@ -107,6 +120,7 @@ contract L2ToL2CrossDomainMessenger is ISemver {
         bool success;
         assembly {
             tstore(CROSS_DOMAIN_MESSAGE_SENDER_SLOT, _sender)
+            tstore(CROSS_DOMAIN_MESSAGE_SOURCE_SLOT, _source)
 
             success :=
                 call(
