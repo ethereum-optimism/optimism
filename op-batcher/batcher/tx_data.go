@@ -73,27 +73,16 @@ func (td *txData) Frames() []frameData {
 type txID []frameID
 
 func (id txID) String() string {
-	var (
-		sb      strings.Builder
-		curChID derive.ChannelID
-	)
-	for _, f := range id {
-		if f.chID == curChID {
-			sb.WriteString(fmt.Sprintf("+%d", f.frameNumber))
-		} else {
-			if curChID != (derive.ChannelID{}) {
-				sb.WriteString("|")
-			}
-			curChID = f.chID
-			sb.WriteString(fmt.Sprintf("%s:%d", f.chID.String(), f.frameNumber))
-		}
-	}
-	return sb.String()
+	return id.string(func(id derive.ChannelID) string { return id.String() })
 }
 
 // TerminalString implements log.TerminalStringer, formatting a string for console
 // output during logging.
 func (id txID) TerminalString() string {
+	return id.string(func(id derive.ChannelID) string { return id.TerminalString() })
+}
+
+func (id txID) string(chIDStringer func(id derive.ChannelID) string) string {
 	var (
 		sb      strings.Builder
 		curChID derive.ChannelID
@@ -106,7 +95,7 @@ func (id txID) TerminalString() string {
 				sb.WriteString("|")
 			}
 			curChID = f.chID
-			sb.WriteString(fmt.Sprintf("%s:%d", f.chID.TerminalString(), f.frameNumber))
+			sb.WriteString(fmt.Sprintf("%s:%d", chIDStringer(f.chID), f.frameNumber))
 		}
 	}
 	return sb.String()
