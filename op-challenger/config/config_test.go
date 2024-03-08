@@ -76,6 +76,12 @@ func TestGameFactoryAddressRequired(t *testing.T) {
 	require.ErrorIs(t, config.Check(), ErrMissingGameFactoryAddress)
 }
 
+func TestSelectiveClaimResolutionNotRequired(t *testing.T) {
+	config := validConfig(TraceTypeCannon)
+	require.Equal(t, false, config.SelectiveClaimResolution)
+	require.NoError(t, config.Check())
+}
+
 func TestGameAllowlistNotRequired(t *testing.T) {
 	config := validConfig(TraceTypeCannon)
 	config.GameAllowlist = []common.Address{}
