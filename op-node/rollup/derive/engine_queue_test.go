@@ -1253,14 +1253,14 @@ func TestPlasmaFinalityData(t *testing.T) {
 		BlockTime:         1,
 		SeqWindowSize:     2,
 		UsePlasma:         false,
-		DAChallengeWindow: 20,
-		DAResolveWindow:   20,
+		DAChallengeWindow: 90,
+		DAResolveWindow:   90,
 	}
 	// shoud return l1 finality if plasma is not enabled
 	require.Equal(t, uint64(finalityLookback), calcFinalityLookback(cfg))
 
 	cfg.UsePlasma = true
-	expFinalityLookback := 41
+	expFinalityLookback := 181
 	require.Equal(t, uint64(expFinalityLookback), calcFinalityLookback(cfg))
 
 	refA1 := eth.L2BlockRef{
@@ -1283,9 +1283,9 @@ func TestPlasmaFinalityData(t *testing.T) {
 	ec.SetSafeHead(l2parent)
 	require.NoError(t, eq.postProcessSafeL2())
 
-	// advance over 50 l1 origins each time incrementing new l2 safe heads
+	// advance over 200 l1 origins each time incrementing new l2 safe heads
 	// and post processing.
-	for i := uint64(0); i < 50; i++ {
+	for i := uint64(0); i < 200; i++ {
 		require.NoError(t, eq.postProcessSafeL2())
 
 		l1parent = eth.L1BlockRef{
@@ -1311,6 +1311,6 @@ func TestPlasmaFinalityData(t *testing.T) {
 	}
 
 	// finality data does not go over challenge + resolve windows + 1 capacity
-	// (prunes down to 40 then adds the extra 1 each time)
+	// (prunes down to 180 then adds the extra 1 each time)
 	require.Equal(t, expFinalityLookback, len(eq.finalityData))
 }

@@ -72,6 +72,9 @@ func (s *PlasmaDataSource) Next(ctx context.Context) (eth.Data, error) {
 		return s.Next(ctx)
 	} else if errors.Is(err, plasma.ErrMissingPastWindow) {
 		return nil, NewCriticalError(fmt.Errorf("data for comm %x not available: %w", s.comm, err))
+	} else if errors.Is(err, plasma.ErrPendingChallenge) {
+		// continue stepping without slowing down.
+		return nil, NotEnoughData
 	} else if err != nil {
 		// return temporary error so we can keep retrying.
 		return nil, NewTemporaryError(fmt.Errorf("failed to fetch input data with comm %x from da service: %w", s.comm, err))

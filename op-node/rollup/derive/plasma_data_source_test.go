@@ -372,6 +372,18 @@ func TestPlasmaDataSourceStall(t *testing.T) {
 	_, err = src.Next(ctx)
 	require.ErrorIs(t, err, ErrTemporary)
 
+	// next block is available with no challenge events
+	nextRef := eth.L1BlockRef{
+		Number: ref.Number + 1,
+		Hash:   testutils.RandomHash(rng),
+	}
+	l1F.ExpectL1BlockRefByNumber(nextRef.Number, nextRef, nil)
+	l1F.ExpectFetchReceipts(nextRef.Hash, nil, types.Receipts{}, nil)
+
+	// not enough data
+	_, err = src.Next(ctx)
+	require.ErrorIs(t, err, NotEnoughData)
+
 	// now challenge is resolved
 	daState.SetResolvedChallenge(comm.Encode(), input, ref.Number+2)
 

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -141,11 +140,8 @@ func (d *DA) Finalize(l1Finalized eth.L1BlockRef) {
 // syncing challenge events until the challenge is resolved or expires.
 func (d *DA) LookAhead(ctx context.Context) error {
 	blkRef, err := d.l1.L1BlockRefByNumber(ctx, d.origin.Number+1)
-	if errors.Is(err, ethereum.NotFound) {
-		return io.EOF
-	}
+	// temporary error, will do a backoff
 	if err != nil {
-		d.log.Error("failed to fetch l1 head", "err", err)
 		return err
 	}
 	return d.AdvanceL1Origin(ctx, blkRef.ID())
