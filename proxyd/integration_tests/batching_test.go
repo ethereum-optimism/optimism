@@ -146,43 +146,50 @@ func TestBatching(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			config.Server.MaxUpstreamBatchSize = tt.maxUpstreamBatchSize
-			config.BackendOptions.MaxResponseSizeBytes = tt.maxResponseSizeBytes
+// Iterate over each test case defined in the tests slice.
+for _, tt := range tests {
+    t.Run(tt.name, func(t *testing.T) {
+        // Configure the server and backend options based on the test case.
+        config.Server.MaxUpstreamBatchSize = tt.maxUpstreamBatchSize
+        config.BackendOptions.MaxResponseSizeBytes = tt.maxResponseSizeBytes
 
-			handler := tt.handler
-			if handler == nil {
-				router := NewBatchRPCResponseRouter()
-				for _, mock := range tt.mocks {
-					router.SetRoute(mock.method, mock.id, mock.result)
-				}
-				handler = router
-			}
+        // If no handler is provided, create a new BatchRPCResponseRouter and set routes based on mocks.
+        handler := tt.handler
+        if handler == nil {
+            router := NewBatchRPCResponseRouter()
+            for _, mock := range tt.mocks {
+                router.SetRoute(mock.method, mock.id, mock.result)
+            }
+            handler = router
+        }
 
-			goodBackend := NewMockBackend(handler)
-			defer goodBackend.Close()
-			require.NoError(t, os.Setenv("GOOD_BACKEND_RPC_URL", goodBackend.URL()))
+        // Create a mock backend with the configured handler and ensure it's closed after the test.
+        goodBackend := NewMockBackend(handler)
+        defer goodBackend.Close()
+        require.NoError(t, os.Setenv("GOOD_BACKEND_RPC_URL", goodBackend.URL()))
 
-			client := NewProxydClient("http://127.0.0.1:8545")
-			_, shutdown, err := proxyd.Start(config)
-			require.NoError(t, err)
-			defer shutdown()
+        // Initialize a new Proxyd client and start the service with the given configuration.
+        client := NewProxydClient("http://127.0.0.1:8545")
+        _, shutdown, err := proxyd.Start(config)
+        require.NoError(t, err)
+        defer shutdown()
 
-			res, statusCode, err := client.SendBatchRPC(tt.reqs...)
-			require.NoError(t, err)
-			require.Equal(t, http.StatusOK, statusCode)
-			RequireEqualJSON(t, []byte(tt.expectedRes), res)
+        // Send a batch RPC request and validate the response and status code.
+        res, statusCode, err := client.SendBatchRPC(tt.reqs...)
+        require.NoError(t, err)
+        require.Equal(t, http.StatusOK, statusCode)
+        RequireEqualJSON(t, []byte(tt.expectedRes), res)
 
-			if tt.numExpectedForwards != 0 {
-				require.Equal(t, tt.numExpectedForwards, len(goodBackend.Requests()))
-			}
+        // If expected number of forwards is specified, validate the number of requests forwarded to the backend.
+        if tt.numExpectedForwards != 0 {
+            require.Equal(t, tt.numExpectedForwards, len(goodBackend.Requests()))
+        }
 
-			if handler, ok := handler.(*BatchRPCResponseRouter); ok {
-				for i, mock := range tt.mocks {
-					require.Equal(t, 1, handler.GetNumCalls(mock.method, mock.id), i)
-				}
-			}
-		})
-	}
+        // If the handler is a BatchRPCResponseRouter, validate the number of calls made to each mock method.
+        if handler, ok := handler.(*BatchRPCResponseRouter); ok {
+            for i, mock := range tt.mocks {
+                require.Equal(t, 1, handler.GetNumCalls(mock.method, mock.id), i)
+            }
+        }
+    })
 }
