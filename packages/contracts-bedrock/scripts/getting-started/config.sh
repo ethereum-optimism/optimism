@@ -12,12 +12,19 @@ reqenv() {
     fi
 }
 
+validate_url () {
+  url="${!1}"
+  if [[ `curl -s --head url | head -n 1 | grep "HTTP/[1-3].[0-9] [23].."` ]]; then echo "true"; fi
+}
+
 # Check required environment variables
 reqenv "GS_ADMIN_ADDRESS"
 reqenv "GS_BATCHER_ADDRESS"
 reqenv "GS_PROPOSER_ADDRESS"
 reqenv "GS_SEQUENCER_ADDRESS"
 reqenv "L1_RPC_URL"
+
+validate_url "L1_RPC_URL"
 
 # Get the finalized block timestamp and hash
 block=$(cast block finalized --rpc-url "$L1_RPC_URL")
