@@ -114,12 +114,14 @@ var (
 	}
 )
 
+// withEngineFlags appends common engine CLI flags to the provided flags.
 func withEngineFlags(flags ...cli.Flag) []cli.Flag {
 	return append(append(flags,
 		EngineEndpoint, EngineJWTPath, EngineOpenEndpoint, EngineVersion),
 		oplog.CLIFlags(envVarPrefix)...)
 }
 
+// ParseBuildingArgs parses CLI flags related to block building settings.
 func ParseBuildingArgs(ctx *cli.Context) *engine.BlockBuildingSettings {
 	return &engine.BlockBuildingSettings{
 		BlockTime:    ctx.Uint64(BlockTimeFlag.Name),
@@ -130,6 +132,7 @@ func ParseBuildingArgs(ctx *cli.Context) *engine.BlockBuildingSettings {
 	}
 }
 
+// CheatAction wraps a CLI action with a Geth database connection.
 func CheatAction(readOnly bool, fn func(ctx *cli.Context, ch *cheat.Cheater) error) cli.ActionFunc {
 	return func(ctx *cli.Context) error {
 		dataDir := ctx.String(DataDirFlag.Name)
@@ -141,6 +144,7 @@ func CheatAction(readOnly bool, fn func(ctx *cli.Context, ch *cheat.Cheater) err
 	}
 }
 
+// CheatRawDBAction wraps a CLI action with a raw Geth database connection.
 func CheatRawDBAction(readOnly bool, fn func(ctx *cli.Context, db ethdb.Database) error) cli.ActionFunc {
 	return func(ctx *cli.Context) error {
 		dataDir := ctx.String(DataDirFlag.Name)
@@ -152,6 +156,7 @@ func CheatRawDBAction(readOnly bool, fn func(ctx *cli.Context, db ethdb.Database
 	}
 }
 
+// EngineAction wraps a CLI action with an Engine API client.
 func EngineAction(fn func(ctx *cli.Context, client *sources.EngineAPIClient, lgr log.Logger) error) cli.ActionFunc {
 	return func(ctx *cli.Context) error {
 		lgr := initLogger(ctx)
@@ -169,6 +174,13 @@ func EngineAction(fn func(ctx *cli.Context, client *sources.EngineAPIClient, lgr
 	}
 }
 
+// initLogger initializes a logger based on CLI configuration.
+func initLogger(ctx *cli.Context) log.Logger {
+	logCfg := oplog.ReadCLIConfig(ctx)
+	lgr := oplog.NewLogger(oplog.AppOut(ctx), logCfg)
+	oplog.SetGlobalLogHandler(lgr.Handler())
+	return lgr
+}
 func initLogger(ctx *cli.Context) log.Logger {
 	logCfg := oplog.ReadCLIConfig(ctx)
 	lgr := oplog.NewLogger(oplog.AppOut(ctx), logCfg)
