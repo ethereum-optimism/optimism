@@ -108,9 +108,6 @@ type Config struct {
 	// L1 address that declares the protocol versions, optional (Beta feature)
 	ProtocolVersionsAddress common.Address `json:"protocol_versions_address,omitempty"`
 
-	// L1 block timestamp to start reading blobs as batch data-source. Optional.
-	BlobsEnabledL1Timestamp *uint64 `json:"blobs_data,omitempty"`
-
 	// L1 DataAvailabilityChallenge contract proxy address
 	DAChallengeAddress common.Address `json:"da_challenge_address,omitempty"`
 }

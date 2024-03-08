@@ -12,7 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-// channel is a lightweight wrapper around a channelBuilder which keeps track of pending
+// channel is a lightweight wrapper around a ChannelBuilder which keeps track of pending
 // and confirmed transactions for a single channel.
 type channel struct {
 	log  log.Logger
@@ -20,7 +20,7 @@ type channel struct {
 	cfg  ChannelConfig
 
 	// pending channel builder
-	channelBuilder *channelBuilder
+	channelBuilder *ChannelBuilder
 	// Set of unconfirmed txID -> tx data. For tx resubmission
 	pendingTransactions map[string]txData
 	// Set of confirmed txID -> inclusion block. For determining if the channel is timed out
@@ -35,7 +35,7 @@ type channel struct {
 }
 
 func newChannel(log log.Logger, metr metrics.Metricer, cfg ChannelConfig, rollupCfg *rollup.Config) (*channel, error) {
-	cb, err := newChannelBuilder(cfg, *rollupCfg)
+	cb, err := NewChannelBuilder(cfg, *rollupCfg)
 	if err != nil {
 		return nil, fmt.Errorf("creating new channel: %w", err)
 	}

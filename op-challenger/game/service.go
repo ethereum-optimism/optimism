@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/fetcher"
 	"github.com/ethereum-optimism/optimism/op-challenger/sender"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 
@@ -47,7 +48,8 @@ type Service struct {
 
 	cl *clock.SimpleClock
 
-	claimer *claims.BondClaimScheduler
+	claimants []common.Address
+	claimer   *claims.BondClaimScheduler
 
 	factoryContract *contracts.DisputeGameFactoryContract
 	registry        *registry.GameTypeRegistry
@@ -84,6 +86,7 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 	if err := s.initTxManager(ctx, cfg); err != nil {
 		return fmt.Errorf("failed to init tx manager: %w", err)
 	}
+	s.initClaimants(cfg)
 	if err := s.initL1Client(ctx, cfg); err != nil {
 		return fmt.Errorf("failed to init l1 client: %w", err)
 	}
@@ -105,7 +108,7 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 	if err := s.registerGameTypes(ctx, cfg); err != nil {
 		return fmt.Errorf("failed to register game types: %w", err)
 	}
-	if err := s.initBondClaims(); err != nil {
+	if err := s.initBondClaims(cfg); err != nil {
 		return fmt.Errorf("failed to init bond claiming: %w", err)
 	}
 	if err := s.initScheduler(cfg); err != nil {
@@ -120,6 +123,11 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 	s.metrics.RecordInfo(version.SimpleWithMeta)
 	s.metrics.RecordUp()
 	return nil
+}
+
+func (s *Service) initClaimants(cfg *config.Config) {
+	claimants := []common.Address{s.txSender.From()}
+	s.claimants = append(claimants, cfg.AdditionalBondClaimants...)
 }
 
 func (s *Service) initTxManager(ctx context.Context, cfg *config.Config) error {
@@ -196,8 +204,8 @@ func (s *Service) initFactoryContract(cfg *config.Config) error {
 	return nil
 }
 
-func (s *Service) initBondClaims() error {
-	claimer := claims.NewBondClaimer(s.logger, s.metrics, s.registry.CreateBondContract, s.txSender)
+func (s *Service) initBondClaims(cfg *config.Config) error {
+	claimer := claims.NewBondClaimer(s.logger, s.metrics, s.registry.CreateBondContract, s.txSender, s.claimants...)
 	s.claimer = claims.NewBondClaimScheduler(s.logger, s.metrics, claimer)
 	return nil
 }
@@ -217,7 +225,7 @@ func (s *Service) initRollupClient(ctx context.Context, cfg *config.Config) erro
 func (s *Service) registerGameTypes(ctx context.Context, cfg *config.Config) error {
 	gameTypeRegistry := registry.NewGameTypeRegistry()
 	caller := batching.NewMultiCaller(s.l1Client.Client(), batching.DefaultBatchSize)
-	closer, err := fault.RegisterGameTypes(gameTypeRegistry, ctx, s.cl, s.logger, s.metrics, cfg, s.rollupClient, s.txSender, s.factoryContract, caller, s.l1Client)
+	closer, err := fault.RegisterGameTypes(gameTypeRegistry, ctx, s.cl, s.logger, s.metrics, cfg, s.rollupClient, s.txSender, s.factoryContract, caller, s.l1Client, cfg.SelectiveClaimResolution, s.claimants)
 	if err != nil {
 		return err
 	}
@@ -247,6 +255,7 @@ func (s *Service) initMonitor(cfg *config.Config) {
 func (s *Service) Start(ctx context.Context) error {
 	s.logger.Info("starting scheduler")
 	s.sched.Start(ctx)
+	s.claimer.Start(ctx)
 	s.preimages.Start(ctx)
 	s.logger.Info("starting monitoring")
 	s.monitor.StartMonitoring()
