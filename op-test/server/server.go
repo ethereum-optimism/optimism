@@ -1,31 +1,66 @@
 package server
 
-// TODO main command
+import (
+	"context"
+	"errors"
+	"fmt"
+	"sync/atomic"
 
-// TODO service definition
+	"github.com/ethereum-optimism/optimism/op-service/rpc"
+)
 
-// TODO endpoint that turns unique path into unique websocket
+type TestServer struct {
+	rpcSrv *rpc.Server
 
-// TODO map endpoint uuid to test
+	stopped atomic.Bool
+}
 
-// TODO map uuid to resource
+func (ts *TestServer) Stopped() bool {
+	return ts.stopped.Load()
+}
 
-// TODO map uuid to list of tests that try to access it
+func FromCLIConfig(cfg *CLIConfig) (*TestServer, error) {
+	var ts TestServer
+	if err := ts.initFromCLIConfig(cfg); err != nil {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel() // cancel immediately, no need to be graceful with shutdown if we fail to start fully.
+		if closeErr := ts.Stop(ctx); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("failed to close server after failed setup: %w", closeErr))
+		}
+		return nil, err
+	}
+	return &ts, nil
+}
 
-// TODO function to load test-plan
+func (ts *TestServer) initFromCLIConfig(cfg *CLIConfig) error {
+	ts.rpcSrv = rpc.NewServer(
+		cfg.RPC.ListenAddr,
+		cfg.RPC.ListenPort,
+		cfg.Version)
 
-// TODO function to suggest systems that are necessary
+	// TODO load resources config from cfg.Config
+	return nil
+}
 
-// TODO function to write "go test" commands with suggested systems
+func (ts *TestServer) Start(ctx context.Context) error {
+	// TODO start workers
+	//
+	// TODO load preset resources of each worker
 
-// TODO represent total system resources
+	if err := ts.rpcSrv.Start(); err != nil {
+		return fmt.Errorf("failed to start RPC server: %w", err)
+	}
 
-// TODO function to run tests, as systems become available
-// TODO: packing problem, but just eagerly try to run tests
+	return nil
+}
 
-// TODO run "go test" in sub-process, merge test output
-
-// TODO log test results
-
-// TODO exit with 1 if any test failed
-
+func (ts *TestServer) Stop(ctx context.Context) error {
+	var result error
+	if ts.rpcSrv != nil {
+		if err := ts.rpcSrv.Stop(); err != nil {
+			result = errors.Join(result, fmt.Errorf("failed to stop RPC server: %w", err))
+		}
+	}
+	ts.stopped.Store(true)
+	return result
+}
