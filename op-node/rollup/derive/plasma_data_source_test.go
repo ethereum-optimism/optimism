@@ -27,12 +27,12 @@ type MockFinalitySignal struct {
 	mock.Mock
 }
 
-func (m *MockFinalitySignal) OnNewL1Finalized(ctx context.Context, blockRef eth.L1BlockRef) {
-	m.MethodCalled("OnNewL1Finalized", blockRef)
+func (m *MockFinalitySignal) OnFinalized(blockRef eth.L1BlockRef) {
+	m.MethodCalled("OnFinalized", blockRef)
 }
 
-func (m *MockFinalitySignal) ExpectL1Finalized(blockRef eth.L1BlockRef) {
-	m.On("OnNewL1Finalized", blockRef).Once()
+func (m *MockFinalitySignal) ExpectFinalized(blockRef eth.L1BlockRef) {
+	m.On("OnFinalized", blockRef).Once()
 }
 
 // TestPlasmaDataSource verifies that commitments are correctly read from l1 and then
@@ -61,7 +61,7 @@ func TestPlasmaDataSource(t *testing.T) {
 	da := plasma.NewPlasmaDAWithState(logger, pcfg, storage, l1F, metrics, daState)
 
 	finalitySignal := &MockFinalitySignal{}
-	da.OnFinalizedHeadSignal(finalitySignal.OnNewL1Finalized)
+	da.OnFinalizedHeadSignal(finalitySignal.OnFinalized)
 
 	// Create rollup genesis and config
 	l1Time := uint64(2)
@@ -115,9 +115,6 @@ func TestPlasmaDataSource(t *testing.T) {
 		// called for each l1 block to sync challenges
 		l1F.ExpectFetchReceipts(ref.Hash, nil, types.Receipts{}, nil)
 
-		// need to finalized l1 or else plasma DA will wait for it to signal.
-		da.FinalizeL1(ref)
-
 		// pick a random number of commitments to include in the l1 block
 		c := rng.Intn(4)
 		var txs []*types.Transaction
@@ -151,7 +148,7 @@ func TestPlasmaDataSource(t *testing.T) {
 
 		if ref.Number == 2 {
 			l1F.ExpectL1BlockRefByNumber(ref.Number, ref, nil)
-			finalitySignal.ExpectL1Finalized(ref)
+			finalitySignal.ExpectFinalized(ref)
 		}
 
 		// challenge the first 4 commitments as soon as we have collected them all
@@ -269,6 +266,10 @@ func TestPlasmaDataSource(t *testing.T) {
 		}
 
 	}
+
+	// trigger l1 finalization signal
+	da.Finalize(l1Refs[len(l1Refs)-32])
+
 	finalitySignal.AssertExpectations(t)
 	l1F.AssertExpectations(t)
 }
@@ -295,7 +296,7 @@ func TestPlasmaDataSourceStall(t *testing.T) {
 	da := plasma.NewPlasmaDAWithState(logger, pcfg, storage, l1F, metrics, daState)
 
 	finalitySignal := &MockFinalitySignal{}
-	da.OnFinalizedHeadSignal(finalitySignal.OnNewL1Finalized)
+	da.OnFinalizedHeadSignal(finalitySignal.OnFinalized)
 
 	// Create rollup genesis and config
 	l1Time := uint64(2)

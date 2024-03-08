@@ -45,6 +45,9 @@ type DAStorage interface {
 	SetInput(ctx context.Context, img []byte) (Keccak256Commitment, error)
 }
 
+// HeadSignalFn is the callback function to accept head-signals without a context.
+type HeadSignalFn func(eth.L1BlockRef)
+
 // Config is the relevant subset of rollup config for plasma DA.
 type Config struct {
 	// Required for filtering contract events
@@ -74,7 +77,7 @@ type DA struct {
 	// flag the reset function we are resetting because of an expired challenge
 	resetting int
 
-	finalizedHeadSignalFunc eth.HeadSignalFn
+	finalizedHeadSignalFunc HeadSignalFn
 }
 
 // NewPlasmaDA creates a new PlasmaDA instance with the given log and CLIConfig.
@@ -108,18 +111,29 @@ func NewPlasmaDAWithState(log log.Logger, cfg Config, storage DAStorage, l1f L1F
 
 // OnFinalizedHeadSignal sets the callback function to be called when the finalized head is updated.
 // This will signal to the engine queue that will set the proper L2 block as finalized.
-func (d *DA) OnFinalizedHeadSignal(f eth.HeadSignalFn) {
+func (d *DA) OnFinalizedHeadSignal(f HeadSignalFn) {
 	d.finalizedHeadSignalFunc = f
 }
 
-// FinalizeL1 advances l1 finalized head in case l1 finalization signal is behind DA finality.
-// If DA challenge params define a shorter finality period, the finalized head will update based on
-// L1 finality.
-func (d *DA) FinalizeL1(ref eth.L1BlockRef) {
-	d.log.Warn("l1 finalized", "ref", ref)
-	if ref.Number > d.l1FinalizedHead.Number {
-		d.l1FinalizedHead = ref
+// Finalize takes the L1 finality signal, compares the plasma finalized block and forwards the finality
+// signal to the engine queue based on whichever is most behind.
+func (d *DA) Finalize(l1Finalized eth.L1BlockRef) {
+	ref := d.finalizedHead
+	d.log.Info("received l1 finalized signal, forwarding to engine queue", "l1", l1Finalized, "plasma", ref)
+	// if the l1 finalized head is behind it is the finalized head
+	if l1Finalized.Number < d.finalizedHead.Number {
+		ref = l1Finalized
 	}
+	// prune finalized state
+	d.state.Prune(ref.Number)
+
+	if d.finalizedHeadSignalFunc == nil {
+		d.log.Warn("finalized head signal function not set")
+		return
+	}
+
+	// signal the engine queue
+	d.finalizedHeadSignalFunc(ref)
 }
 
 // LookAhead increments the challenges origin and process the new block if it exists.
@@ -244,22 +258,16 @@ func (d *DA) AdvanceL1Origin(ctx context.Context, block eth.BlockID) error {
 
 	// finalized head signal is called only when the finalized head number increases
 	// and the l1 finalized head ahead of the DA finalized head.
-	if bn > d.finalizedHead.Number && bn <= d.l1FinalizedHead.Number {
+	if bn > d.finalizedHead.Number {
 		ref, err := d.l1.L1BlockRefByNumber(ctx, bn)
 		if err != nil {
 			return err
 		}
 		d.metrics.RecordChallengesHead("finalized", bn)
 
-		// if we get a greater finalized head, signal to the engine queue
-		if d.finalizedHeadSignalFunc != nil {
-			d.finalizedHeadSignalFunc(ctx, ref)
-
-		}
-		// prune old state
-		d.state.Prune(bn)
+		// keep track of finalized had so it can be picked up by the
+		// l1 finalization signal
 		d.finalizedHead = ref
-
 	}
 	d.origin = block
 	d.metrics.RecordChallengesHead("latest", d.origin.Number)

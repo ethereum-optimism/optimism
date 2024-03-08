@@ -34,9 +34,9 @@ type PlasmaInputFetcher interface {
 	// Reset the challenge origin in case of L1 reorg
 	Reset(ctx context.Context, base eth.L1BlockRef, baseCfg eth.SystemConfig) error
 	// Notify L1 finalized head so plasma finality is always behind L1
-	FinalizeL1(ref eth.L1BlockRef)
+	Finalize(ref eth.L1BlockRef)
 	// Set the engine finalization signal callback
-	OnFinalizedHeadSignal(f eth.HeadSignalFn)
+	OnFinalizedHeadSignal(f plasma.HeadSignalFn)
 }
 
 // DataSourceFactory reads raw transactions from a given block & then filters for

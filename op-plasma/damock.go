@@ -88,10 +88,10 @@ func (d *PlasmaDisabled) Reset(ctx context.Context, base eth.L1BlockRef, baseCfg
 	return io.EOF
 }
 
-func (d *PlasmaDisabled) FinalizeL1(ref eth.L1BlockRef) {
+func (d *PlasmaDisabled) Finalize(ref eth.L1BlockRef) {
 }
 
-func (d *PlasmaDisabled) OnFinalizedHeadSignal(f eth.HeadSignalFn) {
+func (d *PlasmaDisabled) OnFinalizedHeadSignal(f HeadSignalFn) {
 }
 
 func (d *PlasmaDisabled) AdvanceL1Origin(ctx context.Context, blockId eth.BlockID) error {

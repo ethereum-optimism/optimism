@@ -266,10 +266,6 @@ func TestPlasma_ChallengeExpired(gt *testing.T) {
 	// Include a new l2 transaction, submitting an input commitment to the l1.
 	harness.ActNewL2Tx(t)
 
-	// L1 must be finalized for plasma to be finalized. This is only necessary
-	// when the challenge/resolve window is shorter than l1 finality.
-	harness.ActL1Finalized(t)
-
 	// Challenge the input commitment on the l1 challenge contract.
 	harness.ActChallengeLastInput(t)
 
@@ -282,6 +278,13 @@ func TestPlasma_ChallengeExpired(gt *testing.T) {
 	harness.ActExpireLastInput(t)
 
 	// catch up the sequencer derivation pipeline with the new l1 blocks.
+	harness.sequencer.ActL2PipelineFull(t)
+
+	// the L1 finalized signal should trigger plasma to finalize the engine queue.
+	harness.ActL1Finalized(t)
+
+	// move one more block for engine controller to update.
+	harness.ActL1Blocks(t, 1)
 	harness.sequencer.ActL2PipelineFull(t)
 
 	// make sure that the finalized head was correctly updated on the engine.
@@ -303,8 +306,8 @@ func TestPlasma_ChallengeExpired(gt *testing.T) {
 
 	// verifier is able to sync with expired missing data
 	verifier := harness.NewVerifier(t)
-	verifier.ActL1FinalizedSignal(t)
 	verifier.ActL2PipelineFull(t)
+	verifier.ActL1FinalizedSignal(t)
 
 	verifSyncStatus := verifier.SyncStatus()
 
@@ -327,9 +330,6 @@ func TestPlasma_ChallengeResolved(gt *testing.T) {
 	// generate 3 l1 blocks.
 	harness.ActL1Blocks(t, 3)
 
-	// finalize them on L1
-	harness.ActL1Finalized(t)
-
 	// challenge the input commitment for that l2 transaction on the l1 challenge contract.
 	harness.ActChallengeLastInput(t)
 
@@ -344,6 +344,9 @@ func TestPlasma_ChallengeResolved(gt *testing.T) {
 	// this syncs the resolved status and input data within the AltDA manager.
 	harness.sequencer.ActL2PipelineFull(t)
 
+	// finalize l1
+	harness.ActL1Finalized(t)
+
 	// delete the data from the storage service so it is not available at all
 	// to the verifier derivation pipeline.
 	harness.ActDeleteLastInput(t)
@@ -352,8 +355,8 @@ func TestPlasma_ChallengeResolved(gt *testing.T) {
 
 	// new verifier is able to sync and resolve the input from calldata
 	verifier := harness.NewVerifier(t)
-	verifier.ActL1FinalizedSignal(t)
 	verifier.ActL2PipelineFull(t)
+	verifier.ActL1FinalizedSignal(t)
 
 	verifSyncStatus := verifier.SyncStatus()
 

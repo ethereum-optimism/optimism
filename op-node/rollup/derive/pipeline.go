@@ -86,7 +86,7 @@ func NewDerivationPipeline(log log.Logger, rollupCfg *rollup.Config, l1Fetcher L
 	eng := NewEngineQueue(log, rollupCfg, l2Source, engine, metrics, attributesQueue, l1Fetcher, syncCfg, safeHeadListener)
 
 	// Plasma takes control of the engine finalization signal only when usePlasma is enabled.
-	plasma.OnFinalizedHeadSignal(func(ctx context.Context, ref eth.L1BlockRef) {
+	plasma.OnFinalizedHeadSignal(func(ref eth.L1BlockRef) {
 		eng.Finalize(ref)
 	})
 
@@ -125,10 +125,10 @@ func (dp *DerivationPipeline) Origin() eth.L1BlockRef {
 }
 
 func (dp *DerivationPipeline) Finalize(l1Origin eth.L1BlockRef) {
-	// In plasma mode, the finalization signal is proxied to the plasma manager.
+	// In plasma mode, the finalization signal is proxied through the plasma manager.
 	// Finality signal will come from the DA contract or L1 finality whichever is last.
 	if dp.rollupCfg.UsePlasma {
-		dp.plasma.FinalizeL1(l1Origin)
+		dp.plasma.Finalize(l1Origin)
 	} else {
 		dp.eng.Finalize(l1Origin)
 	}
