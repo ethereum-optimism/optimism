@@ -81,7 +81,7 @@ contract CrossL2Inbox is ISemver {
         ); // invariant
         require(msg.sender == tx.origin, "CrossL2Inbox: Not EOA sender"); // only EOA invariant
 
-        _tstoreCalldataID();
+        _tStoreCalldataID();
 
         bool success;
         assembly {
@@ -100,7 +100,7 @@ contract CrossL2Inbox is ISemver {
         require(success, "CrossL2Inbox: call failed");
     }
 
-    function _tstoreCalldataID() internal {
+    function _tStoreCalldataID() internal {
         assembly {
             tstore(ORIGIN_SLOT, calldataload(4))
             tstore(BLOCKNUMBER_SLOT, calldataload(36))
