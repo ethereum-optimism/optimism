@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 import { Script } from "forge-std/Script.sol";
 import { console2 as console } from "forge-std/console2.sol";
+import { Deployer } from "scripts/Deployer.sol";
 
 import { Config } from "scripts/Config.sol";
 import { Artifacts } from "scripts/Artifacts.s.sol";
@@ -33,11 +34,9 @@ interface IInitializable {
 ///         effects in the constructor and no immutables in the bytecode.
 ///         2. A contract must be deployed using the `new` syntax if there are immutables in the code.
 ///         Any other side effects from the init code besides setting the immutables must be cleaned up afterwards.
-contract L2Genesis is Script, Artifacts {
-    uint256 constant PROXY_COUNT = 2048;
-    uint256 constant PRECOMPILE_COUNT = 256;
-    DeployConfig public constant cfg =
-        DeployConfig(address(uint160(uint256(keccak256(abi.encode("optimism.deployconfig"))))));
+contract L2Genesis is Deployer {
+    uint256 constant public PREDEPLOY_COUNT = 2048;
+    uint256 constant public PRECOMPILE_COUNT = 256;
 
     uint80 internal constant DEV_ACCOUNT_FUND_AMT = 10_000 ether;
     /// @notice Default Anvil dev accounts. Only funded if `cfg.fundDevAccounts == true`.
@@ -54,26 +53,20 @@ contract L2Genesis is Script, Artifacts {
         0xa0Ee7A142d267C1f36714E4a8F75612F20a79720
     ];
 
-    string internal outfile;
 
     mapping(address => string) internal names;
+
+    function name() public pure override returns (string memory) {
+        return "L2Genesis";
+    }
 
     /// @dev Reads the deploy config, sets `outfile` which is where the `vm.dumpState` will be saved to, and
     ///      loads in the addresses for the L1 contract deployments.
     function setUp() public override {
-        Artifacts.setUp();
+        super.setUp();
 
+        // TODO: modularize this setNames into own contract
         _setNames();
-
-        string memory path = string.concat(vm.projectRoot(), "/deploy-config/", deploymentContext, ".json");
-        vm.etch(address(cfg), vm.getDeployedCode("DeployConfig.s.sol:DeployConfig"));
-        vm.label(address(cfg), "DeployConfig");
-        vm.allowCheatcodes(address(cfg));
-        cfg.read(path);
-
-        outfile = string.concat(vm.projectRoot(), "/deployments/", deploymentContext, "/genesis-l2.json");
-
-        _loadAddresses(string.concat(vm.projectRoot(), "/deployments/", deploymentContext, "/.deploy"));
     }
 
     /// @dev Creates a mapping of predeploy addresses to their names. This needs to be updated
@@ -106,23 +99,19 @@ contract L2Genesis is Script, Artifacts {
     ///      to generate a L2 genesis alloc.
     /// @notice The alloc object is sorted numerically by address.
     function run() public {
-        _dealEthToPrecompiles();
-        _setPredeployProxies();
-        _setPredeployImplementations();
+        dealEthToPrecompiles();
+        setPredeployProxies();
+        setPredeployImplementations();
 
         if (cfg.fundDevAccounts()) {
-            _fundDevAccounts();
+            fundDevAccounts();
         }
 
-        /// Reset so its not included state dump
-        vm.etch(address(cfg), "");
-
-        vm.dumpState(outfile);
-        _sortJsonByKeys(outfile);
+        writeStateDump();
     }
 
     /// @notice Give all of the precompiles 1 wei
-    function _dealEthToPrecompiles() internal {
+    function dealEthToPrecompiles() internal {
         for (uint256 i; i < PRECOMPILE_COUNT; i++) {
             vm.deal(address(uint160(i)), 1);
         }
@@ -132,16 +121,16 @@ contract L2Genesis is Script, Artifacts {
     ///      The Proxy bytecode should be set. All proxied predeploys should have
     ///      the 1967 admin slot set to the ProxyAdmin predeploy. All defined predeploys
     ///      should have their implementations set.
-    function _setPredeployProxies() internal {
+    function setPredeployProxies() public {
         bytes memory code = vm.getDeployedCode("Proxy.sol:Proxy");
         uint160 prefix = uint160(0x420) << 148;
 
         console.log(
             "Setting proxy deployed bytecode for addresses in range %s through %s",
             address(prefix | uint160(0)),
-            address(prefix | uint160(PROXY_COUNT - 1))
+            address(prefix | uint160(PREDEPLOY_COUNT - 1))
         );
-        for (uint256 i = 0; i < PROXY_COUNT; i++) {
+        for (uint256 i = 0; i < PREDEPLOY_COUNT; i++) {
             address addr = address(prefix | uint160(i));
             if (_notProxied(addr)) {
                 console.log("Skipping proxy at %s", addr);
@@ -152,7 +141,7 @@ contract L2Genesis is Script, Artifacts {
             EIP1967Helper.setAdmin(addr, Predeploys.PROXY_ADMIN);
 
             if (_isDefinedPredeploy(addr)) {
-                address implementation = _predeployToCodeNamespace(addr);
+                address implementation = predeployToCodeNamespace(addr);
                 console.log("Setting proxy %s implementation: %s", addr, implementation);
                 EIP1967Helper.setImplementation(addr, implementation);
             }
@@ -162,33 +151,33 @@ contract L2Genesis is Script, Artifacts {
     /// @dev Sets all the implementations for the predeploy proxies. For contracts without proxies,
     ///      sets the deployed bytecode at their expected predeploy address.
     ///      LEGACY_ERC20_ETH and L1_MESSAGE_SENDER are deprecated and are not set.
-    function _setPredeployImplementations() internal {
-        _setL2ToL1MessagePasser();
-        _setL2CrossDomainMessenger();
-        _setL2StandardBridge();
-        _setL2ERC721Bridge();
-        _setSequencerFeeVault();
-        _setOptimismMintableERC20Factory();
-        _setOptimismMintableERC721Factory();
-        _setL1Block();
-        _setGasPriceOracle();
-        _setDeployerWhitelist();
-        _setWETH9();
-        _setL1BlockNumber();
-        _setLegacyMessagePasser();
-        _setBaseFeeVault();
-        _setL1FeeVault();
-        _setGovernanceToken();
-        _setSchemaRegistry();
-        _setEAS();
+    function setPredeployImplementations() internal {
+        setL2ToL1MessagePasser();
+        setL2CrossDomainMessenger();
+        setL2StandardBridge();
+        setL2ERC721Bridge();
+        setSequencerFeeVault();
+        setOptimismMintableERC20Factory();
+        setOptimismMintableERC721Factory();
+        setL1Block();
+        setGasPriceOracle();
+        setDeployerWhitelist();
+        setWETH9();
+        setL1BlockNumber();
+        setLegacyMessagePasser();
+        setBaseFeeVault();
+        setL1FeeVault();
+        setGovernanceToken();
+        setSchemaRegistry();
+        setEAS();
     }
 
-    function _setL2ToL1MessagePasser() internal {
+    function setL2ToL1MessagePasser() public {
         _setImplementationCode(Predeploys.L2_TO_L1_MESSAGE_PASSER);
     }
 
     /// @notice This predeploy is following the saftey invariant #1.
-    function _setL2CrossDomainMessenger() internal {
+    function setL2CrossDomainMessenger() public {
         address impl = _setImplementationCode(Predeploys.L2_CROSS_DOMAIN_MESSENGER);
 
         L2CrossDomainMessenger(impl).initialize({
@@ -201,7 +190,7 @@ contract L2Genesis is Script, Artifacts {
     }
 
     /// @notice This predeploy is following the saftey invariant #1.
-    function _setL2StandardBridge() internal {
+    function setL2StandardBridge() public {
         address impl = _setImplementationCode(Predeploys.L2_STANDARD_BRIDGE);
 
         L2StandardBridge(payable(impl)).initialize({
@@ -214,7 +203,7 @@ contract L2Genesis is Script, Artifacts {
     }
 
     /// @notice This predeploy is following the saftey invariant #1.
-    function _setL2ERC721Bridge() internal {
+    function setL2ERC721Bridge() public {
         address impl = _setImplementationCode(Predeploys.L2_ERC721_BRIDGE);
 
         L2ERC721Bridge(impl).initialize({
@@ -227,14 +216,14 @@ contract L2Genesis is Script, Artifacts {
     }
 
     /// @notice This predeploy is following the saftey invariant #2,
-    function _setSequencerFeeVault() internal {
+    function setSequencerFeeVault() public {
         SequencerFeeVault vault = new SequencerFeeVault({
             _recipient: cfg.sequencerFeeVaultRecipient(),
             _minWithdrawalAmount: cfg.sequencerFeeVaultMinimumWithdrawalAmount(),
             _withdrawalNetwork: FeeVault.WithdrawalNetwork(cfg.sequencerFeeVaultWithdrawalNetwork())
         });
 
-        address impl = _predeployToCodeNamespace(Predeploys.SEQUENCER_FEE_WALLET);
+        address impl = predeployToCodeNamespace(Predeploys.SEQUENCER_FEE_WALLET);
         console.log("Setting %s implementation at: %s", "SequencerFeeVault", impl);
         vm.etch(impl, address(vault).code);
 
@@ -244,7 +233,7 @@ contract L2Genesis is Script, Artifacts {
     }
 
     /// @notice This predeploy is following the saftey invariant #1.
-    function _setOptimismMintableERC20Factory() internal {
+    function setOptimismMintableERC20Factory() public {
         address impl = _setImplementationCode(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY);
 
         OptimismMintableERC20Factory(impl).initialize({
@@ -257,13 +246,13 @@ contract L2Genesis is Script, Artifacts {
     }
 
     /// @notice This predeploy is following the saftey invariant #2,
-    function _setOptimismMintableERC721Factory() internal {
+    function setOptimismMintableERC721Factory() public {
         OptimismMintableERC721Factory factory = new OptimismMintableERC721Factory({
             _bridge: Predeploys.L2_ERC721_BRIDGE,
             _remoteChainId: cfg.l1ChainID()
         });
 
-        address impl = _predeployToCodeNamespace(Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY);
+        address impl = predeployToCodeNamespace(Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY);
         console.log("Setting %s implementation at: %s", "OptimismMintableERC721Factory", impl);
         vm.etch(impl, address(factory).code);
 
@@ -273,24 +262,24 @@ contract L2Genesis is Script, Artifacts {
     }
 
     /// @notice This predeploy is following the saftey invariant #1.
-    function _setL1Block() internal {
+    function setL1Block() public {
         _setImplementationCode(Predeploys.L1_BLOCK_ATTRIBUTES);
     }
 
     /// @notice This predeploy is following the saftey invariant #1.
-    function _setGasPriceOracle() internal {
+    function setGasPriceOracle() public {
         _setImplementationCode(Predeploys.GAS_PRICE_ORACLE);
     }
 
     /// @notice This predeploy is following the saftey invariant #1.
-    function _setDeployerWhitelist() internal {
+    function setDeployerWhitelist() public {
         _setImplementationCode(Predeploys.DEPLOYER_WHITELIST);
     }
 
     /// @notice This predeploy is following the saftey invariant #1.
     ///         This contract is NOT proxied and the state that is set
     ///         in the constructor is set manually.
-    function _setWETH9() internal {
+    function setWETH9() public {
         console.log("Setting %s implementation at: %s", "WETH9", Predeploys.WETH9);
         vm.etch(Predeploys.WETH9, vm.getDeployedCode("WETH9.sol:WETH9"));
 
@@ -318,24 +307,24 @@ contract L2Genesis is Script, Artifacts {
     }
 
     /// @notice This predeploy is following the saftey invariant #1.
-    function _setL1BlockNumber() internal {
+    function setL1BlockNumber() public {
         _setImplementationCode(Predeploys.L1_BLOCK_NUMBER);
     }
 
     /// @notice This predeploy is following the saftey invariant #1.
-    function _setLegacyMessagePasser() internal {
+    function setLegacyMessagePasser() public {
         _setImplementationCode(Predeploys.LEGACY_MESSAGE_PASSER);
     }
 
     /// @notice This predeploy is following the saftey invariant #2.
-    function _setBaseFeeVault() internal {
+    function setBaseFeeVault() public {
         BaseFeeVault vault = new BaseFeeVault({
             _recipient: cfg.baseFeeVaultRecipient(),
             _minWithdrawalAmount: cfg.baseFeeVaultMinimumWithdrawalAmount(),
             _withdrawalNetwork: FeeVault.WithdrawalNetwork(cfg.baseFeeVaultWithdrawalNetwork())
         });
 
-        address impl = _predeployToCodeNamespace(Predeploys.BASE_FEE_VAULT);
+        address impl = predeployToCodeNamespace(Predeploys.BASE_FEE_VAULT);
         console.log("Setting %s implementation at: %s", "BaseFeeVault", impl);
         vm.etch(impl, address(vault).code);
 
@@ -345,14 +334,14 @@ contract L2Genesis is Script, Artifacts {
     }
 
     /// @notice This predeploy is following the saftey invariant #2.
-    function _setL1FeeVault() internal {
+    function setL1FeeVault() public {
         L1FeeVault vault = new L1FeeVault({
             _recipient: cfg.l1FeeVaultRecipient(),
             _minWithdrawalAmount: cfg.l1FeeVaultMinimumWithdrawalAmount(),
             _withdrawalNetwork: FeeVault.WithdrawalNetwork(cfg.l1FeeVaultWithdrawalNetwork())
         });
 
-        address impl = _predeployToCodeNamespace(Predeploys.L1_FEE_VAULT);
+        address impl = predeployToCodeNamespace(Predeploys.L1_FEE_VAULT);
         console.log("Setting %s implementation at: %s", "L1FeeVault", impl);
         vm.etch(impl, address(vault).code);
 
@@ -362,7 +351,7 @@ contract L2Genesis is Script, Artifacts {
     }
 
     /// @notice This predeploy is following the saftey invariant #2.
-    function _setGovernanceToken() internal {
+    function setGovernanceToken() public {
         if (!cfg.enableGovernance()) {
             console.log("Governance not enabled, skipping setting governanace token");
             return;
@@ -386,24 +375,24 @@ contract L2Genesis is Script, Artifacts {
     }
 
     /// @notice This predeploy is following the saftey invariant #1.
-    function _setSchemaRegistry() internal {
+    function setSchemaRegistry() public {
         _setImplementationCode(Predeploys.SCHEMA_REGISTRY);
     }
 
     /// @notice This predeploy is following the saftey invariant #2,
     ///         It uses low level create to deploy the contract due to the code
     ///         having immutables and being a different compiler version.
-    function _setEAS() internal {
-        string memory name = names[Predeploys.EAS];
-        address impl = _predeployToCodeNamespace(Predeploys.EAS);
-        bytes memory code = vm.getCode(string.concat(name, ".sol:", name));
+    function setEAS() public {
+        string memory cname = names[Predeploys.EAS];
+        address impl = predeployToCodeNamespace(Predeploys.EAS);
+        bytes memory code = vm.getCode(string.concat(cname, ".sol:", cname));
 
         address eas;
         assembly {
             eas := create(0, add(code, 0x20), mload(code))
         }
 
-        console.log("Setting %s implementation at: %s", name, impl);
+        console.log("Setting %s implementation at: %s", cname, impl);
         vm.etch(impl, eas.code);
 
         /// Reset so its not included state dump
@@ -430,7 +419,7 @@ contract L2Genesis is Script, Artifacts {
 
     /// @notice Function to compute the expected address of the predeploy implementation
     ///         in the genesis state.
-    function _predeployToCodeNamespace(address _addr) internal pure returns (address) {
+    function predeployToCodeNamespace(address _addr) public pure returns (address) {
         return address(
             uint160(uint256(uint160(_addr)) & 0xffff | uint256(uint160(0xc0D3C0d3C0d3C0D3c0d3C0d3c0D3C0d3c0d30000)))
         );
@@ -438,16 +427,29 @@ contract L2Genesis is Script, Artifacts {
 
     /// @notice Sets the bytecode in state
     function _setImplementationCode(address _addr) internal returns (address) {
-        string memory name = names[_addr];
-        address impl = _predeployToCodeNamespace(_addr);
-        console.log("Setting %s implementation at: %s", name, impl);
-        vm.etch(impl, vm.getDeployedCode(string.concat(name, ".sol:", name)));
-
+        string memory cname = names[_addr];
+        address impl = predeployToCodeNamespace(_addr);
+        console.log("Setting %s implementation at: %s", cname, impl);
+        vm.etch(impl, vm.getDeployedCode(string.concat(cname, ".sol:", cname)));
         return impl;
     }
 
+    /// @notice Writes the state dump to disk
+    function writeStateDump() public {
+        /// Reset so its not included state dump
+        vm.etch(address(cfg), "");
+        vm.etch(msg.sender, "");
+        vm.resetNonce(msg.sender);
+        vm.deal(msg.sender, 0);
+
+        string memory path = Config.stateDumpPath();
+        console.log("Writing state dump to: %s", path);
+        vm.dumpState(path);
+        sortJsonByKeys(path);
+    }
+
     /// @notice Sorts the allocs by address
-    function _sortJsonByKeys(string memory _path) internal {
+    function sortJsonByKeys(string memory _path) internal {
         string[] memory commands = new string[](3);
         commands[0] = "bash";
         commands[1] = "-c";
@@ -456,7 +458,7 @@ contract L2Genesis is Script, Artifacts {
     }
 
     /// @notice Funds the default dev accounts with ether
-    function _fundDevAccounts() internal {
+    function fundDevAccounts() internal {
         for (uint256 i; i < devAccounts.length; i++) {
             console.log("Funding dev account %s with %s ETH", devAccounts[i], DEV_ACCOUNT_FUND_AMT / 1e18);
             vm.deal(devAccounts[i], DEV_ACCOUNT_FUND_AMT);
