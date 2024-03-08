@@ -32,6 +32,7 @@ contract DeployPeriphery is Script, Artifacts {
 
     function setUp() public override {
         Artifacts.setUp();
+        string memory deploymentContext = Config.deploymentContext();
 
         string memory path = string.concat(vm.projectRoot(), "/periphery-deploy-config/", deploymentContext, ".json");
         cfg = new PeripheryDeployConfig(path);
@@ -337,6 +338,12 @@ contract DeployPeriphery is Script, Artifacts {
                 _adminWalletDripName(l1BridgeAddress, cfg.dripVersion())
             );
         }
+        _installTrasnferEthToDrip(
+            adminWallet,
+            cfg.opChainAdminWalletDripValue(),
+            cfg.opChainAdminWalletDripInterval(),
+            _adminWalletDripName(adminWallet, cfg.dripVersion())
+        );
     }
 
     /// @notice installs drips that send funds to large OP chain faucets on the scheduled interval.
@@ -353,6 +360,12 @@ contract DeployPeriphery is Script, Artifacts {
                 _faucetDripName(l1BridgeAddress, cfg.dripVersion())
             );
         }
+        _installTrasnferEthToDrip(
+            faucetProxy,
+            cfg.largeOpChainFaucetDripValue(),
+            cfg.largeOpChainFaucetDripInterval(),
+            _faucetDripName(faucetProxy, cfg.dripVersion())
+        );
     }
 
     /// @notice installs the FaucetDripV1 drip on the faucet drippie contract.
@@ -661,7 +674,7 @@ contract DeployPeriphery is Script, Artifacts {
 
     /// @notice installs all of the auth module in the faucet contract.
     function installFaucetAuthModulesConfigs() public {
-        Faucet faucet = Faucet(mustGetAddress("FaucetProxy"));
+                Faucet faucet = Faucet(mustGetAddress("FaucetProxy"));
         console.log("Installing auth modules at %s", address(faucet));
         installOnChainAuthModule();
         installOffChainAuthModule();
@@ -697,6 +710,41 @@ contract DeployPeriphery is Script, Artifacts {
             actions[0] = Drippie.DripAction({
                 target: payable(_l1Bridge),
                 data: abi.encodeWithSignature("depositETHTo(address,uint32,bytes)", _depositTo, 200000, ""),
+                value: _dripValue
+            });
+            drippie.create({
+                _name: dripName,
+                _config: Drippie.DripConfig({
+                    reentrant: false,
+                    interval: _dripInterval,
+                    dripcheck: CheckTrue(mustGetAddress("CheckTrue")),
+                    checkparams: abi.encode(""),
+                    actions: actions
+                })
+            });
+            console.log("%s installed successfully", dripName);
+        } else {
+            console.log("%s already installed.", dripName);
+        }
+
+        _activateIfPausedDrip(drippie, dripName);
+    }
+
+    function _installTrasnferEthToDrip(
+        address _depositTo,
+        uint256 _dripValue,
+        uint256 _dripInterval,
+        string memory dripName
+    )
+        internal
+    {
+        Drippie drippie = Drippie(mustGetAddress("FaucetDrippie"));
+        if (drippie.getDripStatus(dripName) == Drippie.DripStatus.NONE) {
+            console.log("installing %s", dripName);
+            Drippie.DripAction[] memory actions = new Drippie.DripAction[](1);
+            actions[0] = Drippie.DripAction({
+                target: payable(_depositTo),
+                data: "",
                 value: _dripValue
             });
             drippie.create({
