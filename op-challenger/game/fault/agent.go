@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -25,7 +26,7 @@ type Responder interface {
 }
 
 type ClaimLoader interface {
-	GetAllClaims(ctx context.Context) ([]types.Claim, error)
+	GetAllClaims(ctx context.Context, block rpcblock.Block) ([]types.Claim, error)
 }
 
 type Agent struct {
@@ -119,7 +120,7 @@ func (a *Agent) tryResolve(ctx context.Context) bool {
 var errNoResolvableClaims = errors.New("no resolvable claims")
 
 func (a *Agent) tryResolveClaims(ctx context.Context) error {
-	claims, err := a.loader.GetAllClaims(ctx)
+	claims, err := a.loader.GetAllClaims(ctx, rpcblock.Latest)
 	if err != nil {
 		return fmt.Errorf("failed to fetch claims: %w", err)
 	}
@@ -172,7 +173,7 @@ func (a *Agent) resolveClaims(ctx context.Context) error {
 
 // newGameFromContracts initializes a new game state from the state in the contract
 func (a *Agent) newGameFromContracts(ctx context.Context) (types.Game, error) {
-	claims, err := a.loader.GetAllClaims(ctx)
+	claims, err := a.loader.GetAllClaims(ctx, rpcblock.Latest)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch claims: %w", err)
 	}

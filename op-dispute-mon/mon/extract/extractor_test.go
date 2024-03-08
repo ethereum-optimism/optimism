@@ -3,8 +3,11 @@ package extract
 import (
 	"context"
 	"errors"
+	"math/big"
 	"testing"
 
+	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/stretchr/testify/require"
 
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
@@ -79,37 +82,69 @@ func TestExtractor_Extract(t *testing.T) {
 		require.Equal(t, 1, creator.caller.metadataCalls)
 		require.Equal(t, 1, creator.caller.claimsCalls)
 	})
+
+	t.Run("EnricherFails", func(t *testing.T) {
+		enricher := &mockEnricher{err: errors.New("whoops")}
+		extractor, _, games, logs := setupExtractorTest(t, enricher)
+		games.games = []gameTypes.GameMetadata{{}}
+		enriched, err := extractor.Extract(context.Background(), common.Hash{}, 0)
+		require.NoError(t, err)
+		l := logs.FindLogs(testlog.NewMessageFilter("Failed to enrich game"))
+		require.Len(t, l, 1, "Should have logged error")
+		require.Len(t, enriched, 0, "Should not return games that failed to enrich")
+	})
+
+	t.Run("EnricherSuccess", func(t *testing.T) {
+		enricher := &mockEnricher{}
+		extractor, _, games, _ := setupExtractorTest(t, enricher)
+		games.games = []gameTypes.GameMetadata{{}}
+		enriched, err := extractor.Extract(context.Background(), common.Hash{}, 0)
+		require.NoError(t, err)
+		require.Len(t, enriched, 1)
+		require.Equal(t, 1, enricher.calls)
+	})
+
+	t.Run("MultipleEnrichersMultipleGames", func(t *testing.T) {
+		enricher1 := &mockEnricher{}
+		enricher2 := &mockEnricher{}
+		extractor, _, games, _ := setupExtractorTest(t, enricher1, enricher2)
+		games.games = []gameTypes.GameMetadata{{}, {}}
+		enriched, err := extractor.Extract(context.Background(), common.Hash{}, 0)
+		require.NoError(t, err)
+		require.Len(t, enriched, 2)
+		require.Equal(t, 2, enricher1.calls)
+		require.Equal(t, 2, enricher2.calls)
+	})
 }
 
 func verifyLogs(t *testing.T, logs *testlog.CapturingHandler, createErr int, metadataErr int, claimsErr int, durationErr int) {
 	errorLevelFilter := testlog.NewLevelFilter(log.LevelError)
-	createMessageFilter := testlog.NewMessageFilter("failed to create game caller")
+	createMessageFilter := testlog.NewMessageFilter("Failed to create game caller")
 	l := logs.FindLogs(errorLevelFilter, createMessageFilter)
 	require.Len(t, l, createErr)
-	fetchMessageFilter := testlog.NewMessageFilter("failed to fetch game metadata")
+	fetchMessageFilter := testlog.NewMessageFilter("Failed to fetch game metadata")
 	l = logs.FindLogs(errorLevelFilter, fetchMessageFilter)
 	require.Len(t, l, metadataErr)
-	claimsMessageFilter := testlog.NewMessageFilter("failed to fetch game claims")
+	claimsMessageFilter := testlog.NewMessageFilter("Failed to fetch game claims")
 	l = logs.FindLogs(errorLevelFilter, claimsMessageFilter)
 	require.Len(t, l, claimsErr)
-	durationMessageFilter := testlog.NewMessageFilter("failed to fetch game duration")
+	durationMessageFilter := testlog.NewMessageFilter("Failed to fetch game duration")
 	l = logs.FindLogs(errorLevelFilter, durationMessageFilter)
 	require.Len(t, l, durationErr)
 }
 
-func setupExtractorTest(t *testing.T) (*Extractor, *mockGameCallerCreator, *mockGameFetcher, *testlog.CapturingHandler) {
+func setupExtractorTest(t *testing.T, enrichers ...Enricher) (*Extractor, *mockGameCallerCreator, *mockGameFetcher, *testlog.CapturingHandler) {
 	logger, capturedLogs := testlog.CaptureLogger(t, log.LvlDebug)
 	games := &mockGameFetcher{}
 	caller := &mockGameCaller{rootClaim: mockRootClaim}
 	creator := &mockGameCallerCreator{caller: caller}
-	return NewExtractor(
-			logger,
-			creator.CreateGameCaller,
-			games.FetchGames,
-		),
-		creator,
-		games,
-		capturedLogs
+	extractor := NewExtractor(
+		logger,
+		creator.CreateGameCaller,
+		games.FetchGames,
+		enrichers...,
+	)
+	return extractor, creator, games, capturedLogs
 }
 
 type mockGameFetcher struct {
@@ -141,15 +176,21 @@ func (m *mockGameCallerCreator) CreateGameCaller(_ gameTypes.GameMetadata) (Game
 }
 
 type mockGameCaller struct {
-	metadataCalls int
-	metadataErr   error
-	claimsCalls   int
-	claimsErr     error
-	rootClaim     common.Hash
-	claims        []faultTypes.Claim
+	metadataCalls    int
+	metadataErr      error
+	claimsCalls      int
+	claimsErr        error
+	rootClaim        common.Hash
+	claims           []faultTypes.Claim
+	requestedCredits []common.Address
+	creditsErr       error
+	credits          []*big.Int
+	balanceErr       error
+	balance          *big.Int
+	balanceAddr      common.Address
 }
 
-func (m *mockGameCaller) GetGameMetadata(_ context.Context) (uint64, common.Hash, types.GameStatus, uint64, error) {
+func (m *mockGameCaller) GetGameMetadata(_ context.Context, _ rpcblock.Block) (uint64, common.Hash, types.GameStatus, uint64, error) {
 	m.metadataCalls++
 	if m.metadataErr != nil {
 		return 0, common.Hash{}, 0, 0, m.metadataErr
@@ -157,10 +198,35 @@ func (m *mockGameCaller) GetGameMetadata(_ context.Context) (uint64, common.Hash
 	return 0, mockRootClaim, 0, 0, nil
 }
 
-func (m *mockGameCaller) GetAllClaims(ctx context.Context) ([]faultTypes.Claim, error) {
+func (m *mockGameCaller) GetAllClaims(_ context.Context, _ rpcblock.Block) ([]faultTypes.Claim, error) {
 	m.claimsCalls++
 	if m.claimsErr != nil {
 		return nil, m.claimsErr
 	}
 	return m.claims, nil
+}
+
+func (m *mockGameCaller) GetCredits(_ context.Context, _ rpcblock.Block, recipients ...common.Address) ([]*big.Int, error) {
+	m.requestedCredits = recipients
+	if m.creditsErr != nil {
+		return nil, m.creditsErr
+	}
+	return m.credits, nil
+}
+
+func (m *mockGameCaller) GetBalance(_ context.Context, _ rpcblock.Block) (*big.Int, common.Address, error) {
+	if m.balanceErr != nil {
+		return nil, common.Address{}, m.balanceErr
+	}
+	return m.balance, m.balanceAddr, nil
+}
+
+type mockEnricher struct {
+	err   error
+	calls int
+}
+
+func (m *mockEnricher) Enrich(_ context.Context, _ rpcblock.Block, _ GameCaller, _ *monTypes.EnrichedGameData) error {
+	m.calls++
+	return m.err
 }

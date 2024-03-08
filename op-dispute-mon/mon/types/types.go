@@ -18,6 +18,17 @@ type EnrichedGameData struct {
 	Status        types.GameStatus
 	Duration      uint64
 	Claims        []faultTypes.Claim
+
+	// Credits records the paid out bonds for the game, keyed by recipient.
+	Credits map[common.Address]*big.Int
+
+	// WETHContract is the address of the DelayedWETH contract used by this game
+	// The contract is potentially shared by multiple games.
+	WETHContract common.Address
+
+	// ETHCollateral is the ETH balance of the (potentially shared) WETHContract
+	// This ETH balance will be used to pay out any bonds required by the games that use the same DelayedWETH contract.
+	ETHCollateral *big.Int
 }
 
 // BidirectionalTree is a tree of claims represented as a flat list of claims.

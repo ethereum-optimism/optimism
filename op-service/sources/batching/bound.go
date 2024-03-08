@@ -25,6 +25,10 @@ func NewBoundContract(abi *abi.ABI, addr common.Address) *BoundContract {
 	}
 }
 
+func (b *BoundContract) Addr() common.Address {
+	return b.addr
+}
+
 func (b *BoundContract) Call(method string, args ...interface{}) *ContractCall {
 	return NewContractCall(b.abi, b.addr, method, args...)
 }

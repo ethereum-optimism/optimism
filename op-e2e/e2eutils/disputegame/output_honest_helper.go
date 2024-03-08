@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -92,7 +93,7 @@ func (h *OutputHonestHelper) StepFails(ctx context.Context, claimIdx int64, isAt
 }
 
 func (h *OutputHonestHelper) loadState(ctx context.Context, claimIdx int64) (types.Game, types.Claim) {
-	claims, err := h.contract.GetAllClaims(ctx)
+	claims, err := h.contract.GetAllClaims(ctx, rpcblock.Latest)
 	h.require.NoError(err, "Failed to load claims from game")
 	game := types.NewGameState(claims, h.game.MaxDepth(ctx))
 
