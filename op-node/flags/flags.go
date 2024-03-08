@@ -295,7 +295,6 @@ var (
 		Name:     "safedb.path",
 		Usage:    "File path used to persist safe head update data. Disabled if not set.",
 		EnvVars:  prefixEnvVars("SAFEDB_PATH"),
-		Hidden:   true,
 		Category: OperationsCategory,
 	}
 	/* Deprecated Flags */
