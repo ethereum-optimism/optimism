@@ -52,7 +52,7 @@ func (s *PlasmaDataSource) Next(ctx context.Context) (eth.Data, error) {
 		// validate batcher inbox data is a commitment.
 		comm, err := plasma.DecodeKeccak256(data)
 		if err != nil {
-			s.log.Warn("invalid commitment", "data", fmt.Sprintf("%x", data), "err", err)
+			s.log.Warn("invalid commitment", "commitment", data, "err", err)
 			return s.Next(ctx)
 		}
 		s.comm = comm
