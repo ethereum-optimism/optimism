@@ -4,8 +4,6 @@ pragma solidity ^0.8.24;
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 
-/// @custom:proxied
-/// @custom:predeploy 0x4200000000000000000000000000000000000022
 /// @title IL1Block_OnlyIsInDependencySet
 /// @notice Interface for L1Block with only `isInDependencySet(uint256)` method.
 interface IL1Block_OnlyIsInDependencySet {
@@ -56,7 +54,7 @@ contract CrossL2Inbox is ISemver {
 
     /// @notice Returns the origin address of the Identifier.
     /// @return _origin The origin address of the Identifier.
-    function origin() public view returns (address _origin) {
+    function origin() external view returns (address _origin) {
         assembly {
             _origin := tload(ORIGIN_SLOT)
         }
@@ -64,7 +62,7 @@ contract CrossL2Inbox is ISemver {
 
     /// @notice Returns the block number of the Identifier.
     /// @return _blocknumber The block number of the Identifier.
-    function blocknumber() public view returns (uint256 _blocknumber) {
+    function blocknumber() external view returns (uint256 _blocknumber) {
         assembly {
             _blocknumber := tload(BLOCKNUMBER_SLOT)
         }
@@ -72,7 +70,7 @@ contract CrossL2Inbox is ISemver {
 
     /// @notice Returns the log index of the Identifier.
     /// @return _logIndex The log index of the Identifier.
-    function logIndex() public view returns (uint256 _logIndex) {
+    function logIndex() external view returns (uint256 _logIndex) {
         assembly {
             _logIndex := tload(LOG_INDEX_SLOT)
         }
@@ -80,7 +78,7 @@ contract CrossL2Inbox is ISemver {
 
     /// @notice Returns the timestamp of the Identifier.
     /// @return _timestamp The timestamp of the Identifier.
-    function timestamp() public view returns (uint256 _timestamp) {
+    function timestamp() external view returns (uint256 _timestamp) {
         assembly {
             _timestamp := tload(TIMESTAMP_SLOT)
         }
@@ -88,7 +86,7 @@ contract CrossL2Inbox is ISemver {
 
     /// @notice Returns the chain ID of the Identifier.
     /// @return _chainId The chain ID of the Identifier.
-    function chainId() public view returns (uint256 _chainId) {
+    function chainId() external view returns (uint256 _chainId) {
         assembly {
             _chainId := tload(CHAINID_SLOT)
         }
