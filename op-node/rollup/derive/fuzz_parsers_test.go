@@ -52,6 +52,8 @@ func FuzzL1InfoBedrockRoundTrip(f *testing.F) {
 			BaseFee:        BytesToBigInt(baseFee),
 			BlockHash:      common.BytesToHash(hash),
 			SequenceNumber: seqNumber,
+			interopSetSize: 1,
+			chainIds:       []*big.Int{big.NewInt(1)},
 		}
 		enc, err := in.marshalBinaryBedrock()
 		if err != nil {
