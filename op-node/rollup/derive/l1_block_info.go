@@ -18,9 +18,9 @@ import (
 )
 
 const (
-	L1InfoFuncBedrockSignature = "setL1BlockValues(uint64,uint64,uint256,bytes32,uint64,bytes32,uint256,uint256)"
+	L1InfoFuncBedrockSignature = "setL1BlockValues(uint64,uint64,uint256,bytes32,uint64,bytes32,uint256,uint256,uint8,uint256[])"
 	L1InfoFuncEcotoneSignature = "setL1BlockValuesEcotone()"
-	L1InfoArguments            = 8
+	L1InfoArguments            = 10
 	L1InfoBedrockLen           = 4 + 32*L1InfoArguments
 	L1InfoEcotoneLen           = 4 + 32*5 // after Ecotone upgrade, args are packed into 5 32-byte slots
 )
@@ -319,9 +319,6 @@ func (info *L1BlockInfo) marshalBinaryInterop() ([]byte, error) {
 }
 
 func (info *L1BlockInfo) unmarshalBinaryInterop(data []byte) error {
-	if len(data) != L1InfoEcotoneLen {
-		return fmt.Errorf("data is unexpected length: %d", len(data))
-	}
 	r := bytes.NewReader(data)
 
 	var err error
@@ -359,6 +356,11 @@ func (info *L1BlockInfo) unmarshalBinaryInterop(data []byte) error {
 	if info.interopSetSize, err = solabi.ReadUint8(r); err != nil {
 		return err
 	}
+
+	if len(data) != int(L1InfoInteropLen(info.interopSetSize)) {
+		return fmt.Errorf("data is unexpected length: %d", len(data))
+	}
+
 	info.chainIds = make([]*big.Int, info.interopSetSize)
 	for i := uint8(0); i < info.interopSetSize; i++ {
 		if info.chainIds[i], err = solabi.ReadUint256(r); err != nil {
@@ -489,4 +491,8 @@ func L1InfoDepositBytes(rollupCfg *rollup.Config, sysCfg eth.SystemConfig, seqNu
 		return nil, fmt.Errorf("failed to encode L1 info tx: %w", err)
 	}
 	return opaqueL1Tx, nil
+}
+
+func L1InfoInteropLen(interopSetSize uint8) uint8 {
+	return 4 + 32*6 + 32*interopSetSize
 }
