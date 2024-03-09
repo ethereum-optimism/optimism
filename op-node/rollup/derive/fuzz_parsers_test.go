@@ -3,6 +3,7 @@ package derive
 import (
 	"bytes"
 	"math/big"
+	"math/rand"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -100,7 +101,12 @@ func FuzzL1InfoEcotoneRoundTrip(f *testing.F) {
 
 // FuzzL1InfoInteropRoundTrip checks that our Interop encoder round trips properly
 func FuzzL1InfoInteropRoundTrip(f *testing.F) {
-	f.Fuzz(func(t *testing.T, number, time uint64, baseFee, blobBaseFee, hash []byte, seqNumber uint64, baseFeeScalar, blobBaseFeeScalar uint32) {
+	f.Fuzz(func(t *testing.T, number, time uint64, baseFee, blobBaseFee, hash []byte, seqNumber uint64, baseFeeScalar, blobBaseFeeScalar uint32, interopSetSize uint8) {
+		// Generate random chain ids
+		chainIds := make([]*big.Int, interopSetSize)
+		for i := 0; i < int(interopSetSize); i++ {
+			chainIds[i] = big.NewInt(int64(rand.Int()))
+		}
 		in := L1BlockInfo{
 			Number:            number,
 			Time:              time,
@@ -110,8 +116,8 @@ func FuzzL1InfoInteropRoundTrip(f *testing.F) {
 			BlobBaseFee:       BytesToBigInt(blobBaseFee),
 			BaseFeeScalar:     baseFeeScalar,
 			BlobBaseFeeScalar: blobBaseFeeScalar,
-			interopSetSize:    1,
-			chainIds:          []*big.Int{big.NewInt(1)},
+			InteropSetSize:    interopSetSize,
+			ChainIds:          chainIds,
 		}
 		enc, err := in.marshalBinaryInterop()
 		if err != nil {
