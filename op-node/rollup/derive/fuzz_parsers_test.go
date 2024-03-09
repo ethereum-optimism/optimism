@@ -52,8 +52,6 @@ func FuzzL1InfoBedrockRoundTrip(f *testing.F) {
 			BaseFee:        BytesToBigInt(baseFee),
 			BlockHash:      common.BytesToHash(hash),
 			SequenceNumber: seqNumber,
-			interopSetSize: 1,
-			chainIds:       []*big.Int{big.NewInt(1)},
 		}
 		enc, err := in.marshalBinaryBedrock()
 		if err != nil {
@@ -90,6 +88,37 @@ func FuzzL1InfoEcotoneRoundTrip(f *testing.F) {
 		}
 		var out L1BlockInfo
 		err = out.unmarshalBinaryEcotone(enc)
+		if err != nil {
+			t.Fatalf("Failed to unmarshal binary: %v", err)
+		}
+		if !cmp.Equal(in, out, cmp.Comparer(testutils.BigEqual)) {
+			t.Fatalf("The data did not round trip correctly. in: %v. out: %v", in, out)
+		}
+
+	})
+}
+
+// FuzzL1InfoInteropRoundTrip checks that our Interop encoder round trips properly
+func FuzzL1InfoInteropRoundTrip(f *testing.F) {
+	f.Fuzz(func(t *testing.T, number, time uint64, baseFee, blobBaseFee, hash []byte, seqNumber uint64, baseFeeScalar, blobBaseFeeScalar uint32) {
+		in := L1BlockInfo{
+			Number:            number,
+			Time:              time,
+			BaseFee:           BytesToBigInt(baseFee),
+			BlockHash:         common.BytesToHash(hash),
+			SequenceNumber:    seqNumber,
+			BlobBaseFee:       BytesToBigInt(blobBaseFee),
+			BaseFeeScalar:     baseFeeScalar,
+			BlobBaseFeeScalar: blobBaseFeeScalar,
+			interopSetSize:    1,
+			chainIds:          []*big.Int{big.NewInt(1)},
+		}
+		enc, err := in.marshalBinaryInterop()
+		if err != nil {
+			t.Fatalf("Failed to marshal binary: %v", err)
+		}
+		var out L1BlockInfo
+		err = out.unmarshalBinaryInterop(enc)
 		if err != nil {
 			t.Fatalf("Failed to unmarshal binary: %v", err)
 		}
