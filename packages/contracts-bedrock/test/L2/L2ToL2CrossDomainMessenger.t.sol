@@ -5,12 +5,12 @@ pragma solidity 0.8.15;
 import { Bridge_Initializer } from "test/setup/Bridge_Initializer.sol";
 import { Reverter, ConfigurableCaller } from "test/mocks/Callers.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
+import { ICrossL2Inbox } from "src/L2/ICrossL2Inbox.sol";
 
 // Libraries
 import { Hashing } from "src/libraries/Hashing.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
 import { Types } from "src/libraries/Types.sol";
-import { ICrossL2Inbox } from "src/libraries/Predeploys.sol";
 
 // Target contract dependencies
 import { L2ToL1MessagePasser } from "src/L2/L2ToL1MessagePasser.sol";

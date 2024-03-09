@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Predeploys, ICrossL2Inbox, IL2ToL2CrossDomainMessenger } from "src/libraries/Predeploys.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
 import { L2CrossDomainMessenger } from "src/L2/L2CrossDomainMessenger.sol";
 import { L2StandardBridge } from "src/L2/L2StandardBridge.sol";
 import { L2ToL1MessagePasser } from "src/L2/L2ToL1MessagePasser.sol";
@@ -34,6 +34,8 @@ import { Executables } from "scripts/Executables.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { DataAvailabilityChallenge } from "src/L1/DataAvailabilityChallenge.sol";
+import { ICrossL2Inbox } from "src/L2/ICrossL2Inbox.sol";
+import { IL2ToL2CrossDomainMessenger } from "src/L2/IL2ToL2CrossDomainMessenger.sol";
 
 /// @title Setup
 /// @dev This contact is responsible for setting up the contracts in state. It currently

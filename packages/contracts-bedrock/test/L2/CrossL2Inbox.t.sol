@@ -5,9 +5,9 @@ pragma solidity 0.8.15;
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { Reverter, ConfigurableCaller } from "test/mocks/Callers.sol";
+import { ICrossL2Inbox } from "src/L2/ICrossL2Inbox.sol";
 
 // Libraries
-import { ICrossL2Inbox } from "src/libraries/Predeploys.sol";
 import { SafeCall } from "src/libraries/SafeCall.sol";
 
 import { L1Block } from "src/L2/L1Block.sol";
