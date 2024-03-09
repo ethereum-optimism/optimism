@@ -97,9 +97,9 @@ contract L2ToL2CrossDomainMessenger is ISemver {
     ///         be executed via cross-chain call from the other messenger OR if the message was
     ///         already received once and is currently being replayed.
     /// @param _destination Chain ID of the destination chain.
+    /// @param _source      Chain ID of the source chain.
     /// @param _nonce       Nonce of the message being relayed.
     /// @param _sender      Address of the user who sent the message.
-    /// @param _source      Chain ID of the source chain.
     /// @param _target      Address that the message is targeted at.
     /// @param _message     Message to send to the target.
     function relayMessage(
