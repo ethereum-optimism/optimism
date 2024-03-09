@@ -51,17 +51,9 @@ contract L2ToL2CrossDomainMessenger is ISemver {
     /// @param msgHash Hash of the message that failed to be relayed.
     event FailedRelayedMessage(bytes32 indexed msgHash);
 
-    /// @notice Retrieves the next message nonce. Message version will be added to the upper two
-    ///         bytes of the message nonce. Message version allows us to treat messages as having
-    ///         different structures.
-    /// @return Nonce of the next message to be sent, with added message version.
-    function messageNonce() public view returns (uint256) {
-        return Encoding.encodeVersionedNonce(msgNonce, MESSAGE_VERSION);
-    }
-
     /// @notice Retrieves the sender of the current cross domain message.
     /// @return _sender Address of the sender of the current cross domain message.
-    function crossDomainMessageSender() public view returns (address _sender) {
+    function crossDomainMessageSender() external view returns (address _sender) {
         assembly {
             _sender := tload(CROSS_DOMAIN_MESSAGE_SENDER_SLOT)
         }
@@ -69,10 +61,18 @@ contract L2ToL2CrossDomainMessenger is ISemver {
 
     /// @notice Retrieves the source of the current cross domain message.
     /// @return _source Chain ID of the source of the current cross domain message.
-    function crossDomainMessageSource() public view returns (uint256 _source) {
+    function crossDomainMessageSource() external view returns (uint256 _source) {
         assembly {
             _source := tload(CROSS_DOMAIN_MESSAGE_SOURCE_SLOT)
         }
+    }
+
+    /// @notice Retrieves the next message nonce. Message version will be added to the upper two
+    ///         bytes of the message nonce. Message version allows us to treat messages as having
+    ///         different structures.
+    /// @return Nonce of the next message to be sent, with added message version.
+    function messageNonce() public view returns (uint256) {
+        return Encoding.encodeVersionedNonce(msgNonce, MESSAGE_VERSION);
     }
 
     /// @notice Sends a message to some target address on a destination chain. Note that if the call
