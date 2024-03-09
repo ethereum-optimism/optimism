@@ -20,7 +20,8 @@ import (
 const (
 	L1InfoFuncBedrockSignature = "setL1BlockValues(uint64,uint64,uint256,bytes32,uint64,bytes32,uint256,uint256,uint8,uint256[])"
 	L1InfoFuncEcotoneSignature = "setL1BlockValuesEcotone()"
-	L1InfoArguments            = 10
+	L1InfoFuncInteropSignature = "setL1BlockValuesInterop()"
+	L1InfoArguments            = 8
 	L1InfoBedrockLen           = 4 + 32*L1InfoArguments
 	L1InfoEcotoneLen           = 4 + 32*5 // after Ecotone upgrade, args are packed into 5 32-byte slots
 )
@@ -28,6 +29,7 @@ const (
 var (
 	L1InfoFuncBedrockBytes4 = crypto.Keccak256([]byte(L1InfoFuncBedrockSignature))[:4]
 	L1InfoFuncEcotoneBytes4 = crypto.Keccak256([]byte(L1InfoFuncEcotoneSignature))[:4]
+	L1InfoFuncInteropBytes4 = crypto.Keccak256([]byte(L1InfoFuncInteropSignature))[:4]
 	L1InfoDepositerAddress  = common.HexToAddress("0xdeaddeaddeaddeaddeaddeaddeaddeaddead0001")
 	L1BlockAddress          = predeploys.L1BlockAddr
 )
@@ -60,8 +62,8 @@ type L1BlockInfo struct {
 	BaseFeeScalar     uint32   // added by Ecotone upgrade
 	BlobBaseFeeScalar uint32   // added by Ecotone upgrade
 
-	interopSetSize uint8      // added by Interop upgrade
-	chainIds       []*big.Int // added by Interop upgrade
+	InteropSetSize uint8      // added by Interop upgrade
+	ChainIds       []*big.Int // added by Interop upgrade
 }
 
 // Bedrock Binary Format
@@ -113,7 +115,7 @@ func (info *L1BlockInfo) marshalBinaryBedrock() ([]byte, error) {
 
 func (info *L1BlockInfo) unmarshalBinaryBedrock(data []byte) error {
 	if len(data) != L1InfoBedrockLen {
-		return fmt.Errorf("data is unexpected length: %d", len(data))
+		return fmt.Errorf("data is unexpected length: %d %d", len(data), L1InfoBedrockLen)
 	}
 	reader := bytes.NewReader(data)
 
@@ -270,8 +272,8 @@ func (info *L1BlockInfo) unmarshalBinaryEcotone(data []byte) error {
 // +-------------------+--------------------------+
 
 func (info *L1BlockInfo) marshalBinaryInterop() ([]byte, error) {
-	w := bytes.NewBuffer(make([]byte, 0, L1InfoEcotoneLen))
-	if err := solabi.WriteSignature(w, L1InfoFuncEcotoneBytes4); err != nil {
+	w := bytes.NewBuffer(make([]byte, 0, L1InfoInteropLen(info.InteropSetSize)))
+	if err := solabi.WriteSignature(w, L1InfoFuncInteropBytes4); err != nil {
 		return nil, err
 	}
 	if err := binary.Write(w, binary.BigEndian, info.BaseFeeScalar); err != nil {
@@ -306,10 +308,10 @@ func (info *L1BlockInfo) marshalBinaryInterop() ([]byte, error) {
 	if err := solabi.WriteAddress(w, info.BatcherAddr); err != nil {
 		return nil, err
 	}
-	if err := solabi.WriteUint8(w, info.interopSetSize); err != nil {
+	if err := binary.Write(w, binary.BigEndian, info.InteropSetSize); err != nil {
 		return nil, err
 	}
-	for _, chainID := range info.chainIds {
+	for _, chainID := range info.ChainIds {
 		if err := solabi.WriteUint256(w, chainID); err != nil {
 			return nil, err
 		}
@@ -322,23 +324,23 @@ func (info *L1BlockInfo) unmarshalBinaryInterop(data []byte) error {
 	r := bytes.NewReader(data)
 
 	var err error
-	if _, err := solabi.ReadAndValidateSignature(r, L1InfoFuncEcotoneBytes4); err != nil {
+	if _, err := solabi.ReadAndValidateSignature(r, L1InfoFuncInteropBytes4); err != nil {
 		return err
 	}
 	if err := binary.Read(r, binary.BigEndian, &info.BaseFeeScalar); err != nil {
-		return fmt.Errorf("invalid ecotone l1 block info format")
+		return fmt.Errorf("invalid interop l1 block info format")
 	}
 	if err := binary.Read(r, binary.BigEndian, &info.BlobBaseFeeScalar); err != nil {
-		return fmt.Errorf("invalid ecotone l1 block info format")
+		return fmt.Errorf("invalid interop l1 block info format")
 	}
 	if err := binary.Read(r, binary.BigEndian, &info.SequenceNumber); err != nil {
-		return fmt.Errorf("invalid ecotone l1 block info format")
+		return fmt.Errorf("invalid interop l1 block info format")
 	}
 	if err := binary.Read(r, binary.BigEndian, &info.Time); err != nil {
-		return fmt.Errorf("invalid ecotone l1 block info format")
+		return fmt.Errorf("invalid interop l1 block info format")
 	}
 	if err := binary.Read(r, binary.BigEndian, &info.Number); err != nil {
-		return fmt.Errorf("invalid ecotone l1 block info format")
+		return fmt.Errorf("invalid interop l1 block info format")
 	}
 	if info.BaseFee, err = solabi.ReadUint256(r); err != nil {
 		return err
@@ -353,17 +355,18 @@ func (info *L1BlockInfo) unmarshalBinaryInterop(data []byte) error {
 	if info.BatcherAddr, err = solabi.ReadAddress(r); err != nil {
 		return err
 	}
-	if info.interopSetSize, err = solabi.ReadUint8(r); err != nil {
-		return err
+	if err := binary.Read(r, binary.BigEndian, &info.InteropSetSize); err != nil {
+		return fmt.Errorf("invalid interop l1 block info format")
 	}
 
-	if len(data) != int(L1InfoInteropLen(info.interopSetSize)) {
+	// we make the check here because it's the soonest InteroptSetSize is available, which is needed to calculate the expected length
+	if len(data) != int(L1InfoInteropLen(info.InteropSetSize)) {
 		return fmt.Errorf("data is unexpected length: %d", len(data))
 	}
 
-	info.chainIds = make([]*big.Int, info.interopSetSize)
-	for i := uint8(0); i < info.interopSetSize; i++ {
-		if info.chainIds[i], err = solabi.ReadUint256(r); err != nil {
+	info.ChainIds = make([]*big.Int, info.InteropSetSize)
+	for i := uint8(0); i < info.InteropSetSize; i++ {
+		if info.ChainIds[i], err = solabi.ReadUint256(r); err != nil {
 			return err
 		}
 	}
@@ -421,8 +424,8 @@ func L1InfoDeposit(rollupCfg *rollup.Config, sysCfg eth.SystemConfig, seqNumber 
 		}
 		l1BlockInfo.BlobBaseFeeScalar = blobBaseFeeScalar
 		l1BlockInfo.BaseFeeScalar = baseFeeScalar
-		l1BlockInfo.interopSetSize = InteropSetSize
-		l1BlockInfo.chainIds = InteropChainIDs
+		l1BlockInfo.InteropSetSize = InteropSetSize
+		l1BlockInfo.ChainIds = InteropChainIDs
 		out, err := l1BlockInfo.marshalBinaryInterop()
 		if err != nil {
 			return nil, fmt.Errorf("failed to marshal Interop l1 block info: %w", err)
@@ -493,6 +496,6 @@ func L1InfoDepositBytes(rollupCfg *rollup.Config, sysCfg eth.SystemConfig, seqNu
 	return opaqueL1Tx, nil
 }
 
-func L1InfoInteropLen(interopSetSize uint8) uint8 {
-	return 4 + 32*6 + 32*interopSetSize
+func L1InfoInteropLen(InteropSetSize uint8) int {
+	return 4 + 32*5 + 1 + 32*int(InteropSetSize)
 }
