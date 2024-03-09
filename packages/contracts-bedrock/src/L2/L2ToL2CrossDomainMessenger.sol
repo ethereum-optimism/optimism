@@ -9,35 +9,30 @@ import { ISemver } from "src/universal/ISemver.sol";
 /// @custom:proxied
 /// @custom:predeploy 0x4200000000000000000000000000000000000023
 /// @title L2ToL2CrossDomainMessenger
+/// @notice The L2ToL2CrossDomainMessenger is a higher level abstraction on top of the CrossL2Inbox that provides
+///         features necessary for secure transfers ERC20 tokens between L2 chains. Messages sent through the
+///         L2ToL2CrossDomainMessenger on the source chain receive both replay protection as well as domain binding.
 contract L2ToL2CrossDomainMessenger is ISemver {
-    /// @notice Emitted whenever a message is successfully relayed on this chain.
-    /// @param msgHash Hash of the message that was relayed.
-    event RelayedMessage(bytes32 indexed msgHash);
-
-    /// @notice Emitted whenever a message fails to be relayed on this chain.
-    /// @param msgHash Hash of the message that failed to be relayed.
-    event FailedRelayedMessage(bytes32 indexed msgHash);
-
-    /// @notice Slot for the sender of the current cross domain message.
-    /// @dev Equal to bytes32(uint256(keccak256("l2tol2crossdomainmessenger.sender")) - 1)
+    /// @notice Storage slot for the sender of the current cross domain message.
+    ///         Equal to bytes32(uint256(keccak256("l2tol2crossdomainmessenger.sender")) - 1)
     bytes32 public constant CROSS_DOMAIN_MESSAGE_SENDER_SLOT =
         0xb83444d07072b122e2e72a669ce32857d892345c19856f4e7142d06a167ab3f3;
 
-    /// @notice Slot for the source of the current cross domain message.
-    /// @dev Equal to bytes32(uint256(keccak256("l2tol2crossdomainmessenger.source")) - 1)
+    /// @notice Storage slot for the source of the current cross domain message.
+    ///         Equal to bytes32(uint256(keccak256("l2tol2crossdomainmessenger.source")) - 1)
     bytes32 public constant CROSS_DOMAIN_MESSAGE_SOURCE_SLOT =
         0x711dfa3259c842fffc17d6e1f1e0fc5927756133a2345ca56b4cb8178589fee7;
 
     /// @notice Current message version identifier.
     uint16 public constant MESSAGE_VERSION = uint16(0);
 
+    /// @custom:semver 1.0.0
+    string public constant version = "1.0.0";
+
     /// @notice Mapping of message hashes to boolean receipt values. Note that a message will only
     ///         be present in this mapping if it has successfully been relayed on this chain, and
     ///         can therefore not be relayed again.
     mapping(bytes32 => bool) public successfulMessages;
-
-    /// @custom:semver 1.0.0
-    string public constant version = "1.0.0";
 
     /// @notice Nonce for the next message to be sent, without the message version applied. Use the
     ///         messageNonce getter which will insert the message version into the nonce to give you
@@ -48,6 +43,14 @@ contract L2ToL2CrossDomainMessenger is ISemver {
     /// @param data Encoded data of the message that was sent.
     event SentMessage(bytes data) anonymous;
 
+    /// @notice Emitted whenever a message is successfully relayed on this chain.
+    /// @param msgHash Hash of the message that was relayed.
+    event RelayedMessage(bytes32 indexed msgHash);
+
+    /// @notice Emitted whenever a message fails to be relayed on this chain.
+    /// @param msgHash Hash of the message that failed to be relayed.
+    event FailedRelayedMessage(bytes32 indexed msgHash);
+
     /// @notice Retrieves the next message nonce. Message version will be added to the upper two
     ///         bytes of the message nonce. Message version allows us to treat messages as having
     ///         different structures.
@@ -56,12 +59,16 @@ contract L2ToL2CrossDomainMessenger is ISemver {
         return Encoding.encodeVersionedNonce(msgNonce, MESSAGE_VERSION);
     }
 
+    /// @notice Retrieves the sender of the current cross domain message.
+    /// @return _sender Address of the sender of the current cross domain message.
     function crossDomainMessageSender() public view returns (address _sender) {
         assembly {
             _sender := tload(CROSS_DOMAIN_MESSAGE_SENDER_SLOT)
         }
     }
 
+    /// @notice Retrieves the source of the current cross domain message.
+    /// @return _source Chain ID of the source of the current cross domain message.
     function crossDomainMessageSource() public view returns (uint256 _source) {
         assembly {
             _source := tload(CROSS_DOMAIN_MESSAGE_SOURCE_SLOT)
@@ -112,15 +119,15 @@ contract L2ToL2CrossDomainMessenger is ISemver {
             "L2ToL2CrossDomainMessenger: CrossL2Inbox origin not this contract"
         );
         require(_destination == block.chainid, "L2ToL2CrossDomainMessenger: destination not this chain");
-        require(_target != address(this), "L2ToL2CrossDomainMessenger: target not this contract");
+        require(_target != Predeploys.CROSS_L2_INBOX, "L2ToL2CrossDomainMessenger: CrossL2Inbox cannot call itself");
 
         bytes32 messageHash = keccak256(abi.encode(_destination, _source, _nonce, _sender, _target, _message));
         require(successfulMessages[messageHash] == false, "L2ToL2CrossDomainMessenger: message already relayed");
 
         bool success;
         assembly {
-            tstore(CROSS_DOMAIN_MESSAGE_SENDER_SLOT, _sender)
             tstore(CROSS_DOMAIN_MESSAGE_SOURCE_SLOT, _source)
+            tstore(CROSS_DOMAIN_MESSAGE_SENDER_SLOT, _sender)
 
             success :=
                 call(
