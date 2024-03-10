@@ -58,6 +58,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	l2os "github.com/ethereum-optimism/optimism/op-proposer/proposer"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -308,6 +309,11 @@ func (sys *System) L1BeaconEndpoint() string {
 	return sys.L1BeaconAPIAddr
 }
 
+func (sys *System) L1BeaconHTTPClient() *sources.BeaconHTTPClient {
+	logger := testlog.Logger(sys.t, log.LevelInfo).New("component", "beaconClient")
+	return sources.NewBeaconHTTPClient(client.NewBasicHTTPClient(sys.L1BeaconEndpoint(), logger))
+}
+
 func (sys *System) NodeEndpoint(name string) string {
 	return selectEndpoint(sys.EthInstances[name])
 }
@@ -343,6 +349,11 @@ func (sys *System) RollupCfg() *rollup.Config {
 
 func (sys *System) L2Genesis() *core.Genesis {
 	return sys.L2GenesisCfg
+}
+
+func (sys *System) L1Slot(l1Timestamp uint64) uint64 {
+	return (l1Timestamp - uint64(sys.Cfg.DeployConfig.L1GenesisBlockTimestamp)) /
+		sys.Cfg.DeployConfig.L1BlockTime
 }
 
 func (sys *System) Close() {

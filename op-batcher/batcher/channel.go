@@ -150,6 +150,8 @@ func (s *channel) ID() derive.ChannelID {
 // If cfg.MultiFrameTxs is false, it returns txData with a single frame.
 // If cfg.MultiFrameTxs is true, it will read frames from its channel builder
 // until it either doesn't have more frames or the target number of frames is reached.
+//
+// NextTxData should only be called after HasTxData returned true.
 func (s *channel) NextTxData() txData {
 	nf := s.cfg.MaxFramesPerTx()
 	txdata := txData{frames: make([]frameData, 0, nf)}
