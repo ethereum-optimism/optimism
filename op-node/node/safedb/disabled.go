@@ -14,6 +14,10 @@ var (
 	ErrNotEnabled = errors.New("safe head database not enabled")
 )
 
+func (d *DisabledDB) Enabled() bool {
+	return false
+}
+
 func (d *DisabledDB) SafeHeadUpdated(_ eth.L2BlockRef, _ eth.BlockID) error {
 	return nil
 }
