@@ -6,8 +6,60 @@
       "path": "./abis/Teleportation.json"
     }
   },
-  "chains": ["arbitrum-goerli", "chapel", "boba-bnb-testnet", "boba-goerli", "goerli", "optimism-goerli"],
+  "chains": [
+    "arbitrum-one", "boba-eth", "mainnet", "optimism", "bsc", "boba-bnb",
+    "arbitrum-goerli", "chapel", "boba-bnb-testnet", "boba-goerli", "goerli", "optimism-goerli", "sepolia", "boba-sepolia"
+  ],
   "instances": [
+    {
+      "abi": "Teleportation",
+      "address": "0x2dE73Bd1660Fbf4D521a52Ec2a91CCc106113801",
+      "startBlock": 19227141,
+      "chain": "mainnet"
+    },
+    {
+      "abi": "Teleportation",
+      "address": "0x2dE73Bd1660Fbf4D521a52Ec2a91CCc106113801",
+      "startBlock": 116168267,
+      "chain": "optimism"
+    },
+    {
+      "abi": "Teleportation",
+      "address": "0x2dE73Bd1660Fbf4D521a52Ec2a91CCc106113801",
+      "startBlock": 180755096,
+      "chain": "arbitrum-one"
+    },
+    {
+      "abi": "Teleportation",
+      "address": "0x0dfFd3Efe9c3237Ad7bf94252296272c96237FF5",
+      "startBlock": 1111267,
+      "chain": "boba-eth"
+    },
+    {
+      "abi": "Teleportation",
+      "address": "0x0dfFd3Efe9c3237Ad7bf94252296272c96237FF5",
+      "startBlock": 36194994,
+      "chain": "bsc"
+    },
+    {
+      "abi": "Teleportation",
+      "address": "0x670b130112C6f03E17192e63c67866e67D77c3ee",
+      "startBlock": 1111266,
+      "chain": "boba-bnb"
+    },
+
+    {
+      "abi": "Teleportation",
+      "address": "0x2dE73Bd1660Fbf4D521a52Ec2a91CCc106113801",
+      "startBlock": 1043907,
+      "chain": "boba-sepolia"
+    },
+    {
+      "abi": "Teleportation",
+      "address": "0xaeE12b8D99BBff7ED47866DF868CF5b4b3F73ffF",
+      "startBlock": 5280795,
+      "chain": "sepolia"
+    },
     {
       "abi": "Teleportation",
       "address": "0x7f6a32bCaA70c65E08F2f221737612F6fC18347A",
