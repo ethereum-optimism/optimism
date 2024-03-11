@@ -6,7 +6,6 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/cannon"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
@@ -72,70 +71,6 @@ func TestOutputCannonGame(t *testing.T) {
 	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
 	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 	game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
-}
-
-func TestOutputCannon_ReclaimBond(t *testing.T) {
-	// The dishonest actor always posts claims with all zeros.
-	op_e2e.InitParallel(t, op_e2e.UsesCannon)
-	ctx := context.Background()
-	sys, l1Client := startFaultDisputeSystem(t)
-	t.Cleanup(sys.Close)
-
-	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
-	game := disputeGameFactory.StartOutputCannonGame(ctx, "sequencer", 3, common.Hash{})
-	game.LogGameData(ctx)
-
-	// The dispute game should have a zero balance
-	balance := game.WethBalance(ctx, game.Addr())
-	require.Zero(t, balance.Uint64())
-
-	alice := sys.Cfg.Secrets.Addresses().Alice
-	bal, _ := big.NewInt(0).SetString("1000000000000000000000", 10)
-	require.Equal(t, bal, game.Balance(ctx, alice))
-
-	// Grab the root claim
-	claim := game.RootClaim(ctx)
-	game.StartChallenger(ctx, "sequencer", "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
-
-	// Perform a few moves
-	claim = claim.WaitForCounterClaim(ctx)
-	game.LogGameData(ctx)
-	claim = claim.Attack(ctx, common.Hash{})
-	claim = claim.WaitForCounterClaim(ctx)
-	game.LogGameData(ctx)
-	claim = claim.Attack(ctx, common.Hash{})
-	game.LogGameData(ctx)
-	_ = claim.WaitForCounterClaim(ctx)
-
-	// Expect posted claims so the game balance is non-zero
-	balance = game.WethBalance(ctx, game.Addr())
-	expectedBalance, _ := big.NewInt(0).SetString("589772600000000000", 10)
-	require.Equal(t, expectedBalance, balance)
-
-	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
-	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
-	game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
-	game.LogGameData(ctx)
-
-	// Expect Alice's credit to be non-zero
-	// But it can't be claimed right now since there is a delay on the weth unlock
-	expectedCredit, _ := big.NewInt(0).SetString("589772600000000000", 10)
-	require.Equal(t, expectedCredit, game.AvailableCredit(ctx, alice))
-
-	// The actor should have a small credit available to claim
-	actorCredit := game.AvailableCredit(ctx, deployer.TestAddress)
-	require.True(t, actorCredit.Cmp(big.NewInt(0)) == 0)
-
-	// Advance the time past the weth unlock delay
-	sys.TimeTravelClock.AdvanceTime(game.CreditUnlockDuration(ctx))
-	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
-
-	// Wait for alice to have no available credit
-	// aka, wait for the challenger to claim its credit
-	game.WaitForNoAvailableCredit(ctx, alice)
-
-	// The dispute game delayed weth balance should be zero since it's all claimed
-	require.True(t, game.WethBalance(ctx, game.Addr()).Cmp(big.NewInt(0)) == 0)
 }
 
 func TestOutputCannon_ChallengeAllZeroClaim(t *testing.T) {

@@ -71,12 +71,6 @@ func (g *OutputGameHelper) Addr() common.Address {
 	return g.addr
 }
 
-func (g *OutputGameHelper) Balance(ctx context.Context, addr common.Address) *big.Int {
-	balance, err := g.client.BalanceAt(ctx, addr, nil)
-	g.require.NoError(err, "Failed to get balance")
-	return balance
-}
-
 func (g *OutputGameHelper) SplitDepth(ctx context.Context) types.Depth {
 	splitDepth, err := g.game.SplitDepth(&bind.CallOpts{Context: ctx})
 	g.require.NoError(err, "failed to load split depth")
