@@ -260,6 +260,57 @@ contract PreimageOracle_Test is Test {
         vm.expectRevert(PartOffsetOOB.selector);
         oracle.loadPrecompilePreimagePart(offset, precompile, input);
     }
+
+    /// @notice Tests that a bloib preimage is correctly loaded.
+    function test_loadBlobPreimagePart_succeeds() public {
+        uint256 z = 0x564c0a11a0f704f4fc3e8acfe0f8245f0ad1347b378fbf96e206da11a5d36306;
+        uint256 y = 0x24d25032e67a7e6a4910df5834b8fe70e6bcfeeac0352434196bdf4b2485d5a1;
+        bytes memory commitment = hex"8f59a8d2a1a625a17f3fea0fe5eb8c896db3764f3185481bc22f91b4aaffcca25f26936857bc3a7c2539ea8ec3a952b7";
+        bytes memory proof = hex"873033e038326e87ed3e1276fd140253fa08e9fc25fb2d9a98527fc22a2c9612fbeafdad446cbc7bcdbdcd780af2c16a";
+        uint256 offset = 0;
+        oracle.loadBlobPreimagePart(z, y, commitment, proof, offset);
+
+        bytes32 key = blobPreimageKey(commitment, z);
+        bytes32 part = oracle.preimageParts(key, offset);
+        // 8-byte size prefix ++ y[:24]
+        assertEq(bytes32(uint256(0x20 << 192)) | (bytes32(y) >> 64), part);
+
+        oracle.loadBlobPreimagePart(z, y, commitment, proof, offset+8);
+        part = oracle.preimageParts(key, offset + 8);
+        assertEq(bytes32(y), part);
+    }
+
+    /// @notice Tests that loading blob preimage at the part boundary reverts.
+    function test_loadBlobPreimagePart_partBoundary_reverts() public {
+        uint256 z = 0x564c0a11a0f704f4fc3e8acfe0f8245f0ad1347b378fbf96e206da11a5d36306;
+        uint256 y = 0x24d25032e67a7e6a4910df5834b8fe70e6bcfeeac0352434196bdf4b2485d5a1;
+        bytes memory commitment = hex"8f59a8d2a1a625a17f3fea0fe5eb8c896db3764f3185481bc22f91b4aaffcca25f26936857bc3a7c2539ea8ec3a952b7";
+        bytes memory proof = hex"873033e038326e87ed3e1276fd140253fa08e9fc25fb2d9a98527fc22a2c9612fbeafdad446cbc7bcdbdcd780af2c16a";
+        uint256 offset = 40; // 8-byte size prefix + 32-byte eval output
+        vm.expectRevert(PartOffsetOOB.selector);
+        oracle.loadBlobPreimagePart(z, y, commitment, proof, offset);
+    }
+
+    /// @notice Tests that the blob preimage cannot be loaded with an out-of-bounds offset.
+    function test_loadBlobPreimagePart_outOfBoundsOffset_reverts() public {
+        uint256 z = 0x564c0a11a0f704f4fc3e8acfe0f8245f0ad1347b378fbf96e206da11a5d36306;
+        uint256 y = 0x24d25032e67a7e6a4910df5834b8fe70e6bcfeeac0352434196bdf4b2485d5a1;
+        bytes memory commitment = hex"8f59a8d2a1a625a17f3fea0fe5eb8c896db3764f3185481bc22f91b4aaffcca25f26936857bc3a7c2539ea8ec3a952b7";
+        bytes memory proof = hex"873033e038326e87ed3e1276fd140253fa08e9fc25fb2d9a98527fc22a2c9612fbeafdad446cbc7bcdbdcd780af2c16a";
+        uint256 offset = 42;
+        vm.expectRevert(PartOffsetOOB.selector);
+        oracle.loadBlobPreimagePart(z, y, commitment, proof, offset);
+    }
+
+    function test_loadBlobPreimagePart_invalidProof_reverts() public {
+        uint256 z = 0x564c0a11a0f704f4fc3e8acfe0f8245f0ad1347b378fbf96e206da11a5d36306;
+        uint256 y = 0x24d25032e67a7e6a4910df5834b8fe70e6bcfeeac0352434196bdf4b2485d5a1;
+        bytes memory commitment = hex"8f59a8d2a1a625a17f3fea0fe5eb8c896db3764f3185481bc22f91b4aaffcca25f26936857bc3a7c2539ea8ec3a952b7";
+        bytes memory proof = hex"deadbeef";
+        uint256 offset = 0;
+        vm.expectRevert(InvalidProof.selector);
+        oracle.loadBlobPreimagePart(z, y, commitment, proof, offset);
+    }
 }
 
 contract PreimageOracle_LargePreimageProposals_Test is Test {
@@ -1366,5 +1417,14 @@ function precompilePreimageKey(address _precompile, bytes memory _input) pure re
         let h := keccak256(add(0x20, p), sz)
         // Mask out prefix byte, replace with type 6 byte
         key_ := or(and(h, not(shl(248, 0xFF))), shl(248, 6))
+    }
+}
+
+function blobPreimageKey(bytes memory _commitment, uint256 _z) pure returns (bytes32 key_) {
+    bytes memory p = abi.encodePacked(_commitment, _z);
+    assembly {
+        let h := keccak256(add(0x20, p), 0x50)
+        // Mask out prefix byte, replace with type 5 byte
+        key_ := or(and(h, not(shl(248, 0xFF))), shl(248, 5))
     }
 }
