@@ -78,49 +78,45 @@ func (a *Agent) Act(ctx context.Context) error {
 		a.log.Error("Failed to calculate all required moves", "err", err)
 	}
 
-	a.syncAct(ctx, actions)
-	return nil
-}
-
-// syncAct parallelizes game actions with a wait group
-func (a *Agent) syncAct(ctx context.Context, actions []types.Action) {
 	var wg sync.WaitGroup
 	wg.Add(len(actions))
 	for _, action := range actions {
-		action := action
-		go func() {
-			defer wg.Done()
-			actionLog := a.log.New("action", action.Type, "is_attack", action.IsAttack, "parent", action.ParentIdx)
-			if action.Type == types.ActionTypeStep {
-				containsOracleData := action.OracleData != nil
-				isLocal := containsOracleData && action.OracleData.IsLocal
-				actionLog = actionLog.New(
-					"prestate", common.Bytes2Hex(action.PreState),
-					"proof", common.Bytes2Hex(action.ProofData),
-					"containsOracleData", containsOracleData,
-					"isLocalPreimage", isLocal,
-				)
-				if action.OracleData != nil {
-					actionLog = actionLog.New("oracleKey", common.Bytes2Hex(action.OracleData.OracleKey))
-				}
-			} else {
-				actionLog = actionLog.New("value", action.Value)
-			}
-
-			switch action.Type {
-			case types.ActionTypeMove:
-				a.metrics.RecordGameMove()
-			case types.ActionTypeStep:
-				a.metrics.RecordGameStep()
-			}
-			actionLog.Info("Performing action")
-			err := a.responder.PerformAction(ctx, action)
-			if err != nil {
-				actionLog.Error("Action failed", "err", err)
-			}
-		}()
+		go a.performAction(ctx, &wg, action)
 	}
 	wg.Wait()
+	return nil
+}
+
+func (a *Agent) performAction(ctx context.Context, wg *sync.WaitGroup, action types.Action) {
+	defer wg.Done()
+	actionLog := a.log.New("action", action.Type, "is_attack", action.IsAttack, "parent", action.ParentIdx)
+	if action.Type == types.ActionTypeStep {
+		containsOracleData := action.OracleData != nil
+		isLocal := containsOracleData && action.OracleData.IsLocal
+		actionLog = actionLog.New(
+			"prestate", common.Bytes2Hex(action.PreState),
+			"proof", common.Bytes2Hex(action.ProofData),
+			"containsOracleData", containsOracleData,
+			"isLocalPreimage", isLocal,
+		)
+		if action.OracleData != nil {
+			actionLog = actionLog.New("oracleKey", common.Bytes2Hex(action.OracleData.OracleKey))
+		}
+	} else {
+		actionLog = actionLog.New("value", action.Value)
+	}
+
+	switch action.Type {
+	case types.ActionTypeMove:
+		a.metrics.RecordGameMove()
+	case types.ActionTypeStep:
+		a.metrics.RecordGameStep()
+	}
+	actionLog.Info("Performing action")
+	err := a.responder.PerformAction(ctx, action)
+	if err != nil {
+		actionLog.Error("Action failed", "err", err)
+	}
 }
 
 // tryResolve resolves the game if it is in a winning state
