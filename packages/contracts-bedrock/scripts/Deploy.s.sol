@@ -1305,7 +1305,7 @@ contract Deploy is Deployer {
                     _vm: _params.faultVm,
                     _weth: _params.weth,
                     _l2ChainId: cfg.l2ChainID(),
-                    _portal: OptimismPortal2(mustGetAddress("OptimismPortal2"))
+                    _portal: OptimismPortal2(mustGetAddress("OptimismPortalProxy"))
                 })
             );
         } else {
@@ -1320,7 +1320,7 @@ contract Deploy is Deployer {
                     _vm: _params.faultVm,
                     _weth: _params.weth,
                     _l2ChainId: cfg.l2ChainID(),
-                    _portal: OptimismPortal2(mustGetAddress("OptimismPortal2")),
+                    _portal: OptimismPortal2(mustGetAddress("OptimismPortalProxy")),
                     _proposer: cfg.l2OutputOracleProposer(),
                     _challenger: cfg.l2OutputOracleChallenger()
                 })
