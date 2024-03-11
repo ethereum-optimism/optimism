@@ -300,7 +300,7 @@ func TestGetBlockRange(t *testing.T) {
 	stubRpc, contract := setupFaultDisputeGameTest(t)
 	expectedStart := uint64(65)
 	expectedEnd := uint64(102)
-	stubRpc.SetResponse(fdgAddr, methodGenesisBlockNumber, rpcblock.Latest, nil, []interface{}{new(big.Int).SetUint64(expectedStart)})
+	stubRpc.SetResponse(fdgAddr, methodStartingOutputRoot, rpcblock.Latest, nil, []interface{}{common.Hash{}, new(big.Int).SetUint64(expectedStart)})
 	stubRpc.SetResponse(fdgAddr, methodL2BlockNumber, rpcblock.Latest, nil, []interface{}{new(big.Int).SetUint64(expectedEnd)})
 	start, end, err := contract.GetBlockRange(context.Background())
 	require.NoError(t, err)
@@ -338,10 +338,12 @@ func TestGetGameMetadata(t *testing.T) {
 func TestGetGenesisOutputRoot(t *testing.T) {
 	stubRpc, contract := setupFaultDisputeGameTest(t)
 	expectedOutputRoot := common.HexToHash("0x1234")
-	stubRpc.SetResponse(fdgAddr, methodGenesisOutputRoot, rpcblock.Latest, nil, []interface{}{expectedOutputRoot})
-	genesisOutputRoot, err := contract.GetGenesisOutputRoot(context.Background())
+	expectedL2BlockNumber := big.NewInt(123)
+	stubRpc.SetResponse(fdgAddr, methodStartingOutputRoot, rpcblock.Latest, nil, []interface{}{expectedOutputRoot, expectedL2BlockNumber})
+	startingOutputRoot, startingL2BlockNumber, err := contract.GetStartingOutputRoot(context.Background())
 	require.NoError(t, err)
-	require.Equal(t, expectedOutputRoot, genesisOutputRoot)
+	require.Equal(t, expectedOutputRoot, startingOutputRoot)
+	require.Equal(t, expectedL2BlockNumber, startingL2BlockNumber)
 }
 
 func TestFaultDisputeGame_UpdateOracleTx(t *testing.T) {

@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import { SafeCall } from "src/libraries/SafeCall.sol";
 import { DisputeGameFactory, IDisputeGame } from "src/dispute/DisputeGameFactory.sol";
+import { IFaultDisputeGame } from "src/dispute/interfaces/IFaultDisputeGame.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { Constants } from "src/libraries/Constants.sol";
@@ -90,6 +91,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     /// @notice The timestamp at which the respected game type was last updated.
     uint64 public respectedGameTypeUpdatedAt;
 
+    /// @notice The latest finalized output root.
+    OutputRoot public latestFinalizedOutputRoot;
+
     /// @notice Emitted when a transaction is deposited from L1 to L2.
     ///         The parameters of this event are read by the rollup node and used to derive deposit
     ///         transactions on L2.
@@ -117,8 +121,8 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 3.2.0
-    string public constant version = "3.2.0";
+    /// @custom:semver 3.3.0
+    string public constant version = "3.3.0";
 
     /// @notice Constructs the OptimismPortal contract.
     constructor(
@@ -133,7 +137,8 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         initialize({
             _disputeGameFactory: DisputeGameFactory(address(0)),
             _systemConfig: SystemConfig(address(0)),
-            _superchainConfig: SuperchainConfig(address(0))
+            _superchainConfig: SuperchainConfig(address(0)),
+            _anchorOutputRoot: OutputRoot({ root: Hash.wrap(0), l2BlockNumber: 0 })
         });
     }
 
@@ -141,10 +146,14 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     /// @param _disputeGameFactory Contract of the DisputeGameFactory.
     /// @param _systemConfig Contract of the SystemConfig.
     /// @param _superchainConfig Contract of the SuperchainConfig.
+    /// @param _anchorOutputRoot Upon the upgrade to major version 3, the portal uses this value as the starting trusted
+    ///                          output root. This will be set to the last finalized output root of the L2OutputOracle
+    ///                          contract upon the upgrade.
     function initialize(
         DisputeGameFactory _disputeGameFactory,
         SystemConfig _systemConfig,
-        SuperchainConfig _superchainConfig
+        SuperchainConfig _superchainConfig,
+        OutputRoot memory _anchorOutputRoot
     )
         public
         initializer
@@ -152,6 +161,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         disputeGameFactory = _disputeGameFactory;
         systemConfig = _systemConfig;
         superchainConfig = _superchainConfig;
+        if (latestFinalizedOutputRoot.root.raw() == bytes32(0)) {
+            latestFinalizedOutputRoot = _anchorOutputRoot;
+        }
         if (l2Sender == address(0)) {
             l2Sender = Constants.DEFAULT_L2_SENDER;
         }
@@ -423,6 +435,41 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         require(msg.sender == guardian(), "OptimismPortal: only the guardian can set the respected game type");
         respectedGameType = _gameType;
         respectedGameTypeUpdatedAt = uint64(block.timestamp);
+    }
+
+    /// @notice Sets the latest finalized output root to the caller's root claim information. Only callable by dispute
+    ///         games that were created by the dispute game factory.
+    ///         If the sender's L2 block number is greater than the latest finalized output root's L2 block number, then
+    ///         the latest finalized output root is updated to the sender's root claim information. If not, the function
+    ///         is a no-op and does not revert.
+    function trySetLatestFinalizedOutputRoot() external {
+        IFaultDisputeGame faultGameSender = IFaultDisputeGame(msg.sender);
+        (GameType gameType, Claim rootClaim, bytes memory extraData) = faultGameSender.gameData();
+        (IDisputeGame factoryRegisteredGame, Timestamp createdAt) =
+            disputeGameFactory.games({ _gameType: gameType, _rootClaim: rootClaim, _extraData: extraData });
+
+        require(
+            address(factoryRegisteredGame) == address(faultGameSender),
+            "OptimismPortal: calling dispute game is not registered with factory"
+        );
+        require(
+            createdAt.raw() >= respectedGameTypeUpdatedAt,
+            "OptimismPortal: dispute game created before respected game type was updated"
+        );
+        require(
+            faultGameSender.status() == GameStatus.DEFENDER_WINS,
+            "OptimismPortal: dispute game has not been finalized in the favor of the root claim"
+        );
+
+        // Fetch the dispute game's root claim L2 block number.
+        uint256 senderL2BlockNumber = faultGameSender.l2BlockNumber();
+
+        // If the game's L2 block number is greater than the latest finalized output root's L2 block number, then
+        // update the latest finalized output root to the sender's root claim information.
+        if (senderL2BlockNumber > latestFinalizedOutputRoot.l2BlockNumber) {
+            latestFinalizedOutputRoot =
+                OutputRoot({ root: Hash.wrap(rootClaim.raw()), l2BlockNumber: senderL2BlockNumber });
+        }
     }
 
     /// @notice Checks if a withdrawal can be finalized. This function will revert if the withdrawal cannot be

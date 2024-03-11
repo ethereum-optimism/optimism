@@ -13,16 +13,6 @@
       },
       {
         "internalType": "uint256",
-        "name": "_genesisBlockNumber",
-        "type": "uint256"
-      },
-      {
-        "internalType": "Hash",
-        "name": "_genesisOutputRoot",
-        "type": "bytes32"
-      },
-      {
-        "internalType": "uint256",
         "name": "_maxGameDepth",
         "type": "uint256"
       },
@@ -50,6 +40,11 @@
         "internalType": "uint256",
         "name": "_l2ChainId",
         "type": "uint256"
+      },
+      {
+        "internalType": "contract OptimismPortal2",
+        "name": "_portal",
+        "type": "address"
       }
     ],
     "stateMutability": "nonpayable",
@@ -318,32 +313,6 @@
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "genesisBlockNumber",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "genesisBlockNumber_",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "genesisOutputRoot",
-    "outputs": [
-      {
-        "internalType": "Hash",
-        "name": "genesisOutputRoot_",
-        "type": "bytes32"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
     "inputs": [
       {
         "internalType": "Position",
@@ -503,6 +472,24 @@
       {
         "internalType": "uint256",
         "name": "splitDepth_",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "startingOutputRoot",
+    "outputs": [
+      {
+        "internalType": "Hash",
+        "name": "root",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "l2BlockNumber",
         "type": "uint256"
       }
     ],

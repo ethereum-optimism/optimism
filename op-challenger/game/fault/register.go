@@ -120,8 +120,15 @@ func registerAlphabet(
 			return accessor, nil
 		}
 		prestateValidator := NewPrestateValidator("alphabet", contract.GetAbsolutePrestateHash, alphabet.PrestateProvider)
-		genesisValidator := NewPrestateValidator("output root", contract.GetGenesisOutputRoot, prestateProvider)
-		return NewGamePlayer(ctx, cl, logger, m, dir, game.Proxy, txSender, contract, syncValidator, []Validator{prestateValidator, genesisValidator}, creator, l1HeaderSource, selective, claimants)
+		startingRootFetcher := func(ctx context.Context) (common.Hash, error) {
+			root, _, err := contract.GetStartingOutputRoot(ctx)
+			if err != nil {
+				return common.Hash{}, fmt.Errorf("failed to get starting output root: %w", err)
+			}
+			return root, nil
+		}
+		startingRootValidator := NewPrestateValidator("output root", startingRootFetcher, prestateProvider)
+		return NewGamePlayer(ctx, cl, logger, m, dir, game.Proxy, txSender, contract, syncValidator, []Validator{prestateValidator, startingRootValidator}, creator, l1HeaderSource, selective, claimants)
 	}
 	oracle, err := createOracle(ctx, gameFactory, caller, faultTypes.AlphabetGameType)
 	if err != nil {
@@ -197,8 +204,15 @@ func registerCannon(
 			return accessor, nil
 		}
 		prestateValidator := NewPrestateValidator("cannon", contract.GetAbsolutePrestateHash, cannonPrestateProvider)
-		genesisValidator := NewPrestateValidator("output root", contract.GetGenesisOutputRoot, prestateProvider)
-		return NewGamePlayer(ctx, cl, logger, m, dir, game.Proxy, txSender, contract, syncValidator, []Validator{prestateValidator, genesisValidator}, creator, l1HeaderSource, selective, claimants)
+		startingRootFetcher := func(ctx context.Context) (common.Hash, error) {
+			root, _, err := contract.GetStartingOutputRoot(ctx)
+			if err != nil {
+				return common.Hash{}, fmt.Errorf("failed to get starting output root: %w", err)
+			}
+			return root, nil
+		}
+		startingRootValidator := NewPrestateValidator("output root", startingRootFetcher, prestateProvider)
+		return NewGamePlayer(ctx, cl, logger, m, dir, game.Proxy, txSender, contract, syncValidator, []Validator{prestateValidator, startingRootValidator}, creator, l1HeaderSource, selective, claimants)
 	}
 	oracle, err := createOracle(ctx, gameFactory, caller, gameType)
 	if err != nil {

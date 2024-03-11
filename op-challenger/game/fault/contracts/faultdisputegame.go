@@ -31,8 +31,7 @@ var (
 	methodStep               = "step"
 	methodAddLocalData       = "addLocalData"
 	methodVM                 = "vm"
-	methodGenesisBlockNumber = "genesisBlockNumber"
-	methodGenesisOutputRoot  = "genesisOutputRoot"
+	methodStartingOutputRoot = "startingOutputRoot"
 	methodSplitDepth         = "splitDepth"
 	methodL2BlockNumber      = "l2BlockNumber"
 	methodRequiredBond       = "getRequiredBond"
@@ -66,7 +65,7 @@ func NewFaultDisputeGameContract(addr common.Address, caller *batching.MultiCall
 // and the post-state block (that the proposed output root is for).
 func (c *FaultDisputeGameContract) GetBlockRange(ctx context.Context) (prestateBlock uint64, poststateBlock uint64, retErr error) {
 	results, err := c.multiCaller.Call(ctx, rpcblock.Latest,
-		c.contract.Call(methodGenesisBlockNumber),
+		c.contract.Call(methodStartingOutputRoot),
 		c.contract.Call(methodL2BlockNumber))
 	if err != nil {
 		retErr = fmt.Errorf("failed to retrieve game block range: %w", err)
@@ -76,7 +75,7 @@ func (c *FaultDisputeGameContract) GetBlockRange(ctx context.Context) (prestateB
 		retErr = fmt.Errorf("expected 2 results but got %v", len(results))
 		return
 	}
-	prestateBlock = results[0].GetBigInt(0).Uint64()
+	prestateBlock = results[0].GetBigInt(1).Uint64()
 	poststateBlock = results[1].GetBigInt(0).Uint64()
 	return
 }
@@ -104,12 +103,12 @@ func (c *FaultDisputeGameContract) GetGameMetadata(ctx context.Context) (uint64,
 	return l2BlockNumber, rootClaim, status, duration, nil
 }
 
-func (c *FaultDisputeGameContract) GetGenesisOutputRoot(ctx context.Context) (common.Hash, error) {
-	genesisOutputRoot, err := c.multiCaller.SingleCall(ctx, rpcblock.Latest, c.contract.Call(methodGenesisOutputRoot))
+func (c *FaultDisputeGameContract) GetStartingOutputRoot(ctx context.Context) (common.Hash, *big.Int, error) {
+	genesisOutputRoot, err := c.multiCaller.SingleCall(ctx, rpcblock.Latest, c.contract.Call(methodStartingOutputRoot))
 	if err != nil {
-		return common.Hash{}, fmt.Errorf("failed to retrieve genesis output root: %w", err)
+		return common.Hash{}, nil, fmt.Errorf("failed to retrieve genesis output root: %w", err)
 	}
-	return genesisOutputRoot.GetHash(0), nil
+	return genesisOutputRoot.GetHash(0), genesisOutputRoot.GetBigInt(1), nil
 }
 
 func (c *FaultDisputeGameContract) GetSplitDepth(ctx context.Context) (types.Depth, error) {

@@ -185,7 +185,7 @@ func (h *FactoryHelper) StartOutputCannonGame(ctx context.Context, l2Node string
 	h.require.NoError(err)
 
 	callOpts := &bind.CallOpts{Context: ctx}
-	prestateBlock, err := game.GenesisBlockNumber(callOpts)
+	prestateBlock, err := game.StartingOutputRoot(callOpts)
 	h.require.NoError(err, "Failed to load genesis block number")
 	poststateBlock, err := game.L2BlockNumber(callOpts)
 	h.require.NoError(err, "Failed to load l2 block number")
@@ -193,8 +193,8 @@ func (h *FactoryHelper) StartOutputCannonGame(ctx context.Context, l2Node string
 	h.require.NoError(err, "Failed to load split depth")
 	l1Head := h.getL1Head(ctx, game)
 
-	prestateProvider := outputs.NewPrestateProvider(rollupClient, prestateBlock.Uint64())
-	provider := outputs.NewTraceProvider(logger, prestateProvider, rollupClient, l1Head, faultTypes.Depth(splitDepth.Uint64()), prestateBlock.Uint64(), poststateBlock.Uint64())
+	prestateProvider := outputs.NewPrestateProvider(rollupClient, prestateBlock.L2BlockNumber.Uint64())
+	provider := outputs.NewTraceProvider(logger, prestateProvider, rollupClient, l1Head, faultTypes.Depth(splitDepth.Uint64()), prestateBlock.L2BlockNumber.Uint64(), poststateBlock.Uint64())
 
 	return &OutputCannonGameHelper{
 		OutputGameHelper: OutputGameHelper{
@@ -251,16 +251,16 @@ func (h *FactoryHelper) StartOutputAlphabetGame(ctx context.Context, l2Node stri
 	h.require.NoError(err)
 
 	callOpts := &bind.CallOpts{Context: ctx}
-	prestateBlock, err := game.GenesisBlockNumber(callOpts)
+	prestateBlock, err := game.StartingOutputRoot(callOpts)
 	h.require.NoError(err, "Failed to load genesis block number")
 	poststateBlock, err := game.L2BlockNumber(callOpts)
 	h.require.NoError(err, "Failed to load l2 block number")
 	splitDepth, err := game.SplitDepth(callOpts)
 	h.require.NoError(err, "Failed to load split depth")
 	l1Head := h.getL1Head(ctx, game)
-	prestateProvider := outputs.NewPrestateProvider(rollupClient, prestateBlock.Uint64())
+	prestateProvider := outputs.NewPrestateProvider(rollupClient, prestateBlock.L2BlockNumber.Uint64())
 
-	provider := outputs.NewTraceProvider(logger, prestateProvider, rollupClient, l1Head, faultTypes.Depth(splitDepth.Uint64()), prestateBlock.Uint64(), poststateBlock.Uint64())
+	provider := outputs.NewTraceProvider(logger, prestateProvider, rollupClient, l1Head, faultTypes.Depth(splitDepth.Uint64()), prestateBlock.L2BlockNumber.Uint64(), poststateBlock.Uint64())
 
 	return &OutputAlphabetGameHelper{
 		OutputGameHelper: OutputGameHelper{

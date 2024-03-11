@@ -39,15 +39,7 @@ contract PermissionedDisputeGame_Init is DisputeGameFactory_Init {
 
     event Move(uint256 indexed parentIndex, Claim indexed pivot, address indexed claimant);
 
-    function init(
-        Claim rootClaim,
-        Claim absolutePrestate,
-        uint256 l2BlockNumber,
-        uint256 genesisBlockNumber,
-        Hash genesisOutputRoot
-    )
-        public
-    {
+    function init(Claim rootClaim, Claim absolutePrestate, uint256 l2BlockNumber) public {
         // Set the time to a realistic date.
         vm.warp(1690906994);
 
@@ -63,8 +55,6 @@ contract PermissionedDisputeGame_Init is DisputeGameFactory_Init {
         gameImpl = new PermissionedDisputeGame({
             _gameType: GAME_TYPE,
             _absolutePrestate: absolutePrestate,
-            _genesisBlockNumber: genesisBlockNumber,
-            _genesisOutputRoot: genesisOutputRoot,
             _maxGameDepth: 2 ** 3,
             _splitDepth: 2 ** 2,
             _gameDuration: Duration.wrap(7 days),
@@ -72,7 +62,8 @@ contract PermissionedDisputeGame_Init is DisputeGameFactory_Init {
             _weth: _weth,
             _l2ChainId: 10,
             _proposer: PROPOSER,
-            _challenger: CHALLENGER
+            _challenger: CHALLENGER,
+            _portal: optimismPortal2
         });
         // Register the game implementation with the factory.
         disputeGameFactory.setImplementation(GAME_TYPE, gameImpl);
@@ -84,8 +75,6 @@ contract PermissionedDisputeGame_Init is DisputeGameFactory_Init {
         // Check immutables
         assertEq(gameProxy.gameType().raw(), GAME_TYPE.raw());
         assertEq(gameProxy.absolutePrestate().raw(), absolutePrestate.raw());
-        assertEq(gameProxy.genesisBlockNumber(), genesisBlockNumber);
-        assertEq(gameProxy.genesisOutputRoot().raw(), genesisOutputRoot.raw());
         assertEq(gameProxy.maxGameDepth(), 2 ** 3);
         assertEq(gameProxy.splitDepth(), 2 ** 2);
         assertEq(gameProxy.gameDuration().raw(), 7 days);
@@ -116,13 +105,7 @@ contract PermissionedDisputeGame_Test is PermissionedDisputeGame_Init {
         absolutePrestate = _changeClaimStatus(Claim.wrap(keccak256(absolutePrestateData)), VMStatuses.UNFINISHED);
 
         super.setUp();
-        super.init({
-            rootClaim: ROOT_CLAIM,
-            absolutePrestate: absolutePrestate,
-            l2BlockNumber: 0x10,
-            genesisBlockNumber: 0,
-            genesisOutputRoot: Hash.wrap(bytes32(0))
-        });
+        super.init({ rootClaim: ROOT_CLAIM, absolutePrestate: absolutePrestate, l2BlockNumber: 0x10 });
     }
 
     /// @dev Tests that the proposer can create a permissioned dispute game.

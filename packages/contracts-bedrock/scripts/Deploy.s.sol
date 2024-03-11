@@ -1115,7 +1115,11 @@ contract Deploy is Deployer {
                 (
                     DisputeGameFactory(disputeGameFactoryProxy),
                     SystemConfig(systemConfigProxy),
-                    SuperchainConfig(superchainConfigProxy)
+                    SuperchainConfig(superchainConfigProxy),
+                    OutputRoot({
+                        root: Hash.wrap(cfg.faultGameGenesisOutputRoot()),
+                        l2BlockNumber: cfg.faultGameGenesisBlock()
+                    })
                 )
                 )
         });
@@ -1295,14 +1299,13 @@ contract Deploy is Deployer {
                 new FaultDisputeGame({
                     _gameType: _params.gameType,
                     _absolutePrestate: _params.absolutePrestate,
-                    _genesisBlockNumber: cfg.faultGameGenesisBlock(),
-                    _genesisOutputRoot: Hash.wrap(cfg.faultGameGenesisOutputRoot()),
                     _maxGameDepth: _params.maxGameDepth,
                     _splitDepth: cfg.faultGameSplitDepth(),
                     _gameDuration: Duration.wrap(uint64(cfg.faultGameMaxDuration())),
                     _vm: _params.faultVm,
                     _weth: _params.weth,
-                    _l2ChainId: cfg.l2ChainID()
+                    _l2ChainId: cfg.l2ChainID(),
+                    _portal: OptimismPortal2(mustGetAddress("OptimismPortal2"))
                 })
             );
         } else {
@@ -1311,14 +1314,13 @@ contract Deploy is Deployer {
                 new PermissionedDisputeGame({
                     _gameType: _params.gameType,
                     _absolutePrestate: _params.absolutePrestate,
-                    _genesisBlockNumber: cfg.faultGameGenesisBlock(),
-                    _genesisOutputRoot: Hash.wrap(cfg.faultGameGenesisOutputRoot()),
                     _maxGameDepth: _params.maxGameDepth,
                     _splitDepth: cfg.faultGameSplitDepth(),
                     _gameDuration: Duration.wrap(uint64(cfg.faultGameMaxDuration())),
                     _vm: _params.faultVm,
                     _weth: _params.weth,
                     _l2ChainId: cfg.l2ChainID(),
+                    _portal: OptimismPortal2(mustGetAddress("OptimismPortal2")),
                     _proposer: cfg.l2OutputOracleProposer(),
                     _challenger: cfg.l2OutputOracleChallenger()
                 })

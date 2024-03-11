@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { IDelayedWETH } from "src/dispute/interfaces/IDelayedWETH.sol";
+import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
 import { FaultDisputeGame, IFaultDisputeGame, IBigStepper, IInitializable } from "src/dispute/FaultDisputeGame.sol";
+import { IDelayedWETH } from "src/dispute/interfaces/IDelayedWETH.sol";
 import "src/libraries/DisputeTypes.sol";
 import "src/libraries/DisputeErrors.sol";
 
@@ -29,8 +30,6 @@ contract PermissionedDisputeGame is FaultDisputeGame {
 
     /// @param _gameType The type ID of the game.
     /// @param _absolutePrestate The absolute prestate of the instruction trace.
-    /// @param _genesisBlockNumber The block number of the genesis block.
-    /// @param _genesisOutputRoot The output root of the genesis block.
     /// @param _maxGameDepth The maximum depth of bisection.
     /// @param _splitDepth The final depth of the output bisection portion of the game.
     /// @param _gameDuration The duration of the game.
@@ -39,11 +38,10 @@ contract PermissionedDisputeGame is FaultDisputeGame {
     /// @param _l2ChainId Chain ID of the L2 network this contract argues about.
     /// @param _proposer Address that is allowed to create instances of this contract.
     /// @param _challenger Address that is allowed to challenge instances of this contract.
+    /// @param _portal The OptimismPortal2 contract.
     constructor(
         GameType _gameType,
         Claim _absolutePrestate,
-        uint256 _genesisBlockNumber,
-        Hash _genesisOutputRoot,
         uint256 _maxGameDepth,
         uint256 _splitDepth,
         Duration _gameDuration,
@@ -51,19 +49,19 @@ contract PermissionedDisputeGame is FaultDisputeGame {
         IDelayedWETH _weth,
         uint256 _l2ChainId,
         address _proposer,
-        address _challenger
+        address _challenger,
+        OptimismPortal2 _portal
     )
         FaultDisputeGame(
             _gameType,
             _absolutePrestate,
-            _genesisBlockNumber,
-            _genesisOutputRoot,
             _maxGameDepth,
             _splitDepth,
             _gameDuration,
             _vm,
             _weth,
-            _l2ChainId
+            _l2ChainId,
+            _portal
         )
     {
         PROPOSER = _proposer;

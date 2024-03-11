@@ -32,15 +32,7 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
 
     event Move(uint256 indexed parentIndex, Claim indexed pivot, address indexed claimant);
 
-    function init(
-        Claim rootClaim,
-        Claim absolutePrestate,
-        uint256 l2BlockNumber,
-        uint256 genesisBlockNumber,
-        Hash genesisOutputRoot
-    )
-        public
-    {
+    function init(Claim rootClaim, Claim absolutePrestate, uint256 l2BlockNumber) public {
         // Set the time to a realistic date.
         vm.warp(1690906994);
 
@@ -53,14 +45,13 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
         gameImpl = new FaultDisputeGame({
             _gameType: GAME_TYPE,
             _absolutePrestate: absolutePrestate,
-            _genesisBlockNumber: genesisBlockNumber,
-            _genesisOutputRoot: genesisOutputRoot,
             _maxGameDepth: 2 ** 3,
             _splitDepth: 2 ** 2,
             _gameDuration: Duration.wrap(7 days),
             _vm: _vm,
             _weth: delayedWeth,
-            _l2ChainId: 10
+            _l2ChainId: 10,
+            _portal: optimismPortal2
         });
         // Register the game implementation with the factory.
         disputeGameFactory.setImplementation(GAME_TYPE, gameImpl);
@@ -70,8 +61,6 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
         // Check immutables
         assertEq(gameProxy.gameType().raw(), GAME_TYPE.raw());
         assertEq(gameProxy.absolutePrestate().raw(), absolutePrestate.raw());
-        assertEq(gameProxy.genesisBlockNumber(), genesisBlockNumber);
-        assertEq(gameProxy.genesisOutputRoot().raw(), genesisOutputRoot.raw());
         assertEq(gameProxy.maxGameDepth(), 2 ** 3);
         assertEq(gameProxy.splitDepth(), 2 ** 2);
         assertEq(gameProxy.gameDuration().raw(), 7 days);
@@ -103,13 +92,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         absolutePrestate = _changeClaimStatus(Claim.wrap(keccak256(absolutePrestateData)), VMStatuses.UNFINISHED);
 
         super.setUp();
-        super.init({
-            rootClaim: ROOT_CLAIM,
-            absolutePrestate: absolutePrestate,
-            l2BlockNumber: 0x10,
-            genesisBlockNumber: 0,
-            genesisOutputRoot: Hash.wrap(bytes32(0))
-        });
+        super.init({ rootClaim: ROOT_CLAIM, absolutePrestate: absolutePrestate, l2BlockNumber: 0x10 });
     }
 
     ////////////////////////////////////////////////////////////////
@@ -128,14 +111,13 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         new FaultDisputeGame({
             _gameType: GAME_TYPE,
             _absolutePrestate: absolutePrestate,
-            _genesisBlockNumber: 0,
-            _genesisOutputRoot: Hash.wrap(bytes32(0)),
             _maxGameDepth: 2 ** 3,
             _splitDepth: _splitDepth,
             _gameDuration: Duration.wrap(7 days),
             _vm: alphabetVM,
             _weth: DelayedWETH(payable(address(0))),
-            _l2ChainId: 10
+            _l2ChainId: 10,
+            _portal: optimismPortal2
         });
     }
 
@@ -172,10 +154,11 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     //          `IFaultDisputeGame` Implementation Tests       //
     ////////////////////////////////////////////////////////////////
 
-    /// @dev Tests that the game cannot be initialized with an output root that commits to <= the configured genesis
+    /// @dev Tests that the game cannot be initialized with an output root that commits to <= the configured starting
     ///      block number
-    function testFuzz_initialize_cannotProposeGenesis_reverts(uint256 _blockNumber) public {
-        _blockNumber = bound(_blockNumber, 0, gameProxy.genesisBlockNumber());
+    function testFuzz_initialize_cannotProposeStarting_reverts(uint256 _blockNumber) public {
+        (, uint256 startingL2Block) = gameProxy.startingOutputRoot();
+        _blockNumber = bound(_blockNumber, 0, startingL2Block);
 
         Claim claim = _dummyClaim();
         vm.expectRevert(abi.encodeWithSelector(UnexpectedRootClaim.selector, claim));
@@ -207,10 +190,10 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         _extraDataLen = bound(_extraDataLen, 33, 23_500);
         bytes memory _extraData = new bytes(_extraDataLen);
 
-        // Assign the first 32 bytes in `extraData` to a valid L2 block number passed genesis.
-        uint256 genesisBlockNumber = gameProxy.genesisBlockNumber();
+        // Assign the first 32 bytes in `extraData` to a valid L2 block number passed the starting block number.
+        (, uint256 l2BlockNumber) = gameProxy.startingOutputRoot();
         assembly {
-            mstore(add(_extraData, 0x20), add(genesisBlockNumber, 1))
+            mstore(add(_extraData, 0x20), add(l2BlockNumber, 1))
         }
 
         Claim claim = _dummyClaim();
@@ -901,8 +884,8 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     }
 
     /// @dev Tests that local data is loaded into the preimage oracle correctly in the subgame
-    ///      that is disputing the transition from `GENESIS -> GENESIS + 1`
-    function test_addLocalDataGenesisTransition_static_succeeds() public {
+    ///      that is disputing the transition from `STARTING -> STARTING + 1`
+    function test_addLocalDataStartingTransition_static_succeeds() public {
         IPreimageOracle oracle = IPreimageOracle(address(gameProxy.vm().oracle()));
 
         // Get a claim below the split depth so that we can add local data for an execution trace subgame.
@@ -912,7 +895,8 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         gameProxy.attack{ value: MIN_BOND }(4, _changeClaimStatus(_dummyClaim(), VMStatuses.PANIC));
 
         // Expected start/disputed claims
-        bytes32 startingClaim = gameProxy.genesisOutputRoot().raw();
+        (Hash root,) = gameProxy.startingOutputRoot();
+        bytes32 startingClaim = root.raw();
         bytes32 disputedClaim = bytes32(uint256(3));
         Position disputedPos = LibPosition.wrap(4, 0);
 
@@ -1057,7 +1041,7 @@ contract FaultDispute_1v1_Actors_Test is FaultDisputeGame_Init {
     }
 
     /// @notice Static unit test for a 1v1 output bisection dispute.
-    function test_static_1v1honestRootGenesisAbsolutePrestate_succeeds() public {
+    function test_static_1v1honestRootStartingAbsolutePrestate_succeeds() public {
         // The honest l2 outputs are from [1, 16] in this game.
         uint256[] memory honestL2Outputs = new uint256[](16);
         for (uint256 i; i < honestL2Outputs.length; i++) {
@@ -1095,7 +1079,7 @@ contract FaultDispute_1v1_Actors_Test is FaultDisputeGame_Init {
     }
 
     /// @notice Static unit test for a 1v1 output bisection dispute.
-    function test_static_1v1dishonestRootGenesisAbsolutePrestate_succeeds() public {
+    function test_static_1v1dishonestRootStartingAbsolutePrestate_succeeds() public {
         // The honest l2 outputs are from [1, 16] in this game.
         uint256[] memory honestL2Outputs = new uint256[](16);
         for (uint256 i; i < honestL2Outputs.length; i++) {
@@ -1476,13 +1460,7 @@ contract FaultDispute_1v1_Actors_Test is FaultDisputeGame_Init {
         Claim absolutePrestateExec =
             _changeClaimStatus(Claim.wrap(keccak256(absolutePrestateData_)), VMStatuses.UNFINISHED);
         Claim rootClaim = Claim.wrap(bytes32(uint256(_rootClaim)));
-        super.init({
-            rootClaim: rootClaim,
-            absolutePrestate: absolutePrestateExec,
-            l2BlockNumber: _rootClaim,
-            genesisBlockNumber: 0,
-            genesisOutputRoot: Hash.wrap(bytes32(0))
-        });
+        super.init({ rootClaim: rootClaim, absolutePrestate: absolutePrestateExec, l2BlockNumber: _rootClaim });
     }
 
     /// @dev Helper to create actors for the 1v1 dispute.

@@ -137,8 +137,6 @@ contract FPACOPS is Deploy, StdAssertions {
         assertEq(gameImpl.splitDepth(), cfg.faultGameSplitDepth());
         assertEq(gameImpl.gameDuration().raw(), cfg.faultGameMaxDuration());
         assertEq(gameImpl.absolutePrestate().raw(), bytes32(cfg.faultGameAbsolutePrestate()));
-        assertEq(gameImpl.genesisBlockNumber(), cfg.faultGameGenesisBlock());
-        assertEq(gameImpl.genesisOutputRoot().raw(), cfg.faultGameGenesisOutputRoot());
 
         // Check the security override yoke configuration.
         PermissionedDisputeGame soyGameImpl =
@@ -147,8 +145,6 @@ contract FPACOPS is Deploy, StdAssertions {
         assertEq(soyGameImpl.splitDepth(), cfg.faultGameSplitDepth());
         assertEq(soyGameImpl.gameDuration().raw(), cfg.faultGameMaxDuration());
         assertEq(soyGameImpl.absolutePrestate().raw(), bytes32(cfg.faultGameAbsolutePrestate()));
-        assertEq(soyGameImpl.genesisBlockNumber(), cfg.faultGameGenesisBlock());
-        assertEq(soyGameImpl.genesisOutputRoot().raw(), cfg.faultGameGenesisOutputRoot());
     }
 
     /// @notice Prints a review of the fault proof configuration section of the deploy config.

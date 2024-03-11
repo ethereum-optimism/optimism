@@ -1,18 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
+import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
 
 import { IDelayedWETH } from "src/dispute/interfaces/IDelayedWETH.sol";
 import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
 import { IFaultDisputeGame } from "src/dispute/interfaces/IFaultDisputeGame.sol";
 import { IInitializable } from "src/dispute/interfaces/IInitializable.sol";
 import { IBigStepper, IPreimageOracle } from "src/dispute/interfaces/IBigStepper.sol";
+import { ISemver } from "src/universal/ISemver.sol";
 
 import { Clone } from "src/libraries/Clone.sol";
 import { Types } from "src/libraries/Types.sol";
-import { ISemver } from "src/universal/ISemver.sol";
 import { LibClock } from "src/dispute/lib/LibUDT.sol";
+import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
 
 import "src/libraries/DisputeTypes.sol";
 import "src/libraries/DisputeErrors.sol";
@@ -41,17 +42,14 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     /// @notice An onchain VM that performs single instruction steps on a fault proof program trace.
     IBigStepper internal immutable VM;
 
-    /// @notice The genesis block number.
-    uint256 internal immutable GENESIS_BLOCK_NUMBER;
-
-    /// @notice The genesis output root.
-    Hash internal immutable GENESIS_OUTPUT_ROOT;
-
     /// @notice The game type ID.
     GameType internal immutable GAME_TYPE;
 
     /// @notice WETH contract for holding ETH.
     IDelayedWETH internal immutable WETH;
+
+    /// @notice The OptimismPortal contract.
+    OptimismPortal2 internal immutable PORTAL;
 
     /// @notice The chain ID of the L2 network this contract argues about.
     uint256 internal immutable L2_CHAIN_ID;
@@ -89,45 +87,45 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     /// @notice Flag for the `initialize` function to prevent re-initialization.
     bool internal initialized;
 
+    /// @notice The latest finalized output root, serving as the anchor for output bisection.
+    OutputRoot public startingOutputRoot;
+
     /// @notice Semantic version.
-    /// @custom:semver 0.7.1
-    string public constant version = "0.7.1";
+    /// @custom:semver 0.8.1
+    string public constant version = "0.8.1";
 
     /// @param _gameType The type ID of the game.
     /// @param _absolutePrestate The absolute prestate of the instruction trace.
-    /// @param _genesisBlockNumber The block number of the genesis block.
-    /// @param _genesisOutputRoot The output root of the genesis block.
     /// @param _maxGameDepth The maximum depth of bisection.
     /// @param _splitDepth The final depth of the output bisection portion of the game.
     /// @param _gameDuration The duration of the game.
     /// @param _vm An onchain VM that performs single instruction steps on an FPP trace.
     /// @param _weth WETH contract for holding ETH.
     /// @param _l2ChainId Chain ID of the L2 network this contract argues about.
+    /// @param _portal The OptimismPortal2 contract.
     constructor(
         GameType _gameType,
         Claim _absolutePrestate,
-        uint256 _genesisBlockNumber,
-        Hash _genesisOutputRoot,
         uint256 _maxGameDepth,
         uint256 _splitDepth,
         Duration _gameDuration,
         IBigStepper _vm,
         IDelayedWETH _weth,
-        uint256 _l2ChainId
+        uint256 _l2ChainId,
+        OptimismPortal2 _portal
     ) {
         // The split depth cannot be greater than or equal to the max game depth.
         if (_splitDepth >= _maxGameDepth) revert InvalidSplitDepth();
 
         GAME_TYPE = _gameType;
         ABSOLUTE_PRESTATE = _absolutePrestate;
-        GENESIS_BLOCK_NUMBER = _genesisBlockNumber;
-        GENESIS_OUTPUT_ROOT = _genesisOutputRoot;
         MAX_GAME_DEPTH = _maxGameDepth;
         SPLIT_DEPTH = _splitDepth;
         GAME_DURATION = _gameDuration;
         VM = _vm;
         WETH = _weth;
         L2_CHAIN_ID = _l2ChainId;
+        PORTAL = _portal;
     }
 
     /// @notice Receive function to allow the contract to receive ETH.
@@ -352,8 +350,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
             // Load the disputed proposal's L2 block number as a big-endian uint64 in the
             // high order 8 bytes of the word.
 
-            // We add the index at depth + 1 to the genesis block number to get the disputed L2 block number.
-            uint256 l2Number = GENESIS_BLOCK_NUMBER + disputedPos.traceIndex(SPLIT_DEPTH) + 1;
+            // We add the index at depth + 1 to the starting block number to get the disputed L2 block number.
+            uint256 l2Number = startingOutputRoot.l2BlockNumber + disputedPos.traceIndex(SPLIT_DEPTH) + 1;
 
             oracle.loadLocalData(_ident, uuid.raw(), bytes32(l2Number << 0xC0), 8, _partOffset);
         } else if (_ident == LocalPreimageKey.CHAIN_ID) {
@@ -396,6 +394,12 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         resolvedAt = Timestamp.wrap(uint64(block.timestamp));
 
         emit Resolved(status = status_);
+
+        // If the game resolved as `DEFENDER_WINS`, the root claim was deemed correct. Attempt to set the
+        // latest finalized output root.
+        if (status_ == GameStatus.DEFENDER_WINS) {
+            PORTAL.trySetLatestFinalizedOutputRoot();
+        }
     }
 
     /// @inheritdoc IFaultDisputeGame
@@ -507,14 +511,19 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         //
         // Explicit checks:
         // - The game must not have already been initialized.
-        // - An output root cannot be proposed at or before the genesis block.
+        // - An output root cannot be proposed at or before the starting block, which is the `OptimismPortal`'s latest
+        //   finalized output root.
 
         // INVARIANT: The game must not have already been initialized.
         if (initialized) revert AlreadyInitialized();
 
+        // Set the starting output root to the portal's latest finalized output root.
+        (Hash root, uint256 rootBlockNumber) = PORTAL.latestFinalizedOutputRoot();
+        startingOutputRoot = OutputRoot({ l2BlockNumber: rootBlockNumber, root: root });
+
         // Do not allow the game to be initialized if the root claim corresponds to a block at or before the
-        // configured genesis block number.
-        if (l2BlockNumber() <= GENESIS_BLOCK_NUMBER) revert UnexpectedRootClaim(rootClaim());
+        // configured starting block number.
+        if (l2BlockNumber() <= rootBlockNumber) revert UnexpectedRootClaim(rootClaim());
 
         // Revert if the calldata size is too large, which signals that the `extraData` contains more than expected.
         // This is to prevent adding extra bytes to the `extraData` that result in a different game UUID in the factory,
@@ -656,16 +665,6 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     /// @notice Returns the address of the VM.
     function vm() external view returns (IBigStepper vm_) {
         vm_ = VM;
-    }
-
-    /// @notice Returns the genesis block number.
-    function genesisBlockNumber() external view returns (uint256 genesisBlockNumber_) {
-        genesisBlockNumber_ = GENESIS_BLOCK_NUMBER;
-    }
-
-    /// @notice Returns the genesis output root.
-    function genesisOutputRoot() external view returns (Hash genesisOutputRoot_) {
-        genesisOutputRoot_ = GENESIS_OUTPUT_ROOT;
     }
 
     /// @notice Returns the WETH contract for holding ETH.
@@ -813,14 +812,14 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         // 2. If it was a defense, the starting output root is `claim`, and the disputed output root is
         //    elsewhere in the DAG (it must commit to the block # index at depth of `outputPos + 1`).
         if (wasAttack) {
-            // If this is an attack on the first output root (the block directly after genesis), the
+            // If this is an attack on the first output root (the block directly after the starting block), the
             // starting claim nor position exists in the tree. We leave these as 0, which can be easily
             // identified due to 0 being an invalid Gindex.
             if (outputPos.indexAtDepth() > 0) {
                 ClaimData storage starting = _findTraceAncestor(Position.wrap(outputPos.raw() - 1), claimIdx, true);
                 (startingClaim_, startingPos_) = (starting.claim, starting.position);
             } else {
-                startingClaim_ = Claim.wrap(GENESIS_OUTPUT_ROOT.raw());
+                startingClaim_ = Claim.wrap(startingOutputRoot.root.raw());
             }
             (disputedClaim_, disputedPos_) = (claim.claim, claim.position);
         } else {

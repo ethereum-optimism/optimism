@@ -94,9 +94,9 @@ func (g *OutputGameHelper) L2BlockNum(ctx context.Context) uint64 {
 }
 
 func (g *OutputGameHelper) GenesisBlockNum(ctx context.Context) uint64 {
-	blockNum, err := g.game.GenesisBlockNumber(&bind.CallOpts{Context: ctx})
+	startingOutput, err := g.game.StartingOutputRoot(&bind.CallOpts{Context: ctx})
 	g.require.NoError(err, "failed to load genesis block number")
-	return blockNum.Uint64()
+	return startingOutput.L2BlockNumber.Uint64()
 }
 
 func (g *OutputGameHelper) DisputeLastBlock(ctx context.Context) *ClaimHelper {
