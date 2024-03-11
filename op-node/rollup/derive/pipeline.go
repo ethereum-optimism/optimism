@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	superchain "github.com/ethereum-optimism/optimism/op-superchain"
 )
 
 type Metrics interface {
@@ -68,7 +69,8 @@ type DerivationPipeline struct {
 
 // NewDerivationPipeline creates a derivation pipeline, which should be reset before use.
 
-func NewDerivationPipeline(log log.Logger, rollupCfg *rollup.Config, l1Fetcher L1Fetcher, l1Blobs L1BlobsFetcher, plasmaInputs PlasmaInputFetcher, l2Source L2Source, engine LocalEngineControl, metrics Metrics, syncCfg *sync.Config, safeHeadListener SafeHeadListener) *DerivationPipeline {
+func NewDerivationPipeline(log log.Logger, rollupCfg *rollup.Config, l1Fetcher L1Fetcher, l1Blobs L1BlobsFetcher, plasmaInputs PlasmaInputFetcher, l2Source L2Source, superchain superchain.Backend, engine LocalEngineControl, metrics Metrics, syncCfg *sync.Config, safeHeadListener SafeHeadListener) *DerivationPipeline {
+	crossL2 := NewCrossL2(log, rollupCfg, superchain)
 
 	// Pull stages
 	l1Traversal := NewL1Traversal(log, rollupCfg, l1Fetcher)
@@ -79,7 +81,7 @@ func NewDerivationPipeline(log log.Logger, rollupCfg *rollup.Config, l1Fetcher L
 	chInReader := NewChannelInReader(rollupCfg, log, bank, metrics)
 	batchQueue := NewBatchQueue(log, rollupCfg, chInReader, l2Source)
 	attrBuilder := NewFetchingAttributesBuilder(rollupCfg, l1Fetcher, l2Source)
-	attributesQueue := NewAttributesQueue(log, rollupCfg, attrBuilder, batchQueue)
+	attributesQueue := NewAttributesQueue(log, rollupCfg, attrBuilder, crossL2, batchQueue)
 
 	// Step stages
 	eng := NewEngineQueue(log, rollupCfg, l2Source, engine, metrics, attributesQueue, l1Fetcher, syncCfg, safeHeadListener)

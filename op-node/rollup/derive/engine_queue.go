@@ -20,13 +20,19 @@ import (
 )
 
 type AttributesWithParent struct {
-	attributes   *eth.PayloadAttributes
-	parent       eth.L2BlockRef
+	attributes *eth.PayloadAttributes
+	parent     eth.L2BlockRef
+
 	isLastInSpan bool
+
+	// Available to be set by a filterer in the attributes pipeline. As named,
+	// this will reset the pending safe marker to the known safe head will cause
+	// the batch queue to progress with a different batch on the safe head, if available.
+	resetPendingSafe bool
 }
 
 func NewAttributesWithParent(attributes *eth.PayloadAttributes, parent eth.L2BlockRef, isLastInSpan bool) *AttributesWithParent {
-	return &AttributesWithParent{attributes, parent, isLastInSpan}
+	return &AttributesWithParent{attributes, parent, isLastInSpan, false}
 }
 
 func (a *AttributesWithParent) Attributes() *eth.PayloadAttributes {
@@ -522,6 +528,13 @@ func (eq *EngineQueue) tryNextSafeAttributes(ctx context.Context) error {
 			eq.ec.PendingSafeL2Head(), eq.ec.PendingSafeL2Head().ParentID(), eq.safeAttributes.parent))
 
 	}
+	// validate that the next attributes does not signal pending safe reset before processing it.
+	if eq.safeAttributes.resetPendingSafe {
+		eq.safeAttributes = nil
+		eq.ec.SetPendingSafeL2Head(eq.ec.SafeL2Head())
+		return nil
+	}
+
 	if eq.ec.PendingSafeL2Head().Number < eq.ec.UnsafeL2Head().Number {
 		return eq.consolidateNextSafeAttributes(ctx)
 	} else if eq.ec.PendingSafeL2Head().Number == eq.ec.UnsafeL2Head().Number {

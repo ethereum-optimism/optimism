@@ -389,6 +389,10 @@ func NewMetrics(procName string) *Metrics {
 	}
 }
 
+func (m *Metrics) Factory() metrics.Factory {
+	return m.factory
+}
+
 // SetPeerScores updates the peer score metrics.
 // Accepts a slice of peer scores in any order.
 func (m *Metrics) SetPeerScores(allScores []store.PeerScores) {
