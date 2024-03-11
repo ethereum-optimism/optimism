@@ -154,7 +154,7 @@ func TestAttributesFilterer(t *testing.T) {
 		GasLimit:              (*eth.Uint64Quantity)(&expectedL1Cfg.GasLimit),
 	}
 
-	// Filter out txs with "drop" as the data
+	// Filter out non-deposit txs
 	depositsOnlyFilterer := testAttributesFilterer{
 		filter: func(attrs *eth.PayloadAttributes) *eth.PayloadAttributes {
 			var deposits []eth.Data
@@ -175,7 +175,7 @@ func TestAttributesFilterer(t *testing.T) {
 	actual, err := aq.NextAttributes(context.Background(), safeHead)
 	require.NoError(t, err)
 
-	// drop the deposits in the pre-image attributes
+	// keep only deposits
 	attrs.Transactions = attrs.Transactions[:1]
 	require.Equal(t, attrs, *actual.attributes)
 }
