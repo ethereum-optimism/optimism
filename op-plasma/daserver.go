@@ -2,18 +2,17 @@ package plasma
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
-	lvlerrors "github.com/syndtr/goleveldb/leveldb/errors"
 )
 
 type KVStore interface {
@@ -102,7 +101,8 @@ func (d *DAServer) HandleGet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	input, err := d.store.Get(comm)
-	if errors.Is(err, lvlerrors.ErrNotFound) {
+	// cannot use errors.Is because different implementations may use different ErrNotFound types
+	if err != nil && strings.Contains(err.Error(), "not found") {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}

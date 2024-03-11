@@ -4,16 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
-	"errors"
 	"io"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"github.com/aws/smithy-go"
-	lvlerrors "github.com/syndtr/goleveldb/leveldb/errors"
 )
 
 var defaultTimeout = 5 * time.Second
@@ -45,13 +41,6 @@ func (s *S3Store) Get(key []byte) ([]byte, error) {
 		Key:    aws.String(hex.EncodeToString(key)),
 	})
 	if err != nil {
-		var apiError smithy.APIError
-		if errors.As(err, &apiError) {
-			switch apiError.(type) {
-			case *types.NotFound:
-				return nil, lvlerrors.ErrNotFound
-			}
-		}
 		return nil, err
 	}
 	defer result.Body.Close()
