@@ -2,4 +2,4 @@
 '@eth-optimism/sdk': patch
 ---
 
-fixed issue with vercel builds failing on preinstall command
+Fixed an issue where Vercel builds were failing due to the `preinstall` command.
