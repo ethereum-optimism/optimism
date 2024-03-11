@@ -898,7 +898,6 @@ func TestBlockBuildingRace(t *testing.T) {
 	l1F.ExpectL1BlockRefByNumber(refA.Number, refA, nil)
 	l1F.ExpectL1BlockRefByHash(refA.Hash, refA, nil)
 	l1F.ExpectL1BlockRefByHash(refA.Hash, refA, nil)
-	l1F.ExpectL1BlockRefByNumber(0, refA, nil)
 
 	eng.ExpectSystemConfigByL2Hash(refA0.Hash, cfg.Genesis.SystemConfig, nil)
 
@@ -1024,7 +1023,6 @@ func TestResetLoop(t *testing.T) {
 
 	rng := rand.New(rand.NewSource(1234))
 
-	l1Genesis := eth.L1BlockRef{Number: 0}
 	refA := testutils.RandomBlockRef(rng)
 	refA0 := eth.L2BlockRef{
 		Hash:           testutils.RandomHash(rng),
@@ -1082,7 +1080,6 @@ func TestResetLoop(t *testing.T) {
 	eng.ExpectL2BlockRefByHash(refA1.Hash, refA1, nil)
 	eng.ExpectL2BlockRefByHash(refA0.Hash, refA0, nil)
 	eng.ExpectSystemConfigByL2Hash(refA0.Hash, cfg.Genesis.SystemConfig, nil)
-	l1F.ExpectL1BlockRefByNumber(0, l1Genesis, nil)
 	l1F.ExpectL1BlockRefByNumber(refA.Number, refA, nil)
 	l1F.ExpectL1BlockRefByHash(refA.Hash, refA, nil)
 	l1F.ExpectL1BlockRefByHash(refA.Hash, refA, nil)
