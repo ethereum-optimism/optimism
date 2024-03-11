@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/txpool"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 	"github.com/ethereum/go-ethereum/log"
@@ -399,14 +400,14 @@ func TestAlreadyReserved(t *testing.T) {
 	h := newTestHarnessWithConfig(t, conf)
 
 	sendTx := func(ctx context.Context, tx *types.Transaction) error {
-		return ErrAlreadyReserved
+		return txpool.ErrAlreadyReserved
 	}
 	h.backend.setTxSender(sendTx)
 
 	_, err := h.mgr.Send(context.Background(), TxCandidate{
 		To: &common.Address{},
 	})
-	require.ErrorIs(t, err, ErrAlreadyReserved)
+	require.ErrorIs(t, err, txpool.ErrAlreadyReserved)
 }
 
 // TestTxMgrConfirmsAtMaxGasPrice asserts that Send properly returns the max gas

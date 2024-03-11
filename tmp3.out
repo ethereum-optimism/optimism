@@ -1,0 +1,177 @@
+=== RUN   TestSystem4844E2E
+=== RUN   TestSystem4844E2E/calldata
+=== PAUSE TestSystem4844E2E/calldata
+=== CONT  TestSystem4844E2E/calldata
+WARN [05-03|17:53:59.591] L2OutputOracleStartingBlockNumber is 0, should only be 0 for fresh chains
+WARN [05-03|17:53:59.591] L2OutputOracleStartingTimestamp is 0
+WARN [05-03|17:53:59.591] GasPriceOracleBaseFeeScalar is 0
+WARN [05-03|17:53:59.591] GasPriceOracleBlobBaseFeeScalar is 0
+WARN [05-03|17:53:59.591] RequiredProtocolVersion is empty
+WARN [05-03|17:53:59.591] RecommendedProtocolVersion is empty
+WARN [05-03|17:53:59.592] L2OutputOracleStartingBlockNumber is 0, should only be 0 for fresh chains
+WARN [05-03|17:53:59.592] L2OutputOracleStartingTimestamp is 0
+WARN [05-03|17:53:59.592] GasPriceOracleBaseFeeScalar is 0
+WARN [05-03|17:53:59.592] GasPriceOracleBlobBaseFeeScalar is 0
+WARN [05-03|17:53:59.592] RequiredProtocolVersion is empty
+WARN [05-03|17:53:59.592] RecommendedProtocolVersion is empty
+INFO [05-03|17:53:59.592] Building developer L1 genesis block
+INFO [05-03|17:53:59.592] Included L1 deployment                   name=AddressManager address=0xBb2180ebd78ce97360503434eD37fcf4a1Df61c3 balance=0 storage=2 nonce=1
+INFO [05-03|17:53:59.592] Included L1 deployment                   name=BlockOracle    address=0x0000000000000000000000000000000000000000 balance=1 storage=0 nonce=0
+INFO [05-03|17:53:59.592] Included L1 deployment                   name=DisputeGameFactory address=0x20B168142354Cee65a32f6D8cf3033E592299765 balance=0 storage=2 nonce=1
+INFO [05-03|17:53:59.592] Included L1 deployment                   name=DisputeGameFactoryProxy address=0xc7B87b2b892EA5C3CfF47168881FE168C00377FB balance=0 storage=7 nonce=1
+INFO [05-03|17:53:59.592] Included L1 deployment                   name=L1CrossDomainMessenger  address=0xf3E6CBcbF1AE12Fc13Bc8B14FA8A67CbE147fD99 balance=0 storage=6 nonce=1
+INFO [05-03|17:53:59.592] Included L1 deployment                   name=L1CrossDomainMessengerProxy address=0x0c8b5822b6e02CDa722174F19A1439A7495a3fA6 balance=0 storage=8 nonce=1
+INFO [05-03|17:53:59.592] Included L1 deployment                   name=L1ERC721Bridge              address=0x44637A4292E0CD2B17A55d5F6B2F05AFcAcD0586 balance=0 storage=4 nonce=1
+INFO [05-03|17:53:59.592] Included L1 deployment                   name=L1ERC721BridgeProxy         address=0xDeF3bca8c80064589E6787477FFa7Dd616B5574F balance=0 storage=6 nonce=1
+INFO [05-03|17:53:59.592] Included L1 deployment                   name=L1StandardBridge            address=0x04c50B398Cd4182428E79f7186b7C919cF17e86F balance=0 storage=5 nonce=1
+INFO [05-03|17:53:59.592] Included L1 deployment                   name=L1StandardBridgeProxy       address=0x1c23A6d89F95ef3148BCDA8E242cAb145bf9c0E4 balance=0 storage=7 nonce=1
+INFO [05-03|17:53:59.592] Included L1 deployment                   name=L2OutputOracle              address=0x19652082F846171168Daf378C4fD3ee85a0D4A60 balance=0 storage=8 nonce=1
+INFO [05-03|17:53:59.592] Included L1 deployment                   name=L2OutputOracleProxy         address=0xD31598c909d9C935a9e35bA70d9a3DD47d4D5865 balance=0 storage=10 nonce=1
+INFO [05-03|17:53:59.592] Included L1 deployment                   name=OptimismMintableERC20Factory address=0x39Aea2Dd53f2d01c15877aCc2791af6BDD7aD567 balance=0 storage=2  nonce=1
+INFO [05-03|17:53:59.592] Included L1 deployment                   name=OptimismMintableERC20FactoryProxy address=0x20A42a5a785622c6Ba2576B2D6e924aA82BFA11D balance=0 storage=4  nonce=1
+INFO [05-03|17:53:59.592] Included L1 deployment                   name=OptimismPortal                    address=0xA45db41D98295c8E260dc2000d2a119A11174C82 balance=0 storage=6  nonce=1
+INFO [05-03|17:53:59.592] Included L1 deployment                   name=OptimismPortalProxy               address=0x978e3286EB805934215a88694d80b09aDed68D90 balance=0 storage=8  nonce=1
+INFO [05-03|17:53:59.592] Included L1 deployment                   name=ProxyAdmin                        address=0xDB8cFf278adCCF9E9b5da745B44E754fC4EE3C76 balance=0 storage=16 nonce=1
+INFO [05-03|17:53:59.592] Included L1 deployment                   name=SystemConfig                      address=0x809abd1c13738dE7a76C85839779FCaa59FA32CE balance=0 storage=16 nonce=1
+INFO [05-03|17:53:59.592] Included L1 deployment                   name=SystemConfigProxy                 address=0x8B71b41D4dBEb2b6821d44692d3fACAAf77480Bb balance=0 storage=18 nonce=1
+INFO [05-03|17:53:59.592] Included L1 deployment                   name=ProtocolVersions                  address=0xfbfD64a6C0257F613feFCe050Aa30ecC3E3d7C3F balance=0 storage=4  nonce=1
+INFO [05-03|17:53:59.592] Included L1 deployment                   name=ProtocolVersionsProxy             address=0x416C42991d05b31E9A6dC209e91AD22b79D87Ae6 balance=0 storage=6  nonce=1
+INFO [05-03|17:53:59.592] Included L1 deployment                   name=DataAvailabilityChallenge         address=0x0000000000000000000000000000000000000000 balance=1 storage=0  nonce=0
+INFO [05-03|17:53:59.592] Included L1 deployment                   name=DataAvailabilityChallengeProxy    address=0x0000000000000000000000000000000000000000 balance=1 storage=0  nonce=0
+    setup.go:488: Generating L2 genesis l2_allocs_mode 
+WARN [05-03|17:53:59.642] Sanitizing invalid miner gas price       provided=<nil> updated=1
+INFO [05-03|17:53:59.642] Allocated trie memory caches             clean=0.00B dirty=0.00B
+INFO [05-03|17:53:59.642] State schema set to default              scheme=hash
+INFO [05-03|17:53:59.642] Writing custom genesis block
+INFO [05-03|17:53:59.651] Persisted trie from memory database      nodes=626 size=82.70KiB time="338.458µs" gcnodes=0 gcsize=0.00B gctime=0s livenodes=0 livesize=0.00B
+INFO [05-03|17:53:59.654] 
+INFO [05-03|17:53:59.654] ---------------------------------------------------------------------------------------------------------------------------------------------------------
+INFO [05-03|17:53:59.654] Chain ID:  900 (unknown)
+INFO [05-03|17:53:59.654] Consensus: unknown
+INFO [05-03|17:53:59.654] 
+INFO [05-03|17:53:59.654] Pre-Merge hard forks (block based):
+INFO [05-03|17:53:59.654]  - Homestead:                   #0        (https://github.com/ethereum/execution-specs/blob/master/network-upgrades/mainnet-upgrades/homestead.md)
+INFO [05-03|17:53:59.654]  - Tangerine Whistle (EIP 150): #0        (https://github.com/ethereum/execution-specs/blob/master/network-upgrades/mainnet-upgrades/tangerine-whistle.md)
+INFO [05-03|17:53:59.654]  - Spurious Dragon/1 (EIP 155): #0        (https://github.com/ethereum/execution-specs/blob/master/network-upgrades/mainnet-upgrades/spurious-dragon.md)
+INFO [05-03|17:53:59.654]  - Spurious Dragon/2 (EIP 158): #0        (https://github.com/ethereum/execution-specs/blob/master/network-upgrades/mainnet-upgrades/spurious-dragon.md)
+INFO [05-03|17:53:59.654]  - Byzantium:                   #0        (https://github.com/ethereum/execution-specs/blob/master/network-upgrades/mainnet-upgrades/byzantium.md)
+INFO [05-03|17:53:59.654]  - Constantinople:              #0        (https://github.com/ethereum/execution-specs/blob/master/network-upgrades/mainnet-upgrades/constantinople.md)
+INFO [05-03|17:53:59.654]  - Petersburg:                  #0        (https://github.com/ethereum/execution-specs/blob/master/network-upgrades/mainnet-upgrades/petersburg.md)
+INFO [05-03|17:53:59.654]  - Istanbul:                    #0        (https://github.com/ethereum/execution-specs/blob/master/network-upgrades/mainnet-upgrades/istanbul.md)
+INFO [05-03|17:53:59.654]  - Muir Glacier:                #0        (https://github.com/ethereum/execution-specs/blob/master/network-upgrades/mainnet-upgrades/muir-glacier.md)
+INFO [05-03|17:53:59.654]  - Berlin:                      #0        (https://github.com/ethereum/execution-specs/blob/master/network-upgrades/mainnet-upgrades/berlin.md)
+INFO [05-03|17:53:59.654]  - London:                      #0        (https://github.com/ethereum/execution-specs/blob/master/network-upgrades/mainnet-upgrades/london.md)
+INFO [05-03|17:53:59.654]  - Arrow Glacier:               #0        (https://github.com/ethereum/execution-specs/blob/master/network-upgrades/mainnet-upgrades/arrow-glacier.md)
+INFO [05-03|17:53:59.654]  - Gray Glacier:                #0        (https://github.com/ethereum/execution-specs/blob/master/network-upgrades/mainnet-upgrades/gray-glacier.md)
+INFO [05-03|17:53:59.654] 
+INFO [05-03|17:53:59.654] Merge configured:
+INFO [05-03|17:53:59.654]  - Hard-fork specification:    https://github.com/ethereum/execution-specs/blob/master/network-upgrades/mainnet-upgrades/paris.md
+INFO [05-03|17:53:59.654]  - Network known to be merged: true
+INFO [05-03|17:53:59.654]  - Total terminal difficulty:  0
+INFO [05-03|17:53:59.654]  - Merge netsplit block:       #0       
+INFO [05-03|17:53:59.654] 
+INFO [05-03|17:53:59.654] Post-Merge hard forks (timestamp based):
+INFO [05-03|17:53:59.654]  - Shanghai:                    @0          (https://github.com/ethereum/execution-specs/blob/master/network-upgrades/mainnet-upgrades/shanghai.md)
+INFO [05-03|17:53:59.654]  - Cancun:                      @1714784039 (https://github.com/ethereum/execution-specs/blob/master/network-upgrades/mainnet-upgrades/cancun.md)
+INFO [05-03|17:53:59.654] 
+INFO [05-03|17:53:59.654] ---------------------------------------------------------------------------------------------------------------------------------------------------------
+INFO [05-03|17:53:59.654] 
+INFO [05-03|17:53:59.654] Loaded most recent local block           number=0 hash=0ae661..7f36ad td=1 age=0
+INFO [05-03|17:53:59.654] Initialized transaction indexer          range="entire chain"
+INFO [05-03|17:53:59.654] Initialising Ethereum protocol           network=900 dbversion=<nil>
+WARN [05-03|17:53:59.654] Sanitizing invalid txpool journal time   provided=0s    updated=1s
+WARN [05-03|17:53:59.654] Sanitizing invalid txpool price limit    provided=0     updated=1
+WARN [05-03|17:53:59.654] Sanitizing invalid txpool price bump     provided=0     updated=10
+WARN [05-03|17:53:59.654] Sanitizing invalid txpool account slots  provided=0     updated=16
+WARN [05-03|17:53:59.654] Sanitizing invalid txpool global slots   provided=0     updated=5120
+WARN [05-03|17:53:59.654] Sanitizing invalid txpool account queue  provided=0     updated=64
+WARN [05-03|17:53:59.654] Sanitizing invalid txpool global queue   provided=0     updated=1024
+WARN [05-03|17:53:59.654] Sanitizing invalid txpool lifetime       provided=0s    updated=3h0m0s
+INFO [05-03|17:53:59.739] Chain post-merge, sync via beacon client
+WARN [05-03|17:53:59.739] Sanitizing miner recommit interval       provided=0s    updated=100ms
+WARN [05-03|17:53:59.739] Sanitizing new payload timeout to default provided=0s    updated=2s
+WARN [05-03|17:53:59.739] Sanitizing invalid gasprice oracle sample blocks provided=0     updated=1
+WARN [05-03|17:53:59.739] Sanitizing invalid gasprice oracle price cap provided=<nil> updated=500,000,000,000
+WARN [05-03|17:53:59.739] Sanitizing invalid gasprice oracle ignore price provided=<nil> updated=2
+WARN [05-03|17:53:59.739] Sanitizing invalid gasprice oracle max header history provided=0     updated=1
+WARN [05-03|17:53:59.739] Sanitizing invalid gasprice oracle max block history provided=0     updated=1
+INFO [05-03|17:53:59.739] Entered PoS stage
+INFO [05-03|17:53:59.739] Starting peer-to-peer node               instance=l1-geth/darwin-arm64/go1.22.2
+INFO [05-03|17:53:59.741] WebSocket enabled                        url=ws://127.0.0.1:55246
+INFO [05-03|17:53:59.741] HTTP server started                      endpoint=127.0.0.1:55246 auth=false prefix= cors= vhosts=
+WARN [05-03|17:53:59.741] Sanitizing invalid miner gas price       provided=<nil> updated=1
+INFO [05-03|17:53:59.741] Allocated trie memory caches             clean=0.00B dirty=0.00B
+INFO [05-03|17:53:59.741] State schema set to default              scheme=hash
+INFO [05-03|17:53:59.741] Writing custom genesis block
+INFO [05-03|17:53:59.741] New local node record                    seq=1,714,784,039,741 id=28eb4ae048d3cd3c ip=127.0.0.1 udp=64308 tcp=0
+INFO [05-03|17:53:59.741] Started P2P networking                   self="enode://e56883d707abf55ba488503f2499c6946215aad0e82237ff92b4541cb07c6b2503abfff4814f934e2f17a992e235393ea5eef8ce07e891507e4c8d28a1022ff6@127.0.0.1:0?discport=64308"
+INFO [05-03|17:53:59.833] Persisted trie from memory database      nodes=3180 size=459.83KiB time=1.907417ms  gcnodes=0 gcsize=0.00B gctime=0s livenodes=0 livesize=0.00B
+INFO [05-03|17:53:59.886] 
+INFO [05-03|17:53:59.886] ---------------------------------------------------------------------------------------------------------------------------------------------------------
+INFO [05-03|17:53:59.886] Chain ID:  901 (unknown)
+INFO [05-03|17:53:59.886] Consensus: Optimism
+INFO [05-03|17:53:59.886] 
+INFO [05-03|17:53:59.886] Pre-Merge hard forks (block based):
+INFO [05-03|17:53:59.886]  - Homestead:                   #0        (https://github.com/ethereum/execution-specs/blob/master/network-upgrades/mainnet-upgrades/homestead.md)
+INFO [05-03|17:53:59.886]  - Tangerine Whistle (EIP 150): #0        (https://github.com/ethereum/execution-specs/blob/master/network-upgrades/mainnet-upgrades/tangerine-whistle.md)
+INFO [05-03|17:53:59.886]  - Spurious Dragon/1 (EIP 155): #0        (https://github.com/ethereum/execution-specs/blob/master/network-upgrades/mainnet-upgrades/spurious-dragon.md)
+INFO [05-03|17:53:59.886]  - Spurious Dragon/2 (EIP 158): #0        (https://github.com/ethereum/execution-specs/blob/master/network-upgrades/mainnet-upgrades/spurious-dragon.md)
+INFO [05-03|17:53:59.886]  - Byzantium:                   #0        (https://github.com/ethereum/execution-specs/blob/master/network-upgrades/mainnet-upgrades/byzantium.md)
+INFO [05-03|17:53:59.886]  - Constantinople:              #0        (https://github.com/ethereum/execution-specs/blob/master/network-upgrades/mainnet-upgrades/constantinople.md)
+INFO [05-03|17:53:59.886]  - Petersburg:                  #0        (https://github.com/ethereum/execution-specs/blob/master/network-upgrades/mainnet-upgrades/petersburg.md)
+INFO [05-03|17:53:59.886]  - Istanbul:                    #0        (https://github.com/ethereum/execution-specs/blob/master/network-upgrades/mainnet-upgrades/istanbul.md)
+INFO [05-03|17:53:59.886]  - Muir Glacier:                #0        (https://github.com/ethereum/execution-specs/blob/master/network-upgrades/mainnet-upgrades/muir-glacier.md)
+INFO [05-03|17:53:59.886]  - Berlin:                      #0        (https://github.com/ethereum/execution-specs/blob/master/network-upgrades/mainnet-upgrades/berlin.md)
+INFO [05-03|17:53:59.886]  - London:                      #0        (https://github.com/ethereum/execution-specs/blob/master/network-upgrades/mainnet-upgrades/london.md)
+INFO [05-03|17:53:59.886]  - Arrow Glacier:               #0        (https://github.com/ethereum/execution-specs/blob/master/network-upgrades/mainnet-upgrades/arrow-glacier.md)
+INFO [05-03|17:53:59.886]  - Gray Glacier:                #0        (https://github.com/ethereum/execution-specs/blob/master/network-upgrades/mainnet-upgrades/gray-glacier.md)
+INFO [05-03|17:53:59.886] 
+INFO [05-03|17:53:59.886] Merge configured:
+INFO [05-03|17:53:59.886]  - Hard-fork specification:    https://github.com/ethereum/execution-specs/blob/master/network-upgrades/mainnet-upgrades/paris.md
+INFO [05-03|17:53:59.886]  - Network known to be merged: true
+INFO [05-03|17:53:59.886]  - Total terminal difficulty:  0
+INFO [05-03|17:53:59.886]  - Merge netsplit block:       #0       
+INFO [05-03|17:53:59.886] 
+INFO [05-03|17:53:59.886] Post-Merge hard forks (timestamp based):
+INFO [05-03|17:53:59.886]  - Shanghai:                    @0          (https://github.com/ethereum/execution-specs/blob/master/network-upgrades/mainnet-upgrades/shanghai.md)
+INFO [05-03|17:53:59.886]  - Cancun:                      @0          (https://github.com/ethereum/execution-specs/blob/master/network-upgrades/mainnet-upgrades/cancun.md)
+INFO [05-03|17:53:59.886]  - Regolith:                    @0         
+INFO [05-03|17:53:59.886]  - Canyon:                      @0         
+INFO [05-03|17:53:59.886]  - Ecotone:                     @0         
+INFO [05-03|17:53:59.886] 
+INFO [05-03|17:53:59.886] ---------------------------------------------------------------------------------------------------------------------------------------------------------
+INFO [05-03|17:53:59.886] 
+INFO [05-03|17:53:59.887] Loaded most recent local block           number=0 hash=216b75..b6305b td=0 age=0
+INFO [05-03|17:53:59.887] Initialized transaction indexer          range="entire chain"
+INFO [05-03|17:53:59.887] Initialising Ethereum protocol           network=901 dbversion=<nil>
+INFO [05-03|17:53:59.887] Entered PoS stage
+WARN [05-03|17:53:59.887] Sanitizing invalid txpool journal time   provided=0s    updated=1s
+WARN [05-03|17:53:59.887] Sanitizing invalid txpool price limit    provided=0     updated=1
+WARN [05-03|17:53:59.887] Sanitizing invalid txpool price bump     provided=0     updated=10
+WARN [05-03|17:53:59.887] Sanitizing invalid txpool account slots  provided=0     updated=16
+WARN [05-03|17:53:59.887] Sanitizing invalid txpool global slots   provided=0     updated=5120
+WARN [05-03|17:53:59.887] Sanitizing invalid txpool account queue  provided=0     updated=64
+WARN [05-03|17:53:59.887] Sanitizing invalid txpool global queue   provided=0     updated=1024
+WARN [05-03|17:53:59.887] Sanitizing invalid txpool lifetime       provided=0s    updated=3h0m0s
+INFO [05-03|17:53:59.887] Chain post-merge, sync via beacon client
+WARN [05-03|17:53:59.887] Sanitizing miner recommit interval       provided=0s    updated=100ms
+WARN [05-03|17:53:59.887] Sanitizing new payload timeout to default provided=0s    updated=2s
+WARN [05-03|17:53:59.887] Sanitizing invalid gasprice oracle sample blocks provided=0     updated=1
+WARN [05-03|17:53:59.887] Sanitizing invalid gasprice oracle price cap provided=<nil> updated=500,000,000,000
+WARN [05-03|17:53:59.887] Sanitizing invalid gasprice oracle ignore price provided=<nil> updated=2
+WARN [05-03|17:53:59.887] Sanitizing invalid gasprice oracle max header history provided=0     updated=1
+WARN [05-03|17:53:59.887] Sanitizing invalid gasprice oracle max block history provided=0     updated=1
+WARN [05-03|17:53:59.887] Sanitizing invalid optimism gasprice oracle min priority fee suggestion provided=<nil> updated=1,000,000
+WARN [05-03|17:53:59.887] Engine API enabled                       protocol=eth
+INFO [05-03|17:53:59.887] Starting peer-to-peer node               instance=l2-geth-sequencer/darwin-arm64/go1.22.2
+INFO [05-03|17:53:59.888] Loaded JWT secret file                   path=/var/folders/rm/jjs0jkw56kq0d_5gvqbqf3y80000gn/T/TestSystem4844E2Ecalldata378963111/001/jwt_secret crc32=0x618f61d9
+INFO [05-03|17:53:59.888] WebSocket enabled                        url=ws://127.0.0.1:55247
+INFO [05-03|17:53:59.888] HTTP server started                      endpoint=127.0.0.1:55247 auth=false prefix= cors= vhosts=
+INFO [05-03|17:53:59.888] WebSocket enabled                        url=ws://127.0.0.1:55248
+INFO [05-03|17:53:59.888] HTTP server started                      endpoint=127.0.0.1:55248 auth=true  prefix= cors=localhost vhosts=
+WARN [05-03|17:53:59.888] Sanitizing invalid miner gas price       provided=<nil> updated=1
+INFO [05-03|17:53:59.888] Allocated trie memory caches             clean=0.00B dirty=0.00B
+INFO [05-03|17:53:59.888] State schema set to default              scheme=hash
+INFO [05-03|17:53:59.888] Writing custom genesis block
+INFO [05-03|17:53:59.888] New local node record                    seq=1,714,784,039,888 id=5188abcced5d5afb ip=127.0.0.1 udp=63655 tcp=0
+INFO [05-03|17:53:59.888] Started P2P networking                   self="enode://214feeb276b50c86f932e94fe07c35f3df8736f0b4f6a83788eb31d7f53e296b0b91d940416dc36b15e514fbf54c58fc367f6430e3a1ccefd3a2cbae07629eb5@127.0.0.1:0?discport=63655"

@@ -851,11 +851,13 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup batch submitter: %w", err)
 	}
+	sys.BatchSubmitter = batcher
+	if action, ok := opts.Get("beforeBatcherStart", ""); ok {
+		action(&cfg, sys)
+	}
 	if err := batcher.Start(context.Background()); err != nil {
 		return nil, errors.Join(fmt.Errorf("failed to start batch submitter: %w", err), batcher.Stop(context.Background()))
 	}
-	sys.BatchSubmitter = batcher
-
 	return sys, nil
 }
 
