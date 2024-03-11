@@ -93,6 +93,10 @@ func NewSafeDB(logger log.Logger, path string) (*SafeDB, error) {
 	}, nil
 }
 
+func (d *SafeDB) Enabled() bool {
+	return true
+}
+
 func (d *SafeDB) SafeHeadUpdated(safeHead eth.L2BlockRef, l1Head eth.BlockID) error {
 	d.m.Lock()
 	defer d.m.Unlock()
