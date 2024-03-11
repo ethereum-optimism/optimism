@@ -26,9 +26,10 @@ import (
 )
 
 type fakeAttributesQueue struct {
-	origin       eth.L1BlockRef
-	attrs        *eth.PayloadAttributes
-	islastInSpan bool
+	origin           eth.L1BlockRef
+	attrs            *eth.PayloadAttributes
+	islastInSpan     bool
+	resetPendingSafe bool
 }
 
 func (f *fakeAttributesQueue) Origin() eth.L1BlockRef {
@@ -39,7 +40,7 @@ func (f *fakeAttributesQueue) NextAttributes(_ context.Context, safeHead eth.L2B
 	if f.attrs == nil {
 		return nil, io.EOF
 	}
-	return &AttributesWithParent{f.attrs, safeHead, f.islastInSpan, false}, nil
+	return &AttributesWithParent{f.attrs, safeHead, f.islastInSpan, f.resetPendingSafe}, nil
 }
 
 var _ NextAttributesProvider = (*fakeAttributesQueue)(nil)
@@ -1217,4 +1218,92 @@ func TestEngineQueue_StepPopOlderUnsafe(t *testing.T) {
 
 	l1F.AssertExpectations(t)
 	eng.AssertExpectations(t)
+}
+
+func TestEngineQueue_PendingSafeAttributesReset(t *testing.T) {
+	logger := testlog.Logger(t, log.LevelInfo)
+	eng := &testutils.MockEngine{}
+	l1F := &testutils.MockL1Source{}
+
+	rng := rand.New(rand.NewSource(1234))
+
+	refA := testutils.RandomBlockRef(rng)
+	refA0 := eth.L2BlockRef{
+		Hash:           testutils.RandomHash(rng),
+		Number:         0,
+		ParentHash:     common.Hash{},
+		Time:           refA.Time,
+		L1Origin:       refA.ID(),
+		SequenceNumber: 0,
+	}
+	cfg := &rollup.Config{
+		Genesis: rollup.Genesis{
+			L1:     refA.ID(),
+			L2:     refA0.ID(),
+			L2Time: refA0.Time,
+			SystemConfig: eth.SystemConfig{
+				BatcherAddr: common.Address{42},
+				Overhead:    [32]byte{123},
+				Scalar:      [32]byte{42},
+				GasLimit:    20_000_000,
+			},
+		},
+		BlockTime:     1,
+		SeqWindowSize: 2,
+	}
+
+	refA1 := eth.L2BlockRef{
+		Hash:           testutils.RandomHash(rng),
+		Number:         refA0.Number + 1,
+		ParentHash:     refA0.Hash,
+		Time:           refA0.Time + cfg.BlockTime,
+		L1Origin:       refA.ID(),
+		SequenceNumber: 1,
+	}
+	refA2 := eth.L2BlockRef{
+		Hash:           testutils.RandomHash(rng),
+		Number:         refA1.Number + 1,
+		ParentHash:     refA1.Hash,
+		Time:           refA1.Time + cfg.BlockTime,
+		L1Origin:       refA.ID(),
+		SequenceNumber: 2,
+	}
+
+	prev := &fakeAttributesQueue{origin: refA}
+	ec := NewEngineController(eng, logger, metrics.NoopMetrics, &rollup.Config{}, sync.CLSync)
+	eq := NewEngineQueue(logger, cfg, eng, ec, metrics.NoopMetrics, prev, l1F, &sync.Config{}, safedb.Disabled)
+	eq.ec.SetUnsafeHead(refA2)
+	eq.ec.SetPendingSafeL2Head(refA2)
+	eq.ec.SetSafeHead(refA1)
+	eq.ec.SetFinalizedHead(refA0)
+
+	preFc := &eth.ForkchoiceState{
+		HeadBlockHash:      refA2.Hash,
+		SafeBlockHash:      refA1.Hash,
+		FinalizedBlockHash: refA0.Hash,
+	}
+	eng.ExpectForkchoiceUpdate(preFc, nil, nil, nil)
+	require.NoError(t, eq.Step(context.Background()))
+
+	// Queue up attributes, however attributes signal a reset
+	gasLimit := eth.Uint64Quantity(20_000_000)
+	prev.attrs = &eth.PayloadAttributes{
+		Timestamp:             eth.Uint64Quantity(refA2.Time),
+		PrevRandao:            eth.Bytes32{},
+		SuggestedFeeRecipient: common.Address{},
+		Transactions:          nil,
+		NoTxPool:              false,
+		GasLimit:              &gasLimit,
+	}
+	prev.resetPendingSafe = true
+	require.ErrorIs(t, eq.Step(context.Background()), NotEnoughData, "queue up attributes")
+	require.NotNil(t, eq.safeAttributes, "still have attributes")
+
+	// Try progression of the safe head with attributes
+	require.NoError(t, eq.Step(context.Background()), "try attributes")
+	require.Nil(t, eq.safeAttributes, "attributes not consumed")
+
+	// Pending safe head wound back
+	require.Equal(t, refA1, eq.ec.PendingSafeL2Head())
+	require.Equal(t, refA1, eq.ec.SafeL2Head())
 }

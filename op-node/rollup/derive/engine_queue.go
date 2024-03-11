@@ -23,18 +23,12 @@ type AttributesWithParent struct {
 	attributes *eth.PayloadAttributes
 	parent     eth.L2BlockRef
 
-	// When attributes are pushed through to the queue, `pendingSafe` is only
-	// progressed when all blocks to a specific batch has been progressed. This
-	// is indicated with the `isLastInSpan` bool. With interop, we also want to
-	// commit deposit-only blocks that may occur on inclusion of an invalid
-	// cross-l2 message. This will indicated with the `progressSafe` bool. Although
-	// these two can be combined, we'll keep them seperate for clarity.
-	//
-	// We need to progress the safe head on a deposits-only conversion as future the
-	// blocks derived after within the same span may fail due to invalidated tx
-	// nonces.
-	isLastInSpan      bool
-	forceProgressSafe bool
+	isLastInSpan bool
+
+	// Available to be set by a filterer in the attributes pipeline. As named,
+	// this will reset the pending safe marker to the known safe head will cause
+	// the batch queue to progress with a different batch on the safe head, if available.
+	resetPendingSafe bool
 }
 
 func NewAttributesWithParent(attributes *eth.PayloadAttributes, parent eth.L2BlockRef, isLastInSpan bool) *AttributesWithParent {
@@ -534,6 +528,13 @@ func (eq *EngineQueue) tryNextSafeAttributes(ctx context.Context) error {
 			eq.ec.PendingSafeL2Head(), eq.ec.PendingSafeL2Head().ParentID(), eq.safeAttributes.parent))
 
 	}
+	// validate that the next attributes does not signal pending safe reset before processing it.
+	if eq.safeAttributes.resetPendingSafe {
+		eq.safeAttributes = nil
+		eq.ec.SetPendingSafeL2Head(eq.ec.SafeL2Head())
+		return nil
+	}
+
 	if eq.ec.PendingSafeL2Head().Number < eq.ec.UnsafeL2Head().Number {
 		return eq.consolidateNextSafeAttributes(ctx)
 	} else if eq.ec.PendingSafeL2Head().Number == eq.ec.UnsafeL2Head().Number {
@@ -571,7 +572,7 @@ func (eq *EngineQueue) consolidateNextSafeAttributes(ctx context.Context) error 
 		return NewResetError(fmt.Errorf("failed to decode L2 block ref from payload: %w", err))
 	}
 	eq.ec.SetPendingSafeL2Head(ref)
-	if eq.safeAttributes.isLastInSpan || eq.safeAttributes.forceProgressSafe {
+	if eq.safeAttributes.isLastInSpan {
 		eq.ec.SetSafeHead(ref)
 		if err := eq.postProcessSafeL2(); err != nil {
 			return err
@@ -591,7 +592,6 @@ func (eq *EngineQueue) forceNextSafeAttributes(ctx context.Context) error {
 	}
 	attrs := eq.safeAttributes.attributes
 	lastInSpan := eq.safeAttributes.isLastInSpan
-	forceSafeProgression := eq.safeAttributes.forceProgressSafe
 	errType, err := eq.StartPayload(ctx, eq.ec.PendingSafeL2Head(), eq.safeAttributes, true)
 	if err == nil {
 		_, errType, err = eq.ec.ConfirmPayload(ctx, async.NoOpGossiper{}, &conductor.NoOpConductor{})
@@ -636,7 +636,7 @@ func (eq *EngineQueue) forceNextSafeAttributes(ctx context.Context) error {
 	}
 	eq.safeAttributes = nil
 	eq.logSyncProgress("processed safe block derived from L1")
-	if lastInSpan || forceSafeProgression {
+	if lastInSpan {
 		if err := eq.postProcessSafeL2(); err != nil {
 			return err
 		}

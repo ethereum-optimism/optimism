@@ -72,15 +72,14 @@ func (aq *AttributesQueue) NextAttributes(ctx context.Context, parent eth.L2Bloc
 		return nil, err
 	}
 
-	// Pass attributes through the filterer. Original attributes may be
-	// mutated so any prior state is unreliable after the filter is applied.
-	attrs, forceProgressSafe, err := aq.filterer.FilterAttributes(ctx, attrs)
+	// Pass attributes through the filterer
+	attrs, resetPendingSafe, err := aq.filterer.FilterAttributes(ctx, attrs)
 	if err != nil {
 		return nil, err
 	}
 
 	// Clear out the local state once we will succeed
-	attr := AttributesWithParent{attrs, parent, aq.isLastInSpan, forceProgressSafe}
+	attr := AttributesWithParent{attrs, parent, aq.isLastInSpan, resetPendingSafe}
 	aq.batch = nil
 	aq.isLastInSpan = false
 	return &attr, nil

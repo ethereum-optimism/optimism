@@ -42,34 +42,30 @@ func (inbox *CrossL2) FilterAttributes(ctx context.Context, attrs *eth.PayloadAt
 		return attrs, false, nil
 	}
 
-	var deposits []eth.Data
 	for i, data := range attrs.Transactions {
 		if data[0] == types.DepositTxType {
-			// skip over deposits and track them in-case these attributes are spoiled:w
-			deposits = attrs.Transactions[:i+1]
 			continue
 		}
 
 		validity := inbox.checkTxBytes(ctx, data)
 		if validity == CrossL2TxDrop {
-			inbox.log.Info("converting payload to deposits-only due to an invalid cross-l2 tx")
-			attrs.Transactions = deposits
+			inbox.log.Info("payload contains invalid cross-l2 tx, set pending safe reset. tx_index = %d", i)
 			return attrs, true, nil
 		}
 
-		// The only way a tx can be undecided with security derived from L1 is if:
+		// The only way a tx can be undecided with dependency confirmation derived from L1 is if:
 		//  - Transient RPC failures with the backend
-		//  - L2 Peer information wasn't added in configuration setup
+		//  - L2 Peer information is missing
 		//  - Initiating message hasn't been deemed finalized or safe relative to L2
 		//
 		// In these scenarios, we can choose to let the attributes pass through and progress the
-		// pending safe head, relying on the engine_queue to re-org when progressing the safe head
-		// but instead we'll raise a temporary error and wait since this failure mode is transient
+		// pending safe head, but instead we'll raise a temporary error and wait since this failure
+		// mode is transient.
 		if validity == CrossL2TxUndecided {
-			return nil, false, NewTemporaryError(fmt.Errorf(""))
+			return attrs, false, NewTemporaryError(fmt.Errorf("unable to determine validity of cross-l2 tx. tx_index = %d", i))
 		}
 
-		// CrossL2TxAccepted
+		// CrossL2TxAccepted, continue
 	}
 
 	return attrs, false, nil
@@ -79,7 +75,7 @@ func (inbox *CrossL2) FilterAttributes(ctx context.Context, attrs *eth.PayloadAt
 func (inbox *CrossL2) checkTxBytes(ctx context.Context, txBytes hexutil.Bytes) CrossL2TxValidity {
 	var tx types.Transaction
 	if err := rlp.DecodeBytes(txBytes, &tx); err != nil {
-		inbox.log.Warn("unable to decode tx bytes")
+		inbox.log.Warn("failed to decode tx rlp bytes")
 		return CrossL2TxDrop
 	}
 
@@ -90,7 +86,7 @@ func (inbox *CrossL2) checkTxBytes(ctx context.Context, txBytes hexutil.Bytes) C
 
 	_, id, payload, err := superchain.ParseInboxExecuteMessageTxData(tx.Data())
 	if err != nil {
-		inbox.log.Warn("unable to decode inbox tx data", "tx_hash", tx.Hash())
+		inbox.log.Warn("failed to decode inbox tx data", "tx_hash", tx.Hash())
 		return CrossL2TxDrop
 	}
 
