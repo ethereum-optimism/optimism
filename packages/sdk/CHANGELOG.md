@@ -1,5 +1,11 @@
 # @eth-optimism/sdk
 
+## 3.2.2
+
+### Patch Changes
+
+- [#9805](https://github.com/ethereum-optimism/optimism/pull/9805) [`3ccd12fe5c8c4c5a6acbf370d474ffa8db816562`](https://github.com/ethereum-optimism/optimism/commit/3ccd12fe5c8c4c5a6acbf370d474ffa8db816562) Thanks [@alecananian](https://github.com/alecananian)! - Fixed an issue where Vercel builds were failing due to the `preinstall` command.
+
 ## 3.2.1
 
 ### Patch Changes
