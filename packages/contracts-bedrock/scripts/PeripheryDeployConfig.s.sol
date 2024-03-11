@@ -50,7 +50,8 @@ contract PeripheryDeployConfig is Script {
     address public modeL1BridgeAddress;
     address public lyraL1BridgeAddress;
     address public liskL1BridgeAddress;
-    address[6] public smallFaucetsL1BridgeAddresses;
+    address public fraxtalL1BridgeAddress;
+    address[7] public smallFaucetsL1BridgeAddresses;
     address[2] public largeFaucetsL1BridgeAddresses;
     uint256 public dripVersion;
     uint256 public previousDripVersion;
@@ -94,6 +95,7 @@ contract PeripheryDeployConfig is Script {
         pgnL1BridgeAddress = stdJson.readAddress(_json, "$.pgnL1BridgeAddress");
         orderlyL1BridgeAddress = stdJson.readAddress(_json, "$.orderlyL1BridgeAddress");
         liskL1BridgeAddress = stdJson.readAddress(_json, "$.liskL1BridgeAddress");
+        fraxtalL1BridgeAddress = stdJson.readAddress(_json, "$.fraxtalL1BridgeAddress");
         modeL1BridgeAddress = stdJson.readAddress(_json, "$.modeL1BridgeAddress");
         lyraL1BridgeAddress = stdJson.readAddress(_json, "$.lyraL1BridgeAddress");
         dripVersion = stdJson.readUint(_json, "$.dripVersion");
@@ -112,6 +114,7 @@ contract PeripheryDeployConfig is Script {
         smallFaucetsL1BridgeAddresses[3] = modeL1BridgeAddress;
         smallFaucetsL1BridgeAddresses[4] = lyraL1BridgeAddress;
         smallFaucetsL1BridgeAddresses[5] = liskL1BridgeAddress;
+        smallFaucetsL1BridgeAddresses[6] = fraxtalL1BridgeAddress;
     }
 
     function getSmallFaucetsL1BridgeAddressesCount() public view returns (uint256 count) {
