@@ -338,7 +338,7 @@ contract DeployPeriphery is Script, Artifacts {
                 _adminWalletDripName(l1BridgeAddress, cfg.dripVersion())
             );
         }
-        _installTrasnferEthToDrip(
+        _installTransferEthToDrip(
             adminWallet,
             cfg.opChainAdminWalletDripValue(),
             cfg.opChainAdminWalletDripInterval(),
@@ -360,7 +360,7 @@ contract DeployPeriphery is Script, Artifacts {
                 _faucetDripName(l1BridgeAddress, cfg.dripVersion())
             );
         }
-        _installTrasnferEthToDrip(
+        _installTransferEthToDrip(
             faucetProxy,
             cfg.largeOpChainFaucetDripValue(),
             cfg.largeOpChainFaucetDripInterval(),
@@ -730,7 +730,7 @@ contract DeployPeriphery is Script, Artifacts {
         _activateIfPausedDrip(drippie, dripName);
     }
 
-    function _installTrasnferEthToDrip(
+    function _installTransferEthToDrip(
         address _depositTo,
         uint256 _dripValue,
         uint256 _dripInterval,
