@@ -17,7 +17,7 @@
     {
       "abi": "GovernorBravoDelegate",
       "address": "0x39312C0bD4a7b9C0435a1bf4dD873AB0D379CbEc",
-      "startBlock": 115,
+      "startBlock": 216070,
       "chain": "boba-goerli"
     }
   ]
