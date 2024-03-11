@@ -19,10 +19,10 @@ func (a *AvailBlockRef) MarshalToBinary() ([]byte, error) {
 	return ref_bytes, nil
 }
 
-func (a *AvailBlockRef) UnmarshalFromBinary(avail_Blk_Ref []byte) error {
-	err := json.Unmarshal(avail_Blk_Ref, a)
+func (a *AvailBlockRef) UnmarshalFromBinary(avail_blk_Ref []byte) error {
+	err := json.Unmarshal(avail_blk_Ref, a)
 	if err != nil {
-		return fmt.Errorf("unable to convert avail_Blk_Ref bytes to AvailBlockRef Struct and getting error:%v", err)
+		return fmt.Errorf("unable to convert avail_blk_Ref bytes to AvailBlockRef Struct and getting error:%v", err)
 	}
 	return nil
 }

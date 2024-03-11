@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"errors"
 	"fmt"
 
 	gsrpc "github.com/centrifuge/go-substrate-rpc-client/v4"
@@ -66,5 +65,5 @@ func extractExtrinsic(Address string, Hash string, Nonce int64, avail_blk *gsrpc
 		}
 	}
 
-	return []byte{}, errors.New(fmt.Sprintf("didn't found any extrinsic data for address:%v in block having hash:%v", Address, Hash))
+	return []byte{}, fmt.Errorf("didn't find any extrinsic data for address:%v in block having hash:%v", Address, Hash)
 }

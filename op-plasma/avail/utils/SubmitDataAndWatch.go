@@ -170,7 +170,7 @@ func waitForExtrinsicFinalization(api *gsrpc.SubstrateAPI, ext gsrpc_types.Extri
 				return types.AvailBlockRef{BlockHash: string(status.AsFinalized.Hex()), Sender: sender, Nonce: int64(nonce)}, nil
 			}
 		case <-timeout:
-			return types.AvailBlockRef{}, errors.New("timitout before getting finalized status")
+			return types.AvailBlockRef{}, errors.New("timeout before getting finalized status")
 		}
 	}
 }
