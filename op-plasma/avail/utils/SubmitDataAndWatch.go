@@ -45,7 +45,7 @@ func SubmitAndWait(ctx context.Context, api *gsrpc.SubstrateAPI, data []byte, Se
 		return types.AvailBlockRef{}, fmt.Errorf("preparing and signing extrinsic: %w", err)
 	}
 
-	return waitForExtrinsicFinalization(ctx, api, signedExt, sender, nonce)
+	return waitForExtrinsicFinalization(api, signedExt, sender, nonce)
 
 }
 func prepareAndSignExtrinsic(api *gsrpc.SubstrateAPI, call gsrpc_types.Call, meta *gsrpc_types.Metadata, seed string, appID int) (gsrpc_types.Extrinsic, string, uint32, error) {
@@ -153,7 +153,7 @@ func getMetadataLatest(api *gsrpc.SubstrateAPI) (*gsrpc_types.Metadata, error) {
 	return meta, err
 }
 
-func waitForExtrinsicFinalization(ctx context.Context, api *gsrpc.SubstrateAPI, ext gsrpc_types.Extrinsic, sender string, nonce uint32) (types.AvailBlockRef, error) {
+func waitForExtrinsicFinalization(api *gsrpc.SubstrateAPI, ext gsrpc_types.Extrinsic, sender string, nonce uint32) (types.AvailBlockRef, error) {
 
 	sub, err := api.RPC.Author.SubmitAndWatchExtrinsic(ext)
 	if err != nil {
