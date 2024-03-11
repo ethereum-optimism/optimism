@@ -17,7 +17,7 @@ func (c *AvailDAClient) GetInput(ctx context.Context, refKey []byte) ([]byte, er
 	avail_blk_ref := types.AvailBlockRef{}
 	err := avail_blk_ref.UnmarshalFromBinary(refKey)
 	if err != nil {
-		return []byte{}, fmt.Errorf("failed to unmarshal the etehreum tx data to avail block reference, error: %v", err)
+		return []byte{}, fmt.Errorf("failed to unmarshal the ethereum tx data to avail block reference, error: %v", err)
 	}
 
 	txData, err := utils.GetBlockExtrinsicData(avail_blk_ref)
@@ -31,7 +31,7 @@ func (c *AvailDAClient) GetInput(ctx context.Context, refKey []byte) ([]byte, er
 func (c *AvailDAClient) SetInput(ctx context.Context, img []byte) ([]byte, error) {
 
 	if len(img) >= 512000 {
-		return []byte{}, fmt.Errorf("size of TxData is more than 512KB, it is higher than a single data submit transaction supports on avail")
+		return []byte{}, ErrNotFound
 	}
 
 	avail_Blk_Ref, err := utils.SubmitDataAndWatch(ctx, img)

@@ -32,6 +32,7 @@ func GetBlockExtrinsicData(avail_blk_ref types.AvailBlockRef) ([]byte, error) {
 func fetchBlock(api *gsrpc.SubstrateAPI, Hash string) (*gsrpc_types.SignedBlock, error) {
 
 	blk_hash, err := gsrpc_types.NewHashFromHexString(Hash)
+
 	if err != nil {
 		return &gsrpc_types.SignedBlock{}, fmt.Errorf("unable to convert string hash into types.hash, error:%v", err)
 	}
@@ -40,16 +41,19 @@ func fetchBlock(api *gsrpc.SubstrateAPI, Hash string) (*gsrpc_types.SignedBlock,
 	if err != nil {
 		return &gsrpc_types.SignedBlock{}, fmt.Errorf("cannot get block for hash:%v and getting error:%v", Hash, err)
 	}
+
 	return avail_blk, nil
 }
 
 func extractExtrinsic(Address string, Hash string, Nonce int64, avail_blk *gsrpc_types.SignedBlock) ([]byte, error) {
+
 	for _, ext := range avail_blk.Block.Extrinsics {
 
 		ext_Addr, err := subkey.SS58Address(ext.Signature.Signer.AsID.ToBytes(), 42)
 		if err != nil {
 			fmt.Println("unable to get sender address from extrinsic", "err", err)
 		}
+
 		if ext_Addr == Address && ext.Signature.Nonce.Int64() == Nonce {
 			args := ext.Method.Args
 			var data []byte
@@ -57,6 +61,7 @@ func extractExtrinsic(Address string, Hash string, Nonce int64, avail_blk *gsrpc
 			if err != nil {
 				return []byte{}, fmt.Errorf("unable to decode the extrinsic data by address: %v with nonce: %v", Address, Nonce)
 			}
+
 			return data, nil
 		}
 	}
