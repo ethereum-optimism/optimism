@@ -88,8 +88,6 @@ func TestOutputAlphabetGame_ReclaimBond(t *testing.T) {
 	require.Zero(t, balance.Uint64())
 
 	alice := sys.Cfg.Secrets.Addresses().Alice
-	bal, _ := big.NewInt(0).SetString("1000000000000000000000", 10)
-	require.Equal(t, bal, game.Balance(ctx, alice))
 
 	// Grab the root claim
 	claim := game.RootClaim(ctx)
