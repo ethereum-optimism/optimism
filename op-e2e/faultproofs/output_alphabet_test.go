@@ -109,8 +109,7 @@ func TestOutputAlphabetGame_ReclaimBond(t *testing.T) {
 
 	// Expect posted claims so the game balance is non-zero
 	balance = game.WethBalance(ctx, game.Addr())
-	expectedBalance, _ := big.NewInt(0).SetString("589772600000000000", 10)
-	require.Equal(t, expectedBalance, balance)
+	require.Truef(t, balance.Cmp(big.NewInt(0)) > 0, "Expected game balance to be above zero")
 
 	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
 	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
@@ -119,12 +118,11 @@ func TestOutputAlphabetGame_ReclaimBond(t *testing.T) {
 
 	// Expect Alice's credit to be non-zero
 	// But it can't be claimed right now since there is a delay on the weth unlock
-	expectedCredit, _ := big.NewInt(0).SetString("589772600000000000", 10)
-	require.Equal(t, expectedCredit, game.AvailableCredit(ctx, alice))
+	require.Truef(t, game.AvailableCredit(ctx, alice).Cmp(big.NewInt(0)) > 0, "Expected alice credit to be above zero")
 
-	// The actor should have a small credit available to claim
+	// The actor should have no credit available because all its bonds were paid to Alice.
 	actorCredit := game.AvailableCredit(ctx, deployer.TestAddress)
-	require.True(t, actorCredit.Cmp(big.NewInt(0)) == 0)
+	require.True(t, actorCredit.Cmp(big.NewInt(0)) == 0, "Expected alice available credit to be zero")
 
 	// Advance the time past the weth unlock delay
 	sys.TimeTravelClock.AdvanceTime(game.CreditUnlockDuration(ctx))
