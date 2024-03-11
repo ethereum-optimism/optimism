@@ -13,7 +13,7 @@ type Config struct {
 }
 
 func (c *Config) GetConfig() error {
-	jsonFile, err := os.Open("config.json")
+	jsonFile, err := os.Open("./avail/config/config.json")
 	if err != nil {
 		return err
 	}
