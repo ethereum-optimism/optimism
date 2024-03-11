@@ -21,10 +21,6 @@ type L1TransactionFetcher interface {
 	InfoAndTxsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, types.Transactions, error)
 }
 
-type L2TransactionFetcher interface {
-	InfoAndTxsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, types.Transactions, error)
-}
-
 type L1BlobsFetcher interface {
 	// GetBlobs fetches blobs that were confirmed in the given L1 block with the given indexed hashes.
 	GetBlobs(ctx context.Context, ref eth.L1BlockRef, hashes []eth.IndexedBlobHash) ([]*eth.Blob, error)
