@@ -1457,7 +1457,7 @@ jobs:
           command: pnpm test:kontrol
           working_directory: ./packages/contracts-bedrock
       - store_artifacts:
-          path: ./packages/contracts-bedrock/kontrol-results_latest.tar.gz
+          path: ./packages/contracts-bedrock/test/kontrol/logs/kontrol-results_latest.tar.gz
       - notify-failures-on-develop
 
 workflows:
