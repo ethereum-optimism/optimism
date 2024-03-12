@@ -110,4 +110,7 @@ library Predeploys {
 
     /// @notice Address of the EntryPoint predeploy.
     address internal constant EntryPoint = 0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789;
+
+    /// @notice Address of the L2ToL2CrossDomainMessenger predeploy.
+    address internal constant L2_TO_L2_CROSS_DOMAIN_MESSENGER = 0x4200000000000000000000000000000000000023;
 }
