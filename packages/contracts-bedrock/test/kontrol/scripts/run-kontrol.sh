@@ -37,7 +37,8 @@ kontrol_prove() {
     $auto_abstract \
     $tests \
     $use_booster \
-    --init-node-from $state_diff
+    --init-node-from $state_diff \
+    --xml-test-report
 }
 
 dump_log_results(){
