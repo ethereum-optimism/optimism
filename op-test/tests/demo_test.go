@@ -15,47 +15,59 @@ import (
 	"github.com/ethereum-optimism/optimism/op-test/test"
 )
 
+func TestMain(m *testing.M) {
+	test.Main(m)
+}
+
 func TestDemo(t *testing.T) {
 	test.Plan(t, func(t test.Planner) {
-		t.Select("example", "foo", "bar")
+		t.Select("example", []string{"foo", "bar"}, func(t test.Planner) {
 
-		// We request resources from the backend
-		// the test will abort (skip on 0 selected parameters) if the requests fail.
+			t.Plan("sub-plan", func(t test.Planner) {
 
-		// The test framework handles parametrization of what is chosen to compose with.
-		l1BackendKind := test.Select(t, "l1_backend", test.Live, test.Instant)
-		l1Fork := test.Select(t, "l1_fork", l1.Forks...)
-		l2BackendKind := test.Select(t, "l2_backend", test.Live, test.Instant)
+				// We request resources from the backend
+				// the test will abort (skip on 0 selected parameters) if the requests fail.
 
-		t.Run("run", func(t test.Executor) {
-			// create L1 chain, engine and beacon node
-			l1Chain := l1.Request(t, l1.Kind(l1BackendKind), l1.ActiveFork(l1Fork))
-			l1EL := l1el.Request(t, l1el.Kind(l1BackendKind))
-			l1CL := l1cl.Request(t, l1cl.Kind(l1BackendKind), l1cl.L1EL(l1EL))
+				// The test framework handles parametrization of what is chosen to compose with.
+				test.Select(t, "l1_backend", []test.BackendKind{test.Live, test.Instant}, func(t test.Planner, l1BackendKind test.BackendKind) {
+					test.Select(t, "l1_fork", l1.Forks, func(t test.Planner, l1Fork l1.L1Fork) {
+						test.Select(t, "l2_backend", []test.BackendKind{test.Live, test.Instant}, func(t test.Planner, l2BackendKind test.BackendKind) {
 
-			// create a superchain to group L2s
-			superChain := superchain.Request(t,
-				superchain.Kind(l1BackendKind), superchain.L1Chain(l1Chain))
+							t.Run("run", func(t test.Executor) {
+								// create L1 chain, engine and beacon node
+								l1Chain := l1.Request(t, l1.Kind(l1BackendKind), l1.ActiveFork(l1Fork))
+								l1EL := l1el.Request(t, l1el.Kind(l1BackendKind))
+								l1CL := l1cl.Request(t, l1cl.Kind(l1BackendKind), l1cl.L1EL(l1EL))
 
-			// create L2 chain, op-stack engine and rollup node
-			l2Chain := l2.Request(t, l2.Superchain(superChain), l2.Kind(l2BackendKind))
-			l2EL := l2el.Request(t, l2el.Kind(l2BackendKind), l2el.L2Chain(l2Chain))
-			l2CL := l2cl.Request(t, l2cl.Kind(l2BackendKind), l2cl.L2EL(l2EL))
+								// create a superchain to group L2s
+								superChain := superchain.Request(t,
+									superchain.Kind(l1BackendKind), superchain.L1Chain(l1Chain))
 
-			// TODO request l1CL to mine blocks
-			_ = l1CL.BeaconEndpoint()
+								// create L2 chain, op-stack engine and rollup node
+								l2Chain := l2.Request(t, l2.Superchain(superChain), l2.Kind(l2BackendKind))
+								l2EL := l2el.Request(t, l2el.Kind(l2BackendKind), l2el.L2Chain(l2Chain))
+								l2CL := l2cl.Request(t, l2cl.Kind(l2BackendKind), l2cl.L2EL(l2EL))
 
-			// TODO less direct RPC/client bindings usage,
-			// and more DSL-style interactions with each actor
+								// TODO request l1CL to mine blocks
+								_ = l1CL.BeaconEndpoint()
 
-			status, err := l2CL.RollupClient().SyncStatus(t.Ctx())
-			require.NoError(t, err)
-			t.Logf("L2 sync status: %v", status)
+								// TODO less direct RPC/client bindings usage,
+								// and more DSL-style interactions with each actor
 
-			cl := l1EL.L1Client()
-			chainID, err := cl.ChainID(t.Ctx())
-			require.NoError(t, err)
-			t.Logf("got L1 engine on chain: %d", chainID)
+								status, err := l2CL.RollupClient().SyncStatus(t.Ctx())
+								require.NoError(t, err)
+								t.Logf("L2 sync status: %v", status)
+
+								cl := l1EL.L1Client()
+								chainID, err := cl.ChainID(t.Ctx())
+								require.NoError(t, err)
+								t.Logf("got L1 engine on chain: %d", chainID)
+							})
+						})
+					})
+
+				})
+			})
 		})
 	})
 }

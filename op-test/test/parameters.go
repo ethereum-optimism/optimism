@@ -13,7 +13,7 @@ func (t *testParameters) Select(name string, options []string) []string {
 
 func (t *testParameters) Values(name string) []string {
 	// TODO hook up to CLI / env filter
-	return []string{"a", "b", "c"}
+	return []string{name + "~a", name + "~b", name + "~c"}
 }
 
 var _ ParameterSelector = (*testParameters)(nil)

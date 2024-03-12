@@ -3,6 +3,7 @@ package test
 import (
 	"context"
 	"fmt"
+	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/log"
 
@@ -59,7 +60,7 @@ type Planner interface {
 	//
 	// The ParameterSelector may return a subset of the options:
 	// the first is continued with as default, and the current test will be repeated with the others, if any.
-	Select(name string, options ...string) string
+	Select(name string, options []string, fn func(t Planner))
 }
 
 type ParameterSelector interface {
@@ -74,17 +75,21 @@ type ParameterSelector interface {
 }
 
 // Select is a generic helper method, to do typed Testing.Select calls.
-func Select[E fmt.Stringer](t Planner, name string, options ...E) E {
+func Select[E fmt.Stringer](t Planner, name string, options []E, fn func(t Planner, el E)) {
 	input := make([]string, 0, len(options))
 	for _, opt := range options {
 		input = append(input, opt.String())
 	}
-	output := t.Select(name, input...)
-	for _, opt := range options {
-		if opt.String() == output {
-			return opt
+	t.Select(name, input, func(t Planner) {
+		output, ok := t.Parameter(name)
+		require.True(t, ok, "need parameter to be set")
+		for _, opt := range options {
+			if opt.String() == output {
+				fn(t, opt)
+				break
+			}
 		}
-	}
-	t.Fatalf("selected unknown option of type %q: %q", name, output)
-	panic("unknown option")
+		t.Fatalf("selected unknown option of type %q: %q", name, output)
+		panic("unknown option")
+	})
 }
