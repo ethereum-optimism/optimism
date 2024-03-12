@@ -18,8 +18,9 @@ import (
 )
 
 const (
-	L1InfoFuncBedrockSignature = "setL1BlockValues(uint64,uint64,uint256,bytes32,uint64,bytes32,uint256,uint256)"
+	L1InfoFuncBedrockSignature = "setL1BlockValues(uint64,uint64,uint256,bytes32,uint64,bytes32,uint256,uint256,uint8,uint256[])"
 	L1InfoFuncEcotoneSignature = "setL1BlockValuesEcotone()"
+	L1InfoFuncInteropSignature = "setL1BlockValuesInterop()"
 	L1InfoArguments            = 8
 	L1InfoBedrockLen           = 4 + 32*L1InfoArguments
 	L1InfoEcotoneLen           = 4 + 32*5 // after Ecotone upgrade, args are packed into 5 32-byte slots
@@ -28,12 +29,18 @@ const (
 var (
 	L1InfoFuncBedrockBytes4 = crypto.Keccak256([]byte(L1InfoFuncBedrockSignature))[:4]
 	L1InfoFuncEcotoneBytes4 = crypto.Keccak256([]byte(L1InfoFuncEcotoneSignature))[:4]
+	L1InfoFuncInteropBytes4 = crypto.Keccak256([]byte(L1InfoFuncInteropSignature))[:4]
 	L1InfoDepositerAddress  = common.HexToAddress("0xdeaddeaddeaddeaddeaddeaddeaddeaddead0001")
 	L1BlockAddress          = predeploys.L1BlockAddr
 )
 
 const (
 	RegolithSystemTxGas = 1_000_000
+)
+
+var (
+	InteropSetSize  = uint8(1)
+	InteropChainIDs = []*big.Int{big.NewInt(1)}
 )
 
 // L1BlockInfo presents the information stored in a L1Block.setL1BlockValues call
@@ -54,6 +61,9 @@ type L1BlockInfo struct {
 	BlobBaseFee       *big.Int // added by Ecotone upgrade
 	BaseFeeScalar     uint32   // added by Ecotone upgrade
 	BlobBaseFeeScalar uint32   // added by Ecotone upgrade
+
+	InteropSetSize uint8      // added by Interop upgrade
+	ChainIds       []*big.Int // added by Interop upgrade
 }
 
 // Bedrock Binary Format
@@ -105,7 +115,7 @@ func (info *L1BlockInfo) marshalBinaryBedrock() ([]byte, error) {
 
 func (info *L1BlockInfo) unmarshalBinaryBedrock(data []byte) error {
 	if len(data) != L1InfoBedrockLen {
-		return fmt.Errorf("data is unexpected length: %d", len(data))
+		return fmt.Errorf("data is unexpected length: %d %d", len(data), L1InfoBedrockLen)
 	}
 	reader := bytes.NewReader(data)
 
@@ -243,16 +253,148 @@ func (info *L1BlockInfo) unmarshalBinaryEcotone(data []byte) error {
 	return nil
 }
 
+// Interop Binary Format
+// +-------------------+--------------------------+
+// | Bytes             | Field                    |
+// +-------------------+--------------------------+
+// | 4                 | Function signature       |
+// | 4                 | BaseFeeScalar            |
+// | 4                 | BlobBaseFeeScalar        |
+// | 8                 | SequenceNumber           |
+// | 8                 | Timestamp                |
+// | 8                 | L1BlockNumber            |
+// | 32                | BaseFee                  |
+// | 32                | BlobBaseFee              |
+// | 32                | BlockHash                |
+// | 32                | BatcherHash              |
+// | 1       		   | InteropSetSize           |
+// | 32*InteropSetSize | ChainIDs                 |
+// +-------------------+--------------------------+
+
+func (info *L1BlockInfo) marshalBinaryInterop() ([]byte, error) {
+	w := bytes.NewBuffer(make([]byte, 0, L1InfoInteropLen(info.InteropSetSize)))
+	if err := solabi.WriteSignature(w, L1InfoFuncInteropBytes4); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(w, binary.BigEndian, info.BaseFeeScalar); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(w, binary.BigEndian, info.BlobBaseFeeScalar); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(w, binary.BigEndian, info.SequenceNumber); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(w, binary.BigEndian, info.Time); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(w, binary.BigEndian, info.Number); err != nil {
+		return nil, err
+	}
+	if err := solabi.WriteUint256(w, info.BaseFee); err != nil {
+		return nil, err
+	}
+	blobBasefee := info.BlobBaseFee
+	if blobBasefee == nil {
+		blobBasefee = big.NewInt(1) // set to 1, to match the min blob basefee as defined in EIP-4844
+	}
+	if err := solabi.WriteUint256(w, blobBasefee); err != nil {
+		return nil, err
+	}
+	if err := solabi.WriteHash(w, info.BlockHash); err != nil {
+		return nil, err
+	}
+	// ABI encoding will perform the left-padding with zeroes to 32 bytes, matching the "batcherHash" SystemConfig format and version 0 byte.
+	if err := solabi.WriteAddress(w, info.BatcherAddr); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(w, binary.BigEndian, info.InteropSetSize); err != nil {
+		return nil, err
+	}
+	for _, chainID := range info.ChainIds {
+		if err := solabi.WriteUint256(w, chainID); err != nil {
+			return nil, err
+		}
+	}
+
+	return w.Bytes(), nil
+}
+
+func (info *L1BlockInfo) unmarshalBinaryInterop(data []byte) error {
+	r := bytes.NewReader(data)
+
+	var err error
+	if _, err := solabi.ReadAndValidateSignature(r, L1InfoFuncInteropBytes4); err != nil {
+		return err
+	}
+	if err := binary.Read(r, binary.BigEndian, &info.BaseFeeScalar); err != nil {
+		return fmt.Errorf("invalid interop l1 block info format")
+	}
+	if err := binary.Read(r, binary.BigEndian, &info.BlobBaseFeeScalar); err != nil {
+		return fmt.Errorf("invalid interop l1 block info format")
+	}
+	if err := binary.Read(r, binary.BigEndian, &info.SequenceNumber); err != nil {
+		return fmt.Errorf("invalid interop l1 block info format")
+	}
+	if err := binary.Read(r, binary.BigEndian, &info.Time); err != nil {
+		return fmt.Errorf("invalid interop l1 block info format")
+	}
+	if err := binary.Read(r, binary.BigEndian, &info.Number); err != nil {
+		return fmt.Errorf("invalid interop l1 block info format")
+	}
+	if info.BaseFee, err = solabi.ReadUint256(r); err != nil {
+		return err
+	}
+	if info.BlobBaseFee, err = solabi.ReadUint256(r); err != nil {
+		return err
+	}
+	if info.BlockHash, err = solabi.ReadHash(r); err != nil {
+		return err
+	}
+	// The "batcherHash" will be correctly parsed as address, since the version 0 and left-padding matches the ABI encoding format.
+	if info.BatcherAddr, err = solabi.ReadAddress(r); err != nil {
+		return err
+	}
+	if err := binary.Read(r, binary.BigEndian, &info.InteropSetSize); err != nil {
+		return fmt.Errorf("invalid interop l1 block info format")
+	}
+
+	// we make the check here because it's the soonest InteroptSetSize is available, which is needed to calculate the expected length
+	if len(data) != int(L1InfoInteropLen(info.InteropSetSize)) {
+		return fmt.Errorf("data is unexpected length: %d", len(data))
+	}
+
+	info.ChainIds = make([]*big.Int, info.InteropSetSize)
+	for i := uint8(0); i < info.InteropSetSize; i++ {
+		if info.ChainIds[i], err = solabi.ReadUint256(r); err != nil {
+			return err
+		}
+	}
+
+	if !solabi.EmptyReader(r) {
+		return errors.New("too many bytes")
+	}
+	return nil
+}
+
 // isEcotoneButNotFirstBlock returns whether the specified block is subject to the Ecotone upgrade,
 // but is not the actiation block itself.
 func isEcotoneButNotFirstBlock(rollupCfg *rollup.Config, l2BlockTime uint64) bool {
 	return rollupCfg.IsEcotone(l2BlockTime) && !rollupCfg.IsEcotoneActivationBlock(l2BlockTime)
 }
 
+// isInteropButNotFirstBlock returns whether the specified block is subject to the Interop upgrade,
+// but is not the activation block itself.
+func isInteropButNotFirstBlock(rollupCfg *rollup.Config, l2BlockTime uint64) bool {
+	return rollupCfg.IsInterop(l2BlockTime) && !rollupCfg.IsInteropActivationBlock(l2BlockTime)
+}
+
 // L1BlockInfoFromBytes is the inverse of L1InfoDeposit, to see where the L2 chain is derived from
 func L1BlockInfoFromBytes(rollupCfg *rollup.Config, l2BlockTime uint64, data []byte) (*L1BlockInfo, error) {
 	var info L1BlockInfo
-	if isEcotoneButNotFirstBlock(rollupCfg, l2BlockTime) {
+	if isInteropButNotFirstBlock(rollupCfg, l2BlockTime) {
+		return &info, info.unmarshalBinaryInterop(data)
+	} else if isEcotoneButNotFirstBlock(rollupCfg, l2BlockTime) {
 		return &info, info.unmarshalBinaryEcotone(data)
 	}
 	return &info, info.unmarshalBinaryBedrock(data)
@@ -270,7 +412,26 @@ func L1InfoDeposit(rollupCfg *rollup.Config, sysCfg eth.SystemConfig, seqNumber 
 		BatcherAddr:    sysCfg.BatcherAddr,
 	}
 	var data []byte
-	if isEcotoneButNotFirstBlock(rollupCfg, l2BlockTime) {
+	if isInteropButNotFirstBlock(rollupCfg, l2BlockTime) {
+		l1BlockInfo.BlobBaseFee = block.BlobBaseFee()
+		if l1BlockInfo.BlobBaseFee == nil {
+			// The L2 spec states to use the MIN_BLOB_GASPRICE from EIP-4844 if not yet active on L1.
+			l1BlockInfo.BlobBaseFee = big.NewInt(1)
+		}
+		blobBaseFeeScalar, baseFeeScalar, err := sysCfg.EcotoneScalars()
+		if err != nil {
+			return nil, err
+		}
+		l1BlockInfo.BlobBaseFeeScalar = blobBaseFeeScalar
+		l1BlockInfo.BaseFeeScalar = baseFeeScalar
+		l1BlockInfo.InteropSetSize = InteropSetSize
+		l1BlockInfo.ChainIds = InteropChainIDs
+		out, err := l1BlockInfo.marshalBinaryInterop()
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal Interop l1 block info: %w", err)
+		}
+		data = out
+	} else if isEcotoneButNotFirstBlock(rollupCfg, l2BlockTime) {
 		l1BlockInfo.BlobBaseFee = block.BlobBaseFee()
 		if l1BlockInfo.BlobBaseFee == nil {
 			// The L2 spec states to use the MIN_BLOB_GASPRICE from EIP-4844 if not yet active on L1.
@@ -333,4 +494,8 @@ func L1InfoDepositBytes(rollupCfg *rollup.Config, sysCfg eth.SystemConfig, seqNu
 		return nil, fmt.Errorf("failed to encode L1 info tx: %w", err)
 	}
 	return opaqueL1Tx, nil
+}
+
+func L1InfoInteropLen(InteropSetSize uint8) int {
+	return 4 + 32*5 + 1 + 32*int(InteropSetSize)
 }
