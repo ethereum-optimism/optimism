@@ -41,11 +41,12 @@ contract L2ToL2CrossDomainMessengerTest is Bridge_Initializer {
         uint256 _source,
         uint256 _nonce,
         address _sender,
-        address _target,
         bytes memory _message
     )
         external
     {
+        target = address(0);
+
         ICrossL2Inbox.Identifier memory id = ICrossL2Inbox.Identifier({
             origin: origin,
             blocknumber: 0,
@@ -54,17 +55,14 @@ contract L2ToL2CrossDomainMessengerTest is Bridge_Initializer {
             chainId: block.chainid
         });
 
-        // Make the target not revert
-        vm.etch(_target, address(0).code);
-
         vm.prank(tx.origin);
-        crossL2Inbox.executeMessage(id, _target, _message);
+        crossL2Inbox.executeMessage(id, target, _message);
 
         vm.expectEmit(origin);
-        emit RelayedMessage(keccak256(abi.encode(destination, _source, _nonce, _sender, _target, _message)));
+        emit RelayedMessage(keccak256(abi.encode(destination, _source, _nonce, _sender, target, _message)));
 
         vm.prank(address(crossL2Inbox));
-        l2ToL2CrossDomainMessenger.relayMessage(destination, _source, _nonce, _sender, _target, _message);
+        l2ToL2CrossDomainMessenger.relayMessage(destination, _source, _nonce, _sender, target, _message);
 
         assertEq(l2ToL2CrossDomainMessenger.crossDomainMessageSender(), _sender);
         assertEq(l2ToL2CrossDomainMessenger.crossDomainMessageSource(), _source);
