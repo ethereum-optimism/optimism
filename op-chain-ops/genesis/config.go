@@ -866,6 +866,7 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (*immutables
 			Name: "EAS",
 		},
 		Create2Deployer: struct{}{},
+		CrossL2Inbox:    struct{}{},
 	}
 
 	if err := cfg.Check(); err != nil {
