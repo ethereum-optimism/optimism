@@ -7,7 +7,7 @@
 // was inherited, updating the version of `Test` could potentially imply having to adjust
 // said summary for the latest version, introducing a flakiness source.
 // Note that starting with version 0.8.24, the opcode `MCOPY` is introduced, removing the
-// need for the `copy_memory_to_memory` function and its summary, and thus this workaroud.
+// need for the `copy_memory_to_memory` function and its summary, and thus this workaround.
 // For more information refer to the `copy_memory_to_memory` summary section of `pausability-lemmas.md`.
 
 pragma solidity 0.8.15;

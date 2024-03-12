@@ -5,7 +5,7 @@ notif() { echo "== $0: $*" >&2 ; }
 
 # usage function for the run-kontrol.sh script
 usage_run_kontrol() {
-  echo "Usage: $0 [-h|--help] [container|local|dev] [script|TESTS]" 1>&2
+  echo "Usage: $0 [-h|--help] [container|local|dev] [script|tests]" 1>&2
   echo "" 1>&2
   echo "  -h, --help         Display this help message." 1>&2
   echo "" 1>&2
@@ -16,7 +16,7 @@ usage_run_kontrol() {
   echo "" 1>&2
   echo "Tests executed:"
   echo "  script             Execute the tests recorded in run-kontrol.sh" 1>&2
-  echo "  TESTS              Execute the tests provided as arguments" 1>&2
+  echo "  tests              Execute the tests provided as arguments" 1>&2
   exit 0
 }
 
