@@ -78,6 +78,7 @@ func TestBuildOptimism(t *testing.T) {
 		SenderCreator:                struct{}{},
 		EntryPoint:                   struct{}{},
 		CrossL2Inbox:                 struct{}{},
+		L2ToL2CrossDomainMessenger:   struct{}{},
 	}
 
 	require.NoError(t, cfg.Check())
