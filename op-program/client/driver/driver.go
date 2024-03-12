@@ -19,7 +19,6 @@ var ErrClaimNotValid = errors.New("invalid claim")
 
 type Derivation interface {
 	Step(ctx context.Context) error
-	Origin() eth.L1BlockRef
 }
 
 type EngineState interface {
@@ -89,7 +88,7 @@ func (d *Driver) ValidateClaim(l2ClaimBlockNum uint64, claimedOutputRoot eth.Byt
 	if err != nil {
 		return fmt.Errorf("calculate L2 output root: %w", err)
 	}
-	d.logger.Info("Validating claim", "l1", d.pipeline.Origin(), "head", l2Head, "output", outputRoot, "claim", claimedOutputRoot)
+	d.logger.Info("Validating claim", "head", l2Head, "output", outputRoot, "claim", claimedOutputRoot)
 	if claimedOutputRoot != outputRoot {
 		return fmt.Errorf("%w: claim: %v actual: %v", ErrClaimNotValid, claimedOutputRoot, outputRoot)
 	}
