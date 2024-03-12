@@ -141,7 +141,7 @@ def devnet_l1_genesis(paths):
 
     fqn = 'scripts/Deploy.s.sol:Deploy'
     run_command([
-        'forge', 'script', '--chain-id', '900', fqn, "--sig", "runWithStateDump()"
+        'forge', 'script', '--chain-id', '900', fqn, "--sig", "runWithStateDump()", "--private-key", "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
     ], env={}, cwd=paths.contracts_bedrock_dir)
 
     forge_dump = read_json(paths.forge_dump_path)
