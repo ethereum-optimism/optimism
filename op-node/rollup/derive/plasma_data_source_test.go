@@ -58,7 +58,7 @@ func TestPlasmaDataSource(t *testing.T) {
 
 	daState := plasma.NewState(logger, metrics)
 
-	da := plasma.NewPlasmaDAWithState(logger, pcfg, storage, l1F, metrics, daState)
+	da := plasma.NewPlasmaDAWithState(logger, pcfg, storage, metrics, daState)
 
 	finalitySignal := &MockFinalitySignal{}
 	da.OnFinalizedHeadSignal(finalitySignal.OnFinalized)
@@ -293,7 +293,7 @@ func TestPlasmaDataSourceStall(t *testing.T) {
 
 	daState := plasma.NewState(logger, metrics)
 
-	da := plasma.NewPlasmaDAWithState(logger, pcfg, storage, l1F, metrics, daState)
+	da := plasma.NewPlasmaDAWithState(logger, pcfg, storage, metrics, daState)
 
 	finalitySignal := &MockFinalitySignal{}
 	da.OnFinalizedHeadSignal(finalitySignal.OnFinalized)
@@ -411,7 +411,7 @@ func TestPlasmaDataSourceInvalidData(t *testing.T) {
 		ChallengeWindow: 90, ResolveWindow: 90,
 	}
 
-	da := plasma.NewPlasmaDAWithStorage(logger, pcfg, storage, l1F, &plasma.NoopMetrics{})
+	da := plasma.NewPlasmaDAWithStorage(logger, pcfg, storage, &plasma.NoopMetrics{})
 
 	// Create rollup genesis and config
 	l1Time := uint64(2)

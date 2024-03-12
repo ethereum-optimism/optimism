@@ -63,8 +63,8 @@ type DA struct {
 	metrics Metricer
 
 	storage DAStorage
-	l1      L1Fetcher
 
+	// the DA state keeps track of all the commitments and their challenge status.
 	state *State
 
 	// the latest l1 block we synced challenge contract events from
@@ -74,35 +74,34 @@ type DA struct {
 	// the latest recorded finalized head as per the l1 finalization signal
 	l1FinalizedHead eth.L1BlockRef
 	// flag the reset function we are resetting because of an expired challenge
-	resetting int
+	resetting bool
 
 	finalizedHeadSignalFunc HeadSignalFn
 }
 
 // NewPlasmaDA creates a new PlasmaDA instance with the given log and CLIConfig.
-func NewPlasmaDA(log log.Logger, cli CLIConfig, cfg Config, l1f L1Fetcher, metrics Metricer) *DA {
-	return NewPlasmaDAWithStorage(log, cfg, cli.NewDAClient(), l1f, metrics)
+func NewPlasmaDA(log log.Logger, cli CLIConfig, cfg Config, metrics Metricer) *DA {
+	return NewPlasmaDAWithStorage(log, cfg, cli.NewDAClient(), metrics)
 }
 
 // NewPlasmaDAWithStorage creates a new PlasmaDA instance with the given log and DAStorage interface.
-func NewPlasmaDAWithStorage(log log.Logger, cfg Config, storage DAStorage, l1f L1Fetcher, metrics Metricer) *DA {
+func NewPlasmaDAWithStorage(log log.Logger, cfg Config, storage DAStorage, metrics Metricer) *DA {
 	return &DA{
 		log:     log,
 		cfg:     cfg,
 		storage: storage,
-		l1:      l1f,
 		metrics: metrics,
 		state:   NewState(log, metrics),
 	}
 }
 
 // NewPlasmaWithState creates a plasma storage from initial state used for testing in isolation.
-func NewPlasmaDAWithState(log log.Logger, cfg Config, storage DAStorage, l1f L1Fetcher, metrics Metricer, state *State) *DA {
+// We pass the L1Fetcher to each method so it is kept in sync with the conf depth of the pipeline.
+func NewPlasmaDAWithState(log log.Logger, cfg Config, storage DAStorage, metrics Metricer, state *State) *DA {
 	return &DA{
 		log:     log,
 		cfg:     cfg,
 		storage: storage,
-		l1:      l1f,
 		metrics: metrics,
 		state:   state,
 	}
@@ -138,20 +137,24 @@ func (d *DA) Finalize(l1Finalized eth.L1BlockRef) {
 // LookAhead increments the challenges origin and process the new block if it exists.
 // It is used when the derivation pipeline stalls due to missing data and we need to continue
 // syncing challenge events until the challenge is resolved or expires.
-func (d *DA) LookAhead(ctx context.Context) error {
-	blkRef, err := d.l1.L1BlockRefByNumber(ctx, d.origin.Number+1)
+func (d *DA) LookAhead(ctx context.Context, l1 L1Fetcher) error {
+	blkRef, err := l1.L1BlockRefByNumber(ctx, d.origin.Number+1)
 	// temporary error, will do a backoff
 	if err != nil {
 		return err
 	}
-	return d.AdvanceL1Origin(ctx, blkRef.ID())
+	return d.AdvanceL1Origin(ctx, l1, blkRef.ID())
 }
 
 // Reset the challenge event derivation origin in case of L1 reorg
 func (d *DA) Reset(ctx context.Context, base eth.L1BlockRef, baseCfg eth.SystemConfig) error {
-	// resetting due to expired challenge, do not clear state
-	if d.resetting > 0 {
-		d.resetting--
+	// resetting due to expired challenge, do not clear state.
+	// If the DA source returns ErrReset, the pipeline is forced to reset by the rollup driver.
+	// In that case the Reset function will be called immediately, BEFORE the pipeline can
+	// call any further stage to step. Thus the state will NOT be cleared if the reset originates
+	// from this stage of the pipeline.
+	if d.resetting {
+		d.resetting = false
 	} else {
 		// resetting due to L1 reorg, clear state
 		d.origin = base.ID()
@@ -162,7 +165,7 @@ func (d *DA) Reset(ctx context.Context, base eth.L1BlockRef, baseCfg eth.SystemC
 
 // GetInput returns the input data for the given commitment bytes. blockNumber is required to lookup
 // the challenge status in the DataAvailabilityChallenge L1 contract.
-func (d *DA) GetInput(ctx context.Context, comm Keccak256Commitment, blockId eth.BlockID) (eth.Data, error) {
+func (d *DA) GetInput(ctx context.Context, l1 L1Fetcher, comm Keccak256Commitment, blockId eth.BlockID) (eth.Data, error) {
 	// If the challenge head is ahead in the case of a pipeline reset or stall, we might have synced a
 	// challenge event for this commitment. Otherwise we mark the commitment as part of the canonical
 	// chain so potential future challenge events can be selected.
@@ -189,7 +192,7 @@ func (d *DA) GetInput(ctx context.Context, comm Keccak256Commitment, blockId eth
 		} else if notFound {
 			// data is missing and a challenge is active, we must wait for the challenge to resolve
 			// hence we continue syncing new origins to sync the new challenge events.
-			if err := d.LookAhead(ctx); err != nil {
+			if err := d.LookAhead(ctx, l1); err != nil {
 				return nil, err
 			}
 			return nil, ErrPendingChallenge
@@ -215,7 +218,7 @@ func (d *DA) GetInput(ctx context.Context, comm Keccak256Commitment, blockId eth
 				return nil, ErrMissingPastWindow
 			} else {
 				// continue syncing challenges hoping it eventually is challenged and resolved
-				if err := d.LookAhead(ctx); err != nil {
+				if err := d.LookAhead(ctx, l1); err != nil {
 					return nil, err
 				}
 				return nil, ErrPendingChallenge
@@ -235,27 +238,27 @@ func (d *DA) isExpired(bn uint64) bool {
 // after the new resolveWindow, computes and signals the new finalized head and sets the l1 block
 // as the new head for tracking challenges. If forwards an error if any new challenge have expired to
 // trigger a derivation reset.
-func (d *DA) AdvanceL1Origin(ctx context.Context, block eth.BlockID) error {
+func (d *DA) AdvanceL1Origin(ctx context.Context, l1 L1Fetcher, block eth.BlockID) error {
 	// do not repeat for the same origin
 	if block.Number <= d.origin.Number {
 		return nil
 	}
 	// sync challenges for the given block ID
-	if err := d.LoadChallengeEvents(ctx, block); err != nil {
+	if err := d.LoadChallengeEvents(ctx, l1, block); err != nil {
 		return err
 	}
 	// advance challenge window, computing the finalized head
 	bn, err := d.state.ExpireChallenges(block.Number)
 	if err != nil {
 		// warn the reset function not to clear the state
-		d.resetting++
+		d.resetting = true
 		return err
 	}
 
 	// finalized head signal is called only when the finalized head number increases
 	// and the l1 finalized head ahead of the DA finalized head.
 	if bn > d.finalizedHead.Number {
-		ref, err := d.l1.L1BlockRefByNumber(ctx, bn)
+		ref, err := l1.L1BlockRefByNumber(ctx, bn)
 		if err != nil {
 			return err
 		}
@@ -273,9 +276,9 @@ func (d *DA) AdvanceL1Origin(ctx context.Context, block eth.BlockID) error {
 }
 
 // LoadChallengeEvents fetches the l1 block receipts and updates the challenge status
-func (d *DA) LoadChallengeEvents(ctx context.Context, block eth.BlockID) error {
+func (d *DA) LoadChallengeEvents(ctx context.Context, l1 L1Fetcher, block eth.BlockID) error {
 	// filter any challenge event logs in the block
-	logs, err := d.fetchChallengeLogs(ctx, block)
+	logs, err := d.fetchChallengeLogs(ctx, l1, block)
 	if err != nil {
 		return err
 	}
@@ -290,7 +293,7 @@ func (d *DA) LoadChallengeEvents(ctx context.Context, block eth.BlockID) error {
 		switch status {
 		case ChallengeResolved:
 			// cached with input resolution call so not expensive
-			_, txs, err := d.l1.InfoAndTxsByHash(ctx, block.Hash)
+			_, txs, err := l1.InfoAndTxsByHash(ctx, block.Hash)
 			if err != nil {
 				d.log.Error("failed to fetch l1 block", "block", block.Number, "err", err)
 				continue
@@ -330,9 +333,9 @@ func (d *DA) LoadChallengeEvents(ctx context.Context, block eth.BlockID) error {
 }
 
 // fetchChallengeLogs returns logs for challenge events if any for the given block
-func (d *DA) fetchChallengeLogs(ctx context.Context, block eth.BlockID) ([]*types.Log, error) { //cached with deposits events call so not expensive
+func (d *DA) fetchChallengeLogs(ctx context.Context, l1 L1Fetcher, block eth.BlockID) ([]*types.Log, error) { //cached with deposits events call so not expensive
 	var logs []*types.Log
-	_, receipts, err := d.l1.FetchReceipts(ctx, block.Hash)
+	_, receipts, err := l1.FetchReceipts(ctx, block.Hash)
 	if err != nil {
 		return nil, err
 	}

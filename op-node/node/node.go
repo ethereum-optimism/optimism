@@ -391,7 +391,7 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config, snapshotLog log.Logger
 	if cfg.Plasma.Enabled && err != nil {
 		return fmt.Errorf("failed to get plasma config: %w", err)
 	}
-	plasmaDA := plasma.NewPlasmaDA(n.log, cfg.Plasma, rpCfg, n.l1Source, n.metrics.PlasmaMetrics)
+	plasmaDA := plasma.NewPlasmaDA(n.log, cfg.Plasma, rpCfg, n.metrics.PlasmaMetrics)
 	if cfg.SafeDBPath != "" {
 		n.log.Info("Safe head database enabled", "path", cfg.SafeDBPath)
 		safeDB, err := safedb.NewSafeDB(n.log, cfg.SafeDBPath)

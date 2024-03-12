@@ -16,16 +16,18 @@ type PlasmaDataSource struct {
 	log     log.Logger
 	src     DataIter
 	fetcher PlasmaInputFetcher
+	l1      L1TransactionFetcher
 	id      eth.BlockID
 	// keep track of a pending commitment so we can keep trying to fetch the input.
 	comm plasma.Keccak256Commitment
 }
 
-func NewPlasmaDataSource(log log.Logger, src DataIter, fetcher PlasmaInputFetcher, id eth.BlockID) *PlasmaDataSource {
+func NewPlasmaDataSource(log log.Logger, src DataIter, l1 L1TransactionFetcher, fetcher PlasmaInputFetcher, id eth.BlockID) *PlasmaDataSource {
 	return &PlasmaDataSource{
 		log:     log,
 		src:     src,
 		fetcher: fetcher,
+		l1:      l1,
 		id:      id,
 	}
 }
@@ -35,7 +37,7 @@ func (s *PlasmaDataSource) Next(ctx context.Context) (eth.Data, error) {
 	// before we can proceed to fetch the input data. This function can be called multiple times
 	// for the same origin and noop if the origin was already processed. It is also called if
 	// there is not commitment in the current origin.
-	if err := s.fetcher.AdvanceL1Origin(ctx, s.id); err != nil {
+	if err := s.fetcher.AdvanceL1Origin(ctx, s.l1, s.id); err != nil {
 		if errors.Is(err, plasma.ErrReorgRequired) {
 			return nil, NewResetError(fmt.Errorf("new expired challenge"))
 		}
@@ -58,7 +60,7 @@ func (s *PlasmaDataSource) Next(ctx context.Context) (eth.Data, error) {
 		s.comm = comm
 	}
 	// use the commitment to fetch the input from the plasma DA provider.
-	data, err := s.fetcher.GetInput(ctx, s.comm, s.id)
+	data, err := s.fetcher.GetInput(ctx, s.l1, s.comm, s.id)
 	// GetInput may call for a reorg if the pipeline is stalled and the plasma DA manager
 	// continued syncing origins detached from the pipeline origin.
 	if errors.Is(err, plasma.ErrReorgRequired) {
@@ -66,7 +68,7 @@ func (s *PlasmaDataSource) Next(ctx context.Context) (eth.Data, error) {
 		return nil, NewResetError(err)
 	} else if errors.Is(err, plasma.ErrExpiredChallenge) {
 		// this commitment was challenged and the challenge expired.
-		s.log.Warn("challenge expired, skipping batch", "comm", fmt.Sprintf("%x", s.comm))
+		s.log.Warn("challenge expired, skipping batch", "comm", s.comm)
 		s.comm = nil
 		// skip the input
 		return s.Next(ctx)

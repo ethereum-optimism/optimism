@@ -261,7 +261,7 @@ func TestFilterInvalidBlockNumber(t *testing.T) {
 	bn := uint64(19)
 	bhash := common.HexToHash("0xd438144ffab918b1349e7cd06889c26800c26d8edc34d64f750e3e097166a09c")
 
-	da := NewPlasmaDAWithStorage(logger, pcfg, storage, l1F, &NoopMetrics{})
+	da := NewPlasmaDAWithStorage(logger, pcfg, storage, &NoopMetrics{})
 
 	receipts := types.Receipts{&types.Receipt{
 		Type:   2,
@@ -293,7 +293,7 @@ func TestFilterInvalidBlockNumber(t *testing.T) {
 	l1F.ExpectFetchReceipts(bhash, nil, receipts, nil)
 
 	// we get 1 logs successfully filtered as valid status updated contract event
-	logs, err := da.fetchChallengeLogs(ctx, id)
+	logs, err := da.fetchChallengeLogs(ctx, l1F, id)
 	require.NoError(t, err)
 	require.Equal(t, len(logs), 1)
 

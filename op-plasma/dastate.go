@@ -171,16 +171,15 @@ func (s *State) Prune(bn uint64) {
 	} else {
 		bn = 0
 	}
-	for i := 0; i < len(s.comms); i++ {
-		c := s.comms[i]
-		if c.blockNumber < bn {
-			s.log.Debug("prune commitment", "expiresAt", c.expiresAt, "blockNumber", c.blockNumber)
-			delete(s.commsByKey, string(c.key))
-		} else {
-			// once we're past the given index, remove all commitments
-			s.comms = s.comms[i:]
-			break
-		}
+	if s.comms.Len() == 0 {
+		return
+	}
+	// only first element is the highest priority (lowest block number).
+	// next highest priority is swapped to the first position after a Pop.
+	for s.comms[0].blockNumber < bn {
+		c := heap.Pop(&s.comms).(*Commitment)
+		s.log.Debug("prune commitment", "expiresAt", c.expiresAt, "blockNumber", c.blockNumber)
+		delete(s.commsByKey, string(c.key))
 	}
 }
 
