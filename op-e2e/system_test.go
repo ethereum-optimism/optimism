@@ -1468,6 +1468,7 @@ func TestBatcherMultiTx(t *testing.T) {
 	InitParallel(t)
 
 	cfg := DefaultSystemConfig(t)
+	cfg.MaxPendingTransactions = 0     // no limit on parallel txs
 	cfg.BatcherTargetL1TxSizeBytes = 2 // ensures that batcher txs are as small as possible
 	cfg.DisableBatcher = true
 	sys, err := cfg.Start(t)

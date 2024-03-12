@@ -1,67 +1,19 @@
 package batching
 
 import (
-	"fmt"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/rpc"
 )
 
-type ContractCall struct {
-	Abi    *abi.ABI
-	Addr   common.Address
-	Method string
-	Args   []interface{}
-	From   common.Address
-}
+type BatchElementCreator func(block rpcblock.Block) (any, rpc.BatchElem)
 
-func NewContractCall(abi *abi.ABI, addr common.Address, method string, args ...interface{}) *ContractCall {
-	return &ContractCall{
-		Abi:    abi,
-		Addr:   addr,
-		Method: method,
-		Args:   args,
-	}
-}
-
-func (c *ContractCall) Pack() ([]byte, error) {
-	return c.Abi.Pack(c.Method, c.Args...)
-}
-
-func (c *ContractCall) ToCallArgs() (interface{}, error) {
-	data, err := c.Pack()
-	if err != nil {
-		return nil, fmt.Errorf("failed to pack arguments: %w", err)
-	}
-
-	arg := map[string]interface{}{
-		"from":  c.From,
-		"to":    &c.Addr,
-		"input": hexutil.Bytes(data),
-	}
-	return arg, nil
-}
-
-func (c *ContractCall) Unpack(hex hexutil.Bytes) (*CallResult, error) {
-	out, err := c.Abi.Unpack(c.Method, hex)
-	if err != nil {
-		return nil, fmt.Errorf("failed to unpack data: %w", err)
-	}
-	return &CallResult{out: out}, nil
-}
-
-func (c *ContractCall) ToTxCandidate() (txmgr.TxCandidate, error) {
-	data, err := c.Pack()
-	if err != nil {
-		return txmgr.TxCandidate{}, fmt.Errorf("failed to pack arguments: %w", err)
-	}
-	return txmgr.TxCandidate{
-		TxData: data,
-		To:     &c.Addr,
-	}, nil
+type Call interface {
+	ToBatchElemCreator() (BatchElementCreator, error)
+	HandleResult(interface{}) (*CallResult, error)
 }
 
 type CallResult struct {

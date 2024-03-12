@@ -14,8 +14,6 @@ import (
 
 func verifyGameRules(t *testing.T, game types.Game, rootClaimCorrect bool) {
 	actualResult, claimTree, resolvedGame := gameResult(game)
-	t.Log("Resolved game:")
-	logClaims(t, resolvedGame)
 
 	verifyExpectedGameResult(t, rootClaimCorrect, actualResult)
 
@@ -90,10 +88,4 @@ func gameResult(game types.Game) (gameTypes.GameStatus, *disputeTypes.Bidirectio
 		resolvedClaims = append(resolvedClaims, *claim.Claim)
 	}
 	return result, tree, types.NewGameState(resolvedClaims, game.MaxDepth())
-}
-
-func logClaims(t *testing.T, game types.Game) {
-	for _, claim := range game.Claims() {
-		t.Log(printClaim(claim, game))
-	}
 }

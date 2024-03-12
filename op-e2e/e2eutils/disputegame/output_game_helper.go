@@ -18,6 +18,7 @@ import (
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	gethtypes "github.com/ethereum/go-ethereum/core/types"
@@ -163,6 +164,50 @@ func (g *OutputGameHelper) GameDuration(ctx context.Context) time.Duration {
 	duration, err := g.game.GameDuration(&bind.CallOpts{Context: ctx})
 	g.require.NoError(err, "failed to get game duration")
 	return time.Duration(duration) * time.Second
+}
+
+func (g *OutputGameHelper) WaitForNoAvailableCredit(ctx context.Context, addr common.Address) {
+	timedCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
+	defer cancel()
+	err := wait.For(timedCtx, time.Second, func() (bool, error) {
+		bal, err := g.game.Credit(&bind.CallOpts{Context: timedCtx}, addr)
+		if err != nil {
+			return false, err
+		}
+		g.t.Log("Waiting for zero available credit", "current", bal, "addr", addr)
+		return bal.Cmp(big.NewInt(0)) == 0, nil
+	})
+	if err != nil {
+		g.LogGameData(ctx)
+		g.require.NoError(err, "Failed to wait for zero available credit")
+	}
+}
+
+func (g *OutputGameHelper) AvailableCredit(ctx context.Context, addr common.Address) *big.Int {
+	credit, err := g.game.Credit(&bind.CallOpts{Context: ctx}, addr)
+	g.require.NoErrorf(err, "Failed to fetch available credit for %v", addr)
+	return credit
+}
+
+func (g *OutputGameHelper) CreditUnlockDuration(ctx context.Context) time.Duration {
+	weth, err := g.game.Weth(&bind.CallOpts{Context: ctx})
+	g.require.NoError(err, "Failed to get WETH contract")
+	contract, err := bindings.NewDelayedWETH(weth, g.client)
+	g.require.NoError(err)
+	period, err := contract.Delay(&bind.CallOpts{Context: ctx})
+	g.require.NoError(err, "Failed to get WETH unlock period")
+	float, _ := period.Float64()
+	return time.Duration(float) * time.Second
+}
+
+func (g *OutputGameHelper) WethBalance(ctx context.Context, addr common.Address) *big.Int {
+	weth, err := g.game.Weth(&bind.CallOpts{Context: ctx})
+	g.require.NoError(err, "Failed to get WETH contract")
+	contract, err := bindings.NewDelayedWETH(weth, g.client)
+	g.require.NoError(err)
+	balance, err := contract.BalanceOf(&bind.CallOpts{Context: ctx}, addr)
+	g.require.NoError(err, "Failed to get WETH balance")
+	return balance
 }
 
 // WaitForClaimCount waits until there are at least count claims in the game.
@@ -611,7 +656,7 @@ func (g *OutputGameHelper) WaitForChallengePeriodStart(ctx context.Context, send
 func (g *OutputGameHelper) ChallengePeriodStartTime(ctx context.Context, sender common.Address, data *types.PreimageOracleData) uint64 {
 	oracle := g.oracle(ctx)
 	uuid := preimages.NewUUID(sender, data)
-	metadata, err := oracle.GetProposalMetadata(ctx, batching.BlockLatest, keccakTypes.LargePreimageIdent{
+	metadata, err := oracle.GetProposalMetadata(ctx, rpcblock.Latest, keccakTypes.LargePreimageIdent{
 		Claimant: sender,
 		UUID:     uuid,
 	})

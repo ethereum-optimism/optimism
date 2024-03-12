@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/sdk",
-  "version": "3.2.1",
+  "version": "3.2.2",
   "description": "[Optimism] Tools for working with Optimism",
   "main": "dist/index",
   "types": "dist/index",
@@ -12,7 +12,6 @@
     "all": "pnpm clean && pnpm build && pnpm test && pnpm lint:fix && pnpm lint",
     "build": "tsc -p tsconfig.json",
     "clean": "rimraf dist/ ./tsconfig.tsbuildinfo",
-    "preinstall": "npx only-allow pnpm",
     "lint": "pnpm lint:fix && pnpm lint:check",
     "lint:check": "eslint . --max-warnings=0",
     "lint:fix": "pnpm lint:check --fix",

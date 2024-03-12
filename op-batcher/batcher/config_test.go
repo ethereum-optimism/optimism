@@ -70,7 +70,7 @@ func TestBatcherConfig(t *testing.T) {
 		{
 			name:      "max L1 tx size too small",
 			override:  func(c *batcher.CLIConfig) { c.MaxL1TxSize = 0 },
-			errString: "MaxL1TxSize must be greater than 0",
+			errString: "MaxL1TxSize must be greater than 1",
 		},
 		{
 			name:      "invalid batch type close",

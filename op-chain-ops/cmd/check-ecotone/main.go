@@ -99,12 +99,20 @@ func main() {
 }
 
 type actionEnv struct {
-	log      log.Logger
-	l1       *ethclient.Client
-	l2       *ethclient.Client
-	rollupCl *sources.RollupClient
-	key      *ecdsa.PrivateKey
-	addr     common.Address
+	log       log.Logger
+	l1        *ethclient.Client
+	l2        *ethclient.Client
+	rollupCl  *sources.RollupClient
+	key       *ecdsa.PrivateKey
+	addr      common.Address
+	gasUsed   uint64
+	l1GasUsed uint64
+}
+
+func (ae *actionEnv) RecordGasUsed(rec *types.Receipt) {
+	ae.gasUsed += rec.GasUsed
+	ae.l1GasUsed += rec.L1GasUsed.Uint64()
+	ae.log.Debug("Recorded tx receipt gas", "gas_used", rec.GasUsed, "l1_gas_used", rec.L1GasUsed)
 }
 
 type CheckAction func(ctx context.Context, env *actionEnv) error
@@ -460,6 +468,7 @@ func execTx(ctx context.Context, to *common.Address, data []byte, expectRevert b
 				return fmt.Errorf("error while checking tx receipt: %w", err)
 			}
 		}
+		env.RecordGasUsed(receipt)
 		if expectRevert {
 			if receipt.Status == types.ReceiptStatusFailed {
 				env.log.Info("tx reverted as expected", "txhash", signedTx.Hash())
@@ -509,7 +518,7 @@ func checkBlobTxDenial(ctx context.Context, env *actionEnv) error {
 	gasTipCap := big.NewInt(2 * params.GWei)
 	gasFeeCap := new(big.Int).Add(gasTipCap, new(big.Int).Mul(latestHeader.BaseFee, big.NewInt(2)))
 
-	nonce, err := env.l1.PendingNonceAt(ctx, env.addr)
+	nonce, err := env.l2.PendingNonceAt(ctx, env.addr)
 	if err != nil {
 		return fmt.Errorf("failed to get pending nonce: %w", err)
 	}
@@ -789,8 +798,9 @@ func checkL1Fees(ctx context.Context, env *actionEnv) error {
 	if err != nil {
 		return fmt.Errorf("failed to confirm tx %s timely: %w", tx.Hash(), err)
 	}
+	env.RecordGasUsed(receipt)
 	if receipt.Status != types.ReceiptStatusSuccessful {
-		return fmt.Errorf("transaction failed, gas used: %d", receipt.L1GasUsed)
+		return fmt.Errorf("transaction failed, L1 gas used: %d", receipt.L1GasUsed)
 	}
 	env.log.Info("got receipt", "hash", tx.Hash(), "block", receipt.BlockHash)
 	if receipt.FeeScalar != nil {
@@ -845,6 +855,7 @@ func checkALL(ctx context.Context, env *actionEnv) error {
 		return fmt.Errorf("failed to check balance of account: %w", err)
 	}
 	env.log.Info("starting checks, tx account", "addr", env.addr, "balance_wei", bal)
+
 	if err := checkAllCancun(ctx, env); err != nil {
 		return fmt.Errorf("failed: Cancun error: %w", err)
 	}
@@ -860,6 +871,17 @@ func checkALL(ctx context.Context, env *actionEnv) error {
 	if err := checkL1Fees(ctx, env); err != nil {
 		return fmt.Errorf("failed: L1 fees error: %w", err)
 	}
-	env.log.Info("completed all tests successfully!")
+
+	finbal, err := env.l2.BalanceAt(ctx, env.addr, nil)
+	if err != nil {
+		return fmt.Errorf("failed to check final balance of account: %w", err)
+	}
+	env.log.Info("completed all tests successfully!",
+		"addr", env.addr, "balance_wei", finbal,
+		"spent_wei", new(big.Int).Sub(bal, finbal),
+		"gas_used_total", env.gasUsed,
+		"l1_gas_used_total", env.l1GasUsed,
+	)
+
 	return nil
 }

@@ -7,13 +7,13 @@ import (
 
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
-	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum/go-ethereum/common"
 	"golang.org/x/exp/maps"
 )
 
 type BondContract interface {
-	GetCredits(ctx context.Context, block batching.Block, recipients ...common.Address) ([]*big.Int, error)
+	GetCredits(ctx context.Context, block rpcblock.Block, recipients ...common.Address) ([]*big.Int, error)
 }
 
 // CalculateRequiredCollateral determines the minimum balance required for a fault dispute game contract in order
@@ -32,7 +32,7 @@ func CalculateRequiredCollateral(ctx context.Context, contract BondContract, blo
 		}
 	}
 
-	credits, err := contract.GetCredits(ctx, batching.BlockByHash(blockHash), maps.Keys(recipients)...)
+	credits, err := contract.GetCredits(ctx, rpcblock.ByHash(blockHash), maps.Keys(recipients)...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load credits: %w", err)
 	}

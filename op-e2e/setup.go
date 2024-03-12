@@ -58,6 +58,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	l2os "github.com/ethereum-optimism/optimism/op-proposer/proposer"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -67,9 +68,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
-var (
-	testingJWTSecret = [32]byte{123}
-)
+var testingJWTSecret = [32]byte{123}
 
 func newTxMgrConfig(l1Addr string, privKey *ecdsa.PrivateKey) txmgr.CLIConfig {
 	return txmgr.CLIConfig{
@@ -158,6 +157,7 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 		ExternalL2Shim:             config.ExternalL2Shim,
 		BatcherTargetL1TxSizeBytes: 100_000,
 		DataAvailabilityType:       batcherFlags.CalldataType,
+		MaxPendingTransactions:     1,
 	}
 }
 
@@ -219,8 +219,20 @@ type SystemConfig struct {
 	// Max L1 tx size for the batcher transactions
 	BatcherMaxL1TxSizeBytes uint64
 
+	// Target number of frames to create per channel. Can be used to create
+	// multi-blob transactions.
+	// Default is 1 if unset.
+	BatcherTargetNumFrames uint64
+
+	// whether to actually use BatcherMaxL1TxSizeBytes for blobs, insteaf of max blob size
+	BatcherUseMaxTxSizeForBlobs bool
+
 	// SupportL1TimeTravel determines if the L1 node supports quickly skipping forward in time
 	SupportL1TimeTravel bool
+
+	// MaxPendingTransactions determines how many transactions the batcher will try to send
+	// concurrently. 0 means unlimited.
+	MaxPendingTransactions uint64
 }
 
 type GethInstance struct {
@@ -302,6 +314,11 @@ func (sys *System) L1BeaconEndpoint() string {
 	return sys.L1BeaconAPIAddr
 }
 
+func (sys *System) L1BeaconHTTPClient() *sources.BeaconHTTPClient {
+	logger := testlog.Logger(sys.t, log.LevelInfo).New("component", "beaconClient")
+	return sources.NewBeaconHTTPClient(client.NewBasicHTTPClient(sys.L1BeaconEndpoint(), logger))
+}
+
 func (sys *System) NodeEndpoint(name string) string {
 	return selectEndpoint(sys.EthInstances[name])
 }
@@ -337,6 +354,11 @@ func (sys *System) RollupCfg() *rollup.Config {
 
 func (sys *System) L2Genesis() *core.Genesis {
 	return sys.L2GenesisCfg
+}
+
+func (sys *System) L1Slot(l1Timestamp uint64) uint64 {
+	return (l1Timestamp - uint64(sys.Cfg.DeployConfig.L1GenesisBlockTimestamp)) /
+		sys.Cfg.DeployConfig.L1BlockTime
 }
 
 func (sys *System) Close() {
@@ -790,20 +812,26 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	if cfg.DeployConfig.L2GenesisDeltaTimeOffset != nil && *cfg.DeployConfig.L2GenesisDeltaTimeOffset == hexutil.Uint64(0) {
 		batchType = derive.SpanBatchType
 	}
+	// batcher defaults if unset
 	batcherMaxL1TxSizeBytes := cfg.BatcherMaxL1TxSizeBytes
 	if batcherMaxL1TxSizeBytes == 0 {
 		batcherMaxL1TxSizeBytes = 240_000
 	}
+	batcherTargetNumFrames := cfg.BatcherTargetNumFrames
+	if batcherTargetNumFrames == 0 {
+		batcherTargetNumFrames = 1
+	}
 	batcherCLIConfig := &bss.CLIConfig{
-		L1EthRpc:               sys.EthInstances["l1"].WSEndpoint(),
-		L2EthRpc:               sys.EthInstances["sequencer"].WSEndpoint(),
-		RollupRpc:              sys.RollupNodes["sequencer"].HTTPEndpoint(),
-		MaxPendingTransactions: 0,
-		MaxChannelDuration:     1,
-		MaxL1TxSize:            batcherMaxL1TxSizeBytes,
+		L1EthRpc:                 sys.EthInstances["l1"].WSEndpoint(),
+		L2EthRpc:                 sys.EthInstances["sequencer"].WSEndpoint(),
+		RollupRpc:                sys.RollupNodes["sequencer"].HTTPEndpoint(),
+		MaxPendingTransactions:   cfg.MaxPendingTransactions,
+		MaxChannelDuration:       1,
+		MaxL1TxSize:              batcherMaxL1TxSizeBytes,
+		TestUseMaxTxSizeForBlobs: cfg.BatcherUseMaxTxSizeForBlobs,
 		CompressorConfig: compressor.CLIConfig{
 			TargetL1TxSizeBytes: cfg.BatcherTargetL1TxSizeBytes,
-			TargetNumFrames:     1,
+			TargetNumFrames:     int(batcherTargetNumFrames),
 			ApproxComprRatio:    0.4,
 		},
 		SubSafetyMargin: 4,
