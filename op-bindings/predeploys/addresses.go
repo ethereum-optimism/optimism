@@ -36,6 +36,7 @@ const (
 	Permit2                       = "0x000000000022D473030F116dDEE9F6B43aC78BA3"
 	SenderCreator                 = "0x7fc98430eaedbb6070b35b39d798725049088348"
 	EntryPoint                    = "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789"
+	CrossL2Inbox                  = "0x4200000000000000000000000000000000000022"
 )
 
 var (
@@ -69,6 +70,7 @@ var (
 	Permit2Addr                       = common.HexToAddress(Permit2)
 	SenderCreatorAddr                 = common.HexToAddress(SenderCreator)
 	EntryPointAddr                    = common.HexToAddress(EntryPoint)
+	CrossL2InboxAddr                  = common.HexToAddress(CrossL2Inbox)
 
 	Predeploys          = make(map[string]*Predeploy)
 	PredeploysByAddress = make(map[common.Address]*Predeploy)
@@ -100,6 +102,7 @@ func init() {
 	Predeploys["L1FeeVault"] = &Predeploy{Address: L1FeeVaultAddr}
 	Predeploys["SchemaRegistry"] = &Predeploy{Address: SchemaRegistryAddr}
 	Predeploys["EAS"] = &Predeploy{Address: EASAddr}
+	Predeploys["CrossL2Inbox"] = &Predeploy{Address: CrossL2InboxAddr}
 	Predeploys["Create2Deployer"] = &Predeploy{
 		Address:       Create2DeployerAddr,
 		ProxyDisabled: true,
