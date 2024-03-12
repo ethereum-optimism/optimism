@@ -41,17 +41,17 @@ test:
 verify-sepolia: op-program-host op-program-client
 	env GO111MODULE=on go run ./verify/sepolia/cmd/sepolia.go --l1 $$SEPOLIA_L1URL --l1.beacon $$SEPOLIA_BEACON_URL --l2 $$SEPOLIA_L2URL --datadir /tmp/test-sepolia
 
-capture-sepolia-genesis: op-program-host op-program-client
-	rm -rf "$(COMPAT_DIR)/sepolia-genesis" "$(COMPAT_DIR)/sepolia-genesis.tar.bz"
-	env GO111MODULE=on go run ./verify/sepolia/cmd/sepolia.go --l1 $$SEPOLIA_L1URL --l1.beacon $$SEPOLIA_BEACON_URL --l2 $$SEPOLIA_L2URL --datadir "$(COMPAT_DIR)/sepolia-genesis" --l1.head "0x9d31c85cbd15238efee9bc58897d7f6731dc700e76b9d7b9e3ba3e3d81723390" --l2.start "0" --l2.end "1"
-	tar jcf "$(COMPAT_DIR)/sepolia-genesis.tar.bz" -C "$(COMPAT_DIR)" sepolia-genesis
+capture-mainnet-genesis: op-program-host op-program-client
+	rm -rf "$(COMPAT_DIR)/mainnet-genesis" "$(COMPAT_DIR)/mainnet-genesis.tar.bz"
+	env GO111MODULE=on go run ./verify/mainnet/cmd/mainnet.go --l1 $$MAINNET_L1URL --l1.beacon $$MAINNET_BEACON_URL --l2 $$MAINNET_L2URL --datadir "$(COMPAT_DIR)/mainnet-genesis" --l1.head "0x4903424f6cc2cfba7c2bf8c8f48ca46721c963fa64b411cfee3697b781e3e5f1" --l2.start "105235063" --l2.end "105235064"
+	tar jcf "$(COMPAT_DIR)/mainnet-genesis.tar.bz" -C "$(COMPAT_DIR)" mainnet-genesis
 
 capture-sepolia-delta: op-program-host op-program-client
 	rm -rf "$(COMPAT_DIR)/sepolia-delta" "$(COMPAT_DIR)/sepolia-delta.tar.bz"
 	env GO111MODULE=on go run ./verify/sepolia/cmd/sepolia.go --l1 $$SEPOLIA_L1URL --l1.beacon $$SEPOLIA_BEACON_URL --l2 $$SEPOLIA_L2URL --datadir "$(COMPAT_DIR)/sepolia-delta" --l1.head "0x935428728bcfcfeb2e5ba9175fd2890e52831dae221aa4d5dcffed8320edc001" --l2.start "8728200" --l2.end "8728320"
 	tar jcf "$(COMPAT_DIR)/sepolia-delta.tar.bz" -C "$(COMPAT_DIR)" sepolia-delta
 
-capture-chain-test-data: capture-sepolia-delta capture-sepolia-genesis
+capture-chain-test-data: capture-mainnet-genesis capture-sepolia-delta
 
 run-sepolia-verify: op-program-host op-program-client
 	mkdir -p "$(COMPAT_DIR)"
@@ -68,7 +68,7 @@ run-sepolia-verify: op-program-host op-program-client
 	test \
 	capture-goerli-verify \
 	verify-sepolia \
-	capture-sepolia-genesis \
+	capture-mainnet-genesis \
 	capture-sepolia-delta \
 	capture-chain-test-data \
 	run-goerli-verify \
