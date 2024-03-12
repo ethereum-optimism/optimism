@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 
+	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -110,6 +111,17 @@ type Config struct {
 
 	// L1 DataAvailabilityChallenge contract proxy address
 	DAChallengeAddress common.Address `json:"da_challenge_address,omitempty"`
+
+	// DA challenge window value set on the DAC contract. Used in plasma mode
+	// to compute when a commitment can no longer be challenged.
+	DAChallengeWindow uint64 `json:"da_challenge_window"`
+
+	// DA resolve window value set on the DAC contract. Used in plasma mode
+	// to compute when a challenge expires and trigger a reorg if needed.
+	DAResolveWindow uint64 `json:"da_resolve_window"`
+
+	// UsePlasma is activated when the chain is in plasma mode.
+	UsePlasma bool `json:"use_plasma"`
 }
 
 // ValidateL1Config checks L1 config variables for errors.
@@ -393,9 +405,33 @@ func (c *Config) GetPayloadVersion(timestamp uint64) eth.EngineAPIMethod {
 	}
 }
 
-// IsPlasmaEnabled returns true if a DA Challenge proxy Address is provided in the rollup config.
-func (c *Config) IsPlasmaEnabled() bool {
-	return c.DAChallengeAddress != (common.Address{})
+// PlasmaConfig validates and returns the plasma config from the rollup config.
+func (c *Config) PlasmaConfig() (plasma.Config, error) {
+	if c.DAChallengeAddress == (common.Address{}) {
+		return plasma.Config{}, fmt.Errorf("missing DAChallengeAddress")
+	}
+	if c.DAChallengeWindow == uint64(0) {
+		return plasma.Config{}, fmt.Errorf("missing DAChallengeWindow")
+	}
+	if c.DAResolveWindow == uint64(0) {
+		return plasma.Config{}, fmt.Errorf("missing DAResolveWindow")
+	}
+	return plasma.Config{
+		DAChallengeContractAddress: c.DAChallengeAddress,
+		ChallengeWindow:            c.DAChallengeWindow,
+		ResolveWindow:              c.DAResolveWindow,
+	}, nil
+}
+
+// SyncLookback computes the number of blocks to walk back in order to find the correct L1 origin.
+// In plasma mode longest possible window is challenge + resolve windows.
+func (c *Config) SyncLookback() uint64 {
+	if c.UsePlasma {
+		if win := (c.DAChallengeWindow + c.DAResolveWindow); win > c.SeqWindowSize {
+			return win
+		}
+	}
+	return c.SeqWindowSize
 }
 
 // Description outputs a banner describing the important parts of rollup configuration in a human-readable form.

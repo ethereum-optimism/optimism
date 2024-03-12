@@ -1218,3 +1218,99 @@ func TestEngineQueue_StepPopOlderUnsafe(t *testing.T) {
 	l1F.AssertExpectations(t)
 	eng.AssertExpectations(t)
 }
+
+func TestPlasmaFinalityData(t *testing.T) {
+	logger := testlog.Logger(t, log.LevelInfo)
+	eng := &testutils.MockEngine{}
+	l1F := &testutils.MockL1Source{}
+
+	rng := rand.New(rand.NewSource(1234))
+
+	refA := testutils.RandomBlockRef(rng)
+	refA0 := eth.L2BlockRef{
+		Hash:           testutils.RandomHash(rng),
+		Number:         0,
+		ParentHash:     common.Hash{},
+		Time:           refA.Time,
+		L1Origin:       refA.ID(),
+		SequenceNumber: 0,
+	}
+
+	prev := &fakeAttributesQueue{origin: refA}
+
+	cfg := &rollup.Config{
+		Genesis: rollup.Genesis{
+			L1:     refA.ID(),
+			L2:     refA0.ID(),
+			L2Time: refA0.Time,
+			SystemConfig: eth.SystemConfig{
+				BatcherAddr: common.Address{42},
+				Overhead:    [32]byte{123},
+				Scalar:      [32]byte{42},
+				GasLimit:    20_000_000,
+			},
+		},
+		BlockTime:         1,
+		SeqWindowSize:     2,
+		UsePlasma:         false,
+		DAChallengeWindow: 90,
+		DAResolveWindow:   90,
+	}
+	// shoud return l1 finality if plasma is not enabled
+	require.Equal(t, uint64(finalityLookback), calcFinalityLookback(cfg))
+
+	cfg.UsePlasma = true
+	expFinalityLookback := 181
+	require.Equal(t, uint64(expFinalityLookback), calcFinalityLookback(cfg))
+
+	refA1 := eth.L2BlockRef{
+		Hash:           testutils.RandomHash(rng),
+		Number:         refA0.Number + 1,
+		ParentHash:     refA0.Hash,
+		Time:           refA0.Time + cfg.BlockTime,
+		L1Origin:       refA.ID(),
+		SequenceNumber: 1,
+	}
+
+	ec := NewEngineController(eng, logger, metrics.NoopMetrics, &rollup.Config{}, sync.CLSync)
+
+	eq := NewEngineQueue(logger, cfg, eng, ec, metrics.NoopMetrics, prev, l1F, &sync.Config{}, safedb.Disabled)
+	require.Equal(t, expFinalityLookback, cap(eq.finalityData))
+
+	l1parent := refA
+	l2parent := refA1
+
+	ec.SetSafeHead(l2parent)
+	require.NoError(t, eq.postProcessSafeL2())
+
+	// advance over 200 l1 origins each time incrementing new l2 safe heads
+	// and post processing.
+	for i := uint64(0); i < 200; i++ {
+		require.NoError(t, eq.postProcessSafeL2())
+
+		l1parent = eth.L1BlockRef{
+			Hash:       testutils.RandomHash(rng),
+			Number:     l1parent.Number + 1,
+			ParentHash: l1parent.Hash,
+			Time:       l1parent.Time + 12,
+		}
+		eq.origin = l1parent
+
+		for j := uint64(0); i < cfg.SeqWindowSize; i++ {
+			l2parent = eth.L2BlockRef{
+				Hash:           testutils.RandomHash(rng),
+				Number:         l2parent.Number + 1,
+				ParentHash:     l2parent.Hash,
+				Time:           l2parent.Time + cfg.BlockTime,
+				L1Origin:       l1parent.ID(),
+				SequenceNumber: j,
+			}
+			ec.SetSafeHead(l2parent)
+			require.NoError(t, eq.postProcessSafeL2())
+		}
+	}
+
+	// finality data does not go over challenge + resolve windows + 1 capacity
+	// (prunes down to 180 then adds the extra 1 each time)
+	require.Equal(t, expFinalityLookback, len(eq.finalityData))
+}

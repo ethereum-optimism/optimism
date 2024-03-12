@@ -53,6 +53,7 @@ type DerivationPipeline struct {
 	log       log.Logger
 	rollupCfg *rollup.Config
 	l1Fetcher L1Fetcher
+	plasma    PlasmaInputFetcher
 
 	// Index of the stage that is currently being reset.
 	// >= len(stages) if no additional resetting is required
@@ -68,11 +69,11 @@ type DerivationPipeline struct {
 
 // NewDerivationPipeline creates a derivation pipeline, which should be reset before use.
 
-func NewDerivationPipeline(log log.Logger, rollupCfg *rollup.Config, l1Fetcher L1Fetcher, l1Blobs L1BlobsFetcher, plasmaInputs PlasmaInputFetcher, l2Source L2Source, engine LocalEngineControl, metrics Metrics, syncCfg *sync.Config, safeHeadListener SafeHeadListener) *DerivationPipeline {
+func NewDerivationPipeline(log log.Logger, rollupCfg *rollup.Config, l1Fetcher L1Fetcher, l1Blobs L1BlobsFetcher, plasma PlasmaInputFetcher, l2Source L2Source, engine LocalEngineControl, metrics Metrics, syncCfg *sync.Config, safeHeadListener SafeHeadListener) *DerivationPipeline {
 
 	// Pull stages
 	l1Traversal := NewL1Traversal(log, rollupCfg, l1Fetcher)
-	dataSrc := NewDataSourceFactory(log, rollupCfg, l1Fetcher, l1Blobs, plasmaInputs) // auxiliary stage for L1Retrieval
+	dataSrc := NewDataSourceFactory(log, rollupCfg, l1Fetcher, l1Blobs, plasma) // auxiliary stage for L1Retrieval
 	l1Src := NewL1Retrieval(log, dataSrc, l1Traversal)
 	frameQueue := NewFrameQueue(log, l1Src)
 	bank := NewChannelBank(log, rollupCfg, frameQueue, l1Fetcher, metrics)
@@ -84,15 +85,21 @@ func NewDerivationPipeline(log log.Logger, rollupCfg *rollup.Config, l1Fetcher L
 	// Step stages
 	eng := NewEngineQueue(log, rollupCfg, l2Source, engine, metrics, attributesQueue, l1Fetcher, syncCfg, safeHeadListener)
 
+	// Plasma takes control of the engine finalization signal only when usePlasma is enabled.
+	plasma.OnFinalizedHeadSignal(func(ref eth.L1BlockRef) {
+		eng.Finalize(ref)
+	})
+
 	// Reset from engine queue then up from L1 Traversal. The stages do not talk to each other during
 	// the reset, but after the engine queue, this is the order in which the stages could talk to each other.
 	// Note: The engine queue stage is the only reset that can fail.
-	stages := []ResettableStage{eng, l1Traversal, l1Src, frameQueue, bank, chInReader, batchQueue, attributesQueue}
+	stages := []ResettableStage{eng, l1Traversal, l1Src, plasma, frameQueue, bank, chInReader, batchQueue, attributesQueue}
 
 	return &DerivationPipeline{
 		log:       log,
 		rollupCfg: rollupCfg,
 		l1Fetcher: l1Fetcher,
+		plasma:    plasma,
 		resetting: 0,
 		stages:    stages,
 		eng:       eng,
@@ -118,7 +125,13 @@ func (dp *DerivationPipeline) Origin() eth.L1BlockRef {
 }
 
 func (dp *DerivationPipeline) Finalize(l1Origin eth.L1BlockRef) {
-	dp.eng.Finalize(l1Origin)
+	// In plasma mode, the finalization signal is proxied through the plasma manager.
+	// Finality signal will come from the DA contract or L1 finality whichever is last.
+	if dp.rollupCfg.UsePlasma {
+		dp.plasma.Finalize(l1Origin)
+	} else {
+		dp.eng.Finalize(l1Origin)
+	}
 }
 
 // FinalizedL1 is the L1 finalization of the inner-most stage of the derivation pipeline,
