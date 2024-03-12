@@ -419,7 +419,7 @@ func TestChannelBuilder_NextFrame(t *testing.T) {
 		},
 		data: expectedBytes,
 	}
-	cb.PushFrame(frameData)
+	cb.PushFrames(frameData)
 
 	// There should only be 1 frame in the channel builder
 	require.Equal(t, 1, cb.PendingFrames())
@@ -462,7 +462,7 @@ func TestChannelBuilder_OutputWrongFramePanic(t *testing.T) {
 			},
 			data: buf.Bytes(),
 		}
-		cb.PushFrame(frame)
+		cb.PushFrames(frame)
 	})
 }
 

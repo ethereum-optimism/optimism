@@ -217,7 +217,7 @@ func ChannelManager_TxResend(t *testing.T, batchType uint) {
 
 	txdata0, err := m.TxData(eth.BlockID{})
 	require.NoError(err)
-	txdata0bytes := txdata0.Bytes()
+	txdata0bytes := txdata0.CallData()
 	data0 := make([]byte, len(txdata0bytes))
 	// make sure we have a clone for later comparison
 	copy(data0, txdata0bytes)
@@ -232,7 +232,7 @@ func ChannelManager_TxResend(t *testing.T, batchType uint) {
 	txdata1, err := m.TxData(eth.BlockID{})
 	require.NoError(err)
 
-	data1 := txdata1.Bytes()
+	data1 := txdata1.CallData()
 	require.Equal(data1, data0)
 	fs, err := derive.ParseFrames(data1)
 	require.NoError(err)

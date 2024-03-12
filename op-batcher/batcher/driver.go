@@ -390,7 +390,7 @@ func (l *BatchSubmitter) sendTransaction(ctx context.Context, txdata txData, que
 		if nf := len(txdata.frames); nf != 1 {
 			l.Log.Crit("unexpected number of frames in calldata tx", "num_frames", nf)
 		}
-		data := txdata.Bytes()
+		data := txdata.CallData()
 		// if plasma DA is enabled we post the txdata to the DA Provider and replace it with the commitment.
 		if l.Config.UsePlasma {
 			data, err = l.PlasmaDA.SetInput(ctx, data)
@@ -426,7 +426,6 @@ func (l *BatchSubmitter) blobTxCandidate(data txData) (*txmgr.TxCandidate, error
 	l.Log.Info("building Blob transaction candidate",
 		"size", size, "last_size", lastSize, "num_blobs", len(blobs))
 	l.Metr.RecordBlobUsedBytes(lastSize)
-	// TODO(Seb) record number of blobs
 	return &txmgr.TxCandidate{
 		To:    &l.RollupConfig.BatchInboxAddress,
 		Blobs: blobs,
@@ -485,7 +484,7 @@ func logFields(xs ...any) (fs []any) {
 	for _, x := range xs {
 		switch v := x.(type) {
 		case txData:
-			fs = append(fs, "frame_id", v.ID(), "data_len", v.Len())
+			fs = append(fs, "tx_id", v.ID(), "data_len", v.Len())
 		case *types.Receipt:
 			fs = append(fs, "tx", v.TxHash, "block", eth.ReceiptBlockID(v))
 		case error:

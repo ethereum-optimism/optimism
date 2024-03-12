@@ -98,7 +98,7 @@ func TestChannelNextTxData(t *testing.T) {
 			frameNumber: uint16(0),
 		},
 	}
-	channel.channelBuilder.PushFrame(frame)
+	channel.channelBuilder.PushFrames(frame)
 	require.Equal(t, 1, channel.PendingFrames())
 
 	// Now the nextTxData function should return the frame
@@ -134,7 +134,7 @@ func TestChannelTxConfirmed(t *testing.T) {
 			frameNumber: uint16(0),
 		},
 	}
-	m.currentChannel.channelBuilder.PushFrame(frame)
+	m.currentChannel.channelBuilder.PushFrames(frame)
 	require.Equal(t, 1, m.currentChannel.PendingFrames())
 	returnedTxData, err := m.nextTxData(m.currentChannel)
 	expectedTxData := singleFrameTxData(frame)
@@ -183,7 +183,7 @@ func TestChannelTxFailed(t *testing.T) {
 			frameNumber: uint16(0),
 		},
 	}
-	m.currentChannel.channelBuilder.PushFrame(frame)
+	m.currentChannel.channelBuilder.PushFrames(frame)
 	require.Equal(t, 1, m.currentChannel.PendingFrames())
 	returnedTxData, err := m.nextTxData(m.currentChannel)
 	expectedTxData := singleFrameTxData(frame)

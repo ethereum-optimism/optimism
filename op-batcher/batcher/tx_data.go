@@ -18,7 +18,7 @@ type txData struct {
 }
 
 func singleFrameTxData(frame frameData) txData {
-	return txData{[]frameData{frame}}
+	return txData{frames: []frameData{frame}}
 }
 
 // ID returns the id for this transaction data. Its String() can be used as a map key.
@@ -30,10 +30,9 @@ func (td *txData) ID() txID {
 	return id
 }
 
-// Bytes returns the transaction data. It's a version byte (0) followed by the
-// concatenated frames for this transaction.
-// TODO(Seb) rename to CallData
-func (td *txData) Bytes() []byte {
+// CallData returns the transaction data as calldata.
+// It's a version byte (0) followed by the concatenated frames for this transaction.
+func (td *txData) CallData() []byte {
 	data := make([]byte, 1, 1+td.Len())
 	data[0] = derive.DerivationVersion0
 	for _, f := range td.frames {
@@ -54,7 +53,8 @@ func (td *txData) Blobs() ([]*eth.Blob, error) {
 	return blobs, nil
 }
 
-// TODO(Seb) check all uses of Len for right dimension
+// Len returns the sum of all the sizes of data in all frames.
+// Len only counts the data itself and doesn't account for the version byte(s).
 func (td *txData) Len() (l int) {
 	for _, f := range td.frames {
 		l += len(f.data)
