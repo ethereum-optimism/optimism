@@ -68,6 +68,7 @@ type PredeploysImmutableConfig struct {
 	SenderCreator                struct{}
 	EntryPoint                   struct{}
 	CrossL2Inbox                 struct{}
+	L2ToL2CrossDomainMessenger   struct{}
 }
 
 // Check will ensure that the required fields are set on the config.
@@ -226,6 +227,8 @@ func l2ImmutableDeployer(backend *backends.SimulatedBackend, opts *bind.Transact
 		_, tx, _, err = bindings.DeployEAS(opts, backend)
 	case "CrossL2Inbox":
 		_, tx, _, err = bindings.DeployCrossL2Inbox(opts, backend)
+	case "L2ToL2CrossDomainMessenger":
+		_, tx, _, err = bindings.DeployL2ToL2CrossDomainMessenger(opts, backend)
 	default:
 		return tx, fmt.Errorf("unknown contract: %s", deployment.Name)
 	}
