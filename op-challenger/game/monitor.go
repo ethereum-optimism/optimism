@@ -124,9 +124,6 @@ func (m *gameMonitor) progressGames(ctx context.Context, blockHash common.Hash, 
 	if err != nil {
 		return fmt.Errorf("failed to load games: %w", err)
 	}
-	if err := m.claimer.Schedule(blockNumber, games); err != nil {
-		return fmt.Errorf("failed to schedule bond claims: %w", err)
-	}
 	var gamesToPlay []types.GameMetadata
 	for _, game := range games {
 		if !m.allowedGame(game.Proxy) {
@@ -134,6 +131,9 @@ func (m *gameMonitor) progressGames(ctx context.Context, blockHash common.Hash, 
 			continue
 		}
 		gamesToPlay = append(gamesToPlay, game)
+	}
+	if err := m.claimer.Schedule(blockNumber, gamesToPlay); err != nil {
+		return fmt.Errorf("failed to schedule bond claims: %w", err)
 	}
 	if err := m.scheduler.Schedule(gamesToPlay, blockNumber); errors.Is(err, scheduler.ErrBusy) {
 		m.logger.Info("Scheduler still busy with previous update")
