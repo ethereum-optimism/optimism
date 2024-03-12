@@ -113,4 +113,7 @@ library Predeploys {
 
     /// @notice Address of the CrossL2Inbox predeploy.
     address internal constant CROSS_L2_INBOX = 0x4200000000000000000000000000000000000022;
+
+    /// @notice Address of the L2ToL2CrossDomainMessenger predeploy.
+    address internal constant L2_TO_L2_CROSS_DOMAIN_MESSENGER = 0x4200000000000000000000000000000000000023;
 }
