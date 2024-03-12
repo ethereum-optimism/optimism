@@ -365,6 +365,10 @@ type SystemConfig struct {
 	Scalar Bytes32 `json:"scalar"`
 	// GasLimit identifies the L2 block gas limit
 	GasLimit uint64 `json:"gasLimit"`
+	// InteropSetSize identifies the size of the interop set
+	InteropSetSize uint8 `json:"interopSetSize"`
+	// ChainIds identifies the chain IDs of the chains in the interop depenency set
+	ChainIds []*big.Int `json:"chainIds"`
 	// More fields can be added for future SystemConfig versions.
 }
 
@@ -416,6 +420,28 @@ func CheckEcotoneL1SystemConfigScalar(scalar [32]byte) error {
 		// ignore the event if it's an unknown scalar format
 		return fmt.Errorf("unrecognized scalar version: %d", versionByte)
 	}
+}
+
+func (sysCfg *SystemConfig) InteropScalars() (blobBaseFeeScalar, baseFeeScalar uint32, err error) {
+	if err := CheckEcotoneL1SystemConfigScalar(sysCfg.Scalar); err != nil {
+		if errors.Is(err, ErrBedrockScalarPaddingNotEmpty) {
+			// L2 spec mandates we set baseFeeScalar to MaxUint32 if there are non-zero bytes in
+			// the padding area.
+			return 0, math.MaxUint32, nil
+		}
+		return 0, 0, err
+	}
+	switch sysCfg.Scalar[0] {
+	case L1ScalarBedrock:
+		blobBaseFeeScalar = 0
+		baseFeeScalar = binary.BigEndian.Uint32(sysCfg.Scalar[28:32])
+	case L1ScalarEcotone:
+		blobBaseFeeScalar = binary.BigEndian.Uint32(sysCfg.Scalar[24:28])
+		baseFeeScalar = binary.BigEndian.Uint32(sysCfg.Scalar[28:32])
+	default:
+		err = fmt.Errorf("unexpected system config scalar: %s", sysCfg.Scalar)
+	}
+	return
 }
 
 type Bytes48 [48]byte
