@@ -63,23 +63,15 @@
       "dependsOn": ["^build"]
     },
     "build:contracts": {
-      "inputs": [
-        "configsProject",
-        "productionContracts",
-        "^productionContracts"
-      ],
+      "inputs": ["configsProject", "productionContracts", "^productionContracts"],
       "dependsOn": ["^build"],
       "outputs": ["{projectRoot}/artifacts", "{projectRoot}/forge-artifacts"]
     },
     "build": {
-      "inputs": [
-        "configsWorkspace",
-        "configsProject",
-        "production",
-        "^production"
-      ],
+      "inputs": ["configsWorkspace", "configsProject", "production", "^production"],
       "dependsOn": ["^build", "build:contracts"],
       "outputs": ["{projectRoot}/dist"]
     }
   }
 }
+
