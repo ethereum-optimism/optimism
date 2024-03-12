@@ -99,6 +99,12 @@ type LocalEngineControl interface {
 // The safe head may advance by more than one block in a single update
 // The l1Block specified is the first L1 block that includes sufficient information to derive the new safe head
 type SafeHeadListener interface {
+
+	// Enabled reports if this safe head listener is actively using the posted data. This allows the engine queue to
+	// optionally skip making calls that may be expensive to prepare.
+	// Callbacks may still be made if Enabled returns false but are not guaranteed.
+	Enabled() bool
+
 	// SafeHeadUpdated indicates that the safe head has been updated in response to processing batch data
 	// The l1Block specified is the first L1 block containing all required batch data to derive newSafeHead
 	SafeHeadUpdated(newSafeHead eth.L2BlockRef, l1Block eth.BlockID) error
@@ -723,7 +729,7 @@ func (eq *EngineQueue) Reset(ctx context.Context, _ eth.L1BlockRef, _ eth.System
 	if err := eq.safeHeadNotifs.SafeHeadReset(safe); err != nil {
 		return err
 	}
-	if safe.Number == eq.cfg.Genesis.L2.Number && safe.Hash == eq.cfg.Genesis.L2.Hash {
+	if eq.safeHeadNotifs.Enabled() && safe.Number == eq.cfg.Genesis.L2.Number && safe.Hash == eq.cfg.Genesis.L2.Hash {
 		// The rollup genesis block is always safe by definition. So if the pipeline resets this far back we know
 		// we will process all safe head updates and can record genesis as always safe from L1 genesis.
 		// Note that it is not safe to use cfg.Genesis.L1 here as it is the block immediately before the L2 genesis

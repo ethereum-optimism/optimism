@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -162,7 +163,7 @@ type stubClaimLoader struct {
 	claims    []types.Claim
 }
 
-func (s *stubClaimLoader) GetAllClaims(ctx context.Context) ([]types.Claim, error) {
+func (s *stubClaimLoader) GetAllClaims(_ context.Context, _ rpcblock.Block) ([]types.Claim, error) {
 	s.callCount++
 	if s.callCount > s.maxLoads && s.maxLoads != 0 {
 		return []types.Claim{}, nil

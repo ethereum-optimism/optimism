@@ -254,12 +254,36 @@ func (l *BatchSubmitter) calculateL2BlockRangeToStore(ctx context.Context) (eth.
 func (l *BatchSubmitter) loop() {
 	defer l.wg.Done()
 
-	ticker := time.NewTicker(l.Config.PollInterval)
-	defer ticker.Stop()
-
 	receiptsCh := make(chan txmgr.TxReceipt[txData])
 	queue := txmgr.NewQueue[txData](l.killCtx, l.Txmgr, l.Config.MaxPendingTransactions)
 
+	// start the receipt/result processing loop
+	receiptLoopDone := make(chan struct{})
+	defer close(receiptLoopDone) // shut down receipt loop
+	go func() {
+		for {
+			select {
+			case r := <-receiptsCh:
+				l.Log.Info("handling receipt", "id", r.ID)
+				l.handleReceipt(r)
+			case <-receiptLoopDone:
+				l.Log.Info("receipt processing loop done")
+				return
+			}
+		}
+	}()
+
+	ticker := time.NewTicker(l.Config.PollInterval)
+	defer ticker.Stop()
+
+	publishAndWait := func() {
+		l.publishStateToL1(queue, receiptsCh)
+		if !l.Txmgr.IsClosed() {
+			queue.Wait()
+		} else {
+			l.Log.Info("Txmgr is closed, remaining channel data won't be sent")
+		}
+	}
 	for {
 		select {
 		case <-ticker.C:
@@ -272,16 +296,14 @@ func (l *BatchSubmitter) loop() {
 						l.Log.Error("Error closing the channel manager to handle a L2 reorg", "err", err)
 					}
 				}
-				l.publishStateToL1(queue, receiptsCh, true)
+				// on reorg we want to publish all pending state then wait until each result clears before resetting
+				// the state.
+				publishAndWait()
 				l.state.Clear()
 				continue
 			}
-			l.publishStateToL1(queue, receiptsCh, false)
-		case r := <-receiptsCh:
-			l.handleReceipt(r)
+			l.publishStateToL1(queue, receiptsCh)
 		case <-l.shutdownCtx.Done():
-			// if the txmgr is closed, we stop the transaction sending
-			// don't even bother draining the queue, as all sending will fail
 			if l.Txmgr.IsClosed() {
 				l.Log.Info("Txmgr is closed, remaining channel data won't be sent")
 				return
@@ -296,54 +318,33 @@ func (l *BatchSubmitter) loop() {
 					l.Log.Error("Error closing the channel manager on shutdown", "err", err)
 				}
 			}
-			l.publishStateToL1(queue, receiptsCh, true)
+			publishAndWait()
 			l.Log.Info("Finished publishing all remaining channel data")
 			return
 		}
 	}
 }
 
-// publishStateToL1 loops through the block data loaded into `state` and
-// submits the associated data to the L1 in the form of channel frames.
-func (l *BatchSubmitter) publishStateToL1(queue *txmgr.Queue[txData], receiptsCh chan txmgr.TxReceipt[txData], drain bool) {
-	txDone := make(chan struct{})
-	// send/wait and receipt reading must be on a separate goroutines to avoid deadlocks
-	go func() {
-		defer func() {
-			// if draining, we wait for all transactions to complete
-			// if the txmgr is closed, there is no need to wait as all transactions will fail
-			if drain && !l.Txmgr.IsClosed() {
-				queue.Wait()
-			}
-			close(txDone)
-		}()
-		for {
-			// if the txmgr is closed, we stop the transaction sending
-			if l.Txmgr.IsClosed() {
-				l.Log.Info("Txmgr is closed, no further receipts expected")
-				return
-			}
-			err := l.publishTxToL1(l.killCtx, queue, receiptsCh)
-			if err != nil {
-				if drain && err != io.EOF {
-					l.Log.Error("error sending tx while draining state", "err", err)
-				}
-				return
-			}
-		}
-	}()
-
+// publishStateToL1 queues up all pending TxData to be published to the L1, returning when there is
+// no more data to queue for publishing or if there was an error queing the data.
+func (l *BatchSubmitter) publishStateToL1(queue *txmgr.Queue[txData], receiptsCh chan txmgr.TxReceipt[txData]) {
 	for {
-		select {
-		case r := <-receiptsCh:
-			l.handleReceipt(r)
-		case <-txDone:
+		// if the txmgr is closed, we stop the transaction sending
+		if l.Txmgr.IsClosed() {
+			l.Log.Info("Txmgr is closed, aborting state publishing")
+			return
+		}
+		err := l.publishTxToL1(l.killCtx, queue, receiptsCh)
+		if err != nil {
+			if err != io.EOF {
+				l.Log.Error("error publishing tx to l1", "err", err)
+			}
 			return
 		}
 	}
 }
 
-// publishTxToL1 submits a single state tx to the L1
+// publishTxToL1 queues a single tx to be published to the L1
 func (l *BatchSubmitter) publishTxToL1(ctx context.Context, queue *txmgr.Queue[txData], receiptsCh chan txmgr.TxReceipt[txData]) error {
 	// send all available transactions
 	l1tip, err := l.l1Tip(ctx)
@@ -369,9 +370,8 @@ func (l *BatchSubmitter) publishTxToL1(ctx context.Context, queue *txmgr.Queue[t
 	return nil
 }
 
-// sendTransaction creates & submits a transaction to the batch inbox address with the given `txData`.
-// It currently uses the underlying `txmgr` to handle transaction sending & price management.
-// This is a blocking method. It should not be called concurrently.
+// sendTransaction creates & queues for sending a transaction to the batch inbox address with the given `txData`.
+// The method will block if the queue's MaxPendingTransactions is exceeded.
 func (l *BatchSubmitter) sendTransaction(ctx context.Context, txdata txData, queue *txmgr.Queue[txData], receiptsCh chan txmgr.TxReceipt[txData]) error {
 	var err error
 	// Do the gas estimation offline. A value of 0 will cause the [txmgr] to estimate the gas limit.

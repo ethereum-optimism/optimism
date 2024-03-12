@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/urfave/cli/v2"
 )
 
@@ -67,7 +68,7 @@ func listClaims(ctx context.Context, game *contracts.FaultDisputeGameContract) e
 		return fmt.Errorf("failed to retrieve status: %w", err)
 	}
 
-	claims, err := game.GetAllClaims(ctx)
+	claims, err := game.GetAllClaims(ctx, rpcblock.Latest)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve claims: %w", err)
 	}

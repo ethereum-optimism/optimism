@@ -73,6 +73,7 @@ func ComputeStorageSlots(layout *solc.StorageLayout, values StorageValues) ([]*E
 		for _, entry := range layout.Storage {
 			if label == entry.Label {
 				target = entry
+				break
 			}
 		}
 		if target.Label == "" {
