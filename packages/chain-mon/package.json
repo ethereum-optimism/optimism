@@ -55,7 +55,7 @@
     "@types/dateformat": "^5.0.0",
     "chai-as-promised": "^7.1.1",
     "dateformat": "^4.5.1",
-    "dotenv": "^16.4.1",
+    "dotenv": "^16.4.5",
     "ethers": "^5.7.2"
   },
   "devDependencies": {
