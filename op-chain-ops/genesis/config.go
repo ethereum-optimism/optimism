@@ -865,8 +865,9 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (*immutables
 		}{
 			Name: "EAS",
 		},
-		Create2Deployer: struct{}{},
-		CrossL2Inbox:    struct{}{},
+		Create2Deployer:            struct{}{},
+		CrossL2Inbox:               struct{}{},
+		L2ToL2CrossDomainMessenger: struct{}{},
 	}
 
 	if err := cfg.Check(); err != nil {
@@ -941,6 +942,9 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 	}
 	storage["ProxyAdmin"] = state.StorageValues{
 		"_owner": config.ProxyAdminOwner,
+	}
+	storage["L2ToL2CrossDomainMessenger"] = state.StorageValues{
+		"msgNonce": 0,
 	}
 	return storage, nil
 }
