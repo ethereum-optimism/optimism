@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
@@ -16,8 +17,10 @@ import (
 const metricsLabel = "game_caller_creator"
 
 type GameCaller interface {
-	GetGameMetadata(context.Context) (uint64, common.Hash, types.GameStatus, uint64, error)
-	GetAllClaims(context.Context) ([]faultTypes.Claim, error)
+	GetGameMetadata(context.Context, rpcblock.Block) (uint64, common.Hash, types.GameStatus, uint64, error)
+	GetAllClaims(context.Context, rpcblock.Block) ([]faultTypes.Claim, error)
+	BondCaller
+	BalanceCaller
 }
 
 type GameCallerCreator struct {

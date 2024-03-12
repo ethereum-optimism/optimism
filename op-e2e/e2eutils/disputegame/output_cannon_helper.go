@@ -317,7 +317,7 @@ func (g *OutputCannonGameHelper) createCannonTraceProvider(ctx context.Context, 
 		return cannon.NewTraceProviderForTest(logger, metrics.NoopMetrics, cfg, localInputs, subdir, g.MaxDepth(ctx)-splitDepth-1), nil
 	})
 
-	claims, err := contract.GetAllClaims(ctx)
+	claims, err := contract.GetAllClaims(ctx, rpcblock.Latest)
 	g.require.NoError(err)
 	game := types.NewGameState(claims, g.MaxDepth(ctx))
 

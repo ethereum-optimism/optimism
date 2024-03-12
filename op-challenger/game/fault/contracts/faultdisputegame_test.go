@@ -219,13 +219,28 @@ func TestGetAllClaims(t *testing.T) {
 		ParentContractIndex: 1,
 	}
 	expectedClaims := []faultTypes.Claim{claim0, claim1, claim2}
-	stubRpc.SetResponse(fdgAddr, methodClaimCount, rpcblock.Latest, nil, []interface{}{big.NewInt(int64(len(expectedClaims)))})
+	block := rpcblock.ByNumber(42)
+	stubRpc.SetResponse(fdgAddr, methodClaimCount, block, nil, []interface{}{big.NewInt(int64(len(expectedClaims)))})
 	for _, claim := range expectedClaims {
-		expectGetClaim(stubRpc, claim)
+		expectGetClaim(stubRpc, block, claim)
 	}
-	claims, err := game.GetAllClaims(context.Background())
+	claims, err := game.GetAllClaims(context.Background(), block)
 	require.NoError(t, err)
 	require.Equal(t, expectedClaims, claims)
+}
+
+func TestGetBalance(t *testing.T) {
+	wethAddr := common.Address{0x11, 0x55, 0x66}
+	balance := big.NewInt(9995877)
+	block := rpcblock.ByNumber(424)
+	stubRpc, game := setupFaultDisputeGameTest(t)
+	stubRpc.SetResponse(fdgAddr, methodWETH, block, nil, []interface{}{wethAddr})
+	stubRpc.AddExpectedCall(batchingTest.NewGetBalanceCall(wethAddr, block, balance))
+
+	actualBalance, actualAddr, err := game.GetBalance(context.Background(), block)
+	require.NoError(t, err)
+	require.Equal(t, wethAddr, actualAddr)
+	require.Truef(t, balance.Cmp(actualBalance) == 0, "Expected balance %v but was %v", balance, actualBalance)
 }
 
 func TestCallResolveClaim(t *testing.T) {
@@ -279,11 +294,11 @@ func TestStepTx(t *testing.T) {
 	stubRpc.VerifyTxCandidate(tx)
 }
 
-func expectGetClaim(stubRpc *batchingTest.AbiBasedRpc, claim faultTypes.Claim) {
+func expectGetClaim(stubRpc *batchingTest.AbiBasedRpc, block rpcblock.Block, claim faultTypes.Claim) {
 	stubRpc.SetResponse(
 		fdgAddr,
 		methodClaim,
-		rpcblock.Latest,
+		block,
 		[]interface{}{big.NewInt(int64(claim.ContractIndex))},
 		[]interface{}{
 			uint32(claim.ParentContractIndex),
@@ -323,11 +338,12 @@ func TestGetGameMetadata(t *testing.T) {
 	expectedGameDuration := uint64(456)
 	expectedRootClaim := common.Hash{0x01, 0x02}
 	expectedStatus := types.GameStatusChallengerWon
-	stubRpc.SetResponse(fdgAddr, methodL2BlockNumber, rpcblock.Latest, nil, []interface{}{new(big.Int).SetUint64(expectedL2BlockNumber)})
-	stubRpc.SetResponse(fdgAddr, methodRootClaim, rpcblock.Latest, nil, []interface{}{expectedRootClaim})
-	stubRpc.SetResponse(fdgAddr, methodStatus, rpcblock.Latest, nil, []interface{}{expectedStatus})
-	stubRpc.SetResponse(fdgAddr, methodGameDuration, rpcblock.Latest, nil, []interface{}{expectedGameDuration})
-	l2BlockNumber, rootClaim, status, duration, err := contract.GetGameMetadata(context.Background())
+	block := rpcblock.ByNumber(889)
+	stubRpc.SetResponse(fdgAddr, methodL2BlockNumber, block, nil, []interface{}{new(big.Int).SetUint64(expectedL2BlockNumber)})
+	stubRpc.SetResponse(fdgAddr, methodRootClaim, block, nil, []interface{}{expectedRootClaim})
+	stubRpc.SetResponse(fdgAddr, methodStatus, block, nil, []interface{}{expectedStatus})
+	stubRpc.SetResponse(fdgAddr, methodGameDuration, block, nil, []interface{}{expectedGameDuration})
+	l2BlockNumber, rootClaim, status, duration, err := contract.GetGameMetadata(context.Background(), block)
 	require.NoError(t, err)
 	require.Equal(t, expectedL2BlockNumber, l2BlockNumber)
 	require.Equal(t, expectedRootClaim, rootClaim)
