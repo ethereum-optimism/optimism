@@ -34,6 +34,7 @@ import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
 import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
 import { PermissionedDisputeGame } from "src/dispute/PermissionedDisputeGame.sol";
 import { DelayedWETH } from "src/dispute/weth/DelayedWETH.sol";
+import { AnchorStateRegistry } from "src/dispute/AnchorStateRegistry.sol";
 import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
 import { MIPS } from "src/cannon/MIPS.sol";
 import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
@@ -69,6 +70,7 @@ contract Deploy is Deployer {
     ///         to finally adopt PUSHN and get rid of stack too deep once and for all.
     ///         Someday we will look back and laugh about stack too deep, today is not that day.
     struct FaultDisputeGameParams {
+        AnchorStateRegistry anchorStateRegistry;
         DelayedWETH weth;
         GameType gameType;
         Claim absolutePrestate;
@@ -144,6 +146,7 @@ contract Deploy is Deployer {
             L2OutputOracle: mustGetAddress("L2OutputOracleProxy"),
             DisputeGameFactory: mustGetAddress("DisputeGameFactoryProxy"),
             DelayedWETH: mustGetAddress("DelayedWETHProxy"),
+            AnchorStateRegistry: mustGetAddress("AnchorStateRegistryProxy"),
             OptimismMintableERC20Factory: mustGetAddress("OptimismMintableERC20FactoryProxy"),
             OptimismPortal: mustGetAddress("OptimismPortalProxy"),
             OptimismPortal2: mustGetAddress("OptimismPortalProxy"),
@@ -162,6 +165,7 @@ contract Deploy is Deployer {
             L2OutputOracle: getAddress("L2OutputOracleProxy"),
             DisputeGameFactory: getAddress("DisputeGameFactoryProxy"),
             DelayedWETH: getAddress("DelayedWETHProxy"),
+            AnchorStateRegistry: getAddress("AnchorStateRegistryProxy"),
             OptimismMintableERC20Factory: getAddress("OptimismMintableERC20FactoryProxy"),
             OptimismPortal: getAddress("OptimismPortalProxy"),
             OptimismPortal2: getAddress("OptimismPortalProxy"),
@@ -345,6 +349,7 @@ contract Deploy is Deployer {
         deployERC1967Proxy("DisputeGameFactoryProxy");
         deployERC1967Proxy("L2OutputOracleProxy");
         deployERC1967Proxy("DelayedWETHProxy");
+        deployERC1967Proxy("AnchorStateRegistryProxy");
 
         transferAddressManagerOwnership(); // to the ProxyAdmin
     }
@@ -366,6 +371,7 @@ contract Deploy is Deployer {
         deployDelayedWETH();
         deployPreimageOracle();
         deployMips();
+        deployAnchorStateRegistry();
     }
 
     /// @notice Initialize all of the implementations
@@ -379,6 +385,7 @@ contract Deploy is Deployer {
         initializeL2OutputOracle();
         initializeDisputeGameFactory();
         initializeDelayedWETH();
+        initializeAnchorStateRegistry();
 
         // Selectively initialize either the original OptimismPortal or the new OptimismPortal2. Since this will upgrade
         // the proxy, we cannot initialize both. FPAC warning can be removed once we're done with the old OptimismPortal
@@ -731,6 +738,17 @@ contract Deploy is Deployer {
         addr_ = address(mips);
     }
 
+    /// @notice Deploy the AnchorStateRegistry
+    function deployAnchorStateRegistry() public broadcast returns (address addr_) {
+        console.log("Deploying AnchorStateRegistry implementation");
+        AnchorStateRegistry anchorStateRegistry =
+            new AnchorStateRegistry{ salt: _implSalt() }(DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy")));
+        save("AnchorStateRegistry", address(anchorStateRegistry));
+        console.log("AnchorStateRegistry deployed at %s", address(anchorStateRegistry));
+
+        addr_ = address(anchorStateRegistry);
+    }
+
     /// @notice Deploy the SystemConfig
     function deploySystemConfig() public broadcast returns (address addr_) {
         console.log("Deploying SystemConfig implementation");
@@ -867,6 +885,44 @@ contract Deploy is Deployer {
             _isProxy: true,
             _expectedOwner: msg.sender
         });
+    }
+
+    function initializeAnchorStateRegistry() public broadcast {
+        console.log("Upgrading and initializing AnchorStateRegistry proxy");
+        address anchorStateRegistryProxy = mustGetAddress("AnchorStateRegistryProxy");
+        address anchorStateRegistry = mustGetAddress("AnchorStateRegistry");
+
+        AnchorStateRegistry.StartingAnchorRoot[] memory roots = new AnchorStateRegistry.StartingAnchorRoot[](3);
+        roots[0] = AnchorStateRegistry.StartingAnchorRoot({
+            gameType: GameTypes.CANNON,
+            outputRoot: OutputRoot({
+                root: Hash.wrap(cfg.faultGameGenesisOutputRoot()),
+                l2BlockNumber: cfg.faultGameGenesisBlock()
+            })
+        });
+        roots[1] = AnchorStateRegistry.StartingAnchorRoot({
+            gameType: GameTypes.PERMISSIONED_CANNON,
+            outputRoot: OutputRoot({
+                root: Hash.wrap(cfg.faultGameGenesisOutputRoot()),
+                l2BlockNumber: cfg.faultGameGenesisBlock()
+            })
+        });
+        roots[2] = AnchorStateRegistry.StartingAnchorRoot({
+            gameType: GameTypes.ALPHABET,
+            outputRoot: OutputRoot({
+                root: Hash.wrap(cfg.faultGameGenesisOutputRoot()),
+                l2BlockNumber: cfg.faultGameGenesisBlock()
+            })
+        });
+
+        _upgradeAndCallViaSafe({
+            _proxy: payable(anchorStateRegistryProxy),
+            _implementation: anchorStateRegistry,
+            _innerCallData: abi.encodeCall(AnchorStateRegistry.initialize, (roots))
+        });
+
+        string memory version = AnchorStateRegistry(payable(anchorStateRegistryProxy)).version();
+        console.log("AnchorStateRegistry version: %s", version);
     }
 
     /// @notice Initialize the SystemConfig
@@ -1222,6 +1278,7 @@ contract Deploy is Deployer {
             _factory: factory,
             _allowUpgrade: _allowUpgrade,
             _params: FaultDisputeGameParams({
+                anchorStateRegistry: AnchorStateRegistry(mustGetAddress("AnchorStateRegistryProxy")),
                 weth: weth,
                 gameType: GameTypes.CANNON,
                 absolutePrestate: loadMipsAbsolutePrestate(),
@@ -1242,6 +1299,7 @@ contract Deploy is Deployer {
             _factory: factory,
             _allowUpgrade: _allowUpgrade,
             _params: FaultDisputeGameParams({
+                anchorStateRegistry: AnchorStateRegistry(mustGetAddress("AnchorStateRegistryProxy")),
                 weth: weth,
                 gameType: GameTypes.PERMISSIONED_CANNON,
                 absolutePrestate: loadMipsAbsolutePrestate(),
@@ -1262,6 +1320,7 @@ contract Deploy is Deployer {
             _factory: factory,
             _allowUpgrade: _allowUpgrade,
             _params: FaultDisputeGameParams({
+                anchorStateRegistry: AnchorStateRegistry(mustGetAddress("AnchorStateRegistryProxy")),
                 weth: weth,
                 gameType: GameTypes.ALPHABET,
                 absolutePrestate: outputAbsolutePrestate,
@@ -1295,13 +1354,12 @@ contract Deploy is Deployer {
                 new FaultDisputeGame({
                     _gameType: _params.gameType,
                     _absolutePrestate: _params.absolutePrestate,
-                    _genesisBlockNumber: cfg.faultGameGenesisBlock(),
-                    _genesisOutputRoot: Hash.wrap(cfg.faultGameGenesisOutputRoot()),
                     _maxGameDepth: _params.maxGameDepth,
                     _splitDepth: cfg.faultGameSplitDepth(),
                     _gameDuration: Duration.wrap(uint64(cfg.faultGameMaxDuration())),
                     _vm: _params.faultVm,
                     _weth: _params.weth,
+                    _anchorStateRegistry: _params.anchorStateRegistry,
                     _l2ChainId: cfg.l2ChainID()
                 })
             );
@@ -1311,13 +1369,12 @@ contract Deploy is Deployer {
                 new PermissionedDisputeGame({
                     _gameType: _params.gameType,
                     _absolutePrestate: _params.absolutePrestate,
-                    _genesisBlockNumber: cfg.faultGameGenesisBlock(),
-                    _genesisOutputRoot: Hash.wrap(cfg.faultGameGenesisOutputRoot()),
                     _maxGameDepth: _params.maxGameDepth,
                     _splitDepth: cfg.faultGameSplitDepth(),
                     _gameDuration: Duration.wrap(uint64(cfg.faultGameMaxDuration())),
                     _vm: _params.faultVm,
                     _weth: _params.weth,
+                    _anchorStateRegistry: _params.anchorStateRegistry,
                     _l2ChainId: cfg.l2ChainID(),
                     _proposer: cfg.l2OutputOracleProposer(),
                     _challenger: cfg.l2OutputOracleChallenger()

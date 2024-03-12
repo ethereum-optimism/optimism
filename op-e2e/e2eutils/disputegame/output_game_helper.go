@@ -87,9 +87,9 @@ func (g *OutputGameHelper) L2BlockNum(ctx context.Context) uint64 {
 	return blockNum.Uint64()
 }
 
-func (g *OutputGameHelper) GenesisBlockNum(ctx context.Context) uint64 {
-	blockNum, err := g.game.GenesisBlockNumber(&bind.CallOpts{Context: ctx})
-	g.require.NoError(err, "failed to load genesis block number")
+func (g *OutputGameHelper) StartingBlockNum(ctx context.Context) uint64 {
+	blockNum, err := g.game.StartingBlockNumber(&bind.CallOpts{Context: ctx})
+	g.require.NoError(err, "failed to load starting block number")
 	return blockNum.Uint64()
 }
 

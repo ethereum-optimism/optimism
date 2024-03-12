@@ -53,7 +53,7 @@
   "faultGameMaxDepth": 50,
   "faultGameMaxDuration": 2400,
   "faultGameGenesisBlock": 0,
-  "faultGameGenesisOutputRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
+  "faultGameGenesisOutputRoot": "0xDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF",
   "faultGameSplitDepth": 14,
   "faultGameWithdrawalDelay": 604800,
   "preimageOracleMinProposalSize": 10000,

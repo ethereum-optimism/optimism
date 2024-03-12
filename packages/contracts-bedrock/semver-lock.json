@@ -103,13 +103,17 @@
     "initCodeHash": "0x9e0d25588d96934044c6f20b62b21444d734c85fe86b305efd8d226024e92725",
     "sourceCodeHash": "0xa2d7d5a1de4159a41ff99c2f05d33b9b472c2d00ea62f817b372988f56650153"
   },
+  "src/dispute/AnchorStateRegistry.sol": {
+    "initCodeHash": "0x2f8c56069e43e306b0e40fba43109188b29328e83569560021a68aa5d9f2486b",
+    "sourceCodeHash": "0xb6e67d68b801b7a110207b0c33802ea94cf26f9a7f3ebba78123d930a2eb0b2a"
+  },
   "src/dispute/DisputeGameFactory.sol": {
     "initCodeHash": "0x80d749a56c1776930fe0deb5c3c646217716e5875ace99c4d036af0452236476",
     "sourceCodeHash": "0x1e5a6deded88804971fc1847c9eac65921771bff353437c0b29ed2f55513b984"
   },
   "src/dispute/FaultDisputeGame.sol": {
-    "initCodeHash": "0x9f8e47a4073639af201991a075c7eb03a73055750b3808281e7615b46d47a104",
-    "sourceCodeHash": "0xef3dee1a6dd89270b67c7e6a54862de9d11b9059cf053127bd26704e7e6b1fbf"
+    "initCodeHash": "0x9dcd4df1dd3e7a09dab46bfe1ebd9376f533cc533f9edce2f01aa754301e25aa",
+    "sourceCodeHash": "0xbe89df391f9cd4165389a7f6f65af752db13d0e508a1ec8430737aba5b7174dc"
   },
   "src/dispute/weth/DelayedWETH.sol": {
     "initCodeHash": "0xf812f5a6de97162b48ccc847ff64c3be4ba575f1325d6e08fbf9dda91a7dc4c2",
