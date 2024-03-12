@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	"github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-batcher/rpc"
@@ -190,6 +191,7 @@ func (bs *BatcherService) initChannelConfig(cfg *CLIConfig) error {
 		SeqWindowSize:      bs.RollupConfig.SeqWindowSize,
 		ChannelTimeout:     bs.RollupConfig.ChannelTimeout,
 		MaxChannelDuration: cfg.MaxChannelDuration,
+		MaxFrameSize:       cfg.MaxL1TxSize, // reset for blobs
 		SubSafetyMargin:    cfg.SubSafetyMargin,
 		CompressorConfig:   cfg.CompressorConfig.Config(),
 		BatchType:          cfg.BatchType,
@@ -197,15 +199,22 @@ func (bs *BatcherService) initChannelConfig(cfg *CLIConfig) error {
 
 	switch cfg.DataAvailabilityType {
 	case flags.BlobsType:
-		bs.ChannelConfig.MaxFrameSize = eth.MaxBlobDataSize
+		if !cfg.TestUseMaxTxSizeForBlobs {
+			bs.ChannelConfig.MaxFrameSize = eth.MaxBlobDataSize
+		}
+		bs.ChannelConfig.MultiFrameTxs = true
 		bs.UseBlobs = true
 	case flags.CalldataType:
-		bs.ChannelConfig.MaxFrameSize = cfg.MaxL1TxSize
 		bs.UseBlobs = false
 	default:
 		return fmt.Errorf("unknown data availability type: %v", cfg.DataAvailabilityType)
 	}
 	bs.ChannelConfig.MaxFrameSize-- // subtract 1 byte for version
+
+	if bs.ChannelConfig.CompressorConfig.Kind == compressor.ShadowKind {
+		// shadow compressor guarantees to not go over target size, so can use max size
+		bs.ChannelConfig.CompressorConfig.TargetFrameSize = bs.ChannelConfig.MaxFrameSize
+	}
 
 	if bs.UseBlobs && !bs.RollupConfig.IsEcotone(uint64(time.Now().Unix())) {
 		bs.Log.Error("Cannot use Blob data before Ecotone!") // log only, the batcher may not be actively running.

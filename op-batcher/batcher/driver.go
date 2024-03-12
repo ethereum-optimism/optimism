@@ -375,29 +375,32 @@ func (l *BatchSubmitter) publishTxToL1(ctx context.Context, queue *txmgr.Queue[t
 func (l *BatchSubmitter) sendTransaction(ctx context.Context, txdata txData, queue *txmgr.Queue[txData], receiptsCh chan txmgr.TxReceipt[txData]) error {
 	var err error
 	// Do the gas estimation offline. A value of 0 will cause the [txmgr] to estimate the gas limit.
-	data := txdata.Bytes()
-	// if plasma DA is enabled we post the txdata to the DA Provider and replace it with the commitment.
-	if l.Config.UsePlasma {
-		data, err = l.PlasmaDA.SetInput(ctx, data)
-		if err != nil {
-			l.Log.Error("Failed to post input to Plasma DA", "error", err)
-			// requeue frame if we fail to post to the DA Provider so it can be retried
-			l.recordFailedTx(txdata, err)
-			return nil
-		}
-	}
 
 	var candidate *txmgr.TxCandidate
 	if l.Config.UseBlobs {
-		if candidate, err = l.blobTxCandidate(data); err != nil {
+		if candidate, err = l.blobTxCandidate(txdata); err != nil {
 			// We could potentially fall through and try a calldata tx instead, but this would
 			// likely result in the chain spending more in gas fees than it is tuned for, so best
 			// to just fail. We do not expect this error to trigger unless there is a serious bug
 			// or configuration issue.
 			return fmt.Errorf("could not create blob tx candidate: %w", err)
 		}
-		l.Metr.RecordBlobUsedBytes(len(data))
 	} else {
+		// sanity check
+		if nf := len(txdata.frames); nf != 1 {
+			l.Log.Crit("unexpected number of frames in calldata tx", "num_frames", nf)
+		}
+		data := txdata.CallData()
+		// if plasma DA is enabled we post the txdata to the DA Provider and replace it with the commitment.
+		if l.Config.UsePlasma {
+			data, err = l.PlasmaDA.SetInput(ctx, data)
+			if err != nil {
+				l.Log.Error("Failed to post input to Plasma DA", "error", err)
+				// requeue frame if we fail to post to the DA Provider so it can be retried
+				l.recordFailedTx(txdata, err)
+				return nil
+			}
+		}
 		candidate = l.calldataTxCandidate(data)
 	}
 
@@ -413,15 +416,19 @@ func (l *BatchSubmitter) sendTransaction(ctx context.Context, txdata txData, que
 	return nil
 }
 
-func (l *BatchSubmitter) blobTxCandidate(data []byte) (*txmgr.TxCandidate, error) {
-	l.Log.Info("building Blob transaction candidate", "size", len(data))
-	var b eth.Blob
-	if err := b.FromData(data); err != nil {
-		return nil, fmt.Errorf("data could not be converted to blob: %w", err)
+func (l *BatchSubmitter) blobTxCandidate(data txData) (*txmgr.TxCandidate, error) {
+	blobs, err := data.Blobs()
+	if err != nil {
+		return nil, fmt.Errorf("generating blobs for tx data: %w", err)
 	}
+	size := data.Len()
+	lastSize := len(data.frames[len(data.frames)-1].data)
+	l.Log.Info("building Blob transaction candidate",
+		"size", size, "last_size", lastSize, "num_blobs", len(blobs))
+	l.Metr.RecordBlobUsedBytes(lastSize)
 	return &txmgr.TxCandidate{
 		To:    &l.RollupConfig.BatchInboxAddress,
-		Blobs: []*eth.Blob{&b},
+		Blobs: blobs,
 	}, nil
 }
 
@@ -477,7 +484,7 @@ func logFields(xs ...any) (fs []any) {
 	for _, x := range xs {
 		switch v := x.(type) {
 		case txData:
-			fs = append(fs, "frame_id", v.ID(), "data_len", v.Len())
+			fs = append(fs, "tx_id", v.ID(), "data_len", v.Len())
 		case *types.Receipt:
 			fs = append(fs, "tx", v.TxHash, "block", eth.ReceiptBlockID(v))
 		case error:
