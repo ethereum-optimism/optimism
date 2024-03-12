@@ -18,6 +18,7 @@ import disputeGameFactory from '@eth-optimism/contracts-bedrock/forge-artifacts/
 import optimismPortal2 from '@eth-optimism/contracts-bedrock/forge-artifacts/OptimismPortal2.sol/OptimismPortal2.json'
 import faultDisputeGame from '@eth-optimism/contracts-bedrock/forge-artifacts/FaultDisputeGame.sol/FaultDisputeGame.json'
 import crossL2Inbox from '@eth-optimism/contracts-bedrock/forge-artifacts/CrossL2Inbox.sol/CrossL2Inbox.json'
+import l2ToL2CrossDomainMessenger from '@eth-optimism/contracts-bedrock/forge-artifacts/L2ToL2CrossDomainMessenger.sol/L2ToL2CrossDomainMessenger.json'
 
 import { toAddress } from './coercion'
 import { DeepPartial } from './type-utils'
@@ -111,6 +112,8 @@ export const getContractInterfaceBedrock = (
       artifact = faultDisputeGame
     case 'CrossL2Inbox':
       artifact = crossL2Inbox
+    case 'L2ToL2CrossDomainMessenger':
+      artifact = l2ToL2CrossDomainMessenger
       break
   }
   return new ethers.utils.Interface(artifact.abi)
@@ -261,21 +264,21 @@ export const getBridgeAdapters = (
   const adapterData: BridgeAdapterData = {
     ...(CONTRACT_ADDRESSES[l2ChainId] || opts?.contracts?.l1?.L1StandardBridge
       ? {
-          Standard: {
-            Adapter: StandardBridgeAdapter,
-            l1Bridge:
-              opts?.contracts?.l1?.L1StandardBridge ||
-              CONTRACT_ADDRESSES[l2ChainId].l1.L1StandardBridge,
-            l2Bridge: predeploys.L2StandardBridge,
-          },
-          ETH: {
-            Adapter: ETHBridgeAdapter,
-            l1Bridge:
-              opts?.contracts?.l1?.L1StandardBridge ||
-              CONTRACT_ADDRESSES[l2ChainId].l1.L1StandardBridge,
-            l2Bridge: predeploys.L2StandardBridge,
-          },
-        }
+        Standard: {
+          Adapter: StandardBridgeAdapter,
+          l1Bridge:
+            opts?.contracts?.l1?.L1StandardBridge ||
+            CONTRACT_ADDRESSES[l2ChainId].l1.L1StandardBridge,
+          l2Bridge: predeploys.L2StandardBridge,
+        },
+        ETH: {
+          Adapter: ETHBridgeAdapter,
+          l1Bridge:
+            opts?.contracts?.l1?.L1StandardBridge ||
+            CONTRACT_ADDRESSES[l2ChainId].l1.L1StandardBridge,
+          l2Bridge: predeploys.L2StandardBridge,
+        },
+      }
       : {}),
     ...(BRIDGE_ADAPTER_DATA[l2ChainId] || {}),
     ...(opts?.overrides || {}),
