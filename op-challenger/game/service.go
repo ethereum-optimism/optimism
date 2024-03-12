@@ -53,6 +53,7 @@ type Service struct {
 
 	factoryContract *contracts.DisputeGameFactoryContract
 	registry        *registry.GameTypeRegistry
+	oracles         *registry.OracleRegistry
 	rollupClient    *sources.RollupClient
 
 	l1Client   *ethclient.Client
@@ -108,7 +109,7 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 	if err := s.registerGameTypes(ctx, cfg); err != nil {
 		return fmt.Errorf("failed to register game types: %w", err)
 	}
-	if err := s.initBondClaims(cfg); err != nil {
+	if err := s.initBondClaims(); err != nil {
 		return fmt.Errorf("failed to init bond claiming: %w", err)
 	}
 	if err := s.initScheduler(cfg); err != nil {
@@ -204,7 +205,7 @@ func (s *Service) initFactoryContract(cfg *config.Config) error {
 	return nil
 }
 
-func (s *Service) initBondClaims(cfg *config.Config) error {
+func (s *Service) initBondClaims() error {
 	claimer := claims.NewBondClaimer(s.logger, s.metrics, s.registry.CreateBondContract, s.txSender, s.claimants...)
 	s.claimer = claims.NewBondClaimScheduler(s.logger, s.metrics, claimer)
 	return nil
@@ -224,13 +225,15 @@ func (s *Service) initRollupClient(ctx context.Context, cfg *config.Config) erro
 
 func (s *Service) registerGameTypes(ctx context.Context, cfg *config.Config) error {
 	gameTypeRegistry := registry.NewGameTypeRegistry()
+	oracles := registry.NewOracleRegistry()
 	caller := batching.NewMultiCaller(s.l1Client.Client(), batching.DefaultBatchSize)
-	closer, err := fault.RegisterGameTypes(gameTypeRegistry, ctx, s.cl, s.logger, s.metrics, cfg, s.rollupClient, s.txSender, s.factoryContract, caller, s.l1Client, cfg.SelectiveClaimResolution, s.claimants)
+	closer, err := fault.RegisterGameTypes(ctx, s.cl, s.logger, s.metrics, cfg, gameTypeRegistry, oracles, s.rollupClient, s.txSender, s.factoryContract, caller, s.l1Client, cfg.SelectiveClaimResolution, s.claimants)
 	if err != nil {
 		return err
 	}
 	s.faultGamesCloser = closer
 	s.registry = gameTypeRegistry
+	s.oracles = oracles
 	return nil
 }
 
@@ -244,7 +247,7 @@ func (s *Service) initLargePreimages() error {
 	fetcher := fetcher.NewPreimageFetcher(s.logger, s.l1Client)
 	verifier := keccak.NewPreimageVerifier(s.logger, fetcher)
 	challenger := keccak.NewPreimageChallenger(s.logger, s.metrics, verifier, s.txSender)
-	s.preimages = keccak.NewLargePreimageScheduler(s.logger, s.cl, s.registry.Oracles(), challenger)
+	s.preimages = keccak.NewLargePreimageScheduler(s.logger, s.cl, s.oracles, challenger)
 	return nil
 }
 

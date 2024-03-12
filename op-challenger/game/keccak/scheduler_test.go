@@ -50,7 +50,7 @@ func TestScheduleNextCheck(t *testing.T) {
 	}
 	cl := clock.NewDeterministicClock(time.Unix(int64(currentTimestamp), 0))
 	challenger := &stubChallenger{}
-	scheduler := NewLargePreimageScheduler(logger, cl, []keccakTypes.LargePreimageOracle{oracle}, challenger)
+	scheduler := NewLargePreimageScheduler(logger, cl, OracleSourceArray{oracle}, challenger)
 	scheduler.Start(ctx)
 	defer scheduler.Close()
 	err := scheduler.Schedule(common.Hash{0xaa}, 3)
@@ -132,4 +132,10 @@ func (s *stubChallenger) Checked() []keccakTypes.LargePreimageMetaData {
 	v := make([]keccakTypes.LargePreimageMetaData, len(s.checked))
 	copy(v, s.checked)
 	return v
+}
+
+type OracleSourceArray []keccakTypes.LargePreimageOracle
+
+func (o OracleSourceArray) Oracles() []keccakTypes.LargePreimageOracle {
+	return o
 }

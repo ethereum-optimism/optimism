@@ -25,8 +25,12 @@ import (
 type CloseFunc func()
 
 type Registry interface {
-	RegisterGameType(gameType uint32, creator scheduler.PlayerCreator, oracle keccakTypes.LargePreimageOracle)
+	RegisterGameType(gameType uint32, creator scheduler.PlayerCreator)
 	RegisterBondContract(gameType uint32, creator claims.BondContractCreator)
+}
+
+type OracleRegistry interface {
+	RegisterOracle(oracle keccakTypes.LargePreimageOracle)
 }
 
 type RollupClient interface {
@@ -35,12 +39,13 @@ type RollupClient interface {
 }
 
 func RegisterGameTypes(
-	registry Registry,
 	ctx context.Context,
 	cl faultTypes.ClockReader,
 	logger log.Logger,
 	m metrics.Metricer,
 	cfg *config.Config,
+	registry Registry,
+	oracles OracleRegistry,
 	rollupClient RollupClient,
 	txSender types.TxSender,
 	gameFactory *contracts.DisputeGameFactoryContract,
@@ -62,17 +67,17 @@ func RegisterGameTypes(
 	syncValidator := newSyncStatusValidator(rollupClient)
 
 	if cfg.TraceTypeEnabled(config.TraceTypeCannon) {
-		if err := registerCannon(faultTypes.CannonGameType, registry, ctx, cl, logger, m, cfg, syncValidator, rollupClient, txSender, gameFactory, caller, l2Client, l1HeaderSource, selective, claimants); err != nil {
+		if err := registerCannon(faultTypes.CannonGameType, registry, oracles, ctx, cl, logger, m, cfg, syncValidator, rollupClient, txSender, gameFactory, caller, l2Client, l1HeaderSource, selective, claimants); err != nil {
 			return nil, fmt.Errorf("failed to register cannon game type: %w", err)
 		}
 	}
 	if cfg.TraceTypeEnabled(config.TraceTypePermissioned) {
-		if err := registerCannon(faultTypes.PermissionedGameType, registry, ctx, cl, logger, m, cfg, syncValidator, rollupClient, txSender, gameFactory, caller, l2Client, l1HeaderSource, selective, claimants); err != nil {
+		if err := registerCannon(faultTypes.PermissionedGameType, registry, oracles, ctx, cl, logger, m, cfg, syncValidator, rollupClient, txSender, gameFactory, caller, l2Client, l1HeaderSource, selective, claimants); err != nil {
 			return nil, fmt.Errorf("failed to register permissioned cannon game type: %w", err)
 		}
 	}
 	if cfg.TraceTypeEnabled(config.TraceTypeAlphabet) {
-		if err := registerAlphabet(registry, ctx, cl, logger, m, syncValidator, rollupClient, txSender, gameFactory, caller, l1HeaderSource, selective, claimants); err != nil {
+		if err := registerAlphabet(registry, oracles, ctx, cl, logger, m, syncValidator, rollupClient, txSender, gameFactory, caller, l1HeaderSource, selective, claimants); err != nil {
 			return nil, fmt.Errorf("failed to register alphabet game type: %w", err)
 		}
 	}
@@ -81,6 +86,7 @@ func RegisterGameTypes(
 
 func registerAlphabet(
 	registry Registry,
+	oracles OracleRegistry,
 	ctx context.Context,
 	cl faultTypes.ClockReader,
 	logger log.Logger,
@@ -123,11 +129,11 @@ func registerAlphabet(
 		genesisValidator := NewPrestateValidator("output root", contract.GetGenesisOutputRoot, prestateProvider)
 		return NewGamePlayer(ctx, cl, logger, m, dir, game.Proxy, txSender, contract, syncValidator, []Validator{prestateValidator, genesisValidator}, creator, l1HeaderSource, selective, claimants)
 	}
-	oracle, err := createOracle(ctx, gameFactory, caller, faultTypes.AlphabetGameType)
+	err := registerOracle(ctx, oracles, gameFactory, caller, faultTypes.AlphabetGameType)
 	if err != nil {
 		return err
 	}
-	registry.RegisterGameType(faultTypes.AlphabetGameType, playerCreator, oracle)
+	registry.RegisterGameType(faultTypes.AlphabetGameType, playerCreator)
 
 	contractCreator := func(game types.GameMetadata) (claims.BondContract, error) {
 		return contracts.NewFaultDisputeGameContract(game.Proxy, caller)
@@ -136,25 +142,27 @@ func registerAlphabet(
 	return nil
 }
 
-func createOracle(ctx context.Context, gameFactory *contracts.DisputeGameFactoryContract, caller *batching.MultiCaller, gameType uint32) (*contracts.PreimageOracleContract, error) {
+func registerOracle(ctx context.Context, oracles OracleRegistry, gameFactory *contracts.DisputeGameFactoryContract, caller *batching.MultiCaller, gameType uint32) error {
 	implAddr, err := gameFactory.GetGameImpl(ctx, gameType)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load implementation for game type %v: %w", gameType, err)
+		return fmt.Errorf("failed to load implementation for game type %v: %w", gameType, err)
 	}
 	contract, err := contracts.NewFaultDisputeGameContract(implAddr, caller)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	oracle, err := contract.GetOracle(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load oracle address: %w", err)
+		return fmt.Errorf("failed to load oracle address: %w", err)
 	}
-	return oracle, nil
+	oracles.RegisterOracle(oracle)
+	return nil
 }
 
 func registerCannon(
 	gameType uint32,
 	registry Registry,
+	oracles OracleRegistry,
 	ctx context.Context,
 	cl faultTypes.ClockReader,
 	logger log.Logger,
@@ -200,11 +208,11 @@ func registerCannon(
 		genesisValidator := NewPrestateValidator("output root", contract.GetGenesisOutputRoot, prestateProvider)
 		return NewGamePlayer(ctx, cl, logger, m, dir, game.Proxy, txSender, contract, syncValidator, []Validator{prestateValidator, genesisValidator}, creator, l1HeaderSource, selective, claimants)
 	}
-	oracle, err := createOracle(ctx, gameFactory, caller, gameType)
+	err := registerOracle(ctx, oracles, gameFactory, caller, gameType)
 	if err != nil {
 		return err
 	}
-	registry.RegisterGameType(gameType, playerCreator, oracle)
+	registry.RegisterGameType(gameType, playerCreator)
 
 	contractCreator := func(game types.GameMetadata) (claims.BondContract, error) {
 		return contracts.NewFaultDisputeGameContract(game.Proxy, caller)
