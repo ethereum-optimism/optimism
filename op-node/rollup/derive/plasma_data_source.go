@@ -16,13 +16,13 @@ type PlasmaDataSource struct {
 	log     log.Logger
 	src     DataIter
 	fetcher PlasmaInputFetcher
-	l1      L1TransactionFetcher
+	l1      L1Fetcher
 	id      eth.BlockID
 	// keep track of a pending commitment so we can keep trying to fetch the input.
 	comm plasma.Keccak256Commitment
 }
 
-func NewPlasmaDataSource(log log.Logger, src DataIter, l1 L1TransactionFetcher, fetcher PlasmaInputFetcher, id eth.BlockID) *PlasmaDataSource {
+func NewPlasmaDataSource(log log.Logger, src DataIter, l1 L1Fetcher, fetcher PlasmaInputFetcher, id eth.BlockID) *PlasmaDataSource {
 	return &PlasmaDataSource{
 		log:     log,
 		src:     src,

@@ -19,8 +19,6 @@ type DataIter interface {
 
 type L1TransactionFetcher interface {
 	InfoAndTxsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, types.Transactions, error)
-	FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error)
-	L1BlockRefByNumber(context.Context, uint64) (eth.L1BlockRef, error)
 }
 
 type L1BlobsFetcher interface {
@@ -47,13 +45,13 @@ type PlasmaInputFetcher interface {
 type DataSourceFactory struct {
 	log           log.Logger
 	dsCfg         DataSourceConfig
-	fetcher       L1TransactionFetcher
+	fetcher       L1Fetcher
 	blobsFetcher  L1BlobsFetcher
 	plasmaFetcher PlasmaInputFetcher
 	ecotoneTime   *uint64
 }
 
-func NewDataSourceFactory(log log.Logger, cfg *rollup.Config, fetcher L1TransactionFetcher, blobsFetcher L1BlobsFetcher, plasmaFetcher PlasmaInputFetcher) *DataSourceFactory {
+func NewDataSourceFactory(log log.Logger, cfg *rollup.Config, fetcher L1Fetcher, blobsFetcher L1BlobsFetcher, plasmaFetcher PlasmaInputFetcher) *DataSourceFactory {
 	config := DataSourceConfig{
 		l1Signer:          cfg.L1Signer(),
 		batchInboxAddress: cfg.BatchInboxAddress,
