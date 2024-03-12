@@ -25,6 +25,7 @@ remappings = [
 extra_output = ['devdoc', 'userdoc', 'metadata', 'storageLayout']
 bytecode_hash = 'none'
 build_info_path = 'artifacts/build-info'
+ast = true
 
 # Test / Script Runner Settings
 ffi = true
