@@ -105,6 +105,11 @@ func registerAlphabet(
 		if err != nil {
 			return nil, err
 		}
+		oracle, err := contract.GetOracle(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load oracle for game %v: %w", game.Proxy, err)
+		}
+		oracles.RegisterOracle(oracle)
 		prestateBlock, poststateBlock, err := contract.GetBlockRange(ctx)
 		if err != nil {
 			return nil, err
@@ -184,6 +189,11 @@ func registerCannon(
 		if err != nil {
 			return nil, err
 		}
+		oracle, err := contract.GetOracle(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load oracle for game %v: %w", game.Proxy, err)
+		}
+		oracles.RegisterOracle(oracle)
 		prestateBlock, poststateBlock, err := contract.GetBlockRange(ctx)
 		if err != nil {
 			return nil, err
