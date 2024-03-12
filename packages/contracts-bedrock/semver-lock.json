@@ -55,6 +55,10 @@
     "initCodeHash": "0x2744d34573be83206d1b75d049d18a7bb37f9058e68c0803e5008c46b0dc2474",
     "sourceCodeHash": "0xd787bd2a192ba5025fa0a8de2363af66a8de20de226e411bdb576adb64636cd0"
   },
+  "src/L2/CrossL2Inbox.sol": {
+    "initCodeHash": "0x7abb7e1d119f1a082653d8c24cabef7ab494978bb2b22c841762e622658b79c0",
+    "sourceCodeHash": "0x36907e8c7a1317a97373f6de01f19def2e0bb3becd7acc5b2340c59b826263c8"
+  },
   "src/L2/GasPriceOracle.sol": {
     "initCodeHash": "0xfd456e91d8c9714590a4f0a2c1046ba70e102f1c629ead886c4eebc3f921c3c3",
     "sourceCodeHash": "0xde06becce9514f46ba78b4cb0732c7a714d49ba8f131258d56a5f5b22b51be7e"
