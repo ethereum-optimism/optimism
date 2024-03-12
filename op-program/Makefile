@@ -38,24 +38,20 @@ clean:
 test:
 	go test -v ./...
 
-verify-goerli: op-program-host op-program-client
-	env GO111MODULE=on go run ./verify/goerli/cmd/goerli.go --l1 $$L1URL --l2 $$L2URL
-
-run-goerli-verify: op-program-host op-program-client
-	mkdir -p "$(COMPAT_DIR)"
-	curl -L -o "$(COMPAT_DIR)/goerli.tar.bz" https://github.com/ethereum-optimism/chain-test-data/releases/download/2023-10-11/goerli.tar.bz
-	tar jxf "$(COMPAT_DIR)/goerli.tar.bz" -C "$(COMPAT_DIR)"
-	./bin/op-program `cat "$(COMPAT_DIR)/goerli/args.txt"`
-
 verify-sepolia: op-program-host op-program-client
-	env GO111MODULE=on go run ./verify/sepolia/cmd/sepolia.go --l1 $$SEPOLIA_L1URL --l1.beacon $$SEPOLIA_BEACON_URL --l2 $$SEPOLIA_L2URL
+	env GO111MODULE=on go run ./verify/sepolia/cmd/sepolia.go --l1 $$SEPOLIA_L1URL --l1.beacon $$SEPOLIA_BEACON_URL --l2 $$SEPOLIA_L2URL --datadir /tmp/test-sepolia
 
-capture-sepolia-verify: op-program-host op-program-client
-	rm -rf "$(COMPAT_DIR)/sepolia" "$(COMPAT_DIR)/sepolia.tar.bz"
-	env GO111MODULE=on go run ./verify/sepolia/cmd/sepolia.go --l1 $$SEPOLIA_L1URL --l1.beacon $$SEPOLIA_BEACON_URL --l2 $$SEPOLIA_L2URL --datadir "$(COMPAT_DIR)/sepolia"
-	tar jcf "$(COMPAT_DIR)/sepolia.tar.bz" -C "$(COMPAT_DIR)" sepolia
+capture-sepolia-genesis: op-program-host op-program-client
+	rm -rf "$(COMPAT_DIR)/sepolia-genesis" "$(COMPAT_DIR)/sepolia-genesis.tar.bz"
+	env GO111MODULE=on go run ./verify/sepolia/cmd/sepolia.go --l1 $$SEPOLIA_L1URL --l1.beacon $$SEPOLIA_BEACON_URL --l2 $$SEPOLIA_L2URL --datadir "$(COMPAT_DIR)/sepolia-genesis" --l1.head "0x9d31c85cbd15238efee9bc58897d7f6731dc700e76b9d7b9e3ba3e3d81723390" --l2.start "0" --l2.end "1"
+	tar jcf "$(COMPAT_DIR)/sepolia-genesis.tar.bz" -C "$(COMPAT_DIR)" sepolia-genesis
 
-capture-chain-test-data: capture-sepolia-verify
+capture-sepolia-delta: op-program-host op-program-client
+	rm -rf "$(COMPAT_DIR)/sepolia-delta" "$(COMPAT_DIR)/sepolia-delta.tar.bz"
+	env GO111MODULE=on go run ./verify/sepolia/cmd/sepolia.go --l1 $$SEPOLIA_L1URL --l1.beacon $$SEPOLIA_BEACON_URL --l2 $$SEPOLIA_L2URL --datadir "$(COMPAT_DIR)/sepolia-delta" --l1.head "0x935428728bcfcfeb2e5ba9175fd2890e52831dae221aa4d5dcffed8320edc001" --l2.start "8728200" --l2.end "8728320"
+	tar jcf "$(COMPAT_DIR)/sepolia-delta.tar.bz" -C "$(COMPAT_DIR)" sepolia-delta
+
+capture-chain-test-data: capture-sepolia-delta capture-sepolia-genesis
 
 run-sepolia-verify: op-program-host op-program-client
 	mkdir -p "$(COMPAT_DIR)"
@@ -70,10 +66,10 @@ run-sepolia-verify: op-program-host op-program-client
 	op-program-client-mips \
 	clean \
 	test \
-	verify-goerli \
 	capture-goerli-verify \
 	verify-sepolia \
-	capture-sepolia-verify \
+	capture-sepolia-genesis \
+	capture-sepolia-delta \
 	capture-chain-test-data \
 	run-goerli-verify \
 	run-sepolia-verify
