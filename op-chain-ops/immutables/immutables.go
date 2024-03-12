@@ -67,6 +67,7 @@ type PredeploysImmutableConfig struct {
 	Permit2                      struct{}
 	SenderCreator                struct{}
 	EntryPoint                   struct{}
+	CrossL2Inbox                 struct{}
 }
 
 // Check will ensure that the required fields are set on the config.
@@ -223,6 +224,8 @@ func l2ImmutableDeployer(backend *backends.SimulatedBackend, opts *bind.Transact
 		_, tx, _, err = bindings.DeployOptimismMintableERC721Factory(opts, backend, bridge, remoteChainId)
 	case "EAS":
 		_, tx, _, err = bindings.DeployEAS(opts, backend)
+	case "CrossL2Inbox":
+		_, tx, _, err = bindings.DeployCrossL2Inbox(opts, backend)
 	default:
 		return tx, fmt.Errorf("unknown contract: %s", deployment.Name)
 	}
