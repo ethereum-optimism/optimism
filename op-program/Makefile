@@ -51,6 +51,11 @@ capture-sepolia-delta: op-program-host op-program-client
 	env GO111MODULE=on go run ./verify/sepolia/cmd/sepolia.go --l1 $$SEPOLIA_L1URL --l1.beacon $$SEPOLIA_BEACON_URL --l2 $$SEPOLIA_L2URL --datadir "$(COMPAT_DIR)/sepolia-delta" --l1.head "0x935428728bcfcfeb2e5ba9175fd2890e52831dae221aa4d5dcffed8320edc001" --l2.start "8728200" --l2.end "8728320"
 	tar jcf "$(COMPAT_DIR)/sepolia-delta.tar.bz" -C "$(COMPAT_DIR)" sepolia-delta
 
+capture-sepolia-ecotone: op-program-host op-program-client
+	rm -rf "$(COMPAT_DIR)/sepolia-ecotone" "$(COMPAT_DIR)/sepolia-ecotone.tar.bz"
+	env GO111MODULE=on go run ./verify/sepolia/cmd/sepolia.go --l1 $$SEPOLIA_L1URL --l1.beacon $$SEPOLIA_BEACON_URL --l2 $$SEPOLIA_L2URL --datadir "$(COMPAT_DIR)/sepolia-ecotone" --l1.head "0x5d491a8c1e728a4e70720c09fefdaa083681a9421cd365af85220cf8bd4448a3" --l2.start "9205715" --l2.end "9205815"
+	tar jcf "$(COMPAT_DIR)/sepolia-ecotone.tar.bz" -C "$(COMPAT_DIR)" sepolia-ecotone
+
 capture-chain-test-data: capture-mainnet-genesis capture-sepolia-delta
 
 run-sepolia-verify: op-program-host op-program-client
@@ -70,6 +75,7 @@ run-sepolia-verify: op-program-host op-program-client
 	verify-sepolia \
 	capture-mainnet-genesis \
 	capture-sepolia-delta \
+	capture-sepolia-ecotone \
 	capture-chain-test-data \
 	run-goerli-verify \
 	run-sepolia-verify
