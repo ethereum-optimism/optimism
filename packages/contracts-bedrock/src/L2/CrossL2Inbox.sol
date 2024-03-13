@@ -108,19 +108,7 @@ contract CrossL2Inbox is ISemver {
         _storeCalldataID();
 
         // Call the target account with the message payload.
-        bool success;
-        assembly {
-            success :=
-                call(
-                    gas(), // gas
-                    _target, // recipient
-                    callvalue(), // ether value
-                    add(_msg, 32), // inloc
-                    mload(_msg), // inlen
-                    0, // outloc
-                    0 // outlen
-                )
-        }
+        bool success = _callWithAllGas(_target, _msg);
 
         // Revert if the target call failed.
         require(success, "CrossL2Inbox: target call failed");
@@ -134,6 +122,22 @@ contract CrossL2Inbox is ISemver {
             tstore(LOG_INDEX_SLOT, calldataload(68))
             tstore(TIMESTAMP_SLOT, calldataload(100))
             tstore(CHAINID_SLOT, calldataload(132))
+        }
+    }
+
+    /// @notice Calls the target account with the message payload and all available gas.
+    function _callWithAllGas(address _target, bytes memory _msg) internal returns (bool success) {
+        assembly {
+            success :=
+                call(
+                    gas(), // gas
+                    _target, // recipient
+                    callvalue(), // ether value
+                    add(_msg, 32), // inloc
+                    mload(_msg), // inlen
+                    0, // outloc
+                    0 // outlen
+                )
         }
     }
 }
