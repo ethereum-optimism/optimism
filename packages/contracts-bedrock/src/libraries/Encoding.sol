@@ -184,8 +184,7 @@ library Encoding {
     /// @param blobBaseFee         L1 blob base fee.
     /// @param hash                L1 blockhash.
     /// @param batcherHash         Versioned hash to authenticate batcher by.
-    /// @param interopSetSize      Size of the interop dependency set.
-    /// @param chainIds            Array of chain IDs in the interop dependency set.
+    /// @param dependencySet       Array of the chain IDs in the interop dependency set.
     function encodeSetL1BlockValuesInterop(
         uint32 baseFeeScalar,
         uint32 blobBaseFeeScalar,
@@ -196,13 +195,14 @@ library Encoding {
         uint256 blobBaseFee,
         bytes32 hash,
         bytes32 batcherHash,
-        uint8 interopSetSize,
-        uint256[] memory chainIds
+        uint256[] memory dependencySet
     )
         internal
         pure
         returns (bytes memory)
     {
+        require(dependencySet.length <= type(uint8).max, "Encoding: dependency set length is too large");
+
         bytes4 functionSignature = bytes4(keccak256("setL1BlockValuesInterop()"));
         return abi.encodePacked(
             functionSignature,
@@ -215,8 +215,8 @@ library Encoding {
             blobBaseFee,
             hash,
             batcherHash,
-            interopSetSize,
-            chainIds
+            dependencySet.length,
+            dependencySet
         );
     }
 }
