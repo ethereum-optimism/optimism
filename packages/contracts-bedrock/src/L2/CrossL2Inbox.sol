@@ -4,9 +4,9 @@ pragma solidity ^0.8.24;
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 
-/// @title IL1Block_OnlyIsInDependencySet
+/// @title IDependencySet
 /// @notice Interface for L1Block with only `isInDependencySet(uint256)` method.
-interface IL1Block_OnlyIsInDependencySet {
+interface IDependencySet {
     /// @notice Returns true iff the chain associated with input chain ID is in the interop dependency set.
     ///         Every chain is in the interop dependency set of itself.
     /// @param _chainId The input chain ID.
