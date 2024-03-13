@@ -63,18 +63,6 @@ contract DelayedWETH_Unlock_Test is DelayedWETH_Init {
         assertEq(amount2, 2 ether);
         assertEq(timestamp2, ts + 1);
     }
-
-    /// @dev Tests that unlocking while paused fails.
-    function test_unlock_whilePaused_fails() public {
-        // Pause the contract.
-        address guardian = optimismPortal.GUARDIAN();
-        vm.prank(guardian);
-        superchainConfig.pause("identifier");
-
-        // Unlock fails.
-        vm.expectRevert("DelayedWETH: contract is paused");
-        delayedWeth.unlock(alice, 1 ether);
-    }
 }
 
 contract DelayedWETH_Withdraw_Test is DelayedWETH_Init {

@@ -63,7 +63,6 @@ contract DelayedWETH is OwnableUpgradeable, WETH98, IDelayedWETH, ISemver {
         // addresses, this will be safe. Could be made safer by having external accounts execute
         // withdrawals themselves but that would have added extra complexity and made DelayedWETH
         // a leaky abstraction, so we chose this instead.
-        require(!config.paused(), "DelayedWETH: contract is paused");
         WithdrawalRequest storage wd = withdrawals[msg.sender][_guy];
         wd.timestamp = block.timestamp;
         wd.amount += _wad;
