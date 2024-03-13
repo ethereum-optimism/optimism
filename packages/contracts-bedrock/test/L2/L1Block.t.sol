@@ -31,13 +31,14 @@ contract L1BlockBedrock_Test is L1BlockTest {
         bytes32 bt,
         uint256 fo,
         uint256 fs,
-        uint256[] calldata cis
+        uint256[] calldata ds
     )
         external
     {
-        vm.assume(cis.length == uint256(uint8(cis.length)));
+        // Enforce that the length of the dependency set is uint8
+        vm.assume(ds.length == uint256(uint8(ds.length)));
         vm.prank(depositor);
-        l1Block.setL1BlockValues(n, t, b, h, s, bt, fo, fs, uint8(cis.length), cis);
+        l1Block.setL1BlockValues(n, t, b, h, s, bt, fo, fs, ds);
         assertEq(l1Block.number(), n);
         assertEq(l1Block.timestamp(), t);
         assertEq(l1Block.basefee(), b);
@@ -46,14 +47,14 @@ contract L1BlockBedrock_Test is L1BlockTest {
         assertEq(l1Block.batcherHash(), bt);
         assertEq(l1Block.l1FeeOverhead(), fo);
         assertEq(l1Block.l1FeeScalar(), fs);
-        assertEq(l1Block.interopSetSize(), cis.length);
-        for (uint256 i = 0; i < cis.length; i++) {
-            assertEq(l1Block.chainIds(i), cis[i]);
+        assertEq(l1Block.dependencySetSize(), ds.length);
+        for (uint256 i = 0; i < ds.length; i++) {
+            assertEq(l1Block.dependencySet(i), ds[i]);
         }
     }
 
     /// @dev Tests that `setL1BlockValues` can set max values.
-    function test_updateValues_succeeds(uint256[] calldata _chainIds) external {
+    function test_updateValues_succeeds(uint256[] calldata _dependencySet) external {
         vm.prank(depositor);
         l1Block.setL1BlockValues({
             _number: type(uint64).max,
@@ -64,8 +65,7 @@ contract L1BlockBedrock_Test is L1BlockTest {
             _batcherHash: bytes32(type(uint256).max),
             _l1FeeOverhead: type(uint256).max,
             _l1FeeScalar: type(uint256).max,
-            _interopSetSize: uint8(_chainIds.length),
-            _chainIds: _chainIds
+            _dependencySet: _dependencySet
         });
     }
 }
@@ -169,12 +169,11 @@ contract L1BlockInterop_Test is L1BlockTest {
         uint256 blobBaseFee,
         bytes32 hash,
         bytes32 batcherHash,
-        uint8 interopSetSize,
-        uint256[] calldata chainIds
+        uint256[] calldata dependencySet
     )
         external
     {
-        vm.assume(interopSetSize == chainIds.length);
+        vm.assume(dependencySet.length == uint256(uint8(dependencySet.length)));
 
         bytes memory functionCallDataPacked = Encoding.encodeSetL1BlockValuesEcotone(
             baseFeeScalar, blobBaseFeeScalar, sequenceNumber, timestamp, number, baseFee, blobBaseFee, hash, batcherHash
@@ -194,8 +193,8 @@ contract L1BlockInterop_Test is L1BlockTest {
             blobBaseFee,
             hash,
             batcherHash,
-            interopSetSize,
-            chainIds
+            uint8(dependencySet.length),
+            dependencySet
         );
 
         vm.prank(depositor);
@@ -211,9 +210,9 @@ contract L1BlockInterop_Test is L1BlockTest {
         assertEq(l1Block.blobBaseFee(), blobBaseFee);
         assertEq(l1Block.hash(), hash);
         assertEq(l1Block.batcherHash(), batcherHash);
-        assertEq(l1Block.interopSetSize(), interopSetSize);
-        for (uint256 i = 0; i < chainIds.length; i++) {
-            assertEq(l1Block.chainIds(i), chainIds[i]);
+        assertEq(l1Block.dependencySetSize(), dependencySet.length);
+        for (uint256 i = 0; i < dependencySet.length; i++) {
+            assertEq(l1Block.dependencySet(i), dependencySet[i]);
         }
 
         // ensure we didn't accidentally pollute the 128 bits of the sequencenum+scalars slot that
@@ -274,13 +273,8 @@ contract L1BlockInterop_Test is L1BlockTest {
     }
 
     /// @dev Tests that `setL1BlockValuesInterop` fails if sender address is not the depositor
-    function testFuzz_setL1BlockValuesInterop_interopLengthsMatch_succeeds(
-        uint8 interopSetSize,
-        uint256[] calldata chainIds
-    )
-        external
-    {
-        vm.assume(interopSetSize == chainIds.length);
+    function testFuzz_setL1BlockValuesInterop_interopLengthsMatch_succeeds(uint256[] calldata dependencySet) external {
+        vm.assume(dependencySet.length == uint256(uint8(dependencySet.length)));
 
         bytes memory functionCallDataPacked = Encoding.encodeSetL1BlockValuesInterop(
             type(uint32).max,
@@ -292,8 +286,8 @@ contract L1BlockInterop_Test is L1BlockTest {
             type(uint256).max,
             bytes32(type(uint256).max),
             bytes32(type(uint256).max),
-            interopSetSize,
-            chainIds
+            uint8(dependencySet.length),
+            dependencySet
         );
 
         vm.prank(depositor);
@@ -303,12 +297,13 @@ contract L1BlockInterop_Test is L1BlockTest {
 
     /// @dev Tests that `setL1BlockValuesInterop` fails if sender address is not the depositor
     function testFuzz_setL1BlockValuesInterop_interopLengthsNotMatch_fails(
-        uint8 interopSetSize,
-        uint256[] calldata chainIds
+        uint8 notDependencySetSize,
+        uint256[] calldata dependencySet
     )
         external
     {
-        vm.assume(interopSetSize != chainIds.length);
+        vm.assume(dependencySet.length == uint256(uint8(dependencySet.length)));
+        vm.assume(notDependencySetSize != dependencySet.length);
 
         bytes memory functionCallDataPacked = Encoding.encodeSetL1BlockValuesInterop(
             type(uint32).max,
@@ -320,8 +315,8 @@ contract L1BlockInterop_Test is L1BlockTest {
             type(uint256).max,
             bytes32(type(uint256).max),
             bytes32(type(uint256).max),
-            interopSetSize,
-            chainIds
+            notDependencySetSize,
+            dependencySet
         );
 
         vm.prank(depositor);
@@ -332,12 +327,11 @@ contract L1BlockInterop_Test is L1BlockTest {
         assertEq(data, expReturn);
     }
 
-    function testFuzz_isInDependencySet_succeeds(uint8 interopSetSize, uint256[] calldata chainIds) external {
-        vm.assume(interopSetSize == chainIds.length);
+    function testFuzz_isInDependencySet_succeeds(uint256[] calldata dependencySet) external {
         vm.prank(depositor);
-        l1Block.setL1BlockValues(0, 0, 0, bytes32(0), 0, bytes32(0), 0, 0, interopSetSize, chainIds);
-        for (uint256 i = 0; i < chainIds.length; i++) {
-            assertTrue(l1Block.isInDependencySet(chainIds[i]));
+        l1Block.setL1BlockValues(0, 0, 0, bytes32(0), 0, bytes32(0), 0, 0, dependencySet);
+        for (uint256 i = 0; i < dependencySet.length; i++) {
+            assertTrue(l1Block.isInDependencySet(dependencySet[i]));
         }
     }
 
@@ -346,16 +340,16 @@ contract L1BlockInterop_Test is L1BlockTest {
     }
 
     function test_isInDependencySet_fails() external {
-        uint256[] memory chainIds = new uint256[](2);
-        chainIds[0] = 1;
-        chainIds[1] = 2;
+        uint256[] memory dependencySet = new uint256[](2);
+        dependencySet[0] = 1;
+        dependencySet[1] = 2;
         vm.prank(depositor);
-        l1Block.setL1BlockValues(0, 0, 0, bytes32(0), 0, bytes32(0), 0, 0, uint8(chainIds.length), chainIds);
+        l1Block.setL1BlockValues(0, 0, 0, bytes32(0), 0, bytes32(0), 0, 0, dependencySet);
         assertFalse(l1Block.isInDependencySet(3));
     }
 
     function test_isInDependencySet_isDependencySetEmpty_fails() external {
-        assertTrue(l1Block.interopSetSize() == 0);
+        assertTrue(l1Block.dependencySetSize() == 0);
         assertFalse(l1Block.isInDependencySet(1));
     }
 }

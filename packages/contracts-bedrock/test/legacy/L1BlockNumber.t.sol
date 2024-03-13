@@ -33,8 +33,7 @@ contract L1BlockNumberTest is Test {
             _batcherHash: bytes32(uint256(0)),
             _l1FeeOverhead: 2,
             _l1FeeScalar: 3,
-            _interopSetSize: 0,
-            _chainIds: new uint256[](0)
+            _dependencySet: new uint256[](0)
         });
     }
 
