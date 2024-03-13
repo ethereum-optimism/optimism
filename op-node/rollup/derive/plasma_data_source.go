@@ -50,6 +50,9 @@ func (s *PlasmaDataSource) Next(ctx context.Context) (eth.Data, error) {
 		if err != nil {
 			return nil, err
 		}
+		if len(data) == 0 {
+			return nil, NotEnoughData
+		}
 		// If the tx data type is not plasma, we forward it downstream to let the next
 		// steps validate and potentially parse it as L1 DA inputs.
 		if data[0] != TxDataVersion1 {
