@@ -42,7 +42,7 @@ type Driver struct {
 
 	// The engine controller is used by the sequencer & derivation components.
 	// We will also use it for EL sync in a future PR.
-	engineController *derive.EngineController
+	engineController *EngineController
 
 	// Requests to block the event loop for synchronous execution to avoid reading an inconsistent state
 	stateReq chan chan struct{}

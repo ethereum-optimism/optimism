@@ -12,7 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/async"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
@@ -33,6 +33,10 @@ func (a *AttributesWithParent) Attributes() *eth.PayloadAttributes {
 	return a.attributes
 }
 
+func (a *AttributesWithParent) IsLastInSpan() bool {
+	return a.isLastInSpan
+}
+
 type NextAttributesProvider interface {
 	Origin() eth.L1BlockRef
 	NextAttributes(context.Context, eth.L2BlockRef) (*AttributesWithParent, error)
@@ -48,7 +52,7 @@ type L2Source interface {
 }
 
 type Engine interface {
-	ExecEngine
+	engine.ExecEngine
 	L2Source
 }
 
@@ -298,7 +302,7 @@ func (eq *EngineQueue) Step(ctx context.Context) error {
 	}
 	// If we don't need to call FCU, keep going b/c this was a no-op. If we needed to
 	// perform a network call, then we should yield even if we did not encounter an error.
-	if err := eq.ec.TryUpdateEngine(ctx); !errors.Is(err, errNoFCUNeeded) {
+	if err := eq.ec.TryUpdateEngine(ctx); !errors.Is(err, rollup.ErrNoFCUNeeded) {
 		return err
 	}
 	// Trying unsafe payload should be done before safe attributes
@@ -662,22 +666,6 @@ func (eq *EngineQueue) forceNextSafeAttributes(ctx context.Context) error {
 	}
 
 	return nil
-}
-
-func (eq *EngineQueue) StartPayload(ctx context.Context, parent eth.L2BlockRef, attrs *AttributesWithParent, updateSafe bool) (errType BlockInsertionErrType, err error) {
-	return eq.ec.StartPayload(ctx, parent, attrs, updateSafe)
-}
-
-func (eq *EngineQueue) ConfirmPayload(ctx context.Context, agossip async.AsyncGossiper, sequencerConductor conductor.SequencerConductor) (out *eth.ExecutionPayloadEnvelope, errTyp BlockInsertionErrType, err error) {
-	return eq.ec.ConfirmPayload(ctx, agossip, sequencerConductor)
-}
-
-func (eq *EngineQueue) CancelPayload(ctx context.Context, force bool) error {
-	return eq.ec.CancelPayload(ctx, force)
-}
-
-func (eq *EngineQueue) BuildingPayload() (onto eth.L2BlockRef, id eth.PayloadID, safe bool) {
-	return eq.ec.BuildingPayload()
 }
 
 // Reset walks the L2 chain backwards until it finds an L2 block whose L1 origin is canonical.
