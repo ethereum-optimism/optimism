@@ -19,6 +19,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/mattn/go-isatty"
 	"github.com/urfave/cli/v2"
 )
@@ -91,17 +92,18 @@ type GenesisAccount struct {
 }
 
 type Genesis struct {
-	Nonce      uint64         `json:"nonce"`
-	Timestamp  uint64         `json:"timestamp"`
-	ExtraData  []byte         `json:"extraData"`
-	GasLimit   uint64         `json:"gasLimit"`
-	Difficulty *hexutil.Big   `json:"difficulty"`
-	Mixhash    common.Hash    `json:"mixHash"`
-	Coinbase   common.Address `json:"coinbase"`
-	Number     uint64         `json:"number"`
-	GasUsed    uint64         `json:"gasUsed"`
-	ParentHash common.Hash    `json:"parentHash"`
-	BaseFee    *hexutil.Big   `json:"baseFeePerGas"`
+	Config     *params.ChainConfig `json:"config"`
+	Nonce      uint64              `json:"nonce"`
+	Timestamp  uint64              `json:"timestamp"`
+	ExtraData  []byte              `json:"extraData"`
+	GasLimit   uint64              `json:"gasLimit"`
+	Difficulty *hexutil.Big        `json:"difficulty"`
+	Mixhash    common.Hash         `json:"mixHash"`
+	Coinbase   common.Address      `json:"coinbase"`
+	Number     uint64              `json:"number"`
+	GasUsed    uint64              `json:"gasUsed"`
+	ParentHash common.Hash         `json:"parentHash"`
+	BaseFee    *hexutil.Big        `json:"baseFeePerGas"`
 
 	Alloc jsonutil.LazySortedJsonMap[common.Address, GenesisAccount] `json:"alloc"`
 	// For genesis definitions without full state (OP-Mainnet, OP-Goerli)
@@ -209,6 +211,7 @@ func entrypoint(ctx *cli.Context) error {
 
 	// convert into allocation data
 	out := Genesis{
+		Config:     genesis.Config,
 		Nonce:      genesis.Nonce,
 		Timestamp:  genesis.Timestamp,
 		ExtraData:  genesis.ExtraData,
