@@ -17,11 +17,15 @@ type Challenger interface {
 	Challenge(ctx context.Context, blockHash common.Hash, oracle Oracle, preimages []keccakTypes.LargePreimageMetaData) error
 }
 
+type OracleSource interface {
+	Oracles() []keccakTypes.LargePreimageOracle
+}
+
 type LargePreimageScheduler struct {
 	log        log.Logger
 	cl         faultTypes.ClockReader
 	ch         chan common.Hash
-	oracles    []keccakTypes.LargePreimageOracle
+	oracles    OracleSource
 	challenger Challenger
 	cancel     func()
 	wg         sync.WaitGroup
@@ -30,13 +34,13 @@ type LargePreimageScheduler struct {
 func NewLargePreimageScheduler(
 	logger log.Logger,
 	cl faultTypes.ClockReader,
-	oracles []keccakTypes.LargePreimageOracle,
+	oracleSource OracleSource,
 	challenger Challenger) *LargePreimageScheduler {
 	return &LargePreimageScheduler{
 		log:        logger,
 		cl:         cl,
 		ch:         make(chan common.Hash, 1),
-		oracles:    oracles,
+		oracles:    oracleSource,
 		challenger: challenger,
 	}
 }
@@ -79,7 +83,7 @@ func (s *LargePreimageScheduler) Schedule(blockHash common.Hash, _ uint64) error
 
 func (s *LargePreimageScheduler) verifyPreimages(ctx context.Context, blockHash common.Hash) error {
 	var err error
-	for _, oracle := range s.oracles {
+	for _, oracle := range s.oracles.Oracles() {
 		err = errors.Join(err, s.verifyOraclePreimages(ctx, oracle, blockHash))
 	}
 	return err
