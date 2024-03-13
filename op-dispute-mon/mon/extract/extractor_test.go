@@ -184,7 +184,8 @@ type mockGameCaller struct {
 	claims           []faultTypes.Claim
 	requestedCredits []common.Address
 	creditsErr       error
-	credits          []*big.Int
+	credits          map[common.Address]*big.Int
+	extraCredit      []*big.Int
 	balanceErr       error
 	balance          *big.Int
 	balanceAddr      common.Address
@@ -211,7 +212,16 @@ func (m *mockGameCaller) GetCredits(_ context.Context, _ rpcblock.Block, recipie
 	if m.creditsErr != nil {
 		return nil, m.creditsErr
 	}
-	return m.credits, nil
+	response := make([]*big.Int, 0, len(recipients))
+	for _, recipient := range recipients {
+		credit, ok := m.credits[recipient]
+		if !ok {
+			credit = big.NewInt(0)
+		}
+		response = append(response, credit)
+	}
+	response = append(response, m.extraCredit...)
+	return response, nil
 }
 
 func (m *mockGameCaller) GetBalance(_ context.Context, _ rpcblock.Block) (*big.Int, common.Address, error) {

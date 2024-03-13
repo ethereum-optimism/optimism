@@ -52,7 +52,7 @@ func TestBondEnricher(t *testing.T) {
 
 	t.Run("GetCreditsWrongNumberOfResults", func(t *testing.T) {
 		enricher := NewBondEnricher()
-		caller := &mockGameCaller{credits: []*big.Int{big.NewInt(4)}}
+		caller := &mockGameCaller{extraCredit: []*big.Int{big.NewInt(4)}}
 		game := makeGame()
 		err := enricher.Enrich(context.Background(), rpcblock.Latest, caller, game)
 		require.ErrorIs(t, err, ErrIncorrectCreditCount)
@@ -69,16 +69,18 @@ func TestBondEnricher(t *testing.T) {
 			// Claim 2 CounteredBy is unset
 		}
 		enricher := NewBondEnricher()
-		credits := []*big.Int{big.NewInt(10), big.NewInt(20), big.NewInt(30)}
-		caller := &mockGameCaller{credits: credits}
+		expectedCredits := map[common.Address]*big.Int{
+			expectedRecipients[0]: big.NewInt(10),
+			expectedRecipients[1]: big.NewInt(20),
+			expectedRecipients[2]: big.NewInt(30),
+		}
+		caller := &mockGameCaller{credits: expectedCredits}
 		err := enricher.Enrich(context.Background(), rpcblock.Latest, caller, game)
 		require.NoError(t, err)
 
-		require.Equal(t, expectedRecipients, caller.requestedCredits)
-		expectedCredits := map[common.Address]*big.Int{
-			expectedRecipients[0]: credits[0],
-			expectedRecipients[1]: credits[1],
-			expectedRecipients[2]: credits[2],
+		require.Equal(t, len(expectedRecipients), len(caller.requestedCredits))
+		for _, recipient := range expectedRecipients {
+			require.Contains(t, caller.requestedCredits, recipient)
 		}
 		require.Equal(t, expectedCredits, game.Credits)
 	})
