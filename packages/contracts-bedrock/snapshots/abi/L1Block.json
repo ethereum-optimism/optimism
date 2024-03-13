@@ -85,12 +85,25 @@
         "type": "uint256"
       }
     ],
-    "name": "chainIds",
+    "name": "dependencySet",
     "outputs": [
       {
         "internalType": "uint256",
         "name": "",
         "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "dependencySetSize",
+    "outputs": [
+      {
+        "internalType": "uint8",
+        "name": "",
+        "type": "uint8"
       }
     ],
     "stateMutability": "view",
@@ -104,19 +117,6 @@
         "internalType": "bytes32",
         "name": "",
         "type": "bytes32"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "interopSetSize",
-    "outputs": [
-      {
-        "internalType": "uint8",
-        "name": "",
-        "type": "uint8"
       }
     ],
     "stateMutability": "view",
@@ -236,13 +236,8 @@
         "type": "uint256"
       },
       {
-        "internalType": "uint8",
-        "name": "_interopSetSize",
-        "type": "uint8"
-      },
-      {
         "internalType": "uint256[]",
-        "name": "_chainIds",
+        "name": "_dependencySet",
         "type": "uint256[]"
       }
     ],
