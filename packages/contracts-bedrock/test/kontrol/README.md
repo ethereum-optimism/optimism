@@ -152,7 +152,7 @@ Note that the names of the addresses come from [`DeploymentSummary.t.sol`](deplo
 
 #### Add your test to [`run-kontrol.sh`](./scripts/run-kontrol.sh)
 
-As described in [Execute Proofs](#execute-proofs), there's a `script` mode for specifying which proofs to run, and that is mode the used in CI. To run the new proofs with the `script` option, add `ContractName.prove_functionName_paused` to the variable `test_list` in the `run-kontrol.sh` script.
+As described in [Execute Proofs](#execute-proofs), there's a `script` mode for specifying which proofs to run, and that is the mode used in CI. To run the new proofs with the `script` option, add `ContractName.prove_functionName_paused` to the variable `test_list` in the `run-kontrol.sh` script.
 
 ## Implementation Details
 
