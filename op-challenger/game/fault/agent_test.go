@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"math/big"
+	"sync"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace"
@@ -172,6 +173,7 @@ func (s *stubClaimLoader) GetAllClaims(_ context.Context, _ rpcblock.Block) ([]t
 }
 
 type stubResponder struct {
+	l                 sync.Mutex
 	callResolveCount  int
 	callResolveStatus gameTypes.GameStatus
 	callResolveErr    error
@@ -185,21 +187,29 @@ type stubResponder struct {
 }
 
 func (s *stubResponder) CallResolve(ctx context.Context) (gameTypes.GameStatus, error) {
+	s.l.Lock()
+	defer s.l.Unlock()
 	s.callResolveCount++
 	return s.callResolveStatus, s.callResolveErr
 }
 
 func (s *stubResponder) Resolve() error {
+	s.l.Lock()
+	defer s.l.Unlock()
 	s.resolveCount++
 	return s.resolveErr
 }
 
 func (s *stubResponder) CallResolveClaim(ctx context.Context, clainIdx uint64) error {
+	s.l.Lock()
+	defer s.l.Unlock()
 	s.callResolveClaimCount++
 	return s.callResolveClaimErr
 }
 
 func (s *stubResponder) ResolveClaim(clainIdx uint64) error {
+	s.l.Lock()
+	defer s.l.Unlock()
 	s.resolveClaimCount++
 	return nil
 }
