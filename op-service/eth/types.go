@@ -438,28 +438,6 @@ func CheckEcotoneL1SystemConfigScalar(scalar [32]byte) error {
 	}
 }
 
-func (sysCfg *SystemConfig) InteropScalars() (blobBaseFeeScalar, baseFeeScalar uint32, err error) {
-	if err := CheckEcotoneL1SystemConfigScalar(sysCfg.Scalar); err != nil {
-		if errors.Is(err, ErrBedrockScalarPaddingNotEmpty) {
-			// L2 spec mandates we set baseFeeScalar to MaxUint32 if there are non-zero bytes in
-			// the padding area.
-			return 0, math.MaxUint32, nil
-		}
-		return 0, 0, err
-	}
-	switch sysCfg.Scalar[0] {
-	case L1ScalarBedrock:
-		blobBaseFeeScalar = 0
-		baseFeeScalar = binary.BigEndian.Uint32(sysCfg.Scalar[28:32])
-	case L1ScalarEcotone:
-		blobBaseFeeScalar = binary.BigEndian.Uint32(sysCfg.Scalar[24:28])
-		baseFeeScalar = binary.BigEndian.Uint32(sysCfg.Scalar[28:32])
-	default:
-		err = fmt.Errorf("unexpected system config scalar: %s", sysCfg.Scalar)
-	}
-	return
-}
-
 type Bytes48 [48]byte
 
 func (b *Bytes48) UnmarshalJSON(text []byte) error {
