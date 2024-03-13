@@ -38,9 +38,10 @@ const (
 	RegolithSystemTxGas = 1_000_000
 )
 
+// The following hardcoded chain IDs are for the first devnet release
 var (
 	InteropSetSize  = uint8(1)
-	InteropChainIDs = []*big.Int{big.NewInt(1)}
+	InteropChainIDs = []*big.Int{big.NewInt(10666), big.NewInt(10777), big.NewInt(10888)}
 )
 
 // L1BlockInfo presents the information stored in a L1Block.setL1BlockValues call
@@ -62,8 +63,7 @@ type L1BlockInfo struct {
 	BaseFeeScalar     uint32   // added by Ecotone upgrade
 	BlobBaseFeeScalar uint32   // added by Ecotone upgrade
 
-	InteropSetSize uint8      // added by Interop upgrade
-	ChainIds       []*big.Int // added by Interop upgrade
+	DependencySet []*big.Int // added by Interop upgrade
 }
 
 // Bedrock Binary Format
@@ -272,7 +272,7 @@ func (info *L1BlockInfo) unmarshalBinaryEcotone(data []byte) error {
 // +-------------------+--------------------------+
 
 func (info *L1BlockInfo) marshalBinaryInterop() ([]byte, error) {
-	w := bytes.NewBuffer(make([]byte, 0, L1InfoInteropLen(info.InteropSetSize)))
+	w := bytes.NewBuffer(make([]byte, 0, L1InfoInteropLen(info.DependencySetSize())))
 	if err := solabi.WriteSignature(w, L1InfoFuncInteropBytes4); err != nil {
 		return nil, err
 	}
@@ -308,10 +308,10 @@ func (info *L1BlockInfo) marshalBinaryInterop() ([]byte, error) {
 	if err := solabi.WriteAddress(w, info.BatcherAddr); err != nil {
 		return nil, err
 	}
-	if err := binary.Write(w, binary.BigEndian, info.InteropSetSize); err != nil {
+	if err := binary.Write(w, binary.BigEndian, info.DependencySetSize()); err != nil {
 		return nil, err
 	}
-	for _, chainID := range info.ChainIds {
+	for _, chainID := range info.DependencySet {
 		if err := solabi.WriteUint256(w, chainID); err != nil {
 			return nil, err
 		}
@@ -355,18 +355,21 @@ func (info *L1BlockInfo) unmarshalBinaryInterop(data []byte) error {
 	if info.BatcherAddr, err = solabi.ReadAddress(r); err != nil {
 		return err
 	}
-	if err := binary.Read(r, binary.BigEndian, &info.InteropSetSize); err != nil {
+
+	var dependencySetSize uint8
+
+	if err := binary.Read(r, binary.BigEndian, &dependencySetSize); err != nil {
 		return fmt.Errorf("invalid interop l1 block info format")
 	}
 
 	// we make the check here because it's the soonest InteroptSetSize is available, which is needed to calculate the expected length
-	if len(data) != int(L1InfoInteropLen(info.InteropSetSize)) {
+	if len(data) != int(L1InfoInteropLen(dependencySetSize)) {
 		return fmt.Errorf("data is unexpected length: %d", len(data))
 	}
 
-	info.ChainIds = make([]*big.Int, info.InteropSetSize)
-	for i := uint8(0); i < info.InteropSetSize; i++ {
-		if info.ChainIds[i], err = solabi.ReadUint256(r); err != nil {
+	info.DependencySet = make([]*big.Int, dependencySetSize)
+	for i := uint8(0); i < dependencySetSize; i++ {
+		if info.DependencySet[i], err = solabi.ReadUint256(r); err != nil {
 			return err
 		}
 	}
@@ -375,6 +378,10 @@ func (info *L1BlockInfo) unmarshalBinaryInterop(data []byte) error {
 		return errors.New("too many bytes")
 	}
 	return nil
+}
+
+func (info *L1BlockInfo) DependencySetSize() uint8 {
+	return uint8(len(info.DependencySet))
 }
 
 // isEcotoneButNotFirstBlock returns whether the specified block is subject to the Ecotone upgrade,
@@ -424,8 +431,7 @@ func L1InfoDeposit(rollupCfg *rollup.Config, sysCfg eth.SystemConfig, seqNumber 
 		}
 		l1BlockInfo.BlobBaseFeeScalar = blobBaseFeeScalar
 		l1BlockInfo.BaseFeeScalar = baseFeeScalar
-		l1BlockInfo.InteropSetSize = InteropSetSize
-		l1BlockInfo.ChainIds = InteropChainIDs
+		l1BlockInfo.DependencySet = InteropChainIDs
 		out, err := l1BlockInfo.marshalBinaryInterop()
 		if err != nil {
 			return nil, fmt.Errorf("failed to marshal Interop l1 block info: %w", err)
@@ -496,6 +502,6 @@ func L1InfoDepositBytes(rollupCfg *rollup.Config, sysCfg eth.SystemConfig, seqNu
 	return opaqueL1Tx, nil
 }
 
-func L1InfoInteropLen(InteropSetSize uint8) int {
-	return 4 + 32*5 + 1 + 32*int(InteropSetSize)
+func L1InfoInteropLen(DependencySetSize uint8) int {
+	return 4 + 32*5 + 1 + 32*int(DependencySetSize)
 }
