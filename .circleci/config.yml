@@ -2070,9 +2070,12 @@ workflows:
 
   develop-kontrol-tests:
     when:
-      or:
-        - equal: [ "develop", <<pipeline.git.branch>> ]
-        - equal: [ true, <<pipeline.parameters.kontrol_dispatch>> ]
+      and:
+        - or:
+          - equal: [ "develop", <<pipeline.git.branch>> ]
+          - equal: [ true, <<pipeline.parameters.kontrol_dispatch>> ]
+        - not:
+           equal: [ scheduled_pipeline, << pipeline.trigger_source >> ]
     jobs:
       - kontrol-tests:
           context:
