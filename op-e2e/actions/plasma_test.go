@@ -520,9 +520,10 @@ func TestPlasma_SequencerStalledMultiChallenges(gt *testing.T) {
 	// from the challenge data.
 	a.ActDeleteLastInput(t)
 
+	// finally challenge the first commitment
 	a.ActChallengeInput(t, comm1, bn1)
 
-	// resolve it immediately
+	// resolve it immediately so we can resume derivation
 	a.ActResolveInput(t, comm1, input1, bn1)
 
 	// pipeline can go on

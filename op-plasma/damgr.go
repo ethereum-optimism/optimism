@@ -143,7 +143,6 @@ func (d *DA) LookAhead(ctx context.Context, l1 L1Fetcher) error {
 	if err != nil {
 		return err
 	}
-	d.log.Info("looking ahead", "origin", d.origin, "next", blkRef)
 	return d.AdvanceL1Origin(ctx, l1, blkRef.ID())
 }
 
