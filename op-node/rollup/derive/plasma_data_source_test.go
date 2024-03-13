@@ -134,7 +134,7 @@ func TestPlasmaDataSource(t *testing.T) {
 				Gas:       100_000,
 				To:        &batcherInbox,
 				Value:     big.NewInt(int64(0)),
-				Data:      comm.TxData(TxDataVersion1),
+				Data:      comm.TxData(),
 			})
 			require.NoError(t, err)
 
@@ -234,7 +234,7 @@ func TestPlasmaDataSource(t *testing.T) {
 					Gas:       100_000,
 					To:        &batcherInbox,
 					Value:     big.NewInt(int64(0)),
-					Data:      comm.TxData(TxDataVersion1),
+					Data:      comm.TxData(),
 				})
 				require.NoError(t, err)
 
@@ -351,7 +351,7 @@ func TestPlasmaDataSourceStall(t *testing.T) {
 		Gas:       100_000,
 		To:        &batcherInbox,
 		Value:     big.NewInt(int64(0)),
-		Data:      comm.TxData(TxDataVersion1),
+		Data:      comm.TxData(),
 	})
 	require.NoError(t, err)
 
@@ -466,7 +466,7 @@ func TestPlasmaDataSourceInvalidData(t *testing.T) {
 		Gas:       100_000,
 		To:        &batcherInbox,
 		Value:     big.NewInt(int64(0)),
-		Data:      comm.TxData(TxDataVersion1),
+		Data:      comm.TxData(),
 	})
 	require.NoError(t, err)
 
@@ -481,7 +481,7 @@ func TestPlasmaDataSourceInvalidData(t *testing.T) {
 		Gas:       100_000,
 		To:        &batcherInbox,
 		Value:     big.NewInt(int64(0)),
-		Data:      comm2.TxData(TxDataVersion1),
+		Data:      comm2.TxData(),
 	})
 	require.NoError(t, err)
 

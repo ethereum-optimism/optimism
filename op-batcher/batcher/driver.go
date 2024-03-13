@@ -401,7 +401,7 @@ func (l *BatchSubmitter) sendTransaction(ctx context.Context, txdata txData, que
 				return nil
 			}
 			// signal plasma commitment tx with TxDataVersion1
-			data = comm.TxData(derive.TxDataVersion1)
+			data = comm.TxData()
 		}
 		candidate = l.calldataTxCandidate(data)
 	}

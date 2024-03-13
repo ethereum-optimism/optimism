@@ -28,8 +28,8 @@ func (c Keccak256Commitment) Encode() []byte {
 }
 
 // TxData adds an extra version byte to signal it's a commitment.
-func (c Keccak256Commitment) TxData(version uint8) []byte {
-	return append([]byte{version}, c.Encode()...)
+func (c Keccak256Commitment) TxData() []byte {
+	return append([]byte{TxDataVersion1}, c.Encode()...)
 }
 
 // Verify checks if the commitment matches the given input.

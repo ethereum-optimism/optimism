@@ -4,6 +4,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+
+	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 )
 
 // count the tagging info as 200 in terms of buffer size.
@@ -19,10 +21,8 @@ func frameSize(frame Frame) uint64 {
 
 const DerivationVersion0 = 0
 
-// TxDataVersion1 is the version number for batcher transactions containing
-// plasma inputs. It should not collide with DerivationVersion which is still
-// used downstream when parsing the frames.
-const TxDataVersion1 = 1
+// DerivationVersion1 is reserved for batcher transactions containing plasma commitments.
+const DerivationVersion1 = plasma.TxDataVersion1
 
 // MaxSpanBatchSize is the maximum amount of bytes that will be needed
 // to decode every span batch field. This value cannot be larger than
