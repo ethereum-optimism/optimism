@@ -3,6 +3,7 @@ pragma solidity 0.8.24;
 
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { ISemver } from "src/universal/ISemver.sol";
+import { ICrossL2Inbox } from "src/L2/ICrossL2Inbox.sol";
 
 /// @title IDependencySet
 /// @notice Interface for L1Block with only `isInDependencySet(uint256)` method.
@@ -19,7 +20,7 @@ interface IDependencySet {
 /// @title CrossL2Inbox
 /// @notice The CrossL2Inbox is responsible for executing a cross chain message on the destination
 ///         chain. It is permissionless to execute a cross chain message on behalf of any user.
-contract CrossL2Inbox is ISemver {
+contract CrossL2Inbox is ICrossL2Inbox, ISemver {
     /// @notice The struct for a pointer to a message payload in a remote (or local) chain.
     struct Identifier {
         address origin;
@@ -100,7 +101,7 @@ contract CrossL2Inbox is ISemver {
         require(msg.sender == tx.origin, "CrossL2Inbox: not EOA sender");
         require(_id.timestamp <= block.timestamp, "CrossL2Inbox: invalid id timestamp");
         require(
-            IL1Block_OnlyIsInDependencySet(Predeploys.L1_BLOCK_ATTRIBUTES).isInDependencySet(_id.chainId),
+            IDependencySet(Predeploys.L1_BLOCK_ATTRIBUTES).isInDependencySet(_id.chainId),
             "CrossL2Inbox: id chain not in dependency set"
         );
 
