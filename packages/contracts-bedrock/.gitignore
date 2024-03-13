@@ -13,6 +13,7 @@ coverage.out
 
 # Testing State
 .testdata
+kontrol_prove_report.xml
 
 # Scripts
 scripts/go-ffi/go-ffi

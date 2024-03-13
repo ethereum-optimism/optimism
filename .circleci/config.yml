@@ -23,6 +23,9 @@ parameters:
   fault_proofs_dispatch:
     type: boolean
     default: false
+  kontrol_dispatch:
+    type: boolean
+    default: false
 
 orbs:
   go: circleci/go@1.8.0
@@ -1485,7 +1488,9 @@ jobs:
           command: pnpm test:kontrol
           working_directory: ./packages/contracts-bedrock
       - store_artifacts:
-          path: ./packages/contracts-bedrock/kontrol-results_latest.tar.gz
+          path: ./packages/contracts-bedrock/test/kontrol/logs/kontrol-results_latest.tar.gz
+      - store_test_results:
+          path: ./packages/contracts-bedrock/kontrol_prove_report.xml
       - notify-failures-on-develop
 
 workflows:
@@ -2078,9 +2083,14 @@ workflows:
           context:
             - slack
 
-  scheduled-kontrol-tests:
+  develop-kontrol-tests:
     when:
-      equal: [ build_four_hours, <<pipeline.schedule.name>> ]
+      and:
+        - or:
+          - equal: [ "develop", <<pipeline.git.branch>> ]
+          - equal: [ true, <<pipeline.parameters.kontrol_dispatch>> ]
+        - not:
+           equal: [ scheduled_pipeline, << pipeline.trigger_source >> ]
     jobs:
       - kontrol-tests:
           context:

@@ -6,6 +6,7 @@ export FOUNDRY_PROFILE=kprove
 SCRIPT_HOME="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 # shellcheck source=/dev/null
 source "$SCRIPT_HOME/common.sh"
+export RUN_KONTROL=true
 parse_args "$@"
 
 #############
@@ -32,10 +33,12 @@ kontrol_prove() {
     $reinit \
     $bug_report \
     $break_on_calls \
+    $break_every_step \
     $auto_abstract \
     $tests \
     $use_booster \
-    --init-node-from $state_diff
+    --init-node-from $state_diff \
+    --xml-test-report
 }
 
 dump_log_results(){
@@ -93,7 +96,7 @@ trap on_failure ERR INT
 # such as `rekompile`. Such a pattern is intended for easy use while locally
 # developing and executing the proofs via this script. Comment/uncomment the
 # empty assignment to activate/deactivate the corresponding flag
-lemmas=test/kontrol/pausability-lemmas.k
+lemmas=test/kontrol/pausability-lemmas.md
 base_module=PAUSABILITY-LEMMAS
 module=OptimismPortalKontrol:$base_module
 rekompile=--rekompile
@@ -105,13 +108,33 @@ regen=
 #################################
 # Tests to symbolically execute #
 #################################
-# Missing: OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused
-test_list=( "OptimismPortalKontrol.prove_finalizeWithdrawalTransaction_paused" \
-            "L1StandardBridgeKontrol.prove_finalizeBridgeERC20_paused" \
-            "L1StandardBridgeKontrol.prove_finalizeBridgeETH_paused" \
-            "L1ERC721BridgeKontrol.prove_finalizeBridgeERC721_paused" \
-            "L1CrossDomainMessengerKontrol.prove_relayMessage_paused"
-          )
+
+# Temporarily unexecuted tests
+# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused0" \
+# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused1" \
+# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused2" \
+# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused3" \
+# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused4" \
+# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused5" \
+# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused6" \
+# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused7" \
+# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused8" \
+# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused9" \
+# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused10" \
+
+test_list=()
+if [ "$SCRIPT_TESTS" == true ]; then
+  test_list=( "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused0" \
+              "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused1" \
+              "OptimismPortalKontrol.prove_finalizeWithdrawalTransaction_paused" \
+              "L1StandardBridgeKontrol.prove_finalizeBridgeERC20_paused" \
+              "L1StandardBridgeKontrol.prove_finalizeBridgeETH_paused" \
+              "L1ERC721BridgeKontrol.prove_finalizeBridgeERC721_paused" \
+              "L1CrossDomainMessengerKontrol.prove_relayMessage_paused"
+  )
+elif [ "$CUSTOM_TESTS" != 0 ]; then
+  test_list=( "${@:${CUSTOM_TESTS}}" )
+fi
 tests=""
 for test_name in "${test_list[@]}"; do
   tests+="--match-test $test_name "
@@ -120,18 +143,25 @@ done
 #########################
 # kontrol prove options #
 #########################
-max_depth=1000000
-max_iterations=1000000
+max_depth=10000
+max_iterations=10000
 smt_timeout=100000
 max_workers=7 # Set to 7 since the CI machine has 8 CPUs
 # workers is the minimum between max_workers and the length of test_list
-workers=$((${#test_list[@]}>max_workers ? max_workers : ${#test_list[@]}))
+# unless no test arguments are provided, in which case we default to max_workers
+if [ "$CUSTOM_TESTS" == 0 ] && [ "$SCRIPT_TESTS" == false ]; then
+  workers=${max_workers}
+else
+  workers=$((${#test_list[@]}>max_workers ? max_workers : ${#test_list[@]}))
+fi
 reinit=--reinit
 reinit=
 break_on_calls=--no-break-on-calls
 # break_on_calls=
+break_every_step=--break-every-step
+break_every_step=
 auto_abstract=--auto-abstract-gas
-# auto_abstract=
+auto_abstract=
 bug_report=--bug-report
 bug_report=
 use_booster=--use-booster

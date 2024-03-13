@@ -20,78 +20,176 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
         superchainConfig = SuperchainConfig(superchainConfigProxyAddress);
     }
 
-    /// TODO: Replace struct parameters and workarounds with the appropriate
-    /// types once Kontrol supports symbolic `bytes` and `bytes[]`
-    /// Tracking issue: https://github.com/runtimeverification/kontrol/issues/272
-    function prove_proveWithdrawalTransaction_paused(
-        // WithdrawalTransaction args
-        uint256 _nonce,
-        address _sender,
-        address _target,
-        uint256 _value,
-        uint256 _gasLimit,
-        // bytes   memory _data,
-        uint256 _l2OutputIndex,
-        // OutputRootProof args
-        bytes32 _outputRootProof0,
-        bytes32 _outputRootProof1,
-        bytes32 _outputRootProof2,
-        bytes32 _outputRootProof3
-    )
-        external
-    {
+    function prove_finalizeWithdrawalTransaction_paused(Types.WithdrawalTransaction calldata _tx) external {
         setUpInlined();
-
-        // ASSUME: This bound on the `_data` length is too low, and should be at least 1000 bytes.
-        // Kontrol currently hangs and fails with this value because of the resulting configuration
-        // size. For now we leave this as a low value to avoid the hang, but it should be increased
-        // once Kontrol is improved and supports symbolic `bytes`:
-        // https://github.com/runtimeverification/kontrol/issues/272
-        bytes memory _data = freshBigBytes(320);
-        bytes[] memory _withdrawalProof = freshWithdrawalProof();
-
-        Types.WithdrawalTransaction memory _tx =
-            Types.WithdrawalTransaction(_nonce, _sender, _target, _value, _gasLimit, _data);
-        Types.OutputRootProof memory _outputRootProof =
-            Types.OutputRootProof(_outputRootProof0, _outputRootProof1, _outputRootProof2, _outputRootProof3);
 
         // Pause Optimism Portal
         vm.prank(optimismPortal.guardian());
         superchainConfig.pause("identifier");
 
-        // No one can call proveWithdrawalTransaction
+        vm.expectRevert("OptimismPortal: paused");
+        optimismPortal.finalizeWithdrawalTransaction(_tx);
+    }
+
+    /// @dev Function containing the logic for prove_proveWithdrawalTransaction_paused
+    ///      The reason for this is that we want the _withdrawalProof to range in size from
+    ///      0 to 10. These 11 proofs will exercise the same logic, which is contained in this function
+    function prove_proveWithdrawalTransaction_paused_internal(
+        Types.WithdrawalTransaction memory _tx,
+        uint256 _l2OutputIndex,
+        Types.OutputRootProof calldata _outputRootProof,
+        bytes[] memory _withdrawalProof
+    )
+        internal
+    {
+        setUpInlined();
+
+        // Pause Optimism Portal
+        vm.prank(optimismPortal.guardian());
+        superchainConfig.pause("identifier");
+
         vm.expectRevert("OptimismPortal: paused");
         optimismPortal.proveWithdrawalTransaction(_tx, _l2OutputIndex, _outputRootProof, _withdrawalProof);
     }
 
-    /// TODO: Replace struct parameters and workarounds with the appropriate
-    /// types once Kontrol supports symbolic `bytes` and `bytes[]`
-    /// Tracking issue: https://github.com/runtimeverification/kontrol/issues/272
-    function prove_finalizeWithdrawalTransaction_paused(
-        uint256 _nonce,
-        address _sender,
-        address _target,
-        uint256 _value,
-        uint256 _gasLimit
+    /// @custom:kontrol-array-length-equals _withdrawalProof: 10,
+    /// @custom:kontrol-bytes-length-equals _withdrawalProof: 600,
+    function prove_proveWithdrawalTransaction_paused10(
+        Types.WithdrawalTransaction memory _tx,
+        uint256 _l2OutputIndex,
+        Types.OutputRootProof calldata _outputRootProof,
+        bytes[] calldata _withdrawalProof
     )
         external
     {
-        setUpInlined();
+        prove_proveWithdrawalTransaction_paused_internal(_tx, _l2OutputIndex, _outputRootProof, _withdrawalProof);
+    }
 
-        // ASSUME: This bound on the `_data` length is too low, and should be at least 1000 bytes.
-        // Kontrol currently hangs and fails with this value because of the resulting configuration
-        // size. For now we leave this as a low value to avoid the hang, but it should be increased
-        // once Kontrol is improved and supports symbolic `bytes`:
-        // https://github.com/runtimeverification/kontrol/issues/272
-        bytes memory _data = freshBigBytes(320);
+    /// @custom:kontrol-array-length-equals _withdrawalProof: 9,
+    /// @custom:kontrol-bytes-length-equals _withdrawalProof: 600,
+    function prove_proveWithdrawalTransaction_paused9(
+        Types.WithdrawalTransaction memory _tx,
+        uint256 _l2OutputIndex,
+        Types.OutputRootProof calldata _outputRootProof,
+        bytes[] calldata _withdrawalProof
+    )
+        external
+    {
+        prove_proveWithdrawalTransaction_paused_internal(_tx, _l2OutputIndex, _outputRootProof, _withdrawalProof);
+    }
 
-        // Pause Optimism Portal
-        vm.prank(optimismPortal.guardian());
-        superchainConfig.pause("identifier");
+    /// @custom:kontrol-array-length-equals _withdrawalProof: 8,
+    /// @custom:kontrol-bytes-length-equals _withdrawalProof: 600,
+    function prove_proveWithdrawalTransaction_paused8(
+        Types.WithdrawalTransaction memory _tx,
+        uint256 _l2OutputIndex,
+        Types.OutputRootProof calldata _outputRootProof,
+        bytes[] calldata _withdrawalProof
+    )
+        external
+    {
+        prove_proveWithdrawalTransaction_paused_internal(_tx, _l2OutputIndex, _outputRootProof, _withdrawalProof);
+    }
 
-        vm.expectRevert("OptimismPortal: paused");
-        optimismPortal.finalizeWithdrawalTransaction(
-            Types.WithdrawalTransaction(_nonce, _sender, _target, _value, _gasLimit, _data)
-        );
+    /// @custom:kontrol-array-length-equals _withdrawalProof: 7,
+    /// @custom:kontrol-bytes-length-equals _withdrawalProof: 600,
+    function prove_proveWithdrawalTransaction_paused7(
+        Types.WithdrawalTransaction memory _tx,
+        uint256 _l2OutputIndex,
+        Types.OutputRootProof calldata _outputRootProof,
+        bytes[] calldata _withdrawalProof
+    )
+        external
+    {
+        prove_proveWithdrawalTransaction_paused_internal(_tx, _l2OutputIndex, _outputRootProof, _withdrawalProof);
+    }
+
+    /// @custom:kontrol-array-length-equals _withdrawalProof: 6,
+    /// @custom:kontrol-bytes-length-equals _withdrawalProof: 600,
+    function prove_proveWithdrawalTransaction_paused6(
+        Types.WithdrawalTransaction memory _tx,
+        uint256 _l2OutputIndex,
+        Types.OutputRootProof calldata _outputRootProof,
+        bytes[] calldata _withdrawalProof
+    )
+        external
+    {
+        prove_proveWithdrawalTransaction_paused_internal(_tx, _l2OutputIndex, _outputRootProof, _withdrawalProof);
+    }
+
+    /// @custom:kontrol-array-length-equals _withdrawalProof: 5,
+    /// @custom:kontrol-bytes-length-equals _withdrawalProof: 600,
+    function prove_proveWithdrawalTransaction_paused5(
+        Types.WithdrawalTransaction memory _tx,
+        uint256 _l2OutputIndex,
+        Types.OutputRootProof calldata _outputRootProof,
+        bytes[] calldata _withdrawalProof
+    )
+        external
+    {
+        prove_proveWithdrawalTransaction_paused_internal(_tx, _l2OutputIndex, _outputRootProof, _withdrawalProof);
+    }
+
+    /// @custom:kontrol-array-length-equals _withdrawalProof: 4,
+    /// @custom:kontrol-bytes-length-equals _withdrawalProof: 600,
+    function prove_proveWithdrawalTransaction_paused4(
+        Types.WithdrawalTransaction memory _tx,
+        uint256 _l2OutputIndex,
+        Types.OutputRootProof calldata _outputRootProof,
+        bytes[] calldata _withdrawalProof
+    )
+        external
+    {
+        prove_proveWithdrawalTransaction_paused_internal(_tx, _l2OutputIndex, _outputRootProof, _withdrawalProof);
+    }
+
+    /// @custom:kontrol-array-length-equals _withdrawalProof: 3,
+    /// @custom:kontrol-bytes-length-equals _withdrawalProof: 600,
+    function prove_proveWithdrawalTransaction_paused3(
+        Types.WithdrawalTransaction memory _tx,
+        uint256 _l2OutputIndex,
+        Types.OutputRootProof calldata _outputRootProof,
+        bytes[] calldata _withdrawalProof
+    )
+        external
+    {
+        prove_proveWithdrawalTransaction_paused_internal(_tx, _l2OutputIndex, _outputRootProof, _withdrawalProof);
+    }
+
+    /// @custom:kontrol-array-length-equals _withdrawalProof: 2,
+    /// @custom:kontrol-bytes-length-equals _withdrawalProof: 600,
+    function prove_proveWithdrawalTransaction_paused2(
+        Types.WithdrawalTransaction memory _tx,
+        uint256 _l2OutputIndex,
+        Types.OutputRootProof calldata _outputRootProof,
+        bytes[] calldata _withdrawalProof
+    )
+        external
+    {
+        prove_proveWithdrawalTransaction_paused_internal(_tx, _l2OutputIndex, _outputRootProof, _withdrawalProof);
+    }
+
+    /// @custom:kontrol-array-length-equals _withdrawalProof: 1,
+    /// @custom:kontrol-bytes-length-equals _withdrawalProof: 600,
+    function prove_proveWithdrawalTransaction_paused1(
+        Types.WithdrawalTransaction memory _tx,
+        uint256 _l2OutputIndex,
+        Types.OutputRootProof calldata _outputRootProof,
+        bytes[] calldata _withdrawalProof
+    )
+        external
+    {
+        prove_proveWithdrawalTransaction_paused_internal(_tx, _l2OutputIndex, _outputRootProof, _withdrawalProof);
+    }
+
+    function prove_proveWithdrawalTransaction_paused0(
+        Types.WithdrawalTransaction memory _tx,
+        uint256 _l2OutputIndex,
+        Types.OutputRootProof calldata _outputRootProof
+    )
+        external
+    {
+        bytes[] memory _withdrawalProof = new bytes[](0);
+        prove_proveWithdrawalTransaction_paused_internal(_tx, _l2OutputIndex, _outputRootProof, _withdrawalProof);
     }
 }
