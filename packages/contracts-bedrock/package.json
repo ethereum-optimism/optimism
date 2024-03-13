@@ -17,6 +17,7 @@
     "prebuild": "./scripts/checks/check-foundry-install.sh",
     "build": "forge build",
     "build:go-ffi": "(cd scripts/go-ffi && go build)",
+    "autogen": "pnpm bindings:go && pnpm autogen:invariant-docs && pnpm semver-lock && pnpm gas-snapshot && pnpm snapshots",
     "autogen:invariant-docs": "npx tsx scripts/autogen/generate-invariant-docs.ts",
     "test": "pnpm build:go-ffi && forge test",
     "test:kontrol": "./test/kontrol/scripts/run-kontrol.sh",
