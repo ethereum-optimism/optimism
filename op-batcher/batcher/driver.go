@@ -348,15 +348,22 @@ func (l *BatchSubmitter) clearState(ctx context.Context) {
 	l.Log.Info("Clearing state")
 	defer l.Log.Info("State cleared")
 
-	// Attempt to set the L1 safe origin and clear the state, if fetching fails -- fall through to an infinite retry
-	l1SafeOrigin, err := l.safeL1Origin(ctx)
-	if err == nil {
-		l.Log.Info("Clearing state with safe L1 origin", "origin", l1SafeOrigin)
-		l.state.Clear(l1SafeOrigin)
-		return
+	clearStateWithL1Origin := func() bool {
+		l1SafeOrigin, err := l.safeL1Origin(ctx)
+		if err != nil {
+			l.Log.Warn("Failed to query L1 safe origin, will retry", "err", err)
+			return false
+		} else {
+			l.Log.Info("Clearing state with safe L1 origin", "origin", l1SafeOrigin)
+			l.state.Clear(l1SafeOrigin)
+			return true
+		}
 	}
 
-	l.Log.Info("failed to query L1 safe origin, will retry", "err", err)
+	// Attempt to set the L1 safe origin and clear the state, if fetching fails -- fall through to an infinite retry
+	if clearStateWithL1Origin() {
+		return
+	}
 
 	tick := time.NewTicker(5 * time.Second)
 	defer tick.Stop()
@@ -364,12 +371,7 @@ func (l *BatchSubmitter) clearState(ctx context.Context) {
 	for {
 		select {
 		case <-tick.C:
-			l1SafeOrigin, err := l.safeL1Origin(ctx)
-			if err != nil {
-				l.Log.Warn("Failed to query L1 safe origin, will retry", "err", err)
-			} else {
-				l.Log.Info("Clearing state with safe L1 origin", "origin", l1SafeOrigin)
-				l.state.Clear(l1SafeOrigin)
+			if clearStateWithL1Origin() {
 				return
 			}
 		case <-ctx.Done():

@@ -306,8 +306,8 @@ func (c *ChannelBuilder) updateTimeout(timeoutBlockNum uint64, reason error) {
 
 // CheckTimeout checks if the channel is timed out at the given block number and
 // in this case marks the channel as full, if it wasn't full already.
-func (c *ChannelBuilder) CheckTimeout(blockNum uint64) {
-	if !c.IsFull() && c.TimedOut(blockNum) {
+func (c *ChannelBuilder) CheckTimeout(l1BlockNum uint64) {
+	if !c.IsFull() && c.TimedOut(l1BlockNum) {
 		c.setFullErr(c.timeoutReason)
 	}
 }
