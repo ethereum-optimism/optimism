@@ -3,6 +3,7 @@ package plasma
 import (
 	"container/heap"
 	"errors"
+	"fmt"
 
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -14,7 +15,7 @@ var ErrReorgRequired = errors.New("reorg required")
 type ChallengeStatus uint8
 
 const (
-	ChallengeUnititialized ChallengeStatus = iota
+	ChallengeUninitialized ChallengeStatus = iota
 	ChallengeActive
 	ChallengeResolved
 	ChallengeExpired
@@ -27,6 +28,7 @@ type Commitment struct {
 	expiresAt       uint64          // represents the block number after which the commitment can no longer be challenged or if challenged no longer be resolved.
 	blockNumber     uint64          // block where the commitment is included as calldata to the batcher inbox
 	challengeStatus ChallengeStatus // latest known challenge status
+	canonical       bool            // whether the commitment was derived as part of the canonical chain
 }
 
 // CommQueue is a queue of commitments ordered by block number.
@@ -75,11 +77,30 @@ func NewState(log log.Logger, m Metricer) *State {
 }
 
 // IsTracking returns whether we currently have a commitment for the given key.
+// if the block number is mismatched we return false to ignore the challenge.
 func (s *State) IsTracking(key []byte, bn uint64) bool {
 	if c, ok := s.commsByKey[string(key)]; ok {
 		return c.blockNumber == bn
 	}
-	return false
+	// track the commitment knowing we may be in detached head and not have seen
+	// the commitment in the inbox yet.
+	s.TrackDetachedCommitment(key, bn)
+	return true
+}
+
+// TrackDetachedCommitment is used for indexing challenges for commitments that have not yet
+// been derived due to the derivation pipeline being stalled pending a commitment to be challenged.
+// Memory usage is bound to L1 block space during the DA windows, so it is hard and expensive to spam.
+func (s *State) TrackDetachedCommitment(key []byte, bn uint64) {
+	c := &Commitment{
+		key:         key,
+		expiresAt:   bn,
+		blockNumber: bn,
+		canonical:   false,
+	}
+	s.log.Debug("tracking detached commitment", "blockNumber", c.blockNumber, "commitment", fmt.Sprintf("%x", key))
+	heap.Push(&s.comms, c)
+	s.commsByKey[string(key)] = c
 }
 
 // SetActiveChallenge switches the state of a given commitment to active challenge. Noop if
@@ -112,6 +133,7 @@ func (s *State) SetInputCommitment(key []byte, committedAt uint64, challengeWind
 		key:         key,
 		expiresAt:   committedAt + challengeWindow,
 		blockNumber: committedAt,
+		canonical:   true,
 	}
 	s.log.Debug("append commitment", "expiresAt", c.expiresAt, "blockNumber", c.blockNumber)
 	heap.Push(&s.comms, c)
@@ -124,6 +146,8 @@ func (s *State) SetInputCommitment(key []byte, committedAt uint64, challengeWind
 // initializes a new commitment and adds it to the state.
 func (s *State) GetOrTrackChallenge(key []byte, bn uint64, challengeWindow uint64) *Commitment {
 	if c, ok := s.commsByKey[string(key)]; ok {
+		// if the commitment is already tracked, mark it as canonical.
+		c.canonical = true
 		return c
 	}
 	return s.SetInputCommitment(key, bn, challengeWindow)
@@ -146,6 +170,10 @@ func (s *State) ExpireChallenges(bn uint64) (uint64, error) {
 	var err error
 	for i := 0; i < len(s.comms); i++ {
 		c := s.comms[i]
+		// skip challenges that do not relate to derived commitments so far.
+		if !c.canonical {
+			continue
+		}
 		if c.expiresAt <= bn && c.blockNumber > latest {
 			latest = c.blockNumber
 

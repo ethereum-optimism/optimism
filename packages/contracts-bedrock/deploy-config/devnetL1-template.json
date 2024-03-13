@@ -63,8 +63,8 @@
   "respectedGameType": 0,
   "useFaultProofs": false,
   "usePlasma": false,
-  "daChallengeWindow": 6,
-  "daResolveWindow": 6,
+  "daChallengeWindow": 160,
+  "daResolveWindow": 160,
   "daBondSize": 1000000,
   "daResolverRefundPercentage": 0
 }

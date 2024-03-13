@@ -50,6 +50,7 @@ func (s *PlasmaDataSource) Next(ctx context.Context) (eth.Data, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		if len(data) == 0 {
 			return nil, NotEnoughData
 		}

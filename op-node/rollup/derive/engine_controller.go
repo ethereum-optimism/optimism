@@ -129,6 +129,8 @@ func (e *EngineController) SetFinalizedHead(r eth.L2BlockRef) {
 	e.metrics.RecordL2Ref("l2_finalized", r)
 	e.finalizedHead = r
 	e.needFCUCall = true
+
+	e.log.Debug("finalized head set", "head", r)
 }
 
 // SetPendingSafeL2Head implements LocalEngineControl.
