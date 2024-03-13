@@ -45,14 +45,22 @@ func (s *PlasmaDataSource) Next(ctx context.Context) (eth.Data, error) {
 	}
 
 	if s.comm == nil {
-		var err error
 		// the l1 source returns the input commitment for the batch.
 		data, err := s.src.Next(ctx)
 		if err != nil {
 			return nil, err
 		}
+		if len(data) == 0 {
+			return nil, NotEnoughData
+		}
+		// If the tx data type is not plasma, we forward it downstream to let the next
+		// steps validate and potentially parse it as L1 DA inputs.
+		if data[0] != plasma.TxDataVersion1 {
+			return data, nil
+		}
+
 		// validate batcher inbox data is a commitment.
-		comm, err := plasma.DecodeKeccak256(data)
+		comm, err := plasma.DecodeKeccak256(data[1:])
 		if err != nil {
 			s.log.Warn("invalid commitment", "commitment", data, "err", err)
 			return s.Next(ctx)

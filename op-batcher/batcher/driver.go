@@ -400,7 +400,8 @@ func (l *BatchSubmitter) sendTransaction(ctx context.Context, txdata txData, que
 				l.recordFailedTx(txdata, err)
 				return nil
 			}
-			data = comm.Encode()
+			// signal plasma commitment tx with TxDataVersion1
+			data = comm.TxData()
 		}
 		candidate = l.calldataTxCandidate(data)
 	}
