@@ -1421,7 +1421,7 @@ jobs:
       - run:
           name: compat-sepolia
           command: |
-            make run-sepolia-verify
+            make verify-compat
           working_directory: op-program
 
   check-generated-mocks-op-node:
