@@ -1,4 +1,4 @@
-package derive
+package engine
 
 import (
 	"context"
@@ -32,17 +32,8 @@ const (
 	syncStatusFinishedEL                // EL sync is done & we should be performing consolidation
 )
 
-var errNoFCUNeeded = errors.New("no FCU call was needed")
-
 var _ EngineControl = (*EngineController)(nil)
 var _ LocalEngineControl = (*EngineController)(nil)
-
-type ExecEngine interface {
-	GetPayload(ctx context.Context, payloadInfo eth.PayloadInfo) (*eth.ExecutionPayloadEnvelope, error)
-	ForkchoiceUpdate(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error)
-	NewPayload(ctx context.Context, payload *eth.ExecutionPayload, parentBeaconBlockRoot *common.Hash) (*eth.PayloadStatusV1, error)
-	L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error)
-}
 
 type EngineController struct {
 	engine     ExecEngine // Underlying execution engine RPC
@@ -72,10 +63,10 @@ type EngineController struct {
 	buildingOnto eth.L2BlockRef
 	buildingInfo eth.PayloadInfo
 	buildingSafe bool
-	safeAttrs    *AttributesWithParent
+	safeAttrs    *derive.AttributesWithParent
 }
 
-func NewEngineController(engine ExecEngine, log log.Logger, metrics Metrics, rollupCfg *rollup.Config, syncMode sync.Mode) *EngineController {
+func NewEngineController(engine rollup.ExecEngine, log log.Logger, metrics Metrics, rollupCfg *rollup.Config, syncMode sync.Mode) *EngineController {
 	syncStatus := syncStatusCL
 	if syncMode == sync.ELSync {
 		syncStatus = syncStatusWillStartEL
@@ -160,9 +151,9 @@ func (e *EngineController) SetBackupUnsafeL2Head(r eth.L2BlockRef, triggerReorg 
 
 // Engine Methods
 
-func (e *EngineController) StartPayload(ctx context.Context, parent eth.L2BlockRef, attrs *AttributesWithParent, updateSafe bool) (errType BlockInsertionErrType, err error) {
+func (e *EngineController) StartPayload(ctx context.Context, parent eth.L2BlockRef, attrs *derive.AttributesWithParent, updateSafe bool) (errType derive.BlockInsertionErrType, err error) {
 	if e.IsEngineSyncing() {
-		return BlockInsertTemporaryErr, fmt.Errorf("engine is in progess of p2p sync")
+		return derive.BlockInsertTemporaryErr, fmt.Errorf("engine is in progess of p2p sync")
 	}
 	if e.buildingInfo != (eth.PayloadInfo{}) {
 		e.log.Warn("did not finish previous block building, starting new building now", "prev_onto", e.buildingOnto, "prev_payload_id", e.buildingInfo.ID, "new_onto", parent)
@@ -174,25 +165,25 @@ func (e *EngineController) StartPayload(ctx context.Context, parent eth.L2BlockR
 		FinalizedBlockHash: e.finalizedHead.Hash,
 	}
 
-	id, errTyp, err := startPayload(ctx, e.engine, fc, attrs.attributes)
+	id, errTyp, err := startPayload(ctx, e.engine, fc, attrs.Attributes())
 	if err != nil {
 		return errTyp, err
 	}
 
-	e.buildingInfo = eth.PayloadInfo{ID: id, Timestamp: uint64(attrs.attributes.Timestamp)}
+	e.buildingInfo = eth.PayloadInfo{ID: id, Timestamp: uint64(attrs.Attributes().Timestamp)}
 	e.buildingSafe = updateSafe
 	e.buildingOnto = parent
 	if updateSafe {
 		e.safeAttrs = attrs
 	}
 
-	return BlockInsertOK, nil
+	return derive.BlockInsertOK, nil
 }
 
-func (e *EngineController) ConfirmPayload(ctx context.Context, agossip async.AsyncGossiper, sequencerConductor conductor.SequencerConductor) (out *eth.ExecutionPayloadEnvelope, errTyp BlockInsertionErrType, err error) {
+func (e *EngineController) ConfirmPayload(ctx context.Context, agossip async.AsyncGossiper, sequencerConductor conductor.SequencerConductor) (out *eth.ExecutionPayloadEnvelope, errTyp derive.BlockInsertionErrType, err error) {
 	// don't create a BlockInsertPrestateErr if we have a cached gossip payload
 	if e.buildingInfo == (eth.PayloadInfo{}) && agossip.Get() == nil {
-		return nil, BlockInsertPrestateErr, fmt.Errorf("cannot complete payload building: not currently building a payload")
+		return nil, derive.BlockInsertPrestateErr, fmt.Errorf("cannot complete payload building: not currently building a payload")
 	}
 	if p := agossip.Get(); p != nil && e.buildingOnto == (eth.L2BlockRef{}) {
 		e.log.Warn("Found reusable payload from async gossiper, and no block was being built. Reusing payload.",
@@ -208,14 +199,14 @@ func (e *EngineController) ConfirmPayload(ctx context.Context, agossip async.Asy
 		FinalizedBlockHash: e.finalizedHead.Hash,
 	}
 	// Update the safe head if the payload is built with the last attributes in the batch.
-	updateSafe := e.buildingSafe && e.safeAttrs != nil && e.safeAttrs.isLastInSpan
+	updateSafe := e.buildingSafe && e.safeAttrs != nil && e.safeAttrs.IsLastInSpan()
 	envelope, errTyp, err := confirmPayload(ctx, e.log, e.engine, fc, e.buildingInfo, updateSafe, agossip, sequencerConductor)
 	if err != nil {
 		return nil, errTyp, fmt.Errorf("failed to complete building on top of L2 chain %s, id: %s, error (%d): %w", e.buildingOnto, e.buildingInfo.ID, errTyp, err)
 	}
-	ref, err := PayloadToBlockRef(e.rollupCfg, envelope.ExecutionPayload)
+	ref, err := derive.PayloadToBlockRef(e.rollupCfg, envelope.ExecutionPayload)
 	if err != nil {
-		return nil, BlockInsertPayloadErr, NewResetError(fmt.Errorf("failed to decode L2 block ref from payload: %w", err))
+		return nil, derive.BlockInsertPayloadErr, derive.NewResetError(fmt.Errorf("failed to decode L2 block ref from payload: %w", err))
 	}
 	// Backup unsafeHead when new block is not built on original unsafe head.
 	if e.unsafeHead.Number >= ref.Number {
@@ -236,7 +227,7 @@ func (e *EngineController) ConfirmPayload(ctx context.Context, agossip async.Asy
 	}
 
 	e.resetBuildingState()
-	return envelope, BlockInsertOK, nil
+	return envelope, derive.BlockInsertOK, nil
 }
 
 func (e *EngineController) CancelPayload(ctx context.Context, force bool) error {
@@ -295,7 +286,7 @@ func (e *EngineController) checkForkchoiceUpdatedStatus(status eth.ExecutePayloa
 // this is a no-op if the nodes already agree on the forkchoice state.
 func (e *EngineController) TryUpdateEngine(ctx context.Context) error {
 	if !e.needFCUCall {
-		return errNoFCUNeeded
+		return rollup.ErrNoFCUNeeded
 	}
 	if e.IsEngineSyncing() {
 		e.log.Warn("Attempting to update forkchoice state while EL syncing")
@@ -311,12 +302,12 @@ func (e *EngineController) TryUpdateEngine(ctx context.Context) error {
 		if errors.As(err, &inputErr) {
 			switch inputErr.Code {
 			case eth.InvalidForkchoiceState:
-				return NewResetError(fmt.Errorf("forkchoice update was inconsistent with engine, need reset to resolve: %w", inputErr.Unwrap()))
+				return derive.NewResetError(fmt.Errorf("forkchoice update was inconsistent with engine, need reset to resolve: %w", inputErr.Unwrap()))
 			default:
-				return NewTemporaryError(fmt.Errorf("unexpected error code in forkchoice-updated response: %w", err))
+				return derive.NewTemporaryError(fmt.Errorf("unexpected error code in forkchoice-updated response: %w", err))
 			}
 		} else {
-			return NewTemporaryError(fmt.Errorf("failed to sync forkchoice with engine: %w", err))
+			return derive.NewTemporaryError(fmt.Errorf("failed to sync forkchoice with engine: %w", err))
 		}
 	}
 	e.needFCUCall = false
@@ -337,17 +328,17 @@ func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *et
 			e.log.Info("Skipping EL sync and going straight to CL sync because there is a finalized block", "id", b.ID())
 			return nil
 		} else {
-			return NewTemporaryError(fmt.Errorf("failed to fetch finalized head: %w", err))
+			return derive.NewTemporaryError(fmt.Errorf("failed to fetch finalized head: %w", err))
 		}
 	}
 	// Insert the payload & then call FCU
 	status, err := e.engine.NewPayload(ctx, envelope.ExecutionPayload, envelope.ParentBeaconBlockRoot)
 	if err != nil {
-		return NewTemporaryError(fmt.Errorf("failed to update insert payload: %w", err))
+		return derive.NewTemporaryError(fmt.Errorf("failed to update insert payload: %w", err))
 	}
 	if !e.checkNewPayloadStatus(status.Status) {
 		payload := envelope.ExecutionPayload
-		return NewTemporaryError(fmt.Errorf("cannot process unsafe payload: new - %v; parent: %v; err: %w",
+		return derive.NewTemporaryError(fmt.Errorf("cannot process unsafe payload: new - %v; parent: %v; err: %w",
 			payload.ID(), payload.ParentID(), eth.NewPayloadErr(payload, status)))
 	}
 
@@ -369,17 +360,17 @@ func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *et
 		if errors.As(err, &inputErr) {
 			switch inputErr.Code {
 			case eth.InvalidForkchoiceState:
-				return NewResetError(fmt.Errorf("pre-unsafe-block forkchoice update was inconsistent with engine, need reset to resolve: %w", inputErr.Unwrap()))
+				return derive.NewResetError(fmt.Errorf("pre-unsafe-block forkchoice update was inconsistent with engine, need reset to resolve: %w", inputErr.Unwrap()))
 			default:
-				return NewTemporaryError(fmt.Errorf("unexpected error code in forkchoice-updated response: %w", err))
+				return derive.NewTemporaryError(fmt.Errorf("unexpected error code in forkchoice-updated response: %w", err))
 			}
 		} else {
-			return NewTemporaryError(fmt.Errorf("failed to update forkchoice to prepare for new unsafe payload: %w", err))
+			return derive.NewTemporaryError(fmt.Errorf("failed to update forkchoice to prepare for new unsafe payload: %w", err))
 		}
 	}
 	if !e.checkForkchoiceUpdatedStatus(fcRes.PayloadStatus.Status) {
 		payload := envelope.ExecutionPayload
-		return NewTemporaryError(fmt.Errorf("cannot prepare unsafe chain for new payload: new - %v; parent: %v; err: %w",
+		return derive.NewTemporaryError(fmt.Errorf("cannot prepare unsafe chain for new payload: new - %v; parent: %v; err: %w",
 			payload.ID(), payload.ParentID(), eth.ForkchoiceUpdateErr(fcRes.PayloadStatus)))
 	}
 	e.SetUnsafeHead(ref)
@@ -437,15 +428,15 @@ func (e *EngineController) TryBackupUnsafeReorg(ctx context.Context) (bool, erro
 			e.SetBackupUnsafeL2Head(eth.L2BlockRef{}, false)
 			switch inputErr.Code {
 			case eth.InvalidForkchoiceState:
-				return true, NewResetError(fmt.Errorf("forkchoice update was inconsistent with engine, need reset to resolve: %w", inputErr.Unwrap()))
+				return true, derive.NewResetError(fmt.Errorf("forkchoice update was inconsistent with engine, need reset to resolve: %w", inputErr.Unwrap()))
 			default:
-				return true, NewTemporaryError(fmt.Errorf("unexpected error code in forkchoice-updated response: %w", err))
+				return true, derive.NewTemporaryError(fmt.Errorf("unexpected error code in forkchoice-updated response: %w", err))
 			}
 		} else {
 			// Retry when forkChoiceUpdate returns non-input error.
 			// Do not reset backupUnsafeHead because it will be used again.
 			e.needFCUCallForBackupUnsafeReorg = true
-			return true, NewTemporaryError(fmt.Errorf("failed to sync forkchoice with engine: %w", err))
+			return true, derive.NewTemporaryError(fmt.Errorf("failed to sync forkchoice with engine: %w", err))
 		}
 	}
 	if fcRes.PayloadStatus.Status == eth.ExecutionValid {
@@ -457,7 +448,7 @@ func (e *EngineController) TryBackupUnsafeReorg(ctx context.Context) (bool, erro
 	}
 	e.SetBackupUnsafeL2Head(eth.L2BlockRef{}, false)
 	// Execution engine could not reorg back to previous unsafe head.
-	return true, NewTemporaryError(fmt.Errorf("cannot restore unsafe chain using backupUnsafe: err: %w",
+	return true, derive.NewTemporaryError(fmt.Errorf("cannot restore unsafe chain using backupUnsafe: err: %w",
 		eth.ForkchoiceUpdateErr(fcRes.PayloadStatus)))
 }
 

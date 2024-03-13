@@ -1,17 +1,28 @@
-package derive
+package engine
 
 import (
 	"context"
 	"errors"
 	"fmt"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/async"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
+
+var ErrNoFCUNeeded = errors.New("no FCU call was needed")
+
+type ExecEngine interface {
+	GetPayload(ctx context.Context, payloadInfo eth.PayloadInfo) (*eth.ExecutionPayloadEnvelope, error)
+	ForkchoiceUpdate(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error)
+	NewPayload(ctx context.Context, payload *eth.ExecutionPayload, parentBeaconBlockRoot *common.Hash) (*eth.PayloadStatusV1, error)
+	L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error)
+}
 
 // isDepositTx checks an opaqueTx to determine if it is a Deposit Transaction
 // It has to return an error in the case the transaction is empty
@@ -122,7 +133,7 @@ func startPayload(ctx context.Context, eng ExecEngine, fc eth.ForkchoiceState, a
 func confirmPayload(
 	ctx context.Context,
 	log log.Logger,
-	eng ExecEngine,
+	eng rollup.ExecEngine,
 	fc eth.ForkchoiceState,
 	payloadInfo eth.PayloadInfo,
 	updateSafe bool,
