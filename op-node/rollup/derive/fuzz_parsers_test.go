@@ -116,8 +116,7 @@ func FuzzL1InfoInteropRoundTrip(f *testing.F) {
 			BlobBaseFee:       BytesToBigInt(blobBaseFee),
 			BaseFeeScalar:     baseFeeScalar,
 			BlobBaseFeeScalar: blobBaseFeeScalar,
-			InteropSetSize:    interopSetSize,
-			ChainIds:          chainIds,
+			DependencySet:     chainIds,
 		}
 		enc, err := in.marshalBinaryInterop()
 		if err != nil {
