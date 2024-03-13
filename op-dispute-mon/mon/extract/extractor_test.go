@@ -191,12 +191,12 @@ type mockGameCaller struct {
 	balanceAddr      common.Address
 }
 
-func (m *mockGameCaller) GetGameMetadata(_ context.Context, _ rpcblock.Block) (uint64, common.Hash, types.GameStatus, uint64, error) {
+func (m *mockGameCaller) GetGameMetadata(_ context.Context, _ rpcblock.Block) (common.Hash, uint64, common.Hash, types.GameStatus, uint64, error) {
 	m.metadataCalls++
 	if m.metadataErr != nil {
-		return 0, common.Hash{}, 0, 0, m.metadataErr
+		return common.Hash{}, 0, common.Hash{}, 0, 0, m.metadataErr
 	}
-	return 0, mockRootClaim, 0, 0, nil
+	return common.Hash{0xaa}, 0, mockRootClaim, 0, 0, nil
 }
 
 func (m *mockGameCaller) GetAllClaims(_ context.Context, _ rpcblock.Block) ([]faultTypes.Claim, error) {

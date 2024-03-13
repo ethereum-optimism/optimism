@@ -98,27 +98,29 @@ func (f *FaultDisputeGameContract) GetBlockRange(ctx context.Context) (prestateB
 	return
 }
 
-// GetGameMetadata returns the game's L2 block number, root claim, status, and game duration.
-func (f *FaultDisputeGameContract) GetGameMetadata(ctx context.Context, block rpcblock.Block) (uint64, common.Hash, gameTypes.GameStatus, uint64, error) {
+// GetGameMetadata returns the game's L1 head, L2 block number, root claim, status, and game duration.
+func (f *FaultDisputeGameContract) GetGameMetadata(ctx context.Context, block rpcblock.Block) (common.Hash, uint64, common.Hash, gameTypes.GameStatus, uint64, error) {
 	results, err := f.multiCaller.Call(ctx, block,
+		f.contract.Call(methodL1Head),
 		f.contract.Call(methodL2BlockNumber),
 		f.contract.Call(methodRootClaim),
 		f.contract.Call(methodStatus),
 		f.contract.Call(methodGameDuration))
 	if err != nil {
-		return 0, common.Hash{}, 0, 0, fmt.Errorf("failed to retrieve game metadata: %w", err)
+		return common.Hash{}, 0, common.Hash{}, 0, 0, fmt.Errorf("failed to retrieve game metadata: %w", err)
 	}
-	if len(results) != 4 {
-		return 0, common.Hash{}, 0, 0, fmt.Errorf("expected 3 results but got %v", len(results))
+	if len(results) != 5 {
+		return common.Hash{}, 0, common.Hash{}, 0, 0, fmt.Errorf("expected 3 results but got %v", len(results))
 	}
-	l2BlockNumber := results[0].GetBigInt(0).Uint64()
-	rootClaim := results[1].GetHash(0)
-	duration := results[3].GetUint64(0)
-	status, err := gameTypes.GameStatusFromUint8(results[2].GetUint8(0))
+	l1Head := results[0].GetHash(0)
+	l2BlockNumber := results[1].GetBigInt(0).Uint64()
+	rootClaim := results[2].GetHash(0)
+	status, err := gameTypes.GameStatusFromUint8(results[3].GetUint8(0))
 	if err != nil {
-		return 0, common.Hash{}, 0, 0, fmt.Errorf("failed to convert game status: %w", err)
+		return common.Hash{}, 0, common.Hash{}, 0, 0, fmt.Errorf("failed to convert game status: %w", err)
 	}
-	return l2BlockNumber, rootClaim, status, duration, nil
+	duration := results[4].GetUint64(0)
+	return l1Head, l2BlockNumber, rootClaim, status, duration, nil
 }
 
 func (f *FaultDisputeGameContract) GetGenesisOutputRoot(ctx context.Context) (common.Hash, error) {

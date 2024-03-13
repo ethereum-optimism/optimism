@@ -13,6 +13,8 @@ var ResolvedBondAmount = new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 128), 
 
 type EnrichedGameData struct {
 	types.GameMetadata
+	L1Head        common.Hash
+	L1HeadNum     uint64
 	L2BlockNumber uint64
 	RootClaim     common.Hash
 	Status        types.GameStatus
