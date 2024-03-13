@@ -20,7 +20,6 @@ func (*NoopMetricsImpl) RecordClaimResolutionDelayMax(delay float64) {}
 
 func (*NoopMetricsImpl) RecordOutputFetchTime(timestamp float64) {}
 
-func (*NoopMetricsImpl) RecordGamesStatus(inProgress, defenderWon, challengerWon int) {}
-func (*NoopMetricsImpl) RecordGameAgreement(status GameAgreementStatus, count int)    {}
+func (*NoopMetricsImpl) RecordGameAgreement(status GameAgreementStatus, count int) {}
 
 func (i *NoopMetricsImpl) RecordBondCollateral(_ common.Address, _ *big.Int, _ *big.Int) {}

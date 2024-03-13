@@ -42,23 +42,6 @@ type BidirectionalClaim struct {
 	Children []*BidirectionalClaim
 }
 
-type StatusBatch struct {
-	InProgress    int
-	DefenderWon   int
-	ChallengerWon int
-}
-
-func (s *StatusBatch) Add(status types.GameStatus) {
-	switch status {
-	case types.GameStatusInProgress:
-		s.InProgress++
-	case types.GameStatusDefenderWon:
-		s.DefenderWon++
-	case types.GameStatusChallengerWon:
-		s.ChallengerWon++
-	}
-}
-
 type ForecastBatch struct {
 	AgreeDefenderAhead      int
 	DisagreeDefenderAhead   int

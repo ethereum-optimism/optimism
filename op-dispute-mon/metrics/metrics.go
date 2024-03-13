@@ -42,7 +42,6 @@ type Metricer interface {
 
 	RecordOutputFetchTime(timestamp float64)
 
-	RecordGamesStatus(inProgress, defenderWon, challengerWon int)
 	RecordGameAgreement(status GameAgreementStatus, count int)
 
 	RecordBondCollateral(addr common.Address, required *big.Int, available *big.Int)
@@ -67,7 +66,6 @@ type Metrics struct {
 
 	claimResolutionDelayMax prometheus.Gauge
 
-	trackedGames   prometheus.GaugeVec
 	gamesAgreement prometheus.GaugeVec
 
 	requiredCollateral  prometheus.GaugeVec
@@ -112,13 +110,6 @@ func NewMetrics() *Metrics {
 			Namespace: Namespace,
 			Name:      "claim_resolution_delay_max",
 			Help:      "Maximum claim resolution delay in seconds",
-		}),
-		trackedGames: *factory.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: Namespace,
-			Name:      "tracked_games",
-			Help:      "Number of games being tracked by the challenger",
-		}, []string{
-			"status",
 		}),
 		gamesAgreement: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: Namespace,
@@ -183,12 +174,6 @@ func (m *Metrics) RecordClaimResolutionDelayMax(delay float64) {
 
 func (m *Metrics) Document() []opmetrics.DocumentedMetric {
 	return m.factory.Document()
-}
-
-func (m *Metrics) RecordGamesStatus(inProgress, defenderWon, challengerWon int) {
-	m.trackedGames.WithLabelValues("in_progress").Set(float64(inProgress))
-	m.trackedGames.WithLabelValues("defender_won").Set(float64(defenderWon))
-	m.trackedGames.WithLabelValues("challenger_won").Set(float64(challengerWon))
 }
 
 func (m *Metrics) RecordOutputFetchTime(timestamp float64) {
