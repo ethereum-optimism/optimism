@@ -92,4 +92,67 @@ contract Encoding_Test is CommonTest {
 
         assertEq(txn, _txn);
     }
+
+    /// @dev Tests that encodeSetL1BlockValuesInterop succeeds.
+    function test_encodeSetL1BlockValuesInterop_succeeds(
+        uint32 _baseFeeScalar,
+        uint32 _blobBaseFeeScalar,
+        uint64 _sequenceNumber,
+        uint64 _timestamp,
+        uint64 _number,
+        uint256 _baseFee,
+        uint256 _blobBaseFee,
+        bytes32 _hash,
+        bytes32 _batcherHash,
+        uint256[] memory _dependencySet
+    )
+        external
+    {
+        vm.assume(_dependencySet.length <= type(uint8).max);
+
+        Encoding.encodeSetL1BlockValuesInterop({
+            _baseFeeScalar: _baseFeeScalar,
+            _blobBaseFeeScalar: _blobBaseFeeScalar,
+            _sequenceNumber: _sequenceNumber,
+            _timestamp: _timestamp,
+            _number: _number,
+            _baseFee: _baseFee,
+            _blobBaseFee: _blobBaseFee,
+            _hash: _hash,
+            _batcherHash: _batcherHash,
+            _dependencySet: _dependencySet
+        });
+    }
+
+    /// @dev Tests that encodeSetL1BlockValuesInterop fails if the dependency set is too large.
+    function test_encodeSetL1BlockValuesInterop_dependencySetTooLarge_fails(
+        uint32 _baseFeeScalar,
+        uint32 _blobBaseFeeScalar,
+        uint64 _sequenceNumber,
+        uint64 _timestamp,
+        uint64 _number,
+        uint256 _baseFee,
+        uint256 _blobBaseFee,
+        bytes32 _hash,
+        bytes32 _batcherHash,
+        uint256[] memory _dependencySet
+    )
+        external
+    {
+        vm.assume(_dependencySet.length > type(uint8).max);
+
+        vm.expectRevert("Encoding: dependency set length is too large");
+        Encoding.encodeSetL1BlockValuesInterop({
+            _baseFeeScalar: _baseFeeScalar,
+            _blobBaseFeeScalar: _blobBaseFeeScalar,
+            _sequenceNumber: _sequenceNumber,
+            _timestamp: _timestamp,
+            _number: _number,
+            _baseFee: _baseFee,
+            _blobBaseFee: _blobBaseFee,
+            _hash: _hash,
+            _batcherHash: _batcherHash,
+            _dependencySet: _dependencySet
+        });
+    }
 }
