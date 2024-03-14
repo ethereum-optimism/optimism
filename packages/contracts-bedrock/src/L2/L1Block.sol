@@ -52,6 +52,10 @@ contract L1Block is ISemver {
     /// @notice The chain IDs of the interop dependency set.
     uint256[] public dependencySet;
 
+    /// @notice The selector of the "NotDepositor()" function.
+    ///         Error message used when the caller is not the depositor account.
+    bytes public errNotDepositor = hex"3cc50b45";
+
     /// @custom:semver 1.3.0
     string public constant version = "1.3.0";
 
@@ -106,7 +110,7 @@ contract L1Block is ISemver {
         assembly {
             // Revert if the caller is not the depositor account.
             if xor(caller(), DEPOSITOR_ACCOUNT) {
-                mstore(0x00, 0x3cc50b45) // 0x3cc50b45 is the 4-byte selector of "NotDepositor()"
+                mstore(0x00, errNotDepositor)
                 revert(0x1C, 0x04) // returns the stored 4-byte selector from above
             }
             let data := calldataload(4)
@@ -139,7 +143,7 @@ contract L1Block is ISemver {
         assembly {
             // Revert if the caller is not the depositor account.
             if xor(caller(), DEPOSITOR_ACCOUNT) {
-                mstore(0x00, 0x3cc50b45) // 0x3cc50b45 is the 4-byte selector of "NotDepositor()"
+                mstore(0x00, errNotDepositor)
                 revert(0x1C, 0x04) // returns the stored 4-byte selector from above
             }
             let data := calldataload(4)

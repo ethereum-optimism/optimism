@@ -187,8 +187,7 @@ contract L1BlockEcotone_Test is L1BlockTest {
         (bool success, bytes memory data) = address(l1Block).call(functionCallDataPacked);
         assertTrue(!success, "function call should have failed");
         // make sure return value is the expected function selector for "NotDepositor()"
-        bytes memory expReturn = hex"3cc50b45";
-        assertEq(data, expReturn);
+        assertEq(data, errNotDepositor);
     }
 }
 
@@ -293,8 +292,7 @@ contract L1BlockInterop_Test is L1BlockTest {
         (bool success, bytes memory data) = address(l1Block).call(functionCallDataPacked);
         assertTrue(!success, "function call should have failed");
         // make sure return value is the expected function selector for "NotDepositor()"
-        bytes memory expReturn = hex"3cc50b45";
-        assertEq(data, expReturn);
+        assertEq(data, errNotDepositor);
     }
 
     /// @dev Tests that `setL1BlockValuesInterop` fails if sender address is not the depositor
