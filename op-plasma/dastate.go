@@ -158,10 +158,6 @@ func (s *State) ExpireChallenges(bn uint64) (uint64, error) {
 	var err error
 	for i := 0; i < len(s.comms); i++ {
 		c := s.comms[i]
-		// skip challenges that do not relate to derived commitments so far.
-		if !c.canonical {
-			continue
-		}
 		if c.expiresAt <= bn && c.blockNumber > latest {
 			latest = c.blockNumber
 
