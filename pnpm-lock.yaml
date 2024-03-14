@@ -211,8 +211,8 @@ importers:
         specifier: ^1.10.0
         version: 1.10.0
       pino:
-        specifier: ^8.17.2
-        version: 8.17.2
+        specifier: ^8.19.0
+        version: 8.19.0
       pino-multi-stream:
         specifier: ^6.0.0
         version: 6.0.0
@@ -5944,7 +5944,7 @@ packages:
     resolution: {integrity: sha512-wKoab31pknvILkxAF8ss+v9iNyhw5Iu/0jLtRkUD74cNfOOLJNnqfFKAv0r7wVaTQxRZtWrMpGfShwwBjOcgcg==}
     deprecated: This is a stub types definition. pino provides its own type definitions, so you do not need this installed.
     dependencies:
-      pino: 8.17.2
+      pino: 8.19.0
     dev: true
 
   /@types/prettier@2.3.2:
@@ -14276,8 +14276,8 @@ packages:
       sonic-boom: 2.8.0
       thread-stream: 0.15.2
 
-  /pino@8.17.2:
-    resolution: {integrity: sha512-LA6qKgeDMLr2ux2y/YiUt47EfgQ+S9LznBWOJdN3q1dx2sv0ziDLUBeVpyVv17TEcGCBuWf0zNtg3M5m1NhhWQ==}
+  /pino@8.19.0:
+    resolution: {integrity: sha512-oswmokxkav9bADfJ2ifrvfHUwad6MLp73Uat0IkQWY3iAw5xTRoznXbXksZs8oaOUMpmhVWD+PZogNzllWpJaA==}
     hasBin: true
     dependencies:
       atomic-sleep: 1.0.0
