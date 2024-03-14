@@ -118,7 +118,7 @@ Command  | Description                                                          
 -------- | -------------------------------------------------------------------------- | ----------------------------- | ------------------------------------------------------------------
 `all`    | Generates bindings for both local and remotely sourced contracts.          | [Global Flags](#global-flags) | `bindgen generate [global-flags] all [local-flags] [remote-flags]`
 `local`  | Generates bindings for contracts with locally available Forge artifacts.   | [Local Flags](#local-flags)   | `bindgen generate [global-flags] local [local-flags]`
-`remote` | Generates bindings for contracts who's metadata is sourced from Etherscan. | [Remote Flags](#remote-flags) | `bindgen generate [global-flags] remote [remote-flags]`
+`remote` | Generates bindings for contracts whose metadata is sourced from Etherscan. | [Remote Flags](#remote-flags) | `bindgen generate [global-flags] remote [remote-flags]`
 
 The following displays how the CLI can be invoked from the monorepo root:
 
