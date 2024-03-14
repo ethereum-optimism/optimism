@@ -337,7 +337,37 @@ contract L1BlockInterop_Test is L1BlockTest {
         assertEq(data, expReturn);
     }
 
-    function testFuzz_isInDependencySet_succeeds(uint256[] calldata dependencySet) external {
+    /// @dev Tests that an arbitrary dependency set can be set and that ìsInDependencySet returns
+    ///      the expected results.
+    function testFuzz_isInDependencySet_succeeds(
+        uint32 baseFeeScalar,
+        uint32 blobBaseFeeScalar,
+        uint64 sequenceNumber,
+        uint64 timestamp,
+        uint64 number,
+        uint256 baseFee,
+        uint256 blobBaseFee,
+        bytes32 hash,
+        bytes32 batcherHash,
+        uint256[] calldata dependencySet
+    )
+        external
+    {
+        vm.assume(dependencySet.length <= type(uint8).max);
+
+        bytes memory functionCallDataPacked = Encoding.encodeSetL1BlockValuesInterop({
+            baseFeeScalar: baseFeeScalar,
+            blobBaseFeeScalar: blobBaseFeeScalar,
+            sequenceNumber: sequenceNumber,
+            timestamp: timestamp,
+            number: number,
+            baseFee: baseFee,
+            blobBaseFee: blobBaseFee,
+            hash: hash,
+            batcherHash: batcherHash,
+            dependencySet: dependencySet
+        });
+
         vm.prank(depositor);
         l1Block.setL1BlockValues(0, 0, 0, bytes32(0), 0, bytes32(0), 0, 0, dependencySet);
         for (uint256 i = 0; i < dependencySet.length; i++) {
