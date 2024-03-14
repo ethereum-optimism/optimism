@@ -13,6 +13,14 @@ import { SafeCall } from "src/libraries/SafeCall.sol";
 import { L1Block } from "src/L2/L1Block.sol";
 
 contract CrossL2InboxTest is CommonTest {
+    ICrossL2Inbox.Identifier sampleId = ICrossL2Inbox.Identifier({
+        origin: address(0),
+        blocknumber: 0,
+        logIndex: 0,
+        timestamp: block.timestamp,
+        chainId: block.chainid
+    });
+
     address depositor;
 
     function setUp() public virtual override {
@@ -28,24 +36,18 @@ contract CrossL2InboxTest is CommonTest {
         external
         payable
     {
-        // need to make sure address leads to successfull SafeCall by executeMessage
-        // TODO: how to make sure gasLeft coincides wtih executeMessage?
-        bool success = SafeCall.call({ _target: _target, _gas: gasleft(), _value: msg.value, _calldata: _msg });
-        vm.assume(success);
-
-        // timestamp invariant
         vm.assume(_id.timestamp <= block.timestamp);
 
-        // chainId invariant
-        uint256[] memory chainIds = new uint256[](1);
-        chainIds[0] = _id.chainId;
-        vm.prank(depositor);
-        l1Block.setL1BlockValues(0, 0, 0, bytes32(0), 0, bytes32(0), 0, 0, chainIds);
-        vm.assume(l1Block.isInDependencySet(_id.chainId));
+        // need to prevent call to L1Block.isInDependencySet from reverting
+        vm.mockCall(
+            address(l1Block), abi.encodeWithSelector(L1Block.isInDependencySet.selector, _id.chainId), abi.encode(true)
+        );
 
-        // only EOA invariant
+        // need to prevent underlying SafeCall to target from reverting
+        vm.etch(_target, address(0).code);
+
+        // executeMessage
         vm.prank(tx.origin);
-
         vm.expectCall(_target, _msg);
         crossL2Inbox.executeMessage{ value: msg.value }(_id, _target, _msg);
 
@@ -57,98 +59,39 @@ contract CrossL2InboxTest is CommonTest {
     }
 
     function test_executeMessage_invalidTimestamp_fails() external {
-        uint256[] memory chainIds = new uint256[](1);
-        chainIds[0] = 1;
-        vm.prank(depositor);
-        l1Block.setL1BlockValues(0, 0, 0, bytes32(0), 0, bytes32(0), 0, 0, chainIds);
-
-        ICrossL2Inbox.Identifier memory id = ICrossL2Inbox.Identifier({
-            origin: address(0),
-            blocknumber: 0,
-            logIndex: 0,
-            timestamp: block.timestamp + 1,
-            chainId: chainIds[0]
-        });
+        ICrossL2Inbox.Identifier memory id = sampleId;
+        id.timestamp = block.timestamp + 1;
 
         vm.prank(tx.origin);
-
-        bytes memory msg_ = abi.encode("");
-
         vm.expectRevert("CrossL2Inbox: invalid id timestamp");
-        crossL2Inbox.executeMessage(id, address(0), msg_);
+        crossL2Inbox.executeMessage(id, address(0), hex"1234");
     }
 
     function test_executeMessage_invalidChainId_fails() external {
-        ICrossL2Inbox.Identifier memory id = ICrossL2Inbox.Identifier({
-            origin: address(0),
-            blocknumber: 0,
-            logIndex: 0,
-            timestamp: block.timestamp,
-            chainId: 1
-        });
+        ICrossL2Inbox.Identifier memory id = sampleId;
+        id.chainId = 1;
 
         vm.prank(tx.origin);
-
-        bytes memory msg_ = abi.encode("");
-
         vm.expectRevert("CrossL2Inbox: id chain not in dependency set");
-        crossL2Inbox.executeMessage(id, address(0), msg_);
+        crossL2Inbox.executeMessage(id, address(0), hex"1234");
     }
 
     function test_executeMessage_sameChainId_succeeds() external {
-        ICrossL2Inbox.Identifier memory id = ICrossL2Inbox.Identifier({
-            origin: address(0),
-            blocknumber: 0,
-            logIndex: 0,
-            timestamp: block.timestamp,
-            chainId: block.chainid
-        });
-
         vm.prank(tx.origin);
-
-        bytes memory msg_ = abi.encode("");
-
-        crossL2Inbox.executeMessage(id, address(0), msg_);
+        crossL2Inbox.executeMessage(sampleId, address(0), hex"1234");
     }
 
     function test_executeMessage_invalidSender_fails() external {
-        uint256[] memory chainIds = new uint256[](1);
-        chainIds[0] = 1;
-        vm.prank(depositor);
-        l1Block.setL1BlockValues(0, 0, 0, bytes32(0), 0, bytes32(0), 0, 0, chainIds);
-
-        ICrossL2Inbox.Identifier memory id = ICrossL2Inbox.Identifier({
-            origin: address(0),
-            blocknumber: 0,
-            logIndex: 0,
-            timestamp: block.timestamp,
-            chainId: chainIds[0]
-        });
-
-        bytes memory msg_ = abi.encode("");
-
         vm.expectRevert("CrossL2Inbox: not EOA sender");
-        crossL2Inbox.executeMessage(id, address(0), msg_);
+        crossL2Inbox.executeMessage(sampleId, address(0), hex"1234");
     }
 
     function test_executeMessage_unsuccessfullSafeCall_fails() external {
-        uint256[] memory chainIds = new uint256[](1);
-        chainIds[0] = block.chainid;
-        vm.prank(depositor);
-        l1Block.setL1BlockValues(0, 0, 0, bytes32(0), 0, bytes32(0), 0, 0, chainIds);
-
-        ICrossL2Inbox.Identifier memory id = ICrossL2Inbox.Identifier({
-            origin: address(0),
-            blocknumber: 0,
-            logIndex: 0,
-            timestamp: block.timestamp,
-            chainId: chainIds[0]
-        });
-
+        // need to make sure address leads to unsuccessfull SafeCall by executeMessage
         vm.etch(address(0), address(new Reverter()).code);
 
         vm.prank(tx.origin);
         vm.expectRevert("CrossL2Inbox: target call failed");
-        crossL2Inbox.executeMessage(id, address(0), hex"1111");
+        crossL2Inbox.executeMessage(sampleId, address(0), hex"1234");
     }
 }
