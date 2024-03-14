@@ -65,7 +65,6 @@ contract L1Block is ISemver {
     /// @param _batcherHash    Versioned hash to authenticate batcher by.
     /// @param _l1FeeOverhead  L1 fee overhead.
     /// @param _l1FeeScalar    L1 fee scalar.
-    /// @param _dependencySet  Interop dependency set.
     function setL1BlockValues(
         uint64 _number,
         uint64 _timestamp,
@@ -74,8 +73,7 @@ contract L1Block is ISemver {
         uint64 _sequenceNumber,
         bytes32 _batcherHash,
         uint256 _l1FeeOverhead,
-        uint256 _l1FeeScalar,
-        uint256[] calldata _dependencySet
+        uint256 _l1FeeScalar
     )
         external
     {
@@ -90,7 +88,6 @@ contract L1Block is ISemver {
         batcherHash = _batcherHash;
         l1FeeOverhead = _l1FeeOverhead;
         l1FeeScalar = _l1FeeScalar;
-        dependencySet = _dependencySet;
     }
 
     /// @notice Updates the L1 block values for an Ecotone upgraded chain.
