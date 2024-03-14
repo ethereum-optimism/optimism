@@ -1,7 +1,6 @@
 package plasma
 
 import (
-	"container/heap"
 	"errors"
 	"fmt"
 
@@ -31,33 +30,10 @@ type Commitment struct {
 	canonical       bool            // whether the commitment was derived as part of the canonical chain
 }
 
-// CommQueue is a queue of commitments ordered by block number.
+// CommQueue is a FIFO queue of commitments ordered by block number.
+// They are naturally ordered as commitments are inserted in order of traversal.
+// State impl makes sure there are no duplicates and in case of retraversal we also reset the queue.
 type CommQueue []*Commitment
-
-var _ heap.Interface = (*CommQueue)(nil)
-
-func (c CommQueue) Len() int { return len(c) }
-
-func (c CommQueue) Less(i, j int) bool {
-	return c[i].blockNumber < c[j].blockNumber
-}
-
-func (c CommQueue) Swap(i, j int) {
-	c[i], c[j] = c[j], c[i]
-}
-
-func (c *CommQueue) Push(x any) {
-	*c = append(*c, x.(*Commitment))
-}
-
-func (c *CommQueue) Pop() any {
-	old := *c
-	n := len(old)
-	item := old[n-1]
-	old[n-1] = nil // avoid memory leak
-	*c = old[0 : n-1]
-	return item
-}
 
 // State tracks the commitment and their challenges in order of l1 inclusion.
 type State struct {
@@ -91,6 +67,7 @@ func (s *State) IsTracking(key []byte, bn uint64) bool {
 // TrackDetachedCommitment is used for indexing challenges for commitments that have not yet
 // been derived due to the derivation pipeline being stalled pending a commitment to be challenged.
 // Memory usage is bound to L1 block space during the DA windows, so it is hard and expensive to spam.
+// We do not append it yet in order to preserve the order.
 func (s *State) TrackDetachedCommitment(key []byte, bn uint64) {
 	c := &Commitment{
 		key:         key,
@@ -99,7 +76,6 @@ func (s *State) TrackDetachedCommitment(key []byte, bn uint64) {
 		canonical:   false,
 	}
 	s.log.Debug("tracking detached commitment", "blockNumber", c.blockNumber, "commitment", fmt.Sprintf("%x", key))
-	heap.Push(&s.comms, c)
 	s.commsByKey[string(key)] = c
 }
 
@@ -136,7 +112,7 @@ func (s *State) SetInputCommitment(key []byte, committedAt uint64, challengeWind
 		canonical:   true,
 	}
 	s.log.Debug("append commitment", "expiresAt", c.expiresAt, "blockNumber", c.blockNumber)
-	heap.Push(&s.comms, c)
+	s.comms = append(s.comms, c)
 	s.commsByKey[string(key)] = c
 
 	return c
@@ -147,7 +123,11 @@ func (s *State) SetInputCommitment(key []byte, committedAt uint64, challengeWind
 func (s *State) GetOrTrackChallenge(key []byte, bn uint64, challengeWindow uint64) *Commitment {
 	if c, ok := s.commsByKey[string(key)]; ok {
 		// if the commitment is already tracked, mark it as canonical.
-		c.canonical = true
+		// and append if in order.
+		if !c.canonical {
+			s.comms = append(s.comms, c)
+			c.canonical = true
+		}
 		return c
 	}
 	return s.SetInputCommitment(key, bn, challengeWindow)
@@ -199,15 +179,15 @@ func (s *State) Prune(bn uint64) {
 	} else {
 		bn = 0
 	}
-	if s.comms.Len() == 0 {
-		return
-	}
-	// only first element is the highest priority (lowest block number).
-	// next highest priority is swapped to the first position after a Pop.
-	for s.comms.Len() > 0 && s.comms[0].blockNumber < bn {
-		c := heap.Pop(&s.comms).(*Commitment)
-		s.log.Debug("prune commitment", "expiresAt", c.expiresAt, "blockNumber", c.blockNumber)
-		delete(s.commsByKey, string(c.key))
+	for i := 0; i < len(s.comms); i++ {
+		c := s.comms[i]
+		if c.blockNumber < bn {
+			s.log.Debug("prune commitment", "expiresAt", c.expiresAt, "blockNumber", c.blockNumber)
+			delete(s.commsByKey, string(c.key))
+		} else {
+			s.comms = append(s.comms[:0], s.comms[i:]...)
+			break
+		}
 	}
 }
 
