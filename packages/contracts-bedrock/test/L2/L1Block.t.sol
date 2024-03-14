@@ -369,7 +369,10 @@ contract L1BlockInterop_Test is L1BlockTest {
         });
 
         vm.prank(depositor);
-        l1Block.setL1BlockValues(0, 0, 0, bytes32(0), 0, bytes32(0), 0, 0, dependencySet);
+        (success,) = address(l1Block).call(functionCallDataPacked);
+
+        assertEq(l1Block.depenedencySetSize(), dependencySet.length);
+
         for (uint256 i = 0; i < dependencySet.length; i++) {
             assertTrue(l1Block.isInDependencySet(dependencySet[i]));
         }
