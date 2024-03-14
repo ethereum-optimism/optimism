@@ -97,7 +97,7 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver {
         );
 
         // Store the Identifier in transient storage.
-        _storeCalldataID();
+        _storeIdentifier();
 
         // Call the target account with the message payload.
         bool success = _callWithAllGas(_target, _msg);
@@ -107,7 +107,7 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver {
     }
 
     /// @notice Stores the Identifier in transient storage.
-    function _storeCalldataID() internal {
+    function _storeIdentifier() internal {
         assembly {
             tstore(ORIGIN_SLOT, calldataload(4))
             tstore(BLOCKNUMBER_SLOT, calldataload(36))
