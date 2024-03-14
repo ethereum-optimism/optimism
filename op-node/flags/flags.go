@@ -61,6 +61,13 @@ var (
 		Destination: new(string),
 		Category:    RollupCategory,
 	}
+	BuilderAPIAddr = &cli.StringFlag{
+		Name:     "l2.builder",
+		Usage:    "Address of Builder API HTTP endpoint to use.",
+		Required: false,
+		EnvVars:  prefixEnvVars("L2_BUILDER_API"),
+		Category: RollupCategory,
+	}
 	BeaconAddr = &cli.StringFlag{
 		Name:     "l1.beacon",
 		Usage:    "Address of L1 Beacon-node HTTP endpoint to use.",
@@ -218,6 +225,13 @@ var (
 		Usage:    "Number of L1 blocks to keep distance from the L1 head as a sequencer for picking an L1 origin.",
 		EnvVars:  prefixEnvVars("SEQUENCER_L1_CONFS"),
 		Value:    4,
+		Category: SequencerCategory,
+	}
+	SequencerBuilderEnabledFlag = &cli.BoolFlag{
+		Name:     "sequencer.builder-enabled",
+		Usage:    "Use the Builder API to fetch L2 blocks to sequence.",
+		EnvVars:  prefixEnvVars("SEQUENCER_BUILDER_ENABLED"),
+		Value:    false,
 		Category: SequencerCategory,
 	}
 	L1EpochPollIntervalFlag = &cli.DurationFlag{
