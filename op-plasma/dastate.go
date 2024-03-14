@@ -27,7 +27,7 @@ type Commitment struct {
 	expiresAt       uint64          // represents the block number after which the commitment can no longer be challenged or if challenged no longer be resolved.
 	blockNumber     uint64          // block where the commitment is included as calldata to the batcher inbox
 	challengeStatus ChallengeStatus // latest known challenge status
-	canonical       bool            // whether the commitment was derived as part of the canonical chain
+	canonical       bool            // whether the commitment was derived as part of the canonical chain if canonical it will be in comms queue if not in the pendingComms queue.
 }
 
 // CommQueue is a FIFO queue of commitments ordered by block number.
@@ -35,20 +35,27 @@ type Commitment struct {
 // State impl makes sure there are no duplicates and in case of retraversal we also reset the queue.
 type CommQueue []*Commitment
 
+// PendingCommQueue is a FIFO queue of commitments ordered by L1 challenge creation block.
+// They are naturally ordered as commitments are inserted in order of traversal.
+// When a challenge is indexed for a commitment that has not yet been derived, it is added to this queue.
+type PendingCommQueue []*Commitment
+
 // State tracks the commitment and their challenges in order of l1 inclusion.
 type State struct {
-	comms      CommQueue
-	commsByKey map[string]*Commitment
-	log        log.Logger
-	metrics    Metricer
+	comms        CommQueue
+	pendingComms PendingCommQueue
+	commsByKey   map[string]*Commitment
+	log          log.Logger
+	metrics      Metricer
 }
 
 func NewState(log log.Logger, m Metricer) *State {
 	return &State{
-		comms:      make(CommQueue, 0),
-		commsByKey: make(map[string]*Commitment),
-		log:        log,
-		metrics:    m,
+		comms:        make(CommQueue, 0),
+		pendingComms: make(PendingCommQueue, 0),
+		commsByKey:   make(map[string]*Commitment),
+		log:          log,
+		metrics:      m,
 	}
 }
 
@@ -67,7 +74,7 @@ func (s *State) IsTracking(key []byte, bn uint64) bool {
 // TrackDetachedCommitment is used for indexing challenges for commitments that have not yet
 // been derived due to the derivation pipeline being stalled pending a commitment to be challenged.
 // Memory usage is bound to L1 block space during the DA windows, so it is hard and expensive to spam.
-// We do not append it yet in order to preserve the order.
+// Note that the challenge status and expiration is updated separately after it is tracked.
 func (s *State) TrackDetachedCommitment(key []byte, bn uint64) {
 	c := &Commitment{
 		key:         key,
@@ -76,6 +83,7 @@ func (s *State) TrackDetachedCommitment(key []byte, bn uint64) {
 		canonical:   false,
 	}
 	s.log.Debug("tracking detached commitment", "blockNumber", c.blockNumber, "commitment", fmt.Sprintf("%x", key))
+	s.pendingComms = append(s.pendingComms, c)
 	s.commsByKey[string(key)] = c
 }
 
@@ -122,8 +130,8 @@ func (s *State) SetInputCommitment(key []byte, committedAt uint64, challengeWind
 // initializes a new commitment and adds it to the state.
 func (s *State) GetOrTrackChallenge(key []byte, bn uint64, challengeWindow uint64) *Commitment {
 	if c, ok := s.commsByKey[string(key)]; ok {
-		// if the commitment is already tracked, mark it as canonical.
-		// and append if in order.
+		// if the commitment was previously tracked from a challenge event,
+		// promote it to the comms queue. It will be removed from pending during pruning step.
 		if !c.canonical {
 			s.comms = append(s.comms, c)
 			c.canonical = true
@@ -173,22 +181,48 @@ func (s *State) ExpireChallenges(bn uint64) (uint64, error) {
 const commPruneMargin = 200
 
 // Prune removes commitments once they can no longer be challenged or resolved.
+// the finalized head block number is passed so we can safely remove any commitments
+// with finalized block numbers.
 func (s *State) Prune(bn uint64) {
 	if bn > commPruneMargin {
 		bn -= commPruneMargin
 	} else {
 		bn = 0
 	}
-	for i := 0; i < len(s.comms); i++ {
+	i := 0
+	for i < len(s.comms) {
 		c := s.comms[i]
+		// s.comms is ordered by block number.
 		if c.blockNumber < bn {
-			s.log.Debug("prune commitment", "expiresAt", c.expiresAt, "blockNumber", c.blockNumber)
 			delete(s.commsByKey, string(c.key))
+			i++
 		} else {
-			s.comms = append(s.comms[:0], s.comms[i:]...)
 			break
 		}
 	}
+	if i > 0 {
+		s.comms = append(s.comms[:0], s.comms[i:]...)
+	}
+	// pending commitments are also cleared once block is finalized
+	j := 0
+	for j < len(s.pendingComms) {
+		c := s.pendingComms[j]
+		// s.pendingComms is ordered by expiration block. As a result pruning of pending commitments
+		// will lag behind the pruning of the canonical commitments.
+		if c.expiresAt < bn {
+			// canonical commitments are evicted during the previous step
+			if !c.canonical {
+				delete(s.commsByKey, string(c.key))
+			}
+			j++
+		} else {
+			break
+		}
+	}
+	if j > 0 {
+		s.pendingComms = append(s.pendingComms[:0], s.pendingComms[j:]...)
+	}
+	s.log.Info("pruned commitments", "canonical", i, "pending", j)
 }
 
 // In case of L1 reorg, state should be cleared so we can sync all the challenge events
