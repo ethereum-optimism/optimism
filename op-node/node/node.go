@@ -51,14 +51,15 @@ type OpNode struct {
 	l1SafeSub      ethereum.Subscription // Subscription to get L1 safe blocks, a.k.a. justified data (polling)
 	l1FinalizedSub ethereum.Subscription // Subscription to get L1 safe blocks, a.k.a. justified data (polling)
 
-	l1Source  *sources.L1Client     // L1 Client to fetch data from
-	l2Driver  *driver.Driver        // L2 Engine to Sync
-	l2Source  *sources.EngineClient // L2 Execution Engine RPC bindings
-	server    *rpcServer            // RPC server hosting the rollup-node API
-	p2pNode   *p2p.NodeP2P          // P2P node functionality
-	p2pSigner p2p.Signer            // p2p gogssip application messages will be signed with this signer
-	tracer    Tracer                // tracer to get events for testing/debugging
-	runCfg    *RuntimeConfig        // runtime configurables
+	l1Source        *sources.L1Client         // L1 Client to fetch data from
+	l2Driver        *driver.Driver            // L2 Engine to Sync
+	l2Source        *sources.EngineClient     // L2 Execution Engine RPC bindings
+	l2BuilderSource *sources.BuilderAPIClient // L2 Builder API bindings
+	server          *rpcServer                // RPC server hosting the rollup-node API
+	p2pNode         *p2p.NodeP2P              // P2P node functionality
+	p2pSigner       p2p.Signer                // p2p gogssip application messages will be signed with this signer
+	tracer          Tracer                    // tracer to get events for testing/debugging
+	runCfg          *RuntimeConfig            // runtime configurables
 
 	safeDB closableSafeDB
 
@@ -365,7 +366,7 @@ func (n *OpNode) initL1BeaconAPI(ctx context.Context, cfg *Config) error {
 }
 
 func (n *OpNode) initL2(ctx context.Context, cfg *Config, snapshotLog log.Logger) error {
-	rpcClient, rpcCfg, err := cfg.L2.Setup(ctx, n.log, &cfg.Rollup)
+	rpcClient, rpcCfg, bCfg, err := cfg.L2.Setup(ctx, n.log, &cfg.Rollup)
 	if err != nil {
 		return fmt.Errorf("failed to setup L2 execution-engine RPC client: %w", err)
 	}
@@ -376,6 +377,8 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config, snapshotLog log.Logger
 	if err != nil {
 		return fmt.Errorf("failed to create Engine client: %w", err)
 	}
+
+	n.l2BuilderSource = sources.NewBuilderAPIClient(snapshotLog, bCfg)
 
 	if err := cfg.Rollup.ValidateL2Config(ctx, n.l2Source, cfg.Sync.SyncMode == sync.ELSync); err != nil {
 		return err
@@ -402,7 +405,7 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config, snapshotLog log.Logger
 	} else {
 		n.safeDB = safedb.Disabled
 	}
-	n.l2Driver = driver.NewDriver(&cfg.Driver, &cfg.Rollup, n.l2Source, n.l1Source, n.beacon, n, n, n.log, snapshotLog, n.metrics, cfg.ConfigPersistence, n.safeDB, &cfg.Sync, sequencerConductor, plasmaDA)
+	n.l2Driver = driver.NewDriver(&cfg.Driver, &cfg.Rollup, n.l2Source, n.l1Source, n.l2BuilderSource, n.beacon, n, n, n.log, snapshotLog, n.metrics, cfg.ConfigPersistence, n.safeDB, &cfg.Sync, sequencerConductor, plasmaDA)
 	return nil
 }
 

@@ -43,13 +43,17 @@ type Sequencer struct {
 
 	metrics SequencerMetrics
 
+	builderClient BuilderClient
+	// fetches payloads from builder if set to true
+	fetchPayload bool
+
 	// timeNow enables sequencer testing to mock the time
 	timeNow func() time.Time
 
 	nextAction time.Time
 }
 
-func NewSequencer(log log.Logger, rollupCfg *rollup.Config, engine derive.EngineControl, attributesBuilder derive.AttributesBuilder, l1OriginSelector L1OriginSelectorIface, metrics SequencerMetrics) *Sequencer {
+func NewSequencer(log log.Logger, rollupCfg *rollup.Config, engine derive.EngineControl, attributesBuilder derive.AttributesBuilder, l1OriginSelector L1OriginSelectorIface, metrics SequencerMetrics, builderClient BuilderClient, fetchPayload bool) *Sequencer {
 	return &Sequencer{
 		log:              log,
 		rollupCfg:        rollupCfg,
@@ -58,6 +62,8 @@ func NewSequencer(log log.Logger, rollupCfg *rollup.Config, engine derive.Engine
 		attrBuilder:      attributesBuilder,
 		l1OriginSelector: l1OriginSelector,
 		metrics:          metrics,
+		builderClient:    builderClient,
+		fetchPayload:     fetchPayload,
 	}
 }
 

@@ -129,6 +129,13 @@ func (m *FakeEngineControl) resetBuildingState() {
 
 var _ derive.EngineControl = (*FakeEngineControl)(nil)
 
+type testBuilderClient struct {
+}
+
+func (bc *testBuilderClient) FetchPayload(ctx context.Context, parent common.Hash) (*eth.ExecutionPayloadEnvelope, error) {
+	return nil, nil
+}
+
 type testAttrBuilderFn func(ctx context.Context, l2Parent eth.L2BlockRef, epoch eth.BlockID) (attrs *eth.PayloadAttributes, err error)
 
 func (fn testAttrBuilderFn) PreparePayloadAttributes(ctx context.Context, l2Parent eth.L2BlockRef, epoch eth.BlockID) (attrs *eth.PayloadAttributes, err error) {
@@ -300,7 +307,9 @@ func TestSequencerChaosMonkey(t *testing.T) {
 		}
 	})
 
-	seq := NewSequencer(log, cfg, engControl, attrBuilder, originSelector, metrics.NoopMetrics)
+	builderClient := &testBuilderClient{}
+
+	seq := NewSequencer(log, cfg, engControl, attrBuilder, originSelector, metrics.NoopMetrics, builderClient, false)
 	seq.timeNow = clockFn
 
 	// try to build 1000 blocks, with 5x as many planning attempts, to handle errors and clock problems

@@ -44,7 +44,7 @@ func NewBuilderAPIClient(log log.Logger, config *BuilderAPIConfig) *BuilderAPICl
 	}
 }
 
-func (s *BuilderAPIClient) GetBuilderPayload(ctx context.Context, parent common.Hash) (*eth.ExecutionPayloadEnvelope, error) {
+func (s *BuilderAPIClient) FetchPayload(ctx context.Context, parent common.Hash) (*eth.ExecutionPayloadEnvelope, error) {
 	responsePayload := new(eth.ExecutionPayloadEnvelope)
 	url := fmt.Sprintf("%s/%s/%s", s.config.Endpoint, PathGetMevPayload, parent.Hex())
 	httpClient := http.Client{Timeout: 10 * time.Second}
