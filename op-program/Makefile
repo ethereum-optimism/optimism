@@ -8,6 +8,7 @@ LDFLAGSSTRING +=-X github.com/ethereum-optimism/optimism/op-program/version.Vers
 LDFLAGSSTRING +=-X github.com/ethereum-optimism/optimism/op-program/version.Meta=$(VERSION_META)
 LDFLAGS := -ldflags "$(LDFLAGSSTRING)"
 
+COMPAT_DIR := temp/compat
 
 op-program: \
 	op-program-host \
