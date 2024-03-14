@@ -160,7 +160,7 @@ contract L1BlockEcotone_Test is L1BlockTest {
         (bool success, bytes memory data) = address(l1Block).call(functionCallDataPacked);
         assertTrue(!success, "function call should have failed");
         // make sure return value is the expected function selector for "NotDepositor()"
-        assertEq(bytes32(data), bytes32(l1Block.ERR_NOT_DEPOSITOR()));
+        assertEq(bytes4(data), bytes4(l1Block.ERR_NOT_DEPOSITOR()));
     }
 }
 
@@ -265,7 +265,7 @@ contract L1BlockInterop_Test is L1BlockTest {
         (bool success, bytes memory data) = address(l1Block).call(functionCallDataPacked);
         assertTrue(!success, "function call should have failed");
         // make sure return value is the expected function selector for "NotDepositor()"
-        assertEq(bytes32(data), bytes32(l1Block.ERR_NOT_DEPOSITOR()));
+        assertEq(bytes4(data), bytes4(l1Block.ERR_NOT_DEPOSITOR()));
     }
 
     /// @dev Tests that `setL1BlockValuesInterop` fails if _dependencySetSize is the same as
@@ -323,7 +323,7 @@ contract L1BlockInterop_Test is L1BlockTest {
         (bool success, bytes memory data) = address(l1Block).call(functionCallDataPacked);
         assertTrue(!success, "function call should have failed");
         // make sure return value is the expected function selector for "DependencySetSizeMismatch()"
-        assertEq(bytes32(data), bytes32(l1Block.ERR_DEPENDENCYSET_SIZE_MISMATCH()));
+        assertEq(bytes4(data), bytes4(l1Block.ERR_DEPENDENCYSET_SIZE_MISMATCH()));
     }
 
     /// @dev Tests that an arbitrary dependency set can be set and that ìsInDependencySet returns
