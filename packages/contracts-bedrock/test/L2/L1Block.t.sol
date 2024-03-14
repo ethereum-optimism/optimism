@@ -193,7 +193,6 @@ contract L1BlockInterop_Test is L1BlockTest {
             blobBaseFee,
             hash,
             batcherHash,
-            uint8(dependencySet.length),
             dependencySet
         );
 
@@ -240,7 +239,6 @@ contract L1BlockInterop_Test is L1BlockTest {
             type(uint256).max,
             bytes32(type(uint256).max),
             bytes32(type(uint256).max),
-            0,
             new uint256[](0)
         );
 
@@ -261,7 +259,6 @@ contract L1BlockInterop_Test is L1BlockTest {
             type(uint256).max,
             bytes32(type(uint256).max),
             bytes32(type(uint256).max),
-            0,
             new uint256[](0)
         );
 
@@ -286,7 +283,6 @@ contract L1BlockInterop_Test is L1BlockTest {
             type(uint256).max,
             bytes32(type(uint256).max),
             bytes32(type(uint256).max),
-            uint8(dependencySet.length),
             dependencySet
         );
 
@@ -305,7 +301,8 @@ contract L1BlockInterop_Test is L1BlockTest {
         vm.assume(dependencySet.length == uint256(uint8(dependencySet.length)));
         vm.assume(notDependencySetSize != dependencySet.length);
 
-        bytes memory functionCallDataPacked = Encoding.encodeSetL1BlockValuesInterop(
+        bytes memory functionCallDataPacked = abi.encodePacked(
+            bytes4(keccak256("setL1BlockValuesInterop()")),
             type(uint32).max,
             type(uint32).max,
             type(uint64).max,
