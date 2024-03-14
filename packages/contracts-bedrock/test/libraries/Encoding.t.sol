@@ -107,6 +107,7 @@ contract Encoding_Test is CommonTest {
         uint256[] memory _dependencySet
     )
         external
+        pure
     {
         vm.assume(_dependencySet.length <= type(uint8).max);
 
