@@ -30,15 +30,12 @@ contract L1BlockBedrock_Test is L1BlockTest {
         uint64 s,
         bytes32 bt,
         uint256 fo,
-        uint256 fs,
-        uint256[] calldata ds
+        uint256 fs
     )
         external
     {
-        // Enforce that the length of the dependency set is uint8
-        vm.assume(ds.length <= type(uint8).max);
         vm.prank(depositor);
-        l1Block.setL1BlockValues(n, t, b, h, s, bt, fo, fs, ds);
+        l1Block.setL1BlockValues(n, t, b, h, s, bt, fo, fs);
         assertEq(l1Block.number(), n);
         assertEq(l1Block.timestamp(), t);
         assertEq(l1Block.basefee(), b);
@@ -47,10 +44,6 @@ contract L1BlockBedrock_Test is L1BlockTest {
         assertEq(l1Block.batcherHash(), bt);
         assertEq(l1Block.l1FeeOverhead(), fo);
         assertEq(l1Block.l1FeeScalar(), fs);
-        assertEq(l1Block.dependencySetSize(), ds.length);
-        for (uint256 i = 0; i < ds.length; i++) {
-            assertEq(l1Block.dependencySet(i), ds[i]);
-        }
     }
 
     /// @dev Tests that `setL1BlockValues` can set max values.
@@ -65,14 +58,12 @@ contract L1BlockBedrock_Test is L1BlockTest {
             _sequenceNumber: type(uint64).max,
             _batcherHash: bytes32(type(uint256).max),
             _l1FeeOverhead: type(uint256).max,
-            _l1FeeScalar: type(uint256).max,
-            _dependencySet: _dependencySet
+            _l1FeeScalar: type(uint256).max
         });
     }
 
     /// @dev Tests that `setL1BlockValues` fails if sender address is not the depositor
-    function test_setL1BlockValues_notDepositor_fails(uint256[] calldata _dependencySet) external {
-        vm.assume(_dependencySet.length <= type(uint8).max);
+    function test_setL1BlockValues_notDepositor_fails() external {
         vm.expectRevert("L1Block: only the depositor account can set L1 block values");
         l1Block.setL1BlockValues({
             _number: type(uint64).max,
@@ -82,8 +73,7 @@ contract L1BlockBedrock_Test is L1BlockTest {
             _sequenceNumber: type(uint64).max,
             _batcherHash: bytes32(type(uint256).max),
             _l1FeeOverhead: type(uint256).max,
-            _l1FeeScalar: type(uint256).max,
-            _dependencySet: _dependencySet
+            _l1FeeScalar: type(uint256).max
         });
     }
 }
@@ -170,7 +160,7 @@ contract L1BlockEcotone_Test is L1BlockTest {
         (bool success, bytes memory data) = address(l1Block).call(functionCallDataPacked);
         assertTrue(!success, "function call should have failed");
         // make sure return value is the expected function selector for "NotDepositor()"
-        assertEq(data, errNotDepositor);
+        assertEq(bytes32(data), bytes32(l1Block.ERR_NOT_DEPOSITOR()));
     }
 }
 
@@ -193,20 +183,20 @@ contract L1BlockInterop_Test is L1BlockTest {
         vm.assume(dependencySet.length <= type(uint8).max);
 
         bytes memory functionCallDataPacked = Encoding.encodeSetL1BlockValuesInterop({
-            baseFeeScalar: baseFeeScalar,
-            blobBaseFeeScalar: blobBaseFeeScalar,
-            sequenceNumber: sequenceNumber,
-            timestamp: timestamp,
-            number: number,
-            baseFee: baseFee,
-            blobBaseFee: blobBaseFee,
-            hash: hash,
-            batcherHash: batcherHash,
-            dependencySet: dependencySet
+            _baseFeeScalar: baseFeeScalar,
+            _blobBaseFeeScalar: blobBaseFeeScalar,
+            _sequenceNumber: sequenceNumber,
+            _timestamp: timestamp,
+            _number: number,
+            _baseFee: baseFee,
+            _blobBaseFee: blobBaseFee,
+            _hash: hash,
+            _batcherHash: batcherHash,
+            _dependencySet: dependencySet
         });
 
         vm.prank(depositor);
-        (success,) = address(l1Block).call(functionCallDataPacked);
+        (bool success,) = address(l1Block).call(functionCallDataPacked);
         assertTrue(success, "Function call failed");
 
         assertEq(l1Block.baseFeeScalar(), baseFeeScalar);
@@ -275,7 +265,7 @@ contract L1BlockInterop_Test is L1BlockTest {
         (bool success, bytes memory data) = address(l1Block).call(functionCallDataPacked);
         assertTrue(!success, "function call should have failed");
         // make sure return value is the expected function selector for "NotDepositor()"
-        assertEq(data, errNotDepositor);
+        assertEq(bytes32(data), bytes32(l1Block.ERR_NOT_DEPOSITOR()));
     }
 
     /// @dev Tests that `setL1BlockValuesInterop` fails if _dependencySetSize is the same as
@@ -333,7 +323,7 @@ contract L1BlockInterop_Test is L1BlockTest {
         (bool success, bytes memory data) = address(l1Block).call(functionCallDataPacked);
         assertTrue(!success, "function call should have failed");
         // make sure return value is the expected function selector for "DependencySetSizeMismatch()"
-        assertEq(data, errorDependencySetSizeMismatch);
+        assertEq(bytes32(data), bytes32(l1Block.ERR_DEPENDENCYSET_SIZE_MISMATCH()));
     }
 
     /// @dev Tests that an arbitrary dependency set can be set and that ìsInDependencySet returns
@@ -355,22 +345,23 @@ contract L1BlockInterop_Test is L1BlockTest {
         vm.assume(dependencySet.length <= type(uint8).max);
 
         bytes memory functionCallDataPacked = Encoding.encodeSetL1BlockValuesInterop({
-            baseFeeScalar: baseFeeScalar,
-            blobBaseFeeScalar: blobBaseFeeScalar,
-            sequenceNumber: sequenceNumber,
-            timestamp: timestamp,
-            number: number,
-            baseFee: baseFee,
-            blobBaseFee: blobBaseFee,
-            hash: hash,
-            batcherHash: batcherHash,
-            dependencySet: dependencySet
+            _baseFeeScalar: baseFeeScalar,
+            _blobBaseFeeScalar: blobBaseFeeScalar,
+            _sequenceNumber: sequenceNumber,
+            _timestamp: timestamp,
+            _number: number,
+            _baseFee: baseFee,
+            _blobBaseFee: blobBaseFee,
+            _hash: hash,
+            _batcherHash: batcherHash,
+            _dependencySet: dependencySet
         });
 
         vm.prank(depositor);
-        (success,) = address(l1Block).call(functionCallDataPacked);
+        (bool success,) = address(l1Block).call(functionCallDataPacked);
+        assertTrue(success, "Function call failed");
 
-        assertEq(l1Block.depenedencySetSize(), dependencySet.length);
+        assertEq(l1Block.dependencySetSize(), dependencySet.length);
 
         for (uint256 i = 0; i < dependencySet.length; i++) {
             assertTrue(l1Block.isInDependencySet(dependencySet[i]));
@@ -383,33 +374,35 @@ contract L1BlockInterop_Test is L1BlockTest {
     }
 
     /// @dev Tests that `isInDependencySet` fails when the input chain ID is not in the dependency set
-    function testFuzz_isInDependencySet_fails(uint256 _chainId) external {
-        vm.assume(_chainId != 1);
+    function testFuzz_isInDependencySet_fails(uint256 chainId) external {
+        vm.assume(chainId != 1);
 
         uint256[] memory dependencySet = new uint256[](1);
         dependencySet[0] = 1;
 
         bytes memory functionCallDataPacked = Encoding.encodeSetL1BlockValuesInterop({
-            baseFeeScalar: 0,
-            blobBaseFeeScalar: 0,
-            sequenceNumber: 0,
-            timestamp: bytes32(0),
-            number: 0,
-            baseFee: 0,
-            blobBaseFee: 0,
-            hash: bytes32(0),
-            batcherHash: 0,
-            dependencySet: dependencySet
+            _baseFeeScalar: 0,
+            _blobBaseFeeScalar: 0,
+            _sequenceNumber: 0,
+            _timestamp: 0,
+            _number: 0,
+            _baseFee: 0,
+            _blobBaseFee: 0,
+            _hash: bytes32(0),
+            _batcherHash: 0,
+            _dependencySet: dependencySet
         });
 
         vm.prank(depositor);
-        (success,) = address(l1Block).call(functionCallDataPacked);
-        assertFalse(l1Block.isInDependencySet(3));
+        (bool success,) = address(l1Block).call(functionCallDataPacked);
+        assertTrue(success, "Function call failed");
+
+        assertFalse(l1Block.isInDependencySet(chainId));
     }
 
     /// @dev Tests that `isInDependencySet` returns false when the dependency set is empty
-    function testFuzz_isInDependencySet_dependencySetEmpty_fails(uint256 _chainId) external {
+    function testFuzz_isInDependencySet_dependencySetEmpty_fails(uint256 chainId) external {
         assertTrue(l1Block.dependencySetSize() == 0);
-        assertFalse(l1Block.isInDependencySet(_chainId));
+        assertFalse(l1Block.isInDependencySet(chainId));
     }
 }
