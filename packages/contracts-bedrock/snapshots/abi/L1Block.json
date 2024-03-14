@@ -14,7 +14,7 @@
   },
   {
     "inputs": [],
-    "name": "ERR_DEPENDENCYSET_SIZE_MISMATCH",
+    "name": "ERR_DEPENDENCY_SET_SIZE_MISMATCH",
     "outputs": [
       {
         "internalType": "uint32",

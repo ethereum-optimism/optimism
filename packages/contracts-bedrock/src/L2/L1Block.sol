@@ -18,7 +18,7 @@ contract L1Block is ISemver {
     uint32 public constant ERR_NOT_DEPOSITOR = 0x3cc50b45;
 
     /// @notice Selector for 'DependencySetSizeMismatch()' error message.
-    uint32 public constant ERR_DEPENDENCYSET_SIZE_MISMATCH = 0x613457f2;
+    uint32 public constant ERR_DEPENDENCY_SET_SIZE_MISMATCH = 0x613457f2;
 
     /// @notice The latest L1 block number known by the L2 system.
     uint64 public number;
@@ -162,7 +162,7 @@ contract L1Block is ISemver {
 
             // Revert if dependencySetSize_ doesn't match the length of dependencySet in calldata
             if xor(add(165, mul(dependencySetSize_, 0x20)), calldatasize()) {
-                mstore(0x00, ERR_DEPENDENCYSET_SIZE_MISMATCH)
+                mstore(0x00, ERR_DEPENDENCY_SET_SIZE_MISMATCH)
                 revert(0x1C, 0x04) // returns the stored 4-byte selector from above
             }
 
