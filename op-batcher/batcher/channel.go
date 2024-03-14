@@ -34,11 +34,12 @@ type channel struct {
 	maxInclusionBlock uint64
 }
 
-func newChannel(log log.Logger, metr metrics.Metricer, cfg ChannelConfig, rollupCfg *rollup.Config) (*channel, error) {
-	cb, err := NewChannelBuilder(cfg, *rollupCfg)
+func newChannel(log log.Logger, metr metrics.Metricer, cfg ChannelConfig, rollupCfg *rollup.Config, latestL1OriginBlockNum uint64) (*channel, error) {
+	cb, err := NewChannelBuilder(cfg, *rollupCfg, latestL1OriginBlockNum)
 	if err != nil {
 		return nil, fmt.Errorf("creating new channel: %w", err)
 	}
+
 	return &channel{
 		log:                   log,
 		metr:                  metr,
@@ -99,6 +100,11 @@ func (s *channel) TxConfirmed(id string, inclusionBlock eth.BlockID) (bool, []*t
 	}
 
 	return false, nil
+}
+
+// Timeout returns the channel timeout L1 block number. If there is no timeout set, it returns 0.
+func (s *channel) Timeout() uint64 {
+	return s.channelBuilder.Timeout()
 }
 
 // updateInclusionBlocks finds the first & last confirmed tx and saves its inclusion numbers
@@ -183,8 +189,8 @@ func (s *channel) FullErr() error {
 	return s.channelBuilder.FullErr()
 }
 
-func (s *channel) RegisterL1Block(l1BlockNum uint64) {
-	s.channelBuilder.RegisterL1Block(l1BlockNum)
+func (s *channel) CheckTimeout(l1BlockNum uint64) {
+	s.channelBuilder.CheckTimeout(l1BlockNum)
 }
 
 func (s *channel) AddBlock(block *types.Block) (*derive.L1BlockInfo, error) {
@@ -213,6 +219,11 @@ func (s *channel) PendingFrames() int {
 
 func (s *channel) OutputFrames() error {
 	return s.channelBuilder.OutputFrames()
+}
+
+// LatestL1Origin returns the latest L1 block origin from all the L2 blocks that have been added to the channel
+func (c *channel) LatestL1Origin() eth.BlockID {
+	return c.channelBuilder.LatestL1Origin()
 }
 
 func (s *channel) Close() {

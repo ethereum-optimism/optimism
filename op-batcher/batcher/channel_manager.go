@@ -33,6 +33,8 @@ type channelManager struct {
 
 	// All blocks since the last request for new tx data.
 	blocks []*types.Block
+	// The latest L1 block from all the L2 blocks in the most recently closed channel
+	l1OriginLastClosedChannel eth.BlockID
 	// last block hash - for reorg detection
 	tip common.Hash
 
@@ -59,11 +61,12 @@ func NewChannelManager(log log.Logger, metr metrics.Metricer, cfg ChannelConfig,
 
 // Clear clears the entire state of the channel manager.
 // It is intended to be used before launching op-batcher and after an L2 reorg.
-func (s *channelManager) Clear() {
+func (s *channelManager) Clear(l1OriginLastClosedChannel eth.BlockID) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.log.Trace("clearing channel manager state")
 	s.blocks = s.blocks[:0]
+	s.l1OriginLastClosedChannel = l1OriginLastClosedChannel
 	s.tip = common.Hash{}
 	s.closed = false
 	s.currentChannel = nil
@@ -200,15 +203,19 @@ func (s *channelManager) ensureChannelWithSpace(l1Head eth.BlockID) error {
 		return nil
 	}
 
-	pc, err := newChannel(s.log, s.metr, s.cfg, s.rollupCfg)
+	pc, err := newChannel(s.log, s.metr, s.cfg, s.rollupCfg, s.l1OriginLastClosedChannel.Number)
+
 	if err != nil {
 		return fmt.Errorf("creating new channel: %w", err)
 	}
+
 	s.currentChannel = pc
 	s.channelQueue = append(s.channelQueue, pc)
+
 	s.log.Info("Created channel",
 		"id", pc.ID(),
 		"l1Head", l1Head,
+		"l1OriginLastClosedChannel", s.l1OriginLastClosedChannel,
 		"blocks_pending", len(s.blocks),
 		"batch_type", s.cfg.BatchType,
 		"max_frame_size", s.cfg.MaxFrameSize,
@@ -220,7 +227,7 @@ func (s *channelManager) ensureChannelWithSpace(l1Head eth.BlockID) error {
 
 // registerL1Block registers the given block at the pending channel.
 func (s *channelManager) registerL1Block(l1Head eth.BlockID) {
-	s.currentChannel.RegisterL1Block(l1Head.Number)
+	s.currentChannel.CheckTimeout(l1Head.Number)
 	s.log.Debug("new L1-block registered at channel builder",
 		"l1Head", l1Head,
 		"channel_full", s.currentChannel.IsFull(),
@@ -286,6 +293,11 @@ func (s *channelManager) outputFrames() error {
 		return nil
 	}
 
+	lastClosedL1Origin := s.currentChannel.LatestL1Origin()
+	if lastClosedL1Origin.Number > s.l1OriginLastClosedChannel.Number {
+		s.l1OriginLastClosedChannel = lastClosedL1Origin
+	}
+
 	inBytes, outBytes := s.currentChannel.InputBytes(), s.currentChannel.OutputBytes()
 	s.metr.RecordChannelClosed(
 		s.currentChannel.ID(),
@@ -300,14 +312,17 @@ func (s *channelManager) outputFrames() error {
 	if inBytes > 0 {
 		comprRatio = float64(outBytes) / float64(inBytes)
 	}
+
 	s.log.Info("Channel closed",
 		"id", s.currentChannel.ID(),
 		"blocks_pending", len(s.blocks),
 		"num_frames", s.currentChannel.TotalFrames(),
 		"input_bytes", inBytes,
 		"output_bytes", outBytes,
+		"l1_origin", lastClosedL1Origin,
 		"full_reason", s.currentChannel.FullErr(),
 		"compr_ratio", comprRatio,
+		"latest_l1_origin", s.l1OriginLastClosedChannel,
 	)
 	return nil
 }

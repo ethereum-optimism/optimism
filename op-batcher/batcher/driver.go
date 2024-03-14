@@ -10,10 +10,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
-
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
@@ -21,6 +17,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 var ErrBatcherNotRunning = errors.New("batcher is not running")
@@ -93,7 +92,7 @@ func (l *BatchSubmitter) StartBatchSubmitting() error {
 
 	l.shutdownCtx, l.cancelShutdownCtx = context.WithCancel(context.Background())
 	l.killCtx, l.cancelKillCtx = context.WithCancel(context.Background())
-	l.state.Clear()
+	l.clearState(l.shutdownCtx)
 	l.lastStoredBlock = eth.BlockID{}
 
 	l.wg.Add(1)
@@ -299,7 +298,7 @@ func (l *BatchSubmitter) loop() {
 				// on reorg we want to publish all pending state then wait until each result clears before resetting
 				// the state.
 				publishAndWait()
-				l.state.Clear()
+				l.clearState(l.shutdownCtx)
 				continue
 			}
 			l.publishStateToL1(queue, receiptsCh)
@@ -344,7 +343,46 @@ func (l *BatchSubmitter) publishStateToL1(queue *txmgr.Queue[txData], receiptsCh
 	}
 }
 
-// publishTxToL1 queues a single tx to be published to the L1
+// clearState clears the state of the channel manager
+func (l *BatchSubmitter) clearState(ctx context.Context) {
+	l.Log.Info("Clearing state")
+	defer l.Log.Info("State cleared")
+
+	clearStateWithL1Origin := func() bool {
+		l1SafeOrigin, err := l.safeL1Origin(ctx)
+		if err != nil {
+			l.Log.Warn("Failed to query L1 safe origin, will retry", "err", err)
+			return false
+		} else {
+			l.Log.Info("Clearing state with safe L1 origin", "origin", l1SafeOrigin)
+			l.state.Clear(l1SafeOrigin)
+			return true
+		}
+	}
+
+	// Attempt to set the L1 safe origin and clear the state, if fetching fails -- fall through to an infinite retry
+	if clearStateWithL1Origin() {
+		return
+	}
+
+	tick := time.NewTicker(5 * time.Second)
+	defer tick.Stop()
+
+	for {
+		select {
+		case <-tick.C:
+			if clearStateWithL1Origin() {
+				return
+			}
+		case <-ctx.Done():
+			l.Log.Warn("Clearing state cancelled")
+			l.state.Clear(eth.BlockID{})
+			return
+		}
+	}
+}
+
+// publishTxToL1 submits a single state tx to the L1
 func (l *BatchSubmitter) publishTxToL1(ctx context.Context, queue *txmgr.Queue[txData], receiptsCh chan txmgr.TxReceipt[txData]) error {
 	// send all available transactions
 	l1tip, err := l.l1Tip(ctx)
@@ -356,6 +394,7 @@ func (l *BatchSubmitter) publishTxToL1(ctx context.Context, queue *txmgr.Queue[t
 
 	// Collect next transaction data
 	txdata, err := l.state.TxData(l1tip.ID())
+
 	if err == io.EOF {
 		l.Log.Trace("no transaction data available")
 		return err
@@ -368,6 +407,30 @@ func (l *BatchSubmitter) publishTxToL1(ctx context.Context, queue *txmgr.Queue[t
 		return fmt.Errorf("BatchSubmitter.sendTransaction failed: %w", err)
 	}
 	return nil
+}
+
+func (l *BatchSubmitter) safeL1Origin(ctx context.Context) (eth.BlockID, error) {
+	ctx, cancel := context.WithTimeout(ctx, l.Config.NetworkTimeout)
+	defer cancel()
+
+	c, err := l.EndpointProvider.RollupClient(ctx)
+	if err != nil {
+		log.Error("Failed to get rollup client", "err", err)
+		return eth.BlockID{}, fmt.Errorf("safe l1 origin: error getting rollup client: %w", err)
+	}
+
+	status, err := c.SyncStatus(ctx)
+	if err != nil {
+		log.Error("Failed to get sync status", "err", err)
+		return eth.BlockID{}, fmt.Errorf("safe l1 origin: error getting sync status: %w", err)
+	}
+
+	// If the safe L2 block origin is 0, we are at the genesis block and should use the L1 origin from the rollup config.
+	if status.SafeL2.L1Origin.Number == 0 {
+		return l.RollupConfig.Genesis.L1, nil
+	}
+
+	return status.SafeL2.L1Origin, nil
 }
 
 // sendTransaction creates & queues for sending a transaction to the batch inbox address with the given `txData`.

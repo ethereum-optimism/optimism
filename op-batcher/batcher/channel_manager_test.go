@@ -54,7 +54,7 @@ func TestChannelManagerBatchType(t *testing.T) {
 func ChannelManagerReturnsErrReorg(t *testing.T, batchType uint) {
 	log := testlog.Logger(t, log.LevelCrit)
 	m := NewChannelManager(log, metrics.NoopMetrics, ChannelConfig{BatchType: batchType}, &rollup.Config{})
-	m.Clear()
+	m.Clear(eth.BlockID{})
 
 	a := types.NewBlock(&types.Header{
 		Number: big.NewInt(0),
@@ -96,7 +96,7 @@ func ChannelManagerReturnsErrReorgWhenDrained(t *testing.T, batchType uint) {
 		},
 		&rollup.Config{},
 	)
-	m.Clear()
+	m.Clear(eth.BlockID{})
 
 	a := newMiniL2Block(0)
 	x := newMiniL2BlockWithNumberParent(0, big.NewInt(1), common.Hash{0xff})
@@ -138,12 +138,13 @@ func ChannelManager_Clear(t *testing.T, batchType uint) {
 
 	// Channel Manager state should be empty by default
 	require.Empty(m.blocks)
+	require.Equal(eth.BlockID{}, m.l1OriginLastClosedChannel)
 	require.Equal(common.Hash{}, m.tip)
 	require.Nil(m.currentChannel)
 	require.Empty(m.channelQueue)
 	require.Empty(m.txChannels)
 	// Set the last block
-	m.Clear()
+	m.Clear(eth.BlockID{})
 
 	// Add a block to the channel manager
 	a := derivetest.RandomL2BlockWithChainId(rng, 4, defaultTestRollupConfig.L2ChainID)
@@ -165,9 +166,10 @@ func ChannelManager_Clear(t *testing.T, batchType uint) {
 	// the list
 	require.NoError(m.processBlocks())
 	require.NoError(m.currentChannel.channelBuilder.co.Flush())
-	require.NoError(m.currentChannel.OutputFrames())
+	require.NoError(m.outputFrames())
 	_, err := m.nextTxData(m.currentChannel)
 	require.NoError(err)
+	require.NotNil(m.l1OriginLastClosedChannel)
 	require.Len(m.blocks, 0)
 	require.Equal(newL1Tip, m.tip)
 	require.Len(m.currentChannel.pendingTransactions, 1)
@@ -182,11 +184,15 @@ func ChannelManager_Clear(t *testing.T, batchType uint) {
 	require.Len(m.blocks, 1)
 	require.Equal(b.Hash(), m.tip)
 
+	safeL1Origin := eth.BlockID{
+		Number: 123,
+	}
 	// Clear the channel manager
-	m.Clear()
+	m.Clear(safeL1Origin)
 
 	// Check that the entire channel manager state cleared
 	require.Empty(m.blocks)
+	require.Equal(uint64(123), m.l1OriginLastClosedChannel.Number)
 	require.Equal(common.Hash{}, m.tip)
 	require.Nil(m.currentChannel)
 	require.Empty(m.channelQueue)
@@ -209,7 +215,7 @@ func ChannelManager_TxResend(t *testing.T, batchType uint) {
 		},
 		&defaultTestRollupConfig,
 	)
-	m.Clear()
+	m.Clear(eth.BlockID{})
 
 	a := derivetest.RandomL2BlockWithChainId(rng, 4, defaultTestRollupConfig.L2ChainID)
 
@@ -257,7 +263,7 @@ func ChannelManagerCloseBeforeFirstUse(t *testing.T, batchType uint) {
 		},
 		&defaultTestRollupConfig,
 	)
-	m.Clear()
+	m.Clear(eth.BlockID{})
 
 	a := derivetest.RandomL2BlockWithChainId(rng, 4, defaultTestRollupConfig.L2ChainID)
 
@@ -289,7 +295,7 @@ func ChannelManagerCloseNoPendingChannel(t *testing.T, batchType uint) {
 		},
 		&defaultTestRollupConfig,
 	)
-	m.Clear()
+	m.Clear(eth.BlockID{})
 	a := newMiniL2Block(0)
 	b := newMiniL2BlockWithNumberParent(0, big.NewInt(1), a.Hash())
 
@@ -335,7 +341,7 @@ func ChannelManagerClosePendingChannel(t *testing.T, batchType uint) {
 		},
 		&defaultTestRollupConfig,
 	)
-	m.Clear()
+	m.Clear(eth.BlockID{})
 
 	numTx := 20 // Adjust number of txs to make 2 frames
 	a := derivetest.RandomL2BlockWithChainId(rng, numTx, defaultTestRollupConfig.L2ChainID)
@@ -394,7 +400,7 @@ func TestChannelManager_Close_PartiallyPendingChannel(t *testing.T) {
 		},
 		&defaultTestRollupConfig,
 	)
-	m.Clear()
+	m.Clear(eth.BlockID{})
 
 	numTx := 3 // Adjust number of txs to make 2 frames
 	a := derivetest.RandomL2BlockWithChainId(rng, numTx, defaultTestRollupConfig.L2ChainID)
@@ -454,7 +460,7 @@ func ChannelManagerCloseAllTxsFailed(t *testing.T, batchType uint) {
 			BatchType: batchType,
 		}, &defaultTestRollupConfig,
 	)
-	m.Clear()
+	m.Clear(eth.BlockID{})
 
 	a := derivetest.RandomL2BlockWithChainId(rng, 50000, defaultTestRollupConfig.L2ChainID)
 
@@ -477,4 +483,54 @@ func ChannelManagerCloseAllTxsFailed(t *testing.T, batchType uint) {
 
 	_, err = m.TxData(eth.BlockID{})
 	require.ErrorIs(err, io.EOF, "Expected closed channel manager to produce no more tx data")
+}
+
+func TestChannelManager_ChannelCreation(t *testing.T) {
+	l := testlog.Logger(t, log.LevelCrit)
+	maxChannelDuration := uint64(15)
+	cfg := ChannelConfig{
+		MaxChannelDuration: maxChannelDuration,
+		MaxFrameSize:       1000,
+		CompressorConfig: compressor.Config{
+			TargetNumFrames:  100,
+			TargetFrameSize:  1000,
+			ApproxComprRatio: 1.0,
+		},
+	}
+
+	for _, tt := range []struct {
+		name                   string
+		safeL1Block            eth.BlockID
+		expectedChannelTimeout uint64
+	}{
+		{
+			name: "UseSafeHeadWhenNoLastL1Block",
+			safeL1Block: eth.BlockID{
+				Number: uint64(123),
+			},
+			// Safe head + maxChannelDuration
+			expectedChannelTimeout: 123 + maxChannelDuration,
+		},
+		{
+			name: "NoLastL1BlockNoSafeL1Block",
+			safeL1Block: eth.BlockID{
+				Number: 0,
+			},
+			// No timeout
+			expectedChannelTimeout: 0 + maxChannelDuration,
+		},
+	} {
+		test := tt
+		t.Run(test.name, func(t *testing.T) {
+			m := NewChannelManager(l, metrics.NoopMetrics, cfg, &defaultTestRollupConfig)
+
+			m.l1OriginLastClosedChannel = test.safeL1Block
+			require.Nil(t, m.currentChannel)
+
+			require.NoError(t, m.ensureChannelWithSpace(eth.BlockID{}))
+
+			require.NotNil(t, m.currentChannel)
+			require.Equal(t, test.expectedChannelTimeout, m.currentChannel.Timeout())
+		})
+	}
 }

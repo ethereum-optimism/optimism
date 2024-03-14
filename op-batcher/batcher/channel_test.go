@@ -31,7 +31,7 @@ func TestChannelTimeout(t *testing.T) {
 	m := NewChannelManager(log, metrics.NoopMetrics, ChannelConfig{
 		ChannelTimeout: 100,
 	}, &rollup.Config{})
-	m.Clear()
+	m.Clear(eth.BlockID{})
 
 	// Pending channel is nil so is cannot be timed out
 	require.Nil(t, m.currentChannel)
@@ -73,7 +73,7 @@ func TestChannelTimeout(t *testing.T) {
 func TestChannelManager_NextTxData(t *testing.T) {
 	log := testlog.Logger(t, log.LevelCrit)
 	m := NewChannelManager(log, metrics.NoopMetrics, ChannelConfig{}, &rollup.Config{})
-	m.Clear()
+	m.Clear(eth.BlockID{})
 
 	// Nil pending channel should return EOF
 	returnedTxData, err := m.nextTxData(nil)
@@ -121,7 +121,7 @@ func TestChannel_NextTxData_singleFrameTx(t *testing.T) {
 		CompressorConfig: compressor.Config{
 			TargetNumFrames: n,
 		},
-	}, &rollup.Config{})
+	}, &rollup.Config{}, latestL1BlockOrigin)
 	require.NoError(err)
 	chID := ch.ID()
 
@@ -161,7 +161,7 @@ func TestChannel_NextTxData_multiFrameTx(t *testing.T) {
 		CompressorConfig: compressor.Config{
 			TargetNumFrames: n,
 		},
-	}, &rollup.Config{})
+	}, &rollup.Config{}, latestL1BlockOrigin)
 	require.NoError(err)
 	chID := ch.ID()
 
@@ -208,7 +208,7 @@ func TestChannelTxConfirmed(t *testing.T) {
 		// clearing confirmed transactions, and resetting the pendingChannels map
 		ChannelTimeout: 10,
 	}, &rollup.Config{})
-	m.Clear()
+	m.Clear(eth.BlockID{})
 
 	// Let's add a valid pending transaction to the channel manager
 	// So we can demonstrate that TxConfirmed's correctness
@@ -257,7 +257,7 @@ func TestChannelTxFailed(t *testing.T) {
 	// Create a channel manager
 	log := testlog.Logger(t, log.LevelCrit)
 	m := NewChannelManager(log, metrics.NoopMetrics, ChannelConfig{}, &rollup.Config{})
-	m.Clear()
+	m.Clear(eth.BlockID{})
 
 	// Let's add a valid pending transaction to the channel
 	// manager so we can demonstrate correctness
