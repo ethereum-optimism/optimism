@@ -481,7 +481,7 @@ func TestPlasma_SequencerStalledMultiChallenges(gt *testing.T) {
 	a.batcher.ActL2BatchBuffer(t)
 	a.batcher.ActL2ChannelClose(t)
 	a.batcher.ActL2BatchSubmit(t, func(tx *types.DynamicFeeTx) {
-		a.lastComm = tx.Data
+		a.lastComm = tx.Data[1:]
 	})
 
 	// include it in L1
