@@ -278,9 +278,12 @@ contract L1BlockInterop_Test is L1BlockTest {
         assertEq(data, errNotDepositor);
     }
 
-    /// @dev Tests that `setL1BlockValuesInterop` fails if sender address is not the depositor
-    function testFuzz_setL1BlockValuesInterop_interopLengthsMatch_succeeds(uint256[] calldata dependencySet) external {
-        vm.assume(dependencySet.length == uint256(uint8(dependencySet.length)));
+    /// @dev Tests that `setL1BlockValuesInterop` fails if _dependencySetSize is the same as
+    ///      the length of _dependencySet. (happy path)
+    function testFuzz_setL1BlockValuesInterop_dependencySetSizeMatch_succeeds(uint256[] calldata dependencySet)
+        external
+    {
+        vm.assume(dependencySet.length <= type(uint8).max);
 
         bytes memory functionCallDataPacked = Encoding.encodeSetL1BlockValuesInterop(
             type(uint32).max,
