@@ -22,7 +22,7 @@ contract L1BlockTest is CommonTest {
 
 contract L1BlockBedrock_Test is L1BlockTest {
     // @dev Tests that `setL1BlockValues` updates the values correctly.
-    function testFuzz_updateValues_succeeds(
+    function testFuzz_updatesValues_succeeds(
         uint64 n,
         uint64 t,
         uint256 b,
@@ -63,7 +63,7 @@ contract L1BlockBedrock_Test is L1BlockTest {
     }
 
     /// @dev Tests that `setL1BlockValues` fails if sender address is not the depositor
-    function test_setL1BlockValues_notDepositor_fails() external {
+    function test_updatesValues_notDepositor_fails() external {
         vm.expectRevert("L1Block: only the depositor account can set L1 block values");
         l1Block.setL1BlockValues({
             _number: type(uint64).max,
