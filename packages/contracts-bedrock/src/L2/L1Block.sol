@@ -15,11 +15,11 @@ contract L1Block is ISemver {
     address public constant DEPOSITOR_ACCOUNT = 0xDeaDDEaDDeAdDeAdDEAdDEaddeAddEAdDEAd0001;
 
     /// @notice The selector for the 'NotDepositor()' error message used when the caller is not the depositor account.
-    uint256 public constant ERR_NOT_DEPOSITOR = 0x3cc50b45;
+    uint32 public constant ERR_NOT_DEPOSITOR = 0x3cc50b45;
 
     /// @notice The selector for the 'DependencySetSizeMismatch()' error message used when the dependency set size
     ///         doesn't match the length of the dependency set in calldata.
-    uint256 public constant ERR_DEPENDENCYSET_SIZE_MISMATCH = 0x613457f2;
+    uint32 public constant ERR_DEPENDENCYSET_SIZE_MISMATCH = 0x613457f2;
 
     /// @notice The latest L1 block number known by the L2 system.
     uint64 public number;
