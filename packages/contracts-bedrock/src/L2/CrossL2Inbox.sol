@@ -21,15 +21,6 @@ interface IDependencySet {
 /// @notice The CrossL2Inbox is responsible for executing a cross chain message on the destination
 ///         chain. It is permissionless to execute a cross chain message on behalf of any user.
 contract CrossL2Inbox is ICrossL2Inbox, ISemver {
-    /// @notice The struct for a pointer to a message payload in a remote (or local) chain.
-    struct Identifier {
-        address origin;
-        uint256 blocknumber;
-        uint256 logIndex;
-        uint256 timestamp;
-        uint256 chainId;
-    }
-
     /// @notice Transient storage slot that the origin for an Identifier is stored at.
     ///         Equal to bytes32(uint256(keccak256("crossl2inbox.identifier.origin")) - 1)
     bytes32 public constant ORIGIN_SLOT = 0xd2b7c5071ec59eb3ff0017d703a8ea513a7d0da4779b0dbefe845808c300c815;
@@ -97,7 +88,7 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver {
     /// @param _id An Identifier pointing to the initiating message.
     /// @param _target Account that is called with _msg.
     /// @param _msg The message payload, matching the initiating message.
-    function executeMessage(Identifier calldata _id, address _target, bytes memory _msg) public payable {
+    function executeMessage(Identifier calldata _id, address _target, bytes memory _msg) external payable {
         require(msg.sender == tx.origin, "CrossL2Inbox: not EOA sender");
         require(_id.timestamp <= block.timestamp, "CrossL2Inbox: invalid id timestamp");
         require(
