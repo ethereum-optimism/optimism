@@ -303,8 +303,9 @@ contract L1BlockInterop_Test is L1BlockTest {
         assertTrue(success, "function call failed");
     }
 
-    /// @dev Tests that `setL1BlockValuesInterop` fails if sender address is not the depositor
-    function testFuzz_setL1BlockValuesInterop_interopLengthsNotMatch_fails(
+    /// @dev Tests that `setL1BlockValuesInterop` fails if _dependencySetSize is not the same as
+    ///      the length of _dependencySet. (bad path)
+    function testFuzz_setL1BlockValuesInterop_dependencySetSizeMatch_fails(
         uint8 notDependencySetSize,
         uint256[] calldata dependencySet
     )
