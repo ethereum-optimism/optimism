@@ -332,9 +332,8 @@ contract L1BlockInterop_Test is L1BlockTest {
         vm.prank(depositor);
         (bool success, bytes memory data) = address(l1Block).call(functionCallDataPacked);
         assertTrue(!success, "function call should have failed");
-        // make sure return value is the expected function selector for "NotInteropSetSize()"
-        bytes memory expReturn = hex"613457f2";
-        assertEq(data, expReturn);
+        // make sure return value is the expected function selector for "DependencySetSizeMismatch()"
+        assertEq(data, errorDependencySetSizeMismatch);
     }
 
     /// @dev Tests that an arbitrary dependency set can be set and that ìsInDependencySet returns
