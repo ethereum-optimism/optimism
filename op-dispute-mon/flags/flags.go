@@ -35,7 +35,7 @@ var (
 	// Optional Flags
 	RollupRpcFlag = &cli.StringFlag{
 		Name:    "rollup-rpc",
-		Usage:   "HTTP provider URL for the rollup node",
+		Usage:   "HTTP provider URL for the rollup node.",
 		EnvVars: prefixEnvVars("ROLLUP_RPC"),
 	}
 	MonitorIntervalFlag = &cli.DurationFlag{
@@ -46,7 +46,7 @@ var (
 	}
 	GameWindowFlag = &cli.DurationFlag{
 		Name: "game-window",
-		Usage: "The time window which the monitor will consider games to report on. " +
+		Usage: "The time window which the monitor will consider games to report on." +
 			"This should include a bond claim buffer for games outside the maximum game duration.",
 		EnvVars: prefixEnvVars("GAME_WINDOW"),
 		Value:   config.DefaultGameWindow,
