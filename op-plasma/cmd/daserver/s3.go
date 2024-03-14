@@ -5,47 +5,50 @@ import (
 	"context"
 	"encoding/hex"
 	"io"
-	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
+	plasma "github.com/ethereum-optimism/optimism/op-plasma"
+	"github.com/minio/minio-go/v7"
+	"github.com/minio/minio-go/v7/pkg/credentials"
 )
 
-var defaultTimeout = 5 * time.Second
+type S3Config struct {
+	Bucket          string
+	Endpoint        string
+	AccessKeyID     string
+	AccessKeySecret string
+}
 
 type S3Store struct {
-	timeout time.Duration
-	bucket  string
-	client  *s3.Client
+	cfg    S3Config
+	client *minio.Client
 }
 
-func NewS3Store(bucket string) (*S3Store, error) {
-	sdkConfig, err := config.LoadDefaultConfig(context.TODO())
-	if err != nil {
-		return nil, err
-	}
-	return &S3Store{
-		timeout: defaultTimeout,
-		bucket:  bucket,
-		client:  s3.NewFromConfig(sdkConfig),
-	}, nil
-}
-
-func (s *S3Store) Get(key []byte) ([]byte, error) {
-	ctx, cancelFn := context.WithTimeout(context.Background(), s.timeout)
-	defer cancelFn()
-
-	result, err := s.client.GetObject(ctx, &s3.GetObjectInput{
-		Bucket: aws.String(s.bucket),
-		Key:    aws.String(hex.EncodeToString(key)),
+func NewS3Store(cfg S3Config) (*S3Store, error) {
+	client, err := minio.New(cfg.Endpoint, &minio.Options{
+		Creds:  credentials.NewStaticV4(cfg.AccessKeyID, cfg.AccessKeySecret, ""),
+		Secure: true,
 	})
 	if err != nil {
 		return nil, err
 	}
-	defer result.Body.Close()
+	return &S3Store{
+		cfg:    cfg,
+		client: client,
+	}, nil
+}
 
-	data, err := io.ReadAll(result.Body)
+func (s *S3Store) Get(ctx context.Context, key []byte) ([]byte, error) {
+	result, err := s.client.GetObject(ctx, s.cfg.Bucket, hex.EncodeToString(key), minio.GetObjectOptions{})
+	if err != nil {
+		errResponse := minio.ToErrorResponse(err)
+		if errResponse.Code == "NoSuchKey" {
+			return nil, plasma.ErrNotFound
+		}
+		return nil, err
+	}
+	defer result.Close()
+
+	data, err := io.ReadAll(result)
 	if err != nil {
 		return nil, err
 	}
@@ -53,15 +56,8 @@ func (s *S3Store) Get(key []byte) ([]byte, error) {
 	return data, nil
 }
 
-func (s *S3Store) Put(key []byte, value []byte) error {
-	ctx, cancelFn := context.WithTimeout(context.Background(), s.timeout)
-	defer cancelFn()
-
-	_, err := s.client.PutObject(ctx, &s3.PutObjectInput{
-		Bucket: aws.String(s.bucket),
-		Key:    aws.String(hex.EncodeToString(key)),
-		Body:   bytes.NewReader(value),
-	})
+func (s *S3Store) Put(ctx context.Context, key []byte, value []byte) error {
+	_, err := s.client.PutObject(ctx, s.cfg.Bucket, hex.EncodeToString(key), bytes.NewReader(value), int64(len(value)), minio.PutObjectOptions{})
 
 	return err
 }

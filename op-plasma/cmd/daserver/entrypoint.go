@@ -3,8 +3,6 @@ package main
 import (
 	"fmt"
 
-	"github.com/ethereum/go-ethereum/ethdb/leveldb"
-	levelopt "github.com/syndtr/goleveldb/leveldb/opt"
 	"github.com/urfave/cli/v2"
 
 	plasma "github.com/ethereum-optimism/optimism/op-plasma"
@@ -31,17 +29,11 @@ func Main(cliCtx *cli.Context) error {
 
 	var store plasma.KVStore
 
-	if cfg.LevelDBEnabled() {
-		l.Info("Using LevelDB storage", "path", cfg.LevelDBPath)
-		levelStore, err := leveldb.NewCustom(cfg.LevelDBPath, "plasma", func(options *levelopt.Options) {
-			// TODO, not that crucial for now
-		})
-		if err != nil {
-			return fmt.Errorf("failed to create LevelDB store: %w", err)
-		}
-		store = levelStore
+	if cfg.FileStoreEnabled() {
+		l.Info("Using file storage", "path", cfg.FileStoreDirPath)
+		store = NewFileStore(cfg.FileStoreDirPath)
 	} else if cfg.S3Enabled() {
-		s3, err := NewS3Store(cfg.S3Bucket)
+		s3, err := NewS3Store(cfg.S3Config())
 		if err != nil {
 			return fmt.Errorf("failed to create S3 store: %w", err)
 		}

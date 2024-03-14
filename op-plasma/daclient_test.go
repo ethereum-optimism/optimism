@@ -7,13 +7,12 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum/go-ethereum/ethdb/memorydb"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
 func TestDAClient(t *testing.T) {
-	store := memorydb.New()
+	store := NewMemStore()
 	logger := testlog.Logger(t, log.LevelDebug)
 
 	ctx := context.Background()
@@ -46,7 +45,7 @@ func TestDAClient(t *testing.T) {
 	require.Equal(t, input, stored)
 
 	// set a bad commitment in the store
-	require.NoError(t, store.Put(comm.Encode(), []byte("bad data")))
+	require.NoError(t, store.Put(ctx, comm.Encode(), []byte("bad data")))
 
 	_, err = client.GetInput(ctx, comm)
 	require.ErrorIs(t, err, ErrCommitmentMismatch)

@@ -2,24 +2,57 @@ package plasma
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"strconv"
-	"strings"
+	"sync"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/rpc"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
 )
 
 type KVStore interface {
 	// Get retrieves the given key if it's present in the key-value data store.
-	Get(key []byte) ([]byte, error)
+	Get(ctx context.Context, key []byte) ([]byte, error)
 	// Put inserts the given value into the key-value data store.
-	Put(key []byte, value []byte) error
+	Put(ctx context.Context, key []byte, value []byte) error
+}
+
+type MemStore struct {
+	db   map[string][]byte
+	lock sync.RWMutex
+}
+
+func NewMemStore() *MemStore {
+	return &MemStore{
+		db: make(map[string][]byte),
+	}
+}
+
+// Get retrieves the given key if it's present in the key-value store.
+func (s *MemStore) Get(ctx context.Context, key []byte) ([]byte, error) {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+
+	if entry, ok := s.db[string(key)]; ok {
+		return common.CopyBytes(entry), nil
+	}
+	return nil, ErrNotFound
+}
+
+// Put inserts the given value into the key-value store.
+func (s *MemStore) Put(ctx context.Context, key []byte, value []byte) error {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	s.db[string(key)] = common.CopyBytes(value)
+	return nil
 }
 
 type DAServer struct {
@@ -100,9 +133,9 @@ func (d *DAServer) HandleGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	input, err := d.store.Get(comm)
+	input, err := d.store.Get(r.Context(), comm)
 	// cannot use errors.Is because different implementations may use different ErrNotFound types
-	if err != nil && strings.Contains(err.Error(), "not found") {
+	if err != nil && errors.Is(err, ErrNotFound) {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
@@ -130,7 +163,7 @@ func (d *DAServer) HandlePut(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := d.store.Put(comm, input); err != nil {
+	if err := d.store.Put(r.Context(), comm, input); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
