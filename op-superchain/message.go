@@ -12,7 +12,6 @@ import (
 )
 
 var (
-	crossL2InboxAddr                  = common.Address{}
 	inboxExecuteMessageSignature      = "executeMessage((address,uint256,uint256,uint256,uint256),address,bytes)"
 	inboxExecuteMessageBytes4         = crypto.Keccak256([]byte(inboxExecuteMessageSignature))[:4]
 	inboxExecuteMessagePayloadDataLoc = common.HexToHash("0xe0")
