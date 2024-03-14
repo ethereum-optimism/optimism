@@ -52,8 +52,8 @@ contract L1Block is ISemver {
     /// @notice The chain IDs of the interop dependency set.
     uint256[] public dependencySet;
 
-    /// @custom:semver 1.2.1
-    string public constant version = "1.2.1";
+    /// @custom:semver 1.3.0
+    string public constant version = "1.3.0";
 
     /// @custom:legacy
     /// @notice Updates the L1 block values.
