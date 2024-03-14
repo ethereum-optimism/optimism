@@ -190,7 +190,7 @@ contract L1BlockInterop_Test is L1BlockTest {
     )
         external
     {
-        vm.assume(dependencySet.length == uint256(uint8(dependencySet.length)));
+        vm.assume(dependencySet.length <= type(uint8).max);
 
         bytes memory functionCallDataPacked = Encoding.encodeSetL1BlockValuesInterop({
             baseFeeScalar: baseFeeScalar,
@@ -311,7 +311,7 @@ contract L1BlockInterop_Test is L1BlockTest {
     )
         external
     {
-        vm.assume(dependencySet.length == uint256(uint8(dependencySet.length)));
+        vm.assume(dependencySet.length <= type(uint8).max);
         vm.assume(notDependencySetSize != dependencySet.length);
 
         bytes memory functionCallDataPacked = abi.encodePacked(
