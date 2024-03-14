@@ -22,7 +22,7 @@ contract L1BlockTest is CommonTest {
 
 contract L1BlockBedrock_Test is L1BlockTest {
     // @dev Tests that `setL1BlockValues` updates the values correctly.
-    function testFuzz_updatesValues_succeeds(
+    function testFuzz_setL1BlockValues_succeeds(
         uint64 n,
         uint64 t,
         uint256 b,
@@ -36,7 +36,7 @@ contract L1BlockBedrock_Test is L1BlockTest {
         external
     {
         // Enforce that the length of the dependency set is uint8
-        vm.assume(ds.length == uint256(uint8(ds.length)));
+        vm.assume(ds.length <= type(uint8).max);
         vm.prank(depositor);
         l1Block.setL1BlockValues(n, t, b, h, s, bt, fo, fs, ds);
         assertEq(l1Block.number(), n);
@@ -54,7 +54,42 @@ contract L1BlockBedrock_Test is L1BlockTest {
     }
 
     /// @dev Tests that `setL1BlockValues` can set max values.
-    function test_updateValues_succeeds(uint256[] calldata _dependencySet) external {
+    function test_setL1BlockValues_maxValues_succeeds(uint256[] calldata _dependencySet) external {
+        vm.assume(_dependencySet.length <= type(uint8).max);
+        vm.prank(depositor);
+        l1Block.setL1BlockValues({
+            _number: type(uint64).max,
+            _timestamp: type(uint64).max,
+            _basefee: type(uint256).max,
+            _hash: keccak256(abi.encode(1)),
+            _sequenceNumber: type(uint64).max,
+            _batcherHash: bytes32(type(uint256).max),
+            _l1FeeOverhead: type(uint256).max,
+            _l1FeeScalar: type(uint256).max,
+            _dependencySet: _dependencySet
+        });
+    }
+
+    /// @dev Tests that `setL1BlockValues` fails if sender address is not the depositor
+    function test_setL1BlockValues_notDepositor_fails(uint256[] calldata _dependencySet) external {
+        vm.assume(_dependencySet.length <= type(uint8).max);
+        vm.expectRevert("L1Block: only the depositor account can set L1 block values");
+        l1Block.setL1BlockValues({
+            _number: type(uint64).max,
+            _timestamp: type(uint64).max,
+            _basefee: type(uint256).max,
+            _hash: keccak256(abi.encode(1)),
+            _sequenceNumber: type(uint64).max,
+            _batcherHash: bytes32(type(uint256).max),
+            _l1FeeOverhead: type(uint256).max,
+            _l1FeeScalar: type(uint256).max,
+            _dependencySet: _dependencySet
+        });
+    }
+
+    /// @dev Tests that `setL1BlockValues` fails if the length of the dependency set is greater than uint8
+    function test_setL1BlockValues_invalidDependencySetLength_fails(uint256[] calldata _dependencySet) external {
+        vm.assume(_dependencySet.length > type(uint8).max);
         vm.prank(depositor);
         l1Block.setL1BlockValues({
             _number: type(uint64).max,
