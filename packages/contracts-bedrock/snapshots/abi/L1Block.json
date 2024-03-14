@@ -14,6 +14,32 @@
   },
   {
     "inputs": [],
+    "name": "ERR_DEPENDENCYSET_SIZE_MISMATCH",
+    "outputs": [
+      {
+        "internalType": "uint32",
+        "name": "",
+        "type": "uint32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "ERR_NOT_DEPOSITOR",
+    "outputs": [
+      {
+        "internalType": "uint32",
+        "name": "",
+        "type": "uint32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "baseFeeScalar",
     "outputs": [
       {
@@ -234,11 +260,6 @@
         "internalType": "uint256",
         "name": "_l1FeeScalar",
         "type": "uint256"
-      },
-      {
-        "internalType": "uint256[]",
-        "name": "_dependencySet",
-        "type": "uint256[]"
       }
     ],
     "name": "setL1BlockValues",
