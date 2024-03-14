@@ -40,7 +40,7 @@ contract CrossL2InboxTest is CommonTest {
         uint256[] memory chainIds = new uint256[](1);
         chainIds[0] = _id.chainId;
         vm.prank(depositor);
-        l1Block.setL1BlockValues(0, 0, 0, bytes32(0), 0, bytes32(0), 0, 0, 1, chainIds);
+        l1Block.setL1BlockValues(0, 0, 0, bytes32(0), 0, bytes32(0), 0, 0, chainIds);
         vm.assume(l1Block.isInDependencySet(_id.chainId));
 
         // only EOA invariant
@@ -60,7 +60,7 @@ contract CrossL2InboxTest is CommonTest {
         uint256[] memory chainIds = new uint256[](1);
         chainIds[0] = 1;
         vm.prank(depositor);
-        l1Block.setL1BlockValues(0, 0, 0, bytes32(0), 0, bytes32(0), 0, 0, 1, chainIds);
+        l1Block.setL1BlockValues(0, 0, 0, bytes32(0), 0, bytes32(0), 0, 0, chainIds);
 
         ICrossL2Inbox.Identifier memory id = ICrossL2Inbox.Identifier({
             origin: address(0),
@@ -115,7 +115,7 @@ contract CrossL2InboxTest is CommonTest {
         uint256[] memory chainIds = new uint256[](1);
         chainIds[0] = 1;
         vm.prank(depositor);
-        l1Block.setL1BlockValues(0, 0, 0, bytes32(0), 0, bytes32(0), 0, 0, 1, chainIds);
+        l1Block.setL1BlockValues(0, 0, 0, bytes32(0), 0, bytes32(0), 0, 0, chainIds);
 
         ICrossL2Inbox.Identifier memory id = ICrossL2Inbox.Identifier({
             origin: address(0),
@@ -135,7 +135,7 @@ contract CrossL2InboxTest is CommonTest {
         uint256[] memory chainIds = new uint256[](1);
         chainIds[0] = block.chainid;
         vm.prank(depositor);
-        l1Block.setL1BlockValues(0, 0, 0, bytes32(0), 0, bytes32(0), 0, 0, 1, chainIds);
+        l1Block.setL1BlockValues(0, 0, 0, bytes32(0), 0, bytes32(0), 0, 0, chainIds);
 
         ICrossL2Inbox.Identifier memory id = ICrossL2Inbox.Identifier({
             origin: address(0),
