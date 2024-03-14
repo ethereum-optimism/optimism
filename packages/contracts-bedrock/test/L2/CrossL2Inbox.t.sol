@@ -31,7 +31,8 @@ contract CrossL2InboxTest is CommonTest {
     function testFuzz_executeMessage_succeeds(
         bytes calldata _msg,
         ICrossL2Inbox.Identifier calldata _id,
-        address _target
+        address _target,
+        uint256 _value
     )
         external
         payable
@@ -46,10 +47,12 @@ contract CrossL2InboxTest is CommonTest {
         // need to prevent underlying SafeCall to target from reverting
         vm.etch(_target, address(0).code);
 
+        vm.deal(tx.origin, _value);
+
         // executeMessage
         vm.prank(tx.origin);
-        vm.expectCall(_target, _msg);
-        crossL2Inbox.executeMessage{ value: msg.value }(_id, _target, _msg);
+        vm.expectCall(_target, _value, _msg);
+        crossL2Inbox.executeMessage{ value: _value }(_id, _target, _msg);
 
         assertEq(crossL2Inbox.origin(), _id.origin);
         assertEq(crossL2Inbox.blocknumber(), _id.blocknumber);
