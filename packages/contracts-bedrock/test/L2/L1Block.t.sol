@@ -247,6 +247,7 @@ contract L1BlockInterop_Test is L1BlockTest {
         assertEq(l1Block.dependencySetSize(), dependencySet.length);
         for (uint256 i = 0; i < dependencySet.length; i++) {
             assertEq(l1Block.dependencySet(i), dependencySet[i]);
+            assertTrue(l1Block.isInDependencySet(dependencySet[i]));
         }
 
         // ensure we didn't accidentally pollute the 128 bits of the sequencenum+scalars slot that
