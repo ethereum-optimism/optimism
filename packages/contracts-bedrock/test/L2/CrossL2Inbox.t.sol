@@ -21,13 +21,6 @@ contract CrossL2InboxTest is CommonTest {
         chainId: block.chainid
     });
 
-    address depositor;
-
-    function setUp() public virtual override {
-        super.setUp();
-        depositor = l1Block.DEPOSITOR_ACCOUNT();
-    }
-
     function testFuzz_executeMessage_succeeds(
         bytes calldata _msg,
         ICrossL2Inbox.Identifier calldata _id,
