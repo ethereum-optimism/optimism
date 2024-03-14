@@ -20,7 +20,7 @@ const MeshWeight = -0.7
 const MaxInMeshScore = 10
 
 // DecayEpoch is the number of epochs to decay the score over.
-const DecayEpoch = time.Duration(5)
+const DecayEpoch = 5
 
 // ScoreDecay returns the decay factor for a given duration.
 func ScoreDecay(duration time.Duration, slot time.Duration) float64 {
