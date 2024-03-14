@@ -258,7 +258,7 @@ contract L1BlockInterop_Test is L1BlockTest {
     }
 
     /// @dev Tests that `setL1BlockValuesInterop` fails if sender address is not the depositor
-    function test_setL1BlockValuesInterop_notDepositor_fails() external {
+    function test_setL1BlockValuesInterop_isDepositor_fails() external {
         bytes memory functionCallDataPacked = Encoding.encodeSetL1BlockValuesInterop(
             type(uint32).max,
             type(uint32).max,
