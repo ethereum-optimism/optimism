@@ -147,7 +147,7 @@ func P2PFlags(envPrefix string) []cli.Flag {
 		&cli.StringFlag{
 			// sometimes it may be ok to not persist the peer priv key as file, and instead pass it directly.
 			Name:     P2PPrivRawName,
-			Usage:    "The hex-encoded 32-byte private key for the peer ID",
+			Usage:    "The hex-encoded 32-byte private key for the peer ID.",
 			Required: false,
 			Hidden:   true,
 			Value:    "",
@@ -156,7 +156,7 @@ func P2PFlags(envPrefix string) []cli.Flag {
 		},
 		&cli.StringFlag{
 			Name:     ListenIPName,
-			Usage:    "IP to bind LibP2P and Discv5 to",
+			Usage:    "IP to bind LibP2P and Discv5 to.",
 			Required: false,
 			Value:    "0.0.0.0",
 			EnvVars:  p2pEnv(envPrefix, "LISTEN_IP"),
@@ -214,7 +214,7 @@ func P2PFlags(envPrefix string) []cli.Flag {
 		},
 		&cli.StringFlag{
 			Name: StaticPeersName,
-			Usage: "Comma-separated multiaddr-format peer list. Static connections to make and maintain, these peers will be regarded as trusted. " +
+			Usage: "Comma-separated multiaddr-format peer list. Static connections to make and maintain, these peers will be regarded as trusted." +
 				"Addresses of the local peer are ignored. Duplicate/Alternative addresses for the same peer all apply, but only a single connection per peer is maintained.",
 			Required: false,
 			Value:    "",
@@ -223,7 +223,7 @@ func P2PFlags(envPrefix string) []cli.Flag {
 		},
 		&cli.StringFlag{
 			Name:     NetRestrictName,
-			Usage:    "Comma-separated list of CIDR masks. P2P will only try to connect on these networks",
+			Usage:    "Comma-separated list of CIDR masks. P2P will only try to connect on these networks.",
 			Required: false,
 			EnvVars:  p2pEnv(envPrefix, "NETRESTRICT"),
 			Category: P2PCategory,
@@ -288,7 +288,7 @@ func P2PFlags(envPrefix string) []cli.Flag {
 		},
 		&cli.DurationFlag{
 			Name:     TimeoutNegotiationName,
-			Usage:    "Negotiation timeout, time for new peer connections to share their their supported p2p protocols",
+			Usage:    "Negotiation timeout, time for new peer connections to share their their supported p2p protocols.",
 			Hidden:   true,
 			Required: false,
 			Value:    10 * time.Second,
@@ -306,7 +306,7 @@ func P2PFlags(envPrefix string) []cli.Flag {
 		},
 		&cli.DurationFlag{
 			Name:     TimeoutDialName,
-			Usage:    "Dial timeout for outgoing connection requests",
+			Usage:    "Dial timeout for outgoing connection requests.",
 			Hidden:   true,
 			Required: false,
 			Value:    10 * time.Second,
