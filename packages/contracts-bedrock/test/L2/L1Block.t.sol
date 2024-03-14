@@ -378,6 +378,7 @@ contract L1BlockInterop_Test is L1BlockTest {
         }
     }
 
+    /// @dev Tests that `isInDependencySet` returns true when the current chain ID is passed as the input
     function test_isInDependencySet_isChainId_succeeds() external {
         assertTrue(l1Block.isInDependencySet(block.chainid));
     }
