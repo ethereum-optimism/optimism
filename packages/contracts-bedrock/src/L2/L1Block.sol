@@ -52,9 +52,12 @@ contract L1Block is ISemver {
     /// @notice The chain IDs of the interop dependency set.
     uint256[] public dependencySet;
 
-    /// @notice The selector of the "NotDepositor()" function.
-    ///         Error message used when the caller is not the depositor account.
-    bytes public errNotDepositor = hex"3cc50b45";
+    /// @notice The selector for the error message used when the caller is not the depositor account.
+    bytes public errNotDepositor = bytes4(keccak256("NotDepositor()"));
+
+    /// @notice The selector for the error message used when the dependency set size doesn't match the length of the
+    ///         dependency set in calldata.
+    bytes public errorDependencySetSizeMismatch = bytes4(keccak256("DependencySetSizeMismatch()"));
 
     /// @custom:semver 1.3.0
     string public constant version = "1.3.0";
