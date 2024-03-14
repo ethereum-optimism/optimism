@@ -55,7 +55,7 @@ type L2Chain interface {
 }
 
 type BuilderClient interface {
-	FetchPayload(ctx context.Context, parent common.Hash) (*eth.ExecutionPayloadEnvelope, error)
+	FetchPayload(ctx context.Context, ref eth.L2BlockRef) (*eth.ExecutionPayloadEnvelope, error)
 }
 
 type DerivationPipeline interface {

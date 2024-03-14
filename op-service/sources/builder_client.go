@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/pkg/errors"
 )
@@ -44,9 +43,9 @@ func NewBuilderAPIClient(log log.Logger, config *BuilderAPIConfig) *BuilderAPICl
 	}
 }
 
-func (s *BuilderAPIClient) FetchPayload(ctx context.Context, parent common.Hash) (*eth.ExecutionPayloadEnvelope, error) {
+func (s *BuilderAPIClient) FetchPayload(ctx context.Context, ref eth.L2BlockRef) (*eth.ExecutionPayloadEnvelope, error) {
 	responsePayload := new(eth.ExecutionPayloadEnvelope)
-	url := fmt.Sprintf("%s/%s/%s", s.config.Endpoint, PathGetMevPayload, parent.Hex())
+	url := fmt.Sprintf("%s/%s/%s", s.config.Endpoint, PathGetMevPayload, ref.ParentHash.Hex())
 	httpClient := http.Client{Timeout: 10 * time.Second}
 
 	if code, err := SendHTTPRequestWithRetries(
@@ -61,7 +60,7 @@ func (s *BuilderAPIClient) FetchPayload(ctx context.Context, parent common.Hash)
 		s.log); err != nil {
 		return nil, err
 	} else if code == http.StatusNoContent {
-		s.log.Info("Could not get payload", "parent", parent.Hex())
+		s.log.Info("Could not get payload", "parent", ref.ParentHash.Hex())
 		return nil, errors.New("could not get payload")
 	}
 

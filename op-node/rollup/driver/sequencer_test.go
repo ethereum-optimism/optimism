@@ -132,7 +132,7 @@ var _ derive.EngineControl = (*FakeEngineControl)(nil)
 type testBuilderClient struct {
 }
 
-func (bc *testBuilderClient) FetchPayload(ctx context.Context, parent common.Hash) (*eth.ExecutionPayloadEnvelope, error) {
+func (bc *testBuilderClient) FetchPayload(ctx context.Context, ref eth.L2BlockRef) (*eth.ExecutionPayloadEnvelope, error) {
 	return nil, nil
 }
 

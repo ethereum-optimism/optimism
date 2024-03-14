@@ -5,7 +5,6 @@ import (
 	"errors"
 
 	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
@@ -35,7 +34,7 @@ func (m *MockL1OriginSelector) FindL1Origin(ctx context.Context, l2Head eth.L2Bl
 type NilBuilderClient struct {
 }
 
-func (m *NilBuilderClient) FetchPayload(ctx context.Context, parent common.Hash) (*eth.ExecutionPayloadEnvelope, error) {
+func (m *NilBuilderClient) FetchPayload(ctx context.Context, ref eth.L2BlockRef) (*eth.ExecutionPayloadEnvelope, error) {
 	return nil, nil
 }
 
