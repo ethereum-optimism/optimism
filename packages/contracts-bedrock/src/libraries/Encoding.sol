@@ -215,7 +215,7 @@ library Encoding {
             blobBaseFee,
             hash,
             batcherHash,
-            dependencySet.length,
+            uint8(dependencySet.length),
             dependencySet
         );
     }
