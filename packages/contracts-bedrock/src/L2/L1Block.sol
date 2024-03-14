@@ -14,6 +14,13 @@ contract L1Block is ISemver {
     /// @notice Address of the special depositor account.
     address public constant DEPOSITOR_ACCOUNT = 0xDeaDDEaDDeAdDeAdDEAdDEaddeAddEAdDEAd0001;
 
+    /// @notice The selector for the 'NotDepositor()' error message used when the caller is not the depositor account.
+    uint256 public constant ERR_NOT_DEPOSITOR = 0x3cc50b45;
+
+    /// @notice The selector for the 'DependencySetSizeMismatch()' error message used when the dependency set size
+    ///         doesn't match the length of the dependency set in calldata.
+    uint256 public constant ERR_DEPENDENCYSET_SIZE_MISMATCH = 0x613457f2;
+
     /// @notice The latest L1 block number known by the L2 system.
     uint64 public number;
 
@@ -52,13 +59,6 @@ contract L1Block is ISemver {
     /// @notice The chain IDs of the interop dependency set.
     uint256[] public dependencySet;
 
-    /// @notice The selector for the error message used when the caller is not the depositor account.
-    bytes public errNotDepositor = bytes4(keccak256("NotDepositor()"));
-
-    /// @notice The selector for the error message used when the dependency set size doesn't match the length of the
-    ///         dependency set in calldata.
-    bytes public errorDependencySetSizeMismatch = bytes4(keccak256("DependencySetSizeMismatch()"));
-
     /// @custom:semver 1.3.0
     string public constant version = "1.3.0";
 
@@ -85,7 +85,6 @@ contract L1Block is ISemver {
         external
     {
         require(msg.sender == DEPOSITOR_ACCOUNT, "L1Block: only the depositor account can set L1 block values");
-        require(_dependencySet.length <= type(uint8).max, "L1Block: dependency set size must be uint8");
 
         number = _number;
         timestamp = _timestamp;
@@ -113,7 +112,7 @@ contract L1Block is ISemver {
         assembly {
             // Revert if the caller is not the depositor account.
             if xor(caller(), DEPOSITOR_ACCOUNT) {
-                mstore(0x00, errNotDepositor)
+                mstore(0x00, ERR_NOT_DEPOSITOR)
                 revert(0x1C, 0x04) // returns the stored 4-byte selector from above
             }
             let data := calldataload(4)
@@ -146,7 +145,7 @@ contract L1Block is ISemver {
         assembly {
             // Revert if the caller is not the depositor account.
             if xor(caller(), DEPOSITOR_ACCOUNT) {
-                mstore(0x00, errNotDepositor)
+                mstore(0x00, ERR_NOT_DEPOSITOR)
                 revert(0x1C, 0x04) // returns the stored 4-byte selector from above
             }
             let data := calldataload(4)
@@ -164,7 +163,7 @@ contract L1Block is ISemver {
 
             // Revert if dependencySetSize_ doesn't match the length of dependencySet in calldata
             if xor(add(165, mul(dependencySetSize_, 0x20)), calldatasize()) {
-                mstore(0x00, 0x613457f2) // 0x613457f2 is the 4-byte selector of "NotdependencySetSize()"
+                mstore(0x00, ERR_DEPENDENCYSET_SIZE_MISMATCH)
                 revert(0x1C, 0x04) // returns the stored 4-byte selector from above
             }
 
