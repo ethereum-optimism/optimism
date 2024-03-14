@@ -388,8 +388,9 @@ contract L1BlockInterop_Test is L1BlockTest {
         assertFalse(l1Block.isInDependencySet(3));
     }
 
-    function test_isInDependencySet_isDependencySetEmpty_fails() external {
+    /// @dev Tests that `isInDependencySet` returns false when the dependency set is empty
+    function testFuzz_isInDependencySet_dependencySetEmpty_fails(uint256 _chainId) external {
         assertTrue(l1Block.dependencySetSize() == 0);
-        assertFalse(l1Block.isInDependencySet(1));
+        assertFalse(l1Block.isInDependencySet(_chainId));
     }
 }
