@@ -21,6 +21,14 @@ interface IDependencySet {
 /// @notice The CrossL2Inbox is responsible for executing a cross chain message on the destination
 ///         chain. It is permissionless to execute a cross chain message on behalf of any user.
 contract CrossL2Inbox is ICrossL2Inbox, ISemver {
+    /// @notice Selector for 'NotEntered()' error message.
+    ///         Equal to bytes32(uint256(keccak256("NotEntered()")) - 1)
+    uint32 public constant ERR_NOT_ENTERED = 0xbca35af6;
+
+    /// @notice Transient storage slot that `entered` is stored at.
+    ///         Equal to bytes32(uint256(keccak256("crossl2inbox.entered")) - 1)
+    bytes32 public constant ENTERED_SLOT = 0x6705f1f7a14e02595ec471f99cf251f123c2b0258ceb26554fcae9056c389a51;
+
     /// @notice Transient storage slot that the origin for an Identifier is stored at.
     ///         Equal to bytes32(uint256(keccak256("crossl2inbox.identifier.origin")) - 1)
     bytes32 public constant ORIGIN_SLOT = 0xd2b7c5071ec59eb3ff0017d703a8ea513a7d0da4779b0dbefe845808c300c815;
@@ -44,42 +52,63 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver {
     /// @custom:semver 1.0.0
     string public constant version = "1.0.0";
 
-    /// @notice Returns the origin address of the Identifier.
+    /// @notice Returns the origin address of the Identifier. If not entered, reverts.
     /// @return _origin The origin address of the Identifier.
     function origin() external view returns (address _origin) {
         assembly {
+            _entered := tload(ENTERED_SLOT)
+            if eq(_entered, 0) {
+                mstore(0x00, ERR_NOT_ENTERED)
+                revert(0x1C, 0x04)
+            }
             _origin := tload(ORIGIN_SLOT)
         }
     }
 
-    /// @notice Returns the block number of the Identifier.
+    /// @notice Returns the block number of the Identifier. If not entered, reverts.
     /// @return _blocknumber The block number of the Identifier.
     function blocknumber() external view returns (uint256 _blocknumber) {
         assembly {
+            if eq(_entered, 0) {
+                mstore(0x00, ERR_NOT_ENTERED)
+                revert(0x1C, 0x04)
+            }
             _blocknumber := tload(BLOCKNUMBER_SLOT)
         }
     }
 
-    /// @notice Returns the log index of the Identifier.
+    /// @notice Returns the log index of the Identifier. If not entered, reverts.
     /// @return _logIndex The log index of the Identifier.
     function logIndex() external view returns (uint256 _logIndex) {
         assembly {
+            if eq(_entered, 0) {
+                mstore(0x00, ERR_NOT_ENTERED)
+                revert(0x1C, 0x04)
+            }
             _logIndex := tload(LOG_INDEX_SLOT)
         }
     }
 
-    /// @notice Returns the timestamp of the Identifier.
+    /// @notice Returns the timestamp of the Identifier. If not entered, reverts.
     /// @return _timestamp The timestamp of the Identifier.
     function timestamp() external view returns (uint256 _timestamp) {
         assembly {
+            if eq(_entered, 0) {
+                mstore(0x00, ERR_NOT_ENTERED)
+                revert(0x1C, 0x04)
+            }
             _timestamp := tload(TIMESTAMP_SLOT)
         }
     }
 
-    /// @notice Returns the chain ID of the Identifier.
+    /// @notice Returns the chain ID of the Identifier. If not entered, reverts.
     /// @return _chainId The chain ID of the Identifier.
     function chainId() external view returns (uint256 _chainId) {
         assembly {
+            if eq(_entered, 0) {
+                mstore(0x00, ERR_NOT_ENTERED)
+                revert(0x1C, 0x04)
+            }
             _chainId := tload(CHAINID_SLOT)
         }
     }
@@ -109,6 +138,9 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver {
     /// @notice Stores the Identifier in transient storage.
     function _storeIdentifier() internal {
         assembly {
+            // update `entered` to non-zero
+            tstore(ENTERED_SLOT, 1)
+
             tstore(ORIGIN_SLOT, calldataload(4))
             tstore(BLOCKNUMBER_SLOT, calldataload(36))
             tstore(LOG_INDEX_SLOT, calldataload(68))
