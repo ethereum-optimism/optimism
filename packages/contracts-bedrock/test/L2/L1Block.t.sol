@@ -379,12 +379,28 @@ contract L1BlockInterop_Test is L1BlockTest {
         assertTrue(l1Block.isInDependencySet(block.chainid));
     }
 
-    function test_isInDependencySet_fails() external {
-        uint256[] memory dependencySet = new uint256[](2);
+    /// @dev Tests that `isInDependencySet` fails when the input chain ID is not in the dependency set
+    function testFuzz_isInDependencySet_fails(uint256 _chainId) external {
+        vm.assume(_chainId != 1);
+
+        uint256[] memory dependencySet = new uint256[](1);
         dependencySet[0] = 1;
-        dependencySet[1] = 2;
+
+        bytes memory functionCallDataPacked = Encoding.encodeSetL1BlockValuesInterop({
+            baseFeeScalar: 0,
+            blobBaseFeeScalar: 0,
+            sequenceNumber: 0,
+            timestamp: bytes32(0),
+            number: 0,
+            baseFee: 0,
+            blobBaseFee: 0,
+            hash: bytes32(0),
+            batcherHash: 0,
+            dependencySet: dependencySet
+        });
+
         vm.prank(depositor);
-        l1Block.setL1BlockValues(0, 0, 0, bytes32(0), 0, bytes32(0), 0, 0, dependencySet);
+        (success,) = address(l1Block).call(functionCallDataPacked);
         assertFalse(l1Block.isInDependencySet(3));
     }
 
