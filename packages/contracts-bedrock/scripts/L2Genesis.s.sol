@@ -332,6 +332,7 @@ contract L2Genesis is Script, Artifacts {
     ///         This contract has no initializer.
     function _setCrossL2Inbox() internal {
         _setImplementationCode(Predeploys.CROSS_L2_INBOX, "CrossL2Inbox");
+    }
 
     /// @notice This predeploy is following the saftey invariant #1.
     ///         This contract has no initializer.
