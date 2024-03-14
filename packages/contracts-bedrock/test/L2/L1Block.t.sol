@@ -47,8 +47,7 @@ contract L1BlockBedrock_Test is L1BlockTest {
     }
 
     /// @dev Tests that `setL1BlockValues` can set max values.
-    function test_updateValues_succeeds(uint256[] calldata _dependencySet) external {
-        vm.assume(_dependencySet.length <= type(uint8).max);
+    function test_updateValues_succeeds() external {
         vm.prank(depositor);
         l1Block.setL1BlockValues({
             _number: type(uint64).max,
