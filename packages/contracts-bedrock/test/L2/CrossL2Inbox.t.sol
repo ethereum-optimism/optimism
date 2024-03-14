@@ -52,7 +52,7 @@ contract CrossL2InboxTest is CommonTest {
         // executeMessage
         vm.prank(tx.origin);
         vm.expectCall(_target, _value, _msg);
-        crossL2Inbox.executeMessage{ value: _value }(_id, _target, _msg);
+        crossL2Inbox.executeMessage{ value: _value }({ _id: _id, _target: _target, _msg: _msg });
 
         assertEq(crossL2Inbox.origin(), _id.origin);
         assertEq(crossL2Inbox.blocknumber(), _id.blocknumber);
@@ -67,7 +67,7 @@ contract CrossL2InboxTest is CommonTest {
 
         vm.prank(tx.origin);
         vm.expectRevert("CrossL2Inbox: invalid id timestamp");
-        crossL2Inbox.executeMessage(id, address(0), hex"1234");
+        crossL2Inbox.executeMessage({ _id: id, _target: address(0), _msg: hex"1234" });
     }
 
     function test_executeMessage_invalidChainId_fails() external {
@@ -76,17 +76,17 @@ contract CrossL2InboxTest is CommonTest {
 
         vm.prank(tx.origin);
         vm.expectRevert("CrossL2Inbox: id chain not in dependency set");
-        crossL2Inbox.executeMessage(id, address(0), hex"1234");
+        crossL2Inbox.executeMessage({ _id: id, _target: address(0), _msg: hex"1234" });
     }
 
     function test_executeMessage_sameChainId_succeeds() external {
         vm.prank(tx.origin);
-        crossL2Inbox.executeMessage(sampleId, address(0), hex"1234");
+        crossL2Inbox.executeMessage({ _id: sampleId, _target: address(0), _msg: hex"1234" });
     }
 
     function test_executeMessage_invalidSender_fails() external {
         vm.expectRevert("CrossL2Inbox: not EOA sender");
-        crossL2Inbox.executeMessage(sampleId, address(0), hex"1234");
+        crossL2Inbox.executeMessage({ _id: sampleId, _target: address(0), _msg: hex"1234" });
     }
 
     function test_executeMessage_unsuccessfullSafeCall_fails() external {
@@ -95,6 +95,6 @@ contract CrossL2InboxTest is CommonTest {
 
         vm.prank(tx.origin);
         vm.expectRevert("CrossL2Inbox: target call failed");
-        crossL2Inbox.executeMessage(sampleId, address(0), hex"1234");
+        crossL2Inbox.executeMessage({ _id: sampleId, _target: address(0), _msg: hex"1234" });
     }
 }
