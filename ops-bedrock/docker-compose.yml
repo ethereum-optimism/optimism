@@ -185,7 +185,7 @@ services:
       OP_CHALLENGER_GAME_FACTORY_ADDRESS: ${DGF_ADDRESS}
       # The devnet can't set the absolute prestate output root because the contracts are deployed in L1 genesis
       # before the L2 genesis is known.
-      OP_CHALLENGER_UNSAFE_ALLOW_INVALID_PRESTATE: true
+      OP_CHALLENGER_UNSAFE_ALLOW_INVALID_PRESTATE: "true"
       OP_CHALLENGER_DATADIR: temp/challenger-data
       OP_CHALLENGER_CANNON_ROLLUP_CONFIG: ./.devnet/rollup.json
       OP_CHALLENGER_CANNON_L2_GENESIS: ./.devnet/genesis-l2.json
