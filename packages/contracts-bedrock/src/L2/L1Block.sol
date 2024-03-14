@@ -196,6 +196,8 @@ contract L1Block is ISemver {
         return false;
     }
 
+    /// @notice Returns the size of the interop dependency set.
+    /// @return The size of the interop dependency set.
     function dependencySetSize() external view returns (uint8) {
         return uint8(dependencySet.length);
     }
