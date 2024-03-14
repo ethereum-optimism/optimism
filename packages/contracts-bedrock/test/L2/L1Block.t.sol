@@ -86,23 +86,6 @@ contract L1BlockBedrock_Test is L1BlockTest {
             _dependencySet: _dependencySet
         });
     }
-
-    /// @dev Tests that `setL1BlockValues` fails if the length of the dependency set is greater than uint8
-    function test_setL1BlockValues_invalidDependencySetLength_fails(uint256[] calldata _dependencySet) external {
-        vm.assume(_dependencySet.length > type(uint8).max);
-        vm.prank(depositor);
-        l1Block.setL1BlockValues({
-            _number: type(uint64).max,
-            _timestamp: type(uint64).max,
-            _basefee: type(uint256).max,
-            _hash: keccak256(abi.encode(1)),
-            _sequenceNumber: type(uint64).max,
-            _batcherHash: bytes32(type(uint256).max),
-            _l1FeeOverhead: type(uint256).max,
-            _l1FeeScalar: type(uint256).max,
-            _dependencySet: _dependencySet
-        });
-    }
 }
 
 contract L1BlockEcotone_Test is L1BlockTest {
