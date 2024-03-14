@@ -210,26 +210,18 @@ contract L1BlockInterop_Test is L1BlockTest {
     {
         vm.assume(dependencySet.length == uint256(uint8(dependencySet.length)));
 
-        bytes memory functionCallDataPacked = Encoding.encodeSetL1BlockValuesEcotone(
-            baseFeeScalar, blobBaseFeeScalar, sequenceNumber, timestamp, number, baseFee, blobBaseFee, hash, batcherHash
-        );
-
-        vm.prank(depositor);
-        (bool success,) = address(l1Block).call(functionCallDataPacked);
-        assertTrue(success, "Function call failed");
-
-        functionCallDataPacked = Encoding.encodeSetL1BlockValuesInterop(
-            baseFeeScalar,
-            blobBaseFeeScalar,
-            sequenceNumber,
-            timestamp,
-            number,
-            baseFee,
-            blobBaseFee,
-            hash,
-            batcherHash,
-            dependencySet
-        );
+        bytes memory functionCallDataPacked = Encoding.encodeSetL1BlockValuesInterop({
+            baseFeeScalar: baseFeeScalar,
+            blobBaseFeeScalar: blobBaseFeeScalar,
+            sequenceNumber: sequenceNumber,
+            timestamp: timestamp,
+            number: number,
+            baseFee: baseFee,
+            blobBaseFee: blobBaseFee,
+            hash: hash,
+            batcherHash: batcherHash,
+            dependencySet: dependencySet
+        });
 
         vm.prank(depositor);
         (success,) = address(l1Block).call(functionCallDataPacked);
