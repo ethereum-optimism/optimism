@@ -337,7 +337,7 @@ func TestSpanBatchTxsRecoverV(t *testing.T) {
 					if tx.Protected() {
 						protectedBit = uint(1)
 					}
-					protectedBits.SetBit(protectedBits, int(totalLegacyTxCount), protectedBit)
+					protectedBits.SetBit(protectedBits, totalLegacyTxCount, protectedBit)
 					totalLegacyTxCount++
 				}
 				// Do not fill in txSig.V

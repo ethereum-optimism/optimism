@@ -231,7 +231,7 @@ func randomFrame(rng *rand.Rand, opts ...frameOpt) *Frame {
 
 	// default if no option set field
 	if frame.Data == nil {
-		datalen := int(rng.Intn(MaxFrameLen + 1))
+		datalen := rng.Intn(MaxFrameLen + 1)
 		frame.Data = testutils.RandomData(rng, datalen)
 	}
 

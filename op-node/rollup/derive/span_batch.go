@@ -662,7 +662,7 @@ func ReadTxData(r *bytes.Reader) ([]byte, int, error) {
 	txType := byte(0)
 	if int(b) <= 0x7F {
 		// EIP-2718: non legacy tx so write tx type
-		txType = byte(b)
+		txType = b
 		txData = append(txData, txType)
 	} else {
 		// legacy tx: seek back single byte to read prefix again
