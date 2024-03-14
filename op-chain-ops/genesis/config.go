@@ -171,7 +171,7 @@ type DeployConfig struct {
 	// GasPriceOracleOverhead represents the initial value of the gas overhead in the GasPriceOracle predeploy.
 	GasPriceOracleOverhead uint64 `json:"gasPriceOracleOverhead"`
 	// GasPriceOracleScalar represents the initial value of the gas scalar in the GasPriceOracle predeploy.
-	GasPriceOracleScalar uint64 `json:"gasPriceOracleScalar"`
+	GasPriceOracleScalar hexutil.Big `json:"gasPriceOracleScalar"`
 	// EnableGovernance configures whether or not include governance token predeploy.
 	EnableGovernance bool `json:"enableGovernance"`
 	// GovernanceTokenSymbol represents the  ERC20 symbol of the GovernanceToken.
@@ -355,8 +355,8 @@ func (d *DeployConfig) Check() error {
 	if d.GasPriceOracleOverhead == 0 {
 		log.Warn("GasPriceOracleOverhead is 0")
 	}
-	if d.GasPriceOracleScalar == 0 {
-		return fmt.Errorf("%w: GasPriceOracleScalar cannot be 0", ErrInvalidDeployConfig)
+	if d.GasPriceOracleScalar.ToInt().Cmp(common.Big0) <= 0 {
+		return fmt.Errorf("%w: GasPriceOracleScalar cannot be less than or equal to 0", ErrInvalidDeployConfig)
 	}
 	if d.EIP1559Denominator == 0 {
 		return fmt.Errorf("%w: EIP1559Denominator cannot be 0", ErrInvalidDeployConfig)
@@ -573,7 +573,7 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHas
 			SystemConfig: eth.SystemConfig{
 				BatcherAddr: d.BatchSenderAddress,
 				Overhead:    eth.Bytes32(common.BigToHash(new(big.Int).SetUint64(d.GasPriceOracleOverhead))),
-				Scalar:      eth.Bytes32(common.BigToHash(new(big.Int).SetUint64(d.GasPriceOracleScalar))),
+				Scalar:      eth.Bytes32(common.BigToHash(d.GasPriceOracleScalar.ToInt())),
 				GasLimit:    uint64(d.L2GenesisBlockGasLimit),
 			},
 		},
@@ -920,7 +920,7 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 		"sequenceNumber": 0,
 		"batcherHash":    eth.AddressAsLeftPaddedHash(config.BatchSenderAddress),
 		"l1FeeOverhead":  config.GasPriceOracleOverhead,
-		"l1FeeScalar":    config.GasPriceOracleScalar,
+		"l1FeeScalar":    config.GasPriceOracleScalar.ToInt(),
 	}
 	storage["LegacyERC20ETH"] = state.StorageValues{
 		"_name":   "Ether",
