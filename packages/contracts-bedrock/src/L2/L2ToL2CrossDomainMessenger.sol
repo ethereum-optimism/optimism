@@ -7,7 +7,7 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 import { IL2ToL2CrossDomainMessenger } from "src/L2/IL2ToL2CrossDomainMessenger.sol";
 
-/// @notice Thrown when a non-written slot is attempted to be read from.
+/// @notice Thrown when a non-written tstore slot is attempted to be read from.
 error NotEntered();
 
 /// @custom:proxied
