@@ -30,18 +30,18 @@ contract VetoerGuard_TestInit is Test, SafeTestTools {
     }
 }
 
-contract VetoerGuard_IncreaseMaxCount_test is VetoerGuard_TestInit {
-    function test_increaseMaxCount() public {
+contract VetoerGuard_UpdateMaxCount_test is VetoerGuard_TestInit {
+    function test_updateMaxCount() public {
         vm.prank(address(safeInstance.safe));
-        vetoerGuard.increaseMaxCount(10);
+        vetoerGuard.updateMaxCount(10);
         assertEq(vetoerGuard.maxCount(), 10);
     }
 }
 
-contract VetoerGuard_UnauthedIncreaseMaxCount_test is VetoerGuard_TestInit {
-    function test_unauthedIncreaseMaxCount() public {
+contract VetoerGuard_UnauthedUpdateMaxCount_test is VetoerGuard_TestInit {
+    function test_unauthedupdateMaxCount() public {
         vm.expectRevert("VetoerGuard: only Safe can call this function");
-        vetoerGuard.increaseMaxCount(10);
+        vetoerGuard.updateMaxCount(10);
     }
 }
 
