@@ -67,7 +67,7 @@ verify-mainnet-genesis: op-program-host op-program-client
 verify-sepolia-ecotone: op-program-host op-program-client
 	./scripts/run-compat.sh "sepolia-ecotone"
 
-verify-compat: verify-sepolia-delta verify-mainnet-genesis
+verify-compat: verify-sepolia-delta verify-sepolia-ecotone verify-mainnet-genesis
 
 .PHONY: \
 	op-program \
