@@ -11,13 +11,14 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 // Target contracts
 import { L1Block } from "src/L2/L1Block.sol";
 import { CrossL2Inbox, NotEntered } from "src/L2/CrossL2Inbox.sol";
+import { Identifier } from "src/L2/ICrossL2Inbox.sol";
 
 contract CrossL2InboxTest is Test {
     /// @dev CrossL2Inbox contract instance.
     CrossL2Inbox crossL2Inbox;
 
     /// @dev Sample Identifier.
-    CrossL2Inbox.Identifier sampleId = CrossL2Inbox.Identifier({
+    Identifier sampleId = Identifier({
         origin: address(0),
         blocknumber: 0,
         logIndex: 0,
@@ -33,7 +34,7 @@ contract CrossL2InboxTest is Test {
     /// @dev Tests that `executeMessage` succeeds when called with valid parameters.
     function testFuzz_executeMessage_succeeds(
         bytes calldata _msg,
-        CrossL2Inbox.Identifier calldata _id,
+        Identifier calldata _id,
         address _target,
         uint256 _value
     )
@@ -41,16 +42,14 @@ contract CrossL2InboxTest is Test {
         payable
     {
         vm.assume(_id.timestamp <= block.timestamp);
+        vm.assume(_target.code.length == 0);
 
         // need to prevent call to L1Block.isInDependencySet from reverting
-        vm.mockCall(
-            Predeploys.L1_BLOCK_ATTRIBUTES,
-            abi.encodeWithSelector(L1Block.isInDependencySet.selector, _id.chainId),
-            abi.encode(true)
-        );
-
-        // need to prevent underlying SafeCall to target from reverting
-        vm.etch(_target, address(0).code);
+        vm.mockCall({
+            callee: Predeploys.L1_BLOCK_ATTRIBUTES,
+            data: abi.encodeWithSelector(L1Block.isInDependencySet.selector, _id.chainId),
+            returnData: abi.encode(true)
+        });
 
         vm.deal(tx.origin, _value);
 
@@ -68,7 +67,7 @@ contract CrossL2InboxTest is Test {
 
     /// @dev Tests that `executeMessage` fails when called with an identifier with an invalid timestamp.
     function test_executeMessage_invalidTimestamp_fails() external {
-        CrossL2Inbox.Identifier memory id = sampleId;
+        Identifier memory id = sampleId;
         id.timestamp = block.timestamp + 1;
 
         vm.prank(tx.origin);
@@ -78,11 +77,11 @@ contract CrossL2InboxTest is Test {
 
     /// @dev Tests that `executeMessage` fails when called with an identifier with an invalid chain ID.
     function test_executeMessage_invalidChainId_fails() external {
-        vm.mockCall(
-            Predeploys.L1_BLOCK_ATTRIBUTES,
-            abi.encodeWithSelector(L1Block.isInDependencySet.selector, sampleId.chainId),
-            abi.encode(false)
-        );
+        vm.mockCall({
+            callee: Predeploys.L1_BLOCK_ATTRIBUTES,
+            data: abi.encodeWithSelector(L1Block.isInDependencySet.selector, sampleId.chainId),
+            returnData: abi.encode(true)
+        });
 
         vm.prank(tx.origin);
         vm.expectRevert("CrossL2Inbox: id chain not in dependency set");
@@ -92,11 +91,11 @@ contract CrossL2InboxTest is Test {
     /// @dev Tests that `executeMessage` succeeds when called with an identifier with the same chain ID as
     ///      the current chain.
     function test_executeMessage_sameChainId_succeeds() external {
-        vm.mockCall(
-            Predeploys.L1_BLOCK_ATTRIBUTES,
-            abi.encodeWithSelector(L1Block.isInDependencySet.selector, sampleId.chainId),
-            abi.encode(true)
-        );
+        vm.mockCall({
+            callee: Predeploys.L1_BLOCK_ATTRIBUTES,
+            data: abi.encodeWithSelector(L1Block.isInDependencySet.selector, sampleId.chainId),
+            returnData: abi.encode(true)
+        });
 
         vm.prank(tx.origin);
         crossL2Inbox.executeMessage({ _id: sampleId, _target: address(0), _msg: hex"1234" });
@@ -113,11 +112,11 @@ contract CrossL2InboxTest is Test {
         // need to make sure address leads to unsuccessfull SafeCall by executeMessage
         vm.etch(address(0), address(new Reverter()).code);
 
-        vm.mockCall(
-            Predeploys.L1_BLOCK_ATTRIBUTES,
-            abi.encodeWithSelector(L1Block.isInDependencySet.selector, sampleId.chainId),
-            abi.encode(true)
-        );
+        vm.mockCall({
+            callee: Predeploys.L1_BLOCK_ATTRIBUTES,
+            data: abi.encodeWithSelector(L1Block.isInDependencySet.selector, sampleId.chainId),
+            returnData: abi.encode(true)
+        });
 
         vm.prank(tx.origin);
         vm.expectRevert("CrossL2Inbox: target call failed");
