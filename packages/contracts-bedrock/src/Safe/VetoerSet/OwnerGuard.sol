@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import {FixedPointMathLib} from "solady/utils/FixedPointMathLib.sol";
+import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
 
 import { Safe } from "safe-contracts/Safe.sol";
 import { BaseGuard } from "safe-contracts/base/GuardManager.sol";
@@ -17,8 +17,8 @@ contract OwnerGuard is ISemver, BaseGuard {
     /// @custom:semver 1.0.0
     string public constant version = "1.0.0";
 
-        /// @notice The Safe Wallet for which this contract will be the guard.
-    Safe internal immutable SAFE;
+    /// @notice The Safe Wallet for which this contract will be the guard.
+    Safe public immutable safe;
 
     /// @notice The maximum number of owners. Can be changed by supermajority.
     uint8 public maxCount;
@@ -26,7 +26,7 @@ contract OwnerGuard is ISemver, BaseGuard {
     /// @notice Constructor.
     /// @param safe_ The Safe Wallet for which this contract will be the guard.
     constructor(Safe safe_) {
-        SAFE = safe_;
+        safe = safe_;
 
         // Get the current owner count of the Smart Wallet.
         uint256 ownerCount = safe_.getOwners().length;
@@ -52,18 +52,17 @@ contract OwnerGuard is ISemver, BaseGuard {
         address
     )
         external
-    {
-    }
+    { }
 
     /// @notice Inherited hook from `BaseGuard` that is run right after the transaction has been executed
     ///         by the Safe Wallet when `execTransaction` is called.
     function checkAfterExecution(bytes32, bool) external view {
         // Ensure the length of the new set of owners is not above `maxCount`, and get the corresponding threshold.
-        uint256 threshold_ = checkNewOwnerCount(SAFE.getOwners().length);
+        uint256 threshold_ = checkNewOwnerCount(safe.getOwners().length);
 
         // Ensure the Safe Wallet threshold always stays in sync with the 66% one.
         require(
-            SAFE.getThreshold() == threshold_,
+            safe.getThreshold() == threshold_,
             "OwnerGuard: Safe must have a threshold of at least 66% of the number of owners"
         );
     }
@@ -85,18 +84,12 @@ contract OwnerGuard is ISemver, BaseGuard {
     /// @param newMaxCount The new possible `maxCount` of owners.
     function updateMaxCount(uint8 newMaxCount) external {
         // Ensure only the Safe Wallet can call this function.
-        require(msg.sender == address(SAFE), "OwnerGuard: only Safe can call this function");
+        require(msg.sender == address(safe), "OwnerGuard: only Safe can call this function");
 
         // Ensure the given `newMaxCount` is not bellow the current number of owners.
-        require(newMaxCount >= SAFE.getOwners().length);
+        require(newMaxCount >= safe.getOwners().length);
 
         // Update the new`maxCount`.
         maxCount = newMaxCount;
-    }
-
-    /// @notice Getter function for the Safe contract instance
-    /// @return safe_ The Safe contract instance
-    function safe() public view returns (Safe safe_) {
-        safe_ = SAFE;
     }
 }
