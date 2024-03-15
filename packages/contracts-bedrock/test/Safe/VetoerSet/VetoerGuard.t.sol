@@ -12,47 +12,47 @@ import "test/safe-tools/SafeTestTools.sol";
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 import { LivenessGuard } from "src/Safe/LivenessGuard.sol";
-import { VetoerGuard } from "src/Safe/VetoerSet/VetoerGuard.sol";
+import { OwnerGuard } from "src/Safe/VetoerSet/OwnerGuard.sol";
 
-contract VetoerGuard_TestInit is Test, SafeTestTools {
+contract OwnerGuard_TestInit is Test, SafeTestTools {
     using SafeTestLib for SafeInstance;
 
     uint256 initTime = 10;
-    VetoerGuard vetoerGuard;
+    OwnerGuard ownerGuard;
     SafeInstance safeInstance;
 
     /// @dev Sets up the test environment
     function setUp() public {
         vm.warp(initTime);
         safeInstance = _setupSafe();
-        vetoerGuard = new VetoerGuard(safeInstance.safe);
-        safeInstance.setGuard(address(vetoerGuard));
+        ownerGuard = new OwnerGuard(safeInstance.safe);
+        safeInstance.setGuard(address(ownerGuard));
     }
 }
 
-contract VetoerGuard_UpdateMaxCount_test is VetoerGuard_TestInit {
+contract OwnerGuard_UpdateMaxCount_test is OwnerGuard_TestInit {
     function test_updateMaxCount() public {
         vm.prank(address(safeInstance.safe));
-        vetoerGuard.updateMaxCount(10);
-        assertEq(vetoerGuard.maxCount(), 10);
+        ownerGuard.updateMaxCount(10);
+        assertEq(ownerGuard.maxCount(), 10);
     }
 }
 
-contract VetoerGuard_UnauthedUpdateMaxCount_test is VetoerGuard_TestInit {
+contract OwnerGuard_UnauthedUpdateMaxCount_test is OwnerGuard_TestInit {
     function test_unauthedupdateMaxCount() public {
-        vm.expectRevert("VetoerGuard: only Safe can call this function");
-        vetoerGuard.updateMaxCount(10);
+        vm.expectRevert("OwnerGuard: only Safe can call this function");
+        ownerGuard.updateMaxCount(10);
     }
 }
 
-contract VetoerGuard_CheckAfterExecution_test is VetoerGuard_TestInit {
+contract OwnerGuard_CheckAfterExecution_test is OwnerGuard_TestInit {
     using SafeTestLib for SafeInstance;
 
     function test_checkAfterExecution() public {
         vm.prank(address(safeInstance.safe));
         safeInstance.safe.addOwnerWithThreshold(vm.addr(1), 1);
         vm.prank(address(safeInstance.safe));
-        vm.expectRevert("VetoerGuard: Safe must have a threshold of at least 66% of the number of owners");
-        vetoerGuard.checkAfterExecution(0, false);
+        vm.expectRevert("OwnerGuard: Safe must have a threshold of at least 66% of the number of owners");
+        ownerGuard.checkAfterExecution(0, false);
     }
 }

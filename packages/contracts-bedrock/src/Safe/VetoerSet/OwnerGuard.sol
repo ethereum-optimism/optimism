@@ -7,14 +7,15 @@ import { Enum } from "safe-contracts/common/Enum.sol";
 
 import { ISemver } from "src/universal/ISemver.sol";
 
-/// @title VetoerSetGuard
-/// @notice This Guard contract is used to enforce a specific threshold for the VetoerSet.
-contract VetoerGuard is ISemver, BaseGuard {
+/// @title OwnerGuard
+/// @notice This Guard contract is used to enforce a maximum number of owners and a required
+///         threshold for the Safe Wallet.
+contract OwnerGuard is ISemver, BaseGuard {
     /// @notice Semantic version.
     /// @custom:semver 1.0.0
     string public constant version = "1.0.0";
 
-    /// @notice The maximum number of vetoers in the VetoerSet. May be changed by supermajority.
+    /// @notice The maximum number of owners. Can be changed by supermajority.
     uint8 public maxCount = 7;
 
     /// @notice The safe account for which this contract will be the guard.
@@ -53,28 +54,28 @@ contract VetoerGuard is ISemver, BaseGuard {
         // Ensure the Safe Wallet threshold always stays in sync with the 66% one.
         require(
             SAFE.getThreshold() == threshold_,
-            "VetoerGuard: Safe must have a threshold of at least 66% of the number of owners"
+            "OwnerGuard: Safe must have a threshold of at least 66% of the number of owners"
         );
     }
 
-    /// @notice Checks if the given `_newCount` of vetoers is allowed and returns the corresponding 66% threshold.
+    /// @notice Checks if the given `_newCount` of owners is allowed and returns the corresponding 66% threshold.
     /// @dev Reverts if `_newCount` is above `maxCount`.
-    /// @param _newCount The vetoers count to check.
-    /// @return threshold_ The corresponding 66% threshold for `_newCount` vetoers.
+    /// @param _newCount The owners count to check.
+    /// @return threshold_ The corresponding 66% threshold for `_newCount` owners.
     function checkNewOwnerCount(uint256 _newCount) public view returns (uint256 threshold_) {
-        // Ensure we don't exceed the maximum number of allowed vetoers.
-        require(_newCount <= maxCount, "VetoerGuard: too many owners");
+        // Ensure we don't exceed the maximum number of allowed owners.
+        require(_newCount <= maxCount, "OwnerGuard: too many owners");
 
         // Compute the corresponding ceil(66%) threshold of owners.
         threshold_ = (_newCount * 66 + 99) / 100;
     }
 
-    /// @notice Update the maximum number of vetoers.
+    /// @notice Update the maximum number of owners.
     /// @dev Reverts if not called by the Safe Wallet.
-    /// @param _newMaxCount The new possible `maxCount` of vetoers.
+    /// @param _newMaxCount The new possible `maxCount` of owners.
     function updateMaxCount(uint8 _newMaxCount) external {
         // Ensure only the Safe Wallet can call this function.
-        require(msg.sender == address(SAFE), "VetoerGuard: only Safe can call this function");
+        require(msg.sender == address(SAFE), "OwnerGuard: only Safe can call this function");
 
         // Ensure the given `_newMaxCount` is not bellow the current number of owners.
         require(_newMaxCount >= SAFE.getOwners().length);
