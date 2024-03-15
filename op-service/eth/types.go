@@ -365,10 +365,6 @@ type SystemConfig struct {
 	Scalar Bytes32 `json:"scalar"`
 	// GasLimit identifies the L2 block gas limit
 	GasLimit uint64 `json:"gasLimit"`
-	// InteropSetSize identifies the size of the interop set
-	InteropSetSize uint8 `json:"interopSetSize"`
-	// ChainIds identifies the chain IDs of the chains in the interop depenency set
-	ChainIds []*big.Int `json:"chainIds"`
 	// More fields can be added for future SystemConfig versions.
 }
 
