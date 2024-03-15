@@ -1,24 +1,27 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity 0.8.24;
 
 // Testing utilities
-import { Bridge_Initializer } from "test/setup/Bridge_Initializer.sol";
-import { Reverter, ConfigurableCaller } from "test/mocks/Callers.sol";
-import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
-import { ICrossL2Inbox } from "src/L2/ICrossL2Inbox.sol";
+import { Test } from "forge-std/Test.sol";
+import { Reverter } from "test/mocks/Callers.sol";
 
 // Libraries
-import { Hashing } from "src/libraries/Hashing.sol";
-import { Encoding } from "src/libraries/Encoding.sol";
-import { Types } from "src/libraries/Types.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 
-// Target contract dependencies
-import { L2ToL1MessagePasser } from "src/L2/L2ToL1MessagePasser.sol";
-import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
-import { ICrossL2Inbox } from "src/L2/ICrossL2Inbox.sol";
+// Target contract
+import { CrossL2Inbox } from "src/L2/CrossL2Inbox.sol";
+import { L2ToL2CrossDomainMessenger } from "src/L2/L2ToL2CrossDomainMessenger.sol";
 
-contract L2ToL2CrossDomainMessengerTest is Bridge_Initializer {
+contract L2ToL2CrossDomainMessengerTest is Test {
+    /// @dev L2ToL2CrossDomainMessenger contract instance.
+    L2ToL2CrossDomainMessenger l2ToL2CrossDomainMessenger;
+
+    /// @dev Sets up the test suite.
+    function setUp() public {
+        vm.etch(Predeploys.CROSS_L2_INBOX, address(new CrossL2Inbox()).code);
+        l2ToL2CrossDomainMessenger = new L2ToL2CrossDomainMessenger();
+    }
+
     function testFuzz_sendMessage_succeeds(
         uint256 _destination,
         address _target,
@@ -61,12 +64,14 @@ contract L2ToL2CrossDomainMessengerTest is Bridge_Initializer {
 
         vm.mockCall({
             callee: Predeploys.CROSS_L2_INBOX,
-            data: abi.encodeWithSelector(ICrossL2Inbox.origin.selector),
-            returnData: abi.encode(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER)
+            data: abi.encodeWithSelector(CrossL2Inbox.origin.selector),
+            returnData: abi.encode(address(l2ToL2CrossDomainMessenger))
         });
 
-        vm.expectEmit(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
-        emit RelayedMessage(keccak256(abi.encode(block.chainid, _source, _nonce, _sender, _target, _message)));
+        vm.expectEmit(address(l2ToL2CrossDomainMessenger));
+        emit L2ToL2CrossDomainMessenger.RelayedMessage(
+            keccak256(abi.encode(block.chainid, _source, _nonce, _sender, _target, _message))
+        );
 
         vm.deal(Predeploys.CROSS_L2_INBOX, _value);
 
@@ -99,7 +104,7 @@ contract L2ToL2CrossDomainMessengerTest is Bridge_Initializer {
     function test_relayMessage_crossL2InboxOriginNotThisContract_fails() external {
         vm.mockCall({
             callee: Predeploys.CROSS_L2_INBOX,
-            data: abi.encodeWithSelector(ICrossL2Inbox.origin.selector),
+            data: abi.encodeWithSelector(CrossL2Inbox.origin.selector),
             returnData: abi.encode(address(0))
         });
 
@@ -118,8 +123,8 @@ contract L2ToL2CrossDomainMessengerTest is Bridge_Initializer {
     function test_relayMessage_destinationNotThisChain_fails() external {
         vm.mockCall({
             callee: Predeploys.CROSS_L2_INBOX,
-            data: abi.encodeWithSelector(ICrossL2Inbox.origin.selector),
-            returnData: abi.encode(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER)
+            data: abi.encodeWithSelector(CrossL2Inbox.origin.selector),
+            returnData: abi.encode(address(l2ToL2CrossDomainMessenger))
         });
 
         vm.prank(Predeploys.CROSS_L2_INBOX);
@@ -130,8 +135,8 @@ contract L2ToL2CrossDomainMessengerTest is Bridge_Initializer {
     function test_relayMessage_crossL2InboxCannotCallItself_fails() external {
         vm.mockCall({
             callee: Predeploys.CROSS_L2_INBOX,
-            data: abi.encodeWithSelector(ICrossL2Inbox.origin.selector),
-            returnData: abi.encode(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER)
+            data: abi.encodeWithSelector(CrossL2Inbox.origin.selector),
+            returnData: abi.encode(address(l2ToL2CrossDomainMessenger))
         });
 
         vm.prank(Predeploys.CROSS_L2_INBOX);
@@ -144,8 +149,8 @@ contract L2ToL2CrossDomainMessengerTest is Bridge_Initializer {
     function test_relayMessage_messageAlreadyRelayed_fails() external {
         vm.mockCall({
             callee: Predeploys.CROSS_L2_INBOX,
-            data: abi.encodeWithSelector(ICrossL2Inbox.origin.selector),
-            returnData: abi.encode(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER)
+            data: abi.encodeWithSelector(CrossL2Inbox.origin.selector),
+            returnData: abi.encode(address(l2ToL2CrossDomainMessenger))
         });
 
         // First call should succeed
@@ -175,16 +180,16 @@ contract L2ToL2CrossDomainMessengerTest is Bridge_Initializer {
     function test_relayMessage_targetCallFails() external {
         vm.mockCall({
             callee: Predeploys.CROSS_L2_INBOX,
-            data: abi.encodeWithSelector(ICrossL2Inbox.origin.selector),
-            returnData: abi.encode(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER)
+            data: abi.encodeWithSelector(CrossL2Inbox.origin.selector),
+            returnData: abi.encode(address(l2ToL2CrossDomainMessenger))
         });
 
         // Target call should fail, so we etch a Reverter() to the target contract
         vm.etch(address(0xabcd), address(new Reverter()).code);
 
         vm.prank(Predeploys.CROSS_L2_INBOX);
-        vm.expectEmit(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
-        emit FailedRelayedMessage(
+        vm.expectEmit(address(l2ToL2CrossDomainMessenger));
+        emit L2ToL2CrossDomainMessenger.FailedRelayedMessage(
             keccak256(abi.encode(block.chainid, block.chainid, 0, address(0x1234), address(0xabcd), hex"1234"))
         );
         l2ToL2CrossDomainMessenger.relayMessage({
@@ -196,4 +201,9 @@ contract L2ToL2CrossDomainMessengerTest is Bridge_Initializer {
             _message: hex"1234"
         });
     }
+    /*
+    function test_crossDomainMessageSender_entered_success() external {
+        vm.store(address(l2ToL2CrossDomainMessenger), l2ToL2CrossDomainMessenger.ENTERED_SLOT(), bytes32(1));
+        l2ToL2CrossDomainMessenger.crossDomainMessageSender();
+    }*/
 }
