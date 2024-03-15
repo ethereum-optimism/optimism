@@ -95,20 +95,6 @@ contract OwnerGuard is ISemver, BaseGuard {
         }
     }
 
-    /// @notice Checks if the given `newOwnerCount` of owners is allowed and returns the corresponding 66% threshold.
-    /// @dev Reverts if `newOwnerCount` is above `maxOwnerCount`.
-    /// @param newOwnerCount The owners count to check.
-    /// @return threshold_ The corresponding 66% threshold for `newOwnerCount` owners.
-    function checkNewOwnerCount(uint256 newOwnerCount) public view returns (uint256 threshold_) {
-        // Ensure we don't exceed the maximum number of allowed owners.
-        if (newOwnerCount > maxOwnerCount) {
-            revert InvalidOwnerCount(newOwnerCount, maxOwnerCount);
-        }
-
-        // Compute the corresponding ceil(66%) threshold of owners.
-        threshold_ = (newOwnerCount * 66 + 99) / 100;
-    }
-
     /// @notice Update the maximum number of owners.
     /// @dev Reverts if not called by the Safe Wallet.
     /// @param newMaxOwnerCount The new possible `maxOwnerCount` of owners.
@@ -126,5 +112,19 @@ contract OwnerGuard is ISemver, BaseGuard {
 
         // Update the new`maxOwnerCount`.
         maxOwnerCount = newMaxOwnerCount;
+    }
+
+    /// @notice Checks if the given `newOwnerCount` of owners is allowed and returns the corresponding 66% threshold.
+    /// @dev Reverts if `newOwnerCount` is above `maxOwnerCount`.
+    /// @param newOwnerCount The owners count to check.
+    /// @return threshold_ The corresponding 66% threshold for `newOwnerCount` owners.
+    function checkNewOwnerCount(uint256 newOwnerCount) public view returns (uint256 threshold_) {
+        // Ensure we don't exceed the maximum number of allowed owners.
+        if (newOwnerCount > maxOwnerCount) {
+            revert InvalidOwnerCount(newOwnerCount, maxOwnerCount);
+        }
+
+        // Compute the corresponding ceil(66%) threshold of owners.
+        threshold_ = (newOwnerCount * 66 + 99) / 100;
     }
 }
