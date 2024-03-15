@@ -113,7 +113,7 @@ contract L1Block is ISemver {
             // Revert if the caller is not the depositor account.
             if xor(caller(), DEPOSITOR_ACCOUNT) {
                 mstore(0x00, errorNotDepositorSelector)
-                revert(0x00, 0x04) // returns the stored 4-byte selector from above
+                revert(0x00, 4) // returns the stored 4-byte selector from above
             }
             let data := calldataload(4)
             // sequencenum (uint64), blobBaseFeeScalar (uint32), baseFeeScalar (uint32)
@@ -148,7 +148,7 @@ contract L1Block is ISemver {
             // Revert if the caller is not the depositor account.
             if xor(caller(), DEPOSITOR_ACCOUNT) {
                 mstore(0x00, errorNotDepositorSelector)
-                revert(0x00, 0x04) // returns the stored 4-byte selector from above
+                revert(0x00, 4) // returns the stored 4-byte selector from above
             }
             // sequencenum (uint64), blobBaseFeeScalar (uint32), baseFeeScalar (uint32)
             sstore(sequenceNumber.slot, shr(128, calldataload(4)))
@@ -165,7 +165,7 @@ contract L1Block is ISemver {
             // Revert if dependencySetSize_ doesn't match the length of dependencySet in calldata
             if xor(add(165, mul(dependencySetSize_, 0x20)), calldatasize()) {
                 mstore(0x00, errorDependencySetSizeMismatch)
-                revert(0x00, 0x04) // returns the stored 4-byte selector from above
+                revert(0x00, 4) // returns the stored 4-byte selector from above
             }
 
             // Use memory to hash and get the start index of dependencySet
