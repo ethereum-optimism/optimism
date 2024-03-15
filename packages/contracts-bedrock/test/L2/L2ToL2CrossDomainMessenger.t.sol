@@ -22,6 +22,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         l2ToL2CrossDomainMessenger = new L2ToL2CrossDomainMessenger();
     }
 
+    /// @dev Tests the `sendMessage` function.
     function testFuzz_sendMessage_succeeds(
         uint256 _destination,
         address _target,
@@ -41,6 +42,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         });
     }
 
+    /// @dev Tests that the `sendMessage` function fails when the destination is the same as the source.
     function test_sendMessage_toSelf_fails() external {
         vm.expectRevert("L2ToL2CrossDomainMessenger: cannot send message to self");
         l2ToL2CrossDomainMessenger.sendMessage({
@@ -50,6 +52,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         });
     }
 
+    /// @dev Tests the `relayMessage` function.
     function testFuzz_relayMessage_succeeds(
         uint256 _source,
         uint256 _nonce,
@@ -89,6 +92,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         assertEq(l2ToL2CrossDomainMessenger.crossDomainMessageSource(), _source);
     }
 
+    /// @dev Tests that the `relayMessage` function fails when the sender is not the CrossL2Inbox contract.
     function test_relayMessage_senderNotCrossL2Inbox_fails() external {
         vm.expectRevert("L2ToL2CrossDomainMessenger: sender not CrossL2Inbox");
         l2ToL2CrossDomainMessenger.relayMessage({
@@ -101,6 +105,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         });
     }
 
+    /// @dev Tests that the `relayMessage` function fails when the CrossL2Inbox origin is not this contract.
     function test_relayMessage_crossL2InboxOriginNotThisContract_fails() external {
         vm.mockCall({
             callee: Predeploys.CROSS_L2_INBOX,
@@ -120,6 +125,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         });
     }
 
+    /// @dev Tests that the `relayMessage` function fails when the destination is not this chain.
     function test_relayMessage_destinationNotThisChain_fails() external {
         vm.mockCall({
             callee: Predeploys.CROSS_L2_INBOX,
@@ -132,6 +138,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         l2ToL2CrossDomainMessenger.relayMessage(0, block.chainid, 0, address(0x1234), address(0xabcd), hex"1234");
     }
 
+    /// @dev Tests that the `relayMessage` function fails when the target is the CrossL2Inbox contract.
     function test_relayMessage_crossL2InboxCannotCallItself_fails() external {
         vm.mockCall({
             callee: Predeploys.CROSS_L2_INBOX,
@@ -146,6 +153,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         );
     }
 
+    /// @dev Tests that the `relayMessage` function fails when the message has already been relayed.
     function test_relayMessage_messageAlreadyRelayed_fails() external {
         vm.mockCall({
             callee: Predeploys.CROSS_L2_INBOX,
@@ -177,6 +185,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         });
     }
 
+    /// @dev Tests that the `relayMessage` function fails when the target call fails.
     function test_relayMessage_targetCallFails() external {
         vm.mockCall({
             callee: Predeploys.CROSS_L2_INBOX,
@@ -202,11 +211,13 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         });
     }
 
+    /// @dev Tests that `crossDomainMessageSender` reverts when not entered.
     function test_crossDomainMessageSender_notEntered_fails() external {
         vm.expectRevert(NotEntered.selector);
         l2ToL2CrossDomainMessenger.crossDomainMessageSender();
     }
 
+    /// @dev Tests that `crossDomainMessageSource` reverts when not entered.
     function test_crossDomainMessageSource_notEntered_fails() external {
         vm.expectRevert(NotEntered.selector);
         l2ToL2CrossDomainMessenger.crossDomainMessageSource();
