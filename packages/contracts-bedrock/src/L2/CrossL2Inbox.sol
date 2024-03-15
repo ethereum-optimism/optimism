@@ -52,62 +52,52 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver {
     /// @custom:semver 1.0.0
     string public constant version = "1.0.0";
 
-    /// @notice Returns the origin address of the Identifier. If not entered, reverts.
-    /// @return _origin The origin address of the Identifier.
-    function origin() external view returns (address _origin) {
+    modifier notEntered() {
         assembly {
             if eq(tload(ENTERED_SLOT), 0) {
                 mstore(0x00, ERR_NOT_ENTERED)
                 revert(0x1C, 0x04)
             }
+        }
+        _;
+    }
+
+    /// @notice Returns the origin address of the Identifier. If not entered, reverts.
+    /// @return _origin The origin address of the Identifier.
+    function origin() external view notEntered returns (address _origin) {
+        assembly {
             _origin := tload(ORIGIN_SLOT)
         }
     }
 
     /// @notice Returns the block number of the Identifier. If not entered, reverts.
     /// @return _blocknumber The block number of the Identifier.
-    function blocknumber() external view returns (uint256 _blocknumber) {
+    function blocknumber() external view notEntered returns (uint256 _blocknumber) {
         assembly {
-            if eq(tload(ENTERED_SLOT), 0) {
-                mstore(0x00, ERR_NOT_ENTERED)
-                revert(0x1C, 0x04)
-            }
             _blocknumber := tload(BLOCKNUMBER_SLOT)
         }
     }
 
     /// @notice Returns the log index of the Identifier. If not entered, reverts.
     /// @return _logIndex The log index of the Identifier.
-    function logIndex() external view returns (uint256 _logIndex) {
+    function logIndex() external view notEntered returns (uint256 _logIndex) {
         assembly {
-            if eq(tload(ENTERED_SLOT), 0) {
-                mstore(0x00, ERR_NOT_ENTERED)
-                revert(0x1C, 0x04)
-            }
             _logIndex := tload(LOG_INDEX_SLOT)
         }
     }
 
     /// @notice Returns the timestamp of the Identifier. If not entered, reverts.
     /// @return _timestamp The timestamp of the Identifier.
-    function timestamp() external view returns (uint256 _timestamp) {
+    function timestamp() external view notEntered returns (uint256 _timestamp) {
         assembly {
-            if eq(tload(ENTERED_SLOT), 0) {
-                mstore(0x00, ERR_NOT_ENTERED)
-                revert(0x1C, 0x04)
-            }
             _timestamp := tload(TIMESTAMP_SLOT)
         }
     }
 
     /// @notice Returns the chain ID of the Identifier. If not entered, reverts.
     /// @return _chainId The chain ID of the Identifier.
-    function chainId() external view returns (uint256 _chainId) {
+    function chainId() external view notEntered returns (uint256 _chainId) {
         assembly {
-            if eq(tload(ENTERED_SLOT), 0) {
-                mstore(0x00, ERR_NOT_ENTERED)
-                revert(0x1C, 0x04)
-            }
             _chainId := tload(CHAINID_SLOT)
         }
     }
