@@ -7,6 +7,9 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 import { IL2ToL2CrossDomainMessenger } from "src/L2/IL2ToL2CrossDomainMessenger.sol";
 
+/// @notice Thrown when a non-written slot is attempted to be read from.
+error NotEntered();
+
 /// @custom:proxied
 /// @custom:predeploy 0x4200000000000000000000000000000000000023
 /// @title L2ToL2CrossDomainMessenger
@@ -14,10 +17,6 @@ import { IL2ToL2CrossDomainMessenger } from "src/L2/IL2ToL2CrossDomainMessenger.
 ///         features necessary for secure transfers ERC20 tokens between L2 chains. Messages sent through the
 ///         L2ToL2CrossDomainMessenger on the source chain receive both replay protection as well as domain binding.
 contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver {
-    /// @notice Selector for 'NotEntered()' error message.
-    ///         Equal to bytes32(uint256(keccak256("NotEntered()")) - 1)
-    uint32 public constant ERR_NOT_ENTERED = 0xbca35af6;
-
     /// @notice Transient storage slot that `entered` is stored at.
     ///         Equal to bytes32(uint256(keccak256("crossl2inbox.entered")) - 1)
     bytes32 public constant ENTERED_SLOT = 0x6705f1f7a14e02595ec471f99cf251f123c2b0258ceb26554fcae9056c389a51;
@@ -65,7 +64,7 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver {
     modifier notEntered() {
         assembly {
             if eq(tload(ENTERED_SLOT), 0) {
-                mstore(0x00, ERR_NOT_ENTERED)
+                mstore(0x00, 0xbca35af6) // 0xbca35af6 is the 4-byte selector of "NotEntered()"
                 revert(0x1C, 0x04)
             }
         }
