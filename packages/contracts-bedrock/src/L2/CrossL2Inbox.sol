@@ -15,16 +15,15 @@ interface IDependencySet {
     function isInDependencySet(uint256 _chainId) external view returns (bool);
 }
 
+/// @notice Thrown when a non-written tstore slot is attempted to be read from.
+error NotEntered();
+
 /// @custom:proxied
 /// @custom:predeploy 0x4200000000000000000000000000000000000022
 /// @title CrossL2Inbox
 /// @notice The CrossL2Inbox is responsible for executing a cross chain message on the destination
 ///         chain. It is permissionless to execute a cross chain message on behalf of any user.
 contract CrossL2Inbox is ICrossL2Inbox, ISemver {
-    /// @notice Selector for 'NotEntered()' error message.
-    ///         Equal to bytes32(uint256(keccak256("NotEntered()")) - 1)
-    uint32 public constant ERR_NOT_ENTERED = 0xbca35af6;
-
     /// @notice Transient storage slot that `entered` is stored at.
     ///         Equal to bytes32(uint256(keccak256("crossl2inbox.entered")) - 1)
     bytes32 public constant ENTERED_SLOT = 0x6705f1f7a14e02595ec471f99cf251f123c2b0258ceb26554fcae9056c389a51;
@@ -52,10 +51,12 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver {
     /// @custom:semver 1.0.0
     string public constant version = "1.0.0";
 
+    /// @notice Enforces that cross domain message sender and source are set. Reverts if not.
+    ///         This is leveraged to differentiate between 0 and nil at tstorage slots.
     modifier notEntered() {
         assembly {
             if eq(tload(ENTERED_SLOT), 0) {
-                mstore(0x00, ERR_NOT_ENTERED)
+                mstore(0x00, 0xbca35af6) // 0xbca35af6 is the 4-byte selector of "NotEntered()"
                 revert(0x1C, 0x04)
             }
         }
