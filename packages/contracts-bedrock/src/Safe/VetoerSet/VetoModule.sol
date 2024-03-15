@@ -5,7 +5,7 @@ import { Safe, Enum } from "safe-contracts/Safe.sol";
 
 import { ISemver } from "src/universal/ISemver.sol";
 
-/// @title ThresholdModule
+/// @title VetoModule
 /// @notice This module allows any owner of the Safe Wallet to execute a veto through this.
 contract VetoModule is ISemver {
     /// @notice Semantic version.
