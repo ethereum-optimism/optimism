@@ -10,7 +10,7 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 
 // Target contract
 import { CrossL2Inbox } from "src/L2/CrossL2Inbox.sol";
-import { L2ToL2CrossDomainMessenger } from "src/L2/L2ToL2CrossDomainMessenger.sol";
+import { L2ToL2CrossDomainMessenger, NotEntered } from "src/L2/L2ToL2CrossDomainMessenger.sol";
 
 contract L2ToL2CrossDomainMessengerTest is Test {
     /// @dev L2ToL2CrossDomainMessenger contract instance.
@@ -201,9 +201,14 @@ contract L2ToL2CrossDomainMessengerTest is Test {
             _message: hex"1234"
         });
     }
-    /*
-    function test_crossDomainMessageSender_entered_success() external {
-        vm.store(address(l2ToL2CrossDomainMessenger), l2ToL2CrossDomainMessenger.ENTERED_SLOT(), bytes32(1));
+
+    function test_crossDomainMessageSender_notEntered_fails() external {
+        vm.expectRevert(NotEntered.selector);
         l2ToL2CrossDomainMessenger.crossDomainMessageSender();
-    }*/
+    }
+
+    function test_crossDomainMessageSource_notEntered_fails() external {
+        vm.expectRevert(NotEntered.selector);
+        l2ToL2CrossDomainMessenger.crossDomainMessageSource();
+    }
 }
