@@ -44,6 +44,10 @@ type ExecEngine interface {
 	L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error)
 }
 
+type BuilderClient interface {
+	FetchPayload(ctx context.Context, ref eth.L2BlockRef) (*eth.ExecutionPayloadEnvelope, error)
+}
+
 type EngineController struct {
 	engine     ExecEngine // Underlying execution engine RPC
 	log        log.Logger
@@ -73,22 +77,25 @@ type EngineController struct {
 	buildingInfo eth.PayloadInfo
 	buildingSafe bool
 	safeAttrs    *AttributesWithParent
+
+	builderClient BuilderClient
 }
 
-func NewEngineController(engine ExecEngine, log log.Logger, metrics Metrics, rollupCfg *rollup.Config, syncMode sync.Mode) *EngineController {
+func NewEngineController(engine ExecEngine, log log.Logger, metrics Metrics, rollupCfg *rollup.Config, syncMode sync.Mode, builderClient BuilderClient) *EngineController {
 	syncStatus := syncStatusCL
 	if syncMode == sync.ELSync {
 		syncStatus = syncStatusWillStartEL
 	}
 
 	return &EngineController{
-		engine:     engine,
-		log:        log,
-		metrics:    metrics,
-		rollupCfg:  rollupCfg,
-		syncMode:   syncMode,
-		syncStatus: syncStatus,
-		clock:      clock.SystemClock,
+		engine:        engine,
+		log:           log,
+		metrics:       metrics,
+		rollupCfg:     rollupCfg,
+		syncMode:      syncMode,
+		syncStatus:    syncStatus,
+		clock:         clock.SystemClock,
+		builderClient: builderClient,
 	}
 }
 
