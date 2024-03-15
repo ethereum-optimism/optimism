@@ -69,14 +69,14 @@ func currentHeads(ctx context.Context, cfg *rollup.Config, l2 L2Chain) (*FindHea
 		finalized, err = l2.L2BlockRefByHash(ctx, cfg.Genesis.L2.Hash)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("failed to find the finalized L2 block: %w", err)
+		return nil, fmt.Errorf("failed to find the L2 finalized block: %w", err)
 	}
 
 	safe, err := l2.L2BlockRefByLabel(ctx, eth.Safe)
 	if errors.Is(err, ethereum.NotFound) {
 		safe = finalized
 	} else if err != nil {
-		return nil, fmt.Errorf("failed to find the safe L2 block: %w", err)
+		return nil, fmt.Errorf("failed to find the L2 safe block: %w", err)
 	}
 
 	unsafe, err := l2.L2BlockRefByLabel(ctx, eth.Unsafe)
@@ -90,7 +90,7 @@ func currentHeads(ctx context.Context, cfg *rollup.Config, l2 L2Chain) (*FindHea
 	}, nil
 }
 
-// FindL2Heads walks back from `start` (the previous unsafe L2 block) and finds
+// FindL2Heads walks back from `start` (the previous L2 head block) and finds
 // the finalized, unsafe and safe L2 blocks.
 //
 //   - The *unsafe L2 block*: This is the highest L2 block whose L1 origin is a *plausible*
@@ -136,7 +136,7 @@ func FindL2Heads(ctx context.Context, cfg *rollup.Config, l1 L1Chain, l2 L2Chain
 			b, err := l1.L1BlockRefByHash(ctx, n.L1Origin.Hash)
 			if err != nil {
 				// Exit, find-sync start should start over, to move to an available L1 chain with block-by-number / not-found case.
-				return nil, fmt.Errorf("failed to retrieve L1 block: %w", err)
+				return nil, fmt.Errorf("failed to retrieve L1Block: %w", err)
 			}
 			lgr.Info("Walking back L1Block by hash", "curr", l1Block, "next", b, "l2block", n)
 			l1Block = b
@@ -181,7 +181,7 @@ func FindL2Heads(ctx context.Context, cfg *rollup.Config, l1 L1Chain, l2 L2Chain
 				// This can legitimately happen if L1 goes down for a while. But in that case,
 				// restarting the L2 node with a bigger configured MaxReorgDepth is an acceptable
 				// stopgap solution.
-				return nil, fmt.Errorf("%w: traversed back to L2 block %s, but too deep compared to previous unsafe block %s", TooDeepReorgErr, n, prevUnsafe)
+				return nil, fmt.Errorf("%w: traversed back to L2Block %s, but too deep compared to previous unsafe block %s", TooDeepReorgErr, n, prevUnsafe)
 			}
 		}
 
@@ -221,7 +221,7 @@ func FindL2Heads(ctx context.Context, cfg *rollup.Config, l1 L1Chain, l2 L2Chain
 		// Pull L2 parent for next iteration
 		parent, err := l2.L2BlockRefByHash(ctx, n.ParentHash)
 		if err != nil {
-			return nil, fmt.Errorf("failed to fetch L2 block by hash %v: %w", n.ParentHash, err)
+			return nil, fmt.Errorf("failed to fetch L2Block by hash %v: %w", n.ParentHash, err)
 		}
 
 		// Check the L1 origin relation
