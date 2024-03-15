@@ -176,6 +176,36 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 		require.Equal(t, depTx.Gas, uint64(RegolithSystemTxGas))
 		require.Equal(t, L1InfoInteropLen(uint8(len(InteropDependencySet))), len(depTx.Data))
 	})
+	t.Run("first-block interop", func(t *testing.T) {
+		rng := rand.New(rand.NewSource(1234))
+		info := testutils.MakeBlockInfo(nil)(rng)
+		zero := uint64(2)
+		rollupCfg := rollup.Config{
+			RegolithTime: &zero,
+			InteropTime:  &zero,
+			BlockTime:    2,
+		}
+		depTx, err := L1InfoDeposit(&rollupCfg, randomL1Cfg(rng, info), randomSeqNr(rng), info, 2)
+		require.NoError(t, err)
+		require.False(t, depTx.IsSystemTransaction)
+		require.Equal(t, depTx.Gas, uint64(RegolithSystemTxGas))
+		require.Equal(t, L1InfoBedrockLen, len(depTx.Data))
+	})
+	t.Run("genesis-block interop", func(t *testing.T) {
+		rng := rand.New(rand.NewSource(1234))
+		info := testutils.MakeBlockInfo(nil)(rng)
+		zero := uint64(0)
+		rollupCfg := rollup.Config{
+			RegolithTime: &zero,
+			InteropTime:  &zero,
+			BlockTime:    2,
+		}
+		depTx, err := L1InfoDeposit(&rollupCfg, randomL1Cfg(rng, info), randomSeqNr(rng), info, 0)
+		require.NoError(t, err)
+		require.False(t, depTx.IsSystemTransaction)
+		require.Equal(t, depTx.Gas, uint64(RegolithSystemTxGas))
+		require.Equal(t, L1InfoInteropLen(uint8(len(InteropDependencySet))), len(depTx.Data))
+	})
 	t.Run("invalid dependency set size, not matching", func(t *testing.T) {
 		rng := rand.New(rand.NewSource(1234))
 		info := testutils.MakeBlockInfo(nil)(rng)
@@ -190,7 +220,6 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 		_, err = L1BlockInfoFromBytes(&rollupCfg, info.Time(), depTx.Data)
 		assert.Error(t, err)
 	})
-
 	t.Run("invalid dependency set size, too large", func(t *testing.T) {
 		rng := rand.New(rand.NewSource(1234))
 		info := testutils.MakeBlockInfo(nil)(rng)
