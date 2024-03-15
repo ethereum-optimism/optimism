@@ -10,7 +10,7 @@ import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol
 interface IOptimismMintableERC20 is IERC165 {
     function remoteToken() external view returns (address);
 
-    function bridge() external returns (address);
+    function bridge() external view returns (address);
 
     function mint(address _to, uint256 _amount) external;
 
