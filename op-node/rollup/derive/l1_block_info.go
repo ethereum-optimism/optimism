@@ -271,7 +271,7 @@ func (info *L1BlockInfo) unmarshalBinaryEcotone(data []byte) error {
 // +----------------------+----------------------+
 
 func (info *L1BlockInfo) marshalBinaryInterop() ([]byte, error) {
-	w := bytes.NewBuffer(make([]byte, 0, L1InfoInteropLen(info.DependencySetSize())))
+	w := bytes.NewBuffer(make([]byte, 0, L1InfoInteropLen()))
 	if err := solabi.WriteSignature(w, L1InfoFuncInteropBytes4); err != nil {
 		return nil, err
 	}
@@ -362,7 +362,7 @@ func (info *L1BlockInfo) unmarshalBinaryInterop(data []byte) error {
 	}
 
 	// we make the check here because it's the soonest InteroptSetSize is available, which is needed to calculate the expected length
-	if len(data) != int(L1InfoInteropLen(dependencySetSize)) {
+	if len(data) != L1InfoInteropLen() {
 		return fmt.Errorf("data is unexpected length: got %d, expected %d", len(data), L1InfoBedrockLen)
 	}
 
@@ -501,6 +501,6 @@ func L1InfoDepositBytes(rollupCfg *rollup.Config, sysCfg eth.SystemConfig, seqNu
 	return opaqueL1Tx, nil
 }
 
-func L1InfoInteropLen(DependencySetSize uint8) int {
-	return 4 + 32*5 + 1 + 32*int(DependencySetSize)
+func L1InfoInteropLen() int {
+	return 4 + 32*5 + 1 + 32*int(len(InteropDependencySet))
 }
