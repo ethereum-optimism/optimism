@@ -27,10 +27,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -133,7 +135,7 @@ func FindL2Heads(ctx context.Context, cfg *rollup.Config, l1 L1Chain, l2 L2Chain
 		// Fetch L1 information if we never had it, or if we do not have it for the current origin.
 		// Optimization: as soon as we have a previous L1 block, try to traverse L1 by hash instead of by number, to fill the cache.
 		if n.L1Origin.Hash == l1Block.ParentHash {
-			b, err := l1.L1BlockRefByHash(ctx, n.L1Origin.Hash)
+			b, err := fetchBlockWithHTTPRetry(func() (eth.L1BlockRef, error) { return l1.L1BlockRefByHash(ctx, n.L1Origin.Hash) }, lgr)
 			if err != nil {
 				// Exit, find-sync start should start over, to move to an available L1 chain with block-by-number / not-found case.
 				return nil, fmt.Errorf("failed to retrieve L1 block: %w", err)
@@ -142,7 +144,7 @@ func FindL2Heads(ctx context.Context, cfg *rollup.Config, l1 L1Chain, l2 L2Chain
 			l1Block = b
 			ahead = false
 		} else if l1Block == (eth.L1BlockRef{}) || n.L1Origin.Hash != l1Block.Hash {
-			b, err := l1.L1BlockRefByNumber(ctx, n.L1Origin.Number)
+			b, err := fetchBlockWithHTTPRetry(func() (eth.L1BlockRef, error) { return l1.L1BlockRefByNumber(ctx, n.L1Origin.Number) }, lgr)
 			// if L2 is ahead of L1 view, then consider it a "plausible" head
 			notFound := errors.Is(err, ethereum.NotFound)
 			if err != nil && !notFound {
@@ -252,4 +254,21 @@ func FindL2Heads(ctx context.Context, cfg *rollup.Config, l1 L1Chain, l2 L2Chain
 			return result, nil
 		}
 	}
+}
+
+// fetchBlockWithHTTPRetry will retry fetching the block a few times, in case of transient errors.
+func fetchBlockWithHTTPRetry(fetcher func() (eth.L1BlockRef, error), lgr log.Logger) (block eth.L1BlockRef, err error) {
+	for i := 1; i < 5; i++ {
+		block, err = fetcher()
+		if err == nil {
+			return block, nil
+		}
+		if _, ok := err.(rpc.HTTPError); ok {
+			lgr.Warn("Failed to fetch block", "err", err, "retry", i)
+			time.Sleep(time.Duration(i) * time.Second)
+		} else {
+			return
+		}
+	}
+	return block, err
 }
