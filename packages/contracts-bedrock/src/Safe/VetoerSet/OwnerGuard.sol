@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+import {FixedPointMathLib} from "solady/utils/FixedPointMathLib.sol";
+
 import { Safe } from "safe-contracts/Safe.sol";
 import { BaseGuard } from "safe-contracts/base/GuardManager.sol";
 import { Enum } from "safe-contracts/common/Enum.sol";
@@ -15,16 +17,23 @@ contract OwnerGuard is ISemver, BaseGuard {
     /// @custom:semver 1.0.0
     string public constant version = "1.0.0";
 
-    /// @notice The maximum number of owners. Can be changed by supermajority.
-    uint8 public maxCount = 7;
-
-    /// @notice The safe account for which this contract will be the guard.
+        /// @notice The Safe Wallet for which this contract will be the guard.
     Safe internal immutable SAFE;
 
+    /// @notice The maximum number of owners. Can be changed by supermajority.
+    uint8 public maxCount;
+
     /// @notice Constructor.
-    /// @param _safe The safe account for which this contract will be the guard.
+    /// @param _safe The Safe Wallet for which this contract will be the guard.
     constructor(Safe _safe) {
         SAFE = _safe;
+
+        // Get the current owner count of the Smart Wallet.
+        uint256 ownerCount = _safe.getOwners().length;
+        require(ownerCount <= type(uint8).max, "OwnerGuard: owner count too high");
+
+        // Set the initial `maxCount`, to the greater between 7 and the current owner count.
+        maxCount = uint8(FixedPointMathLib.max(7, ownerCount));
     }
 
     /// @notice Inherited hook from `BaseGuard` that is run right before the transaction is executed
@@ -43,7 +52,8 @@ contract OwnerGuard is ISemver, BaseGuard {
         address
     )
         external
-    { }
+    {
+    }
 
     /// @notice Inherited hook from `BaseGuard` that is run right after the transaction has been executed
     ///         by the Safe Wallet when `execTransaction` is called.
