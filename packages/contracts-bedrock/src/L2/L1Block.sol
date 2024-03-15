@@ -3,6 +3,12 @@ pragma solidity ^0.8.15;
 
 import { ISemver } from "src/universal/ISemver.sol";
 
+/// @notice Thrown when a non-depositor account attempts to set L1 block values.
+error NotDepositor();
+
+/// @notice Thrown when dependencySetSize does not match the length of the dependency set.
+error DependencySetSizeMismatch();
+
 /// @custom:proxied
 /// @custom:predeploy 0x4200000000000000000000000000000000000015
 /// @title L1Block
@@ -13,12 +19,6 @@ import { ISemver } from "src/universal/ISemver.sol";
 contract L1Block is ISemver {
     /// @notice Address of the special depositor account.
     address public constant DEPOSITOR_ACCOUNT = 0xDeaDDEaDDeAdDeAdDEAdDEaddeAddEAdDEAd0001;
-
-    /// @notice Selector for 'NotDepositor()' error message.
-    uint32 public constant ERR_NOT_DEPOSITOR = 0x3cc50b45;
-
-    /// @notice Selector for 'DependencySetSizeMismatch()' error message.
-    uint32 public constant ERR_DEPENDENCY_SET_SIZE_MISMATCH = 0x613457f2;
 
     /// @notice The latest L1 block number known by the L2 system.
     uint64 public number;
@@ -108,10 +108,11 @@ contract L1Block is ISemver {
     ///   8. _hash               L1 blockhash.
     ///   9. _batcherHash        Versioned hash to authenticate batcher by.
     function setL1BlockValuesEcotone() external {
+        bytes4 errorNotDepositorSelector = NotDepositor.selector;
         assembly {
             // Revert if the caller is not the depositor account.
             if xor(caller(), DEPOSITOR_ACCOUNT) {
-                mstore(0x00, ERR_NOT_DEPOSITOR)
+                mstore(0x00, errorNotDepositorSelector)
                 revert(0x1C, 0x04) // returns the stored 4-byte selector from above
             }
             let data := calldataload(4)
@@ -141,10 +142,12 @@ contract L1Block is ISemver {
     ///  10. _dependencySetSize  Size of the interop dependency set.
     ///  11. _dependencySet      Array of chain IDs for the interop dependency set.
     function setL1BlockValuesInterop() external {
+        bytes4 errorNotDepositorSelector = NotDepositor.selector;
+        bytes4 errorDependencySetSizeMismatch = DependencySetSizeMismatch.selector;
         assembly {
             // Revert if the caller is not the depositor account.
             if xor(caller(), DEPOSITOR_ACCOUNT) {
-                mstore(0x00, ERR_NOT_DEPOSITOR)
+                mstore(0x00, errorNotDepositorSelector)
                 revert(0x1C, 0x04) // returns the stored 4-byte selector from above
             }
             // sequencenum (uint64), blobBaseFeeScalar (uint32), baseFeeScalar (uint32)
@@ -161,7 +164,7 @@ contract L1Block is ISemver {
 
             // Revert if dependencySetSize_ doesn't match the length of dependencySet in calldata
             if xor(add(165, mul(dependencySetSize_, 0x20)), calldatasize()) {
-                mstore(0x00, ERR_DEPENDENCY_SET_SIZE_MISMATCH)
+                mstore(0x00, errorDependencySetSizeMismatch)
                 revert(0x1C, 0x04) // returns the stored 4-byte selector from above
             }
 
