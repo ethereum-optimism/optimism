@@ -40,8 +40,7 @@ const (
 
 // The following hardcoded chain IDs are for the first devnet release
 var (
-	InteropSetSize  = uint8(1)
-	InteropChainIDs = []*big.Int{big.NewInt(10666), big.NewInt(10777), big.NewInt(10888)}
+	InteropDependencySet = []*big.Int{big.NewInt(10666), big.NewInt(10777), big.NewInt(10888)}
 )
 
 // L1BlockInfo presents the information stored in a L1Block.setL1BlockValues call
@@ -431,7 +430,7 @@ func L1InfoDeposit(rollupCfg *rollup.Config, sysCfg eth.SystemConfig, seqNumber 
 		}
 		l1BlockInfo.BlobBaseFeeScalar = blobBaseFeeScalar
 		l1BlockInfo.BaseFeeScalar = baseFeeScalar
-		l1BlockInfo.DependencySet = InteropChainIDs
+		l1BlockInfo.DependencySet = InteropDependencySet
 		out, err := l1BlockInfo.marshalBinaryInterop()
 		if err != nil {
 			return nil, fmt.Errorf("failed to marshal Interop l1 block info: %w", err)
