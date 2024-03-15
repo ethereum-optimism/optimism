@@ -267,7 +267,7 @@ contract L1BlockInterop_Test is L1BlockTest {
         assertEq(bytes4(data), NotDepositor.selector);
     }
 
-    /// @dev Tests that `setL1BlockValuesInterop` fails if _dependencySetSize is the same as
+    /// @dev Tests that `setL1BlockValuesInterop` succeeds if _dependencySetSize is the same as
     ///      the length of _dependencySet. (happy path)
     function testFuzz_setL1BlockValuesInterop_dependencySetSizeMatch_succeeds(uint256[] calldata dependencySet)
         external
