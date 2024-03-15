@@ -1,6 +1,7 @@
 package plasma
 
 import (
+	"container/heap"
 	"errors"
 	"fmt"
 
@@ -30,29 +31,49 @@ type Commitment struct {
 	canonical       bool            // whether the commitment was derived as part of the canonical chain if canonical it will be in comms queue if not in the pendingComms queue.
 }
 
-// CommQueue is a FIFO queue of commitments ordered by block number.
-// They are naturally ordered as commitments are inserted in order of traversal.
-// State impl makes sure there are no duplicates and in case of retraversal we also reset the queue.
+// CommQueue is a priority queue of commitments ordered by block number.
 type CommQueue []*Commitment
 
-// PendingCommQueue is a FIFO queue of commitments ordered by L1 challenge creation block.
-// They are naturally ordered as commitments are inserted in order of traversal.
-// When a challenge is indexed for a commitment that has not yet been derived, it is added to this queue.
-type PendingCommQueue []*Commitment
+var _ heap.Interface = (*CommQueue)(nil)
+
+func (c CommQueue) Len() int { return len(c) }
+
+// we want the first item in the queue to have the lowest block number
+func (c CommQueue) Less(i, j int) bool {
+	return c[i].blockNumber < c[j].blockNumber
+}
+
+func (c CommQueue) Swap(i, j int) {
+	c[i], c[j] = c[j], c[i]
+}
+
+func (c *CommQueue) Push(x any) {
+	*c = append(*c, x.(*Commitment))
+}
+
+func (c *CommQueue) Pop() any {
+	old := *c
+	n := len(old)
+	item := old[n-1]
+	old[n-1] = nil // avoid memory leak
+	*c = old[0 : n-1]
+	return item
+}
 
 // State tracks the commitment and their challenges in order of l1 inclusion.
 type State struct {
-	comms        CommQueue
-	pendingComms PendingCommQueue
+	activeComms  CommQueue
+	expiredComms CommQueue
 	commsByKey   map[string]*Commitment
 	log          log.Logger
 	metrics      Metricer
+	finalized    uint64
 }
 
 func NewState(log log.Logger, m Metricer) *State {
 	return &State{
-		comms:        make(CommQueue, 0),
-		pendingComms: make(PendingCommQueue, 0),
+		activeComms:  make(CommQueue, 0),
+		expiredComms: make(CommQueue, 0),
 		commsByKey:   make(map[string]*Commitment),
 		log:          log,
 		metrics:      m,
@@ -83,7 +104,7 @@ func (s *State) TrackDetachedCommitment(key []byte, bn uint64) {
 		canonical:   false,
 	}
 	s.log.Debug("tracking detached commitment", "blockNumber", c.blockNumber, "commitment", fmt.Sprintf("%x", key))
-	s.pendingComms = append(s.pendingComms, c)
+	heap.Push(&s.activeComms, c)
 	s.commsByKey[string(key)] = c
 }
 
@@ -120,7 +141,7 @@ func (s *State) SetInputCommitment(key []byte, committedAt uint64, challengeWind
 		canonical:   true,
 	}
 	s.log.Debug("append commitment", "expiresAt", c.expiresAt, "blockNumber", c.blockNumber)
-	s.comms = append(s.comms, c)
+	heap.Push(&s.activeComms, c)
 	s.commsByKey[string(key)] = c
 
 	return c
@@ -130,12 +151,8 @@ func (s *State) SetInputCommitment(key []byte, committedAt uint64, challengeWind
 // initializes a new commitment and adds it to the state.
 func (s *State) GetOrTrackChallenge(key []byte, bn uint64, challengeWindow uint64) *Commitment {
 	if c, ok := s.commsByKey[string(key)]; ok {
-		// if the commitment was previously tracked from a challenge event,
-		// promote it to the comms queue. It will be removed from pending during pruning step.
-		if !c.canonical {
-			s.comms = append(s.comms, c)
-			c.canonical = true
-		}
+		// commitments previously introduced by challenge events are marked as canonical
+		c.canonical = true
 		return c
 	}
 	return s.SetInputCommitment(key, bn, challengeWindow)
@@ -154,23 +171,32 @@ func (s *State) GetResolvedInput(key []byte) ([]byte, error) {
 // as expired based on the new latest l1 origin. If any active challenges are expired
 // it returns an error to signal that a derivation pipeline reset is required.
 func (s *State) ExpireChallenges(bn uint64) (uint64, error) {
-	latest := uint64(0)
 	var err error
-	for i := 0; i < len(s.comms); i++ {
-		c := s.comms[i]
-		if c.expiresAt <= bn && c.blockNumber > latest {
-			latest = c.blockNumber
+	for s.activeComms.Len() > 0 && s.activeComms[0].expiresAt <= bn && s.activeComms[0].blockNumber > s.finalized {
+		// move from the active to the expired queue
+		c := heap.Pop(&s.activeComms).(*Commitment)
+		heap.Push(&s.expiredComms, c)
 
-			if c.challengeStatus == ChallengeActive {
-				c.challengeStatus = ChallengeExpired
-				s.metrics.RecordExpiredChallenge(c.key)
+		if c.canonical {
+			// advance finalized head only if the commitment was derived as part of the canonical chain
+			s.finalized = c.blockNumber
+		}
+
+		// active mark as expired so it is skipped in the derivation pipeline
+		if c.challengeStatus == ChallengeActive {
+			c.challengeStatus = ChallengeExpired
+
+			// only reorg if canonical. If the pipeline is behind, it will just
+			// get skipped once it catches up. If it is spam, it will be pruned
+			// with no effect.
+			if c.canonical {
 				err = ErrReorgRequired
+				s.metrics.RecordExpiredChallenge(c.key)
 			}
-		} else {
-			break
 		}
 	}
-	return latest, err
+
+	return s.finalized, err
 }
 
 // safely prune in case reset is deeper than the finalized l1
@@ -185,45 +211,18 @@ func (s *State) Prune(bn uint64) {
 	} else {
 		bn = 0
 	}
-	i := 0
-	for i < len(s.comms) {
-		c := s.comms[i]
-		// s.comms is ordered by block number.
-		if c.blockNumber < bn {
-			delete(s.commsByKey, string(c.key))
-			i++
-		} else {
-			break
-		}
+	for s.expiredComms.Len() > 0 && s.expiredComms[0].blockNumber < bn {
+		c := heap.Pop(&s.expiredComms).(*Commitment)
+		s.log.Debug("prune commitment", "expiresAt", c.expiresAt, "blockNumber", c.blockNumber)
+		delete(s.commsByKey, string(c.key))
 	}
-	if i > 0 {
-		s.comms = append(s.comms[:0], s.comms[i:]...)
-	}
-	// pending commitments are also cleared once block is finalized
-	j := 0
-	for j < len(s.pendingComms) {
-		c := s.pendingComms[j]
-		// s.pendingComms is ordered by expiration block. As a result pruning of pending commitments
-		// will lag behind the pruning of the canonical commitments.
-		if c.expiresAt < bn {
-			// canonical commitments are evicted during the previous step
-			if !c.canonical {
-				delete(s.commsByKey, string(c.key))
-			}
-			j++
-		} else {
-			break
-		}
-	}
-	if j > 0 {
-		s.pendingComms = append(s.pendingComms[:0], s.pendingComms[j:]...)
-	}
-	s.log.Info("pruned commitments", "canonical", i, "pending", j)
 }
 
 // In case of L1 reorg, state should be cleared so we can sync all the challenge events
 // from scratch.
 func (s *State) Reset() {
-	s.comms = s.comms[:0]
+	s.activeComms = s.activeComms[:0]
+	s.expiredComms = s.expiredComms[:0]
+	s.finalized = 0
 	clear(s.commsByKey)
 }

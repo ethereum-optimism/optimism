@@ -249,16 +249,13 @@ func TestDAChallengeDetached(t *testing.T) {
 	state.Prune(bn)
 
 	// pipeline discovers c2
-	state.GetOrTrackChallenge(c2, 2, challengeWindow)
-
-	// now c2 can expire
-	bn, err = state.ExpireChallenges(11)
-	require.ErrorIs(t, err, ErrReorgRequired)
-	require.Equal(t, uint64(2), bn)
+	comm := state.GetOrTrackChallenge(c2, 2, challengeWindow)
+	// it is already marked as expired so it will be skipped without needing a reorg
+	require.Equal(t, ChallengeExpired, comm.challengeStatus)
 
 	// later when we get to finalizing block 10 + margin, the pending challenge is safely pruned
 	state.Prune(210)
-	require.Equal(t, 0, len(state.pendingComms))
+	require.Equal(t, 0, len(state.expiredComms))
 }
 
 // cannot import from testutils at this time because of import cycle
