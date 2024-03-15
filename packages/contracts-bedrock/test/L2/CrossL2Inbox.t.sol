@@ -85,17 +85,26 @@ contract CrossL2InboxTest is Test {
 
     /// @dev Tests that `executeMessage` fails when called with an identifier with an invalid chain ID.
     function test_executeMessage_invalidChainId_fails() external {
-        ICrossL2Inbox.Identifier memory id = sampleId;
-        id.chainId = 1;
+        vm.mockCall(
+            Predeploys.L1_BLOCK_ATTRIBUTES,
+            abi.encodeWithSelector(L1Block.isInDependencySet.selector, sampleId.chainId),
+            abi.encode(false)
+        );
 
         vm.prank(tx.origin);
         vm.expectRevert("CrossL2Inbox: id chain not in dependency set");
-        crossL2Inbox.executeMessage({ _id: id, _target: sampleTarget, _msg: sampleMsg });
+        crossL2Inbox.executeMessage({ _id: sampleId, _target: sampleTarget, _msg: sampleMsg });
     }
 
     /// @dev Tests that `executeMessage` succeeds when called with an identifier with the same chain ID as
     ///      the current chain.
     function test_executeMessage_sameChainId_succeeds() external {
+        vm.mockCall(
+            Predeploys.L1_BLOCK_ATTRIBUTES,
+            abi.encodeWithSelector(L1Block.isInDependencySet.selector, sampleId.chainId),
+            abi.encode(true)
+        );
+
         vm.prank(tx.origin);
         crossL2Inbox.executeMessage({ _id: sampleId, _target: sampleTarget, _msg: sampleMsg });
     }
@@ -110,6 +119,12 @@ contract CrossL2InboxTest is Test {
     function test_executeMessage_unsuccessfullSafeCall_fails() external {
         // need to make sure address leads to unsuccessfull SafeCall by executeMessage
         vm.etch(sampleTarget, address(new Reverter()).code);
+
+        vm.mockCall(
+            Predeploys.L1_BLOCK_ATTRIBUTES,
+            abi.encodeWithSelector(L1Block.isInDependencySet.selector, sampleId.chainId),
+            abi.encode(true)
+        );
 
         vm.prank(tx.origin);
         vm.expectRevert("CrossL2Inbox: target call failed");
