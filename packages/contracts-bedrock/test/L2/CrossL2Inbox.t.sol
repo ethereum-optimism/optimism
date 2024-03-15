@@ -127,30 +127,30 @@ contract CrossL2InboxTest is Test {
     /// @dev Tests that `origin` reverts when not entered.
     function test_origin_notEntered_fails() external {
         vm.expectRevert(NotEntered.selector);
-        l2ToL2CrossDomainMessenger.origin();
+        crossL2Inbox.origin();
     }
 
     /// @dev Tests that `blocknumber` reverts when not entered.
     function test_blocknumber_notEntered_fails() external {
         vm.expectRevert(NotEntered.selector);
-        l2ToL2CrossDomainMessenger.blocknumber();
+        crossL2Inbox.blocknumber();
     }
 
     /// @dev Tests that `logIndex` reverts when not entered.
     function test_logIndex_notEntered_fails() external {
         vm.expectRevert(NotEntered.selector);
-        l2ToL2CrossDomainMessenger.logIndex();
+        crossL2Inbox.logIndex();
     }
 
     /// @dev Tests that `timestamp` reverts when not entered.
     function test_timestamp_notEntered_fails() external {
         vm.expectRevert(NotEntered.selector);
-        l2ToL2CrossDomainMessenger.timestamp();
+        crossL2Inbox.timestamp();
     }
 
     /// @dev Tests that `chainId` reverts when not entered.
     function test_chainId_notEntered_fails() external {
         vm.expectRevert(NotEntered.selector);
-        l2ToL2CrossDomainMessenger.chainId();
+        crossL2Inbox.chainId();
     }
 }
