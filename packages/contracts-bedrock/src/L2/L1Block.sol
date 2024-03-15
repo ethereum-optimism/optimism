@@ -108,12 +108,11 @@ contract L1Block is ISemver {
     ///   8. _hash               L1 blockhash.
     ///   9. _batcherHash        Versioned hash to authenticate batcher by.
     function setL1BlockValuesEcotone() external {
-        bytes4 errorNotDepositorSelector = NotDepositor.selector;
         assembly {
             // Revert if the caller is not the depositor account.
             if xor(caller(), DEPOSITOR_ACCOUNT) {
-                mstore(0x00, errorNotDepositorSelector)
-                revert(0x00, 4) // returns the stored 4-byte selector from above
+                mstore(0x00, 0x3cc50b45) // 0x3cc50b45 is the 4-byte selector of "NotDepositor()"
+                revert(0x1C, 0x04) // returns the stored 4-byte selector from above
             }
             let data := calldataload(4)
             // sequencenum (uint64), blobBaseFeeScalar (uint32), baseFeeScalar (uint32)
