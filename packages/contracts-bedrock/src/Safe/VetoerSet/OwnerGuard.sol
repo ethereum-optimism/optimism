@@ -21,15 +21,15 @@ contract OwnerGuard is ISemver, BaseGuard {
     Safe public immutable safe;
 
     /// @notice The maximum number of owners. Can be changed by supermajority.
-    uint8 public maxCount;
+    uint8 public maxOwnerCount;
 
     /// @notice Thrown at deployment if the current Safe Wallet owner count can't fit in a `uint8`.
     /// @param ownerCount The current owner count.
     error OwnerCountTooHigh(uint256 ownerCount);
 
-    /// @notice Thrown if the new owner count is above the `maxCount` limit.
+    /// @notice Thrown if the new owner count is above the `maxOwnerCount` limit.
     /// @param ownerCount The Safe Wallet owner count.
-    /// @param maxOwerCount The current `maxCount`.
+    /// @param maxOwerCount The current `maxOwnerCount`.
     error InvalidOwnerCount(uint256 ownerCount, uint256 maxOwerCount);
 
     /// @notice Thrown after the Safe Wallet executed a transaction if its threshold does not matches
@@ -38,16 +38,16 @@ contract OwnerGuard is ISemver, BaseGuard {
     /// @param expectedThreshold The expected threshold.
     error InvalidSafeWalletThreshold(uint256 threshold, uint256 expectedThreshold);
 
-    /// @notice Thrown when trying to update the `maxCount` limit but the caller is not
+    /// @notice Thrown when trying to update the `maxOwnerCount` limit but the caller is not
     ///         the associated Safe Wallet.
     /// @param sender The sender address.
     error SenderIsNotSafeWallet(address sender);
 
-    /// @notice Thrown when trying to update the `maxCount` limit to a value lower than the current
+    /// @notice Thrown when trying to update the `maxOwnerCount` limit to a value lower than the current
     ///         Safe Wallet owner count.
-    /// @param newMaxCount The new invalid max count.
+    /// @param newMaxOwnerCount The new invalid max count.
     /// @param ownerCount The current Safe Wallet owner count.
-    error InvalidNewMaxCount(uint256 newMaxCount, uint256 ownerCount);
+    error InvalidNewMaxCount(uint256 newMaxOwnerCount, uint256 ownerCount);
 
     /// @notice Constructor.
     /// @param safe_ The Safe Wallet for which this contract will be the guard.
@@ -60,8 +60,8 @@ contract OwnerGuard is ISemver, BaseGuard {
             revert OwnerCountTooHigh(ownerCount);
         }
 
-        // Set the initial `maxCount`, to the greater between 7 and the current owner count.
-        maxCount = uint8(FixedPointMathLib.max(7, ownerCount));
+        // Set the initial `maxOwnerCount`, to the greater between 7 and the current owner count.
+        maxOwnerCount = uint8(FixedPointMathLib.max(7, ownerCount));
     }
 
     /// @notice Inherited hook from `BaseGuard` that is run right before the transaction is executed
@@ -85,7 +85,7 @@ contract OwnerGuard is ISemver, BaseGuard {
     /// @notice Inherited hook from `BaseGuard` that is run right after the transaction has been executed
     ///         by the Safe Wallet when `execTransaction` is called.
     function checkAfterExecution(bytes32, bool) external view {
-        // Ensure the length of the new set of owners is not above `maxCount`, and get the corresponding threshold.
+        // Ensure the length of the new set of owners is not above `maxOwnerCount`, and get the corresponding threshold.
         uint256 expectedThreshold = checkNewOwnerCount(safe.getOwners().length);
 
         // Ensure the Safe Wallet threshold always stays in sync with the 66% one.
@@ -95,36 +95,36 @@ contract OwnerGuard is ISemver, BaseGuard {
         }
     }
 
-    /// @notice Checks if the given `newCount` of owners is allowed and returns the corresponding 66% threshold.
-    /// @dev Reverts if `newCount` is above `maxCount`.
-    /// @param newCount The owners count to check.
-    /// @return threshold_ The corresponding 66% threshold for `newCount` owners.
-    function checkNewOwnerCount(uint256 newCount) public view returns (uint256 threshold_) {
+    /// @notice Checks if the given `newOwnerCount` of owners is allowed and returns the corresponding 66% threshold.
+    /// @dev Reverts if `newOwnerCount` is above `maxOwnerCount`.
+    /// @param newOwnerCount The owners count to check.
+    /// @return threshold_ The corresponding 66% threshold for `newOwnerCount` owners.
+    function checkNewOwnerCount(uint256 newOwnerCount) public view returns (uint256 threshold_) {
         // Ensure we don't exceed the maximum number of allowed owners.
-        if (newCount > maxCount) {
-            revert InvalidOwnerCount(newCount, maxCount);
+        if (newOwnerCount > maxOwnerCount) {
+            revert InvalidOwnerCount(newOwnerCount, maxOwnerCount);
         }
 
         // Compute the corresponding ceil(66%) threshold of owners.
-        threshold_ = (newCount * 66 + 99) / 100;
+        threshold_ = (newOwnerCount * 66 + 99) / 100;
     }
 
     /// @notice Update the maximum number of owners.
     /// @dev Reverts if not called by the Safe Wallet.
-    /// @param newMaxCount The new possible `maxCount` of owners.
-    function updateMaxCount(uint8 newMaxCount) external {
+    /// @param newMaxOwnerCount The new possible `maxOwnerCount` of owners.
+    function updateMaxCount(uint8 newMaxOwnerCount) external {
         // Ensure only the Safe Wallet can call this function.
         if (msg.sender != address(safe)) {
             revert SenderIsNotSafeWallet(msg.sender);
         }
 
-        // Ensure the given `newMaxCount` is not bellow the current number of owners.
+        // Ensure the given `newMaxOwnerCount` is not bellow the current number of owners.
         uint256 ownerCount = safe.getOwners().length;
-        if (newMaxCount < ownerCount) {
-            revert InvalidNewMaxCount(newMaxCount, ownerCount);
+        if (newMaxOwnerCount < ownerCount) {
+            revert InvalidNewMaxCount(newMaxOwnerCount, ownerCount);
         }
 
-        // Update the new`maxCount`.
-        maxCount = newMaxCount;
+        // Update the new`maxOwnerCount`.
+        maxOwnerCount = newMaxOwnerCount;
     }
 }

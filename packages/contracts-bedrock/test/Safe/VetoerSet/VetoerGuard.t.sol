@@ -34,7 +34,7 @@ contract OwnerGuard_UpdateMaxCount_test is OwnerGuard_TestInit {
     function test_updateMaxCount() public {
         vm.prank(address(safeInstance.safe));
         ownerGuard.updateMaxCount(10);
-        assertEq(ownerGuard.maxCount(), 10);
+        assertEq(ownerGuard.maxOwnerCount(), 10);
     }
 }
 
