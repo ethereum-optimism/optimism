@@ -14,6 +14,14 @@ import { IL2ToL2CrossDomainMessenger } from "src/L2/IL2ToL2CrossDomainMessenger.
 ///         features necessary for secure transfers ERC20 tokens between L2 chains. Messages sent through the
 ///         L2ToL2CrossDomainMessenger on the source chain receive both replay protection as well as domain binding.
 contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver {
+    /// @notice Selector for 'NotEntered()' error message.
+    ///         Equal to bytes32(uint256(keccak256("NotEntered()")) - 1)
+    uint32 public constant ERR_NOT_ENTERED = 0xbca35af6;
+
+    /// @notice Transient storage slot that `entered` is stored at.
+    ///         Equal to bytes32(uint256(keccak256("crossl2inbox.entered")) - 1)
+    bytes32 public constant ENTERED_SLOT = 0x6705f1f7a14e02595ec471f99cf251f123c2b0258ceb26554fcae9056c389a51;
+
     /// @notice Storage slot for the sender of the current cross domain message.
     ///         Equal to bytes32(uint256(keccak256("l2tol2crossdomainmessenger.sender")) - 1)
     bytes32 public constant CROSS_DOMAIN_MESSAGE_SENDER_SLOT =
@@ -27,9 +35,6 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver {
     /// @notice Current message version identifier.
     uint16 public constant MESSAGE_VERSION = uint16(0);
 
-    /// @custom:semver 1.0.0
-    string public constant version = "1.0.0";
-
     /// @notice Mapping of message hashes to boolean receipt values. Note that a message will only
     ///         be present in this mapping if it has successfully been relayed on this chain, and
     ///         can therefore not be relayed again.
@@ -39,6 +44,9 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver {
     ///         messageNonce getter which will insert the message version into the nonce to give you
     ///         the actual nonce to be used for the message.
     uint240 internal msgNonce;
+
+    /// @custom:semver 1.0.0
+    string public constant version = "1.0.0";
 
     /// @notice Emitted whenever a message is sent to the other chain.
     /// @param data Encoded data of the message that was sent.
@@ -52,17 +60,29 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver {
     /// @param msgHash Hash of the message that failed to be relayed.
     event FailedRelayedMessage(bytes32 indexed msgHash);
 
-    /// @notice Retrieves the sender of the current cross domain message.
+    /// @notice Enforces that cross domain message sender and source are set. Reverts if not.
+    ///         This is leveraged to differentiate between 0 and nil at tstorage slots.
+    modifier notEntered() {
+        assembly {
+            if eq(tload(ENTERED_SLOT), 0) {
+                mstore(0x00, ERR_NOT_ENTERED)
+                revert(0x1C, 0x04)
+            }
+        }
+        _;
+    }
+
+    /// @notice Retrieves the sender of the current cross domain message. If not entered, reverts.
     /// @return _sender Address of the sender of the current cross domain message.
-    function crossDomainMessageSender() external view returns (address _sender) {
+    function crossDomainMessageSender() external view notEntered returns (address _sender) {
         assembly {
             _sender := tload(CROSS_DOMAIN_MESSAGE_SENDER_SLOT)
         }
     }
 
-    /// @notice Retrieves the source of the current cross domain message.
+    /// @notice Retrieves the source of the current cross domain message. If not entered, reverts.
     /// @return _source Chain ID of the source of the current cross domain message.
-    function crossDomainMessageSource() external view returns (uint256 _source) {
+    function crossDomainMessageSource() external view notEntered returns (uint256 _source) {
         assembly {
             _source := tload(CROSS_DOMAIN_MESSAGE_SOURCE_SLOT)
         }
@@ -127,6 +147,9 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver {
 
         bool success;
         assembly {
+            // update `entered` to non-zero
+            tstore(ENTERED_SLOT, 1)
+
             tstore(CROSS_DOMAIN_MESSAGE_SOURCE_SLOT, _source)
             tstore(CROSS_DOMAIN_MESSAGE_SENDER_SLOT, _sender)
 
