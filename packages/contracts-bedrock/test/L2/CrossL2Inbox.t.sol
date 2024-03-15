@@ -121,6 +121,36 @@ contract CrossL2InboxTest is Test {
 
         vm.prank(tx.origin);
         vm.expectRevert("CrossL2Inbox: target call failed");
-        crossL2Inbox.executeMessage({ _id: sampleId, _target: sampleTarget, _msg: sampleMsg });
+        crossL2Inbox.executeMessage({ _id: sampleId, _target: address(0), _msg: hex"1234" });
+    }
+
+    /// @dev Tests that `origin` reverts when not entered.
+    function test_origin_notEntered_fails() external {
+        vm.expectRevert(NotEntered.selector);
+        l2ToL2CrossDomainMessenger.origin();
+    }
+
+    /// @dev Tests that `blocknumber` reverts when not entered.
+    function test_blocknumber_notEntered_fails() external {
+        vm.expectRevert(NotEntered.selector);
+        l2ToL2CrossDomainMessenger.blocknumber();
+    }
+
+    /// @dev Tests that `logIndex` reverts when not entered.
+    function test_logIndex_notEntered_fails() external {
+        vm.expectRevert(NotEntered.selector);
+        l2ToL2CrossDomainMessenger.logIndex();
+    }
+
+    /// @dev Tests that `timestamp` reverts when not entered.
+    function test_timestamp_notEntered_fails() external {
+        vm.expectRevert(NotEntered.selector);
+        l2ToL2CrossDomainMessenger.timestamp();
+    }
+
+    /// @dev Tests that `chainId` reverts when not entered.
+    function test_chainId_notEntered_fails() external {
+        vm.expectRevert(NotEntered.selector);
+        l2ToL2CrossDomainMessenger.chainId();
     }
 }
