@@ -114,7 +114,7 @@ func (info *L1BlockInfo) marshalBinaryBedrock() ([]byte, error) {
 
 func (info *L1BlockInfo) unmarshalBinaryBedrock(data []byte) error {
 	if len(data) != L1InfoBedrockLen {
-		return fmt.Errorf("data is unexpected length: %d %d", len(data), L1InfoBedrockLen)
+		return fmt.Errorf("data is unexpected length: got %d, expected %d", len(data), L1InfoBedrockLen)
 	}
 	reader := bytes.NewReader(data)
 
@@ -210,7 +210,7 @@ func (info *L1BlockInfo) marshalBinaryEcotone() ([]byte, error) {
 
 func (info *L1BlockInfo) unmarshalBinaryEcotone(data []byte) error {
 	if len(data) != L1InfoEcotoneLen {
-		return fmt.Errorf("data is unexpected length: %d", len(data))
+		return fmt.Errorf("data is unexpected length: got %d, expected %d", len(data), L1InfoBedrockLen)
 	}
 	r := bytes.NewReader(data)
 
@@ -363,7 +363,7 @@ func (info *L1BlockInfo) unmarshalBinaryInterop(data []byte) error {
 
 	// we make the check here because it's the soonest InteroptSetSize is available, which is needed to calculate the expected length
 	if len(data) != int(L1InfoInteropLen(dependencySetSize)) {
-		return fmt.Errorf("data is unexpected length: %d", len(data))
+		return fmt.Errorf("data is unexpected length: got %d, expected %d", len(data), L1InfoBedrockLen)
 	}
 
 	info.DependencySet = make([]*big.Int, dependencySetSize)
