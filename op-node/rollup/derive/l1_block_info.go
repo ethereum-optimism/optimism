@@ -253,22 +253,22 @@ func (info *L1BlockInfo) unmarshalBinaryEcotone(data []byte) error {
 }
 
 // Interop Binary Format
-// +-------------------+--------------------------+
-// | Bytes             | Field                    |
-// +-------------------+--------------------------+
-// | 4                 | Function signature       |
-// | 4                 | BaseFeeScalar            |
-// | 4                 | BlobBaseFeeScalar        |
-// | 8                 | SequenceNumber           |
-// | 8                 | Timestamp                |
-// | 8                 | L1BlockNumber            |
-// | 32                | BaseFee                  |
-// | 32                | BlobBaseFee              |
-// | 32                | BlockHash                |
-// | 32                | BatcherHash              |
-// | 1       		   | InteropSetSize           |
-// | 32*InteropSetSize | ChainIDs                 |
-// +-------------------+--------------------------+
+// +----------------------+----------------------+
+// | Bytes                | Field                |
+// +----------------------+----------------------+
+// | 4                    | Function signature   |
+// | 4                    | BaseFeeScalar        |
+// | 4                    | BlobBaseFeeScalar    |
+// | 8                    | SequenceNumber       |
+// | 8                    | Timestamp            |
+// | 8                    | L1BlockNumber        |
+// | 32                   | BaseFee              |
+// | 32                   | BlobBaseFee          |
+// | 32                   | BlockHash            |
+// | 32                   | BatcherHash          |
+// | 1       		      | DependencySetSize    |
+// | 32*DependencySetSize | DependencySet        |
+// +----------------------+----------------------+
 
 func (info *L1BlockInfo) marshalBinaryInterop() ([]byte, error) {
 	w := bytes.NewBuffer(make([]byte, 0, L1InfoInteropLen(info.DependencySetSize())))
