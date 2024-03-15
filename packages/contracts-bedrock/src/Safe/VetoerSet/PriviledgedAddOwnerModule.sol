@@ -12,6 +12,10 @@ import { OwnerGuard } from "./OwnerGuard.sol";
 /// @notice This module allows any specifically designated address to add owners to the
 ///         Safe Wallet. Specifically, the Optimism Foundation may add new owners.
 contract PriviledgedAddOwnerModule is ISemver {
+     /// @notice Semantic version.
+    /// @custom:semver 1.0.0
+    string public constant version = "1.0.0";
+
     /// @notice The Safe contract instance
     Safe internal immutable SAFE;
 
@@ -21,24 +25,22 @@ contract PriviledgedAddOwnerModule is ISemver {
     /// @notice The OP Foundation multisig address
     address internal immutable OP_FOUNDATION;
 
-    /// @notice Semantic version.
-    /// @custom:semver 1.0.0
-    string public constant version = "1.0.0";
+
 
     /// @notice The module constructor.
-    /// @param _safe The Safe wallet address
-    /// @param _ownerGuard The owner guard contract address.
-    /// @param _op The OP Foundation multisig address.
-    constructor(Safe _safe, OwnerGuard _ownerGuard, address _op) {
-        SAFE = _safe;
-        OWNER_GUARD = _ownerGuard;
-        OP_FOUNDATION = _op;
+    /// @param safe The Safe wallet address
+    /// @param ownerGuard The owner guard contract address.
+    /// @param op The OP Foundation multisig address.
+    constructor(Safe safe, OwnerGuard ownerGuard, address op) {
+        SAFE = safe;
+        OWNER_GUARD = ownerGuard;
+        OP_FOUNDATION = op;
     }
 
     /// @notice Add a new owner address.
     /// @dev Revert if not called by the whitelised `OP_FOUNDATION` address.
-    /// @param _addr The owner address to add.
-    function priviledgedAddOwner(address _addr) external {
+    /// @param addr The owner address to add.
+    function priviledgedAddOwner(address addr) external {
         // Ensure the caller is the OP Foundation multisig.
         require(msg.sender == OP_FOUNDATION, "PriviledgedAddOwnerModule: only OP Foundation can call addOwner");
 
@@ -47,7 +49,7 @@ contract PriviledgedAddOwnerModule is ISemver {
 
         // Add a new owner to the Safe wallet, specifying the new threshold.
         SAFE.execTransactionFromModule(
-            address(SAFE), 0, abi.encodeCall(SAFE.addOwnerWithThreshold, (_addr, threshold)), Enum.Operation.Call
+            address(SAFE), 0, abi.encodeCall(SAFE.addOwnerWithThreshold, (addr, threshold)), Enum.Operation.Call
         );
     }
 }

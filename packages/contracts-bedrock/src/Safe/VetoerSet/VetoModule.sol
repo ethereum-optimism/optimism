@@ -19,11 +19,11 @@ contract VetoModule is ISemver {
     address internal immutable DELAYED_VETOABLE;
 
     /// @notice The module constructor.
-    /// @param _safe The Safe Wallet addess.
-    /// @param _delayedVetoable The delay vetoable contract address.
-    constructor(Safe _safe, address _delayedVetoable) {
-        SAFE = _safe;
-        DELAYED_VETOABLE = _delayedVetoable;
+    /// @param safe The Safe Wallet addess.
+    /// @param delayedVetoable The delay vetoable contract address.
+    constructor(Safe safe, address delayedVetoable) {
+        SAFE = safe;
+        DELAYED_VETOABLE = delayedVetoable;
     }
 
     /// @notice Passthrough for any owner to execute a veto on the `DelayedVetoable` contract.

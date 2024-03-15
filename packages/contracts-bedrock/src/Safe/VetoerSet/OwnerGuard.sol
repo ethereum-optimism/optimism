@@ -24,12 +24,12 @@ contract OwnerGuard is ISemver, BaseGuard {
     uint8 public maxCount;
 
     /// @notice Constructor.
-    /// @param _safe The Safe Wallet for which this contract will be the guard.
-    constructor(Safe _safe) {
-        SAFE = _safe;
+    /// @param safe_ The Safe Wallet for which this contract will be the guard.
+    constructor(Safe safe_) {
+        SAFE = safe_;
 
         // Get the current owner count of the Smart Wallet.
-        uint256 ownerCount = _safe.getOwners().length;
+        uint256 ownerCount = safe_.getOwners().length;
         require(ownerCount <= type(uint8).max, "OwnerGuard: owner count too high");
 
         // Set the initial `maxCount`, to the greater between 7 and the current owner count.
@@ -68,30 +68,30 @@ contract OwnerGuard is ISemver, BaseGuard {
         );
     }
 
-    /// @notice Checks if the given `_newCount` of owners is allowed and returns the corresponding 66% threshold.
-    /// @dev Reverts if `_newCount` is above `maxCount`.
-    /// @param _newCount The owners count to check.
-    /// @return threshold_ The corresponding 66% threshold for `_newCount` owners.
-    function checkNewOwnerCount(uint256 _newCount) public view returns (uint256 threshold_) {
+    /// @notice Checks if the given `newCount` of owners is allowed and returns the corresponding 66% threshold.
+    /// @dev Reverts if `newCount` is above `maxCount`.
+    /// @param newCount The owners count to check.
+    /// @return threshold_ The corresponding 66% threshold for `newCount` owners.
+    function checkNewOwnerCount(uint256 newCount) public view returns (uint256 threshold_) {
         // Ensure we don't exceed the maximum number of allowed owners.
-        require(_newCount <= maxCount, "OwnerGuard: too many owners");
+        require(newCount <= maxCount, "OwnerGuard: too many owners");
 
         // Compute the corresponding ceil(66%) threshold of owners.
-        threshold_ = (_newCount * 66 + 99) / 100;
+        threshold_ = (newCount * 66 + 99) / 100;
     }
 
     /// @notice Update the maximum number of owners.
     /// @dev Reverts if not called by the Safe Wallet.
-    /// @param _newMaxCount The new possible `maxCount` of owners.
-    function updateMaxCount(uint8 _newMaxCount) external {
+    /// @param newMaxCount The new possible `maxCount` of owners.
+    function updateMaxCount(uint8 newMaxCount) external {
         // Ensure only the Safe Wallet can call this function.
         require(msg.sender == address(SAFE), "OwnerGuard: only Safe can call this function");
 
-        // Ensure the given `_newMaxCount` is not bellow the current number of owners.
-        require(_newMaxCount >= SAFE.getOwners().length);
+        // Ensure the given `newMaxCount` is not bellow the current number of owners.
+        require(newMaxCount >= SAFE.getOwners().length);
 
         // Update the new`maxCount`.
-        maxCount = _newMaxCount;
+        maxCount = newMaxCount;
     }
 
     /// @notice Getter function for the Safe contract instance
