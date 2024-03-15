@@ -3,22 +3,21 @@ pragma solidity 0.8.24;
 
 // Testing utilities
 import { Test } from "forge-std/Test.sol";
-import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
-import { Reverter, ConfigurableCaller } from "test/mocks/Callers.sol";
+import { Reverter } from "test/mocks/Callers.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
 
+// Target contracts
 import { L1Block } from "src/L2/L1Block.sol";
-import { CrossL2Inbox } from "src/L2/CrossL2Inbox.sol";
-import { ICrossL2Inbox } from "src/L2/ICrossL2Inbox.sol";
+import { CrossL2Inbox, NotEntered } from "src/L2/CrossL2Inbox.sol";
 
 contract CrossL2InboxTest is Test {
     /// @dev CrossL2Inbox contract instance.
-    ICrossL2Inbox crossL2Inbox;
+    CrossL2Inbox crossL2Inbox;
 
     /// @dev Sample Identifier.
-    ICrossL2Inbox.Identifier sampleId = ICrossL2Inbox.Identifier({
+    CrossL2Inbox.Identifier sampleId = CrossL2Inbox.Identifier({
         origin: address(0),
         blocknumber: 0,
         logIndex: 0,
@@ -26,21 +25,15 @@ contract CrossL2InboxTest is Test {
         chainId: block.chainid
     });
 
-    /// @dev Sample target address.
-    address sampleTarget = address(0);
-
-    /// @dev Sample message.
-    bytes sampleMsg = hex"1234";
-
     /// @dev Sets up the test suite.
     function setUp() public {
-        crossL2Inbox = ICrossL2Inbox(new CrossL2Inbox());
+        crossL2Inbox = new CrossL2Inbox();
     }
 
     /// @dev Tests that `executeMessage` succeeds when called with valid parameters.
     function testFuzz_executeMessage_succeeds(
         bytes calldata _msg,
-        ICrossL2Inbox.Identifier calldata _id,
+        CrossL2Inbox.Identifier calldata _id,
         address _target,
         uint256 _value
     )
@@ -75,12 +68,12 @@ contract CrossL2InboxTest is Test {
 
     /// @dev Tests that `executeMessage` fails when called with an identifier with an invalid timestamp.
     function test_executeMessage_invalidTimestamp_fails() external {
-        ICrossL2Inbox.Identifier memory id = sampleId;
+        CrossL2Inbox.Identifier memory id = sampleId;
         id.timestamp = block.timestamp + 1;
 
         vm.prank(tx.origin);
         vm.expectRevert("CrossL2Inbox: invalid id timestamp");
-        crossL2Inbox.executeMessage({ _id: id, _target: sampleTarget, _msg: sampleMsg });
+        crossL2Inbox.executeMessage({ _id: id, _target: address(0), _msg: hex"1234" });
     }
 
     /// @dev Tests that `executeMessage` fails when called with an identifier with an invalid chain ID.
@@ -93,7 +86,7 @@ contract CrossL2InboxTest is Test {
 
         vm.prank(tx.origin);
         vm.expectRevert("CrossL2Inbox: id chain not in dependency set");
-        crossL2Inbox.executeMessage({ _id: sampleId, _target: sampleTarget, _msg: sampleMsg });
+        crossL2Inbox.executeMessage({ _id: sampleId, _target: address(0), _msg: hex"1234" });
     }
 
     /// @dev Tests that `executeMessage` succeeds when called with an identifier with the same chain ID as
@@ -106,19 +99,19 @@ contract CrossL2InboxTest is Test {
         );
 
         vm.prank(tx.origin);
-        crossL2Inbox.executeMessage({ _id: sampleId, _target: sampleTarget, _msg: sampleMsg });
+        crossL2Inbox.executeMessage({ _id: sampleId, _target: address(0), _msg: hex"1234" });
     }
 
-    /// @dev Tests that `executeMessage` fails when called with a non-EOA sender.
+    /// @dev Tests that `executeMessage` fails when called by a non-EOA.
     function test_executeMessage_invalidSender_fails() external {
         vm.expectRevert("CrossL2Inbox: not EOA sender");
-        crossL2Inbox.executeMessage({ _id: sampleId, _target: sampleTarget, _msg: sampleMsg });
+        crossL2Inbox.executeMessage({ _id: sampleId, _target: address(0), _msg: hex"1234" });
     }
 
     /// @dev Tests that `executeMessage` fails when the underlying target call reverts.
     function test_executeMessage_unsuccessfullSafeCall_fails() external {
         // need to make sure address leads to unsuccessfull SafeCall by executeMessage
-        vm.etch(sampleTarget, address(new Reverter()).code);
+        vm.etch(address(0), address(new Reverter()).code);
 
         vm.mockCall(
             Predeploys.L1_BLOCK_ATTRIBUTES,
