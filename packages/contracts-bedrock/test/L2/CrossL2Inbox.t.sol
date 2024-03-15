@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-ICrossL2Inbox.Identifier: MIT
 pragma solidity 0.8.24;
 
 // Testing utilities
@@ -11,14 +11,14 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 // Target contracts
 import { L1Block } from "src/L2/L1Block.sol";
 import { CrossL2Inbox, NotEntered } from "src/L2/CrossL2Inbox.sol";
-import { Identifier } from "src/L2/ICrossL2Inbox.sol";
+import { ICrossL2Inbox } from "src/L2/ICrossL2Inbox.sol";
 
 contract CrossL2InboxTest is Test {
     /// @dev CrossL2Inbox contract instance.
     CrossL2Inbox crossL2Inbox;
 
-    /// @dev Sample Identifier.
-    Identifier sampleId = Identifier({
+    /// @dev Sample ICrossL2Inbox.Identifier.
+    ICrossL2Inbox.Identifier sampleId = ICrossL2Inbox.Identifier({
         origin: address(0),
         blocknumber: 0,
         logIndex: 0,
@@ -34,7 +34,7 @@ contract CrossL2InboxTest is Test {
     /// @dev Tests that `executeMessage` succeeds when called with valid parameters.
     function testFuzz_executeMessage_succeeds(
         bytes calldata _msg,
-        Identifier calldata _id,
+        ICrossL2Inbox.Identifier calldata _id,
         address _target,
         uint256 _value
     )
@@ -67,7 +67,7 @@ contract CrossL2InboxTest is Test {
 
     /// @dev Tests that `executeMessage` fails when called with an identifier with an invalid timestamp.
     function test_executeMessage_invalidTimestamp_fails() external {
-        Identifier memory id = sampleId;
+        ICrossL2Inbox.Identifier memory id = sampleId;
         id.timestamp = block.timestamp + 1;
 
         vm.prank(tx.origin);
