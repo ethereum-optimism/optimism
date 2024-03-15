@@ -40,7 +40,7 @@ contract OwnerGuard_UpdateMaxCount_test is OwnerGuard_TestInit {
 
 contract OwnerGuard_UnauthedUpdateMaxCount_test is OwnerGuard_TestInit {
     function test_unauthedupdateMaxCount() public {
-        vm.expectRevert("OwnerGuard: only Safe can call this function");
+        vm.expectRevert(abi.encodeWithSelector(OwnerGuard.SenderIsNotSafeWallet.selector, address(this)));
         ownerGuard.updateMaxCount(10);
     }
 }
@@ -51,8 +51,9 @@ contract OwnerGuard_CheckAfterExecution_test is OwnerGuard_TestInit {
     function test_checkAfterExecution() public {
         vm.prank(address(safeInstance.safe));
         safeInstance.safe.addOwnerWithThreshold(vm.addr(1), 1);
+
         vm.prank(address(safeInstance.safe));
-        vm.expectRevert("OwnerGuard: Safe must have a threshold of at least 66% of the number of owners");
+        vm.expectRevert(abi.encodeWithSelector(OwnerGuard.InvalidSafeWalletThreshold.selector, 1, 3));
         ownerGuard.checkAfterExecution(0, false);
     }
 }

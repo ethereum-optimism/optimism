@@ -18,6 +18,11 @@ contract VetoModule is ISemver {
     /// @notice The delayed vetoable contract.
     address internal immutable delayedVetoable;
 
+    /// @notice Thrown when trying to execute a veto through this module but the caller is not
+    ///         an owner of the Safe Wallet.
+    /// @param sender The sender address.
+    error SenderIsNotAnOwner(address sender);
+
     /// @notice The module constructor.
     /// @param safe_ The Safe Wallet addess.
     /// @param delayedVetoable_ The delay vetoable contract address.
@@ -30,7 +35,9 @@ contract VetoModule is ISemver {
     /// @dev Revert if not called by a Safe Wallet owner address.
     function veto() external returns (bool) {
         // Ensure only a Safe Wallet owner can veto.
-        require(safe.isOwner(msg.sender), "VetoModule: only owners can call veto");
+        if (safe.isOwner(msg.sender) == false) {
+            revert SenderIsNotAnOwner(msg.sender);
+        }
 
         // Forward the call to the Safe Wallet, targeting the delayed vetoable contract.
         return safe.execTransactionFromModule(delayedVetoable, 0, msg.data, Enum.Operation.Call);

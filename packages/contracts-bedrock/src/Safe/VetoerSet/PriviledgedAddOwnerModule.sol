@@ -25,6 +25,11 @@ contract PriviledgedAddOwnerModule is ISemver {
     /// @notice The OP Foundation multisig address
     address internal immutable opFoundation;
 
+    /// @notice Thrown when trying to add an owner through this module but the caller is not
+    ///         the whitelisted OP Foundation address.
+    /// @param sender The sender address.
+    error SenderIsNotOpFoundation(address sender);
+
     /// @notice The module constructor.
     /// @param safe_ The Safe wallet address
     /// @param ownerGuard_ The owner guard contract address.
@@ -40,7 +45,9 @@ contract PriviledgedAddOwnerModule is ISemver {
     /// @param addr The owner address to add.
     function priviledgedAddOwner(address addr) external {
         // Ensure the caller is the OP Foundation multisig.
-        require(msg.sender == opFoundation, "PriviledgedAddOwnerModule: only OP Foundation can call addOwner");
+        if (msg.sender != opFoundation) {
+            revert SenderIsNotOpFoundation(msg.sender);
+        }
 
         // Ensure adding a new owner is possible (i.e. the `maxCount` is not exceeded).
         uint256 threshold = ownerGuard.checkNewOwnerCount(safe.getOwners().length + 1);
