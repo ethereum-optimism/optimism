@@ -168,6 +168,7 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 		zero := uint64(0)
 		rollupCfg := rollup.Config{
 			RegolithTime: &zero,
+			EcotoneTime:  &zero,
 			InteropTime:  &zero,
 		}
 		depTx, err := L1InfoDeposit(&rollupCfg, randomL1Cfg(rng, info), randomSeqNr(rng), info, 1)
@@ -182,6 +183,7 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 		zero := uint64(2)
 		rollupCfg := rollup.Config{
 			RegolithTime: &zero,
+			EcotoneTime:  &zero,
 			InteropTime:  &zero,
 			BlockTime:    2,
 		}
@@ -197,6 +199,7 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 		zero := uint64(0)
 		rollupCfg := rollup.Config{
 			RegolithTime: &zero,
+			EcotoneTime:  &zero,
 			InteropTime:  &zero,
 			BlockTime:    2,
 		}
@@ -212,6 +215,7 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 		zero := uint64(0)
 		rollupCfg := rollup.Config{
 			RegolithTime: &zero,
+			EcotoneTime:  &zero,
 			InteropTime:  &zero,
 		}
 		depTx, err := L1InfoDeposit(&rollupCfg, randomL1Cfg(rng, info), randomSeqNr(rng), info, 1)
@@ -226,6 +230,7 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 		zero := uint64(0)
 		rollupCfg := rollup.Config{
 			RegolithTime: &zero,
+			EcotoneTime:  &zero,
 			InteropTime:  &zero,
 		}
 		depTx, err := L1InfoDeposit(&rollupCfg, randomL1Cfg(rng, info), randomSeqNr(rng), info, 1)
