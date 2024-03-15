@@ -6,6 +6,9 @@ import { Test } from "forge-std/Test.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { Reverter, ConfigurableCaller } from "test/mocks/Callers.sol";
 
+// Libraries
+import { Predeploys } from "src/libraries/Predeploys.sol";
+
 import { L1Block } from "src/L2/L1Block.sol";
 import { CrossL2Inbox } from "src/L2/CrossL2Inbox.sol";
 import { ICrossL2Inbox } from "src/L2/ICrossL2Inbox.sol";
@@ -42,7 +45,9 @@ contract CrossL2InboxTest is Test {
 
         // need to prevent call to L1Block.isInDependencySet from reverting
         vm.mockCall(
-            address(l1Block), abi.encodeWithSelector(L1Block.isInDependencySet.selector, _id.chainId), abi.encode(true)
+            Predeploys.L1_BLOCK_ATTRIBUTES,
+            abi.encodeWithSelector(L1Block.isInDependencySet.selector, _id.chainId),
+            abi.encode(true)
         );
 
         // need to prevent underlying SafeCall to target from reverting
