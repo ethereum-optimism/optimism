@@ -2,17 +2,15 @@
 pragma solidity 0.8.24;
 
 // Testing utilities
-import { CommonTest } from "test/setup/CommonTest.sol";
+import { Test } from "forge-std/Test.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { Reverter, ConfigurableCaller } from "test/mocks/Callers.sol";
-import { ICrossL2Inbox } from "src/L2/ICrossL2Inbox.sol";
-
-// Libraries
-import { SafeCall } from "src/libraries/SafeCall.sol";
 
 import { L1Block } from "src/L2/L1Block.sol";
+import { CrossL2Inbox } from "src/L2/CrossL2Inbox.sol";
+import { ICrossL2Inbox } from "src/L2/ICrossL2Inbox.sol";
 
-contract CrossL2InboxTest is CommonTest {
+contract CrossL2InboxTest is Test {
     ICrossL2Inbox.Identifier sampleId = ICrossL2Inbox.Identifier({
         origin: address(0),
         blocknumber: 0,
@@ -24,6 +22,12 @@ contract CrossL2InboxTest is CommonTest {
     address sampleTarget = address(0);
 
     bytes sampleMsg = hex"1234";
+
+    ICrossL2Inbox crossL2Inbox;
+
+    function setUp() public {
+        crossL2Inbox = ICrossL2Inbox(new CrossL2Inbox());
+    }
 
     function testFuzz_executeMessage_succeeds(
         bytes calldata _msg,
