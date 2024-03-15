@@ -27,6 +27,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/ethereum/go-ethereum"
@@ -265,7 +266,7 @@ func fetchBlockWithHTTPRetry(fetcher func() (eth.L1BlockRef, error), lgr log.Log
 		}
 		if _, ok := err.(rpc.HTTPError); ok {
 			lgr.Warn("Failed to fetch block", "err", err, "retry", i)
-			time.Sleep(time.Duration(i) * time.Second)
+			time.Sleep(time.Second * time.Duration(math.Pow(2, float64(i))))
 		} else {
 			return
 		}
