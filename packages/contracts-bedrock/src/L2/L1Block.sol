@@ -141,13 +141,11 @@ contract L1Block is ISemver {
     ///  10. _dependencySetSize  Size of the interop dependency set.
     ///  11. _dependencySet      Array of chain IDs for the interop dependency set.
     function setL1BlockValuesInterop() external {
-        bytes4 errorNotDepositorSelector = NotDepositor.selector;
-        bytes4 errorDependencySetSizeMismatch = DependencySetSizeMismatch.selector;
         assembly {
             // Revert if the caller is not the depositor account.
             if xor(caller(), DEPOSITOR_ACCOUNT) {
-                mstore(0x00, errorNotDepositorSelector)
-                revert(0x00, 4) // returns the stored 4-byte selector from above
+                mstore(0x00, 0x3cc50b45) // 0x3cc50b45 is the 4-byte selector of "NotDepositor()"
+                revert(0x1C, 0x04) // returns the stored 4-byte selector from above
             }
             // sequencenum (uint64), blobBaseFeeScalar (uint32), baseFeeScalar (uint32)
             sstore(sequenceNumber.slot, shr(128, calldataload(4)))
@@ -163,8 +161,8 @@ contract L1Block is ISemver {
 
             // Revert if dependencySetSize_ doesn't match the length of dependencySet in calldata
             if xor(add(165, mul(dependencySetSize_, 0x20)), calldatasize()) {
-                mstore(0x00, errorDependencySetSizeMismatch)
-                revert(0x00, 4) // returns the stored 4-byte selector from above
+                mstore(0x00, 0x613457f2) // 0x613457f2 is the 4-byte selector of "DependencySetSizeMismatch()"
+                revert(0x1C, 0x04) // returns the stored 4-byte selector from above
             }
 
             // Use memory to hash and get the start index of dependencySet
