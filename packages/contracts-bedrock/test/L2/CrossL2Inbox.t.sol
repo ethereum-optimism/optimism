@@ -18,7 +18,7 @@ contract CrossL2InboxTest is Test {
     CrossL2Inbox crossL2Inbox;
 
     /// @dev Sample ICrossL2Inbox.Identifier.
-    ICrossL2Inbox.Identifier sampleId = ICrossL2Inbox.Identifier({
+    ICrossL2Inbox.Identifier sampleIdentifier = ICrossL2Inbox.Identifier({
         origin: address(0),
         blocknumber: 0,
         logIndex: 0,
@@ -67,7 +67,7 @@ contract CrossL2InboxTest is Test {
 
     /// @dev Tests that `executeMessage` fails when called with an identifier with an invalid timestamp.
     function test_executeMessage_invalidTimestamp_fails() external {
-        ICrossL2Inbox.Identifier memory id = sampleId;
+        ICrossL2Inbox.Identifier memory id = sampleIdentifier;
         id.timestamp = block.timestamp + 1;
 
         vm.prank(tx.origin);
@@ -79,13 +79,13 @@ contract CrossL2InboxTest is Test {
     function test_executeMessage_invalidChainId_fails() external {
         vm.mockCall({
             callee: Predeploys.L1_BLOCK_ATTRIBUTES,
-            data: abi.encodeWithSelector(L1Block.isInDependencySet.selector, sampleId.chainId),
-            returnData: abi.encode(true)
+            data: abi.encodeWithSelector(L1Block.isInDependencySet.selector, sampleIdentifier.chainId),
+            returnData: abi.encode(false)
         });
 
         vm.prank(tx.origin);
         vm.expectRevert("CrossL2Inbox: id chain not in dependency set");
-        crossL2Inbox.executeMessage({ _id: sampleId, _target: address(0), _msg: hex"1234" });
+        crossL2Inbox.executeMessage({ _id: sampleIdentifier, _target: address(0), _msg: hex"1234" });
     }
 
     /// @dev Tests that `executeMessage` succeeds when called with an identifier with the same chain ID as
@@ -93,18 +93,18 @@ contract CrossL2InboxTest is Test {
     function test_executeMessage_sameChainId_succeeds() external {
         vm.mockCall({
             callee: Predeploys.L1_BLOCK_ATTRIBUTES,
-            data: abi.encodeWithSelector(L1Block.isInDependencySet.selector, sampleId.chainId),
+            data: abi.encodeWithSelector(L1Block.isInDependencySet.selector, sampleIdentifier.chainId),
             returnData: abi.encode(true)
         });
 
         vm.prank(tx.origin);
-        crossL2Inbox.executeMessage({ _id: sampleId, _target: address(0), _msg: hex"1234" });
+        crossL2Inbox.executeMessage({ _id: sampleIdentifier, _target: address(0), _msg: hex"1234" });
     }
 
     /// @dev Tests that `executeMessage` fails when called by a non-EOA.
     function test_executeMessage_invalidSender_fails() external {
         vm.expectRevert("CrossL2Inbox: not EOA sender");
-        crossL2Inbox.executeMessage({ _id: sampleId, _target: address(0), _msg: hex"1234" });
+        crossL2Inbox.executeMessage({ _id: sampleIdentifier, _target: address(0), _msg: hex"1234" });
     }
 
     /// @dev Tests that `executeMessage` fails when the underlying target call reverts.
@@ -114,13 +114,13 @@ contract CrossL2InboxTest is Test {
 
         vm.mockCall({
             callee: Predeploys.L1_BLOCK_ATTRIBUTES,
-            data: abi.encodeWithSelector(L1Block.isInDependencySet.selector, sampleId.chainId),
+            data: abi.encodeWithSelector(L1Block.isInDependencySet.selector, sampleIdentifier.chainId),
             returnData: abi.encode(true)
         });
 
         vm.prank(tx.origin);
         vm.expectRevert("CrossL2Inbox: target call failed");
-        crossL2Inbox.executeMessage({ _id: sampleId, _target: address(0), _msg: hex"1234" });
+        crossL2Inbox.executeMessage({ _id: sampleIdentifier, _target: address(0), _msg: hex"1234" });
     }
 
     /// @dev Tests that `origin` reverts when not entered.
