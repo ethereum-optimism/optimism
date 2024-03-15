@@ -14,6 +14,10 @@ import { CrossL2Inbox } from "src/L2/CrossL2Inbox.sol";
 import { ICrossL2Inbox } from "src/L2/ICrossL2Inbox.sol";
 
 contract CrossL2InboxTest is Test {
+    /// @dev CrossL2Inbox contract instance.
+    ICrossL2Inbox crossL2Inbox;
+
+    /// @dev Sample Identifier.
     ICrossL2Inbox.Identifier sampleId = ICrossL2Inbox.Identifier({
         origin: address(0),
         blocknumber: 0,
@@ -22,16 +26,18 @@ contract CrossL2InboxTest is Test {
         chainId: block.chainid
     });
 
+    /// @dev Sample target address.
     address sampleTarget = address(0);
 
+    /// @dev Sample message.
     bytes sampleMsg = hex"1234";
 
-    ICrossL2Inbox crossL2Inbox;
-
+    /// @dev Sets up the test suite.
     function setUp() public {
         crossL2Inbox = ICrossL2Inbox(new CrossL2Inbox());
     }
 
+    /// @dev Tests that `executeMessage` succeeds when called with valid parameters.
     function testFuzz_executeMessage_succeeds(
         bytes calldata _msg,
         ICrossL2Inbox.Identifier calldata _id,
@@ -67,6 +73,7 @@ contract CrossL2InboxTest is Test {
         assertEq(crossL2Inbox.chainId(), _id.chainId);
     }
 
+    /// @dev Tests that `executeMessage` fails when called with an identifier with an invalid timestamp.
     function test_executeMessage_invalidTimestamp_fails() external {
         ICrossL2Inbox.Identifier memory id = sampleId;
         id.timestamp = block.timestamp + 1;
@@ -76,6 +83,7 @@ contract CrossL2InboxTest is Test {
         crossL2Inbox.executeMessage({ _id: id, _target: sampleTarget, _msg: sampleMsg });
     }
 
+    /// @dev Tests that `executeMessage` fails when called with an identifier with an invalid chain ID.
     function test_executeMessage_invalidChainId_fails() external {
         ICrossL2Inbox.Identifier memory id = sampleId;
         id.chainId = 1;
@@ -85,16 +93,20 @@ contract CrossL2InboxTest is Test {
         crossL2Inbox.executeMessage({ _id: id, _target: sampleTarget, _msg: sampleMsg });
     }
 
+    /// @dev Tests that `executeMessage` succeeds when called with an identifier with the same chain ID as
+    ///      the current chain.
     function test_executeMessage_sameChainId_succeeds() external {
         vm.prank(tx.origin);
         crossL2Inbox.executeMessage({ _id: sampleId, _target: sampleTarget, _msg: sampleMsg });
     }
 
+    /// @dev Tests that `executeMessage` fails when called with a non-EOA sender.
     function test_executeMessage_invalidSender_fails() external {
         vm.expectRevert("CrossL2Inbox: not EOA sender");
         crossL2Inbox.executeMessage({ _id: sampleId, _target: sampleTarget, _msg: sampleMsg });
     }
 
+    /// @dev Tests that `executeMessage` fails when the underlying target call reverts.
     function test_executeMessage_unsuccessfullSafeCall_fails() external {
         // need to make sure address leads to unsuccessfull SafeCall by executeMessage
         vm.etch(sampleTarget, address(new Reverter()).code);
