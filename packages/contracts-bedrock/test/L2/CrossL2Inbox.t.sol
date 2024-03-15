@@ -67,12 +67,11 @@ contract CrossL2InboxTest is Test {
 
     /// @dev Tests that `executeMessage` fails when called with an identifier with an invalid timestamp.
     function test_executeMessage_invalidTimestamp_fails() external {
-        ICrossL2Inbox.Identifier memory id = sampleIdentifier;
-        id.timestamp = block.timestamp + 1;
+        sampleIdentifier.timestamp = block.timestamp + 1;
 
         vm.prank(tx.origin);
         vm.expectRevert("CrossL2Inbox: invalid id timestamp");
-        crossL2Inbox.executeMessage({ _id: id, _target: address(0), _msg: hex"1234" });
+        crossL2Inbox.executeMessage({ _id: sampleIdentifier, _target: address(0), _msg: hex"1234" });
     }
 
     /// @dev Tests that `executeMessage` fails when called with an identifier with an invalid chain ID.
