@@ -8,7 +8,7 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
 
 // Target contract
-import { L1Block } from "src/L2/L1Block.sol";
+import { L1Block, NotDepositor, DependencySetSizeMismatch } from "src/L2/L1Block.sol";
 
 contract L1BlockTest is CommonTest {
     address depositor;
@@ -159,7 +159,7 @@ contract L1BlockEcotone_Test is L1BlockTest {
         (bool success, bytes memory data) = address(l1Block).call(functionCallDataPacked);
         assertTrue(!success, "function call should have failed");
         // make sure return value is the expected function selector for "NotDepositor()"
-        assertEq(bytes4(data), bytes4(l1Block.ERR_NOT_DEPOSITOR()));
+        assertEq(bytes4(data), NotDepositor.selector);
     }
 }
 
@@ -264,7 +264,7 @@ contract L1BlockInterop_Test is L1BlockTest {
         (bool success, bytes memory data) = address(l1Block).call(functionCallDataPacked);
         assertTrue(!success, "function call should have failed");
         // make sure return value is the expected function selector for "NotDepositor()"
-        assertEq(bytes4(data), bytes4(l1Block.ERR_NOT_DEPOSITOR()));
+        assertEq(bytes4(data), NotDepositor.selector);
     }
 
     /// @dev Tests that `setL1BlockValuesInterop` fails if _dependencySetSize is the same as
@@ -322,7 +322,7 @@ contract L1BlockInterop_Test is L1BlockTest {
         (bool success, bytes memory data) = address(l1Block).call(functionCallDataPacked);
         assertTrue(!success, "function call should have failed");
         // make sure return value is the expected function selector for "DependencySetSizeMismatch()"
-        assertEq(bytes4(data), bytes4(l1Block.ERR_DEPENDENCY_SET_SIZE_MISMATCH()));
+        assertEq(bytes4(data), DependencySetSizeMismatch.selector);
     }
 
     /// @dev Tests that an arbitrary dependency set can be set and that ìsInDependencySet returns
