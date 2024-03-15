@@ -28,8 +28,7 @@ var (
 func main() {
 	// Set up logger with a default INFO level in case we fail to parse flags.
 	// Otherwise the final critical log won't show what the parsing error was.
-	log.SetDefault(log.NewLogger(slog.NewJSONHandler(
-		os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})))
+	proxyd.SetLogLevel(slog.LevelInfo)
 
 	log.Info("starting proxyd", "version", GitVersion, "commit", GitCommit, "date", GitDate)
 
@@ -50,8 +49,7 @@ func main() {
 			log.Warn("invalid server.log_level set: " + config.Server.LogLevel)
 		}
 	}
-	log.SetDefault(log.NewLogger(slog.NewJSONHandler(
-		os.Stdout, &slog.HandlerOptions{Level: logLevel})))
+	proxyd.SetLogLevel(logLevel)
 
 	if config.Server.EnablePprof {
 		log.Info("starting pprof", "addr", "0.0.0.0", "port", "6060")
