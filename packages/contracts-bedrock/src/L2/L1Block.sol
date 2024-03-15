@@ -147,7 +147,6 @@ contract L1Block is ISemver {
                 mstore(0x00, ERR_NOT_DEPOSITOR)
                 revert(0x1C, 0x04) // returns the stored 4-byte selector from above
             }
-            let data := calldataload(4)
             // sequencenum (uint64), blobBaseFeeScalar (uint32), baseFeeScalar (uint32)
             sstore(sequenceNumber.slot, shr(128, calldataload(4)))
             // number (uint64) and timestamp (uint64)
