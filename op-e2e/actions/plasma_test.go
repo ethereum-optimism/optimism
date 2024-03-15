@@ -226,7 +226,7 @@ func (a *L2PlasmaDA) ActResolveInput(t Testing, comm []byte, input []byte, bn ui
 }
 
 func (a *L2PlasmaDA) ActResolveLastChallenge(t Testing) {
-	// remove commitment byte prefix
+	// remove derivation byte prefix
 	input, err := a.storage.GetInput(t.Ctx(), a.lastComm[1:])
 	require.NoError(t, err)
 
