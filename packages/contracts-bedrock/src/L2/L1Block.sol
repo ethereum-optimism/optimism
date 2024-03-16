@@ -171,13 +171,13 @@ contract L1Block is ISemver {
 
             // Iterate over calldata dependencySet and write to store dependencySet
             for { let i := 0 } lt(i, dependencySetSize_) { i := add(i, 1) } {
-                // Increase length of dependencySet array
-                sstore(dependencySet.slot, add(sload(dependencySet.slot), 1))
-
                 // Load value from calldata and write to storage (dependencySet) at index
                 let val := calldataload(add(165, mul(i, 0x20)))
                 sstore(add(dependencySetStartIndex, i), val)
             }
+
+            // Update length of dependencySet array
+            sstore(dependencySet.slot, dependencySetSize_)
         }
     }
 
