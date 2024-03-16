@@ -90,6 +90,8 @@ contract L2ToL2CrossDomainMessengerTest is Test {
 
         vm.deal(Predeploys.CROSS_L2_INBOX, _value);
 
+        vm.expectCall({ callee: _target, value: _value, data: _message });
+
         vm.prank(Predeploys.CROSS_L2_INBOX);
         l2ToL2CrossDomainMessenger.relayMessage{ value: _value }({
             _destination: block.chainid,
