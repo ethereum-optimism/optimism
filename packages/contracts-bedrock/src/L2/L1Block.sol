@@ -191,9 +191,13 @@ contract L1Block is ISemver {
             return true;
         }
 
-        for (uint256 i = 0; i < dependencySet.length; i++) {
+        uint256 length = dependencySet.length;
+        for (uint256 i = 0; i < length;) {
             if (dependencySet[i] == _chainId) {
                 return true;
+            }
+            unchecked {
+                i++;
             }
         }
 
