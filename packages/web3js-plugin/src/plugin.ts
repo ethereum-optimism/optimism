@@ -35,7 +35,7 @@ export class OptimismPlugin extends Web3PluginBase {
    * const baseFeeValue: number = await web3.op.getBaseFee(numberFormat);
    */
   public async getBaseFee<
-    ReturnFormat extends DataFormat = typeof DEFAULT_RETURN_FORMAT
+    ReturnFormat extends DataFormat = typeof DEFAULT_RETURN_FORMAT,
   >(returnFormat?: ReturnFormat) {
     return Web3.utils.format(
       { format: 'uint' },
@@ -55,7 +55,7 @@ export class OptimismPlugin extends Web3PluginBase {
    * const decimalsValue: number = await web3.op.getDecimals(numberFormat);
    */
   public async getDecimals<
-    ReturnFormat extends DataFormat = typeof DEFAULT_RETURN_FORMAT
+    ReturnFormat extends DataFormat = typeof DEFAULT_RETURN_FORMAT,
   >(returnFormat?: ReturnFormat) {
     return Web3.utils.format(
       { format: 'uint' },
@@ -75,7 +75,7 @@ export class OptimismPlugin extends Web3PluginBase {
    * const gasPriceValue: number = await web3.op.getGasPrice(numberFormat);
    */
   public async getGasPrice<
-    ReturnFormat extends DataFormat = typeof DEFAULT_RETURN_FORMAT
+    ReturnFormat extends DataFormat = typeof DEFAULT_RETURN_FORMAT,
   >(returnFormat?: ReturnFormat) {
     return Web3.utils.format(
       { format: 'uint' },
@@ -97,7 +97,7 @@ export class OptimismPlugin extends Web3PluginBase {
    * const l1FeeValue: number = await getL1Fee(transaction, numberFormat);
    */
   public async getL1Fee<
-    ReturnFormat extends DataFormat = typeof DEFAULT_RETURN_FORMAT
+    ReturnFormat extends DataFormat = typeof DEFAULT_RETURN_FORMAT,
   >(transaction: Transaction, returnFormat?: ReturnFormat) {
     return Web3.utils.format(
       { format: 'uint' },
@@ -123,7 +123,7 @@ export class OptimismPlugin extends Web3PluginBase {
    * const gasUsedValue: number = await getL1GasUsed(transaction, numberFormat);
    */
   public async getL1GasUsed<
-    ReturnFormat extends DataFormat = typeof DEFAULT_RETURN_FORMAT
+    ReturnFormat extends DataFormat = typeof DEFAULT_RETURN_FORMAT,
   >(transaction: Transaction, returnFormat?: ReturnFormat) {
     return Web3.utils.format(
       { format: 'uint' },
@@ -145,7 +145,7 @@ export class OptimismPlugin extends Web3PluginBase {
    * const baseFeeValue: number = await web3.op.getL1BaseFee(numberFormat);
    */
   public async getL1BaseFee<
-    ReturnFormat extends DataFormat = typeof DEFAULT_RETURN_FORMAT
+    ReturnFormat extends DataFormat = typeof DEFAULT_RETURN_FORMAT,
   >(returnFormat?: ReturnFormat) {
     return Web3.utils.format(
       { format: 'uint' },
@@ -165,7 +165,7 @@ export class OptimismPlugin extends Web3PluginBase {
    * const overheadValue: number = await web3.op.getOverhead(numberFormat);
    */
   public async getOverhead<
-    ReturnFormat extends DataFormat = typeof DEFAULT_RETURN_FORMAT
+    ReturnFormat extends DataFormat = typeof DEFAULT_RETURN_FORMAT,
   >(returnFormat?: ReturnFormat) {
     return Web3.utils.format(
       { format: 'uint' },
@@ -185,7 +185,7 @@ export class OptimismPlugin extends Web3PluginBase {
    * const scalarValue: number = await web3.op.getScalar(numberFormat);
    */
   public async getScalar<
-    ReturnFormat extends DataFormat = typeof DEFAULT_RETURN_FORMAT
+    ReturnFormat extends DataFormat = typeof DEFAULT_RETURN_FORMAT,
   >(returnFormat?: ReturnFormat) {
     return Web3.utils.format(
       { format: 'uint' },
@@ -217,7 +217,7 @@ export class OptimismPlugin extends Web3PluginBase {
    * const l2Fee: number = await getL2Fee(transaction, numberFormat);
    */
   public async getL2Fee<
-    ReturnFormat extends DataFormat = typeof DEFAULT_RETURN_FORMAT
+    ReturnFormat extends DataFormat = typeof DEFAULT_RETURN_FORMAT,
   >(
     transaction: Transaction,
     options?: {
@@ -254,7 +254,7 @@ export class OptimismPlugin extends Web3PluginBase {
    * const estimatedFees: number = await estimateFees(transaction, numberFormat);
    */
   public async estimateFees<
-    ReturnFormat extends DataFormat = typeof DEFAULT_RETURN_FORMAT
+    ReturnFormat extends DataFormat = typeof DEFAULT_RETURN_FORMAT,
   >(transaction: Transaction, returnFormat?: ReturnFormat) {
     const [l1Fee, l2Fee] = await Promise.all([
       this.getL1Fee(transaction),

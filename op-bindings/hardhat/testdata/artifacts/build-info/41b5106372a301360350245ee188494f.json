@@ -29,9 +29,7 @@
             "evm.methodIdentifiers",
             "metadata"
           ],
-          "": [
-            "ast"
-          ]
+          "": ["ast"]
         }
       }
     }
@@ -2487,10 +2485,7 @@
                   ]
                 }
               },
-              "sourceList": [
-                "contracts/HelloWorld.sol",
-                "#utility.yul"
-              ]
+              "sourceList": ["contracts/HelloWorld.sol", "#utility.yul"]
             },
             "methodIdentifiers": {
               "addr()": "767800de",
@@ -2591,9 +2586,7 @@
         "ast": {
           "absolutePath": "contracts/HelloWorld.sol",
           "exportedSymbols": {
-            "HelloWorld": [
-              40
-            ]
+            "HelloWorld": [40]
           },
           "id": 41,
           "license": "MIT",
@@ -2601,11 +2594,7 @@
           "nodes": [
             {
               "id": 1,
-              "literals": [
-                "solidity",
-                "0.8",
-                ".15"
-              ],
+              "literals": ["solidity", "0.8", ".15"],
               "nodeType": "PragmaDirective",
               "src": "32:23:0"
             },
@@ -2617,9 +2606,7 @@
               "contractKind": "contract",
               "fullyImplemented": true,
               "id": 40,
-              "linearizedBaseContracts": [
-                40
-              ],
+              "linearizedBaseContracts": [40],
               "name": "HelloWorld",
               "nameLocation": "66:10:0",
               "nodeType": "ContractDefinition",
@@ -2882,9 +2869,7 @@
                     "src": "334:89:0",
                     "statements": [
                       {
-                        "assignments": [
-                          28
-                        ],
+                        "assignments": [28],
                         "declarations": [
                           {
                             "constant": false,

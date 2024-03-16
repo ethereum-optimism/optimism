@@ -5,7 +5,7 @@ module.exports = {
     es6: true,
   },
   ignorePatterns: ['dist', 'coverage'],
-  extends: ['plugin:prettier/recommended'],
+  extends: [],
   parser: '@babel/eslint-parser',
   parserOptions: {
     es6: true,
@@ -88,7 +88,6 @@ module.exports = {
     },
   ],
   rules: {
-    'prettier/prettier': 'warn',
     'arrow-parens': ['off', 'always'],
     'brace-style': ['off', 'off'],
     'comma-dangle': 'off',

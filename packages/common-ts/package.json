@@ -4,10 +4,7 @@
   "description": "[Optimism] Advanced typescript tooling used by various services",
   "main": "dist/index",
   "types": "dist/index",
-  "files": [
-    "dist/*",
-    "src/*"
-  ],
+  "files": ["dist/*", "src/*"],
   "scripts": {
     "all": "pnpm clean && pnpm build && pnpm test && pnpm lint:fix && pnpm lint",
     "build": "tsc -p tsconfig.json",
@@ -19,12 +16,7 @@
     "test": "ts-mocha test/*.spec.ts",
     "test:coverage": "nyc ts-mocha test/*.spec.ts && nyc merge .nyc_output coverage.json"
   },
-  "keywords": [
-    "optimism",
-    "ethereum",
-    "common",
-    "typescript"
-  ],
+  "keywords": ["optimism", "ethereum", "common", "typescript"],
   "homepage": "https://github.com/ethereum-optimism/optimism/tree/develop/packages/common-ts#readme",
   "license": "MIT",
   "author": "Optimism PBC",

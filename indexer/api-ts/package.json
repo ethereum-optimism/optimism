@@ -20,11 +20,7 @@
     "generate": "npm run generate:clean && tygo generate && mv ../api/models/index.ts generated.ts && tsup",
     "test": "vitest"
   },
-  "keywords": [
-    "optimism",
-    "ethereum",
-    "indexer"
-  ],
+  "keywords": ["optimism", "ethereum", "indexer"],
   "homepage": "https://github.com/ethereum-optimism/optimism/tree/develop/indexer#readme",
   "license": "MIT",
   "author": "Optimism PBC",

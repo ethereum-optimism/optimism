@@ -1,1 +1,5 @@
-{"name":"post-shanghai-bad-transactions","fail":true, "reason": "failed to verify transactions list"}
+{
+  "name": "post-shanghai-bad-transactions",
+  "fail": true,
+  "reason": "failed to verify transactions list"
+}

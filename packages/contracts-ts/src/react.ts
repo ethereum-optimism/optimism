@@ -9057,12 +9057,14 @@ export const teleportrWithdrawerConfig = {
  */
 export function useAddressManagerRead<
   TFunctionName extends string,
-  TSelectData = ReadContractResult<typeof addressManagerABI, TFunctionName>
+  TSelectData = ReadContractResult<typeof addressManagerABI, TFunctionName>,
 >(
   config: Omit<
     UseContractReadConfig<typeof addressManagerABI, TFunctionName, TSelectData>,
     'abi' | 'address'
-  > & { chainId?: keyof typeof addressManagerAddress } = {} as any
+  > & {
+    chainId?: keyof typeof addressManagerAddress
+  } = {} as any
 ) {
   const { chain } = useNetwork()
   const defaultChainId = useChainId()
@@ -9072,7 +9074,11 @@ export function useAddressManagerRead<
     address:
       addressManagerAddress[chainId as keyof typeof addressManagerAddress],
     ...config,
-  } as UseContractReadConfig<typeof addressManagerABI, TFunctionName, TSelectData>)
+  } as UseContractReadConfig<
+    typeof addressManagerABI,
+    TFunctionName,
+    TSelectData
+  >)
 }
 
 /**
@@ -9084,7 +9090,7 @@ export function useAddressManagerRead<
 export function useAddressManagerWrite<
   TFunctionName extends string,
   TMode extends WriteContractMode = undefined,
-  TChainId extends number = keyof typeof addressManagerAddress
+  TChainId extends number = keyof typeof addressManagerAddress,
 >(
   config: TMode extends 'prepared'
     ? UseContractWriteConfig<
@@ -9122,7 +9128,9 @@ export function useAddressManagerEvent<TEventName extends string>(
   config: Omit<
     UseContractEventConfig<typeof addressManagerABI, TEventName>,
     'abi' | 'address'
-  > & { chainId?: keyof typeof addressManagerAddress } = {} as any
+  > & {
+    chainId?: keyof typeof addressManagerAddress
+  } = {} as any
 ) {
   const { chain } = useNetwork()
   const defaultChainId = useChainId()
@@ -9143,12 +9151,14 @@ export function useAddressManagerEvent<TEventName extends string>(
  */
 export function useAssetReceiverRead<
   TFunctionName extends string,
-  TSelectData = ReadContractResult<typeof assetReceiverABI, TFunctionName>
+  TSelectData = ReadContractResult<typeof assetReceiverABI, TFunctionName>,
 >(
   config: Omit<
     UseContractReadConfig<typeof assetReceiverABI, TFunctionName, TSelectData>,
     'abi' | 'address'
-  > & { chainId?: keyof typeof assetReceiverAddress } = {} as any
+  > & {
+    chainId?: keyof typeof assetReceiverAddress
+  } = {} as any
 ) {
   const { chain } = useNetwork()
   const defaultChainId = useChainId()
@@ -9157,7 +9167,11 @@ export function useAssetReceiverRead<
     abi: assetReceiverABI,
     address: assetReceiverAddress[chainId as keyof typeof assetReceiverAddress],
     ...config,
-  } as UseContractReadConfig<typeof assetReceiverABI, TFunctionName, TSelectData>)
+  } as UseContractReadConfig<
+    typeof assetReceiverABI,
+    TFunctionName,
+    TSelectData
+  >)
 }
 
 /**
@@ -9169,7 +9183,7 @@ export function useAssetReceiverRead<
 export function useAssetReceiverWrite<
   TFunctionName extends string,
   TMode extends WriteContractMode = undefined,
-  TChainId extends number = keyof typeof assetReceiverAddress
+  TChainId extends number = keyof typeof assetReceiverAddress,
 >(
   config: TMode extends 'prepared'
     ? UseContractWriteConfig<
@@ -9206,7 +9220,9 @@ export function useAssetReceiverEvent<TEventName extends string>(
   config: Omit<
     UseContractEventConfig<typeof assetReceiverABI, TEventName>,
     'abi' | 'address'
-  > & { chainId?: keyof typeof assetReceiverAddress } = {} as any
+  > & {
+    chainId?: keyof typeof assetReceiverAddress
+  } = {} as any
 ) {
   const { chain } = useNetwork()
   const defaultChainId = useChainId()
@@ -9226,7 +9242,7 @@ export function useAssetReceiverEvent<TEventName extends string>(
  */
 export function useAttestationStationRead<
   TFunctionName extends string,
-  TSelectData = ReadContractResult<typeof attestationStationABI, TFunctionName>
+  TSelectData = ReadContractResult<typeof attestationStationABI, TFunctionName>,
 >(
   config: Omit<
     UseContractReadConfig<
@@ -9235,7 +9251,9 @@ export function useAttestationStationRead<
       TSelectData
     >,
     'abi' | 'address'
-  > & { chainId?: keyof typeof attestationStationAddress } = {} as any
+  > & {
+    chainId?: keyof typeof attestationStationAddress
+  } = {} as any
 ) {
   const { chain } = useNetwork()
   const defaultChainId = useChainId()
@@ -9247,7 +9265,11 @@ export function useAttestationStationRead<
         chainId as keyof typeof attestationStationAddress
       ],
     ...config,
-  } as UseContractReadConfig<typeof attestationStationABI, TFunctionName, TSelectData>)
+  } as UseContractReadConfig<
+    typeof attestationStationABI,
+    TFunctionName,
+    TSelectData
+  >)
 }
 
 /**
@@ -9259,7 +9281,7 @@ export function useAttestationStationRead<
 export function useAttestationStationWrite<
   TFunctionName extends string,
   TMode extends WriteContractMode = undefined,
-  TChainId extends number = keyof typeof attestationStationAddress
+  TChainId extends number = keyof typeof attestationStationAddress,
 >(
   config: TMode extends 'prepared'
     ? UseContractWriteConfig<
@@ -9303,7 +9325,9 @@ export function useAttestationStationEvent<TEventName extends string>(
   config: Omit<
     UseContractEventConfig<typeof attestationStationABI, TEventName>,
     'abi' | 'address'
-  > & { chainId?: keyof typeof attestationStationAddress } = {} as any
+  > & {
+    chainId?: keyof typeof attestationStationAddress
+  } = {} as any
 ) {
   const { chain } = useNetwork()
   const defaultChainId = useChainId()
@@ -9325,18 +9349,24 @@ export function useAttestationStationEvent<TEventName extends string>(
  */
 export function useBaseFeeVaultRead<
   TFunctionName extends string,
-  TSelectData = ReadContractResult<typeof baseFeeVaultABI, TFunctionName>
+  TSelectData = ReadContractResult<typeof baseFeeVaultABI, TFunctionName>,
 >(
   config: Omit<
     UseContractReadConfig<typeof baseFeeVaultABI, TFunctionName, TSelectData>,
     'abi' | 'address'
-  > & { chainId?: keyof typeof baseFeeVaultAddress } = {} as any
+  > & {
+    chainId?: keyof typeof baseFeeVaultAddress
+  } = {} as any
 ) {
   return useContractRead({
     abi: baseFeeVaultABI,
     address: baseFeeVaultAddress[420],
     ...config,
-  } as UseContractReadConfig<typeof baseFeeVaultABI, TFunctionName, TSelectData>)
+  } as UseContractReadConfig<
+    typeof baseFeeVaultABI,
+    TFunctionName,
+    TSelectData
+  >)
 }
 
 /**
@@ -9347,7 +9377,7 @@ export function useBaseFeeVaultRead<
 export function useBaseFeeVaultWrite<
   TFunctionName extends string,
   TMode extends WriteContractMode = undefined,
-  TChainId extends number = keyof typeof baseFeeVaultAddress
+  TChainId extends number = keyof typeof baseFeeVaultAddress,
 >(
   config: TMode extends 'prepared'
     ? UseContractWriteConfig<
@@ -9380,7 +9410,9 @@ export function useBaseFeeVaultEvent<TEventName extends string>(
   config: Omit<
     UseContractEventConfig<typeof baseFeeVaultABI, TEventName>,
     'abi' | 'address'
-  > & { chainId?: keyof typeof baseFeeVaultAddress } = {} as any
+  > & {
+    chainId?: keyof typeof baseFeeVaultAddress
+  } = {} as any
 ) {
   return useContractEvent({
     abi: baseFeeVaultABI,
@@ -9398,7 +9430,7 @@ export function useBaseFeeVaultEvent<TEventName extends string>(
  */
 export function useCheckBalanceHighRead<
   TFunctionName extends string,
-  TSelectData = ReadContractResult<typeof checkBalanceHighABI, TFunctionName>
+  TSelectData = ReadContractResult<typeof checkBalanceHighABI, TFunctionName>,
 >(
   config: Omit<
     UseContractReadConfig<
@@ -9407,7 +9439,9 @@ export function useCheckBalanceHighRead<
       TSelectData
     >,
     'abi' | 'address'
-  > & { chainId?: keyof typeof checkBalanceHighAddress } = {} as any
+  > & {
+    chainId?: keyof typeof checkBalanceHighAddress
+  } = {} as any
 ) {
   const { chain } = useNetwork()
   const defaultChainId = useChainId()
@@ -9417,7 +9451,11 @@ export function useCheckBalanceHighRead<
     address:
       checkBalanceHighAddress[chainId as keyof typeof checkBalanceHighAddress],
     ...config,
-  } as UseContractReadConfig<typeof checkBalanceHighABI, TFunctionName, TSelectData>)
+  } as UseContractReadConfig<
+    typeof checkBalanceHighABI,
+    TFunctionName,
+    TSelectData
+  >)
 }
 
 /**
@@ -9431,7 +9469,9 @@ export function useCheckBalanceHighEvent<TEventName extends string>(
   config: Omit<
     UseContractEventConfig<typeof checkBalanceHighABI, TEventName>,
     'abi' | 'address'
-  > & { chainId?: keyof typeof checkBalanceHighAddress } = {} as any
+  > & {
+    chainId?: keyof typeof checkBalanceHighAddress
+  } = {} as any
 ) {
   const { chain } = useNetwork()
   const defaultChainId = useChainId()
@@ -9453,7 +9493,7 @@ export function useCheckBalanceHighEvent<TEventName extends string>(
  */
 export function useCheckBalanceLowRead<
   TFunctionName extends string,
-  TSelectData = ReadContractResult<typeof checkBalanceLowABI, TFunctionName>
+  TSelectData = ReadContractResult<typeof checkBalanceLowABI, TFunctionName>,
 >(
   config: Omit<
     UseContractReadConfig<
@@ -9462,7 +9502,9 @@ export function useCheckBalanceLowRead<
       TSelectData
     >,
     'abi' | 'address'
-  > & { chainId?: keyof typeof checkBalanceLowAddress } = {} as any
+  > & {
+    chainId?: keyof typeof checkBalanceLowAddress
+  } = {} as any
 ) {
   const { chain } = useNetwork()
   const defaultChainId = useChainId()
@@ -9472,7 +9514,11 @@ export function useCheckBalanceLowRead<
     address:
       checkBalanceLowAddress[chainId as keyof typeof checkBalanceLowAddress],
     ...config,
-  } as UseContractReadConfig<typeof checkBalanceLowABI, TFunctionName, TSelectData>)
+  } as UseContractReadConfig<
+    typeof checkBalanceLowABI,
+    TFunctionName,
+    TSelectData
+  >)
 }
 
 /**
@@ -9486,7 +9532,9 @@ export function useCheckBalanceLowEvent<TEventName extends string>(
   config: Omit<
     UseContractEventConfig<typeof checkBalanceLowABI, TEventName>,
     'abi' | 'address'
-  > & { chainId?: keyof typeof checkBalanceLowAddress } = {} as any
+  > & {
+    chainId?: keyof typeof checkBalanceLowAddress
+  } = {} as any
 ) {
   const { chain } = useNetwork()
   const defaultChainId = useChainId()
@@ -9508,12 +9556,14 @@ export function useCheckBalanceLowEvent<TEventName extends string>(
  */
 export function useCheckGelatoLowRead<
   TFunctionName extends string,
-  TSelectData = ReadContractResult<typeof checkGelatoLowABI, TFunctionName>
+  TSelectData = ReadContractResult<typeof checkGelatoLowABI, TFunctionName>,
 >(
   config: Omit<
     UseContractReadConfig<typeof checkGelatoLowABI, TFunctionName, TSelectData>,
     'abi' | 'address'
-  > & { chainId?: keyof typeof checkGelatoLowAddress } = {} as any
+  > & {
+    chainId?: keyof typeof checkGelatoLowAddress
+  } = {} as any
 ) {
   const { chain } = useNetwork()
   const defaultChainId = useChainId()
@@ -9523,7 +9573,11 @@ export function useCheckGelatoLowRead<
     address:
       checkGelatoLowAddress[chainId as keyof typeof checkGelatoLowAddress],
     ...config,
-  } as UseContractReadConfig<typeof checkGelatoLowABI, TFunctionName, TSelectData>)
+  } as UseContractReadConfig<
+    typeof checkGelatoLowABI,
+    TFunctionName,
+    TSelectData
+  >)
 }
 
 /**
@@ -9537,7 +9591,9 @@ export function useCheckGelatoLowEvent<TEventName extends string>(
   config: Omit<
     UseContractEventConfig<typeof checkGelatoLowABI, TEventName>,
     'abi' | 'address'
-  > & { chainId?: keyof typeof checkGelatoLowAddress } = {} as any
+  > & {
+    chainId?: keyof typeof checkGelatoLowAddress
+  } = {} as any
 ) {
   const { chain } = useNetwork()
   const defaultChainId = useChainId()
@@ -9559,12 +9615,14 @@ export function useCheckGelatoLowEvent<TEventName extends string>(
  */
 export function useCheckTrueRead<
   TFunctionName extends string,
-  TSelectData = ReadContractResult<typeof checkTrueABI, TFunctionName>
+  TSelectData = ReadContractResult<typeof checkTrueABI, TFunctionName>,
 >(
   config: Omit<
     UseContractReadConfig<typeof checkTrueABI, TFunctionName, TSelectData>,
     'abi' | 'address'
-  > & { chainId?: keyof typeof checkTrueAddress } = {} as any
+  > & {
+    chainId?: keyof typeof checkTrueAddress
+  } = {} as any
 ) {
   const { chain } = useNetwork()
   const defaultChainId = useChainId()
@@ -9583,12 +9641,14 @@ export function useCheckTrueRead<
  */
 export function useDrippieRead<
   TFunctionName extends string,
-  TSelectData = ReadContractResult<typeof drippieABI, TFunctionName>
+  TSelectData = ReadContractResult<typeof drippieABI, TFunctionName>,
 >(
   config: Omit<
     UseContractReadConfig<typeof drippieABI, TFunctionName, TSelectData>,
     'abi' | 'address'
-  > & { chainId?: keyof typeof drippieAddress } = {} as any
+  > & {
+    chainId?: keyof typeof drippieAddress
+  } = {} as any
 ) {
   return useContractRead({
     abi: drippieABI,
@@ -9605,7 +9665,7 @@ export function useDrippieRead<
 export function useDrippieWrite<
   TFunctionName extends string,
   TMode extends WriteContractMode = undefined,
-  TChainId extends number = keyof typeof drippieAddress
+  TChainId extends number = keyof typeof drippieAddress,
 >(
   config: TMode extends 'prepared'
     ? UseContractWriteConfig<
@@ -9635,7 +9695,9 @@ export function useDrippieEvent<TEventName extends string>(
   config: Omit<
     UseContractEventConfig<typeof drippieABI, TEventName>,
     'abi' | 'address'
-  > & { chainId?: keyof typeof drippieAddress } = {} as any
+  > & {
+    chainId?: keyof typeof drippieAddress
+  } = {} as any
 ) {
   return useContractEvent({
     abi: drippieABI,
@@ -9651,18 +9713,24 @@ export function useDrippieEvent<TEventName extends string>(
  */
 export function useDrippieGoerliRead<
   TFunctionName extends string,
-  TSelectData = ReadContractResult<typeof drippieGoerliABI, TFunctionName>
+  TSelectData = ReadContractResult<typeof drippieGoerliABI, TFunctionName>,
 >(
   config: Omit<
     UseContractReadConfig<typeof drippieGoerliABI, TFunctionName, TSelectData>,
     'abi' | 'address'
-  > & { chainId?: keyof typeof drippieGoerliAddress } = {} as any
+  > & {
+    chainId?: keyof typeof drippieGoerliAddress
+  } = {} as any
 ) {
   return useContractRead({
     abi: drippieGoerliABI,
     address: drippieGoerliAddress[5],
     ...config,
-  } as UseContractReadConfig<typeof drippieGoerliABI, TFunctionName, TSelectData>)
+  } as UseContractReadConfig<
+    typeof drippieGoerliABI,
+    TFunctionName,
+    TSelectData
+  >)
 }
 
 /**
@@ -9673,7 +9741,7 @@ export function useDrippieGoerliRead<
 export function useDrippieGoerliWrite<
   TFunctionName extends string,
   TMode extends WriteContractMode = undefined,
-  TChainId extends number = keyof typeof drippieGoerliAddress
+  TChainId extends number = keyof typeof drippieGoerliAddress,
 >(
   config: TMode extends 'prepared'
     ? UseContractWriteConfig<
@@ -9706,7 +9774,9 @@ export function useDrippieGoerliEvent<TEventName extends string>(
   config: Omit<
     UseContractEventConfig<typeof drippieGoerliABI, TEventName>,
     'abi' | 'address'
-  > & { chainId?: keyof typeof drippieGoerliAddress } = {} as any
+  > & {
+    chainId?: keyof typeof drippieGoerliAddress
+  } = {} as any
 ) {
   return useContractEvent({
     abi: drippieGoerliABI,
@@ -9725,7 +9795,7 @@ export function useDrippieOptimismGoerliRead<
   TSelectData = ReadContractResult<
     typeof drippieOptimismGoerliABI,
     TFunctionName
-  >
+  >,
 >(
   config: Omit<
     UseContractReadConfig<
@@ -9740,7 +9810,11 @@ export function useDrippieOptimismGoerliRead<
     abi: drippieOptimismGoerliABI,
     address: drippieOptimismGoerliAddress[420],
     ...config,
-  } as UseContractReadConfig<typeof drippieOptimismGoerliABI, TFunctionName, TSelectData>)
+  } as UseContractReadConfig<
+    typeof drippieOptimismGoerliABI,
+    TFunctionName,
+    TSelectData
+  >)
 }
 
 /**
@@ -9751,7 +9825,7 @@ export function useDrippieOptimismGoerliRead<
 export function useDrippieOptimismGoerliWrite<
   TFunctionName extends string,
   TMode extends WriteContractMode = undefined,
-  TChainId extends number = keyof typeof drippieOptimismGoerliAddress
+  TChainId extends number = keyof typeof drippieOptimismGoerliAddress,
 >(
   config: TMode extends 'prepared'
     ? UseContractWriteConfig<
@@ -9792,7 +9866,9 @@ export function useDrippieOptimismGoerliEvent<TEventName extends string>(
   config: Omit<
     UseContractEventConfig<typeof drippieOptimismGoerliABI, TEventName>,
     'abi' | 'address'
-  > & { chainId?: keyof typeof drippieOptimismGoerliAddress } = {} as any
+  > & {
+    chainId?: keyof typeof drippieOptimismGoerliAddress
+  } = {} as any
 ) {
   return useContractEvent({
     abi: drippieOptimismGoerliABI,
@@ -9809,12 +9885,14 @@ export function useDrippieOptimismGoerliEvent<TEventName extends string>(
  */
 export function useEasRead<
   TFunctionName extends string,
-  TSelectData = ReadContractResult<typeof easABI, TFunctionName>
+  TSelectData = ReadContractResult<typeof easABI, TFunctionName>,
 >(
   config: Omit<
     UseContractReadConfig<typeof easABI, TFunctionName, TSelectData>,
     'abi' | 'address'
-  > & { chainId?: keyof typeof easAddress } = {} as any
+  > & {
+    chainId?: keyof typeof easAddress
+  } = {} as any
 ) {
   const { chain } = useNetwork()
   const defaultChainId = useChainId()
@@ -9835,7 +9913,7 @@ export function useEasRead<
 export function useEasWrite<
   TFunctionName extends string,
   TMode extends WriteContractMode = undefined,
-  TChainId extends number = keyof typeof easAddress
+  TChainId extends number = keyof typeof easAddress,
 >(
   config: TMode extends 'prepared'
     ? UseContractWriteConfig<
@@ -9869,7 +9947,9 @@ export function useEasEvent<TEventName extends string>(
   config: Omit<
     UseContractEventConfig<typeof easABI, TEventName>,
     'abi' | 'address'
-  > & { chainId?: keyof typeof easAddress } = {} as any
+  > & {
+    chainId?: keyof typeof easAddress
+  } = {} as any
 ) {
   const { chain } = useNetwork()
   const defaultChainId = useChainId()
@@ -9888,18 +9968,24 @@ export function useEasEvent<TEventName extends string>(
  */
 export function useGasPriceOracleRead<
   TFunctionName extends string,
-  TSelectData = ReadContractResult<typeof gasPriceOracleABI, TFunctionName>
+  TSelectData = ReadContractResult<typeof gasPriceOracleABI, TFunctionName>,
 >(
   config: Omit<
     UseContractReadConfig<typeof gasPriceOracleABI, TFunctionName, TSelectData>,
     'abi' | 'address'
-  > & { chainId?: keyof typeof gasPriceOracleAddress } = {} as any
+  > & {
+    chainId?: keyof typeof gasPriceOracleAddress
+  } = {} as any
 ) {
   return useContractRead({
     abi: gasPriceOracleABI,
     address: gasPriceOracleAddress[420],
     ...config,
-  } as UseContractReadConfig<typeof gasPriceOracleABI, TFunctionName, TSelectData>)
+  } as UseContractReadConfig<
+    typeof gasPriceOracleABI,
+    TFunctionName,
+    TSelectData
+  >)
 }
 
 /**
@@ -9909,12 +9995,14 @@ export function useGasPriceOracleRead<
  */
 export function useL1BlockRead<
   TFunctionName extends string,
-  TSelectData = ReadContractResult<typeof l1BlockABI, TFunctionName>
+  TSelectData = ReadContractResult<typeof l1BlockABI, TFunctionName>,
 >(
   config: Omit<
     UseContractReadConfig<typeof l1BlockABI, TFunctionName, TSelectData>,
     'abi' | 'address'
-  > & { chainId?: keyof typeof l1BlockAddress } = {} as any
+  > & {
+    chainId?: keyof typeof l1BlockAddress
+  } = {} as any
 ) {
   return useContractRead({
     abi: l1BlockABI,
@@ -9931,7 +10019,7 @@ export function useL1BlockRead<
 export function useL1BlockWrite<
   TFunctionName extends string,
   TMode extends WriteContractMode = undefined,
-  TChainId extends number = keyof typeof l1BlockAddress
+  TChainId extends number = keyof typeof l1BlockAddress,
 >(
   config: TMode extends 'prepared'
     ? UseContractWriteConfig<
@@ -9963,7 +10051,7 @@ export function useL1CrossDomainMessengerRead<
   TSelectData = ReadContractResult<
     typeof l1CrossDomainMessengerABI,
     TFunctionName
-  >
+  >,
 >(
   config: Omit<
     UseContractReadConfig<
@@ -9984,7 +10072,11 @@ export function useL1CrossDomainMessengerRead<
         chainId as keyof typeof l1CrossDomainMessengerAddress
       ],
     ...config,
-  } as UseContractReadConfig<typeof l1CrossDomainMessengerABI, TFunctionName, TSelectData>)
+  } as UseContractReadConfig<
+    typeof l1CrossDomainMessengerABI,
+    TFunctionName,
+    TSelectData
+  >)
 }
 
 /**
@@ -9996,7 +10088,7 @@ export function useL1CrossDomainMessengerRead<
 export function useL1CrossDomainMessengerWrite<
   TFunctionName extends string,
   TMode extends WriteContractMode = undefined,
-  TChainId extends number = keyof typeof l1CrossDomainMessengerAddress
+  TChainId extends number = keyof typeof l1CrossDomainMessengerAddress,
 >(
   config: TMode extends 'prepared'
     ? UseContractWriteConfig<
@@ -10044,7 +10136,9 @@ export function useL1CrossDomainMessengerEvent<TEventName extends string>(
   config: Omit<
     UseContractEventConfig<typeof l1CrossDomainMessengerABI, TEventName>,
     'abi' | 'address'
-  > & { chainId?: keyof typeof l1CrossDomainMessengerAddress } = {} as any
+  > & {
+    chainId?: keyof typeof l1CrossDomainMessengerAddress
+  } = {} as any
 ) {
   const { chain } = useNetwork()
   const defaultChainId = useChainId()
@@ -10067,12 +10161,14 @@ export function useL1CrossDomainMessengerEvent<TEventName extends string>(
  */
 export function useL1Erc721BridgeRead<
   TFunctionName extends string,
-  TSelectData = ReadContractResult<typeof l1Erc721BridgeABI, TFunctionName>
+  TSelectData = ReadContractResult<typeof l1Erc721BridgeABI, TFunctionName>,
 >(
   config: Omit<
     UseContractReadConfig<typeof l1Erc721BridgeABI, TFunctionName, TSelectData>,
     'abi' | 'address'
-  > & { chainId?: keyof typeof l1Erc721BridgeAddress } = {} as any
+  > & {
+    chainId?: keyof typeof l1Erc721BridgeAddress
+  } = {} as any
 ) {
   const { chain } = useNetwork()
   const defaultChainId = useChainId()
@@ -10082,7 +10178,11 @@ export function useL1Erc721BridgeRead<
     address:
       l1Erc721BridgeAddress[chainId as keyof typeof l1Erc721BridgeAddress],
     ...config,
-  } as UseContractReadConfig<typeof l1Erc721BridgeABI, TFunctionName, TSelectData>)
+  } as UseContractReadConfig<
+    typeof l1Erc721BridgeABI,
+    TFunctionName,
+    TSelectData
+  >)
 }
 
 /**
@@ -10094,7 +10194,7 @@ export function useL1Erc721BridgeRead<
 export function useL1Erc721BridgeWrite<
   TFunctionName extends string,
   TMode extends WriteContractMode = undefined,
-  TChainId extends number = keyof typeof l1Erc721BridgeAddress
+  TChainId extends number = keyof typeof l1Erc721BridgeAddress,
 >(
   config: TMode extends 'prepared'
     ? UseContractWriteConfig<
@@ -10132,7 +10232,9 @@ export function useL1Erc721BridgeEvent<TEventName extends string>(
   config: Omit<
     UseContractEventConfig<typeof l1Erc721BridgeABI, TEventName>,
     'abi' | 'address'
-  > & { chainId?: keyof typeof l1Erc721BridgeAddress } = {} as any
+  > & {
+    chainId?: keyof typeof l1Erc721BridgeAddress
+  } = {} as any
 ) {
   const { chain } = useNetwork()
   const defaultChainId = useChainId()
@@ -10152,12 +10254,14 @@ export function useL1Erc721BridgeEvent<TEventName extends string>(
  */
 export function useL1FeeVaultRead<
   TFunctionName extends string,
-  TSelectData = ReadContractResult<typeof l1FeeVaultABI, TFunctionName>
+  TSelectData = ReadContractResult<typeof l1FeeVaultABI, TFunctionName>,
 >(
   config: Omit<
     UseContractReadConfig<typeof l1FeeVaultABI, TFunctionName, TSelectData>,
     'abi' | 'address'
-  > & { chainId?: keyof typeof l1FeeVaultAddress } = {} as any
+  > & {
+    chainId?: keyof typeof l1FeeVaultAddress
+  } = {} as any
 ) {
   return useContractRead({
     abi: l1FeeVaultABI,
@@ -10174,7 +10278,7 @@ export function useL1FeeVaultRead<
 export function useL1FeeVaultWrite<
   TFunctionName extends string,
   TMode extends WriteContractMode = undefined,
-  TChainId extends number = keyof typeof l1FeeVaultAddress
+  TChainId extends number = keyof typeof l1FeeVaultAddress,
 >(
   config: TMode extends 'prepared'
     ? UseContractWriteConfig<
@@ -10207,7 +10311,9 @@ export function useL1FeeVaultEvent<TEventName extends string>(
   config: Omit<
     UseContractEventConfig<typeof l1FeeVaultABI, TEventName>,
     'abi' | 'address'
-  > & { chainId?: keyof typeof l1FeeVaultAddress } = {} as any
+  > & {
+    chainId?: keyof typeof l1FeeVaultAddress
+  } = {} as any
 ) {
   return useContractEvent({
     abi: l1FeeVaultABI,
@@ -10224,7 +10330,7 @@ export function useL1FeeVaultEvent<TEventName extends string>(
  */
 export function useL1StandardBridgeRead<
   TFunctionName extends string,
-  TSelectData = ReadContractResult<typeof l1StandardBridgeABI, TFunctionName>
+  TSelectData = ReadContractResult<typeof l1StandardBridgeABI, TFunctionName>,
 >(
   config: Omit<
     UseContractReadConfig<
@@ -10233,7 +10339,9 @@ export function useL1StandardBridgeRead<
       TSelectData
     >,
     'abi' | 'address'
-  > & { chainId?: keyof typeof l1StandardBridgeAddress } = {} as any
+  > & {
+    chainId?: keyof typeof l1StandardBridgeAddress
+  } = {} as any
 ) {
   const { chain } = useNetwork()
   const defaultChainId = useChainId()
@@ -10243,7 +10351,11 @@ export function useL1StandardBridgeRead<
     address:
       l1StandardBridgeAddress[chainId as keyof typeof l1StandardBridgeAddress],
     ...config,
-  } as UseContractReadConfig<typeof l1StandardBridgeABI, TFunctionName, TSelectData>)
+  } as UseContractReadConfig<
+    typeof l1StandardBridgeABI,
+    TFunctionName,
+    TSelectData
+  >)
 }
 
 /**
@@ -10255,7 +10367,7 @@ export function useL1StandardBridgeRead<
 export function useL1StandardBridgeWrite<
   TFunctionName extends string,
   TMode extends WriteContractMode = undefined,
-  TChainId extends number = keyof typeof l1StandardBridgeAddress
+  TChainId extends number = keyof typeof l1StandardBridgeAddress,
 >(
   config: TMode extends 'prepared'
     ? UseContractWriteConfig<
@@ -10297,7 +10409,9 @@ export function useL1StandardBridgeEvent<TEventName extends string>(
   config: Omit<
     UseContractEventConfig<typeof l1StandardBridgeABI, TEventName>,
     'abi' | 'address'
-  > & { chainId?: keyof typeof l1StandardBridgeAddress } = {} as any
+  > & {
+    chainId?: keyof typeof l1StandardBridgeAddress
+  } = {} as any
 ) {
   const { chain } = useNetwork()
   const defaultChainId = useChainId()
@@ -10320,7 +10434,7 @@ export function useL2CrossDomainMessengerRead<
   TSelectData = ReadContractResult<
     typeof l2CrossDomainMessengerABI,
     TFunctionName
-  >
+  >,
 >(
   config: Omit<
     UseContractReadConfig<
@@ -10335,7 +10449,11 @@ export function useL2CrossDomainMessengerRead<
     abi: l2CrossDomainMessengerABI,
     address: l2CrossDomainMessengerAddress[420],
     ...config,
-  } as UseContractReadConfig<typeof l2CrossDomainMessengerABI, TFunctionName, TSelectData>)
+  } as UseContractReadConfig<
+    typeof l2CrossDomainMessengerABI,
+    TFunctionName,
+    TSelectData
+  >)
 }
 
 /**
@@ -10346,7 +10464,7 @@ export function useL2CrossDomainMessengerRead<
 export function useL2CrossDomainMessengerWrite<
   TFunctionName extends string,
   TMode extends WriteContractMode = undefined,
-  TChainId extends number = keyof typeof l2CrossDomainMessengerAddress
+  TChainId extends number = keyof typeof l2CrossDomainMessengerAddress,
 >(
   config: TMode extends 'prepared'
     ? UseContractWriteConfig<
@@ -10387,7 +10505,9 @@ export function useL2CrossDomainMessengerEvent<TEventName extends string>(
   config: Omit<
     UseContractEventConfig<typeof l2CrossDomainMessengerABI, TEventName>,
     'abi' | 'address'
-  > & { chainId?: keyof typeof l2CrossDomainMessengerAddress } = {} as any
+  > & {
+    chainId?: keyof typeof l2CrossDomainMessengerAddress
+  } = {} as any
 ) {
   return useContractEvent({
     abi: l2CrossDomainMessengerABI,
@@ -10404,12 +10524,14 @@ export function useL2CrossDomainMessengerEvent<TEventName extends string>(
  */
 export function useL2Erc721BridgeRead<
   TFunctionName extends string,
-  TSelectData = ReadContractResult<typeof l2Erc721BridgeABI, TFunctionName>
+  TSelectData = ReadContractResult<typeof l2Erc721BridgeABI, TFunctionName>,
 >(
   config: Omit<
     UseContractReadConfig<typeof l2Erc721BridgeABI, TFunctionName, TSelectData>,
     'abi' | 'address'
-  > & { chainId?: keyof typeof l2Erc721BridgeAddress } = {} as any
+  > & {
+    chainId?: keyof typeof l2Erc721BridgeAddress
+  } = {} as any
 ) {
   const { chain } = useNetwork()
   const defaultChainId = useChainId()
@@ -10419,7 +10541,11 @@ export function useL2Erc721BridgeRead<
     address:
       l2Erc721BridgeAddress[chainId as keyof typeof l2Erc721BridgeAddress],
     ...config,
-  } as UseContractReadConfig<typeof l2Erc721BridgeABI, TFunctionName, TSelectData>)
+  } as UseContractReadConfig<
+    typeof l2Erc721BridgeABI,
+    TFunctionName,
+    TSelectData
+  >)
 }
 
 /**
@@ -10431,7 +10557,7 @@ export function useL2Erc721BridgeRead<
 export function useL2Erc721BridgeWrite<
   TFunctionName extends string,
   TMode extends WriteContractMode = undefined,
-  TChainId extends number = keyof typeof l2Erc721BridgeAddress
+  TChainId extends number = keyof typeof l2Erc721BridgeAddress,
 >(
   config: TMode extends 'prepared'
     ? UseContractWriteConfig<
@@ -10469,7 +10595,9 @@ export function useL2Erc721BridgeEvent<TEventName extends string>(
   config: Omit<
     UseContractEventConfig<typeof l2Erc721BridgeABI, TEventName>,
     'abi' | 'address'
-  > & { chainId?: keyof typeof l2Erc721BridgeAddress } = {} as any
+  > & {
+    chainId?: keyof typeof l2Erc721BridgeAddress
+  } = {} as any
 ) {
   const { chain } = useNetwork()
   const defaultChainId = useChainId()
@@ -10490,12 +10618,14 @@ export function useL2Erc721BridgeEvent<TEventName extends string>(
  */
 export function useL2OutputOracleRead<
   TFunctionName extends string,
-  TSelectData = ReadContractResult<typeof l2OutputOracleABI, TFunctionName>
+  TSelectData = ReadContractResult<typeof l2OutputOracleABI, TFunctionName>,
 >(
   config: Omit<
     UseContractReadConfig<typeof l2OutputOracleABI, TFunctionName, TSelectData>,
     'abi' | 'address'
-  > & { chainId?: keyof typeof l2OutputOracleAddress } = {} as any
+  > & {
+    chainId?: keyof typeof l2OutputOracleAddress
+  } = {} as any
 ) {
   const { chain } = useNetwork()
   const defaultChainId = useChainId()
@@ -10505,7 +10635,11 @@ export function useL2OutputOracleRead<
     address:
       l2OutputOracleAddress[chainId as keyof typeof l2OutputOracleAddress],
     ...config,
-  } as UseContractReadConfig<typeof l2OutputOracleABI, TFunctionName, TSelectData>)
+  } as UseContractReadConfig<
+    typeof l2OutputOracleABI,
+    TFunctionName,
+    TSelectData
+  >)
 }
 
 /**
@@ -10517,7 +10651,7 @@ export function useL2OutputOracleRead<
 export function useL2OutputOracleWrite<
   TFunctionName extends string,
   TMode extends WriteContractMode = undefined,
-  TChainId extends number = keyof typeof l2OutputOracleAddress
+  TChainId extends number = keyof typeof l2OutputOracleAddress,
 >(
   config: TMode extends 'prepared'
     ? UseContractWriteConfig<
@@ -10555,7 +10689,9 @@ export function useL2OutputOracleEvent<TEventName extends string>(
   config: Omit<
     UseContractEventConfig<typeof l2OutputOracleABI, TEventName>,
     'abi' | 'address'
-  > & { chainId?: keyof typeof l2OutputOracleAddress } = {} as any
+  > & {
+    chainId?: keyof typeof l2OutputOracleAddress
+  } = {} as any
 ) {
   const { chain } = useNetwork()
   const defaultChainId = useChainId()
@@ -10575,7 +10711,7 @@ export function useL2OutputOracleEvent<TEventName extends string>(
  */
 export function useL2StandardBridgeRead<
   TFunctionName extends string,
-  TSelectData = ReadContractResult<typeof l2StandardBridgeABI, TFunctionName>
+  TSelectData = ReadContractResult<typeof l2StandardBridgeABI, TFunctionName>,
 >(
   config: Omit<
     UseContractReadConfig<
@@ -10584,13 +10720,19 @@ export function useL2StandardBridgeRead<
       TSelectData
     >,
     'abi' | 'address'
-  > & { chainId?: keyof typeof l2StandardBridgeAddress } = {} as any
+  > & {
+    chainId?: keyof typeof l2StandardBridgeAddress
+  } = {} as any
 ) {
   return useContractRead({
     abi: l2StandardBridgeABI,
     address: l2StandardBridgeAddress[420],
     ...config,
-  } as UseContractReadConfig<typeof l2StandardBridgeABI, TFunctionName, TSelectData>)
+  } as UseContractReadConfig<
+    typeof l2StandardBridgeABI,
+    TFunctionName,
+    TSelectData
+  >)
 }
 
 /**
@@ -10601,7 +10743,7 @@ export function useL2StandardBridgeRead<
 export function useL2StandardBridgeWrite<
   TFunctionName extends string,
   TMode extends WriteContractMode = undefined,
-  TChainId extends number = keyof typeof l2StandardBridgeAddress
+  TChainId extends number = keyof typeof l2StandardBridgeAddress,
 >(
   config: TMode extends 'prepared'
     ? UseContractWriteConfig<
@@ -10638,7 +10780,9 @@ export function useL2StandardBridgeEvent<TEventName extends string>(
   config: Omit<
     UseContractEventConfig<typeof l2StandardBridgeABI, TEventName>,
     'abi' | 'address'
-  > & { chainId?: keyof typeof l2StandardBridgeAddress } = {} as any
+  > & {
+    chainId?: keyof typeof l2StandardBridgeAddress
+  } = {} as any
 ) {
   return useContractEvent({
     abi: l2StandardBridgeABI,
@@ -10654,7 +10798,10 @@ export function useL2StandardBridgeEvent<TEventName extends string>(
  */
 export function useL2ToL1MessagePasserRead<
   TFunctionName extends string,
-  TSelectData = ReadContractResult<typeof l2ToL1MessagePasserABI, TFunctionName>
+  TSelectData = ReadContractResult<
+    typeof l2ToL1MessagePasserABI,
+    TFunctionName
+  >,
 >(
   config: Omit<
     UseContractReadConfig<
@@ -10663,13 +10810,19 @@ export function useL2ToL1MessagePasserRead<
       TSelectData
     >,
     'abi' | 'address'
-  > & { chainId?: keyof typeof l2ToL1MessagePasserAddress } = {} as any
+  > & {
+    chainId?: keyof typeof l2ToL1MessagePasserAddress
+  } = {} as any
 ) {
   return useContractRead({
     abi: l2ToL1MessagePasserABI,
     address: l2ToL1MessagePasserAddress[420],
     ...config,
-  } as UseContractReadConfig<typeof l2ToL1MessagePasserABI, TFunctionName, TSelectData>)
+  } as UseContractReadConfig<
+    typeof l2ToL1MessagePasserABI,
+    TFunctionName,
+    TSelectData
+  >)
 }
 
 /**
@@ -10680,7 +10833,7 @@ export function useL2ToL1MessagePasserRead<
 export function useL2ToL1MessagePasserWrite<
   TFunctionName extends string,
   TMode extends WriteContractMode = undefined,
-  TChainId extends number = keyof typeof l2ToL1MessagePasserAddress
+  TChainId extends number = keyof typeof l2ToL1MessagePasserAddress,
 >(
   config: TMode extends 'prepared'
     ? UseContractWriteConfig<
@@ -10717,7 +10870,9 @@ export function useL2ToL1MessagePasserEvent<TEventName extends string>(
   config: Omit<
     UseContractEventConfig<typeof l2ToL1MessagePasserABI, TEventName>,
     'abi' | 'address'
-  > & { chainId?: keyof typeof l2ToL1MessagePasserAddress } = {} as any
+  > & {
+    chainId?: keyof typeof l2ToL1MessagePasserAddress
+  } = {} as any
 ) {
   return useContractEvent({
     abi: l2ToL1MessagePasserABI,
@@ -10734,12 +10889,14 @@ export function useL2ToL1MessagePasserEvent<TEventName extends string>(
  */
 export function useMintManagerRead<
   TFunctionName extends string,
-  TSelectData = ReadContractResult<typeof mintManagerABI, TFunctionName>
+  TSelectData = ReadContractResult<typeof mintManagerABI, TFunctionName>,
 >(
   config: Omit<
     UseContractReadConfig<typeof mintManagerABI, TFunctionName, TSelectData>,
     'abi' | 'address'
-  > & { chainId?: keyof typeof mintManagerAddress } = {} as any
+  > & {
+    chainId?: keyof typeof mintManagerAddress
+  } = {} as any
 ) {
   const { chain } = useNetwork()
   const defaultChainId = useChainId()
@@ -10760,7 +10917,7 @@ export function useMintManagerRead<
 export function useMintManagerWrite<
   TFunctionName extends string,
   TMode extends WriteContractMode = undefined,
-  TChainId extends number = keyof typeof mintManagerAddress
+  TChainId extends number = keyof typeof mintManagerAddress,
 >(
   config: TMode extends 'prepared'
     ? UseContractWriteConfig<
@@ -10797,7 +10954,9 @@ export function useMintManagerEvent<TEventName extends string>(
   config: Omit<
     UseContractEventConfig<typeof mintManagerABI, TEventName>,
     'abi' | 'address'
-  > & { chainId?: keyof typeof mintManagerAddress } = {} as any
+  > & {
+    chainId?: keyof typeof mintManagerAddress
+  } = {} as any
 ) {
   const { chain } = useNetwork()
   const defaultChainId = useChainId()
@@ -10819,7 +10978,7 @@ export function useOptimismMintableErc20FactoryRead<
   TSelectData = ReadContractResult<
     typeof optimismMintableErc20FactoryABI,
     TFunctionName
-  >
+  >,
 >(
   config: Omit<
     UseContractReadConfig<
@@ -10828,13 +10987,19 @@ export function useOptimismMintableErc20FactoryRead<
       TSelectData
     >,
     'abi' | 'address'
-  > & { chainId?: keyof typeof optimismMintableErc20FactoryAddress } = {} as any
+  > & {
+    chainId?: keyof typeof optimismMintableErc20FactoryAddress
+  } = {} as any
 ) {
   return useContractRead({
     abi: optimismMintableErc20FactoryABI,
     address: optimismMintableErc20FactoryAddress[1],
     ...config,
-  } as UseContractReadConfig<typeof optimismMintableErc20FactoryABI, TFunctionName, TSelectData>)
+  } as UseContractReadConfig<
+    typeof optimismMintableErc20FactoryABI,
+    TFunctionName,
+    TSelectData
+  >)
 }
 
 /**
@@ -10845,7 +11010,7 @@ export function useOptimismMintableErc20FactoryRead<
 export function useOptimismMintableErc20FactoryWrite<
   TFunctionName extends string,
   TMode extends WriteContractMode = undefined,
-  TChainId extends number = keyof typeof optimismMintableErc20FactoryAddress
+  TChainId extends number = keyof typeof optimismMintableErc20FactoryAddress,
 >(
   config: TMode extends 'prepared'
     ? UseContractWriteConfig<
@@ -10886,13 +11051,18 @@ export function useOptimismMintableErc20FactoryEvent<TEventName extends string>(
   config: Omit<
     UseContractEventConfig<typeof optimismMintableErc20FactoryABI, TEventName>,
     'abi' | 'address'
-  > & { chainId?: keyof typeof optimismMintableErc20FactoryAddress } = {} as any
+  > & {
+    chainId?: keyof typeof optimismMintableErc20FactoryAddress
+  } = {} as any
 ) {
   return useContractEvent({
     abi: optimismMintableErc20FactoryABI,
     address: optimismMintableErc20FactoryAddress[1],
     ...config,
-  } as UseContractEventConfig<typeof optimismMintableErc20FactoryABI, TEventName>)
+  } as UseContractEventConfig<
+    typeof optimismMintableErc20FactoryABI,
+    TEventName
+  >)
 }
 
 /**
@@ -10905,7 +11075,7 @@ export function useOptimismMintableErc20FactoryGoerliRead<
   TSelectData = ReadContractResult<
     typeof optimismMintableErc20FactoryGoerliABI,
     TFunctionName
-  >
+  >,
 >(
   config: Omit<
     UseContractReadConfig<
@@ -10922,7 +11092,11 @@ export function useOptimismMintableErc20FactoryGoerliRead<
     abi: optimismMintableErc20FactoryGoerliABI,
     address: optimismMintableErc20FactoryGoerliAddress[5],
     ...config,
-  } as UseContractReadConfig<typeof optimismMintableErc20FactoryGoerliABI, TFunctionName, TSelectData>)
+  } as UseContractReadConfig<
+    typeof optimismMintableErc20FactoryGoerliABI,
+    TFunctionName,
+    TSelectData
+  >)
 }
 
 /**
@@ -10933,7 +11107,8 @@ export function useOptimismMintableErc20FactoryGoerliRead<
 export function useOptimismMintableErc20FactoryGoerliWrite<
   TFunctionName extends string,
   TMode extends WriteContractMode = undefined,
-  TChainId extends number = keyof typeof optimismMintableErc20FactoryGoerliAddress
+  TChainId extends
+    number = keyof typeof optimismMintableErc20FactoryGoerliAddress,
 >(
   config: TMode extends 'prepared'
     ? UseContractWriteConfig<
@@ -10971,7 +11146,7 @@ export function useOptimismMintableErc20FactoryGoerliWrite<
  * [__View Contract on Goerli Etherscan__](https://goerli.etherscan.io/address/0x4200000000000000000000000000000000000012)
  */
 export function useOptimismMintableErc20FactoryGoerliEvent<
-  TEventName extends string
+  TEventName extends string,
 >(
   config: Omit<
     UseContractEventConfig<
@@ -10987,7 +11162,10 @@ export function useOptimismMintableErc20FactoryGoerliEvent<
     abi: optimismMintableErc20FactoryGoerliABI,
     address: optimismMintableErc20FactoryGoerliAddress[5],
     ...config,
-  } as UseContractEventConfig<typeof optimismMintableErc20FactoryGoerliABI, TEventName>)
+  } as UseContractEventConfig<
+    typeof optimismMintableErc20FactoryGoerliABI,
+    TEventName
+  >)
 }
 
 /**
@@ -11000,7 +11178,7 @@ export function useOptimismMintableErc20FactoryOptimismGoerliRead<
   TSelectData = ReadContractResult<
     typeof optimismMintableErc20FactoryOptimismGoerliABI,
     TFunctionName
-  >
+  >,
 >(
   config: Omit<
     UseContractReadConfig<
@@ -11017,7 +11195,11 @@ export function useOptimismMintableErc20FactoryOptimismGoerliRead<
     abi: optimismMintableErc20FactoryOptimismGoerliABI,
     address: optimismMintableErc20FactoryOptimismGoerliAddress[420],
     ...config,
-  } as UseContractReadConfig<typeof optimismMintableErc20FactoryOptimismGoerliABI, TFunctionName, TSelectData>)
+  } as UseContractReadConfig<
+    typeof optimismMintableErc20FactoryOptimismGoerliABI,
+    TFunctionName,
+    TSelectData
+  >)
 }
 
 /**
@@ -11028,7 +11210,8 @@ export function useOptimismMintableErc20FactoryOptimismGoerliRead<
 export function useOptimismMintableErc20FactoryOptimismGoerliWrite<
   TFunctionName extends string,
   TMode extends WriteContractMode = undefined,
-  TChainId extends number = keyof typeof optimismMintableErc20FactoryOptimismGoerliAddress
+  TChainId extends
+    number = keyof typeof optimismMintableErc20FactoryOptimismGoerliAddress,
 >(
   config: TMode extends 'prepared'
     ? UseContractWriteConfig<
@@ -11066,7 +11249,7 @@ export function useOptimismMintableErc20FactoryOptimismGoerliWrite<
  * [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x4200000000000000000000000000000000000012)
  */
 export function useOptimismMintableErc20FactoryOptimismGoerliEvent<
-  TEventName extends string
+  TEventName extends string,
 >(
   config: Omit<
     UseContractEventConfig<
@@ -11082,7 +11265,10 @@ export function useOptimismMintableErc20FactoryOptimismGoerliEvent<
     abi: optimismMintableErc20FactoryOptimismGoerliABI,
     address: optimismMintableErc20FactoryOptimismGoerliAddress[420],
     ...config,
-  } as UseContractEventConfig<typeof optimismMintableErc20FactoryOptimismGoerliABI, TEventName>)
+  } as UseContractEventConfig<
+    typeof optimismMintableErc20FactoryOptimismGoerliABI,
+    TEventName
+  >)
 }
 
 /**
@@ -11095,7 +11281,7 @@ export function useOptimismMintableErc721FactoryRead<
   TSelectData = ReadContractResult<
     typeof optimismMintableErc721FactoryABI,
     TFunctionName
-  >
+  >,
 >(
   config: Omit<
     UseContractReadConfig<
@@ -11112,7 +11298,11 @@ export function useOptimismMintableErc721FactoryRead<
     abi: optimismMintableErc721FactoryABI,
     address: optimismMintableErc721FactoryAddress[10],
     ...config,
-  } as UseContractReadConfig<typeof optimismMintableErc721FactoryABI, TFunctionName, TSelectData>)
+  } as UseContractReadConfig<
+    typeof optimismMintableErc721FactoryABI,
+    TFunctionName,
+    TSelectData
+  >)
 }
 
 /**
@@ -11123,7 +11313,7 @@ export function useOptimismMintableErc721FactoryRead<
 export function useOptimismMintableErc721FactoryWrite<
   TFunctionName extends string,
   TMode extends WriteContractMode = undefined,
-  TChainId extends number = keyof typeof optimismMintableErc721FactoryAddress
+  TChainId extends number = keyof typeof optimismMintableErc721FactoryAddress,
 >(
   config: TMode extends 'prepared'
     ? UseContractWriteConfig<
@@ -11161,7 +11351,7 @@ export function useOptimismMintableErc721FactoryWrite<
  * [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0x4200000000000000000000000000000000000017)
  */
 export function useOptimismMintableErc721FactoryEvent<
-  TEventName extends string
+  TEventName extends string,
 >(
   config: Omit<
     UseContractEventConfig<typeof optimismMintableErc721FactoryABI, TEventName>,
@@ -11174,7 +11364,10 @@ export function useOptimismMintableErc721FactoryEvent<
     abi: optimismMintableErc721FactoryABI,
     address: optimismMintableErc721FactoryAddress[10],
     ...config,
-  } as UseContractEventConfig<typeof optimismMintableErc721FactoryABI, TEventName>)
+  } as UseContractEventConfig<
+    typeof optimismMintableErc721FactoryABI,
+    TEventName
+  >)
 }
 
 /**
@@ -11187,7 +11380,7 @@ export function useOptimismMintableErc721FactoryOptimismGoerliRead<
   TSelectData = ReadContractResult<
     typeof optimismMintableErc721FactoryOptimismGoerliABI,
     TFunctionName
-  >
+  >,
 >(
   config: Omit<
     UseContractReadConfig<
@@ -11204,7 +11397,11 @@ export function useOptimismMintableErc721FactoryOptimismGoerliRead<
     abi: optimismMintableErc721FactoryOptimismGoerliABI,
     address: optimismMintableErc721FactoryOptimismGoerliAddress[420],
     ...config,
-  } as UseContractReadConfig<typeof optimismMintableErc721FactoryOptimismGoerliABI, TFunctionName, TSelectData>)
+  } as UseContractReadConfig<
+    typeof optimismMintableErc721FactoryOptimismGoerliABI,
+    TFunctionName,
+    TSelectData
+  >)
 }
 
 /**
@@ -11215,7 +11412,8 @@ export function useOptimismMintableErc721FactoryOptimismGoerliRead<
 export function useOptimismMintableErc721FactoryOptimismGoerliWrite<
   TFunctionName extends string,
   TMode extends WriteContractMode = undefined,
-  TChainId extends number = keyof typeof optimismMintableErc721FactoryOptimismGoerliAddress
+  TChainId extends
+    number = keyof typeof optimismMintableErc721FactoryOptimismGoerliAddress,
 >(
   config: TMode extends 'prepared'
     ? UseContractWriteConfig<
@@ -11253,7 +11451,7 @@ export function useOptimismMintableErc721FactoryOptimismGoerliWrite<
  * [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x4200000000000000000000000000000000000017)
  */
 export function useOptimismMintableErc721FactoryOptimismGoerliEvent<
-  TEventName extends string
+  TEventName extends string,
 >(
   config: Omit<
     UseContractEventConfig<
@@ -11269,7 +11467,10 @@ export function useOptimismMintableErc721FactoryOptimismGoerliEvent<
     abi: optimismMintableErc721FactoryOptimismGoerliABI,
     address: optimismMintableErc721FactoryOptimismGoerliAddress[420],
     ...config,
-  } as UseContractEventConfig<typeof optimismMintableErc721FactoryOptimismGoerliABI, TEventName>)
+  } as UseContractEventConfig<
+    typeof optimismMintableErc721FactoryOptimismGoerliABI,
+    TEventName
+  >)
 }
 
 /**
@@ -11280,12 +11481,14 @@ export function useOptimismMintableErc721FactoryOptimismGoerliEvent<
  */
 export function useOptimismPortalRead<
   TFunctionName extends string,
-  TSelectData = ReadContractResult<typeof optimismPortalABI, TFunctionName>
+  TSelectData = ReadContractResult<typeof optimismPortalABI, TFunctionName>,
 >(
   config: Omit<
     UseContractReadConfig<typeof optimismPortalABI, TFunctionName, TSelectData>,
     'abi' | 'address'
-  > & { chainId?: keyof typeof optimismPortalAddress } = {} as any
+  > & {
+    chainId?: keyof typeof optimismPortalAddress
+  } = {} as any
 ) {
   const { chain } = useNetwork()
   const defaultChainId = useChainId()
@@ -11295,7 +11498,11 @@ export function useOptimismPortalRead<
     address:
       optimismPortalAddress[chainId as keyof typeof optimismPortalAddress],
     ...config,
-  } as UseContractReadConfig<typeof optimismPortalABI, TFunctionName, TSelectData>)
+  } as UseContractReadConfig<
+    typeof optimismPortalABI,
+    TFunctionName,
+    TSelectData
+  >)
 }
 
 /**
@@ -11307,7 +11514,7 @@ export function useOptimismPortalRead<
 export function useOptimismPortalWrite<
   TFunctionName extends string,
   TMode extends WriteContractMode = undefined,
-  TChainId extends number = keyof typeof optimismPortalAddress
+  TChainId extends number = keyof typeof optimismPortalAddress,
 >(
   config: TMode extends 'prepared'
     ? UseContractWriteConfig<
@@ -11345,7 +11552,9 @@ export function useOptimismPortalEvent<TEventName extends string>(
   config: Omit<
     UseContractEventConfig<typeof optimismPortalABI, TEventName>,
     'abi' | 'address'
-  > & { chainId?: keyof typeof optimismPortalAddress } = {} as any
+  > & {
+    chainId?: keyof typeof optimismPortalAddress
+  } = {} as any
 ) {
   const { chain } = useNetwork()
   const defaultChainId = useChainId()
@@ -11366,12 +11575,14 @@ export function useOptimismPortalEvent<TEventName extends string>(
  */
 export function useOptimistRead<
   TFunctionName extends string,
-  TSelectData = ReadContractResult<typeof optimistABI, TFunctionName>
+  TSelectData = ReadContractResult<typeof optimistABI, TFunctionName>,
 >(
   config: Omit<
     UseContractReadConfig<typeof optimistABI, TFunctionName, TSelectData>,
     'abi' | 'address'
-  > & { chainId?: keyof typeof optimistAddress } = {} as any
+  > & {
+    chainId?: keyof typeof optimistAddress
+  } = {} as any
 ) {
   const { chain } = useNetwork()
   const defaultChainId = useChainId()
@@ -11392,7 +11603,7 @@ export function useOptimistRead<
 export function useOptimistWrite<
   TFunctionName extends string,
   TMode extends WriteContractMode = undefined,
-  TChainId extends number = keyof typeof optimistAddress
+  TChainId extends number = keyof typeof optimistAddress,
 >(
   config: TMode extends 'prepared'
     ? UseContractWriteConfig<
@@ -11429,7 +11640,9 @@ export function useOptimistEvent<TEventName extends string>(
   config: Omit<
     UseContractEventConfig<typeof optimistABI, TEventName>,
     'abi' | 'address'
-  > & { chainId?: keyof typeof optimistAddress } = {} as any
+  > & {
+    chainId?: keyof typeof optimistAddress
+  } = {} as any
 ) {
   const { chain } = useNetwork()
   const defaultChainId = useChainId()
@@ -11449,7 +11662,7 @@ export function useOptimistEvent<TEventName extends string>(
  */
 export function useOptimistAllowlistRead<
   TFunctionName extends string,
-  TSelectData = ReadContractResult<typeof optimistAllowlistABI, TFunctionName>
+  TSelectData = ReadContractResult<typeof optimistAllowlistABI, TFunctionName>,
 >(
   config: Omit<
     UseContractReadConfig<
@@ -11458,7 +11671,9 @@ export function useOptimistAllowlistRead<
       TSelectData
     >,
     'abi' | 'address'
-  > & { chainId?: keyof typeof optimistAllowlistAddress } = {} as any
+  > & {
+    chainId?: keyof typeof optimistAllowlistAddress
+  } = {} as any
 ) {
   const { chain } = useNetwork()
   const defaultChainId = useChainId()
@@ -11470,7 +11685,11 @@ export function useOptimistAllowlistRead<
         chainId as keyof typeof optimistAllowlistAddress
       ],
     ...config,
-  } as UseContractReadConfig<typeof optimistAllowlistABI, TFunctionName, TSelectData>)
+  } as UseContractReadConfig<
+    typeof optimistAllowlistABI,
+    TFunctionName,
+    TSelectData
+  >)
 }
 
 /**
@@ -11481,7 +11700,7 @@ export function useOptimistAllowlistRead<
  */
 export function useOptimistInviterRead<
   TFunctionName extends string,
-  TSelectData = ReadContractResult<typeof optimistInviterABI, TFunctionName>
+  TSelectData = ReadContractResult<typeof optimistInviterABI, TFunctionName>,
 >(
   config: Omit<
     UseContractReadConfig<
@@ -11490,7 +11709,9 @@ export function useOptimistInviterRead<
       TSelectData
     >,
     'abi' | 'address'
-  > & { chainId?: keyof typeof optimistInviterAddress } = {} as any
+  > & {
+    chainId?: keyof typeof optimistInviterAddress
+  } = {} as any
 ) {
   const { chain } = useNetwork()
   const defaultChainId = useChainId()
@@ -11500,7 +11721,11 @@ export function useOptimistInviterRead<
     address:
       optimistInviterAddress[chainId as keyof typeof optimistInviterAddress],
     ...config,
-  } as UseContractReadConfig<typeof optimistInviterABI, TFunctionName, TSelectData>)
+  } as UseContractReadConfig<
+    typeof optimistInviterABI,
+    TFunctionName,
+    TSelectData
+  >)
 }
 
 /**
@@ -11512,7 +11737,7 @@ export function useOptimistInviterRead<
 export function useOptimistInviterWrite<
   TFunctionName extends string,
   TMode extends WriteContractMode = undefined,
-  TChainId extends number = keyof typeof optimistInviterAddress
+  TChainId extends number = keyof typeof optimistInviterAddress,
 >(
   config: TMode extends 'prepared'
     ? UseContractWriteConfig<
@@ -11554,7 +11779,9 @@ export function useOptimistInviterEvent<TEventName extends string>(
   config: Omit<
     UseContractEventConfig<typeof optimistInviterABI, TEventName>,
     'abi' | 'address'
-  > & { chainId?: keyof typeof optimistInviterAddress } = {} as any
+  > & {
+    chainId?: keyof typeof optimistInviterAddress
+  } = {} as any
 ) {
   const { chain } = useNetwork()
   const defaultChainId = useChainId()
@@ -11575,12 +11802,14 @@ export function useOptimistInviterEvent<TEventName extends string>(
  */
 export function usePortalSenderRead<
   TFunctionName extends string,
-  TSelectData = ReadContractResult<typeof portalSenderABI, TFunctionName>
+  TSelectData = ReadContractResult<typeof portalSenderABI, TFunctionName>,
 >(
   config: Omit<
     UseContractReadConfig<typeof portalSenderABI, TFunctionName, TSelectData>,
     'abi' | 'address'
-  > & { chainId?: keyof typeof portalSenderAddress } = {} as any
+  > & {
+    chainId?: keyof typeof portalSenderAddress
+  } = {} as any
 ) {
   const { chain } = useNetwork()
   const defaultChainId = useChainId()
@@ -11589,7 +11818,11 @@ export function usePortalSenderRead<
     abi: portalSenderABI,
     address: portalSenderAddress[chainId as keyof typeof portalSenderAddress],
     ...config,
-  } as UseContractReadConfig<typeof portalSenderABI, TFunctionName, TSelectData>)
+  } as UseContractReadConfig<
+    typeof portalSenderABI,
+    TFunctionName,
+    TSelectData
+  >)
 }
 
 /**
@@ -11601,7 +11834,7 @@ export function usePortalSenderRead<
 export function usePortalSenderWrite<
   TFunctionName extends string,
   TMode extends WriteContractMode = undefined,
-  TChainId extends number = keyof typeof portalSenderAddress
+  TChainId extends number = keyof typeof portalSenderAddress,
 >(
   config: TMode extends 'prepared'
     ? UseContractWriteConfig<
@@ -11635,7 +11868,7 @@ export function usePortalSenderWrite<
  */
 export function useProtocolVersionsRead<
   TFunctionName extends string,
-  TSelectData = ReadContractResult<typeof protocolVersionsABI, TFunctionName>
+  TSelectData = ReadContractResult<typeof protocolVersionsABI, TFunctionName>,
 >(
   config: Omit<
     UseContractReadConfig<
@@ -11644,13 +11877,19 @@ export function useProtocolVersionsRead<
       TSelectData
     >,
     'abi' | 'address'
-  > & { chainId?: keyof typeof protocolVersionsAddress } = {} as any
+  > & {
+    chainId?: keyof typeof protocolVersionsAddress
+  } = {} as any
 ) {
   return useContractRead({
     abi: protocolVersionsABI,
     address: protocolVersionsAddress[5],
     ...config,
-  } as UseContractReadConfig<typeof protocolVersionsABI, TFunctionName, TSelectData>)
+  } as UseContractReadConfig<
+    typeof protocolVersionsABI,
+    TFunctionName,
+    TSelectData
+  >)
 }
 
 /**
@@ -11661,7 +11900,7 @@ export function useProtocolVersionsRead<
 export function useProtocolVersionsWrite<
   TFunctionName extends string,
   TMode extends WriteContractMode = undefined,
-  TChainId extends number = keyof typeof protocolVersionsAddress
+  TChainId extends number = keyof typeof protocolVersionsAddress,
 >(
   config: TMode extends 'prepared'
     ? UseContractWriteConfig<
@@ -11698,7 +11937,9 @@ export function useProtocolVersionsEvent<TEventName extends string>(
   config: Omit<
     UseContractEventConfig<typeof protocolVersionsABI, TEventName>,
     'abi' | 'address'
-  > & { chainId?: keyof typeof protocolVersionsAddress } = {} as any
+  > & {
+    chainId?: keyof typeof protocolVersionsAddress
+  } = {} as any
 ) {
   return useContractEvent({
     abi: protocolVersionsABI,
@@ -11715,12 +11956,14 @@ export function useProtocolVersionsEvent<TEventName extends string>(
  */
 export function useProxyAdminRead<
   TFunctionName extends string,
-  TSelectData = ReadContractResult<typeof proxyAdminABI, TFunctionName>
+  TSelectData = ReadContractResult<typeof proxyAdminABI, TFunctionName>,
 >(
   config: Omit<
     UseContractReadConfig<typeof proxyAdminABI, TFunctionName, TSelectData>,
     'abi' | 'address'
-  > & { chainId?: keyof typeof proxyAdminAddress } = {} as any
+  > & {
+    chainId?: keyof typeof proxyAdminAddress
+  } = {} as any
 ) {
   const { chain } = useNetwork()
   const defaultChainId = useChainId()
@@ -11741,7 +11984,7 @@ export function useProxyAdminRead<
 export function useProxyAdminWrite<
   TFunctionName extends string,
   TMode extends WriteContractMode = undefined,
-  TChainId extends number = keyof typeof proxyAdminAddress
+  TChainId extends number = keyof typeof proxyAdminAddress,
 >(
   config: TMode extends 'prepared'
     ? UseContractWriteConfig<
@@ -11778,7 +12021,9 @@ export function useProxyAdminEvent<TEventName extends string>(
   config: Omit<
     UseContractEventConfig<typeof proxyAdminABI, TEventName>,
     'abi' | 'address'
-  > & { chainId?: keyof typeof proxyAdminAddress } = {} as any
+  > & {
+    chainId?: keyof typeof proxyAdminAddress
+  } = {} as any
 ) {
   const { chain } = useNetwork()
   const defaultChainId = useChainId()
@@ -11798,12 +12043,14 @@ export function useProxyAdminEvent<TEventName extends string>(
  */
 export function useSchemaRegistryRead<
   TFunctionName extends string,
-  TSelectData = ReadContractResult<typeof schemaRegistryABI, TFunctionName>
+  TSelectData = ReadContractResult<typeof schemaRegistryABI, TFunctionName>,
 >(
   config: Omit<
     UseContractReadConfig<typeof schemaRegistryABI, TFunctionName, TSelectData>,
     'abi' | 'address'
-  > & { chainId?: keyof typeof schemaRegistryAddress } = {} as any
+  > & {
+    chainId?: keyof typeof schemaRegistryAddress
+  } = {} as any
 ) {
   const { chain } = useNetwork()
   const defaultChainId = useChainId()
@@ -11813,7 +12060,11 @@ export function useSchemaRegistryRead<
     address:
       schemaRegistryAddress[chainId as keyof typeof schemaRegistryAddress],
     ...config,
-  } as UseContractReadConfig<typeof schemaRegistryABI, TFunctionName, TSelectData>)
+  } as UseContractReadConfig<
+    typeof schemaRegistryABI,
+    TFunctionName,
+    TSelectData
+  >)
 }
 
 /**
@@ -11825,7 +12076,7 @@ export function useSchemaRegistryRead<
 export function useSchemaRegistryWrite<
   TFunctionName extends string,
   TMode extends WriteContractMode = undefined,
-  TChainId extends number = keyof typeof schemaRegistryAddress
+  TChainId extends number = keyof typeof schemaRegistryAddress,
 >(
   config: TMode extends 'prepared'
     ? UseContractWriteConfig<
@@ -11863,7 +12114,9 @@ export function useSchemaRegistryEvent<TEventName extends string>(
   config: Omit<
     UseContractEventConfig<typeof schemaRegistryABI, TEventName>,
     'abi' | 'address'
-  > & { chainId?: keyof typeof schemaRegistryAddress } = {} as any
+  > & {
+    chainId?: keyof typeof schemaRegistryAddress
+  } = {} as any
 ) {
   const { chain } = useNetwork()
   const defaultChainId = useChainId()
@@ -11883,7 +12136,7 @@ export function useSchemaRegistryEvent<TEventName extends string>(
  */
 export function useSequencerFeeVaultRead<
   TFunctionName extends string,
-  TSelectData = ReadContractResult<typeof sequencerFeeVaultABI, TFunctionName>
+  TSelectData = ReadContractResult<typeof sequencerFeeVaultABI, TFunctionName>,
 >(
   config: Omit<
     UseContractReadConfig<
@@ -11892,13 +12145,19 @@ export function useSequencerFeeVaultRead<
       TSelectData
     >,
     'abi' | 'address'
-  > & { chainId?: keyof typeof sequencerFeeVaultAddress } = {} as any
+  > & {
+    chainId?: keyof typeof sequencerFeeVaultAddress
+  } = {} as any
 ) {
   return useContractRead({
     abi: sequencerFeeVaultABI,
     address: sequencerFeeVaultAddress[420],
     ...config,
-  } as UseContractReadConfig<typeof sequencerFeeVaultABI, TFunctionName, TSelectData>)
+  } as UseContractReadConfig<
+    typeof sequencerFeeVaultABI,
+    TFunctionName,
+    TSelectData
+  >)
 }
 
 /**
@@ -11909,7 +12168,7 @@ export function useSequencerFeeVaultRead<
 export function useSequencerFeeVaultWrite<
   TFunctionName extends string,
   TMode extends WriteContractMode = undefined,
-  TChainId extends number = keyof typeof sequencerFeeVaultAddress
+  TChainId extends number = keyof typeof sequencerFeeVaultAddress,
 >(
   config: TMode extends 'prepared'
     ? UseContractWriteConfig<
@@ -11946,7 +12205,9 @@ export function useSequencerFeeVaultEvent<TEventName extends string>(
   config: Omit<
     UseContractEventConfig<typeof sequencerFeeVaultABI, TEventName>,
     'abi' | 'address'
-  > & { chainId?: keyof typeof sequencerFeeVaultAddress } = {} as any
+  > & {
+    chainId?: keyof typeof sequencerFeeVaultAddress
+  } = {} as any
 ) {
   return useContractEvent({
     abi: sequencerFeeVaultABI,
@@ -11963,12 +12224,14 @@ export function useSequencerFeeVaultEvent<TEventName extends string>(
  */
 export function useSystemConfigRead<
   TFunctionName extends string,
-  TSelectData = ReadContractResult<typeof systemConfigABI, TFunctionName>
+  TSelectData = ReadContractResult<typeof systemConfigABI, TFunctionName>,
 >(
   config: Omit<
     UseContractReadConfig<typeof systemConfigABI, TFunctionName, TSelectData>,
     'abi' | 'address'
-  > & { chainId?: keyof typeof systemConfigAddress } = {} as any
+  > & {
+    chainId?: keyof typeof systemConfigAddress
+  } = {} as any
 ) {
   const { chain } = useNetwork()
   const defaultChainId = useChainId()
@@ -11977,7 +12240,11 @@ export function useSystemConfigRead<
     abi: systemConfigABI,
     address: systemConfigAddress[chainId as keyof typeof systemConfigAddress],
     ...config,
-  } as UseContractReadConfig<typeof systemConfigABI, TFunctionName, TSelectData>)
+  } as UseContractReadConfig<
+    typeof systemConfigABI,
+    TFunctionName,
+    TSelectData
+  >)
 }
 
 /**
@@ -11989,7 +12256,7 @@ export function useSystemConfigRead<
 export function useSystemConfigWrite<
   TFunctionName extends string,
   TMode extends WriteContractMode = undefined,
-  TChainId extends number = keyof typeof systemConfigAddress
+  TChainId extends number = keyof typeof systemConfigAddress,
 >(
   config: TMode extends 'prepared'
     ? UseContractWriteConfig<
@@ -12026,7 +12293,9 @@ export function useSystemConfigEvent<TEventName extends string>(
   config: Omit<
     UseContractEventConfig<typeof systemConfigABI, TEventName>,
     'abi' | 'address'
-  > & { chainId?: keyof typeof systemConfigAddress } = {} as any
+  > & {
+    chainId?: keyof typeof systemConfigAddress
+  } = {} as any
 ) {
   const { chain } = useNetwork()
   const defaultChainId = useChainId()
@@ -12045,18 +12314,24 @@ export function useSystemConfigEvent<TEventName extends string>(
  */
 export function useSystemDictatorRead<
   TFunctionName extends string,
-  TSelectData = ReadContractResult<typeof systemDictatorABI, TFunctionName>
+  TSelectData = ReadContractResult<typeof systemDictatorABI, TFunctionName>,
 >(
   config: Omit<
     UseContractReadConfig<typeof systemDictatorABI, TFunctionName, TSelectData>,
     'abi' | 'address'
-  > & { chainId?: keyof typeof systemDictatorAddress } = {} as any
+  > & {
+    chainId?: keyof typeof systemDictatorAddress
+  } = {} as any
 ) {
   return useContractRead({
     abi: systemDictatorABI,
     address: systemDictatorAddress[1],
     ...config,
-  } as UseContractReadConfig<typeof systemDictatorABI, TFunctionName, TSelectData>)
+  } as UseContractReadConfig<
+    typeof systemDictatorABI,
+    TFunctionName,
+    TSelectData
+  >)
 }
 
 /**
@@ -12067,7 +12342,7 @@ export function useSystemDictatorRead<
 export function useSystemDictatorWrite<
   TFunctionName extends string,
   TMode extends WriteContractMode = undefined,
-  TChainId extends number = keyof typeof systemDictatorAddress
+  TChainId extends number = keyof typeof systemDictatorAddress,
 >(
   config: TMode extends 'prepared'
     ? UseContractWriteConfig<
@@ -12100,7 +12375,9 @@ export function useSystemDictatorEvent<TEventName extends string>(
   config: Omit<
     UseContractEventConfig<typeof systemDictatorABI, TEventName>,
     'abi' | 'address'
-  > & { chainId?: keyof typeof systemDictatorAddress } = {} as any
+  > & {
+    chainId?: keyof typeof systemDictatorAddress
+  } = {} as any
 ) {
   return useContractEvent({
     abi: systemDictatorABI,
@@ -12119,7 +12396,7 @@ export function useSystemDictatorGoerliRead<
   TSelectData = ReadContractResult<
     typeof systemDictatorGoerliABI,
     TFunctionName
-  >
+  >,
 >(
   config: Omit<
     UseContractReadConfig<
@@ -12128,13 +12405,19 @@ export function useSystemDictatorGoerliRead<
       TSelectData
     >,
     'abi' | 'address'
-  > & { chainId?: keyof typeof systemDictatorGoerliAddress } = {} as any
+  > & {
+    chainId?: keyof typeof systemDictatorGoerliAddress
+  } = {} as any
 ) {
   return useContractRead({
     abi: systemDictatorGoerliABI,
     address: systemDictatorGoerliAddress[5],
     ...config,
-  } as UseContractReadConfig<typeof systemDictatorGoerliABI, TFunctionName, TSelectData>)
+  } as UseContractReadConfig<
+    typeof systemDictatorGoerliABI,
+    TFunctionName,
+    TSelectData
+  >)
 }
 
 /**
@@ -12145,7 +12428,7 @@ export function useSystemDictatorGoerliRead<
 export function useSystemDictatorGoerliWrite<
   TFunctionName extends string,
   TMode extends WriteContractMode = undefined,
-  TChainId extends number = keyof typeof systemDictatorGoerliAddress
+  TChainId extends number = keyof typeof systemDictatorGoerliAddress,
 >(
   config: TMode extends 'prepared'
     ? UseContractWriteConfig<
@@ -12184,7 +12467,9 @@ export function useSystemDictatorGoerliEvent<TEventName extends string>(
   config: Omit<
     UseContractEventConfig<typeof systemDictatorGoerliABI, TEventName>,
     'abi' | 'address'
-  > & { chainId?: keyof typeof systemDictatorGoerliAddress } = {} as any
+  > & {
+    chainId?: keyof typeof systemDictatorGoerliAddress
+  } = {} as any
 ) {
   return useContractEvent({
     abi: systemDictatorGoerliABI,
@@ -12200,7 +12485,10 @@ export function useSystemDictatorGoerliEvent<TEventName extends string>(
  */
 export function useTeleportrWithdrawerRead<
   TFunctionName extends string,
-  TSelectData = ReadContractResult<typeof teleportrWithdrawerABI, TFunctionName>
+  TSelectData = ReadContractResult<
+    typeof teleportrWithdrawerABI,
+    TFunctionName
+  >,
 >(
   config: Omit<
     UseContractReadConfig<
@@ -12209,13 +12497,19 @@ export function useTeleportrWithdrawerRead<
       TSelectData
     >,
     'abi' | 'address'
-  > & { chainId?: keyof typeof teleportrWithdrawerAddress } = {} as any
+  > & {
+    chainId?: keyof typeof teleportrWithdrawerAddress
+  } = {} as any
 ) {
   return useContractRead({
     abi: teleportrWithdrawerABI,
     address: teleportrWithdrawerAddress[1],
     ...config,
-  } as UseContractReadConfig<typeof teleportrWithdrawerABI, TFunctionName, TSelectData>)
+  } as UseContractReadConfig<
+    typeof teleportrWithdrawerABI,
+    TFunctionName,
+    TSelectData
+  >)
 }
 
 /**
@@ -12226,7 +12520,7 @@ export function useTeleportrWithdrawerRead<
 export function useTeleportrWithdrawerWrite<
   TFunctionName extends string,
   TMode extends WriteContractMode = undefined,
-  TChainId extends number = keyof typeof teleportrWithdrawerAddress
+  TChainId extends number = keyof typeof teleportrWithdrawerAddress,
 >(
   config: TMode extends 'prepared'
     ? UseContractWriteConfig<
@@ -12263,7 +12557,9 @@ export function useTeleportrWithdrawerEvent<TEventName extends string>(
   config: Omit<
     UseContractEventConfig<typeof teleportrWithdrawerABI, TEventName>,
     'abi' | 'address'
-  > & { chainId?: keyof typeof teleportrWithdrawerAddress } = {} as any
+  > & {
+    chainId?: keyof typeof teleportrWithdrawerAddress
+  } = {} as any
 ) {
   return useContractEvent({
     abi: teleportrWithdrawerABI,

@@ -4,9 +4,7 @@
   "description": "[Optimism] Core typescript utilities",
   "main": "dist/index",
   "types": "dist/index",
-  "files": [
-    "dist/*"
-  ],
+  "files": ["dist/*"],
   "scripts": {
     "all": "pnpm clean && pnpm build && pnpm test && pnpm lint:fix && pnpm lint",
     "build": "tsc -p tsconfig.json",
@@ -18,12 +16,7 @@
     "test": "ts-mocha test/**/*.spec.ts",
     "test:coverage": "nyc ts-mocha test/**/*.spec.ts && nyc merge .nyc_output coverage.json"
   },
-  "keywords": [
-    "optimism",
-    "ethereum",
-    "core",
-    "utils"
-  ],
+  "keywords": ["optimism", "ethereum", "core", "utils"],
   "homepage": "https://github.com/ethereum-optimism/optimism/tree/develop/packages/core-utils#readme",
   "license": "MIT",
   "author": "Optimism PBC",

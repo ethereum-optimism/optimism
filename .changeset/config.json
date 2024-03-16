@@ -1,6 +1,9 @@
 {
   "$schema": "https://unpkg.com/@changesets/config@2.3.0/schema.json",
-  "changelog": ["@changesets/changelog-github", { "repo": "ethereum-optimism/optimism" }],
+  "changelog": [
+    "@changesets/changelog-github",
+    { "repo": "ethereum-optimism/optimism" }
+  ],
   "commit": false,
   "fixed": [],
   "linked": [["@eth-optimism/contracts-bedrock", "@eth-optimism/contracts-ts"]],

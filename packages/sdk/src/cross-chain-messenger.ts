@@ -442,9 +442,7 @@ export class CrossChainMessenger {
       messageNonce = resolved.messageNonce
     } else {
       const receipt = await this.l2Provider.getTransactionReceipt(
-        (
-          await this.toCrossChainMessage(message)
-        ).transactionHash
+        (await this.toCrossChainMessage(message)).transactionHash
       )
 
       const withdrawals: ethers.utils.Result[] = []
@@ -908,9 +906,10 @@ export class CrossChainMessenger {
     if (failedRelayedMessageEvents.length > 0) {
       return {
         receiptStatus: MessageReceiptStatus.RELAYED_FAILED,
-        transactionReceipt: await failedRelayedMessageEvents[
-          failedRelayedMessageEvents.length - 1
-        ].getTransactionReceipt(),
+        transactionReceipt:
+          await failedRelayedMessageEvents[
+            failedRelayedMessageEvents.length - 1
+          ].getTransactionReceipt(),
       }
     }
 
@@ -1335,9 +1334,8 @@ export class CrossChainMessenger {
 
       // Now pull the proposal out given the output index. Should always work as long as the above
       // codepath completed successfully.
-      proposal = await this.contracts.l1.L2OutputOracle.getL2Output(
-        l2OutputIndex
-      )
+      proposal =
+        await this.contracts.l1.L2OutputOracle.getL2Output(l2OutputIndex)
     }
 
     // Format everything and return it nicely.
@@ -1381,9 +1379,8 @@ export class CrossChainMessenger {
 
     // Pull down the state root batch, we'll try to pick out the specific state root that
     // corresponds to our message.
-    const stateRootBatch = await this.getStateRootBatchByTransactionIndex(
-      messageTxIndex
-    )
+    const stateRootBatch =
+      await this.getStateRootBatchByTransactionIndex(messageTxIndex)
 
     // No state root batch, no state root.
     if (stateRootBatch === null) {
@@ -1486,9 +1483,8 @@ export class CrossChainMessenger {
     // exist and that we'll find it during this search.
     while (lowerBound < upperBound) {
       const middleOfBounds = Math.floor((lowerBound + upperBound) / 2)
-      batchEvent = await this.getStateBatchAppendedEventByBatchIndex(
-        middleOfBounds
-      )
+      batchEvent =
+        await this.getStateBatchAppendedEventByBatchIndex(middleOfBounds)
 
       if (isEventHi(batchEvent, transactionIndex)) {
         upperBound = middleOfBounds
