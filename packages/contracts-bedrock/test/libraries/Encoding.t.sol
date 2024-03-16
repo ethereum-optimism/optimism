@@ -127,11 +127,7 @@ contract Encoding_Test is CommonTest {
 
     /// @dev Tests that encodeSetL1BlockValuesInterop fails if the dependency set is too large.
     function test_encodeSetL1BlockValuesInterop_dependencySetTooLarge_fails() external {
-        uint256[] memory dependencySet = new uint256[](type(uint8).max + 1);
-
-        for (uint256 i = 0; i < type(uint8).max + 1; i++) {
-            dependencySet[i] = i;
-        }
+        uint256[] memory dependencySet = new uint256[](256);
 
         vm.expectRevert("Encoding: dependency set length is too large");
         Encoding.encodeSetL1BlockValuesInterop({
