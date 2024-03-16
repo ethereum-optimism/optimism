@@ -161,7 +161,7 @@ contract L1Block is ISemver {
 
             // Revert if dependencySetSize_ doesn't match the length of dependencySet in calldata
             if xor(add(165, mul(dependencySetSize_, 0x20)), calldatasize()) {
-                mstore(0x00, 0x613457f2) // 0x613457f2 is the 4-byte selector of "DependencySetSizeMismatch()"
+                mstore(0x00, 0x44165b6a) // 0x44165b6a is the 4-byte selector of "DependencySetSizeMismatch()"
                 revert(0x1C, 0x04) // returns the stored 4-byte selector from above
             }
 
