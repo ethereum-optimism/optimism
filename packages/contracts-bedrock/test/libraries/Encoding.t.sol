@@ -94,7 +94,7 @@ contract Encoding_Test is CommonTest {
     }
 
     /// @dev Tests that encodeSetL1BlockValuesInterop succeeds.
-    function test_encodeSetL1BlockValuesInterop_succeeds(
+    function testFuzz_encodeSetL1BlockValuesInterop_succeeds(
         uint32 _baseFeeScalar,
         uint32 _blobBaseFeeScalar,
         uint64 _sequenceNumber,
@@ -126,34 +126,25 @@ contract Encoding_Test is CommonTest {
     }
 
     /// @dev Tests that encodeSetL1BlockValuesInterop fails if the dependency set is too large.
-    function test_encodeSetL1BlockValuesInterop_dependencySetTooLarge_fails(
-        uint32 _baseFeeScalar,
-        uint32 _blobBaseFeeScalar,
-        uint64 _sequenceNumber,
-        uint64 _timestamp,
-        uint64 _number,
-        uint256 _baseFee,
-        uint256 _blobBaseFee,
-        bytes32 _hash,
-        bytes32 _batcherHash,
-        uint256[] memory _dependencySet
-    )
-        external
-    {
-        vm.assume(_dependencySet.length > type(uint8).max);
+    function test_encodeSetL1BlockValuesInterop_dependencySetTooLarge_fails() external {
+        uint256[] memory dependencySet = new uint256[](type(uint8).max + 1);
+
+        for (uint256 i = 0; i < type(uint8).max + 1; i++) {
+            dependencySet[i] = i;
+        }
 
         vm.expectRevert("Encoding: dependency set length is too large");
         Encoding.encodeSetL1BlockValuesInterop({
-            _baseFeeScalar: _baseFeeScalar,
-            _blobBaseFeeScalar: _blobBaseFeeScalar,
-            _sequenceNumber: _sequenceNumber,
-            _timestamp: _timestamp,
-            _number: _number,
-            _baseFee: _baseFee,
-            _blobBaseFee: _blobBaseFee,
-            _hash: _hash,
-            _batcherHash: _batcherHash,
-            _dependencySet: _dependencySet
+            _baseFeeScalar: type(uint32).max,
+            _blobBaseFeeScalar: type(uint32).max,
+            _sequenceNumber: type(uint64).max,
+            _timestamp: type(uint64).max,
+            _number: type(uint64).max,
+            _baseFee: type(uint256).max,
+            _blobBaseFee: type(uint256).max,
+            _hash: bytes32(type(uint256).max),
+            _batcherHash: bytes32(type(uint256).max),
+            _dependencySet: dependencySet
         });
     }
 }
