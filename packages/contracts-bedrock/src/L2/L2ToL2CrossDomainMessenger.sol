@@ -144,31 +144,42 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver {
         bytes32 messageHash = keccak256(abi.encode(_destination, _source, _nonce, _sender, _target, _message));
         require(successfulMessages[messageHash] == false, "L2ToL2CrossDomainMessenger: message already relayed");
 
-        bool success;
-        assembly {
-            // update `entered` to non-zero
-            tstore(ENTERED_SLOT, 1)
+        _storeMessageMetadata();
 
-            tstore(CROSS_DOMAIN_MESSAGE_SOURCE_SLOT, _source)
-            tstore(CROSS_DOMAIN_MESSAGE_SENDER_SLOT, _sender)
-
-            success :=
-                call(
-                    gas(), // gas
-                    _target, // recipient
-                    callvalue(), // ether value
-                    add(_message, 32), // inloc
-                    mload(_message), // inlen
-                    0, // outloc
-                    0 // outlen
-                )
-        }
+        bool success = _callWithAllGas(_target, _message);
 
         if (success) {
             successfulMessages[messageHash] = true;
             emit RelayedMessage(messageHash);
         } else {
             emit FailedRelayedMessage(messageHash);
+        }
+    }
+
+    /// @notice Stores message data such as sender and source in transient storage.
+    function _storeMessageMetadata(uint256 _source, address _sender) internal {
+        assembly {
+            // update `entered` to non-zero
+            tstore(ENTERED_SLOT, 1)
+
+            tstore(CROSS_DOMAIN_MESSAGE_SOURCE_SLOT, _source)
+            tstore(CROSS_DOMAIN_MESSAGE_SENDER_SLOT, _sender)
+        }
+    }
+
+    /// @notice Calls the target account with the message payload and all available gas.
+    function _callWithAllGas(address _target, bytes memory _msg) internal returns (bool success) {
+        assembly {
+            success :=
+                call(
+                    gas(), // gas
+                    _target, // recipient
+                    callvalue(), // ether value
+                    add(_msg, 32), // inloc
+                    mload(_msg), // inlen
+                    0, // outloc
+                    0 // outlen
+                )
         }
     }
 }
