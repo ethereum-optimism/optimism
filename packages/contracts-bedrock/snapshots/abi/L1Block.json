@@ -14,32 +14,6 @@
   },
   {
     "inputs": [],
-    "name": "ERR_DEPENDENCY_SET_SIZE_MISMATCH",
-    "outputs": [
-      {
-        "internalType": "uint32",
-        "name": "",
-        "type": "uint32"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "ERR_NOT_DEPOSITOR",
-    "outputs": [
-      {
-        "internalType": "uint32",
-        "name": "",
-        "type": "uint32"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
     "name": "baseFeeScalar",
     "outputs": [
       {
