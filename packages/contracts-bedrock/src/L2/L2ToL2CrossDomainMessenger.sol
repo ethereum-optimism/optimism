@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.24;
+pragma solidity 0.8.25;
 
 import { CrossL2Inbox } from "src/L2/CrossL2Inbox.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
