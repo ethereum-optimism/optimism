@@ -97,6 +97,7 @@ contract CrossL2InboxTest is Test {
         });
 
         vm.prank(tx.origin);
+        vm.expectCall(address(0), hex"1234");
         crossL2Inbox.executeMessage({ _id: sampleIdentifier, _target: address(0), _msg: hex"1234" });
     }
 
@@ -118,6 +119,7 @@ contract CrossL2InboxTest is Test {
         });
 
         vm.prank(tx.origin);
+        vm.expectCall(address(0), hex"1234");
         vm.expectRevert("CrossL2Inbox: target call failed");
         crossL2Inbox.executeMessage({ _id: sampleIdentifier, _target: address(0), _msg: hex"1234" });
     }
