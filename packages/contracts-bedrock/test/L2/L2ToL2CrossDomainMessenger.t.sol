@@ -33,13 +33,25 @@ contract L2ToL2CrossDomainMessengerTest is Test {
     {
         vm.assume(_destination != block.chainid);
 
+        uint256 messageNoncePre = l2ToL2CrossDomainMessenger.messageNonce();
+
         vm.deal(address(this), _value);
+
+        vm.expectEmit(address(l2ToL2CrossDomainMessenger));
+        emit L2ToL2CrossDomainMessenger.SentMessage(
+            abi.encodeWithSelector(
+                L2ToL2CrossDomainMessenger.relayMessage.selector,
+                (_destination, block.chainid, 0, address(this), _target, _message)
+            )
+        );
 
         l2ToL2CrossDomainMessenger.sendMessage{ value: _value }({
             _destination: _destination,
             _target: _target,
             _message: _message
         });
+
+        assertEq(l2ToL2CrossDomainMessenger.messageNonce(), messageNoncePre + 1);
     }
 
     /// @dev Tests that the `sendMessage` function fails when the destination is the same as the source.
