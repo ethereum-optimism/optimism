@@ -1,0 +1,40 @@
+{
+  "$schema": "https://biomejs.dev/schemas/1.6.1/schema.json",
+
+  "files": {
+    "maxSize": 2048000,
+    "ignoreUnknown": true
+  },
+
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space"
+  },
+
+  "javascript": {
+    "formatter": {
+      "enabled": true,
+      "trailingComma": "es5",
+      "semicolons": "asNeeded",
+      "quoteStyle": "single",
+      "arrowParentheses": "always"
+    }
+  },
+
+  "json": {
+    "parser": {
+      "allowComments": true,
+      "allowTrailingCommas": true
+    },
+    "formatter": {
+      "enabled": true
+    }
+  },
+
+  "organizeImports": {
+    "enabled": false
+  },
+  "linter": {
+    "enabled": false
+  }
+}
