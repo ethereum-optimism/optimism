@@ -168,9 +168,9 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver {
     }
 
     /// @notice Calls the target account with the message payload and all available gas.
-    function _callWithAllGas(address _target, bytes memory _msg) internal returns (bool success) {
+    function _callWithAllGas(address _target, bytes memory _msg) internal returns (bool _success) {
         assembly {
-            success :=
+            _success :=
                 call(
                     gas(), // gas
                     _target, // recipient
