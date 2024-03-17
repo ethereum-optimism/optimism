@@ -1490,7 +1490,7 @@ jobs:
       - store_artifacts:
           path: ./packages/contracts-bedrock/test/kontrol/logs/kontrol-results_latest.tar.gz
       - store_test_results:
-          path: ./packages/contracts-bedrock/kontrol_prove_report.xml
+          path: ./packages/contracts-bedrock
       - notify-failures-on-develop
 
 workflows:
