@@ -12,6 +12,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
 	gstate "github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -924,15 +925,41 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 		"_initializing": false,
 		"bridge":        predeploys.L2StandardBridgeAddr,
 	}
+
+	// Handle setting Ecotone specific fields
+	ecotoneTime := config.EcotoneTime(block.Time())
+	isEcotone := ecotoneTime != nil && block.Time() >= *ecotoneTime
+
+	l1FeeScalar := new(big.Int)
+	blobBaseFeeScalar, baseFeeScalar := uint32(0), uint32(0)
+	if isEcotone {
+		var err error
+		baseFeeScalar, err = config.BaseFeeScalar()
+		if err != nil {
+			return storage, err
+		}
+		blobBaseFeeScalar, err = config.BlobBaseFeeScalar()
+		if err != nil {
+			return storage, err
+		}
+	} else {
+		l1FeeScalar = config.GasPriceOracleScalar.ToInt()
+	}
+
+	blobBaseFee := eip4844.CalcBlobFee(*block.ExcessBlobGas())
+
 	storage["L1Block"] = state.StorageValues{
-		"number":         block.Number(),
-		"timestamp":      block.Time(),
-		"basefee":        block.BaseFee(),
-		"hash":           block.Hash(),
-		"sequenceNumber": 0,
-		"batcherHash":    eth.AddressAsLeftPaddedHash(config.BatchSenderAddress),
-		"l1FeeOverhead":  config.GasPriceOracleOverhead,
-		"l1FeeScalar":    config.GasPriceOracleScalar.ToInt(),
+		"number":            block.Number(),
+		"timestamp":         block.Time(),
+		"basefee":           block.BaseFee(),
+		"hash":              block.Hash(),
+		"sequenceNumber":    0,
+		"blobBaseFeeScalar": blobBaseFeeScalar,
+		"baseFeeScalar":     baseFeeScalar,
+		"batcherHash":       eth.AddressAsLeftPaddedHash(config.BatchSenderAddress),
+		"l1FeeOverhead":     config.GasPriceOracleOverhead,
+		"l1FeeScalar":       l1FeeScalar,
+		"blobBaseFee":       blobBaseFee,
 	}
 	storage["LegacyERC20ETH"] = state.StorageValues{
 		"_name":   "Ether",
