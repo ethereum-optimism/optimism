@@ -172,7 +172,12 @@ type DeployConfig struct {
 	// GasPriceOracleOverhead represents the initial value of the gas overhead in the GasPriceOracle predeploy.
 	GasPriceOracleOverhead uint64 `json:"gasPriceOracleOverhead"`
 	// GasPriceOracleScalar represents the initial value of the gas scalar in the GasPriceOracle predeploy.
-	GasPriceOracleScalar hexutil.Big `json:"gasPriceOracleScalar"`
+	// DEPRECATED after Ecotone.
+	GasPriceOracleScalar uint64 `json:"gasPriceOracleScalar"`
+	// GasPriceOracleBaseFeeScalar represents the value of the base fee scalar used for fee calculations.
+	GasPriceOracleBaseFeeScalar uint32 `json:"gasPriceOracleBaseFeeScalar"`
+	// GasPriceOracleBlobBaseFeeScalar represents the value of the blob base fee scalar used for fee calculations.
+	GasPriceOracleBlobBaseFeeScalar uint32 `json:"gasPriceOracleBlobBaseFeeScalar"`
 	// EnableGovernance configures whether or not include governance token predeploy.
 	EnableGovernance bool `json:"enableGovernance"`
 	// GovernanceTokenSymbol represents the  ERC20 symbol of the GovernanceToken.
@@ -356,8 +361,14 @@ func (d *DeployConfig) Check() error {
 	if d.GasPriceOracleOverhead == 0 {
 		log.Warn("GasPriceOracleOverhead is 0")
 	}
-	if d.GasPriceOracleScalar.ToInt().Cmp(common.Big0) <= 0 {
-		return fmt.Errorf("%w: GasPriceOracleScalar cannot be less than or equal to 0", ErrInvalidDeployConfig)
+	if d.GasPriceOracleScalar == 0 {
+		log.Warn("GasPriceOracleScalar is 0")
+	}
+	if d.GasPriceOracleBaseFeeScalar == 0 {
+		log.Warn("GasPriceOracleBaseFeeScalar is 0")
+	}
+	if d.GasPriceOracleBlobBaseFeeScalar == 0 {
+		log.Warn("GasPriceOracleBlobBaseFeeScalar is 0")
 	}
 	if d.EIP1559Denominator == 0 {
 		return fmt.Errorf("%w: EIP1559Denominator cannot be 0", ErrInvalidDeployConfig)
@@ -448,16 +459,13 @@ func (d *DeployConfig) Check() error {
 	return nil
 }
 
-// BaseFeeScalar returns the base fee scalar from the GasPriceOracleScalar.
-func (d *DeployConfig) BaseFeeScalar() (uint32, error) {
-	_, baseFeeScalar, err := eth.DecodeScalar(common.BytesToHash(d.GasPriceOracleScalar.ToInt().Bytes()))
-	return baseFeeScalar, err
-}
-
-// BlobBaseFeeScalar returns the blob base fee scalar from the GasPriceOracleScalar.
-func (d *DeployConfig) BlobBaseFeeScalar() (uint32, error) {
-	blobBaseFeeScalar, _, err := eth.DecodeScalar(common.BytesToHash(d.GasPriceOracleScalar.ToInt().Bytes()))
-	return blobBaseFeeScalar, err
+// FeeScalar returns the raw serialized fee scalar. Uses pre-Ecotone if legacy config is present,
+// otherwise uses the post-Ecotone scalar serialization.
+func (d *DeployConfig) FeeScalar() [32]byte {
+	if d.GasPriceOracleScalar != 0 {
+		return common.BigToHash(big.NewInt(int64(d.GasPriceOracleScalar)))
+	}
+	return eth.EncodeScalar(d.GasPriceOracleBlobBaseFeeScalar, d.GasPriceOracleBaseFeeScalar)
 }
 
 // CheckAddresses will return an error if the addresses are not set.
@@ -586,7 +594,7 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHas
 			SystemConfig: eth.SystemConfig{
 				BatcherAddr: d.BatchSenderAddress,
 				Overhead:    eth.Bytes32(common.BigToHash(new(big.Int).SetUint64(d.GasPriceOracleOverhead))),
-				Scalar:      eth.Bytes32(common.BigToHash(d.GasPriceOracleScalar.ToInt())),
+				Scalar:      eth.Bytes32(d.FeeScalar()),
 				GasLimit:    uint64(d.L2GenesisBlockGasLimit),
 			},
 		},
@@ -926,27 +934,10 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 		"bridge":        predeploys.L2StandardBridgeAddr,
 	}
 
-	// Handle setting Ecotone specific fields
-	ecotoneTime := config.EcotoneTime(block.Time())
-	isEcotone := ecotoneTime != nil && block.Time() >= *ecotoneTime
-
-	l1FeeScalar := new(big.Int)
-	blobBaseFeeScalar, baseFeeScalar := uint32(0), uint32(0)
-	if isEcotone {
-		var err error
-		baseFeeScalar, err = config.BaseFeeScalar()
-		if err != nil {
-			return storage, err
-		}
-		blobBaseFeeScalar, err = config.BlobBaseFeeScalar()
-		if err != nil {
-			return storage, err
-		}
-	} else {
-		l1FeeScalar = config.GasPriceOracleScalar.ToInt()
+	excessBlobGas := block.ExcessBlobGas()
+	if excessBlobGas == nil {
+		excessBlobGas = u64ptr(0)
 	}
-
-	blobBaseFee := eip4844.CalcBlobFee(*block.ExcessBlobGas())
 
 	storage["L1Block"] = state.StorageValues{
 		"number":            block.Number(),
@@ -954,12 +945,12 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 		"basefee":           block.BaseFee(),
 		"hash":              block.Hash(),
 		"sequenceNumber":    0,
-		"blobBaseFeeScalar": blobBaseFeeScalar,
-		"baseFeeScalar":     baseFeeScalar,
+		"blobBaseFeeScalar": config.GasPriceOracleBlobBaseFeeScalar,
+		"baseFeeScalar":     config.GasPriceOracleBaseFeeScalar,
 		"batcherHash":       eth.AddressAsLeftPaddedHash(config.BatchSenderAddress),
 		"l1FeeOverhead":     config.GasPriceOracleOverhead,
-		"l1FeeScalar":       l1FeeScalar,
-		"blobBaseFee":       blobBaseFee,
+		"l1FeeScalar":       config.GasPriceOracleScalar,
+		"blobBaseFee":       eip4844.CalcBlobFee(*excessBlobGas),
 	}
 	storage["LegacyERC20ETH"] = state.StorageValues{
 		"_name":   "Ether",
