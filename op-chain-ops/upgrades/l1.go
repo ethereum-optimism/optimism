@@ -694,7 +694,7 @@ func SystemConfig(batch *safe.Batch, implementations superchain.ImplementationLi
 	if gasPriceOracleOverhead.Uint64() != config.GasPriceOracleOverhead {
 		return fmt.Errorf("GasPriceOracleOverhead address doesn't match config")
 	}
-	if gasPriceOracleScalar.Cmp(config.GasPriceOracleScalar.ToInt()) != 0 {
+	if gasPriceOracleScalar.Uint64() != config.GasPriceOracleScalar {
 		return fmt.Errorf("GasPriceOracleScalar address doesn't match config")
 	}
 	if batcherHash != common.BytesToHash(config.BatchSenderAddress.Bytes()) {
