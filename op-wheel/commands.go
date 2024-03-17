@@ -409,30 +409,6 @@ var (
 			return ch.RunAndClose(cheat.SetNonce(addrFlagValue("address", ctx), bigFlagValue("balance", ctx).Uint64()))
 		}),
 	}
-	CheatOvmOwnersCmd = &cli.Command{
-		Name: "ovm-owners",
-		Flags: []cli.Flag{
-			DataDirFlag,
-			&cli.StringFlag{
-				Name:     "config",
-				Usage:    "Path to JSON config of OVM address replacements to apply.",
-				Required: true,
-				EnvVars:  prefixEnvVars("OVM_OWNERS"),
-				Value:    "ovm-owners.json",
-			},
-		},
-		Action: CheatAction(false, func(ctx *cli.Context, ch *cheat.Cheater) error {
-			confData, err := os.ReadFile(ctx.String("config"))
-			if err != nil {
-				return fmt.Errorf("failed to read OVM owners JSON config file: %w", err)
-			}
-			var conf cheat.OvmOwnersConfig
-			if err := json.Unmarshal(confData, &conf); err != nil {
-				return err
-			}
-			return ch.RunAndClose(cheat.OvmOwners(&conf))
-		}),
-	}
 	CheatPrintHeadBlock = &cli.Command{
 		Name:  "head-block",
 		Usage: "dump head block as JSON",
@@ -702,7 +678,6 @@ var CheatCmd = &cli.Command{
 		CheatSetBalanceCmd,
 		CheatSetCodeCmd,
 		CheatSetNonceCmd,
-		CheatOvmOwnersCmd,
 		CheatPrintHeadBlock,
 		CheatPrintHeadHeader,
 	},
