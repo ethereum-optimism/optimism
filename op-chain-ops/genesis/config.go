@@ -447,6 +447,18 @@ func (d *DeployConfig) Check() error {
 	return nil
 }
 
+// BaseFeeScalar returns the base fee scalar from the GasPriceOracleScalar.
+func (d *DeployConfig) BaseFeeScalar() (uint32, error) {
+	_, baseFeeScalar, err := eth.DecodeScalar(common.BytesToHash(d.GasPriceOracleScalar.ToInt().Bytes()))
+	return baseFeeScalar, err
+}
+
+// BlobBaseFeeScalar returns the blob base fee scalar from the GasPriceOracleScalar.
+func (d *DeployConfig) BlobBaseFeeScalar() (uint32, error) {
+	blobBaseFeeScalar, _, err := eth.DecodeScalar(common.BytesToHash(d.GasPriceOracleScalar.ToInt().Bytes()))
+	return blobBaseFeeScalar, err
+}
+
 // CheckAddresses will return an error if the addresses are not set.
 // These values are required to create the L2 genesis state and are present in the deploy config
 // even though the deploy config is required to deploy the contracts on L1. This creates a
