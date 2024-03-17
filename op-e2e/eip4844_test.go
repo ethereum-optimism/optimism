@@ -19,6 +19,7 @@ import (
 
 	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
 	gethutils "github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -88,7 +89,7 @@ func testSystem4844E2E(t *testing.T, multiBlob bool) {
 	// Confirm balance
 	ctx, cancel = context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	endBalance, err := l2Verif.BalanceAt(ctx, fromAddr, nil)
+	endBalance, err := wait.ForBalanceChange(ctx, l2Verif, fromAddr, startBalance)
 	require.NoError(t, err)
 
 	diff := new(big.Int).Sub(endBalance, startBalance)
