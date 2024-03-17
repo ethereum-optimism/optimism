@@ -103,7 +103,7 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 }
 
 func (s *Service) initOutputValidator() {
-	s.validator = newOutputValidator(s.metrics, s.rollupClient)
+	s.validator = newOutputValidator(s.logger, s.metrics, s.rollupClient)
 }
 
 func (s *Service) initGameCallerCreator() {
@@ -118,6 +118,7 @@ func (s *Service) initExtractor() {
 	s.extractor = extract.NewExtractor(s.logger, s.game.CreateContract, s.factoryContract.GetGamesAtOrAfter,
 		extract.NewBondEnricher(),
 		extract.NewBalanceEnricher(),
+		extract.NewL1HeadBlockNumEnricher(s.l1Client),
 	)
 }
 

@@ -20,7 +20,7 @@ var (
 )
 
 type OutputValidator interface {
-	CheckRootAgreement(ctx context.Context, blockNum uint64, root common.Hash) (bool, common.Hash, error)
+	CheckRootAgreement(ctx context.Context, l1HeadNum uint64, l2BlockNum uint64, root common.Hash) (bool, common.Hash, error)
 }
 
 type ForecastMetrics interface {
@@ -66,7 +66,7 @@ func (f *forecast) recordBatch(batch monTypes.ForecastBatch) {
 
 func (f *forecast) forecastGame(ctx context.Context, game *monTypes.EnrichedGameData, metrics *monTypes.ForecastBatch) error {
 	// Check the root agreement.
-	agreement, expected, err := f.validator.CheckRootAgreement(ctx, game.L2BlockNumber, game.RootClaim)
+	agreement, expected, err := f.validator.CheckRootAgreement(ctx, game.L1HeadNum, game.L2BlockNumber, game.RootClaim)
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrRootAgreement, err)
 	}

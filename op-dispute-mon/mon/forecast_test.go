@@ -323,7 +323,7 @@ type stubOutputValidator struct {
 	err   error
 }
 
-func (s *stubOutputValidator) CheckRootAgreement(_ context.Context, _ uint64, rootClaim common.Hash) (bool, common.Hash, error) {
+func (s *stubOutputValidator) CheckRootAgreement(_ context.Context, _ uint64, _ uint64, rootClaim common.Hash) (bool, common.Hash, error) {
 	s.calls++
 	if s.err != nil {
 		return false, common.Hash{}, s.err

@@ -334,17 +334,20 @@ func TestGetSplitDepth(t *testing.T) {
 
 func TestGetGameMetadata(t *testing.T) {
 	stubRpc, contract := setupFaultDisputeGameTest(t)
+	expectedL1Head := common.Hash{0x0a, 0x0b}
 	expectedL2BlockNumber := uint64(123)
 	expectedGameDuration := uint64(456)
 	expectedRootClaim := common.Hash{0x01, 0x02}
 	expectedStatus := types.GameStatusChallengerWon
 	block := rpcblock.ByNumber(889)
+	stubRpc.SetResponse(fdgAddr, methodL1Head, block, nil, []interface{}{expectedL1Head})
 	stubRpc.SetResponse(fdgAddr, methodL2BlockNumber, block, nil, []interface{}{new(big.Int).SetUint64(expectedL2BlockNumber)})
 	stubRpc.SetResponse(fdgAddr, methodRootClaim, block, nil, []interface{}{expectedRootClaim})
 	stubRpc.SetResponse(fdgAddr, methodStatus, block, nil, []interface{}{expectedStatus})
 	stubRpc.SetResponse(fdgAddr, methodGameDuration, block, nil, []interface{}{expectedGameDuration})
-	l2BlockNumber, rootClaim, status, duration, err := contract.GetGameMetadata(context.Background(), block)
+	l1Head, l2BlockNumber, rootClaim, status, duration, err := contract.GetGameMetadata(context.Background(), block)
 	require.NoError(t, err)
+	require.Equal(t, expectedL1Head, l1Head)
 	require.Equal(t, expectedL2BlockNumber, l2BlockNumber)
 	require.Equal(t, expectedRootClaim, rootClaim)
 	require.Equal(t, expectedStatus, status)

@@ -17,7 +17,7 @@ import (
 const metricsLabel = "game_caller_creator"
 
 type GameCaller interface {
-	GetGameMetadata(context.Context, rpcblock.Block) (uint64, common.Hash, types.GameStatus, uint64, error)
+	GetGameMetadata(context.Context, rpcblock.Block) (common.Hash, uint64, common.Hash, types.GameStatus, uint64, error)
 	GetAllClaims(context.Context, rpcblock.Block) ([]faultTypes.Claim, error)
 	BondCaller
 	BalanceCaller
