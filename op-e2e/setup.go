@@ -39,7 +39,6 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 
 	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
-	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
@@ -151,13 +150,13 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 			"batcher":   testlog.Logger(t, log.LevelInfo).New("role", "batcher"),
 			"proposer":  testlog.Logger(t, log.LevelCrit).New("role", "proposer"),
 		},
-		GethOptions:                map[string][]geth.GethOption{},
-		P2PTopology:                nil, // no P2P connectivity by default
-		NonFinalizedProposals:      false,
-		ExternalL2Shim:             config.ExternalL2Shim,
-		BatcherTargetL1TxSizeBytes: 100_000,
-		DataAvailabilityType:       batcherFlags.CalldataType,
-		MaxPendingTransactions:     1,
+		GethOptions:            map[string][]geth.GethOption{},
+		P2PTopology:            nil, // no P2P connectivity by default
+		NonFinalizedProposals:  false,
+		ExternalL2Shim:         config.ExternalL2Shim,
+		DataAvailabilityType:   batcherFlags.CalldataType,
+		MaxPendingTransactions: 1,
+		BatcherTargetNumFrames: 1,
 	}
 }
 
@@ -213,16 +212,13 @@ type SystemConfig struct {
 	// Configure data-availability type that is used by the batcher.
 	DataAvailabilityType batcherFlags.DataAvailabilityType
 
-	// Target L1 tx size for the batcher transactions
-	BatcherTargetL1TxSizeBytes uint64
-
 	// Max L1 tx size for the batcher transactions
 	BatcherMaxL1TxSizeBytes uint64
 
 	// Target number of frames to create per channel. Can be used to create
 	// multi-blob transactions.
 	// Default is 1 if unset.
-	BatcherTargetNumFrames uint64
+	BatcherTargetNumFrames int
 
 	// whether to actually use BatcherMaxL1TxSizeBytes for blobs, insteaf of max blob size
 	BatcherUseMaxTxSizeForBlobs bool
@@ -815,7 +811,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	// batcher defaults if unset
 	batcherMaxL1TxSizeBytes := cfg.BatcherMaxL1TxSizeBytes
 	if batcherMaxL1TxSizeBytes == 0 {
-		batcherMaxL1TxSizeBytes = 240_000
+		batcherMaxL1TxSizeBytes = 120_000
 	}
 	batcherTargetNumFrames := cfg.BatcherTargetNumFrames
 	if batcherTargetNumFrames == 0 {
@@ -829,14 +825,11 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 		MaxChannelDuration:       1,
 		MaxL1TxSize:              batcherMaxL1TxSizeBytes,
 		TestUseMaxTxSizeForBlobs: cfg.BatcherUseMaxTxSizeForBlobs,
-		CompressorConfig: compressor.CLIConfig{
-			TargetL1TxSizeBytes: cfg.BatcherTargetL1TxSizeBytes,
-			TargetNumFrames:     int(batcherTargetNumFrames),
-			ApproxComprRatio:    0.4,
-		},
-		SubSafetyMargin: 4,
-		PollInterval:    50 * time.Millisecond,
-		TxMgrConfig:     newTxMgrConfig(sys.EthInstances["l1"].WSEndpoint(), cfg.Secrets.Batcher),
+		TargetNumFrames:          int(batcherTargetNumFrames),
+		ApproxComprRatio:         0.4,
+		SubSafetyMargin:          4,
+		PollInterval:             50 * time.Millisecond,
+		TxMgrConfig:              newTxMgrConfig(sys.EthInstances["l1"].WSEndpoint(), cfg.Secrets.Batcher),
 		LogConfig: oplog.CLIConfig{
 			Level:  log.LevelInfo,
 			Format: oplog.FormatText,

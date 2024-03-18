@@ -11,55 +11,49 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var r *rand.Rand
+var r = rand.New(rand.NewSource(99))
 
-func init() {
-	r = rand.New(rand.NewSource(99))
-}
-
-func randomBytes(t *testing.T, length int) []byte {
+func randomBytes(length int) []byte {
 	b := make([]byte, length)
 	_, err := r.Read(b)
-	require.NoError(t, err)
+	// Rand.Read always returns nil error
+	if err != nil {
+		panic(err)
+	}
 	return b
 }
 
 func TestShadowCompressor(t *testing.T) {
 	tests := []struct {
-		name            string
-		targetFrameSize uint64
-		targetNumFrames int
-		data            [][]byte
-		errs            []error
-		fullErr         error
+		name             string
+		targetOutputSize uint64
+		data             [][]byte
+		errs             []error
+		fullErr          error
 	}{{
-		name:            "no data",
-		targetFrameSize: 1,
-		targetNumFrames: 1,
-		data:            [][]byte{},
-		errs:            []error{},
-		fullErr:         nil,
+		name:             "no data",
+		targetOutputSize: 1 + derive.FrameV0OverHeadSize,
+		data:             [][]byte{},
+		errs:             []error{},
+		fullErr:          nil,
 	}, {
-		name:            "large first block",
-		targetFrameSize: 1,
-		targetNumFrames: 1,
-		data:            [][]byte{bytes.Repeat([]byte{0}, 1024)},
-		errs:            []error{nil},
-		fullErr:         derive.CompressorFullErr,
+		name:             "large first block",
+		targetOutputSize: 1 + derive.FrameV0OverHeadSize,
+		data:             [][]byte{bytes.Repeat([]byte{0}, 1024)},
+		errs:             []error{nil},
+		fullErr:          derive.CompressorFullErr,
 	}, {
-		name:            "large second block",
-		targetFrameSize: 1,
-		targetNumFrames: 1,
-		data:            [][]byte{bytes.Repeat([]byte{0}, 512), bytes.Repeat([]byte{0}, 1024)},
-		errs:            []error{nil, derive.CompressorFullErr},
-		fullErr:         derive.CompressorFullErr,
+		name:             "large second block",
+		targetOutputSize: 1 + derive.FrameV0OverHeadSize,
+		data:             [][]byte{bytes.Repeat([]byte{0}, 512), bytes.Repeat([]byte{0}, 1024)},
+		errs:             []error{nil, derive.CompressorFullErr},
+		fullErr:          derive.CompressorFullErr,
 	}, {
-		name:            "random data",
-		targetFrameSize: 1 << 17,
-		targetNumFrames: 1,
-		data:            [][]byte{randomBytes(t, (1<<17)-1000), randomBytes(t, 512), randomBytes(t, 512)},
-		errs:            []error{nil, nil, derive.CompressorFullErr},
-		fullErr:         derive.CompressorFullErr,
+		name:             "random data",
+		targetOutputSize: 1 << 17,
+		data:             [][]byte{randomBytes((1 << 17) - 1000), randomBytes(512), randomBytes(512)},
+		errs:             []error{nil, nil, derive.CompressorFullErr},
+		fullErr:          derive.CompressorFullErr,
 	}}
 	for _, test := range tests {
 		test := test
@@ -68,8 +62,7 @@ func TestShadowCompressor(t *testing.T) {
 			require.Equal(t, len(test.errs), len(test.data), "invalid test case: len(data) != len(errs)")
 
 			sc, err := NewShadowCompressor(Config{
-				TargetFrameSize: test.targetFrameSize,
-				TargetNumFrames: test.targetNumFrames,
+				TargetOutputSize: test.targetOutputSize,
 			})
 			require.NoError(t, err)
 
@@ -118,22 +111,21 @@ func TestShadowCompressor(t *testing.T) {
 // TestBoundInaccruateForLargeRandomData documents where our bounding heuristic starts to fail
 // (writing at least 128k of random data)
 func TestBoundInaccurateForLargeRandomData(t *testing.T) {
-	var sizeLimit int = 1 << 17
+	const sizeLimit = 1 << 17
 
 	sc, err := NewShadowCompressor(Config{
-		TargetFrameSize: uint64(sizeLimit + 100),
-		TargetNumFrames: 1,
+		TargetOutputSize: sizeLimit + 100,
 	})
 	require.NoError(t, err)
 
-	_, err = sc.Write(randomBytes(t, sizeLimit+1))
+	_, err = sc.Write(randomBytes(sizeLimit + 1))
 	require.NoError(t, err)
 	err = sc.Close()
 	require.NoError(t, err)
 	require.Greater(t, uint64(sc.Len()), sc.(*ShadowCompressor).bound)
 
 	sc.Reset()
-	_, err = sc.Write(randomBytes(t, sizeLimit))
+	_, err = sc.Write(randomBytes(sizeLimit))
 	require.NoError(t, err)
 	err = sc.Close()
 	require.NoError(t, err)
