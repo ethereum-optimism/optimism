@@ -117,8 +117,8 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 3.2.0
-    string public constant version = "3.2.0";
+    /// @custom:semver 3.3.0
+    string public constant version = "3.3.0";
 
     /// @notice Constructs the OptimismPortal contract.
     constructor(
@@ -273,11 +273,11 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         // in the case that an honest user proves their withdrawal against a dispute game that
         // resolves against the root claim, or the dispute game is blacklisted, we allow
         // re-proving the withdrawal against a new proposal.
-        IDisputeGame game = provenWithdrawal.disputeGameProxy;
+        IDisputeGame oldGame = provenWithdrawal.disputeGameProxy;
         require(
-            provenWithdrawal.timestamp == 0 || gameProxy.status() == GameStatus.CHALLENGER_WINS
-                || disputeGameBlacklist[gameProxy] || game.gameType().raw() != respectedGameType.raw(),
-            "OptimismPortal: withdrawal hash has already been proven, and dispute game is not invalid"
+            provenWithdrawal.timestamp == 0 || oldGame.status() == GameStatus.CHALLENGER_WINS
+                || disputeGameBlacklist[oldGame] || oldGame.gameType().raw() != respectedGameType.raw(),
+            "OptimismPortal: withdrawal hash has already been proven, and the old dispute game is not invalid"
         );
 
         // Compute the storage slot of the withdrawal hash in the L2ToL1MessagePasser contract.
