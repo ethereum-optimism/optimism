@@ -191,4 +191,21 @@ contract Encoding_Test is CommonTest {
             _dependencySet: dependencySet
         });
     }
+
+    /// @dev Tests that encodeSetL1BlockValuesInterop fails if the batcher hash is invalid.
+    function test_encodeSetL1BlockValuesInterop_invalidBatcherHash_fails() external {
+        vm.expectRevert("Encoding: invalid batcher hash");
+        Encoding.encodeSetL1BlockValuesInterop({
+            _baseFeeScalar: type(uint32).max,
+            _blobBaseFeeScalar: type(uint32).max,
+            _sequenceNumber: type(uint64).max,
+            _timestamp: type(uint64).max,
+            _number: type(uint64).max,
+            _baseFee: type(uint256).max,
+            _blobBaseFee: type(uint256).max,
+            _hash: bytes32(type(uint256).max),
+            _batcherHash: 0x1000000000000000000000005991a2df15a8f6a256d3ec51e99254cd3fb576a9,
+            _dependencySet: new uint256[](0)
+        });
+    }
 }
