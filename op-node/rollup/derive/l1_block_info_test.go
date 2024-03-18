@@ -175,7 +175,7 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 		require.NoError(t, err)
 		require.False(t, depTx.IsSystemTransaction)
 		require.Equal(t, depTx.Gas, uint64(RegolithSystemTxGas))
-		require.Equal(t, L1InfoInteropLen(), len(depTx.Data))
+		require.Equal(t, L1InfoInteropLen(uint8(len(InteropDependencySet))), len(depTx.Data))
 	})
 	t.Run("first-block interop", func(t *testing.T) {
 		rng := rand.New(rand.NewSource(1234))
@@ -207,7 +207,7 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 		require.NoError(t, err)
 		require.False(t, depTx.IsSystemTransaction)
 		require.Equal(t, depTx.Gas, uint64(RegolithSystemTxGas))
-		require.Equal(t, L1InfoInteropLen(), len(depTx.Data))
+		require.Equal(t, L1InfoInteropLen(uint8(len(InteropDependencySet))), len(depTx.Data))
 	})
 	t.Run("invalid dependency set size, not matching", func(t *testing.T) {
 		rng := rand.New(rand.NewSource(1234))
