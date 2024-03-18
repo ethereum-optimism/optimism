@@ -86,7 +86,7 @@ contract FPACOPS is Deploy, StdAssertions {
     function initializeAnchorStateRegistryProxy() internal broadcast {
         console.log("Initializing AnchorStateRegistryProxy with AnchorStateRegistry.");
 
-        AnchorStateRegistry.StartingAnchorRoot[] memory roots = new AnchorStateRegistry.StartingAnchorRoot[](3);
+        AnchorStateRegistry.StartingAnchorRoot[] memory roots = new AnchorStateRegistry.StartingAnchorRoot[](2);
         roots[0] = AnchorStateRegistry.StartingAnchorRoot({
             gameType: GameTypes.CANNON,
             outputRoot: OutputRoot({
@@ -177,7 +177,7 @@ contract FPACOPS is Deploy, StdAssertions {
         assertEq(soyGameImpl.absolutePrestate().raw(), bytes32(cfg.faultGameAbsolutePrestate()));
 
         // Check the AnchorStateRegistry configuration.
-        AnchorStateRegistry asr = AnchorStateRegistry(mustGetAddress("AnchorStateRegistry"));
+        AnchorStateRegistry asr = AnchorStateRegistry(mustGetAddress("AnchorStateRegistryProxy"));
         (Hash root1, uint256 l2BlockNumber1) = asr.anchors(GameTypes.CANNON);
         (Hash root2, uint256 l2BlockNumber2) = asr.anchors(GameTypes.PERMISSIONED_CANNON);
         assertEq(root1.raw(), cfg.faultGameGenesisOutputRoot());
