@@ -20,32 +20,6 @@ var (
 	mockErr = errors.New("mock error")
 )
 
-func TestMonitor_MinGameTimestamp(t *testing.T) {
-	t.Parallel()
-
-	t.Run("ZeroGameWindow", func(t *testing.T) {
-		monitor, _, _, _, _ := setupMonitorTest(t)
-		monitor.gameWindow = time.Duration(0)
-		require.Equal(t, monitor.minGameTimestamp(), uint64(0))
-	})
-
-	t.Run("ZeroClock", func(t *testing.T) {
-		monitor, _, _, _, _ := setupMonitorTest(t)
-		monitor.gameWindow = time.Minute
-		monitor.clock = clock.NewDeterministicClock(time.Unix(0, 0))
-		require.Equal(t, uint64(0), monitor.minGameTimestamp())
-	})
-
-	t.Run("ValidArithmetic", func(t *testing.T) {
-		monitor, _, _, _, _ := setupMonitorTest(t)
-		monitor.gameWindow = time.Minute
-		frozen := time.Unix(int64(time.Hour.Seconds()), 0)
-		monitor.clock = clock.NewDeterministicClock(frozen)
-		expected := uint64(frozen.Add(-time.Minute).Unix())
-		require.Equal(t, monitor.minGameTimestamp(), expected)
-	})
-}
-
 func TestMonitor_MonitorGames(t *testing.T) {
 	t.Parallel()
 
