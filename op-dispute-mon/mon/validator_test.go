@@ -85,6 +85,7 @@ func TestDetector_CheckRootAgreement(t *testing.T) {
 		require.Equal(t, mockRootClaim, fetched)
 		require.False(t, agree)
 		require.NotZero(t, metrics.fetchTime)
+		require.Equal(t, 1, metrics.unsafeOutputs)
 	})
 
 	t.Run("OutputNotFound", func(t *testing.T) {
@@ -108,7 +109,12 @@ func setupOutputValidatorTest(t *testing.T) (*outputValidator, *stubRollupClient
 }
 
 type stubOutputMetrics struct {
-	fetchTime float64
+	fetchTime     float64
+	unsafeOutputs int
+}
+
+func (s *stubOutputMetrics) RecordUnsafeOutput() {
+	s.unsafeOutputs++
 }
 
 func (s *stubOutputMetrics) RecordOutputFetchTime(fetchTime float64) {

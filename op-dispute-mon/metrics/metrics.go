@@ -42,6 +42,8 @@ type Metricer interface {
 
 	RecordOutputFetchTime(timestamp float64)
 
+	RecordUnsafeOutput()
+
 	RecordGameAgreement(status GameAgreementStatus, count int)
 
 	RecordBondCollateral(addr common.Address, required *big.Int, available *big.Int)
@@ -62,6 +64,7 @@ type Metrics struct {
 	info prometheus.GaugeVec
 	up   prometheus.Gauge
 
+	unsafeOutputs   prometheus.Gauge
 	lastOutputFetch prometheus.Gauge
 
 	claimResolutionDelayMax prometheus.Gauge
@@ -99,7 +102,12 @@ func NewMetrics() *Metrics {
 		up: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: Namespace,
 			Name:      "up",
-			Help:      "1 if the op-challenger has finished starting up",
+			Help:      "1 if the dispute monitor has finished starting up",
+		}),
+		unsafeOutputs: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "unsafe_outputs",
+			Help:      "Number of unsafe outputs encountered",
 		}),
 		lastOutputFetch: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: Namespace,
@@ -126,7 +134,8 @@ func NewMetrics() *Metrics {
 			Name:      "bond_collateral_required",
 			Help:      "Required collateral (ETH) to cover outstanding bonds and credits",
 		}, []string{
-			// Address of the DelayedWETH contract in use. This is a limited set as only permissioned actors can deploy
+			// Address of the DelayedWETH contract in use.
+			// This is a limited set as only permissioned actors can deploy
 			// additional DelayedWETH contracts to be used by dispute games
 			"delayedWETH",
 			"balance",
@@ -136,7 +145,8 @@ func NewMetrics() *Metrics {
 			Name:      "bond_collateral_available",
 			Help:      "Available collateral (ETH) to cover outstanding bonds and credits",
 		}, []string{
-			// Address of the DelayedWETH contract in use. This is a limited set as only permissioned actors can deploy
+			// Address of the DelayedWETH contract in use.
+			// This is a limited set as only permissioned actors can deploy
 			// additional DelayedWETH contracts to be used by dispute games
 			"delayedWETH",
 			"balance",
@@ -166,6 +176,10 @@ func (m *Metrics) RecordInfo(version string) {
 func (m *Metrics) RecordUp() {
 	prometheus.MustRegister()
 	m.up.Set(1)
+}
+
+func (m *Metrics) RecordUnsafeOutput() {
+	m.unsafeOutputs.Inc()
 }
 
 func (m *Metrics) RecordClaimResolutionDelayMax(delay float64) {

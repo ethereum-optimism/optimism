@@ -19,6 +19,7 @@ type OutputRollupClient interface {
 
 type OutputMetrics interface {
 	RecordOutputFetchTime(float64)
+	RecordUnsafeOutput()
 }
 
 type outputValidator struct {
@@ -48,8 +49,7 @@ func (o *outputValidator) CheckRootAgreement(ctx context.Context, l1HeadNum uint
 	}
 	o.metrics.RecordOutputFetchTime(float64(time.Now().Unix()))
 	expected := common.Hash(output.OutputRoot)
-	rootMatches := rootClaim == expected
-	if !rootMatches {
+	if rootClaim != expected {
 		return false, expected, nil
 	}
 
@@ -59,9 +59,11 @@ func (o *outputValidator) CheckRootAgreement(ctx context.Context, l1HeadNum uint
 		o.log.Warn("Unable to verify proposed block was safe", "l1HeadNum", l1HeadNum, "l2BlockNum", l2BlockNum, "err", err)
 		// If safe head data isn't available, assume the output root was safe
 		// Avoids making the dispute mon dependent on safe head db being available
-		//
 		return true, expected, nil
 	}
 	isSafe := safeHead.SafeHead.Number >= l2BlockNum
+	if !isSafe {
+		o.metrics.RecordUnsafeOutput()
+	}
 	return isSafe, expected, nil
 }
