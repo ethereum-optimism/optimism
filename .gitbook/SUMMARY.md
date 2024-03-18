@@ -23,6 +23,7 @@
   * [Exchange Integration](contents/developer/exchange-integration.md)
   * [Contracts Registration](contents/developer/register.md)
   * [Token Addresses](contents/developer/token-addresses.md)
+  * [Faucets](contents/developer/faucets.md)
   * [Node Operators](contents/developer/node-operators/README.md)
     * [Overview](contents/developer/node-operators/overview.md)
     * [Run a Node With Docker](contents/developer/node-operators/run-node-docker.md)

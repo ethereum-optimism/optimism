@@ -43,7 +43,7 @@ Many wallets now allow applications to trigger a popup to switch between network
 
 \* [Universal gateway](https://gateway.boba.network).
 
-If your wallet does not support this feature, you will have to connect manually. The exact process for connecting your wallet to a Boba Ethereum network depends on the specific wallet software you are using. To get started on Boba/Ethereum, you can use the available [community RPC endpoint](https://docs.boba.network/for-developers/network-eth).
+If your wallet does not support this feature, you will have to connect manually. The exact process for connecting your wallet to a Boba Ethereum network depends on the specific wallet software you are using. To get started on Boba/Ethereum, you can use the available [community RPC endpoint](https://docs.boba.network/developer-docs/network-eth).
 
 ## How do I move assets into or out of Boba Network?
 
@@ -61,7 +61,7 @@ Only if the centralized exchange supports Boba Network (at this time none of the
 
 ## Where can I find RPC endpoints and connection details?
 
-Connection details for our Mainnet and Sepolia network are [here](for-developers/multichain/network-eth.md).
+Connection details for our Mainnet and Sepolia network are [here](developer-docs/multichain/network-eth.md).
 
 ## Are multicall contracts supported on Boba?
 
@@ -147,7 +147,7 @@ Boba network is a permission-less network and hence we cannot influence app crea
 
 Unfortunately no, not at the moment.
 
-## Could you please explain the difference between the two mappings [mentioned in the token list](https://docs.boba.network/for-developers/exchange-integration#the-boba-token-list?)?
+## Could you please explain the difference between the two mappings [mentioned in the token list](https://docs.boba.network/developer-docs/exchange-integration#the-boba-token-list?)?
 
 Technically, an L1 token can have multiple representations on L2. This mean that an L1 token can be wrapped in distinct tokens: L2\_token\_A, or L2\_token\_B, both being valid and point to the same L1 token. But in order to standardize, the token list specifies only a single L2 token address for every corresponding L1 token.
 
@@ -161,34 +161,9 @@ Technically, an L1 token can have multiple representations on L2. This mean that
 
 ## Does Boba Network Have a testnet/How do I get Testnet Boba or Eth?
 
-Boba Network does have a testnet and it uses authentication through Twitter. Here’s a short walkthrough on how to get authenticated.
+Yes! Please refer to [Boba Faucets](contents/developer/faucets.md).
 
-First, download MetaMask on your browser as a plug-in and set up a MetaMask wallet (do not be surprised by the fox that will follow your cursor when you first launch the application. He’s friendly!)
-
-<figure><img src=".gitbook/assets/wedfvbfdsdfvbfdsdfv (1).png" alt=""><figcaption></figcaption></figure>
-
-After you’ve set up your MetaMask account, you can [connect to the Sepolia network Testnet](https://gateway.boba.network). After connecting, follow these steps:
-
-* view your connection status displayed in the upper-right corner, along with a button that will allow you to select a chain to connect to.
-* click on the Boba icon. MetaMask will prompt you to connect to the Sepolia Boba network.
-* click on the account you would like to use for your testnet. Hit Next.
-* allow permissions by hitting Connect.
-* make sure that all of the network details such as the Network name, URL, and Chain ID have all been auto-filled.
-* Hit Approve.
-
-<figure><img src="./assets/wdfgfsdfgfdf.png" alt=""><figcaption></figcaption></figure>
-
-* now that you’re connected to the network, you can authenticate with Twitter:
-
-![Boba Wallet](./assets/BOBA-WALLET-SCREENSHOT.png)
-
-* hit the Tweet Now button to tweet your _Boba Bubble_ token.
-* once your tweet is shared, copy the link leading to it.
-* paste the link to your tweet where you are prompted to do so.
-
-For more information on Boba’s testnet and fountain, [check out our documentation](https://docs.boba.network/for-developers/network-fantom#bobaopera-testnet-addresses).
-
-_NOTE: You can only make one fountain call per Twitter account, per day._
+For more information on Boba’s testnet and fountain, [check out our documentation](https://docs.boba.network/developer-docs/multichain).
 
 ## I am trying to run Boba Network locally and I am able to run unit tests. However, integration tests give an error:
 
@@ -210,7 +185,7 @@ When you make an Ethereum transaction, the user will be given an expected fee fo
 
 Here, Boba is looking out for you. Before that unexpected increased fee goes through, Boba throws an error message and prevents the payment from going through. If the transaction fee is at least three times what the expected cost was (in this example, your transaction fee of 3 USD jumped to 9 USD), the transaction will fail and saves you from the increased fee.
 
-[Here's more info on fees](https://docs.boba.network/for-developers/fee-scheme#for-frontend-and-wallet-developers).
+[Here's more info on fees](https://docs.boba.network/developer-docs/fee-scheme#for-frontend-and-wallet-developers).
 
 ## DAPPs require an XYZ gas amount to deploy. However, Boba's block gas limit of only 11,000,000 makes it impossible to deploy a smart contract. What can I do to deploy this smart contract on Boba?
 
@@ -249,19 +224,19 @@ You can also [look into using compilers and optimization options](https://docs.s
 
 ## Does Boba Network have a public TheGraph Node for deploying Subgraphs?
 
-[Please refer to the Boba docs on using The Graph](https://docs.boba.network/for-developers/subgraph).
+[Please refer to the Boba docs on using The Graph](https://docs.boba.network/developer-docs/subgraph).
 
 ## Which bridge does Boba Network use?
 
 There are multiple bridges available and are listed on our ecosystem page:
 
-<figure><img src=".gitbook/assets/wdfgbfsdfbfdfgn.png" alt=""><figcaption></figcaption></figure>
+<figure><img src="./assets/wdfgbfsdfbfdfgn.png" alt=""><figcaption></figcaption></figure>
 
 Find all bridges [here](https://boba.network/dapps/?filter=true\&project\_category=bridge)
 
 ## On Optimism it is possible to skip the sequencer entirely and submit transactions directly to the CanonicalTransactionChain via an Ethereum transaction. Can you do this with Boba too?
 
-Yes, its possible on Boba as well. You could submit transactions [directly on L1 by calling 'enqueue()'](https://github.com/bobanetwork/boba/blob/develop/packages/contracts/contracts/L1/rollup/CanonicalTransactionChain.sol#L207) on the Canonical Transaction Chain (CTC). The sequencer is forced to include your transaction on L2, but you would still need it to be up and running.
+Yes, its possible on Boba as well. You could submit transactions [directly on L1 by calling 'enqueue()'](https://github.com/bobanetwork/boba\_legacy/blob/develop/packages/contracts/contracts/L1/rollup/CanonicalTransactionChain.sol#L207) on the Canonical Transaction Chain (CTC). The sequencer is forced to include your transaction on L2, but you would still need it to be up and running.
 
 ## On Optimism, commitments are regularly published (approximately once or twice per hour), to a smart contract on Ethereum called the StateCommitmentChain. Is the publishing frequency same for Boba?
 
@@ -279,10 +254,7 @@ Bridging multiple assets in one transaction involves extending the LP1 contract 
 
 LP floating fee rate refers to the change in the fee logic on LPs. LP fee consists of `userRewardFee` (fee distributed to liquidity providers), and `ownerRewardFee` (fee for the owner of the contract). Before the change, LPs had a configurable fixed value for both these fees. After the change, the `userRewardFee` is a dynamic value that depends on the pool balance, which moves between configured min/max ranges. The `ownerRewardFeeRate` continues to be a configurable fixed value.
 
-\
-
-
-<figure><img src=".gitbook/assets/hybridcompute (1).png" alt=""><figcaption></figcaption></figure>
+<figure><img src="./assets/hybridcompute (1).png" alt=""><figcaption></figcaption></figure>
 
 ## What are the limits on Hybrid Compute Web2 calls?
 
@@ -296,7 +268,7 @@ Boba's Hybrid Compute Turing model:
 
 Hybrid Compute calls need to execute estimateGas first. This puts the API response in a short lived cache, out of which the result is fetched in transaction processing.
 
-[Check out additional info in Boba examples](https://github.com/bobanetwork/boba/blob/develop/boba\_examples/turing-lending/README.md).
+[Check out additional info in Boba examples](https://github.com/bobanetwork/boba\_legacy/blob/develop/boba\_examples/turing-lending/README.md).
 
 ## When using the Hybrid Compute feature, the transaction pops up on Metamask, and if I submit it within a few seconds, everything works. However, waiting longer and submitting results in failure. Why does this happen?
 
@@ -304,7 +276,7 @@ That's because the Hybrid Compute feature puts the Hybrid Compute response in a 
 
 `const turingCacheExpire = 5 \* time.Second`
 
-[Learn more about cache expiration.](https://github.com/bobanetwork/boba/blob/develop/l2geth/core/vm/evm.go#L277)
+[Learn more about cache expiration.](https://github.com/bobanetwork/boba\_legacy/blob/develop/l2geth/core/vm/evm.go#L277)
 
 ## Is it possible to hide the API Key on Boba Hybrid Compute?
 
