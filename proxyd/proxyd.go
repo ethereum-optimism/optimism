@@ -13,8 +13,14 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/redis/go-redis/v9"
+	"golang.org/x/exp/slog"
 	"golang.org/x/sync/semaphore"
 )
+
+func SetLogLevel(logLevel slog.Leveler) {
+	log.SetDefault(log.NewLogger(slog.NewJSONHandler(
+		os.Stdout, &slog.HandlerOptions{Level: logLevel})))
+}
 
 func Start(config *Config) (*Server, func(), error) {
 	if len(config.Backends) == 0 {
