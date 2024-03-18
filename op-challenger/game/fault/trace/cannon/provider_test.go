@@ -6,14 +6,16 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"math"
+	"math/big"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
-	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
@@ -22,13 +24,25 @@ import (
 //go:embed test_data
 var testData embed.FS
 
+func PositionFromTraceIndex(provider *CannonTraceProvider, idx *big.Int) types.Position {
+	return types.NewPosition(provider.gameDepth, idx)
+}
+
 func TestGet(t *testing.T) {
 	dataDir, prestate := setupTestData(t)
 	t.Run("ExistingProof", func(t *testing.T) {
 		provider, generator := setupWithTestData(t, dataDir, prestate)
-		value, err := provider.Get(context.Background(), 0)
+		value, err := provider.Get(context.Background(), PositionFromTraceIndex(provider, common.Big0))
 		require.NoError(t, err)
 		require.Equal(t, common.HexToHash("0x45fd9aa59768331c726e719e76aa343e73123af888804604785ae19506e65e87"), value)
+		require.Empty(t, generator.generated)
+	})
+
+	t.Run("ErrorsTraceIndexOutOfBounds", func(t *testing.T) {
+		provider, generator := setupWithTestData(t, dataDir, prestate)
+		largePosition := PositionFromTraceIndex(provider, new(big.Int).Mul(new(big.Int).SetUint64(math.MaxUint64), big.NewInt(2)))
+		_, err := provider.Get(context.Background(), largePosition)
+		require.ErrorContains(t, err, "trace index out of bounds")
 		require.Empty(t, generator.generated)
 	})
 
@@ -39,7 +53,7 @@ func TestGet(t *testing.T) {
 			Step:   10,
 			Exited: true,
 		}
-		value, err := provider.Get(context.Background(), 7000)
+		value, err := provider.Get(context.Background(), PositionFromTraceIndex(provider, big.NewInt(7000)))
 		require.NoError(t, err)
 		require.Contains(t, generator.generated, 7000, "should have tried to generate the proof")
 		stateHash, err := generator.finalState.EncodeWitness().StateHash()
@@ -49,14 +63,14 @@ func TestGet(t *testing.T) {
 
 	t.Run("MissingPostHash", func(t *testing.T) {
 		provider, generator := setupWithTestData(t, dataDir, prestate)
-		_, err := provider.Get(context.Background(), 1)
+		_, err := provider.Get(context.Background(), PositionFromTraceIndex(provider, big.NewInt(1)))
 		require.ErrorContains(t, err, "missing post hash")
 		require.Empty(t, generator.generated)
 	})
 
 	t.Run("IgnoreUnknownFields", func(t *testing.T) {
 		provider, generator := setupWithTestData(t, dataDir, prestate)
-		value, err := provider.Get(context.Background(), 2)
+		value, err := provider.Get(context.Background(), PositionFromTraceIndex(provider, big.NewInt(2)))
 		require.NoError(t, err)
 		expected := common.HexToHash("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
 		require.Equal(t, expected, value)
@@ -68,14 +82,23 @@ func TestGetStepData(t *testing.T) {
 	t.Run("ExistingProof", func(t *testing.T) {
 		dataDir, prestate := setupTestData(t)
 		provider, generator := setupWithTestData(t, dataDir, prestate)
-		value, proof, data, err := provider.GetStepData(context.Background(), 0)
+		value, proof, data, err := provider.GetStepData(context.Background(), PositionFromTraceIndex(provider, new(big.Int)))
 		require.NoError(t, err)
-		expected := common.Hex2Bytes("b8f068de604c85ea0e2acd437cdb47add074a2d70b81d018390c504b71fe26f400000000000000000000000000000000000000000000000000000000000000000000000000")
+		expected := common.FromHex("b8f068de604c85ea0e2acd437cdb47add074a2d70b81d018390c504b71fe26f400000000000000000000000000000000000000000000000000000000000000000000000000")
 		require.Equal(t, expected, value)
-		expectedProof := common.Hex2Bytes("08028e3c0000000000000000000000003c01000a24210b7c00200008000000008fa40004")
+		expectedProof := common.FromHex("08028e3c0000000000000000000000003c01000a24210b7c00200008000000008fa40004")
 		require.Equal(t, expectedProof, proof)
 		// TODO: Need to add some oracle data
 		require.Nil(t, data)
+		require.Empty(t, generator.generated)
+	})
+
+	t.Run("ErrorsTraceIndexOutOfBounds", func(t *testing.T) {
+		dataDir, prestate := setupTestData(t)
+		provider, generator := setupWithTestData(t, dataDir, prestate)
+		largePosition := PositionFromTraceIndex(provider, new(big.Int).Mul(new(big.Int).SetUint64(math.MaxUint64), big.NewInt(2)))
+		_, _, _, err := provider.GetStepData(context.Background(), largePosition)
+		require.ErrorContains(t, err, "trace index out of bounds")
 		require.Empty(t, generator.generated)
 	})
 
@@ -95,7 +118,7 @@ func TestGetStepData(t *testing.T) {
 			OracleValue:  []byte{0xdd},
 			OracleOffset: 10,
 		}
-		preimage, proof, data, err := provider.GetStepData(context.Background(), 4)
+		preimage, proof, data, err := provider.GetStepData(context.Background(), PositionFromTraceIndex(provider, big.NewInt(4)))
 		require.NoError(t, err)
 		require.Contains(t, generator.generated, 4, "should have tried to generate the proof")
 
@@ -121,7 +144,7 @@ func TestGetStepData(t *testing.T) {
 			OracleValue:  []byte{0xdd},
 			OracleOffset: 10,
 		}
-		preimage, proof, data, err := provider.GetStepData(context.Background(), 7000)
+		preimage, proof, data, err := provider.GetStepData(context.Background(), PositionFromTraceIndex(provider, big.NewInt(7000)))
 		require.NoError(t, err)
 		require.Contains(t, generator.generated, 7000, "should have tried to generate the proof")
 
@@ -147,7 +170,7 @@ func TestGetStepData(t *testing.T) {
 			OracleValue:  []byte{0xdd},
 			OracleOffset: 10,
 		}
-		_, _, _, err := provider.GetStepData(context.Background(), 7000)
+		_, _, _, err := provider.GetStepData(context.Background(), PositionFromTraceIndex(provider, big.NewInt(7000)))
 		require.NoError(t, err)
 		require.Contains(t, initGenerator.generated, 7000, "should have tried to generate the proof")
 
@@ -162,7 +185,7 @@ func TestGetStepData(t *testing.T) {
 			StateData:  []byte{0xbb},
 			ProofData:  []byte{0xcc},
 		}
-		preimage, proof, data, err := provider.GetStepData(context.Background(), 7000)
+		preimage, proof, data, err := provider.GetStepData(context.Background(), PositionFromTraceIndex(provider, big.NewInt(7000)))
 		require.NoError(t, err)
 		require.Empty(t, generator.generated, "should not have to generate the proof again")
 
@@ -174,7 +197,7 @@ func TestGetStepData(t *testing.T) {
 	t.Run("MissingStateData", func(t *testing.T) {
 		dataDir, prestate := setupTestData(t)
 		provider, generator := setupWithTestData(t, dataDir, prestate)
-		_, _, _, err := provider.GetStepData(context.Background(), 1)
+		_, _, _, err := provider.GetStepData(context.Background(), PositionFromTraceIndex(provider, big.NewInt(1)))
 		require.ErrorContains(t, err, "missing state data")
 		require.Empty(t, generator.generated)
 	})
@@ -182,65 +205,15 @@ func TestGetStepData(t *testing.T) {
 	t.Run("IgnoreUnknownFields", func(t *testing.T) {
 		dataDir, prestate := setupTestData(t)
 		provider, generator := setupWithTestData(t, dataDir, prestate)
-		value, proof, data, err := provider.GetStepData(context.Background(), 2)
+		value, proof, data, err := provider.GetStepData(context.Background(), PositionFromTraceIndex(provider, big.NewInt(2)))
 		require.NoError(t, err)
-		expected := common.Hex2Bytes("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc")
+		expected := common.FromHex("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc")
 		require.Equal(t, expected, value)
-		expectedProof := common.Hex2Bytes("dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd")
+		expectedProof := common.FromHex("dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd")
 		require.Equal(t, expectedProof, proof)
 		require.Empty(t, generator.generated)
 		require.Nil(t, data)
 	})
-}
-
-func TestAbsolutePreState(t *testing.T) {
-	dataDir := t.TempDir()
-
-	prestate := "state.json"
-
-	t.Run("StateUnavailable", func(t *testing.T) {
-		provider, _ := setupWithTestData(t, "/dir/does/not/exist", prestate)
-		_, err := provider.AbsolutePreState(context.Background())
-		require.ErrorIs(t, err, os.ErrNotExist)
-	})
-
-	t.Run("InvalidStateFile", func(t *testing.T) {
-		setupPreState(t, dataDir, "invalid.json")
-		provider, _ := setupWithTestData(t, dataDir, prestate)
-		_, err := provider.AbsolutePreState(context.Background())
-		require.ErrorContains(t, err, "invalid mipsevm state")
-	})
-
-	t.Run("ExpectedAbsolutePreState", func(t *testing.T) {
-		setupPreState(t, dataDir, "state.json")
-		provider, _ := setupWithTestData(t, dataDir, prestate)
-		preState, err := provider.AbsolutePreState(context.Background())
-		require.NoError(t, err)
-		state := mipsevm.State{
-			Memory:         mipsevm.NewMemory(),
-			PreimageKey:    common.HexToHash("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"),
-			PreimageOffset: 0,
-			PC:             0,
-			NextPC:         1,
-			LO:             0,
-			HI:             0,
-			Heap:           0,
-			ExitCode:       0,
-			Exited:         false,
-			Step:           0,
-			Registers:      [32]uint32{},
-		}
-		require.Equal(t, []byte(state.EncodeWitness()), preState)
-	})
-}
-
-func setupPreState(t *testing.T, dataDir string, filename string) {
-	srcDir := filepath.Join("test_data")
-	path := filepath.Join(srcDir, filename)
-	file, err := testData.ReadFile(path)
-	require.NoErrorf(t, err, "reading %v", path)
-	err = os.WriteFile(filepath.Join(dataDir, "state.json"), file, 0o644)
-	require.NoErrorf(t, err, "writing %v", path)
 }
 
 func setupTestData(t *testing.T) (string, string) {
@@ -262,10 +235,11 @@ func setupTestData(t *testing.T) (string, string) {
 func setupWithTestData(t *testing.T, dataDir string, prestate string) (*CannonTraceProvider, *stubGenerator) {
 	generator := &stubGenerator{}
 	return &CannonTraceProvider{
-		logger:    testlog.Logger(t, log.LvlInfo),
+		logger:    testlog.Logger(t, log.LevelInfo),
 		dir:       dataDir,
 		generator: generator,
 		prestate:  filepath.Join(dataDir, prestate),
+		gameDepth: 63,
 	}, generator
 }
 

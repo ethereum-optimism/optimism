@@ -9,6 +9,7 @@ import (
 )
 
 type GamePlayer interface {
+	ValidatePrestate(ctx context.Context) error
 	ProgressGame(ctx context.Context) types.GameStatus
 	Status() types.GameStatus
 }
@@ -19,7 +20,17 @@ type DiskManager interface {
 }
 
 type job struct {
+	block  uint64
 	addr   common.Address
 	player GamePlayer
 	status types.GameStatus
+}
+
+func newJob(block uint64, addr common.Address, player GamePlayer, status types.GameStatus) *job {
+	return &job{
+		block:  block,
+		addr:   addr,
+		player: player,
+		status: status,
+	}
 }

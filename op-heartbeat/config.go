@@ -6,7 +6,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-heartbeat/flags"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
-	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
+	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/urfave/cli/v2"
 )
 
@@ -27,9 +27,6 @@ func (c Config) Check() error {
 	}
 	if c.HTTPPort <= 0 {
 		return errors.New("must specify a valid HTTP port")
-	}
-	if err := c.Log.Check(); err != nil {
-		return err
 	}
 	if err := c.Metrics.Check(); err != nil {
 		return err

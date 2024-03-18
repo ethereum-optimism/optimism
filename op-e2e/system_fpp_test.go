@@ -6,34 +6,72 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
-	"github.com/ethereum-optimism/optimism/op-node/client"
-	"github.com/ethereum-optimism/optimism/op-node/sources"
-	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-program/client/driver"
 	opp "github.com/ethereum-optimism/optimism/op-program/host"
 	oppconf "github.com/ethereum-optimism/optimism/op-program/host/config"
+	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
 )
 
 func TestVerifyL2OutputRoot(t *testing.T) {
-	testVerifyL2OutputRoot(t, false)
+	testVerifyL2OutputRoot(t, false, false)
+}
+
+func TestVerifyL2OutputRootSpanBatch(t *testing.T) {
+	testVerifyL2OutputRoot(t, false, true)
 }
 
 func TestVerifyL2OutputRootDetached(t *testing.T) {
-	testVerifyL2OutputRoot(t, true)
+	testVerifyL2OutputRoot(t, true, false)
+}
+
+func TestVerifyL2OutputRootDetachedSpanBatch(t *testing.T) {
+	testVerifyL2OutputRoot(t, true, true)
 }
 
 func TestVerifyL2OutputRootEmptyBlock(t *testing.T) {
-	testVerifyL2OutputRootEmptyBlock(t, false)
+	testVerifyL2OutputRootEmptyBlock(t, false, false)
+}
+
+func TestVerifyL2OutputRootEmptyBlockSpanBatch(t *testing.T) {
+	testVerifyL2OutputRootEmptyBlock(t, false, true)
 }
 
 func TestVerifyL2OutputRootEmptyBlockDetached(t *testing.T) {
-	testVerifyL2OutputRootEmptyBlock(t, true)
+	testVerifyL2OutputRootEmptyBlock(t, true, false)
+}
+
+func TestVerifyL2OutputRootEmptyBlockDetachedSpanBatch(t *testing.T) {
+	testVerifyL2OutputRootEmptyBlock(t, true, true)
+}
+
+func applySpanBatchActivation(active bool, dp *genesis.DeployConfig) {
+	if active {
+		// Activate delta hard fork
+		minTs := hexutil.Uint64(0)
+		dp.L2GenesisDeltaTimeOffset = &minTs
+		// readjust other activations
+		if dp.L2GenesisEcotoneTimeOffset != nil {
+			dp.L2GenesisEcotoneTimeOffset = &minTs
+		}
+		if dp.L2GenesisFjordTimeOffset != nil {
+			dp.L2GenesisFjordTimeOffset = &minTs
+		}
+	} else {
+		// cancel delta and any later hardfork activations
+		dp.L2GenesisDeltaTimeOffset = nil
+		dp.L2GenesisEcotoneTimeOffset = nil
+		dp.L2GenesisFjordTimeOffset = nil
+	}
 }
 
 // TestVerifyL2OutputRootEmptyBlock asserts that the program can verify the output root of an empty block
@@ -46,7 +84,7 @@ func TestVerifyL2OutputRootEmptyBlockDetached(t *testing.T) {
 // - reboot the batch submitter
 // - update the state root via a tx
 // - run program
-func testVerifyL2OutputRootEmptyBlock(t *testing.T, detached bool) {
+func testVerifyL2OutputRootEmptyBlock(t *testing.T, detached bool, spanBatchActivated bool) {
 	InitParallel(t)
 	ctx := context.Background()
 
@@ -56,12 +94,13 @@ func testVerifyL2OutputRootEmptyBlock(t *testing.T, detached bool) {
 	// Use a small sequencer window size to avoid test timeout while waiting for empty blocks
 	// But not too small to ensure that our claim and subsequent state change is published
 	cfg.DeployConfig.SequencerWindowSize = 16
+	applySpanBatchActivation(spanBatchActivated, cfg.DeployConfig)
 
 	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
-	log := testlog.Logger(t, log.LvlInfo)
+	log := testlog.Logger(t, log.LevelInfo)
 	log.Info("genesis", "l2", sys.RollupConfig.Genesis.L2, "l1", sys.RollupConfig.Genesis.L1, "l2_time", sys.RollupConfig.Genesis.L2Time)
 
 	l1Client := sys.Clients["l1"]
@@ -93,14 +132,14 @@ func testVerifyL2OutputRootEmptyBlock(t *testing.T, detached bool) {
 	l2OutputRoot := agreedL2Output.OutputRoot
 
 	t.Log("=====Stopping batch submitter=====")
-	err = sys.BatchSubmitter.Stop(ctx)
+	err = sys.BatchSubmitter.Driver().StopBatchSubmitting(ctx)
 	require.NoError(t, err, "could not stop batch submitter")
 
 	// Wait for the sequencer to catch up with the current L1 head so we know all submitted batches are processed
 	t.Log("Wait for sequencer to catch up with last submitted batch")
 	l1HeadNum, err := l1Client.BlockNumber(ctx)
 	require.NoError(t, err)
-	_, err = geth.WaitForL1OriginOnL2(l1HeadNum, l2Seq, 30*time.Second)
+	_, err = geth.WaitForL1OriginOnL2(sys.RollupConfig, l1HeadNum, l2Seq, 30*time.Second)
 	require.NoError(t, err)
 
 	// Get the current safe head now that the batcher is stopped
@@ -121,7 +160,7 @@ func testVerifyL2OutputRootEmptyBlock(t *testing.T, detached bool) {
 	l2Claim := l2Output.OutputRoot
 
 	t.Log("=====Restarting batch submitter=====")
-	err = sys.BatchSubmitter.Start()
+	err = sys.BatchSubmitter.Driver().StartBatchSubmitting()
 	require.NoError(t, err, "could not start batch submitter")
 
 	t.Log("Add a transaction to the next batch after sequence of empty blocks")
@@ -147,19 +186,20 @@ func testVerifyL2OutputRootEmptyBlock(t *testing.T, detached bool) {
 	})
 }
 
-func testVerifyL2OutputRoot(t *testing.T, detached bool) {
+func testVerifyL2OutputRoot(t *testing.T, detached bool, spanBatchActivated bool) {
 	InitParallel(t)
 	ctx := context.Background()
 
 	cfg := DefaultSystemConfig(t)
 	// We don't need a verifier - just the sequencer is enough
 	delete(cfg.Nodes, "verifier")
+	applySpanBatchActivation(spanBatchActivated, cfg.DeployConfig)
 
 	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
-	log := testlog.Logger(t, log.LvlInfo)
+	log := testlog.Logger(t, log.LevelInfo)
 	log.Info("genesis", "l2", sys.RollupConfig.Genesis.L2, "l1", sys.RollupConfig.Genesis.L1, "l2_time", sys.RollupConfig.Genesis.L2Time)
 
 	l1Client := sys.Clients["l1"]
@@ -252,14 +292,15 @@ func testFaultProofProgramScenario(t *testing.T, ctx context.Context, sys *Syste
 
 	// Check the FPP confirms the expected output
 	t.Log("Running fault proof in fetching mode")
-	log := testlog.Logger(t, log.LvlInfo)
+	log := testlog.Logger(t, log.LevelInfo)
 	err := opp.FaultProofProgram(ctx, log, fppConfig)
 	require.NoError(t, err)
 
 	t.Log("Shutting down network")
 	// Shutdown the nodes from the actual chain. Should now be able to run using only the pre-fetched data.
-	sys.BatchSubmitter.StopIfRunning(context.Background())
-	sys.L2OutputSubmitter.Stop()
+	require.NoError(t, sys.BatchSubmitter.Kill())
+	err = sys.L2OutputSubmitter.Driver().StopL2OutputSubmitting()
+	require.NoError(t, err)
 	sys.L2OutputSubmitter = nil
 	for _, node := range sys.EthInstances {
 		node.Close()

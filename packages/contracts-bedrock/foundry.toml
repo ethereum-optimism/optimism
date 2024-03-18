@@ -15,26 +15,32 @@ remappings = [
   '@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts',
   '@rari-capital/solmate/=lib/solmate',
   '@cwia/=lib/clones-with-immutable-args/src',
+  '@lib-keccak/=lib/lib-keccak/contracts/lib',
   'forge-std/=lib/forge-std/src',
   'ds-test/=lib/forge-std/lib/ds-test/src',
-  'safe-contracts/=lib/safe-contracts/contracts'
+  'safe-contracts/=lib/safe-contracts/contracts',
+  'kontrol-cheatcodes/=lib/kontrol-cheatcodes/src',
+  'solady/=lib/solady/src',
 ]
 extra_output = ['devdoc', 'userdoc', 'metadata', 'storageLayout']
 bytecode_hash = 'none'
-build_info = true
 build_info_path = 'artifacts/build-info'
 
 # Test / Script Runner Settings
 ffi = true
 fs_permissions = [
   { access='read-write', path='./.resource-metering.csv' },
+  { access='read-write', path='./snapshots/' },
   { access='read-write', path='./deployments/' },
   { access='read', path='./deploy-config/' },
   { access='read', path='./periphery-deploy-config/' },
   { access='read', path='./broadcast/' },
   { access='read', path = './forge-artifacts/' },
   { access='write', path='./semver-lock.json' },
+  { access='read-write', path='./.testdata/' },
+  { access='read', path='./kout-deployment' }
 ]
+libs = ["node_modules", "lib"]
 
 [fuzz]
 runs = 64
@@ -50,5 +56,35 @@ ignore = ['src/vendor/WETH9.sol']
 #                         PROFILE: CI                          #
 ################################################################
 
-[profile.ci.fuzz]
-runs = 512
+[profile.ci]
+deny_warnings = true
+fuzz = { runs = 512 }
+
+[profile.ci.invariant]
+runs = 256
+depth = 32
+
+################################################################
+#                         PROFILE: LITE                        #
+################################################################
+
+[profile.lite]
+optimizer = false
+
+################################################################
+#                         PROFILE: KONTROL                     #
+################################################################
+# See test/kontrol/README.md for an explanation of how the profiles are configured
+
+[profile.kdeploy]
+src = 'src/L1'
+out = 'kout-deployment'
+test = 'test/kontrol'
+script = 'scripts-kontrol'
+
+[profile.kprove]
+src = 'test/kontrol/proofs'
+out = 'kout-proofs'
+test = 'test/kontrol/proofs'
+script = 'test/kontrol/proofs'
+ast = true

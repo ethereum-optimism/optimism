@@ -1,0 +1,51 @@
+FROM golang:1.21.3-alpine3.18 as builder
+
+RUN apk add --no-cache make gcc musl-dev linux-headers git jq bash
+
+COPY ./go.mod /app/go.mod
+COPY ./go.sum /app/go.sum
+
+WORKDIR /app
+
+RUN echo "go mod cache: $(go env GOMODCACHE)"
+RUN echo "go build cache: $(go env GOCACHE)"
+
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build go mod download
+
+COPY . /app
+
+# We avoid copying the full .git dir into the build for just some metadata.
+# Instead, specify:
+# --build-arg GIT_COMMIT=$(git rev-parse HEAD)
+# --build-arg GIT_DATE=$(git show -s --format='%ct')
+ARG GIT_COMMIT
+ARG GIT_DATE
+
+ARG CANNON_VERSION=v0.0.0
+ARG OP_PROGRAM_VERSION=v0.0.0
+
+ARG TARGETOS TARGETARCH
+
+# Build the cannon, op-program, and op-program-client.elf binaries.
+RUN --mount=type=cache,target=/root/.cache/go-build cd cannon && make cannon  \
+    GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$CANNON_VERSION"
+RUN --mount=type=cache,target=/root/.cache/go-build cd op-program && make op-program-host  \
+    GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_PROGRAM_VERSION"
+RUN --mount=type=cache,target=/root/.cache/go-build cd op-program && make op-program-client-mips  \
+    GOOS=linux GOARCH=mips GOMIPS=softfloat GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_PROGRAM_VERSION"
+
+# Run the op-program-client.elf binary directly through cannon's load-elf subcommand.
+RUN /app/cannon/bin/cannon load-elf --path /app/op-program/bin/op-program-client.elf --out /app/op-program/bin/prestate.json --meta ""
+
+# Generate the prestate proof containing the absolute pre-state hash.
+RUN /app/cannon/bin/cannon run --proof-at '=0' --stop-at '=1' --input /app/op-program/bin/prestate.json --meta "" --proof-fmt '/app/op-program/bin/%d.json' --output ""
+RUN mv /app/op-program/bin/0.json /app/op-program/bin/prestate-proof.json
+
+# Exports files to the specified output location.
+# Writing files to host requires buildkit to be enabled.
+# e.g. `BUILDKIT=1 docker build ...`
+FROM scratch AS export-stage
+COPY --from=builder /app/op-program/bin/op-program .
+COPY --from=builder /app/op-program/bin/op-program-client.elf .
+COPY --from=builder /app/op-program/bin/prestate.json .
+COPY --from=builder /app/op-program/bin/prestate-proof.json .

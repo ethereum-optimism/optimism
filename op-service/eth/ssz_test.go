@@ -3,29 +3,45 @@ package eth
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
+	"fmt"
 	"math"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/holiman/uint256"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 )
 
 // FuzzExecutionPayloadUnmarshal checks that our SSZ decoding never panics
 func FuzzExecutionPayloadUnmarshal(f *testing.F) {
 	f.Fuzz(func(t *testing.T, data []byte) {
-		var payload ExecutionPayload
-		err := payload.UnmarshalSSZ(uint32(len(data)), bytes.NewReader(data))
-		if err != nil {
-			// not every input is a valid ExecutionPayload, that's ok. Should just not panic.
-			return
+		{
+			var payload ExecutionPayload
+			err := payload.UnmarshalSSZ(BlockV1, uint32(len(data)), bytes.NewReader(data))
+			if err != nil {
+				// not every input is a valid ExecutionPayload, that's ok. Should just not panic.
+				return
+			}
+		}
+
+		{
+			var payload ExecutionPayload
+			err := payload.UnmarshalSSZ(BlockV2, uint32(len(data)), bytes.NewReader(data))
+			if err != nil {
+				// not every input is a valid ExecutionPayload, that's ok. Should just not panic.
+				return
+			}
 		}
 	})
 }
 
 // FuzzExecutionPayloadMarshalUnmarshal checks that our SSZ encoding>decoding round trips properly
-func FuzzExecutionPayloadMarshalUnmarshal(f *testing.F) {
+func FuzzExecutionPayloadMarshalUnmarshalV1(f *testing.F) {
 	f.Fuzz(func(t *testing.T, data []byte, a, b, c, d uint64, extraData []byte, txs uint16, txsData []byte) {
 		if len(data) < 32+20+32+32+256+32+32+32 {
 			return
@@ -51,7 +67,7 @@ func FuzzExecutionPayloadMarshalUnmarshal(f *testing.F) {
 			extraData = extraData[:32]
 		}
 		payload.ExtraData = extraData
-		payload.BaseFeePerGas.SetBytes(data[:32])
+		(*uint256.Int)(&payload.BaseFeePerGas).SetBytes(data[:32])
 		payload.BlockHash = *(*common.Hash)(data[:32])
 		payload.Transactions = make([]Data, txs)
 		for i := 0; i < int(txs); i++ {
@@ -72,7 +88,149 @@ func FuzzExecutionPayloadMarshalUnmarshal(f *testing.F) {
 			t.Fatalf("failed to marshal ExecutionPayload: %v", err)
 		}
 		var roundTripped ExecutionPayload
-		err := roundTripped.UnmarshalSSZ(uint32(len(buf.Bytes())), bytes.NewReader(buf.Bytes()))
+		err := roundTripped.UnmarshalSSZ(BlockV1, uint32(len(buf.Bytes())), bytes.NewReader(buf.Bytes()))
+		if err != nil {
+			t.Fatalf("failed to decode previously marshalled payload: %v", err)
+		}
+		if diff := cmp.Diff(payload, roundTripped); diff != "" {
+			t.Fatalf("The data did not round trip correctly:\n%s", diff)
+		}
+	})
+}
+
+func FuzzExecutionPayloadMarshalUnmarshalV2(f *testing.F) {
+	f.Fuzz(func(t *testing.T, data []byte, a, b, c, d uint64, extraData []byte, txs uint16, txsData []byte, wCount uint16) {
+		if len(data) < 32+20+32+32+256+32+32+32 {
+			return
+		}
+		var payload ExecutionPayload
+		payload.ParentHash = *(*common.Hash)(data[:32])
+		data = data[32:]
+		payload.FeeRecipient = *(*common.Address)(data[:20])
+		data = data[20:]
+		payload.StateRoot = *(*Bytes32)(data[:32])
+		data = data[32:]
+		payload.ReceiptsRoot = *(*Bytes32)(data[:32])
+		data = data[32:]
+		payload.LogsBloom = *(*Bytes256)(data[:256])
+		data = data[256:]
+		payload.PrevRandao = *(*Bytes32)(data[:32])
+		data = data[32:]
+		payload.BlockNumber = Uint64Quantity(a)
+		payload.GasLimit = Uint64Quantity(a)
+		payload.GasUsed = Uint64Quantity(a)
+		payload.Timestamp = Uint64Quantity(a)
+		if len(extraData) > 32 {
+			extraData = extraData[:32]
+		}
+		payload.ExtraData = extraData
+		(*uint256.Int)(&payload.BaseFeePerGas).SetBytes(data[:32])
+		payload.BlockHash = *(*common.Hash)(data[:32])
+		payload.Transactions = make([]Data, txs)
+		for i := 0; i < int(txs); i++ {
+			if len(txsData) < 2 {
+				payload.Transactions[i] = make(Data, 0)
+				continue
+			}
+			txSize := binary.LittleEndian.Uint16(txsData[:2])
+			txsData = txsData[2:]
+			if int(txSize) > len(txsData) {
+				txSize = uint16(len(txsData))
+			}
+			payload.Transactions[i] = txsData[:txSize]
+			txsData = txsData[txSize:]
+		}
+
+		wCount = wCount % maxWithdrawalsPerPayload
+		withdrawals := make(types.Withdrawals, wCount)
+		for i := 0; i < int(wCount); i++ {
+			withdrawals[i] = &types.Withdrawal{
+				Index:     a,
+				Validator: b,
+				Address:   common.BytesToAddress(data[:20]),
+				Amount:    c,
+			}
+		}
+		payload.Withdrawals = &withdrawals
+
+		var buf bytes.Buffer
+		if _, err := payload.MarshalSSZ(&buf); err != nil {
+			t.Fatalf("failed to marshal ExecutionPayload: %v", err)
+		}
+		var roundTripped ExecutionPayload
+		err := roundTripped.UnmarshalSSZ(BlockV2, uint32(len(buf.Bytes())), bytes.NewReader(buf.Bytes()))
+		if err != nil {
+			t.Fatalf("failed to decode previously marshalled payload: %v", err)
+		}
+		if diff := cmp.Diff(payload, roundTripped); diff != "" {
+			t.Fatalf("The data did not round trip correctly:\n%s", diff)
+		}
+	})
+}
+
+func FuzzExecutionPayloadMarshalUnmarshalV3(f *testing.F) {
+	f.Fuzz(func(t *testing.T, data []byte, a, b, c, d uint64, extraData []byte, txs uint16, txsData []byte, wCount uint16, blobGasUsed, excessBlobGas uint64) {
+		if len(data) < 32+20+32+32+256+32+32+32 {
+			return
+		}
+		var payload ExecutionPayload
+		payload.ParentHash = *(*common.Hash)(data[:32])
+		data = data[32:]
+		payload.FeeRecipient = *(*common.Address)(data[:20])
+		data = data[20:]
+		payload.StateRoot = *(*Bytes32)(data[:32])
+		data = data[32:]
+		payload.ReceiptsRoot = *(*Bytes32)(data[:32])
+		data = data[32:]
+		payload.LogsBloom = *(*Bytes256)(data[:256])
+		data = data[256:]
+		payload.PrevRandao = *(*Bytes32)(data[:32])
+		data = data[32:]
+		payload.BlockNumber = Uint64Quantity(a)
+		payload.GasLimit = Uint64Quantity(a)
+		payload.GasUsed = Uint64Quantity(a)
+		payload.Timestamp = Uint64Quantity(a)
+		payload.BlobGasUsed = (*Uint64Quantity)(&blobGasUsed)
+		payload.ExcessBlobGas = (*Uint64Quantity)(&excessBlobGas)
+		if len(extraData) > 32 {
+			extraData = extraData[:32]
+		}
+		payload.ExtraData = extraData
+		(*uint256.Int)(&payload.BaseFeePerGas).SetBytes(data[:32])
+		payload.BlockHash = *(*common.Hash)(data[:32])
+		payload.Transactions = make([]Data, txs)
+		for i := 0; i < int(txs); i++ {
+			if len(txsData) < 2 {
+				payload.Transactions[i] = make(Data, 0)
+				continue
+			}
+			txSize := binary.LittleEndian.Uint16(txsData[:2])
+			txsData = txsData[2:]
+			if int(txSize) > len(txsData) {
+				txSize = uint16(len(txsData))
+			}
+			payload.Transactions[i] = txsData[:txSize]
+			txsData = txsData[txSize:]
+		}
+
+		wCount = wCount % maxWithdrawalsPerPayload
+		withdrawals := make(types.Withdrawals, wCount)
+		for i := 0; i < int(wCount); i++ {
+			withdrawals[i] = &types.Withdrawal{
+				Index:     a,
+				Validator: b,
+				Address:   common.BytesToAddress(data[:20]),
+				Amount:    c,
+			}
+		}
+		payload.Withdrawals = &withdrawals
+
+		var buf bytes.Buffer
+		if _, err := payload.MarshalSSZ(&buf); err != nil {
+			t.Fatalf("failed to marshal ExecutionPayload: %v", err)
+		}
+		var roundTripped ExecutionPayload
+		err := roundTripped.UnmarshalSSZ(BlockV3, uint32(len(buf.Bytes())), bytes.NewReader(buf.Bytes()))
 		if err != nil {
 			t.Fatalf("failed to decode previously marshalled payload: %v", err)
 		}
@@ -99,14 +257,14 @@ func FuzzOBP01(f *testing.F) {
 		binary.LittleEndian.PutUint32(clone[504:508], txOffset)
 
 		var unmarshalled ExecutionPayload
-		err = unmarshalled.UnmarshalSSZ(uint32(len(clone)), bytes.NewReader(clone))
+		err = unmarshalled.UnmarshalSSZ(BlockV1, uint32(len(clone)), bytes.NewReader(clone))
 		if err == nil {
 			t.Fatalf("expected a failure, but didn't get one")
 		}
 	})
 }
 
-// TestOPB01 verifies that the SSZ unmarshaling code
+// TestOPB01 verifies that the SSZ unmarshalling code
 // properly checks for the transactionOffset being larger
 // than the extraDataOffset.
 func TestOPB01(t *testing.T) {
@@ -122,7 +280,7 @@ func TestOPB01(t *testing.T) {
 	copy(data[504:508], make([]byte, 4))
 
 	var unmarshalled ExecutionPayload
-	err = unmarshalled.UnmarshalSSZ(uint32(len(data)), bytes.NewReader(data))
+	err = unmarshalled.UnmarshalSSZ(BlockV1, uint32(len(data)), bytes.NewReader(data))
 	require.Equal(t, ErrBadTransactionOffset, err)
 }
 
@@ -130,20 +288,196 @@ func TestOPB01(t *testing.T) {
 // properly returns an error when the ExtraData field
 // cannot be represented in the outputted SSZ.
 func TestOPB04(t *testing.T) {
+	data := make([]byte, math.MaxUint32)
+
+	var buf bytes.Buffer
 	// First, test the maximum len - which in this case is the max uint32
 	// minus the execution payload fixed part.
 	payload := &ExecutionPayload{
-		ExtraData: make([]byte, math.MaxUint32-executionPayloadFixedPart),
+		ExtraData:   data[:math.MaxUint32-executionPayloadFixedPart(BlockV1)],
+		Withdrawals: nil,
 	}
-	var buf bytes.Buffer
+
 	_, err := payload.MarshalSSZ(&buf)
 	require.NoError(t, err)
 	buf.Reset()
 
-	payload = &ExecutionPayload{
-		ExtraData: make([]byte, math.MaxUint32-executionPayloadFixedPart+1),
+	tests := []struct {
+		version     BlockVersion
+		withdrawals *types.Withdrawals
+	}{
+		{BlockV1, nil},
+		{BlockV2, &types.Withdrawals{}},
 	}
-	_, err = payload.MarshalSSZ(&buf)
-	require.Error(t, err)
-	require.Equal(t, ErrExtraDataTooLarge, err)
+
+	for _, test := range tests {
+		payload := &ExecutionPayload{
+			ExtraData:   data[:math.MaxUint32-executionPayloadFixedPart(test.version)+1],
+			Withdrawals: test.withdrawals,
+		}
+		_, err := payload.MarshalSSZ(&buf)
+		require.Error(t, err)
+		require.Equal(t, ErrExtraDataTooLarge, err)
+	}
+}
+
+func createPayloadWithWithdrawals(w *types.Withdrawals) *ExecutionPayload {
+	return &ExecutionPayload{
+		ParentHash:    common.HexToHash("0x123"),
+		FeeRecipient:  common.HexToAddress("0x456"),
+		StateRoot:     Bytes32(common.HexToHash("0x789")),
+		ReceiptsRoot:  Bytes32(common.HexToHash("0xabc")),
+		LogsBloom:     Bytes256{byte(13), byte(14), byte(15)},
+		PrevRandao:    Bytes32(common.HexToHash("0x111")),
+		BlockNumber:   Uint64Quantity(222),
+		GasLimit:      Uint64Quantity(333),
+		GasUsed:       Uint64Quantity(444),
+		Timestamp:     Uint64Quantity(555),
+		ExtraData:     common.FromHex("6666"),
+		BaseFeePerGas: Uint256Quantity(*uint256.NewInt(777)),
+		BlockHash:     common.HexToHash("0x888"),
+		Withdrawals:   w,
+		Transactions:  []Data{common.FromHex("9999")},
+	}
+}
+
+func TestMarshalUnmarshalWithdrawals(t *testing.T) {
+	emptyWithdrawal := &types.Withdrawals{}
+	withdrawals := &types.Withdrawals{
+		{
+			Index:     987,
+			Validator: 654,
+			Address:   common.HexToAddress("0x898"),
+			Amount:    321,
+		},
+	}
+	maxWithdrawals := make(types.Withdrawals, maxWithdrawalsPerPayload)
+	for i := 0; i < maxWithdrawalsPerPayload; i++ {
+		maxWithdrawals[i] = &types.Withdrawal{
+			Index:     987,
+			Validator: 654,
+			Address:   common.HexToAddress("0x898"),
+			Amount:    321,
+		}
+	}
+	tooManyWithdrawals := make(types.Withdrawals, maxWithdrawalsPerPayload+1)
+	for i := 0; i < maxWithdrawalsPerPayload+1; i++ {
+		tooManyWithdrawals[i] = &types.Withdrawal{
+			Index:     987,
+			Validator: 654,
+			Address:   common.HexToAddress("0x898"),
+			Amount:    321,
+		}
+	}
+
+	tests := []struct {
+		name        string
+		version     BlockVersion
+		hasError    bool
+		withdrawals *types.Withdrawals
+	}{
+		{"ZeroWithdrawalsSucceeds", BlockV2, false, emptyWithdrawal},
+		{"ZeroWithdrawalsFailsToDeserialize", BlockV1, true, emptyWithdrawal},
+		{"WithdrawalsSucceeds", BlockV2, false, withdrawals},
+		{"WithdrawalsFailsToDeserialize", BlockV1, true, withdrawals},
+		{"MaxWithdrawalsSucceeds", BlockV2, false, &maxWithdrawals},
+		{"TooManyWithdrawalsErrors", BlockV2, true, &tooManyWithdrawals},
+	}
+
+	for _, test := range tests {
+		test := test
+
+		t.Run(fmt.Sprintf("TestWithdrawalUnmarshalMarshal_%s", test.name), func(t *testing.T) {
+			input := createPayloadWithWithdrawals(test.withdrawals)
+
+			var buf bytes.Buffer
+			_, err := input.MarshalSSZ(&buf)
+			require.NoError(t, err)
+			data := buf.Bytes()
+
+			output := &ExecutionPayload{}
+			err = output.UnmarshalSSZ(test.version, uint32(len(data)), bytes.NewReader(data))
+
+			if test.hasError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, input, output)
+				if test.withdrawals != nil {
+					require.Equal(t, len(*test.withdrawals), len(*output.Withdrawals))
+				}
+			}
+		})
+	}
+}
+
+func TestMarshalUnmarshalExecutionPayloadEnvelopes(t *testing.T) {
+	hash := common.HexToHash("0x123")
+
+	zero := uint64(0)
+	validInput := &ExecutionPayloadEnvelope{
+		ParentBeaconBlockRoot: &hash,
+		ExecutionPayload:      createPayloadWithWithdrawals(&types.Withdrawals{}),
+	}
+	validInput.ExecutionPayload.ExcessBlobGas = (*Uint64Quantity)(&zero)
+	validInput.ExecutionPayload.BlobGasUsed = (*Uint64Quantity)(&zero)
+
+	missingHash := &ExecutionPayloadEnvelope{
+		ParentBeaconBlockRoot: nil,
+		ExecutionPayload:      createPayloadWithWithdrawals(&types.Withdrawals{}),
+	}
+
+	missingExecutionPaylaod := &ExecutionPayloadEnvelope{
+		ParentBeaconBlockRoot: &hash,
+		ExecutionPayload:      nil,
+	}
+
+	tests := []struct {
+		name  string
+		input *ExecutionPayloadEnvelope
+		err   error
+	}{
+		{"ValidInputSucceeds", validInput, nil},
+		{"MissingHashFailsToSerialize", missingHash, ErrMissingData},
+		{"MissingExecutionDataFailsToSerialize", missingExecutionPaylaod, ErrMissingData},
+	}
+
+	for _, test := range tests {
+		test := test
+
+		t.Run(fmt.Sprintf("TestExecutionPayloadEnvelopeMarshalUnmarshal_%s", test.name), func(t *testing.T) {
+			hash := common.HexToHash("0x123")
+
+			var buf bytes.Buffer
+			_, err := test.input.MarshalSSZ(&buf)
+
+			if test.err != nil {
+				require.ErrorIs(t, err, test.err)
+				return
+			} else {
+				require.NoError(t, err)
+			}
+
+			data := buf.Bytes()
+
+			output := &ExecutionPayloadEnvelope{}
+			err = output.UnmarshalSSZ(uint32(len(data)), bytes.NewReader(data))
+
+			require.NoError(t, err)
+
+			require.NotNil(t, output.ParentBeaconBlockRoot)
+			assert.Equal(t, hash, *output.ParentBeaconBlockRoot)
+
+			require.NotNil(t, output.ExecutionPayload)
+			if diff := cmp.Diff(*test.input.ExecutionPayload, *output.ExecutionPayload); diff != "" {
+				t.Fatalf("The data did not round trip correctly:\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestFailsToDeserializeTooLittleData(t *testing.T) {
+	var payload ExecutionPayloadEnvelope
+	err := payload.UnmarshalSSZ(1, bytes.NewReader([]byte{0x00}))
+	assert.Equal(t, err, errors.New("scope too small to decode execution payload envelope: 1"))
 }

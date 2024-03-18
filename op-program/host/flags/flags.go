@@ -7,10 +7,10 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
-	"github.com/ethereum-optimism/optimism/op-node/sources"
 	service "github.com/ethereum-optimism/optimism/op-service"
 	openum "github.com/ethereum-optimism/optimism/op-service/enum"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 )
 
 const EnvVarPrefix = "OP_PROGRAM"
@@ -75,6 +75,11 @@ var (
 		Usage:   "Address of L1 JSON-RPC endpoint to use (eth namespace required)",
 		EnvVars: prefixEnvVars("L1_RPC"),
 	}
+	L1BeaconAddr = &cli.StringFlag{
+		Name:    "l1.beacon",
+		Usage:   "Address of L1 Beacon API endpoint to use",
+		EnvVars: prefixEnvVars("L1_BEACON_API"),
+	}
 	L1TrustRPC = &cli.BoolFlag{
 		Name:    "l1.trustrpc",
 		Usage:   "Trust the L1 RPC, sync faster at risk of malicious/buggy RPC providing bad or inconsistent L1 data",
@@ -86,7 +91,7 @@ var (
 			openum.EnumString(sources.RPCProviderKinds),
 		EnvVars: prefixEnvVars("L1_RPC_KIND"),
 		Value: func() *sources.RPCProviderKind {
-			out := sources.RPCKindBasic
+			out := sources.RPCKindStandard
 			return &out
 		}(),
 	}
@@ -112,6 +117,7 @@ var requiredFlags = []cli.Flag{
 	L2Claim,
 	L2BlockNumber,
 }
+
 var programFlags = []cli.Flag{
 	RollupConfig,
 	Network,
@@ -119,6 +125,7 @@ var programFlags = []cli.Flag{
 	L2NodeAddr,
 	L2GenesisPath,
 	L1NodeAddr,
+	L1BeaconAddr,
 	L1TrustRPC,
 	L1RPCProviderKind,
 	Exec,

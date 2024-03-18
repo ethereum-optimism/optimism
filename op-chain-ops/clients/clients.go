@@ -20,11 +20,16 @@ type Clients struct {
 	L2GethClient *gethclient.Client
 }
 
-// NewClients will create new RPC clients from a CLI context
-func NewClients(ctx *cli.Context) (*Clients, error) {
+// NewClientsFromContext will create new RPC clients from a CLI context
+func NewClientsFromContext(ctx *cli.Context) (*Clients, error) {
+	return NewClients(ctx.String("l1-rpc-url"), ctx.String("l2-rpc-url"))
+}
+
+// NewClients will create new RPC clients from given URLs.
+func NewClients(l1RpcURL, l2RpcURL string) (*Clients, error) {
 	clients := Clients{}
 
-	if l1RpcURL := ctx.String("l1-rpc-url"); l1RpcURL != "" {
+	if l1RpcURL != "" {
 		l1Client, l1RpcClient, l1GethClient, err := newClients(l1RpcURL)
 		if err != nil {
 			return nil, err
@@ -34,7 +39,7 @@ func NewClients(ctx *cli.Context) (*Clients, error) {
 		clients.L1GethClient = l1GethClient
 	}
 
-	if l2RpcURL := ctx.String("l2-rpc-url"); l2RpcURL != "" {
+	if l2RpcURL != "" {
 		l2Client, l2RpcClient, l2GethClient, err := newClients(l2RpcURL)
 		if err != nil {
 			return nil, err

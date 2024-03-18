@@ -12,7 +12,7 @@ to reproduce the same instruction onchain as offchain.
 This is an onchain implementation of big-endian 32-bit MIPS instruction execution.
 This covers MIPS III, R3000, as required by the `mips` Go compiler/runtime target.
 
-The systemcall instruction is implemented to simulate a minimal subset of the Linux kernel,
+The syscall instruction is implemented to simulate a minimal subset of the Linux kernel,
 just enough to serve the needs of a basic Go program:
 allocate memory, read/write to certain file-descriptors, and exit.
 
@@ -30,7 +30,7 @@ The difference is that it has access to the full memory, and pre-image oracle.
 And as it executes each step, it can optionally produce the witness data for the step, to repeat it onchain.
 
 The Cannon CLI is used to load a program into an initial state,
-transition it N steps quickly without witness generation, and 1 step while producing a witness.
+transition it to N steps quickly without witness generation, and 1 step while producing a witness.
 
 `mipsevm` is instrumented for proof generation and handles delay-slots by isolating each individual instruction
 and tracking `nextPC` to emulate the delayed `PC` changes after delay-slot execution.
@@ -45,7 +45,7 @@ There are 3 types of witness data involved in onchain execution:
 ### Packed State
 
 The Packed State is provided in every executed onchain instruction.
-See [Cannon VM Specs](../../specs/cannon-fault-proof-vm.md#state) for
+See [Cannon VM Specs](https://github.com/ethereum-optimism/specs/blob/main/specs/experimental/fault-proof/cannon-fault-proof-vm.md#state) for
 details on the state structure.
 
 The packed state is small! The `State` data can be packed in such a small amount of EVM words,
@@ -90,7 +90,7 @@ where the write is over the same memory as was last read.
 The memory access is specifically:
 - instruction (4 byte) read at `PC`
 - load or syscall mem read, always aligned 4 bytes, read at any `addr`
-- store or syscall mem write, always aligned 4 bytes, at ths same `addr`
+- store or syscall mem write, always aligned 4 bytes, at the same `addr`
 
 Writing only once, at the last read leaf, also means that the leaf can be safely updated and the same proof-data
 that was used to verify the read, can be used to reconstruct the new `memRoot` of the memory tree,
@@ -99,10 +99,10 @@ since all sibling data that is combined with the new leaf value was already auth
 ### Pre-image data
 
 Pre-image data is accessed through syscalls exclusively.
-The OP-stack fault-proof [Pre-image Oracle specs](../../specs/fault-proof.md#pre-image-oracle)
+The OP-stack fault-proof [Pre-image Oracle specs](https://github.com/ethereum-optimism/specs/blob/main/specs/fault-proof.md#pre-image-oracle)
 define the ABI for communicating pre-images.
 
-This ABI is implemented by the VM by intercepting the `read`/`write` syscalls to specific file descriptors. See [Cannon VM Specs](../../specs/cannon-fault-proof-vm.md#io) for more details.
+This ABI is implemented by the VM by intercepting the `read`/`write` syscalls to specific file descriptors. See [Cannon VM Specs](https://github.com/ethereum-optimism/specs/blob/main/specs/cannon-fault-proof-vm.md#io) for more details.
 
 The data is loaded into `PreimageOracle.sol` using the respective loading function based on the pre-image type.
 And then retrieved during execution of the `read` syscall.

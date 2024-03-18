@@ -26,13 +26,13 @@ func main() {
 	ctx := context.Background()
 	client, err := kms.NewKeyManagementClient(ctx)
 	if err != nil {
-		panic(fmt.Sprintf("failed to create kms client: %w", err))
+		panic(fmt.Errorf("failed to create kms client: %w", err))
 	}
 	defer client.Close()
 
 	addr, err := resolveAddr(ctx, client, keyName)
 	if err != nil {
-		panic(fmt.Sprintf("failed to retrieve the key: %w", err))
+		panic(fmt.Errorf("failed to retrieve the key: %w", err))
 	}
 	fmt.Printf("ethereum addr: %s", addr)
 	println()

@@ -1,5 +1,20 @@
 # @eth-optimism/common-ts
 
+## 0.8.8
+
+### Patch Changes
+
+- [#9334](https://github.com/ethereum-optimism/optimism/pull/9334) [`1ed50c44a5c4fb7244ede3b4c45ea7bbf144c1e5`](https://github.com/ethereum-optimism/optimism/commit/1ed50c44a5c4fb7244ede3b4c45ea7bbf144c1e5) Thanks [@smartcontracts](https://github.com/smartcontracts)! - Adds a new validator for address types.
+
+## 0.8.7
+
+### Patch Changes
+
+- [#7450](https://github.com/ethereum-optimism/optimism/pull/7450) [`ac90e16a7`](https://github.com/ethereum-optimism/optimism/commit/ac90e16a7f85c4f73661ae6023135c3d00421c1e) Thanks [@roninjin10](https://github.com/roninjin10)! - Updated dev dependencies related to testing that is causing audit tooling to report failures
+
+- Updated dependencies [[`ac90e16a7`](https://github.com/ethereum-optimism/optimism/commit/ac90e16a7f85c4f73661ae6023135c3d00421c1e)]:
+  - @eth-optimism/core-utils@0.13.1
+
 ## 0.8.6
 
 ### Patch Changes

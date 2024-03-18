@@ -2,15 +2,19 @@ package op_e2e
 
 import (
 	"context"
+	"math/big"
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-node/client"
-	"github.com/ethereum-optimism/optimism/op-node/node"
-	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
+	"github.com/ethereum-optimism/optimism/op-node/node"
+	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 )
 
 func TestStopStartSequencer(t *testing.T) {
@@ -34,10 +38,11 @@ func TestStopStartSequencer(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, active, "sequencer should be active")
 
-	blockBefore := latestBlock(t, l2Seq)
-	time.Sleep(time.Duration(cfg.DeployConfig.L2BlockTime+1) * time.Second)
-	blockAfter := latestBlock(t, l2Seq)
-	require.Greaterf(t, blockAfter, blockBefore, "Chain did not advance")
+	require.NoError(
+		t,
+		wait.ForNextBlock(ctx, l2Seq),
+		"Chain did not advance after starting sequencer",
+	)
 
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -50,9 +55,9 @@ func TestStopStartSequencer(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, active, "sequencer should be inactive")
 
-	blockBefore = latestBlock(t, l2Seq)
+	blockBefore := latestBlock(t, l2Seq)
 	time.Sleep(time.Duration(cfg.DeployConfig.L2BlockTime+1) * time.Second)
-	blockAfter = latestBlock(t, l2Seq)
+	blockAfter := latestBlock(t, l2Seq)
 	require.Equal(t, blockAfter, blockBefore, "Chain advanced after stopping sequencer")
 
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
@@ -66,10 +71,11 @@ func TestStopStartSequencer(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, active, "sequencer should be active again")
 
-	blockBefore = latestBlock(t, l2Seq)
-	time.Sleep(time.Duration(cfg.DeployConfig.L2BlockTime+1) * time.Second)
-	blockAfter = latestBlock(t, l2Seq)
-	require.Greater(t, blockAfter, blockBefore, "Chain did not advance after starting sequencer")
+	require.NoError(
+		t,
+		wait.ForNextBlock(ctx, l2Seq),
+		"Chain did not advance after starting sequencer",
+	)
 }
 
 func TestPersistSequencerStateWhenChanged(t *testing.T) {
@@ -167,6 +173,45 @@ func TestLoadSequencerStateOnStarted_Started(t *testing.T) {
 	err = rollupClient.StartSequencer(ctx, common.Hash{})
 	require.ErrorContains(t, err, "sequencer already running")
 	assertPersistedSequencerState(t, stateFile, node.StateStarted)
+}
+
+func TestPostUnsafePayload(t *testing.T) {
+	InitParallel(t)
+	ctx := context.Background()
+
+	cfg := DefaultSystemConfig(t)
+	cfg.Nodes["verifier"].RPC.EnableAdmin = true
+	cfg.DisableBatcher = true
+
+	sys, err := cfg.Start(t)
+	require.NoError(t, err)
+	defer sys.Close()
+
+	l2Seq := sys.Clients["sequencer"]
+	l2Ver := sys.Clients["verifier"]
+	rollupClient := sys.RollupClient("verifier")
+
+	require.NoError(t, wait.ForBlock(ctx, l2Seq, 2), "Chain did not advance after starting sequencer")
+	verBlock, err := l2Ver.BlockByNumber(ctx, nil)
+	require.NoError(t, err)
+	require.Equal(t, uint64(0), verBlock.NumberU64(), "Verifier should not have advanced any blocks since p2p & batcher are not enabled")
+
+	blockNumberOne, err := l2Seq.BlockByNumber(ctx, big.NewInt(1))
+	require.NoError(t, err)
+	payload, err := eth.BlockAsPayload(blockNumberOne, sys.RollupConfig.CanyonTime)
+	require.NoError(t, err)
+	err = rollupClient.PostUnsafePayload(ctx, &eth.ExecutionPayloadEnvelope{ExecutionPayload: payload})
+	require.NoError(t, err)
+	require.NoError(t, wait.ForUnsafeBlock(ctx, rollupClient, 1), "Chain did not advance after posting payload")
+
+	// Test validation
+	blockNumberTwo, err := l2Seq.BlockByNumber(ctx, big.NewInt(2))
+	require.NoError(t, err)
+	payload, err = eth.BlockAsPayload(blockNumberTwo, sys.RollupConfig.CanyonTime)
+	require.NoError(t, err)
+	payload.BlockHash = common.Hash{0xaa}
+	err = rollupClient.PostUnsafePayload(ctx, &eth.ExecutionPayloadEnvelope{ExecutionPayload: payload})
+	require.ErrorContains(t, err, "payload has bad block hash")
 }
 
 func assertPersistedSequencerState(t *testing.T, stateFile string, expected node.RunningState) {

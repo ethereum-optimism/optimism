@@ -2,6 +2,7 @@ package hardhat
 
 import (
 	"encoding/json"
+	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/solc"
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -14,7 +15,7 @@ type Deployment struct {
 	Name             string
 	Abi              abi.ABI            `json:"abi"`
 	Address          common.Address     `json:"address"`
-	Args             []any              `json:"args"`
+	Args             []interface{}      `json:"-"`
 	Bytecode         hexutil.Bytes      `json:"bytecode"`
 	DeployedBytecode hexutil.Bytes      `json:"deployedBytecode"`
 	Devdoc           json.RawMessage    `json:"devdoc"`
@@ -24,6 +25,61 @@ type Deployment struct {
 	StorageLayout    solc.StorageLayout `json:"storageLayout"`
 	TransactionHash  common.Hash        `json:"transactionHash"`
 	Userdoc          json.RawMessage    `json:"userdoc"`
+}
+
+// UnmarshalJSON is a custom unmarshaler for Deployment, handling the Args field. This changed recently
+// when `foundry` migrated to `alloy` types, and now the Args field within the contract artifact has
+// a different serialization format.
+//
+// This custom unmarshaller should be removed when this is fixed upstream.
+//
+// Old Example:
+// ```
+// "args": [
+//
+//	"0xCE9FeE676767A25feb9722986148Fcd87085a14e",
+//	"OVM_L1CrossDomainMessenger"
+//
+// ],
+// ```
+//
+// New Example:
+// ```
+// "args": "[\"0x45ce2021212883d655348778aC99707d63D49aBc\",\"\\OVM_L1CrossDomainMessenger\\\"]"
+// ```
+func (d *Deployment) UnmarshalJSON(data []byte) error {
+	// Create a type alias to prevent recursion
+	type DeploymentAlias Deployment
+
+	// Unmarshal all fields except for `Args`
+	var alias DeploymentAlias
+	if err := json.Unmarshal(data, &alias); err != nil {
+		return err
+	}
+
+	// Unmarshal `Args` manually.
+	tmp := struct {
+		Args json.RawMessage `json:"args"`
+	}{}
+	if err := json.Unmarshal(data, &tmp); err != nil {
+		return err
+	}
+
+	// Strip the `args` string of escapes and quotes.
+	stripped := strings.ReplaceAll(strings.Trim(string(tmp.Args), "\""), "\\", "")
+
+	// Unmarshal the stripped version of the `args` field.
+	var args []interface{}
+	if err := json.Unmarshal([]byte(stripped), &args); err != nil {
+		return err
+	}
+
+	// Set the `Args` field in the `Deployment` to the correctly unmarshaled value
+	alias.Args = args
+
+	// Assign the unmarshaled alias back to the original struct
+	*d = Deployment(alias)
+	return nil
 }
 
 // Receipt represents the receipt held in a hardhat-deploy

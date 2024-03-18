@@ -1,5 +1,5 @@
-GITCOMMIT := $(shell git rev-parse HEAD)
-GITDATE := $(shell git show -s --format='%ct')
+GITCOMMIT ?= $(shell git rev-parse HEAD)
+GITDATE ?= $(shell git show -s --format='%ct')
 VERSION := v0.0.0
 
 LDFLAGSSTRING +=-X main.GitCommit=$(GITCOMMIT)

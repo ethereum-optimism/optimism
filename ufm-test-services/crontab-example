@@ -1,8 +1,0 @@
-# Needs to point to docker, otherwise you'll get the error: exec: "docker": executable file not found in $PATH
-PATH=/
-
-# Runs every minute
-* * * * * /usr/local/bin/docker-compose -f /path/to/docker-compose.yml --profile 1minute up -d
-
-# Runs every 5 minutes
-*/5 * * * * /usr/local/bin/docker-compose -f /path/to/docker-compose.yml --profile 5minutes up -d

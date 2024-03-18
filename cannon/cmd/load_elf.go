@@ -7,6 +7,7 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 )
 
 var (
@@ -66,10 +67,10 @@ func LoadELF(ctx *cli.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to compute program metadata: %w", err)
 	}
-	if err := writeJSON[*mipsevm.Metadata](ctx.Path(LoadELFMetaFlag.Name), meta); err != nil {
+	if err := jsonutil.WriteJSON[*mipsevm.Metadata](ctx.Path(LoadELFMetaFlag.Name), meta, OutFilePerm); err != nil {
 		return fmt.Errorf("failed to output metadata: %w", err)
 	}
-	return writeJSON[*mipsevm.State](ctx.Path(LoadELFOutFlag.Name), state)
+	return jsonutil.WriteJSON[*mipsevm.State](ctx.Path(LoadELFOutFlag.Name), state, OutFilePerm)
 }
 
 var LoadELFCommand = &cli.Command{

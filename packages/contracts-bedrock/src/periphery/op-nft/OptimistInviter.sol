@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { OptimistConstants } from "./libraries/OptimistConstants.sol";
-import { Semver } from "../../universal/Semver.sol";
-import { AttestationStation } from "./AttestationStation.sol";
+import { OptimistConstants } from "src/periphery/op-nft/libraries/OptimistConstants.sol";
+import { ISemver } from "src/universal/ISemver.sol";
+import { AttestationStation } from "src/periphery/op-nft/AttestationStation.sol";
 import { SignatureChecker } from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import { EIP712Upgradeable } from "@openzeppelin/contracts-upgradeable/utils/cryptography/draft-EIP712Upgradeable.sol";
 
@@ -32,7 +32,7 @@ import { EIP712Upgradeable } from "@openzeppelin/contracts-upgradeable/utils/cry
 ///          6) claimer waits for the MIN_COMMITMENT_PERIOD to pass.
 ///          7) claimer reveals the plaintext ClaimableInvite and the signature using the
 ///             claimInvite function, receiving the "optimist.can-mint-from-invite" attestation
-contract OptimistInviter is Semver, EIP712Upgradeable {
+contract OptimistInviter is ISemver, EIP712Upgradeable {
     /// @notice Emitted when an invite is claimed.
     /// @param issuer  Address that issued the signature.
     /// @param claimer Address that claimed the invite.
@@ -87,10 +87,13 @@ contract OptimistInviter is Semver, EIP712Upgradeable {
     /// @notice Maps from addresses to number of invites they have.
     mapping(address => uint256) public inviteCounts;
 
-    /// @custom:semver 1.0.2
+    /// @notice Semantic version.
+    /// @custom:semver 1.1.0
+    string public constant version = "1.1.0";
+
     /// @param _inviteGranter      Address of the invite granter.
     /// @param _attestationStation Address of the AttestationStation contract.
-    constructor(address _inviteGranter, AttestationStation _attestationStation) Semver(1, 0, 2) {
+    constructor(address _inviteGranter, AttestationStation _attestationStation) {
         INVITE_GRANTER = _inviteGranter;
         ATTESTATION_STATION = _attestationStation;
     }

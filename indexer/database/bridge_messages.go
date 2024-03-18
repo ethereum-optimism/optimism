@@ -6,8 +6,10 @@ import (
 	"math/big"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/google/uuid"
 )
@@ -37,6 +39,11 @@ type L2BridgeMessage struct {
 	TransactionWithdrawalHash common.Hash `gorm:"serializer:bytes"`
 }
 
+type L2BridgeMessageVersionedMessageHash struct {
+	MessageHash   common.Hash `gorm:"primaryKey;serializer:bytes"`
+	V1MessageHash common.Hash `gorm:"serializer:bytes"`
+}
+
 type BridgeMessagesView interface {
 	L1BridgeMessage(common.Hash) (*L1BridgeMessage, error)
 	L1BridgeMessageWithFilter(BridgeMessage) (*L1BridgeMessage, error)
@@ -53,6 +60,8 @@ type BridgeMessagesDB interface {
 
 	StoreL2BridgeMessages([]L2BridgeMessage) error
 	MarkRelayedL2BridgeMessage(common.Hash, uuid.UUID) error
+
+	StoreL2BridgeMessageV1MessageHashes([]L2BridgeMessageVersionedMessageHash) error
 }
 
 /**
@@ -60,11 +69,12 @@ type BridgeMessagesDB interface {
  */
 
 type bridgeMessagesDB struct {
+	log  log.Logger
 	gorm *gorm.DB
 }
 
-func newBridgeMessagesDB(db *gorm.DB) BridgeMessagesDB {
-	return &bridgeMessagesDB{gorm: db}
+func newBridgeMessagesDB(log log.Logger, db *gorm.DB) BridgeMessagesDB {
+	return &bridgeMessagesDB{log: log.New("table", "bridge_messages"), gorm: db}
 }
 
 /**
@@ -72,7 +82,12 @@ func newBridgeMessagesDB(db *gorm.DB) BridgeMessagesDB {
  */
 
 func (db bridgeMessagesDB) StoreL1BridgeMessages(messages []L1BridgeMessage) error {
-	result := db.gorm.CreateInBatches(&messages, batchInsertSize)
+	deduped := db.gorm.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "message_hash"}}, DoNothing: true})
+	result := deduped.Create(&messages)
+	if result.Error == nil && int(result.RowsAffected) < len(messages) {
+		db.log.Warn("ignored L1 bridge message duplicates", "duplicates", len(messages)-int(result.RowsAffected))
+	}
+
 	return result.Error
 }
 
@@ -98,7 +113,13 @@ func (db bridgeMessagesDB) MarkRelayedL1BridgeMessage(messageHash common.Hash, r
 	if err != nil {
 		return err
 	} else if message == nil {
-		return fmt.Errorf("L1BridgeMessage with message hash %s not found", messageHash)
+		return fmt.Errorf("L1BridgeMessage %s not found", messageHash)
+	}
+
+	if message.RelayedMessageEventGUID != nil && message.RelayedMessageEventGUID.ID() == relayEvent.ID() {
+		return nil
+	} else if message.RelayedMessageEventGUID != nil {
+		return fmt.Errorf("relayed message %s re-relayed with a different event %d", messageHash, relayEvent)
 	}
 
 	message.RelayedMessageEventGUID = &relayEvent
@@ -111,12 +132,42 @@ func (db bridgeMessagesDB) MarkRelayedL1BridgeMessage(messageHash common.Hash, r
  */
 
 func (db bridgeMessagesDB) StoreL2BridgeMessages(messages []L2BridgeMessage) error {
-	result := db.gorm.CreateInBatches(&messages, batchInsertSize)
+	deduped := db.gorm.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "message_hash"}}, DoNothing: true})
+	result := deduped.Create(&messages)
+	if result.Error == nil && int(result.RowsAffected) < len(messages) {
+		db.log.Warn("ignored L2 bridge message duplicates", "duplicates", len(messages)-int(result.RowsAffected))
+	}
+
+	return result.Error
+}
+
+func (db bridgeMessagesDB) StoreL2BridgeMessageV1MessageHashes(versionedHashes []L2BridgeMessageVersionedMessageHash) error {
+	deduped := db.gorm.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "message_hash"}}, DoNothing: true})
+	result := deduped.Create(&versionedHashes)
+	if result.Error == nil && int(result.RowsAffected) < len(versionedHashes) {
+		db.log.Warn("ignored L2 bridge v1 message hash duplicates", "duplicates", len(versionedHashes)-int(result.RowsAffected))
+	}
+
 	return result.Error
 }
 
 func (db bridgeMessagesDB) L2BridgeMessage(msgHash common.Hash) (*L2BridgeMessage, error) {
-	return db.L2BridgeMessageWithFilter(BridgeMessage{MessageHash: msgHash})
+	message, err := db.L2BridgeMessageWithFilter(BridgeMessage{MessageHash: msgHash})
+	if message != nil || err != nil {
+		return message, err
+	}
+
+	// check if this is a v1 hash of an older message
+	versioned := L2BridgeMessageVersionedMessageHash{V1MessageHash: msgHash}
+	result := db.gorm.Where(&versioned).Take(&versioned)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, result.Error
+	}
+
+	return db.L2BridgeMessageWithFilter(BridgeMessage{MessageHash: versioned.MessageHash})
 }
 
 func (db bridgeMessagesDB) L2BridgeMessageWithFilter(filter BridgeMessage) (*L2BridgeMessage, error) {
@@ -137,7 +188,13 @@ func (db bridgeMessagesDB) MarkRelayedL2BridgeMessage(messageHash common.Hash, r
 	if err != nil {
 		return err
 	} else if message == nil {
-		return fmt.Errorf("L2BridgeMessage with message hash %s not found", messageHash)
+		return fmt.Errorf("L2BridgeMessage %s not found", messageHash)
+	}
+
+	if message.RelayedMessageEventGUID != nil && message.RelayedMessageEventGUID.ID() == relayEvent.ID() {
+		return nil
+	} else if message.RelayedMessageEventGUID != nil {
+		return fmt.Errorf("relayed message %s re-relayed with a different event %s", messageHash, relayEvent)
 	}
 
 	message.RelayedMessageEventGUID = &relayEvent

@@ -4,11 +4,8 @@ package mocks
 
 import (
 	context "context"
-	big "math/big"
 
 	common "github.com/ethereum/go-ethereum/common"
-
-	ethereum "github.com/ethereum/go-ethereum"
 
 	mock "github.com/stretchr/testify/mock"
 
@@ -46,30 +43,9 @@ func (_m *TxManager) BlockNumber(ctx context.Context) (uint64, error) {
 	return r0, r1
 }
 
-// Call provides a mock function with given fields: ctx, msg, blockNumber
-func (_m *TxManager) Call(ctx context.Context, msg ethereum.CallMsg, blockNumber *big.Int) ([]byte, error) {
-	ret := _m.Called(ctx, msg, blockNumber)
-
-	var r0 []byte
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, ethereum.CallMsg, *big.Int) ([]byte, error)); ok {
-		return rf(ctx, msg, blockNumber)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, ethereum.CallMsg, *big.Int) []byte); ok {
-		r0 = rf(ctx, msg, blockNumber)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]byte)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, ethereum.CallMsg, *big.Int) error); ok {
-		r1 = rf(ctx, msg, blockNumber)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
+// Close provides a mock function with given fields:
+func (_m *TxManager) Close() {
+	_m.Called()
 }
 
 // From provides a mock function with given fields:
@@ -83,6 +59,20 @@ func (_m *TxManager) From() common.Address {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(common.Address)
 		}
+	}
+
+	return r0
+}
+
+// IsClosed provides a mock function with given fields:
+func (_m *TxManager) IsClosed() bool {
+	ret := _m.Called()
+
+	var r0 bool
+	if rf, ok := ret.Get(0).(func() bool); ok {
+		r0 = rf()
+	} else {
+		r0 = ret.Get(0).(bool)
 	}
 
 	return r0

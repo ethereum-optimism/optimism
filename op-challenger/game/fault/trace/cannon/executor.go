@@ -33,6 +33,7 @@ type Executor struct {
 	logger           log.Logger
 	metrics          CannonMetricer
 	l1               string
+	l1Beacon         string
 	l2               string
 	inputs           LocalGameInputs
 	cannon           string
@@ -52,6 +53,7 @@ func NewExecutor(logger log.Logger, m CannonMetricer, cfg *config.Config, inputs
 		logger:           logger,
 		metrics:          m,
 		l1:               cfg.L1EthRpc,
+		l1Beacon:         cfg.L1Beacon,
 		l2:               cfg.CannonL2,
 		inputs:           inputs,
 		cannon:           cfg.CannonBin,
@@ -67,14 +69,23 @@ func NewExecutor(logger log.Logger, m CannonMetricer, cfg *config.Config, inputs
 	}
 }
 
+// GenerateProof executes cannon to generate a proof at the specified trace index.
+// The proof is stored at the specified directory.
 func (e *Executor) GenerateProof(ctx context.Context, dir string, i uint64) error {
+	return e.generateProof(ctx, dir, i, i)
+}
+
+// generateProofOrUntilPreimageRead executes cannon to generate a proof at the specified trace index,
+// or until a non-local preimage read is encountered if untilPreimageRead is true.
+// The proof is stored at the specified directory.
+func (e *Executor) generateProof(ctx context.Context, dir string, begin uint64, end uint64, extraCannonArgs ...string) error {
 	snapshotDir := filepath.Join(dir, snapsDir)
-	start, err := e.selectSnapshot(e.logger, snapshotDir, e.absolutePreState, i)
+	start, err := e.selectSnapshot(e.logger, snapshotDir, e.absolutePreState, begin)
 	if err != nil {
 		return fmt.Errorf("find starting snapshot: %w", err)
 	}
 	proofDir := filepath.Join(dir, proofsDir)
-	dataDir := filepath.Join(dir, preimagesDir)
+	dataDir := preimageDir(dir)
 	lastGeneratedState := filepath.Join(dir, finalState)
 	args := []string{
 		"run",
@@ -82,18 +93,20 @@ func (e *Executor) GenerateProof(ctx context.Context, dir string, i uint64) erro
 		"--output", lastGeneratedState,
 		"--meta", "",
 		"--info-at", "%" + strconv.FormatUint(uint64(e.infoFreq), 10),
-		"--proof-at", "=" + strconv.FormatUint(i, 10),
+		"--proof-at", "=" + strconv.FormatUint(end, 10),
 		"--proof-fmt", filepath.Join(proofDir, "%d.json.gz"),
 		"--snapshot-at", "%" + strconv.FormatUint(uint64(e.snapshotFreq), 10),
 		"--snapshot-fmt", filepath.Join(snapshotDir, "%d.json.gz"),
 	}
-	if i < math.MaxUint64 {
-		args = append(args, "--stop-at", "="+strconv.FormatUint(i+1, 10))
+	if end < math.MaxUint64 {
+		args = append(args, "--stop-at", "="+strconv.FormatUint(end+1, 10))
 	}
+	args = append(args, extraCannonArgs...)
 	args = append(args,
 		"--",
 		e.server, "--server",
 		"--l1", e.l1,
+		"--l1.beacon", e.l1Beacon,
 		"--l2", e.l2,
 		"--datadir", dataDir,
 		"--l1.head", e.inputs.L1Head.Hex(),
@@ -121,19 +134,23 @@ func (e *Executor) GenerateProof(ctx context.Context, dir string, i uint64) erro
 	if err := os.MkdirAll(proofDir, 0755); err != nil {
 		return fmt.Errorf("could not create proofs directory %v: %w", proofDir, err)
 	}
-	e.logger.Info("Generating trace", "proof", i, "cmd", e.cannon, "args", strings.Join(args, ", "))
+	e.logger.Info("Generating trace", "proof", end, "cmd", e.cannon, "args", strings.Join(args, ", "))
 	execStart := time.Now()
-	err = e.cmdExecutor(ctx, e.logger.New("proof", i), e.cannon, args...)
+	err = e.cmdExecutor(ctx, e.logger.New("proof", end), e.cannon, args...)
 	e.metrics.RecordCannonExecutionTime(time.Since(execStart).Seconds())
 	return err
 }
 
+func preimageDir(dir string) string {
+	return filepath.Join(dir, preimagesDir)
+}
+
 func runCmd(ctx context.Context, l log.Logger, binary string, args ...string) error {
 	cmd := exec.CommandContext(ctx, binary, args...)
-	stdOut := oplog.NewWriter(l, log.LvlInfo)
+	stdOut := oplog.NewWriter(l, log.LevelInfo)
 	defer stdOut.Close()
 	// Keep stdErr at info level because cannon uses stderr for progress messages
-	stdErr := oplog.NewWriter(l, log.LvlInfo)
+	stdErr := oplog.NewWriter(l, log.LevelInfo)
 	defer stdErr.Close()
 	cmd.Stdout = stdOut
 	cmd.Stderr = stdErr

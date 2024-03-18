@@ -1,0 +1,61 @@
+{
+  "finalSystemOwner": "0x608081689Fe46936fB2fBDF7552CbB1D80ad4822",
+
+  "l1StartingBlockTag": "safe",
+
+  "l1ChainID": 11155111,
+  "l2ChainID": 84532,
+  "l1BlockTime": 12,
+  "l2BlockTime": 2,
+
+  "maxSequencerDrift": 600,
+  "sequencerWindowSize": 3600,
+  "channelTimeout": 300,
+
+  "p2pSequencerAddress": "0xb830b99c95Ea32300039624Cb567d324D4b1D83C",
+  "batchInboxAddress": "0xFf00000000000000000000000000000000084532",
+  "batchSenderAddress": "0x6CDEbe940BC0F26850285cacA097C11c33103E47",
+
+  "l2OutputOracleSubmissionInterval": 120,
+  "l2OutputOracleStartingBlockNumber": 0,
+  "l2OutputOracleStartingTimestamp": 1695767904,
+
+  "l2OutputOracleProposer": "0x20044a0d104E9e788A0C984A2B7eAe615afD046b",
+  "l2OutputOracleChallenger": "0xDa3037Ff70Ac92CD867c683BD807e5A484857405",
+
+  "finalizationPeriodSeconds": 12,
+
+  "proxyAdminOwner": "0x8937037a0bB08658e5A178C182e60b12f14720ce",
+  "baseFeeVaultRecipient": "0xc7dE632EC7f11634318856a57c5897f6a0bda3b0",
+  "l1FeeVaultRecipient": "0x9082AB367EAFe8887a88A1B9970BE2719007Cf6b",
+  "sequencerFeeVaultRecipient": "0x4cFDfb25b34b5e5E3932dA5C4F080194137AF20F",
+
+  "baseFeeVaultMinimumWithdrawalAmount": "0x1bc16d674ec80000",
+  "l1FeeVaultMinimumWithdrawalAmount": "0x1bc16d674ec80000",
+  "sequencerFeeVaultMinimumWithdrawalAmount": "0x1bc16d674ec80000",
+  "baseFeeVaultWithdrawalNetwork": 0,
+  "l1FeeVaultWithdrawalNetwork": 0,
+  "sequencerFeeVaultWithdrawalNetwork": 0,
+
+  "gasPriceOracleOverhead": 2100,
+  "gasPriceOracleScalar": 1000000,
+
+  "governanceTokenSymbol": "NA",
+  "governanceTokenName": "NotApplicable",
+  "governanceTokenOwner": "0xEb5E931176714636563DC7BE4A10387D911BaE05",
+
+  "l2GenesisBlockGasLimit": "0x17D7840",
+  "l2GenesisBlockBaseFeePerGas": "0x3b9aca00",
+
+  "eip1559Denominator": 50,
+  "eip1559Elasticity": 10,
+
+  "l2GenesisRegolithTimeOffset": "0x0",
+
+  "finalSystemOwner": "0x608081689Fe46936fB2fBDF7552CbB1D80ad4822",
+  "superchainConfigGuardian": "0xA9FF930151130fd19DA1F03E5077AFB7C78F8503",
+
+  "systemConfigStartBlock": 0,
+  "requiredProtocolVersion": "0x0000000000000000000000000000000000000000000000000000000000000000",
+  "recommendedProtocolVersion": "0x0000000000000000000000000000000000000000000000000000000000000000"
+}

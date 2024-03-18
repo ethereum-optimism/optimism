@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { ERC721Bridge } from "../universal/ERC721Bridge.sol";
+import { ERC721Bridge } from "src/universal/ERC721Bridge.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-import { L2ERC721Bridge } from "../L2/L2ERC721Bridge.sol";
-import { ISemver } from "../universal/ISemver.sol";
-import { Predeploys } from "../libraries/Predeploys.sol";
-import { CrossDomainMessenger } from "../universal/CrossDomainMessenger.sol";
+import { L2ERC721Bridge } from "src/L2/L2ERC721Bridge.sol";
+import { ISemver } from "src/universal/ISemver.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
+import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
+import { StandardBridge } from "src/universal/StandardBridge.sol";
+import { Constants } from "src/libraries/Constants.sol";
+import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 
 /// @title L1ERC721Bridge
 /// @notice The L1 ERC721 bridge is a contract which works together with the L2 ERC721 bridge to
@@ -17,19 +20,32 @@ contract L1ERC721Bridge is ERC721Bridge, ISemver {
     ///         by ID was deposited for a given L2 token.
     mapping(address => mapping(address => mapping(uint256 => bool))) public deposits;
 
-    /// @notice Semantic version.
-    /// @custom:semver 1.3.0
-    string public constant version = "1.3.0";
+    /// @notice Address of the SuperchainConfig contract.
+    SuperchainConfig public superchainConfig;
 
-    /// @notice Constructs the contract.
-    constructor() ERC721Bridge(Predeploys.L2_ERC721_BRIDGE) {
-        initialize({ _messenger: CrossDomainMessenger(address(0)) });
+    /// @notice Semantic version.
+    /// @custom:semver 2.1.0
+    string public constant version = "2.1.0";
+
+    /// @notice Constructs the L1ERC721Bridge contract.
+    constructor() ERC721Bridge() {
+        initialize({ _messenger: CrossDomainMessenger(address(0)), _superchainConfig: SuperchainConfig(address(0)) });
     }
 
     /// @notice Initializes the contract.
-    /// @param _messenger   Address of the CrossDomainMessenger on this network.
-    function initialize(CrossDomainMessenger _messenger) public reinitializer(2) {
-        __ERC721Bridge_init({ _messenger: _messenger });
+    /// @param _messenger   Contract of the CrossDomainMessenger on this network.
+    /// @param _superchainConfig Contract of the SuperchainConfig contract on this network.
+    function initialize(CrossDomainMessenger _messenger, SuperchainConfig _superchainConfig) public initializer {
+        superchainConfig = _superchainConfig;
+        __ERC721Bridge_init({
+            _messenger: _messenger,
+            _otherBridge: StandardBridge(payable(Predeploys.L2_ERC721_BRIDGE))
+        });
+    }
+
+    /// @inheritdoc ERC721Bridge
+    function paused() public view override returns (bool) {
+        return superchainConfig.paused();
     }
 
     /// @notice Completes an ERC721 bridge from the other domain and sends the ERC721 token to the
@@ -53,6 +69,7 @@ contract L1ERC721Bridge is ERC721Bridge, ISemver {
         external
         onlyOtherBridge
     {
+        require(paused() == false, "L1ERC721Bridge: paused");
         require(_localToken != address(this), "L1ERC721Bridge: local token cannot be self");
 
         // Checks that the L1/L2 NFT pair has a token ID that is escrowed in the L1 Bridge.
@@ -67,7 +84,7 @@ contract L1ERC721Bridge is ERC721Bridge, ISemver {
 
         // When a withdrawal is finalized on L1, the L1 Bridge transfers the NFT to the
         // withdrawer.
-        IERC721(_localToken).safeTransferFrom(address(this), _to, _tokenId);
+        IERC721(_localToken).safeTransferFrom({ from: address(this), to: _to, tokenId: _tokenId });
 
         // slither-disable-next-line reentrancy-events
         emit ERC721BridgeFinalized(_localToken, _remoteToken, _from, _to, _tokenId, _extraData);
@@ -95,10 +112,10 @@ contract L1ERC721Bridge is ERC721Bridge, ISemver {
 
         // Lock token into bridge
         deposits[_localToken][_remoteToken][_tokenId] = true;
-        IERC721(_localToken).transferFrom(_from, address(this), _tokenId);
+        IERC721(_localToken).transferFrom({ from: _from, to: address(this), tokenId: _tokenId });
 
         // Send calldata into L2
-        messenger.sendMessage(OTHER_BRIDGE, message, _minGasLimit);
+        messenger.sendMessage({ _target: address(otherBridge), _message: message, _minGasLimit: _minGasLimit });
         emit ERC721BridgeInitiated(_localToken, _remoteToken, _from, _to, _tokenId, _extraData);
     }
 }

@@ -20,6 +20,9 @@ func TestBatching(t *testing.T) {
 
 	ethAccountsResponse2 := `{"jsonrpc": "2.0", "result": [], "id": 2}`
 
+	backendResTooLargeResponse1 := `{"error":{"code":-32020,"message":"backend response too large"},"id":1,"jsonrpc":"2.0"}`
+	backendResTooLargeResponse2 := `{"error":{"code":-32020,"message":"backend response too large"},"id":2,"jsonrpc":"2.0"}`
+
 	type mockResult struct {
 		method string
 		id     string
@@ -40,6 +43,7 @@ func TestBatching(t *testing.T) {
 		expectedRes          string
 		maxUpstreamBatchSize int
 		numExpectedForwards  int
+		maxResponseSizeBytes int64
 	}{
 		{
 			name:  "backend returns batches out of order",
@@ -128,11 +132,24 @@ func TestBatching(t *testing.T) {
 			maxUpstreamBatchSize: 2,
 			numExpectedForwards:  1,
 		},
+		{
+			name:  "large upstream response gets dropped",
+			mocks: []mockResult{chainIDMock1, chainIDMock2},
+			reqs: []*proxyd.RPCReq{
+				NewRPCReq("1", "eth_chainId", nil),
+				NewRPCReq("2", "eth_chainId", nil),
+			},
+			expectedRes:          asArray(backendResTooLargeResponse1, backendResTooLargeResponse2),
+			maxUpstreamBatchSize: 2,
+			numExpectedForwards:  1,
+			maxResponseSizeBytes: 1,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			config.Server.MaxUpstreamBatchSize = tt.maxUpstreamBatchSize
+			config.BackendOptions.MaxResponseSizeBytes = tt.maxResponseSizeBytes
 
 			handler := tt.handler
 			if handler == nil {

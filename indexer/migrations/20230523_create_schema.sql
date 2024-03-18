@@ -1,9 +1,13 @@
-
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'uint256') THEN
         CREATE DOMAIN UINT256 AS NUMERIC
-            CHECK (VALUE >= 0 AND VALUE < 2^256 and SCALE(VALUE) = 0);
+            CHECK (VALUE >= 0 AND VALUE < POWER(CAST(2 AS NUMERIC), CAST(256 AS NUMERIC)) AND SCALE(VALUE) = 0);
+    ELSE
+        -- To remain backwards compatible, drop the old constraint and re-add.
+        ALTER DOMAIN UINT256 DROP CONSTRAINT uint256_check;
+        ALTER DOMAIN UINT256 ADD
+            CHECK (VALUE >= 0 AND VALUE < POWER(CAST(2 AS NUMERIC), CAST(256 AS NUMERIC)) AND SCALE(VALUE) = 0);
     END IF;
 END $$;
 
@@ -52,7 +56,9 @@ CREATE TABLE IF NOT EXISTS l1_contract_events (
     timestamp        INTEGER NOT NULL CHECK (timestamp > 0),
 
     -- Raw Data
-    rlp_bytes VARCHAR NOT NULL
+    rlp_bytes VARCHAR NOT NULL,
+
+    UNIQUE(block_hash, log_index)
 );
 CREATE INDEX IF NOT EXISTS l1_contract_events_timestamp ON l1_contract_events(timestamp);
 CREATE INDEX IF NOT EXISTS l1_contract_events_block_hash ON l1_contract_events(block_hash);
@@ -70,7 +76,9 @@ CREATE TABLE IF NOT EXISTS l2_contract_events (
     timestamp        INTEGER NOT NULL CHECK (timestamp > 0),
 
     -- Raw Data
-    rlp_bytes VARCHAR NOT NULL
+    rlp_bytes VARCHAR NOT NULL,
+
+    UNIQUE(block_hash, log_index)
 );
 CREATE INDEX IF NOT EXISTS l2_contract_events_timestamp ON l2_contract_events(timestamp);
 CREATE INDEX IF NOT EXISTS l2_contract_events_block_hash ON l2_contract_events(block_hash);
@@ -87,10 +95,17 @@ CREATE TABLE IF NOT EXISTS l1_transaction_deposits (
     l2_transaction_hash     VARCHAR NOT NULL UNIQUE,
     initiated_l1_event_guid VARCHAR NOT NULL UNIQUE REFERENCES l1_contract_events(guid) ON DELETE CASCADE,
 
-    -- transaction data
+    -- transaction data. NOTE: `to_address` is the recipient of funds transferred in value field of the
+    -- L2 deposit transaction and not the amount minted on L1 from the source address. Hence the `amount`
+    -- column in this table does NOT indicate the amount transferred to the recipient but instead funds
+    -- bridged from L1 by the `from_address`.
     from_address VARCHAR NOT NULL,
     to_address   VARCHAR NOT NULL,
+
+    -- This refers to the amount MINTED on L2 (msg.value of the L1 transaction). Important distinction from
+    -- the `value` field of the deposit transaction which simply is the value transferred to specified recipient.
     amount       UINT256 NOT NULL,
+
     gas_limit    UINT256 NOT NULL,
     data         VARCHAR NOT NULL,
     timestamp    INTEGER NOT NULL CHECK (timestamp > 0)
@@ -104,9 +119,12 @@ CREATE TABLE IF NOT EXISTS l2_transaction_withdrawals (
     nonce                   UINT256 NOT NULL UNIQUE,
     initiated_l2_event_guid VARCHAR NOT NULL UNIQUE REFERENCES l2_contract_events(guid) ON DELETE CASCADE,
 
-    -- Multistep (bedrock) process of a withdrawal
-    proven_l1_event_guid    VARCHAR UNIQUE REFERENCES l1_contract_events(guid) ON DELETE CASCADE,
-    finalized_l1_event_guid VARCHAR UNIQUE REFERENCES l1_contract_events(guid) ON DELETE CASCADE,
+    -- Multistep (bedrock) process of a withdrawal. With permissionless-output proposals, `proven_l1_event_guid`
+    -- should be treated as the last known proven event. It may be the case (rare) that the proven state of this
+    -- withdrawal was invalidated via a fault proof. This case is considered "rare" a malicious outputs are
+    -- disincentivezed via the posted bond.
+    proven_l1_event_guid    VARCHAR UNIQUE REFERENCES l1_contract_events(guid) ON DELETE SET NULL ON UPDATE CASCADE,
+    finalized_l1_event_guid VARCHAR UNIQUE REFERENCES l1_contract_events(guid) ON DELETE SET NULL ON UPDATE CASCADE,
     succeeded               BOOLEAN,
 
     -- transaction data
@@ -119,6 +137,8 @@ CREATE TABLE IF NOT EXISTS l2_transaction_withdrawals (
 );
 CREATE INDEX IF NOT EXISTS l2_transaction_withdrawals_timestamp ON l2_transaction_withdrawals(timestamp);
 CREATE INDEX IF NOT EXISTS l2_transaction_withdrawals_initiated_l2_event_guid ON l2_transaction_withdrawals(initiated_l2_event_guid);
+CREATE INDEX IF NOT EXISTS l2_transaction_withdrawals_proven_l1_event_guid ON l2_transaction_withdrawals(proven_l1_event_guid);
+CREATE INDEX IF NOT EXISTS l2_transaction_withdrawals_finalized_l1_event_guid ON l2_transaction_withdrawals(finalized_l1_event_guid);
 CREATE INDEX IF NOT EXISTS l2_transaction_withdrawals_from_address ON l2_transaction_withdrawals(from_address);
 
 -- CrossDomainMessenger
@@ -128,7 +148,7 @@ CREATE TABLE IF NOT EXISTS l1_bridge_messages(
     transaction_source_hash VARCHAR NOT NULL UNIQUE REFERENCES l1_transaction_deposits(source_hash) ON DELETE CASCADE,
 
     sent_message_event_guid    VARCHAR NOT NULL UNIQUE REFERENCES l1_contract_events(guid) ON DELETE CASCADE,
-    relayed_message_event_guid VARCHAR UNIQUE REFERENCES l2_contract_events(guid) ON DELETE CASCADE,
+    relayed_message_event_guid VARCHAR UNIQUE REFERENCES l2_contract_events(guid) ON DELETE SET NULL ON UPDATE CASCADE,
 
     -- sent message
     from_address VARCHAR NOT NULL,
@@ -140,6 +160,8 @@ CREATE TABLE IF NOT EXISTS l1_bridge_messages(
 );
 CREATE INDEX IF NOT EXISTS l1_bridge_messages_timestamp ON l1_bridge_messages(timestamp);
 CREATE INDEX IF NOT EXISTS l1_bridge_messages_transaction_source_hash ON l1_bridge_messages(transaction_source_hash);
+CREATE INDEX IF NOT EXISTS l1_bridge_messages_transaction_sent_message_event_guid ON l1_bridge_messages(sent_message_event_guid);
+CREATE INDEX IF NOT EXISTS l1_bridge_messages_transaction_relayed_message_event_guid ON l1_bridge_messages(relayed_message_event_guid);
 CREATE INDEX IF NOT EXISTS l1_bridge_messages_from_address ON l1_bridge_messages(from_address);
 
 CREATE TABLE IF NOT EXISTS l2_bridge_messages(
@@ -148,7 +170,7 @@ CREATE TABLE IF NOT EXISTS l2_bridge_messages(
     transaction_withdrawal_hash VARCHAR NOT NULL UNIQUE REFERENCES l2_transaction_withdrawals(withdrawal_hash) ON DELETE CASCADE,
 
     sent_message_event_guid    VARCHAR NOT NULL UNIQUE REFERENCES l2_contract_events(guid) ON DELETE CASCADE,
-    relayed_message_event_guid VARCHAR UNIQUE REFERENCES l1_contract_events(guid) ON DELETE CASCADE,
+    relayed_message_event_guid VARCHAR UNIQUE REFERENCES l1_contract_events(guid) ON DELETE SET NULL ON UPDATE CASCADE,
 
     -- sent message
     from_address VARCHAR NOT NULL,
@@ -160,29 +182,27 @@ CREATE TABLE IF NOT EXISTS l2_bridge_messages(
 );
 CREATE INDEX IF NOT EXISTS l2_bridge_messages_timestamp ON l2_bridge_messages(timestamp);
 CREATE INDEX IF NOT EXISTS l2_bridge_messages_transaction_withdrawal_hash ON l2_bridge_messages(transaction_withdrawal_hash);
+CREATE INDEX IF NOT EXISTS l2_bridge_messages_transaction_sent_message_event_guid ON l2_bridge_messages(sent_message_event_guid);
+CREATE INDEX IF NOT EXISTS l2_bridge_messages_transaction_relayed_message_event_guid ON l2_bridge_messages(relayed_message_event_guid);
 CREATE INDEX IF NOT EXISTS l2_bridge_messages_from_address ON l2_bridge_messages(from_address);
 
+/**
+ * Since the CDM uses the latest versioned message hash when emitting the `RelayedMessage` event, we need
+ * to keep track of all of the future versions of message hashes such that legacy messages can be queried
+ * queried for when relayed on L1 
+ *
+ * As new the CDM is updated with new versions, we need to ensure that there's a better way to correlate message between
+ * chains (adding the message nonce to the RelayedMessage event) or continue to add columns to this table and migrate
+ * unrelayed messages such that finalization logic can handle switching between the varying versioned message hashes
+ */
+CREATE TABLE IF NOT EXISTS l2_bridge_message_versioned_message_hashes(
+    message_hash     VARCHAR PRIMARY KEY NOT NULL UNIQUE REFERENCES l2_bridge_messages(message_hash),
+
+    -- only filled in if `message_hash` is for a v0 message
+    v1_message_hash  VARCHAR UNIQUE
+);
+
 -- StandardBridge
-CREATE TABLE IF NOT EXISTS l1_bridged_tokens (
-    address        VARCHAR PRIMARY KEY,
-    bridge_address VARCHAR NOT NULL,
-
-    name     VARCHAR NOT NULL,
-    symbol   VARCHAR NOT NULL,
-    decimals INTEGER NOT NULL CHECK (decimals >= 0 AND decimals <= 18)
-);
-CREATE TABLE IF NOT EXISTS l2_bridged_tokens (
-    address        VARCHAR PRIMARY KEY,
-    bridge_address VARCHAR NOT NULL,
-
-    -- L1-L2 relationship is 1 to many so this is not necessarily unique
-    l1_token_address VARCHAR REFERENCES l1_bridged_tokens(address) ON DELETE CASCADE,
-
-    name     VARCHAR NOT NULL,
-    symbol   VARCHAR NOT NULL,
-    decimals INTEGER NOT NULL CHECK (decimals >= 0 AND decimals <= 18)
-);
-
 CREATE TABLE IF NOT EXISTS l1_bridge_deposits (
     transaction_source_hash   VARCHAR PRIMARY KEY REFERENCES l1_transaction_deposits(source_hash) ON DELETE CASCADE,
     cross_domain_message_hash VARCHAR NOT NULL UNIQUE REFERENCES l1_bridge_messages(message_hash) ON DELETE CASCADE,
@@ -190,8 +210,8 @@ CREATE TABLE IF NOT EXISTS l1_bridge_deposits (
     -- Deposit information
     from_address         VARCHAR NOT NULL,
     to_address           VARCHAR NOT NULL,
-    local_token_address  VARCHAR NOT NULL, -- REFERENCES l1_bridged_tokens(address), uncomment me in future pr
-    remote_token_address VARCHAR NOT NULL, -- REFERENCES l2_bridged_tokens(address), uncomment me in future pr
+    local_token_address  VARCHAR NOT NULL,
+    remote_token_address VARCHAR NOT NULL,
     amount               UINT256 NOT NULL,
     data                 VARCHAR NOT NULL,
     timestamp            INTEGER NOT NULL CHECK (timestamp > 0)
@@ -207,8 +227,8 @@ CREATE TABLE IF NOT EXISTS l2_bridge_withdrawals (
     -- Withdrawal information
     from_address         VARCHAR NOT NULL,
     to_address           VARCHAR NOT NULL,
-    local_token_address  VARCHAR NOT NULL, -- REFERENCES l2_bridged_tokens(address), uncomment me in future pr
-    remote_token_address VARCHAR NOT NULL, -- REFERENCES l1_bridged_tokens(address), uncomment me in future pr
+    local_token_address  VARCHAR NOT NULL,
+    remote_token_address VARCHAR NOT NULL,
     amount               UINT256 NOT NULL,
     data                 VARCHAR NOT NULL,
     timestamp            INTEGER NOT NULL CHECK (timestamp > 0)

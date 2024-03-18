@@ -4,10 +4,13 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/indexer/bigint"
 	"github.com/ethereum-optimism/optimism/indexer/config"
 	"github.com/ethereum-optimism/optimism/indexer/database"
+	"github.com/ethereum-optimism/optimism/indexer/processors/bridge/ovm1"
 	"github.com/ethereum-optimism/optimism/indexer/processors/contracts"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -17,7 +20,7 @@ import (
 //  1. OptimismPortal
 //  2. L1CrossDomainMessenger
 //  3. L1StandardBridge
-func L1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, l1Contracts config.L1Contracts, fromHeight, toHeight *big.Int) error {
+func L1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metrics L1Metricer, l1Contracts config.L1Contracts, fromHeight, toHeight *big.Int) error {
 	// (1) OptimismPortal
 	optimismPortalTxDeposits, err := contracts.OptimismPortalTransactionDepositEvents(l1Contracts.OptimismPortalProxy, db, fromHeight, toHeight)
 	if err != nil {
@@ -27,11 +30,14 @@ func L1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, l1Contracts
 		log.Info("detected transaction deposits", "size", len(optimismPortalTxDeposits))
 	}
 
+	mintedGWEI := bigint.Zero
 	portalDeposits := make(map[logKey]*contracts.OptimismPortalTransactionDepositEvent, len(optimismPortalTxDeposits))
 	transactionDeposits := make([]database.L1TransactionDeposit, len(optimismPortalTxDeposits))
 	for i := range optimismPortalTxDeposits {
 		depositTx := optimismPortalTxDeposits[i]
 		portalDeposits[logKey{depositTx.Event.BlockHash, depositTx.Event.LogIndex}] = &depositTx
+		mintedGWEI = new(big.Int).Add(mintedGWEI, depositTx.Tx.Amount)
+
 		transactionDeposits[i] = database.L1TransactionDeposit{
 			SourceHash:           depositTx.DepositTx.SourceHash,
 			L2TransactionHash:    types.NewTx(depositTx.DepositTx).Hash(),
@@ -40,10 +46,15 @@ func L1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, l1Contracts
 			Tx:                   depositTx.Tx,
 		}
 	}
+
 	if len(transactionDeposits) > 0 {
 		if err := db.BridgeTransactions.StoreL1TransactionDeposits(transactionDeposits); err != nil {
 			return err
 		}
+
+		// Convert to from wei to eth
+		mintedETH, _ := bigint.WeiToETH(mintedGWEI).Float64()
+		metrics.RecordL1TransactionDeposits(len(transactionDeposits), mintedETH)
 	}
 
 	// (2) L1CrossDomainMessenger
@@ -56,7 +67,7 @@ func L1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, l1Contracts
 	}
 
 	sentMessages := make(map[logKey]*contracts.CrossDomainMessengerSentMessageEvent, len(crossDomainSentMessages))
-	l1BridgeMessages := make([]database.L1BridgeMessage, len(crossDomainSentMessages))
+	bridgeMessages := make([]database.L1BridgeMessage, len(crossDomainSentMessages))
 	for i := range crossDomainSentMessages {
 		sentMessage := crossDomainSentMessages[i]
 		sentMessages[logKey{sentMessage.Event.BlockHash, sentMessage.Event.LogIndex}] = &sentMessage
@@ -64,16 +75,21 @@ func L1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, l1Contracts
 		// extract the deposit hash from the previous TransactionDepositedEvent
 		portalDeposit, ok := portalDeposits[logKey{sentMessage.Event.BlockHash, sentMessage.Event.LogIndex - 1}]
 		if !ok {
-			log.Error("expected TransactionDeposit preceding SentMessage event", "tx_hash", sentMessage.Event.TransactionHash.String())
 			return fmt.Errorf("expected TransactionDeposit preceding SentMessage event. tx_hash = %s", sentMessage.Event.TransactionHash.String())
+		} else if portalDeposit.Event.TransactionHash != sentMessage.Event.TransactionHash {
+			return fmt.Errorf("correlated events tx hash mismatch. deposit_tx_hash = %s, message_tx_hash = %s", portalDeposit.Event.TransactionHash, sentMessage.Event.TransactionHash)
 		}
 
-		l1BridgeMessages[i] = database.L1BridgeMessage{TransactionSourceHash: portalDeposit.DepositTx.SourceHash, BridgeMessage: sentMessage.BridgeMessage}
+		bridgeMessages[i] = database.L1BridgeMessage{
+			TransactionSourceHash: portalDeposit.DepositTx.SourceHash,
+			BridgeMessage:         sentMessage.BridgeMessage,
+		}
 	}
-	if len(l1BridgeMessages) > 0 {
-		if err := db.BridgeMessages.StoreL1BridgeMessages(l1BridgeMessages); err != nil {
+	if len(bridgeMessages) > 0 {
+		if err := db.BridgeMessages.StoreL1BridgeMessages(bridgeMessages); err != nil {
 			return err
 		}
+		metrics.RecordL1CrossDomainSentMessages(len(bridgeMessages))
 	}
 
 	// (3) L1StandardBridge
@@ -85,43 +101,52 @@ func L1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, l1Contracts
 		log.Info("detected bridge deposits", "size", len(initiatedBridges))
 	}
 
-	l1BridgeDeposits := make([]database.L1BridgeDeposit, len(initiatedBridges))
+	bridgedTokens := make(map[common.Address]int)
+	bridgeDeposits := make([]database.L1BridgeDeposit, len(initiatedBridges))
 	for i := range initiatedBridges {
 		initiatedBridge := initiatedBridges[i]
 
 		// extract the cross domain message hash & deposit source hash from the following events
 		portalDeposit, ok := portalDeposits[logKey{initiatedBridge.Event.BlockHash, initiatedBridge.Event.LogIndex + 1}]
 		if !ok {
-			log.Error("expected TransactionDeposit following BridgeInitiated event", "tx_hash", initiatedBridge.Event.TransactionHash.String())
-			return fmt.Errorf("expected TransactionDeposit following BridgeInitiated event. tx_hash = %s", initiatedBridge.Event.TransactionHash.String())
-		}
-		sentMessage, ok := sentMessages[logKey{initiatedBridge.Event.BlockHash, initiatedBridge.Event.LogIndex + 2}]
-		if !ok {
-			log.Error("expected SentMessage following TransactionDeposit event", "tx_hash", initiatedBridge.Event.TransactionHash.String())
-			return fmt.Errorf("expected SentMessage following TransactionDeposit event. tx_hash = %s", initiatedBridge.Event.TransactionHash.String())
+			return fmt.Errorf("expected TransactionDeposit following BridgeInitiated event. tx_hash = %s", initiatedBridge.Event.TransactionHash)
+		} else if portalDeposit.Event.TransactionHash != initiatedBridge.Event.TransactionHash {
+			return fmt.Errorf("correlated events tx hash mismatch, bridge_tx_hash = %s, deposit_tx_hash = %s", initiatedBridge.Event.TransactionHash, portalDeposit.Event.TransactionHash)
 		}
 
+		sentMessage, ok := sentMessages[logKey{initiatedBridge.Event.BlockHash, initiatedBridge.Event.LogIndex + 2}]
+		if !ok {
+			return fmt.Errorf("expected SentMessage following BridgeInitiated event. tx_hash = %s", initiatedBridge.Event.TransactionHash)
+		} else if sentMessage.Event.TransactionHash != initiatedBridge.Event.TransactionHash {
+			return fmt.Errorf("correlated events tx hash mismatch. bridge_tx_hash = %s, message_tx_hash = %s", initiatedBridge.Event.TransactionHash, sentMessage.Event.TransactionHash)
+		}
+
+		bridgedTokens[initiatedBridge.BridgeTransfer.TokenPair.LocalTokenAddress]++
+
 		initiatedBridge.BridgeTransfer.CrossDomainMessageHash = &sentMessage.BridgeMessage.MessageHash
-		l1BridgeDeposits[i] = database.L1BridgeDeposit{
+		bridgeDeposits[i] = database.L1BridgeDeposit{
 			TransactionSourceHash: portalDeposit.DepositTx.SourceHash,
 			BridgeTransfer:        initiatedBridge.BridgeTransfer,
 		}
 	}
-	if len(l1BridgeDeposits) > 0 {
-		if err := db.BridgeTransfers.StoreL1BridgeDeposits(l1BridgeDeposits); err != nil {
+	if len(bridgeDeposits) > 0 {
+		if err := db.BridgeTransfers.StoreL1BridgeDeposits(bridgeDeposits); err != nil {
 			return err
+		}
+		for tokenAddr, size := range bridgedTokens {
+			metrics.RecordL1InitiatedBridgeTransfers(tokenAddr, size)
 		}
 	}
 
 	return nil
 }
 
-// L1ProcessFinalizedBridgeEvent will query the database for all the finalization markers for all initiated
+// L1ProcessFinalizedBridgeEvents will query the database for all the finalization markers for all initiated
 // bridge events. This covers every part of the multi-layered stack:
 //  1. OptimismPortal (Bedrock prove & finalize steps)
 //  2. L1CrossDomainMessenger (relayMessage marker)
 //  3. L1StandardBridge (no-op, since this is simply a wrapper over the L1CrossDomainMessenger)
-func L1ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, l1Contracts config.L1Contracts, fromHeight, toHeight *big.Int) error {
+func L1ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, metrics L1Metricer, l1Contracts config.L1Contracts, fromHeight, toHeight *big.Int) error {
 	// (1) OptimismPortal (proven withdrawals)
 	provenWithdrawals, err := contracts.OptimismPortalWithdrawalProvenEvents(l1Contracts.OptimismPortalProxy, db, fromHeight, toHeight)
 	if err != nil {
@@ -131,19 +156,33 @@ func L1ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, l1Contracts
 		log.Info("detected proven withdrawals", "size", len(provenWithdrawals))
 	}
 
+	skippedOVM1ProvenWithdrawals := 0
 	for i := range provenWithdrawals {
-		proven := provenWithdrawals[i]
-		withdrawal, err := db.BridgeTransactions.L2TransactionWithdrawal(proven.WithdrawalHash)
+		provenWithdrawal := provenWithdrawals[i]
+		withdrawal, err := db.BridgeTransactions.L2TransactionWithdrawal(provenWithdrawal.WithdrawalHash)
 		if err != nil {
 			return err
 		} else if withdrawal == nil {
-			log.Error("missing indexed withdrawal on proven event!", "tx_hash", proven.Event.TransactionHash.String())
-			return fmt.Errorf("missing indexed withdrawal! tx_hash = %s", proven.Event.TransactionHash.String())
+			if _, ok := ovm1.PortalWithdrawalTransactions[provenWithdrawal.WithdrawalHash]; ok {
+				skippedOVM1ProvenWithdrawals++
+				continue
+			}
+			return fmt.Errorf("missing indexed withdrawal! tx_hash = %s", provenWithdrawal.Event.TransactionHash)
 		}
 
-		if err := db.BridgeTransactions.MarkL2TransactionWithdrawalProvenEvent(proven.WithdrawalHash, provenWithdrawals[i].Event.GUID); err != nil {
-			log.Error("failed to mark withdrawal as proven", "err", err, "tx_hash", proven.Event.TransactionHash.String())
-			return err
+		if withdrawal.ProvenL1EventGUID != nil && withdrawal.ProvenL1EventGUID.ID() != provenWithdrawals[i].Event.GUID.ID() {
+			log.Info("detected re-proven withdrawal", "tx_hash", provenWithdrawal.Event.TransactionHash.String())
+		}
+
+		if err := db.BridgeTransactions.MarkL2TransactionWithdrawalProvenEvent(provenWithdrawal.WithdrawalHash, provenWithdrawals[i].Event.GUID); err != nil {
+			return fmt.Errorf("failed to mark withdrawal as proven. tx_hash = %s: %w", provenWithdrawal.Event.TransactionHash, err)
+		}
+	}
+	if len(provenWithdrawals) > 0 {
+		metrics.RecordL1ProvenWithdrawals(len(provenWithdrawals))
+		if skippedOVM1ProvenWithdrawals > 0 {
+			metrics.RecordL1SkippedOVM1ProvenWithdrawals(skippedOVM1ProvenWithdrawals)
+			log.Info("skipped OVM 1.0 proven withdrawals", "size", skippedOVM1ProvenWithdrawals)
 		}
 	}
 
@@ -156,19 +195,29 @@ func L1ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, l1Contracts
 		log.Info("detected finalized withdrawals", "size", len(finalizedWithdrawals))
 	}
 
+	skippedOVM1FinalizedWithdrawals := 0
 	for i := range finalizedWithdrawals {
-		finalized := finalizedWithdrawals[i]
-		withdrawal, err := db.BridgeTransactions.L2TransactionWithdrawal(finalized.WithdrawalHash)
+		finalizedWithdrawal := finalizedWithdrawals[i]
+		withdrawal, err := db.BridgeTransactions.L2TransactionWithdrawal(finalizedWithdrawal.WithdrawalHash)
 		if err != nil {
 			return err
 		} else if withdrawal == nil {
-			log.Error("missing indexed withdrawal on finalization event!", "tx_hash", finalized.Event.TransactionHash.String())
-			return fmt.Errorf("missing indexed withdrawal on finalization! tx_hash: %s", finalized.Event.TransactionHash.String())
+			if _, ok := ovm1.PortalWithdrawalTransactions[finalizedWithdrawal.WithdrawalHash]; ok {
+				skippedOVM1FinalizedWithdrawals++
+				continue
+			}
+			return fmt.Errorf("missing indexed withdrawal on finalization! tx_hash = %s", finalizedWithdrawal.Event.TransactionHash.String())
 		}
 
-		if err = db.BridgeTransactions.MarkL2TransactionWithdrawalFinalizedEvent(finalized.WithdrawalHash, finalized.Event.GUID, finalized.Success); err != nil {
-			log.Error("failed to mark withdrawal as finalized", "err", err, "tx_hash", finalized.Event.TransactionHash.String())
-			return err
+		if err = db.BridgeTransactions.MarkL2TransactionWithdrawalFinalizedEvent(finalizedWithdrawal.WithdrawalHash, finalizedWithdrawal.Event.GUID, finalizedWithdrawal.Success); err != nil {
+			return fmt.Errorf("failed to mark withdrawal as finalized. tx_hash = %s: %w", finalizedWithdrawal.Event.TransactionHash, err)
+		}
+	}
+	if len(finalizedWithdrawals) > 0 {
+		metrics.RecordL1FinalizedWithdrawals(len(finalizedWithdrawals))
+		if skippedOVM1ProvenWithdrawals > 0 {
+			metrics.RecordL1SkippedOVM1FinalizedWithdrawals(skippedOVM1FinalizedWithdrawals)
+			log.Info("skipped OVM 1.0 finalized withdrawals", "size", skippedOVM1FinalizedWithdrawals)
 		}
 	}
 
@@ -181,51 +230,50 @@ func L1ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, l1Contracts
 		log.Info("detected relayed messages", "size", len(crossDomainRelayedMessages))
 	}
 
-	relayedMessages := make(map[logKey]*contracts.CrossDomainMessengerRelayedMessageEvent, len(crossDomainRelayedMessages))
+	skippedOVM1Messages := 0
 	for i := range crossDomainRelayedMessages {
-		relayed := crossDomainRelayedMessages[i]
-		relayedMessages[logKey{BlockHash: relayed.Event.BlockHash, LogIndex: relayed.Event.LogIndex}] = &relayed
-		message, err := db.BridgeMessages.L2BridgeMessage(relayed.MessageHash)
+		relayedMessage := crossDomainRelayedMessages[i]
+		message, err := db.BridgeMessages.L2BridgeMessage(relayedMessage.MessageHash)
 		if err != nil {
 			return err
 		} else if message == nil {
-			log.Error("missing indexed L2CrossDomainMessenger message", "tx_hash", relayed.Event.TransactionHash.String())
-			return fmt.Errorf("missing indexed L2CrossDomainMessager message. tx_hash %s", relayed.Event.TransactionHash.String())
+			if _, ok := ovm1.L1RelayedMessages[relayedMessage.MessageHash]; ok {
+				skippedOVM1Messages++
+				continue
+			}
+			return fmt.Errorf("missing indexed L2CrossDomainMessager message! tx_hash = %s", relayedMessage.Event.TransactionHash.String())
 		}
 
-		if err := db.BridgeMessages.MarkRelayedL2BridgeMessage(relayed.MessageHash, relayed.Event.GUID); err != nil {
-			log.Error("failed to relay cross domain message", "err", err, "tx_hash", relayed.Event.TransactionHash.String())
-			return err
+		if err := db.BridgeMessages.MarkRelayedL2BridgeMessage(relayedMessage.MessageHash, relayedMessage.Event.GUID); err != nil {
+			return fmt.Errorf("failed to relay cross domain message. tx_hash = %s: %w", relayedMessage.Event.TransactionHash, err)
+		}
+	}
+	if len(crossDomainRelayedMessages) > 0 {
+		metrics.RecordL1CrossDomainRelayedMessages(len(crossDomainRelayedMessages))
+		if skippedOVM1Messages > 0 { // Logged as a warning just for visibility
+			metrics.RecordL1SkippedOVM1CrossDomainRelayedMessages(skippedOVM1Messages)
+			log.Info("skipped OVM 1.0 relayed L2CrossDomainMessenger withdrawals", "size", skippedOVM1Messages)
 		}
 	}
 
 	// (4) L1StandardBridge
+	// - Nothing actionable on the database. Since the StandardBridge is layered ontop of the
+	// CrossDomainMessenger, there's no need for any sanity or invariant checks as the previous step
+	// ensures a relayed message (finalized bridge) can be linked with a sent message (initiated bridge).
 	finalizedBridges, err := contracts.StandardBridgeFinalizedEvents("l1", l1Contracts.L1StandardBridgeProxy, db, fromHeight, toHeight)
 	if err != nil {
 		return err
 	}
+
+	finalizedTokens := make(map[common.Address]int)
+	for i := range finalizedBridges {
+		finalizedBridge := finalizedBridges[i]
+		finalizedTokens[finalizedBridge.BridgeTransfer.TokenPair.LocalTokenAddress]++
+	}
 	if len(finalizedBridges) > 0 {
 		log.Info("detected finalized bridge withdrawals", "size", len(finalizedBridges))
-	}
-
-	for i := range finalizedBridges {
-		// Nothing actionable on the database. However, we can treat the relayed message
-		// as an invariant by ensuring we can query for a deposit by the same hash
-		finalizedBridge := finalizedBridges[i]
-		relayedMessage, ok := relayedMessages[logKey{finalizedBridge.Event.BlockHash, finalizedBridge.Event.LogIndex + 1}]
-		if !ok {
-			log.Error("expected RelayedMessage following BridgeFinalized event", "tx_hash", finalizedBridge.Event.TransactionHash.String())
-			return fmt.Errorf("expected RelayedMessage following BridgeFinalized event. tx_hash = %s", finalizedBridge.Event.TransactionHash.String())
-		}
-
-		// Since the message hash is computed from the relayed message, this ensures the deposit fields must match. For good measure,
-		// we may choose to make sure `withdrawal.BridgeTransfer` matches with the finalized bridge
-		withdrawal, err := db.BridgeTransfers.L2BridgeWithdrawalWithFilter(database.BridgeTransfer{CrossDomainMessageHash: &relayedMessage.MessageHash})
-		if err != nil {
-			return err
-		} else if withdrawal == nil {
-			log.Error("missing L2StandardBridge withdrawal on L1 finalization", "tx_hash", finalizedBridge.Event.TransactionHash.String())
-			return fmt.Errorf("missing L2StandardBridge withdrawal on L1 finalization. tx_hash: %s", finalizedBridge.Event.TransactionHash.String())
+		for tokenAddr, size := range finalizedTokens {
+			metrics.RecordL1FinalizedBridgeTransfers(tokenAddr, size)
 		}
 	}
 

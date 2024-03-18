@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import { ILegacyMintableERC20 } from "../universal/OptimismMintableERC20.sol";
+import { ILegacyMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
 
 /// @title LegacyMintableERC20
 /// @notice The legacy implementation of the OptimismMintableERC20. This

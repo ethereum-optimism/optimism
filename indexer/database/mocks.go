@@ -2,6 +2,7 @@ package database
 
 import (
 	"github.com/ethereum/go-ethereum/common"
+	"gorm.io/gorm"
 
 	"github.com/stretchr/testify/mock"
 )
@@ -21,6 +22,11 @@ func (m *MockBlocksView) L1BlockHeader(common.Hash) (*L1BlockHeader, error) {
 }
 
 func (m *MockBlocksView) L1BlockHeaderWithFilter(BlockHeader) (*L1BlockHeader, error) {
+	args := m.Called()
+	return args.Get(0).(*L1BlockHeader), args.Error(1)
+}
+
+func (m *MockBlocksView) L1BlockHeaderWithScope(func(*gorm.DB) *gorm.DB) (*L1BlockHeader, error) {
 	args := m.Called()
 	return args.Get(0).(*L1BlockHeader), args.Error(1)
 }
@@ -46,14 +52,14 @@ func (m *MockBlocksView) L2BlockHeaderWithFilter(BlockHeader) (*L2BlockHeader, e
 	return args.Get(0).(*L2BlockHeader), args.Error(1)
 }
 
+func (m *MockBlocksView) L2BlockHeaderWithScope(func(*gorm.DB) *gorm.DB) (*L2BlockHeader, error) {
+	args := m.Called()
+	return args.Get(0).(*L2BlockHeader), args.Error(2)
+}
+
 func (m *MockBlocksView) L2LatestBlockHeader() (*L2BlockHeader, error) {
 	args := m.Called()
 	return args.Get(0).(*L2BlockHeader), args.Error(1)
-}
-
-func (m *MockBlocksView) LatestEpoch() (*Epoch, error) {
-	args := m.Called()
-	return args.Get(0).(*Epoch), args.Error(1)
 }
 
 type MockBlocksDB struct {
@@ -67,6 +73,11 @@ func (m *MockBlocksDB) StoreL1BlockHeaders(headers []L1BlockHeader) error {
 
 func (m *MockBlocksDB) StoreL2BlockHeaders(headers []L2BlockHeader) error {
 	args := m.Called(headers)
+	return args.Error(1)
+}
+
+func (m *MockBlocksDB) DeleteReorgedState(timestamp uint64) error {
+	args := m.Called(timestamp)
 	return args.Error(1)
 }
 

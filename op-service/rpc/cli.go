@@ -9,8 +9,9 @@ import (
 )
 
 const (
-	ListenAddrFlagName = "rpc.addr"
-	PortFlagName       = "rpc.port"
+	ListenAddrFlagName  = "rpc.addr"
+	PortFlagName        = "rpc.port"
+	EnableAdminFlagName = "rpc.enable-admin"
 )
 
 func CLIFlags(envPrefix string) []cli.Flag {
@@ -27,12 +28,26 @@ func CLIFlags(envPrefix string) []cli.Flag {
 			Value:   8545,
 			EnvVars: opservice.PrefixEnvVar(envPrefix, "RPC_PORT"),
 		},
+		&cli.BoolFlag{
+			Name:    EnableAdminFlagName,
+			Usage:   "Enable the admin API",
+			EnvVars: opservice.PrefixEnvVar(envPrefix, "RPC_ENABLE_ADMIN"),
+		},
 	}
 }
 
 type CLIConfig struct {
-	ListenAddr string
-	ListenPort int
+	ListenAddr  string
+	ListenPort  int
+	EnableAdmin bool
+}
+
+func DefaultCLIConfig() CLIConfig {
+	return CLIConfig{
+		ListenAddr:  "0.0.0.0",
+		ListenPort:  8545,
+		EnableAdmin: false,
+	}
 }
 
 func (c CLIConfig) Check() error {
@@ -45,7 +60,8 @@ func (c CLIConfig) Check() error {
 
 func ReadCLIConfig(ctx *cli.Context) CLIConfig {
 	return CLIConfig{
-		ListenAddr: ctx.String(ListenAddrFlagName),
-		ListenPort: ctx.Int(PortFlagName),
+		ListenAddr:  ctx.String(ListenAddrFlagName),
+		ListenPort:  ctx.Int(PortFlagName),
+		EnableAdmin: ctx.Bool(EnableAdminFlagName),
 	}
 }

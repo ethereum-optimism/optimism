@@ -1,5 +1,4 @@
 packages:
   - 'packages/*'
   - 'endpoint-monitor'
-  - 'op-exporter'
   - 'indexer/api-ts'

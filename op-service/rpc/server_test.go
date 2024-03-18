@@ -3,8 +3,9 @@ package rpc
 import (
 	"fmt"
 	"io"
-	"math/rand"
+	"net"
 	"net/http"
+	"strconv"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/rpc"
@@ -21,7 +22,7 @@ func TestBaseServer(t *testing.T) {
 	appVersion := "test"
 	server := NewServer(
 		"127.0.0.1",
-		10000+rand.Intn(22768),
+		0,
 		appVersion,
 		WithAPIs([]rpc.API{
 			{
@@ -57,5 +58,14 @@ func TestBaseServer(t *testing.T) {
 		var res int
 		require.NoError(t, rpcClient.Call(&res, "test_frobnicate", 2))
 		require.Equal(t, 4, res)
+	})
+
+	t.Run("supports 0 port", func(t *testing.T) {
+		endpoint := server.Endpoint()
+		_, portStr, err := net.SplitHostPort(endpoint)
+		require.NoError(t, err)
+		port, err := strconv.Atoi(portStr)
+		require.NoError(t, err)
+		require.Greater(t, port, 0)
 	})
 }

@@ -1,21 +1,22 @@
 package routes
 
 import (
-	"github.com/ethereum-optimism/optimism/indexer/database"
+	"github.com/ethereum-optimism/optimism/indexer/api/service"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/go-chi/chi/v5"
 )
 
 type Routes struct {
-	Logger              log.Logger
-	BridgeTransfersView database.BridgeTransfersView
-	Router              *chi.Mux
+	logger log.Logger
+	router *chi.Mux
+	svc    service.Service
 }
 
-func NewRoutes(logger log.Logger, bv database.BridgeTransfersView, r *chi.Mux) Routes {
+// NewRoutes ... Construct a new route handler instance
+func NewRoutes(l log.Logger, r *chi.Mux, svc service.Service) Routes {
 	return Routes{
-		Logger:              logger,
-		BridgeTransfersView: bv,
-		Router:              r,
+		logger: l,
+		router: r,
+		svc:    svc,
 	}
 }

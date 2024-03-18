@@ -11,25 +11,33 @@ import (
 	"testing"
 	"time"
 
-	op_challenger "github.com/ethereum-optimism/optimism/op-challenger"
+	"github.com/ethereum-optimism/optimism/op-service/metrics"
+	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/log"
+
+	challenger "github.com/ethereum-optimism/optimism/op-challenger"
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/testlog"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/stretchr/testify/require"
+	"github.com/ethereum-optimism/optimism/op-service/cliapp"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
+
+type EndpointProvider interface {
+	NodeEndpoint(name string) string
+	L1BeaconEndpoint() string
+}
 
 type Helper struct {
 	log     log.Logger
 	t       *testing.T
 	require *require.Assertions
 	dir     string
-	cancel  func()
-	errors  chan error
+	chl     cliapp.Lifecycle
 }
 
 type Option func(config2 *config.Config)
@@ -42,9 +50,6 @@ func WithFactoryAddress(addr common.Address) Option {
 
 func WithGameAddress(addr common.Address) Option {
 	return func(c *config.Config) {
-		if c.GameAllowlist == nil {
-			c.GameAllowlist = make([]common.Address, 0)
-		}
 		c.GameAllowlist = append(c.GameAllowlist, addr)
 	}
 }
@@ -55,83 +60,115 @@ func WithPrivKey(key *ecdsa.PrivateKey) Option {
 	}
 }
 
-func WithAgreeProposedOutput(agree bool) Option {
-	return func(c *config.Config) {
-		c.AgreeWithProposedOutput = agree
-	}
-}
-
-func WithAlphabet(alphabet string) Option {
-	return func(c *config.Config) {
-		c.TraceType = config.TraceTypeAlphabet
-		c.AlphabetTrace = alphabet
-	}
-}
-
 func WithPollInterval(pollInterval time.Duration) Option {
 	return func(c *config.Config) {
 		c.PollInterval = pollInterval
 	}
 }
 
-func WithCannon(
+// findMonorepoRoot finds the relative path to the monorepo root
+// Different tests might be nested in subdirectories of the op-e2e dir.
+func findMonorepoRoot(t *testing.T) string {
+	path := "./"
+	// Only search up 5 directories
+	// Avoids infinite recursion if the root isn't found for some reason
+	for i := 0; i < 5; i++ {
+		_, err := os.Stat(path + "op-e2e")
+		if errors.Is(err, os.ErrNotExist) {
+			path = path + "../"
+			continue
+		}
+		require.NoErrorf(t, err, "Failed to stat %v even though it existed", path)
+		return path
+	}
+	t.Fatalf("Could not find monorepo root, trying up to %v", path)
+	return ""
+}
+
+func applyCannonConfig(
+	c *config.Config,
 	t *testing.T,
 	rollupCfg *rollup.Config,
 	l2Genesis *core.Genesis,
 	l2Endpoint string,
+) {
+	require := require.New(t)
+	c.CannonL2 = l2Endpoint
+	root := findMonorepoRoot(t)
+	c.CannonBin = root + "cannon/bin/cannon"
+	c.CannonServer = root + "op-program/bin/op-program"
+	c.CannonAbsolutePreState = root + "op-program/bin/prestate.json"
+	c.CannonSnapshotFreq = 10_000_000
+
+	genesisBytes, err := json.Marshal(l2Genesis)
+	require.NoError(err, "marshall l2 genesis config")
+	genesisFile := filepath.Join(c.Datadir, "l2-genesis.json")
+	require.NoError(os.WriteFile(genesisFile, genesisBytes, 0o644))
+	c.CannonL2GenesisPath = genesisFile
+
+	rollupBytes, err := json.Marshal(rollupCfg)
+	require.NoError(err, "marshall rollup config")
+	rollupFile := filepath.Join(c.Datadir, "rollup.json")
+	require.NoError(os.WriteFile(rollupFile, rollupBytes, 0o644))
+	c.CannonRollupConfigPath = rollupFile
+}
+
+func WithCannon(
+	t *testing.T,
+	rollupCfg *rollup.Config,
+	l2Genesis *core.Genesis,
+	rollupEndpoint string,
+	l2Endpoint string,
 ) Option {
 	return func(c *config.Config) {
-		require := require.New(t)
-		c.TraceType = config.TraceTypeCannon
-		c.CannonL2 = l2Endpoint
-		c.CannonBin = "../cannon/bin/cannon"
-		c.CannonServer = "../op-program/bin/op-program"
-		c.CannonAbsolutePreState = "../op-program/bin/prestate.json"
-		c.CannonSnapshotFreq = 10_000_000
-
-		genesisBytes, err := json.Marshal(l2Genesis)
-		require.NoError(err, "marshall l2 genesis config")
-		genesisFile := filepath.Join(c.Datadir, "l2-genesis.json")
-		require.NoError(os.WriteFile(genesisFile, genesisBytes, 0644))
-		c.CannonL2GenesisPath = genesisFile
-
-		rollupBytes, err := json.Marshal(rollupCfg)
-		require.NoError(err, "marshall rollup config")
-		rollupFile := filepath.Join(c.Datadir, "rollup.json")
-		require.NoError(os.WriteFile(rollupFile, rollupBytes, 0644))
-		c.CannonRollupConfigPath = rollupFile
+		c.TraceTypes = append(c.TraceTypes, config.TraceTypeCannon)
+		c.RollupRpc = rollupEndpoint
+		applyCannonConfig(c, t, rollupCfg, l2Genesis, l2Endpoint)
 	}
 }
 
-func NewChallenger(t *testing.T, ctx context.Context, l1Endpoint string, name string, options ...Option) *Helper {
-	log := testlog.Logger(t, log.LvlDebug).New("role", name)
-	log.Info("Creating challenger", "l1", l1Endpoint)
-	cfg := NewChallengerConfig(t, l1Endpoint, options...)
+func WithAlphabet(rollupEndpoint string) Option {
+	return func(c *config.Config) {
+		c.TraceTypes = append(c.TraceTypes, config.TraceTypeAlphabet)
+		c.RollupRpc = rollupEndpoint
+	}
+}
 
-	errCh := make(chan error, 1)
-	ctx, cancel := context.WithCancel(ctx)
-	go func() {
-		defer close(errCh)
-		errCh <- op_challenger.Main(ctx, log, cfg)
-	}()
+func NewChallenger(t *testing.T, ctx context.Context, sys EndpointProvider, name string, options ...Option) *Helper {
+	log := testlog.Logger(t, log.LevelDebug).New("role", name)
+	log.Info("Creating challenger")
+	cfg := NewChallengerConfig(t, sys, options...)
+	chl, err := challenger.Main(ctx, log, cfg)
+	require.NoError(t, err, "must init challenger")
+	require.NoError(t, chl.Start(ctx), "must start challenger")
+
 	return &Helper{
 		log:     log,
 		t:       t,
 		require: require.New(t),
 		dir:     cfg.Datadir,
-		cancel:  cancel,
-		errors:  errCh,
+		chl:     chl,
 	}
 }
 
-func NewChallengerConfig(t *testing.T, l1Endpoint string, options ...Option) *config.Config {
+func NewChallengerConfig(t *testing.T, sys EndpointProvider, options ...Option) *config.Config {
 	// Use the NewConfig method to ensure we pick up any defaults that are set.
-	cfg := config.NewConfig(common.Address{}, l1Endpoint, config.TraceTypeAlphabet, true, t.TempDir())
+	l1Endpoint := sys.NodeEndpoint("l1")
+	l1Beacon := sys.L1BeaconEndpoint()
+	cfg := config.NewConfig(common.Address{}, l1Endpoint, l1Beacon, t.TempDir())
+	// The devnet can't set the absolute prestate output root because the contracts are deployed in L1 genesis
+	// before the L2 genesis is known.
+	cfg.AllowInvalidPrestate = true
 	cfg.TxMgrConfig.NumConfirmations = 1
 	cfg.TxMgrConfig.ReceiptQueryInterval = 1 * time.Second
 	if cfg.MaxConcurrency > 4 {
 		// Limit concurrency to something more reasonable when there are also multiple tests executing in parallel
 		cfg.MaxConcurrency = 4
+	}
+	cfg.MetricsConfig = metrics.CLIConfig{
+		Enabled:    true,
+		ListenAddr: "127.0.0.1",
+		ListenPort: 0, // Find any available port (avoids conflicts)
 	}
 	for _, option := range options {
 		option(&cfg)
@@ -159,16 +196,9 @@ func NewChallengerConfig(t *testing.T, l1Endpoint string, options ...Option) *co
 }
 
 func (h *Helper) Close() error {
-	h.cancel()
-	select {
-	case <-time.After(1 * time.Minute):
-		return errors.New("timed out while stopping challenger")
-	case err := <-h.errors:
-		if !errors.Is(err, context.Canceled) {
-			return err
-		}
-		return nil
-	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	return h.chl.Stop(ctx)
 }
 
 type GameAddr interface {
@@ -197,7 +227,7 @@ func (h *Helper) WaitForGameDataDeletion(ctx context.Context, games ...GameAddr)
 			if err != nil {
 				return false, fmt.Errorf("failed to check dir %v is deleted: %w", dir, err)
 			}
-			h.t.Errorf("Game data directory %v not yet deleted", dir)
+			h.t.Logf("Game data directory %v not yet deleted", dir)
 			return false, nil
 		}
 		return true, nil

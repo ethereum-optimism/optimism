@@ -15,9 +15,9 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/testlog"
-	"github.com/ethereum-optimism/optimism/op-node/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
 
 // TestL1TraversalNext tests that the `Next` function only returns
@@ -36,7 +36,7 @@ func TestL1TraversalNext(t *testing.T) {
 		Genesis:               rollup.Genesis{SystemConfig: l1Cfg},
 		L1SystemConfigAddress: sysCfgAddr,
 	}
-	tr := NewL1Traversal(testlog.Logger(t, log.LvlError), cfg, nil)
+	tr := NewL1Traversal(testlog.Logger(t, log.LevelError), cfg, nil)
 
 	_ = tr.Reset(context.Background(), a, l1Cfg)
 
@@ -132,7 +132,7 @@ func TestL1TraversalAdvance(t *testing.T) {
 				Genesis:               rollup.Genesis{SystemConfig: test.initialL1Cfg},
 				L1SystemConfigAddress: sysCfgAddr,
 			}
-			tr := NewL1Traversal(testlog.Logger(t, log.LvlError), cfg, src)
+			tr := NewL1Traversal(testlog.Logger(t, log.LevelError), cfg, src)
 			// Load up the initial state with a reset
 			_ = tr.Reset(context.Background(), test.startBlock, test.initialL1Cfg)
 

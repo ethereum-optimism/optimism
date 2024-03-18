@@ -14,7 +14,7 @@ contract AdminFaucetAuthModule is IFaucetAuthModule, EIP712 {
     address public immutable ADMIN;
 
     /// @notice EIP712 typehash for the Proof type.
-    bytes32 public constant PROOF_TYPEHASH = keccak256("Proof(address recipient,bytes32 nonce,bytes32 id)");
+    bytes32 public immutable PROOF_TYPEHASH = keccak256("Proof(address recipient,bytes32 nonce,bytes32 id)");
 
     /// @notice Struct that represents a proof that verifies the admin.
     /// @custom:field recipient Address that will be receiving the faucet funds.

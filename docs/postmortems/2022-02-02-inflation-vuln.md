@@ -229,7 +229,7 @@ of checking email at the start of their day. This caused some delay in the initi
 
 Early in the process, the existence of the issue was openly discussed in a public slack channel,
 although the details of the vulnerability and exploit path were not described. This violates the
-[principle of least priviledge](https://en.wikipedia.org/wiki/Principle_of_least_privilege), as well
+[principle of least privilege](https://en.wikipedia.org/wiki/Principle_of_least_privilege), as well
 as our already existing incident response protocols
 
 **Action taken:**

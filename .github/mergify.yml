@@ -1,6 +1,14 @@
 queue_rules:
+  - name: urgent
+    queue_conditions:
+      - "label=C-urgent"
   - name: default
-    conditions: []
+    queue_conditions:
+      - "label!=C-urgent"
+      - author!=dependabot[bot]
+  - name: lowpriority
+    queue_conditions:
+      - author=dependabot[bot]
 
 pull_request_rules:
   - name: Automatic merge on approval
@@ -136,14 +144,6 @@ pull_request_rules:
       label:
         add:
           - A-op-e2e
-  - name: Add A-op-exporter label
-    conditions:
-      - 'files~=^op-exporter/'
-      - '#label<5'
-    actions:
-      label:
-        add:
-          - A-op-exporter
   - name: Add A-op-heartbeat label
     conditions:
       - 'files~=^op-heartbeat/'
@@ -189,14 +189,6 @@ pull_request_rules:
       label:
         add:
           - A-op-service
-  - name: Add A-op-signer label
-    conditions:
-      - 'files~=^op-signer/'
-      - '#label<5'
-    actions:
-      label:
-        add:
-          - A-op-signer
   - name: Add A-op-wheel label
     conditions:
       - 'files~=^op-wheel/'

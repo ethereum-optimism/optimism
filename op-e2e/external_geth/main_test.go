@@ -33,13 +33,13 @@ func TestShim(t *testing.T) {
 	require.NoError(t, err)
 	require.FileExists(t, "op-geth")
 
-	config.EthNodeVerbosity = 4
+	config.EthNodeVerbosity = config.LegacyLevelDebug
 
 	ec := (&e2e.ExternalRunner{
 		Name:    "TestShim",
 		BinPath: shimPath,
 	}).Run(t)
-	t.Cleanup(ec.Close)
+	t.Cleanup(func() { _ = ec.Close })
 
 	for _, endpoint := range []string{
 		ec.HTTPEndpoint(),

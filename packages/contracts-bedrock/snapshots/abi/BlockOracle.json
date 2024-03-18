@@ -1,0 +1,89 @@
+[
+  {
+    "inputs": [],
+    "name": "checkpoint",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "blockNumber_",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_blockNumber",
+        "type": "uint256"
+      }
+    ],
+    "name": "load",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "Hash",
+            "name": "hash",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "Timestamp",
+            "name": "childTimestamp",
+            "type": "uint64"
+          }
+        ],
+        "internalType": "struct BlockOracle.BlockInfo",
+        "name": "blockInfo_",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "version",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "blockNumber",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "Hash",
+        "name": "blockHash",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "Timestamp",
+        "name": "childTimestamp",
+        "type": "uint64"
+      }
+    ],
+    "name": "Checkpoint",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "BlockHashNotPresent",
+    "type": "error"
+  }
+]

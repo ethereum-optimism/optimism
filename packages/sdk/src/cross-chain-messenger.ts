@@ -32,6 +32,7 @@ import {
 } from '@eth-optimism/core-utils'
 import { getContractInterface, predeploys } from '@eth-optimism/contracts'
 import * as rlp from 'rlp'
+import semver from 'semver'
 
 import {
   OEContracts,
@@ -225,6 +226,29 @@ export class CrossChainMessenger {
       throw new Error(`messenger has no L2 signer`)
     } else {
       return this.l2SignerOrProvider
+    }
+  }
+
+  /**
+   * Uses portal version to determine if the messenger is using fpac contracts. Better not to cache
+   * this value as it will change during the fpac upgrade and we want clients to automatically
+   * begin using the new logic without throwing any errors.
+   *
+   * @returns Whether or not the messenger is using fpac contracts.
+   */
+  public async fpac(): Promise<boolean> {
+    if (
+      this.contracts.l1.OptimismPortal.address === ethers.constants.AddressZero
+    ) {
+      // Only really relevant for certain SDK tests where the portal is not deployed. We should
+      // probably just update the tests so the portal gets deployed but feels like it's out of
+      // scope for the FPAC changes.
+      return false
+    } else {
+      return semver.gte(
+        await this.contracts.l1.OptimismPortal.version(),
+        '3.0.0'
+      )
     }
   }
 
@@ -490,8 +514,17 @@ export class CrossChainMessenger {
   ): Promise<IBridgeAdapter> {
     const bridges: IBridgeAdapter[] = []
     for (const bridge of Object.values(this.bridges)) {
-      if (await bridge.supportsTokenPair(l1Token, l2Token)) {
-        bridges.push(bridge)
+      try {
+        if (await bridge.supportsTokenPair(l1Token, l2Token)) {
+          bridges.push(bridge)
+        }
+      } catch (err) {
+        if (
+          !err?.message?.toString().includes('CALL_EXCEPTION') &&
+          !err?.stack?.toString().includes('execution reverted')
+        ) {
+          console.error('Unexpected error when checking bridge', err)
+        }
       }
     }
 
@@ -658,25 +691,54 @@ export class CrossChainMessenger {
     toBlockOrBlockHash?: BlockTag
   ): Promise<MessageStatus> {
     const resolved = await this.toCrossChainMessage(message, messageIndex)
-    const receipt = await this.getMessageReceipt(
-      resolved,
-      messageIndex,
-      fromBlockOrBlockHash,
-      toBlockOrBlockHash
+    // legacy withdrawals relayed prebedrock are v1
+    const messageHashV0 = hashCrossDomainMessagev0(
+      resolved.target,
+      resolved.sender,
+      resolved.message,
+      resolved.messageNonce
+    )
+    // bedrock withdrawals are v1
+    // legacy withdrawals relayed postbedrock are v1
+    // there is no good way to differentiate between the two types of legacy
+    // so what we will check for both
+    const messageHashV1 = hashCrossDomainMessagev1(
+      resolved.messageNonce,
+      resolved.sender,
+      resolved.target,
+      resolved.value,
+      resolved.minGasLimit,
+      resolved.message
     )
 
+    // Here we want the messenger that will receive the message, not the one that sent it.
+    const messenger =
+      resolved.direction === MessageDirection.L1_TO_L2
+        ? this.contracts.l2.L2CrossDomainMessenger
+        : this.contracts.l1.L1CrossDomainMessenger
+
+    const success =
+      (await messenger.successfulMessages(messageHashV0)) ||
+      (await messenger.successfulMessages(messageHashV1))
+
+    const failure =
+      (await messenger.failedMessages(messageHashV0)) ||
+      (await messenger.failedMessages(messageHashV1))
+
     if (resolved.direction === MessageDirection.L1_TO_L2) {
-      if (receipt === null) {
-        return MessageStatus.UNCONFIRMED_L1_TO_L2_MESSAGE
+      if (success) {
+        return MessageStatus.RELAYED
+      } else if (failure) {
+        return MessageStatus.FAILED_L1_TO_L2_MESSAGE
       } else {
-        if (receipt.receiptStatus === MessageReceiptStatus.RELAYED_SUCCEEDED) {
-          return MessageStatus.RELAYED
-        } else {
-          return MessageStatus.FAILED_L1_TO_L2_MESSAGE
-        }
+        return MessageStatus.UNCONFIRMED_L1_TO_L2_MESSAGE
       }
     } else {
-      if (receipt === null) {
+      if (success) {
+        return MessageStatus.RELAYED
+      } else if (failure) {
+        return MessageStatus.READY_FOR_RELAY
+      } else {
         let timestamp: number
         if (this.bedrock) {
           const output = await this.getMessageBedrockOutput(
@@ -693,11 +755,16 @@ export class CrossChainMessenger {
             messageIndex
           )
 
+          // Pick portal based on FPAC compatibility.
+          const portal = (await this.fpac())
+            ? this.contracts.l1.OptimismPortal2
+            : this.contracts.l1.OptimismPortal
+
           // Attempt to fetch the proven withdrawal.
-          const provenWithdrawal =
-            await this.contracts.l1.OptimismPortal.provenWithdrawals(
-              hashLowLevelMessage(withdrawal)
-            )
+          const provenWithdrawal = await portal.provenWithdrawals(
+            hashLowLevelMessage(withdrawal)
+          )
+
           // If the withdrawal hash has not been proven on L1,
           // return `READY_TO_PROVE`
           if (provenWithdrawal.timestamp.eq(BigNumber.from(0))) {
@@ -720,19 +787,32 @@ export class CrossChainMessenger {
           timestamp = block.timestamp
         }
 
-        const challengePeriod = await this.getChallengePeriodSeconds()
-        const latestBlock = await this.l1Provider.getBlock('latest')
+        if (await this.fpac()) {
+          // Convert the message to the low level message that was proven.
+          const withdrawal = await this.toLowLevelMessage(
+            resolved,
+            messageIndex
+          )
 
-        if (timestamp + challengePeriod > latestBlock.timestamp) {
-          return MessageStatus.IN_CHALLENGE_PERIOD
+          try {
+            // If this doesn't revert then we should be fine to relay.
+            await this.contracts.l1.OptimismPortal2.checkWithdrawal(
+              hashLowLevelMessage(withdrawal)
+            )
+
+            return MessageStatus.READY_FOR_RELAY
+          } catch (err) {
+            return MessageStatus.IN_CHALLENGE_PERIOD
+          }
         } else {
-          return MessageStatus.READY_FOR_RELAY
-        }
-      } else {
-        if (receipt.receiptStatus === MessageReceiptStatus.RELAYED_SUCCEEDED) {
-          return MessageStatus.RELAYED
-        } else {
-          return MessageStatus.READY_FOR_RELAY
+          const challengePeriod = await this.getChallengePeriodSeconds()
+          const latestBlock = await this.l1Provider.getBlock('latest')
+
+          if (timestamp + challengePeriod > latestBlock.timestamp) {
+            return MessageStatus.IN_CHALLENGE_PERIOD
+          } else {
+            return MessageStatus.READY_FOR_RELAY
+          }
         }
       }
     }
@@ -1180,29 +1260,85 @@ export class CrossChainMessenger {
       throw new Error(`cannot get a state root for an L1 to L2 message`)
     }
 
-    // Try to find the output index that corresponds to the block number attached to the message.
-    // We'll explicitly handle "cannot get output" errors as a null return value, but anything else
-    // needs to get thrown. Might need to revisit this in the future to be a little more robust
-    // when connected to RPCs that don't return nice error messages.
+    let proposal: any
     let l2OutputIndex: BigNumber
-    try {
-      l2OutputIndex =
-        await this.contracts.l1.L2OutputOracle.getL2OutputIndexAfter(
-          resolved.blockNumber
-        )
-    } catch (err) {
-      if (err.message.includes('L2OutputOracle: cannot get output')) {
-        return null
-      } else {
-        throw err
-      }
-    }
+    if (await this.fpac()) {
+      // Get the respected game type from the portal.
+      const gameType =
+        await this.contracts.l1.OptimismPortal2.respectedGameType()
 
-    // Now pull the proposal out given the output index. Should always work as long as the above
-    // codepath completed successfully.
-    const proposal = await this.contracts.l1.L2OutputOracle.getL2Output(
-      l2OutputIndex
-    )
+      // Get the total game count from the DisputeGameFactory since that will give us the end of
+      // the array that we're searching over. We'll then use that to find the latest games.
+      const gameCount = await this.contracts.l1.DisputeGameFactory.gameCount()
+
+      // Find the latest 100 games (or as many as we can up to 100).
+      const latestGames =
+        await this.contracts.l1.DisputeGameFactory.findLatestGames(
+          gameType,
+          Math.max(0, gameCount.sub(1).toNumber()),
+          Math.min(100, gameCount.toNumber())
+        )
+
+      // Find a game with a block number that is greater than or equal to the block number that the
+      // message was included in. We can use this proposal to prove the message to the portal.
+      let match: any
+      for (const game of latestGames) {
+        const [blockNumber] = ethers.utils.defaultAbiCoder.decode(
+          ['uint256'],
+          game.extraData
+        )
+        if (blockNumber.gte(resolved.blockNumber)) {
+          match = {
+            ...game,
+            l2BlockNumber: blockNumber,
+          }
+          break
+        }
+      }
+
+      // TODO: It would be more correct here to actually verify the proposal since proposals are
+      // not guaranteed to be correct. proveMessage will actually do this verification for us but
+      // there's a devex edge case where this message appears to give back a valid proposal that
+      // ends up reverting inside of proveMessage. At least this is safe for users but not ideal
+      // for developers and we should work out the simplest way to fix it. Main blocker is that
+      // verifying the proposal may require access to an archive node.
+
+      // If there's no match then we can't prove the message to the portal.
+      if (!match) {
+        return null
+      }
+
+      // Put the result into the same format as the old logic for now to reduce added code.
+      l2OutputIndex = match.index
+      proposal = {
+        outputRoot: match.rootClaim,
+        timestamp: match.timestamp,
+        l2BlockNumber: match.l2BlockNumber,
+      }
+    } else {
+      // Try to find the output index that corresponds to the block number attached to the message.
+      // We'll explicitly handle "cannot get output" errors as a null return value, but anything else
+      // needs to get thrown. Might need to revisit this in the future to be a little more robust
+      // when connected to RPCs that don't return nice error messages.
+      try {
+        l2OutputIndex =
+          await this.contracts.l1.L2OutputOracle.getL2OutputIndexAfter(
+            resolved.blockNumber
+          )
+      } catch (err) {
+        if (err.message.includes('L2OutputOracle: cannot get output')) {
+          return null
+        } else {
+          throw err
+        }
+      }
+
+      // Now pull the proposal out given the output index. Should always work as long as the above
+      // codepath completed successfully.
+      proposal = await this.contracts.l1.L2OutputOracle.getL2Output(
+        l2OutputIndex
+      )
+    }
 
     // Format everything and return it nicely.
     return {

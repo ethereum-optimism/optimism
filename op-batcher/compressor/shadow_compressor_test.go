@@ -1,35 +1,38 @@
-package compressor_test
+package compressor
 
 import (
 	"bytes"
 	"compress/zlib"
-	"crypto/rand"
 	"io"
+	"math/rand"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/stretchr/testify/require"
 )
 
+var r *rand.Rand
+
+func init() {
+	r = rand.New(rand.NewSource(99))
+}
+
 func randomBytes(t *testing.T, length int) []byte {
 	b := make([]byte, length)
-	_, err := rand.Read(b)
+	_, err := r.Read(b)
 	require.NoError(t, err)
 	return b
 }
 
 func TestShadowCompressor(t *testing.T) {
-	type test struct {
+	tests := []struct {
 		name            string
 		targetFrameSize uint64
 		targetNumFrames int
 		data            [][]byte
 		errs            []error
 		fullErr         error
-	}
-
-	tests := []test{{
+	}{{
 		name:            "no data",
 		targetFrameSize: 1,
 		targetNumFrames: 1,
@@ -52,9 +55,9 @@ func TestShadowCompressor(t *testing.T) {
 		fullErr:         derive.CompressorFullErr,
 	}, {
 		name:            "random data",
-		targetFrameSize: 1200,
+		targetFrameSize: 1 << 17,
 		targetNumFrames: 1,
-		data:            [][]byte{randomBytes(t, 512), randomBytes(t, 512), randomBytes(t, 512)},
+		data:            [][]byte{randomBytes(t, (1<<17)-1000), randomBytes(t, 512), randomBytes(t, 512)},
 		errs:            []error{nil, nil, derive.CompressorFullErr},
 		fullErr:         derive.CompressorFullErr,
 	}}
@@ -64,7 +67,7 @@ func TestShadowCompressor(t *testing.T) {
 			t.Parallel()
 			require.Equal(t, len(test.errs), len(test.data), "invalid test case: len(data) != len(errs)")
 
-			sc, err := compressor.NewShadowCompressor(compressor.Config{
+			sc, err := NewShadowCompressor(Config{
 				TargetFrameSize: test.targetFrameSize,
 				TargetNumFrames: test.targetNumFrames,
 			})
@@ -88,6 +91,7 @@ func TestShadowCompressor(t *testing.T) {
 
 			err = sc.Close()
 			require.NoError(t, err)
+			require.LessOrEqual(t, uint64(sc.Len()), sc.(*ShadowCompressor).bound)
 
 			buf, err := io.ReadAll(sc)
 			require.NoError(t, err)
@@ -109,4 +113,29 @@ func TestShadowCompressor(t *testing.T) {
 			require.Equal(t, concat, uncompressed)
 		})
 	}
+}
+
+// TestBoundInaccruateForLargeRandomData documents where our bounding heuristic starts to fail
+// (writing at least 128k of random data)
+func TestBoundInaccurateForLargeRandomData(t *testing.T) {
+	var sizeLimit int = 1 << 17
+
+	sc, err := NewShadowCompressor(Config{
+		TargetFrameSize: uint64(sizeLimit + 100),
+		TargetNumFrames: 1,
+	})
+	require.NoError(t, err)
+
+	_, err = sc.Write(randomBytes(t, sizeLimit+1))
+	require.NoError(t, err)
+	err = sc.Close()
+	require.NoError(t, err)
+	require.Greater(t, uint64(sc.Len()), sc.(*ShadowCompressor).bound)
+
+	sc.Reset()
+	_, err = sc.Write(randomBytes(t, sizeLimit))
+	require.NoError(t, err)
+	err = sc.Close()
+	require.NoError(t, err)
+	require.LessOrEqual(t, uint64(sc.Len()), sc.(*ShadowCompressor).bound)
 }

@@ -4,10 +4,11 @@ import (
 	"context"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-program/client/l2/engineapi"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -26,11 +27,15 @@ func RunEngineAPITests(t *testing.T, createBackend func(t *testing.T) engineapi.
 		api.assert.Equal(block.BlockHash, api.headHash(), "should create and import new block")
 	})
 
+	zero := uint64(0)
+	rollupCfg := &rollup.Config{
+		RegolithTime: &zero, // activate Regolith upgrade
+	}
 	t.Run("IncludeRequiredTransactions", func(t *testing.T) {
 		api := newTestHelper(t, createBackend)
 		genesis := api.backend.CurrentHeader()
 
-		txData, err := derive.L1InfoDeposit(1, eth.HeaderBlockInfo(genesis), eth.SystemConfig{}, true)
+		txData, err := derive.L1InfoDeposit(rollupCfg, eth.SystemConfig{}, 1, eth.HeaderBlockInfo(genesis), 0)
 		api.assert.NoError(err)
 		tx := types.NewTx(txData)
 		block := api.addBlock(tx)
@@ -48,24 +53,32 @@ func RunEngineAPITests(t *testing.T, createBackend func(t *testing.T) engineapi.
 		api := newTestHelper(t, createBackend)
 		genesis := api.backend.CurrentHeader()
 
-		txData, err := derive.L1InfoDeposit(1, eth.HeaderBlockInfo(genesis), eth.SystemConfig{}, true)
+		txData, err := derive.L1InfoDeposit(rollupCfg, eth.SystemConfig{}, 1, eth.HeaderBlockInfo(genesis), 0)
 		api.assert.NoError(err)
 		txData.Gas = uint64(gasLimit + 1)
 		tx := types.NewTx(txData)
 		txRlp, err := tx.MarshalBinary()
 		api.assert.NoError(err)
 
-		result, err := api.engine.ForkchoiceUpdatedV1(api.ctx, &eth.ForkchoiceState{
+		nextBlockTime := eth.Uint64Quantity(genesis.Time + 1)
+
+		var w *types.Withdrawals
+		if api.backend.Config().IsCanyon(uint64(nextBlockTime)) {
+			w = &types.Withdrawals{}
+		}
+
+		result, err := api.engine.ForkchoiceUpdatedV2(api.ctx, &eth.ForkchoiceState{
 			HeadBlockHash:      genesis.Hash(),
 			SafeBlockHash:      genesis.Hash(),
 			FinalizedBlockHash: genesis.Hash(),
 		}, &eth.PayloadAttributes{
-			Timestamp:             eth.Uint64Quantity(genesis.Time + 1),
+			Timestamp:             nextBlockTime,
 			PrevRandao:            eth.Bytes32(genesis.MixDigest),
 			SuggestedFeeRecipient: feeRecipient,
 			Transactions:          []eth.Data{txRlp},
 			NoTxPool:              true,
 			GasLimit:              &gasLimit,
+			Withdrawals:           w,
 		})
 		api.assert.Error(err)
 		api.assert.Equal(eth.ExecutionInvalid, result.PayloadStatus.Status)
@@ -92,7 +105,8 @@ func RunEngineAPITests(t *testing.T, createBackend func(t *testing.T) engineapi.
 		payloadID := api.startBlockBuilding(genesis, eth.Uint64Quantity(genesis.Time+3))
 		api.assert.Equal(block.BlockHash, api.headHash(), "should not reset chain head when building starts")
 
-		payload := api.getPayload(payloadID)
+		envelope := api.getPayload(payloadID)
+		payload := envelope.ExecutionPayload
 		api.assert.Equal(genesis.Hash(), payload.ParentHash, "should have old block as parent")
 
 		api.newPayload(payload)
@@ -103,9 +117,16 @@ func RunEngineAPITests(t *testing.T, createBackend func(t *testing.T) engineapi.
 	t.Run("RejectInvalidBlockHash", func(t *testing.T) {
 		api := newTestHelper(t, createBackend)
 
+		var w *types.Withdrawals
+		if api.backend.Config().IsCanyon(uint64(0)) {
+			w = &types.Withdrawals{}
+		}
+
 		// Invalid because BlockHash won't be correct (among many other reasons)
-		block := &eth.ExecutionPayload{}
-		r, err := api.engine.NewPayloadV1(api.ctx, block)
+		block := &eth.ExecutionPayload{
+			Withdrawals: w,
+		}
+		r, err := api.engine.NewPayloadV2(api.ctx, block)
 		api.assert.NoError(err)
 		api.assert.Equal(eth.ExecutionInvalidBlockHash, r.Status)
 	})
@@ -116,13 +137,14 @@ func RunEngineAPITests(t *testing.T, createBackend func(t *testing.T) engineapi.
 
 		// Build a valid block
 		payloadID := api.startBlockBuilding(genesis, eth.Uint64Quantity(genesis.Time+2))
-		newBlock := api.getPayload(payloadID)
+		envelope := api.getPayload(payloadID)
+		newBlock := envelope.ExecutionPayload
 
 		// But then make it invalid by changing the state root
 		newBlock.StateRoot = eth.Bytes32(genesis.TxHash)
-		updateBlockHash(newBlock)
+		updateBlockHash(envelope)
 
-		r, err := api.engine.NewPayloadV1(api.ctx, newBlock)
+		r, err := api.engine.NewPayloadV2(api.ctx, newBlock)
 		api.assert.NoError(err)
 		api.assert.Equal(eth.ExecutionInvalid, r.Status)
 	})
@@ -133,13 +155,14 @@ func RunEngineAPITests(t *testing.T, createBackend func(t *testing.T) engineapi.
 
 		// Start with a valid time
 		payloadID := api.startBlockBuilding(genesis, eth.Uint64Quantity(genesis.Time+1))
-		newBlock := api.getPayload(payloadID)
+		envelope := api.getPayload(payloadID)
+		newBlock := envelope.ExecutionPayload
 
 		// Then make it invalid to check NewPayload rejects it
 		newBlock.Timestamp = eth.Uint64Quantity(genesis.Time)
-		updateBlockHash(newBlock)
+		updateBlockHash(envelope)
 
-		r, err := api.engine.NewPayloadV1(api.ctx, newBlock)
+		r, err := api.engine.NewPayloadV2(api.ctx, newBlock)
 		api.assert.NoError(err)
 		api.assert.Equal(eth.ExecutionInvalid, r.Status)
 	})
@@ -150,13 +173,14 @@ func RunEngineAPITests(t *testing.T, createBackend func(t *testing.T) engineapi.
 
 		// Start with a valid time
 		payloadID := api.startBlockBuilding(genesis, eth.Uint64Quantity(genesis.Time+1))
-		newBlock := api.getPayload(payloadID)
+		envelope := api.getPayload(payloadID)
+		newBlock := envelope.ExecutionPayload
 
 		// Then make it invalid to check NewPayload rejects it
 		newBlock.Timestamp = eth.Uint64Quantity(genesis.Time - 1)
-		updateBlockHash(newBlock)
+		updateBlockHash(envelope)
 
-		r, err := api.engine.NewPayloadV1(api.ctx, newBlock)
+		r, err := api.engine.NewPayloadV2(api.ctx, newBlock)
 		api.assert.NoError(err)
 		api.assert.Equal(eth.ExecutionInvalid, r.Status)
 	})
@@ -165,7 +189,7 @@ func RunEngineAPITests(t *testing.T, createBackend func(t *testing.T) engineapi.
 		api := newTestHelper(t, createBackend)
 		genesis := api.backend.CurrentHeader()
 
-		result, err := api.engine.ForkchoiceUpdatedV1(api.ctx, &eth.ForkchoiceState{
+		result, err := api.engine.ForkchoiceUpdatedV2(api.ctx, &eth.ForkchoiceState{
 			HeadBlockHash:      genesis.Hash(),
 			SafeBlockHash:      genesis.Hash(),
 			FinalizedBlockHash: genesis.Hash(),
@@ -185,7 +209,7 @@ func RunEngineAPITests(t *testing.T, createBackend func(t *testing.T) engineapi.
 		api := newTestHelper(t, createBackend)
 		genesis := api.backend.CurrentHeader()
 
-		result, err := api.engine.ForkchoiceUpdatedV1(api.ctx, &eth.ForkchoiceState{
+		result, err := api.engine.ForkchoiceUpdatedV2(api.ctx, &eth.ForkchoiceState{
 			HeadBlockHash:      genesis.Hash(),
 			SafeBlockHash:      genesis.Hash(),
 			FinalizedBlockHash: genesis.Hash(),
@@ -207,7 +231,7 @@ func RunEngineAPITests(t *testing.T, createBackend func(t *testing.T) engineapi.
 
 		gasLimit := eth.Uint64Quantity(params.MaxGasLimit + 1)
 
-		result, err := api.engine.ForkchoiceUpdatedV1(api.ctx, &eth.ForkchoiceState{
+		result, err := api.engine.ForkchoiceUpdatedV2(api.ctx, &eth.ForkchoiceState{
 			HeadBlockHash:      genesis.Hash(),
 			SafeBlockHash:      genesis.Hash(),
 			FinalizedBlockHash: genesis.Hash(),
@@ -246,7 +270,7 @@ func RunEngineAPITests(t *testing.T, createBackend func(t *testing.T) engineapi.
 
 		chainB1 := api.addBlockWithParent(genesis, eth.Uint64Quantity(genesis.Time+3))
 
-		result, err := api.engine.ForkchoiceUpdatedV1(api.ctx, &eth.ForkchoiceState{
+		result, err := api.engine.ForkchoiceUpdatedV2(api.ctx, &eth.ForkchoiceState{
 			HeadBlockHash:      chainA3.BlockHash,
 			SafeBlockHash:      chainB1.BlockHash,
 			FinalizedBlockHash: chainA2.BlockHash,
@@ -266,7 +290,7 @@ func RunEngineAPITests(t *testing.T, createBackend func(t *testing.T) engineapi.
 
 		chainB1 := api.addBlockWithParent(genesis, eth.Uint64Quantity(genesis.Time+3))
 
-		result, err := api.engine.ForkchoiceUpdatedV1(api.ctx, &eth.ForkchoiceState{
+		result, err := api.engine.ForkchoiceUpdatedV2(api.ctx, &eth.ForkchoiceState{
 			HeadBlockHash:      chainA3.BlockHash,
 			SafeBlockHash:      chainA2.BlockHash,
 			FinalizedBlockHash: chainB1.BlockHash,
@@ -278,10 +302,10 @@ func RunEngineAPITests(t *testing.T, createBackend func(t *testing.T) engineapi.
 }
 
 // Updates the block hash to the expected value based on the other fields in the payload
-func updateBlockHash(newBlock *eth.ExecutionPayload) {
+func updateBlockHash(envelope *eth.ExecutionPayloadEnvelope) {
 	// And fix up the block hash
-	newHash, _ := newBlock.CheckBlockHash()
-	newBlock.BlockHash = newHash
+	newHash, _ := envelope.CheckBlockHash()
+	envelope.ExecutionPayload.BlockHash = newHash
 }
 
 type testHelper struct {
@@ -293,10 +317,10 @@ type testHelper struct {
 }
 
 func newTestHelper(t *testing.T, createBackend func(t *testing.T) engineapi.EngineBackend) *testHelper {
-	logger := testlog.Logger(t, log.LvlDebug)
+	logger := testlog.Logger(t, log.LevelDebug)
 	ctx := context.Background()
 	backend := createBackend(t)
-	api := engineapi.NewL2EngineAPI(logger, backend)
+	api := engineapi.NewL2EngineAPI(logger, backend, nil)
 	test := &testHelper{
 		t:       t,
 		ctx:     ctx,
@@ -332,7 +356,9 @@ func (h *testHelper) addBlockWithParent(head *types.Header, timestamp eth.Uint64
 	prevHead := h.backend.CurrentHeader()
 	id := h.startBlockBuilding(head, timestamp, txs...)
 
-	block := h.getPayload(id)
+	envelope := h.getPayload(id)
+	block := envelope.ExecutionPayload
+
 	h.assert.Equal(timestamp, block.Timestamp, "should create block with correct timestamp")
 	h.assert.Equal(head.Hash(), block.ParentHash, "should have correct parent")
 	h.assert.Len(block.Transactions, len(txs))
@@ -349,7 +375,7 @@ func (h *testHelper) addBlockWithParent(head *types.Header, timestamp eth.Uint64
 
 func (h *testHelper) forkChoiceUpdated(head common.Hash, safe common.Hash, finalized common.Hash) {
 	h.Log("forkChoiceUpdated", "head", head, "safe", safe, "finalized", finalized)
-	result, err := h.engine.ForkchoiceUpdatedV1(h.ctx, &eth.ForkchoiceState{
+	result, err := h.engine.ForkchoiceUpdatedV2(h.ctx, &eth.ForkchoiceState{
 		HeadBlockHash:      head,
 		SafeBlockHash:      safe,
 		FinalizedBlockHash: finalized,
@@ -368,7 +394,14 @@ func (h *testHelper) startBlockBuilding(head *types.Header, newBlockTimestamp et
 		h.assert.NoError(err, "Failed to marshall tx %v", tx)
 		txData = append(txData, rlp)
 	}
-	result, err := h.engine.ForkchoiceUpdatedV1(h.ctx, &eth.ForkchoiceState{
+
+	canyonTime := h.backend.Config().CanyonTime
+	var w *types.Withdrawals
+	if canyonTime != nil && *canyonTime <= uint64(newBlockTimestamp) {
+		w = &types.Withdrawals{}
+	}
+
+	result, err := h.engine.ForkchoiceUpdatedV2(h.ctx, &eth.ForkchoiceState{
 		HeadBlockHash:      head.Hash(),
 		SafeBlockHash:      head.Hash(),
 		FinalizedBlockHash: head.Hash(),
@@ -379,6 +412,7 @@ func (h *testHelper) startBlockBuilding(head *types.Header, newBlockTimestamp et
 		Transactions:          txData,
 		NoTxPool:              true,
 		GasLimit:              &gasLimit,
+		Withdrawals:           w,
 	})
 	h.assert.NoError(err)
 	h.assert.Equal(eth.ExecutionValid, result.PayloadStatus.Status)
@@ -387,17 +421,18 @@ func (h *testHelper) startBlockBuilding(head *types.Header, newBlockTimestamp et
 	return id
 }
 
-func (h *testHelper) getPayload(id *eth.PayloadID) *eth.ExecutionPayload {
+func (h *testHelper) getPayload(id *eth.PayloadID) *eth.ExecutionPayloadEnvelope {
 	h.Log("getPayload", "id", id)
-	block, err := h.engine.GetPayloadV1(h.ctx, *id)
+	envelope, err := h.engine.GetPayloadV2(h.ctx, *id)
 	h.assert.NoError(err)
-	h.assert.NotNil(block)
-	return block
+	h.assert.NotNil(envelope)
+	h.assert.NotNil(envelope.ExecutionPayload)
+	return envelope
 }
 
 func (h *testHelper) newPayload(block *eth.ExecutionPayload) {
 	h.Log("newPayload", "hash", block.BlockHash)
-	r, err := h.engine.NewPayloadV1(h.ctx, block)
+	r, err := h.engine.NewPayloadV2(h.ctx, block)
 	h.assert.NoError(err)
 	h.assert.Equal(eth.ExecutionValid, r.Status)
 	h.assert.Nil(r.ValidationError)

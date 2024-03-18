@@ -2,20 +2,21 @@ package etl
 
 import (
 	"math/big"
+	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-service/log"
-	"github.com/ethereum-optimism/optimism/op-service/metrics"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/indexer/bigint"
 	"github.com/ethereum-optimism/optimism/indexer/config"
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum-optimism/optimism/indexer/node"
-
-	"testing"
+	"github.com/ethereum-optimism/optimism/op-service/metrics"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
 func TestL1ETLConstruction(t *testing.T) {
@@ -61,7 +62,7 @@ func TestL1ETLConstruction(t *testing.T) {
 			},
 			assertion: func(etl *L1ETL, err error) {
 				require.NoError(t, err)
-				require.Equal(t, etl.headerTraversal.LastHeader().ParentHash, common.HexToHash("0x69"))
+				require.Equal(t, etl.headerTraversal.LastTraversedHeader().ParentHash, common.HexToHash("0x69"))
 			},
 		},
 		{
@@ -93,7 +94,7 @@ func TestL1ETLConstruction(t *testing.T) {
 			},
 			assertion: func(etl *L1ETL, err error) {
 				require.NoError(t, err)
-				header := etl.headerTraversal.LastHeader()
+				header := etl.headerTraversal.LastTraversedHeader()
 
 				require.True(t, header.Number.Cmp(big.NewInt(69)) == 0)
 			},
@@ -104,10 +105,12 @@ func TestL1ETLConstruction(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			ts := test.construction()
 
-			logger := log.NewLogger(log.DefaultCLIConfig())
+			logger := testlog.Logger(t, log.LevelInfo)
 			cfg := Config{StartHeight: ts.start}
 
-			etl, err := NewL1ETL(cfg, logger, ts.db.DB, etlMetrics, ts.client, ts.contracts)
+			etl, err := NewL1ETL(cfg, logger, ts.db.DB, etlMetrics, ts.client, ts.contracts, func(cause error) {
+				t.Fatalf("crit error: %v", cause)
+			})
 			test.assertion(etl, err)
 		})
 	}

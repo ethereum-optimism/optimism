@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
-	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum-optimism/optimism/op-program/chainconfig"
 	"github.com/ethereum-optimism/optimism/op-program/client"
@@ -15,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-program/host/config"
 	"github.com/ethereum-optimism/optimism/op-program/host/kvstore"
 	"github.com/ethereum-optimism/optimism/op-program/io"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
@@ -35,7 +35,7 @@ func TestServerMode(t *testing.T) {
 	hintServer, hintClient, err := io.CreateBidirectionalChannel()
 	require.NoError(t, err)
 	defer hintClient.Close()
-	logger := testlog.Logger(t, log.LvlTrace)
+	logger := testlog.Logger(t, log.LevelTrace)
 	result := make(chan error)
 	go func() {
 		result <- PreimageServer(context.Background(), logger, cfg, preimageServer, hintServer)

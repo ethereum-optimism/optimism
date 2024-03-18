@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/core-utils",
-  "version": "0.13.0",
+  "version": "0.13.1",
   "description": "[Optimism] Core typescript utilities",
   "main": "dist/index",
   "types": "dist/index",
@@ -11,7 +11,6 @@
     "all": "pnpm clean && pnpm build && pnpm test && pnpm lint:fix && pnpm lint",
     "build": "tsc -p tsconfig.json",
     "clean": "rimraf dist/ ./tsconfig.tsbuildinfo",
-    "preinstall": "npx only-allow pnpm",
     "lint": "pnpm lint:fix && pnpm lint:check",
     "lint:check": "eslint . --max-warnings=0",
     "lint:fix": "pnpm lint:check --fix",
@@ -44,12 +43,12 @@
     "@ethersproject/properties": "^5.7.0",
     "@ethersproject/rlp": "^5.7.0",
     "@ethersproject/web": "^5.7.1",
-    "chai": "^4.3.7",
+    "chai": "^4.3.10",
     "ethers": "^5.7.2",
     "node-fetch": "^2.6.7"
   },
   "devDependencies": {
-    "@types/node": "^20.5.0",
+    "@types/node": "^20.11.17",
     "mocha": "^10.2.0"
   }
 }

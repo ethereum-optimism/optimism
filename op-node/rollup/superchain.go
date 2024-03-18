@@ -12,18 +12,22 @@ import (
 	"github.com/ethereum-optimism/superchain-registry/superchain"
 )
 
-var OPStackSupport = params.ProtocolVersionV0{Build: [8]byte{}, Major: 3, Minor: 1, Patch: 0, PreRelease: 1}.Encode()
+var OPStackSupport = params.ProtocolVersionV0{Build: [8]byte{}, Major: 6, Minor: 0, Patch: 0, PreRelease: 0}.Encode()
 
 const (
-	opMainnet   = 10
-	opGoerli    = 420
-	opSepolia   = 11155420
+	opMainnet = 10
+	opGoerli  = 420
+	opSepolia = 11155420
+
+	labsGoerliDevnet   = 997
+	labsGoerliChaosnet = 888
+	labsSepoliaDevnet0 = 11155421
+
 	baseGoerli  = 84531
 	baseMainnet = 8453
-	pgnMainnet  = 424
-	pgnSepolia  = 58008
-	zoraGoerli  = 999
-	zoraMainnet = 7777777
+
+	pgnMainnet = 424
+	pgnSepolia = 58008
 )
 
 // LoadOPStackRollupConfig loads the rollup configuration of the requested chain ID from the superchain-registry.
@@ -51,21 +55,23 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 		return nil, fmt.Errorf("unable to retrieve genesis SystemConfig of chain %d", chainID)
 	}
 
-	var depositContractAddress common.Address
-	if addrs, ok := superchain.Addresses[chainID]; ok {
-		depositContractAddress = common.Address(addrs.OptimismPortalProxy)
-	} else {
+	addrs, ok := superchain.Addresses[chainID]
+	if !ok {
 		return nil, fmt.Errorf("unable to retrieve deposit contract address")
 	}
 
 	regolithTime := uint64(0)
-	// two goerli testnets test-ran Bedrock and later upgraded to Regolith.
+	// three goerli testnets test-ran Bedrock and later upgraded to Regolith.
 	// All other OP-Stack chains have Regolith enabled from the start.
 	switch chainID {
 	case baseGoerli:
 		regolithTime = 1683219600
 	case opGoerli:
 		regolithTime = 1679079600
+	case labsGoerliDevnet:
+		regolithTime = 1677984480
+	case labsGoerliChaosnet:
+		regolithTime = 1692156862
 	}
 
 	cfg := &Config{
@@ -92,9 +98,24 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 		L1ChainID:              new(big.Int).SetUint64(superChain.Config.L1.ChainID),
 		L2ChainID:              new(big.Int).SetUint64(chConfig.ChainID),
 		RegolithTime:           &regolithTime,
+		CanyonTime:             chConfig.CanyonTime,
+		DeltaTime:              chConfig.DeltaTime,
+		EcotoneTime:            chConfig.EcotoneTime,
+		FjordTime:              chConfig.FjordTime,
 		BatchInboxAddress:      common.Address(chConfig.BatchInboxAddr),
-		DepositContractAddress: depositContractAddress,
-		L1SystemConfigAddress:  common.Address(chConfig.SystemConfigAddr),
+		DepositContractAddress: common.Address(addrs.OptimismPortalProxy),
+		L1SystemConfigAddress:  common.Address(addrs.SystemConfigProxy),
+	}
+	if superChain.Config.ProtocolVersionsAddr != nil { // Set optional protocol versions address
+		cfg.ProtocolVersionsAddress = common.Address(*superChain.Config.ProtocolVersionsAddr)
+	}
+	if chainID == labsGoerliDevnet || chainID == labsGoerliChaosnet {
+		cfg.ChannelTimeout = 120
+		cfg.MaxSequencerDrift = 1200
+	}
+	if chainID == pgnSepolia {
+		cfg.MaxSequencerDrift = 1000
+		cfg.SeqWindowSize = 7200
 	}
 	return cfg, nil
 }

@@ -94,7 +94,7 @@ func (d *recordsBook[K, V]) dsKey(key K) ds.Key {
 func (d *recordsBook[K, V]) deleteRecord(key K) error {
 	d.cache.Remove(key)
 	err := d.store.Delete(d.ctx, d.dsKey(key))
-	if errors.Is(err, ds.ErrNotFound) {
+	if err == nil || errors.Is(err, ds.ErrNotFound) {
 		return nil
 	}
 	return fmt.Errorf("failed to delete entry with key %v: %w", key, err)

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import { ISchemaRegistry } from "./ISchemaRegistry.sol";
-import { Attestation, Signature } from "./Common.sol";
+import { ISchemaRegistry } from "src/EAS/ISchemaRegistry.sol";
+import { Attestation, Signature } from "src/EAS/Common.sol";
 
 /// @dev A struct representing the arguments of the attestation request.
 struct AttestationRequestData {

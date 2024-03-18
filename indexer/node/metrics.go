@@ -7,11 +7,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/rpc"
+
 	"github.com/prometheus/client_golang/prometheus"
 )
 
 var (
-	MetricsNamespace = "rpc"
+	MetricsNamespace = "op_indexer_rpc"
 	batchMethod      = "<batch>"
 )
 

@@ -115,6 +115,10 @@ func dumpPeer(id peer.ID, nw network.Network, pstore peerstore.Peerstore, connMg
 		if dat, err := eps.GetPeerScores(id); err == nil {
 			info.PeerScores = dat
 		}
+		if md, err := eps.GetPeerMetadata(id); err == nil {
+			info.ENR = md.ENR
+			info.ChainID = md.OPStackID
+		}
 	}
 	if dat, err := pstore.Get(id, "ProtocolVersion"); err == nil {
 		protocolVersion, ok := dat.(string)
@@ -126,12 +130,6 @@ func dumpPeer(id peer.ID, nw network.Network, pstore peerstore.Peerstore, connMg
 		agentVersion, ok := dat.(string)
 		if ok {
 			info.UserAgent = agentVersion
-		}
-	}
-	if dat, err := pstore.Get(id, "ENR"); err == nil {
-		enodeData, ok := dat.(*enode.Node)
-		if ok {
-			info.ENR = enodeData.String()
 		}
 	}
 	// include the /p2p/ address component in all of the addresses for convenience of the API user.
@@ -151,12 +149,6 @@ func dumpPeer(id peer.ID, nw network.Network, pstore peerstore.Peerstore, connMg
 	for _, c := range nw.ConnsToPeer(id) {
 		info.Direction = c.Stat().Direction
 		break
-	}
-	if dat, err := pstore.Get(id, "optimismChainID"); err == nil {
-		chID, ok := dat.(uint64)
-		if ok {
-			info.ChainID = chID
-		}
 	}
 	info.Latency = pstore.LatencyEWMA(id)
 	if connMgr != nil {
@@ -194,7 +186,7 @@ func (s *APIBackend) Peers(ctx context.Context, connected bool) (*PeerDump, erro
 			dump.TotalConnected += 1
 		}
 	}
-	for _, id := range s.node.GossipOut().BlocksTopicPeers() {
+	for _, id := range s.node.GossipOut().AllBlockTopicsPeers() {
 		if p, ok := dump.Peers[id.String()]; ok {
 			p.GossipBlocks = true
 		}
@@ -208,11 +200,13 @@ func (s *APIBackend) Peers(ctx context.Context, connected bool) (*PeerDump, erro
 }
 
 type PeerStats struct {
-	Connected   uint `json:"connected"`
-	Table       uint `json:"table"`
-	BlocksTopic uint `json:"blocksTopic"`
-	Banned      uint `json:"banned"`
-	Known       uint `json:"known"`
+	Connected     uint `json:"connected"`
+	Table         uint `json:"table"`
+	BlocksTopic   uint `json:"blocksTopic"`
+	BlocksTopicV2 uint `json:"blocksTopicV2"`
+	BlocksTopicV3 uint `json:"blocksTopicV3"`
+	Banned        uint `json:"banned"`
+	Known         uint `json:"known"`
 }
 
 func (s *APIBackend) PeerStats(_ context.Context) (*PeerStats, error) {
@@ -223,11 +217,13 @@ func (s *APIBackend) PeerStats(_ context.Context) (*PeerStats, error) {
 	pstore := h.Peerstore()
 
 	stats := &PeerStats{
-		Connected:   uint(len(nw.Peers())),
-		Table:       0,
-		BlocksTopic: uint(len(s.node.GossipOut().BlocksTopicPeers())),
-		Banned:      0,
-		Known:       uint(len(pstore.Peers())),
+		Connected:     uint(len(nw.Peers())),
+		Table:         0,
+		BlocksTopic:   uint(len(s.node.GossipOut().BlocksTopicV1Peers())),
+		BlocksTopicV2: uint(len(s.node.GossipOut().BlocksTopicV2Peers())),
+		BlocksTopicV3: uint(len(s.node.GossipOut().BlocksTopicV3Peers())),
+		Banned:        0,
+		Known:         uint(len(pstore.Peers())),
 	}
 	if gater := s.node.ConnectionGater(); gater != nil {
 		stats.Banned = uint(len(gater.ListBlockedPeers()))
@@ -382,5 +378,16 @@ func (s *APIBackend) ConnectPeer(ctx context.Context, addr string) error {
 func (s *APIBackend) DisconnectPeer(_ context.Context, id peer.ID) error {
 	recordDur := s.m.RecordRPCServerRequest("opp2p_disconnectPeer")
 	defer recordDur()
-	return s.node.Host().Network().ClosePeer(id)
+	err := s.node.Host().Network().ClosePeer(id)
+	if err != nil {
+		return err
+	}
+	ps := s.node.Host().Peerstore()
+	ps.RemovePeer(id)
+	ps.ClearAddrs(id)
+	err = s.node.ConnectionGater().UnblockPeer(id)
+	if err != nil {
+		return fmt.Errorf("closed peer but failed to unblock: %w", err)
+	}
+	return nil
 }

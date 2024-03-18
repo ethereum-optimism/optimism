@@ -2,8 +2,10 @@
 pragma solidity 0.8.15;
 
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import { ISemver } from "../universal/ISemver.sol";
-import { ResourceMetering } from "./ResourceMetering.sol";
+import { ISemver } from "src/universal/ISemver.sol";
+import { ResourceMetering } from "src/L1/ResourceMetering.sol";
+import { Storage } from "src/libraries/Storage.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 /// @title SystemConfig
 /// @notice The SystemConfig contract is used to manage configuration of an Optimism network.
@@ -24,7 +26,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     }
 
     /// @notice Struct representing the addresses of L1 system contracts. These should be the
-    ///         proxies and will differ for each OP Stack chain.
+    ///         proxies and are network specific.
     struct Addresses {
         address l1CrossDomainMessenger;
         address l1ERC721Bridge;
@@ -70,6 +72,9 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @notice Storage slot that the batch inbox address is stored at.
     bytes32 public constant BATCH_INBOX_SLOT = bytes32(uint256(keccak256("systemconfig.batchinbox")) - 1);
 
+    /// @notice Storage slot for block at which the op-node can start searching for logs from.
+    bytes32 public constant START_BLOCK_SLOT = bytes32(uint256(keccak256("systemconfig.startBlock")) - 1);
+
     /// @notice Fixed L2 gas overhead. Used as part of the L2 fee calculation.
     uint256 public overhead;
 
@@ -95,17 +100,17 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @param data       Encoded update data.
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
 
-    /// @notice The block at which the op-node can start searching for logs from.
-    uint256 public startBlock;
-
     /// @notice Semantic version.
-    /// @custom:semver 1.7.0
-    string public constant version = "1.7.0";
+    /// @custom:semver 1.12.0
+    string public constant version = "1.12.0";
 
     /// @notice Constructs the SystemConfig contract. Cannot set
     ///         the owner to `address(0)` due to the Ownable contract's
     ///         implementation, so set it to `address(0xdEaD)`
+    /// @dev    START_BLOCK_SLOT is set to type(uint256).max here so that it will be a dead value
+    ///         in the singleton and is skipped by initialize when setting the start block.
     constructor() {
+        Storage.setUint(START_BLOCK_SLOT, type(uint256).max);
         initialize({
             _owner: address(0xdEaD),
             _overhead: 0,
@@ -121,7 +126,6 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
                 systemTxMaxGas: 0,
                 maximumBaseFee: 0
             }),
-            _startBlock: type(uint256).max,
             _batchInbox: address(0),
             _addresses: SystemConfig.Addresses({
                 l1CrossDomainMessenger: address(0),
@@ -143,10 +147,6 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @param _gasLimit          Initial gas limit.
     /// @param _unsafeBlockSigner Initial unsafe block signer address.
     /// @param _config            Initial ResourceConfig.
-    /// @param _startBlock        Starting block for the op-node to search for logs from.
-    ///                           Contracts that were deployed before this field existed
-    ///                           need to have this field set manually via an override.
-    ///                           Newly deployed contracts should set this value to uint256(0).
     /// @param _batchInbox        Batch inbox address. An identifier for the op-node to find
     ///                           canonical data.
     /// @param _addresses         Set of L1 contract addresses. These should be the proxies.
@@ -158,12 +158,11 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         uint64 _gasLimit,
         address _unsafeBlockSigner,
         ResourceMetering.ResourceConfig memory _config,
-        uint256 _startBlock,
         address _batchInbox,
         SystemConfig.Addresses memory _addresses
     )
         public
-        reinitializer(2)
+        initializer
     {
         __Ownable_init();
         transferOwnership(_owner);
@@ -172,17 +171,17 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         _setBatcherHash(_batcherHash);
         _setGasConfig({ _overhead: _overhead, _scalar: _scalar });
         _setGasLimit(_gasLimit);
-        _setUnsafeBlockSigner(_unsafeBlockSigner);
 
-        _setAddress(_batchInbox, BATCH_INBOX_SLOT);
-        _setAddress(_addresses.l1CrossDomainMessenger, L1_CROSS_DOMAIN_MESSENGER_SLOT);
-        _setAddress(_addresses.l1ERC721Bridge, L1_ERC_721_BRIDGE_SLOT);
-        _setAddress(_addresses.l1StandardBridge, L1_STANDARD_BRIDGE_SLOT);
-        _setAddress(_addresses.l2OutputOracle, L2_OUTPUT_ORACLE_SLOT);
-        _setAddress(_addresses.optimismPortal, OPTIMISM_PORTAL_SLOT);
-        _setAddress(_addresses.optimismMintableERC20Factory, OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT);
+        Storage.setAddress(UNSAFE_BLOCK_SIGNER_SLOT, _unsafeBlockSigner);
+        Storage.setAddress(BATCH_INBOX_SLOT, _batchInbox);
+        Storage.setAddress(L1_CROSS_DOMAIN_MESSENGER_SLOT, _addresses.l1CrossDomainMessenger);
+        Storage.setAddress(L1_ERC_721_BRIDGE_SLOT, _addresses.l1ERC721Bridge);
+        Storage.setAddress(L1_STANDARD_BRIDGE_SLOT, _addresses.l1StandardBridge);
+        Storage.setAddress(L2_OUTPUT_ORACLE_SLOT, _addresses.l2OutputOracle);
+        Storage.setAddress(OPTIMISM_PORTAL_SLOT, _addresses.optimismPortal);
+        Storage.setAddress(OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT, _addresses.optimismMintableERC20Factory);
 
-        _setStartBlock(_startBlock);
+        _setStartBlock();
 
         _setResourceConfig(_config);
         require(_gasLimit >= minimumGasLimit(), "SystemConfig: gas limit too low");
@@ -202,87 +201,48 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     ///         Unsafe blocks can be propagated across the p2p network if they are signed by the
     ///         key corresponding to this address.
     /// @return addr_ Address of the unsafe block signer.
-    // solhint-disable-next-line ordering
-    function unsafeBlockSigner() external view returns (address addr_) {
-        addr_ = _getAddress(UNSAFE_BLOCK_SIGNER_SLOT);
-    }
-
-    /// @notice Stores an address in an arbitrary storage slot, `_slot`.
-    /// @param _addr The address to store
-    /// @param _slot The storage slot to store the address in.
-    /// @dev WARNING! This function must be used cautiously, as it allows for overwriting values
-    ///      in arbitrary storage slots. Solc will add checks that the data passed as `_addr`
-    ///      is 20 bytes or less.
-    function _setAddress(address _addr, bytes32 _slot) internal {
-        assembly {
-            sstore(_slot, _addr)
-        }
-    }
-
-    /// @notice Returns an address stored in an arbitrary storage slot.
-    ///         These storage slots decouple the storage layout from
-    ///         solc's automation.
-    /// @param _slot The storage slot to retrieve the address from.
-    function _getAddress(bytes32 _slot) internal view returns (address addr_) {
-        assembly {
-            addr_ := sload(_slot)
-        }
+    function unsafeBlockSigner() public view returns (address addr_) {
+        addr_ = Storage.getAddress(UNSAFE_BLOCK_SIGNER_SLOT);
     }
 
     /// @notice Getter for the L1CrossDomainMessenger address.
     function l1CrossDomainMessenger() external view returns (address addr_) {
-        addr_ = _getAddress(L1_CROSS_DOMAIN_MESSENGER_SLOT);
+        addr_ = Storage.getAddress(L1_CROSS_DOMAIN_MESSENGER_SLOT);
     }
 
     /// @notice Getter for the L1ERC721Bridge address.
     function l1ERC721Bridge() external view returns (address addr_) {
-        addr_ = _getAddress(L1_ERC_721_BRIDGE_SLOT);
+        addr_ = Storage.getAddress(L1_ERC_721_BRIDGE_SLOT);
     }
 
     /// @notice Getter for the L1StandardBridge address.
     function l1StandardBridge() external view returns (address addr_) {
-        addr_ = _getAddress(L1_STANDARD_BRIDGE_SLOT);
+        addr_ = Storage.getAddress(L1_STANDARD_BRIDGE_SLOT);
     }
 
     /// @notice Getter for the L2OutputOracle address.
     function l2OutputOracle() external view returns (address addr_) {
-        addr_ = _getAddress(L2_OUTPUT_ORACLE_SLOT);
+        addr_ = Storage.getAddress(L2_OUTPUT_ORACLE_SLOT);
     }
 
     /// @notice Getter for the OptimismPortal address.
     function optimismPortal() external view returns (address addr_) {
-        addr_ = _getAddress(OPTIMISM_PORTAL_SLOT);
+        addr_ = Storage.getAddress(OPTIMISM_PORTAL_SLOT);
     }
 
     /// @notice Getter for the OptimismMintableERC20Factory address.
     function optimismMintableERC20Factory() external view returns (address addr_) {
-        addr_ = _getAddress(OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT);
+        addr_ = Storage.getAddress(OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT);
     }
 
     /// @notice Getter for the BatchInbox address.
     function batchInbox() external view returns (address addr_) {
-        addr_ = _getAddress(BATCH_INBOX_SLOT);
+        addr_ = Storage.getAddress(BATCH_INBOX_SLOT);
     }
 
-    /// @notice Sets the start block in a backwards compatible way. Proxies
-    ///         that were initialized before the startBlock existed in storage
-    ///         can have their start block set by a user provided override.
-    ///         A start block of 0 indicates that there is no override and the
-    ///         start block will be set by `block.number`.
-    /// @dev    This logic is used to patch legacy with new storage values. In the
-    ///         next version, it should remove the override and set the start block
-    ///         to `block.number` if the value in storage is 0. This will allow it
-    ///         to be reinitialized again and also work for fresh deployments.
-    /// @param  _startBlock The start block override to set in storage.
-    function _setStartBlock(uint256 _startBlock) internal {
-        require(startBlock == 0, "SystemConfig: cannot override an already set start block");
-        if (_startBlock != 0) {
-            // There is an override, it cannot already be set.
-            startBlock = _startBlock;
-        } else {
-            // There is no override and it is not set in storage. Set it to the block number.
-            startBlock = block.number;
-        }
+    /// @notice Getter for the StartBlock number.
+    function startBlock() external view returns (uint256 startBlock_) {
+        startBlock_ = Storage.getUint(START_BLOCK_SLOT);
     }
 
     /// @notice Updates the unsafe block signer address. Can only be called by the owner.
@@ -294,7 +254,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @notice Updates the unsafe block signer address.
     /// @param _unsafeBlockSigner New unsafe block signer address.
     function _setUnsafeBlockSigner(address _unsafeBlockSigner) internal {
-        _setAddress(_unsafeBlockSigner, UNSAFE_BLOCK_SIGNER_SLOT);
+        Storage.setAddress(UNSAFE_BLOCK_SIGNER_SLOT, _unsafeBlockSigner);
 
         bytes memory data = abi.encode(_unsafeBlockSigner);
         emit ConfigUpdate(VERSION, UpdateType.UNSAFE_BLOCK_SIGNER, data);
@@ -347,6 +307,21 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
 
         bytes memory data = abi.encode(_gasLimit);
         emit ConfigUpdate(VERSION, UpdateType.GAS_LIMIT, data);
+    }
+
+    /// @notice Sets the start block in a backwards compatible way. Proxies
+    ///         that were initialized before the startBlock existed in storage
+    ///         can have their start block set by a user provided override.
+    ///         A start block of 0 indicates that there is no override and the
+    ///         start block will be set by `block.number`.
+    /// @dev    This logic is used to patch legacy deployments with new storage values.
+    ///         Use the override if it is provided as a non zero value and the value
+    ///         has not already been set in storage. Use `block.number` if the value
+    ///         has already been set in storage
+    function _setStartBlock() internal {
+        if (Storage.getUint(START_BLOCK_SLOT) == 0) {
+            Storage.setUint(START_BLOCK_SLOT, block.number);
+        }
     }
 
     /// @notice A getter for the resource config.

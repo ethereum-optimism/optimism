@@ -21,8 +21,6 @@ type Cache interface {
 const (
 	// assuming an average RPCRes size of 3 KB
 	memoryCacheLimit = 4096
-	// Set a large ttl to avoid expirations. However, a ttl must be set for volatile-lru to take effect.
-	redisTTL = 30 * 7 * 24 * time.Hour
 )
 
 type cache struct {
@@ -49,10 +47,11 @@ func (c *cache) Put(ctx context.Context, key string, value string) error {
 type redisCache struct {
 	rdb    *redis.Client
 	prefix string
+	ttl    time.Duration
 }
 
-func newRedisCache(rdb *redis.Client, prefix string) *redisCache {
-	return &redisCache{rdb, prefix}
+func newRedisCache(rdb *redis.Client, prefix string, ttl time.Duration) *redisCache {
+	return &redisCache{rdb, prefix, ttl}
 }
 
 func (c *redisCache) namespaced(key string) string {
@@ -78,7 +77,7 @@ func (c *redisCache) Get(ctx context.Context, key string) (string, error) {
 
 func (c *redisCache) Put(ctx context.Context, key string, value string) error {
 	start := time.Now()
-	err := c.rdb.SetEx(ctx, c.namespaced(key), value, redisTTL).Err()
+	err := c.rdb.SetEx(ctx, c.namespaced(key), value, c.ttl).Err()
 	redisCacheDurationSumm.WithLabelValues("SETEX").Observe(float64(time.Since(start).Milliseconds()))
 
 	if err != nil {
@@ -128,7 +127,7 @@ type rpcCache struct {
 func newRPCCache(cache Cache) RPCCache {
 	staticHandler := &StaticMethodHandler{cache: cache}
 	debugGetRawReceiptsHandler := &StaticMethodHandler{cache: cache,
-		filter: func(req *RPCReq) bool {
+		filterGet: func(req *RPCReq) bool {
 			// cache only if the request is for a block hash
 
 			var p []rpc.BlockNumberOrHash
@@ -140,6 +139,14 @@ func newRPCCache(cache Cache) RPCCache {
 				return false
 			}
 			return p[0].BlockHash != nil
+		},
+		filterPut: func(req *RPCReq, res *RPCRes) bool {
+			// don't cache if response contains 0 receipts
+			rawReceipts, ok := res.Result.([]interface{})
+			if !ok {
+				return false
+			}
+			return len(rawReceipts) > 0
 		},
 	}
 	handlers := map[string]RPCMethodHandler{

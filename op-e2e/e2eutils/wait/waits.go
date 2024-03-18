@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/big"
+	"os"
 	"time"
 
 	"github.com/ethereum/go-ethereum"
@@ -12,6 +14,22 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 )
+
+func ForBalanceChange(ctx context.Context, client *ethclient.Client, address common.Address, initial *big.Int) (*big.Int, error) {
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	defer cancel()
+
+	return AndGet[*big.Int](
+		ctx,
+		100*time.Millisecond,
+		func() (*big.Int, error) {
+			return client.BalanceAt(ctx, address, nil)
+		},
+		func(b *big.Int) bool {
+			return b.Cmp(initial) != 0
+		},
+	)
+}
 
 func ForReceiptOK(ctx context.Context, client *ethclient.Client, hash common.Hash) (*types.Receipt, error) {
 	return ForReceipt(ctx, client, hash, types.ReceiptStatusSuccessful)
@@ -22,6 +40,8 @@ func ForReceiptFail(ctx context.Context, client *ethclient.Client, hash common.H
 }
 
 func ForReceipt(ctx context.Context, client *ethclient.Client, hash common.Hash, status uint64) (*types.Receipt, error) {
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	defer cancel()
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 	for {
@@ -33,6 +53,9 @@ func ForReceipt(ctx context.Context, client *ethclient.Client, hash common.Hash,
 			case <-ticker.C:
 				continue
 			}
+		}
+		if errors.Is(err, os.ErrDeadlineExceeded) {
+			continue
 		}
 		if err != nil {
 			return nil, fmt.Errorf("failed to get receipt: %w", err)
@@ -69,59 +92,25 @@ func printDebugTrace(ctx context.Context, client *ethclient.Client, txHash commo
 	fmt.Printf("TxTrace: %v\n", trace)
 }
 
-func ForBlock(ctx context.Context, client *ethclient.Client, n uint64) error {
-	for {
-		height, err := client.BlockNumber(ctx)
-		if err != nil {
-			return err
-		}
-		if height < n {
-			time.Sleep(500 * time.Millisecond)
-			continue
-		}
-		break
-	}
-
-	return nil
-}
-
-func ForBlockWithTimestamp(ctx context.Context, client *ethclient.Client, target uint64) error {
-	_, err := AndGet(ctx, time.Second, func() (uint64, error) {
-		head, err := client.BlockByNumber(ctx, nil)
-		if err != nil {
-			return 0, err
-		}
-		return head.Time(), nil
-	}, func(actual uint64) bool {
-		return actual >= target
-	})
-	return err
-}
-
-func ForNextBlock(ctx context.Context, client *ethclient.Client) error {
-	current, err := client.BlockNumber(ctx)
-	if err != nil {
-		return fmt.Errorf("get starting block number: %w", err)
-	}
-	return ForBlock(ctx, client, current+1)
-}
-
 func For(ctx context.Context, rate time.Duration, cb func() (bool, error)) error {
 	tick := time.NewTicker(rate)
 	defer tick.Stop()
 
 	for {
+		// Perform the first check before any waiting.
+		done, err := cb()
+		if err != nil {
+			return err
+		}
+		if done {
+			return nil
+		}
+
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-tick.C:
-			done, err := cb()
-			if err != nil {
-				return err
-			}
-			if done {
-				return nil
-			}
+			// Allow loop to continue for next retry
 		}
 	}
 }

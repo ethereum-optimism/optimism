@@ -1,23 +1,29 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { CrossDomainMessenger } from "./CrossDomainMessenger.sol";
+import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
+import { StandardBridge } from "src/universal/StandardBridge.sol";
+import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
 /// @title ERC721Bridge
 /// @notice ERC721Bridge is a base contract for the L1 and L2 ERC721 bridges.
 abstract contract ERC721Bridge is Initializable {
+    /// @custom:spacer ERC721Bridge's initializer slot spacing
+    /// @notice Spacer to avoid packing into the initializer slot
+    bytes30 private spacer_0_2_30;
+
     /// @notice Messenger contract on this domain.
     /// @custom:network-specific
     CrossDomainMessenger public messenger;
 
-    /// @notice Address of the bridge on the other network.
-    /// @custom:legacy
-    address public immutable OTHER_BRIDGE;
+    /// @notice Contract of the bridge on the other network.
+    /// @custom:network-specific
+    StandardBridge public otherBridge;
 
     /// @notice Reserve extra slots (to a total of 50) in the storage layout for future upgrades.
-    uint256[48] private __gap;
+    uint256[46] private __gap;
 
     /// @notice Emitted when an ERC721 bridge to the other network is initiated.
     /// @param localToken  Address of the token on this domain.
@@ -54,34 +60,48 @@ abstract contract ERC721Bridge is Initializable {
     /// @notice Ensures that the caller is a cross-chain message from the other bridge.
     modifier onlyOtherBridge() {
         require(
-            msg.sender == address(messenger) && messenger.xDomainMessageSender() == OTHER_BRIDGE,
+            msg.sender == address(messenger) && messenger.xDomainMessageSender() == address(otherBridge),
             "ERC721Bridge: function can only be called from the other bridge"
         );
         _;
     }
 
-    /// @notice Constructs the contract.
-    /// @param _otherBridge Address of the ERC721 bridge on the other network.
-    constructor(address _otherBridge) {
-        require(_otherBridge != address(0), "ERC721Bridge: other bridge cannot be address(0)");
-        OTHER_BRIDGE = _otherBridge;
-    }
-
-    // @notice Initializes the contract.
-    /// @param _messenger   Address of the CrossDomainMessenger on this network.
-    function __ERC721Bridge_init(CrossDomainMessenger _messenger) internal onlyInitializing {
+    /// @notice Initializer.
+    /// @param _messenger   Contract of the CrossDomainMessenger on this network.
+    /// @param _otherBridge Contract of the ERC721 bridge on the other network.
+    function __ERC721Bridge_init(
+        CrossDomainMessenger _messenger,
+        StandardBridge _otherBridge
+    )
+        internal
+        onlyInitializing
+    {
         messenger = _messenger;
+        otherBridge = _otherBridge;
     }
 
-    /// @notice Getter for messenger contract.
+    /// @notice Legacy getter for messenger contract.
+    ///         Public getter is legacy and will be removed in the future. Use `messenger` instead.
+    /// @return Messenger contract on this domain.
+    /// @custom:legacy
     function MESSENGER() external view returns (CrossDomainMessenger) {
         return messenger;
     }
 
-    /// @notice Getter for other bridge address.
-    /// @return Address of the bridge on the other network.
-    function otherBridge() external view returns (address) {
-        return OTHER_BRIDGE;
+    /// @notice Legacy getter for other bridge address.
+    ///         Public getter is legacy and will be removed in the future. Use `otherBridge` instead.
+    /// @return Contract of the bridge on the other network.
+    /// @custom:legacy
+    function OTHER_BRIDGE() external view returns (StandardBridge) {
+        return otherBridge;
+    }
+
+    /// @notice This function should return true if the contract is paused.
+    ///         On L1 this function will check the SuperchainConfig for its paused status.
+    ///         On L2 this function should be a no-op.
+    /// @return Whether or not the contract is paused.
+    function paused() public view virtual returns (bool) {
+        return false;
     }
 
     /// @notice Initiates a bridge of an NFT to the caller's account on the other chain. Note that

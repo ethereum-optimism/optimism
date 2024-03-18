@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/log"
 	ds "github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/sync"
@@ -35,7 +35,7 @@ func TestRoundTripIPBan(t *testing.T) {
 
 func createMemoryIPBanBook(t *testing.T) *ipBanBook {
 	store := sync.MutexWrap(ds.NewMapDatastore())
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	c := clock.NewDeterministicClock(time.UnixMilli(100))
 	book, err := newIPBanBook(context.Background(), logger, c, store)
 	require.NoError(t, err)

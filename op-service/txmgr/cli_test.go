@@ -13,12 +13,12 @@ var (
 
 func TestDefaultCLIOptionsMatchDefaultConfig(t *testing.T) {
 	cfg := configForArgs()
-	defaultCfg := NewCLIConfig(l1EthRpcValue)
+	defaultCfg := NewCLIConfig(l1EthRpcValue, DefaultBatcherFlagValues)
 	require.Equal(t, defaultCfg, cfg)
 }
 
 func TestDefaultConfigIsValid(t *testing.T) {
-	cfg := NewCLIConfig(l1EthRpcValue)
+	cfg := NewCLIConfig(l1EthRpcValue, DefaultBatcherFlagValues)
 	require.NoError(t, cfg.Check())
 }
 

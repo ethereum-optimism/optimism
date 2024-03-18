@@ -1,5 +1,17 @@
 # @eth-optimism/contracts-bedrock
 
+## 0.17.1
+
+### Patch Changes
+
+- [#9415](https://github.com/ethereum-optimism/optimism/pull/9415) [`79effc52e8b82d15b5eda43acf540ac6c5f8d5d7`](https://github.com/ethereum-optimism/optimism/commit/79effc52e8b82d15b5eda43acf540ac6c5f8d5d7) Thanks [@nitaliano](https://github.com/nitaliano)! - Bumps version so fpac contracts exist for SDK to consume
+
+## 0.16.2
+
+### Patch Changes
+
+- [#7450](https://github.com/ethereum-optimism/optimism/pull/7450) [`ac90e16a7`](https://github.com/ethereum-optimism/optimism/commit/ac90e16a7f85c4f73661ae6023135c3d00421c1e) Thanks [@roninjin10](https://github.com/roninjin10)! - Updated dev dependencies related to testing that is causing audit tooling to report failures
+
 ## 0.16.1
 
 ### Patch Changes

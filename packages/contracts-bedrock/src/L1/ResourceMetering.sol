@@ -3,8 +3,8 @@ pragma solidity 0.8.15;
 
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
-import { Burn } from "../libraries/Burn.sol";
-import { Arithmetic } from "../libraries/Arithmetic.sol";
+import { Burn } from "src/libraries/Burn.sol";
+import { Arithmetic } from "src/libraries/Arithmetic.sol";
 
 /// @custom:upgradeable
 /// @title ResourceMetering
@@ -153,8 +153,9 @@ abstract contract ResourceMetering is Initializable {
     /// @notice Sets initial resource parameter values.
     ///         This function must either be called by the initializer function of an upgradeable
     ///         child contract.
-    // solhint-disable-next-line func-name-mixedcase
     function __ResourceMetering_init() internal onlyInitializing {
-        params = ResourceParams({ prevBaseFee: 1 gwei, prevBoughtGas: 0, prevBlockNum: uint64(block.number) });
+        if (params.prevBlockNum == 0) {
+            params = ResourceParams({ prevBaseFee: 1 gwei, prevBoughtGas: 0, prevBlockNum: uint64(block.number) });
+        }
     }
 }

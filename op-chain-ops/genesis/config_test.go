@@ -49,6 +49,18 @@ func TestRegolithTimeAsOffset(t *testing.T) {
 	require.Equal(t, uint64(1500+5000), *config.RegolithTime(5000))
 }
 
+func TestCanyonTimeZero(t *testing.T) {
+	canyonOffset := hexutil.Uint64(0)
+	config := &DeployConfig{L2GenesisCanyonTimeOffset: &canyonOffset}
+	require.Equal(t, uint64(0), *config.CanyonTime(1234))
+}
+
+func TestCanyonTimeOffset(t *testing.T) {
+	canyonOffset := hexutil.Uint64(1500)
+	config := &DeployConfig{L2GenesisCanyonTimeOffset: &canyonOffset}
+	require.Equal(t, uint64(1234+1500), *config.CanyonTime(1234))
+}
+
 // TestCopy will copy a DeployConfig and ensure that the copy is equal to the original.
 func TestCopy(t *testing.T) {
 	b, err := os.ReadFile("testdata/test-deploy-config-full.json")

@@ -110,7 +110,7 @@ func TestRPCCacheImmutableRPCs(t *testing.T) {
 			},
 			res: &RPCRes{
 				JSONRPC: "2.0",
-				Result:  `{"debug_getRawReceipts":"!"}`,
+				Result:  []interface{}{"a"},
 				ID:      ID,
 			},
 			name: "debug_getRawReceipts",
@@ -183,7 +183,7 @@ func TestRPCCacheUnsupportedMethod(t *testing.T) {
 			name: "eth_call",
 			req: &RPCReq{
 				JSONRPC: "2.0",
-				Method:  "eth_gasPrice",
+				Method:  "eth_call",
 				ID:      ID,
 			},
 		},

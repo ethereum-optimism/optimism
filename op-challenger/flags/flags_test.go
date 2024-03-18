@@ -2,9 +2,14 @@ package flags
 
 import (
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
+	opservice "github.com/ethereum-optimism/optimism/op-service"
+	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+
+	"github.com/stretchr/testify/require"
 	"github.com/urfave/cli/v2"
 )
 
@@ -12,12 +17,13 @@ import (
 func TestUniqueFlags(t *testing.T) {
 	seenCLI := make(map[string]struct{})
 	for _, flag := range Flags {
-		name := flag.Names()[0]
-		if _, ok := seenCLI[name]; ok {
-			t.Errorf("duplicate flag %s", name)
-			continue
+		for _, name := range flag.Names() {
+			if _, ok := seenCLI[name]; ok {
+				t.Errorf("duplicate flag %s", name)
+				continue
+			}
+			seenCLI[name] = struct{}{}
 		}
-		seenCLI[name] = struct{}{}
 	}
 }
 
@@ -56,4 +62,31 @@ func envVarForFlag(flag cli.Flag) string {
 		return ""
 	}
 	return envVarValue.Index(0).String()
+}
+
+func TestEnvVarFormat(t *testing.T) {
+	for _, flag := range Flags {
+		flag := flag
+		flagName := flag.Names()[0]
+
+		skippedFlags := []string{
+			txmgr.FeeLimitMultiplierFlagName,
+			txmgr.TxSendTimeoutFlagName,
+			txmgr.TxNotInMempoolTimeoutFlagName,
+		}
+
+		t.Run(flagName, func(t *testing.T) {
+			if slices.Contains(skippedFlags, flagName) {
+				t.Skipf("Skipping flag %v which is known to not have a standard flag name <-> env var conversion", flagName)
+			}
+			envFlagGetter, ok := flag.(interface {
+				GetEnvVars() []string
+			})
+			envFlags := envFlagGetter.GetEnvVars()
+			require.True(t, ok, "must be able to cast the flag to an EnvVar interface")
+			require.Equal(t, 1, len(envFlags), "flags should have exactly one env var")
+			expectedEnvVar := opservice.FlagNameToEnvVarName(flagName, "OP_CHALLENGER")
+			require.Equal(t, expectedEnvVar, envFlags[0])
+		})
+	}
 }

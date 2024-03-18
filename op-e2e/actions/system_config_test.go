@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
@@ -15,38 +16,61 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
-	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
-// TestBatcherKeyRotation tests that batcher A can operate, then be replaced with batcher B, then ignore old batcher A,
+// TestSystemConfigBatchType run each system config-related test case in singular batch mode and span batch mode.
+func TestSystemConfigBatchType(t *testing.T) {
+	tests := []struct {
+		name string
+		f    func(gt *testing.T, deltaTimeOffset *hexutil.Uint64)
+	}{
+		{"BatcherKeyRotation", BatcherKeyRotation},
+		{"GPOParamsChange", GPOParamsChange},
+		{"GasLimitChange", GasLimitChange},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(test.name+"_SingularBatch", func(t *testing.T) {
+			test.f(t, nil)
+		})
+	}
+
+	deltaTimeOffset := hexutil.Uint64(0)
+	for _, test := range tests {
+		test := test
+		t.Run(test.name+"_SpanBatch", func(t *testing.T) {
+			test.f(t, &deltaTimeOffset)
+		})
+	}
+}
+
+// BatcherKeyRotation tests that batcher A can operate, then be replaced with batcher B, then ignore old batcher A,
 // and that the change to batcher B is reverted properly upon reorg of L1.
-func TestBatcherKeyRotation(gt *testing.T) {
+func BatcherKeyRotation(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	t := NewDefaultTesting(gt)
 
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	dp.DeployConfig.L2BlockTime = 2
+	dp.DeployConfig.L2GenesisDeltaTimeOffset = deltaTimeOffset
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
-	log := testlog.Logger(t, log.LvlDebug)
+	log := testlog.Logger(t, log.LevelDebug)
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
 	miner.ActL1SetFeeRecipient(common.Address{'A'})
 	sequencer.ActL2PipelineFull(t)
-	_, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), &sync.Config{})
+	_, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{})
 	rollupSeqCl := sequencer.RollupClient()
 
 	// the default batcher
-	batcherA := NewL2Batcher(log, sd.RollupCfg, &BatcherCfg{
-		MinL1TxSize: 0,
-		MaxL1TxSize: 128_000,
-		BatcherKey:  dp.Secrets.Batcher,
-	}, rollupSeqCl, miner.EthClient(), seqEngine.EthClient())
+	batcherA := NewL2Batcher(log, sd.RollupCfg, DefaultBatcherCfg(dp),
+		rollupSeqCl, miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
 
 	// a batcher with a new key
-	batcherB := NewL2Batcher(log, sd.RollupCfg, &BatcherCfg{
-		MinL1TxSize: 0,
-		MaxL1TxSize: 128_000,
-		BatcherKey:  dp.Secrets.Bob,
-	}, rollupSeqCl, miner.EthClient(), seqEngine.EthClient())
+	altCfg := *DefaultBatcherCfg(dp)
+	altCfg.BatcherKey = dp.Secrets.Bob
+	batcherB := NewL2Batcher(log, sd.RollupCfg, &altCfg,
+		rollupSeqCl, miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
 
 	sequencer.ActL2PipelineFull(t)
 	verifier.ActL2PipelineFull(t)
@@ -80,7 +104,7 @@ func TestBatcherKeyRotation(gt *testing.T) {
 	require.Equal(t, dp.Addresses.SysCfgOwner, owner, "system config owner mismatch")
 
 	// Change the batch sender key to Bob!
-	tx, err := sysCfgContract.SetBatcherHash(sysCfgOwner, dp.Addresses.Bob.Hash())
+	tx, err := sysCfgContract.SetBatcherHash(sysCfgOwner, eth.AddressAsLeftPaddedHash(dp.Addresses.Bob))
 	require.NoError(t, err)
 	t.Logf("batcher changes in L1 tx %s", tx.Hash())
 	miner.ActL1StartBlock(12)(t)
@@ -107,9 +131,9 @@ func TestBatcherKeyRotation(gt *testing.T) {
 	// 12 new L2 blocks: 5 with origin before L1 block with batch, 6 with origin of L1 block
 	// with batch, 1 with new origin that changed the batcher
 	for i := 0; i <= 12; i++ {
-		payload, err := engCl.PayloadByNumber(t.Ctx(), sequencer.L2Safe().Number+uint64(i))
+		envelope, err := engCl.PayloadByNumber(t.Ctx(), sequencer.L2Safe().Number+uint64(i))
 		require.NoError(t, err)
-		ref, err := derive.PayloadToBlockRef(payload, &sd.RollupCfg.Genesis)
+		ref, err := derive.PayloadToBlockRef(sd.RollupCfg, envelope.ExecutionPayload)
 		require.NoError(t, err)
 		if i < 6 {
 			require.Equal(t, ref.L1Origin.Number, cfgChangeL1BlockNum-2)
@@ -120,7 +144,7 @@ func TestBatcherKeyRotation(gt *testing.T) {
 		} else {
 			require.Equal(t, ref.L1Origin.Number, cfgChangeL1BlockNum)
 			require.Equal(t, ref.SequenceNumber, uint64(0), "first L2 block with this origin")
-			sysCfg, err := derive.PayloadToSystemConfig(payload, sd.RollupCfg)
+			sysCfg, err := derive.PayloadToSystemConfig(sd.RollupCfg, envelope.ExecutionPayload)
 			require.NoError(t, err)
 			require.Equal(t, dp.Addresses.Bob, sysCfg.BatcherAddr, "bob should be batcher now")
 		}
@@ -198,19 +222,17 @@ func TestBatcherKeyRotation(gt *testing.T) {
 	require.Equal(t, sequencer.L2Unsafe(), verifier.L2Unsafe(), "verifier synced")
 }
 
-// TestGPOParamsChange tests that the GPO params can be updated to adjust fees of L2 transactions,
+// GPOParamsChange tests that the GPO params can be updated to adjust fees of L2 transactions,
 // and that the L1 data fees to the L2 transaction are applied correctly before, during and after the GPO update in L2.
-func TestGPOParamsChange(gt *testing.T) {
+func GPOParamsChange(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
+	dp.DeployConfig.L2GenesisDeltaTimeOffset = deltaTimeOffset
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
-	log := testlog.Logger(t, log.LvlDebug)
+	log := testlog.Logger(t, log.LevelDebug)
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
-	batcher := NewL2Batcher(log, sd.RollupCfg, &BatcherCfg{
-		MinL1TxSize: 0,
-		MaxL1TxSize: 128_000,
-		BatcherKey:  dp.Secrets.Batcher,
-	}, sequencer.RollupClient(), miner.EthClient(), seqEngine.EthClient())
+	batcher := NewL2Batcher(log, sd.RollupCfg, DefaultBatcherCfg(dp),
+		sequencer.RollupClient(), miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
 
 	alice := NewBasicUser[any](log, dp.Secrets.Alice, rand.New(rand.NewSource(1234)))
 	alice.SetUserEnv(&BasicUserEnv[any]{
@@ -276,9 +298,9 @@ func TestGPOParamsChange(gt *testing.T) {
 	sequencer.ActBuildToL1HeadExcl(t)
 
 	engCl := seqEngine.EngineClient(t, sd.RollupCfg)
-	payload, err := engCl.PayloadByLabel(t.Ctx(), eth.Unsafe)
+	envelope, err := engCl.PayloadByLabel(t.Ctx(), eth.Unsafe)
 	require.NoError(t, err)
-	sysCfg, err := derive.PayloadToSystemConfig(payload, sd.RollupCfg)
+	sysCfg, err := derive.PayloadToSystemConfig(sd.RollupCfg, envelope.ExecutionPayload)
 	require.NoError(t, err)
 	require.Equal(t, sd.RollupCfg.Genesis.SystemConfig, sysCfg, "still have genesis system config before we adopt the L1 block with GPO change")
 
@@ -289,9 +311,9 @@ func TestGPOParamsChange(gt *testing.T) {
 	seqEngine.ActL2IncludeTx(dp.Addresses.Alice)(t)
 	sequencer.ActL2EndBlock(t)
 
-	payload, err = engCl.PayloadByLabel(t.Ctx(), eth.Unsafe)
+	envelope, err = engCl.PayloadByLabel(t.Ctx(), eth.Unsafe)
 	require.NoError(t, err)
-	sysCfg, err = derive.PayloadToSystemConfig(payload, sd.RollupCfg)
+	sysCfg, err = derive.PayloadToSystemConfig(sd.RollupCfg, envelope.ExecutionPayload)
 	require.NoError(t, err)
 	require.Equal(t, eth.Bytes32(common.BigToHash(big.NewInt(1000))), sysCfg.Overhead, "overhead changed")
 	require.Equal(t, eth.Bytes32(common.BigToHash(big.NewInt(2_300_000))), sysCfg.Scalar, "scalar changed")
@@ -326,20 +348,18 @@ func TestGPOParamsChange(gt *testing.T) {
 	require.Equal(t, "2.3", receipt.FeeScalar.String(), "2_300_000 divided by 6 decimals = float(2.3)")
 }
 
-// TestGasLimitChange tests that the gas limit can be configured to L1,
+// GasLimitChange tests that the gas limit can be configured to L1,
 // and that the L2 changes the gas limit instantly at the exact block that adopts the L1 origin with
 // the gas limit change event. And checks if a verifier node can reproduce the same gas limit change.
-func TestGasLimitChange(gt *testing.T) {
+func GasLimitChange(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
+	dp.DeployConfig.L2GenesisDeltaTimeOffset = deltaTimeOffset
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
-	log := testlog.Logger(t, log.LvlDebug)
+	log := testlog.Logger(t, log.LevelDebug)
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
-	batcher := NewL2Batcher(log, sd.RollupCfg, &BatcherCfg{
-		MinL1TxSize: 0,
-		MaxL1TxSize: 128_000,
-		BatcherKey:  dp.Secrets.Batcher,
-	}, sequencer.RollupClient(), miner.EthClient(), seqEngine.EthClient())
+	batcher := NewL2Batcher(log, sd.RollupCfg, DefaultBatcherCfg(dp),
+		sequencer.RollupClient(), miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
 
 	sequencer.ActL2PipelineFull(t)
 	miner.ActEmptyBlock(t)
@@ -382,7 +402,7 @@ func TestGasLimitChange(gt *testing.T) {
 	miner.ActL1IncludeTx(dp.Addresses.Batcher)(t)
 	miner.ActL1EndBlock(t)
 
-	_, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), &sync.Config{})
+	_, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{})
 	verifier.ActL2PipelineFull(t)
 
 	require.Equal(t, sequencer.L2Unsafe(), verifier.L2Safe(), "verifier stays in sync, even with gaslimit changes")

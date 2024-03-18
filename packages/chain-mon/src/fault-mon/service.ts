@@ -147,11 +147,10 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
       contracts.OptimismPortal = portalAddress
 
       this.logger.info('fetching L2OutputOracle contract from OptimismPortal')
-      const opts = {
-        portalAddress,
+      const portalContract = getOEContract('OptimismPortal', l2ChainId, {
+        address: portalAddress,
         signerOrProvider: this.options.l1RpcProvider,
-      }
-      const portalContract = getOEContract('OptimismPortal', l2ChainId, opts)
+      })
       contracts.L2OutputOracle = await portalContract.L2_ORACLE()
     }
 

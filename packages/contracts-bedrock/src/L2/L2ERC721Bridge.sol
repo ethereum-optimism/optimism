@@ -6,7 +6,10 @@ import { ERC165Checker } from "@openzeppelin/contracts/utils/introspection/ERC16
 import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
 import { IOptimismMintableERC721 } from "src/universal/IOptimismMintableERC721.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
+import { StandardBridge } from "src/universal/StandardBridge.sol";
 import { ISemver } from "src/universal/ISemver.sol";
+import { Constants } from "src/libraries/Constants.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
 
 /// @title L2ERC721Bridge
 /// @notice The L2 ERC721 bridge is a contract which works together with the L1 ERC721 bridge to
@@ -18,19 +21,21 @@ import { ISemver } from "src/universal/ISemver.sol";
 ///         wait for the one-week challenge period to elapse before their Optimism-native NFT
 ///         can be refunded on L2.
 contract L2ERC721Bridge is ERC721Bridge, ISemver {
-    /// @custom:semver 1.3.0
-    string public constant version = "1.3.0";
+    /// @custom:semver 1.7.0
+    string public constant version = "1.7.0";
 
     /// @notice Constructs the L2ERC721Bridge contract.
-    /// @param _otherBridge Address of the ERC721 bridge on the other network.
-    constructor(address _otherBridge) ERC721Bridge(_otherBridge) {
-        initialize({ _messenger: CrossDomainMessenger(address(0)) });
+    constructor() ERC721Bridge() {
+        initialize({ _l1ERC721Bridge: payable(address(0)) });
     }
 
     /// @notice Initializes the contract.
-    /// @param _messenger   Address of the CrossDomainMessenger on this network.
-    function initialize(CrossDomainMessenger _messenger) public reinitializer(2) {
-        __ERC721Bridge_init({ _messenger: _messenger });
+    /// @param _l1ERC721Bridge Address of the ERC721 bridge contract on the other network.
+    function initialize(address payable _l1ERC721Bridge) public initializer {
+        __ERC721Bridge_init({
+            _messenger: CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER),
+            _otherBridge: StandardBridge(_l1ERC721Bridge)
+        });
     }
 
     /// @notice Completes an ERC721 bridge from the other domain and sends the ERC721 token to the
@@ -113,7 +118,7 @@ contract L2ERC721Bridge is ERC721Bridge, ISemver {
 
         // Send message to L1 bridge
         // slither-disable-next-line reentrancy-events
-        messenger.sendMessage(OTHER_BRIDGE, message, _minGasLimit);
+        messenger.sendMessage({ _target: address(otherBridge), _message: message, _minGasLimit: _minGasLimit });
 
         // slither-disable-next-line reentrancy-events
         emit ERC721BridgeInitiated(_localToken, remoteToken, _from, _to, _tokenId, _extraData);

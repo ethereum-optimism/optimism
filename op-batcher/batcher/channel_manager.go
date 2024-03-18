@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
@@ -24,13 +25,16 @@ var ErrReorg = errors.New("block does not extend existing chain")
 // channel.
 // Public functions on channelManager are safe for concurrent access.
 type channelManager struct {
-	mu   sync.Mutex
-	log  log.Logger
-	metr metrics.Metricer
-	cfg  ChannelConfig
+	mu        sync.Mutex
+	log       log.Logger
+	metr      metrics.Metricer
+	cfg       ChannelConfig
+	rollupCfg *rollup.Config
 
 	// All blocks since the last request for new tx data.
 	blocks []*types.Block
+	// The latest L1 block from all the L2 blocks in the most recently closed channel
+	l1OriginLastClosedChannel eth.BlockID
 	// last block hash - for reorg detection
 	tip common.Hash
 
@@ -39,40 +43,43 @@ type channelManager struct {
 	// channels to read frame data from, for writing batches onchain
 	channelQueue []*channel
 	// used to lookup channels by tx ID upon tx success / failure
-	txChannels map[txID]*channel
+	txChannels map[string]*channel
 
 	// if set to true, prevents production of any new channel frames
 	closed bool
 }
 
-func NewChannelManager(log log.Logger, metr metrics.Metricer, cfg ChannelConfig) *channelManager {
+func NewChannelManager(log log.Logger, metr metrics.Metricer, cfg ChannelConfig, rollupCfg *rollup.Config) *channelManager {
 	return &channelManager{
 		log:        log,
 		metr:       metr,
 		cfg:        cfg,
-		txChannels: make(map[txID]*channel),
+		rollupCfg:  rollupCfg,
+		txChannels: make(map[string]*channel),
 	}
 }
 
 // Clear clears the entire state of the channel manager.
-// It is intended to be used after an L2 reorg.
-func (s *channelManager) Clear() {
+// It is intended to be used before launching op-batcher and after an L2 reorg.
+func (s *channelManager) Clear(l1OriginLastClosedChannel eth.BlockID) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.log.Trace("clearing channel manager state")
 	s.blocks = s.blocks[:0]
+	s.l1OriginLastClosedChannel = l1OriginLastClosedChannel
 	s.tip = common.Hash{}
 	s.closed = false
 	s.currentChannel = nil
 	s.channelQueue = nil
-	s.txChannels = make(map[txID]*channel)
+	s.txChannels = make(map[string]*channel)
 }
 
 // TxFailed records a transaction as failed. It will attempt to resubmit the data
 // in the failed transaction.
-func (s *channelManager) TxFailed(id txID) {
+func (s *channelManager) TxFailed(_id txID) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	id := _id.String()
 	if channel, ok := s.txChannels[id]; ok {
 		delete(s.txChannels, id)
 		channel.TxFailed(id)
@@ -89,9 +96,10 @@ func (s *channelManager) TxFailed(id txID) {
 // a channel have been marked as confirmed on L1 the channel may be invalid & need to be
 // resubmitted.
 // This function may reset the pending channel if the pending channel has timed out.
-func (s *channelManager) TxConfirmed(id txID, inclusionBlock eth.BlockID) {
+func (s *channelManager) TxConfirmed(_id txID, inclusionBlock eth.BlockID) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	id := _id.String()
 	if channel, ok := s.txChannels[id]; ok {
 		delete(s.txChannels, id)
 		done, blocks := channel.TxConfirmed(id, inclusionBlock)
@@ -127,40 +135,40 @@ func (s *channelManager) removePendingChannel(channel *channel) {
 
 // nextTxData pops off s.datas & handles updating the internal state
 func (s *channelManager) nextTxData(channel *channel) (txData, error) {
-	if channel == nil || !channel.HasFrame() {
+	if channel == nil || !channel.HasTxData() {
 		s.log.Trace("no next tx data")
 		return txData{}, io.EOF // TODO: not enough data error instead
 	}
 	tx := channel.NextTxData()
-	s.txChannels[tx.ID()] = channel
+	s.txChannels[tx.ID().String()] = channel
 	return tx, nil
 }
 
 // TxData returns the next tx data that should be submitted to L1.
 //
-// It currently only uses one frame per transaction. If the pending channel is
+// If the pending channel is
 // full, it only returns the remaining frames of this channel until it got
-// successfully fully sent to L1. It returns io.EOF if there's no pending frame.
+// successfully fully sent to L1. It returns io.EOF if there's no pending tx data.
 func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	var firstWithFrame *channel
+	var firstWithTxData *channel
 	for _, ch := range s.channelQueue {
-		if ch.HasFrame() {
-			firstWithFrame = ch
+		if ch.HasTxData() {
+			firstWithTxData = ch
 			break
 		}
 	}
 
-	dataPending := firstWithFrame != nil && firstWithFrame.HasFrame()
-	s.log.Debug("Requested tx data", "l1Head", l1Head, "data_pending", dataPending, "blocks_pending", len(s.blocks))
+	dataPending := firstWithTxData != nil && firstWithTxData.HasTxData()
+	s.log.Debug("Requested tx data", "l1Head", l1Head, "txdata_pending", dataPending, "blocks_pending", len(s.blocks))
 
-	// Short circuit if there is a pending frame or the channel manager is closed.
+	// Short circuit if there is pending tx data or the channel manager is closed.
 	if dataPending || s.closed {
-		return s.nextTxData(firstWithFrame)
+		return s.nextTxData(firstWithTxData)
 	}
 
-	// No pending frame, so we have to add new blocks to the channel
+	// No pending tx data, so we have to add new blocks to the channel
 
 	// If we have no saved blocks, we will not be able to create valid frames
 	if len(s.blocks) == 0 {
@@ -195,16 +203,23 @@ func (s *channelManager) ensureChannelWithSpace(l1Head eth.BlockID) error {
 		return nil
 	}
 
-	pc, err := newChannel(s.log, s.metr, s.cfg)
+	pc, err := newChannel(s.log, s.metr, s.cfg, s.rollupCfg, s.l1OriginLastClosedChannel.Number)
+
 	if err != nil {
 		return fmt.Errorf("creating new channel: %w", err)
 	}
+
 	s.currentChannel = pc
 	s.channelQueue = append(s.channelQueue, pc)
+
 	s.log.Info("Created channel",
 		"id", pc.ID(),
 		"l1Head", l1Head,
-		"blocks_pending", len(s.blocks))
+		"l1OriginLastClosedChannel", s.l1OriginLastClosedChannel,
+		"blocks_pending", len(s.blocks),
+		"batch_type", s.cfg.BatchType,
+		"max_frame_size", s.cfg.MaxFrameSize,
+	)
 	s.metr.RecordChannelOpened(pc.ID(), len(s.blocks))
 
 	return nil
@@ -212,7 +227,7 @@ func (s *channelManager) ensureChannelWithSpace(l1Head eth.BlockID) error {
 
 // registerL1Block registers the given block at the pending channel.
 func (s *channelManager) registerL1Block(l1Head eth.BlockID) {
-	s.currentChannel.RegisterL1Block(l1Head.Number)
+	s.currentChannel.CheckTimeout(l1Head.Number)
 	s.log.Debug("new L1-block registered at channel builder",
 		"l1Head", l1Head,
 		"channel_full", s.currentChannel.IsFull(),
@@ -236,7 +251,7 @@ func (s *channelManager) processBlocks() error {
 		} else if err != nil {
 			return fmt.Errorf("adding block[%d] to channel builder: %w", i, err)
 		}
-		s.log.Debug("Added block to channel", "channel", s.currentChannel.ID(), "block", block)
+		s.log.Debug("Added block to channel", "id", s.currentChannel.ID(), "block", eth.ToBlockID(block))
 
 		blocksAdded += 1
 		latestL2ref = l2BlockRefFromBlockAndL1Info(block, l1info)
@@ -278,6 +293,11 @@ func (s *channelManager) outputFrames() error {
 		return nil
 	}
 
+	lastClosedL1Origin := s.currentChannel.LatestL1Origin()
+	if lastClosedL1Origin.Number > s.l1OriginLastClosedChannel.Number {
+		s.l1OriginLastClosedChannel = lastClosedL1Origin
+	}
+
 	inBytes, outBytes := s.currentChannel.InputBytes(), s.currentChannel.OutputBytes()
 	s.metr.RecordChannelClosed(
 		s.currentChannel.ID(),
@@ -292,14 +312,17 @@ func (s *channelManager) outputFrames() error {
 	if inBytes > 0 {
 		comprRatio = float64(outBytes) / float64(inBytes)
 	}
+
 	s.log.Info("Channel closed",
 		"id", s.currentChannel.ID(),
 		"blocks_pending", len(s.blocks),
 		"num_frames", s.currentChannel.TotalFrames(),
 		"input_bytes", inBytes,
 		"output_bytes", outBytes,
+		"l1_origin", lastClosedL1Origin,
 		"full_reason", s.currentChannel.FullErr(),
 		"compr_ratio", comprRatio,
+		"latest_l1_origin", s.l1OriginLastClosedChannel,
 	)
 	return nil
 }
@@ -321,7 +344,7 @@ func (s *channelManager) AddL2Block(block *types.Block) error {
 	return nil
 }
 
-func l2BlockRefFromBlockAndL1Info(block *types.Block, l1info derive.L1BlockInfo) eth.L2BlockRef {
+func l2BlockRefFromBlockAndL1Info(block *types.Block, l1info *derive.L1BlockInfo) eth.L2BlockRef {
 	return eth.L2BlockRef{
 		Hash:           block.Hash(),
 		Number:         block.NumberU64(),
@@ -332,9 +355,15 @@ func l2BlockRefFromBlockAndL1Info(block *types.Block, l1info derive.L1BlockInfo)
 	}
 }
 
-// Close closes the current pending channel, if one exists, outputs any remaining frames,
-// and prevents the creation of any new channels.
-// Any outputted frames still need to be published.
+var ErrPendingAfterClose = errors.New("pending channels remain after closing channel-manager")
+
+// Close clears any pending channels that are not in-flight already, to leave a clean derivation state.
+// Close then marks the remaining current open channel, if any, as "full" so it can be submitted as well.
+// Close does NOT immediately output frames for the current remaining channel:
+// as this might error, due to limitations on a single channel.
+// Instead, this is part of the pending-channel submission work: after closing,
+// the caller SHOULD drain pending channels by generating TxData repeatedly until there is none left (io.EOF).
+// A ErrPendingAfterClose error will be returned if there are any remaining pending channels to submit.
 func (s *channelManager) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -343,19 +372,39 @@ func (s *channelManager) Close() error {
 	}
 
 	s.closed = true
+	s.log.Info("Channel manager is closing")
 
 	// Any pending state can be proactively cleared if there are no submitted transactions
 	for _, ch := range s.channelQueue {
 		if ch.NoneSubmitted() {
+			s.log.Info("Channel has no past or pending submission - dropping", "id", ch.ID())
 			s.removePendingChannel(ch)
+		} else {
+			s.log.Info("Channel is in-flight and will need to be submitted after close", "id", ch.ID(), "confirmed", len(ch.confirmedTransactions), "pending", len(ch.pendingTransactions))
 		}
 	}
+	s.log.Info("Reviewed all pending channels on close", "remaining", len(s.channelQueue))
 
 	if s.currentChannel == nil {
 		return nil
 	}
 
-	s.currentChannel.Close()
+	// If the channel is already full, we don't need to close it or output frames.
+	// This would already have happened in TxData.
+	if !s.currentChannel.IsFull() {
+		// Force-close the remaining open channel early (if not already closed):
+		// it will be marked as "full" due to service termination.
+		s.currentChannel.Close()
 
-	return s.outputFrames()
+		// Final outputFrames call in case there was unflushed data in the compressor.
+		if err := s.outputFrames(); err != nil {
+			return fmt.Errorf("outputting frames during close: %w", err)
+		}
+	}
+
+	if s.currentChannel.HasTxData() {
+		// Make it clear to the caller that there is remaining pending work.
+		return ErrPendingAfterClose
+	}
+	return nil
 }

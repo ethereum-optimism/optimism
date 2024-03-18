@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/p2p/monitor/mocks"
-	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	clock2 "github.com/ethereum-optimism/optimism/op-service/clock"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
@@ -18,7 +18,7 @@ import (
 const testBanDuration = 2 * time.Hour
 
 func peerMonitorSetup(t *testing.T) (*PeerMonitor, *clock2.DeterministicClock, *mocks.PeerManager) {
-	l := testlog.Logger(t, log.LvlInfo)
+	l := testlog.Logger(t, log.LevelInfo)
 	clock := clock2.NewDeterministicClock(time.UnixMilli(10000))
 	manager := mocks.NewPeerManager(t)
 	monitor := NewPeerMonitor(context.Background(), l, clock, manager, -100, testBanDuration)

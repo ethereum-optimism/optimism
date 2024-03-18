@@ -13,10 +13,10 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum-optimism/optimism/op-node/testlog"
-	"github.com/ethereum-optimism/optimism/op-node/testutils"
 	"github.com/ethereum-optimism/optimism/op-program/client/l1/test"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
 
 var _ derive.L1Fetcher = (*OracleL1Client)(nil)
@@ -164,7 +164,7 @@ func TestL1BlockRefByNumber(t *testing.T) {
 func newClient(t *testing.T) (*OracleL1Client, *test.StubOracle) {
 	stub := test.NewStubOracle(t)
 	stub.Blocks[head.Hash()] = head
-	client := NewOracleL1Client(testlog.Logger(t, log.LvlDebug), stub, head.Hash())
+	client := NewOracleL1Client(testlog.Logger(t, log.LevelDebug), stub, head.Hash())
 	return client, stub
 }
 

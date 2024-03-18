@@ -6,13 +6,11 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
-	"github.com/ethereum-optimism/optimism/op-node/testlog"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 
-	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -21,53 +19,45 @@ import (
 )
 
 var (
-	mockFdgAddress = common.HexToAddress("0x1234")
-	mockSendError  = errors.New("mock send error")
-	mockCallError  = errors.New("mock call error")
+	mockPreimageUploadErr = errors.New("mock preimage upload error")
+	mockSendError         = errors.New("mock send error")
+	mockCallError         = errors.New("mock call error")
+	mockOracleExistsError = errors.New("mock oracle exists error")
 )
 
 // TestCallResolve tests the [Responder.CallResolve].
 func TestCallResolve(t *testing.T) {
 	t.Run("SendFails", func(t *testing.T) {
-		responder, mockTxMgr := newTestFaultResponder(t)
-		mockTxMgr.callFails = true
+		responder, _, contract, _, _ := newTestFaultResponder(t)
+		contract.callFails = true
 		status, err := responder.CallResolve(context.Background())
 		require.ErrorIs(t, err, mockCallError)
 		require.Equal(t, gameTypes.GameStatusInProgress, status)
-		require.Equal(t, 0, mockTxMgr.calls)
-	})
-
-	t.Run("UnpackFails", func(t *testing.T) {
-		responder, mockTxMgr := newTestFaultResponder(t)
-		mockTxMgr.callBytes = []byte{0x00, 0x01}
-		status, err := responder.CallResolve(context.Background())
-		require.Error(t, err)
-		require.Equal(t, gameTypes.GameStatusInProgress, status)
-		require.Equal(t, 1, mockTxMgr.calls)
+		require.Equal(t, 0, contract.calls)
 	})
 
 	t.Run("Success", func(t *testing.T) {
-		responder, mockTxMgr := newTestFaultResponder(t)
+		responder, _, contract, _, _ := newTestFaultResponder(t)
 		status, err := responder.CallResolve(context.Background())
 		require.NoError(t, err)
 		require.Equal(t, gameTypes.GameStatusInProgress, status)
-		require.Equal(t, 1, mockTxMgr.calls)
+		require.Equal(t, 1, contract.calls)
 	})
 }
 
 // TestResolve tests the [Responder.Resolve] method.
 func TestResolve(t *testing.T) {
 	t.Run("SendFails", func(t *testing.T) {
-		responder, mockTxMgr := newTestFaultResponder(t)
+		responder, mockTxMgr, _, _, _ := newTestFaultResponder(t)
 		mockTxMgr.sendFails = true
-		err := responder.Resolve(context.Background())
+		err := responder.Resolve()
 		require.ErrorIs(t, err, mockSendError)
 		require.Equal(t, 0, mockTxMgr.sends)
 	})
 
 	t.Run("Success", func(t *testing.T) {
-		responder, mockTxMgr := newTestFaultResponder(t)
-		err := responder.Resolve(context.Background())
+		responder, mockTxMgr, _, _, _ := newTestFaultResponder(t)
+		err := responder.Resolve()
 		require.NoError(t, err)
 		require.Equal(t, 1, mockTxMgr.sends)
 	})
@@ -75,33 +65,33 @@ func TestResolve(t *testing.T) {
 
 func TestCallResolveClaim(t *testing.T) {
 	t.Run("SendFails", func(t *testing.T) {
-		responder, mockTxMgr := newTestFaultResponder(t)
-		mockTxMgr.callFails = true
+		responder, _, contract, _, _ := newTestFaultResponder(t)
+		contract.callFails = true
 		err := responder.CallResolveClaim(context.Background(), 0)
 		require.ErrorIs(t, err, mockCallError)
-		require.Equal(t, 0, mockTxMgr.calls)
+		require.Equal(t, 0, contract.calls)
 	})
 
 	t.Run("Success", func(t *testing.T) {
-		responder, mockTxMgr := newTestFaultResponder(t)
+		responder, _, contract, _, _ := newTestFaultResponder(t)
 		err := responder.CallResolveClaim(context.Background(), 0)
 		require.NoError(t, err)
-		require.Equal(t, 1, mockTxMgr.calls)
+		require.Equal(t, 1, contract.calls)
 	})
 }
 
 func TestResolveClaim(t *testing.T) {
 	t.Run("SendFails", func(t *testing.T) {
-		responder, mockTxMgr := newTestFaultResponder(t)
+		responder, mockTxMgr, _, _, _ := newTestFaultResponder(t)
 		mockTxMgr.sendFails = true
-		err := responder.ResolveClaim(context.Background(), 0)
+		err := responder.ResolveClaim(0)
 		require.ErrorIs(t, err, mockSendError)
 		require.Equal(t, 0, mockTxMgr.sends)
 	})
 
 	t.Run("Success", func(t *testing.T) {
-		responder, mockTxMgr := newTestFaultResponder(t)
-		err := responder.ResolveClaim(context.Background(), 0)
+		responder, mockTxMgr, _, _, _ := newTestFaultResponder(t)
+		err := responder.ResolveClaim(0)
 		require.NoError(t, err)
 		require.Equal(t, 1, mockTxMgr.sends)
 	})
@@ -110,7 +100,7 @@ func TestResolveClaim(t *testing.T) {
 // TestRespond tests the [Responder.Respond] method.
 func TestPerformAction(t *testing.T) {
 	t.Run("send fails", func(t *testing.T) {
-		responder, mockTxMgr := newTestFaultResponder(t)
+		responder, mockTxMgr, _, _, _ := newTestFaultResponder(t)
 		mockTxMgr.sendFails = true
 		err := responder.PerformAction(context.Background(), types.Action{
 			Type:      types.ActionTypeMove,
@@ -123,7 +113,7 @@ func TestPerformAction(t *testing.T) {
 	})
 
 	t.Run("sends response", func(t *testing.T) {
-		responder, mockTxMgr := newTestFaultResponder(t)
+		responder, mockTxMgr, _, _, _ := newTestFaultResponder(t)
 		err := responder.PerformAction(context.Background(), types.Action{
 			Type:      types.ActionTypeMove,
 			ParentIdx: 123,
@@ -135,7 +125,7 @@ func TestPerformAction(t *testing.T) {
 	})
 
 	t.Run("attack", func(t *testing.T) {
-		responder, mockTxMgr := newTestFaultResponder(t)
+		responder, mockTxMgr, contract, _, _ := newTestFaultResponder(t)
 		action := types.Action{
 			Type:      types.ActionTypeMove,
 			ParentIdx: 123,
@@ -145,18 +135,13 @@ func TestPerformAction(t *testing.T) {
 		err := responder.PerformAction(context.Background(), action)
 		require.NoError(t, err)
 
-		// Pack the tx data manually.
-		fdgAbi, err := bindings.FaultDisputeGameMetaData.GetAbi()
-		require.NoError(t, err)
-		expected, err := fdgAbi.Pack("attack", big.NewInt(int64(action.ParentIdx)), action.Value)
-		require.NoError(t, err)
-
 		require.Len(t, mockTxMgr.sent, 1)
-		require.Equal(t, expected, mockTxMgr.sent[0].TxData)
+		require.EqualValues(t, []interface{}{uint64(action.ParentIdx), action.Value}, contract.attackArgs)
+		require.Equal(t, ([]byte)("attack"), mockTxMgr.sent[0].TxData)
 	})
 
 	t.Run("defend", func(t *testing.T) {
-		responder, mockTxMgr := newTestFaultResponder(t)
+		responder, mockTxMgr, contract, _, _ := newTestFaultResponder(t)
 		action := types.Action{
 			Type:      types.ActionTypeMove,
 			ParentIdx: 123,
@@ -166,18 +151,13 @@ func TestPerformAction(t *testing.T) {
 		err := responder.PerformAction(context.Background(), action)
 		require.NoError(t, err)
 
-		// Pack the tx data manually.
-		fdgAbi, err := bindings.FaultDisputeGameMetaData.GetAbi()
-		require.NoError(t, err)
-		expected, err := fdgAbi.Pack("defend", big.NewInt(int64(action.ParentIdx)), action.Value)
-		require.NoError(t, err)
-
 		require.Len(t, mockTxMgr.sent, 1)
-		require.Equal(t, expected, mockTxMgr.sent[0].TxData)
+		require.EqualValues(t, []interface{}{uint64(action.ParentIdx), action.Value}, contract.defendArgs)
+		require.Equal(t, ([]byte)("defend"), mockTxMgr.sent[0].TxData)
 	})
 
 	t.Run("step", func(t *testing.T) {
-		responder, mockTxMgr := newTestFaultResponder(t)
+		responder, mockTxMgr, contract, _, _ := newTestFaultResponder(t)
 		action := types.Action{
 			Type:      types.ActionTypeStep,
 			ParentIdx: 123,
@@ -188,65 +168,254 @@ func TestPerformAction(t *testing.T) {
 		err := responder.PerformAction(context.Background(), action)
 		require.NoError(t, err)
 
-		// Pack the tx data manually.
-		fdgAbi, err := bindings.FaultDisputeGameMetaData.GetAbi()
-		require.NoError(t, err)
-		expected, err := fdgAbi.Pack("step", big.NewInt(int64(action.ParentIdx)), true, action.PreState, action.ProofData)
+		require.Len(t, mockTxMgr.sent, 1)
+		require.EqualValues(t, []interface{}{uint64(action.ParentIdx), action.IsAttack, action.PreState, action.ProofData}, contract.stepArgs)
+		require.Equal(t, ([]byte)("step"), mockTxMgr.sent[0].TxData)
+	})
+
+	t.Run("stepWithLocalOracleData", func(t *testing.T) {
+		responder, mockTxMgr, contract, uploader, oracle := newTestFaultResponder(t)
+		action := types.Action{
+			Type:      types.ActionTypeStep,
+			ParentIdx: 123,
+			IsAttack:  true,
+			PreState:  []byte{1, 2, 3},
+			ProofData: []byte{4, 5, 6},
+			OracleData: &types.PreimageOracleData{
+				IsLocal: true,
+			},
+		}
+		err := responder.PerformAction(context.Background(), action)
 		require.NoError(t, err)
 
 		require.Len(t, mockTxMgr.sent, 1)
-		require.Equal(t, expected, mockTxMgr.sent[0].TxData)
+		require.Nil(t, contract.updateOracleArgs) // mock uploader returns nil
+		require.Equal(t, ([]byte)("step"), mockTxMgr.sent[0].TxData)
+		require.Equal(t, 1, uploader.updates)
+		require.Equal(t, 0, oracle.existCalls)
+	})
+
+	t.Run("stepWithGlobalOracleData", func(t *testing.T) {
+		responder, mockTxMgr, contract, uploader, oracle := newTestFaultResponder(t)
+		action := types.Action{
+			Type:      types.ActionTypeStep,
+			ParentIdx: 123,
+			IsAttack:  true,
+			PreState:  []byte{1, 2, 3},
+			ProofData: []byte{4, 5, 6},
+			OracleData: &types.PreimageOracleData{
+				IsLocal: false,
+			},
+		}
+		err := responder.PerformAction(context.Background(), action)
+		require.NoError(t, err)
+
+		require.Len(t, mockTxMgr.sent, 1)
+		require.Nil(t, contract.updateOracleArgs) // mock uploader returns nil
+		require.Equal(t, ([]byte)("step"), mockTxMgr.sent[0].TxData)
+		require.Equal(t, 1, uploader.updates)
+		require.Equal(t, 1, oracle.existCalls)
+	})
+
+	t.Run("stepWithOracleDataAndUploadFails", func(t *testing.T) {
+		responder, mockTxMgr, contract, uploader, _ := newTestFaultResponder(t)
+		uploader.uploadFails = true
+		action := types.Action{
+			Type:      types.ActionTypeStep,
+			ParentIdx: 123,
+			IsAttack:  true,
+			PreState:  []byte{1, 2, 3},
+			ProofData: []byte{4, 5, 6},
+			OracleData: &types.PreimageOracleData{
+				IsLocal: true,
+			},
+		}
+		err := responder.PerformAction(context.Background(), action)
+		require.ErrorIs(t, err, mockPreimageUploadErr)
+		require.Len(t, mockTxMgr.sent, 0)
+		require.Nil(t, contract.updateOracleArgs) // mock uploader returns nil
+		require.Equal(t, 1, uploader.updates)
+	})
+
+	t.Run("stepWithOracleDataAndGlobalPreimageAlreadyExists", func(t *testing.T) {
+		responder, mockTxMgr, contract, uploader, oracle := newTestFaultResponder(t)
+		oracle.existsResult = true
+		action := types.Action{
+			Type:      types.ActionTypeStep,
+			ParentIdx: 123,
+			IsAttack:  true,
+			PreState:  []byte{1, 2, 3},
+			ProofData: []byte{4, 5, 6},
+			OracleData: &types.PreimageOracleData{
+				IsLocal: false,
+			},
+		}
+		err := responder.PerformAction(context.Background(), action)
+		require.Nil(t, err)
+		require.Len(t, mockTxMgr.sent, 1)
+		require.Nil(t, contract.updateOracleArgs) // mock uploader returns nil
+		require.Equal(t, 0, uploader.updates)
+		require.Equal(t, 1, oracle.existCalls)
+	})
+
+	t.Run("stepWithOracleDataAndGlobalPreimageExistsFails", func(t *testing.T) {
+		responder, mockTxMgr, contract, uploader, oracle := newTestFaultResponder(t)
+		oracle.existsFails = true
+		action := types.Action{
+			Type:      types.ActionTypeStep,
+			ParentIdx: 123,
+			IsAttack:  true,
+			PreState:  []byte{1, 2, 3},
+			ProofData: []byte{4, 5, 6},
+			OracleData: &types.PreimageOracleData{
+				IsLocal: false,
+			},
+		}
+		err := responder.PerformAction(context.Background(), action)
+		require.ErrorIs(t, err, mockOracleExistsError)
+		require.Len(t, mockTxMgr.sent, 0)
+		require.Nil(t, contract.updateOracleArgs) // mock uploader returns nil
+		require.Equal(t, 0, uploader.updates)
+		require.Equal(t, 1, oracle.existCalls)
 	})
 }
 
-func newTestFaultResponder(t *testing.T) (*FaultResponder, *mockTxManager) {
-	log := testlog.Logger(t, log.LvlError)
+func newTestFaultResponder(t *testing.T) (*FaultResponder, *mockTxManager, *mockContract, *mockPreimageUploader, *mockOracle) {
+	log := testlog.Logger(t, log.LevelError)
 	mockTxMgr := &mockTxManager{}
-	responder, err := NewFaultResponder(log, mockTxMgr, mockFdgAddress)
+	contract := &mockContract{}
+	uploader := &mockPreimageUploader{}
+	oracle := &mockOracle{}
+	responder, err := NewFaultResponder(log, mockTxMgr, contract, uploader, oracle)
 	require.NoError(t, err)
-	return responder, mockTxMgr
+	return responder, mockTxMgr, contract, uploader, oracle
+}
+
+type mockPreimageUploader struct {
+	updates     int
+	uploadFails bool
+}
+
+func (m *mockPreimageUploader) UploadPreimage(ctx context.Context, parent uint64, data *types.PreimageOracleData) error {
+	m.updates++
+	if m.uploadFails {
+		return mockPreimageUploadErr
+	}
+	return nil
+}
+
+type mockOracle struct {
+	existCalls   int
+	existsResult bool
+	existsFails  bool
+}
+
+func (m *mockOracle) GlobalDataExists(ctx context.Context, data *types.PreimageOracleData) (bool, error) {
+	m.existCalls++
+	if m.existsFails {
+		return false, mockOracleExistsError
+	}
+	return m.existsResult, nil
 }
 
 type mockTxManager struct {
 	from      common.Address
 	sends     int
 	sent      []txmgr.TxCandidate
-	calls     int
 	sendFails bool
-	callFails bool
-	callBytes []byte
 }
 
-func (m *mockTxManager) Send(ctx context.Context, candidate txmgr.TxCandidate) (*ethtypes.Receipt, error) {
-	if m.sendFails {
-		return nil, mockSendError
+func (m *mockTxManager) SendAndWait(_ string, txs ...txmgr.TxCandidate) ([]*ethtypes.Receipt, error) {
+	rcpts := make([]*ethtypes.Receipt, 0, len(txs))
+	for _, tx := range txs {
+		if m.sendFails {
+			return nil, mockSendError
+		}
+		m.sends++
+		m.sent = append(m.sent, tx)
+		rcpts = append(rcpts, ethtypes.NewReceipt(
+			[]byte{},
+			false,
+			0,
+		))
 	}
-	m.sends++
-	m.sent = append(m.sent, candidate)
-	return ethtypes.NewReceipt(
-		[]byte{},
-		false,
-		0,
-	), nil
+	return rcpts, nil
 }
 
-func (m *mockTxManager) Call(_ context.Context, _ ethereum.CallMsg, _ *big.Int) ([]byte, error) {
-	if m.callFails {
-		return nil, mockCallError
-	}
-	m.calls++
-	if m.callBytes != nil {
-		return m.callBytes, nil
-	}
-	return common.Hex2Bytes(
-		"0000000000000000000000000000000000000000000000000000000000000000",
-	), nil
-}
-
-func (m *mockTxManager) BlockNumber(ctx context.Context) (uint64, error) {
+func (m *mockTxManager) BlockNumber(_ context.Context) (uint64, error) {
 	panic("not implemented")
 }
 
 func (m *mockTxManager) From() common.Address {
 	return m.from
+}
+
+func (m *mockTxManager) Close() {
+}
+
+type mockContract struct {
+	calls                int
+	callFails            bool
+	attackArgs           []interface{}
+	defendArgs           []interface{}
+	stepArgs             []interface{}
+	updateOracleClaimIdx uint64
+	updateOracleArgs     *types.PreimageOracleData
+}
+
+func (m *mockContract) CallResolve(_ context.Context) (gameTypes.GameStatus, error) {
+	if m.callFails {
+		return gameTypes.GameStatusInProgress, mockCallError
+	}
+	m.calls++
+	return gameTypes.GameStatusInProgress, nil
+}
+
+func (m *mockContract) ResolveTx() (txmgr.TxCandidate, error) {
+	return txmgr.TxCandidate{}, nil
+}
+
+func (m *mockContract) CallResolveClaim(_ context.Context, _ uint64) error {
+	if m.callFails {
+		return mockCallError
+	}
+	m.calls++
+	return nil
+}
+
+func (m *mockContract) ResolveClaimTx(_ uint64) (txmgr.TxCandidate, error) {
+	return txmgr.TxCandidate{}, nil
+}
+
+func (m *mockContract) AttackTx(parentClaimId uint64, claim common.Hash) (txmgr.TxCandidate, error) {
+	m.attackArgs = []interface{}{parentClaimId, claim}
+	return txmgr.TxCandidate{TxData: ([]byte)("attack")}, nil
+}
+
+func (m *mockContract) DefendTx(parentClaimId uint64, claim common.Hash) (txmgr.TxCandidate, error) {
+	m.defendArgs = []interface{}{parentClaimId, claim}
+	return txmgr.TxCandidate{TxData: ([]byte)("defend")}, nil
+}
+
+func (m *mockContract) StepTx(claimIdx uint64, isAttack bool, stateData []byte, proofData []byte) (txmgr.TxCandidate, error) {
+	m.stepArgs = []interface{}{claimIdx, isAttack, stateData, proofData}
+	return txmgr.TxCandidate{TxData: ([]byte)("step")}, nil
+}
+
+func (m *mockContract) UpdateOracleTx(_ context.Context, claimIdx uint64, data *types.PreimageOracleData) (txmgr.TxCandidate, error) {
+	m.updateOracleClaimIdx = claimIdx
+	m.updateOracleArgs = data
+	return txmgr.TxCandidate{TxData: ([]byte)("updateOracle")}, nil
+}
+
+func (m *mockContract) GetRequiredBond(_ context.Context, position types.Position) (*big.Int, error) {
+	return big.NewInt(5), nil
+}
+
+func (m *mockContract) GetCredit(_ context.Context, _ common.Address) (*big.Int, error) {
+	return big.NewInt(5), nil
+}
+
+func (m *mockContract) ClaimCredit(_ common.Address) (txmgr.TxCandidate, error) {
+	return txmgr.TxCandidate{TxData: ([]byte)("claimCredit")}, nil
 }

@@ -65,9 +65,6 @@ func (c Config) Check() error {
 	if c.CheckDuration >= c.CheckInterval {
 		return fmt.Errorf("%s must be less than %s", CheckDurationFlagName, CheckIntervalFlagName)
 	}
-	if err := c.LogConfig.Check(); err != nil {
-		return err
-	}
 	if err := c.MetricsConfig.Check(); err != nil {
 		return err
 	}

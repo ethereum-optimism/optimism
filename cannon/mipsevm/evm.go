@@ -2,10 +2,8 @@ package mipsevm
 
 import (
 	"encoding/binary"
-	"encoding/json"
 	"fmt"
 	"math/big"
-	"os"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -16,59 +14,20 @@ import (
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/srcmap"
-)
-
-var (
-	StepBytes4                      = crypto.Keccak256([]byte("step(bytes,bytes)"))[:4]
-	CheatBytes4                     = crypto.Keccak256([]byte("cheat(uint256,bytes32,bytes32,uint256)"))[:4]
-	LoadKeccak256PreimagePartBytes4 = crypto.Keccak256([]byte("loadKeccak256PreimagePart(uint256,bytes)"))[:4]
-	LoadLocalDataBytes4             = crypto.Keccak256([]byte("loadLocalData(uint256,bytes32,uint256,uint256)"))[:4]
 )
 
 // LoadContracts loads the Cannon contracts, from op-bindings package
 func LoadContracts() (*Contracts, error) {
 	var mips, oracle Contract
 	mips.DeployedBytecode.Object = hexutil.MustDecode(bindings.MIPSDeployedBin)
-	mips.DeployedBytecode.SourceMap = bindings.MIPSDeployedSourceMap
 	oracle.DeployedBytecode.Object = hexutil.MustDecode(bindings.PreimageOracleDeployedBin)
-	oracle.DeployedBytecode.SourceMap = bindings.PreimageOracleDeployedSourceMap
 	return &Contracts{
 		MIPS:   &mips,
 		Oracle: &oracle,
 	}, nil
-}
-
-// LoadContractsFromFiles loads the Cannon contracts, from local filesystem
-func LoadContractsFromFiles() (*Contracts, error) {
-	mips, err := LoadContract("MIPS")
-	if err != nil {
-		return nil, err
-	}
-	oracle, err := LoadContract("PreimageOracle")
-	if err != nil {
-		return nil, err
-	}
-	return &Contracts{
-		MIPS:   mips,
-		Oracle: oracle,
-	}, nil
-}
-
-func LoadContract(name string) (*Contract, error) {
-	dat, err := os.ReadFile(fmt.Sprintf("../../packages/contracts-bedrock/forge-artifacts/%s.sol/%s.json", name, name))
-	if err != nil {
-		return nil, fmt.Errorf("failed to read contract JSON definition of %q: %w", name, err)
-	}
-	var out Contract
-	if err := json.Unmarshal(dat, &out); err != nil {
-		return nil, fmt.Errorf("failed to parse contract JSON definition of %q: %w", name, err)
-	}
-	return &out, nil
 }
 
 type Contract struct {
@@ -78,10 +37,6 @@ type Contract struct {
 	} `json:"deployedBytecode"`
 
 	// ignore abi,bytecode,etc.
-}
-
-func (c *Contract) SourceMap(sourcePaths []string) (*srcmap.SourceMap, error) {
-	return srcmap.ParseSourceMap(sourcePaths, c.DeployedBytecode.Object, c.DeployedBytecode.SourceMap)
 }
 
 type Contracts struct {
@@ -97,9 +52,14 @@ type Addresses struct {
 }
 
 func NewEVMEnv(contracts *Contracts, addrs *Addresses) (*vm.EVM, *state.StateDB) {
-	chainCfg := params.MainnetChainConfig
-	offsetBlocks := uint64(1000) // blocks after shanghai fork
-	bc := &testChain{startTime: *chainCfg.ShanghaiTime + offsetBlocks*12}
+	// Temporary hack until Cancun is activated on mainnet
+	cpy := *params.MainnetChainConfig
+	chainCfg := &cpy // don't modify the global chain config
+	// Activate Cancun for EIP-4844 KZG point evaluation precompile
+	cancunActivation := *chainCfg.ShanghaiTime + 10
+	chainCfg.CancunTime = &cancunActivation
+	offsetBlocks := uint64(1000) // blocks after cancun fork
+	bc := &testChain{startTime: *chainCfg.CancunTime + offsetBlocks*12}
 	header := bc.GetHeader(common.Hash{}, 17034870+offsetBlocks)
 	db := rawdb.NewMemoryDatabase()
 	statedb := state.NewDatabase(db)

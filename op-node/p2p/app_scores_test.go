@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
-	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
@@ -63,7 +63,7 @@ func (a *appScoreTestData) WaitForNextScoreBookUpdate(t *testing.T) stubScoreBoo
 func setupPeerApplicationScorerTest(t *testing.T, params *ApplicationScoreParams) (*appScoreTestData, *peerApplicationScorer) {
 	data := &appScoreTestData{
 		ctx:    context.Background(),
-		logger: testlog.Logger(t, log.LvlInfo),
+		logger: testlog.Logger(t, log.LevelInfo),
 		clock:  clock.NewDeterministicClock(time.UnixMilli(1000)),
 		peers:  []peer.ID{},
 		scorebook: &stubScoreBook{

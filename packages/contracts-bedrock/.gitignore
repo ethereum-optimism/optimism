@@ -3,17 +3,20 @@ artifacts
 forge-artifacts
 cache
 broadcast
-typechain
+kout-deployment
+kout-proofs
+test/kontrol/logs
 
 # Metrics
 coverage.out
 .resource-metering.csv
 
-# Tests
-test-case-generator/fuzz
+# Testing State
+.testdata
+kontrol_prove_report.xml
 
 # Scripts
-scripts/differential-testing/differential-testing
+scripts/go-ffi/go-ffi
 
 # Environment Variables
 .envrc
@@ -29,3 +32,6 @@ deployments/1337
 
 # Devnet config which changes with each 'make devnet-up'
 deploy-config/devnetL1.json
+
+# Getting Started guide deploy config
+deploy-config/getting-started.json

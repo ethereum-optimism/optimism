@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
@@ -20,7 +20,7 @@ func TestScheduleGcPeriodically(t *testing.T) {
 		// Wait for the gc background process to complete after cancelling the context
 		bgTasks.Wait()
 	}()
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	clock := clock.NewDeterministicClock(time.UnixMilli(5000))
 
 	called := make(chan struct{}, 10)

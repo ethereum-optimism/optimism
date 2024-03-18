@@ -19,14 +19,20 @@ on:
         type: choice
         options:
           - ci-builder
+          - ci-builder-rust
           - indexer
+          - op-heartbeat
           - chain-mon
           - op-node
           - op-batcher
           - op-proposer
           - op-challenger
+          - op-program
+          - op-dispute-mon
           - op-ufm
           - proxyd
+          - ufm-metamask
+          - op-contracts
       prerelease:
         description: Increment major/minor/patch as prerelease?
         required: false
@@ -43,7 +49,7 @@ jobs:
       - name: Fetch tags
         run: git fetch --tags origin --force
       - name: Setup Python 3.10
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.10"
       - name: Install deps

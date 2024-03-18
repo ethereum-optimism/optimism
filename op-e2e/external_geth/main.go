@@ -2,12 +2,15 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"strconv"
+	"syscall"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/external"
@@ -67,11 +70,39 @@ func run(configPath string) error {
 	}
 
 	fmt.Printf("==================    op-geth shim awaiting termination  ==========================\n")
+
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+
 	select {
+	case <-sigs:
+		fmt.Printf("==================    op-geth shim caught signal, killing  ==========================\n")
+		sess.session.Terminate()
+		return awaitExit(sess.session)
 	case <-sess.session.Exited:
-		return fmt.Errorf("geth exited")
+		return fmt.Errorf("geth exited with code %d", sess.session.ExitCode())
 	case <-time.After(30 * time.Minute):
-		return fmt.Errorf("exiting after 30 minute timeout")
+		fmt.Printf("==================    op-geth shim timed out, killing  ==========================\n")
+		sess.session.Terminate()
+		if err := awaitExit(sess.session); err != nil {
+			fmt.Printf("error killing geth: %v\n", err)
+		}
+		return errors.New("geth timed out after 30 minutes")
+	}
+}
+
+func awaitExit(sess *gexec.Session) error {
+	select {
+	case <-sess.Exited:
+		return nil
+	case <-time.After(5 * time.Second):
+		sess.Kill()
+		select {
+		case <-sess.Exited:
+			return nil
+		case <-time.After(30 * time.Second):
+			return fmt.Errorf("exiting after 30 second timeout")
+		}
 	}
 }
 

@@ -2,12 +2,15 @@ package database
 
 import (
 	"errors"
+	"fmt"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 /**
@@ -34,6 +37,10 @@ func BlockHeaderFromHeader(header *types.Header) BlockHeader {
 	}
 }
 
+func (b BlockHeader) String() string {
+	return fmt.Sprintf("{Hash: %s, Number: %s}", b.Hash, b.Number)
+}
+
 type L1BlockHeader struct {
 	BlockHeader `gorm:"embedded"`
 }
@@ -45,13 +52,13 @@ type L2BlockHeader struct {
 type BlocksView interface {
 	L1BlockHeader(common.Hash) (*L1BlockHeader, error)
 	L1BlockHeaderWithFilter(BlockHeader) (*L1BlockHeader, error)
+	L1BlockHeaderWithScope(func(db *gorm.DB) *gorm.DB) (*L1BlockHeader, error)
 	L1LatestBlockHeader() (*L1BlockHeader, error)
 
 	L2BlockHeader(common.Hash) (*L2BlockHeader, error)
 	L2BlockHeaderWithFilter(BlockHeader) (*L2BlockHeader, error)
+	L2BlockHeaderWithScope(func(db *gorm.DB) *gorm.DB) (*L2BlockHeader, error)
 	L2LatestBlockHeader() (*L2BlockHeader, error)
-
-	LatestEpoch() (*Epoch, error)
 }
 
 type BlocksDB interface {
@@ -59,6 +66,8 @@ type BlocksDB interface {
 
 	StoreL1BlockHeaders([]L1BlockHeader) error
 	StoreL2BlockHeaders([]L2BlockHeader) error
+
+	DeleteReorgedState(uint64) error
 }
 
 /**
@@ -66,17 +75,23 @@ type BlocksDB interface {
  */
 
 type blocksDB struct {
+	log  log.Logger
 	gorm *gorm.DB
 }
 
-func newBlocksDB(db *gorm.DB) BlocksDB {
-	return &blocksDB{gorm: db}
+func newBlocksDB(log log.Logger, db *gorm.DB) BlocksDB {
+	return &blocksDB{log: log.New("table", "blocks"), gorm: db}
 }
 
 // L1
 
 func (db *blocksDB) StoreL1BlockHeaders(headers []L1BlockHeader) error {
-	result := db.gorm.CreateInBatches(&headers, batchInsertSize)
+	deduped := db.gorm.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "hash"}}, DoNothing: true})
+	result := deduped.Create(&headers)
+	if result.Error == nil && int(result.RowsAffected) < len(headers) {
+		db.log.Warn("ignored L1 block duplicates", "duplicates", len(headers)-int(result.RowsAffected))
+	}
+
 	return result.Error
 }
 
@@ -85,8 +100,12 @@ func (db *blocksDB) L1BlockHeader(hash common.Hash) (*L1BlockHeader, error) {
 }
 
 func (db *blocksDB) L1BlockHeaderWithFilter(filter BlockHeader) (*L1BlockHeader, error) {
+	return db.L1BlockHeaderWithScope(func(gorm *gorm.DB) *gorm.DB { return gorm.Where(&filter) })
+}
+
+func (db *blocksDB) L1BlockHeaderWithScope(scope func(*gorm.DB) *gorm.DB) (*L1BlockHeader, error) {
 	var l1Header L1BlockHeader
-	result := db.gorm.Where(&filter).Take(&l1Header)
+	result := db.gorm.Scopes(scope).Take(&l1Header)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -114,7 +133,12 @@ func (db *blocksDB) L1LatestBlockHeader() (*L1BlockHeader, error) {
 // L2
 
 func (db *blocksDB) StoreL2BlockHeaders(headers []L2BlockHeader) error {
-	result := db.gorm.CreateInBatches(&headers, batchInsertSize)
+	deduped := db.gorm.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "hash"}}, DoNothing: true})
+	result := deduped.Create(&headers)
+	if result.Error == nil && int(result.RowsAffected) < len(headers) {
+		db.log.Warn("ignored L2 block duplicates", "duplicates", len(headers)-int(result.RowsAffected))
+	}
+
 	return result.Error
 }
 
@@ -123,8 +147,12 @@ func (db *blocksDB) L2BlockHeader(hash common.Hash) (*L2BlockHeader, error) {
 }
 
 func (db *blocksDB) L2BlockHeaderWithFilter(filter BlockHeader) (*L2BlockHeader, error) {
+	return db.L2BlockHeaderWithScope(func(gorm *gorm.DB) *gorm.DB { return gorm.Where(&filter) })
+}
+
+func (db *blocksDB) L2BlockHeaderWithScope(scope func(*gorm.DB) *gorm.DB) (*L2BlockHeader, error) {
 	var l2Header L2BlockHeader
-	result := db.gorm.Where(&filter).Take(&l2Header)
+	result := db.gorm.Scopes(scope).Take(&l2Header)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -148,55 +176,23 @@ func (db *blocksDB) L2LatestBlockHeader() (*L2BlockHeader, error) {
 	return &l2Header, nil
 }
 
-// Auxiliary Methods on both L1 & L2
+// Reorgs
 
-type Epoch struct {
-	L1BlockHeader L1BlockHeader `gorm:"embedded"`
-	L2BlockHeader L2BlockHeader `gorm:"embedded"`
-}
+func (db *blocksDB) DeleteReorgedState(timestamp uint64) error {
+	db.log.Info("deleting reorg'd state", "from_timestamp", timestamp)
 
-// LatestEpoch return the latest epoch, seen on  L1 & L2. In other words
-// this returns the latest indexed L1 block that has a corresponding
-// indexed L2 block with a matching L1Origin (equal timestamps).
-//
-// For more, see the protocol spec:
-//   - https://github.com/ethereum-optimism/optimism/blob/develop/specs/derivation.md
-func (db *blocksDB) LatestEpoch() (*Epoch, error) {
-	latestL1Header, err := db.L1LatestBlockHeader()
-	if err != nil {
-		return nil, err
-	} else if latestL1Header == nil {
-		return nil, nil
+	// Delete reorg'd state. Block deletes cascades to all tables
+	l1Result := db.gorm.Delete(&L1BlockHeader{}, "timestamp >= ?", timestamp)
+	if l1Result.Error != nil {
+		return fmt.Errorf("unable to delete l1 state: %w", l1Result.Error)
 	}
+	db.log.Info("L1 blocks (& derived events/tables) deleted", "block_count", l1Result.RowsAffected)
 
-	latestL2Header, err := db.L2LatestBlockHeader()
-	if err != nil {
-		return nil, err
-	} else if latestL2Header == nil {
-		return nil, nil
+	l2Result := db.gorm.Delete(&L2BlockHeader{}, "timestamp >= ?", timestamp)
+	if l2Result.Error != nil {
+		return fmt.Errorf("unable to delete l2 state: %w", l2Result.Error)
 	}
+	db.log.Info("L2 blocks (& derived events/tables) deleted", "block_count", l2Result.RowsAffected)
 
-	minTime := latestL1Header.Timestamp
-	if latestL2Header.Timestamp < minTime {
-		minTime = latestL2Header.Timestamp
-	}
-
-	// This is a faster query than doing an INNER JOIN between l1_block_headers and l2_block_headers
-	// which requires a full table scan to compute the resulting table.
-	l1Query := db.gorm.Table("l1_block_headers").Where("timestamp <= ?", minTime)
-	l2Query := db.gorm.Table("l2_block_headers").Where("timestamp <= ?", minTime)
-	query := db.gorm.Raw(`SELECT * FROM (?) AS l1_block_headers, (?) AS l2_block_headers
-		WHERE l1_block_headers.timestamp = l2_block_headers.timestamp
-		ORDER BY l2_block_headers.number DESC LIMIT 1`, l1Query, l2Query)
-
-	var epoch Epoch
-	result := query.Take(&epoch)
-	if result.Error != nil {
-		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return nil, nil
-		}
-		return nil, result.Error
-	}
-
-	return &epoch, nil
+	return nil
 }

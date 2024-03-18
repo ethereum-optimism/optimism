@@ -1,8 +1,15 @@
 package types
 
 import (
+	"errors"
 	"fmt"
+
+	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/ethereum/go-ethereum/common"
+	ethtypes "github.com/ethereum/go-ethereum/core/types"
 )
+
+var ErrInvalidPrestate = errors.New("absolute prestate does not match")
 
 type GameStatus uint8
 
@@ -32,4 +39,15 @@ func GameStatusFromUint8(i uint8) (GameStatus, error) {
 		return GameStatus(i), fmt.Errorf("invalid game status: %d", i)
 	}
 	return GameStatus(i), nil
+}
+
+type GameMetadata struct {
+	GameType  uint32
+	Timestamp uint64
+	Proxy     common.Address
+}
+
+type TxSender interface {
+	From() common.Address
+	SendAndWait(txPurpose string, txs ...txmgr.TxCandidate) ([]*ethtypes.Receipt, error)
 }

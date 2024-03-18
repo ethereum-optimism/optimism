@@ -33,33 +33,12 @@ var L2ChainIDToNetworkDisplayName = func() map[string]string {
 }()
 
 // AvailableNetworks returns the selection of network configurations that is available by default.
-// Other configurations that are part of the superchain-registry can be used with the --beta.network flag.
 func AvailableNetworks() []string {
-	return []string{"op-mainnet", "op-goerli", "op-sepolia"}
-}
-
-// BetaAvailableNetworks returns all available network configurations in the superchain-registry.
-// This set of configurations is experimental, and may change at any time.
-func BetaAvailableNetworks() []string {
 	var networks []string
 	for _, cfg := range superchain.OPChains {
 		networks = append(networks, cfg.Chain+"-"+cfg.Superchain)
 	}
 	return networks
-}
-
-func IsAvailableNetwork(name string, beta bool) bool {
-	name = handleLegacyName(name)
-	available := AvailableNetworks()
-	if beta {
-		available = BetaAvailableNetworks()
-	}
-	for _, v := range available {
-		if v == name {
-			return true
-		}
-	}
-	return false
 }
 
 func handleLegacyName(name string) string {
@@ -91,7 +70,7 @@ func ChainByName(name string) *superchain.ChainConfig {
 func GetRollupConfig(name string) (*rollup.Config, error) {
 	chainCfg := ChainByName(name)
 	if chainCfg == nil {
-		return nil, fmt.Errorf("invalid network %s", name)
+		return nil, fmt.Errorf("invalid network: %q", name)
 	}
 	rollupCfg, err := rollup.LoadOPStackRollupConfig(chainCfg.ChainID)
 	if err != nil {

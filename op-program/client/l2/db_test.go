@@ -15,6 +15,8 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/ethdb/memorydb"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/trie"
+	"github.com/ethereum/go-ethereum/trie/triedb/hashdb"
 	"github.com/stretchr/testify/require"
 )
 
@@ -109,7 +111,8 @@ func TestPut(t *testing.T) {
 func TestSupportsStateDBOperations(t *testing.T) {
 	l2Genesis := createGenesis()
 	realDb := rawdb.NewDatabase(memorydb.New())
-	genesisBlock := l2Genesis.MustCommit(realDb)
+	trieDB := trie.NewDatabase(realDb, &trie.Config{HashDB: hashdb.Defaults})
+	genesisBlock := l2Genesis.MustCommit(realDb, trieDB)
 
 	loader := test.NewKvStateOracle(t, realDb)
 	assertStateDataAvailable(t, NewOracleBackedDB(loader), l2Genesis, genesisBlock)
@@ -120,7 +123,8 @@ func TestUpdateState(t *testing.T) {
 	oracle := test.NewStubStateOracle(t)
 	db := rawdb.NewDatabase(NewOracleBackedDB(oracle))
 
-	genesisBlock := l2Genesis.MustCommit(db)
+	trieDB := trie.NewDatabase(db, &trie.Config{HashDB: hashdb.Defaults})
+	genesisBlock := l2Genesis.MustCommit(db, trieDB)
 	assertStateDataAvailable(t, db, l2Genesis, genesisBlock)
 
 	statedb, err := state.New(genesisBlock.Root(), state.NewDatabase(rawdb.NewDatabase(db)), nil)
@@ -136,7 +140,7 @@ func TestUpdateState(t *testing.T) {
 	require.Equal(t, []byte{1}, statedb.GetCode(codeAccount))
 
 	// Changes should be available under the new state root after committing
-	newRoot, err := statedb.Commit(false)
+	newRoot, err := statedb.Commit(genesisBlock.NumberU64()+1, false)
 	require.NoError(t, err)
 	err = statedb.Database().TrieDB().Commit(newRoot, true)
 	require.NoError(t, err)

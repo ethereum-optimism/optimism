@@ -4,6 +4,7 @@ import (
 	"errors"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/indexer/bigint"
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
@@ -27,12 +28,6 @@ type OptimismPortalWithdrawalProvenEvent struct {
 type OptimismPortalWithdrawalFinalizedEvent struct {
 	*bindings.OptimismPortalWithdrawalFinalized
 	Event *database.ContractEvent
-}
-
-type OptimismPortalProvenWithdrawal struct {
-	OutputRoot    [32]byte
-	Timestamp     *big.Int
-	L2OutputIndex *big.Int
 }
 
 func OptimismPortalTransactionDepositEvents(contractAddress common.Address, db *database.DB, fromHeight, toHeight *big.Int) ([]OptimismPortalTransactionDepositEvent, error) {
@@ -64,6 +59,11 @@ func OptimismPortalTransactionDepositEvents(contractAddress common.Address, db *
 			return nil, err
 		}
 
+		mint := depositTx.Mint
+		if mint == nil {
+			mint = bigint.Zero
+		}
+
 		optimismPortalTxDeposits[i] = OptimismPortalTransactionDepositEvent{
 			Event:     &transactionDepositEvents[i].ContractEvent,
 			DepositTx: depositTx,
@@ -71,7 +71,7 @@ func OptimismPortalTransactionDepositEvents(contractAddress common.Address, db *
 			Tx: database.Transaction{
 				FromAddress: txDeposit.From,
 				ToAddress:   txDeposit.To,
-				Amount:      depositTx.Value,
+				Amount:      mint,
 				Data:        depositTx.Data,
 				Timestamp:   transactionDepositEvents[i].Timestamp,
 			},

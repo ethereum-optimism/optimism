@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/big"
+	"sync"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/scheduler"
-	"github.com/ethereum-optimism/optimism/op-service/clock"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 
 	"github.com/ethereum/go-ethereum"
@@ -22,23 +22,39 @@ type blockNumberFetcher func(ctx context.Context) (uint64, error)
 
 // gameSource loads information about the games available to play
 type gameSource interface {
-	FetchAllGamesAtBlock(ctx context.Context, earliest uint64, blockNumber *big.Int) ([]FaultDisputeGame, error)
+	GetGamesAtOrAfter(ctx context.Context, blockHash common.Hash, earliestTimestamp uint64) ([]types.GameMetadata, error)
+}
+
+type RWClock interface {
+	SetTime(uint64)
+	Now() time.Time
 }
 
 type gameScheduler interface {
-	Schedule([]common.Address) error
+	Schedule([]types.GameMetadata, uint64) error
+}
+
+type preimageScheduler interface {
+	Schedule(blockHash common.Hash, blockNumber uint64) error
+}
+
+type claimer interface {
+	Schedule(blockNumber uint64, games []types.GameMetadata) error
 }
 
 type gameMonitor struct {
 	logger           log.Logger
-	clock            clock.Clock
+	clock            RWClock
 	source           gameSource
 	scheduler        gameScheduler
+	preimages        preimageScheduler
 	gameWindow       time.Duration
+	claimer          claimer
 	fetchBlockNumber blockNumberFetcher
 	allowedGames     []common.Address
 	l1HeadsSub       ethereum.Subscription
 	l1Source         *headSource
+	runState         sync.Mutex
 }
 
 type MinimalSubscriber interface {
@@ -55,10 +71,12 @@ func (s *headSource) SubscribeNewHead(ctx context.Context, ch chan<- *ethTypes.H
 
 func newGameMonitor(
 	logger log.Logger,
-	cl clock.Clock,
+	cl RWClock,
 	source gameSource,
 	scheduler gameScheduler,
+	preimages preimageScheduler,
 	gameWindow time.Duration,
+	claimer claimer,
 	fetchBlockNumber blockNumberFetcher,
 	allowedGames []common.Address,
 	l1Source MinimalSubscriber,
@@ -67,8 +85,10 @@ func newGameMonitor(
 		logger:           logger,
 		clock:            cl,
 		scheduler:        scheduler,
+		preimages:        preimages,
 		source:           source,
 		gameWindow:       gameWindow,
+		claimer:          claimer,
 		fetchBlockNumber: fetchBlockNumber,
 		allowedGames:     allowedGames,
 		l1Source:         &headSource{inner: l1Source},
@@ -99,20 +119,23 @@ func (m *gameMonitor) minGameTimestamp() uint64 {
 	return 0
 }
 
-func (m *gameMonitor) progressGames(ctx context.Context, blockNum uint64) error {
-	games, err := m.source.FetchAllGamesAtBlock(ctx, m.minGameTimestamp(), new(big.Int).SetUint64(blockNum))
+func (m *gameMonitor) progressGames(ctx context.Context, blockHash common.Hash, blockNumber uint64) error {
+	games, err := m.source.GetGamesAtOrAfter(ctx, blockHash, m.minGameTimestamp())
 	if err != nil {
 		return fmt.Errorf("failed to load games: %w", err)
 	}
-	var gamesToPlay []common.Address
+	var gamesToPlay []types.GameMetadata
 	for _, game := range games {
 		if !m.allowedGame(game.Proxy) {
 			m.logger.Debug("Skipping game not on allow list", "game", game.Proxy)
 			continue
 		}
-		gamesToPlay = append(gamesToPlay, game.Proxy)
+		gamesToPlay = append(gamesToPlay, game)
 	}
-	if err := m.scheduler.Schedule(gamesToPlay); errors.Is(err, scheduler.ErrBusy) {
+	if err := m.claimer.Schedule(blockNumber, gamesToPlay); err != nil {
+		return fmt.Errorf("failed to schedule bond claims: %w", err)
+	}
+	if err := m.scheduler.Schedule(gamesToPlay, blockNumber); errors.Is(err, scheduler.ErrBusy) {
 		m.logger.Info("Scheduler still busy with previous update")
 	} else if err != nil {
 		return fmt.Errorf("failed to schedule games: %w", err)
@@ -121,13 +144,19 @@ func (m *gameMonitor) progressGames(ctx context.Context, blockNum uint64) error 
 }
 
 func (m *gameMonitor) onNewL1Head(ctx context.Context, sig eth.L1BlockRef) {
-	if err := m.progressGames(ctx, sig.Number); err != nil {
+	m.clock.SetTime(sig.Time)
+	if err := m.progressGames(ctx, sig.Hash, sig.Number); err != nil {
 		m.logger.Error("Failed to progress games", "err", err)
+	}
+	if err := m.preimages.Schedule(sig.Hash, sig.Number); err != nil {
+		m.logger.Error("Failed to validate large preimages", "err", err)
 	}
 }
 
-func (m *gameMonitor) resubscribeFunction(ctx context.Context) event.ResubscribeErrFunc {
-	return func(innerCtx context.Context, err error) (event.Subscription, error) {
+func (m *gameMonitor) resubscribeFunction() event.ResubscribeErrFunc {
+	// The ctx is cancelled as soon as the subscription is returned,
+	// but is only used to create the subscription, and does not affect the returned subscription.
+	return func(ctx context.Context, err error) (event.Subscription, error) {
 		if err != nil {
 			m.logger.Warn("resubscribing after failed L1 subscription", "err", err)
 		}
@@ -135,17 +164,21 @@ func (m *gameMonitor) resubscribeFunction(ctx context.Context) event.Resubscribe
 	}
 }
 
-func (m *gameMonitor) MonitorGames(ctx context.Context) error {
-	m.l1HeadsSub = event.ResubscribeErr(time.Second*10, m.resubscribeFunction(ctx))
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case err, ok := <-m.l1HeadsSub.Err():
-			if !ok {
-				return err
-			}
-			m.logger.Error("L1 subscription error", "err", err)
-		}
+func (m *gameMonitor) StartMonitoring() {
+	m.runState.Lock()
+	defer m.runState.Unlock()
+	if m.l1HeadsSub != nil {
+		return // already started
 	}
+	m.l1HeadsSub = event.ResubscribeErr(time.Second*10, m.resubscribeFunction())
+}
+
+func (m *gameMonitor) StopMonitoring() {
+	m.runState.Lock()
+	defer m.runState.Unlock()
+	if m.l1HeadsSub == nil {
+		return // already stopped
+	}
+	m.l1HeadsSub.Unsubscribe()
+	m.l1HeadsSub = nil
 }

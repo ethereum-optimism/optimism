@@ -26,9 +26,11 @@ packages/contracts-bedrock/deployments/anvil
 # jetbrains
 .idea/
 
+.secrets
 .env
 .env*
 !.env.example
+!.envrc.example
 *.log
 
 .devnet
@@ -40,8 +42,6 @@ coverage.out
 
 # Ignore bedrock go bindings local output files
 op-bindings/bin
-op-exporter
-
 
 __pycache__
 

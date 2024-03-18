@@ -336,7 +336,8 @@ export abstract class BaseServiceV2<
       app.use(
         bodyParser.json({
           verify: (req, res, buf, encoding) => {
-            ;(req as any).rawBody = buf?.toString(encoding || 'utf8') || ''
+            ;(req as any).rawBody =
+              buf?.toString((encoding as BufferEncoding) || 'utf8') || ''
           },
           ...(this.params.bodyParserParams ?? {}),
         })
@@ -450,7 +451,7 @@ export abstract class BaseServiceV2<
     this.logger.info('waiting for main to complete')
     // if main is in the middle of running wait for it to complete
     await this.mainPromise
-    this.logger.info('main loop stoped.')
+    this.logger.info('main loop stopped.')
 
     // Shut down the metrics server if it's running.
     if (this.server) {

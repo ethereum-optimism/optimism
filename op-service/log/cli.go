@@ -2,14 +2,18 @@ package log
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli/v2"
+	"golang.org/x/exp/slog"
 	"golang.org/x/term"
 
+	"github.com/ethereum/go-ethereum/log"
+
 	opservice "github.com/ethereum-optimism/optimism/op-service"
+	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 )
 
 const (
@@ -19,106 +23,218 @@ const (
 )
 
 func CLIFlags(envPrefix string) []cli.Flag {
+	return CLIFlagsWithCategory(envPrefix, "")
+}
+
+// CLIFlagsWithCategory creates flag definitions for the logging utils.
+// Warning: flags are not safe to reuse due to an upstream urfave default-value mutation bug in GenericFlag.
+// Use cliapp.ProtectFlags(flags) to create a copy before passing it into an App if the app runs more than once.
+func CLIFlagsWithCategory(envPrefix string, category string) []cli.Flag {
 	return []cli.Flag{
-		&cli.StringFlag{
-			Name:    LevelFlagName,
-			Usage:   "The lowest log level that will be output",
-			Value:   "info",
-			EnvVars: opservice.PrefixEnvVar(envPrefix, "LOG_LEVEL"),
+		&cli.GenericFlag{
+			Name:     LevelFlagName,
+			Usage:    "The lowest log level that will be output",
+			Value:    NewLevelFlagValue(log.LevelInfo),
+			EnvVars:  opservice.PrefixEnvVar(envPrefix, "LOG_LEVEL"),
+			Category: category,
 		},
-		&cli.StringFlag{
-			Name:    FormatFlagName,
-			Usage:   "Format the log output. Supported formats: 'text', 'terminal', 'logfmt', 'json', 'json-pretty',",
-			Value:   "text",
-			EnvVars: opservice.PrefixEnvVar(envPrefix, "LOG_FORMAT"),
+		&cli.GenericFlag{
+			Name:     FormatFlagName,
+			Usage:    "Format the log output. Supported formats: 'text', 'terminal', 'logfmt', 'json', 'json-pretty',",
+			Value:    NewFormatFlagValue(FormatText),
+			EnvVars:  opservice.PrefixEnvVar(envPrefix, "LOG_FORMAT"),
+			Category: category,
 		},
 		&cli.BoolFlag{
-			Name:    ColorFlagName,
-			Usage:   "Color the log output if in terminal mode",
-			EnvVars: opservice.PrefixEnvVar(envPrefix, "LOG_COLOR"),
+			Name:     ColorFlagName,
+			Usage:    "Color the log output if in terminal mode",
+			EnvVars:  opservice.PrefixEnvVar(envPrefix, "LOG_COLOR"),
+			Category: category,
 		},
 	}
 }
 
-type CLIConfig struct {
-	Level  string // Log level: trace, debug, info, warn, error, crit. Capitals are accepted too.
-	Color  bool   // Color the log output. Defaults to true if terminal is detected.
-	Format string // Format the log output. Supported formats: 'text', 'terminal', 'logfmt', 'json', 'json-pretty'
+// LevelFlagValue is a value type for cli.GenericFlag to parse and validate log-level values.
+// Log level: trace, debug, info, warn, error, crit. Capitals are accepted too.
+type LevelFlagValue slog.Level
+
+func NewLevelFlagValue(lvl slog.Level) *LevelFlagValue {
+	return (*LevelFlagValue)(&lvl)
 }
 
-func (cfg CLIConfig) Check() error {
-	switch cfg.Format {
-	case "json", "json-pretty", "terminal", "text", "logfmt":
-	default:
-		return fmt.Errorf("unrecognized log format: %s", cfg.Format)
-	}
-
-	level := strings.ToLower(cfg.Level)
-	_, err := log.LvlFromString(level)
+func (fv *LevelFlagValue) Set(value string) error {
+	value = strings.ToLower(value) // ignore case
+	lvl, err := LevelFromString(value)
 	if err != nil {
-		return fmt.Errorf("unrecognized log level: %w", err)
+		return err
 	}
+	*fv = LevelFlagValue(lvl)
 	return nil
 }
 
-func NewLogger(cfg CLIConfig) log.Logger {
-	handler := log.StreamHandler(os.Stdout, Format(cfg.Format, cfg.Color))
-	handler = log.SyncHandler(handler)
-	handler = log.LvlFilterHandler(Level(cfg.Level), handler)
-	// Set the root handle to what we have configured. Some components like go-ethereum's RPC
-	// server use log.Root() instead of being able to pass in a log.
-	log.Root().SetHandler(handler)
-	logger := log.New()
-	logger.SetHandler(handler)
-	return logger
+func (fv LevelFlagValue) String() string {
+	return slog.Level(fv).String()
 }
 
+func (fv LevelFlagValue) Level() slog.Level {
+	return slog.Level(fv).Level()
+}
+
+func (fv *LevelFlagValue) Clone() any {
+	cpy := *fv
+	return &cpy
+}
+
+// LevelFromString returns the appropriate Level from a string name.
+// Useful for parsing command line args and configuration files.
+// It also converts strings to lowercase.
+// If the string is unknown, LevelDebug is returned as a default, together with
+// a non-nil error.
+func LevelFromString(lvlString string) (slog.Level, error) {
+	lvlString = strings.ToLower(lvlString) // ignore case
+	switch lvlString {
+	case "trace", "trce":
+		return log.LevelTrace, nil
+	case "debug", "dbug":
+		return log.LevelDebug, nil
+	case "info":
+		return log.LevelInfo, nil
+	case "warn":
+		return log.LevelWarn, nil
+	case "error", "eror":
+		return log.LevelError, nil
+	case "crit":
+		return log.LevelCrit, nil
+	default:
+		return log.LevelDebug, fmt.Errorf("unknown level: %v", lvlString)
+	}
+}
+
+var _ cliapp.CloneableGeneric = (*LevelFlagValue)(nil)
+
+// FormatType defines a type of log format.
+// Supported formats: 'text', 'terminal', 'logfmt', 'json'
+type FormatType string
+
+const (
+	FormatText     FormatType = "text"
+	FormatTerminal FormatType = "terminal"
+	FormatLogFmt   FormatType = "logfmt"
+	FormatJSON     FormatType = "json"
+)
+
+// FormatHandler returns the correct slog handler factory for the provided format.
+func FormatHandler(ft FormatType, color bool) func(io.Writer) slog.Handler {
+	termColorHandler := func(w io.Writer) slog.Handler {
+		return log.NewTerminalHandler(w, color)
+	}
+	switch ft {
+	case FormatJSON:
+		return log.JSONHandler
+	case FormatText:
+		if term.IsTerminal(int(os.Stdout.Fd())) {
+			return termColorHandler
+		} else {
+			return log.LogfmtHandler
+		}
+	case FormatTerminal:
+		return termColorHandler
+	case FormatLogFmt:
+		return log.LogfmtHandler
+	default:
+		panic(fmt.Errorf("failed to create slog.Handler factory for format-type=%q and color=%v", ft, color))
+	}
+}
+
+func (ft FormatType) String() string {
+	return string(ft)
+}
+
+// FormatFlagValue is a value type for cli.GenericFlag to parse and validate log-formatting-type values
+type FormatFlagValue FormatType
+
+func NewFormatFlagValue(fmtType FormatType) *FormatFlagValue {
+	return (*FormatFlagValue)(&fmtType)
+}
+
+func (fv *FormatFlagValue) Set(value string) error {
+	switch FormatType(value) {
+	case FormatText, FormatTerminal, FormatLogFmt, FormatJSON:
+		*fv = FormatFlagValue(value)
+		return nil
+	default:
+		return fmt.Errorf("unrecognized log-format: %q", value)
+	}
+}
+
+func (fv FormatFlagValue) String() string {
+	return FormatType(fv).String()
+}
+
+func (fv FormatFlagValue) FormatType() FormatType {
+	return FormatType(fv)
+}
+
+func (fv *FormatFlagValue) Clone() any {
+	cpy := *fv
+	return &cpy
+}
+
+var _ cliapp.CloneableGeneric = (*FormatFlagValue)(nil)
+
+type CLIConfig struct {
+	Level  slog.Level
+	Color  bool
+	Format FormatType
+}
+
+// AppOut returns an io.Writer to write app output to, like logs.
+// This falls back to os.Stdout if the ctx, ctx.App or ctx.App.Writer are nil.
+func AppOut(ctx *cli.Context) io.Writer {
+	if ctx == nil || ctx.App == nil || ctx.App.Writer == nil {
+		return os.Stdout
+	}
+	return ctx.App.Writer
+}
+
+// NewLogHandler creates a new configured handler, compatible as LvlSetter for log-level changes during runtime.
+func NewLogHandler(wr io.Writer, cfg CLIConfig) slog.Handler {
+	handler := FormatHandler(cfg.Format, cfg.Color)(wr)
+	return NewDynamicLogHandler(cfg.Level, handler)
+}
+
+// NewLogger creates a new configured logger.
+// The log handler of the logger is a LvlSetter, i.e. the log level can be changed as needed.
+func NewLogger(wr io.Writer, cfg CLIConfig) log.Logger {
+	h := NewLogHandler(wr, cfg)
+	return log.NewLogger(h)
+}
+
+// SetGlobalLogHandler sets the log handles as the handler of the global default logger.
+// The usage of this logger is strongly discouraged,
+// as it does makes it difficult to distinguish different services in the same process, e.g. during tests.
+// Geth and other components may use the global logger however,
+// and it is thus recommended to set the global log handler to catch these logs.
+func SetGlobalLogHandler(h slog.Handler) {
+	log.SetDefault(log.NewLogger(h))
+}
+
+// DefaultCLIConfig creates a default log configuration.
+// Color defaults to true if terminal is detected.
 func DefaultCLIConfig() CLIConfig {
 	return CLIConfig{
-		Level:  "info",
-		Format: "text",
+		Level:  log.LevelInfo,
+		Format: FormatText,
 		Color:  term.IsTerminal(int(os.Stdout.Fd())),
 	}
 }
 
 func ReadCLIConfig(ctx *cli.Context) CLIConfig {
 	cfg := DefaultCLIConfig()
-	cfg.Level = ctx.String(LevelFlagName)
-	cfg.Format = ctx.String(FormatFlagName)
+	cfg.Level = ctx.Generic(LevelFlagName).(*LevelFlagValue).Level()
+	cfg.Format = ctx.Generic(FormatFlagName).(*FormatFlagValue).FormatType()
 	if ctx.IsSet(ColorFlagName) {
 		cfg.Color = ctx.Bool(ColorFlagName)
 	}
 	return cfg
-}
-
-// Format turns a string and color into a structured Format object
-func Format(lf string, color bool) log.Format {
-	switch lf {
-	case "json":
-		return log.JSONFormat()
-	case "json-pretty":
-		return log.JSONFormatEx(true, true)
-	case "text":
-		if term.IsTerminal(int(os.Stdout.Fd())) {
-			return log.TerminalFormat(color)
-		} else {
-			return log.LogfmtFormat()
-		}
-	case "terminal":
-		return log.TerminalFormat(color)
-	case "logfmt":
-		return log.LogfmtFormat()
-	default:
-		panic("Failed to create `log.Format` from options")
-	}
-}
-
-// Level parses the level string into an appropriate object
-func Level(s string) log.Lvl {
-	s = strings.ToLower(s) // ignore case
-	l, err := log.LvlFromString(s)
-	if err != nil {
-		panic(fmt.Sprintf("Could not parse log level: %v", err))
-	}
-	return l
 }

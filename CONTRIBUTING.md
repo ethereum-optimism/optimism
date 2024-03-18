@@ -7,7 +7,7 @@
 There are plenty of ways to contribute, in particular we appreciate support in the following areas:
 
 - Reporting issues. For security issues see [Security policy](https://github.com/ethereum-optimism/.github/blob/master/SECURITY.md).
-- Fixing and responding to existing issues. You can start off with those tagged ["good first issue"](https://github.com/ethereum-optimism/optimism/contribute) which are meant as introductory issues for external contributors.
+- Fixing and responding to existing issues. You can start off with those tagged ["good first issue"](https://github.com/ethereum-optimism/optimism/labels/D-good-first-issue) which are meant as introductory issues for external contributors.
 - Improving the [community site](https://community.optimism.io/), [documentation](https://github.com/ethereum-optimism/community-hub) and [tutorials](https://github.com/ethereum-optimism/optimism-tutorial).
 - Become an "Optimizer" and answer questions in the [Optimism Discord](https://discord.optimism.io).
 - Get involved in the protocol design process by proposing changes or new features or write parts of the spec yourself in the [specs subdirectory](./specs/).
@@ -29,6 +29,8 @@ Follow the [Development Quick Start](#development-quick-start) to set up your lo
 We recommend using the [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) format on commit messages.
 
 Unless your PR is ready for immediate review and merging, please mark it as 'draft' (or simply do not open a PR yet).
+
+Once ready for review, make sure to include a thorough PR description to help reviewers. You can read more about the guidelines for opening PRs in the [PR Guidelines](docs/handbook/pr-guidelines.md) file.
 
 **Bonus:** Add comments to the diff under the "Files Changed" tab on the PR page to clarify any sections where you think we might have questions about the approach taken.
 
@@ -68,6 +70,7 @@ You'll need the following:
 * [Docker Compose](https://docs.docker.com/compose/install/)
 * [Go](https://go.dev/dl/)
 * [Foundry](https://getfoundry.sh)
+* [jq](https://jqlang.github.io/jq/)
 * [go-ethereum](https://github.com/ethereum/go-ethereum)
 
 ### Setup
@@ -103,6 +106,7 @@ To build all of the [TypeScript packages](./packages), run:
 
 ```bash
 pnpm clean
+pnpm install
 pnpm build
 ```
 
@@ -139,6 +143,7 @@ Finally, **if you're running into weird problems and nothing seems to be working
 ```bash
 cd optimism
 pnpm clean
+pnpm install
 pnpm build
 cd ops
 docker compose down -v
@@ -159,7 +164,7 @@ docker compose logs --follow <service name>
 
 Before running tests: **follow the above instructions to get everything built.**
 
-#### Running unit tests
+#### Running unit tests (typescript)
 
 Run unit tests for all packages in parallel via:
 
@@ -174,6 +179,16 @@ cd packages/package-to-test
 pnpm test
 ```
 
+#### Running unit tests (Go)
+
+Change directory to the package you want to run tests for. Then:
+```shell
+go test ./...
+```
+
+#### Running e2e tests (Go)
+See [this document](./op-e2e/README.md)
+
 #### Running contract static analysis
 
 We perform static analysis with [`slither`](https://github.com/crytic/slither).
@@ -181,9 +196,9 @@ You must have Python 3.x installed to run `slither`.
 To run `slither` locally, do:
 
 ```bash
-cd packages/contracts
+cd packages/contracts-bedrock
 pip3 install slither-analyzer
-pnpm test:slither
+pnpm slither
 ```
 
 ## Labels

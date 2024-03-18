@@ -3,9 +3,11 @@ package scheduler
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/scheduler/test"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 
@@ -24,24 +26,24 @@ func TestWorkerShouldProcessJobsUntilContextDone(t *testing.T) {
 	go progressGames(ctx, in, out, &wg, ms.ThreadActive, ms.ThreadIdle)
 
 	in <- job{
-		player: &stubPlayer{status: types.GameStatusInProgress},
+		player: &test.StubGamePlayer{StatusValue: types.GameStatusInProgress},
 	}
 	waitErr := wait.For(context.Background(), 100*time.Millisecond, func() (bool, error) {
-		return ms.activeCalls >= 1, nil
+		return ms.activeCalls.Load() >= 1, nil
 	})
 	require.NoError(t, waitErr)
-	require.Equal(t, ms.activeCalls, 1)
-	require.Equal(t, ms.idleCalls, 1)
+	require.EqualValues(t, ms.activeCalls.Load(), 1)
+	require.EqualValues(t, ms.idleCalls.Load(), 1)
 
 	in <- job{
-		player: &stubPlayer{status: types.GameStatusDefenderWon},
+		player: &test.StubGamePlayer{StatusValue: types.GameStatusDefenderWon},
 	}
 	waitErr = wait.For(context.Background(), 100*time.Millisecond, func() (bool, error) {
-		return ms.activeCalls >= 2, nil
+		return ms.activeCalls.Load() >= 2, nil
 	})
 	require.NoError(t, waitErr)
-	require.Equal(t, ms.activeCalls, 2)
-	require.Equal(t, ms.idleCalls, 2)
+	require.EqualValues(t, ms.activeCalls.Load(), 2)
+	require.EqualValues(t, ms.idleCalls.Load(), 2)
 
 	result1 := readWithTimeout(t, out)
 	result2 := readWithTimeout(t, out)
@@ -55,28 +57,16 @@ func TestWorkerShouldProcessJobsUntilContextDone(t *testing.T) {
 }
 
 type metricSink struct {
-	activeCalls int
-	idleCalls   int
+	activeCalls atomic.Int32
+	idleCalls   atomic.Int32
 }
 
 func (m *metricSink) ThreadActive() {
-	m.activeCalls++
+	m.activeCalls.Add(1)
 }
 
 func (m *metricSink) ThreadIdle() {
-	m.idleCalls++
-}
-
-type stubPlayer struct {
-	status types.GameStatus
-}
-
-func (s *stubPlayer) ProgressGame(ctx context.Context) types.GameStatus {
-	return s.status
-}
-
-func (s *stubPlayer) Status() types.GameStatus {
-	return s.status
+	m.idleCalls.Add(1)
 }
 
 func readWithTimeout[T any](t *testing.T, ch <-chan T) T {

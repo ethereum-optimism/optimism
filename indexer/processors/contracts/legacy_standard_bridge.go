@@ -15,21 +15,23 @@ type LegacyBridgeEvent struct {
 }
 
 func L1StandardBridgeLegacyDepositInitiatedEvents(contractAddress common.Address, db *database.DB, fromHeight, toHeight *big.Int) ([]LegacyBridgeEvent, error) {
+	// The L1StandardBridge ABI contains the legacy events
 	l1StandardBridgeAbi, err := bindings.L1StandardBridgeMetaData.GetAbi()
 	if err != nil {
 		return nil, err
 	}
 
-	// The L1StandardBridge contains the legacy events
 	ethDepositEventAbi := l1StandardBridgeAbi.Events["ETHDepositInitiated"]
 	erc20DepositEventAbi := l1StandardBridgeAbi.Events["ERC20DepositInitiated"]
 
 	// Grab both ETH & ERC20 Events
-	ethDepositEvents, err := db.ContractEvents.L1ContractEventsWithFilter(database.ContractEvent{ContractAddress: contractAddress, EventSignature: ethDepositEventAbi.ID}, fromHeight, toHeight)
+	contractEventFilter := database.ContractEvent{ContractAddress: contractAddress, EventSignature: ethDepositEventAbi.ID}
+	ethDepositEvents, err := db.ContractEvents.L1ContractEventsWithFilter(contractEventFilter, fromHeight, toHeight)
 	if err != nil {
 		return nil, err
 	}
-	erc20DepositEvents, err := db.ContractEvents.L1ContractEventsWithFilter(database.ContractEvent{ContractAddress: contractAddress, EventSignature: erc20DepositEventAbi.ID}, fromHeight, toHeight)
+	contractEventFilter.EventSignature = erc20DepositEventAbi.ID
+	erc20DepositEvents, err := db.ContractEvents.L1ContractEventsWithFilter(contractEventFilter, fromHeight, toHeight)
 	if err != nil {
 		return nil, err
 	}
@@ -81,13 +83,15 @@ func L1StandardBridgeLegacyDepositInitiatedEvents(contractAddress common.Address
 }
 
 func L2StandardBridgeLegacyWithdrawalInitiatedEvents(contractAddress common.Address, db *database.DB, fromHeight, toHeight *big.Int) ([]LegacyBridgeEvent, error) {
+	// The L2StandardBridge ABI contains the legacy events
 	l2StandardBridgeAbi, err := bindings.L2StandardBridgeMetaData.GetAbi()
 	if err != nil {
 		return nil, err
 	}
 
 	withdrawalInitiatedEventAbi := l2StandardBridgeAbi.Events["WithdrawalInitiated"]
-	withdrawalEvents, err := db.ContractEvents.L2ContractEventsWithFilter(database.ContractEvent{ContractAddress: contractAddress, EventSignature: withdrawalInitiatedEventAbi.ID}, fromHeight, toHeight)
+	contractEventFilter := database.ContractEvent{ContractAddress: contractAddress, EventSignature: withdrawalInitiatedEventAbi.ID}
+	withdrawalEvents, err := db.ContractEvents.L2ContractEventsWithFilter(contractEventFilter, fromHeight, toHeight)
 	if err != nil {
 		return nil, err
 	}

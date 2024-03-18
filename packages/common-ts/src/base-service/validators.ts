@@ -49,6 +49,14 @@ const logLevel = makeValidator<LogLevel>((input) => {
   }
 })
 
+const address = makeValidator<string>((input) => {
+  if (!ethers.utils.isHexString(input, 20)) {
+    throw new Error(`expected input to be an address: ${input}`)
+  } else {
+    return input as `0x${string}`
+  }
+})
+
 export const validators = {
   str,
   bool,
@@ -63,4 +71,5 @@ export const validators = {
   jsonRpcProvider,
   staticJsonRpcProvider,
   logLevel,
+  address,
 }

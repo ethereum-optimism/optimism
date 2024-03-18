@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -52,5 +53,5 @@ func (RLPSerializer) Value(ctx context.Context, field *schema.Field, dst reflect
 	}
 
 	hexStr := hexutil.Encode(rlpBytes)
-	return hexStr, nil
+	return strings.ToLower(hexStr), nil
 }

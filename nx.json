@@ -1,5 +1,7 @@
 {
+  "$schema": "./node_modules/nx/schemas/nx-schema.json",
   "defaultBase": "develop",
+  "neverConnectToCloud": true,
   "affected": {
     "defaultBase": "develop"
   },
@@ -13,8 +15,9 @@
   },
   "tasksRunnerOptions": {
     "default": {
-      "runner": "@nrwl/nx-cloud",
+      "runner": "nx-cloud",
       "options": {
+        "accessToken": "MDdkNmQwZWEtOGYwNy00ZjhkLWI5NGMtNjBiNGExY2Q5MzI2fHJlYWQ=",
         "cacheableOperations": [
           "lint",
           "build",
@@ -50,7 +53,7 @@
   },
   "targetDefaults": {
     "lint": {
-      "inputs": ["{workspaceRoot}/.markdownlint.json", "default"]
+      "inputs": ["default"]
     },
     "test": {
       "inputs": ["default", "testing", "^production"],
@@ -78,6 +81,5 @@
       "dependsOn": ["^build", "build:contracts"],
       "outputs": ["{projectRoot}/dist"]
     }
-  },
-  "$schema": "./node_modules/nx/schemas/nx-schema.json"
+  }
 }

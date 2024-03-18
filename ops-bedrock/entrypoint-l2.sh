@@ -39,7 +39,7 @@ exec geth \
 	--syncmode=full \
 	--nodiscover \
 	--maxpeers=0 \
-	--networkid=$CHAIN_ID \
+	--networkid="$CHAIN_ID" \
 	--rpc.allow-unprotected-txs \
 	--authrpc.addr="0.0.0.0" \
 	--authrpc.port="8551" \

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import { Types } from "./Types.sol";
-import { Hashing } from "./Hashing.sol";
-import { RLPWriter } from "./rlp/RLPWriter.sol";
+import { Types } from "src/libraries/Types.sol";
+import { Hashing } from "src/libraries/Hashing.sol";
+import { RLPWriter } from "src/libraries/rlp/RLPWriter.sol";
 
 /// @title Encoding
 /// @notice Encoding handles Optimism's various different encoding schemes.
@@ -132,5 +132,45 @@ library Encoding {
             version := shr(240, _nonce)
         }
         return (nonce, version);
+    }
+
+    /// @notice Returns an appropriately encoded call to L1Block.setL1BlockValuesEcotone
+    /// @param baseFeeScalar       L1 base fee Scalar
+    /// @param blobBaseFeeScalar   L1 blob base fee Scalar
+    /// @param sequenceNumber      Number of L2 blocks since epoch start.
+    /// @param timestamp           L1 timestamp.
+    /// @param number              L1 blocknumber.
+    /// @param baseFee             L1 base fee.
+    /// @param blobBaseFee         L1 blob base fee.
+    /// @param hash                L1 blockhash.
+    /// @param batcherHash         Versioned hash to authenticate batcher by.
+    function encodeSetL1BlockValuesEcotone(
+        uint32 baseFeeScalar,
+        uint32 blobBaseFeeScalar,
+        uint64 sequenceNumber,
+        uint64 timestamp,
+        uint64 number,
+        uint256 baseFee,
+        uint256 blobBaseFee,
+        bytes32 hash,
+        bytes32 batcherHash
+    )
+        internal
+        pure
+        returns (bytes memory)
+    {
+        bytes4 functionSignature = bytes4(keccak256("setL1BlockValuesEcotone()"));
+        return abi.encodePacked(
+            functionSignature,
+            baseFeeScalar,
+            blobBaseFeeScalar,
+            sequenceNumber,
+            timestamp,
+            number,
+            baseFee,
+            blobBaseFee,
+            hash,
+            batcherHash
+        );
     }
 }

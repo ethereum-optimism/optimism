@@ -1,13 +1,15 @@
 package metrics
 
 import (
-	"context"
+	"io"
 
+	"github.com/ethereum-optimism/optimism/op-service/sources/caching"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/prometheus/client_golang/prometheus"
 
+	"github.com/ethereum-optimism/optimism/op-service/httputil"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	txmetrics "github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
 )
@@ -18,14 +20,25 @@ type Metricer interface {
 	RecordInfo(version string)
 	RecordUp()
 
+	StartBalanceMetrics(l log.Logger, client *ethclient.Client, account common.Address) io.Closer
+
 	// Record Tx metrics
 	txmetrics.TxMetricer
+
+	// Record cache metrics
+	caching.Metrics
+
+	RecordActedL1Block(n uint64)
 
 	RecordGameStep()
 	RecordGameMove()
 	RecordCannonExecutionTime(t float64)
 
-	RecordGameClaimCount(addr string, count int)
+	RecordPreimageChallenged()
+	RecordPreimageChallengeFailed()
+
+	RecordBondClaimFailed()
+	RecordBondClaimed(amount uint64)
 
 	RecordGamesStatus(inProgress, defenderWon, challengerWon int)
 
@@ -38,6 +51,9 @@ type Metricer interface {
 	DecIdleExecutors()
 }
 
+// Metrics implementation must implement RegistryMetricer to allow the metrics server to work.
+var _ opmetrics.RegistryMetricer = (*Metrics)(nil)
+
 type Metrics struct {
 	ns       string
 	registry *prometheus.Registry
@@ -45,20 +61,32 @@ type Metrics struct {
 
 	txmetrics.TxMetrics
 
+	*opmetrics.CacheMetrics
+
 	info prometheus.GaugeVec
 	up   prometheus.Gauge
 
 	executors prometheus.GaugeVec
+
+	bondClaimFailures prometheus.Counter
+	bondsClaimed      prometheus.Counter
+
+	preimageChallenged      prometheus.Counter
+	preimageChallengeFailed prometheus.Counter
+
+	highestActedL1Block prometheus.Gauge
 
 	moves prometheus.Counter
 	steps prometheus.Counter
 
 	cannonExecutionTime prometheus.Histogram
 
-	gameClaimCount prometheus.GaugeVec
-
 	trackedGames  prometheus.GaugeVec
 	inflightGames prometheus.Gauge
+}
+
+func (m *Metrics) Registry() *prometheus.Registry {
+	return m.registry
 }
 
 var _ Metricer = (*Metrics)(nil)
@@ -73,6 +101,8 @@ func NewMetrics() *Metrics {
 		factory:  factory,
 
 		TxMetrics: txmetrics.MakeTxMetrics(Namespace, factory),
+
+		CacheMetrics: opmetrics.NewCacheMetrics(factory, Namespace, "provider_cache", "Provider cache"),
 
 		info: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: Namespace,
@@ -111,12 +141,25 @@ func NewMetrics() *Metrics {
 				[]float64{1.0, 10.0},
 				prometheus.ExponentialBuckets(30.0, 2.0, 14)...),
 		}),
-		gameClaimCount: *factory.NewGaugeVec(prometheus.GaugeOpts{
+		bondClaimFailures: factory.NewCounter(prometheus.CounterOpts{
 			Namespace: Namespace,
-			Name:      "game_claim_count",
-			Help:      "Number of claims in the game",
-		}, []string{
-			"game_address",
+			Name:      "claim_failures",
+			Help:      "Number of bond claims that failed",
+		}),
+		bondsClaimed: factory.NewCounter(prometheus.CounterOpts{
+			Namespace: Namespace,
+			Name:      "bonds",
+			Help:      "Number of bonds claimed by the challenge agent",
+		}),
+		preimageChallenged: factory.NewCounter(prometheus.CounterOpts{
+			Namespace: Namespace,
+			Name:      "preimage_challenged",
+			Help:      "Number of preimages challenged by the challenger",
+		}),
+		preimageChallengeFailed: factory.NewCounter(prometheus.CounterOpts{
+			Namespace: Namespace,
+			Name:      "preimage_challenge_failed",
+			Help:      "Number of preimage challenges that failed",
 		}),
 		trackedGames: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: Namespace,
@@ -124,6 +167,11 @@ func NewMetrics() *Metrics {
 			Help:      "Number of games being tracked by the challenger",
 		}, []string{
 			"status",
+		}),
+		highestActedL1Block: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "highest_acted_l1_block",
+			Help:      "Highest L1 block acted on by the challenger",
 		}),
 		inflightGames: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: Namespace,
@@ -133,17 +181,16 @@ func NewMetrics() *Metrics {
 	}
 }
 
-func (m *Metrics) Serve(ctx context.Context, host string, port int) error {
-	return opmetrics.ListenAndServe(ctx, m.registry, host, port)
+func (m *Metrics) Start(host string, port int) (*httputil.HTTPServer, error) {
+	return opmetrics.StartServer(m.registry, host, port)
 }
 
 func (m *Metrics) StartBalanceMetrics(
-	ctx context.Context,
 	l log.Logger,
 	client *ethclient.Client,
 	account common.Address,
-) {
-	opmetrics.LaunchBalanceMetrics(ctx, l, m.registry, m.ns, client, account)
+) io.Closer {
+	return opmetrics.LaunchBalanceMetrics(l, m.registry, m.ns, client, account)
 }
 
 // RecordInfo sets a pseudo-metric that contains versioning and
@@ -170,6 +217,22 @@ func (m *Metrics) RecordGameStep() {
 	m.steps.Add(1)
 }
 
+func (m *Metrics) RecordPreimageChallenged() {
+	m.preimageChallenged.Add(1)
+}
+
+func (m *Metrics) RecordPreimageChallengeFailed() {
+	m.preimageChallengeFailed.Add(1)
+}
+
+func (m *Metrics) RecordBondClaimFailed() {
+	m.bondClaimFailures.Add(1)
+}
+
+func (m *Metrics) RecordBondClaimed(amount uint64) {
+	m.bondsClaimed.Add(float64(amount))
+}
+
 func (m *Metrics) RecordCannonExecutionTime(t float64) {
 	m.cannonExecutionTime.Observe(t)
 }
@@ -190,14 +253,14 @@ func (m *Metrics) DecIdleExecutors() {
 	m.executors.WithLabelValues("idle").Dec()
 }
 
-func (m *Metrics) RecordGameClaimCount(addr string, count int) {
-	m.gameClaimCount.With(prometheus.Labels{"game_address": addr}).Set(float64(count))
-}
-
 func (m *Metrics) RecordGamesStatus(inProgress, defenderWon, challengerWon int) {
 	m.trackedGames.WithLabelValues("in_progress").Set(float64(inProgress))
 	m.trackedGames.WithLabelValues("defender_won").Set(float64(defenderWon))
 	m.trackedGames.WithLabelValues("challenger_won").Set(float64(challengerWon))
+}
+
+func (m *Metrics) RecordActedL1Block(n uint64) {
+	m.highestActedL1Block.Set(float64(n))
 }
 
 func (m *Metrics) RecordGameUpdateScheduled() {

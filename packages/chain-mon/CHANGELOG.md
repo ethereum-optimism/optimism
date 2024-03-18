@@ -1,5 +1,84 @@
 # @eth-optimism/drippie-mon
 
+## 0.6.2
+
+### Patch Changes
+
+- Updated dependencies [[`3ccd12fe5c8c4c5a6acbf370d474ffa8db816562`](https://github.com/ethereum-optimism/optimism/commit/3ccd12fe5c8c4c5a6acbf370d474ffa8db816562)]:
+  - @eth-optimism/sdk@3.2.2
+
+## 0.6.1
+
+### Patch Changes
+
+- Updated dependencies [[`a1329f21f33ecafe409990964d3af7bf05a8a756`](https://github.com/ethereum-optimism/optimism/commit/a1329f21f33ecafe409990964d3af7bf05a8a756)]:
+  - @eth-optimism/sdk@3.2.1
+
+## 0.6.0
+
+### Minor Changes
+
+- [#9334](https://github.com/ethereum-optimism/optimism/pull/9334) [`1ed50c44a5c4fb7244ede3b4c45ea7bbf144c1e5`](https://github.com/ethereum-optimism/optimism/commit/1ed50c44a5c4fb7244ede3b4c45ea7bbf144c1e5) Thanks [@smartcontracts](https://github.com/smartcontracts)! - Updates wd-mon inside chain-mon to support FPAC.
+
+### Patch Changes
+
+- Updated dependencies [[`1ed50c44a5c4fb7244ede3b4c45ea7bbf144c1e5`](https://github.com/ethereum-optimism/optimism/commit/1ed50c44a5c4fb7244ede3b4c45ea7bbf144c1e5), [`d99d425a4f73fba19ffcf180deb0ef48ff3b9a6a`](https://github.com/ethereum-optimism/optimism/commit/d99d425a4f73fba19ffcf180deb0ef48ff3b9a6a), [`79effc52e8b82d15b5eda43acf540ac6c5f8d5d7`](https://github.com/ethereum-optimism/optimism/commit/79effc52e8b82d15b5eda43acf540ac6c5f8d5d7), [`73a748575e7c3d67c293814a12bf41eee216163c`](https://github.com/ethereum-optimism/optimism/commit/73a748575e7c3d67c293814a12bf41eee216163c), [`44a2d9cec5f3b309b723b3e4dd8d29b5b70f1cc8`](https://github.com/ethereum-optimism/optimism/commit/44a2d9cec5f3b309b723b3e4dd8d29b5b70f1cc8)]:
+  - @eth-optimism/common-ts@0.8.8
+  - @eth-optimism/sdk@3.2.0
+  - @eth-optimism/contracts-bedrock@0.17.1
+
+## 0.5.7
+
+### Patch Changes
+
+- Updated dependencies [[`18becd7e4`](https://github.com/ethereum-optimism/optimism/commit/18becd7e457577c105f6bc03597e069334cb7433)]:
+  - @eth-optimism/sdk@3.1.8
+
+## 0.5.6
+
+### Patch Changes
+
+- Updated dependencies [[`6ec80fd19`](https://github.com/ethereum-optimism/optimism/commit/6ec80fd19d9155b17a0873672fb095d323f6e8fb)]:
+  - @eth-optimism/sdk@3.1.7
+
+## 0.5.5
+
+### Patch Changes
+
+- [#8306](https://github.com/ethereum-optimism/optimism/pull/8306) [`dcb252917`](https://github.com/ethereum-optimism/optimism/commit/dcb25291768ec0f2386486619971d5cd66fbb409) Thanks [@protolambda](https://github.com/protolambda)! - Fixed bug with custom chains not being able to set a custom portal address
+
+## 0.5.4
+
+### Patch Changes
+
+- Updated dependencies [[`dd0e46986`](https://github.com/ethereum-optimism/optimism/commit/dd0e46986f19dcceb304fc48f2bd410685ecd179)]:
+  - @eth-optimism/sdk@3.1.6
+
+## 0.5.3
+
+### Patch Changes
+
+- Updated dependencies [[`2534eabb5`](https://github.com/ethereum-optimism/optimism/commit/2534eabb50afe76f176407f83cc1f1c606e6de69)]:
+  - @eth-optimism/sdk@3.1.5
+
+## 0.5.2
+
+### Patch Changes
+
+- [#7824](https://github.com/ethereum-optimism/optimism/pull/7824) [`98eb885f5`](https://github.com/ethereum-optimism/optimism/commit/98eb885f5003ee5e6b9bbd532a42bba2ad39cb4b) Thanks [@roninjin10](https://github.com/roninjin10)! - Bump node version to LTS node 20.9.0
+
+## 0.5.1
+
+### Patch Changes
+
+- [#7450](https://github.com/ethereum-optimism/optimism/pull/7450) [`ac90e16a7`](https://github.com/ethereum-optimism/optimism/commit/ac90e16a7f85c4f73661ae6023135c3d00421c1e) Thanks [@roninjin10](https://github.com/roninjin10)! - Updated dev dependencies related to testing that is causing audit tooling to report failures
+
+- Updated dependencies [[`ac90e16a7`](https://github.com/ethereum-optimism/optimism/commit/ac90e16a7f85c4f73661ae6023135c3d00421c1e)]:
+  - @eth-optimism/common-ts@0.8.7
+  - @eth-optimism/contracts-bedrock@0.16.2
+  - @eth-optimism/core-utils@0.13.1
+  - @eth-optimism/sdk@3.1.4
+
 ## 0.5.0
 
 ### Minor Changes

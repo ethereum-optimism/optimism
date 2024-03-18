@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind/backends"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -42,7 +43,7 @@ func TestBuildL1DeveloperGenesis(t *testing.T) {
 	deployments, err := NewL1Deployments("testdata/deploy.json")
 	require.NoError(t, err)
 
-	genesis, err := BuildL1DeveloperGenesis(config, dump, nil, false)
+	genesis, err := BuildL1DeveloperGenesis(config, dump, nil)
 	require.NoError(t, err)
 
 	sim := backends.NewSimulatedBackend(
@@ -106,7 +107,7 @@ func TestBuildL1DeveloperGenesis(t *testing.T) {
 	require.NoError(t, err)
 	cfg, err := sysCfg.ResourceConfig(&bind.CallOpts{})
 	require.NoError(t, err)
-	require.Equal(t, cfg, defaultResourceConfig)
+	require.Equal(t, cfg, DefaultResourceConfig)
 	owner, err = sysCfg.Owner(&bind.CallOpts{})
 	require.NoError(t, err)
 	require.Equal(t, owner, config.FinalSystemOwner)
@@ -118,7 +119,7 @@ func TestBuildL1DeveloperGenesis(t *testing.T) {
 	require.Equal(t, scalar.Uint64(), config.GasPriceOracleScalar)
 	batcherHash, err := sysCfg.BatcherHash(&bind.CallOpts{})
 	require.NoError(t, err)
-	require.Equal(t, common.Hash(batcherHash), config.BatchSenderAddress.Hash())
+	require.Equal(t, common.Hash(batcherHash), eth.AddressAsLeftPaddedHash(config.BatchSenderAddress))
 	gasLimit, err := sysCfg.GasLimit(&bind.CallOpts{})
 	require.NoError(t, err)
 	require.Equal(t, gasLimit, uint64(config.L2GenesisBlockGasLimit))

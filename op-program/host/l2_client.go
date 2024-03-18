@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/op-node/client"
-	"github.com/ethereum-optimism/optimism/op-node/sources"
-	"github.com/ethereum-optimism/optimism/op-node/sources/caching"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
+	"github.com/ethereum-optimism/optimism/op-service/sources/caching"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -40,10 +40,12 @@ func (s *L2Client) OutputByRoot(ctx context.Context, l2OutputRoot common.Hash) (
 	if err != nil {
 		return nil, err
 	}
-	if eth.OutputRoot(output) != eth.Bytes32(l2OutputRoot) {
+	actualOutputRoot := eth.OutputRoot(output)
+	if actualOutputRoot != eth.Bytes32(l2OutputRoot) {
 		// For fault proofs, we only reference outputs at the l2 head at boot time
 		// The caller shouldn't be requesting outputs at any other block
-		return nil, fmt.Errorf("unknown output root")
+		// If they are, there is no chance of recovery and we should panic to avoid retrying forever
+		panic(fmt.Errorf("output root %v from specified L2 block %v does not match requested output root %v", actualOutputRoot, s.l2Head, l2OutputRoot))
 	}
 	return output, nil
 }

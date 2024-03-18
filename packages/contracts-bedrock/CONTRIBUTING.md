@@ -55,11 +55,11 @@ Optimism's smart contracts are written in Solidity and we use [foundry](https://
   1. Make sure to `pnpm install`
 1. [foundry](https://getfoundry.sh)
   1. Foundry is built with [rust](https://www.rust-lang.org/tools/install), and this project uses a pinned version of foundry. Install the rust toolchain with `rustup`.
-  1. Make sure to install the version of foundry used by `ci-builder`, defined in the `.foundryrc` file in the root of this repo. Once you have `foundryup` installed, there is a helper to do this: `pnpm install:foundry`
+  1. Make sure to install the version of foundry used by `ci-builder`, defined in the `versions.json` file in the root of this repo under the `foundry` key. Once you have `foundryup` installed, there is a helper to do this: `pnpm install:foundry`
 1. [golang](https://golang.org/doc/install)
 1. [python](https://www.python.org/downloads/)
 
-Our [Style Guide](STYLE_GUIDE.md) contains information about the project structure, syntax preferences, naming conventions, and more. Please take a look at it before submitting a PR, and let us know if you spot inconcistencies!
+Our [Style Guide](STYLE_GUIDE.md) contains information about the project structure, syntax preferences, naming conventions, and more. Please take a look at it before submitting a PR, and let us know if you spot inconsistencies!
 
 Once you've read the styleguide and are ready to work on your PR, there are a plethora of useful `pnpm` scripts to know about that will help you with development:
 1. `pnpm build` Builds the smart contracts.
@@ -86,26 +86,11 @@ To deploy the smart contracts on a local devnet, run `make devnet-up` in the mon
 
 ### Tools
 
-#### Layout Locking
+#### Validate Spacing
 
-We use a system called "layout locking" as a safety mechanism to prevent certain contract variables from being moved to different storage slots accidentally.
-To lock a contract variable, add it to the `layout-lock.json` file which has the following format:
+In order to make sure that we don't accidentally overwrite storage slots, contract storage layouts are checked to make sure spacing is correct.
 
-```json
-{
-  "MyContractName": {
-    "myVariableName": {
-      "slot": 1,
-      "offset": 0,
-      "length": 32
-    }
-  }
-}
-```
-
-With the above config, the `validate-spacers` script will check that we have a contract called `MyContractName`, that the contract has a variable named `myVariableName`, and that the variable is in the correct position as defined in the lock file.
-You should add things to the `layout-lock.json` file when you want those variables to **never** change.
-Layout locking should be used in combination with diffing the `.storage-layout` file in CI.
+This uses the `.storage-layout` file to check contract spacing. Run `pnpm validate-spacers` to check the spacing of all contracts.
 
 #### Gas Snapshots
 

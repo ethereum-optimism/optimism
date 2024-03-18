@@ -9,20 +9,37 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/indexer"
+	"github.com/ethereum-optimism/optimism/indexer/api"
+	"github.com/ethereum-optimism/optimism/indexer/client"
 	"github.com/ethereum-optimism/optimism/indexer/config"
 	"github.com/ethereum-optimism/optimism/indexer/database"
 
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
-	"github.com/ethereum-optimism/optimism/op-node/testlog"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/metrics"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
+
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 )
 
+/*
+	NOTE - Most of the current bridge tests fetch chain data via direct database queries. These could all
+	be transitioned to use the API client instead to better simulate/validate real-world usage.
+	Supporting this would potentially require adding new API endpoints for the specific query lookup types.
+*/
+
 type E2ETestSuite struct {
-	t *testing.T
+	t               *testing.T
+	MetricsRegistry *prometheus.Registry
+
+	// API
+	Client *client.Client
+	API    *api.APIService
 
 	// Indexer
 	DB      *database.DB
@@ -37,33 +54,43 @@ type E2ETestSuite struct {
 	L2Client *ethclient.Client
 }
 
+func init() {
+	// Disable the global logger. Ideally we'd like to dump geth
+	// logs per-test but that's possible when running tests in
+	// parallel as the root logger is shared.
+	oplog.SetGlobalLogHandler(log.DiscardHandler())
+}
+
+// createE2ETestSuite ... Create a new E2E test suite
 func createE2ETestSuite(t *testing.T) E2ETestSuite {
 	dbUser := os.Getenv("DB_USER")
 	dbName := setupTestDatabase(t)
 
-	// Discard the Global Logger as each component
-	// has its own configured logger
-	log.Root().SetHandler(log.DiscardHandler())
+	// E2E tests can run on the order of magnitude of minutes.
+	// We mark the test as parallel before starting the devnet
+	// to reduce that number of idle routines when paused.
+	t.Parallel()
 
-	// Rollup System Configuration and Start
 	opCfg := op_e2e.DefaultSystemConfig(t)
-	opCfg.DeployConfig.FinalizationPeriodSeconds = 2
+
+	// Unless specified, omit logs emitted by the various components
+	if len(os.Getenv("ENABLE_ROLLUP_LOGS")) == 0 {
+		t.Log("set env 'ENABLE_ROLLUP_LOGS' to show rollup logs")
+		for name := range opCfg.Loggers {
+			t.Logf("discarding logs for %s", name)
+			noopLog := log.NewLogger(log.DiscardHandler())
+			opCfg.Loggers[name] = noopLog
+		}
+	}
+
+	// Rollup Start
 	opSys, err := opCfg.Start(t)
 	require.NoError(t, err)
 	t.Cleanup(func() { opSys.Close() })
 
-	// E2E tests can run on the order of magnitude of minutes. Once
-	// the system is running, mark this test for Parallel execution
-	t.Parallel()
-
 	// Indexer Configuration and Start
-	indexerCfg := config.Config{
-		DB: config.DBConfig{
-			Host: "127.0.0.1",
-			Port: 5432,
-			Name: dbName,
-			User: dbUser,
-		},
+	indexerCfg := &config.Config{
+		DB: config.DBConfig{Host: "127.0.0.1", Port: 5432, Name: dbName, User: dbUser},
 		RPCs: config.RPCsConfig{
 			L1RPC: opSys.EthInstances["l1"].HTTPEndpoint(),
 			L2RPC: opSys.EthInstances["sequencer"].HTTPEndpoint(),
@@ -80,35 +107,59 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 				L1CrossDomainMessengerProxy: opCfg.L1Deployments.L1CrossDomainMessengerProxy,
 				L1StandardBridgeProxy:       opCfg.L1Deployments.L1StandardBridgeProxy,
 				L1ERC721BridgeProxy:         opCfg.L1Deployments.L1ERC721BridgeProxy,
+				DisputeGameFactoryProxy:     opCfg.L1Deployments.DisputeGameFactoryProxy,
 			},
 		},
 		HTTPServer:    config.ServerConfig{Host: "127.0.0.1", Port: 0},
 		MetricsServer: config.ServerConfig{Host: "127.0.0.1", Port: 0},
 	}
 
-	db, err := database.NewDB(indexerCfg.DB)
+	indexerLog := testlog.Logger(t, log.LevelInfo).New("role", "indexer")
+	ix, err := indexer.NewIndexer(context.Background(), indexerLog, indexerCfg, func(cause error) {
+		if cause != nil {
+			t.Fatalf("indexer shut down with critical error: %v", cause)
+		}
+	})
+	require.NoError(t, err)
+	require.NoError(t, ix.Start(context.Background()), "cleanly start indexer")
+	t.Cleanup(func() { require.NoError(t, ix.Stop(context.Background())) })
+
+	dbLog := testlog.Logger(t, log.LvlInfo).New("role", "db")
+	db, err := database.NewDB(context.Background(), dbLog, indexerCfg.DB)
 	require.NoError(t, err)
 	t.Cleanup(func() { db.Close() })
 
-	indexerLog := testlog.Logger(t, log.LvlInfo).New("role", "indexer")
-	indexer, err := indexer.NewIndexer(indexerLog, db, indexerCfg.Chain, indexerCfg.RPCs, indexerCfg.HTTPServer, indexerCfg.MetricsServer)
-	require.NoError(t, err)
+	// API Configuration and Start
+	apiLog := testlog.Logger(t, log.LevelInfo).New("role", "indexer_api")
+	apiCfg := &api.Config{
+		DB:            &api.TestDBConnector{BridgeTransfers: db.BridgeTransfers}, // reuse the same DB
+		HTTPServer:    config.ServerConfig{Host: "127.0.0.1", Port: 0},
+		MetricsServer: config.ServerConfig{Host: "127.0.0.1", Port: 0},
+	}
 
-	indexerCtx, indexerStop := context.WithCancel(context.Background())
-	t.Cleanup(func() { indexerStop() })
-	go func() {
-		err := indexer.Run(indexerCtx)
-		require.NoError(t, err)
-	}()
+	apiService, err := api.NewApi(context.Background(), apiLog, apiCfg)
+	require.NoError(t, err, "create indexer API service")
+	require.NoError(t, apiService.Start(context.Background()), "start indexer API service")
+	t.Cleanup(func() {
+		require.NoError(t, apiService.Stop(context.Background()), "cleanly shut down indexer")
+	})
+
+	// Wait for the API to start listening
+	time.Sleep(1 * time.Second)
+
+	client, err := client.NewClient(&client.Config{PaginationLimit: 100, BaseURL: "http://" + apiService.Addr()})
+	require.NoError(t, err, "must open indexer API client")
 
 	return E2ETestSuite{
-		t:        t,
-		DB:       db,
-		Indexer:  indexer,
-		OpCfg:    &opCfg,
-		OpSys:    opSys,
-		L1Client: opSys.Clients["l1"],
-		L2Client: opSys.Clients["sequencer"],
+		t:               t,
+		MetricsRegistry: metrics.NewRegistry(),
+		Client:          client,
+		DB:              db,
+		Indexer:         ix,
+		OpCfg:           &opCfg,
+		OpSys:           opSys,
+		L1Client:        opSys.Clients["l1"],
+		L2Client:        opSys.Clients["sequencer"],
 	}
 }
 
@@ -137,10 +188,12 @@ func setupTestDatabase(t *testing.T) string {
 		User:     user,
 		Password: "",
 	}
-	// NewDB will create the database schema
-	db, err := database.NewDB(dbConfig)
+
+	noopLog := log.NewLogger(log.DiscardHandler())
+	db, err := database.NewDB(context.Background(), noopLog, dbConfig)
 	require.NoError(t, err)
 	defer db.Close()
+
 	err = db.ExecuteSQLMigration("../migrations")
 	require.NoError(t, err)
 

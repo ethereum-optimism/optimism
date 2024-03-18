@@ -5,6 +5,23 @@
 
 The `@eth-optimism/sdk` package provides a set of tools for interacting with Optimism.
 
+## Warning!!!
+
+`@eth-optimism/sdk` has been superseded by `op-viem`. For most developers we suggest you migrate to [viem](https://viem.sh/op-stack) which has native built in op-stack support built in. It also has additional benefits.
+
+**The OP Labs team has no plans to update @eth-optimism/sdk and it is in maintenance mode at the moment**
+
+- an intuitive API that learned from this package and is now revamped
+- great treeshaking with a 10x+ improvement to bundlesize
+- Better performance
+- Updated to use the latest op stack contracts. At times it will save you gas compared to using viem.
+
+If viem does not have what you need please let us know by opening an issue in the viem repo or here. Letting us know helps us advocate to upstream more functionality to viem. Viem is missing the following functionality:
+
+- ERC20 support
+
+If viem doesn't have what you need, the extensions for viem, [op-viem extensions](https://github.com/base-org/op-viem), likely have it too.
+
 ## Installation
 
 ```
@@ -14,6 +31,10 @@ npm install @eth-optimism/sdk
 ## Docs
 
 You can find auto-generated API documentation over at [sdk.optimism.io](https://sdk.optimism.io).
+
+## Contributing
+
+Most of the core functionality is in the [CrossChainMessenger](./src/cross-chain-messenger.ts) file.
 
 ## Using the SDK
 

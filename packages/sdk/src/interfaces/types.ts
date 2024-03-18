@@ -31,6 +31,7 @@ export enum L2ChainID {
   OPTIMISM_HARDHAT_DEVNET = 17,
   OPTIMISM_BEDROCK_ALPHA_TESTNET = 28528,
   BASE_GOERLI = 84531,
+  BASE_SEPOLIA = 84532,
   BASE_MAINNET = 8453,
   ZORA_GOERLI = 999,
   ZORA_MAINNET = 7777777,
@@ -49,6 +50,9 @@ export interface OEL1Contracts {
   // Bedrock
   OptimismPortal: Contract
   L2OutputOracle: Contract
+  // FPAC
+  OptimismPortal2?: Contract
+  DisputeGameFactory?: Contract
 }
 
 /**

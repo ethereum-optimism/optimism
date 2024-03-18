@@ -156,46 +156,33 @@ export class StandardBridgeAdapter implements IBridgeAdapter {
     l1Token: AddressLike,
     l2Token: AddressLike
   ): Promise<boolean> {
-    try {
-      const contract = new Contract(
-        toAddress(l2Token),
-        optimismMintableERC20.abi,
-        this.messenger.l2Provider
-      )
-      // Don't support ETH deposits or withdrawals via this bridge.
-      if (
-        hexStringEquals(toAddress(l1Token), ethers.constants.AddressZero) ||
-        hexStringEquals(toAddress(l2Token), predeploys.OVM_ETH)
-      ) {
-        return false
-      }
-
-      // Make sure the L1 token matches.
-      const remoteL1Token = await contract.l1Token()
-
-      if (!hexStringEquals(remoteL1Token, toAddress(l1Token))) {
-        return false
-      }
-
-      // Make sure the L2 bridge matches.
-      const remoteL2Bridge = await contract.l2Bridge()
-      if (!hexStringEquals(remoteL2Bridge, this.l2Bridge.address)) {
-        return false
-      }
-
-      return true
-    } catch (err) {
-      // If the L2 token is not an L2StandardERC20, it may throw an error. If there's a call
-      // exception then we assume that the token is not supported. Other errors are thrown. Since
-      // the JSON-RPC API is not well-specified, we need to handle multiple possible error codes.
-      if (
-        !err?.message?.toString().includes('CALL_EXCEPTION') &&
-        !err?.stack?.toString().includes('execution reverted')
-      ) {
-        console.error('Unexpected error when checking bridge', err)
-      }
+    const contract = new Contract(
+      toAddress(l2Token),
+      optimismMintableERC20.abi,
+      this.messenger.l2Provider
+    )
+    // Don't support ETH deposits or withdrawals via this bridge.
+    if (
+      hexStringEquals(toAddress(l1Token), ethers.constants.AddressZero) ||
+      hexStringEquals(toAddress(l2Token), predeploys.OVM_ETH)
+    ) {
       return false
     }
+
+    // Make sure the L1 token matches.
+    const remoteL1Token = await contract.l1Token()
+
+    if (!hexStringEquals(remoteL1Token, toAddress(l1Token))) {
+      return false
+    }
+
+    // Make sure the L2 bridge matches.
+    const remoteL2Bridge = await contract.l2Bridge()
+    if (!hexStringEquals(remoteL2Bridge, this.l2Bridge.address)) {
+      return false
+    }
+
+    return true
   }
 
   public async approval(

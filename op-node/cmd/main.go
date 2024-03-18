@@ -2,29 +2,27 @@ package main
 
 import (
 	"context"
-	"net"
+	"fmt"
 	"os"
-	"strconv"
-
-	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
-	"github.com/ethereum-optimism/optimism/op-node/cmd/doc"
 
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum/go-ethereum/log"
 
 	opnode "github.com/ethereum-optimism/optimism/op-node"
+	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/cmd/genesis"
+	"github.com/ethereum-optimism/optimism/op-node/cmd/networks"
 	"github.com/ethereum-optimism/optimism/op-node/cmd/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/flags"
-	"github.com/ethereum-optimism/optimism/op-node/heartbeat"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/version"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
+	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/metrics/doc"
 	"github.com/ethereum-optimism/optimism/op-service/opio"
-	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 )
 
 var (
@@ -33,19 +31,7 @@ var (
 )
 
 // VersionWithMeta holds the textual version string including the metadata.
-var VersionWithMeta = func() string {
-	v := version.Version
-	if GitCommit != "" {
-		v += "-" + GitCommit[:8]
-	}
-	if GitDate != "" {
-		v += "-" + GitDate
-	}
-	if version.Meta != "" {
-		v += "-" + version.Meta
-	}
-	return v
-}()
+var VersionWithMeta = opservice.FormatVersion(version.Version, GitCommit, GitDate, version.Meta)
 
 func main() {
 	// Set up logger with a default INFO level in case we fail to parse flags,
@@ -54,11 +40,11 @@ func main() {
 
 	app := cli.NewApp()
 	app.Version = VersionWithMeta
-	app.Flags = flags.Flags
+	app.Flags = cliapp.ProtectFlags(flags.Flags)
 	app.Name = "op-node"
 	app.Usage = "Optimism Rollup Node"
 	app.Description = "The Optimism Rollup Node derives L2 block inputs from L1 data and drives an external L2 Execution Engine to build a L2 chain."
-	app.Action = RollupNodeMain
+	app.Action = cliapp.LifecycleCmd(RollupNodeMain)
 	app.Commands = []*cli.Command{
 		{
 			Name:        "p2p",
@@ -70,36 +56,38 @@ func main() {
 		},
 		{
 			Name:        "doc",
-			Subcommands: doc.Subcommands,
+			Subcommands: doc.NewSubcommands(metrics.NewMetrics("default")),
+		},
+		{
+			Name:        "networks",
+			Subcommands: networks.Subcommands,
 		},
 	}
 
-	err := app.Run(os.Args)
+	ctx := opio.WithInterruptBlocker(context.Background())
+	err := app.RunContext(ctx, os.Args)
 	if err != nil {
 		log.Crit("Application failed", "message", err)
 	}
 }
 
-func RollupNodeMain(ctx *cli.Context) error {
-	log.Info("Initializing Rollup Node")
+func RollupNodeMain(ctx *cli.Context, closeApp context.CancelCauseFunc) (cliapp.Lifecycle, error) {
 	logCfg := oplog.ReadCLIConfig(ctx)
-	if err := logCfg.Check(); err != nil {
-		log.Error("Unable to create the log config", "error", err)
-		return err
-	}
-	log := oplog.NewLogger(logCfg)
+	log := oplog.NewLogger(oplog.AppOut(ctx), logCfg)
+	oplog.SetGlobalLogHandler(log.Handler())
 	opservice.ValidateEnvVars(flags.EnvVarPrefix, flags.Flags, log)
+	opservice.WarnOnDeprecatedFlags(ctx, flags.DeprecatedFlags, log)
 	m := metrics.NewMetrics("default")
 
 	cfg, err := opnode.NewConfig(ctx, log)
 	if err != nil {
-		log.Error("Unable to create the rollup node config", "error", err)
-		return err
+		return nil, fmt.Errorf("unable to create the rollup node config: %w", err)
 	}
+	cfg.Cancel = closeApp
+
 	snapshotLog, err := opnode.NewSnapshotLogger(ctx)
 	if err != nil {
-		log.Error("Unable to create snapshot root logger", "error", err)
-		return err
+		return nil, fmt.Errorf("unable to create snapshot root logger: %w", err)
 	}
 
 	// Only pretty-print the banner if it is a terminal log. Other log it as key-value pairs.
@@ -109,60 +97,10 @@ func RollupNodeMain(ctx *cli.Context) error {
 		cfg.Rollup.LogDescription(log, chaincfg.L2ChainIDToNetworkDisplayName)
 	}
 
-	n, err := node.New(context.Background(), cfg, log, snapshotLog, VersionWithMeta, m)
+	n, err := node.New(ctx.Context, cfg, log, snapshotLog, VersionWithMeta, m)
 	if err != nil {
-		log.Error("Unable to create the rollup node", "error", err)
-		return err
-	}
-	log.Info("Starting rollup node", "version", VersionWithMeta)
-
-	if err := n.Start(context.Background()); err != nil {
-		log.Error("Unable to start rollup node", "error", err)
-		return err
-	}
-	defer n.Close()
-
-	m.RecordInfo(VersionWithMeta)
-	m.RecordUp()
-	log.Info("Rollup node started")
-
-	if cfg.Heartbeat.Enabled {
-		var peerID string
-		if cfg.P2P.Disabled() {
-			peerID = "disabled"
-		} else {
-			peerID = n.P2P().Host().ID().String()
-		}
-
-		beatCtx, beatCtxCancel := context.WithCancel(context.Background())
-		payload := &heartbeat.Payload{
-			Version: version.Version,
-			Meta:    version.Meta,
-			Moniker: cfg.Heartbeat.Moniker,
-			PeerID:  peerID,
-			ChainID: cfg.Rollup.L2ChainID.Uint64(),
-		}
-		go func() {
-			if err := heartbeat.Beat(beatCtx, log, cfg.Heartbeat.URL, payload); err != nil {
-				log.Error("heartbeat goroutine crashed", "err", err)
-			}
-		}()
-		defer beatCtxCancel()
+		return nil, fmt.Errorf("unable to create the rollup node: %w", err)
 	}
 
-	if cfg.Pprof.Enabled {
-		pprofCtx, pprofCancel := context.WithCancel(context.Background())
-		go func() {
-			log.Info("pprof server started", "addr", net.JoinHostPort(cfg.Pprof.ListenAddr, strconv.Itoa(cfg.Pprof.ListenPort)))
-			if err := oppprof.ListenAndServe(pprofCtx, cfg.Pprof.ListenAddr, cfg.Pprof.ListenPort); err != nil {
-				log.Error("error starting pprof", "err", err)
-			}
-		}()
-		defer pprofCancel()
-	}
-
-	opio.BlockOnInterrupts()
-
-	return nil
-
+	return n, nil
 }
