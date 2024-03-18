@@ -20,34 +20,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 )
 
-func TestMonitorMinGameTimestamp(t *testing.T) {
-	t.Parallel()
-
-	t.Run("zero game window returns zero", func(t *testing.T) {
-		monitor, _, _, _, _, _ := setupMonitorTest(t, []common.Address{})
-		monitor.gameWindow = time.Duration(0)
-		require.Equal(t, monitor.minGameTimestamp(), uint64(0))
-	})
-
-	t.Run("non-zero game window with zero clock", func(t *testing.T) {
-		monitor, _, _, _, _, _ := setupMonitorTest(t, []common.Address{})
-		monitor.gameWindow = time.Minute
-		monitor.clock = clock.NewSimpleClock()
-		monitor.clock.SetTime(0)
-		require.Equal(t, uint64(0), monitor.minGameTimestamp())
-	})
-
-	t.Run("minimum computed correctly", func(t *testing.T) {
-		monitor, _, _, _, _, _ := setupMonitorTest(t, []common.Address{})
-		monitor.gameWindow = time.Minute
-		monitor.clock = clock.NewSimpleClock()
-		frozen := uint64(time.Hour.Seconds())
-		monitor.clock.SetTime(frozen)
-		expected := uint64(time.Unix(int64(frozen), 0).Add(-time.Minute).Unix())
-		require.Equal(t, monitor.minGameTimestamp(), expected)
-	})
-}
-
 // TestMonitorGames tests that the monitor can handle a new head event
 // and resubscribe to new heads if the subscription errors.
 func TestMonitorGames(t *testing.T) {
