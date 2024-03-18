@@ -95,6 +95,9 @@ error InvalidSplitDepth();
 ///         an instruction step.
 error DuplicateStep();
 
+/// @notice Thrown when an anchor root is not found for a given game type.
+error AnchorRootNotFound();
+
 ////////////////////////////////////////////////////////////////
 //              `PermissionedDisputeGame` Errors              //
 ////////////////////////////////////////////////////////////////

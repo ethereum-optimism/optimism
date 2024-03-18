@@ -185,8 +185,8 @@ func (h *FactoryHelper) StartOutputCannonGame(ctx context.Context, l2Node string
 	h.require.NoError(err)
 
 	callOpts := &bind.CallOpts{Context: ctx}
-	prestateBlock, err := game.GenesisBlockNumber(callOpts)
-	h.require.NoError(err, "Failed to load genesis block number")
+	prestateBlock, err := game.StartingBlockNumber(callOpts)
+	h.require.NoError(err, "Failed to load starting block number")
 	poststateBlock, err := game.L2BlockNumber(callOpts)
 	h.require.NoError(err, "Failed to load l2 block number")
 	splitDepth, err := game.SplitDepth(callOpts)
@@ -251,8 +251,8 @@ func (h *FactoryHelper) StartOutputAlphabetGame(ctx context.Context, l2Node stri
 	h.require.NoError(err)
 
 	callOpts := &bind.CallOpts{Context: ctx}
-	prestateBlock, err := game.GenesisBlockNumber(callOpts)
-	h.require.NoError(err, "Failed to load genesis block number")
+	prestateBlock, err := game.StartingBlockNumber(callOpts)
+	h.require.NoError(err, "Failed to load starting block number")
 	poststateBlock, err := game.L2BlockNumber(callOpts)
 	h.require.NoError(err, "Failed to load l2 block number")
 	splitDepth, err := game.SplitDepth(callOpts)

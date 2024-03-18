@@ -20,6 +20,7 @@ import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
 import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
 import { DelayedWETH } from "src/dispute/weth/DelayedWETH.sol";
+import { AnchorStateRegistry } from "src/dispute/AnchorStateRegistry.sol";
 import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
 import { DeployConfig } from "scripts/DeployConfig.s.sol";
 import { Deploy } from "scripts/Deploy.s.sol";
@@ -62,6 +63,7 @@ contract Setup {
     ProtocolVersions protocolVersions;
     SuperchainConfig superchainConfig;
     DataAvailabilityChallenge dataAvailabilityChallenge;
+    AnchorStateRegistry anchorStateRegistry;
 
     L2CrossDomainMessenger l2CrossDomainMessenger =
         L2CrossDomainMessenger(payable(Predeploys.L2_CROSS_DOMAIN_MESSENGER));
@@ -114,6 +116,7 @@ contract Setup {
             OptimismMintableERC20Factory(deploy.mustGetAddress("OptimismMintableERC20FactoryProxy"));
         protocolVersions = ProtocolVersions(deploy.mustGetAddress("ProtocolVersionsProxy"));
         superchainConfig = SuperchainConfig(deploy.mustGetAddress("SuperchainConfigProxy"));
+        anchorStateRegistry = AnchorStateRegistry(deploy.mustGetAddress("AnchorStateRegistryProxy"));
 
         vm.label(address(l2OutputOracle), "L2OutputOracle");
         vm.label(deploy.mustGetAddress("L2OutputOracleProxy"), "L2OutputOracleProxy");

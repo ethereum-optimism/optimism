@@ -13,16 +13,6 @@
       },
       {
         "internalType": "uint256",
-        "name": "_genesisBlockNumber",
-        "type": "uint256"
-      },
-      {
-        "internalType": "Hash",
-        "name": "_genesisOutputRoot",
-        "type": "bytes32"
-      },
-      {
-        "internalType": "uint256",
         "name": "_maxGameDepth",
         "type": "uint256"
       },
@@ -44,6 +34,11 @@
       {
         "internalType": "contract IDelayedWETH",
         "name": "_weth",
+        "type": "address"
+      },
+      {
+        "internalType": "contract IAnchorStateRegistry",
+        "name": "_anchorStateRegistry",
         "type": "address"
       },
       {
@@ -318,32 +313,6 @@
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "genesisBlockNumber",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "genesisBlockNumber_",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "genesisOutputRoot",
-    "outputs": [
-      {
-        "internalType": "Hash",
-        "name": "genesisOutputRoot_",
-        "type": "bytes32"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
     "inputs": [
       {
         "internalType": "Position",
@@ -511,6 +480,50 @@
   },
   {
     "inputs": [],
+    "name": "startingBlockNumber",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "startingBlockNumber_",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "startingOutputRoot",
+    "outputs": [
+      {
+        "internalType": "Hash",
+        "name": "root",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "l2BlockNumber",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "startingRootHash",
+    "outputs": [
+      {
+        "internalType": "Hash",
+        "name": "startingRootHash_",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "status",
     "outputs": [
       {
@@ -630,6 +643,11 @@
   {
     "inputs": [],
     "name": "AlreadyInitialized",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "AnchorRootNotFound",
     "type": "error"
   },
   {

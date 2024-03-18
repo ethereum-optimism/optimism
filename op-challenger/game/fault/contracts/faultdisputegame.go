@@ -16,29 +16,29 @@ import (
 )
 
 var (
-	methodGameDuration       = "gameDuration"
-	methodMaxGameDepth       = "maxGameDepth"
-	methodAbsolutePrestate   = "absolutePrestate"
-	methodStatus             = "status"
-	methodRootClaim          = "rootClaim"
-	methodClaimCount         = "claimDataLen"
-	methodClaim              = "claimData"
-	methodL1Head             = "l1Head"
-	methodResolve            = "resolve"
-	methodResolveClaim       = "resolveClaim"
-	methodAttack             = "attack"
-	methodDefend             = "defend"
-	methodStep               = "step"
-	methodAddLocalData       = "addLocalData"
-	methodVM                 = "vm"
-	methodGenesisBlockNumber = "genesisBlockNumber"
-	methodGenesisOutputRoot  = "genesisOutputRoot"
-	methodSplitDepth         = "splitDepth"
-	methodL2BlockNumber      = "l2BlockNumber"
-	methodRequiredBond       = "getRequiredBond"
-	methodClaimCredit        = "claimCredit"
-	methodCredit             = "credit"
-	methodWETH               = "weth"
+	methodGameDuration        = "gameDuration"
+	methodMaxGameDepth        = "maxGameDepth"
+	methodAbsolutePrestate    = "absolutePrestate"
+	methodStatus              = "status"
+	methodRootClaim           = "rootClaim"
+	methodClaimCount          = "claimDataLen"
+	methodClaim               = "claimData"
+	methodL1Head              = "l1Head"
+	methodResolve             = "resolve"
+	methodResolveClaim        = "resolveClaim"
+	methodAttack              = "attack"
+	methodDefend              = "defend"
+	methodStep                = "step"
+	methodAddLocalData        = "addLocalData"
+	methodVM                  = "vm"
+	methodStartingBlockNumber = "startingBlockNumber"
+	methodStartingRootHash    = "startingRootHash"
+	methodSplitDepth          = "splitDepth"
+	methodL2BlockNumber       = "l2BlockNumber"
+	methodRequiredBond        = "getRequiredBond"
+	methodClaimCredit         = "claimCredit"
+	methodCredit              = "credit"
+	methodWETH                = "weth"
 )
 
 type FaultDisputeGameContract struct {
@@ -83,7 +83,7 @@ func (f *FaultDisputeGameContract) GetBalance(ctx context.Context, block rpcbloc
 // and the post-state block (that the proposed output root is for).
 func (f *FaultDisputeGameContract) GetBlockRange(ctx context.Context) (prestateBlock uint64, poststateBlock uint64, retErr error) {
 	results, err := f.multiCaller.Call(ctx, rpcblock.Latest,
-		f.contract.Call(methodGenesisBlockNumber),
+		f.contract.Call(methodStartingBlockNumber),
 		f.contract.Call(methodL2BlockNumber))
 	if err != nil {
 		retErr = fmt.Errorf("failed to retrieve game block range: %w", err)
@@ -123,12 +123,12 @@ func (f *FaultDisputeGameContract) GetGameMetadata(ctx context.Context, block rp
 	return l1Head, l2BlockNumber, rootClaim, status, duration, nil
 }
 
-func (f *FaultDisputeGameContract) GetGenesisOutputRoot(ctx context.Context) (common.Hash, error) {
-	genesisOutputRoot, err := f.multiCaller.SingleCall(ctx, rpcblock.Latest, f.contract.Call(methodGenesisOutputRoot))
+func (f *FaultDisputeGameContract) GetStartingRootHash(ctx context.Context) (common.Hash, error) {
+	startingRootHash, err := f.multiCaller.SingleCall(ctx, rpcblock.Latest, f.contract.Call(methodStartingRootHash))
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("failed to retrieve genesis output root: %w", err)
 	}
-	return genesisOutputRoot.GetHash(0), nil
+	return startingRootHash.GetHash(0), nil
 }
 
 func (f *FaultDisputeGameContract) GetSplitDepth(ctx context.Context) (types.Depth, error) {

@@ -14,6 +14,7 @@ import "src/libraries/DisputeErrors.sol";
 import { LibClock } from "src/dispute/lib/LibUDT.sol";
 import { LibPosition } from "src/dispute/lib/LibPosition.sol";
 import { IPreimageOracle } from "src/dispute/interfaces/IBigStepper.sol";
+import { IAnchorStateRegistry } from "src/dispute/interfaces/IAnchorStateRegistry.sol";
 import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
 
 import { DisputeActor, HonestDisputeActor } from "test/actors/FaultDisputeActors.sol";
@@ -32,15 +33,7 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
 
     event Move(uint256 indexed parentIndex, Claim indexed pivot, address indexed claimant);
 
-    function init(
-        Claim rootClaim,
-        Claim absolutePrestate,
-        uint256 l2BlockNumber,
-        uint256 genesisBlockNumber,
-        Hash genesisOutputRoot
-    )
-        public
-    {
+    function init(Claim rootClaim, Claim absolutePrestate, uint256 l2BlockNumber) public {
         // Set the time to a realistic date.
         vm.warp(1690906994);
 
@@ -53,15 +46,15 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
         gameImpl = new FaultDisputeGame({
             _gameType: GAME_TYPE,
             _absolutePrestate: absolutePrestate,
-            _genesisBlockNumber: genesisBlockNumber,
-            _genesisOutputRoot: genesisOutputRoot,
             _maxGameDepth: 2 ** 3,
             _splitDepth: 2 ** 2,
             _gameDuration: Duration.wrap(7 days),
             _vm: _vm,
             _weth: delayedWeth,
+            _anchorStateRegistry: anchorStateRegistry,
             _l2ChainId: 10
         });
+
         // Register the game implementation with the factory.
         disputeGameFactory.setImplementation(GAME_TYPE, gameImpl);
         // Create a new game.
@@ -70,8 +63,6 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
         // Check immutables
         assertEq(gameProxy.gameType().raw(), GAME_TYPE.raw());
         assertEq(gameProxy.absolutePrestate().raw(), absolutePrestate.raw());
-        assertEq(gameProxy.genesisBlockNumber(), genesisBlockNumber);
-        assertEq(gameProxy.genesisOutputRoot().raw(), genesisOutputRoot.raw());
         assertEq(gameProxy.maxGameDepth(), 2 ** 3);
         assertEq(gameProxy.splitDepth(), 2 ** 2);
         assertEq(gameProxy.gameDuration().raw(), 7 days);
@@ -103,13 +94,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         absolutePrestate = _changeClaimStatus(Claim.wrap(keccak256(absolutePrestateData)), VMStatuses.UNFINISHED);
 
         super.setUp();
-        super.init({
-            rootClaim: ROOT_CLAIM,
-            absolutePrestate: absolutePrestate,
-            l2BlockNumber: 0x10,
-            genesisBlockNumber: 0,
-            genesisOutputRoot: Hash.wrap(bytes32(0))
-        });
+        super.init({ rootClaim: ROOT_CLAIM, absolutePrestate: absolutePrestate, l2BlockNumber: 0x10 });
     }
 
     ////////////////////////////////////////////////////////////////
@@ -128,13 +113,12 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         new FaultDisputeGame({
             _gameType: GAME_TYPE,
             _absolutePrestate: absolutePrestate,
-            _genesisBlockNumber: 0,
-            _genesisOutputRoot: Hash.wrap(bytes32(0)),
             _maxGameDepth: 2 ** 3,
             _splitDepth: _splitDepth,
             _gameDuration: Duration.wrap(7 days),
             _vm: alphabetVM,
             _weth: DelayedWETH(payable(address(0))),
+            _anchorStateRegistry: IAnchorStateRegistry(address(0)),
             _l2ChainId: 10
         });
     }
@@ -172,10 +156,11 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     //          `IFaultDisputeGame` Implementation Tests       //
     ////////////////////////////////////////////////////////////////
 
-    /// @dev Tests that the game cannot be initialized with an output root that commits to <= the configured genesis
+    /// @dev Tests that the game cannot be initialized with an output root that commits to <= the configured starting
     ///      block number
     function testFuzz_initialize_cannotProposeGenesis_reverts(uint256 _blockNumber) public {
-        _blockNumber = bound(_blockNumber, 0, gameProxy.genesisBlockNumber());
+        (, uint256 startingL2Block) = gameProxy.startingOutputRoot();
+        _blockNumber = bound(_blockNumber, 0, startingL2Block);
 
         Claim claim = _dummyClaim();
         vm.expectRevert(abi.encodeWithSelector(UnexpectedRootClaim.selector, claim));
@@ -207,10 +192,10 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         _extraDataLen = bound(_extraDataLen, 33, 23_500);
         bytes memory _extraData = new bytes(_extraDataLen);
 
-        // Assign the first 32 bytes in `extraData` to a valid L2 block number passed genesis.
-        uint256 genesisBlockNumber = gameProxy.genesisBlockNumber();
+        // Assign the first 32 bytes in `extraData` to a valid L2 block number passed the starting block.
+        (, uint256 startingL2Block) = gameProxy.startingOutputRoot();
         assembly {
-            mstore(add(_extraData, 0x20), add(genesisBlockNumber, 1))
+            mstore(add(_extraData, 0x20), add(startingL2Block, 1))
         }
 
         Claim claim = _dummyClaim();
@@ -836,6 +821,65 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         assertEq(disputeGameFactory.initBonds(GAME_TYPE), 0);
     }
 
+    /// @dev Static unit test asserting that the anchor state updates when the game resolves in
+    /// favor of the defender and the anchor state is older than the game state.
+    function test_resolve_validNewerStateUpdatesAnchor_succeeds() public {
+        // Confirm that the anchor state is older than the game state.
+        (Hash root, uint256 l2BlockNumber) = anchorStateRegistry.anchors(gameProxy.gameType());
+        assert(l2BlockNumber < gameProxy.l2BlockNumber());
+
+        // Resolve the game.
+        vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
+        gameProxy.resolveClaim(0);
+        assertEq(uint8(gameProxy.resolve()), uint8(GameStatus.DEFENDER_WINS));
+
+        // Confirm that the anchor state is now the same as the game state.
+        (root, l2BlockNumber) = anchorStateRegistry.anchors(gameProxy.gameType());
+        assertEq(l2BlockNumber, gameProxy.l2BlockNumber());
+        assertEq(root.raw(), gameProxy.rootClaim().raw());
+    }
+
+    /// @dev Static unit test asserting that the anchor state does not change when the game
+    /// resolves in favor of the defender but the game state is not newer than the anchor state.
+    function test_resolve_validOlderStateSameAnchor_succeeds() public {
+        // Mock the game block to be older than the game state.
+        vm.mockCall(address(gameProxy), abi.encodeWithSelector(gameProxy.l2BlockNumber.selector), abi.encode(0));
+
+        // Confirm that the anchor state is newer than the game state.
+        (Hash root, uint256 l2BlockNumber) = anchorStateRegistry.anchors(gameProxy.gameType());
+        assert(l2BlockNumber >= gameProxy.l2BlockNumber());
+
+        // Resolve the game.
+        vm.mockCall(address(gameProxy), abi.encodeWithSelector(gameProxy.l2BlockNumber.selector), abi.encode(0));
+        vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
+        gameProxy.resolveClaim(0);
+        assertEq(uint8(gameProxy.resolve()), uint8(GameStatus.DEFENDER_WINS));
+
+        // Confirm that the anchor state is the same as the initial anchor state.
+        (Hash updatedRoot, uint256 updatedL2BlockNumber) = anchorStateRegistry.anchors(gameProxy.gameType());
+        assertEq(updatedL2BlockNumber, l2BlockNumber);
+        assertEq(updatedRoot.raw(), root.raw());
+    }
+
+    /// @dev Static unit test asserting that the anchor state does not change when the game
+    /// resolves in favor of the challenger, even if the game state is newer than the anchor.
+    function test_resolve_invalidStateSameAnchor_succeeds() public {
+        // Confirm that the anchor state is older than the game state.
+        (Hash root, uint256 l2BlockNumber) = anchorStateRegistry.anchors(gameProxy.gameType());
+        assert(l2BlockNumber < gameProxy.l2BlockNumber());
+
+        // Challenge the claim and resolve it.
+        gameProxy.attack{ value: MIN_BOND }(0, _dummyClaim());
+        vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
+        gameProxy.resolveClaim(0);
+        assertEq(uint8(gameProxy.resolve()), uint8(GameStatus.CHALLENGER_WINS));
+
+        // Confirm that the anchor state is the same as the initial anchor state.
+        (Hash updatedRoot, uint256 updatedL2BlockNumber) = anchorStateRegistry.anchors(gameProxy.gameType());
+        assertEq(updatedL2BlockNumber, l2BlockNumber);
+        assertEq(updatedRoot.raw(), root.raw());
+    }
+
     /// @dev Static unit test asserting that credit may not be drained past allowance through reentrancy.
     function test_claimCredit_claimAlreadyResolved_reverts() public {
         ClaimCreditReenter reenter = new ClaimCreditReenter(gameProxy, vm);
@@ -912,7 +956,8 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         gameProxy.attack{ value: MIN_BOND }(4, _changeClaimStatus(_dummyClaim(), VMStatuses.PANIC));
 
         // Expected start/disputed claims
-        bytes32 startingClaim = gameProxy.genesisOutputRoot().raw();
+        (Hash root,) = gameProxy.startingOutputRoot();
+        bytes32 startingClaim = root.raw();
         bytes32 disputedClaim = bytes32(uint256(3));
         Position disputedPos = LibPosition.wrap(4, 0);
 
@@ -1476,13 +1521,7 @@ contract FaultDispute_1v1_Actors_Test is FaultDisputeGame_Init {
         Claim absolutePrestateExec =
             _changeClaimStatus(Claim.wrap(keccak256(absolutePrestateData_)), VMStatuses.UNFINISHED);
         Claim rootClaim = Claim.wrap(bytes32(uint256(_rootClaim)));
-        super.init({
-            rootClaim: rootClaim,
-            absolutePrestate: absolutePrestateExec,
-            l2BlockNumber: _rootClaim,
-            genesisBlockNumber: 0,
-            genesisOutputRoot: Hash.wrap(bytes32(0))
-        });
+        super.init({ rootClaim: rootClaim, absolutePrestate: absolutePrestateExec, l2BlockNumber: _rootClaim });
     }
 
     /// @dev Helper to create actors for the 1v1 dispute.

@@ -89,6 +89,14 @@ enum GameStatus {
     DEFENDER_WINS
 }
 
+/// @notice Represents an L2 output root and the L2 block number at which it was generated.
+/// @custom:field root The output root.
+/// @custom:field l2BlockNumber The L2 block number at which the output root was generated.
+struct OutputRoot {
+    Hash root;
+    uint256 l2BlockNumber;
+}
+
 /// @title GameTypes
 /// @notice A library that defines the IDs of games that can be played.
 library GameTypes {
