@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/claims"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/resolved"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/scheduler"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 )
@@ -12,14 +13,16 @@ import (
 var ErrUnsupportedGameType = errors.New("unsupported game type")
 
 type GameTypeRegistry struct {
-	types        map[uint32]scheduler.PlayerCreator
-	bondCreators map[uint32]claims.BondContractCreator
+	types             map[uint32]scheduler.PlayerCreator
+	bondCreators      map[uint32]claims.BondContractCreator
+	validatorCreators map[uint32]resolved.GameContractCreator
 }
 
 func NewGameTypeRegistry() *GameTypeRegistry {
 	return &GameTypeRegistry{
-		types:        make(map[uint32]scheduler.PlayerCreator),
-		bondCreators: make(map[uint32]claims.BondContractCreator),
+		types:             make(map[uint32]scheduler.PlayerCreator),
+		bondCreators:      make(map[uint32]claims.BondContractCreator),
+		validatorCreators: make(map[uint32]resolved.GameContractCreator),
 	}
 }
 
@@ -39,6 +42,13 @@ func (r *GameTypeRegistry) RegisterBondContract(gameType uint32, creator claims.
 	r.bondCreators[gameType] = creator
 }
 
+func (r *GameTypeRegistry) RegisterGameContract(gameType uint32, creator resolved.GameContractCreator) {
+	if _, ok := r.validatorCreators[gameType]; ok {
+		panic(fmt.Errorf("duplicate validator contract registered for game type: %v", gameType))
+	}
+	r.validatorCreators[gameType] = creator
+}
+
 // CreatePlayer creates a new game player for the given game, using the specified directory for persisting data.
 func (r *GameTypeRegistry) CreatePlayer(game types.GameMetadata, dir string) (scheduler.GamePlayer, error) {
 	creator, ok := r.types[game.GameType]
@@ -50,6 +60,14 @@ func (r *GameTypeRegistry) CreatePlayer(game types.GameMetadata, dir string) (sc
 
 func (r *GameTypeRegistry) CreateBondContract(game types.GameMetadata) (claims.BondContract, error) {
 	creator, ok := r.bondCreators[game.GameType]
+	if !ok {
+		return nil, fmt.Errorf("%w: %v", ErrUnsupportedGameType, game.GameType)
+	}
+	return creator(game)
+}
+
+func (r *GameTypeRegistry) CreateGameContract(game types.GameMetadata) (resolved.GameContract, error) {
+	creator, ok := r.validatorCreators[game.GameType]
 	if !ok {
 		return nil, fmt.Errorf("%w: %v", ErrUnsupportedGameType, game.GameType)
 	}

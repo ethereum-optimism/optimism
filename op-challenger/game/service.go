@@ -19,6 +19,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/claims"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/resolved"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/registry"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/scheduler"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
@@ -50,6 +51,7 @@ type Service struct {
 
 	claimants []common.Address
 	claimer   *claims.BondClaimScheduler
+	validator *resolved.ValidatorScheduler
 
 	factoryContract *contracts.DisputeGameFactoryContract
 	registry        *registry.GameTypeRegistry
@@ -111,6 +113,9 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 	}
 	if err := s.initBondClaims(); err != nil {
 		return fmt.Errorf("failed to init bond claiming: %w", err)
+	}
+	if err := s.initValidators(); err != nil {
+		return fmt.Errorf("failed to init validators: %w", err)
 	}
 	if err := s.initScheduler(cfg); err != nil {
 		return fmt.Errorf("failed to init scheduler: %w", err)
@@ -205,6 +210,12 @@ func (s *Service) initFactoryContract(cfg *config.Config) error {
 	return nil
 }
 
+func (s *Service) initValidators() error {
+	claimValidator := resolved.NewClaimValidator(s.logger, s.metrics, s.registry.CreateGameContract, s.claimants...)
+	s.validator = resolved.NewValidatorScheduler(s.logger, claimValidator.Validate)
+	return nil
+}
+
 func (s *Service) initBondClaims() error {
 	claimer := claims.NewBondClaimer(s.logger, s.metrics, s.registry.CreateBondContract, s.txSender, s.claimants...)
 	s.claimer = claims.NewBondClaimScheduler(s.logger, s.metrics, claimer)
@@ -252,13 +263,14 @@ func (s *Service) initLargePreimages() error {
 }
 
 func (s *Service) initMonitor(cfg *config.Config) {
-	s.monitor = newGameMonitor(s.logger, s.cl, s.factoryContract, s.sched, s.preimages, cfg.GameWindow, s.claimer, s.l1Client.BlockNumber, cfg.GameAllowlist, s.pollClient)
+	s.monitor = newGameMonitor(s.logger, s.cl, s.factoryContract, s.sched, s.preimages, cfg.GameWindow, s.claimer, s.validator, s.l1Client.BlockNumber, cfg.GameAllowlist, s.pollClient)
 }
 
 func (s *Service) Start(ctx context.Context) error {
 	s.logger.Info("starting scheduler")
 	s.sched.Start(ctx)
 	s.claimer.Start(ctx)
+	s.validator.Start(ctx)
 	s.preimages.Start(ctx)
 	s.logger.Info("starting monitoring")
 	s.monitor.StartMonitoring()

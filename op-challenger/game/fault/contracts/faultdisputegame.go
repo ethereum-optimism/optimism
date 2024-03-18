@@ -16,6 +16,7 @@ import (
 )
 
 var (
+	methodClaimedBondFlag     = "claimedBondFlag"
 	methodGameDuration        = "gameDuration"
 	methodMaxGameDepth        = "maxGameDepth"
 	methodAbsolutePrestate    = "absolutePrestate"
@@ -225,6 +226,14 @@ func (f *FaultDisputeGameContract) GetGameDuration(ctx context.Context) (uint64,
 		return 0, fmt.Errorf("failed to fetch game duration: %w", err)
 	}
 	return result.GetUint64(0), nil
+}
+
+func (f *FaultDisputeGameContract) GetClaimedBondFlag(ctx context.Context) (*big.Int, error) {
+	result, err := f.multiCaller.SingleCall(ctx, rpcblock.Latest, f.contract.Call(methodClaimedBondFlag))
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch claimed bond flag: %w", err)
+	}
+	return result.GetBigInt(0), nil
 }
 
 func (f *FaultDisputeGameContract) GetMaxGameDepth(ctx context.Context) (types.Depth, error) {

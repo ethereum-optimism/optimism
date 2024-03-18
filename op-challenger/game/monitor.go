@@ -39,7 +39,7 @@ type preimageScheduler interface {
 	Schedule(blockHash common.Hash, blockNumber uint64) error
 }
 
-type claimer interface {
+type Scheduler interface {
 	Schedule(blockNumber uint64, games []types.GameMetadata) error
 }
 
@@ -50,7 +50,8 @@ type gameMonitor struct {
 	scheduler        gameScheduler
 	preimages        preimageScheduler
 	gameWindow       time.Duration
-	claimer          claimer
+	claimer          Scheduler
+	validator        Scheduler
 	fetchBlockNumber blockNumberFetcher
 	allowedGames     []common.Address
 	l1HeadsSub       ethereum.Subscription
@@ -77,7 +78,8 @@ func newGameMonitor(
 	scheduler gameScheduler,
 	preimages preimageScheduler,
 	gameWindow time.Duration,
-	claimer claimer,
+	claimer Scheduler,
+	validator Scheduler,
 	fetchBlockNumber blockNumberFetcher,
 	allowedGames []common.Address,
 	l1Source MinimalSubscriber,
@@ -90,6 +92,7 @@ func newGameMonitor(
 		source:           source,
 		gameWindow:       gameWindow,
 		claimer:          claimer,
+		validator:        validator,
 		fetchBlockNumber: fetchBlockNumber,
 		allowedGames:     allowedGames,
 		l1Source:         &headSource{inner: l1Source},
@@ -121,6 +124,9 @@ func (m *gameMonitor) progressGames(ctx context.Context, blockHash common.Hash, 
 			continue
 		}
 		gamesToPlay = append(gamesToPlay, game)
+	}
+	if err := m.validator.Schedule(blockNumber, gamesToPlay); err != nil {
+		return fmt.Errorf("failed to schedule resolved game validation: %w", err)
 	}
 	if err := m.claimer.Schedule(blockNumber, gamesToPlay); err != nil {
 		return fmt.Errorf("failed to schedule bond claims: %w", err)

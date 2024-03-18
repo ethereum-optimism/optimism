@@ -40,6 +40,8 @@ type Metricer interface {
 	RecordBondClaimFailed()
 	RecordBondClaimed(amount uint64)
 
+	RecordUnexpectedClaimResolution()
+
 	RecordGamesStatus(inProgress, defenderWon, challengerWon int)
 
 	RecordGameUpdateScheduled()
@@ -70,6 +72,8 @@ type Metrics struct {
 
 	bondClaimFailures prometheus.Counter
 	bondsClaimed      prometheus.Counter
+
+	unexpectedClaimResolutions prometheus.Counter
 
 	preimageChallenged      prometheus.Counter
 	preimageChallengeFailed prometheus.Counter
@@ -151,6 +155,11 @@ func NewMetrics() *Metrics {
 			Name:      "bonds",
 			Help:      "Number of bonds claimed by the challenge agent",
 		}),
+		unexpectedClaimResolutions: factory.NewCounter(prometheus.CounterOpts{
+			Namespace: Namespace,
+			Name:      "unexpected_claim_resolutions",
+			Help:      "Number of unexpected claim resolutions",
+		}),
 		preimageChallenged: factory.NewCounter(prometheus.CounterOpts{
 			Namespace: Namespace,
 			Name:      "preimage_challenged",
@@ -231,6 +240,10 @@ func (m *Metrics) RecordBondClaimFailed() {
 
 func (m *Metrics) RecordBondClaimed(amount uint64) {
 	m.bondsClaimed.Add(float64(amount))
+}
+
+func (m *Metrics) RecordUnexpectedClaimResolution() {
+	m.unexpectedClaimResolutions.Add(1)
 }
 
 func (m *Metrics) RecordCannonExecutionTime(t float64) {

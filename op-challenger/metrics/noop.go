@@ -34,6 +34,8 @@ func (*NoopMetricsImpl) RecordPreimageChallengeFailed() {}
 func (*NoopMetricsImpl) RecordBondClaimFailed()   {}
 func (*NoopMetricsImpl) RecordBondClaimed(uint64) {}
 
+func (*NoopMetricsImpl) RecordUnexpectedClaimResolution() {}
+
 func (*NoopMetricsImpl) RecordCannonExecutionTime(t float64) {}
 
 func (*NoopMetricsImpl) RecordGamesStatus(inProgress, defenderWon, challengerWon int) {}

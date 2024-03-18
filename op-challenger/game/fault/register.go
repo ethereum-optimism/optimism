@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/claims"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/resolved"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/alphabet"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/cannon"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
@@ -27,6 +28,7 @@ type CloseFunc func()
 type Registry interface {
 	RegisterGameType(gameType uint32, creator scheduler.PlayerCreator)
 	RegisterBondContract(gameType uint32, creator claims.BondContractCreator)
+	RegisterGameContract(gameType uint32, creator resolved.GameContractCreator)
 }
 
 type OracleRegistry interface {
@@ -140,10 +142,14 @@ func registerAlphabet(
 	}
 	registry.RegisterGameType(faultTypes.AlphabetGameType, playerCreator)
 
-	contractCreator := func(game types.GameMetadata) (claims.BondContract, error) {
+	bondContractCreator := func(game types.GameMetadata) (claims.BondContract, error) {
 		return contracts.NewFaultDisputeGameContract(game.Proxy, caller)
 	}
-	registry.RegisterBondContract(faultTypes.AlphabetGameType, contractCreator)
+	gameContractCreator := func(game types.GameMetadata) (resolved.GameContract, error) {
+		return contracts.NewFaultDisputeGameContract(game.Proxy, caller)
+	}
+	registry.RegisterBondContract(faultTypes.AlphabetGameType, bondContractCreator)
+	registry.RegisterGameContract(faultTypes.AlphabetGameType, gameContractCreator)
 	return nil
 }
 
@@ -224,10 +230,14 @@ func registerCannon(
 	}
 	registry.RegisterGameType(gameType, playerCreator)
 
-	contractCreator := func(game types.GameMetadata) (claims.BondContract, error) {
+	bondContractCreator := func(game types.GameMetadata) (claims.BondContract, error) {
 		return contracts.NewFaultDisputeGameContract(game.Proxy, caller)
 	}
-	registry.RegisterBondContract(gameType, contractCreator)
+	gameContractCreator := func(game types.GameMetadata) (resolved.GameContract, error) {
+		return contracts.NewFaultDisputeGameContract(game.Proxy, caller)
+	}
+	registry.RegisterBondContract(gameType, bondContractCreator)
+	registry.RegisterGameContract(gameType, gameContractCreator)
 	return nil
 }
 
