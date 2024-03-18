@@ -18,7 +18,7 @@ import (
 
 // TODO: typed client bindings for resources
 
-var Endpoint = "http://localhost:5000/experimental"
+var Endpoint = ""
 
 const maxDialTime = 20 * time.Second
 const maxDialAttempts = 5

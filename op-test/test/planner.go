@@ -2,6 +2,7 @@ package test
 
 import (
 	"context"
+	"fmt"
 	"github.com/stretchr/testify/require"
 	"slices"
 	"strings"
@@ -22,26 +23,32 @@ import (
 func Plan(t *testing.T, fn func(t Planner)) {
 	checkMain()
 
+	ctx := packageCtx()
 	t.Run("main", func(t *testing.T) {
-
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(ctx)
 		t.Cleanup(cancel)
 
-		var selector ParameterSelector = &testParameters{}
-		ctx = context.WithValue(ctx, parameterManagerCtxKey{}, selector)
+		settings := GetTestSettings(ctx)
 
-		plan := &PlannedTestDef{
-			Name: t.Name(),
+		var testPlan *PlannedTestDef
+		if settings.presetPlan != nil {
+			testPlan = settings.presetPlan.GetPlan(t.Name())
+			if testPlan == nil {
+				t.Skip("preset package-plan was specified, but no plan for test-case was found")
+			}
+		} else {
+			testPlan = &PlannedTestDef{
+				Name: t.Name(),
+			}
 		}
-		// TODO option to load existing test-plan
 
 		imp := &testImpl{
 			T:            t,
 			ctx:          ctx,
 			logLvl:       slog.LevelError,
-			plan:         plan,
-			buildingPlan: true,
-			runningPlan:  false,
+			plan:         testPlan,
+			buildingPlan: settings.buildingPlan,
+			runningPlan:  settings.runningPlan,
 		}
 		fn(imp)
 
@@ -189,7 +196,7 @@ func (imp *testImpl) Select(name string, options []string, fn func(t Planner)) {
 	}
 
 	// get the parameter selector
-	selector := imp.ctx.Value(parameterManagerCtxKey{}).(ParameterSelector)
+	selector := GetParameterSelector(imp.ctx)
 	// select what option(s) we should go with
 	selectedOptions := selector.Select(name, options)
 	if len(selectedOptions) == 0 {
@@ -219,4 +226,26 @@ func (imp *testImpl) Select(name string, options []string, fn func(t Planner)) {
 			})
 		}
 	})
+}
+
+type Settings struct {
+	buildingPlan bool
+	runningPlan  bool
+	presetPlan   *PlanDef
+}
+
+// We make the Settings available through the ctx, instead of a global,
+// so the Settings logic itself can be overridden and tested.
+type testSettingsCtxKey struct{}
+
+func GetTestSettings(ctx context.Context) *Settings {
+	sel := ctx.Value(testSettingsCtxKey{})
+	if sel == nil {
+		return nil
+	}
+	v, ok := sel.(*Settings)
+	if !ok {
+		panic(fmt.Errorf("bad test settings: %v", v))
+	}
+	return v
 }

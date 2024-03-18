@@ -47,6 +47,17 @@ type PlanDef struct {
 	sync.Mutex `json:"-"`
 }
 
+func (p *PlanDef) GetPlan(name string) *PlannedTestDef {
+	p.Lock()
+	defer p.Unlock()
+	for _, tp := range p.Tests {
+		if tp.Name == name {
+			return tp
+		}
+	}
+	return nil
+}
+
 // plan is the accumulated collection of test-plans.
 // This is a global, but test-specific, thus initialized per test-binary (per Go package).
 // This maps test-name to plan definition.
