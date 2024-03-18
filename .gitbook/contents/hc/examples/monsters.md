@@ -4,7 +4,7 @@ description: Hybrid Compute Example - Minting NFTs with Random Attributes
 
 # Monster Minting
 
-<figure><img src="../../.gitbook/assets/mint your monster.png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../../../assets/mint your monster.png" alt=""><figcaption></figcaption></figure>
 
 Clone the repository, open it, and install packages with `yarn`:
 
@@ -38,13 +38,11 @@ const testPrivateKey = process.env.PRIVATE_KEY ?? '0x____'
 
 You can also do this via a hardware wallet, a mnemonic, via `hardhat.config.js`, or whatever you usually do. Whatever account/key you use, it needs some ETH and BOBA - small amounts should be sufficient.
 
+<figure><img src="../../../assets/getting geth eth and geth boba.png" alt=""><figcaption></figcaption></figure>
 
+If you do not have testnet ETH, you can get some here [Faucets](https://docs.boba.network/developer-docs/faucets).
 
-<figure><img src="../../.gitbook/assets/getting geth eth and geth boba.png" alt=""><figcaption></figcaption></figure>
-
-If you do not have testnet ETH, you can get some here [Faucets](https://docs.boba.network/for-developers/faucets).
-
-<figure><img src="../../.gitbook/assets/testing the turing monster nft.png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../../../assets/testing the turing monster nft.png" alt=""><figcaption></figcaption></figure>
 
 To run the tests you will also need some Goerli ETH on Goerli (L1) as the tests also test the NFT bridging functionality.
 
@@ -74,8 +72,6 @@ Ok, all done. Enjoy. The terminal will give you all the information you need to 
 
 ```
 
-
-
 To deploy run:
 
 ```bash
@@ -86,9 +82,7 @@ $ PRIVATE_KEY=0x... yarn run deploy -- --network boba_rinkeby
 
 Add the ERC721 as permitted caller to the deployed TuringHelper. Call the method `startTrading()` once you feel ready so that your community is able to mint their NFTs.
 
-
-
-<figure><img src="../../.gitbook/assets/solidity code walkthrough.png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../../../assets/solidity code walkthrough.png" alt=""><figcaption></figcaption></figure>
 
 The ERC721 contract is largely standard, except for needing to provide the address of the `TuringHelper` contract. Nevertheless, the contract has been distributed into several smaller contracts to make them easily reusable for your own project.
 

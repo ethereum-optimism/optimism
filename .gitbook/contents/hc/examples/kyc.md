@@ -4,7 +4,7 @@ description: Turing Example - OnChain KYC
 
 # KYC
 
-<figure><img src="../../.gitbook/assets/what is it.png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../../../assets/what is it.png" alt=""><figcaption></figcaption></figure>
 
 Regulation is coming, there is no doubt. Some examples:
 
@@ -15,17 +15,15 @@ DeFi apps currently face a huge problem when trying to comply with those new reg
 
 With Turing you can build your own KYC gatekeeper for specific smart contract functions with ease. We have written a simple `modifier` for that, which does the check for you. All you need to do, is checking a wallet's KYC status on the AWS backend and return if the wallet is allowed to call the smart contract function.
 
-<figure><img src="../../.gitbook/assets/qwerfghbgfswedfghgsedrfg.png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../../../assets/qwerfghbgfswedfghgsedrfg.png" alt=""><figcaption></figcaption></figure>
 
-<figure><img src="../../.gitbook/assets/how does it work user.png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../../../assets/how does it work user.png" alt=""><figcaption></figcaption></figure>
 
 The idea is, that the user has to once KYC his wallet on any KYC provider that supports KYCing wallets. The KYC process itself is completely independent of this code base, as well as the process associated with it.
 
 This means, that smart contracts that implement this KYC gatekeeper, will actually query the KYC status of the user's wallet and will revert for a KYC-only function, if the user hasn't KYCed his/her wallet yet. That's the magic :-).
 
-
-
-<figure><img src="../../.gitbook/assets/how does it work developer.png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../../../assets/how does it work developer.png" alt=""><figcaption></figcaption></figure>
 
 This example basically consists just like all other Turing use cases, of a `TuringHelper.sol` and its corresponding interface called `ITuringHelper.sol`. The TuringHelper is just as usual needed, to actually be charged for your off-chain calls and to limit unauthorized access (refer to `permittedCallers` etc.). Please refer to the appendix of this ReadMe or to the general Turing documentation.
 
@@ -55,9 +53,7 @@ contracts/
 │       │   ITuringHelper.sol
 ```
 
-
-
-<figure><img src="../../.gitbook/assets/basics (1).png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../../../assets/basics (1).png" alt=""><figcaption></figcaption></figure>
 
 Inside the folder, run `yarn install`.
 
