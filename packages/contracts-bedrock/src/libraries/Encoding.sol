@@ -202,6 +202,8 @@ library Encoding {
         returns (bytes memory)
     {
         require(_dependencySet.length <= type(uint8).max, "Encoding: dependency set length is too large");
+        // Check that the batcher hash is just the address with 0 padding to the left for version 0.
+        require(uint160(uint256(_batcherHash)) == uint256(_batcherHash), "Encoding: invalid batcher hash");
 
         bytes4 functionSignature = bytes4(keccak256("setL1BlockValuesInterop()"));
         return abi.encodePacked(
