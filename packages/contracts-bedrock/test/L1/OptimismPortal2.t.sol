@@ -458,7 +458,9 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
             _withdrawalProof: _withdrawalProof
         });
 
-        vm.expectRevert("OptimismPortal: withdrawal hash has already been proven, and dispute game is not invalid");
+        vm.expectRevert(
+            "OptimismPortal: withdrawal hash has already been proven, and the old dispute game is not invalid"
+        );
         optimismPortal2.proveWithdrawalTransaction({
             _tx: _defaultTx,
             _disputeGameIndex: _proposedGameIndex,
