@@ -363,22 +363,22 @@ func DiffTestUtils() {
 		fmt.Print(hexutil.Encode(packed[32:]))
 	case "encodeSetL1BlockValuesInterop":
 		// Parse input arguments
-		number, ok := new(big.Int).SetString(args[1], 10)
-		checkOk(ok)
-		time, ok := new(big.Int).SetString(args[2], 10)
-		checkOk(ok)
+		number, err := strconv.ParseUint(args[1], 10, 64)
+		checkErr(err, "Error decoding number")
+		time, err := strconv.ParseUint(args[2], 10, 64)
+		checkErr(err, "Error decoding time")
 		baseFee, ok := new(big.Int).SetString(args[3], 10)
 		checkOk(ok)
 		hash := common.HexToHash(args[4])
-		seqNumber, ok := new(big.Int).SetString(args[5], 10)
-		checkOk(ok)
+		seqNumber, err := strconv.ParseUint(args[5], 10, 64)
+		checkErr(err, "Error decoding sequence number")
 		batcherAddr := common.HexToAddress(args[6])
 		blobBaseFee, ok := new(big.Int).SetString(args[7], 10)
 		checkOk(ok)
-		baseFeeScalar, ok := new(big.Int).SetString(args[8], 10)
-		checkOk(ok)
-		blobBaseFeeScalar, ok := new(big.Int).SetString(args[9], 10)
-		checkOk(ok)
+		baseFeeScalar, err := strconv.ParseUint(args[8], 10, 32)
+		checkErr(err, "Error decoding baseFeeScalar")
+		blobBaseFeeScalar, err := strconv.ParseUint(args[9], 10, 32)
+		checkErr(err, "Error decoding blobBaseFeeScalar")
 		dependencySetSize, ok := new(big.Int).SetString(args[10], 10)
 		checkOk(ok)
 		var dependencySet []*big.Int
@@ -389,15 +389,15 @@ func DiffTestUtils() {
 		}
 
 		l1BlockInfo := derive.L1BlockInfo{
-			Number:            number.Uint64(),
-			Time:              time.Uint64(),
+			Number:            number,
+			Time:              time,
 			BaseFee:           baseFee,
 			BlockHash:         hash,
-			SequenceNumber:    seqNumber.Uint64(),
+			SequenceNumber:    seqNumber,
 			BatcherAddr:       batcherAddr,
 			BlobBaseFee:       blobBaseFee,
-			BaseFeeScalar:     uint32(baseFeeScalar.Uint64()),
-			BlobBaseFeeScalar: uint32(blobBaseFeeScalar.Uint64()),
+			BaseFeeScalar:     uint32(baseFeeScalar),
+			BlobBaseFeeScalar: uint32(blobBaseFeeScalar),
 			DependencySet:     dependencySet,
 		}
 
