@@ -495,6 +495,26 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         gameProxy.step(8, true, absolutePrestateData, hex"");
     }
 
+    function test_step_duplicateStep_reverts_bill() public {
+        // Give the test contract some ether
+        vm.deal(address(this), 1000 ether);
+
+        // Make claims all the way down the tree.
+        gameProxy.attack{ value: MIN_BOND }(0, _dummyClaim());
+        gameProxy.attack{ value: MIN_BOND }(1, _dummyClaim());
+        gameProxy.attack{ value: MIN_BOND }(2, _dummyClaim());
+        gameProxy.attack{ value: MIN_BOND }(3, _dummyClaim());
+        gameProxy.attack{ value: MIN_BOND }(4, _changeClaimStatus(_dummyClaim(), VMStatuses.PANIC));
+        gameProxy.attack{ value: MIN_BOND }(5, _dummyClaim());
+        gameProxy.defend{ value: MIN_BOND }(6, _dummyClaim());
+        gameProxy.attack{ value: MIN_BOND }(7, _dummyClaim());
+        gameProxy.addLocalData(LocalPreimageKey.DISPUTED_L2_BLOCK_NUMBER, 8, 0);
+        gameProxy.step(8, true, absolutePrestateData, hex"");
+
+        vm.expectRevert(DuplicateStep.selector);
+        gameProxy.step(8, true, absolutePrestateData, hex"");
+    }
+
     /// @dev Static unit test for the correctness an uncontested root resolution.
     function test_resolve_rootUncontested_succeeds() public {
         vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
