@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -360,6 +361,55 @@ func DiffTestUtils() {
 		packed, err := cannonMemoryProofArgs.Pack(&output)
 		checkErr(err, "Error encoding output")
 		fmt.Print(hexutil.Encode(packed[32:]))
+	case "encodeSetL1BlockValuesInterop":
+		// Parse input arguments
+		number, ok := new(big.Int).SetString(args[1], 10)
+		checkOk(ok)
+		time, ok := new(big.Int).SetString(args[2], 10)
+		checkOk(ok)
+		baseFee, ok := new(big.Int).SetString(args[3], 10)
+		checkOk(ok)
+		hash := common.HexToHash(args[4])
+		seqNumber, ok := new(big.Int).SetString(args[5], 10)
+		checkOk(ok)
+		batcherAddr := common.HexToAddress(args[6])
+		blobBaseFee, ok := new(big.Int).SetString(args[7], 10)
+		checkOk(ok)
+		baseFeeScalar, ok := new(big.Int).SetString(args[8], 10)
+		checkOk(ok)
+		blobBaseFeeScalar, ok := new(big.Int).SetString(args[9], 10)
+		checkOk(ok)
+		dependencySetSize, ok := new(big.Int).SetString(args[10], 10)
+		checkOk(ok)
+		var dependencySet []*big.Int
+		for i := 0; i < int(dependencySetSize.Uint64()); i++ {
+			dependency, ok := new(big.Int).SetString(args[11+i], 10)
+			checkOk(ok)
+			dependencySet = append(dependencySet, dependency)
+		}
+
+		l1BlockInfo := derive.L1BlockInfo{
+			Number:            number.Uint64(),
+			Time:              time.Uint64(),
+			BaseFee:           baseFee,
+			BlockHash:         hash,
+			SequenceNumber:    seqNumber.Uint64(),
+			BatcherAddr:       batcherAddr,
+			BlobBaseFee:       blobBaseFee,
+			BaseFeeScalar:     uint32(baseFeeScalar.Uint64()),
+			BlobBaseFeeScalar: uint32(blobBaseFeeScalar.Uint64()),
+			DependencySet:     dependencySet,
+		}
+
+		// Encode L1 block info
+		encoded, err := l1BlockInfo.marshalBinaryInterop()
+		checkErr(err, "Error encoding cross domain message")
+
+		// Pack encoded cross domain message
+		packed, err := bytesArgs.Pack(&encoded)
+		checkErr(err, "Error encoding output")
+
+		fmt.Print(hexutil.Encode(packed))
 	default:
 		panic(fmt.Errorf("Unknown command: %s", args[0]))
 	}
