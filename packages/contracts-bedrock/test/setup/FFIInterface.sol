@@ -243,4 +243,42 @@ contract FFIInterface {
         (bytes32 memRoot, bytes memory proof) = abi.decode(result, (bytes32, bytes));
         return (memRoot, proof);
     }
+
+    function encodeSetL1BlockValuesInterop(
+        uint32 _baseFeeScalar,
+        uint32 _blobBaseFeeScalar,
+        uint64 _sequenceNumber,
+        uint64 _timestamp,
+        uint64 _number,
+        uint256 _baseFee,
+        uint256 _blobBaseFee,
+        bytes32 _hash,
+        bytes32 _batcherHash,
+        uint256[] memory _dependencySet
+    )
+        external
+        returns (bytes memory)
+    {
+        string[] memory cmds = new string[](13 + _dependencySet.length);
+        cmds[0] = "scripts/go-ffi/go-ffi";
+        cmds[1] = "diff";
+        cmds[2] = "encodeSetL1BlockValuesInterop";
+        cmds[3] = vm.toString(_number);
+        cmds[4] = vm.toString(_timestamp);
+        cmds[5] = vm.toString(_baseFee);
+        cmds[6] = vm.toString(_hash);
+        cmds[7] = vm.toString(_sequenceNumber);
+        cmds[8] = vm.toString(_batcherHash);
+        cmds[9] = vm.toString(_blobBaseFee);
+        cmds[10] = vm.toString(_baseFeeScalar);
+        cmds[11] = vm.toString(_blobBaseFeeScalar);
+        cmds[12] = vm.toString(_dependencySet.length);
+        // Add the dependency set
+        for (uint256 i = 0; i < _dependencySet.length; i++) {
+            cmds[13 + i] = vm.toString(_dependencySet[i]);
+        }
+
+        bytes memory result = vm.ffi(cmds);
+        return abi.decode(result, (bytes));
+    }
 }
