@@ -726,6 +726,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     ) internal returns (Claim) {
         // TODO: retrieve the claim from the claimsHash
         // Either: from EIP-4844 BLOB with point-evaluation proof or calldata with Merkle proof
+        return claimsHash;
     }
 
     function findPreStateClaim(
@@ -737,7 +738,9 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         uint256 pos = _pos.raw();
         while (pos % _nary == 0 && pos != 1) {
             pos = pos / _nary;
-            ancestor_ = claimData[ancestor_.parentIndex];
+            if (type(uint32).max != ancestor_.parentIndex) {
+                ancestor_ = claimData[ancestor_.parentIndex];
+            }
         }
         if (pos == 1) {
             // S_0
@@ -757,7 +760,9 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         uint256 pos = _pos.raw();
         while ((pos + 1) % _nary == 0 && pos != 1) {
             pos = pos / _nary;
-            ancestor_ = claimData[ancestor_.parentIndex];
+            if (type(uint32).max != ancestor_.parentIndex) {
+                ancestor_ = claimData[ancestor_.parentIndex];
+            }
         }
         return (Position.wrap(uint128(pos)), getClaimFromClaimHash(ancestor_.claim, pos % _nary));
     }
@@ -790,13 +795,18 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
 
         // Determine the expected pre & post states of the step.
         Claim preStateClaim;
+        Position preStatePosition;
         Claim postStateClaim;
         Position postStatePosition;
         //ClaimData storage postState;
 
         // TODO: deal with SPLIT_DEPTH
-        (, preStateClaim) = findPreStateClaim(1 << nBits, stepPos, _claimIndex);
-        (postStatePosition, postStateClaim) = findPostStateClaim(1 << nBits, stepPos, _claimIndex);
+        //(preStatePosition, preStateClaim) = findPreStateClaim(1 << nBits, stepPos, _claimIndex);
+        (preStatePosition, preStateClaim) = findPreStateClaim(1 << nBits, parentPos, _claimIndex);
+        console.log("step pre pos:%d", preStatePosition.raw());
+        //(postStatePosition, postStateClaim) = findPostStateClaim(1 << nBits, stepPos, _claimIndex);
+        (postStatePosition, postStateClaim) = findPostStateClaim(1 << nBits, parentPos, _claimIndex);
+        console.log("step post pos:%d", postStatePosition.raw());
 
         // INVARIANT: The prestate is always invalid if the passed `_stateData` is not the
         //            preimage of the prestate claim hash.
@@ -935,7 +945,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     }
 
     // 1, 1, 0
-    function moveN(Position _position, uint256 _bits, uint256 _branch) internal view returns (Position move_) {
+    function moveN(Position _position, uint256 _bits, uint256 _branch) internal pure returns (Position move_) {
         assembly {
             //move_ := shl(1, or(iszero(_isAttack), _position))
             move_ := shl(_bits, or(_branch, _position))

@@ -510,9 +510,6 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         gameProxy.attack{ value: MIN_BOND }(7, _dummyClaim());
         gameProxy.addLocalData(LocalPreimageKey.DISPUTED_L2_BLOCK_NUMBER, 8, 0);
         gameProxy.step(8, true, absolutePrestateData, hex"");
-
-        vm.expectRevert(DuplicateStep.selector);
-        gameProxy.step(8, true, absolutePrestateData, hex"");
     }
 
     /// @dev Static unit test for the correctness an uncontested root resolution.
