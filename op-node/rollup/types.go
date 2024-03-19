@@ -110,7 +110,7 @@ type Config struct {
 	ProtocolVersionsAddress common.Address `json:"protocol_versions_address,omitempty"`
 
 	// L1 DataAvailabilityChallenge contract proxy address
-	DAChallengeAddress common.Address `json:"da_challenge_address,omitempty"`
+	DAChallengeAddress common.Address `json:"da_challenge_contract_address,omitempty"`
 
 	// DA challenge window value set on the DAC contract. Used in plasma mode
 	// to compute when a commitment can no longer be challenged.

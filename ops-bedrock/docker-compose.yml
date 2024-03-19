@@ -89,6 +89,8 @@ services:
       --metrics.port=7300
       --pprof.enabled
       --rpc.enable-admin
+      --plasma.enabled=${PLASMA_ENABLED}
+      --plasma.da-server=http://dredge:3104
     ports:
       - "7545:8545"
       - "9003:9003"
@@ -163,6 +165,8 @@ services:
       OP_BATCHER_METRICS_ENABLED: "true"
       OP_BATCHER_RPC_ENABLE_ADMIN: "true"
       OP_BATCHER_BATCH_TYPE: 0
+      OP_BATCHER_PLASMA_ENABLED: "${PLASMA_ENABLED}"
+      OP_BATCHER_PLASMA_DA_SERVER: "http://dredge:3104"
 
   op-challenger:
     depends_on:
@@ -196,6 +200,29 @@ services:
       OP_CHALLENGER_MNEMONIC: test test test test test test test test test test test junk
       OP_CHALLENGER_HD_PATH: "m/44'/60'/0'/0/4"
       OP_CHALLENGER_NUM_CONFIRMATIONS: 1
+
+  dredge:
+    image: quarry/dredge
+    command: >
+      dredge
+      --dir=/local-data
+      --s3-bucket="fake"
+    ports:
+      - "3104:3104"
+
+  sentinel:
+    image: quarry/sentinel
+    volumes:
+      - "${PWD}/../.devnet/rollup.json:/rollup.json"
+    # private-key is mnemonic index 5 of the test mnemonic.
+    command: >
+      sentinel
+      --datadir=data
+      --l1-rpc-http=http://l1:8545
+      --l1-rpc-ws=ws://l1:8546
+      --da-storage-uri=http://dredge:3104
+      --private-key=0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba
+      --config=/rollup.json
 
   artifact-server:
     depends_on:
