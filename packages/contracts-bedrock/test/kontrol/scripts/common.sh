@@ -154,7 +154,6 @@ start_docker () {
     --detach \
     --env FOUNDRY_PROFILE="$FOUNDRY_PROFILE" \
     --workdir /home/user/workspace \
-    -v "$WORKSPACE_DIR":/home/user/workspace \
     runtimeverificationinc/kontrol:ubuntu-jammy-"$KONTROL_RELEASE"
 
   copy_to_docker
