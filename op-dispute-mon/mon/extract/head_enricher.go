@@ -10,6 +10,8 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
+var _ Enricher = (*L1HeadBlockNumEnricher)(nil)
+
 type BlockFetcher interface {
 	HeaderByHash(ctx context.Context, block common.Hash) (*types.Header, error)
 }

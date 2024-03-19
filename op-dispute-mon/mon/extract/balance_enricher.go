@@ -10,12 +10,13 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
+var _ Enricher = (*BalanceEnricher)(nil)
+
 type BalanceCaller interface {
 	GetBalance(context.Context, rpcblock.Block) (*big.Int, common.Address, error)
 }
 
-type BalanceEnricher struct {
-}
+type BalanceEnricher struct{}
 
 func NewBalanceEnricher() *BalanceEnricher {
 	return &BalanceEnricher{}
