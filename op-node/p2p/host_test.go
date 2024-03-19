@@ -181,6 +181,17 @@ func TestP2PFull(t *testing.T) {
 	require.Equal(t, []peer.ID{hostB.ID()}, blockedPeers)
 	require.NoError(t, p2pClientA.UnblockPeer(ctx, hostB.ID()))
 
+	require.Error(t, p2pClientA.BlockAddr(ctx, nil))
+	require.Error(t, p2pClientA.UnblockAddr(ctx, nil))
+	require.Error(t, p2pClientA.BlockSubnet(ctx, nil))
+	require.Error(t, p2pClientA.UnblockSubnet(ctx, nil))
+	require.Error(t, p2pClientA.BlockPeer(ctx, ""))
+	require.Error(t, p2pClientA.UnblockPeer(ctx, ""))
+	require.Error(t, p2pClientA.ProtectPeer(ctx, ""))
+	require.Error(t, p2pClientA.UnprotectPeer(ctx, ""))
+	require.Error(t, p2pClientA.ConnectPeer(ctx, ""))
+	require.Error(t, p2pClientA.DisconnectPeer(ctx, ""))
+
 	require.NoError(t, p2pClientA.BlockAddr(ctx, net.IP{123, 123, 123, 123}))
 	blockedIPs, err := p2pClientA.ListBlockedAddrs(ctx)
 	require.NoError(t, err)
