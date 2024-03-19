@@ -117,11 +117,7 @@ func (bq *BatchQueue) NextBatch(ctx context.Context, parent eth.L2BlockRef) (*Si
 		for i, l1Block := range bq.l1Blocks {
 			if parent.L1Origin.Number == l1Block.Number {
 				bq.l1Blocks = bq.l1Blocks[i:]
-				if len(bq.l1Blocks) > 0 {
-					bq.log.Debug("Advancing internal L1 blocks", "next_epoch", bq.l1Blocks[0].ID(), "next_epoch_time", bq.l1Blocks[0].Time)
-				} else {
-					bq.log.Debug("Advancing internal L1 blocks. No L1 blocks left")
-				}
+				bq.log.Debug("Advancing internal L1 blocks", "next_epoch", bq.l1Blocks[0].ID(), "next_epoch_time", bq.l1Blocks[0].Time)
 				break
 			}
 		}
