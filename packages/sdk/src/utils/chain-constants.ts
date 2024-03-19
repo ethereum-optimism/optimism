@@ -33,6 +33,12 @@ const l1CrossDomainMessengerAddresses = {
   sepolia: '0x58Cc85b8D04EA49cC6DBd3CbFFd00B4B8D6cb3ef',
 }
 
+const disputeGameFactoryAddresses = {
+  mainnet: ethers.constants.AddressZero,
+  goerli: ethers.constants.AddressZero,
+  sepolia: '0x05F9613aDB30026FFd634f38e5C4dFd30a197Fa1',
+}
+
 // legacy
 const stateCommitmentChainAddresses = {
   mainnet: '0xBe5dAb4A2e9cd0F27300dB4aB94BeE3A233AEB19',
@@ -121,7 +127,7 @@ const getL1ContractsByNetworkName = (network: string): OEL1ContractsLike => {
     OptimismPortal: portalAddresses[network],
     L2OutputOracle: l2OutputOracleAddresses[network],
     OptimismPortal2: portalAddresses[network],
-    DisputeGameFactory: ethers.constants.AddressZero,
+    DisputeGameFactory: disputeGameFactoryAddresses[network],
   }
 }
 
