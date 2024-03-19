@@ -306,8 +306,8 @@ importers:
         specifier: ^2.6.3
         version: 2.6.3(react@18.2.0)(typescript@5.3.3)(viem@2.7.19)
       abitype:
-        specifier: ^1.0.0
-        version: 1.0.0(typescript@5.3.3)(zod@3.22.4)
+        specifier: ^1.0.2
+        version: 1.0.2(typescript@5.3.3)
       glob:
         specifier: ^10.3.10
         version: 10.3.10
@@ -403,8 +403,8 @@ importers:
         specifier: ^1.2.2
         version: 1.2.2(vitest@1.2.2)
       abitype:
-        specifier: ^1.0.0
-        version: 1.0.0(typescript@5.3.3)(zod@3.22.4)
+        specifier: ^1.0.2
+        version: 1.0.2(typescript@5.3.3)
       isomorphic-fetch:
         specifier: ^3.0.0
         version: 3.0.0
@@ -6833,6 +6833,20 @@ packages:
     dependencies:
       typescript: 5.3.3
       zod: 3.22.4
+
+  /abitype@1.0.2(typescript@5.3.3):
+    resolution: {integrity: sha512-aFt4k2H+eiAKy/zxtnORa9iIb10BMBeWL18l8v4+QuwYEBXPxxjSB1bFZCzQmKPoj8m7j68K705l3uY+E2gAjg==}
+    peerDependencies:
+      typescript: '>=5.0.4'
+      zod: ^3 >=3.22.0
+    peerDependenciesMeta:
+      typescript:
+        optional: true
+      zod:
+        optional: true
+    dependencies:
+      typescript: 5.3.3
+    dev: true
 
   /abort-controller@3.0.0:
     resolution: {integrity: sha512-h8lQ8tacZYnR3vNQTgibj+tODHI5/+l06Au2Pcriv/Gmet0eaj4TwWH41sO9wnHDiQsEj19q0drzdWdeAHtweg==}
