@@ -219,9 +219,9 @@ require (
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
 
-replace github.com/ledgerwatch/erigon => github.com/bobanetwork/v3-erigon v0.0.0-20240223222735-55b4885d2ef7
+replace github.com/ledgerwatch/erigon => github.com/bobanetwork/op-erigon v0.0.0-20240223222735-55b4885d2ef7
 
-replace github.com/ledgerwatch/erigon-lib => github.com/bobanetwork/v3-erigon/erigon-lib v0.0.0-20240223222735-55b4885d2ef7
+replace github.com/ledgerwatch/erigon-lib => github.com/bobanetwork/op-erigon/erigon-lib v0.0.0-20240223222735-55b4885d2ef7
 
 replace github.com/bobanetwork/v3-anchorage/boba-bindings => ../boba-bindings
 

@@ -5,7 +5,7 @@ go 1.19
 require (
 	github.com/erigontech/mdbx-go v0.27.17 // indirect
 	github.com/ledgerwatch/erigon-lib v1.0.0
-	github.com/ledgerwatch/log/v3 v3.9.0 // indirect
+	github.com/ledgerwatch/log/v3 v3.9.0
 	github.com/ledgerwatch/secp256k1 v1.0.0 // indirect
 )
 
@@ -57,7 +57,7 @@ require (
 	github.com/tidwall/btree v1.6.0 // indirect
 	github.com/ugorji/go/codec v1.1.13 // indirect
 	github.com/ugorji/go/codec/codecgen v1.1.13 // indirect
-	github.com/urfave/cli/v2 v2.25.7 // indirect
+	github.com/urfave/cli/v2 v2.25.7
 	github.com/valyala/fastjson v1.6.4 // indirect
 	golang.org/x/crypto v0.13.0 // indirect
 	golang.org/x/exp v0.0.0-20230817173708-d852ddb80c63 // indirect
@@ -171,10 +171,10 @@ require (
 	zombiezen.com/go/sqlite v0.13.1 // indirect
 )
 
-replace github.com/ledgerwatch/erigon-lib => github.com/bobanetwork/v3-erigon/erigon-lib v0.0.0-20231004031126-9584796cbb22
+replace github.com/ledgerwatch/erigon-lib => github.com/bobanetwork/op-erigon/erigon-lib v0.0.0-20231004031126-9584796cbb22
 
 replace github.com/tendermint/tendermint => github.com/bnb-chain/tendermint v0.31.12
 
 replace github.com/VictoriaMetrics/metrics => github.com/ledgerwatch/victoria-metrics v0.0.4
 
-replace github.com/ledgerwatch/erigon => github.com/bobanetwork/v3-erigon v1.9.7-0.20231004031126-9584796cbb22
+replace github.com/ledgerwatch/erigon => github.com/bobanetwork/op-erigon v1.9.7-0.20231004031126-9584796cbb22

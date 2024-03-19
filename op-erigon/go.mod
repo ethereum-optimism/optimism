@@ -1,6 +1,6 @@
 module github.com/ethereum-optimism/optimism/op-erigon
 
-go 1.20
+go 1.21
 
 require (
 	github.com/erigontech/mdbx-go v0.27.21 // indirect
@@ -85,6 +85,7 @@ require (
 	github.com/edsrzf/mmap-go v1.1.0 // indirect
 	github.com/elastic/gosigar v0.14.2 // indirect
 	github.com/emicklei/dot v1.6.0 // indirect
+	github.com/ethereum-optimism/superchain-registry/superchain v0.0.0-20240315155522-09647974da0d // indirect
 	github.com/fjl/gencodec v0.0.0-20220412091415-8bb9e558978c // indirect
 	github.com/flynn/noise v1.0.0 // indirect
 	github.com/francoispqt/gojay v1.2.13 // indirect
@@ -220,8 +221,8 @@ require (
 	github.com/supranational/blst v0.3.11 // indirect
 	github.com/thomaso-mirodin/intmath v0.0.0-20160323211736-5dc6d854e46e // indirect
 	github.com/tidwall/btree v1.6.0 // indirect
-	github.com/ugorji/go/codec v1.1.13 // indirect
-	github.com/ugorji/go/codec/codecgen v1.1.13 // indirect
+	github.com/ugorji/go/codec v1.2.12 // indirect
+	github.com/ugorji/go/codec/codecgen v1.2.12 // indirect
 	github.com/urfave/cli/v2 v2.27.1 // indirect
 	github.com/valyala/fastjson v1.6.4 // indirect
 	github.com/vektah/gqlparser/v2 v2.5.10 // indirect
@@ -234,8 +235,8 @@ require (
 	go.uber.org/fx v1.20.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.26.0 // indirect
-	golang.org/x/crypto v0.17.0 // indirect
-	golang.org/x/exp v0.0.0-20230905200255-921286631fa9 // indirect
+	golang.org/x/crypto v0.18.0 // indirect
+	golang.org/x/exp v0.0.0-20231110203233-9a3e6036ecaa // indirect
 	golang.org/x/mod v0.14.0 // indirect
 	golang.org/x/net v0.19.0 // indirect
 	golang.org/x/sync v0.6.0 // indirect
@@ -266,8 +267,8 @@ require (
 	zombiezen.com/go/sqlite v0.13.1 // indirect
 )
 
-replace github.com/ledgerwatch/erigon-lib => github.com/bobanetwork/v3-erigon/erigon-lib v0.0.0-20240216180755-8a4ed7dc1962
+replace github.com/ledgerwatch/erigon-lib => github.com/bobanetwork/v3-erigon/erigon-lib v0.0.0-20240318172300-bc416811c1de
 
 replace github.com/tendermint/tendermint => github.com/bnb-chain/tendermint v0.31.12
 
-replace github.com/ledgerwatch/erigon => github.com/bobanetwork/v3-erigon v1.0.0
+replace github.com/ledgerwatch/erigon => github.com/bobanetwork/v3-erigon v1.1.2
