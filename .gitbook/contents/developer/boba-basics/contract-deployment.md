@@ -4,7 +4,7 @@ description: Contract deployment examples
 
 # Contract Deployment Example
 
-Please refer to the `./boba_examples` folder. Contract examples include:
+Please refer to the [boba_examples](https://github.com/bobanetwork/boba_legacy/tree/develop/boba_examples) folder. Contract examples include:
 
 1. **hardhat-simple-storage** - shows how to deploy a storage contract to Goerli Boba
 2. **init-fund-l2** - shows how to deposit funds from L1 to L2, on Goerli Boba
@@ -12,17 +12,13 @@ Please refer to the `./boba_examples` folder. Contract examples include:
 
 We'll work though one of those examples in more detail.
 
-
-
-<figure><img src="../../.gitbook/assets/simple ERC20.png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../../../assets/simple ERC20.png" alt=""><figcaption></figcaption></figure>
 
 Welcome to our ERC20 Truffle example. If you're interested in writing your first L2 smart contract using Truffle as your smart contract testing framework, then you've come to the right place. This repo serves as an example for how go through and compile/test/deploy your contracts on Ethereum and the Boba L2.
 
 Let's begin.
 
-
-
-<figure><img src="../../.gitbook/assets/step 1.png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../../../assets/step 1.png" alt=""><figcaption></figcaption></figure>
 
 Compiling a contract for Boba is identical to compiling a contract for Ethereum mainchain. Notably, all standard solidity compiler versions can be used. For this ERC20, we will use `0.6.12`. Create a `truffle-config.js` and add the following to it:
 
@@ -65,9 +61,7 @@ yarn compile
 
 Yep, it's that easy. You can verify that everything went well by looking for the `build` directory that contains your new JSON files. Now let's move on to testing!
 
-
-
-<figure><img src="../../.gitbook/assets/step 2.png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../../../assets/step 2.png" alt=""><figcaption></figcaption></figure>
 
 Woot! It's time to test our contract. Since the JSON RPC provider URL (for Boba Goerli) has already been specified in your Truffle config file, all we need to do next is run the test command. Run:
 
@@ -107,9 +101,7 @@ Compiling your contracts...
 
 If so, congrats! You're ready to deploy an application to Boba. It really is that easy.
 
-
-
-<figure><img src="../../.gitbook/assets/step 3.png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../../../assets/step 3.png" alt=""><figcaption></figcaption></figure>
 
 Now we're going to deploy a contract using `truffle`. For Truffle based deployments, we're going to use Truffle's `migrate` command to run a migrations file for us that will deploy the contract we specify.
 
@@ -195,8 +187,6 @@ Summary
 
 That's pretty much it. Contracts deployed! Tutorial complete. Hopefully now you know the basics of working with Boba!
 
-
-
-<figure><img src="../../.gitbook/assets/troubleshooting.png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../../../assets/troubleshooting.png" alt=""><figcaption></figcaption></figure>
 
 Example project not working? [Create a Github Issue](https://github.com/bobanetwork/boba/issues).

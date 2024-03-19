@@ -1,6 +1,6 @@
 # ERC1155 NFT Bridging
 
-BOBA ERC1155 bridges consists of two bridge contracts. The [L1ERC1155Bridge](https://github.com/bobanetwork/boba/blob/add-ERC1155-bridge/packages/boba/contracts/contracts/ERC1155Bridges/L1ERC1155Bridge.sol) contract is deployed on L1 and the [L2ERC1155Bridge](https://github.com/bobanetwork/boba/blob/add-ERC1155-bridge/packages/boba/contracts/contracts/ERC1155Bridges/L2ERC1155Bridge.sol) contract is deployed on L2. It supports **native L1 ERC1155 tokens** and **native L2 ERC1155 tokens** to be moved back and forth. **These two contracts have not been audited, exercise caution when using this on mainnet.**
+BOBA ERC1155 bridges consists of two bridge contracts. The [L1ERC1155Bridge](https://github.com/bobanetwork/boba\_legacy/blob/add-ERC1155-bridge/packages/boba/contracts/contracts/ERC1155Bridges/L1ERC1155Bridge.sol) contract is deployed on L1 and the [L2ERC1155Bridge](https://github.com/bobanetwork/boba\_legacy/blob/add-ERC1155-bridge/packages/boba/contracts/contracts/ERC1155Bridges/L2ERC1155Bridge.sol) contract is deployed on L2. It supports **native L1 ERC1155 tokens** and **native L2 ERC1155 tokens** to be moved back and forth. **These two contracts have not been audited, exercise caution when using this on mainnet.**
 
 * Native L1 ERC1155 token: the original token contract was deployed on L1
 * Native L2 ERC1155 token: the original token contract was deployed on L2
@@ -9,7 +9,7 @@ Bridging a token to Boba takes several minutes, and bridging a token from Boba t
 
 When deploying your L2StandardERC1155, please take caution if you extend the contract with more features, as an incorrect implementation may result in loss of tokens. For instance, do not add a method that would allow updating the corresponding 'l1Contract' address for an L2StandardERC1155. An update in between operation would deem the previous tokens to be locked on the bridge. Furthermore, The ERC1155Bridge contracts use the information at the time of registration to obtain the l1Token information and send messages between the bridges.
 
-<figure><img src="../../.gitbook/assets/native l1 erc1155.png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../../../assets/native l1 erc1155.png" alt=""><figcaption></figcaption></figure>
 
 Assuming you have already deployed an ERC1155 token contract on L1, and you wish to transfer those tokens to L2, please make sure that your L1 ERC1155 token contract is [ERC1155](https://github.com/ethereum/EIPs/blob/master/EIPS/eip-1155.md) compatible. Your contract must implement `ERC165` and `ERC721` interfaces. We will check the interface before registering your token contracts to our bridges.
 
@@ -18,7 +18,7 @@ bytes4 erc1155 = 0xd9b67a26;
 require(ERC165Checker.supportsInterface(_l1Contract, erc1155), "L1 token is not ERC1155 compatible");
 ```
 
-After verifying the interface, please deploy [L2StandardERC1155](https://github.com/bobanetwork/boba/blob/add-ERC1155-bridge/packages/boba/contracts/contracts/standards/L2StandardERC1155.sol) on Boba. The `L1_ERC1155_TOKEN_CONTRACT_ADDRESS` is the address of your token on Ethereum.
+After verifying the interface, please deploy [L2StandardERC1155](https://github.com/bobanetwork/boba\_legacy/blob/add-ERC1155-bridge/packages/boba/contracts/contracts/standards/L2StandardERC1155.sol) on Boba. The `L1_ERC1155_TOKEN_CONTRACT_ADDRESS` is the address of your token on Ethereum.
 
 ```js
 const Factory__L2StandardERC1155 = new ethers.ContractFactory(
@@ -44,17 +44,17 @@ If you want to deploy your own L2 ERC1155 token contract, please follow requirem
       _mint(_to, _tokenId, _amount, _data);
       emit Mint(_to, _tokenId, _amount);
     }
-
+    
     function mintBatch(address _to, uint256[] memory _tokenIds, uint256[] memory _amounts, bytes memory _data) public virtual override onlyL2Bridge {
       _mintBatch(_to, _tokenIds, _amounts, _data);
       emit MintBatch(_to, _tokenIds, _amounts);
     }
-
+    
     function burn(address _from, uint256 _tokenId, uint256 _amount) public virtual override onlyL2Bridge {
       _burn(_from, _tokenId, _amount);
       emit Burn(_from, _tokenId, _amount);
     }
-
+    
     function burnBatch(address _from, uint256[] memory _tokenIds, uint256[] memory _amounts) public virtual override onlyL2Bridge {
       _burnBatch(_from, _tokenIds, _amounts);
       emit BurnBatch(_from, _tokenIds, _amounts);
@@ -130,9 +130,9 @@ contract L2StandardERC1155 is IL2StandardERC1155, ERC1155 {
 
 > NOTE: Once you have your L2 ERC1155 token contract address, please contact us so we can register that address in the L1 and L2 bridges.
 
-<figure><img src="../../.gitbook/assets/native l2 erc115.png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../../../assets/native l2 erc115.png" alt=""><figcaption></figcaption></figure>
 
-Deploy your ERC115 token on Boba and then deploy [L1StandardERC1155](https://github.com/bobanetwork/boba/blob/add-ERC1155-bridge/packages/boba/contracts/contracts/standards/L1StandardERC1155.sol) on Ethereum. The `L1_ERC1155_TOKEN_CONTRACT_ADDRESS` is the address of your token on Boba.
+Deploy your ERC115 token on Boba and then deploy [L1StandardERC1155](https://github.com/bobanetwork/boba\_legacy/blob/add-ERC1155-bridge/packages/boba/contracts/contracts/standards/L1StandardERC1155.sol) on Ethereum. The `L1_ERC1155_TOKEN_CONTRACT_ADDRESS` is the address of your token on Boba.
 
 ```js
 const Factory__L1StandardERC1155 = new ethers.ContractFactory(
@@ -158,17 +158,17 @@ If you want to deploy your own L1 ERC1155 token contract, please follow requirem
       _mint(_to, _tokenId, _amount, _data);
       emit Mint(_to, _tokenId, _amount);
     }
-
+    
     function mintBatch(address _to, uint256[] memory _tokenIds, uint256[] memory _amounts, bytes memory _data) public virtual override onlyL1Bridge {
       _mintBatch(_to, _tokenIds, _amounts, _data);
       emit MintBatch(_to, _tokenIds, _amounts);
     }
-
+    
     function burn(address _from, uint256 _tokenId, uint256 _amount) public virtual override onlyL1Bridge {
       _burn(_from, _tokenId, _amount);
       emit Burn(_from, _tokenId, _amount);
     }
-
+    
     function burnBatch(address _from, uint256[] memory _tokenIds, uint256[] memory _amounts) public virtual override onlyL1Bridge {
       _burnBatch(_from, _tokenIds, _amounts);
       emit BurnBatch(_from, _tokenIds, _amounts);
@@ -244,7 +244,7 @@ contract L1StandardERC1155 is IL1StandardERC1155, ERC1155 {
 
 > NOTE: Once you have your L1 token contract address, please contact us so we can register that address in the L1 and L2 bridges.
 
-<figure><img src="../../.gitbook/assets/how to bridge erc1155.png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../../../assets/how to bridge erc1155.png" alt=""><figcaption></figcaption></figure>
 
 ### CASE 1 - Native L1 token - Bridge tokens from Ethereum to Boba
 
@@ -363,7 +363,7 @@ const tx = await L2ERC1155Brige.withdraw(
 await tx.wait()
 ```
 
-<figure><img src="../../.gitbook/assets/erc1155 bridge addresses.png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../../../assets/erc1155 bridge addresses.png" alt=""><figcaption></figcaption></figure>
 
 ### Mainnet
 
@@ -374,28 +374,7 @@ await tx.wait()
 | L1    | Proxy\_\_L1ERC1155Bridge | 0x1dF39152AC0e81aB100341cACC4dE4c372A550cb |
 | L2    | Proxy\_\_L2ERC1155Bridge | 0x1dF39152AC0e81aB100341cACC4dE4c372A550cb |
 
-#### Avalanche
-
-| Layer | Contract Name            | Contract Address                           |
-| ----- | ------------------------ | ------------------------------------------ |
-| L1    | Proxy\_\_L1ERC1155Bridge | 0x1dF39152AC0e81aB100341cACC4dE4c372A550cb |
-| L2    | Proxy\_\_L2ERC1155Bridge | 0x1dF39152AC0e81aB100341cACC4dE4c372A550cb |
-
-#### Moonbeam
-
-| Layer | Contract Name            | Contract Address                           |
-| ----- | ------------------------ | ------------------------------------------ |
-| L1    | Proxy\_\_L1ERC1155Bridge | 0x1dF39152AC0e81aB100341cACC4dE4c372A550cb |
-| L2    | Proxy\_\_L2ERC1155Bridge | 0x1dF39152AC0e81aB100341cACC4dE4c372A550cb |
-
 #### BNB Mainnet
-
-| Layer | Contract Name            | Contract Address                           |
-| ----- | ------------------------ | ------------------------------------------ |
-| L1    | Proxy\_\_L1ERC1155Bridge | 0x1dF39152AC0e81aB100341cACC4dE4c372A550cb |
-| L2    | Proxy\_\_L2ERC1155Bridge | 0x1dF39152AC0e81aB100341cACC4dE4c372A550cb |
-
-#### Fantom
 
 | Layer | Contract Name            | Contract Address                           |
 | ----- | ------------------------ | ------------------------------------------ |
@@ -411,28 +390,7 @@ await tx.wait()
 | L1    | Proxy\_\_L1ERC1155Bridge | 0x1dF39152AC0e81aB100341cACC4dE4c372A550cb |
 | L2    | Proxy\_\_L2ERC1155Bridge | 0x1dF39152AC0e81aB100341cACC4dE4c372A550cb |
 
-#### Avalanche Testnet (Fuji)
-
-| Layer | Contract Name            | Contract Address                           |
-| ----- | ------------------------ | ------------------------------------------ |
-| L1    | Proxy\_\_L1ERC1155Bridge | 0x1dF39152AC0e81aB100341cACC4dE4c372A550cb |
-| L2    | Proxy\_\_L2ERC1155Bridge | 0x1dF39152AC0e81aB100341cACC4dE4c372A550cb |
-
-#### Moonbase
-
-| Layer | Contract Name            | Contract Address                           |
-| ----- | ------------------------ | ------------------------------------------ |
-| L1    | Proxy\_\_L1ERC1155Bridge | 0x1dF39152AC0e81aB100341cACC4dE4c372A550cb |
-| L2    | Proxy\_\_L2ERC1155Bridge | 0x1dF39152AC0e81aB100341cACC4dE4c372A550cb |
-
 #### BNB Testnet
-
-| Layer | Contract Name            | Contract Address                           |
-| ----- | ------------------------ | ------------------------------------------ |
-| L1    | Proxy\_\_L1ERC1155Bridge | 0x1dF39152AC0e81aB100341cACC4dE4c372A550cb |
-| L2    | Proxy\_\_L2ERC1155Bridge | 0x1dF39152AC0e81aB100341cACC4dE4c372A550cb |
-
-#### Fantom Testnet
 
 | Layer | Contract Name            | Contract Address                           |
 | ----- | ------------------------ | ------------------------------------------ |

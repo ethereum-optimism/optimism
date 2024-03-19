@@ -2,21 +2,17 @@
 
 Boba Network shares the same [JSON-RPC API (opens new window)](https://eth.wiki/json-rpc/API) as Ethereum. Some new custom methods have been introduced and some other have been made unsupported for operation.
 
+<figure><img src="../../../assets/debug json rpc methods.png" alt=""><figcaption></figcaption></figure>
 
-
-<figure><img src="../../.gitbook/assets/debug json rpc methods.png" alt=""><figcaption></figcaption></figure>
-
-You can use the lightning replica node to debug your transactions.
+You can use the Tenderly node to debug your transactions.
 
 **Example**
 
 ```
-curl https://lightning-replica.boba.network/ -X POST --header 'Content-type: application/json' --data '{"jsonrpc":"2.0", "method":"debug_traceTransaction", "params":["0xf97b6fdce473b96d9cb00bb45d8fbfbc2911f383c7d525ec9d84d916cc30d347", {}], "id":1}'
+curl https://boba-ethereum.gateway.tenderly.co -X POST --header 'Content-type: application/json' --data '{"jsonrpc":"2.0", "method":"debug_traceTransaction", "params":["0xf97b6fdce473b96d9cb00bb45d8fbfbc2911f383c7d525ec9d84d916cc30d347", {}], "id":1}'
 ```
 
-
-
-<figure><img src="../../.gitbook/assets/custom json rpc methods.png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../../../assets/custom json rpc methods.png" alt=""><figcaption></figcaption></figure>
 
 **`eth_getBlockRange`**
 
@@ -263,9 +259,7 @@ curl -X POST -H "Content-Type: application/json" --data '{"jsonrpc":"2.0","metho
 }
 ```
 
-
-
-<figure><img src="../../.gitbook/assets/unspported json rpc methods.png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../../../assets/unspported json rpc methods.png" alt=""><figcaption></figcaption></figure>
 
 **`eth_getAccounts`**
 

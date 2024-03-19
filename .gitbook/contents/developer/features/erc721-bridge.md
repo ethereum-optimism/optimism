@@ -1,6 +1,6 @@
 # ERC721 NFT Bridging
 
-BOBA NFT bridges consists of two bridge contracts. The [L1NFTBridge](https://github.com/bobanetwork/boba/blob/release/v0.2.2/packages/boba/contracts/contracts/bridges/L1NFTBridge.sol) contract is deployed on L1 and the [L2NFTBridge](https://github.com/bobanetwork/boba/blob/release/v0.2.2/packages/boba/contracts/contracts/bridges/L2NFTBridge.sol) contract is deployed on L2. It supports **native L1 NFTs** and **native L2 NFTs** to be moved back and forth. **These two contracts have not been audited, exercise caution when using this on mainnet.**
+BOBA NFT bridges consists of two bridge contracts. The [L1NFTBridge](https://github.com/bobanetwork/boba\_legacy/blob/release/v0.2.2/packages/boba/contracts/contracts/bridges/L1NFTBridge.sol) contract is deployed on L1 and the [L2NFTBridge](https://github.com/bobanetwork/boba\_legacy/blob/release/v0.2.2/packages/boba/contracts/contracts/bridges/L2NFTBridge.sol) contract is deployed on L2. It supports **native L1 NFTs** and **native L2 NFTs** to be moved back and forth. **These two contracts have not been audited, exercise caution when using this on mainnet.**
 
 * Native L1 NFT: the original NFT contract was deployed on L1
 * Native L2 NFT: the original NFT contract was deployed on L2
@@ -9,7 +9,7 @@ Bridging an NFT to Boba takes several minutes, and bridging an NFT from Boba to 
 
 When deploying your L2StandardERC721, please take caution if you extend the contract with more features, as an incorrect implementation may result in loss of tokens. For instance, do not add a method that would allow updating the corresponding 'l1Contract' address for an L2StandardERC721. An update in between operation would deem the previous tokens to be locked on the bridge. Furthermore, The NFTBridge contracts use the information at the time of registration to obtain the l1Token information and send messages between the bridges.
 
-<figure><img src="../../.gitbook/assets/native l1 nft.png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../../../assets/native l1 nft.png" alt=""><figcaption></figcaption></figure>
 
 Assuming you have already deployed an NFT contract on L1, and you wish to transfer those NFTs to L2, please make sure that your L1 NFT contract is [ERC721](https://github.com/ethereum/EIPs/blob/master/EIPS/eip-721.md) compatible. Your contract must implement `ERC165` and `ERC721` interfaces. We will check the interface before registering your NFT contracts to our bridges.
 
@@ -97,9 +97,9 @@ contract L2StandardERC721 is IL2StandardERC721, ERC721 {
 
 > NOTE: Once you have your L2 NFT contract address, please contact us so we can register that address in the L1 and L2 NFT bridges.
 
-<figure><img src="../../.gitbook/assets/native l2 nft.png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../../../assets/native l2 nft.png" alt=""><figcaption></figcaption></figure>
 
-Deploy your NFT on Boba and then deploy [L1StandardERC721](https://github.com/bobanetwork/boba/blob/release/v0.2.2/packages/boba/contracts/contracts/standards/L1StandardERC721.sol) on Ethereum. The `L2_NFT_CONTRACT_ADDRESS` is the address of your NFT on Boba.
+Deploy your NFT on Boba and then deploy [L1StandardERC721](https://github.com/bobanetwork/boba\_legacy/blob/release/v0.2.2/packages/boba/contracts/contracts/standards/L1StandardERC721.sol) on Ethereum. The `L2_NFT_CONTRACT_ADDRESS` is the address of your NFT on Boba.
 
 ```js
 const Factory__L1StandardERC721 = new ethers.ContractFactory(
@@ -180,7 +180,7 @@ contract L1StandardERC721 is IL1StandardERC721, ERC721 {
 
 > NOTE: Once you have your L1 NFT contract address, please contact us so we can register that address in the L1 and L2 NFT bridges.
 
-<figure><img src="../../.gitbook/assets/how to bridge nfts.png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../../../assets/how to bridge nfts.png" alt=""><figcaption></figcaption></figure>
 
 ### CASE 1 - Native L1 NFT - Bridge NFTs from Ethereum to Boba
 
@@ -274,7 +274,7 @@ const tx = await L1NFTBrige.depositNFT(
 await tx.wait()
 ```
 
-<figure><img src="../../.gitbook/assets/more advanced options.png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../../../assets/more advanced options.png" alt=""><figcaption></figcaption></figure>
 
 Attempting to categorize ERC721s on the basis of metadata, we have:
 
@@ -384,7 +384,7 @@ const withdrawToTx = await L2NFTBrige.withdrawTo(
 await withdrawToTx.wait()
 ```
 
-<figure><img src="../../.gitbook/assets/nft bridges addresses.png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../../../assets/nft bridges addresses.png" alt=""><figcaption></figcaption></figure>
 
 ### Mainnet
 
@@ -395,33 +395,12 @@ await withdrawToTx.wait()
 | L1    | Proxy\_\_L1NFTBridge | 0xC891F466e53f40603250837282eAE4e22aD5b088 |
 | L2    | Proxy\_\_L2NFTBridge | 0xFB823b65D0Dc219fdC0d759172D1E098dA32f9eb |
 
-#### Avalanche
-
-| Layer | Contract Name        | Contract Address                           |
-| ----- | -------------------- | ------------------------------------------ |
-| L1    | Proxy\_\_L1NFTBridge | 0x328eb74673Eaa1D2d90A48E8137b015F1B6Ed35d |
-| L2    | Proxy\_\_L2NFTBridge | 0x1A0245f23056132fEcC7098bB011C5C303aE0625 |
-
-#### Moonbeam
-
-| Layer | Contract Name        | Contract Address                           |
-| ----- | -------------------- | ------------------------------------------ |
-| L1    | Proxy\_\_L1NFTBridge | 0x7f61EB6FFe966E8c14AFb8754Bf0825eb6f54bd7 |
-| L2    | Proxy\_\_L2NFTBridge | 0x9182A0AA011f97633d44383F446A5951bDD3f5bf |
-
 #### BNB Mainnet
 
 | Layer | Contract Name        | Contract Address                           |
 | ----- | -------------------- | ------------------------------------------ |
 | L1    | Proxy\_\_L1NFTBridge | 0x76bD545C03391d4e6E3d5cC2B5617c94C6038c86 |
 | L2    | Proxy\_\_L2NFTBridge | 0xA774C3f4572C5BA93F75D802ea7Dc6F93228e5cc |
-
-#### Fantom
-
-| Layer | Contract Name        | Contract Address                           |
-| ----- | -------------------- | ------------------------------------------ |
-| L1    | Proxy\_\_L1NFTBridge | 0x58bfe4D8108f0657585c9e4C106B3FB8b469eeB9 |
-| L2    | Proxy\_\_L2NFTBridge | 0xd0223931513E72C4cbBE97662C07825C7E71DD9C |
 
 ### Testnet
 
@@ -432,30 +411,9 @@ await withdrawToTx.wait()
 | L1    | Proxy\_\_L1NFTBridge | 0xa2232D3c81EFd46815c1adf48Ed86C5C377cb6e2 |
 | L2    | Proxy\_\_L2NFTBridge | 0xF84979ADeb8D2Dd25f54cF8cBbB05C08eC188e11 |
 
-#### Avalanche Testnet (Fuji)
-
-| Layer | Contract Name        | Contract Address                           |
-| ----- | -------------------- | ------------------------------------------ |
-| L1    | Proxy\_\_L1NFTBridge | 0xA7A1415eC63Bf410b27AcDAF42fC3c63756E2bFc |
-| L2    | Proxy\_\_L2NFTBridge | 0x2e59D69cA439b3ab0c1AD8b2762377Afb5C71C7B |
-
-#### Moonbase
-
-| Layer | Contract Name        | Contract Address                           |
-| ----- | -------------------- | ------------------------------------------ |
-| L1    | Proxy\_\_L1NFTBridge | 0x1E12Ba552Ac35351563091737910d9E5d1DaD17a |
-| L2    | Proxy\_\_L2NFTBridge | 0x8E65834B52c3aCc79206a0F09c4b627BC588f09e |
-
 #### BNB Testnet
 
 | Layer | Contract Name        | Contract Address                           |
 | ----- | -------------------- | ------------------------------------------ |
 | L1    | Proxy\_\_L1NFTBridge | 0x4c3f621d01c22658F711c70a12662ECDfCA5916A |
 | L2    | Proxy\_\_L2NFTBridge | 0x6fA80303E479Ea2d705F4f241Ef162aA2F793e71 |
-
-#### Fantom Testnet
-
-| Layer | Contract Name        | Contract Address                           |
-| ----- | -------------------- | ------------------------------------------ |
-| L1    | Proxy\_\_L1NFTBridge | 0x5E52f340D43Ee819dd8a38D55Cc27293603Ac5fb |
-| L2    | Proxy\_\_L2NFTBridge | 0x310FA48450dF21fBC99b937a7AafBc3B7Af6f6D1 |
