@@ -3,7 +3,8 @@ pragma solidity 0.8.15;
 
 import { Proxy } from "src/universal/Proxy.sol";
 import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
-import { AnchorStateRegistry } from "src/dispute/AnchorStateRegistry.sol";
+import { AnchorStateRegistry, IAnchorStateRegistry } from "src/dispute/AnchorStateRegistry.sol";
+import { IDelayedWETH } from "src/dispute/interfaces/IDelayedWETH.sol";
 import { StdAssertions } from "forge-std/StdAssertions.sol";
 import "src/libraries/DisputeTypes.sol";
 import "scripts/Deploy.s.sol";
@@ -50,6 +51,7 @@ contract FPACOPS is Deploy, StdAssertions {
         // of the DisputeGameFactoryProxy to the ProxyAdmin.
         transferDGFOwnershipFinal({ _proxyAdmin: _proxyAdmin, _systemOwnerSafe: _systemOwnerSafe });
         transferWethOwnershipFinal({ _proxyAdmin: _proxyAdmin, _systemOwnerSafe: _systemOwnerSafe });
+        transferAnchorStateOwnershipFinal({ _proxyAdmin: _proxyAdmin });
 
         // Run post-deployment assertions.
         postDeployAssertions({ _proxyAdmin: _proxyAdmin, _systemOwnerSafe: _systemOwnerSafe });
@@ -70,6 +72,11 @@ contract FPACOPS is Deploy, StdAssertions {
         Proxy(payable(dgfProxy)).upgradeToAndCall(
             mustGetAddress("DisputeGameFactory"), abi.encodeCall(DisputeGameFactory.initialize, msg.sender)
         );
+
+        // Set the initialization bonds for the FaultDisputeGame and PermissionedDisputeGame.
+        DisputeGameFactory dgf = DisputeGameFactory(dgfProxy);
+        dgf.setInitBond(GameTypes.CANNON, 0.08 ether);
+        dgf.setInitBond(GameTypes.PERMISSIONED_CANNON, 0.08 ether);
     }
 
     function initializeDelayedWETHProxy() internal broadcast {
@@ -131,6 +138,15 @@ contract FPACOPS is Deploy, StdAssertions {
 
         // Transfer the admin rights of the DelayedWETHProxy to the ProxyAdmin.
         Proxy prox = Proxy(payable(address(weth)));
+        prox.changeAdmin(_proxyAdmin);
+    }
+
+    /// @notice Transfers admin rights of the `AnchorStateRegistryProxy` to the `ProxyAdmin`.
+    function transferAnchorStateOwnershipFinal(address _proxyAdmin) internal broadcast {
+        AnchorStateRegistry asr = AnchorStateRegistry(mustGetAddress("AnchorStateRegistryProxy"));
+
+        // Transfer the admin rights of the AnchorStateRegistryProxy to the ProxyAdmin.
+        Proxy prox = Proxy(payable(address(asr)));
         prox.changeAdmin(_proxyAdmin);
     }
 
