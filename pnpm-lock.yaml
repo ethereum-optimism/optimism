@@ -454,6 +454,9 @@ importers:
         specifier: ^7.6.0
         version: 7.6.0
     devDependencies:
+      '@eth-optimism/common-ts':
+        specifier: workspace:^
+        version: link:../common-ts
       '@ethersproject/abstract-provider':
         specifier: ^5.7.0
         version: 5.7.0

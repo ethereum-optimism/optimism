@@ -16,6 +16,7 @@ import l2ToL1MessagePasser from '@eth-optimism/contracts-bedrock/forge-artifacts
 import gasPriceOracle from '@eth-optimism/contracts-bedrock/forge-artifacts/GasPriceOracle.sol/GasPriceOracle.json'
 import disputeGameFactory from '@eth-optimism/contracts-bedrock/forge-artifacts/DisputeGameFactory.sol/DisputeGameFactory.json'
 import optimismPortal2 from '@eth-optimism/contracts-bedrock/forge-artifacts/OptimismPortal2.sol/OptimismPortal2.json'
+import faultDisputeGame from '@eth-optimism/contracts-bedrock/forge-artifacts/FaultDisputeGame.sol/FaultDisputeGame.json'
 
 import { toAddress } from './coercion'
 import { DeepPartial } from './type-utils'
@@ -48,7 +49,9 @@ const NAME_REMAPPING = {
   BedrockMessagePasser: 'L2ToL1MessagePasser' as const,
 }
 
-const getContractInterfaceBedrock = (name: string): ethers.utils.Interface => {
+export const getContractInterfaceBedrock = (
+  name: string
+): ethers.utils.Interface => {
   let artifact: any = ''
   switch (name) {
     case 'Lib_AddressManager':
@@ -102,6 +105,9 @@ const getContractInterfaceBedrock = (name: string): ethers.utils.Interface => {
       break
     case 'OptimismPortal2':
       artifact = optimismPortal2
+      break
+    case 'FaultDisputeGame':
+      artifact = faultDisputeGame
       break
   }
   return new ethers.utils.Interface(artifact.abi)
