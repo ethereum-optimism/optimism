@@ -192,11 +192,9 @@ func SetImplementations(g *types.Genesis, storage state.StorageConfig, immutable
 			genesisAccount := types.GenesisAccount{
 				Constructor: g.Alloc[*address].Constructor,
 				Code:        g.Alloc[*address].Code,
-				Storage: map[common.Hash]common.Hash{
-					ImplementationSlot: codeAddr.Hash(),
-				},
-				Balance: balance,
-				Nonce:   g.Alloc[*address].Nonce,
+				Storage:     map[common.Hash]common.Hash{},
+				Balance:     balance,
+				Nonce:       g.Alloc[*address].Nonce,
 			}
 			g.Alloc[*address] = genesisAccount
 		}
