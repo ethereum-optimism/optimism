@@ -12,13 +12,15 @@ import (
 	"golang.org/x/exp/maps"
 )
 
+var _ Enricher = (*BondEnricher)(nil)
+
 var ErrIncorrectCreditCount = errors.New("incorrect credit count")
 
 type BondCaller interface {
 	GetCredits(context.Context, rpcblock.Block, ...common.Address) ([]*big.Int, error)
 }
-type BondEnricher struct {
-}
+
+type BondEnricher struct{}
 
 func NewBondEnricher() *BondEnricher {
 	return &BondEnricher{}
