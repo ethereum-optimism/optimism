@@ -402,7 +402,7 @@ func DiffTestUtils() {
 		}
 
 		// Encode L1 block info
-		encoded, err := l1BlockInfo.marshalBinaryInterop()
+		encoded, err := l1BlockInfo.MarshalBinaryInterop()
 		checkErr(err, "Error encoding cross domain message")
 
 		// Pack encoded cross domain message

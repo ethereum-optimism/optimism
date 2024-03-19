@@ -506,3 +506,8 @@ func L1InfoDepositBytes(rollupCfg *rollup.Config, sysCfg eth.SystemConfig, seqNu
 func L1InfoInteropLen(dependencySetSize uint8) int {
 	return 4 + 32*5 + 1 + 32*int(dependencySetSize)
 }
+
+// MarshalBinary makes marshalBinaryInterop externally accessible
+func (info *L1BlockInfo) MarshalBinaryInterop() ([]byte, error) {
+	return info.marshalBinaryInterop()
+}
