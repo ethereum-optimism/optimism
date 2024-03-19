@@ -125,17 +125,17 @@ contract L1BlockEcotone_Test is L1BlockTest {
 
     /// @dev Tests that `setL1BlockValuesEcotone` succeeds if sender address is the depositor
     function test_setL1BlockValuesEcotone_isDepositor_succeeds() external {
-        bytes memory functionCallDataPacked = Encoding.encodeSetL1BlockValuesEcotone(
-            type(uint32).max,
-            type(uint32).max,
-            type(uint64).max,
-            type(uint64).max,
-            type(uint64).max,
-            type(uint256).max,
-            type(uint256).max,
-            bytes32(type(uint256).max),
-            bytes32(type(uint256).max)
-        );
+        bytes memory functionCallDataPacked = Encoding.encodeSetL1BlockValuesEcotone({
+            baseFeeScalar: type(uint32).max,
+            blobBaseFeeScalar: type(uint32).max,
+            sequenceNumber: type(uint64).max,
+            timestamp: type(uint64).max,
+            number: type(uint64).max,
+            baseFee: type(uint256).max,
+            blobBaseFee: type(uint256).max,
+            hash: bytes32(type(uint256).max),
+            batcherHash: bytes32(type(uint256).max)
+        });
 
         vm.prank(depositor);
         (bool success,) = address(l1Block).call(functionCallDataPacked);
@@ -144,17 +144,17 @@ contract L1BlockEcotone_Test is L1BlockTest {
 
     /// @dev Tests that `setL1BlockValuesEcotone` fails if sender address is not the depositor
     function test_setL1BlockValuesEcotone_notDepositor_fails() external {
-        bytes memory functionCallDataPacked = Encoding.encodeSetL1BlockValuesEcotone(
-            type(uint32).max,
-            type(uint32).max,
-            type(uint64).max,
-            type(uint64).max,
-            type(uint64).max,
-            type(uint256).max,
-            type(uint256).max,
-            bytes32(type(uint256).max),
-            bytes32(type(uint256).max)
-        );
+        bytes memory functionCallDataPacked = Encoding.encodeSetL1BlockValuesEcotone({
+            baseFeeScalar: type(uint32).max,
+            blobBaseFeeScalar: type(uint32).max,
+            sequenceNumber: type(uint64).max,
+            timestamp: type(uint64).max,
+            number: type(uint64).max,
+            baseFee: type(uint256).max,
+            blobBaseFee: type(uint256).max,
+            hash: bytes32(type(uint256).max),
+            batcherHash: bytes32(type(uint256).max)
+        });
 
         (bool success, bytes memory data) = address(l1Block).call(functionCallDataPacked);
         assertTrue(!success, "function call should have failed");
@@ -180,6 +180,7 @@ contract L1BlockInterop_Test is L1BlockTest {
         external
     {
         vm.assume(dependencySet.length <= type(uint8).max);
+        vm.assume(uint160(uint256(batcherHash)) == uint256(batcherHash));
 
         bytes memory functionCallDataPacked = Encoding.encodeSetL1BlockValuesInterop({
             _baseFeeScalar: baseFeeScalar,
@@ -228,18 +229,18 @@ contract L1BlockInterop_Test is L1BlockTest {
 
     /// @dev Tests that `setL1BlockValuesInterop` succeeds if sender address is the depositor
     function test_setL1BlockValuesInterop_isDepositor_succeeds() external {
-        bytes memory functionCallDataPacked = Encoding.encodeSetL1BlockValuesInterop(
-            type(uint32).max,
-            type(uint32).max,
-            type(uint64).max,
-            type(uint64).max,
-            type(uint64).max,
-            type(uint256).max,
-            type(uint256).max,
-            bytes32(type(uint256).max),
-            bytes32(type(uint256).max),
-            new uint256[](0)
-        );
+        bytes memory functionCallDataPacked = Encoding.encodeSetL1BlockValuesInterop({
+            _baseFeeScalar: type(uint32).max,
+            _blobBaseFeeScalar: type(uint32).max,
+            _sequenceNumber: type(uint64).max,
+            _timestamp: type(uint64).max,
+            _number: type(uint64).max,
+            _baseFee: type(uint256).max,
+            _blobBaseFee: type(uint256).max,
+            _hash: bytes32(type(uint256).max),
+            _batcherHash: bytes32(0),
+            _dependencySet: new uint256[](0)
+        });
 
         vm.prank(depositor);
         (bool success,) = address(l1Block).call(functionCallDataPacked);
@@ -248,18 +249,18 @@ contract L1BlockInterop_Test is L1BlockTest {
 
     /// @dev Tests that `setL1BlockValuesInterop` fails if sender address is not the depositor
     function test_setL1BlockValuesInterop_isDepositor_fails() external {
-        bytes memory functionCallDataPacked = Encoding.encodeSetL1BlockValuesInterop(
-            type(uint32).max,
-            type(uint32).max,
-            type(uint64).max,
-            type(uint64).max,
-            type(uint64).max,
-            type(uint256).max,
-            type(uint256).max,
-            bytes32(type(uint256).max),
-            bytes32(type(uint256).max),
-            new uint256[](0)
-        );
+        bytes memory functionCallDataPacked = Encoding.encodeSetL1BlockValuesInterop({
+            _baseFeeScalar: type(uint32).max,
+            _blobBaseFeeScalar: type(uint32).max,
+            _sequenceNumber: type(uint64).max,
+            _timestamp: type(uint64).max,
+            _number: type(uint64).max,
+            _baseFee: type(uint256).max,
+            _blobBaseFee: type(uint256).max,
+            _hash: bytes32(type(uint256).max),
+            _batcherHash: bytes32(0),
+            _dependencySet: new uint256[](0)
+        });
 
         (bool success, bytes memory data) = address(l1Block).call(functionCallDataPacked);
         assertTrue(!success, "function call should have failed");
@@ -274,18 +275,18 @@ contract L1BlockInterop_Test is L1BlockTest {
     {
         vm.assume(dependencySet.length <= type(uint8).max);
 
-        bytes memory functionCallDataPacked = Encoding.encodeSetL1BlockValuesInterop(
-            type(uint32).max,
-            type(uint32).max,
-            type(uint64).max,
-            type(uint64).max,
-            type(uint64).max,
-            type(uint256).max,
-            type(uint256).max,
-            bytes32(type(uint256).max),
-            bytes32(type(uint256).max),
-            dependencySet
-        );
+        bytes memory functionCallDataPacked = Encoding.encodeSetL1BlockValuesInterop({
+            _baseFeeScalar: type(uint32).max,
+            _blobBaseFeeScalar: type(uint32).max,
+            _sequenceNumber: type(uint64).max,
+            _timestamp: type(uint64).max,
+            _number: type(uint64).max,
+            _baseFee: type(uint256).max,
+            _blobBaseFee: type(uint256).max,
+            _hash: bytes32(type(uint256).max),
+            _batcherHash: bytes32(0),
+            _dependencySet: dependencySet
+        });
 
         vm.prank(depositor);
         (bool success,) = address(l1Block).call(functionCallDataPacked);
@@ -342,6 +343,7 @@ contract L1BlockInterop_Test is L1BlockTest {
         external
     {
         vm.assume(dependencySet.length <= type(uint8).max);
+        vm.assume(uint160(uint256(batcherHash)) == uint256(batcherHash));
 
         bytes memory functionCallDataPacked = Encoding.encodeSetL1BlockValuesInterop({
             _baseFeeScalar: baseFeeScalar,
@@ -388,7 +390,7 @@ contract L1BlockInterop_Test is L1BlockTest {
             _baseFee: 0,
             _blobBaseFee: 0,
             _hash: bytes32(0),
-            _batcherHash: 0,
+            _batcherHash: bytes32(0),
             _dependencySet: dependencySet
         });
 
