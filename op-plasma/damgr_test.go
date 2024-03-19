@@ -213,6 +213,51 @@ func TestExpireChallenges(t *testing.T) {
 	require.Equal(t, uint64(3713926), bn)
 }
 
+func TestDAChallengeDetached(t *testing.T) {
+	logger := testlog.Logger(t, log.LvlDebug)
+
+	rng := rand.New(rand.NewSource(1234))
+	state := NewState(logger, &NoopMetrics{})
+
+	challengeWindow := uint64(6)
+	resolveWindow := uint64(6)
+
+	c1 := RandomData(rng, 32)
+	c2 := RandomData(rng, 32)
+
+	// c1 at bn1 is missing, pipeline stalls
+	state.GetOrTrackChallenge(c1, 1, challengeWindow)
+
+	// c2 at bn2 is challenged at bn3
+	require.True(t, state.IsTracking(c2, 2))
+	state.SetActiveChallenge(c2, 3, resolveWindow)
+
+	// c1 is finally challenged at bn5
+	state.SetActiveChallenge(c1, 5, resolveWindow)
+
+	// c2 expires but should not trigger a reset because we don't know if it's valid yet
+	bn, err := state.ExpireChallenges(10)
+	require.NoError(t, err)
+	require.Equal(t, uint64(0), bn)
+
+	// c1 expires finally
+	bn, err = state.ExpireChallenges(11)
+	require.ErrorIs(t, err, ErrReorgRequired)
+	require.Equal(t, uint64(1), bn)
+
+	// pruning finalized block is safe
+	state.Prune(bn)
+
+	// pipeline discovers c2
+	comm := state.GetOrTrackChallenge(c2, 2, challengeWindow)
+	// it is already marked as expired so it will be skipped without needing a reorg
+	require.Equal(t, ChallengeExpired, comm.challengeStatus)
+
+	// later when we get to finalizing block 10 + margin, the pending challenge is safely pruned
+	state.Prune(210)
+	require.Equal(t, 0, len(state.expiredComms))
+}
+
 // cannot import from testutils at this time because of import cycle
 type mockL1Fetcher struct {
 	mock.Mock
@@ -261,7 +306,9 @@ func TestFilterInvalidBlockNumber(t *testing.T) {
 	bn := uint64(19)
 	bhash := common.HexToHash("0xd438144ffab918b1349e7cd06889c26800c26d8edc34d64f750e3e097166a09c")
 
-	da := NewPlasmaDAWithStorage(logger, pcfg, storage, &NoopMetrics{})
+	state := NewState(logger, &NoopMetrics{})
+
+	da := NewPlasmaDAWithState(logger, pcfg, storage, &NoopMetrics{}, state)
 
 	receipts := types.Receipts{&types.Receipt{
 		Type:   2,
@@ -292,13 +339,28 @@ func TestFilterInvalidBlockNumber(t *testing.T) {
 	}
 	l1F.ExpectFetchReceipts(bhash, nil, receipts, nil)
 
-	// we get 1 logs successfully filtered as valid status updated contract event
+	// we get 1 log successfully filtered as valid status updated contract event
 	logs, err := da.fetchChallengeLogs(ctx, l1F, id)
 	require.NoError(t, err)
 	require.Equal(t, len(logs), 1)
 
-	_, _, err = da.decodeChallengeStatus(logs[0])
-	// challenge was successfully decoded but is invalid because it does not belong
-	// to any known commitment previously submitted onchain.
-	require.ErrorIs(t, err, ErrInvalidChallenge)
+	// commitment is tracked but not canonical
+	status, comm, err := da.decodeChallengeStatus(logs[0])
+	require.NoError(t, err)
+
+	c, has := state.commsByKey[string(comm.Encode())]
+	require.True(t, has)
+	require.False(t, c.canonical)
+
+	require.Equal(t, ChallengeActive, status)
+	// once tracked, set as active based on decoded status
+	state.SetActiveChallenge(comm.Encode(), bn, pcfg.ResolveWindow)
+
+	// once we request it during derivation it becomes canonical
+	tracked := state.GetOrTrackChallenge(comm.Encode(), 14, pcfg.ChallengeWindow)
+	require.True(t, tracked.canonical)
+
+	require.Equal(t, ChallengeActive, tracked.challengeStatus)
+	require.Equal(t, uint64(14), tracked.blockNumber)
+	require.Equal(t, bn+pcfg.ResolveWindow, tracked.expiresAt)
 }
