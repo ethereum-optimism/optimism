@@ -1,1 +1,5 @@
-{"name":"post-shanghai-bad-receipts-hash","fail":true, "reason":"failed to verify block hash"}
+{
+  "name": "post-shanghai-bad-receipts-hash",
+  "fail": true,
+  "reason": "failed to verify block hash"
+}

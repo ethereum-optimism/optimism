@@ -137,13 +137,22 @@ test('estimateFees should return correct fees', async () => {
   })
   expect(res2).toMatchInlineSnapshot('62857090247510n')
   expect(
-    await estimateFees({ ...paramsWithRpcUrlWithdraw, ...functionDataWithdraw })
+    await estimateFees({
+      ...paramsWithRpcUrlWithdraw,
+      ...functionDataWithdraw,
+    })
   ).toMatchInlineSnapshot('62857090247510n')
   expect(
-    await estimateFees({ ...paramsWithRpcUrlWithdraw, ...functionDataWithdraw })
+    await estimateFees({
+      ...paramsWithRpcUrlWithdraw,
+      ...functionDataWithdraw,
+    })
   ).toMatchInlineSnapshot('62857090247510n')
   expect(
-    await estimateFees({ ...paramsWithRpcUrlWithdraw, ...functionDataWithdraw })
+    await estimateFees({
+      ...paramsWithRpcUrlWithdraw,
+      ...functionDataWithdraw,
+    })
   ).toMatchInlineSnapshot('62857090247510n')
   expect(formatEther(res2)).toMatchInlineSnapshot('"0.00006285709024751"')
   // what is the l2 and l1 part of the fees for reference?
@@ -219,7 +228,10 @@ test('getL1GasUsed should return the correct result', async () => {
   ).toMatchInlineSnapshot('2324n')
   // withdraw
   expect(
-    await getL1GasUsed({ ...paramsWithRpcUrlWithdraw, ...functionDataWithdraw })
+    await getL1GasUsed({
+      ...paramsWithRpcUrlWithdraw,
+      ...functionDataWithdraw,
+    })
   ).toMatchInlineSnapshot('2868n')
 })
 

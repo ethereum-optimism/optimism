@@ -1,4 +1,4 @@
-import { defineConfig, devices } from '@playwright/test';
+import { defineConfig, devices } from '@playwright/test'
 
 /**
  * Read environment variables from file.
@@ -42,4 +42,4 @@ export default defineConfig({
     url: process.env.METAMASK_DAPP_URL,
     reuseExistingServer: false,
   },
-});
+})

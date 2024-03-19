@@ -33,7 +33,7 @@ import {
 export abstract class BaseServiceV2<
   TOptions extends Options,
   TMetrics extends Metrics,
-  TServiceState
+  TServiceState,
 > {
   /**
    * The timeout that controls the polling interval

@@ -21,14 +21,10 @@
     }
   },
   "types": "src/estimateFees.ts",
-  "files": [
-    "dist/",
-    "src/"
-  ],
+  "files": ["dist/", "src/"],
   "scripts": {
     "build": "tsup",
-    "lint": "prettier --check .",
-    "lint:fix": "prettier --write .",
+    "lint:fix": "biome format . --write",
     "test": "vitest",
     "test:coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit"

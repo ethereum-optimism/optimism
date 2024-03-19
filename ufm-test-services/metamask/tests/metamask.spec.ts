@@ -185,7 +185,10 @@ test('Send an EIP-1559 transaction and verify success', async () => {
   await setFeeEstimationGauge('low', lowFeeEstimate)
   await setFeeEstimationGauge('medium', mediumFeeEstimate)
   await setFeeEstimationGauge('high', highFeeEstimate)
-  await setFeeEstimationGauge('actual', getActualTransactionFee(transactionReceipt))
+  await setFeeEstimationGauge(
+    'actual',
+    getActualTransactionFee(transactionReceipt)
+  )
 })
 
 const getFeeEstimateInGwei = async (
@@ -213,7 +216,9 @@ const getFeeEstimateInGwei = async (
   return parseInt(parseGwei(feeValue).toString())
 }
 
-const getActualTransactionFee = (transactionReceipt: Record<string, string>) => {
+const getActualTransactionFee = (
+  transactionReceipt: Record<string, string>
+) => {
   const effectiveGasPrice = BigInt(transactionReceipt.effectiveGasPrice)
   const l2GasUsed = BigInt(transactionReceipt.gasUsed)
   const l1Fee = BigInt(transactionReceipt.l1Fee)

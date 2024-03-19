@@ -12,8 +12,7 @@
   "type": "module",
   "scripts": {
     "clean": "rm -rf node_modules packages/*/node_modules && echo 'Finished cleaning'",
-    "lint": "prettier --check .",
-    "lint:fix": "prettier --write .",
+    "lint:fix": "biome format . --write",
     "start:metamask-dapp": "npx serve -l 9011 node_modules/@metamask/test-dapp/dist",
     "test": "npx playwright test"
   },

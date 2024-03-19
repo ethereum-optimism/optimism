@@ -108,9 +108,8 @@ export class HealthcheckService extends BaseServiceV2<
     // Get the latest block from the reference client and check for connection failures.
     let referenceLatest: Block
     try {
-      referenceLatest = await this.options.referenceRpcProvider.getBlock(
-        'latest'
-      )
+      referenceLatest =
+        await this.options.referenceRpcProvider.getBlock('latest')
     } catch (err) {
       if (err.message.includes('could not detect network')) {
         this.logger.error('reference client not connected')

@@ -79,7 +79,7 @@ export type GasPriceOracleOptions = BlockOptions & { client: ClientOptions }
  */
 export type OracleTransactionParameters<
   TAbi extends Abi | readonly unknown[],
-  TFunctionName extends string | undefined = undefined
+  TFunctionName extends string | undefined = undefined,
 > = EncodeFunctionDataParameters<TAbi, TFunctionName> &
   Omit<TransactionSerializableEIP1559, 'data' | 'type'>
 /**
@@ -87,7 +87,7 @@ export type OracleTransactionParameters<
  */
 export type GasPriceOracleEstimator = <
   TAbi extends Abi | readonly unknown[],
-  TFunctionName extends string | undefined = undefined
+  TFunctionName extends string | undefined = undefined,
 >(
   options: OracleTransactionParameters<TAbi, TFunctionName> &
     GasPriceOracleOptions
@@ -110,7 +110,7 @@ const validateFetch = (): void => {
  */
 const transactionSerializer = <
   TAbi extends Abi | readonly unknown[],
-  TFunctionName extends string | undefined = undefined
+  TFunctionName extends string | undefined = undefined,
 >(
   options: EncodeFunctionDataParameters<TAbi, TFunctionName> &
     Omit<TransactionSerializableEIP1559, 'data'>
@@ -316,7 +316,7 @@ export type EstimateFeeParams = {
 
 export type EstimateFees = <
   TAbi extends Abi | readonly unknown[],
-  TFunctionName extends string | undefined = undefined
+  TFunctionName extends string | undefined = undefined,
 >(
   options: OracleTransactionParameters<TAbi, TFunctionName> &
     GasPriceOracleOptions &

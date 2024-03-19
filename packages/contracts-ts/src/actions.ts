@@ -9207,7 +9207,11 @@ export function getDrippie(
     chainId?: keyof typeof drippieAddress
   }
 ) {
-  return getContract({ abi: drippieABI, address: drippieAddress[1], ...config })
+  return getContract({
+    abi: drippieABI,
+    address: drippieAddress[1],
+    ...config,
+  })
 }
 
 /**

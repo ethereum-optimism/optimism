@@ -30,17 +30,13 @@
       "require": "./dist/react.cjs"
     }
   },
-  "files": [
-    "dist/",
-    "src/"
-  ],
+  "files": ["dist/", "src/"],
   "scripts": {
     "build": "tsup",
     "clean": "rm -rf ./dist",
     "generate": "wagmi generate && pnpm build && pnpm lint:fix",
     "generate:check": "pnpm generate && git diff --exit-code ./addresses.json && git diff --exit-code ./abis.json",
-    "lint": "prettier --check .",
-    "lint:fix": "prettier --write .",
+    "lint:fix": "biome format . --write",
     "test": "vitest",
     "test:coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit"

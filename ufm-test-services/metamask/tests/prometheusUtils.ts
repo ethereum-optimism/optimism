@@ -163,14 +163,16 @@ export const getSelfSendGaugeValue = async () => {
 
 const pushMetricsGrafana = (metricName: string, valueToSetTo: number) =>
   pushMetricsWriteUrl(
-    `${metricName},source=${
-      env.METRICS_WRITE_SOURCE
-    } metric=${valueToSetTo}`
+    `${metricName},source=${env.METRICS_WRITE_SOURCE} metric=${valueToSetTo}`
   )
 
 const pushMetricsPrometheusPushgateway = (registry: Registry) => {
-  const pushGateway = new Pushgateway(env.METRICS_WRITE_URL, undefined, registry)
-  return pushGateway.pushAdd({ jobName: 'ufm-metamask-metric-push'})
+  const pushGateway = new Pushgateway(
+    env.METRICS_WRITE_URL,
+    undefined,
+    registry
+  )
+  return pushGateway.pushAdd({ jobName: 'ufm-metamask-metric-push' })
 }
 
 const pushMetricsWriteUrl = async (requestBody: string) => {
@@ -197,7 +199,10 @@ export const setSelfSendTxGauge = async (valueToSetTo: number) => {
   selfSendGauge.set(valueToSetTo)
 
   env.METRICS_WRITE_TOOL === 'grafana'
-    ? await pushMetricsGrafana(selfSendTransactionMetricName.replace('_metric', ''), valueToSetTo)
+    ? await pushMetricsGrafana(
+        selfSendTransactionMetricName.replace('_metric', ''),
+        valueToSetTo
+      )
     : await pushMetricsPrometheusPushgateway(selfSendRegistry)
 }
 

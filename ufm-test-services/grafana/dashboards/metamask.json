@@ -100,16 +100,12 @@
       "id": 1,
       "options": {
         "legend": {
-          "calcs": [
-            "last"
-          ],
+          "calcs": ["last"],
           "displayMode": "list",
           "placement": "bottom",
           "showLegend": true
         },
-        "timezone": [
-          "browser"
-        ],
+        "timezone": ["browser"],
         "tooltip": {
           "mode": "single",
           "sort": "none"
@@ -272,16 +268,12 @@
       "id": 2,
       "options": {
         "legend": {
-          "calcs": [
-            "last"
-          ],
+          "calcs": ["last"],
           "displayMode": "table",
           "placement": "bottom",
           "showLegend": true
         },
-        "timezone": [
-          "browser"
-        ],
+        "timezone": ["browser"],
         "tooltip": {
           "mode": "single",
           "sort": "none"

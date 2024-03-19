@@ -543,9 +543,8 @@ describe('CrossChainMessenger', () => {
 
         const foundCrossChainMessages =
           await messenger.getMessagesByTransaction(tx)
-        const foundTokenBridgeMessages = await messenger.getDepositsByAddress(
-          from
-        )
+        const foundTokenBridgeMessages =
+          await messenger.getDepositsByAddress(from)
         const resolved = await messenger.toCrossChainMessage(
           foundTokenBridgeMessages[0]
         )

@@ -115,9 +115,8 @@ task('deposit-eth', 'Deposits ether to L2.')
       try {
         Deployment__AddressManager = await hre.deployments.get('AddressManager')
       } catch (e) {
-        Deployment__AddressManager = await hre.deployments.get(
-          'Lib_AddressManager'
-        )
+        Deployment__AddressManager =
+          await hre.deployments.get('Lib_AddressManager')
       }
       let Deployment__L1CrossDomainMessenger: Deployment
       try {
@@ -228,9 +227,8 @@ task('deposit-eth', 'Deposits ether to L2.')
     console.log(`Sending ${formatEther(amount)} ether`)
     const ethDeposit = await messenger.depositETH(amount, { recipient: to })
     console.log(`Transaction hash: ${ethDeposit.hash}`)
-    const depositMessageReceipt = await messenger.waitForMessageReceipt(
-      ethDeposit
-    )
+    const depositMessageReceipt =
+      await messenger.waitForMessageReceipt(ethDeposit)
     if (depositMessageReceipt.receiptStatus !== 1) {
       throw new Error('deposit failed')
     }

@@ -2142,12 +2142,8 @@
     "absolutePath": "scripts/interfaces/IGnosisSafe.sol",
     "id": 36017,
     "exportedSymbols": {
-      "Enum": [
-        35629
-      ],
-      "IGnosisSafe": [
-        36016
-      ]
+      "Enum": [35629],
+      "IGnosisSafe": [36016]
     },
     "nodeType": "SourceUnit",
     "src": "42:5070:43",
@@ -2157,12 +2153,7 @@
         "nodeType": "PragmaDirective",
         "src": "42:24:43",
         "nodes": [],
-        "literals": [
-          "solidity",
-          "^",
-          "0.8",
-          ".10"
-        ]
+        "literals": ["solidity", "^", "0.8", ".10"]
       },
       {
         "id": 35629,
@@ -2207,9 +2198,7 @@
           "text": "@title Enum - Collection of enums used in Safe contracts.\n @author Richard Meissner - @rmeissner"
         },
         "fullyImplemented": true,
-        "linearizedBaseContracts": [
-          35629
-        ],
+        "linearizedBaseContracts": [35629],
         "name": "Enum",
         "nameLocation": "190:4:43",
         "scope": 36017,
@@ -4069,10 +4058,7 @@
                     "pathNode": {
                       "id": 35782,
                       "name": "Enum.Operation",
-                      "nameLocations": [
-                        "2140:4:43",
-                        "2145:9:43"
-                      ],
+                      "nameLocations": ["2140:4:43", "2145:9:43"],
                       "nodeType": "IdentifierPath",
                       "referencedDeclaration": 35628,
                       "src": "2140:14:43"
@@ -4410,10 +4396,7 @@
                     "pathNode": {
                       "id": 35808,
                       "name": "Enum.Operation",
-                      "nameLocations": [
-                        "2501:4:43",
-                        "2506:9:43"
-                      ],
+                      "nameLocations": ["2501:4:43", "2506:9:43"],
                       "nodeType": "IdentifierPath",
                       "referencedDeclaration": 35628,
                       "src": "2501:14:43"
@@ -4751,10 +4734,7 @@
                     "pathNode": {
                       "id": 35834,
                       "name": "Enum.Operation",
-                      "nameLocations": [
-                        "2884:4:43",
-                        "2889:9:43"
-                      ],
+                      "nameLocations": ["2884:4:43", "2889:9:43"],
                       "nodeType": "IdentifierPath",
                       "referencedDeclaration": 35628,
                       "src": "2884:14:43"
@@ -4928,10 +4908,7 @@
                     "pathNode": {
                       "id": 35848,
                       "name": "Enum.Operation",
-                      "nameLocations": [
-                        "3092:4:43",
-                        "3097:9:43"
-                      ],
+                      "nameLocations": ["3092:4:43", "3097:9:43"],
                       "nodeType": "IdentifierPath",
                       "referencedDeclaration": 35628,
                       "src": "3092:14:43"
@@ -5571,10 +5548,7 @@
                     "pathNode": {
                       "id": 35901,
                       "name": "Enum.Operation",
-                      "nameLocations": [
-                        "3765:4:43",
-                        "3770:9:43"
-                      ],
+                      "nameLocations": ["3765:4:43", "3770:9:43"],
                       "nodeType": "IdentifierPath",
                       "referencedDeclaration": 35628,
                       "src": "3765:14:43"
@@ -6250,10 +6224,7 @@
                     "pathNode": {
                       "id": 35955,
                       "name": "Enum.Operation",
-                      "nameLocations": [
-                        "4403:4:43",
-                        "4408:9:43"
-                      ],
+                      "nameLocations": ["4403:4:43", "4408:9:43"],
                       "nodeType": "IdentifierPath",
                       "referencedDeclaration": 35628,
                       "src": "4403:14:43"
@@ -6976,9 +6947,7 @@
           "text": "@title IGnosisSafe - Gnosis Safe Interface"
         },
         "fullyImplemented": false,
-        "linearizedBaseContracts": [
-          36016
-        ],
+        "linearizedBaseContracts": [36016],
         "name": "IGnosisSafe",
         "nameLocation": "319:11:43",
         "scope": 36017,
