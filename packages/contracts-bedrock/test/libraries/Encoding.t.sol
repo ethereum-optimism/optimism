@@ -93,39 +93,6 @@ contract Encoding_Test is CommonTest {
         assertEq(txn, _txn);
     }
 
-    /// @dev Tests that encodeSetL1BlockValuesInterop succeeds.
-    function testFuzz_encodeSetL1BlockValuesInterop_succeeds(
-        uint32 _baseFeeScalar,
-        uint32 _blobBaseFeeScalar,
-        uint64 _sequenceNumber,
-        uint64 _timestamp,
-        uint64 _number,
-        uint256 _baseFee,
-        uint256 _blobBaseFee,
-        bytes32 _hash,
-        bytes32 _batcherHash,
-        uint256[] memory _dependencySet
-    )
-        external
-        pure
-    {
-        vm.assume(_dependencySet.length <= type(uint8).max);
-        vm.assume(uint160(uint256(_batcherHash)) == uint256(_batcherHash));
-
-        Encoding.encodeSetL1BlockValuesInterop({
-            _baseFeeScalar: _baseFeeScalar,
-            _blobBaseFeeScalar: _blobBaseFeeScalar,
-            _sequenceNumber: _sequenceNumber,
-            _timestamp: _timestamp,
-            _number: _number,
-            _baseFee: _baseFee,
-            _blobBaseFee: _blobBaseFee,
-            _hash: _hash,
-            _batcherHash: _batcherHash,
-            _dependencySet: _dependencySet
-        });
-    }
-
     /// @dev Tests encodeSetL1BlockValuesInterop against the Go implementation.
     function testDiff_encodeSetL1BlockValuesInterop_succeeds(
         uint32 _baseFeeScalar,
