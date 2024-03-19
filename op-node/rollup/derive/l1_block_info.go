@@ -362,8 +362,9 @@ func (info *L1BlockInfo) unmarshalBinaryInterop(data []byte) error {
 	}
 
 	// we make the check here because it's the soonest InteroptSetSize is available, which is needed to calculate the expected length
-	if len(data) != L1InfoInteropLen(dependencySetSize) {
-		return fmt.Errorf("data is unexpected length: got %d, expected %d", len(data), L1InfoBedrockLen)
+	l1InfoLen := L1InfoInteropLen(dependencySetSize)
+	if len(data) != l1InfoLen {
+		return fmt.Errorf("data is unexpected length: got %d, expected %d", len(data), l1InfoLen)
 	}
 
 	info.DependencySet = make([]*big.Int, dependencySetSize)
