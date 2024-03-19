@@ -25,16 +25,14 @@ func randomBytes(t *testing.T, length int) []byte {
 }
 
 func TestShadowCompressor(t *testing.T) {
-	type test struct {
+	tests := []struct {
 		name            string
 		targetFrameSize uint64
 		targetNumFrames int
 		data            [][]byte
 		errs            []error
 		fullErr         error
-	}
-
-	tests := []test{{
+	}{{
 		name:            "no data",
 		targetFrameSize: 1,
 		targetNumFrames: 1,

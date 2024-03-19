@@ -17,7 +17,10 @@ In this repository, you'll find numerous core components of the OP Stack, the de
 
 - If you want to build on top of OP Mainnet, refer to the [Optimism Documentation](https://docs.optimism.io)
 - If you want to build your own OP Stack based blockchain, refer to the [OP Stack Guide](https://docs.optimism.io/stack/getting-started)
-- If you want to contribute to the OP Stack, check out the [Protocol Specs](./specs)
+
+## Specification
+
+If you're interested in the technical details of how Optimism works, refer to the [Optimism Protocol Specification](https://github.com/ethereum-optimism/specs).
 
 ## Community
 
@@ -28,7 +31,7 @@ Governance discussion can also be found on the [Optimism Governance Forum](https
 
 Read through [CONTRIBUTING.md](./CONTRIBUTING.md) for a general overview of the contributing process for this repository.
 Use the [Developer Quick Start](./CONTRIBUTING.md#development-quick-start) to get your development environment set up to start working on the Optimism Monorepo.
-Then check out the list of [Good First Issues](https://github.com/ethereum-optimism/optimism/contribute) to find something fun to work on!
+Then check out the list of [Good First Issues](https://github.com/ethereum-optimism/optimism/labels/D-good-first-issue) to find something fun to work on!
 Typo fixes are welcome; however, please create a single commit with all of the typo fixes & batch as many fixes together in a PR as possible. Spammy PRs will be closed.
 
 ## Security Policy and Vulnerability Reporting
@@ -47,7 +50,6 @@ The Optimism Immunefi program offers up to $2,000,042 for in-scope critical vuln
 ├── <a href="./op-chain-ops">op-chain-ops</a>: State surgery utilities
 ├── <a href="./op-challenger">op-challenger</a>: Dispute game challenge agent
 ├── <a href="./op-e2e">op-e2e</a>: End-to-End testing of all bedrock components in Go
-├── <a href="./op-exporter">op-exporter</a>: Prometheus exporter client
 ├── <a href="./op-heartbeat">op-heartbeat</a>: Heartbeat monitor service
 ├── <a href="./op-node">op-node</a>: rollup consensus-layer client
 ├── <a href="./op-preimage">op-preimage</a>: Go bindings for Preimage Oracle
@@ -63,8 +65,7 @@ The Optimism Immunefi program offers up to $2,000,042 for in-scope critical vuln
 │   ├── <a href="./packages/contracts-bedrock">contracts-bedrock</a>: Bedrock smart contracts
 │   ├── <a href="./packages/core-utils">core-utils</a>: Low-level utilities that make building Optimism easier
 │   └── <a href="./packages/sdk">sdk</a>: provides a set of tools for interacting with Optimism
-├── <a href="./proxyd">proxyd</a>: Configurable RPC request router and proxy
-└── <a href="./specs">specs</a>: Specs of the rollup starting at the Bedrock upgrade
+└── <a href="./proxyd">proxyd</a>: Configurable RPC request router and proxy
 </pre>
 
 ## Branching Model

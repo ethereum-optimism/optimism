@@ -41,7 +41,7 @@ type Metricer interface {
 	RecordSequencingError()
 	RecordPublishingError()
 	RecordDerivationError()
-	RecordReceivedUnsafePayload(payload *eth.ExecutionPayload)
+	RecordReceivedUnsafePayload(payload *eth.ExecutionPayloadEnvelope)
 	RecordRef(layer string, name string, num uint64, timestamp uint64, h common.Hash)
 	RecordL1Ref(name string, ref eth.L1BlockRef)
 	RecordL2Ref(name string, ref eth.L2BlockRef)
@@ -443,9 +443,9 @@ func (m *Metrics) RecordDerivationError() {
 	m.DerivationErrors.Record()
 }
 
-func (m *Metrics) RecordReceivedUnsafePayload(payload *eth.ExecutionPayload) {
+func (m *Metrics) RecordReceivedUnsafePayload(payload *eth.ExecutionPayloadEnvelope) {
 	m.UnsafePayloads.Record()
-	m.RecordRef("l2", "received_payload", uint64(payload.BlockNumber), uint64(payload.Timestamp), payload.BlockHash)
+	m.RecordRef("l2", "received_payload", uint64(payload.ExecutionPayload.BlockNumber), uint64(payload.ExecutionPayload.Timestamp), payload.ExecutionPayload.BlockHash)
 }
 
 func (m *Metrics) RecordUnsafePayloadsBuffer(length uint64, memSize uint64, next eth.BlockID) {
@@ -640,7 +640,7 @@ func (n *noopMetricer) RecordPublishingError() {
 func (n *noopMetricer) RecordDerivationError() {
 }
 
-func (n *noopMetricer) RecordReceivedUnsafePayload(payload *eth.ExecutionPayload) {
+func (n *noopMetricer) RecordReceivedUnsafePayload(payload *eth.ExecutionPayloadEnvelope) {
 }
 
 func (n *noopMetricer) RecordRef(layer string, name string, num uint64, timestamp uint64, h common.Hash) {

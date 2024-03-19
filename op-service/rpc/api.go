@@ -33,13 +33,12 @@ func (n *CommonAdminAPI) SetLogLevel(ctx context.Context, lvlStr string) error {
 	recordDur := n.M.RecordRPCServerRequest("admin_setLogLevel")
 	defer recordDur()
 
-	h := n.log.GetHandler()
-
-	lvl, err := log.LvlFromString(lvlStr)
+	lvl, err := oplog.LevelFromString(lvlStr)
 	if err != nil {
 		return err
 	}
 
+	h := n.log.Handler()
 	// We set the log level, and do not wrap the handler with an additional filter handler,
 	// as the underlying handler would otherwise also still filter with the previous log level.
 	lvlSetter, ok := h.(oplog.LvlSetter)

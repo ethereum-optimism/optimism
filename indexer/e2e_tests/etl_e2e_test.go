@@ -8,7 +8,10 @@ import (
 
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-bindings/bindingspreview"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
+	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -24,9 +27,29 @@ func TestE2EETL(t *testing.T) {
 	l2OutputOracle, err := bindings.NewL2OutputOracle(testSuite.OpCfg.L1Deployments.L2OutputOracleProxy, testSuite.L1Client)
 	require.NoError(t, err)
 
+	disputeGameFactory, err := bindings.NewDisputeGameFactoryCaller(testSuite.OpCfg.L1Deployments.DisputeGameFactoryProxy, testSuite.L1Client)
+	require.NoError(t, err)
+
+	optimismPortal, err := bindingspreview.NewOptimismPortal2Caller(testSuite.OpCfg.L1Deployments.OptimismPortalProxy, testSuite.L1Client)
+	require.NoError(t, err)
+
 	// wait for at least 10 L2 blocks posted on L1
 	require.NoError(t, wait.For(context.Background(), time.Second, func() (bool, error) {
-		l2Height, err := l2OutputOracle.LatestBlockNumber(&bind.CallOpts{Context: context.Background()})
+		var l2Height *big.Int
+		var err error
+		if e2eutils.UseFPAC() {
+			gameCount, err := disputeGameFactory.GameCount(&bind.CallOpts{Context: context.Background()})
+			require.NoError(t, err)
+			if gameCount.Cmp(big.NewInt(0)) == 0 {
+				return false, nil
+			}
+
+			latestGame, err := withdrawals.FindLatestGame(context.Background(), disputeGameFactory, optimismPortal)
+			require.NoError(t, err)
+			l2Height = new(big.Int).SetBytes(latestGame.ExtraData[0:32])
+		} else {
+			l2Height, err = l2OutputOracle.LatestBlockNumber(&bind.CallOpts{Context: context.Background()})
+		}
 		return l2Height != nil && l2Height.Uint64() >= 9, err
 	}))
 

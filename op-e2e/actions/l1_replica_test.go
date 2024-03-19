@@ -34,7 +34,7 @@ func TestL1Replica_ActL1RPCFail(gt *testing.T) {
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
-	log := testlog.Logger(t, log.LvlDebug)
+	log := testlog.Logger(t, log.LevelDebug)
 	replica := NewL1Replica(t, log, sd.L1Cfg)
 	t.Cleanup(func() {
 		_ = replica.Close()
@@ -56,7 +56,7 @@ func TestL1Replica_ActL1Sync(gt *testing.T) {
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
-	log := testlog.Logger(t, log.LvlDebug)
+	log := testlog.Logger(t, log.LevelDebug)
 	genesisBlock := sd.L1Cfg.ToBlock()
 	consensus := beacon.New(ethash.NewFaker())
 	db := rawdb.NewMemoryDatabase()

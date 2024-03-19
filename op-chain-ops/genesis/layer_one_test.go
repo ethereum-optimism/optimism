@@ -43,7 +43,7 @@ func TestBuildL1DeveloperGenesis(t *testing.T) {
 	deployments, err := NewL1Deployments("testdata/deploy.json")
 	require.NoError(t, err)
 
-	genesis, err := BuildL1DeveloperGenesis(config, dump, nil, false)
+	genesis, err := BuildL1DeveloperGenesis(config, dump, nil)
 	require.NoError(t, err)
 
 	sim := backends.NewSimulatedBackend(

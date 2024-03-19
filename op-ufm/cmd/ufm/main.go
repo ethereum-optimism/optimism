@@ -8,10 +8,13 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/ethereum-optimism/optimism/op-ufm/pkg/config"
-	"github.com/ethereum-optimism/optimism/op-ufm/pkg/service"
+	"golang.org/x/exp/slog"
 
 	"github.com/ethereum/go-ethereum/log"
+
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-ufm/pkg/config"
+	"github.com/ethereum-optimism/optimism/op-ufm/pkg/service"
 )
 
 var (
@@ -21,12 +24,8 @@ var (
 )
 
 func main() {
-	log.Root().SetHandler(
-		log.LvlFilterHandler(
-			log.LvlInfo,
-			log.StreamHandler(os.Stdout, log.JSONFormat()),
-		),
-	)
+	oplog.SetGlobalLogHandler(slog.NewJSONHandler(
+		os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 
 	log.Info("initializing",
 		"version", GitVersion,
@@ -60,20 +59,16 @@ func initConfig(cfgFile string) *config.Config {
 	}
 
 	// update log level from config
-	logLevel, err := log.LvlFromString(cfg.LogLevel)
+	logLevel, err := oplog.LevelFromString(cfg.LogLevel)
 	if err != nil {
-		logLevel = log.LvlInfo
+		logLevel = log.LevelInfo
 		if cfg.LogLevel != "" {
 			log.Warn("invalid server.log_level",
 				"log_level", cfg.LogLevel)
 		}
 	}
-	log.Root().SetHandler(
-		log.LvlFilterHandler(
-			logLevel,
-			log.StreamHandler(os.Stdout, log.JSONFormat()),
-		),
-	)
+	oplog.SetGlobalLogHandler(slog.NewJSONHandler(
+		os.Stdout, &slog.HandlerOptions{Level: logLevel}))
 
 	// readable parsed config
 	jsonCfg, _ := json.MarshalIndent(cfg, "", "  ")

@@ -20,10 +20,11 @@ import (
 // This test ensures no op-node config-loading behavior changes before
 // the superchain-registry is no longer deemed experimental.
 func TestGetRollupConfig(t *testing.T) {
-	var configsByName = map[string]rollup.Config{
-		"goerli":  goerliCfg,
-		"mainnet": mainnetCfg,
-		"sepolia": sepoliaCfg,
+	configsByName := map[string]rollup.Config{
+		"goerli":       goerliCfg,
+		"mainnet":      mainnetCfg,
+		"sepolia":      sepoliaCfg,
+		"boba-sepolia": bobaSepoliaCfg,
 	}
 
 	for name, expectedCfg := range configsByName {
@@ -63,6 +64,8 @@ var mainnetCfg = rollup.Config{
 	L1SystemConfigAddress:   common.HexToAddress("0x229047fed2591dbec1eF1118d64F7aF3dB9EB290"),
 	RegolithTime:            u64Ptr(0),
 	CanyonTime:              u64Ptr(1704992401),
+	DeltaTime:               u64Ptr(1708560000),
+	EcotoneTime:             u64Ptr(1710374401),
 	ProtocolVersionsAddress: common.HexToAddress("0x8062AbC286f5e7D9428a0Ccb9AbD71e50d93b935"),
 }
 
@@ -96,6 +99,7 @@ var goerliCfg = rollup.Config{
 	RegolithTime:            u64Ptr(1679079600),
 	CanyonTime:              u64Ptr(1699981200),
 	DeltaTime:               u64Ptr(1703116800),
+	EcotoneTime:             u64Ptr(1707238800),
 	ProtocolVersionsAddress: common.HexToAddress("0x0C24F5098774aA366827D667494e9F889f7cFc08"),
 }
 
@@ -129,7 +133,42 @@ var sepoliaCfg = rollup.Config{
 	RegolithTime:            u64Ptr(0),
 	CanyonTime:              u64Ptr(1699981200),
 	DeltaTime:               u64Ptr(1703203200),
+	EcotoneTime:             u64Ptr(1708534800),
 	ProtocolVersionsAddress: common.HexToAddress("0x79ADD5713B383DAa0a138d3C4780C7A1804a8090"),
+}
+
+var bobaSepoliaCfg = rollup.Config{
+	Genesis: rollup.Genesis{
+		L1: eth.BlockID{
+			Hash:   common.HexToHash("0x632d8caedbfd573e09c1b49134bd5147147e0904e0f04eba15c662be0258f517"),
+			Number: 5109513,
+		},
+		L2: eth.BlockID{
+			Hash:   common.HexToHash("0x097654c4c932c97808933b42179388f7bbcefaed3bd93fdf69157e19f1deea0e"),
+			Number: 511,
+		},
+		L2Time: 1705600788,
+		SystemConfig: eth.SystemConfig{
+			BatcherAddr: common.HexToAddress("0xf598b6388eC06945021699F0bbb23dfCFc5edbE8"),
+			Overhead:    eth.Bytes32(common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000834")),
+			Scalar:      eth.Bytes32(common.HexToHash("0x00000000000000000000000000000000000000000000000000000000000f4240")),
+			GasLimit:    30000000,
+		},
+	},
+	BlockTime:               2,
+	MaxSequencerDrift:       600,
+	SeqWindowSize:           3600,
+	ChannelTimeout:          300,
+	L1ChainID:               big.NewInt(11155111),
+	L2ChainID:               big.NewInt(28882),
+	BatchInboxAddress:       common.HexToAddress("0xfff0000000000000000000000000000000028882"),
+	DepositContractAddress:  common.HexToAddress("0xB079E6FA9B3eb072fEbf7F746044834eab308dB6"),
+	L1SystemConfigAddress:   common.HexToAddress("0xfdc9bce032cef55a71b4fde9b9a2198ad1551965"),
+	RegolithTime:            u64Ptr(1705600788),
+	CanyonTime:              u64Ptr(1705600788),
+	DeltaTime:               u64Ptr(1709078400),
+	EcotoneTime:             u64Ptr(1709078400),
+	ProtocolVersionsAddress: common.HexToAddress("0x0000000000000000000000000000000000000000"),
 }
 
 func u64Ptr(v uint64) *uint64 {

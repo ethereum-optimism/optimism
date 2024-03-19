@@ -165,6 +165,10 @@ func TestSetImplementations(t *testing.T) {
 		if *address == predeploys.LegacyERC20ETHAddr {
 			continue
 		}
+		if name == "Create2Deployer" || name == "DeterministicDeploymentProxy" {
+			require.Equal(t, len(g.Alloc[*address].Storage), 0)
+			continue
+		}
 
 		_, ok := g.Alloc[*address]
 		require.True(t, ok, "predeploy %s not found in genesis", name)

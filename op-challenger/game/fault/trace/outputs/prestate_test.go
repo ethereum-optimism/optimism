@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs/source"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/stretchr/testify/require"
 )
@@ -23,7 +24,7 @@ func newOutputPrestateProvider(t *testing.T, prestateBlock uint64) (*OutputPrest
 		},
 	}
 	return &OutputPrestateProvider{
-		rollupClient:  &rollupClient,
+		rollupClient:  source.NewUnrestrictedOutputSource(&rollupClient),
 		prestateBlock: prestateBlock,
 	}, &rollupClient
 }

@@ -30,7 +30,7 @@ func TestL2EngineAPI(gt *testing.T) {
 	jwtPath := e2eutils.WriteDefaultJWT(t)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
-	log := testlog.Logger(t, log.LvlDebug)
+	log := testlog.Logger(t, log.LevelDebug)
 	genesisBlock := sd.L2Cfg.ToBlock()
 	consensus := beacon.New(ethash.NewFaker())
 	db := rawdb.NewMemoryDatabase()
@@ -50,7 +50,7 @@ func TestL2EngineAPI(gt *testing.T) {
 	require.NoError(t, err)
 
 	// apply the payload
-	status, err := l2Cl.NewPayload(t.Ctx(), payloadA)
+	status, err := l2Cl.NewPayload(t.Ctx(), payloadA, nil)
 	require.NoError(t, err)
 	require.Equal(t, status.Status, eth.ExecutionValid)
 	require.Equal(t, genesisBlock.Hash(), engine.l2Chain.CurrentBlock().Hash(), "processed payloads are not immediately canonical")
@@ -73,7 +73,7 @@ func TestL2EngineAPI(gt *testing.T) {
 	require.NoError(t, err)
 
 	// apply the payload
-	status, err = l2Cl.NewPayload(t.Ctx(), payloadB)
+	status, err = l2Cl.NewPayload(t.Ctx(), payloadB, nil)
 	require.NoError(t, err)
 	require.Equal(t, status.Status, eth.ExecutionValid)
 	require.Equal(t, payloadA.BlockHash, engine.l2Chain.CurrentBlock().Hash(), "processed payloads are not immediately canonical")
@@ -94,7 +94,7 @@ func TestL2EngineAPIBlockBuilding(gt *testing.T) {
 	jwtPath := e2eutils.WriteDefaultJWT(t)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
-	log := testlog.Logger(t, log.LvlDebug)
+	log := testlog.Logger(t, log.LevelDebug)
 	genesisBlock := sd.L2Cfg.ToBlock()
 	db := rawdb.NewMemoryDatabase()
 	tdb := trie.NewDatabase(db, &trie.Config{HashDB: hashdb.Defaults})
@@ -154,12 +154,13 @@ func TestL2EngineAPIBlockBuilding(gt *testing.T) {
 			engine.ActL2IncludeTx(dp.Addresses.Alice)(t)
 		}
 
-		payload, err := l2Cl.GetPayload(t.Ctx(), *fcRes.PayloadID)
+		envelope, err := l2Cl.GetPayload(t.Ctx(), eth.PayloadInfo{ID: *fcRes.PayloadID, Timestamp: uint64(nextBlockTime)})
+		payload := envelope.ExecutionPayload
 		require.NoError(t, err)
 		require.Equal(t, parent.Hash(), payload.ParentHash, "block builds on parent block")
 
 		// apply the payload
-		status, err := l2Cl.NewPayload(t.Ctx(), payload)
+		status, err := l2Cl.NewPayload(t.Ctx(), payload, nil)
 		require.NoError(t, err)
 		require.Equal(t, status.Status, eth.ExecutionValid)
 		require.Equal(t, parent.Hash(), engine.l2Chain.CurrentBlock().Hash(), "processed payloads are not immediately canonical")
@@ -188,7 +189,7 @@ func TestL2EngineAPIFail(gt *testing.T) {
 	jwtPath := e2eutils.WriteDefaultJWT(t)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
-	log := testlog.Logger(t, log.LvlDebug)
+	log := testlog.Logger(t, log.LevelDebug)
 	engine := NewL2Engine(t, log, sd.L2Cfg, sd.RollupCfg.Genesis.L1, jwtPath)
 	// mock an RPC failure
 	engine.ActL2RPCFail(t)

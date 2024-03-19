@@ -80,3 +80,7 @@ func (m *InstrumentedState) Step(proof bool) (wit *StepWitness, err error) {
 	}
 	return
 }
+
+func (m *InstrumentedState) LastPreimage() []byte {
+	return m.lastPreimage
+}

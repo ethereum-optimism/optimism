@@ -144,14 +144,6 @@ pull_request_rules:
       label:
         add:
           - A-op-e2e
-  - name: Add A-op-exporter label
-    conditions:
-      - 'files~=^op-exporter/'
-      - '#label<5'
-    actions:
-      label:
-        add:
-          - A-op-exporter
   - name: Add A-op-heartbeat label
     conditions:
       - 'files~=^op-heartbeat/'

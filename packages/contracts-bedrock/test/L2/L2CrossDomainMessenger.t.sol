@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 // Testing utilities
 import { Bridge_Initializer } from "test/setup/Bridge_Initializer.sol";
 import { Reverter, ConfigurableCaller } from "test/mocks/Callers.sol";
+import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
 // Libraries
 import { Hashing } from "src/libraries/Hashing.sol";
@@ -11,12 +12,29 @@ import { Encoding } from "src/libraries/Encoding.sol";
 import { Types } from "src/libraries/Types.sol";
 
 // Target contract dependencies
+import { L2CrossDomainMessenger } from "src/L2/L2CrossDomainMessenger.sol";
 import { L2ToL1MessagePasser } from "src/L2/L2ToL1MessagePasser.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 
 contract L2CrossDomainMessenger_Test is Bridge_Initializer {
     /// @dev Receiver address for testing
     address recipient = address(0xabbaacdc);
+
+    /// @dev Tests that the implementation is initialized correctly.
+    function test_constructor_succeeds() external {
+        L2CrossDomainMessenger impl =
+            L2CrossDomainMessenger(EIP1967Helper.getImplementation(deploy.mustGetAddress("L2CrossDomainMessenger")));
+        assertEq(address(impl.OTHER_MESSENGER()), address(0));
+        assertEq(address(impl.otherMessenger()), address(0));
+        assertEq(address(impl.l1CrossDomainMessenger()), address(0));
+    }
+
+    /// @dev Tests that the proxy is initialized correctly.
+    function test_initialize_succeeds() external {
+        assertEq(address(l2CrossDomainMessenger.OTHER_MESSENGER()), address(l1CrossDomainMessenger));
+        assertEq(address(l2CrossDomainMessenger.otherMessenger()), address(l1CrossDomainMessenger));
+        assertEq(address(l2CrossDomainMessenger.l1CrossDomainMessenger()), address(l1CrossDomainMessenger));
+    }
 
     /// @dev Tests that `messageNonce` can be decoded correctly.
     function test_messageVersion_succeeds() external {

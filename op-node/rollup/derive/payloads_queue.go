@@ -11,8 +11,8 @@ import (
 )
 
 type payloadAndSize struct {
-	payload *eth.ExecutionPayload
-	size    uint64
+	envelope *eth.ExecutionPayloadEnvelope
+	size     uint64
 }
 
 // payloadsByNumber buffers payloads ordered by block number.
@@ -26,7 +26,7 @@ var _ heap.Interface = (*payloadsByNumber)(nil)
 func (pq payloadsByNumber) Len() int { return len(pq) }
 
 func (pq payloadsByNumber) Less(i, j int) bool {
-	return pq[i].payload.BlockNumber < pq[j].payload.BlockNumber
+	return pq[i].envelope.ExecutionPayload.BlockNumber < pq[j].envelope.ExecutionPayload.BlockNumber
 }
 
 // Swap is a heap.Interface method. Do not use this method directly.
@@ -50,19 +50,19 @@ func (pq *payloadsByNumber) Pop() any {
 }
 
 const (
-	// ~580 bytes per payload, with some margin for overhead like map data
-	payloadMemFixedCost uint64 = 800
+	// ~1000 bytes per payload, with some margin for overhead like map data
+	payloadMemFixedCost uint64 = 1000
 	// 24 bytes per tx overhead (size of slice header in memory)
 	payloadTxMemOverhead uint64 = 24
 )
 
-func payloadMemSize(p *eth.ExecutionPayload) uint64 {
+func payloadMemSize(p *eth.ExecutionPayloadEnvelope) uint64 {
 	out := payloadMemFixedCost
 	if p == nil {
 		return out
 	}
 	// 24 byte overhead per tx
-	for _, tx := range p.Transactions {
+	for _, tx := range p.ExecutionPayload.Transactions {
 		out += uint64(len(tx)) + payloadTxMemOverhead
 	}
 	return out
@@ -80,10 +80,10 @@ type PayloadsQueue struct {
 	currentSize uint64
 	MaxSize     uint64
 	blockHashes map[common.Hash]struct{}
-	SizeFn      func(p *eth.ExecutionPayload) uint64
+	SizeFn      func(p *eth.ExecutionPayloadEnvelope) uint64
 }
 
-func NewPayloadsQueue(maxSize uint64, sizeFn func(p *eth.ExecutionPayload) uint64) *PayloadsQueue {
+func NewPayloadsQueue(maxSize uint64, sizeFn func(p *eth.ExecutionPayloadEnvelope) uint64) *PayloadsQueue {
 	return &PayloadsQueue{
 		pq:          nil,
 		currentSize: 0,
@@ -108,48 +108,48 @@ func (upq *PayloadsQueue) MemSize() uint64 {
 //
 // We prefer higher block numbers over lower block numbers, since lower block numbers are more likely to be conflicts and/or read from L1 sooner.
 // The higher payload block numbers can be preserved, and once L1 contents meets these, they can all be processed in order.
-func (upq *PayloadsQueue) Push(p *eth.ExecutionPayload) error {
-	if p == nil {
+func (upq *PayloadsQueue) Push(e *eth.ExecutionPayloadEnvelope) error {
+	if e == nil || e.ExecutionPayload == nil {
 		return errors.New("cannot add nil payload")
 	}
-	if _, ok := upq.blockHashes[p.BlockHash]; ok {
-		return fmt.Errorf("cannot add duplicate payload %s", p.ID())
+	if _, ok := upq.blockHashes[e.ExecutionPayload.BlockHash]; ok {
+		return fmt.Errorf("cannot add duplicate payload %s", e.ExecutionPayload.ID())
 	}
-	size := upq.SizeFn(p)
+	size := upq.SizeFn(e)
 	if size > upq.MaxSize {
-		return fmt.Errorf("cannot add payload %s, payload mem size %d is larger than max queue size %d", p.ID(), size, upq.MaxSize)
+		return fmt.Errorf("cannot add payload %s, payload mem size %d is larger than max queue size %d", e.ExecutionPayload.ID(), size, upq.MaxSize)
 	}
 	heap.Push(&upq.pq, payloadAndSize{
-		payload: p,
-		size:    size,
+		envelope: e,
+		size:     size,
 	})
 	upq.currentSize += size
 	for upq.currentSize > upq.MaxSize {
 		upq.Pop()
 	}
-	upq.blockHashes[p.BlockHash] = struct{}{}
+	upq.blockHashes[e.ExecutionPayload.BlockHash] = struct{}{}
 	return nil
 }
 
 // Peek retrieves the payload with the lowest block number from the queue in O(1), or nil if the queue is empty.
-func (upq *PayloadsQueue) Peek() *eth.ExecutionPayload {
+func (upq *PayloadsQueue) Peek() *eth.ExecutionPayloadEnvelope {
 	if len(upq.pq) == 0 {
 		return nil
 	}
 	// peek into the priority queue, the first element is the highest priority (lowest block number).
 	// This does not apply to other elements, those are structured like a heap.
-	return upq.pq[0].payload
+	return upq.pq[0].envelope
 }
 
 // Pop removes the payload with the lowest block number from the queue in O(log(N)),
 // and may return nil if the queue is empty.
-func (upq *PayloadsQueue) Pop() *eth.ExecutionPayload {
+func (upq *PayloadsQueue) Pop() *eth.ExecutionPayloadEnvelope {
 	if len(upq.pq) == 0 {
 		return nil
 	}
 	ps := heap.Pop(&upq.pq).(payloadAndSize) // nosemgrep
 	upq.currentSize -= ps.size
 	// remove the key from the block hashes map
-	delete(upq.blockHashes, ps.payload.BlockHash)
-	return ps.payload
+	delete(upq.blockHashes, ps.envelope.ExecutionPayload.BlockHash)
+	return ps.envelope
 }

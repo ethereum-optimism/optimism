@@ -14,8 +14,10 @@ func TestPayloadsByNumber(t *testing.T) {
 	p := payloadsByNumber{}
 	mk := func(i uint64) payloadAndSize {
 		return payloadAndSize{
-			payload: &eth.ExecutionPayload{
-				BlockNumber: eth.Uint64Quantity(i),
+			envelope: &eth.ExecutionPayloadEnvelope{
+				ExecutionPayload: &eth.ExecutionPayload{
+					BlockNumber: eth.Uint64Quantity(i),
+				},
 			},
 		}
 	}
@@ -62,30 +64,35 @@ func TestPayloadsByNumber(t *testing.T) {
 
 func TestPayloadMemSize(t *testing.T) {
 	require.Equal(t, payloadMemFixedCost, payloadMemSize(nil), "nil is same fixed cost")
-	require.Equal(t, payloadMemFixedCost, payloadMemSize(&eth.ExecutionPayload{}), "empty payload fixed cost")
-	require.Equal(t, payloadMemFixedCost+payloadTxMemOverhead, payloadMemSize(&eth.ExecutionPayload{Transactions: []eth.Data{nil}}), "nil tx counts")
-	require.Equal(t, payloadMemFixedCost+payloadTxMemOverhead, payloadMemSize(&eth.ExecutionPayload{Transactions: []eth.Data{make([]byte, 0)}}), "empty tx counts")
+	require.Equal(t, payloadMemFixedCost, payloadMemSize(&eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{}}), "empty payload fixed cost")
+	require.Equal(t, payloadMemFixedCost+payloadTxMemOverhead, payloadMemSize(&eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{Transactions: []eth.Data{nil}}}), "nil tx counts")
+	require.Equal(t, payloadMemFixedCost+payloadTxMemOverhead, payloadMemSize(&eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{Transactions: []eth.Data{make([]byte, 0)}}}), "empty tx counts")
 	require.Equal(t, payloadMemFixedCost+4*payloadTxMemOverhead+42+1337+0+1,
-		payloadMemSize(&eth.ExecutionPayload{Transactions: []eth.Data{
+		payloadMemSize(&eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{Transactions: []eth.Data{
 			make([]byte, 42),
 			make([]byte, 1337),
 			make([]byte, 0),
 			make([]byte, 1),
-		}}), "mixed txs")
+		}}}), "mixed txs")
+}
+
+func envelope(payload *eth.ExecutionPayload) *eth.ExecutionPayloadEnvelope {
+	return &eth.ExecutionPayloadEnvelope{ExecutionPayload: payload}
 }
 
 func TestPayloadsQueue(t *testing.T) {
 	pq := NewPayloadsQueue(payloadMemFixedCost*3, payloadMemSize)
 	require.Equal(t, 0, pq.Len())
-	require.Equal(t, (*eth.ExecutionPayload)(nil), pq.Peek())
-	require.Equal(t, (*eth.ExecutionPayload)(nil), pq.Pop())
+	require.Nil(t, pq.Peek())
+	require.Nil(t, pq.Pop())
 
-	a := &eth.ExecutionPayload{BlockNumber: 3, BlockHash: common.Hash{3}}
-	b := &eth.ExecutionPayload{BlockNumber: 4, BlockHash: common.Hash{4}}
-	c := &eth.ExecutionPayload{BlockNumber: 5, BlockHash: common.Hash{5}}
-	d := &eth.ExecutionPayload{BlockNumber: 6, BlockHash: common.Hash{6}}
-	bAlt := &eth.ExecutionPayload{BlockNumber: 4, BlockHash: common.Hash{0xff}}
-	bDup := &eth.ExecutionPayload{BlockNumber: 4, BlockHash: common.Hash{4}}
+	a := envelope(&eth.ExecutionPayload{BlockNumber: 3, BlockHash: common.Hash{3}})
+	b := envelope(&eth.ExecutionPayload{BlockNumber: 4, BlockHash: common.Hash{4}})
+	c := envelope(&eth.ExecutionPayload{BlockNumber: 5, BlockHash: common.Hash{5}})
+	d := envelope(&eth.ExecutionPayload{BlockNumber: 6, BlockHash: common.Hash{6}})
+	bAlt := envelope(&eth.ExecutionPayload{BlockNumber: 4, BlockHash: common.Hash{0xff}})
+	bDup := envelope(&eth.ExecutionPayload{BlockNumber: 4, BlockHash: common.Hash{4}})
+
 	require.NoError(t, pq.Push(b))
 	require.Equal(t, pq.Len(), 1)
 	require.Equal(t, pq.Peek(), b)
@@ -114,7 +121,7 @@ func TestPayloadsQueue(t *testing.T) {
 	require.Equal(t, pq.Pop(), c)
 	require.Equal(t, pq.Len(), 0, "expecting no items to remain")
 
-	e := &eth.ExecutionPayload{BlockNumber: 5, Transactions: []eth.Data{make([]byte, payloadMemFixedCost*3+1)}}
+	e := envelope(&eth.ExecutionPayload{BlockNumber: 5, Transactions: []eth.Data{make([]byte, payloadMemFixedCost*3+1)}})
 	require.Error(t, pq.Push(e), "cannot add payloads that are too large")
 
 	require.NoError(t, pq.Push(b))

@@ -13,9 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var (
-	mockValidatorError = fmt.Errorf("mock validator error")
-)
+var mockValidatorError = fmt.Errorf("mock validator error")
 
 func TestProgressGame_LogErrorFromAct(t *testing.T) {
 	handler, game, actor := setupProgressGameTest(t)
@@ -23,14 +21,18 @@ func TestProgressGame_LogErrorFromAct(t *testing.T) {
 	status := game.ProgressGame(context.Background())
 	require.Equal(t, types.GameStatusInProgress, status)
 	require.Equal(t, 1, actor.callCount, "should perform next actions")
-	errLog := handler.FindLog(log.LvlError, "Error when acting on game")
+	levelFilter := testlog.NewLevelFilter(log.LevelError)
+	msgFilter := testlog.NewMessageFilter("Error when acting on game")
+	errLog := handler.FindLog(levelFilter, msgFilter)
 	require.NotNil(t, errLog, "should log error")
-	require.Equal(t, actor.actErr, errLog.GetContextValue("err"))
+	require.Equal(t, actor.actErr, errLog.AttrValue("err"))
 
 	// Should still log game status
-	msg := handler.FindLog(log.LvlInfo, "Game info")
+	levelFilter = testlog.NewLevelFilter(log.LevelInfo)
+	msgFilter = testlog.NewMessageFilter("Game info")
+	msg := handler.FindLog(levelFilter, msgFilter)
 	require.NotNil(t, msg)
-	require.Equal(t, uint64(1), msg.GetContextValue("claims"))
+	require.Equal(t, uint64(1), msg.AttrValue("claims"))
 }
 
 func TestProgressGame_LogGameStatus(t *testing.T) {
@@ -64,9 +66,11 @@ func TestProgressGame_LogGameStatus(t *testing.T) {
 			status := game.ProgressGame(context.Background())
 			require.Equal(t, 1, gameState.callCount, "should perform next actions")
 			require.Equal(t, test.status, status)
-			errLog := handler.FindLog(log.LvlInfo, test.logMsg)
+			levelFilter := testlog.NewLevelFilter(log.LevelInfo)
+			msgFilter := testlog.NewMessageFilter(test.logMsg)
+			errLog := handler.FindLog(levelFilter, msgFilter)
 			require.NotNil(t, errLog, "should log game result")
-			require.Equal(t, test.status, errLog.GetContextValue("status"))
+			require.Equal(t, test.status, errLog.AttrValue("status"))
 		})
 	}
 }
@@ -146,18 +150,14 @@ func (m *mockValidator) Validate(ctx context.Context) error {
 }
 
 func setupProgressGameTest(t *testing.T) (*testlog.CapturingHandler, *GamePlayer, *stubGameState) {
-	logger := testlog.Logger(t, log.LvlDebug)
-	handler := &testlog.CapturingHandler{
-		Delegate: logger.GetHandler(),
-	}
-	logger.SetHandler(handler)
+	logger, logs := testlog.CaptureLogger(t, log.LevelDebug)
 	gameState := &stubGameState{claimCount: 1}
 	game := &GamePlayer{
 		act:    gameState.Act,
 		loader: gameState,
 		logger: logger,
 	}
-	return handler, game, gameState
+	return logs, game, gameState
 }
 
 type stubGameState struct {

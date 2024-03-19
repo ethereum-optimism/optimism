@@ -10,14 +10,14 @@ import (
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
+	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
-	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
+	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
-	"github.com/urfave/cli/v2"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-node/flags"
 	"github.com/ethereum-optimism/optimism/op-node/node"
@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
+	opflags "github.com/ethereum-optimism/optimism/op-service/flags"
 )
 
 // NewConfig creates a Config from the provided flags or environment variables.
@@ -33,7 +34,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		return nil, err
 	}
 
-	rollupConfig, err := NewRollupConfig(log, ctx)
+	rollupConfig, err := NewRollupConfigFromCLI(log, ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -79,6 +80,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		L2:     l2Endpoint,
 		Rollup: *rollupConfig,
 		Driver: *driverConfig,
+		Beacon: NewBeaconEndpointConfig(ctx),
 		RPC: node.RPCConfig{
 			ListenAddr: ctx.String(flags.RPCListenAddr.Name),
 			ListenPort: ctx.Int(flags.RPCListenPort.Name),
@@ -95,11 +97,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 			ListenAddr: ctx.String(flags.MetricsAddrFlag.Name),
 			ListenPort: ctx.Int(flags.MetricsPortFlag.Name),
 		},
-		Pprof: oppprof.CLIConfig{
-			Enabled:    ctx.Bool(flags.PprofEnabledFlag.Name),
-			ListenAddr: ctx.String(flags.PprofAddrFlag.Name),
-			ListenPort: ctx.Int(flags.PprofPortFlag.Name),
-		},
+		Pprof:                       oppprof.ReadCLIConfig(ctx),
 		P2P:                         p2pConfig,
 		P2PSigner:                   p2pSignerSetup,
 		L1EpochPollInterval:         ctx.Duration(flags.L1EpochPollIntervalFlag.Name),
@@ -113,16 +111,36 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		Sync:              *syncConfig,
 		RollupHalt:        haltOption,
 		RethDBPath:        ctx.String(flags.L1RethDBPath.Name),
+
+		ConductorEnabled:    ctx.Bool(flags.ConductorEnabledFlag.Name),
+		ConductorRpc:        ctx.String(flags.ConductorRpcFlag.Name),
+		ConductorRpcTimeout: ctx.Duration(flags.ConductorRpcTimeoutFlag.Name),
+
+		Plasma: plasma.ReadCLIConfig(ctx),
 	}
 
 	if err := cfg.LoadPersisted(log); err != nil {
 		return nil, fmt.Errorf("failed to load driver config: %w", err)
 	}
 
+	// conductor controls the sequencer state
+	if cfg.ConductorEnabled {
+		cfg.Driver.SequencerStopped = true
+	}
+
 	if err := cfg.Check(); err != nil {
 		return nil, err
 	}
 	return cfg, nil
+}
+
+func NewBeaconEndpointConfig(ctx *cli.Context) node.L1BeaconEndpointSetup {
+	return &node.L1BeaconEndpointConfig{
+		BeaconAddr:             ctx.String(flags.BeaconAddr.Name),
+		BeaconArchiverAddr:     ctx.String(flags.BeaconArchiverAddr.Name),
+		BeaconCheckIgnore:      ctx.Bool(flags.BeaconCheckIgnore.Name),
+		BeaconFetchAllSidecars: ctx.Bool(flags.BeaconFetchAllSidecars.Name),
+	}
 }
 
 func NewL1EndpointConfig(ctx *cli.Context) *node.L1EndpointConfig {
@@ -156,7 +174,7 @@ func NewL2EndpointConfig(ctx *cli.Context, log log.Logger) (*node.L2EndpointConf
 		if _, err := io.ReadFull(rand.Reader, secret[:]); err != nil {
 			return nil, fmt.Errorf("failed to generate jwt secret: %w", err)
 		}
-		if err := os.WriteFile(fileName, []byte(hexutil.Encode(secret[:])), 0600); err != nil {
+		if err := os.WriteFile(fileName, []byte(hexutil.Encode(secret[:])), 0o600); err != nil {
 			return nil, err
 		}
 	}
@@ -187,12 +205,21 @@ func NewDriverConfig(ctx *cli.Context) *driver.Config {
 	}
 }
 
-func NewRollupConfig(log log.Logger, ctx *cli.Context) (*rollup.Config, error) {
-	network := ctx.String(flags.Network.Name)
-	rollupConfigPath := ctx.String(flags.RollupConfig.Name)
+func NewRollupConfigFromCLI(log log.Logger, ctx *cli.Context) (*rollup.Config, error) {
+	network := ctx.String(opflags.NetworkFlagName)
+	rollupConfigPath := ctx.String(opflags.RollupConfigFlagName)
 	if ctx.Bool(flags.BetaExtraNetworks.Name) {
 		log.Warn("The beta.extra-networks flag is deprecated and can be omitted safely.")
 	}
+	rollupConfig, err := NewRollupConfig(log, network, rollupConfigPath)
+	if err != nil {
+		return nil, err
+	}
+	applyOverrides(ctx, rollupConfig)
+	return rollupConfig, nil
+}
+
+func NewRollupConfig(log log.Logger, network string, rollupConfigPath string) (*rollup.Config, error) {
 	if network != "" {
 		if rollupConfigPath != "" {
 			log.Error(`Cannot configure network and rollup-config at the same time.
@@ -204,7 +231,6 @@ Conflicting configuration is deprecated, and will stop the op-node from starting
 		if err != nil {
 			return nil, err
 		}
-		applyOverrides(ctx, rollupConfig)
 		return rollupConfig, nil
 	}
 
@@ -218,35 +244,36 @@ Conflicting configuration is deprecated, and will stop the op-node from starting
 	if err := json.NewDecoder(file).Decode(&rollupConfig); err != nil {
 		return nil, fmt.Errorf("failed to decode rollup config: %w", err)
 	}
-	applyOverrides(ctx, &rollupConfig)
 	return &rollupConfig, nil
 }
 
 func applyOverrides(ctx *cli.Context, rollupConfig *rollup.Config) {
-	if ctx.IsSet(flags.CanyonOverrideFlag.Name) {
-		canyon := ctx.Uint64(flags.CanyonOverrideFlag.Name)
+	if ctx.IsSet(opflags.CanyonOverrideFlagName) {
+		canyon := ctx.Uint64(opflags.CanyonOverrideFlagName)
 		rollupConfig.CanyonTime = &canyon
 	}
-	if ctx.IsSet(flags.DeltaOverrideFlag.Name) {
-		delta := ctx.Uint64(flags.DeltaOverrideFlag.Name)
+	if ctx.IsSet(opflags.DeltaOverrideFlagName) {
+		delta := ctx.Uint64(opflags.DeltaOverrideFlagName)
 		rollupConfig.DeltaTime = &delta
+	}
+	if ctx.IsSet(opflags.EcotoneOverrideFlagName) {
+		ecotone := ctx.Uint64(opflags.EcotoneOverrideFlagName)
+		rollupConfig.EcotoneTime = &ecotone
 	}
 }
 
 func NewSnapshotLogger(ctx *cli.Context) (log.Logger, error) {
 	snapshotFile := ctx.String(flags.SnapshotLog.Name)
-	handler := log.DiscardHandler()
-	if snapshotFile != "" {
-		var err error
-		handler, err = log.FileHandler(snapshotFile, log.JSONFormat())
-		if err != nil {
-			return nil, err
-		}
-		handler = log.SyncHandler(handler)
+	if snapshotFile == "" {
+		return log.NewLogger(log.DiscardHandler()), nil
 	}
-	logger := log.New()
-	logger.SetHandler(handler)
-	return logger, nil
+
+	sf, err := os.OpenFile(snapshotFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		return nil, err
+	}
+	handler := log.JSONHandler(sf)
+	return log.NewLogger(handler), nil
 }
 
 func NewSyncConfig(ctx *cli.Context, log log.Logger) (*sync.Config, error) {

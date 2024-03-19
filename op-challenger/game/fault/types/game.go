@@ -32,7 +32,7 @@ type Game interface {
 	// AgreeWithClaimLevel returns if the game state agrees with the provided claim level.
 	AgreeWithClaimLevel(claim Claim, agreeWithRootClaim bool) bool
 
-	MaxDepth() uint64
+	MaxDepth() Depth
 }
 
 type claimID common.Hash
@@ -51,12 +51,12 @@ type gameState struct {
 	// claims is the list of claims in the same order as the contract
 	claims   []Claim
 	claimIDs map[claimID]bool
-	depth    uint64
+	depth    Depth
 }
 
 // NewGameState returns a new game state.
 // The provided [Claim] is used as the root node.
-func NewGameState(claims []Claim, depth uint64) *gameState {
+func NewGameState(claims []Claim, depth Depth) *gameState {
 	claimIDs := make(map[claimID]bool)
 	for _, claim := range claims {
 		claimIDs[computeClaimID(claim)] = true
@@ -89,7 +89,7 @@ func (g *gameState) Claims() []Claim {
 	return append([]Claim(nil), g.claims...)
 }
 
-func (g *gameState) MaxDepth() uint64 {
+func (g *gameState) MaxDepth() Depth {
 	return g.depth
 }
 

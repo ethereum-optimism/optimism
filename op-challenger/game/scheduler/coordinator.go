@@ -16,10 +16,18 @@ var errUnknownGame = errors.New("unknown game")
 
 type PlayerCreator func(game types.GameMetadata, dir string) (GamePlayer, error)
 
+type CoordinatorMetricer interface {
+	RecordActedL1Block(n uint64)
+	RecordGamesStatus(inProgress, defenderWon, challengerWon int)
+	RecordGameUpdateScheduled()
+	RecordGameUpdateCompleted()
+}
+
 type gameState struct {
-	player   GamePlayer
-	inflight bool
-	status   types.GameStatus
+	player                GamePlayer
+	inflight              bool
+	lastProcessedBlockNum uint64
+	status                types.GameStatus
 }
 
 // coordinator manages the set of current games, queues games to be played (on separate worker threads) and
@@ -33,10 +41,15 @@ type coordinator struct {
 	resultQueue <-chan job
 
 	logger       log.Logger
-	m            SchedulerMetricer
+	m            CoordinatorMetricer
 	createPlayer PlayerCreator
 	states       map[common.Address]*gameState
 	disk         DiskManager
+
+	allowInvalidPrestate bool
+
+	// lastScheduledBlockNum is the highest block number that the coordinator has seen and scheduled jobs.
+	lastScheduledBlockNum uint64
 }
 
 // schedule takes the current list of games to attempt to progress, filters out games that have previous
@@ -44,7 +57,7 @@ type coordinator struct {
 // To avoid deadlock, it may process results from the inbound resultQueue while adding jobs to the outbound jobQueue.
 // Returns an error if a game couldn't be scheduled because of an error. It will continue attempting to progress
 // all games even if an error occurs with one game.
-func (c *coordinator) schedule(ctx context.Context, games []types.GameMetadata) error {
+func (c *coordinator) schedule(ctx context.Context, games []types.GameMetadata, blockNumber uint64) error {
 	// First remove any game states we no longer require
 	for addr, state := range c.states {
 		if !state.inflight && !slices.ContainsFunc(games, func(candidate types.GameMetadata) bool {
@@ -63,7 +76,7 @@ func (c *coordinator) schedule(ctx context.Context, games []types.GameMetadata) 
 	// Otherwise, results may start being processed before all games are recorded, resulting in existing
 	// data directories potentially being deleted for games that are required.
 	for _, game := range games {
-		if j, err := c.createJob(ctx, game); err != nil {
+		if j, err := c.createJob(ctx, game, blockNumber); err != nil {
 			errs = append(errs, fmt.Errorf("failed to create job for game %v: %w", game.Proxy, err))
 		} else if j != nil {
 			jobs = append(jobs, *j)
@@ -85,6 +98,13 @@ func (c *coordinator) schedule(ctx context.Context, games []types.GameMetadata) 
 	}
 	c.m.RecordGamesStatus(gamesInProgress, gamesDefenderWon, gamesChallengerWon)
 
+	lowestProcessedBlockNum := blockNumber
+	for _, state := range c.states {
+		lowestProcessedBlockNum = min(lowestProcessedBlockNum, state.lastProcessedBlockNum)
+	}
+	c.lastScheduledBlockNum = blockNumber
+	c.m.RecordActedL1Block(lowestProcessedBlockNum)
+
 	// Finally, enqueue the jobs
 	for _, j := range jobs {
 		if err := c.enqueueJob(ctx, j); err != nil {
@@ -96,10 +116,12 @@ func (c *coordinator) schedule(ctx context.Context, games []types.GameMetadata) 
 
 // createJob updates the state for the specified game and returns the job to enqueue for it, if any
 // Returns (nil, nil) when there is no error and no job to enqueue
-func (c *coordinator) createJob(ctx context.Context, game types.GameMetadata) (*job, error) {
+func (c *coordinator) createJob(ctx context.Context, game types.GameMetadata, blockNumber uint64) (*job, error) {
 	state, ok := c.states[game.Proxy]
 	if !ok {
-		state = &gameState{}
+		// This is the first time we're seeing this game, so its last processed block
+		// is the last block the coordinator processed (it didn't exist yet).
+		state = &gameState{lastProcessedBlockNum: c.lastScheduledBlockNum}
 		c.states[game.Proxy] = state
 	}
 	if state.inflight {
@@ -113,7 +135,10 @@ func (c *coordinator) createJob(ctx context.Context, game types.GameMetadata) (*
 			return nil, fmt.Errorf("failed to create game player: %w", err)
 		}
 		if err := player.ValidatePrestate(ctx); err != nil {
-			return nil, fmt.Errorf("failed to validate prestate: %w", err)
+			if !c.allowInvalidPrestate || !errors.Is(err, types.ErrInvalidPrestate) {
+				return nil, fmt.Errorf("failed to validate prestate: %w", err)
+			}
+			c.logger.Error("Invalid prestate", "game", game.Proxy, "err", err)
 		}
 		state.player = player
 		state.status = player.Status()
@@ -123,7 +148,7 @@ func (c *coordinator) createJob(ctx context.Context, game types.GameMetadata) (*
 		c.logger.Debug("Not rescheduling resolved game", "game", game.Proxy, "status", state.status)
 		return nil, nil
 	}
-	return &job{addr: game.Proxy, player: state.player, status: state.status}, nil
+	return newJob(blockNumber, game.Proxy, state.player, state.status), nil
 }
 
 func (c *coordinator) enqueueJob(ctx context.Context, j job) error {
@@ -148,6 +173,7 @@ func (c *coordinator) processResult(j job) error {
 	}
 	state.inflight = false
 	state.status = j.status
+	state.lastProcessedBlockNum = j.block
 	c.deleteResolvedGameFiles()
 	c.m.RecordGameUpdateCompleted()
 	return nil
@@ -165,14 +191,15 @@ func (c *coordinator) deleteResolvedGameFiles() {
 	}
 }
 
-func newCoordinator(logger log.Logger, m SchedulerMetricer, jobQueue chan<- job, resultQueue <-chan job, createPlayer PlayerCreator, disk DiskManager) *coordinator {
+func newCoordinator(logger log.Logger, m CoordinatorMetricer, jobQueue chan<- job, resultQueue <-chan job, createPlayer PlayerCreator, disk DiskManager, allowInvalidPrestate bool) *coordinator {
 	return &coordinator{
-		logger:       logger,
-		m:            m,
-		jobQueue:     jobQueue,
-		resultQueue:  resultQueue,
-		createPlayer: createPlayer,
-		disk:         disk,
-		states:       make(map[common.Address]*gameState),
+		logger:               logger,
+		m:                    m,
+		jobQueue:             jobQueue,
+		resultQueue:          resultQueue,
+		createPlayer:         createPlayer,
+		disk:                 disk,
+		states:               make(map[common.Address]*gameState),
+		allowInvalidPrestate: allowInvalidPrestate,
 	}
 }

@@ -1,12 +1,6 @@
 [
   {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_l1CrossDomainMessenger",
-        "type": "address"
-      }
-    ],
+    "inputs": [],
     "stateMutability": "nonpayable",
     "type": "constructor"
   },
@@ -67,7 +61,7 @@
     "name": "OTHER_MESSENGER",
     "outputs": [
       {
-        "internalType": "address",
+        "internalType": "contract CrossDomainMessenger",
         "name": "",
         "type": "address"
       }
@@ -171,7 +165,13 @@
     "type": "function"
   },
   {
-    "inputs": [],
+    "inputs": [
+      {
+        "internalType": "contract CrossDomainMessenger",
+        "name": "_l1CrossDomainMessenger",
+        "type": "address"
+      }
+    ],
     "name": "initialize",
     "outputs": [],
     "stateMutability": "nonpayable",
@@ -182,7 +182,7 @@
     "name": "l1CrossDomainMessenger",
     "outputs": [
       {
-        "internalType": "address",
+        "internalType": "contract CrossDomainMessenger",
         "name": "",
         "type": "address"
       }
@@ -198,6 +198,19 @@
         "internalType": "uint256",
         "name": "",
         "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "otherMessenger",
+    "outputs": [
+      {
+        "internalType": "contract CrossDomainMessenger",
+        "name": "",
+        "type": "address"
       }
     ],
     "stateMutability": "view",

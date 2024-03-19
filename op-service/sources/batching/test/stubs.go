@@ -77,6 +77,10 @@ func (l *AbiBasedRpc) SetResponse(to common.Address, method string, block batchi
 	})
 }
 
+func (l *AbiBasedRpc) ClearResponses(method string) {
+	delete(l.expectedCalls, method)
+}
+
 func (l *AbiBasedRpc) BatchCallContext(ctx context.Context, b []rpc.BatchElem) error {
 	var errs []error
 	for _, elem := range b {

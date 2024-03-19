@@ -2,63 +2,63 @@
   "root": "c09d26bbbfff36314c8d562387f54768cc0d82b1ad5d2f8544c45e9a1b73cd82",
   "accounts": {
     "0x0000000000000000000000000000000000000001": {
-      "balance": "1",
+      "balance": "0x1",
       "nonce": 0,
       "root": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
       "codeHash": "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
       "key": "0x1468288056310c82aa4c01a7e12a10f8111a0560e72b700555479031b86c357d"
     },
     "0x0000000000000000000000000000000000000002": {
-      "balance": "1",
+      "balance": "0x1",
       "nonce": 0,
       "root": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
       "codeHash": "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
       "key": "0xd52688a8f926c816ca1e079067caba944f158e764817b83fc43594370ca9cf62"
     },
     "0x0000000000000000000000000000000000000003": {
-      "balance": "1",
+      "balance": "0x1",
       "nonce": 0,
       "root": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
       "codeHash": "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
       "key": "0x5b70e80538acdabd6137353b0f9d8d149f4dba91e8be2e7946e409bfdbe685b9"
     },
     "0x0000000000000000000000000000000000000004": {
-      "balance": "1",
+      "balance": "0x1",
       "nonce": 0,
       "root": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
       "codeHash": "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
       "key": "0xa876da518a393dbd067dc72abfa08d475ed6447fca96d92ec3f9e7eba503ca61"
     },
     "0x0000000000000000000000000000000000000005": {
-      "balance": "1",
+      "balance": "0x1",
       "nonce": 0,
       "root": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
       "codeHash": "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
       "key": "0x421df1fa259221d02aa4956eb0d35ace318ca24c0a33a64c1af96cf67cf245b6"
     },
     "0x0000000000000000000000000000000000000006": {
-      "balance": "1",
+      "balance": "0x1",
       "nonce": 0,
       "root": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
       "codeHash": "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
       "key": "0x689802d6ed1a28b049e9d4fe5334c5902fd9bc00c42821c82f82ee2da10be908"
     },
     "0x0000000000000000000000000000000000000007": {
-      "balance": "1",
+      "balance": "0x1",
       "nonce": 0,
       "root": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
       "codeHash": "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
       "key": "0x8c3ab0970b73895b8c9959bae685c3a19f45eb5ad89d42b52a340ec4ac204d19"
     },
     "0x0000000000000000000000000000000000000008": {
-      "balance": "1",
+      "balance": "0x1",
       "nonce": 0,
       "root": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
       "codeHash": "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
       "key": "0x471703c5eda8644a64cec152c58f5aacec93d72fb0bfa705f0473f9043a8357c"
     },
     "0x0000000000000000000000000000000000000009": {
-      "balance": "1",
+      "balance": "0x1",
       "nonce": 0,
       "root": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
       "codeHash": "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
@@ -72,7 +72,7 @@
       "key": "0x5e0651590c81426aa5f87b57e050b06ca0e3d1c7506a54ace1e923c08eda1d62"
     },
     "0x36f4e85652236f9edaeba78bbe9d8c2b55ac5809": {
-      "balance": "0",
+      "balance": "0x0",
       "nonce": 1,
       "root": "0xaab9666c577be40942a2a1b7db7f1ef1e1a208ea6b7e33c906221efb78cc11c5",
       "codeHash": "0xaebd68b2a785d0af4b7e1f3e600efde438efa83b08f2ad8bcd9287322f396e5f",
@@ -87,7 +87,7 @@
       "key": "0xc5cde3f9919e46021264f96610e62970e8aa910e6457059ce4bfb1c48b16b59a"
     },
     "0x4562938d6831437f37dd1bf5bbb7fe7a5f080eac": {
-      "balance": "0",
+      "balance": "0x0",
       "nonce": 1,
       "root": "0x3e8b25f39fd713daed2a41f440a2ffecf3e7a153bd7a230d053f36740f656433",
       "codeHash": "0x3f41be62f844a58153179eed8f6e351351a8a0b293f01383671e7ec136b3e40e",
@@ -99,7 +99,7 @@
       "key": "0xf16b24c51b2548da7804641166342e8b8662bebf66987ef3eb12dd7950821b74"
     },
     "0x48204903b06a64e3c44b0260f875497ea5316a02": {
-      "balance": "0",
+      "balance": "0x0",
       "nonce": 1,
       "root": "0x408e9cd8a46cccdf81d7735aa9c93b5a97608fcc38000c6c8311e6d614c9cfc6",
       "codeHash": "0x1f958654ab06a152993e7a0ae7b6dbb0d4b19265cc9337b8789fe1353bd9dc35",
@@ -112,7 +112,7 @@
       "key": "0x2c94e39eab7e93ae2c81f6d3b7d4b3d6a6ffeb09b6493d7bb1642b2d00c2cf60"
     },
     "0x6fb1869d7141c97cf28668fa0a338bdc892f53c0": {
-      "balance": "0",
+      "balance": "0x0",
       "nonce": 1,
       "root": "0x4c966b8eb461b1db77f4842a16a91b766d03a7f2699edfa8f25d23028b511260",
       "codeHash": "0xc7b46fc754979c0fd29ec7105b045a5705d172da4364b24a72e42e586906056f",
@@ -124,7 +124,7 @@
       "key": "0xe1a3b9b8f8403a487cd74384f01166a39e6b0740fb9cf546795fa82c12e0a716"
     },
     "0x73317009f4fadafcda357f3a082c7b68f5f8732f": {
-      "balance": "0",
+      "balance": "0x0",
       "nonce": 1,
       "root": "0xdc2d8e78c5f46669754c0498c50471e7944dd5787b3acdbcb53858469ad4e1d3",
       "codeHash": "0x1f958654ab06a152993e7a0ae7b6dbb0d4b19265cc9337b8789fe1353bd9dc35",
@@ -144,7 +144,7 @@
       "key": "0xfbb20b1dbf403bf022cfca8b23242ebe79dc06744e9d5233cb6db43454746315"
     },
     "0x7aeb97910d4070426c00e820de4137d6d2adf0ad": {
-      "balance": "0",
+      "balance": "0x0",
       "nonce": 1,
       "root": "0x5577b03f1a10efe1b976be229362e61ffc19859e866c7ca0d9e4887bc87b0800",
       "codeHash": "0x23ff3128727914b22a2753aafff02d897826166b869a027a11b851863d379ddf",
@@ -156,7 +156,7 @@
       "key": "0xd0a446c0ce66b5c711436c39fbeae531a05e9d698f32ddc8cd48d17fbe95feb0"
     },
     "0x7ec3b539c97c98d503fb4fee3dd4ee885dc192cd": {
-      "balance": "0",
+      "balance": "0x0",
       "nonce": 1,
       "root": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
       "codeHash": "0x0d625098e698c6d3b38ed38c3f00ea28361dc94fbf0e6cfd4c1ebc121cd9daac",
@@ -164,7 +164,7 @@
       "key": "0xd409335fac8e9e86a7a66c3720b403889062892385e5f09b7af7c5bee4f326fd"
     },
     "0x7f325df611b236ee3ef469da4a74f776c787d1b3": {
-      "balance": "0",
+      "balance": "0x0",
       "nonce": 1,
       "root": "0x821e2556a290c86405f8160a2d662042a431ba456b9db265c79bb837c04be5f0",
       "codeHash": "0x8e91bdb75050d4b44b5fc5c557c6f3455bfc4b76686fd72d9087b51a3200aecf",
@@ -175,7 +175,7 @@
       "key": "0x7a0724a3db73dfc6e99d843345c7746c79a0f615a36e22824ad91209feb9cf81"
     },
     "0x87658463f96977fc95a068f1a206d2c0cf2db575": {
-      "balance": "0",
+      "balance": "0x0",
       "nonce": 1,
       "root": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
       "codeHash": "0x3bb571c9d6063b9c50dcf6f602d428dfd633dca39aba9ec607d4ce0505a362d5",
@@ -183,7 +183,7 @@
       "key": "0xbd5530d2a017fd01a7edb9efa8656fd9c2d34523524628fdfd649f3222cec07c"
     },
     "0x9a7ecb1c67f88396d252725f3259e9d8027f1562": {
-      "balance": "0",
+      "balance": "0x0",
       "nonce": 1,
       "root": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
       "codeHash": "0x8b9df5a9eb6bb3280671bbc79f735d9d7009f8c0590c5cd0bc75a8e928068606",
@@ -191,7 +191,7 @@
       "key": "0x26ac7e215c5b48eb9f6162a5e7022d185b54b55d6d706b30e2777e9c6e06d565"
     },
     "0xa051f227da1f5f1eecbfcdcd7316ce299a233760": {
-      "balance": "0",
+      "balance": "0x0",
       "nonce": 1,
       "root": "0x4bed30661c4ccc61a7009910d1386ad6903216e2275b55589afb851dcb70c294",
       "codeHash": "0x1f958654ab06a152993e7a0ae7b6dbb0d4b19265cc9337b8789fe1353bd9dc35",
@@ -203,7 +203,7 @@
       "key": "0xd8522a36052aeae781dd8c38910969dc4f51b91541455ac64a0936b69d848e6e"
     },
     "0xa88b2060478401a52532814edde6819d101802e2": {
-      "balance": "0",
+      "balance": "0x0",
       "nonce": 1,
       "root": "0x68f4106f36ca6cb79380dcf1851f76be5dca9c34a9223a82032ccbba38eeb51a",
       "codeHash": "0x06643e7d44538ba353995b6b77634e1c5bd1282ae7902f2b1aceaec97cf572ed",
@@ -217,7 +217,7 @@
       "key": "0xdc2621e436cbec9ae124870f5ab25b65494a5accb952b75a94fda87636f6cd14"
     },
     "0xb8d5d0fa6e413b5de72c38a0a187731171b4f341": {
-      "balance": "0",
+      "balance": "0x0",
       "nonce": 1,
       "root": "0x0ad3da5fea1ef359038ec861ffa336c2364bc170d36b136f0e8535f6cd29e283",
       "codeHash": "0x3921774d36fd85d9e41c25a60635dfe0f0e5d2162afb93292db8bb80c81ece78",
@@ -231,7 +231,7 @@
       "key": "0x212f20473e051f38a3e883e04c615db86c000c11b7afcc5d9736f30c2a634a78"
     },
     "0xcf1a8a7f273da1bd3112750cc3691b46c541e8b7": {
-      "balance": "0",
+      "balance": "0x0",
       "nonce": 1,
       "root": "0xa67b52462cb55b02cdc3b77317c72ba356565052daa741c56db173834086bf29",
       "codeHash": "0x1f958654ab06a152993e7a0ae7b6dbb0d4b19265cc9337b8789fe1353bd9dc35",
@@ -246,7 +246,7 @@
       "key": "0x81f151b659eee15d57be7e42c54519f089683a2663c2d73e920317ec91831100"
     },
     "0xd16dba9f860146f08c9ee83b891c138667021ec9": {
-      "balance": "0",
+      "balance": "0x0",
       "nonce": 1,
       "root": "0xd71f41c241891e04095a92d2faafea7012de6d509ce9b855c4aad8523d3abe94",
       "codeHash": "0x1f958654ab06a152993e7a0ae7b6dbb0d4b19265cc9337b8789fe1353bd9dc35",
@@ -258,7 +258,7 @@
       "key": "0x3c75634c38fdffac6bd90c0b6feb19aef829f6f952f8331c21b7694d21c185de"
     },
     "0xec466e9a46914507c484dcc5caba1db787e34913": {
-      "balance": "0",
+      "balance": "0x0",
       "nonce": 1,
       "root": "0x82c7f6f047f8e47468199468dab7c7bff9e01ed86ddf466e930363f12781776e",
       "codeHash": "0x30dd4c41053621e6ecb9d600526b682dcce4370e8c206f016e2ad0ff4ea6b6c8",

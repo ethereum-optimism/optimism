@@ -9,3 +9,6 @@ LDFLAGS := -ldflags "$(LDFLAGSSTRING)"
 
 op-wheel:
 	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) go build -v $(LDFLAGS) -o ./bin/op-wheel ./cmd
+
+.PHONY: \
+	op-wheel

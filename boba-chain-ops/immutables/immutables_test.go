@@ -75,6 +75,8 @@ func TestBuildOptimism(t *testing.T) {
 		"LegacyERC20ETH":                true,
 		"EAS":                           true,
 		"SchemaRegistry":                true,
+		"Create2Deployer":               true,
+		"DeterministicDeploymentProxy":  true,
 		"BobaL2":                        true,
 	}
 

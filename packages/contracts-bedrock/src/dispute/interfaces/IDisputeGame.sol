@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.15;
 
-import { IBondManager } from "./IBondManager.sol";
-import { IInitializable } from "./IInitializable.sol";
+import { IInitializable } from "src/dispute/interfaces/IInitializable.sol";
 
 import "src/libraries/DisputeTypes.sol";
 
@@ -16,6 +15,10 @@ interface IDisputeGame is IInitializable {
     /// @notice Returns the timestamp that the DisputeGame contract was created at.
     /// @return createdAt_ The timestamp that the DisputeGame contract was created at.
     function createdAt() external view returns (Timestamp createdAt_);
+
+    /// @notice Returns the timestamp that the DisputeGame contract was resolved at.
+    /// @return resolvedAt_ The timestamp that the DisputeGame contract was resolved at.
+    function resolvedAt() external view returns (Timestamp resolvedAt_);
 
     /// @notice Returns the current status of the game.
     /// @return status_ The current status of the game.
@@ -36,10 +39,6 @@ interface IDisputeGame is IInitializable {
     /// @dev `clones-with-immutable-args` argument #2
     /// @return extraData_ Any extra data supplied to the dispute game contract by the creator.
     function extraData() external pure returns (bytes memory extraData_);
-
-    /// @notice Returns the address of the `BondManager` used.
-    /// @return bondManager_ The address of the `BondManager` used.
-    function bondManager() external view returns (IBondManager bondManager_);
 
     /// @notice If all necessary information has been gathered, this function should mark the game
     ///         status as either `CHALLENGER_WINS` or `DEFENDER_WINS` and return the status of

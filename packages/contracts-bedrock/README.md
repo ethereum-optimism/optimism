@@ -97,15 +97,17 @@ since some contracts are deployed using `CREATE`. Run `pnpm clean` and rerun the
 
 ### Static Analysis
 
-`contracts-bedrock` uses [slither](https://github.com/crytic/slither) as its primary static analysis tool. When opening a pr that includes changes to `contracts-bedrock`, you should
-verify that slither did not detect any new issues by running `pnpm slither:check`.
+`contracts-bedrock` uses [slither](https://github.com/crytic/slither) as its primary static analysis tool.
+Slither will be run against PRs as part of CI, and new findings will be reported as a comment on the PR.
+CI will fail if there are any new findings of medium or higher severity, as configured in the repo's Settings > Code Security and Analysis > Code Scanning > Protection rules setting.
 
-If there are new issues, you should triage them.
-Run `pnpm slither:triage` to step through findings.
-You should _carefully_ walk through these findings, specifying which to triage/ignore (default is to keep all, outputting them into `slither-report.json`).
-Findings can be triaged into `slither.db.json` or kept in the `slither-report.json`.
-You should triage issues with extreme _care_ and security sign-off.
+There are two corresponding jobs in CI: one calls "Slither Analysis" and one called "Code scanning results / Slither".
+The former will always pass if Slither runs successfully, and the latter will fail if there are any new findings of medium or higher severity.
 
-After issues are triaged, or an updated slither report is generated, make sure to check in your changes to git.
-Once checked in, the changes can be verified by running `pnpm slither:check`.
-This will fail if there are issues missing from the `slither-report.json` that are _not_ triaged into `slither.db.json`.
+Existing findings can be found in the repo's Security tab > [Code Scanning](https://github.com/ethereum-optimism/optimism/security/code-scanning) section.
+You can view findings for a specific PR using the `pr:{number}` filter, such [`pr:9405`](https://github.com/ethereum-optimism/optimism/security/code-scanning?query=is:open+pr:9405).
+
+For each finding, either fix it locally and push a new commit, or dismiss it through the PR comment's UI.
+
+Note that you can run slither locally by running `slither .`, but because it does not contain the triaged results from GitHub, it will be noisy.
+Instead, you should run `slither ./path/to/contract.sol` to run it against a specific file.

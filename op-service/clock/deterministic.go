@@ -138,6 +138,12 @@ func (s *DeterministicClock) Now() time.Time {
 	return s.now
 }
 
+func (s *DeterministicClock) Since(t time.Time) time.Duration {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	return s.now.Sub(t)
+}
+
 func (s *DeterministicClock) After(d time.Duration) <-chan time.Time {
 	s.lock.Lock()
 	defer s.lock.Unlock()

@@ -1,12 +1,6 @@
 [
   {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_messenger",
-        "type": "address"
-      }
-    ],
+    "inputs": [],
     "stateMutability": "nonpayable",
     "type": "constructor"
   },
@@ -28,7 +22,7 @@
     "name": "OTHER_BRIDGE",
     "outputs": [
       {
-        "internalType": "address",
+        "internalType": "contract StandardBridge",
         "name": "",
         "type": "address"
       }
@@ -177,6 +171,11 @@
   {
     "inputs": [
       {
+        "internalType": "contract CrossDomainMessenger",
+        "name": "_messenger",
+        "type": "address"
+      },
+      {
         "internalType": "contract SuperchainConfig",
         "name": "_superchainConfig",
         "type": "address"
@@ -205,7 +204,7 @@
     "name": "otherBridge",
     "outputs": [
       {
-        "internalType": "address",
+        "internalType": "contract StandardBridge",
         "name": "",
         "type": "address"
       }

@@ -35,17 +35,17 @@ var (
 type Config struct {
 	Rollup *rollup.Config
 	// DataDir is the directory to read/write pre-image data from/to.
-	//If not set, an in-memory key-value store is used and fetching data must be enabled
+	// If not set, an in-memory key-value store is used and fetching data must be enabled
 	DataDir string
 
-	// L1Head is the block has of the L1 chain head block
-	L1Head     common.Hash
-	L1URL      string
-	L1TrustRPC bool
-	L1RPCKind  sources.RPCProviderKind
+	// L1Head is the block hash of the L1 chain head block
+	L1Head      common.Hash
+	L1URL       string
+	L1BeaconURL string
+	L1TrustRPC  bool
+	L1RPCKind   sources.RPCProviderKind
 
 	// L2Head is the l2 block hash contained in the L2 Output referenced by the L2OutputRoot
-	// TODO(inphi): This can be made optional with hardcoded rollup configs and output oracle addresses by searching the oracle for the l2 output root
 	L2Head common.Hash
 	// L2OutputRoot is the agreed L2 output root to start derivation from
 	L2OutputRoot common.Hash
@@ -85,9 +85,6 @@ func (c *Config) Check() error {
 	if c.L2OutputRoot == (common.Hash{}) {
 		return ErrInvalidL2OutputRoot
 	}
-	if c.L2Claim == (common.Hash{}) {
-		return ErrInvalidL2Claim
-	}
 	if c.L2ClaimBlockNumber == 0 {
 		return ErrInvalidL2ClaimBlock
 	}
@@ -107,6 +104,7 @@ func (c *Config) Check() error {
 }
 
 func (c *Config) FetchingEnabled() bool {
+	// TODO: Include Beacon URL once cancun is active on all chains we fault prove.
 	return c.L1URL != "" && c.L2URL != ""
 }
 
@@ -139,7 +137,7 @@ func NewConfigFromCLI(log log.Logger, ctx *cli.Context) (*Config, error) {
 	if err := flags.CheckRequired(ctx); err != nil {
 		return nil, err
 	}
-	rollupCfg, err := opnode.NewRollupConfig(log, ctx)
+	rollupCfg, err := opnode.NewRollupConfigFromCLI(log, ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -151,9 +149,13 @@ func NewConfigFromCLI(log log.Logger, ctx *cli.Context) (*Config, error) {
 	if l2OutputRoot == (common.Hash{}) {
 		return nil, ErrInvalidL2OutputRoot
 	}
-	l2Claim := common.HexToHash(ctx.String(flags.L2Claim.Name))
-	if l2Claim == (common.Hash{}) {
-		return nil, ErrInvalidL2Claim
+	strClaim := ctx.String(flags.L2Claim.Name)
+	l2Claim := common.HexToHash(strClaim)
+	// Require a valid hash, with the zero hash explicitly allowed.
+	if l2Claim == (common.Hash{}) &&
+		strClaim != "0x0000000000000000000000000000000000000000000000000000000000000000" &&
+		strClaim != "0000000000000000000000000000000000000000000000000000000000000000" {
+		return nil, fmt.Errorf("%w: %v", ErrInvalidL2Claim, strClaim)
 	}
 	l2ClaimBlockNum := ctx.Uint64(flags.L2BlockNumber.Name)
 	l1Head := common.HexToHash(ctx.String(flags.L1Head.Name))
@@ -192,6 +194,7 @@ func NewConfigFromCLI(log log.Logger, ctx *cli.Context) (*Config, error) {
 		L2ClaimBlockNumber:  l2ClaimBlockNum,
 		L1Head:              l1Head,
 		L1URL:               ctx.String(flags.L1NodeAddr.Name),
+		L1BeaconURL:         ctx.String(flags.L1BeaconAddr.Name),
 		L1TrustRPC:          ctx.Bool(flags.L1TrustRPC.Name),
 		L1RPCKind:           sources.RPCProviderKind(ctx.String(flags.L1RPCProviderKind.Name)),
 		ExecCmd:             ctx.String(flags.Exec.Name),

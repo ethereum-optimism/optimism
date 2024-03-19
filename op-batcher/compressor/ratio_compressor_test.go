@@ -16,13 +16,12 @@ func TestInputThreshold(t *testing.T) {
 		TargetNumFrames  int
 		ApproxComprRatio float64
 	}
-	type test struct {
-		input     testInput
-		assertion func(uint64)
-	}
 
 	// Construct test cases that test the boundary conditions
-	tests := []test{
+	tests := []struct {
+		input     testInput
+		assertion func(uint64)
+	}{
 		{
 			input: testInput{
 				TargetFrameSize:  1,

@@ -48,6 +48,11 @@ func NewL2Genesis(config *DeployConfig, header *types.Header) (*types.Genesis, e
 	if canyonTimeUint64 != nil {
 		canyonTime = new(big.Int).SetUint64(*canyonTimeUint64)
 	}
+	var ecotoneTime *big.Int
+	ecotoneTimeUint64 := config.EcotoneTime(header.Time)
+	if ecotoneTimeUint64 != nil {
+		ecotoneTime = new(big.Int).SetUint64(*ecotoneTimeUint64)
+	}
 
 	optimismChainConfig := chain.Config{
 		ChainID:                       new(big.Int).SetUint64(config.L2ChainID),
@@ -71,7 +76,8 @@ func NewL2Genesis(config *DeployConfig, header *types.Header) (*types.Genesis, e
 		RegolithTime:                  regolithTime,
 		CanyonTime:                    canyonTime,
 		ShanghaiTime:                  canyonTime,
-		CancunTime:                    nil, // no Dencun on L2 yet.
+		CancunTime:                    ecotoneTime,
+		EcotoneTime:                   ecotoneTime,
 		Optimism: &chain.OptimismConfig{
 			EIP1559Denominator:       eip1559Denom,
 			EIP1559Elasticity:        eip1559Elasticity,

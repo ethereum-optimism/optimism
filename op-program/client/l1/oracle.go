@@ -1,10 +1,13 @@
 package l1
 
 import (
+	"encoding/binary"
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
@@ -21,6 +24,12 @@ type Oracle interface {
 
 	// ReceiptsByBlockHash retrieves the receipts from the block with the given hash.
 	ReceiptsByBlockHash(blockHash common.Hash) (eth.BlockInfo, types.Receipts)
+
+	// GetBlobField retrieves the field element at the given index from the blob with the given hash.
+	GetBlob(ref eth.L1BlockRef, blobHash eth.IndexedBlobHash) *eth.Blob
+
+	// KZGPointEvaluation retriees the result of the Cancun KZG point evaluation precompile for the given input.
+	KZGPointEvaluation(input []byte) bool
 }
 
 // PreimageOracle implements Oracle using by interfacing with the pure preimage.Oracle
@@ -85,4 +94,37 @@ func (p *PreimageOracle) ReceiptsByBlockHash(blockHash common.Hash) (eth.BlockIn
 	}
 
 	return info, receipts
+}
+
+func (p *PreimageOracle) GetBlob(ref eth.L1BlockRef, blobHash eth.IndexedBlobHash) *eth.Blob {
+	// Send a hint for the blob commitment & blob field elements.
+	blobReqMeta := make([]byte, 16)
+	binary.BigEndian.PutUint64(blobReqMeta[0:8], blobHash.Index)
+	binary.BigEndian.PutUint64(blobReqMeta[8:16], ref.Time)
+	p.hint.Hint(BlobHint(append(blobHash.Hash[:], blobReqMeta...)))
+
+	commitment := p.oracle.Get(preimage.Sha256Key(blobHash.Hash))
+
+	// Reconstruct the full blob from the 4096 field elements.
+	blob := eth.Blob{}
+	fieldElemKey := make([]byte, 80)
+	copy(fieldElemKey[:48], commitment)
+	for i := 0; i < params.BlobTxFieldElementsPerBlob; i++ {
+		binary.BigEndian.PutUint64(fieldElemKey[72:], uint64(i))
+		fieldElement := p.oracle.Get(preimage.BlobKey(crypto.Keccak256(fieldElemKey)))
+
+		copy(blob[i<<5:(i+1)<<5], fieldElement[:])
+	}
+
+	return &blob
+}
+
+func (p *PreimageOracle) KZGPointEvaluation(input []byte) bool {
+	p.hint.Hint(KZGPointEvaluationHint(input))
+	key := preimage.KZGPointEvaluationKey(crypto.Keccak256Hash(input[:]))
+	result := p.oracle.Get(key)
+	if len(result) != 1 || result[0] > 1 {
+		panic(fmt.Errorf("unexpected preimage oracle KZGPointEvaluation behavior, got result: %x", result))
+	}
+	return result[0] == 1
 }

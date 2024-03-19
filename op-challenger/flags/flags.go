@@ -15,16 +15,14 @@ import (
 	openum "github.com/ethereum-optimism/optimism/op-service/enum"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
-	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
+	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
-const (
-	envVarPrefix = "OP_CHALLENGER"
-)
+const EnvVarPrefix = "OP_CHALLENGER"
 
 func prefixEnvVars(name string) []string {
-	return opservice.PrefixEnvVar(envVarPrefix, name)
+	return opservice.PrefixEnvVar(EnvVarPrefix, name)
 }
 
 var (
@@ -33,6 +31,16 @@ var (
 		Name:    "l1-eth-rpc",
 		Usage:   "HTTP provider URL for L1.",
 		EnvVars: prefixEnvVars("L1_ETH_RPC"),
+	}
+	L1BeaconFlag = &cli.StringFlag{
+		Name:    "l1-beacon",
+		Usage:   "Address of L1 Beacon API endpoint to use",
+		EnvVars: prefixEnvVars("L1_BEACON"),
+	}
+	RollupRpcFlag = &cli.StringFlag{
+		Name:    "rollup-rpc",
+		Usage:   "HTTP provider URL for the rollup node",
+		EnvVars: prefixEnvVars("ROLLUP_RPC"),
 	}
 	FactoryAddressFlag = &cli.StringFlag{
 		Name:    "game-factory-address",
@@ -49,6 +57,7 @@ var (
 		Name:    "trace-type",
 		Usage:   "The trace types to support. Valid options: " + openum.EnumString(config.TraceTypes),
 		EnvVars: prefixEnvVars("TRACE_TYPE"),
+		Value:   cli.NewStringSlice(config.TraceTypeCannon.String()),
 	}
 	DatadirFlag = &cli.StringFlag{
 		Name:    "datadir",
@@ -62,21 +71,17 @@ var (
 		EnvVars: prefixEnvVars("MAX_CONCURRENCY"),
 		Value:   uint(runtime.NumCPU()),
 	}
+	MaxPendingTransactionsFlag = &cli.Uint64Flag{
+		Name:    "max-pending-tx",
+		Usage:   "The maximum number of pending transactions. 0 for no limit.",
+		Value:   config.DefaultMaxPendingTx,
+		EnvVars: prefixEnvVars("MAX_PENDING_TX"),
+	}
 	HTTPPollInterval = &cli.DurationFlag{
 		Name:    "http-poll-interval",
 		Usage:   "Polling interval for latest-block subscription when using an HTTP RPC provider.",
 		EnvVars: prefixEnvVars("HTTP_POLL_INTERVAL"),
 		Value:   config.DefaultPollInterval,
-	}
-	RollupRpcFlag = &cli.StringFlag{
-		Name:    "rollup-rpc",
-		Usage:   "HTTP provider URL for the rollup node",
-		EnvVars: prefixEnvVars("ROLLUP_RPC"),
-	}
-	AlphabetFlag = &cli.StringFlag{
-		Name:    "alphabet",
-		Usage:   "Correct Alphabet Trace (alphabet trace type only)",
-		EnvVars: prefixEnvVars("ALPHABET"),
 	}
 	CannonNetworkFlag = &cli.StringFlag{
 		Name: "cannon-network",
@@ -129,10 +134,17 @@ var (
 		Value:   config.DefaultCannonInfoFreq,
 	}
 	GameWindowFlag = &cli.DurationFlag{
-		Name:    "game-window",
-		Usage:   "The time window which the challenger will look for games to progress.",
+		Name: "game-window",
+		Usage: "The time window which the challenger will look for games to progress and claim bonds. " +
+			"This should include a buffer for the challenger to claim bonds for games outside the maximum game duration.",
 		EnvVars: prefixEnvVars("GAME_WINDOW"),
 		Value:   config.DefaultGameWindow,
+	}
+	UnsafeAllowInvalidPrestate = &cli.BoolFlag{
+		Name:    "unsafe-allow-invalid-prestate",
+		Usage:   "Allow responding to games where the absolute prestate is configured incorrectly. THIS IS UNSAFE!",
+		EnvVars: prefixEnvVars("UNSAFE_ALLOW_INVALID_PRESTATE"),
+		Hidden:  true, // Hidden as this is an unsafe flag added only for testing purposes
 	}
 )
 
@@ -140,16 +152,17 @@ var (
 var requiredFlags = []cli.Flag{
 	L1EthRpcFlag,
 	FactoryAddressFlag,
-	TraceTypeFlag,
 	DatadirFlag,
+	RollupRpcFlag,
+	L1BeaconFlag,
 }
 
 // optionalFlags is a list of unchecked cli flags
 var optionalFlags = []cli.Flag{
+	TraceTypeFlag,
 	MaxConcurrencyFlag,
+	MaxPendingTransactionsFlag,
 	HTTPPollInterval,
-	RollupRpcFlag,
-	AlphabetFlag,
 	GameAllowlistFlag,
 	CannonNetworkFlag,
 	CannonRollupConfigFlag,
@@ -161,13 +174,14 @@ var optionalFlags = []cli.Flag{
 	CannonSnapshotFreqFlag,
 	CannonInfoFreqFlag,
 	GameWindowFlag,
+	UnsafeAllowInvalidPrestate,
 }
 
 func init() {
-	optionalFlags = append(optionalFlags, oplog.CLIFlags(envVarPrefix)...)
-	optionalFlags = append(optionalFlags, txmgr.CLIFlagsWithDefaults(envVarPrefix, txmgr.DefaultChallengerFlagValues)...)
-	optionalFlags = append(optionalFlags, opmetrics.CLIFlags(envVarPrefix)...)
-	optionalFlags = append(optionalFlags, oppprof.CLIFlags(envVarPrefix)...)
+	optionalFlags = append(optionalFlags, oplog.CLIFlags(EnvVarPrefix)...)
+	optionalFlags = append(optionalFlags, txmgr.CLIFlagsWithDefaults(EnvVarPrefix, txmgr.DefaultChallengerFlagValues)...)
+	optionalFlags = append(optionalFlags, opmetrics.CLIFlags(EnvVarPrefix)...)
+	optionalFlags = append(optionalFlags, oppprof.CLIFlags(EnvVarPrefix)...)
 
 	Flags = append(requiredFlags, optionalFlags...)
 }
@@ -209,25 +223,11 @@ func CheckRequired(ctx *cli.Context, traceTypes []config.TraceType) error {
 	}
 	for _, traceType := range traceTypes {
 		switch traceType {
-		case config.TraceTypeCannon:
+		case config.TraceTypeCannon, config.TraceTypePermissioned:
 			if err := CheckCannonFlags(ctx); err != nil {
 				return err
 			}
 		case config.TraceTypeAlphabet:
-			if !ctx.IsSet(AlphabetFlag.Name) {
-				return fmt.Errorf("flag %s is required", "alphabet")
-			}
-		case config.TraceTypeOutputCannon:
-			if err := CheckCannonFlags(ctx); err != nil {
-				return err
-			}
-			if !ctx.IsSet(RollupRpcFlag.Name) {
-				return fmt.Errorf("flag %s is required", RollupRpcFlag.Name)
-			}
-		case config.TraceTypeOutputAlphabet:
-			if !ctx.IsSet(RollupRpcFlag.Name) {
-				return fmt.Errorf("flag %s is required", RollupRpcFlag.Name)
-			}
 		default:
 			return fmt.Errorf("invalid trace type. must be one of %v", config.TraceTypes)
 		}
@@ -284,14 +284,15 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 	return &config.Config{
 		// Required Flags
 		L1EthRpc:               ctx.String(L1EthRpcFlag.Name),
+		L1Beacon:               ctx.String(L1BeaconFlag.Name),
 		TraceTypes:             traceTypes,
 		GameFactoryAddress:     gameFactoryAddress,
 		GameAllowlist:          allowedGames,
 		GameWindow:             ctx.Duration(GameWindowFlag.Name),
 		MaxConcurrency:         maxConcurrency,
+		MaxPendingTx:           ctx.Uint64(MaxPendingTransactionsFlag.Name),
 		PollInterval:           ctx.Duration(HTTPPollInterval.Name),
 		RollupRpc:              ctx.String(RollupRpcFlag.Name),
-		AlphabetTrace:          ctx.String(AlphabetFlag.Name),
 		CannonNetwork:          ctx.String(CannonNetworkFlag.Name),
 		CannonRollupConfigPath: ctx.String(CannonRollupConfigFlag.Name),
 		CannonL2GenesisPath:    ctx.String(CannonL2GenesisFlag.Name),
@@ -305,5 +306,6 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 		TxMgrConfig:            txMgrConfig,
 		MetricsConfig:          metricsConfig,
 		PprofConfig:            pprofConfig,
+		AllowInvalidPrestate:   ctx.Bool(UnsafeAllowInvalidPrestate.Name),
 	}, nil
 }

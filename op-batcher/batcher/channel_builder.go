@@ -107,7 +107,8 @@ type frameData struct {
 // channelBuilder uses a ChannelOut to create a channel with output frame
 // size approximation.
 type channelBuilder struct {
-	cfg ChannelConfig
+	cfg       ChannelConfig
+	rollupCfg rollup.Config
 
 	// L1 block number timeout of combined
 	// - channel duration timeout,
@@ -135,14 +136,14 @@ type channelBuilder struct {
 
 // newChannelBuilder creates a new channel builder or returns an error if the
 // channel out could not be created.
-func newChannelBuilder(cfg ChannelConfig, rcfg *rollup.Config) (*channelBuilder, error) {
+func newChannelBuilder(cfg ChannelConfig, rollupCfg rollup.Config) (*channelBuilder, error) {
 	c, err := cfg.CompressorConfig.NewCompressor()
 	if err != nil {
 		return nil, err
 	}
 	var spanBatchBuilder *derive.SpanBatchBuilder
 	if cfg.BatchType == derive.SpanBatchType {
-		spanBatchBuilder = derive.NewSpanBatchBuilder(rcfg.Genesis.L2Time, rcfg.L2ChainID)
+		spanBatchBuilder = derive.NewSpanBatchBuilder(rollupCfg.Genesis.L2Time, rollupCfg.L2ChainID)
 	}
 	co, err := derive.NewChannelOut(cfg.BatchType, c, spanBatchBuilder)
 	if err != nil {
@@ -150,8 +151,9 @@ func newChannelBuilder(cfg ChannelConfig, rcfg *rollup.Config) (*channelBuilder,
 	}
 
 	return &channelBuilder{
-		cfg: cfg,
-		co:  co,
+		cfg:       cfg,
+		rollupCfg: rollupCfg,
+		co:        co,
 	}, nil
 }
 
@@ -201,12 +203,12 @@ func (c *channelBuilder) Reset() error {
 // first transaction for subsequent use by the caller.
 //
 // Call OutputFrames() afterwards to create frames.
-func (c *channelBuilder) AddBlock(block *types.Block) (derive.L1BlockInfo, error) {
+func (c *channelBuilder) AddBlock(block *types.Block) (*derive.L1BlockInfo, error) {
 	if c.IsFull() {
-		return derive.L1BlockInfo{}, c.FullErr()
+		return nil, c.FullErr()
 	}
 
-	batch, l1info, err := derive.BlockToSingularBatch(block)
+	batch, l1info, err := derive.BlockToSingularBatch(&c.rollupCfg, block)
 	if err != nil {
 		return l1info, fmt.Errorf("converting block to batch: %w", err)
 	}

@@ -136,7 +136,7 @@ func L2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metrics L2M
 	return nil
 }
 
-// L2ProcessFinalizedBridgeEvent will query the database for all the finalization markers for all initiated
+// L2ProcessFinalizedBridgeEvents will query the database for all the finalization markers for all initiated
 // bridge events. This covers every part of the multi-layered stack:
 //  1. L2CrossDomainMessenger (relayMessage marker)
 //  2. L2StandardBridge (no-op, since this is simply a wrapper over the L2CrossDomainMEssenger)

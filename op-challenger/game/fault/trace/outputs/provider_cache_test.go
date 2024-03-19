@@ -23,10 +23,10 @@ func TestProviderCache(t *testing.T) {
 		L2BlockNumber: big.NewInt(35),
 		OutputRoot:    common.Hash{0xcc},
 	}
-	depth := uint64(6)
+	depth := types.Depth(6)
 	var createdProvider types.TraceProvider
-	creator := func(ctx context.Context, localContext common.Hash, depth uint64, agreed contracts.Proposal, claimed contracts.Proposal) (types.TraceProvider, error) {
-		createdProvider = alphabet.NewTraceProvider("abcdef", depth)
+	creator := func(ctx context.Context, localContext common.Hash, depth types.Depth, agreed contracts.Proposal, claimed contracts.Proposal) (types.TraceProvider, error) {
+		createdProvider = alphabet.NewTraceProvider(big.NewInt(0), depth)
 		return createdProvider, nil
 	}
 	localContext1 := common.Hash{0xdd}
@@ -57,7 +57,7 @@ func TestProviderCache(t *testing.T) {
 func TestProviderCache_DoNotCacheErrors(t *testing.T) {
 	callCount := 0
 	providerErr := errors.New("boom")
-	creator := func(ctx context.Context, localContext common.Hash, depth uint64, agreed contracts.Proposal, claimed contracts.Proposal) (types.TraceProvider, error) {
+	creator := func(ctx context.Context, localContext common.Hash, depth types.Depth, agreed contracts.Proposal, claimed contracts.Proposal) (types.TraceProvider, error) {
 		callCount++
 		return nil, providerErr
 	}

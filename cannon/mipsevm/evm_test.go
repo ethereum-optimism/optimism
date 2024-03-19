@@ -21,8 +21,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/eth/tracers/logger"
 	"github.com/stretchr/testify/require"
-
-	"github.com/ethereum-optimism/optimism/op-chain-ops/srcmap"
 )
 
 func testContractsSetup(t require.TestingT) (*Contracts, *Addresses) {
@@ -37,18 +35,6 @@ func testContractsSetup(t require.TestingT) (*Contracts, *Addresses) {
 	}
 
 	return contracts, addrs
-}
-
-func SourceMapTracer(t *testing.T, contracts *Contracts, addrs *Addresses) vm.EVMLogger {
-	t.Fatal("TODO(clabby): The source map tracer is disabled until source IDs have been added to foundry artifacts.")
-
-	contractsDir := "../../packages/contracts-bedrock"
-	mipsSrcMap, err := contracts.MIPS.SourceMap([]string{path.Join(contractsDir, "src/cannon/MIPS.sol")})
-	require.NoError(t, err)
-	oracleSrcMap, err := contracts.Oracle.SourceMap([]string{path.Join(contractsDir, "src/cannon/PreimageOracle.sol")})
-	require.NoError(t, err)
-
-	return srcmap.NewSourceMapTracer(map[common.Address]*srcmap.SourceMap{addrs.MIPS: mipsSrcMap, addrs.Oracle: oracleSrcMap}, os.Stdout)
 }
 
 func MarkdownTracer() vm.EVMLogger {
@@ -157,8 +143,7 @@ func TestEVM(t *testing.T) {
 	require.NoError(t, err)
 
 	contracts, addrs := testContractsSetup(t)
-	var tracer vm.EVMLogger // no-tracer by default, but see SourceMapTracer and MarkdownTracer
-	//tracer = SourceMapTracer(t, contracts, addrs)
+	var tracer vm.EVMLogger // no-tracer by default, but MarkdownTracer
 
 	for _, f := range testFiles {
 		t.Run(f.Name(), func(t *testing.T) {
@@ -221,15 +206,13 @@ func TestEVM(t *testing.T) {
 func TestEVMSingleStep(t *testing.T) {
 	contracts, addrs := testContractsSetup(t)
 	var tracer vm.EVMLogger
-	//tracer = SourceMapTracer(t, contracts, addrs)
 
-	type testInput struct {
+	cases := []struct {
 		name   string
 		pc     uint32
 		nextPC uint32
 		insn   uint32
-	}
-	cases := []testInput{
+	}{
 		{"j MSB set target", 0, 4, 0x0A_00_00_02},                         // j 0x02_00_00_02
 		{"j non-zero PC region", 0x10000000, 0x10000004, 0x08_00_00_02},   // j 0x2
 		{"jal MSB set target", 0, 4, 0x0E_00_00_02},                       // jal 0x02_00_00_02
@@ -257,19 +240,17 @@ func TestEVMSingleStep(t *testing.T) {
 
 func TestEVMFault(t *testing.T) {
 	contracts, addrs := testContractsSetup(t)
-	var tracer vm.EVMLogger // no-tracer by default, but see SourceMapTracer and MarkdownTracer
-	//tracer = SourceMapTracer(t, contracts, addrs)
+	var tracer vm.EVMLogger // no-tracer by default, but see MarkdownTracer
 	sender := common.Address{0x13, 0x37}
 
 	env, evmState := NewEVMEnv(contracts, addrs)
 	env.Config.Tracer = tracer
 
-	type testInput struct {
+	cases := []struct {
 		name   string
 		nextPC uint32
 		insn   uint32
-	}
-	cases := []testInput{
+	}{
 		{"illegal instruction", 0, 0xFF_FF_FF_FF},
 		{"branch in delay-slot", 8, 0x11_02_00_03},
 		{"jump in delay-slot", 8, 0x0c_00_00_0c},
@@ -305,8 +286,7 @@ func TestEVMFault(t *testing.T) {
 
 func TestHelloEVM(t *testing.T) {
 	contracts, addrs := testContractsSetup(t)
-	var tracer vm.EVMLogger // no-tracer by default, but see SourceMapTracer and MarkdownTracer
-	//tracer = SourceMapTracer(t, contracts, addrs)
+	var tracer vm.EVMLogger // no-tracer by default, but see MarkdownTracer
 
 	elfProgram, err := elf.Open("../example/bin/hello.elf")
 	require.NoError(t, err, "open ELF file")
@@ -356,8 +336,7 @@ func TestHelloEVM(t *testing.T) {
 
 func TestClaimEVM(t *testing.T) {
 	contracts, addrs := testContractsSetup(t)
-	var tracer vm.EVMLogger // no-tracer by default, but see SourceMapTracer and MarkdownTracer
-	//tracer = SourceMapTracer(t, contracts, addrs)
+	var tracer vm.EVMLogger // no-tracer by default, but see MarkdownTracer
 
 	elfProgram, err := elf.Open("../example/bin/claim.elf")
 	require.NoError(t, err, "open ELF file")

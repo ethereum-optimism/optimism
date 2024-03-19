@@ -61,5 +61,19 @@
     "offset": 1,
     "slot": "53",
     "type": "contract SuperchainConfig"
+  },
+  {
+    "bytes": "20",
+    "label": "l2Oracle",
+    "offset": 0,
+    "slot": "54",
+    "type": "contract L2OutputOracle"
+  },
+  {
+    "bytes": "20",
+    "label": "systemConfig",
+    "offset": 0,
+    "slot": "55",
+    "type": "contract SystemConfig"
   }
 ]

@@ -32,42 +32,26 @@ type L1Fetcher interface {
 	L1TransactionFetcher
 }
 
-// ResettableEngineControl wraps EngineControl with reset-functionality,
-// which handles reorgs like the derivation pipeline:
-// by determining the last valid block references to continue from.
-type ResettableEngineControl interface {
-	EngineControl
-	Reset()
-}
-
 type ResettableStage interface {
 	// Reset resets a pull stage. `base` refers to the L1 Block Reference to reset to, with corresponding configuration.
 	Reset(ctx context.Context, base eth.L1BlockRef, baseCfg eth.SystemConfig) error
 }
 
 type EngineQueueStage interface {
-	EngineControl
-
+	LowestQueuedUnsafeBlock() eth.L2BlockRef
 	FinalizedL1() eth.L1BlockRef
-	Finalized() eth.L2BlockRef
-	UnsafeL2Head() eth.L2BlockRef
-	SafeL2Head() eth.L2BlockRef
-	PendingSafeL2Head() eth.L2BlockRef
-	EngineSyncTarget() eth.L2BlockRef
 	Origin() eth.L1BlockRef
 	SystemConfig() eth.SystemConfig
-	SetUnsafeHead(head eth.L2BlockRef)
 
 	Finalize(l1Origin eth.L1BlockRef)
-	AddUnsafePayload(payload *eth.ExecutionPayload)
-	UnsafeL2SyncTarget() eth.L2BlockRef
+	AddUnsafePayload(payload *eth.ExecutionPayloadEnvelope)
 	Step(context.Context) error
 }
 
 // DerivationPipeline is updated with new L1 data, and the Step() function can be iterated on to keep the L2 Engine in sync.
 type DerivationPipeline struct {
 	log       log.Logger
-	cfg       *rollup.Config
+	rollupCfg *rollup.Config
 	l1Fetcher L1Fetcher
 
 	// Index of the stage that is currently being reset.
@@ -83,21 +67,22 @@ type DerivationPipeline struct {
 }
 
 // NewDerivationPipeline creates a derivation pipeline, which should be reset before use.
-func NewDerivationPipeline(log log.Logger, cfg *rollup.Config, l1Fetcher L1Fetcher, engine Engine, metrics Metrics, syncCfg *sync.Config) *DerivationPipeline {
+
+func NewDerivationPipeline(log log.Logger, rollupCfg *rollup.Config, l1Fetcher L1Fetcher, l1Blobs L1BlobsFetcher, plasmaInputs PlasmaInputFetcher, l2Source L2Source, engine LocalEngineControl, metrics Metrics, syncCfg *sync.Config) *DerivationPipeline {
 
 	// Pull stages
-	l1Traversal := NewL1Traversal(log, cfg, l1Fetcher)
-	dataSrc := NewDataSourceFactory(log, cfg, l1Fetcher) // auxiliary stage for L1Retrieval
+	l1Traversal := NewL1Traversal(log, rollupCfg, l1Fetcher)
+	dataSrc := NewDataSourceFactory(log, rollupCfg, l1Fetcher, l1Blobs, plasmaInputs) // auxiliary stage for L1Retrieval
 	l1Src := NewL1Retrieval(log, dataSrc, l1Traversal)
 	frameQueue := NewFrameQueue(log, l1Src)
-	bank := NewChannelBank(log, cfg, frameQueue, l1Fetcher, metrics)
-	chInReader := NewChannelInReader(cfg, log, bank, metrics)
-	batchQueue := NewBatchQueue(log, cfg, chInReader, engine)
-	attrBuilder := NewFetchingAttributesBuilder(cfg, l1Fetcher, engine)
-	attributesQueue := NewAttributesQueue(log, cfg, attrBuilder, batchQueue)
+	bank := NewChannelBank(log, rollupCfg, frameQueue, l1Fetcher, metrics)
+	chInReader := NewChannelInReader(rollupCfg, log, bank, metrics)
+	batchQueue := NewBatchQueue(log, rollupCfg, chInReader, l2Source)
+	attrBuilder := NewFetchingAttributesBuilder(rollupCfg, l1Fetcher, l2Source)
+	attributesQueue := NewAttributesQueue(log, rollupCfg, attrBuilder, batchQueue)
 
 	// Step stages
-	eng := NewEngineQueue(log, cfg, engine, metrics, attributesQueue, l1Fetcher, syncCfg)
+	eng := NewEngineQueue(log, rollupCfg, l2Source, engine, metrics, attributesQueue, l1Fetcher, syncCfg)
 
 	// Reset from engine queue then up from L1 Traversal. The stages do not talk to each other during
 	// the reset, but after the engine queue, this is the order in which the stages could talk to each other.
@@ -106,7 +91,7 @@ func NewDerivationPipeline(log log.Logger, cfg *rollup.Config, l1Fetcher L1Fetch
 
 	return &DerivationPipeline{
 		log:       log,
-		cfg:       cfg,
+		rollupCfg: rollupCfg,
 		l1Fetcher: l1Fetcher,
 		resetting: 0,
 		stages:    stages,
@@ -142,55 +127,19 @@ func (dp *DerivationPipeline) FinalizedL1() eth.L1BlockRef {
 	return dp.eng.FinalizedL1()
 }
 
-func (dp *DerivationPipeline) Finalized() eth.L2BlockRef {
-	return dp.eng.Finalized()
-}
-
-func (dp *DerivationPipeline) SafeL2Head() eth.L2BlockRef {
-	return dp.eng.SafeL2Head()
-}
-
-func (dp *DerivationPipeline) PendingSafeL2Head() eth.L2BlockRef {
-	return dp.eng.PendingSafeL2Head()
-}
-
-// UnsafeL2Head returns the head of the L2 chain that we are deriving for, this may be past what we derived from L1
-func (dp *DerivationPipeline) UnsafeL2Head() eth.L2BlockRef {
-	return dp.eng.UnsafeL2Head()
-}
-
-func (dp *DerivationPipeline) EngineSyncTarget() eth.L2BlockRef {
-	return dp.eng.EngineSyncTarget()
-}
-
-func (dp *DerivationPipeline) StartPayload(ctx context.Context, parent eth.L2BlockRef, attrs *eth.PayloadAttributes, updateSafe bool) (errType BlockInsertionErrType, err error) {
-	return dp.eng.StartPayload(ctx, parent, attrs, updateSafe)
-}
-
-func (dp *DerivationPipeline) ConfirmPayload(ctx context.Context) (out *eth.ExecutionPayload, errTyp BlockInsertionErrType, err error) {
-	return dp.eng.ConfirmPayload(ctx)
-}
-
-func (dp *DerivationPipeline) CancelPayload(ctx context.Context, force bool) error {
-	return dp.eng.CancelPayload(ctx, force)
-}
-
-func (dp *DerivationPipeline) BuildingPayload() (onto eth.L2BlockRef, id eth.PayloadID, safe bool) {
-	return dp.eng.BuildingPayload()
-}
-
 // AddUnsafePayload schedules an execution payload to be processed, ahead of deriving it from L1
-func (dp *DerivationPipeline) AddUnsafePayload(payload *eth.ExecutionPayload) {
+func (dp *DerivationPipeline) AddUnsafePayload(payload *eth.ExecutionPayloadEnvelope) {
 	dp.eng.AddUnsafePayload(payload)
 }
 
-// UnsafeL2SyncTarget retrieves the first queued-up L2 unsafe payload, or a zeroed reference if there is none.
-func (dp *DerivationPipeline) UnsafeL2SyncTarget() eth.L2BlockRef {
-	return dp.eng.UnsafeL2SyncTarget()
+// LowestQueuedUnsafeBlock returns the lowest queued unsafe block. If the gap is filled from the unsafe head
+// to this block, the EngineQueue will be able to apply the queued payloads.
+func (dp *DerivationPipeline) LowestQueuedUnsafeBlock() eth.L2BlockRef {
+	return dp.eng.LowestQueuedUnsafeBlock()
 }
 
 // Step tries to progress the buffer.
-// An EOF is returned if there pipeline is blocked by waiting for new L1 data.
+// An EOF is returned if the pipeline is blocked by waiting for new L1 data.
 // If ctx errors no error is returned, but the step may exit early in a state that can still be continued.
 // Any other error is critical and the derivation pipeline should be reset.
 // An error is expected when the underlying source closes.

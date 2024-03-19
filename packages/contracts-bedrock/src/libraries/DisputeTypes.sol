@@ -1,15 +1,29 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.15;
 
-import { LibHashing } from "../dispute/lib/LibHashing.sol";
-import { LibPosition } from "../dispute/lib/LibPosition.sol";
-import { LibClock } from "../dispute/lib/LibClock.sol";
-import { LibGameId } from "../dispute/lib/LibGameId.sol";
+import { LibHashing } from "src/dispute/lib/LibHashing.sol";
+import {
+    LibClaim,
+    LibHash,
+    LibDuration,
+    LibClock,
+    LibTimestamp,
+    LibVMStatus,
+    LibGameType
+} from "src/dispute/lib/LibUDT.sol";
+import { LibPosition } from "src/dispute/lib/LibPosition.sol";
+import { LibGameId } from "src/dispute/lib/LibGameId.sol";
 
+using LibClaim for Claim global;
 using LibHashing for Claim global;
+using LibHash for Hash global;
 using LibPosition for Position global;
+using LibDuration for Duration global;
 using LibClock for Clock global;
 using LibGameId for GameId global;
+using LibTimestamp for Timestamp global;
+using LibVMStatus for VMStatus global;
+using LibGameType for GameType global;
 
 /// @notice A custom type for a generic hash.
 type Hash is bytes32;
@@ -60,7 +74,7 @@ type Clock is uint128;
 type Position is uint128;
 
 /// @notice A `GameType` represents the type of game being played.
-type GameType is uint8;
+type GameType is uint32;
 
 /// @notice A `VMStatus` represents the status of a VM execution.
 type VMStatus is uint8;
@@ -81,12 +95,8 @@ library GameTypes {
     /// @dev A dispute game type the uses the cannon vm.
     GameType internal constant CANNON = GameType.wrap(0);
 
-    /// @dev A dispute game type that performs output bisection and then uses the cannon vm.
-    GameType internal constant OUTPUT_CANNON = GameType.wrap(1);
-
-    /// @notice A dispute game type that performs output bisection and then uses an alphabet vm.
-    ///         Not intended for production use.
-    GameType internal constant OUTPUT_ALPHABET = GameType.wrap(254);
+    /// @dev A permissioned dispute game type the uses the cannon vm.
+    GameType internal constant PERMISSIONED_CANNON = GameType.wrap(1);
 
     /// @notice A dispute game type that uses an alphabet vm.
     ///         Not intended for production use.

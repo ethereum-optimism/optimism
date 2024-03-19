@@ -149,6 +149,12 @@ func BuildOptimism(immutable ImmutableConfig) (DeploymentResults, error) {
 			Name: "SchemaRegistry",
 		},
 		{
+			Name: "Create2Deployer",
+		},
+		{
+			Name: "DeterministicDeploymentProxy",
+		},
+		{
 			Name: "BobaL2",
 			Args: []interface{}{
 				immutable["BobaL2"]["l2Bridge"],
@@ -190,17 +196,9 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 		// No arguments required for the L1Block contract
 		_, tx, _, err = bindings.DeployL1Block(opts, backend)
 	case "L2CrossDomainMessenger":
-		otherMessenger, ok := deployment.Args[0].(common.Address)
-		if !ok {
-			return nil, fmt.Errorf("invalid type for otherMessenger")
-		}
-		_, tx, _, err = bindings.DeployL2CrossDomainMessenger(opts, backend, otherMessenger)
+		_, tx, _, err = bindings.DeployL2CrossDomainMessenger(opts, backend)
 	case "L2StandardBridge":
-		otherBridge, ok := deployment.Args[0].(common.Address)
-		if !ok {
-			return nil, fmt.Errorf("invalid type for otherBridge")
-		}
-		_, tx, _, err = bindings.DeployL2StandardBridge(opts, backend, otherBridge)
+		_, tx, _, err = bindings.DeployL2StandardBridge(opts, backend)
 	case "L2ToL1MessagePasser":
 		// No arguments required for L2ToL1MessagePasser
 		_, tx, _, err = bindings.DeployL2ToL1MessagePasser(opts, backend)
@@ -223,7 +221,7 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 		}
 		_, tx, _, err = bindings.DeployL1FeeVault(opts, backend, recipient, minimumWithdrawalAmount, withdrawalNetwork)
 	case "OptimismMintableERC20Factory":
-		_, tx, _, err = bindings.DeployOptimismMintableERC20Factory(opts, backend, predeploys.L2StandardBridgeAddr)
+		_, tx, _, err = bindings.DeployOptimismMintableERC20Factory(opts, backend)
 	case "DeployerWhitelist":
 		_, tx, _, err = bindings.DeployDeployerWhitelist(opts, backend)
 	case "LegacyMessagePasser":
@@ -231,11 +229,7 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 	case "L1BlockNumber":
 		_, tx, _, err = bindings.DeployL1BlockNumber(opts, backend)
 	case "L2ERC721Bridge":
-		otherBridge, ok := deployment.Args[0].(common.Address)
-		if !ok {
-			return nil, fmt.Errorf("invalid type for otherBridge")
-		}
-		_, tx, _, err = bindings.DeployL2ERC721Bridge(opts, backend, otherBridge)
+		_, tx, _, err = bindings.DeployL2ERC721Bridge(opts, backend)
 	case "OptimismMintableERC721Factory":
 		bridge, ok := deployment.Args[0].(common.Address)
 		if !ok {
@@ -252,6 +246,10 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 		_, tx, _, err = bindings.DeployEAS(opts, backend)
 	case "SchemaRegistry":
 		_, tx, _, err = bindings.DeploySchemaRegistry(opts, backend)
+	case "Create2Deployer":
+		_, tx, _, err = bindings.DeployCreate2Deployer(opts, backend)
+	case "DeterministicDeploymentProxy":
+		_, tx, _, err = bindings.DeployDeterministicDeploymentProxy(opts, backend)
 	case "BobaL2":
 		l2Bridge, ok := deployment.Args[0].(common.Address)
 		if !ok {

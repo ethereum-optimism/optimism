@@ -10,11 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type astIDTest struct {
-	In  *solc.StorageLayout `json:"in"`
-	Out *solc.StorageLayout `json:"out"`
-}
-
 func TestCanonicalize(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -42,7 +37,10 @@ func TestCanonicalize(t *testing.T) {
 			f, err := os.Open(path.Join("testdata", tt.filename))
 			require.NoError(t, err)
 			dec := json.NewDecoder(f)
-			var testData astIDTest
+			var testData struct {
+				In  *solc.StorageLayout `json:"in"`
+				Out *solc.StorageLayout `json:"out"`
+			}
 			require.NoError(t, dec.Decode(&testData))
 			require.NoError(t, f.Close())
 

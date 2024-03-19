@@ -76,6 +76,10 @@ type DeployConfig struct {
 	L2GenesisRegolithTimeOffset *hexutil.Uint64 `json:"l2GenesisRegolithTimeOffset,omitempty"`
 	// Seconds after genesis block that Canyon hard fork activates. 0 to activate at genesis. Nil to disable canyon
 	L2GenesisCanyonTimeOffset *hexutil.Uint64 `json:"l2GenesisCanyonTimeOffset,omitempty"`
+	// L2GenesisDeltaTimeOffset is the number of seconds after genesis block that Delta hard fork activates. 0 to activate at genesis. Nil to disable delta
+	L2GenesisDeltaTimeOffset *hexutil.Uint64 `json:"l2GenesisDeltaTimeOffset,omitempty"`
+	// Seconds after genesis block that Ecotone hard fork activates. 0 to activate at genesis. Nil to disable ecotone
+	L2GenesisEcotoneTimeOffset *hexutil.Uint64 `json:"l2GenesisEcotoneTimeOffset,omitempty"`
 	// Owner of the ProxyAdmin predeploy
 	ProxyAdminOwner common.Address `json:"proxyAdminOwner"`
 	// Owner of the system on L1
@@ -254,6 +258,31 @@ func (d *DeployConfig) Check() error {
 	if d.L2GenesisBlockBaseFeePerGas == nil {
 		return fmt.Errorf("%w: L2 genesis block base fee per gas cannot be nil", ErrInvalidDeployConfig)
 	}
+	// checkFork checks that fork A is before or at the same time as fork B
+	checkFork := func(a, b *hexutil.Uint64, aName, bName string) error {
+		if a == nil && b == nil {
+			return nil
+		}
+		if a == nil && b != nil {
+			return fmt.Errorf("fork %s set (to %d), but prior fork %s missing", bName, *b, aName)
+		}
+		if a != nil && b == nil {
+			return nil
+		}
+		if *a > *b {
+			return fmt.Errorf("fork %s set to %d, but prior fork %s has higher offset %d", bName, *b, aName, *a)
+		}
+		return nil
+	}
+	if err := checkFork(d.L2GenesisRegolithTimeOffset, d.L2GenesisCanyonTimeOffset, "regolith", "canyon"); err != nil {
+		return err
+	}
+	if err := checkFork(d.L2GenesisCanyonTimeOffset, d.L2GenesisDeltaTimeOffset, "canyon", "delta"); err != nil {
+		return err
+	}
+	if err := checkFork(d.L2GenesisDeltaTimeOffset, d.L2GenesisEcotoneTimeOffset, "delta", "ecotone"); err != nil {
+		return err
+	}
 	// l1 Boba token address is optional, if not provided, use the default address for the chain ID
 	// but if provided, it must be a valid address
 	_, err := d.GetL1BobaTokenAddress()
@@ -370,6 +399,8 @@ func (d *DeployConfig) RollupConfig(l1StartHeader *types.Header, l2GenesisBlockH
 		L1SystemConfigAddress:  d.SystemConfigProxy,
 		RegolithTime:           d.RegolithTime(l1StartHeader.Time),
 		CanyonTime:             d.CanyonTime(l1StartHeader.Time),
+		DeltaTime:              d.DeltaTime(l1StartHeader.Time),
+		EcotoneTime:            d.EcotoneTime(l1StartHeader.Time),
 	}, nil
 }
 
@@ -418,6 +449,29 @@ func (d *DeployConfig) CanyonTime(genesisTime uint64) *uint64 {
 	}
 	v := uint64(0)
 	if offset := *d.L2GenesisCanyonTimeOffset; offset >= 0 {
+		v = genesisTime + uint64(offset)
+	}
+	return &v
+}
+
+func (d *DeployConfig) DeltaTime(genesisTime uint64) *uint64 {
+	if d.L2GenesisDeltaTimeOffset == nil {
+		return nil
+	}
+	v := uint64(0)
+	if offset := *d.L2GenesisDeltaTimeOffset; offset > 0 {
+		v = genesisTime + uint64(offset)
+	}
+	return &v
+}
+
+func (d *DeployConfig) EcotoneTime(genesisTime uint64) *uint64 {
+	fmt.Println("EcotoneTime", d.L2GenesisEcotoneTimeOffset)
+	if d.L2GenesisEcotoneTimeOffset == nil {
+		return nil
+	}
+	v := uint64(0)
+	if offset := *d.L2GenesisEcotoneTimeOffset; offset >= 0 {
 		v = genesisTime + uint64(offset)
 	}
 	return &v
@@ -510,10 +564,13 @@ func NewL2StorageConfig(config *DeployConfig, blockHeader *types.Header) (state.
 		"_initializing":    false,
 		"xDomainMsgSender": "0x000000000000000000000000000000000000dEaD",
 		"msgNonce":         0,
+		"otherMessenger":   config.L1CrossDomainMessengerProxy,
 	}
 	storage["L2StandardBridge"] = state.StorageValues{
 		"_initialized":  2,
 		"_initializing": false,
+		"otherBridge":   config.L1StandardBridgeProxy,
+		"messenger":     predeploys.L2CrossDomainMessengerAddr,
 	}
 	storage["L1Block"] = state.StorageValues{
 		"number":         blockHeader.Number,
@@ -540,6 +597,13 @@ func NewL2StorageConfig(config *DeployConfig, blockHeader *types.Header) (state.
 	storage["L2ERC721Bridge"] = state.StorageValues{
 		"_initialized":  2,
 		"_initializing": false,
+		"otherBridge":   config.L1ERC721BridgeProxy,
+		"messenger":     predeploys.L2CrossDomainMessengerAddr,
+	}
+	storage["OptimismMintableERC20Factory"] = state.StorageValues{
+		"_initialized":  1,
+		"_initializing": false,
+		"bridge":        predeploys.L2StandardBridgeAddr,
 	}
 	l1TokenAddr, err := config.GetL1BobaTokenAddress()
 	if err != nil {

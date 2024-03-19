@@ -74,10 +74,14 @@ func blocksTopicV2(cfg *rollup.Config) string {
 	return fmt.Sprintf("/optimism/%s/1/blocks", cfg.L2ChainID.String())
 }
 
+func blocksTopicV3(cfg *rollup.Config) string {
+	return fmt.Sprintf("/optimism/%s/2/blocks", cfg.L2ChainID.String())
+}
+
 // BuildSubscriptionFilter builds a simple subscription filter,
 // to help protect against peers spamming useless subscriptions.
 func BuildSubscriptionFilter(cfg *rollup.Config) pubsub.SubscriptionFilter {
-	return pubsub.NewAllowlistSubscriptionFilter(blocksTopicV1(cfg), blocksTopicV2(cfg)) // add more topics here in the future, if any.
+	return pubsub.NewAllowlistSubscriptionFilter(blocksTopicV1(cfg), blocksTopicV2(cfg), blocksTopicV3(cfg)) // add more topics here in the future, if any.
 }
 
 var msgBufPool = sync.Pool{New: func() any {
@@ -286,12 +290,24 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config, runCfg GossipRunti
 			return result
 		}
 
+		var envelope eth.ExecutionPayloadEnvelope
+
 		// [REJECT] if the block encoding is not valid
-		var payload eth.ExecutionPayload
-		if err := payload.UnmarshalSSZ(blockVersion, uint32(len(payloadBytes)), bytes.NewReader(payloadBytes)); err != nil {
-			log.Warn("invalid payload", "err", err, "peer", id)
-			return pubsub.ValidationReject
+		if blockVersion == eth.BlockV3 {
+			if err := envelope.UnmarshalSSZ(uint32(len(payloadBytes)), bytes.NewReader(payloadBytes)); err != nil {
+				log.Warn("invalid envelope payload", "err", err, "peer", id)
+				return pubsub.ValidationReject
+			}
+		} else {
+			var payload eth.ExecutionPayload
+			if err := payload.UnmarshalSSZ(blockVersion, uint32(len(payloadBytes)), bytes.NewReader(payloadBytes)); err != nil {
+				log.Warn("invalid execution payload", "err", err, "peer", id)
+				return pubsub.ValidationReject
+			}
+			envelope = eth.ExecutionPayloadEnvelope{ExecutionPayload: &payload}
 		}
+
+		payload := envelope.ExecutionPayload
 
 		// rounding down to seconds is fine here.
 		now := uint64(time.Now().Unix())
@@ -309,26 +325,58 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config, runCfg GossipRunti
 		}
 
 		// [REJECT] if the `block_hash` in the `payload` is not valid
-		if actual, ok := payload.CheckBlockHash(); !ok {
+		if actual, ok := envelope.CheckBlockHash(); !ok {
 			log.Warn("payload has bad block hash", "bad_hash", payload.BlockHash.String(), "actual", actual.String())
 			return pubsub.ValidationReject
 		}
 
 		// [REJECT] if a V1 Block has withdrawals
-		if blockVersion == eth.BlockV1 && payload.Withdrawals != nil {
+		if !blockVersion.HasWithdrawals() && payload.Withdrawals != nil {
 			log.Warn("payload is on v1 topic, but has withdrawals", "bad_hash", payload.BlockHash.String())
 			return pubsub.ValidationReject
 		}
 
 		// [REJECT] if a V2 Block does not have withdrawals
-		if blockVersion == eth.BlockV2 && payload.Withdrawals == nil {
-			log.Warn("payload is on v2 topic, but does not have withdrawals", "bad_hash", payload.BlockHash.String())
+		if blockVersion.HasWithdrawals() && payload.Withdrawals == nil {
+			log.Warn("payload is on v2/v3 topic, but does not have withdrawals", "bad_hash", payload.BlockHash.String())
 			return pubsub.ValidationReject
 		}
 
 		// [REJECT] if a V2 Block has non-empty withdrawals
-		if blockVersion == eth.BlockV2 && len(*payload.Withdrawals) != 0 {
-			log.Warn("payload is on v2 topic, but has non-empty withdrawals", "bad_hash", payload.BlockHash.String(), "withdrawal_count", len(*payload.Withdrawals))
+		if blockVersion.HasWithdrawals() && len(*payload.Withdrawals) != 0 {
+			log.Warn("payload is on v2/v3 topic, but has non-empty withdrawals", "bad_hash", payload.BlockHash.String(), "withdrawal_count", len(*payload.Withdrawals))
+			return pubsub.ValidationReject
+		}
+
+		// [REJECT] if the block is on a topic <= V2 and has a blob gas value set
+		if !blockVersion.HasBlobProperties() && payload.BlobGasUsed != nil {
+			log.Warn("payload is on v1/v2 topic, but has blob gas used", "bad_hash", payload.BlockHash.String())
+			return pubsub.ValidationReject
+		}
+
+		// [REJECT] if the block is on a topic <= V2 and has an excess blob gas value set
+		if !blockVersion.HasBlobProperties() && payload.ExcessBlobGas != nil {
+			log.Warn("payload is on v1/v2 topic, but has excess blob gas", "bad_hash", payload.BlockHash.String())
+			return pubsub.ValidationReject
+		}
+
+		if blockVersion.HasBlobProperties() {
+			// [REJECT] if the block is on a topic >= V3 and has a blob gas used value that is not zero
+			if payload.BlobGasUsed == nil || (payload.BlobGasUsed != nil && *payload.BlobGasUsed != 0) {
+				log.Warn("payload is on v3 topic, but has non-zero blob gas used", "bad_hash", payload.BlockHash.String(), "blob_gas_used", payload.BlobGasUsed)
+				return pubsub.ValidationReject
+			}
+
+			// [REJECT] if the block is on a topic >= V3 and has an excess blob gas value that is not zero
+			if payload.ExcessBlobGas == nil || (payload.ExcessBlobGas != nil && *payload.ExcessBlobGas != 0) {
+				log.Warn("payload is on v3 topic, but has non-zero excess blob gas", "bad_hash", payload.BlockHash.String(), "excess_blob_gas", payload.ExcessBlobGas)
+				return pubsub.ValidationReject
+			}
+		}
+
+		// [REJECT] if the block is on a topic >= V3 and the parent beacon block root is nil
+		if blockVersion.HasParentBeaconBlockRoot() && envelope.ParentBeaconBlockRoot == nil {
+			log.Warn("payload is on v3 topic, but has nil parent beacon block root", "bad_hash", payload.BlockHash.String())
 			return pubsub.ValidationReject
 		}
 
@@ -353,7 +401,7 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config, runCfg GossipRunti
 		seen.markSeen(payload.BlockHash)
 
 		// remember the decoded payload for later usage in topic subscriber.
-		message.ValidatorData = &payload
+		message.ValidatorData = &envelope
 		return pubsub.ValidationAccept
 	}
 }
@@ -388,18 +436,19 @@ func verifyBlockSignature(log log.Logger, cfg *rollup.Config, runCfg GossipRunti
 }
 
 type GossipIn interface {
-	OnUnsafeL2Payload(ctx context.Context, from peer.ID, msg *eth.ExecutionPayload) error
+	OnUnsafeL2Payload(ctx context.Context, from peer.ID, msg *eth.ExecutionPayloadEnvelope) error
 }
 
 type GossipTopicInfo interface {
 	AllBlockTopicsPeers() []peer.ID
 	BlocksTopicV1Peers() []peer.ID
 	BlocksTopicV2Peers() []peer.ID
+	BlocksTopicV3Peers() []peer.ID
 }
 
 type GossipOut interface {
 	GossipTopicInfo
-	PublishL2Payload(ctx context.Context, msg *eth.ExecutionPayload, signer Signer) error
+	PublishL2Payload(ctx context.Context, msg *eth.ExecutionPayloadEnvelope, signer Signer) error
 	Close() error
 }
 
@@ -429,6 +478,7 @@ type publisher struct {
 
 	blocksV1 *blockTopic
 	blocksV2 *blockTopic
+	blocksV3 *blockTopic
 
 	runCfg GossipRuntimeConfig
 }
@@ -451,7 +501,7 @@ func combinePeers(allPeers ...[]peer.ID) []peer.ID {
 }
 
 func (p *publisher) AllBlockTopicsPeers() []peer.ID {
-	return combinePeers(p.BlocksTopicV1Peers(), p.BlocksTopicV2Peers())
+	return combinePeers(p.BlocksTopicV1Peers(), p.BlocksTopicV2Peers(), p.BlocksTopicV3Peers())
 }
 
 func (p *publisher) BlocksTopicV1Peers() []peer.ID {
@@ -462,7 +512,11 @@ func (p *publisher) BlocksTopicV2Peers() []peer.ID {
 	return p.blocksV2.topic.ListPeers()
 }
 
-func (p *publisher) PublishL2Payload(ctx context.Context, payload *eth.ExecutionPayload, signer Signer) error {
+func (p *publisher) BlocksTopicV3Peers() []peer.ID {
+	return p.blocksV3.topic.ListPeers()
+}
+
+func (p *publisher) PublishL2Payload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope, signer Signer) error {
 	res := msgBufPool.Get().(*[]byte)
 	buf := bytes.NewBuffer((*res)[:0])
 	defer func() {
@@ -471,9 +525,17 @@ func (p *publisher) PublishL2Payload(ctx context.Context, payload *eth.Execution
 	}()
 
 	buf.Write(make([]byte, 65))
-	if _, err := payload.MarshalSSZ(buf); err != nil {
-		return fmt.Errorf("failed to encoded execution payload to publish: %w", err)
+
+	if envelope.ParentBeaconBlockRoot != nil {
+		if _, err := envelope.MarshalSSZ(buf); err != nil {
+			return fmt.Errorf("failed to encoded execution payload envelope to publish: %w", err)
+		}
+	} else {
+		if _, err := envelope.ExecutionPayload.MarshalSSZ(buf); err != nil {
+			return fmt.Errorf("failed to encoded execution payload to publish: %w", err)
+		}
 	}
+
 	data := buf.Bytes()
 	payloadData := data[65:]
 	sig, err := signer.Sign(ctx, SigningDomainBlocksV1, p.cfg.L2ChainID, payloadData)
@@ -486,7 +548,9 @@ func (p *publisher) PublishL2Payload(ctx context.Context, payload *eth.Execution
 	// This also copies the data, freeing up the original buffer to go back into the pool
 	out := snappy.Encode(nil, data)
 
-	if p.cfg.IsCanyon(uint64(payload.Timestamp)) {
+	if p.cfg.IsEcotone(uint64(envelope.ExecutionPayload.Timestamp)) {
+		return p.blocksV3.topic.Publish(ctx, out)
+	} else if p.cfg.IsCanyon(uint64(envelope.ExecutionPayload.Timestamp)) {
 		return p.blocksV2.topic.Publish(ctx, out)
 	} else {
 		return p.blocksV1.topic.Publish(ctx, out)
@@ -519,12 +583,21 @@ func JoinGossip(self peer.ID, ps *pubsub.PubSub, log log.Logger, cfg *rollup.Con
 		return nil, fmt.Errorf("failed to setup blocks v2 p2p: %w", err)
 	}
 
+	v3Logger := log.New("topic", "blocksV3")
+	blocksV3Validator := guardGossipValidator(log, logValidationResult(self, "validated blockv3", v3Logger, BuildBlocksValidator(v3Logger, cfg, runCfg, eth.BlockV3)))
+	blocksV3, err := newBlockTopic(p2pCtx, blocksTopicV3(cfg), ps, v3Logger, gossipIn, blocksV3Validator)
+	if err != nil {
+		p2pCancel()
+		return nil, fmt.Errorf("failed to setup blocks v3 p2p: %w", err)
+	}
+
 	return &publisher{
 		log:       log,
 		cfg:       cfg,
 		p2pCancel: p2pCancel,
 		blocksV1:  blocksV1,
 		blocksV2:  blocksV2,
+		blocksV3:  blocksV3,
 		runCfg:    runCfg,
 	}, nil
 }
@@ -570,9 +643,9 @@ func newBlockTopic(ctx context.Context, topicId string, ps *pubsub.PubSub, log l
 type TopicSubscriber func(ctx context.Context, sub *pubsub.Subscription)
 type MessageHandler func(ctx context.Context, from peer.ID, msg any) error
 
-func BlocksHandler(onBlock func(ctx context.Context, from peer.ID, msg *eth.ExecutionPayload) error) MessageHandler {
+func BlocksHandler(onBlock func(ctx context.Context, from peer.ID, msg *eth.ExecutionPayloadEnvelope) error) MessageHandler {
 	return func(ctx context.Context, from peer.ID, msg any) error {
-		payload, ok := msg.(*eth.ExecutionPayload)
+		payload, ok := msg.(*eth.ExecutionPayloadEnvelope)
 		if !ok {
 			return fmt.Errorf("expected topic validator to parse and validate data into execution payload, but got %T", msg)
 		}

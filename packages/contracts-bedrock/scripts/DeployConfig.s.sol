@@ -1,11 +1,15 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity 0.8.15;
 
 import { Script } from "forge-std/Script.sol";
 import { console2 as console } from "forge-std/console2.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 import { Executables } from "scripts/Executables.sol";
 import { Chains } from "scripts/Chains.sol";
+
+// Global constant for the `useFaultProofs` slot in the DeployConfig contract, which can be overridden in the testing
+// environment.
+bytes32 constant USE_FAULT_PROOFS_SLOT = bytes32(uint256(63));
 
 /// @title DeployConfig
 /// @notice Represents the configuration required to deploy the system. It is expected
@@ -31,6 +35,7 @@ contract DeployConfig is Script {
     address public l2OutputOracleProposer;
     address public l2OutputOracleChallenger;
     uint256 public finalizationPeriodSeconds;
+    bool public fundDevAccounts;
     address public proxyAdminOwner;
     address public baseFeeVaultRecipient;
     uint256 public baseFeeVaultMinimumWithdrawalAmount;
@@ -38,6 +43,7 @@ contract DeployConfig is Script {
     uint256 public l1FeeVaultMinimumWithdrawalAmount;
     address public sequencerFeeVaultRecipient;
     uint256 public sequencerFeeVaultMinimumWithdrawalAmount;
+    uint256 public sequencerFeeVaultWithdrawalNetwork;
     string public governanceTokenName;
     string public governanceTokenSymbol;
     address public governanceTokenOwner;
@@ -45,19 +51,27 @@ contract DeployConfig is Script {
     uint256 public l2GenesisBlockBaseFeePerGas;
     uint256 public gasPriceOracleOverhead;
     uint256 public gasPriceOracleScalar;
+    bool public enableGovernance;
     uint256 public eip1559Denominator;
     uint256 public eip1559Elasticity;
     uint256 public faultGameAbsolutePrestate;
+    uint256 public faultGameGenesisBlock;
+    bytes32 public faultGameGenesisOutputRoot;
     uint256 public faultGameMaxDepth;
+    uint256 public faultGameSplitDepth;
     uint256 public faultGameMaxDuration;
-    uint256 public outputBisectionGameGenesisBlock;
-    bytes32 public outputBisectionGameGenesisOutputRoot;
-    uint256 public outputBisectionGameSplitDepth;
+    uint256 public preimageOracleMinProposalSize;
+    uint256 public preimageOracleChallengePeriod;
+    uint256 public preimageOracleCancunActivationTimestamp;
     uint256 public systemConfigStartBlock;
     uint256 public requiredProtocolVersion;
     uint256 public recommendedProtocolVersion;
+    uint256 public proofMaturityDelaySeconds;
+    uint256 public disputeGameFinalityDelaySeconds;
+    uint256 public respectedGameType;
+    bool public useFaultProofs;
 
-    constructor(string memory _path) {
+    function read(string memory _path) public {
         console.log("DeployConfig: reading file %s", _path);
         try vm.readFile(_path) returns (string memory data) {
             _json = data;
@@ -83,6 +97,7 @@ contract DeployConfig is Script {
         l2OutputOracleProposer = stdJson.readAddress(_json, "$.l2OutputOracleProposer");
         l2OutputOracleChallenger = stdJson.readAddress(_json, "$.l2OutputOracleChallenger");
         finalizationPeriodSeconds = stdJson.readUint(_json, "$.finalizationPeriodSeconds");
+        fundDevAccounts = stdJson.readBool(_json, "$.fundDevAccounts");
         proxyAdminOwner = stdJson.readAddress(_json, "$.proxyAdminOwner");
         baseFeeVaultRecipient = stdJson.readAddress(_json, "$.baseFeeVaultRecipient");
         baseFeeVaultMinimumWithdrawalAmount = stdJson.readUint(_json, "$.baseFeeVaultMinimumWithdrawalAmount");
@@ -90,6 +105,7 @@ contract DeployConfig is Script {
         l1FeeVaultMinimumWithdrawalAmount = stdJson.readUint(_json, "$.l1FeeVaultMinimumWithdrawalAmount");
         sequencerFeeVaultRecipient = stdJson.readAddress(_json, "$.sequencerFeeVaultRecipient");
         sequencerFeeVaultMinimumWithdrawalAmount = stdJson.readUint(_json, "$.sequencerFeeVaultMinimumWithdrawalAmount");
+        sequencerFeeVaultWithdrawalNetwork = stdJson.readUint(_json, "$.sequencerFeeVaultWithdrawalNetwork");
         governanceTokenName = stdJson.readString(_json, "$.governanceTokenName");
         governanceTokenSymbol = stdJson.readString(_json, "$.governanceTokenSymbol");
         governanceTokenOwner = stdJson.readAddress(_json, "$.governanceTokenOwner");
@@ -97,20 +113,28 @@ contract DeployConfig is Script {
         l2GenesisBlockBaseFeePerGas = stdJson.readUint(_json, "$.l2GenesisBlockBaseFeePerGas");
         gasPriceOracleOverhead = stdJson.readUint(_json, "$.gasPriceOracleOverhead");
         gasPriceOracleScalar = stdJson.readUint(_json, "$.gasPriceOracleScalar");
+        enableGovernance = stdJson.readBool(_json, "$.enableGovernance");
         eip1559Denominator = stdJson.readUint(_json, "$.eip1559Denominator");
         eip1559Elasticity = stdJson.readUint(_json, "$.eip1559Elasticity");
         systemConfigStartBlock = stdJson.readUint(_json, "$.systemConfigStartBlock");
         requiredProtocolVersion = stdJson.readUint(_json, "$.requiredProtocolVersion");
         recommendedProtocolVersion = stdJson.readUint(_json, "$.recommendedProtocolVersion");
 
-        if (block.chainid == Chains.LocalDevnet || block.chainid == Chains.GethDevnet) {
-            faultGameAbsolutePrestate = stdJson.readUint(_json, "$.faultGameAbsolutePrestate");
-            faultGameMaxDepth = stdJson.readUint(_json, "$.faultGameMaxDepth");
-            faultGameMaxDuration = stdJson.readUint(_json, "$.faultGameMaxDuration");
-            outputBisectionGameGenesisBlock = stdJson.readUint(_json, "$.outputBisectionGameGenesisBlock");
-            outputBisectionGameGenesisOutputRoot = stdJson.readBytes32(_json, "$.outputBisectionGameGenesisOutputRoot");
-            outputBisectionGameSplitDepth = stdJson.readUint(_json, "$.outputBisectionGameSplitDepth");
-        }
+        useFaultProofs = stdJson.readBool(_json, "$.useFaultProofs");
+        proofMaturityDelaySeconds = stdJson.readUint(_json, "$.proofMaturityDelaySeconds");
+        disputeGameFinalityDelaySeconds = stdJson.readUint(_json, "$.disputeGameFinalityDelaySeconds");
+        respectedGameType = stdJson.readUint(_json, "$.respectedGameType");
+
+        faultGameAbsolutePrestate = stdJson.readUint(_json, "$.faultGameAbsolutePrestate");
+        faultGameMaxDepth = stdJson.readUint(_json, "$.faultGameMaxDepth");
+        faultGameSplitDepth = stdJson.readUint(_json, "$.faultGameSplitDepth");
+        faultGameMaxDuration = stdJson.readUint(_json, "$.faultGameMaxDuration");
+        faultGameGenesisBlock = stdJson.readUint(_json, "$.faultGameGenesisBlock");
+        faultGameGenesisOutputRoot = stdJson.readBytes32(_json, "$.faultGameGenesisOutputRoot");
+
+        preimageOracleMinProposalSize = stdJson.readUint(_json, "$.preimageOracleMinProposalSize");
+        preimageOracleChallengePeriod = stdJson.readUint(_json, "$.preimageOracleChallengePeriod");
+        preimageOracleCancunActivationTimestamp = stdJson.readUint(_json, "$.preimageOracleCancunActivationTimestamp");
     }
 
     function l1StartingBlockTag() public returns (bytes32) {

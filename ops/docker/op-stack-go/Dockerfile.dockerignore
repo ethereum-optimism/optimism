@@ -8,6 +8,8 @@
 !/op-bootnode
 !/op-chain-ops
 !/op-challenger
+!/op-dispute-mon
+!/op-conductor
 !/op-heartbeat
 !/op-node
 !/op-preimage
@@ -15,5 +17,6 @@
 !/op-proposer
 !/op-service
 !/op-wheel
+!/op-plasma
 !/go.mod
 !/go.sum

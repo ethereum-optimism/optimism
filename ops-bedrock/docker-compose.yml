@@ -146,6 +146,9 @@ services:
       #OP_PROPOSER_MNEMONIC: test test test test test test test test test test test junk
       #OP_PROPOSER_L2_OUTPUT_HD_PATH: "m/44'/60'/0'/0/1"
       OP_PROPOSER_L2OO_ADDRESS: "${L2OO_ADDRESS}"
+      OP_PROPOSER_GAME_FACTORY_ADDRESS: "${DGF_ADDRESS}"
+      OP_PROPOSER_GAME_TYPE: "${DG_TYPE}"
+      OP_PROPOSER_PROPOSAL_INTERVAL: "${PROPOSAL_INTERVAL}"
       OP_PROPOSER_PPROF_ENABLED: "true"
       OP_PROPOSER_METRICS_ENABLED: "true"
       OP_PROPOSER_ALLOW_NON_FINALIZED: "true"
@@ -196,6 +199,39 @@ services:
       # testing purposes only
       AWS_ACCESS_KEY_ID: "1"
       AWS_SECRET_ACCESS_KEY: "1"
+
+  op-challenger:
+    depends_on:
+      - op_stack_go_builder
+      - l1
+      - l2
+      - op-node
+    build:
+      context: ../
+      dockerfile: ./op-challenger/Dockerfile
+      args:
+        OP_STACK_GO_BUILDER: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/op-stack-go:devnet
+    image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/op-challenger:devnet
+    environment:
+      OP_CHALLENGER_L1_ETH_RPC: http://l1:8545
+      # Note: this will need to be updated to point to a L1 consensus node when there is one in the devnet
+      OP_CHALLENGER_L1_BEACON: "unset"
+      OP_CHALLENGER_ROLLUP_RPC: http://op-node:8545
+      OP_CHALLENGER_TRACE_TYPE: cannon
+      OP_CHALLENGER_GAME_FACTORY_ADDRESS: ${DGF_ADDRESS}
+      # The devnet can't set the absolute prestate output root because the contracts are deployed in L1 genesis
+      # before the L2 genesis is known.
+      OP_CHALLENGER_UNSAFE_ALLOW_INVALID_PRESTATE: true
+      OP_CHALLENGER_DATADIR: temp/challenger-data
+      OP_CHALLENGER_CANNON_ROLLUP_CONFIG: ./.devnet/rollup.json
+      OP_CHALLENGER_CANNON_L2_GENESIS: ./.devnet/genesis-l2.json
+      OP_CHALLENGER_CANNON_BIN: ./cannon/bin/cannon
+      OP_CHALLENGER_CANNON_SERVER: ./op-program/bin/op-program
+      OP_CHALLENGER_CANNON_PRESTATE: ./op-program/bin/prestate.json
+      OP_CHALLENGER_CANNON_L2: http://l2:8545
+      OP_CHALLENGER_MNEMONIC: test test test test test test test test test test test junk
+      OP_CHALLENGER_HD_PATH: "m/44'/60'/0'/0/4"
+      OP_CHALLENGER_NUM_CONFIRMATIONS: 1
 
   artifact-server:
     depends_on:

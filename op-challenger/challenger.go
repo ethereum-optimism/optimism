@@ -15,6 +15,5 @@ func Main(ctx context.Context, logger log.Logger, cfg *config.Config) (cliapp.Li
 	if err := cfg.Check(); err != nil {
 		return nil, err
 	}
-	srv, err := game.NewService(ctx, logger, cfg)
-	return srv, err
+	return game.NewService(ctx, logger, cfg)
 }

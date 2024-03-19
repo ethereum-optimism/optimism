@@ -119,9 +119,12 @@ CREATE TABLE IF NOT EXISTS l2_transaction_withdrawals (
     nonce                   UINT256 NOT NULL UNIQUE,
     initiated_l2_event_guid VARCHAR NOT NULL UNIQUE REFERENCES l2_contract_events(guid) ON DELETE CASCADE,
 
-    -- Multistep (bedrock) process of a withdrawal
-    proven_l1_event_guid    VARCHAR UNIQUE REFERENCES l1_contract_events(guid) ON DELETE CASCADE,
-    finalized_l1_event_guid VARCHAR UNIQUE REFERENCES l1_contract_events(guid) ON DELETE CASCADE,
+    -- Multistep (bedrock) process of a withdrawal. With permissionless-output proposals, `proven_l1_event_guid`
+    -- should be treated as the last known proven event. It may be the case (rare) that the proven state of this
+    -- withdrawal was invalidated via a fault proof. This case is considered "rare" a malicious outputs are
+    -- disincentivezed via the posted bond.
+    proven_l1_event_guid    VARCHAR UNIQUE REFERENCES l1_contract_events(guid) ON DELETE SET NULL ON UPDATE CASCADE,
+    finalized_l1_event_guid VARCHAR UNIQUE REFERENCES l1_contract_events(guid) ON DELETE SET NULL ON UPDATE CASCADE,
     succeeded               BOOLEAN,
 
     -- transaction data
@@ -145,7 +148,7 @@ CREATE TABLE IF NOT EXISTS l1_bridge_messages(
     transaction_source_hash VARCHAR NOT NULL UNIQUE REFERENCES l1_transaction_deposits(source_hash) ON DELETE CASCADE,
 
     sent_message_event_guid    VARCHAR NOT NULL UNIQUE REFERENCES l1_contract_events(guid) ON DELETE CASCADE,
-    relayed_message_event_guid VARCHAR UNIQUE REFERENCES l2_contract_events(guid) ON DELETE CASCADE,
+    relayed_message_event_guid VARCHAR UNIQUE REFERENCES l2_contract_events(guid) ON DELETE SET NULL ON UPDATE CASCADE,
 
     -- sent message
     from_address VARCHAR NOT NULL,
@@ -167,7 +170,7 @@ CREATE TABLE IF NOT EXISTS l2_bridge_messages(
     transaction_withdrawal_hash VARCHAR NOT NULL UNIQUE REFERENCES l2_transaction_withdrawals(withdrawal_hash) ON DELETE CASCADE,
 
     sent_message_event_guid    VARCHAR NOT NULL UNIQUE REFERENCES l2_contract_events(guid) ON DELETE CASCADE,
-    relayed_message_event_guid VARCHAR UNIQUE REFERENCES l1_contract_events(guid) ON DELETE CASCADE,
+    relayed_message_event_guid VARCHAR UNIQUE REFERENCES l1_contract_events(guid) ON DELETE SET NULL ON UPDATE CASCADE,
 
     -- sent message
     from_address VARCHAR NOT NULL,

@@ -76,6 +76,11 @@ func (m *MockBlocksDB) StoreL2BlockHeaders(headers []L2BlockHeader) error {
 	return args.Error(1)
 }
 
+func (m *MockBlocksDB) DeleteReorgedState(timestamp uint64) error {
+	args := m.Called(timestamp)
+	return args.Error(1)
+}
+
 // MockDB is a mock database that can be used for testing
 type MockDB struct {
 	MockBlocks *MockBlocksDB

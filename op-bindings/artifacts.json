@@ -34,7 +34,6 @@
     "CrossDomainMessenger",
     "MIPS",
     "PreimageOracle",
-    "BlockOracle",
     "EAS",
     "SchemaRegistry",
     "BOBA",
@@ -60,7 +59,8 @@
       "name": "Create2Deployer",
       "verified": true,
       "deployments": {
-        "eth": "0xF49600926c7109BD66Ab97a2c036bf696e58Dbc2"
+        "eth": "0xF49600926c7109BD66Ab97a2c036bf696e58Dbc2",
+        "op": "0x13b0D85CcB8bf860b6b79AF3029fCA081AE9beF2"
       }
     },
     {

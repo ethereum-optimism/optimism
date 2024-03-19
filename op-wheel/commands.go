@@ -39,7 +39,7 @@ var (
 		Name:    "geth-log-level",
 		Usage:   "Set the global geth logging level",
 		EnvVars: prefixEnvVars("GETH_LOG_LEVEL"),
-		Value:   oplog.NewLvlFlagValue(log.LvlError),
+		Value:   oplog.NewLevelFlagValue(log.LevelError),
 	}
 	DataDirFlag = &cli.StringFlag{
 		Name:      "data-dir",
@@ -407,7 +407,7 @@ var (
 		Action: EngineAction(func(ctx *cli.Context, client client.RPC) error {
 			logCfg := oplog.ReadCLIConfig(ctx)
 			l := oplog.NewLogger(oplog.AppOut(ctx), logCfg)
-			oplog.SetGlobalLogHandler(l.GetHandler())
+			oplog.SetGlobalLogHandler(l.Handler())
 
 			settings := ParseBuildingArgs(ctx)
 			// TODO: finalize/safe flag

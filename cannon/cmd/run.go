@@ -16,6 +16,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
+	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 )
 
 var (
@@ -64,6 +65,16 @@ var (
 		Value:    new(StepMatcherFlag),
 		Required: false,
 	}
+	RunStopAtPreimageTypeFlag = &cli.StringFlag{
+		Name:     "stop-at-preimage-type",
+		Usage:    "stop at the first preimage request matching this type",
+		Required: false,
+	}
+	RunStopAtPreimageLargerThanFlag = &cli.StringFlag{
+		Name:     "stop-at-preimage-larger-than",
+		Usage:    "stop at the first step that requests a preimage larger than the specified size (in bytes)",
+		Required: false,
+	}
 	RunMetaFlag = &cli.PathFlag{
 		Name:     "meta",
 		Usage:    "path to metadata file for symbol lookup for enhanced debugging info during execution.",
@@ -80,6 +91,8 @@ var (
 		Name:  "pprof.cpu",
 		Usage: "enable pprof cpu profiling",
 	}
+
+	OutFilePerm = os.FileMode(0o755)
 )
 
 type Proof struct {
@@ -224,14 +237,36 @@ func Run(ctx *cli.Context) error {
 		defer profile.Start(profile.NoShutdownHook, profile.ProfilePath("."), profile.CPUProfile).Stop()
 	}
 
-	state, err := loadJSON[mipsevm.State](ctx.Path(RunInputFlag.Name))
+	state, err := jsonutil.LoadJSON[mipsevm.State](ctx.Path(RunInputFlag.Name))
 	if err != nil {
 		return err
 	}
 
-	l := Logger(os.Stderr, log.LvlInfo)
+	l := Logger(os.Stderr, log.LevelInfo)
 	outLog := &mipsevm.LoggingWriter{Name: "program std-out", Log: l}
 	errLog := &mipsevm.LoggingWriter{Name: "program std-err", Log: l}
+
+	stopAtAnyPreimage := false
+	var stopAtPreimageTypeByte preimage.KeyType
+	switch ctx.String(RunStopAtPreimageTypeFlag.Name) {
+	case "local":
+		stopAtPreimageTypeByte = preimage.LocalKeyType
+	case "keccak":
+		stopAtPreimageTypeByte = preimage.Keccak256KeyType
+	case "sha256":
+		stopAtPreimageTypeByte = preimage.Sha256KeyType
+	case "blob":
+		stopAtPreimageTypeByte = preimage.BlobKeyType
+	case "kzg-point-evaluation":
+		stopAtPreimageTypeByte = preimage.KZGPointEvaluationKeyType
+	case "any":
+		stopAtAnyPreimage = true
+	case "":
+		// 0 preimage type is forbidden so will not stop at any preimage
+	default:
+		return fmt.Errorf("invalid preimage type %q", ctx.String(RunStopAtPreimageTypeFlag.Name))
+	}
+	stopAtPreimageLargerThan := ctx.Int(RunStopAtPreimageLargerThanFlag.Name)
 
 	// split CLI args after first '--'
 	args := ctx.Args().Slice()
@@ -268,7 +303,7 @@ func Run(ctx *cli.Context) error {
 		l.Info("no metadata file specified, defaulting to empty metadata")
 		meta = &mipsevm.Metadata{Symbols: nil} // provide empty metadata by default
 	} else {
-		if m, err := loadJSON[mipsevm.Metadata](metaPath); err != nil {
+		if m, err := jsonutil.LoadJSON[mipsevm.Metadata](metaPath); err != nil {
 			return fmt.Errorf("failed to load metadata: %w", err)
 		} else {
 			meta = m
@@ -317,14 +352,17 @@ func Run(ctx *cli.Context) error {
 		}
 
 		if stopAt(state) {
+			l.Info("Reached stop at")
 			break
 		}
 
 		if snapshotAt(state) {
-			if err := writeJSON(fmt.Sprintf(snapshotFmt, step), state); err != nil {
+			if err := jsonutil.WriteJSON(fmt.Sprintf(snapshotFmt, step), state, OutFilePerm); err != nil {
 				return fmt.Errorf("failed to write state snapshot: %w", err)
 			}
 		}
+
+		prevPreimageOffset := state.PreimageOffset
 
 		if proofAt(state) {
 			preStateHash, err := state.EncodeWitness().StateHash()
@@ -351,7 +389,7 @@ func Run(ctx *cli.Context) error {
 				proof.OracleValue = witness.PreimageValue
 				proof.OracleOffset = witness.PreimageOffset
 			}
-			if err := writeJSON(fmt.Sprintf(proofFmt, step), proof); err != nil {
+			if err := jsonutil.WriteJSON(fmt.Sprintf(proofFmt, step), proof, OutFilePerm); err != nil {
 				return fmt.Errorf("failed to write proof data: %w", err)
 			}
 		} else {
@@ -360,9 +398,25 @@ func Run(ctx *cli.Context) error {
 				return fmt.Errorf("failed at step %d (PC: %08x): %w", step, state.PC, err)
 			}
 		}
-	}
 
-	if err := writeJSON(ctx.Path(RunOutputFlag.Name), state); err != nil {
+		if preimageRead := state.PreimageOffset > prevPreimageOffset; preimageRead {
+			if stopAtAnyPreimage {
+				l.Info("Stopping at preimage read")
+				break
+			}
+			if state.PreimageKey.Bytes()[0] == byte(stopAtPreimageTypeByte) {
+				l.Info("Stopping at preimage read", "type", stopAtPreimageTypeByte)
+				break
+			}
+			if stopAtPreimageLargerThan != 0 && len(us.LastPreimage()) > stopAtPreimageLargerThan {
+				l.Info("Stopping at preimage read", "size", len(us.LastPreimage()), "min", stopAtPreimageLargerThan)
+				break
+			}
+		}
+	}
+	l.Info("Execution stopped", "exited", state.Exited, "code", state.ExitCode)
+
+	if err := jsonutil.WriteJSON(ctx.Path(RunOutputFlag.Name), state, OutFilePerm); err != nil {
 		return fmt.Errorf("failed to write state output: %w", err)
 	}
 	return nil
@@ -381,6 +435,8 @@ var RunCommand = &cli.Command{
 		RunSnapshotAtFlag,
 		RunSnapshotFmtFlag,
 		RunStopAtFlag,
+		RunStopAtPreimageTypeFlag,
+		RunStopAtPreimageLargerThanFlag,
 		RunMetaFlag,
 		RunInfoAtFlag,
 		RunPProfCPU,

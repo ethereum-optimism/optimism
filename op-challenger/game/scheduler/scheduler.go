@@ -12,6 +12,7 @@ import (
 var ErrBusy = errors.New("busy scheduling previous update")
 
 type SchedulerMetricer interface {
+	RecordActedL1Block(n uint64)
 	RecordGamesStatus(inProgress, defenderWon, challengerWon int)
 	RecordGameUpdateScheduled()
 	RecordGameUpdateCompleted()
@@ -21,19 +22,24 @@ type SchedulerMetricer interface {
 	DecIdleExecutors()
 }
 
+type blockGames struct {
+	blockNumber uint64
+	games       []types.GameMetadata
+}
+
 type Scheduler struct {
 	logger         log.Logger
 	coordinator    *coordinator
 	m              SchedulerMetricer
 	maxConcurrency uint
-	scheduleQueue  chan []types.GameMetadata
+	scheduleQueue  chan blockGames
 	jobQueue       chan job
 	resultQueue    chan job
 	wg             sync.WaitGroup
 	cancel         func()
 }
 
-func NewScheduler(logger log.Logger, m SchedulerMetricer, disk DiskManager, maxConcurrency uint, createPlayer PlayerCreator) *Scheduler {
+func NewScheduler(logger log.Logger, m SchedulerMetricer, disk DiskManager, maxConcurrency uint, createPlayer PlayerCreator, allowInvalidPrestate bool) *Scheduler {
 	// Size job and results queues to be fairly small so backpressure is applied early
 	// but with enough capacity to keep the workers busy
 	jobQueue := make(chan job, maxConcurrency*2)
@@ -41,12 +47,12 @@ func NewScheduler(logger log.Logger, m SchedulerMetricer, disk DiskManager, maxC
 
 	// scheduleQueue has a size of 1 so backpressure quickly propagates to the caller
 	// allowing them to potentially skip update cycles.
-	scheduleQueue := make(chan []types.GameMetadata, 1)
+	scheduleQueue := make(chan blockGames, 1)
 
 	return &Scheduler{
 		logger:         logger,
 		m:              m,
-		coordinator:    newCoordinator(logger, m, jobQueue, resultQueue, createPlayer, disk),
+		coordinator:    newCoordinator(logger, m, jobQueue, resultQueue, createPlayer, disk, allowInvalidPrestate),
 		maxConcurrency: maxConcurrency,
 		scheduleQueue:  scheduleQueue,
 		jobQueue:       jobQueue,
@@ -84,9 +90,9 @@ func (s *Scheduler) Close() error {
 	return nil
 }
 
-func (s *Scheduler) Schedule(games []types.GameMetadata) error {
+func (s *Scheduler) Schedule(games []types.GameMetadata, blockNumber uint64) error {
 	select {
-	case s.scheduleQueue <- games:
+	case s.scheduleQueue <- blockGames{blockNumber: blockNumber, games: games}:
 		return nil
 	default:
 		return ErrBusy
@@ -99,8 +105,8 @@ func (s *Scheduler) loop(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		case games := <-s.scheduleQueue:
-			if err := s.coordinator.schedule(ctx, games); err != nil {
+		case blockGames := <-s.scheduleQueue:
+			if err := s.coordinator.schedule(ctx, blockGames.games, blockGames.blockNumber); err != nil {
 				s.logger.Error("Failed to schedule game updates", "err", err)
 			}
 		case j := <-s.resultQueue:

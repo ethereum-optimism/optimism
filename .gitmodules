@@ -17,3 +17,12 @@
 	path = packages/contracts-bedrock/lib/safe-contracts
 	url = https://github.com/safe-global/safe-contracts
 	branch = v1.4.0
+[submodule "packages/contracts-bedrock/lib/kontrol-cheatcodes"]
+	path = packages/contracts-bedrock/lib/kontrol-cheatcodes
+	url = https://github.com/runtimeverification/kontrol-cheatcodes
+[submodule "packages/contracts-bedrock/lib/solady"]
+	path = packages/contracts-bedrock/lib/solady
+	url = https://github.com/Vectorized/solady
+[submodule "packages/contracts-bedrock/lib/lib-keccak"]
+	path = packages/contracts-bedrock/lib/lib-keccak
+	url = https://github.com/ethereum-optimism/lib-keccak

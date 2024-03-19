@@ -1,55 +1,79 @@
 package op_e2e
 
 import (
+	"crypto/md5"
 	"os"
 	"strconv"
-	"testing"
+	"strings"
+
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 )
 
 var enableParallelTesting bool = os.Getenv("OP_E2E_DISABLE_PARALLEL") != "true"
 
-type testopts struct {
-	executor uint64
-}
-
-func InitParallel(t *testing.T, args ...func(t *testing.T, opts *testopts)) {
+func InitParallel(t e2eutils.TestingBase, args ...func(t e2eutils.TestingBase)) {
 	t.Helper()
 	if enableParallelTesting {
 		t.Parallel()
 	}
-
-	opts := &testopts{}
 	for _, arg := range args {
-		arg(t, opts)
+		arg(t)
 	}
-	checkExecutor(t, opts.executor)
+	autoAllocateExecutor(t)
 }
 
-func UsesCannon(t *testing.T, opts *testopts) {
+// isSubTest determines if the test is a sub-test or top level test.
+// It does this by checking if the test name contains /
+// This is not a particularly great way check, but appears to be the only option currently.
+func isSubTest(t e2eutils.TestingBase) bool {
+	return strings.Contains(t.Name(), "/")
+}
+
+func autoAllocateExecutor(t e2eutils.TestingBase) {
+	if isSubTest(t) {
+		// Always run subtests, they only start on the same executor as their parent.
+		return
+	}
+	info := getExecutorInfo(t)
+	tName := t.Name()
+	tHash := md5.Sum([]byte(tName))
+	executor := uint64(tHash[0]) % info.total
+	checkExecutor(t, info, executor)
+}
+
+func UsesCannon(t e2eutils.TestingBase) {
 	if os.Getenv("OP_E2E_CANNON_ENABLED") == "false" {
 		t.Skip("Skipping cannon test")
 	}
 }
 
-//	UseExecutor allows manually splitting tests between circleci executors
-//
-// Tests default to run on the first executor but can be moved to the second with:
-// InitParallel(t, UseExecutor(1))
-// Any tests assigned to an executor greater than the number available automatically use the last executor.
-// Executor indexes start from 0
-func UseExecutor(assignedIdx uint64) func(t *testing.T, opts *testopts) {
-	return func(t *testing.T, opts *testopts) {
-		opts.executor = assignedIdx
+func SkipOnFPAC(t e2eutils.TestingBase) {
+	if e2eutils.UseFPAC() {
+		t.Skip("Skipping test for FPAC")
 	}
 }
 
-func checkExecutor(t *testing.T, assignedIdx uint64) {
+func SkipOnNotFPAC(t e2eutils.TestingBase) {
+	if !e2eutils.UseFPAC() {
+		t.Skip("Skipping test for non-FPAC")
+	}
+}
+
+type executorInfo struct {
+	total      uint64
+	idx        uint64
+	splitInUse bool
+}
+
+func getExecutorInfo(t e2eutils.TestingBase) executorInfo {
+	var info executorInfo
 	envTotal := os.Getenv("CIRCLE_NODE_TOTAL")
 	envIdx := os.Getenv("CIRCLE_NODE_INDEX")
 	if envTotal == "" || envIdx == "" {
 		// Not using test splitting, so ignore assigned executor
-		t.Logf("Running test. Test splitting not in use.")
-		return
+		t.Logf("Test splitting not in use.")
+		info.total = 1
+		return info
 	}
 	total, err := strconv.ParseUint(envTotal, 10, 0)
 	if err != nil {
@@ -59,13 +83,26 @@ func checkExecutor(t *testing.T, assignedIdx uint64) {
 	if err != nil {
 		t.Fatalf("Could not parse CIRCLE_NODE_INDEX env var %v: %v", envIdx, err)
 	}
-	if assignedIdx >= total && idx == total-1 {
-		t.Logf("Running test. Current executor (%v) is the last executor and assigned executor (%v) >= total executors (%v).", idx, assignedIdx, total)
+
+	info.total = total
+	info.idx = idx
+	info.splitInUse = true
+	return info
+}
+
+func checkExecutor(t e2eutils.TestingBase, info executorInfo, assignedIdx uint64) {
+	if !info.splitInUse {
+		t.Logf("Test splitting not in use.")
 		return
 	}
-	if idx == assignedIdx {
-		t.Logf("Running test. Assigned executor (%v) matches current executor (%v) of total (%v)", assignedIdx, idx, total)
+
+	if assignedIdx >= info.total && info.idx == info.total-1 {
+		t.Logf("Running test. Current executor (%v) is the last executor and assigned executor (%v) >= total executors (%v).", info.idx, assignedIdx, info.total)
 		return
 	}
-	t.Skipf("Skipping test. Assigned executor %v, current executor %v of total %v", assignedIdx, idx, total)
+	if info.idx == assignedIdx {
+		t.Logf("Running test. Assigned executor (%v) matches current executor (%v) of total (%v)", assignedIdx, info.idx, info.total)
+		return
+	}
+	t.Skipf("Skipping test. Assigned executor %v, current executor %v of total %v", assignedIdx, info.idx, info.total)
 }

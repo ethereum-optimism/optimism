@@ -12,19 +12,19 @@ TRACES=$DIR/call-traces
 RECEIPTS=$DIR/receipts
 DIFFS=$DIR/state-diffs
 
-mkdir -p $TRACES
-mkdir -p $RECEIPTS
-mkdir -p $DIFFS
+mkdir -p "$TRACES"
+mkdir -p "$RECEIPTS"
+mkdir -p "$DIFFS"
 
 cast rpc \
     debug_traceTransaction \
-    $HASH \
-    '{"tracer": "callTracer"}' | jq > $TRACES/$HASH.json
+    "$HASH" \
+    '{"tracer": "callTracer"}' | jq > "$TRACES"/"$HASH".json
 
-cast receipt $HASH --json | jq > $RECEIPTS/$HASH.json
+cast receipt "$HASH" --json | jq > "$RECEIPTS"/"$HASH".json
 
 cast rpc \
     debug_traceTransaction \
-    $HASH \
-    '{"tracer": "prestateTracer"}' | jq > $DIFFS/$HASH.json
+    "$HASH" \
+    '{"tracer": "prestateTracer"}' | jq > "$DIFFS"/"$HASH".json
 

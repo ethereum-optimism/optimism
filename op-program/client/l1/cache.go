@@ -1,10 +1,13 @@
 package l1
 
 import (
+	"encoding/binary"
+
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -14,21 +17,27 @@ const cacheSize = 2000
 
 // CachingOracle is an implementation of Oracle that delegates to another implementation, adding caching of all results
 type CachingOracle struct {
-	oracle Oracle
-	blocks *simplelru.LRU[common.Hash, eth.BlockInfo]
-	txs    *simplelru.LRU[common.Hash, types.Transactions]
-	rcpts  *simplelru.LRU[common.Hash, types.Receipts]
+	oracle  Oracle
+	blocks  *simplelru.LRU[common.Hash, eth.BlockInfo]
+	txs     *simplelru.LRU[common.Hash, types.Transactions]
+	rcpts   *simplelru.LRU[common.Hash, types.Receipts]
+	blobs   *simplelru.LRU[common.Hash, *eth.Blob]
+	ptEvals *simplelru.LRU[common.Hash, bool]
 }
 
 func NewCachingOracle(oracle Oracle) *CachingOracle {
 	blockLRU, _ := simplelru.NewLRU[common.Hash, eth.BlockInfo](cacheSize, nil)
 	txsLRU, _ := simplelru.NewLRU[common.Hash, types.Transactions](cacheSize, nil)
 	rcptsLRU, _ := simplelru.NewLRU[common.Hash, types.Receipts](cacheSize, nil)
+	blobsLRU, _ := simplelru.NewLRU[common.Hash, *eth.Blob](cacheSize, nil)
+	ptEvals, _ := simplelru.NewLRU[common.Hash, bool](cacheSize, nil)
 	return &CachingOracle{
-		oracle: oracle,
-		blocks: blockLRU,
-		txs:    txsLRU,
-		rcpts:  rcptsLRU,
+		oracle:  oracle,
+		blocks:  blockLRU,
+		txs:     txsLRU,
+		rcpts:   rcptsLRU,
+		blobs:   blobsLRU,
+		ptEvals: ptEvals,
 	}
 }
 
@@ -62,4 +71,32 @@ func (o *CachingOracle) ReceiptsByBlockHash(blockHash common.Hash) (eth.BlockInf
 	o.blocks.Add(blockHash, block)
 	o.rcpts.Add(blockHash, rcpts)
 	return block, rcpts
+}
+
+func (o *CachingOracle) GetBlob(ref eth.L1BlockRef, blobHash eth.IndexedBlobHash) *eth.Blob {
+	// Create a 32 byte hash key by hashing `blobHash.Hash ++ ref.Time ++ blobHash.Index`
+	hashBuf := make([]byte, 48)
+	copy(hashBuf[0:32], blobHash.Hash[:])
+	binary.BigEndian.PutUint64(hashBuf[32:], ref.Time)
+	binary.BigEndian.PutUint64(hashBuf[40:], blobHash.Index)
+	cacheKey := crypto.Keccak256Hash(hashBuf)
+
+	blob, ok := o.blobs.Get(cacheKey)
+	if ok {
+		return blob
+	}
+	blob = o.oracle.GetBlob(ref, blobHash)
+	o.blobs.Add(cacheKey, blob)
+	return blob
+}
+
+func (o *CachingOracle) KZGPointEvaluation(input []byte) bool {
+	cacheKey := crypto.Keccak256Hash(input)
+	ptEval, ok := o.ptEvals.Get(cacheKey)
+	if ok {
+		return ptEval
+	}
+	ptEval = o.oracle.KZGPointEvaluation(input)
+	o.ptEvals.Add(cacheKey, ptEval)
+	return ptEval
 }

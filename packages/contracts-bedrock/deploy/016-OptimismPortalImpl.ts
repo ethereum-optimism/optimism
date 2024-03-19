@@ -1,12 +1,7 @@
 import { DeployFunction } from 'hardhat-deploy/dist/types'
-import { constants } from 'ethers'
 import '@eth-optimism/hardhat-deploy-config'
 
-import {
-  assertContractVariable,
-  deploy,
-  getContractFromArtifact,
-} from '../scripts/deploy-utils'
+import { deploy } from '../scripts/deploy-utils'
 
 const deployFn: DeployFunction = async (hre) => {
   const { deployer } = await hre.getNamedAccounts()
@@ -26,15 +21,6 @@ const deployFn: DeployFunction = async (hre) => {
     }
   }
 
-  const L2OutputOracleProxy = await getContractFromArtifact(
-    hre,
-    'L2OutputOracleProxy'
-  )
-  const systemConfigProxy = await getContractFromArtifact(
-    hre,
-    'SystemConfigProxy'
-  )
-
   // Deploy the OptimismPortal implementation as paused to
   // ensure that users do not interact with it and instead
   // interact with the proxied contract.
@@ -42,24 +28,7 @@ const deployFn: DeployFunction = async (hre) => {
   await deploy({
     hre,
     name: 'OptimismPortal',
-    args: [L2OutputOracleProxy.address, systemConfigProxy.address],
-    postDeployAction: async (contract) => {
-      await assertContractVariable(
-        contract,
-        'L2_ORACLE',
-        L2OutputOracleProxy.address
-      )
-      await assertContractVariable(
-        contract,
-        'SYSTEM_CONFIG',
-        systemConfigProxy.address
-      )
-      await assertContractVariable(
-        contract,
-        'superchainConfig',
-        constants.AddressZero
-      )
-    },
+    args: [],
   })
 }
 

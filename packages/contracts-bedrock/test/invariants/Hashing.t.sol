@@ -5,6 +5,7 @@ import { Test } from "forge-std/Test.sol";
 import { StdInvariant } from "forge-std/StdInvariant.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
+import { InvariantTest } from "test/invariants/InvariantTest.sol";
 
 contract Hash_CrossDomainHasher {
     bool public failedCrossDomainHashHighVersion;
@@ -93,10 +94,11 @@ contract Hash_CrossDomainHasher {
     }
 }
 
-contract Hashing_Invariant is StdInvariant, Test {
+contract Hashing_Invariant is StdInvariant, InvariantTest {
     Hash_CrossDomainHasher internal actor;
 
-    function setUp() public {
+    function setUp() public override {
+        super.setUp();
         // Create a hasher actor.
         actor = new Hash_CrossDomainHasher();
 

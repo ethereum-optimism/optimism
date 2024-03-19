@@ -8,14 +8,14 @@ import (
 )
 
 type TranslatingProvider struct {
-	rootDepth uint64
+	rootDepth types.Depth
 	provider  types.TraceProvider
 }
 
 // Translate returns a new TraceProvider that translates any requested positions before passing them on to the
 // specified provider.
 // The translation is done such that the root node for provider is at rootDepth.
-func Translate(provider types.TraceProvider, rootDepth uint64) types.TraceProvider {
+func Translate(provider types.TraceProvider, rootDepth types.Depth) types.TraceProvider {
 	return &TranslatingProvider{
 		rootDepth: rootDepth,
 		provider:  provider,

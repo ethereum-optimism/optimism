@@ -13,6 +13,7 @@ import { Proxy } from "../universal/Proxy.sol";
 import { ProxyAdmin } from "../universal/ProxyAdmin.sol";
 import { OptimismMintableERC20Factory } from "../universal/OptimismMintableERC20Factory.sol";
 import { PortalSender } from "./PortalSender.sol";
+import { AddressDeprecator } from "./AddressDeprecator.sol";
 import { SystemConfig } from "../L1/SystemConfig.sol";
 import { ProtocolVersions, ProtocolVersion } from "../L1/ProtocolVersions.sol";
 import { ResourceMetering } from "../L1/ResourceMetering.sol";
@@ -62,6 +63,7 @@ contract SystemDictator is OwnableUpgradeable {
         OptimismMintableERC20Factory optimismMintableERC20FactoryImpl;
         L1ERC721Bridge l1ERC721BridgeImpl;
         PortalSender portalSenderImpl;
+        AddressDeprecator addressDeprecatorImpl;
         SystemConfig systemConfigImpl;
         ProtocolVersions protocolVersionsImpl;
         SuperchainConfig superchainConfigImpl;
@@ -71,10 +73,13 @@ contract SystemDictator is OwnableUpgradeable {
      * @notice Dynamic L2OutputOracle config.
      */
     struct L2OutputOracleDynamicConfig {
+        uint256 l2OutputOracleSubmissionInterval;
+        uint256 l2BlockTime;
         uint256 l2OutputOracleStartingBlockNumber;
         uint256 l2OutputOracleStartingTimestamp;
         address l2OutputOracleProposer;
         address l2OutputOracleChallenger;
+        uint256 finalizationPeriodSeconds;
     }
 
     /**
@@ -120,10 +125,7 @@ contract SystemDictator is OwnableUpgradeable {
      * @notice OptimismPortal configuration.
      */
     struct OptimismPortalDynamicConfig {
-        address l2OutputOracle;
         address portalGuardian;
-        address systemConfig;
-        bool paused;
     }
 
     /**
@@ -220,6 +222,7 @@ contract SystemDictator is OwnableUpgradeable {
                     OptimismMintableERC20Factory(zero),
                     L1ERC721Bridge(zero),
                     PortalSender(zero),
+                    AddressDeprecator(zero),
                     SystemConfig(zero),
                     ProtocolVersions(zero),
                     SuperchainConfig(zero)
@@ -311,7 +314,9 @@ contract SystemDictator is OwnableUpgradeable {
                     config.systemConfigConfig.batcherHash,
                     config.systemConfigConfig.gasLimit,
                     config.systemConfigConfig.unsafeBlockSigner,
-                    Constants.DEFAULT_RESOURCE_CONFIG()
+                    Constants.DEFAULT_RESOURCE_CONFIG(),
+                    config.systemConfigConfig.batchInbox,
+                    config.systemConfigConfig.systemConfigAddressConfig
                 )
             )
         );
@@ -342,30 +347,11 @@ contract SystemDictator is OwnableUpgradeable {
      * @notice Removes deprecated addresses from the AddressManager.
      */
     function step3() public onlyOwner step(EXIT_1_NO_RETURN_STEP) {
-        // Remove all deprecated addresses from the AddressManager
-        string[17] memory deprecated = [
-            "OVM_CanonicalTransactionChain",
-            "OVM_L2CrossDomainMessenger",
-            "OVM_DecompressionPrecompileAddress",
-            "OVM_Sequencer",
-            "OVM_Proposer",
-            "OVM_ChainStorageContainer-CTC-batches",
-            "OVM_ChainStorageContainer-CTC-queue",
-            "OVM_CanonicalTransactionChain",
-            "OVM_StateCommitmentChain",
-            "OVM_BondManager",
-            "OVM_ExecutionManager",
-            "OVM_FraudVerifier",
-            "OVM_StateManagerFactory",
-            "OVM_StateTransitionerFactory",
-            "OVM_SafetyChecker",
-            "OVM_L1MultiMessageRelayer",
-            "BondManager"
-        ];
-
-        for (uint256 i = 0; i < deprecated.length; i++) {
-            config.globalConfig.addressManager.setAddress(deprecated[i], address(0));
-        }
+        // Remove all deprecated addresses from the AddressManager.
+        (bool success,) = address(config.implementationAddressConfig.addressDeprecatorImpl).delegatecall(
+            abi.encodeWithSelector(bytes4(keccak256("deprecateAddresses()")))
+        );
+        require(success, "Reverted: Error deprecating addresses");
     }
 
     /**
@@ -391,7 +377,7 @@ contract SystemDictator is OwnableUpgradeable {
      */
     function step5() public onlyOwner step(5) {
         // Dynamic config must be set before we can initialize the L2OutputOracle.
-        require(dynamicConfigSet, "Dynamic oracle config is not yet initialized");
+        require(dynamicConfigSet, "DC is not initialized");
 
         // Upgrade and initialize the L2OutputOracle.
         config.globalConfig.proxyAdmin.upgradeAndCall(
@@ -400,8 +386,13 @@ contract SystemDictator is OwnableUpgradeable {
             abi.encodeCall(
                 L2OutputOracle.initialize,
                 (
+                    l2OutputOracleDynamicConfig.l2OutputOracleSubmissionInterval,
+                    l2OutputOracleDynamicConfig.l2BlockTime,
                     l2OutputOracleDynamicConfig.l2OutputOracleStartingBlockNumber,
-                    l2OutputOracleDynamicConfig.l2OutputOracleStartingTimestamp
+                    l2OutputOracleDynamicConfig.l2OutputOracleStartingTimestamp,
+                    l2OutputOracleDynamicConfig.l2OutputOracleProposer,
+                    l2OutputOracleDynamicConfig.l2OutputOracleChallenger,
+                    l2OutputOracleDynamicConfig.finalizationPeriodSeconds
                 )
             )
         );
@@ -411,7 +402,12 @@ contract SystemDictator is OwnableUpgradeable {
             payable(config.proxyAddressConfig.optimismPortalProxy),
             address(config.implementationAddressConfig.optimismPortalImpl),
             abi.encodeCall(
-                OptimismPortal.initialize, (SuperchainConfig(config.proxyAddressConfig.superchainConfigProxy))
+                OptimismPortal.initialize,
+                (
+                    L2OutputOracle(config.proxyAddressConfig.l2OutputOracleProxy),
+                    SystemConfig(config.proxyAddressConfig.systemConfigProxy),
+                    SuperchainConfig(config.proxyAddressConfig.superchainConfigProxy)
+                )
             )
         );
 
@@ -423,7 +419,8 @@ contract SystemDictator is OwnableUpgradeable {
 
         // Try to initialize the L1CrossDomainMessenger, only fail if it's already been initialized.
         try L1CrossDomainMessenger(config.proxyAddressConfig.l1CrossDomainMessengerProxy).initialize(
-            SuperchainConfig(config.proxyAddressConfig.superchainConfigProxy)
+            SuperchainConfig(config.proxyAddressConfig.superchainConfigProxy),
+            OptimismPortal(payable(config.proxyAddressConfig.optimismPortalProxy))
         ) {
             // L1CrossDomainMessenger is the one annoying edge case difference between existing
             // networks and fresh networks because in existing networks it'll already be
@@ -432,10 +429,10 @@ contract SystemDictator is OwnableUpgradeable {
         } catch Error(string memory reason) {
             require(
                 keccak256(abi.encodePacked(reason)) == keccak256("Initializable: contract is already initialized"),
-                string.concat("Unexpected error initializing L1XDM: ", reason)
+                string.concat("Error initializing L1XDM: ", reason)
             );
         } catch {
-            revert("Unexpected error initializing L1XDM (no reason)");
+            revert("Reverted: Error initializing L1XDM");
         }
 
         // Transfer ETH from the L1StandardBridge to the OptimismPortal.
@@ -477,6 +474,7 @@ contract SystemDictator is OwnableUpgradeable {
 
         // Try to initialize the L1StandardBridge, only fail if it's already been initialized.
         try L1StandardBridge(payable(config.proxyAddressConfig.l1StandardBridgeProxy)).initialize(
+            L1CrossDomainMessenger(config.proxyAddressConfig.l1CrossDomainMessengerProxy),
             SuperchainConfig(config.proxyAddressConfig.superchainConfigProxy)
         ) {
             // L1StandardBridge is the one annoying edge case difference between existing
@@ -486,10 +484,10 @@ contract SystemDictator is OwnableUpgradeable {
         } catch Error(string memory reason) {
             require(
                 keccak256(abi.encodePacked(reason)) == keccak256("Initializable: contract is already initialized"),
-                string.concat("Unexpected error initializing L1SB: ", reason)
+                string.concat("Error initializing L1SB: ", reason)
             );
         } catch {
-            revert("Unexpected error initializing L1SB (no reason)");
+            revert("Reverted: Error initializing L1SB");
         }
 
         // Try to set superchainConfig on the L1StandardBridge, only fail if it's already been set.
@@ -504,14 +502,15 @@ contract SystemDictator is OwnableUpgradeable {
         } catch Error(string memory reason) {
             require(
                 keccak256(abi.encodePacked(reason)) == keccak256("SuperchainConfig already set"),
-                string.concat("Unexpected error setting superchainConfig L1SB: ", reason)
+                string.concat("Error setting SuperchainConfig L1SB: ", reason)
             );
         } catch {
-            revert("Unexpected error setting superchainConfig L1SB (no reason)");
+            revert("Reverted: Error setting SuperchainConfig L1SB");
         }
 
         // Try to initialize the L1ERC721Bridge, only fail if it's already been initialized.
         try L1ERC721Bridge(payable(config.proxyAddressConfig.l1ERC721BridgeProxy)).initialize(
+            L1CrossDomainMessenger(config.proxyAddressConfig.l1CrossDomainMessengerProxy),
             SuperchainConfig(config.proxyAddressConfig.superchainConfigProxy)
         ) {
             // L1ERC721Bridge is the one annoying edge case difference between existing
@@ -521,10 +520,22 @@ contract SystemDictator is OwnableUpgradeable {
         } catch Error(string memory reason) {
             require(
                 keccak256(abi.encodePacked(reason)) == keccak256("Initializable: contract is already initialized"),
-                string.concat("Unexpected error initializing L1ERC721Bridge: ", reason)
+                string.concat("Error initializing L1ERC721Bridge: ", reason)
             );
         } catch {
-            revert("Unexpected error initializing L1ERC721Bridge (no reason)");
+            revert("Reverted: Error initializing L1ERC721Bridge");
+        }
+
+        // Try to initialize the OptimismMintableERC20Factory, only fail if it's already been initialized.
+        try OptimismMintableERC20Factory(config.proxyAddressConfig.optimismMintableERC20FactoryProxy).initialize(
+            config.proxyAddressConfig.l1StandardBridgeProxy
+        ) { } catch Error(string memory reason) {
+            require(
+                keccak256(abi.encodePacked(reason)) == keccak256("Initializable: contract is already initialized"),
+                string.concat("Error initializing L1ERC20Factory: ", reason)
+            );
+        } catch {
+            revert("Reverted: Error initializing L1ERC20Factory");
         }
 
         // Try to initialize the ProtocolVersions, only fail if it's already been initialized.
@@ -540,10 +551,10 @@ contract SystemDictator is OwnableUpgradeable {
         } catch Error(string memory reason) {
             require(
                 keccak256(abi.encodePacked(reason)) == keccak256("Initializable: contract is already initialized"),
-                string.concat("Unexpected error initializing ProtocolVersions: ", reason)
+                string.concat("Error initializing ProtocolVersions: ", reason)
             );
         } catch {
-            revert("Unexpected error initializing ProtocolVersions (no reason)");
+            revert("Reverted: Error initializing ProtocolVersions");
         }
 
         // Try to initialize the SuperchainConfig, only fail if it's already been initialized.
@@ -552,10 +563,10 @@ contract SystemDictator is OwnableUpgradeable {
         ) { } catch Error(string memory reason) {
             require(
                 keccak256(abi.encodePacked(reason)) == keccak256("Initializable: contract is already initialized"),
-                string.concat("Unexpected error initializing ProtocolVersions: ", reason)
+                string.concat("Error initializing SuperchainConfig: ", reason)
             );
         } catch {
-            revert("Unexpected error initializing SuperchainConfig (no reason)");
+            revert("Reverted: Error initializing SuperchainConfig");
         }
     }
 
@@ -609,7 +620,7 @@ contract SystemDictator is OwnableUpgradeable {
      * @notice First exit point, can only be called before step 3 is executed.
      */
     function exit1() external onlyOwner {
-        require(currentStep == EXIT_1_NO_RETURN_STEP, "can only exit1 before step 3 is executed");
+        require(currentStep == EXIT_1_NO_RETURN_STEP, "Exit1 only before step 3");
 
         // Reset the L1CrossDomainMessenger to the old implementation.
         config.globalConfig.addressManager.setAddress("OVM_L1CrossDomainMessenger", oldL1CrossDomainMessenger);

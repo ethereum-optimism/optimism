@@ -34,7 +34,7 @@ type NextBatchProvider interface {
 
 type SafeBlockFetcher interface {
 	L2BlockRefByNumber(context.Context, uint64) (eth.L2BlockRef, error)
-	PayloadByNumber(context.Context, uint64) (*eth.ExecutionPayload, error)
+	PayloadByNumber(context.Context, uint64) (*eth.ExecutionPayloadEnvelope, error)
 }
 
 // BatchQueue contains a set of batches for every L1 block.

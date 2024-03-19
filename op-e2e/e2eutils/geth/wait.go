@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -20,7 +21,7 @@ var (
 	errTimeout = errors.New("timeout")
 )
 
-func WaitForL1OriginOnL2(l1BlockNum uint64, client *ethclient.Client, timeout time.Duration) (*types.Block, error) {
+func WaitForL1OriginOnL2(rollupCfg *rollup.Config, l1BlockNum uint64, client *ethclient.Client, timeout time.Duration) (*types.Block, error) {
 	timeoutCh := time.After(timeout)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -39,7 +40,7 @@ func WaitForL1OriginOnL2(l1BlockNum uint64, client *ethclient.Client, timeout ti
 			if err != nil {
 				return nil, err
 			}
-			l1Info, err := derive.L1InfoDepositTxData(block.Transactions()[0].Data())
+			l1Info, err := derive.L1BlockInfoFromBytes(rollupCfg, block.Time(), block.Transactions()[0].Data())
 			if err != nil {
 				return nil, err
 			}

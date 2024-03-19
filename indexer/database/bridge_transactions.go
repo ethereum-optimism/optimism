@@ -188,16 +188,17 @@ func (db *bridgeTransactionsDB) MarkL2TransactionWithdrawalProvenEvent(withdrawa
 
 	if withdrawal.ProvenL1EventGUID != nil && withdrawal.ProvenL1EventGUID.ID() == provenL1EventGuid.ID() {
 		return nil
-	} else if withdrawal.ProvenL1EventGUID != nil {
-		return fmt.Errorf("proven withdrawal %s re-proven with a different event %s", withdrawalHash, provenL1EventGuid)
 	}
 
+	// Withdrawals can be re-proven in the event that the claim they were proven against was successfully
+	// challenged. Rather than track each individual dispute game, we allow the proven event to simply be
+	// overwritten.
 	withdrawal.ProvenL1EventGUID = &provenL1EventGuid
 	result := db.gorm.Save(&withdrawal)
 	return result.Error
 }
 
-// MarkL2TransactionWithdrawalProvenEvent links a withdrawn transaction in its finalized state
+// MarkL2TransactionWithdrawalFinalizedEvent links a withdrawn transaction in its finalized state
 func (db *bridgeTransactionsDB) MarkL2TransactionWithdrawalFinalizedEvent(withdrawalHash common.Hash, finalizedL1EventGuid uuid.UUID, succeeded bool) error {
 	withdrawal, err := db.L2TransactionWithdrawal(withdrawalHash)
 	if err != nil {

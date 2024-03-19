@@ -64,6 +64,6 @@ func run(args []string, action ConfigAction) error {
 func setupLogging(ctx *cli.Context) (log.Logger, error) {
 	logCfg := oplog.ReadCLIConfig(ctx)
 	logger := oplog.NewLogger(oplog.AppOut(ctx), logCfg)
-	oplog.SetGlobalLogHandler(logger.GetHandler())
+	oplog.SetGlobalLogHandler(logger.Handler())
 	return logger, nil
 }

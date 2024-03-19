@@ -40,7 +40,6 @@ make op-challenger op-program cannon
   --trace-type cannon \
   --l1-eth-rpc <L1_URL> \
   --game-factory-address <DISPUTE_GAME_FACTORY_ADDRESS> \
-  --agree-with-proposed-output=true \
   --datadir temp/challenger-goerli \
   --cannon-network goerli \
   --cannon-bin ./cannon/bin/cannon \

@@ -38,10 +38,15 @@ func TestBuildL2DeveloperGenesis(t *testing.T) {
 			continue
 		}
 
+		if name == "Create2Deployer" || name == "DeterministicDeploymentProxy" {
+			require.Equal(t, len(account.Storage), 0)
+			continue
+		}
+
 		adminSlot, ok := account.Storage[genesis.AdminSlot]
 		require.Equal(t, ok, true)
 		require.Equal(t, adminSlot, predeploys.ProxyAdminAddr.Hash())
 		require.Equal(t, account.Code, depB)
 	}
-	require.Equal(t, 2067, len(gen.Alloc))
+	require.Equal(t, 2069, len(gen.Alloc))
 }

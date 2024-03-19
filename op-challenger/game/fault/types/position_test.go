@@ -18,7 +18,7 @@ func TestBigMSB(t *testing.T) {
 	require.True(t, ok)
 	tests := []struct {
 		input    *big.Int
-		expected int
+		expected Depth
 	}{
 		{bi(0), 0},
 		{bi(1), 0},
@@ -39,65 +39,58 @@ func TestBigMSB(t *testing.T) {
 	}
 }
 
-type testNodeInfo struct {
-	GIndex       *big.Int
-	Depth        int
-	MaxDepth     int
-	IndexAtDepth *big.Int
-	TraceIndex   *big.Int
-	AttackGIndex *big.Int // 0 indicates attack is not possible from this node
-	DefendGIndex *big.Int // 0 indicates defend is not possible from this node
-}
+func TestGindexPositionConversions(t *testing.T) {
+	tests := []struct {
+		gindex           *big.Int
+		expectedPosition Position
+	}{
+		{bi(1), NewPosition(0, bi(0))},
 
-var treeNodes = []testNodeInfo{
-	{GIndex: bi(1), Depth: 0, MaxDepth: 4, IndexAtDepth: bi(0), TraceIndex: bi(15), AttackGIndex: bi(2)},
+		{bi(2), NewPosition(1, bi(0))},
+		{bi(3), NewPosition(1, bi(1))},
 
-	{GIndex: bi(2), Depth: 1, MaxDepth: 4, IndexAtDepth: bi(0), TraceIndex: bi(7), AttackGIndex: bi(4), DefendGIndex: bi(6)},
-	{GIndex: bi(3), Depth: 1, MaxDepth: 4, IndexAtDepth: bi(1), TraceIndex: bi(15), AttackGIndex: bi(6)},
+		{bi(4), NewPosition(2, bi(0))},
+		{bi(5), NewPosition(2, bi(1))},
+		{bi(6), NewPosition(2, bi(2))},
+		{bi(7), NewPosition(2, bi(3))},
 
-	{GIndex: bi(4), Depth: 2, MaxDepth: 4, IndexAtDepth: bi(0), TraceIndex: bi(3), AttackGIndex: bi(8), DefendGIndex: bi(10)},
-	{GIndex: bi(5), Depth: 2, MaxDepth: 4, IndexAtDepth: bi(1), TraceIndex: bi(7), AttackGIndex: bi(10)},
-	{GIndex: bi(6), Depth: 2, MaxDepth: 4, IndexAtDepth: bi(2), TraceIndex: bi(11), AttackGIndex: bi(12), DefendGIndex: bi(14)},
-	{GIndex: bi(7), Depth: 2, MaxDepth: 4, IndexAtDepth: bi(3), TraceIndex: bi(15), AttackGIndex: bi(14)},
+		{bi(8), NewPosition(3, bi(0))},
+		{bi(9), NewPosition(3, bi(1))},
+		{bi(10), NewPosition(3, bi(2))},
+		{bi(11), NewPosition(3, bi(3))},
+		{bi(12), NewPosition(3, bi(4))},
+		{bi(13), NewPosition(3, bi(5))},
+		{bi(14), NewPosition(3, bi(6))},
+		{bi(15), NewPosition(3, bi(7))},
 
-	{GIndex: bi(8), Depth: 3, MaxDepth: 4, IndexAtDepth: bi(0), TraceIndex: bi(1), AttackGIndex: bi(16), DefendGIndex: bi(18)},
-	{GIndex: bi(9), Depth: 3, MaxDepth: 4, IndexAtDepth: bi(1), TraceIndex: bi(3), AttackGIndex: bi(18)},
-	{GIndex: bi(10), Depth: 3, MaxDepth: 4, IndexAtDepth: bi(2), TraceIndex: bi(5), AttackGIndex: bi(20), DefendGIndex: bi(22)},
-	{GIndex: bi(11), Depth: 3, MaxDepth: 4, IndexAtDepth: bi(3), TraceIndex: bi(7), AttackGIndex: bi(22)},
-	{GIndex: bi(12), Depth: 3, MaxDepth: 4, IndexAtDepth: bi(4), TraceIndex: bi(9), AttackGIndex: bi(24), DefendGIndex: bi(26)},
-	{GIndex: bi(13), Depth: 3, MaxDepth: 4, IndexAtDepth: bi(5), TraceIndex: bi(11), AttackGIndex: bi(26)},
-	{GIndex: bi(14), Depth: 3, MaxDepth: 4, IndexAtDepth: bi(6), TraceIndex: bi(13), AttackGIndex: bi(28), DefendGIndex: bi(30)},
-	{GIndex: bi(15), Depth: 3, MaxDepth: 4, IndexAtDepth: bi(7), TraceIndex: bi(15), AttackGIndex: bi(30)},
+		{bi(16), NewPosition(4, bi(0))},
+		{bi(17), NewPosition(4, bi(1))},
+		{bi(18), NewPosition(4, bi(2))},
+		{bi(19), NewPosition(4, bi(3))},
+		{bi(20), NewPosition(4, bi(4))},
+		{bi(21), NewPosition(4, bi(5))},
+		{bi(22), NewPosition(4, bi(6))},
+		{bi(23), NewPosition(4, bi(7))},
+		{bi(24), NewPosition(4, bi(8))},
+		{bi(25), NewPosition(4, bi(9))},
+		{bi(26), NewPosition(4, bi(10))},
+		{bi(27), NewPosition(4, bi(11))},
+		{bi(28), NewPosition(4, bi(12))},
+		{bi(29), NewPosition(4, bi(13))},
+		{bi(30), NewPosition(4, bi(14))},
+		{bi(31), NewPosition(4, bi(15))},
 
-	{GIndex: bi(16), Depth: 4, MaxDepth: 4, IndexAtDepth: bi(0), TraceIndex: bi(0)},
-	{GIndex: bi(17), Depth: 4, MaxDepth: 4, IndexAtDepth: bi(1), TraceIndex: bi(1)},
-	{GIndex: bi(18), Depth: 4, MaxDepth: 4, IndexAtDepth: bi(2), TraceIndex: bi(2)},
-	{GIndex: bi(19), Depth: 4, MaxDepth: 4, IndexAtDepth: bi(3), TraceIndex: bi(3)},
-	{GIndex: bi(20), Depth: 4, MaxDepth: 4, IndexAtDepth: bi(4), TraceIndex: bi(4)},
-	{GIndex: bi(21), Depth: 4, MaxDepth: 4, IndexAtDepth: bi(5), TraceIndex: bi(5)},
-	{GIndex: bi(22), Depth: 4, MaxDepth: 4, IndexAtDepth: bi(6), TraceIndex: bi(6)},
-	{GIndex: bi(23), Depth: 4, MaxDepth: 4, IndexAtDepth: bi(7), TraceIndex: bi(7)},
-	{GIndex: bi(24), Depth: 4, MaxDepth: 4, IndexAtDepth: bi(8), TraceIndex: bi(8)},
-	{GIndex: bi(25), Depth: 4, MaxDepth: 4, IndexAtDepth: bi(9), TraceIndex: bi(9)},
-	{GIndex: bi(26), Depth: 4, MaxDepth: 4, IndexAtDepth: bi(10), TraceIndex: bi(10)},
-	{GIndex: bi(27), Depth: 4, MaxDepth: 4, IndexAtDepth: bi(11), TraceIndex: bi(11)},
-	{GIndex: bi(28), Depth: 4, MaxDepth: 4, IndexAtDepth: bi(12), TraceIndex: bi(12)},
-	{GIndex: bi(29), Depth: 4, MaxDepth: 4, IndexAtDepth: bi(13), TraceIndex: bi(13)},
-	{GIndex: bi(30), Depth: 4, MaxDepth: 4, IndexAtDepth: bi(14), TraceIndex: bi(14)},
-	{GIndex: bi(31), Depth: 4, MaxDepth: 4, IndexAtDepth: bi(15), TraceIndex: bi(15)},
-
-	{GIndex: bi(0).Mul(bi(math.MaxInt64), bi(2)), Depth: 63, MaxDepth: 64, IndexAtDepth: bi(9223372036854775806), TraceIndex: bi(0).Sub(bi(0).Mul(bi(math.MaxInt64), bi(2)), bi(1))},
-}
-
-// TestGINConversions does To & From the generalized index on the treeNodesMaxDepth4 data
-func TestGINConversions(t *testing.T) {
-	for _, test := range treeNodes {
-		from := NewPositionFromGIndex(test.GIndex)
-		pos := NewPosition(test.Depth, test.IndexAtDepth)
-		require.EqualValuesf(t, pos.Depth(), from.Depth(), "From GIndex %v vs pos %v", from.Depth(), pos.Depth())
-		require.Zerof(t, pos.IndexAtDepth().Cmp(from.IndexAtDepth()), "From GIndex %v vs pos %v", from.IndexAtDepth(), pos.IndexAtDepth())
-		to := pos.ToGIndex()
-		require.Equal(t, test.GIndex, to)
+		{bi(1023), NewPosition(9, bi(511))},
+		{bi(1024), NewPosition(10, bi(0))},
+	}
+	for _, test := range tests {
+		t.Run(fmt.Sprintf("convert gindex=%s to Position", test.gindex.String()), func(t *testing.T) {
+			positionActual := NewPositionFromGIndex(test.gindex)
+			require.EqualValuesf(t, test.expectedPosition.Depth(), positionActual.Depth(), "expected depth=%s, got=%s", test.expectedPosition.Depth(), positionActual.Depth())
+			require.Zerof(t, test.expectedPosition.IndexAtDepth().Cmp(positionActual.IndexAtDepth()), "expected indexAtDepth=%s, got=%s", test.expectedPosition.IndexAtDepth(), positionActual.IndexAtDepth())
+			gindex := positionActual.ToGIndex()
+			require.Truef(t, gindex.Cmp(test.gindex) == 0, "expected gindex=%s, got=%s", test.gindex.String(), gindex.String())
+		})
 	}
 }
 
@@ -108,34 +101,102 @@ func TestTraceIndexOfRootWithLargeDepth(t *testing.T) {
 	require.Equal(t, traceIdx, actual)
 }
 
-// TestTraceIndex creates the position & then tests the trace index function on the treeNodesMaxDepth4 data
+// TestTraceIndex creates the position & then tests the trace index function.
 func TestTraceIndex(t *testing.T) {
-	for _, test := range treeNodes {
-		pos := NewPosition(test.Depth, test.IndexAtDepth)
-		result := pos.TraceIndex(test.MaxDepth)
-		require.Equal(t, test.TraceIndex, result)
+	tests := []struct {
+		depth              Depth
+		indexAtDepth       *big.Int
+		maxDepth           Depth
+		traceIndexExpected *big.Int
+	}{
+		{depth: 0, indexAtDepth: bi(0), maxDepth: 4, traceIndexExpected: bi(15)},
+
+		{depth: 1, indexAtDepth: bi(0), maxDepth: 4, traceIndexExpected: bi(7)},
+		{depth: 1, indexAtDepth: bi(1), maxDepth: 4, traceIndexExpected: bi(15)},
+
+		{depth: 2, indexAtDepth: bi(0), maxDepth: 4, traceIndexExpected: bi(3)},
+		{depth: 2, indexAtDepth: bi(1), maxDepth: 4, traceIndexExpected: bi(7)},
+		{depth: 2, indexAtDepth: bi(2), maxDepth: 4, traceIndexExpected: bi(11)},
+		{depth: 2, indexAtDepth: bi(3), maxDepth: 4, traceIndexExpected: bi(15)},
+
+		{depth: 3, indexAtDepth: bi(0), maxDepth: 4, traceIndexExpected: bi(1)},
+		{depth: 3, indexAtDepth: bi(1), maxDepth: 4, traceIndexExpected: bi(3)},
+		{depth: 3, indexAtDepth: bi(2), maxDepth: 4, traceIndexExpected: bi(5)},
+		{depth: 3, indexAtDepth: bi(3), maxDepth: 4, traceIndexExpected: bi(7)},
+		{depth: 3, indexAtDepth: bi(4), maxDepth: 4, traceIndexExpected: bi(9)},
+		{depth: 3, indexAtDepth: bi(5), maxDepth: 4, traceIndexExpected: bi(11)},
+		{depth: 3, indexAtDepth: bi(6), maxDepth: 4, traceIndexExpected: bi(13)},
+		{depth: 3, indexAtDepth: bi(7), maxDepth: 4, traceIndexExpected: bi(15)},
+
+		{depth: 4, indexAtDepth: bi(0), maxDepth: 4, traceIndexExpected: bi(0)},
+		{depth: 4, indexAtDepth: bi(1), maxDepth: 4, traceIndexExpected: bi(1)},
+		{depth: 4, indexAtDepth: bi(2), maxDepth: 4, traceIndexExpected: bi(2)},
+		{depth: 4, indexAtDepth: bi(3), maxDepth: 4, traceIndexExpected: bi(3)},
+		{depth: 4, indexAtDepth: bi(4), maxDepth: 4, traceIndexExpected: bi(4)},
+		{depth: 4, indexAtDepth: bi(5), maxDepth: 4, traceIndexExpected: bi(5)},
+		{depth: 4, indexAtDepth: bi(6), maxDepth: 4, traceIndexExpected: bi(6)},
+		{depth: 4, indexAtDepth: bi(7), maxDepth: 4, traceIndexExpected: bi(7)},
+		{depth: 4, indexAtDepth: bi(8), maxDepth: 4, traceIndexExpected: bi(8)},
+		{depth: 4, indexAtDepth: bi(9), maxDepth: 4, traceIndexExpected: bi(9)},
+		{depth: 4, indexAtDepth: bi(10), maxDepth: 4, traceIndexExpected: bi(10)},
+		{depth: 4, indexAtDepth: bi(11), maxDepth: 4, traceIndexExpected: bi(11)},
+		{depth: 4, indexAtDepth: bi(12), maxDepth: 4, traceIndexExpected: bi(12)},
+		{depth: 4, indexAtDepth: bi(13), maxDepth: 4, traceIndexExpected: bi(13)},
+		{depth: 4, indexAtDepth: bi(14), maxDepth: 4, traceIndexExpected: bi(14)},
+		{depth: 4, indexAtDepth: bi(15), maxDepth: 4, traceIndexExpected: bi(15)},
+
+		{depth: 63, indexAtDepth: bi(9223372036854775806), maxDepth: 64, traceIndexExpected: bi(0).Sub(bi(0).Mul(bi(math.MaxInt64), bi(2)), bi(1))},
+	}
+	for _, test := range tests {
+		require.Equal(t, test.traceIndexExpected, NewPosition(test.depth, test.indexAtDepth).TraceIndex(test.maxDepth))
 	}
 }
 
 func TestAttack(t *testing.T) {
-	for _, test := range treeNodes {
-		if test.AttackGIndex == nil || test.AttackGIndex.Cmp(big.NewInt(0)) == 0 {
-			continue
-		}
-		pos := NewPosition(test.Depth, test.IndexAtDepth)
+	tests := []struct {
+		startGIndex  *big.Int
+		attackGIndex *big.Int
+	}{
+		{bi(1), bi(2)},
+		{bi(2), bi(4)},
+		{bi(3), bi(6)},
+		{bi(4), bi(8)},
+		{bi(5), bi(10)},
+		{bi(6), bi(12)},
+		{bi(7), bi(14)},
+		{bi(8), bi(16)},
+		{bi(9), bi(18)},
+		{bi(10), bi(20)},
+		{bi(11), bi(22)},
+		{bi(12), bi(24)},
+		{bi(13), bi(26)},
+		{bi(14), bi(28)},
+		{bi(15), bi(30)},
+	}
+	for _, test := range tests {
+		pos := NewPositionFromGIndex(test.startGIndex)
 		result := pos.Attack()
-		require.Equalf(t, test.AttackGIndex, result.ToGIndex(), "Attack from GIndex %v", pos.ToGIndex())
+		require.Equalf(t, test.attackGIndex, result.ToGIndex(), "attacking GIndex %s, expected=%s, got=%s", test.startGIndex, test.attackGIndex, result.ToGIndex())
 	}
 }
 
 func TestDefend(t *testing.T) {
-	for _, test := range treeNodes {
-		if test.DefendGIndex == nil || test.DefendGIndex.Cmp(big.NewInt(0)) == 0 {
-			continue
-		}
-		pos := NewPosition(test.Depth, test.IndexAtDepth)
+	tests := []struct {
+		startGIndex  *big.Int
+		defendGIndex *big.Int
+	}{
+		{bi(2), bi(6)},
+		{bi(4), bi(10)},
+		{bi(6), bi(14)},
+		{bi(8), bi(18)},
+		{bi(10), bi(22)},
+		{bi(12), bi(26)},
+		{bi(14), bi(30)},
+	}
+	for _, test := range tests {
+		pos := NewPositionFromGIndex(test.startGIndex)
 		result := pos.Defend()
-		require.Equalf(t, test.DefendGIndex, result.ToGIndex(), "Defend from GIndex %v", pos.ToGIndex())
+		require.Equalf(t, test.defendGIndex, result.ToGIndex(), "defending GIndex %s, expected=%s, got=%s", test.startGIndex, test.defendGIndex, result.ToGIndex())
 	}
 }
 
@@ -148,7 +209,7 @@ func TestRelativeToAncestorAtDepth(t *testing.T) {
 
 	tests := []struct {
 		gindex         int64
-		newRootDepth   uint64
+		newRootDepth   Depth
 		expectedGIndex int64
 	}{
 		{gindex: 5, newRootDepth: 1, expectedGIndex: 3},
@@ -243,7 +304,7 @@ func TestRelativeMoves(t *testing.T) {
 			expectedRelativePosition := test(NewPositionFromGIndex(big.NewInt(1)))
 			relative := NewPositionFromGIndex(big.NewInt(3))
 			start := test(relative)
-			relativePosition, err := start.RelativeToAncestorAtDepth(uint64(relative.Depth()))
+			relativePosition, err := start.RelativeToAncestorAtDepth(relative.Depth())
 			require.NoError(t, err)
 			require.Equal(t, expectedRelativePosition.ToGIndex(), relativePosition.ToGIndex())
 		})

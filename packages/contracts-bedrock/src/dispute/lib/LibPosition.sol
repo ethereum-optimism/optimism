@@ -166,14 +166,23 @@ library LibPosition {
     }
 
     /// @notice Get the move position of `_position`, which is the left child of:
-    ///         1. `_position + 1` if `_isAttack` is true.
-    ///         1. `_position` if `_isAttack` is false.
+    ///         1. `_position` if `_isAttack` is true.
+    ///         2. `_position | 1` if `_isAttack` is false.
     /// @param _position The position to get the relative attack/defense position of.
     /// @param _isAttack Whether or not the move is an attack move.
     /// @return move_ The move position relative to `position`.
     function move(Position _position, bool _isAttack) internal pure returns (Position move_) {
         assembly {
             move_ := shl(1, or(iszero(_isAttack), _position))
+        }
+    }
+
+    /// @notice Get the value of a `Position` type in the form of the underlying uint128.
+    /// @param _position The position to get the value of.
+    /// @return raw_ The value of the `position` as a uint128 type.
+    function raw(Position _position) internal pure returns (uint128 raw_) {
+        assembly {
+            raw_ := _position
         }
     }
 }

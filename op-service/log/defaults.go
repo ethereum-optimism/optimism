@@ -7,10 +7,5 @@ import (
 )
 
 func SetupDefaults() {
-	log.Root().SetHandler(
-		log.LvlFilterHandler(
-			log.LvlInfo,
-			log.StreamHandler(os.Stdout, log.LogfmtFormat()),
-		),
-	)
+	SetGlobalLogHandler(log.LogfmtHandlerWithLevel(os.Stdout, log.LevelInfo))
 }

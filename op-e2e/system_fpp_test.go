@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-program/client/driver"
 	opp "github.com/ethereum-optimism/optimism/op-program/host"
@@ -53,6 +54,26 @@ func TestVerifyL2OutputRootEmptyBlockDetachedSpanBatch(t *testing.T) {
 	testVerifyL2OutputRootEmptyBlock(t, true, true)
 }
 
+func applySpanBatchActivation(active bool, dp *genesis.DeployConfig) {
+	if active {
+		// Activate delta hard fork
+		minTs := hexutil.Uint64(0)
+		dp.L2GenesisDeltaTimeOffset = &minTs
+		// readjust other activations
+		if dp.L2GenesisEcotoneTimeOffset != nil {
+			dp.L2GenesisEcotoneTimeOffset = &minTs
+		}
+		if dp.L2GenesisFjordTimeOffset != nil {
+			dp.L2GenesisFjordTimeOffset = &minTs
+		}
+	} else {
+		// cancel delta and any later hardfork activations
+		dp.L2GenesisDeltaTimeOffset = nil
+		dp.L2GenesisEcotoneTimeOffset = nil
+		dp.L2GenesisFjordTimeOffset = nil
+	}
+}
+
 // TestVerifyL2OutputRootEmptyBlock asserts that the program can verify the output root of an empty block
 // induced by missing batches.
 // Setup is as follows:
@@ -73,19 +94,13 @@ func testVerifyL2OutputRootEmptyBlock(t *testing.T, detached bool, spanBatchActi
 	// Use a small sequencer window size to avoid test timeout while waiting for empty blocks
 	// But not too small to ensure that our claim and subsequent state change is published
 	cfg.DeployConfig.SequencerWindowSize = 16
-	if spanBatchActivated {
-		// Activate delta hard fork
-		minTs := hexutil.Uint64(0)
-		cfg.DeployConfig.L2GenesisDeltaTimeOffset = &minTs
-	} else {
-		cfg.DeployConfig.L2GenesisDeltaTimeOffset = nil
-	}
+	applySpanBatchActivation(spanBatchActivated, cfg.DeployConfig)
 
 	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
-	log := testlog.Logger(t, log.LvlInfo)
+	log := testlog.Logger(t, log.LevelInfo)
 	log.Info("genesis", "l2", sys.RollupConfig.Genesis.L2, "l1", sys.RollupConfig.Genesis.L1, "l2_time", sys.RollupConfig.Genesis.L2Time)
 
 	l1Client := sys.Clients["l1"]
@@ -124,7 +139,7 @@ func testVerifyL2OutputRootEmptyBlock(t *testing.T, detached bool, spanBatchActi
 	t.Log("Wait for sequencer to catch up with last submitted batch")
 	l1HeadNum, err := l1Client.BlockNumber(ctx)
 	require.NoError(t, err)
-	_, err = geth.WaitForL1OriginOnL2(l1HeadNum, l2Seq, 30*time.Second)
+	_, err = geth.WaitForL1OriginOnL2(sys.RollupConfig, l1HeadNum, l2Seq, 30*time.Second)
 	require.NoError(t, err)
 
 	// Get the current safe head now that the batcher is stopped
@@ -178,19 +193,13 @@ func testVerifyL2OutputRoot(t *testing.T, detached bool, spanBatchActivated bool
 	cfg := DefaultSystemConfig(t)
 	// We don't need a verifier - just the sequencer is enough
 	delete(cfg.Nodes, "verifier")
-	if spanBatchActivated {
-		// Activate delta hard fork
-		minTs := hexutil.Uint64(0)
-		cfg.DeployConfig.L2GenesisDeltaTimeOffset = &minTs
-	} else {
-		cfg.DeployConfig.L2GenesisDeltaTimeOffset = nil
-	}
+	applySpanBatchActivation(spanBatchActivated, cfg.DeployConfig)
 
 	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
-	log := testlog.Logger(t, log.LvlInfo)
+	log := testlog.Logger(t, log.LevelInfo)
 	log.Info("genesis", "l2", sys.RollupConfig.Genesis.L2, "l1", sys.RollupConfig.Genesis.L1, "l2_time", sys.RollupConfig.Genesis.L2Time)
 
 	l1Client := sys.Clients["l1"]
@@ -283,7 +292,7 @@ func testFaultProofProgramScenario(t *testing.T, ctx context.Context, sys *Syste
 
 	// Check the FPP confirms the expected output
 	t.Log("Running fault proof in fetching mode")
-	log := testlog.Logger(t, log.LvlInfo)
+	log := testlog.Logger(t, log.LevelInfo)
 	err := opp.FaultProofProgram(ctx, log, fppConfig)
 	require.NoError(t, err)
 

@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 	ethawskmssigner "github.com/welthee/go-ethereum-aws-kms-tx-signer"
 )
 
@@ -25,20 +26,36 @@ type KmsConfig struct {
 }
 
 func NewKmsConfig(cfg CLIConfig) (*KmsConfig, error) {
-	if cfg.KmsKeyID == "" || cfg.KmsEndpoint == "" || cfg.KmsRegion == "" {
-		return nil, fmt.Errorf("KMS config is not set")
+	var (
+		sess *session.Session
+		err  error
+	)
+	// AWS uses IAM role for task
+	if cfg.KmsProduction {
+		log.Info("Using AWS KMS production mode")
+		if cfg.KmsKeyID == "" || cfg.KmsRegion == "" {
+			return nil, fmt.Errorf("KMS config is not set")
+		}
+		sess, err = session.NewSession(&aws.Config{
+			Region: aws.String(cfg.KmsRegion)},
+		)
+	} else {
+		log.Info("Using AWS KMS development mode")
+		if cfg.KmsKeyID == "" || cfg.KmsEndpoint == "" || cfg.KmsRegion == "" {
+			return nil, fmt.Errorf("KMS config is not set")
+		}
+		sess, err = session.NewSession(&aws.Config{
+			Credentials: credentials.NewEnvCredentials(),
+			Region:      aws.String(cfg.KmsRegion),
+			Endpoint:    aws.String(cfg.KmsEndpoint),
+		})
 	}
-	session, err := session.NewSession(&aws.Config{
-		Credentials: credentials.NewEnvCredentials(),
-		Region:      aws.String(cfg.KmsRegion),
-		Endpoint:    aws.String(cfg.KmsEndpoint),
-	})
 	if err != nil {
 		return nil, err
 	}
 	return &KmsConfig{
 		keyId:      cfg.KmsKeyID,
-		kmsSession: kms.New(session),
+		kmsSession: kms.New(sess),
 	}, nil
 }
 

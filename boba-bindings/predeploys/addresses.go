@@ -28,6 +28,8 @@ const (
 	L1FeeVault                    = "0x420000000000000000000000000000000000001a"
 	SchemaRegistry                = "0x4200000000000000000000000000000000000020"
 	EAS                           = "0x4200000000000000000000000000000000000021"
+	Create2Deployer               = "0x13b0D85CcB8bf860b6b79AF3029fCA081AE9beF2"
+	DeterministicDeploymentProxy  = "0x4e59b44847b379578588920cA78FbF26c0B4956C"
 
 	// Boba specific
 	BobaL2 = "0x4200000000000000000000000000000000000023"
@@ -56,6 +58,8 @@ var (
 	L1FeeVaultAddr                    = common.HexToAddress(L1FeeVault)
 	SchemaRegistryAddr                = common.HexToAddress(SchemaRegistry)
 	EASAddr                           = common.HexToAddress(EAS)
+	Create2DeployerAddr               = common.HexToAddress(Create2Deployer)
+	DeterministicDeploymentProxyAddr  = common.HexToAddress(DeterministicDeploymentProxy)
 
 	// Boba specific
 	BobaL2Addr = common.HexToAddress(BobaL2)
@@ -72,6 +76,8 @@ func IsProxied(predeployAddr common.Address) bool {
 	case LegacyERC20ETHAddr:
 	case WETH9Addr:
 	case BobaL2Addr:
+	case Create2DeployerAddr:
+	case DeterministicDeploymentProxyAddr:
 	default:
 		return true
 	}
@@ -98,6 +104,8 @@ func init() {
 	Predeploys["L1FeeVault"] = &L1FeeVaultAddr
 	Predeploys["SchemaRegistry"] = &SchemaRegistryAddr
 	Predeploys["EAS"] = &EASAddr
+	Predeploys["Create2Deployer"] = &Create2DeployerAddr
+	Predeploys["DeterministicDeploymentProxy"] = &DeterministicDeploymentProxyAddr
 
 	// Boba specific
 	Predeploys["BobaL2"] = &BobaL2Addr

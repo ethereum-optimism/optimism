@@ -7,6 +7,7 @@ import { L2ERC721Bridge } from "src/L2/L2ERC721Bridge.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
+import { StandardBridge } from "src/universal/StandardBridge.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 
@@ -23,19 +24,23 @@ contract L1ERC721Bridge is ERC721Bridge, ISemver {
     SuperchainConfig public superchainConfig;
 
     /// @notice Semantic version.
-    /// @custom:semver 2.0.0
-    string public constant version = "2.0.0";
+    /// @custom:semver 2.1.0
+    string public constant version = "2.1.0";
 
     /// @notice Constructs the L1ERC721Bridge contract.
-    /// @param _messenger   Address of the CrossDomainMessenger on this network.
-    constructor(address _messenger) ERC721Bridge(_messenger, Predeploys.L2_ERC721_BRIDGE) {
-        initialize(SuperchainConfig(address(0)));
+    constructor() ERC721Bridge() {
+        initialize({ _messenger: CrossDomainMessenger(address(0)), _superchainConfig: SuperchainConfig(address(0)) });
     }
 
     /// @notice Initializes the contract.
-    /// @param _superchainConfig Address of the SuperchainConfig contract on this network.
-    function initialize(SuperchainConfig _superchainConfig) public initializer {
+    /// @param _messenger   Contract of the CrossDomainMessenger on this network.
+    /// @param _superchainConfig Contract of the SuperchainConfig contract on this network.
+    function initialize(CrossDomainMessenger _messenger, SuperchainConfig _superchainConfig) public initializer {
         superchainConfig = _superchainConfig;
+        __ERC721Bridge_init({
+            _messenger: _messenger,
+            _otherBridge: StandardBridge(payable(Predeploys.L2_ERC721_BRIDGE))
+        });
     }
 
     /// @inheritdoc ERC721Bridge
@@ -79,7 +84,7 @@ contract L1ERC721Bridge is ERC721Bridge, ISemver {
 
         // When a withdrawal is finalized on L1, the L1 Bridge transfers the NFT to the
         // withdrawer.
-        IERC721(_localToken).safeTransferFrom(address(this), _to, _tokenId);
+        IERC721(_localToken).safeTransferFrom({ from: address(this), to: _to, tokenId: _tokenId });
 
         // slither-disable-next-line reentrancy-events
         emit ERC721BridgeFinalized(_localToken, _remoteToken, _from, _to, _tokenId, _extraData);
@@ -107,10 +112,10 @@ contract L1ERC721Bridge is ERC721Bridge, ISemver {
 
         // Lock token into bridge
         deposits[_localToken][_remoteToken][_tokenId] = true;
-        IERC721(_localToken).transferFrom(_from, address(this), _tokenId);
+        IERC721(_localToken).transferFrom({ from: _from, to: address(this), tokenId: _tokenId });
 
         // Send calldata into L2
-        MESSENGER.sendMessage(OTHER_BRIDGE, message, _minGasLimit);
+        messenger.sendMessage({ _target: address(otherBridge), _message: message, _minGasLimit: _minGasLimit });
         emit ERC721BridgeInitiated(_localToken, _remoteToken, _from, _to, _tokenId, _extraData);
     }
 }

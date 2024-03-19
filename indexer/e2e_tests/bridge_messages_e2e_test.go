@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/transactions"
+
 	e2etest_utils "github.com/ethereum-optimism/optimism/indexer/e2e_tests/utils"
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
@@ -13,6 +15,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/stretchr/testify/require"
@@ -33,7 +36,9 @@ func TestE2EBridgeL1CrossDomainMessenger(t *testing.T) {
 	l1Opts.Value = big.NewInt(params.Ether)
 
 	// (1) Send the Message
-	sentMsgTx, err := l1CrossDomainMessenger.SendMessage(l1Opts, aliceAddr, calldata, 100_000)
+	sentMsgTx, err := transactions.PadGasEstimate(l1Opts, 1.2, func(opts *bind.TransactOpts) (*types.Transaction, error) {
+		return l1CrossDomainMessenger.SendMessage(opts, aliceAddr, calldata, 100_000)
+	})
 	require.NoError(t, err)
 	sentMsgReceipt, err := wait.ForReceiptOK(context.Background(), testSuite.L1Client, sentMsgTx.Hash())
 	require.NoError(t, err)
@@ -112,13 +117,22 @@ func TestE2EBridgeL2CrossDomainMessenger(t *testing.T) {
 	l1Opts, err := bind.NewKeyedTransactorWithChainID(testSuite.OpCfg.Secrets.Alice, testSuite.OpCfg.L1ChainIDBig())
 	require.NoError(t, err)
 	l1Opts.Value = l2Opts.Value
-	depositTx, err := optimismPortal.Receive(l1Opts)
+	depositTx, err := transactions.PadGasEstimate(l1Opts, 1.2, func(opts *bind.TransactOpts) (*types.Transaction, error) {
+		return optimismPortal.Receive(opts)
+	})
 	require.NoError(t, err)
-	_, err = wait.ForReceiptOK(context.Background(), testSuite.L1Client, depositTx.Hash())
+	depositReceipt, err := wait.ForReceiptOK(context.Background(), testSuite.L1Client, depositTx.Hash())
+	require.NoError(t, err)
+	depositInfo, err := e2etest_utils.ParseDepositInfo(depositReceipt)
+	require.NoError(t, err)
+	depositL2TxHash := types.NewTx(depositInfo.DepositTx).Hash()
+	_, err = wait.ForReceiptOK(context.Background(), testSuite.L2Client, depositL2TxHash)
 	require.NoError(t, err)
 
 	// (1) Send the Message
-	sentMsgTx, err := l2CrossDomainMessenger.SendMessage(l2Opts, aliceAddr, calldata, 100_000)
+	sentMsgTx, err := transactions.PadGasEstimate(l2Opts, 1.2, func(opts *bind.TransactOpts) (*types.Transaction, error) {
+		return l2CrossDomainMessenger.SendMessage(opts, aliceAddr, calldata, 100_000)
+	})
 	require.NoError(t, err)
 	sentMsgReceipt, err := wait.ForReceiptOK(context.Background(), testSuite.L2Client, sentMsgTx.Hash())
 	require.NoError(t, err)
@@ -155,7 +169,7 @@ func TestE2EBridgeL2CrossDomainMessenger(t *testing.T) {
 
 	// (2) Process RelayedMessage on withdrawal finalization
 	require.Nil(t, sentMessage.RelayedMessageEventGUID)
-	_, finalizedReceipt := op_e2e.ProveAndFinalizeWithdrawal(t, *testSuite.OpCfg, testSuite.OpSys, "sequencer", testSuite.OpCfg.Secrets.Alice, sentMsgReceipt)
+	_, finalizedReceipt, _, _ := op_e2e.ProveAndFinalizeWithdrawal(t, *testSuite.OpCfg, testSuite.OpSys, "sequencer", testSuite.OpCfg.Secrets.Alice, sentMsgReceipt)
 
 	// wait for processor catchup
 	require.NoError(t, wait.For(context.Background(), 500*time.Millisecond, func() (bool, error) {

@@ -35,7 +35,7 @@ func TestServerMode(t *testing.T) {
 	hintServer, hintClient, err := io.CreateBidirectionalChannel()
 	require.NoError(t, err)
 	defer hintClient.Close()
-	logger := testlog.Logger(t, log.LvlTrace)
+	logger := testlog.Logger(t, log.LevelTrace)
 	result := make(chan error)
 	go func() {
 		result <- PreimageServer(context.Background(), logger, cfg, preimageServer, hintServer)

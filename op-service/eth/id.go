@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 )
 
 type BlockID struct {
@@ -19,6 +20,14 @@ func (id BlockID) String() string {
 // output during logging.
 func (id BlockID) TerminalString() string {
 	return fmt.Sprintf("%s:%d", id.Hash.TerminalString(), id.Number)
+}
+
+func ReceiptBlockID(r *types.Receipt) BlockID {
+	return BlockID{Number: r.BlockNumber.Uint64(), Hash: r.BlockHash}
+}
+
+func HeaderBlockID(h *types.Header) BlockID {
+	return BlockID{Number: h.Number.Uint64(), Hash: h.Hash()}
 }
 
 type L2BlockRef struct {
@@ -95,10 +104,10 @@ func (id L2BlockRef) ParentID() BlockID {
 	}
 }
 
-// IndexedDataHash represents a data-hash that commits to a single blob confirmed in a block.
-// The index helps us avoid unnecessary blob to data-hash conversions to find the right content in a sidecar.
-type IndexedDataHash struct {
-	Index    uint64      // absolute index in the block, a.k.a. position in sidecar blobs array
-	DataHash common.Hash // hash of the blob, used for consistency checks
-	// Might add tx index and/or tx hash here later, depending on blobs API design
+// IndexedBlobHash represents a blob hash that commits to a single blob confirmed in a block.  The
+// index helps us avoid unnecessary blob to blob hash conversions to find the right content in a
+// sidecar.
+type IndexedBlobHash struct {
+	Index uint64      // absolute index in the block, a.k.a. position in sidecar blobs array
+	Hash  common.Hash // hash of the blob, used for consistency checks
 }

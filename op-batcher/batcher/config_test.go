@@ -5,9 +5,10 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/batcher"
+	"github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/metrics"
-	"github.com/ethereum-optimism/optimism/op-service/pprof"
+	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/stretchr/testify/require"
@@ -25,10 +26,11 @@ func validBatcherConfig() batcher.CLIConfig {
 		MaxL1TxSize:            10,
 		Stopped:                false,
 		BatchType:              0,
+		DataAvailabilityType:   flags.CalldataType,
 		TxMgrConfig:            txmgr.NewCLIConfig("fake", txmgr.DefaultBatcherFlagValues),
 		LogConfig:              log.DefaultCLIConfig(),
 		MetricsConfig:          metrics.DefaultCLIConfig(),
-		PprofConfig:            pprof.DefaultCLIConfig(),
+		PprofConfig:            oppprof.DefaultCLIConfig(),
 		// The compressor config is not checked in config.Check()
 		RPC: rpc.DefaultCLIConfig(),
 	}
@@ -79,6 +81,11 @@ func TestBatcherConfig(t *testing.T) {
 			name:      "invalid batch type far",
 			override:  func(c *batcher.CLIConfig) { c.BatchType = 100 },
 			errString: "unknown batch type: 100",
+		},
+		{
+			name:      "invalid batch submission policy",
+			override:  func(c *batcher.CLIConfig) { c.DataAvailabilityType = "foo" },
+			errString: "unknown data availability type: \"foo\"",
 		},
 	}
 

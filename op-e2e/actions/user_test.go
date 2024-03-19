@@ -1,8 +1,10 @@
 package actions
 
 import (
+	"fmt"
 	"math/rand"
 	"testing"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -14,14 +16,40 @@ import (
 )
 
 type hardforkScheduledTest struct {
-	name             string
-	regolithTime     *hexutil.Uint64
-	deltaTime        *hexutil.Uint64
-	activateRegolith bool
-	activateDelta    bool
+	regolithTime *hexutil.Uint64
+	canyonTime   *hexutil.Uint64
+	deltaTime    *hexutil.Uint64
+	ecotoneTime  *hexutil.Uint64
+	fjordTime    *hexutil.Uint64
+	runToFork    string
 }
 
-// TestCrossLayerUser tests that common actions of the CrossLayerUser actor work in various regolith configurations:
+func (tc *hardforkScheduledTest) SetFork(fork string, v uint64) {
+	*tc.fork(fork) = (*hexutil.Uint64)(&v)
+}
+
+func (tc *hardforkScheduledTest) GetFork(fork string) *uint64 {
+	return (*uint64)(*tc.fork(fork))
+}
+
+func (tc *hardforkScheduledTest) fork(fork string) **hexutil.Uint64 {
+	switch fork {
+	case "fjord":
+		return &tc.fjordTime
+	case "ecotone":
+		return &tc.ecotoneTime
+	case "delta":
+		return &tc.deltaTime
+	case "canyon":
+		return &tc.canyonTime
+	case "regolith":
+		return &tc.regolithTime
+	default:
+		panic(fmt.Errorf("unrecognized fork: %s", fork))
+	}
+}
+
+// TestCrossLayerUser tests that common actions of the CrossLayerUser actor work in various hardfork configurations:
 // - transact on L1
 // - transact on L2
 // - deposit on L1
@@ -30,26 +58,49 @@ type hardforkScheduledTest struct {
 // - wait 1 week + 1 second
 // - finalize withdrawal on L1
 func TestCrossLayerUser(t *testing.T) {
-	zeroTime := hexutil.Uint64(0)
-	futureTime := hexutil.Uint64(20)
-	farFutureTime := hexutil.Uint64(2000)
-	tests := []hardforkScheduledTest{
-		{name: "NoRegolith", regolithTime: nil, activateRegolith: false, deltaTime: nil, activateDelta: false},
-		{name: "NotYetRegolith", regolithTime: &farFutureTime, activateRegolith: false, deltaTime: nil, activateDelta: false},
-		{name: "RegolithAtGenesis", regolithTime: &zeroTime, activateRegolith: true, deltaTime: nil, activateDelta: false},
-		{name: "RegolithAfterGenesis", regolithTime: &futureTime, activateRegolith: true, deltaTime: nil, activateDelta: false},
-		{name: "NoDelta", regolithTime: &zeroTime, activateRegolith: true, deltaTime: nil, activateDelta: false},
-		{name: "NotYetDelta", regolithTime: &zeroTime, activateRegolith: true,
-			deltaTime: &farFutureTime, activateDelta: false},
-		{name: "DeltaAtGenesis", regolithTime: &zeroTime, activateRegolith: true,
-			deltaTime: &zeroTime, activateDelta: true},
-		{name: "DeltaAfterGenesis", regolithTime: &zeroTime, activateRegolith: true,
-			deltaTime: &futureTime, activateDelta: true},
+	futureTime := uint64(20)
+	farFutureTime := uint64(2000)
+
+	forks := []string{
+		"regolith",
+		"canyon",
+		"delta",
+		"ecotone",
+		"fjord",
 	}
-	for _, test := range tests {
-		test := test // Use a fixed reference as the tests run in parallel
-		t.Run(test.name, func(gt *testing.T) {
-			runCrossLayerUserTest(gt, test)
+	for i, fork := range forks {
+		i := i
+		fork := fork
+		t.Run("fork_"+fork, func(t *testing.T) {
+			t.Run("at_genesis", func(t *testing.T) {
+				tc := hardforkScheduledTest{}
+				for _, f := range forks[:i+1] { // activate, all up to and incl this fork, at genesis
+					tc.SetFork(f, 0)
+				}
+				runCrossLayerUserTest(t, tc)
+			})
+			t.Run("after_genesis", func(t *testing.T) {
+				tc := hardforkScheduledTest{}
+				for _, f := range forks[:i] { // activate, all up to this fork, at genesis
+					tc.SetFork(f, 0)
+				}
+				// activate this fork after genesis
+				tc.SetFork(fork, futureTime)
+				tc.runToFork = fork
+				runCrossLayerUserTest(t, tc)
+			})
+			t.Run("not_yet", func(t *testing.T) {
+				tc := hardforkScheduledTest{}
+				for _, f := range forks[:i] { // activate, all up to this fork, at genesis
+					tc.SetFork(f, 0)
+				}
+				// activate this fork later
+				tc.SetFork(fork, farFutureTime)
+				if i > 0 {
+					tc.runToFork = forks[i-1]
+				}
+				runCrossLayerUserTest(t, tc)
+			})
 		})
 	}
 }
@@ -57,25 +108,47 @@ func TestCrossLayerUser(t *testing.T) {
 func runCrossLayerUserTest(gt *testing.T, test hardforkScheduledTest) {
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
+	// This overwrites all deploy-config settings,
+	// so even when the deploy-config defaults change, we test the right transitions.
 	dp.DeployConfig.L2GenesisRegolithTimeOffset = test.regolithTime
+	dp.DeployConfig.L2GenesisCanyonTimeOffset = test.canyonTime
 	dp.DeployConfig.L2GenesisDeltaTimeOffset = test.deltaTime
+	dp.DeployConfig.L2GenesisEcotoneTimeOffset = test.ecotoneTime
+	dp.DeployConfig.L2GenesisFjordTimeOffset = test.fjordTime
+
+	if test.canyonTime != nil {
+		require.Zero(t, uint64(*test.canyonTime)%uint64(dp.DeployConfig.L2BlockTime), "canyon fork must be aligned")
+	}
+	if test.ecotoneTime != nil {
+		require.Zero(t, uint64(*test.ecotoneTime)%uint64(dp.DeployConfig.L2BlockTime), "ecotone fork must be aligned")
+	}
+
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
-	log := testlog.Logger(t, log.LvlDebug)
+	log := testlog.Logger(t, log.LevelDebug)
 
 	require.Equal(t, dp.Secrets.Addresses().Batcher, dp.DeployConfig.BatchSenderAddress)
 	require.Equal(t, dp.Secrets.Addresses().Proposer, dp.DeployConfig.L2OutputOracleProposer)
 
 	miner, seqEngine, seq := setupSequencerTest(t, sd, log)
-	batcher := NewL2Batcher(log, sd.RollupCfg, &BatcherCfg{
-		MinL1TxSize: 0,
-		MaxL1TxSize: 128_000,
-		BatcherKey:  dp.Secrets.Batcher,
-	}, seq.RollupClient(), miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
-	proposer := NewL2Proposer(t, log, &ProposerCfg{
-		OutputOracleAddr:  sd.DeploymentsL1.L2OutputOracleProxy,
-		ProposerKey:       dp.Secrets.Proposer,
-		AllowNonFinalized: true,
-	}, miner.EthClient(), seq.RollupClient())
+	batcher := NewL2Batcher(log, sd.RollupCfg, DefaultBatcherCfg(dp),
+		seq.RollupClient(), miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
+
+	var proposer *L2Proposer
+	if e2eutils.UseFPAC() {
+		proposer = NewL2Proposer(t, log, &ProposerCfg{
+			DisputeGameFactoryAddr: &sd.DeploymentsL1.DisputeGameFactoryProxy,
+			ProposalInterval:       6 * time.Second,
+			DisputeGameType:        0,
+			ProposerKey:            dp.Secrets.Proposer,
+			AllowNonFinalized:      true,
+		}, miner.EthClient(), seq.RollupClient())
+	} else {
+		proposer = NewL2Proposer(t, log, &ProposerCfg{
+			OutputOracleAddr:  &sd.DeploymentsL1.L2OutputOracleProxy,
+			ProposerKey:       dp.Secrets.Proposer,
+			AllowNonFinalized: true,
+		}, miner.EthClient(), seq.RollupClient())
+	}
 
 	// need to start derivation before we can make L2 blocks
 	seq.ActL2PipelineFull(t)
@@ -107,16 +180,18 @@ func runCrossLayerUserTest(gt *testing.T, test hardforkScheduledTest) {
 	seq.ActL2StartBlock(t)
 	seq.ActL2EndBlock(t)
 
-	if test.activateRegolith {
-		// advance L2 enough to activate regolith fork
-		seq.ActBuildL2ToRegolith(t)
+	if test.runToFork != "" {
+		forkTime := test.GetFork(test.runToFork)
+		require.NotNil(t, forkTime, "fork we are running up to must be configured")
+		// advance L2 enough to activate the fork we are running up to
+		seq.ActBuildL2ToTime(t, *forkTime)
 	}
 	// Check Regolith is active or not by confirming the system info tx is not a system tx
 	infoTx, err := l2Cl.TransactionInBlock(t.Ctx(), seq.L2Unsafe().Hash, 0)
 	require.NoError(t, err)
 	require.True(t, infoTx.IsDepositTx())
 	// Should only be a system tx if regolith is not enabled
-	require.Equal(t, !test.activateRegolith, infoTx.IsSystemTx())
+	require.Equal(t, !seq.rollupCfg.IsRegolith(seq.L2Unsafe().Time), infoTx.IsSystemTx())
 
 	// regular L2 tx, in new L2 block
 	alice.L2.ActResetTxOpts(t)
@@ -204,6 +279,25 @@ func runCrossLayerUserTest(gt *testing.T, test hardforkScheduledTest) {
 	miner.ActL1StartBlock(13)(t)
 	miner.ActL1EndBlock(t)
 
+	// If using FPAC we need to resolve the game
+	if e2eutils.UseFPAC() {
+		// Resolve the root claim
+		alice.ActResolveClaim(t)
+		miner.ActL1StartBlock(12)(t)
+		miner.ActL1IncludeTx(alice.Address())(t)
+		miner.ActL1EndBlock(t)
+		// Resolve the game
+		alice.L1.ActCheckReceiptStatusOfLastTx(true)(t)
+		alice.ActResolve(t)
+		miner.ActL1StartBlock(12)(t)
+		miner.ActL1IncludeTx(alice.Address())(t)
+		miner.ActL1EndBlock(t)
+		// Create an empty block to pass the air-gap window
+		alice.L1.ActCheckReceiptStatusOfLastTx(true)(t)
+		miner.ActL1StartBlock(13)(t)
+		miner.ActL1EndBlock(t)
+	}
+
 	// make the L1 finalize withdrawal tx
 	alice.ActCompleteWithdrawal(t)
 	// include completed withdrawal in new L1 block
@@ -218,5 +312,5 @@ func runCrossLayerUserTest(gt *testing.T, test hardforkScheduledTest) {
 	require.NoError(t, err)
 	require.True(t, infoTx.IsDepositTx())
 	// Should only be a system tx if regolith is not enabled
-	require.Equal(t, !test.activateRegolith, infoTx.IsSystemTx())
+	require.Equal(t, !seq.rollupCfg.IsRegolith(seq.L2Unsafe().Time), infoTx.IsSystemTx())
 }

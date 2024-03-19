@@ -7,8 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
+
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/transactions"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -40,18 +41,17 @@ func SendDepositTx(t *testing.T, cfg SystemConfig, l1Client *ethclient.Client, l
 	require.Nil(t, err, "with deposit tx")
 
 	// Wait for transaction on L1
-	l1Receipt, err := geth.WaitForTransaction(tx.Hash(), l1Client, 10*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	l1Receipt, err := wait.ForReceiptOK(ctx, l1Client, tx.Hash())
 	require.Nil(t, err, "Waiting for deposit tx on L1")
 
 	// Wait for transaction to be included on L2
 	reconstructedDep, err := derive.UnmarshalDepositLogEvent(l1Receipt.Logs[0])
 	require.NoError(t, err, "Could not reconstruct L2 Deposit")
 	tx = types.NewTx(reconstructedDep)
-	// Use a long wait because the l2Client may not be configured to receive gossip from the sequencer
-	// so has to wait for the batcher to submit and then import those blocks from L1.
-	l2Receipt, err := geth.WaitForTransaction(tx.Hash(), l2Client, 60*time.Second)
-	require.NoError(t, err)
-	require.Equal(t, l2Opts.ExpectedStatus, l2Receipt.Status, "l2 transaction status")
+	l2Receipt, err := wait.ForReceipt(ctx, l2Client, tx.Hash(), l2Opts.ExpectedStatus)
+	require.NoError(t, err, "Waiting for deposit tx on L2")
 	return l2Receipt
 }
 
@@ -92,19 +92,20 @@ func SendL2Tx(t *testing.T, cfg SystemConfig, l2Client *ethclient.Client, privKe
 		GasTipCap: opts.GasTipCap,
 		GasFeeCap: opts.GasFeeCap,
 		Gas:       opts.Gas,
+		Data:      opts.Data,
 	})
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	err := l2Client.SendTransaction(ctx, tx)
 	require.NoError(t, err, "Sending L2 tx")
 
-	receipt, err := geth.WaitForTransaction(tx.Hash(), l2Client, 10*time.Duration(cfg.DeployConfig.L2BlockTime)*time.Second)
+	receipt, err := wait.ForReceiptOK(ctx, l2Client, tx.Hash())
 	require.NoError(t, err, "Waiting for L2 tx")
 	require.Equal(t, opts.ExpectedStatus, receipt.Status, "TX should have expected status")
 
 	for i, client := range opts.VerifyClients {
 		t.Logf("Waiting for tx %v on verification client %d", tx.Hash(), i)
-		receiptVerif, err := geth.WaitForTransaction(tx.Hash(), client, 10*time.Duration(cfg.DeployConfig.L2BlockTime)*time.Second)
+		receiptVerif, err := wait.ForReceiptOK(ctx, client, tx.Hash())
 		require.NoErrorf(t, err, "Waiting for L2 tx on verification client %d", i)
 		require.Equalf(t, receipt, receiptVerif, "Receipts should be the same on sequencer and verification client %d", i)
 	}

@@ -105,7 +105,7 @@ func TestL1ETLConstruction(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			ts := test.construction()
 
-			logger := testlog.Logger(t, log.LvlInfo)
+			logger := testlog.Logger(t, log.LevelInfo)
 			cfg := Config{StartHeight: ts.start}
 
 			etl, err := NewL1ETL(cfg, logger, ts.db.DB, etlMetrics, ts.client, ts.contracts, func(cause error) {

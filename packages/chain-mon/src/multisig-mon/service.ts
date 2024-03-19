@@ -11,6 +11,7 @@ import { Provider } from '@ethersproject/abstract-provider'
 import { ethers } from 'ethers'
 
 import Safe from '../abi/IGnosisSafe.0.8.19.json'
+import OptimismPortal from '../abi/OptimismPortal.json'
 import { version } from '../../package.json'
 
 type MultisigMonOptions = {
@@ -22,11 +23,17 @@ type MultisigMonOptions = {
 type MultisigMonMetrics = {
   safeNonce: Gauge
   latestPreSignedPauseNonce: Gauge
+  pausedState: Gauge
   unexpectedRpcErrors: Counter
 }
 
 type MultisigMonState = {
-  accounts: Array<{ address: string; nickname: string; vault: string }>
+  accounts: Array<{
+    nickname: string
+    safeAddress: string
+    optimismPortalAddress: string
+    vault: string
+  }>
 }
 
 export class MultisigMonService extends BaseServiceV2<
@@ -50,7 +57,7 @@ export class MultisigMonService extends BaseServiceV2<
         },
         accounts: {
           validator: validators.str,
-          desc: 'JSON array of [{ address, nickname, vault }] to monitor balances and nonces of',
+          desc: 'JSON array of [{ nickname, safeAddress, optimismPortalAddress, vault }] to monitor',
           public: true,
         },
         onePassServiceToken: {
@@ -67,6 +74,11 @@ export class MultisigMonService extends BaseServiceV2<
         latestPreSignedPauseNonce: {
           type: Gauge,
           desc: 'Latest pre-signed pause nonce',
+          labels: ['address', 'nickname'],
+        },
+        pausedState: {
+          type: Gauge,
+          desc: 'OptimismPortal paused state',
           labels: ['address', 'nickname'],
         },
         unexpectedRpcErrors: {
@@ -90,48 +102,57 @@ export class MultisigMonService extends BaseServiceV2<
       }
 
       // get the nonce from deployed safe
-      await this.getSafeNonce(account)
+      if (account.safeAddress) {
+        await this.getSafeNonce(account)
+      }
+
+      // get the paused state of the OptimismPortal
+      if (account.optimismPortalAddress) {
+        await this.getPausedState(account)
+      }
     }
   }
 
-  private async getSafeNonce(account: {
-    address: string
+  private async getPausedState(account: {
     nickname: string
+    safeAddress: string
+    optimismPortalAddress: string
     vault: string
   }) {
     try {
-      const safeContract = new ethers.Contract(
-        account.address,
-        Safe.abi,
+      const optimismPortal = new ethers.Contract(
+        account.optimismPortalAddress,
+        OptimismPortal.abi,
         this.options.rpc
       )
-      const safeNonce = await safeContract.nonce()
-      this.logger.info(`got nonce`, {
-        address: account.address,
+      const paused = await optimismPortal.paused()
+      this.logger.info(`got paused state`, {
+        optimismPortalAddress: account.optimismPortalAddress,
         nickname: account.nickname,
-        nonce: safeNonce.toString(),
+        paused,
       })
 
-      this.metrics.safeNonce.set(
-        { address: account.address, nickname: account.nickname },
-        parseInt(safeNonce.toString(), 10)
+      this.metrics.pausedState.set(
+        { address: account.optimismPortalAddress, nickname: account.nickname },
+        paused ? 1 : 0
       )
     } catch (err) {
       this.logger.error(`got unexpected RPC error`, {
-        section: 'safeNonce',
-        name: 'getSafeNonce',
+        section: 'pausedState',
+        name: 'getPausedState',
         err,
       })
       this.metrics.unexpectedRpcErrors.inc({
-        section: 'safeNonce',
-        name: 'getSafeNonce',
+        section: 'pausedState',
+        name: 'getPausedState',
       })
     }
   }
 
   private async getOnePassNonce(account: {
-    address: string
     nickname: string
+    safeAddress: string
+    optimismPortalAddress: string
     vault: string
   }) {
     try {
@@ -167,7 +188,7 @@ export class MultisigMonService extends BaseServiceV2<
             }
           }
           this.metrics.latestPreSignedPauseNonce.set(
-            { address: account.address, nickname: account.nickname },
+            { address: account.safeAddress, nickname: account.nickname },
             latestNonce
           )
           this.logger.debug(`latestNonce: ${latestNonce}`)
@@ -182,6 +203,42 @@ export class MultisigMonService extends BaseServiceV2<
       this.metrics.unexpectedRpcErrors.inc({
         section: 'onePassNonce',
         name: 'getOnePassNonce',
+      })
+    }
+  }
+
+  private async getSafeNonce(account: {
+    nickname: string
+    safeAddress: string
+    optimismPortalAddress: string
+    vault: string
+  }) {
+    try {
+      const safeContract = new ethers.Contract(
+        account.safeAddress,
+        Safe.abi,
+        this.options.rpc
+      )
+      const safeNonce = await safeContract.nonce()
+      this.logger.info(`got nonce`, {
+        address: account.safeAddress,
+        nickname: account.nickname,
+        nonce: safeNonce.toString(),
+      })
+
+      this.metrics.safeNonce.set(
+        { address: account.safeAddress, nickname: account.nickname },
+        parseInt(safeNonce.toString(), 10)
+      )
+    } catch (err) {
+      this.logger.error(`got unexpected RPC error`, {
+        section: 'safeNonce',
+        name: 'getSafeNonce',
+        err,
+      })
+      this.metrics.unexpectedRpcErrors.inc({
+        section: 'safeNonce',
+        name: 'getSafeNonce',
       })
     }
   }

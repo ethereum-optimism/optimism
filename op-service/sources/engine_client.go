@@ -5,15 +5,16 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/eth/catalyst"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources/caching"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/rpc"
 )
 
 type EngineClientConfig struct {
@@ -57,7 +58,8 @@ func (s *EngineClient) ForkchoiceUpdate(ctx context.Context, fc *eth.ForkchoiceS
 	fcCtx, cancel := context.WithTimeout(ctx, time.Second*5)
 	defer cancel()
 	var result eth.ForkchoiceUpdatedResult
-	err := s.client.CallContext(fcCtx, &result, "engine_forkchoiceUpdatedV2", fc, attributes)
+	method := s.rollupCfg.ForkchoiceUpdatedVersion(attributes)
+	err := s.client.CallContext(fcCtx, &result, string(method), fc, attributes)
 	if err == nil {
 		tlog.Trace("Shared forkchoice-updated signal")
 		if attributes != nil { // block building is optional, we only get a payload ID if we are building a block
@@ -85,14 +87,24 @@ func (s *EngineClient) ForkchoiceUpdate(ctx context.Context, fc *eth.ForkchoiceS
 // NewPayload executes a full block on the execution engine.
 // This returns a PayloadStatusV1 which encodes any validation/processing error,
 // and this type of error is kept separate from the returned `error` used for RPC errors, like timeouts.
-func (s *EngineClient) NewPayload(ctx context.Context, payload *eth.ExecutionPayload) (*eth.PayloadStatusV1, error) {
+func (s *EngineClient) NewPayload(ctx context.Context, payload *eth.ExecutionPayload, parentBeaconBlockRoot *common.Hash) (*eth.PayloadStatusV1, error) {
 	e := s.log.New("block_hash", payload.BlockHash)
 	e.Trace("sending payload for execution")
 
 	execCtx, cancel := context.WithTimeout(ctx, time.Second*5)
 	defer cancel()
 	var result eth.PayloadStatusV1
-	err := s.client.CallContext(execCtx, &result, "engine_newPayloadV2", payload)
+
+	var err error
+	switch method := s.rollupCfg.NewPayloadVersion(uint64(payload.Timestamp)); method {
+	case eth.NewPayloadV3:
+		err = s.client.CallContext(execCtx, &result, string(method), payload, []common.Hash{}, parentBeaconBlockRoot)
+	case eth.NewPayloadV2:
+		err = s.client.CallContext(execCtx, &result, string(method), payload)
+	default:
+		return nil, fmt.Errorf("unsupported NewPayload version: %s", method)
+	}
+
 	e.Trace("Received payload execution result", "status", result.Status, "latestValidHash", result.LatestValidHash, "message", result.ValidationError)
 	if err != nil {
 		e.Error("Payload execution failed", "err", err)
@@ -105,13 +117,14 @@ func (s *EngineClient) NewPayload(ctx context.Context, payload *eth.ExecutionPay
 // There may be two types of error:
 // 1. `error` as eth.InputError: the payload ID may be unknown
 // 2. Other types of `error`: temporary RPC errors, like timeouts.
-func (s *EngineClient) GetPayload(ctx context.Context, payloadId eth.PayloadID) (*eth.ExecutionPayload, error) {
-	e := s.log.New("payload_id", payloadId)
+func (s *EngineClient) GetPayload(ctx context.Context, payloadInfo eth.PayloadInfo) (*eth.ExecutionPayloadEnvelope, error) {
+	e := s.log.New("payload_id", payloadInfo.ID)
 	e.Trace("getting payload")
 	var result eth.ExecutionPayloadEnvelope
-	err := s.client.CallContext(ctx, &result, "engine_getPayloadV2", payloadId)
+	method := s.rollupCfg.GetPayloadVersion(payloadInfo.Timestamp)
+	err := s.client.CallContext(ctx, &result, string(method), payloadInfo.ID)
 	if err != nil {
-		e.Warn("Failed to get payload", "payload_id", payloadId, "err", err)
+		e.Warn("Failed to get payload", "payload_id", payloadInfo.ID, "err", err)
 		if rpcErr, ok := err.(rpc.Error); ok {
 			code := eth.ErrorCode(rpcErr.ErrorCode())
 			switch code {
@@ -127,7 +140,7 @@ func (s *EngineClient) GetPayload(ctx context.Context, payloadId eth.PayloadID) 
 		return nil, err
 	}
 	e.Trace("Received payload")
-	return result.ExecutionPayload, nil
+	return &result, nil
 }
 
 func (s *EngineClient) SignalSuperchainV1(ctx context.Context, recommended, required params.ProtocolVersion) (params.ProtocolVersion, error) {

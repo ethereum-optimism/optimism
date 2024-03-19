@@ -17,16 +17,13 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/srcmap"
 )
 
 // LoadContracts loads the Cannon contracts, from op-bindings package
 func LoadContracts() (*Contracts, error) {
 	var mips, oracle Contract
 	mips.DeployedBytecode.Object = hexutil.MustDecode(bindings.MIPSDeployedBin)
-	mips.DeployedBytecode.SourceMap = bindings.MIPSDeployedSourceMap
 	oracle.DeployedBytecode.Object = hexutil.MustDecode(bindings.PreimageOracleDeployedBin)
-	oracle.DeployedBytecode.SourceMap = bindings.PreimageOracleDeployedSourceMap
 	return &Contracts{
 		MIPS:   &mips,
 		Oracle: &oracle,
@@ -40,10 +37,6 @@ type Contract struct {
 	} `json:"deployedBytecode"`
 
 	// ignore abi,bytecode,etc.
-}
-
-func (c *Contract) SourceMap(sourcePaths []string) (*srcmap.SourceMap, error) {
-	return srcmap.ParseSourceMap(sourcePaths, c.DeployedBytecode.Object, c.DeployedBytecode.SourceMap)
 }
 
 type Contracts struct {

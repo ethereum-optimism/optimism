@@ -25,7 +25,7 @@ func Main(version string) cliapp.LifecycleAction {
 		}
 
 		l := oplog.NewLogger(oplog.AppOut(cliCtx), cfg.LogConfig)
-		oplog.SetGlobalLogHandler(l.GetHandler())
+		oplog.SetGlobalLogHandler(l.Handler())
 		opservice.ValidateEnvVars(flags.EnvVarPrefix, flags.Flags, l)
 
 		l.Info("Initializing Batch Submitter")

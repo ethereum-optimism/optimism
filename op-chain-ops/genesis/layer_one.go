@@ -1,7 +1,6 @@
 package genesis
 
 import (
-	"errors"
 	"fmt"
 	"math/big"
 
@@ -9,6 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/core"
 	gstate "github.com/ethereum/go-ethereum/core/state"
 
@@ -44,7 +44,7 @@ func init() {
 // all of the state required for an Optimism network to function.
 // It is expected that the dump contains all of the required state to bootstrap
 // the L1 chain.
-func BuildL1DeveloperGenesis(config *DeployConfig, dump *gstate.Dump, l1Deployments *L1Deployments, postProcess bool) (*core.Genesis, error) {
+func BuildL1DeveloperGenesis(config *DeployConfig, dump *gstate.Dump, l1Deployments *L1Deployments) (*core.Genesis, error) {
 	log.Info("Building developer L1 genesis block")
 	genesis, err := NewL1Genesis(config)
 	if err != nil {
@@ -56,7 +56,16 @@ func BuildL1DeveloperGenesis(config *DeployConfig, dump *gstate.Dump, l1Deployme
 	SetPrecompileBalances(memDB)
 
 	if dump != nil {
-		for address, account := range dump.Accounts {
+		for addrstr, account := range dump.Accounts {
+			if !common.IsHexAddress(addrstr) {
+				// Changes in https://github.com/ethereum/go-ethereum/pull/28504
+				// add accounts to the Dump with "pre(<AddressHash>)" as key
+				// if the address itself is nil.
+				// So depending on how `dump` was created, this might be a
+				// pre-image key, which we skip.
+				continue
+			}
+			address := common.HexToAddress(addrstr)
 			name := "<unknown>"
 			if l1Deployments != nil {
 				if n := l1Deployments.GetName(address); n != "" {
@@ -67,7 +76,7 @@ func BuildL1DeveloperGenesis(config *DeployConfig, dump *gstate.Dump, l1Deployme
 			memDB.CreateAccount(address)
 			memDB.SetNonce(address, account.Nonce)
 
-			balance, ok := new(big.Int).SetString(account.Balance, 10)
+			balance, ok := math.ParseBig256(account.Balance)
 			if !ok {
 				return nil, fmt.Errorf("failed to parse balance for %s", address)
 			}
@@ -78,49 +87,7 @@ func BuildL1DeveloperGenesis(config *DeployConfig, dump *gstate.Dump, l1Deployme
 				memDB.SetState(address, key, common.HexToHash(value))
 			}
 		}
-
-		// This should only be used if we are expecting Optimism specific state to be set
-		if postProcess {
-			if err := PostProcessL1DeveloperGenesis(memDB, l1Deployments); err != nil {
-				return nil, fmt.Errorf("failed to post process L1 developer genesis: %w", err)
-			}
-		}
 	}
 
 	return memDB.Genesis(), nil
-}
-
-// PostProcessL1DeveloperGenesis will apply post processing to the L1 genesis
-// state. This is required to handle edge cases in the genesis generation.
-// `block.number` is used during deployment and without specifically setting
-// the value to 0, it will cause underflow reverts for deposits in testing.
-func PostProcessL1DeveloperGenesis(stateDB *state.MemoryStateDB, deployments *L1Deployments) error {
-	log.Info("Post processing state")
-
-	if stateDB == nil {
-		return errors.New("cannot post process nil stateDB")
-	}
-	if deployments == nil {
-		return errors.New("cannot post process dump with nil deployments")
-	}
-
-	if !stateDB.Exist(deployments.OptimismPortalProxy) {
-		return fmt.Errorf("portal proxy doesn't exist at %s", deployments.OptimismPortalProxy)
-	}
-
-	layout, err := bindings.GetStorageLayout("OptimismPortal")
-	if err != nil {
-		return errors.New("failed to get storage layout for OptimismPortal")
-	}
-
-	entry, err := layout.GetStorageLayoutEntry("params")
-	if err != nil {
-		return errors.New("failed to get storage layout entry for OptimismPortal.params")
-	}
-	slot := common.BigToHash(big.NewInt(int64(entry.Slot)))
-
-	stateDB.SetState(deployments.OptimismPortalProxy, slot, common.Hash{})
-	log.Info("Post process update", "address", deployments.OptimismPortalProxy, "slot", slot.Hex(), "value", common.Hash{}.Hex())
-
-	return nil
 }

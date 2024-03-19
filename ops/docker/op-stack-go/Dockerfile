@@ -31,12 +31,13 @@ ARG OP_WHEEL_VERSION=v0.0.0
 
 ARG OP_NODE_VERSION=v0.0.0
 ARG OP_CHALLENGER_VERSION=v0.0.0
+ARG OP_DISPUTE_MON_VERSION=v0.0.0
 ARG OP_BATCHER_VERSION=v0.0.0
 ARG OP_PROPOSER_VERSION=v0.0.0
+ARG OP_CONDUCTOR_VERSION=v0.0.0
 
 
 # separate docker-builds:
-# - op-exporter
 # - op-ufm
 # - proxyd
 # - any JS/TS/smart-contract builds
@@ -62,10 +63,14 @@ RUN --mount=type=cache,target=/root/.cache/go-build cd op-node && make op-node  
     GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_NODE_VERSION"
 RUN --mount=type=cache,target=/root/.cache/go-build cd op-challenger && make op-challenger  \
     GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE  VERSION="$OP_CHALLENGER_VERSION"
+RUN --mount=type=cache,target=/root/.cache/go-build cd op-dispute-mon && make op-dispute-mon  \
+    GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE  VERSION="$OP_DISPUTE_MON_VERSION"
 RUN --mount=type=cache,target=/root/.cache/go-build cd op-batcher && make op-batcher  \
     GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE  VERSION="$OP_BATCHER_VERSION"
 RUN --mount=type=cache,target=/root/.cache/go-build cd op-proposer && make op-proposer  \
     GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE  VERSION="$OP_PROPOSER_VERSION"
+RUN --mount=type=cache,target=/root/.cache/go-build cd op-conductor && make op-conductor  \
+    GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE  VERSION="$OP_CONDUCTOR_VERSION"
 
 
 FROM alpine:3.18
@@ -78,7 +83,7 @@ COPY --from=builder /app/op-wheel/bin/op-wheel /usr/local/bin/
 
 COPY --from=builder /app/op-node/bin/op-node /usr/local/bin/
 COPY --from=builder /app/op-challenger/bin/op-challenger /usr/local/bin/
+COPY --from=builder /app/op-dispute-mon/bin/op-dispute-mon /usr/local/bin/
 COPY --from=builder /app/op-batcher/bin/op-batcher /usr/local/bin/
 COPY --from=builder /app/op-proposer/bin/op-proposer /usr/local/bin/
-
-
+COPY --from=builder /app/op-conductor/bin/op-conductor /usr/local/bin/

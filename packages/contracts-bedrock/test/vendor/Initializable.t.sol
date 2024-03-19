@@ -15,6 +15,7 @@ import "scripts/Deployer.sol";
 /// @dev Ensures that the `initialize()` function on contracts cannot be called more than
 ///      once. This contract inherits from `ERC721Bridge_Initializer` because it is the
 ///      deepest contract in the inheritance chain for setting up the system contracts.
+///      For each L1 contract both the implementation and the proxy are tested.
 contract Initializer_Test is Bridge_Initializer {
     /// @notice Contains the address of an `Initializable` contract and the calldata
     ///         used to initialize it.
@@ -35,39 +36,132 @@ contract Initializer_Test is Bridge_Initializer {
         // Initialize the `contracts` array with the addresses of the contracts to test, the
         // calldata used to initialize them, and the storage slot of their `_initialized` flag.
 
-        // SuperchainConfig
+        // SuperchainConfigImpl
+        contracts.push(
+            InitializeableContract({
+                target: deploy.mustGetAddress("SuperchainConfig"),
+                initCalldata: abi.encodeCall(superchainConfig.initialize, (address(0), false)),
+                initializedSlotVal: deploy.loadInitializedSlot("SuperchainConfig")
+            })
+        );
+        // SuperchainConfigProxy
         contracts.push(
             InitializeableContract({
                 target: address(superchainConfig),
                 initCalldata: abi.encodeCall(superchainConfig.initialize, (address(0), false)),
-                initializedSlotVal: deploy.loadInitializedSlot("SuperchainConfig", true)
+                initializedSlotVal: deploy.loadInitializedSlot("SuperchainConfigProxy")
             })
         );
-        // L1CrossDomainMessenger
+        // L1CrossDomainMessengerImpl
+        contracts.push(
+            InitializeableContract({
+                target: deploy.mustGetAddress("L1CrossDomainMessenger"),
+                initCalldata: abi.encodeCall(l1CrossDomainMessenger.initialize, (superchainConfig, optimismPortal)),
+                initializedSlotVal: deploy.loadInitializedSlot("L1CrossDomainMessenger")
+            })
+        );
+        // L1CrossDomainMessengerProxy
         contracts.push(
             InitializeableContract({
                 target: address(l1CrossDomainMessenger),
-                initCalldata: abi.encodeCall(l1CrossDomainMessenger.initialize, (superchainConfig)),
-                initializedSlotVal: deploy.loadInitializedSlot("L1CrossDomainMessenger", true)
+                initCalldata: abi.encodeCall(l1CrossDomainMessenger.initialize, (superchainConfig, optimismPortal)),
+                initializedSlotVal: deploy.loadInitializedSlot("L1CrossDomainMessengerProxy")
             })
         );
-        // L2OutputOracle
+        // DisputeGameFactoryImpl
+        contracts.push(
+            InitializeableContract({
+                target: deploy.mustGetAddress("DisputeGameFactory"),
+                initCalldata: abi.encodeCall(disputeGameFactory.initialize, (address(0))),
+                initializedSlotVal: deploy.loadInitializedSlot("DisputeGameFactory")
+            })
+        );
+        // DisputeGameFactoryProxy
+        contracts.push(
+            InitializeableContract({
+                target: address(disputeGameFactory),
+                initCalldata: abi.encodeCall(disputeGameFactory.initialize, (address(0))),
+                initializedSlotVal: deploy.loadInitializedSlot("DisputeGameFactoryProxy")
+            })
+        );
+        // L2OutputOracleImpl
+        contracts.push(
+            InitializeableContract({
+                target: deploy.mustGetAddress("L2OutputOracle"),
+                initCalldata: abi.encodeCall(l2OutputOracle.initialize, (0, 0, 0, 0, address(0), address(0), 0)),
+                initializedSlotVal: deploy.loadInitializedSlot("L2OutputOracle")
+            })
+        );
+        // L2OutputOracleProxy
         contracts.push(
             InitializeableContract({
                 target: address(l2OutputOracle),
-                initCalldata: abi.encodeCall(l2OutputOracle.initialize, (0, 0)),
-                initializedSlotVal: deploy.loadInitializedSlot("L2OutputOracle", true)
+                initCalldata: abi.encodeCall(l2OutputOracle.initialize, (0, 0, 0, 0, address(0), address(0), 0)),
+                initializedSlotVal: deploy.loadInitializedSlot("L2OutputOracleProxy")
             })
         );
-        // OptimismPortal
+        // OptimismPortalImpl
+        contracts.push(
+            InitializeableContract({
+                target: deploy.mustGetAddress("OptimismPortal"),
+                initCalldata: abi.encodeCall(optimismPortal.initialize, (l2OutputOracle, systemConfig, superchainConfig)),
+                initializedSlotVal: deploy.loadInitializedSlot("OptimismPortal")
+            })
+        );
+        // OptimismPortal2Impl
+        contracts.push(
+            InitializeableContract({
+                target: deploy.mustGetAddress("OptimismPortal2"),
+                initCalldata: abi.encodeCall(
+                    optimismPortal2.initialize, (disputeGameFactory, systemConfig, superchainConfig)
+                    ),
+                initializedSlotVal: deploy.loadInitializedSlot("OptimismPortal2")
+            })
+        );
+        // OptimismPortalProxy
         contracts.push(
             InitializeableContract({
                 target: address(optimismPortal),
-                initCalldata: abi.encodeCall(optimismPortal.initialize, (superchainConfig)),
-                initializedSlotVal: deploy.loadInitializedSlot("OptimismPortal", true)
+                initCalldata: abi.encodeCall(optimismPortal.initialize, (l2OutputOracle, systemConfig, superchainConfig)),
+                initializedSlotVal: deploy.loadInitializedSlot("OptimismPortalProxy")
             })
         );
-        // SystemConfig
+        // SystemConfigImpl
+        contracts.push(
+            InitializeableContract({
+                target: deploy.mustGetAddress("SystemConfig"),
+                initCalldata: abi.encodeCall(
+                    systemConfig.initialize,
+                    (
+                        address(0xdead),
+                        0,
+                        0,
+                        bytes32(0),
+                        1,
+                        address(0),
+                        ResourceMetering.ResourceConfig({
+                            maxResourceLimit: 1,
+                            elasticityMultiplier: 1,
+                            baseFeeMaxChangeDenominator: 2,
+                            minimumBaseFee: 0,
+                            systemTxMaxGas: 0,
+                            maximumBaseFee: 0
+                        }),
+                        address(0),
+                        SystemConfig.Addresses({
+                            l1CrossDomainMessenger: address(0),
+                            l1ERC721Bridge: address(0),
+                            l1StandardBridge: address(0),
+                            l2OutputOracle: address(0),
+                            optimismPortal: address(0),
+                            optimismMintableERC20Factory: address(0)
+                        })
+                    )
+                    ),
+                initializedSlotVal: deploy.loadInitializedSlot("SystemConfig")
+            })
+        );
+        // SystemConfigProxy
         contracts.push(
             InitializeableContract({
                 target: address(systemConfig),
@@ -87,60 +181,111 @@ contract Initializer_Test is Bridge_Initializer {
                             minimumBaseFee: 0,
                             systemTxMaxGas: 0,
                             maximumBaseFee: 0
+                        }),
+                        address(0),
+                        SystemConfig.Addresses({
+                            l1CrossDomainMessenger: address(0),
+                            l1ERC721Bridge: address(0),
+                            l1StandardBridge: address(0),
+                            l2OutputOracle: address(0),
+                            optimismPortal: address(0),
+                            optimismMintableERC20Factory: address(0)
                         })
                     )
                     ),
-                initializedSlotVal: deploy.loadInitializedSlot("SystemConfig", true)
+                initializedSlotVal: deploy.loadInitializedSlot("SystemConfigProxy")
             })
         );
-        // ProtocolVersions
+        // ProtocolVersionsImpl
+        contracts.push(
+            InitializeableContract({
+                target: deploy.mustGetAddress("ProtocolVersions"),
+                initCalldata: abi.encodeCall(
+                    protocolVersions.initialize, (address(0), ProtocolVersion.wrap(1), ProtocolVersion.wrap(2))
+                    ),
+                initializedSlotVal: deploy.loadInitializedSlot("ProtocolVersions")
+            })
+        );
+        // ProtocolVersionsProxy
         contracts.push(
             InitializeableContract({
                 target: address(protocolVersions),
                 initCalldata: abi.encodeCall(
                     protocolVersions.initialize, (address(0), ProtocolVersion.wrap(1), ProtocolVersion.wrap(2))
                     ),
-                initializedSlotVal: deploy.loadInitializedSlot("ProtocolVersions", true)
+                initializedSlotVal: deploy.loadInitializedSlot("ProtocolVersionsProxy")
             })
         );
         // L2CrossDomainMessenger
         contracts.push(
             InitializeableContract({
                 target: address(l2CrossDomainMessenger),
-                initCalldata: abi.encodeCall(l2CrossDomainMessenger.initialize, ()),
-                initializedSlotVal: deploy.loadInitializedSlot("L2CrossDomainMessenger", false)
+                initCalldata: abi.encodeCall(l2CrossDomainMessenger.initialize, (l1CrossDomainMessenger)),
+                initializedSlotVal: deploy.loadInitializedSlot("L2CrossDomainMessenger")
             })
         );
-        // L1StandardBridge
+        // L1StandardBridgeImpl
+        contracts.push(
+            InitializeableContract({
+                target: deploy.mustGetAddress("L1StandardBridge"),
+                initCalldata: abi.encodeCall(l1StandardBridge.initialize, (l1CrossDomainMessenger, superchainConfig)),
+                initializedSlotVal: deploy.loadInitializedSlot("L1StandardBridge")
+            })
+        );
+        // L1StandardBridgeProxy
         contracts.push(
             InitializeableContract({
                 target: address(l1StandardBridge),
-                initCalldata: abi.encodeCall(l1StandardBridge.initialize, (superchainConfig)),
-                initializedSlotVal: deploy.loadInitializedSlot("L1StandardBridge", true)
+                initCalldata: abi.encodeCall(l1StandardBridge.initialize, (l1CrossDomainMessenger, superchainConfig)),
+                initializedSlotVal: deploy.loadInitializedSlot("L1StandardBridgeProxy")
             })
         );
         // L2StandardBridge
         contracts.push(
             InitializeableContract({
                 target: address(l2StandardBridge),
-                initCalldata: abi.encodeCall(l2StandardBridge.initialize, ()),
-                initializedSlotVal: deploy.loadInitializedSlot("L2StandardBridge", false)
+                initCalldata: abi.encodeCall(l2StandardBridge.initialize, (l1StandardBridge)),
+                initializedSlotVal: deploy.loadInitializedSlot("L2StandardBridge")
             })
         );
-        // L1ERC721Bridge
+        // L1ERC721BridgeImpl
+        contracts.push(
+            InitializeableContract({
+                target: deploy.mustGetAddress("L1ERC721Bridge"),
+                initCalldata: abi.encodeCall(l1ERC721Bridge.initialize, (l1CrossDomainMessenger, superchainConfig)),
+                initializedSlotVal: deploy.loadInitializedSlot("L1ERC721Bridge")
+            })
+        );
+        // L1ERC721BridgeProxy
         contracts.push(
             InitializeableContract({
                 target: address(l1ERC721Bridge),
-                initCalldata: abi.encodeCall(l1ERC721Bridge.initialize, (superchainConfig)),
-                initializedSlotVal: deploy.loadInitializedSlot("L1ERC721Bridge", true)
+                initCalldata: abi.encodeCall(l1ERC721Bridge.initialize, (l1CrossDomainMessenger, superchainConfig)),
+                initializedSlotVal: deploy.loadInitializedSlot("L1ERC721BridgeProxy")
             })
         );
         // L2ERC721Bridge
         contracts.push(
             InitializeableContract({
                 target: address(l2ERC721Bridge),
-                initCalldata: abi.encodeCall(l2ERC721Bridge.initialize, ()),
-                initializedSlotVal: deploy.loadInitializedSlot("L2ERC721Bridge", false)
+                initCalldata: abi.encodeCall(l2ERC721Bridge.initialize, (payable(address(l1ERC721Bridge)))),
+                initializedSlotVal: deploy.loadInitializedSlot("L2ERC721Bridge")
+            })
+        );
+        // OptimismMintableERC20FactoryImpl
+        contracts.push(
+            InitializeableContract({
+                target: deploy.mustGetAddress("OptimismMintableERC20Factory"),
+                initCalldata: abi.encodeCall(l1OptimismMintableERC20Factory.initialize, (address(l1StandardBridge))),
+                initializedSlotVal: deploy.loadInitializedSlot("OptimismMintableERC20Factory")
+            })
+        );
+        // OptimismMintableERC20FactoryProxy
+        contracts.push(
+            InitializeableContract({
+                target: address(l1OptimismMintableERC20Factory),
+                initCalldata: abi.encodeCall(l1OptimismMintableERC20Factory.initialize, (address(l1StandardBridge))),
+                initializedSlotVal: deploy.loadInitializedSlot("OptimismMintableERC20FactoryProxy")
             })
         );
     }
@@ -151,8 +296,10 @@ contract Initializer_Test is Bridge_Initializer {
     ///            contracts are initialized.
     ///         3. The `initialize()` function of each contract cannot be called more than once.
     function test_cannotReinitialize_succeeds() public {
-        // Ensure that all L1 `Initializable` contracts are accounted for.
-        assertEq(_getNumInitializable(), contracts.length);
+        // Ensure that all L1, L2 `Initializable` contracts are accounted for, in addition to
+        // OptimismMintableERC20FactoryImpl, OptimismMintableERC20FactoryProxy, OptimismPortal2, DisputeGameFactoryImpl
+        // and DisputeGameFactoryProxy
+        assertEq(_getNumInitializable() + 3, contracts.length);
 
         // Attempt to re-initialize all contracts within the `contracts` array.
         for (uint256 i; i < contracts.length; i++) {
@@ -162,9 +309,11 @@ contract Initializer_Test is Bridge_Initializer {
             assembly {
                 size := extcodesize(target)
             }
-            console.log(size);
             // Assert that the contract is already initialized.
-            if (_contract.target == address(l1CrossDomainMessenger)) {
+            if (
+                (_contract.target == deploy.mustGetAddress("L1CrossDomainMessenger"))
+                    || (_contract.target == address(l1CrossDomainMessenger))
+            ) {
                 assertEq(_contract.initializedSlotVal, 3);
             } else {
                 assertEq(_contract.initializedSlotVal, 1);
@@ -178,13 +327,15 @@ contract Initializer_Test is Bridge_Initializer {
     }
 
     /// @dev Returns the number of contracts that are `Initializable` in `src/L1` and `src/L2`.
+    ///      For L1 contracts, implementations are considered in addition to proxies
     function _getNumInitializable() internal returns (uint256 numContracts_) {
         string[] memory command = new string[](3);
         command[0] = Executables.bash;
         command[1] = "-c";
+        // Start by getting L1 contracts
         command[2] = string.concat(
             Executables.find,
-            " src/L1 src/L2 -type f -exec basename {} \\;",
+            " src/L1 -type f -exec basename {} \\;",
             " | ",
             Executables.sed,
             " 's/\\.[^.]*$//'",
@@ -192,10 +343,47 @@ contract Initializer_Test is Bridge_Initializer {
             Executables.jq,
             " -R -s 'split(\"\n\")[:-1]'"
         );
-        string[] memory contractNames = abi.decode(vm.parseJson(string(vm.ffi(command))), (string[]));
+        string[] memory l1ContractNames = abi.decode(vm.parseJson(string(vm.ffi(command))), (string[]));
 
-        for (uint256 i; i < contractNames.length; i++) {
-            string memory contractName = contractNames[i];
+        for (uint256 i; i < l1ContractNames.length; i++) {
+            string memory contractName = l1ContractNames[i];
+            string memory contractAbi = deploy.getAbi(contractName);
+
+            // Query the contract's ABI for an `initialize()` function.
+            command[2] = string.concat(
+                Executables.echo,
+                " '",
+                contractAbi,
+                "'",
+                " | ",
+                Executables.jq,
+                " '.[] | select(.name == \"initialize\" and .type == \"function\")'"
+            );
+            bytes memory res = vm.ffi(command);
+
+            // If the contract has an `initialize()` function, the resulting query will be non-empty.
+            // In this case, increment the number of `Initializable` contracts.
+            if (res.length > 0) {
+                // Count Proxy + Impl
+                numContracts_ += 2;
+            }
+        }
+
+        // Then get L2 contracts
+        command[2] = string.concat(
+            Executables.find,
+            " src/L2 -type f -exec basename {} \\;",
+            " | ",
+            Executables.sed,
+            " 's/\\.[^.]*$//'",
+            " | ",
+            Executables.jq,
+            " -R -s 'split(\"\n\")[:-1]'"
+        );
+        string[] memory l2ContractNames = abi.decode(vm.parseJson(string(vm.ffi(command))), (string[]));
+
+        for (uint256 i; i < l2ContractNames.length; i++) {
+            string memory contractName = l2ContractNames[i];
             string memory contractAbi = deploy.getAbi(contractName);
 
             // Query the contract's ABI for an `initialize()` function.

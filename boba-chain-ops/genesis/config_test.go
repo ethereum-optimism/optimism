@@ -27,6 +27,11 @@ func TestConfigMarshalUnmarshal(t *testing.T) {
 
 	err = decoded.Check()
 	require.ErrorContains(t, err, "L1BobaTokenAddress")
+
+	require.Equal(t, *decoded.L2GenesisRegolithTimeOffset, hexutil.Uint64(1))
+	require.Equal(t, *decoded.L2GenesisCanyonTimeOffset, hexutil.Uint64(1))
+	require.Equal(t, *decoded.L2GenesisEcotoneTimeOffset, hexutil.Uint64(1))
+	require.Equal(t, *decoded.L2GenesisEcotoneTimeOffset, hexutil.Uint64(1))
 }
 
 func TestUnmarshalL1StartingBlockTag(t *testing.T) {
@@ -60,4 +65,16 @@ func TestCanyonTimeAsOffset(t *testing.T) {
 	canyonOffset := hexutil.Uint64(1500)
 	config := &DeployConfig{L2GenesisCanyonTimeOffset: &canyonOffset}
 	require.Equal(t, uint64(1500+5000), *config.CanyonTime(5000))
+}
+
+func TestEcotoneTimeZero(t *testing.T) {
+	ecotoneOffset := hexutil.Uint64(0)
+	config := &DeployConfig{L2GenesisEcotoneTimeOffset: &ecotoneOffset}
+	require.Equal(t, uint64(0), *config.EcotoneTime(0))
+}
+
+func TestEcotoneTimeAsOffset(t *testing.T) {
+	ecotoneOffset := hexutil.Uint64(1500)
+	config := &DeployConfig{L2GenesisEcotoneTimeOffset: &ecotoneOffset}
+	require.Equal(t, uint64(1500+5000), *config.EcotoneTime(5000))
 }

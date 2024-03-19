@@ -47,7 +47,9 @@ contract L1ERC721Bridge_Test is Bridge_Initializer {
     );
 
     /// @dev Sets up the testing environment.
-    function setUp() public override {
+    /// @notice Marked virtual to be overridden in
+    ///         test/kontrol/deployment/DeploymentSummary.t.sol
+    function setUp() public virtual override {
         super.setUp();
 
         localToken = new TestERC721();
@@ -61,11 +63,23 @@ contract L1ERC721Bridge_Test is Bridge_Initializer {
         localToken.approve(address(l1ERC721Bridge), tokenId);
     }
 
-    /// @dev Tests that the constructor sets the correct values.
-    function test_constructor_succeeds() public {
+    /// @dev Tests that the impl is created with the correct values.
+    /// @notice Marked virtual to be overridden in
+    ///         test/kontrol/deployment/DeploymentSummary.t.sol
+    function test_constructor_succeeds() public virtual {
+        L1ERC721Bridge impl = L1ERC721Bridge(deploy.mustGetAddress("L1ERC721Bridge"));
+        assertEq(address(impl.MESSENGER()), address(0));
+        assertEq(address(impl.messenger()), address(0));
+        assertEq(address(impl.OTHER_BRIDGE()), Predeploys.L2_ERC721_BRIDGE);
+        assertEq(address(impl.otherBridge()), Predeploys.L2_ERC721_BRIDGE);
+        assertEq(address(impl.superchainConfig()), address(0));
+    }
+
+    /// @dev Tests that the proxy is initialized with the correct values.
+    function test_initialize_succeeds() public {
         assertEq(address(l1ERC721Bridge.MESSENGER()), address(l1CrossDomainMessenger));
-        assertEq(address(l1ERC721Bridge.OTHER_BRIDGE()), Predeploys.L2_ERC721_BRIDGE);
         assertEq(address(l1ERC721Bridge.messenger()), address(l1CrossDomainMessenger));
+        assertEq(address(l1ERC721Bridge.OTHER_BRIDGE()), Predeploys.L2_ERC721_BRIDGE);
         assertEq(address(l1ERC721Bridge.otherBridge()), Predeploys.L2_ERC721_BRIDGE);
         assertEq(address(l1ERC721Bridge.superchainConfig()), address(superchainConfig));
     }
@@ -118,7 +132,7 @@ contract L1ERC721Bridge_Test is Bridge_Initializer {
     function test_bridgeERC721_localTokenZeroAddress_reverts() external {
         // Bridge the token.
         vm.prank(alice);
-        vm.expectRevert();
+        vm.expectRevert(bytes(""));
         l1ERC721Bridge.bridgeERC721(address(0), address(remoteToken), tokenId, 1234, hex"5678");
 
         // Token is not locked in the bridge.
@@ -187,7 +201,7 @@ contract L1ERC721Bridge_Test is Bridge_Initializer {
     function test_bridgeERC721To_localTokenZeroAddress_reverts() external {
         // Bridge the token.
         vm.prank(alice);
-        vm.expectRevert();
+        vm.expectRevert(bytes(""));
         l1ERC721Bridge.bridgeERC721To(address(0), address(remoteToken), bob, tokenId, 1234, hex"5678");
 
         // Token is not locked in the bridge.

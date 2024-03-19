@@ -4,11 +4,12 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/preimages"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/responder"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
-	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -29,22 +30,25 @@ type GamePlayer struct {
 }
 
 type GameContract interface {
+	preimages.PreimageGameContract
 	responder.GameContract
 	GameInfo
 	ClaimLoader
 	GetStatus(ctx context.Context) (gameTypes.GameStatus, error)
-	GetMaxGameDepth(ctx context.Context) (uint64, error)
+	GetMaxGameDepth(ctx context.Context) (types.Depth, error)
+	GetOracle(ctx context.Context) (*contracts.PreimageOracleContract, error)
 }
 
-type resourceCreator func(ctx context.Context, logger log.Logger, gameDepth uint64, dir string) (types.TraceAccessor, error)
+type resourceCreator func(ctx context.Context, logger log.Logger, gameDepth types.Depth, dir string) (types.TraceAccessor, error)
 
 func NewGamePlayer(
 	ctx context.Context,
+	cl types.ClockReader,
 	logger log.Logger,
 	m metrics.Metricer,
 	dir string,
 	addr common.Address,
-	txMgr txmgr.TxManager,
+	txSender gameTypes.TxSender,
 	loader GameContract,
 	validators []Validator,
 	creator resourceCreator,
@@ -80,17 +84,30 @@ func NewGamePlayer(
 		return nil, fmt.Errorf("failed to create trace accessor: %w", err)
 	}
 
-	responder, err := responder.NewFaultResponder(logger, txMgr, loader)
+	oracle, err := loader.GetOracle(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load oracle: %w", err)
+	}
+
+	minLargePreimageSize, err := oracle.MinLargePreimageSize(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load min large preimage size: %w", err)
+	}
+	direct := preimages.NewDirectPreimageUploader(logger, txSender, loader)
+	large := preimages.NewLargePreimageUploader(logger, cl, txSender, oracle)
+	uploader := preimages.NewSplitPreimageUploader(direct, large, minLargePreimageSize)
+	responder, err := responder.NewFaultResponder(logger, txSender, loader, uploader, oracle)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the responder: %w", err)
 	}
 
-	agent := NewAgent(m, loader, int(gameDepth), accessor, responder, logger)
+	agent := NewAgent(m, loader, gameDepth, accessor, responder, logger)
 	return &GamePlayer{
-		act:    agent.Act,
-		loader: loader,
-		logger: logger,
-		status: status,
+		act:                agent.Act,
+		loader:             loader,
+		logger:             logger,
+		status:             status,
+		prestateValidators: validators,
 	}, nil
 }
 
