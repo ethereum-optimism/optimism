@@ -271,7 +271,7 @@ func (info *L1BlockInfo) unmarshalBinaryEcotone(data []byte) error {
 // +----------------------+----------------------+
 
 func (info *L1BlockInfo) marshalBinaryInterop() ([]byte, error) {
-	w := bytes.NewBuffer(make([]byte, 0, L1InfoInteropLen(0)))
+	w := bytes.NewBuffer(make([]byte, 0, L1InfoInteropLen(uint8(len(info.DependencySet)))))
 	if err := solabi.WriteSignature(w, L1InfoFuncInteropBytes4); err != nil {
 		return nil, err
 	}
@@ -310,8 +310,6 @@ func (info *L1BlockInfo) marshalBinaryInterop() ([]byte, error) {
 	if err := binary.Write(w, binary.BigEndian, info.DependencySetSize()); err != nil {
 		return nil, err
 	}
-	// Grow the buffer to accommodate the dependency set
-	w.Grow(len(info.DependencySet) * 32)
 	for _, chainID := range info.DependencySet {
 		if err := solabi.WriteUint256(w, chainID); err != nil {
 			return nil, err
