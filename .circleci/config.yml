@@ -1168,14 +1168,14 @@ jobs:
           command: |
             curl -L https://foundry.paradigm.xyz | bash
             source $HOME/.bashrc
-            foundryup
+            foundryup --commit 0026488754512acf0fd902a0d2c90cf8a09367b0
             echo 'export PATH=$HOME/.foundry/bin:$PATH' >> $BASH_ENV
             source $HOME/.bashrc
             forge --version
       - run:
           name: Install NVM
           command: |
-            curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.3/install.sh | bash
+            curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
             source ~/.bashrc
             nvm --version
       - run:
