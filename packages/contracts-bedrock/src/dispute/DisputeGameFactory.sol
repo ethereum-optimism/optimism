@@ -14,11 +14,10 @@ import "src/libraries/DisputeTypes.sol";
 import "src/libraries/DisputeErrors.sol";
 
 /// @title DisputeGameFactory
-/// @notice A factory contract for creating `IDisputeGame` contracts. All created dispute games
-///         are stored in both a mapping and an append only array. The timestamp of the creation
-///         time of the dispute game is packed tightly into the storage slot with the address of
-///         the dispute game. This is to make offchain discoverability of playable dispute games
-///         easier.
+/// @notice A factory contract for creating `IDisputeGame` contracts. All created dispute games are stored in both a
+///         mapping and an append only array. The timestamp of the creation time of the dispute game is packed tightly
+///         into the storage slot with the address of the dispute game to make offchain discoverability of playable
+///         dispute games easier.
 contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, ISemver {
     /// @dev Allows for the creation of clone proxies with immutable arguments.
     using ClonesWithImmutableArgs for address;
@@ -33,17 +32,15 @@ contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, ISemver 
     /// @inheritdoc IDisputeGameFactory
     mapping(GameType => uint256) public initBonds;
 
-    /// @notice Mapping of a hash of `gameType || rootClaim || extraData` to
-    ///         the deployed `IDisputeGame` clone.
-    /// @dev Note: `||` denotes concatenation.
+    /// @notice Mapping of a hash of `gameType || rootClaim || extraData` to the deployed `IDisputeGame` clone (where
+    //          `||` denotes concatenation).
     mapping(Hash => GameId) internal _disputeGames;
 
-    /// @notice an append-only array of disputeGames that have been created.
-    /// @dev this accessor is used by offchain game solvers to efficiently
-    ///      track dispute games
+    /// @notice An append-only array of disputeGames that have been created. Used by offchain game solvers to
+    ///         efficiently track dispute games.
     GameId[] internal _disputeGameList;
 
-    /// @notice constructs a new DisputeGameFactory contract.
+    /// @notice Constructs a new DisputeGameFactory contract.
     constructor() OwnableUpgradeable() {
         initialize(address(0));
     }
@@ -115,6 +112,7 @@ contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, ISemver 
         // If a dispute game with the same UUID already exists, revert.
         if (GameId.unwrap(_disputeGames[uuid]) != bytes32(0)) revert GameAlreadyExists(uuid);
 
+        // Pack the game ID.
         GameId id = LibGameId.pack(_gameType, Timestamp.wrap(uint64(block.timestamp)), proxy_);
 
         // Store the dispute game id in the mapping & emit the `DisputeGameCreated` event.

@@ -11,6 +11,11 @@ import { IDisputeGameFactory } from "src/dispute/interfaces/IDisputeGameFactory.
 
 import "src/libraries/DisputeTypes.sol";
 
+/// @title AnchorStateRegistry
+/// @notice The AnchorStateRegistry is a contract that stores the latest "anchor" state for each available
+///         FaultDisputeGame type. The anchor state is the latest state that has been proposed on L1 and was not
+///         challenged within the challenge period. By using stored anchor states, new FaultDisputeGame instances can
+///         be initialized with a more recent starting state which reduces the amount of required offchain computation.
 contract AnchorStateRegistry is Initializable, IAnchorStateRegistry, ISemver {
     /// @notice Describes an initial anchor state for a game type.
     struct StartingAnchorRoot {
