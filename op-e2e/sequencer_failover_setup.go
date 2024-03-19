@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
-	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
 	con "github.com/ethereum-optimism/optimism/op-conductor/conductor"
 	conrpc "github.com/ethereum-optimism/optimism/op-conductor/rpc"
@@ -226,15 +225,12 @@ func setupBatcher(t *testing.T, sys *System, conductors map[string]*conductor) {
 		RollupRpc:              rollupRpc,
 		MaxPendingTransactions: 0,
 		MaxChannelDuration:     1,
-		MaxL1TxSize:            240_000,
-		CompressorConfig: compressor.CLIConfig{
-			TargetL1TxSizeBytes: sys.Cfg.BatcherTargetL1TxSizeBytes,
-			TargetNumFrames:     1,
-			ApproxComprRatio:    0.4,
-		},
-		SubSafetyMargin: 4,
-		PollInterval:    1 * time.Second,
-		TxMgrConfig:     newTxMgrConfig(sys.EthInstances["l1"].WSEndpoint(), sys.Cfg.Secrets.Batcher),
+		MaxL1TxSize:            120_000,
+		TargetNumFrames:        1,
+		ApproxComprRatio:       0.4,
+		SubSafetyMargin:        4,
+		PollInterval:           1 * time.Second,
+		TxMgrConfig:            newTxMgrConfig(sys.EthInstances["l1"].WSEndpoint(), sys.Cfg.Secrets.Batcher),
 		LogConfig: oplog.CLIConfig{
 			Level:  log.LevelDebug,
 			Format: oplog.FormatText,

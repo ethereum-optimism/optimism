@@ -19,6 +19,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 
+	"github.com/ethereum-optimism/optimism/op-batcher/batcher"
 	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
@@ -189,8 +190,7 @@ func (s *L2Batcher) Buffer(t Testing) error {
 			ch, err = NewGarbageChannelOut(s.l2BatcherCfg.GarbageCfg)
 		} else {
 			c, e := compressor.NewRatioCompressor(compressor.Config{
-				TargetFrameSize:  s.l2BatcherCfg.MaxL1TxSize,
-				TargetNumFrames:  1,
+				TargetOutputSize: batcher.MaxDataSize(1, s.l2BatcherCfg.MaxL1TxSize),
 				ApproxComprRatio: 1,
 			})
 			require.NoError(t, e, "failed to create compressor")

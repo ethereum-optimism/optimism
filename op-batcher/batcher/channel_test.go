@@ -4,7 +4,6 @@ import (
 	"io"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
@@ -117,10 +116,8 @@ func TestChannel_NextTxData_singleFrameTx(t *testing.T) {
 	const n = 6
 	lgr := testlog.Logger(t, log.LevelWarn)
 	ch, err := newChannel(lgr, metrics.NoopMetrics, ChannelConfig{
-		MultiFrameTxs: false,
-		CompressorConfig: compressor.Config{
-			TargetNumFrames: n,
-		},
+		MultiFrameTxs:   false,
+		TargetNumFrames: n,
 	}, &rollup.Config{}, latestL1BlockOrigin)
 	require.NoError(err)
 	chID := ch.ID()
@@ -157,10 +154,8 @@ func TestChannel_NextTxData_multiFrameTx(t *testing.T) {
 	const n = 6
 	lgr := testlog.Logger(t, log.LevelWarn)
 	ch, err := newChannel(lgr, metrics.NoopMetrics, ChannelConfig{
-		MultiFrameTxs: true,
-		CompressorConfig: compressor.Config{
-			TargetNumFrames: n,
-		},
+		MultiFrameTxs:   true,
+		TargetNumFrames: n,
 	}, &rollup.Config{}, latestL1BlockOrigin)
 	require.NoError(err)
 	chID := ch.ID()

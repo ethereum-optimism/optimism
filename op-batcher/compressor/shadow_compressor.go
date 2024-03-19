@@ -67,21 +67,19 @@ func (t *ShadowCompressor) Write(p []byte) (int, error) {
 		return 0, err
 	}
 	newBound := t.bound + uint64(len(p))
-	cap := t.config.TargetFrameSize * uint64(t.config.TargetNumFrames)
-	if newBound > cap {
+	if newBound > t.config.TargetOutputSize {
 		// Do not flush the buffer unless there's some chance we will be over the size limit.
 		// This reduces CPU but more importantly it makes the shadow compression ratio more
 		// closely reflect the ultimate compression ratio.
-		err = t.shadowCompress.Flush()
-		if err != nil {
+		if err = t.shadowCompress.Flush(); err != nil {
 			return 0, err
 		}
-		newBound = uint64(t.shadowBuf.Len()) + 4 // + 4 is to account for the digest written on close()
-		if newBound > cap {
+		newBound = uint64(t.shadowBuf.Len()) + CloseOverheadZlib
+		if newBound > t.config.TargetOutputSize {
 			t.fullErr = derive.CompressorFullErr
 			if t.Len() > 0 {
 				// only return an error if we've already written data to this compressor before
-				// (otherwise individual blocks over the target would never be written)
+				// (otherwise single blocks over the target would never be written)
 				return 0, t.fullErr
 			}
 		}

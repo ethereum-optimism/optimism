@@ -212,8 +212,7 @@ func TestBackupUnsafe(gt *testing.T) {
 	require.Equal(t, verifier.L2Safe().Number, uint64(0))
 
 	c, e := compressor.NewRatioCompressor(compressor.Config{
-		TargetFrameSize:  128_000,
-		TargetNumFrames:  1,
+		TargetOutputSize: 128_000,
 		ApproxComprRatio: 1,
 	})
 	require.NoError(t, e)
@@ -384,8 +383,7 @@ func TestBackupUnsafeReorgForkChoiceInputError(gt *testing.T) {
 	require.Equal(t, verifier.L2Safe().Number, uint64(0))
 
 	c, e := compressor.NewRatioCompressor(compressor.Config{
-		TargetFrameSize:  128_000,
-		TargetNumFrames:  1,
+		TargetOutputSize: 128_000,
 		ApproxComprRatio: 1,
 	})
 	require.NoError(t, e)
@@ -532,8 +530,7 @@ func TestBackupUnsafeReorgForkChoiceNotInputError(gt *testing.T) {
 	require.Equal(t, verifier.L2Safe().Number, uint64(0))
 
 	c, e := compressor.NewRatioCompressor(compressor.Config{
-		TargetFrameSize:  128_000,
-		TargetNumFrames:  1,
+		TargetOutputSize: 128_000,
 		ApproxComprRatio: 1,
 	})
 	require.NoError(t, e)
@@ -870,8 +867,7 @@ func TestInvalidPayloadInSpanBatch(gt *testing.T) {
 	verifier.ActL2PipelineFull(t)
 
 	c, e := compressor.NewRatioCompressor(compressor.Config{
-		TargetFrameSize:  128_000,
-		TargetNumFrames:  1,
+		TargetOutputSize: 128_000,
 		ApproxComprRatio: 1,
 	})
 	require.NoError(t, e)
@@ -919,8 +915,7 @@ func TestInvalidPayloadInSpanBatch(gt *testing.T) {
 
 	// Create new span batch channel
 	c, e = compressor.NewRatioCompressor(compressor.Config{
-		TargetFrameSize:  128_000,
-		TargetNumFrames:  1,
+		TargetOutputSize: 128_000,
 		ApproxComprRatio: 1,
 	})
 	require.NoError(t, e)

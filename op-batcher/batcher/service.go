@@ -13,7 +13,6 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	"github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-batcher/rpc"
@@ -187,22 +186,23 @@ func (bs *BatcherService) initRollupConfig(ctx context.Context) error {
 }
 
 func (bs *BatcherService) initChannelConfig(cfg *CLIConfig) error {
-	bs.ChannelConfig = ChannelConfig{
+	cc := ChannelConfig{
 		SeqWindowSize:      bs.RollupConfig.SeqWindowSize,
 		ChannelTimeout:     bs.RollupConfig.ChannelTimeout,
 		MaxChannelDuration: cfg.MaxChannelDuration,
-		MaxFrameSize:       cfg.MaxL1TxSize, // reset for blobs
+		MaxFrameSize:       cfg.MaxL1TxSize - 1, // account for version byte prefix; reset for blobs
+		TargetNumFrames:    cfg.TargetNumFrames,
 		SubSafetyMargin:    cfg.SubSafetyMargin,
-		CompressorConfig:   cfg.CompressorConfig.Config(),
 		BatchType:          cfg.BatchType,
 	}
 
 	switch cfg.DataAvailabilityType {
 	case flags.BlobsType:
 		if !cfg.TestUseMaxTxSizeForBlobs {
-			bs.ChannelConfig.MaxFrameSize = eth.MaxBlobDataSize
+			// account for version byte prefix
+			cc.MaxFrameSize = eth.MaxBlobDataSize - 1
 		}
-		bs.ChannelConfig.MultiFrameTxs = true
+		cc.MultiFrameTxs = true
 		bs.UseBlobs = true
 	case flags.CalldataType:
 		bs.UseBlobs = false
@@ -210,16 +210,11 @@ func (bs *BatcherService) initChannelConfig(cfg *CLIConfig) error {
 		return fmt.Errorf("unknown data availability type: %v", cfg.DataAvailabilityType)
 	}
 
-	if bs.UsePlasma && bs.ChannelConfig.MaxFrameSize > plasma.MaxInputSize {
-		return fmt.Errorf("max frame size %d exceeds plasma max input size %d", bs.ChannelConfig.MaxFrameSize, plasma.MaxInputSize)
+	if bs.UsePlasma && cc.MaxFrameSize > plasma.MaxInputSize {
+		return fmt.Errorf("max frame size %d exceeds plasma max input size %d", cc.MaxFrameSize, plasma.MaxInputSize)
 	}
 
-	bs.ChannelConfig.MaxFrameSize-- // subtract 1 byte for version
-
-	if bs.ChannelConfig.CompressorConfig.Kind == compressor.ShadowKind {
-		// shadow compressor guarantees to not go over target size, so can use max size
-		bs.ChannelConfig.CompressorConfig.TargetFrameSize = bs.ChannelConfig.MaxFrameSize
-	}
+	cc.InitCompressorConfig(cfg.ApproxComprRatio, cfg.Compressor)
 
 	if bs.UseBlobs && !bs.RollupConfig.IsEcotone(uint64(time.Now().Unix())) {
 		bs.Log.Error("Cannot use Blob data before Ecotone!") // log only, the batcher may not be actively running.
@@ -228,16 +223,20 @@ func (bs *BatcherService) initChannelConfig(cfg *CLIConfig) error {
 		bs.Log.Warn("Ecotone upgrade is active, but batcher is not configured to use Blobs!")
 	}
 
-	if err := bs.ChannelConfig.Check(); err != nil {
+	if err := cc.Check(); err != nil {
 		return fmt.Errorf("invalid channel configuration: %w", err)
 	}
 	bs.Log.Info("Initialized channel-config",
 		"use_blobs", bs.UseBlobs,
-		"max_frame_size", bs.ChannelConfig.MaxFrameSize,
-		"max_channel_duration", bs.ChannelConfig.MaxChannelDuration,
-		"channel_timeout", bs.ChannelConfig.ChannelTimeout,
-		"batch_type", bs.ChannelConfig.BatchType,
-		"sub_safety_margin", bs.ChannelConfig.SubSafetyMargin)
+		"use_plasma", bs.UsePlasma,
+		"max_frame_size", cc.MaxFrameSize,
+		"target_num_frames", cc.TargetNumFrames,
+		"compressor", cc.CompressorConfig.Kind,
+		"max_channel_duration", cc.MaxChannelDuration,
+		"channel_timeout", cc.ChannelTimeout,
+		"batch_type", cc.BatchType,
+		"sub_safety_margin", cc.SubSafetyMargin)
+	bs.ChannelConfig = cc
 	return nil
 }
 

@@ -5,14 +5,13 @@ import (
 )
 
 type Config struct {
-	// TargetFrameSize to target when creating channel frames.
-	// It is guaranteed that a frame will never be larger.
-	TargetFrameSize uint64
-	// TargetNumFrames to create in this channel. If the first block that is added
-	// doesn't fit within a single frame, more frames might be created.
-	TargetNumFrames int
-	// ApproxComprRatio to assume. Should be slightly smaller than average from
-	// experiments to avoid the chances of creating a small additional leftover frame.
+	// TargetOutputSize is the target size that the compressed data should reach.
+	// The shadow compressor guarantees that the compressed data stays below
+	// this bound. The ratio compressor might go over.
+	TargetOutputSize uint64
+	// ApproxComprRatio to assume (only ratio compressor). Should be slightly smaller
+	// than average from experiments to avoid the chances of creating a small
+	// additional leftover frame.
 	ApproxComprRatio float64
 	// Kind of compressor to use. Must be one of KindKeys. If unset, NewCompressor
 	// will default to RatioKind.
