@@ -11,7 +11,7 @@ The light bridge allows you to bridge particular assets into any direction that 
 3. Select "Light Bridge" in the tabs
 4. Happy bridging!
 
-![LightBridge-TabsGateway.png](../../../.gitbook/assets/LightBridge-TabsGateway.png)
+![LightBridge-TabsGateway.png](../../../../assets/LightBridge-TabsGateway.png)
 
 ## How does it work?
 From a birds-eye perspective we do have 3 components:
@@ -26,7 +26,7 @@ From a birds-eye perspective we do have 3 components:
 4. For some networks you might receive some free gas to conduct 1-2 transactions. Please check [Gas Airdrop](#gas-airdrop)
 
 ### In-Depth Flow
-![LightBridge-Flow.png](../../../.gitbook/assets/LightBridge-Flow.png)
+![LightBridge-Flow.png](../../../../assets/LightBridge-Flow.png)
 
 ## Supported Routes
 A Route is just a fancy name for defining what asset can be bridged to which network. So let's dive in.

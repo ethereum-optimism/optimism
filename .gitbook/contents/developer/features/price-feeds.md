@@ -7,9 +7,7 @@ Price Feed oracles allow smart contracts to work with external data and open the
 3. Bobalink
 4. Hybrid Compute
 
-
-
-<figure><img src="../../.gitbook/assets/boba straw.png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../../../assets/boba straw.png" alt=""><figcaption></figcaption></figure>
 
 Boba-Straw, Boba's self-operated price feed oracle is based on ChainLink's implementation and can handle price data aggregation from multiple trusted external entities (data oracles), on-chain. Currently, Boba-Straw is powered by Folkvang, our first data oracle. The price data is submitted based on the 0.25% price change threshold, but the maximal frequency is once every 10 minutes per market. To further increase reliability and precision, we are adding more data-sources. Data oracles accumulate BOBA for every submission to offset operational and gas costs. To be a data-provider oracle and earn BOBA refer to the section below.
 
@@ -121,9 +119,7 @@ For the latest completed round call **`latestRound(base, quote)`**.
 
 To get the latest timestamp call **`latestTimestamp(base, quote)`**.
 
-
-
-<figure><img src="../../.gitbook/assets/witnet price feeds.png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../../../assets/witnet price feeds.png" alt=""><figcaption></figcaption></figure>
 
 The Witnet multichain decentralized oracle enables smart contracts to realize their true potential by giving them access to all sorts of valuable data sets, and by attesting and delivering that information securely thanks to its strong cryptoeconomic guarantees.
 
@@ -208,189 +204,9 @@ For more information about Witnet please refer to:
 
 [website](https://witnet.io/) | [docs](https://docs.witnet.io/) | [github](https://github.com/witnet) | [twitter](https://twitter.com/witnet\_io) | [telegram](https://t.me/witnetio) | [discord](https://discord.gg/witnet)
 
+<figure><img src="../../../assets/hybridcompute.png" alt=""><figcaption></figcaption></figure>
 
-
-<figure><img src="../../.gitbook/assets/bobalink.png" alt=""><figcaption></figcaption></figure>
-
-Bobalink uses Hybrid Compute to pull price feeds from Chainlink's smart contracts and push to price feed contracts [FluxAggregatorHC.sol](https://github.com/bobanetwork/boba/blob/develop/packages/boba/contracts/contracts/oracle/FluxAggregatorHC.sol) on L2. [FluxAggregatorHC.sol](https://github.com/bobanetwork/boba/blob/develop/packages/boba/contracts/contracts/oracle/FluxAggregatorHC.sol) is modified from the Chainlink's [FluxAggregator.sol](https://github.com/smartcontractkit/chainlink/blob/master/contracts/src/v0.6/FluxAggregator.sol) by removing the unnecessary components and adding Hybrid Compute and security checks for it.
-
-### How To Use Bobalink To Get Latest Round
-
-[`FluxAggregatorHC.sol`](https://github.com/bobanetwork/boba/blob/develop/packages/boba/contracts/contracts/oracle/FluxAggregatorHC.sol) keeps all functions that you need to get the price feed, so interacting with it is the same as Chainlink's smart contracts.
-
-#### Solidity Example
-
-To consume price data, your smart contract should reference [`AggregatorV3Interface`](https://github.com/smartcontractkit/chainlink/blob/master/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol) which defines the external functions implemented by Data Feeds or [`FluxAggregatorHC.sol`](https://github.com/bobanetwork/boba/blob/develop/packages/boba/contracts/contracts/oracle/FluxAggregatorHC.sol).
-
-```solidity
-// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.7;
-
-import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
-
-contract PriceConsumerV3 {
-    AggregatorV3Interface internal priceFeed;
-
-    /**
-     * Network: Boba Goerli L2
-     * Aggregator: ETH/USD
-     * Address: 0x9e28dE704435871af476460B456Ec741fE5DE24f
-     * Chainlink's contract on L1: 0xD4a33860578De61DBAbDc8BFdb98FD742fA7028e
-     */
-    constructor() {
-        priceFeed = AggregatorV3Interface(
-            0x9e28dE704435871af476460B456Ec741fE5DE24f
-        );
-    }
-
-    /**
-     * Returns the latest price.
-     */
-    function getLatestPrice() public view returns (int) {
-        // prettier-ignore
-        (
-            /* uint80 roundID */,
-            int price,
-            /*uint startedAt*/,
-            /*uint timeStamp*/,
-            /*uint80 answeredInRound*/
-        ) = priceFeed.latestRoundData();
-        return price;
-    }
-```
-
-The `latestRoundData` function returns five values representing information about the latest price data.
-
-### How To Use Bobalink To Get Historical Price Data
-
-The most common use case for Data Feeds is to get the latest data from a feed. However, the [`FluxAggregatorHC.sol`](https://github.com/bobanetwork/boba/blob/develop/packages/boba/contracts/contracts/oracle/FluxAggregatorHC.sol) also has functions to retrieve data of a previous round ID.
-
-#### `roundId` in Aggregator (aggregatorRoundId)
-
-Oracles provide periodic data updates to the aggregators. Data feeds are updated in **rounds**. Rounds are identified by their `roundId`, which increases with each new round.
-
-In Bobalink, a new `roundId` is fetched from Chainlink's smart contracts and pushed to Bobalink with a price feed. The `roundId` that Hybrid Compute pushes should be exactly equal to the `roundId` from Chainlink's smart contract. Since Hybrid Compute pushes a new price feed to Bobalink from a certain roundId called `staringRoundId`, any previous rounds CANNOT be found in Bobalink.
-
-```solidity
-contract FluxAggregatorHC is AggregatorV2V3Interface {
-    uint80 public staringRoundId;
-    /**
- 			* @notice called by oracle when they have witnessed a need to update
- 			* @param _roundId is the ID of the round this submission pertains to
-		*/
-    function submit(uint256 _roundId)
-    		external
-    		onlyOracleAdmin
-		{
-    		(uint256 _CLRoundId, int256 _CLSubmission, uint256 _CLLatestRoundId) = getChainLinkQuote(_roundId);
-    		require(_CLRoundId == _roundId, "ChainLink roundId not match");
-    		require(_CLLatestRoundId >= _roundId && _CLLatestRoundId >= chainLinkLatestRoundId, "ChainLink latestRoundId is invalid");
-		}
-}
-```
-
-#### Solidity Example
-
-```solidity
-// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.7;
-
-import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
-
-/**
- * THIS IS AN EXAMPLE CONTRACT THAT USES HARDCODED VALUES FOR CLARITY.
- * THIS IS AN EXAMPLE CONTRACT THAT USES UN-AUDITED CODE.
- * DO NOT USE THIS CODE IN PRODUCTION.
- */
-
-contract HistoricalPriceConsumerV3 {
-    AggregatorV3Interface internal priceFeed;
-
-    /**
-     * Network: Boba Goerli L2
-     * Aggregator: ETH/USD
-     * Address: 0x9e28dE704435871af476460B456Ec741fE5DE24f
-     * Chainlink's contract on L1: 0xD4a33860578De61DBAbDc8BFdb98FD742fA7028e
-     */
-    constructor() {
-        priceFeed = AggregatorV3Interface(
-            0x9e28dE704435871af476460B456Ec741fE5DE24f
-        );
-    }
-
-    /**
-     * Returns historical price for a round id.
-     * roundId is NOT incremental. Not all roundIds are valid.
-     * You must know a valid roundId before consuming historical data.
-     *
-     * ROUNDID VALUES:
-     *    InValid:      18446744073709562300
-     *    Valid:        18446744073709554683
-     *
-     * @dev A timestamp with zero value means the round is not complete and should not be used.
-     */
-    function getHistoricalPrice(uint80 roundId) public view returns (int256) {
-        // prettier-ignore
-        (
-            /*uint80 roundID*/,
-            int price,
-            /*uint startedAt*/,
-            uint timeStamp,
-            /*uint80 answeredInRound*/
-        ) = priceFeed.getRoundData(roundId);
-        require(timeStamp > 0, "Round not complete");
-        return price;
-    }
-}
-```
-
-### How To Verify `roundId`
-
-When Hybrid Compute pushes a new round to Bobalink, it also pushes the latest `roundId` from Chainlink to the smart contract on L2. You can verify the `latestRoundId` and `chainLinkLatestRoundId` to make sure that the price feed in Bobalink is the latest in Chainlink's smart contracts.
-
-```solidity
-uint256 public chainLinkLatestRoundId;
-function latestRound()
-		public
- 		view
- 		virtual
- 		override
- 		returns (uint256)
-{
-		return latestRoundId;
-}
-```
-
-### Contract Addresses
-
-Bobalink is available on Boba Mainnet L2, Boba Goerli L2, Bobabeam. It will be available on more L2s soon.
-
-#### Boba Mainnet L2
-
-| Price Feed | Bobalink Contract Address                                                                                             | Chainlink Contract Address                                                                                            |
-| ---------- | --------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| ETH / USD  | [0x9e28dE704435871af476460B456Ec741fE5DE24f](https://bobascan.com/address/0x9e28dE704435871af476460B456Ec741fE5DE24f) | [0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419](https://etherscan.io/address/0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419) |
-
-#### Bobabeam
-
-| Price Feed | Bobalink Contract Address                                                                                                                    | Chainlink Contract Address                                                                                            |
-| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| ETH / USD  | [0x9e28dE704435871af476460B456Ec741fE5DE24f](https://blockexplorer.bobabeam.boba.network/address/0x9e28dE704435871af476460B456Ec741fE5DE24f) | [0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419](https://etherscan.io/address/0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419) |
-| GLMR / USD | [0x2dA3721dcd04A17195de07D21bCFCCBBFDF4Fc93](https://blockexplorer.bobabeam.boba.network/address/0x2dA3721dcd04A17195de07D21bCFCCBBFDF4Fc93) | [0x4497B606be93e773bbA5eaCFCb2ac5E2214220Eb](https://etherscan.io/address/0x4497B606be93e773bbA5eaCFCb2ac5E2214220Eb) |
-| BTC / USD  | [0x7590CdA8585150Bd1228497AA21D8365400c20cb](https://blockexplorer.bobabeam.boba.network/address/0x7590CdA8585150Bd1228497AA21D8365400c20cb) | [0x8c4425e141979c66423A83bE2ee59135864487Eb](https://etherscan.io/address/0x8c4425e141979c66423A83bE2ee59135864487Eb) |
-| USDC / USD | [0x9285eF61F09c2CAD195FEa8834C3E2bB8E442BFF](https://blockexplorer.bobabeam.boba.network/address/0x9285eF61F09c2CAD195FEa8834C3E2bB8E442BFF) | [0xA122591F60115D63421f66F752EF9f6e0bc73abC](https://etherscan.io/address/0xA122591F60115D63421f66F752EF9f6e0bc73abC) |
-
-#### Boba Goerli L2
-
-| Price Feed | Bobalink Contract Address                                                                                                     | Chainlink Contract Address                                                                                                   |
-| ---------- | ----------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| ETH / USD  | [0x9e28dE704435871af476460B456Ec741fE5DE24f](https://testnet.bobascan.com/address/0x9e28dE704435871af476460B456Ec741fE5DE24f) | [0xD4a33860578De61DBAbDc8BFdb98FD742fA7028e](https://goerli.etherscan.io/address/0xD4a33860578De61DBAbDc8BFdb98FD742fA7028e) |
-
-
-
-<figure><img src="../../.gitbook/assets/hybridcompute.png" alt=""><figcaption></figcaption></figure>
-
-Hybrid Compute is Boba's off-chain compute system and among many other things you can fetch real-world market price data. Hybrid Compute gives you the flexibility to select and set up your own data source. Or even select and work with any other reliable service that can help provide such data. In the background, Hybrid Compute works with a modified L2Geth, by intercepting and injecting real world responses into the transaction. Learn more about Hybrid Compute [here](../../boba\_documentation/developer/hybrid\_compute.md).
+Hybrid Compute is Boba's off-chain compute system and among many other things you can fetch real-world market price data. Hybrid Compute gives you the flexibility to select and set up your own data source. Or even select and work with any other reliable service that can help provide such data. In the background, Hybrid Compute works with a modified L2Geth, by intercepting and injecting real world responses into the transaction. Learn more about Hybrid Compute [here](hybrid\_compute.md).
 
 Note: Unlike a feed contract where every data query remains on-chain, Hybrid Compute requests are a call to an external endpoint to retrieve data - which are subject to unavailability or distortion. **Best practices include using decentralized on-chain oracles and/or off-chain 'augmentation' where off-chain compute is used to estimate the reliability of on-chain oracles**.
 

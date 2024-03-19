@@ -15,7 +15,7 @@ description: A collection of links and addresses to get started on Boba-BNB
   * [Analytics and eth\_getLogs for Boba BNB](network-bnb.md#analytics-and-eth-getlogs-for-boba-bnb)
   * [Boba BNB Links and Endpoints](network-bnb.md#boba-bnb-links-and-endpoints)
 
-<figure><img src="../../.gitbook/assets/boba bnb testnet.png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../../../assets/boba bnb testnet.png" alt=""><figcaption></figcaption></figure>
 
 ### Testnet Fountain for Developers on BNB Testnet L2
 
@@ -67,7 +67,7 @@ For **account abstraction** contract addresses, please refer the list [here](htt
 | AA bundler    | [https://bundler.testnet.bnb.boba.network](https://bundler.testnet.bnb.boba.network)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | Gas Cap       | 50000000                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 
-<figure><img src="../../.gitbook/assets/boba bnb l2.png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../../../assets/boba bnb l2.png" alt=""><figcaption></figcaption></figure>
 
 ### Analytics and eth\_getLogs for Bobabeam
 

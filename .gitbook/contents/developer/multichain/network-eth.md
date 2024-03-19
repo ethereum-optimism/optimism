@@ -4,7 +4,7 @@ description: A collection of links and addresses to get started on Boba-Ethereum
 
 # Contract Addresses Boba/Ethereum
 
-<figure><img src="../../.gitbook/assets/sepolia 28882.png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../../../assets/sepolia 28882.png" alt=""><figcaption></figcaption></figure>
 
 For **primary network contracts and addresses** see [packages/contracts-bedrock/deployments/boba-sepolia](https://github.com/bobanetwork/v3-anchorage/tree/develop/packages/contracts-bedrock/deployments/boba-sepolia)
 
@@ -19,7 +19,7 @@ For **primary network contracts and addresses** see [packages/contracts-bedrock/
 | Websocket      | [wss://wss.sepolia.boba.network](wss://wss.sepolia.boba.network) |
 | Gas Cap        | 50000000                                                     |
 
-<figure><img src="../../.gitbook/assets/goerli 2888.png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../../../assets/goerli 2888.png" alt=""><figcaption></figcaption></figure>
 
 ### Goerli Addresses
 
@@ -41,7 +41,7 @@ For **account abstraction** contract addresses, please refer the list [here](htt
 | Bundler        | [https://bundler.goerli.boba.network](https://bundler.goerli.boba.network)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | Gas Cap        | 50000000                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 
-<figure><img src="../../.gitbook/assets/mainnet 288.png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../../../assets/mainnet 288.png" alt=""><figcaption></figcaption></figure>
 
 ### Mainnet Addresses
 

@@ -6,9 +6,7 @@ description: >-
 
 # Exchange Integration
 
-
-
-<figure><img src="../../.gitbook/assets/bridging basics.png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../../assets/bridging basics.png" alt=""><figcaption></figcaption></figure>
 
 Although Boba Network is an L2 (and therefore fundamentally connected to Ethereum), it's also a separate blockchain. App developers commonly need to move data and assets between Boba Network and Ethereum. We call the process of moving data and assets between the two networks "bridging".
 
@@ -18,13 +16,11 @@ For the most common usecase, moving tokens around, we've created the Standard To
 
 Beside the Standard Token Bridge, we created the Fast Token Bridge to allow you to exit assets from L2 in serval hours or even serval minutes based on the number of transactions. The Fast Token Bridge collects a certain percentage of the deposit amount as the transaction fee and distributes them to the liquidity providers.
 
-
-
-<figure><img src="../../.gitbook/assets/using the standard token bridge.png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../../assets/using the standard token bridge.png" alt=""><figcaption></figcaption></figure>
 
 The standard bridge functionality provides a method for an ERC20 token to be deposited and locked on L1 in exchange of the same amount of an equivalent token on L2. This process is known as "bridging a token", e.g. depositing 100 BOBA on L1 in exchange for 100 BOBA on L2 and also the reverse - withdrawing 100 BOBA on L2 in exchange for the same amount on L1. In addition to bridging tokens the standard bridge is also used for ETH.
 
-The Standard Bridge is composed of two main contracts the [`L1StandardBridge` (opens new window)](https://github.com/bobanetwork/boba/blob/develop/packages/contracts/contracts/L1/messaging/IL1StandardBridge.sol)(for Layer 1) and the [`L2StandardBridge` (opens new window)](https://github.com/bobanetwork/boba/blob/develop/packages/contracts/contracts/L2/messaging/L2StandardBridge.sol)(for Layer 2).
+The Standard Bridge is composed of two main contracts the [`L1StandardBridge` (opens new window)](https://github.com/bobanetwork/boba\_legacy/blob/develop/packages/contracts/contracts/L1/messaging/IL1StandardBridge.sol)(for Layer 1) and the [`L2StandardBridge` (opens new window)](https://github.com/bobanetwork/boba\_legacy/blob/develop/packages/contracts/contracts/L2/messaging/L2StandardBridge.sol)(for Layer 2).
 
 Here we'll go over the basics of using this bridge to move ERC20 and ETH assets between Layer 1 and Layer 2.
 
@@ -34,7 +30,7 @@ Here we'll go over the basics of using this bridge to move ERC20 and ETH assets 
 
 #### Deposit ERC20s
 
-ERC20 deposits into L2 can be triggered via the `depositERC20` and `depositERC20To` functions on the [`L1StandardBridge` (opens new window)](https://github.com/bobanetwork/boba/blob/develop/packages/contracts/contracts/L1/messaging/IL1StandardBridge.sol). You **must** approve the Standard Token Bridge to use the amount of tokens that you want to deposit or the deposit will fail.
+ERC20 deposits into L2 can be triggered via the `depositERC20` and `depositERC20To` functions on the [`L1StandardBridge` (opens new window)](https://github.com/bobanetwork/boba\_legacy/blob/develop/packages/contracts/contracts/L1/messaging/IL1StandardBridge.sol). You **must** approve the Standard Token Bridge to use the amount of tokens that you want to deposit or the deposit will fail.
 
 ```
 const PRIVATE_KEY, L1_NODE_WEB3_URL, PROXY_L1_STANDARD_BRIDGE_ADDRESS
@@ -76,7 +72,7 @@ await depositToTx.wait()
 
 #### Deposit ETH
 
-ETH deposits into L2 can be triggered via the `depositETH` and `depositETHTo` functions on the [`L1StandardBridge` (opens new window)](https://github.com/bobanetwork/boba/blob/develop/packages/contracts/contracts/L1/messaging/IL1StandardBridge.sol). ETH deposits can alternatively be triggered by sending ETH directly to the `L1StandardBridge`. Once your deposit is detected and finalized on Boba Network, your account will be funded with the corresponding amount of ETH on L2.
+ETH deposits into L2 can be triggered via the `depositETH` and `depositETHTo` functions on the [`L1StandardBridge` (opens new window)](https://github.com/bobanetwork/boba\_legacy/blob/develop/packages/contracts/contracts/L1/messaging/IL1StandardBridge.sol). ETH deposits can alternatively be triggered by sending ETH directly to the `L1StandardBridge`. Once your deposit is detected and finalized on Boba Network, your account will be funded with the corresponding amount of ETH on L2.
 
 ```
 const PRIVATE_KEY, L1_NODE_WEB3_URL, PROXY_L1_STANDARD_BRIDGE_ADDRESS
@@ -113,7 +109,7 @@ await depositToTx.wait()
 
 #### Withdraw tokens (ERC20s and ETH)
 
-ERC20 withdrawals can be triggered via the `withdraw` or `withdrawTo` functions on the [`L2StandardBridge`](https://github.com/bobanetwork/boba/blob/develop/packages/contracts/contracts/L2/messaging/L2StandardBridge.sol)
+ERC20 withdrawals can be triggered via the `withdraw` or `withdrawTo` functions on the [`L2StandardBridge`](https://github.com/bobanetwork/boba\_legacy/blob/develop/packages/contracts/contracts/L2/messaging/L2StandardBridge.sol)
 
 ```
 const PRIVATE_KEY, L2_NODE_WEB3_URL, PROXY_L2_STANDARD_BRIDGE_ADDRESS
@@ -178,10 +174,10 @@ await depositToTx.wait()
 
 The Standard bridge allows a one-to-many mapping between L1 and L2 tokens, meaning that there can be many Boba implementations of an L1 token. However there is always a one-to-one mapping between L1 and L2 tokens in the Boba token list.
 
-| Network | URL                                                                                                                                                                            |
-| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Mainnet | [Mainnet Boba Token List](https://github.com/bobanetwork/boba/blob/develop/packages/boba/register/addresses/addressesMainnet\_0x8376ac6C3f73a25Dd994E0b0669ca7ee0C02F089.json) |
-| Goerli  | [Goerli Boba Token List](https://github.com/bobanetwork/boba/blob/develop/packages/boba/register/addresses/addressesGoerli\_0x6FF9c8FF8F0B6a0763a3030540c21aFC721A9148.json)   |
+| Network | URL                                                          |
+| ------- | ------------------------------------------------------------ |
+| Mainnet | [Mainnet Boba Token List](token-addresses.md#Ethereum <> BOBA L2) |
+| Sepolia | [Sepolia Boba Token List](token-addresses.md#Sepolia <> BOBA L2) |
 
 ### Links
 
@@ -192,11 +188,11 @@ The Standard bridge allows a one-to-many mapping between L1 and L2 tokens, meani
 | Proxy\_\_L1StandardBridge | 0xdc1664458d2f0B6090bEa60A8793A4E66c2F1c00 |
 | Proxy\_\_L2StandardBridge | 0x4200000000000000000000000000000000000010 |
 
-#### Goerli
+#### Sepolia
 
 | Contract Name             | Contract Address                           |
 | ------------------------- | ------------------------------------------ |
-| Proxy\_\_L1StandardBridge | 0xDBD71249Fe60c9f9bF581b3594734E295EAfA9b2 |
+| Proxy\_\_L1StandardBridge | 0x244d7b81EE3949788Da5F1178D911e83bA24E157 |
 | Proxy\_\_L2StandardBridge | 0x4200000000000000000000000000000000000010 |
 
 

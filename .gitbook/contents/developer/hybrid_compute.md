@@ -8,7 +8,7 @@ Hybrid Compute is a system for interacting with the outside world from within so
 
 Hybrid Compute is a **pipe** between (**1**) Boba's Geth (aka sequencer), which takes transactions, advances the state, and forms blocks, and (**2**) your server. To use this pipe, all you need is a smart contract on Boba that makes Hybrid Compute calls and an external server that accepts these calls and returns data in a format that can be understood by the EVM. This is not hard to do and we provide many examples which will allow you to quickly build a working Hybrid Compute system.
 
-<figure><img src="../../.gitbook/assets/Hybridcompute basic parts (1).png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../../assets/Hybridcompute basic parts (1).png" alt=""><figcaption></figcaption></figure>
 
 A typical Hybrid Compute system for gaming or Web3 social networking<>blockchain interoperability has four parts:
 
@@ -17,29 +17,29 @@ A typical Hybrid Compute system for gaming or Web3 social networking<>blockchain
 3. Some BOBA. Each Hybrid Compute call costs 0.01 BOBA, equivalent to about 1 cent at the moment. This fee covers the cost of writing all input calldata and responses from your servers to Ethereum Mainnet.
 4. A server which accepts POST requests from Boba's Geth and returns data to it in the right format.
 
-<figure><img src="../../.gitbook/assets/hybridcompute functions and features set.png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../../assets/hybridcompute functions and features set.png" alt=""><figcaption></figcaption></figure>
 
 Hybrid Compute is a general purpose pipe between computers and this pipe does not have a native feature set (e.g. storage, cron jobs, cryptographic operations, gaming engines, blockchain history lookups, ...). Rather, _it's up to you_ to deploy servers or endpoints to perform those functions and then expose the right functionality/data to external callers. For many situations, serverless endpoints such as AWS Lambda or Google Cloud Services allow you to build complex logic in just a few lines of code, so if you have not done that before, it's surprisingly easy and we provide many examples for you to use and copy.
 
-<figure><img src="../../.gitbook/assets/hybridcompute is not an oracle.png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../../assets/hybridcompute is not an oracle.png" alt=""><figcaption></figcaption></figure>
 
 Hybrid Compute is general-purpose pipe between computers and not an Oracle. Decentralized Oracles were invented to solve a very specific problem, which is _decentralized trustless approximation of the truth_ (e.g. temperature in NYC, the price of BTC/USD, ...) for later consumption on-chain (e.g. by a DEX or lending protocol). A pipe between computers such as Hybrid Compute has no direct bearing on questions of data authenticity, timeliness, and trust, but rather, those must be tackled by the smart contract deployer and data provider(s) in whatever way is most suitable to their specific use case, industry, and application. To reiterate, Hybrid Compute is a pipe, not an Oracle.
 
-<figure><img src="../../.gitbook/assets/data push vs just in time.png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../../assets/data push vs just in time.png" alt=""><figcaption></figcaption></figure>
 
 On chain Oracles typically operate in a **push** manner, meaning that they update data on a fixed schedule (e.g. every 15 seconds), even when those data are not being used. This `push` update schedule allows calling smart contracts to have confidence that the data they pull are current, but a fixed push update cycle comes at high gas expense that does not decrease in time of low data utilization.
 
 A system like Hybrid Compute is typically configured in the opposite manner, as a **pull** system, where nothing happens until a smart contract needs data or compute. In that case, the external API services the Hybrid Compute call `just in time` during the EVM execution flow. This means that systems that use Hybrid Compute have zero baseline gas consumption and provide compute or data only when needed.
 
-<figure><img src="../../.gitbook/assets/hybridcompute is atomic.png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../../assets/hybridcompute is atomic.png" alt=""><figcaption></figcaption></figure>
 
 Hybrid Compute is invoked when needed during the normal EVM execution flow, and therefore, transactions are atomic. Notably, computations later in the EVM execution flow can operate on responses from your off-chain servers all in one transaction.
 
-<figure><img src="../../.gitbook/assets/transparency and verification.png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../../assets/transparency and verification.png" alt=""><figcaption></figcaption></figure>
 
 As noted, Hybrid Compute is not an Oracle. However, Hybrid Compute writes all initial calldata and server responses to Ethereum Mainnet, and therefore, external parties can see those inputs and outputs. In theory, this may allow third parties to detect fraud or even challenge Hybrid Compute calls, but such functionality remains to be developed.
 
-<figure><img src="../../.gitbook/assets/hybridcompute security and access control.png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../../assets/hybridcompute security and access control.png" alt=""><figcaption></figcaption></figure>
 
 Since developers (i.e. **you**) control all of their keys and Hybrid Compute is just a pipe, there are no special security considerations when using Hybrid Compute. Notably - _we do not provide data or compute endpoints for you to query_ - you have to build, secure, and run those.
 
@@ -50,19 +50,19 @@ Hybrid Compute has two security/control features:
 
 The first mechanism prevents unauthorized use of your on-chain resources and the second one prevents unauthorized use of off-chain resources.
 
-<figure><img src="../../.gitbook/assets/lets get started.png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../../assets/lets get started.png" alt=""><figcaption></figcaption></figure>
 
 Here are five fully worked out examples for you to build on:
 
-* Use Hybrid Compute to build a [CAPTCHA-gated token faucet](../../hybrid\_compute/examples/hc-captcha-faucet.md)
-* Use Hybrid Compute to [mint NFTs with random attributives](../../hybrid\_compute/examples/monsters.md)
-* Do all [stableswap quadratic math off-chain, just in time](https://github.com/bobanetwork/boba/tree/develop/boba\_examples/turing-lending)
-* Query [centralized off-chain price feeds](../../for-developers/features/price-feeds.md#3-bobalink)
-* Connect [on-chain events with commercial KYC providers](../../hybrid\_compute/examples/kyc.md)
+* Use Hybrid Compute to build a [CAPTCHA-gated token faucet](https://github.com/bobanetwork/boba\_legacy/tree/develop/boba_community/hc-captcha-metafaucet)
+* Use Hybrid Compute to [mint NFTs with random attributives](https://github.com/bobanetwork/boba\_legacy/tree/develop/boba_community/hc-monsters)
+* Do all [stableswap quadratic math off-chain, just in time](https://github.com/bobanetwork/boba\_legacy/tree/develop/boba\_examples/turing-lending)
+* Query [centralized off-chain price feeds](features/price-feeds.md#3-bobalink)
+* Connect [on-chain events with commercial KYC providers](https://github.com/bobanetwork/boba\_legacy/tree/develop/boba_community/hc-kyc)
 
 There is more information on setting up your own servers and compute endpoints here:
 
-* [Hybrid Compute API Endpoints](../../hybrid\_compute/examples/aws\_lambda\_setup.md)
+* [Hybrid Compute API Endpoints](../hc/examples/aws_lambda_setup.md)
 
 Separately, there is a new system to help you deploy all the right contracts and set up a working test system at [\[Mainnet: turing.boba.network\]](https://turing.boba.network).
 

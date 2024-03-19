@@ -23,17 +23,13 @@ At a high level, the L2 fee is the cost to execute your transaction in L2 and th
 
 To obtain ETH and BOBA on Boba Network you can deposit ETH via[ https://gateway.boba.network](https://gateway.boba.network) on both Goerli or Mainnet. Soon you will be able to also deposit ETH for slightly cheaper via Teleportation.
 
-
-
-<figure><img src="../../.gitbook/assets/for backend developers.png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../../assets/for backend developers.png" alt=""><figcaption></figcaption></figure>
 
 * You must send your transaction with a tx.gasPrice that is greater than or equal to the sequencer's l2 gas price. You can read this value from the Sequencer by querying the `OVM_GasPriceOracle` contract (`OVM_GasPriceOracle.gasPrice`) or by simply making an RPC query to `eth_gasPrice`. If you don't specify your `gasPrice` as an override when sending a transaction, `ethers` by default queries `eth_gasPrice` which will return the lowest acceptable L2 gas price.
 * You can set your `tx.gasLimit` however you might normally set it (e.g. via `eth_estimateGas`). The gas usage for transactions on Boba Network will be larger than the gas usage on Ethereum, because the `l1SecurityFee` is included in the gas usage.
 * We recommend building error handling around the `Fee too Low` error detailed below, to allow users to re-calculate their `tx.gasLimit` and resend their transaction if L1 gas price spikes.
 
-
-
-<figure><img src="../../.gitbook/assets/for frontend and wallet developers.png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../../assets/for frontend and wallet developers.png" alt=""><figcaption></figcaption></figure>
 
 * We recommend displaying an estimated fee to users using `eth_estimateGas`
 
@@ -78,9 +74,7 @@ const fee = WETH.estimateGas.transfer(to, amount)
 * Might need to regularly refresh the L2 Fee estimate to ensure it is accurate at the time the user sends it (e.g. they get the fee quote and leave for 12 hours then come back)
 * Ideas: If the L2 fee quoted is > X minutes old, could display a warning next to it
 
-
-
-<figure><img src="../../.gitbook/assets/common RPC errors.png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../../assets/common RPC errors.png" alt=""><figcaption></figcaption></figure>
 
 There are three common errors that would cause your transaction to be rejected
 
