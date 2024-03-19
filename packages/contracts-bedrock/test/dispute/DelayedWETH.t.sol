@@ -172,6 +172,7 @@ contract DelayedWETH_Withdraw_Test is DelayedWETH_Init {
 contract DelayedWETH_Recover_Test is DelayedWETH_Init {
     /// @dev Tests that recovering WETH succeeds.
     function test_recover_succeeds() public {
+        // Transfer ownership to alice.
         delayedWeth.transferOwnership(alice);
 
         // Give the contract some WETH to recover.
@@ -191,16 +192,32 @@ contract DelayedWETH_Recover_Test is DelayedWETH_Init {
 
     /// @dev Tests that recovering WETH by non-owner fails.
     function test_recover_byNonOwner_fails() public {
+        // Pretend to be a non-owner.
         vm.prank(alice);
+
+        // Recover fails.
         vm.expectRevert("DelayedWETH: not owner");
         delayedWeth.recover(1 ether);
     }
 
-    /// @dev Tests that recovering more than the balance fails.
-    function test_recover_moreThanBalance_fails() public {
+    /// @dev Tests that recovering more than the balance recovers what it can.
+    function test_recover_moreThanBalance_succeeds() public {
+        // Transfer ownership to alice.
+        delayedWeth.transferOwnership(alice);
+
+        // Give the contract some WETH to recover.
         vm.deal(address(delayedWeth), 0.5 ether);
-        vm.expectRevert("DelayedWETH: insufficient balance");
+
+        // Record the initial balance.
+        uint256 initialBalance = address(alice).balance;
+
+        // Recover the WETH.
+        vm.prank(alice);
         delayedWeth.recover(1 ether);
+
+        // Verify the WETH was recovered.
+        assertEq(address(delayedWeth).balance, 0);
+        assertEq(address(alice).balance, initialBalance + 0.5 ether);
     }
 }
 
@@ -208,15 +225,32 @@ contract DelayedWETH_Hold_Test is DelayedWETH_Init {
     /// @dev Tests that holding WETH succeeds.
     function test_hold_succeeds() public {
         uint256 amount = 1 ether;
+
+        // Pretend to be alice and deposit some WETH.
+        vm.prank(alice);
+        delayedWeth.deposit{ value: amount }();
+
+        // Hold some WETH.
         vm.expectEmit(true, true, true, false);
-        emit Approval(address(this), alice, amount);
+        emit Approval(alice, address(this), amount);
         delayedWeth.hold(alice, amount);
-        assertEq(delayedWeth.allowance(address(this), alice), amount);
+
+        // Verify the allowance.
+        assertEq(delayedWeth.allowance(alice, address(this)), amount);
+
+        // We can transfer.
+        delayedWeth.transferFrom(alice, address(this), amount);
+
+        // Verify the transfer.
+        assertEq(delayedWeth.balanceOf(address(this)), amount);
     }
 
     /// @dev Tests that holding WETH by non-owner fails.
     function test_hold_byNonOwner_fails() public {
+        // Pretend to be a non-owner.
         vm.prank(alice);
+
+        // Hold fails.
         vm.expectRevert("DelayedWETH: not owner");
         delayedWeth.hold(bob, 1 ether);
     }
