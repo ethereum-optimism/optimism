@@ -11,16 +11,14 @@ import { WETH98 } from "src/dispute/weth/WETH98.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 
 /// @title DelayedWETH
-/// @notice DelayedWETH is an extension to WETH9 that allows for delayed withdrawals. Accounts must
-///         trigger an unlock function before they can withdraw WETH. Accounts must trigger unlock
-///         by specifying a sub-account and an amount of WETH to unlock. Accounts can trigger the
-///         unlock function at any time, but must wait a delay period before they can withdraw
-///         after the unlock function is triggered. DelayedWETH is designed to be used by the
-///         DisputeGame contracts where unlock will only be triggered after a dispute is resolved.
-///         DelayedWETH is meant to sit behind a proxy contract and has an owner address that can
-///         pull WETH from any account and can recover ETH from the contract itself. Variable and
-///         function naming vaguely follows the vibe of WETH9. Not the prettiest contract in the
-///         world, but it gets the job done.
+/// @notice DelayedWETH is an extension to WETH9 that allows for delayed withdrawals. Accounts must trigger an unlock
+///         function before they can withdraw WETH. Accounts must trigger unlock by specifying a sub-account and an
+///         amount of WETH to unlock. Accounts can trigger the unlock function at any time, but must wait a delay
+///         period before they can withdraw after the unlock function is triggered. DelayedWETH is designed to be used
+///         by the DisputeGame contracts where unlock will only be triggered after a dispute is resolved. DelayedWETH
+///         is meant to sit behind a proxy contract and has an owner address that can pull WETH from any account and
+///         can recover ETH from the contract itself. Variable and function naming vaguely follows the vibe of WETH9.
+///         Not the prettiest contract in the world, but it gets the job done.
 contract DelayedWETH is OwnableUpgradeable, WETH98, IDelayedWETH, ISemver {
     /// @notice Semantic version.
     /// @custom:semver 0.2.0
@@ -57,12 +55,11 @@ contract DelayedWETH is OwnableUpgradeable, WETH98, IDelayedWETH, ISemver {
 
     /// @inheritdoc IDelayedWETH
     function unlock(address _guy, uint256 _wad) external {
-        // Note that the unlock function can be called by any address, but the actual unlocking
-        // capability still only gives the msg.sender the ability to withdraw from the account.
-        // As long as the unlock and withdraw functions are called with the proper recipient
-        // addresses, this will be safe. Could be made safer by having external accounts execute
-        // withdrawals themselves but that would have added extra complexity and made DelayedWETH
-        // a leaky abstraction, so we chose this instead.
+        // Note that the unlock function can be called by any address, but the actual unlocking capability still only
+        // gives the msg.sender the ability to withdraw from the account. As long as the unlock and withdraw functions
+        // are called with the proper recipient addresses, this will be safe. Could be made safer by having external
+        // accounts execute withdrawals themselves but that would have added extra complexity and made DelayedWETH a
+        // leaky abstraction, so we chose this instead.
         WithdrawalRequest storage wd = withdrawals[msg.sender][_guy];
         wd.timestamp = block.timestamp;
         wd.amount += _wad;

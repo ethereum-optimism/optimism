@@ -17,8 +17,8 @@ interface IAnchorStateRegistry {
     /// @return DisputeGameFactory address.
     function disputeGameFactory() external view returns (IDisputeGameFactory);
 
-    /// @notice Callable by FaultDisputeGame contracts to update the anchor state. Pulls the anchor
-    ///         state directly from the FaultDisputeGame contract and stores it in the registry if
-    ///         the new anchor state is valid and the state is newer than the current anchor state.
+    /// @notice Callable by FaultDisputeGame contracts to update the anchor state. Pulls the anchor state directly from
+    ///         the FaultDisputeGame contract and stores it in the registry if the new anchor state is valid and the
+    ///         state is newer than the current anchor state.
     function tryUpdateAnchorState() external;
 }

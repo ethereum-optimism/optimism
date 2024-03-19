@@ -11,12 +11,14 @@ import "src/libraries/DisputeErrors.sol";
 /// @notice PermissionedDisputeGame is a contract that inherits from `FaultDisputeGame`, and contains two roles:
 ///         - The `challenger` role, which is allowed to challenge a dispute.
 ///         - The `proposer` role, which is allowed to create proposals and participate in their game.
-///         This contract exists as a fallback mechanism in case of the failure of the fault proof system in the stage
-///         one release. It will not be the default implementation used, and eventually will be deprecated in favor of
-///         a fully permissionless system.
+///         This contract exists as a way for networks to support the fault proof iteration of the OptimismPortal
+///         contract without needing to support a fully permissionless system. Permissionless systems can introduce
+///         costs that certain networks may not wish to support. This contract can also be used as a fallback mechanism
+///         in case of a failure in the permissionless fault proof system in the stage one release.
 contract PermissionedDisputeGame is FaultDisputeGame {
     /// @notice The proposer role is allowed to create proposals and participate in the dispute game.
     address internal immutable PROPOSER;
+
     /// @notice The challenger role is allowed to participate in the dispute game.
     address internal immutable CHALLENGER;
 
