@@ -3,8 +3,10 @@ use reth_blockchain_tree::noop::NoopBlockchainTree;
 use reth_db::{mdbx::DatabaseArguments, open_db_read_only};
 use reth_primitives::MAINNET;
 use reth_provider::{providers::BlockchainProvider, ProviderFactory};
-use std::ffi::{c_char, c_void};
-use std::path::Path;
+use std::{
+    ffi::{c_char, c_void},
+    path::Path,
+};
 
 /// A [OpenDBResult] is a wrapper of DB instance [BlockchainProvider]
 /// as well as an error status that is compatible with FFI.

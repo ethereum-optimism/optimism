@@ -196,7 +196,11 @@ mod test {
     };
     use reth_provider::{BlockWriter, BundleStateWithReceipts, DatabaseProvider};
     use reth_revm::revm::db::BundleState;
-    use std::{ffi::c_char, ffi::CString, fs::File, path::Path};
+    use std::{
+        ffi::{c_char, CString},
+        fs::File,
+        path::Path,
+    };
 
     #[inline]
     fn dummy_block_with_receipts() -> Result<(Block, Vec<Receipt>)> {
