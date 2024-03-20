@@ -7,35 +7,9 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum-optimism/optimism/op-service/testutils"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
 )
-
-func RandomSingularBatch(rng *rand.Rand, txCount int, chainID *big.Int) *derive.SingularBatch {
-	signer := types.NewLondonSigner(chainID)
-	baseFee := big.NewInt(rng.Int63n(300_000_000_000))
-	txsEncoded := make([]hexutil.Bytes, 0, txCount)
-	// force each tx to have equal chainID
-	for i := 0; i < txCount; i++ {
-		tx := testutils.RandomTx(rng, baseFee, signer)
-		txEncoded, err := tx.MarshalBinary()
-		if err != nil {
-			panic("tx Marshal binary" + err.Error())
-		}
-		txsEncoded = append(txsEncoded, hexutil.Bytes(txEncoded))
-	}
-	return &derive.SingularBatch{
-		ParentHash:   testutils.RandomHash(rng),
-		EpochNum:     rollup.Epoch(1 + rng.Int63n(100_000_000)),
-		EpochHash:    testutils.RandomHash(rng),
-		Timestamp:    uint64(rng.Int63n(2_000_000_000)),
-		Transactions: txsEncoded,
-	}
-}
 
 type BatchingBenchmarkTC struct {
 	BatchType  uint
@@ -111,7 +85,7 @@ func BenchmarkChannelOut(b *testing.B) {
 			// pre-generate batches to keep the benchmark from including the random generation
 			batches := make([]*derive.SingularBatch, tc.BatchCount)
 			for i := 0; i < tc.BatchCount; i++ {
-				batches[i] = RandomSingularBatch(rng, tc.txPerBatch, chainID)
+				batches[i] = derive.RandomSingularBatch(rng, tc.txPerBatch, chainID)
 			}
 			b.Run(tc.String(cName), func(b *testing.B) {
 				for bn := 0; bn < b.N; bn++ {
