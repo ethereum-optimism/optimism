@@ -33,12 +33,12 @@ If you're running the CLI inside the Optimism monorepo, please make sure you've 
 
 # Running BindGen
 
-BindGen can be ran one of two ways:
+BindGen can be run in one of two ways:
 
 1. Using the provided [Makefile](../Makefile) which defaults some of the required flags
 2. Executing the CLI directly with `go run`, or building a Go binary and executing it
 
-Before executing BindGen, please review the [artifacts.json](../artifacts.json) file which specifies what contracts BindGen should generate Go bindings and metadata files for. More information on how to configure `artifacts.json` can be found [here]().
+Before executing BindGen, please review the [artifacts.json](../artifacts.json) file which specifies what contracts BindGen should generate Go bindings and metadata files for. More information on how to configure `artifacts.json` can be found [here](#anatomy-of-artifactsjson).
 
 ## Using the Makefile Commands
 
@@ -118,7 +118,7 @@ Command  | Description                                                          
 -------- | -------------------------------------------------------------------------- | ----------------------------- | ------------------------------------------------------------------
 `all`    | Generates bindings for both local and remotely sourced contracts.          | [Global Flags](#global-flags) | `bindgen generate [global-flags] all [local-flags] [remote-flags]`
 `local`  | Generates bindings for contracts with locally available Forge artifacts.   | [Local Flags](#local-flags)   | `bindgen generate [global-flags] local [local-flags]`
-`remote` | Generates bindings for contracts who's metadata is sourced from Etherscan. | [Remote Flags](#remote-flags) | `bindgen generate [global-flags] remote [remote-flags]`
+`remote` | Generates bindings for contracts whose metadata is sourced from Etherscan. | [Remote Flags](#remote-flags) | `bindgen generate [global-flags] remote [remote-flags]`
 
 The following displays how the CLI can be invoked from the monorepo root:
 
@@ -163,7 +163,7 @@ Flag                   | Type   | Description                                   
 
 **Note** While we encourage hacking on the OP stack, we are not actively looking to integrate more contracts to the official OP stack genesis.
 
-BindGen uses the provided `contracts-list` to generate Go bindings and metadata files which are used when building the L2 genesis. The first step in adding a new preinstall to L2 genesis is adding the contract to your `contracts-list` (by default this list if [artifacts.json](../artifacts.json)).
+BindGen uses the provided `contracts-list` to generate Go bindings and metadata files which are used when building the L2 genesis. The first step in adding a new preinstall to L2 genesis is adding the contract to your `contracts-list` (by default this list is [artifacts.json](../artifacts.json)).
 
 ## Anatomy of `artifacts.json`
 
@@ -207,7 +207,7 @@ Below is a condensed version of the default [artifacts.json](../artifacts.json) 
 
 ### `"local"` Contracts
 
-The first property of this JSON object, `"local"`, specifies the name of the contracts that have locally available Forge artifacts which BindGen will use to generate Go bindings and metadata files. This property specifies an array of strings where each string corresponds to the name of the contract which is used in the name of it's corresponding Forge artifact.
+The first property of this JSON object, `"local"`, specifies the name of the contracts that have locally available Forge artifacts which BindGen will use to generate Go bindings and metadata files. This property specifies an array of strings where each string corresponds to the name of the contract which is used in the name of its corresponding Forge artifact.
 
 For example, the first contract listed in the default contract list is `SystemConfig`. After running `pnpm build` in the [contract-bedrock](../../packages/contracts-bedrock/), you'll have a [forge-artifacts](../../packages/contracts-bedrock/forge-artifacts/) directory where you can find [SystemConfig.sol](../../packages/contracts-bedrock/forge-artifacts/SystemConfig.sol/). Inside is the Forge artifacts BindGen will use to generate the Go bindings and metadata file.
 
@@ -253,7 +253,7 @@ Name                   | Description
 `deploymentSalt` | If the contract was deployed using CREATE2 or a CREATE2 proxy deployer, here is where you specify the salt that was used for creation
 `deployer` | The address used to deploy the contract, used to mimic CREATE2 deployments
 `abi` | The ABI of the contract, required if the contract is **not** verified on Etherscan
-`initBytecode` | The initialization bytecode for the contract, required if the contract is apart of the initialization of another contract (i.e. the `input` data of the deployment transaction contains initialization bytecode other than what belongs to the specific contract you're adding)
+`initBytecode` | The initialization bytecode for the contract, required if the contract is a part of the initialization of another contract (i.e. the `input` data of the deployment transaction contains initialization bytecode other than what belongs to the specific contract you're adding)
 
 ### Adding A New `"remote"` Contract
 
@@ -291,7 +291,7 @@ switch contract.Name {
 ...
 ```
 
-If you contract is verified on Etherscan, doesn't contain any Solidity `immutable`s, and doesn't require any special handling, than you most likely can add your contract's `name` to the first switch case. The will use the `standardHandler` which:
+If your contract is verified on Etherscan, doesn't contain any Solidity `immutable`s, and doesn't require any special handling, then you most likely can add your contract's `name` to the first switch case. Then will use the `standardHandler` which:
 
 1. Fetches the required contract metadata from Etherscan (i.e. initialization and deployed bytecode, ABI, deployment transaction hash, etc.)
 2. Compares the retrieved deployed bytecode from Etherscan against the response of `eth_codeAt` from an RPC node for each network specified in `RemoteContract.deployments` (this is a sanity check to verify Etherscan is returning correct data)
@@ -304,9 +304,9 @@ If you contract is verified on Etherscan, doesn't contain any Solidity `immutabl
 
 All other default `"remote"` contract have some variation of the above execution flow depending on the nuances of each contract. For example:
 
-- `Create2Deployer`'s initialization and deployed bytecode is expected to differ from it's Optimism Mainnet deployment
-- `MultiSend_v130` has an `immutable` Solidity variable the resolves to `address(this)`, so we can't use the deployment bytecode from Ethereum Mainnet, we must get it's deployment bytecode from Optimism Mainnet
-- `SenderCreator` is deployed by `EntryPoint`, so it's initialization bytecode is provided in [artifacts.json](../artifacts.json) and not being fetched from Etherscan like other contracts
+- `Create2Deployer`'s initialization and deployed bytecode is expected to differ from its Optimism Mainnet deployment
+- `MultiSend_v130` has an `immutable` Solidity variable the resolves to `address(this)`, so we can't use the deployment bytecode from Ethereum Mainnet, we must get its deployment bytecode from Optimism Mainnet
+- `SenderCreator` is deployed by `EntryPoint`, so its initialization bytecode is provided in [artifacts.json](../artifacts.json) and not being fetched from Etherscan like other contracts
 
 #### Contracts that Don't Make Good Preinstalls
 
@@ -317,7 +317,7 @@ Not every contract can be added as a preinstall, and some contracts have nuances
 - Related to above, contracts that may become deprecated/unsupported relatively soon
   - As mentioned above, you're limited to options A, B, or C
 - Upgradeable Contracts
-  - While it's certainly feasible to preinstall an upgradeable contract, great care should be taken to minimize security risks to users if the contract is upgraded to a malicious or buggy implementation. Understanding who has the ability to upgrade the contract is key to avoiding this. Additionally, user's might be expecting a preinstall to do something and may be caught off guard if the implementation was upgraded without their knowledge
+  - While it's certainly feasible to preinstall an upgradeable contract, great care should be taken to minimize security risks to users if the contract is upgraded to a malicious or buggy implementation. Understanding who has the ability to upgrade the contract is key to avoiding this. Additionally, users might be expecting a preinstall to do something and may be caught off guard if the implementation was upgraded without their knowledge
 - Contracts with Privileged Roles and Configuration Parameters
   - Similar to the upgradeable contracts, simply having an owner or other privileged role with the ability to make configuration changes can present a security risk and result in unexpected different behaviors across chains.
 - Contracts that have dependencies

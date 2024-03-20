@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/solver"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -25,7 +27,7 @@ type Responder interface {
 }
 
 type ClaimLoader interface {
-	GetAllClaims(ctx context.Context) ([]types.Claim, error)
+	GetAllClaims(ctx context.Context, block rpcblock.Block) ([]types.Claim, error)
 }
 
 type Agent struct {
@@ -33,16 +35,29 @@ type Agent struct {
 	solver    *solver.GameSolver
 	loader    ClaimLoader
 	responder Responder
+	selective bool
+	claimants []common.Address
 	maxDepth  types.Depth
 	log       log.Logger
 }
 
-func NewAgent(m metrics.Metricer, loader ClaimLoader, maxDepth types.Depth, trace types.TraceAccessor, responder Responder, log log.Logger) *Agent {
+func NewAgent(
+	m metrics.Metricer,
+	loader ClaimLoader,
+	maxDepth types.Depth,
+	trace types.TraceAccessor,
+	responder Responder,
+	log log.Logger,
+	selective bool,
+	claimants []common.Address,
+) *Agent {
 	return &Agent{
 		metrics:   m,
 		solver:    solver.NewGameSolver(maxDepth, trace),
 		loader:    loader,
 		responder: responder,
+		selective: selective,
+		claimants: claimants,
 		maxDepth:  maxDepth,
 		log:       log,
 	}
@@ -53,49 +68,56 @@ func (a *Agent) Act(ctx context.Context) error {
 	if a.tryResolve(ctx) {
 		return nil
 	}
+
 	game, err := a.newGameFromContracts(ctx)
 	if err != nil {
 		return fmt.Errorf("create game from contracts: %w", err)
 	}
 
-	// Calculate the actions to take
 	actions, err := a.solver.CalculateNextActions(ctx, game)
 	if err != nil {
 		a.log.Error("Failed to calculate all required moves", "err", err)
 	}
 
-	// Perform the actions
+	var wg sync.WaitGroup
+	wg.Add(len(actions))
 	for _, action := range actions {
-		actionLog := a.log.New("action", action.Type, "is_attack", action.IsAttack, "parent", action.ParentIdx)
-		if action.Type == types.ActionTypeStep {
-			containsOracleData := action.OracleData != nil
-			isLocal := containsOracleData && action.OracleData.IsLocal
-			actionLog = actionLog.New(
-				"prestate", common.Bytes2Hex(action.PreState),
-				"proof", common.Bytes2Hex(action.ProofData),
-				"containsOracleData", containsOracleData,
-				"isLocalPreimage", isLocal,
-			)
-			if action.OracleData != nil {
-				actionLog = actionLog.New("oracleKey", common.Bytes2Hex(action.OracleData.OracleKey))
-			}
-		} else {
-			actionLog = actionLog.New("value", action.Value)
-		}
-
-		switch action.Type {
-		case types.ActionTypeMove:
-			a.metrics.RecordGameMove()
-		case types.ActionTypeStep:
-			a.metrics.RecordGameStep()
-		}
-		actionLog.Info("Performing action")
-		err := a.responder.PerformAction(ctx, action)
-		if err != nil {
-			actionLog.Error("Action failed", "err", err)
-		}
+		go a.performAction(ctx, &wg, action)
 	}
+	wg.Wait()
 	return nil
+}
+
+func (a *Agent) performAction(ctx context.Context, wg *sync.WaitGroup, action types.Action) {
+	defer wg.Done()
+	actionLog := a.log.New("action", action.Type, "is_attack", action.IsAttack, "parent", action.ParentIdx)
+	if action.Type == types.ActionTypeStep {
+		containsOracleData := action.OracleData != nil
+		isLocal := containsOracleData && action.OracleData.IsLocal
+		actionLog = actionLog.New(
+			"prestate", common.Bytes2Hex(action.PreState),
+			"proof", common.Bytes2Hex(action.ProofData),
+			"containsOracleData", containsOracleData,
+			"isLocalPreimage", isLocal,
+		)
+		if action.OracleData != nil {
+			actionLog = actionLog.New("oracleKey", common.Bytes2Hex(action.OracleData.OracleKey))
+		}
+	} else {
+		actionLog = actionLog.New("value", action.Value)
+	}
+
+	switch action.Type {
+	case types.ActionTypeMove:
+		a.metrics.RecordGameMove()
+	case types.ActionTypeStep:
+		a.metrics.RecordGameStep()
+	}
+	actionLog.Info("Performing action")
+	err := a.responder.PerformAction(ctx, action)
+	if err != nil {
+		actionLog.Error("Action failed", "err", err)
+	}
 }
 
 // tryResolve resolves the game if it is in a winning state
@@ -119,7 +141,7 @@ func (a *Agent) tryResolve(ctx context.Context) bool {
 var errNoResolvableClaims = errors.New("no resolvable claims")
 
 func (a *Agent) tryResolveClaims(ctx context.Context) error {
-	claims, err := a.loader.GetAllClaims(ctx)
+	claims, err := a.loader.GetAllClaims(ctx, rpcblock.Latest)
 	if err != nil {
 		return fmt.Errorf("failed to fetch claims: %w", err)
 	}
@@ -129,6 +151,15 @@ func (a *Agent) tryResolveClaims(ctx context.Context) error {
 
 	var resolvableClaims []int64
 	for _, claim := range claims {
+		if a.selective {
+			a.log.Trace("Selective claim resolution, checking if claim is incentivized", "claimIdx", claim.ContractIndex)
+			isUncounteredClaim := slices.Contains(a.claimants, claim.Claimant) && claim.CounteredBy == common.Address{}
+			ourCounter := slices.Contains(a.claimants, claim.CounteredBy)
+			if !isUncounteredClaim && !ourCounter {
+				a.log.Debug("Skipping claim to check resolution", "claimIdx", claim.ContractIndex)
+				continue
+			}
+		}
 		a.log.Trace("Checking if claim is resolvable", "claimIdx", claim.ContractIndex)
 		if err := a.responder.CallResolveClaim(ctx, uint64(claim.ContractIndex)); err == nil {
 			a.log.Info("Resolving claim", "claimIdx", claim.ContractIndex)
@@ -172,7 +203,7 @@ func (a *Agent) resolveClaims(ctx context.Context) error {
 
 // newGameFromContracts initializes a new game state from the state in the contract
 func (a *Agent) newGameFromContracts(ctx context.Context) (types.Game, error) {
-	claims, err := a.loader.GetAllClaims(ctx)
+	claims, err := a.loader.GetAllClaims(ctx, rpcblock.Latest)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch claims: %w", err)
 	}

@@ -13,8 +13,14 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/redis/go-redis/v9"
+	"golang.org/x/exp/slog"
 	"golang.org/x/sync/semaphore"
 )
+
+func SetLogLevel(logLevel slog.Leveler) {
+	log.SetDefault(log.NewLogger(slog.NewJSONHandler(
+		os.Stdout, &slog.HandlerOptions{Level: logLevel})))
+}
 
 func Start(config *Config) (*Server, func(), error) {
 	if len(config.Backends) == 0 {
@@ -335,8 +341,8 @@ func Start(config *Config) (*Server, func(), error) {
 
 			var tracker ConsensusTracker
 			if bgcfg.ConsensusHA {
-				if redisClient == nil {
-					log.Crit("cant start - consensus high availability requires redis")
+				if bgcfg.ConsensusHARedis.URL == "" {
+					log.Crit("must specify a consensus_ha_redis config when consensus_ha is true")
 				}
 				topts := make([]RedisConsensusTrackerOpt, 0)
 				if bgcfg.ConsensusHALockPeriod > 0 {
@@ -345,7 +351,11 @@ func Start(config *Config) (*Server, func(), error) {
 				if bgcfg.ConsensusHAHeartbeatInterval > 0 {
 					topts = append(topts, WithLockPeriod(time.Duration(bgcfg.ConsensusHAHeartbeatInterval)))
 				}
-				tracker = NewRedisConsensusTracker(context.Background(), redisClient, bg, bg.Name, topts...)
+				consensusHARedisClient, err := NewRedisClient(bgcfg.ConsensusHARedis.URL)
+				if err != nil {
+					return nil, nil, err
+				}
+				tracker = NewRedisConsensusTracker(context.Background(), consensusHARedisClient, bg, bg.Name, topts...)
 				copts = append(copts, WithTracker(tracker))
 			}
 

@@ -2,9 +2,11 @@ package flags
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/urfave/cli/v2"
+	"golang.org/x/exp/slices"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	plasma "github.com/ethereum-optimism/optimism/op-plasma"
@@ -69,9 +71,33 @@ var (
 	}
 	MaxL1TxSizeBytesFlag = &cli.Uint64Flag{
 		Name:    "max-l1-tx-size-bytes",
-		Usage:   "The maximum size of a batch tx submitted to L1.",
-		Value:   120_000,
+		Usage:   "The maximum size of a batch tx submitted to L1. Ignored for blobs, where max blob size will be used.",
+		Value:   120_000, // will be overwritten to max for blob da-type
 		EnvVars: prefixEnvVars("MAX_L1_TX_SIZE_BYTES"),
+	}
+	TargetNumFramesFlag = &cli.IntFlag{
+		Name:    "target-num-frames",
+		Usage:   "The target number of frames to create per channel. Controls number of blobs per blob tx, if using Blob DA.",
+		Value:   1,
+		EnvVars: prefixEnvVars("TARGET_NUM_FRAMES"),
+	}
+	ApproxComprRatioFlag = &cli.Float64Flag{
+		Name:    "approx-compr-ratio",
+		Usage:   "The approximate compression ratio (<= 1.0). Only relevant for ratio compressor.",
+		Value:   0.6,
+		EnvVars: prefixEnvVars("APPROX_COMPR_RATIO"),
+	}
+	CompressorFlag = &cli.StringFlag{
+		Name:    "compressor",
+		Usage:   "The type of compressor. Valid options: " + strings.Join(compressor.KindKeys, ", "),
+		EnvVars: prefixEnvVars("COMPRESSOR"),
+		Value:   compressor.ShadowKind,
+		Action: func(_ *cli.Context, s string) error {
+			if !slices.Contains(compressor.KindKeys, s) {
+				return fmt.Errorf("unsupported compressor: %s", s)
+			}
+			return nil
+		},
 	}
 	StoppedFlag = &cli.BoolFlag{
 		Name:    "stopped",
@@ -79,10 +105,11 @@ var (
 		EnvVars: prefixEnvVars("STOPPED"),
 	}
 	BatchTypeFlag = &cli.UintFlag{
-		Name:    "batch-type",
-		Usage:   "The batch type. 0 for SingularBatch and 1 for SpanBatch.",
-		Value:   0,
-		EnvVars: prefixEnvVars("BATCH_TYPE"),
+		Name:        "batch-type",
+		Usage:       "The batch type. 0 for SingularBatch and 1 for SpanBatch.",
+		Value:       0,
+		EnvVars:     prefixEnvVars("BATCH_TYPE"),
+		DefaultText: "singular",
 	}
 	DataAvailabilityTypeFlag = &cli.GenericFlag{
 		Name: "data-availability-type",
@@ -116,6 +143,9 @@ var optionalFlags = []cli.Flag{
 	MaxPendingTransactionsFlag,
 	MaxChannelDurationFlag,
 	MaxL1TxSizeBytesFlag,
+	TargetNumFramesFlag,
+	ApproxComprRatioFlag,
+	CompressorFlag,
 	StoppedFlag,
 	SequencerHDPathFlag,
 	BatchTypeFlag,
@@ -129,7 +159,6 @@ func init() {
 	optionalFlags = append(optionalFlags, opmetrics.CLIFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, oppprof.CLIFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, txmgr.CLIFlags(EnvVarPrefix)...)
-	optionalFlags = append(optionalFlags, compressor.CLIFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, plasma.CLIFlags(EnvVarPrefix, "")...)
 
 	Flags = append(requiredFlags, optionalFlags...)

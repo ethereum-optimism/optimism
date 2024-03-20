@@ -39,21 +39,21 @@ type BlockProcessor struct {
 	dataProvider BlockDataProvider
 }
 
-func NewBlockProcessorFromPayloadAttributes(provider BlockDataProvider, parent common.Hash, params *eth.PayloadAttributes) (*BlockProcessor, error) {
+func NewBlockProcessorFromPayloadAttributes(provider BlockDataProvider, parent common.Hash, attrs *eth.PayloadAttributes) (*BlockProcessor, error) {
 	header := &types.Header{
 		ParentHash:       parent,
-		Coinbase:         params.SuggestedFeeRecipient,
+		Coinbase:         attrs.SuggestedFeeRecipient,
 		Difficulty:       common.Big0,
-		GasLimit:         uint64(*params.GasLimit),
-		Time:             uint64(params.Timestamp),
+		GasLimit:         uint64(*attrs.GasLimit),
+		Time:             uint64(attrs.Timestamp),
 		Extra:            nil,
-		MixDigest:        common.Hash(params.PrevRandao),
+		MixDigest:        common.Hash(attrs.PrevRandao),
 		Nonce:            types.EncodeNonce(0),
-		ParentBeaconRoot: params.ParentBeaconBlockRoot,
+		ParentBeaconRoot: attrs.ParentBeaconBlockRoot,
 	}
 
 	// Ecotone
-	if params.ParentBeaconBlockRoot != nil {
+	if attrs.ParentBeaconBlockRoot != nil {
 		zero := uint64(0)
 		header.BlobGasUsed = &zero
 		header.ExcessBlobGas = &zero

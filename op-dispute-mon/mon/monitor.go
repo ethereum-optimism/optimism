@@ -14,6 +14,7 @@ import (
 )
 
 type Forecast func(ctx context.Context, games []*types.EnrichedGameData)
+type Bonds func(games []*types.EnrichedGameData)
 type BlockHashFetcher func(ctx context.Context, number *big.Int) (common.Hash, error)
 type BlockNumberFetcher func(ctx context.Context) (uint64, error)
 type Extract func(ctx context.Context, blockHash common.Hash, minTimestamp uint64) ([]*types.EnrichedGameData, error)
@@ -32,6 +33,7 @@ type gameMonitor struct {
 
 	delays           RecordClaimResolutionDelayMax
 	forecast         Forecast
+	bonds            Bonds
 	extract          Extract
 	fetchBlockHash   BlockHashFetcher
 	fetchBlockNumber BlockNumberFetcher
@@ -45,6 +47,7 @@ func newGameMonitor(
 	gameWindow time.Duration,
 	delays RecordClaimResolutionDelayMax,
 	forecast Forecast,
+	bonds Bonds,
 	extract Extract,
 	fetchBlockNumber BlockNumberFetcher,
 	fetchBlockHash BlockHashFetcher,
@@ -58,22 +61,11 @@ func newGameMonitor(
 		gameWindow:       gameWindow,
 		delays:           delays,
 		forecast:         forecast,
+		bonds:            bonds,
 		extract:          extract,
 		fetchBlockNumber: fetchBlockNumber,
 		fetchBlockHash:   fetchBlockHash,
 	}
-}
-
-func (m *gameMonitor) minGameTimestamp() uint64 {
-	if m.gameWindow.Seconds() == 0 {
-		return 0
-	}
-	// time: "To compute t-d for a duration d, use t.Add(-d)."
-	// https://pkg.go.dev/time#Time.Sub
-	if m.clock.Now().Unix() > int64(m.gameWindow.Seconds()) {
-		return uint64(m.clock.Now().Add(-m.gameWindow).Unix())
-	}
-	return 0
 }
 
 func (m *gameMonitor) monitorGames() error {
@@ -86,12 +78,14 @@ func (m *gameMonitor) monitorGames() error {
 	if err != nil {
 		return fmt.Errorf("failed to fetch block hash: %w", err)
 	}
-	enrichedGames, err := m.extract(m.ctx, blockHash, m.minGameTimestamp())
+	minGameTimestamp := clock.MinCheckedTimestamp(m.clock, m.gameWindow)
+	enrichedGames, err := m.extract(m.ctx, blockHash, minGameTimestamp)
 	if err != nil {
 		return fmt.Errorf("failed to load games: %w", err)
 	}
 	m.delays(enrichedGames)
 	m.forecast(m.ctx, enrichedGames)
+	m.bonds(enrichedGames)
 	return nil
 }
 

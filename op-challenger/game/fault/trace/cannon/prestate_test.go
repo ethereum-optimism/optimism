@@ -58,6 +58,21 @@ func TestAbsolutePreStateCommitment(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, expected, actual)
 	})
+
+	t.Run("CacheAbsolutePreState", func(t *testing.T) {
+		setupPreState(t, dataDir, "state.json")
+		provider := newCannonPrestateProvider(dataDir, prestate)
+		first, err := provider.AbsolutePreStateCommitment(context.Background())
+		require.NoError(t, err)
+
+		// Remove the prestate from disk
+		require.NoError(t, os.Remove(provider.prestate))
+
+		// Value should still be available from cache
+		cached, err := provider.AbsolutePreStateCommitment(context.Background())
+		require.NoError(t, err)
+		require.Equal(t, first, cached)
+	})
 }
 
 func setupPreState(t *testing.T, dataDir string, filename string) {

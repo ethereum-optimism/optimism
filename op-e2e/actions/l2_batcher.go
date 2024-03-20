@@ -19,11 +19,13 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 
+	"github.com/ethereum-optimism/optimism/op-batcher/batcher"
 	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
@@ -42,6 +44,10 @@ type L1TxAPI interface {
 	SendTransaction(ctx context.Context, tx *types.Transaction) error
 }
 
+type PlasmaInputSetter interface {
+	SetInput(ctx context.Context, img []byte) (plasma.Keccak256Commitment, error)
+}
+
 type BatcherCfg struct {
 	// Limit the size of txs
 	MinL1TxSize uint64
@@ -53,8 +59,10 @@ type BatcherCfg struct {
 
 	ForceSubmitSingularBatch bool
 	ForceSubmitSpanBatch     bool
+	UsePlasma                bool
 
 	DataAvailabilityType batcherFlags.DataAvailabilityType
+	PlasmaDA             PlasmaInputSetter
 }
 
 func DefaultBatcherCfg(dp *e2eutils.DeployParams) *BatcherCfg {
@@ -63,6 +71,17 @@ func DefaultBatcherCfg(dp *e2eutils.DeployParams) *BatcherCfg {
 		MaxL1TxSize:          128_000,
 		BatcherKey:           dp.Secrets.Batcher,
 		DataAvailabilityType: batcherFlags.CalldataType,
+	}
+}
+
+func PlasmaBatcherCfg(dp *e2eutils.DeployParams, plasmaDa PlasmaInputSetter) *BatcherCfg {
+	return &BatcherCfg{
+		MinL1TxSize:          0,
+		MaxL1TxSize:          128_000,
+		BatcherKey:           dp.Secrets.Batcher,
+		DataAvailabilityType: batcherFlags.CalldataType,
+		PlasmaDA:             plasmaDa,
+		UsePlasma:            true,
 	}
 }
 
@@ -171,8 +190,7 @@ func (s *L2Batcher) Buffer(t Testing) error {
 			ch, err = NewGarbageChannelOut(s.l2BatcherCfg.GarbageCfg)
 		} else {
 			c, e := compressor.NewRatioCompressor(compressor.Config{
-				TargetFrameSize:  s.l2BatcherCfg.MaxL1TxSize,
-				TargetNumFrames:  1,
+				TargetOutputSize: batcher.MaxDataSize(1, s.l2BatcherCfg.MaxL1TxSize),
 				ApproxComprRatio: 1,
 			})
 			require.NoError(t, e, "failed to create compressor")
@@ -231,6 +249,13 @@ func (s *L2Batcher) ActL2BatchSubmit(t Testing, txOpts ...func(tx *types.Dynamic
 		t.Fatalf("failed to output channel data to frame: %v", err)
 	}
 
+	payload := data.Bytes()
+	if s.l2BatcherCfg.UsePlasma {
+		comm, err := s.l2BatcherCfg.PlasmaDA.SetInput(t.Ctx(), payload)
+		require.NoError(t, err, "failed to set input for plasma")
+		payload = comm.TxData()
+	}
+
 	nonce, err := s.l1.PendingNonceAt(t.Ctx(), s.batcherAddr)
 	require.NoError(t, err, "need batcher nonce")
 
@@ -247,7 +272,7 @@ func (s *L2Batcher) ActL2BatchSubmit(t Testing, txOpts ...func(tx *types.Dynamic
 			To:        &s.rollupCfg.BatchInboxAddress,
 			GasTipCap: gasTipCap,
 			GasFeeCap: gasFeeCap,
-			Data:      data.Bytes(),
+			Data:      payload,
 		}
 		for _, opt := range txOpts {
 			opt(rawTx)
@@ -259,7 +284,7 @@ func (s *L2Batcher) ActL2BatchSubmit(t Testing, txOpts ...func(tx *types.Dynamic
 		txData = rawTx
 	} else if s.l2BatcherCfg.DataAvailabilityType == batcherFlags.BlobsType {
 		var b eth.Blob
-		require.NoError(t, b.FromData(data.Bytes()), "must turn data into blob")
+		require.NoError(t, b.FromData(payload), "must turn data into blob")
 		sidecar, blobHashes, err := txmgr.MakeSidecar([]*eth.Blob{&b})
 		require.NoError(t, err)
 		require.NotNil(t, pendingHeader.ExcessBlobGas, "need L1 header with 4844 properties")
@@ -283,6 +308,85 @@ func (s *L2Batcher) ActL2BatchSubmit(t Testing, txOpts ...func(tx *types.Dynamic
 		}
 	} else {
 		t.Fatalf("unrecognized DA type: %q", string(s.l2BatcherCfg.DataAvailabilityType))
+	}
+
+	tx, err := types.SignNewTx(s.l2BatcherCfg.BatcherKey, s.l1Signer, txData)
+	require.NoError(t, err, "need to sign tx")
+
+	err = s.l1.SendTransaction(t.Ctx(), tx)
+	require.NoError(t, err, "need to send tx")
+	s.LastSubmitted = tx
+}
+
+func (s *L2Batcher) ActL2BatchSubmitMultiBlob(t Testing, numBlobs int) {
+	if s.l2BatcherCfg.DataAvailabilityType != batcherFlags.BlobsType {
+		t.InvalidAction("ActL2BatchSubmitMultiBlob only available for Blobs DA type")
+		return
+	} else if numBlobs > 6 || numBlobs < 1 {
+		t.InvalidAction("invalid number of blobs %d, must be within [1,6]", numBlobs)
+	}
+
+	// Don't run this action if there's no data to submit
+	if s.l2ChannelOut == nil {
+		t.InvalidAction("need to buffer data first, cannot batch submit with empty buffer")
+		return
+	}
+
+	// Collect the output frames into blobs
+	blobs := make([]*eth.Blob, numBlobs)
+	for i := 0; i < numBlobs; i++ {
+		data := new(bytes.Buffer)
+		data.WriteByte(derive.DerivationVersion0)
+		// write only a few bytes to all but the last blob
+		l := uint64(derive.FrameV0OverHeadSize + 4) // 4 bytes content
+		if i == numBlobs-1 {
+			// write remaining channel to last frame
+			// subtract one, to account for the version byte
+			l = s.l2BatcherCfg.MaxL1TxSize - 1
+		}
+		if _, err := s.l2ChannelOut.OutputFrame(data, l); err == io.EOF {
+			s.l2Submitting = false
+			if i < numBlobs-1 {
+				t.Fatalf("failed to fill up %d blobs, only filled %d", numBlobs, i+1)
+			}
+			s.l2ChannelOut = nil
+		} else if err != nil {
+			s.l2Submitting = false
+			t.Fatalf("failed to output channel data to frame: %v", err)
+		}
+
+		blobs[i] = new(eth.Blob)
+		require.NoError(t, blobs[i].FromData(data.Bytes()), "must turn data into blob")
+	}
+
+	nonce, err := s.l1.PendingNonceAt(t.Ctx(), s.batcherAddr)
+	require.NoError(t, err, "need batcher nonce")
+
+	gasTipCap := big.NewInt(2 * params.GWei)
+	pendingHeader, err := s.l1.HeaderByNumber(t.Ctx(), big.NewInt(-1))
+	require.NoError(t, err, "need l1 pending header for gas price estimation")
+	gasFeeCap := new(big.Int).Add(gasTipCap, new(big.Int).Mul(pendingHeader.BaseFee, big.NewInt(2)))
+
+	sidecar, blobHashes, err := txmgr.MakeSidecar(blobs)
+	require.NoError(t, err)
+	require.NotNil(t, pendingHeader.ExcessBlobGas, "need L1 header with 4844 properties")
+	blobBaseFee := eip4844.CalcBlobFee(*pendingHeader.ExcessBlobGas)
+	blobFeeCap := new(uint256.Int).Mul(uint256.NewInt(2), uint256.MustFromBig(blobBaseFee))
+	if blobFeeCap.Lt(uint256.NewInt(params.GWei)) { // ensure we meet 1 gwei geth tx-pool minimum
+		blobFeeCap = uint256.NewInt(params.GWei)
+	}
+	txData := &types.BlobTx{
+		To:         s.rollupCfg.BatchInboxAddress,
+		Data:       nil,
+		Gas:        params.TxGas, // intrinsic gas only
+		BlobHashes: blobHashes,
+		Sidecar:    sidecar,
+		ChainID:    uint256.MustFromBig(s.rollupCfg.L1ChainID),
+		GasTipCap:  uint256.MustFromBig(gasTipCap),
+		GasFeeCap:  uint256.MustFromBig(gasFeeCap),
+		BlobFeeCap: blobFeeCap,
+		Value:      uint256.NewInt(0),
+		Nonce:      nonce,
 	}
 
 	tx, err := types.SignNewTx(s.l2BatcherCfg.BatcherKey, s.l1Signer, txData)
@@ -388,4 +492,10 @@ func (s *L2Batcher) ActSubmitAll(t Testing) {
 	s.ActBufferAll(t)
 	s.ActL2ChannelClose(t)
 	s.ActL2BatchSubmit(t)
+}
+
+func (s *L2Batcher) ActSubmitAllMultiBlobs(t Testing, numBlobs int) {
+	s.ActBufferAll(t)
+	s.ActL2ChannelClose(t)
+	s.ActL2BatchSubmitMultiBlob(t, numBlobs)
 }

@@ -28,48 +28,52 @@ type Claimer struct {
 	metrics         BondClaimMetrics
 	contractCreator BondContractCreator
 	txSender        types.TxSender
+	claimants       []common.Address
 }
 
 var _ BondClaimer = (*Claimer)(nil)
 
-func NewBondClaimer(l log.Logger, m BondClaimMetrics, contractCreator BondContractCreator, txSender types.TxSender) *Claimer {
+func NewBondClaimer(l log.Logger, m BondClaimMetrics, contractCreator BondContractCreator, txSender types.TxSender, claimants ...common.Address) *Claimer {
 	return &Claimer{
 		logger:          l,
 		metrics:         m,
 		contractCreator: contractCreator,
 		txSender:        txSender,
+		claimants:       claimants,
 	}
 }
 
 func (c *Claimer) ClaimBonds(ctx context.Context, games []types.GameMetadata) (err error) {
 	for _, game := range games {
-		err = errors.Join(err, c.claimBond(ctx, game))
+		for _, claimant := range c.claimants {
+			err = errors.Join(err, c.claimBond(ctx, game, claimant))
+		}
 	}
 	return err
 }
 
-func (c *Claimer) claimBond(ctx context.Context, game types.GameMetadata) error {
-	c.logger.Debug("Attempting to claim bonds for", "game", game.Proxy)
+func (c *Claimer) claimBond(ctx context.Context, game types.GameMetadata, addr common.Address) error {
+	c.logger.Debug("Attempting to claim bonds for", "game", game.Proxy, "addr", addr)
 
 	contract, err := c.contractCreator(game)
 	if err != nil {
 		return fmt.Errorf("failed to create bond contract bindings: %w", err)
 	}
-	credit, status, err := contract.GetCredit(ctx, c.txSender.From())
+	credit, status, err := contract.GetCredit(ctx, addr)
 	if err != nil {
 		return fmt.Errorf("failed to get credit: %w", err)
 	}
 
 	if status == types.GameStatusInProgress {
-		c.logger.Debug("Not claiming credit from in progress game", "game", game.Proxy, "status", status)
+		c.logger.Debug("Not claiming credit from in progress game", "game", game.Proxy, "addr", addr, "status", status)
 		return nil
 	}
 	if credit.Cmp(big.NewInt(0)) == 0 {
-		c.logger.Debug("No credit to claim", "game", game.Proxy)
+		c.logger.Debug("No credit to claim", "game", game.Proxy, "addr", addr)
 		return nil
 	}
 
-	candidate, err := contract.ClaimCredit(c.txSender.From())
+	candidate, err := contract.ClaimCredit(addr)
 	if err != nil {
 		return fmt.Errorf("failed to create credit claim tx: %w", err)
 	}

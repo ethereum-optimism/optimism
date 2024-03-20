@@ -159,7 +159,7 @@ func TestP2PFull(t *testing.T) {
 	require.False(t, nodeB.IsStatic(hostB.ID()), "node B must not be static peer of node B itself")
 
 	select {
-	case <-time.After(time.Second):
+	case <-time.After(30 * time.Second):
 		t.Fatal("failed to connect new host")
 	case c := <-conns:
 		require.Equal(t, hostB.ID(), c.RemotePeer())
@@ -180,6 +180,17 @@ func TestP2PFull(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []peer.ID{hostB.ID()}, blockedPeers)
 	require.NoError(t, p2pClientA.UnblockPeer(ctx, hostB.ID()))
+
+	require.Error(t, p2pClientA.BlockAddr(ctx, nil))
+	require.Error(t, p2pClientA.UnblockAddr(ctx, nil))
+	require.Error(t, p2pClientA.BlockSubnet(ctx, nil))
+	require.Error(t, p2pClientA.UnblockSubnet(ctx, nil))
+	require.Error(t, p2pClientA.BlockPeer(ctx, ""))
+	require.Error(t, p2pClientA.UnblockPeer(ctx, ""))
+	require.Error(t, p2pClientA.ProtectPeer(ctx, ""))
+	require.Error(t, p2pClientA.UnprotectPeer(ctx, ""))
+	require.Error(t, p2pClientA.ConnectPeer(ctx, ""))
+	require.Error(t, p2pClientA.DisconnectPeer(ctx, ""))
 
 	require.NoError(t, p2pClientA.BlockAddr(ctx, net.IP{123, 123, 123, 123}))
 	blockedIPs, err := p2pClientA.ListBlockedAddrs(ctx)

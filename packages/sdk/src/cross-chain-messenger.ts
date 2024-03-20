@@ -19,7 +19,6 @@ import {
   remove0x,
   toHexString,
   toRpcHexString,
-  hashCrossDomainMessage,
   encodeCrossDomainMessageV0,
   encodeCrossDomainMessageV1,
   BedrockOutputData,
@@ -73,6 +72,8 @@ import {
   DEPOSIT_CONFIRMATION_BLOCKS,
   CHAIN_BLOCK_TIMES,
   hashMessageHash,
+  getContractInterfaceBedrock,
+  toJsonRpcProvider,
 } from './utils'
 
 export class CrossChainMessenger {
@@ -120,6 +121,11 @@ export class CrossChainMessenger {
    * Whether or not Bedrock compatibility is enabled.
    */
   public bedrock: boolean
+
+  /**
+   * Cache for output root validation. Output roots are expensive to verify, so we cache them.
+   */
+  private _outputCache: Array<{ root: string; valid: boolean }> = []
 
   /**
    * Creates a new CrossChainProvider instance.
@@ -721,22 +727,23 @@ export class CrossChainMessenger {
       (await messenger.successfulMessages(messageHashV0)) ||
       (await messenger.successfulMessages(messageHashV1))
 
+    // Avoid the extra query if we already know the message was successful.
+    if (success) {
+      return MessageStatus.RELAYED
+    }
+
     const failure =
       (await messenger.failedMessages(messageHashV0)) ||
       (await messenger.failedMessages(messageHashV1))
 
     if (resolved.direction === MessageDirection.L1_TO_L2) {
-      if (success) {
-        return MessageStatus.RELAYED
-      } else if (failure) {
+      if (failure) {
         return MessageStatus.FAILED_L1_TO_L2_MESSAGE
       } else {
         return MessageStatus.UNCONFIRMED_L1_TO_L2_MESSAGE
       }
     } else {
-      if (success) {
-        return MessageStatus.RELAYED
-      } else if (failure) {
+      if (failure) {
         return MessageStatus.READY_FOR_RELAY
       } else {
         let timestamp: number
@@ -793,6 +800,31 @@ export class CrossChainMessenger {
             resolved,
             messageIndex
           )
+
+          // Get the withdrawal hash.
+          const withdrawalHash = hashLowLevelMessage(withdrawal)
+
+          // Grab the proven withdrawal data.
+          const provenWithdrawal =
+            await this.contracts.l1.OptimismPortal2.provenWithdrawals(
+              withdrawalHash
+            )
+
+          // Attach to the FaultDisputeGame.
+          const game = new ethers.Contract(
+            provenWithdrawal.disputeGameProxy,
+            getContractInterfaceBedrock('FaultDisputeGame'),
+            this.l1SignerOrProvider
+          )
+
+          // Check if the game resolved to status 1 = "CHALLENGER_WINS". If so, the withdrawal was
+          // proven against a proposal that was invalidated and will need to be reproven. We throw
+          // an error here instead of creating a new status mostly because it's easier to integrate
+          // into the SDK.
+          const status = await game.status()
+          if (status === 1) {
+            throw new Error(`withdrawal proposal was invalidated, must reprove`)
+          }
 
           try {
             // If this doesn't revert then we should be fine to relay.
@@ -1279,29 +1311,101 @@ export class CrossChainMessenger {
           Math.min(100, gameCount.toNumber())
         )
 
-      // Find a game with a block number that is greater than or equal to the block number that the
-      // message was included in. We can use this proposal to prove the message to the portal.
-      let match: any
+      // Find all games that are for proposals about blocks newer than the message block.
+      const matches: any[] = []
       for (const game of latestGames) {
-        const [blockNumber] = ethers.utils.defaultAbiCoder.decode(
-          ['uint256'],
-          game.extraData
-        )
-        if (blockNumber.gte(resolved.blockNumber)) {
-          match = {
-            ...game,
-            l2BlockNumber: blockNumber,
+        try {
+          const [blockNumber] = ethers.utils.defaultAbiCoder.decode(
+            ['uint256'],
+            game.extraData
+          )
+          if (blockNumber.gte(resolved.blockNumber)) {
+            matches.push({
+              ...game,
+              l2BlockNumber: blockNumber,
+            })
           }
-          break
+        } catch (err) {
+          // If we can't decode the extra data then we just skip this game.
+          continue
         }
       }
 
-      // TODO: It would be more correct here to actually verify the proposal since proposals are
-      // not guaranteed to be correct. proveMessage will actually do this verification for us but
-      // there's a devex edge case where this message appears to give back a valid proposal that
-      // ends up reverting inside of proveMessage. At least this is safe for users but not ideal
-      // for developers and we should work out the simplest way to fix it. Main blocker is that
-      // verifying the proposal may require access to an archive node.
+      // Shuffle the list of matches. We shuffle here to avoid potential DoS vectors where the
+      // latest games are all invalid and the SDK would be forced to make a bunch of archive calls.
+      for (let i = matches.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1))
+        ;[matches[i], matches[j]] = [matches[j], matches[i]]
+      }
+
+      // Now we verify the proposals in the matches array.
+      let match: any
+      for (const option of matches) {
+        // Use the cache if we can.
+        const cached = this._outputCache.find((other) => {
+          return other.root === option.rootClaim
+        })
+
+        // Skip if we can use the cached.
+        if (cached) {
+          if (cached.valid) {
+            match = option
+            break
+          } else {
+            continue
+          }
+        }
+
+        // If the cache ever gets to 10k elements, clear out the first half. Works well enough
+        // since the cache will generally tend to be used in a FIFO manner.
+        if (this._outputCache.length > 10000) {
+          this._outputCache = this._outputCache.slice(5000)
+        }
+
+        // We didn't hit the cache so we're going to have to do the work.
+        try {
+          // Make sure this is a JSON RPC provider.
+          const provider = toJsonRpcProvider(this.l2Provider)
+
+          // Grab the block and storage proof at the same time.
+          const [block, proof] = await Promise.all([
+            provider.send('eth_getBlockByNumber', [
+              toRpcHexString(option.l2BlockNumber),
+              false,
+            ]),
+            makeStateTrieProof(
+              provider,
+              option.l2BlockNumber,
+              this.contracts.l2.OVM_L2ToL1MessagePasser.address,
+              ethers.constants.HashZero
+            ),
+          ])
+
+          // Compute the output.
+          const output = ethers.utils.solidityKeccak256(
+            ['bytes32', 'bytes32', 'bytes32', 'bytes32'],
+            [
+              ethers.constants.HashZero,
+              block.stateRoot,
+              proof.storageRoot,
+              block.hash,
+            ]
+          )
+
+          // If the output matches the proposal then we're good.
+          if (output === option.rootClaim) {
+            this._outputCache.push({ root: option.rootClaim, valid: true })
+            match = option
+            break
+          } else {
+            this._outputCache.push({ root: option.rootClaim, valid: false })
+          }
+        } catch (err) {
+          // Just skip this option, whatever. If it was a transient error then we'll try again in
+          // the next loop iteration. If it was a permanent error then we'll get the same thing.
+          continue
+        }
+      }
 
       // If there's no match then we can't prove the message to the portal.
       if (!match) {
@@ -1577,7 +1681,7 @@ export class CrossChainMessenger {
     )
 
     const stateTrieProof = await makeStateTrieProof(
-      this.l2Provider as ethers.providers.JsonRpcProvider,
+      toJsonRpcProvider(this.l2Provider),
       resolved.blockNumber,
       this.contracts.l2.OVM_L2ToL1MessagePasser.address,
       messageSlot
@@ -1623,16 +1727,16 @@ export class CrossChainMessenger {
     const hash = hashLowLevelMessage(withdrawal)
     const messageSlot = hashMessageHash(hash)
 
+    const provider = toJsonRpcProvider(this.l2Provider)
+
     const stateTrieProof = await makeStateTrieProof(
-      this.l2Provider as ethers.providers.JsonRpcProvider,
+      provider,
       output.l2BlockNumber,
       this.contracts.l2.BedrockMessagePasser.address,
       messageSlot
     )
 
-    const block = await (
-      this.l2Provider as ethers.providers.JsonRpcProvider
-    ).send('eth_getBlockByNumber', [
+    const block = await provider.send('eth_getBlockByNumber', [
       toRpcHexString(output.l2BlockNumber),
       false,
     ])

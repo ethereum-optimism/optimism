@@ -23,6 +23,9 @@ parameters:
   fault_proofs_dispatch:
     type: boolean
     default: false
+  kontrol_dispatch:
+    type: boolean
+    default: false
 
 orbs:
   go: circleci/go@1.8.0
@@ -204,6 +207,12 @@ jobs:
           name: Copy FPAC allocs to .devnet-fpac
           command: cp -r .devnet/ .devnet-fault-proofs/
       - run:
+          name: Generate Plasma allocs
+          command: DEVNET_PLASMA="true" make devnet-allocs
+      - run:
+          name: Copy Plasma allocs to .devnet-plasma
+          command: cp -r .devnet/ .devnet-plasma/
+      - run:
           name: Generate non-FPAC allocs
           command: make devnet-allocs
       - persist_to_workspace:
@@ -219,6 +228,8 @@ jobs:
             - ".devnet/addresses.json"
             - ".devnet-fault-proofs/allocs-l1.json"
             - ".devnet-fault-proofs/addresses.json"
+            - ".devnet-plasma/allocs-l1.json"
+            - ".devnet-plasma/addresses.json"
             - "packages/contracts-bedrock/deploy-config/devnetL1.json"
             - "packages/contracts-bedrock/deployments/devnetL1"
 
@@ -359,17 +370,33 @@ jobs:
                 command: |
                   ./ops/scripts/ci-docker-tag-op-stack-release.sh <<parameters.registry>>/<<parameters.repo>> $CIRCLE_TAG $CIRCLE_SHA1
       - when:
-          condition: "<<parameters.publish>>"
+          condition:
+            and:
+              - or:
+                - "<<parameters.publish>>"
+                - "<<parameters.release>>"
+              - equal: [develop, << pipeline.git.branch >>]
           steps:
             - gcp-oidc-authenticate:
                 service_account_email: GCP_SERVICE_ATTESTOR_ACCOUNT_EMAIL
             - run:
                 name: Sign
                 command: |
-                  cd ./ops/signer
-                  export IMAGE_PATH="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>:<<pipeline.git.revision>>"
+                  git clone https://github.com/ethereum-optimism/binary_signer
+                  cd binary_signer/signer
+                  git checkout tags/v1.0.3
+
+                  IMAGE_PATH="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>:<<pipeline.git.revision>>"
+                  echo $IMAGE_PATH
                   pip3 install -r requirements.txt
-                  python3 sign_image.py
+
+                  python3 ./sign_image.py --command="sign"\
+                      --attestor-project-name="$ATTESTOR_PROJECT_NAME"\
+                      --attestor-name="$ATTESTOR_NAME"\
+                      --image-path="$IMAGE_PATH"\
+                      --signer-logging-level="INFO"\
+                      --attestor-key-id="//cloudkms.googleapis.com/v1/projects/$ATTESTOR_PROJECT_NAME/locations/global/keyRings/$ATTESTOR_NAME-key-ring/cryptoKeys/$ATTESTOR_NAME-key/cryptoKeyVersions/1"
+
 
 
 
@@ -880,6 +907,13 @@ jobs:
             - run:
                 name: Set OP_E2E_USE_FPAC = true
                 command: echo 'export OP_E2E_USE_FPAC=true' >> $BASH_ENV
+      - when:
+          condition:
+            equal: ['-plasma', <<parameters.fpac>>]
+          steps:
+            - run:
+                name: Set OP_E2E_USE_PLASMA = true
+                command: echo 'export OP_E2E_USE_PLASMA=true' >> $BASH_ENV
       - check-changed:
           patterns: op-(.+),cannon,contracts-bedrock
       - run:
@@ -1387,7 +1421,7 @@ jobs:
       - run:
           name: compat-sepolia
           command: |
-            make run-sepolia-verify
+            make verify-compat
           working_directory: op-program
 
   check-generated-mocks-op-node:
@@ -1454,7 +1488,9 @@ jobs:
           command: pnpm test:kontrol
           working_directory: ./packages/contracts-bedrock
       - store_artifacts:
-          path: ./packages/contracts-bedrock/kontrol-results_latest.tar.gz
+          path: ./packages/contracts-bedrock/test/kontrol/logs/kontrol-results_latest.tar.gz
+      - store_test_results:
+          path: ./packages/contracts-bedrock
       - notify-failures-on-develop
 
 workflows:
@@ -1620,7 +1656,7 @@ workflows:
           name: op-e2e-action-tests<< matrix.fpac >>
           matrix:
             parameters:
-              fpac: ["", "-fault-proofs"]
+              fpac: ["", "-fault-proofs", "-plasma"]
           module: op-e2e
           target: test-actions
           parallelism: 1
@@ -2047,9 +2083,14 @@ workflows:
           context:
             - slack
 
-  scheduled-kontrol-tests:
+  develop-kontrol-tests:
     when:
-      equal: [ build_four_hours, <<pipeline.schedule.name>> ]
+      and:
+        - or:
+          - equal: [ "develop", <<pipeline.git.branch>> ]
+          - equal: [ true, <<pipeline.parameters.kontrol_dispatch>> ]
+        - not:
+           equal: [ scheduled_pipeline, << pipeline.trigger_source >> ]
     jobs:
       - kontrol-tests:
           context:

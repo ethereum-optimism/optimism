@@ -79,9 +79,9 @@ const (
 	DefaultCannonInfoFreq     = uint(10_000_000)
 	// DefaultGameWindow is the default maximum time duration in the past
 	// that the challenger will look for games to progress.
-	// The default value is 11 days, which is a 4 day resolution buffer
+	// The default value is 15 days, which is an 8 day resolution buffer
 	// and bond claiming buffer plus the 7 day game finalization window.
-	DefaultGameWindow   = time.Duration(11 * 24 * time.Hour)
+	DefaultGameWindow   = time.Duration(15 * 24 * time.Hour)
 	DefaultMaxPendingTx = 10
 )
 
@@ -98,6 +98,10 @@ type Config struct {
 	MaxConcurrency       uint             // Maximum number of threads to use when progressing games
 	PollInterval         time.Duration    // Polling interval for latest-block subscription when using an HTTP RPC provider
 	AllowInvalidPrestate bool             // Whether to allow responding to games where the prestate does not match
+
+	AdditionalBondClaimants []common.Address // List of addresses to claim bonds for in addition to the tx manager sender
+
+	SelectiveClaimResolution bool // Whether to only resolve claims for the claimants in AdditionalBondClaimants union [TxSender.From()]
 
 	TraceTypes []TraceType // Type of traces supported
 

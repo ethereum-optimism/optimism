@@ -70,6 +70,8 @@ func NewGamePlayer(
 	validators []Validator,
 	creator resourceCreator,
 	l1HeaderSource L1HeaderSource,
+	selective bool,
+	claimants []common.Address,
 ) (*GamePlayer, error) {
 	logger = logger.New("game", addr)
 
@@ -129,7 +131,7 @@ func NewGamePlayer(
 		return nil, fmt.Errorf("failed to create the responder: %w", err)
 	}
 
-	agent := NewAgent(m, loader, gameDepth, accessor, responder, logger)
+	agent := NewAgent(m, loader, gameDepth, accessor, responder, logger, selective, claimants)
 	return &GamePlayer{
 		act:                agent.Act,
 		loader:             loader,

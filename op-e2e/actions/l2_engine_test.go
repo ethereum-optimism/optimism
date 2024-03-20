@@ -1,6 +1,7 @@
 package actions
 
 import (
+	"errors"
 	"math/big"
 	"testing"
 
@@ -192,12 +193,13 @@ func TestL2EngineAPIFail(gt *testing.T) {
 	log := testlog.Logger(t, log.LevelDebug)
 	engine := NewL2Engine(t, log, sd.L2Cfg, sd.RollupCfg.Genesis.L1, jwtPath)
 	// mock an RPC failure
-	engine.ActL2RPCFail(t)
+	mockErr := errors.New("mock L2 RPC error")
+	engine.ActL2RPCFail(t, mockErr)
 	// check RPC failure
 	l2Cl, err := sources.NewL2Client(engine.RPCClient(), log, nil, sources.L2ClientDefaultConfig(sd.RollupCfg, false))
 	require.NoError(t, err)
 	_, err = l2Cl.InfoByLabel(t.Ctx(), eth.Unsafe)
-	require.ErrorContains(t, err, "mock")
+	require.ErrorIs(t, err, mockErr)
 	head, err := l2Cl.InfoByLabel(t.Ctx(), eth.Unsafe)
 	require.NoError(t, err)
 	require.Equal(gt, sd.L2Cfg.ToBlock().Hash(), head.Hash(), "expecting engine to start at genesis")

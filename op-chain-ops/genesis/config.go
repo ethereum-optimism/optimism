@@ -219,8 +219,6 @@ type DeployConfig struct {
 	PreimageOracleMinProposalSize uint64 `json:"preimageOracleMinProposalSize"`
 	// PreimageOracleChallengePeriod is the number of seconds that challengers have to challenge a large preimage proposal.
 	PreimageOracleChallengePeriod uint64 `json:"preimageOracleChallengePeriod"`
-	// PreimageOracleCancunActivationTimestamp is the timestamp at which blob preimages are able to be loaded into the preimage oracle.
-	PreimageOracleCancunActivationTimestamp uint64 `json:"preimageOracleCancunActivationTimestamp"`
 	// FundDevAccounts configures whether or not to fund the dev accounts. Should only be used
 	// during devnet deployments.
 	FundDevAccounts bool `json:"fundDevAccounts"`
@@ -245,15 +243,18 @@ type DeployConfig struct {
 
 	// UsePlasma is a flag that indicates if the system is using op-plasma
 	UsePlasma bool `json:"usePlasma"`
-	// DaChallengeWindow represents the block interval during which the availability of a data commitment can be challenged.
-	DaChallengeWindow uint64 `json:"daChallengeWindow"`
-	// DaResolveWindow represents the block interval during which a data availability challenge can be resolved.
-	DaResolveWindow uint64 `json:"daResolveWindow"`
-	// DaBondSize represents the required bond size to initiate a data availability challenge.
-	DaBondSize uint64 `json:"daBondSize"`
-	// DaResolverRefundPercentage represents the percentage of the resolving cost to be refunded to the resolver
+	// DAChallengeWindow represents the block interval during which the availability of a data commitment can be challenged.
+	DAChallengeWindow uint64 `json:"daChallengeWindow"`
+	// DAResolveWindow represents the block interval during which a data availability challenge can be resolved.
+	DAResolveWindow uint64 `json:"daResolveWindow"`
+	// DABondSize represents the required bond size to initiate a data availability challenge.
+	DABondSize uint64 `json:"daBondSize"`
+	// DAResolverRefundPercentage represents the percentage of the resolving cost to be refunded to the resolver
 	// such as 100 means 100% refund.
-	DaResolverRefundPercentage uint64 `json:"daResolverRefundPercentage"`
+	DAResolverRefundPercentage uint64 `json:"daResolverRefundPercentage"`
+
+	// DAChallengeProxy represents the L1 address of the DataAvailabilityChallenge contract.
+	DAChallengeProxy common.Address `json:"daChallengeProxy"`
 
 	// When Cancun activates. Relative to L1 genesis.
 	L1CancunTimeOffset *hexutil.Uint64 `json:"l1CancunTimeOffset,omitempty"`
@@ -404,6 +405,17 @@ func (d *DeployConfig) Check() error {
 	if d.DisputeGameFinalityDelaySeconds == 0 {
 		log.Warn("DisputeGameFinalityDelaySeconds is 0")
 	}
+	if d.UsePlasma {
+		if d.DAChallengeWindow == 0 {
+			return fmt.Errorf("%w: DAChallengeWindow cannot be 0 when using plasma mode", ErrInvalidDeployConfig)
+		}
+		if d.DAResolveWindow == 0 {
+			return fmt.Errorf("%w: DAResolveWindow cannot be 0 when using plasma mode", ErrInvalidDeployConfig)
+		}
+		if d.DAChallengeProxy == (common.Address{}) {
+			return fmt.Errorf("%w: DAChallengeContract cannot be empty when using plasma mode", ErrInvalidDeployConfig)
+		}
+	}
 	// checkFork checks that fork A is before or at the same time as fork B
 	checkFork := func(a, b *hexutil.Uint64, aName, bName string) error {
 		if a == nil && b == nil {
@@ -465,6 +477,7 @@ func (d *DeployConfig) SetDeployments(deployments *L1Deployments) {
 	d.L1ERC721BridgeProxy = deployments.L1ERC721BridgeProxy
 	d.SystemConfigProxy = deployments.SystemConfigProxy
 	d.OptimismPortalProxy = deployments.OptimismPortalProxy
+	d.DAChallengeProxy = deployments.DataAvailabilityChallengeProxy
 }
 
 func (d *DeployConfig) GovernanceEnabled() bool {
@@ -579,6 +592,10 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHas
 		EcotoneTime:            d.EcotoneTime(l1StartBlock.Time()),
 		FjordTime:              d.FjordTime(l1StartBlock.Time()),
 		InteropTime:            d.InteropTime(l1StartBlock.Time()),
+		UsePlasma:              d.UsePlasma,
+		DAChallengeAddress:     d.DAChallengeProxy,
+		DAChallengeWindow:      d.DAChallengeWindow,
+		DAResolveWindow:        d.DAResolveWindow,
 	}, nil
 }
 

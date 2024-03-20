@@ -9,6 +9,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/scheduler"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 
 	"github.com/ethereum/go-ethereum"
@@ -107,25 +108,11 @@ func (m *gameMonitor) allowedGame(game common.Address) bool {
 	return false
 }
 
-func (m *gameMonitor) minGameTimestamp() uint64 {
-	if m.gameWindow.Seconds() == 0 {
-		return 0
-	}
-	// time: "To compute t-d for a duration d, use t.Add(-d)."
-	// https://pkg.go.dev/time#Time.Sub
-	if m.clock.Now().Unix() > int64(m.gameWindow.Seconds()) {
-		return uint64(m.clock.Now().Add(-m.gameWindow).Unix())
-	}
-	return 0
-}
-
 func (m *gameMonitor) progressGames(ctx context.Context, blockHash common.Hash, blockNumber uint64) error {
-	games, err := m.source.GetGamesAtOrAfter(ctx, blockHash, m.minGameTimestamp())
+	minGameTimestamp := clock.MinCheckedTimestamp(m.clock, m.gameWindow)
+	games, err := m.source.GetGamesAtOrAfter(ctx, blockHash, minGameTimestamp)
 	if err != nil {
 		return fmt.Errorf("failed to load games: %w", err)
-	}
-	if err := m.claimer.Schedule(blockNumber, games); err != nil {
-		return fmt.Errorf("failed to schedule bond claims: %w", err)
 	}
 	var gamesToPlay []types.GameMetadata
 	for _, game := range games {
@@ -134,6 +121,9 @@ func (m *gameMonitor) progressGames(ctx context.Context, blockHash common.Hash, 
 			continue
 		}
 		gamesToPlay = append(gamesToPlay, game)
+	}
+	if err := m.claimer.Schedule(blockNumber, gamesToPlay); err != nil {
+		return fmt.Errorf("failed to schedule bond claims: %w", err)
 	}
 	if err := m.scheduler.Schedule(gamesToPlay, blockNumber); errors.Is(err, scheduler.ErrBusy) {
 		m.logger.Info("Scheduler still busy with previous update")

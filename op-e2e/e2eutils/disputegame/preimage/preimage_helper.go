@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -127,7 +128,7 @@ func (h *Helper) WaitForChallenged(ctx context.Context, ident types.LargePreimag
 	timedCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	err := wait.For(timedCtx, time.Second, func() (bool, error) {
-		metadata, err := h.oracle.GetProposalMetadata(ctx, batching.BlockLatest, ident)
+		metadata, err := h.oracle.GetProposalMetadata(ctx, rpcblock.Latest, ident)
 		if err != nil {
 			return false, err
 		}

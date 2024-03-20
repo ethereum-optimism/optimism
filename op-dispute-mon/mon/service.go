@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"sync/atomic"
 
+	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/bonds"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
@@ -39,6 +40,7 @@ type Service struct {
 	delays       *resolution.DelayCalculator
 	extractor    *extract.Extractor
 	forecast     *forecast
+	bonds        *bonds.Bonds
 	game         *extract.GameCallerCreator
 	rollupClient *sources.RollupClient
 	validator    *outputValidator
@@ -90,6 +92,7 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 	s.initExtractor()
 
 	s.initForecast(cfg)
+	s.initBonds()
 
 	s.initMonitor(ctx, cfg) // Monitor must be initialized last
 
@@ -100,7 +103,7 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 }
 
 func (s *Service) initOutputValidator() {
-	s.validator = newOutputValidator(s.rollupClient)
+	s.validator = newOutputValidator(s.logger, s.metrics, s.rollupClient)
 }
 
 func (s *Service) initGameCallerCreator() {
@@ -112,11 +115,19 @@ func (s *Service) initDelayCalculator() {
 }
 
 func (s *Service) initExtractor() {
-	s.extractor = extract.NewExtractor(s.logger, s.game.CreateContract, s.factoryContract.GetGamesAtOrAfter)
+	s.extractor = extract.NewExtractor(s.logger, s.game.CreateContract, s.factoryContract.GetGamesAtOrAfter,
+		extract.NewBondEnricher(),
+		extract.NewBalanceEnricher(),
+		extract.NewL1HeadBlockNumEnricher(s.l1Client),
+	)
 }
 
 func (s *Service) initForecast(cfg *config.Config) {
 	s.forecast = newForecast(s.logger, s.metrics, s.validator)
+}
+
+func (s *Service) initBonds() {
+	s.bonds = bonds.NewBonds(s.logger, s.metrics)
 }
 
 func (s *Service) initOutputRollupClient(ctx context.Context, cfg *config.Config) error {
@@ -198,6 +209,7 @@ func (s *Service) initMonitor(ctx context.Context, cfg *config.Config) {
 		cfg.GameWindow,
 		s.delays.RecordClaimResolutionDelayMax,
 		s.forecast.Forecast,
+		s.bonds.CheckBonds,
 		s.extractor.Extract,
 		s.l1Client.BlockNumber,
 		blockHashFetcher,

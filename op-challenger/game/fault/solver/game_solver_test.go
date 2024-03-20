@@ -180,7 +180,6 @@ func TestCalculateNextActions(t *testing.T) {
 			builder := claimBuilder.GameBuilder(faulttest.WithInvalidValue(!test.rootClaimCorrect))
 			test.setupGame(builder)
 			game := builder.Game
-			logClaims(t, game)
 
 			solver := NewGameSolver(maxDepth, trace.NewSimpleTraceAccessor(claimBuilder.CorrectTraceProvider()))
 			postState, actions := runStep(t, solver, game, claimBuilder.CorrectTraceProvider())
@@ -201,8 +200,6 @@ func runStep(t *testing.T, solver *GameSolver, game types.Game, correctTraceProv
 	require.NoError(t, err)
 
 	postState := applyActions(game, challengerAddr, actions)
-	t.Log("Post state:")
-	logClaims(t, postState)
 
 	for i, action := range actions {
 		t.Logf("Move %v: Type: %v, ParentIdx: %v, Attack: %v, Value: %v, PreState: %v, ProofData: %v",
@@ -288,7 +285,6 @@ func TestMultipleRounds(t *testing.T) {
 				claimBuilder := faulttest.NewAlphabetClaimBuilder(t, startingL2BlockNumber, maxDepth)
 				builder := claimBuilder.GameBuilder(faulttest.WithInvalidValue(!rootClaimCorrect))
 				game := builder.Game
-				logClaims(t, game)
 
 				correctTrace := claimBuilder.CorrectTraceProvider()
 				solver := NewGameSolver(maxDepth, trace.NewSimpleTraceAccessor(correctTrace))

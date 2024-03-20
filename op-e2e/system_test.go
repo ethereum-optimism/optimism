@@ -243,7 +243,7 @@ func TestSystemE2EDencunAtGenesisWithBlobs(t *testing.T) {
 	InitParallel(t)
 
 	cfg := DefaultSystemConfig(t)
-	//cancun is on from genesis:
+	// cancun is on from genesis:
 	genesisActivation := hexutil.Uint64(0)
 	cfg.DeployConfig.L1CancunTimeOffset = &genesisActivation // i.e. turn cancun on at genesis time + 0
 
@@ -1468,26 +1468,28 @@ func TestBatcherMultiTx(t *testing.T) {
 	InitParallel(t)
 
 	cfg := DefaultSystemConfig(t)
-	cfg.BatcherTargetL1TxSizeBytes = 2 // ensures that batcher txs are as small as possible
+	cfg.MaxPendingTransactions = 0 // no limit on parallel txs
+	// ensures that batcher txs are as small as possible
+	cfg.BatcherMaxL1TxSizeBytes = derive.FrameV0OverHeadSize + 1 /*version bytes*/ + 1
 	cfg.DisableBatcher = true
 	sys, err := cfg.Start(t)
-	require.Nil(t, err, "Error starting up system")
+	require.NoError(t, err, "Error starting up system")
 	defer sys.Close()
 
 	l1Client := sys.Clients["l1"]
 	l2Seq := sys.Clients["sequencer"]
 
 	_, err = geth.WaitForBlock(big.NewInt(10), l2Seq, time.Duration(cfg.DeployConfig.L2BlockTime*15)*time.Second)
-	require.Nil(t, err, "Waiting for L2 blocks")
+	require.NoError(t, err, "Waiting for L2 blocks")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	l1Number, err := l1Client.BlockNumber(ctx)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	// start batch submission
 	err = sys.BatchSubmitter.Driver().StartBatchSubmitting()
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	totalTxCount := 0
 	// wait for up to 10 L1 blocks, usually only 3 is required, but it's
@@ -1495,7 +1497,7 @@ func TestBatcherMultiTx(t *testing.T) {
 	// so we wait additional blocks.
 	for i := int64(0); i < 10; i++ {
 		block, err := geth.WaitForBlock(big.NewInt(int64(l1Number)+i), l1Client, time.Duration(cfg.DeployConfig.L1BlockTime*5)*time.Second)
-		require.Nil(t, err, "Waiting for l1 blocks")
+		require.NoError(t, err, "Waiting for l1 blocks")
 		totalTxCount += len(block.Transactions())
 
 		if totalTxCount >= 10 {

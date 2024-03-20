@@ -3,11 +3,13 @@ package metrics
 import (
 	"fmt"
 	"io"
+	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-service/sources/caching"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
@@ -38,8 +40,11 @@ type Metricer interface {
 
 	RecordClaimResolutionDelayMax(delay float64)
 
-	RecordGamesStatus(inProgress, defenderWon, challengerWon int)
+	RecordOutputFetchTime(timestamp float64)
+
 	RecordGameAgreement(status GameAgreementStatus, count int)
+
+	RecordBondCollateral(addr common.Address, required *big.Int, available *big.Int)
 
 	caching.Metrics
 }
@@ -57,10 +62,14 @@ type Metrics struct {
 	info prometheus.GaugeVec
 	up   prometheus.Gauge
 
+	lastOutputFetch prometheus.Gauge
+
 	claimResolutionDelayMax prometheus.Gauge
 
-	trackedGames   prometheus.GaugeVec
 	gamesAgreement prometheus.GaugeVec
+
+	requiredCollateral  prometheus.GaugeVec
+	availableCollateral prometheus.GaugeVec
 }
 
 func (m *Metrics) Registry() *prometheus.Registry {
@@ -92,17 +101,15 @@ func NewMetrics() *Metrics {
 			Name:      "up",
 			Help:      "1 if the op-challenger has finished starting up",
 		}),
+		lastOutputFetch: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "last_output_fetch",
+			Help:      "Timestamp of the last output fetch",
+		}),
 		claimResolutionDelayMax: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: Namespace,
 			Name:      "claim_resolution_delay_max",
 			Help:      "Maximum claim resolution delay in seconds",
-		}),
-		trackedGames: *factory.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: Namespace,
-			Name:      "tracked_games",
-			Help:      "Number of games being tracked by the challenger",
-		}, []string{
-			"status",
 		}),
 		gamesAgreement: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: Namespace,
@@ -113,6 +120,26 @@ func NewMetrics() *Metrics {
 			"completion",
 			"result_correctness",
 			"root_agreement",
+		}),
+		requiredCollateral: *factory.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "bond_collateral_required",
+			Help:      "Required collateral (ETH) to cover outstanding bonds and credits",
+		}, []string{
+			// Address of the DelayedWETH contract in use. This is a limited set as only permissioned actors can deploy
+			// additional DelayedWETH contracts to be used by dispute games
+			"delayedWETH",
+			"balance",
+		}),
+		availableCollateral: *factory.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "bond_collateral_available",
+			Help:      "Available collateral (ETH) to cover outstanding bonds and credits",
+		}, []string{
+			// Address of the DelayedWETH contract in use. This is a limited set as only permissioned actors can deploy
+			// additional DelayedWETH contracts to be used by dispute games
+			"delayedWETH",
+			"balance",
 		}),
 	}
 }
@@ -149,14 +176,21 @@ func (m *Metrics) Document() []opmetrics.DocumentedMetric {
 	return m.factory.Document()
 }
 
-func (m *Metrics) RecordGamesStatus(inProgress, defenderWon, challengerWon int) {
-	m.trackedGames.WithLabelValues("in_progress").Set(float64(inProgress))
-	m.trackedGames.WithLabelValues("defender_won").Set(float64(defenderWon))
-	m.trackedGames.WithLabelValues("challenger_won").Set(float64(challengerWon))
+func (m *Metrics) RecordOutputFetchTime(timestamp float64) {
+	m.lastOutputFetch.Set(timestamp)
 }
 
 func (m *Metrics) RecordGameAgreement(status GameAgreementStatus, count int) {
 	m.gamesAgreement.WithLabelValues(labelValuesFor(status)...).Set(float64(count))
+}
+
+func (m *Metrics) RecordBondCollateral(addr common.Address, required *big.Int, available *big.Int) {
+	balance := "sufficient"
+	if required.Cmp(available) > 0 {
+		balance = "insufficient"
+	}
+	m.requiredCollateral.WithLabelValues(addr.Hex(), balance).Set(weiToEther(required))
+	m.availableCollateral.WithLabelValues(addr.Hex(), balance).Set(weiToEther(available))
 }
 
 const (
@@ -203,4 +237,13 @@ func labelValuesFor(status GameAgreementStatus) []string {
 	default:
 		panic(fmt.Errorf("unknown game agreement status: %v", status))
 	}
+}
+
+// weiToEther divides the wei value by 10^18 to get a number in ether as a float64
+func weiToEther(wei *big.Int) float64 {
+	num := new(big.Rat).SetInt(wei)
+	denom := big.NewRat(params.Ether, 1)
+	num = num.Quo(num, denom)
+	f, _ := num.Float64()
+	return f
 }

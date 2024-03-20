@@ -74,7 +74,7 @@ func (t *RatioCompressor) FullErr() error {
 // InputThreshold calculates the input data threshold in bytes from the given
 // parameters.
 func (t *RatioCompressor) InputThreshold() uint64 {
-	return uint64(float64(t.config.TargetNumFrames) * float64(t.config.TargetFrameSize) / t.config.ApproxComprRatio)
+	return uint64(float64(t.config.TargetOutputSize) / t.config.ApproxComprRatio)
 }
 
 // inputTargetReached says whether the target amount of input data has been

@@ -82,20 +82,29 @@ type LocalEngineControl interface {
 	ResetBuildingState()
 	IsEngineSyncing() bool
 	TryUpdateEngine(ctx context.Context) error
+	TryBackupUnsafeReorg(ctx context.Context) (bool, error)
 	InsertUnsafePayload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope, ref eth.L2BlockRef) error
 
 	PendingSafeL2Head() eth.L2BlockRef
+	BackupUnsafeL2Head() eth.L2BlockRef
 
 	SetUnsafeHead(eth.L2BlockRef)
 	SetSafeHead(eth.L2BlockRef)
 	SetFinalizedHead(eth.L2BlockRef)
 	SetPendingSafeL2Head(eth.L2BlockRef)
+	SetBackupUnsafeL2Head(block eth.L2BlockRef, triggerReorg bool)
 }
 
 // SafeHeadListener is called when the safe head is updated.
 // The safe head may advance by more than one block in a single update
 // The l1Block specified is the first L1 block that includes sufficient information to derive the new safe head
 type SafeHeadListener interface {
+
+	// Enabled reports if this safe head listener is actively using the posted data. This allows the engine queue to
+	// optionally skip making calls that may be expensive to prepare.
+	// Callbacks may still be made if Enabled returns false but are not guaranteed.
+	Enabled() bool
+
 	// SafeHeadUpdated indicates that the safe head has been updated in response to processing batch data
 	// The l1Block specified is the first L1 block containing all required batch data to derive newSafeHead
 	SafeHeadUpdated(newSafeHead eth.L2BlockRef, l1Block eth.BlockID) error
@@ -126,6 +135,21 @@ const finalityLookback = 4*32 + 1
 // finalityDelay is the number of L1 blocks to traverse before trying to finalize L2 blocks again.
 // We do not want to do this too often, since it requires fetching a L1 block by number, so no cache data.
 const finalityDelay = 64
+
+// calcFinalityLookback calculates the default finality lookback based on DA challenge window if plasma
+// mode is activated or L1 finality lookback.
+func calcFinalityLookback(cfg *rollup.Config) uint64 {
+	// in plasma mode the longest finality lookback is a commitment is challenged on the last block of
+	// the challenge window in which case it will be both challenge + resolve window.
+	if cfg.UsePlasma {
+		lkb := cfg.DAChallengeWindow + cfg.DAResolveWindow + 1
+		// in the case only if the plasma windows are longer than the default finality lookback
+		if lkb > finalityLookback {
+			return lkb
+		}
+	}
+	return finalityLookback
+}
 
 type FinalityData struct {
 	// The last L2 block that was fully derived and inserted into the L2 engine while processing this L1 block.
@@ -179,7 +203,7 @@ func NewEngineQueue(log log.Logger, cfg *rollup.Config, l2Source L2Source, engin
 		ec:             engine,
 		engine:         l2Source,
 		metrics:        metrics,
-		finalityData:   make([]FinalityData, 0, finalityLookback),
+		finalityData:   make([]FinalityData, 0, calcFinalityLookback(cfg)),
 		unsafePayloads: NewPayloadsQueue(log, maxUnsafePayloadsMemory, payloadMemSize),
 		prev:           prev,
 		l1Fetcher:      l1Fetcher,
@@ -256,12 +280,22 @@ func (eq *EngineQueue) LowestQueuedUnsafeBlock() eth.L2BlockRef {
 	return ref
 }
 
+func (eq *EngineQueue) BackupUnsafeL2Head() eth.L2BlockRef {
+	return eq.ec.BackupUnsafeL2Head()
+}
+
 // Determine if the engine is syncing to the target block
 func (eq *EngineQueue) isEngineSyncing() bool {
 	return eq.ec.IsEngineSyncing()
 }
 
 func (eq *EngineQueue) Step(ctx context.Context) error {
+	// If we don't need to call FCU to restore unsafeHead using backupUnsafe, keep going b/c
+	// this was a no-op(except correcting invalid state when backupUnsafe is empty but TryBackupUnsafeReorg called).
+	if fcuCalled, err := eq.ec.TryBackupUnsafeReorg(ctx); fcuCalled {
+		// If we needed to perform a network call, then we should yield even if we did not encounter an error.
+		return err
+	}
 	// If we don't need to call FCU, keep going b/c this was a no-op. If we needed to
 	// perform a network call, then we should yield even if we did not encounter an error.
 	if err := eq.ec.TryUpdateEngine(ctx); !errors.Is(err, errNoFCUNeeded) {
@@ -405,8 +439,8 @@ func (eq *EngineQueue) postProcessSafeL2() error {
 		return err
 	}
 	// prune finality data if necessary
-	if len(eq.finalityData) >= finalityLookback {
-		eq.finalityData = append(eq.finalityData[:0], eq.finalityData[1:finalityLookback]...)
+	if uint64(len(eq.finalityData)) >= calcFinalityLookback(eq.cfg) {
+		eq.finalityData = append(eq.finalityData[:0], eq.finalityData[1:calcFinalityLookback(eq.cfg)]...)
 	}
 	// remember the last L2 block that we fully derived from the given finality data
 	if len(eq.finalityData) == 0 || eq.finalityData[len(eq.finalityData)-1].L1Block.Number < eq.origin.Number {
@@ -451,6 +485,7 @@ func (eq *EngineQueue) logSyncProgress(reason string) {
 		"l2_safe", eq.ec.SafeL2Head(),
 		"l2_pending_safe", eq.ec.PendingSafeL2Head(),
 		"l2_unsafe", eq.ec.UnsafeL2Head(),
+		"l2_backup_unsafe", eq.ec.BackupUnsafeL2Head(),
 		"l2_time", eq.ec.UnsafeL2Head().Time,
 		"l1_derived", eq.origin,
 	)
@@ -615,8 +650,11 @@ func (eq *EngineQueue) forceNextSafeAttributes(ctx context.Context) error {
 			// suppress the error b/c we want to retry with the next batch from the batch queue
 			// If there is no valid batch the node will eventually force a deposit only block. If
 			// the deposit only block fails, this will return the critical error above.
-			return nil
 
+			// Try to restore to previous known unsafe chain.
+			eq.ec.SetBackupUnsafeL2Head(eq.ec.BackupUnsafeL2Head(), true)
+
+			return nil
 		default:
 			return NewCriticalError(fmt.Errorf("unknown InsertHeadBlock error type %d: %w", errType, err))
 		}
@@ -694,6 +732,7 @@ func (eq *EngineQueue) Reset(ctx context.Context, _ eth.L1BlockRef, _ eth.System
 	eq.ec.SetSafeHead(safe)
 	eq.ec.SetPendingSafeL2Head(safe)
 	eq.ec.SetFinalizedHead(finalized)
+	eq.ec.SetBackupUnsafeL2Head(eth.L2BlockRef{}, false)
 	eq.safeAttributes = nil
 	eq.ec.ResetBuildingState()
 	eq.finalityData = eq.finalityData[:0]
@@ -705,7 +744,7 @@ func (eq *EngineQueue) Reset(ctx context.Context, _ eth.L1BlockRef, _ eth.System
 	if err := eq.safeHeadNotifs.SafeHeadReset(safe); err != nil {
 		return err
 	}
-	if safe.Number == eq.cfg.Genesis.L2.Number && safe.Hash == eq.cfg.Genesis.L2.Hash {
+	if eq.safeHeadNotifs.Enabled() && safe.Number == eq.cfg.Genesis.L2.Number && safe.Hash == eq.cfg.Genesis.L2.Hash {
 		// The rollup genesis block is always safe by definition. So if the pipeline resets this far back we know
 		// we will process all safe head updates and can record genesis as always safe from L1 genesis.
 		// Note that it is not safe to use cfg.Genesis.L1 here as it is the block immediately before the L2 genesis

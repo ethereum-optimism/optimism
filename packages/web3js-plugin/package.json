@@ -33,12 +33,12 @@
   },
   "devDependencies": {
     "@eth-optimism/contracts-ts": "workspace:^",
-    "@swc/core": "^1.4.1",
+    "@swc/core": "^1.4.6",
     "@vitest/coverage-istanbul": "^1.2.2",
     "tsup": "^8.0.1",
     "typescript": "^5.3.3",
-    "viem": "^2.7.6",
-    "vite": "^5.0.12",
+    "viem": "^2.7.19",
+    "vite": "^5.1.5",
     "vitest": "^1.2.2",
     "zod": "^3.22.4"
   },

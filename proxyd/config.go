@@ -123,6 +123,7 @@ type BackendGroupConfig struct {
 	ConsensusHA                  bool         `toml:"consensus_ha"`
 	ConsensusHAHeartbeatInterval TOMLDuration `toml:"consensus_ha_heartbeat_interval"`
 	ConsensusHALockPeriod        TOMLDuration `toml:"consensus_ha_lock_period"`
+	ConsensusHARedis             RedisConfig  `toml:"consensus_ha_redis"`
 }
 
 type BackendGroupsConfig map[string]*BackendGroupConfig

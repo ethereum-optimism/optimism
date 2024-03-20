@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/batcher"
+	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	"github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/metrics"
@@ -24,6 +25,8 @@ func validBatcherConfig() batcher.CLIConfig {
 		PollInterval:           time.Second,
 		MaxPendingTransactions: 0,
 		MaxL1TxSize:            10,
+		TargetNumFrames:        1,
+		Compressor:             "shadow",
 		Stopped:                false,
 		BatchType:              0,
 		DataAvailabilityType:   flags.CalldataType,
@@ -70,7 +73,7 @@ func TestBatcherConfig(t *testing.T) {
 		{
 			name:      "max L1 tx size too small",
 			override:  func(c *batcher.CLIConfig) { c.MaxL1TxSize = 0 },
-			errString: "MaxL1TxSize must be greater than 0",
+			errString: "MaxL1TxSize must be greater than 1",
 		},
 		{
 			name:      "invalid batch type close",
@@ -86,6 +89,27 @@ func TestBatcherConfig(t *testing.T) {
 			name:      "invalid batch submission policy",
 			override:  func(c *batcher.CLIConfig) { c.DataAvailabilityType = "foo" },
 			errString: "unknown data availability type: \"foo\"",
+		},
+		{
+			name:      "zero TargetNumFrames",
+			override:  func(c *batcher.CLIConfig) { c.TargetNumFrames = 0 },
+			errString: "TargetNumFrames must be at least 1",
+		},
+		{
+			name: "larger 6 TargetNumFrames for blobs",
+			override: func(c *batcher.CLIConfig) {
+				c.TargetNumFrames = 7
+				c.DataAvailabilityType = flags.BlobsType
+			},
+			errString: "too many frames for blob transactions, max 6",
+		},
+		{
+			name: "invalid compr ratio for ratio compressor",
+			override: func(c *batcher.CLIConfig) {
+				c.ApproxComprRatio = 4.2
+				c.Compressor = compressor.RatioKind
+			},
+			errString: "invalid ApproxComprRatio 4.2 for ratio compressor",
 		},
 	}
 

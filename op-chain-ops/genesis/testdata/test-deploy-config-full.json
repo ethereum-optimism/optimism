@@ -74,7 +74,6 @@
   "faultGameWithdrawalDelay": 604800,
   "preimageOracleMinProposalSize": 1800000,
   "preimageOracleChallengePeriod": 86400,
-  "preimageOracleCancunActivationTimestamp": 0,
   "systemConfigStartBlock": 0,
   "requiredProtocolVersion": "0x0000000000000000000000000000000000000000000000000000000000000000",
   "recommendedProtocolVersion": "0x0000000000000000000000000000000000000000000000000000000000000000",
@@ -84,6 +83,7 @@
   "useFaultProofs": false,
   "usePlasma": false,
   "daBondSize": 0,
+  "daChallengeProxy": "0x0000000000000000000000000000000000000000",
   "daChallengeWindow": 0,
   "daResolveWindow": 0,
   "daResolverRefundPercentage": 0

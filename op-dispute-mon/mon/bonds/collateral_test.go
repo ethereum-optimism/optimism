@@ -7,7 +7,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
-	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
@@ -51,7 +51,7 @@ type stubBondContract struct {
 	credits map[common.Address]*big.Int
 }
 
-func (s *stubBondContract) GetCredits(_ context.Context, _ batching.Block, recipients ...common.Address) ([]*big.Int, error) {
+func (s *stubBondContract) GetCredits(_ context.Context, _ rpcblock.Block, recipients ...common.Address) ([]*big.Int, error) {
 	results := make([]*big.Int, len(recipients))
 	for i, recipient := range recipients {
 		credit, ok := s.credits[recipient]

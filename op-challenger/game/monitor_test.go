@@ -20,41 +20,13 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 )
 
-func TestMonitorMinGameTimestamp(t *testing.T) {
-	t.Parallel()
-
-	t.Run("zero game window returns zero", func(t *testing.T) {
-		monitor, _, _, _, _ := setupMonitorTest(t, []common.Address{})
-		monitor.gameWindow = time.Duration(0)
-		require.Equal(t, monitor.minGameTimestamp(), uint64(0))
-	})
-
-	t.Run("non-zero game window with zero clock", func(t *testing.T) {
-		monitor, _, _, _, _ := setupMonitorTest(t, []common.Address{})
-		monitor.gameWindow = time.Minute
-		monitor.clock = clock.NewSimpleClock()
-		monitor.clock.SetTime(0)
-		require.Equal(t, uint64(0), monitor.minGameTimestamp())
-	})
-
-	t.Run("minimum computed correctly", func(t *testing.T) {
-		monitor, _, _, _, _ := setupMonitorTest(t, []common.Address{})
-		monitor.gameWindow = time.Minute
-		monitor.clock = clock.NewSimpleClock()
-		frozen := uint64(time.Hour.Seconds())
-		monitor.clock.SetTime(frozen)
-		expected := uint64(time.Unix(int64(frozen), 0).Add(-time.Minute).Unix())
-		require.Equal(t, monitor.minGameTimestamp(), expected)
-	})
-}
-
 // TestMonitorGames tests that the monitor can handle a new head event
 // and resubscribe to new heads if the subscription errors.
 func TestMonitorGames(t *testing.T) {
 	t.Run("Schedules games", func(t *testing.T) {
 		addr1 := common.Address{0xaa}
 		addr2 := common.Address{0xbb}
-		monitor, source, sched, mockHeadSource, preimages := setupMonitorTest(t, []common.Address{})
+		monitor, source, sched, mockHeadSource, preimages, _ := setupMonitorTest(t, []common.Address{})
 		source.games = []types.GameMetadata{newFDG(addr1, 9999), newFDG(addr2, 9999)}
 
 		ctx, cancel := context.WithCancel(context.Background())
@@ -99,7 +71,7 @@ func TestMonitorGames(t *testing.T) {
 	t.Run("Resubscribes on error", func(t *testing.T) {
 		addr1 := common.Address{0xaa}
 		addr2 := common.Address{0xbb}
-		monitor, source, sched, mockHeadSource, preimages := setupMonitorTest(t, []common.Address{})
+		monitor, source, sched, mockHeadSource, preimages, _ := setupMonitorTest(t, []common.Address{})
 		source.games = []types.GameMetadata{newFDG(addr1, 9999), newFDG(addr2, 9999)}
 
 		ctx, cancel := context.WithCancel(context.Background())
@@ -146,7 +118,7 @@ func TestMonitorGames(t *testing.T) {
 }
 
 func TestMonitorCreateAndProgressGameAgents(t *testing.T) {
-	monitor, source, sched, _, _ := setupMonitorTest(t, []common.Address{})
+	monitor, source, sched, _, _, _ := setupMonitorTest(t, []common.Address{})
 
 	addr1 := common.Address{0xaa}
 	addr2 := common.Address{0xbb}
@@ -161,13 +133,14 @@ func TestMonitorCreateAndProgressGameAgents(t *testing.T) {
 func TestMonitorOnlyScheduleSpecifiedGame(t *testing.T) {
 	addr1 := common.Address{0xaa}
 	addr2 := common.Address{0xbb}
-	monitor, source, sched, _, _ := setupMonitorTest(t, []common.Address{addr2})
+	monitor, source, sched, _, _, stubClaimer := setupMonitorTest(t, []common.Address{addr2})
 	source.games = []types.GameMetadata{newFDG(addr1, 9999), newFDG(addr2, 9999)}
 
 	require.NoError(t, monitor.progressGames(context.Background(), common.Hash{0x01}, 0))
 
 	require.Len(t, sched.Scheduled(), 1)
 	require.Equal(t, []common.Address{addr2}, sched.Scheduled()[0])
+	require.Equal(t, 1, stubClaimer.scheduledGames)
 }
 
 func newFDG(proxy common.Address, timestamp uint64) types.GameMetadata {
@@ -180,7 +153,7 @@ func newFDG(proxy common.Address, timestamp uint64) types.GameMetadata {
 func setupMonitorTest(
 	t *testing.T,
 	allowedGames []common.Address,
-) (*gameMonitor, *stubGameSource, *stubScheduler, *mockNewHeadSource, *stubPreimageScheduler) {
+) (*gameMonitor, *stubGameSource, *stubScheduler, *mockNewHeadSource, *stubPreimageScheduler, *mockScheduler) {
 	logger := testlog.Logger(t, log.LevelDebug)
 	source := &stubGameSource{}
 	i := uint64(1)
@@ -191,7 +164,7 @@ func setupMonitorTest(
 	sched := &stubScheduler{}
 	preimages := &stubPreimageScheduler{}
 	mockHeadSource := &mockNewHeadSource{}
-	mockScheduler := &mockScheduler{}
+	stubClaimer := &mockScheduler{}
 	monitor := newGameMonitor(
 		logger,
 		clock.NewSimpleClock(),
@@ -199,12 +172,12 @@ func setupMonitorTest(
 		sched,
 		preimages,
 		time.Duration(0),
-		mockScheduler,
+		stubClaimer,
 		fetchBlockNum,
 		allowedGames,
 		mockHeadSource,
 	)
-	return monitor, source, sched, mockHeadSource, preimages
+	return monitor, source, sched, mockHeadSource, preimages, stubClaimer
 }
 
 type mockNewHeadSource struct {
@@ -247,12 +220,12 @@ func (m *mockNewHeadSource) EthSubscribe(
 }
 
 type mockScheduler struct {
-	scheduleErr   error
-	scheduleCalls int
+	scheduleErr    error
+	scheduledGames int
 }
 
-func (m *mockScheduler) Schedule(uint64, []types.GameMetadata) error {
-	m.scheduleCalls++
+func (m *mockScheduler) Schedule(_ uint64, games []types.GameMetadata) error {
+	m.scheduledGames += len(games)
 	return m.scheduleErr
 }
 

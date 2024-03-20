@@ -7,15 +7,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-
-	"github.com/ethereum/go-ethereum/crypto"
 )
 
 // ErrNotFound is returned when the server could not find the input.
 var ErrNotFound = errors.New("not found")
-
-// ErrCommitmentMismatch is returned when the server returns the wrong input for the given commitment.
-var ErrCommitmentMismatch = errors.New("commitment mismatch")
 
 // ErrInvalidInput is returned when the input is not valid for posting to the DA storage.
 var ErrInvalidInput = errors.New("invalid input")
@@ -34,9 +29,9 @@ func NewDAClient(url string, verify bool) *DAClient {
 	return &DAClient{url, verify}
 }
 
-// GetInput returns the input data for the given commitment bytes.
-func (c *DAClient) GetInput(ctx context.Context, key []byte) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%s/get/0x%x", c.url, key), nil)
+// GetInput returns the input data for the given encoded commitment bytes.
+func (c *DAClient) GetInput(ctx context.Context, comm Keccak256Commitment) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%s/get/0x%x", c.url, comm.Encode()), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
 	}
@@ -53,20 +48,22 @@ func (c *DAClient) GetInput(ctx context.Context, key []byte) ([]byte, error) {
 		return nil, err
 	}
 	if c.verify {
-		exp := crypto.Keccak256(input)
-		if !bytes.Equal(exp, key) {
-			return nil, ErrCommitmentMismatch
+		if err := comm.Verify(input); err != nil {
+			return nil, err
 		}
+
 	}
 	return input, nil
 }
 
 // SetInput sets the input data and returns the keccak256 hash commitment.
-func (c *DAClient) SetInput(ctx context.Context, img []byte) ([]byte, error) {
+func (c *DAClient) SetInput(ctx context.Context, img []byte) (Keccak256Commitment, error) {
 	if len(img) == 0 {
 		return nil, ErrInvalidInput
 	}
-	key := crypto.Keccak256(img)
+	comm := Keccak256(img)
+	// encode with commitment type prefix
+	key := comm.Encode()
 	body := bytes.NewReader(img)
 	url := fmt.Sprintf("%s/put/0x%x", c.url, key)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, body)
@@ -82,5 +79,5 @@ func (c *DAClient) SetInput(ctx context.Context, img []byte) ([]byte, error) {
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("failed to store preimage: %v", resp.StatusCode)
 	}
-	return key, nil
+	return comm, nil
 }

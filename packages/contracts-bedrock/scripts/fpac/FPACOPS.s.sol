@@ -3,7 +3,10 @@ pragma solidity 0.8.15;
 
 import { Proxy } from "src/universal/Proxy.sol";
 import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
+import { AnchorStateRegistry, IAnchorStateRegistry } from "src/dispute/AnchorStateRegistry.sol";
+import { IDelayedWETH } from "src/dispute/interfaces/IDelayedWETH.sol";
 import { StdAssertions } from "forge-std/StdAssertions.sol";
+import "src/libraries/DisputeTypes.sol";
 import "scripts/Deploy.s.sol";
 
 /// @notice Deploys the Fault Proof Alpha Chad contracts.
@@ -12,19 +15,22 @@ contract FPACOPS is Deploy, StdAssertions {
     //                        ENTRYPOINTS                         //
     ////////////////////////////////////////////////////////////////
 
-    function deployFPAC(address _proxyAdmin, address _systemOwnerSafe) public {
+    function deployFPAC(address _proxyAdmin, address _systemOwnerSafe, address _superchainConfigProxy) public {
         console.log("Deploying a fresh FPAC system and OptimismPortal2 implementation.");
 
         prankDeployment("ProxyAdmin", msg.sender);
         prankDeployment("SystemOwnerSafe", msg.sender);
+        prankDeployment("SuperchainConfigProxy", _superchainConfigProxy);
 
         // Deploy the proxies.
         deployERC1967Proxy("DisputeGameFactoryProxy");
         deployERC1967Proxy("DelayedWETHProxy");
+        deployERC1967Proxy("AnchorStateRegistryProxy");
 
         // Deploy implementations.
         deployDisputeGameFactory();
         deployDelayedWETH();
+        deployAnchorStateRegistry();
         deployPreimageOracle();
         deployMips();
 
@@ -34,6 +40,7 @@ contract FPACOPS is Deploy, StdAssertions {
         // Initialize the proxies.
         initializeDisputeGameFactoryProxy();
         initializeDelayedWETHProxy();
+        initializeAnchorStateRegistryProxy();
 
         // Deploy the Cannon Fault game implementation and set it as game ID = 0.
         setCannonFaultGameImplementation({ _allowUpgrade: false });
@@ -44,6 +51,7 @@ contract FPACOPS is Deploy, StdAssertions {
         // of the DisputeGameFactoryProxy to the ProxyAdmin.
         transferDGFOwnershipFinal({ _proxyAdmin: _proxyAdmin, _systemOwnerSafe: _systemOwnerSafe });
         transferWethOwnershipFinal({ _proxyAdmin: _proxyAdmin, _systemOwnerSafe: _systemOwnerSafe });
+        transferAnchorStateOwnershipFinal({ _proxyAdmin: _proxyAdmin });
 
         // Run post-deployment assertions.
         postDeployAssertions({ _proxyAdmin: _proxyAdmin, _systemOwnerSafe: _systemOwnerSafe });
@@ -62,18 +70,48 @@ contract FPACOPS is Deploy, StdAssertions {
 
         address dgfProxy = mustGetAddress("DisputeGameFactoryProxy");
         Proxy(payable(dgfProxy)).upgradeToAndCall(
-            mustGetAddress("DisputeGameFactory"), abi.encodeWithSignature("initialize(address)", msg.sender)
+            mustGetAddress("DisputeGameFactory"), abi.encodeCall(DisputeGameFactory.initialize, msg.sender)
         );
+
+        // Set the initialization bonds for the FaultDisputeGame and PermissionedDisputeGame.
+        DisputeGameFactory dgf = DisputeGameFactory(dgfProxy);
+        dgf.setInitBond(GameTypes.CANNON, 0.08 ether);
+        dgf.setInitBond(GameTypes.PERMISSIONED_CANNON, 0.08 ether);
     }
 
     function initializeDelayedWETHProxy() internal broadcast {
         console.log("Initializing DelayedWETHProxy with DelayedWETH.");
 
         address wethProxy = mustGetAddress("DelayedWETHProxy");
-        address systemConfigProxy = mustGetAddress("SystemConfigProxy");
+        address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
         Proxy(payable(wethProxy)).upgradeToAndCall(
             mustGetAddress("DelayedWETH"),
-            abi.encodeWithSignature("initialize(address,address)", msg.sender, systemConfigProxy)
+            abi.encodeCall(DelayedWETH.initialize, (msg.sender, SuperchainConfig(superchainConfigProxy)))
+        );
+    }
+
+    function initializeAnchorStateRegistryProxy() internal broadcast {
+        console.log("Initializing AnchorStateRegistryProxy with AnchorStateRegistry.");
+
+        AnchorStateRegistry.StartingAnchorRoot[] memory roots = new AnchorStateRegistry.StartingAnchorRoot[](2);
+        roots[0] = AnchorStateRegistry.StartingAnchorRoot({
+            gameType: GameTypes.CANNON,
+            outputRoot: OutputRoot({
+                root: Hash.wrap(cfg.faultGameGenesisOutputRoot()),
+                l2BlockNumber: cfg.faultGameGenesisBlock()
+            })
+        });
+        roots[1] = AnchorStateRegistry.StartingAnchorRoot({
+            gameType: GameTypes.PERMISSIONED_CANNON,
+            outputRoot: OutputRoot({
+                root: Hash.wrap(cfg.faultGameGenesisOutputRoot()),
+                l2BlockNumber: cfg.faultGameGenesisBlock()
+            })
+        });
+
+        address asrProxy = mustGetAddress("AnchorStateRegistryProxy");
+        Proxy(payable(asrProxy)).upgradeToAndCall(
+            mustGetAddress("AnchorStateRegistry"), abi.encodeCall(AnchorStateRegistry.initialize, (roots))
         );
     }
 
@@ -100,6 +138,15 @@ contract FPACOPS is Deploy, StdAssertions {
 
         // Transfer the admin rights of the DelayedWETHProxy to the ProxyAdmin.
         Proxy prox = Proxy(payable(address(weth)));
+        prox.changeAdmin(_proxyAdmin);
+    }
+
+    /// @notice Transfers admin rights of the `AnchorStateRegistryProxy` to the `ProxyAdmin`.
+    function transferAnchorStateOwnershipFinal(address _proxyAdmin) internal broadcast {
+        AnchorStateRegistry asr = AnchorStateRegistry(mustGetAddress("AnchorStateRegistryProxy"));
+
+        // Transfer the admin rights of the AnchorStateRegistryProxy to the ProxyAdmin.
+        Proxy prox = Proxy(payable(address(asr)));
         prox.changeAdmin(_proxyAdmin);
     }
 
@@ -136,8 +183,6 @@ contract FPACOPS is Deploy, StdAssertions {
         assertEq(gameImpl.splitDepth(), cfg.faultGameSplitDepth());
         assertEq(gameImpl.gameDuration().raw(), cfg.faultGameMaxDuration());
         assertEq(gameImpl.absolutePrestate().raw(), bytes32(cfg.faultGameAbsolutePrestate()));
-        assertEq(gameImpl.genesisBlockNumber(), cfg.faultGameGenesisBlock());
-        assertEq(gameImpl.genesisOutputRoot().raw(), cfg.faultGameGenesisOutputRoot());
 
         // Check the security override yoke configuration.
         PermissionedDisputeGame soyGameImpl =
@@ -146,8 +191,15 @@ contract FPACOPS is Deploy, StdAssertions {
         assertEq(soyGameImpl.splitDepth(), cfg.faultGameSplitDepth());
         assertEq(soyGameImpl.gameDuration().raw(), cfg.faultGameMaxDuration());
         assertEq(soyGameImpl.absolutePrestate().raw(), bytes32(cfg.faultGameAbsolutePrestate()));
-        assertEq(soyGameImpl.genesisBlockNumber(), cfg.faultGameGenesisBlock());
-        assertEq(soyGameImpl.genesisOutputRoot().raw(), cfg.faultGameGenesisOutputRoot());
+
+        // Check the AnchorStateRegistry configuration.
+        AnchorStateRegistry asr = AnchorStateRegistry(mustGetAddress("AnchorStateRegistryProxy"));
+        (Hash root1, uint256 l2BlockNumber1) = asr.anchors(GameTypes.CANNON);
+        (Hash root2, uint256 l2BlockNumber2) = asr.anchors(GameTypes.PERMISSIONED_CANNON);
+        assertEq(root1.raw(), cfg.faultGameGenesisOutputRoot());
+        assertEq(root2.raw(), cfg.faultGameGenesisOutputRoot());
+        assertEq(l2BlockNumber1, cfg.faultGameGenesisBlock());
+        assertEq(l2BlockNumber2, cfg.faultGameGenesisBlock());
     }
 
     /// @notice Prints a review of the fault proof configuration section of the deploy config.
@@ -165,8 +217,5 @@ contract FPACOPS is Deploy, StdAssertions {
         console.log("    9. Respected Game Type: ", cfg.respectedGameType());
         console.log("   10. Preimage Oracle Min Proposal Size (bytes): ", cfg.preimageOracleMinProposalSize());
         console.log("   11. Preimage Oracle Challenge Period (seconds): ", cfg.preimageOracleChallengePeriod());
-        console.log(
-            "   12. Preimage Oracle Cancun Activation Timestamp: ", cfg.preimageOracleCancunActivationTimestamp()
-        );
     }
 }

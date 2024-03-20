@@ -16,7 +16,7 @@ import (
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
-	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
@@ -310,7 +310,7 @@ func (s *mockPreimageOracleContract) ChallengePeriod(_ context.Context) (uint64,
 	return mockChallengePeriod, nil
 }
 
-func (s *mockPreimageOracleContract) GetProposalMetadata(_ context.Context, _ batching.Block, idents ...keccakTypes.LargePreimageIdent) ([]keccakTypes.LargePreimageMetaData, error) {
+func (s *mockPreimageOracleContract) GetProposalMetadata(_ context.Context, _ rpcblock.Block, idents ...keccakTypes.LargePreimageIdent) ([]keccakTypes.LargePreimageMetaData, error) {
 	if s.squeezeCallClaimSize > 0 {
 		metadata := make([]keccakTypes.LargePreimageMetaData, 0)
 		for _, ident := range idents {
