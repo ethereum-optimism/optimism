@@ -49,7 +49,7 @@ func NewBuilderAPIClient(log log.Logger, config *BuilderAPIConfig) *BuilderAPICl
 
 func (s *BuilderAPIClient) GetPayload(ctx context.Context, ref eth.L2BlockRef) (*eth.ExecutionPayloadEnvelope, error) {
 	responsePayload := new(eth.ExecutionPayloadEnvelope)
-	ps := fmt.Sprintf("%s/%s/%s", PathGetPayload, ref.Number, ref.Hash)
+	ps := fmt.Sprintf("%s/%d/%s", PathGetPayload, ref.Number, ref.Hash)
 	query := url.Values{"key": []string{"123"}}
 	resp, err := s.httpClient.Get(ctx, ps, query, http.Header{})
 	defer resp.Body.Close()

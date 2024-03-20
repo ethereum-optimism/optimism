@@ -117,11 +117,12 @@ func startPayload(ctx context.Context, eng ExecEngine, fc eth.ForkchoiceState, a
 	}
 }
 
-func getPayload(ctx context.Context, eng ExecEngine, payloadInfo eth.PayloadInfo, l2head eth.L2BlockRef, builder BuilderClient) (*eth.ExecutionPayloadEnvelope, error) {
-	ctxTimeout, cancel := context.WithTimeout(ctx, 500*time.Millisecond) // TODO: make this configurable
+func getPayloadWithBuilderPayload(ctx context.Context, eng ExecEngine, payloadInfo eth.PayloadInfo, l2head eth.L2BlockRef, builder BuilderClient) (*eth.ExecutionPayloadEnvelope, error) {
+	ctxTimeout, cancel := context.WithTimeout(ctx, 500*time.Millisecond) // TODO: make timeout configurable
 	defer cancel()
 
 	ch := make(chan *eth.ExecutionPayloadEnvelope, 1)
+	// start the payload request to builder api
 	go func() {
 		payload, err := builder.GetPayload(ctxTimeout, l2head)
 		if err != nil {
@@ -136,6 +137,7 @@ func getPayload(ctx context.Context, eng ExecEngine, payloadInfo eth.PayloadInfo
 		return nil, fmt.Errorf("failed to get execution payload: %w", err)
 	}
 
+	// select the payload from builder if possible
 	select {
 	case <-ctxTimeout.Done():
 		return envelope, nil
@@ -158,7 +160,6 @@ func confirmPayload(
 	sequencerConductor conductor.SequencerConductor,
 	builderClient BuilderClient,
 	l2head eth.L2BlockRef,
-	getPayloadFromBuilder bool,
 ) (out *eth.ExecutionPayloadEnvelope, errTyp BlockInsertionErrType, err error) {
 	var envelope *eth.ExecutionPayloadEnvelope
 	// if the payload is available from the async gossiper, it means it was not yet imported, so we reuse it
@@ -171,7 +172,11 @@ func confirmPayload(
 			"parent", envelope.ExecutionPayload.ParentHash,
 			"txs", len(envelope.ExecutionPayload.Transactions))
 	} else {
-		envelope, err = getPayload(ctx, eng, payloadInfo, l2head, builderClient)
+		if builderClient == nil {
+			envelope, err = eng.GetPayload(ctx, payloadInfo)
+		} else {
+			envelope, err = getPayloadWithBuilderPayload(ctx, eng, payloadInfo, l2head, builderClient)
+		}
 	}
 	if err != nil {
 		// even if it is an input-error (unknown payload ID), it is temporary, since we will re-attempt the full payload building, not just the retrieval of the payload.

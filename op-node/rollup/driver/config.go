@@ -20,7 +20,4 @@ type Config struct {
 	// SequencerMaxSafeLag is the maximum number of L2 blocks for restricting the distance between L2 safe and unsafe.
 	// Disabled if 0.
 	SequencerMaxSafeLag uint64 `json:"sequencer_max_safe_lag"`
-
-	// SequencerBuilderEnabled is true when the driver should use builder api to fetch blocks from external source.
-	SequencerBuilderEnabled bool `json:"sequencer_builder_enabled"`
 }

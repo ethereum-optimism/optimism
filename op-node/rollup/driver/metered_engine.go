@@ -62,10 +62,10 @@ func (m *MeteredEngine) StartPayload(ctx context.Context, parent eth.L2BlockRef,
 	return errType, err
 }
 
-func (m *MeteredEngine) ConfirmPayload(ctx context.Context, agossip async.AsyncGossiper, sequencerConductor conductor.SequencerConductor, enableBuilder bool) (out *eth.ExecutionPayloadEnvelope, errTyp derive.BlockInsertionErrType, err error) {
+func (m *MeteredEngine) ConfirmPayload(ctx context.Context, agossip async.AsyncGossiper, sequencerConductor conductor.SequencerConductor) (out *eth.ExecutionPayloadEnvelope, errTyp derive.BlockInsertionErrType, err error) {
 	sealingStart := time.Now()
 	// Actually execute the block and add it to the head of the chain.
-	payload, errType, err := m.inner.ConfirmPayload(ctx, agossip, sequencerConductor, enableBuilder)
+	payload, errType, err := m.inner.ConfirmPayload(ctx, agossip, sequencerConductor)
 	if err != nil {
 		m.metrics.RecordSequencingError()
 		return payload, errType, err

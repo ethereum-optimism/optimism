@@ -227,13 +227,6 @@ var (
 		Value:    4,
 		Category: SequencerCategory,
 	}
-	SequencerBuilderEnabledFlag = &cli.BoolFlag{
-		Name:     "sequencer.builder-enabled",
-		Usage:    "Use the Builder API to fetch L2 blocks to sequence.",
-		EnvVars:  prefixEnvVars("SEQUENCER_BUILDER_ENABLED"),
-		Value:    false,
-		Category: SequencerCategory,
-	}
 	L1EpochPollIntervalFlag = &cli.DurationFlag{
 		Name:     "l1.epoch-poll-interval",
 		Usage:    "Poll interval for retrieving new L1 epoch updates such as safe and finalized block changes. Disabled if 0 or negative.",

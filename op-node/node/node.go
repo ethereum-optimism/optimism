@@ -378,7 +378,10 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config, snapshotLog log.Logger
 		return fmt.Errorf("failed to create Engine client: %w", err)
 	}
 
-	n.l2BuilderSource = sources.NewBuilderAPIClient(snapshotLog, bCfg)
+	if bCfg.Endpoint != "" {
+		n.log.Info("L2 Builder API enabled", "endpoint", bCfg.Endpoint)
+		n.l2BuilderSource = sources.NewBuilderAPIClient(snapshotLog, bCfg)
+	}
 
 	if err := cfg.Rollup.ValidateL2Config(ctx, n.l2Source, cfg.Sync.SyncMode == sync.ELSync); err != nil {
 		return err

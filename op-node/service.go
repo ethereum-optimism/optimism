@@ -190,12 +190,11 @@ func NewConfigPersistence(ctx *cli.Context) node.ConfigPersistence {
 
 func NewDriverConfig(ctx *cli.Context) *driver.Config {
 	return &driver.Config{
-		VerifierConfDepth:       ctx.Uint64(flags.VerifierL1Confs.Name),
-		SequencerConfDepth:      ctx.Uint64(flags.SequencerL1Confs.Name),
-		SequencerEnabled:        ctx.Bool(flags.SequencerEnabledFlag.Name),
-		SequencerStopped:        ctx.Bool(flags.SequencerStoppedFlag.Name),
-		SequencerMaxSafeLag:     ctx.Uint64(flags.SequencerMaxSafeLagFlag.Name),
-		SequencerBuilderEnabled: ctx.Bool(flags.SequencerBuilderEnabledFlag.Name),
+		VerifierConfDepth:   ctx.Uint64(flags.VerifierL1Confs.Name),
+		SequencerConfDepth:  ctx.Uint64(flags.SequencerL1Confs.Name),
+		SequencerEnabled:    ctx.Bool(flags.SequencerEnabledFlag.Name),
+		SequencerStopped:    ctx.Bool(flags.SequencerStoppedFlag.Name),
+		SequencerMaxSafeLag: ctx.Uint64(flags.SequencerMaxSafeLagFlag.Name),
 	}
 }
 

@@ -46,11 +46,10 @@ type Sequencer struct {
 	// timeNow enables sequencer testing to mock the time
 	timeNow func() time.Time
 
-	nextAction    time.Time
-	enableBuilder bool
+	nextAction time.Time
 }
 
-func NewSequencer(log log.Logger, rollupCfg *rollup.Config, engine derive.EngineControl, attributesBuilder derive.AttributesBuilder, l1OriginSelector L1OriginSelectorIface, metrics SequencerMetrics, enableBuilder bool) *Sequencer {
+func NewSequencer(log log.Logger, rollupCfg *rollup.Config, engine derive.EngineControl, attributesBuilder derive.AttributesBuilder, l1OriginSelector L1OriginSelectorIface, metrics SequencerMetrics) *Sequencer {
 	return &Sequencer{
 		log:              log,
 		rollupCfg:        rollupCfg,
@@ -59,7 +58,6 @@ func NewSequencer(log log.Logger, rollupCfg *rollup.Config, engine derive.Engine
 		attrBuilder:      attributesBuilder,
 		l1OriginSelector: l1OriginSelector,
 		metrics:          metrics,
-		enableBuilder:    enableBuilder,
 	}
 }
 
@@ -118,7 +116,7 @@ func (d *Sequencer) StartBuildingBlock(ctx context.Context) error {
 // Warning: the safe and finalized L2 blocks as viewed during the initiation of the block building are reused for completion of the block building.
 // The Execution engine should not change the safe and finalized blocks between start and completion of block building.
 func (d *Sequencer) CompleteBuildingBlock(ctx context.Context, agossip async.AsyncGossiper, sequencerConductor conductor.SequencerConductor) (*eth.ExecutionPayloadEnvelope, error) {
-	envelope, errTyp, err := d.engine.ConfirmPayload(ctx, agossip, sequencerConductor, d.enableBuilder)
+	envelope, errTyp, err := d.engine.ConfirmPayload(ctx, agossip, sequencerConductor)
 	if err != nil {
 		return nil, fmt.Errorf("failed to complete building block: error (%d): %w", errTyp, err)
 	}
