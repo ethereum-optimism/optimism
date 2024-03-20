@@ -58,19 +58,14 @@ func (t BatchingBenchmarkTC) String(cName string) string {
 // Every Compressor in the compressor map is benchmarked for each test case
 func BenchmarkChannelOut(b *testing.B) {
 	rc, _ := compressor.NewRatioCompressor(compressor.Config{
-		TargetFrameSize:  100000,
-		TargetNumFrames:  1,
+		TargetOutputSize: 100_000_000,
 		ApproxComprRatio: 0.4,
 	})
 	sc, _ := compressor.NewShadowCompressor(compressor.Config{
-		TargetFrameSize:  100000,
-		TargetNumFrames:  1,
-		ApproxComprRatio: 0.4,
+		TargetOutputSize: 100_000_000,
 	})
 	nc, _ := compressor.NewNonCompressor(compressor.Config{
-		TargetFrameSize:  100000,
-		TargetNumFrames:  1,
-		ApproxComprRatio: 0.4,
+		TargetOutputSize: 100_000_000,
 	})
 
 	compressors := map[string]derive.Compressor{
@@ -87,10 +82,17 @@ func BenchmarkChannelOut(b *testing.B) {
 		{derive.SingularBatchType, 100, 1},
 		{derive.SingularBatchType, 200, 1},
 		{derive.SingularBatchType, 1000, 1},
+		{derive.SingularBatchType, 10000, 1},
 
 		// higher-throughput chains
-		{derive.SingularBatchType, 10, 10},
-		{derive.SingularBatchType, 100, 10},
+		{derive.SingularBatchType, 10, 100},
+		{derive.SingularBatchType, 100, 100},
+		{derive.SingularBatchType, 1000, 100},
+
+		// even higher-throughput chains
+		{derive.SingularBatchType, 10, 500},
+		{derive.SingularBatchType, 100, 500},
+		{derive.SingularBatchType, 1000, 500},
 
 		// Span Batch Tests
 		// low-throughput chains
@@ -99,10 +101,17 @@ func BenchmarkChannelOut(b *testing.B) {
 		{derive.SpanBatchType, 100, 1},
 		{derive.SpanBatchType, 200, 1},
 		{derive.SpanBatchType, 1000, 1},
+		{derive.SpanBatchType, 10000, 1},
 
 		// higher-throughput chains
-		{derive.SpanBatchType, 10, 10},
-		{derive.SpanBatchType, 100, 10},
+		{derive.SpanBatchType, 10, 100},
+		{derive.SpanBatchType, 100, 100},
+		{derive.SpanBatchType, 1000, 100},
+
+		// even higher-throughput chains
+		{derive.SpanBatchType, 10, 500},
+		{derive.SpanBatchType, 100, 500},
+		{derive.SpanBatchType, 1000, 500},
 	}
 
 	// for each compressor, run each the tests
@@ -120,6 +129,11 @@ func BenchmarkChannelOut(b *testing.B) {
 			b.Run(tc.String(cName), func(b *testing.B) {
 				cout, _ := derive.NewChannelOut(tc.BatchType, c, spanBatchBuilder)
 				for i := 0; i < tc.BatchCount; i++ {
+					// if the channel is full, break out of the loop
+					// consider removing this if the cost of FullErr() is significant
+					if cout.FullErr() != nil {
+						break
+					}
 					cout.AddSingularBatch(batches[i], 0)
 				}
 			})
