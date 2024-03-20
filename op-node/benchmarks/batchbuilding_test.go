@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/stretchr/testify/require"
 )
 
 func RandomSingularBatch(rng *rand.Rand, txCount int, chainID *big.Int) *derive.SingularBatch {
@@ -58,29 +59,27 @@ func (t BatchingBenchmarkTC) String(cName string) string {
 // Every Compressor in the compressor map is benchmarked for each test case
 func BenchmarkChannelOut(b *testing.B) {
 	rc, _ := compressor.NewRatioCompressor(compressor.Config{
-		TargetOutputSize: 100_000_000,
+		TargetOutputSize: 100_000_000_000,
 		ApproxComprRatio: 0.4,
 	})
 	sc, _ := compressor.NewShadowCompressor(compressor.Config{
-		TargetOutputSize: 100_000_000,
+		TargetOutputSize: 100_000_000_000,
 	})
 	nc, _ := compressor.NewNonCompressor(compressor.Config{
-		TargetOutputSize: 100_000_000,
+		TargetOutputSize: 100_000_000_000,
 	})
 
 	compressors := map[string]derive.Compressor{
+		"NonCompressor":    nc,
 		"RatioCompressor":  rc,
 		"ShadowCompressor": sc,
-		"NonCompressor":    nc,
 	}
 
 	tests := []BatchingBenchmarkTC{
 		// Singular Batch Tests
 		// low-throughput chains
 		{derive.SingularBatchType, 10, 1},
-		{derive.SingularBatchType, 50, 1},
 		{derive.SingularBatchType, 100, 1},
-		{derive.SingularBatchType, 200, 1},
 		{derive.SingularBatchType, 1000, 1},
 		{derive.SingularBatchType, 10000, 1},
 
@@ -89,17 +88,10 @@ func BenchmarkChannelOut(b *testing.B) {
 		{derive.SingularBatchType, 100, 100},
 		{derive.SingularBatchType, 1000, 100},
 
-		// even higher-throughput chains
-		{derive.SingularBatchType, 10, 500},
-		{derive.SingularBatchType, 100, 500},
-		{derive.SingularBatchType, 1000, 500},
-
 		// Span Batch Tests
 		// low-throughput chains
 		{derive.SpanBatchType, 10, 1},
-		{derive.SpanBatchType, 50, 1},
 		{derive.SpanBatchType, 100, 1},
-		{derive.SpanBatchType, 200, 1},
 		{derive.SpanBatchType, 1000, 1},
 		{derive.SpanBatchType, 10000, 1},
 
@@ -107,11 +99,6 @@ func BenchmarkChannelOut(b *testing.B) {
 		{derive.SpanBatchType, 10, 100},
 		{derive.SpanBatchType, 100, 100},
 		{derive.SpanBatchType, 1000, 100},
-
-		// even higher-throughput chains
-		{derive.SpanBatchType, 10, 500},
-		{derive.SpanBatchType, 100, 500},
-		{derive.SpanBatchType, 1000, 500},
 	}
 
 	// for each compressor, run each the tests
@@ -127,14 +114,12 @@ func BenchmarkChannelOut(b *testing.B) {
 				batches[i] = RandomSingularBatch(rng, tc.txPerBatch, chainID)
 			}
 			b.Run(tc.String(cName), func(b *testing.B) {
-				cout, _ := derive.NewChannelOut(tc.BatchType, c, spanBatchBuilder)
-				for i := 0; i < tc.BatchCount; i++ {
-					// if the channel is full, break out of the loop
-					// consider removing this if the cost of FullErr() is significant
-					if cout.FullErr() != nil {
-						break
+				for bn := 0; bn < b.N; bn++ {
+					cout, _ := derive.NewChannelOut(tc.BatchType, c, spanBatchBuilder)
+					for i := 0; i < tc.BatchCount; i++ {
+						_, err := cout.AddSingularBatch(batches[i], 0)
+						require.NoError(b, err)
 					}
-					cout.AddSingularBatch(batches[i], 0)
 				}
 			})
 		}
