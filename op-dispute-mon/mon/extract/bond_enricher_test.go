@@ -74,7 +74,13 @@ func TestBondEnricher(t *testing.T) {
 			expectedRecipients[1]: big.NewInt(20),
 			expectedRecipients[2]: big.NewInt(30),
 		}
-		caller := &mockGameCaller{credits: expectedCredits}
+		requiredBonds := []*big.Int{
+			big.NewInt(10),
+			big.NewInt(20),
+			big.NewInt(30),
+			big.NewInt(40),
+		}
+		caller := &mockGameCaller{credits: expectedCredits, requiredBonds: requiredBonds}
 		err := enricher.Enrich(context.Background(), rpcblock.Latest, caller, game)
 		require.NoError(t, err)
 

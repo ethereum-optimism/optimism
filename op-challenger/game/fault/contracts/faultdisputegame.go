@@ -157,6 +157,22 @@ func (f *FaultDisputeGameContract) GetCredit(ctx context.Context, recipient comm
 	return credit, status, nil
 }
 
+func (f *FaultDisputeGameContract) GetRequiredBonds(ctx context.Context, block rpcblock.Block, positions ...*big.Int) ([]*big.Int, error) {
+	calls := make([]batching.Call, 0, len(positions))
+	for _, position := range positions {
+		calls = append(calls, f.contract.Call(methodRequiredBond, position))
+	}
+	results, err := f.multiCaller.Call(ctx, block, calls...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve required bonds: %w", err)
+	}
+	requiredBonds := make([]*big.Int, 0, len(positions))
+	for _, result := range results {
+		requiredBonds = append(requiredBonds, result.GetBigInt(0))
+	}
+	return requiredBonds, nil
+}
+
 func (f *FaultDisputeGameContract) GetCredits(ctx context.Context, block rpcblock.Block, recipients ...common.Address) ([]*big.Int, error) {
 	calls := make([]batching.Call, 0, len(recipients))
 	for _, recipient := range recipients {
