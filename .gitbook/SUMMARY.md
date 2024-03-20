@@ -60,7 +60,7 @@
     * [Using The Graph](contents/developer/features/subgraph.md)
     * [Price Oracles](contents/developer/features/price-feeds.md)
     * [Custom Relayer](contents/developer/features/relay-message.md)
-    * [Dual fee system](https://github.com/bobanetwork/boba/blob/develop/boba\_examples/boba-fee/README.md)
+    * [Dual fee system](https://github.com/bobanetwork/boba\_legacy/blob/develop/boba\_examples/boba-fee/README.md)
     * [Transaction Builder](contents/developer/features/transaction-builder.md)
   * [Multichain](contents/developer/multichain/README.md)
     * [Contract Addresses Boba/Ethereum](contents/developer/multichain/network-eth.md)
