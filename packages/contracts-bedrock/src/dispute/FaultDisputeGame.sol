@@ -91,8 +91,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     OutputRoot public startingOutputRoot;
 
     /// @notice Semantic version.
-    /// @custom:semver 0.8.1
-    string public constant version = "0.8.1";
+    /// @custom:semver 0.9.0
+    string public constant version = "0.9.0";
 
     /// @param _gameType The type ID of the game.
     /// @param _absolutePrestate The absolute prestate of the instruction trace.
@@ -256,8 +256,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
             _verifyExecBisectionRoot(_claim, _challengeIndex, parentPos, _isAttack);
         }
 
-        // INVARIANT: The `msg.value` must be sufficient to cover the required bond.
-        if (getRequiredBond(nextPosition) > msg.value) revert InsufficientBond();
+        // INVARIANT: The `msg.value` must exactly equal the required bond.
+        if (getRequiredBond(nextPosition) != msg.value) revert IncorrectBondAmount();
 
         // Fetch the grandparent clock, if it exists.
         // The grandparent clock should always exist unless the parent is the root claim.
@@ -643,12 +643,6 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         // Transfer the credit to the recipient.
         (bool success,) = _recipient.call{ value: recipientCredit }(hex"");
         if (!success) revert BondTransferFailed();
-    }
-
-    /// @notice Returns the flag set in the `bond` field of a `ClaimData` struct to indicate that the bond has been
-    ///         claimed.
-    function claimedBondFlag() external pure returns (uint128 claimedBondFlag_) {
-        claimedBondFlag_ = CLAIMED_BOND_FLAG;
     }
 
     ////////////////////////////////////////////////////////////////

@@ -435,7 +435,7 @@
   },
   {
     "inputs": [],
-    "name": "InsufficientBond",
+    "name": "IncorrectBondAmount",
     "type": "error"
   },
   {

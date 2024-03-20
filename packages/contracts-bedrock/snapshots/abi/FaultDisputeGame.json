@@ -189,19 +189,6 @@
   },
   {
     "inputs": [],
-    "name": "claimedBondFlag",
-    "outputs": [
-      {
-        "internalType": "uint128",
-        "name": "claimedBondFlag_",
-        "type": "uint128"
-      }
-    ],
-    "stateMutability": "pure",
-    "type": "function"
-  },
-  {
-    "inputs": [],
     "name": "createdAt",
     "outputs": [
       {
@@ -702,7 +689,7 @@
   },
   {
     "inputs": [],
-    "name": "InsufficientBond",
+    "name": "IncorrectBondAmount",
     "type": "error"
   },
   {

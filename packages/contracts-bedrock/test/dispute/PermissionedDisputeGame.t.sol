@@ -126,20 +126,30 @@ contract PermissionedDisputeGame_Test is PermissionedDisputeGame_Init {
     /// @dev Tests that the challenger can participate in a permissioned dispute game.
     function test_participateInGame_challenger_succeeds() public {
         vm.startPrank(CHALLENGER, CHALLENGER);
-        vm.deal(CHALLENGER, MIN_BOND * 3);
-        gameProxy.attack{ value: MIN_BOND }(0, Claim.wrap(0));
-        gameProxy.defend{ value: MIN_BOND }(1, Claim.wrap(0));
-        gameProxy.move{ value: MIN_BOND }(2, Claim.wrap(0), true);
+        uint256 firstBond = _getRequiredBond(0);
+        vm.deal(CHALLENGER, firstBond);
+        gameProxy.attack{ value: firstBond }(0, Claim.wrap(0));
+        uint256 secondBond = _getRequiredBond(1);
+        vm.deal(CHALLENGER, secondBond);
+        gameProxy.defend{ value: secondBond }(1, Claim.wrap(0));
+        uint256 thirdBond = _getRequiredBond(2);
+        vm.deal(CHALLENGER, thirdBond);
+        gameProxy.move{ value: thirdBond }(2, Claim.wrap(0), true);
         vm.stopPrank();
     }
 
     /// @dev Tests that the proposer can participate in a permissioned dispute game.
     function test_participateInGame_proposer_succeeds() public {
         vm.startPrank(PROPOSER, PROPOSER);
-        vm.deal(PROPOSER, MIN_BOND * 3);
-        gameProxy.attack{ value: MIN_BOND }(0, Claim.wrap(0));
-        gameProxy.defend{ value: MIN_BOND }(1, Claim.wrap(0));
-        gameProxy.move{ value: MIN_BOND }(2, Claim.wrap(0), true);
+        uint256 firstBond = _getRequiredBond(0);
+        vm.deal(PROPOSER, firstBond);
+        gameProxy.attack{ value: firstBond }(0, Claim.wrap(0));
+        uint256 secondBond = _getRequiredBond(1);
+        vm.deal(PROPOSER, secondBond);
+        gameProxy.defend{ value: secondBond }(1, Claim.wrap(0));
+        uint256 thirdBond = _getRequiredBond(2);
+        vm.deal(PROPOSER, thirdBond);
+        gameProxy.move{ value: thirdBond }(2, Claim.wrap(0), true);
         vm.stopPrank();
     }
 
@@ -156,6 +166,13 @@ contract PermissionedDisputeGame_Test is PermissionedDisputeGame_Init {
         vm.expectRevert(BadAuth.selector);
         gameProxy.move(2, Claim.wrap(0), true);
         vm.stopPrank();
+    }
+
+    /// @dev Helper to get the required bond for the given claim index.
+    function _getRequiredBond(uint256 _claimIndex) internal view returns (uint256 bond_) {
+        (,,,,, Position parent,) = gameProxy.claimData(_claimIndex);
+        Position pos = parent.move(true);
+        bond_ = gameProxy.getRequiredBond(pos);
     }
 }
 
