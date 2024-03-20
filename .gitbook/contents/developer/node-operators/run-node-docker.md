@@ -1,6 +1,6 @@
 # Running a Node with Docker
 
-This tutorial will walk you through the process of using Docker to run an BOBA Sepolia node, OP Mainnet node and OP Sepolia node. You can find all Docker Compose files [here](https://github.com/bobanetwork/v3-anchorage/tree/develop/boba-community).
+This tutorial will walk you through the process of using Docker to run an BOBA Sepolia node, OP Mainnet node and OP Sepolia node. You can find all Docker Compose files [here](https://github.com/bobanetwork/boba/tree/develop/boba-community).
 
 ## Prerequisites
 
@@ -9,11 +9,11 @@ This tutorial will walk you through the process of using Docker to run an BOBA S
 
 ## Setup
 
-Clone the `v3-anchorage` repository to get started
+Clone the `boba` repository to get started
 
 ```bash
-git clone https://github.com/bobanetwork/v3-anchorage.git
-cd v3-anchorage
+git clone https://github.com/bobanetwork/boba.git
+cd boba
 cd boba-community
 ```
 
@@ -37,7 +37,7 @@ Open the `.env` in your directory and set the variables inside. Read the descrip
 
 ### Download Snapshots
 
-You can download the database snapshot for the client and network you wish to run. 
+You can download the database snapshot for the client and network you wish to run.
 
 Always verify snapshots by comparing the sha256sum of the downloaded file to the sha256sum listed on this [page](./snapshot-downloads.md). Check the sha256sum of the downloaded file by running `sha256sum <filename>`in a terminal.
 
@@ -64,12 +64,12 @@ Always verify snapshots by comparing the sha256sum of the downloaded file to the
   The **erigon** db can be downloaded from [optimism sepolia erigon db](https://boba-db.s3.us-east-2.amazonaws.com/sepolia/optimism-sepolia-erigon-db.tgz).
 
   Or you can download the genesis file from [Optimsim](https://networks.optimism.io/op-sepolia/genesis.json) and initialize the data directory with it.
-  
+
   ```bash
   curl -o op-sepolia-genesis.json -sL https://networks.optimism.io/op-sepolia/genesis.json
   erigon init --datadir=/db genesis.json
   ```
-  
+
   The erigon can be built from the [source](https://github.com/bobanetwork/v3-erigon) using `make erigon` .
 
 
