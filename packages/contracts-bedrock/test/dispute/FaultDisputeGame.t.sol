@@ -465,9 +465,9 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         gameProxy.attack{ value: lastBond }(4, _changeClaimStatus(_dummyClaim(), VMStatuses.PANIC));
     }
 
-    /// @dev Static unit test asserting that a move reverts when the bond is insufficient.
-    function test_move_insufficientBond_reverts() public {
-        vm.expectRevert(InsufficientBond.selector);
+    /// @dev Static unit test asserting that a move reverts when the bonded amount is incorrect.
+    function test_move_incorrectBondAmount_reverts() public {
+        vm.expectRevert(IncorrectBondAmount.selector);
         gameProxy.attack{ value: 0 }(0, _dummyClaim());
     }
 

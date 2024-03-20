@@ -97,7 +97,7 @@ contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, ISemver 
         if (address(impl) == address(0)) revert NoImplementation(_gameType);
 
         // If the required initialization bond is not met, revert.
-        if (msg.value != initBonds[_gameType]) revert InsufficientBond();
+        if (msg.value != initBonds[_gameType]) revert IncorrectBondAmount();
 
         // Get the hash of the parent block.
         bytes32 parentHash = blockhash(block.number - 1);
