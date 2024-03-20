@@ -65,7 +65,7 @@ var mainnetCfg = rollup.Config{
 	RegolithTime:            u64Ptr(0),
 	CanyonTime:              u64Ptr(1704992401),
 	DeltaTime:               u64Ptr(1708560000),
-	EcotoneTime:             u64Ptr(1710781201),
+	EcotoneTime:             u64Ptr(1710374401),
 	ProtocolVersionsAddress: common.HexToAddress("0x8062AbC286f5e7D9428a0Ccb9AbD71e50d93b935"),
 }
 
