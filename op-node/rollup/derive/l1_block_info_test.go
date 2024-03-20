@@ -21,6 +21,11 @@ var (
 	_                       eth.BlockInfo = (*testutils.MockBlockInfo)(nil)
 )
 
+// The following hardcoded chain IDs are for the first devnet release
+var (
+	InteropDependencySet = []*big.Int{big.NewInt(10666), big.NewInt(10777), big.NewInt(10888)}
+)
+
 type infoTest struct {
 	name    string
 	mkInfo  func(rng *rand.Rand) *testutils.MockBlockInfo
@@ -30,10 +35,11 @@ type infoTest struct {
 
 func randomL1Cfg(rng *rand.Rand, l1Info eth.BlockInfo) eth.SystemConfig {
 	return eth.SystemConfig{
-		BatcherAddr: testutils.RandomAddress(rng),
-		Overhead:    [32]byte{},
-		Scalar:      [32]byte{},
-		GasLimit:    1234567,
+		BatcherAddr:          testutils.RandomAddress(rng),
+		Overhead:             [32]byte{},
+		Scalar:               [32]byte{},
+		GasLimit:             1234567,
+		InteropDependencySet: InteropDependencySet,
 	}
 }
 

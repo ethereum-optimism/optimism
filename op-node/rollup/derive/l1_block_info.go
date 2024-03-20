@@ -38,11 +38,6 @@ const (
 	RegolithSystemTxGas = 1_000_000
 )
 
-// The following hardcoded chain IDs are for the first devnet release
-var (
-	InteropDependencySet = []*big.Int{big.NewInt(10666), big.NewInt(10777), big.NewInt(10888)}
-)
-
 // L1BlockInfo presents the information stored in a L1Block.setL1BlockValues call
 type L1BlockInfo struct {
 	Number    uint64
@@ -431,7 +426,7 @@ func L1InfoDeposit(rollupCfg *rollup.Config, sysCfg eth.SystemConfig, seqNumber 
 		}
 		l1BlockInfo.BlobBaseFeeScalar = blobBaseFeeScalar
 		l1BlockInfo.BaseFeeScalar = baseFeeScalar
-		l1BlockInfo.DependencySet = InteropDependencySet
+		l1BlockInfo.DependencySet = sysCfg.InteropDependencySet
 		out, err := l1BlockInfo.marshalBinaryInterop()
 		if err != nil {
 			return nil, fmt.Errorf("failed to marshal Interop l1 block info: %w", err)
@@ -505,9 +500,4 @@ func L1InfoDepositBytes(rollupCfg *rollup.Config, sysCfg eth.SystemConfig, seqNu
 // L1InfoInteropLen returns the length of the L1 block under the Interop upgrade.
 func L1InfoInteropLen(dependencySetSize uint8) int {
 	return 4 + 32*5 + 1 + 32*int(dependencySetSize)
-}
-
-// MarshalBinary makes marshalBinaryInterop externally accessible
-func (info *L1BlockInfo) MarshalBinaryInterop() ([]byte, error) {
-	return info.marshalBinaryInterop()
 }
