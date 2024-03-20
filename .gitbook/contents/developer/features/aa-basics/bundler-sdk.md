@@ -6,7 +6,7 @@ description: Learn more about the Bundler SDK for Account Abstraction on Boba Ne
 
 This section documents the usage of the Bundler SDK, that is a major component of Account Abstraction.
 
-<figure><img src="../../../.gitbook/assets/create and send user operation.png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../../../../assets/create and send user operation.png" alt=""><figcaption></figcaption></figure>
 
 An UserOperation in simple terms is a pseudo-transaction object that expresses an user's intent.
 
@@ -17,11 +17,11 @@ This package provides 2 APIs for using UserOperations:
 
 Make sure you understand both of them, to use the one that is suited best for your use case.
 
-<figure><img src="../../../.gitbook/assets/low level API.png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../../../../assets/low level API.png" alt=""><figcaption></figcaption></figure>
 
 #### BaseAccountAPI
 
-An abstract [base-class](https://github.com/bobanetwork/boba/blob/develop/packages/boba/bundler\_sdk/src/BaseAccountAPI.ts) to create UserOperations for a contract wallet.
+An abstract [base-class](https://github.com/bobanetwork/boba\_legacy/blob/develop/packages/boba/bundler\_sdk/src/BaseAccountAPI.ts) to create UserOperations for a contract wallet.
 
 #### SimpleAccountAPI
 
