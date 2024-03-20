@@ -6,7 +6,7 @@
   * [How To use Boba's services](contents/user/001\_how-to-bridge.md)
   * [Fraud Detection](https://github.com/bobanetwork/boba\_legacy/blob/develop/boba\_community/fraud-detector/README.md)
   * [NFTs](contents/user/003\_nfts.md)
-  * [Running a Boba node](contents/developer/node-operators/README.md)
+  * [Running a Boba node](contents/developer/node-operators/overview.md)
 * [Welcome to Hybrid Compute](contents/developer/hybrid\_compute.md)
   * [Hybrid Compute 101](https://github.com/bobanetwork/HybridCompute\_Tutorial/blob/non-local-starter/README.md)
   * [Implementation](contents/hc/implementation.md)
