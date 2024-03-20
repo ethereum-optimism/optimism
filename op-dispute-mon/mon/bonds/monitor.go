@@ -3,7 +3,6 @@ package bonds
 import (
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/transform"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -26,7 +25,7 @@ func NewBonds(logger log.Logger, metrics BondMetrics) *Bonds {
 }
 
 func (b *Bonds) CheckBonds(games []*types.EnrichedGameData) {
-	data := transform.CalculateRequiredCollateral(games)
+	data := CalculateRequiredCollateral(games)
 	for addr, collateral := range data {
 		b.metrics.RecordBondCollateral(addr, collateral.Required, collateral.Actual)
 	}
