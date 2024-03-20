@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/urfave/cli/v2"
 )
@@ -52,6 +53,8 @@ func ListGames(ctx *cli.Context) error {
 type gameInfo struct {
 	types.GameMetadata
 	claimCount uint64
+	l2BlockNum uint64
+	rootClaim  common.Hash
 	status     types.GameStatus
 	err        error
 }
@@ -75,27 +78,32 @@ func listGames(ctx context.Context, caller *batching.MultiCaller, factory *contr
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			_, l2BlockNum, rootClaim, status, _, err := gameContract.GetGameMetadata(ctx, rpcblock.ByHash(block))
+			if err != nil {
+				info.err = fmt.Errorf("failed to retrieve metadata for game %v: %w", gameProxy, err)
+				return
+			}
+			info.status = status
+			info.l2BlockNum = l2BlockNum
+			info.rootClaim = rootClaim
 			claimCount, err := gameContract.GetClaimCount(ctx)
 			if err != nil {
 				info.err = fmt.Errorf("failed to retrieve claim count for game %v: %w", gameProxy, err)
 				return
 			}
 			info.claimCount = claimCount
-			status, err := gameContract.GetStatus(ctx)
-			if err != nil {
-				info.err = fmt.Errorf("failed to retrieve status for game %v: %w", gameProxy, err)
-				return
-			}
-			info.status = status
 		}()
 	}
 	wg.Wait()
+	lineFormat := "%3v %-42v %4v %-21v %14v %-66v %6v %-14v\n"
+	fmt.Printf(lineFormat, "Idx", "Game", "Type", "Created (Local)", "L2 Block", "Output Root", "Claims", "Status")
 	for idx, game := range infos {
 		if game.err != nil {
 			return err
 		}
-		fmt.Printf("%v Game: %v Type: %v Created: %v Claims: %v Status: %v\n",
-			idx, game.Proxy, game.GameType, time.Unix(int64(game.Timestamp), 0), game.claimCount, game.status)
+		created := time.Unix(int64(game.Timestamp), 0).Format(time.DateTime)
+		fmt.Printf(lineFormat,
+			idx, game.Proxy, game.GameType, created, game.l2BlockNum, game.rootClaim, game.claimCount, game.status)
 	}
 	return nil
 }
