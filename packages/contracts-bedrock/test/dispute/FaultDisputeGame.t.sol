@@ -86,9 +86,6 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     /// @dev The absolute prestate of the trace.
     Claim internal absolutePrestate;
 
-    /// @dev Minimum bond value that covers all possible moves.
-    uint256 internal constant MIN_BOND = 50 ether;
-
     function setUp() public override {
         absolutePrestateData = abi.encode(0);
         absolutePrestate = _changeClaimStatus(Claim.wrap(keccak256(absolutePrestateData)), VMStatuses.UNFINISHED);
@@ -169,8 +166,8 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     }
 
     /// @dev Tests that the proxy receives ETH from the dispute game factory.
-    function test_initialize_receivesETH_succeeds(uint128 _value) public {
-        _value = uint128(bound(_value, gameProxy.getRequiredBond(Position.wrap(1)), type(uint128).max));
+    function test_initialize_receivesETH_succeeds() public {
+        uint256 _value = disputeGameFactory.initBonds(GAME_TYPE);
         vm.deal(address(this), _value);
 
         assertEq(address(gameProxy).balance, 0);
