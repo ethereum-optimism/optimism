@@ -256,8 +256,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
             _verifyExecBisectionRoot(_claim, _challengeIndex, parentPos, _isAttack);
         }
 
-        // INVARIANT: The `msg.value` must be sufficient to cover the required bond.
-        if (getRequiredBond(nextPosition) > msg.value) revert InsufficientBond();
+        // INVARIANT: The `msg.value` must exactly equal the required bond.
+        if (getRequiredBond(nextPosition) != msg.value) revert InsufficientBond();
 
         // Fetch the grandparent clock, if it exists.
         // The grandparent clock should always exist unless the parent is the root claim.
