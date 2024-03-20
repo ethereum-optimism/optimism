@@ -18,6 +18,20 @@ import (
 
 const Namespace = "op_dispute_mon"
 
+type CreditExpectation uint8
+
+const (
+	// Max Duration reached
+	CreditBelowMaxDuration CreditExpectation = iota
+	CreditEqualMaxDuration
+	CreditAboveMaxDuration
+
+	// Max Duration not reached
+	CreditBelowNonMaxDuration
+	CreditEqualNonMaxDuration
+	CreditAboveNonMaxDuration
+)
+
 type GameAgreementStatus uint8
 
 const (
@@ -37,6 +51,8 @@ const (
 type Metricer interface {
 	RecordInfo(version string)
 	RecordUp()
+
+	RecordCredit(expectation CreditExpectation, count int)
 
 	RecordClaimResolutionDelayMax(delay float64)
 
@@ -61,6 +77,8 @@ type Metrics struct {
 
 	info prometheus.GaugeVec
 	up   prometheus.Gauge
+
+	credits prometheus.GaugeVec
 
 	lastOutputFetch prometheus.Gauge
 
@@ -110,6 +128,14 @@ func NewMetrics() *Metrics {
 			Namespace: Namespace,
 			Name:      "claim_resolution_delay_max",
 			Help:      "Maximum claim resolution delay in seconds",
+		}),
+		credits: *factory.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "credits",
+			Help:      "Cumulative credits",
+		}, []string{
+			"credit",
+			"max_duration",
 		}),
 		gamesAgreement: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: Namespace,
@@ -166,6 +192,28 @@ func (m *Metrics) RecordInfo(version string) {
 func (m *Metrics) RecordUp() {
 	prometheus.MustRegister()
 	m.up.Set(1)
+}
+
+func (m *Metrics) RecordCredit(expectation CreditExpectation, count int) {
+	asLabels := func(expectation CreditExpectation) []string {
+		switch expectation {
+		case CreditBelowMaxDuration:
+			return []string{"below", "max_duration"}
+		case CreditEqualMaxDuration:
+			return []string{"expected", "max_duration"}
+		case CreditAboveMaxDuration:
+			return []string{"above", "max_duration"}
+		case CreditBelowNonMaxDuration:
+			return []string{"below", "non_max_duration"}
+		case CreditEqualNonMaxDuration:
+			return []string{"expected", "non_max_duration"}
+		case CreditAboveNonMaxDuration:
+			return []string{"above", "non_max_duration"}
+		default:
+			panic(fmt.Errorf("unknown credit expectation: %v", expectation))
+		}
+	}
+	m.credits.WithLabelValues(asLabels(expectation)...).Set(float64(count))
 }
 
 func (m *Metrics) RecordClaimResolutionDelayMax(delay float64) {
