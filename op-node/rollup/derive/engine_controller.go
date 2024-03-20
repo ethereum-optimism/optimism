@@ -45,6 +45,7 @@ type ExecEngine interface {
 }
 
 type BuilderClient interface {
+	Enabled() bool
 	GetPayload(ctx context.Context, ref eth.L2BlockRef) (*eth.ExecutionPayloadEnvelope, error)
 }
 

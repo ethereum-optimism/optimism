@@ -118,6 +118,11 @@ func startPayload(ctx context.Context, eng ExecEngine, fc eth.ForkchoiceState, a
 }
 
 func getPayloadWithBuilderPayload(ctx context.Context, eng ExecEngine, payloadInfo eth.PayloadInfo, l2head eth.L2BlockRef, builder BuilderClient) (*eth.ExecutionPayloadEnvelope, error) {
+	// if builder is not enabled, return early with default path.
+	if !builder.Enabled() {
+		return eng.GetPayload(ctx, payloadInfo)
+	}
+
 	ctxTimeout, cancel := context.WithTimeout(ctx, 500*time.Millisecond) // TODO: make timeout configurable
 	defer cancel()
 
@@ -172,11 +177,7 @@ func confirmPayload(
 			"parent", envelope.ExecutionPayload.ParentHash,
 			"txs", len(envelope.ExecutionPayload.Transactions))
 	} else {
-		if builderClient == nil {
-			envelope, err = eng.GetPayload(ctx, payloadInfo)
-		} else {
-			envelope, err = getPayloadWithBuilderPayload(ctx, eng, payloadInfo, l2head, builderClient)
-		}
+		envelope, err = getPayloadWithBuilderPayload(ctx, eng, payloadInfo, l2head, builderClient)
 	}
 	if err != nil {
 		// even if it is an input-error (unknown payload ID), it is temporary, since we will re-attempt the full payload building, not just the retrieval of the payload.

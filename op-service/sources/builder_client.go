@@ -47,6 +47,10 @@ func NewBuilderAPIClient(log log.Logger, config *BuilderAPIConfig) *BuilderAPICl
 	}
 }
 
+func (s *BuilderAPIClient) Enabled() bool {
+	return s.config.Endpoint != ""
+}
+
 func (s *BuilderAPIClient) GetPayload(ctx context.Context, ref eth.L2BlockRef) (*eth.ExecutionPayloadEnvelope, error) {
 	responsePayload := new(eth.ExecutionPayloadEnvelope)
 	ps := fmt.Sprintf("%s/%d/%s", PathGetPayload, ref.Number, ref.Hash)
