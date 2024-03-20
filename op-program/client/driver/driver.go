@@ -39,8 +39,21 @@ type Driver struct {
 	targetBlockNum uint64
 }
 
+type nilBuilderClient struct {
+}
+
+func (f *nilBuilderClient) GetPayload(_ context.Context, _ eth.L2BlockRef) (*eth.ExecutionPayloadEnvelope, error) {
+	return nil, nil
+}
+
+func (f *nilBuilderClient) Enabled() bool {
+	return false
+}
+
+var _ derive.BuilderClient = (*nilBuilderClient)(nil)
+
 func NewDriver(logger log.Logger, cfg *rollup.Config, l1Source derive.L1Fetcher, l1BlobsSource derive.L1BlobsFetcher, l2Source L2Source, targetBlockNum uint64) *Driver {
-	engine := derive.NewEngineController(l2Source, logger, metrics.NoopMetrics, cfg, sync.CLSync, nil)
+	engine := derive.NewEngineController(l2Source, logger, metrics.NoopMetrics, cfg, sync.CLSync, &nilBuilderClient{})
 	pipeline := derive.NewDerivationPipeline(logger, cfg, l1Source, l1BlobsSource, plasma.Disabled, l2Source, engine, metrics.NoopMetrics, &sync.Config{}, safedb.Disabled)
 	pipeline.Reset()
 	return &Driver{
