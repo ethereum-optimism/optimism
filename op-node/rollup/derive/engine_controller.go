@@ -45,7 +45,7 @@ type ExecEngine interface {
 }
 
 type BuilderClient interface {
-	FetchPayload(ctx context.Context, ref eth.L2BlockRef) (*eth.ExecutionPayloadEnvelope, error)
+	GetPayload(ctx context.Context, ref eth.L2BlockRef) (*eth.ExecutionPayloadEnvelope, error)
 }
 
 type EngineController struct {
@@ -196,7 +196,7 @@ func (e *EngineController) StartPayload(ctx context.Context, parent eth.L2BlockR
 	return BlockInsertOK, nil
 }
 
-func (e *EngineController) ConfirmPayload(ctx context.Context, agossip async.AsyncGossiper, sequencerConductor conductor.SequencerConductor) (out *eth.ExecutionPayloadEnvelope, errTyp BlockInsertionErrType, err error) {
+func (e *EngineController) ConfirmPayload(ctx context.Context, agossip async.AsyncGossiper, sequencerConductor conductor.SequencerConductor, enablebuilder bool) (out *eth.ExecutionPayloadEnvelope, errTyp BlockInsertionErrType, err error) {
 	// don't create a BlockInsertPrestateErr if we have a cached gossip payload
 	if e.buildingInfo == (eth.PayloadInfo{}) && agossip.Get() == nil {
 		return nil, BlockInsertPrestateErr, fmt.Errorf("cannot complete payload building: not currently building a payload")
@@ -216,7 +216,7 @@ func (e *EngineController) ConfirmPayload(ctx context.Context, agossip async.Asy
 	}
 	// Update the safe head if the payload is built with the last attributes in the batch.
 	updateSafe := e.buildingSafe && e.safeAttrs != nil && e.safeAttrs.isLastInSpan
-	envelope, errTyp, err := confirmPayload(ctx, e.log, e.engine, fc, e.buildingInfo, updateSafe, agossip, sequencerConductor)
+	envelope, errTyp, err := confirmPayload(ctx, e.log, e.engine, fc, e.buildingInfo, updateSafe, agossip, sequencerConductor, e.builderClient, e.buildingOnto, enablebuilder)
 	if err != nil {
 		return nil, errTyp, fmt.Errorf("failed to complete building on top of L2 chain %s, id: %s, error (%d): %w", e.buildingOnto, e.buildingInfo.ID, errTyp, err)
 	}
