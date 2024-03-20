@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
 	"math/big"
 	"os"
@@ -10,7 +11,10 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -388,25 +392,40 @@ func DiffTestUtils() {
 			dependencySet = append(dependencySet, dependency)
 		}
 
-		l1BlockInfo := derive.L1BlockInfo{
-			Number:            number,
-			Time:              time,
-			BaseFee:           baseFee,
-			BlockHash:         hash,
-			SequenceNumber:    seqNumber,
-			BatcherAddr:       batcherAddr,
-			BlobBaseFee:       blobBaseFee,
-			BaseFeeScalar:     uint32(baseFeeScalar),
-			BlobBaseFeeScalar: uint32(blobBaseFeeScalar),
-			DependencySet:     dependencySet,
+		// Create rollup config
+		zero := uint64(0)
+		rollupCfg := rollup.Config{
+			RegolithTime: &zero,
+			EcotoneTime:  &zero,
+			InteropTime:  &zero,
 		}
 
-		// Encode L1 block info
-		encoded, err := l1BlockInfo.MarshalBinaryInterop()
-		checkErr(err, "Error encoding cross domain message")
+		// Create L1 config
+		scalar := [32]byte{}
+		scalar[0] = 1
+		binary.BigEndian.PutUint32(scalar[24:28], uint32(blobBaseFeeScalar))
+		binary.BigEndian.PutUint32(scalar[28:32], uint32(baseFeeScalar))
+		l1Cfg := eth.SystemConfig{
+			BatcherAddr:          batcherAddr,
+			Scalar:               scalar,
+			InteropDependencySet: dependencySet,
+		}
 
-		// Pack encoded cross domain message
-		packed, err := bytesArgs.Pack(&encoded)
+		// Create L1 block info
+		info := testutils.MockBlockInfo{
+			InfoNum:         number,
+			InfoTime:        time,
+			InfoHash:        hash,
+			InfoBaseFee:     baseFee,
+			InfoBlobBaseFee: blobBaseFee,
+		}
+
+		// Get L1 info deposit transaction
+		out, err := derive.L1InfoDeposit(&rollupCfg, l1Cfg, seqNumber, &info, 1)
+		checkErr(err, "Error producing L1InfoDeposit")
+
+		// Pack transaction data
+		packed, err := bytesArgs.Pack(&out.Data)
 		checkErr(err, "Error encoding output")
 
 		fmt.Print(hexutil.Encode(packed))
