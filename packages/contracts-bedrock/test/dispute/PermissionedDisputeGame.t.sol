@@ -170,7 +170,7 @@ contract PermissionedDisputeGame_Test is PermissionedDisputeGame_Init {
 
     /// @dev Helper to get the required bond for the given claim index.
     function _getRequiredBond(uint256 _claimIndex) internal view returns (uint256 bond_) {
-        (,,,,,Position parent,) = gameProxy.claimData(_claimIndex);
+        (,,,,, Position parent,) = gameProxy.claimData(_claimIndex);
         Position pos = parent.move(true);
         bond_ = gameProxy.getRequiredBond(pos);
     }
