@@ -64,10 +64,14 @@ func (m *InstrumentedState) handleSyscall() error {
 			m.state.Heap += sz
 		} else {
 			v0 = a0
+			if v0+sz >= (1 << 31) {
+				// invalid hint addr. fail
+				v0 = 0x0
+			}
 			//fmt.Printf("mmap hint 0x%x size 0x%x\n", v0, sz)
 		}
 	case sysBrk:
-		v0 = 0x40000000
+		v0 = 0x7ff43000
 	case sysClone: // clone (not supported)
 		v0 = 1
 	case sysExitGroup:
