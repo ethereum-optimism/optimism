@@ -3,14 +3,18 @@ package main
 import (
 	"context"
 	"fmt"
+	"math/big"
+	"strconv"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/flags"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/urfave/cli/v2"
 )
 
@@ -63,7 +67,7 @@ func listClaims(ctx context.Context, game *contracts.FaultDisputeGameContract) e
 	if err != nil {
 		return fmt.Errorf("failed to retrieve status: %w", err)
 	}
-	_, l2BlockNum, err := game.GetBlockRange(ctx)
+	l2StartBlockNum, l2BlockNum, err := game.GetBlockRange(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve status: %w", err)
 	}
@@ -73,14 +77,44 @@ func listClaims(ctx context.Context, game *contracts.FaultDisputeGameContract) e
 		return fmt.Errorf("failed to retrieve claims: %w", err)
 	}
 
-	info := fmt.Sprintf("Claim count: %v\n", len(claims))
+	// The top game runs from depth 0 to split depth *inclusive*.
+	// The - 1 here accounts for the fact that the split depth is included in the top game.
+	bottomDepth := maxDepth - splitDepth - 1
+
+	gameState := types.NewGameState(claims, maxDepth)
+	lineFormat := "%3v %-7v %6v %5v %14v %-66v %-42v %-42v\n"
+	info := fmt.Sprintf(lineFormat, "Idx", "Move", "Parent", "Depth", "Index", "Value", "Claimant", "Countered By")
 	for i, claim := range claims {
 		pos := claim.Position
-		info = info + fmt.Sprintf("%v - Position: %v, Depth: %v, IndexAtDepth: %v Trace Index: %v, Value: %v, Countered: %v, ParentIndex: %v\n",
-			i, pos.ToGIndex(), pos.Depth(), pos.IndexAtDepth(), pos.TraceIndex(maxDepth), claim.Value.Hex(), claim.CounteredBy, claim.ParentContractIndex)
+		parent := strconv.Itoa(claim.ParentContractIndex)
+		if claim.IsRoot() {
+			parent = ""
+		}
+		countered := claim.CounteredBy.Hex()
+		if claim.CounteredBy == (common.Address{}) {
+			countered = "-"
+		}
+		move := "Attack"
+		if gameState.DefendsParent(claim) {
+			move = "Defend"
+		}
+		var traceIdx *big.Int
+		if claim.Depth() <= splitDepth {
+			traceIdx = claim.TraceIndex(splitDepth)
+		} else {
+			relativePos, err := claim.Position.RelativeToAncestorAtDepth(splitDepth)
+			if err != nil {
+				fmt.Printf("Error calculating relative position for claim %v: %v", claim.ContractIndex, err)
+				traceIdx = big.NewInt(-1)
+			} else {
+				traceIdx = relativePos.TraceIndex(bottomDepth)
+			}
+		}
+		info = info + fmt.Sprintf(lineFormat,
+			i, move, parent, pos.Depth(), traceIdx, claim.Value.Hex(), claim.Claimant, countered)
 	}
-	fmt.Printf("Status: %v - L2 Block: %v - Split Depth: %v - Max Depth: %v:\n%v\n",
-		status, l2BlockNum, splitDepth, maxDepth, info)
+	fmt.Printf("Status: %v • L2 Blocks: %v to %v • Split Depth: %v • Max Depth: %v • Claim Count: %v\n%v\n",
+		status, l2StartBlockNum, l2BlockNum, splitDepth, maxDepth, len(claims), info)
 	return nil
 }
 
