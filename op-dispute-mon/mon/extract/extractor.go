@@ -16,22 +16,22 @@ type CreateGameCaller func(game gameTypes.GameMetadata) (GameCaller, error)
 type FactoryGameFetcher func(ctx context.Context, blockHash common.Hash, earliestTimestamp uint64) ([]gameTypes.GameMetadata, error)
 
 type Enricher interface {
-	Enrich(ctx context.Context, block rpcblock.Block, caller GameCaller, game *monTypes.EnrichedGameData) error
+	Enrich(context.Context, rpcblock.Block, GameCaller, *monTypes.EnrichedGameData) error
 }
 
 type Extractor struct {
-	logger         log.Logger
-	createContract CreateGameCaller
-	fetchGames     FactoryGameFetcher
-	enrichers      []Enricher
+	logger     log.Logger
+	caller     CreateGameCaller
+	fetchGames FactoryGameFetcher
+	enrichers  []Enricher
 }
 
-func NewExtractor(logger log.Logger, creator CreateGameCaller, fetchGames FactoryGameFetcher, enrichers ...Enricher) *Extractor {
+func NewExtractor(logger log.Logger, caller CreateGameCaller, fetchGames FactoryGameFetcher, enrichers ...Enricher) *Extractor {
 	return &Extractor{
-		logger:         logger,
-		createContract: creator,
-		fetchGames:     fetchGames,
-		enrichers:      enrichers,
+		logger:     logger,
+		caller:     caller,
+		fetchGames: fetchGames,
+		enrichers:  enrichers,
 	}
 }
 
@@ -46,7 +46,7 @@ func (e *Extractor) Extract(ctx context.Context, blockHash common.Hash, minTimes
 func (e *Extractor) enrichGames(ctx context.Context, blockHash common.Hash, games []gameTypes.GameMetadata) []*monTypes.EnrichedGameData {
 	var enrichedGames []*monTypes.EnrichedGameData
 	for _, game := range games {
-		caller, err := e.createContract(game)
+		caller, err := e.caller(game)
 		if err != nil {
 			e.logger.Error("Failed to create game caller", "err", err)
 			continue

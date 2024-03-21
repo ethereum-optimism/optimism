@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/stretchr/testify/require"
@@ -140,7 +141,7 @@ func setupExtractorTest(t *testing.T, enrichers ...Enricher) (*Extractor, *mockG
 	creator := &mockGameCallerCreator{caller: caller}
 	extractor := NewExtractor(
 		logger,
-		creator.CreateGameCaller,
+		creator.CreateCaller,
 		games.FetchGames,
 		enrichers...,
 	)
@@ -167,7 +168,7 @@ type mockGameCallerCreator struct {
 	caller *mockGameCaller
 }
 
-func (m *mockGameCallerCreator) CreateGameCaller(_ gameTypes.GameMetadata) (GameCaller, error) {
+func (m *mockGameCallerCreator) CreateCaller(_ gameTypes.GameMetadata) (GameCaller, error) {
 	m.calls++
 	if m.err != nil {
 		return nil, m.err
@@ -189,6 +190,21 @@ type mockGameCaller struct {
 	balanceErr       error
 	balance          *big.Int
 	balanceAddr      common.Address
+	withdrawalsCalls int
+	withdrawalsErr   error
+}
+
+func (m *mockGameCaller) GetWithdrawals(_ context.Context, _ rpcblock.Block, _ common.Address, _ ...common.Address) ([]*contracts.WithdrawalRequest, error) {
+	m.withdrawalsCalls++
+	if m.withdrawalsErr != nil {
+		return nil, m.withdrawalsErr
+	}
+	return []*contracts.WithdrawalRequest{
+		{
+			Timestamp: big.NewInt(1),
+			Amount:    big.NewInt(2),
+		},
+	}, nil
 }
 
 func (m *mockGameCaller) GetGameMetadata(_ context.Context, _ rpcblock.Block) (common.Hash, uint64, common.Hash, types.GameStatus, uint64, error) {
