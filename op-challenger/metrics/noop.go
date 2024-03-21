@@ -3,6 +3,7 @@ package metrics
 import (
 	"io"
 
+	contractMetrics "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
@@ -12,6 +13,7 @@ import (
 
 type NoopMetricsImpl struct {
 	txmetrics.NoopTxMetrics
+	contractMetrics.NoopMetrics
 }
 
 func (i *NoopMetricsImpl) StartBalanceMetrics(l log.Logger, client *ethclient.Client, account common.Address) io.Closer {

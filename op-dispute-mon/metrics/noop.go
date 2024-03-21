@@ -3,10 +3,13 @@ package metrics
 import (
 	"math/big"
 
+	contractMetrics "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	"github.com/ethereum/go-ethereum/common"
 )
 
-type NoopMetricsImpl struct{}
+type NoopMetricsImpl struct {
+	contractMetrics.NoopMetrics
+}
 
 var NoopMetrics Metricer = new(NoopMetricsImpl)
 

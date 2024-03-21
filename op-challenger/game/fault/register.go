@@ -104,7 +104,7 @@ func registerAlphabet(
 	claimants []common.Address,
 ) error {
 	playerCreator := func(game types.GameMetadata, dir string) (scheduler.GamePlayer, error) {
-		contract, err := contracts.NewFaultDisputeGameContract(game.Proxy, caller)
+		contract, err := contracts.NewFaultDisputeGameContract(m, game.Proxy, caller)
 		if err != nil {
 			return nil, err
 		}
@@ -137,25 +137,25 @@ func registerAlphabet(
 		startingValidator := NewPrestateValidator("output root", contract.GetStartingRootHash, prestateProvider)
 		return NewGamePlayer(ctx, systemClock, l1Clock, logger, m, dir, game.Proxy, txSender, contract, syncValidator, []Validator{prestateValidator, startingValidator}, creator, l1HeaderSource, selective, claimants)
 	}
-	err := registerOracle(ctx, oracles, gameFactory, caller, faultTypes.AlphabetGameType)
+	err := registerOracle(ctx, m, oracles, gameFactory, caller, faultTypes.AlphabetGameType)
 	if err != nil {
 		return err
 	}
 	registry.RegisterGameType(faultTypes.AlphabetGameType, playerCreator)
 
 	contractCreator := func(game types.GameMetadata) (claims.BondContract, error) {
-		return contracts.NewFaultDisputeGameContract(game.Proxy, caller)
+		return contracts.NewFaultDisputeGameContract(m, game.Proxy, caller)
 	}
 	registry.RegisterBondContract(faultTypes.AlphabetGameType, contractCreator)
 	return nil
 }
 
-func registerOracle(ctx context.Context, oracles OracleRegistry, gameFactory *contracts.DisputeGameFactoryContract, caller *batching.MultiCaller, gameType uint32) error {
+func registerOracle(ctx context.Context, m metrics.Metricer, oracles OracleRegistry, gameFactory *contracts.DisputeGameFactoryContract, caller *batching.MultiCaller, gameType uint32) error {
 	implAddr, err := gameFactory.GetGameImpl(ctx, gameType)
 	if err != nil {
 		return fmt.Errorf("failed to load implementation for game type %v: %w", gameType, err)
 	}
-	contract, err := contracts.NewFaultDisputeGameContract(implAddr, caller)
+	contract, err := contracts.NewFaultDisputeGameContract(m, implAddr, caller)
 	if err != nil {
 		return err
 	}
@@ -189,7 +189,7 @@ func registerCannon(
 ) error {
 	cannonPrestateProvider := cannon.NewPrestateProvider(cfg.CannonAbsolutePreState)
 	playerCreator := func(game types.GameMetadata, dir string) (scheduler.GamePlayer, error) {
-		contract, err := contracts.NewFaultDisputeGameContract(game.Proxy, caller)
+		contract, err := contracts.NewFaultDisputeGameContract(m, game.Proxy, caller)
 		if err != nil {
 			return nil, err
 		}
@@ -222,14 +222,14 @@ func registerCannon(
 		startingValidator := NewPrestateValidator("output root", contract.GetStartingRootHash, prestateProvider)
 		return NewGamePlayer(ctx, systemClock, l1Clock, logger, m, dir, game.Proxy, txSender, contract, syncValidator, []Validator{prestateValidator, startingValidator}, creator, l1HeaderSource, selective, claimants)
 	}
-	err := registerOracle(ctx, oracles, gameFactory, caller, gameType)
+	err := registerOracle(ctx, m, oracles, gameFactory, caller, gameType)
 	if err != nil {
 		return err
 	}
 	registry.RegisterGameType(gameType, playerCreator)
 
 	contractCreator := func(game types.GameMetadata) (claims.BondContract, error) {
-		return contracts.NewFaultDisputeGameContract(game.Proxy, caller)
+		return contracts.NewFaultDisputeGameContract(m, game.Proxy, caller)
 	}
 	registry.RegisterBondContract(gameType, contractCreator)
 	return nil

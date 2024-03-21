@@ -8,6 +8,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/flags"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
@@ -39,7 +40,7 @@ func ListGames(ctx *cli.Context) error {
 	defer l1Client.Close()
 
 	caller := batching.NewMultiCaller(l1Client.Client(), batching.DefaultBatchSize)
-	contract, err := contracts.NewDisputeGameFactoryContract(factoryAddr, caller)
+	contract, err := contracts.NewDisputeGameFactoryContract(metrics.NoopContractMetrics, factoryAddr, caller)
 	if err != nil {
 		return fmt.Errorf("failed to create dispute game bindings: %w", err)
 	}
@@ -68,7 +69,7 @@ func listGames(ctx context.Context, caller *batching.MultiCaller, factory *contr
 	infos := make([]*gameInfo, len(games))
 	var wg sync.WaitGroup
 	for idx, game := range games {
-		gameContract, err := contracts.NewFaultDisputeGameContract(game.Proxy, caller)
+		gameContract, err := contracts.NewFaultDisputeGameContract(metrics.NoopContractMetrics, game.Proxy, caller)
 		if err != nil {
 			return fmt.Errorf("failed to bind game contract at %v: %w", game.Proxy, err)
 		}
