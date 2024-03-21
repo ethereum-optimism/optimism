@@ -144,7 +144,7 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver {
         bytes32 messageHash = keccak256(abi.encode(_destination, _source, _nonce, _sender, _target, _message));
         require(successfulMessages[messageHash] == false, "L2ToL2CrossDomainMessenger: message already relayed");
 
-        _storeMessageMetadata();
+        _storeMessageMetadata(_source, _sender);
 
         bool success = _callWithAllGas(_target, _message);
 
