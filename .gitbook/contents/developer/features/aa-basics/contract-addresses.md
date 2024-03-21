@@ -1,6 +1,6 @@
 # Contract Addresses
 
-<figure><img src="../../../.gitbook/assets/boba goerli testnet.png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../../../../assets/boba goerli testnet.png" alt=""><figcaption></figcaption></figure>
 
 | Contract                   | Address(L2)                                |
 | -------------------------- | ------------------------------------------ |
@@ -9,7 +9,7 @@
 | L2\_BobaVerifyingPaymaster | 0xAa210aEC4649C92E1d9b7267AD767eF3dFa20677 |
 | L2\_EntryPointWrapper      | 0xb1b04b6ea9e013c0ff1970965d5d6d6e637e98d7 |
 
-<figure><img src="../../../.gitbook/assets/boba bnb testnet (1).png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../../../../assets/boba bnb testnet (1).png" alt=""><figcaption></figcaption></figure>
 
 | Contract              | Address(L2)                                |
 | --------------------- | ------------------------------------------ |

@@ -6,7 +6,7 @@ description: A collection of links and addresses to get started on Boba-Ethereum
 
 <figure><img src="../../../assets/sepolia 28882.png" alt=""><figcaption></figcaption></figure>
 
-For **primary network contracts and addresses** see [packages/contracts-bedrock/deployments/boba-sepolia](https://github.com/bobanetwork/v3-anchorage/tree/develop/packages/contracts-bedrock/deployments/boba-sepolia)
+For **primary network contracts and addresses** see [packages/contracts-bedrock/deployments/boba-sepolia](https://github.com/bobanetwork/boba/tree/develop/packages/contracts-bedrock/deployments/boba-sepolia)
 
 ### Sepolia Links and Endpoints
 

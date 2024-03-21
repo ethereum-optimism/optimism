@@ -8,10 +8,6 @@ description: Setup a wallet, buy & transfer cryptocurrencies, use the different 
 
 YouTube[https://gateway.boba.network/](https://gateway.boba.network)
 
-{% embed url="https://youtu.be/Y2bps8CkHSg" %}
-
-{% embed url="https://youtu.be/vGOGiEO2Dn4" %}
-
 {% embed url="https://www.youtube.com/watch?v=ScqYkLSH2nY" %}
 
 {% embed url="https://www.youtube.com/watch?v=bJa944PWxUg" %}
