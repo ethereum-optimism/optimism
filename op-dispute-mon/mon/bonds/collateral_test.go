@@ -16,27 +16,33 @@ func TestCalculateRequiredCollateral(t *testing.T) {
 	weth2 := common.Address{0x2b}
 	weth2Balance := big.NewInt(6000)
 	game1 := &monTypes.EnrichedGameData{
-		Claims: []types.Claim{
+		Claims: []monTypes.EnrichedClaim{
 			{
-				ClaimData: types.ClaimData{
-					Bond: monTypes.ResolvedBondAmount,
+				Claim: types.Claim{
+					ClaimData: types.ClaimData{
+						Bond: monTypes.ResolvedBondAmount,
+					},
+					Claimant:    common.Address{0x01},
+					CounteredBy: common.Address{0x02},
 				},
-				Claimant:    common.Address{0x01},
-				CounteredBy: common.Address{0x02},
 			},
 			{
-				ClaimData: types.ClaimData{
-					Bond: big.NewInt(5),
+				Claim: types.Claim{
+					ClaimData: types.ClaimData{
+						Bond: big.NewInt(5),
+					},
+					Claimant:    common.Address{0x03},
+					CounteredBy: common.Address{},
 				},
-				Claimant:    common.Address{0x03},
-				CounteredBy: common.Address{},
 			},
 			{
-				ClaimData: types.ClaimData{
-					Bond: big.NewInt(7),
+				Claim: types.Claim{
+					ClaimData: types.ClaimData{
+						Bond: big.NewInt(7),
+					},
+					Claimant:    common.Address{0x03},
+					CounteredBy: common.Address{},
 				},
-				Claimant:    common.Address{0x03},
-				CounteredBy: common.Address{},
 			},
 		},
 		Credits: map[common.Address]*big.Int{
@@ -47,27 +53,33 @@ func TestCalculateRequiredCollateral(t *testing.T) {
 		ETHCollateral: weth1Balance,
 	}
 	game2 := &monTypes.EnrichedGameData{
-		Claims: []types.Claim{
+		Claims: []monTypes.EnrichedClaim{
 			{
-				ClaimData: types.ClaimData{
-					Bond: monTypes.ResolvedBondAmount,
+				Claim: types.Claim{
+					ClaimData: types.ClaimData{
+						Bond: monTypes.ResolvedBondAmount,
+					},
+					Claimant:    common.Address{0x01},
+					CounteredBy: common.Address{0x02},
 				},
-				Claimant:    common.Address{0x01},
-				CounteredBy: common.Address{0x02},
 			},
 			{
-				ClaimData: types.ClaimData{
-					Bond: big.NewInt(6),
+				Claim: types.Claim{
+					ClaimData: types.ClaimData{
+						Bond: big.NewInt(6),
+					},
+					Claimant:    common.Address{0x03},
+					CounteredBy: common.Address{},
 				},
-				Claimant:    common.Address{0x03},
-				CounteredBy: common.Address{},
 			},
 			{
-				ClaimData: types.ClaimData{
-					Bond: big.NewInt(9),
+				Claim: types.Claim{
+					ClaimData: types.ClaimData{
+						Bond: big.NewInt(9),
+					},
+					Claimant:    common.Address{0x03},
+					CounteredBy: common.Address{},
 				},
-				Claimant:    common.Address{0x03},
-				CounteredBy: common.Address{},
 			},
 		},
 		Credits: map[common.Address]*big.Int{
@@ -78,13 +90,15 @@ func TestCalculateRequiredCollateral(t *testing.T) {
 		ETHCollateral: weth1Balance,
 	}
 	game3 := &monTypes.EnrichedGameData{
-		Claims: []types.Claim{
+		Claims: []monTypes.EnrichedClaim{
 			{
-				ClaimData: types.ClaimData{
-					Bond: big.NewInt(23),
+				Claim: types.Claim{
+					ClaimData: types.ClaimData{
+						Bond: big.NewInt(23),
+					},
+					Claimant:    common.Address{0x03},
+					CounteredBy: common.Address{},
 				},
-				Claimant:    common.Address{0x03},
-				CounteredBy: common.Address{},
 			},
 		},
 		Credits: map[common.Address]*big.Int{

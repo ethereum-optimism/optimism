@@ -11,6 +11,12 @@ import (
 // ResolvedBondAmount is the uint128 value where a bond is considered claimed.
 var ResolvedBondAmount = new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 128), big.NewInt(1))
 
+// EnrichedClaim extends the faultTypes.Claim with additional context.
+type EnrichedClaim struct {
+	faultTypes.Claim
+	Resolved bool
+}
+
 type EnrichedGameData struct {
 	types.GameMetadata
 	L1Head        common.Hash
@@ -19,7 +25,7 @@ type EnrichedGameData struct {
 	RootClaim     common.Hash
 	Status        types.GameStatus
 	Duration      uint64
-	Claims        []faultTypes.Claim
+	Claims        []EnrichedClaim
 
 	// Credits records the paid out bonds for the game, keyed by recipient.
 	Credits map[common.Address]*big.Int
