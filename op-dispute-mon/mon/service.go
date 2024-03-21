@@ -119,6 +119,7 @@ func (s *Service) initExtractor() {
 		// Note: Claim enricher should precede other enrichers to ensure the claim Resolved field
 		//       is set by checking if the claim's bond amount is equal to the configured flag.
 		extract.NewClaimEnricher(),
+		extract.NewWithdrawalsEnricher(),
 		extract.NewBondEnricher(),
 		extract.NewBalanceEnricher(),
 		extract.NewL1HeadBlockNumEnricher(s.l1Client),
