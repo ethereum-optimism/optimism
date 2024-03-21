@@ -33,6 +33,8 @@ type Metricer interface {
 	RecordGameStep()
 	RecordGameMove()
 	RecordCannonExecutionTime(t float64)
+	RecordClaimResolutionTime(t float64)
+	RecordGameActTime(t float64)
 
 	RecordPreimageChallenged()
 	RecordPreimageChallengeFailed()
@@ -80,6 +82,8 @@ type Metrics struct {
 	steps prometheus.Counter
 
 	cannonExecutionTime prometheus.Histogram
+	claimResolutionTime prometheus.Histogram
+	gameActTime         prometheus.Histogram
 
 	trackedGames  prometheus.GaugeVec
 	inflightGames prometheus.Gauge
@@ -139,6 +143,20 @@ func NewMetrics() *Metrics {
 			Help:      "Time (in seconds) to execute cannon",
 			Buckets: append(
 				[]float64{1.0, 10.0},
+				prometheus.ExponentialBuckets(30.0, 2.0, 14)...),
+		}),
+		claimResolutionTime: factory.NewHistogram(prometheus.HistogramOpts{
+			Namespace: Namespace,
+			Name:      "claim_resolution_time",
+			Help:      "Time (in seconds) spent trying to resolve claims",
+			Buckets:   []float64{.05, .1, .25, .5, 1, 2.5, 5, 7.5, 10},
+		}),
+		gameActTime: factory.NewHistogram(prometheus.HistogramOpts{
+			Namespace: Namespace,
+			Name:      "game_act_time",
+			Help:      "Time (in seconds) spent acting on a game",
+			Buckets: append(
+				[]float64{1.0, 2.0, 5.0, 10.0},
 				prometheus.ExponentialBuckets(30.0, 2.0, 14)...),
 		}),
 		bondClaimFailures: factory.NewCounter(prometheus.CounterOpts{
@@ -235,6 +253,14 @@ func (m *Metrics) RecordBondClaimed(amount uint64) {
 
 func (m *Metrics) RecordCannonExecutionTime(t float64) {
 	m.cannonExecutionTime.Observe(t)
+}
+
+func (m *Metrics) RecordClaimResolutionTime(t float64) {
+	m.claimResolutionTime.Observe(t)
+}
+
+func (m *Metrics) RecordGameActTime(t float64) {
+	m.gameActTime.Observe(t)
 }
 
 func (m *Metrics) IncActiveExecutors() {
