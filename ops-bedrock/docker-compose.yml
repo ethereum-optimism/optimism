@@ -7,6 +7,7 @@ version: '3.4'
 volumes:
   l1_data:
   l2_data:
+  suave_data:
   op_log:
 
 
@@ -207,3 +208,115 @@ services:
       - "${PWD}/../.devnet/:/usr/share/nginx/html/:ro"
     security_opt:
       - "no-new-privileges:true"
+
+  ##################################################
+  #                 Suave Section                  #
+  ##################################################
+
+  # mev-boost:
+  #   profiles:
+  #     - suave
+  #   depends_on:
+  #     - l1
+  #     - l2
+  #   image: flashbots/mev-boost:latest
+  #   command:
+  #     - -addr=0.0.0.0:18550
+  #     - -relay=http://suave-geth:8545
+  #     - -request-timeout-getpayload=500
+  #   ports:
+  #     - "18550:18550"
+  #
+  # suave-geth:
+  #   profiles:
+  #     - suave
+  #   depends_on:
+  #     - op-builder
+  #   image: flashbots/suave-geth:latest
+  #   command:
+  #     - --dev
+  #     - --dev.gaslimit=30000000
+  #     - --http
+  #     - --http.port=8545
+  #     - --http.addr=0.0.0.0
+  #     - --http.vhosts=*
+  #     - --http.corsdomain=*
+  #     - --ws
+  #     - --ws.port=8546
+  #     - --ws.origins=*
+  #     - --ws.addr=0.0.0.0
+  #     - --datadir=/data
+  #     - --keystore=/keystore/keystore
+  #     - --unlock=0xB5fEAfbDD752ad52Afb7e1bD2E40432A485bBB7F
+  #     - --password=/keystore/password.txt
+  #     - --log.debug
+  #     - --suave.eth.remote_endpoint=op-builder:8545  # using op-builder as remote rpc backend
+  #   volumes:
+  #     - "${PWD}/suave-ex-node:/keystore"
+  #   ports:
+  #     - 11545:8545
+  #     - 11546:8546
+
+  suave-op-node:
+    build:
+      context: ../
+      dockerfile: ./op-node/Dockerfile
+      args:
+        OP_STACK_GO_BUILDER: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-stack-go:devnet
+    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-node:devnet
+    command: >
+      op-node
+      --l1=ws://l1:8546
+      --l2=http://suave-op-geth:8551
+      --l2.jwt-secret=/config/test-jwt-secret.txt
+      --rollup.config=/rollup.json
+      --p2p.listen.ip=0.0.0.0
+      --p2p.listen.tcp=9003
+      --p2p.listen.udp=9003
+      --p2p.scoring.peers=light
+      --p2p.ban.peers=true
+      --p2p.priv.path=/config/p2p-node-key.txt
+    volumes:
+      - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
+      - "${PWD}/../.devnet/rollup.json:/rollup.json"
+
+  suave-op-geth:
+    build:
+      context: .
+      dockerfile: Dockerfile.l2
+    volumes:
+      - "${PWD}/../.devnet/genesis-l2.json:/genesis.json"
+      - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
+    entrypoint:  # pass the L2 specific flags by overriding the entry-point and adding extra arguments
+      - "/bin/sh"
+      - "/entrypoint.sh"
+      - "--authrpc.jwtsecret=/config/test-jwt-secret.txt"
+    environment:
+      GETH_MINER_RECOMMIT: 100ms
+
+  # suave-op-execution-geth:
+  #   profiles:
+  #     - suave
+  #   image: flashbots/op-suave-exeuction-geth:latest
+  #   command:
+  #     - --dev
+  #     - --dev.gaslimit=30000000
+  #     - --http
+  #     - --http.port=8545
+  #     - --http.addr=0.0.0.0
+  #     - --http.vhosts=*
+  #     - --http.corsdomain=*
+  #     - --ws
+  #     - --ws.origins=*
+  #     - --ws.addr=0.0.0.0
+  #     - --keystore=/keystore/keystore
+  #   volumes:
+  #     - "builder_data:/db"
+  #     - "${PWD}/../.devnet/genesis-l2.json:/genesis.json"
+  #     - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
+  #   entrypoint:  # pass the L2 specific flags by overriding the entry-point and adding extra arguments
+  #     - "/bin/sh"
+  #     - "/entrypoint.sh"
+  #     - "--authrpc.jwtsecret=/config/test-jwt-secret.txt"
+  #     - "--suave"
+  #     - "--suave.beacon_endpoint=http://op-node-builder:8547"
