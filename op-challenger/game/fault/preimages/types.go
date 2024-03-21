@@ -21,6 +21,11 @@ type PreimageUploader interface {
 	UploadPreimage(ctx context.Context, claimIdx uint64, data *types.PreimageOracleData) error
 }
 
+type TxSender interface {
+	From() common.Address
+	SendAndWaitSimple(txPurpose string, txs ...txmgr.TxCandidate) error
+}
+
 // PreimageOracleContract is the interface for interacting with the PreimageOracle contract.
 type PreimageOracleContract interface {
 	InitLargePreimage(uuid *big.Int, partOffset uint32, claimedSize uint32) (txmgr.TxCandidate, error)

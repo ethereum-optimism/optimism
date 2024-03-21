@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
 	gethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -32,6 +33,11 @@ type SyncValidator interface {
 
 type L1HeaderSource interface {
 	HeaderByHash(context.Context, common.Hash) (*gethTypes.Header, error)
+}
+
+type TxSender interface {
+	From() common.Address
+	SendAndWaitSimple(txPurpose string, txs ...txmgr.TxCandidate) error
 }
 
 type GamePlayer struct {
@@ -66,7 +72,7 @@ func NewGamePlayer(
 	m metrics.Metricer,
 	dir string,
 	addr common.Address,
-	txSender gameTypes.TxSender,
+	txSender TxSender,
 	loader GameContract,
 	syncValidator SyncValidator,
 	validators []Validator,

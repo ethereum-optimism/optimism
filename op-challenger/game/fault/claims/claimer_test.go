@@ -10,7 +10,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
-	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
@@ -132,15 +131,15 @@ func (s *mockTxSender) From() common.Address {
 	return common.HexToAddress("0x33333")
 }
 
-func (s *mockTxSender) SendAndWait(_ string, _ ...txmgr.TxCandidate) ([]*ethtypes.Receipt, error) {
+func (s *mockTxSender) SendAndWaitSimple(_ string, _ ...txmgr.TxCandidate) error {
 	s.sends++
 	if s.sendFails {
-		return nil, mockTxMgrSendError
+		return mockTxMgrSendError
 	}
 	if s.statusFail {
-		return []*ethtypes.Receipt{{Status: ethtypes.ReceiptStatusFailed}}, nil
+		return errors.New("transaction reverted")
 	}
-	return []*ethtypes.Receipt{{Status: ethtypes.ReceiptStatusSuccessful}}, nil
+	return nil
 }
 
 type stubBondContract struct {
