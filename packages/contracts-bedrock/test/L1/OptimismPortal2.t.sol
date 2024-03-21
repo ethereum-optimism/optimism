@@ -446,9 +446,9 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         });
     }
 
-    /// @dev Tests that `proveWithdrawalTransaction` reverts when the withdrawal has already
-    ///      been proven.
-    function test_proveWithdrawalTransaction_replayProve_reverts() external {
+    /// @dev Tests that `proveWithdrawalTransaction` reverts when the withdrawal has already been proven, and the
+    ///      re-prove attempt is for the same dispute game.
+    function test_proveWithdrawalTransaction_replayProve_sameGame_reverts() external {
         vm.expectEmit(true, true, true, true);
         emit WithdrawalProven(_withdrawalHash, alice, bob);
         optimismPortal2.proveWithdrawalTransaction({
@@ -461,6 +461,64 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         vm.expectRevert(
             "OptimismPortal: withdrawal hash has already been proven, and the old dispute game is not invalid"
         );
+        optimismPortal2.proveWithdrawalTransaction({
+            _tx: _defaultTx,
+            _disputeGameIndex: _proposedGameIndex,
+            _outputRootProof: _outputRootProof,
+            _withdrawalProof: _withdrawalProof
+        });
+    }
+
+    /// @dev Tests that `proveWithdrawalTransaction` reverts when the withdrawal has already been proven, and the first
+    ///      game is currently being disputed, is otherwise not invalid, and has not been blacklisted.
+    function test_proveWithdrawalTransaction_replayProve_differentGameFirstGameGood_reverts() external {
+        vm.expectEmit(true, true, true, true);
+        emit WithdrawalProven(_withdrawalHash, alice, bob);
+        optimismPortal2.proveWithdrawalTransaction({
+            _tx: _defaultTx,
+            _disputeGameIndex: _proposedGameIndex,
+            _outputRootProof: _outputRootProof,
+            _withdrawalProof: _withdrawalProof
+        });
+
+        // Create a new dispute game, but don't mock anything about the first game.
+        disputeGameFactory.create(
+            optimismPortal2.respectedGameType(), Claim.wrap(_outputRoot), abi.encode(_proposedBlockNumber + 1)
+        );
+        _proposedGameIndex = disputeGameFactory.gameCount() - 1;
+
+        vm.expectRevert(
+            "OptimismPortal: withdrawal hash has already been proven, and the old dispute game is not invalid"
+        );
+        optimismPortal2.proveWithdrawalTransaction({
+            _tx: _defaultTx,
+            _disputeGameIndex: _proposedGameIndex,
+            _outputRootProof: _outputRootProof,
+            _withdrawalProof: _withdrawalProof
+        });
+    }
+
+    /// @dev Tests that `proveWithdrawalTransaction` reverts when the withdrawal has already been proven, and the new
+    ///      game has the `CHALLENGER_WINS` status.
+    function test_proveWithdrawalTransaction_replayProve_differentGameChallengerWins_reverts() external {
+        vm.expectEmit(true, true, true, true);
+        emit WithdrawalProven(_withdrawalHash, alice, bob);
+        optimismPortal2.proveWithdrawalTransaction({
+            _tx: _defaultTx,
+            _disputeGameIndex: _proposedGameIndex,
+            _outputRootProof: _outputRootProof,
+            _withdrawalProof: _withdrawalProof
+        });
+
+        // Create a new dispute game, and mock both games to be CHALLENGER_WINS.
+        IDisputeGame game2 = disputeGameFactory.create(
+            optimismPortal2.respectedGameType(), Claim.wrap(_outputRoot), abi.encode(_proposedBlockNumber + 1)
+        );
+        _proposedGameIndex = disputeGameFactory.gameCount() - 1;
+        vm.mockCall(address(game), abi.encodeCall(game.status, ()), abi.encode(GameStatus.CHALLENGER_WINS));
+        vm.mockCall(address(game2), abi.encodeCall(game.status, ()), abi.encode(GameStatus.CHALLENGER_WINS));
+
+        vm.expectRevert("OptimismPortal: cannot prove against invalid dispute games");
         optimismPortal2.proveWithdrawalTransaction({
             _tx: _defaultTx,
             _disputeGameIndex: _proposedGameIndex,
@@ -503,6 +561,14 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         vm.prank(optimismPortal2.guardian());
         optimismPortal2.blacklistDisputeGame(IDisputeGame(address(game)));
 
+        // Mock the status of the dispute game we just proved against to be CHALLENGER_WINS.
+        vm.mockCall(address(game), abi.encodeCall(game.status, ()), abi.encode(GameStatus.CHALLENGER_WINS));
+        // Create a new game to re-prove against
+        disputeGameFactory.create(
+            optimismPortal2.respectedGameType(), Claim.wrap(_outputRoot), abi.encode(_proposedBlockNumber + 1)
+        );
+        _proposedGameIndex = disputeGameFactory.gameCount() - 1;
+
         vm.expectEmit(true, true, true, true);
         emit WithdrawalProven(_withdrawalHash, alice, bob);
         optimismPortal2.proveWithdrawalTransaction({
@@ -525,7 +591,13 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
             _withdrawalProof: _withdrawalProof
         });
 
+        // Mock the status of the dispute game we just proved against to be CHALLENGER_WINS.
         vm.mockCall(address(game), abi.encodeCall(game.status, ()), abi.encode(GameStatus.CHALLENGER_WINS));
+        // Create a new game to re-prove against
+        disputeGameFactory.create(
+            optimismPortal2.respectedGameType(), Claim.wrap(_outputRoot), abi.encode(_proposedBlockNumber + 1)
+        );
+        _proposedGameIndex = disputeGameFactory.gameCount() - 1;
 
         vm.expectEmit(true, true, true, true);
         emit WithdrawalProven(_withdrawalHash, alice, bob);
