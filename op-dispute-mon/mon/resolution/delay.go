@@ -38,7 +38,7 @@ func (d *DelayCalculator) getMaxResolutionDelay(game *types.EnrichedGameData) ui
 }
 
 func (d *DelayCalculator) getOverflowTime(maxGameDuration uint64, claim *types.EnrichedClaim) uint64 {
-	if claim.Resolved || claim.Bond.Cmp(types.ResolvedBondAmount) == 0 {
+	if claim.Resolved {
 		return 0
 	}
 	maxChessTime := maxGameDuration / 2

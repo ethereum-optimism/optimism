@@ -20,11 +20,12 @@ func TestCalculateRequiredCollateral(t *testing.T) {
 			{
 				Claim: types.Claim{
 					ClaimData: types.ClaimData{
-						Bond: monTypes.ResolvedBondAmount,
+						Bond: big.NewInt(17),
 					},
 					Claimant:    common.Address{0x01},
 					CounteredBy: common.Address{0x02},
 				},
+				Resolved: true,
 			},
 			{
 				Claim: types.Claim{
@@ -57,11 +58,12 @@ func TestCalculateRequiredCollateral(t *testing.T) {
 			{
 				Claim: types.Claim{
 					ClaimData: types.ClaimData{
-						Bond: monTypes.ResolvedBondAmount,
+						Bond: big.NewInt(10),
 					},
 					Claimant:    common.Address{0x01},
 					CounteredBy: common.Address{0x02},
 				},
+				Resolved: true,
 			},
 			{
 				Claim: types.Claim{
@@ -99,6 +101,7 @@ func TestCalculateRequiredCollateral(t *testing.T) {
 					Claimant:    common.Address{0x03},
 					CounteredBy: common.Address{},
 				},
+				Resolved: true,
 			},
 		},
 		Credits: map[common.Address]*big.Int{

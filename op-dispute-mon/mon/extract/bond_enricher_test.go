@@ -19,12 +19,10 @@ func TestBondEnricher(t *testing.T) {
 			Claims: []monTypes.EnrichedClaim{
 				{
 					Claim: faultTypes.Claim{
-						ClaimData: faultTypes.ClaimData{
-							Bond: monTypes.ResolvedBondAmount,
-						},
 						Claimant:    common.Address{0x01},
 						CounteredBy: common.Address{0x02},
 					},
+					Resolved: true,
 				},
 				{
 					Claim: faultTypes.Claim{

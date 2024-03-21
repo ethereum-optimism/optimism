@@ -20,11 +20,6 @@ func TestDelayCalculator_getOverflowTime(t *testing.T) {
 	t.Run("NoClock", func(t *testing.T) {
 		d, metrics, _ := setupDelayCalculatorTest(t)
 		claim := &monTypes.EnrichedClaim{
-			Claim: types.Claim{
-				ClaimData: types.ClaimData{
-					Bond: monTypes.ResolvedBondAmount,
-				},
-			},
 			Resolved: true,
 		}
 		delay := d.getOverflowTime(maxGameDuration, claim)
@@ -173,12 +168,9 @@ func createClaimList() []monTypes.EnrichedClaim {
 		},
 		{
 			Claim: types.Claim{
-				// This claim should be skipped because it's resolved.
-				ClaimData: types.ClaimData{
-					Bond: monTypes.ResolvedBondAmount,
-				},
 				Clock: newClock(10),
 			},
+			Resolved: true,
 		},
 	}
 }

@@ -11,15 +11,19 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestMaxValue(t *testing.T) {
+	require.Equal(t, resolvedBondAmount.String(), "340282366920938463463374607431768211455")
+}
+
 func TestClaimEnricher(t *testing.T) {
 	enricher := NewClaimEnricher()
 	game := &types.EnrichedGameData{
 		Claims: []types.EnrichedClaim{
-			newClaimWithBond(types.ResolvedBondAmount),
+			newClaimWithBond(resolvedBondAmount),
 			newClaimWithBond(big.NewInt(0)),
 			newClaimWithBond(big.NewInt(100)),
-			newClaimWithBond(new(big.Int).Sub(types.ResolvedBondAmount, big.NewInt(1))),
-			newClaimWithBond(new(big.Int).Add(types.ResolvedBondAmount, big.NewInt(1))),
+			newClaimWithBond(new(big.Int).Sub(resolvedBondAmount, big.NewInt(1))),
+			newClaimWithBond(new(big.Int).Add(resolvedBondAmount, big.NewInt(1))),
 		},
 	}
 	caller := &mockGameCaller{}
