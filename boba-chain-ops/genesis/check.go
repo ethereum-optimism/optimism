@@ -10,6 +10,7 @@ import (
 	"math/rand"
 	"sync"
 
+	"github.com/bobanetwork/v3-anchorage/boba-bindings/bindings"
 	"github.com/bobanetwork/v3-anchorage/boba-bindings/predeploys"
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/chain"
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/crossdomain"
@@ -77,6 +78,8 @@ var (
 			libcommon.Hash{}: libcommon.HexToHash("0x0000000000000000000000010000000000000000000000000000000000000000"),
 			// Slot 0xcc (204) is xDomainMsgSender
 			libcommon.Hash{31: 0xcc}: libcommon.HexToHash("0x000000000000000000000000000000000000000000000000000000000000dead"),
+			// Slot 0xcd (205) is msgNonce
+			libcommon.Hash{31: 0xcd}: libcommon.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000000"),
 			// EIP-1967 storage slots
 			AdminSlot:          libcommon.HexToHash("0x0000000000000000000000004200000000000000000000000000000000000018"),
 			ImplementationSlot: libcommon.HexToHash("0x000000000000000000000000c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d30007"),
@@ -84,12 +87,17 @@ var (
 		predeploys.L2StandardBridgeAddr: {
 			// Slot 0x00 (0) is a combination of spacer_0_0_20, _initialized, and _initializing
 			libcommon.Hash{}: libcommon.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000002"),
+			// Slot 0x03 (1) is the L2CrossDomainMessengerAddr
+			libcommon.Hash{31: 0x3}: libcommon.HexToHash("0x0000000000000000000000004200000000000000000000000000000000000007"),
 			// EIP-1967 storage slots
 			AdminSlot:          libcommon.HexToHash("0x0000000000000000000000004200000000000000000000000000000000000018"),
 			ImplementationSlot: libcommon.HexToHash("0x000000000000000000000000c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d30010"),
 		},
 		predeploys.SequencerFeeVaultAddr: eip1967Slots(predeploys.SequencerFeeVaultAddr),
 		predeploys.OptimismMintableERC20FactoryAddr: {
+			libcommon.Hash{}: libcommon.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
+			// Slot 0x01 (1) is the L2StandardBridgeAddr
+			libcommon.Hash{31: 0x1}: libcommon.HexToHash("0x0000000000000000000000004200000000000000000000000000000000000010"),
 			// EIP-1967 storage slots
 			AdminSlot:          libcommon.HexToHash("0x0000000000000000000000004200000000000000000000000000000000000018"),
 			ImplementationSlot: libcommon.HexToHash("0x000000000000000000000000c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d30012"),
@@ -98,6 +106,8 @@ var (
 		predeploys.GasPriceOracleAddr: eip1967Slots(predeploys.GasPriceOracleAddr),
 		predeploys.L2ERC721BridgeAddr: {
 			libcommon.Hash{}: libcommon.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000002"),
+			//	Slot 0x03 (1) is the L2CrossDomainMessengerAddr
+			libcommon.Hash{31: 0x1}: libcommon.HexToHash("0x0000000000000000000000004200000000000000000000000000000000000007"),
 			// EIP-1967 storage slots
 			AdminSlot:          libcommon.HexToHash("0x0000000000000000000000004200000000000000000000000000000000000018"),
 			ImplementationSlot: libcommon.HexToHash("0x000000000000000000000000c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d30014"),
@@ -125,6 +135,8 @@ func PostCheckMigratedDB(
 	g *types.Genesis,
 	migrationData crossdomain.MigrationData,
 	l1XDM *libcommon.Address,
+	l1StandardBridge *libcommon.Address,
+	l1ERC721Bridge *libcommon.Address,
 	l1ChainID uint64,
 	finalSystemOwner libcommon.Address,
 	proxyAdminOwner libcommon.Address,
@@ -132,6 +144,12 @@ func PostCheckMigratedDB(
 	timestamp int,
 	info *L1BlockInfo,
 ) error {
+	// quick hack
+	// insert l1standardbridge into L2StandardBridgeAddr
+	ExpectedStorageSlots[predeploys.L2StandardBridgeAddr][libcommon.Hash{31: 0x4}] = l1StandardBridge.Hash()
+	// insert l1erc721bridge into L2ERC721BridgeAddr
+	ExpectedStorageSlots[predeploys.L2ERC721BridgeAddr][libcommon.Hash{31: 0x2}] = l1ERC721Bridge.Hash()
+
 	log.Info("Validating database migration")
 
 	tx, err := chaindb.BeginRo(context.Background())
@@ -358,6 +376,28 @@ func PostCheckPredeploys(tx kv.Tx, g *types.Genesis) error {
 				continue
 			}
 
+			if *proxyAddr == predeploys.Create2DeployerAddr || *proxyAddr == predeploys.DeterministicDeploymentProxyAddr {
+				implCode, err := state.GetContractCode(tx, *proxyAddr)
+				if err != nil {
+					return fmt.Errorf("failed to read contract code from database: %w", err)
+				}
+				if implCode == nil || len(implCode) == 0 {
+					return errors.New("no code found at create2 deployer")
+				}
+				if *proxyAddr == predeploys.DeterministicDeploymentProxyAddr {
+					if *implCode != libcommon.HexToHash(bindings.DeterministicDeploymentProxyDeployedBin) {
+						return fmt.Errorf("expected code at deterministic deployment proxy to be %x but got %x", bindings.DeterministicDeploymentProxyDeployedBin, *implCode)
+					}
+				}
+				if *proxyAddr == predeploys.Create2DeployerAddr {
+					if *implCode != libcommon.HexToHash(bindings.Create2DeployerDeployedBin) {
+						return fmt.Errorf("expected code at create2 deployer to be %x but got %x", bindings.Create2DeployerDeployedBin, *implCode)
+					}
+				}
+				log.Trace("skipping special predeploy", "address", *proxyAddr)
+				continue
+			}
+
 			if *proxyAddr == predeploys.ProxyAdminAddr {
 				implCode, err := state.GetContractCode(tx, *proxyAddr)
 				if err != nil {
@@ -371,7 +411,7 @@ func PostCheckPredeploys(tx kv.Tx, g *types.Genesis) error {
 
 			expImplAddr, err := AddressToCodeNamespace(*proxyAddr)
 			if err != nil {
-				return fmt.Errorf("error converting to code namespace: %w", err)
+				return fmt.Errorf("error converting %s to code namespace: %w", *proxyAddr, err)
 			}
 
 			implCode, err := state.GetContractCode(tx, *proxyAddr)
@@ -453,7 +493,7 @@ func PostCheckPredeployStorage(tx kv.Tx, finalSystemOwner libcommon.Address, pro
 
 			if slots[key] != value {
 				log.Debug("validated storage value", "key", key.String(), "value", value.String())
-				return fmt.Errorf("expected storage slot %s to be %s but got %s", key, value, slots[key])
+				return fmt.Errorf("expected storage slot %s of %s to be %s but got %s", key, *addr, value, slots[key])
 			}
 		}
 	}

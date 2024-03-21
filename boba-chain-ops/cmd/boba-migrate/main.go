@@ -317,6 +317,8 @@ func main() {
 				&transitionBlockOrigin,
 				migrationData,
 				&config.L1CrossDomainMessengerProxy,
+				&config.L1StandardBridgeProxy,
+				&config.L1ERC721BridgeProxy,
 				config.L1ChainID,
 				config.FinalSystemOwner,
 				config.ProxyAdminOwner,

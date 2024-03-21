@@ -288,7 +288,6 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 }
 
 func prepareFeeVaultArguments(deployment deployer.Constructor) (common.Address, *big.Int, uint8, error) {
-	fmt.Println("deployment", deployment)
 	recipient, ok := deployment.Args[0].(common.Address)
 	if !ok {
 		return common.Address{}, nil, 0, fmt.Errorf("invalid type for recipient")

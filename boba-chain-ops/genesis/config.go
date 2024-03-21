@@ -459,14 +459,13 @@ func (d *DeployConfig) DeltaTime(genesisTime uint64) *uint64 {
 		return nil
 	}
 	v := uint64(0)
-	if offset := *d.L2GenesisDeltaTimeOffset; offset > 0 {
+	if offset := *d.L2GenesisDeltaTimeOffset; offset >= 0 {
 		v = genesisTime + uint64(offset)
 	}
 	return &v
 }
 
 func (d *DeployConfig) EcotoneTime(genesisTime uint64) *uint64 {
-	fmt.Println("EcotoneTime", d.L2GenesisEcotoneTimeOffset)
 	if d.L2GenesisEcotoneTimeOffset == nil {
 		return nil
 	}

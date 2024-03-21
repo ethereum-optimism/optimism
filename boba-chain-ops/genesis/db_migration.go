@@ -266,7 +266,6 @@ func CommitGenesisBlock(tx kv.RwTx, g *types.Genesis, tmpDir string, block *type
 		return err
 	}
 	if err := rawdb.WriteHeaderNumber(tx, block.Hash(), block.NumberU64()); err != nil {
-		fmt.Println("Failed to write WriteHeaderNumber")
 		panic(err)
 	}
 
