@@ -23,8 +23,8 @@ type DelayedWethContract struct {
 }
 
 type WithdrawalRequest struct {
-	Timestamp *big.Int
 	Amount    *big.Int
+	Timestamp *big.Int
 }
 
 func NewDelayedWethContract(metrics metrics.ContractMetricer, addr common.Address, caller *batching.MultiCaller) (*DelayedWethContract, error) {
@@ -53,8 +53,8 @@ func (d *DelayedWethContract) GetWithdrawals(ctx context.Context, block rpcblock
 	withdrawals := make([]*WithdrawalRequest, len(recipients))
 	for i, result := range results {
 		withdrawals[i] = &WithdrawalRequest{
-			Timestamp: result.GetBigInt(0),
-			Amount:    result.GetBigInt(1),
+			Amount:    result.GetBigInt(0),
+			Timestamp: result.GetBigInt(1),
 		}
 	}
 	return withdrawals, nil
