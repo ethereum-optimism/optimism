@@ -23,6 +23,7 @@ type expectedCall struct {
 	args       []interface{}
 	packedArgs []byte
 	outputs    []interface{}
+	err        error
 }
 
 func (c *expectedCall) Matches(rpcMethod string, args ...interface{}) error {
@@ -66,7 +67,7 @@ func (c *expectedCall) Matches(rpcMethod string, args ...interface{}) error {
 	return nil
 }
 
-func (c *expectedCall) Execute(t *testing.T, out interface{}) {
+func (c *expectedCall) Execute(t *testing.T, out interface{}) error {
 	output, err := c.abiMethod.Outputs.Pack(c.outputs...)
 	require.NoErrorf(t, err, "Invalid outputs for method %v: %v", c.abiMethod.Name, c.outputs)
 
@@ -75,6 +76,7 @@ func (c *expectedCall) Execute(t *testing.T, out interface{}) {
 	j, err := json.Marshal(hexutil.Bytes(output))
 	require.NoError(t, err)
 	require.NoError(t, json.Unmarshal(j, out))
+	return c.err
 }
 
 func (c *expectedCall) String() string {
@@ -107,6 +109,24 @@ func (l *AbiBasedRpc) abi(to common.Address) *abi.ABI {
 	return abi
 }
 
+func (l *AbiBasedRpc) SetError(to common.Address, method string, block rpcblock.Block, expected []interface{}, callErr error) {
+	if expected == nil {
+		expected = []interface{}{}
+	}
+	abiMethod, ok := l.abi(to).Methods[method]
+	require.Truef(l.t, ok, "No method: %v", method)
+	packedArgs, err := abiMethod.Inputs.Pack(expected...)
+	require.NoErrorf(l.t, err, "Invalid expected arguments for method %v: %v", method, expected)
+	l.AddExpectedCall(&expectedCall{
+		abiMethod:  abiMethod,
+		to:         to,
+		block:      block,
+		args:       expected,
+		packedArgs: packedArgs,
+		outputs:    []interface{}{},
+		err:        callErr,
+	})
+}
 func (l *AbiBasedRpc) SetResponse(to common.Address, method string, block rpcblock.Block, expected []interface{}, output []interface{}) {
 	if expected == nil {
 		expected = []interface{}{}
