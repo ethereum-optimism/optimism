@@ -2,6 +2,7 @@ package contracts
 
 import (
 	"context"
+	"errors"
 	"math"
 	"math/big"
 	"testing"
@@ -13,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	batchingTest "github.com/ethereum-optimism/optimism/op-service/sources/batching/test"
+	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
@@ -427,6 +429,28 @@ func TestFaultDisputeGame_GetCredits(t *testing.T) {
 	for i := range expected {
 		require.Zerof(t, expected[i].Cmp(actual[i]), "expected: %v actual: %v", expected[i], actual[i])
 	}
+}
+
+func TestFaultDisputeGame_ClaimCreditTx(t *testing.T) {
+	t.Run("Success", func(t *testing.T) {
+		stubRpc, game := setupFaultDisputeGameTest(t)
+		addr := common.Address{0xaa}
+
+		stubRpc.SetResponse(fdgAddr, methodClaimCredit, rpcblock.Latest, []interface{}{addr}, nil)
+		tx, err := game.ClaimCreditTx(context.Background(), addr)
+		require.NoError(t, err)
+		stubRpc.VerifyTxCandidate(tx)
+	})
+
+	t.Run("SimulationFails", func(t *testing.T) {
+		stubRpc, game := setupFaultDisputeGameTest(t)
+		addr := common.Address{0xaa}
+
+		stubRpc.SetError(fdgAddr, methodClaimCredit, rpcblock.Latest, []interface{}{addr}, errors.New("still locked"))
+		tx, err := game.ClaimCreditTx(context.Background(), addr)
+		require.ErrorIs(t, err, ErrSimulationFailed)
+		require.Equal(t, txmgr.TxCandidate{}, tx)
+	})
 }
 
 func setupFaultDisputeGameTest(t *testing.T) (*batchingTest.AbiBasedRpc, *FaultDisputeGameContract) {

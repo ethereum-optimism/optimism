@@ -2,6 +2,7 @@ package contracts
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"math/big"
@@ -41,6 +42,8 @@ var (
 	methodCredit              = "credit"
 	methodWETH                = "weth"
 )
+
+var ErrSimulationFailed = errors.New("tx simulation failed")
 
 type FaultDisputeGameContract struct {
 	metrics     metrics.ContractMetricer
@@ -183,9 +186,13 @@ func (f *FaultDisputeGameContract) GetCredits(ctx context.Context, block rpcbloc
 	return credits, nil
 }
 
-func (f *FaultDisputeGameContract) ClaimCredit(recipient common.Address) (txmgr.TxCandidate, error) {
+func (f *FaultDisputeGameContract) ClaimCreditTx(ctx context.Context, recipient common.Address) (txmgr.TxCandidate, error) {
 	defer f.metrics.StartContractRequest("ClaimCredit")()
 	call := f.contract.Call(methodClaimCredit, recipient)
+	_, err := f.multiCaller.SingleCall(ctx, rpcblock.Latest, call)
+	if err != nil {
+		return txmgr.TxCandidate{}, fmt.Errorf("%w: %v", ErrSimulationFailed, err.Error())
+	}
 	return call.ToTxCandidate()
 }
 

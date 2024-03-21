@@ -151,6 +151,6 @@ func (s *stubBondContract) GetCredit(_ context.Context, addr common.Address) (*b
 	return big.NewInt(s.credit[addr]), s.status, nil
 }
 
-func (s *stubBondContract) ClaimCredit(_ common.Address) (txmgr.TxCandidate, error) {
+func (s *stubBondContract) ClaimCreditTx(_ context.Context, _ common.Address) (txmgr.TxCandidate, error) {
 	return txmgr.TxCandidate{}, nil
 }

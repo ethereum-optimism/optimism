@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
@@ -21,8 +22,8 @@ type BondClaimMetrics interface {
 }
 
 type BondContract interface {
-	GetCredit(ctx context.Context, receipient common.Address) (*big.Int, types.GameStatus, error)
-	ClaimCredit(receipient common.Address) (txmgr.TxCandidate, error)
+	GetCredit(ctx context.Context, recipient common.Address) (*big.Int, types.GameStatus, error)
+	ClaimCreditTx(ctx context.Context, recipient common.Address) (txmgr.TxCandidate, error)
 }
 
 type BondContractCreator func(game types.GameMetadata) (BondContract, error)
@@ -77,12 +78,15 @@ func (c *Claimer) claimBond(ctx context.Context, game types.GameMetadata, addr c
 		return nil
 	}
 
-	candidate, err := contract.ClaimCredit(addr)
+	candidate, err := contract.ClaimCreditTx(ctx, addr)
 	if err != nil {
 		return fmt.Errorf("failed to create credit claim tx: %w", err)
 	}
 
-	if err = c.txSender.SendAndWaitSimple("claim credit", candidate); err != nil {
+	if err = c.txSender.SendAndWaitSimple("claim credit", candidate); errors.Is(err, contracts.ErrSimulationFailed) {
+		c.logger.Debug("Credit still locked", "game", game.Proxy, "addr", addr)
+		return nil
+	} else if err != nil {
 		return fmt.Errorf("failed to claim credit: %w", err)
 	}
 
