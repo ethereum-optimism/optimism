@@ -16,27 +16,31 @@ import (
 func TestBondEnricher(t *testing.T) {
 	makeGame := func() *monTypes.EnrichedGameData {
 		return &monTypes.EnrichedGameData{
-			Claims: []faultTypes.Claim{
+			Claims: []monTypes.EnrichedClaim{
 				{
-					ClaimData: faultTypes.ClaimData{
-						Bond: monTypes.ResolvedBondAmount,
+					Claim: faultTypes.Claim{
+						Claimant:    common.Address{0x01},
+						CounteredBy: common.Address{0x02},
 					},
-					Claimant:    common.Address{0x01},
-					CounteredBy: common.Address{0x02},
+					Resolved: true,
 				},
 				{
-					ClaimData: faultTypes.ClaimData{
-						Bond: big.NewInt(5),
+					Claim: faultTypes.Claim{
+						ClaimData: faultTypes.ClaimData{
+							Bond: big.NewInt(5),
+						},
+						Claimant:    common.Address{0x03},
+						CounteredBy: common.Address{},
 					},
-					Claimant:    common.Address{0x03},
-					CounteredBy: common.Address{},
 				},
 				{
-					ClaimData: faultTypes.ClaimData{
-						Bond: big.NewInt(7),
+					Claim: faultTypes.Claim{
+						ClaimData: faultTypes.ClaimData{
+							Bond: big.NewInt(7),
+						},
+						Claimant:    common.Address{0x03},
+						CounteredBy: common.Address{},
 					},
-					Claimant:    common.Address{0x03},
-					CounteredBy: common.Address{},
 				},
 			},
 		}
