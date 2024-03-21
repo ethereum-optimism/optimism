@@ -385,11 +385,11 @@ func DiffTestUtils() {
 		checkErr(err, "Error decoding blobBaseFeeScalar")
 		dependencySetSize, ok := new(big.Int).SetString(args[10], 10)
 		checkOk(ok)
-		var dependencySet []*big.Int
+		derive.InteropDependencySet = []*big.Int{}
 		for i := 0; i < int(dependencySetSize.Uint64()); i++ {
 			dependency, ok := new(big.Int).SetString(args[11+i], 10)
 			checkOk(ok)
-			dependencySet = append(dependencySet, dependency)
+			derive.InteropDependencySet = append(derive.InteropDependencySet, dependency)
 		}
 
 		// Create rollup config
@@ -406,9 +406,8 @@ func DiffTestUtils() {
 		binary.BigEndian.PutUint32(scalar[24:28], uint32(blobBaseFeeScalar))
 		binary.BigEndian.PutUint32(scalar[28:32], uint32(baseFeeScalar))
 		l1Cfg := eth.SystemConfig{
-			BatcherAddr:          batcherAddr,
-			Scalar:               scalar,
-			InteropDependencySet: dependencySet,
+			BatcherAddr: batcherAddr,
+			Scalar:      scalar,
 		}
 
 		// Create L1 block info
