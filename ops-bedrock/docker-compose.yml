@@ -209,10 +209,6 @@ services:
     security_opt:
       - "no-new-privileges:true"
 
-  ##################################################
-  #                 Suave Section                  #
-  ##################################################
-
   # mev-boost:
   #   profiles:
   #     - suave
@@ -227,35 +223,10 @@ services:
   #   ports:
   #     - "18550:18550"
   #
-  # suave-geth:
-  #   profiles:
-  #     - suave
-  #   depends_on:
-  #     - op-builder
-  #   image: flashbots/suave-geth:latest
-  #   command:
-  #     - --dev
-  #     - --dev.gaslimit=30000000
-  #     - --http
-  #     - --http.port=8545
-  #     - --http.addr=0.0.0.0
-  #     - --http.vhosts=*
-  #     - --http.corsdomain=*
-  #     - --ws
-  #     - --ws.port=8546
-  #     - --ws.origins=*
-  #     - --ws.addr=0.0.0.0
-  #     - --datadir=/data
-  #     - --keystore=/keystore/keystore
-  #     - --unlock=0xB5fEAfbDD752ad52Afb7e1bD2E40432A485bBB7F
-  #     - --password=/keystore/password.txt
-  #     - --log.debug
-  #     - --suave.eth.remote_endpoint=op-builder:8545  # using op-builder as remote rpc backend
-  #   volumes:
-  #     - "${PWD}/suave-ex-node:/keystore"
-  #   ports:
-  #     - 11545:8545
-  #     - 11546:8546
+
+  ##################################################
+  #                 Suave Section                  #
+  ##################################################
 
   suave-op-node:
     build:
@@ -293,6 +264,36 @@ services:
       - "--authrpc.jwtsecret=/config/test-jwt-secret.txt"
     environment:
       GETH_MINER_RECOMMIT: 100ms
+
+  # suave-geth:
+  #   profiles:
+  #     - suave
+  #   depends_on:
+  #     - op-builder
+  #   image: flashbots/suave-geth:latest
+  #   command:
+  #     - --dev
+  #     - --dev.gaslimit=30000000
+  #     - --http
+  #     - --http.port=8545
+  #     - --http.addr=0.0.0.0
+  #     - --http.vhosts=*
+  #     - --http.corsdomain=*
+  #     - --ws
+  #     - --ws.port=8546
+  #     - --ws.origins=*
+  #     - --ws.addr=0.0.0.0
+  #     - --datadir=/data
+  #     - --keystore=/keystore/keystore
+  #     - --unlock=0xB5fEAfbDD752ad52Afb7e1bD2E40432A485bBB7F
+  #     - --password=/keystore/password.txt
+  #     - --log.debug
+  #     - --suave.eth.remote_endpoint=op-builder:8545  # using op-builder as remote rpc backend
+  #   volumes:
+  #     - "${PWD}/suave-ex-node:/keystore"
+  #   ports:
+  #     - 11545:8545
+  #     - 11546:8546
 
   # suave-op-execution-geth:
   #   profiles:
