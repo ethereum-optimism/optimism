@@ -9,11 +9,12 @@ import { Reverter } from "test/mocks/Callers.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 
 // Target contracts
-import { L1Block } from "src/L2/L1Block.sol";
 import { CrossL2Inbox, NotEntered } from "src/L2/CrossL2Inbox.sol";
 import { ICrossL2Inbox } from "src/L2/ICrossL2Inbox.sol";
 
 contract CrossL2InboxTest is Test {
+    bytes4 constant L1BlockIsInDependencySetSelector = bytes4(keccak256("isInDependencySet(uint256)"));
+
     /// @dev CrossL2Inbox contract instance.
     CrossL2Inbox crossL2Inbox;
 
@@ -47,7 +48,7 @@ contract CrossL2InboxTest is Test {
         // need to prevent call to L1Block.isInDependencySet from reverting
         vm.mockCall({
             callee: Predeploys.L1_BLOCK_ATTRIBUTES,
-            data: abi.encodeWithSelector(L1Block.isInDependencySet.selector, _id.chainId),
+            data: abi.encodeWithSelector(L1BlockIsInDependencySetSelector, _id.chainId),
             returnData: abi.encode(true)
         });
 
@@ -78,7 +79,7 @@ contract CrossL2InboxTest is Test {
     function test_executeMessage_invalidChainId_fails() external {
         vm.mockCall({
             callee: Predeploys.L1_BLOCK_ATTRIBUTES,
-            data: abi.encodeWithSelector(L1Block.isInDependencySet.selector, sampleIdentifier.chainId),
+            data: abi.encodeWithSelector(L1BlockIsInDependencySetSelector, sampleIdentifier.chainId),
             returnData: abi.encode(false)
         });
 
@@ -92,7 +93,7 @@ contract CrossL2InboxTest is Test {
     function test_executeMessage_sameChainId_succeeds() external {
         vm.mockCall({
             callee: Predeploys.L1_BLOCK_ATTRIBUTES,
-            data: abi.encodeWithSelector(L1Block.isInDependencySet.selector, sampleIdentifier.chainId),
+            data: abi.encodeWithSelector(L1BlockIsInDependencySetSelector, sampleIdentifier.chainId),
             returnData: abi.encode(true)
         });
 
@@ -114,7 +115,7 @@ contract CrossL2InboxTest is Test {
 
         vm.mockCall({
             callee: Predeploys.L1_BLOCK_ATTRIBUTES,
-            data: abi.encodeWithSelector(L1Block.isInDependencySet.selector, sampleIdentifier.chainId),
+            data: abi.encodeWithSelector(L1BlockIsInDependencySetSelector, sampleIdentifier.chainId),
             returnData: abi.encode(true)
         });
 
