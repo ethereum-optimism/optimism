@@ -31,7 +31,7 @@ var testKey, _ = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d
 
 // Tests the BuildL2MainnetGenesis factory with the provided config.
 func testBuildL2Genesis(t *testing.T, config *genesis.DeployConfig) *core.Genesis {
-	backend := backends.NewSimulatedBackend(
+	backend := backends.NewSimulatedBackend( // nolint:staticcheck
 		core.GenesisAlloc{
 			crypto.PubkeyToAddress(testKey.PublicKey): {Balance: big.NewInt(10000000000000000)},
 		},
