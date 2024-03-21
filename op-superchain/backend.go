@@ -78,7 +78,7 @@ func (b *backend) MessageSafety(ctx context.Context, id MessageIdentifier, paylo
 	// ChainID Invariant.
 	//   TODO: Assumption here that the configured peers exactly maps to the registered dependency set.
 	//   When the predeploy is added, this needs to be tied to the dependency set registered on-chain
-	//   TODO: Either assume chain id never exceeds uint64 or handle this appropriately
+	//   TODO: handle *big.Int chain ids this appropriately
 	l2Node, ok := b.l2PeerNodes[id.ChainId.Uint64()]
 	if !ok {
 		return MessageUnknown, fmt.Errorf("peer with chain id %d is not configured", id.ChainId)

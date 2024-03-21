@@ -22,6 +22,8 @@ type MessageSafetyLabel int
 const (
 	MessageUnknown MessageSafetyLabel = iota - 1
 	MessageInvalid
+	MessageUnsafe
+	MessageCrossUnsafe
 	MessageSafe
 	MessageFinalized
 )
