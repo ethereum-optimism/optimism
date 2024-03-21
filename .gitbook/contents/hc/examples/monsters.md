@@ -40,7 +40,7 @@ You can also do this via a hardware wallet, a mnemonic, via `hardhat.config.js`,
 
 <figure><img src="../../../assets/getting geth eth and geth boba.png" alt=""><figcaption></figcaption></figure>
 
-If you do not have testnet ETH, you can get some here [Faucets](https://docs.boba.network/developer-docs/faucets).
+If you do not have testnet ETH, you can get some here [Faucets](https://docs.boba.network/developer/faucets).
 
 <figure><img src="../../../assets/testing the turing monster nft.png" alt=""><figcaption></figcaption></figure>
 

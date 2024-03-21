@@ -2,9 +2,9 @@
 
 <figure><img src="../../../.gitbook/assets/bundler configurations.png" alt=""><figcaption></figcaption></figure>
 
-The Bundler can be run with custom configuration as per the networks requirement. The configuration is through options (or env vars) provided to the bundler while spining it up - and the ways to specify these are - either through a) (reccommended) the env variables when running the script , see [bundler.sh](https://github.com/bobanetwork/boba/blob/develop/packages/boba/bundler/bundler.sh) b) or through a file `workdir/bundler.config.json`
+The Bundler can be run with custom configuration as per the networks requirement. The configuration is through options (or env vars) provided to the bundler while spining it up - and the ways to specify these are - either through a) (reccommended) the env variables when running the script , see [bundler.sh](https://github.com/bobanetwork/boba\_legacy/blob/develop/packages/boba/bundler/bundler.sh) b) or through a file `workdir/bundler.config.json`
 
-The Bundler also has defaults set for certain parameters, the current defaults can be seen/set [here](https://github.com/bobanetwork/boba/blob/develop/packages/boba/bundler/src/BundlerConfig.ts#L53)
+The Bundler also has defaults set for certain parameters, the current defaults can be seen/set [here](https://github.com/bobanetwork/boba\_legacy/blob/develop/packages/boba/bundler/src/BundlerConfig.ts#L53)
 
 But, its important to rememeber the following order of precedence while specifying configurations:
 
