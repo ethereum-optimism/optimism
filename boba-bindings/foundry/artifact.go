@@ -3,7 +3,7 @@ package foundry
 import (
 	"encoding/json"
 
-	"github.com/bobanetwork/v3-anchorage/boba-bindings/solc"
+	"github.com/bobanetwork/boba/boba-bindings/solc"
 	"github.com/ledgerwatch/erigon-lib/common/hexutility"
 )
 

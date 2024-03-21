@@ -3,7 +3,7 @@ package genesis
 import (
 	"testing"
 
-	bobachain "github.com/bobanetwork/v3-anchorage/boba-chain-ops/chain"
+	bobachain "github.com/bobanetwork/boba/boba-chain-ops/chain"
 	"github.com/ledgerwatch/erigon-lib/chain"
 	"github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon/core/types"

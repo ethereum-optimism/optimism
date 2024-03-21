@@ -4,7 +4,7 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/immutables"
+	"github.com/bobanetwork/boba/boba-chain-ops/immutables"
 	"github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon-lib/common/hexutil"
 	"github.com/stretchr/testify/require"

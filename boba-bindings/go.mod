@@ -1,4 +1,4 @@
-module github.com/bobanetwork/v3-anchorage/boba-bindings
+module github.com/bobanetwork/boba/boba-bindings
 
 go 1.19
 

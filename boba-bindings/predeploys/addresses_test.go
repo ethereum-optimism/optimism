@@ -4,7 +4,7 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/bobanetwork/v3-anchorage/boba-bindings/bindings"
+	"github.com/bobanetwork/boba/boba-bindings/bindings"
 	"github.com/ledgerwatch/erigon-lib/common"
 	"github.com/stretchr/testify/require"
 )

@@ -10,8 +10,8 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/bobanetwork/v3-anchorage/boba-bindings/ethclient"
-	"github.com/bobanetwork/v3-anchorage/boba-bindings/etherscan"
+	"github.com/bobanetwork/boba/boba-bindings/ethclient"
+	"github.com/bobanetwork/boba/boba-bindings/etherscan"
 	libcommon "github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon/common"
 )
