@@ -8,6 +8,9 @@ library Predeploys {
     /// @notice Number of predeploy-namespace addresses reserved for protocol usage.
     uint256 internal constant PREDEPLOY_COUNT = 2048;
 
+    /// @notice Address of the RevenueSharer predeploy.
+    address internal constant REVENUE_SHARER = 0x4200000000000000000000000000000000000022;
+
     /// @custom:legacy
     /// @notice Address of the LegacyMessagePasser predeploy. Deprecate. Use the updated
     ///         L2ToL1MessagePasser contract instead.
