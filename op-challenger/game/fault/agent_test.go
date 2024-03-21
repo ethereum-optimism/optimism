@@ -6,8 +6,10 @@ import (
 	"math/big"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/stretchr/testify/require"
 
@@ -154,7 +156,8 @@ func setupTestAgent(t *testing.T) (*Agent, *stubClaimLoader, *stubResponder) {
 	depth := types.Depth(4)
 	provider := alphabet.NewTraceProvider(big.NewInt(0), depth)
 	responder := &stubResponder{}
-	agent := NewAgent(metrics.NoopMetrics, claimLoader, depth, trace.NewSimpleTraceAccessor(provider), responder, logger, false, []common.Address{})
+	cl := clock.NewDeterministicClock(time.UnixMilli(0))
+	agent := NewAgent(metrics.NoopMetrics, cl, claimLoader, depth, trace.NewSimpleTraceAccessor(provider), responder, logger, false, []common.Address{})
 	return agent, claimLoader, responder
 }
 

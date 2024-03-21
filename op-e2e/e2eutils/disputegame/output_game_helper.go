@@ -10,6 +10,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
+	contractMetrics "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/preimages"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
@@ -701,7 +702,7 @@ func (g *OutputGameHelper) uploadPreimage(ctx context.Context, data *types.Preim
 
 func (g *OutputGameHelper) oracle(ctx context.Context) *contracts.PreimageOracleContract {
 	caller := batching.NewMultiCaller(g.system.NodeClient("l1").Client(), batching.DefaultBatchSize)
-	contract, err := contracts.NewFaultDisputeGameContract(g.addr, caller)
+	contract, err := contracts.NewFaultDisputeGameContract(contractMetrics.NoopContractMetrics, g.addr, caller)
 	g.require.NoError(err, "Failed to create game contract")
 	oracle, err := contract.GetOracle(ctx)
 	g.require.NoError(err, "Failed to create oracle contract")

@@ -44,7 +44,7 @@ func main() {
 		os.Exit(2)
 	}
 
-	runner, err := verify.NewRunner(l1RpcUrl, l1RpcKind, l1BeaconUrl, l2RpcUrl, dataDir, "sepolia", chainconfig.OPSepoliaChainConfig)
+	runner, err := verify.NewRunner(l1RpcUrl, l1RpcKind, l1BeaconUrl, l2RpcUrl, dataDir, "op-sepolia", chainconfig.OPSepoliaChainConfig)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "Failed to create runner: %v\n", err.Error())
 		os.Exit(1)
