@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
+	"golang.org/x/exp/maps"
 )
 
 type RClock interface {
@@ -47,35 +48,27 @@ func (b *Bonds) CheckBonds(games []*types.EnrichedGameData) {
 }
 
 func (b *Bonds) checkCredits(game *types.EnrichedGameData) {
-	addresses := make([]common.Address, len(game.Claims))
-	credits := make(map[common.Address]*big.Int)
-
 	// Check if the max duration has been reached for this game
 	duration := uint64(b.clock.Now().Unix()) - game.Timestamp
 	maxDurationReached := duration >= game.Duration
 
 	// Iterate over all *resolved* claims
 	claims := b.filterResolvedClaims(game)
+	recipients := make(map[common.Address]bool)
 	for _, claim := range claims {
 		// The recipient of a resolved claim is the claimant unless it's been countered.
 		recipient := claim.Claimant
 		if claim.CounteredBy != (common.Address{}) {
 			recipient = claim.CounteredBy
 		}
-		// Append the recipient to our address list if it's not already tracked
-		credit, ok := credits[recipient]
-		if !ok {
-			addresses = append(addresses, recipient)
-		}
-		// TODO: fetch the required bond from the game contract
-		requiredBond := big.NewInt(10)
-		credits[recipient] = new(big.Int).Add(credit, requiredBond)
+		recipients[recipient] = true
 	}
 
+	recipientAddrs := maps.Keys(recipients)
 	creditMetrics := make(map[metrics.CreditExpectation]int)
-	for _, recipient := range addresses {
+	for i, recipient := range recipientAddrs {
 		expected := game.Credits[recipient]
-		comparison := expected.Cmp(credits[recipient])
+		comparison := expected.Cmp(game.RequiredBonds[i])
 		if maxDurationReached {
 			if comparison > 0 {
 				creditMetrics[metrics.CreditBelowMaxDuration] += 1

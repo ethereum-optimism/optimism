@@ -176,19 +176,30 @@ func (m *mockGameCallerCreator) CreateGameCaller(_ gameTypes.GameMetadata) (Game
 }
 
 type mockGameCaller struct {
-	metadataCalls    int
-	metadataErr      error
-	claimsCalls      int
-	claimsErr        error
-	rootClaim        common.Hash
-	claims           []faultTypes.Claim
-	requestedCredits []common.Address
-	creditsErr       error
-	credits          map[common.Address]*big.Int
-	extraCredit      []*big.Int
-	balanceErr       error
-	balance          *big.Int
-	balanceAddr      common.Address
+	metadataCalls     int
+	metadataErr       error
+	claimsCalls       int
+	claimsErr         error
+	rootClaim         common.Hash
+	claims            []faultTypes.Claim
+	requestedCredits  []common.Address
+	creditsErr        error
+	credits           map[common.Address]*big.Int
+	extraCredit       []*big.Int
+	balanceErr        error
+	balance           *big.Int
+	balanceAddr       common.Address
+	requiredBondCalls int
+	requiredBondErr   error
+	requiredBonds     []*big.Int
+}
+
+func (m *mockGameCaller) GetRequiredBonds(ctx context.Context, block rpcblock.Block, positions ...*big.Int) ([]*big.Int, error) {
+	m.requiredBondCalls++
+	if m.requiredBondErr != nil {
+		return nil, m.requiredBondErr
+	}
+	return m.requiredBonds, nil
 }
 
 func (m *mockGameCaller) GetGameMetadata(_ context.Context, _ rpcblock.Block) (common.Hash, uint64, common.Hash, types.GameStatus, uint64, error) {
