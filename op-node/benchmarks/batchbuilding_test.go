@@ -5,6 +5,7 @@ import (
 	"math/big"
 	"math/rand"
 	"testing"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
@@ -33,7 +34,7 @@ var (
 
 	// batch types used in the benchmark
 	batchTypes = []uint{
-		derive.SingularBatchType,
+		//	derive.SingularBatchType,
 		derive.SpanBatchType,
 	}
 )
@@ -66,7 +67,6 @@ func (t BatchingBenchmarkTC) String() string {
 // Hint: Remove the Start/Stop timers to measure the time to send all the batches through the channel out
 // Hint: Raise the derive.MaxRLPBytesPerChannel to 10_000_000_000 to avoid hitting limits
 func BenchmarkChannelOut(b *testing.B) {
-
 	// Targets define the number of batches and transactions per batch to test
 	type target struct{ bs, tpb int }
 	targets := []target{
@@ -92,12 +92,12 @@ func BenchmarkChannelOut(b *testing.B) {
 
 	for _, tc := range tests {
 		chainID := big.NewInt(333)
-		spanBatchBuilder := derive.NewSpanBatchBuilder(0, chainID)
 		rng := rand.New(rand.NewSource(0x543331))
 		// pre-generate batches to keep the benchmark from including the random generation
 		batches := make([]*derive.SingularBatch, tc.BatchCount)
 		for i := 0; i < tc.BatchCount; i++ {
 			batches[i] = derive.RandomSingularBatch(rng, tc.txPerBatch, chainID)
+			batches[i].Timestamp = uint64(time.Now().Add(time.Duration(i) * time.Second).Unix())
 		}
 		b.Run(tc.String(), func(b *testing.B) {
 			// reset the compressor used in the test case
@@ -105,6 +105,7 @@ func BenchmarkChannelOut(b *testing.B) {
 			for bn := 0; bn < b.N; bn++ {
 				// don't measure the setup time
 				b.StopTimer()
+				spanBatchBuilder := derive.NewSpanBatchBuilder(0, chainID)
 				cout, _ := derive.NewChannelOut(tc.BatchType, compressors[tc.compKey], spanBatchBuilder)
 				// add all but the final batche to the channel out
 				for i := 0; i < tc.BatchCount-1; i++ {
@@ -116,6 +117,48 @@ func BenchmarkChannelOut(b *testing.B) {
 				// add the final batch to the channel out
 				_, err := cout.AddSingularBatch(batches[tc.BatchCount-1], 0)
 				require.NoError(b, err)
+			}
+		})
+	}
+}
+func BenchmarkToRawSpanBatch(b *testing.B) {
+	// Targets define the number of batches and transactions per batch to test
+	type target struct{ bs, tpb int }
+	targets := []target{
+		{10, 1},
+		{100, 1},
+		{1000, 1},
+		{10000, 1},
+
+		{10, 100},
+		{100, 100},
+		{1000, 100},
+	}
+
+	tests := []BatchingBenchmarkTC{}
+	for _, t := range targets {
+		tests = append(tests, BatchingBenchmarkTC{derive.SpanBatchType, t.bs, t.tpb, "NonCompressor"})
+	}
+
+	for _, tc := range tests {
+		chainID := big.NewInt(333)
+		rng := rand.New(rand.NewSource(0x543331))
+		// pre-generate batches to keep the benchmark from including the random generation
+		batches := make([]*derive.SingularBatch, tc.BatchCount)
+		for i := 0; i < tc.BatchCount; i++ {
+			batches[i] = derive.RandomSingularBatch(rng, tc.txPerBatch, chainID)
+			batches[i].Timestamp = uint64(time.Now().Add(time.Duration(i) * time.Second).Unix())
+		}
+		b.Run(tc.String(), func(b *testing.B) {
+			for bn := 0; bn < b.N; bn++ {
+				// don't measure the setup time
+				b.StopTimer()
+				spanBatchBuilder := derive.NewSpanBatchBuilder(0, chainID)
+				for i := 0; i < tc.BatchCount; i++ {
+					spanBatchBuilder.AppendSingularBatch(batches[i], 0)
+				}
+				b.StartTimer()
+				spanBatchBuilder.GetRawSpanBatch()
 			}
 		})
 	}
