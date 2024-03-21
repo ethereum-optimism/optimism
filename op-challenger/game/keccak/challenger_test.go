@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
@@ -151,12 +150,12 @@ type stubSender struct {
 	sent [][]txmgr.TxCandidate
 }
 
-func (s *stubSender) SendAndWait(_ string, txs ...txmgr.TxCandidate) ([]*types.Receipt, error) {
+func (s *stubSender) SendAndWaitSimple(_ string, txs ...txmgr.TxCandidate) error {
 	if s.err != nil {
-		return nil, s.err
+		return s.err
 	}
 	s.sent = append(s.sent, txs)
-	return nil, nil
+	return nil
 }
 
 type stubChallengerOracle struct {

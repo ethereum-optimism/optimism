@@ -12,6 +12,10 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
+type TxSender interface {
+	SendAndWaitSimple(txPurpose string, txs ...txmgr.TxCandidate) error
+}
+
 type BondClaimMetrics interface {
 	RecordBondClaimed(amount uint64)
 }
@@ -27,13 +31,13 @@ type Claimer struct {
 	logger          log.Logger
 	metrics         BondClaimMetrics
 	contractCreator BondContractCreator
-	txSender        types.TxSender
+	txSender        TxSender
 	claimants       []common.Address
 }
 
 var _ BondClaimer = (*Claimer)(nil)
 
-func NewBondClaimer(l log.Logger, m BondClaimMetrics, contractCreator BondContractCreator, txSender types.TxSender, claimants ...common.Address) *Claimer {
+func NewBondClaimer(l log.Logger, m BondClaimMetrics, contractCreator BondContractCreator, txSender TxSender, claimants ...common.Address) *Claimer {
 	return &Claimer{
 		logger:          l,
 		metrics:         m,
@@ -78,7 +82,7 @@ func (c *Claimer) claimBond(ctx context.Context, game types.GameMetadata, addr c
 		return fmt.Errorf("failed to create credit claim tx: %w", err)
 	}
 
-	if _, err = c.txSender.SendAndWait("claim credit", candidate); err != nil {
+	if err = c.txSender.SendAndWaitSimple("claim credit", candidate); err != nil {
 		return fmt.Errorf("failed to claim credit: %w", err)
 	}
 

@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -32,6 +33,7 @@ type ClaimLoader interface {
 
 type Agent struct {
 	metrics   metrics.Metricer
+	cl        clock.Clock
 	solver    *solver.GameSolver
 	loader    ClaimLoader
 	responder Responder
@@ -43,6 +45,7 @@ type Agent struct {
 
 func NewAgent(
 	m metrics.Metricer,
+	cl clock.Clock,
 	loader ClaimLoader,
 	maxDepth types.Depth,
 	trace types.TraceAccessor,
@@ -53,6 +56,7 @@ func NewAgent(
 ) *Agent {
 	return &Agent{
 		metrics:   m,
+		cl:        cl,
 		solver:    solver.NewGameSolver(maxDepth, trace),
 		loader:    loader,
 		responder: responder,
@@ -69,6 +73,10 @@ func (a *Agent) Act(ctx context.Context) error {
 		return nil
 	}
 
+	start := a.cl.Now()
+	defer func() {
+		a.metrics.RecordGameActTime(a.cl.Since(start).Seconds())
+	}()
 	game, err := a.newGameFromContracts(ctx)
 	if err != nil {
 		return fmt.Errorf("create game from contracts: %w", err)
@@ -178,6 +186,10 @@ func (a *Agent) tryResolveClaims(ctx context.Context) error {
 }
 
 func (a *Agent) resolveClaims(ctx context.Context) error {
+	start := a.cl.Now()
+	defer func() {
+		a.metrics.RecordClaimResolutionTime(a.cl.Since(start).Seconds())
+	}()
 	for {
 		err := a.tryResolveClaims(ctx)
 		switch err {

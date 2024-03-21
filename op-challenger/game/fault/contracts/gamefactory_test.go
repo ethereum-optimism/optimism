@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
@@ -228,7 +229,7 @@ func setupDisputeGameFactoryTest(t *testing.T) (*batchingTest.AbiBasedRpc, *Disp
 
 	stubRpc := batchingTest.NewAbiBasedRpc(t, factoryAddr, fdgAbi)
 	caller := batching.NewMultiCaller(stubRpc, batchSize)
-	factory, err := NewDisputeGameFactoryContract(factoryAddr, caller)
+	factory, err := NewDisputeGameFactoryContract(metrics.NoopContractMetrics, factoryAddr, caller)
 	require.NoError(t, err)
 	return stubRpc, factory
 }
