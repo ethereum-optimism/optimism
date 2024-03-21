@@ -43,7 +43,7 @@ Many wallets now allow applications to trigger a popup to switch between network
 
 \* [Universal gateway](https://gateway.boba.network).
 
-If your wallet does not support this feature, you will have to connect manually. The exact process for connecting your wallet to a Boba Ethereum network depends on the specific wallet software you are using. To get started on Boba/Ethereum, you can use the available [community RPC endpoint](https://docs.boba.network/developer/network-eth).
+If your wallet does not support this feature, you will have to connect manually. The exact process for connecting your wallet to a Boba Ethereum network depends on the specific wallet software you are using. To get started on Boba/Ethereum, you can use the available [community RPC endpoint](contents/developer/multichain/network-eth.md).
 
 ## How do I move assets into or out of Boba Network?
 
@@ -147,7 +147,7 @@ Boba network is a permission-less network and hence we cannot influence app crea
 
 Unfortunately no, not at the moment.
 
-## Could you please explain the difference between the two mappings [mentioned in the token list](https://docs.boba.network/developer/exchange-integration#the-boba-token-list?)?
+## Could you please explain the difference between the two mappings [mentioned in the token list](contents/developer/exchange-integration.md)?
 
 Technically, an L1 token can have multiple representations on L2. This mean that an L1 token can be wrapped in distinct tokens: L2\_token\_A, or L2\_token\_B, both being valid and point to the same L1 token. But in order to standardize, the token list specifies only a single L2 token address for every corresponding L1 token.
 
@@ -163,7 +163,7 @@ Technically, an L1 token can have multiple representations on L2. This mean that
 
 Yes! Please refer to [Boba Faucets](contents/developer/faucets.md).
 
-For more information on Boba’s testnet and fountain, [check out our documentation](https://docs.boba.network/developer/multichain).
+For more information on Boba’s testnet and fountain, [check out our documentation](contents/developer/multichain/network-eth.md).
 
 ## I am trying to run Boba Network locally and I am able to run unit tests. However, integration tests give an error:
 
@@ -185,7 +185,7 @@ When you make an Ethereum transaction, the user will be given an expected fee fo
 
 Here, Boba is looking out for you. Before that unexpected increased fee goes through, Boba throws an error message and prevents the payment from going through. If the transaction fee is at least three times what the expected cost was (in this example, your transaction fee of 3 USD jumped to 9 USD), the transaction will fail and saves you from the increased fee.
 
-[Here's more info on fees](https://docs.boba.network/developer/fee-scheme#for-frontend-and-wallet-developers).
+[Here's more info on fees](contents/developer/fee-scheme.md#for-frontend-and-wallet-developers).
 
 ## DAPPs require an XYZ gas amount to deploy. However, Boba's block gas limit of only 11,000,000 makes it impossible to deploy a smart contract. What can I do to deploy this smart contract on Boba?
 
@@ -224,7 +224,7 @@ You can also [look into using compilers and optimization options](https://docs.s
 
 ## Does Boba Network have a public TheGraph Node for deploying Subgraphs?
 
-[Please refer to the Boba docs on using The Graph](https://docs.boba.network/developer/subgraph).
+[Please refer to the Boba docs on using The Graph](contents/developer/features/subgraph.md).
 
 ## Which bridge does Boba Network use?
 

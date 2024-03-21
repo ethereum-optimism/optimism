@@ -65,7 +65,7 @@ cd v3-erigon
 
 ### Check out the required release branch
 
-Release branches are created when new versions of the `erigon` are created. Read through the [Releases page](https://github.com/bobanetwork/v3-erigon/releases) to determine the correct branch to check out.
+Release branches are created when new versions of the `erigon` are created. Read through the [Releases page](https://github.com/bobanetwork/op-erigon/releases) to determine the correct branch to check out.
 
 ```
 git checkout <name of release branch>
