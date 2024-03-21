@@ -4,7 +4,7 @@ description: Learn more about the Bundler API for Account Abstraction on Boba Ne
 
 # Bundler API
 
-<figure><img src="../../../.gitbook/assets/bundler endpoints.png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../../../../assets/bundler endpoints.png" alt=""><figcaption></figcaption></figure>
 
 |            |                                                                                      |
 | ---------- | ------------------------------------------------------------------------------------ |
@@ -13,7 +13,7 @@ description: Learn more about the Bundler API for Account Abstraction on Boba Ne
 | ChainID    | 2888                                                                                 |
 | AA bundler | [https://bundler.goerli.boba.network](https://bundler.goerli.boba.network)           |
 
-<figure><img src="../../../.gitbook/assets/bundler api.png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../../../../assets/bundler api.png" alt=""><figcaption></figcaption></figure>
 
 This section lists the Ethereum JSON-RPC API endpoints for a basic EIP-4337 "bundler".
 

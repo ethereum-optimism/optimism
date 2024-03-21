@@ -2,7 +2,7 @@
 
 This page provides a list of the necessary versions of node software and instructions on how to keep them updated.
 
-Our latest releases, notes and changelogs can be found on Github. `op-node` releases can be found [here](https://github.com/bobanetwork/v3-anchorage/tags) and `op-erigon` release can be found [here](https://github.com/bobanetwork/v3-erigon/releases).
+Our latest releases, notes and changelogs can be found on Github. `op-node` releases can be found [here](https://github.com/bobanetwork/boba/tags) and `op-erigon` release can be found [here](https://github.com/bobanetwork/op-erigon/releases).
 
 ## Required Version by Network
 
@@ -10,11 +10,31 @@ These are the minimal required versions for the `op-node`, `op-erigon` and `op-g
 
 | Network      | op-node                                                      | op-erigon                                                    | op-geth                                                      |
 | ------------ | ------------------------------------------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| Boba Sepolia | [v1.6.1](https://github.com/bobanetwork/v3-anchorage/releases/tag/op-node%2Fv1.6.1) | [v1.1.1](https://github.com/bobanetwork/v3-erigon/releases/tag/v1.1.1) | [v1.101308.1](https://github.com/ethereum-optimism/op-geth/releases/tag/v1.101308.1) |
-| Op Sepolia   | [v1.6.0](https://github.com/bobanetwork/v3-anchorage/releases/tag/v1.6.0) | [v1.1.1](https://github.com/bobanetwork/v3-erigon/releases/tag/v1.1.1) | [v1.101308.1](https://github.com/ethereum-optimism/op-geth/releases/tag/v1.101308.1) |
-| Op Mainnet   | [v1.6.0](https://github.com/bobanetwork/v3-anchorage/releases/tag/v1.6.0) | [v1.1.1](https://github.com/bobanetwork/v3-erigon/releases/tag/v1.1.1) | [v1.101308.1](https://github.com/ethereum-optimism/op-geth/releases/tag/v1.101308.1) |
+| Boba Sepolia | [v1.6.1](https://github.com/bobanetwork/boba/releases/tag/op-node%2Fv1.6.1) | [v1.1.1](https://github.com/bobanetwork/op-erigon/releases/tag/v1.1.1) | [v1.101308.1](https://github.com/ethereum-optimism/op-geth/releases/tag/v1.101308.1) |
+| Op Sepolia   | [v1.6.0](https://github.com/bobanetwork/boba/releases/tag/v1.6.0) | [v1.1.1](https://github.com/bobanetwork/op-erigon/releases/tag/v1.1.1) | [v1.101308.1](https://github.com/ethereum-optimism/op-geth/releases/tag/v1.101308.1) |
+| Op Mainnet   | [v1.6.2](https://github.com/bobanetwork/boba/releases/tag/v1.6.2) | [v1.1.2](https://github.com/bobanetwork/op-erigon/releases/tag/v1.1.2) | [v1.101308.1](https://github.com/ethereum-optimism/op-geth/releases/tag/v1.101308.1) |
 
-## [op-erigon v1.1.1](https://github.com/bobanetwork/v3-erigon/releases/tag/v1.1.1)
+## [op-node v1.6.2](https://github.com/bobanetwork/boba/releases/tag/v1.6.2)
+
+**Description**
+
+This is a mandatory release for node operators on Optimism Mainnet network. The **Ecotone** protocol upgrades will activate on March 14 2024 00:00:01 UTC 2024 on Optimism Mainnet network.
+
+**Required Action**
+
+Upgrade your `op-node` software.
+
+## [op-erigon v1.1.2](https://github.com/bobanetwork/op-erigon/releases/tag/v1.1.2)
+
+**Description**
+
+This is a mandatory release for node operators on Optimism Mainnet network. The **Ecotone** protocol upgrades will activate on March 14 2024 00:00:01 UTC 2024 on Optimism Mainnet network.
+
+**Required Action**
+
+Upgrade your `op-erigon` software.
+
+## [op-erigon v1.1.1](https://github.com/bobanetwork/op-erigon/releases/tag/v1.1.1)
 
 **Description**
 
@@ -24,7 +44,7 @@ This is a mandatory release for node operators on all networks. It introduces th
 
 Upgrade your `op-erigon` software.
 
-## [op-node v1.6.1](https://github.com/bobanetwork/v3-anchorage/releases/tag/v1.6.1)
+## [op-node v1.6.1](https://github.com/bobanetwork/boba/releases/tag/v1.6.1)
 
 **Description**
 
@@ -38,7 +58,7 @@ Upgrade your `op-node` software.
 
 Explicitly specify the Beacon endpoint: `--l1.beacon` and `$OP_NODE_L1_BEACON`
 
-## [op-node v1.6.0](https://github.com/bobanetwork/v3-anchorage/releases/tag/v1.6.0)
+## [op-node v1.6.0](https://github.com/bobanetwork/boba/releases/tag/v1.6.0)
 
 **Description**
 
