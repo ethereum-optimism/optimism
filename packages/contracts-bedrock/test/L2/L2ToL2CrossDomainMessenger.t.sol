@@ -41,7 +41,12 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         emit L2ToL2CrossDomainMessenger.SentMessage(
             abi.encodeWithSelector(
                 L2ToL2CrossDomainMessenger.relayMessage.selector,
-                (_destination, block.chainid, 0, address(this), _target, _message)
+                _destination,
+                block.chainid,
+                0,
+                address(this),
+                _target,
+                _message
             )
         );
 
@@ -90,7 +95,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
 
         vm.deal(Predeploys.CROSS_L2_INBOX, _value);
 
-        vm.expectCall({ callee: _target, value: _value, data: _message });
+        vm.expectCall({ callee: _target, msgValue: _value, data: _message });
 
         vm.prank(Predeploys.CROSS_L2_INBOX);
         l2ToL2CrossDomainMessenger.relayMessage{ value: _value }({
