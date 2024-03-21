@@ -36,8 +36,8 @@ func TestDelayedWeth_GetWithdrawals(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, len(expected), len(actual))
 	for i := range expected {
-		require.Zerof(t, expected[i][0].Cmp(actual[i].Timestamp), "expected: %v actual: %v", expected[i][0], actual[i].Timestamp)
-		require.Zerof(t, expected[i][1].Cmp(actual[i].Amount), "expected: %v actual: %v", expected[i][1], actual[i].Amount)
+		require.Zerof(t, expected[i][0].Cmp(actual[i].Amount), "expected: %v actual: %v", expected[i][1], actual[i].Amount)
+		require.Zerof(t, expected[i][1].Cmp(actual[i].Timestamp), "expected: %v actual: %v", expected[i][0], actual[i].Timestamp)
 	}
 }
 
