@@ -138,7 +138,7 @@ func (co *SpanChannelOut) AddSingularBatch(batch *SingularBatch, seqNum uint64) 
 	if co.compress.FullErr() != nil {
 		err = co.compress.FullErr()
 		if co.spanBatchBuilder.GetBlockCount() == 1 {
-			// Do not return CompressorFullErr for the first block in the batch
+			// Do not return ErrCompressorFull for the first block in the batch
 			// In this case, reader must be empty. then the contents of compressor will be copied to reader when the channel is closed.
 			err = nil
 		}
