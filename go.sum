@@ -684,8 +684,8 @@ github.com/raulk/go-watchdog v1.3.0/go.mod h1:fIvOnLbF0b0ZwkB9YU4mOW9Did//4vPZtD
 github.com/rivo/uniseg v0.2.0/go.mod h1:J6wj4VEh+S6ZtnVlnTBMWIodfgj8LQOQFoIToxlJtxc=
 github.com/rivo/uniseg v0.4.3 h1:utMvzDsuh3suAEnhH0RdHmoPbU648o6CvXxTx4SBMOw=
 github.com/rivo/uniseg v0.4.3/go.mod h1:FN3SvrM+Zdj16jyLfmOkMNblXMcoc8DfTHruCPUcx88=
-github.com/roberto-bayardo/op-geth v0.0.0-20240321010510-953d48bf7ab5 h1:Iyl99gawRUzc/MsL5/UGAnN+onjoRsGbnZhLT9hxKMU=
-github.com/roberto-bayardo/op-geth v0.0.0-20240321010510-953d48bf7ab5/go.mod h1:k0UbrLuOITLD8goCyA2xWebAL03n2BZUCfwos0rxz60=
+github.com/roberto-bayardo/op-geth v0.0.0-20240321212348-438dd5ed418e h1:DJb7sxdfBGUJbXZ8pTfqTfALvIbSp2yypsRfIHUS9g4=
+github.com/roberto-bayardo/op-geth v0.0.0-20240321212348-438dd5ed418e/go.mod h1:k0UbrLuOITLD8goCyA2xWebAL03n2BZUCfwos0rxz60=
 github.com/rogpeppe/go-internal v1.3.0/go.mod h1:M8bDsm7K2OlrFYOpmOWEs/qY81heoFRclV5y23lUDJ4=
 github.com/rogpeppe/go-internal v1.6.1/go.mod h1:xXDCJY+GAPziupqXw64V24skbSoqbTEfhy4qGm1nDQc=
 github.com/rogpeppe/go-internal v1.9.0/go.mod h1:WtVeX8xhTBvf0smdhujwtBcq4Qrzq/fJaraNFVN+nFs=
