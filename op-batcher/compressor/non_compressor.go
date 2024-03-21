@@ -45,7 +45,7 @@ func (t *NonCompressor) Write(p []byte) (int, error) {
 		return 0, err
 	}
 	if uint64(t.buf.Len()) > t.config.TargetOutputSize {
-		t.fullErr = derive.CompressorFullErr
+		t.fullErr = derive.ErrCompressorFull
 	}
 	return n, nil
 }

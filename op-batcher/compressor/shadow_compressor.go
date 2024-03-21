@@ -76,7 +76,7 @@ func (t *ShadowCompressor) Write(p []byte) (int, error) {
 		}
 		newBound = uint64(t.shadowBuf.Len()) + CloseOverheadZlib
 		if newBound > t.config.TargetOutputSize {
-			t.fullErr = derive.CompressorFullErr
+			t.fullErr = derive.ErrCompressorFull
 			if t.Len() > 0 {
 				// only return an error if we've already written data to this compressor before
 				// (otherwise single blocks over the target would never be written)
