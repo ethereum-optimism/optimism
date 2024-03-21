@@ -10,12 +10,12 @@ import { FeeVault } from "src/universal/FeeVault.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { SafeCall } from "src/libraries/SafeCall.sol";
 
-/**
- * @title RevenueSharer
- * @dev Withdraws funds from system FeeVault contracts,
- * pays a share of revenue to Optimism
- * and sends the remainder to a configurable adddress on L1.
- */
+/// @custom:proxied
+/// @custom:predeploy 0x4200000000000000000000000000000000000022
+/// @title RevenueSharer
+/// @dev Withdraws funds from system FeeVault contracts,
+/// pays a share of revenue to Optimism
+/// and sends the remainder to a configurable adddress on L1.
 contract RevenueSharer {
     /*//////////////////////////////////////////////////////////////
                             Constants

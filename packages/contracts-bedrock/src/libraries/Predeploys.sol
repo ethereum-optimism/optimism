@@ -4,6 +4,9 @@ pragma solidity ^0.8.0;
 /// @title Predeploys
 /// @notice Contains constant addresses for contracts that are pre-deployed to the L2 system.
 library Predeploys {
+    /// @notice Address of the RevenueSharer predeploy.
+    address internal constant REVENUE_SHARER = 0x4200000000000000000000000000000000000022;
+
     /// @notice Address of the L2ToL1MessagePasser predeploy.
     address internal constant L2_TO_L1_MESSAGE_PASSER = 0x4200000000000000000000000000000000000016;
 
