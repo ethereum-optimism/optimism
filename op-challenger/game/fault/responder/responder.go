@@ -72,13 +72,19 @@ func (r *FaultResponder) CallResolveClaim(ctx context.Context, claimIdx uint64) 
 	return r.contract.CallResolveClaim(ctx, claimIdx)
 }
 
-// ResolveClaim executes a resolveClaim transaction to resolve a fault dispute game.
-func (r *FaultResponder) ResolveClaim(claimIdx uint64) error {
-	candidate, err := r.contract.ResolveClaimTx(claimIdx)
-	if err != nil {
-		return err
+// ResolveClaims executes resolveClaim transactions to resolve claims in a dispute game.
+func (r *FaultResponder) ResolveClaims(claimIdxs ...uint64) error {
+	txs := make([]txmgr.TxCandidate, 0, len(claimIdxs))
+	for _, claimIdx := range claimIdxs {
+		candidate, err := r.contract.ResolveClaimTx(claimIdx)
+		if err != nil {
+			return err
+		}
+		txs = append(txs, candidate)
 	}
-	return r.sendTxAndWait("resolve claim", candidate)
+
+	_, err := r.sender.SendAndWait("resolve claim", txs...)
+	return err
 }
 
 func (r *FaultResponder) PerformAction(ctx context.Context, action types.Action) error {
