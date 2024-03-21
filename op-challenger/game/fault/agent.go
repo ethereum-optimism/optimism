@@ -23,7 +23,7 @@ type Responder interface {
 	CallResolve(ctx context.Context) (gameTypes.GameStatus, error)
 	Resolve() error
 	CallResolveClaim(ctx context.Context, claimIdx uint64) error
-	ResolveClaim(claimIdx uint64) error
+	ResolveClaims(claimIdx ...uint64) error
 	PerformAction(ctx context.Context, action types.Action) error
 }
 
@@ -157,7 +157,7 @@ func (a *Agent) tryResolveClaims(ctx context.Context) error {
 		return errNoResolvableClaims
 	}
 
-	var resolvableClaims []int64
+	var resolvableClaims []uint64
 	for _, claim := range claims {
 		if a.selective {
 			a.log.Trace("Selective claim resolution, checking if claim is incentivized", "claimIdx", claim.ContractIndex)
@@ -171,7 +171,7 @@ func (a *Agent) tryResolveClaims(ctx context.Context) error {
 		a.log.Trace("Checking if claim is resolvable", "claimIdx", claim.ContractIndex)
 		if err := a.responder.CallResolveClaim(ctx, uint64(claim.ContractIndex)); err == nil {
 			a.log.Info("Resolving claim", "claimIdx", claim.ContractIndex)
-			resolvableClaims = append(resolvableClaims, int64(claim.ContractIndex))
+			resolvableClaims = append(resolvableClaims, uint64(claim.ContractIndex))
 		}
 	}
 	if len(resolvableClaims) == 0 {
@@ -179,19 +179,9 @@ func (a *Agent) tryResolveClaims(ctx context.Context) error {
 	}
 	a.log.Info("Resolving claims", "numClaims", len(resolvableClaims))
 
-	var wg sync.WaitGroup
-	wg.Add(len(resolvableClaims))
-	for _, claimIdx := range resolvableClaims {
-		claimIdx := claimIdx
-		go func() {
-			defer wg.Done()
-			err := a.responder.ResolveClaim(uint64(claimIdx))
-			if err != nil {
-				a.log.Error("Failed to resolve claim", "err", err)
-			}
-		}()
+	if err := a.responder.ResolveClaims(resolvableClaims...); err != nil {
+		a.log.Error("Failed to resolve claims", "err", err)
 	}
-	wg.Wait()
 	return nil
 }
 

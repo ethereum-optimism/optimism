@@ -83,16 +83,23 @@ func TestResolveClaim(t *testing.T) {
 	t.Run("SendFails", func(t *testing.T) {
 		responder, mockTxMgr, _, _, _ := newTestFaultResponder(t)
 		mockTxMgr.sendFails = true
-		err := responder.ResolveClaim(0)
+		err := responder.ResolveClaims(0)
 		require.ErrorIs(t, err, mockSendError)
 		require.Equal(t, 0, mockTxMgr.sends)
 	})
 
 	t.Run("Success", func(t *testing.T) {
 		responder, mockTxMgr, _, _, _ := newTestFaultResponder(t)
-		err := responder.ResolveClaim(0)
+		err := responder.ResolveClaims(0)
 		require.NoError(t, err)
 		require.Equal(t, 1, mockTxMgr.sends)
+	})
+
+	t.Run("Multiple", func(t *testing.T) {
+		responder, mockTxMgr, _, _, _ := newTestFaultResponder(t)
+		err := responder.ResolveClaims(0, 1, 2, 3)
+		require.NoError(t, err)
+		require.Equal(t, 4, mockTxMgr.sends)
 	})
 }
 
