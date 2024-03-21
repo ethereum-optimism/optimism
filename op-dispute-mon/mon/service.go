@@ -116,6 +116,7 @@ func (s *Service) initDelayCalculator() {
 
 func (s *Service) initExtractor() {
 	s.extractor = extract.NewExtractor(s.logger, s.game.CreateContract, s.factoryContract.GetGamesAtOrAfter,
+		extract.NewClaimEnricher(),
 		extract.NewBondEnricher(),
 		extract.NewBalanceEnricher(),
 		extract.NewL1HeadBlockNumEnricher(s.l1Client),
