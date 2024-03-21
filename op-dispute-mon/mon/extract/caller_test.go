@@ -19,7 +19,16 @@ var (
 	fdgAddr = common.HexToAddress("0x24112842371dFC380576ebb09Ae16Cb6B6caD7CB")
 )
 
-func TestMetadataCreator_CreateContract(t *testing.T) {
+func TestMetadataCreator_CreateWethContract(t *testing.T) {
+	caller, metrics := setupMetadataLoaderTest(t)
+	creator := NewCallerCreator(metrics, caller)
+	_, err := creator.CreateWethContract(fdgAddr)
+	require.NoError(t, err)
+	require.Equal(t, 1, metrics.cacheAddCalls)
+	require.Equal(t, 1, metrics.cacheGetCalls)
+}
+
+func TestMetadataCreator_CreateGameContract(t *testing.T) {
 	tests := []struct {
 		name        string
 		game        types.GameMetadata
