@@ -41,7 +41,21 @@ func TestExtractor_Extract(t *testing.T) {
 		require.Equal(t, 1, creator.calls)
 		require.Equal(t, 0, creator.caller.metadataCalls)
 		require.Equal(t, 0, creator.caller.claimsCalls)
-		verifyLogs(t, logs, 1, 0, 0, 0)
+		verifyLogs(t, logs, 1, 0, 0, 0, 0)
+	})
+
+	t.Run("CreateWethErrorLog", func(t *testing.T) {
+		extractor, creator, games, logs := setupExtractorTest(t)
+		games.games = []gameTypes.GameMetadata{{}}
+		creator.wethErr = errors.New("boom")
+		enriched, err := extractor.Extract(context.Background(), common.Hash{}, 0)
+		require.NoError(t, err)
+		require.Len(t, enriched, 0)
+		require.Equal(t, 1, games.calls)
+		require.Equal(t, 1, creator.calls)
+		require.Equal(t, 0, creator.caller.metadataCalls)
+		require.Equal(t, 0, creator.caller.claimsCalls)
+		verifyLogs(t, logs, 0, 1, 0, 0, 0)
 	})
 
 	t.Run("MetadataFetchErrorLog", func(t *testing.T) {
@@ -55,7 +69,7 @@ func TestExtractor_Extract(t *testing.T) {
 		require.Equal(t, 1, creator.calls)
 		require.Equal(t, 1, creator.caller.metadataCalls)
 		require.Equal(t, 0, creator.caller.claimsCalls)
-		verifyLogs(t, logs, 0, 1, 0, 0)
+		verifyLogs(t, logs, 0, 0, 1, 0, 0)
 	})
 
 	t.Run("ClaimsFetchErrorLog", func(t *testing.T) {
@@ -69,7 +83,7 @@ func TestExtractor_Extract(t *testing.T) {
 		require.Equal(t, 1, creator.calls)
 		require.Equal(t, 1, creator.caller.metadataCalls)
 		require.Equal(t, 1, creator.caller.claimsCalls)
-		verifyLogs(t, logs, 0, 0, 1, 0)
+		verifyLogs(t, logs, 0, 0, 0, 1, 0)
 	})
 
 	t.Run("Success", func(t *testing.T) {
@@ -118,11 +132,14 @@ func TestExtractor_Extract(t *testing.T) {
 	})
 }
 
-func verifyLogs(t *testing.T, logs *testlog.CapturingHandler, createErr int, metadataErr int, claimsErr int, durationErr int) {
+func verifyLogs(t *testing.T, logs *testlog.CapturingHandler, createErr int, wethErr int, metadataErr int, claimsErr int, durationErr int) {
 	errorLevelFilter := testlog.NewLevelFilter(log.LevelError)
 	createMessageFilter := testlog.NewMessageFilter("Failed to create game caller")
 	l := logs.FindLogs(errorLevelFilter, createMessageFilter)
 	require.Len(t, l, createErr)
+	createWethMessageFilter := testlog.NewMessageFilter("Failed to create weth caller")
+	l = logs.FindLogs(errorLevelFilter, createWethMessageFilter)
+	require.Len(t, l, wethErr)
 	fetchMessageFilter := testlog.NewMessageFilter("Failed to fetch game metadata")
 	l = logs.FindLogs(errorLevelFilter, fetchMessageFilter)
 	require.Len(t, l, metadataErr)
