@@ -41,7 +41,7 @@ type Service struct {
 	extractor    *extract.Extractor
 	forecast     *forecast
 	bonds        *bonds.Bonds
-	game         *extract.GameCallerCreator
+	caller       *extract.CallerCreator
 	rollupClient *sources.RollupClient
 	validator    *outputValidator
 
@@ -85,8 +85,8 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 		return fmt.Errorf("failed to init rollup client: %w", err)
 	}
 
-	s.initOutputValidator()   // Must be called before initForecast
-	s.initGameCallerCreator() // Must be called before initForecast
+	s.initOutputValidator() // Must be called before initForecast
+	s.initCallerCreator()   // Must be called before initForecast
 
 	s.initDelayCalculator()
 	s.initExtractor()
@@ -106,8 +106,8 @@ func (s *Service) initOutputValidator() {
 	s.validator = newOutputValidator(s.logger, s.metrics, s.rollupClient)
 }
 
-func (s *Service) initGameCallerCreator() {
-	s.game = extract.NewGameCallerCreator(s.metrics, batching.NewMultiCaller(s.l1Client.Client(), batching.DefaultBatchSize))
+func (s *Service) initCallerCreator() {
+	s.caller = extract.NewCallerCreator(s.metrics, batching.NewMultiCaller(s.l1Client.Client(), batching.DefaultBatchSize))
 }
 
 func (s *Service) initDelayCalculator() {

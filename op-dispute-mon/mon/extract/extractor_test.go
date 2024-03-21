@@ -137,11 +137,13 @@ func verifyLogs(t *testing.T, logs *testlog.CapturingHandler, createErr int, met
 func setupExtractorTest(t *testing.T, enrichers ...Enricher) (*Extractor, *mockGameCallerCreator, *mockGameFetcher, *testlog.CapturingHandler) {
 	logger, capturedLogs := testlog.CaptureLogger(t, log.LvlDebug)
 	games := &mockGameFetcher{}
+	weth := &mockWethCaller{}
 	caller := &mockGameCaller{rootClaim: mockRootClaim}
-	creator := &mockGameCallerCreator{caller: caller}
+	creator := &mockGameCallerCreator{caller: caller, weth: weth}
 	extractor := NewExtractor(
 		logger,
 		creator.CreateGameCaller,
+		creator.CreateWethCaller,
 		games.FetchGames,
 		enrichers...,
 	)
@@ -163,9 +165,12 @@ func (m *mockGameFetcher) FetchGames(_ context.Context, _ common.Hash, _ uint64)
 }
 
 type mockGameCallerCreator struct {
-	calls  int
-	err    error
-	caller *mockGameCaller
+	calls     int
+	err       error
+	caller    *mockGameCaller
+	wethCalls int
+	wethErr   error
+	weth      *mockWethCaller
 }
 
 func (m *mockGameCallerCreator) CreateGameCaller(_ gameTypes.GameMetadata) (GameCaller, error) {
@@ -174,6 +179,32 @@ func (m *mockGameCallerCreator) CreateGameCaller(_ gameTypes.GameMetadata) (Game
 		return nil, m.err
 	}
 	return m.caller, nil
+}
+
+func (m *mockGameCallerCreator) CreateWethCaller(_ common.Address) (WethCaller, error) {
+	m.wethCalls++
+	if m.wethErr != nil {
+		return nil, m.wethErr
+	}
+	return m.weth, nil
+}
+
+type mockWethCaller struct {
+	withdrawalsCalls int
+	withdrawalsErr   error
+}
+
+func (m *mockWethCaller) GetWithdrawals(_ context.Context, _ rpcblock.Block, _ common.Address, _ ...common.Address) ([]*contracts.WithdrawalRequest, error) {
+	m.withdrawalsCalls++
+	if m.withdrawalsErr != nil {
+		return nil, m.withdrawalsErr
+	}
+	return []*contracts.WithdrawalRequest{
+		{
+			Timestamp: big.NewInt(1),
+			Amount:    big.NewInt(2),
+		},
+	}, nil
 }
 
 type mockGameCaller struct {
@@ -252,7 +283,7 @@ type mockEnricher struct {
 	calls int
 }
 
-func (m *mockEnricher) Enrich(_ context.Context, _ rpcblock.Block, _ GameCaller, _ *monTypes.EnrichedGameData) error {
+func (m *mockEnricher) Enrich(_ context.Context, _ rpcblock.Block, _ GameCaller, _ WethCaller, _ *monTypes.EnrichedGameData) error {
 	m.calls++
 	return m.err
 }

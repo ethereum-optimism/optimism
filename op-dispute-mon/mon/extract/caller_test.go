@@ -44,14 +44,14 @@ func TestMetadataCreator_CreateContract(t *testing.T) {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
 			caller, metrics := setupMetadataLoaderTest(t)
-			creator := NewGameCallerCreator(metrics, caller)
-			_, err := creator.CreateContract(test.game)
+			creator := NewCallerCreator(metrics, caller)
+			_, err := creator.CreateGameContract(test.game)
 			require.Equal(t, test.expectedErr, err)
 			if test.expectedErr == nil {
 				require.Equal(t, 1, metrics.cacheAddCalls)
 				require.Equal(t, 1, metrics.cacheGetCalls)
 			}
-			_, err = creator.CreateContract(test.game)
+			_, err = creator.CreateGameContract(test.game)
 			require.Equal(t, test.expectedErr, err)
 			if test.expectedErr == nil {
 				require.Equal(t, 1, metrics.cacheAddCalls)

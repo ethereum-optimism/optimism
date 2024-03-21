@@ -18,7 +18,7 @@ import (
 
 const metricsLabel = "game_caller_creator"
 
-type GameCallerMetrics interface {
+type CallerMetrics interface {
 	caching.Metrics
 	contractMetrics.ContractMetricer
 }
@@ -31,17 +31,23 @@ type GameCaller interface {
 	BalanceCaller
 }
 
-type GameCallerCreator struct {
-	m      GameCallerMetrics
-	cache  *caching.LRUCache[common.Address, *contracts.FaultDisputeGameContract]
-	caller *batching.MultiCaller
+type WethCaller interface {
+	GetWithdrawals(context.Context, rpcblock.Block, common.Address, ...common.Address) ([]*contracts.WithdrawalRequest, error)
 }
 
-func NewGameCallerCreator(m GameCallerMetrics, caller *batching.MultiCaller) *GameCallerCreator {
-	return &GameCallerCreator{
+type CallerCreator struct {
+	m      CallerMetrics
+	caller *batching.MultiCaller
+	games  *caching.LRUCache[common.Address, *contracts.FaultDisputeGameContract]
+	weths  *caching.LRUCache[common.Address, *contracts.DelayedWethContract]
+}
+
+func NewCallerCreator(m CallerMetrics, caller *batching.MultiCaller) *CallerCreator {
+	return &CallerCreator{
 		m:      m,
 		caller: caller,
-		cache:  caching.NewLRUCache[common.Address, *contracts.FaultDisputeGameContract](m, metricsLabel, 100),
+		games:  caching.NewLRUCache[common.Address, *contracts.FaultDisputeGameContract](m, metricsLabel, 100),
+		weths:  caching.NewLRUCache[common.Address, *contracts.DelayedWethContract](m, metricsLabel, 100),
 	}
 }
 
@@ -55,7 +61,7 @@ func (g *GameCallerCreator) CreateContract(game gameTypes.GameMetadata) (GameCal
 		if err != nil {
 			return nil, fmt.Errorf("failed to create FaultDisputeGameContract: %w", err)
 		}
-		g.cache.Add(game.Proxy, fdg)
+		g.games.Add(game.Proxy, fdg)
 		return fdg, nil
 	default:
 		return nil, fmt.Errorf("unsupported game type: %d", game.GameType)

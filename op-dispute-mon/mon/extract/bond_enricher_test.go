@@ -48,17 +48,19 @@ func TestBondEnricher(t *testing.T) {
 
 	t.Run("GetCreditsFails", func(t *testing.T) {
 		enricher := NewBondEnricher()
+		weth := &mockWethCaller{}
 		caller := &mockGameCaller{creditsErr: errors.New("nope")}
 		game := makeGame()
-		err := enricher.Enrich(context.Background(), rpcblock.Latest, caller, game)
+		err := enricher.Enrich(context.Background(), rpcblock.Latest, caller, weth, game)
 		require.ErrorIs(t, err, caller.creditsErr)
 	})
 
 	t.Run("GetCreditsWrongNumberOfResults", func(t *testing.T) {
 		enricher := NewBondEnricher()
+		weth := &mockWethCaller{}
 		caller := &mockGameCaller{extraCredit: []*big.Int{big.NewInt(4)}}
 		game := makeGame()
-		err := enricher.Enrich(context.Background(), rpcblock.Latest, caller, game)
+		err := enricher.Enrich(context.Background(), rpcblock.Latest, caller, weth, game)
 		require.ErrorIs(t, err, ErrIncorrectCreditCount)
 	})
 
@@ -76,8 +78,9 @@ func TestBondEnricher(t *testing.T) {
 			expectedRecipients[0]: big.NewInt(20),
 			expectedRecipients[1]: big.NewInt(30),
 		}
+		weth := &mockWethCaller{}
 		caller := &mockGameCaller{credits: expectedCredits}
-		err := enricher.Enrich(context.Background(), rpcblock.Latest, caller, game)
+		err := enricher.Enrich(context.Background(), rpcblock.Latest, caller, weth, game)
 		require.NoError(t, err)
 
 		require.Equal(t, len(expectedRecipients), len(caller.requestedCredits))

@@ -24,7 +24,7 @@ func NewL1HeadBlockNumEnricher(client BlockFetcher) *L1HeadBlockNumEnricher {
 	return &L1HeadBlockNumEnricher{client: client}
 }
 
-func (e *L1HeadBlockNumEnricher) Enrich(ctx context.Context, _ rpcblock.Block, _ GameCaller, game *monTypes.EnrichedGameData) error {
+func (e *L1HeadBlockNumEnricher) Enrich(ctx context.Context, _ rpcblock.Block, _ GameCaller, _ WethCaller, game *monTypes.EnrichedGameData) error {
 	header, err := e.client.HeaderByHash(ctx, game.L1Head)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve header for L1 head block %v: %w", game.L1Head, err)
