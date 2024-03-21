@@ -21,7 +21,6 @@ import (
 // the superchain-registry is no longer deemed experimental.
 func TestGetRollupConfig(t *testing.T) {
 	configsByName := map[string]rollup.Config{
-		"goerli":                        goerliCfg,
 		"mainnet":                       mainnetCfg,
 		"sepolia":                       sepoliaCfg,
 		"oplabs-devnet-0-sepolia-dev-0": sepoliaDev0Cfg,
