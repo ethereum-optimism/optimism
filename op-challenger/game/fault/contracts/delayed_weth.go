@@ -16,7 +16,7 @@ var (
 	methodWithdrawals = "withdrawals"
 )
 
-type DelayedWethContract struct {
+type DelayedWETHContract struct {
 	metrics     metrics.ContractMetricer
 	multiCaller *batching.MultiCaller
 	contract    *batching.BoundContract
@@ -27,12 +27,12 @@ type WithdrawalRequest struct {
 	Timestamp *big.Int
 }
 
-func NewDelayedWethContract(metrics metrics.ContractMetricer, addr common.Address, caller *batching.MultiCaller) (*DelayedWethContract, error) {
+func NewDelayedWETHContract(metrics metrics.ContractMetricer, addr common.Address, caller *batching.MultiCaller) (*DelayedWETHContract, error) {
 	contractAbi, err := bindings.DelayedWETHMetaData.GetAbi()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load delayed weth ABI: %w", err)
 	}
-	return &DelayedWethContract{
+	return &DelayedWETHContract{
 		metrics:     metrics,
 		multiCaller: caller,
 		contract:    batching.NewBoundContract(contractAbi, addr),
@@ -40,7 +40,7 @@ func NewDelayedWethContract(metrics metrics.ContractMetricer, addr common.Addres
 }
 
 // GetWithdrawals returns all withdrawals made from the contract since the given block.
-func (d *DelayedWethContract) GetWithdrawals(ctx context.Context, block rpcblock.Block, gameAddr common.Address, recipients ...common.Address) ([]*WithdrawalRequest, error) {
+func (d *DelayedWETHContract) GetWithdrawals(ctx context.Context, block rpcblock.Block, gameAddr common.Address, recipients ...common.Address) ([]*WithdrawalRequest, error) {
 	defer d.metrics.StartContractRequest("GetWithdrawals")()
 	calls := make([]batching.Call, 0, len(recipients))
 	for _, recipient := range recipients {

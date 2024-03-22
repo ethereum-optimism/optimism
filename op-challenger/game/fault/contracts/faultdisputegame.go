@@ -230,6 +230,15 @@ func (f *FaultDisputeGameContract) addGlobalDataTx(ctx context.Context, data *ty
 	return oracle.AddGlobalDataTx(data)
 }
 
+func (f *FaultDisputeGameContract) GetDelayedWETH(ctx context.Context) (*DelayedWETHContract, error) {
+	defer f.metrics.StartContractRequest("GetDelayedWETH")()
+	result, err := f.multiCaller.SingleCall(ctx, rpcblock.Latest, f.contract.Call(methodWETH))
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch WETH addr: %w", err)
+	}
+	return NewDelayedWETHContract(f.metrics, result.GetAddress(0), f.multiCaller)
+}
+
 func (f *FaultDisputeGameContract) GetOracle(ctx context.Context) (*PreimageOracleContract, error) {
 	defer f.metrics.StartContractRequest("GetOracle")()
 	vm, err := f.vm(ctx)
