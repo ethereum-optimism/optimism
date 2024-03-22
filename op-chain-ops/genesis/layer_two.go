@@ -83,6 +83,7 @@ func BuildL2Genesis(config *DeployConfig, l1StartBlock *types.Block) (*core.Gene
 			if err != nil {
 				return nil, err
 			}
+			backend.Close()
 			deployResults[name] = deployedBin
 			fallthrough
 		case "MultiCall3", "Create2Deployer", "Safe_v130",
