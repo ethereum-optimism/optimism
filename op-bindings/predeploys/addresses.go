@@ -6,6 +6,7 @@ import "github.com/ethereum/go-ethereum/common"
 // This needs to be kept in sync with @eth-optimism/contracts-ts/wagmi.config.ts which also specifies this
 // To improve robustness and maintainability contracts-bedrock should export all addresses
 const (
+	RevenueSharer                 = "0x4200000000000000000000000000000000000022"
 	L2ToL1MessagePasser           = "0x4200000000000000000000000000000000000016"
 	DeployerWhitelist             = "0x4200000000000000000000000000000000000002"
 	WETH9                         = "0x4200000000000000000000000000000000000006"
@@ -39,6 +40,7 @@ const (
 )
 
 var (
+	RevenueSharerAddr                 = common.HexToAddress(RevenueSharer)
 	L2ToL1MessagePasserAddr           = common.HexToAddress(L2ToL1MessagePasser)
 	DeployerWhitelistAddr             = common.HexToAddress(DeployerWhitelist)
 	WETH9Addr                         = common.HexToAddress(WETH9)
@@ -75,6 +77,7 @@ var (
 )
 
 func init() {
+	Predeploys["RevenueSharer"] = &Predeploy{Address: RevenueSharerAddr}
 	Predeploys["L2ToL1MessagePasser"] = &Predeploy{Address: L2ToL1MessagePasserAddr}
 	Predeploys["DeployerWhitelist"] = &Predeploy{Address: DeployerWhitelistAddr}
 	Predeploys["WETH9"] = &Predeploy{Address: WETH9Addr, ProxyDisabled: true}
