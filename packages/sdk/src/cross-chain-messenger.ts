@@ -2252,7 +2252,7 @@ export class CrossChainMessenger {
       opts?: {
         recipient?: AddressLike
         l2GasLimit?: NumberLike
-        overrides?: PayableOverrides
+        overrides?: CallOverrides
       },
       isEstimatingGas: boolean = false
     ): Promise<TransactionRequest> => {
@@ -2260,12 +2260,25 @@ export class CrossChainMessenger {
         if (isEstimatingGas) {
           return opts
         }
-        const gasEstimation = await this.estimateGas.depositETH(amount, opts)
+        // if we don't include the users address the estimation may fail
+        const from =
+          opts?.overrides?.from ??
+          (ethers.Signer.isSigner(this.l1SignerOrProvider)
+            ? (this.l1SignerOrProvider as Signer).getAddress()
+            : undefined)
+        const gasEstimation = await this.estimateGas.depositETH(amount, {
+          ...opts,
+          overrides: {
+            ...opts?.overrides,
+            from,
+          },
+        })
         return {
           ...opts,
           overrides: {
             ...opts?.overrides,
             gasLimit: gasEstimation.add(gasEstimation.div(2)),
+            from,
           },
         }
       }
