@@ -19,7 +19,7 @@ var (
 	fdgAddr = common.HexToAddress("0x24112842371dFC380576ebb09Ae16Cb6B6caD7CB")
 )
 
-func TestMetadataCreator_CreateGameContract(t *testing.T) {
+func TestMetadataCreator_CreateContract(t *testing.T) {
 	tests := []struct {
 		name        string
 		game        types.GameMetadata
