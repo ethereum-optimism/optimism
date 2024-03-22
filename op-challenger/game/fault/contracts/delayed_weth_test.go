@@ -41,12 +41,12 @@ func TestDelayedWeth_GetWithdrawals(t *testing.T) {
 	}
 }
 
-func setupDelayedWethTest(t *testing.T) (*batchingTest.AbiBasedRpc, *DelayedWethContract) {
+func setupDelayedWethTest(t *testing.T) (*batchingTest.AbiBasedRpc, *DelayedWETHContract) {
 	delayedWethAbi, err := bindings.DelayedWETHMetaData.GetAbi()
 	require.NoError(t, err)
 	stubRpc := batchingTest.NewAbiBasedRpc(t, delayedWeth, delayedWethAbi)
 	caller := batching.NewMultiCaller(stubRpc, batching.DefaultBatchSize)
-	weth, err := NewDelayedWethContract(contractMetrics.NoopContractMetrics, delayedWeth, caller)
+	weth, err := NewDelayedWETHContract(contractMetrics.NoopContractMetrics, delayedWeth, caller)
 	require.NoError(t, err)
 	return stubRpc, weth
 }
