@@ -68,7 +68,6 @@ func TestBondEnricher(t *testing.T) {
 			game.Claims[0].CounteredBy,
 			game.Claims[1].Claimant,
 			// Claim 1 CounteredBy is unset
-
 			// Claim 2 Claimant is same as claim 1 Claimant
 			// Claim 2 CounteredBy is unset
 		}
