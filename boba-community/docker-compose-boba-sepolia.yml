@@ -41,7 +41,6 @@ services:
       --network=boba-sepolia
       --rpc.addr=0.0.0.0
       --rpc.port=8545
-      --p2p.disable=true
     ports:
       - "8545:8545"
     volumes:
