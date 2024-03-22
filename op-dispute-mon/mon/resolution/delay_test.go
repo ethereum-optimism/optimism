@@ -29,8 +29,8 @@ func TestDelayCalculator_getOverflowTime(t *testing.T) {
 
 	t.Run("RemainingTime", func(t *testing.T) {
 		d, metrics, cl := setupDelayCalculatorTest(t)
-		duration := uint64(3 * 60)
-		timestamp := uint64(cl.Now().Add(-time.Minute).Unix())
+		duration := 3 * time.Minute
+		timestamp := cl.Now().Add(-time.Minute)
 		claim := &monTypes.EnrichedClaim{
 			Claim: types.Claim{
 				ClaimData: types.ClaimData{
@@ -46,8 +46,8 @@ func TestDelayCalculator_getOverflowTime(t *testing.T) {
 
 	t.Run("OverflowTime", func(t *testing.T) {
 		d, metrics, cl := setupDelayCalculatorTest(t)
-		duration := maxGameDuration / 2
-		timestamp := uint64(cl.Now().Add(4 * -time.Minute).Unix())
+		duration := time.Duration(maxGameDuration/2) * time.Second
+		timestamp := cl.Now().Add(4 * -time.Minute)
 		claim := &monTypes.EnrichedClaim{
 			Claim: types.Claim{
 				ClaimData: types.ClaimData{
@@ -136,10 +136,10 @@ func createGameWithClaimsList() []*monTypes.EnrichedGameData {
 }
 
 func createClaimList() []monTypes.EnrichedClaim {
-	newClock := func(multiplier int) *types.Clock {
+	newClock := func(multiplier int) types.Clock {
 		duration := maxGameDuration / 2
-		timestamp := uint64(frozen.Add(-time.Minute * time.Duration(multiplier)).Unix())
-		return types.NewClock(duration, timestamp)
+		timestamp := frozen.Add(-time.Minute * time.Duration(multiplier))
+		return types.NewClock(time.Duration(duration)*time.Second, timestamp)
 	}
 	return []monTypes.EnrichedClaim{
 		{

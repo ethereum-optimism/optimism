@@ -11,8 +11,8 @@ import (
 func TestClaim_RemainingDuration(t *testing.T) {
 	tests := []struct {
 		name      string
-		duration  uint64
-		timestamp uint64
+		duration  time.Duration
+		timestamp int64
 		now       int64
 		expected  uint64
 	}{
@@ -25,28 +25,28 @@ func TestClaim_RemainingDuration(t *testing.T) {
 		},
 		{
 			name:      "ZeroTimestamp",
-			duration:  5,
+			duration:  5 * time.Second,
 			timestamp: 0,
 			now:       0,
 			expected:  5,
 		},
 		{
 			name:      "ZeroTimestampWithNow",
-			duration:  5,
+			duration:  5 * time.Second,
 			timestamp: 0,
 			now:       10,
 			expected:  15,
 		},
 		{
 			name:      "ZeroNow",
-			duration:  5,
+			duration:  5 * time.Second,
 			timestamp: 10,
 			now:       0,
 			expected:  5,
 		},
 		{
 			name:      "ValidTimeSinze",
-			duration:  20,
+			duration:  20 * time.Second,
 			timestamp: 10,
 			now:       15,
 			expected:  25,
@@ -57,9 +57,9 @@ func TestClaim_RemainingDuration(t *testing.T) {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
 			claim := &Claim{
-				Clock: NewClock(test.duration, test.timestamp),
+				Clock: NewClock(test.duration, time.Unix(test.timestamp, 0)),
 			}
-			require.Equal(t, time.Duration(test.expected), claim.ChessTime(time.Unix(test.now, 0)))
+			require.Equal(t, time.Duration(test.expected)*time.Second, claim.ChessTime(time.Unix(test.now, 0)))
 		})
 	}
 }

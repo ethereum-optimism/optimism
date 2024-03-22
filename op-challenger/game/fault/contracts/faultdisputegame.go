@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"math/big"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
@@ -239,13 +240,13 @@ func (f *FaultDisputeGameContract) GetOracle(ctx context.Context) (*PreimageOrac
 	return vm.Oracle(ctx)
 }
 
-func (f *FaultDisputeGameContract) GetGameDuration(ctx context.Context) (uint64, error) {
+func (f *FaultDisputeGameContract) GetGameDuration(ctx context.Context) (time.Duration, error) {
 	defer f.metrics.StartContractRequest("GetGameDuration")()
 	result, err := f.multiCaller.SingleCall(ctx, rpcblock.Latest, f.contract.Call(methodGameDuration))
 	if err != nil {
 		return 0, fmt.Errorf("failed to fetch game duration: %w", err)
 	}
-	return result.GetUint64(0), nil
+	return time.Duration(result.GetUint64(0)) * time.Second, nil
 }
 
 func (f *FaultDisputeGameContract) GetMaxGameDepth(ctx context.Context) (types.Depth, error) {
@@ -381,18 +382,18 @@ func (f *FaultDisputeGameContract) resolveCall() *batching.ContractCall {
 }
 
 // decodeClock decodes a uint128 into a Clock duration and timestamp.
-func decodeClock(clock *big.Int) *types.Clock {
+func decodeClock(clock *big.Int) types.Clock {
 	maxUint64 := new(big.Int).Add(new(big.Int).SetUint64(math.MaxUint64), big.NewInt(1))
 	remainder := new(big.Int)
 	quotient, _ := new(big.Int).QuoRem(clock, maxUint64, remainder)
-	return types.NewClock(quotient.Uint64(), remainder.Uint64())
+	return types.NewClock(time.Duration(quotient.Int64())*time.Second, time.Unix(remainder.Int64(), 0))
 }
 
 // packClock packs the Clock duration and timestamp into a uint128.
-func packClock(c *types.Clock) *big.Int {
-	duration := new(big.Int).SetUint64(c.Duration)
+func packClock(c types.Clock) *big.Int {
+	duration := big.NewInt(int64(c.Duration.Seconds()))
 	encoded := new(big.Int).Lsh(duration, 64)
-	return new(big.Int).Or(encoded, new(big.Int).SetUint64(c.Timestamp))
+	return new(big.Int).Or(encoded, big.NewInt(c.Timestamp.Unix()))
 }
 
 func (f *FaultDisputeGameContract) decodeClaim(result *batching.CallResult, contractIndex int) types.Claim {
