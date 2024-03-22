@@ -25,6 +25,9 @@ type EnrichedGameData struct {
 	Duration      uint64
 	Claims        []EnrichedClaim
 
+	// Recipients maps addresses to true if they are a bond recipient in the game.
+	Recipients map[common.Address]bool
+
 	// Credits records the paid out bonds for the game, keyed by recipient.
 	Credits map[common.Address]*big.Int
 

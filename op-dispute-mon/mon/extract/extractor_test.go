@@ -192,6 +192,7 @@ type mockGameCaller struct {
 	balanceAddr      common.Address
 	withdrawalsCalls int
 	withdrawalsErr   error
+	withdrawals      []*contracts.WithdrawalRequest
 }
 
 func (m *mockGameCaller) GetWithdrawals(_ context.Context, _ rpcblock.Block, _ common.Address, _ ...common.Address) ([]*contracts.WithdrawalRequest, error) {
@@ -199,10 +200,17 @@ func (m *mockGameCaller) GetWithdrawals(_ context.Context, _ rpcblock.Block, _ c
 	if m.withdrawalsErr != nil {
 		return nil, m.withdrawalsErr
 	}
+	if m.withdrawals != nil {
+		return m.withdrawals, nil
+	}
 	return []*contracts.WithdrawalRequest{
 		{
 			Timestamp: big.NewInt(1),
 			Amount:    big.NewInt(2),
+		},
+		{
+			Timestamp: big.NewInt(3),
+			Amount:    big.NewInt(4),
 		},
 	}, nil
 }
