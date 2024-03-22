@@ -116,6 +116,9 @@ func (s *Service) initDelayCalculator() {
 
 func (s *Service) initExtractor() {
 	s.extractor = extract.NewExtractor(s.logger, s.game.CreateContract, s.factoryContract.GetGamesAtOrAfter,
+		// Note: Claim enricher should precede other enrichers to ensure the claim Resolved field
+		//       is set by checking if the claim's bond amount is equal to the configured flag.
+		extract.NewClaimEnricher(),
 		extract.NewBondEnricher(),
 		extract.NewBalanceEnricher(),
 		extract.NewL1HeadBlockNumEnricher(s.l1Client),
@@ -184,7 +187,7 @@ func (s *Service) initMetricsServer(cfg *opmetrics.CLIConfig) error {
 }
 
 func (s *Service) initFactoryContract(cfg *config.Config) error {
-	factoryContract, err := contracts.NewDisputeGameFactoryContract(cfg.GameFactoryAddress,
+	factoryContract, err := contracts.NewDisputeGameFactoryContract(s.metrics, cfg.GameFactoryAddress,
 		batching.NewMultiCaller(s.l1Client.Client(), batching.DefaultBatchSize))
 	if err != nil {
 		return fmt.Errorf("failed to bind the fault dispute game factory contract: %w", err)

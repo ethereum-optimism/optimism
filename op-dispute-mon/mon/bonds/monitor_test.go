@@ -4,7 +4,6 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/transform"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
@@ -33,7 +32,7 @@ func TestCheckBonds(t *testing.T) {
 	}
 
 	logger := testlog.Logger(t, log.LvlInfo)
-	metrics := &stubBondMetrics{recorded: make(map[common.Address]transform.Collateral)}
+	metrics := &stubBondMetrics{recorded: make(map[common.Address]Collateral)}
 	bonds := NewBonds(logger, metrics)
 
 	bonds.CheckBonds([]*monTypes.EnrichedGameData{game1, game2})
@@ -48,11 +47,11 @@ func TestCheckBonds(t *testing.T) {
 }
 
 type stubBondMetrics struct {
-	recorded map[common.Address]transform.Collateral
+	recorded map[common.Address]Collateral
 }
 
 func (s *stubBondMetrics) RecordBondCollateral(addr common.Address, required *big.Int, available *big.Int) {
-	s.recorded[addr] = transform.Collateral{
+	s.recorded[addr] = Collateral{
 		Required: required,
 		Actual:   available,
 	}

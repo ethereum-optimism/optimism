@@ -13,10 +13,13 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
-var ErrMaxFrameSizeTooSmall = errors.New("maxSize is too small to fit the fixed frame overhead")
-var ErrNotDepositTx = errors.New("first transaction in block is not a deposit tx")
-var ErrTooManyRLPBytes = errors.New("batch would cause RLP bytes to go over limit")
-var ErrChannelOutAlreadyClosed = errors.New("channel-out already closed")
+var (
+	ErrMaxFrameSizeTooSmall    = errors.New("maxSize is too small to fit the fixed frame overhead")
+	ErrNotDepositTx            = errors.New("first transaction in block is not a deposit tx")
+	ErrTooManyRLPBytes         = errors.New("batch would cause RLP bytes to go over limit")
+	ErrChannelOutAlreadyClosed = errors.New("channel-out already closed")
+	ErrCompressorFull          = errors.New("compressor is full")
+)
 
 // FrameV0OverHeadSize is the absolute minimum size of a frame.
 // This is the fixed overhead frame size, calculated as specified
@@ -25,11 +28,9 @@ var ErrChannelOutAlreadyClosed = errors.New("channel-out already closed")
 // [Frame Format]: https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/derivation.md#frame-format
 const FrameV0OverHeadSize = 23
 
-var CompressorFullErr = errors.New("compressor is full")
-
 type Compressor interface {
 	// Writer is used to write uncompressed data which will be compressed. Should return
-	// CompressorFullErr if the compressor is full and no more data should be written.
+	// ErrCompressorFull if the compressor is full and no more data should be written.
 	io.Writer
 	// Closer Close function should be called before reading any data.
 	io.Closer
@@ -43,9 +44,9 @@ type Compressor interface {
 	// Flush flushes any uncompressed data to the compression buffer. This will result in a
 	// non-optimal compression ratio.
 	Flush() error
-	// FullErr returns CompressorFullErr if the compressor is known to be full. Note that
+	// FullErr returns ErrCompressorFull if the compressor is known to be full. Note that
 	// calls to Write will fail if an error is returned from this method, but calls to Write
-	// can still return CompressorFullErr even if this does not.
+	// can still return ErrCompressorFull even if this does not.
 	FullErr() error
 }
 

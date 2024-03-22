@@ -2,16 +2,19 @@ package contracts
 
 import (
 	"context"
+	"errors"
 	"math"
 	"math/big"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	contractMetrics "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	batchingTest "github.com/ethereum-optimism/optimism/op-service/sources/batching/test"
+	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
@@ -428,6 +431,28 @@ func TestFaultDisputeGame_GetCredits(t *testing.T) {
 	}
 }
 
+func TestFaultDisputeGame_ClaimCreditTx(t *testing.T) {
+	t.Run("Success", func(t *testing.T) {
+		stubRpc, game := setupFaultDisputeGameTest(t)
+		addr := common.Address{0xaa}
+
+		stubRpc.SetResponse(fdgAddr, methodClaimCredit, rpcblock.Latest, []interface{}{addr}, nil)
+		tx, err := game.ClaimCreditTx(context.Background(), addr)
+		require.NoError(t, err)
+		stubRpc.VerifyTxCandidate(tx)
+	})
+
+	t.Run("SimulationFails", func(t *testing.T) {
+		stubRpc, game := setupFaultDisputeGameTest(t)
+		addr := common.Address{0xaa}
+
+		stubRpc.SetError(fdgAddr, methodClaimCredit, rpcblock.Latest, []interface{}{addr}, errors.New("still locked"))
+		tx, err := game.ClaimCreditTx(context.Background(), addr)
+		require.ErrorIs(t, err, ErrSimulationFailed)
+		require.Equal(t, txmgr.TxCandidate{}, tx)
+	})
+}
+
 func setupFaultDisputeGameTest(t *testing.T) (*batchingTest.AbiBasedRpc, *FaultDisputeGameContract) {
 	fdgAbi, err := bindings.FaultDisputeGameMetaData.GetAbi()
 	require.NoError(t, err)
@@ -441,7 +466,7 @@ func setupFaultDisputeGameTest(t *testing.T) (*batchingTest.AbiBasedRpc, *FaultD
 	stubRpc.AddContract(vmAddr, vmAbi)
 	stubRpc.AddContract(oracleAddr, oracleAbi)
 	caller := batching.NewMultiCaller(stubRpc, batching.DefaultBatchSize)
-	game, err := NewFaultDisputeGameContract(fdgAddr, caller)
+	game, err := NewFaultDisputeGameContract(contractMetrics.NoopContractMetrics, fdgAddr, caller)
 	require.NoError(t, err)
 	return stubRpc, game
 }

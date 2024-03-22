@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
+	contractMetrics "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
@@ -38,7 +39,7 @@ func (g *OutputAlphabetGameHelper) StartChallenger(
 func (g *OutputAlphabetGameHelper) CreateHonestActor(ctx context.Context, l2Node string) *OutputHonestHelper {
 	logger := testlog.Logger(g.t, log.LevelInfo).New("role", "HonestHelper", "game", g.addr)
 	caller := batching.NewMultiCaller(g.system.NodeClient("l1").Client(), batching.DefaultBatchSize)
-	contract, err := contracts.NewFaultDisputeGameContract(g.addr, caller)
+	contract, err := contracts.NewFaultDisputeGameContract(contractMetrics.NoopContractMetrics, g.addr, caller)
 	g.require.NoError(err, "Failed to create game contact")
 	prestateBlock, poststateBlock, err := contract.GetBlockRange(ctx)
 	g.require.NoError(err, "Get block range")

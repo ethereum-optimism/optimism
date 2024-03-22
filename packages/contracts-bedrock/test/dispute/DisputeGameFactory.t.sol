@@ -72,8 +72,8 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_Init {
         assertEq(address(proxy).balance, _value);
     }
 
-    /// @dev Tests that the `create` function reverts when creating a new dispute game with an insufficient bond.
-    function testFuzz_create_insufficientBond_reverts(
+    /// @dev Tests that the `create` function reverts when creating a new dispute game with an incorrect bond amount.
+    function testFuzz_create_incorrectBondAmount_reverts(
         uint8 gameType,
         Claim rootClaim,
         bytes calldata extraData
@@ -92,7 +92,7 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_Init {
             disputeGameFactory.setInitBond(lgt, 1 ether);
         }
 
-        vm.expectRevert(InsufficientBond.selector);
+        vm.expectRevert(IncorrectBondAmount.selector);
         disputeGameFactory.create(gt, rootClaim, extraData);
     }
 

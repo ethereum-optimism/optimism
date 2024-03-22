@@ -6,8 +6,10 @@ import (
 	"math/big"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/stretchr/testify/require"
 
@@ -154,7 +156,8 @@ func setupTestAgent(t *testing.T) (*Agent, *stubClaimLoader, *stubResponder) {
 	depth := types.Depth(4)
 	provider := alphabet.NewTraceProvider(big.NewInt(0), depth)
 	responder := &stubResponder{}
-	agent := NewAgent(metrics.NoopMetrics, claimLoader, depth, trace.NewSimpleTraceAccessor(provider), responder, logger, false, []common.Address{})
+	cl := clock.NewDeterministicClock(time.UnixMilli(0))
+	agent := NewAgent(metrics.NoopMetrics, cl, claimLoader, depth, trace.NewSimpleTraceAccessor(provider), responder, logger, false, []common.Address{})
 	return agent, claimLoader, responder
 }
 
@@ -186,7 +189,7 @@ type stubResponder struct {
 	resolveClaimCount     int
 }
 
-func (s *stubResponder) CallResolve(ctx context.Context) (gameTypes.GameStatus, error) {
+func (s *stubResponder) CallResolve(_ context.Context) (gameTypes.GameStatus, error) {
 	s.l.Lock()
 	defer s.l.Unlock()
 	s.callResolveCount++
@@ -200,20 +203,20 @@ func (s *stubResponder) Resolve() error {
 	return s.resolveErr
 }
 
-func (s *stubResponder) CallResolveClaim(ctx context.Context, clainIdx uint64) error {
+func (s *stubResponder) CallResolveClaim(_ context.Context, _ uint64) error {
 	s.l.Lock()
 	defer s.l.Unlock()
 	s.callResolveClaimCount++
 	return s.callResolveClaimErr
 }
 
-func (s *stubResponder) ResolveClaim(clainIdx uint64) error {
+func (s *stubResponder) ResolveClaims(claims ...uint64) error {
 	s.l.Lock()
 	defer s.l.Unlock()
-	s.resolveClaimCount++
+	s.resolveClaimCount += len(claims)
 	return nil
 }
 
-func (s *stubResponder) PerformAction(ctx context.Context, response types.Action) error {
+func (s *stubResponder) PerformAction(_ context.Context, _ types.Action) error {
 	return nil
 }
