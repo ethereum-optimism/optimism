@@ -149,6 +149,8 @@ abstract contract Artifacts {
             return payable(Predeploys.SCHEMA_REGISTRY);
         } else if (digest == keccak256(bytes("EAS"))) {
             return payable(Predeploys.EAS);
+        } else if (digest == keccak256(bytes("CrossL2Inbox"))) {
+            return payable(Predeploys.CROSS_L2_INBOX);
         }
         return payable(address(0));
     }
