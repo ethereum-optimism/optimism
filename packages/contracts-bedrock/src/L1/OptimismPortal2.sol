@@ -520,6 +520,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
 
     /// @notice External getter for the number of proof submitters for a withdrawal hash.
     /// @param _withdrawalHash Hash of the withdrawal.
+    /// @return The number of proof submitters for the withdrawal hash.
     function numProofSubmitters(bytes32 _withdrawalHash) external view returns (uint256) {
         return proofSubmitters[_withdrawalHash].length;
     }
