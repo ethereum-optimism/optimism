@@ -2360,7 +2360,7 @@ export class CrossChainMessenger {
           l1Token,
           l2Token,
           amount,
-          opts,
+          opts
         )
         return {
           ...opts,
