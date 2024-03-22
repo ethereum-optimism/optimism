@@ -23,26 +23,18 @@ func NewWithdrawalsEnricher() *WithdrawalsEnricher {
 }
 
 func (w *WithdrawalsEnricher) Enrich(ctx context.Context, block rpcblock.Block, caller GameCaller, game *monTypes.EnrichedGameData) error {
-	recipients := make(map[common.Address]bool)
-	for _, claim := range game.Claims {
-		if claim.CounteredBy != (common.Address{}) {
-			recipients[claim.CounteredBy] = true
-		} else {
-			recipients[claim.Claimant] = true
-		}
-	}
-	recipientAddrs := maps.Keys(recipients)
-	withdrawals, err := caller.GetWithdrawals(ctx, block, game.Proxy, recipientAddrs...)
+	recipients := maps.Keys(game.Recipients)
+	withdrawals, err := caller.GetWithdrawals(ctx, block, game.Proxy, recipients...)
 	if err != nil {
 		return fmt.Errorf("failed to fetch withdrawals: %w", err)
 	}
-	if len(withdrawals) != len(recipientAddrs) {
-		return fmt.Errorf("%w, requested %v values but got %v", ErrIncorrectWithdrawalsCount, len(recipientAddrs), len(withdrawals))
+	if len(withdrawals) != len(recipients) {
+		return fmt.Errorf("%w, requested %v values but got %v", ErrIncorrectWithdrawalsCount, len(recipients), len(withdrawals))
 	}
 	if game.WithdrawalRequests == nil {
 		game.WithdrawalRequests = make(map[common.Address]*contracts.WithdrawalRequest)
 	}
-	for i, recipient := range recipientAddrs {
+	for i, recipient := range recipients {
 		game.WithdrawalRequests[recipient] = withdrawals[i]
 	}
 	return nil

@@ -17,6 +17,10 @@ import (
 func TestWithdrawalsEnricher(t *testing.T) {
 	makeGame := func() *monTypes.EnrichedGameData {
 		return &monTypes.EnrichedGameData{
+			Recipients: map[common.Address]bool{
+				common.Address{0x02}: true,
+				common.Address{0x03}: true,
+			},
 			Claims: []monTypes.EnrichedClaim{
 				{
 					Claim: faultTypes.Claim{
