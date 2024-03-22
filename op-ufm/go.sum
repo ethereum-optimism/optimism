@@ -238,8 +238,8 @@ github.com/prometheus/procfs v0.12.0/go.mod h1:pcuDEFsWDnvcgNzo4EEweacyhjeA9Zk3c
 github.com/rivo/uniseg v0.2.0/go.mod h1:J6wj4VEh+S6ZtnVlnTBMWIodfgj8LQOQFoIToxlJtxc=
 github.com/rivo/uniseg v0.4.3 h1:utMvzDsuh3suAEnhH0RdHmoPbU648o6CvXxTx4SBMOw=
 github.com/rivo/uniseg v0.4.3/go.mod h1:FN3SvrM+Zdj16jyLfmOkMNblXMcoc8DfTHruCPUcx88=
-github.com/roberto-bayardo/op-geth v0.0.0-20240321212348-438dd5ed418e h1:DJb7sxdfBGUJbXZ8pTfqTfALvIbSp2yypsRfIHUS9g4=
-github.com/roberto-bayardo/op-geth v0.0.0-20240321212348-438dd5ed418e/go.mod h1:k0UbrLuOITLD8goCyA2xWebAL03n2BZUCfwos0rxz60=
+github.com/roberto-bayardo/op-geth v0.0.0-20240322200634-046d3cec6fe5 h1:BfiA8pJZUIQIQWMvnKExOCSsnW5/icNxzZBwc9+vL5o=
+github.com/roberto-bayardo/op-geth v0.0.0-20240322200634-046d3cec6fe5/go.mod h1:k0UbrLuOITLD8goCyA2xWebAL03n2BZUCfwos0rxz60=
 github.com/rogpeppe/fastuuid v1.2.0/go.mod h1:jVj6XXZzXRy/MSR5jhDC/2q6DgLz+nrA6LYCDYWNEvQ=
 github.com/rogpeppe/go-internal v1.9.0/go.mod h1:WtVeX8xhTBvf0smdhujwtBcq4Qrzq/fJaraNFVN+nFs=
 github.com/rogpeppe/go-internal v1.10.0 h1:TMyTOH3F/DB16zRVcYyreMH6GnZZrwQVAoYjRBZyWFQ=
