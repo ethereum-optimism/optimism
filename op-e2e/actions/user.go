@@ -465,7 +465,7 @@ func (s *CrossLayerUser) getDisputeGame(t Testing, params withdrawals.ProvenWith
 	wdHash, err := wd.Hash()
 	require.Nil(t, err)
 
-	game, err := portal2.ProvenWithdrawals(&bind.CallOpts{}, wdHash)
+	game, err := portal2.ProvenWithdrawals(&bind.CallOpts{}, wdHash, s.L1.address)
 	require.Nil(t, err)
 	require.NotNil(t, game, "withdrawal should be proven")
 

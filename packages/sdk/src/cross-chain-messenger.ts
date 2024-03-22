@@ -829,7 +829,8 @@ export class CrossChainMessenger {
           try {
             // If this doesn't revert then we should be fine to relay.
             await this.contracts.l1.OptimismPortal2.checkWithdrawal(
-              hashLowLevelMessage(withdrawal)
+              hashLowLevelMessage(withdrawal),
+              await this.l1Signer.getAddress()
             )
 
             return MessageStatus.READY_FOR_RELAY
