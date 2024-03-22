@@ -164,6 +164,8 @@ contract L2Genesis is Script, Artifacts {
         _setGasPriceOracle();
         _setGovernanceToken();
         _setL1Block();
+        _setCrossL2Inbox();
+        _setL2ToL2CrossDomainMessenger();
     }
 
     /// @notice This predeploy is following the saftey invariant #1.
@@ -326,6 +328,18 @@ contract L2Genesis is Script, Artifacts {
         _setImplementationCode(Predeploys.L1_BLOCK_ATTRIBUTES, "L1Block");
     }
 
+    /// @notice This predeploy is following the saftey invariant #1.
+    ///         This contract has no initializer.
+    function _setCrossL2Inbox() internal {
+        _setImplementationCode(Predeploys.CROSS_L2_INBOX, "CrossL2Inbox");
+    }
+
+    /// @notice This predeploy is following the saftey invariant #1.
+    ///         This contract has no initializer.
+    function _setL2ToL2CrossDomainMessenger() internal {
+        _setImplementationCode(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, "L2ToL2CrossDomainMessenger");
+    }
+
     /// @dev Returns true if the address is not proxied.
     function _notProxied(address _addr) internal pure returns (bool) {
         return _addr == Predeploys.GOVERNANCE_TOKEN || _addr == Predeploys.WETH9;
@@ -340,7 +354,8 @@ contract L2Genesis is Script, Artifacts {
             || _addr == Predeploys.GAS_PRICE_ORACLE || _addr == Predeploys.DEPLOYER_WHITELIST || _addr == Predeploys.WETH9
             || _addr == Predeploys.L1_BLOCK_NUMBER || _addr == Predeploys.LEGACY_MESSAGE_PASSER
             || _addr == Predeploys.PROXY_ADMIN || _addr == Predeploys.BASE_FEE_VAULT || _addr == Predeploys.L1_FEE_VAULT
-            || _addr == Predeploys.GOVERNANCE_TOKEN || _addr == Predeploys.SCHEMA_REGISTRY || _addr == Predeploys.EAS;
+            || _addr == Predeploys.GOVERNANCE_TOKEN || _addr == Predeploys.SCHEMA_REGISTRY || _addr == Predeploys.EAS
+            || _addr == Predeploys.CROSS_L2_INBOX || _addr == Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER;
     }
 
     /// @dev Function to compute the expected address of the predeploy implementation
