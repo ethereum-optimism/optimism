@@ -2260,25 +2260,12 @@ export class CrossChainMessenger {
         if (isEstimatingGas) {
           return opts
         }
-        // if we don't include the users address the estimation may fail
-        const from =
-          opts?.overrides?.from ??
-          (ethers.Signer.isSigner(this.l1SignerOrProvider)
-            ? (this.l1SignerOrProvider as Signer).getAddress()
-            : undefined)
-        const gasEstimation = await this.estimateGas.depositETH(amount, {
-          ...opts,
-          overrides: {
-            ...opts?.overrides,
-            from,
-          },
-        })
+        const gasEstimation = await this.estimateGas.depositETH(amount, opts)
         return {
           ...opts,
           overrides: {
             ...opts?.overrides,
             gasLimit: gasEstimation.add(gasEstimation.div(2)),
-            from,
           },
         }
       }
@@ -2369,25 +2356,17 @@ export class CrossChainMessenger {
         if (!ethers.Signer.isSigner(this.l1SignerOrProvider)) {
           throw new Error('unable to deposit without an l1 signer')
         }
-        const from = (this.l1SignerOrProvider as Signer).getAddress()
         const gasEstimation = await this.estimateGas.depositERC20(
           l1Token,
           l2Token,
           amount,
-          {
-            ...opts,
-            overrides: {
-              ...opts?.overrides,
-              from: opts?.overrides?.from ?? from,
-            },
-          }
+          opts,
         )
         return {
           ...opts,
           overrides: {
             ...opts?.overrides,
             gasLimit: gasEstimation.add(gasEstimation.div(2)),
-            from: opts?.overrides?.from ?? from,
           },
         }
       }
@@ -2542,7 +2521,7 @@ export class CrossChainMessenger {
         overrides?: CallOverrides
       }
     ): Promise<BigNumber> => {
-      return this.l1Provider.estimateGas(
+      return this.l1SignerOrProvider.estimateGas(
         await this.populateTransaction.depositETH(amount, opts, true)
       )
     },
@@ -2618,7 +2597,7 @@ export class CrossChainMessenger {
         overrides?: CallOverrides
       }
     ): Promise<BigNumber> => {
-      return this.l1Provider.estimateGas(
+      return this.l1SignerOrProvider.estimateGas(
         await this.populateTransaction.depositERC20(
           l1Token,
           l2Token,
