@@ -65,7 +65,6 @@ func TestBondEnricher(t *testing.T) {
 	t.Run("GetCreditsSuccess", func(t *testing.T) {
 		game := makeGame()
 		expectedRecipients := []common.Address{
-			game.Claims[0].Claimant,
 			game.Claims[0].CounteredBy,
 			game.Claims[1].Claimant,
 			// Claim 1 CounteredBy is unset
@@ -74,9 +73,8 @@ func TestBondEnricher(t *testing.T) {
 		}
 		enricher := NewBondEnricher()
 		expectedCredits := map[common.Address]*big.Int{
-			expectedRecipients[0]: big.NewInt(10),
-			expectedRecipients[1]: big.NewInt(20),
-			expectedRecipients[2]: big.NewInt(30),
+			expectedRecipients[0]: big.NewInt(20),
+			expectedRecipients[1]: big.NewInt(30),
 		}
 		caller := &mockGameCaller{credits: expectedCredits}
 		err := enricher.Enrich(context.Background(), rpcblock.Latest, caller, game)
