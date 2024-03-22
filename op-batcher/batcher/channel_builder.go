@@ -62,7 +62,7 @@ type ChannelBuilder struct {
 	// Reason for the channel being full. Set by setFullErr so it's always
 	// guaranteed to be a ChannelFullError wrapping the specific reason.
 	fullErr error
-	// current channel
+	// current channel.
 	co derive.ChannelOut
 	// list of blocks in the channel. Saved in case the channel must be rebuilt.
 	blocks []*types.Block
