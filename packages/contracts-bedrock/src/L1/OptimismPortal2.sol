@@ -117,8 +117,8 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 3.3.0
-    string public constant version = "3.3.0";
+    /// @custom:semver 3.4.0
+    string public constant version = "3.4.0";
 
     /// @notice Constructs the OptimismPortal contract.
     constructor(
@@ -266,6 +266,13 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         // Load the ProvenWithdrawal into memory, using the withdrawal hash as a unique identifier.
         bytes32 withdrawalHash = Hashing.hashWithdrawal(_tx);
         ProvenWithdrawal memory provenWithdrawal = provenWithdrawals[withdrawalHash];
+
+        // We do not allow for proving withdrawals against dispute games that have resolved against the favor
+        // of the root claim.
+        require(
+            gameProxy.status() != GameStatus.CHALLENGER_WINS,
+            "OptimismPortal: cannot prove against invalid dispute games"
+        );
 
         // We generally want to prevent users from proving the same withdrawal multiple times
         // because each successive proof will update the timestamp. A malicious user can take
