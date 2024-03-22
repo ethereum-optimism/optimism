@@ -79,14 +79,14 @@ func (c *Claimer) claimBond(ctx context.Context, game types.GameMetadata, addr c
 	}
 
 	candidate, err := contract.ClaimCreditTx(ctx, addr)
-	if err != nil {
-		return fmt.Errorf("failed to create credit claim tx: %w", err)
-	}
-
-	if err = c.txSender.SendAndWaitSimple("claim credit", candidate); errors.Is(err, contracts.ErrSimulationFailed) {
+	if errors.Is(err, contracts.ErrSimulationFailed) {
 		c.logger.Debug("Credit still locked", "game", game.Proxy, "addr", addr)
 		return nil
 	} else if err != nil {
+		return fmt.Errorf("failed to create credit claim tx: %w", err)
+	}
+
+	if err = c.txSender.SendAndWaitSimple("claim credit", candidate); err != nil {
 		return fmt.Errorf("failed to claim credit: %w", err)
 	}
 

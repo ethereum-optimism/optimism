@@ -3,9 +3,11 @@ package claims
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/big"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
@@ -76,6 +78,17 @@ func TestClaimer_ClaimBonds(t *testing.T) {
 		require.Equal(t, 0, m.RecordBondClaimedCalls)
 	})
 
+	t.Run("BondStillLocked", func(t *testing.T) {
+		gameAddr := common.HexToAddress("0x1234")
+		c, m, contract, txSender := newTestClaimer(t)
+		contract.claimSimulationFails = true
+		contract.credit[txSender.From()] = 1
+		err := c.ClaimBonds(context.Background(), []types.GameMetadata{{Proxy: gameAddr}})
+		require.NoError(t, err)
+		require.Equal(t, 0, txSender.sends)
+		require.Equal(t, 0, m.RecordBondClaimedCalls)
+	})
+
 	t.Run("ZeroCreditReturnsNil", func(t *testing.T) {
 		gameAddr := common.HexToAddress("0x1234")
 		c, m, contract, txSender := newTestClaimer(t)
@@ -143,8 +156,9 @@ func (s *mockTxSender) SendAndWaitSimple(_ string, _ ...txmgr.TxCandidate) error
 }
 
 type stubBondContract struct {
-	credit map[common.Address]int64
-	status types.GameStatus
+	credit               map[common.Address]int64
+	status               types.GameStatus
+	claimSimulationFails bool
 }
 
 func (s *stubBondContract) GetCredit(_ context.Context, addr common.Address) (*big.Int, types.GameStatus, error) {
@@ -152,5 +166,8 @@ func (s *stubBondContract) GetCredit(_ context.Context, addr common.Address) (*b
 }
 
 func (s *stubBondContract) ClaimCreditTx(_ context.Context, _ common.Address) (txmgr.TxCandidate, error) {
+	if s.claimSimulationFails {
+		return txmgr.TxCandidate{}, fmt.Errorf("failed: %w", contracts.ErrSimulationFailed)
+	}
 	return txmgr.TxCandidate{}, nil
 }
