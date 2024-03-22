@@ -10,6 +10,13 @@ volumes:
   suave_data:
   op_log:
 
+networks:
+  custom_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.5.0.0/16
+          gateway: 10.5.0.1
 
 services:
   op_stack_go_builder:  # Not an actual service, but builds the prerequisite go images
@@ -36,6 +43,8 @@ services:
       - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
     environment:
       GETH_MINER_RECOMMIT: 100ms
+    networks:
+      - custom_net
 
   l2:
     build:
@@ -54,6 +63,8 @@ services:
       - "--authrpc.jwtsecret=/config/test-jwt-secret.txt"
     environment:
       GETH_MINER_RECOMMIT: 100ms
+    networks:
+      - custom_net
 
   op-node:
     depends_on:
@@ -85,6 +96,7 @@ services:
       --p2p.ban.peers=true
       --snapshotlog.file=/op_log/snapshot.log
       --p2p.priv.path=/config/p2p-node-key.txt
+      --p2p.advertise.ip=10.5.0.5
       --metrics.enabled
       --metrics.addr=0.0.0.0
       --metrics.port=7300
@@ -101,6 +113,9 @@ services:
       - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
       - "${PWD}/../.devnet/rollup.json:/rollup.json"
       - op_log:/op_log
+    networks:
+      custom_net:
+        ipv4_address: 10.5.0.5
 
   op-proposer:
     depends_on:
@@ -133,6 +148,8 @@ services:
       OP_PROPOSER_METRICS_ENABLED: "true"
       OP_PROPOSER_ALLOW_NON_FINALIZED: "true"
       OP_PROPOSER_RPC_ENABLE_ADMIN: "true"
+    networks:
+      - custom_net
 
   op-batcher:
     depends_on:
@@ -164,6 +181,8 @@ services:
       OP_BATCHER_METRICS_ENABLED: "true"
       OP_BATCHER_RPC_ENABLE_ADMIN: "true"
       OP_BATCHER_BATCH_TYPE: 0
+    networks:
+      - custom_net
 
   op-challenger:
     depends_on:
@@ -197,6 +216,8 @@ services:
       OP_CHALLENGER_MNEMONIC: test test test test test test test test test test test junk
       OP_CHALLENGER_HD_PATH: "m/44'/60'/0'/0/4"
       OP_CHALLENGER_NUM_CONFIRMATIONS: 1
+    networks:
+      - custom_net
 
   artifact-server:
     depends_on:
@@ -208,6 +229,8 @@ services:
       - "${PWD}/../.devnet/:/usr/share/nginx/html/:ro"
     security_opt:
       - "no-new-privileges:true"
+    networks:
+      - custom_net
 
   # mev-boost:
   #   profiles:
@@ -246,10 +269,13 @@ services:
       --p2p.listen.udp=9003
       --p2p.scoring.peers=light
       --p2p.ban.peers=true
-      --p2p.priv.path=/config/p2p-node-key.txt
+      --p2p.bootnodes=enr:-J24QGG7tyXLYkko-b6VwT1tI23jesehLEjMS_Dv8OepXrNPd3DObDrHAYpwDJLh-Go95HclbPVdm91oEDXfhE5ZUPaGAY5jmAZxgmlkgnY0gmlwhAoFAAWHb3BzdGFja4OFBwCJc2VjcDI1NmsxoQNNEvj5nPIMVFBRRvGU95BqlwRDrY_8aua6eTI_sV_yKIN0Y3CCIyuDdWRwgiMr
     volumes:
       - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
       - "${PWD}/../.devnet/rollup.json:/rollup.json"
+    networks:
+      custom_net:
+        ipv4_address: 10.5.0.123
 
   suave-op-geth:
     build:
@@ -264,60 +290,62 @@ services:
       - "--authrpc.jwtsecret=/config/test-jwt-secret.txt"
     environment:
       GETH_MINER_RECOMMIT: 100ms
+    networks:
+      - custom_net
 
-  # suave-geth:
-  #   profiles:
-  #     - suave
-  #   depends_on:
-  #     - op-builder
-  #   image: flashbots/suave-geth:latest
-  #   command:
-  #     - --dev
-  #     - --dev.gaslimit=30000000
-  #     - --http
-  #     - --http.port=8545
-  #     - --http.addr=0.0.0.0
-  #     - --http.vhosts=*
-  #     - --http.corsdomain=*
-  #     - --ws
-  #     - --ws.port=8546
-  #     - --ws.origins=*
-  #     - --ws.addr=0.0.0.0
-  #     - --datadir=/data
-  #     - --keystore=/keystore/keystore
-  #     - --unlock=0xB5fEAfbDD752ad52Afb7e1bD2E40432A485bBB7F
-  #     - --password=/keystore/password.txt
-  #     - --log.debug
-  #     - --suave.eth.remote_endpoint=op-builder:8545  # using op-builder as remote rpc backend
-  #   volumes:
-  #     - "${PWD}/suave-ex-node:/keystore"
-  #   ports:
-  #     - 11545:8545
-  #     - 11546:8546
+  suave-geth:
+    profiles:
+      - suave
+    depends_on:
+      - op-builder
+    image: flashbots/suave-geth:latest
+    command:
+      - --dev
+      - --dev.gaslimit=30000000
+      - --http
+      - --http.port=8545
+      - --http.addr=0.0.0.0
+      - --http.vhosts=*
+      - --http.corsdomain=*
+      - --ws
+      - --ws.port=8546
+      - --ws.origins=*
+      - --ws.addr=0.0.0.0
+      - --datadir=/data
+      - --keystore=/keystore/keystore
+      - --unlock=0xB5fEAfbDD752ad52Afb7e1bD2E40432A485bBB7F
+      - --password=/keystore/password.txt
+      - --log.debug
+      - --suave.eth.remote_endpoint=http://suave-op-execution-geth:8545  # using op-builder as remote rpc backend
+    volumes:
+      - "${PWD}/suave-ex-node:/keystore"
+    ports:
+      - 11545:8545
+      - 11546:8546
 
-  # suave-op-execution-geth:
-  #   profiles:
-  #     - suave
-  #   image: flashbots/op-suave-exeuction-geth:latest
-  #   command:
-  #     - --dev
-  #     - --dev.gaslimit=30000000
-  #     - --http
-  #     - --http.port=8545
-  #     - --http.addr=0.0.0.0
-  #     - --http.vhosts=*
-  #     - --http.corsdomain=*
-  #     - --ws
-  #     - --ws.origins=*
-  #     - --ws.addr=0.0.0.0
-  #     - --keystore=/keystore/keystore
-  #   volumes:
-  #     - "builder_data:/db"
-  #     - "${PWD}/../.devnet/genesis-l2.json:/genesis.json"
-  #     - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
-  #   entrypoint:  # pass the L2 specific flags by overriding the entry-point and adding extra arguments
-  #     - "/bin/sh"
-  #     - "/entrypoint.sh"
-  #     - "--authrpc.jwtsecret=/config/test-jwt-secret.txt"
-  #     - "--suave"
-  #     - "--suave.beacon_endpoint=http://op-node-builder:8547"
+  suave-op-execution-geth:
+    profiles:
+      - suave
+    image: flashbots/op-suave-exeuction-geth:latest
+    command:
+      - --dev
+      - --dev.gaslimit=30000000
+      - --http
+      - --http.port=8545
+      - --http.addr=0.0.0.0
+      - --http.vhosts=*
+      - --http.corsdomain=*
+      - --ws
+      - --ws.origins=*
+      - --ws.addr=0.0.0.0
+      - --keystore=/keystore/keystore
+    volumes:
+      - "builder_data:/db"
+      - "${PWD}/../.devnet/genesis-l2.json:/genesis.json"
+      - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
+    entrypoint:  # pass the L2 specific flags by overriding the entry-point and adding extra arguments
+      - "/bin/sh"
+      - "/entrypoint.sh"
+      - "--authrpc.jwtsecret=/config/test-jwt-secret.txt"
+      - "--suave"
+      - "--suave.beacon_endpoint=http://op-node-builder:8547"
