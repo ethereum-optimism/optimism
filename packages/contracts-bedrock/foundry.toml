@@ -26,21 +26,21 @@ extra_output = ['devdoc', 'userdoc', 'metadata', 'storageLayout']
 bytecode_hash = 'none'
 build_info_path = 'artifacts/build-info'
 evm_version = "cancun"
-ignored_error_codes = [2394]
+ignored_error_codes = [2394, 5574, 3860]
 
 # Test / Script Runner Settings
 ffi = true
 fs_permissions = [
-  { access='read-write', path='./.resource-metering.csv' },
-  { access='read-write', path='./snapshots/' },
-  { access='read-write', path='./deployments/' },
-  { access='read', path='./deploy-config/' },
-  { access='read', path='./periphery-deploy-config/' },
-  { access='read', path='./broadcast/' },
-  { access='read', path = './forge-artifacts/' },
-  { access='write', path='./semver-lock.json' },
-  { access='read-write', path='./.testdata/' },
-  { access='read', path='./kout-deployment' }
+  { access = 'read-write', path = './.resource-metering.csv' },
+  { access = 'read-write', path = './snapshots/' },
+  { access = 'read-write', path = './deployments/' },
+  { access = 'read', path = './deploy-config/' },
+  { access = 'read', path = './periphery-deploy-config/' },
+  { access = 'read', path = './broadcast/' },
+  { access = 'read', path = './forge-artifacts/' },
+  { access = 'write', path = './semver-lock.json' },
+  { access = 'read-write', path = './.testdata/' },
+  { access = 'read', path = './kout-deployment' },
 ]
 libs = ["node_modules", "lib"]
 
@@ -48,10 +48,10 @@ libs = ["node_modules", "lib"]
 runs = 64
 
 [fmt]
-line_length=120
-multiline_func_header='all'
-bracket_spacing=true
-wrap_comments=true
+line_length = 120
+multiline_func_header = 'all'
+bracket_spacing = true
+wrap_comments = true
 ignore = ['src/vendor/WETH9.sol']
 
 ################################################################
