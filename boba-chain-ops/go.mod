@@ -1,11 +1,11 @@
-module github.com/bobanetwork/v3-anchorage/boba-chain-ops
+module github.com/bobanetwork/boba/boba-chain-ops
 
 go 1.21
 
 toolchain go1.21.1
 
 require (
-	github.com/bobanetwork/v3-anchorage/boba-bindings v0.0.0-00010101000000-000000000000
+	github.com/bobanetwork/boba/boba-bindings v0.0.0-00010101000000-000000000000
 	github.com/c2h5oh/datasize v0.0.0-20220606134207-859f65c6625b
 	github.com/golang-jwt/jwt/v4 v4.5.0
 	github.com/holiman/uint256 v1.2.3
@@ -223,7 +223,7 @@ replace github.com/ledgerwatch/erigon => github.com/bobanetwork/op-erigon v0.0.0
 
 replace github.com/ledgerwatch/erigon-lib => github.com/bobanetwork/op-erigon/erigon-lib v0.0.0-20240223222735-55b4885d2ef7
 
-replace github.com/bobanetwork/v3-anchorage/boba-bindings => ../boba-bindings
+replace github.com/bobanetwork/boba/boba-bindings => ../boba-bindings
 
 replace github.com/tendermint/tendermint => github.com/bnb-chain/tendermint v0.31.12
 

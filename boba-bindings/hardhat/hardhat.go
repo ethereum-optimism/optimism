@@ -10,7 +10,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/bobanetwork/v3-anchorage/boba-bindings/solc"
+	"github.com/bobanetwork/boba/boba-bindings/solc"
 )
 
 var (

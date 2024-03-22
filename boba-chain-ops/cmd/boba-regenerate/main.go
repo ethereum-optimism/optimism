@@ -7,7 +7,7 @@ import (
 	"github.com/ledgerwatch/log/v3"
 	"github.com/urfave/cli/v2"
 
-	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/genesis"
+	"github.com/bobanetwork/boba/boba-chain-ops/genesis"
 )
 
 func main() {

@@ -3,7 +3,7 @@ package hardhat
 import (
 	"encoding/json"
 
-	"github.com/bobanetwork/v3-anchorage/boba-bindings/solc"
+	"github.com/bobanetwork/boba/boba-bindings/solc"
 	"github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon-lib/common/hexutility"
 	"github.com/ledgerwatch/erigon/accounts/abi"

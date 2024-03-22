@@ -3,7 +3,7 @@ package bindings
 import (
 	"fmt"
 
-	"github.com/bobanetwork/v3-anchorage/boba-bindings/solc"
+	"github.com/bobanetwork/boba/boba-bindings/solc"
 	"github.com/ledgerwatch/erigon/common"
 )
 

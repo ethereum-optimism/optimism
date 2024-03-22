@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bobanetwork/v3-anchorage/boba-bindings/hardhat"
-	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/genesis"
+	"github.com/bobanetwork/boba/boba-bindings/hardhat"
+	"github.com/bobanetwork/boba/boba-chain-ops/genesis"
 	"github.com/ledgerwatch/erigon-lib/kv/memdb"
 	"github.com/ledgerwatch/erigon/core"
 	"github.com/ledgerwatch/erigon/core/types"

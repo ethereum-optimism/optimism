@@ -1,7 +1,7 @@
 package genesis
 
 import (
-	"github.com/bobanetwork/v3-anchorage/boba-bindings/bindings"
+	"github.com/bobanetwork/boba/boba-bindings/bindings"
 	"github.com/ledgerwatch/erigon/params"
 )
 

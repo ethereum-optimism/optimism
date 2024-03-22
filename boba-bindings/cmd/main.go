@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/bobanetwork/v3-anchorage/boba-bindings/bindgen"
-	"github.com/bobanetwork/v3-anchorage/boba-bindings/ethclient"
-	"github.com/bobanetwork/v3-anchorage/boba-bindings/etherscan"
+	"github.com/bobanetwork/boba/boba-bindings/bindgen"
+	"github.com/bobanetwork/boba/boba-bindings/ethclient"
+	"github.com/bobanetwork/boba/boba-bindings/etherscan"
 	"github.com/urfave/cli/v2"
 
 	"github.com/ledgerwatch/log/v3"

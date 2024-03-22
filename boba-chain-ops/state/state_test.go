@@ -13,9 +13,9 @@ import (
 	"github.com/ledgerwatch/erigon/core/types"
 	"github.com/ledgerwatch/erigon/crypto"
 
-	"github.com/bobanetwork/v3-anchorage/boba-bindings/solc"
-	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/state"
-	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/state/testdata"
+	"github.com/bobanetwork/boba/boba-bindings/solc"
+	"github.com/bobanetwork/boba/boba-chain-ops/state"
+	"github.com/bobanetwork/boba/boba-chain-ops/state/testdata"
 
 	"github.com/stretchr/testify/require"
 )

@@ -5,8 +5,8 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/crossdomain"
-	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/ether"
+	"github.com/bobanetwork/boba/boba-chain-ops/crossdomain"
+	"github.com/bobanetwork/boba/boba-chain-ops/ether"
 	"github.com/ledgerwatch/erigon-lib/chain"
 	libcommon "github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon-lib/common/length"
