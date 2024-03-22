@@ -19,18 +19,18 @@ type channel struct {
 	metr metrics.Metricer
 	cfg  ChannelConfig
 
-	// pending channel builder
+	// pending channel builder.
 	channelBuilder *ChannelBuilder
-	// Set of unconfirmed txID -> tx data. For tx resubmission
+	// Set of unconfirmed txID -> tx data. For tx resubmission.
 	pendingTransactions map[string]txData
-	// Set of confirmed txID -> inclusion block. For determining if the channel is timed out
+	// Set of confirmed txID -> inclusion block. For determining if the channel is timed out.
 	confirmedTransactions map[string]eth.BlockID
 
 	// True if confirmed TX list is updated. Set to false after updated min/max inclusion blocks.
 	confirmedTxUpdated bool
-	// Inclusion block number of first confirmed TX
+	// Inclusion block number of first confirmed TX.
 	minInclusionBlock uint64
-	// Inclusion block number of last confirmed TX
+	// Inclusion block number of last confirmed TX.
 	maxInclusionBlock uint64
 }
 
@@ -77,7 +77,7 @@ func (s *channel) TxConfirmed(id string, inclusionBlock eth.BlockID) (bool, []*t
 	if _, ok := s.pendingTransactions[id]; !ok {
 		s.log.Warn("unknown transaction marked as confirmed", "id", id, "block", inclusionBlock)
 		// TODO: This can occur if we clear the channel while there are still pending transactions
-		// We need to keep track of stale transactions instead
+		// We need to keep track of stale transactions instead.
 		return false, nil
 	}
 	delete(s.pendingTransactions, id)
@@ -107,12 +107,12 @@ func (s *channel) Timeout() uint64 {
 	return s.channelBuilder.Timeout()
 }
 
-// updateInclusionBlocks finds the first & last confirmed tx and saves its inclusion numbers
+// updateInclusionBlocks finds the first & last confirmed tx and saves its inclusion numbers.
 func (s *channel) updateInclusionBlocks() {
 	if len(s.confirmedTransactions) == 0 || !s.confirmedTxUpdated {
 		return
 	}
-	// If there are confirmed transactions, find the first + last confirmed block numbers
+	// If there are confirmed transactions, find the first + last confirmed block numbers.
 	min := uint64(math.MaxUint64)
 	max := uint64(0)
 	for _, inclusionBlock := range s.confirmedTransactions {
@@ -139,7 +139,7 @@ func (s *channel) isTimedOut() bool {
 
 // pendingChannelIsFullySubmitted returns true if the channel has been fully submitted.
 func (s *channel) isFullySubmitted() bool {
-	// Update min/max inclusion blocks for timeout check
+	// Update min/max inclusion blocks for timeout check.
 	s.updateInclusionBlocks()
 	return s.IsFull() && len(s.pendingTransactions)+s.PendingFrames() == 0
 }
@@ -177,7 +177,7 @@ func (s *channel) HasTxData() bool {
 	if s.IsFull() || !s.cfg.MultiFrameTxs {
 		return s.channelBuilder.HasFrame()
 	}
-	// collect enough frames if channel is not full yet
+	// collect enough frames if channel is not full yet.
 	return s.channelBuilder.PendingFrames() >= int(s.cfg.MaxFramesPerTx())
 }
 
@@ -221,7 +221,7 @@ func (s *channel) OutputFrames() error {
 	return s.channelBuilder.OutputFrames()
 }
 
-// LatestL1Origin returns the latest L1 block origin from all the L2 blocks that have been added to the channel
+// LatestL1Origin returns the latest L1 block origin from all the L2 blocks that have been added to the channel.
 func (c *channel) LatestL1Origin() eth.BlockID {
 	return c.channelBuilder.LatestL1Origin()
 }
