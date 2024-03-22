@@ -107,8 +107,8 @@ func BenchmarkFinalBatchChannelOut(b *testing.B) {
 				// don't measure the setup time
 				b.StopTimer()
 				compressors[tc.compKey].Reset()
-				spanBatchBuilder := derive.NewSpanBatchBuilder(0, chainID)
-				cout, _ := derive.NewChannelOut(tc.BatchType, compressors[tc.compKey], spanBatchBuilder)
+				spanBatch := derive.NewSpanBatch(uint64(0), chainID)
+				cout, _ := derive.NewChannelOut(tc.BatchType, compressors[tc.compKey], spanBatch)
 				// add all but the final batch to the channel out
 				for i := 0; i < tc.BatchCount-1; i++ {
 					_, err := cout.AddSingularBatch(batches[i], 0)
@@ -171,8 +171,8 @@ func BenchmarkAllBatchesChannelOut(b *testing.B) {
 				// don't measure the setup time
 				b.StopTimer()
 				compressors[tc.compKey].Reset()
-				spanBatchBuilder := derive.NewSpanBatchBuilder(0, chainID)
-				cout, _ := derive.NewChannelOut(tc.BatchType, compressors[tc.compKey], spanBatchBuilder)
+				spanBatch := derive.NewSpanBatch(0, chainID)
+				cout, _ := derive.NewChannelOut(tc.BatchType, compressors[tc.compKey], spanBatch)
 				b.StartTimer()
 				// add all batches to the channel out
 				for i := 0; i < tc.BatchCount; i++ {
@@ -220,12 +220,13 @@ func BenchmarkGetRawSpanBatch(b *testing.B) {
 			for bn := 0; bn < b.N; bn++ {
 				// don't measure the setup time
 				b.StopTimer()
-				spanBatchBuilder := derive.NewSpanBatchBuilder(0, chainID)
+				spanBatch := derive.NewSpanBatch(uint64(0), chainID)
 				for i := 0; i < tc.BatchCount; i++ {
-					spanBatchBuilder.AppendSingularBatch(batches[i], 0)
+					err := spanBatch.AppendSingularBatch(batches[i], 0)
+					require.NoError(b, err)
 				}
 				b.StartTimer()
-				_, err := spanBatchBuilder.GetRawSpanBatch()
+				_, err := spanBatch.ToRawSpanBatch()
 				require.NoError(b, err)
 			}
 		})

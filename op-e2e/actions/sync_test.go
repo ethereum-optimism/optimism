@@ -216,9 +216,9 @@ func TestBackupUnsafe(gt *testing.T) {
 		ApproxComprRatio: 1,
 	})
 	require.NoError(t, e)
-	spanBatchBuilder := derive.NewSpanBatchBuilder(sd.RollupCfg.Genesis.L2Time, sd.RollupCfg.L2ChainID)
+	spanBatch := derive.NewSpanBatch(sd.RollupCfg.Genesis.L2Time, sd.RollupCfg.L2ChainID)
 	// Create new span batch channel
-	channelOut, err := derive.NewChannelOut(derive.SpanBatchType, c, spanBatchBuilder)
+	channelOut, err := derive.NewChannelOut(derive.SpanBatchType, c, spanBatch)
 	require.NoError(t, err)
 
 	for i := uint64(1); i <= sequencer.L2Unsafe().Number; i++ {
@@ -387,9 +387,9 @@ func TestBackupUnsafeReorgForkChoiceInputError(gt *testing.T) {
 		ApproxComprRatio: 1,
 	})
 	require.NoError(t, e)
-	spanBatchBuilder := derive.NewSpanBatchBuilder(sd.RollupCfg.Genesis.L2Time, sd.RollupCfg.L2ChainID)
+	spanBatch := derive.NewSpanBatch(sd.RollupCfg.Genesis.L2Time, sd.RollupCfg.L2ChainID)
 	// Create new span batch channel
-	channelOut, err := derive.NewChannelOut(derive.SpanBatchType, c, spanBatchBuilder)
+	channelOut, err := derive.NewChannelOut(derive.SpanBatchType, c, spanBatch)
 	require.NoError(t, err)
 
 	for i := uint64(1); i <= sequencer.L2Unsafe().Number; i++ {
@@ -534,9 +534,9 @@ func TestBackupUnsafeReorgForkChoiceNotInputError(gt *testing.T) {
 		ApproxComprRatio: 1,
 	})
 	require.NoError(t, e)
-	spanBatchBuilder := derive.NewSpanBatchBuilder(sd.RollupCfg.Genesis.L2Time, sd.RollupCfg.L2ChainID)
+	spanBatch := derive.NewSpanBatch(sd.RollupCfg.Genesis.L2Time, sd.RollupCfg.L2ChainID)
 	// Create new span batch channel
-	channelOut, err := derive.NewChannelOut(derive.SpanBatchType, c, spanBatchBuilder)
+	channelOut, err := derive.NewChannelOut(derive.SpanBatchType, c, spanBatch)
 	require.NoError(t, err)
 
 	for i := uint64(1); i <= sequencer.L2Unsafe().Number; i++ {
@@ -871,9 +871,9 @@ func TestInvalidPayloadInSpanBatch(gt *testing.T) {
 		ApproxComprRatio: 1,
 	})
 	require.NoError(t, e)
-	spanBatchBuilder := derive.NewSpanBatchBuilder(sd.RollupCfg.Genesis.L2Time, sd.RollupCfg.L2ChainID)
+	spanBatch := derive.NewSpanBatch(sd.RollupCfg.Genesis.L2Time, sd.RollupCfg.L2ChainID)
 	// Create new span batch channel
-	channelOut, err := derive.NewChannelOut(derive.SpanBatchType, c, spanBatchBuilder)
+	channelOut, err := derive.NewChannelOut(derive.SpanBatchType, c, spanBatch)
 	require.NoError(t, err)
 
 	// Create block A1 ~ A12 for L1 block #0 ~ #2
@@ -919,8 +919,8 @@ func TestInvalidPayloadInSpanBatch(gt *testing.T) {
 		ApproxComprRatio: 1,
 	})
 	require.NoError(t, e)
-	spanBatchBuilder = derive.NewSpanBatchBuilder(sd.RollupCfg.Genesis.L2Time, sd.RollupCfg.L2ChainID)
-	channelOut, err = derive.NewChannelOut(derive.SpanBatchType, c, spanBatchBuilder)
+	spanBatch = derive.NewSpanBatch(sd.RollupCfg.Genesis.L2Time, sd.RollupCfg.L2ChainID)
+	channelOut, err = derive.NewChannelOut(derive.SpanBatchType, c, spanBatch)
 	require.NoError(t, err)
 
 	for i := uint64(1); i <= sequencer.L2Unsafe().Number; i++ {

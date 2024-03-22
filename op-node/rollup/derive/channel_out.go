@@ -62,12 +62,12 @@ type ChannelOut interface {
 	OutputFrame(*bytes.Buffer, uint64) (uint16, error)
 }
 
-func NewChannelOut(batchType uint, compress Compressor, spanBatchBuilder *SpanBatchBuilder) (ChannelOut, error) {
+func NewChannelOut(batchType uint, compress Compressor, spanBatch *SpanBatch) (ChannelOut, error) {
 	switch batchType {
 	case SingularBatchType:
 		return NewSingularChannelOut(compress)
 	case SpanBatchType:
-		return NewSpanChannelOut(compress, spanBatchBuilder)
+		return NewSpanChannelOut(compress, spanBatch)
 	default:
 		return nil, fmt.Errorf("unrecognized batch type: %d", batchType)
 	}
