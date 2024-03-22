@@ -41,7 +41,7 @@ type Service struct {
 	extractor    *extract.Extractor
 	forecast     *forecast
 	bonds        *bonds.Bonds
-	caller       *extract.GameCallerCreator
+	game         *extract.GameCallerCreator
 	rollupClient *sources.RollupClient
 	validator    *outputValidator
 
@@ -85,8 +85,8 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 		return fmt.Errorf("failed to init rollup client: %w", err)
 	}
 
-	s.initOutputValidator() // Must be called before initForecast
-	s.initCallerCreator()   // Must be called before initForecast
+	s.initOutputValidator()   // Must be called before initForecast
+	s.initGameCallerCreator() // Must be called before initForecast
 
 	s.initDelayCalculator()
 	s.initExtractor()
@@ -106,8 +106,8 @@ func (s *Service) initOutputValidator() {
 	s.validator = newOutputValidator(s.logger, s.metrics, s.rollupClient)
 }
 
-func (s *Service) initCallerCreator() {
-	s.caller = extract.NewGameCallerCreator(s.metrics, batching.NewMultiCaller(s.l1Client.Client(), batching.DefaultBatchSize))
+func (s *Service) initGameCallerCreator() {
+	s.game = extract.NewGameCallerCreator(s.metrics, batching.NewMultiCaller(s.l1Client.Client(), batching.DefaultBatchSize))
 }
 
 func (s *Service) initDelayCalculator() {
@@ -115,10 +115,7 @@ func (s *Service) initDelayCalculator() {
 }
 
 func (s *Service) initExtractor() {
-	s.extractor = extract.NewExtractor(
-		s.logger,
-		s.caller.CreateContract,
-		s.factoryContract.GetGamesAtOrAfter,
+	s.extractor = extract.NewExtractor(s.logger, s.game.CreateContract, s.factoryContract.GetGamesAtOrAfter,
 		// Note: Claim enricher should precede other enrichers to ensure the claim Resolved field
 		//       is set by checking if the claim's bond amount is equal to the configured flag.
 		extract.NewClaimEnricher(),
