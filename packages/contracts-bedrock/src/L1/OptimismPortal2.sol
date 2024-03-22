@@ -78,7 +78,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     /// @custom:network-specific
     DisputeGameFactory public disputeGameFactory;
 
-    /// @notice A mapping of withdrawal hashes to `ProvenWithdrawal` data.
+    /// @notice A mapping of withdrawal hashes to proof submitters to `ProvenWithdrawal` data.
     mapping(bytes32 => mapping(address => ProvenWithdrawal)) public provenWithdrawals;
 
     /// @notice A mapping of dispute game addresses to whether or not they are blacklisted.
@@ -89,6 +89,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
 
     /// @notice The timestamp at which the respected game type was last updated.
     uint64 public respectedGameTypeUpdatedAt;
+
+    /// @notice Mapping of withdrawal hashes to addresses that have submitted a proof for the withdrawal.
+    mapping(bytes32 => address[]) public proofSubmitters;
 
     /// @notice Emitted when a transaction is deposited from L1 to L2.
     ///         The parameters of this event are read by the rollup node and used to derive deposit
@@ -316,6 +319,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
 
         // Emit a `WithdrawalProven` event.
         emit WithdrawalProven(withdrawalHash, _tx.sender, _tx.target);
+
+        // Add the proof submitter to the list of proof submitters for this withdrawal hash.
+        proofSubmitters[withdrawalHash].push(msg.sender);
     }
 
     /// @notice Finalizes a withdrawal transaction.
@@ -448,6 +454,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     /// @notice Checks if a withdrawal can be finalized. This function will revert if the withdrawal cannot be
     ///         finalized, and otherwise has no side-effects.
     /// @param _withdrawalHash Hash of the withdrawal to check.
+    /// @param _proofSubmitter The submitter of the proof for the withdrawal hash
     function checkWithdrawal(bytes32 _withdrawalHash, address _proofSubmitter) public view {
         ProvenWithdrawal memory provenWithdrawal = provenWithdrawals[_withdrawalHash][_proofSubmitter];
         IDisputeGame disputeGameProxy = provenWithdrawal.disputeGameProxy;
@@ -458,7 +465,10 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         // A withdrawal can only be finalized if it has been proven. We know that a withdrawal has
         // been proven at least once when its timestamp is non-zero. Unproven withdrawals will have
         // a timestamp of zero.
-        require(provenWithdrawal.timestamp != 0, "OptimismPortal: withdrawal has not been proven yet");
+        require(
+            provenWithdrawal.timestamp != 0,
+            "OptimismPortal: withdrawal has not been proven by proof submitter address yet"
+        );
 
         uint64 createdAt = disputeGameProxy.createdAt().raw();
 
@@ -506,5 +516,11 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
 
         // Check that this withdrawal has not already been finalized, this is replay protection.
         require(!finalizedWithdrawals[_withdrawalHash], "OptimismPortal: withdrawal has already been finalized");
+    }
+
+    /// @notice External getter for the number of proof submitters for a withdrawal hash.
+    /// @param _withdrawalHash Hash of the withdrawal.
+    function numProofSubmitters(bytes32 _withdrawalHash) external view returns (uint256) {
+        return proofSubmitters[_withdrawalHash].length;
     }
 }

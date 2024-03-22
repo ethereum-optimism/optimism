@@ -110,5 +110,12 @@
     "offset": 4,
     "slot": "59",
     "type": "uint64"
+  },
+  {
+    "bytes": "32",
+    "label": "proofSubmitters",
+    "offset": 0,
+    "slot": "60",
+    "type": "mapping(bytes32 => address[])"
   }
 ]
