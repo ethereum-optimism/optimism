@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"sync"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/solver"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
@@ -32,22 +33,26 @@ type ClaimLoader interface {
 }
 
 type Agent struct {
-	metrics   metrics.Metricer
-	cl        clock.Clock
-	solver    *solver.GameSolver
-	loader    ClaimLoader
-	responder Responder
-	selective bool
-	claimants []common.Address
-	maxDepth  types.Depth
-	log       log.Logger
+	metrics      metrics.Metricer
+	systemClock  clock.Clock
+	l1Clock      types.ClockReader
+	solver       *solver.GameSolver
+	loader       ClaimLoader
+	responder    Responder
+	selective    bool
+	claimants    []common.Address
+	maxDepth     types.Depth
+	gameDuration time.Duration
+	log          log.Logger
 }
 
 func NewAgent(
 	m metrics.Metricer,
-	cl clock.Clock,
+	systemClock clock.Clock,
+	l1Clock types.ClockReader,
 	loader ClaimLoader,
 	maxDepth types.Depth,
+	gameDuration time.Duration,
 	trace types.TraceAccessor,
 	responder Responder,
 	log log.Logger,
@@ -55,15 +60,17 @@ func NewAgent(
 	claimants []common.Address,
 ) *Agent {
 	return &Agent{
-		metrics:   m,
-		cl:        cl,
-		solver:    solver.NewGameSolver(maxDepth, trace),
-		loader:    loader,
-		responder: responder,
-		selective: selective,
-		claimants: claimants,
-		maxDepth:  maxDepth,
-		log:       log,
+		metrics:      m,
+		systemClock:  systemClock,
+		l1Clock:      l1Clock,
+		solver:       solver.NewGameSolver(maxDepth, trace),
+		loader:       loader,
+		responder:    responder,
+		selective:    selective,
+		claimants:    claimants,
+		maxDepth:     maxDepth,
+		gameDuration: gameDuration,
+		log:          log,
 	}
 }
 
@@ -73,9 +80,9 @@ func (a *Agent) Act(ctx context.Context) error {
 		return nil
 	}
 
-	start := a.cl.Now()
+	start := a.systemClock.Now()
 	defer func() {
-		a.metrics.RecordGameActTime(a.cl.Since(start).Seconds())
+		a.metrics.RecordGameActTime(a.systemClock.Since(start).Seconds())
 	}()
 	game, err := a.newGameFromContracts(ctx)
 	if err != nil {
@@ -156,9 +163,13 @@ func (a *Agent) tryResolveClaims(ctx context.Context) error {
 	if len(claims) == 0 {
 		return errNoResolvableClaims
 	}
+	maxChessTime := a.gameDuration / 2
 
 	var resolvableClaims []uint64
 	for _, claim := range claims {
+		if claim.ChessTime(a.l1Clock.Now()) <= maxChessTime {
+			continue
+		}
 		if a.selective {
 			a.log.Trace("Selective claim resolution, checking if claim is incentivized", "claimIdx", claim.ContractIndex)
 			isUncounteredClaim := slices.Contains(a.claimants, claim.Claimant) && claim.CounteredBy == common.Address{}
@@ -186,9 +197,9 @@ func (a *Agent) tryResolveClaims(ctx context.Context) error {
 }
 
 func (a *Agent) resolveClaims(ctx context.Context) error {
-	start := a.cl.Now()
+	start := a.systemClock.Now()
 	defer func() {
-		a.metrics.RecordClaimResolutionTime(a.cl.Since(start).Seconds())
+		a.metrics.RecordClaimResolutionTime(a.systemClock.Since(start).Seconds())
 	}()
 	for {
 		err := a.tryResolveClaims(ctx)
