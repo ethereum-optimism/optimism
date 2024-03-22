@@ -34,7 +34,7 @@ var (
 
 	// batch types used in the benchmark
 	batchTypes = []uint{
-		//	derive.SingularBatchType,
+		derive.SingularBatchType,
 		derive.SpanBatchType,
 	}
 )
@@ -95,16 +95,19 @@ func BenchmarkChannelOut(b *testing.B) {
 		rng := rand.New(rand.NewSource(0x543331))
 		// pre-generate batches to keep the benchmark from including the random generation
 		batches := make([]*derive.SingularBatch, tc.BatchCount)
+		t := time.Now()
 		for i := 0; i < tc.BatchCount; i++ {
 			batches[i] = derive.RandomSingularBatch(rng, tc.txPerBatch, chainID)
-			batches[i].Timestamp = uint64(time.Now().Add(time.Duration(i) * time.Second).Unix())
+			// set the timestamp to increase with each batch
+			// to leverage optimizations in the Batch Linked List
+			batches[i].Timestamp = uint64(t.Add(time.Duration(i) * time.Second).Unix())
 		}
 		b.Run(tc.String(), func(b *testing.B) {
 			// reset the compressor used in the test case
-			compressors[tc.compKey].Reset()
 			for bn := 0; bn < b.N; bn++ {
 				// don't measure the setup time
 				b.StopTimer()
+				compressors[tc.compKey].Reset()
 				spanBatchBuilder := derive.NewSpanBatchBuilder(0, chainID)
 				cout, _ := derive.NewChannelOut(tc.BatchType, compressors[tc.compKey], spanBatchBuilder)
 				// add all but the final batche to the channel out
@@ -121,7 +124,7 @@ func BenchmarkChannelOut(b *testing.B) {
 		})
 	}
 }
-func BenchmarkToRawSpanBatch(b *testing.B) {
+func BenchmarkGetRawSpanBatch(b *testing.B) {
 	// Targets define the number of batches and transactions per batch to test
 	type target struct{ bs, tpb int }
 	targets := []target{
@@ -145,9 +148,10 @@ func BenchmarkToRawSpanBatch(b *testing.B) {
 		rng := rand.New(rand.NewSource(0x543331))
 		// pre-generate batches to keep the benchmark from including the random generation
 		batches := make([]*derive.SingularBatch, tc.BatchCount)
+		t := time.Now()
 		for i := 0; i < tc.BatchCount; i++ {
 			batches[i] = derive.RandomSingularBatch(rng, tc.txPerBatch, chainID)
-			batches[i].Timestamp = uint64(time.Now().Add(time.Duration(i) * time.Second).Unix())
+			batches[i].Timestamp = uint64(t.Add(time.Duration(i) * time.Second).Unix())
 		}
 		b.Run(tc.String(), func(b *testing.B) {
 			for bn := 0; bn < b.N; bn++ {
