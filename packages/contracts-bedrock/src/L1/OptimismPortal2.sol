@@ -79,7 +79,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     DisputeGameFactory public disputeGameFactory;
 
     /// @notice A mapping of withdrawal hashes to `ProvenWithdrawal` data.
-    mapping(bytes32 => ProvenWithdrawal) public provenWithdrawals;
+    mapping(bytes32 => mapping(address => ProvenWithdrawal)) public provenWithdrawals;
 
     /// @notice A mapping of dispute game addresses to whether or not they are blacklisted.
     mapping(IDisputeGame => bool) public disputeGameBlacklist;
@@ -117,8 +117,8 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 3.4.0
-    string public constant version = "3.4.0";
+    /// @custom:semver 3.5.0
+    string public constant version = "3.5.0";
 
     /// @notice Constructs the OptimismPortal contract.
     constructor(
@@ -265,7 +265,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
 
         // Load the ProvenWithdrawal into memory, using the withdrawal hash as a unique identifier.
         bytes32 withdrawalHash = Hashing.hashWithdrawal(_tx);
-        ProvenWithdrawal memory provenWithdrawal = provenWithdrawals[withdrawalHash];
+        ProvenWithdrawal memory provenWithdrawal = provenWithdrawals[withdrawalHash][msg.sender];
 
         // We do not allow for proving withdrawals against dispute games that have resolved against the favor
         // of the root claim.
@@ -311,7 +311,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         // Designate the withdrawalHash as proven by storing the `disputeGameProxy` & `timestamp` in the
         // `provenWithdrawals` mapping. A `withdrawalHash` can only be proven once unless the dispute game it proved
         // against resolves against the favor of the root claim.
-        provenWithdrawals[withdrawalHash] =
+        provenWithdrawals[withdrawalHash][msg.sender] =
             ProvenWithdrawal({ disputeGameProxy: gameProxy, timestamp: uint64(block.timestamp) });
 
         // Emit a `WithdrawalProven` event.
@@ -321,6 +321,19 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     /// @notice Finalizes a withdrawal transaction.
     /// @param _tx Withdrawal transaction to finalize.
     function finalizeWithdrawalTransaction(Types.WithdrawalTransaction memory _tx) external whenNotPaused {
+        finalizeWithdrawalTransactionExternalProof(_tx, msg.sender);
+    }
+
+    /// @notice Finalizes a withdrawal transaction, using an external proof submitter.
+    /// @param _tx Withdrawal transaction to finalize.
+    /// @param _proofSubmitter Address of the proof submitter.
+    function finalizeWithdrawalTransactionExternalProof(
+        Types.WithdrawalTransaction memory _tx,
+        address _proofSubmitter
+    )
+        public
+        whenNotPaused
+    {
         // Make sure that the l2Sender has not yet been set. The l2Sender is set to a value other
         // than the default value when a withdrawal transaction is being finalized. This check is
         // a defacto reentrancy guard.
@@ -332,7 +345,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         bytes32 withdrawalHash = Hashing.hashWithdrawal(_tx);
 
         // Check that the withdrawal can be finalized.
-        checkWithdrawal(withdrawalHash);
+        checkWithdrawal(withdrawalHash, _proofSubmitter);
 
         // Mark the withdrawal as finalized so it can't be replayed.
         finalizedWithdrawals[withdrawalHash] = true;
@@ -435,8 +448,8 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     /// @notice Checks if a withdrawal can be finalized. This function will revert if the withdrawal cannot be
     ///         finalized, and otherwise has no side-effects.
     /// @param _withdrawalHash Hash of the withdrawal to check.
-    function checkWithdrawal(bytes32 _withdrawalHash) public view {
-        ProvenWithdrawal memory provenWithdrawal = provenWithdrawals[_withdrawalHash];
+    function checkWithdrawal(bytes32 _withdrawalHash, address _proofSubmitter) public view {
+        ProvenWithdrawal memory provenWithdrawal = provenWithdrawals[_withdrawalHash][_proofSubmitter];
         IDisputeGame disputeGameProxy = provenWithdrawal.disputeGameProxy;
 
         // The dispute game must not be blacklisted.
@@ -468,7 +481,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         // from finalizing withdrawals proven against non-finalized output roots.
         require(
             disputeGameProxy.status() == GameStatus.DEFENDER_WINS,
-            "OptimismPortal: output proposal has not been finalized yet"
+            "OptimismPortal: output proposal has not been validated"
         );
 
         // The game type of the dispute game must be the respected game type. This was also checked in
