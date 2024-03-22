@@ -39,7 +39,7 @@ var (
 	}
 )
 
-// a test case for the benchmark controlls the number of batches and transactions per batch,
+// a test case for the benchmark controls the number of batches and transactions per batch,
 // as well as the batch type and compressor used
 type BatchingBenchmarkTC struct {
 	BatchType  uint
@@ -162,7 +162,8 @@ func BenchmarkGetRawSpanBatch(b *testing.B) {
 					spanBatchBuilder.AppendSingularBatch(batches[i], 0)
 				}
 				b.StartTimer()
-				spanBatchBuilder.GetRawSpanBatch()
+				_, err := spanBatchBuilder.GetRawSpanBatch()
+				require.NoError(b, err)
 			}
 		})
 	}
