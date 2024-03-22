@@ -107,7 +107,9 @@ abstract contract Artifacts {
         }
 
         bytes32 digest = keccak256(bytes(_name));
-        if (digest == keccak256(bytes("L2CrossDomainMessenger"))) {
+        if (digest == keccak256(bytes("RevenueSharer"))) {
+            return payable(Predeploys.REVENUE_SHARER);
+        } else if (digest == keccak256(bytes("L2CrossDomainMessenger"))) {
             return payable(Predeploys.L2_CROSS_DOMAIN_MESSENGER);
         } else if (digest == keccak256(bytes("L2ToL1MessagePasser"))) {
             return payable(Predeploys.L2_TO_L1_MESSAGE_PASSER);
