@@ -56,7 +56,7 @@ type ChannelBuilder struct {
 	// - sequencing window timeout.
 	// 0 if no block number timeout set yet.
 	timeout uint64
-	// reason for currently set timeout
+	// reason for currently set timeout.
 	timeoutReason error
 
 	// Reason for the channel being full. Set by setFullErr so it's always
@@ -64,15 +64,15 @@ type ChannelBuilder struct {
 	fullErr error
 	// current channel
 	co derive.ChannelOut
-	// list of blocks in the channel. Saved in case the channel must be rebuilt
+	// list of blocks in the channel. Saved in case the channel must be rebuilt.
 	blocks []*types.Block
-	// latestL1Origin is the latest L1 origin of all the L2 blocks that have been added to the channel
+	// latestL1Origin is the latest L1 origin of all the L2 blocks that have been added to the channel.
 	latestL1Origin eth.BlockID
-	// frames data queue, to be send as txs
+	// frames data queue, to be send as txs.
 	frames []frameData
-	// total frames counter
+	// total frames counter.
 	numFrames int
-	// total amount of output data of all frames created yet
+	// total amount of output data of all frames created yet.
 	outputBytes int
 }
 
@@ -128,7 +128,7 @@ func (c *ChannelBuilder) Blocks() []*types.Block {
 	return c.blocks
 }
 
-// LatestL1Origin returns the latest L1 block origin from all the L2 blocks that have been added to the channel
+// LatestL1Origin returns the latest L1 block origin from all the L2 blocks that have been added to the channel.
 func (c *ChannelBuilder) LatestL1Origin() eth.BlockID {
 	return c.latestL1Origin
 }
@@ -173,7 +173,7 @@ func (c *ChannelBuilder) AddBlock(block *types.Block) (*derive.L1BlockInfo, erro
 
 	if err = c.co.FullErr(); err != nil {
 		c.setFullErr(err)
-		// Adding this block still worked, so don't return error, just mark as full
+		// Adding this block still worked, so don't return error, just mark as full.
 	}
 
 	return l1info, nil
@@ -181,7 +181,7 @@ func (c *ChannelBuilder) AddBlock(block *types.Block) (*derive.L1BlockInfo, erro
 
 // Timeout management
 
-// Timeout returns the block number of the channel timeout. If no timeout is set it returns 0
+// Timeout returns the block number of the channel timeout. If no timeout is set it returns 0.
 func (c *ChannelBuilder) Timeout() uint64 {
 	return c.timeout
 }
