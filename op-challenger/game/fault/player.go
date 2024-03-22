@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/claims"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
@@ -58,6 +59,7 @@ type GameContract interface {
 	ClaimLoader
 	GetStatus(ctx context.Context) (gameTypes.GameStatus, error)
 	GetMaxGameDepth(ctx context.Context) (types.Depth, error)
+	GetGameDuration(ctx context.Context) (time.Duration, error)
 	GetOracle(ctx context.Context) (*contracts.PreimageOracleContract, error)
 	GetL1Head(ctx context.Context) (common.Hash, error)
 }
@@ -102,6 +104,11 @@ func NewGamePlayer(
 		}, nil
 	}
 
+	gameDuration, err := loader.GetGameDuration(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch the game duration: %w", err)
+	}
+
 	gameDepth, err := loader.GetMaxGameDepth(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch the game depth: %w", err)
@@ -139,7 +146,7 @@ func NewGamePlayer(
 		return nil, fmt.Errorf("failed to create the responder: %w", err)
 	}
 
-	agent := NewAgent(m, systemClock, loader, gameDepth, accessor, responder, logger, selective, claimants)
+	agent := NewAgent(m, systemClock, l1Clock, loader, gameDepth, gameDuration, accessor, responder, logger, selective, claimants)
 	return &GamePlayer{
 		act:                agent.Act,
 		loader:             loader,

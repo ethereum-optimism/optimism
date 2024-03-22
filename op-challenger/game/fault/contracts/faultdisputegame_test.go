@@ -6,6 +6,7 @@ import (
 	"math"
 	"math/big"
 	"testing"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	contractMetrics "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
@@ -46,6 +47,7 @@ func TestSimpleGetters(t *testing.T) {
 			methodAlias: "gameDuration",
 			method:      methodGameDuration,
 			result:      uint64(5566),
+			expected:    5566 * time.Second,
 			call: func(game *FaultDisputeGameContract) (any, error) {
 				return game.GetGameDuration(context.Background())
 			},
@@ -114,8 +116,8 @@ func TestClock_EncodingDecoding(t *testing.T) {
 		by := common.Hex2Bytes("00000000000000050000000000000002")
 		encoded := new(big.Int).SetBytes(by)
 		clock := decodeClock(encoded)
-		require.Equal(t, uint64(5), clock.Duration)
-		require.Equal(t, uint64(2), clock.Timestamp)
+		require.Equal(t, 5*time.Second, clock.Duration)
+		require.Equal(t, time.Unix(2, 0), clock.Timestamp)
 		require.Equal(t, encoded, packClock(clock))
 	})
 
@@ -123,8 +125,8 @@ func TestClock_EncodingDecoding(t *testing.T) {
 		by := common.Hex2Bytes("00000000000000000000000000000002")
 		encoded := new(big.Int).SetBytes(by)
 		clock := decodeClock(encoded)
-		require.Equal(t, uint64(0), clock.Duration)
-		require.Equal(t, uint64(2), clock.Timestamp)
+		require.Equal(t, 0*time.Second, clock.Duration)
+		require.Equal(t, time.Unix(2, 0), clock.Timestamp)
 		require.Equal(t, encoded, packClock(clock))
 	})
 
@@ -132,8 +134,8 @@ func TestClock_EncodingDecoding(t *testing.T) {
 		by := common.Hex2Bytes("00000000000000050000000000000000")
 		encoded := new(big.Int).SetBytes(by)
 		clock := decodeClock(encoded)
-		require.Equal(t, uint64(5), clock.Duration)
-		require.Equal(t, uint64(0), clock.Timestamp)
+		require.Equal(t, 5*time.Second, clock.Duration)
+		require.Equal(t, time.Unix(0, 0), clock.Timestamp)
 		require.Equal(t, encoded, packClock(clock))
 	})
 
@@ -141,8 +143,8 @@ func TestClock_EncodingDecoding(t *testing.T) {
 		by := common.Hex2Bytes("00000000000000000000000000000000")
 		encoded := new(big.Int).SetBytes(by)
 		clock := decodeClock(encoded)
-		require.Equal(t, uint64(0), clock.Duration)
-		require.Equal(t, uint64(0), clock.Timestamp)
+		require.Equal(t, 0*time.Second, clock.Duration)
+		require.Equal(t, time.Unix(0, 0), clock.Timestamp)
 		require.Equal(t, encoded.Uint64(), packClock(clock).Uint64())
 	})
 }

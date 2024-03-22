@@ -1,6 +1,8 @@
 package resolution
 
 import (
+	"time"
+
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 )
@@ -41,10 +43,10 @@ func (d *DelayCalculator) getOverflowTime(maxGameDuration uint64, claim *types.E
 	if claim.Resolved {
 		return 0
 	}
-	maxChessTime := maxGameDuration / 2
-	accumulatedTime := uint64(claim.ChessTime(d.clock.Now()))
+	maxChessTime := time.Duration(maxGameDuration/2) * time.Second
+	accumulatedTime := claim.ChessTime(d.clock.Now())
 	if accumulatedTime < maxChessTime {
 		return 0
 	}
-	return accumulatedTime - maxChessTime
+	return uint64((accumulatedTime - maxChessTime).Seconds())
 }
