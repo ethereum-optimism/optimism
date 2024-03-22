@@ -141,7 +141,7 @@ func setupExtractorTest(t *testing.T, enrichers ...Enricher) (*Extractor, *mockG
 	creator := &mockGameCallerCreator{caller: caller}
 	extractor := NewExtractor(
 		logger,
-		creator.CreateCaller,
+		creator.CreateGameCaller,
 		games.FetchGames,
 		enrichers...,
 	)
@@ -168,7 +168,7 @@ type mockGameCallerCreator struct {
 	caller *mockGameCaller
 }
 
-func (m *mockGameCallerCreator) CreateCaller(_ gameTypes.GameMetadata) (GameCaller, error) {
+func (m *mockGameCallerCreator) CreateGameCaller(_ gameTypes.GameMetadata) (GameCaller, error) {
 	m.calls++
 	if m.err != nil {
 		return nil, m.err
