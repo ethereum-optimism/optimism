@@ -44,7 +44,8 @@
     "StorageSetter",
     "SuperchainConfig",
     "DataAvailabilityChallenge",
-    "L2ToL2CrossDomainMessenger"
+    "L2ToL2CrossDomainMessenger",
+    "CrossL2Inbox"
   ],
   "remote": [
     {

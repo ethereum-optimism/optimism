@@ -36,6 +36,7 @@ import { Vm } from "forge-std/Vm.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { DataAvailabilityChallenge } from "src/L1/DataAvailabilityChallenge.sol";
 import { IL2ToL2CrossDomainMessenger } from "src/L2/IL2ToL2CrossDomainMessenger.sol";
+import { ICrossL2Inbox } from "src/L2/ICrossL2Inbox.sol";
 
 /// @title Setup
 /// @dev This contact is responsible for setting up the contracts in state. It currently
@@ -82,6 +83,7 @@ contract Setup {
     GovernanceToken governanceToken = GovernanceToken(Predeploys.GOVERNANCE_TOKEN);
     IL2ToL2CrossDomainMessenger l2ToL2CrossDomainMessenger =
         IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
+    ICrossL2Inbox crossL2Inbox = ICrossL2Inbox(Predeploys.CROSS_L2_INBOX);
 
     /// @dev Deploys the Deploy contract without including its bytecode in the bytecode
     ///      of this contract by fetching the bytecode dynamically using `vm.getCode()`.
@@ -192,5 +194,6 @@ contract Setup {
         vm.label(Predeploys.EAS, "EAS");
         vm.label(Predeploys.SCHEMA_REGISTRY, "SchemaRegistry");
         vm.label(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, "L2ToL2CrossDomainMessenger");
+        vm.label(Predeploys.CROSS_L2_INBOX, "CrossL2Inbox");
     }
 }
