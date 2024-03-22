@@ -30,13 +30,13 @@ const getAllContractsSources = (): Array<string> => {
 }
 
 type ForgeArtifact = {
-  abi: any[]
+  abi: object
   ast: {
     nodeType: string
     nodes: any[]
   }
   storageLayout: {
-    storage: { type: string; label: string; offset: number; slot: number }[]
+    storage: [{ type: string; label: string; offset: number; slot: number }]
     types: { [key: string]: { label: string; numberOfBytes: number } }
   }
   bytecode: {
@@ -89,23 +89,23 @@ const main = async () => {
 
   for (const contractFile of contractSources) {
     const contractArtifacts = path.join(forgeArtifactsDir, contractFile)
-    // Newer versions of forge omits artifacts for "libraries" that contain only error definitions, ex: CannonErrors.sol
-    if (!fs.existsSync(contractArtifacts)) {
-      console.log(`ignoring zero artifact contract ${contractFile}`)
-      continue
-    }
     for (const name of fs.readdirSync(contractArtifacts)) {
       const data = fs.readFileSync(path.join(contractArtifacts, name))
       const artifact: ForgeArtifact = JSON.parse(data.toString())
 
       const contractName = parseArtifactName(name)
 
-      const isLibrary =
-        artifact.abi.length === 0 &&
-        (artifact.storageLayout === undefined ||
-          artifact.storageLayout.storage.length === 0)
-      const isAbstract = artifact.bytecode.object === '0x'
-      if (isLibrary || isAbstract) {
+      // HACK: This is a hack to ignore libraries and abstract contracts. Not robust against changes to solc's internal ast repr
+      const isContract = artifact.ast.nodes.some((node: any) => {
+        return (
+          node.nodeType === 'ContractDefinition' &&
+          node.name === contractName &&
+          node.contractKind === 'contract' &&
+          (node.abstract === undefined || // solc < 0.6 doesn't have explicit abstract contracts
+            node.abstract === false)
+        )
+      })
+      if (!isContract) {
         console.log(`ignoring library/interface ${contractName}`)
         continue
       }
