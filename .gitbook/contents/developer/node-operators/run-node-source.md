@@ -18,13 +18,13 @@ DDocker images make it very simple to run a BOBA node, but you can also create y
 ### Clone the Boba Monorepo
 
 ```bash
-git clone https://github.com/bobanetwork/v3-anchorage.git
-cd v3-anchorage
+git clone https://github.com/bobanetwork/boba.git
+cd boba
 ```
 
 ### Check out the required release branch
 
-Release branches are created when new versions of the `op-node` are created. Read through the [Releases page](https://github.com/bobanetwork/v3-anchorage/tags) to determine the correct branch to check out.
+Release branches are created when new versions of the `op-node` are created. Read through the [Releases page](https://github.com/bobanetwork/boba/tags) to determine the correct branch to check out.
 
 ```
 git checkout <name of release branch>
@@ -65,7 +65,7 @@ cd v3-erigon
 
 ### Check out the required release branch
 
-Release branches are created when new versions of the `erigon` are created. Read through the [Releases page](https://github.com/bobanetwork/v3-erigon/releases) to determine the correct branch to check out.
+Release branches are created when new versions of the `erigon` are created. Read through the [Releases page](https://github.com/bobanetwork/op-erigon/releases) to determine the correct branch to check out.
 
 ```
 git checkout <name of release branch>
@@ -81,7 +81,7 @@ make erigon
 
 ## Download Snapshots
 
-You can download the database snapshot for the client and network you wish to run. 
+You can download the database snapshot for the client and network you wish to run.
 
 Always verify snapshots by comparing the sha256sum of the downloaded file to the sha256sum listed on this [page](./snapshot-downloads.md). Check the sha256sum of the downloaded file by running `sha256sum <filename>`in a terminal.
 
@@ -108,12 +108,12 @@ Always verify snapshots by comparing the sha256sum of the downloaded file to the
   The **erigon** db can be downloaded from [optimism sepolia erigon db](https://boba-db.s3.us-east-2.amazonaws.com/sepolia/optimism-sepolia-erigon-db.tgz).
 
   Or you can download the genesis file from [Optimsim](https://networks.optimism.io/op-sepolia/genesis.json) and initialize the data directory with it.
-  
+
   ```bash
   curl -o op-sepolia-genesis.json -sL https://networks.optimism.io/op-sepolia/genesis.json
   erigon init --datadir=/db genesis.json
   ```
-  
+
   The erigon can be built from the [source](https://github.com/bobanetwork/v3-erigon) using `make erigon` .
 
 ## Create a JWT Secret
