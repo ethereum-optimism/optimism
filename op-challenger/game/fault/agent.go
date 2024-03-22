@@ -167,7 +167,7 @@ func (a *Agent) tryResolveClaims(ctx context.Context) error {
 
 	var resolvableClaims []uint64
 	for _, claim := range claims {
-		if claim.ChessTime(a.l1Clock.Now()) < maxChessTime {
+		if claim.ChessTime(a.l1Clock.Now()) <= maxChessTime {
 			continue
 		}
 		if a.selective {
