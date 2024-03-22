@@ -81,6 +81,7 @@ func BuildL2Genesis(config *DeployConfig, l1StartBlock *types.Block) (*core.Gene
 			}
 			deployedBin, err := deployer.DeployWithDeterministicDeployer(backend, name)
 			if err != nil {
+				backend.Close()
 				return nil, err
 			}
 			backend.Close()
