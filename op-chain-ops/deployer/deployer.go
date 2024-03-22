@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -46,26 +47,18 @@ type Deployment struct {
 
 type Deployer func(*backends.SimulatedBackend, *bind.TransactOpts, Constructor) (*types.Transaction, error)
 
-// NewL1Backend returns a SimulatedBackend suitable for L1. It has
-// the latest L1 hardforks enabled.
-// The returned backend should be closed after use.
-func NewL1Backend() (*backends.SimulatedBackend, error) {
-	backend, err := NewBackendWithGenesisTimestamp(ChainID, 0, nil)
-	return backend, err
-}
-
-// NewL2Backend returns a SimulatedBackend suitable for L2.
+// NewBackend returns a SimulatedBackend suitable for L2.
 // It has the latest L2 hardforks enabled.
 // The returned backend should be closed after use.
-func NewL2Backend() (*backends.SimulatedBackend, error) {
+func NewBackend() (*backends.SimulatedBackend, error) {
 	backend, err := NewBackendWithGenesisTimestamp(ChainID, 0, nil)
 	return backend, err
 }
 
-// NewL2BackendWithChainIDAndPredeploys returns a SimulatedBackend suitable for L2.
+// NewBackendWithChainIDAndPredeploys returns a SimulatedBackend suitable for L2.
 // It has the latest L2 hardforks enabled, and allows for the configuration of the network's chain ID and predeploys.
 // The returned backend should be closed after use.
-func NewL2BackendWithChainIDAndPredeploys(chainID *big.Int, predeploys map[string]*common.Address) (*backends.SimulatedBackend, error) {
+func NewBackendWithChainIDAndPredeploys(chainID *big.Int, predeploys map[string]*common.Address) (*backends.SimulatedBackend, error) {
 	backend, err := NewBackendWithGenesisTimestamp(chainID, 0, predeploys)
 	return backend, err
 }
@@ -89,6 +82,7 @@ func NewBackendWithGenesisTimestamp(chainID *big.Int, ts uint64, predeploys map[
 	cfg := ethconfig.Defaults
 	cfg.Preimages = true
 	config := params.AllDevChainProtocolChanges
+	config.MergeNetsplitBlock = big.NewInt(0)
 	config.Ethash = new(params.EthashConfig)
 	cfg.Genesis = &core.Genesis{
 		Config:     config,
@@ -120,7 +114,11 @@ func Deploy(backend *backends.SimulatedBackend, constructors []Constructor, cb D
 		// The simulator performs asynchronous processing,
 		// so we need to both commit the change here as
 		// well as wait for the transaction receipt.
+
+		// give transaction time to hit mempool otherwise we might commit an empty block
+		time.Sleep(100 * time.Millisecond)
 		backend.Commit()
+
 		addr, err := bind.WaitDeployed(ctx, backend, tx)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", deployment.Name, err)
@@ -150,7 +148,7 @@ func Deploy(backend *backends.SimulatedBackend, constructors []Constructor, cb D
 //
 // Parameters:
 // - backend: A pointer to backends.SimulatedBackend, representing the simulated Ethereum blockchain.
-// Expected to have Arachnid's proxy deployer predeploys at 0x4e59b44847b379578588920cA78FbF26c0B4956C, NewL2BackendWithChainIDAndPredeploys handles this for you.
+// Expected to have Arachnid's proxy deployer predeploys at 0x4e59b44847b379578588920cA78FbF26c0B4956C, NewBackendWithChainIDAndPredeploys handles this for you.
 // - contractName: A string representing the name of the contract to be deployed.
 //
 // Returns:
@@ -166,7 +164,7 @@ func DeployWithDeterministicDeployer(backend *backends.SimulatedBackend, contrac
 	}
 	opts, err := bind.NewKeyedTransactorWithChainID(TestKey, cid)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("NewKeyedTransactorWithChainID failed: %w", err)
 	}
 
 	deployerAddress, err := bindings.GetDeployerAddress(contractName)
@@ -189,10 +187,16 @@ func DeployWithDeterministicDeployer(backend *backends.SimulatedBackend, contrac
 		return nil, fmt.Errorf("failed to initialize deployment proxy transactor at %s: %w", deployerAddress, err)
 	}
 
+	// give contract code time to become pending otherwise we risk it not being found.
+	time.Sleep(100 * time.Millisecond)
+
 	tx, err := transactor.Fallback(opts, append(deploymentSalt, initBytecode...))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Fallback failed: %w", err)
 	}
+
+	// give transaction time to hit mempool otherwise we might commit an empty block
+	time.Sleep(100 * time.Millisecond)
 
 	backend.Commit()
 
