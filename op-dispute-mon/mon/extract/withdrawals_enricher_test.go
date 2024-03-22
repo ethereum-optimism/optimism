@@ -17,27 +17,34 @@ import (
 func TestWithdrawalsEnricher(t *testing.T) {
 	makeGame := func() *monTypes.EnrichedGameData {
 		return &monTypes.EnrichedGameData{
-			Claims: []faultTypes.Claim{
+			Claims: []monTypes.EnrichedClaim{
 				{
-					ClaimData: faultTypes.ClaimData{
-						Bond: monTypes.ResolvedBondAmount,
+					Claim: faultTypes.Claim{
+						ClaimData: faultTypes.ClaimData{
+							Bond: big.NewInt(10),
+						},
+						Claimant:    common.Address{0x01},
+						CounteredBy: common.Address{0x02},
 					},
-					Claimant:    common.Address{0x01},
-					CounteredBy: common.Address{0x02},
+					Resolved: true,
 				},
 				{
-					ClaimData: faultTypes.ClaimData{
-						Bond: big.NewInt(5),
+					Claim: faultTypes.Claim{
+						ClaimData: faultTypes.ClaimData{
+							Bond: big.NewInt(5),
+						},
+						Claimant:    common.Address{0x03},
+						CounteredBy: common.Address{},
 					},
-					Claimant:    common.Address{0x03},
-					CounteredBy: common.Address{},
 				},
 				{
-					ClaimData: faultTypes.ClaimData{
-						Bond: big.NewInt(7),
+					Claim: faultTypes.Claim{
+						ClaimData: faultTypes.ClaimData{
+							Bond: big.NewInt(7),
+						},
+						Claimant:    common.Address{0x03},
+						CounteredBy: common.Address{},
 					},
-					Claimant:    common.Address{0x03},
-					CounteredBy: common.Address{},
 				},
 			},
 		}
@@ -45,28 +52,25 @@ func TestWithdrawalsEnricher(t *testing.T) {
 
 	t.Run("GetWithdrawalsFails", func(t *testing.T) {
 		enricher := NewWithdrawalsEnricher()
-		weth := &mockWethCaller{withdrawalsErr: errors.New("nope")}
-		caller := &mockGameCaller{}
+		caller := &mockGameCaller{withdrawalsErr: errors.New("nope")}
 		game := makeGame()
-		err := enricher.Enrich(context.Background(), rpcblock.Latest, caller, weth, game)
-		require.ErrorIs(t, err, weth.withdrawalsErr)
+		err := enricher.Enrich(context.Background(), rpcblock.Latest, caller, game)
+		require.ErrorIs(t, err, caller.withdrawalsErr)
 	})
 
 	t.Run("GetWithdrawalsWrongNumberOfResults", func(t *testing.T) {
 		enricher := NewWithdrawalsEnricher()
-		weth := &mockWethCaller{withdrawals: []*contracts.WithdrawalRequest{{}}}
-		caller := &mockGameCaller{}
+		caller := &mockGameCaller{withdrawals: []*contracts.WithdrawalRequest{{}}}
 		game := makeGame()
-		err := enricher.Enrich(context.Background(), rpcblock.Latest, caller, weth, game)
+		err := enricher.Enrich(context.Background(), rpcblock.Latest, caller, game)
 		require.ErrorIs(t, err, ErrIncorrectWithdrawalsCount)
 	})
 
 	t.Run("GetWithdrawalsSuccess", func(t *testing.T) {
 		game := makeGame()
 		enricher := NewWithdrawalsEnricher()
-		weth := &mockWethCaller{}
 		caller := &mockGameCaller{}
-		err := enricher.Enrich(context.Background(), rpcblock.Latest, caller, weth, game)
+		err := enricher.Enrich(context.Background(), rpcblock.Latest, caller, game)
 		require.NoError(t, err)
 		require.Equal(t, 2, len(game.WithdrawalRequests))
 	})

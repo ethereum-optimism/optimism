@@ -26,7 +26,7 @@ func NewBondEnricher() *BondEnricher {
 	return &BondEnricher{}
 }
 
-func (b *BondEnricher) Enrich(ctx context.Context, block rpcblock.Block, caller GameCaller, _ WethCaller, game *monTypes.EnrichedGameData) error {
+func (b *BondEnricher) Enrich(ctx context.Context, block rpcblock.Block, caller GameCaller, game *monTypes.EnrichedGameData) error {
 	recipients := make(map[common.Address]bool)
 	for _, claim := range game.Claims {
 		if claim.CounteredBy != (common.Address{}) {

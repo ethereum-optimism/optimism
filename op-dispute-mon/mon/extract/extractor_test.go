@@ -41,21 +41,7 @@ func TestExtractor_Extract(t *testing.T) {
 		require.Equal(t, 1, creator.calls)
 		require.Equal(t, 0, creator.caller.metadataCalls)
 		require.Equal(t, 0, creator.caller.claimsCalls)
-		verifyLogs(t, logs, 1, 0, 0, 0, 0)
-	})
-
-	t.Run("CreateWethErrorLog", func(t *testing.T) {
-		extractor, creator, games, logs := setupExtractorTest(t)
-		games.games = []gameTypes.GameMetadata{{}}
-		creator.wethErr = errors.New("boom")
-		enriched, err := extractor.Extract(context.Background(), common.Hash{}, 0)
-		require.NoError(t, err)
-		require.Len(t, enriched, 0)
-		require.Equal(t, 1, games.calls)
-		require.Equal(t, 1, creator.calls)
-		require.Equal(t, 0, creator.caller.metadataCalls)
-		require.Equal(t, 0, creator.caller.claimsCalls)
-		verifyLogs(t, logs, 0, 1, 0, 0, 0)
+		verifyLogs(t, logs, 1, 0, 0, 0)
 	})
 
 	t.Run("MetadataFetchErrorLog", func(t *testing.T) {
@@ -69,7 +55,7 @@ func TestExtractor_Extract(t *testing.T) {
 		require.Equal(t, 1, creator.calls)
 		require.Equal(t, 1, creator.caller.metadataCalls)
 		require.Equal(t, 0, creator.caller.claimsCalls)
-		verifyLogs(t, logs, 0, 0, 1, 0, 0)
+		verifyLogs(t, logs, 0, 1, 0, 0)
 	})
 
 	t.Run("ClaimsFetchErrorLog", func(t *testing.T) {
@@ -83,7 +69,7 @@ func TestExtractor_Extract(t *testing.T) {
 		require.Equal(t, 1, creator.calls)
 		require.Equal(t, 1, creator.caller.metadataCalls)
 		require.Equal(t, 1, creator.caller.claimsCalls)
-		verifyLogs(t, logs, 0, 0, 0, 1, 0)
+		verifyLogs(t, logs, 0, 0, 1, 0)
 	})
 
 	t.Run("Success", func(t *testing.T) {
@@ -132,14 +118,11 @@ func TestExtractor_Extract(t *testing.T) {
 	})
 }
 
-func verifyLogs(t *testing.T, logs *testlog.CapturingHandler, createErr int, wethErr int, metadataErr int, claimsErr int, durationErr int) {
+func verifyLogs(t *testing.T, logs *testlog.CapturingHandler, createErr int, metadataErr int, claimsErr int, durationErr int) {
 	errorLevelFilter := testlog.NewLevelFilter(log.LevelError)
 	createMessageFilter := testlog.NewMessageFilter("Failed to create game caller")
 	l := logs.FindLogs(errorLevelFilter, createMessageFilter)
 	require.Len(t, l, createErr)
-	createWethMessageFilter := testlog.NewMessageFilter("Failed to create weth caller")
-	l = logs.FindLogs(errorLevelFilter, createWethMessageFilter)
-	require.Len(t, l, wethErr)
 	fetchMessageFilter := testlog.NewMessageFilter("Failed to fetch game metadata")
 	l = logs.FindLogs(errorLevelFilter, fetchMessageFilter)
 	require.Len(t, l, metadataErr)
@@ -154,13 +137,11 @@ func verifyLogs(t *testing.T, logs *testlog.CapturingHandler, createErr int, wet
 func setupExtractorTest(t *testing.T, enrichers ...Enricher) (*Extractor, *mockGameCallerCreator, *mockGameFetcher, *testlog.CapturingHandler) {
 	logger, capturedLogs := testlog.CaptureLogger(t, log.LvlDebug)
 	games := &mockGameFetcher{}
-	weth := &mockWethCaller{}
 	caller := &mockGameCaller{rootClaim: mockRootClaim}
-	creator := &mockGameCallerCreator{caller: caller, weth: weth}
+	creator := &mockGameCallerCreator{caller: caller}
 	extractor := NewExtractor(
 		logger,
 		creator.CreateGameCaller,
-		creator.CreateWethCaller,
 		games.FetchGames,
 		enrichers...,
 	)
@@ -182,12 +163,9 @@ func (m *mockGameFetcher) FetchGames(_ context.Context, _ common.Hash, _ uint64)
 }
 
 type mockGameCallerCreator struct {
-	calls     int
-	err       error
-	caller    *mockGameCaller
-	wethCalls int
-	wethErr   error
-	weth      *mockWethCaller
+	calls  int
+	err    error
+	caller *mockGameCaller
 }
 
 func (m *mockGameCallerCreator) CreateGameCaller(_ gameTypes.GameMetadata) (GameCaller, error) {
@@ -196,40 +174,6 @@ func (m *mockGameCallerCreator) CreateGameCaller(_ gameTypes.GameMetadata) (Game
 		return nil, m.err
 	}
 	return m.caller, nil
-}
-
-func (m *mockGameCallerCreator) CreateWethCaller(_ common.Address) (WethCaller, error) {
-	m.wethCalls++
-	if m.wethErr != nil {
-		return nil, m.wethErr
-	}
-	return m.weth, nil
-}
-
-type mockWethCaller struct {
-	withdrawalsCalls int
-	withdrawalsErr   error
-	withdrawals      []*contracts.WithdrawalRequest
-}
-
-func (m *mockWethCaller) GetWithdrawals(_ context.Context, _ rpcblock.Block, _ common.Address, _ ...common.Address) ([]*contracts.WithdrawalRequest, error) {
-	m.withdrawalsCalls++
-	if m.withdrawalsErr != nil {
-		return nil, m.withdrawalsErr
-	}
-	if m.withdrawals != nil {
-		return m.withdrawals, nil
-	}
-	return []*contracts.WithdrawalRequest{
-		{
-			Timestamp: big.NewInt(1),
-			Amount:    big.NewInt(2),
-		},
-		{
-			Timestamp: big.NewInt(3),
-			Amount:    big.NewInt(4),
-		},
-	}, nil
 }
 
 type mockGameCaller struct {
@@ -248,6 +192,7 @@ type mockGameCaller struct {
 	balanceAddr      common.Address
 	withdrawalsCalls int
 	withdrawalsErr   error
+	withdrawals      []*contracts.WithdrawalRequest
 }
 
 func (m *mockGameCaller) GetWithdrawals(_ context.Context, _ rpcblock.Block, _ common.Address, _ ...common.Address) ([]*contracts.WithdrawalRequest, error) {
@@ -255,10 +200,17 @@ func (m *mockGameCaller) GetWithdrawals(_ context.Context, _ rpcblock.Block, _ c
 	if m.withdrawalsErr != nil {
 		return nil, m.withdrawalsErr
 	}
+	if m.withdrawals != nil {
+		return m.withdrawals, nil
+	}
 	return []*contracts.WithdrawalRequest{
 		{
 			Timestamp: big.NewInt(1),
 			Amount:    big.NewInt(2),
+		},
+		{
+			Timestamp: big.NewInt(3),
+			Amount:    big.NewInt(4),
 		},
 	}, nil
 }
@@ -308,7 +260,7 @@ type mockEnricher struct {
 	calls int
 }
 
-func (m *mockEnricher) Enrich(_ context.Context, _ rpcblock.Block, _ GameCaller, _ WethCaller, _ *monTypes.EnrichedGameData) error {
+func (m *mockEnricher) Enrich(_ context.Context, _ rpcblock.Block, _ GameCaller, _ *monTypes.EnrichedGameData) error {
 	m.calls++
 	return m.err
 }

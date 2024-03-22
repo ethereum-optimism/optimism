@@ -19,15 +19,6 @@ var (
 	fdgAddr = common.HexToAddress("0x24112842371dFC380576ebb09Ae16Cb6B6caD7CB")
 )
 
-func TestMetadataCreator_CreateWethContract(t *testing.T) {
-	caller, metrics := setupMetadataLoaderTest(t)
-	creator := NewCallerCreator(metrics, caller)
-	_, err := creator.CreateWethContract(fdgAddr)
-	require.NoError(t, err)
-	require.Equal(t, 1, metrics.cacheAddCalls)
-	require.Equal(t, 1, metrics.cacheGetCalls)
-}
-
 func TestMetadataCreator_CreateGameContract(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -53,14 +44,14 @@ func TestMetadataCreator_CreateGameContract(t *testing.T) {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
 			caller, metrics := setupMetadataLoaderTest(t)
-			creator := NewCallerCreator(metrics, caller)
-			_, err := creator.CreateGameContract(test.game)
+			creator := NewGameCallerCreator(metrics, caller)
+			_, err := creator.CreateContract(test.game)
 			require.Equal(t, test.expectedErr, err)
 			if test.expectedErr == nil {
 				require.Equal(t, 1, metrics.cacheAddCalls)
 				require.Equal(t, 1, metrics.cacheGetCalls)
 			}
-			_, err = creator.CreateGameContract(test.game)
+			_, err = creator.CreateContract(test.game)
 			require.Equal(t, test.expectedErr, err)
 			if test.expectedErr == nil {
 				require.Equal(t, 1, metrics.cacheAddCalls)

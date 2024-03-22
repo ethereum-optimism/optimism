@@ -18,9 +18,8 @@ func TestL1HeadEnricher(t *testing.T) {
 		client := &stubBlockFetcher{err: errors.New("boom")}
 		enricher := NewL1HeadBlockNumEnricher(client)
 		caller := &mockGameCaller{}
-		weth := &mockWethCaller{}
 		game := &types.EnrichedGameData{}
-		err := enricher.Enrich(context.Background(), rpcblock.Latest, caller, weth, game)
+		err := enricher.Enrich(context.Background(), rpcblock.Latest, caller, game)
 		require.ErrorIs(t, err, client.err)
 	})
 
@@ -28,9 +27,8 @@ func TestL1HeadEnricher(t *testing.T) {
 		client := &stubBlockFetcher{num: 5000}
 		enricher := NewL1HeadBlockNumEnricher(client)
 		caller := &mockGameCaller{}
-		weth := &mockWethCaller{}
 		game := &types.EnrichedGameData{}
-		err := enricher.Enrich(context.Background(), rpcblock.Latest, caller, weth, game)
+		err := enricher.Enrich(context.Background(), rpcblock.Latest, caller, game)
 		require.NoError(t, err)
 		require.Equal(t, client.num, game.L1HeadNum)
 	})

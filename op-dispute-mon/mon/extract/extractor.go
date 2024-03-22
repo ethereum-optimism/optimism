@@ -12,29 +12,26 @@ import (
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 )
 
-type CreateWethCaller func(proxy common.Address) (WethCaller, error)
 type CreateGameCaller func(game gameTypes.GameMetadata) (GameCaller, error)
 type FactoryGameFetcher func(ctx context.Context, blockHash common.Hash, earliestTimestamp uint64) ([]gameTypes.GameMetadata, error)
 
 type Enricher interface {
-	Enrich(context.Context, rpcblock.Block, GameCaller, WethCaller, *monTypes.EnrichedGameData) error
+	Enrich(ctx context.Context, block rpcblock.Block, caller GameCaller, game *monTypes.EnrichedGameData) error
 }
 
 type Extractor struct {
-	logger           log.Logger
-	createGameCaller CreateGameCaller
-	createWethCaller CreateWethCaller
-	fetchGames       FactoryGameFetcher
-	enrichers        []Enricher
+	logger         log.Logger
+	createContract CreateGameCaller
+	fetchGames     FactoryGameFetcher
+	enrichers      []Enricher
 }
 
-func NewExtractor(logger log.Logger, gameCreator CreateGameCaller, wethCreator CreateWethCaller, fetchGames FactoryGameFetcher, enrichers ...Enricher) *Extractor {
+func NewExtractor(logger log.Logger, creator CreateGameCaller, fetchGames FactoryGameFetcher, enrichers ...Enricher) *Extractor {
 	return &Extractor{
-		logger:           logger,
-		createGameCaller: gameCreator,
-		createWethCaller: wethCreator,
-		fetchGames:       fetchGames,
-		enrichers:        enrichers,
+		logger:         logger,
+		createContract: creator,
+		fetchGames:     fetchGames,
+		enrichers:      enrichers,
 	}
 }
 
@@ -49,22 +46,17 @@ func (e *Extractor) Extract(ctx context.Context, blockHash common.Hash, minTimes
 func (e *Extractor) enrichGames(ctx context.Context, blockHash common.Hash, games []gameTypes.GameMetadata) []*monTypes.EnrichedGameData {
 	var enrichedGames []*monTypes.EnrichedGameData
 	for _, game := range games {
-		gameCaller, err := e.createGameCaller(game)
+		caller, err := e.createContract(game)
 		if err != nil {
 			e.logger.Error("Failed to create game caller", "err", err)
 			continue
 		}
-		wethCaller, err := e.createWethCaller(game.Proxy)
-		if err != nil {
-			e.logger.Error("Failed to create weth caller", "err", err)
-			continue
-		}
-		l1Head, l2BlockNum, rootClaim, status, duration, err := gameCaller.GetGameMetadata(ctx, rpcblock.ByHash(blockHash))
+		l1Head, l2BlockNum, rootClaim, status, duration, err := caller.GetGameMetadata(ctx, rpcblock.ByHash(blockHash))
 		if err != nil {
 			e.logger.Error("Failed to fetch game metadata", "err", err)
 			continue
 		}
-		claims, err := gameCaller.GetAllClaims(ctx, rpcblock.ByHash(blockHash))
+		claims, err := caller.GetAllClaims(ctx, rpcblock.ByHash(blockHash))
 		if err != nil {
 			e.logger.Error("Failed to fetch game claims", "err", err)
 			continue
@@ -82,7 +74,7 @@ func (e *Extractor) enrichGames(ctx context.Context, blockHash common.Hash, game
 			Duration:      duration,
 			Claims:        enrichedClaims,
 		}
-		if err := e.applyEnrichers(ctx, blockHash, gameCaller, wethCaller, enrichedGame); err != nil {
+		if err := e.applyEnrichers(ctx, blockHash, caller, enrichedGame); err != nil {
 			e.logger.Error("Failed to enrich game", "err", err)
 			continue
 		}
@@ -91,9 +83,9 @@ func (e *Extractor) enrichGames(ctx context.Context, blockHash common.Hash, game
 	return enrichedGames
 }
 
-func (e *Extractor) applyEnrichers(ctx context.Context, blockHash common.Hash, gameCaller GameCaller, wethCaller WethCaller, game *monTypes.EnrichedGameData) error {
+func (e *Extractor) applyEnrichers(ctx context.Context, blockHash common.Hash, caller GameCaller, game *monTypes.EnrichedGameData) error {
 	for _, enricher := range e.enrichers {
-		if err := enricher.Enrich(ctx, rpcblock.ByHash(blockHash), gameCaller, wethCaller, game); err != nil {
+		if err := enricher.Enrich(ctx, rpcblock.ByHash(blockHash), caller, game); err != nil {
 			return err
 		}
 	}

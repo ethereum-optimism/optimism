@@ -15,19 +15,17 @@ import (
 func TestBalanceEnricher(t *testing.T) {
 	t.Run("GetBalanceError", func(t *testing.T) {
 		enricher := NewBalanceEnricher()
-		weth := &mockWethCaller{}
 		caller := &mockGameCaller{balanceErr: errors.New("nope")}
 		game := &types.EnrichedGameData{}
-		err := enricher.Enrich(context.Background(), rpcblock.Latest, caller, weth, game)
+		err := enricher.Enrich(context.Background(), rpcblock.Latest, caller, game)
 		require.ErrorIs(t, err, caller.balanceErr)
 	})
 
 	t.Run("GetBalanceSuccess", func(t *testing.T) {
 		enricher := NewBalanceEnricher()
 		caller := &mockGameCaller{balance: big.NewInt(84242), balanceAddr: common.Address{0xdd}}
-		weth := &mockWethCaller{}
 		game := &types.EnrichedGameData{}
-		err := enricher.Enrich(context.Background(), rpcblock.Latest, caller, weth, game)
+		err := enricher.Enrich(context.Background(), rpcblock.Latest, caller, game)
 		require.NoError(t, err)
 		require.Equal(t, game.WETHContract, caller.balanceAddr)
 		require.Equal(t, game.ETHCollateral, caller.balance)

@@ -22,7 +22,7 @@ func NewBalanceEnricher() *BalanceEnricher {
 	return &BalanceEnricher{}
 }
 
-func (b *BalanceEnricher) Enrich(ctx context.Context, block rpcblock.Block, caller GameCaller, _ WethCaller, game *monTypes.EnrichedGameData) error {
+func (b *BalanceEnricher) Enrich(ctx context.Context, block rpcblock.Block, caller GameCaller, game *monTypes.EnrichedGameData) error {
 	balance, holdingAddr, err := caller.GetBalance(ctx, block)
 	if err != nil {
 		return fmt.Errorf("failed to fetch balance: %w", err)

@@ -22,7 +22,7 @@ func NewWithdrawalsEnricher() *WithdrawalsEnricher {
 	return &WithdrawalsEnricher{}
 }
 
-func (w *WithdrawalsEnricher) Enrich(ctx context.Context, block rpcblock.Block, _ GameCaller, caller WethCaller, game *monTypes.EnrichedGameData) error {
+func (w *WithdrawalsEnricher) Enrich(ctx context.Context, block rpcblock.Block, caller GameCaller, game *monTypes.EnrichedGameData) error {
 	recipients := make(map[common.Address]bool)
 	for _, claim := range game.Claims {
 		if claim.CounteredBy != (common.Address{}) {
