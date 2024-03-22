@@ -33,8 +33,8 @@ type GameCaller interface {
 
 type GameCallerCreator struct {
 	m      GameCallerMetrics
-	caller *batching.MultiCaller
 	cache  *caching.LRUCache[common.Address, *contracts.FaultDisputeGameContract]
+	caller *batching.MultiCaller
 }
 
 func NewGameCallerCreator(m GameCallerMetrics, caller *batching.MultiCaller) *GameCallerCreator {
