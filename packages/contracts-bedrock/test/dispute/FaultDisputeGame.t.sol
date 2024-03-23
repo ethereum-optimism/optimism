@@ -1093,6 +1093,75 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         }
     }
 
+    /// @dev Static unit test asserting that resolveClaim isn't possible if there's time
+    ///      left for a counter.
+    function test_resolution_lastSecondDisputes_succeeds() public {
+        // The honest proposer created an honest root claim during setup - node 0
+
+        // Defender's turn
+        vm.warp(block.timestamp + 3.5 days);
+        gameProxy.attack{ value: _getRequiredBond(0) }(0, _dummyClaim());
+        // Chess time left to attack:
+        // - Defender   0: 0
+        // - Challeneger 1: 3.5 days
+
+        // Advance time by 1 second, so that the root claim challenger clock is expired.
+        vm.warp(block.timestamp + 1 seconds);
+        // Attempt a second attack against the root claim. This should revert since the challenger clock is expired.
+        uint256 expectedBond = _getRequiredBond(0);
+        vm.expectRevert(ClockTimeExceeded.selector);
+        gameProxy.attack{ value: expectedBond }(0, _dummyClaim());
+        // Chess time left to attack:
+        // - Defender   0: 0
+        // - Challenger 1: 3.5 days
+
+        // Should not be able to resolve the root claim or second counter yet.
+        vm.expectRevert(ClockNotExpired.selector);
+        gameProxy.resolveClaim(1);
+        vm.expectRevert(OutOfOrderResolution.selector);
+        gameProxy.resolveClaim(0);
+
+        // Warp to the last second of the root claim defender clock.
+        vm.warp(block.timestamp + 3.5 days - 1 seconds);
+        // Attack the challenge to the root claim. This should succeed, since the defender clock is not expired.
+        gameProxy.attack{ value: _getRequiredBond(1) }(1, _dummyClaim());
+        // Chess time left to attack:
+        // - Defender   0: 0
+        // - Challenger 1: 1 second
+        // - Defender   2: 0
+
+        // Should not be able to resolve any claims yet.
+        vm.expectRevert(ClockNotExpired.selector);
+        gameProxy.resolveClaim(2);
+        vm.expectRevert(ClockNotExpired.selector);
+        gameProxy.resolveClaim(1);
+        vm.expectRevert(OutOfOrderResolution.selector);
+        gameProxy.resolveClaim(0);
+
+        // Warp past the challenge period for the root claim defender. Defending the root claim should now revert.
+        vm.warp(block.timestamp + 1 seconds);
+        expectedBond = _getRequiredBond(1);
+        vm.expectRevert(ClockTimeExceeded.selector); // no further move can be made
+        gameProxy.attack{ value: expectedBond }(1, _dummyClaim());
+        // Chess time left to attack:
+        // - Defender   0: expired
+        // - Challenger 1: expired
+        // - Defender   2: expired
+
+        vm.expectRevert(OutOfOrderResolution.selector);
+        gameProxy.resolveClaim(1);
+        vm.expectRevert(OutOfOrderResolution.selector);
+        gameProxy.resolveClaim(0);
+
+        // All clocks are expired. Resolve the game.
+        gameProxy.resolveClaim(2); // Node 2 is resolved as UNCOUNTERED by default since it has no children
+        gameProxy.resolveClaim(1); // Node 1 is resolved as COUNTERED since it has an UNCOUNTERED child
+        gameProxy.resolveClaim(0); // Node 0 is resolved as UNCOUNTERED since it has no UNCOUNTERED children
+
+        // Defender wins game since the root claim is uncountered
+        assertEq(uint8(gameProxy.resolve()), uint8(GameStatus.DEFENDER_WINS));
+    }
+
     /// @dev Helper to get the required bond for the given claim index.
     function _getRequiredBond(uint256 _claimIndex) internal view returns (uint256 bond_) {
         (,,,,, Position parent,) = gameProxy.claimData(_claimIndex);

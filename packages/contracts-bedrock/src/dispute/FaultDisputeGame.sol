@@ -81,6 +81,9 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     /// @notice An internal mapping of subgames rooted at a claim index to other claim indices in the subgame.
     mapping(uint256 => uint256[]) internal subgames;
 
+    /// @notice An interneal mapping of resolved subgames rooted at a claim index.
+    mapping(uint256 => bool) internal resolvedSubgames;
+
     /// @notice Indicates whether the subgame rooted at the root claim has been resolved.
     bool internal subgameAtRootResolved;
 
@@ -194,6 +197,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
 
         // Compute the local preimage context for the step.
         Hash uuid = _findLocalContext(_claimIndex);
+
+        resolvedSubgames[_claimIndex] = true;
 
         // INVARIANT: If a step is an attack, the poststate is valid if the step produces
         //            the same poststate hash as the parent claim's value.
@@ -406,12 +411,21 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         // INVARIANT: Resolution cannot occur unless the game is currently in progress.
         if (status != GameStatus.IN_PROGRESS) revert GameNotInProgress();
 
-        ClaimData storage parent = claimData[_claimIndex];
-
-        // INVARIANT: Cannot resolve a subgame unless the clock of its root has expired
-        uint64 parentClockDuration = parent.clock.duration().raw();
-        uint64 timeSinceParentMove = uint64(block.timestamp) - parent.clock.timestamp().raw();
-        if (parentClockDuration + timeSinceParentMove <= GAME_DURATION.raw() >> 1) {
+        ClaimData storage subgameRootClaim = claimData[_claimIndex];
+        Clock parentClock;
+        if (subgameRootClaim.parentIndex != type(uint32).max) {
+            parentClock = claimData[subgameRootClaim.parentIndex].clock;
+        }
+        Duration challengeClockDuration = Duration.wrap(
+            uint64(
+                parentClock.duration().raw()
+                + block.timestamp - subgameRootClaim.clock.timestamp().raw()
+            )
+        );
+        // INVARIANT: Cannot resolve a subgame unless the clock of its would-be counter has expired
+        // INVARIANT: Assuming ordered subgame resolution, challengeClockDuration is always less than GAME_DURATION / 2
+        // if all descendant subgames are resolved
+        if (challengeClockDuration.raw() <= GAME_DURATION.raw() >> 1) {
             revert ClockNotExpired();
         }
 
@@ -430,9 +444,10 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
             // `counteredBy` field is set and there are no subgames, this implies that the parent claim was successfully
             // stepped against. In this case, we pay out the bond to the party that stepped against the parent claim.
             // Otherwise, the parent claim is uncontested, and the bond is returned to the claimant.
-            address counteredBy = parent.counteredBy;
-            address recipient = counteredBy == address(0) ? parent.claimant : counteredBy;
-            _distributeBond(recipient, parent);
+            address counteredBy = subgameRootClaim.counteredBy;
+            address recipient = counteredBy == address(0) ? subgameRootClaim.claimant : counteredBy;
+            _distributeBond(recipient, subgameRootClaim);
+            resolvedSubgames[_claimIndex] = true;
             return;
         }
 
@@ -443,7 +458,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
             uint256 challengeIndex = challengeIndices[i];
 
             // INVARIANT: Cannot resolve a subgame containing an unresolved claim
-            if (subgames[challengeIndex].length != 0) revert OutOfOrderResolution();
+            if (!resolvedSubgames[challengeIndex]) revert OutOfOrderResolution();
 
             ClaimData storage claim = claimData[challengeIndex];
 
@@ -461,14 +476,13 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
 
         // If the parent was not successfully countered, pay out the parent's bond to the claimant.
         // If the parent was successfully countered, pay out the parent's bond to the challenger.
-        _distributeBond(countered == address(0) ? parent.claimant : countered, parent);
+        _distributeBond(countered == address(0) ? subgameRootClaim.claimant : countered, subgameRootClaim);
 
         // Once a subgame is resolved, we percolate the result up the DAG so subsequent calls to
         // resolveClaim will not need to traverse this subgame.
-        parent.counteredBy = countered;
+        subgameRootClaim.counteredBy = countered;
 
-        // Resolved subgames have no entries
-        delete subgames[_claimIndex];
+        resolvedSubgames[_claimIndex] = true;
 
         // Indicate the game is ready to be resolved globally.
         if (_claimIndex == 0) {
