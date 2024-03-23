@@ -119,7 +119,7 @@ func (db bridgeMessagesDB) MarkRelayedL1BridgeMessage(messageHash common.Hash, r
 	if message.RelayedMessageEventGUID != nil && message.RelayedMessageEventGUID.ID() == relayEvent.ID() {
 		return nil
 	} else if message.RelayedMessageEventGUID != nil {
-		return fmt.Errorf("relayed message %s re-relayed with a different event %d", messageHash, relayEvent)
+		return fmt.Errorf("relayed message %s re-relayed with a different event %s", messageHash, relayEvent)
 	}
 
 	message.RelayedMessageEventGUID = &relayEvent

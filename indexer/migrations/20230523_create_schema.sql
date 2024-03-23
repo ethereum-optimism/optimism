@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS l2_block_headers (
     hash        VARCHAR PRIMARY KEY,
     parent_hash VARCHAR NOT NULL UNIQUE,
     number      UINT256 NOT NULL UNIQUE,
-    timestamp   INTEGER NOT NULL,
+    timestamp   INTEGER NOT NULL CHECK (timestamp > 0),
 
     -- Raw Data
     rlp_bytes VARCHAR NOT NULL

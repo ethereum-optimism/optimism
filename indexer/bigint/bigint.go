@@ -8,7 +8,7 @@ var (
 )
 
 // Clamp returns a new big.Int for `end` to which `end - start` <= size.
-// @note (start, end) is an inclusive range
+// @note (start, end) is an inclusive range. This function assumes that `start` is not greater than `end`.
 func Clamp(start, end *big.Int, size uint64) *big.Int {
 	temp := new(big.Int)
 	count := temp.Sub(end, start).Uint64() + 1
