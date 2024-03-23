@@ -537,6 +537,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
 
         vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
 
+        gameProxy.resolveClaim(1);
         gameProxy.resolveClaim(0);
         assertEq(uint8(gameProxy.resolve()), uint8(GameStatus.CHALLENGER_WINS));
     }
@@ -548,6 +549,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
 
         vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
 
+        gameProxy.resolveClaim(2);
         gameProxy.resolveClaim(1);
         gameProxy.resolveClaim(0);
         assertEq(uint8(gameProxy.resolve()), uint8(GameStatus.DEFENDER_WINS));
@@ -562,6 +564,9 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
 
         vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
 
+        gameProxy.resolveClaim(4);
+        gameProxy.resolveClaim(3);
+        gameProxy.resolveClaim(2);
         gameProxy.resolveClaim(1);
         gameProxy.resolveClaim(0);
         assertEq(uint8(gameProxy.resolve()), uint8(GameStatus.CHALLENGER_WINS));
@@ -581,8 +586,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
 
         vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
 
-        // resolving claim at 8 isn't necessary
-        for (uint256 i = 8; i > 0; i--) {
+        for (uint256 i = 9; i > 0; i--) {
             gameProxy.resolveClaim(i - 1);
         }
         assertEq(uint8(gameProxy.resolve()), uint8(GameStatus.DEFENDER_WINS));
@@ -601,17 +605,18 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
 
         assertEq(address(this).balance, 0);
+        gameProxy.resolveClaim(2);
         gameProxy.resolveClaim(1);
 
         // Wait for the withdrawal delay.
         vm.warp(block.timestamp + delayedWeth.delay() + 1 seconds);
 
         gameProxy.claimCredit(address(this));
-        assertEq(address(this).balance, firstBond);
+        assertEq(address(this).balance, firstBond + secondBond);
 
         vm.expectRevert(ClaimAlreadyResolved.selector);
         gameProxy.resolveClaim(1);
-        assertEq(address(this).balance, firstBond);
+        assertEq(address(this).balance, firstBond + secondBond);
     }
 
     /// @dev Static unit test asserting that resolve reverts when attempting to resolve a subgame at max depth
@@ -918,6 +923,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         // Challenge the claim and resolve it.
         gameProxy.attack{ value: _getRequiredBond(0) }(0, _dummyClaim());
         vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
+        gameProxy.resolveClaim(1);
         gameProxy.resolveClaim(0);
         assertEq(uint8(gameProxy.resolve()), uint8(GameStatus.CHALLENGER_WINS));
 
@@ -955,11 +961,14 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         // Ensure the game has a balance of reenterBond in the delayedWeth contract.
         assertEq(delayedWeth.balanceOf(address(gameProxy)), reenterBond);
 
-        // Resolve the claim at gindex 1 and claim the reenter contract's credit.
+        // Resolve the claim at index 2 first so that index 1 can be resolved.
+        gameProxy.resolveClaim(2);
+
+        // Resolve the claim at index 1 and claim the reenter contract's credit.
         gameProxy.resolveClaim(1);
 
         // Ensure that the game registered the `reenter` contract's credit.
-        assertEq(gameProxy.credit(address(reenter)), firstBond);
+        assertEq(gameProxy.credit(address(reenter)), reenterBond);
 
         // Wait for the withdrawal delay.
         vm.warp(block.timestamp + delayedWeth.delay() + 1 seconds);
@@ -972,9 +981,9 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         // The claimant must only have received the amount bonded for the gindex 1 subgame.
         // The root claim bond and the unregistered ETH should still exist in the game proxy.
         assertEq(reenter.numCalls(), 2);
-        assertEq(address(reenter).balance, firstBond);
+        assertEq(address(reenter).balance, reenterBond);
         assertEq(address(gameProxy).balance, 1 ether);
-        assertEq(delayedWeth.balanceOf(address(gameProxy)), secondBond);
+        assertEq(delayedWeth.balanceOf(address(gameProxy)), 0);
 
         vm.stopPrank();
     }
