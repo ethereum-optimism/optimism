@@ -672,7 +672,7 @@ func TestRegolith(t *testing.T) {
 				IsSystemTransaction: false,
 			})
 
-			// Store a non-zero value
+			// Store a zero value
 			zeroTx := types.NewTx(&types.DepositTx{
 				From:                fromAddr,
 				To:                  &storeContractAddr,
@@ -682,7 +682,7 @@ func TestRegolith(t *testing.T) {
 				IsSystemTransaction: false,
 			})
 
-			// Store a non-zero value again
+			// Store a zero value again
 			// Has same gas cost as zeroTx, except the first tx gets a gas refund for clearing the storage slot
 			rezeroTx := types.NewTx(&types.DepositTx{
 				From:                fromAddr,
