@@ -723,12 +723,11 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
             // S_0
             claim_ = ABSOLUTE_PRESTATE;
             console.log("findPreStateClaim pos:%d", 0);
-            console.log("findPreStateClaim claimIndex:ABSOLUTE_PRESTATE");
+            console.log("findPreStateClaim claim:ABSOLUTE_PRESTATE");
         } else {
             claim_ = getClaimFromClaimHash(ancestor_.claim, (pos - 1) % _nary);
             pos = ancestor_.position.raw();
-            console.log("findPreStateClaim pos:%d", pos);
-            console.log("findPreStateClaim claimIndex:%d", (pos - 1) % _nary);
+            console.log("findPreStateClaim pos:%d, branch:%d", pos, (pos - 1) % _nary);
         }
         return (Position.wrap(uint128(pos)), claim_);
     }
@@ -764,8 +763,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
                 ancestor_ = claimData[ancestor_.parentIndex];
             }
         }
-        console.log("findPostStateClaim pos:%d", pos);
-        console.log("findPostStateClaim claimIndex:%d", (pos) % _nary);
+        console.log("findPostStateClaim pos:%d, branch:%d", pos, (pos) % _nary));
         return (Position.wrap(uint128(pos)), getClaimFromClaimHash(ancestor_.claim, pos % _nary));
     }
 
