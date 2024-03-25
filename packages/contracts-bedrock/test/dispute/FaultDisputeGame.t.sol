@@ -1428,9 +1428,11 @@ contract FaultDisputeGame4_Test is FaultDisputeGame_Init {
 
         // Make claims all the way down the tree.
         gameProxy.attackAt{ value: MIN_BOND }(0, _dummyClaimAndSetCache(4), 0);
-        gameProxy.attackAt{ value: MIN_BOND }(1, _dummyClaimAndSetCache(4), 0);
-        gameProxy.attackAt{ value: MIN_BOND }(2, _dummyClaimAndSetCache(4), 3);
-        gameProxy.attackAt{ value: MIN_BOND }(3, _dummyClaimAndSetCache(4), 2);
+        gameProxy.attackAt{ value: MIN_BOND }(1, _dummyClaimAndSetCache(4), 3);
+        gameProxy.attackAt{ value: MIN_BOND }(2, _dummyClaimAndSetCache(4), 2);
+        gameProxy.attackAt{ value: MIN_BOND }(3, _dummyClaimAndSetCache(4), 0);
+        gameProxy.addLocalData(LocalPreimageKey.DISPUTED_L2_BLOCK_NUMBER, 4, 0);
+        gameProxy.stepV2(4, 0, absolutePrestateData, hex"");
     }
 
     // todo
