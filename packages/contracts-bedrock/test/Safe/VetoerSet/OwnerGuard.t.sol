@@ -1,59 +1,211 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Test } from "forge-std/Test.sol";
-import { StdUtils } from "forge-std/StdUtils.sol";
-import { StdCheats } from "forge-std/StdCheats.sol";
-import { Safe, OwnerManager } from "safe-contracts/Safe.sol";
-import { SafeProxyFactory } from "safe-contracts/proxies/SafeProxyFactory.sol";
-import { ModuleManager } from "safe-contracts/base/ModuleManager.sol";
-import { Enum } from "safe-contracts/common/Enum.sol";
-import "test/safe-tools/SafeTestTools.sol";
-import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import { Safe, Enum, OwnerManager, ModuleManager } from "safe-contracts/Safe.sol";
 
-import { LivenessGuard } from "src/Safe/LivenessGuard.sol";
 import { OwnerGuard } from "src/Safe/VetoerSet/OwnerGuard.sol";
 
-contract OwnerGuard_TestInit is Test, SafeTestTools {
-    using SafeTestLib for SafeInstance;
+import "forge-std/Test.sol";
 
-    uint256 initTime = 10;
-    OwnerGuard ownerGuard;
-    SafeInstance safeInstance;
+contract TestOwnerGuard is Test {
+    address private _safe;
+    OwnerGuard private _sut;
 
-    /// @dev Sets up the test environment
     function setUp() public {
-        vm.warp(initTime);
-        safeInstance = _setupSafe();
-        ownerGuard = new OwnerGuard(safeInstance.safe);
-        safeInstance.setGuard(address(ownerGuard));
+        _safe = makeAddr("Safe");
+
+        // Mock the dependencies.
+        {
+            // Mock `safe.getOwners()` to return a list of addresses of length `3`.
+            vm.mockCall(_safe, abi.encodeWithSelector(OwnerManager.getOwners.selector), abi.encode(new address[](3)));
+        }
+
+        _sut = new OwnerGuard({ safe_: Safe(payable(_safe)) });
     }
-}
 
-contract OwnerGuard_UpdateMaxCount_test is OwnerGuard_TestInit {
-    function test_updateMaxCount() public {
-        vm.prank(address(safeInstance.safe));
-        ownerGuard.updateMaxCount(10);
-        assertEq(ownerGuard.maxOwnerCount(), 10);
+    /// @dev `constructor` should revert with `OwnerCountTooHigh` when the current number of owners of the Safe Account
+    ///      can not fit in a `uint8`.
+    function testRevert_Constructor_OwnerCountTooHigh(uint256 safeOwnerCount) public {
+        // Ensure the inputs are reasonable values.
+        {
+            safeOwnerCount = bound(safeOwnerCount, uint256(type(uint8).max) + 1, 511);
+        }
+
+        // Mock the dependencies.
+        {
+            // Mock `safe.getOwners()` to return a list of addresses of length `safeOwnerCount`.
+            vm.mockCall(
+                _safe,
+                abi.encodeWithSelector(OwnerManager.getOwners.selector),
+                abi.encode(new address[](safeOwnerCount))
+            );
+        }
+
+        vm.expectRevert(abi.encodeWithSelector(OwnerGuard.OwnerCountTooHigh.selector, safeOwnerCount));
+        new OwnerGuard({ safe_: Safe(payable(_safe)) });
     }
-}
 
-contract OwnerGuard_UnauthedUpdateMaxCount_test is OwnerGuard_TestInit {
-    function test_unauthedupdateMaxCount() public {
-        vm.expectRevert(abi.encodeWithSelector(OwnerGuard.SenderIsNotSafeWallet.selector, address(this)));
-        ownerGuard.updateMaxCount(10);
+    /// @dev `constructor` should initialize `maxOwnerCount` to the max between `7` and the current number of owners of
+    ///      the Safe Account.
+    function test_Constructor_SetMaxOwnerCount(uint8 safeOwnerCount) public {
+        // Mock the dependencies.
+        {
+            // Mock `safe.getOwners()` to return a list of addresses of length `safeOwnerCount`.
+            vm.mockCall(
+                _safe,
+                abi.encodeWithSelector(OwnerManager.getOwners.selector),
+                abi.encode(new address[](safeOwnerCount))
+            );
+        }
+
+        OwnerGuard sut = new OwnerGuard({ safe_: Safe(payable(_safe)) });
+
+        uint256 maxOwnerCount = sut.maxOwnerCount();
+        uint256 expectedMaxOwnerCount = safeOwnerCount > 7 ? safeOwnerCount : 7;
+        assertEq(maxOwnerCount, expectedMaxOwnerCount);
     }
-}
 
-contract OwnerGuard_CheckAfterExecution_test is OwnerGuard_TestInit {
-    using SafeTestLib for SafeInstance;
+    /// @dev `checkAfterExecution` should revert with `InvalidOwnerCount` when `maxOwnerCount` is exceeded.
+    function testRevert_CheckAfterExecution_InvalidOwnerCount(
+        bytes32 txHash,
+        bool success,
+        uint256 newOwnerCount
+    )
+        public
+    {
+        // Ensure the inputs are reasonable values.
+        {
+            newOwnerCount = bound(newOwnerCount, _sut.maxOwnerCount() + 1, 255);
+        }
 
-    function test_checkAfterExecution() public {
-        vm.prank(address(safeInstance.safe));
-        safeInstance.safe.addOwnerWithThreshold(vm.addr(1), 1);
+        // Mock the dependencies.
+        {
+            // Mock `safe.getOwners()` to return a list of addresses of length `newOwnerCount`.
+            vm.mockCall(
+                _safe, abi.encodeWithSelector(OwnerManager.getOwners.selector), abi.encode(new address[](newOwnerCount))
+            );
+        }
 
-        vm.prank(address(safeInstance.safe));
-        vm.expectRevert(abi.encodeWithSelector(OwnerGuard.InvalidSafeWalletThreshold.selector, 1, 3));
-        ownerGuard.checkAfterExecution(0, false);
+        vm.expectRevert(abi.encodeWithSelector(OwnerGuard.InvalidOwnerCount.selector, newOwnerCount, 7));
+        _sut.checkAfterExecution(txHash, success);
+    }
+
+    /// @dev `checkAfterExecution` should revert with `InvalidSafeWalletThreshold` when the new threshold does not match
+    ///      with the registered Safe Account threshold.
+    function testRevert_CheckAfterExecution_InvalidSafeWalletThreshold(
+        bytes32 txHash,
+        bool success,
+        uint256 newOwnerCount,
+        uint256 safeThreshold
+    )
+        public
+    {
+        // Ensure the inputs are reasonable values.
+        uint256 newThreshold;
+        {
+            newOwnerCount = bound(newOwnerCount, 0, _sut.maxOwnerCount());
+            safeThreshold = bound(safeThreshold, 0, newOwnerCount);
+
+            newThreshold = (newOwnerCount * 66 + 99) / 100;
+            vm.assume(safeThreshold != newThreshold);
+        }
+
+        // Mock the dependencies.
+        {
+            // Mock `safe.getOwners()` to return a list of addresses of length `newOwnerCount`.
+            vm.mockCall(
+                _safe, abi.encodeWithSelector(OwnerManager.getOwners.selector), abi.encode(new address[](newOwnerCount))
+            );
+
+            // Mock `safe.getThreshold()` to return `safeThreshold`.
+            vm.mockCall(_safe, abi.encodeWithSelector(OwnerManager.getThreshold.selector), abi.encode(safeThreshold));
+        }
+
+        vm.expectRevert(
+            abi.encodeWithSelector(OwnerGuard.InvalidSafeWalletThreshold.selector, safeThreshold, newThreshold)
+        );
+        _sut.checkAfterExecution(txHash, success);
+    }
+
+    /// @dev `updateMaxCount` should revert with `SenderIsNotSafeWallet` when the sender is not the Safe Account.
+    function testRevert_UpdateMaxCount_SenderIsNotSafeWallet(uint8 newMaxOwnerCount, address sender) public {
+        // Ensure the inputs are reasonable values.
+        {
+            vm.assume(sender != _safe);
+        }
+
+        vm.expectRevert(abi.encodeWithSelector(OwnerGuard.SenderIsNotSafeWallet.selector, sender));
+        vm.prank(sender);
+        _sut.updateMaxCount(newMaxOwnerCount);
+    }
+
+    /// @dev `updateMaxCount` should revert with `InvalidNewMaxCount` when the `newMaxOwnerCount` is below the current
+    ///      number of owners of the Safe Account.
+    function testRevert_UpdateMaxCount_InvalidNewMaxCount(uint8 newMaxOwnerCount, uint256 safeOwnerCount) public {
+        // Ensure the inputs are reasonable values.
+        {
+            safeOwnerCount = bound(safeOwnerCount, uint256(newMaxOwnerCount) + 1, 511);
+        }
+
+        // Mock the dependencies.
+        {
+            // Mock `safe.getOwners()` to return a list of addresses of length `safeOwnerCount`.
+            vm.mockCall(
+                _safe,
+                abi.encodeWithSelector(OwnerManager.getOwners.selector),
+                abi.encode(new address[](safeOwnerCount))
+            );
+        }
+
+        vm.expectRevert(
+            abi.encodeWithSelector(OwnerGuard.InvalidNewMaxCount.selector, newMaxOwnerCount, safeOwnerCount)
+        );
+        vm.prank(_safe);
+        _sut.updateMaxCount(newMaxOwnerCount);
+    }
+
+    /// @dev `updateMaxCount` should update `maxOwnerCount`.
+    function test_UpdateMaxCount_UpdateMaxOwnerCount(uint8 newMaxOwnerCount, uint256 safeOwnerCount) public {
+        // Ensure the inputs are reasonable values.
+        {
+            safeOwnerCount = bound(safeOwnerCount, 0, newMaxOwnerCount);
+        }
+
+        // Mock the dependencies.
+        {
+            // Mock `safe.getOwners()` to return a list of addresses of length `safeOwnerCount`.
+            vm.mockCall(
+                _safe,
+                abi.encodeWithSelector(OwnerManager.getOwners.selector),
+                abi.encode(new address[](safeOwnerCount))
+            );
+        }
+
+        vm.prank(_safe);
+        _sut.updateMaxCount(newMaxOwnerCount);
+        assertEq(_sut.maxOwnerCount(), newMaxOwnerCount);
+    }
+
+    /// @dev `checkNewOwnerCount` should revert with `InvalidOwnerCount` when `maxOwnerCount` is exceeded.
+    function testRevert_CheckNewOwnerCount_InvalidOwnerCount(uint256 newOwnerCount) public {
+        // Ensure the inputs are reasonable values.
+        {
+            newOwnerCount = bound(newOwnerCount, _sut.maxOwnerCount() + 1, 255);
+        }
+
+        vm.expectRevert(abi.encodeWithSelector(OwnerGuard.InvalidOwnerCount.selector, newOwnerCount, 7));
+        _sut.checkNewOwnerCount(newOwnerCount);
+    }
+
+    /// @dev `checkNewOwnerCount` should return the 66% threshold for `newOwnerCount` owners.
+    function test_CheckNewOwnerCount_Returns66PercentThreshold(uint256 newOwnerCount) public {
+        // Ensure the inputs are reasonable values.
+        {
+            newOwnerCount = bound(newOwnerCount, 0, _sut.maxOwnerCount());
+        }
+
+        uint256 newThresold = _sut.checkNewOwnerCount(newOwnerCount);
+        uint256 expectedNewThreshold = (newOwnerCount * 66 + 99) / 100;
+        assertEq(newThresold, expectedNewThreshold);
     }
 }
