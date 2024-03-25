@@ -66,4 +66,4 @@ You can find DIA's oracle integration samples in Solidity and Vyper languages by
 
 ### Support
 
-For assistance, connect with the DIA team directly on[ ](https://chat.openai.com/c/d2ca764b-00d6-4de7-8555-0cc30ac416b1)[Discord](https://discord.gg/dia-dao) or [Telegram](https://t.me/diadata\_org). Developers seeking other specialized, production-grade oracle with tailored price feeds and configurations can initiate the request here: [Request a Custom Oracle | DIA Documentation](https://docs.diadata.org/introduction/intro-to-dia-oracles/request-an-oracle)
+For assistance, connect with the DIA team directly on[ ](https://chat.openai.com/c/d2ca764b-00d6-4de7-8555-0cc30ac416b1)[Discord](https://discord.gg/ZvGjVY5uvs) or [Telegram](https://t.me/diadata\_org). Developers seeking other specialized, production-grade oracle with tailored price feeds and configurations can initiate the request here: [Request a Custom Oracle | DIA Documentation](https://docs.diadata.org/introduction/intro-to-dia-oracles/request-an-oracle)
