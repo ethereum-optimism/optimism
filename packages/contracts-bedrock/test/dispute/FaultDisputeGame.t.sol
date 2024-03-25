@@ -1422,14 +1422,32 @@ contract FaultDisputeGame4_Test is FaultDisputeGame_Init {
 
     /// @dev Tests that a claim cannot be stepped against twice.
     // todo
-    function test_step_attack() public {
+    function test_step_attack_1() public {
         // Give the test contract some ether
         vm.deal(address(this), 1000 ether);
 
         // Make claims all the way down the tree.
         gameProxy.attackAt{ value: MIN_BOND }(0, _dummyClaimAndSetCache(4), 0);
         gameProxy.attackAt{ value: MIN_BOND }(1, _dummyClaimAndSetCache(4), 3);
-        gameProxy.attackAt{ value: MIN_BOND }(2, _dummyClaimAndSetCache(4), 2);
+        Claim hash = _dummyClaim();
+        gameProxy.setClaimHashClaims(hash, 0, absolutePrestate);
+        gameProxy.setClaimHashClaims(hash, 1, _dummyClaim());
+        gameProxy.setClaimHashClaims(hash, 2, _dummyClaim());
+        gameProxy.setClaimHashClaims(hash, 3, _dummyClaim());
+        gameProxy.attackAt{ value: MIN_BOND }(2, hash, 2);
+        gameProxy.attackAt{ value: MIN_BOND }(3, _dummyClaimAndSetCache(4), 1);
+        gameProxy.addLocalData(LocalPreimageKey.DISPUTED_L2_BLOCK_NUMBER, 4, 0);
+        gameProxy.stepV2(4, 0, absolutePrestateData, hex"");
+    }
+
+    function test_step_attack_0() public {
+        // Give the test contract some ether
+        vm.deal(address(this), 1000 ether);
+
+        // Make claims all the way down the tree.
+        gameProxy.attackAt{ value: MIN_BOND }(0, _dummyClaimAndSetCache(4), 0);
+        gameProxy.attackAt{ value: MIN_BOND }(1, _dummyClaimAndSetCache(4), 0);
+        gameProxy.attackAt{ value: MIN_BOND }(2, _dummyClaimAndSetCache(4), 0);
         gameProxy.attackAt{ value: MIN_BOND }(3, _dummyClaimAndSetCache(4), 0);
         gameProxy.addLocalData(LocalPreimageKey.DISPUTED_L2_BLOCK_NUMBER, 4, 0);
         gameProxy.stepV2(4, 0, absolutePrestateData, hex"");
