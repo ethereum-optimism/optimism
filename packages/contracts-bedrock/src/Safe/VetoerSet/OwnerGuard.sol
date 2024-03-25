@@ -117,14 +117,14 @@ contract OwnerGuard is ISemver, BaseGuard {
     /// @notice Checks if the given `newOwnerCount` of owners is allowed and returns the corresponding 66% threshold.
     /// @dev Reverts if `newOwnerCount` is above `maxOwnerCount`.
     /// @param newOwnerCount The owners count to check.
-    /// @return threshold_ The corresponding 66% threshold for `newOwnerCount` owners.
-    function checkNewOwnerCount(uint256 newOwnerCount) public view returns (uint256 threshold_) {
+    /// @return threshold The corresponding 66% threshold for `newOwnerCount` owners.
+    function checkNewOwnerCount(uint256 newOwnerCount) public view returns (uint256 threshold) {
         // Ensure we don't exceed the maximum number of allowed owners.
         if (newOwnerCount > maxOwnerCount) {
             revert InvalidOwnerCount(newOwnerCount, maxOwnerCount);
         }
 
         // Compute the corresponding ceil(66%) threshold of owners.
-        threshold_ = (newOwnerCount * 66 + 99) / 100;
+        threshold = (newOwnerCount * 66 + 99) / 100;
     }
 }
