@@ -90,9 +90,10 @@ contract TestOwnerGuard is Test {
         _sut.checkAfterExecution(txHash, success);
     }
 
-    /// @dev `checkAfterExecution` should revert with `InvalidSafeWalletThreshold` when the new threshold does not match
+    /// @dev `checkAfterExecution` should revert with `InvalidSafeAccountThreshold` when the new threshold does not
+    /// match
     ///      with the registered Safe Account threshold.
-    function testRevert_CheckAfterExecution_InvalidSafeWalletThreshold(
+    function testRevert_CheckAfterExecution_InvalidSafeAccountThreshold(
         bytes32 txHash,
         bool success,
         uint256 newOwnerCount,
@@ -122,19 +123,19 @@ contract TestOwnerGuard is Test {
         }
 
         vm.expectRevert(
-            abi.encodeWithSelector(OwnerGuard.InvalidSafeWalletThreshold.selector, safeThreshold, newThreshold)
+            abi.encodeWithSelector(OwnerGuard.InvalidSafeAccountThreshold.selector, safeThreshold, newThreshold)
         );
         _sut.checkAfterExecution(txHash, success);
     }
 
-    /// @dev `updateMaxCount` should revert with `SenderIsNotSafeWallet` when the sender is not the Safe Account.
-    function testRevert_UpdateMaxCount_SenderIsNotSafeWallet(uint8 newMaxOwnerCount, address sender) public {
+    /// @dev `updateMaxCount` should revert with `SenderIsNotSafeAccount` when the sender is not the Safe Account.
+    function testRevert_UpdateMaxCount_SenderIsNotSafeAccount(uint8 newMaxOwnerCount, address sender) public {
         // Ensure the inputs are reasonable values.
         {
             vm.assume(sender != _safe);
         }
 
-        vm.expectRevert(abi.encodeWithSelector(OwnerGuard.SenderIsNotSafeWallet.selector, sender));
+        vm.expectRevert(abi.encodeWithSelector(OwnerGuard.SenderIsNotSafeAccount.selector, sender));
         vm.prank(sender);
         _sut.updateMaxCount(newMaxOwnerCount);
     }

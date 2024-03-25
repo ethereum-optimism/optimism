@@ -10,7 +10,7 @@ import { OwnerGuard } from "./OwnerGuard.sol";
 
 /// @title PrivilegedAddOwnerModule
 /// @notice This module allows any specifically designated address to add owners to the
-///         Safe Wallet. Specifically, the Optimism Foundation may add new owners.
+///         Safe Account. Specifically, the Optimism Foundation may add new owners.
 contract PrivilegedAddOwnerModule is ISemver {
     /// @notice Semantic version.
     /// @custom:semver 1.0.0
@@ -31,7 +31,7 @@ contract PrivilegedAddOwnerModule is ISemver {
     error SenderIsNotOpFoundation(address sender);
 
     /// @notice The module constructor.
-    /// @param safe_ The Safe wallet address
+    /// @param safe_ The Safe Account address
     /// @param ownerGuard_ The owner guard contract address.
     /// @param opFoundation_ The OP Foundation multisig address.
     constructor(Safe safe_, OwnerGuard ownerGuard_, address opFoundation_) {
@@ -52,7 +52,7 @@ contract PrivilegedAddOwnerModule is ISemver {
         // Ensure adding a new owner is possible (i.e. the `maxCount` is not exceeded).
         uint256 threshold = ownerGuard.checkNewOwnerCount(safe.getOwners().length + 1);
 
-        // Add a new owner to the Safe wallet, specifying the new threshold.
+        // Add a new owner to the Safe Account, specifying the new threshold.
         safe.execTransactionFromModule(
             address(safe), 0, abi.encodeCall(safe.addOwnerWithThreshold, (addr, threshold)), Enum.Operation.Call
         );
