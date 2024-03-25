@@ -355,7 +355,8 @@ func Start(config *Config) (*Server, func(), error) {
 				if err != nil {
 					return nil, nil, err
 				}
-				tracker = NewRedisConsensusTracker(context.Background(), consensusHARedisClient, bg, bg.Name, topts...)
+				ns := fmt.Sprintf("%s:%s", bgcfg.ConsensusHARedis.Namespace, bg.Name)
+				tracker = NewRedisConsensusTracker(context.Background(), consensusHARedisClient, bg, ns, topts...)
 				copts = append(copts, WithTracker(tracker))
 			}
 
