@@ -694,7 +694,13 @@ export class CrossChainMessenger {
     message: MessageLike,
     // consider making this an options object next breaking release
     messageIndex = 0,
+    /**
+     * @deprecated no longer used since no log filters are used
+     */
     fromBlockOrBlockHash?: BlockTag,
+    /**
+     * @deprecated no longer used since no log filters are used
+     */
     toBlockOrBlockHash?: BlockTag
   ): Promise<MessageStatus> {
     const resolved = await this.toCrossChainMessage(message, messageIndex)
@@ -1243,13 +1249,13 @@ export class CrossChainMessenger {
     const challengePeriod =
       oracleVersion === '1.0.0'
         ? // The ABI in the SDK does not contain FINALIZATION_PERIOD_SECONDS
-          // in OptimismPortal, so making an explicit call instead.
-          BigNumber.from(
-            await this.contracts.l1.OptimismPortal.provider.call({
-              to: this.contracts.l1.OptimismPortal.address,
-              data: '0xf4daa291', // FINALIZATION_PERIOD_SECONDS
-            })
-          )
+        // in OptimismPortal, so making an explicit call instead.
+        BigNumber.from(
+          await this.contracts.l1.OptimismPortal.provider.call({
+            to: this.contracts.l1.OptimismPortal.address,
+            data: '0xf4daa291', // FINALIZATION_PERIOD_SECONDS
+          })
+        )
         : await this.contracts.l1.L2OutputOracle.FINALIZATION_PERIOD_SECONDS()
     return challengePeriod.toNumber()
   }
@@ -1490,7 +1496,7 @@ export class CrossChainMessenger {
       // latest games are all invalid and the SDK would be forced to make a bunch of archive calls.
       for (let i = matches.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1))
-        ;[matches[i], matches[j]] = [matches[j], matches[i]]
+          ;[matches[i], matches[j]] = [matches[j], matches[i]]
       }
 
       // Now we verify the proposals in the matches array.
@@ -2301,7 +2307,45 @@ export class CrossChainMessenger {
       }
 
       if (this.bedrock) {
+        // get everything we need to finalize
         const withdrawal = await this.toLowLevelMessage(resolved, messageIndex)
+        const xdmWithdrawal =
+          this.contracts.l1.L1CrossDomainMessenger.interface.decodeFunctionData(
+            'relayMessage',
+            withdrawal.message
+          )
+        const messageHashV1 = hashCrossDomainMessagev1(
+          resolved.messageNonce,
+          resolved.sender,
+          resolved.target,
+          resolved.value,
+          resolved.minGasLimit,
+          resolved.message
+        )
+
+        const isFailed =
+          await this.contracts.l1.L1CrossDomainMessenger.failedMessages(
+            messageHashV1
+          )
+
+
+        // if failed we need to replay the message rather than finalizing it
+        if (isFailed === true) {
+          const tx = await this.contracts.l1.L1CrossDomainMessenger.populateTransaction.relayMessage(
+            xdmWithdrawal._nonce,
+            xdmWithdrawal._sender,
+            xdmWithdrawal._target,
+            xdmWithdrawal._value,
+            xdmWithdrawal._minGasLimit,
+            xdmWithdrawal._message,
+            opts?.overrides || {}
+          )
+          return tx
+        }
+        if ('todo remove me') {
+          throw new Error('should not be trying to finalize')
+        }
+
         return this.contracts.l1.OptimismPortal.populateTransaction.finalizeWithdrawalTransaction(
           [
             withdrawal.messageNonce,
