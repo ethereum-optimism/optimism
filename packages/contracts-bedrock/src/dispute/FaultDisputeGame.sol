@@ -791,7 +791,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         Position stepPos = moveN(parentPos, nBits, _attackBranch);
 
         // INVARIANT: A step cannot be made unless the move position is 1 below the `MAX_GAME_DEPTH`
-        if (stepPos.depth() != MAX_GAME_DEPTH + 1) revert InvalidParent();
+        if (stepPos.depth() != MAX_GAME_DEPTH + nBits) revert InvalidParent();
 
         // Determine the expected pre & post states of the step.
         Claim preStateClaim;
