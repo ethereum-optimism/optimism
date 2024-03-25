@@ -38,7 +38,7 @@ func CalculateRequiredCollateral(games []*monTypes.EnrichedGameData) map[common.
 func requiredCollateralForGame(game *monTypes.EnrichedGameData) *big.Int {
 	required := big.NewInt(0)
 	for _, claim := range game.Claims {
-		if claim.Resolved {
+		if !claim.Resolved {
 			required = new(big.Int).Add(required, claim.Bond)
 		}
 	}

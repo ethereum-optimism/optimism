@@ -101,7 +101,6 @@ func TestCalculateRequiredCollateral(t *testing.T) {
 					Claimant:    common.Address{0x03},
 					CounteredBy: common.Address{},
 				},
-				Resolved: true,
 			},
 		},
 		Credits: map[common.Address]*big.Int{
