@@ -627,7 +627,6 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     /// @return disputedPos_ The disputed output root position.
     function _findStartingAndDisputedOutputs(uint256 _start)
         internal
-        view
         returns (Claim startingClaim_, Position startingPos_, Claim disputedClaim_, Position disputedPos_)
     {
         // Fatch the starting claim.
@@ -644,52 +643,19 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
 
         // Walk up the DAG until the ancestor's depth is equal to the split depth.
         uint256 currentDepth;
-        ClaimData storage execRootClaim = claim;
         while ((currentDepth = claim.position.depth()) > SPLIT_DEPTH) {
             uint256 parentIndex = claim.parentIndex;
-
-            // If we're currently at the split depth + 1, we're at the root of the execution sub-game.
-            // We need to keep track of the root claim here to determine whether the execution sub-game was
-            // started with an attack or defense against the output leaf claim.
-            if (currentDepth == SPLIT_DEPTH + 1) execRootClaim = claim;
-
             claim = claimData[parentIndex];
             claimIdx = parentIndex;
         }
-
-        // Determine whether the start of the execution sub-game was an attack or defense to the output root
-        // above. This is important because it determines which claim is the starting output root and which
-        // is the disputed output root.
-        (Position execRootPos, Position outputPos) = (execRootClaim.position, claim.position);
-        bool wasAttack = execRootPos.parent().raw() == outputPos.raw();
-
-        // Determine the starting and disputed output root indices.
-        // 1. If it was an attack, the disputed output root is `claim`, and the starting output root is
-        //    elsewhere in the DAG (it must commit to the block # index at depth of `outputPos - 1`).
-        // 2. If it was a defense, the starting output root is `claim`, and the disputed output root is
-        //    elsewhere in the DAG (it must commit to the block # index at depth of `outputPos + 1`).
-        if (wasAttack) {
-            // If this is an attack on the first output root (the block directly after genesis), the
-            // starting claim nor position exists in the tree. We leave these as 0, which can be easily
-            // identified due to 0 being an invalid Gindex.
-            if (outputPos.indexAtDepth() > 0) {
-                ClaimData storage starting = _findTraceAncestor(Position.wrap(outputPos.raw() - 1), claimIdx, true);
-                (startingClaim_, startingPos_) = (starting.claim, starting.position);
-            } else {
-                startingClaim_ = Claim.wrap(GENESIS_OUTPUT_ROOT.raw());
-            }
-            (disputedClaim_, disputedPos_) = (claim.claim, claim.position);
-        } else {
-            ClaimData storage disputed = _findTraceAncestor(Position.wrap(outputPos.raw() + 1), claimIdx, true);
-            (startingClaim_, startingPos_) = (claim.claim, claim.position);
-            (disputedClaim_, disputedPos_) = (disputed.claim, disputed.position);
-        }
+        (startingPos_, startingClaim_) = findPreStateClaim(1 << nBits, claim.position, claimIdx);
+        (disputedPos_, disputedClaim_) = findPostStateClaim(1 << nBits, claim.position, claimIdx);
     }
 
     /// @notice Finds the local context hash for a given claim index that is present in an execution trace subgame.
     /// @param _claimIndex The index of the claim to find the local context hash for.
     /// @return uuid_ The local context hash.
-    function _findLocalContext(uint256 _claimIndex) internal view returns (Hash uuid_) {
+    function _findLocalContext(uint256 _claimIndex) internal returns (Hash uuid_) {
         (Claim starting, Position startingPos, Claim disputed, Position disputedPos) =
             _findStartingAndDisputedOutputs(_claimIndex);
         uuid_ = _computeLocalContext(starting, startingPos, disputed, disputedPos);
