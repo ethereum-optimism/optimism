@@ -64,9 +64,8 @@ func (t BatchingBenchmarkTC) String() string {
 // Every Compressor in the compressor map is benchmarked for each test case
 // The results of the Benchmark measure *only* the time to add the final batch to the channel out,
 // not the time to send all the batches through the channel out
-// Hint: Remove the Start/Stop timers to measure the time to send all the batches through the channel out
 // Hint: Raise the derive.MaxRLPBytesPerChannel to 10_000_000_000 to avoid hitting limits
-func BenchmarkChannelOut(b *testing.B) {
+func BenchmarkFinalBatchChannelOut(b *testing.B) {
 	// Targets define the number of batches and transactions per batch to test
 	type target struct{ bs, tpb int }
 	targets := []target{
@@ -124,6 +123,73 @@ func BenchmarkChannelOut(b *testing.B) {
 		})
 	}
 }
+
+// BenchmarkAllBatchesChannelOut benchmarks the performance of adding singular batches to a channel out
+// this exercises the compression and batching logic, as well as any batch-building logic
+// Every Compressor in the compressor map is benchmarked for each test case
+// The results of the Benchmark measure the time to add the *all batches* to the channel out,
+// not the time to send all the batches through the channel out
+// Hint: Raise the derive.MaxRLPBytesPerChannel to 10_000_000_000 to avoid hitting limits
+func BenchmarkAllBatchesChannelOut(b *testing.B) {
+	// Targets define the number of batches and transactions per batch to test
+	type target struct{ bs, tpb int }
+	targets := []target{
+		{10, 1},
+		{100, 1},
+		{1000, 1},
+		{10000, 1},
+
+		{10, 100},
+		{100, 100},
+		{1000, 100},
+	}
+
+	// build a set of test cases for each batch type, compressor, and target-pair
+	tests := []BatchingBenchmarkTC{}
+	for _, bt := range batchTypes {
+		for compkey := range compressors {
+			for _, t := range targets {
+				tests = append(tests, BatchingBenchmarkTC{bt, t.bs, t.tpb, compkey})
+			}
+		}
+	}
+
+	for _, tc := range tests {
+		chainID := big.NewInt(333)
+		rng := rand.New(rand.NewSource(0x543331))
+		// pre-generate batches to keep the benchmark from including the random generation
+		batches := make([]*derive.SingularBatch, tc.BatchCount)
+		t := time.Now()
+		for i := 0; i < tc.BatchCount; i++ {
+			batches[i] = derive.RandomSingularBatch(rng, tc.txPerBatch, chainID)
+			// set the timestamp to increase with each batch
+			// to leverage optimizations in the Batch Linked List
+			batches[i].Timestamp = uint64(t.Add(time.Duration(i) * time.Second).Unix())
+		}
+		b.Run(tc.String(), func(b *testing.B) {
+			// reset the compressor used in the test case
+			for bn := 0; bn < b.N; bn++ {
+				// don't measure the setup time
+				b.StopTimer()
+				compressors[tc.compKey].Reset()
+				spanBatchBuilder := derive.NewSpanBatchBuilder(0, chainID)
+				cout, _ := derive.NewChannelOut(tc.BatchType, compressors[tc.compKey], spanBatchBuilder)
+				// add all but the final batche to the channel out
+				// measure the time to add the final batch
+				b.StartTimer()
+				// add the final batch to the channel out
+				for i := 0; i < tc.BatchCount; i++ {
+					_, err := cout.AddSingularBatch(batches[i], 0)
+					require.NoError(b, err)
+				}
+			}
+		})
+	}
+}
+
+// BenchmarkGetRawSpanBatch benchmarks the performance of building a span batch from singular batches
+// this exercises the span batch building logic directly
+// The adding of batches to the span batch builder is not included in the benchmark, only the final build to RawSpanBatch
 func BenchmarkGetRawSpanBatch(b *testing.B) {
 	// Targets define the number of batches and transactions per batch to test
 	type target struct{ bs, tpb int }
