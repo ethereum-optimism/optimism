@@ -19,6 +19,8 @@ import { LibClock } from "src/dispute/lib/LibUDT.sol";
 import "src/libraries/DisputeTypes.sol";
 import "src/libraries/DisputeErrors.sol";
 
+error NotSupported();
+
 /// @title FaultDisputeGame
 /// @notice An implementation of the `IFaultDisputeGame` interface.
 contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
@@ -155,6 +157,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         public
         virtual
     {
+        revert NotSupported();
         uint256 _attackBranch = _isAttack ? 0 : 1;
         stepV2(_claimIndex, _attackBranch, _stateData, _proof);
     }
@@ -164,19 +167,20 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     /// @param _claim The claim at the next logical position in the game.
     /// @param _isAttack Whether or not the move is an attack or defense.
     function move(uint256 _challengeIndex, Claim _claim, bool _isAttack) public payable virtual {
+        revert NotSupported();
         uint256 _attackBranch = _isAttack ? 0 : 1;
         moveV2(_challengeIndex, _claim, _attackBranch);
     }
 
     /// @inheritdoc IFaultDisputeGame
     function attack(uint256 _parentIndex, Claim _claim) external payable {
-        // move(_parentIndex, _claim, true);
+        revert NotSupported();
         attackAt(_parentIndex, _claim, 0);
     }
 
     /// @inheritdoc IFaultDisputeGame
     function defend(uint256 _parentIndex, Claim _claim) external payable {
-        // move(_parentIndex, _claim, false);
+        revert NotSupported();
         attackAt(_parentIndex, _claim, 1);
     }
 
@@ -371,7 +375,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         // This is to prevent adding extra bytes to the `extraData` that result in a different game UUID in the factory,
         // but are not used by the game, which would allow for multiple dispute games for the same output proposal to
         // be created.
-        // Expected length: 0x66 (0x04 selector + 0x20 root claim + 0x20 l1 head + 0x20 extraData + 0x02 CWIA bytes)
+        // initialize Expected length: 0x66 (0x04 selector + 0x20 root claim + 0x20 l1 head + 0x20 extraData + 0x02 CWIA bytes)
         assembly {
             if gt(calldatasize(), 0x66) {
                 // Store the selector for `ExtraDataTooLong()` & revert
@@ -399,7 +403,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         // Set the game's starting timestamp
         createdAt = Timestamp.wrap(uint64(block.timestamp));
 
-        nBits = 1;
+        nBits = 2;
         // Set the game as initialized.
         initialized = true;
     }
@@ -720,13 +724,20 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         moveV2(_parentIndex, _claim, _attackBranch);
     }
 
+    // ClaimHash => attackBranch => Claim
+    mapping(Claim => mapping(uint256 => Claim)) internal claimCache;
+
+    function setClaimCache(Claim _claimHash, uint256 _attackBranch, Claim _claim) public {
+        claimCache[_claimHash][_attackBranch] = _claim;
+    }
+
     function getClaimFromClaimHash(
         Claim claimsHash,
         uint256 claimIndex
     ) internal returns (Claim) {
         // TODO: retrieve the claim from the claimsHash
         // Either: from EIP-4844 BLOB with point-evaluation proof or calldata with Merkle proof
-        return claimsHash;
+        return claimCache[claimsHash][claimIndex];
     }
 
     function findPreStateClaim(
@@ -745,13 +756,18 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         if (pos == 1) {
             // S_0
             claim_ = ABSOLUTE_PRESTATE;
+            console.log("findPreStateClaim pos:%d", 0);
+            console.log("findPreStateClaim claimIndex:ABSOLUTE_PRESTATE");
         } else {
             claim_ = getClaimFromClaimHash(ancestor_.claim, (pos - 1) % _nary);
+            pos = ancestor_.position.raw();
+            console.log("findPreStateClaim pos:%d", pos);
+            console.log("findPreStateClaim claimIndex:%d", (pos - 1) % _nary);
         }
         return (Position.wrap(uint128(pos)), claim_);
     }
 
-    function findPostStateClaim(
+    function findPostStateClaimOld(
         uint256 _nary,
         Position _pos,
         uint256 _start
@@ -767,10 +783,28 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         return (Position.wrap(uint128(pos)), getClaimFromClaimHash(ancestor_.claim, pos % _nary));
     }
 
+    function findPostStateClaim(
+        uint256 _nary,
+        Position _pos,
+        uint256 _start
+    ) public returns (Position pos_, Claim claim_) {
+        ClaimData storage ancestor_ = claimData[_start];
+        uint256 pos = _pos.raw();
+        // pos 为 _nary的倍数, while条件为false
+        // 实际上返回为_start的claim
+        while ((pos + 1) % _nary == 0 && pos != 1) {
+            pos = pos / _nary;
+            if (type(uint32).max != ancestor_.parentIndex) {
+                ancestor_ = claimData[ancestor_.parentIndex];
+            }
+        }
+        console.log("findPostStateClaim pos:%d", pos);
+        console.log("findPostStateClaim claimIndex:%d", (pos) % _nary);
+        return (Position.wrap(uint128(pos)), getClaimFromClaimHash(ancestor_.claim, pos % _nary));
+    }
+
     function stepV2(
         uint256 _claimIndex,
-        //bool _isAttack,
-        // 0 for attack, 1 for defense
         uint256 _attackBranch,
         bytes calldata _stateData,
         bytes calldata _proof
@@ -842,9 +876,11 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     }
 
     function moveV2(uint256 _challengeIndex, Claim _claim, uint256 _attackBranch) public payable {
-        // For N = 2 (bisec),
+        // For N = 4 (bisec),
         // 1. _attackBranch == 0 (attack)
-        // 2. _attackBranch == 1 (defense)
+        // 2. _attackBranch == 1 (attack)
+        // 3. _attackBranch == 2 (attack)
+        // 4. _attackBranch == 3 (attack)
         require(_attackBranch < (1 << nBits));
 
         // INVARIANT: Moves cannot be made unless the game is currently in progress.
@@ -864,7 +900,12 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         // INVARIANT: A defense can never be made against the root claim of either the output root game or any
         //            of the execution trace bisection subgames. This is because the root claim commits to the
         //            entire state. Therefore, the only valid defense is to do nothing if it is agreed with.
-        if ((_challengeIndex == 0 || nextPositionDepth == SPLIT_DEPTH + 2) && _attackBranch != 0) {
+        //if ((_challengeIndex == 0 || nextPositionDepth == SPLIT_DEPTH + 2) && _attackBranch != 0) {
+            //revert CannotDefendRootClaim();
+        //}
+        // todo  bill modify, nextPositionDepth == SPLIT_DEPTH + 2 check ??
+        // root claim only one branch
+        if (_challengeIndex == 0 && _attackBranch != 0) {
             revert CannotDefendRootClaim();
         }
 
@@ -914,6 +955,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         // INVARIANT: There cannot be multiple identical claims with identical moves on the same challengeIndex. Multiple
         //            claims at the same position may dispute the same challengeIndex. However, they must have different
         //            values.
+        // todo  bill modify
         ClaimHash claimHash = _claim.hashClaimPos(nextPosition, _challengeIndex);
         if (claims[claimHash]) revert ClaimAlreadyExists();
         claims[claimHash] = true;
@@ -931,7 +973,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
                 clock: nextClock
             })
         );
-        console.log("_attackBranch: %d, parentIndex: %d, position:%d", _attackBranch, _challengeIndex, nextPosition.raw());
+        console.log("parentIndex:%d, attackBranch: %d, nextPosition:%d", _challengeIndex, _attackBranch, nextPosition.raw());
 
 
         // Update the subgame rooted at the parent claim.
@@ -945,11 +987,17 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     }
 
     // 1, 1, 0
-    function moveN(Position _position, uint256 _bits, uint256 _branch) internal pure returns (Position move_) {
+    // 1, 2, 0 => 4
+    // 4, 2, 0 => 16
+    // 4, 2, 1 => 20
+    // 4, 2, 2 => 24
+    // 4, 2, 3 => 28
+    function moveN(Position _position, uint256 _bits, uint256 _branch) internal view returns (Position move_) {
         assembly {
-            //move_ := shl(1, or(iszero(_isAttack), _position))
             move_ := shl(_bits, or(_branch, _position))
         }
-        //console.log("moveN source pos: %d, move to post: %d, _bits:%d", _position.raw(), move_.raw(), _bits);
+        console.log("moveN source pos:", _position.raw());
+        console.log("moveN move to pos:", move_.raw());
+        console.log("moveN bits:", _bits);
     }
 }
