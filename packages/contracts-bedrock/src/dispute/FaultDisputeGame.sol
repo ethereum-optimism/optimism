@@ -996,8 +996,9 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         assembly {
             move_ := shl(_bits, or(_branch, _position))
         }
-        console.log("moveN source pos:", _position.raw());
-        console.log("moveN move to pos:", move_.raw());
-        console.log("moveN bits:", _bits);
+        console.log("moveN bits:%d, source pos:%d, move to pos: %d", _bits, _position.raw(), move_.raw());
+        //console.log("moveN source pos:", _position.raw());
+        //console.log("moveN move to pos:", move_.raw());
+        //console.log("moveN bits:", _bits);
     }
 }
