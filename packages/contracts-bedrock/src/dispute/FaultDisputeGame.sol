@@ -763,7 +763,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
                 ancestor_ = claimData[ancestor_.parentIndex];
             }
         }
-        console.log("findPostStateClaim pos:%d, branch:%d", pos, (pos) % _nary));
+        console.log("findPostStateClaim pos:%d, branch:%d", pos, (pos) % _nary);
         return (Position.wrap(uint128(pos)), getClaimFromClaimHash(ancestor_.claim, pos % _nary));
     }
 
