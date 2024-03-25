@@ -725,10 +725,10 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     }
 
     // ClaimHash => attackBranch => Claim
-    mapping(Claim => mapping(uint256 => Claim)) internal claimCache;
+    mapping(Claim => mapping(uint256 => Claim)) internal claimHashToClaims;
 
-    function setClaimCache(Claim _claimHash, uint256 _attackBranch, Claim _claim) public {
-        claimCache[_claimHash][_attackBranch] = _claim;
+    function setClaimHashClaims(Claim _claimHash, uint256 _attackBranch, Claim _claim) public {
+        claimHashToClaims[_claimHash][_attackBranch] = _claim;
     }
 
     function getClaimFromClaimHash(
@@ -737,7 +737,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     ) internal returns (Claim) {
         // TODO: retrieve the claim from the claimsHash
         // Either: from EIP-4844 BLOB with point-evaluation proof or calldata with Merkle proof
-        return claimCache[claimsHash][claimIndex];
+        return claimHashToClaims[claimsHash][claimIndex];
     }
 
     function findPreStateClaim(
