@@ -47,7 +47,7 @@
     "morgan": "^1.10.0",
     "pino": "^8.19.0",
     "pino-multi-stream": "^6.0.0",
-    "pino-sentry": "^0.14.0",
+    "pino-sentry": "^0.14.1",
     "prom-client": "^14.2.0"
   },
   "devDependencies": {

@@ -217,8 +217,8 @@ importers:
         specifier: ^6.0.0
         version: 6.0.0
       pino-sentry:
-        specifier: ^0.14.0
-        version: 0.14.0
+        specifier: ^0.14.1
+        version: 0.14.1
       prom-client:
         specifier: ^14.2.0
         version: 14.2.0
@@ -14231,8 +14231,8 @@ packages:
       pino: 7.11.0
     dev: false
 
-  /pino-sentry@0.14.0:
-    resolution: {integrity: sha512-UwX0zgJk2ToA1c1f6QpJ7OlWEwxMFt5apJgCYNhhBbuuJuPDmqEzDRMrWKcbF3HKFuupoaNWK6S3o4XXPmI9Rw==}
+  /pino-sentry@0.14.1:
+    resolution: {integrity: sha512-3S9WCWfoACV79EDFBrcRKRWj+2GGHM7y5UFDSEKAsojZegsUJ141WyeEslxQw75D871J/yit/zSGwkvGcGD/wg==}
     engines: {node: '>=10'}
     hasBin: true
     dependencies:
