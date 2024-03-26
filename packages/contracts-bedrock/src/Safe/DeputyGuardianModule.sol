@@ -55,27 +55,31 @@ contract DeputyGuardianModule is ISemver {
         deputyGuardian_ = DEPUTY_GUARDIAN;
     }
 
-    /// @dev Calls to the Security Council's `execTransactionFromModule()`, with the arguments
+    /// @notice Calls to the Security Council's `execTransactionFromModule()`, with the arguments
     ///      necessary to call `pause()` on the `SuperchainConfig` contract.
     ///      Only the deputy guardian can call this function.
     function pause() external {
         require(msg.sender == DEPUTY_GUARDIAN, "DeputyGuardianModule: Only the deputy guardian can pause.");
         bytes memory data = abi.encodeWithSelector(SUPERCHAIN_CONFIG.pause.selector, "");
 
-        require(SAFE.execTransactionFromModule(address(SUPERCHAIN_CONFIG), 0, data, Enum.Operation.Call));
+        (bool success, bytes memory returnData) =
+            SAFE.execTransactionFromModuleReturnData(address(SUPERCHAIN_CONFIG), 0, data, Enum.Operation.Call);
+        require(success, string(returnData));
     }
 
-    /// @dev Calls to the Security Council's `execTransactionFromModule()`, with the arguments
+    /// @notice Calls to the Security Council's `execTransactionFromModule()`, with the arguments
     ///      necessary to call `unpause()` on the `SuperchainConfig` contract.
     ///      Only the deputy guardian can call this function.
     function unpause() external {
         require(msg.sender == DEPUTY_GUARDIAN, "DeputyGuardianModule: Only the deputy guardian can unpause.");
         bytes memory data = abi.encodeWithSelector(SUPERCHAIN_CONFIG.unpause.selector);
 
-        require(SAFE.execTransactionFromModule(address(SUPERCHAIN_CONFIG), 0, data, Enum.Operation.Call));
+        (bool success, bytes memory returnData) =
+            SAFE.execTransactionFromModuleReturnData(address(SUPERCHAIN_CONFIG), 0, data, Enum.Operation.Call);
+        require(success, string(returnData));
     }
 
-    /// @dev When called, this function will call to the Security Council's `execTransactionFromModule()`
+    /// @notice When called, this function will call to the Security Council's `execTransactionFromModule()`
     ///      with the arguments necessary to call `blacklistDisputeGame()` on the `OptimismPortal2` contract.
     ///      Only the deputy guardian can call this function.
     /// @param _portal The `OptimismPortal2` contract instance.
@@ -86,10 +90,12 @@ contract DeputyGuardianModule is ISemver {
         );
         bytes memory data = abi.encodeWithSelector(OptimismPortal2.blacklistDisputeGame.selector, address(_game));
 
-        require(SAFE.execTransactionFromModule(address(_portal), 0, data, Enum.Operation.Call));
+        (bool success, bytes memory returnData) =
+            SAFE.execTransactionFromModuleReturnData(address(_portal), 0, data, Enum.Operation.Call);
+        require(success, string(returnData));
     }
 
-    /// @dev When called, this function will call to the Security Council's `execTransactionFromModule()`
+    /// @notice When called, this function will call to the Security Council's `execTransactionFromModule()`
     ///      with the arguments necessary to call `setRespectedGameType()` on the `OptimismPortal2` contract.
     ///      Only the deputy guardian can call this function.
     /// @param _portal The `OptimismPortal2` contract instance.
@@ -100,7 +106,8 @@ contract DeputyGuardianModule is ISemver {
             "DeputyGuardianModule: Only the deputy guardian can set the respected game type."
         );
         bytes memory data = abi.encodeWithSelector(OptimismPortal2.setRespectedGameType.selector, _gameType);
-
-        require(SAFE.execTransactionFromModule(address(_portal), 0, data, Enum.Operation.Call));
+        (bool success, bytes memory returnData) =
+            SAFE.execTransactionFromModuleReturnData(address(_portal), 0, data, Enum.Operation.Call);
+        require(success, string(returnData));
     }
 }
