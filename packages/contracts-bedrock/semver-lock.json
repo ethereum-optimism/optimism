@@ -87,6 +87,10 @@
     "initCodeHash": "0xd62e193d89b1661d34031227a45ce1eade9c2a89b0bd7f362f511d03cceef294",
     "sourceCodeHash": "0xa304b4b556162323d69662b4dd9a1d073d55ec661494465489bb67f1e465e7b3"
   },
+  "src/Safe/DeputyGuardianModule.sol": {
+    "initCodeHash": "0x45f42bb7e93bac5b54a37ae04b539445702125939ea507053d985c6fdf7efb48",
+    "sourceCodeHash": "0xcac78f64e77cffa5114c70d4d7b1a20b85424d3116821efa610924178d54d317"
+  },
   "src/Safe/LivenessGuard.sol": {
     "initCodeHash": "0x16ec47f0888391638814047a1735dbac849b48e256b2e20182bbb3186d950a3c",
     "sourceCodeHash": "0x9633cea9b66077e222f470439fe3e9a31f3e33b4f7a5618374c44310fd234b24"
