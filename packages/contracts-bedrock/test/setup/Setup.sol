@@ -165,8 +165,17 @@ contract Setup {
             if (result.exitCode != 0) {
                 revert FfiFailed(
                     string.concat(
+                        "FFI call to generate genesis.json failed with exit code: ",
+                        string(abi.encodePacked(result.exitCode)),
+                        ".\nCommand: ",
                         Executables.bash,
-                        string.concat(" -c ", string.concat(vm.projectRoot(), "/scripts/generate-l2-genesis.sh"))
+                        " -c ",
+                        vm.projectRoot(),
+                        "/scripts/generate-l2-genesis.sh",
+                        ".\nOutput: ",
+                        string(result.stdout),
+                        "\nError: ",
+                        string(result.stderr)
                     )
                 );
             }
