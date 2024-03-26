@@ -67,7 +67,7 @@ contract DeputyGuardianModule_Pause_Test is DeputyGuardianModule_TestInit {
 contract DeputyGuardianModule_Pause_TestFail is DeputyGuardianModule_TestInit {
     /// @dev Tests that `pause` reverts when called by a non deputy guardian.
     function test_pause_notDeputyGuardian_reverts() external {
-        vm.expectRevert("DeputyGuardianModule: Only the deputy guardian can pause.");
+        vm.expectRevert("DeputyGuardianModule: Only the deputy guardian can call this function.");
         deputyGuardianModule.pause();
     }
 
@@ -107,7 +107,7 @@ contract DeputyGuardianModule_Unpause_Test is DeputyGuardianModule_TestInit {
 contract DeputyGuardianModule_Unpause_TestFail is DeputyGuardianModule_Unpause_Test {
     /// @dev Tests that `unpause` reverts when called by a non deputy guardian.
     function test_unpause_notDeputyGuardian_reverts() external {
-        vm.expectRevert("DeputyGuardianModule: Only the deputy guardian can unpause.");
+        vm.expectRevert("DeputyGuardianModule: Only the deputy guardian can call this function.");
         deputyGuardianModule.unpause();
         assertTrue(superchainConfig.paused());
     }
@@ -141,7 +141,7 @@ contract DeputyGuardianModule_BlacklistDisputeGame_TestFail is DeputyGuardianMod
     /// @dev Tests that `blacklistDisputeGame` reverts when called by a non deputy guardian.
     function test_blacklistDisputeGame_notDeputyGuardian_reverts() external {
         IDisputeGame game = IDisputeGame(makeAddr("game"));
-        vm.expectRevert("DeputyGuardianModule: Only the deputy guardian can blacklist dispute games.");
+        vm.expectRevert("DeputyGuardianModule: Only the deputy guardian can call this function.");
         deputyGuardianModule.blacklistDisputeGame(optimismPortal2, game);
         assertFalse(optimismPortal2.disputeGameBlacklist(game));
     }
@@ -176,7 +176,7 @@ contract DeputyGuardianModule_setRespectedGameType_TestFail is DeputyGuardianMod
     /// @dev Tests that `setRespectedGameType` when called by a non deputy guardian.
     function testFuzz_setRespectedGameType_notDeputyGuardian_reverts(GameType _gameType) external {
         vm.assume(GameType.unwrap(optimismPortal2.respectedGameType()) != GameType.unwrap(_gameType));
-        vm.expectRevert("DeputyGuardianModule: Only the deputy guardian can set the respected game type.");
+        vm.expectRevert("DeputyGuardianModule: Only the deputy guardian can call this function.");
         deputyGuardianModule.setRespectedGameType(optimismPortal2, _gameType);
         assertNotEq(GameType.unwrap(optimismPortal2.respectedGameType()), GameType.unwrap(_gameType));
     }

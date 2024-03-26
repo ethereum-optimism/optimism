@@ -55,11 +55,16 @@ contract DeputyGuardianModule is ISemver {
         deputyGuardian_ = DEPUTY_GUARDIAN;
     }
 
+    /// @notice Internal function to ensure that only the deputy guardian can call certain functions.
+    function _onlyDeputyGuardian() internal view {
+        require(msg.sender == DEPUTY_GUARDIAN, "DeputyGuardianModule: Only the deputy guardian can call this function.");
+    }
+
     /// @notice Calls to the Security Council's `execTransactionFromModule()`, with the arguments
     ///      necessary to call `pause()` on the `SuperchainConfig` contract.
     ///      Only the deputy guardian can call this function.
     function pause() external {
-        require(msg.sender == DEPUTY_GUARDIAN, "DeputyGuardianModule: Only the deputy guardian can pause.");
+        _onlyDeputyGuardian();
         bytes memory data = abi.encodeWithSelector(SUPERCHAIN_CONFIG.pause.selector, "");
 
         (bool success, bytes memory returnData) =
@@ -71,7 +76,7 @@ contract DeputyGuardianModule is ISemver {
     ///      necessary to call `unpause()` on the `SuperchainConfig` contract.
     ///      Only the deputy guardian can call this function.
     function unpause() external {
-        require(msg.sender == DEPUTY_GUARDIAN, "DeputyGuardianModule: Only the deputy guardian can unpause.");
+        _onlyDeputyGuardian();
         bytes memory data = abi.encodeWithSelector(SUPERCHAIN_CONFIG.unpause.selector);
 
         (bool success, bytes memory returnData) =
@@ -85,9 +90,7 @@ contract DeputyGuardianModule is ISemver {
     /// @param _portal The `OptimismPortal2` contract instance.
     /// @param _game The `IDisputeGame` contract instance.
     function blacklistDisputeGame(OptimismPortal2 _portal, IDisputeGame _game) external {
-        require(
-            msg.sender == DEPUTY_GUARDIAN, "DeputyGuardianModule: Only the deputy guardian can blacklist dispute games."
-        );
+        _onlyDeputyGuardian();
         bytes memory data = abi.encodeWithSelector(OptimismPortal2.blacklistDisputeGame.selector, address(_game));
 
         (bool success, bytes memory returnData) =
@@ -101,10 +104,7 @@ contract DeputyGuardianModule is ISemver {
     /// @param _portal The `OptimismPortal2` contract instance.
     /// @param _gameType The `GameType` to set as the respected game type.
     function setRespectedGameType(OptimismPortal2 _portal, GameType _gameType) external {
-        require(
-            msg.sender == DEPUTY_GUARDIAN,
-            "DeputyGuardianModule: Only the deputy guardian can set the respected game type."
-        );
+        _onlyDeputyGuardian();
         bytes memory data = abi.encodeWithSelector(OptimismPortal2.setRespectedGameType.selector, _gameType);
         (bool success, bytes memory returnData) =
             SAFE.execTransactionFromModuleReturnData(address(_portal), 0, data, Enum.Operation.Call);
