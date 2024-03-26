@@ -53,7 +53,7 @@ func BuildL2Genesis(config *DeployConfig, l1StartBlock *types.Block) (*core.Gene
 	// Set up the implementations that contain immutables
 	deployResults, err := immutables.Deploy(immutableConfig)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("immutables.Deploy failed: %w", err)
 	}
 	for name, predeploy := range predeploys.Predeploys {
 		if predeploy.Enabled != nil && !predeploy.Enabled(config) {
@@ -72,17 +72,17 @@ func BuildL2Genesis(config *DeployConfig, l1StartBlock *types.Block) (*core.Gene
 			predeploys := map[string]*common.Address{
 				"DeterministicDeploymentProxy": &deployerAddress,
 			}
-			backend, err := deployer.NewL2BackendWithChainIDAndPredeploys(
+			backend, err := deployer.NewBackendWithChainIDAndPredeploys(
 				new(big.Int).SetUint64(config.L2ChainID),
 				predeploys,
 			)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("NewBackendWithChainIDAndPredeploys failed: %w", err)
 			}
 			deployedBin, err := deployer.DeployWithDeterministicDeployer(backend, name)
 			if err != nil {
 				backend.Close()
-				return nil, err
+				return nil, fmt.Errorf("DeployWithDeterministicDeployer failed: %w", err)
 			}
 			backend.Close()
 			deployResults[name] = deployedBin
@@ -108,7 +108,7 @@ func BuildL2Genesis(config *DeployConfig, l1StartBlock *types.Block) (*core.Gene
 		}
 
 		if err := setupPredeploy(db, deployResults, storage, name, predeploy.Address, codeAddr); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("setupPredeploy failed: %w", err)
 		}
 		code := db.GetCode(codeAddr)
 		if len(code) == 0 {

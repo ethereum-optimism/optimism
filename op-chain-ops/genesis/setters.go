@@ -2,6 +2,7 @@ package genesis
 
 import (
 	"errors"
+	"fmt"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -73,7 +74,7 @@ func setupPredeploy(db vm.StateDB, deployResults immutables.DeploymentResults, s
 	} else {
 		depBytecode, err := bindings.GetDeployedBytecode(name)
 		if err != nil {
-			return err
+			return fmt.Errorf("GetDeployedBytecode failed: %w", err)
 		}
 		log.Info("Setting deployed bytecode from solc compiler output", "name", name, "address", implAddr)
 		db.SetCode(implAddr, depBytecode)

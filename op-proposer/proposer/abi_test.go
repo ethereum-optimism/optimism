@@ -28,7 +28,7 @@ func simulatedBackend() (privateKey *ecdsa.PrivateKey, address common.Address, o
 	if err != nil {
 		return nil, common.Address{}, nil, nil, err
 	}
-	backend = backends.NewSimulatedBackend(core.GenesisAlloc{from: {Balance: big.NewInt(params.Ether)}}, 50_000_000)
+	backend = backends.NewSimulatedBackend(core.GenesisAlloc{from: {Balance: big.NewInt(params.Ether)}}, 50_000_000) // nolint:staticcheck
 
 	return privateKey, from, opts, backend, nil
 }
