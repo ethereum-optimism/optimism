@@ -1,29 +1,26 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Test, StdUtils } from "forge-std/Test.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { Safe } from "safe-contracts/Safe.sol";
-import { Enum } from "safe-contracts/common/Enum.sol";
 import "test/safe-tools/SafeTestTools.sol";
 
+import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
 import { DeputyGuardianModule } from "src/Safe/DeputyGuardianModule.sol";
-import { LivenessGuard } from "src/Safe/LivenessGuard.sol";
+
+import "src/libraries/DisputeTypes.sol";
 
 contract DeputyGuardianModule_TestInit is CommonTest, SafeTestTools {
     using SafeTestLib for SafeInstance;
 
-    // uint256 initTime = 10;
     DeputyGuardianModule deputyGuardianModule;
     SafeInstance safeInstance;
     address deputyGuardian;
 
     /// @dev Sets up the test environment
     function setUp() public virtual override {
+        super.enableFaultProofs();
         super.setUp();
-        // Set the block timestamp to the initTime, so that signatures recorded in the first block
-        // are non-zero.
-        // vm.warp(initTime);
 
         // Create a Safe with 10 owners
         (, uint256[] memory keys) = SafeTestLib.makeAddrsAndKeys("moduleTest", 10);
@@ -69,7 +66,7 @@ contract DeputyGuardianModule_Pause_Test is DeputyGuardianModule_TestInit {
 contract DeputyGuardianModule_Pause_TestFail is DeputyGuardianModule_TestInit {
     /// @dev Tests that `pause` reverts when called by a non deputy guardian.
     function test_pause_notDeputyGuardian_reverts() external {
-        vm.expectRevert("DeputyGuardianModule: Only the deputy guardian can pause the contract");
+        vm.expectRevert("DeputyGuardianModule: Only the deputy guardian can pause.");
         deputyGuardianModule.pause();
     }
 }
@@ -98,11 +95,49 @@ contract DeputyGuardianModule_Unpause_TestFail is DeputyGuardianModule_Unpause_T
     function test_pause_notDeputyGuardian_reverts() external {
         assertEq(superchainConfig.paused(), true);
 
-        vm.expectRevert();
-        deputyGuardianModule.pause();
+        vm.expectRevert("DeputyGuardianModule: Only the deputy guardian can unpause.");
+        deputyGuardianModule.unpause();
     }
 }
 
-contract DeputyGuardianModule_BlacklistDisputeGame_Test is DeputyGuardianModule_TestInit { }
+contract DeputyGuardianModule_BlacklistDisputeGame_Test is DeputyGuardianModule_TestInit {
+    /// @dev Tests that `blacklistDisputeGame` successfully blacklists a dispute game when called by the deputy
+    /// guardian.
+    function test_blacklistDisputeGame_succeeds() external {
+        IDisputeGame game = IDisputeGame(makeAddr("game"));
+        vm.prank(address(deputyGuardian));
+        deputyGuardianModule.blacklistDisputeGame(optimismPortal2, game);
+        assertTrue(optimismPortal2.disputeGameBlacklist(game));
+    }
+}
 
-contract DeputyGuardianModule_SetRespectedGameType_Test is DeputyGuardianModule_TestInit { }
+contract DeputyGuardianModule_BlacklistDisputeGame_TestFail is DeputyGuardianModule_TestInit {
+    /// @dev Tests that `blacklistDisputeGame` reverts when called by a non deputy guardian.
+    function test_blacklistDisputeGame_notDeputyGuardian_reverts() external {
+        IDisputeGame game = IDisputeGame(makeAddr("game"));
+        vm.expectRevert("DeputyGuardianModule: Only the deputy guardian can blacklist dispute games.");
+        deputyGuardianModule.blacklistDisputeGame(optimismPortal2, game);
+        assertFalse(optimismPortal2.disputeGameBlacklist(game));
+    }
+}
+
+contract DeputyGuardianModule_setRespectedGameType_Test is DeputyGuardianModule_TestInit {
+    /// @dev Tests that `setRespectedGameType` successfully updates the respected game type when called by the deputy
+    /// guardian.
+    function testFuzz_setRespectedGameType_succeeds(GameType _gameType) external {
+        vm.prank(address(deputyGuardian));
+        deputyGuardianModule.setRespectedGameType(optimismPortal2, _gameType);
+        assertEq(GameType.unwrap(optimismPortal2.respectedGameType()), GameType.unwrap(_gameType));
+        assertEq(optimismPortal2.respectedGameTypeUpdatedAt(), uint64(block.timestamp));
+    }
+}
+
+contract DeputyGuardianModule_setRespectedGameType_TestFail is DeputyGuardianModule_TestInit {
+    /// @dev Tests that `setRespectedGameType` when called by a non deputy guardian.
+    function testFuzz_setRespectedGameType_notDeputyGuardian_reverts(GameType _gameType) external {
+        vm.assume(GameType.unwrap(optimismPortal2.respectedGameType()) != GameType.unwrap(_gameType));
+        vm.expectRevert("DeputyGuardianModule: Only the deputy guardian can set the respected game type.");
+        deputyGuardianModule.setRespectedGameType(optimismPortal2, _gameType);
+        assertNotEq(GameType.unwrap(optimismPortal2.respectedGameType()), GameType.unwrap(_gameType));
+    }
+}
