@@ -9,7 +9,6 @@ src = 'src'
 out = 'forge-artifacts'
 script = 'scripts'
 optimizer = true
-ast = true # needed by snapshot gen
 optimizer_runs = 999999
 remappings = [
   '@openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts',
