@@ -42,8 +42,6 @@ func AvailableNetworks() []string {
 
 func handleLegacyName(name string) string {
 	switch name {
-	case "goerli":
-		return "op-goerli"
 	case "mainnet":
 		return "op-mainnet"
 	case "sepolia":
