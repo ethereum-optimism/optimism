@@ -21,6 +21,7 @@ import (
 
 type Crawler struct {
 	Client             node.RPC
+	BackupClient       node.RPC
 	EndBlock           int64
 	RpcPollingInterval time.Duration
 	AddrOutputPath     string
@@ -46,9 +47,10 @@ type EthAllowances struct {
 	Allowances  []*Allowance `json:"allowances"`
 }
 
-func NewCrawler(client node.RPC, endBlock int64, rpcPollingInterval time.Duration, addrOutputPath, alloOutputPath string) *Crawler {
+func NewCrawler(client node.RPC, backupClient node.RPC, endBlock int64, rpcPollingInterval time.Duration, addrOutputPath, alloOutputPath string) *Crawler {
 	return &Crawler{
 		Client:             client,
+		BackupClient:       backupClient,
 		EndBlock:           endBlock,
 		RpcPollingInterval: rpcPollingInterval,
 		AddrOutputPath:     addrOutputPath,
@@ -242,7 +244,14 @@ func (e *Crawler) GetTraceTransaction(blockNumber *big.Int) (*node.TraceTransact
 		transactionHash := transactions[0]
 		traceTransaction, err := e.Client.TraceTransaction(transactionHash)
 		if err != nil {
-			return nil, err
+			if e.BackupClient != nil {
+				traceTransaction, err := e.BackupClient.TraceTransaction(transactionHash)
+				if err != nil {
+					return nil, fmt.Errorf("failed to trace transaction from backup RPC %s: %w", transactionHash.String(), err)
+				}
+				return traceTransaction, nil
+			}
+			return nil, fmt.Errorf("failed to trace transaction %s: %w", transactionHash.String(), err)
 		}
 		return traceTransaction, nil
 	}

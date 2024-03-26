@@ -23,6 +23,13 @@ func main() {
 				Required: true,
 				EnvVars:  []string{"RPC_URL"},
 			},
+			&cli.StringFlag{
+				Name: "backup-rpc-url",
+				Usage: "Backup RPC URL for an Ethereum Node. " +
+					"If the primary RPC URL is unavailable, the crawler will use this URL instead",
+				Required: false,
+				EnvVars:  []string{"BACKUP_RPC_URL"},
+			},
 			&cli.Int64Flag{
 				Name:    "end-block",
 				Usage:   "Block number to end crawling at",
@@ -98,6 +105,7 @@ func main() {
 			}
 
 			rpcURL := ctx.String("rpc-url")
+			backupRpcURL := ctx.String("backup-rpc-url")
 			endBlock := ctx.Int64("end-block")
 			rpcTimeout := ctx.Duration("rpc-time-out")
 			rpcPollingInterval := ctx.Duration("polling-interval")
@@ -108,8 +116,12 @@ func main() {
 			if err != nil {
 				return err
 			}
+			backupClient, err := node.NewRPC(backupRpcURL, rpcTimeout, logger)
+			if err != nil {
+				return err
+			}
 
-			crawler := ether.NewCrawler(client, endBlock, rpcPollingInterval, addrOutputPath, alloOutputPath)
+			crawler := ether.NewCrawler(client, backupClient, endBlock, rpcPollingInterval, addrOutputPath, alloOutputPath)
 			if err := crawler.Start(); err != nil {
 				return err
 			}
