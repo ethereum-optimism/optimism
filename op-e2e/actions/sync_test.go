@@ -211,9 +211,8 @@ func TestBackupUnsafe(gt *testing.T) {
 	require.Equal(t, verifier.L2Unsafe().Number, uint64(5))
 	require.Equal(t, verifier.L2Safe().Number, uint64(0))
 
-	c, e := compressor.NewRatioCompressor(compressor.Config{
+	c, e := compressor.NewBlindCompressor(compressor.Config{
 		TargetOutputSize: 128_000,
-		ApproxComprRatio: 1,
 	})
 	require.NoError(t, e)
 	spanBatch := derive.NewSpanBatch(sd.RollupCfg.Genesis.L2Time, sd.RollupCfg.L2ChainID)
@@ -382,9 +381,8 @@ func TestBackupUnsafeReorgForkChoiceInputError(gt *testing.T) {
 	require.Equal(t, verifier.L2Unsafe().Number, uint64(5))
 	require.Equal(t, verifier.L2Safe().Number, uint64(0))
 
-	c, e := compressor.NewRatioCompressor(compressor.Config{
+	c, e := compressor.NewBlindCompressor(compressor.Config{
 		TargetOutputSize: 128_000,
-		ApproxComprRatio: 1,
 	})
 	require.NoError(t, e)
 	spanBatch := derive.NewSpanBatch(sd.RollupCfg.Genesis.L2Time, sd.RollupCfg.L2ChainID)
@@ -529,9 +527,8 @@ func TestBackupUnsafeReorgForkChoiceNotInputError(gt *testing.T) {
 	require.Equal(t, verifier.L2Unsafe().Number, uint64(5))
 	require.Equal(t, verifier.L2Safe().Number, uint64(0))
 
-	c, e := compressor.NewRatioCompressor(compressor.Config{
+	c, e := compressor.NewBlindCompressor(compressor.Config{
 		TargetOutputSize: 128_000,
-		ApproxComprRatio: 1,
 	})
 	require.NoError(t, e)
 	spanBatch := derive.NewSpanBatch(sd.RollupCfg.Genesis.L2Time, sd.RollupCfg.L2ChainID)
@@ -866,9 +863,8 @@ func TestInvalidPayloadInSpanBatch(gt *testing.T) {
 	sequencer.ActL2PipelineFull(t)
 	verifier.ActL2PipelineFull(t)
 
-	c, e := compressor.NewRatioCompressor(compressor.Config{
+	c, e := compressor.NewBlindCompressor(compressor.Config{
 		TargetOutputSize: 128_000,
-		ApproxComprRatio: 1,
 	})
 	require.NoError(t, e)
 	spanBatch := derive.NewSpanBatch(sd.RollupCfg.Genesis.L2Time, sd.RollupCfg.L2ChainID)
@@ -914,9 +910,8 @@ func TestInvalidPayloadInSpanBatch(gt *testing.T) {
 	require.Equal(t, verifier.L2Safe().Number, uint64(0))
 
 	// Create new span batch channel
-	c, e = compressor.NewRatioCompressor(compressor.Config{
+	c, e = compressor.NewBlindCompressor(compressor.Config{
 		TargetOutputSize: 128_000,
-		ApproxComprRatio: 1,
 	})
 	require.NoError(t, e)
 	spanBatch = derive.NewSpanBatch(sd.RollupCfg.Genesis.L2Time, sd.RollupCfg.L2ChainID)

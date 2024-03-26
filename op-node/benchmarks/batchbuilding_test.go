@@ -25,8 +25,12 @@ var (
 	nc, _ = compressor.NewNonCompressor(compressor.Config{
 		TargetOutputSize: 100_000_000_000,
 	})
+	bc, _ = compressor.NewBlindCompressor(compressor.Config{
+		TargetOutputSize: 100_000_000_000,
+	})
 
 	compressors = map[string]derive.Compressor{
+		"BlindCompressor":  bc,
 		"NonCompressor":    nc,
 		"RatioCompressor":  rc,
 		"ShadowCompressor": sc,
