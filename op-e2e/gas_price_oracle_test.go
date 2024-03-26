@@ -78,7 +78,6 @@ func TestGasPriceOracle(t *testing.T) {
 				common.HexToHash("0x1"): common.HexToHash("0x01"),                         // l1BaseFee 1
 				common.HexToHash("0x3"): common.HexToHash(hex.EncodeToString(byteResult)), // all other constants
 				common.HexToHash("0x7"): common.HexToHash("0x01"),                         // l1BlobBaseFee 1
-
 			},
 		},
 	}, math.MaxUint64)

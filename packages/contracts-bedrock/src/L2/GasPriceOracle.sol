@@ -62,9 +62,10 @@ contract GasPriceOracle is ISemver {
     function getL1FeeUpperBound(uint256 _unsignedTxSize) external view returns (uint256) {
         require(isFjord, "GasPriceOracle: getL1FeeUpperBound only supports Fjord");
 
+        // txSize / 255 + 16 is the pratical fastlz upper-bound covers %99.99 txs.
+        // Add 68 to both size values to account for unsigned tx:
+        int256 flzUpperBound = int256(_unsignedTxSize) + int256(_unsignedTxSize) / 255 + 16 + 68;
         int256 txSize = int256(_unsignedTxSize) + 68;
-         // txSize / 255 + 16 is the pratical fastlz upper-bound covers %99.99 txs.
-        int256 flzUpperBound = txSize + txSize / 255 + 16;
 
         return _fjordL1Cost(flzUpperBound, txSize);
     }
@@ -195,7 +196,7 @@ contract GasPriceOracle is ISemver {
     /// @notice L1 gas estimation calculation.
     /// @param _data Unsigned fully RLP-encoded transaction to get the L1 gas for.
     /// @return Amount of L1 gas used to publish the transaction.
-    function _getCalldataGas(bytes memory _data) internal view returns (uint256) {
+    function _getCalldataGas(bytes memory _data) internal pure returns (uint256) {
         uint256 total = 0;
         uint256 length = _data.length;
         for (uint256 i = 0; i < length; i++) {
