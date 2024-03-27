@@ -41,6 +41,11 @@ type MessageIdentifier struct {
 	ChainId     *big.Int
 }
 
+type Message struct {
+	Id      MessageIdentifier
+	Payload hexutil.Bytes
+}
+
 func MessagePayloadBytes(log *types.Log) []byte {
 	msg := []byte{}
 	for _, topic := range log.Topics {
