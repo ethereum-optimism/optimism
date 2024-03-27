@@ -60,7 +60,7 @@ contract DeputyGuardianModule is ISemver {
         require(msg.sender == DEPUTY_GUARDIAN, "DeputyGuardianModule: Only the deputy guardian can call this function.");
     }
 
-    /// @notice Calls to the Security Council's `execTransactionFromModule()`, with the arguments
+    /// @notice Calls the Security Council Safe's `execTransactionFromModuleReturnData()`, with the arguments
     ///      necessary to call `pause()` on the `SuperchainConfig` contract.
     ///      Only the deputy guardian can call this function.
     function pause() external {
@@ -72,7 +72,7 @@ contract DeputyGuardianModule is ISemver {
         require(success, string(returnData));
     }
 
-    /// @notice Calls to the Security Council's `execTransactionFromModule()`, with the arguments
+    /// @notice Calls the Security Council Safe's `execTransactionFromModuleReturnData()`, with the arguments
     ///      necessary to call `unpause()` on the `SuperchainConfig` contract.
     ///      Only the deputy guardian can call this function.
     function unpause() external {
@@ -84,8 +84,8 @@ contract DeputyGuardianModule is ISemver {
         require(success, string(returnData));
     }
 
-    /// @notice When called, this function will call to the Security Council's `execTransactionFromModule()`
-    ///      with the arguments necessary to call `blacklistDisputeGame()` on the `OptimismPortal2` contract.
+    /// @notice Calls the Security Council Safe's `execTransactionFromModuleReturnData()`, with the arguments
+    ///      necessary to call `blacklistDisputeGame()` on the `OptimismPortal2` contract.
     ///      Only the deputy guardian can call this function.
     /// @param _portal The `OptimismPortal2` contract instance.
     /// @param _game The `IDisputeGame` contract instance.
@@ -98,8 +98,8 @@ contract DeputyGuardianModule is ISemver {
         require(success, string(returnData));
     }
 
-    /// @notice When called, this function will call to the Security Council's `execTransactionFromModule()`
-    ///      with the arguments necessary to call `setRespectedGameType()` on the `OptimismPortal2` contract.
+    /// @notice Calls the Security Council Safe's `execTransactionFromModuleReturnData()`, with the arguments
+    ///      necessary to call `setRespectedGameType()` on the `OptimismPortal2` contract.
     ///      Only the deputy guardian can call this function.
     /// @param _portal The `OptimismPortal2` contract instance.
     /// @param _gameType The `GameType` to set as the respected game type.
