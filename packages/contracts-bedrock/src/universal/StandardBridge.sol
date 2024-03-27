@@ -19,7 +19,7 @@ import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable
 abstract contract StandardBridge is Initializable {
     using SafeERC20 for IERC20;
 
-    /// @notice The L2 gas limit set when eth is depoisited using the receive() function.
+    /// @notice The L2 gas limit set when eth is deposited using the receive() function.
     uint32 internal constant RECEIVE_DEFAULT_GAS_LIMIT = 200_000;
 
     /// @custom:legacy

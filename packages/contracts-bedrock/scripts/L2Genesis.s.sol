@@ -166,17 +166,17 @@ contract L2Genesis is Script, Artifacts {
         _setL1Block();
     }
 
-    /// @notice This predeploy is following the saftey invariant #1.
+    /// @notice This predeploy is following the safety invariant #1.
     function _setLegacyMessagePasser() internal {
         _setImplementationCode(Predeploys.LEGACY_MESSAGE_PASSER, "LegacyMessagePasser");
     }
 
-    /// @notice This predeploy is following the saftey invariant #1.
+    /// @notice This predeploy is following the safety invariant #1.
     function _setDeployerWhitelist() internal {
         _setImplementationCode(Predeploys.DEPLOYER_WHITELIST, "DeployerWhitelist");
     }
 
-    /// @notice This predeploy is following the saftey invariant #1.
+    /// @notice This predeploy is following the safety invariant #1.
     ///         Contract metadata hash appended to deployed bytecode will differ
     ///         from previous L2 genesis output.
     ///         This contract is NOT proxied.
