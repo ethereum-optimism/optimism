@@ -51,6 +51,19 @@ services:
       # - /:/db
       # - /:/files
 
+  geth-dump:
+    image: bobanetwork/geth-dump
+    build:
+      context: ..
+      dockerfile: ./boba-chain-ops/Dockerfile.geth-dump
+    command: |
+      geth-dump
+      --db-path=/db
+      --output-path=/files/alloc.json
+    # volumes:
+    #   - /:/db
+    #   - /:/files
+
   erigon:
     image: bobanetwork/erigon:migration
     user: "1000:1000"
