@@ -2,34 +2,44 @@
 pragma solidity 0.8.15;
 
 import { Safe, Enum } from "safe-contracts/Safe.sol";
+
 import { ISemver } from "src/universal/ISemver.sol";
 
-/// @title ThresholdModule
-/// @notice This module is intended to be used in conjunction with the VetoerSetGuard. Any vetoer
-///         may execute a veto through this
+/// @title VetoModule
+/// @notice This module allows any owner of the Safe Account to execute a veto.
 contract VetoModule is ISemver {
     /// @notice Semantic version.
     /// @custom:semver 1.0.0
     string public constant version = "1.0.0";
 
     /// @notice The Safe contract instance
-    Safe internal immutable SAFE;
-    address internal immutable DELAYED_VETOABLE;
+    Safe internal immutable safe;
 
-    constructor(Safe _safe, address _delayedVetoable) {
-        SAFE = _safe;
-        DELAYED_VETOABLE = _delayedVetoable;
+    /// @notice The delayed vetoable contract.
+    address internal immutable delayedVetoable;
+
+    /// @notice Thrown when trying to execute a veto through this module but the caller is not
+    ///         an owner of the Safe Account.
+    /// @param sender The sender address.
+    error SenderIsNotAnOwner(address sender);
+
+    /// @notice The module constructor.
+    /// @param safe_ The Safe Account addess.
+    /// @param delayedVetoable_ The delay vetoable contract address.
+    constructor(Safe safe_, address delayedVetoable_) {
+        safe = safe_;
+        delayedVetoable = delayedVetoable_;
     }
 
-    /// @notice Passthrough for any vetoer to execute a veto on the DelayedVetoable contract
+    /// @notice Passthrough for any owner to execute a veto on the `DelayedVetoable` contract.
+    /// @dev Revert if not called by an owner of the Safe Account.
     function veto() external returns (bool) {
-        require(SAFE.isOwner(msg.sender), "VetoModule: only vetoers can call veto");
+        // Ensure only a Safe Account owner can veto.
+        if (safe.isOwner(msg.sender) == false) {
+            revert SenderIsNotAnOwner(msg.sender);
+        }
 
-        return SAFE.execTransactionFromModule(
-            DELAYED_VETOABLE,
-            0,
-            msg.data,
-            Enum.Operation.Call
-        );
+        // Forward the call to the Safe Account, targeting the delayed vetoable contract.
+        return safe.execTransactionFromModule(delayedVetoable, 0, msg.data, Enum.Operation.Call);
     }
 }
