@@ -140,10 +140,15 @@ contract TestOwnerGuard is Test {
         _sut.updateMaxOwnerCount(newMaxOwnerCount);
     }
 
-    /// @dev `updateMaxOwnerCount` should revert with `InvalidNewMaxCount` when the `newMaxOwnerCount` is below the
+    /// @dev `updateMaxOwnerCount` should revert with `MaxOwnerCountTooLow` when the `newMaxOwnerCount` is below the
     /// current
     ///      number of owners of the Safe Account.
-    function testRevert_UpdateMaxOwnerCount_InvalidNewMaxCount(uint8 newMaxOwnerCount, uint256 safeOwnerCount) public {
+    function testRevert_UpdateMaxOwnerCount_MaxOwnerCountTooLow(
+        uint8 newMaxOwnerCount,
+        uint256 safeOwnerCount
+    )
+        public
+    {
         // Ensure the inputs are reasonable values.
         {
             safeOwnerCount = bound(safeOwnerCount, uint256(newMaxOwnerCount) + 1, 511);
@@ -160,7 +165,7 @@ contract TestOwnerGuard is Test {
         }
 
         vm.expectRevert(
-            abi.encodeWithSelector(OwnerGuard.InvalidNewMaxCount.selector, newMaxOwnerCount, safeOwnerCount)
+            abi.encodeWithSelector(OwnerGuard.MaxOwnerCountTooLow.selector, newMaxOwnerCount, safeOwnerCount)
         );
         vm.prank(_safe);
         _sut.updateMaxOwnerCount(newMaxOwnerCount);

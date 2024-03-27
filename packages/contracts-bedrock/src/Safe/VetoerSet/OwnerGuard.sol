@@ -47,7 +47,7 @@ contract OwnerGuard is ISemver, BaseGuard {
     ///         Safe Account owner count.
     /// @param newMaxOwnerCount The new invalid max count.
     /// @param ownerCount The current Safe Account owner count.
-    error InvalidNewMaxCount(uint256 newMaxOwnerCount, uint256 ownerCount);
+    error MaxOwnerCountTooLow(uint256 newMaxOwnerCount, uint256 ownerCount);
 
     /// @notice Constructor.
     /// @param safe_ The Safe Account for which this contract will be the guard.
@@ -107,7 +107,7 @@ contract OwnerGuard is ISemver, BaseGuard {
         // Ensure the given `newMaxOwnerCount` is not bellow the current number of owners.
         uint256 ownerCount = safe.getOwners().length;
         if (newMaxOwnerCount < ownerCount) {
-            revert InvalidNewMaxCount(newMaxOwnerCount, ownerCount);
+            revert MaxOwnerCountTooLow(newMaxOwnerCount, ownerCount);
         }
 
         // Update the new`maxOwnerCount`.
