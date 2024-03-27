@@ -193,7 +193,7 @@ func FinalizeWithdrawal(t *testing.T, cfg SystemConfig, l1Client *ethclient.Clie
 		wdHash, err := wd.Hash()
 		require.Nil(t, err)
 
-		game, err := portal2.ProvenWithdrawals(&bind.CallOpts{}, wdHash)
+		game, err := portal2.ProvenWithdrawals(&bind.CallOpts{}, wdHash, opts.From)
 		require.Nil(t, err)
 		require.NotNil(t, game, "withdrawal should be proven")
 
@@ -220,7 +220,7 @@ func FinalizeWithdrawal(t *testing.T, cfg SystemConfig, l1Client *ethclient.Clie
 	}
 
 	if e2eutils.UseFPAC() {
-		err := wait.ForWithdrawalCheck(ctx, l1Client, wd, config.L1Deployments.OptimismPortalProxy)
+		err := wait.ForWithdrawalCheck(ctx, l1Client, wd, config.L1Deployments.OptimismPortalProxy, opts.From)
 		require.Nil(t, err)
 	} else {
 		err := wait.ForFinalizationPeriod(ctx, l1Client, withdrawalProofReceipt.BlockNumber, config.L1Deployments.L2OutputOracleProxy)

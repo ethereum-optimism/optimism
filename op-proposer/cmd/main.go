@@ -28,8 +28,8 @@ func main() {
 	app.Flags = cliapp.ProtectFlags(flags.Flags)
 	app.Version = opservice.FormatVersion(Version, GitCommit, GitDate, "")
 	app.Name = "op-proposer"
-	app.Usage = "L2Output Submitter"
-	app.Description = "Service for generating and submitting L2 Output checkpoints to the L2OutputOracle contract"
+	app.Usage = "L2 Output Submitter"
+	app.Description = "Service for generating and proposing L2 Outputs"
 	app.Action = cliapp.LifecycleCmd(proposer.Main(Version))
 	app.Commands = []*cli.Command{
 		{

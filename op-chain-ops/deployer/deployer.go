@@ -49,6 +49,7 @@ type Deployer func(*backends.SimulatedBackend, *bind.TransactOpts, Constructor) 
 
 // NewL1Backend returns a SimulatedBackend suitable for L1. It has
 // the latest L1 hardforks enabled.
+// The returned backend should be closed after use.
 func NewL1Backend() (*backends.SimulatedBackend, error) {
 	backend, err := NewBackendWithGenesisTimestamp(ChainID, 0, true, nil)
 	return backend, err
@@ -56,6 +57,7 @@ func NewL1Backend() (*backends.SimulatedBackend, error) {
 
 // NewL2Backend returns a SimulatedBackend suitable for L2.
 // It has the latest L2 hardforks enabled.
+// The returned backend should be closed after use.
 func NewL2Backend() (*backends.SimulatedBackend, error) {
 	backend, err := NewBackendWithGenesisTimestamp(ChainID, 0, false, nil)
 	return backend, err
@@ -63,6 +65,7 @@ func NewL2Backend() (*backends.SimulatedBackend, error) {
 
 // NewL2BackendWithChainIDAndPredeploys returns a SimulatedBackend suitable for L2.
 // It has the latest L2 hardforks enabled, and allows for the configuration of the network's chain ID and predeploys.
+// The returned backend should be closed after use.
 func NewL2BackendWithChainIDAndPredeploys(chainID *big.Int, predeploys map[string]*common.Address) (*backends.SimulatedBackend, error) {
 	backend, err := NewBackendWithGenesisTimestamp(chainID, 0, false, predeploys)
 	return backend, err
