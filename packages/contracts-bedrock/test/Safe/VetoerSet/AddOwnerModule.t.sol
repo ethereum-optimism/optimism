@@ -4,30 +4,30 @@ pragma solidity 0.8.15;
 import { Safe, Enum, OwnerManager, ModuleManager } from "safe-contracts/Safe.sol";
 
 import { OwnerGuard } from "src/Safe/VetoerSet/OwnerGuard.sol";
-import { PrivilegedAddOwnerModule } from "src/Safe/VetoerSet/PrivilegedAddOwnerModule.sol";
+import { AddOwnerModule } from "src/Safe/VetoerSet/AddOwnerModule.sol";
 
 import "forge-std/Test.sol";
 
-contract TestPrivilegedAddOwnerModule is Test {
+contract TestAddOwnerModule is Test {
     address private _safe;
     address private _ownerGuard;
     address private _opFoundation;
-    PrivilegedAddOwnerModule private _sut;
+    AddOwnerModule private _sut;
 
     function setUp() public {
         _safe = makeAddr("Safe");
         _ownerGuard = makeAddr("OwnerGuard");
         _opFoundation = makeAddr("OPFoundation");
-        _sut = new PrivilegedAddOwnerModule({
+        _sut = new AddOwnerModule({
             safe_: Safe(payable(_safe)),
             ownerGuard_: OwnerGuard(_ownerGuard),
             opFoundation_: _opFoundation
         });
     }
 
-    /// @dev `privilegedAddOwner` should revert with `SenderIsNotOpFoundation` when the sender is not the registered OP
+    /// @dev `addOwner` should revert with `SenderIsNotOpFoundation` when the sender is not the registered OP
     ///       foundation address.
-    function testRevert_PrivilegedAddOwner_SenderIsNotOpFoundation(address newOwner, address sender) public {
+    function testRevert_AddOwner_SenderIsNotOpFoundation(address newOwner, address sender) public {
         // Ensure the inputs are reasonable values.
         {
             vm.assume(sender != _opFoundation);
@@ -35,14 +35,14 @@ contract TestPrivilegedAddOwnerModule is Test {
             vm.assume(newOwner != address(0x1));
         }
 
-        vm.expectRevert(abi.encodeWithSelector(PrivilegedAddOwnerModule.SenderIsNotOpFoundation.selector, (sender)));
+        vm.expectRevert(abi.encodeWithSelector(AddOwnerModule.SenderIsNotOpFoundation.selector, (sender)));
         vm.prank(sender);
-        _sut.privilegedAddOwner(newOwner);
+        _sut.addOwner(newOwner);
     }
 
-    /// @dev `privilegedAddOwner` should buble up the `InvalidOwnerCount` error returned by the `OwnerGuard` when
+    /// @dev `addOwner` should buble up the `InvalidOwnerCount` error returned by the `OwnerGuard` when
     ///      checking if adding the new owner does not exceed `maxOwnerCount`.
-    function testRevert_PrivilegedAddOwner_InvalidOwnerCount(
+    function testRevert_AddOwner_InvalidOwnerCount(
         address newOwner,
         uint256 initialOwnerCount,
         uint256 maxOwnerCount
@@ -77,12 +77,12 @@ contract TestPrivilegedAddOwnerModule is Test {
 
         vm.expectRevert(invalidOwnerCountError);
         vm.prank(_opFoundation);
-        _sut.privilegedAddOwner(newOwner);
+        _sut.addOwner(newOwner);
     }
 
-    /// @dev `privilegedAddOwner` should call `execTransactionFromModule` on the Safe Account with the abi encoded call
+    /// @dev `addOwner` should call `execTransactionFromModule` on the Safe Account with the abi encoded call
     ///      to its own `addOwnerWithThreshold` method.
-    function test_PrivilegedAddOwner_CallsExecTransactionFromModule(
+    function test_AddOwner_CallsExecTransactionFromModule(
         address newOwner,
         uint256 initialOwnerCount,
         uint256 maxOwnerCount
@@ -127,6 +127,6 @@ contract TestPrivilegedAddOwnerModule is Test {
 
         vm.expectCall(_safe, execTransactionFromModuleCall);
         vm.prank(_opFoundation);
-        _sut.privilegedAddOwner(newOwner);
+        _sut.addOwner(newOwner);
     }
 }

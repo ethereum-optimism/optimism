@@ -5,7 +5,7 @@ import { Safe, Enum, OwnerManager, ModuleManager } from "safe-contracts/Safe.sol
 import { LibSort } from "solady/utils/LibSort.sol";
 
 import { OwnerGuard } from "src/Safe/VetoerSet/OwnerGuard.sol";
-import { PrivilegedAddOwnerModule } from "src/Safe/VetoerSet/PrivilegedAddOwnerModule.sol";
+import { AddOwnerModule } from "src/Safe/VetoerSet/AddOwnerModule.sol";
 import { VetoModule } from "src/Safe/VetoerSet/VetoModule.sol";
 
 import "forge-std/Test.sol";
@@ -13,7 +13,7 @@ import "forge-std/Test.sol";
 contract Handler is Test {
     Safe public immutable safe;
     OwnerGuard public immutable ownerGuard;
-    PrivilegedAddOwnerModule public immutable privilegedAddOwnerModule;
+    AddOwnerModule public immutable addOwnerModule;
     VetoModule public immutable vetoModule;
 
     address private immutable _opFoundation;
@@ -51,7 +51,7 @@ contract Handler is Test {
         // Deploy the guards and modules contracts.
         ownerGuard = new OwnerGuard(safe);
         _opFoundation = makeAddr("OPFoundation");
-        privilegedAddOwnerModule = new PrivilegedAddOwnerModule(safe, ownerGuard, _opFoundation);
+        addOwnerModule = new AddOwnerModule(safe, ownerGuard, _opFoundation);
         _delayedVetoable = makeAddr("DelayedVetoable");
         vetoModule = new VetoModule(safe, _delayedVetoable);
 
@@ -59,7 +59,7 @@ contract Handler is Test {
         // NOTE: Bypass `authorized` access control during setup by pranking the Safe Account.
         vm.startPrank(address(safe));
         safe.setGuard(address(ownerGuard));
-        safe.enableModule(address(privilegedAddOwnerModule));
+        safe.enableModule(address(addOwnerModule));
         safe.enableModule(address(vetoModule));
         vm.stopPrank();
     }
@@ -131,16 +131,16 @@ contract Handler is Test {
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////
-    //                               PrivilegedAddOwnerModule Functions                               //
+    //                               AddOwnerModule Functions                               //
     ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    /// @dev Calls `privilegedAddOwner` on the `PrivilegedAddOwnerModule` contract.
+    /// @dev Calls `addOwner` on the `AddOwnerModule` contract.
     /// @dev Prank `opFoundation` to bypass access control check.
-    function privilegedAddOwner(address ownerAddrSeed) external {
+    function addOwner(address ownerAddrSeed) external {
         Account memory owner = _createNewOwner(string.concat("OP_Owner_", vm.toString(ownerAddrSeed)));
 
         vm.prank(_opFoundation);
-        privilegedAddOwnerModule.privilegedAddOwner(owner.addr);
+        addOwnerModule.addOwner(owner.addr);
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////

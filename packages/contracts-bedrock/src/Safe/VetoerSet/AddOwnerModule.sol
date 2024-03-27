@@ -8,10 +8,10 @@ import { ISemver } from "src/universal/ISemver.sol";
 
 import { OwnerGuard } from "./OwnerGuard.sol";
 
-/// @title PrivilegedAddOwnerModule
+/// @title AddOwnerModule
 /// @notice This module allows any specifically designated address to add owners to the
 ///         Safe Account. Specifically, the Optimism Foundation may add new owners.
-contract PrivilegedAddOwnerModule is ISemver {
+contract AddOwnerModule is ISemver {
     /// @notice Semantic version.
     /// @custom:semver 1.0.0
     string public constant version = "1.0.0";
@@ -43,7 +43,7 @@ contract PrivilegedAddOwnerModule is ISemver {
     /// @notice Add a new owner address.
     /// @dev Revert if not called by the whitelised `opFoundation` address.
     /// @param addr The owner address to add.
-    function privilegedAddOwner(address addr) external {
+    function addOwner(address addr) external {
         // Ensure the caller is the OP Foundation multisig.
         if (msg.sender != opFoundation) {
             revert SenderIsNotOpFoundation(msg.sender);
