@@ -29,8 +29,8 @@ contract OwnerGuard is ISemver, BaseGuard {
 
     /// @notice Thrown if the new owner count is above the `maxOwnerCount` limit.
     /// @param ownerCount The Safe Account owner count.
-    /// @param maxOwerCount The current `maxOwnerCount`.
-    error OwnerCountTooHigh(uint256 ownerCount, uint256 maxOwerCount);
+    /// @param maxOwnerCount The current `maxOwnerCount`.
+    error OwnerCountTooHigh(uint256 ownerCount, uint256 maxOwnerCount);
 
     /// @notice Thrown after the Safe Account executed a transaction if its threshold does not matches
     ///         with the desired 66% threshold.
