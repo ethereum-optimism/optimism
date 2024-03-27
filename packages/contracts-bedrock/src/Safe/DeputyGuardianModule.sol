@@ -65,7 +65,7 @@ contract DeputyGuardianModule is ISemver {
     ///      Only the deputy guardian can call this function.
     function pause() external {
         _onlyDeputyGuardian();
-        bytes memory data = abi.encodeWithSelector(SUPERCHAIN_CONFIG.pause.selector, "");
+        bytes memory data = abi.encodeCall(SUPERCHAIN_CONFIG.pause, (""));
 
         (bool success, bytes memory returnData) =
             SAFE.execTransactionFromModuleReturnData(address(SUPERCHAIN_CONFIG), 0, data, Enum.Operation.Call);
@@ -77,7 +77,7 @@ contract DeputyGuardianModule is ISemver {
     ///      Only the deputy guardian can call this function.
     function unpause() external {
         _onlyDeputyGuardian();
-        bytes memory data = abi.encodeWithSelector(SUPERCHAIN_CONFIG.unpause.selector);
+        bytes memory data = abi.encodeCall(SUPERCHAIN_CONFIG.unpause, ());
 
         (bool success, bytes memory returnData) =
             SAFE.execTransactionFromModuleReturnData(address(SUPERCHAIN_CONFIG), 0, data, Enum.Operation.Call);
@@ -91,7 +91,7 @@ contract DeputyGuardianModule is ISemver {
     /// @param _game The `IDisputeGame` contract instance.
     function blacklistDisputeGame(OptimismPortal2 _portal, IDisputeGame _game) external {
         _onlyDeputyGuardian();
-        bytes memory data = abi.encodeWithSelector(OptimismPortal2.blacklistDisputeGame.selector, address(_game));
+        bytes memory data = abi.encodeCall(OptimismPortal2.blacklistDisputeGame, (_game));
 
         (bool success, bytes memory returnData) =
             SAFE.execTransactionFromModuleReturnData(address(_portal), 0, data, Enum.Operation.Call);
@@ -105,7 +105,7 @@ contract DeputyGuardianModule is ISemver {
     /// @param _gameType The `GameType` to set as the respected game type.
     function setRespectedGameType(OptimismPortal2 _portal, GameType _gameType) external {
         _onlyDeputyGuardian();
-        bytes memory data = abi.encodeWithSelector(OptimismPortal2.setRespectedGameType.selector, _gameType);
+        bytes memory data = abi.encodeCall(OptimismPortal2.setRespectedGameType, (_gameType));
         (bool success, bytes memory returnData) =
             SAFE.execTransactionFromModuleReturnData(address(_portal), 0, data, Enum.Operation.Call);
         require(success, string(returnData));
