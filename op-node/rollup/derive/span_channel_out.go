@@ -56,10 +56,7 @@ func (co *SpanChannelOut) Reset() error {
 	co.compress.Reset()
 	co.reader.Reset()
 	co.closed = false
-	co.spanBatch = &SpanBatch{
-		GenesisTimestamp: co.spanBatch.GenesisTimestamp,
-		ChainID:          co.spanBatch.ChainID,
-	}
+	co.spanBatch = NewSpanBatch(co.spanBatch.GenesisTimestamp, co.spanBatch.ChainID)
 	_, err := rand.Read(co.id[:])
 	return err
 }
