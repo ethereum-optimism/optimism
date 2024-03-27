@@ -6,7 +6,7 @@ import { Safe, Enum } from "safe-contracts/Safe.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 
 /// @title VetoModule
-/// @notice This module allows any owner of the Safe Account to execute a veto through this.
+/// @notice This module allows any owner of the Safe Account to execute a veto.
 contract VetoModule is ISemver {
     /// @notice Semantic version.
     /// @custom:semver 1.0.0
