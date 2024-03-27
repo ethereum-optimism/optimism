@@ -25,7 +25,7 @@ contract SuperchainSubwayTicket is ERC721, Ownable {
         emit BaseURIChanged(_newBaseURI);
     }
 
-    function _baseURI() internal view override returns (string memory) {
-        return _baseTokenURI;
+    function _baseURI() internal view override returns (string memory _uri) {
+        _uri = _baseTokenURI;
     }
 }
