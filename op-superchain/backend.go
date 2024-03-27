@@ -1,7 +1,6 @@
 package superchain
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"sync"
@@ -72,7 +71,7 @@ func NewBackend(ctx context.Context, log log.Logger, m metrics.Factory, cfg *Con
 	return &backend, nil
 }
 
-func (b *backend) MessageSafety(ctx context.Context, id MessageIdentifier, payloadBytes hexutil.Bytes) (MessageSafetyLabel, error) {
+func (b *backend) MessageSafety(ctx context.Context, id MessageIdentifier, payload hexutil.Bytes) (MessageSafetyLabel, error) {
 	b.log.Info("message safety check", "chain_id", id.ChainId, "block_number", id.BlockNumber, "log_index", id.LogIndex)
 
 	// ChainID Invariant.
@@ -88,8 +87,8 @@ func (b *backend) MessageSafety(ctx context.Context, id MessageIdentifier, paylo
 	var header *types.Header
 
 	// Since eth_getLogs doesn't support specifying the log index, we fetch
-	// all the outbox reciepts for this block (TODO: add address filter). The
-	// timestamp is grabbed via the block header as getLogs omits this
+	// all the outbox reciepts for this block. The timestamp is grabbed via
+	// the block header as getLogs omits this
 	blockNumber := hexutil.EncodeBig(id.BlockNumber)
 	filterArgs := map[string]interface{}{"fromBlock": blockNumber, "toBlock": blockNumber}
 	batchElems := make([]rpc.BatchElem, 2)
@@ -105,32 +104,20 @@ func (b *backend) MessageSafety(ctx context.Context, id MessageIdentifier, paylo
 		return MessageUnknown, fmt.Errorf("block %d does not exist", id.BlockNumber)
 	}
 
-	// Message Log Integrity
-	// 	 -- BlockNumber & ChainID are handled via the RPC connection & inputs
+	if id.Timestamp != header.Time {
+		return MessageInvalid, fmt.Errorf("message id and header timestamp mismatch")
+	}
 
-	// TODO: If we filter by address, then this needs to change
 	if id.LogIndex >= uint64(len(logs)) {
 		return MessageInvalid, fmt.Errorf("invalid log index")
 	}
 
 	log := logs[id.LogIndex]
-	if id.LogIndex != uint64(log.Index) {
-		return MessageInvalid, fmt.Errorf("message log index mismatch")
-	}
-	if !bytes.Equal(payloadBytes, MessagePayloadBytes(&log)) {
-		return MessageInvalid, fmt.Errorf("message payload bytes mismatch")
-	}
-	if id.Origin != log.Address {
-		return MessageInvalid, fmt.Errorf("message origin mismatch")
-	}
-	if id.Timestamp != header.Time {
-		return MessageInvalid, fmt.Errorf("message timestamp mismatch")
+	if err := MessageLogCheck(id, payload, &log); err != nil {
+		return MessageInvalid, fmt.Errorf("failed log check: %w", err)
 	}
 
 	// Message Safety
-	//   The block builder & verifier must locally enforce the timestamp invariant. This only
-	//   provides fidelity into the safety label of this message relative to its dependencies.
-
 	var finalizedL2Timestamp uint64
 	b.mu.RLock()
 	finalizedL2Timestamp = b.l2FinalizedBlockRef.Time

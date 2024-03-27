@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/solabi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 )
@@ -42,6 +43,33 @@ func MessagePayloadBytes(log *types.Log) []byte {
 		msg = append(msg, topic.Bytes()...)
 	}
 	return append(msg, log.Data...)
+}
+
+// Check if a transaction is an executing message to the CrossL2Inbox
+func IsInboxExecutingMessageTx(tx *types.Transaction) bool {
+	if tx.To() == nil || *tx.To() == common.HexToAddress("0xa") {
+		return false
+	}
+
+	txData := tx.Data()
+	return len(txData) >= 4 && bytes.Equal(txData[:4], inboxExecuteMessageBytes4)
+}
+
+// Check the message id and payload against the fields of the log.
+func MessageLogCheck(id MessageIdentifier, payload hexutil.Bytes, log *types.Log) error {
+	if id.LogIndex != uint64(log.Index) {
+		return fmt.Errorf("log index mismatch")
+	}
+	if !bytes.Equal(payload, MessagePayloadBytes(log)) {
+		return fmt.Errorf("payload mismatch")
+	}
+	if id.Origin != log.Address {
+		return fmt.Errorf("origin mismatch")
+	}
+	if id.BlockNumber.Uint64() != log.BlockNumber {
+		return fmt.Errorf("block number mismatch")
+	}
+	return nil
 }
 
 // Parse the transaction data posted to the inbox `executeMessage` function, extracing it's parameters

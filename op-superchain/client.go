@@ -9,9 +9,9 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
-// In order to allow op-node/rollup/derive to depend on this, we cannot have a dependency
-// on op-service/sources as it has a dependency on op-node. Until we fix this, we create
-// an alternative head source here.
+// In order to allow `op-node/rollup/derive` to depend on this, we cannot have a dependency
+// on op-service/sources as that creates a circular dependency on op-node. Until we fix this,
+// we create an alternative head source here.
 
 type L1BlockRefsSource interface {
 	L1BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L1BlockRef, error)
