@@ -81,6 +81,8 @@ const main = async () => {
 
   const storageLayoutDir = path.join(outdir, 'storageLayout')
   const abiDir = path.join(outdir, 'abi')
+  fs.rmdirSync(storageLayoutDir, { recursive: true })
+  fs.rmdirSync(abiDir, { recursive: true })
   fs.mkdirSync(storageLayoutDir, { recursive: true })
   fs.mkdirSync(abiDir, { recursive: true })
 
