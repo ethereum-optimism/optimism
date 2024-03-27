@@ -34,8 +34,9 @@ var (
 
 	// batch types used in the benchmark
 	batchTypes = []uint{
-		derive.SingularBatchType,
 		derive.SpanBatchType,
+		// uncomment to include singular batches in the benchmark
+		//derive.SingularBatchType,
 	}
 )
 
@@ -72,11 +73,10 @@ func BenchmarkFinalBatchChannelOut(b *testing.B) {
 		{10, 1},
 		{100, 1},
 		{1000, 1},
-		{10000, 1},
+		//{10000, 1},
 
 		{10, 100},
 		{100, 100},
-		{1000, 100},
 	}
 
 	// build a set of test cases for each batch type, compressor, and target-pair
@@ -137,11 +137,10 @@ func BenchmarkAllBatchesChannelOut(b *testing.B) {
 		{10, 1},
 		{100, 1},
 		{1000, 1},
-		{10000, 1},
+		//{10000, 1},
 
 		{10, 100},
 		{100, 100},
-		{1000, 100},
 	}
 
 	// build a set of test cases for each batch type, compressor, and target-pair
