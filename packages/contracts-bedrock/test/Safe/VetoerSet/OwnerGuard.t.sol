@@ -45,8 +45,8 @@ contract TestOwnerGuard is Test {
         new OwnerGuard({ safe_: Safe(payable(_safe)) });
     }
 
-    /// @dev `constructor` should initialize `maxOwnerCount` to the max between `7` and the current number of owners of
-    ///      the Safe Account.
+    /// @dev `constructor` should initialize `maxOwnerCount` to the max between `INITIAL_MAX_OWNER_COUNT` and the
+    ///      current number of owners of the Safe Account.
     function test_Constructor_SetMaxOwnerCount(uint8 safeOwnerCount) public {
         // Mock the dependencies.
         {
@@ -59,9 +59,10 @@ contract TestOwnerGuard is Test {
         }
 
         OwnerGuard sut = new OwnerGuard({ safe_: Safe(payable(_safe)) });
+        uint8 initialMaxOwnerCount = sut.INITIAL_MAX_OWNER_COUNT();
 
         uint256 maxOwnerCount = sut.maxOwnerCount();
-        uint256 expectedMaxOwnerCount = safeOwnerCount > 7 ? safeOwnerCount : 7;
+        uint256 expectedMaxOwnerCount = safeOwnerCount > initialMaxOwnerCount ? safeOwnerCount : initialMaxOwnerCount;
         assertEq(maxOwnerCount, expectedMaxOwnerCount);
     }
 
@@ -86,7 +87,9 @@ contract TestOwnerGuard is Test {
             );
         }
 
-        vm.expectRevert(abi.encodeWithSelector(OwnerGuard.OwnerCountTooHigh.selector, newOwnerCount, 7));
+        vm.expectRevert(
+            abi.encodeWithSelector(OwnerGuard.OwnerCountTooHigh.selector, newOwnerCount, _sut.INITIAL_MAX_OWNER_COUNT())
+        );
         _sut.checkAfterExecution(txHash, success);
     }
 
@@ -200,7 +203,9 @@ contract TestOwnerGuard is Test {
             newOwnerCount = bound(newOwnerCount, _sut.maxOwnerCount() + 1, 255);
         }
 
-        vm.expectRevert(abi.encodeWithSelector(OwnerGuard.OwnerCountTooHigh.selector, newOwnerCount, 7));
+        vm.expectRevert(
+            abi.encodeWithSelector(OwnerGuard.OwnerCountTooHigh.selector, newOwnerCount, _sut.INITIAL_MAX_OWNER_COUNT())
+        );
         _sut.checkNewOwnerCount(newOwnerCount);
     }
 

@@ -17,6 +17,9 @@ contract OwnerGuard is ISemver, BaseGuard {
     /// @custom:semver 1.0.0
     string public constant version = "1.0.0";
 
+    /// @notice The initial max owner count used at deployment.
+    uint8 public constant INITIAL_MAX_OWNER_COUNT = 7;
+
     /// @notice The Safe Account for which this contract will be the guard.
     Safe public immutable safe;
 
@@ -60,8 +63,9 @@ contract OwnerGuard is ISemver, BaseGuard {
             revert InvalidOwnerCount(ownerCount);
         }
 
-        // Set the initial `maxOwnerCount`, to the greater between 7 and the current owner count.
-        maxOwnerCount = uint8(FixedPointMathLib.max(7, ownerCount));
+        // Set the initial `maxOwnerCount`, to the greater between `INITIAL_MAX_OWNER_COUNT` and the current owner
+        // count.
+        maxOwnerCount = uint8(FixedPointMathLib.max(INITIAL_MAX_OWNER_COUNT, ownerCount));
     }
 
     /// @notice Inherited hook from `BaseGuard` that is run right before the transaction is executed
