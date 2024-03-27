@@ -80,7 +80,7 @@ func OpenDBReadOnly(dbPath string) (db unsafe.Pointer, err error) {
 	openDBResult := C.open_db_read_only(cDbPath)
 
 	if openDBResult.error {
-		return nil, fmt.Errorf("Error open db from Reth Database.")
+		return nil, fmt.Errorf("failed to open RethDB")
 	}
 
 	return openDBResult.data, nil
@@ -93,7 +93,10 @@ type RethDBReceiptsFetcher struct {
 var _ ReceiptsProvider = (*RethDBReceiptsFetcher)(nil)
 
 func NewRethDBReceiptsFetcher(dbPath string) *RethDBReceiptsFetcher {
-	db, _ := OpenDBReadOnly(dbPath)
+	db, err := OpenDBReadOnly(dbPath)
+	if err != nil {
+		return nil
+	}
 	return &RethDBReceiptsFetcher{
 		dbInstance: db,
 	}
@@ -101,7 +104,7 @@ func NewRethDBReceiptsFetcher(dbPath string) *RethDBReceiptsFetcher {
 
 func (f *RethDBReceiptsFetcher) FetchReceipts(ctx context.Context, block eth.BlockInfo, txHashes []common.Hash) (types.Receipts, error) {
 	if f.dbInstance == nil {
-		return nil, fmt.Errorf("Error open db from Reth Database.")
+		return nil, fmt.Errorf("Reth dbInstance is nil")
 	}
 	hash := block.Hash()
 	return FetchRethReceipts(f.dbInstance, &hash)
