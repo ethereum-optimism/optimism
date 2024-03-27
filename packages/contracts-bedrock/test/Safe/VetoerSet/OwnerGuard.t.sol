@@ -128,8 +128,8 @@ contract TestOwnerGuard is Test {
         _sut.checkAfterExecution(txHash, success);
     }
 
-    /// @dev `updateMaxCount` should revert with `SenderIsNotSafeAccount` when the sender is not the Safe Account.
-    function testRevert_UpdateMaxCount_SenderIsNotSafeAccount(uint8 newMaxOwnerCount, address sender) public {
+    /// @dev `updateMaxOwnerCount` should revert with `SenderIsNotSafeAccount` when the sender is not the Safe Account.
+    function testRevert_UpdateMaxOwnerCount_SenderIsNotSafeAccount(uint8 newMaxOwnerCount, address sender) public {
         // Ensure the inputs are reasonable values.
         {
             vm.assume(sender != _safe);
@@ -137,12 +137,13 @@ contract TestOwnerGuard is Test {
 
         vm.expectRevert(abi.encodeWithSelector(OwnerGuard.SenderIsNotSafeAccount.selector, sender));
         vm.prank(sender);
-        _sut.updateMaxCount(newMaxOwnerCount);
+        _sut.updateMaxOwnerCount(newMaxOwnerCount);
     }
 
-    /// @dev `updateMaxCount` should revert with `InvalidNewMaxCount` when the `newMaxOwnerCount` is below the current
+    /// @dev `updateMaxOwnerCount` should revert with `InvalidNewMaxCount` when the `newMaxOwnerCount` is below the
+    /// current
     ///      number of owners of the Safe Account.
-    function testRevert_UpdateMaxCount_InvalidNewMaxCount(uint8 newMaxOwnerCount, uint256 safeOwnerCount) public {
+    function testRevert_UpdateMaxOwnerCount_InvalidNewMaxCount(uint8 newMaxOwnerCount, uint256 safeOwnerCount) public {
         // Ensure the inputs are reasonable values.
         {
             safeOwnerCount = bound(safeOwnerCount, uint256(newMaxOwnerCount) + 1, 511);
@@ -162,11 +163,11 @@ contract TestOwnerGuard is Test {
             abi.encodeWithSelector(OwnerGuard.InvalidNewMaxCount.selector, newMaxOwnerCount, safeOwnerCount)
         );
         vm.prank(_safe);
-        _sut.updateMaxCount(newMaxOwnerCount);
+        _sut.updateMaxOwnerCount(newMaxOwnerCount);
     }
 
-    /// @dev `updateMaxCount` should update `maxOwnerCount`.
-    function test_UpdateMaxCount_UpdateMaxOwnerCount(uint8 newMaxOwnerCount, uint256 safeOwnerCount) public {
+    /// @dev `updateMaxOwnerCount` should update `maxOwnerCount`.
+    function test_UpdateMaxOwnerCount_UpdateMaxOwnerCount(uint8 newMaxOwnerCount, uint256 safeOwnerCount) public {
         // Ensure the inputs are reasonable values.
         {
             safeOwnerCount = bound(safeOwnerCount, 0, newMaxOwnerCount);
@@ -183,7 +184,7 @@ contract TestOwnerGuard is Test {
         }
 
         vm.prank(_safe);
-        _sut.updateMaxCount(newMaxOwnerCount);
+        _sut.updateMaxOwnerCount(newMaxOwnerCount);
         assertEq(_sut.maxOwnerCount(), newMaxOwnerCount);
     }
 

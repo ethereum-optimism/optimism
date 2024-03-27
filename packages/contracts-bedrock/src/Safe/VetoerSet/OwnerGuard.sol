@@ -98,7 +98,7 @@ contract OwnerGuard is ISemver, BaseGuard {
     /// @notice Update the maximum number of owners.
     /// @dev Reverts if not called by the Safe Account.
     /// @param newMaxOwnerCount The new possible `maxOwnerCount` of owners.
-    function updateMaxCount(uint8 newMaxOwnerCount) external {
+    function updateMaxOwnerCount(uint8 newMaxOwnerCount) external {
         // Ensure only the Safe Account can call this function.
         if (msg.sender != address(safe)) {
             revert SenderIsNotSafeAccount(msg.sender);
