@@ -25,12 +25,12 @@ contract OwnerGuard is ISemver, BaseGuard {
 
     /// @notice Thrown at deployment if the current Safe Account owner count can't fit in a `uint8`.
     /// @param ownerCount The current owner count.
-    error OwnerCountTooHigh(uint256 ownerCount);
+    error InvalidOwnerCount(uint256 ownerCount);
 
     /// @notice Thrown if the new owner count is above the `maxOwnerCount` limit.
     /// @param ownerCount The Safe Account owner count.
     /// @param maxOwerCount The current `maxOwnerCount`.
-    error InvalidOwnerCount(uint256 ownerCount, uint256 maxOwerCount);
+    error OwnerCountTooHigh(uint256 ownerCount, uint256 maxOwerCount);
 
     /// @notice Thrown after the Safe Account executed a transaction if its threshold does not matches
     ///         with the desired 66% threshold.
@@ -57,7 +57,7 @@ contract OwnerGuard is ISemver, BaseGuard {
         // Ensure the current numer owners of the Sfe Account can fit in a `uint8`.
         uint256 ownerCount = safe_.getOwners().length;
         if (ownerCount > type(uint8).max) {
-            revert OwnerCountTooHigh(ownerCount);
+            revert InvalidOwnerCount(ownerCount);
         }
 
         // Set the initial `maxOwnerCount`, to the greater between 7 and the current owner count.
@@ -121,7 +121,7 @@ contract OwnerGuard is ISemver, BaseGuard {
     function checkNewOwnerCount(uint256 newOwnerCount) public view returns (uint256 threshold) {
         // Ensure we don't exceed the maximum number of allowed owners.
         if (newOwnerCount > maxOwnerCount) {
-            revert InvalidOwnerCount(newOwnerCount, maxOwnerCount);
+            revert OwnerCountTooHigh(newOwnerCount, maxOwnerCount);
         }
 
         // Compute the corresponding ceil(66%) threshold of owners.

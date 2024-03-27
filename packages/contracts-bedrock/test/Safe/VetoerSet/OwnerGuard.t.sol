@@ -23,9 +23,9 @@ contract TestOwnerGuard is Test {
         _sut = new OwnerGuard({ safe_: Safe(payable(_safe)) });
     }
 
-    /// @dev `constructor` should revert with `OwnerCountTooHigh` when the current number of owners of the Safe Account
+    /// @dev `constructor` should revert with `InvalidOwnerCount` when the current number of owners of the Safe Account
     ///      can not fit in a `uint8`.
-    function testRevert_Constructor_OwnerCountTooHigh(uint256 safeOwnerCount) public {
+    function testRevert_Constructor_InvalidOwnerCount(uint256 safeOwnerCount) public {
         // Ensure the inputs are reasonable values.
         {
             safeOwnerCount = bound(safeOwnerCount, uint256(type(uint8).max) + 1, 511);
@@ -41,7 +41,7 @@ contract TestOwnerGuard is Test {
             );
         }
 
-        vm.expectRevert(abi.encodeWithSelector(OwnerGuard.OwnerCountTooHigh.selector, safeOwnerCount));
+        vm.expectRevert(abi.encodeWithSelector(OwnerGuard.InvalidOwnerCount.selector, safeOwnerCount));
         new OwnerGuard({ safe_: Safe(payable(_safe)) });
     }
 
@@ -65,8 +65,8 @@ contract TestOwnerGuard is Test {
         assertEq(maxOwnerCount, expectedMaxOwnerCount);
     }
 
-    /// @dev `checkAfterExecution` should revert with `InvalidOwnerCount` when `maxOwnerCount` is exceeded.
-    function testRevert_CheckAfterExecution_InvalidOwnerCount(
+    /// @dev `checkAfterExecution` should revert with `OwnerCountTooHigh` when `maxOwnerCount` is exceeded.
+    function testRevert_CheckAfterExecution_OwnerCountTooHigh(
         bytes32 txHash,
         bool success,
         uint256 newOwnerCount
@@ -86,7 +86,7 @@ contract TestOwnerGuard is Test {
             );
         }
 
-        vm.expectRevert(abi.encodeWithSelector(OwnerGuard.InvalidOwnerCount.selector, newOwnerCount, 7));
+        vm.expectRevert(abi.encodeWithSelector(OwnerGuard.OwnerCountTooHigh.selector, newOwnerCount, 7));
         _sut.checkAfterExecution(txHash, success);
     }
 
@@ -188,14 +188,14 @@ contract TestOwnerGuard is Test {
         assertEq(_sut.maxOwnerCount(), newMaxOwnerCount);
     }
 
-    /// @dev `checkNewOwnerCount` should revert with `InvalidOwnerCount` when `maxOwnerCount` is exceeded.
-    function testRevert_CheckNewOwnerCount_InvalidOwnerCount(uint256 newOwnerCount) public {
+    /// @dev `checkNewOwnerCount` should revert with `OwnerCountTooHigh` when `maxOwnerCount` is exceeded.
+    function testRevert_CheckNewOwnerCount_OwnerCountTooHigh(uint256 newOwnerCount) public {
         // Ensure the inputs are reasonable values.
         {
             newOwnerCount = bound(newOwnerCount, _sut.maxOwnerCount() + 1, 255);
         }
 
-        vm.expectRevert(abi.encodeWithSelector(OwnerGuard.InvalidOwnerCount.selector, newOwnerCount, 7));
+        vm.expectRevert(abi.encodeWithSelector(OwnerGuard.OwnerCountTooHigh.selector, newOwnerCount, 7));
         _sut.checkNewOwnerCount(newOwnerCount);
     }
 
