@@ -54,7 +54,7 @@ contract OwnerGuard is ISemver, BaseGuard {
     constructor(Safe safe_) {
         safe = safe_;
 
-        // Ensure the current numer owners of the Sfe Account can fit in a `uint8`.
+        // Ensure the current number owners of the Safe Account can fit in a `uint8`.
         uint256 ownerCount = safe_.getOwners().length;
         if (ownerCount > type(uint8).max) {
             revert InvalidOwnerCount(ownerCount);
@@ -110,7 +110,7 @@ contract OwnerGuard is ISemver, BaseGuard {
             revert MaxOwnerCountTooLow(newMaxOwnerCount, ownerCount);
         }
 
-        // Update the new`maxOwnerCount`.
+        // Update the new `maxOwnerCount`.
         maxOwnerCount = newMaxOwnerCount;
     }
 
@@ -124,7 +124,7 @@ contract OwnerGuard is ISemver, BaseGuard {
             revert OwnerCountTooHigh(newOwnerCount, maxOwnerCount);
         }
 
-        // Compute the corresponding ceil(66%) threshold of owners.
+        // Compute the corresponding ceil (66%) threshold of owners.
         threshold = (newOwnerCount * 66 + 99) / 100;
     }
 }
