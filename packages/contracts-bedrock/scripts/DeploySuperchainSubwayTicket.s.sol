@@ -6,13 +6,11 @@ import "forge-std/Script.sol";
 import { SuperchainSubwayTicket } from "src/periphery/SuperchainSubwayTicket.sol";
 
 contract DeploySuperchainSubwayTicket is Script {
-
     function name() public pure returns (string memory name_) {
         name_ = "DeploySuperchainSubwayTicket";
     }
 
     function run() external {
-
         console.log("Deploying Superchain Subway Ticket");
         vm.startBroadcast();
 

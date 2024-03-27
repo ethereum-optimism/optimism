@@ -6,28 +6,26 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
 contract SuperchainSubwayTicket is ERC721, Ownable {
     uint256 public currentTokenId;
-    string public baseTokenURI;
+    string public _baseTokenURI;
 
     event BaseURIChanged(string newBaseURI);
 
-    constructor(string memory name, string memory symbol, string memory baseURI)
-        ERC721(name, symbol)
-    {
+    constructor(string memory name, string memory symbol, string memory baseURI) ERC721(name, symbol) {
         setBaseURI(baseURI);
     }
 
-    function mint(address recipient) public returns (uint256) {
+    function mint(address _recipient) public returns (uint256) {
         uint256 newItemId = ++currentTokenId;
-        _safeMint(recipient, newItemId);
+        _safeMint(_recipient, newItemId);
         return newItemId;
     }
 
-    function setBaseURI(string memory newBaseURI) public onlyOwner {
-        baseTokenURI = newBaseURI;
-        emit BaseURIChanged(newBaseURI);
+    function setBaseURI(string memory _newBaseURI) public onlyOwner {
+        _baseTokenURI = _newBaseURI;
+        emit BaseURIChanged(_newBaseURI);
     }
 
     function _baseURI() internal view override returns (string memory) {
-        return baseTokenURI;
+        return _baseTokenURI;
     }
 }
