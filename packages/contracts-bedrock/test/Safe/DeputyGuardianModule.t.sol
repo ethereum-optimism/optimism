@@ -14,11 +14,15 @@ import "src/libraries/DisputeTypes.sol";
 contract DeputyGuardianModule_TestInit is CommonTest, SafeTestTools {
     using SafeTestLib for SafeInstance;
 
+    error OnlyDeputyGuardian();
+    error TransactionExecutionFailed(string);
+
     event SuperchainConfigPaused();
     event SuperchainConfigUnpaused();
     event DisputeGameBlacklisted(IDisputeGame);
     event RespectedGameTypeSet(GameType);
     event ExecutionFromModuleSuccess(address indexed);
+
     DeputyGuardianModule deputyGuardianModule;
     SafeInstance safeInstance;
     address deputyGuardian;
@@ -71,16 +75,16 @@ contract DeputyGuardianModule_Pause_Test is DeputyGuardianModule_TestInit {
         vm.expectEmit(address(deputyGuardianModule));
         emit SuperchainConfigPaused();
 
-        vm.prank(address(deputyGuardianModule));
+        vm.prank(address(deputyGuardian));
         deputyGuardianModule.pause();
         assertEq(superchainConfig.paused(), true);
     }
-        vm.prank(address(deputyGuardian));
+}
 
 contract DeputyGuardianModule_Pause_TestFail is DeputyGuardianModule_TestInit {
     /// @dev Tests that `pause` reverts when called by a non deputy guardian.
     function test_pause_notDeputyGuardian_reverts() external {
-        vm.expectRevert("DeputyGuardianModule: Only the deputy guardian can call this function.");
+        vm.expectRevert(abi.encodeWithSelector(OnlyDeputyGuardian.selector));
         deputyGuardianModule.pause();
     }
 
@@ -89,11 +93,13 @@ contract DeputyGuardianModule_Pause_TestFail is DeputyGuardianModule_TestInit {
         vm.mockCallRevert(
             address(superchainConfig),
             abi.encodeWithSelector(superchainConfig.pause.selector),
-            bytes("SuperchainConfig: pause() reverted")
+            "SuperchainConfig: pause() reverted"
         );
 
         vm.prank(address(deputyGuardian));
-        vm.expectRevert("SuperchainConfig: pause() reverted");
+        vm.expectRevert(
+            abi.encodeWithSelector(TransactionExecutionFailed.selector, "SuperchainConfig: pause() reverted")
+        );
         deputyGuardianModule.pause();
     }
 }
@@ -129,7 +135,7 @@ contract DeputyGuardianModule_Unpause_Test is DeputyGuardianModule_TestInit {
 contract DeputyGuardianModule_Unpause_TestFail is DeputyGuardianModule_Unpause_Test {
     /// @dev Tests that `unpause` reverts when called by a non deputy guardian.
     function test_unpause_notDeputyGuardian_reverts() external {
-        vm.expectRevert("DeputyGuardianModule: Only the deputy guardian can call this function.");
+        vm.expectRevert(abi.encodeWithSelector(OnlyDeputyGuardian.selector));
         deputyGuardianModule.unpause();
         assertTrue(superchainConfig.paused());
     }
@@ -139,11 +145,13 @@ contract DeputyGuardianModule_Unpause_TestFail is DeputyGuardianModule_Unpause_T
         vm.mockCallRevert(
             address(superchainConfig),
             abi.encodeWithSelector(superchainConfig.unpause.selector),
-            bytes("SuperchainConfig: unpause reverted")
+            "SuperchainConfig: unpause reverted"
         );
 
         vm.prank(address(deputyGuardian));
-        vm.expectRevert("SuperchainConfig: unpause reverted");
+        vm.expectRevert(
+            abi.encodeWithSelector(TransactionExecutionFailed.selector, "SuperchainConfig: unpause reverted")
+        );
         deputyGuardianModule.unpause();
     }
 }
@@ -170,7 +178,7 @@ contract DeputyGuardianModule_BlacklistDisputeGame_TestFail is DeputyGuardianMod
     /// @dev Tests that `blacklistDisputeGame` reverts when called by a non deputy guardian.
     function test_blacklistDisputeGame_notDeputyGuardian_reverts() external {
         IDisputeGame game = IDisputeGame(makeAddr("game"));
-        vm.expectRevert("DeputyGuardianModule: Only the deputy guardian can call this function.");
+        vm.expectRevert(abi.encodeWithSelector(OnlyDeputyGuardian.selector));
         deputyGuardianModule.blacklistDisputeGame(optimismPortal2, game);
         assertFalse(optimismPortal2.disputeGameBlacklist(game));
     }
@@ -180,12 +188,16 @@ contract DeputyGuardianModule_BlacklistDisputeGame_TestFail is DeputyGuardianMod
         vm.mockCallRevert(
             address(optimismPortal2),
             abi.encodeWithSelector(optimismPortal2.blacklistDisputeGame.selector),
-            bytes("OptimismPortal2: blacklistDisputeGame reverted")
+            "OptimismPortal2: blacklistDisputeGame reverted"
         );
 
         IDisputeGame game = IDisputeGame(makeAddr("game"));
         vm.prank(address(deputyGuardian));
-        vm.expectRevert("OptimismPortal2: blacklistDisputeGame reverted");
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                TransactionExecutionFailed.selector, "OptimismPortal2: blacklistDisputeGame reverted"
+            )
+        );
         deputyGuardianModule.blacklistDisputeGame(optimismPortal2, game);
     }
 }
@@ -211,7 +223,7 @@ contract DeputyGuardianModule_setRespectedGameType_TestFail is DeputyGuardianMod
     /// @dev Tests that `setRespectedGameType` when called by a non deputy guardian.
     function testFuzz_setRespectedGameType_notDeputyGuardian_reverts(GameType _gameType) external {
         vm.assume(GameType.unwrap(optimismPortal2.respectedGameType()) != GameType.unwrap(_gameType));
-        vm.expectRevert("DeputyGuardianModule: Only the deputy guardian can call this function.");
+        vm.expectRevert(abi.encodeWithSelector(OnlyDeputyGuardian.selector));
         deputyGuardianModule.setRespectedGameType(optimismPortal2, _gameType);
         assertNotEq(GameType.unwrap(optimismPortal2.respectedGameType()), GameType.unwrap(_gameType));
     }
@@ -221,12 +233,16 @@ contract DeputyGuardianModule_setRespectedGameType_TestFail is DeputyGuardianMod
         vm.mockCallRevert(
             address(optimismPortal2),
             abi.encodeWithSelector(optimismPortal2.setRespectedGameType.selector),
-            bytes("OptimismPortal2: setRespectedGameType reverted")
+            "OptimismPortal2: setRespectedGameType reverted"
         );
 
         GameType gameType = GameType.wrap(1);
         vm.prank(address(deputyGuardian));
-        vm.expectRevert("OptimismPortal2: setRespectedGameType reverted");
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                TransactionExecutionFailed.selector, "OptimismPortal2: setRespectedGameType reverted"
+            )
+        );
         deputyGuardianModule.setRespectedGameType(optimismPortal2, gameType);
     }
 }
