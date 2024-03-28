@@ -17,6 +17,18 @@ import "src/libraries/DisputeTypes.sol";
 ///         actions that the Guardian is authorized to take. The security council can revoke the Deputy Guardian's
 ///         authorization at any time by disabling this module.
 contract DeputyGuardianModule is ISemver {
+    /// @notice Emitted when the SuperchainConfig is paused
+    event SuperchainConfigPaused();
+
+    /// @notice Emitted when the SuperchainConfig is unpaused
+    event SuperchainConfigUnpaused();
+
+    /// @notice Emitted when a DisputeGame is blacklisted
+    event DisputeGameBlacklisted(IDisputeGame game);
+
+    /// @notice Emitted when the respected game type is set
+    event RespectedGameTypeSet(GameType gameType);
+
     /// @notice The Safe contract instance
     Safe internal immutable SAFE;
 
@@ -65,11 +77,12 @@ contract DeputyGuardianModule is ISemver {
     ///      Only the deputy guardian can call this function.
     function pause() external {
         _onlyDeputyGuardian();
-        bytes memory data = abi.encodeCall(SUPERCHAIN_CONFIG.pause, (""));
+        bytes memory data = abi.encodeCall(SUPERCHAIN_CONFIG.pause, ("Deputy Guardian"));
 
         (bool success, bytes memory returnData) =
             SAFE.execTransactionFromModuleReturnData(address(SUPERCHAIN_CONFIG), 0, data, Enum.Operation.Call);
         require(success, string(returnData));
+        emit SuperchainConfigPaused();
     }
 
     /// @notice Calls the Security Council Safe's `execTransactionFromModuleReturnData()`, with the arguments
@@ -82,6 +95,7 @@ contract DeputyGuardianModule is ISemver {
         (bool success, bytes memory returnData) =
             SAFE.execTransactionFromModuleReturnData(address(SUPERCHAIN_CONFIG), 0, data, Enum.Operation.Call);
         require(success, string(returnData));
+        emit SuperchainConfigUnpaused();
     }
 
     /// @notice Calls the Security Council Safe's `execTransactionFromModuleReturnData()`, with the arguments
@@ -96,6 +110,7 @@ contract DeputyGuardianModule is ISemver {
         (bool success, bytes memory returnData) =
             SAFE.execTransactionFromModuleReturnData(address(_portal), 0, data, Enum.Operation.Call);
         require(success, string(returnData));
+        emit DisputeGameBlacklisted(_game);
     }
 
     /// @notice Calls the Security Council Safe's `execTransactionFromModuleReturnData()`, with the arguments
@@ -109,5 +124,6 @@ contract DeputyGuardianModule is ISemver {
         (bool success, bytes memory returnData) =
             SAFE.execTransactionFromModuleReturnData(address(_portal), 0, data, Enum.Operation.Call);
         require(success, string(returnData));
+        emit RespectedGameTypeSet(_gameType);
     }
 }

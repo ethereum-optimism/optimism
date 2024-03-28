@@ -14,6 +14,11 @@ import "src/libraries/DisputeTypes.sol";
 contract DeputyGuardianModule_TestInit is CommonTest, SafeTestTools {
     using SafeTestLib for SafeInstance;
 
+    event SuperchainConfigPaused();
+    event SuperchainConfigUnpaused();
+    event DisputeGameBlacklisted(IDisputeGame);
+    event RespectedGameTypeSet(GameType);
+    event ExecutionFromModuleSuccess(address indexed);
     DeputyGuardianModule deputyGuardianModule;
     SafeInstance safeInstance;
     address deputyGuardian;
@@ -57,12 +62,20 @@ contract DeputyGuardianModule_Getters_Test is DeputyGuardianModule_TestInit {
 contract DeputyGuardianModule_Pause_Test is DeputyGuardianModule_TestInit {
     /// @dev Tests that `pause` successfully pauses when called by the deputy guardian.
     function test_pause_succeeds() external {
-        // Pause the SuperchainConfig contract
-        vm.prank(address(deputyGuardian));
+        vm.expectEmit(address(superchainConfig));
+        emit Paused("Deputy Guardian");
+
+        vm.expectEmit(address(safeInstance.safe));
+        emit ExecutionFromModuleSuccess(address(deputyGuardianModule));
+
+        vm.expectEmit(address(deputyGuardianModule));
+        emit SuperchainConfigPaused();
+
+        vm.prank(address(deputyGuardianModule));
         deputyGuardianModule.pause();
         assertEq(superchainConfig.paused(), true);
     }
-}
+        vm.prank(address(deputyGuardian));
 
 contract DeputyGuardianModule_Pause_TestFail is DeputyGuardianModule_TestInit {
     /// @dev Tests that `pause` reverts when called by a non deputy guardian.
@@ -96,6 +109,15 @@ contract DeputyGuardianModule_Unpause_Test is DeputyGuardianModule_TestInit {
 
     /// @dev Tests that `unpause` successfully unpauses when called by the deputy guardian.
     function test_unpause_succeeds() external {
+        vm.expectEmit(address(superchainConfig));
+        emit Unpaused();
+
+        vm.expectEmit(address(safeInstance.safe));
+        emit ExecutionFromModuleSuccess(address(deputyGuardianModule));
+
+        vm.expectEmit(address(deputyGuardianModule));
+        emit SuperchainConfigUnpaused();
+
         vm.prank(address(deputyGuardian));
         deputyGuardianModule.unpause();
         assertFalse(superchainConfig.paused());
@@ -131,6 +153,13 @@ contract DeputyGuardianModule_BlacklistDisputeGame_Test is DeputyGuardianModule_
     /// guardian.
     function test_blacklistDisputeGame_succeeds() external {
         IDisputeGame game = IDisputeGame(makeAddr("game"));
+
+        vm.expectEmit(address(safeInstance.safe));
+        emit ExecutionFromModuleSuccess(address(deputyGuardianModule));
+
+        vm.expectEmit(address(deputyGuardianModule));
+        emit DisputeGameBlacklisted(game);
+
         vm.prank(address(deputyGuardian));
         deputyGuardianModule.blacklistDisputeGame(optimismPortal2, game);
         assertTrue(optimismPortal2.disputeGameBlacklist(game));
@@ -165,6 +194,12 @@ contract DeputyGuardianModule_setRespectedGameType_Test is DeputyGuardianModule_
     /// @dev Tests that `setRespectedGameType` successfully updates the respected game type when called by the deputy
     /// guardian.
     function testFuzz_setRespectedGameType_succeeds(GameType _gameType) external {
+        vm.expectEmit(address(safeInstance.safe));
+        emit ExecutionFromModuleSuccess(address(deputyGuardianModule));
+
+        vm.expectEmit(address(deputyGuardianModule));
+        emit RespectedGameTypeSet(_gameType);
+
         vm.prank(address(deputyGuardian));
         deputyGuardianModule.setRespectedGameType(optimismPortal2, _gameType);
         assertEq(GameType.unwrap(optimismPortal2.respectedGameType()), GameType.unwrap(_gameType));
