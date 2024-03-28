@@ -106,6 +106,9 @@ library GameTypes {
     /// @dev A permissioned dispute game type the uses the cannon vm.
     GameType internal constant PERMISSIONED_CANNON = GameType.wrap(1);
 
+    /// @notice A dispute game type the uses the asterisc VM
+    GameType internal constant ASTERISC = GameType.wrap(2);
+
     /// @notice A dispute game type that uses an alphabet vm.
     ///         Not intended for production use.
     GameType internal constant ALPHABET = GameType.wrap(255);
