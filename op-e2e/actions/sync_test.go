@@ -26,6 +26,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func newSpanChannelOut(t StatefulTesting, e e2eutils.SetupData) derive.ChannelOut {
+	c, err := compressor.NewBlindCompressor(compressor.Config{
+		TargetOutputSize: 128_000,
+	})
+	require.NoError(t, err)
+	spanBatch := derive.NewSpanBatch(e.RollupCfg.Genesis.L2Time, e.RollupCfg.L2ChainID)
+	channelOut, err := derive.NewChannelOut(derive.SpanBatchType, c, spanBatch)
+	require.NoError(t, err)
+	return channelOut
+}
+
 // TestSyncBatchType run each sync test case in singular batch mode and span batch mode.
 func TestSyncBatchType(t *testing.T) {
 	tests := []struct {
@@ -211,14 +222,7 @@ func TestBackupUnsafe(gt *testing.T) {
 	require.Equal(t, verifier.L2Unsafe().Number, uint64(5))
 	require.Equal(t, verifier.L2Safe().Number, uint64(0))
 
-	c, e := compressor.NewBlindCompressor(compressor.Config{
-		TargetOutputSize: 128_000,
-	})
-	require.NoError(t, e)
-	spanBatch := derive.NewSpanBatch(sd.RollupCfg.Genesis.L2Time, sd.RollupCfg.L2ChainID)
-	// Create new span batch channel
-	channelOut, err := derive.NewChannelOut(derive.SpanBatchType, c, spanBatch)
-	require.NoError(t, err)
+	channelOut := newSpanChannelOut(t, *sd)
 
 	for i := uint64(1); i <= sequencer.L2Unsafe().Number; i++ {
 		block, err := l2Cl.BlockByNumber(t.Ctx(), new(big.Int).SetUint64(i))
@@ -381,14 +385,7 @@ func TestBackupUnsafeReorgForkChoiceInputError(gt *testing.T) {
 	require.Equal(t, verifier.L2Unsafe().Number, uint64(5))
 	require.Equal(t, verifier.L2Safe().Number, uint64(0))
 
-	c, e := compressor.NewBlindCompressor(compressor.Config{
-		TargetOutputSize: 128_000,
-	})
-	require.NoError(t, e)
-	spanBatch := derive.NewSpanBatch(sd.RollupCfg.Genesis.L2Time, sd.RollupCfg.L2ChainID)
-	// Create new span batch channel
-	channelOut, err := derive.NewChannelOut(derive.SpanBatchType, c, spanBatch)
-	require.NoError(t, err)
+	channelOut := newSpanChannelOut(t, *sd)
 
 	for i := uint64(1); i <= sequencer.L2Unsafe().Number; i++ {
 		block, err := l2Cl.BlockByNumber(t.Ctx(), new(big.Int).SetUint64(i))
@@ -527,14 +524,7 @@ func TestBackupUnsafeReorgForkChoiceNotInputError(gt *testing.T) {
 	require.Equal(t, verifier.L2Unsafe().Number, uint64(5))
 	require.Equal(t, verifier.L2Safe().Number, uint64(0))
 
-	c, e := compressor.NewBlindCompressor(compressor.Config{
-		TargetOutputSize: 128_000,
-	})
-	require.NoError(t, e)
-	spanBatch := derive.NewSpanBatch(sd.RollupCfg.Genesis.L2Time, sd.RollupCfg.L2ChainID)
-	// Create new span batch channel
-	channelOut, err := derive.NewChannelOut(derive.SpanBatchType, c, spanBatch)
-	require.NoError(t, err)
+	channelOut := newSpanChannelOut(t, *sd)
 
 	for i := uint64(1); i <= sequencer.L2Unsafe().Number; i++ {
 		block, err := l2Cl.BlockByNumber(t.Ctx(), new(big.Int).SetUint64(i))
@@ -863,14 +853,7 @@ func TestInvalidPayloadInSpanBatch(gt *testing.T) {
 	sequencer.ActL2PipelineFull(t)
 	verifier.ActL2PipelineFull(t)
 
-	c, e := compressor.NewBlindCompressor(compressor.Config{
-		TargetOutputSize: 128_000,
-	})
-	require.NoError(t, e)
-	spanBatch := derive.NewSpanBatch(sd.RollupCfg.Genesis.L2Time, sd.RollupCfg.L2ChainID)
-	// Create new span batch channel
-	channelOut, err := derive.NewChannelOut(derive.SpanBatchType, c, spanBatch)
-	require.NoError(t, err)
+	channelOut := newSpanChannelOut(t, *sd)
 
 	// Create block A1 ~ A12 for L1 block #0 ~ #2
 	miner.ActEmptyBlock(t)
@@ -909,14 +892,7 @@ func TestInvalidPayloadInSpanBatch(gt *testing.T) {
 	require.Equal(t, verifier.L2Unsafe().Number, uint64(7))
 	require.Equal(t, verifier.L2Safe().Number, uint64(0))
 
-	// Create new span batch channel
-	c, e = compressor.NewBlindCompressor(compressor.Config{
-		TargetOutputSize: 128_000,
-	})
-	require.NoError(t, e)
-	spanBatch = derive.NewSpanBatch(sd.RollupCfg.Genesis.L2Time, sd.RollupCfg.L2ChainID)
-	channelOut, err = derive.NewChannelOut(derive.SpanBatchType, c, spanBatch)
-	require.NoError(t, err)
+	channelOut = newSpanChannelOut(t, *sd)
 
 	for i := uint64(1); i <= sequencer.L2Unsafe().Number; i++ {
 		block, err := l2Cl.BlockByNumber(t.Ctx(), new(big.Int).SetUint64(i))

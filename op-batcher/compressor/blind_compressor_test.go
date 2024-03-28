@@ -23,4 +23,8 @@ func TestBlindCompressorLimit(t *testing.T) {
 	// finally flush the compressor and see that it is full
 	bc.Flush()
 	require.Error(t, bc.FullErr())
+
+	// write a little more data to the compressor and see that it is still full
+	_, err = bc.Write([]byte("hello"))
+	require.Error(t, err)
 }

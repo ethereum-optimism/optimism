@@ -20,7 +20,6 @@ import (
 
 // initializedSpanBatch creates a new SpanBatch with given SingularBatches.
 // It is used *only* in tests to create a SpanBatch with given SingularBatches as a convenience.
-// It uses default value of 1 for AppendSingularBatch's seqNum.
 // It will also ignore any errors that occur during AppendSingularBatch.
 // Tests should manually set the first bit of the originBits if needed using SetFirstOriginChangedBit
 func initializedSpanBatch(singularBatches []*SingularBatch, genesisTimestamp uint64, chainID *big.Int) *SpanBatch {
@@ -29,7 +28,7 @@ func initializedSpanBatch(singularBatches []*SingularBatch, genesisTimestamp uin
 		return spanBatch
 	}
 	for i := 0; i < len(singularBatches); i++ {
-		if err := spanBatch.AppendSingularBatch(singularBatches[i], uint64(1)); err != nil {
+		if err := spanBatch.AppendSingularBatch(singularBatches[i], uint64(i)); err != nil {
 			continue
 		}
 	}
@@ -383,7 +382,7 @@ func TestSpanBatchAppend(t *testing.T) {
 
 	L := 2
 	for i := 0; i < L; i++ {
-		err := spanBatch.AppendSingularBatch(singularBatches[i], uint64(1))
+		err := spanBatch.AppendSingularBatch(singularBatches[i], uint64(i))
 		require.NoError(t, err)
 	}
 	// initialize with two singular batches
