@@ -363,72 +363,73 @@ func PostCheckPredeploys(tx kv.Tx, g *types.Genesis) error {
 			return fmt.Errorf("expected balance for %s to be %d but got %d", addr, oldBalance, new(big.Int).SetBytes(newBalance))
 		}
 
-		// For each predeploy, check that we've set the implementation correctly when
-		// necessary and that there's code at the implementation.
-		for _, proxyAddr := range predeploys.Predeploys {
-			if UntouchablePredeploys[*proxyAddr] {
-				log.Trace("skipping untouchable predeploy", "address", proxyAddr)
-				continue
-			}
+	}
 
-			if *proxyAddr == predeploys.LegacyERC20ETHAddr {
-				log.Trace("skipping legacy eth predeploy")
-				continue
-			}
+	// For each predeploy, check that we've set the implementation correctly when
+	// necessary and that there's code at the implementation.
+	for _, proxyAddr := range predeploys.Predeploys {
+		if UntouchablePredeploys[*proxyAddr] {
+			log.Trace("skipping untouchable predeploy", "address", proxyAddr)
+			continue
+		}
 
-			if *proxyAddr == predeploys.Create2DeployerAddr || *proxyAddr == predeploys.DeterministicDeploymentProxyAddr {
-				implCode, err := state.GetContractCode(tx, *proxyAddr)
-				if err != nil {
-					return fmt.Errorf("failed to read contract code from database: %w", err)
-				}
-				if implCode == nil || len(implCode) == 0 {
-					return errors.New("no code found at create2 deployer")
-				}
-				if *proxyAddr == predeploys.DeterministicDeploymentProxyAddr {
-					if *implCode != libcommon.HexToHash(bindings.DeterministicDeploymentProxyDeployedBin) {
-						return fmt.Errorf("expected code at deterministic deployment proxy to be %x but got %x", bindings.DeterministicDeploymentProxyDeployedBin, *implCode)
-					}
-				}
-				if *proxyAddr == predeploys.Create2DeployerAddr {
-					if *implCode != libcommon.HexToHash(bindings.Create2DeployerDeployedBin) {
-						return fmt.Errorf("expected code at create2 deployer to be %x but got %x", bindings.Create2DeployerDeployedBin, *implCode)
-					}
-				}
-				log.Trace("skipping special predeploy", "address", *proxyAddr)
-				continue
-			}
+		if *proxyAddr == predeploys.LegacyERC20ETHAddr {
+			log.Trace("skipping legacy eth predeploy")
+			continue
+		}
 
-			if *proxyAddr == predeploys.ProxyAdminAddr {
-				implCode, err := state.GetContractCode(tx, *proxyAddr)
-				if err != nil {
-					return fmt.Errorf("failed to read contract code from database: %w", err)
-				}
-				if implCode == nil || len(implCode) == 0 {
-					return errors.New("no code found at proxy admin")
-				}
-				continue
-			}
-
-			expImplAddr, err := AddressToCodeNamespace(*proxyAddr)
-			if err != nil {
-				return fmt.Errorf("error converting %s to code namespace: %w", *proxyAddr, err)
-			}
-
+		if *proxyAddr == predeploys.Create2DeployerAddr || *proxyAddr == predeploys.DeterministicDeploymentProxyAddr {
 			implCode, err := state.GetContractCode(tx, *proxyAddr)
 			if err != nil {
 				return fmt.Errorf("failed to read contract code from database: %w", err)
 			}
 			if implCode == nil || len(implCode) == 0 {
-				return fmt.Errorf("no code found at predeploy impl %s", *proxyAddr)
+				return errors.New("no code found at create2 deployer")
 			}
+			if *proxyAddr == predeploys.DeterministicDeploymentProxyAddr {
+				if *implCode != libcommon.HexToHash(bindings.DeterministicDeploymentProxyDeployedBin) {
+					return fmt.Errorf("expected code at deterministic deployment proxy to be %x but got %x", bindings.DeterministicDeploymentProxyDeployedBin, *implCode)
+				}
+			}
+			if *proxyAddr == predeploys.Create2DeployerAddr {
+				if *implCode != libcommon.HexToHash(bindings.Create2DeployerDeployedBin) {
+					return fmt.Errorf("expected code at create2 deployer to be %x but got %x", bindings.Create2DeployerDeployedBin, *implCode)
+				}
+			}
+			log.Trace("skipping special predeploy", "address", *proxyAddr)
+			continue
+		}
 
-			actImplAddr, err := state.GetStorage(tx, *proxyAddr, ImplementationSlot)
+		if *proxyAddr == predeploys.ProxyAdminAddr {
+			implCode, err := state.GetContractCode(tx, *proxyAddr)
 			if err != nil {
-				return fmt.Errorf("failed to read implementation from database: %w", err)
+				return fmt.Errorf("failed to read contract code from database: %w", err)
 			}
-			if expImplAddr != libcommon.HexToAddress(actImplAddr.Hex()) {
-				return fmt.Errorf("expected implementation for %s to be at %s, but got %s", *proxyAddr, expImplAddr, actImplAddr)
+			if implCode == nil || len(implCode) == 0 {
+				return errors.New("no code found at proxy admin")
 			}
+			continue
+		}
+
+		expImplAddr, err := AddressToCodeNamespace(*proxyAddr)
+		if err != nil {
+			return fmt.Errorf("error converting %s to code namespace: %w", *proxyAddr, err)
+		}
+
+		implCode, err := state.GetContractCode(tx, *proxyAddr)
+		if err != nil {
+			return fmt.Errorf("failed to read contract code from database: %w", err)
+		}
+		if implCode == nil || len(implCode) == 0 {
+			return fmt.Errorf("no code found at predeploy impl %s", *proxyAddr)
+		}
+
+		actImplAddr, err := state.GetStorage(tx, *proxyAddr, ImplementationSlot)
+		if err != nil {
+			return fmt.Errorf("failed to read implementation from database: %w", err)
+		}
+		if expImplAddr != libcommon.HexToAddress(actImplAddr.Hex()) {
+			return fmt.Errorf("expected implementation for %s to be at %s, but got %s", *proxyAddr, expImplAddr, actImplAddr)
 		}
 	}
 
