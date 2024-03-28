@@ -269,8 +269,7 @@ func TestSlidingWindow_CustomBucket(t *testing.T) {
 
 // ts is a convenient method that must parse a time.Time from a string in format `"2006-01-02 15:04:05"`
 func ts(s string) time.Time {
-	format := "2006-01-02 15:04:05"
-	t, err := time.Parse(format, s)
+	t, err := time.Parse(time.DateTime, s)
 	if err != nil {
 		panic(err)
 	}
