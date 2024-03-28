@@ -90,7 +90,7 @@ func (s *SendState) TxMined(txHash common.Hash) {
 	s.minedTxs[txHash] = struct{}{}
 }
 
-// TxMined records that the txn with txnHash has not been mined or has been
+// TxNotMined records that the txn with txnHash has not been mined or has been
 // reorg'd out. It is safe to call this function multiple times.
 func (s *SendState) TxNotMined(txHash common.Hash) {
 	s.mu.Lock()

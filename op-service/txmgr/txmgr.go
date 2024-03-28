@@ -418,7 +418,7 @@ func (m *SimpleTxManager) sendTx(ctx context.Context, tx *types.Transaction) (*t
 		return tx
 	}
 
-	// Immediately publish a transaction before starting the resumbission loop
+	// Immediately publish a transaction before starting the resubmission loop
 	tx = publishAndWait(tx, false)
 
 	ticker := time.NewTicker(m.cfg.ResubmissionTimeout)
