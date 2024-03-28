@@ -39,8 +39,10 @@ contract DeployConfig is Script {
     address public proxyAdminOwner;
     address public baseFeeVaultRecipient;
     uint256 public baseFeeVaultMinimumWithdrawalAmount;
+    uint256 public baseFeeVaultWithdrawalNetwork;
     address public l1FeeVaultRecipient;
     uint256 public l1FeeVaultMinimumWithdrawalAmount;
+    uint256 public l1FeeVaultWithdrawalNetwork;
     address public sequencerFeeVaultRecipient;
     uint256 public sequencerFeeVaultMinimumWithdrawalAmount;
     uint256 public sequencerFeeVaultWithdrawalNetwork;
@@ -105,8 +107,10 @@ contract DeployConfig is Script {
         proxyAdminOwner = stdJson.readAddress(_json, "$.proxyAdminOwner");
         baseFeeVaultRecipient = stdJson.readAddress(_json, "$.baseFeeVaultRecipient");
         baseFeeVaultMinimumWithdrawalAmount = stdJson.readUint(_json, "$.baseFeeVaultMinimumWithdrawalAmount");
+        baseFeeVaultWithdrawalNetwork = stdJson.readUint(_json, "$.baseFeeVaultWithdrawalNetwork");
         l1FeeVaultRecipient = stdJson.readAddress(_json, "$.l1FeeVaultRecipient");
         l1FeeVaultMinimumWithdrawalAmount = stdJson.readUint(_json, "$.l1FeeVaultMinimumWithdrawalAmount");
+        l1FeeVaultWithdrawalNetwork = stdJson.readUint(_json, "$.l1FeeVaultWithdrawalNetwork");
         sequencerFeeVaultRecipient = stdJson.readAddress(_json, "$.sequencerFeeVaultRecipient");
         sequencerFeeVaultMinimumWithdrawalAmount = stdJson.readUint(_json, "$.sequencerFeeVaultMinimumWithdrawalAmount");
         sequencerFeeVaultWithdrawalNetwork = stdJson.readUint(_json, "$.sequencerFeeVaultWithdrawalNetwork");

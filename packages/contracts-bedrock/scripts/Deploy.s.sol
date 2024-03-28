@@ -262,8 +262,7 @@ contract Deploy is Deployer {
 
     function runWithStateDump() public {
         _run();
-
-        vm.dumpState(Config.stateDumpPath(name()));
+        vm.dumpState(Config.stateDumpPath());
     }
 
     /// @notice Deploy all L1 contracts and write the state diff to a file.
