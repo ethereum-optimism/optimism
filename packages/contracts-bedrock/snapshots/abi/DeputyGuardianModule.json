@@ -121,5 +121,59 @@
     ],
     "stateMutability": "view",
     "type": "function"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "contract IDisputeGame",
+        "name": "game",
+        "type": "address"
+      }
+    ],
+    "name": "DisputeGameBlacklisted",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "GameType",
+        "name": "gameType",
+        "type": "uint32"
+      }
+    ],
+    "name": "RespectedGameTypeSet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [],
+    "name": "SuperchainConfigPaused",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [],
+    "name": "SuperchainConfigUnpaused",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "OnlyDeputyGuardian",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "name": "TransactionExecutionFailed",
+    "type": "error"
   }
 ]
