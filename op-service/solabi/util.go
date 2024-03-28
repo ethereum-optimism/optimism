@@ -82,6 +82,21 @@ func ReadUint256(r io.Reader) (*big.Int, error) {
 	return new(big.Int).SetBytes(n[:]), nil
 }
 
+func ReadBytes(r io.Reader) ([]byte, error) {
+	byteLen, err := ReadUint64(r)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read byte length")
+	}
+
+	paddedByteLength := byteLen + (32 - (byteLen % 32))
+	n := make([]byte, paddedByteLength)
+	if _, err := io.ReadFull(r, n[:]); err != nil {
+		return nil, err
+	}
+
+	return n[:byteLen], nil
+}
+
 func EmptyReader(r io.Reader) bool {
 	var t [1]byte
 	n, err := r.Read(t[:])
