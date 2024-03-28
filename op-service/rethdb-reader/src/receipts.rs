@@ -3,14 +3,14 @@
 
 use anyhow::{anyhow, Result};
 use reth_blockchain_tree::noop::NoopBlockchainTree;
-use reth_db::{mdbx::DatabaseArguments, open_db_read_only};
+use reth_db::DatabaseEnv;
 use reth_primitives::{
-    BlockHashOrNumber, Receipt, TransactionKind, TransactionMeta, TransactionSigned, MAINNET, U128,
-    U256, U64,
+    BlockHashOrNumber, Receipt, TransactionKind, TransactionMeta, TransactionSigned, U128, U256,
+    U64,
 };
-use reth_provider::{providers::BlockchainProvider, BlockReader, ProviderFactory, ReceiptProvider};
+use reth_provider::{providers::BlockchainProvider, BlockReader, ReceiptProvider};
 use reth_rpc_types::{Log, TransactionReceipt};
-use std::{ffi::c_char, path::Path};
+use std::ffi::c_void;
 
 /// A [ReceiptsResult] is a wrapper around a JSON string containing serialized [TransactionReceipt]s
 /// as well as an error status that is compatible with FFI.
@@ -46,7 +46,7 @@ impl ReceiptsResult {
 pub(crate) unsafe fn read_receipts_inner(
     block_hash: *const u8,
     block_hash_len: usize,
-    db_path: *const c_char,
+    db_instance: *const c_void,
 ) -> Result<ReceiptsResult> {
     // Convert the raw pointer and length back to a Rust slice
     let block_hash: [u8; 32] = {
@@ -57,22 +57,8 @@ pub(crate) unsafe fn read_receipts_inner(
     }
     .try_into()?;
 
-    // Convert the *const c_char to a Rust &str
-    let db_path_str = {
-        if db_path.is_null() {
-            anyhow::bail!("db path pointer is null");
-        }
-        std::ffi::CStr::from_ptr(db_path)
-    }
-    .to_str()?;
-
-    let db = open_db_read_only(Path::new(db_path_str), DatabaseArguments::default())
-        .map_err(|e| anyhow!(e))?;
-    let factory = ProviderFactory::new(db, MAINNET.clone());
-
     // Create a read-only BlockChainProvider
-    let provider = BlockchainProvider::new(factory, NoopBlockchainTree::default())?;
-
+    let provider = &*(db_instance as *const BlockchainProvider<DatabaseEnv, NoopBlockchainTree>);
     // Fetch the block and the receipts within it
     let block =
         provider.block_by_hash(block_hash.into())?.ok_or(anyhow!("Failed to fetch block"))?;
@@ -206,11 +192,15 @@ mod test {
     use reth_db::{database::Database, mdbx::DatabaseArguments};
     use reth_primitives::{
         address, b256, bloom, hex, Address, Block, Bytes, ReceiptWithBloom, Receipts,
-        SealedBlockWithSenders, U8,
+        SealedBlockWithSenders, MAINNET, U8,
     };
     use reth_provider::{BlockWriter, BundleStateWithReceipts, DatabaseProvider};
     use reth_revm::revm::db::BundleState;
-    use std::{ffi::CString, fs::File, path::Path};
+    use std::{
+        ffi::{c_char, CString},
+        fs::File,
+        path::Path,
+    };
 
     #[inline]
     fn dummy_block_with_receipts() -> Result<(Block, Vec<Receipt>)> {
@@ -284,16 +274,16 @@ mod test {
     #[test]
     fn fetch_receipts() {
         open_receipts_testdata_db().unwrap();
-
         unsafe {
+            let res = crate::open_db_read_only(
+                CString::new("testdata/db").unwrap().into_raw() as *const c_char
+            );
+            assert_eq!(res.error, false);
+
             let mut block_hash =
                 b256!("6a229123d607c2232a8b0bdd36f90745945d05181018e64e60ff2b93ab6b52e5");
-            let receipts_res = super::read_receipts_inner(
-                block_hash.as_mut_ptr(),
-                32,
-                CString::new("testdata/db").unwrap().into_raw() as *const c_char,
-            )
-            .unwrap();
+            let receipts_res =
+                super::read_receipts_inner(block_hash.as_mut_ptr(), 32, res.data).unwrap();
 
             let receipts_data =
                 std::slice::from_raw_parts(receipts_res.data as *const u8, receipts_res.data_len);
