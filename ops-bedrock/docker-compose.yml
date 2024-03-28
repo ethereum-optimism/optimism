@@ -270,9 +270,13 @@ services:
       --p2p.scoring.peers=light
       --p2p.ban.peers=true
       --p2p.bootnodes=enr:-J24QGG7tyXLYkko-b6VwT1tI23jesehLEjMS_Dv8OepXrNPd3DObDrHAYpwDJLh-Go95HclbPVdm91oEDXfhE5ZUPaGAY5jmAZxgmlkgnY0gmlwhAoFAAWHb3BzdGFja4OFBwCJc2VjcDI1NmsxoQNNEvj5nPIMVFBRRvGU95BqlwRDrY_8aua6eTI_sV_yKIN0Y3CCIyuDdWRwgiMr
+      --rpc.addr=0.0.0.0
+      --rpc.port=9545
     volumes:
       - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
       - "${PWD}/../.devnet/rollup.json:/rollup.json"
+    ports:
+      - 9547:9547
     networks:
       custom_net:
         ipv4_address: 10.5.0.123
@@ -293,59 +297,59 @@ services:
     networks:
       - custom_net
 
-  suave-geth:
-    profiles:
-      - suave
-    depends_on:
-      - op-builder
-    image: flashbots/suave-geth:latest
-    command:
-      - --dev
-      - --dev.gaslimit=30000000
-      - --http
-      - --http.port=8545
-      - --http.addr=0.0.0.0
-      - --http.vhosts=*
-      - --http.corsdomain=*
-      - --ws
-      - --ws.port=8546
-      - --ws.origins=*
-      - --ws.addr=0.0.0.0
-      - --datadir=/data
-      - --keystore=/keystore/keystore
-      - --unlock=0xB5fEAfbDD752ad52Afb7e1bD2E40432A485bBB7F
-      - --password=/keystore/password.txt
-      - --log.debug
-      - --suave.eth.remote_endpoint=http://suave-op-execution-geth:8545  # using op-builder as remote rpc backend
-    volumes:
-      - "${PWD}/suave-ex-node:/keystore"
-    ports:
-      - 11545:8545
-      - 11546:8546
-
-  suave-op-execution-geth:
-    profiles:
-      - suave
-    image: flashbots/op-suave-exeuction-geth:latest
-    command:
-      - --dev
-      - --dev.gaslimit=30000000
-      - --http
-      - --http.port=8545
-      - --http.addr=0.0.0.0
-      - --http.vhosts=*
-      - --http.corsdomain=*
-      - --ws
-      - --ws.origins=*
-      - --ws.addr=0.0.0.0
-      - --keystore=/keystore/keystore
-    volumes:
-      - "builder_data:/db"
-      - "${PWD}/../.devnet/genesis-l2.json:/genesis.json"
-      - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
-    entrypoint:  # pass the L2 specific flags by overriding the entry-point and adding extra arguments
-      - "/bin/sh"
-      - "/entrypoint.sh"
-      - "--authrpc.jwtsecret=/config/test-jwt-secret.txt"
-      - "--suave"
-      - "--suave.beacon_endpoint=http://op-node-builder:8547"
+  # suave-geth:
+  #   profiles:
+  #     - suave
+  #   depends_on:
+  #     - op-builder
+  #   image: flashbots/suave-geth:latest
+  #   command:
+  #     - --dev
+  #     - --dev.gaslimit=30000000
+  #     - --http
+  #     - --http.port=8545
+  #     - --http.addr=0.0.0.0
+  #     - --http.vhosts=*
+  #     - --http.corsdomain=*
+  #     - --ws
+  #     - --ws.port=8546
+  #     - --ws.origins=*
+  #     - --ws.addr=0.0.0.0
+  #     - --datadir=/data
+  #     - --keystore=/keystore/keystore
+  #     - --unlock=0xB5fEAfbDD752ad52Afb7e1bD2E40432A485bBB7F
+  #     - --password=/keystore/password.txt
+  #     - --log.debug
+  #     - --suave.eth.remote_endpoint=http://suave-op-execution-geth:8545  # using op-builder as remote rpc backend
+  #   volumes:
+  #     - "${PWD}/suave-ex-node:/keystore"
+  #   ports:
+  #     - 11545:8545
+  #     - 11546:8546
+  #
+  # suave-op-execution-geth:
+  #   profiles:
+  #     - suave
+  #   image: flashbots/op-suave-exeuction-geth:latest
+  #   command:
+  #     - --dev
+  #     - --dev.gaslimit=30000000
+  #     - --http
+  #     - --http.port=8545
+  #     - --http.addr=0.0.0.0
+  #     - --http.vhosts=*
+  #     - --http.corsdomain=*
+  #     - --ws
+  #     - --ws.origins=*
+  #     - --ws.addr=0.0.0.0
+  #     - --keystore=/keystore/keystore
+  #   volumes:
+  #     - "builder_data:/db"
+  #     - "${PWD}/../.devnet/genesis-l2.json:/genesis.json"
+  #     - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
+  #   entrypoint:  # pass the L2 specific flags by overriding the entry-point and adding extra arguments
+  #     - "/bin/sh"
+  #     - "/entrypoint.sh"
+  #     - "--authrpc.jwtsecret=/config/test-jwt-secret.txt"
+  #     - "--suave"
+  #     - "--suave.beacon_endpoint=http://op-node-builder:8547"

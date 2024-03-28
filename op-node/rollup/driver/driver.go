@@ -87,6 +87,7 @@ type SequencerIface interface {
 type Network interface {
 	// PublishL2Payload is called by the driver whenever there is a new payload to publish, synchronously with the driver main loop.
 	PublishL2Payload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) error
+	PublishL2Attributes(ctx context.Context, attributes *eth.PayloadAttributes) error
 }
 
 type AltSync interface {
@@ -173,5 +174,7 @@ func NewDriver(
 		altSync:            altSync,
 		asyncGossiper:      asyncGossiper,
 		sequencerConductor: sequencerConductor,
+		l1OriginSelector:   findL1Origin,
+		attrBuilder:        attrBuilder,
 	}
 }

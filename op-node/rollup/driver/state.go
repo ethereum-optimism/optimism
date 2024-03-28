@@ -88,6 +88,10 @@ type Driver struct {
 	l1SafeSig      chan eth.L1BlockRef
 	l1FinalizedSig chan eth.L1BlockRef
 
+	// For Payload Attributes
+	l1OriginSelector *L1OriginSelector
+	attrBuilder      *derive.FetchingAttributesBuilder
+
 	// Interface to signal the L2 block range to sync.
 	altSync AltSync
 
@@ -348,6 +352,9 @@ func (s *Driver) eventLoop() {
 				if err := s.engineController.InsertUnsafePayload(s.driverCtx, envelope, ref); err != nil {
 					s.log.Warn("Failed to insert unsafe payload for EL sync", "id", envelope.ExecutionPayload.ID(), "err", err)
 				}
+
+				// Derive and broadcast attributes
+				s.PublishL2Attributes(s.driverCtx, ref)
 				s.logSyncProgress("unsafe payload from sequencer while in EL sync")
 			}
 		case newL1Head := <-s.l1HeadSig:
@@ -451,6 +458,27 @@ func (s *Driver) eventLoop() {
 			return
 		}
 	}
+}
+
+// Invokes derivation pipeline to prepare the payload attributes for the next block.
+func (d *Driver) PublishL2Attributes(ctx context.Context, l2head eth.L2BlockRef) error {
+	l1Origin, err := d.l1OriginSelector.FindL1Origin(ctx, l2head)
+	if err != nil {
+		d.log.Error("Error finding next L1 Origin", "err", err)
+		return err
+	}
+
+	fetchCtx, cancel := context.WithTimeout(ctx, time.Millisecond*500)
+	defer cancel()
+
+	attrs, err := d.attrBuilder.PreparePayloadAttributes(fetchCtx, l2head, l1Origin.ID())
+	if err != nil {
+		d.log.Error("Error preparing payload attributes", "err", err)
+		return err
+	}
+
+	d.network.PublishL2Attributes(ctx, attrs)
+	return nil
 }
 
 // ResetDerivationPipeline forces a reset of the derivation pipeline.
