@@ -1,6 +1,6 @@
 [chain]
 ## Required ETL configuration which controls
-## the rate and and range at data retrieval
+## the rate and range at data retrieval
 l1-polling-interval = 5000 # 5s
 l2-polling-interval = 5000
 
