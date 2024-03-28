@@ -499,11 +499,13 @@ func (b *SpanBatch) GetBlockCount() int {
 	return len(b.Batches)
 }
 
+func (b *SpanBatch) peek(n int) *SpanBatchElement { return b.Batches[len(b.Batches)-1-n] }
+
 // AppendSingularBatch appends a SingularBatch into the span batch
 // updates l1OriginCheck or parentCheck if needed.
 func (b *SpanBatch) AppendSingularBatch(singularBatch *SingularBatch, seqNum uint64) error {
 	// if this new element is not ordered with respect to the last element, panic
-	if len(b.Batches) > 0 && b.Batches[len(b.Batches)-1].Timestamp > singularBatch.Timestamp {
+	if len(b.Batches) > 0 && b.peek(0).Timestamp > singularBatch.Timestamp {
 		panic("span batch is not ordered")
 	}
 
@@ -522,7 +524,7 @@ func (b *SpanBatch) AppendSingularBatch(singularBatch *SingularBatch, seqNum uin
 		copy(b.ParentCheck[:], singularBatch.ParentHash.Bytes()[:20])
 	} else {
 		// if there is more than one batch, set the epochBit based on the last two batches
-		if b.Batches[len(b.Batches)-2].EpochNum < b.Batches[len(b.Batches)-1].EpochNum {
+		if b.peek(1).EpochNum < b.peek(0).EpochNum {
 			epochBit = 1
 		}
 	}
@@ -530,12 +532,12 @@ func (b *SpanBatch) AppendSingularBatch(singularBatch *SingularBatch, seqNum uin
 	b.originBits.SetBit(b.originBits, len(b.Batches)-1, epochBit)
 
 	// update the blockTxCounts cache with the latest batch's tx count
-	b.blockTxCounts = append(b.blockTxCounts, uint64(len(b.Batches[len(b.Batches)-1].Transactions)))
+	b.blockTxCounts = append(b.blockTxCounts, uint64(len(b.peek(0).Transactions)))
 
 	// add the new txs to the sbtxs
-	newTxs := [][]byte{}
-	for i := 0; i < len(b.Batches[len(b.Batches)-1].Transactions); i++ {
-		newTxs = append(newTxs, b.Batches[len(b.Batches)-1].Transactions[i])
+	newTxs := make([][]byte, 0, len(b.peek(0).Transactions))
+	for i := 0; i < len(b.peek(0).Transactions); i++ {
+		newTxs = append(newTxs, b.peek(0).Transactions[i])
 	}
 	// add the new txs to the sbtxs
 	// this is the only place where we can get an error
