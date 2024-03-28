@@ -302,6 +302,31 @@ func TestSpanBatchTxsTxDatas(t *testing.T) {
 	require.Equal(t, txDatas, sbt.txDatas)
 	require.Equal(t, txTypes, sbt.txTypes)
 }
+func TestSpanBatchTxsAddTxs(t *testing.T) {
+	rng := rand.New(rand.NewSource(0x1234))
+	chainID := big.NewInt(rng.Int63n(1000))
+	// make batches to extract txs from
+	batches := RandomValidConsecutiveSingularBatches(rng, chainID)
+	allTxs := [][]byte{}
+
+	iterativeSBTX, err := newSpanBatchTxs([][]byte{}, chainID)
+	require.NoError(t, err)
+	for i := 0; i < len(batches); i++ {
+		// explicitly extract txs due to mismatch of [][]byte to []hexutil.Bytes
+		txs := [][]byte{}
+		for j := 0; j < len(batches[i].Transactions); j++ {
+			txs = append(txs, batches[i].Transactions[j])
+		}
+		err = iterativeSBTX.AddTxs(txs, chainID)
+		require.NoError(t, err)
+		allTxs = append(allTxs, txs...)
+	}
+
+	fullSBTX, err := newSpanBatchTxs(allTxs, chainID)
+	require.NoError(t, err)
+
+	require.Equal(t, iterativeSBTX, fullSBTX)
+}
 
 func TestSpanBatchTxsRecoverV(t *testing.T) {
 	rng := rand.New(rand.NewSource(0x123))
