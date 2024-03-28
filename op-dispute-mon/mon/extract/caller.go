@@ -22,7 +22,9 @@ type GameCallerMetrics interface {
 	caching.Metrics
 	contractMetrics.ContractMetricer
 }
+
 type GameCaller interface {
+	GetWithdrawals(context.Context, rpcblock.Block, common.Address, ...common.Address) ([]*contracts.WithdrawalRequest, error)
 	GetGameMetadata(context.Context, rpcblock.Block) (common.Hash, uint64, common.Hash, gameTypes.GameStatus, uint64, error)
 	GetAllClaims(context.Context, rpcblock.Block) ([]faultTypes.Claim, error)
 	BondCaller
