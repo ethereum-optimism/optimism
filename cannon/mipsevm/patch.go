@@ -14,7 +14,7 @@ func LoadELF(f *elf.File) (*State, error) {
 		NextPC:    uint32(f.Entry + 4),
 		HI:        0,
 		LO:        0,
-		Heap:      0x20000000,
+		Heap:      0x05000000, // TODO: this should be set dynamically to be right after BSS
 		Registers: [32]uint32{},
 		Memory:    NewMemory(),
 		ExitCode:  0,
