@@ -81,6 +81,8 @@ const main = async () => {
 
   const storageLayoutDir = path.join(outdir, 'storageLayout')
   const abiDir = path.join(outdir, 'abi')
+  fs.rmdirSync(storageLayoutDir, { recursive: true })
+  fs.rmdirSync(abiDir, { recursive: true })
   fs.mkdirSync(storageLayoutDir, { recursive: true })
   fs.mkdirSync(abiDir, { recursive: true })
 
@@ -96,6 +98,11 @@ const main = async () => {
       const contractName = parseArtifactName(name)
 
       // HACK: This is a hack to ignore libraries and abstract contracts. Not robust against changes to solc's internal ast repr
+      if (artifact.ast === undefined) {
+        throw new Error(
+          "ast isn't present in forge-artifacts. Did you run forge build with `--ast`?"
+        )
+      }
       const isContract = artifact.ast.nodes.some((node: any) => {
         return (
           node.nodeType === 'ContractDefinition' &&
