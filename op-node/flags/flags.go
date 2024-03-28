@@ -61,6 +61,13 @@ var (
 		Destination: new(string),
 		Category:    RollupCategory,
 	}
+	BuilderAPIAddr = &cli.StringFlag{
+		Name:     "l2.builder",
+		Usage:    "Address of Builder API HTTP endpoint to use.",
+		Required: false,
+		EnvVars:  prefixEnvVars("L2_BUILDER_API"),
+		Category: RollupCategory,
+	}
 	BeaconAddr = &cli.StringFlag{
 		Name:     "l1.beacon",
 		Usage:    "Address of L1 Beacon-node HTTP endpoint to use.",

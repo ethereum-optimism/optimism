@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -116,6 +117,40 @@ func startPayload(ctx context.Context, eng ExecEngine, fc eth.ForkchoiceState, a
 	}
 }
 
+func getPayloadWithBuilderPayload(ctx context.Context, eng ExecEngine, payloadInfo eth.PayloadInfo, l2head eth.L2BlockRef, builder BuilderClient) (*eth.ExecutionPayloadEnvelope, error) {
+	// if builder is not enabled, return early with default path.
+	if !builder.Enabled() {
+		return eng.GetPayload(ctx, payloadInfo)
+	}
+
+	ctxTimeout, cancel := context.WithTimeout(ctx, 500*time.Millisecond) // TODO: make timeout configurable
+	defer cancel()
+
+	ch := make(chan *eth.ExecutionPayloadEnvelope, 1)
+	// start the payload request to builder api
+	go func() {
+		payload, err := builder.GetPayload(ctxTimeout, l2head)
+		if err != nil {
+			cancel()
+			return
+		}
+		ch <- payload
+	}()
+
+	envelope, err := eng.GetPayload(ctx, payloadInfo)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get execution payload: %w", err)
+	}
+
+	// select the payload from builder if possible
+	select {
+	case <-ctxTimeout.Done():
+		return envelope, nil
+	case builderEnvelope := <-ch:
+		return builderEnvelope, nil
+	}
+}
+
 // confirmPayload ends an execution payload building process in the provided Engine, and persists the payload as the canonical head.
 // If updateSafe is true, then the payload will also be recognized as safe-head at the same time.
 // The severity of the error is distinguished to determine whether the payload was valid and can become canonical.
@@ -128,6 +163,8 @@ func confirmPayload(
 	updateSafe bool,
 	agossip async.AsyncGossiper,
 	sequencerConductor conductor.SequencerConductor,
+	builderClient BuilderClient,
+	l2head eth.L2BlockRef,
 ) (out *eth.ExecutionPayloadEnvelope, errTyp BlockInsertionErrType, err error) {
 	var envelope *eth.ExecutionPayloadEnvelope
 	// if the payload is available from the async gossiper, it means it was not yet imported, so we reuse it
@@ -140,7 +177,7 @@ func confirmPayload(
 			"parent", envelope.ExecutionPayload.ParentHash,
 			"txs", len(envelope.ExecutionPayload.Transactions))
 	} else {
-		envelope, err = eng.GetPayload(ctx, payloadInfo)
+		envelope, err = getPayloadWithBuilderPayload(ctx, eng, payloadInfo, l2head, builderClient)
 	}
 	if err != nil {
 		// even if it is an input-error (unknown payload ID), it is temporary, since we will re-attempt the full payload building, not just the retrieval of the payload.
