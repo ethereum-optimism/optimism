@@ -107,7 +107,7 @@ func mismatchedParentHashArgs() args {
 	return args
 }
 
-func createMistmatchedPrevRandao() args {
+func createMismatchedPrevRandao() args {
 	args := ecotoneArgs()
 	args.attrs.PrevRandao = eth.Bytes32(common.HexToHash("0xabc"))
 	return args
@@ -126,7 +126,7 @@ func createNilGasLimit() args {
 	return args
 }
 
-func createMistmatchedTimestamp() args {
+func createMismatchedTimestamp() args {
 	args := ecotoneArgs()
 	val := eth.Uint64Quantity(2000)
 	args.attrs.Timestamp = val
@@ -178,7 +178,7 @@ func TestAttributesMatch(t *testing.T) {
 		},
 		{
 			shouldMatch: false,
-			args:        createMistmatchedPrevRandao(),
+			args:        createMismatchedPrevRandao(),
 		},
 		{
 			shouldMatch: false,
@@ -190,7 +190,7 @@ func TestAttributesMatch(t *testing.T) {
 		},
 		{
 			shouldMatch: false,
-			args:        createMistmatchedTimestamp(),
+			args:        createMismatchedTimestamp(),
 		},
 	}
 

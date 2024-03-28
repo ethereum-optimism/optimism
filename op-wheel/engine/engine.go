@@ -331,7 +331,7 @@ func Copy(ctx context.Context, copyFrom client.RPC, copyTo *sources.EngineAPICli
 	return nil
 }
 
-// CopyPaylod takes the execution payload at number & applies it via NewPayload to copyTo
+// CopyPayload takes the execution payload at number & applies it via NewPayload to copyTo
 func CopyPayload(ctx context.Context, number uint64, copyFrom client.RPC, copyTo *sources.EngineAPIClient) error {
 	copyHead, err := getBlock(ctx, copyFrom, methodEthGetBlockByNumber, hexutil.EncodeUint64(number))
 	if err != nil {

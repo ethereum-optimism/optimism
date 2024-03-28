@@ -482,7 +482,7 @@ contract L2StandardBridge_Bridge_Test is Bridge_Initializer {
         l2StandardBridge.finalizeBridgeETH{ value: 50 }(alice, alice, 100, hex"");
     }
 
-    /// @dev Tests that `finalizeDeposit` reverts if the receipient is the other bridge.
+    /// @dev Tests that `finalizeDeposit` reverts if the recipient is the other bridge.
     function test_finalizeBridgeETH_sendToSelf_reverts() external {
         vm.mockCall(
             address(l2StandardBridge.messenger()),
@@ -495,7 +495,7 @@ contract L2StandardBridge_Bridge_Test is Bridge_Initializer {
         l2StandardBridge.finalizeBridgeETH{ value: 100 }(alice, address(l2StandardBridge), 100, hex"");
     }
 
-    /// @dev Tests that `finalizeDeposit` reverts if the receipient is the messenger.
+    /// @dev Tests that `finalizeDeposit` reverts if the recipient is the messenger.
     function test_finalizeBridgeETH_sendToMessenger_reverts() external {
         vm.mockCall(
             address(l2StandardBridge.messenger()),
