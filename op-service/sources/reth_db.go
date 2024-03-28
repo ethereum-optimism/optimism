@@ -92,6 +92,7 @@ type RethDBReceiptsFetcher struct {
 
 var _ ReceiptsProvider = (*RethDBReceiptsFetcher)(nil)
 
+// NewRethDBReceiptsFetcher opens a RethDB for reading receipts. It returns nil if it was unable to open the database
 func NewRethDBReceiptsFetcher(dbPath string) *RethDBReceiptsFetcher {
 	db, err := OpenDBReadOnly(dbPath)
 	if err != nil {
