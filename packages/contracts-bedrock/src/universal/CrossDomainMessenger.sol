@@ -364,7 +364,7 @@ abstract contract CrossDomainMessenger is
         // We only want to set the xDomainMsgSender to the default value if it hasn't been initialized yet,
         // meaning that this is a fresh contract deployment.
         // This prevents resetting the xDomainMsgSender to the default value during an upgrade, which would enable
-        // a reentrant withdrawal to sandwhich the upgrade replay a withdrawal twice.
+        // a reentrant withdrawal to sandwich the upgrade replay a withdrawal twice.
         if (xDomainMsgSender == address(0)) {
             xDomainMsgSender = Constants.DEFAULT_L2_SENDER;
         }
@@ -387,7 +387,7 @@ abstract contract CrossDomainMessenger is
     function _isOtherMessenger() internal view virtual returns (bool);
 
     /// @notice Checks whether a given call target is a system address that could cause the
-    ///         messenger to peform an unsafe action. This is NOT a mechanism for blocking user
+    ///         messenger to perform an unsafe action. This is NOT a mechanism for blocking user
     ///         addresses. This is ONLY used to prevent the execution of messages to specific
     ///         system addresses that could cause security issues, e.g., having the
     ///         CrossDomainMessenger send messages to itself.
