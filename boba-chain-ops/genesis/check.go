@@ -143,6 +143,7 @@ func PostCheckMigratedDB(
 	transitionBlockNumber uint64,
 	timestamp int,
 	info *L1BlockInfo,
+	ignoreETHBalanceCheck bool,
 ) error {
 	// quick hack
 	// insert l1standardbridge into L2StandardBridgeAddr
@@ -230,10 +231,14 @@ func PostCheckMigratedDB(
 	}
 	log.Info("checked L1Block")
 
-	if err := PostCheckLegacyETH(tx, g, migrationData); err != nil {
-		return err
+	if !ignoreETHBalanceCheck {
+		if err := PostCheckLegacyETH(tx, g, migrationData); err != nil {
+			return err
+		}
+		log.Info("checked legacy eth")
+	} else {
+		log.Info("ignoring legacy eth check")
 	}
-	log.Info("checked legacy eth")
 
 	if err := CheckWithdrawalsAfter(tx, migrationData, l1XDM); err != nil {
 		return err
@@ -362,7 +367,6 @@ func PostCheckPredeploys(tx kv.Tx, g *types.Genesis) error {
 		if oldBalance.Cmp(new(big.Int).SetBytes(newBalance)) != 0 {
 			return fmt.Errorf("expected balance for %s to be %d but got %d", addr, oldBalance, new(big.Int).SetBytes(newBalance))
 		}
-
 	}
 
 	// For each predeploy, check that we've set the implementation correctly when

@@ -108,6 +108,10 @@ func main() {
 				Name:  "no-check",
 				Usage: "Do not perform sanity checks. This should only be used for testing",
 			},
+			&cli.BoolFlag{
+				Name:  "no-eth-balance-check",
+				Usage: "Do not check the eth balance of user accounts.",
+			},
 			&cli.StringFlag{
 				Name:  "db-size-limit",
 				Usage: "Maximum size of the mdbx database.",
@@ -333,6 +337,7 @@ func main() {
 					L1FeeOverhead: common.BigToHash(new(big.Int).SetUint64(config.GasPriceOracleOverhead)),
 					L1FeeScalar:   common.BigToHash(new(big.Int).SetUint64(config.GasPriceOracleScalar)),
 				},
+				ctx.Bool("no-eth-balance-check"),
 			); err != nil {
 				return err
 			}
