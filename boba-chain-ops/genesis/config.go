@@ -373,7 +373,7 @@ func (d *DeployConfig) RollupConfig(l1StartHeader *types.Header, l2GenesisBlockH
 	return &Config{
 		Genesis: Genesis{
 			L1: BlockID{
-				Hash:   rlpHash(l1StartHeader),
+				Hash:   l1StartHeader.Hash(),
 				Number: l1StartHeader.Number.Uint64(),
 			},
 			L2: BlockID{
