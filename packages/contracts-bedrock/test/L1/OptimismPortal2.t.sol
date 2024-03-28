@@ -658,6 +658,47 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         });
     }
 
+    /// @dev Tests that `finalizeWithdrawalTransaction` reverts when attempting to replay using a secondary proof
+    ///      submitter.
+    function test_finalizeWithdrawalTransaction_secondProofReplay_reverts() external {
+        uint256 bobBalanceBefore = address(bob).balance;
+
+        // Submit the first proof for the withdrawal hash.
+        vm.expectEmit(true, true, true, true);
+        emit WithdrawalProven(_withdrawalHash, alice, bob);
+        optimismPortal2.proveWithdrawalTransaction({
+            _tx: _defaultTx,
+            _disputeGameIndex: _proposedGameIndex,
+            _outputRootProof: _outputRootProof,
+            _withdrawalProof: _withdrawalProof
+        });
+
+        // Submit a second proof for the same withdrawal hash.
+        vm.expectEmit(true, true, true, true);
+        emit WithdrawalProven(_withdrawalHash, alice, bob);
+        vm.prank(address(0xb0b));
+        optimismPortal2.proveWithdrawalTransaction({
+            _tx: _defaultTx,
+            _disputeGameIndex: _proposedGameIndex,
+            _outputRootProof: _outputRootProof,
+            _withdrawalProof: _withdrawalProof
+        });
+
+        // Warp and resolve the dispute game.
+        game.resolveClaim(0);
+        game.resolve();
+        vm.warp(block.timestamp + optimismPortal2.proofMaturityDelaySeconds() + 1 seconds);
+
+        vm.expectEmit(true, true, false, true);
+        emit WithdrawalFinalized(_withdrawalHash, true);
+        optimismPortal2.finalizeWithdrawalTransactionExternalProof(_defaultTx, address(0xb0b));
+
+        vm.expectRevert("OptimismPortal: withdrawal has already been finalized");
+        optimismPortal2.finalizeWithdrawalTransactionExternalProof(_defaultTx, address(this));
+
+        assert(address(bob).balance == bobBalanceBefore + 100);
+    }
+
     /// @dev Tests that `finalizeWithdrawalTransaction` succeeds.
     function test_finalizeWithdrawalTransaction_provenWithdrawalHash_succeeds() external {
         uint256 bobBalanceBefore = address(bob).balance;

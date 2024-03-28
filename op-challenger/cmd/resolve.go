@@ -48,5 +48,4 @@ var ResolveCommand = &cli.Command{
 	Description: "Resolves the specified dispute game if possible",
 	Action:      Resolve,
 	Flags:       resolveFlags(),
-	Hidden:      true,
 }
