@@ -20,7 +20,12 @@ reqenv "GS_SEQUENCER_ADDRESS"
 reqenv "L1_RPC_URL"
 
 # Get the finalized block timestamp and hash
-block=$(cast block finalized --rpc-url "$L1_RPC_URL")
+if ! block=$(cast block finalized --rpc-url "$L1_RPC_URL" 2>&1); then
+    echo "Execute cast block failed, $block"
+    echo "Please check if your L1_RPC_URL ('$L1_RPC_URL') is valid and accessible."
+    exit 1
+fi
+
 timestamp=$(echo "$block" | awk '/timestamp/ { print $2 }')
 blockhash=$(echo "$block" | awk '/hash/ { print $2 }')
 
