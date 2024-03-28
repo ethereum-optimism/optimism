@@ -1,5 +1,13 @@
 # @eth-optimism/sdk
 
+## 3.2.3
+
+### Patch Changes
+
+- [#9907](https://github.com/ethereum-optimism/optimism/pull/9907) [`5fe797f183e502c1c7e91fc1e74dd3cc664ba22e`](https://github.com/ethereum-optimism/optimism/commit/5fe797f183e502c1c7e91fc1e74dd3cc664ba22e) Thanks [@smartcontracts](https://github.com/smartcontracts)! - Minor optimizations and improvements to FPAC functions.
+
+- [#9919](https://github.com/ethereum-optimism/optimism/pull/9919) [`3dc129fade77ddf9d45bb4c2ecd34360d1aa838a`](https://github.com/ethereum-optimism/optimism/commit/3dc129fade77ddf9d45bb4c2ecd34360d1aa838a) Thanks [@smartcontracts](https://github.com/smartcontracts)! - Sets the address of the DisputeGameFactory contract for OP Sepolia.
+
 ## 3.2.2
 
 ### Patch Changes

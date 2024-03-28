@@ -2,16 +2,20 @@ package contracts
 
 import (
 	"context"
+	"errors"
 	"math"
 	"math/big"
 	"testing"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	contractMetrics "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	batchingTest "github.com/ethereum-optimism/optimism/op-service/sources/batching/test"
+	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
@@ -43,6 +47,7 @@ func TestSimpleGetters(t *testing.T) {
 			methodAlias: "gameDuration",
 			method:      methodGameDuration,
 			result:      uint64(5566),
+			expected:    5566 * time.Second,
 			call: func(game *FaultDisputeGameContract) (any, error) {
 				return game.GetGameDuration(context.Background())
 			},
@@ -111,8 +116,8 @@ func TestClock_EncodingDecoding(t *testing.T) {
 		by := common.Hex2Bytes("00000000000000050000000000000002")
 		encoded := new(big.Int).SetBytes(by)
 		clock := decodeClock(encoded)
-		require.Equal(t, uint64(5), clock.Duration)
-		require.Equal(t, uint64(2), clock.Timestamp)
+		require.Equal(t, 5*time.Second, clock.Duration)
+		require.Equal(t, time.Unix(2, 0), clock.Timestamp)
 		require.Equal(t, encoded, packClock(clock))
 	})
 
@@ -120,8 +125,8 @@ func TestClock_EncodingDecoding(t *testing.T) {
 		by := common.Hex2Bytes("00000000000000000000000000000002")
 		encoded := new(big.Int).SetBytes(by)
 		clock := decodeClock(encoded)
-		require.Equal(t, uint64(0), clock.Duration)
-		require.Equal(t, uint64(2), clock.Timestamp)
+		require.Equal(t, 0*time.Second, clock.Duration)
+		require.Equal(t, time.Unix(2, 0), clock.Timestamp)
 		require.Equal(t, encoded, packClock(clock))
 	})
 
@@ -129,8 +134,8 @@ func TestClock_EncodingDecoding(t *testing.T) {
 		by := common.Hex2Bytes("00000000000000050000000000000000")
 		encoded := new(big.Int).SetBytes(by)
 		clock := decodeClock(encoded)
-		require.Equal(t, uint64(5), clock.Duration)
-		require.Equal(t, uint64(0), clock.Timestamp)
+		require.Equal(t, 5*time.Second, clock.Duration)
+		require.Equal(t, time.Unix(0, 0), clock.Timestamp)
 		require.Equal(t, encoded, packClock(clock))
 	})
 
@@ -138,8 +143,8 @@ func TestClock_EncodingDecoding(t *testing.T) {
 		by := common.Hex2Bytes("00000000000000000000000000000000")
 		encoded := new(big.Int).SetBytes(by)
 		clock := decodeClock(encoded)
-		require.Equal(t, uint64(0), clock.Duration)
-		require.Equal(t, uint64(0), clock.Timestamp)
+		require.Equal(t, 0*time.Second, clock.Duration)
+		require.Equal(t, time.Unix(0, 0), clock.Timestamp)
 		require.Equal(t, encoded.Uint64(), packClock(clock).Uint64())
 	})
 }
@@ -428,6 +433,28 @@ func TestFaultDisputeGame_GetCredits(t *testing.T) {
 	}
 }
 
+func TestFaultDisputeGame_ClaimCreditTx(t *testing.T) {
+	t.Run("Success", func(t *testing.T) {
+		stubRpc, game := setupFaultDisputeGameTest(t)
+		addr := common.Address{0xaa}
+
+		stubRpc.SetResponse(fdgAddr, methodClaimCredit, rpcblock.Latest, []interface{}{addr}, nil)
+		tx, err := game.ClaimCreditTx(context.Background(), addr)
+		require.NoError(t, err)
+		stubRpc.VerifyTxCandidate(tx)
+	})
+
+	t.Run("SimulationFails", func(t *testing.T) {
+		stubRpc, game := setupFaultDisputeGameTest(t)
+		addr := common.Address{0xaa}
+
+		stubRpc.SetError(fdgAddr, methodClaimCredit, rpcblock.Latest, []interface{}{addr}, errors.New("still locked"))
+		tx, err := game.ClaimCreditTx(context.Background(), addr)
+		require.ErrorIs(t, err, ErrSimulationFailed)
+		require.Equal(t, txmgr.TxCandidate{}, tx)
+	})
+}
+
 func setupFaultDisputeGameTest(t *testing.T) (*batchingTest.AbiBasedRpc, *FaultDisputeGameContract) {
 	fdgAbi, err := bindings.FaultDisputeGameMetaData.GetAbi()
 	require.NoError(t, err)
@@ -441,7 +468,7 @@ func setupFaultDisputeGameTest(t *testing.T) (*batchingTest.AbiBasedRpc, *FaultD
 	stubRpc.AddContract(vmAddr, vmAbi)
 	stubRpc.AddContract(oracleAddr, oracleAbi)
 	caller := batching.NewMultiCaller(stubRpc, batching.DefaultBatchSize)
-	game, err := NewFaultDisputeGameContract(fdgAddr, caller)
+	game, err := NewFaultDisputeGameContract(contractMetrics.NoopContractMetrics, fdgAddr, caller)
 	require.NoError(t, err)
 	return stubRpc, game
 }

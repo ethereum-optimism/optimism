@@ -34,6 +34,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/retry"
 )
 
 type L1Chain interface {
@@ -124,6 +125,7 @@ func FindL2Heads(ctx context.Context, cfg *rollup.Config, l1 L1Chain, l2 L2Chain
 	var ahead bool                                    // when "n", the L2 block, has a L1 origin that is not visible in our L1 chain source yet
 
 	ready := false // when we found the block after the safe head, and we just need to return the parent block.
+	bOff := retry.Exponential()
 
 	// Each loop iteration we traverse further from the unsafe head towards the finalized head.
 	// Once we pass the previous safe head and we have seen enough canonical L1 origins to fill a sequence window worth of data,
@@ -133,7 +135,7 @@ func FindL2Heads(ctx context.Context, cfg *rollup.Config, l1 L1Chain, l2 L2Chain
 		// Fetch L1 information if we never had it, or if we do not have it for the current origin.
 		// Optimization: as soon as we have a previous L1 block, try to traverse L1 by hash instead of by number, to fill the cache.
 		if n.L1Origin.Hash == l1Block.ParentHash {
-			b, err := l1.L1BlockRefByHash(ctx, n.L1Origin.Hash)
+			b, err := retry.Do(ctx, 5, bOff, func() (eth.L1BlockRef, error) { return l1.L1BlockRefByHash(ctx, n.L1Origin.Hash) })
 			if err != nil {
 				// Exit, find-sync start should start over, to move to an available L1 chain with block-by-number / not-found case.
 				return nil, fmt.Errorf("failed to retrieve L1 block: %w", err)
@@ -142,7 +144,7 @@ func FindL2Heads(ctx context.Context, cfg *rollup.Config, l1 L1Chain, l2 L2Chain
 			l1Block = b
 			ahead = false
 		} else if l1Block == (eth.L1BlockRef{}) || n.L1Origin.Hash != l1Block.Hash {
-			b, err := l1.L1BlockRefByNumber(ctx, n.L1Origin.Number)
+			b, err := retry.Do(ctx, 5, bOff, func() (eth.L1BlockRef, error) { return l1.L1BlockRefByNumber(ctx, n.L1Origin.Number) })
 			// if L2 is ahead of L1 view, then consider it a "plausible" head
 			notFound := errors.Is(err, ethereum.NotFound)
 			if err != nil && !notFound {

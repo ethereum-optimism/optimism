@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 
 	"github.com/ethereum/go-ethereum/common"
-	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/stretchr/testify/require"
@@ -84,16 +83,23 @@ func TestResolveClaim(t *testing.T) {
 	t.Run("SendFails", func(t *testing.T) {
 		responder, mockTxMgr, _, _, _ := newTestFaultResponder(t)
 		mockTxMgr.sendFails = true
-		err := responder.ResolveClaim(0)
+		err := responder.ResolveClaims(0)
 		require.ErrorIs(t, err, mockSendError)
 		require.Equal(t, 0, mockTxMgr.sends)
 	})
 
 	t.Run("Success", func(t *testing.T) {
 		responder, mockTxMgr, _, _, _ := newTestFaultResponder(t)
-		err := responder.ResolveClaim(0)
+		err := responder.ResolveClaims(0)
 		require.NoError(t, err)
 		require.Equal(t, 1, mockTxMgr.sends)
+	})
+
+	t.Run("Multiple", func(t *testing.T) {
+		responder, mockTxMgr, _, _, _ := newTestFaultResponder(t)
+		err := responder.ResolveClaims(0, 1, 2, 3)
+		require.NoError(t, err)
+		require.Equal(t, 4, mockTxMgr.sends)
 	})
 }
 
@@ -325,21 +331,15 @@ type mockTxManager struct {
 	sendFails bool
 }
 
-func (m *mockTxManager) SendAndWait(_ string, txs ...txmgr.TxCandidate) ([]*ethtypes.Receipt, error) {
-	rcpts := make([]*ethtypes.Receipt, 0, len(txs))
+func (m *mockTxManager) SendAndWaitSimple(_ string, txs ...txmgr.TxCandidate) error {
 	for _, tx := range txs {
 		if m.sendFails {
-			return nil, mockSendError
+			return mockSendError
 		}
 		m.sends++
 		m.sent = append(m.sent, tx)
-		rcpts = append(rcpts, ethtypes.NewReceipt(
-			[]byte{},
-			false,
-			0,
-		))
 	}
-	return rcpts, nil
+	return nil
 }
 
 func (m *mockTxManager) BlockNumber(_ context.Context) (uint64, error) {

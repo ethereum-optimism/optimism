@@ -19,7 +19,7 @@ import (
 type ExpectedRpcCall interface {
 	fmt.Stringer
 	Matches(rpcMethod string, args ...interface{}) error
-	Execute(t *testing.T, out interface{})
+	Execute(t *testing.T, out interface{}) error
 }
 
 type RpcStub struct {
@@ -50,8 +50,7 @@ func (r *RpcStub) BatchCallContext(ctx context.Context, b []rpc.BatchElem) error
 
 func (r *RpcStub) CallContext(_ context.Context, out interface{}, method string, args ...interface{}) error {
 	call := r.findExpectedCall(method, args...)
-	call.Execute(r.t, out)
-	return nil
+	return call.Execute(r.t, out)
 }
 
 func (r *RpcStub) findExpectedCall(rpcMethod string, args ...interface{}) ExpectedRpcCall {
@@ -91,12 +90,13 @@ func (c *GenericExpectedCall) Matches(rpcMethod string, args ...interface{}) err
 	return nil
 }
 
-func (c *GenericExpectedCall) Execute(t *testing.T, out interface{}) {
+func (c *GenericExpectedCall) Execute(t *testing.T, out interface{}) error {
 	// I admit I do not understand Go reflection.
 	// So leverage json.Unmarshal to set the out value correctly.
 	j, err := json.Marshal(c.result)
 	require.NoError(t, err)
 	require.NoError(t, json.Unmarshal(j, out))
+	return nil
 }
 
 func (c *GenericExpectedCall) String() string {

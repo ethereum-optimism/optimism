@@ -88,7 +88,7 @@
     "label": "provenWithdrawals",
     "offset": 0,
     "slot": "57",
-    "type": "mapping(bytes32 => struct OptimismPortal2.ProvenWithdrawal)"
+    "type": "mapping(bytes32 => mapping(address => struct OptimismPortal2.ProvenWithdrawal))"
   },
   {
     "bytes": "32",
@@ -110,5 +110,12 @@
     "offset": 4,
     "slot": "59",
     "type": "uint64"
+  },
+  {
+    "bytes": "32",
+    "label": "proofSubmitters",
+    "offset": 0,
+    "slot": "60",
+    "type": "mapping(bytes32 => address[])"
   }
 ]

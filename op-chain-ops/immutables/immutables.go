@@ -166,6 +166,7 @@ func deployContractsWithImmutables(constructors []deployer.Constructor) (Deploym
 	if err != nil {
 		return nil, err
 	}
+	defer backend.Close()
 	deployments, err := deployer.Deploy(backend, constructors, l2ImmutableDeployer)
 	if err != nil {
 		return nil, err

@@ -132,18 +132,17 @@ func (d *Sequencer) CancelBuildingBlock(ctx context.Context) {
 
 // PlanNextSequencerAction returns a desired delay till the RunNextSequencerAction call.
 func (d *Sequencer) PlanNextSequencerAction() time.Duration {
+	buildingOnto, buildingID, safe := d.engine.BuildingPayload()
 	// If the engine is busy building safe blocks (and thus changing the head that we would sync on top of),
 	// then give it time to sync up.
-	if onto, _, safe := d.engine.BuildingPayload(); safe {
-		d.log.Warn("delaying sequencing to not interrupt safe-head changes", "onto", onto, "onto_time", onto.Time)
+	if safe {
+		d.log.Warn("delaying sequencing to not interrupt safe-head changes", "onto", buildingOnto, "onto_time", buildingOnto.Time)
 		// approximates the worst-case time it takes to build a block, to reattempt sequencing after.
 		return time.Second * time.Duration(d.rollupCfg.BlockTime)
 	}
 
 	head := d.engine.UnsafeL2Head()
 	now := d.timeNow()
-
-	buildingOnto, buildingID, _ := d.engine.BuildingPayload()
 
 	// We may have to wait till the next sequencing action, e.g. upon an error.
 	// If the head changed we need to respond and will not delay the sequencing.

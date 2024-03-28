@@ -67,7 +67,7 @@ func (t *BlindCompressor) Flush() error {
 // Flush *must* be called before this method to ensure the buffer is up to date
 func (t *BlindCompressor) FullErr() error {
 	if uint64(t.Len()) >= t.config.TargetOutputSize {
-		return derive.CompressorFullErr
+		return derive.ErrCompressorFull
 	}
 	return nil
 }

@@ -57,6 +57,7 @@ import {
   IBridgeAdapter,
   ProvenWithdrawal,
   LowLevelMessage,
+  FPACProvenWithdrawal,
 } from './interfaces'
 import {
   toSignerOrProvider,
@@ -762,19 +763,16 @@ export class CrossChainMessenger {
             messageIndex
           )
 
-          // Pick portal based on FPAC compatibility.
-          const portal = (await this.fpac())
-            ? this.contracts.l1.OptimismPortal2
-            : this.contracts.l1.OptimismPortal
-
           // Attempt to fetch the proven withdrawal.
-          const provenWithdrawal = await portal.provenWithdrawals(
+          const provenWithdrawal = await this.getProvenWithdrawal(
             hashLowLevelMessage(withdrawal)
           )
 
-          // If the withdrawal hash has not been proven on L1,
-          // return `READY_TO_PROVE`
-          if (provenWithdrawal.timestamp.eq(BigNumber.from(0))) {
+          // If the withdrawal hash has not been proven on L1, return READY_TO_PROVE.
+          // Note that this will also apply in the case that a withdrawal has been proven but the
+          // proposal used to create the proof was invalidated. This is fine because in that case
+          // the withdrawal needs to be proven again anyway.
+          if (provenWithdrawal === null) {
             return MessageStatus.READY_TO_PROVE
           }
 
@@ -805,31 +803,32 @@ export class CrossChainMessenger {
           const withdrawalHash = hashLowLevelMessage(withdrawal)
 
           // Grab the proven withdrawal data.
-          const provenWithdrawal =
-            await this.contracts.l1.OptimismPortal2.provenWithdrawals(
-              withdrawalHash
-            )
-
-          // Attach to the FaultDisputeGame.
-          const game = new ethers.Contract(
-            provenWithdrawal.disputeGameProxy,
-            getContractInterfaceBedrock('FaultDisputeGame'),
-            this.l1SignerOrProvider
+          const provenWithdrawal = await this.getProvenWithdrawal(
+            withdrawalHash
           )
 
-          // Check if the game resolved to status 1 = "CHALLENGER_WINS". If so, the withdrawal was
-          // proven against a proposal that was invalidated and will need to be reproven. We throw
-          // an error here instead of creating a new status mostly because it's easier to integrate
-          // into the SDK.
-          const status = await game.status()
-          if (status === 1) {
-            throw new Error(`withdrawal proposal was invalidated, must reprove`)
+          // Sanity check, should've already happened above but do it just in case.
+          if (provenWithdrawal === null) {
+            // Ready to prove is the correct status here, we would not expect to hit this code path
+            // unless there was an unexpected reorg on L1. Since this is unlikely we log a warning.
+            console.warn(
+              'Unexpected code path reached in getMessageStatus, returning READY_TO_PROVE'
+            )
+            return MessageStatus.READY_TO_PROVE
+          }
+
+          // Shouldn't happen, but worth checking just in case.
+          if (!('proofSubmitter' in provenWithdrawal)) {
+            throw new Error(
+              `expected to get FPAC withdrawal but got legacy withdrawal`
+            )
           }
 
           try {
             // If this doesn't revert then we should be fine to relay.
             await this.contracts.l1.OptimismPortal2.checkWithdrawal(
-              hashLowLevelMessage(withdrawal)
+              hashLowLevelMessage(withdrawal),
+              provenWithdrawal.proofSubmitter
             )
 
             return MessageStatus.READY_FOR_RELAY
@@ -1266,12 +1265,168 @@ export class CrossChainMessenger {
    */
   public async getProvenWithdrawal(
     withdrawalHash: string
-  ): Promise<ProvenWithdrawal> {
+  ): Promise<ProvenWithdrawal | null> {
     if (!this.bedrock) {
       throw new Error('message proving only applies after the bedrock upgrade')
     }
 
-    return this.contracts.l1.OptimismPortal.provenWithdrawals(withdrawalHash)
+    // Getting the withdrawal is easy before FPAC.
+    if (!(await this.fpac())) {
+      // Grab the proven withdrawal directly by hash.
+      const provenWithdrawal =
+        await this.contracts.l1.OptimismPortal.provenWithdrawals(withdrawalHash)
+
+      // If the timestamp is 0 then the withdrawal has not been proven.
+      if (provenWithdrawal.timestamp.eq(0)) {
+        return null
+      } else {
+        return provenWithdrawal
+      }
+    }
+
+    // Getting the withdrawal is a bit more complicated after FPAC.
+    // First we need to get the number of proof submitters for this withdrawal.
+    const numProofSubmitters = BigNumber.from(
+      await this.contracts.l1.OptimismPortal2.numProofSubmitters(withdrawalHash)
+    ).toNumber()
+
+    // Now we need to find any withdrawal where the output proposal that the withdrawal was proven
+    // against is actually valid. We can use the same output validation cache used elsewhere.
+    for (let i = 0; i < numProofSubmitters; i++) {
+      // Grab the proof submitter.
+      const proofSubmitter =
+        await this.contracts.l1.OptimismPortal2.proofSubmitters(
+          withdrawalHash,
+          i
+        )
+
+      // Grab the ProvenWithdrawal struct for this proof.
+      const provenWithdrawal =
+        await this.contracts.l1.OptimismPortal2.provenWithdrawals(
+          withdrawalHash,
+          proofSubmitter
+        )
+
+      // Grab the game that was proven against.
+      const game = new ethers.Contract(
+        provenWithdrawal.disputeGameProxy,
+        getContractInterfaceBedrock('FaultDisputeGame'),
+        this.l1SignerOrProvider
+      )
+
+      // Check the game status.
+      const status = await game.status()
+      if (status === 1) {
+        // If status is CHALLENGER_WINS then it's no good.
+        continue
+      } else if (status === 2) {
+        // If status is DEFENDER_WINS then it's a valid proof.
+        return {
+          ...provenWithdrawal,
+          proofSubmitter,
+        }
+      } else if (status > 2) {
+        // Shouldn't happen in practice.
+        throw new Error('got invalid game status')
+      }
+
+      // Otherwise we're IN_PROGRESS.
+      // Grab the block number from the extra data. Since this is not a standardized field we need
+      // to be defensive and assume that the extra data could be anything. If the extra data does
+      // not decode properly then we just skip this game.
+      const extraData = await game.extraData()
+      let l2BlockNumber: number
+      try {
+        ;[l2BlockNumber] = ethers.utils.defaultAbiCoder.decode(
+          ['uint256'],
+          extraData
+        )
+      } catch (err) {
+        // Didn't decode properly, bad game.
+        continue
+      }
+
+      // Finally we check if the output root is valid. If it is, then we can return the proven
+      // withdrawal. If it isn't, then we act as if this proof does not exist because it isn't
+      // useful for finalizing the withdrawal.
+      if (await this.isValidOutputRoot(await game.rootClaim(), l2BlockNumber)) {
+        return {
+          ...provenWithdrawal,
+          proofSubmitter,
+        }
+      }
+    }
+
+    // Return null if we didn't find a valid proof.
+    return null
+  }
+
+  /**
+   * Checks whether a given root claim is valid. Uses the L2 node that the SDK is connected to
+   * when verifying the claim. Assumes that the connected L2 node is honest.
+   *
+   * @param outputRoot Output root to verify.
+   * @param l2BlockNumber L2 block number the root is for.
+   * @returns Whether or not the root is valid.
+   */
+  public async isValidOutputRoot(
+    outputRoot: string,
+    l2BlockNumber: number
+  ): Promise<boolean> {
+    // Use the cache if we can.
+    const cached = this._outputCache.find((other) => {
+      return other.root === outputRoot
+    })
+
+    // Skip if we can use the cached.
+    if (cached) {
+      return cached.valid
+    }
+
+    // If the cache ever gets to 10k elements, clear out the first half. Works well enough
+    // since the cache will generally tend to be used in a FIFO manner.
+    if (this._outputCache.length > 10000) {
+      this._outputCache = this._outputCache.slice(5000)
+    }
+
+    // We didn't hit the cache so we're going to have to do the work.
+    try {
+      // Make sure this is a JSON RPC provider.
+      const provider = toJsonRpcProvider(this.l2Provider)
+
+      // Grab the block and storage proof at the same time.
+      const [block, proof] = await Promise.all([
+        provider.send('eth_getBlockByNumber', [
+          toRpcHexString(l2BlockNumber),
+          false,
+        ]),
+        makeStateTrieProof(
+          provider,
+          l2BlockNumber,
+          this.contracts.l2.OVM_L2ToL1MessagePasser.address,
+          ethers.constants.HashZero
+        ),
+      ])
+
+      // Compute the output.
+      const output = ethers.utils.solidityKeccak256(
+        ['bytes32', 'bytes32', 'bytes32', 'bytes32'],
+        [
+          ethers.constants.HashZero,
+          block.stateRoot,
+          proof.storageRoot,
+          block.hash,
+        ]
+      )
+
+      // If the output matches the proposal then we're good.
+      const valid = output === outputRoot
+      this._outputCache.push({ root: outputRoot, valid })
+      return valid
+    } catch (err) {
+      // Assume the game is invalid but don't add it to the cache just in case we had a temp error.
+      return false
+    }
   }
 
   /**
@@ -1341,69 +1496,11 @@ export class CrossChainMessenger {
       // Now we verify the proposals in the matches array.
       let match: any
       for (const option of matches) {
-        // Use the cache if we can.
-        const cached = this._outputCache.find((other) => {
-          return other.root === option.rootClaim
-        })
-
-        // Skip if we can use the cached.
-        if (cached) {
-          if (cached.valid) {
-            match = option
-            break
-          } else {
-            continue
-          }
-        }
-
-        // If the cache ever gets to 10k elements, clear out the first half. Works well enough
-        // since the cache will generally tend to be used in a FIFO manner.
-        if (this._outputCache.length > 10000) {
-          this._outputCache = this._outputCache.slice(5000)
-        }
-
-        // We didn't hit the cache so we're going to have to do the work.
-        try {
-          // Make sure this is a JSON RPC provider.
-          const provider = toJsonRpcProvider(this.l2Provider)
-
-          // Grab the block and storage proof at the same time.
-          const [block, proof] = await Promise.all([
-            provider.send('eth_getBlockByNumber', [
-              toRpcHexString(option.l2BlockNumber),
-              false,
-            ]),
-            makeStateTrieProof(
-              provider,
-              option.l2BlockNumber,
-              this.contracts.l2.OVM_L2ToL1MessagePasser.address,
-              ethers.constants.HashZero
-            ),
-          ])
-
-          // Compute the output.
-          const output = ethers.utils.solidityKeccak256(
-            ['bytes32', 'bytes32', 'bytes32', 'bytes32'],
-            [
-              ethers.constants.HashZero,
-              block.stateRoot,
-              proof.storageRoot,
-              block.hash,
-            ]
-          )
-
-          // If the output matches the proposal then we're good.
-          if (output === option.rootClaim) {
-            this._outputCache.push({ root: option.rootClaim, valid: true })
-            match = option
-            break
-          } else {
-            this._outputCache.push({ root: option.rootClaim, valid: false })
-          }
-        } catch (err) {
-          // Just skip this option, whatever. If it was a transient error then we'll try again in
-          // the next loop iteration. If it was a permanent error then we'll get the same thing.
-          continue
+        if (
+          await this.isValidOutputRoot(option.rootClaim, option.l2BlockNumber)
+        ) {
+          match = option
+          break
         }
       }
 

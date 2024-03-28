@@ -320,7 +320,6 @@ func applyActions(game types.Game, claimant common.Address, actions []types.Acti
 					Position: newPosition,
 				},
 				Claimant:            claimant,
-				Clock:               nil,
 				ContractIndex:       len(claims),
 				ParentContractIndex: action.ParentIdx,
 			}

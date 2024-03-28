@@ -66,7 +66,7 @@ func (t *RatioCompressor) Flush() error {
 
 func (t *RatioCompressor) FullErr() error {
 	if t.inputTargetReached() {
-		return derive.CompressorFullErr
+		return derive.ErrCompressorFull
 	}
 	return nil
 }

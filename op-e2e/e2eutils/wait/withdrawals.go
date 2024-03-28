@@ -110,7 +110,7 @@ func ForGamePublished(ctx context.Context, client *ethclient.Client, optimismPor
 }
 
 // ForWithdrawalCheck waits until the withdrawal check in the portal succeeds.
-func ForWithdrawalCheck(ctx context.Context, client *ethclient.Client, withdrawal crossdomain.Withdrawal, optimismPortalAddr common.Address) error {
+func ForWithdrawalCheck(ctx context.Context, client *ethclient.Client, withdrawal crossdomain.Withdrawal, optimismPortalAddr common.Address, proofSubmitter common.Address) error {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 	opts := &bind.CallOpts{Context: ctx}
@@ -125,7 +125,7 @@ func ForWithdrawalCheck(ctx context.Context, client *ethclient.Client, withdrawa
 			return false, fmt.Errorf("hash withdrawal: %w", err)
 		}
 
-		err = portal.CheckWithdrawal(opts, wdHash)
+		err = portal.CheckWithdrawal(opts, wdHash, proofSubmitter)
 		return err == nil, nil
 	})
 }

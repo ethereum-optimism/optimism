@@ -16,27 +16,31 @@ import (
 func TestBondEnricher(t *testing.T) {
 	makeGame := func() *monTypes.EnrichedGameData {
 		return &monTypes.EnrichedGameData{
-			Claims: []faultTypes.Claim{
+			Claims: []monTypes.EnrichedClaim{
 				{
-					ClaimData: faultTypes.ClaimData{
-						Bond: monTypes.ResolvedBondAmount,
+					Claim: faultTypes.Claim{
+						Claimant:    common.Address{0x01},
+						CounteredBy: common.Address{0x02},
 					},
-					Claimant:    common.Address{0x01},
-					CounteredBy: common.Address{0x02},
+					Resolved: true,
 				},
 				{
-					ClaimData: faultTypes.ClaimData{
-						Bond: big.NewInt(5),
+					Claim: faultTypes.Claim{
+						ClaimData: faultTypes.ClaimData{
+							Bond: big.NewInt(5),
+						},
+						Claimant:    common.Address{0x03},
+						CounteredBy: common.Address{},
 					},
-					Claimant:    common.Address{0x03},
-					CounteredBy: common.Address{},
 				},
 				{
-					ClaimData: faultTypes.ClaimData{
-						Bond: big.NewInt(7),
+					Claim: faultTypes.Claim{
+						ClaimData: faultTypes.ClaimData{
+							Bond: big.NewInt(7),
+						},
+						Claimant:    common.Address{0x03},
+						CounteredBy: common.Address{},
 					},
-					Claimant:    common.Address{0x03},
-					CounteredBy: common.Address{},
 				},
 			},
 		}
@@ -61,7 +65,6 @@ func TestBondEnricher(t *testing.T) {
 	t.Run("GetCreditsSuccess", func(t *testing.T) {
 		game := makeGame()
 		expectedRecipients := []common.Address{
-			game.Claims[0].Claimant,
 			game.Claims[0].CounteredBy,
 			game.Claims[1].Claimant,
 			// Claim 1 CounteredBy is unset
@@ -70,9 +73,8 @@ func TestBondEnricher(t *testing.T) {
 		}
 		enricher := NewBondEnricher()
 		expectedCredits := map[common.Address]*big.Int{
-			expectedRecipients[0]: big.NewInt(10),
-			expectedRecipients[1]: big.NewInt(20),
-			expectedRecipients[2]: big.NewInt(30),
+			expectedRecipients[0]: big.NewInt(20),
+			expectedRecipients[1]: big.NewInt(30),
 		}
 		caller := &mockGameCaller{credits: expectedCredits}
 		err := enricher.Enrich(context.Background(), rpcblock.Latest, caller, game)

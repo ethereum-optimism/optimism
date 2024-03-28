@@ -16,7 +16,7 @@ import (
 	"golang.org/x/exp/maps"
 )
 
-func TestSendAndWait(t *testing.T) {
+func TestSendAndWaitQueueWithMaxPending(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	txMgr := &stubTxMgr{sending: make(map[byte]chan *types.Receipt)}
@@ -26,18 +26,18 @@ func TestSendAndWait(t *testing.T) {
 		return txmgr.TxCandidate{TxData: []byte{i}}
 	}
 
-	sendAsync := func(txs ...txmgr.TxCandidate) chan []*types.Receipt {
-		ch := make(chan []*types.Receipt, 1)
+	sendAsync := func(txs ...txmgr.TxCandidate) chan []txmgr.TxCandidate {
+		ch := make(chan []txmgr.TxCandidate, 1)
 		go func() {
-			rcpts, err := sender.SendAndWait("testing", txs...)
+			err := sender.SendAndWaitSimple("testing", txs...)
 			require.NoError(t, err)
-			ch <- rcpts
+			ch <- txs
 			close(ch)
 		}()
 		return ch
 	}
 
-	wait := func(ch chan []*types.Receipt) []*types.Receipt {
+	wait := func(ch chan []txmgr.TxCandidate) []txmgr.TxCandidate {
 		select {
 		case rcpts := <-ch:
 			return rcpts
@@ -88,9 +88,34 @@ func TestSendAndWait(t *testing.T) {
 	require.Len(t, wait(batch2), 2, "Batch2 should complete")
 }
 
+func TestSendAndWaitReturnIndividualErrors(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	txMgr := &stubTxMgr{
+		sending: make(map[byte]chan *types.Receipt),
+		syncStatus: map[byte]uint64{
+			0: types.ReceiptStatusSuccessful,
+			1: types.ReceiptStatusFailed,
+			2: types.ReceiptStatusSuccessful,
+		},
+	}
+	sender := NewTxSender(ctx, testlog.Logger(t, log.LevelInfo), txMgr, 500)
+
+	tx := func(i byte) txmgr.TxCandidate {
+		return txmgr.TxCandidate{TxData: []byte{i}}
+	}
+
+	errs := sender.SendAndWaitDetailed("testing", tx(0), tx(1), tx(2))
+	require.Len(t, errs, 3)
+	require.NoError(t, errs[0])
+	require.ErrorIs(t, errs[1], ErrTransactionReverted)
+	require.NoError(t, errs[2])
+}
+
 type stubTxMgr struct {
-	m       sync.Mutex
-	sending map[byte]chan *types.Receipt
+	m          sync.Mutex
+	sending    map[byte]chan *types.Receipt
+	syncStatus map[byte]uint64
 }
 
 func (s *stubTxMgr) IsClosed() bool {
@@ -111,7 +136,11 @@ func (s *stubTxMgr) recordTx(candidate txmgr.TxCandidate) chan *types.Receipt {
 		panic("Sending duplicate transaction")
 	}
 	ch := make(chan *types.Receipt, 1)
-	s.sending[id] = ch
+	if status, ok := s.syncStatus[id]; ok {
+		ch <- &types.Receipt{Status: status}
+	} else {
+		s.sending[id] = ch
+	}
 	return ch
 }
 

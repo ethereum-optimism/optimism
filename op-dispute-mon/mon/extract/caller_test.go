@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	contractMetrics "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
@@ -71,6 +72,7 @@ func setupMetadataLoaderTest(t *testing.T) (*batching.MultiCaller, *mockCacheMet
 type mockCacheMetrics struct {
 	cacheAddCalls int
 	cacheGetCalls int
+	*contractMetrics.NoopMetrics
 }
 
 func (m *mockCacheMetrics) CacheAdd(_ string, _ int, _ bool) {

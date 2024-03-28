@@ -29,9 +29,10 @@ func NewBondEnricher() *BondEnricher {
 func (b *BondEnricher) Enrich(ctx context.Context, block rpcblock.Block, caller GameCaller, game *monTypes.EnrichedGameData) error {
 	recipients := make(map[common.Address]bool)
 	for _, claim := range game.Claims {
-		recipients[claim.Claimant] = true
 		if claim.CounteredBy != (common.Address{}) {
 			recipients[claim.CounteredBy] = true
+		} else {
+			recipients[claim.Claimant] = true
 		}
 	}
 
