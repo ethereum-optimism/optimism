@@ -203,7 +203,7 @@ func entrypoint(ctx *cli.Context) error {
 		}
 
 		// Build the batch
-		if err := upgrades.L1(&batch, list, *addresses, config, chainConfig, clients.L1Client); err != nil {
+		if err := upgrades.L1(&batch, list, *addresses, config, chainConfig, nil, clients.L1Client); err != nil {
 			return err
 		}
 	}

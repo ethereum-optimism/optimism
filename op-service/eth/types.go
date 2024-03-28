@@ -402,16 +402,31 @@ func (sysCfg *SystemConfig) EcotoneScalars() (blobBaseFeeScalar, baseFeeScalar u
 		}
 		return 0, 0, err
 	}
-	switch sysCfg.Scalar[0] {
+	return DecodeScalar(sysCfg.Scalar)
+}
+
+// DecodeScalar decodes the blobBaseFeeScalar and baseFeeScalar from a 32-byte scalar value.
+// It uses the first byte to determine the scalar format.
+func DecodeScalar(scalar [32]byte) (blobBaseFeeScalar, baseFeeScalar uint32, err error) {
+	switch scalar[0] {
 	case L1ScalarBedrock:
 		blobBaseFeeScalar = 0
-		baseFeeScalar = binary.BigEndian.Uint32(sysCfg.Scalar[28:32])
+		baseFeeScalar = binary.BigEndian.Uint32(scalar[28:32])
 	case L1ScalarEcotone:
-		blobBaseFeeScalar = binary.BigEndian.Uint32(sysCfg.Scalar[24:28])
-		baseFeeScalar = binary.BigEndian.Uint32(sysCfg.Scalar[28:32])
+		blobBaseFeeScalar = binary.BigEndian.Uint32(scalar[24:28])
+		baseFeeScalar = binary.BigEndian.Uint32(scalar[28:32])
 	default:
-		err = fmt.Errorf("unexpected system config scalar: %s", sysCfg.Scalar)
+		err = fmt.Errorf("unexpected system config scalar: %s", scalar)
 	}
+	return
+}
+
+// EncodeScalar encodes the blobBaseFeeScalar and baseFeeScalar into a 32-byte scalar value
+// for the Ecotone serialization format.
+func EncodeScalar(blobBaseFeeScalar, baseFeeScalar uint32) (scalar [32]byte) {
+	scalar[0] = L1ScalarEcotone
+	binary.BigEndian.PutUint32(scalar[32-4:], uint32(baseFeeScalar))
+	binary.BigEndian.PutUint32(scalar[32-8:], uint32(blobBaseFeeScalar))
 	return
 }
 
