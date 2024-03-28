@@ -1,5 +1,15 @@
 # @eth-optimism/sdk
 
+## 3.3.0
+
+### Minor Changes
+
+- [#9951](https://github.com/ethereum-optimism/optimism/pull/9951) [`ac5b061dfce6a9817b928a8703be9252daaeeca7`](https://github.com/ethereum-optimism/optimism/commit/ac5b061dfce6a9817b928a8703be9252daaeeca7) Thanks [@smartcontracts](https://github.com/smartcontracts)! - Updates SDK for FPAC proven withdrawals mapping.
+
+### Patch Changes
+
+- [#9973](https://github.com/ethereum-optimism/optimism/pull/9973) [`87093b0e9144a4709f11c7fbd631828847d891f9`](https://github.com/ethereum-optimism/optimism/commit/87093b0e9144a4709f11c7fbd631828847d891f9) Thanks [@raffaele-oplabs](https://github.com/raffaele-oplabs)! - Added support for MODE sepolia and MODE mainnet
+
 ## 3.2.3
 
 ### Patch Changes
