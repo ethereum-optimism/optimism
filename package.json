@@ -64,7 +64,7 @@
     "eslint-plugin-prefer-arrow": "^1.2.3",
     "eslint-plugin-prettier": "^4.0.0",
     "eslint-plugin-promise": "^5.1.0",
-    "eslint-plugin-react": "^7.24.0",
+    "eslint-plugin-react": "^7.34.1",
     "eslint-plugin-unicorn": "^50.0.1",
     "husky": "^9.0.10",
     "lint-staged": "15.2.0",
