@@ -16,7 +16,7 @@ type Params struct {
 var ParamsByChainID = map[int]*Params{
 	// Ethereum Mainnet L2
 	288: {
-		new(big.Int),
+		new(big.Int).SetInt64(-94819327096614),
 	},
 	// Ethereum Sepolia L2
 	28882: {
