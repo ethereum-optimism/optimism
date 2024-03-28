@@ -36,6 +36,7 @@ var (
 	batchTypes = []uint{
 		derive.SpanBatchType,
 		// uncomment to include singular batches in the benchmark
+		// singular batches are not included by default because they are not the target of the benchmark
 		//derive.SingularBatchType,
 	}
 )
@@ -65,7 +66,7 @@ func (t BatchingBenchmarkTC) String() string {
 // Every Compressor in the compressor map is benchmarked for each test case
 // The results of the Benchmark measure *only* the time to add the final batch to the channel out,
 // not the time to send all the batches through the channel out
-// Hint: Raise the derive.MaxRLPBytesPerChannel to 10_000_000_000 to avoid hitting limits
+// Hint: Raise the derive.MaxRLPBytesPerChannel to 10_000_000_000 to avoid hitting limits if adding larger test cases
 func BenchmarkFinalBatchChannelOut(b *testing.B) {
 	// Targets define the number of batches and transactions per batch to test
 	type target struct{ bs, tpb int }
@@ -73,7 +74,6 @@ func BenchmarkFinalBatchChannelOut(b *testing.B) {
 		{10, 1},
 		{100, 1},
 		{1000, 1},
-		//{10000, 1},
 
 		{10, 100},
 		{100, 100},
@@ -137,7 +137,6 @@ func BenchmarkAllBatchesChannelOut(b *testing.B) {
 		{10, 1},
 		{100, 1},
 		{1000, 1},
-		//{10000, 1},
 
 		{10, 100},
 		{100, 100},
