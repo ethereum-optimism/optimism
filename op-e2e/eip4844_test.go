@@ -28,18 +28,18 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
 
-// TestSystem4844E2E runs the SystemE2E test with 4844 enabled on L1,
-// and active on the rollup in the op-batcher and verifier.
+// TestSystem4844E2E runs the SystemE2E test with 4844 enabled on L1, and active on the rollup in
+// the op-batcher and verifier.  It submits a txpool-blocking transaction before running
+// each test to ensure the batcher is able to clear it.
 func TestSystem4844E2E(t *testing.T) {
-	t.Run("single-blob", func(t *testing.T) { testSystem4844E2E(t, false) })
-	t.Run("multi-blob", func(t *testing.T) { testSystem4844E2E(t, true) })
+	t.Run("calldata", func(t *testing.T) { testSystem4844E2E(t, false, batcherFlags.CalldataType) })
+	t.Run("single-blob", func(t *testing.T) { testSystem4844E2E(t, false, batcherFlags.BlobsType) })
+	t.Run("multi-blob", func(t *testing.T) { testSystem4844E2E(t, true, batcherFlags.BlobsType) })
 }
 
-func testSystem4844E2E(t *testing.T, multiBlob bool) {
+func testSystem4844E2E(t *testing.T, multiBlob bool, daType batcherFlags.DataAvailabilityType) {
 	InitParallel(t)
-
 	cfg := DefaultSystemConfig(t)
-	cfg.DataAvailabilityType = batcherFlags.BlobsType
 	const maxBlobs = 6
 	var maxL1TxSize int
 	if multiBlob {
@@ -50,11 +50,13 @@ func testSystem4844E2E(t *testing.T, multiBlob bool) {
 		maxL1TxSize = derive.FrameV0OverHeadSize + 100
 		cfg.BatcherMaxL1TxSizeBytes = uint64(maxL1TxSize)
 	}
+	cfg.DataAvailabilityType = daType
 
 	genesisActivation := hexutil.Uint64(0)
 	cfg.DeployConfig.L1CancunTimeOffset = &genesisActivation
 	cfg.DeployConfig.L2GenesisDeltaTimeOffset = &genesisActivation
 	cfg.DeployConfig.L2GenesisEcotoneTimeOffset = &genesisActivation
+	cfg.DeployConfig.L1GenesisBlockBaseFeePerGas = (*hexutil.Big)(big.NewInt(7000))
 
 	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
@@ -85,6 +87,9 @@ func testSystem4844E2E(t *testing.T, multiBlob bool) {
 	mintAmount := big.NewInt(1_000_000_000_000)
 	opts.Value = mintAmount
 	SendDepositTx(t, cfg, l1Client, l2Verif, opts, func(l2Opts *DepositTxOpts) {})
+
+	// block the txpool to test the tx clearing functionality.
+	sys.BatchSubmitter.Driver().JamTxPool(context.Background())
 
 	// Confirm balance
 	ctx, cancel = context.WithTimeout(context.Background(), 15*time.Second)
@@ -147,7 +152,7 @@ func testSystem4844E2E(t *testing.T, multiBlob bool) {
 	tip, err := l1Client.HeaderByNumber(context.Background(), nil)
 	require.NoError(t, err)
 	var blobTx *types.Transaction
-	blobBlock, err := gethutils.FindBlock(l1Client, int(tip.Number.Int64()), 0, 5*time.Second,
+	blobBlock, err := gethutils.FindBlock(l1Client, int(tip.Number.Int64()), 0, 15*time.Second,
 		func(b *types.Block) (bool, error) {
 			for _, tx := range b.Transactions() {
 				if tx.Type() != types.BlobTxType {
