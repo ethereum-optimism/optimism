@@ -492,8 +492,9 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         gameProxy.step(8, true, absolutePrestateData, hex"");
     }
 
-    /// @dev Tests that successfully step with true attacking claim when there is a true defend claim(claim5) in the middle of the dispute game.
-    function test_stepAttackDummyClaim_defendTrueClaimInTheMiddle() public {
+    /// @dev Tests that successfully step with true attacking claim when there is a true defend claim(claim5) in the
+    /// middle of the dispute game.
+    function test_stepAttackDummyClaim_defendTrueClaimInTheMiddle_succeeds() public {
         // Give the test contract some ether
         vm.deal(address(this), 1000 ether);
 
@@ -512,7 +513,8 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         gameProxy.step(8, true, claimData5, hex"");
     }
 
-    /// @dev Tests that step reverts with false attacking claim when there is a true defend claim(claim5) in the middle of the dispute game.
+    /// @dev Tests that step reverts with false attacking claim when there is a true defend claim(claim5) in the middle
+    /// of the dispute game.
     function test_stepAttackTrueClaim_defendTrueClaimInTheMiddle_reverts() public {
         // Give the test contract some ether
         vm.deal(address(this), 1000 ether);
@@ -535,8 +537,9 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         gameProxy.step(8, true, claimData5, hex"");
     }
 
-    /// @dev Tests that step reverts with false defending claim when there is a true defend claim(postState_) in the middle of the dispute game.
-    function test_stepDefendDummyClaim_defendTrueClaimInTheMiddle() public {
+    /// @dev Tests that step reverts with false defending claim when there is a true defend claim(postState_) in the
+    /// middle of the dispute game.
+    function test_stepDefendDummyClaim_defendTrueClaimInTheMiddle_reverts() public {
         // Give the test contract some ether
         vm.deal(address(this), 1000 ether);
 
@@ -561,7 +564,8 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         gameProxy.step(8, false, _dummyClaimData, hex"");
     }
 
-    /// @dev Tests that step reverts with true defending claim when there is a true defend claim(postState_) in the middle of the dispute game.
+    /// @dev Tests that step reverts with true defending claim when there is a true defend claim(postState_) in the
+    /// middle of the dispute game.
     function test_stepDefendTrueClaim_defendTrueClaimInTheMiddle_reverts() public {
         // Give the test contract some ether
         vm.deal(address(this), 1000 ether);
