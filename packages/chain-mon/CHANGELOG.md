@@ -1,5 +1,12 @@
 # @eth-optimism/drippie-mon
 
+## 0.6.4
+
+### Patch Changes
+
+- Updated dependencies [[`ac5b061dfce6a9817b928a8703be9252daaeeca7`](https://github.com/ethereum-optimism/optimism/commit/ac5b061dfce6a9817b928a8703be9252daaeeca7), [`87093b0e9144a4709f11c7fbd631828847d891f9`](https://github.com/ethereum-optimism/optimism/commit/87093b0e9144a4709f11c7fbd631828847d891f9)]:
+  - @eth-optimism/sdk@3.3.0
+
 ## 0.6.3
 
 ### Patch Changes
