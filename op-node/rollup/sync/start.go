@@ -74,7 +74,7 @@ func currentHeads(ctx context.Context, cfg *rollup.Config, l2 L2Chain) (*FindHea
 	}
 
 	safe, err := l2.L2BlockRefByLabel(ctx, eth.Safe)
-	if err!=nil{
+	if err != nil{
 		if !errors.Is(err, ethereum.NotFound){
 			return nil, fmt.Errorf("failed to find the safe L2 block: %w", err)
 		}
