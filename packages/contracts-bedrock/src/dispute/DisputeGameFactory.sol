@@ -151,6 +151,7 @@ contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, ISemver 
         // memory allocated, but we don't know ahead of time the final size of the array.
         assembly {
             games_ := mload(0x40)
+            mstore(games_, 0)
             mstore(0x40, add(games_, add(0x20, shl(0x05, _n))))
         }
 
