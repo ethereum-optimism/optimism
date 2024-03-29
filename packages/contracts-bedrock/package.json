@@ -27,7 +27,7 @@
     "gas-snapshot:no-build": "forge snapshot --match-contract GasBenchMark",
     "statediff": "./scripts/statediff.sh && git diff --exit-code",
     "gas-snapshot": "pnpm build:go-ffi && pnpm gas-snapshot:no-build",
-    "snapshots": "npx tsx scripts/autogen/generate-snapshots.ts && ./test/kontrol/scripts/make-summary-deployment.sh",
+    "snapshots": "forge build --ast && npx tsx scripts/autogen/generate-snapshots.ts && ./test/kontrol/scripts/make-summary-deployment.sh",
     "snapshots:check": "./scripts/checks/check-snapshots.sh",
     "semver-lock": "forge script scripts/SemverLock.s.sol",
     "validate-deploy-configs": "./scripts/checks/check-deploy-configs.sh",
