@@ -2,14 +2,10 @@
 pragma solidity 0.8.15;
 
 import { Test } from "forge-std/Test.sol";
-import { console } from "forge-std/console.sol";
 import { OpStackManager } from "src/L1/OpStackManager.sol";
 import { AddressManager } from "src/legacy/AddressManager.sol";
 import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
 import { Proxy } from "src/universal/Proxy.sol";
-import { L1ChugSplashProxy } from "src/legacy/L1ChugSplashProxy.sol";
-import { ResolvedDelegateProxy } from "src/legacy/ResolvedDelegateProxy.sol";
-import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { ProtocolVersions } from "src/L1/ProtocolVersions.sol";
 import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
 import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
@@ -37,12 +33,15 @@ contract BlueprintDeployer {
 
 contract OPStackManagerTest is Test {
     // Test data.
+    OpStackManager opStackManagerImpl;
     OpStackManager opStackManager;
     address opStackManagerOwner = makeAddr("opStackManagerOwner");
 
     // Sepolia data.
     SystemConfig systemConfig = SystemConfig(0x034edD2A225f7f429A63E0f1D2084B9E0A93b538);
     ProtocolVersions protocolVersions = ProtocolVersions(0x79ADD5713B383DAa0a138d3C4780C7A1804a8090);
+    AddressManager addressManager = AddressManager(0x9bFE9c5609311DF1c011c47642253B78a4f33F4B);
+    address proxyAdminOwner = 0xDEe57160aAfCF04c34C887B5962D0a69676d3C8B;
 
     OpStackManager.ImplementationSetter[] impls;
 
@@ -106,25 +105,50 @@ contract OPStackManagerTest is Test {
     }
 
     function setUp() public {
-        vm.createSelectFork(vm.envString("SEPOLIA_RPC_URL"), 19401679);
-        opStackManager = new OpStackManager(10, systemConfig, protocolVersions);
-        // opStackManager.initialize(opStackManagerOwner);
+        // Forking sepolia from one block before the FPAC upgrade.
+        uint64 opSepoliaChainId = 11155420;
+        vm.createSelectFork(vm.envString("SEPOLIA_RPC_URL"), 5519723);
 
-        // // Release op-contracts/v1.2.0.
-        // vm.prank(opStackManagerOwner);
-        // opStackManager.release({ version: "v1.3.0", isLatest: true, impls: impls });
+        // Deploy and configure OpStackManager behind a proxy.
+        ProxyAdmin opStackManagerProxyAdmin = new ProxyAdmin({ _owner: address(this) });
 
-        // // Registers the existing OP Mainnet chain.
-        // vm.prank(opStackManagerOwner);
-        // opStackManager.register(
-        //     10,
-        //     SystemConfig(0x229047fed2591dbec1eF1118d64F7aF3dB9EB290),
-        //     ProtocolVersions(0x79ADD5713B383DAa0a138d3C4780C7A1804a8090)
-        // );
+        opStackManagerImpl =
+            new OpStackManager(opSepoliaChainId, systemConfig, protocolVersions, addressManager, proxyAdminOwner);
+        opStackManager = OpStackManager(address(new Proxy(address(opStackManagerProxyAdmin))));
+
+        bytes memory data = abi.encodeCall(OpStackManager.initialize, (opStackManagerOwner));
+        opStackManagerProxyAdmin.upgradeAndCall(payable(address(opStackManager)), address(opStackManagerImpl), data);
+
+        // Release op-contracts/v1.3.0
+        vm.prank(opStackManagerOwner);
+        opStackManager.release({ version: "op-contracts/v1.3.0", isLatest: true, impls: impls });
+
+        // Registers the existing OP Mainnet chain.
+        vm.prank(opStackManagerOwner);
+        opStackManager.register(
+            opSepoliaChainId,
+            "op-contracts/v1.3.0",
+            SystemConfig(0x034edD2A225f7f429A63E0f1D2084B9E0A93b538),
+            ProtocolVersions(0x79ADD5713B383DAa0a138d3C4780C7A1804a8090)
+        );
     }
 
     function test_DeployGasCost() public {
-        // address proxyAdminOwner = makeAddr("proxyAdminOwner");
-        // opStackManager.deploy(proxyAdminOwner);
+        uint64 l2ChainId = 0x999;
+        address dummyProxyAdminOwner = makeAddr("dummyProxyAdminOwner");
+        OpStackManager.SystemConfigInputs memory systemConfigInputs = OpStackManager.SystemConfigInputs({
+            systemConfigOwner: makeAddr("dummySystemConfigOwner"),
+            overhead: 1,
+            scalar: 2,
+            batcherHash: bytes32(uint256(0x1234)),
+            unsafeBlockSigner: makeAddr("dummyUnsafeBlockSigner")
+        });
+        OpStackManager.L2OutputOracleInputs memory l2OutputOracleInputs = OpStackManager.L2OutputOracleInputs({
+            submissionInterval: 1800,
+            proposer: makeAddr("proposer"),
+            challenger: makeAddr("challenger")
+        });
+
+        opStackManager.deploy(l2ChainId, dummyProxyAdminOwner, systemConfigInputs, l2OutputOracleInputs);
     }
 }
