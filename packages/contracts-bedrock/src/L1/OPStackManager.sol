@@ -25,7 +25,7 @@ import { SystemConfig } from "src/L1/SystemConfig.sol";
 ///
 /// Some required values for the standard configuration can be discovered onchain by reading those
 /// values from a chain known to meet the standard configuration requirements. This chain is known
-/// as the "reference chain" in these contracts, and is why many variables are prefixed with
+/// as the "reference chain" in this contract, and is why many variables are prefixed with
 /// "reference". The reference chain will be OP Mainnet, OP Sepolia, etc.
 ///
 /// OP Stack chains deployed by this contract have the following properties:
@@ -38,13 +38,14 @@ import { SystemConfig } from "src/L1/SystemConfig.sol";
 ///        - TODO Consider using CREATE3 so addresses are independent of bytecode, to be robust
 ///          against future code changes. This is mainly important for proxies and contracts that
 ///          are not deployed behind a proxy, such as the AddressManager.
+///        - TODO Add getter methods to help compute all contract addresses for a chain.
 ///   3. When practical, standard chain requirements are automatically set or enforced, such as
 ///      having a block time of 2 seconds.
 ///   4. They use the `referenceSuperchainConfig` and `referenceProtocolVersions` contracts, since
 ///      these are intended to be singletons. All chains pointing to the `referenceSuperchainConfig`
 ///      can have withdrawals paused simultaneously, which is a security feature that assists with
 ///      incident response.
-contract OpStackManager is OwnableUpgradeable {
+contract OPStackManager is OwnableUpgradeable {
     /// @notice The reference OP SystemConfig used for reference values.
     SystemConfig public immutable referenceSystemConfig;
 
@@ -116,9 +117,6 @@ contract OpStackManager is OwnableUpgradeable {
     /// due to implementation details of the ProxyAdmin contract.
     mapping(uint256 => SystemConfig) public systemConfigs;
 
-    /// @notice Maps an L2 Chain ID to the ProtocolVersions for that chain.
-    mapping(uint256 => ProtocolVersions) public protocolVersions;
-
     /// @notice Maps an L2 Chain ID to the release version for that chain.
     /// Release strings follow semver and are named with the format `op-contracts/vX.Y.Z`.
     mapping(uint256 => bytes32) public releases;
@@ -140,10 +138,10 @@ contract OpStackManager is OwnableUpgradeable {
         referenceAddressManager = _referenceAddressManager;
         referenceProxyAdminOwner = _referenceProxyAdminOwner;
 
-        register(referenceChainId, latestRelease, referenceSystemConfig, referenceProtocolVersions);
+        register(referenceChainId, latestRelease, referenceSystemConfig);
     }
 
-    function initialize(address _owner) public initializer {
+    function initialize(address _owner) external initializer {
         __Ownable_init();
         transferOwnership(_owner);
     }
@@ -166,11 +164,10 @@ contract OpStackManager is OwnableUpgradeable {
 
     /// @notice Used to make this contract aware of chains that were deployed without this factory.
     /// This method is permissionless, and anyone can register any chain ID.
-    function register(uint64 l2ChainId, bytes32 release_, SystemConfig sc, ProtocolVersions pv) public {
+    function register(uint64 l2ChainId, bytes32 release_, SystemConfig sc) public {
         requireValidL2ChainId(l2ChainId);
         // TODO Add other standard configuration requirement checks here.
         systemConfigs[l2ChainId] = sc;
-        protocolVersions[l2ChainId] = pv;
         releases[l2ChainId] = release_;
     }
 
@@ -178,17 +175,9 @@ contract OpStackManager is OwnableUpgradeable {
     /// This is required because the source of truth for L2 Chain IDs lives offchain, meaning it's
     /// possible for malicious actors to squat on chain IDs, therefore the owner can fix or delete
     /// invalid registrations.
-    function registerOverride(
-        uint256 l2ChainId,
-        bytes32 release_,
-        SystemConfig sc,
-        ProtocolVersions pv
-    )
-        public
-        onlyOwner
-    {
+    function registerOverride(uint256 l2ChainId, bytes32 release_, SystemConfig sc) public onlyOwner {
+        // TODO Add standard configuration requirement checks here.
         systemConfigs[l2ChainId] = sc;
-        protocolVersions[l2ChainId] = pv;
         releases[l2ChainId] = release_;
     }
 
@@ -216,7 +205,7 @@ contract OpStackManager is OwnableUpgradeable {
         SystemConfigInputs memory systemConfigInputs,
         L2OutputOracleInputs memory l2OutputOracleInputs
     )
-        public
+        external
     {
         // -------- Requirements --------
         requireValidL2ChainId(l2ChainId);
@@ -294,7 +283,7 @@ contract OpStackManager is OwnableUpgradeable {
         proxyAdmin.transferOwnership(proxyAdminOwner);
 
         // Save off this deploy.
-        register(l2ChainId, latestRelease, SystemConfig(proxies.systemConfig), referenceProtocolVersions);
+        register(l2ChainId, latestRelease, SystemConfig(proxies.systemConfig));
 
         // Correctness checks.
         // forgefmt: disable-start
@@ -310,7 +299,7 @@ contract OpStackManager is OwnableUpgradeable {
     }
 
     /// @notice Maps an L2 chain ID to an L1 batch inbox address of the form `0xFF000...000{chainId}`.
-    function _chainIdToBatchInboxAddress(uint256 l2ChainId) public pure returns (address) {
+    function chainIdToBatchInboxAddress(uint256 l2ChainId) public pure returns (address) {
         return address(uint160(0xFF) << 152 | uint160(l2ChainId));
     }
 
@@ -386,7 +375,7 @@ contract OpStackManager is OwnableUpgradeable {
             30_000_000, // gasLimit
             inputs.unsafeBlockSigner,
             referenceResourceConfig,
-            _chainIdToBatchInboxAddress(l2ChainId),
+            chainIdToBatchInboxAddress(l2ChainId),
             _addresses
         );
     }
