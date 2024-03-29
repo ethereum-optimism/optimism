@@ -161,7 +161,7 @@ contract Setup {
             args[0] = Executables.bash;
             args[1] = "-c";
             args[2] = string.concat(vm.projectRoot(), "/scripts/generate-l2-genesis.sh");
-            VmSafe.FfiResult memory result = vm.tryFfi(args);
+            Vm.FfiResult memory result = vm.tryFfi(args);
             if (result.exitCode != 0) {
                 revert FfiFailed(
                     string.concat(
