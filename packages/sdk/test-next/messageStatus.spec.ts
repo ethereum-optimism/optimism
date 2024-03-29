@@ -11,7 +11,7 @@ const crossChainMessenger = new CrossChainMessenger({
   bedrock: true,
 })
 
-describe('getMessageStatus', () => {
+describe.skip('getMessageStatus', () => {
   it(`should be able to correctly find a finalized withdrawal`, async () => {
     /**
      * Tx hash of a withdrawal

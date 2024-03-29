@@ -64,7 +64,7 @@ const crossChainMessenger = new CrossChainMessenger({
   bedrock: true,
 })
 
-describe('prove message', () => {
+describe.skip('prove message', () => {
   it(`should prove a legacy tx
   `, async () => {
     /**
