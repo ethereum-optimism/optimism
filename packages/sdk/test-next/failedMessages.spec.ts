@@ -3,11 +3,11 @@ import { Address, Hex, encodePacked, keccak256, toHex } from 'viem'
 import { ethers } from 'ethers'
 import { z } from 'zod'
 import { hashCrossDomainMessagev1 } from '@eth-optimism/core-utils'
+import { optimismSepolia } from 'viem/chains'
 
 import { CONTRACT_ADDRESSES, CrossChainMessenger } from '../src'
 import { sepoliaPublicClient, sepoliaTestClient } from './testUtils/viemClients'
 import { sepoliaProvider, opSepoliaProvider } from './testUtils/ethersProviders'
-import { optimismSepolia } from 'viem/chains'
 
 /**
  * Generated on Mar 28 2024 using
@@ -22,8 +22,9 @@ const failedMessagesStorageLayout = {
   type: 't_mapping(t_bytes32,t_bool)',
 }
 
-const sepoliaCrossDomainMessengerAddress =
-  CONTRACT_ADDRESSES[optimismSepolia.id].l1.L1CrossDomainMessenger as Address
+const sepoliaCrossDomainMessengerAddress = CONTRACT_ADDRESSES[
+  optimismSepolia.id
+].l1.L1CrossDomainMessenger as Address
 
 const setMessageAsFailed = async (tx: Hex) => {
   const message = await crossChainMessenger.toCrossChainMessage(tx)
@@ -36,11 +37,12 @@ const setMessageAsFailed = async (tx: Hex) => {
     message.message
   ) as Hex
 
-  const keySlotHash = keccak256(encodePacked(
-    ['bytes32', 'uint256'],
-    [messageHash, failedMessagesStorageLayout.slot]
-
-  ))
+  const keySlotHash = keccak256(
+    encodePacked(
+      ['bytes32', 'uint256'],
+      [messageHash, failedMessagesStorageLayout.slot]
+    )
+  )
   return sepoliaTestClient.setStorageAt({
     address: sepoliaCrossDomainMessengerAddress,
     index: keySlotHash,
@@ -75,7 +77,8 @@ describe('replaying failed messages', () => {
 
     // debugging ethers.js is brutal because of error message so let's instead
     // send the tx with viem. If it succeeds we will then test with ethers
-    const txData = await crossChainMessenger.populateTransaction.finalizeMessage(tx)
+    const txData =
+      await crossChainMessenger.populateTransaction.finalizeMessage(tx)
 
     await sepoliaPublicClient.call({
       data: txData.data as Hex,
