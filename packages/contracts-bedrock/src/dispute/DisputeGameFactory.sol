@@ -155,7 +155,7 @@ contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, ISemver 
         }
 
         // Perform a reverse linear search for the `_n` most recent games of type `_gameType`.
-        for (uint256 i = _start; i >= 0 && i <= _start;) {
+        for (uint256 i = _start; i <= _start;) {
             GameId id = _disputeGameList[i];
             (GameType gameType, Timestamp timestamp, IDisputeGame proxy) = id.unpack();
 
