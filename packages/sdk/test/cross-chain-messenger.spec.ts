@@ -25,6 +25,22 @@ describe('CrossChainMessenger', () => {
   let l2Signer: any
   before(async () => {
     ;[l1Signer, l2Signer] = await ethers.getSigners()
+    // ethers.getSigners() is out of date - recent versions of geth
+    // include a balance check as part of the estimateGas() call.
+    for (const signer of [l1Signer, l2Signer]) {
+      const estimateGas = signer.provider.estimateGas
+      signer.provider.estimateGas = async function (tx) {
+        const from = tx.from ?? ethers.constants.AddressZero
+        const value = tx.value ?? ethers.constants.Zero
+        const balance = await this.getBalance(from)
+        if (balance <= value) {
+          throw Error(
+            `gas estimation failed: insufficient balance from=${from} value=${value} balance=${balance}`
+          )
+        }
+        return estimateGas.call(this, tx)
+      }
+    }
   })
 
   describe('construction', () => {
@@ -1104,7 +1120,7 @@ describe('CrossChainMessenger', () => {
         const message = {
           direction: MessageDirection.L1_TO_L2,
           target: '0x' + '11'.repeat(20),
-          sender: '0x' + '22'.repeat(20),
+          sender: '0x1CBd3b2770909D4e10f157cABC84C7264073C9Ec', // account 13
           message: '0x' + '33'.repeat(64),
           messageNonce: 1234,
           logIndex: 0,
@@ -1133,7 +1149,7 @@ describe('CrossChainMessenger', () => {
         const message = {
           direction: MessageDirection.L1_TO_L2,
           target: '0x' + '11'.repeat(20),
-          sender: '0x' + '22'.repeat(20),
+          sender: '0x1CBd3b2770909D4e10f157cABC84C7264073C9Ec', // account 13
           message: '0x' + '33'.repeat(64),
           messageNonce: 1234,
           logIndex: 0,
