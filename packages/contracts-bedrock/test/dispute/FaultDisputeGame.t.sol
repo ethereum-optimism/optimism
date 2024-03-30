@@ -494,14 +494,14 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
 
     /// @dev Static unit test for the correctness an uncontested root resolution.
     function test_resolve_rootUncontested_succeeds() public {
-        vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
+        vm.warp(block.timestamp + 3 days + 12 hours);
         gameProxy.resolveClaim(0);
         assertEq(uint8(gameProxy.resolve()), uint8(GameStatus.DEFENDER_WINS));
     }
 
     /// @dev Static unit test for the correctness an uncontested root resolution.
     function test_resolve_rootUncontestedClockNotExpired_succeeds() public {
-        vm.warp(block.timestamp + 3 days + 12 hours);
+        vm.warp(block.timestamp + 3 days + 12 hours - 1 seconds);
         vm.expectRevert(ClockNotExpired.selector);
         gameProxy.resolveClaim(0);
     }
@@ -509,7 +509,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     /// @dev Static unit test asserting that resolve reverts when the absolute root
     ///      subgame has not been resolved.
     function test_resolve_rootUncontestedButUnresolved_reverts() public {
-        vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
+        vm.warp(block.timestamp + 3 days + 12 hours);
         vm.expectRevert(OutOfOrderResolution.selector);
         gameProxy.resolve();
     }
@@ -535,7 +535,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     function test_resolve_rootContested_succeeds() public {
         gameProxy.attack{ value: _getRequiredBond(0) }(0, _dummyClaim());
 
-        vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
+        vm.warp(block.timestamp + 3 days + 12 hours);
 
         gameProxy.resolveClaim(1);
         gameProxy.resolveClaim(0);
@@ -547,7 +547,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         gameProxy.attack{ value: _getRequiredBond(0) }(0, _dummyClaim());
         gameProxy.defend{ value: _getRequiredBond(1) }(1, _dummyClaim());
 
-        vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
+        vm.warp(block.timestamp + 3 days + 12 hours );
 
         gameProxy.resolveClaim(2);
         gameProxy.resolveClaim(1);
@@ -562,7 +562,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         gameProxy.defend{ value: _getRequiredBond(1) }(1, _dummyClaim());
         gameProxy.defend{ value: _getRequiredBond(1) }(1, _dummyClaim());
 
-        vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
+        vm.warp(block.timestamp + 3 days + 12 hours);
 
         gameProxy.resolveClaim(4);
         gameProxy.resolveClaim(3);
@@ -584,7 +584,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
             gameProxy.attack{ value: _getRequiredBond(i) }(i, claim);
         }
 
-        vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
+        vm.warp(block.timestamp + 3 days + 12 hours);
 
         for (uint256 i = 9; i > 0; i--) {
             gameProxy.resolveClaim(i - 1);
@@ -602,7 +602,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         vm.deal(address(this), secondBond);
         gameProxy.attack{ value: secondBond }(1, claim);
 
-        vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
+        vm.warp(block.timestamp + 3 days + 12 hours);
 
         assertEq(address(this).balance, 0);
         gameProxy.resolveClaim(2);
@@ -632,7 +632,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
             gameProxy.attack{ value: _getRequiredBond(i) }(i, claim);
         }
 
-        vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
+        vm.warp(block.timestamp + 3 days + 12 hours);
 
         // Resolve to claim bond
         uint256 balanceBefore = address(this).balance;
@@ -653,7 +653,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         gameProxy.attack{ value: _getRequiredBond(0) }(0, _dummyClaim());
         gameProxy.attack{ value: _getRequiredBond(1) }(1, _dummyClaim());
 
-        vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
+        vm.warp(block.timestamp + 3 days + 12 hours);
 
         vm.expectRevert(OutOfOrderResolution.selector);
         gameProxy.resolveClaim(0);
@@ -704,7 +704,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         assertEq(delayedWeth.balanceOf(address(gameProxy)), totalBonded);
 
         // Resolve all claims
-        vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
+        vm.warp(block.timestamp + 3 days + 12 hours);
         for (uint256 i = gameProxy.claimDataLen(); i > 0; i--) {
             (bool success,) = address(gameProxy).call(abi.encodeCall(gameProxy.resolveClaim, (i - 1)));
             assertTrue(success);
@@ -785,7 +785,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         assertEq(delayedWeth.balanceOf(address(gameProxy)), thisBonded + bobBonded);
 
         // Resolve all claims
-        vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
+        vm.warp(block.timestamp + 3 days + 12 hours);
         for (uint256 i = gameProxy.claimDataLen(); i > 0; i--) {
             (bool success,) = address(gameProxy).call(abi.encodeCall(gameProxy.resolveClaim, (i - 1)));
             assertTrue(success);
@@ -842,7 +842,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         gameProxy.attack{ value: thirdBond }(3, _dummyClaim());
 
         // Resolve all claims
-        vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
+        vm.warp(block.timestamp + 3 days + 12 hours);
         for (uint256 i = gameProxy.claimDataLen(); i > 0; i--) {
             (bool success,) = address(gameProxy).call(abi.encodeCall(gameProxy.resolveClaim, (i - 1)));
             assertTrue(success);
@@ -881,7 +881,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         assert(l2BlockNumber < gameProxy.l2BlockNumber());
 
         // Resolve the game.
-        vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
+        vm.warp(block.timestamp + 3 days + 12 hours);
         gameProxy.resolveClaim(0);
         assertEq(uint8(gameProxy.resolve()), uint8(GameStatus.DEFENDER_WINS));
 
@@ -903,7 +903,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
 
         // Resolve the game.
         vm.mockCall(address(gameProxy), abi.encodeWithSelector(gameProxy.l2BlockNumber.selector), abi.encode(0));
-        vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
+        vm.warp(block.timestamp + 3 days + 12 hours);
         gameProxy.resolveClaim(0);
         assertEq(uint8(gameProxy.resolve()), uint8(GameStatus.DEFENDER_WINS));
 
@@ -922,7 +922,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
 
         // Challenge the claim and resolve it.
         gameProxy.attack{ value: _getRequiredBond(0) }(0, _dummyClaim());
-        vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
+        vm.warp(block.timestamp + 3 days + 12 hours);
         gameProxy.resolveClaim(1);
         gameProxy.resolveClaim(0);
         assertEq(uint8(gameProxy.resolve()), uint8(GameStatus.CHALLENGER_WINS));
@@ -952,7 +952,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         uint256 reenterBond = firstBond + secondBond;
 
         // Warp past the finalization period
-        vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
+        vm.warp(block.timestamp + 3 days + 12 hours);
 
         // Ensure that we bonded all the test contract's ETH
         assertEq(address(reenter).balance, 0);
@@ -1108,11 +1108,11 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         // The honest proposer created an honest root claim during setup - node 0
 
         // Defender's turn
-        vm.warp(block.timestamp + 3.5 days);
+        vm.warp(block.timestamp + 3.5 days - 1 seconds);
         gameProxy.attack{ value: _getRequiredBond(0) }(0, _dummyClaim());
         // Chess time left to attack:
-        // - Defender   0: 0
-        // - Challeneger 1: 3.5 days
+        assertEq(gameProxy.getRemainingTime(0).raw(), 1 seconds);
+        assertEq(gameProxy.getRemainingTime(1).raw(), 3.5 days);
 
         // Advance time by 1 second, so that the root claim challenger clock is expired.
         vm.warp(block.timestamp + 1 seconds);
@@ -1121,8 +1121,8 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         vm.expectRevert(ClockTimeExceeded.selector);
         gameProxy.attack{ value: expectedBond }(0, _dummyClaim());
         // Chess time left to attack:
-        // - Defender   0: 0
-        // - Challenger 1: 3.5 days
+        assertEq(gameProxy.getRemainingTime(0).raw(), 0);
+        assertEq(gameProxy.getRemainingTime(1).raw(), 3.5 days - 1 seconds);
 
         // Should not be able to resolve the root claim or second counter yet.
         vm.expectRevert(ClockNotExpired.selector);
@@ -1131,13 +1131,13 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         gameProxy.resolveClaim(0);
 
         // Warp to the last second of the root claim defender clock.
-        vm.warp(block.timestamp + 3.5 days - 1 seconds);
+        vm.warp(block.timestamp + 3.5 days - 2 seconds);
         // Attack the challenge to the root claim. This should succeed, since the defender clock is not expired.
         gameProxy.attack{ value: _getRequiredBond(1) }(1, _dummyClaim());
         // Chess time left to attack:
-        // - Defender   0: 0
-        // - Challenger 1: 1 second
-        // - Defender   2: 0
+        assertEq(gameProxy.getRemainingTime(0).raw(), 0);
+        assertEq(gameProxy.getRemainingTime(1).raw(), 1 seconds);
+        assertEq(gameProxy.getRemainingTime(2).raw(), 1 seconds);
 
         // Should not be able to resolve any claims yet.
         vm.expectRevert(ClockNotExpired.selector);
@@ -1152,10 +1152,13 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         expectedBond = _getRequiredBond(1);
         vm.expectRevert(ClockTimeExceeded.selector); // no further move can be made
         gameProxy.attack{ value: expectedBond }(1, _dummyClaim());
+        expectedBond = _getRequiredBond(2);
+        vm.expectRevert(ClockTimeExceeded.selector); // no further move can be made
+        gameProxy.attack{ value: expectedBond }(2, _dummyClaim());
         // Chess time left to attack:
-        // - Defender   0: expired
-        // - Challenger 1: expired
-        // - Defender   2: expired
+        assertEq(gameProxy.getRemainingTime(0).raw(), 0);
+        assertEq(gameProxy.getRemainingTime(1).raw(), 0);
+        assertEq(gameProxy.getRemainingTime(2).raw(), 0);
 
         vm.expectRevert(OutOfOrderResolution.selector);
         gameProxy.resolveClaim(1);
@@ -1712,7 +1715,7 @@ contract FaultDispute_1v1_Actors_Test is FaultDisputeGame_Init {
     /// @dev Helper to warp past the chess clock and resolve all claims within the dispute game.
     function _warpAndResolve() internal {
         // Warp past the chess clock
-        vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
+        vm.warp(block.timestamp + 3 days + 12 hours);
 
         // Resolve all claims in reverse order. We allow `resolveClaim` calls to fail due to
         // the check that prevents claims with no subgames attached from being passed to

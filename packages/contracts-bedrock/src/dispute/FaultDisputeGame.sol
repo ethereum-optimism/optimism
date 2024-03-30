@@ -286,7 +286,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
 
         // INVARIANT: A move can never be made once its clock has exceeded `GAME_DURATION / 2`
         //            seconds of time.
-        if (nextDuration.raw() > GAME_DURATION.raw() >> 1) revert ClockTimeExceeded();
+        if (nextDuration.raw() >= GAME_DURATION.raw() >> 1) revert ClockTimeExceeded();
 
         // Construct the next clock with the new duration and the current block timestamp.
         Clock nextClock = LibClock.wrap(nextDuration, Timestamp.wrap(uint64(block.timestamp)));
@@ -417,15 +417,12 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
             parentClock = claimData[subgameRootClaim.parentIndex].clock;
         }
         Duration challengeClockDuration = Duration.wrap(
-            uint64(
-                parentClock.duration().raw()
-                + block.timestamp - subgameRootClaim.clock.timestamp().raw()
-            )
+            uint64(parentClock.duration().raw() + block.timestamp - subgameRootClaim.clock.timestamp().raw())
         );
         // INVARIANT: Cannot resolve a subgame unless the clock of its would-be counter has expired
         // INVARIANT: Assuming ordered subgame resolution, challengeClockDuration is always less than GAME_DURATION / 2
         // if all descendant subgames are resolved
-        if (challengeClockDuration.raw() <= GAME_DURATION.raw() >> 1) {
+        if (challengeClockDuration.raw() < GAME_DURATION.raw() >> 1) {
             revert ClockNotExpired();
         }
 
@@ -657,6 +654,36 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         // Transfer the credit to the recipient.
         (bool success,) = _recipient.call{ value: recipientCredit }(hex"");
         if (!success) revert BondTransferFailed();
+    }
+
+    /// @notice Returns the amount of time remaining to challenge a given subgame root.
+    /// @param _claimIndex The index of the subgame root claim.
+    /// @return duration_ The remaining time to challenge the given subgame root.
+    function getRemainingTime(uint256 _claimIndex) external view returns (Duration duration_) {
+        // INVARIANT: The game must be in progress to query the remaining time to respond to a given claim.
+        if (status != GameStatus.IN_PROGRESS) {
+            revert GameNotInProgress();
+        }
+
+        // Fetch the subgame root claim.
+        ClaimData storage subgameRootClaim = claimData[_claimIndex];
+
+        // Fetch the parent of the subgame root's clock, if it exists.
+        Clock parentClock;
+        if (subgameRootClaim.parentIndex != type(uint32).max) {
+            parentClock = claimData[subgameRootClaim.parentIndex].clock;
+        }
+
+        // Compute the duration elapsed of the potential challenger's clock.
+        uint256 challengeClockDuration =
+            parentClock.duration().raw() + (block.timestamp - subgameRootClaim.clock.timestamp().raw());
+
+        // Compute the remaining time.
+        if (challengeClockDuration >= GAME_DURATION.raw() >> 1) {
+            duration_ = Duration.wrap(0);
+        } else {
+            duration_ = Duration.wrap(uint64((GAME_DURATION.raw() >> 1) - challengeClockDuration));
+        }
     }
 
     ////////////////////////////////////////////////////////////////
