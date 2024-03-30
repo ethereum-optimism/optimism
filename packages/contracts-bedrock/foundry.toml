@@ -26,7 +26,7 @@ bytecode_hash = 'none'
 build_info_path = 'artifacts/build-info'
 ast = true
 evm_version = "cancun"
-ignored_error_codes = [2394, 5574, 3860]
+ignored_error_codes = ["transient-storage", "code-size", "init-code-size"]
 
 # Test / Script Runner Settings
 ffi = true
