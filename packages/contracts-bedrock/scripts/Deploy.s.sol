@@ -1149,7 +1149,8 @@ contract Deploy is Deployer {
                 (
                     L2OutputOracle(l2OutputOracleProxy),
                     SystemConfig(systemConfigProxy),
-                    SuperchainConfig(superchainConfigProxy)
+                    SuperchainConfig(superchainConfigProxy),
+                    Constants.ETHER
                 )
             )
         });

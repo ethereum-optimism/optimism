@@ -10,6 +10,8 @@ import { IOptimismMintableERC20, ILegacyMintableERC20 } from "src/universal/IOpt
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 import { OptimismMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+import { Constants } from "src/libraries/Constants.sol";
+
 
 /// @custom:upgradeable
 /// @title StandardBridge
@@ -128,6 +130,14 @@ abstract contract StandardBridge is Initializable {
     /// @notice Allows EOAs to bridge ETH by sending directly to the bridge.
     ///         Must be implemented by contracts that inherit.
     receive() external payable virtual;
+
+    /// @notice
+    function gasPayingToken() public virtual returns (address);
+
+    /// @notice Getter for custom gas token paying networks.
+    function isCustomGasToken() public view returns (bool) {
+        return gasPayingToken() == Constants.Ether;
+    }
 
     /// @notice Getter for messenger contract.
     ///         Public getter is legacy and will be removed in the future. Use `messenger` instead.
@@ -310,6 +320,7 @@ abstract contract StandardBridge is Initializable {
     )
         internal
     {
+        require(isCustomGasToken() == false, "StandardBridge: cannot bridge ETH with custom gas token");
         require(msg.value == _amount, "StandardBridge: bridging ETH must include sufficient ETH value");
 
         // Emit the correct events. By default this will be _amount, but child

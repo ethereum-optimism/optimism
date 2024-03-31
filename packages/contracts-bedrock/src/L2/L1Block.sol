@@ -2,6 +2,7 @@
 pragma solidity 0.8.15;
 
 import { ISemver } from "src/universal/ISemver.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 /// @custom:proxied
 /// @custom:predeploy 0x4200000000000000000000000000000000000015
@@ -49,8 +50,11 @@ contract L1Block is ISemver {
     /// @notice The latest L1 blob base fee.
     uint256 public blobBaseFee;
 
-    /// @custom:semver 1.2.0
-    string public constant version = "1.2.0";
+    /// @notice The gas paying token for the L2 system, defaults to ether.
+    address public gasPayingToken = Constants.ETHER;
+
+    /// @custom:semver 1.3.0
+    string public constant version = "1.3.0";
 
     /// @custom:legacy
     /// @notice Updates the L1 block values.
