@@ -7,6 +7,7 @@ import { ISemver } from "src/universal/ISemver.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { Constants } from "src/libraries/Constants.sol";
+import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 
 /// @custom:proxied
 /// @title L1StandardBridge
@@ -70,11 +71,15 @@ contract L1StandardBridge is StandardBridge, ISemver {
     );
 
     /// @notice Semantic version.
-    /// @custom:semver 2.1.0
-    string public constant version = "2.1.0";
+    /// @custom:semver 2.2.0
+    string public constant version = "2.2.0";
 
     /// @notice Address of the SuperchainConfig contract.
     SuperchainConfig public superchainConfig;
+
+    // TODO: make sure cannot have optimism portal approve
+    // TODO: system config?
+    /// @notice Address of the OptimismPortal contract.
 
     /// @notice Constructs the L1StandardBridge contract.
     constructor() StandardBridge() {

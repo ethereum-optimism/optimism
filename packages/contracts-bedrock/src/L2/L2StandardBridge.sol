@@ -6,7 +6,7 @@ import { StandardBridge } from "src/universal/StandardBridge.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 import { OptimismMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
-import { Constants } from "src/libraries/Constants.sol";
+import { L1Block } from "src/universal/L1Block.sol";
 
 /// @custom:proxied
 /// @custom:predeploy 0x4200000000000000000000000000000000000010
@@ -74,6 +74,11 @@ contract L2StandardBridge is StandardBridge, ISemver {
         _initiateWithdrawal(
             Predeploys.LEGACY_ERC20_ETH, msg.sender, msg.sender, msg.value, RECEIVE_DEFAULT_GAS_LIMIT, bytes("")
         );
+    }
+
+    /// @notice Returns the address of the token used to pay for gas.
+    function gasPayingToken() public view override returns (address) {
+        return L1Block(Predeploys.L1_BLOCK).gasPayingToken();
     }
 
     /// @custom:legacy

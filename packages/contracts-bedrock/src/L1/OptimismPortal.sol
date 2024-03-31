@@ -14,6 +14,15 @@ import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 import { Constants } from "src/libraries/Constants.sol";
+import { Permit2Lib } from "src/libraries/Permit2Lib.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { Decimals } from "src/libraries/Decimals.sol";
+
+// TODO: where to put this
+interface Token {
+    function decimals() external view returns (uint8);
+}
 
 /// @custom:proxied
 /// @title OptimismPortal
@@ -21,6 +30,8 @@ import { Constants } from "src/libraries/Constants.sol";
 ///         and L2. Messages sent directly to the OptimismPortal have no form of replayability.
 ///         Users are encouraged to use the L1CrossDomainMessenger for a higher-level interface.
 contract OptimismPortal is Initializable, ResourceMetering, ISemver {
+    using SafeERC20 for IERC20;
+
     /// @notice Represents a proven withdrawal.
     /// @custom:field outputRoot    Root of the L2 output this was proven against.
     /// @custom:field timestamp     Timestamp at whcih the withdrawal was proven.
@@ -64,6 +75,18 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     /// @custom:network-specific
     SystemConfig public systemConfig;
 
+    /// @notice Address of the gas paying token. Set to address(eeee..) for ether.
+    /// @custom:network-specific
+    address public gasPayingToken;
+
+    /// @notice
+    /// @custom:network-specific
+    uint8 gasPayingTokenDecimals;
+
+    /// @notice The total amount of gas paying asset in the contract. Only used when gasPayingToken
+    //          is not ether.
+    uint256 internal _balance;
+
     /// @notice Emitted when a transaction is deposited from L1 to L2.
     ///         The parameters of this event are read by the rollup node and used to derive deposit
     ///         transactions on L2.
@@ -99,7 +122,8 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         initialize({
             _l2Oracle: L2OutputOracle(address(0)),
             _systemConfig: SystemConfig(address(0)),
-            _superchainConfig: SuperchainConfig(address(0))
+            _superchainConfig: SuperchainConfig(address(0)),
+            _gasPayingToken: Constants.ETHER
         });
     }
 
@@ -110,7 +134,8 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     function initialize(
         L2OutputOracle _l2Oracle,
         SystemConfig _systemConfig,
-        SuperchainConfig _superchainConfig
+        SuperchainConfig _superchainConfig,
+        address _gasPayingToken
     )
         public
         initializer
@@ -120,6 +145,15 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         superchainConfig = _superchainConfig;
         if (l2Sender == address(0)) {
             l2Sender = Constants.DEFAULT_L2_SENDER;
+        }
+
+        // TODO: move to system config
+        gasPayingToken = _gasPayingToken;
+        if (_gasPayingToken != Constants.ETHER) {
+            gasPayingTokenDecimals = Token(_gasPayingToken).decimals();
+            require(gasPayingTokenDecimals <= 18, "OptimismPortal: bad decimals");
+        } else {
+            gasPayingTokenDecimals = 18;
         }
         __ResourceMetering_init();
     }
@@ -172,6 +206,15 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     function minimumGasLimit(uint64 _byteCount) public pure returns (uint64) {
         return _byteCount * 16 + 21000;
     }
+
+     /// @notice Retuns the balance of the contract.
+     function balance() public view returns (uint256) {
+         if (gasPayingToken == Constants.ETHER) {
+             return address(this).balance;
+         } else {
+             return _balance;
+         }
+     }
 
     /// @notice Accepts value so that users can send ETH directly to this contract and have the
     ///         funds be deposited to their address on L2. This is intended as a convenience
@@ -337,6 +380,43 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         // Set the l2Sender so contracts know who triggered this withdrawal on L2.
         l2Sender = _tx.sender;
 
+        // Cache the value of the withdrawal
+        uint256 value = _tx.value;
+
+        if (gasPayingToken != Constants.ETHER) {
+            require(_tx.target != gasPayingToken, "OptimismPortal: cannot call gas paying token");
+
+            // Read the balance of the target contract before the transfer so the consistency
+            // of the transfer can be checked afterwards.
+            uint256 balanceOf = IERC20(gasPayingToken).balanceOf(_tx.target);
+
+            // Normalize from 18 decimals
+            uint256 tokenValue = Decimals.scale({
+                _amount: _tx.value,
+                _decimals: 18,
+                _target: gasPayingTokenDecimals
+            });
+
+            // Transfer the ERC20 balance to the target, accounting for non standard ERC20
+            // implementations that may not return a boolean.
+            IERC20(gasPayingToken).safeTransfer({
+                to: _tx.target,
+                value: value
+            });
+
+            // The balance must be transferred exactly.
+            require(
+                IERC20(gasPayingToken).balanceOf(_tx.target) == balanceOf + tokenValue,
+                "OptimismPortal: ERC20 transfer failed"
+            );
+
+            // Subtract the value from the contract's balance
+            _balance -= tokenValue;
+
+            // Set the value to 0 so that the following call does not transfer ether.
+            value = 0;
+        }
+
         // Trigger the call to the target contract. We use a custom low level method
         // SafeCall.callWithMinGas to ensure two key properties
         //   1. Target contracts cannot force this call to run out of gas by returning a very large
@@ -344,7 +424,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         //   2. The amount of gas provided to the execution context of the target is at least the
         //      gas limit specified by the user. If there is not enough gas in the current context
         //      to accomplish this, `callWithMinGas` will revert.
-        bool success = SafeCall.callWithMinGas(_tx.target, _tx.gasLimit, _tx.value, _tx.data);
+        bool success = SafeCall.callWithMinGas(_tx.target, _tx.gasLimit, value, _tx.data);
 
         // Reset the l2Sender back to the default value.
         l2Sender = Constants.DEFAULT_L2_SENDER;
@@ -359,6 +439,50 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         if (success == false && tx.origin == Constants.ESTIMATION_ADDRESS) {
             revert("OptimismPortal: withdrawal failed");
         }
+    }
+
+    /// @notice Entrypoint to depositing an ERC20 token as a custom gas token.
+    function depositERC20Transaction(
+        address _to,
+        uint256 _mint,
+        uint256 _value,
+        uint64 _gasLimit,
+        bool _isCreation,
+        bytes memory _data
+    ) public metered(_gasLimit) {
+        // Can only be called if an ERC20 token is used for gas paying on L2
+        require(gasPayingToken != Constants.ETHER, "OptimismPortal: only custom gas token");
+
+        uint256 balanceOf = IERC20(gasPayingToken).balanceOf(address(this));
+
+        // Pulls ownership of custom gas token to portal
+        Permit2Lib.safeTransferFrom2({
+            token: gasPayingToken,
+            from: msg.sender,
+            to: address(this),
+            amount: _mint
+        });
+
+        require(IERC20(gasPayingToken).balanceOf(address(this)) == balanceOf + _mint, "OptimismPortal: transferFrom failed");
+
+        // Normalize to 18 decimals
+        uint256 mint = Decimals.scale({
+            _amount: _mint,
+            _decimals: gasPayingTokenDecimals,
+            _target: 18
+        });
+
+        // Overflow protection here ensures safety on L2 from overflows in balance
+        _balance += mint;
+
+        _depositTransaction({
+            _to: _to,
+            _mint: mint,
+            _value: _value,
+            _gasLimit: _gasLimit,
+            _isCreation: _isCreation,
+            _data: _data
+        });
     }
 
     /// @notice Accepts deposits of ETH and data, and emits a TransactionDeposited event for use in
@@ -381,6 +505,28 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         payable
         metered(_gasLimit)
     {
+        if (gasPayingToken != Constants.ETHER) {
+            require(msg.value == 0, "OptimismPortal: cannot send ETH with custom gas token");
+        }
+
+        _depositTransaction({
+            _to: _to,
+            _mint: msg.value,
+            _value: _value,
+            _gasLimit: _gasLimit,
+            _isCreation: _isCreation,
+            _data: _data
+        });
+    }
+
+    function _depositTransaction(
+        address _to,
+        uint256 _mint,
+        uint256 _value,
+        uint64 _gasLimit,
+        bool _isCreation,
+        bytes memory _data
+    ) internal {
         // Just to be safe, make sure that people specify address(0) as the target when doing
         // contract creations.
         if (_isCreation) {
@@ -406,7 +552,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         // Compute the opaque data that will be emitted as part of the TransactionDeposited event.
         // We use opaque data so that we can update the TransactionDeposited event in the future
         // without breaking the current interface.
-        bytes memory opaqueData = abi.encodePacked(msg.value, _value, _gasLimit, _isCreation, _data);
+        bytes memory opaqueData = abi.encodePacked(_mint, _value, _gasLimit, _isCreation, _data);
 
         // Emit a TransactionDeposited event so that the rollup node can derive a deposit
         // transaction for this deposit.
