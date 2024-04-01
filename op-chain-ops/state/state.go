@@ -69,6 +69,18 @@ func ComputeStorageSlots(layout *solc.StorageLayout, values StorageValues) ([]*E
 	encodedStorage := make([]*EncodedStorage, 0)
 
 	for label, value := range values {
+		// Handle directly storing key value pairs where the key is a 32 byte storage slot
+		// instead of a name of a storage slot.
+		if has0xPrefix(label) && isHex(label) && len(label) == 66 {
+			key := common.HexToHash(label)
+			val, err := EncodeBytes32Value(value, 0)
+			if err != nil {
+				return nil, fmt.Errorf("cannot encode storage for %s: %w", label, err)
+			}
+			encodedStorage = append(encodedStorage, &EncodedStorage{key, val})
+			continue
+		}
+
 		var target solc.StorageLayoutEntry
 		for _, entry := range layout.Storage {
 			if label == entry.Label {
@@ -122,4 +134,27 @@ func MergeStorage(storage []*EncodedStorage) []*EncodedStorage {
 		results = append(results, &EncodedStorage{key, val})
 	}
 	return results
+}
+
+// has0xPrefix validates str begins with '0x' or '0X'.
+func has0xPrefix(str string) bool {
+	return len(str) >= 2 && str[0] == '0' && (str[1] == 'x' || str[1] == 'X')
+}
+
+// isHexCharacter returns bool of c being a valid hexadecimal.
+func isHexCharacter(c byte) bool {
+	return ('0' <= c && c <= '9') || ('a' <= c && c <= 'f') || ('A' <= c && c <= 'F')
+}
+
+// isHex validates whether each byte is valid hexadecimal string.
+func isHex(str string) bool {
+	if len(str)%2 != 0 {
+		return false
+	}
+	for _, c := range []byte(str) {
+		if !isHexCharacter(c) {
+			return false
+		}
+	}
+	return true
 }

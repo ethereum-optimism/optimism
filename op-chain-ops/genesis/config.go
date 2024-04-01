@@ -28,6 +28,13 @@ import (
 var (
 	ErrInvalidDeployConfig     = errors.New("invalid deploy config")
 	ErrInvalidImmutablesConfig = errors.New("invalid immutables config")
+	// L1BlockGasPayingTokenSlot represents the storage slot in the L1Block predeploy that containst the address of the gas paying token.
+	// It is computed with the following digest: bytes32(uint256(keccak256("l1block.gaspayingtoken")) - 1)
+	L1BlockGasPayingTokenSlot = common.HexToHash("0x139ee11fa3c568c59ec2e47800b66a422e22a029a261f59aab388d8041d78abd")
+	// EtherGasPayingAddress represents the magic account that represents ether to be the gas paying asset.
+	EtherGasPayingAddress = common.HexToAddress("0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE")
+	// EtherDecimals represents the number of decimals for ether.
+	EtherDecimals = big.NewInt(18)
 )
 
 // DeployConfig represents the deployment configuration for an OP Stack chain.
@@ -240,7 +247,10 @@ type DeployConfig struct {
 	// UseFaultProofs is a flag that indicates if the system is using fault
 	// proofs instead of the older output oracle mechanism.
 	UseFaultProofs bool `json:"useFaultProofs"`
-
+	// UseCustomGasToken is a flag to indicate that a custom gas token should be used
+	UseCustomGasToken bool `json:"useCustomGasToken"`
+	// CustomGasTokenAddress is the address of the ERC20 token to be used to pay for gas on L2.
+	CustomGasTokenAddress common.Address `json:"customGasTokenAddress"`
 	// UsePlasma is a flag that indicates if the system is using op-plasma
 	UsePlasma bool `json:"usePlasma"`
 	// DAChallengeWindow represents the block interval during which the availability of a data commitment can be challenged.
@@ -415,6 +425,12 @@ func (d *DeployConfig) Check() error {
 		if d.DAChallengeProxy == (common.Address{}) {
 			return fmt.Errorf("%w: DAChallengeContract cannot be empty when using plasma mode", ErrInvalidDeployConfig)
 		}
+	}
+	if d.UseCustomGasToken {
+		if d.CustomGasTokenAddress == (common.Address{}) {
+			return fmt.Errorf("%w: CustomGasTokenAddress cannot be address(0)", ErrInvalidDeployConfig)
+		}
+		log.Info("Using custom gas token", "address", d.CustomGasTokenAddress)
 	}
 	// checkFork checks that fork A is before or at the same time as fork B
 	checkFork := func(a, b *hexutil.Uint64, aName, bName string) error {
@@ -912,15 +928,31 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 		"_initializing": false,
 		"bridge":        predeploys.L2StandardBridgeAddr,
 	}
+
+	// Compute the initial storage slot storage slot for the gas token in genesis storage.
+	// This is to ensure that the ether config is set in storage in genesis since
+	// the magic address is used to represent ether. If an actual gas token is used
+	// then the L1 SystemConfig will push a transaction that updates the L2 state with
+	// the correct amount of decimals.
+	var value common.Hash
+	if config.UseCustomGasToken {
+		value = eth.AddressAsLeftPaddedHash(config.CustomGasTokenAddress)
+	} else {
+		decimals := new(big.Int).Set(EtherDecimals)
+		decimals = decimals.Lsh(decimals, 160)
+		value = common.BigToHash(decimals.Or(decimals, EtherGasPayingAddress.Big()))
+	}
+
 	storage["L1Block"] = state.StorageValues{
-		"number":         block.Number(),
-		"timestamp":      block.Time(),
-		"basefee":        block.BaseFee(),
-		"hash":           block.Hash(),
-		"sequenceNumber": 0,
-		"batcherHash":    eth.AddressAsLeftPaddedHash(config.BatchSenderAddress),
-		"l1FeeOverhead":  config.GasPriceOracleOverhead,
-		"l1FeeScalar":    config.GasPriceOracleScalar,
+		"number":                        block.Number(),
+		"timestamp":                     block.Time(),
+		"basefee":                       block.BaseFee(),
+		"hash":                          block.Hash(),
+		"sequenceNumber":                0,
+		"batcherHash":                   eth.AddressAsLeftPaddedHash(config.BatchSenderAddress),
+		"l1FeeOverhead":                 config.GasPriceOracleOverhead,
+		"l1FeeScalar":                   config.GasPriceOracleScalar,
+		L1BlockGasPayingTokenSlot.Hex(): value.Hex(),
 	}
 	storage["LegacyERC20ETH"] = state.StorageValues{
 		"_name":   "Ether",
