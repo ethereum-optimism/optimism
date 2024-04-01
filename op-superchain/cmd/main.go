@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
@@ -25,19 +24,6 @@ var (
 	GitDate      = ""
 	EnvVarPrefix = "OP_SUPERCHAIN"
 )
-
-func parseMapFlag(input string) (map[string]string, error) {
-	result := map[string]string{}
-	pairs := strings.Split(input, ",")
-	for _, pair := range pairs {
-		keyValue := strings.Split(pair, "=")
-		if len(keyValue) != 2 {
-			return nil, fmt.Errorf("Invalid key-value pair: %s\n", pair)
-		}
-		result[strings.TrimSpace(keyValue[0])] = strings.TrimSpace(keyValue[1])
-	}
-	return result, nil
-}
 
 func main() {
 	oplog.SetupDefaults()
