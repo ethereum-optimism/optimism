@@ -8,12 +8,12 @@ contract Decimals_Test is Test {
     function test_scaleUp_succeeds() external {
         // 1.0 scaled with 2 decimals is 100
         uint8 decimals = 2;
-        uint256 amount = 1 * 10**decimals;
+        uint256 amount = 1 * 10 ** decimals;
         assertEq(amount, 100);
 
         // 1.0 scaled up to 4 decimals is 1000
         uint8 target = 4;
-        uint256 scaled = 1 * 10**target;
+        uint256 scaled = 1 * 10 ** target;
         assertEq(scaled, 10000);
         assertEq(Decimals.scale(amount, decimals, target), scaled);
     }
@@ -21,7 +21,7 @@ contract Decimals_Test is Test {
     function test_scaleDown_succeeds() external {
         // 1.0 scaled with 4 decimals is 1000
         uint8 decimals = 4;
-        uint256 amount = 1 * 10**decimals;
+        uint256 amount = 1 * 10 ** decimals;
         // 1.0 scaled down to 2 decimals
         uint8 target = 2;
         uint256 scaled = 100;
@@ -31,11 +31,7 @@ contract Decimals_Test is Test {
     function test_scaleEqual_succeeds() external {
         uint256 amount = 0x20;
 
-        uint256 scaled = Decimals.scale({
-            _amount: amount,
-            _decimals: 2,
-            _target: 2
-        });
+        uint256 scaled = Decimals.scale({ _amount: amount, _decimals: 2, _target: 2 });
 
         assertEq(scaled, amount);
     }

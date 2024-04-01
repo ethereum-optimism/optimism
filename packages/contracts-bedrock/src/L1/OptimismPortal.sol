@@ -185,15 +185,15 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         return _byteCount * 16 + 21000;
     }
 
-     /// @notice Retuns the balance of the contract.
-     function balance() public view returns (uint256) {
-         (address token, ) = gasPayingToken();
-         if (token == Constants.ETHER) {
-             return address(this).balance;
-         } else {
-             return _balance;
-         }
-     }
+    /// @notice Retuns the balance of the contract.
+    function balance() public view returns (uint256) {
+        (address token,) = gasPayingToken();
+        if (token == Constants.ETHER) {
+            return address(this).balance;
+        } else {
+            return _balance;
+        }
+    }
 
     /// @notice Accepts value so that users can send ETH directly to this contract and have the
     ///         funds be deposited to their address on L2. This is intended as a convenience
@@ -385,24 +385,16 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
             uint256 balanceOf = IERC20(token).balanceOf(address(this));
 
             // Normalize from 18 decimals
-            uint256 value = Decimals.scale({
-                _amount: _tx.value,
-                _decimals: 18,
-                _target: decimals
-            });
+            uint256 value = Decimals.scale({ _amount: _tx.value, _decimals: 18, _target: decimals });
 
             // Transfer the ERC20 balance to the target, accounting for non standard ERC20
             // implementations that may not return a boolean. This reverts if the low level
             // call is not successful
-            IERC20(token).safeTransfer({
-                to: _tx.target,
-                value: value
-            });
+            IERC20(token).safeTransfer({ to: _tx.target, value: value });
 
             // The balance must be transferred exactly.
             require(
-                IERC20(token).balanceOf(address(this)) == balanceOf - value,
-                "OptimismPortal: ERC20 transfer failed"
+                IERC20(token).balanceOf(address(this)) == balanceOf - value, "OptimismPortal: ERC20 transfer failed"
             );
 
             // Subtract the value from the contract's balance
@@ -445,7 +437,10 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         uint64 _gasLimit,
         bool _isCreation,
         bytes memory _data
-    ) public metered(_gasLimit) {
+    )
+        public
+        metered(_gasLimit)
+    {
         // Can only be called if an ERC20 token is used for gas paying on L2
         (address token, uint8 decimals) = gasPayingToken();
         require(token != Constants.ETHER, "OptimismPortal: only custom gas token");
@@ -453,21 +448,12 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         uint256 balanceOf = IERC20(token).balanceOf(address(this));
 
         // Pulls ownership of custom gas token to portal
-        Permit2Lib.safeTransferFrom2({
-            token: token,
-            from: msg.sender,
-            to: address(this),
-            amount: _mint
-        });
+        Permit2Lib.safeTransferFrom2({ token: token, from: msg.sender, to: address(this), amount: _mint });
 
         require(IERC20(token).balanceOf(address(this)) == balanceOf + _mint, "OptimismPortal: transferFrom failed");
 
         // Normalize to 18 decimals
-        uint256 mint = Decimals.scale({
-            _amount: _mint,
-            _decimals: decimals,
-            _target: 18
-        });
+        uint256 mint = Decimals.scale({ _amount: _mint, _decimals: decimals, _target: 18 });
 
         // Overflow protection here ensures safety on L2 from overflows in balance
         _balance += mint;
@@ -502,7 +488,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         payable
         metered(_gasLimit)
     {
-        (address token, ) = gasPayingToken();
+        (address token,) = gasPayingToken();
         if (token != Constants.ETHER) {
             require(msg.value == 0, "OptimismPortal: cannot send ETH with custom gas token");
         }
@@ -524,7 +510,9 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         uint64 _gasLimit,
         bool _isCreation,
         bytes memory _data
-    ) internal {
+    )
+        internal
+    {
         // Just to be safe, make sure that people specify address(0) as the target when doing
         // contract creations.
         if (_isCreation) {
@@ -571,10 +559,10 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
             Predeploys.L1_BLOCK_ATTRIBUTES,
             DEPOSIT_VERSION,
             abi.encodePacked(
-                uint256(0),       // mint
-                uint256(0),       // value
-                uint64(80000),    // gasLimit
-                false,            // isCreation,
+                uint256(0), // mint
+                uint256(0), // value
+                uint64(80000), // gasLimit
+                false, // isCreation,
                 abi.encodeCall(L1Block.setGasPayingToken, (_token, _decimals))
             )
         );
