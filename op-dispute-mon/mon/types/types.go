@@ -3,6 +3,7 @@ package types
 import (
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum/go-ethereum/common"
@@ -26,6 +27,9 @@ type EnrichedGameData struct {
 
 	// Credits records the paid out bonds for the game, keyed by recipient.
 	Credits map[common.Address]*big.Int
+
+	// WithdrawalRequests maps recipients with withdrawal requests in DelayedWETH for this game.
+	WithdrawalRequests map[common.Address]*contracts.WithdrawalRequest
 
 	// WETHContract is the address of the DelayedWETH contract used by this game
 	// The contract is potentially shared by multiple games.
