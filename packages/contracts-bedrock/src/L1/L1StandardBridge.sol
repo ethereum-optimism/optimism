@@ -85,7 +85,7 @@ contract L1StandardBridge is StandardBridge, ISemver {
     constructor() StandardBridge() {
         initialize({
             _messenger: CrossDomainMessenger(address(0)),
-            _superchainConfig: SuperchainConfig(address(0)) ,
+            _superchainConfig: SuperchainConfig(address(0)),
             _systemConfig: SystemConfig(address(0))
         });
     }
@@ -93,7 +93,14 @@ contract L1StandardBridge is StandardBridge, ISemver {
     /// @notice Initializer.
     /// @param _messenger        Contract for the CrossDomainMessenger on this network.
     /// @param _superchainConfig Contract for the SuperchainConfig on this network.
-    function initialize(CrossDomainMessenger _messenger, SuperchainConfig _superchainConfig, SystemConfig _systemConfig) public initializer {
+    function initialize(
+        CrossDomainMessenger _messenger,
+        SuperchainConfig _superchainConfig,
+        SystemConfig _systemConfig
+    )
+        public
+        initializer
+    {
         superchainConfig = _superchainConfig;
         systemConfig = _systemConfig;
         __StandardBridge_init({

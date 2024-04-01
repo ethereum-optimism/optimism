@@ -20,7 +20,7 @@ contract L1Block is ISemver {
     address public constant DEPOSITOR_ACCOUNT = 0xDeaDDEaDDeAdDeAdDEAdDEaddeAddEAdDEAd0001;
 
     /// @notice The storage slot where the gas paying token address is stored.
-	bytes32 public constant GAS_PAYING_TOKEN_SLOT = bytes32(uint256(keccak256("l1block.gaspayingtoken")) - 1);
+    bytes32 public constant GAS_PAYING_TOKEN_SLOT = bytes32(uint256(keccak256("l1block.gaspayingtoken")) - 1);
 
     /// @notice The latest L1 block number known by the L2 system.
     uint64 public number;
@@ -67,7 +67,7 @@ contract L1Block is ISemver {
     /// @notice Getter for custom gas token paying networks. Returns true if the
     ///         network uses a custom gas token.
     function isCustomGasToken() public view returns (bool) {
-        (address token, ) = gasPayingToken();
+        (address token,) = gasPayingToken();
         return token != Constants.ETHER;
     }
 
@@ -144,9 +144,6 @@ contract L1Block is ISemver {
     function setGasPayingToken(address _token, uint8 _decimals) external {
         if (msg.sender != DEPOSITOR_ACCOUNT) revert NotDepositor();
 
-        Storage.setBytes32(
-            GAS_PAYING_TOKEN_SLOT,
-            bytes32(uint256(_decimals) << 160 | uint256(uint160(_token)))
-        );
+        Storage.setBytes32(GAS_PAYING_TOKEN_SLOT, bytes32(uint256(_decimals) << 160 | uint256(uint160(_token))));
     }
 }

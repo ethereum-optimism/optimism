@@ -12,7 +12,6 @@ import { OptimismMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import { Constants } from "src/libraries/Constants.sol";
 
-
 /// @custom:upgradeable
 /// @title StandardBridge
 /// @notice StandardBridge is a base contract for the L1 and L2 standard ERC20 bridges. It handles
@@ -139,7 +138,7 @@ abstract contract StandardBridge is Initializable {
     /// @notice Getter for custom gas token paying networks. Returns true if the
     ///         network uses a custom gas token.
     function isCustomGasToken() public returns (bool) {
-        (address token, ) = gasPayingToken();
+        (address token,) = gasPayingToken();
         return token != Constants.ETHER;
     }
 

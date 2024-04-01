@@ -194,7 +194,6 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         Storage.setAddress(OPTIMISM_PORTAL_SLOT, _addresses.optimismPortal);
         Storage.setAddress(OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT, _addresses.optimismMintableERC20Factory);
 
-
         _setStartBlock();
 
         _setResourceConfig(_config);
@@ -278,10 +277,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
             require(decimals <= 18, "SystemConfig: bad decimals");
         }
 
-        Storage.setBytes32(
-            GAS_PAYING_TOKEN_SLOT,
-            bytes32(uint256(decimals) << 160 | uint256(uint160(_token)))
-        );
+        Storage.setBytes32(GAS_PAYING_TOKEN_SLOT, bytes32(uint256(decimals) << 160 | uint256(uint160(_token))));
 
         OptimismPortal(payable(optimismPortal())).setGasPayingToken(_token, decimals);
     }
