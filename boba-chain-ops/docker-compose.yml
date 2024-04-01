@@ -64,6 +64,20 @@ services:
     #   - /:/db
     #   - /:/files
 
+  geth-inject-state:
+    image: bobanetwork/inject-state
+    build:
+      context: ..
+      dockerfile: ./boba-chain-ops/Dockerfile.inject-state
+    command: |
+      inject-state
+      --db-path=/db
+      --transition-file-path=/files/alloc.json
+      --deploy-config-path=/files/deploy-config.json
+    # volumes:
+    #   - /:/db
+    #   - /:/files
+
   erigon:
     image: bobanetwork/erigon:migration
     user: "1000:1000"
