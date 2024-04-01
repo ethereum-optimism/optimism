@@ -4,7 +4,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
-	"golang.org/x/exp/maps"
 )
 
 type WithdrawalMetrics interface {
@@ -43,7 +42,7 @@ func (w *WithdrawalMonitor) validateGameWithdrawals(game *types.EnrichedGameData
 	matching := 0
 	divergent := 0
 	for recipient, withdrawalAmount := range game.WithdrawalRequests {
-		if withdrawalAmount.Cmp(game.Credits[recipient]) == 0 {
+		if withdrawalAmount.Amount != nil && withdrawalAmount.Amount.Cmp(game.Credits[recipient]) == 0 {
 			matching++
 		} else {
 			divergent++
