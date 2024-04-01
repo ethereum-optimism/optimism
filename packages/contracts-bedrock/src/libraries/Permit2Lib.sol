@@ -15,22 +15,28 @@ interface IAllowanceTransfer {
 }
 
 /// @title Permit2Lib
+/// @author Uniswap
 /// @notice Enables efficient transfers and EIP-2612/DAI permits for any token by
-///         falling back to Permit2.
+///         falling back to Permit2. Modified from the following code:
+///         https://github.com/Uniswap/permit2/blob/cc56ad0f3439c502c246fc5cfcc3db92bb8b7219/src/libraries/Permit2Lib.sol
 library Permit2Lib {
+    /// @notice Error message for failed unsafe cast.
+    error UnsafeCast();
+
     /// @notice The address of the Permit2 contract the library will use.
     IAllowanceTransfer internal constant PERMIT2 =
         IAllowanceTransfer(address(0x000000000022D473030F116dDEE9F6B43aC78BA3));
 
     /// @notice Transfer a given amount of tokens from one user to another.
-    /// @param token The token to transfer.
-    /// @param from The user to transfer from.
-    /// @param to The user to transfer to.
-    /// @param amount The amount to transfer.
-    function safeTransferFrom2(address token, address from, address to, uint256 amount) internal {
+    /// @param _token The token to transfer.
+    /// @param _from The user to transfer from.
+    /// @param _to The user to transfer to.
+    /// @param _amount The amount to transfer.
+    function safeTransferFrom2(address _token, address _from, address _to, uint256 _amount) internal {
         // Generate calldata for a standard transferFrom call.
-        bytes memory inputData = abi.encodeCall(IERC20.transferFrom, (from, to, amount));
+        bytes memory inputData = abi.encodeCall(IERC20.transferFrom, (_from, _to, _amount));
         // Call the token contract as normal, capturing whether it succeeded.
+        // The assembly is meant to handle non standard ERC20 tokens, similar to OpenZeppelin's SafeERC20.
         bool success;
         assembly {
             success :=
@@ -41,13 +47,14 @@ library Permit2Lib {
                     // Counterintuitively, this call() must be positioned after the or() in the
                     // surrounding and() because and() evaluates its arguments from right to left.
                     // We use 0 and 32 to copy up to 32 bytes of return data into the first slot of scratch space.
-                    call(gas(), token, 0, add(inputData, 32), mload(inputData), 0, 32)
+                    call(gas(), _token, 0, add(inputData, 32), mload(inputData), 0, 32)
                 )
         }
 
-        require(amount <= type(uint160).max, "Permit2Lib: amount exceeds uint160");
-
         // We'll fall back to using Permit2 if calling transferFrom on the token directly reverted.
-        if (!success) PERMIT2.transferFrom(from, to, uint160(amount), address(token));
+        if (!success) {
+            if (_amount > type(uint160).max) revert UnsafeCast();
+            PERMIT2.transferFrom(_from, _to, uint160(_amount), address(_token));
+        }
     }
 }
