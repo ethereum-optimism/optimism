@@ -338,6 +338,9 @@ func Start(config *Config) (*Server, func(), error) {
 			if bgcfg.ConsensusMaxBlockRange > 0 {
 				copts = append(copts, WithMaxBlockRange(bgcfg.ConsensusMaxBlockRange))
 			}
+			if bgcfg.ConsensusPollerInterval > 0 {
+				copts = append(copts, WithPollerInterval(time.Duration(bgcfg.ConsensusPollerInterval)))
+			}
 
 			var tracker ConsensusTracker
 			if bgcfg.ConsensusHA {
@@ -349,7 +352,7 @@ func Start(config *Config) (*Server, func(), error) {
 					topts = append(topts, WithLockPeriod(time.Duration(bgcfg.ConsensusHALockPeriod)))
 				}
 				if bgcfg.ConsensusHAHeartbeatInterval > 0 {
-					topts = append(topts, WithLockPeriod(time.Duration(bgcfg.ConsensusHAHeartbeatInterval)))
+					topts = append(topts, WithHeartbeatInterval(time.Duration(bgcfg.ConsensusHAHeartbeatInterval)))
 				}
 				consensusHARedisClient, err := NewRedisClient(bgcfg.ConsensusHARedis.URL)
 				if err != nil {
