@@ -115,10 +115,13 @@ func (s *Service) initDelayCalculator() {
 }
 
 func (s *Service) initExtractor() {
-	s.extractor = extract.NewExtractor(s.logger, s.game.CreateContract, s.factoryContract.GetGamesAtOrAfter,
-		// Note: Claim enricher should precede other enrichers to ensure the claim Resolved field
-		//       is set by checking if the claim's bond amount is equal to the configured flag.
+	s.extractor = extract.NewExtractor(
+		s.logger,
+		s.game.CreateContract,
+		s.factoryContract.GetGamesAtOrAfter,
 		extract.NewClaimEnricher(),
+		extract.NewRecipientEnricher(), // Must be called before WithdrawalsEnricher
+		extract.NewWithdrawalsEnricher(),
 		extract.NewBondEnricher(),
 		extract.NewBalanceEnricher(),
 		extract.NewL1HeadBlockNumEnricher(s.l1Client),
