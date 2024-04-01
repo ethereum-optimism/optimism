@@ -8,6 +8,7 @@ import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
+import { SystemConfig } from "src/L1/SystemConfig.sol";
 
 /// @custom:proxied
 /// @title L1StandardBridge
@@ -77,20 +78,24 @@ contract L1StandardBridge is StandardBridge, ISemver {
     /// @notice Address of the SuperchainConfig contract.
     SuperchainConfig public superchainConfig;
 
-    // TODO: make sure cannot have optimism portal approve
-    // TODO: system config?
-    /// @notice Address of the OptimismPortal contract.
+    /// @notice Address of the SystemConfig contract.
+    SystemConfig public systemConfig;
 
     /// @notice Constructs the L1StandardBridge contract.
     constructor() StandardBridge() {
-        initialize({ _messenger: CrossDomainMessenger(address(0)), _superchainConfig: SuperchainConfig(address(0)) });
+        initialize({
+            _messenger: CrossDomainMessenger(address(0)),
+            _superchainConfig: SuperchainConfig(address(0)) ,
+            _systemConfig: SystemConfig(address(0))
+        });
     }
 
     /// @notice Initializer.
     /// @param _messenger        Contract for the CrossDomainMessenger on this network.
     /// @param _superchainConfig Contract for the SuperchainConfig on this network.
-    function initialize(CrossDomainMessenger _messenger, SuperchainConfig _superchainConfig) public initializer {
+    function initialize(CrossDomainMessenger _messenger, SuperchainConfig _superchainConfig, SystemConfig _systemConfig) public initializer {
         superchainConfig = _superchainConfig;
+        systemConfig = _systemConfig;
         __StandardBridge_init({
             _messenger: _messenger,
             _otherBridge: StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE))
@@ -105,6 +110,11 @@ contract L1StandardBridge is StandardBridge, ISemver {
     /// @notice Allows EOAs to bridge ETH by sending directly to the bridge.
     receive() external payable override onlyEOA {
         _initiateETHDeposit(msg.sender, msg.sender, RECEIVE_DEFAULT_GAS_LIMIT, bytes(""));
+    }
+
+    /// @notice
+    function gasPayingToken() public view override returns (address, uint8) {
+        return systemConfig.gasPayingToken();
     }
 
     /// @custom:legacy

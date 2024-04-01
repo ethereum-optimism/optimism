@@ -6,7 +6,7 @@ import { StandardBridge } from "src/universal/StandardBridge.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 import { OptimismMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
-import { L1Block } from "src/universal/L1Block.sol";
+import { L1Block } from "src/L2/L1Block.sol";
 
 /// @custom:proxied
 /// @custom:predeploy 0x4200000000000000000000000000000000000010
@@ -76,9 +76,13 @@ contract L2StandardBridge is StandardBridge, ISemver {
         );
     }
 
+    // Ok so getting legibility into the decimals is not ideal on L2
+    // either: remove support for other token types or? Don't want any
+    // consensus changes but also don't want to add config overhead hmm...
     /// @notice Returns the address of the token used to pay for gas.
-    function gasPayingToken() public view override returns (address) {
-        return L1Block(Predeploys.L1_BLOCK).gasPayingToken();
+    function gasPayingToken() public view override returns (address, uint8) {
+        return (address(0), 0);
+        //return L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).gasPayingToken();
     }
 
     /// @custom:legacy

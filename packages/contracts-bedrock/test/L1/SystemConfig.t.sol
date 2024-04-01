@@ -128,7 +128,8 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
                 l1StandardBridge: address(0),
                 l2OutputOracle: address(0),
                 optimismPortal: address(0),
-                optimismMintableERC20Factory: address(0)
+                optimismMintableERC20Factory: address(0),
+                gasPayingToken: Constants.ETHER
             })
         });
     }
@@ -157,7 +158,8 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
                 l1StandardBridge: address(0),
                 l2OutputOracle: address(0),
                 optimismPortal: address(0),
-                optimismMintableERC20Factory: address(0)
+                optimismMintableERC20Factory: address(0),
+                gasPayingToken: Constants.ETHER
             })
         });
         assertEq(systemConfig.startBlock(), block.number);
@@ -187,7 +189,8 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
                 l1StandardBridge: address(0),
                 l2OutputOracle: address(0),
                 optimismPortal: address(0),
-                optimismMintableERC20Factory: address(0)
+                optimismMintableERC20Factory: address(0),
+                gasPayingToken: Constants.ETHER
             })
         });
         assertEq(systemConfig.startBlock(), 1);

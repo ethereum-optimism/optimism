@@ -7,6 +7,11 @@ import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { Storage } from "src/libraries/Storage.sol";
 import { Constants } from "src/libraries/Constants.sol";
 
+// TODO: where to put this
+interface Token {
+    function decimals() external view returns (uint8);
+}
+
 /// @title SystemConfig
 /// @notice The SystemConfig contract is used to manage configuration of an Optimism network.
 ///         All configuration is stored on L1 and picked up by L2 as part of the derviation of
@@ -253,15 +258,25 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     }
 
     /// @notice Getter for the gas paying asset address.
-    function gasPayingToken() external view returns (address addr_) {
-        addr_ = Storage.getAddress(GAS_PAYING_TOKEN_SLOT);
+    function gasPayingToken() external view returns (address addr_, uint8 decimals_) {
+        bytes32 slot = Storage.getBytes32(GAS_PAYING_TOKEN_SLOT);
+        addr_ = address(uint160(uint256(slot) & uint256(type(uint160).max)));
+        decimals_ = uint8(uint256(slot) >> 160);
     }
 
     /// @notice Internal setter for the gas paying token address, includes validation.
-    function _setGasPayingAsset(address _gasPayingAsset) internal {
-        //
-        // TODO
-        Storage.setAddress(GAS_PAYING_TOKEN_SLOT, _addresses.gasPayingToken);
+    ///         Both the decimals and the address are packed into a single storage slot for
+    ///         simplicity. Ether uses a default value of 18 decimals and the requirement
+    ///         that the decimals are less than or equal to 18 ensures that no precision is
+    ///         lost for tokens that have less decimals.
+    function _setGasPayingToken(address _gasPayingToken) internal {
+        uint8 decimals = 18;
+        if (_gasPayingToken != Constants.ETHER) {
+            decimals = Token(_gasPayingToken).decimals();
+            require(decimals <= 18, "SystemConfig: bad decimals");
+        }
+        bytes32 packed = bytes32(uint256(decimals) << 160 | uint256(uint160(_gasPayingToken)));
+        Storage.setBytes32(GAS_PAYING_TOKEN_SLOT, packed);
     }
 
     /// @notice Updates the unsafe block signer address. Can only be called by the owner.

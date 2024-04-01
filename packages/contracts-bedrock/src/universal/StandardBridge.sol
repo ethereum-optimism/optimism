@@ -132,11 +132,12 @@ abstract contract StandardBridge is Initializable {
     receive() external payable virtual;
 
     /// @notice
-    function gasPayingToken() public virtual returns (address);
+    function gasPayingToken() public virtual returns (address, uint8);
 
     /// @notice Getter for custom gas token paying networks.
-    function isCustomGasToken() public view returns (bool) {
-        return gasPayingToken() == Constants.Ether;
+    function isCustomGasToken() public returns (bool) {
+        (address token, ) = gasPayingToken();
+        return token == Constants.ETHER;
     }
 
     /// @notice Getter for messenger contract.
