@@ -488,6 +488,13 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         });
     }
 
+    /// @notice Common logic for creating deposit transactions.
+    /// @param _to         Target address on L2.
+    /// @param _mint       Units of asset to deposit into L2.
+    /// @param _value      Units of asset to send on L2 to the recipient.
+    /// @param _gasLimit   Amount of L2 gas to purchase by burning gas on L1.
+    /// @param _isCreation Whether or not the transaction is a contract creation.
+    /// @param _data       Data to trigger the recipient with.
     function _depositTransaction(
         address _to,
         uint256 _mint,
@@ -530,13 +537,14 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
 
     /// @notice Sets the gas paying token for the L2 system. This token is used as the
     ///         L2 native asset. Only the SystemConfig contract can call this function.
-    ///         The gas used is not tracked in the `ResourceMetering` contract to prevent
-    ///
     function setGasPayingToken(address _token, uint8 _decimals) external {
         require(msg.sender == address(systemConfig));
 
+        // Set L2 deposit gas as used without paying burning gas.
         useGas(80000);
 
+        // Emit the special deposit transaction directly that sets the gas paying
+        // token in the L1Block predeploy contract.
         emit TransactionDeposited(
             0xDeaDDEaDDeAdDeAdDEAdDEaddeAddEAdDEAd0001,
             Predeploys.L1_BLOCK_ATTRIBUTES,
