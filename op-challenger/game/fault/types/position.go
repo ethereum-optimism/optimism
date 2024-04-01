@@ -146,9 +146,5 @@ func bigMSB(x *big.Int) Depth {
 	if x.Cmp(big.NewInt(0)) == 0 {
 		return 0
 	}
-	out := Depth(0)
-	for ; x.Cmp(big.NewInt(0)) != 0; out++ {
-		x = new(big.Int).Rsh(x, 1)
-	}
-	return out - 1
+	return Depth(x.BitLen() - 1)
 }

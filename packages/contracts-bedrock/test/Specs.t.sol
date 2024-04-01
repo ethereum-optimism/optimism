@@ -277,6 +277,11 @@ contract Specification_Test is CommonTest {
             _sel: OptimismPortal2.finalizeWithdrawalTransaction.selector,
             _pausable: true
         });
+        _addSpec({
+            _name: "OptimismPortal2",
+            _sel: OptimismPortal2.finalizeWithdrawalTransactionExternalProof.selector,
+            _pausable: true
+        });
         _addSpec({ _name: "OptimismPortal2", _sel: _getSel("finalizedWithdrawals(bytes32)") });
         _addSpec({ _name: "OptimismPortal2", _sel: _getSel("guardian()") });
         _addSpec({ _name: "OptimismPortal2", _sel: _getSel("initialize(address,address,address)") });
@@ -285,7 +290,7 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "OptimismPortal2", _sel: _getSel("params()") });
         _addSpec({ _name: "OptimismPortal2", _sel: _getSel("paused()") });
         _addSpec({ _name: "OptimismPortal2", _sel: OptimismPortal2.proveWithdrawalTransaction.selector, _pausable: true });
-        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("provenWithdrawals(bytes32)") });
+        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("provenWithdrawals(bytes32,address)") });
         _addSpec({ _name: "OptimismPortal2", _sel: _getSel("superchainConfig()") });
         _addSpec({ _name: "OptimismPortal2", _sel: _getSel("systemConfig()") });
         _addSpec({ _name: "OptimismPortal2", _sel: _getSel("version()") });
@@ -294,10 +299,12 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "OptimismPortal2", _sel: _getSel("respectedGameType()") });
         _addSpec({ _name: "OptimismPortal2", _sel: _getSel("blacklistDisputeGame(address)"), _auth: Role.GUARDIAN });
         _addSpec({ _name: "OptimismPortal2", _sel: _getSel("setRespectedGameType(uint32)"), _auth: Role.GUARDIAN });
-        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("checkWithdrawal(bytes32)") });
+        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("checkWithdrawal(bytes32,address)") });
         _addSpec({ _name: "OptimismPortal2", _sel: _getSel("proofMaturityDelaySeconds()") });
         _addSpec({ _name: "OptimismPortal2", _sel: _getSel("disputeGameFinalityDelaySeconds()") });
         _addSpec({ _name: "OptimismPortal2", _sel: _getSel("respectedGameTypeUpdatedAt()") });
+        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("proofSubmitters(bytes32,uint256)") });
+        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("numProofSubmitters(bytes32)") });
 
         // ProtocolVersions
         _addSpec({ _name: "ProtocolVersions", _sel: _getSel("RECOMMENDED_SLOT()") });

@@ -83,11 +83,11 @@ func NewChannelBuilder(cfg ChannelConfig, rollupCfg rollup.Config, latestL1Origi
 	if err != nil {
 		return nil, err
 	}
-	var spanBatchBuilder *derive.SpanBatchBuilder
+	var spanBatch *derive.SpanBatch
 	if cfg.BatchType == derive.SpanBatchType {
-		spanBatchBuilder = derive.NewSpanBatchBuilder(rollupCfg.Genesis.L2Time, rollupCfg.L2ChainID)
+		spanBatch = derive.NewSpanBatch(rollupCfg.Genesis.L2Time, rollupCfg.L2ChainID)
 	}
-	co, err := derive.NewChannelOut(cfg.BatchType, c, spanBatchBuilder)
+	co, err := derive.NewChannelOut(cfg.BatchType, c, spanBatch)
 	if err != nil {
 		return nil, err
 	}
