@@ -19,9 +19,9 @@ contract TestAddOwnerModule is Test {
         _ownerGuard = makeAddr("OwnerGuard");
         _opFoundation = makeAddr("OPFoundation");
         _sut = new AddOwnerModule({
-            safe_: Safe(payable(_safe)),
-            ownerGuard_: OwnerGuard(_ownerGuard),
-            opFoundation_: _opFoundation
+            _safe: Safe(payable(_safe)),
+            _ownerGuard: OwnerGuard(_ownerGuard),
+            _opFoundation: _opFoundation
         });
     }
 

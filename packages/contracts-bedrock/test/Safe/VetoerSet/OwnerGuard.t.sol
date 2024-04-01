@@ -20,7 +20,7 @@ contract TestOwnerGuard is Test {
             vm.mockCall(_safe, abi.encodeWithSelector(OwnerManager.getOwners.selector), abi.encode(new address[](3)));
         }
 
-        _sut = new OwnerGuard({ safe_: Safe(payable(_safe)) });
+        _sut = new OwnerGuard({ _safe: Safe(payable(_safe)) });
     }
 
     /// @dev `constructor` should revert with `InvalidOwnerCount` when the current number of owners of the Safe Account
@@ -42,7 +42,7 @@ contract TestOwnerGuard is Test {
         }
 
         vm.expectRevert(abi.encodeWithSelector(OwnerGuard.InvalidOwnerCount.selector, safeOwnerCount));
-        new OwnerGuard({ safe_: Safe(payable(_safe)) });
+        new OwnerGuard({ _safe: Safe(payable(_safe)) });
     }
 
     /// @dev `constructor` should initialize `maxOwnerCount` to the max between `INITIAL_MAX_OWNER_COUNT` and the
@@ -58,7 +58,7 @@ contract TestOwnerGuard is Test {
             );
         }
 
-        OwnerGuard sut = new OwnerGuard({ safe_: Safe(payable(_safe)) });
+        OwnerGuard sut = new OwnerGuard({ _safe: Safe(payable(_safe)) });
         uint8 initialMaxOwnerCount = sut.INITIAL_MAX_OWNER_COUNT();
 
         uint256 maxOwnerCount = sut.maxOwnerCount();

@@ -24,11 +24,11 @@ contract VetoModule is ISemver {
     error SenderIsNotAnOwner(address sender);
 
     /// @notice The module constructor.
-    /// @param safe_ The Safe Account addess.
-    /// @param delayedVetoable_ The delay vetoable contract address.
-    constructor(Safe safe_, address delayedVetoable_) {
-        safe = safe_;
-        delayedVetoable = delayedVetoable_;
+    /// @param _safe The Safe Account addess.
+    /// @param _delayedVetoable The delay vetoable contract address.
+    constructor(Safe _safe, address _delayedVetoable) {
+        safe = _safe;
+        delayedVetoable = _delayedVetoable;
     }
 
     /// @notice Passthrough for any owner to execute a veto on the `DelayedVetoable` contract.

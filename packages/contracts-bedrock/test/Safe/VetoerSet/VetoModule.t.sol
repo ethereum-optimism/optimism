@@ -15,7 +15,7 @@ contract TestVetoModule is Test {
     function setUp() public {
         _safe = makeAddr("Safe");
         _delayedVetoable = makeAddr("DelayedVetoable");
-        _sut = new VetoModule({ safe_: Safe(payable(_safe)), delayedVetoable_: _delayedVetoable });
+        _sut = new VetoModule({ _safe: Safe(payable(_safe)), _delayedVetoable: _delayedVetoable });
     }
 
     /// @dev `veto` should revert with `SenderIsNotAnOwner` when the sender is not an owner of the Safe Account.

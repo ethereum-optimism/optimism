@@ -31,13 +31,13 @@ contract AddOwnerModule is ISemver {
     error SenderIsNotOpFoundation(address sender);
 
     /// @notice The module constructor.
-    /// @param safe_ The Safe Account address
-    /// @param ownerGuard_ The owner guard contract address.
-    /// @param opFoundation_ The OP Foundation multisig address.
-    constructor(Safe safe_, OwnerGuard ownerGuard_, address opFoundation_) {
-        safe = safe_;
-        ownerGuard = ownerGuard_;
-        opFoundation = opFoundation_;
+    /// @param _safe The Safe Account address
+    /// @param _ownerGuard The owner guard contract address.
+    /// @param _opFoundation The OP Foundation multisig address.
+    constructor(Safe _safe, OwnerGuard _ownerGuard, address _opFoundation) {
+        safe = _safe;
+        ownerGuard = _ownerGuard;
+        opFoundation = _opFoundation;
     }
 
     /// @notice Add a new owner address.
