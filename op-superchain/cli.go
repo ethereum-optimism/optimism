@@ -66,7 +66,7 @@ func (c CLIConfig) Check() error {
 	if err != nil {
 		return fmt.Errorf("l2 peer rpcs encoded incorrectly: %w", err)
 	}
-	for id, _ := range l2PeersMap {
+	for id := range l2PeersMap {
 		_, err := strconv.ParseUint(id, 10, 64)
 		if err != nil {
 			return fmt.Errorf("unable to parse chain id (%s): %w", id, err)

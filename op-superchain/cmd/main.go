@@ -26,10 +26,6 @@ var (
 	EnvVarPrefix = "OP_SUPERCHAIN"
 )
 
-func prefixEnvVars(name string) []string {
-	return []string{EnvVarPrefix + "_" + name}
-}
-
 func parseMapFlag(input string) (map[string]string, error) {
 	result := map[string]string{}
 	pairs := strings.Split(input, ",")

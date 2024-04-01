@@ -27,12 +27,12 @@ type backend struct {
 	l2FinalizedHeadSub  ethereum.Subscription
 	l2FinalizedBlockRef *eth.L1BlockRef
 
-	l2PeerNodes map[uint64]client.RPC
+	l2PeerNodes map[string]client.RPC
 }
 
 func NewBackend(ctx context.Context, log log.Logger, m metrics.Factory, cfg *Config) (Backend, error) {
 	log = log.New("module", "superchain")
-	backend := backend{log: log, l2PeerNodes: map[uint64]client.RPC{}}
+	backend := backend{log: log, l2PeerNodes: map[string]client.RPC{}}
 
 	rpcOpts := []client.RPCOption{client.WithDialBackoff(10)}
 	l2Node, err := client.NewRPC(ctx, log, cfg.L2NodeAddr, rpcOpts...)
@@ -45,7 +45,7 @@ func NewBackend(ctx context.Context, log log.Logger, m metrics.Factory, cfg *Con
 		if err != nil {
 			return nil, fmt.Errorf("failed to connect to Peer L2 node, %d: %w", chainId, err)
 		}
-		backend.l2PeerNodes[chainId] = l2Node
+		backend.l2PeerNodes[fmt.Sprintf("%d", chainId)] = l2Node
 	}
 
 	// retrieve the current references before setting up the poll
@@ -76,9 +76,8 @@ func (b *backend) MessageSafety(ctx context.Context, id MessageIdentifier, paylo
 
 	// ChainID Invariant.
 	//   TODO: Assumption here that the configured peers exactly maps to the registered dependency set.
-	//   When the predeploy is added, this needs to be tied to the dependency set registered on-chain
-	//   TODO: handle *big.Int chain ids this appropriately
-	l2Node, ok := b.l2PeerNodes[id.ChainId.Uint64()]
+	//   When the predeploy is ready, this needs to be tied to the dependency set registered on-chain
+	l2Node, ok := b.l2PeerNodes[id.ChainId.String()]
 	if !ok {
 		return MessageUnknown, fmt.Errorf("peer with chain id %d is not configured", id.ChainId)
 	}
@@ -100,20 +99,21 @@ func (b *backend) MessageSafety(ctx context.Context, id MessageIdentifier, paylo
 	if batchElems[0].Error != nil || batchElems[1].Error != nil {
 		return MessageUnknown, fmt.Errorf("caught batch rpc failures: getBlockByNumber: %w, getLogs: %w", batchElems[0].Error, batchElems[1].Error)
 	}
+
+	// Check message against the block info
 	if header == nil {
 		return MessageUnknown, fmt.Errorf("block %d does not exist", id.BlockNumber)
 	}
-
 	if id.Timestamp != header.Time {
 		return MessageInvalid, fmt.Errorf("message id and header timestamp mismatch")
 	}
-
 	if id.LogIndex >= uint64(len(logs)) {
 		return MessageInvalid, fmt.Errorf("invalid log index")
 	}
 
+	// Check message validity against the remote log
 	log := logs[id.LogIndex]
-	if err := MessageLogCheck(id, payload, &log); err != nil {
+	if err := CheckMessageLog(id, payload, &log); err != nil {
 		return MessageInvalid, fmt.Errorf("failed log check: %w", err)
 	}
 

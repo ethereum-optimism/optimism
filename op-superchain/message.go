@@ -13,6 +13,9 @@ import (
 )
 
 var (
+	// TODO: use predeploy constant when available
+	crossL2InboxAddr = common.Address{}
+
 	inboxExecuteMessageSignature      = "executeMessage((address,uint256,uint256,uint256,uint256),address,bytes)"
 	inboxExecuteMessageBytes4         = crypto.Keccak256([]byte(inboxExecuteMessageSignature))[:4]
 	inboxExecuteMessagePayloadDataLoc = common.HexToHash("0xe0")
@@ -47,7 +50,7 @@ func MessagePayloadBytes(log *types.Log) []byte {
 
 // Check if a transaction is an executing message to the CrossL2Inbox
 func IsInboxExecutingMessageTx(tx *types.Transaction) bool {
-	if tx.To() == nil || *tx.To() == common.HexToAddress("0xa") {
+	if tx.To() == nil || *tx.To() == crossL2InboxAddr {
 		return false
 	}
 
@@ -56,7 +59,7 @@ func IsInboxExecutingMessageTx(tx *types.Transaction) bool {
 }
 
 // Check the message id and payload against the fields of the log.
-func MessageLogCheck(id MessageIdentifier, payload hexutil.Bytes, log *types.Log) error {
+func CheckMessageLog(id MessageIdentifier, payload hexutil.Bytes, log *types.Log) error {
 	if id.LogIndex != uint64(log.Index) {
 		return fmt.Errorf("log index mismatch")
 	}

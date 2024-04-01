@@ -37,12 +37,12 @@ var (
 	)
 )
 
-func TestMessageLogCheck(t *testing.T) {
+func TestCheckMessageLog(t *testing.T) {
 	origin := common.HexToAddress("0xA")
 	blockNum := big.NewInt(1)
 	logIndex := uint64(1)
 
-	// Specifiy the fields set in the log
+	// Specify the fields set in the log
 	id := MessageIdentifier{Origin: origin, BlockNumber: blockNum, LogIndex: logIndex}
 
 	log := &types.Log{
@@ -54,29 +54,29 @@ func TestMessageLogCheck(t *testing.T) {
 	}
 
 	payload := MessagePayloadBytes(log)
-	require.NoError(t, MessageLogCheck(id, payload, log))
+	require.NoError(t, CheckMessageLog(id, payload, log))
 
 	// origin mismatch
 	id.Origin = common.HexToAddress("0xB")
-	require.Error(t, MessageLogCheck(id, payload, log))
+	require.Error(t, CheckMessageLog(id, payload, log))
 	id.Origin = origin
-	require.NoError(t, MessageLogCheck(id, payload, log))
+	require.NoError(t, CheckMessageLog(id, payload, log))
 
 	// block number mismatch
 	id.BlockNumber = big.NewInt(2)
-	require.Error(t, MessageLogCheck(id, payload, log))
+	require.Error(t, CheckMessageLog(id, payload, log))
 	id.BlockNumber = blockNum
-	require.NoError(t, MessageLogCheck(id, payload, log))
+	require.NoError(t, CheckMessageLog(id, payload, log))
 
 	// log index mismatch
 	id.LogIndex = 2
-	require.Error(t, MessageLogCheck(id, payload, log))
+	require.Error(t, CheckMessageLog(id, payload, log))
 	id.LogIndex = logIndex
-	require.NoError(t, MessageLogCheck(id, payload, log))
+	require.NoError(t, CheckMessageLog(id, payload, log))
 
 	// payload mismatch
-	require.Error(t, MessageLogCheck(id, payload[:1], log))
-	require.NoError(t, MessageLogCheck(id, payload, log))
+	require.Error(t, CheckMessageLog(id, payload[:1], log))
+	require.NoError(t, CheckMessageLog(id, payload, log))
 }
 
 func TestParseInboxExecuteMessageUnpacking(t *testing.T) {
