@@ -261,7 +261,7 @@ services:
     command: >
       op-node
       --l1=ws://l1:8546
-      --l2=http://suave-op-geth:8551
+      --l2=http://suave-op-execution-geth:8551
       --l2.jwt-secret=/config/test-jwt-secret.txt
       --rollup.config=/rollup.json
       --p2p.listen.ip=0.0.0.0
@@ -281,75 +281,57 @@ services:
       custom_net:
         ipv4_address: 10.5.0.123
 
-  suave-op-geth:
-    build:
-      context: .
-      dockerfile: Dockerfile.l2
+  suave-geth:
+    depends_on:
+      - suave-op-execution-geth
+    image: flashbots/suave-geth:latest
+    command:
+      - --dev
+      - --dev.gaslimit=30000000
+      - --http
+      - --http.port=8545
+      - --http.addr=0.0.0.0
+      - --http.vhosts=*
+      - --http.corsdomain=*
+      - --ws
+      - --ws.port=8546
+      - --ws.origins=*
+      - --ws.addr=0.0.0.0
+      - --datadir=/data
+      - --keystore=/keystore/keystore
+      - --unlock=0xB5fEAfbDD752ad52Afb7e1bD2E40432A485bBB7F
+      - --password=/keystore/password.txt
+      - --log.debug
+      - --suave.eth.remote_endpoint=http://suave-op-execution-geth:8545
     volumes:
+      - "${PWD}/suave-ex-node:/keystore"
+    ports:
+      - 11545:8545
+      - 11546:8546
+    networks:
+      - custom_net
+
+  suave-op-execution-geth:
+    image: flashbots/suave-op-execution-geth:latest
+    command:
+      - --dev
+      - --dev.gaslimit=30000000
+      - --http
+      - --http.port=8545
+      - --http.addr=0.0.0.0
+      - --http.vhosts=*
+      - --http.corsdomain=*
+      - --ws
+      - --ws.origins=*
+      - --ws.addr=0.0.0.0
+      - --keystore=/keystore/keystore
+    volumes:
+      - "builder_data:/db"
       - "${PWD}/../.devnet/genesis-l2.json:/genesis.json"
       - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
     entrypoint:  # pass the L2 specific flags by overriding the entry-point and adding extra arguments
       - "/bin/sh"
       - "/entrypoint.sh"
       - "--authrpc.jwtsecret=/config/test-jwt-secret.txt"
-    environment:
-      GETH_MINER_RECOMMIT: 100ms
     networks:
       - custom_net
-
-  # suave-geth:
-  #   profiles:
-  #     - suave
-  #   depends_on:
-  #     - op-builder
-  #   image: flashbots/suave-geth:latest
-  #   command:
-  #     - --dev
-  #     - --dev.gaslimit=30000000
-  #     - --http
-  #     - --http.port=8545
-  #     - --http.addr=0.0.0.0
-  #     - --http.vhosts=*
-  #     - --http.corsdomain=*
-  #     - --ws
-  #     - --ws.port=8546
-  #     - --ws.origins=*
-  #     - --ws.addr=0.0.0.0
-  #     - --datadir=/data
-  #     - --keystore=/keystore/keystore
-  #     - --unlock=0xB5fEAfbDD752ad52Afb7e1bD2E40432A485bBB7F
-  #     - --password=/keystore/password.txt
-  #     - --log.debug
-  #     - --suave.eth.remote_endpoint=http://suave-op-execution-geth:8545  # using op-builder as remote rpc backend
-  #   volumes:
-  #     - "${PWD}/suave-ex-node:/keystore"
-  #   ports:
-  #     - 11545:8545
-  #     - 11546:8546
-  #
-  # suave-op-execution-geth:
-  #   profiles:
-  #     - suave
-  #   image: flashbots/op-suave-exeuction-geth:latest
-  #   command:
-  #     - --dev
-  #     - --dev.gaslimit=30000000
-  #     - --http
-  #     - --http.port=8545
-  #     - --http.addr=0.0.0.0
-  #     - --http.vhosts=*
-  #     - --http.corsdomain=*
-  #     - --ws
-  #     - --ws.origins=*
-  #     - --ws.addr=0.0.0.0
-  #     - --keystore=/keystore/keystore
-  #   volumes:
-  #     - "builder_data:/db"
-  #     - "${PWD}/../.devnet/genesis-l2.json:/genesis.json"
-  #     - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
-  #   entrypoint:  # pass the L2 specific flags by overriding the entry-point and adding extra arguments
-  #     - "/bin/sh"
-  #     - "/entrypoint.sh"
-  #     - "--authrpc.jwtsecret=/config/test-jwt-secret.txt"
-  #     - "--suave"
-  #     - "--suave.beacon_endpoint=http://op-node-builder:8547"
