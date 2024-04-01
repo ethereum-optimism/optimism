@@ -80,7 +80,7 @@ func (p Position) lshIndex(amount Depth) *big.Int {
 	return new(big.Int).Lsh(p.IndexAtDepth(), uint(amount))
 }
 
-// TraceIndex calculates the what the index of the claim value would be inside the trace.
+// TraceIndex calculates what the index of the claim value would be inside the trace.
 // It is equivalent to going right until the final depth has been reached.
 func (p Position) TraceIndex(maxDepth Depth) *big.Int {
 	// When we go right, we do a shift left and set the bottom bit to be 1.
