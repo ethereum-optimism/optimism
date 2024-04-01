@@ -33,20 +33,25 @@ func TestDemo(t *testing.T) {
 					test.Select(t, "l1_fork", l1.Forks, func(t test.Planner, l1Fork l1.L1Fork) {
 						test.Select(t, "l2_backend", []test.BackendKind{test.Live, test.Instant}, func(t test.Planner, l2BackendKind test.BackendKind) {
 
+							// TODO: should the resource-configuration become part of the test-plan?
+							// We can compose resources, without allowing the resources to execute actual tasks.
+							// They can just be unique identifiers and setting-structs.
+
+							// create L1 chain, engine and beacon node
+							l1Chain := l1.Request(t, l1.Kind(l1BackendKind), l1.ActiveFork(l1Fork))
+							l1EL := l1el.Request(t, l1el.Kind(l1BackendKind))
+							l1CL := l1cl.Request(t, l1cl.Kind(l1BackendKind), l1cl.L1EL(l1EL))
+
+							// create a superchain to group L2s
+							superChain := superchain.Request(t,
+								superchain.Kind(l1BackendKind), superchain.L1Chain(l1Chain))
+
+							// create L2 chain, op-stack engine and rollup node
+							l2Chain := l2.Request(t, l2.Superchain(superChain), l2.Kind(l2BackendKind))
+							l2EL := l2el.Request(t, l2el.Kind(l2BackendKind), l2el.L2Chain(l2Chain))
+							l2CL := l2cl.Request(t, l2cl.Kind(l2BackendKind), l2cl.L2EL(l2EL))
+
 							t.Run("run", func(t test.Executor) {
-								// create L1 chain, engine and beacon node
-								l1Chain := l1.Request(t, l1.Kind(l1BackendKind), l1.ActiveFork(l1Fork))
-								l1EL := l1el.Request(t, l1el.Kind(l1BackendKind))
-								l1CL := l1cl.Request(t, l1cl.Kind(l1BackendKind), l1cl.L1EL(l1EL))
-
-								// create a superchain to group L2s
-								superChain := superchain.Request(t,
-									superchain.Kind(l1BackendKind), superchain.L1Chain(l1Chain))
-
-								// create L2 chain, op-stack engine and rollup node
-								l2Chain := l2.Request(t, l2.Superchain(superChain), l2.Kind(l2BackendKind))
-								l2EL := l2el.Request(t, l2el.Kind(l2BackendKind), l2el.L2Chain(l2Chain))
-								l2CL := l2cl.Request(t, l2cl.Kind(l2BackendKind), l2cl.L2EL(l2EL))
 
 								// TODO request l1CL to mine blocks
 								_ = l1CL.BeaconEndpoint()

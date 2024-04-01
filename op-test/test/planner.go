@@ -218,6 +218,7 @@ func (imp *testImpl) Select(name string, options []string, fn func(t Planner)) {
 	imp.orderedSubTest(name, func(t *testImpl) {
 		for _, opt := range options {
 			subName := name + "=" + opt
+			// TODO: maybe hash the option-value, if it's too large to encode in the test-name
 			subPlan := &PlannedTestDef{Name: subName}
 			subPlan.SetParam(name, opt)
 			t.plan.AddSub(subPlan)
