@@ -112,7 +112,7 @@ contract L1StandardBridge is StandardBridge, ISemver {
         _initiateETHDeposit(msg.sender, msg.sender, RECEIVE_DEFAULT_GAS_LIMIT, bytes(""));
     }
 
-    /// @notice
+    /// @notice Returns the gas paying token address and its decimals.
     function gasPayingToken() public view override returns (address, uint8) {
         return systemConfig.gasPayingToken();
     }

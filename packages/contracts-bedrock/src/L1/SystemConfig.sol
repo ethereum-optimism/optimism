@@ -6,8 +6,10 @@ import { ISemver } from "src/universal/ISemver.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { Storage } from "src/libraries/Storage.sol";
 import { Constants } from "src/libraries/Constants.sol";
+import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 
-// TODO: where to put this
+/// @title Token
+/// @notice Simple interface for interacting with tokens that have decimals.
 interface Token {
     function decimals() external view returns (uint8);
 }
@@ -238,7 +240,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     }
 
     /// @notice Getter for the OptimismPortal address.
-    function optimismPortal() external view returns (address addr_) {
+    function optimismPortal() public view returns (address addr_) {
         addr_ = Storage.getAddress(OPTIMISM_PORTAL_SLOT);
     }
 
@@ -269,14 +271,19 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     ///         simplicity. Ether uses a default value of 18 decimals and the requirement
     ///         that the decimals are less than or equal to 18 ensures that no precision is
     ///         lost for tokens that have less decimals.
-    function _setGasPayingToken(address _gasPayingToken) internal {
+    function _setGasPayingToken(address _token) internal {
         uint8 decimals = 18;
-        if (_gasPayingToken != Constants.ETHER) {
-            decimals = Token(_gasPayingToken).decimals();
+        if (_token != Constants.ETHER) {
+            decimals = Token(_token).decimals();
             require(decimals <= 18, "SystemConfig: bad decimals");
         }
-        bytes32 packed = bytes32(uint256(decimals) << 160 | uint256(uint160(_gasPayingToken)));
-        Storage.setBytes32(GAS_PAYING_TOKEN_SLOT, packed);
+
+        Storage.setBytes32(
+            GAS_PAYING_TOKEN_SLOT,
+            bytes32(uint256(decimals) << 160 | uint256(uint160(_token)))
+        );
+
+        OptimismPortal(payable(optimismPortal())).setGasPayingToken(_token, decimals);
     }
 
     /// @notice Updates the unsafe block signer address. Can only be called by the owner.

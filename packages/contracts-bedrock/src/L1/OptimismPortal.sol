@@ -78,8 +78,8 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     /// @custom:network-specific
     SystemConfig public systemConfig;
 
-    /// @notice The total amount of gas paying asset in the contract. Only used when gasPayingToken
-    //          is not ether.
+    /// @notice The total amount of gas paying asset in the contract. Incremented and decremented on deposits
+    ///         and withdrawals when custom gas token is used.
     uint256 internal _balance;
 
     /// @notice Emitted when a transaction is deposited from L1 to L2.
@@ -351,7 +351,6 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         l2Sender = _tx.sender;
 
         bool success;
-
         (address token, uint8 decimals) = gasPayingToken();
         if (token == Constants.ETHER) {
             // Trigger the call to the target contract. We use a custom low level method
@@ -363,6 +362,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
             //      to accomplish this, `callWithMinGas` will revert.
             success = SafeCall.callWithMinGas(_tx.target, _tx.gasLimit, _tx.value, _tx.data);
         } else {
+            // Cannot call the token contract directly from the portal.
             require(_tx.target != token, "OptimismPortal: cannot call gas paying token");
 
             // Read the balance of the target contract before the transfer so the consistency
@@ -384,8 +384,6 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
                 value: value
             });
 
-            // expose tokenValue in public getter so target contract can access it
-
             // The balance must be transferred exactly.
             require(
                 IERC20(token).balanceOf(address(this)) == balanceOf - value,
@@ -395,6 +393,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
             // Subtract the value from the contract's balance
             _balance -= value;
 
+            // Make a call to the target contract only if there is calldata.
             if (_tx.data.length != 0) {
                 success = SafeCall.callWithMinGas(_tx.target, _tx.gasLimit, 0, _tx.data);
             } else {
@@ -418,6 +417,12 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     }
 
     /// @notice Entrypoint to depositing an ERC20 token as a custom gas token.
+    /// @param _to         Target address on L2.
+    /// @param _mint       Units of ERC20 token to deposit into L2.
+    /// @param _value      Units of ERC20 token to send on L2 to the recipient.
+    /// @param _gasLimit   Amount of L2 gas to purchase by burning gas on L1.
+    /// @param _isCreation Whether or not the transaction is a contract creation.
+    /// @param _data       Data to trigger the recipient with.
     function depositERC20Transaction(
         address _to,
         uint256 _mint,
