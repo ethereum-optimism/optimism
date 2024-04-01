@@ -40,11 +40,10 @@ func (w *WithdrawalMonitor) CheckWithdrawals(games []*types.EnrichedGameData) {
 }
 
 func (w *WithdrawalMonitor) validateGameWithdrawals(game *types.EnrichedGameData) (int, int) {
-	recipients := maps.Keys(game.WithdrawalRequests)
 	matching := 0
 	divergent := 0
-	for _, recipient := range recipients {
-		if game.WithdrawalRequests[recipient].Amount.Cmp(game.Credits[recipient]) == 0 {
+	for recipient, withdrawalAmount := range game.WithdrawalRequests {
+		if withdrawalAmount.Cmp(game.Credits[recipient]) == 0 {
 			matching++
 		} else {
 			divergent++
