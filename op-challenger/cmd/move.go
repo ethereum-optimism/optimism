@@ -95,5 +95,4 @@ var MoveCommand = &cli.Command{
 	Description: "Creates and sends a move transaction to the dispute game",
 	Action:      Move,
 	Flags:       moveFlags(),
-	Hidden:      true,
 }

@@ -7,7 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
-var OPGoerliChainConfig, OPSepoliaChainConfig, OPMainnetChainConfig *params.ChainConfig
+var OPSepoliaChainConfig, OPMainnetChainConfig *params.ChainConfig
 
 func init() {
 	mustLoadConfig := func(chainID uint64) *params.ChainConfig {
@@ -17,13 +17,11 @@ func init() {
 		}
 		return cfg
 	}
-	OPGoerliChainConfig = mustLoadConfig(420)
 	OPSepoliaChainConfig = mustLoadConfig(11155420)
 	OPMainnetChainConfig = mustLoadConfig(10)
 }
 
 var L2ChainConfigsByChainID = map[uint64]*params.ChainConfig{
-	420:      OPGoerliChainConfig,
 	11155420: OPSepoliaChainConfig,
 	10:       OPMainnetChainConfig,
 }

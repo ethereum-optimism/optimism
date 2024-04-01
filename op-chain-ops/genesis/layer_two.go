@@ -81,8 +81,10 @@ func BuildL2Genesis(config *DeployConfig, l1StartBlock *types.Block) (*core.Gene
 			}
 			deployedBin, err := deployer.DeployWithDeterministicDeployer(backend, name)
 			if err != nil {
+				backend.Close()
 				return nil, err
 			}
+			backend.Close()
 			deployResults[name] = deployedBin
 			fallthrough
 		case "MultiCall3", "Create2Deployer", "Safe_v130",

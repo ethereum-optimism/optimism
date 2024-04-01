@@ -233,14 +233,14 @@ func (f *FaultDisputeGameContract) addGlobalDataTx(ctx context.Context, data *ty
 
 func (f *FaultDisputeGameContract) GetWithdrawals(ctx context.Context, block rpcblock.Block, gameAddr common.Address, recipients ...common.Address) ([]*WithdrawalRequest, error) {
 	defer f.metrics.StartContractRequest("GetWithdrawals")()
-	delayedWETH, err := f.GetDelayedWETH(ctx)
+	delayedWETH, err := f.getDelayedWETH(ctx)
 	if err != nil {
 		return nil, err
 	}
 	return delayedWETH.GetWithdrawals(ctx, block, gameAddr, recipients...)
 }
 
-func (f *FaultDisputeGameContract) GetDelayedWETH(ctx context.Context) (*DelayedWETHContract, error) {
+func (f *FaultDisputeGameContract) getDelayedWETH(ctx context.Context) (*DelayedWETHContract, error) {
 	defer f.metrics.StartContractRequest("GetDelayedWETH")()
 	result, err := f.multiCaller.SingleCall(ctx, rpcblock.Latest, f.contract.Call(methodWETH))
 	if err != nil {

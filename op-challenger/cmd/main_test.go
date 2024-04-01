@@ -22,7 +22,7 @@ var (
 	l1Beacon                = "http://example.com:9000"
 	gameFactoryAddressValue = "0xbb00000000000000000000000000000000000000"
 	cannonNetwork           = "op-mainnet"
-	otherCannonNetwork      = "op-goerli"
+	otherCannonNetwork      = "op-sepolia"
 	cannonBin               = "./bin/cannon"
 	cannonServer            = "./bin/op-program"
 	cannonPreState          = "./pre.json"

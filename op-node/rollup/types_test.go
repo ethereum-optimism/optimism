@@ -147,9 +147,9 @@ func TestRandomConfigDescription(t *testing.T) {
 	})
 	t.Run("named L1", func(t *testing.T) {
 		config := randConfig()
-		config.L1ChainID = big.NewInt(5)
+		config.L1ChainID = big.NewInt(11155111)
 		out := config.Description(map[string]string{config.L2ChainID.String(): "foobar chain"})
-		require.Contains(t, out, "goerli")
+		require.Contains(t, out, "sepolia")
 	})
 	t.Run("unnamed", func(t *testing.T) {
 		config := randConfig()
@@ -506,7 +506,6 @@ func TestTimestampForBlock(t *testing.T) {
 			assert.Equal(t, timestamp, test.expectedBlockTime)
 		})
 	}
-
 }
 
 func TestForkchoiceUpdatedVersion(t *testing.T) {

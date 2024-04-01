@@ -682,7 +682,7 @@ func TestMixedWithdrawalValidity(t *testing.T) {
 				ctx, withdrawalCancel := context.WithTimeout(context.Background(), 60*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 				defer withdrawalCancel()
 				if e2eutils.UseFPAC() {
-					err = wait.ForWithdrawalCheck(ctx, l1Client, withdrawal, cfg.L1Deployments.OptimismPortalProxy)
+					err = wait.ForWithdrawalCheck(ctx, l1Client, withdrawal, cfg.L1Deployments.OptimismPortalProxy, transactor.Account.L1Opts.From)
 					require.NoError(t, err)
 				} else {
 					err = wait.ForFinalizationPeriod(ctx, l1Client, header.Number, cfg.L1Deployments.L2OutputOracleProxy)

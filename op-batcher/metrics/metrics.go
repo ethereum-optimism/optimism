@@ -188,8 +188,8 @@ func NewMetrics(procName string) *Metrics {
 		blobUsedBytes: factory.NewHistogram(prometheus.HistogramOpts{
 			Namespace: ns,
 			Name:      "blob_used_bytes",
-			Help:      "Blob size in bytes being submitted.",
-			Buckets:   prometheus.LinearBuckets(0.0, eth.MaxBlobDataSize/13, 13),
+			Help:      "Blob size in bytes (of last blob only for multi-blob txs).",
+			Buckets:   prometheus.LinearBuckets(0.0, eth.MaxBlobDataSize/13, 14),
 		}),
 
 		batcherTxEvs: opmetrics.NewEventVec(factory, ns, "", "batcher_tx", "BatcherTx", []string{"stage"}),
