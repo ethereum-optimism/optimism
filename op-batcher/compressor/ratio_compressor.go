@@ -34,6 +34,10 @@ func NewRatioCompressor(config Config) (derive.Compressor, error) {
 	return c, nil
 }
 
+func (t *RatioCompressor) TargetOutputSize() uint64 {
+	return t.config.TargetOutputSize
+}
+
 func (t *RatioCompressor) Write(p []byte) (int, error) {
 	if err := t.FullErr(); err != nil {
 		return 0, err

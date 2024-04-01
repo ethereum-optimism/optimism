@@ -36,6 +36,10 @@ func (s *nonCompressor) FullErr() error {
 	return nil
 }
 
+func (t *nonCompressor) TargetOutputSize() uint64 {
+	return 0
+}
+
 func TestChannelOutAddBlock(t *testing.T) {
 	cout, err := NewChannelOut(SingularBatchType, &nonCompressor{}, nil)
 	require.NoError(t, err)

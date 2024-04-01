@@ -58,6 +58,10 @@ func NewShadowCompressor(config Config) (derive.Compressor, error) {
 	return c, nil
 }
 
+func (t *ShadowCompressor) TargetOutputSize() uint64 {
+	return t.config.TargetOutputSize
+}
+
 func (t *ShadowCompressor) Write(p []byte) (int, error) {
 	if t.fullErr != nil {
 		return 0, t.fullErr

@@ -33,6 +33,10 @@ func NewBlindCompressor(config Config) (derive.Compressor, error) {
 	return c, nil
 }
 
+func (t *BlindCompressor) TargetOutputSize() uint64 {
+	return t.config.TargetOutputSize
+}
+
 func (t *BlindCompressor) Write(p []byte) (int, error) {
 	if err := t.FullErr(); err != nil {
 		return 0, err

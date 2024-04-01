@@ -48,6 +48,8 @@ type Compressor interface {
 	// calls to Write will fail if an error is returned from this method, but calls to Write
 	// can still return ErrCompressorFull even if this does not.
 	FullErr() error
+	// TargetOutputSize returns the target size of the compressed output
+	TargetOutputSize() uint64
 }
 
 type ChannelOut interface {
@@ -68,7 +70,7 @@ func NewChannelOut(batchType uint, compress Compressor, spanBatch *SpanBatch) (C
 	case SingularBatchType:
 		return NewSingularChannelOut(compress)
 	case SpanBatchType:
-		return NewSpanChannelOut(compress, spanBatch)
+		return NewSpanChannelOut(spanBatch.GenesisTimestamp, spanBatch.ChainID, compress.TargetOutputSize())
 	default:
 		return nil, fmt.Errorf("unrecognized batch type: %d", batchType)
 	}
