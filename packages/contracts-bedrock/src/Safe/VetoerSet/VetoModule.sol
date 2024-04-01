@@ -13,10 +13,10 @@ contract VetoModule is ISemver {
     string public constant version = "1.0.0";
 
     /// @notice The Safe contract instance
-    Safe internal immutable safe;
+    Safe public immutable safe;
 
     /// @notice The delayed vetoable contract.
-    address internal immutable delayedVetoable;
+    address public immutable delayedVetoable;
 
     /// @notice Thrown when trying to execute a veto through this module but the caller is not
     ///         an owner of the Safe Account.

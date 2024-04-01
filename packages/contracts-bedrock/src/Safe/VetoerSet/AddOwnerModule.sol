@@ -43,7 +43,7 @@ contract AddOwnerModule is ISemver {
     /// @notice Add a new owner address.
     /// @dev Revert if not called by the whitelisted `admin` address.
     /// @param addr The owner address to add.
-    function addOwner(address addr) external {
+    function addOwner(address addr) external returns(bool) {
         // Ensure the caller is the registered admin.
         if (msg.sender != admin) {
             revert SenderIsNotAdmin(msg.sender);
@@ -53,7 +53,7 @@ contract AddOwnerModule is ISemver {
         uint256 threshold = ownerGuard.checkNewOwnerCount(safe.getOwners().length + 1);
 
         // Add a new owner to the Safe Account, specifying the new threshold.
-        safe.execTransactionFromModule(
+        return safe.execTransactionFromModule(
             address(safe), 0, abi.encodeCall(safe.addOwnerWithThreshold, (addr, threshold)), Enum.Operation.Call
         );
     }
