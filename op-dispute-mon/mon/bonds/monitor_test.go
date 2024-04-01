@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/metrics"
-	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/transform"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -42,7 +41,7 @@ func TestCheckBonds(t *testing.T) {
 	logger := testlog.Logger(t, log.LvlInfo)
 	metrics := &stubBondMetrics{
 		credits:  make(map[metrics.CreditExpectation]int),
-		recorded: make(map[common.Address]transform.Collateral),
+		recorded: make(map[common.Address]Collateral),
 	}
 	bonds := NewBonds(logger, metrics, clock.NewDeterministicClock(frozen))
 
@@ -59,7 +58,7 @@ func TestCheckBonds(t *testing.T) {
 
 type stubBondMetrics struct {
 	credits  map[metrics.CreditExpectation]int
-	recorded map[common.Address]transform.Collateral
+	recorded map[common.Address]Collateral
 }
 
 func (s *stubBondMetrics) RecordBondCollateral(addr common.Address, required *big.Int, available *big.Int) {

@@ -23,8 +23,6 @@ func (*NoopMetricsImpl) RecordCredit(_ CreditExpectation, _ int) {}
 
 func (*NoopMetricsImpl) RecordWithdrawalRequests(_ common.Address, _ bool, _ int) {}
 
-func (*NoopMetricsImpl) RecordClaimResolutionDelayMax(delay float64)              {}
-
 func (*NoopMetricsImpl) RecordClaimResolutionDelayMax(_ float64) {}
 
 func (*NoopMetricsImpl) RecordOutputFetchTime(_ float64) {}

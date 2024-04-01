@@ -193,9 +193,9 @@ type mockGameCaller struct {
 	requiredBondCalls int
 	requiredBondErr   error
 	requiredBonds     []*big.Int
-  withdrawalsCalls int
-	withdrawalsErr   error
-	withdrawals      []*contracts.WithdrawalRequest
+	withdrawalsCalls  int
+	withdrawalsErr    error
+	withdrawals       []*contracts.WithdrawalRequest
 }
 
 func (m *mockGameCaller) GetRequiredBonds(ctx context.Context, block rpcblock.Block, positions ...*big.Int) ([]*big.Int, error) {

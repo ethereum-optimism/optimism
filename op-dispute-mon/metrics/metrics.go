@@ -144,7 +144,7 @@ func NewMetrics() *Metrics {
 		}, []string{
 			"credit",
 			"max_duration",
-  	}),
+		}),
 		withdrawalRequests: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: Namespace,
 			Name:      "withdrawal_requests",

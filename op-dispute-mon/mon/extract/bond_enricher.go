@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum/go-ethereum/common"
@@ -41,13 +40,14 @@ func (b *BondEnricher) Enrich(ctx context.Context, block rpcblock.Block, caller 
 func (b *BondEnricher) enrichCredits(ctx context.Context, block rpcblock.Block, caller GameCaller, game *monTypes.EnrichedGameData) error {
 	recipients := make(map[common.Address]bool)
 	for _, claim := range game.Claims {
-		recipients[claim.Claimant] = true
 		if claim.CounteredBy != (common.Address{}) {
 			recipients[claim.CounteredBy] = true
+		} else {
+			recipients[claim.Claimant] = true
 		}
 	}
-	recipients := maps.Keys(recipients)
-	credits, err := caller.GetCredits(ctx, block, recipients...)
+	recipientAddrs := maps.Keys(recipients)
+	credits, err := caller.GetCredits(ctx, block, recipientAddrs...)
 	if err != nil {
 		return err
 	}
@@ -56,7 +56,7 @@ func (b *BondEnricher) enrichCredits(ctx context.Context, block rpcblock.Block, 
 	}
 	game.Credits = make(map[common.Address]*big.Int)
 	for i, credit := range credits {
-		game.Credits[recipients[i]] = credit
+		game.Credits[recipientAddrs[i]] = credit
 	}
 	return nil
 }
@@ -64,7 +64,7 @@ func (b *BondEnricher) enrichCredits(ctx context.Context, block rpcblock.Block, 
 func (b *BondEnricher) enrichRequiredBonds(ctx context.Context, block rpcblock.Block, caller GameCaller, game *monTypes.EnrichedGameData) error {
 	positions := make([]*big.Int, len(game.Claims))
 	for _, claim := range game.Claims {
-		if claim.Bond != types.ResolvedBondAmount {
+		if !claim.Resolved {
 			continue
 		}
 		positions = append(positions, claim.Position.ToGIndex())
@@ -79,7 +79,7 @@ func (b *BondEnricher) enrichRequiredBonds(ctx context.Context, block rpcblock.B
 	game.RequiredBonds = make(map[int]*big.Int)
 	bondIndex := 0
 	for i, claim := range game.Claims {
-		if claim.Bond != types.ResolvedBondAmount {
+		if !claim.Resolved {
 			game.RequiredBonds[i] = claim.Bond
 			continue
 		}
