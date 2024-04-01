@@ -87,7 +87,7 @@ func (p Position) TraceIndex(maxDepth Depth) *big.Int {
 	// When we go right, we do a shift left and set the bottom bit to be 1.
 	// To do this in a single step, do all the shifts at once & or in all 1s for the bottom bits.
 	if maxDepth < p.depth {
-		panic("maxDepth < p.depth")
+		panic(fmt.Sprintf("maxDepth(%d) < p.depth(%d)", maxDepth, p.depth))
 	}
 	rd := maxDepth - p.depth
 	rhs := new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), uint(rd)), big.NewInt(1))
