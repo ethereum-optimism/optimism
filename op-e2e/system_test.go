@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"os"
 	"runtime"
+	"slices"
 	"testing"
 	"time"
 
@@ -28,7 +29,6 @@ import (
 
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"

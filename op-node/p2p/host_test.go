@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"math/big"
 	"net"
+	"slices"
 	"testing"
 	"time"
 
@@ -17,7 +18,6 @@ import (
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
 	ma "github.com/multiformats/go-multiaddr"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
