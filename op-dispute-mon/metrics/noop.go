@@ -19,7 +19,8 @@ func (*NoopMetricsImpl) RecordUp()                 {}
 func (*NoopMetricsImpl) CacheAdd(_ string, _ int, _ bool) {}
 func (*NoopMetricsImpl) CacheGet(_ string, _ bool)        {}
 
-func (*NoopMetricsImpl) RecordClaimResolutionDelayMax(delay float64) {}
+func (*NoopMetricsImpl) RecordWithdrawalRequests(_ common.Address, _ bool, _ int) {}
+func (*NoopMetricsImpl) RecordClaimResolutionDelayMax(delay float64)              {}
 
 func (*NoopMetricsImpl) RecordOutputFetchTime(timestamp float64) {}
 

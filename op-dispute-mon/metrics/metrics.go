@@ -39,6 +39,8 @@ type Metricer interface {
 	RecordInfo(version string)
 	RecordUp()
 
+	RecordWithdrawalRequests(delayedWeth common.Address, matches bool, count int)
+
 	RecordClaimResolutionDelayMax(delay float64)
 
 	RecordOutputFetchTime(timestamp float64)
@@ -61,6 +63,8 @@ type Metrics struct {
 
 	*opmetrics.CacheMetrics
 	*contractMetrics.ContractMetrics
+
+	withdrawalRequests prometheus.GaugeVec
 
 	info prometheus.GaugeVec
 	up   prometheus.Gauge
@@ -114,6 +118,14 @@ func NewMetrics() *Metrics {
 			Namespace: Namespace,
 			Name:      "claim_resolution_delay_max",
 			Help:      "Maximum claim resolution delay in seconds",
+		}),
+		withdrawalRequests: *factory.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "withdrawal_requests",
+			Help:      "Number of withdrawal requests categorised by the source DelayedWETH contract and whether the withdrawal request amount matches or diverges from its fault dispute game credits",
+		}, []string{
+			"delayedWETH",
+			"credits",
 		}),
 		gamesAgreement: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: Namespace,
@@ -170,6 +182,14 @@ func (m *Metrics) RecordInfo(version string) {
 func (m *Metrics) RecordUp() {
 	prometheus.MustRegister()
 	m.up.Set(1)
+}
+
+func (m *Metrics) RecordWithdrawalRequests(delayedWeth common.Address, matches bool, count int) {
+	credits := "matching"
+	if !matches {
+		credits = "divergent"
+	}
+	m.withdrawalRequests.WithLabelValues(delayedWeth.Hex(), credits).Set(float64(count))
 }
 
 func (m *Metrics) RecordClaimResolutionDelayMax(delay float64) {
