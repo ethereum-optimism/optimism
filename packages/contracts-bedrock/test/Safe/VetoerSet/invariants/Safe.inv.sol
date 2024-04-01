@@ -51,7 +51,7 @@ contract Handler is Test {
         // Deploy the guards and modules contracts.
         ownerGuard = new OwnerGuard(safe);
         _opFoundation = makeAddr("OPFoundation");
-        addOwnerModule = new AddOwnerModule(safe, ownerGuard, _opFoundation);
+        addOwnerModule = new AddOwnerModule(safe, _opFoundation);
         _delayedVetoable = makeAddr("DelayedVetoable");
         vetoModule = new VetoModule(safe, _delayedVetoable);
 

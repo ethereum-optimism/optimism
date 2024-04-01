@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Safe, Enum, OwnerManager, ModuleManager } from "safe-contracts/Safe.sol";
+import { Safe, Enum, OwnerManager, ModuleManager, StorageAccessible } from "safe-contracts/Safe.sol";
 
 import { OwnerGuard } from "src/Safe/VetoerSet/OwnerGuard.sol";
 import { AddOwnerModule } from "src/Safe/VetoerSet/AddOwnerModule.sol";
@@ -14,15 +14,13 @@ contract TestAddOwnerModule is Test {
     address private _admin;
     AddOwnerModule private _sut;
 
+    bytes32 internal constant GUARD_STORAGE_SLOT = 0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8;
+
     function setUp() public {
         _safe = makeAddr("Safe");
         _ownerGuard = makeAddr("OwnerGuard");
         _admin = makeAddr("Admin");
-        _sut = new AddOwnerModule({
-            _safe: Safe(payable(_safe)),
-            _ownerGuard: OwnerGuard(_ownerGuard),
-            _admin: _admin
-        });
+        _sut = new AddOwnerModule({ _safe: Safe(payable(_safe)), _admin: _admin });
     }
 
     /// @dev `addOwner` should revert with `SenderIsNotAdmin` when the sender is not the registered admin address.
@@ -65,6 +63,9 @@ contract TestAddOwnerModule is Test {
                 abi.encode(new address[](initialOwnerCount))
             );
 
+            // Mock `safe.getStorageAt(GUARD_STORAGE_SLOT, 1)` to return the owner guard address.
+            _mock_GetStorageAt();
+
             // Mock `ownerGuard.checkNewOwnerCount()` to revert with the `InvalidOwnerCount` erro.
             newOwnerCount = initialOwnerCount + 1;
             invalidOwnerCountError =
@@ -104,6 +105,9 @@ contract TestAddOwnerModule is Test {
                 abi.encode(new address[](initialOwnerCount))
             );
 
+            // Mock `safe.getStorageAt(GUARD_STORAGE_SLOT, 1)` to return the owner guard address.
+            _mock_GetStorageAt();
+
             // Mock `ownerGuard.checkNewOwnerCount()` to return `newThreshold`.
             uint256 newOwnerCount = initialOwnerCount + 1;
             uint256 newThreshold = (newOwnerCount * 66 + 99) / 100;
@@ -127,5 +131,19 @@ contract TestAddOwnerModule is Test {
         vm.expectCall(_safe, execTransactionFromModuleCall);
         vm.prank(_admin);
         _sut.addOwner(newOwner);
+    }
+
+    function _mock_GetStorageAt() private {
+        // Mock `safe.getStorageAt(GUARD_STORAGE_SLOT, 1)` to return the owner guard address.
+        bytes memory ownerGuard = new bytes(0x20);
+        assembly ("memory-safe") {
+            let word := sload(_ownerGuard.slot)
+            mstore(add(ownerGuard, 0x20), word)
+        }
+        vm.mockCall(
+            _safe,
+            abi.encodeCall(StorageAccessible.getStorageAt, (uint256(GUARD_STORAGE_SLOT), 1)),
+            abi.encode(ownerGuard)
+        );
     }
 }
